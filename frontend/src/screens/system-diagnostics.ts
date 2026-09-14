@@ -12,7 +12,7 @@ import { demoHealth, demoJobs } from '../fixtures/catalog';
 import { isApi } from '../api/session';
 import { getSettings, listSessions, listStreams, patchSettings, syncStreams, type ProductSettings } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
-import { describeError } from '../api/client';
+import { describeError, get } from '../api/client';
 
 const TABS = [
   { id: 'general', label: 'כללי' },
@@ -36,6 +36,7 @@ export class SystemDiagnostics extends LitElement {
   @state() private busy = false;
   @state() private message = '';
   @state() private error = '';
+  @state() private version = '';
 
   static styles = css`
     .sections {
@@ -138,10 +139,11 @@ export class SystemDiagnostics extends LitElement {
   private async loadSettings() {
     if (!isApi()) return;
     try {
-      const r = await getSettings();
+      const [r, h] = await Promise.all([getSettings(), get<{ version: string }>('health').catch(() => null)]);
       this.settings = r.settings;
       this.canEdit = r.can_edit;
       this.draft = {};
+      this.version = h?.version ?? '';
     } catch (err) {
       this.error = describeError(err);
     }
@@ -229,9 +231,9 @@ export class SystemDiagnostics extends LitElement {
     const dirty = Object.keys(this.draft).length > 0;
     return html`<div class="sections">
       <sw-card heading="תעבורת וידאו" subheading="ברירת המחדל לכל הנגנים; כל נגן יכול לעקוף אותה לדפדפן הנוכחי">
-        <div class="row"><span class="lbl">תעבורה ברירת מחדל<span class="muted">אוטומטי = WebRTC ואם נכשל MSE · WebRTC דורש UDP לרשת המקומית · MSE עובד גם דרך Ingress/Cloudflare</span></span>
+        <div class="row"><span class="lbl">תעבורה ברירת מחדל<span class="muted">MSE (ברירת המחדל) עובד דרך Ingress, Cloudflare ומאחורי CGNAT · WebRTC נותן השהיה נמוכה אך דורש UDP ישיר ל־go2rtc (רשת מקומית או ללא CGNAT) · אוטומטי מנסה WebRTC ונופל ל־MSE</span></span>
           <sw-field class="ctl"><select ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('media.transport_default', (e.target as HTMLSelectElement).value as ProductSettings['media.transport_default'])}>
-            ${(['auto', 'webrtc', 'mse'] as const).map((t) => html`<option value=${t} ?selected=${(this.value('media.transport_default') ?? 'auto') === t}>${t === 'auto' ? 'אוטומטי (WebRTC → MSE)' : t === 'webrtc' ? 'WebRTC בלבד' : 'MSE בלבד'}</option>`)}
+            ${(['mse', 'auto', 'webrtc'] as const).map((t) => html`<option value=${t} ?selected=${(this.value('media.transport_default') ?? 'mse') === t}>${t === 'auto' ? 'אוטומטי (WebRTC → MSE)' : t === 'webrtc' ? 'WebRTC בלבד' : 'MSE (ברירת מחדל)'}</option>`)}
           </select></sw-field></div>
         <div class="row"><span class="lbl">פרופיל לקיר המצלמות<span class="muted">משני חוסך CPU ורוחב פס; ראשי לתצוגה בודדת</span></span>
           <sw-field class="ctl"><select ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('media.wall_profile', (e.target as HTMLSelectElement).value as 'sub' | 'main')}>
@@ -275,7 +277,7 @@ export class SystemDiagnostics extends LitElement {
         <div class="row"><span class="lbl">סודות</span><span class="muted">בהגדרות ה־Add-on בלבד (options), לא במסד הנתונים</span></div>
       </sw-card>
       <sw-card heading="שדרוג ו־Rollback">
-        <div class="row"><span class="lbl">גרסת Add-on</span><span class="ltr">0.1.1</span></div>
+        <div class="row"><span class="lbl">גרסת Add-on</span><span class="ltr">${this.version || (isApi() ? '…' : 'נתוני הדגמה')}</span></div>
         <div class="row"><span class="lbl">סכימת DB</span><span class="ltr">1</span></div>
         <div class="row"><span class="lbl">Rollback</span><span class="muted">דרך HA (גרסה קודמת) + שחזור גיבוי</span></div>
       </sw-card>

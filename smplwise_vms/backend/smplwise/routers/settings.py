@@ -16,7 +16,9 @@ from ..rbac import INSTALLATION, Principal, authorize, require
 router = APIRouter()
 
 DEFAULTS: dict[str, str] = {
-    "media.transport_default": "auto",  # auto | webrtc | mse
+    # auto | webrtc | mse. MSE by default (owner decision 2026-09-14): it works through Ingress, Cloudflare
+    # and behind CGNAT; WebRTC/auto are selectable in Settings once UDP to the go2rtc host is possible.
+    "media.transport_default": "mse",
     "media.max_live_sessions": "8",
     "media.wall_profile": "sub",  # sub | main — profile used by the camera wall
     "snapshots.max_age_s": "60",

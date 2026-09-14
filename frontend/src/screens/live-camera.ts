@@ -325,7 +325,7 @@ export class LiveCamera extends LitElement {
   }
 
   private setTransport(t: Transport) {
-    setTransportOverride(t === (this.settings?.['media.transport_default'] ?? 'auto') ? '' : t);
+    setTransportOverride(t === (this.settings?.['media.transport_default'] ?? 'mse') ? '' : t);
     this.transport = t;
   }
 
@@ -358,7 +358,7 @@ export class LiveCamera extends LitElement {
           <div class="transport" role="group" aria-label="תעבורה">
             ${(['auto', 'webrtc', 'mse'] as Transport[]).map((t) => html`<button class=${this.transport === t ? 'on' : ''} @click=${() => this.setTransport(t)}>${t === 'auto' ? 'אוטומטי' : t === 'webrtc' ? 'WebRTC' : 'MSE'}</button>`)}
           </div>
-          ${transportOverride() ? html`<span class="note">ברירת המחדל של המערכת: ${this.settings?.['media.transport_default'] ?? 'auto'}</span>` : nothing}
+          ${transportOverride() ? html`<span class="note">ברירת המחדל של המערכת: ${this.settings?.['media.transport_default'] ?? 'mse'}</span>` : nothing}
         </div>
         <div class="note">${this.playerStatus === 'playing' ? `מנגן דרך ${this.playerTransport === 'webrtc' ? 'WebRTC' : 'MSE'}` : this.playerStatus === 'error' ? 'הזרם לא זמין' : 'מתחבר…'}</div>
       </div>

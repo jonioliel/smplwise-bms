@@ -14,9 +14,9 @@ from smplwise.services import nvr
 
 def test_settings_read_and_patch_permissions(client, settings):
     s = client.get("/api/v1/settings").json()
-    assert s["settings"]["media.transport_default"] == "auto" and s["can_edit"] is True
-    r = client.patch("/api/v1/settings", json={"media.transport_default": "mse", "media.max_live_sessions": 4})
-    assert r.status_code == 200 and r.json()["settings"]["media.transport_default"] == "mse" and r.json()["settings"]["media.max_live_sessions"] == 4
+    assert s["settings"]["media.transport_default"] == "mse" and s["can_edit"] is True
+    r = client.patch("/api/v1/settings", json={"media.transport_default": "webrtc", "media.max_live_sessions": 4})
+    assert r.status_code == 200 and r.json()["settings"]["media.transport_default"] == "webrtc" and r.json()["settings"]["media.max_live_sessions"] == 4
     assert client.patch("/api/v1/settings", json={"media.transport_default": "hls"}).status_code == 422
     bind(client, settings, "ron", "viewer", "installation", "*")
     assert client.get("/api/v1/settings", headers=as_user("ron")).json()["can_edit"] is False

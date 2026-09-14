@@ -5,7 +5,7 @@ import { isApi } from './session';
 let cached: ProductSettings | null = null;
 let inflight: Promise<ProductSettings> | null = null;
 
-const DEFAULTS: ProductSettings = { 'media.transport_default': 'auto', 'media.max_live_sessions': 8, 'media.wall_profile': 'sub', 'snapshots.max_age_s': 60 };
+const DEFAULTS: ProductSettings = { 'media.transport_default': 'mse', 'media.max_live_sessions': 8, 'media.wall_profile': 'sub', 'snapshots.max_age_s': 60 };
 
 export async function productSettings(force = false): Promise<ProductSettings> {
   if (!isApi()) return DEFAULTS;
@@ -23,5 +23,5 @@ export function invalidateSettings() {
 }
 
 export function effectiveTransport(settings: ProductSettings | null): Transport {
-  return transportOverride() || settings?.['media.transport_default'] || 'auto';
+  return transportOverride() || settings?.['media.transport_default'] || 'mse';
 }

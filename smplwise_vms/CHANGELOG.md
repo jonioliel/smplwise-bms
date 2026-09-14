@@ -1,5 +1,10 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.2 (pilot, in progress)
+- Default video transport is now **MSE** (works through Ingress, Cloudflare and behind CGNAT);
+  WebRTC or automatic WebRTC→MSE can be selected in Settings → וידאו ומדיה when UDP to the go2rtc
+  host is possible. Settings shows the running add-on version.
+
 ## 0.1.1 (pilot, in progress)
 - Live video: go2rtc adapter (namespaced `smplwise_*` streams only), authorized WebSocket relay,
   WebRTC/MSE player with automatic fallback and a transport default in Settings.

@@ -42,9 +42,10 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
 - Browser ↔ add-on WebSocket relay ↔ go2rtc. The browser never learns the go2rtc address or any
   RTSP URL; every stream request is authorized per camera (a viewer sees only cameras anchored on
   floors in their scope).
-- Transport: **WebRTC** (lowest latency; needs UDP between the browser and the go2rtc host — fine on
-  the LAN) with automatic fallback to **MSE** (works through Ingress and Cloudflare tunnels). The
-  product default is set in Settings → וידאו ומדיה (`auto` / `webrtc` / `mse`); every player can
+- Transport: **MSE** is the default (fMP4 over the relay socket: works through Ingress, Cloudflare
+  tunnels and behind CGNAT). **WebRTC** gives the lowest latency but needs UDP between the browser
+  and the go2rtc host (fine on the LAN, not through a tunnel or CGNAT); `auto` tries WebRTC and
+  falls back to MSE. The product default is set in Settings → וידאו ומדיה; every player can
   override it for the current browser.
 - What to expect with a Hikvision NVR (measured on the pilot lab, Chrome): the **sub** profile (H.264
   Baseline 640×360) plays over WebRTC within a few seconds; the **main** profile (H.264 Main
