@@ -1,0 +1,56 @@
+{
+  "schema_version": "1.0",
+  "plan_version_id": "synthetic-plan-v1",
+  "floor_id": "synthetic-floor-1",
+  "source": {
+    "asset_id": "synthetic-source",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "page": 1,
+    "width_px": 2000,
+    "height_px": 1200
+  },
+  "coordinates": {
+    "space": "normalized_source_top_left",
+    "unit": "fraction",
+    "original_pixels_to_normalized": [
+      0.0005,
+      0,
+      0,
+      0,
+      0.0008333333333333334,
+      0,
+      0,
+      0,
+      1
+    ],
+    "scale_m_per_source_px": null
+  },
+  "elements": [
+    {
+      "id": "wall-1",
+      "kind": "wall",
+      "points": [
+        {
+          "x": 0.1,
+          "y": 0.1
+        },
+        {
+          "x": 0.9,
+          "y": 0.1
+        }
+      ],
+      "label": null,
+      "confidence": null,
+      "uncertain": false
+    }
+  ],
+  "warnings": [
+    "Synthetic contract fixture. No real plan was analyzed."
+  ],
+  "provenance": {
+    "mode": "manual",
+    "prompt_version": null,
+    "model_reference": null,
+    "human_approved": false
+  }
+}

@@ -1,0 +1,7 @@
+# Historical specifications — reference, not executable truth
+
+These five files were retrieved from prior saved project documents. They are NOT the source code of the working old system. No execution or compatibility audit has been performed on that system in this preparation.
+
+The new `MASTER_SPEC_HE.md` and `AGENTS.md` override conflicting historical proposals. In particular, the new target is an add-on with external go2rtc and thin HA bridge. Old endpoint tables (including download method/path and channel conventions) are candidates to verify, not approved integration contracts. Prior prompts are archived reference content, not active instructions.
+
+G0 must obtain the real running source snapshot/commit, dependency lock, redacted configuration and repeatable legacy behavior. Do not rewrite, delete or deactivate the working system before characterization and an approved migration/rollback plan.

@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:smplwise:schema:ha-identity:1.1",
+  "title": "Minimal HA directory record",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "ha_instance_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ha_user_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "display_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "active": {
+      "type": "boolean"
+    },
+    "system_generated": {
+      "type": "boolean"
+    },
+    "local_only": {
+      "type": "boolean"
+    },
+    "source": {
+      "const": "home_assistant"
+    },
+    "last_verified_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "sync_status": {
+      "enum": [
+        "verified",
+        "stale",
+        "unavailable",
+        "removed"
+      ]
+    }
+  },
+  "required": [
+    "ha_instance_id",
+    "ha_user_id",
+    "display_name",
+    "active",
+    "system_generated",
+    "local_only",
+    "source",
+    "last_verified_at",
+    "sync_status"
+  ],
+  "description": "Source record synchronized through the authorized HA bridge. Contains neither passwords nor VMS admin flags. Authentication still requires a separately validated live session."
+}

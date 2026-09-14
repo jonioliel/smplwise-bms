@@ -1,0 +1,55 @@
+{
+  "version": "1.1-design",
+  "status": "PLANNED_NOT_IMPLEMENTED",
+  "note": "Candidate VMS routes, not existing Home Assistant APIs. Finalize versioned payloads and bridge authentication in G0; no generic user_id impersonation or HA auth writes.",
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/api/v1/me",
+      "permission": "authenticated_self",
+      "purpose": "Authenticated HA identity + VMS effective capabilities in requested scope."
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/identity/users",
+      "permission": "identity.directory.read",
+      "purpose": "Authorized minimal directory; not a public HA-users endpoint."
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/identity/sync",
+      "permission": "identity.directory.read + system.configure",
+      "purpose": "Bounded server-side reconciliation with HA bridge."
+    },
+    {
+      "method": "GET/POST/PATCH/DELETE",
+      "path": "/api/v1/access/groups",
+      "permission": "rbac.assign; full group binding impact checked",
+      "purpose": "VMS groups only, not HA groups."
+    },
+    {
+      "method": "GET/POST/PATCH/DELETE",
+      "path": "/api/v1/access/bindings",
+      "permission": "rbac.assign; role-and-scope delegation checked",
+      "purpose": "Grant/revoke local role binding; optimistic revision check."
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/access/roles",
+      "permission": "authorized role visibility",
+      "purpose": "Built-in roles in Pilot."
+    },
+    {
+      "method": "POST/PATCH",
+      "path": "/api/v1/access/roles",
+      "permission": "rbac.roles.manage",
+      "purpose": "V1 custom role authoring; not required for Pilot."
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/access/preview",
+      "permission": "self or explicitly authorized administrator",
+      "purpose": "Compute effective permissions without impersonation."
+    }
+  ]
+}

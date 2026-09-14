@@ -1,0 +1,153 @@
+{
+  "version": "1.1",
+  "status": "EXPECTED_TEST_VECTORS_NOT_EXECUTED",
+  "cases": [
+    {
+      "id": "ordinary-ha-floor-editor",
+      "role": "editor",
+      "scope": "floor-2",
+      "action": "map.edit",
+      "target": "floor-2",
+      "expected_allow": true,
+      "reason": "User remains a non-admin in HA."
+    },
+    {
+      "id": "cross-floor-edit",
+      "role": "editor",
+      "scope": "floor-2",
+      "action": "map.edit",
+      "target": "floor-3",
+      "expected_allow": false,
+      "reason": "A role never grants outside its binding scope."
+    },
+    {
+      "id": "editor-global-settings",
+      "role": "editor",
+      "scope": "floor-2",
+      "action": "system.configure",
+      "target": "installation",
+      "expected_allow": false,
+      "reason": "Editing maps is not global administration."
+    },
+    {
+      "id": "editor-manage-users",
+      "role": "editor",
+      "scope": "floor-2",
+      "action": "rbac.assign",
+      "target": "floor-2",
+      "expected_allow": false,
+      "reason": "Editor cannot alter group membership."
+    },
+    {
+      "id": "editor-unlock",
+      "role": "editor",
+      "scope": "floor-2",
+      "action": "door.unlock",
+      "target": "door-floor-2",
+      "expected_allow": false,
+      "reason": "No implicit physical command grant."
+    },
+    {
+      "id": "site-admin-peer-site",
+      "role": "site_admin",
+      "scope": "site-a",
+      "action": "map.edit",
+      "target": "site-b",
+      "expected_allow": false,
+      "reason": "No lateral authority."
+    },
+    {
+      "id": "site-admin-users",
+      "role": "site_admin",
+      "scope": "site-a",
+      "action": "rbac.assign",
+      "target": "site-a",
+      "expected_allow": false,
+      "reason": "Pilot site admin has no delegation grant."
+    },
+    {
+      "id": "system-admin-not-ha-admin",
+      "role": "system_admin",
+      "scope": "installation",
+      "action": "ha.admin.promote",
+      "target": "installation",
+      "expected_allow": false,
+      "reason": "HA account mutation is outside product scope."
+    },
+    {
+      "id": "unassigned-active-ha-user",
+      "role": null,
+      "scope": null,
+      "action": "map.read",
+      "target": "floor-2",
+      "expected_allow": false,
+      "reason": "Active HA identity alone is not a VMS entitlement."
+    },
+    {
+      "id": "viewer-history",
+      "role": "viewer",
+      "scope": "floor-2",
+      "action": "video.playback",
+      "target": "camera-floor-2",
+      "expected_allow": false,
+      "reason": "Live and history are separate capabilities."
+    }
+  ],
+  "compound_cases": [
+    {
+      "id": "no-cross-product",
+      "bindings": [
+        {
+          "role": "viewer",
+          "scope": "site-a"
+        },
+        {
+          "role": "editor",
+          "scope": "floor-2-site-b"
+        }
+      ],
+      "action": "map.edit",
+      "target": "floor-1-site-a",
+      "expected_allow": false
+    },
+    {
+      "id": "ha-control-denied",
+      "vms_grant": true,
+      "ha_control_permission": false,
+      "expected_allow": false
+    },
+    {
+      "id": "known-deleted-user",
+      "role": "system_admin",
+      "active": false,
+      "expected_allow": false
+    },
+    {
+      "id": "forged-ingress-identity",
+      "trusted_proxy": false,
+      "claimed_role": "system_admin",
+      "expected_allow": false
+    },
+    {
+      "id": "same-name-new-user-id",
+      "new_id": "demo-dana-new",
+      "old_binding_id": "demo-dana-user",
+      "expected_allow": false
+    },
+    {
+      "id": "revoke-stream",
+      "permission_revision_at_issue": 1,
+      "current_permission_revision": 2,
+      "expected_allow": false
+    },
+    {
+      "id": "delegated-group-cross-scope",
+      "delegated_scope": "site-a",
+      "group_bindings": [
+        "site-a",
+        "site-b"
+      ],
+      "expected_allow": false
+    }
+  ]
+}

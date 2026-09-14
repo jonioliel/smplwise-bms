@@ -1,0 +1,650 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "SMPLWISE VMS — planned core contract subset",
+    "version": "0.1.0-design",
+    "description": "Design only. Not an implemented server. Domain authorization is mandatory in addition to transport authentication. Full resources listed in MASTER_SPEC_HE.md chapter 32."
+  },
+  "servers": [
+    {
+      "url": "/api/v1"
+    }
+  ],
+  "security": [
+    {
+      "sessionAuth": []
+    }
+  ],
+  "paths": {
+    "/cameras": {
+      "get": {
+        "operationId": "listCameras",
+        "summary": "List only authorized cameras with real capability states",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "409": {
+            "description": "Conflict / stale revision"
+          },
+          "503": {
+            "description": "Source unavailable"
+          }
+        }
+      }
+    },
+    "/entities": {
+      "get": {
+        "operationId": "listEntities",
+        "summary": "List authorized HA bindings; unknown domains remain read-only",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "409": {
+            "description": "Conflict / stale revision"
+          },
+          "503": {
+            "description": "Source unavailable"
+          }
+        }
+      }
+    },
+    "/floors": {
+      "get": {
+        "operationId": "listFloors",
+        "summary": "Authorized floors and published plan version handles",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "409": {
+            "description": "Conflict / stale revision"
+          },
+          "503": {
+            "description": "Source unavailable"
+          }
+        }
+      }
+    },
+    "/plan-assets": {
+      "post": {
+        "operationId": "uploadPlanAsset",
+        "summary": "Upload through isolated MIME/size/page-limited pipeline",
+        "responses": {
+          "202": {
+            "description": "Accepted job"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "409": {
+            "description": "Conflict / stale revision"
+          },
+          "503": {
+            "description": "Source unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Multipart binary upload shape to finalize in G0; never arbitrary source URL."
+              }
+            }
+          }
+        }
+      }
+    },
+    "/plans/{id}/publish": {
+      "post": {
+        "operationId": "publishPlan",
+        "summary": "Explicit human approval after compare; require revision match",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "409": {
+            "description": "Conflict / stale revision"
+          },
+          "503": {
+            "description": "Source unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "expected_revision": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "approval_note": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "expected_revision",
+                  "approval_note"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ]
+      }
+    },
+    "/map-anchors/{id}": {
+      "patch": {
+        "operationId": "updateAnchor",
+        "summary": "Revision-checked placement update",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MapAnchor"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "409": {
+            "description": "Conflict / stale revision"
+          },
+          "503": {
+            "description": "Source unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MapAnchor"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ]
+      }
+    },
+    "/recordings/segments": {
+      "get": {
+        "operationId": "listRecordingSegments",
+        "summary": "Bounded search with explicit coverage and pagination",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "segments": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "coverage": {
+                      "enum": [
+                        "complete",
+                        "partial",
+                        "unknown"
+                      ]
+                    },
+                    "cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "segments",
+                    "coverage",
+                    "cursor"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "409": {
+            "description": "Conflict / stale revision"
+          },
+          "503": {
+            "description": "Source unavailable"
+          }
+        },
+        "parameters": [
+          {
+            "name": "camera_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "Z$"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "Z$"
+            }
+          }
+        ]
+      }
+    },
+    "/playback-sessions": {
+      "post": {
+        "operationId": "createPlayback",
+        "summary": "Create authenticated per-consumer session",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaybackSession"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "409": {
+            "description": "Conflict / stale revision"
+          },
+          "503": {
+            "description": "Source unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "camera_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "requested_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "Z$"
+                  }
+                },
+                "required": [
+                  "camera_id",
+                  "requested_at"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/playback-sessions/{id}/seek": {
+      "post": {
+        "operationId": "seekPlayback",
+        "summary": "New generation; discard stale completion",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaybackSession"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "409": {
+            "description": "Conflict / stale revision"
+          },
+          "503": {
+            "description": "Source unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "requested_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "Z$"
+                  },
+                  "expected_generation": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "requested_at",
+                  "expected_generation"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ]
+      }
+    },
+    "/entity-actions": {
+      "post": {
+        "operationId": "entityAction",
+        "summary": "Allowlisted action with per-user/entity permission and risk gate",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "409": {
+            "description": "Conflict / stale revision"
+          },
+          "503": {
+            "description": "Source unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntityAction"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/export-jobs": {
+      "post": {
+        "operationId": "createExportJob",
+        "summary": "Durable bounded export; separate download permission",
+        "responses": {
+          "202": {
+            "description": "Accepted job"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "409": {
+            "description": "Conflict / stale revision"
+          },
+          "503": {
+            "description": "Source unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "camera_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "start": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "Z$"
+                  },
+                  "end": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "Z$"
+                  },
+                  "case_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "camera_id",
+                  "start",
+                  "end",
+                  "case_id"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "getHealth",
+        "summary": "Separate recording/live/HA/database/dependency status",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "409": {
+            "description": "Conflict / stale revision"
+          },
+          "503": {
+            "description": "Source unavailable"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "sessionAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "vms_session",
+        "description": "Illustrative server session established through validated HA/Ingress identity. Do not trust caller supplied identity headers."
+      }
+    },
+    "schemas": {
+      "PlaybackSession": {
+        "$ref": "./schemas/playback-session.schema.json"
+      },
+      "MapAnchor": {
+        "$ref": "./schemas/map-anchor.schema.json"
+      },
+      "PlanProposal": {
+        "$ref": "./schemas/plan.schema.json"
+      },
+      "EntityAction": {
+        "$ref": "./schemas/entity-action.schema.json"
+      },
+      "Error": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "user_message": {
+            "type": "string",
+            "minLength": 1
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "correlation_id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "code",
+          "user_message",
+          "retryable",
+          "correlation_id"
+        ]
+      }
+    }
+  }
+}

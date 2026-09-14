@@ -1,0 +1,3574 @@
+[
+  {
+    "id": "R001",
+    "title": "איסוף ומיפוי המקור הישן",
+    "statement": "לקבל Snapshot או Commit של המערכת שבאמת פועלת, ולהפיק הוראות הרצה, רשימת מודולים ותלויות. אין להסיק שהמסמכים ההיסטוריים הם הקוד הפעיל.",
+    "task_ids": [
+      "T001"
+    ],
+    "chapters": [
+      3,
+      4
+    ],
+    "screens": [],
+    "phase": "G0",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT001"
+    ]
+  },
+  {
+    "id": "R002",
+    "title": "איסוף ומיפוי המקור הישן",
+    "statement": "ליצור REUSE_MATRIX לכל יכולת: reuse, wrap, refactor או replace, עם קובץ מקור, התנהגות שנצפתה, סיכון ונימוק. אין למחוק את המקור הישן.",
+    "task_ids": [
+      "T001"
+    ],
+    "chapters": [
+      3,
+      4
+    ],
+    "screens": [],
+    "phase": "G0",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT002"
+    ]
+  },
+  {
+    "id": "R003",
+    "title": "מעבדת פיתוח והרשאות ייעודיות",
+    "statement": "לאמת גישה מקומית ל־NVR, HA ו־go2rtc מתוך סביבת הפיתוח; לתעד דגם, Firmware, Codec ונתיבים ללא סודות.",
+    "task_ids": [
+      "T002"
+    ],
+    "chapters": [
+      8,
+      38
+    ],
+    "screens": [
+      "SC26"
+    ],
+    "phase": "G0",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT003"
+    ]
+  },
+  {
+    "id": "R004",
+    "title": "מעבדת פיתוח והרשאות ייעודיות",
+    "statement": "להגדיר חשבונות ייעודיים, גיבוי לפני בדיקה, Read-only כברירת מחדל ויומן פעולות; אין גישה מלאה אוטומטית או פקודות פיזיות בזמן bootstrap.",
+    "task_ids": [
+      "T002"
+    ],
+    "chapters": [
+      8,
+      38
+    ],
+    "screens": [
+      "SC26"
+    ],
+    "phase": "G0",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT004"
+    ]
+  },
+  {
+    "id": "R005",
+    "title": "לכידת Golden traces מהמערכת הישנה",
+    "statement": "ללכוד בקשות ותשובות מצונזרות של discovery, search, pagination, playback, export ו־events שעובדים, עם זמני UTC ותצורת המקור.",
+    "task_ids": [
+      "T003"
+    ],
+    "chapters": [
+      3,
+      19,
+      20,
+      24
+    ],
+    "screens": [],
+    "phase": "G0",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT005"
+    ]
+  },
+  {
+    "id": "R006",
+    "title": "לכידת Golden traces מהמערכת הישנה",
+    "statement": "לייצר fixtures של הצלחה, אין הקלטה, forbidden, timeout ו־partial; כתובות עם סיסמה ופרטים אישיים אינם נכנסים ל־Git.",
+    "task_ids": [
+      "T003"
+    ],
+    "chapters": [
+      3,
+      19,
+      20,
+      24
+    ],
+    "screens": [],
+    "phase": "G0",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT006"
+    ]
+  },
+  {
+    "id": "R007",
+    "title": "בדיקות Characterization והשוואת התנהגות",
+    "statement": "להריץ תרחישי קלט זהים על המקור הישן וה־adapter החדש ולשמור diff של mapping, search intervals ותוצאות השגיאה.",
+    "task_ids": [
+      "T004"
+    ],
+    "chapters": [
+      3,
+      4,
+      34
+    ],
+    "screens": [],
+    "phase": "G0",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT007"
+    ]
+  },
+  {
+    "id": "R008",
+    "title": "בדיקות Characterization והשוואת התנהגות",
+    "statement": "לקבוע baseline ביצועים ופריים אמיתי בזמן ידוע; אי־התאמה מתועדת כפער ולא מתוקנת בהזזת שעות קבועה.",
+    "task_ids": [
+      "T004"
+    ],
+    "chapters": [
+      3,
+      4,
+      34
+    ],
+    "screens": [],
+    "phase": "G0",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT008"
+    ]
+  },
+  {
+    "id": "R009",
+    "title": "ביקורת סודות, רישיונות ותלויות",
+    "statement": "להפיק inventory ורישיונות לתלויות וקוד שנלמד או מועתק, כולל notices רלוונטיים; קוד ספק אינו מועתק ללא זכות שימוש.",
+    "task_ids": [
+      "T005"
+    ],
+    "chapters": [
+      3,
+      8,
+      39
+    ],
+    "screens": [],
+    "phase": "G0",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT009"
+    ]
+  },
+  {
+    "id": "R010",
+    "title": "ביקורת סודות, רישיונות ותלויות",
+    "statement": "לסרוק סודות, log leaks ונתיבי כתיבה מסוכנים; לגבש טיפול בממצאים לפני הפצת fixtures או build.",
+    "task_ids": [
+      "T005"
+    ],
+    "chapters": [
+      3,
+      8,
+      39
+    ],
+    "screens": [],
+    "phase": "G0",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT010"
+    ]
+  },
+  {
+    "id": "R011",
+    "title": "הוכחת Playback ו־Seek מוקדמת",
+    "statement": "להוכיח מול NVR אמיתי שזמן בקשה ידוע מוביל להקלטה ולפריים הנכונים; למדוד keyframe offset ומיפוי PTS לזמן המקור.",
+    "task_ids": [
+      "T006"
+    ],
+    "chapters": [
+      20,
+      21,
+      24,
+      25
+    ],
+    "screens": [
+      "SC12",
+      "SC13"
+    ],
+    "phase": "G0",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT011"
+    ]
+  },
+  {
+    "id": "R012",
+    "title": "הוכחת Playback ו־Seek מוקדמת",
+    "statement": "לבדוק create/update/delete ב־go2rtc על namespace ניסוי: persistence, חיבורי consumers ו־restart. לבחור נתיב session או bounded clip על סמך ראיה.",
+    "task_ids": [
+      "T006"
+    ],
+    "chapters": [
+      20,
+      21,
+      24,
+      25
+    ],
+    "screens": [
+      "SC12",
+      "SC13"
+    ],
+    "phase": "G0",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT012"
+    ]
+  },
+  {
+    "id": "R013",
+    "title": "נעילת Design tokens ורכיבי בסיס",
+    "statement": "לשמר את שלושת לוחות ההדמיה ולממש tokens, ניווט ארבעה מצבים, טיפוגרפיה, ריווח, צבעי מצב ורכיבי בסיס ללא שינוי שפת העיצוב.",
+    "task_ids": [
+      "T007"
+    ],
+    "chapters": [
+      5,
+      31
+    ],
+    "screens": [
+      "SC01",
+      "SC04",
+      "SC07",
+      "SC10"
+    ],
+    "phase": "G0",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT013"
+    ]
+  },
+  {
+    "id": "R014",
+    "title": "נעילת Design tokens ורכיבי בסיס",
+    "statement": "לצלם מפת קומה, מצלמה ומגירת ישות בעברית/RTL ובמובייל; empty/error/stale נראים שונים מנתון חי.",
+    "task_ids": [
+      "T007"
+    ],
+    "chapters": [
+      5,
+      31
+    ],
+    "screens": [
+      "SC01",
+      "SC04",
+      "SC07",
+      "SC10"
+    ],
+    "phase": "G0",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT014"
+    ]
+  },
+  {
+    "id": "R015",
+    "title": "ארכיטקטורה, ADR וחוזים נעולים",
+    "statement": "לאשר גבולות add-on, HA integration ו־go2rtc חיצוני, בעלות על DB/media והחלטות reuse. לתעד חלופות והנחות שנפסלו.",
+    "task_ids": [
+      "T008"
+    ],
+    "chapters": [
+      2,
+      7,
+      9,
+      32
+    ],
+    "screens": [],
+    "phase": "G0",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT015"
+    ]
+  },
+  {
+    "id": "R016",
+    "title": "ארכיטקטורה, ADR וחוזים נעולים",
+    "statement": "לנעול חוזי API, מזהים, schema revisions ו־error model לפני עבודת Agents מקבילה; דוגמאות תקינות נכנסות לבדיקת contracts.",
+    "task_ids": [
+      "T008"
+    ],
+    "chapters": [
+      2,
+      7,
+      9,
+      32
+    ],
+    "screens": [],
+    "phase": "G0",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT016"
+    ]
+  },
+  {
+    "id": "R017",
+    "title": "שלד מאגר, HA Add-on/App ו־CI",
+    "statement": "למסור שלד Add-on/App ייעודי ל־HAOS עם config.yaml, Ingress, image, /data מתמשך ו־CI. go2rtc חיצוני; לא להחליף בתצורת HACS-only, כרטיס בלבד או Web app נפרד.",
+    "task_ids": [
+      "T009"
+    ],
+    "chapters": [
+      7,
+      8,
+      35,
+      39
+    ],
+    "screens": [
+      "SC26"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT017"
+    ]
+  },
+  {
+    "id": "R018",
+    "title": "שלד מאגר, HA Add-on/App ו־CI",
+    "statement": "לתעד התקנת Add-on ממאגר Supervisor והתקנת Bridge HA הדק בנפרד; לשמור upgrade/backup/rollback ובדיקות תצורה. חשיפת משתמש רגיל נבחנת ב־T081.",
+    "task_ids": [
+      "T009"
+    ],
+    "chapters": [
+      7,
+      8,
+      35,
+      39
+    ],
+    "screens": [
+      "SC26"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT018"
+    ]
+  },
+  {
+    "id": "R019",
+    "title": "מדיניות מודלים וגבולות הרצות",
+    "statement": "למפות balanced/deep למודלים הזמינים בפועל מקומית, לתעד version ו־reasoning; שמות Astra/Sol הם העדפה ולא מזהי API מומצאים.",
+    "task_ids": [
+      "T010"
+    ],
+    "chapters": [
+      35,
+      36
+    ],
+    "screens": [],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT019"
+    ]
+  },
+  {
+    "id": "R020",
+    "title": "מדיניות מודלים וגבולות הרצות",
+    "statement": "לשמור תקרת הוצאה מאושרת, max attempts והרשאות; task metadata אינו מוצג כאילו הוא מחליף מודל אוטומטית בסשן.",
+    "task_ids": [
+      "T010"
+    ],
+    "chapters": [
+      35,
+      36
+    ],
+    "screens": [],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT020"
+    ]
+  },
+  {
+    "id": "R021",
+    "title": "אימות זהות HA והרשאות VMS בצד שרת",
+    "statement": "כל בקשה מקבלת principal מאומת לפי HA instance/user ID ו־roles/groups מקומיים ל־VMS. HA משתמש רגיל יכול להיות editor או site_admin בלי שינוי is_admin/group_ids ב־HA.",
+    "task_ids": [
+      "T011"
+    ],
+    "chapters": [
+      8,
+      15,
+      32,
+      34
+    ],
+    "screens": [
+      "SC24",
+      "SC26"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT021"
+    ]
+  },
+  {
+    "id": "R022",
+    "title": "אימות זהות HA והרשאות VMS בצד שרת",
+    "statement": "לאכוף default deny, scopes ורוויזיות על API/WS/media; bootstrap מפורש למנהל הראשון. אין הרשאה מכותרת לא מהימנה או מ־service token. מינימום RBAC מחייב כבר בפיילוט.",
+    "task_ids": [
+      "T011"
+    ],
+    "chapters": [
+      8,
+      15,
+      32,
+      34
+    ],
+    "screens": [
+      "SC24",
+      "SC26"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT022"
+    ]
+  },
+  {
+    "id": "R023",
+    "title": "גילוי NVR ו־Capability registry",
+    "statement": "לזהות דגם, Firmware ו־capabilities ולשמור states supported/unsupported/unknown/forbidden נפרדים.",
+    "task_ids": [
+      "T012"
+    ],
+    "chapters": [
+      19
+    ],
+    "screens": [
+      "SC26",
+      "SC27"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT023"
+    ]
+  },
+  {
+    "id": "R024",
+    "title": "גילוי NVR ו־Capability registry",
+    "statement": "לא להציג PTZ, audio, smart search או writable recording policy בלי ראיית תמיכה; כל endpoint candidate מתועד עם method ותוצאת בדיקה.",
+    "task_ids": [
+      "T012"
+    ],
+    "chapters": [
+      19
+    ],
+    "screens": [
+      "SC26",
+      "SC27"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT024"
+    ]
+  },
+  {
+    "id": "R025",
+    "title": "מיפוי ערוצים, Tracks ושמות",
+    "statement": "לגלות ולמפות input channel, main/sub stream ו־recording track עם מזהים יציבים; אין חישוב קשיח channel*100+1.",
+    "task_ids": [
+      "T013"
+    ],
+    "chapters": [
+      19,
+      22
+    ],
+    "screens": [
+      "SC27"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT025"
+    ]
+  },
+  {
+    "id": "R026",
+    "title": "מיפוי ערוצים, Tracks ושמות",
+    "statement": "לשמור alias מקומי, סדר, visibility ו־HA binding בלי לשנות שם NVR; reconnect אינו מייצר מצלמות כפולות.",
+    "task_ids": [
+      "T013"
+    ],
+    "chapters": [
+      19,
+      22
+    ],
+    "screens": [
+      "SC27"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT026"
+    ]
+  },
+  {
+    "id": "R027",
+    "title": "TimeAdapter ו־DST",
+    "statement": "לייצג זמנים פנימיים ב־UTC ולפרש בקשה מקומית לפי IANA והתאריך המבוקש; לבדוק fold/gap, יום 23/25 שעות וחציית חצות.",
+    "task_ids": [
+      "T014"
+    ],
+    "chapters": [
+      20,
+      23,
+      24
+    ],
+    "screens": [
+      "SC12",
+      "SC28"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT027"
+    ]
+  },
+  {
+    "id": "R028",
+    "title": "TimeAdapter ו־DST",
+    "statement": "להפריד clock drift, OSD, timezone ו־endpoint quirk; לשמר ערך raw ופרופיל NVR, ולדחות זמן ללא timezone כשמשמעותו אינה ידועה.",
+    "task_ids": [
+      "T014"
+    ],
+    "chapters": [
+      20,
+      23,
+      24
+    ],
+    "screens": [
+      "SC12",
+      "SC28"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT028"
+    ]
+  },
+  {
+    "id": "R029",
+    "title": "Adapter ל־go2rtc חיצוני",
+    "statement": "לאמת API/גרסה, לייצר namespaced live streams בלבד ולמנוע URL או credentials של מקור בדפדפן/לוגים.",
+    "task_ids": [
+      "T015"
+    ],
+    "chapters": [
+      21
+    ],
+    "screens": [
+      "SC28"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT029"
+    ]
+  },
+  {
+    "id": "R030",
+    "title": "Adapter ל־go2rtc חיצוני",
+    "statement": "לשמר streams זרים ולהציג outage נקודתי; HA פנימי או host name לא מוכר אינם מניחים מראש ככתובת שירות.",
+    "task_ids": [
+      "T015"
+    ],
+    "chapters": [
+      21
+    ],
+    "screens": [
+      "SC28"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT030"
+    ]
+  },
+  {
+    "id": "R031",
+    "title": "Sessions, leases וניקוי מדיה",
+    "statement": "ליישם session ownership, consumer lease, expiry ותקרת sessions; ניתוק הדפדפן או restart אינו משאיר streams ללא גבול.",
+    "task_ids": [
+      "T016"
+    ],
+    "chapters": [
+      21,
+      24
+    ],
+    "screens": [
+      "SC28"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT031"
+    ]
+  },
+  {
+    "id": "R032",
+    "title": "Sessions, leases וניקוי מדיה",
+    "statement": "לבדוק ניקוי וקיום הגדרות לאחר restart בלי מחיקת source שלא בבעלות המוצר; no-consumers אינו תנאי יחיד למחיקה בזמן reconnect.",
+    "task_ids": [
+      "T016"
+    ],
+    "chapters": [
+      21,
+      24
+    ],
+    "screens": [
+      "SC28"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT032"
+    ]
+  },
+  {
+    "id": "R033",
+    "title": "נגן Live מאובטח ו־fallback",
+    "statement": "להציג וידאו אמיתי עם סטטוס חיבור, שמע בהסכמה ו־fullscreen; מפתח הגישה scoped למצלמה ומשתמש.",
+    "task_ids": [
+      "T017"
+    ],
+    "chapters": [
+      21,
+      22
+    ],
+    "screens": [
+      "SC08"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT033"
+    ]
+  },
+  {
+    "id": "R034",
+    "title": "נגן Live מאובטח ו־fallback",
+    "statement": "לבדוק WebRTC ברשת הייחוס ו־MSE/HLS חלופי כשנתמך; failure לא מוצג כ־Live, ו־Ingress לא נחשב פתרון ICE/UDP.",
+    "task_ids": [
+      "T017"
+    ],
+    "chapters": [
+      21,
+      22
+    ],
+    "screens": [
+      "SC08"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT034"
+    ]
+  },
+  {
+    "id": "R035",
+    "title": "קיר מצלמות ותצוגות שמורות",
+    "statement": "לאפשר 1/2/4/6/9/12/16/custom, reorder, resize, pin ושמירת views פר משתמש או משותפים בהרשאה.",
+    "task_ids": [
+      "T018"
+    ],
+    "chapters": [
+      22,
+      31
+    ],
+    "screens": [
+      "SC07",
+      "SC09"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT035"
+    ]
+  },
+  {
+    "id": "R036",
+    "title": "קיר מצלמות ותצוגות שמורות",
+    "statement": "להפעיל lazy streams, main/sub/auto ו־mobile override; מסך טלפון לא טוען 16 main streams רק כי כך נשמר בדסקטופ.",
+    "task_ids": [
+      "T018"
+    ],
+    "chapters": [
+      22,
+      31
+    ],
+    "screens": [
+      "SC07",
+      "SC09"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT036"
+    ]
+  },
+  {
+    "id": "R037",
+    "title": "מודל אתר, מבנה, קומה ותוכנית",
+    "statement": "לשמור hierarchy ומזהים יציבים, labels ו־HA area/floor binding; מחיקת קומה עם עוגנים דורשת טיפול מפורש ולא orphan.",
+    "task_ids": [
+      "T019"
+    ],
+    "chapters": [
+      9,
+      10
+    ],
+    "screens": [
+      "SC01",
+      "SC02",
+      "SC03"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT037"
+    ]
+  },
+  {
+    "id": "R038",
+    "title": "מודל אתר, מבנה, קומה ותוכנית",
+    "statement": "לשמור מקור תוכנית immutable, draft/revision ו־published version נפרדים; viewer קורא רק גרסה מאושרת ומורשית.",
+    "task_ids": [
+      "T019"
+    ],
+    "chapters": [
+      9,
+      10
+    ],
+    "screens": [
+      "SC01",
+      "SC02",
+      "SC03"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT038"
+    ]
+  },
+  {
+    "id": "R039",
+    "title": "ייבוא PDF ותמונות אדריכליות",
+    "statement": "לתמוך JPG/PNG ו־PDF עם בחירת עמוד, crop/rotate ושמירת source hash; המקור והטרנספורמציה נשמרים לשחזור.",
+    "task_ids": [
+      "T020"
+    ],
+    "chapters": [
+      11
+    ],
+    "screens": [
+      "SC05"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT039"
+    ]
+  },
+  {
+    "id": "R040",
+    "title": "ייבוא PDF ותמונות אדריכליות",
+    "statement": "להגביל גודל/עמודים/זמן decode ולבודד rendering; SVG עובר sanitization או נדחה בבטחה; DWG/DXF אינו נתמך בשקט כאילו תמונה.",
+    "task_ids": [
+      "T020"
+    ],
+    "chapters": [
+      11
+    ],
+    "screens": [
+      "SC05"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT040"
+    ]
+  },
+  {
+    "id": "R041",
+    "title": "עורך מיקום, קנה מידה ו־FOV",
+    "statement": "לאפשר drag, numeric placement, rotate, delete, undo/redo ו־camera FOV סכמטי; קואורדינטות מנורמלות נשמרות ללא תלות ב־zoom.",
+    "task_ids": [
+      "T021"
+    ],
+    "chapters": [
+      12
+    ],
+    "screens": [
+      "SC06"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT041"
+    ]
+  },
+  {
+    "id": "R042",
+    "title": "עורך מיקום, קנה מידה ו־FOV",
+    "statement": "לשמור crop/rotation transforms ולבדוק round-trip לאחר resize; RTL אינו משקף תוכנית. מרחקים מדויקים מוצגים רק לאחר scale calibration.",
+    "task_ids": [
+      "T021"
+    ],
+    "chapters": [
+      12
+    ],
+    "screens": [
+      "SC06"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT042"
+    ]
+  },
+  {
+    "id": "R043",
+    "title": "מצלמה על המפה עם Preview",
+    "statement": "לחיצה על עוגן מצלמה מציגה preview בהקשר עם Live/Playback/fullscreen; סגירה חוזרת לאותו floor, zoom ו־selection.",
+    "task_ids": [
+      "T022"
+    ],
+    "chapters": [
+      10,
+      13
+    ],
+    "screens": [
+      "SC04",
+      "SC08"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT043"
+    ]
+  },
+  {
+    "id": "R044",
+    "title": "מצלמה על המפה עם Preview",
+    "statement": "להראות זמינות אמיתית וסיבה ל־offline/no permission בלי לפתוח streams לכל הסמנים; לחיצה במובייל נוחה ללא hover.",
+    "task_ids": [
+      "T022"
+    ],
+    "chapters": [
+      10,
+      13
+    ],
+    "screens": [
+      "SC04",
+      "SC08"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT044"
+    ]
+  },
+  {
+    "id": "R045",
+    "title": "ייבוא קטלוג ישויות HA",
+    "statement": "לייבא את כלל הישויות המורשות שנחשפות לחיבור יחד עם domains, attributes, device/area/floor ו־supported features כשהם זמינים.",
+    "task_ids": [
+      "T023"
+    ],
+    "chapters": [
+      14
+    ],
+    "screens": [
+      "SC10"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT045"
+    ]
+  },
+  {
+    "id": "R046",
+    "title": "ייבוא קטלוג ישויות HA",
+    "statement": "לשמור stable identity ולהתמודד עם rename/remove/disabled/unavailable; ייבוא אינו הצבה אוטומטית של אלפי סמלים או הרשאת פעולה.",
+    "task_ids": [
+      "T023"
+    ],
+    "chapters": [
+      14
+    ],
+    "screens": [
+      "SC10"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT046"
+    ]
+  },
+  {
+    "id": "R047",
+    "title": "סנכרון Snapshot ו־HA WebSocket",
+    "statement": "לסנכרן Snapshot ואירועים ללא אובדן עדכונים בחלון החיבור; לשמור received/occurred, sequence ו־freshness.",
+    "task_ids": [
+      "T024"
+    ],
+    "chapters": [
+      15
+    ],
+    "screens": [
+      "SC10",
+      "SC28"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT047"
+    ]
+  },
+  {
+    "id": "R048",
+    "title": "סנכרון Snapshot ו־HA WebSocket",
+    "statement": "לאחר reconnect לבצע resync או resume מאומת, לסמן stale בתקופת הניתוק ולא להמציא continuity; בדיקת 1,000 ישויות בנתוני fixture.",
+    "task_ids": [
+      "T024"
+    ],
+    "chapters": [
+      15
+    ],
+    "screens": [
+      "SC10",
+      "SC28"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT048"
+    ]
+  },
+  {
+    "id": "R049",
+    "title": "ישויות על המפה ופקודות בטוחות",
+    "statement": "לגרור ישות למפה ולהציג state/יחידה/זמינות; generic panel קריא ל־domain לא מוכר, widgets ייעודיים ל־light/switch/sensor.",
+    "task_ids": [
+      "T025"
+    ],
+    "chapters": [
+      13,
+      14,
+      15
+    ],
+    "screens": [
+      "SC04",
+      "SC10"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT049"
+    ]
+  },
+  {
+    "id": "R050",
+    "title": "ישויות על המפה ופקודות בטוחות",
+    "statement": "לבצע פעולה בטוחה מאושרת דרך allowlist צד שרת ולחכות ל־state confirmation; duplicate click אינו משגר פקודות כפולות.",
+    "task_ids": [
+      "T025"
+    ],
+    "chapters": [
+      13,
+      14,
+      15
+    ],
+    "screens": [
+      "SC04",
+      "SC10"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT050"
+    ]
+  },
+  {
+    "id": "R051",
+    "title": "Import / export וגיבוי פרויקט",
+    "statement": "לגבות DB, תוכניות, placements ו־config בלי לשלב secrets גלויים; manifest מציין versions ורכיבים חסרים.",
+    "task_ids": [
+      "T026"
+    ],
+    "chapters": [
+      30,
+      39
+    ],
+    "screens": [
+      "SC28"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT051"
+    ]
+  },
+  {
+    "id": "R052",
+    "title": "Import / export וגיבוי פרויקט",
+    "statement": "להוכיח restore לסביבת ניסוי עם אותם IDs/מיקומים; restore אינו מפעיל אוטומטית פקודות HA או משנה schedule ב־NVR.",
+    "task_ids": [
+      "T026"
+    ],
+    "chapters": [
+      30,
+      39
+    ],
+    "screens": [
+      "SC28"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT052"
+    ]
+  },
+  {
+    "id": "R053",
+    "title": "חיפוש הקלטות מלא ומדורג",
+    "statement": "לממש pagination עד סוף טווח מבוקש ולהחזיר coverage complete/partial/unknown ו־cursor; no result אינו בהכרח no recording.",
+    "task_ids": [
+      "T027"
+    ],
+    "chapters": [
+      23
+    ],
+    "screens": [
+      "SC12"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT053"
+    ]
+  },
+  {
+    "id": "R054",
+    "title": "חיפוש הקלטות מלא ומדורג",
+    "statement": "לשמור cache לפי source/track/time/profile, לאחד בקשות ולבטל invalid negative cache כשמידע/retention משתנה.",
+    "task_ids": [
+      "T027"
+    ],
+    "chapters": [
+      23
+    ],
+    "screens": [
+      "SC12"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT054"
+    ]
+  },
+  {
+    "id": "R055",
+    "title": "Playback session ו־Seek אמיתי",
+    "statement": "ליישם lifecycle עם requested_at, actual_start/media anchor, generation ו־state; seek מאוחר מבטל תוצאת seek ישנה.",
+    "task_ids": [
+      "T028"
+    ],
+    "chapters": [
+      24
+    ],
+    "screens": [
+      "SC12",
+      "SC13"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT055"
+    ]
+  },
+  {
+    "id": "R056",
+    "title": "Playback session ו־Seek אמיתי",
+    "statement": "לא להניח ששינוי producer מחליף consumer מחובר; להוכיח pause/resume/close/reconnect/expiry ולסמן precision limited כשאין anchor מאומת.",
+    "task_ids": [
+      "T028"
+    ],
+    "chapters": [
+      24
+    ],
+    "screens": [
+      "SC12",
+      "SC13"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT056"
+    ]
+  },
+  {
+    "id": "R057",
+    "title": "Timeline ו־Playback UI",
+    "statement": "להציג טווחי הקלטה, gaps, coverage, date/time לפי אתר ו־scrub מבוקר; לחיצה על שעה פותחת הקלטה ולא Live.",
+    "task_ids": [
+      "T029"
+    ],
+    "chapters": [
+      23,
+      24
+    ],
+    "screens": [
+      "SC12"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT057"
+    ]
+  },
+  {
+    "id": "R058",
+    "title": "Timeline ו־Playback UI",
+    "statement": "לשמור camera/map/time context ומצב loading/error/no recording; מקלדת ומובייל נתמכים, אין כפתור מהירות שאינו ממומש.",
+    "task_ids": [
+      "T029"
+    ],
+    "chapters": [
+      23,
+      24
+    ],
+    "screens": [
+      "SC12"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT058"
+    ]
+  },
+  {
+    "id": "R059",
+    "title": "מפה היסטורית בסיסית ללא מצבי שווא",
+    "statement": "להציג כותרת ברורה מצב Live או חקירה ותאריך מלא; במצב עבר לא להציג מצב HA נוכחי כאילו היה אז.",
+    "task_ids": [
+      "T030"
+    ],
+    "chapters": [
+      16
+    ],
+    "screens": [
+      "SC11"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT059"
+    ]
+  },
+  {
+    "id": "R060",
+    "title": "מפה היסטורית בסיסית ללא מצבי שווא",
+    "statement": "אם אין history: להציג לא ידוע או current עם תווית בולטת; פעולות פיזיות מנוטרלות במצב חקירה כברירת מחדל.",
+    "task_ids": [
+      "T030"
+    ],
+    "chapters": [
+      16
+    ],
+    "screens": [
+      "SC11"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT060"
+    ]
+  },
+  {
+    "id": "R061",
+    "title": "קליטת אירועים ונרמול",
+    "statement": "לפרש event stream, active/inactive, heartbeats ו־reconnect; לשמור provenance ו־occurred_at בנפרד מ־received_at.",
+    "task_ids": [
+      "T031"
+    ],
+    "chapters": [
+      26
+    ],
+    "screens": [
+      "SC14"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT061"
+    ]
+  },
+  {
+    "id": "R062",
+    "title": "קליטת אירועים ונרמול",
+    "statement": "למנוע כפילויות ולהציג gaps; person/vehicle רק כשהמקור מספק אותם, אין backfill היסטורי מומצא.",
+    "task_ids": [
+      "T031"
+    ],
+    "chapters": [
+      26
+    ],
+    "screens": [
+      "SC14"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT062"
+    ]
+  },
+  {
+    "id": "R063",
+    "title": "Inbox אירועים, פילטרים ו־Ack",
+    "statement": "להציג כרטיסי אירוע לפי camera/site/floor/time/type, סטטוס חדש/בטיפול/טופל וקפיצה ל־Playback.",
+    "task_ids": [
+      "T032"
+    ],
+    "chapters": [
+      26
+    ],
+    "screens": [
+      "SC14",
+      "SC15"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT063"
+    ]
+  },
+  {
+    "id": "R064",
+    "title": "Inbox אירועים, פילטרים ו־Ack",
+    "statement": "לתייג thumbnail חסר או live-only ולא להשתמש בתמונה נוכחית כראיה לאירוע בעבר; Ack נשמר עם משתמש וזמן.",
+    "task_ids": [
+      "T032"
+    ],
+    "chapters": [
+      26
+    ],
+    "screens": [
+      "SC14",
+      "SC15"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT064"
+    ]
+  },
+  {
+    "id": "R065",
+    "title": "מסך Health ודיאגנוסטיקה",
+    "statement": "להפריד NVR connected, recording available, live transport, HA, database ו־jobs; Online אינו שווה תקינות הקלטה.",
+    "task_ids": [
+      "T033"
+    ],
+    "chapters": [
+      30
+    ],
+    "screens": [
+      "SC27",
+      "SC28"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT065"
+    ]
+  },
+  {
+    "id": "R066",
+    "title": "מסך Health ודיאגנוסטיקה",
+    "statement": "לספק export logs מצונזר עם correlation ID והמלצה לבדיקה בלי לכלול tokens, RTSP credentials או frames פרטיים.",
+    "task_ids": [
+      "T033"
+    ],
+    "chapters": [
+      30
+    ],
+    "screens": [
+      "SC27",
+      "SC28"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT066"
+    ]
+  },
+  {
+    "id": "R067",
+    "title": "רספונסיביות ו־RTL למסלול הראשי",
+    "statement": "לאשר visually desktop 1440, tablet ומובייל 390 במסלולי map/live/playback/entity; טקסט עברי ומזהים LTR לא מתהפכים.",
+    "task_ids": [
+      "T034"
+    ],
+    "chapters": [
+      31
+    ],
+    "screens": [
+      "SC04",
+      "SC08",
+      "SC10",
+      "SC12",
+      "SC29",
+      "SC30"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT067"
+    ]
+  },
+  {
+    "id": "R068",
+    "title": "רספונסיביות ו־RTL למסלול הראשי",
+    "statement": "להוכיח keyboard focus, labels, contrast, touch targets ו־reduced motion; אין scroll אופקי במובייל או טבלאות דחוסות חובה.",
+    "task_ids": [
+      "T034"
+    ],
+    "chapters": [
+      31
+    ],
+    "screens": [
+      "SC04",
+      "SC08",
+      "SC10",
+      "SC12",
+      "SC29",
+      "SC30"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT068"
+    ]
+  },
+  {
+    "id": "R069",
+    "title": "בדיקות Pilot, ניתוקים ובטיחות",
+    "statement": "להריץ אמת מקצה לקצה: קומה→מצלמה→Live→שעה קודמת→אירוע, וישות HA→פעולה בטוחה מאושרת.",
+    "task_ids": [
+      "T035"
+    ],
+    "chapters": [
+      33,
+      34,
+      37
+    ],
+    "screens": [],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT069"
+    ]
+  },
+  {
+    "id": "R070",
+    "title": "בדיקות Pilot, ניתוקים ובטיחות",
+    "statement": "להריץ permission negatives, restart, restore, leak/timeout ו־NVR continuity; לצרף commit, fixtures, screenshots ותוצאות, ללא PASS על בדיקה מדולגת.",
+    "task_ids": [
+      "T035"
+    ],
+    "chapters": [
+      33,
+      34,
+      37
+    ],
+    "screens": [],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT070"
+    ]
+  },
+  {
+    "id": "R071",
+    "title": "שחרור Pilot עם Rollback",
+    "statement": "לפרסם release candidate לתצורת הייחוס בלבד, עם הוראות התקנה, תכונות כבויות, known limits וגיבוי/rollback שנבדקו.",
+    "task_ids": [
+      "T036"
+    ],
+    "chapters": [
+      34,
+      37,
+      39
+    ],
+    "screens": [],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT071"
+    ]
+  },
+  {
+    "id": "R072",
+    "title": "שחרור Pilot עם Rollback",
+    "statement": "לחתום Go/No-Go אנושי; אין שחרור עם דליפת סודות, הרשאות שגויות, פגיעה בהקלטה או זמן מטעה.",
+    "task_ids": [
+      "T036"
+    ],
+    "chapters": [
+      34,
+      37,
+      39
+    ],
+    "screens": [],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT072"
+    ]
+  },
+  {
+    "id": "R073",
+    "title": "שכבות, קבוצות וחיפוש במפה",
+    "statement": "לספק שכבות cameras/security/HVAC/lighting וסינון לפי state/domain/room; חיפוש ישות ממרכז ומדגיש אותה על הקומה הנכונה.",
+    "task_ids": [
+      "T037"
+    ],
+    "chapters": [
+      10,
+      12,
+      13
+    ],
+    "screens": [
+      "SC04",
+      "SC06",
+      "SC10"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT073"
+    ]
+  },
+  {
+    "id": "R074",
+    "title": "שכבות, קבוצות וחיפוש במפה",
+    "statement": "לממש clustering ומניעת חפיפה עם alternative list; להתנסות ב־500 anchors בלי לפתוח וידאו לכולם.",
+    "task_ids": [
+      "T037"
+    ],
+    "chapters": [
+      10,
+      12,
+      13
+    ],
+    "screens": [
+      "SC04",
+      "SC06",
+      "SC10"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT074"
+    ]
+  },
+  {
+    "id": "R075",
+    "title": "גרסאות מפה, נעילה והחלפת תוכנית",
+    "statement": "לאפשר draft/publish/rollback עם optimistic concurrency ו־revision conflict ברור; פרסום דורש הרשאה ותיעוד.",
+    "task_ids": [
+      "T038"
+    ],
+    "chapters": [
+      11,
+      12,
+      16
+    ],
+    "screens": [
+      "SC05",
+      "SC06",
+      "SC11"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT075"
+    ]
+  },
+  {
+    "id": "R076",
+    "title": "גרסאות מפה, נעילה והחלפת תוכנית",
+    "statement": "בהחלפת תוכנית לשמור bindings ולהציע alignment; preview diff נדרש לפני publish. להחזיק effective-from/version לקישור היסטורי.",
+    "task_ids": [
+      "T038"
+    ],
+    "chapters": [
+      11,
+      12,
+      16
+    ],
+    "screens": [
+      "SC05",
+      "SC06",
+      "SC11"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT076"
+    ]
+  },
+  {
+    "id": "R077",
+    "title": "חדרים, אזורים וגרף מעבר בין קומות",
+    "statement": "לאפשר room polygons, אזורי הרשאה/התראה ו־stairs/elevator connectors; להבחין בין zone במפה לבין detection polygon בתמונת מצלמה.",
+    "task_ids": [
+      "T039"
+    ],
+    "chapters": [
+      10,
+      16
+    ],
+    "screens": [
+      "SC03",
+      "SC04",
+      "SC11"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT077"
+    ]
+  },
+  {
+    "id": "R078",
+    "title": "חדרים, אזורים וגרף מעבר בין קומות",
+    "statement": "לקשר מצלמות סמוכות ומסלול ידני מאומת; אין הבטחה שהגרף מעיד שאותו אדם עבר בין המצלמות.",
+    "task_ids": [
+      "T039"
+    ],
+    "chapters": [
+      10,
+      16
+    ],
+    "screens": [
+      "SC03",
+      "SC04",
+      "SC11"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT078"
+    ]
+  },
+  {
+    "id": "R079",
+    "title": "מתאמי ישויות נוספים ובקרת סיכון",
+    "statement": "להוסיף climate, cover, fan, media_player ו־helpers לפי יכולות אמיתיות; state cards נשארים זמינים גם אם פעולה לא נתמכת.",
+    "task_ids": [
+      "T040"
+    ],
+    "chapters": [
+      14,
+      15
+    ],
+    "screens": [
+      "SC10",
+      "SC23"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT079"
+    ]
+  },
+  {
+    "id": "R080",
+    "title": "מתאמי ישויות נוספים ובקרת סיכון",
+    "statement": "lock/alarm/script/button ופעולות מסוכנות דורשות action allowlist ואישור מתאים; אין auto retry או command queue ל־unlock/disarm.",
+    "task_ids": [
+      "T040"
+    ],
+    "chapters": [
+      14,
+      15
+    ],
+    "screens": [
+      "SC10",
+      "SC23"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT080"
+    ]
+  },
+  {
+    "id": "R081",
+    "title": "היסטוריית HA על מפה ו־Provenance",
+    "statement": "לממש מקור history מוגדר או event store מקומי עם coverage/retention; להציג ידוע/לא ידוע לפי זמן, לא forward fill ללא גבול.",
+    "task_ids": [
+      "T041"
+    ],
+    "chapters": [
+      16
+    ],
+    "screens": [
+      "SC11"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT081"
+    ]
+  },
+  {
+    "id": "R082",
+    "title": "היסטוריית HA על מפה ו־Provenance",
+    "statement": "לשחזר מצב עם גרסת התוכנית ומיקום הישות שהיו תקפים; שינוי timezone אינו משנה instant או זהות האירוע.",
+    "task_ids": [
+      "T041"
+    ],
+    "chapters": [
+      16
+    ],
+    "screens": [
+      "SC11"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT082"
+    ]
+  },
+  {
+    "id": "R083",
+    "title": "סנכרון 2–4 מצלמות עם מדידת סטייה",
+    "statement": "לנהל master clock, barrier ו־per-camera actual rendered time; למדוד p95 drift ולא להסתפק בשיגור seek במקביל.",
+    "task_ids": [
+      "T042"
+    ],
+    "chapters": [
+      25
+    ],
+    "screens": [
+      "SC13"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT083"
+    ]
+  },
+  {
+    "id": "R084",
+    "title": "סנכרון 2–4 מצלמות עם מדידת סטייה",
+    "statement": "לטפל במצלמה חסרת הקלטה/מאחרת בלי להסיט את כולן; להציג sync quality ולבטל מהירות לא נתמכת.",
+    "task_ids": [
+      "T042"
+    ],
+    "chapters": [
+      25
+    ],
+    "screens": [
+      "SC13"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT084"
+    ]
+  },
+  {
+    "id": "R085",
+    "title": "בחירה רב־מצלמתית מתוך מפה",
+    "statement": "לבחור כמה עוגנים או room ולפתוח Live/Playback synchronized עם context משותף ו־back למיקום המקורי.",
+    "task_ids": [
+      "T043"
+    ],
+    "chapters": [
+      13,
+      16,
+      25
+    ],
+    "screens": [
+      "SC04",
+      "SC11",
+      "SC13"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT085"
+    ]
+  },
+  {
+    "id": "R086",
+    "title": "בחירה רב־מצלמתית מתוך מפה",
+    "statement": "להציג מצלמות זמינות/אסורות/חסרות כיסוי בנפרד; suggested adjacent cameras אינן automatic person tracking.",
+    "task_ids": [
+      "T043"
+    ],
+    "chapters": [
+      13,
+      16,
+      25
+    ],
+    "screens": [
+      "SC04",
+      "SC11",
+      "SC13"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT086"
+    ]
+  },
+  {
+    "id": "R087",
+    "title": "Thumbnails היסטוריים ו־Hover preview",
+    "statement": "לייצר thumbnail מההקלטה בזמן המבוקש עם actual timestamp ו־source; אין צילום Live כתחליף שקט.",
+    "task_ids": [
+      "T044"
+    ],
+    "chapters": [
+      23
+    ],
+    "screens": [
+      "SC12",
+      "SC14"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT087"
+    ]
+  },
+  {
+    "id": "R088",
+    "title": "Thumbnails היסטוריים ו־Hover preview",
+    "statement": "להגביל cache, decode concurrency והיקף prefetch; אין אלפי חיבורי NVR בכל גרירת Timeline.",
+    "task_ids": [
+      "T044"
+    ],
+    "chapters": [
+      23
+    ],
+    "screens": [
+      "SC12",
+      "SC14"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT088"
+    ]
+  },
+  {
+    "id": "R089",
+    "title": "PTZ, Presets ושמע דו־כיווני",
+    "statement": "לממש PTZ/presets/zoom/talk רק לפי capability מוכח; תנועת PTZ נפסקת על timeout, blur או שחרור לחיצה.",
+    "task_ids": [
+      "T045"
+    ],
+    "chapters": [
+      22
+    ],
+    "screens": [
+      "SC08",
+      "SC30"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT089"
+    ]
+  },
+  {
+    "id": "R090",
+    "title": "PTZ, Presets ושמע דו־כיווני",
+    "statement": "להבחין digital zoom מהנעת מצלמה; לדרוש הסכמת מיקרופון ו־talk arbitration ולהציג unavailable ללא כפתור מדומה.",
+    "task_ids": [
+      "T045"
+    ],
+    "chapters": [
+      22
+    ],
+    "screens": [
+      "SC08",
+      "SC30"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT090"
+    ]
+  },
+  {
+    "id": "R091",
+    "title": "הקלטה ידנית, Snapshots ו־OSD opt-in",
+    "statement": "לספק snapshot, bookmark ו־manual recording עם סטטוס אמת ו־timeout כאשר נתמך; start/stop אינו משנה schedule בלי אישור.",
+    "task_ids": [
+      "T046"
+    ],
+    "chapters": [
+      19,
+      22
+    ],
+    "screens": [
+      "SC08",
+      "SC27"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT091"
+    ]
+  },
+  {
+    "id": "R092",
+    "title": "הקלטה ידנית, Snapshots ו־OSD opt-in",
+    "statement": "שם ידידותי נשאר מקומי; OSD sync מפורש מציג diff ואישור ומטפל ב־read-only ללא הצלחה שקרית.",
+    "task_ids": [
+      "T046"
+    ],
+    "chapters": [
+      19,
+      22
+    ],
+    "screens": [
+      "SC08",
+      "SC27"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT092"
+    ]
+  },
+  {
+    "id": "R093",
+    "title": "Review grouping ו־Spotlights",
+    "statement": "לאגד אירועים לחלונות review עם כללים מוסברים, start/end, cameras ו־severity; לשמור אירועי raw מקוריים.",
+    "task_ids": [
+      "T047"
+    ],
+    "chapters": [
+      26
+    ],
+    "screens": [
+      "SC01",
+      "SC14",
+      "SC15"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT093"
+    ]
+  },
+  {
+    "id": "R094",
+    "title": "Review grouping ו־Spotlights",
+    "statement": "להציג spotlight לפי כללים דטרמיניסטיים ו־confidence/source כאשר יש; אפשר לפתוח פריטים שמאחורי סיכום ולתקן קיבוץ.",
+    "task_ids": [
+      "T047"
+    ],
+    "chapters": [
+      26
+    ],
+    "screens": [
+      "SC01",
+      "SC14",
+      "SC15"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT094"
+    ]
+  },
+  {
+    "id": "R095",
+    "title": "ייצוא קטעים כ־Jobs עמידים",
+    "statement": "לייצא בטווח מוגדר באמצעות endpoint/שיטה שאומתו מול ה־NVR, עם queue, progress, retries בטוחים, cancel ו־partial states.",
+    "task_ids": [
+      "T048"
+    ],
+    "chapters": [
+      27
+    ],
+    "screens": [
+      "SC18"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT095"
+    ]
+  },
+  {
+    "id": "R096",
+    "title": "ייצוא קטעים כ־Jobs עמידים",
+    "statement": "להפעיל הרשאת download ייעודית ולשמור זמני requested/actual, source והמרות; כשל יצוא אינו מוחק הקלטה או מאריך retention אוטומטית.",
+    "task_ids": [
+      "T048"
+    ],
+    "chapters": [
+      27
+    ],
+    "screens": [
+      "SC18"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT096"
+    ]
+  },
+  {
+    "id": "R097",
+    "title": "Cases, הערות וסימניות",
+    "statement": "ליצור Case המקשר אירועים וקטעים מכמה מצלמות, notes, tags ו־status; עריכה נבדקת לפי user permission ו־revision.",
+    "task_ids": [
+      "T049"
+    ],
+    "chapters": [
+      27
+    ],
+    "screens": [
+      "SC16",
+      "SC17"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT097"
+    ]
+  },
+  {
+    "id": "R098",
+    "title": "Cases, הערות וסימניות",
+    "statement": "להציג אם bookmark רק מפנה ל־NVR או שהקטע הועתק לשימור; overwritten footage מוצג כחסר ולא מתויג preserved.",
+    "task_ids": [
+      "T049"
+    ],
+    "chapters": [
+      27
+    ],
+    "screens": [
+      "SC16",
+      "SC17"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT098"
+    ]
+  },
+  {
+    "id": "R099",
+    "title": "חבילת ראיות, Manifest ו־Checksum",
+    "statement": "להפיק ZIP עם קטעים, manifest, notes ודו״ח קריא, hash לכל קובץ ופרטי מקור/זמן; לבדוק export/import verification.",
+    "task_ids": [
+      "T050"
+    ],
+    "chapters": [
+      27
+    ],
+    "screens": [
+      "SC17",
+      "SC18"
+    ],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT099"
+    ]
+  },
+  {
+    "id": "R100",
+    "title": "חבילת ראיות, Manifest ו־Checksum",
+    "statement": "להבהיר hash מוכיח שינוי מאז היצוא ולא את אמיתות הצילום; חתימה/מפתח ואימות מקור הם יכולות נפרדות ולא סמל Original סתמי.",
+    "task_ids": [
+      "T050"
+    ],
+    "chapters": [
+      27
+    ],
+    "screens": [
+      "SC17",
+      "SC18"
+    ],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT100"
+    ]
+  },
+  {
+    "id": "R101",
+    "title": "NVR Storage ותוכנית הקלטה",
+    "statement": "להציג disk/recording state, retention שנמדד/מוערך וסיבת estimate; לא לאפשר format/RAID/delete recordings במסגרת הפיתוח.",
+    "task_ids": [
+      "T051"
+    ],
+    "chapters": [
+      30
+    ],
+    "screens": [
+      "SC20"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT101"
+    ]
+  },
+  {
+    "id": "R102",
+    "title": "NVR Storage ותוכנית הקלטה",
+    "statement": "קריאת schedules מופרדת מכתיבה; שינוי mode/prepost/quota דורש support מוכח, diff, אישור ותוכנית חזרה.",
+    "task_ids": [
+      "T051"
+    ],
+    "chapters": [
+      30
+    ],
+    "screens": [
+      "SC20"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT102"
+    ]
+  },
+  {
+    "id": "R103",
+    "title": "Rules/Alarm builder עם Dry run",
+    "statement": "ליצור trigger/scope/time window/cooldown/actions ולהריץ dry run המציג למה היה נוצר alert בלי לשלוח פקודה פיזית.",
+    "task_ids": [
+      "T052"
+    ],
+    "chapters": [
+      28
+    ],
+    "screens": [
+      "SC21",
+      "SC22"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT103"
+    ]
+  },
+  {
+    "id": "R104",
+    "title": "Rules/Alarm builder עם Dry run",
+    "statement": "למנוע loops ו־duplicate notifications, להגביל webhooks ולשמור מי שינה חוק; לבחור HA או local owner יחיד לכל אוטומציה.",
+    "task_ids": [
+      "T052"
+    ],
+    "chapters": [
+      28
+    ],
+    "screens": [
+      "SC21",
+      "SC22"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT104"
+    ]
+  },
+  {
+    "id": "R105",
+    "title": "קורלציה דלת–מצלמה–חיישן",
+    "statement": "לקשר אירועי camera/door/contact בחלון זמן ואזור ולהציג את הראיות והוודאות; pulse unlock אינו הוכחה שדלת נפתחה.",
+    "task_ids": [
+      "T053"
+    ],
+    "chapters": [
+      16,
+      28
+    ],
+    "screens": [
+      "SC11",
+      "SC22",
+      "SC23"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT105"
+    ]
+  },
+  {
+    "id": "R106",
+    "title": "קורלציה דלת–מצלמה–חיישן",
+    "statement": "אין unlock/disarm אוטומטי מפלט AI או קורלציה; timeout, delayed clock ו־missing state נבדקים.",
+    "task_ids": [
+      "T053"
+    ],
+    "chapters": [
+      16,
+      28
+    ],
+    "screens": [
+      "SC11",
+      "SC22",
+      "SC23"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT106"
+    ]
+  },
+  {
+    "id": "R107",
+    "title": "אינטרקום ובקרת כניסה מקושרים",
+    "statement": "לשייך camera, ringing event ודלת על המפה ולהציג preview/פעולות רק עבור relays מורשים וקיימים.",
+    "task_ids": [
+      "T054"
+    ],
+    "chapters": [
+      14,
+      28
+    ],
+    "screens": [
+      "SC23"
+    ],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT107"
+    ]
+  },
+  {
+    "id": "R108",
+    "title": "אינטרקום ובקרת כניסה מקושרים",
+    "statement": "לצרוך את מערכת האינטרקום/HA הקיימת במקום לשכפל user/card provisioning; פעולת פתיחה מאושרת נרשמת ללא המצאת lock state.",
+    "task_ids": [
+      "T054"
+    ],
+    "chapters": [
+      14,
+      28
+    ],
+    "screens": [
+      "SC23"
+    ],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT108"
+    ]
+  },
+  {
+    "id": "R109",
+    "title": "RBAC מרחבי מלא ואודיט",
+    "statement": "למפות role ו־scope לפי site/floor/camera/action/export ולקבל deny בעת ירושת הרשאה לא חוקית; server filter לכל resource.",
+    "task_ids": [
+      "T055"
+    ],
+    "chapters": [
+      8,
+      15,
+      27
+    ],
+    "screens": [
+      "SC24",
+      "SC25"
+    ],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT109"
+    ]
+  },
+  {
+    "id": "R110",
+    "title": "RBAC מרחבי מלא ואודיט",
+    "statement": "לשמור audit של viewing/export/config/commands בלי סודות, עם retention וגישה מוגבלת; downgrade הרשאה נבדק בסשן פתוח.",
+    "task_ids": [
+      "T055"
+    ],
+    "chapters": [
+      8,
+      15,
+      27
+    ],
+    "screens": [
+      "SC24",
+      "SC25"
+    ],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT110"
+    ]
+  },
+  {
+    "id": "R111",
+    "title": "Lovelace wrappers והרחבת אינטגרציית HA",
+    "statement": "להציע camera/map/event/health wrappers החולקים רכיבים וחוזים עם הממשק הראשי; להשתמש בגשר זהות/הרשאות הקיים מהפיילוט, לא לדחות אותו לשלב הכרטיסים.",
+    "task_ids": [
+      "T056"
+    ],
+    "chapters": [
+      7,
+      8
+    ],
+    "screens": [
+      "SC32"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT111"
+    ]
+  },
+  {
+    "id": "R112",
+    "title": "Lovelace wrappers והרחבת אינטגרציית HA",
+    "statement": "להתקין integration/cards במסלול נפרד מתועד, כגון HACS, לצד Add-on repository; אין duplicate entities, סודות ב־YAML או עקיפת RBAC דרך הכרטיס.",
+    "task_ids": [
+      "T056"
+    ],
+    "chapters": [
+      7,
+      8
+    ],
+    "screens": [
+      "SC32"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT112"
+    ]
+  },
+  {
+    "id": "R113",
+    "title": "Kiosk ותצוגת קיר",
+    "statement": "להציג saved view על מסך גדול, rotation מתון ו־health בלי תפריטי admin; session/kiosk principal עם הרשאות מצומצמות.",
+    "task_ids": [
+      "T057"
+    ],
+    "chapters": [
+      22,
+      31
+    ],
+    "screens": [
+      "SC31"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT113"
+    ]
+  },
+  {
+    "id": "R114",
+    "title": "Kiosk ותצוגת קיר",
+    "statement": "להגביל פעולות unlock ו־settings בקיוסק ולשחזר view לאחר reconnect; מסך אפור/מנותק לא מוצג כמצלמה פעילה.",
+    "task_ids": [
+      "T057"
+    ],
+    "chapters": [
+      22,
+      31
+    ],
+    "screens": [
+      "SC31"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT114"
+    ]
+  },
+  {
+    "id": "R115",
+    "title": "Multi-NVR ואתרים מרובים",
+    "statement": "לתמוך בקטלוג מאוחד עם מקור NVR לכל מצלמה, timezone פר אתר ו־scope הרשאה; IDs אינם מתנגשים בין מקורות.",
+    "task_ids": [
+      "T058"
+    ],
+    "chapters": [
+      7,
+      10
+    ],
+    "screens": [
+      "SC01",
+      "SC02",
+      "SC27"
+    ],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT115"
+    ]
+  },
+  {
+    "id": "R116",
+    "title": "Multi-NVR ואתרים מרובים",
+    "statement": "להפריד concurrency, outage ו־search coverage בין NVR; כשל אתר אחד אינו מפיל מפות או חקירה באתר אחר.",
+    "task_ids": [
+      "T058"
+    ],
+    "chapters": [
+      7,
+      10
+    ],
+    "screens": [
+      "SC01",
+      "SC02",
+      "SC27"
+    ],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT116"
+    ]
+  },
+  {
+    "id": "R117",
+    "title": "Schema קנוני לתוכנית אדריכלית",
+    "statement": "לנעול schema versioned עבור source hash, dimensions, transforms, walls, doors, windows, rooms, connectors ו־uncertainty.",
+    "task_ids": [
+      "T059"
+    ],
+    "chapters": [
+      17,
+      18
+    ],
+    "screens": [
+      "SC05",
+      "SC06"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT117"
+    ]
+  },
+  {
+    "id": "R118",
+    "title": "Schema קנוני לתוכנית אדריכלית",
+    "statement": "לבדוק normalized bounds, invalid polygons, missing calibration ו־duplicate IDs; renderer deterministic מצייר אותו JSON באופן עקבי.",
+    "task_ids": [
+      "T059"
+    ],
+    "chapters": [
+      17,
+      18
+    ],
+    "screens": [
+      "SC05",
+      "SC06"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT118"
+    ]
+  },
+  {
+    "id": "R119",
+    "title": "AI Plan Normalizer עם Prompt גרסאי",
+    "statement": "לשלוח ל־AI רק לאחר consent עם prompt version/schema נעולים ותקציב, ולהחזיר geometry ולא עיצוב תמונה סמכותי.",
+    "task_ids": [
+      "T060"
+    ],
+    "chapters": [
+      17,
+      18
+    ],
+    "screens": [
+      "SC05",
+      "SC06"
+    ],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT119"
+    ]
+  },
+  {
+    "id": "R120",
+    "title": "AI Plan Normalizer עם Prompt גרסאי",
+    "statement": "להתייחס לטקסט בתוכנית כנתון לא הוראה, להחזיר unknown/uncertain ולא להמציא קירות או שמות; raw response אינו מפורסם אוטומטית.",
+    "task_ids": [
+      "T060"
+    ],
+    "chapters": [
+      17,
+      18
+    ],
+    "screens": [
+      "SC05",
+      "SC06"
+    ],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT120"
+    ]
+  },
+  {
+    "id": "R121",
+    "title": "Compare ואישור אנושי לתוכנית AI",
+    "statement": "להציג מקור מול geometry בשכבות, confidence ו־missing elements, ולאפשר תיקון ידני לפני publish.",
+    "task_ids": [
+      "T061"
+    ],
+    "chapters": [
+      17,
+      18
+    ],
+    "screens": [
+      "SC05",
+      "SC06"
+    ],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT121"
+    ]
+  },
+  {
+    "id": "R122",
+    "title": "Compare ואישור אנושי לתוכנית AI",
+    "statement": "לשמור prompt/model/schema/source hashes, corrections ו־approver; reject משאיר את התוכנית הקודמת ואת source intact.",
+    "task_ids": [
+      "T061"
+    ],
+    "chapters": [
+      17,
+      18
+    ],
+    "screens": [
+      "SC05",
+      "SC06"
+    ],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT122"
+    ]
+  },
+  {
+    "id": "R123",
+    "title": "חיפוש metadata מרחבי",
+    "statement": "לחפש type/time/site/floor/room/camera לפי metadata שקיים; ממשק מסביר אילו שדות זמינים ולמה אחרים חסרים.",
+    "task_ids": [
+      "T062"
+    ],
+    "chapters": [
+      26,
+      29
+    ],
+    "screens": [
+      "SC19"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT123"
+    ]
+  },
+  {
+    "id": "R124",
+    "title": "חיפוש metadata מרחבי",
+    "statement": "תוצאה מקשרת לפריים/אירוע ומקור מידע; מסנן unsupported לא מחזיר 0 כאילו אין התאמות.",
+    "task_ids": [
+      "T062"
+    ],
+    "chapters": [
+      26,
+      29
+    ],
+    "screens": [
+      "SC19"
+    ],
+    "phase": "BETA",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT124"
+    ]
+  },
+  {
+    "id": "R125",
+    "title": "חיפוש סמנטי ו־AI provider אופציונלי",
+    "statement": "להוסיף adapter לניתוח/embeddings בעל מדיניות privacy, model version, resource budget ו־opt-in; local baseline עובד ללא שירות AI.",
+    "task_ids": [
+      "T063"
+    ],
+    "chapters": [
+      29
+    ],
+    "screens": [
+      "SC19"
+    ],
+    "phase": "V2",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT125"
+    ]
+  },
+  {
+    "id": "R126",
+    "title": "חיפוש סמנטי ו־AI provider אופציונלי",
+    "statement": "לסנן color/object/free text רק על מקורות שנוצר עבורם metadata מתאים; תוצאות probabilistic מציגות confidence ואינן ראיית זהות.",
+    "task_ids": [
+      "T063"
+    ],
+    "chapters": [
+      29
+    ],
+    "screens": [
+      "SC19"
+    ],
+    "phase": "V2",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT126"
+    ]
+  },
+  {
+    "id": "R127",
+    "title": "שחזור מסלול מוצע לחקירה",
+    "statement": "להציע adjacent camera/time windows לפי topology ואירועים ולהראות חלופות; המפעיל מאשר רצף ב־Case.",
+    "task_ids": [
+      "T064"
+    ],
+    "chapters": [
+      16,
+      29
+    ],
+    "screens": [
+      "SC11",
+      "SC16",
+      "SC19"
+    ],
+    "phase": "V2",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT127"
+    ]
+  },
+  {
+    "id": "R128",
+    "title": "שחזור מסלול מוצע לחקירה",
+    "statement": "לסמן hypothetical linkage ולא לטעון אותו אדם/רכב ללא ראיה מתאימה; אין פעולת אבטחה אוטונומית על בסיס ההצעה.",
+    "task_ids": [
+      "T064"
+    ],
+    "chapters": [
+      16,
+      29
+    ],
+    "screens": [
+      "SC11",
+      "SC16",
+      "SC19"
+    ],
+    "phase": "V2",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT128"
+    ]
+  },
+  {
+    "id": "R129",
+    "title": "DWG/DXF וייבוא מתקדם",
+    "statement": "להגדיר conversion adapter מבודד עם רישיון ותלויות נבדקים, בחירת layers/unit/scale ושימור המקור.",
+    "task_ids": [
+      "T065"
+    ],
+    "chapters": [
+      11,
+      18
+    ],
+    "screens": [
+      "SC05"
+    ],
+    "phase": "V2",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT129"
+    ]
+  },
+  {
+    "id": "R130",
+    "title": "DWG/DXF וייבוא מתקדם",
+    "statement": "להשוות geometry ו־units מול מקור ולדחות conversion חלקי ללא הודעה; native CAD parsing אינו assumed dependency של Pilot.",
+    "task_ids": [
+      "T065"
+    ],
+    "chapters": [
+      11,
+      18
+    ],
+    "screens": [
+      "SC05"
+    ],
+    "phase": "V2",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT130"
+    ]
+  },
+  {
+    "id": "R131",
+    "title": "מהירויות Playback ו־Frame stepping",
+    "statement": "לממש speed/step רק בנתיב מדיה המוכיח semantics בפועל; להבדיל camera RTSP speed מ־browser playbackRate.",
+    "task_ids": [
+      "T066"
+    ],
+    "chapters": [
+      24,
+      25
+    ],
+    "screens": [
+      "SC12",
+      "SC13",
+      "SC30"
+    ],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT131"
+    ]
+  },
+  {
+    "id": "R132",
+    "title": "מהירויות Playback ו־Frame stepping",
+    "statement": "לבדוק actual source time, audio, gaps ו־sync לאחר שינוי speed; unsupported נשאר disabled עם הסבר.",
+    "task_ids": [
+      "T066"
+    ],
+    "chapters": [
+      24,
+      25
+    ],
+    "screens": [
+      "SC12",
+      "SC13",
+      "SC30"
+    ],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT132"
+    ]
+  },
+  {
+    "id": "R133",
+    "title": "חתימת ראיות וניהול מפתחות",
+    "statement": "לתכנן signed manifest, key rotation, offline verification ומעמד אמון; לבדוק tamper בקובץ, manifest ושרשרת מפתחות.",
+    "task_ids": [
+      "T067"
+    ],
+    "chapters": [
+      27
+    ],
+    "screens": [
+      "SC18",
+      "SC25"
+    ],
+    "phase": "V2",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT133"
+    ]
+  },
+  {
+    "id": "R134",
+    "title": "חתימת ראיות וניהול מפתחות",
+    "statement": "להציג integrity-at-export בנפרד מ־capture authenticity; אין הצהרה על קבילות משפטית או מקור מאומת ללא בסיס מתאים.",
+    "task_ids": [
+      "T067"
+    ],
+    "chapters": [
+      27
+    ],
+    "screens": [
+      "SC18",
+      "SC25"
+    ],
+    "phase": "V2",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT134"
+    ]
+  },
+  {
+    "id": "R135",
+    "title": "Load/Soak ותקציב משאבים",
+    "statement": "למדוד catalogue scale בנפרד ממספר streams/transcodes ולפרסם CPU/RAM/latency/leaks בתצורת ייחוס מתועדת.",
+    "task_ids": [
+      "T068"
+    ],
+    "chapters": [
+      30,
+      33,
+      34
+    ],
+    "screens": [
+      "SC28"
+    ],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT135"
+    ]
+  },
+  {
+    "id": "R136",
+    "title": "Load/Soak ותקציב משאבים",
+    "statement": "להריץ soak, HA/go2rtc/NVR restarts, export queue ו־disk full; backpressure נבדק וההקלטה המקורית נשארת תקינה.",
+    "task_ids": [
+      "T068"
+    ],
+    "chapters": [
+      30,
+      33,
+      34
+    ],
+    "screens": [
+      "SC28"
+    ],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT136"
+    ]
+  },
+  {
+    "id": "R137",
+    "title": "בדיקות אבטחה של קבצים ורשת",
+    "statement": "לבדוק malicious PDF/SVG, path traversal, XML entities, SSRF, token replay ו־oversized media; אין גישה חופשית ל־URL מהדפדפן.",
+    "task_ids": [
+      "T069"
+    ],
+    "chapters": [
+      8,
+      11,
+      17,
+      34
+    ],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT137"
+    ]
+  },
+  {
+    "id": "R138",
+    "title": "בדיקות אבטחה של קבצים ורשת",
+    "statement": "לסרוק artifacts/logs/source ו־dependencies, לתעד remediation ולבדוק revoke; API/RTSP של go2rtc אינם מפורסמים חופשי לאינטרנט.",
+    "task_ids": [
+      "T069"
+    ],
+    "chapters": [
+      8,
+      11,
+      17,
+      34
+    ],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT138"
+    ]
+  },
+  {
+    "id": "R139",
+    "title": "מיגרציה הדרגתית והקבלה מול הישן",
+    "statement": "להפעיל shadow read comparison, migration dry run ומיפוי IDs/config בלי לשנות NVR או לאבד היסטוריית מפות.",
+    "task_ids": [
+      "T070"
+    ],
+    "chapters": [
+      3,
+      4,
+      39
+    ],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT139"
+    ]
+  },
+  {
+    "id": "R140",
+    "title": "מיגרציה הדרגתית והקבלה מול הישן",
+    "statement": "לבצע rollout מדורג ו־rollback אמיתי; decommission של הישן רק באישור לאחר parity וללא מחיקת backup.",
+    "task_ids": [
+      "T070"
+    ],
+    "chapters": [
+      3,
+      4,
+      39
+    ],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT140"
+    ]
+  },
+  {
+    "id": "R141",
+    "title": "Onboarding, מדריך מפעיל ותמיכה",
+    "statement": "לספק אשף install→NVR→HA→go2rtc→floor→camera עם capability/time checks והסברי failures.",
+    "task_ids": [
+      "T071"
+    ],
+    "chapters": [
+      30,
+      39
+    ],
+    "screens": [
+      "SC26",
+      "SC28"
+    ],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT141"
+    ]
+  },
+  {
+    "id": "R142",
+    "title": "Onboarding, מדריך מפעיל ותמיכה",
+    "statement": "לכתוב מדריכי שימוש/שחזור/חקירה/פרטיות והרשאות, לצרף screenshots מה־build ולא מהדמיה בלבד.",
+    "task_ids": [
+      "T071"
+    ],
+    "chapters": [
+      30,
+      39
+    ],
+    "screens": [
+      "SC26",
+      "SC28"
+    ],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT142"
+    ]
+  },
+  {
+    "id": "R143",
+    "title": "קבלה ושחרור V1",
+    "statement": "לסגור כל דרישה בתחום V1 בראיות עדכניות או בהחרגה מפורשת שמסירה תכונה; no P0/P1 פתוחים במסלולים הנתמכים.",
+    "task_ids": [
+      "T072"
+    ],
+    "chapters": [
+      34,
+      39
+    ],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT143"
+    ]
+  },
+  {
+    "id": "R144",
+    "title": "קבלה ושחרור V1",
+    "statement": "להפיק signed release approval, tag, builds, migrations, rollback, compatibility matrix ו־known limits; target date אינו מחליף את gates.",
+    "task_ids": [
+      "T072"
+    ],
+    "chapters": [
+      34,
+      39
+    ],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT144"
+    ]
+  },
+  {
+    "id": "R145",
+    "title": "Runner מקומי אופציונלי למשימות Codex",
+    "statement": "לממש dispatcher רק לאחר אימות CLI מקומי: כל משימה יוצרת invocation נפרד עם model/effort, workspace ו־output schema; אין שליטה מדומה מהצ׳אט.",
+    "task_ids": [
+      "T073"
+    ],
+    "chapters": [
+      35,
+      36
+    ],
+    "screens": [],
+    "phase": "V2",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT145"
+    ]
+  },
+  {
+    "id": "R146",
+    "title": "Runner מקומי אופציונלי למשימות Codex",
+    "statement": "לכפות dependency gates, path allowlist, timeout, budget ו־manual stop; test failure תשתיתי אינו מפעיל אינסוף תיקונים או קנייה אוטומטית.",
+    "task_ids": [
+      "T073"
+    ],
+    "chapters": [
+      35,
+      36
+    ],
+    "screens": [],
+    "phase": "V2",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT146"
+    ]
+  },
+  {
+    "id": "R147",
+    "title": "שיפור מוצר ו־Visual regression מתמשך",
+    "statement": "לשמור screenshots עבור מסכי מפתח ו־state matrix ב־CI, עם masking לווידאו משתנה ותהליך אישור intentional changes.",
+    "task_ids": [
+      "T074"
+    ],
+    "chapters": [
+      31,
+      39
+    ],
+    "screens": [
+      "SC01",
+      "SC04",
+      "SC11",
+      "SC12",
+      "SC16",
+      "SC29"
+    ],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT147"
+    ]
+  },
+  {
+    "id": "R148",
+    "title": "שיפור מוצר ו־Visual regression מתמשך",
+    "statement": "לקשר feedback ל־screen/requirement/commit; למדוד time to camera/time to recording ותקלות UX ללא איסוף frames או טקסט רגיש כברירת מחדל.",
+    "task_ids": [
+      "T074"
+    ],
+    "chapters": [
+      31,
+      39
+    ],
+    "screens": [
+      "SC01",
+      "SC04",
+      "SC11",
+      "SC12",
+      "SC16",
+      "SC29"
+    ],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT148"
+    ]
+  },
+  {
+    "id": "R149",
+    "title": "אזורי זיהוי ומסכות פרטיות במצלמה",
+    "statement": "להפריד פוליגון זיהוי בתמונת המצלמה מפוליגון חדר במפה; לקרוא ולערוך Motion/Smart zones רק כשהמקור וההרשאה תומכים, עם preview, diff ו־readback.",
+    "task_ids": [
+      "T075"
+    ],
+    "chapters": [
+      5,
+      18,
+      22
+    ],
+    "screens": [
+      "SC08",
+      "SC27"
+    ],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT149"
+    ]
+  },
+  {
+    "id": "R150",
+    "title": "אזורי זיהוי ומסכות פרטיות במצלמה",
+    "statement": "מסכת פרטיות אמיתית דורשת אישור, כתיבה מאומתת ובדיקת התוצאה בזרם; overlay בדפדפן אינו מסכת NVR ואינו מגן על הקלטות. אין שינוי אוטומטי בזיהוי או ב־retention.",
+    "task_ids": [
+      "T075"
+    ],
+    "chapters": [
+      5,
+      18,
+      22
+    ],
+    "screens": [
+      "SC08",
+      "SC27"
+    ],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT150"
+    ]
+  },
+  {
+    "id": "R151",
+    "title": "גשר זהות HA וייבוא קטלוג משתמשים",
+    "statement": "לזהות משתמש לפי ha_instance_id + ha_user_id מאומת; לסנכרן משתמשי התחברות מ־HA דרך גשר מורשה ללא passwords, ללא person.* וללא כתיבה ל־HA auth.",
+    "task_ids": [
+      "T076"
+    ],
+    "chapters": [
+      8,
+      40
+    ],
+    "screens": [
+      "SC24",
+      "SC26"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT151"
+    ]
+  },
+  {
+    "id": "R152",
+    "title": "גשר זהות HA וייבוא קטלוג משתמשים",
+    "statement": "להפריד normal/admin/system-generated/disabled; שינוי שם שומר שיוך, שם זהה עם ID חדש אינו יורש הרשאה; כשל sync מסומן stale ולא מוחק את הקטלוג.",
+    "task_ids": [
+      "T076"
+    ],
+    "chapters": [
+      8,
+      40
+    ],
+    "screens": [
+      "SC24",
+      "SC26"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT152"
+    ]
+  },
+  {
+    "id": "R153",
+    "title": "מנוע תפקידים, קבוצות ו־Scopes בסיסי",
+    "statement": "לממש roles מובנים, קבוצות משתמשי HA ו־bindings מוגבלים ל־installation/site/building/floor/camera/entity; HA admin אינו role מוצר אוטומטי, bootstrap מפורש בלבד.",
+    "task_ids": [
+      "T077"
+    ],
+    "chapters": [
+      8,
+      40
+    ],
+    "screens": [
+      "SC24"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT153"
+    ]
+  },
+  {
+    "id": "R154",
+    "title": "מנוע תפקידים, קבוצות ו־Scopes בסיסי",
+    "statement": "לחשב יכולת יחד עם scope לכל binding; viewer באתר A + editor בקומה B אינו editor באתר A. deny ו־unknown קודמים; placement אינו מעניק גישה לציוד המקושר.",
+    "task_ids": [
+      "T077"
+    ],
+    "chapters": [
+      8,
+      40
+    ],
+    "screens": [
+      "SC24"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT154"
+    ]
+  },
+  {
+    "id": "R155",
+    "title": "ממשק משתמשי HA ושיוך קבוצות ותפקידים",
+    "statement": "להציג קטלוג HA למורשים, קבוצות, תפקידים והיקף; לשייך משתמש HA רגיל כ־editor/site_admin בהיקף מקומי ולהציג preview של ההרשאות בלי שינוי הרשאות HA.",
+    "task_ids": [
+      "T078"
+    ],
+    "chapters": [
+      8,
+      40
+    ],
+    "screens": [
+      "SC24",
+      "SC25"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT155"
+    ]
+  },
+  {
+    "id": "R156",
+    "title": "ממשק משתמשי HA ושיוך קבוצות ותפקידים",
+    "statement": "אין create-password או promote-HA-admin בממשק. שינוי חברות נבדק על כל bindings של הקבוצה, נרשם באודיט ואינו נותן למנהל קומה ניהול מערכת או קבוצות גלובליות.",
+    "task_ids": [
+      "T078"
+    ],
+    "chapters": [
+      8,
+      40
+    ],
+    "screens": [
+      "SC24",
+      "SC25"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT156"
+    ]
+  },
+  {
+    "id": "R157",
+    "title": "בדיקת הרשאות HA על פעולות בשם משתמש",
+    "statement": "לבדוק בצד שרת VMS permission + scope + HA user permissions + capability ולהעביר Context של המשתמש; פעולה שהמשתמש אינו מורשה לה ב־HA נחסמת גם כשגשר מחובר בהרשאה גבוהה.",
+    "task_ids": [
+      "T079"
+    ],
+    "chapters": [
+      8,
+      40
+    ],
+    "screens": [
+      "SC04",
+      "SC07"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT157"
+    ]
+  },
+  {
+    "id": "R158",
+    "title": "בדיקת הרשאות HA על פעולות בשם משתמש",
+    "statement": "לבודד map.edit מ־ha.entity.control; unlock/disarm/talk/export דורשים grants נפרדים. אין proxy לשירותי admin או scripts לא מבוקרים ואין שיגור פעולה גנרית בעזרת user_id מהלקוח.",
+    "task_ids": [
+      "T079"
+    ],
+    "chapters": [
+      8,
+      40
+    ],
+    "screens": [
+      "SC04",
+      "SC07"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT158"
+    ]
+  },
+  {
+    "id": "R159",
+    "title": "מחיקת משתמש, הורדת הרשאה וביטול Sessions",
+    "statement": "להשעות גישה אחרי מחיקת/השבתת משתמש מאומתת ב־HA ולשמר audit; רענון סטטוס משתמש עד 60 שניות והפסקת sessions תוך 30 שניות מביטול ידוע הם יעדי בדיקה, לא נתונים קיימים.",
+    "task_ids": [
+      "T080"
+    ],
+    "chapters": [
+      8,
+      40
+    ],
+    "screens": [
+      "SC24",
+      "SC25"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT159"
+    ]
+  },
+  {
+    "id": "R160",
+    "title": "מחיקת משתמש, הורדת הרשאה וביטול Sessions",
+    "statement": "להחיל permission_revision על API, WebSocket, video sessions ו־export jobs/downloads; downgrade ב־VMS חוסם בקשות חדשות מיד ולא מחכה ל־HA polling. כשל identity גורם לחסימת פעולות ולא fallback ל־admin.",
+    "task_ids": [
+      "T080"
+    ],
+    "chapters": [
+      8,
+      40
+    ],
+    "screens": [
+      "SC24",
+      "SC25"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT160"
+    ]
+  },
+  {
+    "id": "R161",
+    "title": "Ingress ו־Add-on נגישים למשתמש HA רגיל",
+    "statement": "למסור Add-on/App עם Ingress, אחסון מתמשך וגישה למשתמש HA רגיל באמצעות panel_admin:false לאחר הגנות; לראות תפריט אינו לקבל הרשאה. להוכיח גם פתיחת Ingress בפועל למשתמש הרגיל.",
+    "task_ids": [
+      "T081"
+    ],
+    "chapters": [
+      8,
+      40
+    ],
+    "screens": [
+      "SC24",
+      "SC26"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT161"
+    ]
+  },
+  {
+    "id": "R162",
+    "title": "Ingress ו־Add-on נגישים למשתמש HA רגיל",
+    "statement": "לחסום headers מזויפים, פורט ישיר לא מאומת, token replay ושימוש בטוקן Supervisor כזהות המשתמש; נתיב bridge פנימי מאומת ומצומצם, לא פתיחת ingress לכול.",
+    "task_ids": [
+      "T081"
+    ],
+    "chapters": [
+      8,
+      40
+    ],
+    "screens": [
+      "SC24",
+      "SC26"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT162"
+    ]
+  },
+  {
+    "id": "R163",
+    "title": "תפקידים מותאמים והאצלת ניהול מקומית",
+    "statement": "לאפשר למנהל VMS להגדיר role וקבוצות מותאמים, כולל grants רגישים נפרדים; לפני שינוי להציג השפעה על כל המשתמשים/הקבוצות וה־scopes המשויכים.",
+    "task_ids": [
+      "T082"
+    ],
+    "chapters": [
+      8,
+      40
+    ],
+    "screens": [
+      "SC24",
+      "SC25"
+    ],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT163"
+    ]
+  },
+  {
+    "id": "R164",
+    "title": "תפקידים מותאמים והאצלת ניהול מקומית",
+    "statement": "האצלת rbac.assign למנהל אתר מוגבלת ל־allowlist ולהיקף; אין הסלמה עצמית, שינוי role משותף גלובלי, חברוּת בקבוצה חוצת היקפים או מעבר role/scope דרך bulk request.",
+    "task_ids": [
+      "T082"
+    ],
+    "chapters": [
+      8,
+      40
+    ],
+    "screens": [
+      "SC24",
+      "SC25"
+    ],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT164"
+    ]
+  },
+  {
+    "id": "R165",
+    "title": "בדיקות קבלה לזהות HA והרשאות מרחביות",
+    "statement": "להריץ תרחיש עם מנהל VMS, משתמש HA רגיל שהוא editor בקומה 2 ומשתמש לא משויך; לאשר עריכת קומה 2 ולחסום קומה 3, ניהול משתמשים, הגדרות NVR והסלמה ב־HA.",
+    "task_ids": [
+      "T083"
+    ],
+    "chapters": [
+      8,
+      40
+    ],
+    "screens": [
+      "SC04",
+      "SC24",
+      "SC25",
+      "SC26"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT165"
+    ]
+  },
+  {
+    "id": "R166",
+    "title": "בדיקות קבלה לזהות HA והרשאות מרחביות",
+    "statement": "להוכיח deny גם ב־REST/WS/media/thumbnail/export ולא רק בכפתורים; לבדוק שם זהה ID חדש, scope union, downgrade בזמן וידאו, מחיקה, restore ו־last-admin recovery ללא פתיחת גישה אוטומטית.",
+    "task_ids": [
+      "T083"
+    ],
+    "chapters": [
+      8,
+      40
+    ],
+    "screens": [
+      "SC04",
+      "SC24",
+      "SC25",
+      "SC26"
+    ],
+    "phase": "PILOT",
+    "priority": "P0",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT166"
+    ]
+  }
+]

@@ -1,0 +1,11 @@
+{
+  "entity_binding_id": "synthetic-light-binding",
+  "allowed_action_id": "light.turn_on.approved",
+  "arguments": {
+    "brightness_pct": 50
+  },
+  "expected_state_version": null,
+  "confirmation_grant": null,
+  "client_request_id": "synthetic-request-1",
+  "expires_at": "2026-09-12T15:52:00Z"
+}

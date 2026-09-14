@@ -1,0 +1,27 @@
+[
+  {
+    "path": "docs/design/reference/DESIGN_SYSTEM_SEED.md",
+    "size": 1126,
+    "sha256": "b5fea1038bb959b96aef666011eaa86e6f0712aaaa2e32aa38ad83b56b6696d8"
+  },
+  {
+    "path": "docs/design/reference/README.md",
+    "size": 1747,
+    "sha256": "9d335aa1f90c546ef063355e26a8768b3fde5ef65b2915ec90ceaf7bdbad60c5"
+  },
+  {
+    "path": "docs/design/reference/mockups/01_core_vms_screens.png",
+    "size": 1776826,
+    "sha256": "000f0ee48db0ec9f98e086efdc35ad73beb1600e8539b0d78e30770c5d66180e"
+  },
+  {
+    "path": "docs/design/reference/mockups/02_ai_mobile_operations.png",
+    "size": 1757386,
+    "sha256": "c0b56d6bfd81812c542e272163b891ebb54ae591e5b6a6b9d2d9f149b4263672"
+  },
+  {
+    "path": "docs/design/reference/mockups/03_security_admin_system.png",
+    "size": 1716928,
+    "sha256": "b25cbafbc548c5a80bac1594b92902c367f6633cb9e84f54187490329c9a8e06"
+  }
+]

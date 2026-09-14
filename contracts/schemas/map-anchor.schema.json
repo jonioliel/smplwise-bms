@@ -1,0 +1,97 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "plan_version_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "resource_type": {
+      "enum": [
+        "camera",
+        "ha_entity"
+      ]
+    },
+    "resource_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "position": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "y": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ]
+    },
+    "rotation_degrees": {
+      "type": "number",
+      "minimum": 0,
+      "exclusiveMaximum": 360
+    },
+    "field_of_view_degrees": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "exclusiveMinimum": 0,
+      "maximum": 360
+    },
+    "layer_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "effective_from": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "effective_to": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "id",
+    "plan_version_id",
+    "resource_type",
+    "resource_id",
+    "position",
+    "rotation_degrees",
+    "field_of_view_degrees",
+    "layer_id",
+    "revision",
+    "effective_from",
+    "effective_to"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:smplwise:schema:anchor:1.0"
+}

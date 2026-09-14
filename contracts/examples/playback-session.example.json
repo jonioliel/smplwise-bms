@@ -1,0 +1,21 @@
+{
+  "id": "synthetic-session",
+  "camera_id": "camera-1",
+  "generation": 2,
+  "state": "buffering",
+  "requested_at": "2026-09-12T15:42:00Z",
+  "actual_start_at": null,
+  "actual_end_at": null,
+  "media_anchor": null,
+  "time_precision": "unknown",
+  "media_handle": null,
+  "expires_at": "2026-09-12T15:52:00Z",
+  "capabilities": {
+    "seek": true,
+    "pause": false,
+    "frame_step": false,
+    "supported_speeds": [
+      1
+    ]
+  }
+}

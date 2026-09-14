@@ -1,0 +1,43 @@
+{
+  "project": "SMPLWISE VMS",
+  "version": "1.1.0-planning",
+  "created_at": "2026-09-14",
+  "implementation_status": "NOT_STARTED",
+  "baseline": "User requirements + preserved mockups + historical specs; no live code/hardware audit performed.",
+  "phases": [
+    "G0",
+    "PILOT",
+    "BETA",
+    "V1",
+    "V2"
+  ],
+  "budget": {
+    "currency": "USD",
+    "planning_ceiling_discussed": 500,
+    "spend_authorized": false,
+    "approved_spend_limit": null,
+    "note": "Prior discussion proposed a ceiling; this is not a quote, payment permission or a completion guarantee."
+  },
+  "deadline": {
+    "pilot_sprint_target_workdays": 7,
+    "start_date": null,
+    "commitment": false
+  },
+  "readiness": {
+    "legacy_source": "missing",
+    "local_codex": "not_verified",
+    "nvr_lab": "not_verified",
+    "ha_lab": "not_verified",
+    "go2rtc_lab": "not_verified"
+  },
+  "updated_at": "2026-09-14",
+  "change_requests": [
+    "CR-001-HA-IDENTITY-RBAC"
+  ],
+  "identity": {
+    "source": "Home Assistant",
+    "authorization": "VMS role + scope; intersect HA permissions for HA resources/actions",
+    "ha_user_mutation": false,
+    "pilot_scope": "HA users, groups, built-in scoped roles, verified Ingress, revocation, negative authorization tests"
+  }
+}

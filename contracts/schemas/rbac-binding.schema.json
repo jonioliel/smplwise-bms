@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:smplwise:schema:rbac-binding:1.1",
+  "title": "Scoped VMS role binding; server-owned authority",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ha_instance_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "ha_user",
+            "vms_group"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ]
+    },
+    "role_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "enum": [
+            "installation",
+            "site",
+            "building",
+            "floor",
+            "camera",
+            "entity",
+            "case"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "type",
+        "id"
+      ]
+    },
+    "effect": {
+      "enum": [
+        "allow",
+        "deny"
+      ]
+    },
+    "permission_revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "assigned_by_ha_user_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "expires_at": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "id",
+    "ha_instance_id",
+    "subject",
+    "role_id",
+    "scope",
+    "effect",
+    "permission_revision",
+    "assigned_by_ha_user_id",
+    "created_at",
+    "expires_at"
+  ],
+  "description": "Stored server record. A schema-valid client payload is never sufficient authorization. Scope/action pairing and delegation constraints must be checked by the server."
+}

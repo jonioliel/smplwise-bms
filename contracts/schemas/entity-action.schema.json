@@ -1,0 +1,51 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "entity_binding_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "allowed_action_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "arguments": {
+      "type": "object",
+      "maxProperties": 20,
+      "description": "Further validated against server registered action-specific schema, not an arbitrary HA service call."
+    },
+    "expected_state_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "confirmation_grant": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "client_request_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    }
+  },
+  "required": [
+    "entity_binding_id",
+    "allowed_action_id",
+    "arguments",
+    "expected_state_version",
+    "confirmation_grant",
+    "client_request_id",
+    "expires_at"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:smplwise:schema:entity-action:1.0"
+}

@@ -1,0 +1,153 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "camera_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generation": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "state": {
+      "enum": [
+        "creating",
+        "buffering",
+        "playing",
+        "paused",
+        "seeking",
+        "ended",
+        "expired",
+        "failed",
+        "closed"
+      ]
+    },
+    "requested_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "actual_start_at": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "actual_end_at": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "media_anchor": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "source_at": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "Z$"
+            },
+            "media_pts_seconds": {
+              "type": "number"
+            },
+            "verified": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "source_at",
+            "media_pts_seconds",
+            "verified"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "time_precision": {
+      "enum": [
+        "verified",
+        "keyframe_limited",
+        "estimated",
+        "unknown"
+      ]
+    },
+    "media_handle": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "seek": {
+          "type": "boolean"
+        },
+        "pause": {
+          "type": "boolean"
+        },
+        "frame_step": {
+          "type": "boolean"
+        },
+        "supported_speeds": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          }
+        }
+      },
+      "required": [
+        "seek",
+        "pause",
+        "frame_step",
+        "supported_speeds"
+      ]
+    }
+  },
+  "required": [
+    "id",
+    "camera_id",
+    "generation",
+    "state",
+    "requested_at",
+    "actual_start_at",
+    "actual_end_at",
+    "media_anchor",
+    "time_precision",
+    "media_handle",
+    "expires_at",
+    "capabilities"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:smplwise:schema:playback:1.0",
+  "title": "Planned playback API response; media handle is scoped and not a raw source URL"
+}

@@ -1,0 +1,11 @@
+{
+  "ha_instance_id": "ha-lab-demo",
+  "ha_user_id": "demo-dana-user",
+  "display_name": "דנה",
+  "active": true,
+  "system_generated": false,
+  "local_only": false,
+  "source": "home_assistant",
+  "last_verified_at": "2026-09-14T10:00:00Z",
+  "sync_status": "verified"
+}

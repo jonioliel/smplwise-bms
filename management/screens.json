@@ -1,0 +1,844 @@
+[
+  {
+    "id": "SC01",
+    "name": "סקירה / Spotlights",
+    "route_proposal": "/overview",
+    "mode": "Live",
+    "phase": "PILOT",
+    "interaction": "תמצית חריגים עם קפיצה למצלמה, מפה או review; אין dashboard מלא כתחליף למפה.",
+    "reference": "1:01",
+    "states": [
+      "loading",
+      "empty",
+      "ready",
+      "partial",
+      "offline/stale",
+      "forbidden",
+      "error"
+    ],
+    "status": "PLANNED",
+    "responsive": "Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.",
+    "task_ids": [
+      "T007",
+      "T019",
+      "T047",
+      "T058",
+      "T074"
+    ]
+  },
+  {
+    "id": "SC02",
+    "name": "אתרים ומבנים",
+    "route_proposal": "/sites",
+    "mode": "Explore",
+    "phase": "PILOT",
+    "interaction": "בחירת אתר ומבנה, health ממקורות אמיתיים וקיצור לקומה האחרונה.",
+    "reference": "1:02",
+    "states": [
+      "loading",
+      "empty",
+      "ready",
+      "partial",
+      "offline/stale",
+      "forbidden",
+      "error"
+    ],
+    "status": "PLANNED",
+    "responsive": "Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.",
+    "task_ids": [
+      "T019",
+      "T058"
+    ]
+  },
+  {
+    "id": "SC03",
+    "name": "דפדפן קומות",
+    "route_proposal": "/buildings/:id/floors",
+    "mode": "Explore",
+    "phase": "PILOT",
+    "interaction": "בחירת קומה, תמונת תוכנית, מספר מצלמות/ישויות מורשות, ו־stairs/elevator בהמשך.",
+    "reference": "1:03",
+    "states": [
+      "loading",
+      "empty",
+      "ready",
+      "partial",
+      "offline/stale",
+      "forbidden",
+      "error"
+    ],
+    "status": "PLANNED",
+    "responsive": "Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.",
+    "task_ids": [
+      "T019",
+      "T039"
+    ]
+  },
+  {
+    "id": "SC04",
+    "name": "מפת קומה חיה",
+    "route_proposal": "/floors/:id/live",
+    "mode": "Explore",
+    "phase": "PILOT",
+    "interaction": "מפה מרכזית, שכבות, עוגנים, preview במגירה; חיפוש, pan/zoom ובחירת כמה מצלמות.",
+    "reference": "1:04",
+    "states": [
+      "loading",
+      "empty",
+      "ready",
+      "partial",
+      "offline/stale",
+      "forbidden",
+      "error"
+    ],
+    "status": "PLANNED",
+    "responsive": "Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.",
+    "task_ids": [
+      "T007",
+      "T022",
+      "T025",
+      "T034",
+      "T037",
+      "T039",
+      "T043",
+      "T074",
+      "T079",
+      "T083"
+    ]
+  },
+  {
+    "id": "SC05",
+    "name": "ייבוא ותיקון תוכנית",
+    "route_proposal": "/floors/:id/import",
+    "mode": "Explore",
+    "phase": "PILOT",
+    "interaction": "PDF page/crop/rotate, מקור מול תוצאה, מצב AI מוצע, תיקון ואישור ללא שינוי המקור.",
+    "reference": "2:13",
+    "states": [
+      "loading",
+      "empty",
+      "ready",
+      "partial",
+      "offline/stale",
+      "forbidden",
+      "error"
+    ],
+    "status": "PLANNED",
+    "responsive": "Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.",
+    "task_ids": [
+      "T020",
+      "T038",
+      "T059",
+      "T060",
+      "T061",
+      "T065"
+    ]
+  },
+  {
+    "id": "SC06",
+    "name": "עורך תוכנית ועוגנים",
+    "route_proposal": "/floors/:id/edit",
+    "mode": "Explore",
+    "phase": "PILOT",
+    "interaction": "הצבת cameras/entities, קואורדינטות, FOV, אזורים, scale, undo/redo ו־publish.",
+    "reference": "2:13",
+    "states": [
+      "loading",
+      "empty",
+      "ready",
+      "partial",
+      "offline/stale",
+      "forbidden",
+      "error"
+    ],
+    "status": "PLANNED",
+    "responsive": "Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.",
+    "task_ids": [
+      "T021",
+      "T037",
+      "T038",
+      "T059",
+      "T060",
+      "T061"
+    ]
+  },
+  {
+    "id": "SC07",
+    "name": "קיר מצלמות חי",
+    "route_proposal": "/live",
+    "mode": "Live",
+    "phase": "PILOT",
+    "interaction": "תצוגות grid/focus, סדר וגודל אריחים, stream auto/main/sub ומידע חיבור.",
+    "reference": "1:06",
+    "states": [
+      "loading",
+      "empty",
+      "ready",
+      "partial",
+      "offline/stale",
+      "forbidden",
+      "error"
+    ],
+    "status": "PLANNED",
+    "responsive": "Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.",
+    "task_ids": [
+      "T007",
+      "T018",
+      "T079"
+    ]
+  },
+  {
+    "id": "SC08",
+    "name": "מצלמה בודדת",
+    "route_proposal": "/cameras/:id/live",
+    "mode": "Live",
+    "phase": "PILOT",
+    "interaction": "וידאו, snapshot, map context ו־Playback; PTZ/talk מופיעים רק ביכולת מאומתת.",
+    "reference": "1:05",
+    "states": [
+      "loading",
+      "empty",
+      "ready",
+      "partial",
+      "offline/stale",
+      "forbidden",
+      "error"
+    ],
+    "status": "PLANNED",
+    "responsive": "Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.",
+    "task_ids": [
+      "T017",
+      "T022",
+      "T034",
+      "T045",
+      "T046",
+      "T075"
+    ]
+  },
+  {
+    "id": "SC09",
+    "name": "מנהל Saved views",
+    "route_proposal": "/live/views",
+    "mode": "Live",
+    "phase": "PILOT",
+    "interaction": "תבניות 1/2/4/6/9/12/16/custom, personal/shared ו־mobile override ללא YAML.",
+    "reference": "legacy:layout",
+    "states": [
+      "loading",
+      "empty",
+      "ready",
+      "partial",
+      "offline/stale",
+      "forbidden",
+      "error"
+    ],
+    "status": "PLANNED",
+    "responsive": "Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.",
+    "task_ids": [
+      "T018"
+    ]
+  },
+  {
+    "id": "SC10",
+    "name": "קטלוג ומגירת ישות HA",
+    "route_proposal": "/entities",
+    "mode": "Explore",
+    "phase": "PILOT",
+    "interaction": "חיפוש כל הישויות המורשות, שיוך למפה, supported actions, state freshness ו־generic fallback.",
+    "reference": "new:HA",
+    "states": [
+      "loading",
+      "empty",
+      "ready",
+      "partial",
+      "offline/stale",
+      "forbidden",
+      "error"
+    ],
+    "status": "PLANNED",
+    "responsive": "Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.",
+    "task_ids": [
+      "T007",
+      "T023",
+      "T024",
+      "T025",
+      "T034",
+      "T037",
+      "T040"
+    ]
+  },
+  {
+    "id": "SC11",
+    "name": "מפת חקירה היסטורית",
+    "route_proposal": "/floors/:id/history",
+    "mode": "Investigate",
+    "phase": "PILOT",
+    "interaction": "תאריך/זמן בולטים, גרסת מפה תקפה, state coverage, adjacent cameras, ללא physical actions כברירת מחדל.",
+    "reference": "new:spatial-investigation",
+    "states": [
+      "loading",
+      "empty",
+      "ready",
+      "partial",
+      "offline/stale",
+      "forbidden",
+      "error"
+    ],
+    "status": "PLANNED",
+    "responsive": "Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.",
+    "task_ids": [
+      "T030",
+      "T038",
+      "T039",
+      "T041",
+      "T043",
+      "T053",
+      "T064",
+      "T074"
+    ]
+  },
+  {
+    "id": "SC12",
+    "name": "Playback / Timeline",
+    "route_proposal": "/playback",
+    "mode": "Investigate",
+    "phase": "PILOT",
+    "interaction": "מקטעים, gaps, events, date/time, seek generation ודיוק פריים; צילום preview היסטורי.",
+    "reference": "1:07",
+    "states": [
+      "loading",
+      "empty",
+      "ready",
+      "partial",
+      "offline/stale",
+      "forbidden",
+      "error"
+    ],
+    "status": "PLANNED",
+    "responsive": "Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.",
+    "task_ids": [
+      "T006",
+      "T014",
+      "T027",
+      "T028",
+      "T029",
+      "T034",
+      "T044",
+      "T066",
+      "T074"
+    ]
+  },
+  {
+    "id": "SC13",
+    "name": "Playback מסונכרן",
+    "route_proposal": "/playback/sync",
+    "mode": "Investigate",
+    "phase": "BETA",
+    "interaction": "2–4 מקורות עם master clock, drift/coverage ואפשרות unlink; הרחבה רק לאחר ביצועים מאומתים.",
+    "reference": "2:14",
+    "states": [
+      "loading",
+      "empty",
+      "ready",
+      "partial",
+      "offline/stale",
+      "forbidden",
+      "error"
+    ],
+    "status": "PLANNED",
+    "responsive": "Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.",
+    "task_ids": [
+      "T006",
+      "T028",
+      "T042",
+      "T043",
+      "T066"
+    ]
+  },
+  {
+    "id": "SC14",
+    "name": "מרכז אירועים",
+    "route_proposal": "/events",
+    "mode": "Investigate",
+    "phase": "PILOT",
+    "interaction": "תמונות/טיפוס/זמן/מיקום/מקור, פילטרים, coverage ו־Ack מתועד.",
+    "reference": "1:08",
+    "states": [
+      "loading",
+      "empty",
+      "ready",
+      "partial",
+      "offline/stale",
+      "forbidden",
+      "error"
+    ],
+    "status": "PLANNED",
+    "responsive": "Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.",
+    "task_ids": [
+      "T031",
+      "T032",
+      "T044",
+      "T047"
+    ]
+  },
+  {
+    "id": "SC15",
+    "name": "תור Review וחלונות אירוע",
+    "route_proposal": "/reviews",
+    "mode": "Investigate",
+    "phase": "BETA",
+    "interaction": "קיבוץ אירועים, treated/unhandled, severity, raw evidence וקישור למפה/Playback.",
+    "reference": "legacy:review",
+    "states": [
+      "loading",
+      "empty",
+      "ready",
+      "partial",
+      "offline/stale",
+      "forbidden",
+      "error"
+    ],
+    "status": "PLANNED",
+    "responsive": "Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.",
+    "task_ids": [
+      "T032",
+      "T047"
+    ]
+  },
+  {
+    "id": "SC16",
+    "name": "רשימת Cases",
+    "route_proposal": "/cases",
+    "mode": "Investigate",
+    "phase": "BETA",
+    "interaction": "תיקים, owner, status, tags, preserved/missing media והרשאה לכל תיק.",
+    "reference": "2:10",
+    "states": [
+      "loading",
+      "empty",
+      "ready",
+      "partial",
+      "offline/stale",
+      "forbidden",
+      "error"
+    ],
+    "status": "PLANNED",
+    "responsive": "Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.",
+    "task_ids": [
+      "T049",
+      "T064",
+      "T074"
+    ]
+  },
+  {
+    "id": "SC17",
+    "name": "תיק חקירה וראיות",
+    "route_proposal": "/cases/:id",
+    "mode": "Investigate",
+    "phase": "BETA",
+    "interaction": "קליפים מכמה מצלמות, notes, map route מוצע, actual time ו־export manifest.",
+    "reference": "2:10",
+    "states": [
+      "loading",
+      "empty",
+      "ready",
+      "partial",
+      "offline/stale",
+      "forbidden",
+      "error"
+    ],
+    "status": "PLANNED",
+    "responsive": "Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.",
+    "task_ids": [
+      "T049",
+      "T050"
+    ]
+  },
+  {
+    "id": "SC18",
+    "name": "יצוא והורדות",
+    "route_proposal": "/exports",
+    "mode": "Investigate",
+    "phase": "BETA",
+    "interaction": "durable jobs, progress/cancel/partial/fail, scoped download, hash ומשמעותו.",
+    "reference": "2:10",
+    "states": [
+      "loading",
+      "empty",
+      "ready",
+      "partial",
+      "offline/stale",
+      "forbidden",
+      "error"
+    ],
+    "status": "PLANNED",
+    "responsive": "Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.",
+    "task_ids": [
+      "T048",
+      "T050",
+      "T067"
+    ]
+  },
+  {
+    "id": "SC19",
+    "name": "חיפוש מרחבי ו־AI",
+    "route_proposal": "/search",
+    "mode": "Investigate",
+    "phase": "BETA",
+    "interaction": "metadata filters קודם; יכולות semantic/identity רק כשיש data/provider מורשה ו־confidence.",
+    "reference": "2:09",
+    "states": [
+      "loading",
+      "empty",
+      "ready",
+      "partial",
+      "offline/stale",
+      "forbidden",
+      "error"
+    ],
+    "status": "PLANNED",
+    "responsive": "Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.",
+    "task_ids": [
+      "T062",
+      "T063",
+      "T064"
+    ]
+  },
+  {
+    "id": "SC20",
+    "name": "אחסון ותוכנית הקלטה",
+    "route_proposal": "/system/storage",
+    "mode": "System",
+    "phase": "BETA",
+    "interaction": "מצב NVR disks/recording, retention observed/estimated; כתיבה guarded, no format/RAID.",
+    "reference": "2:11",
+    "states": [
+      "loading",
+      "empty",
+      "ready",
+      "partial",
+      "offline/stale",
+      "forbidden",
+      "error"
+    ],
+    "status": "PLANNED",
+    "responsive": "Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.",
+    "task_ids": [
+      "T051"
+    ]
+  },
+  {
+    "id": "SC21",
+    "name": "חוקים והתראות",
+    "route_proposal": "/rules",
+    "mode": "Investigate",
+    "phase": "BETA",
+    "interaction": "rules, notification scope, quiet hours/cooldown, owner HA/local ו־last matched.",
+    "reference": "3:19",
+    "states": [
+      "loading",
+      "empty",
+      "ready",
+      "partial",
+      "offline/stale",
+      "forbidden",
+      "error"
+    ],
+    "status": "PLANNED",
+    "responsive": "Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.",
+    "task_ids": [
+      "T052"
+    ]
+  },
+  {
+    "id": "SC22",
+    "name": "עורך חוק וקורלציה",
+    "route_proposal": "/rules/:id",
+    "mode": "Investigate",
+    "phase": "BETA",
+    "interaction": "trigger→scope→conditions→action, preview/dry run, loop prevention וראיות.",
+    "reference": "3:19",
+    "states": [
+      "loading",
+      "empty",
+      "ready",
+      "partial",
+      "offline/stale",
+      "forbidden",
+      "error"
+    ],
+    "status": "PLANNED",
+    "responsive": "Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.",
+    "task_ids": [
+      "T052",
+      "T053"
+    ]
+  },
+  {
+    "id": "SC23",
+    "name": "דלת ואינטרקום",
+    "route_proposal": "/access/:id",
+    "mode": "Explore",
+    "phase": "V1",
+    "interaction": "camera/ringing/contact/relay בנפרד, linked HA controls, confirm unlock והרשאות.",
+    "reference": "3:18",
+    "states": [
+      "loading",
+      "empty",
+      "ready",
+      "partial",
+      "offline/stale",
+      "forbidden",
+      "error"
+    ],
+    "status": "PLANNED",
+    "responsive": "Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.",
+    "task_ids": [
+      "T040",
+      "T053",
+      "T054"
+    ]
+  },
+  {
+    "id": "SC24",
+    "name": "משתמשי HA, קבוצות ותפקידי VMS",
+    "route_proposal": "/system/access",
+    "mode": "System",
+    "phase": "PILOT",
+    "interaction": "לשוניות משתמשים/קבוצות/תפקידים, מקור HA לקריאה בלבד, role+scope, preview הרשאות והפרדה מוחלטת מ־HA admin; custom roles/delegation ב־V1.",
+    "reference": "3:20",
+    "states": [
+      "loading",
+      "empty",
+      "ready",
+      "partial",
+      "offline/stale",
+      "forbidden",
+      "error"
+    ],
+    "status": "PLANNED",
+    "responsive": "Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.",
+    "task_ids": [
+      "T011",
+      "T055",
+      "T076",
+      "T077",
+      "T078",
+      "T080",
+      "T081",
+      "T082",
+      "T083"
+    ]
+  },
+  {
+    "id": "SC25",
+    "name": "Audit trail",
+    "route_proposal": "/system/audit",
+    "mode": "System",
+    "phase": "PILOT",
+    "interaction": "מי צפה/שינה/ייצא/שלח פעולה, בלי secrets, פילטרים ו־retention מוגדר.",
+    "reference": "3:21",
+    "states": [
+      "loading",
+      "empty",
+      "ready",
+      "partial",
+      "offline/stale",
+      "forbidden",
+      "error"
+    ],
+    "status": "PLANNED",
+    "responsive": "Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.",
+    "task_ids": [
+      "T055",
+      "T067",
+      "T078",
+      "T080",
+      "T082",
+      "T083"
+    ]
+  },
+  {
+    "id": "SC26",
+    "name": "אשף התקנה ומיפוי",
+    "route_proposal": "/setup",
+    "mode": "System",
+    "phase": "PILOT",
+    "interaction": "NVR/HA/go2rtc בדיקות, clock profile, capabilities, map and first camera, no destructive discovery.",
+    "reference": "3:22",
+    "states": [
+      "loading",
+      "empty",
+      "ready",
+      "partial",
+      "offline/stale",
+      "forbidden",
+      "error"
+    ],
+    "status": "PLANNED",
+    "responsive": "Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.",
+    "task_ids": [
+      "T002",
+      "T009",
+      "T011",
+      "T012",
+      "T071",
+      "T076",
+      "T081",
+      "T083"
+    ]
+  },
+  {
+    "id": "SC27",
+    "name": "NVRs, מצלמות ובריאות",
+    "route_proposal": "/system/devices",
+    "mode": "System",
+    "phase": "PILOT",
+    "interaction": "mapping/aliases/order, codec/capability, firmware ותוצאת probe, ניתוק מקור ללא אשמת UI.",
+    "reference": "2:12",
+    "states": [
+      "loading",
+      "empty",
+      "ready",
+      "partial",
+      "offline/stale",
+      "forbidden",
+      "error"
+    ],
+    "status": "PLANNED",
+    "responsive": "Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.",
+    "task_ids": [
+      "T012",
+      "T013",
+      "T033",
+      "T046",
+      "T058",
+      "T075"
+    ]
+  },
+  {
+    "id": "SC28",
+    "name": "הגדרות ודיאגנוסטיקה",
+    "route_proposal": "/system/diagnostics",
+    "mode": "System",
+    "phase": "PILOT",
+    "interaction": "timezone display/source profile, health, jobs, budgets, backup/restore ו־redacted support bundle.",
+    "reference": "3:23",
+    "states": [
+      "loading",
+      "empty",
+      "ready",
+      "partial",
+      "offline/stale",
+      "forbidden",
+      "error"
+    ],
+    "status": "PLANNED",
+    "responsive": "Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.",
+    "task_ids": [
+      "T014",
+      "T015",
+      "T016",
+      "T024",
+      "T026",
+      "T033",
+      "T068",
+      "T071"
+    ]
+  },
+  {
+    "id": "SC29",
+    "name": "מובייל: מפה ובקרה",
+    "route_proposal": "/m/explore",
+    "mode": "Explore",
+    "phase": "PILOT",
+    "interaction": "אותם routes/components מותאמים לרוחב, bottom sheet, touch placement ומינימום וידאו רקע.",
+    "reference": "2:15",
+    "states": [
+      "loading",
+      "empty",
+      "ready",
+      "partial",
+      "offline/stale",
+      "forbidden",
+      "error"
+    ],
+    "status": "PLANNED",
+    "responsive": "Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.",
+    "task_ids": [
+      "T034",
+      "T074"
+    ]
+  },
+  {
+    "id": "SC30",
+    "name": "מובייל: צפייה וחקירה",
+    "route_proposal": "/m/playback",
+    "mode": "Investigate",
+    "phase": "PILOT",
+    "interaction": "Live/playback עם context, timeline נגיש, alerts ורשת חלשה ללא טבלאות צפופות.",
+    "reference": "2:16",
+    "states": [
+      "loading",
+      "empty",
+      "ready",
+      "partial",
+      "offline/stale",
+      "forbidden",
+      "error"
+    ],
+    "status": "PLANNED",
+    "responsive": "Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.",
+    "task_ids": [
+      "T034",
+      "T045",
+      "T066"
+    ]
+  },
+  {
+    "id": "SC31",
+    "name": "Kiosk / תצוגת קיר",
+    "route_proposal": "/kiosk/:view",
+    "mode": "Live",
+    "phase": "BETA",
+    "interaction": "grid קריא למרחק, reconnect/status, no admin controls ו־restricted principal.",
+    "reference": "3:24",
+    "states": [
+      "loading",
+      "empty",
+      "ready",
+      "partial",
+      "offline/stale",
+      "forbidden",
+      "error"
+    ],
+    "status": "PLANNED",
+    "responsive": "Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.",
+    "task_ids": [
+      "T057"
+    ]
+  },
+  {
+    "id": "SC32",
+    "name": "Lovelace: מפה, מצלמות ואירועים",
+    "route_proposal": "ha://dashboard/cards",
+    "mode": "HA surface",
+    "phase": "BETA",
+    "interaction": "עטיפות משותפות לאותם רכיבים, local navigation/API; אין fork UI נוסף או secrets ב־YAML.",
+    "reference": "legacy:HA-cards",
+    "states": [
+      "loading",
+      "empty",
+      "ready",
+      "partial",
+      "offline/stale",
+      "forbidden",
+      "error"
+    ],
+    "status": "PLANNED",
+    "responsive": "Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.",
+    "task_ids": [
+      "T056"
+    ]
+  }
+]

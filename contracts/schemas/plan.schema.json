@@ -1,0 +1,224 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "plan_version_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "floor_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "asset_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "width_px": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50000
+        },
+        "height_px": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50000
+        }
+      },
+      "required": [
+        "asset_id",
+        "sha256",
+        "page",
+        "width_px",
+        "height_px"
+      ]
+    },
+    "coordinates": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "space": {
+          "const": "normalized_source_top_left"
+        },
+        "unit": {
+          "const": "fraction"
+        },
+        "original_pixels_to_normalized": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 9,
+          "maxItems": 9
+        },
+        "scale_m_per_source_px": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "exclusiveMinimum": 0
+        }
+      },
+      "required": [
+        "space",
+        "unit",
+        "original_pixels_to_normalized",
+        "scale_m_per_source_px"
+      ]
+    },
+    "elements": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/element"
+      },
+      "maxItems": 20000
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 1000
+      },
+      "maxItems": 1000
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "enum": [
+            "manual",
+            "ai_suggested",
+            "vector_import"
+          ]
+        },
+        "prompt_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_reference": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "human_approved": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "mode",
+        "prompt_version",
+        "model_reference",
+        "human_approved"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "plan_version_id",
+    "floor_id",
+    "source",
+    "coordinates",
+    "elements",
+    "warnings",
+    "provenance"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:smplwise:schema:plan:1.0",
+  "title": "Canonical plan proposal — not authoritative until reviewed",
+  "$defs": {
+    "point": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "y": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ]
+    },
+    "element": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "wall",
+            "door",
+            "window",
+            "room",
+            "stairs",
+            "elevator",
+            "zone"
+          ]
+        },
+        "points": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/point"
+          },
+          "minItems": 2,
+          "maxItems": 10000
+        },
+        "label": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 200
+        },
+        "confidence": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "uncertain": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "points",
+        "label",
+        "confidence",
+        "uncertain"
+      ]
+    }
+  }
+}

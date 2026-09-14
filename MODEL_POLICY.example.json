@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "status": "TEMPLATE_NOT_ACTIVATED",
+  "aliases": {
+    "balanced": {
+      "model_id": null,
+      "reasoning_effort": "medium"
+    },
+    "deep": {
+      "model_id": null,
+      "reasoning_effort": "medium"
+    }
+  },
+  "constraints": {
+    "max_repair_attempts": 2,
+    "approved_spend_limit_usd": null,
+    "allow_paid_calls": false,
+    "allow_physical_actions": false,
+    "allow_production_deployment": false
+  },
+  "note": "Resolve model IDs from the installed Codex/account. No model switch or dispatcher is implemented by this file."
+}

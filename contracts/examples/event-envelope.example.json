@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "type": "resync_required",
+  "sequence": 5,
+  "subscription_id": "synthetic-sub",
+  "occurred_at": "2026-09-12T15:42:00Z",
+  "received_at": "2026-09-12T15:42:01Z",
+  "payload": {
+    "reason": "history_gap"
+  }
+}

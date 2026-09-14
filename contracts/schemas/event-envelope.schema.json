@@ -1,0 +1,52 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "type": {
+      "enum": [
+        "entity_state_changed",
+        "event_added",
+        "camera_health_changed",
+        "session_state_changed",
+        "job_progress",
+        "plan_published",
+        "resync_required"
+      ]
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "subscription_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "received_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "payload": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "version",
+    "type",
+    "sequence",
+    "subscription_id",
+    "occurred_at",
+    "received_at",
+    "payload"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:smplwise:schema:event-envelope:1.0"
+}

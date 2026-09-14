@@ -1,0 +1,4666 @@
+[
+  {
+    "id": "AT001",
+    "requirement_ids": [
+      "R001"
+    ],
+    "task_ids": [
+      "T001"
+    ],
+    "title": "איסוף ומיפוי המקור הישן — 1",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לקבל Snapshot או Commit של המערכת שבאמת פועלת, ולהפיק הוראות הרצה, רשימת מודולים ותלויות. אין להסיק שהמסמכים ההיסטוריים הם הקוד הפעיל.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT002",
+    "requirement_ids": [
+      "R002"
+    ],
+    "task_ids": [
+      "T001"
+    ],
+    "title": "איסוף ומיפוי המקור הישן — 2",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "ליצור REUSE_MATRIX לכל יכולת: reuse, wrap, refactor או replace, עם קובץ מקור, התנהגות שנצפתה, סיכון ונימוק. אין למחוק את המקור הישן.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT003",
+    "requirement_ids": [
+      "R003"
+    ],
+    "task_ids": [
+      "T002"
+    ],
+    "title": "מעבדת פיתוח והרשאות ייעודיות — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לאמת גישה מקומית ל־NVR, HA ו־go2rtc מתוך סביבת הפיתוח; לתעד דגם, Firmware, Codec ונתיבים ללא סודות.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT004",
+    "requirement_ids": [
+      "R004"
+    ],
+    "task_ids": [
+      "T002"
+    ],
+    "title": "מעבדת פיתוח והרשאות ייעודיות — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להגדיר חשבונות ייעודיים, גיבוי לפני בדיקה, Read-only כברירת מחדל ויומן פעולות; אין גישה מלאה אוטומטית או פקודות פיזיות בזמן bootstrap.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT005",
+    "requirement_ids": [
+      "R005"
+    ],
+    "task_ids": [
+      "T003"
+    ],
+    "title": "לכידת Golden traces מהמערכת הישנה — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "ללכוד בקשות ותשובות מצונזרות של discovery, search, pagination, playback, export ו־events שעובדים, עם זמני UTC ותצורת המקור.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT006",
+    "requirement_ids": [
+      "R006"
+    ],
+    "task_ids": [
+      "T003"
+    ],
+    "title": "לכידת Golden traces מהמערכת הישנה — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לייצר fixtures של הצלחה, אין הקלטה, forbidden, timeout ו־partial; כתובות עם סיסמה ופרטים אישיים אינם נכנסים ל־Git.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT007",
+    "requirement_ids": [
+      "R007"
+    ],
+    "task_ids": [
+      "T004"
+    ],
+    "title": "בדיקות Characterization והשוואת התנהגות — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להריץ תרחישי קלט זהים על המקור הישן וה־adapter החדש ולשמור diff של mapping, search intervals ותוצאות השגיאה.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT008",
+    "requirement_ids": [
+      "R008"
+    ],
+    "task_ids": [
+      "T004"
+    ],
+    "title": "בדיקות Characterization והשוואת התנהגות — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לקבוע baseline ביצועים ופריים אמיתי בזמן ידוע; אי־התאמה מתועדת כפער ולא מתוקנת בהזזת שעות קבועה.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT009",
+    "requirement_ids": [
+      "R009"
+    ],
+    "task_ids": [
+      "T005"
+    ],
+    "title": "ביקורת סודות, רישיונות ותלויות — 1",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להפיק inventory ורישיונות לתלויות וקוד שנלמד או מועתק, כולל notices רלוונטיים; קוד ספק אינו מועתק ללא זכות שימוש.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT010",
+    "requirement_ids": [
+      "R010"
+    ],
+    "task_ids": [
+      "T005"
+    ],
+    "title": "ביקורת סודות, רישיונות ותלויות — 2",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לסרוק סודות, log leaks ונתיבי כתיבה מסוכנים; לגבש טיפול בממצאים לפני הפצת fixtures או build.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT011",
+    "requirement_ids": [
+      "R011"
+    ],
+    "task_ids": [
+      "T006"
+    ],
+    "title": "הוכחת Playback ו־Seek מוקדמת — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להוכיח מול NVR אמיתי שזמן בקשה ידוע מוביל להקלטה ולפריים הנכונים; למדוד keyframe offset ומיפוי PTS לזמן המקור.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT012",
+    "requirement_ids": [
+      "R012"
+    ],
+    "task_ids": [
+      "T006"
+    ],
+    "title": "הוכחת Playback ו־Seek מוקדמת — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לבדוק create/update/delete ב־go2rtc על namespace ניסוי: persistence, חיבורי consumers ו־restart. לבחור נתיב session או bounded clip על סמך ראיה.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT013",
+    "requirement_ids": [
+      "R013"
+    ],
+    "task_ids": [
+      "T007"
+    ],
+    "title": "נעילת Design tokens ורכיבי בסיס — 1",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לשמר את שלושת לוחות ההדמיה ולממש tokens, ניווט ארבעה מצבים, טיפוגרפיה, ריווח, צבעי מצב ורכיבי בסיס ללא שינוי שפת העיצוב.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT014",
+    "requirement_ids": [
+      "R014"
+    ],
+    "task_ids": [
+      "T007"
+    ],
+    "title": "נעילת Design tokens ורכיבי בסיס — 2",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לצלם מפת קומה, מצלמה ומגירת ישות בעברית/RTL ובמובייל; empty/error/stale נראים שונים מנתון חי.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT015",
+    "requirement_ids": [
+      "R015"
+    ],
+    "task_ids": [
+      "T008"
+    ],
+    "title": "ארכיטקטורה, ADR וחוזים נעולים — 1",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לאשר גבולות add-on, HA integration ו־go2rtc חיצוני, בעלות על DB/media והחלטות reuse. לתעד חלופות והנחות שנפסלו.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT016",
+    "requirement_ids": [
+      "R016"
+    ],
+    "task_ids": [
+      "T008"
+    ],
+    "title": "ארכיטקטורה, ADR וחוזים נעולים — 2",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לנעול חוזי API, מזהים, schema revisions ו־error model לפני עבודת Agents מקבילה; דוגמאות תקינות נכנסות לבדיקת contracts.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT017",
+    "requirement_ids": [
+      "R017"
+    ],
+    "task_ids": [
+      "T009"
+    ],
+    "title": "שלד מאגר, HA Add-on/App ו־CI — AT017",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "למסור שלד Add-on/App ייעודי ל־HAOS עם config.yaml, Ingress, image, /data מתמשך ו־CI. go2rtc חיצוני; לא להחליף בתצורת HACS-only, כרטיס בלבד או Web app נפרד.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT018",
+    "requirement_ids": [
+      "R018"
+    ],
+    "task_ids": [
+      "T009"
+    ],
+    "title": "שלד מאגר, HA Add-on/App ו־CI — AT018",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לתעד התקנת Add-on ממאגר Supervisor והתקנת Bridge HA הדק בנפרד; לשמור upgrade/backup/rollback ובדיקות תצורה. חשיפת משתמש רגיל נבחנת ב־T081.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT019",
+    "requirement_ids": [
+      "R019"
+    ],
+    "task_ids": [
+      "T010"
+    ],
+    "title": "מדיניות מודלים וגבולות הרצות — 1",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "למפות balanced/deep למודלים הזמינים בפועל מקומית, לתעד version ו־reasoning; שמות Astra/Sol הם העדפה ולא מזהי API מומצאים.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT020",
+    "requirement_ids": [
+      "R020"
+    ],
+    "task_ids": [
+      "T010"
+    ],
+    "title": "מדיניות מודלים וגבולות הרצות — 2",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לשמור תקרת הוצאה מאושרת, max attempts והרשאות; task metadata אינו מוצג כאילו הוא מחליף מודל אוטומטית בסשן.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT021",
+    "requirement_ids": [
+      "R021"
+    ],
+    "task_ids": [
+      "T011"
+    ],
+    "title": "אימות זהות HA והרשאות VMS בצד שרת — AT021",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "כל בקשה מקבלת principal מאומת לפי HA instance/user ID ו־roles/groups מקומיים ל־VMS. HA משתמש רגיל יכול להיות editor או site_admin בלי שינוי is_admin/group_ids ב־HA.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT022",
+    "requirement_ids": [
+      "R022"
+    ],
+    "task_ids": [
+      "T011"
+    ],
+    "title": "אימות זהות HA והרשאות VMS בצד שרת — AT022",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לאכוף default deny, scopes ורוויזיות על API/WS/media; bootstrap מפורש למנהל הראשון. אין הרשאה מכותרת לא מהימנה או מ־service token. מינימום RBAC מחייב כבר בפיילוט.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT023",
+    "requirement_ids": [
+      "R023"
+    ],
+    "task_ids": [
+      "T012"
+    ],
+    "title": "גילוי NVR ו־Capability registry — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לזהות דגם, Firmware ו־capabilities ולשמור states supported/unsupported/unknown/forbidden נפרדים.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT024",
+    "requirement_ids": [
+      "R024"
+    ],
+    "task_ids": [
+      "T012"
+    ],
+    "title": "גילוי NVR ו־Capability registry — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לא להציג PTZ, audio, smart search או writable recording policy בלי ראיית תמיכה; כל endpoint candidate מתועד עם method ותוצאת בדיקה.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT025",
+    "requirement_ids": [
+      "R025"
+    ],
+    "task_ids": [
+      "T013"
+    ],
+    "title": "מיפוי ערוצים, Tracks ושמות — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לגלות ולמפות input channel, main/sub stream ו־recording track עם מזהים יציבים; אין חישוב קשיח channel*100+1.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT026",
+    "requirement_ids": [
+      "R026"
+    ],
+    "task_ids": [
+      "T013"
+    ],
+    "title": "מיפוי ערוצים, Tracks ושמות — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לשמור alias מקומי, סדר, visibility ו־HA binding בלי לשנות שם NVR; reconnect אינו מייצר מצלמות כפולות.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT027",
+    "requirement_ids": [
+      "R027"
+    ],
+    "task_ids": [
+      "T014"
+    ],
+    "title": "TimeAdapter ו־DST — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לייצג זמנים פנימיים ב־UTC ולפרש בקשה מקומית לפי IANA והתאריך המבוקש; לבדוק fold/gap, יום 23/25 שעות וחציית חצות.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT028",
+    "requirement_ids": [
+      "R028"
+    ],
+    "task_ids": [
+      "T014"
+    ],
+    "title": "TimeAdapter ו־DST — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להפריד clock drift, OSD, timezone ו־endpoint quirk; לשמר ערך raw ופרופיל NVR, ולדחות זמן ללא timezone כשמשמעותו אינה ידועה.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT029",
+    "requirement_ids": [
+      "R029"
+    ],
+    "task_ids": [
+      "T015"
+    ],
+    "title": "Adapter ל־go2rtc חיצוני — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לאמת API/גרסה, לייצר namespaced live streams בלבד ולמנוע URL או credentials של מקור בדפדפן/לוגים.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT030",
+    "requirement_ids": [
+      "R030"
+    ],
+    "task_ids": [
+      "T015"
+    ],
+    "title": "Adapter ל־go2rtc חיצוני — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לשמר streams זרים ולהציג outage נקודתי; HA פנימי או host name לא מוכר אינם מניחים מראש ככתובת שירות.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT031",
+    "requirement_ids": [
+      "R031"
+    ],
+    "task_ids": [
+      "T016"
+    ],
+    "title": "Sessions, leases וניקוי מדיה — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "ליישם session ownership, consumer lease, expiry ותקרת sessions; ניתוק הדפדפן או restart אינו משאיר streams ללא גבול.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT032",
+    "requirement_ids": [
+      "R032"
+    ],
+    "task_ids": [
+      "T016"
+    ],
+    "title": "Sessions, leases וניקוי מדיה — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לבדוק ניקוי וקיום הגדרות לאחר restart בלי מחיקת source שלא בבעלות המוצר; no-consumers אינו תנאי יחיד למחיקה בזמן reconnect.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT033",
+    "requirement_ids": [
+      "R033"
+    ],
+    "task_ids": [
+      "T017"
+    ],
+    "title": "נגן Live מאובטח ו־fallback — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להציג וידאו אמיתי עם סטטוס חיבור, שמע בהסכמה ו־fullscreen; מפתח הגישה scoped למצלמה ומשתמש.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT034",
+    "requirement_ids": [
+      "R034"
+    ],
+    "task_ids": [
+      "T017"
+    ],
+    "title": "נגן Live מאובטח ו־fallback — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לבדוק WebRTC ברשת הייחוס ו־MSE/HLS חלופי כשנתמך; failure לא מוצג כ־Live, ו־Ingress לא נחשב פתרון ICE/UDP.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT035",
+    "requirement_ids": [
+      "R035"
+    ],
+    "task_ids": [
+      "T018"
+    ],
+    "title": "קיר מצלמות ותצוגות שמורות — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לאפשר 1/2/4/6/9/12/16/custom, reorder, resize, pin ושמירת views פר משתמש או משותפים בהרשאה.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT036",
+    "requirement_ids": [
+      "R036"
+    ],
+    "task_ids": [
+      "T018"
+    ],
+    "title": "קיר מצלמות ותצוגות שמורות — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להפעיל lazy streams, main/sub/auto ו־mobile override; מסך טלפון לא טוען 16 main streams רק כי כך נשמר בדסקטופ.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT037",
+    "requirement_ids": [
+      "R037"
+    ],
+    "task_ids": [
+      "T019"
+    ],
+    "title": "מודל אתר, מבנה, קומה ותוכנית — 1",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לשמור hierarchy ומזהים יציבים, labels ו־HA area/floor binding; מחיקת קומה עם עוגנים דורשת טיפול מפורש ולא orphan.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT038",
+    "requirement_ids": [
+      "R038"
+    ],
+    "task_ids": [
+      "T019"
+    ],
+    "title": "מודל אתר, מבנה, קומה ותוכנית — 2",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לשמור מקור תוכנית immutable, draft/revision ו־published version נפרדים; viewer קורא רק גרסה מאושרת ומורשית.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT039",
+    "requirement_ids": [
+      "R039"
+    ],
+    "task_ids": [
+      "T020"
+    ],
+    "title": "ייבוא PDF ותמונות אדריכליות — 1",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לתמוך JPG/PNG ו־PDF עם בחירת עמוד, crop/rotate ושמירת source hash; המקור והטרנספורמציה נשמרים לשחזור.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT040",
+    "requirement_ids": [
+      "R040"
+    ],
+    "task_ids": [
+      "T020"
+    ],
+    "title": "ייבוא PDF ותמונות אדריכליות — 2",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להגביל גודל/עמודים/זמן decode ולבודד rendering; SVG עובר sanitization או נדחה בבטחה; DWG/DXF אינו נתמך בשקט כאילו תמונה.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT041",
+    "requirement_ids": [
+      "R041"
+    ],
+    "task_ids": [
+      "T021"
+    ],
+    "title": "עורך מיקום, קנה מידה ו־FOV — 1",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לאפשר drag, numeric placement, rotate, delete, undo/redo ו־camera FOV סכמטי; קואורדינטות מנורמלות נשמרות ללא תלות ב־zoom.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT042",
+    "requirement_ids": [
+      "R042"
+    ],
+    "task_ids": [
+      "T021"
+    ],
+    "title": "עורך מיקום, קנה מידה ו־FOV — 2",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לשמור crop/rotation transforms ולבדוק round-trip לאחר resize; RTL אינו משקף תוכנית. מרחקים מדויקים מוצגים רק לאחר scale calibration.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT043",
+    "requirement_ids": [
+      "R043"
+    ],
+    "task_ids": [
+      "T022"
+    ],
+    "title": "מצלמה על המפה עם Preview — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לחיצה על עוגן מצלמה מציגה preview בהקשר עם Live/Playback/fullscreen; סגירה חוזרת לאותו floor, zoom ו־selection.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT044",
+    "requirement_ids": [
+      "R044"
+    ],
+    "task_ids": [
+      "T022"
+    ],
+    "title": "מצלמה על המפה עם Preview — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להראות זמינות אמיתית וסיבה ל־offline/no permission בלי לפתוח streams לכל הסמנים; לחיצה במובייל נוחה ללא hover.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT045",
+    "requirement_ids": [
+      "R045"
+    ],
+    "task_ids": [
+      "T023"
+    ],
+    "title": "ייבוא קטלוג ישויות HA — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לייבא את כלל הישויות המורשות שנחשפות לחיבור יחד עם domains, attributes, device/area/floor ו־supported features כשהם זמינים.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT046",
+    "requirement_ids": [
+      "R046"
+    ],
+    "task_ids": [
+      "T023"
+    ],
+    "title": "ייבוא קטלוג ישויות HA — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לשמור stable identity ולהתמודד עם rename/remove/disabled/unavailable; ייבוא אינו הצבה אוטומטית של אלפי סמלים או הרשאת פעולה.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT047",
+    "requirement_ids": [
+      "R047"
+    ],
+    "task_ids": [
+      "T024"
+    ],
+    "title": "סנכרון Snapshot ו־HA WebSocket — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לסנכרן Snapshot ואירועים ללא אובדן עדכונים בחלון החיבור; לשמור received/occurred, sequence ו־freshness.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT048",
+    "requirement_ids": [
+      "R048"
+    ],
+    "task_ids": [
+      "T024"
+    ],
+    "title": "סנכרון Snapshot ו־HA WebSocket — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לאחר reconnect לבצע resync או resume מאומת, לסמן stale בתקופת הניתוק ולא להמציא continuity; בדיקת 1,000 ישויות בנתוני fixture.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT049",
+    "requirement_ids": [
+      "R049"
+    ],
+    "task_ids": [
+      "T025"
+    ],
+    "title": "ישויות על המפה ופקודות בטוחות — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לגרור ישות למפה ולהציג state/יחידה/זמינות; generic panel קריא ל־domain לא מוכר, widgets ייעודיים ל־light/switch/sensor.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT050",
+    "requirement_ids": [
+      "R050"
+    ],
+    "task_ids": [
+      "T025"
+    ],
+    "title": "ישויות על המפה ופקודות בטוחות — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לבצע פעולה בטוחה מאושרת דרך allowlist צד שרת ולחכות ל־state confirmation; duplicate click אינו משגר פקודות כפולות.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT051",
+    "requirement_ids": [
+      "R051"
+    ],
+    "task_ids": [
+      "T026"
+    ],
+    "title": "Import / export וגיבוי פרויקט — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לגבות DB, תוכניות, placements ו־config בלי לשלב secrets גלויים; manifest מציין versions ורכיבים חסרים.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT052",
+    "requirement_ids": [
+      "R052"
+    ],
+    "task_ids": [
+      "T026"
+    ],
+    "title": "Import / export וגיבוי פרויקט — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להוכיח restore לסביבת ניסוי עם אותם IDs/מיקומים; restore אינו מפעיל אוטומטית פקודות HA או משנה schedule ב־NVR.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT053",
+    "requirement_ids": [
+      "R053"
+    ],
+    "task_ids": [
+      "T027"
+    ],
+    "title": "חיפוש הקלטות מלא ומדורג — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לממש pagination עד סוף טווח מבוקש ולהחזיר coverage complete/partial/unknown ו־cursor; no result אינו בהכרח no recording.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT054",
+    "requirement_ids": [
+      "R054"
+    ],
+    "task_ids": [
+      "T027"
+    ],
+    "title": "חיפוש הקלטות מלא ומדורג — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לשמור cache לפי source/track/time/profile, לאחד בקשות ולבטל invalid negative cache כשמידע/retention משתנה.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT055",
+    "requirement_ids": [
+      "R055"
+    ],
+    "task_ids": [
+      "T028"
+    ],
+    "title": "Playback session ו־Seek אמיתי — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "ליישם lifecycle עם requested_at, actual_start/media anchor, generation ו־state; seek מאוחר מבטל תוצאת seek ישנה.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT056",
+    "requirement_ids": [
+      "R056"
+    ],
+    "task_ids": [
+      "T028"
+    ],
+    "title": "Playback session ו־Seek אמיתי — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לא להניח ששינוי producer מחליף consumer מחובר; להוכיח pause/resume/close/reconnect/expiry ולסמן precision limited כשאין anchor מאומת.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT057",
+    "requirement_ids": [
+      "R057"
+    ],
+    "task_ids": [
+      "T029"
+    ],
+    "title": "Timeline ו־Playback UI — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להציג טווחי הקלטה, gaps, coverage, date/time לפי אתר ו־scrub מבוקר; לחיצה על שעה פותחת הקלטה ולא Live.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT058",
+    "requirement_ids": [
+      "R058"
+    ],
+    "task_ids": [
+      "T029"
+    ],
+    "title": "Timeline ו־Playback UI — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לשמור camera/map/time context ומצב loading/error/no recording; מקלדת ומובייל נתמכים, אין כפתור מהירות שאינו ממומש.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT059",
+    "requirement_ids": [
+      "R059"
+    ],
+    "task_ids": [
+      "T030"
+    ],
+    "title": "מפה היסטורית בסיסית ללא מצבי שווא — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להציג כותרת ברורה מצב Live או חקירה ותאריך מלא; במצב עבר לא להציג מצב HA נוכחי כאילו היה אז.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT060",
+    "requirement_ids": [
+      "R060"
+    ],
+    "task_ids": [
+      "T030"
+    ],
+    "title": "מפה היסטורית בסיסית ללא מצבי שווא — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "אם אין history: להציג לא ידוע או current עם תווית בולטת; פעולות פיזיות מנוטרלות במצב חקירה כברירת מחדל.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT061",
+    "requirement_ids": [
+      "R061"
+    ],
+    "task_ids": [
+      "T031"
+    ],
+    "title": "קליטת אירועים ונרמול — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לפרש event stream, active/inactive, heartbeats ו־reconnect; לשמור provenance ו־occurred_at בנפרד מ־received_at.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT062",
+    "requirement_ids": [
+      "R062"
+    ],
+    "task_ids": [
+      "T031"
+    ],
+    "title": "קליטת אירועים ונרמול — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "למנוע כפילויות ולהציג gaps; person/vehicle רק כשהמקור מספק אותם, אין backfill היסטורי מומצא.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT063",
+    "requirement_ids": [
+      "R063"
+    ],
+    "task_ids": [
+      "T032"
+    ],
+    "title": "Inbox אירועים, פילטרים ו־Ack — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להציג כרטיסי אירוע לפי camera/site/floor/time/type, סטטוס חדש/בטיפול/טופל וקפיצה ל־Playback.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT064",
+    "requirement_ids": [
+      "R064"
+    ],
+    "task_ids": [
+      "T032"
+    ],
+    "title": "Inbox אירועים, פילטרים ו־Ack — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לתייג thumbnail חסר או live-only ולא להשתמש בתמונה נוכחית כראיה לאירוע בעבר; Ack נשמר עם משתמש וזמן.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT065",
+    "requirement_ids": [
+      "R065"
+    ],
+    "task_ids": [
+      "T033"
+    ],
+    "title": "מסך Health ודיאגנוסטיקה — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להפריד NVR connected, recording available, live transport, HA, database ו־jobs; Online אינו שווה תקינות הקלטה.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT066",
+    "requirement_ids": [
+      "R066"
+    ],
+    "task_ids": [
+      "T033"
+    ],
+    "title": "מסך Health ודיאגנוסטיקה — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לספק export logs מצונזר עם correlation ID והמלצה לבדיקה בלי לכלול tokens, RTSP credentials או frames פרטיים.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT067",
+    "requirement_ids": [
+      "R067"
+    ],
+    "task_ids": [
+      "T034"
+    ],
+    "title": "רספונסיביות ו־RTL למסלול הראשי — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לאשר visually desktop 1440, tablet ומובייל 390 במסלולי map/live/playback/entity; טקסט עברי ומזהים LTR לא מתהפכים.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT068",
+    "requirement_ids": [
+      "R068"
+    ],
+    "task_ids": [
+      "T034"
+    ],
+    "title": "רספונסיביות ו־RTL למסלול הראשי — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להוכיח keyboard focus, labels, contrast, touch targets ו־reduced motion; אין scroll אופקי במובייל או טבלאות דחוסות חובה.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT069",
+    "requirement_ids": [
+      "R069"
+    ],
+    "task_ids": [
+      "T035"
+    ],
+    "title": "בדיקות Pilot, ניתוקים ובטיחות — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להריץ אמת מקצה לקצה: קומה→מצלמה→Live→שעה קודמת→אירוע, וישות HA→פעולה בטוחה מאושרת.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT070",
+    "requirement_ids": [
+      "R070"
+    ],
+    "task_ids": [
+      "T035"
+    ],
+    "title": "בדיקות Pilot, ניתוקים ובטיחות — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להריץ permission negatives, restart, restore, leak/timeout ו־NVR continuity; לצרף commit, fixtures, screenshots ותוצאות, ללא PASS על בדיקה מדולגת.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT071",
+    "requirement_ids": [
+      "R071"
+    ],
+    "task_ids": [
+      "T036"
+    ],
+    "title": "שחרור Pilot עם Rollback — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לפרסם release candidate לתצורת הייחוס בלבד, עם הוראות התקנה, תכונות כבויות, known limits וגיבוי/rollback שנבדקו.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT072",
+    "requirement_ids": [
+      "R072"
+    ],
+    "task_ids": [
+      "T036"
+    ],
+    "title": "שחרור Pilot עם Rollback — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לחתום Go/No-Go אנושי; אין שחרור עם דליפת סודות, הרשאות שגויות, פגיעה בהקלטה או זמן מטעה.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT073",
+    "requirement_ids": [
+      "R073"
+    ],
+    "task_ids": [
+      "T037"
+    ],
+    "title": "שכבות, קבוצות וחיפוש במפה — 1",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לספק שכבות cameras/security/HVAC/lighting וסינון לפי state/domain/room; חיפוש ישות ממרכז ומדגיש אותה על הקומה הנכונה.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT074",
+    "requirement_ids": [
+      "R074"
+    ],
+    "task_ids": [
+      "T037"
+    ],
+    "title": "שכבות, קבוצות וחיפוש במפה — 2",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לממש clustering ומניעת חפיפה עם alternative list; להתנסות ב־500 anchors בלי לפתוח וידאו לכולם.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT075",
+    "requirement_ids": [
+      "R075"
+    ],
+    "task_ids": [
+      "T038"
+    ],
+    "title": "גרסאות מפה, נעילה והחלפת תוכנית — 1",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לאפשר draft/publish/rollback עם optimistic concurrency ו־revision conflict ברור; פרסום דורש הרשאה ותיעוד.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT076",
+    "requirement_ids": [
+      "R076"
+    ],
+    "task_ids": [
+      "T038"
+    ],
+    "title": "גרסאות מפה, נעילה והחלפת תוכנית — 2",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "בהחלפת תוכנית לשמור bindings ולהציע alignment; preview diff נדרש לפני publish. להחזיק effective-from/version לקישור היסטורי.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT077",
+    "requirement_ids": [
+      "R077"
+    ],
+    "task_ids": [
+      "T039"
+    ],
+    "title": "חדרים, אזורים וגרף מעבר בין קומות — 1",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לאפשר room polygons, אזורי הרשאה/התראה ו־stairs/elevator connectors; להבחין בין zone במפה לבין detection polygon בתמונת מצלמה.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT078",
+    "requirement_ids": [
+      "R078"
+    ],
+    "task_ids": [
+      "T039"
+    ],
+    "title": "חדרים, אזורים וגרף מעבר בין קומות — 2",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לקשר מצלמות סמוכות ומסלול ידני מאומת; אין הבטחה שהגרף מעיד שאותו אדם עבר בין המצלמות.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT079",
+    "requirement_ids": [
+      "R079"
+    ],
+    "task_ids": [
+      "T040"
+    ],
+    "title": "מתאמי ישויות נוספים ובקרת סיכון — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להוסיף climate, cover, fan, media_player ו־helpers לפי יכולות אמיתיות; state cards נשארים זמינים גם אם פעולה לא נתמכת.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT080",
+    "requirement_ids": [
+      "R080"
+    ],
+    "task_ids": [
+      "T040"
+    ],
+    "title": "מתאמי ישויות נוספים ובקרת סיכון — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "lock/alarm/script/button ופעולות מסוכנות דורשות action allowlist ואישור מתאים; אין auto retry או command queue ל־unlock/disarm.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT081",
+    "requirement_ids": [
+      "R081"
+    ],
+    "task_ids": [
+      "T041"
+    ],
+    "title": "היסטוריית HA על מפה ו־Provenance — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לממש מקור history מוגדר או event store מקומי עם coverage/retention; להציג ידוע/לא ידוע לפי זמן, לא forward fill ללא גבול.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT082",
+    "requirement_ids": [
+      "R082"
+    ],
+    "task_ids": [
+      "T041"
+    ],
+    "title": "היסטוריית HA על מפה ו־Provenance — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לשחזר מצב עם גרסת התוכנית ומיקום הישות שהיו תקפים; שינוי timezone אינו משנה instant או זהות האירוע.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT083",
+    "requirement_ids": [
+      "R083"
+    ],
+    "task_ids": [
+      "T042"
+    ],
+    "title": "סנכרון 2–4 מצלמות עם מדידת סטייה — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לנהל master clock, barrier ו־per-camera actual rendered time; למדוד p95 drift ולא להסתפק בשיגור seek במקביל.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT084",
+    "requirement_ids": [
+      "R084"
+    ],
+    "task_ids": [
+      "T042"
+    ],
+    "title": "סנכרון 2–4 מצלמות עם מדידת סטייה — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לטפל במצלמה חסרת הקלטה/מאחרת בלי להסיט את כולן; להציג sync quality ולבטל מהירות לא נתמכת.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT085",
+    "requirement_ids": [
+      "R085"
+    ],
+    "task_ids": [
+      "T043"
+    ],
+    "title": "בחירה רב־מצלמתית מתוך מפה — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לבחור כמה עוגנים או room ולפתוח Live/Playback synchronized עם context משותף ו־back למיקום המקורי.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT086",
+    "requirement_ids": [
+      "R086"
+    ],
+    "task_ids": [
+      "T043"
+    ],
+    "title": "בחירה רב־מצלמתית מתוך מפה — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להציג מצלמות זמינות/אסורות/חסרות כיסוי בנפרד; suggested adjacent cameras אינן automatic person tracking.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT087",
+    "requirement_ids": [
+      "R087"
+    ],
+    "task_ids": [
+      "T044"
+    ],
+    "title": "Thumbnails היסטוריים ו־Hover preview — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לייצר thumbnail מההקלטה בזמן המבוקש עם actual timestamp ו־source; אין צילום Live כתחליף שקט.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT088",
+    "requirement_ids": [
+      "R088"
+    ],
+    "task_ids": [
+      "T044"
+    ],
+    "title": "Thumbnails היסטוריים ו־Hover preview — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להגביל cache, decode concurrency והיקף prefetch; אין אלפי חיבורי NVR בכל גרירת Timeline.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT089",
+    "requirement_ids": [
+      "R089"
+    ],
+    "task_ids": [
+      "T045"
+    ],
+    "title": "PTZ, Presets ושמע דו־כיווני — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לממש PTZ/presets/zoom/talk רק לפי capability מוכח; תנועת PTZ נפסקת על timeout, blur או שחרור לחיצה.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT090",
+    "requirement_ids": [
+      "R090"
+    ],
+    "task_ids": [
+      "T045"
+    ],
+    "title": "PTZ, Presets ושמע דו־כיווני — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להבחין digital zoom מהנעת מצלמה; לדרוש הסכמת מיקרופון ו־talk arbitration ולהציג unavailable ללא כפתור מדומה.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT091",
+    "requirement_ids": [
+      "R091"
+    ],
+    "task_ids": [
+      "T046"
+    ],
+    "title": "הקלטה ידנית, Snapshots ו־OSD opt-in — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לספק snapshot, bookmark ו־manual recording עם סטטוס אמת ו־timeout כאשר נתמך; start/stop אינו משנה schedule בלי אישור.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT092",
+    "requirement_ids": [
+      "R092"
+    ],
+    "task_ids": [
+      "T046"
+    ],
+    "title": "הקלטה ידנית, Snapshots ו־OSD opt-in — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "שם ידידותי נשאר מקומי; OSD sync מפורש מציג diff ואישור ומטפל ב־read-only ללא הצלחה שקרית.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT093",
+    "requirement_ids": [
+      "R093"
+    ],
+    "task_ids": [
+      "T047"
+    ],
+    "title": "Review grouping ו־Spotlights — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לאגד אירועים לחלונות review עם כללים מוסברים, start/end, cameras ו־severity; לשמור אירועי raw מקוריים.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT094",
+    "requirement_ids": [
+      "R094"
+    ],
+    "task_ids": [
+      "T047"
+    ],
+    "title": "Review grouping ו־Spotlights — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להציג spotlight לפי כללים דטרמיניסטיים ו־confidence/source כאשר יש; אפשר לפתוח פריטים שמאחורי סיכום ולתקן קיבוץ.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT095",
+    "requirement_ids": [
+      "R095"
+    ],
+    "task_ids": [
+      "T048"
+    ],
+    "title": "ייצוא קטעים כ־Jobs עמידים — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לייצא בטווח מוגדר באמצעות endpoint/שיטה שאומתו מול ה־NVR, עם queue, progress, retries בטוחים, cancel ו־partial states.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT096",
+    "requirement_ids": [
+      "R096"
+    ],
+    "task_ids": [
+      "T048"
+    ],
+    "title": "ייצוא קטעים כ־Jobs עמידים — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להפעיל הרשאת download ייעודית ולשמור זמני requested/actual, source והמרות; כשל יצוא אינו מוחק הקלטה או מאריך retention אוטומטית.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT097",
+    "requirement_ids": [
+      "R097"
+    ],
+    "task_ids": [
+      "T049"
+    ],
+    "title": "Cases, הערות וסימניות — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "ליצור Case המקשר אירועים וקטעים מכמה מצלמות, notes, tags ו־status; עריכה נבדקת לפי user permission ו־revision.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT098",
+    "requirement_ids": [
+      "R098"
+    ],
+    "task_ids": [
+      "T049"
+    ],
+    "title": "Cases, הערות וסימניות — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להציג אם bookmark רק מפנה ל־NVR או שהקטע הועתק לשימור; overwritten footage מוצג כחסר ולא מתויג preserved.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT099",
+    "requirement_ids": [
+      "R099"
+    ],
+    "task_ids": [
+      "T050"
+    ],
+    "title": "חבילת ראיות, Manifest ו־Checksum — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להפיק ZIP עם קטעים, manifest, notes ודו״ח קריא, hash לכל קובץ ופרטי מקור/זמן; לבדוק export/import verification.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT100",
+    "requirement_ids": [
+      "R100"
+    ],
+    "task_ids": [
+      "T050"
+    ],
+    "title": "חבילת ראיות, Manifest ו־Checksum — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להבהיר hash מוכיח שינוי מאז היצוא ולא את אמיתות הצילום; חתימה/מפתח ואימות מקור הם יכולות נפרדות ולא סמל Original סתמי.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT101",
+    "requirement_ids": [
+      "R101"
+    ],
+    "task_ids": [
+      "T051"
+    ],
+    "title": "NVR Storage ותוכנית הקלטה — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להציג disk/recording state, retention שנמדד/מוערך וסיבת estimate; לא לאפשר format/RAID/delete recordings במסגרת הפיתוח.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT102",
+    "requirement_ids": [
+      "R102"
+    ],
+    "task_ids": [
+      "T051"
+    ],
+    "title": "NVR Storage ותוכנית הקלטה — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "קריאת schedules מופרדת מכתיבה; שינוי mode/prepost/quota דורש support מוכח, diff, אישור ותוכנית חזרה.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT103",
+    "requirement_ids": [
+      "R103"
+    ],
+    "task_ids": [
+      "T052"
+    ],
+    "title": "Rules/Alarm builder עם Dry run — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "ליצור trigger/scope/time window/cooldown/actions ולהריץ dry run המציג למה היה נוצר alert בלי לשלוח פקודה פיזית.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT104",
+    "requirement_ids": [
+      "R104"
+    ],
+    "task_ids": [
+      "T052"
+    ],
+    "title": "Rules/Alarm builder עם Dry run — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "למנוע loops ו־duplicate notifications, להגביל webhooks ולשמור מי שינה חוק; לבחור HA או local owner יחיד לכל אוטומציה.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT105",
+    "requirement_ids": [
+      "R105"
+    ],
+    "task_ids": [
+      "T053"
+    ],
+    "title": "קורלציה דלת–מצלמה–חיישן — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לקשר אירועי camera/door/contact בחלון זמן ואזור ולהציג את הראיות והוודאות; pulse unlock אינו הוכחה שדלת נפתחה.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT106",
+    "requirement_ids": [
+      "R106"
+    ],
+    "task_ids": [
+      "T053"
+    ],
+    "title": "קורלציה דלת–מצלמה–חיישן — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "אין unlock/disarm אוטומטי מפלט AI או קורלציה; timeout, delayed clock ו־missing state נבדקים.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT107",
+    "requirement_ids": [
+      "R107"
+    ],
+    "task_ids": [
+      "T054"
+    ],
+    "title": "אינטרקום ובקרת כניסה מקושרים — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לשייך camera, ringing event ודלת על המפה ולהציג preview/פעולות רק עבור relays מורשים וקיימים.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT108",
+    "requirement_ids": [
+      "R108"
+    ],
+    "task_ids": [
+      "T054"
+    ],
+    "title": "אינטרקום ובקרת כניסה מקושרים — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לצרוך את מערכת האינטרקום/HA הקיימת במקום לשכפל user/card provisioning; פעולת פתיחה מאושרת נרשמת ללא המצאת lock state.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT109",
+    "requirement_ids": [
+      "R109"
+    ],
+    "task_ids": [
+      "T055"
+    ],
+    "title": "RBAC מרחבי מלא ואודיט — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "למפות role ו־scope לפי site/floor/camera/action/export ולקבל deny בעת ירושת הרשאה לא חוקית; server filter לכל resource.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT110",
+    "requirement_ids": [
+      "R110"
+    ],
+    "task_ids": [
+      "T055"
+    ],
+    "title": "RBAC מרחבי מלא ואודיט — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לשמור audit של viewing/export/config/commands בלי סודות, עם retention וגישה מוגבלת; downgrade הרשאה נבדק בסשן פתוח.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT111",
+    "requirement_ids": [
+      "R111"
+    ],
+    "task_ids": [
+      "T056"
+    ],
+    "title": "Lovelace wrappers והרחבת אינטגרציית HA — AT111",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להציע camera/map/event/health wrappers החולקים רכיבים וחוזים עם הממשק הראשי; להשתמש בגשר זהות/הרשאות הקיים מהפיילוט, לא לדחות אותו לשלב הכרטיסים.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT112",
+    "requirement_ids": [
+      "R112"
+    ],
+    "task_ids": [
+      "T056"
+    ],
+    "title": "Lovelace wrappers והרחבת אינטגרציית HA — AT112",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להתקין integration/cards במסלול נפרד מתועד, כגון HACS, לצד Add-on repository; אין duplicate entities, סודות ב־YAML או עקיפת RBAC דרך הכרטיס.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT113",
+    "requirement_ids": [
+      "R113"
+    ],
+    "task_ids": [
+      "T057"
+    ],
+    "title": "Kiosk ותצוגת קיר — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להציג saved view על מסך גדול, rotation מתון ו־health בלי תפריטי admin; session/kiosk principal עם הרשאות מצומצמות.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT114",
+    "requirement_ids": [
+      "R114"
+    ],
+    "task_ids": [
+      "T057"
+    ],
+    "title": "Kiosk ותצוגת קיר — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להגביל פעולות unlock ו־settings בקיוסק ולשחזר view לאחר reconnect; מסך אפור/מנותק לא מוצג כמצלמה פעילה.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT115",
+    "requirement_ids": [
+      "R115"
+    ],
+    "task_ids": [
+      "T058"
+    ],
+    "title": "Multi-NVR ואתרים מרובים — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לתמוך בקטלוג מאוחד עם מקור NVR לכל מצלמה, timezone פר אתר ו־scope הרשאה; IDs אינם מתנגשים בין מקורות.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT116",
+    "requirement_ids": [
+      "R116"
+    ],
+    "task_ids": [
+      "T058"
+    ],
+    "title": "Multi-NVR ואתרים מרובים — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להפריד concurrency, outage ו־search coverage בין NVR; כשל אתר אחד אינו מפיל מפות או חקירה באתר אחר.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT117",
+    "requirement_ids": [
+      "R117"
+    ],
+    "task_ids": [
+      "T059"
+    ],
+    "title": "Schema קנוני לתוכנית אדריכלית — 1",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לנעול schema versioned עבור source hash, dimensions, transforms, walls, doors, windows, rooms, connectors ו־uncertainty.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT118",
+    "requirement_ids": [
+      "R118"
+    ],
+    "task_ids": [
+      "T059"
+    ],
+    "title": "Schema קנוני לתוכנית אדריכלית — 2",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לבדוק normalized bounds, invalid polygons, missing calibration ו־duplicate IDs; renderer deterministic מצייר אותו JSON באופן עקבי.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT119",
+    "requirement_ids": [
+      "R119"
+    ],
+    "task_ids": [
+      "T060"
+    ],
+    "title": "AI Plan Normalizer עם Prompt גרסאי — 1",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לשלוח ל־AI רק לאחר consent עם prompt version/schema נעולים ותקציב, ולהחזיר geometry ולא עיצוב תמונה סמכותי.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT120",
+    "requirement_ids": [
+      "R120"
+    ],
+    "task_ids": [
+      "T060"
+    ],
+    "title": "AI Plan Normalizer עם Prompt גרסאי — 2",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להתייחס לטקסט בתוכנית כנתון לא הוראה, להחזיר unknown/uncertain ולא להמציא קירות או שמות; raw response אינו מפורסם אוטומטית.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT121",
+    "requirement_ids": [
+      "R121"
+    ],
+    "task_ids": [
+      "T061"
+    ],
+    "title": "Compare ואישור אנושי לתוכנית AI — 1",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להציג מקור מול geometry בשכבות, confidence ו־missing elements, ולאפשר תיקון ידני לפני publish.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT122",
+    "requirement_ids": [
+      "R122"
+    ],
+    "task_ids": [
+      "T061"
+    ],
+    "title": "Compare ואישור אנושי לתוכנית AI — 2",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לשמור prompt/model/schema/source hashes, corrections ו־approver; reject משאיר את התוכנית הקודמת ואת source intact.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT123",
+    "requirement_ids": [
+      "R123"
+    ],
+    "task_ids": [
+      "T062"
+    ],
+    "title": "חיפוש metadata מרחבי — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לחפש type/time/site/floor/room/camera לפי metadata שקיים; ממשק מסביר אילו שדות זמינים ולמה אחרים חסרים.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT124",
+    "requirement_ids": [
+      "R124"
+    ],
+    "task_ids": [
+      "T062"
+    ],
+    "title": "חיפוש metadata מרחבי — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "תוצאה מקשרת לפריים/אירוע ומקור מידע; מסנן unsupported לא מחזיר 0 כאילו אין התאמות.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT125",
+    "requirement_ids": [
+      "R125"
+    ],
+    "task_ids": [
+      "T063"
+    ],
+    "title": "חיפוש סמנטי ו־AI provider אופציונלי — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להוסיף adapter לניתוח/embeddings בעל מדיניות privacy, model version, resource budget ו־opt-in; local baseline עובד ללא שירות AI.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT126",
+    "requirement_ids": [
+      "R126"
+    ],
+    "task_ids": [
+      "T063"
+    ],
+    "title": "חיפוש סמנטי ו־AI provider אופציונלי — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לסנן color/object/free text רק על מקורות שנוצר עבורם metadata מתאים; תוצאות probabilistic מציגות confidence ואינן ראיית זהות.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT127",
+    "requirement_ids": [
+      "R127"
+    ],
+    "task_ids": [
+      "T064"
+    ],
+    "title": "שחזור מסלול מוצע לחקירה — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להציע adjacent camera/time windows לפי topology ואירועים ולהראות חלופות; המפעיל מאשר רצף ב־Case.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT128",
+    "requirement_ids": [
+      "R128"
+    ],
+    "task_ids": [
+      "T064"
+    ],
+    "title": "שחזור מסלול מוצע לחקירה — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לסמן hypothetical linkage ולא לטעון אותו אדם/רכב ללא ראיה מתאימה; אין פעולת אבטחה אוטונומית על בסיס ההצעה.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT129",
+    "requirement_ids": [
+      "R129"
+    ],
+    "task_ids": [
+      "T065"
+    ],
+    "title": "DWG/DXF וייבוא מתקדם — 1",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להגדיר conversion adapter מבודד עם רישיון ותלויות נבדקים, בחירת layers/unit/scale ושימור המקור.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT130",
+    "requirement_ids": [
+      "R130"
+    ],
+    "task_ids": [
+      "T065"
+    ],
+    "title": "DWG/DXF וייבוא מתקדם — 2",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להשוות geometry ו־units מול מקור ולדחות conversion חלקי ללא הודעה; native CAD parsing אינו assumed dependency של Pilot.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT131",
+    "requirement_ids": [
+      "R131"
+    ],
+    "task_ids": [
+      "T066"
+    ],
+    "title": "מהירויות Playback ו־Frame stepping — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לממש speed/step רק בנתיב מדיה המוכיח semantics בפועל; להבדיל camera RTSP speed מ־browser playbackRate.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT132",
+    "requirement_ids": [
+      "R132"
+    ],
+    "task_ids": [
+      "T066"
+    ],
+    "title": "מהירויות Playback ו־Frame stepping — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לבדוק actual source time, audio, gaps ו־sync לאחר שינוי speed; unsupported נשאר disabled עם הסבר.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT133",
+    "requirement_ids": [
+      "R133"
+    ],
+    "task_ids": [
+      "T067"
+    ],
+    "title": "חתימת ראיות וניהול מפתחות — 1",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לתכנן signed manifest, key rotation, offline verification ומעמד אמון; לבדוק tamper בקובץ, manifest ושרשרת מפתחות.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT134",
+    "requirement_ids": [
+      "R134"
+    ],
+    "task_ids": [
+      "T067"
+    ],
+    "title": "חתימת ראיות וניהול מפתחות — 2",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להציג integrity-at-export בנפרד מ־capture authenticity; אין הצהרה על קבילות משפטית או מקור מאומת ללא בסיס מתאים.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT135",
+    "requirement_ids": [
+      "R135"
+    ],
+    "task_ids": [
+      "T068"
+    ],
+    "title": "Load/Soak ותקציב משאבים — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "למדוד catalogue scale בנפרד ממספר streams/transcodes ולפרסם CPU/RAM/latency/leaks בתצורת ייחוס מתועדת.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT136",
+    "requirement_ids": [
+      "R136"
+    ],
+    "task_ids": [
+      "T068"
+    ],
+    "title": "Load/Soak ותקציב משאבים — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להריץ soak, HA/go2rtc/NVR restarts, export queue ו־disk full; backpressure נבדק וההקלטה המקורית נשארת תקינה.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT137",
+    "requirement_ids": [
+      "R137"
+    ],
+    "task_ids": [
+      "T069"
+    ],
+    "title": "בדיקות אבטחה של קבצים ורשת — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לבדוק malicious PDF/SVG, path traversal, XML entities, SSRF, token replay ו־oversized media; אין גישה חופשית ל־URL מהדפדפן.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT138",
+    "requirement_ids": [
+      "R138"
+    ],
+    "task_ids": [
+      "T069"
+    ],
+    "title": "בדיקות אבטחה של קבצים ורשת — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לסרוק artifacts/logs/source ו־dependencies, לתעד remediation ולבדוק revoke; API/RTSP של go2rtc אינם מפורסמים חופשי לאינטרנט.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT139",
+    "requirement_ids": [
+      "R139"
+    ],
+    "task_ids": [
+      "T070"
+    ],
+    "title": "מיגרציה הדרגתית והקבלה מול הישן — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להפעיל shadow read comparison, migration dry run ומיפוי IDs/config בלי לשנות NVR או לאבד היסטוריית מפות.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT140",
+    "requirement_ids": [
+      "R140"
+    ],
+    "task_ids": [
+      "T070"
+    ],
+    "title": "מיגרציה הדרגתית והקבלה מול הישן — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לבצע rollout מדורג ו־rollback אמיתי; decommission של הישן רק באישור לאחר parity וללא מחיקת backup.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT141",
+    "requirement_ids": [
+      "R141"
+    ],
+    "task_ids": [
+      "T071"
+    ],
+    "title": "Onboarding, מדריך מפעיל ותמיכה — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לספק אשף install→NVR→HA→go2rtc→floor→camera עם capability/time checks והסברי failures.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT142",
+    "requirement_ids": [
+      "R142"
+    ],
+    "task_ids": [
+      "T071"
+    ],
+    "title": "Onboarding, מדריך מפעיל ותמיכה — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לכתוב מדריכי שימוש/שחזור/חקירה/פרטיות והרשאות, לצרף screenshots מה־build ולא מהדמיה בלבד.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT143",
+    "requirement_ids": [
+      "R143"
+    ],
+    "task_ids": [
+      "T072"
+    ],
+    "title": "קבלה ושחרור V1 — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לסגור כל דרישה בתחום V1 בראיות עדכניות או בהחרגה מפורשת שמסירה תכונה; no P0/P1 פתוחים במסלולים הנתמכים.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT144",
+    "requirement_ids": [
+      "R144"
+    ],
+    "task_ids": [
+      "T072"
+    ],
+    "title": "קבלה ושחרור V1 — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להפיק signed release approval, tag, builds, migrations, rollback, compatibility matrix ו־known limits; target date אינו מחליף את gates.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT145",
+    "requirement_ids": [
+      "R145"
+    ],
+    "task_ids": [
+      "T073"
+    ],
+    "title": "Runner מקומי אופציונלי למשימות Codex — 1",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לממש dispatcher רק לאחר אימות CLI מקומי: כל משימה יוצרת invocation נפרד עם model/effort, workspace ו־output schema; אין שליטה מדומה מהצ׳אט.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT146",
+    "requirement_ids": [
+      "R146"
+    ],
+    "task_ids": [
+      "T073"
+    ],
+    "title": "Runner מקומי אופציונלי למשימות Codex — 2",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לכפות dependency gates, path allowlist, timeout, budget ו־manual stop; test failure תשתיתי אינו מפעיל אינסוף תיקונים או קנייה אוטומטית.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT147",
+    "requirement_ids": [
+      "R147"
+    ],
+    "task_ids": [
+      "T074"
+    ],
+    "title": "שיפור מוצר ו־Visual regression מתמשך — 1",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לשמור screenshots עבור מסכי מפתח ו־state matrix ב־CI, עם masking לווידאו משתנה ותהליך אישור intentional changes.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT148",
+    "requirement_ids": [
+      "R148"
+    ],
+    "task_ids": [
+      "T074"
+    ],
+    "title": "שיפור מוצר ו־Visual regression מתמשך — 2",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "לקשר feedback ל־screen/requirement/commit; למדוד time to camera/time to recording ותקלות UX ללא איסוף frames או טקסט רגיש כברירת מחדל.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT149",
+    "requirement_ids": [
+      "R149"
+    ],
+    "task_ids": [
+      "T075"
+    ],
+    "title": "אזורי זיהוי ומסכות פרטיות במצלמה — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "להפריד פוליגון זיהוי בתמונת המצלמה מפוליגון חדר במפה; לקרוא ולערוך Motion/Smart zones רק כשהמקור וההרשאה תומכים, עם preview, diff ו־readback.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT150",
+    "requirement_ids": [
+      "R150"
+    ],
+    "task_ids": [
+      "T075"
+    ],
+    "title": "אזורי זיהוי ומסכות פרטיות במצלמה — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "מסכת פרטיות אמיתית דורשת אישור, כתיבה מאומתת ובדיקת התוצאה בזרם; overlay בדפדפן אינו מסכת NVR ואינו מגן על הקלטות. אין שינוי אוטומטי בזיהוי או ב־retention.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT151",
+    "requirement_ids": [
+      "R151"
+    ],
+    "task_ids": [
+      "T076"
+    ],
+    "title": "גשר זהות HA וייבוא קטלוג משתמשים — AT151",
+    "kind": "integration/e2e/security",
+    "preconditions": [
+      "Known HA/Core/Supervisor and bridge versions",
+      "Authenticated dedicated lab identities with agreed scopes",
+      "Commit and environment recorded; no physical actions without authorization"
+    ],
+    "procedure": [
+      "Create the explicit allowed fixture and a forbidden cross-scope or inactive-user variant.",
+      "Run both API and UI routes; capture the server authorization decision and source of identity.",
+      "Verify HA account/group configuration remains unchanged.",
+      "Repeat after revision/reconnect where relevant; attach assertions, sanitized logs and screenshots."
+    ],
+    "expected": "לזהות משתמש לפי ha_instance_id + ha_user_id מאומת; לסנכרן משתמשי התחברות מ־HA דרך גשר מורשה ללא passwords, ללא person.* וללא כתיבה ל־HA auth.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planning only. Follow docs/security/HA_IDENTITY_RBAC_HE.md; real hardware run is required where specified."
+  },
+  {
+    "id": "AT152",
+    "requirement_ids": [
+      "R152"
+    ],
+    "task_ids": [
+      "T076"
+    ],
+    "title": "גשר זהות HA וייבוא קטלוג משתמשים — AT152",
+    "kind": "integration/e2e/security",
+    "preconditions": [
+      "Known HA/Core/Supervisor and bridge versions",
+      "Authenticated dedicated lab identities with agreed scopes",
+      "Commit and environment recorded; no physical actions without authorization"
+    ],
+    "procedure": [
+      "Create the explicit allowed fixture and a forbidden cross-scope or inactive-user variant.",
+      "Run both API and UI routes; capture the server authorization decision and source of identity.",
+      "Verify HA account/group configuration remains unchanged.",
+      "Repeat after revision/reconnect where relevant; attach assertions, sanitized logs and screenshots."
+    ],
+    "expected": "להפריד normal/admin/system-generated/disabled; שינוי שם שומר שיוך, שם זהה עם ID חדש אינו יורש הרשאה; כשל sync מסומן stale ולא מוחק את הקטלוג.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planning only. Follow docs/security/HA_IDENTITY_RBAC_HE.md; real hardware run is required where specified."
+  },
+  {
+    "id": "AT153",
+    "requirement_ids": [
+      "R153"
+    ],
+    "task_ids": [
+      "T077"
+    ],
+    "title": "מנוע תפקידים, קבוצות ו־Scopes בסיסי — AT153",
+    "kind": "unit/contract/security",
+    "preconditions": [
+      "Known HA/Core/Supervisor and bridge versions",
+      "Authenticated dedicated lab identities with agreed scopes",
+      "Commit and environment recorded; no physical actions without authorization"
+    ],
+    "procedure": [
+      "Create the explicit allowed fixture and a forbidden cross-scope or inactive-user variant.",
+      "Run both API and UI routes; capture the server authorization decision and source of identity.",
+      "Verify HA account/group configuration remains unchanged.",
+      "Repeat after revision/reconnect where relevant; attach assertions, sanitized logs and screenshots."
+    ],
+    "expected": "לממש roles מובנים, קבוצות משתמשי HA ו־bindings מוגבלים ל־installation/site/building/floor/camera/entity; HA admin אינו role מוצר אוטומטי, bootstrap מפורש בלבד.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planning only. Follow docs/security/HA_IDENTITY_RBAC_HE.md; real hardware run is required where specified."
+  },
+  {
+    "id": "AT154",
+    "requirement_ids": [
+      "R154"
+    ],
+    "task_ids": [
+      "T077"
+    ],
+    "title": "מנוע תפקידים, קבוצות ו־Scopes בסיסי — AT154",
+    "kind": "unit/contract/security",
+    "preconditions": [
+      "Known HA/Core/Supervisor and bridge versions",
+      "Authenticated dedicated lab identities with agreed scopes",
+      "Commit and environment recorded; no physical actions without authorization"
+    ],
+    "procedure": [
+      "Create the explicit allowed fixture and a forbidden cross-scope or inactive-user variant.",
+      "Run both API and UI routes; capture the server authorization decision and source of identity.",
+      "Verify HA account/group configuration remains unchanged.",
+      "Repeat after revision/reconnect where relevant; attach assertions, sanitized logs and screenshots."
+    ],
+    "expected": "לחשב יכולת יחד עם scope לכל binding; viewer באתר A + editor בקומה B אינו editor באתר A. deny ו־unknown קודמים; placement אינו מעניק גישה לציוד המקושר.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planning only. Follow docs/security/HA_IDENTITY_RBAC_HE.md; real hardware run is required where specified."
+  },
+  {
+    "id": "AT155",
+    "requirement_ids": [
+      "R155"
+    ],
+    "task_ids": [
+      "T078"
+    ],
+    "title": "ממשק משתמשי HA ושיוך קבוצות ותפקידים — AT155",
+    "kind": "unit/contract/security",
+    "preconditions": [
+      "Known HA/Core/Supervisor and bridge versions",
+      "Authenticated dedicated lab identities with agreed scopes",
+      "Commit and environment recorded; no physical actions without authorization"
+    ],
+    "procedure": [
+      "Create the explicit allowed fixture and a forbidden cross-scope or inactive-user variant.",
+      "Run both API and UI routes; capture the server authorization decision and source of identity.",
+      "Verify HA account/group configuration remains unchanged.",
+      "Repeat after revision/reconnect where relevant; attach assertions, sanitized logs and screenshots."
+    ],
+    "expected": "להציג קטלוג HA למורשים, קבוצות, תפקידים והיקף; לשייך משתמש HA רגיל כ־editor/site_admin בהיקף מקומי ולהציג preview של ההרשאות בלי שינוי הרשאות HA.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planning only. Follow docs/security/HA_IDENTITY_RBAC_HE.md; real hardware run is required where specified."
+  },
+  {
+    "id": "AT156",
+    "requirement_ids": [
+      "R156"
+    ],
+    "task_ids": [
+      "T078"
+    ],
+    "title": "ממשק משתמשי HA ושיוך קבוצות ותפקידים — AT156",
+    "kind": "unit/contract/security",
+    "preconditions": [
+      "Known HA/Core/Supervisor and bridge versions",
+      "Authenticated dedicated lab identities with agreed scopes",
+      "Commit and environment recorded; no physical actions without authorization"
+    ],
+    "procedure": [
+      "Create the explicit allowed fixture and a forbidden cross-scope or inactive-user variant.",
+      "Run both API and UI routes; capture the server authorization decision and source of identity.",
+      "Verify HA account/group configuration remains unchanged.",
+      "Repeat after revision/reconnect where relevant; attach assertions, sanitized logs and screenshots."
+    ],
+    "expected": "אין create-password או promote-HA-admin בממשק. שינוי חברות נבדק על כל bindings של הקבוצה, נרשם באודיט ואינו נותן למנהל קומה ניהול מערכת או קבוצות גלובליות.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planning only. Follow docs/security/HA_IDENTITY_RBAC_HE.md; real hardware run is required where specified."
+  },
+  {
+    "id": "AT157",
+    "requirement_ids": [
+      "R157"
+    ],
+    "task_ids": [
+      "T079"
+    ],
+    "title": "בדיקת הרשאות HA על פעולות בשם משתמש — AT157",
+    "kind": "integration/e2e/security",
+    "preconditions": [
+      "Known HA/Core/Supervisor and bridge versions",
+      "Authenticated dedicated lab identities with agreed scopes",
+      "Commit and environment recorded; no physical actions without authorization"
+    ],
+    "procedure": [
+      "Create the explicit allowed fixture and a forbidden cross-scope or inactive-user variant.",
+      "Run both API and UI routes; capture the server authorization decision and source of identity.",
+      "Verify HA account/group configuration remains unchanged.",
+      "Repeat after revision/reconnect where relevant; attach assertions, sanitized logs and screenshots."
+    ],
+    "expected": "לבדוק בצד שרת VMS permission + scope + HA user permissions + capability ולהעביר Context של המשתמש; פעולה שהמשתמש אינו מורשה לה ב־HA נחסמת גם כשגשר מחובר בהרשאה גבוהה.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planning only. Follow docs/security/HA_IDENTITY_RBAC_HE.md; real hardware run is required where specified."
+  },
+  {
+    "id": "AT158",
+    "requirement_ids": [
+      "R158"
+    ],
+    "task_ids": [
+      "T079"
+    ],
+    "title": "בדיקת הרשאות HA על פעולות בשם משתמש — AT158",
+    "kind": "integration/e2e/security",
+    "preconditions": [
+      "Known HA/Core/Supervisor and bridge versions",
+      "Authenticated dedicated lab identities with agreed scopes",
+      "Commit and environment recorded; no physical actions without authorization"
+    ],
+    "procedure": [
+      "Create the explicit allowed fixture and a forbidden cross-scope or inactive-user variant.",
+      "Run both API and UI routes; capture the server authorization decision and source of identity.",
+      "Verify HA account/group configuration remains unchanged.",
+      "Repeat after revision/reconnect where relevant; attach assertions, sanitized logs and screenshots."
+    ],
+    "expected": "לבודד map.edit מ־ha.entity.control; unlock/disarm/talk/export דורשים grants נפרדים. אין proxy לשירותי admin או scripts לא מבוקרים ואין שיגור פעולה גנרית בעזרת user_id מהלקוח.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planning only. Follow docs/security/HA_IDENTITY_RBAC_HE.md; real hardware run is required where specified."
+  },
+  {
+    "id": "AT159",
+    "requirement_ids": [
+      "R159"
+    ],
+    "task_ids": [
+      "T080"
+    ],
+    "title": "מחיקת משתמש, הורדת הרשאה וביטול Sessions — AT159",
+    "kind": "integration/e2e/security",
+    "preconditions": [
+      "Known HA/Core/Supervisor and bridge versions",
+      "Authenticated dedicated lab identities with agreed scopes",
+      "Commit and environment recorded; no physical actions without authorization"
+    ],
+    "procedure": [
+      "Create the explicit allowed fixture and a forbidden cross-scope or inactive-user variant.",
+      "Run both API and UI routes; capture the server authorization decision and source of identity.",
+      "Verify HA account/group configuration remains unchanged.",
+      "Repeat after revision/reconnect where relevant; attach assertions, sanitized logs and screenshots."
+    ],
+    "expected": "להשעות גישה אחרי מחיקת/השבתת משתמש מאומתת ב־HA ולשמר audit; רענון סטטוס משתמש עד 60 שניות והפסקת sessions תוך 30 שניות מביטול ידוע הם יעדי בדיקה, לא נתונים קיימים.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planning only. Follow docs/security/HA_IDENTITY_RBAC_HE.md; real hardware run is required where specified."
+  },
+  {
+    "id": "AT160",
+    "requirement_ids": [
+      "R160"
+    ],
+    "task_ids": [
+      "T080"
+    ],
+    "title": "מחיקת משתמש, הורדת הרשאה וביטול Sessions — AT160",
+    "kind": "integration/e2e/security",
+    "preconditions": [
+      "Known HA/Core/Supervisor and bridge versions",
+      "Authenticated dedicated lab identities with agreed scopes",
+      "Commit and environment recorded; no physical actions without authorization"
+    ],
+    "procedure": [
+      "Create the explicit allowed fixture and a forbidden cross-scope or inactive-user variant.",
+      "Run both API and UI routes; capture the server authorization decision and source of identity.",
+      "Verify HA account/group configuration remains unchanged.",
+      "Repeat after revision/reconnect where relevant; attach assertions, sanitized logs and screenshots."
+    ],
+    "expected": "להחיל permission_revision על API, WebSocket, video sessions ו־export jobs/downloads; downgrade ב־VMS חוסם בקשות חדשות מיד ולא מחכה ל־HA polling. כשל identity גורם לחסימת פעולות ולא fallback ל־admin.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planning only. Follow docs/security/HA_IDENTITY_RBAC_HE.md; real hardware run is required where specified."
+  },
+  {
+    "id": "AT161",
+    "requirement_ids": [
+      "R161"
+    ],
+    "task_ids": [
+      "T081"
+    ],
+    "title": "Ingress ו־Add-on נגישים למשתמש HA רגיל — AT161",
+    "kind": "integration/e2e/security",
+    "preconditions": [
+      "Known HA/Core/Supervisor and bridge versions",
+      "Authenticated dedicated lab identities with agreed scopes",
+      "Commit and environment recorded; no physical actions without authorization"
+    ],
+    "procedure": [
+      "Create the explicit allowed fixture and a forbidden cross-scope or inactive-user variant.",
+      "Run both API and UI routes; capture the server authorization decision and source of identity.",
+      "Verify HA account/group configuration remains unchanged.",
+      "Repeat after revision/reconnect where relevant; attach assertions, sanitized logs and screenshots."
+    ],
+    "expected": "למסור Add-on/App עם Ingress, אחסון מתמשך וגישה למשתמש HA רגיל באמצעות panel_admin:false לאחר הגנות; לראות תפריט אינו לקבל הרשאה. להוכיח גם פתיחת Ingress בפועל למשתמש הרגיל.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planning only. Follow docs/security/HA_IDENTITY_RBAC_HE.md; real hardware run is required where specified."
+  },
+  {
+    "id": "AT162",
+    "requirement_ids": [
+      "R162"
+    ],
+    "task_ids": [
+      "T081"
+    ],
+    "title": "Ingress ו־Add-on נגישים למשתמש HA רגיל — AT162",
+    "kind": "integration/e2e/security",
+    "preconditions": [
+      "Known HA/Core/Supervisor and bridge versions",
+      "Authenticated dedicated lab identities with agreed scopes",
+      "Commit and environment recorded; no physical actions without authorization"
+    ],
+    "procedure": [
+      "Create the explicit allowed fixture and a forbidden cross-scope or inactive-user variant.",
+      "Run both API and UI routes; capture the server authorization decision and source of identity.",
+      "Verify HA account/group configuration remains unchanged.",
+      "Repeat after revision/reconnect where relevant; attach assertions, sanitized logs and screenshots."
+    ],
+    "expected": "לחסום headers מזויפים, פורט ישיר לא מאומת, token replay ושימוש בטוקן Supervisor כזהות המשתמש; נתיב bridge פנימי מאומת ומצומצם, לא פתיחת ingress לכול.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planning only. Follow docs/security/HA_IDENTITY_RBAC_HE.md; real hardware run is required where specified."
+  },
+  {
+    "id": "AT163",
+    "requirement_ids": [
+      "R163"
+    ],
+    "task_ids": [
+      "T082"
+    ],
+    "title": "תפקידים מותאמים והאצלת ניהול מקומית — AT163",
+    "kind": "unit/contract/security",
+    "preconditions": [
+      "Known HA/Core/Supervisor and bridge versions",
+      "Authenticated dedicated lab identities with agreed scopes",
+      "Commit and environment recorded; no physical actions without authorization"
+    ],
+    "procedure": [
+      "Create the explicit allowed fixture and a forbidden cross-scope or inactive-user variant.",
+      "Run both API and UI routes; capture the server authorization decision and source of identity.",
+      "Verify HA account/group configuration remains unchanged.",
+      "Repeat after revision/reconnect where relevant; attach assertions, sanitized logs and screenshots."
+    ],
+    "expected": "לאפשר למנהל VMS להגדיר role וקבוצות מותאמים, כולל grants רגישים נפרדים; לפני שינוי להציג השפעה על כל המשתמשים/הקבוצות וה־scopes המשויכים.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planning only. Follow docs/security/HA_IDENTITY_RBAC_HE.md; real hardware run is required where specified."
+  },
+  {
+    "id": "AT164",
+    "requirement_ids": [
+      "R164"
+    ],
+    "task_ids": [
+      "T082"
+    ],
+    "title": "תפקידים מותאמים והאצלת ניהול מקומית — AT164",
+    "kind": "unit/contract/security",
+    "preconditions": [
+      "Known HA/Core/Supervisor and bridge versions",
+      "Authenticated dedicated lab identities with agreed scopes",
+      "Commit and environment recorded; no physical actions without authorization"
+    ],
+    "procedure": [
+      "Create the explicit allowed fixture and a forbidden cross-scope or inactive-user variant.",
+      "Run both API and UI routes; capture the server authorization decision and source of identity.",
+      "Verify HA account/group configuration remains unchanged.",
+      "Repeat after revision/reconnect where relevant; attach assertions, sanitized logs and screenshots."
+    ],
+    "expected": "האצלת rbac.assign למנהל אתר מוגבלת ל־allowlist ולהיקף; אין הסלמה עצמית, שינוי role משותף גלובלי, חברוּת בקבוצה חוצת היקפים או מעבר role/scope דרך bulk request.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planning only. Follow docs/security/HA_IDENTITY_RBAC_HE.md; real hardware run is required where specified."
+  },
+  {
+    "id": "AT165",
+    "requirement_ids": [
+      "R165"
+    ],
+    "task_ids": [
+      "T083"
+    ],
+    "title": "בדיקות קבלה לזהות HA והרשאות מרחביות — AT165",
+    "kind": "integration/e2e/security",
+    "preconditions": [
+      "Known HA/Core/Supervisor and bridge versions",
+      "Authenticated dedicated lab identities with agreed scopes",
+      "Commit and environment recorded; no physical actions without authorization"
+    ],
+    "procedure": [
+      "Create the explicit allowed fixture and a forbidden cross-scope or inactive-user variant.",
+      "Run both API and UI routes; capture the server authorization decision and source of identity.",
+      "Verify HA account/group configuration remains unchanged.",
+      "Repeat after revision/reconnect where relevant; attach assertions, sanitized logs and screenshots."
+    ],
+    "expected": "להריץ תרחיש עם מנהל VMS, משתמש HA רגיל שהוא editor בקומה 2 ומשתמש לא משויך; לאשר עריכת קומה 2 ולחסום קומה 3, ניהול משתמשים, הגדרות NVR והסלמה ב־HA.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planning only. Follow docs/security/HA_IDENTITY_RBAC_HE.md; real hardware run is required where specified."
+  },
+  {
+    "id": "AT166",
+    "requirement_ids": [
+      "R166"
+    ],
+    "task_ids": [
+      "T083"
+    ],
+    "title": "בדיקות קבלה לזהות HA והרשאות מרחביות — AT166",
+    "kind": "integration/e2e/security",
+    "preconditions": [
+      "Known HA/Core/Supervisor and bridge versions",
+      "Authenticated dedicated lab identities with agreed scopes",
+      "Commit and environment recorded; no physical actions without authorization"
+    ],
+    "procedure": [
+      "Create the explicit allowed fixture and a forbidden cross-scope or inactive-user variant.",
+      "Run both API and UI routes; capture the server authorization decision and source of identity.",
+      "Verify HA account/group configuration remains unchanged.",
+      "Repeat after revision/reconnect where relevant; attach assertions, sanitized logs and screenshots."
+    ],
+    "expected": "להוכיח deny גם ב־REST/WS/media/thumbnail/export ולא רק בכפתורים; לבדוק שם זהה ID חדש, scope union, downgrade בזמן וידאו, מחיקה, restore ו־last-admin recovery ללא פתיחת גישה אוטומטית.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planning only. Follow docs/security/HA_IDENTITY_RBAC_HE.md; real hardware run is required where specified."
+  }
+]
