@@ -452,7 +452,7 @@ export class LiveCamera extends LitElement {
     return html`
       <sw-page heading=${title} subheading=${sub} crumbs="מצלמות | שידור חי">
         ${this.cam ? html`<sw-badge slot="actions" kind=${this.cam.status === 'online' ? 'live' : this.cam.status === 'offline' ? 'offline' : 'unknown'}></sw-badge>` : nothing}
-        <a slot="actions" href="#/investigate/playback"><sw-button icon="history">הקלטות</sw-button></a>
+        <a slot="actions" href=${api && this.cam ? `#/investigate/playback?camera=${this.cam.id}` : '#/investigate/playback'}><sw-button icon="history">הקלטות</sw-button></a>
         <a slot="actions" href="#/explore/floors/f0"><sw-button variant="ghost" iconOnly icon="map" label="במפה"></sw-button></a>
         ${api ? this.renderApi() : this.renderDemo()}
       </sw-page>

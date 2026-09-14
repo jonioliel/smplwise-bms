@@ -27,6 +27,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..services import go2rtc as g2
 from ..services.access import camera_allowed
+from ..services.relay import relay_ws
 from .settings import read_settings
 
 log = logging.getLogger("smplwise.media")
@@ -191,8 +192,6 @@ async def live_ws(websocket: WebSocket, camera_id: str, profile: str = Query("su
         await websocket.close(code=4503)
         return
 
-    import websockets
-
     client = g2.Go2rtc(settings)
     session = LiveSession(id=uuid.uuid4().hex[:10], camera_id=camera_id, stream=name, user_id=principal.user_id, username=principal.username)
 
@@ -205,39 +204,14 @@ async def live_ws(websocket: WebSocket, camera_id: str, profile: str = Query("su
 
     await websocket.accept()
     REGISTRY.sessions[session.id] = session
+
+    def on_down(n: int) -> None:
+        session.bytes_down += n
+
     try:
         await run_in_threadpool(_audit, "video.live.start", {"session": session.id, "stream": name})
-        async with websockets.connect(client.ws_url(name), additional_headers=client.ws_headers(), max_size=None, open_timeout=8, ping_interval=20) as upstream:
-
-            async def pump_down() -> None:
-                async for msg in upstream:
-                    if isinstance(msg, (bytes, bytearray)):
-                        session.bytes_down += len(msg)
-                        await websocket.send_bytes(bytes(msg))
-                    else:
-                        await websocket.send_text(msg)
-
-            async def pump_up() -> None:
-                while True:
-                    message = await websocket.receive()
-                    if message["type"] == "websocket.disconnect":
-                        return
-                    if message.get("text") is not None:
-                        await upstream.send(message["text"])
-                    elif message.get("bytes") is not None:
-                        await upstream.send(message["bytes"])
-
-            down = asyncio.create_task(pump_down())
-            up = asyncio.create_task(pump_up())
-            done, pending = await asyncio.wait({down, up}, return_when=asyncio.FIRST_COMPLETED)
-            for task in pending:
-                task.cancel()
-                with contextlib.suppress(BaseException):
-                    await task
-            for task in done:
-                exc = task.exception()
-                if exc and not isinstance(exc, (asyncio.CancelledError,)):
-                    log.info("live session %s ended: %s", session.id, type(exc).__name__)
+        reason = await relay_ws(websocket, client.ws_url(name), client.ws_headers(), on_down)
+        log.info("live session %s ended: %s", session.id, reason)
     except Exception as exc:  # upstream refused / dropped
         log.warning("live session %s upstream failure: %s", session.id, type(exc).__name__)
         with contextlib.suppress(Exception):

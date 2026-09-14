@@ -61,12 +61,29 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
 - Session cap (`media.max_live_sessions`, default 8) protects the NVR; the wall and the kiosk use sub
   streams, the single-camera view the main stream. Tiles beyond the cap show the snapshot only.
 
+## Recordings and playback
+
+- הקלטות (Playback) searches the NVR for one local day per camera (`GET /api/v1/cameras/{id}/recordings?date=`).
+  The search is read-only, paged, serialized (the NVR allows one search at a time) and reports
+  `coverage: complete | partial` — a truncated search is never shown as "no recordings".
+- Times: the NVR speaks its local wall clock; the add-on converts with the IANA zone in Settings →
+  וידאו ומדיה → אזור זמן (default `Asia/Jerusalem`, DST-aware). Every API time is UTC (`Z`).
+- A playback session is one go2rtc stream (`smplwise_pb_<session>_g<generation>`) built from the NVR's
+  RTSP playback URL. Clicking the timeline or ±10 s seeks: the old stream is deleted, a new generation is
+  created, and a socket of the old generation is closed (code 4410) so no old frame can appear.
+  Sessions are capped (`playback.max_sessions`) and expire after `playback.lease_s` without a socket;
+  leftovers are removed on start-up. Precision is labelled `keyframe_limited`: the first frame is the
+  key frame at or after the requested time (typically 2–4 s to first frame on the lab NVR).
+- A gap is shown as a gap. Requesting a time without recording starts at the next segment (and says
+  so) or reports "no recording" — it never switches to live.
+
 ## Limits in this build
 
 - Uploads: PDF/PNG/JPG up to 40 MB, PDF up to 20 pages; SVG and DWG/DXF are rejected.
 - PDF rasterization runs in a separate process (pdftoppm) with a 30 s limit.
-- No playback/timeline or events yet. PTZ and two-way audio are not exposed until the capability is
-  verified per camera.
+- Playback: speed 1× only, no frame step, no export yet (export goes by file — T044); one camera at a
+  time; events are not drawn on the timeline yet. PTZ and two-way audio are not exposed until the
+  capability is verified per camera.
 - Live video needs a browser with H.264 support (Chrome, Edge, Safari, Firefox on desktop); Playwright's
   bundled Chromium has none, so the evidence suites run with `SW_CHROME=1`.
 

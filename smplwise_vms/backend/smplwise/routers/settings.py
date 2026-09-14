@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from ..audit import audit
 from ..auth import current_principal, get_conn
 from ..db import get_setting, set_setting
+from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 
 router = APIRouter()
@@ -22,14 +23,20 @@ DEFAULTS: dict[str, str] = {
     "media.max_live_sessions": "8",
     "media.wall_profile": "sub",  # sub | main — profile used by the camera wall
     "snapshots.max_age_s": "60",
+    # IANA zone of the site/NVR wall clock (chapter 20). The lab NVR reports windowsZone "Israel Standard Time".
+    "time.zone": "Asia/Jerusalem",
+    "playback.max_sessions": "4",  # playback sessions open at once (each is one NVR RTSP playback stream)
+    "playback.lease_s": "600",  # idle lease; the janitor deletes the go2rtc stream after it expires
 }
+
+INT_KEYS = ("media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s")
 
 
 def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
     out: dict[str, Any] = {}
     for key, default in DEFAULTS.items():
         value = get_setting(conn, key, default) or default
-        out[key] = int(value) if key in ("media.max_live_sessions", "snapshots.max_age_s") else value
+        out[key] = int(value) if key in INT_KEYS else value
     return out
 
 
@@ -38,6 +45,9 @@ class SettingsPatch(BaseModel):
     media_max_live_sessions: int | None = Field(default=None, ge=1, le=32, alias="media.max_live_sessions")
     media_wall_profile: str | None = Field(default=None, pattern="^(sub|main)$", alias="media.wall_profile")
     snapshots_max_age_s: int | None = Field(default=None, ge=5, le=3600, alias="snapshots.max_age_s")
+    time_zone: str | None = Field(default=None, pattern=r"^[A-Za-z_]+(/[A-Za-z_\-+0-9]+)+$", alias="time.zone")
+    playback_max_sessions: int | None = Field(default=None, ge=1, le=16, alias="playback.max_sessions")
+    playback_lease_s: int | None = Field(default=None, ge=60, le=3600, alias="playback.lease_s")
 
     model_config = {"populate_by_name": True}
 
@@ -51,6 +61,13 @@ def get_settings(principal: Principal = Depends(current_principal), conn: sqlite
 def patch_settings(body: SettingsPatch, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "system.configure", INSTALLATION)
     changes = {k: v for k, v in body.model_dump(by_alias=True).items() if v is not None}
+    if "time.zone" in changes:
+        from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+        try:
+            ZoneInfo(changes["time.zone"])
+        except (ZoneInfoNotFoundError, ValueError):
+            raise ApiError(422, "validation", "אזור זמן לא מוכר.", details={"time.zone": changes["time.zone"]})
     for key, value in changes.items():
         set_setting(conn, key, str(value))
     audit(conn, actor=principal, action="settings.update", decision="allowed", resource_type="installation", resource_id="*",

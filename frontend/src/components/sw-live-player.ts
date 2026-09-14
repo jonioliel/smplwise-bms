@@ -10,7 +10,7 @@ import { liveWsUrl, type Transport } from '../api/media';
  * `mode` = auto (WebRTC first, MSE on failure) | webrtc | mse. Shows the poster (snapshot) until the
  * first frame plays and never pretends to be live when it is not.
  */
-export type PlayerStatus = 'idle' | 'connecting' | 'playing' | 'error';
+export type PlayerStatus = 'idle' | 'connecting' | 'playing' | 'ended' | 'error';
 
 const MSE_CODECS = ['avc1.640029', 'avc1.64002A', 'avc1.640033', 'hvc1.1.6.L153.B0', 'mp4a.40.2', 'mp4a.40.5', 'flac', 'opus'];
 /** ICE + first key frame: cameras with a 2–4 s GOP need well over 7 s before the first frame renders. */
@@ -29,6 +29,10 @@ export class SwLivePlayer extends LitElement {
   @property() poster = '';
   @property({ type: Boolean }) active = true;
   @property({ type: Boolean, reflect: true }) compact = false;
+  /** Playback: relay socket of a session generation instead of the live endpoint (MSE only). */
+  @property() wsUrl = '';
+  /** Playback streams end when the NVR reaches the requested end time: no automatic reconnect then. */
+  @property({ type: Boolean }) retry = true;
   @state() status: PlayerStatus = 'idle';
   @state() transport: 'webrtc' | 'mse' | '' = '';
   @state() error = '';
@@ -160,10 +164,27 @@ export class SwLivePlayer extends LitElement {
 
   /** The first render (properties set) and every later change of camera/profile/mode/active (re)connects. */
   protected updated(changed: Map<string, unknown>) {
-    if (changed.has('active') || changed.has('cameraId') || changed.has('profile') || changed.has('mode')) {
-      if (!this.active || !this.cameraId) this.disconnect();
+    if (changed.has('active') || changed.has('cameraId') || changed.has('profile') || changed.has('mode') || changed.has('wsUrl')) {
+      if (!this.active || (!this.cameraId && !this.wsUrl)) this.disconnect();
       else this.reconnect();
     }
+  }
+
+  /** Playback helpers: the media element's own clock (seconds since this generation started). */
+  get mediaTime(): number {
+    return this.video?.currentTime ?? 0;
+  }
+
+  get paused(): boolean {
+    return this.video?.paused ?? true;
+  }
+
+  pause() {
+    this.video?.pause();
+  }
+
+  resume() {
+    void this.video?.play().catch(() => undefined);
   }
 
   /** Public: drop the current connection (if any) and open a fresh one. */
@@ -174,7 +195,7 @@ export class SwLivePlayer extends LitElement {
 
   /** Public: open the stream. `preferMse` is set internally after a WebRTC failure in auto mode. */
   connect(preferMse = false) {
-    if (!this.cameraId || !this.active) return;
+    if ((!this.cameraId && !this.wsUrl) || !this.active) return;
     this.teardown(); // never leave an earlier socket open: the relay counts every socket as a session
     const gen = (this.generation += 1);
     this.status = 'connecting';
@@ -184,7 +205,7 @@ export class SwLivePlayer extends LitElement {
     this.lastPreferMse = preferMse;
     let ws: WebSocket;
     try {
-      ws = new WebSocket(liveWsUrl(this.cameraId, this.profile));
+      ws = new WebSocket(this.wsUrl || liveWsUrl(this.cameraId, this.profile));
     } catch (err) {
       this.fail('לא ניתן לפתוח חיבור');
       return;
@@ -193,7 +214,7 @@ export class SwLivePlayer extends LitElement {
     this.ws = ws;
     ws.onopen = () => {
       if (gen !== this.generation) return;
-      if (this.mode === 'mse' || (this.mode === 'auto' && preferMse)) this.startMse();
+      if (this.wsUrl || this.mode === 'mse' || (this.mode === 'auto' && preferMse)) this.startMse();
       else this.startWebrtc();
     };
     ws.onmessage = (ev) => {
@@ -212,8 +233,15 @@ export class SwLivePlayer extends LitElement {
         this.webrtcFailed('WebRTC נכשל');
         return;
       }
-      const reason = ev.code === 4403 ? 'אין הרשאת צפייה' : ev.code === 4429 ? 'הגיע למכסת הזרמים' : ev.code === 4503 ? 'go2rtc לא זמין' : ev.code === 4401 ? 'נדרשת הזדהות' : this.status === 'playing' ? 'החיבור נותק' : 'החיבור נסגר';
-      this.fail(reason, ev.code !== 4401 && ev.code !== 4403); // a quota hit retries later; a denial does not
+      if (!this.retry && this.status === 'playing' && ev.code < 4000) {
+        // Playback reached the end of the requested range (or the session was superseded): show it as such.
+        this.teardown();
+        this.status = 'ended';
+        this.dispatchEvent(new CustomEvent('player-status', { detail: { status: 'ended' }, bubbles: true, composed: true }));
+        return;
+      }
+      const reason = ev.code === 4403 ? 'אין הרשאת צפייה' : ev.code === 4429 ? 'הגיע למכסת הזרמים' : ev.code === 4503 ? 'go2rtc לא זמין' : ev.code === 4401 ? 'נדרשת הזדהות' : ev.code === 4404 ? 'סשן הניגון פג' : ev.code === 4410 ? 'הסשן הוחלף' : this.status === 'playing' ? 'החיבור נותק' : 'החיבור נסגר';
+      this.fail(reason, this.retry && ev.code !== 4401 && ev.code !== 4403 && ev.code !== 4404 && ev.code !== 4410); // a quota hit retries later; a denial does not
     };
   }
 
@@ -264,7 +292,7 @@ export class SwLivePlayer extends LitElement {
     this.status = 'error';
     this.error = message;
     this.dispatchEvent(new CustomEvent('player-status', { detail: { status: 'error', error: message }, bubbles: true, composed: true }));
-    if (retryable && this.active && this.cameraId) {
+    if (retryable && this.retry && this.active && (this.cameraId || this.wsUrl)) {
       const delay = Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** Math.min(this.attempts, 6));
       this.attempts += 1;
       this.retryTimer = window.setTimeout(() => this.connect(this.lastPreferMse), delay);
@@ -434,6 +462,9 @@ export class SwLivePlayer extends LitElement {
     const sb = this.sb;
     if (!sb || sb.updating || !this.ms || this.ms.readyState !== 'open') return;
     const v = this.video;
+    // Data that starts after the playhead (first fragment with a non-zero base time, or a trimmed buffer)
+    // would never play: move the playhead to the start of what is buffered.
+    if (v.buffered.length && v.readyState < 3 && v.currentTime < v.buffered.start(0)) v.currentTime = v.buffered.start(0);
     // Small, bounded buffer: embedded/low-memory browsers give a SourceBuffer only ~12 MB.
     if (v.buffered.length && v.currentTime - v.buffered.start(0) > 12 && this.evict(6)) return;
     const next = this.queue.shift();
@@ -483,8 +514,9 @@ export class SwLivePlayer extends LitElement {
       <video class=${showPoster ? 'hidden' : ''} autoplay playsinline muted @playing=${this.onPlaying} @timeupdate=${this.onTimeUpdate}></video>
       ${this.status === 'connecting' ? html`<div class="center"><div><span class="spin"></span><span>מתחבר${this.transport ? ` · ${this.transport === 'webrtc' ? 'WebRTC' : 'MSE'}` : ''}…</span></div></div>` : nothing}
       ${this.status === 'error' ? html`<div class="center"><div><sw-icon name="offline" size=${22}></sw-icon><span>${this.error}</span></div></div>` : nothing}
+      ${this.status === 'ended' ? html`<div class="center"><div><sw-icon name="history" size=${22}></sw-icon><span>הקטע הסתיים</span></div></div>` : nothing}
       ${this.status === 'idle' && !this.poster ? html`<div class="center"><div><sw-icon name="camera" size=${22}></sw-icon><span>לא מחובר</span></div></div>` : nothing}
-      <span class="status ${this.status}"><i></i><span class="t">${this.status === 'playing' ? `חי · ${this.transport === 'webrtc' ? 'WebRTC' : 'MSE'}` : this.status === 'connecting' ? 'מתחבר' : this.status === 'error' ? 'לא זמין' : 'תמונה'}</span></span>
+      <span class="status ${this.status}"><i></i><span class="t">${this.status === 'playing' ? `${this.wsUrl ? 'הקלטה' : 'חי'} · ${this.transport === 'webrtc' ? 'WebRTC' : 'MSE'}` : this.status === 'connecting' ? 'מתחבר' : this.status === 'error' ? 'לא זמין' : this.status === 'ended' ? 'הסתיים' : 'תמונה'}</span></span>
       ${this.status === 'playing' ? html`<button class="mute" title=${this.muted ? 'הפעל שמע' : 'השתק'} aria-label=${this.muted ? 'הפעל שמע' : 'השתק'} @click=${this.toggleMute}><sw-icon name=${this.muted ? 'volume' : 'mic'} size=${13}></sw-icon></button>` : nothing}
     `;
   }

@@ -357,7 +357,7 @@ export class SwApp extends LitElement {
         return html`<live-overview></live-overview>`;
       case 'investigate':
         if (s[1] === 'playback' && s[2] === 'sync') return html`<investigate-sync></investigate-sync>`;
-        if (s[1] === 'playback') return html`<investigate-playback></investigate-playback>`;
+        if (s[1] === 'playback') return html`<investigate-playback .cameraId=${r.params.get('camera') ?? ''} .at=${r.params.get('t') ?? ''}></investigate-playback>`;
         if (s[1] === 'floors') return html`<investigate-history-map .floorId=${s[2] ?? 'f0'}></investigate-history-map>`;
         if (s[1] === 'events') return html`<investigate-events></investigate-events>`;
         if (s[1] === 'reviews') return html`<investigate-reviews></investigate-reviews>`;

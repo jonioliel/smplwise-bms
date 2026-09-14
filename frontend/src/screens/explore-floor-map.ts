@@ -441,7 +441,7 @@ export class ExploreFloorMap extends LitElement {
       sub = `${b.buildingName} · ${b.floorName}`;
       body = a.resource_type === 'camera' ? this.apiCameraBody(a, b.floorName) : html`<div class="note">ישות HA · ${a.resource_id} — מצב יגיע עם גשר HA (T025).</div>`;
       footer = html`<sw-button variant="primary" size="sm" icon="expand" ?disabled=${a.resource_type !== 'camera' || cameraState(a) === 'offline'} @click=${() => a.camera && navigate(`/live/cameras/${a.camera.id}`)}>צפייה חיה</sw-button>
-        <sw-button size="sm" icon="history" disabled title="הקלטות מגיעות במקטע הבא">${t('camera.recordings')}</sw-button>
+        <sw-button size="sm" icon="history" ?disabled=${a.resource_type !== 'camera' || !a.camera} @click=${() => a.camera && navigate('/investigate/playback', { camera: a.camera.id })}>${t('camera.recordings')}</sw-button>
         ${b.permissions.edit ? html`<sw-button variant="ghost" size="sm" icon="edit" @click=${() => navigate(`/explore/floors/${b.floorId}/edit`)}>עריכה</sw-button>` : nothing}`;
     }
     if (this.narrow || !this.anchor) {

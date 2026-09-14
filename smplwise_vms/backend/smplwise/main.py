@@ -2,6 +2,7 @@
 Ingress (relative asset URLs, hash routing)."""
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from pathlib import Path
@@ -15,7 +16,7 @@ from . import __version__
 from .config import Settings, load_settings
 from .db import Database
 from .errors import ApiError
-from .routers import anchors, cameras, catalog, health, me, media, plans, settings as settings_router
+from .routers import anchors, cameras, catalog, health, me, media, plans, playback, recordings, settings as settings_router
 
 log = logging.getLogger("smplwise")
 
@@ -64,7 +65,43 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(cameras.router, prefix=api, tags=["cameras"])
     app.include_router(settings_router.router, prefix=api, tags=["settings"])
     app.include_router(media.router, prefix=api, tags=["media"])
+    app.include_router(recordings.router, prefix=api, tags=["recordings"])
+    app.include_router(playback.router, prefix=api, tags=["playback"])
     app.include_router(health.router, prefix=api, tags=["ops"])
+
+    @app.on_event("startup")
+    async def _start_janitor() -> None:
+        # Sessions never survive a restart: remove our leftover playback streams, then expire idle
+        # sessions every 30 s. Only `smplwise_pb_*` names are ever deleted.
+        from starlette.concurrency import run_in_threadpool
+
+        from .services import playback as pb
+        from .routers.settings import read_settings
+
+        if settings.go2rtc_url:
+            await run_in_threadpool(pb.sweep_orphans, settings)
+
+        async def loop() -> None:
+            while True:
+                await asyncio.sleep(30)
+                try:
+                    def _tick() -> None:
+                        with app.state.db.connection() as conn:
+                            lease = read_settings(conn)["playback.lease_s"]
+                        pb.expire_idle(settings, lease)
+                        pb.sweep_orphans(settings)
+
+                    await run_in_threadpool(_tick)
+                except Exception as exc:  # never let the janitor die
+                    log.warning("janitor tick failed: %s", type(exc).__name__)
+
+        app.state.janitor = asyncio.create_task(loop())
+
+    @app.on_event("shutdown")
+    async def _stop_janitor() -> None:
+        task = getattr(app.state, "janitor", None)
+        if task:
+            task.cancel()
 
     @app.get("/healthz", include_in_schema=False)
     async def healthz():

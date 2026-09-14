@@ -8,6 +8,9 @@ export interface ProductSettings {
   'media.max_live_sessions': number;
   'media.wall_profile': 'sub' | 'main';
   'snapshots.max_age_s': number;
+  'time.zone'?: string;
+  'playback.max_sessions'?: number;
+  'playback.lease_s'?: number;
 }
 
 export const getSettings = () => get<{ settings: ProductSettings; can_edit: boolean }>('settings');

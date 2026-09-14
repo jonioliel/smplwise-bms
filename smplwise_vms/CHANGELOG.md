@@ -4,6 +4,12 @@
 - Default video transport is now **MSE** (works through Ingress, Cloudflare and behind CGNAT);
   WebRTC or automatic WebRTC→MSE can be selected in Settings → וידאו ומדיה when UDP to the go2rtc
   host is possible. Settings shows the running add-on version.
+- Recordings: read-only NVR search per camera and local day with paging, coverage status and a short
+  cache; TimeAdapter for the NVR's wall-clock times (IANA zone setting, DST-aware).
+- Playback: sessions through the relay (go2rtc stream per session generation), seek = new generation,
+  session cap and idle lease, orphan cleanup on start-up, audit of start/seek/stop; the הקלטות screen
+  plays real recordings with the timeline following the media clock (precision labelled).
+- Settings: playback cap and lease, time zone. Requirements: `tzdata`.
 
 ## 0.1.1 (pilot, in progress)
 - Live video: go2rtc adapter (namespaced `smplwise_*` streams only), authorized WebSocket relay,

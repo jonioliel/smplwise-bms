@@ -77,6 +77,40 @@ test.describe('live video evidence', () => {
     expect(state.filter((p) => p.status === 'playing' && p.width > 0).length, JSON.stringify(state)).toBeGreaterThanOrEqual(Math.min(4, state.length));
   });
 
+  test('recordings search and playback session (create → seek → close)', async ({ page, request }, testInfo) => {
+    const cams = await (await request.get('/api/v1/cameras')).json();
+    const cam = cams.cameras.find((c: { status: string; main_track: number | null }) => c.status === 'online' && c.main_track) ?? cams.cameras[0];
+    const tz = (await (await request.get('/api/v1/settings')).json()).settings['time.zone'] ?? 'Asia/Jerusalem';
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    const rec = await (await request.get(`/api/v1/cameras/${cam.id}/recordings?date=${today}`)).json();
+    expect(['complete', 'partial']).toContain(rec.coverage);
+    expect(rec.timezone).toBe(tz);
+    testInfo.annotations.push({ type: 'recordings', description: `${rec.segments.length} segments, ${rec.matches} matches, ${rec.pages} pages, coverage ${rec.coverage}` });
+    test.skip(!rec.segments.length, 'no recordings today on this camera');
+    // play from 20 s into the last segment of the day
+    const last = rec.segments[rec.segments.length - 1];
+    const at = new Date(Math.min(new Date(last.start_at).getTime() + 20_000, new Date(last.end_at).getTime() - 5_000)).toISOString().replace(/\.\d{3}Z$/, 'Z');
+    await page.goto(`/#/investigate/playback?camera=${cam.id}&t=${encodeURIComponent(at)}`);
+    await page.waitForSelector('sw-app');
+    const state = await waitPlaying(page, 1, 45000);
+    await page.screenshot({ path: path.join(OUT, `playback-${testInfo.project.name}.png`) });
+    expect(state[0]?.status, JSON.stringify(state)).toBe('playing');
+    // the session exists server-side with generation 0, then a seek creates generation 1 and the old stream is gone
+    const listed = await (await request.get('/api/v1/playback/sessions')).json();
+    const mine = listed.sessions.find((s: { camera_id: string }) => s.camera_id === cam.id);
+    expect(mine).toBeTruthy();
+    const seek = await request.post(`/api/v1/playback/sessions/${mine.id}/seek`, { data: { start_at: at } });
+    expect(seek.ok()).toBeTruthy();
+    expect((await seek.json()).generation).toBe(mine.generation + 1);
+    const streams = await (await request.get('/api/v1/media/streams')).json();
+    const pbStreams = streams.streams.map((s: { name: string }) => s.name).filter((n: string) => n.startsWith('smplwise_pb_'));
+    expect(pbStreams).not.toContain(`smplwise_pb_${mine.id}_g${mine.generation}`);
+    const closed = await request.delete(`/api/v1/playback/sessions/${mine.id}`);
+    expect((await closed.json()).state).toBe('closed');
+    const after = await (await request.get('/api/v1/media/streams')).json();
+    expect(after.streams.map((s: { name: string }) => s.name).filter((n: string) => n.includes(mine.id))).toEqual([]);
+  });
+
   test('settings media tab and kiosk render against the API', async ({ page }, testInfo) => {
     await page.goto('/#/system/settings');
     await page.waitForSelector('sw-app');

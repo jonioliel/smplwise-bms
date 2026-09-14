@@ -92,6 +92,79 @@ def fetch_snapshot(settings: Settings, channel: int) -> bytes:
     return r.content
 
 
+@dataclass
+class SearchMatch:
+    track_id: int
+    start_raw: str  # device string, local wall clock (KNOWN_QUIRKS T2)
+    end_raw: str
+    playback_uri: str
+    record_type: str  # CMR | MOTION | ALARM | ... | "" when the device does not say
+
+
+@dataclass
+class SearchPage:
+    matches: list[SearchMatch]
+    total: int | None  # numOfMatches as reported by the device (may be None)
+    status: str  # OK | MORE | NO MATCHES | <raw>
+
+
+def search_recordings(settings: Settings, track_id: int, start_wall: str, end_wall: str, position: int = 0, page_size: int = 40, search_id: str | None = None) -> SearchPage:
+    """One page of `POST /ISAPI/ContentMgmt/search` (the legacy-proven plain body, KNOWN_QUIRKS S1/S2).
+
+    A search is a read-only query. `start_wall`/`end_wall` are already in the device's local wall-clock
+    format (`services.timeutil.utc_to_nvr_wall`); nothing here interprets time."""
+    import uuid
+
+    sid = search_id or str(uuid.uuid4()).upper()
+    body = (
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        "<CMSearchDescription>\n"
+        f"<searchID>{sid}</searchID>\n"
+        f"<trackIDList><trackID>{int(track_id)}</trackID></trackIDList>\n"
+        f"<timeSpanList><timeSpan><startTime>{start_wall}</startTime><endTime>{end_wall}</endTime></timeSpan></timeSpanList>"
+        f"<maxResults>{int(page_size)}</maxResults>"
+        f"<searchResultPosition>{int(position)}</searchResultPosition>"
+        "<metadataList><metadataDescriptor>//recordType.meta.std-cgi.com</metadataDescriptor></metadataList>"
+        "</CMSearchDescription>"
+    )
+    with _client(settings) as client:
+        try:
+            r = client.post("/ISAPI/ContentMgmt/search", content=body.encode("utf-8"), headers={"Content-Type": "application/xml"})
+        except httpx.HTTPError as exc:
+            raise ApiError(503, "source_unavailable", "ה־NVR אינו זמין כרגע.", retryable=True, details={"op": "search", "error": type(exc).__name__}) from exc
+    if r.status_code in (401, 403):
+        raise ApiError(503, "source_forbidden", "ה־NVR דחה את פרטי הגישה.", details={"op": "search", "status": r.status_code})
+    if r.status_code != 200:
+        raise ApiError(503, "source_error", "ה־NVR החזיר שגיאה בחיפוש.", retryable=True, details={"op": "search", "status": r.status_code, "body": r.text[:120]})
+    return parse_search_response(r.text, track_id)
+
+
+def parse_search_response(xml: str, track_id: int) -> SearchPage:
+    root = ET.fromstring(xml)
+    if _local(root.tag) == "ResponseStatus":
+        raise ApiError(503, "source_error", "ה־NVR דחה את החיפוש.", details={"op": "search", "status": _text(root, "statusString"), "sub": _text(root, "subStatusCode")})
+    status = (_text(root, "responseStatusStrg") or _text(root, "responseStatusString") or "").strip().upper()
+    total_text = _text(root, "numOfMatches")
+    total = int(total_text) if total_text.isdigit() else None
+    matches: list[SearchMatch] = []
+    for item in root.iter():
+        if _local(item.tag) != "searchMatchItem":
+            continue
+        tid = _text(item, "trackID")
+        rtype = ""
+        for meta in item.iter():
+            if _local(meta.tag) == "metadataDescriptor" and meta.text:
+                rtype = meta.text.strip().rsplit("/", 1)[-1].upper()
+        matches.append(SearchMatch(
+            track_id=int(tid) if tid.isdigit() else track_id,
+            start_raw=_text(item, "startTime"),
+            end_raw=_text(item, "endTime"),
+            playback_uri=_text(item, "playbackURI").replace(" ", ""),
+            record_type=rtype,
+        ))
+    return SearchPage(matches=matches, total=total, status=status or ("OK" if matches else "NO MATCHES"))
+
+
 def device_info(settings: Settings) -> dict[str, str]:
     with _client(settings) as client:
         xml = _get(client, "/ISAPI/System/deviceInfo")
