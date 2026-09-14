@@ -83,12 +83,16 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "לאמת גישה מקומית ל־NVR, HA ו־go2rtc מתוך סביבת הפיתוח; לתעד דגם, Firmware, Codec ונתיבים ללא סודות.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+    "status": "PASS",
+    "commit": "b818f63",
+    "environment": "workstation on the site LAN; read-only probes against NVR (ISAPI:90), go2rtc 1.9.14, HA 2026.9.2 on 2026-09-14",
+    "evidence": [
+      "docs/operations/G0_INTAKE.md (access inventory, versions, ports, paths without secrets)",
+      "scripts/lab/nvr_probe.py, ha_probe.py, go2rtc_persistence_probe.py",
+      "private-evidence/nvr-probes/20260914T071715Z/ (local only)"
+    ],
+    "executed_at": "2026-09-14T09:47:39Z",
+    "notes": "Local access to NVR, HA and go2rtc verified from the development workstation; model/firmware/codec/tracks documented."
   },
   {
     "id": "AT004",
@@ -111,12 +115,16 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "להגדיר חשבונות ייעודיים, גיבוי לפני בדיקה, Read-only כברירת מחדל ויומן פעולות; אין גישה מלאה אוטומטית או פקודות פיזיות בזמן bootstrap.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+    "status": "PASS",
+    "commit": "b818f63",
+    "environment": "workstation on the site LAN; read-only probes against NVR (ISAPI:90), go2rtc 1.9.14, HA 2026.9.2 on 2026-09-14",
+    "evidence": [
+      "docs/changes/CR-002-LAB-ACCOUNTS.md (owner-approved deviation: admin NVR account read-only by policy for the pilot lab)",
+      "CLAUDE.md secrets policy; secrets/lab.env gitignored (git check-ignore verified)",
+      "action log = probe output folders under private-evidence/"
+    ],
+    "executed_at": "2026-09-14T09:47:39Z",
+    "notes": "Accepted under CR-002: dedicated NVR account and go2rtc API auth deferred to the pilot release gate; read-only by default and no physical commands were kept."
   },
   {
     "id": "AT005",

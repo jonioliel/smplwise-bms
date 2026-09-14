@@ -78,7 +78,7 @@
       "AT003",
       "AT004"
     ],
-    "status": "IN_PROGRESS",
+    "status": "DONE",
     "blocker": null,
     "priority": "P0",
     "model_policy": {
@@ -99,10 +99,10 @@
       "scripts/lab/ha_probe.py",
       "scripts/lab/go2rtc_persistence_probe.py",
       "private-evidence/nvr-probes/20260914T071715Z/ (local only)",
-      "open: dedicated non-admin NVR account, SSH/admin install path, action log"
+      "docs/changes/CR-002-LAB-ACCOUNTS.md"
     ],
     "owner": "Claude Code; approver: product owner",
-    "commit": null,
+    "commit": "b818f63",
     "actual_cost_usd": null
   },
   {
@@ -135,7 +135,7 @@
       "AT005",
       "AT006"
     ],
-    "status": "BACKLOG",
+    "status": "READY",
     "blocker": null,
     "priority": "P0",
     "model_policy": {

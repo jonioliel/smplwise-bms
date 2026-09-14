@@ -29,3 +29,6 @@ playwright-report/
 
 # Local-only material (plans, captures, notes)
 private/
+
+# Per-machine launch configuration for the desktop app
+.claude/launch.json
