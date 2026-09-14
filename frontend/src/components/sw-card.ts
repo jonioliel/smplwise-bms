@@ -4,6 +4,7 @@ import { customElement, property } from 'lit/decorators.js';
 @customElement('sw-card')
 export class SwCard extends LitElement {
   @property() heading = '';
+  @property() subheading = '';
   @property({ type: Boolean, reflect: true }) flush = false;
   @property({ type: Boolean, reflect: true }) interactive = false;
 
@@ -23,11 +24,12 @@ export class SwCard extends LitElement {
     }
     :host([interactive]) {
       cursor: pointer;
-      transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease);
+      transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease);
     }
     :host([interactive]:hover) {
       border-color: var(--sw-border-strong);
       box-shadow: var(--sw-shadow-2);
+      transform: translateY(-1px);
     }
     header {
       display: flex;
@@ -38,15 +40,21 @@ export class SwCard extends LitElement {
     }
     h3 {
       margin: 0;
-      font-size: var(--sw-fs-lg);
+      font-size: var(--sw-fs-md);
       font-weight: var(--sw-fw-semibold);
+    }
+    .sub {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      font-weight: var(--sw-fw-regular);
+      margin-block-start: 1px;
     }
   `;
 
   render() {
     return html`
       ${this.heading || this.querySelector('[slot="actions"]')
-        ? html`<header><h3>${this.heading}</h3><slot name="actions"></slot></header>`
+        ? html`<header><div><h3>${this.heading}</h3>${this.subheading ? html`<div class="sub">${this.subheading}</div>` : ''}</div><slot name="actions"></slot></header>`
         : ''}
       <slot></slot>
     `;

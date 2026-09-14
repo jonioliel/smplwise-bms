@@ -1,69 +1,70 @@
-/* SMPLWISE VMS design tokens — derived from docs/design/reference (three concept boards) and
-   docs/design/DESIGN_CONTRACT.md: light surfaces, dark readable text, restrained blue, thin dividers,
-   moderate radii, minimal shadows. Every component reads these variables; no ad-hoc colours. */
+/* SMPLWISE VMS design tokens v2 — tuned to the three reference boards (UniFi-Protect-like language):
+   white surfaces on a cool light ground, one saturated blue, soft-blue tints for active states and
+   icon squares, green for "online", thin cool-grey dividers, 12px cards, quiet shadows. */
 :root {
   color-scheme: light;
 
   /* Surfaces */
-  --sw-bg: #f4f6fa;
+  --sw-bg: #f5f7fb;
   --sw-surface: #ffffff;
-  --sw-surface-2: #f8fafc;
-  --sw-surface-3: #eef2f7;
-  --sw-border: #e3e8ef;
-  --sw-border-strong: #cbd5e1;
-  --sw-overlay: rgba(15, 23, 42, 0.45);
+  --sw-surface-2: #f8fafd;
+  --sw-surface-3: #eef2f8;
+  --sw-border: #e6eaf2;
+  --sw-border-strong: #d5dce8;
+  --sw-overlay: rgba(17, 24, 39, 0.45);
 
   /* Text */
-  --sw-text: #0f172a;
-  --sw-text-2: #475569;
-  --sw-text-3: #94a3b8;
+  --sw-text: #111827;
+  --sw-text-2: #5b6478;
+  --sw-text-3: #98a2b3;
   --sw-text-inverse: #ffffff;
 
   /* Accent (interaction) */
-  --sw-accent: #2f6fed;
-  --sw-accent-hover: #245bd0;
-  --sw-accent-soft: #e8f0fe;
-  --sw-accent-text: #1e4fc2;
-  --sw-focus: #2f6fed;
+  --sw-accent: #2f6bff;
+  --sw-accent-hover: #1f5ae6;
+  --sw-accent-soft: #eaf0ff;
+  --sw-accent-text: #1f5ae6;
+  --sw-focus: #2f6bff;
 
   /* Semantic state colours — always paired with text/icon, never colour alone */
-  --sw-live: #16a34a;
-  --sw-live-soft: #e6f6ec;
-  --sw-recorded: #2f6fed;
-  --sw-recorded-soft: #e8f0fe;
-  --sw-offline: #64748b;
-  --sw-offline-soft: #f1f5f9;
-  --sw-stale: #d97706;
-  --sw-stale-soft: #fef3e2;
-  --sw-unknown: #a3a3a3;
-  --sw-unknown-soft: #f5f5f5;
-  --sw-danger: #dc2626;
-  --sw-danger-soft: #fde8e8;
-  --sw-warning: #d97706;
-  --sw-warning-soft: #fef3e2;
-  --sw-success: #16a34a;
-  --sw-success-soft: #e6f6ec;
-  --sw-forbidden: #b91c1c;
+  --sw-live: #22c55e;
+  --sw-live-soft: #e8f8ee;
+  --sw-recorded: #2f6bff;
+  --sw-recorded-soft: #eaf0ff;
+  --sw-offline: #9aa3b5;
+  --sw-offline-soft: #f1f3f7;
+  --sw-stale: #f59e0b;
+  --sw-stale-soft: #fff4e0;
+  --sw-unknown: #b3bac7;
+  --sw-unknown-soft: #f4f6f9;
+  --sw-danger: #ef4444;
+  --sw-danger-soft: #fdecec;
+  --sw-warning: #f59e0b;
+  --sw-warning-soft: #fff4e0;
+  --sw-success: #22c55e;
+  --sw-success-soft: #e8f8ee;
+  --sw-forbidden: #dc2626;
   --sw-forbidden-soft: #fdecec;
+  --sw-purple: #8b5cf6;
 
   /* Video / map canvas */
-  --sw-video-bg: #0b1220;
-  --sw-map-bg: #f9fafb;
-  --sw-map-wall: #334155;
+  --sw-video-bg: #0f1729;
+  --sw-map-bg: #fbfcfe;
+  --sw-map-wall: #4b5565;
   --sw-map-room-fill: #ffffff;
-  --sw-map-label: #64748b;
-  --sw-fov: rgba(47, 111, 237, 0.18);
+  --sw-map-label: #7b8494;
+  --sw-fov: rgba(47, 107, 255, 0.16);
 
   /* Typography */
-  --sw-font: "Segoe UI", -apple-system, BlinkMacSystemFont, "Heebo", "Noto Sans Hebrew", Roboto, Arial, sans-serif;
+  --sw-font: "Heebo", "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, "Noto Sans Hebrew", Roboto, Arial, sans-serif;
   --sw-font-mono: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
-  --sw-fs-xs: 12px;
+  --sw-fs-xs: 11.5px;
   --sw-fs-sm: 13px;
-  --sw-fs-md: 14px;
-  --sw-fs-lg: 16px;
-  --sw-fs-xl: 20px;
-  --sw-fs-2xl: 24px;
-  --sw-fs-3xl: 30px;
+  --sw-fs-md: 13.5px;
+  --sw-fs-lg: 15px;
+  --sw-fs-xl: 18px;
+  --sw-fs-2xl: 22px;
+  --sw-fs-3xl: 28px;
   --sw-lh: 1.45;
   --sw-fw-regular: 400;
   --sw-fw-medium: 500;
@@ -83,21 +84,21 @@
   /* Radii */
   --sw-r-sm: 8px;
   --sw-r-md: 12px;
-  --sw-r-lg: 16px;
+  --sw-r-lg: 14px;
   --sw-r-pill: 999px;
 
   /* Elevation */
-  --sw-shadow-1: 0 1px 2px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04);
-  --sw-shadow-2: 0 8px 24px rgba(15, 23, 42, 0.10);
-  --sw-shadow-3: 0 16px 48px rgba(15, 23, 42, 0.16);
+  --sw-shadow-1: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.04);
+  --sw-shadow-2: 0 6px 20px rgba(16, 24, 40, 0.08);
+  --sw-shadow-3: 0 16px 40px rgba(16, 24, 40, 0.16);
 
   /* Layout */
-  --sw-rail-w: 88px;
-  --sw-rail-w-wide: 220px;
+  --sw-rail-w: 72px;
+  --sw-rail-w-wide: 232px;
   --sw-topbar-h: 56px;
   --sw-bottomnav-h: 60px;
   --sw-drawer-w: 380px;
-  --sw-touch: 44px;
+  --sw-touch: 40px;
   --sw-content-max: 1600px;
 
   /* Z-index scale */

@@ -40,12 +40,13 @@ export class SwPage extends LitElement {
     h1 {
       margin: 0;
       font-size: var(--sw-fs-2xl);
-      font-weight: var(--sw-fw-semibold);
+      font-weight: var(--sw-fw-bold);
       line-height: 1.2;
+      letter-spacing: -0.01em;
     }
     .sub {
-      margin-block-start: var(--sw-s-1);
-      color: var(--sw-text-2);
+      margin-block-start: 2px;
+      color: var(--sw-text-3);
       font-size: var(--sw-fs-sm);
     }
     .actions {

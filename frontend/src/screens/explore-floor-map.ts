@@ -1,31 +1,54 @@
 import { LitElement, html, css, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { customElement, property, state, query } from 'lit/decorators.js';
 import '../components/sw-button';
 import '../components/sw-badge';
 import '../components/sw-card';
 import '../components/sw-chip';
 import '../components/sw-drawer';
+import '../components/sw-popover';
 import '../components/sw-icon';
+import '../components/sw-toggle';
+import '../components/sw-floor-glyph';
+import '../components/sw-camera-tile';
 import '../components/sw-state-panel';
 import '../map/sw-plan-canvas';
-import type { PlanMarker } from '../map/sw-plan-canvas';
+import type { PlanMarker, MarkerSelectDetail, SwPlanCanvas } from '../map/sw-plan-canvas';
 import type { StateKind } from '../components/sw-badge';
 import { demoCameras, demoEntities, demoFloors, demoPlan, demoSite, type DemoCamera, type DemoEntity } from '../fixtures/demo';
+import { demoScene } from '../fixtures/catalog';
 import { t } from '../i18n/he';
 import { navigate } from '../router';
 
 type ScreenState = 'ready' | 'loading' | 'empty' | 'error' | 'forbidden' | 'stale' | 'partial';
 type Layer = 'cameras' | 'doors' | 'lights' | 'sensors';
 
-/** SC04 — live floor map (skeleton on fixtures; real data arrives with T019/T022/T025). */
+const LAYERS: { id: Layer; icon: 'camera' | 'door' | 'light' | 'sensor'; label: () => string }[] = [
+  { id: 'cameras', icon: 'camera', label: () => t('floor.cameras') },
+  { id: 'doors', icon: 'door', label: () => t('floor.doors') },
+  { id: 'lights', icon: 'light', label: () => t('floor.lights') },
+  { id: 'sensors', icon: 'sensor', label: () => t('floor.sensors') },
+];
+
+/**
+ * SC04 — live floor map (board 1 screen 4): breadcrumb, a side panel with the isometric floor list and
+ * layer toggles, the plan with blue camera pins, and a floating camera card anchored to the selected pin
+ * (bottom sheet on phones). Skeleton on fixtures; real data arrives with T019/T022/T025.
+ */
 @customElement('explore-floor-map')
 export class ExploreFloorMap extends LitElement {
   @property() floorId = 'f0';
   @property() screenState: ScreenState = 'ready';
 
   @state() private selectedId: string | null = null;
+  @state() private anchor: { x: number; y: number } | null = null;
   @state() private layers = new Set<Layer>(['cameras', 'doors', 'lights', 'sensors']);
   @state() private pinned = false;
+  @state() private narrow = false;
+  @query('sw-plan-canvas') private canvas?: SwPlanCanvas;
+  @query('.stage') private stage?: HTMLDivElement;
+
+  private mq = window.matchMedia('(max-width: 767px)');
+  private onMq = () => (this.narrow = this.mq.matches);
 
   static styles = css`
     :host {
@@ -39,41 +62,140 @@ export class ExploreFloorMap extends LitElement {
       flex-wrap: wrap;
       align-items: center;
       gap: var(--sw-s-3);
-      padding: var(--sw-s-3) var(--sw-s-4);
+      padding: var(--sw-s-4) var(--sw-s-5) var(--sw-s-3);
     }
     .crumbs {
       display: flex;
       align-items: center;
-      gap: var(--sw-s-1);
-      color: var(--sw-text-2);
+      gap: 6px;
+      color: var(--sw-text-3);
       font-size: var(--sw-fs-sm);
       min-inline-size: 0;
     }
+    .crumbs a {
+      color: inherit;
+      text-decoration: none;
+    }
+    .crumbs a:hover {
+      color: var(--sw-accent-text);
+    }
     .crumbs strong {
       color: var(--sw-text);
-      font-size: var(--sw-fs-xl);
-      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-2xl);
+      font-weight: var(--sw-fw-bold);
+      letter-spacing: -0.01em;
     }
     .crumbs sw-icon {
       color: var(--sw-text-3);
     }
-    .group {
-      display: flex;
-      align-items: center;
-      gap: var(--sw-s-2);
-      flex-wrap: wrap;
-    }
     .spacer {
       flex: 1;
     }
+    .group {
+      display: none;
+      align-items: center;
+      gap: var(--sw-s-2);
+    }
+    .body {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 250px minmax(0, 1fr);
+      gap: var(--sw-s-4);
+      padding: 0 var(--sw-s-5) var(--sw-s-5);
+      min-block-size: 0;
+    }
+    .side {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sw-s-3);
+      min-block-size: 0;
+      overflow: auto;
+    }
+    .side h4 {
+      margin: 0 0 8px;
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-text-3);
+      letter-spacing: 0.04em;
+    }
+    .floors {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .floor {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      background: transparent;
+      font: inherit;
+      text-align: start;
+      cursor: pointer;
+      color: var(--sw-text);
+      transition: background var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease);
+    }
+    .floor:hover {
+      background: var(--sw-surface-2);
+    }
+    .floor.on {
+      background: var(--sw-accent-soft);
+      border-color: var(--sw-accent);
+    }
+    .floor .n {
+      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-sm);
+    }
+    .floor .c {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .layer {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 0;
+      font-size: var(--sw-fs-sm);
+      border-block-end: 1px solid var(--sw-border);
+    }
+    .layer:last-child {
+      border-block-end: 0;
+    }
+    .layer sw-icon {
+      color: var(--sw-text-2);
+    }
+    .layer .grow {
+      flex: 1;
+    }
+    .legend {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+    }
+    .legend span {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .legend i {
+      inline-size: 12px;
+      block-size: 12px;
+      border-radius: 50%;
+      background: var(--lg);
+      border: 2px solid #fff;
+      box-shadow: 0 0 0 1px var(--sw-border-strong);
+    }
     .stage {
       position: relative;
-      flex: 1;
       min-block-size: 360px;
-      margin: 0 var(--sw-s-4) var(--sw-s-4);
       border: 1px solid var(--sw-border);
       border-radius: var(--sw-r-lg);
       background: var(--sw-surface);
+      box-shadow: var(--sw-shadow-1);
       overflow: hidden;
     }
     .banner {
@@ -87,7 +209,7 @@ export class ExploreFloorMap extends LitElement {
       color: var(--sw-text);
     }
     .banner sw-state-panel {
-      --sw-surface-3: transparent;
+      --sw-accent-soft: transparent;
     }
     .cover {
       position: absolute;
@@ -97,36 +219,15 @@ export class ExploreFloorMap extends LitElement {
       background: var(--sw-surface);
       z-index: var(--sw-z-map-ui);
     }
-    .preview {
-      aspect-ratio: 16 / 9;
-      background: var(--sw-video-bg);
-      border-radius: var(--sw-r-md);
-      display: grid;
-      place-items: center;
-      color: var(--sw-text-inverse);
-      position: relative;
-      overflow: hidden;
-      text-align: center;
-      padding: var(--sw-s-3);
-      font-size: var(--sw-fs-sm);
-    }
-    .preview .tag {
-      position: absolute;
-      inset-inline-start: var(--sw-s-2);
-      inset-block-start: var(--sw-s-2);
-    }
-    .preview.off {
-      background: var(--sw-surface-3);
-      color: var(--sw-text-2);
-    }
     .meta {
       display: grid;
       grid-template-columns: auto 1fr;
-      gap: var(--sw-s-2) var(--sw-s-4);
+      gap: 6px var(--sw-s-3);
       font-size: var(--sw-fs-sm);
+      margin: 0;
     }
     .meta dt {
-      color: var(--sw-text-2);
+      color: var(--sw-text-3);
       margin: 0;
     }
     .meta dd {
@@ -141,13 +242,37 @@ export class ExploreFloorMap extends LitElement {
       color: var(--sw-danger);
       font-size: var(--sw-fs-sm);
     }
-    @media (max-width: 767px) {
-      .head {
-        padding: var(--sw-s-2) var(--sw-s-3);
-        gap: var(--sw-s-2);
+    .statusrow {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .preview {
+      aspect-ratio: 16 / 9;
+      background: var(--sw-surface-3);
+      border-radius: var(--sw-r-sm);
+      display: grid;
+      place-items: center;
+      color: var(--sw-text-2);
+      text-align: center;
+      padding: var(--sw-s-3);
+      font-size: var(--sw-fs-sm);
+    }
+    .preview sw-icon {
+      margin-block-end: 6px;
+    }
+    @media (max-width: 1023px) {
+      .body {
+        grid-template-columns: minmax(0, 1fr);
       }
-      /* One scrollable row per chip group keeps the map tall on phones. */
+      .side {
+        display: none;
+      }
       .group {
+        display: flex;
         flex-wrap: nowrap;
         overflow-x: auto;
         max-inline-size: 100%;
@@ -157,19 +282,39 @@ export class ExploreFloorMap extends LitElement {
       .group::-webkit-scrollbar {
         display: none;
       }
+    }
+    @media (max-width: 767px) {
+      .head {
+        padding: var(--sw-s-3) var(--sw-s-3) var(--sw-s-2);
+        gap: var(--sw-s-2);
+      }
       .spacer {
         display: none;
       }
+      .body {
+        padding: 0;
+      }
       .stage {
-        margin: 0;
         border-radius: 0;
         border-inline: 0;
+        box-shadow: none;
       }
       .crumbs strong {
-        font-size: var(--sw-fs-lg);
+        font-size: var(--sw-fs-xl);
       }
     }
   `;
+
+  connectedCallback() {
+    super.connectedCallback();
+    this.narrow = this.mq.matches;
+    this.mq.addEventListener('change', this.onMq);
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.mq.removeEventListener('change', this.onMq);
+  }
 
   private get floor() {
     return demoFloors.find((f) => f.id === this.floorId) ?? demoFloors[0];
@@ -194,64 +339,91 @@ export class ExploreFloorMap extends LitElement {
     this.layers = next;
   }
 
-  private onSelect(e: CustomEvent<{ id: string | null }>) {
+  private onSelect(e: CustomEvent<MarkerSelectDetail>) {
     this.selectedId = e.detail.id;
+    this.anchor = e.detail.id && e.detail.sx !== undefined && e.detail.sy !== undefined ? { x: e.detail.sx, y: e.detail.sy } : null;
   }
 
-  private renderCameraDrawer(cam: DemoCamera) {
+  /** Keep the card glued to its pin while the user pans or zooms. */
+  private onViewChange() {
+    if (!this.selectedId || !this.canvas) return;
+    const m = this.markers.find((x) => x.id === this.selectedId);
+    if (!m) return;
+    const p = this.canvas.toScreen(m.x, m.y);
+    this.anchor = { x: p.x, y: p.y };
+  }
+
+  private close() {
+    this.selectedId = null;
+    this.anchor = null;
+  }
+
+  private cameraBody(cam: DemoCamera) {
     const reason =
       cam.state === 'offline' ? t('camera.offlineReason') : cam.state === 'forbidden' ? t('camera.forbiddenReason') : cam.state === 'stale' ? t('camera.staleReason') : '';
     const canView = cam.state === 'live' || cam.state === 'stale';
     return html`
-      <sw-drawer open heading=${cam.name} subheading=${`${this.floor.name} · ${cam.source}`} @close=${() => (this.selectedId = null)}>
-        <div class="preview ${canView ? '' : 'off'}">
-          <sw-badge class="tag" kind=${cam.state}></sw-badge>
-          ${canView
-            ? html`<span>${t('camera.preview')}: הזרם יתחבר ל־go2rtc במשימה T017</span>`
-            : html`<sw-icon name=${cam.state === 'forbidden' ? 'lock' : 'offline'} size=${28}></sw-icon><span>${reason}</span>`}
-        </div>
-        <dl class="meta">
-          <dt>${t('breadcrumb.floor')}</dt><dd>${this.floor.name}</dd>
-          <dt>${t('camera.source')}</dt><dd>${cam.source}</dd>
-          <dt>${t('camera.timeSource')}</dt><dd>NVR · <span class="ltr">Asia/Jerusalem</span></dd>
-          <dt>${t('camera.quality')}</dt><dd>${t('camera.main')} / ${t('camera.sub')}</dd>
-        </dl>
-        ${reason && canView ? html`<div class="warn">${reason}</div>` : nothing}
-        <div slot="footer">
-          <sw-button variant="primary" icon="expand" ?disabled=${!canView}>${t('camera.enlarge')}</sw-button>
-          <sw-button icon="history" ?disabled=${cam.state === 'forbidden'}>${t('camera.recordings')}</sw-button>
-          <sw-button variant="ghost" icon="pin" @click=${() => (this.pinned = !this.pinned)}>${this.pinned ? t('camera.unpin') : t('camera.pin')}</sw-button>
-        </div>
-      </sw-drawer>
+      ${canView
+        ? html`<sw-camera-tile compact name=${cam.name} state=${cam.state} scene=${demoScene[cam.id] ?? 'indoor'} stamp="10:24:36" @click=${() => navigate(`/live/cameras/${cam.id}`)}></sw-camera-tile>`
+        : html`<div class="preview"><div><sw-icon name=${cam.state === 'forbidden' ? 'lock' : 'offline'} size=${26}></sw-icon><div>${reason}</div></div></div>`}
+      <div class="statusrow">
+        <sw-badge kind=${cam.state}></sw-badge>
+        <span>${this.floor.name} · ${cam.source}</span>
+      </div>
+      <dl class="meta">
+        <dt>${t('camera.timeSource')}</dt><dd>NVR · <span class="ltr">Asia/Jerusalem</span></dd>
+        <dt>${t('camera.quality')}</dt><dd>${t('camera.main')} / ${t('camera.sub')}</dd>
+      </dl>
+      ${reason && canView ? html`<div class="warn">${reason}</div>` : nothing}
     `;
   }
 
-  private renderEntityDrawer(ent: DemoEntity) {
+  private cameraFooter(cam: DemoCamera) {
+    const canView = cam.state === 'live' || cam.state === 'stale';
+    return html`
+      <sw-button variant="primary" icon="live" ?disabled=${!canView} @click=${() => navigate(`/live/cameras/${cam.id}`)}>צפייה חיה</sw-button>
+      <sw-button icon="history" ?disabled=${cam.state === 'forbidden'} @click=${() => navigate('/investigate/playback')}>${t('camera.recordings')}</sw-button>
+      <sw-button variant="ghost" iconOnly icon="pin" label=${this.pinned ? t('camera.unpin') : t('camera.pin')} @click=${() => (this.pinned = !this.pinned)}></sw-button>
+    `;
+  }
+
+  private entityBody(ent: DemoEntity) {
     const stale = this.screenState === 'stale';
     const kind: StateKind = stale ? 'stale' : ent.state === 'on' || ent.state === 'unlocked' ? 'live' : 'neutral';
     return html`
-      <sw-drawer open heading=${ent.name} subheading=${`${this.floor.name} · ${t(ent.domain === 'lock' ? 'entity.door' : ent.domain === 'light' ? 'entity.light' : 'entity.sensor')}`} @close=${() => (this.selectedId = null)}>
-        <dl class="meta">
-          <dt>${t('entity.state')}</dt><dd><sw-badge kind=${kind} label=${t(ent.stateLabelKey)}></sw-badge></dd>
-          <dt>${t('entity.lastChanged')}</dt><dd>${ent.lastChanged}</dd>
-          <dt>ID</dt><dd><span class="ltr">${ent.id}</span></dd>
-        </dl>
-        ${stale ? html`<div class="warn">${t('states.staleHint')}</div>` : nothing}
-        ${!ent.controllable ? html`<div class="note">${t('entity.noControl')}</div>` : nothing}
-        <div slot="footer">
-          <sw-button variant="primary" ?disabled=${!ent.controllable || stale}>${t('entity.control')}</sw-button>
-          <sw-button variant="ghost">${t('entity.openInHa')}</sw-button>
-        </div>
-      </sw-drawer>
+      <dl class="meta">
+        <dt>${t('entity.state')}</dt><dd><sw-badge kind=${kind} label=${t(ent.stateLabelKey)}></sw-badge></dd>
+        <dt>${t('entity.lastChanged')}</dt><dd>${ent.lastChanged}</dd>
+        <dt>ID</dt><dd><span class="ltr">${ent.id}</span></dd>
+      </dl>
+      ${stale ? html`<div class="warn">${t('states.staleHint')}</div>` : nothing}
+      ${!ent.controllable ? html`<div class="note">${t('entity.noControl')}</div>` : nothing}
     `;
   }
 
-  private renderDrawer() {
+  private entityFooter(ent: DemoEntity) {
+    const stale = this.screenState === 'stale';
+    return html`
+      <sw-button variant="primary" ?disabled=${!ent.controllable || stale}>${t('entity.control')}</sw-button>
+      <sw-button variant="ghost">${t('entity.openInHa')}</sw-button>
+    `;
+  }
+
+  private renderCard() {
     if (!this.selectedId) return nothing;
     const cam = demoCameras.find((c) => c.id === this.selectedId);
-    if (cam) return this.renderCameraDrawer(cam);
-    const ent = demoEntities.find((e) => e.id === this.selectedId);
-    return ent ? this.renderEntityDrawer(ent) : nothing;
+    const ent = cam ? undefined : demoEntities.find((e) => e.id === this.selectedId);
+    if (!cam && !ent) return nothing;
+    const heading = cam ? cam.name : ent!.name;
+    const sub = cam ? `${this.floor.name} · ${cam.source}` : `${this.floor.name} · ${t(ent!.domain === 'lock' ? 'entity.door' : ent!.domain === 'light' ? 'entity.light' : 'entity.sensor')}`;
+    const body = cam ? this.cameraBody(cam) : this.entityBody(ent!);
+    const footer = cam ? this.cameraFooter(cam) : this.entityFooter(ent!);
+    if (this.narrow || !this.anchor) {
+      return html`<sw-drawer open heading=${heading} subheading=${sub} @close=${this.close}>${body}<div slot="footer">${footer}</div></sw-drawer>`;
+    }
+    const w = this.stage?.clientWidth ?? 0;
+    const h = this.stage?.clientHeight ?? 0;
+    return html`<sw-popover heading=${heading} .x=${this.anchor.x} .y=${this.anchor.y} .stageWidth=${w} .stageHeight=${h} @close=${this.close}>${body}<div slot="footer">${footer}</div></sw-popover>`;
   }
 
   private renderStage() {
@@ -270,7 +442,7 @@ export class ExploreFloorMap extends LitElement {
       return html`<div class="cover">
         <sw-state-panel state="empty" heading=${t('floor.noPlan')} hint=${t('floor.noPlanHint')}>
           <div style="display:flex;gap:var(--sw-s-2);margin-block-start:var(--sw-s-3);justify-content:center;flex-wrap:wrap">
-            <sw-button variant="primary" icon="upload">${t('floor.uploadPlan')}</sw-button>
+            <sw-button variant="primary" icon="upload" @click=${() => navigate(`/explore/floors/${floor.id}/import`)}>${t('floor.uploadPlan')}</sw-button>
             <sw-button icon="list">${t('floor.listView')}</sw-button>
           </div>
         </sw-state-panel>
@@ -287,34 +459,62 @@ export class ExploreFloorMap extends LitElement {
         .markers=${this.markers}
         .selectedId=${this.selectedId}
         .dimEntities=${this.screenState === 'stale'}
-        @marker-select=${this.onSelect}></sw-plan-canvas>
-      ${this.renderDrawer()}
+        @marker-select=${this.onSelect}
+        @view-change=${this.onViewChange}></sw-plan-canvas>
+      ${this.renderCard()}
     `;
   }
 
   render() {
     const floor = this.floor;
+    const idx = demoFloors.findIndex((f) => f.id === floor.id);
     return html`
       <div class="head">
         <div class="crumbs">
-          <span>${demoSite.name}</span><sw-icon name="chevron" size=${14}></sw-icon>
-          <span>${demoSite.building}</span><sw-icon name="chevron" size=${14}></sw-icon>
+          <a href="#/explore/sites">${demoSite.name}</a><sw-icon name="chevron" size=${14}></sw-icon>
+          <a href="#/explore/buildings/bld-a/floors">${demoSite.building}</a><sw-icon name="chevron" size=${14}></sw-icon>
           <strong>${floor.name}</strong>
         </div>
-        <div class="group" role="group" aria-label=${t('floor.switcher')}>
-          ${demoFloors.map(
-            (f) => html`<sw-chip icon="floor" ?selected=${f.id === this.floorId} count=${f.cameraCount} @click=${() => navigate(`/explore/floors/${f.id}`)}>${f.name}</sw-chip>`,
-          )}
-        </div>
         <div class="spacer"></div>
-        <div class="group" role="group" aria-label=${t('floor.layers')}>
-          <sw-chip icon="camera" ?selected=${this.layers.has('cameras')} @click=${() => this.toggleLayer('cameras')}>${t('floor.cameras')}</sw-chip>
-          <sw-chip icon="door" ?selected=${this.layers.has('doors')} @click=${() => this.toggleLayer('doors')}>${t('floor.doors')}</sw-chip>
-          <sw-chip icon="light" ?selected=${this.layers.has('lights')} @click=${() => this.toggleLayer('lights')}>${t('floor.lights')}</sw-chip>
-          <sw-chip icon="sensor" ?selected=${this.layers.has('sensors')} @click=${() => this.toggleLayer('sensors')}>${t('floor.sensors')}</sw-chip>
+        <div class="group" role="group" aria-label=${t('floor.switcher')}>
+          ${demoFloors.map((f) => html`<sw-chip icon="floor" ?selected=${f.id === this.floorId} count=${f.cameraCount} @click=${() => navigate(`/explore/floors/${f.id}`)}>${f.name}</sw-chip>`)}
         </div>
+        <div class="group" role="group" aria-label=${t('floor.layers')}>
+          ${LAYERS.map((l) => html`<sw-chip icon=${l.icon} ?selected=${this.layers.has(l.id)} @click=${() => this.toggleLayer(l.id)}>${l.label()}</sw-chip>`)}
+        </div>
+        <sw-button icon="edit" @click=${() => navigate(`/explore/floors/${floor.id}/edit`)}>עריכת תוכנית</sw-button>
       </div>
-      <div class="stage">${this.renderStage()}</div>
+      <div class="body">
+        <aside class="side">
+          <sw-card>
+            <h4>${t('floor.switcher')}</h4>
+            <div class="floors" role="group" aria-label=${t('floor.switcher')}>
+              ${demoFloors.map(
+                (f, i) => html`<button class="floor ${f.id === this.floorId ? 'on' : ''}" @click=${() => navigate(`/explore/floors/${f.id}`)} aria-pressed=${f.id === this.floorId}>
+                  <sw-floor-glyph levels=${demoFloors.length} active=${demoFloors.length - 1 - i} ?selected=${f.id === this.floorId} size=${40}></sw-floor-glyph>
+                  <div><div class="n">${f.name}</div><div class="c">${f.cameraCount} מצלמות · ${f.entityCount} ישויות${f.hasPlan ? '' : ' · אין תוכנית'}</div></div>
+                </button>`,
+              )}
+            </div>
+          </sw-card>
+          <sw-card>
+            <h4>${t('floor.layers')}</h4>
+            ${LAYERS.map((l) => html`<div class="layer"><sw-icon name=${l.icon} size=${16}></sw-icon><span>${l.label()}</span><span class="grow"></span><sw-toggle ?checked=${this.layers.has(l.id)} label="" @change=${() => this.toggleLayer(l.id)}></sw-toggle></div>`)}
+          </sw-card>
+          <sw-card>
+            <h4>מקרא</h4>
+            <div class="legend">
+              <span><i style="--lg: var(--sw-accent)"></i>מצלמה חיה</span>
+              <span><i style="--lg: var(--sw-stale)"></i>מצב לא מעודכן (קו מקווקו)</span>
+              <span><i style="--lg: var(--sw-offline)"></i>מנותקת (קו חוצה)</span>
+              <span><i style="--lg: var(--sw-forbidden)"></i>ללא הרשאה (מנעול)</span>
+              <span><i style="--lg: #fff"></i>ישות HA (דלת / תאורה / חיישן)</span>
+            </div>
+          </sw-card>
+          ${idx >= 0 ? nothing : nothing}
+        </aside>
+        <div class="stage">${this.renderStage()}</div>
+      </div>
     `;
   }
 }

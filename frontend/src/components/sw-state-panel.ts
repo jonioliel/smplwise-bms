@@ -50,8 +50,8 @@ export class SwStatePanel extends LitElement {
       inline-size: 56px;
       block-size: 56px;
       border-radius: var(--sw-r-lg);
-      background: var(--sw-surface-3);
-      color: var(--sw-text-2);
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent-text);
     }
     :host([compact]) .icon {
       inline-size: 40px;

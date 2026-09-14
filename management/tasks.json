@@ -351,11 +351,12 @@
       "Build screenshots matching design reference"
     ],
     "evidence": [
-      "frontend/src/styles/tokens.css (design tokens), frontend/src/components/* (16 base components), frontend/src/shell/sw-app.ts (four-mode shell + secondary tabs)",
+      "v1 baseline (commit 62e4958) rejected by the owner 2026-09-14: 'must look much more like UniFi Protect / the three boards'",
+      "v2 redesign: frontend/src/styles/tokens.css (accent #2f6bff, bg #f5f7fb, Heebo self-hosted in frontend/public/fonts), 19 base components incl. new sw-popover / sw-avatar / sw-floor-glyph, shell with nested side navigation, blue map pins + floating camera card, floating video controls, PTZ joystick, activity timeline with time bubble",
       "frontend/src/screens/* : 29 screen skeletons on labelled demo fixtures covering SC01-SC28, SC31 (SC29/SC30 = same routes at phone width); #/screens index",
-      "frontend/tests/screenshots.spec.ts (36 checks) + frontend/tests/screens.spec.ts (93 checks): RTL, no horizontal overflow, drawers, all states at 1440/1024/390 - PASS 2026-09-14",
-      "docs/evidence/T007/*.png (33) and docs/evidence/T007/screens/*.png (90+) build screenshots",
-      "open: owner design review verdict on the full screen set; i18n keys for screen strings move into the catalogue when each screen is implemented for real"
+      "frontend/tests/screenshots.spec.ts (36 checks) + frontend/tests/screens.spec.ts (93 checks): RTL, no horizontal overflow, popover/drawer, all states at 1440/1024/390 - 129 PASS 2026-09-14 (v2)",
+      "docs/evidence/T007/*.png (36) and docs/evidence/T007/screens/*.png (90) v2 build screenshots; review board artifact (claude.ai) republished as v2",
+      "open: owner design review verdict on the v2 screen set; i18n keys for screen strings move into the catalogue when each screen is implemented for real"
     ],
     "owner": "Claude Code; design approver: product owner",
     "commit": null,

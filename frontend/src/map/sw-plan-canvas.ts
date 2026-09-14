@@ -17,19 +17,28 @@ export interface PlanMarker {
   state: StateKind;
 }
 
+export interface MarkerSelectDetail {
+  id: string | null;
+  /** Marker centre in host (stage) pixels, for anchoring a popover. */
+  sx?: number;
+  sy?: number;
+}
+
 const MIN_SCALE = 0.2;
 const MAX_SCALE = 6;
 
-const STATE_COLOR: Partial<Record<StateKind, string>> = {
-  live: 'var(--sw-live)',
-  recorded: 'var(--sw-recorded)',
-  historic: 'var(--sw-recorded)',
+// Pin fill per state. Live cameras are the product's blue pin (board 1); everything else keeps a
+// distinct colour AND a distinct glyph (slash, dashed ring, lock) so states never rely on colour alone.
+const PIN_FILL: Partial<Record<StateKind, string>> = {
+  live: 'var(--sw-accent)',
+  recorded: 'var(--sw-accent)',
+  historic: 'var(--sw-accent)',
   offline: 'var(--sw-offline)',
   stale: 'var(--sw-stale)',
   unknown: 'var(--sw-unknown)',
   forbidden: 'var(--sw-forbidden)',
   error: 'var(--sw-danger)',
-  neutral: 'var(--sw-text-2)',
+  neutral: 'var(--sw-surface)',
   partial: 'var(--sw-stale)',
 };
 
@@ -43,6 +52,8 @@ const MARKER_ICON: Record<MarkerKind, SVGTemplateResult> = {
 /**
  * Plan viewport: pan, zoom (wheel, buttons, pinch), markers with constant screen size, camera FOV cones.
  * Geometry is never mirrored by RTL: the host forces `direction: ltr` and coordinates are plan-space.
+ * Emits `marker-select` ({id, sx, sy}) and `view-change` (after pan/zoom) so a parent can anchor a
+ * popover card to the selected pin.
  */
 @customElement('sw-plan-canvas')
 export class SwPlanCanvas extends LitElement {
@@ -74,6 +85,8 @@ export class SwPlanCanvas extends LitElement {
       block-size: 100%;
       min-block-size: 320px;
       background: var(--sw-map-bg);
+      background-image: radial-gradient(circle, var(--sw-border) 1px, transparent 1px);
+      background-size: 22px 22px;
       overflow: hidden;
       touch-action: none;
       user-select: none;
@@ -96,36 +109,51 @@ export class SwPlanCanvas extends LitElement {
       cursor: pointer;
       outline: none;
     }
-    .marker:focus-visible .ring {
-      stroke-width: 4;
+    .marker .halo {
+      fill: var(--sw-accent);
+      opacity: 0;
+      pointer-events: none; /* an invisible halo must never steal clicks from a neighbouring pin */
+      transition: opacity var(--sw-t-fast) var(--sw-ease);
     }
-    .marker .ring {
-      fill: var(--sw-surface);
-      stroke-width: 3;
-      filter: drop-shadow(0 1px 2px rgba(15, 23, 42, 0.25));
+    .marker.selected .halo,
+    .marker:focus-visible .halo,
+    .marker:hover .halo {
+      opacity: 0.18;
     }
-    .marker.selected .ring {
-      stroke-width: 5;
+    .marker .pin {
+      stroke: #fff;
+      stroke-width: 2.5;
+      filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.28));
+    }
+    .marker.neutral .pin {
+      stroke: var(--sw-border-strong);
+      stroke-width: 1.5;
     }
     .marker .icon {
       fill: none;
-      stroke: var(--sw-text);
-      stroke-width: 1.7;
+      stroke: #fff;
+      stroke-width: 1.8;
       stroke-linecap: round;
       stroke-linejoin: round;
+    }
+    .marker.neutral .icon {
+      stroke: var(--sw-text);
+    }
+    .marker.stale .pin,
+    .marker.partial .pin,
+    .marker.unknown .pin {
+      stroke-dasharray: 3 2;
     }
     .marker.dimmed {
       opacity: 0.55;
     }
-    .marker.offline .icon,
-    .marker.forbidden .icon {
-      stroke: var(--sw-text-3);
-    }
     .marker .lbl-bg {
       fill: var(--sw-surface);
-      stroke: var(--sw-border);
+      filter: drop-shadow(0 1px 3px rgba(15, 23, 42, 0.18));
+      pointer-events: none;
     }
     .marker .lbl {
+      pointer-events: none;
       font-family: var(--sw-font);
       font-size: 12px;
       font-weight: 600;
@@ -137,8 +165,12 @@ export class SwPlanCanvas extends LitElement {
     .fov {
       fill: var(--sw-fov);
       stroke: var(--sw-accent);
-      stroke-opacity: 0.35;
+      stroke-opacity: 0.25;
       stroke-width: 1;
+    }
+    .fov.off {
+      fill: rgba(154, 163, 181, 0.14);
+      stroke: var(--sw-offline);
     }
     .controls {
       position: absolute;
@@ -146,12 +178,12 @@ export class SwPlanCanvas extends LitElement {
       bottom: var(--sw-s-3);
       display: flex;
       flex-direction: column;
-      gap: var(--sw-s-1);
+      gap: 2px;
       background: var(--sw-surface);
       border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-sm);
-      box-shadow: var(--sw-shadow-1);
-      padding: 2px;
+      border-radius: 10px;
+      box-shadow: var(--sw-shadow-2);
+      padding: 3px;
       z-index: var(--sw-z-map-ui);
     }
     .scale {
@@ -166,6 +198,7 @@ export class SwPlanCanvas extends LitElement {
       padding: 2px 8px;
       z-index: var(--sw-z-map-ui);
       font-family: var(--sw-font-mono);
+      box-shadow: var(--sw-shadow-1);
     }
   `;
 
@@ -187,6 +220,14 @@ export class SwPlanCanvas extends LitElement {
       this.fitted = false;
       this.fit();
     }
+    if (changed.has('scale') || changed.has('tx') || changed.has('ty')) {
+      this.dispatchEvent(new CustomEvent('view-change', { bubbles: true, composed: true }));
+    }
+  }
+
+  /** Host-pixel position of a normalized plan point (for popovers anchored to pins). */
+  toScreen(nx: number, ny: number) {
+    return { x: this.tx + nx * this.planWidth * this.scale, y: this.ty + ny * this.planHeight * this.scale };
   }
 
   /** Fit the whole plan into the viewport with a small margin. */
@@ -278,15 +319,17 @@ export class SwPlanCanvas extends LitElement {
     return Math.hypot(a.x - b.x, a.y - b.y);
   }
 
-  private select(id: string, e: Event) {
+  private select(m: PlanMarker, e: Event) {
     if (this.dragMoved) return;
     e.stopPropagation();
-    this.dispatchEvent(new CustomEvent('marker-select', { detail: { id }, bubbles: true, composed: true }));
+    const p = this.toScreen(m.x, m.y);
+    const detail: MarkerSelectDetail = { id: m.id, sx: p.x, sy: p.y };
+    this.dispatchEvent(new CustomEvent<MarkerSelectDetail>('marker-select', { detail, bubbles: true, composed: true }));
   }
 
   private onBackgroundClick = () => {
     if (this.dragMoved) return;
-    this.dispatchEvent(new CustomEvent('marker-select', { detail: { id: null }, bubbles: true, composed: true }));
+    this.dispatchEvent(new CustomEvent<MarkerSelectDetail>('marker-select', { detail: { id: null }, bubbles: true, composed: true }));
   };
 
   private fovPath(rotation: number, fov: number, radius: number) {
@@ -303,27 +346,32 @@ export class SwPlanCanvas extends LitElement {
     const px = m.x * this.planWidth;
     const py = m.y * this.planHeight;
     const inv = 1 / this.scale;
-    const color = STATE_COLOR[m.state] ?? STATE_COLOR.neutral;
     const isCamera = m.kind === 'camera';
-    const showLabel = this.scale > 0.3 || this.selectedId === m.id;
-    const labelWidth = Math.max(48, m.label.length * 7 + 16);
+    const fill = PIN_FILL[m.state] ?? PIN_FILL.neutral;
+    const selected = this.selectedId === m.id;
+    // Labels are decoration: they must never intercept a click meant for a neighbouring pin.
+    const showLabel = this.scale > 0.3 || selected;
+    const labelWidth = Math.max(48, m.label.length * 7 + 18);
     const dimmed = this.dimEntities && !isCamera;
+    const r = isCamera ? 15 : 13;
     return svg`
-      <g class="marker ${m.state} ${this.selectedId === m.id ? 'selected' : ''} ${dimmed ? 'dimmed' : ''}"
+      <g class="marker ${m.state} ${selected ? 'selected' : ''} ${dimmed ? 'dimmed' : ''}"
          transform="translate(${px} ${py})"
-         tabindex="0" role="button" aria-label=${m.label} aria-pressed=${this.selectedId === m.id}
-         @click=${(e: Event) => this.select(m.id, e)}
-         @keydown=${(e: KeyboardEvent) => (e.key === 'Enter' || e.key === ' ') && this.select(m.id, e)}>
+         tabindex="0" role="button" aria-label=${m.label} aria-pressed=${selected}
+         @click=${(e: Event) => this.select(m, e)}
+         @keydown=${(e: KeyboardEvent) => (e.key === 'Enter' || e.key === ' ') && this.select(m, e)}>
         ${isCamera && m.fov && m.state !== 'forbidden'
-          ? svg`<path class="fov" d=${this.fovPath(m.rotation ?? 0, m.fov, 110)} />`
+          ? svg`<path class="fov ${m.state === 'offline' ? 'off' : ''}" d=${this.fovPath(m.rotation ?? 0, m.fov, 120)} />`
           : nothing}
         <g transform="scale(${inv})">
-          <circle class="ring" r="16" stroke=${color} />
+          <circle class="halo" r=${r + 10} />
+          <circle class="pin" r=${r} fill=${fill} />
           <g class="icon">${MARKER_ICON[m.kind]}</g>
-          ${m.state === 'offline' ? svg`<line x1="-11" y1="-11" x2="11" y2="11" stroke=${color} stroke-width="2.5" />` : nothing}
+          ${m.state === 'offline' ? svg`<line x1="-10" y1="-10" x2="10" y2="10" stroke="#fff" stroke-width="2.5" />` : nothing}
+          ${m.state === 'forbidden' ? svg`<g transform="translate(9 -9)"><circle r="7" fill="#fff" /><g fill="none" stroke="var(--sw-forbidden)" stroke-width="1.5" transform="scale(0.5)"><rect x="-6" y="-2" width="12" height="9" rx="2"/><path d="M-3.5 -2v-3a3.5 3.5 0 0 1 7 0v3"/></g></g>` : nothing}
           ${showLabel
-            ? svg`<g transform="translate(0 30)">
-                <rect class="lbl-bg" x=${-labelWidth / 2} y="-11" width=${labelWidth} height="22" rx="11" />
+            ? svg`<g transform="translate(0 ${r + 16})">
+                <rect class="lbl-bg" x=${-labelWidth / 2} y="-11" width=${labelWidth} height="22" rx="7" />
                 <text class="lbl" y="4">${m.label}</text>
               </g>`
             : nothing}

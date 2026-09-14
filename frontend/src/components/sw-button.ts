@@ -13,6 +13,7 @@ export class SwButton extends LitElement {
   @property() icon?: IconName;
   @property({ type: Boolean, reflect: true }) disabled = false;
   @property({ type: Boolean, reflect: true }) iconOnly = false;
+  @property({ type: Boolean, reflect: true }) round = false;
   @property() label = '';
   @property() type: 'button' | 'submit' = 'button';
 
@@ -27,40 +28,42 @@ export class SwButton extends LitElement {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: var(--sw-s-2);
-      min-block-size: var(--sw-touch);
-      padding-inline: var(--sw-s-4);
+      gap: 8px;
+      min-block-size: 36px;
+      padding-inline: 14px;
       border-radius: var(--sw-r-sm);
-      border: 1px solid transparent;
+      border: 1px solid var(--sw-border-strong);
       font: inherit;
-      font-size: var(--sw-fs-md);
+      font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-medium);
       line-height: 1;
       cursor: pointer;
-      transition: background var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease);
+      transition: background var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease);
       white-space: nowrap;
       color: var(--sw-text);
       background: var(--sw-surface);
-      border-color: var(--sw-border-strong);
+      box-shadow: var(--sw-shadow-1);
     }
     button:hover {
-      background: var(--sw-surface-3);
+      background: var(--sw-surface-2);
+      border-color: var(--sw-border-strong);
     }
     :host([size='sm']) button {
-      min-block-size: 32px;
-      padding-inline: var(--sw-s-3);
-      font-size: var(--sw-fs-sm);
-      border-radius: var(--sw-r-sm);
+      min-block-size: 30px;
+      padding-inline: 10px;
+      font-size: var(--sw-fs-xs);
+      border-radius: 7px;
     }
     :host([size='lg']) button {
-      min-block-size: 48px;
-      padding-inline: var(--sw-s-5);
-      font-size: var(--sw-fs-lg);
+      min-block-size: 44px;
+      padding-inline: 18px;
+      font-size: var(--sw-fs-md);
     }
     :host([variant='primary']) button {
       background: var(--sw-accent);
       border-color: var(--sw-accent);
       color: var(--sw-text-inverse);
+      box-shadow: 0 1px 2px rgba(47, 107, 255, 0.25);
     }
     :host([variant='primary']) button:hover {
       background: var(--sw-accent-hover);
@@ -69,6 +72,7 @@ export class SwButton extends LitElement {
     :host([variant='ghost']) button {
       background: transparent;
       border-color: transparent;
+      box-shadow: none;
       color: var(--sw-text-2);
     }
     :host([variant='ghost']) button:hover {
@@ -85,21 +89,27 @@ export class SwButton extends LitElement {
     }
     :host([disabled]) button {
       cursor: not-allowed;
-      opacity: 0.5;
+      opacity: 0.45;
     }
     :host([icononly]) button {
-      inline-size: var(--sw-touch);
+      inline-size: 36px;
       padding-inline: 0;
     }
     :host([icononly][size='sm']) button {
-      inline-size: 32px;
+      inline-size: 30px;
+    }
+    :host([icononly][size='lg']) button {
+      inline-size: 44px;
+    }
+    :host([round]) button {
+      border-radius: 50%;
     }
   `;
 
   render() {
     return html`
       <button type=${this.type} ?disabled=${this.disabled} aria-label=${this.iconOnly ? this.label : ''} title=${this.iconOnly ? this.label : ''}>
-        ${this.icon ? html`<sw-icon .name=${this.icon} size=${this.size === 'sm' ? 16 : 18}></sw-icon>` : ''}
+        ${this.icon ? html`<sw-icon .name=${this.icon} size=${this.size === 'sm' ? 15 : this.size === 'lg' ? 20 : 17}></sw-icon>` : ''}
         ${this.iconOnly ? '' : html`<slot>${this.label}</slot>`}
       </button>
     `;

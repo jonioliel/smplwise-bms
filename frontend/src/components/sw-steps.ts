@@ -27,10 +27,11 @@ export class SwSteps extends LitElement {
     .n {
       display: grid;
       place-items: center;
-      inline-size: 28px;
-      block-size: 28px;
+      inline-size: 30px;
+      block-size: 30px;
       border-radius: 50%;
       border: 2px solid var(--sw-border-strong);
+      background: var(--sw-surface);
       font-size: var(--sw-fs-xs);
       font-weight: var(--sw-fw-semibold);
     }
@@ -56,6 +57,10 @@ export class SwSteps extends LitElement {
       min-inline-size: 24px;
       block-size: 2px;
       background: var(--sw-border);
+      border-radius: 1px;
+    }
+    .line.done {
+      background: var(--sw-live);
     }
   `;
 
@@ -65,7 +70,7 @@ export class SwSteps extends LitElement {
         <div class="step ${i < this.current ? 'done' : i === this.current ? 'current' : ''}">
           <span class="n">${i < this.current ? html`<sw-icon name="check" size=${14}></sw-icon>` : i + 1}</span><span>${s}</span>
         </div>
-        ${i < this.steps.length - 1 ? html`<div class="line"></div>` : ''}
+        ${i < this.steps.length - 1 ? html`<div class="line ${i < this.current ? 'done' : ''}"></div>` : ''}
       `,
     )}`;
   }

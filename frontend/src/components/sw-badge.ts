@@ -24,35 +24,46 @@ const LABELS: Record<StateKind, () => string> = {
 export class SwBadge extends LitElement {
   @property({ reflect: true }) kind: StateKind = 'neutral';
   @property() label = '';
+  @property({ type: Boolean, reflect: true }) onImage = false;
 
   static styles = css`
     :host {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 2px 10px;
+      padding: 2px 9px;
       border-radius: var(--sw-r-pill);
       font-size: var(--sw-fs-xs);
-      font-weight: var(--sw-fw-semibold);
+      font-weight: var(--sw-fw-medium);
       line-height: 18px;
       background: var(--sw-surface-3);
       color: var(--sw-text-2);
       border: 1px solid transparent;
       white-space: nowrap;
     }
+    :host([onimage]) {
+      background: rgba(255, 255, 255, 0.92);
+      color: var(--sw-text);
+      box-shadow: var(--sw-shadow-1);
+    }
     .dot {
-      inline-size: 8px;
-      block-size: 8px;
+      inline-size: 7px;
+      block-size: 7px;
       border-radius: 50%;
       background: currentColor;
       flex-shrink: 0;
     }
     :host([kind='live']) {
       background: var(--sw-live-soft);
-      color: var(--sw-live);
+      color: #15803d;
     }
     :host([kind='live']) .dot {
+      background: var(--sw-live);
       animation: pulse 1.6s ease-in-out infinite;
+    }
+    :host([onimage][kind='live']) {
+      background: rgba(255, 255, 255, 0.92);
+      color: var(--sw-text);
     }
     :host([kind='recorded']),
     :host([kind='historic']) {
@@ -61,7 +72,7 @@ export class SwBadge extends LitElement {
     }
     :host([kind='offline']) {
       background: var(--sw-offline-soft);
-      color: var(--sw-offline);
+      color: #6b7280;
     }
     :host([kind='offline']) .dot {
       background: transparent;
@@ -71,7 +82,7 @@ export class SwBadge extends LitElement {
     :host([kind='stale']),
     :host([kind='partial']) {
       background: var(--sw-stale-soft);
-      color: var(--sw-stale);
+      color: #b45309;
       border-style: dashed;
       border-color: var(--sw-stale);
     }
@@ -88,7 +99,7 @@ export class SwBadge extends LitElement {
     :host([kind='forbidden']),
     :host([kind='error']) {
       background: var(--sw-danger-soft);
-      color: var(--sw-forbidden);
+      color: #b91c1c;
     }
     @keyframes pulse {
       0%,

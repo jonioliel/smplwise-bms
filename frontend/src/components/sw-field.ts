@@ -35,21 +35,22 @@ export class SwField extends LitElement {
     ::slotted(textarea) {
       inline-size: 100%;
       box-sizing: border-box;
-      min-block-size: 40px;
+      min-block-size: 38px;
       padding: 8px 12px;
       border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-sm);
       background: var(--sw-surface);
       color: var(--sw-text);
       font: inherit;
-      font-size: var(--sw-fs-md);
+      font-size: var(--sw-fs-sm);
+      transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease);
     }
     ::slotted(input:focus),
     ::slotted(select:focus),
     ::slotted(textarea:focus) {
-      outline: 2px solid var(--sw-focus);
-      outline-offset: 1px;
+      outline: none;
       border-color: var(--sw-accent);
+      box-shadow: 0 0 0 3px var(--sw-accent-soft);
     }
     ::slotted([data-ltr]) {
       direction: ltr;

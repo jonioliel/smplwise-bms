@@ -22,7 +22,7 @@ export class SwDrawer extends LitElement {
       inline-size: min(var(--sw-drawer-w), 100%);
       background: var(--sw-surface);
       border-inline-end: 1px solid var(--sw-border);
-      box-shadow: var(--sw-shadow-2);
+      box-shadow: var(--sw-shadow-3);
       display: flex;
       flex-direction: column;
       z-index: var(--sw-z-drawer);
@@ -51,7 +51,7 @@ export class SwDrawer extends LitElement {
     h3 {
       margin: 0;
       font-size: var(--sw-fs-lg);
-      font-weight: var(--sw-fw-semibold);
+      font-weight: var(--sw-fw-bold);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;

@@ -9,7 +9,11 @@ export interface TableColumn<Row = Record<string, unknown>> {
   render?: (row: Row) => TemplateResult | string | typeof nothing;
 }
 
-/** Data table with sticky header; wide tables scroll horizontally inside the host (allowed by the contract). */
+/**
+ * Data table in the board-3 language: white card, quiet uppercase-ish header, roomy rows with
+ * thumbnails / avatars rendered by the column's `render`, hover tint, selected row in soft blue.
+ * Wide tables scroll horizontally inside the host (allowed by the contract).
+ */
 @customElement('sw-table')
 export class SwTable extends LitElement {
   @property({ attribute: false }) columns: TableColumn[] = [];
@@ -17,7 +21,7 @@ export class SwTable extends LitElement {
   @property() rowKey = 'id';
   @property() selected: string | null = null;
   @property() emptyText = 'אין שורות להצגה';
-  @property({ type: Boolean }) dense = false;
+  @property({ type: Boolean, reflect: true }) dense = false;
 
   static styles = css`
     :host {
@@ -25,6 +29,7 @@ export class SwTable extends LitElement {
       background: var(--sw-surface);
       border: 1px solid var(--sw-border);
       border-radius: var(--sw-r-md);
+      box-shadow: var(--sw-shadow-1);
       overflow: auto;
       max-inline-size: 100%;
     }
@@ -36,7 +41,7 @@ export class SwTable extends LitElement {
     }
     th,
     td {
-      padding: 10px 14px;
+      padding: 12px 16px;
       text-align: start;
       border-block-end: 1px solid var(--sw-border);
       vertical-align: middle;
@@ -44,16 +49,20 @@ export class SwTable extends LitElement {
     }
     :host([dense]) th,
     :host([dense]) td {
-      padding: 6px 12px;
+      padding: 8px 14px;
     }
     th {
       position: sticky;
       top: 0;
-      background: var(--sw-surface-2);
-      color: var(--sw-text-2);
+      background: var(--sw-surface);
+      color: var(--sw-text-3);
       font-weight: var(--sw-fw-semibold);
       font-size: var(--sw-fs-xs);
+      letter-spacing: 0.02em;
       z-index: 1;
+    }
+    tbody tr {
+      transition: background var(--sw-t-fast) var(--sw-ease);
     }
     tbody tr:hover {
       background: var(--sw-surface-2);
@@ -72,6 +81,7 @@ export class SwTable extends LitElement {
       text-align: left;
       font-family: var(--sw-font-mono);
       font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
     }
     .empty {
       padding: var(--sw-s-6);

@@ -10,6 +10,7 @@ import '../components/sw-drawer';
 import '../components/sw-field';
 import '../components/sw-steps';
 import '../components/sw-icon';
+import '../components/sw-avatar';
 import type { TableColumn } from '../components/sw-table';
 import { demoGroups, demoRoles, demoUsers, demoAudit } from '../fixtures/catalog';
 
@@ -99,11 +100,34 @@ export class SystemAccess extends LitElement {
       flex-direction: column;
       gap: var(--sw-s-3);
     }
+    .who {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .who .sub {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      text-align: start;
+    }
+    .role h4 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .role .ic {
+      display: grid;
+      place-items: center;
+      inline-size: 30px;
+      block-size: 30px;
+      border-radius: 8px;
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent-text);
+    }
   `;
 
   private userColumns: TableColumn[] = [
-    { key: 'name', label: 'שם', render: (r) => html`<strong>${String(r.name)}</strong>${r.haAdmin ? html` <sw-badge kind="neutral" label="מנהל HA (מידע בלבד)"></sw-badge>` : ''}` },
-    { key: 'haUser', label: 'משתמש HA', ltr: true },
+    { key: 'name', label: 'משתמש', render: (r) => html`<div class="who"><sw-avatar name=${String(r.name)} size=${34}></sw-avatar><div><strong>${String(r.name)}</strong>${r.haAdmin ? html` <sw-badge kind="neutral" label="מנהל HA (מידע בלבד)"></sw-badge>` : ''}<div class="ltr sub">${String(r.haUser)}</div></div></div>` },
     { key: 'active', label: 'מצב', render: (r) => html`<sw-badge kind=${r.active ? 'live' : 'offline'} label=${r.active ? 'פעיל' : 'מושבת ב־HA'}></sw-badge>` },
     { key: 'lastSync', label: 'סנכרון' },
     { key: 'groups', label: 'קבוצות', render: (r) => html`<div class="pill-list">${(r.groups as string[]).length ? (r.groups as string[]).map((g) => html`<sw-badge kind="neutral" label=${g}></sw-badge>`) : html`<span style="color:var(--sw-text-3)">ללא שיוך</span>`}</div>` },
@@ -156,7 +180,7 @@ export class SystemAccess extends LitElement {
   }
 
   private renderRoles() {
-    return html`<div class="roles">${demoRoles.map((r) => html`<sw-card class="role"><h4>${r.name}</h4><div class="a">מותר: ${r.allowed}</div><div class="d">לא ניתן אוטומטית: ${r.denied}</div></sw-card>`)}</div><div class="hint">תפקידים מובנים בפיילוט; תפקידים מותאמים והאצלה מקומית ב־V1 (T082). התפקידים אינם סולם: עריכת מפה והיסטוריית וידאו הן יכולות נפרדות.</div>`;
+    return html`<div class="roles">${demoRoles.map((r) => html`<sw-card class="role"><h4><span class="ic"><sw-icon name=${r.id === 'viewer' ? 'eye' : r.id === 'operator' ? 'play' : r.id === 'editor' ? 'edit' : r.id === 'site_admin' ? 'building' : 'shield'} size=${16}></sw-icon></span>${r.name}</h4><div class="a">מותר: ${r.allowed}</div><div class="d">לא ניתן אוטומטית: ${r.denied}</div></sw-card>`)}</div><div class="hint">תפקידים מובנים בפיילוט; תפקידים מותאמים והאצלה מקומית ב־V1 (T082). התפקידים אינם סולם: עריכת מפה והיסטוריית וידאו הן יכולות נפרדות.</div>`;
   }
 
   private renderEffective() {
@@ -180,7 +204,7 @@ export class SystemAccess extends LitElement {
   private renderAudit() {
     const columns: TableColumn[] = [
       { key: 'time', label: 'זמן' },
-      { key: 'user', label: 'משתמש' },
+      { key: 'user', label: 'משתמש', render: (r) => html`<div class="who"><sw-avatar name=${String(r.user)} size=${26}></sw-avatar>${String(r.user)}</div>` },
       { key: 'action', label: 'פעולה' },
       { key: 'resource', label: 'משאב' },
       { key: 'decision', label: 'החלטה', render: (r) => html`<sw-badge kind=${String(r.decision).startsWith('נחסם') ? 'forbidden' : 'live'} label=${String(r.decision)}></sw-badge>` },

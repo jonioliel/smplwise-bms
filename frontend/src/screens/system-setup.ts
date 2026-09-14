@@ -53,6 +53,31 @@ export class SystemSetup extends LitElement {
       justify-content: space-between;
       gap: var(--sw-s-2);
     }
+    .progress {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .progress .track {
+      block-size: 6px;
+      border-radius: 3px;
+      background: var(--sw-surface-3);
+      overflow: hidden;
+    }
+    .progress .track i {
+      display: block;
+      block-size: 100%;
+      inline-size: var(--p);
+      background: var(--sw-accent);
+      border-radius: 3px;
+      transition: inline-size var(--sw-t-med) var(--sw-ease);
+    }
+    .progress .lbl {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      display: flex;
+      justify-content: space-between;
+    }
     .users label {
       display: flex;
       align-items: center;
@@ -127,7 +152,11 @@ export class SystemSetup extends LitElement {
   render() {
     return html`
       <sw-page heading="אשף התקנה ומיפוי" subheading="בדיקות קריאה בלבד · אין גילוי הרסני · נתוני הדגמה">
-        <sw-steps .steps=${STEPS} .current=${this.step}></sw-steps>
+        <sw-card class="progress">
+          <sw-steps .steps=${STEPS} .current=${this.step}></sw-steps>
+          <div class="track"><i style="--p:${((this.step + 1) / STEPS.length) * 100}%"></i></div>
+          <div class="lbl"><span>שלב ${this.step + 1} מתוך ${STEPS.length}: ${STEPS[this.step]}</span><span>${Math.round(((this.step + 1) / STEPS.length) * 100)}%</span></div>
+        </sw-card>
         <div class="layout">
           <div class="stack">
             ${this.renderStep()}

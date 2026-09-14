@@ -60,7 +60,7 @@ export const demoCameras: DemoCamera[] = [
 ];
 
 export const demoEntities: DemoEntity[] = [
-  { id: 'lock.main_door', name: 'דלת כניסה', floorId: 'f0', x: 0.05, y: 0.47, domain: 'lock', state: 'locked', stateLabelKey: 'entity.locked', controllable: false, lastChanged: 'לפני 12 דק׳' },
+  { id: 'lock.main_door', name: 'דלת כניסה', floorId: 'f0', x: 0.05, y: 0.4, domain: 'lock', state: 'locked', stateLabelKey: 'entity.locked', controllable: false, lastChanged: 'לפני 12 דק׳' },
   { id: 'light.lobby', name: 'תאורת לובי', floorId: 'f0', x: 0.3, y: 0.42, domain: 'light', state: 'on', stateLabelKey: 'entity.on', controllable: true, lastChanged: 'לפני שעה' },
   { id: 'binary_sensor.hall_motion', name: 'תנועה באולם', floorId: 'f0', x: 0.7, y: 0.3, domain: 'binary_sensor', state: 'off', stateLabelKey: 'entity.off', controllable: false, lastChanged: 'לפני 3 דק׳' },
   { id: 'light.corridor', name: 'תאורת מסדרון', floorId: 'f0', x: 0.55, y: 0.66, domain: 'light', state: 'off', stateLabelKey: 'entity.off', controllable: true, lastChanged: 'אתמול 22:10' },

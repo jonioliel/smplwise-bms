@@ -1,4 +1,5 @@
 import type { StateKind } from '../components/sw-badge';
+import type { SceneKind } from '../components/sw-camera-tile';
 
 // Synthetic, clearly labelled demo data for the screen skeletons. Names are generic; nothing here comes
 // from the customer's site, no stream is connected and every timestamp is fictional.
@@ -68,6 +69,20 @@ export const demoWall: DemoWallCamera[] = [
   { id: 'cam-9', name: 'מקלט', floor: 'קומה 1-', state: 'offline', stream: 'sub', fps: null, bitrateKbps: null, firmware: 'V5.8.10', lastEvent: 'לפני יומיים', recording: 'unknown', ptz: false, audio: false },
   { id: 'cam-10', name: 'חצר אחורית', floor: 'חוץ', state: 'live', stream: 'sub', fps: 25, bitrateKbps: 4096, firmware: 'V5.8.10', lastEvent: 'לפני 8 דק׳', recording: 'continuous', ptz: true, audio: true },
 ];
+
+/** Illustrative scene per camera for the placeholder tiles (never a real frame; tiles say "דמו"). */
+export const demoScene: Record<string, SceneKind> = {
+  'cam-1': 'outdoor',
+  'cam-2': 'indoor',
+  'cam-3': 'indoor',
+  'cam-4': 'indoor',
+  'cam-5': 'garage',
+  'cam-6': 'garage',
+  'cam-7': 'garage',
+  'cam-8': 'garage',
+  'cam-9': 'night',
+  'cam-10': 'night',
+};
 
 export type EventType = 'person' | 'vehicle' | 'motion' | 'line' | 'offline' | 'door';
 
