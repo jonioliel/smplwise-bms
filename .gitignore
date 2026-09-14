@@ -8,3 +8,24 @@ node_modules/
 __pycache__/
 *.pyc
 .runtime/
+
+# Claude Code local settings and the original kit archive
+.claude/settings.local.json
+.claude/*.zip
+
+# Frontend / build output
+node_modules/
+dist/
+.vite/
+frontend/coverage/
+test-results/
+playwright-report/
+
+# Python tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Local-only material (plans, captures, notes)
+private/
