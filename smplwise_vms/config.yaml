@@ -1,0 +1,35 @@
+name: SMPLWISE VMS
+version: "0.1.0"
+slug: smplwise_vms
+description: Map-centred video management for Hikvision NVRs and Home Assistant (pilot build)
+url: https://github.com/jonioliel/smplwise-bms
+arch:
+  - amd64
+  - aarch64
+startup: application
+boot: auto
+init: false
+ingress: true
+ingress_port: 8099
+panel_icon: mdi:cctv
+panel_title: SMPLWISE VMS
+# Menu entry for every HA user; access inside the product is decided by VMS roles, never by this flag.
+panel_admin: false
+watchdog: http://[HOST]:[PORT:8099]/healthz
+backup: hot
+options:
+  bootstrap_admin_username: ""
+  nvr_host: ""
+  nvr_http_port: 80
+  nvr_username: ""
+  nvr_password: ""
+  go2rtc_url: ""
+  log_level: info
+schema:
+  bootstrap_admin_username: str
+  nvr_host: str?
+  nvr_http_port: port
+  nvr_username: str?
+  nvr_password: password?
+  go2rtc_url: url?
+  log_level: list(debug|info|warning|error)

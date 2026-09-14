@@ -65,11 +65,16 @@ export class SwPlanCanvas extends LitElement {
   @property({ type: Boolean }) dimEntities = false;
 
   @property({ type: Boolean }) alwaysLabel = false;
+  /** Raster background (published plan image); drawn under `plan` when set. */
+  @property() imageUrl: string | null = null;
+  /** Editor mode: markers can be dragged; emits `marker-move` {id, x, y} (normalized) on drop. */
+  @property({ type: Boolean }) editable = false;
 
   @state() private scale = 1;
   @state() private tx = 0;
   @state() private ty = 0;
   @state() private hoverId: string | null = null;
+  @state() private dragging: { id: string; x: number; y: number } | null = null;
   @query('.viewport') private viewport!: HTMLDivElement;
 
   private pointers = new Map<number, { x: number; y: number }>();
@@ -109,6 +114,12 @@ export class SwPlanCanvas extends LitElement {
     .marker {
       cursor: pointer;
       outline: none;
+    }
+    .marker.editable {
+      cursor: grab;
+    }
+    .marker.editable:active {
+      cursor: grabbing;
     }
     .marker .halo {
       fill: var(--sw-accent);
@@ -263,6 +274,41 @@ export class SwPlanCanvas extends LitElement {
     this.zoomBy(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX - rect.left, e.clientY - rect.top);
   };
 
+  /** Host pixel → normalized plan coordinates (clamped to the plan). */
+  toPlan(px: number, py: number) {
+    return {
+      x: Math.min(1, Math.max(0, (px - this.tx) / this.scale / this.planWidth)),
+      y: Math.min(1, Math.max(0, (py - this.ty) / this.scale / this.planHeight)),
+    };
+  }
+
+  private onMarkerPointerDown = (m: PlanMarker, e: PointerEvent) => {
+    if (!this.editable || e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    this.dragging = { id: m.id, x: m.x, y: m.y };
+    this.viewport.setPointerCapture(e.pointerId);
+    const move = (ev: PointerEvent) => {
+      const rect = this.getBoundingClientRect();
+      const p = this.toPlan(ev.clientX - rect.left, ev.clientY - rect.top);
+      this.dragging = { id: m.id, x: p.x, y: p.y };
+    };
+    const up = (ev: PointerEvent) => {
+      this.viewport.removeEventListener('pointermove', move);
+      this.viewport.removeEventListener('pointerup', up);
+      this.viewport.removeEventListener('pointercancel', up);
+      const rect = this.getBoundingClientRect();
+      const p = this.toPlan(ev.clientX - rect.left, ev.clientY - rect.top);
+      const moved = Math.abs(p.x - m.x) > 0.0005 || Math.abs(p.y - m.y) > 0.0005;
+      this.dragging = null;
+      if (moved) this.dispatchEvent(new CustomEvent('marker-move', { detail: { id: m.id, x: p.x, y: p.y }, bubbles: true, composed: true }));
+      else this.select(m, ev);
+    };
+    this.viewport.addEventListener('pointermove', move);
+    this.viewport.addEventListener('pointerup', up);
+    this.viewport.addEventListener('pointercancel', up);
+  };
+
   private onPointerDown = (e: PointerEvent) => {
     // Capture only once a drag really starts (see onPointerMove); capturing here would redirect the
     // resulting `click` to the viewport and markers would never receive it.
@@ -344,8 +390,9 @@ export class SwPlanCanvas extends LitElement {
   }
 
   private renderMarker(m: PlanMarker) {
-    const px = m.x * this.planWidth;
-    const py = m.y * this.planHeight;
+    const live = this.dragging?.id === m.id ? this.dragging : m;
+    const px = live.x * this.planWidth;
+    const py = live.y * this.planHeight;
     const inv = 1 / this.scale;
     const isCamera = m.kind === 'camera';
     const fill = PIN_FILL[m.state] ?? PIN_FILL.neutral;
@@ -356,11 +403,12 @@ export class SwPlanCanvas extends LitElement {
     const dimmed = this.dimEntities && !isCamera;
     const r = isCamera ? 13 : 11;
     return svg`
-      <g class="marker ${m.state} ${selected ? 'selected' : ''} ${dimmed ? 'dimmed' : ''}"
+      <g class="marker ${m.state} ${selected ? 'selected' : ''} ${dimmed ? 'dimmed' : ''} ${this.editable ? 'editable' : ''}"
          transform="translate(${px} ${py})"
          tabindex="0" role="button" aria-label=${m.label} aria-pressed=${selected}
          @mouseenter=${() => (this.hoverId = m.id)} @mouseleave=${() => (this.hoverId = null)}
-         @click=${(e: Event) => this.select(m, e)}
+         @pointerdown=${(e: PointerEvent) => this.onMarkerPointerDown(m, e)}
+         @click=${(e: Event) => (this.editable ? e.stopPropagation() : this.select(m, e))}
          @keydown=${(e: KeyboardEvent) => (e.key === 'Enter' || e.key === ' ') && this.select(m, e)}>
         ${isCamera && m.fov && m.state !== 'forbidden'
           ? svg`<path class="fov ${m.state === 'offline' ? 'off' : ''}" d=${this.fovPath(m.rotation ?? 0, m.fov, 140)} />`
@@ -388,6 +436,7 @@ export class SwPlanCanvas extends LitElement {
            @pointerup=${this.onPointerUp} @pointercancel=${this.onPointerUp} @click=${this.onBackgroundClick}>
         <svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="תוכנית קומה">
           <g transform="translate(${this.tx} ${this.ty}) scale(${this.scale})">
+            ${this.imageUrl ? svg`<image href=${this.imageUrl} x="0" y="0" width=${this.planWidth} height=${this.planHeight} preserveAspectRatio="none" />` : nothing}
             ${this.plan ?? nothing}
             ${this.markers.map((m) => this.renderMarker(m))}
           </g>

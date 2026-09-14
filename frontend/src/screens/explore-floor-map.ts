@@ -12,10 +12,15 @@ import '../components/sw-state-panel';
 import '../map/sw-plan-canvas';
 import type { PlanMarker, MarkerSelectDetail, SwPlanCanvas } from '../map/sw-plan-canvas';
 import type { StateKind } from '../components/sw-badge';
-import { demoCameras, demoEntities, demoFloors, demoPlan, demoSite, type DemoCamera, type DemoEntity } from '../fixtures/demo';
+import type { SceneKind } from '../components/sw-scene';
+import { demoCameras, demoEntities, demoFloors, type DemoCamera, type DemoEntity } from '../fixtures/demo';
 import { demoScene } from '../fixtures/catalog';
 import { t } from '../i18n/he';
 import { navigate } from '../router';
+import { cameraState, loadMap, type MapBundle } from '../api/maps';
+import { loadTree, type CatalogTree } from '../api/catalog';
+import { describeError } from '../api/client';
+import type { Anchor } from '../api/types';
 
 type ScreenState = 'ready' | 'loading' | 'empty' | 'error' | 'forbidden' | 'stale' | 'partial';
 type Layer = 'cameras' | 'doors' | 'lights' | 'sensors';
@@ -27,16 +32,20 @@ const LAYERS: { id: Layer; icon: 'camera' | 'door' | 'light' | 'sensor'; label: 
   { id: 'sensors', icon: 'sensor', label: () => t('floor.sensors') },
 ];
 
+const SCENES: SceneKind[] = ['entrance', 'lobby', 'corridor', 'hall', 'parking', 'warehouse', 'backyard', 'driveway', 'night'];
+
 /**
- * SC04 — interactive floor plan (board 1 screen 4): breadcrumb, "building – floor" title, a floor
- * dropdown, the plan drawn in thin blue-grey lines with bare blue camera pins and view cones, and a
- * floating camera card anchored to the selected pin (bottom sheet on phones).
+ * SC04 — interactive floor plan (board 1 screen 4). Backed by the add-on API (published plan image,
+ * anchors, camera registry) with the demo fixtures as a stand-in when no backend answers.
  */
 @customElement('explore-floor-map')
 export class ExploreFloorMap extends LitElement {
   @property() floorId = 'f0';
   @property() screenState: ScreenState = 'ready';
 
+  @state() private bundle: MapBundle | null = null;
+  @state() private tree: CatalogTree | null = null;
+  @state() private loadError = '';
   @state() private selectedId: string | null = null;
   @state() private anchor: { x: number; y: number } | null = null;
   @state() private layers = new Set<Layer>(['cameras', 'doors', 'lights', 'sensors']);
@@ -91,6 +100,10 @@ export class ExploreFloorMap extends LitElement {
       color: var(--sw-text-3);
       font-size: var(--sw-fs-sm);
       margin-block-start: 2px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
     }
     .spacer {
       flex: 1;
@@ -102,7 +115,7 @@ export class ExploreFloorMap extends LitElement {
       flex-wrap: wrap;
     }
     .tools sw-field {
-      inline-size: 150px;
+      inline-size: 170px;
     }
     .layers {
       display: inline-flex;
@@ -255,6 +268,7 @@ export class ExploreFloorMap extends LitElement {
     super.connectedCallback();
     this.narrow = this.mq.matches;
     this.mq.addEventListener('change', this.onMq);
+    void this.load();
   }
 
   disconnectedCallback() {
@@ -262,20 +276,59 @@ export class ExploreFloorMap extends LitElement {
     this.mq.removeEventListener('change', this.onMq);
   }
 
-  private get floor() {
-    return demoFloors.find((f) => f.id === this.floorId) ?? demoFloors[0];
+  protected updated(changed: Map<string, unknown>) {
+    if (changed.has('floorId') && changed.get('floorId') !== undefined) {
+      this.selectedId = null;
+      this.anchor = null;
+      void this.load();
+    }
+  }
+
+  private async load() {
+    this.loadError = '';
+    try {
+      const [tree, bundle] = await Promise.all([this.tree ? Promise.resolve(this.tree) : loadTree(), loadMap(this.floorId)]);
+      this.tree = tree;
+      this.bundle = bundle;
+    } catch (err) {
+      this.loadError = describeError(err);
+      this.bundle = null;
+    }
+  }
+
+  private get floors(): { id: string; name: string; cameraCount: number; hasPlan: boolean }[] {
+    if (this.tree?.source === 'api') {
+      return this.tree.sites.flatMap((s) => (s.buildings ?? []).flatMap((b) => (b.floors ?? []).map((f) => ({ id: f.id, name: `${b.name} · ${f.name}`, cameraCount: f.camera_count, hasPlan: f.has_plan }))));
+    }
+    return demoFloors.map((f) => ({ id: f.id, name: f.name, cameraCount: f.cameraCount, hasPlan: f.hasPlan }));
   }
 
   private get markers(): PlanMarker[] {
+    const b = this.bundle;
+    if (!b) return [];
     const stale = this.screenState === 'stale';
-    const cams: PlanMarker[] = this.layers.has('cameras')
-      ? demoCameras.filter((c) => c.floorId === this.floorId).map((c) => ({ id: c.id, kind: 'camera', label: c.name, x: c.x, y: c.y, rotation: c.rotation, fov: c.fov, state: c.state }))
-      : [];
-    const ents: PlanMarker[] = demoEntities
-      .filter((e) => e.floorId === this.floorId)
-      .filter((e) => (e.domain === 'lock' && this.layers.has('doors')) || (e.domain === 'light' && this.layers.has('lights')) || (e.domain === 'binary_sensor' && this.layers.has('sensors')))
-      .map((e) => ({ id: e.id, kind: e.domain, label: e.name, x: e.x, y: e.y, state: (stale ? 'stale' : 'neutral') as StateKind }));
-    return [...cams, ...ents];
+    if (b.source === 'demo') {
+      const cams: PlanMarker[] = this.layers.has('cameras')
+        ? demoCameras.filter((c) => c.floorId === b.floorId).map((c) => ({ id: c.id, kind: 'camera', label: c.name, x: c.x, y: c.y, rotation: c.rotation, fov: c.fov, state: c.state }))
+        : [];
+      const ents: PlanMarker[] = demoEntities
+        .filter((e) => e.floorId === b.floorId)
+        .filter((e) => (e.domain === 'lock' && this.layers.has('doors')) || (e.domain === 'light' && this.layers.has('lights')) || (e.domain === 'binary_sensor' && this.layers.has('sensors')))
+        .map((e) => ({ id: e.id, kind: e.domain, label: e.name, x: e.x, y: e.y, state: (stale ? 'stale' : 'neutral') as StateKind }));
+      return [...cams, ...ents];
+    }
+    return b.anchors
+      .filter((a) => (a.resource_type === 'camera' ? this.layers.has('cameras') : true))
+      .map((a) => ({
+        id: a.id,
+        kind: a.resource_type === 'camera' ? 'camera' : a.layer_id === 'doors' ? 'lock' : a.layer_id === 'lights' ? 'light' : 'binary_sensor',
+        label: a.camera?.name ?? a.label ?? a.resource_id,
+        x: a.position.x,
+        y: a.position.y,
+        rotation: a.rotation_degrees,
+        fov: a.field_of_view_degrees ?? undefined,
+        state: a.resource_type === 'camera' ? cameraState(a) : 'neutral',
+      }));
   }
 
   private toggleLayer(layer: Layer) {
@@ -290,7 +343,6 @@ export class ExploreFloorMap extends LitElement {
     this.anchor = e.detail.id && e.detail.sx !== undefined && e.detail.sy !== undefined ? { x: e.detail.sx, y: e.detail.sy } : null;
   }
 
-  /** Keep the card glued to its pin while the user pans or zooms. */
   private onViewChange() {
     if (!this.selectedId || !this.canvas) return;
     const m = this.markers.find((x) => x.id === this.selectedId);
@@ -304,32 +356,21 @@ export class ExploreFloorMap extends LitElement {
     this.anchor = null;
   }
 
-  private cameraBody(cam: DemoCamera) {
-    const reason =
-      cam.state === 'offline' ? t('camera.offlineReason') : cam.state === 'forbidden' ? t('camera.forbiddenReason') : cam.state === 'stale' ? t('camera.staleReason') : '';
+  // ---- demo card bodies (fixtures) ----
+
+  private demoCameraBody(cam: DemoCamera, floorName: string) {
+    const reason = cam.state === 'offline' ? t('camera.offlineReason') : cam.state === 'forbidden' ? t('camera.forbiddenReason') : cam.state === 'stale' ? t('camera.staleReason') : '';
     const canView = cam.state === 'live' || cam.state === 'stale';
     return html`
       ${canView
         ? html`<sw-camera-tile name="" state=${cam.state} scene=${demoScene[cam.id] ?? 'lobby'} @click=${() => navigate(`/live/cameras/${cam.id}`)}></sw-camera-tile>`
         : html`<div class="off"><div><sw-icon name=${cam.state === 'forbidden' ? 'lock' : 'offline'} size=${22}></sw-icon><div>${reason}</div></div></div>`}
-      <div class="statusrow">
-        <sw-badge kind=${cam.state}></sw-badge>
-        <span>${this.floor.name} · ${cam.source}</span>
-      </div>
+      <div class="statusrow"><sw-badge kind=${cam.state}></sw-badge><span>${floorName} · ${cam.source}</span></div>
       ${reason && canView ? html`<div class="warn">${reason}</div>` : nothing}
     `;
   }
 
-  private cameraFooter(cam: DemoCamera) {
-    const canView = cam.state === 'live' || cam.state === 'stale';
-    return html`
-      <sw-button variant="primary" size="sm" icon="expand" ?disabled=${!canView} @click=${() => navigate(`/live/cameras/${cam.id}`)}>צפייה חיה</sw-button>
-      <sw-button size="sm" icon="history" ?disabled=${cam.state === 'forbidden'} @click=${() => navigate('/investigate/playback')}>${t('camera.recordings')}</sw-button>
-      <sw-button variant="ghost" size="sm" iconOnly icon="pin" label=${this.pinned ? t('camera.unpin') : t('camera.pin')} @click=${() => (this.pinned = !this.pinned)}></sw-button>
-    `;
-  }
-
-  private entityBody(ent: DemoEntity) {
+  private demoEntityBody(ent: DemoEntity) {
     const stale = this.screenState === 'stale';
     const kind: StateKind = stale ? 'stale' : ent.state === 'on' || ent.state === 'unlocked' ? 'live' : 'neutral';
     return html`
@@ -343,23 +384,56 @@ export class ExploreFloorMap extends LitElement {
     `;
   }
 
-  private entityFooter(ent: DemoEntity) {
-    const stale = this.screenState === 'stale';
+  // ---- API card body ----
+
+  private apiCameraBody(a: Anchor, floorName: string) {
+    const cam = a.camera;
+    const st = cameraState(a);
+    const scene = SCENES[((cam?.channel ?? 1) - 1) % SCENES.length];
     return html`
-      <sw-button variant="primary" size="sm" ?disabled=${!ent.controllable || stale}>${t('entity.control')}</sw-button>
-      <sw-button variant="ghost" size="sm">${t('entity.openInHa')}</sw-button>
+      ${st === 'offline'
+        ? html`<div class="off"><div><sw-icon name="offline" size=${22}></sw-icon><div>${t('camera.offlineReason')}</div></div></div>`
+        : html`<sw-camera-tile name="" state=${st === 'live' ? 'live' : 'unknown'} scene=${scene}></sw-camera-tile>`}
+      <div class="statusrow"><sw-badge kind=${st}></sw-badge><span>${floorName} · ערוץ ${cam?.channel ?? '?'}</span></div>
+      <dl class="meta">
+        <dt>שם ב־NVR</dt><dd>${cam?.name_source || '—'}</dd>
+        <dt>Track</dt><dd><span class="ltr">${cam?.main_track ?? '?'} / ${cam?.sub_track ?? '?'}</span></dd>
+        <dt>נראתה לאחרונה</dt><dd>${cam?.last_seen_at ? cam.last_seen_at.replace('T', ' ').replace('Z', ' UTC') : 'לא נבדק'}</dd>
+      </dl>
+      <div class="note">וידאו חי יתחבר דרך go2rtc במקטע הבא (T017); התמונה כאן היא איור.</div>
     `;
   }
 
   private renderCard() {
-    if (!this.selectedId) return nothing;
-    const cam = demoCameras.find((c) => c.id === this.selectedId);
-    const ent = cam ? undefined : demoEntities.find((e) => e.id === this.selectedId);
-    if (!cam && !ent) return nothing;
-    const heading = cam ? cam.name : ent!.name;
-    const sub = cam ? `${this.floor.name} · ${cam.source}` : `${this.floor.name} · ${t(ent!.domain === 'lock' ? 'entity.door' : ent!.domain === 'light' ? 'entity.light' : 'entity.sensor')}`;
-    const body = cam ? this.cameraBody(cam) : this.entityBody(ent!);
-    const footer = cam ? this.cameraFooter(cam) : this.entityFooter(ent!);
+    const b = this.bundle;
+    if (!this.selectedId || !b) return nothing;
+    let heading = '';
+    let sub = '';
+    let body: unknown = nothing;
+    let footer: unknown = nothing;
+    if (b.source === 'demo') {
+      const cam = demoCameras.find((c) => c.id === this.selectedId);
+      const ent = cam ? undefined : demoEntities.find((e) => e.id === this.selectedId);
+      if (!cam && !ent) return nothing;
+      heading = cam ? cam.name : ent!.name;
+      sub = cam ? `${b.floorName} · ${cam.source}` : `${b.floorName} · ${t(ent!.domain === 'lock' ? 'entity.door' : ent!.domain === 'light' ? 'entity.light' : 'entity.sensor')}`;
+      body = cam ? this.demoCameraBody(cam, b.floorName) : this.demoEntityBody(ent!);
+      const canView = cam ? cam.state === 'live' || cam.state === 'stale' : false;
+      footer = cam
+        ? html`<sw-button variant="primary" size="sm" icon="expand" ?disabled=${!canView} @click=${() => navigate(`/live/cameras/${cam.id}`)}>צפייה חיה</sw-button>
+            <sw-button size="sm" icon="history" ?disabled=${cam.state === 'forbidden'} @click=${() => navigate('/investigate/playback')}>${t('camera.recordings')}</sw-button>
+            <sw-button variant="ghost" size="sm" iconOnly icon="pin" label=${this.pinned ? t('camera.unpin') : t('camera.pin')} @click=${() => (this.pinned = !this.pinned)}></sw-button>`
+        : html`<sw-button variant="primary" size="sm" ?disabled=${!ent!.controllable || this.screenState === 'stale'}>${t('entity.control')}</sw-button><sw-button variant="ghost" size="sm">${t('entity.openInHa')}</sw-button>`;
+    } else {
+      const a = b.anchors.find((x) => x.id === this.selectedId);
+      if (!a) return nothing;
+      heading = a.camera?.name ?? a.label ?? a.resource_id;
+      sub = `${b.buildingName} · ${b.floorName}`;
+      body = a.resource_type === 'camera' ? this.apiCameraBody(a, b.floorName) : html`<div class="note">ישות HA · ${a.resource_id} — מצב יגיע עם גשר HA (T025).</div>`;
+      footer = html`<sw-button variant="primary" size="sm" icon="expand" disabled title="וידאו חי מגיע במקטע הבא">צפייה חיה</sw-button>
+        <sw-button size="sm" icon="history" disabled>${t('camera.recordings')}</sw-button>
+        ${b.permissions.edit ? html`<sw-button variant="ghost" size="sm" icon="edit" @click=${() => navigate(`/explore/floors/${b.floorId}/edit`)}>עריכה</sw-button>` : nothing}`;
+    }
     if (this.narrow || !this.anchor) {
       return html`<sw-drawer open heading=${heading} subheading=${sub} @close=${this.close}>${body}<div slot="footer">${footer}</div></sw-drawer>`;
     }
@@ -369,7 +443,9 @@ export class ExploreFloorMap extends LitElement {
   }
 
   private renderStage() {
-    const floor = this.floor;
+    const b = this.bundle;
+    if (this.loadError) return html`<div class="cover"><sw-state-panel state="error" hint=${this.loadError} actionLabel=${t('states.retry')} @action=${() => this.load()}></sw-state-panel></div>`;
+    if (!b) return html`<div class="cover"><sw-state-panel state="loading"></sw-state-panel></div>`;
     switch (this.screenState) {
       case 'loading':
         return html`<div class="cover"><sw-state-panel state="loading"></sw-state-panel></div>`;
@@ -380,12 +456,12 @@ export class ExploreFloorMap extends LitElement {
       default:
         break;
     }
-    if (this.screenState === 'empty' || !floor.hasPlan) {
+    if (this.screenState === 'empty' || b.planStatus === 'none') {
       return html`<div class="cover">
-        <sw-state-panel state="empty" heading=${t('floor.noPlan')} hint=${t('floor.noPlanHint')}>
+        <sw-state-panel state="empty" heading=${t('floor.noPlan')} hint=${b.permissions.import ? t('floor.noPlanHint') : 'עורך המפות של הקומה יכול להעלות תוכנית.'}>
           <div style="display:flex;gap:8px;margin-block-start:10px;justify-content:center;flex-wrap:wrap">
-            <sw-button variant="primary" icon="upload" @click=${() => navigate(`/explore/floors/${floor.id}/import`)}>${t('floor.uploadPlan')}</sw-button>
-            <sw-button icon="list">${t('floor.listView')}</sw-button>
+            ${b.permissions.import ? html`<sw-button variant="primary" icon="upload" @click=${() => navigate(`/explore/floors/${b.floorId}/import`)}>${t('floor.uploadPlan')}</sw-button>` : nothing}
+            <sw-button icon="list" @click=${() => navigate('/live/wall')}>${t('floor.listView')}</sw-button>
           </div>
         </sw-state-panel>
       </div>`;
@@ -393,11 +469,14 @@ export class ExploreFloorMap extends LitElement {
     return html`
       ${this.screenState === 'stale' || this.screenState === 'partial'
         ? html`<div class="banner"><sw-state-panel compact state=${this.screenState}></sw-state-panel></div>`
-        : nothing}
+        : b.needsAlignment
+          ? html`<div class="banner"><sw-state-panel compact state="partial" heading="פריטים הוצבו על גרסת תוכנית קודמת" hint="בדוק שהמיקומים עדיין נכונים על הרקע החדש (עורך התוכנית)."></sw-state-panel></div>`
+          : nothing}
       <sw-plan-canvas
-        .planWidth=${floor.planWidth}
-        .planHeight=${floor.planHeight}
-        .plan=${demoPlan(floor.id)}
+        .planWidth=${b.width}
+        .planHeight=${b.height}
+        .plan=${b.planSvg}
+        .imageUrl=${b.imageUrl}
         .markers=${this.markers}
         .selectedId=${this.selectedId}
         .dimEntities=${this.screenState === 'stale'}
@@ -415,25 +494,32 @@ export class ExploreFloorMap extends LitElement {
   }
 
   render() {
-    const floor = this.floor;
+    const b = this.bundle;
+    const floors = this.floors;
+    const current = floors.find((f) => f.id === this.floorId);
+    const cameraCount = b ? (b.source === 'demo' ? current?.cameraCount ?? 0 : b.anchors.filter((a) => a.resource_type === 'camera').length) : 0;
+    const apiFloor = this.tree?.source === 'api' ? this.tree.sites.flatMap((s) => (s.buildings ?? []).flatMap((x) => x.floors ?? [])).find((f) => f.id === this.floorId) : null;
     return html`
       <div class="head">
         <div>
           <div class="crumbs">
-            <a href="#/explore/sites">${demoSite.name}</a><sw-icon name="chevron" size=${11}></sw-icon>
-            <a href="#/explore/buildings/bld-a/floors">${demoSite.building}</a><sw-icon name="chevron" size=${11}></sw-icon>
-            <span>${floor.name}</span>
+            <a href="#/explore/sites">${b?.siteName ?? 'אתרים'}</a><sw-icon name="chevron" size=${11}></sw-icon>
+            <a href="#/explore/buildings/${b?.source === 'api' ? apiFloor?.building_id ?? 'bld-a' : 'bld-a'}/floors">${b?.buildingName ?? ''}</a><sw-icon name="chevron" size=${11}></sw-icon>
+            <span>${b?.floorName ?? ''}</span>
           </div>
-          <h1>${demoSite.building} – ${floor.name}</h1>
-          <div class="sub">${floor.cameraCount} מצלמות · ${floor.entityCount} ישויות HA · נתוני הדגמה</div>
+          <h1>${b ? `${b.buildingName} – ${b.floorName}` : 'מפת קומה'}</h1>
+          <div class="sub">
+            <span>${cameraCount} מצלמות${b?.source === 'demo' ? ' · נתוני הדגמה' : b?.planStatus === 'published' ? ' · תוכנית מפורסמת' : ''}</span>
+            ${apiFloor?.draft_version_id ? html`<sw-badge kind="stale" label="טיוטת תוכנית ממתינה לפרסום"></sw-badge>` : nothing}
+          </div>
         </div>
         <div class="spacer"></div>
         <div class="tools">
           <div class="layers" role="group" aria-label=${t('floor.layers')}>
             ${LAYERS.map((l) => html`<button class=${this.layers.has(l.id) ? 'on' : ''} title=${l.label()} aria-label=${l.label()} aria-pressed=${this.layers.has(l.id)} @click=${() => this.toggleLayer(l.id)}><sw-icon name=${l.icon} size=${14}></sw-icon></button>`)}
           </div>
-          <sw-field><select aria-label=${t('floor.switcher')} @change=${(e: Event) => navigate(`/explore/floors/${(e.target as HTMLSelectElement).value}`)}>${demoFloors.map((f) => html`<option value=${f.id} ?selected=${f.id === this.floorId}>${f.name} · ${f.cameraCount} מצלמות</option>`)}</select></sw-field>
-          <sw-button icon="edit" @click=${() => navigate(`/explore/floors/${floor.id}/edit`)}>עריכת תוכנית</sw-button>
+          <sw-field><select aria-label=${t('floor.switcher')} @change=${(e: Event) => navigate(`/explore/floors/${(e.target as HTMLSelectElement).value}`)}>${floors.map((f) => html`<option value=${f.id} ?selected=${f.id === this.floorId}>${f.name} · ${f.cameraCount} מצלמות${f.hasPlan ? '' : ' · אין תוכנית'}</option>`)}</select></sw-field>
+          ${!b || b.permissions.edit ? html`<sw-button icon="edit" @click=${() => navigate(`/explore/floors/${this.floorId}/edit`)}>עריכת תוכנית</sw-button>` : nothing}
         </div>
       </div>
       <div class="stage">${this.renderStage()}</div>

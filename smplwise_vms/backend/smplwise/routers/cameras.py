@@ -1,0 +1,123 @@
+"""Camera registry: stable local ids per (recorder, channel), aliases and order kept locally (T013),
+discovery by a read-only ISAPI sync that never renames anything on the device."""
+from __future__ import annotations
+
+import json
+import sqlite3
+from typing import Any
+
+from fastapi import APIRouter, Depends, Request
+from pydantic import BaseModel, Field
+
+from ..audit import audit
+from ..auth import current_principal, get_conn, settings_of
+from ..db import new_id, now_iso
+from ..errors import not_found
+from ..rbac import INSTALLATION, Principal, authorize, require
+from ..services import nvr
+from .anchors import camera_row
+
+router = APIRouter()
+
+DEFAULT_RECORDER = "nvr-1"
+
+
+def _rid(request: Request) -> str | None:
+    return getattr(request.state, "correlation_id", None)
+
+
+def _ensure_recorder(conn: sqlite3.Connection, name: str = "NVR ראשי", model: str | None = None, firmware: str | None = None) -> None:
+    conn.execute(
+        """INSERT INTO recorders(id, name, model, firmware, last_seen_at, created_at) VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET model = COALESCE(excluded.model, recorders.model), firmware = COALESCE(excluded.firmware, recorders.firmware), last_seen_at = excluded.last_seen_at""",
+        (DEFAULT_RECORDER, name, model, firmware, now_iso(), now_iso()),
+    )
+
+
+@router.get("/cameras")
+def list_cameras(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Cameras the caller may see: everything for installation-wide readers, otherwise only cameras
+    anchored on floors the caller can read."""
+    rows = conn.execute("SELECT * FROM cameras ORDER BY sort_order, channel").fetchall()
+    if authorize(conn, principal, "map.read", INSTALLATION).allowed:
+        visible = rows
+    else:
+        readable_floors = {
+            f["id"] for f in conn.execute("SELECT id FROM floors WHERE deleted_at IS NULL").fetchall()
+            if authorize(conn, principal, "map.read", ("floor", f["id"])).allowed
+        }
+        anchored = {a["resource_id"] for a in conn.execute("SELECT resource_id, floor_id FROM map_anchors WHERE resource_type = 'camera' AND effective_to IS NULL").fetchall() if a["floor_id"] in readable_floors}
+        visible = [r for r in rows if r["id"] in anchored]
+    recorder = conn.execute("SELECT * FROM recorders WHERE id = ?", (DEFAULT_RECORDER,)).fetchone()
+    return {
+        "cameras": [camera_row(r) for r in visible],
+        "recorder": {"id": recorder["id"], "name": recorder["name"], "model": recorder["model"], "firmware": recorder["firmware"], "last_seen_at": recorder["last_seen_at"]} if recorder else None,
+        "can_sync": authorize(conn, principal, "sources.configure", INSTALLATION).allowed,
+    }
+
+
+@router.post("/cameras/sync")
+def sync_cameras(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Read-only discovery from the NVR: channels, online flag and track ids. Existing aliases/order survive."""
+    require(conn, principal, "sources.configure", INSTALLATION)
+    settings = settings_of(request)
+    info = nvr.device_info(settings)
+    channels = nvr.discover_channels(settings)
+    _ensure_recorder(conn, model=info.get("model") or None, firmware=info.get("firmware") or None)
+    now = now_iso()
+    created = updated = 0
+    for ch in channels:
+        status = "online" if ch.online else "offline" if ch.online is False else "unknown"
+        caps = json.dumps({"stream": ch.stream} if ch.stream else {}, ensure_ascii=False)
+        existing = conn.execute("SELECT id FROM cameras WHERE recorder_id = ? AND channel = ?", (DEFAULT_RECORDER, ch.channel)).fetchone()
+        if existing:
+            conn.execute("UPDATE cameras SET name_source = ?, main_track = COALESCE(?, main_track), sub_track = COALESCE(?, sub_track), capabilities_json = ?, status = ?, last_seen_at = ?, updated_at = ? WHERE id = ?",
+                         (ch.name, ch.main_track, ch.sub_track, caps, status, now, now, existing["id"]))
+            updated += 1
+        else:
+            conn.execute("INSERT INTO cameras(id, recorder_id, channel, name_source, sort_order, main_track, sub_track, capabilities_json, status, last_seen_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                         (new_id(), DEFAULT_RECORDER, ch.channel, ch.name, ch.channel, ch.main_track, ch.sub_track, caps, status, now, now, now))
+            created += 1
+    audit(conn, actor=principal, action="cameras.sync", decision="allowed", resource_type="recorder", resource_id=DEFAULT_RECORDER, request_id=_rid(request),
+          details={"channels": len(channels), "created": created, "updated": updated, "model": info.get("model")})
+    return {"channels": len(channels), "created": created, "updated": updated, "recorder": {"model": info.get("model"), "firmware": info.get("firmware")}}
+
+
+class CameraPatch(BaseModel):
+    alias: str | None = Field(default=None, max_length=120)
+    sort_order: int | None = None
+    enabled: bool | None = None
+
+
+@router.patch("/cameras/{camera_id}")
+def update_camera(camera_id: str, body: CameraPatch, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    require(conn, principal, "sources.configure", INSTALLATION)
+    if not conn.execute("SELECT 1 FROM cameras WHERE id = ?", (camera_id,)).fetchone():
+        raise not_found("המצלמה לא נמצאה.")
+    fields = {k: (int(v) if isinstance(v, bool) else v) for k, v in body.model_dump().items() if v is not None}
+    if fields:
+        sets = ", ".join(f"{k} = ?" for k in fields)
+        conn.execute(f"UPDATE cameras SET {sets}, updated_at = ? WHERE id = ?", (*fields.values(), now_iso(), camera_id))
+    audit(conn, actor=principal, action="camera.update", decision="allowed", resource_type="camera", resource_id=camera_id, request_id=_rid(request), details=fields)
+    return camera_row(conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone())
+
+
+class CameraIn(BaseModel):
+    """Manual registration (no NVR reachable yet): channel number and a local alias."""
+    channel: int = Field(ge=1, le=256)
+    alias: str = Field(min_length=1, max_length=120)
+
+
+@router.post("/cameras", status_code=201)
+def create_camera(body: CameraIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    require(conn, principal, "sources.configure", INSTALLATION)
+    _ensure_recorder(conn)
+    existing = conn.execute("SELECT id FROM cameras WHERE recorder_id = ? AND channel = ?", (DEFAULT_RECORDER, body.channel)).fetchone()
+    if existing:
+        conn.execute("UPDATE cameras SET alias = ?, updated_at = ? WHERE id = ?", (body.alias, now_iso(), existing["id"]))
+        cid = existing["id"]
+    else:
+        cid, now = new_id(), now_iso()
+        conn.execute("INSERT INTO cameras(id, recorder_id, channel, alias, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", (cid, DEFAULT_RECORDER, body.channel, body.alias, body.channel, now, now))
+    audit(conn, actor=principal, action="camera.register", decision="allowed", resource_type="camera", resource_id=cid, request_id=_rid(request), details={"channel": body.channel, "alias": body.alias})
+    return camera_row(conn.execute("SELECT * FROM cameras WHERE id = ?", (cid,)).fetchone())

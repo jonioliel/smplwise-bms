@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173",
     "build": "tsc --noEmit && vite build",
+    "build:addon": "tsc --noEmit && vite build --outDir ../smplwise_vms/www --emptyOutDir",
     "preview": "vite preview --host 127.0.0.1 --port 4173",
     "typecheck": "tsc --noEmit",
     "shots": "playwright test -c playwright.config.ts"

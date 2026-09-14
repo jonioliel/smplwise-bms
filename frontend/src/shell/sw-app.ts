@@ -38,6 +38,8 @@ import '../screens/styleguide-screen';
 import { onRouteChange, type RouteState } from '../router';
 import { NAV, GROUP_TABS, groupOf, activeTabOf } from './nav';
 import { t } from '../i18n/he';
+import { loadSession, onSession, type Session } from '../api/session';
+import '../components/sw-state-panel';
 
 /**
  * Application shell in the boards' language: a compact white side nav (brand mark, six flat entries,
@@ -48,7 +50,9 @@ import { t } from '../i18n/he';
 @customElement('sw-app')
 export class SwApp extends LitElement {
   @state() private route: RouteState | null = null;
+  @state() private session: Session = { mode: 'loading', me: null, error: null };
   private stopRouter?: () => void;
+  private stopSession?: () => void;
 
   static styles = css`
     :host {
@@ -221,6 +225,23 @@ export class SwApp extends LitElement {
     nav.bottom {
       display: none;
     }
+    .gate {
+      flex: 1;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+    .who {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+    }
+    .who b {
+      color: var(--sw-text);
+      font-weight: var(--sw-fw-semibold);
+    }
     @media (max-width: 1023px) {
       :host {
         grid-template-columns: var(--sw-rail-w) minmax(0, 1fr);
@@ -295,6 +316,8 @@ export class SwApp extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    this.stopSession = onSession((s) => (this.session = s));
+    void loadSession();
     this.stopRouter = onRouteChange((route) => {
       this.route = route;
       this.toggleAttribute('data-kiosk', route.segments[0] === 'kiosk');
@@ -304,6 +327,19 @@ export class SwApp extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     this.stopRouter?.();
+    this.stopSession?.();
+  }
+
+  /** Full-screen gate for identity problems; `null` (not lit's `nothing`, which is truthy) when the app may render. */
+  private renderGate() {
+    const s = this.session;
+    if (s.mode === 'unauthenticated') {
+      return html`<div class="gate"><sw-state-panel state="forbidden" heading="הזדהות דרך Home Assistant נדרשת" hint=${s.error ?? ''}></sw-state-panel></div>`;
+    }
+    if (s.mode === 'no_access') {
+      return html`<div class="gate"><sw-state-panel state="forbidden" heading="אין לך עדיין תפקיד במערכת" hint="המשתמש ${s.me?.user.display_name || s.me?.user.username || ''} מזוהה מ־Home Assistant, אך מנהל ה־VMS טרם שייך לו תפקיד והיקף. פנה למנהל המערכת."></sw-state-panel></div>`;
+    }
+    return null;
   }
 
   private renderScreen() {
@@ -345,8 +381,8 @@ export class SwApp extends LitElement {
         if (s[1] === 'buildings') return html`<explore-floors .buildingId=${s[2] ?? 'bld-a'}></explore-floors>`;
         if (s[1] === 'entities') return html`<explore-entities></explore-entities>`;
         if (s[1] === 'access') return html`<explore-access></explore-access>`;
-        if (s[1] === 'floors' && s[3] === 'import') return html`<explore-plan-import></explore-plan-import>`;
-        if (s[1] === 'floors' && s[3] === 'edit') return html`<explore-plan-editor></explore-plan-editor>`;
+        if (s[1] === 'floors' && s[3] === 'import') return html`<explore-plan-import .floorId=${s[2]}></explore-plan-import>`;
+        if (s[1] === 'floors' && s[3] === 'edit') return html`<explore-plan-editor .floorId=${s[2]}></explore-plan-editor>`;
         const floorId = s[1] === 'floors' && s[2] ? s[2] : 'f0';
         const screenState = (r.params.get('state') ?? 'ready') as 'ready';
         return html`<explore-floor-map .floorId=${floorId} .screenState=${screenState}></explore-floor-map>`;
@@ -383,13 +419,18 @@ export class SwApp extends LitElement {
         <span class="brand-mobile"><img src="${base}brand/smplwise-mark.png" alt="SmplWise" /></span>
         <label class="search"><sw-icon name="search" size=${14}></sw-icon><input type="search" placeholder=${t('app.search')} aria-label=${t('app.search')} /></label>
         <span class="spacer"></span>
-        <sw-badge kind="neutral" label="נתוני הדגמה"></sw-badge>
+        ${this.session.mode === 'api' || this.session.mode === 'no_access'
+          ? html`<span class="who"><b>${this.session.me?.user.display_name || this.session.me?.user.username}</b>${this.session.me?.bindings[0] ? html`<span>· ${this.session.me.bindings[0].role_name}</span>` : nothing}</span>`
+          : this.session.mode === 'demo'
+            ? html`<sw-badge kind="neutral" label="נתוני הדגמה"></sw-badge>`
+            : nothing}
         <sw-button class="bell" variant="ghost" size="sm" iconOnly icon="bell" label=${t('app.notifications')}></sw-button>
-        <sw-avatar name="יוני" size=${28} title=${t('app.account')} aria-label=${t('app.account')}></sw-avatar>
+        <sw-avatar name=${this.session.me?.user.display_name || this.session.me?.user.username || 'יוני'} size=${28} title=${t('app.account')} aria-label=${t('app.account')}></sw-avatar>
       </header>
       <main>
-        <div class="subnav">${tabs.length > 1 && !editor ? html`<sw-tabs .items=${tabs} .active=${activeTabOf(this.route)}></sw-tabs>` : nothing}</div>
-        <div class="screen">${this.renderScreen()}</div>
+        ${this.renderGate() || html`
+          <div class="subnav">${tabs.length > 1 && !editor ? html`<sw-tabs .items=${tabs} .active=${activeTabOf(this.route)}></sw-tabs>` : nothing}</div>
+          <div class="screen">${this.session.mode === 'loading' ? nothing : this.renderScreen()}</div>`}
       </main>
       <nav class="bottom" aria-label="ניווט ראשי">
         ${NAV.slice(0, 4).map((n) => html`<a class=${classMap({ active: group === n.id })} href=${n.href}><sw-icon .name=${n.icon} size=${20}></sw-icon>${n.label}</a>`)}

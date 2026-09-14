@@ -27,6 +27,10 @@ playwright-report/
 .ruff_cache/
 *.egg-info/
 
+# Local backend data (SQLite, uploaded plans) created when running the API on the workstation
+data/
+smplwise_vms/backend/data/
+
 # Local-only material (plans, captures, notes)
 private/
 

@@ -1,0 +1,10 @@
+[project]
+name = "smplwise-vms-backend"
+version = "0.1.0"
+description = "SMPLWISE VMS add-on backend"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = ["ignore::DeprecationWarning"]

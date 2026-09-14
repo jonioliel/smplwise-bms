@@ -1,0 +1,94 @@
+{
+  "version": "1.1",
+  "status": "DESIGN_NOT_RUNTIME",
+  "roles": [
+    {
+      "id": "viewer",
+      "name_he": "צופה",
+      "permissions": [
+        "map.read",
+        "entity.state.read",
+        "video.live"
+      ]
+    },
+    {
+      "id": "operator",
+      "name_he": "מפעיל",
+      "permissions": [
+        "map.read",
+        "entity.state.read",
+        "video.live",
+        "video.playback",
+        "events.read",
+        "events.ack"
+      ]
+    },
+    {
+      "id": "editor",
+      "name_he": "עורך מפות ותצוגות",
+      "permissions": [
+        "map.read",
+        "entity.state.read",
+        "video.live",
+        "map.import",
+        "map.edit",
+        "map.publish",
+        "placement.edit",
+        "views.edit"
+      ]
+    },
+    {
+      "id": "site_admin",
+      "name_he": "מנהל אתר / מבנה / קומה",
+      "permissions": [
+        "map.read",
+        "entity.state.read",
+        "video.live",
+        "video.playback",
+        "events.read",
+        "events.ack",
+        "map.import",
+        "map.edit",
+        "map.publish",
+        "placement.edit",
+        "views.edit",
+        "site.content.configure"
+      ]
+    },
+    {
+      "id": "system_admin",
+      "name_he": "מנהל מערכת VMS",
+      "permissions": [
+        "map.read",
+        "entity.state.read",
+        "video.live",
+        "video.playback",
+        "events.read",
+        "events.ack",
+        "map.import",
+        "map.edit",
+        "map.publish",
+        "placement.edit",
+        "views.edit",
+        "site.content.configure",
+        "system.configure",
+        "sources.configure",
+        "identity.directory.read",
+        "rbac.assign",
+        "rbac.roles.manage",
+        "audit.read",
+        "backup.manage"
+      ]
+    }
+  ],
+  "sensitive_permissions_not_implied": [
+    "video.export",
+    "audio.talk",
+    "camera.ptz",
+    "ha.entity.control",
+    "door.unlock",
+    "alarm.disarm",
+    "nvr.config.write"
+  ],
+  "evaluation": "Evaluate each action+scope binding together. Default deny. Apply explicit denies, actor status, scope membership, revision and HA permission intersection. No HA account mutations."
+}

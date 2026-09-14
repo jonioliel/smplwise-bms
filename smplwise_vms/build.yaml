@@ -1,0 +1,4 @@
+# Kept for Supervisors older than 2026.04 (newer ones read the base image from the Dockerfile).
+build_from:
+  amd64: ghcr.io/home-assistant/amd64-base-python:3.12-alpine3.22
+  aarch64: ghcr.io/home-assistant/aarch64-base-python:3.12-alpine3.22

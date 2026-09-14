@@ -1,4 +1,4 @@
-import { LitElement, html, css } from 'lit';
+import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-page';
 import '../components/sw-card';
@@ -7,15 +7,26 @@ import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-tabs';
 import '../components/sw-scene';
-import { demoBuildings, demoSites } from '../fixtures/catalog';
+import '../components/sw-field';
+import '../components/sw-dialog';
+import '../components/sw-state-panel';
 import { navigate } from '../router';
+import { createBuilding, createSite, loadTree, type CatalogTree } from '../api/catalog';
+import { describeError } from '../api/client';
+import type { Site } from '../api/types';
 
 const SITE_SCENE = ['house', 'building', 'warehouse'] as const;
 
-/** SC02 — sites & buildings (board 1 screen 2): picture cards with name, ⋯ menu and "N buildings · M cameras". */
+/** SC02 — sites & buildings (board 1 screen 2) on real catalogue data; create sites and buildings. */
 @customElement('explore-sites')
 export class ExploreSites extends LitElement {
   @state() private tab = 'all';
+  @state() private tree: CatalogTree | null = null;
+  @state() private dialog: { kind: 'site' } | { kind: 'building'; site: Site } | null = null;
+  @state() private formName = '';
+  @state() private formAddress = '';
+  @state() private busy = false;
+  @state() private error = '';
 
   static styles = css`
     .grid {
@@ -42,11 +53,6 @@ export class ExploreSites extends LitElement {
       color: #fff;
       border-radius: 4px;
       padding: 1px 6px;
-    }
-    .pic sw-badge {
-      position: absolute;
-      inset-inline-start: 8px;
-      inset-block-start: 8px;
     }
     .info {
       display: flex;
@@ -75,6 +81,8 @@ export class ExploreSites extends LitElement {
       cursor: pointer;
       transition: border-color var(--sw-t-fast) var(--sw-ease), background var(--sw-t-fast) var(--sw-ease);
       font-size: var(--sw-fs-sm);
+      background: transparent;
+      font-family: inherit;
     }
     .add:hover {
       border-color: var(--sw-accent);
@@ -135,41 +143,115 @@ export class ExploreSites extends LitElement {
       color: var(--sw-text-3);
       font-size: var(--sw-fs-sm);
     }
+    .err {
+      color: var(--sw-danger);
+      font-size: var(--sw-fs-xs);
+    }
   `;
 
-  private renderSites() {
+  connectedCallback() {
+    super.connectedCallback();
+    void this.reload();
+  }
+
+  private async reload() {
+    try {
+      this.tree = await loadTree();
+    } catch (err) {
+      this.error = describeError(err);
+    }
+  }
+
+  private open(d: typeof this.dialog) {
+    this.formName = '';
+    this.formAddress = '';
+    this.error = '';
+    this.dialog = d;
+  }
+
+  private async submit() {
+    const d = this.dialog;
+    if (!d) return;
+    this.busy = true;
+    this.error = '';
+    try {
+      if (d.kind === 'site') {
+        const site = await createSite({ name: this.formName.trim(), address: this.formAddress.trim() });
+        this.dialog = null;
+        await this.reload();
+        this.open({ kind: 'building', site });
+      } else {
+        const b = await createBuilding(d.site.id, { name: this.formName.trim() });
+        this.dialog = null;
+        navigate(`/explore/buildings/${b.id}/floors`);
+      }
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private openSite(s: Site) {
+    const first = s.buildings?.[0];
+    if (first) navigate(`/explore/buildings/${first.id}/floors`);
+    else this.open({ kind: 'building', site: s });
+  }
+
+  private renderSites(tree: CatalogTree) {
     return html`<div class="grid">
-      ${demoSites.map(
-        (s, i) => html`<sw-card flush interactive @click=${() => navigate(`/explore/buildings/${demoBuildings.find((b) => b.siteId === s.id)?.id ?? 'bld-a'}/floors`)}>
-          <div class="pic"><sw-scene kind=${SITE_SCENE[i] ?? 'building'}></sw-scene><span class="demo">דמו</span><sw-badge onImage kind=${s.health}></sw-badge></div>
+      ${tree.sites.map((s, i) => {
+        const buildings = s.buildings ?? [];
+        const cams = buildings.reduce((n, b) => n + (b.floors ?? []).reduce((m, f) => m + f.camera_count, 0), 0);
+        return html`<sw-card flush interactive @click=${() => this.openSite(s)}>
+          <div class="pic"><sw-scene kind=${SITE_SCENE[i % 3]}></sw-scene>${tree.source === 'demo' ? html`<span class="demo">דמו</span>` : html`<span class="demo">איור</span>`}</div>
           <div class="info">
-            <div><b>${s.name}</b><small>${s.buildings} ${s.buildings === 1 ? 'מבנה' : 'מבנים'} · ${s.cameras} מצלמות</small></div>
-            <sw-button variant="ghost" size="sm" iconOnly icon="more" label="עוד" @click=${(e: Event) => e.stopPropagation()}></sw-button>
+            <div><b>${s.name}</b><small>${buildings.length} ${buildings.length === 1 ? 'מבנה' : 'מבנים'} · ${cams} מצלמות${s.address ? ` · ${s.address}` : ''}</small></div>
+            <sw-button variant="ghost" size="sm" iconOnly icon="plus" label="מבנה חדש" @click=${(e: Event) => { e.stopPropagation(); this.open({ kind: 'building', site: s }); }}></sw-button>
           </div>
-        </sw-card>`,
-      )}
-      <div class="add" role="button" tabindex="0"><div><div class="ic"><sw-icon name="plus" size=${18}></sw-icon></div><strong>הוספת אתר חדש</strong><small>יצירת מיקום חדש כדי להתחיל</small></div></div>
+        </sw-card>`;
+      })}
+      ${tree.canCreateSite
+        ? html`<button class="add" @click=${() => this.open({ kind: 'site' })}><div><div class="ic"><sw-icon name="plus" size=${18}></sw-icon></div><strong>הוספת אתר חדש</strong><small>יצירת מיקום חדש כדי להתחיל</small></div></button>`
+        : nothing}
     </div>`;
   }
 
-  private renderBuildings() {
+  private renderBuildings(tree: CatalogTree) {
+    const rows = tree.sites.flatMap((s) => (s.buildings ?? []).map((b) => ({ s, b })));
     return html`<div class="blist">
-      ${demoBuildings.map(
-        (b, i) => html`<sw-card class="brow" @click=${() => navigate(`/explore/buildings/${b.id}/floors`)}>
+      ${rows.map(
+        ({ s, b }, i) => html`<sw-card class="brow" @click=${() => navigate(`/explore/buildings/${b.id}/floors`)}>
           <sw-scene kind=${i % 2 ? 'house' : 'building'}></sw-scene>
-          <div><b>${b.name}</b><small>${demoSites.find((s) => s.id === b.siteId)?.name} · ${b.floors.length} קומות · ${b.floors.reduce((n, f) => n + f.cameras, 0)} מצלמות</small></div>
+          <div><b>${b.name}</b><small>${s.name} · ${(b.floors ?? []).length} קומות · ${(b.floors ?? []).reduce((n, f) => n + f.camera_count, 0)} מצלמות</small></div>
           <sw-icon name="chevron" size=${14}></sw-icon>
         </sw-card>`,
       )}
+      ${rows.length ? nothing : html`<div class="map" style="min-block-size:120px">אין מבנים עדיין.</div>`}
     </div>`;
   }
 
   render() {
+    const tree = this.tree;
+    if (!tree) return html`<sw-page heading="אתרים ומבנים"><sw-state-panel state=${this.error ? 'error' : 'loading'} hint=${this.error}></sw-state-panel></sw-page>`;
+    const d = this.dialog;
     return html`
-      <sw-page heading="אתרים ומבנים" subheading="ניהול המיקומים והמבנים שלך · בריאות ממקורות אמיתיים בלבד · נתוני הדגמה">
-        <sw-button slot="actions" variant="primary" icon="plus">אתר חדש</sw-button>
-        <sw-tabs .items=${[{ id: 'all', label: 'כל האתרים', count: demoSites.length }, { id: 'buildings', label: 'מבנים', count: demoBuildings.length }, { id: 'map', label: 'מפה' }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>
-        ${this.tab === 'all' ? this.renderSites() : this.tab === 'buildings' ? this.renderBuildings() : html`<div class="map">מפת אתרים (לוח 3 · מסך 17) תצטרף עם שכבת מיקום גאוגרפי · Beta</div>`}
+      <sw-page heading="אתרים ומבנים" subheading=${`ניהול המיקומים והמבנים שלך${tree.source === 'demo' ? ' · נתוני הדגמה' : ''}`}>
+        ${tree.canCreateSite ? html`<sw-button slot="actions" variant="primary" icon="plus" @click=${() => this.open({ kind: 'site' })}>אתר חדש</sw-button>` : nothing}
+        <sw-tabs .items=${[{ id: 'all', label: 'כל האתרים', count: tree.sites.length }, { id: 'buildings', label: 'מבנים', count: tree.sites.reduce((n, s) => n + (s.buildings?.length ?? 0), 0) }, { id: 'map', label: 'מפה' }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>
+        ${tree.sites.length === 0 && this.tab === 'all'
+          ? html`<sw-state-panel state="empty" heading="עוד אין אתרים" hint="התחל ביצירת האתר הראשון; אחר כך מבנה, קומות ותוכניות.">${tree.canCreateSite ? html`<div style="margin-block-start:10px"><sw-button variant="primary" icon="plus" @click=${() => this.open({ kind: 'site' })}>אתר חדש</sw-button></div>` : nothing}</sw-state-panel>`
+          : this.tab === 'all' ? this.renderSites(tree) : this.tab === 'buildings' ? this.renderBuildings(tree) : html`<div class="map">מפת אתרים (לוח 3 · מסך 17) תצטרף עם שכבת מיקום גאוגרפי · Beta</div>`}
+        ${d
+          ? html`<sw-dialog open heading=${d.kind === 'site' ? 'אתר חדש' : 'מבנה חדש'} subheading=${d.kind === 'building' ? d.site.name : 'שם, כתובת ואזור זמן ברירת מחדל Asia/Jerusalem'} @close=${() => (this.dialog = null)}>
+              <sw-field label="שם"><input .value=${this.formName} @input=${(e: Event) => (this.formName = (e.target as HTMLInputElement).value)} placeholder=${d.kind === 'site' ? 'למשל: משרדי החברה' : 'למשל: מבנה א'} /></sw-field>
+              ${d.kind === 'site' ? html`<sw-field label="כתובת (אופציונלי)"><input .value=${this.formAddress} @input=${(e: Event) => (this.formAddress = (e.target as HTMLInputElement).value)} /></sw-field>` : nothing}
+              ${this.error ? html`<div class="err">${this.error}</div>` : nothing}
+              ${tree.source === 'demo' ? html`<div class="err">נתוני הדגמה: אין שרת מחובר, השינוי לא יישמר.</div>` : nothing}
+              <sw-button slot="footer" variant="ghost" @click=${() => (this.dialog = null)}>ביטול</sw-button>
+              <sw-button slot="footer" variant="primary" ?disabled=${!this.formName.trim() || this.busy || tree.source === 'demo'} @click=${() => this.submit()}>${d.kind === 'site' ? 'צור אתר' : 'צור מבנה'}</sw-button>
+            </sw-dialog>`
+          : nothing}
       </sw-page>
     `;
   }
