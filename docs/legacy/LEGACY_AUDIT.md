@@ -80,8 +80,9 @@ this exact version is what runs today; live view (HD/SD), recording search, play
 |---|---|---|
 | Search XML shape and pagination work on this NVR | **Yes** | `scripts/lab/nvr_probe.py --search`, three time tests |
 | Time semantics (local wall clock, STD mode shift) | **Yes** (one session, DST period) | `time_test_Q1..Q3.xml`; repeat in winter |
-| Playback RTSP URL from playbackURI plays through go2rtc | Owner statement | needs T006 measurement |
-| ISAPI download variant that succeeds | Not verified | T006 |
+| Playback RTSP URL from playbackURI plays through go2rtc | Owner statement + log (go2rtc accepts `pb_*` sources, HTTP 200) | needs T006 measurement of first-frame time |
+| Legacy display times are correct | **Open** — log implies an effective +120 min display offset, owner reports +0 | parity question to owner (KNOWN_QUIRKS T5) |
+| ISAPI download variant that succeeds | **Yes** (owner log 2026-09-08: variant 1 + GET → 200, `Opaque/data`) | container format still to inspect in T006 |
 | Manual record method variant that succeeds | Not verified | T004 (requires write approval) |
 | go2rtc API stream persistence | see `docs/operations/G0_INTAKE.md` | `scripts/lab/go2rtc_persistence_probe.py` |
 | Events engines | Disabled in production | learn only |
