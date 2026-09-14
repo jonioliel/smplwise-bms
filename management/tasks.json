@@ -24,8 +24,8 @@
       "AT001",
       "AT002"
     ],
-    "status": "BLOCKED",
-    "blocker": "Actual working legacy repository/snapshot and its run instructions have not been supplied.",
+    "status": "IN_PROGRESS",
+    "blocker": null,
     "priority": "P0",
     "model_policy": {
       "implementation": "balanced",
@@ -39,8 +39,15 @@
       "Documentation, known limits and rollback notes",
       "Technical review record"
     ],
-    "evidence": [],
-    "owner": null,
+    "evidence": [
+      "docs/legacy/LEGACY_AUDIT.md",
+      "docs/legacy/REUSE_MATRIX.md",
+      "docs/legacy/KNOWN_QUIRKS.md",
+      "docs/legacy/LEGACY_SECURITY_FINDINGS.md",
+      "legacy/README.md (local branch legacy/import, commit ab19bf1)",
+      "open: run legacy locally for characterization fixtures (T004) before DONE"
+    ],
+    "owner": "Claude Code (tech lead); approver: product owner",
     "commit": null,
     "actual_cost_usd": null
   },
@@ -71,7 +78,7 @@
       "AT003",
       "AT004"
     ],
-    "status": "BACKLOG",
+    "status": "IN_PROGRESS",
     "blocker": null,
     "priority": "P0",
     "model_policy": {
@@ -86,8 +93,15 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
-    "owner": null,
+    "evidence": [
+      "docs/operations/G0_INTAKE.md",
+      "scripts/lab/nvr_probe.py",
+      "scripts/lab/ha_probe.py",
+      "scripts/lab/go2rtc_persistence_probe.py",
+      "private-evidence/nvr-probes/20260914T071715Z/ (local only)",
+      "open: dedicated non-admin NVR account, SSH/admin install path, action log"
+    ],
+    "owner": "Claude Code; approver: product owner",
     "commit": null,
     "actual_cost_usd": null
   },
@@ -284,7 +298,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (G0): go2rtc 1.9.14 API PUT persists to config, DELETE removes — private-evidence/go2rtc-probes/*/verdict.json; ADR-013"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
@@ -319,7 +335,7 @@
       "AT013",
       "AT014"
     ],
-    "status": "BACKLOG",
+    "status": "READY",
     "blocker": null,
     "priority": "P0",
     "model_policy": {
@@ -335,7 +351,7 @@
       "Build screenshots matching design reference"
     ],
     "evidence": [],
-    "owner": null,
+    "owner": "Claude Code",
     "commit": null,
     "actual_cost_usd": null
   },
@@ -690,7 +706,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (G0): search times are local wall clock, STD mode shifts responses +1h in DST — docs/legacy/KNOWN_QUIRKS.md §1"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null

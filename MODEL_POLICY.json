@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "status": "ACTIVE_LOCAL",
+  "resolved_on": "2026-09-14",
+  "runtime": "Claude Code desktop session; no separate dispatcher or runner",
+  "aliases": {
+    "balanced": {
+      "model_id": "claude-fable-5-1",
+      "reasoning_effort": "medium"
+    },
+    "deep": {
+      "model_id": "claude-fable-5-1",
+      "reasoning_effort": "high"
+    }
+  },
+  "constraints": {
+    "max_repair_attempts": 2,
+    "approved_spend_limit_usd": null,
+    "allow_paid_calls": false,
+    "allow_physical_actions": false,
+    "allow_production_deployment": false
+  },
+  "note": "Aliases map to the model running the interactive session. Task text never switches models; the owner chooses the session model. No paid cloud calls are made by project code."
+}

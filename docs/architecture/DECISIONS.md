@@ -7,11 +7,15 @@
 | ADR-003 | Immutable source plans + normalized geometry + versioned placements | Binding; contracts are initial design |
 | ADR-004 | Internal UTC instants, per-source time adapters, IANA display timezone | Binding; source semantics proven in lab |
 | ADR-005 | No source credentials/control in browser; authorized WebRTC data path permitted | Binding; principal/media policy in T011 |
-| ADR-006 | Playback strategy selected by evidence | OPEN: RTSP session / bounded clip / remux; no transparent hot-swap assumption |
+| ADR-006 | Playback strategy selected by evidence | OPEN: RTSP session / bounded clip / remux; no transparent hot-swap assumption. Lab 2026-09-14: go2rtc API persists streams; NVR download by file only; direction in ADR-013 |
 | ADR-007 | Plan AI proposes geometry; deterministic renderer owns style | Binding; human publish gate |
 | ADR-008 | Initial single-node durable store and bounded job queues | Proposed; avoid unnecessary distributed architecture |
 | ADR-009 | Four main modes, shared UI, original design assets preserved | Binding; no separate card UI fork |
-| ADR-010 | Codex aliases resolved locally; dispatcher optional | Binding; not an installed controller |
+| ADR-010 | Codex aliases resolved locally; dispatcher optional | Binding; resolved in MODEL_POLICY.json (Claude Code session) |
+| ADR-011 | Browser media path: add-on relays go2rtc signalling, per-camera authorization, WebRTC/MSE | Approved 2026-09-14; evidence gate T015/T017 ([ADR-011](ADR-011-browser-media-path.md)) |
+| ADR-012 | Identity via Supervisor Ingress headers + thin bridge integration | Approved 2026-09-14; evidence gate T081/T083 ([ADR-012](ADR-012-identity-via-ingress-and-bridge.md)) |
+| ADR-013 | Playback: go2rtc session pool from NVR RTSP playback, export by file | Approved direction; ADR-006 closes after T006 ([ADR-013](ADR-013-playback-engine-and-go2rtc-pool.md)) |
+| ADR-014 | Monorepo = add-on repository; local Supervisor build first, GHCR images before pilot | Approved 2026-09-14 ([ADR-014](ADR-014-repository-and-deployment.md)) |
 
 Each implementation ADR must include context, alternatives, chosen behavior, impact on API/schema/permissions/UX, test evidence and rollback. No open assumption becomes supported solely because it appears in this table.
 

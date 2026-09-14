@@ -2,7 +2,7 @@
   "project": "SMPLWISE VMS",
   "version": "1.1.0-planning",
   "created_at": "2026-09-14",
-  "implementation_status": "NOT_STARTED",
+  "implementation_status": "G0_IN_PROGRESS",
   "baseline": "User requirements + preserved mockups + historical specs; no live code/hardware audit performed.",
   "phases": [
     "G0",
@@ -20,15 +20,15 @@
   },
   "deadline": {
     "pilot_sprint_target_workdays": 7,
-    "start_date": null,
+    "start_date": "2026-09-14",
     "commitment": false
   },
   "readiness": {
-    "legacy_source": "missing",
-    "local_codex": "not_verified",
-    "nvr_lab": "not_verified",
-    "ha_lab": "not_verified",
-    "go2rtc_lab": "not_verified"
+    "legacy_source": "obtained: Hikvision NVR Panel add-on v1.5.27 (local branch legacy/import, not published)",
+    "local_codex": "n/a: Claude Code session (claude-fable-5-1), see MODEL_POLICY.json",
+    "nvr_lab": "verified read-only 2026-09-14: DS-7616NXI-K2(D) V4.84.101, ISAPI port 90",
+    "ha_lab": "HA Core 2026.9.2 reachable with non-admin token (user codex); Ingress identity path not yet verified",
+    "go2rtc_lab": "verified 2026-09-14: go2rtc 1.9.14, API stream persistence confirmed"
   },
   "updated_at": "2026-09-14",
   "change_requests": [
@@ -39,5 +39,6 @@
     "authorization": "VMS role + scope; intersect HA permissions for HA resources/actions",
     "ha_user_mutation": false,
     "pilot_scope": "HA users, groups, built-in scoped roles, verified Ingress, revocation, negative authorization tests"
-  }
+  },
+  "repository": "https://github.com/jonioliel/smplwise-bms (public; legacy code excluded by owner decision)"
 }
