@@ -446,7 +446,7 @@
       "AT017",
       "AT018"
     ],
-    "status": "IN_PROGRESS",
+    "status": "BACKLOG",
     "blocker": null,
     "priority": "P0",
     "model_policy": {
@@ -462,6 +462,7 @@
       "Build screenshots matching design reference"
     ],
     "evidence": [
+      "pre-evidence: implemented ahead of dependency closure (T005/T006/T008 contracts lock, T076/T077 bridge); status stays BACKLOG until dependencies are DONE per project_status rules",
       "repository.yaml + smplwise_vms/{config.yaml,Dockerfile,build.yaml,run.sh,DOCS.md,CHANGELOG.md}: Ingress-only add-on (ingress_port 8099, panel_admin false, watchdog /healthz, backup hot, options for bootstrap admin / NVR read-only creds / go2rtc)",
       "backend: smplwise_vms/backend (FastAPI + SQLite in /data, versioned migrations, error model, correlation ids); built UI committed under smplwise_vms/www (npm run build:addon)",
       "open: first install from the GitHub repository on the lab HA (owner does it from the HA UI); Supervisor build of the Dockerfile not yet exercised (no Docker on the workstation); CI (GHCR images) deferred to the pilot gate per ADR-014"
@@ -551,7 +552,7 @@
       "AT021",
       "AT022"
     ],
-    "status": "IN_PROGRESS",
+    "status": "BACKLOG",
     "blocker": null,
     "priority": "P0",
     "model_policy": {
@@ -567,6 +568,7 @@
       "Build screenshots matching design reference"
     ],
     "evidence": [
+      "pre-evidence: implemented ahead of dependency closure (T005/T006/T008 contracts lock, T076/T077 bridge); status stays BACKLOG until dependencies are DONE per project_status rules",
       "smplwise/auth.py + rbac.py: identity only from X-Remote-User-* headers when the request comes from the Supervisor proxy (172.30.32.2); dev mode never active inside the add-on; explicit bootstrap of the first system_admin from the add-on option; default deny, scoped bindings installation>site>building>floor, denials audited",
       "tests: smplwise_vms/backend/tests/test_rbac.py - mandatory case (editor of floor 2 cannot see/edit floor 3, cannot create sites or sync cameras), unassigned user sees nothing, forged identity from untrusted origin rejected, trusted-proxy headers accepted, 13/17 contract vectors executed (4 covered by other tasks) - 17 backend tests PASS 2026-09-14",
       "open: group/binding management API (T083), HA-side permission intersection through the bridge (T077), real Ingress header evidence on the lab HA (T081)"
@@ -606,7 +608,7 @@
       "AT023",
       "AT024"
     ],
-    "status": "IN_PROGRESS",
+    "status": "BACKLOG",
     "blocker": null,
     "priority": "P0",
     "model_policy": {
@@ -622,6 +624,7 @@
       "Build screenshots matching design reference"
     ],
     "evidence": [
+      "pre-evidence: implemented ahead of dependency closure (T005/T006/T008 contracts lock, T076/T077 bridge); status stays BACKLOG until dependencies are DONE per project_status rules",
       "smplwise/services/nvr.py: read-only ISAPI adapter (deviceInfo, InputProxy channels + status, record tracks) with digest auth and bounded timeouts; lab run 2026-09-14: DS-7616NXI-K2(D) V4.84.101, 10 channels online, per-track codec/resolution/fps/bitrate recorded as evidence",
       "open: capability matrix (PTZ/audio/smart search) and supported/unsupported/unknown states beyond stream facts"
     ],
@@ -658,7 +661,7 @@
       "AT025",
       "AT026"
     ],
-    "status": "IN_PROGRESS",
+    "status": "BACKLOG",
     "blocker": null,
     "priority": "P0",
     "model_policy": {
@@ -674,6 +677,7 @@
       "Build screenshots matching design reference"
     ],
     "evidence": [
+      "pre-evidence: implemented ahead of dependency closure (T005/T006/T008 contracts lock, T076/T077 bridge); status stays BACKLOG until dependencies are DONE per project_status rules",
       "cameras table keyed by (recorder, channel) with stable ids, local alias and order; track ids taken from Track/id + SrcDescriptor/SrcChannel (never channel*100+1); re-sync keeps ids and aliases (tests/test_cameras.py, tests/test_nvr_parse.py)",
       "lab: POST /api/v1/cameras/sync discovered 10 channels with NVR names and main tracks 101..1001; sub-stream tracks are not listed by this firmware's record/tracks (recorded, not assumed)"
     ],
@@ -969,7 +973,7 @@
       "AT037",
       "AT038"
     ],
-    "status": "IN_PROGRESS",
+    "status": "BACKLOG",
     "blocker": null,
     "priority": "P0",
     "model_policy": {
@@ -985,6 +989,7 @@
       "Build screenshots matching design reference"
     ],
     "evidence": [
+      "pre-evidence: implemented ahead of dependency closure (T005/T006/T008 contracts lock, T076/T077 bridge); status stays BACKLOG until dependencies are DONE per project_status rules",
       "schema 0001_init.sql: sites/buildings/floors (soft delete, sort_order, level, ha_area_id), plan_assets (immutable original + sha256), plan_versions (draft/published/archived, revision), map_anchors (effective_from/to tombstones, revision), audit_log",
       "API: GET /sites?tree (visibility filtered by scoped bindings), CRUD for sites/buildings/floors, floor delete refuses with 409 has_anchors unless force (anchors tombstoned, versions archived); viewers read only published versions",
       "UI: explore-sites / explore-floors on real data (create site, building, floor; rename; delete with conflict handling); private-evidence/T019-live/*.png (real plans = customer data, gitignored) captured against the running backend 2026-09-14"
@@ -1021,7 +1026,7 @@
       "AT039",
       "AT040"
     ],
-    "status": "IN_PROGRESS",
+    "status": "BACKLOG",
     "blocker": null,
     "priority": "P0",
     "model_policy": {
@@ -1037,6 +1042,7 @@
       "Build screenshots matching design reference"
     ],
     "evidence": [
+      "pre-evidence: implemented ahead of dependency closure (T005/T006/T008 contracts lock, T076/T077 bridge); status stays BACKLOG until dependencies are DONE per project_status rules",
       "services/plan_render.py: content sniffing (PDF/PNG/JPG; SVG rejected), 40 MB / 20 pages limits, PDF page rasterization by pdftoppm subprocess with timeout (PyMuPDF only as developer fallback), EXIF-safe image normalization, rotation + normalized crop applied to a derived PNG, originals untouched",
       "API: POST /floors/{id}/plan-assets (multipart), page previews, POST plan-versions (page/rotation/crop/notes), publish (anchors carried only when geometry is identical, else needs_alignment), delete draft; tests/test_plans.py PASS",
       "lab: the owner's three real plan PDFs (private-evidence, local only) uploaded and published through the API and rendered in the map at 3000 px",
@@ -1076,7 +1082,7 @@
       "AT041",
       "AT042"
     ],
-    "status": "IN_PROGRESS",
+    "status": "BACKLOG",
     "blocker": null,
     "priority": "P0",
     "model_policy": {
@@ -1092,6 +1098,7 @@
       "Build screenshots matching design reference"
     ],
     "evidence": [
+      "pre-evidence: implemented ahead of dependency closure (T005/T006/T008 contracts lock, T076/T077 bridge); status stays BACKLOG until dependencies are DONE per project_status rules",
       "explore-plan-editor.ts: drag pins (normalized coordinates independent of zoom), numeric X/Y/rotation/FOV, add cameras from the registry, delete, undo/redo, save with optimistic revisions (409 stale_revision reloads instead of overwriting), publish draft; sw-plan-canvas raster background + marker-move events",
       "lab 2026-09-14: camera 'כניסה ראשית' (NVR channel 4) placed and dragged on the real floor-0 plan, saved (revision 2) and shown on the viewer map with its floating card",
       "open: scale calibration, round-trip test after resize, multi-select, area/label tools (Beta)"
