@@ -78,6 +78,20 @@ def _get(client: httpx.Client, path: str) -> str:
     return r.text
 
 
+def fetch_snapshot(settings: Settings, channel: int) -> bytes:
+    """One JPEG frame of the channel's main stream (ISAPI picture endpoint; read-only)."""
+    with _client(settings) as client:
+        try:
+            r = client.get(f"/ISAPI/Streaming/channels/{channel}01/picture")
+        except httpx.HTTPError as exc:
+            raise ApiError(503, "source_unavailable", "ה־NVR אינו זמין כרגע.", retryable=True, details={"op": "snapshot", "error": type(exc).__name__}) from exc
+    if r.status_code in (401, 403):
+        raise ApiError(503, "source_forbidden", "ה־NVR דחה את פרטי הגישה.", details={"op": "snapshot", "status": r.status_code})
+    if r.status_code != 200 or not r.content.startswith(b"\xff\xd8\xff"):
+        raise ApiError(503, "snapshot_unavailable", "ה־NVR לא סיפק תמונה לערוץ זה.", retryable=True, details={"op": "snapshot", "status": r.status_code})
+    return r.content
+
+
 def device_info(settings: Settings) -> dict[str, str]:
     with _client(settings) as client:
         xml = _get(client, "/ISAPI/System/deviceInfo")

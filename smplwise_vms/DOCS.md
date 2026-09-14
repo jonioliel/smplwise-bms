@@ -14,9 +14,12 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
    - `bootstrap_admin_username` — the Home Assistant **username** (not display name) that becomes the
      VMS system administrator. The grant happens once, on that user's first visit, and is written to
      the audit log. Leave everything else empty for now if you only want to try the maps.
-   - `nvr_host`, `nvr_http_port`, `nvr_username`, `nvr_password` — read-only ISAPI access used by
-     "Sync cameras". Prefer a dedicated non-admin NVR account. The add-on never changes NVR settings.
-   - `go2rtc_url` — reserved for the live-video build.
+   - `nvr_host`, `nvr_http_port`, `nvr_rtsp_port`, `nvr_username`, `nvr_password` — read-only ISAPI
+     access used by "Sync cameras" and snapshots; the RTSP port is what go2rtc pulls video from. Prefer
+     a dedicated non-admin NVR account. The add-on never changes NVR settings.
+   - `go2rtc_url` — the external go2rtc API, e.g. `http://<ha-host>:1984` (the AlexxIT add-on). The
+     product creates only streams named `smplwise_*` there and never touches other streams. Optional
+     `go2rtc_api_username` / `go2rtc_api_password` if the go2rtc API is protected.
 4. Start the add-on and open it from the sidebar (**SMPLWISE VMS**).
 
 ## Identity and access
@@ -34,11 +37,37 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   included in Home Assistant backups (`backup: hot`).
 - Original plan uploads are never modified; backgrounds are derived and can be regenerated.
 
+## Live video
+
+- Browser ↔ add-on WebSocket relay ↔ go2rtc. The browser never learns the go2rtc address or any
+  RTSP URL; every stream request is authorized per camera (a viewer sees only cameras anchored on
+  floors in their scope).
+- Transport: **WebRTC** (lowest latency; needs UDP between the browser and the go2rtc host — fine on
+  the LAN) with automatic fallback to **MSE** (works through Ingress and Cloudflare tunnels). The
+  product default is set in Settings → וידאו ומדיה (`auto` / `webrtc` / `mse`); every player can
+  override it for the current browser.
+- What to expect with a Hikvision NVR (measured on the pilot lab, Chrome): the **sub** profile (H.264
+  Baseline 640×360) plays over WebRTC within a few seconds; the **main** profile (H.264 Main
+  2560×1440) connects over WebRTC but browsers do not decode it from RTP, so `auto` switches to MSE
+  after ~12 s. MSE shows the first frame only at the next key frame — with the NVR's ~8 s GOP that is
+  8–12 s. Failed streams retry with back-off (3 s → 30 s); a denied camera or a quota hit is shown as
+  such and never as "live".
+- First open the streams in go2rtc: Settings → וידאו ומדיה → **סנכרון זרמים** (system.configure).
+  Only `smplwise_*` streams are created or updated; other streams on the same go2rtc are listed as
+  "foreign" and never touched.
+- Camera tiles show a fresh NVR snapshot (read-only ISAPI picture, cached in /data for
+  `snapshots.max_age_s`) until the stream plays.
+- Session cap (`media.max_live_sessions`, default 8) protects the NVR; the wall and the kiosk use sub
+  streams, the single-camera view the main stream. Tiles beyond the cap show the snapshot only.
+
 ## Limits in this build
 
 - Uploads: PDF/PNG/JPG up to 40 MB, PDF up to 20 pages; SVG and DWG/DXF are rejected.
 - PDF rasterization runs in a separate process (pdftoppm) with a 30 s limit.
-- No live video or playback yet; camera tiles show illustrated placeholders tagged "דמו".
+- No playback/timeline or events yet. PTZ and two-way audio are not exposed until the capability is
+  verified per camera.
+- Live video needs a browser with H.264 support (Chrome, Edge, Safari, Firefox on desktop); Playwright's
+  bundled Chromium has none, so the evidence suites run with `SW_CHROME=1`.
 
 ## Troubleshooting
 

@@ -465,7 +465,8 @@
       "pre-evidence: implemented ahead of dependency closure (T005/T006/T008 contracts lock, T076/T077 bridge); status stays BACKLOG until dependencies are DONE per project_status rules",
       "repository.yaml + smplwise_vms/{config.yaml,Dockerfile,build.yaml,run.sh,DOCS.md,CHANGELOG.md}: Ingress-only add-on (ingress_port 8099, panel_admin false, watchdog /healthz, backup hot, options for bootstrap admin / NVR read-only creds / go2rtc)",
       "backend: smplwise_vms/backend (FastAPI + SQLite in /data, versioned migrations, error model, correlation ids); built UI committed under smplwise_vms/www (npm run build:addon)",
-      "open: first install from the GitHub repository on the lab HA (owner does it from the HA UI); Supervisor build of the Dockerfile not yet exercised (no Docker on the workstation); CI (GHCR images) deferred to the pilot gate per ADR-014"
+      "open: first install from the GitHub repository on the lab HA (owner does it from the HA UI); Supervisor build of the Dockerfile not yet exercised (no Docker on the workstation); CI (GHCR images) deferred to the pilot gate per ADR-014",
+      "owner installed the add-on from github.com/jonioliel/smplwise-bms (main, 0.1.0) into his Home Assistant and started it 2026-09-14 ('it went up and seems to work roughly'): Supervisor build, run.sh and Ingress verified on the pilot HA; CI/GHCR still open"
     ],
     "owner": null,
     "commit": null,
@@ -784,7 +785,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (segment 2, 2026-09-14): smplwise_vms/backend/smplwise/services/go2rtc.py - namespaced smplwise_* streams only, sources written server-side and redacted in logs/audit (httpx logging capped at WARNING); POST /api/v1/media/streams/sync created 20 streams and left 33 foreign streams untouched on the lab go2rtc 1.9.14 (audit media.streams.sync); tests/test_media.py namespace guard with FakeGo2rtc"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
@@ -833,7 +836,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (segment 2, 2026-09-14): routers/media.py SessionRegistry - one session per relay socket, cap media.max_live_sessions (close 4429), video.live.start/stop audited with seconds and bytes, released in finally even when the audit write fails (BEGIN IMMEDIATE fixes 'database is locked' when sessions end together); GET /api/v1/media/sessions; 4 wall / 8 kiosk sessions verified to open and close with the browser"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
@@ -885,7 +890,11 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (segment 2, 2026-09-14): frontend/src/components/sw-live-player.ts - WebRTC offer/answer/candidates through the authorized relay, MSE fMP4 fallback on a fresh socket, snapshot poster, status pill, mute, fullscreen, back-off retry; per-camera authorization via camera_allowed (viewer sees only anchored cameras), transport default in Settings with per-browser override",
+      "lab measurement (real Chrome, headless): sub profile H.264 Baseline 640x360 plays over WebRTC in ~4 s (0 PLI); main profile H.264 Main 2560x1440 connects over WebRTC but never decodes (PLI storm) and auto mode falls back to MSE, first frame after the NVR's ~8 s GOP; failures render as 'לא זמין', never as live",
+      "frontend/tests/evidence-video.spec.ts 4 PASS + evidence-live.spec.ts 1 PASS (SW_LIVE=1 SW_CHROME=1, desktop) 2026-09-14; screenshots in private-evidence/T017-live (customer frames, local only)"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
@@ -935,7 +944,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (segment 2, 2026-09-14): live-wall.ts 1/2/4/6/8/9/12/16 layouts with real sub streams, snapshot posters, cap-aware (poster beyond media.max_live_sessions), auto/main/sub selector; kiosk-wall.ts 3x3 real streams; saved views, reorder/pin and mobile override still open"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
@@ -4201,7 +4212,9 @@
       "Acceptance evidence tied to commit and environment",
       "Desktop/mobile/RTL screenshots for UI tasks"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (2026-09-14): the owner opened the add-on through Ingress on his HA and reached the UI without the 'no identity' gate, so the X-Remote-User-* headers arrived; explicit confirmation that his HA name shows top-right is still pending"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null

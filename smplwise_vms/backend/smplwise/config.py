@@ -26,6 +26,9 @@ class Settings:
     nvr_password: str | None
     go2rtc_url: str | None
     log_level: str
+    nvr_rtsp_port: int = 554
+    go2rtc_user: str | None = None
+    go2rtc_password: str | None = None
     max_upload_bytes: int = 40 * 1024 * 1024
     max_pdf_pages: int = 20
     max_render_px: int = 3000
@@ -78,4 +81,7 @@ def load_settings(options_file: str | os.PathLike | None = None) -> Settings:
         nvr_password=_opt(options, "nvr_password", "NVR_PASSWORD"),
         go2rtc_url=_opt(options, "go2rtc_url", "GO2RTC_URL"),
         log_level=(_opt(options, "log_level", "SW_LOG_LEVEL", "info") or "info").lower(),
+        nvr_rtsp_port=int(_opt(options, "nvr_rtsp_port", "NVR_RTSP_PORT", "554") or 554),
+        go2rtc_user=_opt(options, "go2rtc_api_username", "GO2RTC_API_USER"),
+        go2rtc_password=_opt(options, "go2rtc_api_password", "GO2RTC_API_PASSWORD"),
     )

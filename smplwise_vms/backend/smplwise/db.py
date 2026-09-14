@@ -60,7 +60,10 @@ class Database:
 
         conn = self._open()
         try:
-            conn.execute("BEGIN")
+            # IMMEDIATE: take the write lock up front (honouring busy_timeout). A deferred BEGIN that
+            # reads first and writes later fails at once with "database is locked" (SQLITE_BUSY_SNAPSHOT)
+            # whenever another request committed in between, e.g. two live sessions ending together.
+            conn.execute("BEGIN IMMEDIATE")
             yield conn
             conn.execute("COMMIT")
         except ApiError:

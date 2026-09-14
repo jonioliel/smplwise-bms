@@ -12,9 +12,10 @@ export default defineConfig({
   },
   server: {
     // Dev loop: the FastAPI backend runs on 8099 (`python -m smplwise` with SW_DEV_USER); the UI on 5173.
-    proxy: { '/api': 'http://127.0.0.1:8099', '/healthz': 'http://127.0.0.1:8099' },
+    // `ws: true` forwards the live-video WebSocket relay (/api/v1/media/live/<id>/ws) as well.
+    proxy: { '/api': { target: 'http://127.0.0.1:8099', ws: true }, '/healthz': 'http://127.0.0.1:8099' },
   },
   preview: {
-    proxy: { '/api': 'http://127.0.0.1:8099', '/healthz': 'http://127.0.0.1:8099' },
+    proxy: { '/api': { target: 'http://127.0.0.1:8099', ws: true }, '/healthz': 'http://127.0.0.1:8099' },
   },
 });

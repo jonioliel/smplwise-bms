@@ -12,6 +12,8 @@ export default defineConfig({
     locale: 'he-IL',
     timezoneId: 'Asia/Jerusalem',
     colorScheme: 'light',
+    // Live-video evidence needs H.264: SW_CHROME=1 runs the installed Google Chrome instead of bundled Chromium.
+    ...(process.env.SW_CHROME === '1' ? { channel: 'chrome' as const } : {}),
   },
   webServer: {
     command: 'npm run preview',

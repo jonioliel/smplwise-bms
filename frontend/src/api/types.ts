@@ -94,6 +94,7 @@ export interface Camera {
   status: 'online' | 'offline' | 'unknown';
   last_seen_at: string | null;
   stream?: { codec?: string; resolution?: string; fps?: number; bitrate_kbps?: number } | null;
+  can_view_live?: boolean;
 }
 
 export interface Anchor {

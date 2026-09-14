@@ -9,13 +9,17 @@ from typing import Any
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
+from fastapi.responses import Response
+
 from ..audit import audit
 from ..auth import current_principal, get_conn, settings_of
 from ..db import new_id, now_iso
-from ..errors import not_found
+from ..errors import ApiError, not_found
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import nvr
+from ..services.access import camera_allowed, visible_camera_ids
 from .anchors import camera_row
+from .settings import read_settings
 
 router = APIRouter()
 
@@ -39,21 +43,50 @@ def list_cameras(principal: Principal = Depends(current_principal), conn: sqlite
     """Cameras the caller may see: everything for installation-wide readers, otherwise only cameras
     anchored on floors the caller can read."""
     rows = conn.execute("SELECT * FROM cameras ORDER BY sort_order, channel").fetchall()
-    if authorize(conn, principal, "map.read", INSTALLATION).allowed:
-        visible = rows
-    else:
-        readable_floors = {
-            f["id"] for f in conn.execute("SELECT id FROM floors WHERE deleted_at IS NULL").fetchall()
-            if authorize(conn, principal, "map.read", ("floor", f["id"])).allowed
-        }
-        anchored = {a["resource_id"] for a in conn.execute("SELECT resource_id, floor_id FROM map_anchors WHERE resource_type = 'camera' AND effective_to IS NULL").fetchall() if a["floor_id"] in readable_floors}
-        visible = [r for r in rows if r["id"] in anchored]
+    ids = visible_camera_ids(conn, principal, "map.read")
+    visible = rows if ids is None else [r for r in rows if r["id"] in ids]
     recorder = conn.execute("SELECT * FROM recorders WHERE id = ?", (DEFAULT_RECORDER,)).fetchone()
+    live_ok = {r["id"]: camera_allowed(conn, principal, r["id"], "video.live") for r in visible}
     return {
-        "cameras": [camera_row(r) for r in visible],
+        "cameras": [dict(camera_row(r), can_view_live=live_ok[r["id"]]) for r in visible],
         "recorder": {"id": recorder["id"], "name": recorder["name"], "model": recorder["model"], "firmware": recorder["firmware"], "last_seen_at": recorder["last_seen_at"]} if recorder else None,
         "can_sync": authorize(conn, principal, "sources.configure", INSTALLATION).allowed,
+        "media": read_settings(conn),
     }
+
+
+@router.get("/cameras/{camera_id}/snapshot.jpg")
+def snapshot(camera_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Response:
+    """Fresh JPEG from the NVR (read-only), cached in /data for `snapshots.max_age_s`; a stale copy is
+    served with X-Snapshot-Stale when the NVR is unreachable. Same permission as live video."""
+    settings = settings_of(request)
+    cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
+    if not cam:
+        raise not_found("המצלמה לא נמצאה.")
+    if not camera_allowed(conn, principal, camera_id, "video.live"):
+        require(conn, principal, "video.live", ("installation", "*"))
+    max_age = read_settings(conn)["snapshots.max_age_s"]
+    folder = settings.data_dir / "snapshots"
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / f"{camera_id}.jpg"
+    stale_ok = path.exists()
+    fresh = stale_ok and (now_ts() - path.stat().st_mtime) < max_age
+    if not fresh:
+        try:
+            data = nvr.fetch_snapshot(settings, cam["channel"])
+            path.write_bytes(data)
+        except ApiError as exc:
+            if not stale_ok:
+                raise
+            return Response(path.read_bytes(), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=10", "X-Snapshot-Stale": "true", "X-Snapshot-Error": exc.code})
+    age = int(now_ts() - path.stat().st_mtime)
+    return Response(path.read_bytes(), media_type="image/jpeg", headers={"Cache-Control": f"private, max-age={max(1, max_age - age)}", "X-Snapshot-Age": str(age)})
+
+
+def now_ts() -> float:
+    import time
+
+    return time.time()
 
 
 @router.post("/cameras/sync")

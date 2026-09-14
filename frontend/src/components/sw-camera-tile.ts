@@ -3,6 +3,7 @@ import { customElement, property } from 'lit/decorators.js';
 import './sw-icon';
 import './sw-badge';
 import './sw-scene';
+import './sw-live-player';
 import type { StateKind } from './sw-badge';
 import type { SceneKind } from './sw-scene';
 
@@ -25,6 +26,12 @@ export class SwCameraTile extends LitElement {
   @property({ type: Boolean, reflect: true }) dark = false;
   @property({ type: Boolean, reflect: true }) noDemo = false;
   @property() stamp = '';
+  /** Real picture: snapshot URL (poster) and/or a live stream through the relay. */
+  @property() poster = '';
+  @property() cameraId = '';
+  @property({ type: Boolean }) live = false;
+  @property() profile: 'sub' | 'main' = 'sub';
+  @property() transport: 'auto' | 'webrtc' | 'mse' = 'auto';
 
   static styles = css`
     :host {
@@ -46,9 +53,14 @@ export class SwCameraTile extends LitElement {
     :host([selected]) {
       box-shadow: 0 0 0 2px var(--sw-accent), var(--sw-shadow-2);
     }
-    sw-scene {
+    sw-scene,
+    sw-live-player,
+    img.poster {
       position: absolute;
       inset: 0;
+      inline-size: 100%;
+      block-size: 100%;
+      object-fit: cover;
     }
     .shade {
       position: absolute;
@@ -181,10 +193,15 @@ export class SwCameraTile extends LitElement {
         ${this.name ? html`<span class="label"><span class="dot"></span>${this.name}</span>` : nothing}
       </div>`;
     }
+    const real = this.live && this.cameraId ? 'live' : this.poster ? 'poster' : 'scene';
     return html`
-      <sw-scene kind=${this.scene}></sw-scene>
+      ${real === 'live'
+        ? html`<sw-live-player .cameraId=${this.cameraId} .profile=${this.profile} .mode=${this.transport} .poster=${this.poster} compact></sw-live-player>`
+        : real === 'poster'
+          ? html`<img class="poster" src=${this.poster} alt="" />`
+          : html`<sw-scene kind=${this.scene}></sw-scene>`}
       <div class="shade"></div>
-      ${this.noDemo ? nothing : html`<span class="demo">דמו</span>`}
+      ${real === 'scene' && !this.noDemo ? html`<span class="demo">דמו</span>` : real === 'poster' ? html`<span class="demo">צילום</span>` : nothing}
       ${this.state === 'stale' || this.state === 'recorded' || this.state === 'historic' ? html`<sw-badge class="pill" onImage kind=${this.state}></sw-badge>` : nothing}
       ${this.name ? html`<span class="label"><span class="dot"></span>${this.name}</span>` : nothing}
       ${this.stamp ? html`<span class="stamp">${this.stamp}</span>` : this.meta && !this.compact ? html`<span class="meta">${this.meta}</span>` : nothing}

@@ -18,7 +18,9 @@ import { demoScene } from '../fixtures/catalog';
 import { t } from '../i18n/he';
 import { navigate } from '../router';
 import { cameraState, loadMap, type MapBundle } from '../api/maps';
-import { loadTree, type CatalogTree } from '../api/catalog';
+import { snapshotUrl } from '../api/media';
+import { findFloor, firstFloor, loadTree, type CatalogTree } from '../api/catalog';
+import { isApi } from '../api/session';
 import { describeError } from '../api/client';
 import type { Anchor } from '../api/types';
 
@@ -287,9 +289,17 @@ export class ExploreFloorMap extends LitElement {
   private async load() {
     this.loadError = '';
     try {
-      const [tree, bundle] = await Promise.all([this.tree ? Promise.resolve(this.tree) : loadTree(), loadMap(this.floorId)]);
+      const tree = this.tree ?? (await loadTree());
       this.tree = tree;
-      this.bundle = bundle;
+      // Links such as the nav entry point at the fixture floor "f0"; with a backend, open the first real floor.
+      if (isApi() && !findFloor(tree, this.floorId)) {
+        const first = firstFloor(tree);
+        if (first && first.id !== this.floorId) {
+          navigate(`/explore/floors/${first.id}`);
+          return;
+        }
+      }
+      this.bundle = await loadMap(this.floorId);
     } catch (err) {
       this.loadError = describeError(err);
       this.bundle = null;
@@ -393,14 +403,14 @@ export class ExploreFloorMap extends LitElement {
     return html`
       ${st === 'offline'
         ? html`<div class="off"><div><sw-icon name="offline" size=${22}></sw-icon><div>${t('camera.offlineReason')}</div></div></div>`
-        : html`<sw-camera-tile name="" state=${st === 'live' ? 'live' : 'unknown'} scene=${scene}></sw-camera-tile>`}
+        : html`<sw-camera-tile name="" state=${st === 'live' ? 'live' : 'unknown'} scene=${scene} poster=${cam ? snapshotUrl(cam.id, Date.now()) : ''} @click=${() => cam && navigate(`/live/cameras/${cam.id}`)}></sw-camera-tile>`}
       <div class="statusrow"><sw-badge kind=${st}></sw-badge><span>${floorName} · ערוץ ${cam?.channel ?? '?'}</span></div>
       <dl class="meta">
         <dt>שם ב־NVR</dt><dd>${cam?.name_source || '—'}</dd>
         <dt>Track</dt><dd><span class="ltr">${cam?.main_track ?? '?'} / ${cam?.sub_track ?? '?'}</span></dd>
         <dt>נראתה לאחרונה</dt><dd>${cam?.last_seen_at ? cam.last_seen_at.replace('T', ' ').replace('Z', ' UTC') : 'לא נבדק'}</dd>
       </dl>
-      <div class="note">וידאו חי יתחבר דרך go2rtc במקטע הבא (T017); התמונה כאן היא איור.</div>
+      <div class="note">התמונה היא צילום מה־NVR (מתרענן); "צפייה חיה" פותחת את הזרם.</div>
     `;
   }
 
@@ -430,8 +440,8 @@ export class ExploreFloorMap extends LitElement {
       heading = a.camera?.name ?? a.label ?? a.resource_id;
       sub = `${b.buildingName} · ${b.floorName}`;
       body = a.resource_type === 'camera' ? this.apiCameraBody(a, b.floorName) : html`<div class="note">ישות HA · ${a.resource_id} — מצב יגיע עם גשר HA (T025).</div>`;
-      footer = html`<sw-button variant="primary" size="sm" icon="expand" disabled title="וידאו חי מגיע במקטע הבא">צפייה חיה</sw-button>
-        <sw-button size="sm" icon="history" disabled>${t('camera.recordings')}</sw-button>
+      footer = html`<sw-button variant="primary" size="sm" icon="expand" ?disabled=${a.resource_type !== 'camera' || cameraState(a) === 'offline'} @click=${() => a.camera && navigate(`/live/cameras/${a.camera.id}`)}>צפייה חיה</sw-button>
+        <sw-button size="sm" icon="history" disabled title="הקלטות מגיעות במקטע הבא">${t('camera.recordings')}</sw-button>
         ${b.permissions.edit ? html`<sw-button variant="ghost" size="sm" icon="edit" @click=${() => navigate(`/explore/floors/${b.floorId}/edit`)}>עריכה</sw-button>` : nothing}`;
     }
     if (this.narrow || !this.anchor) {

@@ -15,7 +15,7 @@ from . import __version__
 from .config import Settings, load_settings
 from .db import Database
 from .errors import ApiError
-from .routers import anchors, cameras, catalog, health, me, plans
+from .routers import anchors, cameras, catalog, health, me, media, plans, settings as settings_router
 
 log = logging.getLogger("smplwise")
 
@@ -23,6 +23,10 @@ log = logging.getLogger("smplwise")
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or load_settings()
     logging.basicConfig(level=getattr(logging, settings.log_level.upper(), logging.INFO), format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    # httpx/httpcore log full request URLs at INFO; ours may carry RTSP credentials (go2rtc sources) and
+    # lab addresses. Keep them at WARNING regardless of the configured level.
+    for noisy in ("httpx", "httpcore", "websockets"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     settings.plans_dir.mkdir(parents=True, exist_ok=True)
 
@@ -58,6 +62,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(plans.router, prefix=api, tags=["plans"])
     app.include_router(anchors.router, prefix=api, tags=["anchors"])
     app.include_router(cameras.router, prefix=api, tags=["cameras"])
+    app.include_router(settings_router.router, prefix=api, tags=["settings"])
+    app.include_router(media.router, prefix=api, tags=["media"])
     app.include_router(health.router, prefix=api, tags=["ops"])
 
     @app.get("/healthz", include_in_schema=False)

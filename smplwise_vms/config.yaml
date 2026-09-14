@@ -1,5 +1,5 @@
 name: SMPLWISE VMS
-version: "0.1.0"
+version: "0.1.1"
 slug: smplwise_vms
 description: Map-centred video management for Hikvision NVRs and Home Assistant (pilot build)
 url: https://github.com/jonioliel/smplwise-bms
@@ -21,15 +21,21 @@ options:
   bootstrap_admin_username: ""
   nvr_host: ""
   nvr_http_port: 80
+  nvr_rtsp_port: 554
   nvr_username: ""
   nvr_password: ""
   go2rtc_url: ""
+  go2rtc_api_username: ""
+  go2rtc_api_password: ""
   log_level: info
 schema:
   bootstrap_admin_username: str
   nvr_host: str?
   nvr_http_port: port
+  nvr_rtsp_port: port
   nvr_username: str?
   nvr_password: password?
   go2rtc_url: url?
+  go2rtc_api_username: str?
+  go2rtc_api_password: password?
   log_level: list(debug|info|warning|error)
