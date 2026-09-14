@@ -1,0 +1,122 @@
+/* SMPLWISE VMS design tokens — derived from docs/design/reference (three concept boards) and
+   docs/design/DESIGN_CONTRACT.md: light surfaces, dark readable text, restrained blue, thin dividers,
+   moderate radii, minimal shadows. Every component reads these variables; no ad-hoc colours. */
+:root {
+  color-scheme: light;
+
+  /* Surfaces */
+  --sw-bg: #f4f6fa;
+  --sw-surface: #ffffff;
+  --sw-surface-2: #f8fafc;
+  --sw-surface-3: #eef2f7;
+  --sw-border: #e3e8ef;
+  --sw-border-strong: #cbd5e1;
+  --sw-overlay: rgba(15, 23, 42, 0.45);
+
+  /* Text */
+  --sw-text: #0f172a;
+  --sw-text-2: #475569;
+  --sw-text-3: #94a3b8;
+  --sw-text-inverse: #ffffff;
+
+  /* Accent (interaction) */
+  --sw-accent: #2f6fed;
+  --sw-accent-hover: #245bd0;
+  --sw-accent-soft: #e8f0fe;
+  --sw-accent-text: #1e4fc2;
+  --sw-focus: #2f6fed;
+
+  /* Semantic state colours — always paired with text/icon, never colour alone */
+  --sw-live: #16a34a;
+  --sw-live-soft: #e6f6ec;
+  --sw-recorded: #2f6fed;
+  --sw-recorded-soft: #e8f0fe;
+  --sw-offline: #64748b;
+  --sw-offline-soft: #f1f5f9;
+  --sw-stale: #d97706;
+  --sw-stale-soft: #fef3e2;
+  --sw-unknown: #a3a3a3;
+  --sw-unknown-soft: #f5f5f5;
+  --sw-danger: #dc2626;
+  --sw-danger-soft: #fde8e8;
+  --sw-warning: #d97706;
+  --sw-warning-soft: #fef3e2;
+  --sw-success: #16a34a;
+  --sw-success-soft: #e6f6ec;
+  --sw-forbidden: #b91c1c;
+  --sw-forbidden-soft: #fdecec;
+
+  /* Video / map canvas */
+  --sw-video-bg: #0b1220;
+  --sw-map-bg: #f9fafb;
+  --sw-map-wall: #334155;
+  --sw-map-room-fill: #ffffff;
+  --sw-map-label: #64748b;
+  --sw-fov: rgba(47, 111, 237, 0.18);
+
+  /* Typography */
+  --sw-font: "Segoe UI", -apple-system, BlinkMacSystemFont, "Heebo", "Noto Sans Hebrew", Roboto, Arial, sans-serif;
+  --sw-font-mono: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+  --sw-fs-xs: 12px;
+  --sw-fs-sm: 13px;
+  --sw-fs-md: 14px;
+  --sw-fs-lg: 16px;
+  --sw-fs-xl: 20px;
+  --sw-fs-2xl: 24px;
+  --sw-fs-3xl: 30px;
+  --sw-lh: 1.45;
+  --sw-fw-regular: 400;
+  --sw-fw-medium: 500;
+  --sw-fw-semibold: 600;
+  --sw-fw-bold: 700;
+
+  /* Spacing */
+  --sw-s-1: 4px;
+  --sw-s-2: 8px;
+  --sw-s-3: 12px;
+  --sw-s-4: 16px;
+  --sw-s-5: 20px;
+  --sw-s-6: 24px;
+  --sw-s-8: 32px;
+  --sw-s-10: 40px;
+
+  /* Radii */
+  --sw-r-sm: 8px;
+  --sw-r-md: 12px;
+  --sw-r-lg: 16px;
+  --sw-r-pill: 999px;
+
+  /* Elevation */
+  --sw-shadow-1: 0 1px 2px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04);
+  --sw-shadow-2: 0 8px 24px rgba(15, 23, 42, 0.10);
+  --sw-shadow-3: 0 16px 48px rgba(15, 23, 42, 0.16);
+
+  /* Layout */
+  --sw-rail-w: 88px;
+  --sw-rail-w-wide: 220px;
+  --sw-topbar-h: 56px;
+  --sw-bottomnav-h: 60px;
+  --sw-drawer-w: 380px;
+  --sw-touch: 44px;
+  --sw-content-max: 1600px;
+
+  /* Z-index scale */
+  --sw-z-map: 1;
+  --sw-z-map-ui: 5;
+  --sw-z-drawer: 20;
+  --sw-z-topbar: 30;
+  --sw-z-modal: 50;
+  --sw-z-toast: 60;
+
+  /* Motion */
+  --sw-t-fast: 120ms;
+  --sw-t-med: 200ms;
+  --sw-ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --sw-t-fast: 0ms;
+    --sw-t-med: 0ms;
+  }
+}

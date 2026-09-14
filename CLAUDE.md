@@ -13,8 +13,9 @@ not silently resolved.
 ## Workstation environment
 - Python 3.12: `%LOCALAPPDATA%\Programs\Python\Python312\python.exe` (or `py -3.12`). The bare `python`
   alias is the Microsoft Store stub and must not be used.
-- Node 24 LTS via fnm: `%APPDATA%\fnm\node-versions\v24.21.0\installation\node.exe`; in PowerShell run
-  `& "$env:LOCALAPPDATA\Microsoft\WinGet\Links\fnm.exe" env --shell power-shell | Invoke-Expression` first.
+- Node 24 LTS via fnm. Each PowerShell call starts from the app's environment, so prepend the install
+  directory yourself: `$env:Path = "$env:APPDATA\fnm\node-versions\v24.21.0\installation;$env:Path"`
+  (fnm itself lives under `%LOCALAPPDATA%\Microsoft\WinGet\Packages\Schniz.fnm_*\fnm.exe`).
 - Git: `core.autocrlf=false` for this repo; `.gitattributes` enforces LF. Write commit messages to a file
   as UTF-8 **without BOM** and use `git commit -F`.
 - Commit trailer: `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`.

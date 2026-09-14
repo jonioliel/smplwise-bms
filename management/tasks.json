@@ -335,7 +335,7 @@
       "AT013",
       "AT014"
     ],
-    "status": "READY",
+    "status": "IN_PROGRESS",
     "blocker": null,
     "priority": "P0",
     "model_policy": {
@@ -350,8 +350,14 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
-    "owner": "Claude Code",
+    "evidence": [
+      "frontend/src/styles/tokens.css (design tokens), frontend/src/components/* (base components), frontend/src/shell/sw-app.ts (four-mode shell)",
+      "frontend/src/screens/explore-floor-map.ts + frontend/src/map/sw-plan-canvas.ts (SC04 skeleton on synthetic fixtures)",
+      "frontend/tests/screenshots.spec.ts: 36 checks (RTL, no horizontal overflow, all states, drawers) at 1440/1024/390 — PASS 2026-09-14",
+      "docs/evidence/T007/*.png (33 build screenshots)",
+      "open: owner design review of the screenshots; component stories for remaining base components (Timeline, CameraTile, FilterBar) arrive with their tasks"
+    ],
+    "owner": "Claude Code; design approver: product owner",
     "commit": null,
     "actual_cost_usd": null
   },

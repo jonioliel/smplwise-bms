@@ -1,6 +1,6 @@
 # Project status — generated view
 
-Generated: 2026-09-14T08:59:24.535867+00:00
+Generated: 2026-09-14T09:32:43.285758+00:00
 
 Tasks: 83 | Requirements: 166 | Tests: 166 | Screens: 32
 
@@ -8,8 +8,7 @@ No VMS implementation or hardware test is implied by this planning registry.
 
 ## Status counts
 - BACKLOG: 80
-- IN_PROGRESS: 2
-- READY: 1
+- IN_PROGRESS: 3
 
 ## Release scope counts
 - BETA: 20
@@ -29,7 +28,7 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [T004](tasks/T004.md) | G0 | BACKLOG | בדיקות Characterization והשוואת התנהגות | T003 |
 | [T005](tasks/T005.md) | G0 | BACKLOG | ביקורת סודות, רישיונות ותלויות | T001 |
 | [T006](tasks/T006.md) | G0 | BACKLOG | הוכחת Playback ו־Seek מוקדמת | T003 |
-| [T007](tasks/T007.md) | G0 | READY | נעילת Design tokens ורכיבי בסיס | — |
+| [T007](tasks/T007.md) | G0 | IN_PROGRESS | נעילת Design tokens ורכיבי בסיס | — |
 | [T008](tasks/T008.md) | G0 | BACKLOG | ארכיטקטורה, ADR וחוזים נעולים | T001, T005, T006 |
 | [T009](tasks/T009.md) | PILOT | BACKLOG | שלד מאגר, HA Add-on/App ו־CI | T002, T008 |
 | [T010](tasks/T010.md) | PILOT | BACKLOG | מדיניות מודלים וגבולות הרצות | T008 |
