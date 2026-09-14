@@ -1,14 +1,16 @@
 # Project status — generated view
 
-Generated: 2026-09-14T09:32:43.285758+00:00
+Generated: 2026-09-14T09:33:36.533083+00:00
 
 Tasks: 83 | Requirements: 166 | Tests: 166 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
 ## Status counts
-- BACKLOG: 80
-- IN_PROGRESS: 3
+- BACKLOG: 79
+- DONE: 1
+- IN_PROGRESS: 2
+- READY: 1
 
 ## Release scope counts
 - BETA: 20
@@ -22,11 +24,11 @@ No VMS implementation or hardware test is implied by this planning registry.
 ## Backlog
 | ID | Phase | Status | Task | Depends on |
 |---|---|---|---|---|
-| [T001](tasks/T001.md) | G0 | IN_PROGRESS | איסוף ומיפוי המקור הישן | — |
+| [T001](tasks/T001.md) | G0 | DONE | איסוף ומיפוי המקור הישן | — |
 | [T002](tasks/T002.md) | G0 | IN_PROGRESS | מעבדת פיתוח והרשאות ייעודיות | — |
 | [T003](tasks/T003.md) | G0 | BACKLOG | לכידת Golden traces מהמערכת הישנה | T001, T002 |
 | [T004](tasks/T004.md) | G0 | BACKLOG | בדיקות Characterization והשוואת התנהגות | T003 |
-| [T005](tasks/T005.md) | G0 | BACKLOG | ביקורת סודות, רישיונות ותלויות | T001 |
+| [T005](tasks/T005.md) | G0 | READY | ביקורת סודות, רישיונות ותלויות | T001 |
 | [T006](tasks/T006.md) | G0 | BACKLOG | הוכחת Playback ו־Seek מוקדמת | T003 |
 | [T007](tasks/T007.md) | G0 | IN_PROGRESS | נעילת Design tokens ורכיבי בסיס | — |
 | [T008](tasks/T008.md) | G0 | BACKLOG | ארכיטקטורה, ADR וחוזים נעולים | T001, T005, T006 |

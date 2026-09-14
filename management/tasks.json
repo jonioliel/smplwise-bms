@@ -24,7 +24,7 @@
       "AT001",
       "AT002"
     ],
-    "status": "IN_PROGRESS",
+    "status": "DONE",
     "blocker": null,
     "priority": "P0",
     "model_policy": {
@@ -45,10 +45,10 @@
       "docs/legacy/KNOWN_QUIRKS.md",
       "docs/legacy/LEGACY_SECURITY_FINDINGS.md",
       "legacy/README.md (local branch legacy/import, commit ab19bf1)",
-      "open: run legacy locally for characterization fixtures (T004) before DONE"
+      "runtime characterization deferred to T004 (fixtures + parity), per task scope"
     ],
     "owner": "Claude Code (tech lead); approver: product owner",
-    "commit": null,
+    "commit": "dcdaadb",
     "actual_cost_usd": null
   },
   {
@@ -231,7 +231,7 @@
       "AT009",
       "AT010"
     ],
-    "status": "BACKLOG",
+    "status": "READY",
     "blocker": null,
     "priority": "P0",
     "model_policy": {

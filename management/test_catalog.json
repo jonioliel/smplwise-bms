@@ -20,12 +20,15 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "לקבל Snapshot או Commit של המערכת שבאמת פועלת, ולהפיק הוראות הרצה, רשימת מודולים ותלויות. אין להסיק שהמסמכים ההיסטוריים הם הקוד הפעיל.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+    "status": "PASS",
+    "commit": "dcdaadb",
+    "environment": "workstation code audit of legacy/hikvision_nvr_v1.5.27 (local branch legacy/import) + read-only lab probes 2026-09-14",
+    "evidence": [
+      "docs/legacy/LEGACY_AUDIT.md (sections 1-5: snapshot hash, run instructions, module map, dependencies)",
+      "legacy/README.md on branch legacy/import (file hashes)"
+    ],
+    "executed_at": "2026-09-14T09:33:36Z",
+    "notes": "Document/artifact acceptance verified by review of the committed files; runtime characterization of the legacy system is T004."
   },
   {
     "id": "AT002",
@@ -48,12 +51,16 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "ליצור REUSE_MATRIX לכל יכולת: reuse, wrap, refactor או replace, עם קובץ מקור, התנהגות שנצפתה, סיכון ונימוק. אין למחוק את המקור הישן.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+    "status": "PASS",
+    "commit": "dcdaadb",
+    "environment": "workstation code audit of legacy/hikvision_nvr_v1.5.27 (local branch legacy/import) + read-only lab probes 2026-09-14",
+    "evidence": [
+      "docs/legacy/REUSE_MATRIX.md (28 capabilities: decision, source lines, observed behaviour, risk, rationale)",
+      "docs/legacy/KNOWN_QUIRKS.md",
+      "legacy source untouched (hashes match the owner zip)"
+    ],
+    "executed_at": "2026-09-14T09:33:36Z",
+    "notes": "Document/artifact acceptance verified by review of the committed files; runtime characterization of the legacy system is T004."
   },
   {
     "id": "AT003",
