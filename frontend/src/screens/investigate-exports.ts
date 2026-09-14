@@ -15,15 +15,16 @@ export class InvestigateExports extends LitElement {
       grid-template-columns: minmax(0, 1fr) 160px auto;
       gap: var(--sw-s-3);
       align-items: center;
-      padding: var(--sw-s-3) 0;
+      padding: 10px 0;
       border-block-end: 1px solid var(--sw-border);
+      font-size: var(--sw-fs-sm);
     }
     .job:last-child {
       border-block-end: 0;
     }
     .bar {
-      block-size: 8px;
-      border-radius: 4px;
+      block-size: 6px;
+      border-radius: 3px;
       background: var(--sw-surface-3);
       overflow: hidden;
     }

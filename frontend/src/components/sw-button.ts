@@ -28,10 +28,10 @@ export class SwButton extends LitElement {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
-      min-block-size: 36px;
-      padding-inline: 14px;
-      border-radius: var(--sw-r-sm);
+      gap: 6px;
+      min-block-size: 30px;
+      padding-inline: 12px;
+      border-radius: 8px;
       border: 1px solid var(--sw-border-strong);
       font: inherit;
       font-size: var(--sw-fs-sm);
@@ -46,17 +46,17 @@ export class SwButton extends LitElement {
     }
     button:hover {
       background: var(--sw-surface-2);
-      border-color: var(--sw-border-strong);
     }
     :host([size='sm']) button {
-      min-block-size: 30px;
-      padding-inline: 10px;
+      min-block-size: 26px;
+      padding-inline: 9px;
       font-size: var(--sw-fs-xs);
       border-radius: 7px;
+      gap: 5px;
     }
     :host([size='lg']) button {
-      min-block-size: 44px;
-      padding-inline: 18px;
+      min-block-size: 36px;
+      padding-inline: 16px;
       font-size: var(--sw-fs-md);
     }
     :host([variant='primary']) button {
@@ -92,14 +92,14 @@ export class SwButton extends LitElement {
       opacity: 0.45;
     }
     :host([icononly]) button {
-      inline-size: 36px;
+      inline-size: 30px;
       padding-inline: 0;
     }
     :host([icononly][size='sm']) button {
-      inline-size: 30px;
+      inline-size: 26px;
     }
     :host([icononly][size='lg']) button {
-      inline-size: 44px;
+      inline-size: 36px;
     }
     :host([round]) button {
       border-radius: 50%;
@@ -109,7 +109,7 @@ export class SwButton extends LitElement {
   render() {
     return html`
       <button type=${this.type} ?disabled=${this.disabled} aria-label=${this.iconOnly ? this.label : ''} title=${this.iconOnly ? this.label : ''}>
-        ${this.icon ? html`<sw-icon .name=${this.icon} size=${this.size === 'sm' ? 15 : this.size === 'lg' ? 20 : 17}></sw-icon>` : ''}
+        ${this.icon ? html`<sw-icon .name=${this.icon} size=${this.size === 'sm' ? 13 : this.size === 'lg' ? 18 : 15}></sw-icon>` : ''}
         ${this.iconOnly ? '' : html`<slot>${this.label}</slot>`}
       </button>
     `;

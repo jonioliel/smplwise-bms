@@ -72,16 +72,16 @@ export const demoWall: DemoWallCamera[] = [
 
 /** Illustrative scene per camera for the placeholder tiles (never a real frame; tiles say "דמו"). */
 export const demoScene: Record<string, SceneKind> = {
-  'cam-1': 'outdoor',
-  'cam-2': 'indoor',
-  'cam-3': 'indoor',
-  'cam-4': 'indoor',
-  'cam-5': 'garage',
-  'cam-6': 'garage',
-  'cam-7': 'garage',
-  'cam-8': 'garage',
+  'cam-1': 'entrance',
+  'cam-2': 'lobby',
+  'cam-3': 'corridor',
+  'cam-4': 'hall',
+  'cam-5': 'corridor',
+  'cam-6': 'parking',
+  'cam-7': 'warehouse',
+  'cam-8': 'warehouse',
   'cam-9': 'night',
-  'cam-10': 'night',
+  'cam-10': 'backyard',
 };
 
 export type EventType = 'person' | 'vehicle' | 'motion' | 'line' | 'offline' | 'door';

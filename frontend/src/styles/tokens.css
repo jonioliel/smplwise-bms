@@ -1,16 +1,16 @@
-/* SMPLWISE VMS design tokens v2 — tuned to the three reference boards (UniFi-Protect-like language):
-   white surfaces on a cool light ground, one saturated blue, soft-blue tints for active states and
-   icon squares, green for "online", thin cool-grey dividers, 12px cards, quiet shadows. */
+/* SMPLWISE VMS design tokens v3 — matched to the three concept boards: compact 12px UI, white
+   surfaces on a cool light ground, hairline dividers, one saturated blue used sparingly (active pill,
+   primary button, map pins, timeline), green only for "online", quiet shadows. */
 :root {
   color-scheme: light;
 
   /* Surfaces */
-  --sw-bg: #f5f7fb;
+  --sw-bg: #f6f7fb;
   --sw-surface: #ffffff;
-  --sw-surface-2: #f8fafd;
-  --sw-surface-3: #eef2f8;
-  --sw-border: #e6eaf2;
-  --sw-border-strong: #d5dce8;
+  --sw-surface-2: #f8f9fc;
+  --sw-surface-3: #eff2f7;
+  --sw-border: #e9edf3;
+  --sw-border-strong: #d9dfe8;
   --sw-overlay: rgba(17, 24, 39, 0.45);
 
   /* Text */
@@ -49,22 +49,24 @@
 
   /* Video / map canvas */
   --sw-video-bg: #0f1729;
-  --sw-map-bg: #fbfcfe;
-  --sw-map-wall: #4b5565;
+  --sw-map-bg: #ffffff;
+  --sw-map-wall: #aab7cc;
   --sw-map-room-fill: #ffffff;
-  --sw-map-label: #7b8494;
-  --sw-fov: rgba(47, 107, 255, 0.16);
+  --sw-map-furniture: #eef2f8;
+  --sw-map-furniture-line: #c9d3e3;
+  --sw-map-label: #8b96a8;
+  --sw-fov: rgba(47, 107, 255, 0.14);
 
   /* Typography */
   --sw-font: "Heebo", "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, "Noto Sans Hebrew", Roboto, Arial, sans-serif;
   --sw-font-mono: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
-  --sw-fs-xs: 11.5px;
-  --sw-fs-sm: 13px;
-  --sw-fs-md: 13.5px;
-  --sw-fs-lg: 15px;
-  --sw-fs-xl: 18px;
-  --sw-fs-2xl: 22px;
-  --sw-fs-3xl: 28px;
+  --sw-fs-xs: 10.5px;
+  --sw-fs-sm: 11.5px;
+  --sw-fs-md: 12.5px;
+  --sw-fs-lg: 14px;
+  --sw-fs-xl: 16px;
+  --sw-fs-2xl: 18px;
+  --sw-fs-3xl: 24px;
   --sw-lh: 1.45;
   --sw-fw-regular: 400;
   --sw-fw-medium: 500;
@@ -83,23 +85,23 @@
 
   /* Radii */
   --sw-r-sm: 8px;
-  --sw-r-md: 12px;
-  --sw-r-lg: 14px;
+  --sw-r-md: 10px;
+  --sw-r-lg: 12px;
   --sw-r-pill: 999px;
 
   /* Elevation */
-  --sw-shadow-1: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.04);
-  --sw-shadow-2: 0 6px 20px rgba(16, 24, 40, 0.08);
-  --sw-shadow-3: 0 16px 40px rgba(16, 24, 40, 0.16);
+  --sw-shadow-1: 0 1px 2px rgba(16, 24, 40, 0.04);
+  --sw-shadow-2: 0 4px 14px rgba(16, 24, 40, 0.07);
+  --sw-shadow-3: 0 14px 36px rgba(16, 24, 40, 0.16);
 
   /* Layout */
-  --sw-rail-w: 72px;
-  --sw-rail-w-wide: 232px;
-  --sw-topbar-h: 56px;
-  --sw-bottomnav-h: 60px;
-  --sw-drawer-w: 380px;
-  --sw-touch: 40px;
-  --sw-content-max: 1600px;
+  --sw-rail-w: 56px;
+  --sw-rail-w-wide: 176px;
+  --sw-topbar-h: 52px;
+  --sw-bottomnav-h: 58px;
+  --sw-drawer-w: 360px;
+  --sw-touch: 36px;
+  --sw-content-max: 1560px;
 
   /* Z-index scale */
   --sw-z-map: 1;

@@ -64,9 +64,12 @@ export class SwPlanCanvas extends LitElement {
   @property() selectedId: string | null = null;
   @property({ type: Boolean }) dimEntities = false;
 
+  @property({ type: Boolean }) alwaysLabel = false;
+
   @state() private scale = 1;
   @state() private tx = 0;
   @state() private ty = 0;
+  @state() private hoverId: string | null = null;
   @query('.viewport') private viewport!: HTMLDivElement;
 
   private pointers = new Map<number, { x: number; y: number }>();
@@ -85,8 +88,6 @@ export class SwPlanCanvas extends LitElement {
       block-size: 100%;
       min-block-size: 320px;
       background: var(--sw-map-bg);
-      background-image: radial-gradient(circle, var(--sw-border) 1px, transparent 1px);
-      background-size: 22px 22px;
       overflow: hidden;
       touch-action: none;
       user-select: none;
@@ -155,7 +156,7 @@ export class SwPlanCanvas extends LitElement {
     .marker .lbl {
       pointer-events: none;
       font-family: var(--sw-font);
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 600;
       fill: var(--sw-text);
       text-anchor: middle;
@@ -349,30 +350,31 @@ export class SwPlanCanvas extends LitElement {
     const isCamera = m.kind === 'camera';
     const fill = PIN_FILL[m.state] ?? PIN_FILL.neutral;
     const selected = this.selectedId === m.id;
-    // Labels are decoration: they must never intercept a click meant for a neighbouring pin.
-    const showLabel = this.scale > 0.3 || selected;
-    const labelWidth = Math.max(48, m.label.length * 7 + 18);
+    // Boards show bare pins; the name appears on hover / selection (labels never intercept clicks).
+    const showLabel = this.alwaysLabel || selected || this.hoverId === m.id;
+    const labelWidth = Math.max(44, m.label.length * 6.5 + 16);
     const dimmed = this.dimEntities && !isCamera;
-    const r = isCamera ? 15 : 13;
+    const r = isCamera ? 13 : 11;
     return svg`
       <g class="marker ${m.state} ${selected ? 'selected' : ''} ${dimmed ? 'dimmed' : ''}"
          transform="translate(${px} ${py})"
          tabindex="0" role="button" aria-label=${m.label} aria-pressed=${selected}
+         @mouseenter=${() => (this.hoverId = m.id)} @mouseleave=${() => (this.hoverId = null)}
          @click=${(e: Event) => this.select(m, e)}
          @keydown=${(e: KeyboardEvent) => (e.key === 'Enter' || e.key === ' ') && this.select(m, e)}>
         ${isCamera && m.fov && m.state !== 'forbidden'
-          ? svg`<path class="fov ${m.state === 'offline' ? 'off' : ''}" d=${this.fovPath(m.rotation ?? 0, m.fov, 120)} />`
+          ? svg`<path class="fov ${m.state === 'offline' ? 'off' : ''}" d=${this.fovPath(m.rotation ?? 0, m.fov, 140)} />`
           : nothing}
         <g transform="scale(${inv})">
-          <circle class="halo" r=${r + 10} />
+          <circle class="halo" r=${r + 9} />
           <circle class="pin" r=${r} fill=${fill} />
-          <g class="icon">${MARKER_ICON[m.kind]}</g>
-          ${m.state === 'offline' ? svg`<line x1="-10" y1="-10" x2="10" y2="10" stroke="#fff" stroke-width="2.5" />` : nothing}
-          ${m.state === 'forbidden' ? svg`<g transform="translate(9 -9)"><circle r="7" fill="#fff" /><g fill="none" stroke="var(--sw-forbidden)" stroke-width="1.5" transform="scale(0.5)"><rect x="-6" y="-2" width="12" height="9" rx="2"/><path d="M-3.5 -2v-3a3.5 3.5 0 0 1 7 0v3"/></g></g>` : nothing}
+          <g class="icon" transform="scale(${isCamera ? 0.85 : 0.75})">${MARKER_ICON[m.kind]}</g>
+          ${m.state === 'offline' ? svg`<line x1="-9" y1="-9" x2="9" y2="9" stroke="#fff" stroke-width="2.5" />` : nothing}
+          ${m.state === 'forbidden' ? svg`<g transform="translate(8 -8)"><circle r="6.5" fill="#fff" /><g fill="none" stroke="var(--sw-forbidden)" stroke-width="1.5" transform="scale(0.45)"><rect x="-6" y="-2" width="12" height="9" rx="2"/><path d="M-3.5 -2v-3a3.5 3.5 0 0 1 7 0v3"/></g></g>` : nothing}
           ${showLabel
-            ? svg`<g transform="translate(0 ${r + 16})">
-                <rect class="lbl-bg" x=${-labelWidth / 2} y="-11" width=${labelWidth} height="22" rx="7" />
-                <text class="lbl" y="4">${m.label}</text>
+            ? svg`<g transform="translate(0 ${r + 14})">
+                <rect class="lbl-bg" x=${-labelWidth / 2} y="-10" width=${labelWidth} height="20" rx="6" />
+                <text class="lbl" y="3.5">${m.label}</text>
               </g>`
             : nothing}
         </g>

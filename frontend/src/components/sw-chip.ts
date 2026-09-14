@@ -3,8 +3,7 @@ import { customElement, property } from 'lit/decorators.js';
 import './sw-icon';
 import type { IconName } from './sw-icon';
 
-// Selectable chip: floor switching, layer toggles, event-type filters (with an optional colour dot,
-// like the playback filter row on board 1).
+// Selectable chip / filter pill (boards: "All | Motion | Person | Vehicle" with colour dots).
 @customElement('sw-chip')
 export class SwChip extends LitElement {
   @property({ type: Boolean, reflect: true }) selected = false;
@@ -19,10 +18,10 @@ export class SwChip extends LitElement {
     button {
       display: inline-flex;
       align-items: center;
-      gap: 7px;
-      min-block-size: 32px;
-      padding-inline: 12px;
-      border-radius: var(--sw-r-sm);
+      gap: 6px;
+      min-block-size: 28px;
+      padding-inline: 11px;
+      border-radius: 8px;
       border: 1px solid var(--sw-border-strong);
       background: var(--sw-surface);
       color: var(--sw-text);
@@ -43,8 +42,8 @@ export class SwChip extends LitElement {
       color: var(--sw-text-inverse);
     }
     .d {
-      inline-size: 8px;
-      block-size: 8px;
+      inline-size: 7px;
+      block-size: 7px;
       border-radius: 50%;
       background: var(--dot);
       flex-shrink: 0;
@@ -54,14 +53,10 @@ export class SwChip extends LitElement {
     }
     .count {
       font-size: var(--sw-fs-xs);
-      background: var(--sw-surface-3);
-      border-radius: var(--sw-r-pill);
-      padding: 0 6px;
-      color: var(--sw-text-2);
+      color: var(--sw-text-3);
     }
     :host([selected]) .count {
-      background: rgba(255, 255, 255, 0.22);
-      color: var(--sw-text-inverse);
+      color: rgba(255, 255, 255, 0.8);
     }
   `;
 
@@ -69,9 +64,9 @@ export class SwChip extends LitElement {
     return html`
       <button type="button" aria-pressed=${this.selected}>
         ${this.dot ? html`<span class="d" style="--dot:${this.dot}"></span>` : ''}
-        ${this.icon ? html`<sw-icon .name=${this.icon} size=${15}></sw-icon>` : ''}
+        ${this.icon ? html`<sw-icon .name=${this.icon} size=${13}></sw-icon>` : ''}
         <slot></slot>
-        ${this.count !== undefined ? html`<span class="count">${this.count}</span>` : ''}
+        ${this.count !== undefined ? html`<span class="count">(${this.count})</span>` : ''}
       </button>
     `;
   }

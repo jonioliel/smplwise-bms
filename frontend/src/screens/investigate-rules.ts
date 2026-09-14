@@ -1,5 +1,5 @@
 import { LitElement, html, css } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-page';
 import '../components/sw-card';
 import '../components/sw-badge';
@@ -7,60 +7,97 @@ import '../components/sw-button';
 import '../components/sw-toggle';
 import '../components/sw-field';
 import '../components/sw-steps';
+import '../components/sw-tabs';
 import '../components/sw-icon';
+import type { IconName } from '../components/sw-icon';
 import { demoRules } from '../fixtures/catalog';
 import { navigate } from '../router';
 
-/** SC21 — rules and alerts (board 3 screen 19, Beta). */
+const RULE_ICON: Record<string, { icon: IconName; bg: string; fg: string }> = {
+  'r-1': { icon: 'user', bg: '#eaf0ff', fg: '#2f6bff' },
+  'r-2': { icon: 'move', bg: '#e8f8ee', fg: '#16a34a' },
+  'r-3': { icon: 'door', bg: '#fff4e0', fg: '#d97706' },
+  'r-4': { icon: 'offline', bg: '#fdecec', fg: '#ef4444' },
+};
+
+/** SC21 — alerts & automation rules (board 3 screen 19): tabs, rule cards with icon square, toggle, Edit, ⋯. */
 @customElement('investigate-rules')
 export class InvestigateRules extends LitElement {
+  @state() private tab = 'rules';
+
   static styles = css`
-    .rule {
-      display: grid;
-      grid-template-columns: 40px minmax(0, 1fr) auto auto;
-      gap: var(--sw-s-3);
-      align-items: center;
-      padding: var(--sw-s-3) 0;
-      border-block-end: 1px solid var(--sw-border);
-      cursor: pointer;
+    .list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-inline-size: 860px;
     }
-    .rule:last-child {
-      border-block-end: 0;
+    .rule {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
     }
     .ic {
       display: grid;
       place-items: center;
-      inline-size: 40px;
-      block-size: 40px;
-      border-radius: var(--sw-r-sm);
-      background: var(--sw-accent-soft);
-      color: var(--sw-accent-text);
+      inline-size: 36px;
+      block-size: 36px;
+      border-radius: 9px;
+      background: var(--bg);
+      color: var(--fg);
+      flex-shrink: 0;
     }
-    .meta {
+    .txt {
+      flex: 1;
+      min-inline-size: 0;
+    }
+    .txt b {
+      display: block;
+      font-weight: var(--sw-fw-semibold);
+    }
+    .txt small {
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+    }
+    .last {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
+      white-space: nowrap;
+    }
+    .empty {
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-sm);
+      padding: 24px;
+      text-align: center;
     }
     @media (max-width: 767px) {
-      .rule {
-        grid-template-columns: 40px minmax(0, 1fr);
+      .last {
+        display: none;
       }
     }
   `;
 
   render() {
     return html`
-      <sw-page heading="חוקים והתראות" subheading="Trigger → Scope → תנאים → פעולה · בדיקה יבשה לפני הפעלה · נתוני הדגמה">
+      <sw-page heading="התראות וחוקי אוטומציה" subheading="Trigger → היקף → תנאים → פעולה · בדיקה יבשה לפני הפעלה · נתוני הדגמה">
         <sw-button slot="actions" variant="primary" icon="plus" @click=${() => navigate('/investigate/rules/new')}>חוק חדש</sw-button>
-        <sw-card>
-          ${demoRules.map(
-            (r) => html`<div class="rule" @click=${() => navigate(`/investigate/rules/${r.id}`)}>
-              <div class="ic"><sw-icon name="rule" size=${20}></sw-icon></div>
-              <div><strong>${r.name}</strong><div class="meta">${r.trigger} · ${r.scope} · ${r.action}</div></div>
-              <span class="meta">הופעל לאחרונה: ${r.last}</span>
-              <sw-toggle ?checked=${r.enabled} label=${r.enabled ? 'פעיל' : 'כבוי'} @click=${(e: Event) => e.stopPropagation()}></sw-toggle>
-            </div>`,
-          )}
-        </sw-card>
+        <sw-tabs .items=${[{ id: 'rules', label: 'חוקים', count: demoRules.length }, { id: 'notif', label: 'התראות' }, { id: 'sched', label: 'לוחות זמנים' }, { id: 'trig', label: 'Triggers' }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>
+        ${this.tab === 'rules'
+          ? html`<div class="list">
+              ${demoRules.map((r) => {
+                const ic = RULE_ICON[r.id] ?? RULE_ICON['r-1'];
+                return html`<sw-card flush class="rule" style="--bg:${ic.bg};--fg:${ic.fg}">
+                  <div class="ic"><sw-icon .name=${ic.icon} size=${16}></sw-icon></div>
+                  <div class="txt"><b>${r.name}</b><small>${r.trigger} · ${r.scope} · ${r.action}</small></div>
+                  <span class="last">הופעל: ${r.last}</span>
+                  <sw-toggle ?checked=${r.enabled} label=""></sw-toggle>
+                  <sw-button size="sm" @click=${() => navigate(`/investigate/rules/${r.id}`)}>עריכה</sw-button>
+                  <sw-button variant="ghost" size="sm" iconOnly icon="more" label="עוד"></sw-button>
+                </sw-card>`;
+              })}
+            </div>`
+          : html`<sw-card><div class="empty">${this.tab === 'notif' ? 'ערוצי התראה: Push דרך HA, מייל (Beta). ההגדרה מגיעה עם T063.' : this.tab === 'sched' ? 'לוחות זמנים בזמן האתר (Asia/Jerusalem), שעון קיץ לפי התאריך.' : 'Triggers זמינים: אירועי NVR (אדם, רכב, תנועה, חציית קו, ניתוק) ושינויי מצב HA (allowlist).'}</div></sw-card>`}
       </sw-page>
     `;
   }
@@ -75,18 +112,18 @@ export class InvestigateRuleEditor extends LitElement {
     .layout {
       display: grid;
       grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr);
-      gap: var(--sw-s-4);
+      gap: 12px;
       align-items: start;
     }
     .stack {
       display: flex;
       flex-direction: column;
-      gap: var(--sw-s-3);
+      gap: 12px;
     }
     .two {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: var(--sw-s-3);
+      gap: 10px;
     }
     .hint {
       font-size: var(--sw-fs-xs);
@@ -94,7 +131,7 @@ export class InvestigateRuleEditor extends LitElement {
     }
     .dry {
       font-size: var(--sw-fs-sm);
-      padding: var(--sw-s-2) 0;
+      padding: 6px 0;
       border-block-end: 1px solid var(--sw-border);
     }
     @media (max-width: 1023px) {
@@ -107,10 +144,10 @@ export class InvestigateRuleEditor extends LitElement {
   render() {
     const r = demoRules.find((x) => x.id === this.ruleId) ?? { name: 'חוק חדש', trigger: 'זיהוי אדם', scope: 'חוץ', action: 'התראה' };
     return html`
-      <sw-page heading=${r.name} subheading="עורך חוק · גרסה 2 · נתוני הדגמה">
+      <sw-page heading=${r.name} subheading="עורך חוק · גרסה 2 · נתוני הדגמה" crumbs="אירועים | חוקים והתראות">
         <sw-button slot="actions" icon="play">בדיקה יבשה</sw-button>
         <sw-button slot="actions" variant="primary" icon="check">שמירה</sw-button>
-        <sw-steps .steps=${['Trigger', 'Scope', 'תנאים', 'פעולה']} .current=${1}></sw-steps>
+        <sw-steps .steps=${['Trigger', 'היקף', 'תנאים', 'פעולה']} .current=${1}></sw-steps>
         <div class="layout">
           <div class="stack">
             <sw-card heading="Trigger">
@@ -119,7 +156,7 @@ export class InvestigateRuleEditor extends LitElement {
                 <sw-field label="סוג"><select><option>${r.trigger}</option><option>זיהוי רכב</option><option>תנועה</option></select></sw-field>
               </div>
             </sw-card>
-            <sw-card heading="Scope">
+            <sw-card heading="היקף">
               <div class="two">
                 <sw-field label="היקף"><select><option>${r.scope}</option><option>כל האתר</option></select></sw-field>
                 <sw-field label="לוח זמנים (זמן האתר)"><input value="22:00–06:00" data-ltr /></sw-field>

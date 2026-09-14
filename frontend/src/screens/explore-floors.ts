@@ -6,33 +6,43 @@ import '../components/sw-badge';
 import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-tabs';
-import '../components/sw-floor-glyph';
-import { demoBuildings } from '../fixtures/catalog';
+import '../components/sw-scene';
+import '../components/sw-floor-iso';
+import { demoBuildings, demoSites } from '../fixtures/catalog';
+import { demoRooms } from '../fixtures/demo';
 import { navigate } from '../router';
 
-/** SC03 — floor browser (board 1 screen 3): isometric floor stack rows, selected row outlined in blue, plan preview. */
+/** SC03 — floor browser (board 1 screen 3): building header with picture, tabs, rows with isometric floor drawings. */
 @customElement('explore-floors')
 export class ExploreFloors extends LitElement {
   @property() buildingId = 'bld-a';
   @state() private selected = 'f0';
+  @state() private tab = 'floors';
 
   static styles = css`
-    .layout {
-      display: grid;
-      grid-template-columns: minmax(0, 1.1fr) minmax(300px, 1fr);
-      gap: var(--sw-s-4);
-      align-items: start;
+    .pic {
+      inline-size: 112px;
+      block-size: 72px;
+      border-radius: var(--sw-r-sm);
+      overflow: hidden;
+      position: relative;
+      box-shadow: var(--sw-shadow-1);
+    }
+    .pic sw-scene {
+      position: absolute;
+      inset: 0;
     }
     .list {
       display: flex;
       flex-direction: column;
-      gap: var(--sw-s-2);
+      gap: 10px;
+      max-inline-size: 720px;
     }
     .floor {
       display: flex;
       align-items: center;
-      gap: var(--sw-s-4);
-      padding: 12px 14px;
+      gap: 16px;
+      padding: 10px 14px;
       border: 1.5px solid var(--sw-border);
       border-radius: var(--sw-r-md);
       background: var(--sw-surface);
@@ -62,113 +72,73 @@ export class ExploreFloors extends LitElement {
     .counts {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
       margin-block-start: 2px;
-    }
-    .counts span {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
     }
     .chev {
       color: var(--sw-text-3);
     }
-    .plan {
-      aspect-ratio: 4 / 3;
-      border-radius: var(--sw-r-md);
-      background: var(--sw-map-bg);
-      background-image: radial-gradient(circle, var(--sw-border) 1px, transparent 1px);
-      background-size: 18px 18px;
-      border: 1px solid var(--sw-border);
+    .floor.on .chev {
+      color: var(--sw-accent);
+    }
+    .cams {
       display: grid;
-      place-items: center;
-      color: var(--sw-text-3);
-      overflow: hidden;
-      position: relative;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 12px;
     }
-    .plan svg {
-      inline-size: 100%;
-      block-size: 100%;
-    }
-    .plan .open {
-      position: absolute;
-      inset-inline-end: 10px;
-      inset-block-end: 10px;
-    }
-    .info dl {
+    dl {
       display: grid;
       grid-template-columns: auto 1fr;
       gap: 8px 14px;
       margin: 0;
       font-size: var(--sw-fs-sm);
+      max-inline-size: 520px;
     }
-    .info dt {
+    dt {
       color: var(--sw-text-3);
     }
-    .info dd {
+    dd {
       margin: 0;
-    }
-    .stack {
-      display: flex;
-      flex-direction: column;
-      gap: var(--sw-s-4);
-    }
-    @media (max-width: 1023px) {
-      .layout {
-        grid-template-columns: 1fr;
-      }
     }
   `;
 
   render() {
     const b = demoBuildings.find((x) => x.id === this.buildingId) ?? demoBuildings[0];
+    const site = demoSites.find((s) => s.id === b.siteId) ?? demoSites[0];
     const sel = b.floors.find((f) => f.id === this.selected) ?? b.floors[0];
-    const idx = b.floors.findIndex((f) => f.id === sel.id);
+    const totalCams = b.floors.reduce((n, f) => n + f.cameras, 0);
     return html`
-      <sw-page heading=${b.name} subheading="אתר הדגמה · ${b.floors.length} קומות · נתוני הדגמה">
-        <sw-button slot="actions" icon="upload">העלאת תוכנית</sw-button>
-        <sw-button slot="actions" variant="primary" icon="map" @click=${() => navigate(`/explore/floors/${sel.id}`)}>פתח מפה</sw-button>
-        <sw-tabs .items=${[{ id: 'floors', label: 'קומות', count: b.floors.length }, { id: 'cameras', label: 'מצלמות', count: b.floors.reduce((n, f) => n + f.cameras, 0) }, { id: 'details', label: 'פרטים' }]} active="floors"></sw-tabs>
-        <div class="layout">
-          <div class="list">
-            ${b.floors.map(
-              (f, i) => html`<button class="floor ${f.id === sel.id ? 'on' : ''}" @click=${() => (this.selected = f.id)} @dblclick=${() => navigate(`/explore/floors/${f.id}`)} aria-pressed=${f.id === sel.id}>
-                <sw-floor-glyph levels=${b.floors.length} active=${b.floors.length - 1 - i} ?selected=${f.id === sel.id} size=${52}></sw-floor-glyph>
-                <div class="txt">
-                  <div class="title">${f.name}</div>
-                  <div class="counts">
-                    <span><sw-icon name="camera" size=${13}></sw-icon>${f.cameras} מצלמות</span>
-                    <span><sw-icon name="sensor" size=${13}></sw-icon>${f.entities} ישויות</span>
-                    <span><sw-icon name=${f.hasPlan ? 'check' : 'upload'} size=${13}></sw-icon>${f.hasPlan ? 'תוכנית מפורסמת' : 'אין תוכנית'}</span>
+      <sw-page heading=${b.name} subheading=${`${site.address} · ${site.name} · נתוני הדגמה`} crumbs=${`אתרים | ${site.name} | ${b.name}`}>
+        <div slot="actions" class="pic"><sw-scene kind="building"></sw-scene></div>
+        <sw-tabs .items=${[{ id: 'floors', label: 'קומות', count: b.floors.length }, { id: 'cameras', label: 'מצלמות', count: totalCams }, { id: 'details', label: 'פרטים' }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>
+        ${this.tab === 'floors'
+          ? html`<div class="list">
+              ${b.floors.map(
+                (f) => html`<button class="floor ${f.id === sel.id ? 'on' : ''}" @click=${() => (this.selected === f.id ? navigate(`/explore/floors/${f.id}`) : (this.selected = f.id))} aria-pressed=${f.id === sel.id}>
+                  <div class="txt">
+                    <div class="title">${f.name}</div>
+                    <div class="counts">${f.cameras} מצלמות · ${f.entities} ישויות${f.hasPlan ? '' : ' · אין תוכנית עדיין'}</div>
                   </div>
-                </div>
-                <span class="chev"><sw-icon name="chevron" size=${18}></sw-icon></span>
-              </button>`,
-            )}
-          </div>
-          <div class="stack">
-            <sw-card heading=${sel.name} subheading=${sel.hasPlan ? 'תצוגה מקדימה של התוכנית' : 'אין תוכנית — העלאה נדרשת'}>
-              <div class="plan">
-                ${sel.hasPlan
-                  ? html`<svg viewBox="0 0 120 84"><rect x="8" y="8" width="104" height="68" fill="#fff" stroke="var(--sw-map-wall)" stroke-width="2" /><rect x="14" y="14" width="40" height="26" fill="none" stroke="var(--sw-map-wall)" /><rect x="60" y="14" width="46" height="26" fill="none" stroke="var(--sw-map-wall)" /><rect x="14" y="46" width="92" height="24" fill="none" stroke="var(--sw-map-wall)" /><circle cx="24" cy="26" r="3.5" fill="var(--sw-accent)" /><circle cx="84" cy="26" r="3.5" fill="var(--sw-accent)" /><circle cx="60" cy="58" r="3.5" fill="var(--sw-accent)" /></svg>`
-                  : html`<sw-icon name="upload" size=${28}></sw-icon>`}
-                <sw-button class="open" size="sm" variant="primary" icon="map" @click=${() => navigate(`/explore/floors/${sel.id}`)}>פתח מפה</sw-button>
+                  <sw-floor-iso .rooms=${demoRooms(f.id)} ?selected=${f.id === sel.id} ?empty=${!f.hasPlan} width=${128}></sw-floor-iso>
+                  <span class="chev"><sw-icon name="chevron" size=${16}></sw-icon></span>
+                </button>`,
+              )}
+              <div style="display:flex;gap:8px;justify-content:flex-end">
+                <sw-button icon="upload" @click=${() => navigate(`/explore/floors/${sel.id}/import`)}>העלאת תוכנית</sw-button>
+                <sw-button variant="primary" icon="map" @click=${() => navigate(`/explore/floors/${sel.id}`)}>פתח את ${sel.name}</sw-button>
               </div>
-            </sw-card>
-            <sw-card heading="המבנה" class="info">
-              <dl>
-                <dt>אתר</dt><dd>אתר הדגמה</dd>
-                <dt>קומה נבחרת</dt><dd>${sel.name} (${idx + 1}/${b.floors.length})</dd>
-                <dt>אזור זמן</dt><dd><span class="ltr">Asia/Jerusalem</span></dd>
-                <dt>NVR</dt><dd>NVR ראשי · 10 ערוצים</dd>
-                <dt>קשרים בין קומות</dt><dd>מדרגות ומעלית יוגדרו בעורך (Beta)</dd>
-                <dt>בריאות</dt><dd><sw-badge kind="stale" label="1 מצלמה מנותקת"></sw-badge></dd>
-              </dl>
-            </sw-card>
-          </div>
-        </div>
+            </div>`
+          : this.tab === 'cameras'
+            ? html`<div class="cams">${b.floors.map((f) => html`<sw-card heading=${f.name} subheading="${f.cameras} מצלמות" interactive @click=${() => navigate(`/explore/floors/${f.id}`)}></sw-card>`)}</div>`
+            : html`<sw-card heading="פרטי המבנה">
+                <dl>
+                  <dt>אתר</dt><dd>${site.name}</dd>
+                  <dt>כתובת</dt><dd>${site.address}</dd>
+                  <dt>אזור זמן</dt><dd><span class="ltr">Asia/Jerusalem</span></dd>
+                  <dt>NVR</dt><dd>NVR ראשי · 10 ערוצים</dd>
+                  <dt>קשרים בין קומות</dt><dd>מדרגות ומעלית יוגדרו בעורך (Beta)</dd>
+                  <dt>בריאות</dt><dd><sw-badge kind="stale" label="1 מצלמה מנותקת"></sw-badge></dd>
+                </dl>
+              </sw-card>`}
       </sw-page>
     `;
   }

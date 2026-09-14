@@ -30,16 +30,16 @@ export class SwPopover extends LitElement {
     :host {
       position: absolute;
       z-index: var(--sw-z-drawer);
-      inline-size: 300px;
+      inline-size: 268px;
       max-inline-size: calc(100% - 24px);
       background: var(--sw-surface);
       border: 1px solid var(--sw-border);
       border-radius: var(--sw-r-md);
       box-shadow: var(--sw-shadow-3);
-      padding: 12px;
+      padding: 10px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 8px;
       animation: pop var(--sw-t-med) var(--sw-ease);
     }
     header {
@@ -77,7 +77,7 @@ export class SwPopover extends LitElement {
   }
 
   protected updated() {
-    const w = 300;
+    const w = 268;
     const h = this.offsetHeight || 260;
     const gap = 16;
     let left = this.x + gap;

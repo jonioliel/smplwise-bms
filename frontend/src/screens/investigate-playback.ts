@@ -1,27 +1,27 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-page';
-import '../components/sw-card';
 import '../components/sw-badge';
 import '../components/sw-button';
 import '../components/sw-chip';
 import '../components/sw-field';
 import '../components/sw-icon';
+import '../components/sw-scene';
 import '../components/sw-timeline';
-import '../components/sw-camera-tile';
 import { minuteLabel } from '../components/sw-timeline';
 import { demoEvents, demoScene, demoSegments, demoWall } from '../fixtures/catalog';
 
-type Filter = 'all' | 'motion' | 'person' | 'vehicle';
+type Filter = 'all' | 'motion' | 'person' | 'vehicle' | 'door';
 
 /**
- * SC12 — playback (board 1 screen 7): date, camera and dot-coloured event filters above a large picture,
- * a floating transport bar, and the blue activity timeline with a time bubble. Session + generation
- * model, honest precision, gaps stay gaps.
+ * SC12 — playback & timeline (board 1 screen 7): camera name and time in the header, download / share
+ * actions, a large picture with a floating transport bar (pause, ±10s, snapshot, quality, fullscreen),
+ * the blue activity timeline with a time bubble, and dot-coloured event filters underneath.
+ * Session + generation model, honest precision, gaps stay gaps.
  */
 @customElement('investigate-playback')
 export class InvestigatePlayback extends LitElement {
-  @state() private cameraId = 'cam-1';
+  @state() private cameraId = 'cam-10';
   @state() private cursor = 615;
   @state() private generation = 3;
   @state() private playing = true;
@@ -29,24 +29,14 @@ export class InvestigatePlayback extends LitElement {
   @state() private filter: Filter = 'all';
 
   static styles = css`
-    .layout {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) 300px;
-      gap: var(--sw-s-4);
-      align-items: start;
-    }
-    .toolbar {
+    .pick {
       display: flex;
-      flex-wrap: wrap;
       align-items: center;
-      gap: var(--sw-s-2);
-      margin-block-end: var(--sw-s-3);
+      gap: 8px;
+      flex-wrap: wrap;
     }
-    .toolbar sw-field {
-      min-inline-size: 150px;
-    }
-    .toolbar .grow {
-      flex: 1;
+    .pick sw-field {
+      inline-size: 150px;
     }
     .video {
       position: relative;
@@ -54,8 +44,15 @@ export class InvestigatePlayback extends LitElement {
       border-radius: var(--sw-r-lg);
       overflow: hidden;
       color: #fff;
-      background: linear-gradient(180deg, #a9c4e6 0%, #cfdff0 34%, #8fa58b 50%, #5f7358 70%, #3f4d3c 100%);
+      background: #0f1729;
       box-shadow: var(--sw-shadow-2);
+      max-block-size: 62vh;
+      margin-inline: auto;
+      inline-size: 100%;
+    }
+    .video sw-scene {
+      position: absolute;
+      inset: 0;
     }
     .video.gap {
       background: var(--sw-surface-3);
@@ -63,29 +60,23 @@ export class InvestigatePlayback extends LitElement {
       box-shadow: none;
       border: 1px solid var(--sw-border);
     }
-    .video::before {
-      content: '';
+    .shade {
       position: absolute;
       inset: 0;
-      background:
-        linear-gradient(115deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0) 40%),
-        radial-gradient(120% 90% at 50% 45%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.4) 100%);
+      background: linear-gradient(180deg, rgba(0, 0, 0, 0.12) 0%, rgba(0, 0, 0, 0) 25%, rgba(0, 0, 0, 0) 60%, rgba(0, 0, 0, 0.5) 100%);
       pointer-events: none;
-    }
-    .video.gap::before {
-      display: none;
     }
     .tag {
       position: absolute;
-      inset-inline-start: 14px;
-      inset-block-start: 12px;
+      inset-inline-start: 12px;
+      inset-block-start: 10px;
       display: flex;
       gap: 6px;
-      z-index: 2;
       align-items: center;
     }
     .tag .nm {
       font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-sm);
       text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
     }
     .video.gap .tag .nm {
@@ -93,10 +84,9 @@ export class InvestigatePlayback extends LitElement {
     }
     .demo {
       position: absolute;
-      inset-inline-end: 14px;
-      inset-block-start: 12px;
-      z-index: 2;
-      font-size: 10.5px;
+      inset-inline-end: 12px;
+      inset-block-start: 10px;
+      font-size: 10px;
       background: rgba(17, 24, 39, 0.55);
       color: #fff;
       border-radius: 4px;
@@ -104,12 +94,11 @@ export class InvestigatePlayback extends LitElement {
     }
     .stamp {
       position: absolute;
-      inset-inline-end: 14px;
-      inset-block-end: 64px;
+      inset-inline-start: 12px;
+      inset-block-end: 58px;
       font-family: var(--sw-font-mono);
       font-size: var(--sw-fs-xs);
       direction: ltr;
-      z-index: 2;
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
     }
     .video.gap .stamp {
@@ -126,23 +115,22 @@ export class InvestigatePlayback extends LitElement {
     .center > div {
       display: grid;
       justify-items: center;
-      gap: 8px;
+      gap: 6px;
     }
     .bar {
       position: absolute;
       inset-inline: 0;
-      inset-block-end: 12px;
+      inset-block-end: 10px;
       display: flex;
       justify-content: center;
-      z-index: 3;
       pointer-events: none;
     }
     .bar .inner {
       pointer-events: auto;
       display: inline-flex;
       align-items: center;
-      gap: 4px;
-      padding: 6px 10px;
+      gap: 2px;
+      padding: 4px 8px;
       border-radius: var(--sw-r-pill);
       background: rgba(17, 24, 39, 0.72);
       backdrop-filter: blur(8px);
@@ -159,7 +147,7 @@ export class InvestigatePlayback extends LitElement {
       font-weight: var(--sw-fw-semibold);
       border: 1px solid rgba(255, 255, 255, 0.35);
       border-radius: var(--sw-r-pill);
-      padding: 3px 10px;
+      padding: 3px 9px;
       margin-inline: 2px;
       background: transparent;
       color: #fff;
@@ -172,83 +160,25 @@ export class InvestigatePlayback extends LitElement {
     }
     .bar .sep {
       inline-size: 1px;
-      block-size: 20px;
+      block-size: 18px;
       background: rgba(255, 255, 255, 0.25);
       margin-inline: 4px;
     }
-    sw-timeline {
-      margin-block-start: var(--sw-s-3);
-    }
-    .actions {
+    .filters {
       display: flex;
+      gap: 6px;
       flex-wrap: wrap;
-      gap: var(--sw-s-2);
-      margin-block-start: var(--sw-s-3);
-    }
-    .side {
-      display: flex;
-      flex-direction: column;
-      gap: var(--sw-s-3);
-    }
-    .cams {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      max-block-size: 380px;
-      overflow: auto;
-    }
-    .cams button {
-      display: flex;
       align-items: center;
-      gap: 10px;
-      padding: 6px 8px;
-      border: 1px solid transparent;
-      border-radius: var(--sw-r-sm);
-      background: transparent;
-      font: inherit;
-      font-size: var(--sw-fs-sm);
-      text-align: start;
-      cursor: pointer;
-      color: var(--sw-text);
     }
-    .cams button:hover {
-      background: var(--sw-surface-2);
-    }
-    .cams button.on {
-      background: var(--sw-accent-soft);
-      border-color: var(--sw-accent);
-    }
-    .cams sw-camera-tile {
-      inline-size: 64px;
-      flex-shrink: 0;
-      pointer-events: none;
-    }
-    .cams .txt {
+    .filters .grow {
       flex: 1;
-      min-inline-size: 0;
     }
-    .cams .txt small {
-      display: block;
-      color: var(--sw-text-3);
+    .session {
       font-size: var(--sw-fs-xs);
-    }
-    dl {
-      display: grid;
-      grid-template-columns: auto 1fr;
-      gap: 6px 12px;
-      margin: 0;
-      font-size: var(--sw-fs-sm);
-    }
-    dt {
       color: var(--sw-text-3);
-    }
-    dd {
-      margin: 0;
-    }
-    @media (max-width: 1023px) {
-      .layout {
-        grid-template-columns: 1fr;
-      }
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
     }
   `;
 
@@ -262,69 +192,51 @@ export class InvestigatePlayback extends LitElement {
     const inGap = !demoSegments.some((s) => this.cursor >= s.startMin && this.cursor <= s.endMin);
     const events = demoEvents.filter((e) => e.minuteOfDay < 1440).filter((e) => this.filter === 'all' || e.type === this.filter).map((e) => ({ minute: e.minuteOfDay, kind: e.type, label: e.title }));
     return html`
-      <sw-page heading="הקלטות" subheading="${cam.name} · 14.09.2026 · אזור זמן האתר Asia/Jerusalem · נתוני הדגמה" wide>
-        <sw-button slot="actions" icon="download">ייצוא קטע</sw-button>
-        <a slot="actions" href="#/investigate/playback/sync"><sw-button icon="grid">ניגון מסונכרן</sw-button></a>
-        <div class="layout">
-          <div>
-            <div class="toolbar">
-              <sw-field><select @change=${(e: Event) => (this.cameraId = (e.target as HTMLSelectElement).value)}>${demoWall.map((c) => html`<option value=${c.id} ?selected=${c.id === this.cameraId}>${c.name}</option>`)}</select></sw-field>
-              <sw-field><input type="date" value="2026-09-14" data-ltr /></sw-field>
-              <sw-field><input type="time" value=${minuteLabel(this.cursor)} data-ltr @change=${(e: Event) => { const [h, m] = (e.target as HTMLInputElement).value.split(':').map(Number); this.cursor = h * 60 + m; this.generation += 1; }} /></sw-field>
-              <span class="grow"></span>
-              <sw-chip ?selected=${this.filter === 'all'} @click=${() => (this.filter = 'all')}>הכל</sw-chip>
-              <sw-chip dot="#ef4444" ?selected=${this.filter === 'motion'} @click=${() => (this.filter = 'motion')}>תנועה</sw-chip>
-              <sw-chip dot="#2f6bff" ?selected=${this.filter === 'person'} @click=${() => (this.filter = 'person')}>אדם</sw-chip>
-              <sw-chip dot="#22c55e" ?selected=${this.filter === 'vehicle'} @click=${() => (this.filter = 'vehicle')}>רכב</sw-chip>
-            </div>
-            <div class="video ${inGap ? 'gap' : ''}">
-              <div class="tag"><sw-badge kind=${inGap ? 'unknown' : 'recorded'} ?onImage=${!inGap}></sw-badge><span class="nm">${cam.name}</span></div>
-              ${inGap
-                ? html`<div class="center"><div><sw-icon name="offline" size=${36}></sw-icon><span>אין הקלטה בזמן הזה: פער בכיסוי, לא מדלגים ל־Live</span></div></div>`
-                : html`<span class="demo">דמו · הניגון יתחבר ב־T028</span>`}
-              <span class="stamp">2026-09-14 ${minuteLabel(this.cursor)}:00 · actual: ${inGap ? '—' : minuteLabel(this.cursor)}</span>
-              <div class="bar"><div class="inner">
-                <sw-button variant="ghost" iconOnly icon="skip" label="קטע קודם" style="transform:scaleX(-1)"></sw-button>
-                <sw-button variant="ghost" iconOnly icon="back10" label="10 שניות אחורה"></sw-button>
-                <sw-button variant="ghost" iconOnly icon=${this.playing ? 'pause' : 'play'} label=${this.playing ? 'השהה' : 'נגן'} @click=${() => (this.playing = !this.playing)}></sw-button>
-                <sw-button variant="ghost" iconOnly icon="forward10" label="10 שניות קדימה"></sw-button>
-                <sw-button variant="ghost" iconOnly icon="skip" label="קטע הבא"></sw-button>
-                <span class="sep"></span>
-                ${[1, 2, 4].map((s) => html`<button class="q ${this.speed === s ? 'on' : ''}" @click=${() => (this.speed = s)}>${s}×</button>`)}
-                <span class="sep"></span>
-                <sw-button variant="ghost" iconOnly icon="aperture" label="צילום מהקלטה"></sw-button>
-                <sw-button variant="ghost" iconOnly icon="expand" label="מסך מלא"></sw-button>
-              </div></div>
-            </div>
-            <sw-timeline .segments=${demoSegments} .events=${events} .cursor=${this.cursor} precision="estimated" @seek=${this.seek}></sw-timeline>
-            <div class="actions">
-              <sw-button size="sm" icon="case">הוסף לתיק</sw-button>
-              <sw-button size="sm" icon="download">ייצוא 10 דק׳ סביב הסמן</sw-button>
-              <a href="#/investigate/floors/f0/history"><sw-button size="sm" icon="map">במפה בזמן הזה</sw-button></a>
-            </div>
-          </div>
-          <div class="side">
-            <sw-card heading="מצלמות" subheading="בחירה מחליפה session, לא Live">
-              <div class="cams">
-                ${demoWall.map(
-                  (c) => html`<button class=${c.id === this.cameraId ? 'on' : ''} @click=${() => (this.cameraId = c.id)}>
-                    <sw-camera-tile compact name="" state=${c.state} scene=${demoScene[c.id] ?? 'indoor'}></sw-camera-tile>
-                    <span class="txt">${c.name}<small>${c.floor}</small></span>
-                    ${c.state === 'live' ? nothing : html`<sw-badge kind=${c.state}></sw-badge>`}
-                  </button>`,
-                )}
-              </div>
-            </sw-card>
-            <sw-card heading="Session">
-              <dl>
-                <dt>מצב</dt><dd>${this.playing ? 'playing' : 'paused'} · ${this.speed}×</dd>
-                <dt>דור (generation)</dt><dd>${this.generation}</dd>
-                <dt>דיוק זמן</dt><dd><sw-badge kind="stale" label="משוער"></sw-badge></dd>
-                <dt>כיסוי</dt><dd>${inGap ? 'פער' : 'מלא'} · 6 מקטעים ביום</dd>
-                <dt>תחבורה</dt><dd>WebRTC → MSE</dd>
-              </dl>
-            </sw-card>
-          </div>
+      <sw-page heading=${cam.name} subheading="14.09.2026 ${minuteLabel(this.cursor)} · אזור זמן האתר Asia/Jerusalem · נתוני הדגמה" crumbs="הקלטות | ${cam.floor}" wide>
+        <div slot="actions" class="pick">
+          <sw-field><select aria-label="מצלמה" @change=${(e: Event) => (this.cameraId = (e.target as HTMLSelectElement).value)}>${demoWall.map((c) => html`<option value=${c.id} ?selected=${c.id === this.cameraId}>${c.name}</option>`)}</select></sw-field>
+          <sw-field><input type="date" value="2026-09-14" data-ltr aria-label="תאריך" /></sw-field>
+          <sw-field style="inline-size:96px"><input type="time" value=${minuteLabel(this.cursor)} data-ltr aria-label="שעה" @change=${(e: Event) => { const [h, m] = (e.target as HTMLInputElement).value.split(':').map(Number); this.cursor = h * 60 + m; this.generation += 1; }} /></sw-field>
+        </div>
+        <sw-button slot="actions" variant="ghost" iconOnly icon="download" label="ייצוא קטע"></sw-button>
+        <sw-button slot="actions" variant="ghost" iconOnly icon="link" label="שיתוף"></sw-button>
+        <sw-button slot="actions" variant="ghost" iconOnly icon="more" label="עוד"></sw-button>
+        <div class="video ${inGap ? 'gap' : ''}">
+          ${inGap
+            ? html`<div class="center"><div><sw-icon name="offline" size=${32}></sw-icon><span>אין הקלטה בזמן הזה: פער בכיסוי, לא מדלגים ל־Live</span></div></div>`
+            : html`<sw-scene kind=${demoScene[cam.id] ?? 'lobby'}></sw-scene><div class="shade"></div><span class="demo">דמו · הניגון יתחבר ב־T028</span>`}
+          <div class="tag"><sw-badge kind=${inGap ? 'unknown' : 'recorded'} ?onImage=${!inGap}></sw-badge><span class="nm">${cam.name}</span></div>
+          <span class="stamp">2026-09-14 ${minuteLabel(this.cursor)}:00 · actual: ${inGap ? '—' : minuteLabel(this.cursor)}</span>
+          <div class="bar"><div class="inner">
+            <sw-button variant="ghost" size="sm" iconOnly icon=${this.playing ? 'pause' : 'play'} label=${this.playing ? 'השהה' : 'נגן'} @click=${() => (this.playing = !this.playing)}></sw-button>
+            <sw-button variant="ghost" size="sm" iconOnly icon="back10" label="10 שניות אחורה"></sw-button>
+            <sw-button variant="ghost" size="sm" iconOnly icon="forward10" label="10 שניות קדימה"></sw-button>
+            <span class="sep"></span>
+            ${[1, 2, 4].map((s) => html`<button class="q ${this.speed === s ? 'on' : ''}" @click=${() => (this.speed = s)}>${s}×</button>`)}
+            <span class="sep"></span>
+            <sw-button variant="ghost" size="sm" iconOnly icon="aperture" label="צילום מהקלטה"></sw-button>
+            <button class="q on">1080p</button>
+            <sw-button variant="ghost" size="sm" iconOnly icon="expand" label="מסך מלא"></sw-button>
+          </div></div>
+        </div>
+        <sw-timeline .segments=${demoSegments} .events=${events} .cursor=${this.cursor} precision="estimated" @seek=${this.seek}></sw-timeline>
+        <div class="filters">
+          <sw-chip ?selected=${this.filter === 'all'} @click=${() => (this.filter = 'all')}>הכל</sw-chip>
+          <sw-chip dot="#ef4444" ?selected=${this.filter === 'motion'} @click=${() => (this.filter = 'motion')}>תנועה</sw-chip>
+          <sw-chip dot="#2f6bff" ?selected=${this.filter === 'person'} @click=${() => (this.filter = 'person')}>אדם</sw-chip>
+          <sw-chip dot="#22c55e" ?selected=${this.filter === 'vehicle'} @click=${() => (this.filter = 'vehicle')}>רכב</sw-chip>
+          <sw-chip dot="#8b5cf6" ?selected=${this.filter === 'door'} @click=${() => (this.filter = 'door')}>דלת</sw-chip>
+          <span class="grow"></span>
+          <sw-button size="sm" icon="case">הוסף לתיק</sw-button>
+          <a href="#/investigate/floors/f0/history"><sw-button size="sm" icon="map">במפה בזמן הזה</sw-button></a>
+        </div>
+        <div class="session">
+          <span>Session: ${this.playing ? 'playing' : 'paused'} · ${this.speed}×</span>
+          <span>דור ${this.generation}</span>
+          <span>דיוק זמן: משוער</span>
+          <span>כיסוי: ${inGap ? 'פער' : 'מלא'} · 6 מקטעים ביום</span>
+          <span>WebRTC → MSE</span>
+          ${inGap ? nothing : html`<span>מצלמה: ${cam.name}</span>`}
         </div>
       </sw-page>
     `;

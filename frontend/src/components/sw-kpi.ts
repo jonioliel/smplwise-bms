@@ -4,7 +4,7 @@ import './sw-icon';
 import type { IconName } from './sw-icon';
 import type { StateKind } from './sw-badge';
 
-/** Stat tile as on board 1: icon in a soft-blue square, big value, label, green/amber sub-label. */
+/** Stat tile as on the boards: icon in a soft-blue square, big value, label, green/amber sub-label. */
 @customElement('sw-kpi')
 export class SwKpi extends LitElement {
   @property() label = '';
@@ -18,8 +18,8 @@ export class SwKpi extends LitElement {
     :host {
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      padding: 14px 16px;
+      gap: 8px;
+      padding: 12px 14px;
       background: var(--sw-surface);
       border: 1px solid var(--sw-border);
       border-radius: var(--sw-r-md);
@@ -30,27 +30,43 @@ export class SwKpi extends LitElement {
     .icon {
       display: grid;
       place-items: center;
-      inline-size: 36px;
-      block-size: 36px;
-      border-radius: 9px;
+      inline-size: 30px;
+      block-size: 30px;
+      border-radius: 8px;
       background: var(--sw-accent-soft);
-      color: var(--sw-accent-text);
+      color: var(--sw-accent);
+    }
+    :host([tone='error']) .icon,
+    :host([tone='offline']) .icon {
+      background: var(--sw-danger-soft);
+      color: var(--sw-danger);
+    }
+    :host([tone='stale']) .icon,
+    :host([tone='partial']) .icon {
+      background: var(--sw-stale-soft);
+      color: var(--sw-stale);
+    }
+    :host([tone='live']) .icon {
+      background: var(--sw-live-soft);
+      color: #16a34a;
     }
     .value {
       font-size: var(--sw-fs-2xl);
       font-weight: var(--sw-fw-bold);
       line-height: 1.1;
       letter-spacing: -0.01em;
+      font-variant-numeric: tabular-nums;
     }
     .label {
-      font-size: var(--sw-fs-sm);
+      font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
       margin-block-start: 2px;
     }
     .detail {
       font-size: var(--sw-fs-xs);
       font-weight: var(--sw-fw-medium);
-      color: #15803d;
+      color: #16a34a;
+      margin-block-start: 1px;
     }
     :host([tone='stale']) .detail,
     :host([tone='partial']) .detail {
@@ -65,20 +81,20 @@ export class SwKpi extends LitElement {
     }
     .badge {
       position: absolute;
-      inset-inline-end: 12px;
-      inset-block-start: 12px;
+      inset-inline-end: 10px;
+      inset-block-start: 10px;
       background: var(--sw-danger);
       color: #fff;
-      font-size: 10.5px;
+      font-size: 9.5px;
       font-weight: var(--sw-fw-semibold);
       border-radius: var(--sw-r-pill);
-      padding: 1px 8px;
+      padding: 1px 7px;
     }
   `;
 
   render() {
     return html`
-      <div class="icon"><sw-icon .name=${this.icon} size=${18}></sw-icon></div>
+      <div class="icon"><sw-icon .name=${this.icon} size=${16}></sw-icon></div>
       ${this.badge ? html`<span class="badge">${this.badge}</span>` : ''}
       <div>
         <div class="value">${this.value}</div>

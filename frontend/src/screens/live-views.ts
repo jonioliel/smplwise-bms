@@ -6,6 +6,8 @@ import '../components/sw-button';
 import '../components/sw-badge';
 import '../components/sw-toggle';
 import '../components/sw-icon';
+import '../components/sw-scene';
+import { demoScene, demoWall } from '../fixtures/catalog';
 
 const VIEWS = [
   { name: 'כל המצלמות', layout: 9, scope: 'משותפת', mobile: '4 · משני', owner: 'יוני', kiosk: true },
@@ -20,40 +22,41 @@ export class LiveViews extends LitElement {
   static styles = css`
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: var(--sw-s-3);
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 12px;
     }
     .thumb {
       display: grid;
       gap: 3px;
-      background: var(--sw-surface-3);
-      border-radius: var(--sw-r-sm);
-      padding: 6px;
+      background: #0f172a;
+      border-radius: 8px;
+      padding: 4px;
       aspect-ratio: 16 / 9;
-      margin-block-end: var(--sw-s-3);
+      margin-block-end: 10px;
+      overflow: hidden;
     }
-    .thumb i {
-      background: var(--sw-video-bg);
+    .thumb sw-scene {
       border-radius: 3px;
-      opacity: 0.85;
+      inline-size: 100%;
+      block-size: 100%;
     }
     dl {
       display: grid;
       grid-template-columns: auto 1fr;
-      gap: 6px 12px;
+      gap: 4px 10px;
       margin: 0;
-      font-size: var(--sw-fs-sm);
+      font-size: var(--sw-fs-xs);
     }
     dt {
-      color: var(--sw-text-2);
+      color: var(--sw-text-3);
     }
     dd {
       margin: 0;
     }
     .foot {
       display: flex;
-      gap: var(--sw-s-2);
-      margin-block-start: var(--sw-s-3);
+      gap: 6px;
+      margin-block-start: 10px;
       align-items: center;
     }
   `;
@@ -67,12 +70,11 @@ export class LiveViews extends LitElement {
             const cols = Math.ceil(Math.sqrt(v.layout));
             return html`<sw-card heading=${v.name}>
               <sw-badge slot="actions" kind="neutral" label=${v.scope}></sw-badge>
-              <div class="thumb" style="grid-template-columns:repeat(${cols},1fr)">${Array.from({ length: v.layout }, () => html`<i></i>`)}</div>
+              <div class="thumb" style="grid-template-columns:repeat(${cols},1fr)">${demoWall.filter((c) => c.state === 'live').slice(0, v.layout).map((c) => html`<sw-scene kind=${demoScene[c.id] ?? 'lobby'}></sw-scene>`)}</div>
               <dl>
                 <dt>פריסה</dt><dd>${v.layout} אריחים</dd>
                 <dt>מובייל</dt><dd>${v.mobile}</dd>
                 <dt>בעלים</dt><dd>${v.owner}</dd>
-                <dt>קיוסק</dt><dd>${v.kiosk ? 'זמינה' : 'לא'}</dd>
               </dl>
               <div class="foot">
                 <a href="#/live/wall"><sw-button size="sm" icon="play">פתח</sw-button></a>

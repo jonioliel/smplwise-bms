@@ -94,7 +94,7 @@ export class SwTimeline extends LitElement {
     }
     svg {
       inline-size: 100%;
-      block-size: 96px;
+      block-size: 84px;
       display: block;
       cursor: crosshair;
     }
@@ -158,14 +158,14 @@ export class SwTimeline extends LitElement {
 
   render() {
     const W = 1000;
-    const H = 96;
-    const baseY = 66;
-    const count = 140;
+    const H = 84;
+    const baseY = 58;
+    const count = 160;
     const bw = W / count;
     const tickEvery = this.windowMinutes <= 60 ? 10 : this.windowMinutes <= 360 ? 60 : 180;
     const ticks: number[] = [];
     for (let m = Math.ceil(this.start / tickEvery) * tickEvery; m <= this.start + this.windowMinutes; m += tickEvery) ticks.push(m);
-    const heights = [0, 14, 30, 42];
+    const heights = [0, 12, 26, 36];
     const precisionText = { verified: 'זמן מאומת', keyframe_limited: 'דיוק לפי keyframe', estimated: 'זמן משוער', unknown: 'דיוק לא ידוע' }[this.precision];
     const cx = this.x(this.cursor, W);
     const label = minuteLabel(this.cursor);
@@ -183,7 +183,7 @@ export class SwTimeline extends LitElement {
           const h = heights[lvl];
           return svg`<rect x=${i * bw + 1} y=${baseY - h} width=${Math.max(2, bw - 2)} height=${h} rx="1.5" fill=${lvl === 3 ? 'var(--sw-accent)' : 'var(--sw-accent)'} opacity=${lvl === 1 ? 0.45 : lvl === 2 ? 0.8 : 1} />`;
         })}
-        ${ticks.map((m) => svg`<line x1=${this.x(m, W)} x2=${this.x(m, W)} y1=${baseY} y2=${baseY + 6} stroke="var(--sw-border-strong)" /><text x=${this.x(m, W)} y=${H - 6} font-size="11" text-anchor="middle" fill="var(--sw-text-3)" font-family="var(--sw-font-mono)">${minuteLabel(m)}</text>`)}
+        ${ticks.map((m) => svg`<line x1=${this.x(m, W)} x2=${this.x(m, W)} y1=${baseY} y2=${baseY + 5} stroke="var(--sw-border-strong)" /><text x=${this.x(m, W)} y=${H - 6} font-size="10.5" text-anchor="middle" fill="var(--sw-text-3)" font-family="var(--sw-font)">${minuteLabel(m)}</text>`)}
         ${this.events.map((ev) => {
           const x = this.x(ev.minute, W);
           if (x < 0 || x > W) return nothing;
@@ -191,9 +191,9 @@ export class SwTimeline extends LitElement {
         })}
         ${this.hover !== null ? svg`<line x1=${this.x(this.hover, W)} x2=${this.x(this.hover, W)} y1="18" y2=${baseY} stroke="var(--sw-text-3)" stroke-dasharray="3 3" />` : nothing}
         <g transform="translate(${cx} 0)">
-          <line x1="0" x2="0" y1="16" y2=${baseY + 4} stroke="var(--sw-accent)" stroke-width="2" />
-          <rect x="-26" y="0" width="52" height="18" rx="5" fill="var(--sw-accent)" />
-          <text x="0" y="13" font-size="11.5" text-anchor="middle" fill="#fff" font-family="var(--sw-font-mono)" font-weight="600">${label}</text>
+          <line x1="0" x2="0" y1="15" y2=${baseY + 4} stroke="var(--sw-accent)" stroke-width="2" />
+          <rect x="-24" y="0" width="48" height="16" rx="5" fill="var(--sw-accent)" />
+          <text x="0" y="11.5" font-size="10.5" text-anchor="middle" fill="#fff" font-family="var(--sw-font-mono)" font-weight="600">${label}</text>
         </g>
       </svg>
       <div class="legend">

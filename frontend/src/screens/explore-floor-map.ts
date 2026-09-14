@@ -2,13 +2,11 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state, query } from 'lit/decorators.js';
 import '../components/sw-button';
 import '../components/sw-badge';
-import '../components/sw-card';
 import '../components/sw-chip';
 import '../components/sw-drawer';
 import '../components/sw-popover';
 import '../components/sw-icon';
-import '../components/sw-toggle';
-import '../components/sw-floor-glyph';
+import '../components/sw-field';
 import '../components/sw-camera-tile';
 import '../components/sw-state-panel';
 import '../map/sw-plan-canvas';
@@ -30,9 +28,9 @@ const LAYERS: { id: Layer; icon: 'camera' | 'door' | 'light' | 'sensor'; label: 
 ];
 
 /**
- * SC04 — live floor map (board 1 screen 4): breadcrumb, a side panel with the isometric floor list and
- * layer toggles, the plan with blue camera pins, and a floating camera card anchored to the selected pin
- * (bottom sheet on phones). Skeleton on fixtures; real data arrives with T019/T022/T025.
+ * SC04 — interactive floor plan (board 1 screen 4): breadcrumb, "building – floor" title, a floor
+ * dropdown, the plan drawn in thin blue-grey lines with bare blue camera pins and view cones, and a
+ * floating camera card anchored to the selected pin (bottom sheet on phones).
  */
 @customElement('explore-floor-map')
 export class ExploreFloorMap extends LitElement {
@@ -60,17 +58,17 @@ export class ExploreFloorMap extends LitElement {
     .head {
       display: flex;
       flex-wrap: wrap;
-      align-items: center;
-      gap: var(--sw-s-3);
-      padding: var(--sw-s-4) var(--sw-s-5) var(--sw-s-3);
+      align-items: flex-end;
+      gap: 10px 12px;
+      padding: 14px 24px 12px;
     }
     .crumbs {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 4px;
       color: var(--sw-text-3);
-      font-size: var(--sw-fs-sm);
-      min-inline-size: 0;
+      font-size: var(--sw-fs-xs);
+      margin-block-end: 4px;
     }
     .crumbs a {
       color: inherit;
@@ -79,119 +77,61 @@ export class ExploreFloorMap extends LitElement {
     .crumbs a:hover {
       color: var(--sw-accent-text);
     }
-    .crumbs strong {
-      color: var(--sw-text);
+    .crumbs sw-icon {
+      color: var(--sw-border-strong);
+    }
+    h1 {
+      margin: 0;
       font-size: var(--sw-fs-2xl);
-      font-weight: var(--sw-fw-bold);
+      font-weight: var(--sw-fw-semibold);
+      line-height: 1.2;
       letter-spacing: -0.01em;
     }
-    .crumbs sw-icon {
+    .sub {
       color: var(--sw-text-3);
+      font-size: var(--sw-fs-sm);
+      margin-block-start: 2px;
     }
     .spacer {
       flex: 1;
     }
-    .group {
-      display: none;
-      align-items: center;
-      gap: var(--sw-s-2);
-    }
-    .body {
-      flex: 1;
-      display: grid;
-      grid-template-columns: 250px minmax(0, 1fr);
-      gap: var(--sw-s-4);
-      padding: 0 var(--sw-s-5) var(--sw-s-5);
-      min-block-size: 0;
-    }
-    .side {
-      display: flex;
-      flex-direction: column;
-      gap: var(--sw-s-3);
-      min-block-size: 0;
-      overflow: auto;
-    }
-    .side h4 {
-      margin: 0 0 8px;
-      font-size: var(--sw-fs-xs);
-      font-weight: var(--sw-fw-semibold);
-      color: var(--sw-text-3);
-      letter-spacing: 0.04em;
-    }
-    .floors {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .floor {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 8px;
-      border: 1px solid transparent;
-      border-radius: 10px;
-      background: transparent;
-      font: inherit;
-      text-align: start;
-      cursor: pointer;
-      color: var(--sw-text);
-      transition: background var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease);
-    }
-    .floor:hover {
-      background: var(--sw-surface-2);
-    }
-    .floor.on {
-      background: var(--sw-accent-soft);
-      border-color: var(--sw-accent);
-    }
-    .floor .n {
-      font-weight: var(--sw-fw-semibold);
-      font-size: var(--sw-fs-sm);
-    }
-    .floor .c {
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-3);
-    }
-    .layer {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 7px 0;
-      font-size: var(--sw-fs-sm);
-      border-block-end: 1px solid var(--sw-border);
-    }
-    .layer:last-child {
-      border-block-end: 0;
-    }
-    .layer sw-icon {
-      color: var(--sw-text-2);
-    }
-    .layer .grow {
-      flex: 1;
-    }
-    .legend {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-2);
-    }
-    .legend span {
+    .tools {
       display: flex;
       align-items: center;
       gap: 8px;
+      flex-wrap: wrap;
     }
-    .legend i {
-      inline-size: 12px;
-      block-size: 12px;
-      border-radius: 50%;
-      background: var(--lg);
-      border: 2px solid #fff;
-      box-shadow: 0 0 0 1px var(--sw-border-strong);
+    .tools sw-field {
+      inline-size: 150px;
+    }
+    .layers {
+      display: inline-flex;
+      gap: 2px;
+      background: var(--sw-surface-3);
+      border-radius: 8px;
+      padding: 2px;
+    }
+    .layers button {
+      border: 0;
+      background: transparent;
+      inline-size: 28px;
+      block-size: 26px;
+      border-radius: 6px;
+      display: grid;
+      place-items: center;
+      color: var(--sw-text-3);
+      cursor: pointer;
+    }
+    .layers button.on {
+      background: var(--sw-surface);
+      color: var(--sw-accent-text);
+      box-shadow: var(--sw-shadow-1);
     }
     .stage {
       position: relative;
+      flex: 1;
       min-block-size: 360px;
+      margin: 0 24px 24px;
       border: 1px solid var(--sw-border);
       border-radius: var(--sw-r-lg);
       background: var(--sw-surface);
@@ -200,8 +140,8 @@ export class ExploreFloorMap extends LitElement {
     }
     .banner {
       position: absolute;
-      inset-inline: var(--sw-s-3);
-      inset-block-start: var(--sw-s-3);
+      inset-inline: 12px;
+      inset-block-start: 12px;
       z-index: var(--sw-z-map-ui);
       background: var(--sw-stale-soft);
       border: 1px dashed var(--sw-stale);
@@ -219,11 +159,38 @@ export class ExploreFloorMap extends LitElement {
       background: var(--sw-surface);
       z-index: var(--sw-z-map-ui);
     }
+    .legend {
+      position: absolute;
+      inset-inline-start: 12px;
+      inset-block-end: 12px;
+      z-index: var(--sw-z-map-ui);
+      display: flex;
+      gap: 10px;
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-pill);
+      padding: 3px 10px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      backdrop-filter: blur(6px);
+    }
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .legend i {
+      inline-size: 9px;
+      block-size: 9px;
+      border-radius: 50%;
+      background: var(--lg);
+      box-shadow: 0 0 0 1px #fff;
+    }
     .meta {
       display: grid;
       grid-template-columns: auto 1fr;
-      gap: 6px var(--sw-s-3);
-      font-size: var(--sw-fs-sm);
+      gap: 4px 10px;
+      font-size: var(--sw-fs-xs);
       margin: 0;
     }
     .meta dt {
@@ -240,7 +207,7 @@ export class ExploreFloorMap extends LitElement {
     }
     .warn {
       color: var(--sw-danger);
-      font-size: var(--sw-fs-sm);
+      font-size: var(--sw-fs-xs);
     }
     .statusrow {
       display: flex;
@@ -250,7 +217,7 @@ export class ExploreFloorMap extends LitElement {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
     }
-    .preview {
+    .off {
       aspect-ratio: 16 / 9;
       background: var(--sw-surface-3);
       border-radius: var(--sw-r-sm);
@@ -258,49 +225,28 @@ export class ExploreFloorMap extends LitElement {
       place-items: center;
       color: var(--sw-text-2);
       text-align: center;
-      padding: var(--sw-s-3);
-      font-size: var(--sw-fs-sm);
+      padding: 10px;
+      font-size: var(--sw-fs-xs);
     }
-    .preview sw-icon {
-      margin-block-end: 6px;
-    }
-    @media (max-width: 1023px) {
-      .body {
-        grid-template-columns: minmax(0, 1fr);
-      }
-      .side {
-        display: none;
-      }
-      .group {
-        display: flex;
-        flex-wrap: nowrap;
-        overflow-x: auto;
-        max-inline-size: 100%;
-        scrollbar-width: none;
-        padding-block: 2px;
-      }
-      .group::-webkit-scrollbar {
-        display: none;
-      }
+    .off sw-icon {
+      margin-block-end: 4px;
+      color: var(--sw-text-3);
     }
     @media (max-width: 767px) {
       .head {
-        padding: var(--sw-s-3) var(--sw-s-3) var(--sw-s-2);
-        gap: var(--sw-s-2);
-      }
-      .spacer {
-        display: none;
-      }
-      .body {
-        padding: 0;
+        padding: 12px 12px 8px;
       }
       .stage {
+        margin: 0;
         border-radius: 0;
         border-inline: 0;
         box-shadow: none;
       }
-      .crumbs strong {
+      h1 {
         font-size: var(--sw-fs-xl);
+      }
+      .legend {
+        display: none;
       }
     }
   `;
@@ -364,16 +310,12 @@ export class ExploreFloorMap extends LitElement {
     const canView = cam.state === 'live' || cam.state === 'stale';
     return html`
       ${canView
-        ? html`<sw-camera-tile compact name=${cam.name} state=${cam.state} scene=${demoScene[cam.id] ?? 'indoor'} stamp="10:24:36" @click=${() => navigate(`/live/cameras/${cam.id}`)}></sw-camera-tile>`
-        : html`<div class="preview"><div><sw-icon name=${cam.state === 'forbidden' ? 'lock' : 'offline'} size=${26}></sw-icon><div>${reason}</div></div></div>`}
+        ? html`<sw-camera-tile name="" state=${cam.state} scene=${demoScene[cam.id] ?? 'lobby'} @click=${() => navigate(`/live/cameras/${cam.id}`)}></sw-camera-tile>`
+        : html`<div class="off"><div><sw-icon name=${cam.state === 'forbidden' ? 'lock' : 'offline'} size=${22}></sw-icon><div>${reason}</div></div></div>`}
       <div class="statusrow">
         <sw-badge kind=${cam.state}></sw-badge>
         <span>${this.floor.name} · ${cam.source}</span>
       </div>
-      <dl class="meta">
-        <dt>${t('camera.timeSource')}</dt><dd>NVR · <span class="ltr">Asia/Jerusalem</span></dd>
-        <dt>${t('camera.quality')}</dt><dd>${t('camera.main')} / ${t('camera.sub')}</dd>
-      </dl>
       ${reason && canView ? html`<div class="warn">${reason}</div>` : nothing}
     `;
   }
@@ -381,9 +323,9 @@ export class ExploreFloorMap extends LitElement {
   private cameraFooter(cam: DemoCamera) {
     const canView = cam.state === 'live' || cam.state === 'stale';
     return html`
-      <sw-button variant="primary" icon="live" ?disabled=${!canView} @click=${() => navigate(`/live/cameras/${cam.id}`)}>צפייה חיה</sw-button>
-      <sw-button icon="history" ?disabled=${cam.state === 'forbidden'} @click=${() => navigate('/investigate/playback')}>${t('camera.recordings')}</sw-button>
-      <sw-button variant="ghost" iconOnly icon="pin" label=${this.pinned ? t('camera.unpin') : t('camera.pin')} @click=${() => (this.pinned = !this.pinned)}></sw-button>
+      <sw-button variant="primary" size="sm" icon="expand" ?disabled=${!canView} @click=${() => navigate(`/live/cameras/${cam.id}`)}>צפייה חיה</sw-button>
+      <sw-button size="sm" icon="history" ?disabled=${cam.state === 'forbidden'} @click=${() => navigate('/investigate/playback')}>${t('camera.recordings')}</sw-button>
+      <sw-button variant="ghost" size="sm" iconOnly icon="pin" label=${this.pinned ? t('camera.unpin') : t('camera.pin')} @click=${() => (this.pinned = !this.pinned)}></sw-button>
     `;
   }
 
@@ -404,8 +346,8 @@ export class ExploreFloorMap extends LitElement {
   private entityFooter(ent: DemoEntity) {
     const stale = this.screenState === 'stale';
     return html`
-      <sw-button variant="primary" ?disabled=${!ent.controllable || stale}>${t('entity.control')}</sw-button>
-      <sw-button variant="ghost">${t('entity.openInHa')}</sw-button>
+      <sw-button variant="primary" size="sm" ?disabled=${!ent.controllable || stale}>${t('entity.control')}</sw-button>
+      <sw-button variant="ghost" size="sm">${t('entity.openInHa')}</sw-button>
     `;
   }
 
@@ -441,7 +383,7 @@ export class ExploreFloorMap extends LitElement {
     if (this.screenState === 'empty' || !floor.hasPlan) {
       return html`<div class="cover">
         <sw-state-panel state="empty" heading=${t('floor.noPlan')} hint=${t('floor.noPlanHint')}>
-          <div style="display:flex;gap:var(--sw-s-2);margin-block-start:var(--sw-s-3);justify-content:center;flex-wrap:wrap">
+          <div style="display:flex;gap:8px;margin-block-start:10px;justify-content:center;flex-wrap:wrap">
             <sw-button variant="primary" icon="upload" @click=${() => navigate(`/explore/floors/${floor.id}/import`)}>${t('floor.uploadPlan')}</sw-button>
             <sw-button icon="list">${t('floor.listView')}</sw-button>
           </div>
@@ -461,60 +403,40 @@ export class ExploreFloorMap extends LitElement {
         .dimEntities=${this.screenState === 'stale'}
         @marker-select=${this.onSelect}
         @view-change=${this.onViewChange}></sw-plan-canvas>
+      <div class="legend" aria-label="מקרא">
+        <span><i style="--lg: var(--sw-accent)"></i>חי</span>
+        <span><i style="--lg: var(--sw-stale)"></i>לא מעודכן</span>
+        <span><i style="--lg: var(--sw-offline)"></i>מנותק</span>
+        <span><i style="--lg: var(--sw-forbidden)"></i>ללא הרשאה</span>
+        <span><i style="--lg: #fff; box-shadow: 0 0 0 1px var(--sw-border-strong)"></i>ישות HA</span>
+      </div>
       ${this.renderCard()}
     `;
   }
 
   render() {
     const floor = this.floor;
-    const idx = demoFloors.findIndex((f) => f.id === floor.id);
     return html`
       <div class="head">
-        <div class="crumbs">
-          <a href="#/explore/sites">${demoSite.name}</a><sw-icon name="chevron" size=${14}></sw-icon>
-          <a href="#/explore/buildings/bld-a/floors">${demoSite.building}</a><sw-icon name="chevron" size=${14}></sw-icon>
-          <strong>${floor.name}</strong>
+        <div>
+          <div class="crumbs">
+            <a href="#/explore/sites">${demoSite.name}</a><sw-icon name="chevron" size=${11}></sw-icon>
+            <a href="#/explore/buildings/bld-a/floors">${demoSite.building}</a><sw-icon name="chevron" size=${11}></sw-icon>
+            <span>${floor.name}</span>
+          </div>
+          <h1>${demoSite.building} – ${floor.name}</h1>
+          <div class="sub">${floor.cameraCount} מצלמות · ${floor.entityCount} ישויות HA · נתוני הדגמה</div>
         </div>
         <div class="spacer"></div>
-        <div class="group" role="group" aria-label=${t('floor.switcher')}>
-          ${demoFloors.map((f) => html`<sw-chip icon="floor" ?selected=${f.id === this.floorId} count=${f.cameraCount} @click=${() => navigate(`/explore/floors/${f.id}`)}>${f.name}</sw-chip>`)}
+        <div class="tools">
+          <div class="layers" role="group" aria-label=${t('floor.layers')}>
+            ${LAYERS.map((l) => html`<button class=${this.layers.has(l.id) ? 'on' : ''} title=${l.label()} aria-label=${l.label()} aria-pressed=${this.layers.has(l.id)} @click=${() => this.toggleLayer(l.id)}><sw-icon name=${l.icon} size=${14}></sw-icon></button>`)}
+          </div>
+          <sw-field><select aria-label=${t('floor.switcher')} @change=${(e: Event) => navigate(`/explore/floors/${(e.target as HTMLSelectElement).value}`)}>${demoFloors.map((f) => html`<option value=${f.id} ?selected=${f.id === this.floorId}>${f.name} · ${f.cameraCount} מצלמות</option>`)}</select></sw-field>
+          <sw-button icon="edit" @click=${() => navigate(`/explore/floors/${floor.id}/edit`)}>עריכת תוכנית</sw-button>
         </div>
-        <div class="group" role="group" aria-label=${t('floor.layers')}>
-          ${LAYERS.map((l) => html`<sw-chip icon=${l.icon} ?selected=${this.layers.has(l.id)} @click=${() => this.toggleLayer(l.id)}>${l.label()}</sw-chip>`)}
-        </div>
-        <sw-button icon="edit" @click=${() => navigate(`/explore/floors/${floor.id}/edit`)}>עריכת תוכנית</sw-button>
       </div>
-      <div class="body">
-        <aside class="side">
-          <sw-card>
-            <h4>${t('floor.switcher')}</h4>
-            <div class="floors" role="group" aria-label=${t('floor.switcher')}>
-              ${demoFloors.map(
-                (f, i) => html`<button class="floor ${f.id === this.floorId ? 'on' : ''}" @click=${() => navigate(`/explore/floors/${f.id}`)} aria-pressed=${f.id === this.floorId}>
-                  <sw-floor-glyph levels=${demoFloors.length} active=${demoFloors.length - 1 - i} ?selected=${f.id === this.floorId} size=${40}></sw-floor-glyph>
-                  <div><div class="n">${f.name}</div><div class="c">${f.cameraCount} מצלמות · ${f.entityCount} ישויות${f.hasPlan ? '' : ' · אין תוכנית'}</div></div>
-                </button>`,
-              )}
-            </div>
-          </sw-card>
-          <sw-card>
-            <h4>${t('floor.layers')}</h4>
-            ${LAYERS.map((l) => html`<div class="layer"><sw-icon name=${l.icon} size=${16}></sw-icon><span>${l.label()}</span><span class="grow"></span><sw-toggle ?checked=${this.layers.has(l.id)} label="" @change=${() => this.toggleLayer(l.id)}></sw-toggle></div>`)}
-          </sw-card>
-          <sw-card>
-            <h4>מקרא</h4>
-            <div class="legend">
-              <span><i style="--lg: var(--sw-accent)"></i>מצלמה חיה</span>
-              <span><i style="--lg: var(--sw-stale)"></i>מצב לא מעודכן (קו מקווקו)</span>
-              <span><i style="--lg: var(--sw-offline)"></i>מנותקת (קו חוצה)</span>
-              <span><i style="--lg: var(--sw-forbidden)"></i>ללא הרשאה (מנעול)</span>
-              <span><i style="--lg: #fff"></i>ישות HA (דלת / תאורה / חיישן)</span>
-            </div>
-          </sw-card>
-          ${idx >= 0 ? nothing : nothing}
-        </aside>
-        <div class="stage">${this.renderStage()}</div>
-      </div>
+      <div class="stage">${this.renderStage()}</div>
     `;
   }
 }

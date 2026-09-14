@@ -5,7 +5,7 @@ import '../components/sw-badge';
 import '../components/sw-icon';
 import { demoScene, demoWall } from '../fixtures/catalog';
 
-/** SC31 — kiosk / wall display (board 3 screen 24): dark navy, 3×3 tiles, big stat tiles, no admin controls. */
+/** SC31 — wall display / kiosk (board 3 screen 24): dark navy, 3×3 picture tiles, big stat tiles, no admin controls. */
 @customElement('kiosk-wall')
 export class KioskWall extends LitElement {
   static styles = css`
@@ -15,16 +15,16 @@ export class KioskWall extends LitElement {
       min-block-size: 100%;
       background: #0f172a;
       color: #fff;
-      padding: var(--sw-s-4) var(--sw-s-5);
-      gap: var(--sw-s-3);
+      padding: 14px 20px 16px;
+      gap: 12px;
     }
     header {
       display: flex;
       align-items: center;
-      gap: var(--sw-s-3);
+      gap: 12px;
     }
     header img {
-      block-size: 28px;
+      block-size: 24px;
       inline-size: auto;
       filter: brightness(0) invert(1);
       opacity: 0.9;
@@ -38,28 +38,30 @@ export class KioskWall extends LitElement {
       flex: 1;
     }
     .clock {
-      font-family: var(--sw-font-mono);
-      direction: ltr;
-      font-size: var(--sw-fs-xl);
-      color: rgba(255, 255, 255, 0.85);
+      font-size: var(--sw-fs-sm);
+      color: rgba(255, 255, 255, 0.75);
       font-variant-numeric: tabular-nums;
+      direction: ltr;
     }
     .grid {
       flex: 1;
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: var(--sw-s-3);
+      gap: 10px;
+    }
+    .grid sw-camera-tile {
+      border-radius: 8px;
     }
     .stats {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
-      gap: var(--sw-s-3);
+      gap: 10px;
     }
     .stat {
       background: #172036;
       border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: var(--sw-r-md);
-      padding: 12px 16px;
+      border-radius: 10px;
+      padding: 12px 14px;
       display: flex;
       align-items: center;
       gap: 12px;
@@ -67,11 +69,19 @@ export class KioskWall extends LitElement {
     .stat .ic {
       display: grid;
       place-items: center;
-      inline-size: 36px;
-      block-size: 36px;
-      border-radius: 9px;
+      inline-size: 32px;
+      block-size: 32px;
+      border-radius: 8px;
       background: rgba(47, 107, 255, 0.22);
       color: #8fb0ff;
+    }
+    .stat .ic.red {
+      background: rgba(239, 68, 68, 0.2);
+      color: #f87171;
+    }
+    .stat .ic.green {
+      background: rgba(34, 197, 94, 0.2);
+      color: #4ade80;
     }
     .stat b {
       display: block;
@@ -83,8 +93,8 @@ export class KioskWall extends LitElement {
       font-size: var(--sw-fs-xs);
     }
     .note {
-      font-size: var(--sw-fs-xs);
-      color: rgba(255, 255, 255, 0.45);
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.4);
     }
     @media (max-width: 767px) {
       .grid,
@@ -100,19 +110,18 @@ export class KioskWall extends LitElement {
     return html`
       <header>
         <img src="${base}brand/smplwise-mark.png" alt="SmplWise" />
-        <h1>תצוגת קיר · כל המצלמות</h1>
+        <h1>ניטור חי</h1>
         <span class="spacer"></span>
-        <sw-badge kind="live" label="9 מצלמות · 7 חיות"></sw-badge>
-        <span class="clock">2026-09-14 10:24:36</span>
+        <span class="clock">יום שני, 14.09.2026 · 10:24:36</span>
       </header>
-      <div class="grid">${cams.map((c) => html`<sw-camera-tile dark compact name=${c.name} meta=${c.floor} state=${c.state} scene=${demoScene[c.id] ?? 'indoor'} stamp="10:24:36"></sw-camera-tile>`)}</div>
+      <div class="grid">${cams.map((c) => html`<sw-camera-tile dark name=${c.name} state=${c.state} scene=${demoScene[c.id] ?? 'lobby'} noDemo></sw-camera-tile>`)}</div>
       <div class="stats">
-        <div class="stat"><div class="ic"><sw-icon name="camera" size=${18}></sw-icon></div><div><b>7/9</b><span>מצלמות מחוברות</span></div></div>
-        <div class="stat"><div class="ic"><sw-icon name="bell" size=${18}></sw-icon></div><div><b>3</b><span>התראות פתוחות</span></div></div>
-        <div class="stat"><div class="ic"><sw-icon name="building" size=${18}></sw-icon></div><div><b>2</b><span>מבנים</span></div></div>
-        <div class="stat"><div class="ic"><sw-icon name="activity" size=${18}></sw-icon></div><div><b style="font-size:var(--sw-fs-xl)">חלקי</b><span>מצב מערכת · גשר HA לא רענן</span></div></div>
+        <div class="stat"><div class="ic"><sw-icon name="camera" size=${16}></sw-icon></div><div><b>7</b><span>מצלמות מחוברות</span></div></div>
+        <div class="stat"><div class="ic red"><sw-icon name="warning" size=${16}></sw-icon></div><div><b>3</b><span>התראות פתוחות</span></div></div>
+        <div class="stat"><div class="ic"><sw-icon name="building" size=${16}></sw-icon></div><div><b>2</b><span>מבנים</span></div></div>
+        <div class="stat"><div class="ic green"><sw-icon name="check" size=${16}></sw-icon></div><div><b style="font-size:var(--sw-fs-lg)">חלקי</b><span>מצב מערכת · גשר HA לא רענן</span></div></div>
       </div>
-      <div class="note">עיקרון (principal) מוגבל לקריאה בלבד · ללא פקדי ניהול · חיבור מחדש אוטומטי · נתוני הדגמה</div>
+      <div class="note">תצוגת קיוסק: קריאה בלבד, ללא פקדי ניהול, חיבור מחדש אוטומטי · נתוני הדגמה (סצנות מאוירות עד חיבור הזרמים)</div>
     `;
   }
 }

@@ -2,7 +2,7 @@ import { LitElement, html, css } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import './sw-icon';
 
-/** Wizard progress header (setup, plan import). */
+/** Wizard progress header as on the onboarding board: numbered circles with labels beneath, connected by lines. */
 @customElement('sw-steps')
 export class SwSteps extends LitElement {
   @property({ attribute: false }) steps: string[] = [];
@@ -11,24 +11,25 @@ export class SwSteps extends LitElement {
   static styles = css`
     :host {
       display: flex;
-      align-items: center;
-      gap: var(--sw-s-2);
+      align-items: flex-start;
       overflow-x: auto;
       scrollbar-width: none;
     }
     .step {
       display: flex;
+      flex-direction: column;
       align-items: center;
-      gap: var(--sw-s-2);
+      gap: 6px;
       white-space: nowrap;
       color: var(--sw-text-3);
-      font-size: var(--sw-fs-sm);
+      font-size: var(--sw-fs-xs);
+      min-inline-size: 72px;
     }
     .n {
       display: grid;
       place-items: center;
-      inline-size: 30px;
-      block-size: 30px;
+      inline-size: 28px;
+      block-size: 28px;
       border-radius: 50%;
       border: 2px solid var(--sw-border-strong);
       background: var(--sw-surface);
@@ -51,11 +52,13 @@ export class SwSteps extends LitElement {
       border-color: var(--sw-accent);
       background: var(--sw-accent);
       color: #fff;
+      box-shadow: 0 0 0 4px var(--sw-accent-soft);
     }
     .line {
       flex: 1;
-      min-inline-size: 24px;
+      min-inline-size: 20px;
       block-size: 2px;
+      margin-block-start: 13px;
       background: var(--sw-border);
       border-radius: 1px;
     }
@@ -68,7 +71,7 @@ export class SwSteps extends LitElement {
     return html`${this.steps.map(
       (s, i) => html`
         <div class="step ${i < this.current ? 'done' : i === this.current ? 'current' : ''}">
-          <span class="n">${i < this.current ? html`<sw-icon name="check" size=${14}></sw-icon>` : i + 1}</span><span>${s}</span>
+          <span class="n">${i < this.current ? html`<sw-icon name="check" size=${13}></sw-icon>` : i + 1}</span><span>${s}</span>
         </div>
         ${i < this.steps.length - 1 ? html`<div class="line ${i < this.current ? 'done' : ''}"></div>` : ''}
       `,

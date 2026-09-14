@@ -30,12 +30,12 @@ export class SwBadge extends LitElement {
     :host {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      padding: 2px 9px;
+      gap: 5px;
+      padding: 1px 8px;
       border-radius: var(--sw-r-pill);
       font-size: var(--sw-fs-xs);
       font-weight: var(--sw-fw-medium);
-      line-height: 18px;
+      line-height: 16px;
       background: var(--sw-surface-3);
       color: var(--sw-text-2);
       border: 1px solid transparent;
@@ -47,8 +47,8 @@ export class SwBadge extends LitElement {
       box-shadow: var(--sw-shadow-1);
     }
     .dot {
-      inline-size: 7px;
-      block-size: 7px;
+      inline-size: 6px;
+      block-size: 6px;
       border-radius: 50%;
       background: currentColor;
       flex-shrink: 0;

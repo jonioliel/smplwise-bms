@@ -5,44 +5,55 @@ import '../components/sw-camera-tile';
 import '../components/sw-badge';
 import '../components/sw-button';
 import '../components/sw-chip';
+import '../components/sw-field';
 import '../components/sw-timeline';
-import { demoEvents, demoSegments, demoWall } from '../fixtures/catalog';
+import { minuteLabel } from '../components/sw-timeline';
+import { demoEvents, demoScene, demoSegments, demoWall } from '../fixtures/catalog';
 
-/** SC13 — synchronized playback of 2–4 sources (board 2 screen 14, Beta): one master clock, per-source truth. */
+/** SC13 — command center / synchronized playback (board 2 screen 14, Beta): 2×2 pictures, one transport row, one timeline, per-source truth. */
 @customElement('investigate-sync')
 export class InvestigateSync extends LitElement {
   @state() private cursor = 615;
+  @state() private playing = false;
 
   static styles = css`
     .grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: var(--sw-s-3);
+      gap: 10px;
     }
     .tile {
       position: relative;
     }
     .drift {
       position: absolute;
-      inset-inline-end: var(--sw-s-2);
-      inset-block-start: var(--sw-s-2);
+      inset-inline-end: 8px;
+      inset-block-end: 8px;
       z-index: 2;
       font-family: var(--sw-font-mono);
-      font-size: var(--sw-fs-xs);
-      background: rgba(0, 0, 0, 0.55);
+      font-size: 10px;
+      background: rgba(17, 24, 39, 0.6);
       color: #fff;
-      padding: 2px 8px;
+      padding: 1px 7px;
       border-radius: var(--sw-r-pill);
       direction: ltr;
     }
-    .bar {
+    .transport {
       display: flex;
       align-items: center;
-      gap: var(--sw-s-2);
+      gap: 6px;
       flex-wrap: wrap;
     }
-    .bar .grow {
+    .transport .grow {
       flex: 1;
+    }
+    .transport sw-field {
+      inline-size: 170px;
+    }
+    .filters {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
     }
     .note {
       font-size: var(--sw-fs-xs);
@@ -58,30 +69,38 @@ export class InvestigateSync extends LitElement {
   render() {
     const sources = [
       { cam: demoWall[0], drift: '+0.2s', state: 'recorded' },
-      { cam: demoWall[1], drift: '-0.4s', state: 'recorded' },
+      { cam: demoWall[9], drift: '-0.4s', state: 'recorded' },
       { cam: demoWall[3], drift: 'gap', state: 'unknown' },
-      { cam: demoWall[4], drift: 'buffering', state: 'stale' },
+      { cam: demoWall[1], drift: 'buffering', state: 'stale' },
     ] as const;
     return html`
-      <sw-page heading="ניגון מסונכרן" subheading="4 מקורות · שעון ייחוס אחד · הסטייה נמדדת על זמן המדיה המוצגת · נתוני הדגמה" wide>
-        <sw-button slot="actions" icon="link">בטל קישור מקור</sw-button>
+      <sw-page heading="מרכז שליטה" subheading="ניטור חי עם ניגון מסונכרן · 4 מקורות · שעון ייחוס אחד · נתוני הדגמה" wide>
+        <sw-field slot="actions"><select aria-label="תצוגה"><option>כל המסכים</option><option>כניסה + חצר</option></select></sw-field>
         <sw-button slot="actions" variant="primary" icon="case">שמור כתיק</sw-button>
         <div class="grid">
           ${sources.map(
             (s) => html`<div class="tile">
               <span class="drift">${s.drift}</span>
-              <sw-camera-tile name=${s.cam.name} meta=${s.cam.floor} state=${s.state}></sw-camera-tile>
+              <sw-camera-tile name=${s.cam.name} state=${s.state} scene=${demoScene[s.cam.id] ?? 'lobby'}></sw-camera-tile>
             </div>`,
           )}
         </div>
-        <div class="bar">
-          <sw-button variant="primary" iconOnly icon="pause" label="השהה הכל"></sw-button>
+        <div class="transport">
+          <sw-field><input type="datetime-local" value=${`2026-09-14T${minuteLabel(this.cursor)}`} data-ltr aria-label="זמן" @change=${(e: Event) => { const v = (e.target as HTMLInputElement).value.split('T')[1] ?? '10:15'; const [h, m] = v.split(':').map(Number); this.cursor = h * 60 + m; }} /></sw-field>
+          <sw-button iconOnly icon="mic" label="דיבור"></sw-button>
+          <sw-button iconOnly icon="back10" label="אחורה"></sw-button>
+          <sw-button variant="primary" iconOnly icon=${this.playing ? 'pause' : 'play'} label=${this.playing ? 'השהה הכל' : 'נגן הכל'} @click=${() => (this.playing = !this.playing)}></sw-button>
+          <sw-button iconOnly icon="forward10" label="קדימה"></sw-button>
           <sw-chip selected>1×</sw-chip><sw-chip>2×</sw-chip>
-          <sw-badge kind="stale" label="Best effort: אין מיפוי PTS→UTC מאומת"></sw-badge>
           <span class="grow"></span>
-          <sw-chip icon="camera">הוסף מקור</sw-chip>
+          <sw-badge kind="stale" label="Best effort: אין מיפוי PTS→UTC מאומת"></sw-badge>
+          <a href="#/live/wall"><sw-button variant="primary" size="sm" icon="live">Live</sw-button></a>
         </div>
         <sw-timeline .segments=${demoSegments} .events=${demoEvents.slice(0, 4).map((e) => ({ minute: e.minuteOfDay, kind: e.type, label: e.title }))} .cursor=${this.cursor} precision="estimated" @seek=${(e: CustomEvent<{ minute: number }>) => (this.cursor = e.detail.minute)}></sw-timeline>
+        <div class="filters">
+          <sw-chip selected icon="check">כל המצלמות</sw-chip>
+          <sw-chip dot="#ef4444">תנועה</sw-chip><sw-chip dot="#2f6bff">אדם</sw-chip><sw-chip dot="#22c55e">רכב</sw-chip><sw-chip dot="#8b5cf6">אחר</sw-chip>
+        </div>
         <div class="note">מקור שאינו מוכן מוצג במפורש (buffering / gap) ואינו מוצג כמסונכרן. יעד הנדסי: סטייה עד שנייה ב־95% מהדגימות, לאחר בדיקה עם אירוע חזותי משותף.</div>
       </sw-page>
     `;

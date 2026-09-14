@@ -7,29 +7,28 @@ import '../components/sw-button';
 import '../components/sw-card';
 import '../components/sw-icon';
 import '../components/sw-chip';
+import '../components/sw-scene';
 import { demoScene, demoWall } from '../fixtures/catalog';
 import { navigate } from '../router';
 
 /**
- * SC08 — single camera (board 1 screen 5): a large picture with name and live pill overlaid, a floating
- * transport bar (±10s, play/pause, snapshot, quality, fullscreen), PTZ joystick with presets / auto-track
- * / patrol for cameras whose capability was verified, and details. Unsupported controls are hidden or
- * explained, never simulated.
+ * SC08 — live camera view (board 1 screen 5): back arrow, name and live pill in the header, a large
+ * picture with timestamp and quality overlays, then round control buttons (audio only when the camera
+ * has it), a PTZ joystick with zoom and Presets / Auto Track / Patrol only when PTZ was verified.
+ * Unsupported controls are hidden or explained, never simulated.
  */
 @customElement('live-camera')
 export class LiveCamera extends LitElement {
   @property() cameraId = 'cam-1';
   @state() private stream: 'main' | 'sub' = 'main';
   @state() private recording = false;
-  @state() private playing = true;
   @state() private ptzMode: 'presets' | 'track' | 'patrol' = 'presets';
 
   static styles = css`
-    .layout {
-      display: grid;
-      grid-template-columns: minmax(0, 2.2fr) minmax(290px, 1fr);
-      gap: var(--sw-s-4);
-      align-items: start;
+    .titlerow {
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
     .video {
       position: relative;
@@ -40,17 +39,9 @@ export class LiveCamera extends LitElement {
       color: #fff;
       box-shadow: var(--sw-shadow-2);
     }
-    .video.outdoor {
-      background: linear-gradient(180deg, #a9c4e6 0%, #cfdff0 34%, #8fa58b 50%, #5f7358 70%, #3f4d3c 100%);
-    }
-    .video.indoor {
-      background: linear-gradient(180deg, #f3ede3 0%, #e4d9c8 40%, #b7a58d 58%, #7d6b57 80%, #4d4235 100%);
-    }
-    .video.garage {
-      background: linear-gradient(180deg, #d9dee6 0%, #b8c0cc 42%, #7f8896 60%, #4b535f 82%, #2f353f 100%);
-    }
-    .video.night {
-      background: linear-gradient(180deg, #1c2a45 0%, #233a63 40%, #172440 60%, #0d1424 100%);
+    .video sw-scene {
+      position: absolute;
+      inset: 0;
     }
     .video.off {
       background: var(--sw-surface-3);
@@ -58,38 +49,17 @@ export class LiveCamera extends LitElement {
       box-shadow: none;
       border: 1px solid var(--sw-border);
     }
-    .video::before {
-      content: '';
+    .shade {
       position: absolute;
       inset: 0;
-      background:
-        linear-gradient(115deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0) 40%),
-        radial-gradient(120% 90% at 50% 45%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.4) 100%);
+      background: linear-gradient(180deg, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0) 25%, rgba(0, 0, 0, 0) 65%, rgba(0, 0, 0, 0.45) 100%);
       pointer-events: none;
-    }
-    .video.off::before {
-      display: none;
-    }
-    .overlay {
-      position: absolute;
-      inset-inline-start: 14px;
-      inset-block-start: 12px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      z-index: 2;
-    }
-    .overlay .nm {
-      font-weight: var(--sw-fw-semibold);
-      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
-      font-size: var(--sw-fs-md);
     }
     .demo {
       position: absolute;
-      inset-inline-end: 14px;
-      inset-block-start: 12px;
-      z-index: 2;
-      font-size: 10.5px;
+      inset-inline-end: 12px;
+      inset-block-start: 10px;
+      font-size: 10px;
       letter-spacing: 0.04em;
       background: rgba(17, 24, 39, 0.55);
       color: #fff;
@@ -98,14 +68,22 @@ export class LiveCamera extends LitElement {
     }
     .stamp {
       position: absolute;
-      inset-inline-end: 14px;
-      inset-block-end: 64px;
-      z-index: 2;
+      inset-inline-start: 12px;
+      inset-block-end: 10px;
       font-family: var(--sw-font-mono);
       font-size: var(--sw-fs-xs);
       direction: ltr;
       color: rgba(255, 255, 255, 0.92);
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+    }
+    .quality {
+      position: absolute;
+      inset-inline-end: 12px;
+      inset-block-end: 10px;
+      font-size: var(--sw-fs-xs);
+      color: rgba(255, 255, 255, 0.92);
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+      direction: ltr;
     }
     .center {
       position: absolute;
@@ -114,76 +92,153 @@ export class LiveCamera extends LitElement {
       place-items: center;
       text-align: center;
       font-size: var(--sw-fs-sm);
-      gap: 8px;
-      z-index: 1;
     }
     .center > div {
       display: grid;
       justify-items: center;
-      gap: 8px;
+      gap: 6px;
     }
-    .bar {
-      position: absolute;
-      inset-inline: 0;
-      inset-block-end: 12px;
+    .controls {
       display: flex;
-      justify-content: center;
-      z-index: 3;
-      pointer-events: none;
-    }
-    .bar .inner {
-      pointer-events: auto;
-      display: inline-flex;
       align-items: center;
-      gap: 4px;
-      padding: 6px 10px;
-      border-radius: var(--sw-r-pill);
-      background: rgba(17, 24, 39, 0.72);
-      backdrop-filter: blur(8px);
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-block-start: 12px;
+    }
+    .round {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .round button {
+      inline-size: 38px;
+      block-size: 38px;
+      border-radius: 50%;
+      border: 1px solid var(--sw-border-strong);
+      background: var(--sw-surface);
+      color: var(--sw-text-2);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      box-shadow: var(--sw-shadow-1);
+    }
+    .round button:hover {
+      background: var(--sw-surface-2);
+      color: var(--sw-text);
+    }
+    .round button.rec {
+      color: var(--sw-danger);
+    }
+    .round button.rec.on {
+      background: var(--sw-danger);
+      border-color: var(--sw-danger);
       color: #fff;
-      box-shadow: var(--sw-shadow-2);
     }
-    .bar sw-button {
-      --sw-text-2: #fff;
-      --sw-text: #fff;
-      --sw-surface-3: rgba(255, 255, 255, 0.14);
+    .round button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
     }
-    .bar .q {
+    .round .q {
+      inline-size: auto;
+      border-radius: var(--sw-r-pill);
+      padding-inline: 10px;
+      font: inherit;
       font-size: var(--sw-fs-xs);
       font-weight: var(--sw-fw-semibold);
-      border: 1px solid rgba(255, 255, 255, 0.35);
-      border-radius: var(--sw-r-pill);
-      padding: 3px 10px;
-      margin-inline: 4px;
-      background: transparent;
-      color: #fff;
-      font-family: inherit;
-      cursor: pointer;
+      block-size: 30px;
     }
-    .bar .q.on {
+    .round .q.on {
       background: var(--sw-accent);
       border-color: var(--sw-accent);
+      color: #fff;
     }
-    .bar .sep {
-      inline-size: 1px;
-      block-size: 20px;
-      background: rgba(255, 255, 255, 0.25);
-      margin-inline: 4px;
-    }
-    .under {
+    .ptz {
       display: flex;
-      flex-wrap: wrap;
       align-items: center;
-      gap: var(--sw-s-2);
-      margin-block-start: var(--sw-s-3);
+      gap: 10px;
     }
-    .under .grow {
-      flex: 1;
+    .joy {
+      position: relative;
+      inline-size: 64px;
+      block-size: 64px;
+      border-radius: 50%;
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border-strong);
+      box-shadow: var(--sw-shadow-1);
+    }
+    .joy button {
+      position: absolute;
+      inline-size: 20px;
+      block-size: 20px;
+      border: 0;
+      background: transparent;
+      color: var(--sw-text-2);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      border-radius: 50%;
+    }
+    .joy button:hover {
+      color: var(--sw-accent-text);
+    }
+    .joy .u {
+      inset-block-start: 3px;
+      inset-inline-start: 22px;
+    }
+    .joy .d {
+      inset-block-end: 3px;
+      inset-inline-start: 22px;
+    }
+    .joy .l {
+      inset-inline-start: 3px;
+      inset-block-start: 22px;
+    }
+    .joy .r {
+      inset-inline-end: 3px;
+      inset-block-start: 22px;
+    }
+    .joy .c {
+      inset-inline-start: 26px;
+      inset-block-start: 26px;
+      inline-size: 12px;
+      block-size: 12px;
+      border-radius: 50%;
+      background: var(--sw-accent);
+    }
+    .zoom {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .zoom button {
+      inline-size: 28px;
+      block-size: 28px;
+      border-radius: 8px;
+      border: 1px solid var(--sw-border-strong);
+      background: var(--sw-surface);
+      color: var(--sw-text-2);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+    }
+    .modes {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-block-start: 10px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 12px;
+      margin-block-start: 12px;
+      align-items: start;
     }
     dl {
       display: grid;
       grid-template-columns: auto 1fr;
-      gap: 8px 16px;
+      gap: 6px 14px;
       margin: 0;
       font-size: var(--sw-fs-sm);
     }
@@ -194,123 +249,17 @@ export class LiveCamera extends LitElement {
       margin: 0;
       font-weight: var(--sw-fw-medium);
     }
-    .rec {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      color: var(--sw-danger);
-      font-weight: var(--sw-fw-semibold);
-      font-size: var(--sw-fs-sm);
-    }
-    .rec::before {
-      content: '';
-      inline-size: 8px;
-      block-size: 8px;
-      border-radius: 50%;
-      background: currentColor;
-      animation: blink 1.2s infinite;
-    }
-    @keyframes blink {
-      50% {
-        opacity: 0.3;
-      }
-    }
-    .joy {
-      position: relative;
-      inline-size: 168px;
-      block-size: 168px;
-      margin: 4px auto 12px;
-      border-radius: 50%;
-      background: radial-gradient(circle at 50% 45%, #fff 0%, var(--sw-surface-2) 60%, var(--sw-surface-3) 100%);
-      border: 1px solid var(--sw-border);
-      box-shadow: inset 0 2px 6px rgba(16, 24, 40, 0.06);
-    }
-    .joy button {
-      position: absolute;
-      inline-size: 36px;
-      block-size: 36px;
-      border-radius: 50%;
-      border: 0;
-      background: transparent;
-      color: var(--sw-text-2);
+    .tiles {
       display: grid;
-      place-items: center;
-      cursor: pointer;
-    }
-    .joy button:hover {
-      background: var(--sw-accent-soft);
-      color: var(--sw-accent-text);
-    }
-    .joy .u {
-      inset-block-start: 8px;
-      inset-inline-start: calc(50% - 18px);
-    }
-    .joy .d {
-      inset-block-end: 8px;
-      inset-inline-start: calc(50% - 18px);
-    }
-    .joy .l {
-      inset-inline-start: 8px;
-      inset-block-start: calc(50% - 18px);
-    }
-    .joy .r {
-      inset-inline-end: 8px;
-      inset-block-start: calc(50% - 18px);
-    }
-    .joy .home {
-      inset-inline-start: calc(50% - 26px);
-      inset-block-start: calc(50% - 26px);
-      inline-size: 52px;
-      block-size: 52px;
-      background: var(--sw-accent);
-      color: #fff;
-      box-shadow: 0 4px 10px rgba(47, 107, 255, 0.35);
-    }
-    .joy .home:hover {
-      background: var(--sw-accent-hover);
-      color: #fff;
-    }
-    .ptzmodes {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 6px;
-    }
-    .ptzmodes button {
-      border: 1px solid var(--sw-border-strong);
-      background: var(--sw-surface);
-      border-radius: var(--sw-r-sm);
-      padding: 8px 4px;
-      font: inherit;
-      font-size: var(--sw-fs-xs);
-      font-weight: var(--sw-fw-medium);
-      cursor: pointer;
-      display: grid;
-      justify-items: center;
-      gap: 4px;
-      color: var(--sw-text-2);
-    }
-    .ptzmodes button.on {
-      background: var(--sw-accent-soft);
-      border-color: var(--sw-accent);
-      color: var(--sw-accent-text);
-    }
-    .presets {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-block-start: 10px;
-    }
-    .zoomrow {
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 8px;
-      margin-block-start: 8px;
+    }
+    .note {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
     }
-    @media (max-width: 1023px) {
-      .layout {
+    @media (max-width: 767px) {
+      .grid {
         grid-template-columns: 1fr;
       }
     }
@@ -319,69 +268,56 @@ export class LiveCamera extends LitElement {
   render() {
     const cam = demoWall.find((c) => c.id === this.cameraId) ?? demoWall[0];
     const canView = cam.state === 'live' || cam.state === 'stale';
-    const scene = demoScene[cam.id] ?? 'indoor';
+    const scene = demoScene[cam.id] ?? 'lobby';
     return html`
-      <sw-page heading=${cam.name} subheading=${`${cam.floor} · NVR ערוץ ${cam.id.replace('cam-', '')} · נתוני הדגמה`} wide>
+      <sw-page heading=${cam.name} subheading=${`${cam.floor} · NVR ערוץ ${cam.id.replace('cam-', '')} · נתוני הדגמה`} crumbs=${`מצלמות | ${cam.floor}`}>
+        <sw-badge slot="actions" kind=${cam.state}></sw-badge>
         <a slot="actions" href="#/investigate/playback"><sw-button icon="history">הקלטות</sw-button></a>
-        <a slot="actions" href="#/explore/floors/f0"><sw-button icon="map" variant="ghost">במפה</sw-button></a>
-        <div class="layout">
-          <div>
-            <div class="video ${canView ? scene : 'off'}">
-              <div class="overlay">
-                <sw-badge kind=${cam.state} ?onImage=${canView}></sw-badge>
-                ${canView ? html`<span class="nm">${cam.name}</span>` : nothing}
-              </div>
-              ${canView
-                ? html`<span class="demo">דמו · הזרם יתחבר ב־T017</span><span class="stamp">2026-09-14 10:24:36 · ${this.stream === 'main' ? '2560×1440' : '640×360'}</span>`
-                : html`<div class="center"><div>
-                    <sw-icon name=${cam.state === 'offline' ? 'offline' : 'lock'} size=${36}></sw-icon>
-                    <span>${cam.state === 'offline' ? 'המצלמה אינה מחוברת ל־NVR' : 'אין הרשאת צפייה במצלמה זו'}</span>
-                  </div></div>`}
-              ${canView
-                ? html`<div class="bar"><div class="inner">
-                    <sw-button variant="ghost" iconOnly icon="back10" label="10 שניות אחורה"></sw-button>
-                    <sw-button variant="ghost" iconOnly icon=${this.playing ? 'pause' : 'play'} label=${this.playing ? 'השהה' : 'נגן'} @click=${() => (this.playing = !this.playing)}></sw-button>
-                    <sw-button variant="ghost" iconOnly icon="forward10" label="10 שניות קדימה"></sw-button>
-                    <span class="sep"></span>
-                    <sw-button variant="ghost" iconOnly icon="aperture" label="צילום מסך"></sw-button>
-                    ${cam.audio ? html`<sw-button variant="ghost" iconOnly icon="volume" label="שמע"></sw-button>` : nothing}
-                    <button class="q ${this.stream === 'main' ? 'on' : ''}" @click=${() => (this.stream = 'main')}>1440p</button>
-                    <button class="q ${this.stream === 'sub' ? 'on' : ''}" @click=${() => (this.stream = 'sub')}>360p</button>
-                    <sw-button variant="ghost" iconOnly icon="expand" label="מסך מלא"></sw-button>
-                  </div></div>`
-                : nothing}
-            </div>
-            <div class="under">
-              <sw-chip icon="camera">צילום</sw-chip>
-              <sw-chip icon="pin">הצמד לתצוגה</sw-chip>
-              <span class="grow"></span>
-              ${this.recording ? html`<span class="rec">הקלטה ידנית פעילה · 04:12</span>` : ''}
-              <sw-button variant=${this.recording ? 'danger' : 'secondary'} icon=${this.recording ? 'close' : 'play'} ?disabled=${!canView} @click=${() => (this.recording = !this.recording)}>${this.recording ? 'עצור הקלטה' : 'הקלט עכשיו'}</sw-button>
-            </div>
+        <a slot="actions" href="#/explore/floors/f0"><sw-button variant="ghost" iconOnly icon="map" label="במפה"></sw-button></a>
+        <sw-button slot="actions" variant="ghost" iconOnly icon="system" label="הגדרות מצלמה"></sw-button>
+        <div>
+          <div class="video ${canView ? '' : 'off'}">
+            ${canView
+              ? html`<sw-scene kind=${scene}></sw-scene><div class="shade"></div><span class="demo">דמו · הזרם יתחבר ב־T017</span>
+                  <span class="stamp">2026-09-14 10:24:36</span>
+                  <span class="quality">${this.stream === 'main' ? '1440p · H.265' : '360p · H.264'}</span>`
+              : html`<div class="center"><div>
+                  <sw-icon name=${cam.state === 'offline' ? 'offline' : 'lock'} size=${32}></sw-icon>
+                  <span>${cam.state === 'offline' ? 'המצלמה אינה מחוברת ל־NVR' : 'אין הרשאת צפייה במצלמה זו'}</span>
+                </div></div>`}
           </div>
-          <div style="display:flex;flex-direction:column;gap:var(--sw-s-4)">
+          <div class="controls">
+            <div class="round" role="group" aria-label="פקדי מצלמה">
+              ${cam.audio ? html`<button title="מיקרופון" aria-label="מיקרופון" ?disabled=${!canView}><sw-icon name="mic" size=${16}></sw-icon></button><button title="שמע" aria-label="שמע" ?disabled=${!canView}><sw-icon name="volume" size=${16}></sw-icon></button>` : nothing}
+              <button title="צילום מסך" aria-label="צילום מסך" ?disabled=${!canView}><sw-icon name="aperture" size=${16}></sw-icon></button>
+              <button class="rec ${this.recording ? 'on' : ''}" title=${this.recording ? 'עצור הקלטה' : 'הקלט עכשיו'} aria-label=${this.recording ? 'עצור הקלטה' : 'הקלט עכשיו'} ?disabled=${!canView} @click=${() => (this.recording = !this.recording)}><sw-icon name="image" size=${16}></sw-icon></button>
+              <button title="מסך מלא" aria-label="מסך מלא" ?disabled=${!canView}><sw-icon name="expand" size=${16}></sw-icon></button>
+              <button class="q ${this.stream === 'main' ? 'on' : ''}" @click=${() => (this.stream = 'main')}>1440p</button>
+              <button class="q ${this.stream === 'sub' ? 'on' : ''}" @click=${() => (this.stream = 'sub')}>360p</button>
+              ${this.recording ? html`<sw-badge kind="error" label="הקלטה ידנית · 04:12"></sw-badge>` : nothing}
+            </div>
             ${cam.ptz
-              ? html`<sw-card heading="בקרת PTZ" subheading="יכולת מאומתת במצלמה זו">
-                  <div class="joy" role="group" aria-label="ג׳ויסטיק PTZ">
-                    <button class="u" aria-label="למעלה"><sw-icon name="chevronDown" size=${18} style="transform:rotate(180deg)"></sw-icon></button>
-                    <button class="d" aria-label="למטה"><sw-icon name="chevronDown" size=${18}></sw-icon></button>
-                    <button class="l" aria-label="שמאלה"><sw-icon name="chevron" size=${18} flip></sw-icon></button>
-                    <button class="r" aria-label="ימינה"><sw-icon name="chevron" size=${18}></sw-icon></button>
-                    <button class="home" aria-label="בית"><sw-icon name="home" size=${22}></sw-icon></button>
+              ? html`<div class="ptz" role="group" aria-label="בקרת PTZ">
+                  <div class="joy">
+                    <button class="u" aria-label="למעלה"><sw-icon name="chevronDown" size=${14} style="transform:rotate(180deg)"></sw-icon></button>
+                    <button class="d" aria-label="למטה"><sw-icon name="chevronDown" size=${14}></sw-icon></button>
+                    <button class="l" aria-label="שמאלה"><sw-icon name="chevron" size=${14} flip></sw-icon></button>
+                    <button class="r" aria-label="ימינה"><sw-icon name="chevron" size=${14}></sw-icon></button>
+                    <span class="c" aria-hidden="true"></span>
                   </div>
-                  <div class="zoomrow"><sw-button size="sm" iconOnly icon="minus" label="זום החוצה"></sw-button><span>זום</span><sw-button size="sm" iconOnly icon="plus" label="זום פנימה"></sw-button></div>
-                  <div class="ptzmodes" style="margin-block-start:12px">
-                    <button class=${this.ptzMode === 'presets' ? 'on' : ''} @click=${() => (this.ptzMode = 'presets')}><sw-icon name="bookmark" size=${16}></sw-icon>Presets</button>
-                    <button class=${this.ptzMode === 'track' ? 'on' : ''} @click=${() => (this.ptzMode = 'track')}><sw-icon name="target" size=${16}></sw-icon>מעקב אוטו׳</button>
-                    <button class=${this.ptzMode === 'patrol' ? 'on' : ''} @click=${() => (this.ptzMode = 'patrol')}><sw-icon name="route" size=${16}></sw-icon>סיור</button>
-                  </div>
-                  ${this.ptzMode === 'presets'
-                    ? html`<div class="presets"><sw-chip selected>1 · כניסה</sw-chip><sw-chip>2 · חניה</sw-chip><sw-chip>3 · שער</sw-chip><sw-chip icon="plus">שמור</sw-chip></div>`
-                    : html`<div class="presets" style="font-size:var(--sw-fs-xs);color:var(--sw-text-3)">${this.ptzMode === 'track' ? 'מעקב אוטומטי מופעל דרך ה־NVR; מוצג רק אחרי אימות היכולת (T031).' : 'סיור לפי רשימת presets; הרצה דורשת הרשאת מפעיל.'}</div>`}
-                </sw-card>`
-              : html`<sw-card heading="פקדים">
-                  <div style="font-size:var(--sw-fs-sm);color:var(--sw-text-2)">PTZ, שמע ודיבור אינם מוצגים: היכולת לא אומתה במצלמה זו. פקד שלא נתמך מוסתר או מוסבר, לא מדומה.</div>
-                </sw-card>`}
+                  <div class="zoom"><button aria-label="זום פנימה"><sw-icon name="plus" size=${14}></sw-icon></button><button aria-label="זום החוצה"><sw-icon name="minus" size=${14}></sw-icon></button></div>
+                </div>`
+              : nothing}
+          </div>
+          ${cam.ptz
+            ? html`<div class="modes">
+                <sw-chip icon="bookmark" ?selected=${this.ptzMode === 'presets'} @click=${() => (this.ptzMode = 'presets')}>Presets</sw-chip>
+                <sw-chip icon="target" ?selected=${this.ptzMode === 'track'} @click=${() => (this.ptzMode = 'track')}>מעקב אוטומטי</sw-chip>
+                <sw-chip icon="route" ?selected=${this.ptzMode === 'patrol'} @click=${() => (this.ptzMode = 'patrol')}>סיור</sw-chip>
+                ${this.ptzMode === 'presets' ? html`<sw-chip>1 · כניסה</sw-chip><sw-chip>2 · חניה</sw-chip><sw-chip>3 · שער</sw-chip>` : html`<span class="note" style="align-self:center">${this.ptzMode === 'track' ? 'מעקב אוטומטי דרך ה־NVR; מוצג רק אחרי אימות היכולת (T031)' : 'סיור לפי רשימת presets; הרצה דורשת הרשאת מפעיל'}</span>`}
+              </div>`
+            : html`<div class="note" style="margin-block-start:8px">PTZ ושמע אינם מוצגים במצלמה זו: היכולת לא אומתה. פקד שלא נתמך מוסתר או מוסבר, לא מדומה.</div>`}
+          <div class="grid">
             <sw-card heading="פרטים">
               <dl>
                 <dt>מצב</dt><dd><sw-badge kind=${cam.state}></sw-badge></dd>
@@ -393,8 +329,8 @@ export class LiveCamera extends LitElement {
               </dl>
             </sw-card>
             <sw-card heading="מצלמות באותה קומה">
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-                ${demoWall.filter((c) => c.floor === cam.floor && c.id !== cam.id).slice(0, 4).map((c) => html`<sw-camera-tile compact name=${c.name} state=${c.state} scene=${demoScene[c.id] ?? 'indoor'} @click=${() => navigate(`/live/cameras/${c.id}`)}></sw-camera-tile>`)}
+              <div class="tiles">
+                ${demoWall.filter((c) => c.floor === cam.floor && c.id !== cam.id).slice(0, 4).map((c) => html`<sw-camera-tile compact name=${c.name} state=${c.state} scene=${demoScene[c.id] ?? 'lobby'} @click=${() => navigate(`/live/cameras/${c.id}`)}></sw-camera-tile>`)}
               </div>
             </sw-card>
           </div>

@@ -10,8 +10,8 @@ export interface TableColumn<Row = Record<string, unknown>> {
 }
 
 /**
- * Data table in the board-3 language: white card, quiet uppercase-ish header, roomy rows with
- * thumbnails / avatars rendered by the column's `render`, hover tint, selected row in soft blue.
+ * Data table in the boards' language: white card, quiet grey header, 40px rows with thumbnails /
+ * avatars rendered by the column's `render`, hover tint, selected row in soft blue.
  * Wide tables scroll horizontally inside the host (allowed by the contract).
  */
 @customElement('sw-table')
@@ -41,7 +41,7 @@ export class SwTable extends LitElement {
     }
     th,
     td {
-      padding: 12px 16px;
+      padding: 9px 14px;
       text-align: start;
       border-block-end: 1px solid var(--sw-border);
       vertical-align: middle;
@@ -49,16 +49,15 @@ export class SwTable extends LitElement {
     }
     :host([dense]) th,
     :host([dense]) td {
-      padding: 8px 14px;
+      padding: 7px 12px;
     }
     th {
       position: sticky;
       top: 0;
       background: var(--sw-surface);
       color: var(--sw-text-3);
-      font-weight: var(--sw-fw-semibold);
+      font-weight: var(--sw-fw-medium);
       font-size: var(--sw-fs-xs);
-      letter-spacing: 0.02em;
       z-index: 1;
     }
     tbody tr {

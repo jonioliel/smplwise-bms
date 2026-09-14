@@ -47,15 +47,15 @@ export class SwStatePanel extends LitElement {
     .icon {
       display: grid;
       place-items: center;
-      inline-size: 56px;
-      block-size: 56px;
+      inline-size: 48px;
+      block-size: 48px;
       border-radius: var(--sw-r-lg);
       background: var(--sw-accent-soft);
       color: var(--sw-accent-text);
     }
     :host([compact]) .icon {
-      inline-size: 40px;
-      block-size: 40px;
+      inline-size: 34px;
+      block-size: 34px;
       border-radius: var(--sw-r-sm);
     }
     :host([state='error']) .icon {
@@ -76,7 +76,7 @@ export class SwStatePanel extends LitElement {
     }
     h4 {
       margin: 0;
-      font-size: var(--sw-fs-lg);
+      font-size: var(--sw-fs-md);
       font-weight: var(--sw-fw-semibold);
       color: var(--sw-text);
     }

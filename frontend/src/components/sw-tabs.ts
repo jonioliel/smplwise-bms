@@ -9,8 +9,8 @@ export interface TabItem {
 }
 
 /**
- * Pill tabs (board 1: "All Sites (3) | Buildings | Map"): a light track with the active item as a
- * white/blue pill. `underline` switches to the quieter underlined style for dense settings pages.
+ * Pill tabs as on the boards ("All Sites (3) | Buildings | Map"): a light track, the active item as a
+ * white pill with blue text. `underline` switches to the settings-page style (thin blue underline).
  */
 @customElement('sw-tabs')
 export class SwTabs extends LitElement {
@@ -27,8 +27,8 @@ export class SwTabs extends LitElement {
       scrollbar-width: none;
       max-inline-size: 100%;
       background: var(--sw-surface-3);
-      border-radius: var(--sw-r-sm);
-      padding: 3px;
+      border-radius: 8px;
+      padding: 2px;
     }
     :host::-webkit-scrollbar {
       display: none;
@@ -39,14 +39,14 @@ export class SwTabs extends LitElement {
       padding: 0;
       border-radius: 0;
       border-block-end: 1px solid var(--sw-border);
-      gap: var(--sw-s-1);
+      gap: 2px;
     }
     a,
     button {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      padding: 7px 14px;
+      gap: 5px;
+      padding: 5px 12px;
       border: 0;
       border-radius: 6px;
       background: transparent;
@@ -70,7 +70,7 @@ export class SwTabs extends LitElement {
     }
     :host([underline]) a,
     :host([underline]) button {
-      padding: 10px 12px;
+      padding: 8px 12px;
       border-radius: 0;
       border-block-end: 2px solid transparent;
       margin-block-end: -1px;

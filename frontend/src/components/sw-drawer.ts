@@ -41,7 +41,7 @@ export class SwDrawer extends LitElement {
       display: flex;
       align-items: flex-start;
       gap: var(--sw-s-3);
-      padding: var(--sw-s-4);
+      padding: 12px 14px;
       border-block-end: 1px solid var(--sw-border);
     }
     .titles {
@@ -51,7 +51,7 @@ export class SwDrawer extends LitElement {
     h3 {
       margin: 0;
       font-size: var(--sw-fs-lg);
-      font-weight: var(--sw-fw-bold);
+      font-weight: var(--sw-fw-semibold);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -63,15 +63,15 @@ export class SwDrawer extends LitElement {
     .body {
       flex: 1;
       overflow: auto;
-      padding: var(--sw-s-4);
+      padding: 14px;
       display: flex;
       flex-direction: column;
-      gap: var(--sw-s-4);
+      gap: 12px;
     }
     footer {
       display: flex;
       gap: var(--sw-s-2);
-      padding: var(--sw-s-3) var(--sw-s-4);
+      padding: 10px 14px;
       border-block-start: 1px solid var(--sw-border);
       flex-wrap: wrap;
     }

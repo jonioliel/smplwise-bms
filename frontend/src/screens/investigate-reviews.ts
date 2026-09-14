@@ -8,11 +8,11 @@ import '../components/sw-chip';
 import '../components/sw-camera-tile';
 
 const ITEMS = [
-  { id: 'rv-1', title: 'כניסה ראשית · 10:12–10:16', primary: 'כניסה ראשית', related: ['לובי'], events: 3, severity: 'alert', status: 'חדש' },
-  { id: 'rv-2', title: 'חצר אחורית · 09:40–09:44', primary: 'חצר אחורית', related: [], events: 2, severity: 'info', status: 'בבדיקה' },
-  { id: 'rv-3', title: 'חניה מקורה · 06:41–06:45', primary: 'חניה מקורה', related: ['כניסה ראשית'], events: 1, severity: 'alert', status: 'טופל' },
-  { id: 'rv-4', title: 'לובי · אתמול 23:08–23:12', primary: 'לובי', related: [], events: 4, severity: 'info', status: 'false positive' },
-];
+  { id: 'rv-1', title: 'כניסה ראשית · 10:12–10:16', primary: 'כניסה ראשית', scene: 'entrance', related: ['לובי'], events: 3, severity: 'alert', status: 'חדש' },
+  { id: 'rv-2', title: 'חצר אחורית · 09:40–09:44', primary: 'חצר אחורית', scene: 'backyard', related: [], events: 2, severity: 'info', status: 'בבדיקה' },
+  { id: 'rv-3', title: 'חניה מקורה · 06:41–06:45', primary: 'חניה מקורה', scene: 'parking', related: ['כניסה ראשית'], events: 1, severity: 'alert', status: 'טופל' },
+  { id: 'rv-4', title: 'לובי · אתמול 23:08–23:12', primary: 'לובי', scene: 'lobby', related: [], events: 4, severity: 'info', status: 'false positive' },
+] as const;
 
 /** SC15 — review queue (legacy:review, Beta): close events grouped into windows; raw events stay reachable. */
 @customElement('investigate-reviews')
@@ -20,27 +20,35 @@ export class InvestigateReviews extends LitElement {
   static styles = css`
     .filters {
       display: flex;
-      gap: var(--sw-s-2);
+      gap: 6px;
       flex-wrap: wrap;
     }
     .list {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-      gap: var(--sw-s-3);
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 12px;
     }
     .meta {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: var(--sw-s-2);
-      margin-block: var(--sw-s-2);
+      gap: 8px;
+      margin-block: 8px 4px;
       font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
       flex-wrap: wrap;
     }
+    .meta strong {
+      color: var(--sw-text);
+    }
+    .sub {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      margin-block-end: 8px;
+    }
     .actions {
       display: flex;
-      gap: var(--sw-s-1);
+      gap: 4px;
       flex-wrap: wrap;
     }
   `;
@@ -55,12 +63,9 @@ export class InvestigateReviews extends LitElement {
         <div class="list">
           ${ITEMS.map(
             (it) => html`<sw-card>
-              <sw-camera-tile compact name=${it.primary} meta=${`${it.events} אירועים`} state="recorded"></sw-camera-tile>
-              <div class="meta">
-                <strong>${it.title}</strong>
-                <sw-badge kind=${it.status === 'חדש' ? 'stale' : it.status === 'טופל' ? 'neutral' : 'recorded'} label=${it.status}></sw-badge>
-              </div>
-              <div class="meta"><span>מצלמות קשורות: ${it.related.length ? it.related.join(', ') : 'אין'}</span><span>${it.severity === 'alert' ? 'התראה' : 'מידע'}</span></div>
+              <sw-camera-tile name=${it.primary} meta=${`${it.events} אירועים`} state="recorded" scene=${it.scene}></sw-camera-tile>
+              <div class="meta"><strong>${it.title}</strong><sw-badge kind=${it.status === 'חדש' ? 'stale' : it.status === 'טופל' ? 'neutral' : 'recorded'} label=${it.status}></sw-badge></div>
+              <div class="sub">מצלמות קשורות: ${it.related.length ? it.related.join(', ') : 'אין'} · ${it.severity === 'alert' ? 'התראה' : 'מידע'}</div>
               <div class="actions">
                 <a href="#/investigate/playback"><sw-button size="sm" icon="play">נגן</sw-button></a>
                 <a href="#/investigate/events"><sw-button size="sm" variant="ghost">אירועים גולמיים</sw-button></a>

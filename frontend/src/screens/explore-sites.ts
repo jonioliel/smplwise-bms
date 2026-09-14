@@ -1,143 +1,80 @@
 import { LitElement, html, css } from 'lit';
-import { customElement } from 'lit/decorators.js';
+import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-page';
 import '../components/sw-card';
 import '../components/sw-badge';
 import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-tabs';
+import '../components/sw-scene';
 import { demoBuildings, demoSites } from '../fixtures/catalog';
+import { navigate } from '../router';
 
-/** SC02 — sites (board 1 screen 2): picture-header cards with a kebab, health pill, stats row, buildings. */
+const SITE_SCENE = ['house', 'building', 'warehouse'] as const;
+
+/** SC02 — sites & buildings (board 1 screen 2): picture cards with name, ⋯ menu and "N buildings · M cameras". */
 @customElement('explore-sites')
 export class ExploreSites extends LitElement {
+  @state() private tab = 'all';
+
   static styles = css`
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
-      gap: var(--sw-s-4);
+      grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+      gap: 14px;
     }
-    .hero {
+    .pic {
       position: relative;
-      block-size: 132px;
-      background: linear-gradient(180deg, #b9d0ea 0%, #d9e6f3 38%, #9fb39a 52%, #6b8062 74%, #46553f 100%);
-      display: flex;
-      align-items: flex-end;
-      padding: 12px 14px;
-      color: #fff;
+      aspect-ratio: 16 / 10;
+      overflow: hidden;
     }
-    .hero::before {
-      content: '';
+    .pic sw-scene {
       position: absolute;
       inset: 0;
-      background:
-        linear-gradient(115deg, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0) 45%),
-        linear-gradient(180deg, rgba(0, 0, 0, 0) 45%, rgba(0, 0, 0, 0.45) 100%);
     }
-    .hero.b {
-      background: linear-gradient(180deg, #cfd8e6 0%, #e7ecf3 40%, #a8b2c2 55%, #6a7484 78%, #3f4754 100%);
-    }
-    .hero.c {
-      background: linear-gradient(180deg, #d9dee6 0%, #b8c0cc 42%, #7f8896 60%, #4b535f 82%, #2f353f 100%);
-    }
-    .hero .nm {
-      position: relative;
-      font-weight: var(--sw-fw-bold);
-      font-size: var(--sw-fs-lg);
-      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-    }
-    .hero .kebab {
+    .pic .demo {
       position: absolute;
       inset-inline-end: 8px;
       inset-block-start: 8px;
-      --sw-text-2: #fff;
-      --sw-text: #fff;
-      --sw-surface-3: rgba(255, 255, 255, 0.2);
-    }
-    .hero .demo {
-      position: absolute;
-      inset-inline-start: 10px;
-      inset-block-start: 10px;
-      font-size: 10px;
+      font-size: 9.5px;
       letter-spacing: 0.04em;
-      background: rgba(17, 24, 39, 0.55);
+      background: rgba(17, 24, 39, 0.5);
+      color: #fff;
       border-radius: 4px;
       padding: 1px 6px;
     }
-    .bodyc {
-      padding: 12px 14px 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
+    .pic sw-badge {
+      position: absolute;
+      inset-inline-start: 8px;
+      inset-block-start: 8px;
     }
-    .top {
+    .info {
       display: flex;
+      align-items: center;
       justify-content: space-between;
-      align-items: center;
       gap: 8px;
+      padding: 10px 12px 12px;
     }
-    .addr {
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-3);
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .stats {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
-      text-align: center;
-      padding: 8px 0;
-      border-block: 1px solid var(--sw-border);
-    }
-    .stats b {
+    .info b {
       display: block;
-      font-size: var(--sw-fs-lg);
-      font-weight: var(--sw-fw-bold);
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
     }
-    .stats span {
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-3);
-    }
-    .buildings {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .buildings a {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 8px 10px;
-      border-radius: var(--sw-r-sm);
-      background: var(--sw-surface-2);
-      color: var(--sw-text);
-      text-decoration: none;
-      font-size: var(--sw-fs-sm);
-    }
-    .buildings a:hover {
-      background: var(--sw-accent-soft);
-      color: var(--sw-accent-text);
-    }
-    .buildings a span:last-child {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
+    .info small {
       color: var(--sw-text-3);
       font-size: var(--sw-fs-xs);
     }
     .add {
       display: grid;
       place-items: center;
-      min-block-size: 280px;
+      min-block-size: 200px;
       border: 1.5px dashed var(--sw-border-strong);
       border-radius: var(--sw-r-md);
       color: var(--sw-text-2);
-      gap: var(--sw-s-2);
       text-align: center;
       cursor: pointer;
       transition: border-color var(--sw-t-fast) var(--sw-ease), background var(--sw-t-fast) var(--sw-ease);
+      font-size: var(--sw-fs-sm);
     }
     .add:hover {
       border-color: var(--sw-accent);
@@ -147,47 +84,92 @@ export class ExploreSites extends LitElement {
     .add .ic {
       display: grid;
       place-items: center;
-      inline-size: 48px;
-      block-size: 48px;
+      inline-size: 40px;
+      block-size: 40px;
       border-radius: 50%;
       background: var(--sw-accent-soft);
-      color: var(--sw-accent-text);
-      margin-block-end: 6px;
+      color: var(--sw-accent);
+      margin: 0 auto 8px;
+    }
+    .add small {
+      display: block;
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+    }
+    .blist {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 12px;
+    }
+    .brow {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+    }
+    .brow sw-scene {
+      inline-size: 64px;
+      block-size: 44px;
+      border-radius: 6px;
+      flex-shrink: 0;
+    }
+    .brow b {
+      display: block;
+      font-weight: var(--sw-fw-semibold);
+    }
+    .brow small {
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+    }
+    .brow sw-icon {
+      margin-inline-start: auto;
+      color: var(--sw-text-3);
+    }
+    .map {
+      min-block-size: 360px;
+      border-radius: var(--sw-r-md);
+      border: 1px solid var(--sw-border);
+      background: var(--sw-surface);
+      display: grid;
+      place-items: center;
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-sm);
     }
   `;
 
+  private renderSites() {
+    return html`<div class="grid">
+      ${demoSites.map(
+        (s, i) => html`<sw-card flush interactive @click=${() => navigate(`/explore/buildings/${demoBuildings.find((b) => b.siteId === s.id)?.id ?? 'bld-a'}/floors`)}>
+          <div class="pic"><sw-scene kind=${SITE_SCENE[i] ?? 'building'}></sw-scene><span class="demo">דמו</span><sw-badge onImage kind=${s.health}></sw-badge></div>
+          <div class="info">
+            <div><b>${s.name}</b><small>${s.buildings} ${s.buildings === 1 ? 'מבנה' : 'מבנים'} · ${s.cameras} מצלמות</small></div>
+            <sw-button variant="ghost" size="sm" iconOnly icon="more" label="עוד" @click=${(e: Event) => e.stopPropagation()}></sw-button>
+          </div>
+        </sw-card>`,
+      )}
+      <div class="add" role="button" tabindex="0"><div><div class="ic"><sw-icon name="plus" size=${18}></sw-icon></div><strong>הוספת אתר חדש</strong><small>יצירת מיקום חדש כדי להתחיל</small></div></div>
+    </div>`;
+  }
+
+  private renderBuildings() {
+    return html`<div class="blist">
+      ${demoBuildings.map(
+        (b, i) => html`<sw-card class="brow" @click=${() => navigate(`/explore/buildings/${b.id}/floors`)}>
+          <sw-scene kind=${i % 2 ? 'house' : 'building'}></sw-scene>
+          <div><b>${b.name}</b><small>${demoSites.find((s) => s.id === b.siteId)?.name} · ${b.floors.length} קומות · ${b.floors.reduce((n, f) => n + f.cameras, 0)} מצלמות</small></div>
+          <sw-icon name="chevron" size=${14}></sw-icon>
+        </sw-card>`,
+      )}
+    </div>`;
+  }
+
   render() {
     return html`
-      <sw-page heading="אתרים ומבנים" subheading="בריאות ממקורות אמיתיים בלבד · נתוני הדגמה">
+      <sw-page heading="אתרים ומבנים" subheading="ניהול המיקומים והמבנים שלך · בריאות ממקורות אמיתיים בלבד · נתוני הדגמה">
         <sw-button slot="actions" variant="primary" icon="plus">אתר חדש</sw-button>
-        <sw-tabs .items=${[{ id: 'all', label: 'כל האתרים', count: demoSites.length }, { id: 'buildings', label: 'מבנים' }, { id: 'map', label: 'מפת אתרים' }]} active="all"></sw-tabs>
-        <div class="grid">
-          ${demoSites.map((s, i) => {
-            const buildings = demoBuildings.filter((b) => b.siteId === s.id);
-            return html`<sw-card flush interactive>
-              <div class="hero ${['a', 'b', 'c'][i] ?? 'a'}">
-                <span class="demo">דמו</span>
-                <sw-button class="kebab" variant="ghost" size="sm" iconOnly icon="more" label="עוד"></sw-button>
-                <span class="nm">${s.name}</span>
-              </div>
-              <div class="bodyc">
-                <div class="top">
-                  <span class="addr"><sw-icon name="map" size=${14}></sw-icon>${s.address}</span>
-                  <sw-badge kind=${s.health}></sw-badge>
-                </div>
-                <div class="stats">
-                  <div><b>${s.buildings}</b><span>מבנים</span></div>
-                  <div><b>${s.online}/${s.cameras}</b><span>מצלמות</span></div>
-                  <div><b>${s.alerts}</b><span>התראות</span></div>
-                </div>
-                ${buildings.length
-                  ? html`<div class="buildings">${buildings.map((b) => html`<a href=${`#/explore/buildings/${b.id}/floors`}><span>${b.name}</span><span>${b.floors.length} קומות <sw-icon name="chevron" size=${14}></sw-icon></span></a>`)}</div>`
-                  : html`<div class="buildings"><a href="#/explore/floors/f0"><span>מבנה ראשי</span><span>1 קומה <sw-icon name="chevron" size=${14}></sw-icon></span></a></div>`}
-              </div>
-            </sw-card>`;
-          })}
-          <div class="add" role="button" tabindex="0"><div><div class="ic"><sw-icon name="plus" size=${22}></sw-icon></div><div><strong>הוספת אתר חדש</strong><br /><small>יצירת מיקום חדש כדי להתחיל</small></div></div></div>
-        </div>
+        <sw-tabs .items=${[{ id: 'all', label: 'כל האתרים', count: demoSites.length }, { id: 'buildings', label: 'מבנים', count: demoBuildings.length }, { id: 'map', label: 'מפה' }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>
+        ${this.tab === 'all' ? this.renderSites() : this.tab === 'buildings' ? this.renderBuildings() : html`<div class="map">מפת אתרים (לוח 3 · מסך 17) תצטרף עם שכבת מיקום גאוגרפי · Beta</div>`}
       </sw-page>
     `;
   }

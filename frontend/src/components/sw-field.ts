@@ -22,7 +22,7 @@ export class SwField extends LitElement {
       gap: var(--sw-s-3);
     }
     label {
-      font-size: var(--sw-fs-sm);
+      font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
       font-weight: var(--sw-fw-medium);
     }
@@ -35,8 +35,8 @@ export class SwField extends LitElement {
     ::slotted(textarea) {
       inline-size: 100%;
       box-sizing: border-box;
-      min-block-size: 38px;
-      padding: 8px 12px;
+      min-block-size: 30px;
+      padding: 5px 10px;
       border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-sm);
       background: var(--sw-surface);

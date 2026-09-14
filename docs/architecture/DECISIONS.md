@@ -16,6 +16,7 @@
 | ADR-012 | Identity via Supervisor Ingress headers + thin bridge integration | Approved 2026-09-14; evidence gate T081/T083 ([ADR-012](ADR-012-identity-via-ingress-and-bridge.md)) |
 | ADR-013 | Playback: go2rtc session pool from NVR RTSP playback, export by file | Approved direction; ADR-006 closes after T006 ([ADR-013](ADR-013-playback-engine-and-go2rtc-pool.md)) |
 | ADR-014 | Monorepo = add-on repository; local Supervisor build first, GHCR images before pilot | Approved 2026-09-14 ([ADR-014](ADR-014-repository-and-deployment.md)) |
+| ADR-009 note | Sidebar shows the boards' six flat entries (Overview · Sites · Cameras · Events · Playback · Settings); routes and permissions keep the four modes | Recorded deviation 2026-09-14 after the owner rejected v1/v2 for not matching the boards; the design assets win visually, the mode model stays. Owner sign-off pending with the v3 review board (T007) |
 
 Each implementation ADR must include context, alternatives, chosen behavior, impact on API/schema/permissions/UX, test evidence and rollback. No open assumption becomes supported solely because it appears in this table.
 

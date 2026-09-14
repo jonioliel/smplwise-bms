@@ -7,6 +7,7 @@ import '../components/sw-steps';
 import '../components/sw-field';
 import '../components/sw-badge';
 import '../components/sw-icon';
+import '../components/sw-card';
 
 const STEPS = ['קובץ', 'עמוד', 'חיתוך וסיבוב', 'שם וקומה', 'כיול', 'שמירה'];
 
@@ -97,8 +98,8 @@ export class ExplorePlanImport extends LitElement {
 
   render() {
     return html`
-      <sw-page heading="ייבוא תוכנית לקומה 2-" subheading="המקור נשמר ללא שינוי; כל תיקון הוא שכבה נגזרת · נתוני הדגמה">
-        <sw-steps .steps=${STEPS} .current=${this.step}></sw-steps>
+      <sw-page heading="ייבוא תוכנית לקומה 2-" subheading="המקור נשמר ללא שינוי; כל תיקון הוא שכבה נגזרת · נתוני הדגמה" crumbs="אתרים | מבנה א | קומה 2-">
+        <sw-card><sw-steps .steps=${STEPS} .current=${this.step}></sw-steps></sw-card>
         <div class="layout">
           <div class="stage">
             <div class="pane">

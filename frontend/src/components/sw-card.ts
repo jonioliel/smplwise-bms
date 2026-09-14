@@ -15,7 +15,7 @@ export class SwCard extends LitElement {
       border: 1px solid var(--sw-border);
       border-radius: var(--sw-r-md);
       box-shadow: var(--sw-shadow-1);
-      padding: var(--sw-s-4);
+      padding: 14px;
       min-inline-size: 0;
     }
     :host([flush]) {
@@ -24,19 +24,18 @@ export class SwCard extends LitElement {
     }
     :host([interactive]) {
       cursor: pointer;
-      transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease);
+      transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease);
     }
     :host([interactive]:hover) {
       border-color: var(--sw-border-strong);
       box-shadow: var(--sw-shadow-2);
-      transform: translateY(-1px);
     }
     header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: var(--sw-s-3);
-      margin-block-end: var(--sw-s-3);
+      gap: 10px;
+      margin-block-end: 10px;
     }
     h3 {
       margin: 0;
