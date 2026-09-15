@@ -38,7 +38,7 @@ export class InvestigateEvents extends LitElement {
   @property() date = '';
 
   @state() private selected: string | null = null;
-  @state() private filter: 'all' | 'unacked' = 'all';
+  @state() private filter: 'all' | 'unacked' | 'acked' = 'all';
   // api
   @state() private cams: Camera[] | null = null;
   @state() private tz = 'Asia/Jerusalem';
@@ -353,7 +353,7 @@ export class InvestigateEvents extends LitElement {
 
   private async load() {
     try {
-      const r = await listEvents({ date: this.date || undefined, cameraId: this.cameraId || undefined, type: this.type || undefined, unacked: this.filter === 'unacked', limit: 500 });
+      const r = await listEvents({ date: this.date || undefined, cameraId: this.cameraId || undefined, type: this.type || undefined, unacked: this.filter === 'unacked', acked: this.filter === 'acked', limit: 500 });
       this.events = r.events;
       this.ingest = r.ingest;
       this.error = '';
@@ -434,7 +434,8 @@ export class InvestigateEvents extends LitElement {
         <sw-field><input type="date" .value=${this.date} max=${dateInZone(new Date(), this.tz)} data-ltr aria-label="תאריך" @change=${(e: Event) => { this.date = (e.target as HTMLInputElement).value; void this.load(); }} /></sw-field>
         <span class="grow"></span>
         <sw-chip ?selected=${this.filter === 'all'} @click=${() => { this.filter = 'all'; void this.load(); }} count=${this.events.length}>הכל</sw-chip>
-        <sw-chip ?selected=${this.filter === 'unacked'} @click=${() => { this.filter = 'unacked'; void this.load(); }} count=${unacked}>ללא טיפול</sw-chip>
+        <sw-chip ?selected=${this.filter === 'unacked'} @click=${() => { this.filter = 'unacked'; void this.load(); }} count=${unacked}>לבדיקה</sw-chip>
+        <sw-chip ?selected=${this.filter === 'acked'} @click=${() => { this.filter = 'acked'; void this.load(); }}>טופלו</sw-chip>
       </div>
       ${this.error ? html`<div class="banner warn">${this.error}</div>` : nothing}
       <div class="stage">
@@ -461,7 +462,8 @@ export class InvestigateEvents extends LitElement {
                 ${typeof ev.details.seconds === 'number' ? html`<dt>משך ההקלטה</dt><dd>${String(ev.details.seconds)} שנ׳</dd>` : nothing}
               </dl>
               <div slot="footer">
-                ${ev.camera_id ? html`<sw-button variant="primary" size="sm" icon="play" @click=${() => this.play(ev)}>${this.player?.eventId === ev.id ? 'עצור' : 'נגן כאן'}</sw-button>
+                <sw-button variant="primary" size="sm" icon="expand" data-review @click=${() => navigate(`/investigate/events/${ev.id}`)}>סקירה מלאה</sw-button>
+                ${ev.camera_id ? html`<sw-button size="sm" icon="play" @click=${() => this.play(ev)}>${this.player?.eventId === ev.id ? 'עצור' : 'נגן כאן'}</sw-button>
                     <sw-button size="sm" icon="history" @click=${() => navigate('/investigate/playback', { camera: ev.camera_id!, t: ev.occurred_at })}>להקלטה</sw-button>` : nothing}
                 <sw-button variant="ghost" size="sm" icon="check" ?disabled=${!!ev.acked_at || this.busy} @click=${() => this.ack(ev)}>סמן טופל</sw-button>
               </div>

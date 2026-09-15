@@ -1,5 +1,14 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.12 (pilot)
+- Event page (design M27) at #/investigate/events/{id}: the recording plays from two seconds before the
+  event (event time and played frame time shown separately), context card with status / source / type /
+  start time / window duration / location "building · floor / zone", the camera's floor with the pin
+  selected and the zones under it, events ±10 minutes, "סמן כטופל", "המשך חקירה במפה", "הנגן המלא עם
+  ציר הזמן". API: GET /events/{id} (names, picture state, time zone, location from the camera's anchor and
+  the smallest zone containing it; scoped per camera), `acked=true` on GET /events.
+- Event centre (M26): tabs לבדיקה / הכל / טופלו; the drawer's "סקירה מלאה" opens the event page.
+
 ## 0.1.11 (pilot)
 - Floor map viewer per the design (M05/M06/M07): floor chip on the map, zoom controls bottom-left and
   legend bottom-right, a "שכבות" panel with toggles and counts (cameras, doors/intercom, lighting,

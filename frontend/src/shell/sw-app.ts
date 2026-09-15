@@ -22,6 +22,7 @@ import '../screens/investigate-playback';
 import '../screens/investigate-sync';
 import '../screens/investigate-history-map';
 import '../screens/investigate-events';
+import '../screens/investigate-event-detail';
 import '../screens/investigate-reviews';
 import '../screens/investigate-cases';
 import '../screens/investigate-exports';
@@ -555,6 +556,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'playback' && s[2] === 'sync') return html`<investigate-sync></investigate-sync>`;
         if (s[1] === 'playback') return html`<investigate-playback .cameraId=${r.params.get('camera') ?? ''} .at=${r.params.get('t') ?? ''}></investigate-playback>`;
         if (s[1] === 'floors') return html`<investigate-history-map .floorId=${s[2] ?? 'f0'}></investigate-history-map>`;
+        if (s[1] === 'events' && s[2]) return html`<investigate-event-detail .eventId=${s[2]}></investigate-event-detail>`;
         if (s[1] === 'events') return html`<investigate-events .cameraId=${r.params.get('camera') ?? ''} .date=${r.params.get('date') ?? ''}></investigate-events>`;
         if (s[1] === 'reviews') return html`<investigate-reviews></investigate-reviews>`;
         if (s[1] === 'cases' && s[2]) return html`<investigate-case-detail .caseId=${s[2]}></investigate-case-detail>`;

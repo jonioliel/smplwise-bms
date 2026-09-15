@@ -102,6 +102,19 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   remembered for an hour and the picture is never a live frame. Files live under `/data/thumbs`
   (pruned with the events retention, capped at 200 MB).
 
+## Event page
+
+- "סקירה מלאה" in the event centre (or a click on a nearby event) opens the event's own page: the
+  recording plays from two seconds before the event; the event time and the time of the frame being
+  played are shown separately because playback starts on a keyframe. The context card shows whether the
+  event was handled and by whom, its source (NVR alert, derived from a recording, system), type, start
+  time, window duration and repeats, and where the camera sits: building, floor and the room or zone
+  containing the pin, with the floor plan and the pin highlighted. "המשך חקירה במפה" opens that floor;
+  "הנגן המלא עם ציר הזמן" opens playback at the event; "סמן כטופל" is recorded in the audit log under
+  the user's name. Events from the same ten minutes are listed for context; a nearby event is context,
+  not proof of a causal link.
+- The centre's tabs: לבדיקה (not yet handled), הכל, טופלו.
+
 ## Export
 
 - ייצוא (Export) from the playback screen: pick a range on the selected day, get an estimate (number of

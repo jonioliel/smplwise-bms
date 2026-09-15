@@ -81,6 +81,7 @@ def list_events(
     camera_id: str | None = None,
     type: str | None = Query(None, pattern="^[a-z_]+$"),
     unacked: bool = False,
+    acked: bool = False,
     limit: int = Query(200, ge=1, le=1000),
 ) -> dict[str, Any]:
     wide, ids = _scope(conn, principal)
@@ -107,6 +108,8 @@ def list_events(
         args.append(type)
     if unacked:
         sql += " AND acked_at IS NULL"
+    if acked:
+        sql += " AND acked_at IS NOT NULL"
     sql += " ORDER BY occurred_at DESC LIMIT ?"
     args.append(limit * 3 if not wide else limit)
     rows = [events_ingest.row_to_event(r) for r in conn.execute(sql, args).fetchall()]
@@ -177,6 +180,72 @@ def thumbnail(event_id: str, request: Request, principal: Principal = Depends(cu
     if st == "none":
         thumbnails.WORKER.request(settings, [event_id])
     return JSONResponse(status_code=202, content={"status": "pending", "queued": thumbnails.STATE["queued"]}, headers={"Retry-After": "4"})
+
+
+def _inside(x: float, y: float, poly: list[dict[str, float]]) -> bool:
+    inside = False
+    j = len(poly) - 1
+    for i in range(len(poly)):
+        a, b = poly[i], poly[j]
+        if (a["y"] > y) != (b["y"] > y) and x < (b["x"] - a["x"]) * (y - a["y"]) / (b["y"] - a["y"]) + a["x"]:
+            inside = not inside
+        j = i
+    return inside
+
+
+def _area(poly: list[dict[str, float]]) -> float:
+    return abs(sum(poly[i]["x"] * poly[(i + 1) % len(poly)]["y"] - poly[(i + 1) % len(poly)]["x"] * poly[i]["y"] for i in range(len(poly)))) / 2
+
+
+def _location(conn: sqlite3.Connection, camera_id: str) -> dict[str, Any] | None:
+    """Where the camera sits: its current anchor, the floor and building, the smallest zone containing it (M27)."""
+    a = conn.execute(
+        "SELECT a.id AS anchor_id, a.floor_id, a.x, a.y, f.name AS floor_name, f.building_id, b.name AS building_name FROM map_anchors a "
+        "JOIN floors f ON f.id = a.floor_id JOIN buildings b ON b.id = f.building_id "
+        "WHERE a.resource_type = 'camera' AND a.resource_id = ? AND a.effective_to IS NULL ORDER BY a.updated_at DESC LIMIT 1",
+        (camera_id,),
+    ).fetchone()
+    if not a:
+        return None
+    zone = None
+    best = None
+    for z in conn.execute("SELECT name, polygon_json FROM spatial_zones WHERE floor_id = ? AND deleted_at IS NULL", (a["floor_id"],)).fetchall():
+        poly = json.loads(z["polygon_json"])
+        if len(poly) >= 3 and _inside(a["x"], a["y"], poly):
+            area = _area(poly)
+            if best is None or area < best:
+                best, zone = area, z["name"]
+    has_plan = conn.execute("SELECT 1 FROM plan_versions WHERE floor_id = ? AND status = 'published'", (a["floor_id"],)).fetchone() is not None
+    return {
+        "anchor_id": a["anchor_id"],
+        "floor_id": a["floor_id"],
+        "floor_name": a["floor_name"],
+        "building_id": a["building_id"],
+        "building_name": a["building_name"],
+        "x": a["x"],
+        "y": a["y"],
+        "zone": zone,
+        "has_plan": has_plan,
+    }
+
+
+@router.get("/events/{event_id}")
+def get_event(event_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """One event with its picture state and the camera's place on the floor (event page, design M27)."""
+    row = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
+    if not row:
+        raise ApiError(404, "not_found", "האירוע לא נמצא.")
+    ev = events_ingest.row_to_event(row)
+    if ev["camera_id"]:
+        if not camera_allowed(conn, principal, ev["camera_id"], "events.read"):
+            require(conn, principal, "events.read", INSTALLATION)
+    else:
+        require(conn, principal, "events.read", INSTALLATION)
+    _with_thumbs(settings_of(request), [ev], queue_first=1)
+    _with_names(conn, [ev])
+    ev["location"] = _location(conn, ev["camera_id"]) if ev["camera_id"] else None
+    ev["timezone"] = read_settings(conn)["time.zone"]
+    return ev
 
 
 @router.post("/events/{event_id}/ack")

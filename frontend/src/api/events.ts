@@ -25,6 +25,26 @@ export interface VmsEvent {
   thumbnail?: 'ready' | 'pending' | 'unavailable' | 'none';
 }
 
+/** Where the event's camera sits (its current anchor); `zone` is the smallest room / zone containing the pin. */
+export interface EventLocation {
+  anchor_id: string;
+  floor_id: string;
+  floor_name: string;
+  building_id: string;
+  building_name: string;
+  x: number;
+  y: number;
+  zone: string | null;
+  has_plan: boolean;
+}
+
+export interface EventDetail extends VmsEvent {
+  location: EventLocation | null;
+  timezone: string;
+  /** Not from the server; the page fills it for display only. */
+  playerHint?: string;
+}
+
 export interface IngestState {
   connected: boolean;
   last_heartbeat_at: string | null;
@@ -58,9 +78,14 @@ export interface EventsSummary {
   derive: DeriveState;
 }
 
-export function listEvents(opts: { date?: string; cameraId?: string; type?: string; unacked?: boolean; limit?: number } = {}) {
+export function listEvents(opts: { date?: string; from?: string; to?: string; cameraId?: string; type?: string; unacked?: boolean; acked?: boolean; limit?: number } = {}) {
   const q = new URLSearchParams();
   if (opts.date) q.set('date', opts.date);
+  if (opts.from && opts.to) {
+    q.set('from', opts.from);
+    q.set('to', opts.to);
+  }
+  if (opts.acked) q.set('acked', 'true');
   if (opts.cameraId) q.set('camera_id', opts.cameraId);
   if (opts.type) q.set('type', opts.type);
   if (opts.unacked) q.set('unacked', 'true');
@@ -71,6 +96,7 @@ export function listEvents(opts: { date?: string; cameraId?: string; type?: stri
 export const eventsSummary = () => get<EventsSummary>('events/summary');
 export const cameraEvents = (cameraId: string, date: string) => get<{ camera_id: string; date: string; timezone: string; events: VmsEvent[] }>(`cameras/${cameraId}/events?date=${date}`);
 export const ackEvent = (id: string) => post<VmsEvent>(`events/${id}/ack`);
+export const getEvent = (id: string) => get<EventDetail>(`events/${id}`);
 export const thumbnailUrl = (id: string, v = 0) => apiUrl(`events/${id}/thumbnail${v ? `?v=${v}` : ''}`);
 
 /** Ask for the picture: 200 → ready, 202 → still being grabbed, anything else → unavailable. */
