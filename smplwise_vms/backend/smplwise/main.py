@@ -116,6 +116,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import ha_sync
 
         ha_sync.SYNC.start(app.state.db, settings)
+        from .services import bridge_install, thumbnails
+
+        thumbnails.WORKER.start_with(app.state.db, settings)
+        await run_in_threadpool(bridge_install.run_startup, app.state.db, settings)
 
         async def loop() -> None:
             while True:
@@ -129,6 +133,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         pg.expire_empty()
                         ex.retention_sweep(app.state.db, settings, s["exports.retention_days"])
                         events_derive.prune(app.state.db, s["events.retention_days"])
+                        thumbnails.prune(settings, s["events.retention_days"])
 
                     await run_in_threadpool(_tick)
                     if autosync.PERIODIC.due():
@@ -148,6 +153,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         ex.WORKER.stop = True
         events_ingest.LISTENER.shutdown()
+        from .services import thumbnails as th
+
+        th.WORKER.stop_evt.set()
         from .services import ha_sync
 
         ha_sync.SYNC.shutdown()

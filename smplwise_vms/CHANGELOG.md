@@ -1,6 +1,15 @@
 # Changelog — SMPLWISE VMS add-on
 
-## 0.1.5 (pilot, in progress)
+## 0.1.6 (pilot, in progress)
+- The bridge integration is delivered by the add-on: shipped in the image, copied into Home
+  Assistant's `custom_components` through the `homeassistant_config` mapping when missing/outdated,
+  announced via Supervisor discovery (config flow `hassio` step with the pairing code prefilled); status
+  and an "install / update" button in הגדרות → גשר Home Assistant; `POST /ha/bridge/install`.
+- Event pictures from the recording (lazy, one worker, ffmpeg frame grab, cached under /data/thumbs) in
+  the event centre rows and drawer; "נגן כאן" plays the recording inside the drawer from the event time.
+- Add-on config: `hassio_api`, `discovery: [smplwise_bridge]`, `map: homeassistant_config:rw`.
+
+## 0.1.5 (pilot)
 - Read-only Home Assistant sync: registries (entity/device/area/floor) and states through the
   Supervisor proxy, `state_changed` over the Core WebSocket, tombstones, freshness, `ha_entities` table
   (migration 0004); catalogue API and screen (ישויות HA) with domain/area/search filters and scoping

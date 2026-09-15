@@ -19,10 +19,10 @@ from starlette.concurrency import run_in_threadpool
 from ..audit import audit
 from ..auth import current_principal, get_conn, settings_of
 from ..config import Settings
-from ..db import Database, get_setting, now_iso, set_setting
+from ..db import unlocked, Database, get_setting, now_iso, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import ha_bridge, ha_client, ha_sync
+from ..services import bridge_install, ha_bridge, ha_client, ha_sync
 from ..services.timeutil import iso_utc, parse_utc
 from .media import _principal_for_ws
 
@@ -72,6 +72,7 @@ def status(request: Request, principal: Principal = Depends(current_principal), 
         "configured": ha_client.configured(settings),
         "sync": ha_sync.STATE.as_dict(),
         "bridge": {"paired": bool(get_setting(conn, "bridge.secret")) and bool(paired_at), "paired_at": paired_at, "directory_users": conn.execute("SELECT COUNT(*) FROM ha_users").fetchone()[0], "last_directory_at": get_setting(conn, "bridge.directory_at") or None},
+        "integration": bridge_install.status(conn=conn),
         "can_configure": authorize(conn, principal, "system.configure", INSTALLATION).allowed,
     }
 
@@ -197,7 +198,8 @@ def run_action(entity_id: str, body: ActionBody, request: Request, principal: Pr
         raise ApiError(503, "bridge_not_paired", "פעולות HA דורשות את גשר SMPLWISE מותקן ומצומד ב־Home Assistant.", details={"action_id": aid})
     payload = ha_bridge.sign(secret or "", {"user_id": principal.user_id, "domain": spec["domain"], "service": spec["service"], "data": data, "request_id": aid})
     try:
-        result = ha_client.call_bridge_execute(settings, payload)
+        with unlocked(conn):
+            result = ha_client.call_bridge_execute(settings, payload)
     except ApiError as exc:
         conn.execute("UPDATE ha_actions SET status = 'failed', error = ?, responded_at = ? WHERE id = ?", (exc.code, now_iso(), aid))
         audit(conn, actor=principal, action="ha.action", decision="allowed", resource_type="ha_entity", resource_id=entity_id, reason=exc.code,
@@ -233,6 +235,15 @@ def get_action(action_id: str, request: Request, principal: Principal = Depends(
 
 
 # ---------------------------------------------------------------- bridge pairing + directory (integration side)
+
+@router.post("/ha/bridge/install")
+def bridge_install_now(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Copy the integration into Home Assistant's config directory again and re-announce it (system.configure)."""
+    require(conn, principal, "system.configure", INSTALLATION)
+    audit(conn, actor=principal, action="bridge.install", decision="allowed", resource_type="installation", resource_id="*", request_id=getattr(request.state, "correlation_id", None))
+    db: Database = request.app.state.db
+    return bridge_install.install(db, settings_of(request), force=True, announce=True, conn=conn)
+
 
 @router.get("/ha/bridge/pairing")
 def pairing(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), regenerate: bool = False) -> dict[str, Any]:

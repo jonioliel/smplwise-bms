@@ -10,14 +10,16 @@ import sqlite3
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request, WebSocket
+from fastapi.responses import FileResponse, JSONResponse
 from starlette.concurrency import run_in_threadpool
 
 from ..audit import audit
-from ..auth import current_principal, get_conn
+from ..auth import current_principal, get_conn, settings_of
+from ..config import Settings
 from ..db import Database, now_iso
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import events_derive, events_ingest
+from ..services import events_derive, events_ingest, thumbnails
 from ..services.access import camera_allowed, visible_camera_ids
 from ..services.timeutil import iso_utc, local_day_bounds, parse_utc, zone
 from .media import _principal_for_ws
@@ -48,6 +50,23 @@ def _with_names(conn: sqlite3.Connection, rows: list[dict[str, Any]]) -> list[di
     names = {r["id"]: (r["alias"] or r["name_source"] or r["id"]) for r in conn.execute("SELECT id, alias, name_source FROM cameras").fetchall()}
     for r in rows:
         r["camera_name"] = names.get(r.get("camera_id") or "", None)
+    return rows
+
+
+def _with_thumbs(settings: Settings, rows: list[dict[str, Any]], queue_first: int = 0) -> list[dict[str, Any]]:
+    """Thumbnail state per row; the first `queue_first` rows without one are queued for generation."""
+    ask: list[str] = []
+    for i, r in enumerate(rows):
+        if not thumbnails.eligible(r):
+            r["thumbnail"] = "unavailable"
+            continue
+        st = thumbnails.status_for(settings, r["id"])
+        if st == "none" and i < queue_first:
+            ask.append(r["id"])
+            st = "pending"
+        r["thumbnail"] = st
+    if ask:
+        thumbnails.WORKER.request(settings, ask)
     return rows
 
 
@@ -92,6 +111,7 @@ def list_events(
     args.append(limit * 3 if not wide else limit)
     rows = [events_ingest.row_to_event(r) for r in conn.execute(sql, args).fetchall()]
     rows = [r for r in rows if _visible(r, wide, ids)][:limit]
+    _with_thumbs(settings_of(request), rows, queue_first=30)
     return {
         "events": _with_names(conn, rows),
         "from": iso_utc(start),
@@ -131,6 +151,32 @@ def camera_events(camera_id: str, principal: Principal = Depends(current_princip
     start, end = local_day_bounds(dt.date.fromisoformat(date), zone(s["time.zone"]))
     rows = [events_ingest.row_to_event(r) for r in conn.execute("SELECT * FROM events WHERE camera_id = ? AND occurred_at >= ? AND occurred_at < ? ORDER BY occurred_at", (camera_id, iso_utc(start), iso_utc(end))).fetchall()]
     return {"camera_id": camera_id, "date": date, "timezone": s["time.zone"], "events": rows}
+
+
+@router.get("/events/{event_id}/thumbnail")
+def thumbnail(event_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)):
+    """The event's picture from the recording: 200 image/jpeg when ready, 202 while it is being grabbed,
+    404 when the recording has no usable frame (remembered for an hour)."""
+    row = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
+    if not row:
+        raise ApiError(404, "not_found", "האירוע לא נמצא.")
+    ev = events_ingest.row_to_event(row)
+    if ev["camera_id"]:
+        if not camera_allowed(conn, principal, ev["camera_id"], "events.read"):
+            require(conn, principal, "events.read", INSTALLATION)
+    else:
+        require(conn, principal, "events.read", INSTALLATION)
+    settings = settings_of(request)
+    if not thumbnails.eligible(ev):
+        raise ApiError(404, "thumbnail_unavailable", "לאירוע הזה אין הקלטה לתמונה.")
+    st = thumbnails.status_for(settings, event_id)
+    if st == "ready":
+        return FileResponse(thumbnails.path_for(settings, event_id), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
+    if st == "unavailable":
+        raise ApiError(404, "thumbnail_unavailable", "לא נמצא פריים בהקלטה בזמן האירוע.")
+    if st == "none":
+        thumbnails.WORKER.request(settings, [event_id])
+    return JSONResponse(status_code=202, content={"status": "pending", "queued": thumbnails.STATE["queued"]}, headers={"Retry-After": "4"})
 
 
 @router.post("/events/{event_id}/ack")
@@ -193,8 +239,9 @@ async def events_ws(websocket: WebSocket) -> None:
                 last_scope = asyncio.get_event_loop().time()
             if not _visible(ev, wide, ids):
                 continue
+            msg_type = ev.get("_type", "event_added")
             seq += 1
-            await websocket.send_text(json.dumps({"version": 1, "type": "event_added", "sequence": seq, "subscription_id": principal.user_id, "occurred_at": ev["occurred_at"], "received_at": now_iso(), "payload": ev}, ensure_ascii=False))
+            await websocket.send_text(json.dumps({"version": 1, "type": msg_type, "sequence": seq, "subscription_id": principal.user_id, "occurred_at": ev["occurred_at"], "received_at": now_iso(), "payload": {k: v for k, v in ev.items() if k != "_type"}}, ensure_ascii=False))
     except Exception:
         pass
     finally:

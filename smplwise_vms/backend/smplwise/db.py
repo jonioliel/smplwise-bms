@@ -96,3 +96,18 @@ def bump_permission_revision(conn: sqlite3.Connection) -> int:
     rev = permission_revision(conn) + 1
     set_setting(conn, "permission_revision", str(rev))
     return rev
+
+@contextmanager
+def unlocked(conn: sqlite3.Connection) -> Iterator[None]:
+    """Release the request's write lock around a network-bound phase (NVR search/snapshot, go2rtc, the HA
+    bridge): commits what was written so far, runs the block in autocommit mode (reads only, please) and
+    starts a fresh IMMEDIATE transaction for the rest of the request. Without this a slow device call
+    holds SQLite's single write lock for seconds and every other worker hits "database is locked"."""
+    if not conn.in_transaction:
+        yield
+        return
+    conn.execute("COMMIT")
+    try:
+        yield
+    finally:
+        conn.execute("BEGIN IMMEDIATE")

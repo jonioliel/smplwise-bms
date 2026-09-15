@@ -12,7 +12,7 @@ from typing import Any
 
 from ..audit import audit
 from ..config import Settings
-from ..db import Database, new_id, now_iso
+from ..db import unlocked, Database, new_id, now_iso
 from ..errors import ApiError
 from . import go2rtc as g2
 from . import nvr
@@ -34,8 +34,9 @@ def ensure_recorder(conn: sqlite3.Connection, name: str = "NVR ראשי", model:
 
 def sync_cameras(settings: Settings, conn: sqlite3.Connection, actor: Any | None = None, request_id: str | None = None, reason: str = "manual") -> dict[str, Any]:
     """Read-only discovery from the NVR: channels, online flag and track ids. Existing aliases/order survive."""
-    info = nvr.device_info(settings)
-    channels = nvr.discover_channels(settings)
+    with unlocked(conn):
+        info = nvr.device_info(settings)
+        channels = nvr.discover_channels(settings)
     ensure_recorder(conn, model=info.get("model") or None, firmware=info.get("firmware") or None)
     now = now_iso()
     created = updated = 0
@@ -64,13 +65,15 @@ def ensure_streams(settings: Settings, conn: sqlite3.Connection, actor: Any | No
     """Create/refresh the product's namespaced live streams in go2rtc for every enabled camera (idempotent)."""
     client = g2.Go2rtc(settings)
     result: dict[str, Any] = {"created": 0, "updated": 0, "unchanged": 0, "streams": []}
-    for cam in conn.execute("SELECT * FROM cameras WHERE enabled = 1 ORDER BY channel").fetchall():
-        for profile in ("sub", "main"):
-            name = g2.stream_name(cam["recorder_id"], cam["channel"], profile)
-            outcome = client.ensure_stream(name, g2.hikvision_rtsp_url(settings, cam["channel"], profile))
-            result[outcome] += 1
-            result["streams"].append(name)
-    foreign = [n for n in client.list_streams() if not n.startswith(g2.STREAM_PREFIX)]
+    cams = conn.execute("SELECT * FROM cameras WHERE enabled = 1 ORDER BY channel").fetchall()
+    with unlocked(conn):
+        for cam in cams:
+            for profile in ("sub", "main"):
+                name = g2.stream_name(cam["recorder_id"], cam["channel"], profile)
+                outcome = client.ensure_stream(name, g2.hikvision_rtsp_url(settings, cam["channel"], profile))
+                result[outcome] += 1
+                result["streams"].append(name)
+        foreign = [n for n in client.list_streams() if not n.startswith(g2.STREAM_PREFIX)]
     result["foreign_streams_untouched"] = len(foreign)
     if result["created"] or result["updated"] or reason == "manual":
         audit(conn, actor=actor, action="media.streams.sync", decision="allowed", resource_type="installation", resource_id="*", request_id=request_id,

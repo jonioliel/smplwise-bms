@@ -1,5 +1,6 @@
 {
   "config": {
+    "flow_title": "{addon}",
     "step": {
       "user": {
         "title": "Pair with the SMPLWISE VMS add-on",
@@ -8,6 +9,10 @@
           "addon_url": "Add-on address (inside Home Assistant's network)",
           "pairing_code": "Pairing code"
         }
+      },
+      "hassio_confirm": {
+        "title": "Pair with the SMPLWISE VMS add-on",
+        "description": "The add-on {addon} announced itself with its pairing code. Confirm to let the VMS run allow-listed actions in your own Home Assistant identity."
       }
     },
     "error": {
@@ -16,6 +21,8 @@
       "unknown": "Unexpected error."
     },
     "abort": {
+      "already_configured": "The bridge is already configured; the pairing details were refreshed.",
+      "invalid_discovery": "The discovery message had no pairing code.",
       "single_instance_allowed": "Only one bridge can be configured."
     }
   }

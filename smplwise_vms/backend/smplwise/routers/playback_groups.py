@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from ..audit import audit
 from ..auth import current_principal, get_conn, settings_of
 from ..config import Settings
+from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize
 from ..services import playback as pb
@@ -58,7 +59,7 @@ def _start_many(settings: Settings, conn: sqlite3.Connection, principal: Princip
         except ApiError as exc:
             return cam["id"], None, exc.code
 
-    with ThreadPoolExecutor(max_workers=4) as pool:
+    with unlocked(conn), ThreadPoolExecutor(max_workers=4) as pool:
         results = list(pool.map(one, cams))
     group.session_ids = [s.id for _, s, _ in results if s]
     group.missing = {cid: reason for cid, s, reason in results if not s and reason}

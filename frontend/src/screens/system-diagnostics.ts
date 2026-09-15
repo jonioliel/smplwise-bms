@@ -14,7 +14,7 @@ import { getSettings, listSessions, listStreams, patchSettings, syncStreams, typ
 import { invalidateSettings } from '../api/prefs';
 import { describeError, get } from '../api/client';
 import { navigate } from '../router';
-import { bridgePairing, haStatus, fmtTime, type HaStatus } from '../api/ha';
+import { bridgePairing, haStatus, fmtTime, installBridge, type HaIntegrationStatus, type HaStatus } from '../api/ha';
 
 const TABS = [
   { id: 'general', label: 'כללי' },
@@ -220,6 +220,46 @@ export class SystemDiagnostics extends LitElement {
     }
   }
 
+  private async installBridgeNow() {
+    this.busy = true;
+    this.error = '';
+    try {
+      const st = await installBridge();
+      this.message = st.state === 'installed_pending' ? 'האינטגרציה הועתקה ל־Home Assistant; הפעל מחדש את Home Assistant ואשר את הגשר שהתגלה.' : st.state === 'active' ? 'האינטגרציה פעילה.' : st.state === 'not_available' ? 'תיקיית ההגדרות של Home Assistant אינה נגישה ל־Add-on.' : `מצב: ${st.state}`;
+      await this.loadHa();
+      setTimeout(() => (this.message = ''), 6000);
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private integrationText(i: HaIntegrationStatus): string {
+    switch (i.state) {
+      case 'active':
+        return `פעילה ב־Home Assistant (גרסה ${i.active_version ?? '?'})`;
+      case 'installed_pending':
+        return `הועתקה לתיקיית ההגדרות של HA (גרסה ${i.installed_version ?? '?'}) ב־${fmtTime(i.installed_at)} · הפעל מחדש את Home Assistant ואז אשר את "SMPLWISE Bridge" שהתגלה בהגדרות → מכשירים ושירותים`;
+      case 'update_pending':
+        return `עודכנה לגרסה ${i.installed_version ?? '?'} אך Home Assistant עדיין מריץ ${i.active_version ?? '?'} · נדרש Restart ל־Home Assistant`;
+      case 'not_installed':
+        return 'טרם הועתקה';
+      case 'error':
+        return `ההעתקה נכשלה (${i.last_error ?? ''})`;
+      default:
+        return `ה־Add-on לא רואה את תיקיית ההגדרות של Home Assistant (${i.last_error ?? 'אין מיפוי'}) · התקנה ידנית לפי השלבים למטה`;
+    }
+  }
+
+  private renderIntegration(h: HaStatus) {
+    const i = h.integration;
+    if (!i) return nothing;
+    const kind = i.state === 'active' ? 'live' : i.state === 'installed_pending' || i.state === 'update_pending' ? 'stale' : i.state === 'error' ? 'error' : 'unknown';
+    const label = i.state === 'active' ? 'פעילה' : i.state === 'installed_pending' ? 'ממתינה ל־Restart' : i.state === 'update_pending' ? 'עדכון ממתין' : i.state === 'error' ? 'שגיאה' : i.state === 'not_installed' ? 'לא הותקנה' : 'לא זמין';
+    return html`<div class="row"><span class="lbl">התקנת האינטגרציה ב־Home Assistant<span class="muted">${this.integrationText(i)}${i.discovery_posted_at ? ` · הוכרזה ל־Supervisor ${fmtTime(i.discovery_posted_at)}` : ''}</span></span><span style="display:flex;gap:8px;align-items:center"><sw-badge kind=${kind} label=${label}></sw-badge>${this.canEdit && i.state !== 'not_available' ? html`<sw-button size="sm" ?disabled=${this.busy} @click=${() => this.installBridgeNow()}>התקן / עדכן</sw-button>` : nothing}</span></div>`;
+  }
+
   private renderHa() {
     if (!isApi()) {
       return html`<div class="sections"><sw-card heading="גשר Home Assistant"><div class="muted">נתוני הדגמה — הסטטוס והצימוד זמינים מול השרת.</div></sw-card></div>`;
@@ -238,7 +278,7 @@ export class SystemDiagnostics extends LitElement {
       </sw-card>
       <sw-card heading="גשר SMPLWISE (אינטגרציה ב־Home Assistant)" subheading="פעולות על ישויות רצות רק דרך הגשר, בזהות המשתמש, לפי ההרשאות של Home Assistant">
         ${h
-          ? html`<div class="row"><span class="lbl">צימוד<span class="muted">${h.bridge.paired ? `מצומד מאז ${fmtTime(h.bridge.paired_at)}` : 'לא מצומד — פעולות HA ייחסמו עד להתקנת הגשר'}</span></span><sw-badge kind=${h.bridge.paired ? 'live' : 'stale'} label=${h.bridge.paired ? 'מצומד' : 'לא מצומד'}></sw-badge></div>
+          ? html`${this.renderIntegration(h)}<div class="row"><span class="lbl">צימוד<span class="muted">${h.bridge.paired ? `מצומד מאז ${fmtTime(h.bridge.paired_at)}` : 'לא מצומד — פעולות HA ייחסמו עד להתקנת הגשר'}</span></span><sw-badge kind=${h.bridge.paired ? 'live' : 'stale'} label=${h.bridge.paired ? 'מצומד' : 'לא מצומד'}></sw-badge></div>
             <div class="row"><span class="lbl">ספריית משתמשי HA<span class="muted">${h.bridge.directory_users} משתמשים · עודכן ${fmtTime(h.bridge.last_directory_at)}</span></span><sw-badge kind=${h.bridge.directory_users ? 'recorded' : 'unknown'}></sw-badge></div>`
           : nothing}
         ${p
@@ -251,9 +291,9 @@ export class SystemDiagnostics extends LitElement {
       </sw-card>
       <sw-card heading="התקנת הגשר (פעם אחת)">
         <ol class="steps">
-          <li>העתק את התיקייה <code class="ltr">custom_components/smplwise_bridge</code> מהמאגר אל <code class="ltr">/config/custom_components/</code> ב־Home Assistant (או הוסף את המאגר ב־HACS כ־Custom repository מסוג Integration), והפעל מחדש את Home Assistant.</li>
-          <li>הגדרות → מכשירים ושירותים → הוספת אינטגרציה → <strong>SMPLWISE Bridge</strong>.</li>
-          <li>הדבק את כתובת ה־Add-on ואת קוד הצימוד מהמסך הזה. הצימוד מאומת מיד (HMAC, חלון של 60 שניות).</li>
+          <li>ה־Add-on מעתיק בעצמו את <code class="ltr">custom_components/smplwise_bridge</code> אל תיקיית ההגדרות של Home Assistant (השורה "התקנת האינטגרציה" למעלה). אם זה לא זמין: העתק את התיקייה מהמאגר אל <code class="ltr">/config/custom_components/</code>, או הוסף את המאגר ב־HACS כ־Custom repository מסוג Integration.</li>
+          <li>הפעל מחדש את Home Assistant (הגדרות → מערכת → הפעלה מחדש) כדי שהרכיב ייטען.</li>
+          <li>הגדרות → מכשירים ושירותים: אשר את <strong>SMPLWISE Bridge</strong> שהתגלה (קוד הצימוד כבר מולא). אם לא הופיע: הוספת אינטגרציה → SMPLWISE Bridge והדבקת הכתובת והקוד מהמסך הזה.</li>
           <li>הסטטוס למעלה יתעדכן ל"מצומד"; ספריית המשתמשים נשלחת כל דקה ומאפשרת להקצות תפקידים למשתמשי HA.</li>
         </ol>
         <div class="muted">הגשר מריץ רק פעולות מרשימת ההיתר (תאורה, מתגים, מאווררים, תריסים, מנעולים, כפתורים, סקריפטים, סצנות) ורק עבור משתמש HA קיים ופעיל. ה־Supervisor token של ה־Add-on אינו משמש לפעולות.</div>

@@ -92,8 +92,15 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   (Configuration → Event → … → Linkage Method → Notify Surveillance Center). The add-on never changes NVR
   settings.
 - אירועים (Event centre): day/type/camera/unacked filters, live updates over a WebSocket, acknowledge
-  (`events.ack`, audited), "נגן" jumps to the recording at the event time. Markers also appear on the
-  playback timeline. Retention: `events.retention_days` (default 30).
+  (`events.ack`, audited), "נגן כאן" plays the recording from two seconds before the event inside the
+  event drawer (a normal playback session, closed with the drawer) and "להקלטה" opens the full playback
+  screen at that time. Markers also appear on the playback timeline. Retention: `events.retention_days`
+  (default 30).
+- Event pictures: the NVR keeps no snapshots for these events, so the add-on grabs one frame from the
+  recording at the event time (ffmpeg on the RTSP playback stream, 480 px wide) lazily, one at a time,
+  for the events the centre shows first; rows show a shimmer until the picture is ready, failures are
+  remembered for an hour and the picture is never a live frame. Files live under `/data/thumbs`
+  (pruned with the events retention, capped at 200 MB).
 
 ## Export
 
@@ -133,12 +140,18 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   button, script, scene) need an explicit confirmation; every request is idempotent by client id,
   audited, and reported as pending → confirmed (state observed after the request) / unknown /
   failed / denied. Until the integration is paired, actions are refused with `bridge_not_paired`.
-- Pairing (הגדרות → גשר Home Assistant): copy the add-on address and the pairing code, install the
-  integration (copy the folder to `/config/custom_components/` or add the repository in HACS as a
-  custom Integration repository, restart HA), add "SMPLWISE Bridge" and paste both. Requests between
-  the two are HMAC-SHA256 signed with a 60 s window and nonce replay protection. The integration also
-  pushes the HA user directory (id, name, username, active, admin, groups) every minute so VMS roles
-  can be granted to HA users.
+- Installing the bridge (once): the add-on ships the integration and, with the `homeassistant_config`
+  mapping, copies it to `<config>/custom_components/smplwise_bridge` at start-up (only that folder,
+  only when missing or outdated) and announces it to the Supervisor discovery API. Restart Home
+  Assistant once so the component loads, then confirm "SMPLWISE Bridge" under Settings → Devices &
+  services (the pairing code is already filled in). Without the mapping, the manual path remains:
+  copy the folder yourself or add the repository in HACS as a custom Integration repository, then add
+  the integration and paste the add-on address and pairing code from הגדרות → גשר Home Assistant.
+  Requests between the two are HMAC-SHA256 signed with a 60 s window and nonce replay protection.
+  The integration also pushes the HA user directory (id, name, username, active, admin, groups) every
+  minute so VMS roles can be granted to HA users. The settings tab shows the copy state (waiting for
+  restart / active / update pending) and has a "התקן / עדכן" button that repeats the copy and the
+  announcement.
 
 ## Limits in this build
 

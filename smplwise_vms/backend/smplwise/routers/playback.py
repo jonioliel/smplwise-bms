@@ -18,7 +18,7 @@ from starlette.concurrency import run_in_threadpool
 from ..audit import audit
 from ..auth import current_principal, get_conn, settings_of
 from ..config import Settings
-from ..db import Database
+from ..db import unlocked, Database
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize
 from ..services import go2rtc as g2
@@ -47,7 +47,8 @@ def _segment_for(settings: Settings, conn: sqlite3.Connection, cam: sqlite3.Row,
     """The recording segment containing `start`, or the next one within six hours (then the session starts
     there and the response says so). No recording at all → 409 no_recording."""
     window_end = start + pb.MAX_SPAN
-    result = recordings.search_segments(settings, conn, cam, start - dt.timedelta(seconds=1), window_end, tz_name)
+    with unlocked(conn):
+        result = recordings.search_segments(settings, conn, cam, start - dt.timedelta(seconds=1), window_end, tz_name)
     for seg in result.segments:
         s, e = parse_utc(seg.start_at), parse_utc(seg.end_at)
         if s <= start < e:
@@ -82,7 +83,8 @@ def create_session(body: CreateBody, request: Request, principal: Principal = De
     if not settings.go2rtc_url:
         raise ApiError(503, "media_not_configured", "כתובת go2rtc לא הוגדרה בהגדרות ה־Add-on.")
     actual_start, seg_end = _segment_for(settings, conn, cam, start, s["time.zone"])
-    session = pb.create(settings, principal, cam, actual_start, seg_end, s["time.zone"], s["playback.max_sessions"])
+    with unlocked(conn):
+        session = pb.create(settings, principal, cam, actual_start, seg_end, s["time.zone"], s["playback.max_sessions"])
     audit(conn, actor=principal, action="video.playback.start", decision="allowed", resource_type="camera", resource_id=cam["id"],
           request_id=getattr(request.state, "correlation_id", None), details={"session": session.id, "requested_at": iso_utc(start), "start_at": iso_utc(actual_start)})
     out = pb.to_dict(session, s["playback.lease_s"])
@@ -117,7 +119,8 @@ def seek_session(session_id: str, body: SeekBody, request: Request, principal: P
         raise ApiError(422, "validation", "start_at חייב להיות UTC (Z).")
     s = read_settings(conn)
     actual_start, seg_end = _segment_for(settings, conn, cam, start, s["time.zone"])
-    pb.seek(settings, session, actual_start, seg_end)
+    with unlocked(conn):
+        pb.seek(settings, session, actual_start, seg_end)
     audit(conn, actor=principal, action="video.playback.seek", decision="allowed", resource_type="camera", resource_id=session.camera_id,
           request_id=getattr(request.state, "correlation_id", None), details={"session": session.id, "generation": session.generation, "start_at": iso_utc(actual_start)})
     out = pb.to_dict(session, s["playback.lease_s"])

@@ -6,6 +6,7 @@ import '../components/sw-badge';
 import '../components/sw-button';
 import '../components/sw-chip';
 import '../components/sw-drawer';
+import '../components/sw-live-player';
 import '../components/sw-field';
 import '../components/sw-icon';
 import '../components/sw-scene';
@@ -17,8 +18,8 @@ import { listCameras } from '../api/maps';
 import { productSettings } from '../api/prefs';
 import { navigate } from '../router';
 import { describeError } from '../api/client';
-import { ackEvent, EVENT_LABEL, EVENT_TONE, listEvents, subscribeEvents, type EventKind, type IngestState, type VmsEvent } from '../api/events';
-import { dateInZone } from '../api/recordings';
+import { ackEvent, EVENT_LABEL, EVENT_TONE, listEvents, subscribeEvents, type EventKind, type IngestState, type VmsEvent, pollThumbnail, thumbnailUrl } from '../api/events';
+import { dateInZone, closePlayback, createPlayback, playbackWsUrl, type PlaybackSession } from '../api/recordings';
 import type { Camera } from '../api/types';
 
 const TONE: Record<DemoEvent['type'], string> = { person: '#2f6bff', vehicle: '#22c55e', motion: '#ef4444', line: '#f59e0b', offline: '#6b7280', door: '#8b5cf6' };
@@ -47,7 +48,11 @@ export class InvestigateEvents extends LitElement {
   @state() private live = false;
   @state() private error = '';
   @state() private busy = false;
+  @state() private thumbVersion = new Map<string, number>();
+  @state() private player: { eventId: string; session: PlaybackSession | null; error: string } | null = null;
   private unsubscribe: (() => void) | undefined;
+  private thumbTimers = new Map<string, number>();
+  private thumbInFlight = 0;
 
   static styles = css`
     .filters {
@@ -78,6 +83,65 @@ export class InvestigateEvents extends LitElement {
       display: grid;
       place-items: center;
       color: var(--sw-text-3);
+    }
+    .thumb img {
+      inline-size: 64px;
+      block-size: 40px;
+      object-fit: cover;
+      border-radius: 6px;
+      display: block;
+      background: var(--sw-surface-3);
+    }
+    .thumb.pending {
+      background: linear-gradient(90deg, var(--sw-surface-3) 25%, var(--sw-surface-2) 50%, var(--sw-surface-3) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.6s linear infinite;
+    }
+    @keyframes shimmer {
+      from {
+        background-position: 200% 0;
+      }
+      to {
+        background-position: -200% 0;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .thumb.pending {
+        animation: none;
+      }
+    }
+    .big {
+      position: relative;
+      aspect-ratio: 16 / 9;
+      border-radius: var(--sw-r-md);
+      overflow: hidden;
+      background: var(--sw-surface-3);
+      display: grid;
+      place-items: center;
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-xs);
+      text-align: center;
+    }
+    .big img,
+    .big sw-live-player {
+      position: absolute;
+      inset: 0;
+      inline-size: 100%;
+      block-size: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .big .hint {
+      padding: 10px;
+    }
+    .big .err {
+      position: absolute;
+      inset-inline: 8px;
+      inset-block-end: 8px;
+      background: rgba(17, 24, 39, 0.7);
+      color: #fff;
+      border-radius: 6px;
+      padding: 4px 8px;
     }
     .ty {
       display: inline-flex;
@@ -183,6 +247,96 @@ export class InvestigateEvents extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     this.unsubscribe?.();
+    for (const t of this.thumbTimers.values()) window.clearTimeout(t);
+    this.thumbTimers.clear();
+    void this.stopPlayer();
+  }
+
+  // ---- thumbnails (grabbed lazily from the recording; the list marks pending rows, we poll them) ----
+
+  /** Rendered inside sw-table's shadow root, so the box is styled inline (the screen's stylesheet does not reach it). */
+  private renderThumb(ev: VmsEvent) {
+    const box = 'inline-size:64px;block-size:40px;border-radius:6px;overflow:hidden;background:var(--sw-surface-3);display:grid;place-items:center;color:var(--sw-text-3)';
+    if (ev.thumbnail === 'ready') {
+      return html`<img class="thumb" src=${thumbnailUrl(ev.id, this.thumbVersion.get(ev.id) ?? 0)} alt="" loading="lazy" style="inline-size:64px;block-size:40px;object-fit:cover;border-radius:6px;display:block;background:var(--sw-surface-3)" />`;
+    }
+    if ((ev.thumbnail === 'pending' || ev.thumbnail === 'none') && ev.camera_id) {
+      this.schedulePoll(ev.id, 3000, 0);
+      return html`<div class="thumb pending" style=${box} title="מכין תמונה מההקלטה…"><sw-icon name="camera" size=${14} style="opacity:.45"></sw-icon></div>`;
+    }
+    return html`<div class="thumb none" style=${box}><sw-icon name=${ev.type === 'offline' || ev.type === 'coverage_gap' ? 'offline' : ev.type === 'person' ? 'user' : ev.type === 'vehicle' ? 'route' : ev.type === 'door' || ev.type === 'io' ? 'door' : 'bell'} size=${14}></sw-icon></div>`;
+  }
+
+  private schedulePoll(id: string, delay: number, attempt: number) {
+    if (this.thumbTimers.has(id)) return;
+    this.thumbTimers.set(id, window.setTimeout(() => void this.poll(id, attempt), delay));
+  }
+
+  private cancelPoll(id: string) {
+    const t = this.thumbTimers.get(id);
+    if (t !== undefined) window.clearTimeout(t);
+    this.thumbTimers.delete(id);
+  }
+
+  private async poll(id: string, attempt: number) {
+    this.thumbTimers.delete(id);
+    if (!this.isConnected || !this.events?.some((e) => e.id === id)) return;
+    if (this.thumbInFlight >= 2) {
+      this.schedulePoll(id, 1500, attempt);
+      return;
+    }
+    this.thumbInFlight++;
+    let st: 'ready' | 'pending' | 'unavailable';
+    try {
+      st = await pollThumbnail(id);
+    } finally {
+      this.thumbInFlight--;
+    }
+    if (st === 'pending') {
+      if (attempt < 14) this.schedulePoll(id, Math.min(15000, 3000 * 1.35 ** attempt), attempt + 1);
+      return;
+    }
+    this.setThumb(id, st);
+  }
+
+  private setThumb(id: string, st: 'ready' | 'unavailable') {
+    if (st === 'ready') this.thumbVersion = new Map(this.thumbVersion).set(id, Date.now());
+    this.events = (this.events ?? []).map((e) => (e.id === id ? { ...e, thumbnail: st } : e));
+  }
+
+  // ---- inline playback from the event time (a playback session; closed with the drawer) ----
+
+  private select(id: string | null) {
+    if (id !== this.player?.eventId) void this.stopPlayer();
+    this.selected = id;
+  }
+
+  private closeDrawer() {
+    this.select(null);
+  }
+
+  private async play(ev: VmsEvent) {
+    if (this.player?.eventId === ev.id) {
+      await this.stopPlayer();
+      return;
+    }
+    await this.stopPlayer();
+    if (!ev.camera_id) return;
+    this.player = { eventId: ev.id, session: null, error: '' };
+    try {
+      const startAt = new Date(new Date(ev.occurred_at).getTime() - 2000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+      const session = await createPlayback(ev.camera_id, startAt);
+      if (this.player?.eventId === ev.id) this.player = { eventId: ev.id, session, error: '' };
+      else await closePlayback(session.id).catch(() => undefined);
+    } catch (err) {
+      this.player = { eventId: ev.id, session: null, error: describeError(err) };
+    }
+  }
+
+  private async stopPlayer() {
+    const p = this.player;
+    this.player = null;
+    if (p?.session) await closePlayback(p.session.id).catch(() => undefined);
   }
 
   private async init() {
@@ -216,8 +370,12 @@ export class InvestigateEvents extends LitElement {
     if (this.type && ev.type !== this.type) return;
     const name = this.cams?.find((c) => c.id === ev.camera_id)?.name ?? null;
     const row = { ...ev, camera_name: ev.camera_name ?? name };
+    if (ev.thumbnail === 'ready' || ev.thumbnail === 'unavailable') {
+      this.cancelPoll(ev.id);
+      if (ev.thumbnail === 'ready') this.thumbVersion = new Map(this.thumbVersion).set(ev.id, Date.now());
+    }
     const idx = this.events.findIndex((e) => e.id === ev.id);
-    this.events = idx >= 0 ? this.events.map((e, i) => (i === idx ? row : e)) : [row, ...this.events];
+    this.events = idx >= 0 ? this.events.map((e, i) => (i === idx ? { ...e, ...row } : e)) : [row, ...this.events];
   }
 
   private fmt(iso: string): string {
@@ -241,7 +399,7 @@ export class InvestigateEvents extends LitElement {
   }
 
   private apiColumns: TableColumn[] = [
-    { key: 'thumb', label: '', width: '48px', render: (r) => html`<div class="thumb none" style="inline-size:40px"><sw-icon name=${r.type === 'offline' || r.type === 'coverage_gap' ? 'offline' : r.type === 'person' ? 'user' : r.type === 'vehicle' ? 'route' : r.type === 'door' || r.type === 'io' ? 'door' : 'bell'} size=${14}></sw-icon></div>` },
+    { key: 'thumb', label: '', width: '72px', render: (r) => this.renderThumb(r as unknown as VmsEvent) },
     { key: 'type', label: 'אירוע', render: (r) => html`<span class="ty" style="--tone:${EVENT_TONE[r.type as EventKind] ?? '#6b7280'}"><i></i>${EVENT_LABEL[r.type as EventKind] ?? String(r.type)}${Number(r.count) > 1 ? html` <span class="sub">×${String(r.count)}</span>` : nothing}</span><div class="sub">${r.confidence === 'inferred' ? 'נגזר מהקלטה' : 'התראה מה־NVR'} · ${r.acked_at ? `טופל · ${String(r.acked_by_username ?? '')}` : 'ממתין לטיפול'}</div>` },
     { key: 'camera_name', label: 'מצלמה', render: (r) => html`${String(r.camera_name ?? (r.channel ? `ערוץ ${String(r.channel)}` : 'מערכת'))}<div class="sub ltr">${String(r.raw_type)}</div>` },
     { key: 'occurred_at', label: 'זמן', render: (r) => html`${this.fmt(String(r.occurred_at))}<div class="sub">${this.fmtDate(String(r.occurred_at))}${r.ended_at ? ` · עד ${this.fmt(String(r.ended_at))}` : ''}</div>` },
@@ -281,11 +439,18 @@ export class InvestigateEvents extends LitElement {
       ${this.error ? html`<div class="banner warn">${this.error}</div>` : nothing}
       <div class="stage">
         ${this.events.length
-          ? html`<sw-table .columns=${this.apiColumns} .rows=${this.events as unknown as Record<string, unknown>[]} .selected=${this.selected} @row-select=${(e: CustomEvent<{ id: string }>) => (this.selected = e.detail.id)}></sw-table>`
+          ? html`<sw-table .columns=${this.apiColumns} .rows=${this.events as unknown as Record<string, unknown>[]} .selected=${this.selected} @row-select=${(e: CustomEvent<{ id: string }>) => this.select(e.detail.id)}></sw-table>`
           : html`<sw-state-panel state="empty" heading="אין אירועים ביום הזה" hint="התראות מגיעות מה־NVR רק כשהטריגר מוגדר עם 'Notify Surveillance Center'; אירועי תנועה נגזרים מקובצי ההקלטה בהפעלה ובכל 10 דקות."></sw-state-panel>`}
         ${ev
-          ? html`<sw-drawer open heading=${EVENT_LABEL[ev.type] ?? ev.type} subheading=${`${ev.camera_name ?? (ev.channel ? `ערוץ ${ev.channel}` : 'מערכת')} · ${this.fmt(ev.occurred_at)}`} @close=${() => (this.selected = null)}>
-              <div class="preview">${ev.camera_id ? 'תמונת אירוע מהעבר אינה זמינה מה־NVR; תמונה חיה אינה ראיה לאירוע. פתח את ההקלטה בזמן האירוע.' : 'אירוע ללא מצלמה'}</div>
+          ? html`<sw-drawer open heading=${EVENT_LABEL[ev.type] ?? ev.type} subheading=${`${ev.camera_name ?? (ev.channel ? `ערוץ ${ev.channel}` : 'מערכת')} · ${this.fmt(ev.occurred_at)}`} @close=${() => this.closeDrawer()}>
+              <div class="big">
+                ${this.player?.eventId === ev.id && this.player.session
+                  ? html`<sw-live-player .wsUrl=${playbackWsUrl(this.player.session)} mode="mse" .retry=${false}></sw-live-player>`
+                  : ev.thumbnail === 'ready'
+                    ? html`<img src=${thumbnailUrl(ev.id, this.thumbVersion.get(ev.id) ?? 0)} alt="תמונת האירוע מההקלטה" />`
+                    : html`<div class="hint">${!ev.camera_id ? 'אירוע ללא מצלמה' : ev.thumbnail === 'unavailable' ? 'אין פריים זמין בהקלטה בזמן האירוע' : this.player?.eventId === ev.id ? 'פותח את ההקלטה…' : 'מכין תמונה מההקלטה…'}</div>`}
+                ${this.player?.eventId === ev.id && this.player.error ? html`<div class="err">${this.player.error}</div>` : nothing}
+              </div>
               <dl>
                 <dt>מקור</dt><dd>${ev.source === 'alertstream' ? 'התראה מה־NVR (alertStream)' : ev.source === 'recording' ? 'קובץ הקלטה (חיפוש)' : 'מערכת'} · raw: <span class="ltr">${ev.raw_type}</span></dd>
                 <dt>ודאות</dt><dd>${ev.confidence === 'measured' ? 'נמדד על ידי המכשיר' : 'נגזר (inferred)'}</dd>
@@ -296,7 +461,8 @@ export class InvestigateEvents extends LitElement {
                 ${typeof ev.details.seconds === 'number' ? html`<dt>משך ההקלטה</dt><dd>${String(ev.details.seconds)} שנ׳</dd>` : nothing}
               </dl>
               <div slot="footer">
-                ${ev.camera_id ? html`<sw-button variant="primary" size="sm" icon="history" @click=${() => navigate('/investigate/playback', { camera: ev.camera_id!, t: ev.occurred_at })}>להקלטה</sw-button>` : nothing}
+                ${ev.camera_id ? html`<sw-button variant="primary" size="sm" icon="play" @click=${() => this.play(ev)}>${this.player?.eventId === ev.id ? 'עצור' : 'נגן כאן'}</sw-button>
+                    <sw-button size="sm" icon="history" @click=${() => navigate('/investigate/playback', { camera: ev.camera_id!, t: ev.occurred_at })}>להקלטה</sw-button>` : nothing}
                 <sw-button variant="ghost" size="sm" icon="check" ?disabled=${!!ev.acked_at || this.busy} @click=${() => this.ack(ev)}>סמן טופל</sw-button>
               </div>
             </sw-drawer>`

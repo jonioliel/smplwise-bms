@@ -21,6 +21,8 @@ export interface VmsEvent {
   details: Record<string, unknown>;
   acked_at: string | null;
   acked_by_username: string | null;
+  /** Picture from the recording at the event time: ready | pending (being grabbed) | unavailable | none (not asked yet). */
+  thumbnail?: 'ready' | 'pending' | 'unavailable' | 'none';
 }
 
 export interface IngestState {
@@ -69,6 +71,19 @@ export function listEvents(opts: { date?: string; cameraId?: string; type?: stri
 export const eventsSummary = () => get<EventsSummary>('events/summary');
 export const cameraEvents = (cameraId: string, date: string) => get<{ camera_id: string; date: string; timezone: string; events: VmsEvent[] }>(`cameras/${cameraId}/events?date=${date}`);
 export const ackEvent = (id: string) => post<VmsEvent>(`events/${id}/ack`);
+export const thumbnailUrl = (id: string, v = 0) => apiUrl(`events/${id}/thumbnail${v ? `?v=${v}` : ''}`);
+
+/** Ask for the picture: 200 → ready, 202 → still being grabbed, anything else → unavailable. */
+export async function pollThumbnail(id: string): Promise<'ready' | 'pending' | 'unavailable'> {
+  try {
+    const r = await fetch(thumbnailUrl(id), { credentials: 'include', cache: 'no-store' });
+    if (r.status === 200) return 'ready';
+    if (r.status === 202) return 'pending';
+    return 'unavailable';
+  } catch {
+    return 'pending';
+  }
+}
 
 export const EVENT_LABEL: Record<EventKind, string> = {
   motion: 'תנועה',
@@ -137,7 +152,7 @@ export function subscribeEvents(onEvent: (ev: VmsEvent) => void, onState?: (s: I
     ws.onmessage = (m) => {
       try {
         const env = JSON.parse(m.data as string) as { type: string; payload: unknown };
-        if (env.type === 'event_added') onEvent(env.payload as VmsEvent);
+        if (env.type === 'event_added' || env.type === 'event_updated') onEvent(env.payload as VmsEvent);
         else if (env.type === 'heartbeat') onState?.((env.payload as { ingest: IngestState }).ingest, true);
       } catch {
         /* ignore */

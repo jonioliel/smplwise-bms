@@ -9,6 +9,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query, Request
 
 from ..auth import current_principal, get_conn, settings_of
+from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import Principal, require
 from ..services import recordings
@@ -50,7 +51,8 @@ def camera_recordings(
             raise ApiError(422, "validation", "זמן חייב לכלול אזור זמן (UTC).", details={"error": str(exc)})
     else:
         raise ApiError(422, "validation", "יש לציין date או from+to.")
-    result = recordings.search_segments(settings_of(request), conn, cam, start, end, tz_name)
+    with unlocked(conn):
+        result = recordings.search_segments(settings_of(request), conn, cam, start, end, tz_name)
     out = recordings.as_dict(result)
     out.update({"camera_id": cam["id"], "from": iso_utc(start), "to": iso_utc(end), "track_id": cam["main_track"]})
     return out

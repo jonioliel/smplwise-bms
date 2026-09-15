@@ -85,6 +85,21 @@ export interface HaStatus {
   configured: boolean;
   sync: HaSyncState;
   bridge: { paired: boolean; paired_at: string | null; directory_users: number; last_directory_at: string | null; integration_version?: string | null };
+  integration?: HaIntegrationStatus;
+}
+
+/** The integration copy the add-on maintains inside Home Assistant's config directory. */
+export interface HaIntegrationStatus {
+  state: 'not_available' | 'not_installed' | 'installed_pending' | 'active' | 'update_pending' | 'error';
+  source_version: string | null;
+  installed_version: string | null;
+  active_version: string | null;
+  installed_at: string | null;
+  config_dir: string | null;
+  last_error: string | null;
+  discovery_posted_at: string | null;
+  addon_url: string;
+  up_to_date: boolean;
 }
 
 export interface HaCatalogue {
@@ -110,6 +125,7 @@ export const getEntity = (entityId: string) => get<HaEntity>(`ha/entities/${enco
 export const haStatus = () => get<HaStatus>('ha/status');
 export const bridgePairing = (regenerate = false) => get<{ pairing_code: string; addon_host: string; addon_url: string; paired_at: string | null }>(`ha/bridge/pairing${regenerate ? '?regenerate=true' : ''}`);
 export const getAction = (id: string) => get<HaActionRecord>(`ha/actions/${id}`);
+export const installBridge = () => post<HaIntegrationStatus>('ha/bridge/install');
 
 /** Entity-action request (contracts/entity-action.request.schema.json): one client id per click, short expiry. */
 export function runAction(entityId: string, actionId: string, args: Record<string, unknown> = {}, confirmed = false) {

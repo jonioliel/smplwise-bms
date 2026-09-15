@@ -22,7 +22,7 @@ from starlette.concurrency import run_in_threadpool
 from ..audit import audit
 from ..auth import current_principal, get_conn, maybe_bootstrap, resolve_principal, settings_of, touch_user
 from ..config import Settings
-from ..db import Database
+from ..db import unlocked, Database
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..services import autosync
@@ -88,7 +88,8 @@ def sync_streams(request: Request, principal: Principal = Depends(current_princi
 def list_streams(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "sources.configure", INSTALLATION)
     client = g2.Go2rtc(settings_of(request))
-    streams = client.list_streams()
+    with unlocked(conn):
+        streams = client.list_streams()
     ours = [{"name": s.name, "online": s.online, "sources": [g2.redact_url(u) for u in s.sources]} for s in streams.values() if s.name.startswith(g2.STREAM_PREFIX)]
     return {"go2rtc": client.info(), "streams": ours, "foreign_streams": len(streams) - len(ours)}
 

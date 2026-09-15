@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from ..audit import audit
 from ..auth import current_principal, get_conn, settings_of
+from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import exports as ex
@@ -58,7 +59,8 @@ def estimate(body: RangeBody, request: Request, principal: Principal = Depends(c
     cam = _camera_for_export(conn, principal, body.camera_id)
     start, end = _range(body)
     s = read_settings(conn)
-    out = ex.estimate(settings_of(request), conn, cam, start, end, s["time.zone"])
+    with unlocked(conn):
+        out = ex.estimate(settings_of(request), conn, cam, start, end, s["time.zone"])
     out["max_bytes"] = s["exports.max_mb"] * 1024 * 1024
     return out
 

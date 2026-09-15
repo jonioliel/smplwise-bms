@@ -13,7 +13,7 @@ from fastapi.responses import Response
 
 from ..audit import audit
 from ..auth import current_principal, get_conn, settings_of
-from ..db import new_id, now_iso
+from ..db import unlocked, new_id, now_iso
 from ..errors import ApiError, not_found
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import autosync, nvr
@@ -73,7 +73,8 @@ def snapshot(camera_id: str, request: Request, principal: Principal = Depends(cu
     fresh = stale_ok and (now_ts() - path.stat().st_mtime) < max_age
     if not fresh:
         try:
-            data = nvr.fetch_snapshot(settings, cam["channel"])
+            with unlocked(conn):
+                data = nvr.fetch_snapshot(settings, cam["channel"])
             path.write_bytes(data)
         except ApiError as exc:
             if not stale_ok:

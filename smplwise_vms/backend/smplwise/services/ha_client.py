@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 from typing import Any, AsyncIterator, Callable
 
 import httpx
@@ -162,3 +163,25 @@ def registry_maps(entities: list[dict[str, Any]], devices: list[dict[str, Any]],
             "hidden": 1 if e.get("hidden_by") else 0,
         }
     return out
+
+
+def supervisor_token() -> str | None:
+    return os.environ.get("SUPERVISOR_TOKEN") or None
+
+
+def post_discovery(settings: Settings, service: str, config: dict[str, Any]) -> dict[str, Any]:
+    """Supervisor discovery API: makes Home Assistant offer `service` (the bridge) with `config` prefilled."""
+    token = supervisor_token()
+    if not token:
+        raise ApiError(503, "supervisor_unavailable", "אין גישה ל־Supervisor (מחוץ ל־Add-on).")
+    base = os.environ.get("SW_SUPERVISOR_URL", "http://supervisor").rstrip("/")
+    try:
+        r = httpx.post(base + "/discovery", json={"service": service, "config": config}, headers={"Authorization": f"Bearer {token}"}, timeout=10)
+    except httpx.HTTPError as exc:
+        raise ApiError(503, "supervisor_unavailable", "ה־Supervisor אינו זמין כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
+    if r.status_code != 200:
+        raise ApiError(503, "supervisor_error", "ה־Supervisor דחה את הודעת הגילוי.", details={"status": r.status_code})
+    try:
+        return r.json()
+    except ValueError:
+        return {}
