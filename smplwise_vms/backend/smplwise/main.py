@@ -16,7 +16,7 @@ from . import __version__
 from .config import Settings, load_settings
 from .db import Database
 from .errors import ApiError
-from .routers import anchors, cameras, catalog, events, exports, health, me, media, plans, playback, playback_groups, recordings, settings as settings_router
+from .routers import anchors, cameras, catalog, events, exports, ha, health, me, media, plans, playback, playback_groups, recordings, settings as settings_router
 
 log = logging.getLogger("smplwise")
 
@@ -70,6 +70,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(playback_groups.router, prefix=api, tags=["playback"])
     app.include_router(exports.router, prefix=api, tags=["exports"])
     app.include_router(events.router, prefix=api, tags=["events"])
+    app.include_router(ha.router, prefix=api, tags=["home-assistant"])
     app.include_router(health.router, prefix=api, tags=["ops"])
 
     @app.on_event("startup")
@@ -112,6 +113,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         app.state.discovery = asyncio.create_task(discover("startup"))
         events_ingest.LISTENER.start(app.state.db, settings, _tz)
+        from .services import ha_sync
+
+        ha_sync.SYNC.start(app.state.db, settings)
 
         async def loop() -> None:
             while True:
@@ -144,6 +148,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         ex.WORKER.stop = True
         events_ingest.LISTENER.shutdown()
+        from .services import ha_sync
+
+        ha_sync.SYNC.shutdown()
 
     @app.get("/healthz", include_in_schema=False)
     async def healthz():

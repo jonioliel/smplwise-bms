@@ -14,11 +14,12 @@ import { navigate } from '../router';
 import { cameraState, createAnchor, deleteAnchor, loadMap, publishVersion, updateAnchor, type MapBundle } from '../api/maps';
 import { ApiError, describeError } from '../api/client';
 import type { Anchor, Camera } from '../api/types';
+import { domainLabel, entityMarkerKind, listEntities, stateLabel, type HaEntity } from '../api/ha';
 
 const TOOLS: { id: string; icon: IconName; label: string; ready: boolean }[] = [
   { id: 'select', icon: 'target', label: 'בחירה', ready: true },
   { id: 'camera', icon: 'camera', label: 'הוספת מצלמה', ready: true },
-  { id: 'entity', icon: 'light', label: 'הוספת ישות', ready: false },
+  { id: 'entity', icon: 'light', label: 'הוספת ישות', ready: true },
   { id: 'area', icon: 'map', label: 'ציור אזור', ready: false },
   { id: 'label', icon: 'list', label: 'תווית', ready: false },
   { id: 'scale', icon: 'fit', label: 'קנה מידה', ready: false },
@@ -32,7 +33,13 @@ const TOOLS: { id: string; icon: IconName; label: string; ready: boolean }[] = [
 @customElement('explore-plan-editor')
 export class ExplorePlanEditor extends LitElement {
   @property() floorId = '';
+  /** `?entity=<id>` from the catalogue: opens the entity tool with that id pre-searched. */
+  @property() presetEntity = '';
   @state() private bundle: MapBundle | null = null;
+  @state() private entQ = '';
+  @state() private entResults: HaEntity[] | null = null;
+  @state() private entBusy = false;
+  private entTimer = 0;
   @state() private anchors: Anchor[] = [];
   @state() private dirty = new Set<string>();
   @state() private undo: Anchor[][] = [];
@@ -180,6 +187,52 @@ export class ExplorePlanEditor extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     void this.load();
+    if (this.presetEntity) {
+      this.tool = 'entity';
+      this.entQ = this.presetEntity;
+      void this.searchEntities();
+    }
+  }
+
+  private async searchEntities() {
+    if (this.bundle?.source === 'demo') return;
+    this.entBusy = true;
+    try {
+      const r = await listEntities({ q: this.entQ || undefined, limit: 40 });
+      this.entResults = r.entities;
+    } catch (err) {
+      this.error = describeError(err);
+      this.entResults = [];
+    } finally {
+      this.entBusy = false;
+    }
+  }
+
+  private onEntQuery(v: string) {
+    this.entQ = v;
+    window.clearTimeout(this.entTimer);
+    this.entTimer = window.setTimeout(() => void this.searchEntities(), 250);
+  }
+
+  private async addEntity(e: HaEntity) {
+    if (!this.bundle) return;
+    if (this.bundle.source === 'demo') {
+      this.info = 'נתוני הדגמה: הוספה עובדת מול השרת.';
+      return;
+    }
+    if (this.dirty.size && !(await this.save())) return;
+    this.busy = true;
+    this.error = '';
+    try {
+      const a = await createAnchor(this.bundle.floorId, { resource_type: 'ha_entity', resource_id: e.entity_id, x: 0.5, y: 0.5, rotation_degrees: 0, field_of_view_degrees: null });
+      await this.load();
+      this.selectedId = a.id;
+      this.tool = 'select';
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
   }
 
   private async load() {
@@ -200,8 +253,8 @@ export class ExplorePlanEditor extends LitElement {
   private get markers(): PlanMarker[] {
     return this.anchors.map((a) => ({
       id: a.id,
-      kind: a.resource_type === 'camera' ? 'camera' : a.layer_id === 'doors' ? 'lock' : a.layer_id === 'lights' ? 'light' : 'binary_sensor',
-      label: a.camera?.name ?? a.label ?? a.resource_id,
+      kind: a.resource_type === 'camera' ? 'camera' : entityMarkerKind(a.layer_id, a.entity?.domain),
+      label: a.camera?.name ?? a.entity?.name ?? a.label ?? a.resource_id,
       x: a.position.x,
       y: a.position.y,
       rotation: a.rotation_degrees,
@@ -352,7 +405,7 @@ export class ExplorePlanEditor extends LitElement {
         ${b.planStatus === 'none'
           ? html`<sw-state-panel state="empty" heading="לקומה אין תוכנית" hint="העלה תוכנית קודם; אחר כך אפשר להציב מצלמות."><div style="margin-block-start:10px"><sw-button variant="primary" icon="upload" @click=${() => navigate(`/explore/floors/${b.floorId}/import`)}>העלאת תוכנית</sw-button></div></sw-state-panel>`
           : html`<div class="layout">
-              <div class="tools">${TOOLS.map((t) => html`<button class=${t.id === this.tool ? 'on' : ''} ?disabled=${!t.ready} title=${t.ready ? t.label : `${t.label} · בקרוב`} @click=${() => (this.tool = t.id)}><sw-icon .name=${t.icon} size=${18}></sw-icon>${t.label}</button>`)}</div>
+              <div class="tools">${TOOLS.map((t) => html`<button class=${t.id === this.tool ? 'on' : ''} ?disabled=${!t.ready} title=${t.ready ? t.label : `${t.label} · בקרוב`} @click=${() => { this.tool = t.id; if (t.id === 'entity' && this.entResults === null) void this.searchEntities(); }}><sw-icon .name=${t.icon} size=${18}></sw-icon>${t.label}</button>`)}</div>
               <div class="canvaswrap">
                 <div class="bar">
                   <span class="autosave ${dirty ? 'dirty' : ''}"><i></i>${dirty ? `${dirty} שינויים לא שמורים` : 'הכל שמור'}</span>
@@ -377,19 +430,33 @@ export class ExplorePlanEditor extends LitElement {
                         : html`<div class="note">${b.cameras.length ? 'כל המצלמות הרשומות כבר מוצבות על הקומה.' : 'אין מצלמות רשומות. סנכרן מה־NVR במסך "בריאות מצלמות" או רשום ידנית.'}</div><div style="margin-block-start:8px"><sw-button size="sm" @click=${() => navigate('/system/devices')}>למצלמות</sw-button></div>`}
                     </sw-card>`
                   : nothing}
-                <sw-card heading=${sel ? sel.camera?.name ?? sel.label ?? sel.resource_id : 'מאפיינים'}>
+                ${this.tool === 'entity'
+                  ? html`<sw-card heading="הוספת ישות Home Assistant" subheading="מהקטלוג המסונכרן · הצבה אינה מעניקה שליטה">
+                      <sw-field><input type="search" placeholder="חיפוש לפי שם, entity_id או אזור" data-ltr .value=${this.entQ} @input=${(e: Event) => this.onEntQuery((e.target as HTMLInputElement).value)} /></sw-field>
+                      ${b.source === 'demo'
+                        ? html`<div class="note">נתוני הדגמה: החיפוש עובד מול השרת.</div>`
+                        : this.entBusy && !this.entResults
+                          ? html`<div class="note">מחפש…</div>`
+                          : (this.entResults ?? []).filter((e) => !anchoredIds.has(e.entity_id)).length
+                            ? html`<div class="camlist">${(this.entResults ?? []).filter((e) => !anchoredIds.has(e.entity_id)).map((e) => html`<button ?disabled=${this.busy} @click=${() => this.addEntity(e)}><span>${e.name || e.original_name || e.entity_id}<div class="note" style="margin:0">${domainLabel(e.domain)}${e.area_name ? ` · ${e.area_name}` : ''} · ${stateLabel(e)}</div></span><span class="ltr">${e.entity_id}</span></button>`)}</div>`
+                            : html`<div class="note">${this.entResults ? 'לא נמצאו ישויות (או שכולן כבר מוצבות). הקטלוג מתמלא מהסנכרון מול Home Assistant.' : ''}</div>`}
+                    </sw-card>`
+                  : nothing}
+                <sw-card heading=${sel ? sel.camera?.name ?? sel.entity?.name ?? sel.label ?? sel.resource_id : 'מאפיינים'}>
                   ${sel
                     ? html`
                         <div class="two">
                           <sw-field label="X (0–1)"><input type="number" step="0.001" min="0" max="1" data-ltr .value=${sel.position.x.toFixed(3)} @change=${(e: Event) => this.apply(sel.id, { position: { x: Math.min(1, Math.max(0, Number((e.target as HTMLInputElement).value))), y: sel.position.y } })} /></sw-field>
                           <sw-field label="Y (0–1)"><input type="number" step="0.001" min="0" max="1" data-ltr .value=${sel.position.y.toFixed(3)} @change=${(e: Event) => this.apply(sel.id, { position: { x: sel.position.x, y: Math.min(1, Math.max(0, Number((e.target as HTMLInputElement).value))) } })} /></sw-field>
-                          <sw-field label="כיוון (°)"><input type="number" step="5" min="0" max="359" data-ltr .value=${String(Math.round(sel.rotation_degrees))} @change=${(e: Event) => this.apply(sel.id, { rotation_degrees: ((Number((e.target as HTMLInputElement).value) % 360) + 360) % 360 })} /></sw-field>
-                          <sw-field label="זווית ראייה (°)"><input type="number" step="5" min="10" max="180" data-ltr .value=${String(Math.round(sel.field_of_view_degrees ?? 70))} @change=${(e: Event) => this.apply(sel.id, { field_of_view_degrees: Math.min(360, Math.max(1, Number((e.target as HTMLInputElement).value))) })} /></sw-field>
+                          ${sel.resource_type === 'camera'
+                            ? html`<sw-field label="כיוון (°)"><input type="number" step="5" min="0" max="359" data-ltr .value=${String(Math.round(sel.rotation_degrees))} @change=${(e: Event) => this.apply(sel.id, { rotation_degrees: ((Number((e.target as HTMLInputElement).value) % 360) + 360) % 360 })} /></sw-field>
+                                <sw-field label="זווית ראייה (°)"><input type="number" step="5" min="10" max="180" data-ltr .value=${String(Math.round(sel.field_of_view_degrees ?? 70))} @change=${(e: Event) => this.apply(sel.id, { field_of_view_degrees: Math.min(360, Math.max(1, Number((e.target as HTMLInputElement).value))) })} /></sw-field>`
+                            : nothing}
                         </div>
                         <sw-field label="תווית (אופציונלי)"><input .value=${sel.label ?? ''} @change=${(e: Event) => this.apply(sel.id, { label: (e.target as HTMLInputElement).value || null })} /></sw-field>
-                        <div class="note">revision ${sel.revision} · ${sel.resource_type === 'camera' ? `ערוץ ${sel.camera?.channel ?? '?'}` : sel.resource_id}</div>
+                        <div class="note">revision ${sel.revision} · ${sel.resource_type === 'camera' ? `ערוץ ${sel.camera?.channel ?? '?'}` : html`<span class="ltr">${sel.resource_id}</span> · שכבה ${sel.layer_id}${sel.entity ? ` · ${stateLabel(sel.entity)}` : ''}`}</div>
                         <div style="display:flex;gap:8px;margin-block-start:6px"><sw-button size="sm" variant="danger" icon="trash" ?disabled=${this.busy} @click=${() => this.removeSelected()}>הסר מהמפה</sw-button></div>`
-                    : html`<div class="note">בחר סיכה במפה, או הוסף מצלמה מסרגל הכלים. הצבה יוצרת Binding בלבד ואינה משנה תצורת מקור.</div>`}
+                    : html`<div class="note">בחר סיכה במפה, או הוסף מצלמה / ישות HA מסרגל הכלים. הצבה יוצרת Binding בלבד ואינה משנה תצורת מקור.</div>`}
                 </sw-card>
                 <sw-card heading="גרסת תוכנית">
                   <div class="note">${b.planStatus === 'draft' ? 'טיוטה: צופים עדיין רואים את הגרסה הקודמת (אם קיימת). פרסום יוצר PlanVersion מאושרת ונרשם באודיט.' : 'גרסה מפורסמת. תוכנית חדשה מועלית דרך "ייבוא תוכנית"; העוגנים נשמרים ומסומנים לבדיקה אם הגאומטריה השתנתה.'}</div>

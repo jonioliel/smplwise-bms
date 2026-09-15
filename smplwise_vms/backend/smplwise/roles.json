@@ -21,7 +21,8 @@
         "video.playback",
         "events.read",
         "events.ack",
-        "video.export"
+        "video.export",
+        "ha.entity.control"
       ]
     },
     {
@@ -54,7 +55,8 @@
         "placement.edit",
         "views.edit",
         "site.content.configure",
-        "video.export"
+        "video.export",
+        "ha.entity.control"
       ]
     },
     {
@@ -80,7 +82,8 @@
         "rbac.roles.manage",
         "audit.read",
         "backup.manage",
-        "video.export"
+        "video.export",
+        "ha.entity.control"
       ]
     }
   ],

@@ -72,6 +72,16 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal), 
     version = _editor_version(conn, floor_id) if (draft and can_edit) else _current_version(conn, floor_id)
     anchors = conn.execute("SELECT * FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL ORDER BY layer_id, resource_id", (floor_id,)).fetchall()
     cameras = {r["id"]: camera_row(r) for r in conn.execute("SELECT * FROM cameras ORDER BY sort_order, channel").fetchall()}
+    from ..services import ha_bridge, ha_sync
+
+    entity_ids = [a["resource_id"] for a in anchors if a["resource_type"] == "ha_entity"]
+    entities: dict[str, Any] = {}
+    if entity_ids:
+        can_control = authorize(conn, principal, "ha.entity.control", ("floor", floor_id)).allowed
+        for r in conn.execute(f"SELECT * FROM ha_entities WHERE entity_id IN ({','.join('?' * len(entity_ids))})", entity_ids).fetchall():
+            e = ha_sync.entity_row(r)
+            e["actions"] = ha_bridge.actions_for(e["domain"]) if can_control else []
+            entities[e["entity_id"]] = e
     needs_alignment = bool(version) and any(a["plan_version_id"] != version["id"] for a in anchors)
     b = get_building(conn, f["building_id"])
     s = get_site(conn, b["site_id"])
@@ -80,7 +90,8 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal), 
         "building": building_row(b),
         "site": site_row(s),
         "plan": version_row(version) if version else None,
-        "anchors": [dict(anchor_row(a), camera=cameras.get(a["resource_id"]) if a["resource_type"] == "camera" else None) for a in anchors],
+        "anchors": [dict(anchor_row(a), camera=cameras.get(a["resource_id"]) if a["resource_type"] == "camera" else None, entity=entities.get(a["resource_id"]) if a["resource_type"] == "ha_entity" else None) for a in anchors],
+        "ha_sync": ha_sync.STATE.as_dict(),
         "needs_alignment": needs_alignment,
         "permissions": {"edit": can_edit, "publish": can_publish, "import": authorize(conn, principal, "map.import", ("floor", floor_id)).allowed},
         "cameras": list(cameras.values()) if can_edit else [c for c in cameras.values() if any(a["resource_id"] == c["id"] for a in anchors)],
@@ -125,6 +136,12 @@ def create_anchor(floor_id: str, body: AnchorIn, request: Request, principal: Pr
         raise conflict("no_plan", "לקומה אין תוכנית; העלה תוכנית לפני הצבת פריטים.")
     if body.resource_type == "camera" and not conn.execute("SELECT 1 FROM cameras WHERE id = ?", (body.resource_id,)).fetchone():
         raise ApiError(422, "validation", "המצלמה אינה רשומה במערכת.")
+    if body.resource_type == "ha_entity":
+        ent = conn.execute("SELECT domain FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (body.resource_id,)).fetchone()
+        if not ent:
+            raise ApiError(422, "validation", "הישות אינה בקטלוג Home Assistant של המערכת.")
+        if body.layer_id == "cameras":  # default layer by domain unless the editor chose one
+            body.layer_id = "doors" if ent["domain"] in ("lock", "cover") else "lights" if ent["domain"] in ("light", "switch", "fan") else "sensors"
     dup = conn.execute("SELECT id FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL AND resource_type = ? AND resource_id = ?", (floor_id, body.resource_type, body.resource_id)).fetchone()
     if dup:
         raise conflict("already_placed", "הפריט כבר מוצב על הקומה הזו.", anchor_id=dup["id"])

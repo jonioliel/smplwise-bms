@@ -29,9 +29,14 @@ STATE: dict[str, Any] = {"last_run": None, "last_ok": None, "last_error": None, 
 KIND_TO_TYPE = {"motion": "motion", "alarm": "field", "event": "other", "manual": "manual"}
 
 
-def derive_for_camera(settings: Settings, conn: sqlite3.Connection, cam: sqlite3.Row, day: dt.date, tz_name: str) -> int:
+def search_for_camera(settings: Settings, cam: sqlite3.Row, day: dt.date, tz_name: str) -> recordings.SearchResult:
+    """Network phase (ISAPI search, possibly many pages): runs outside any write transaction."""
     start, end = local_day_bounds(day, zone(tz_name))
-    result = recordings.search_segments(settings, conn, cam, start, end, tz_name)
+    return recordings.search_segments(settings, None, cam, start, end, tz_name)
+
+
+def store_segments(conn: sqlite3.Connection, cam: sqlite3.Row, result: recordings.SearchResult) -> int:
+    """Write phase: one short transaction per camera."""
     added = 0
     now = now_iso()
     for seg in result.segments:
@@ -64,8 +69,9 @@ def run_once(db: Database, settings: Settings, tz_name: str, day: dt.date | None
         cams = conn.execute("SELECT * FROM cameras WHERE enabled = 1 AND main_track IS NOT NULL ORDER BY channel").fetchall()
     for cam in cams:
         try:
+            result = search_for_camera(settings, cam, day, tz_name)
             with db.connection() as conn:
-                total += derive_for_camera(settings, conn, cam, day, tz_name)
+                total += store_segments(conn, cam, result)
         except ApiError as exc:
             errors.append(f"ch{cam['channel']}:{exc.code}")
         except Exception as exc:  # never die

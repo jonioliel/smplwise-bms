@@ -1,0 +1,22 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Pair with the SMPLWISE VMS add-on",
+        "description": "Open the add-on: Settings → Home Assistant bridge, copy the pairing code and the add-on address shown there.",
+        "data": {
+          "addon_url": "Add-on address (inside Home Assistant's network)",
+          "pairing_code": "Pairing code"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "The add-on did not answer at that address.",
+      "invalid_auth": "The pairing code was refused by the add-on.",
+      "unknown": "Unexpected error."
+    },
+    "abort": {
+      "single_instance_allowed": "Only one bridge can be configured."
+    }
+  }
+}

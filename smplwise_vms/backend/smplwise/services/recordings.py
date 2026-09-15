@@ -107,7 +107,9 @@ def list_matches(settings: Settings, cam: sqlite3.Row, start: dt.datetime, end: 
     return matches, coverage, pages
 
 
-def search_segments(settings: Settings, conn: sqlite3.Connection, cam: sqlite3.Row, start: dt.datetime, end: dt.datetime, tz_name: str) -> SearchResult:
+def search_segments(settings: Settings, conn: sqlite3.Connection | None, cam: sqlite3.Row, start: dt.datetime, end: dt.datetime, tz_name: str) -> SearchResult:
+    """NVR search with an in-memory cache. `conn` is accepted for call-site symmetry but not used: the search is
+    network-bound and must never run inside a write transaction (it would hold the SQLite write lock for seconds)."""
     if end <= start:
         raise ApiError(422, "validation", "טווח הזמן ריק.")
     if (end - start) > dt.timedelta(days=7):

@@ -10,7 +10,7 @@ from .. import __version__
 from ..auth import current_principal, get_conn, settings_of
 from ..db import permission_revision
 from ..rbac import Principal
-from ..services import autosync, events_derive, events_ingest
+from ..services import autosync, events_derive, events_ingest, ha_client, ha_sync
 
 router = APIRouter()
 
@@ -27,6 +27,7 @@ def health(request: Request, principal: Principal = Depends(current_principal), 
         "go2rtc_configured": bool(settings.go2rtc_url),
         "discovery": {**autosync.STATE, "cameras": conn.execute("SELECT COUNT(*) FROM cameras").fetchone()[0], "interval_s": autosync.INTERVAL_S},
         "events": {"ingest": events_ingest.STATE.as_dict(), "derive": events_derive.STATE, "stored": conn.execute("SELECT COUNT(*) FROM events").fetchone()[0]},
+        "home_assistant": {"configured": ha_client.configured(settings), **ha_sync.STATE.as_dict()},
         "identity_source": principal.source,
         "renderer": "pdftoppm" if any(os.access(os.path.join(p, "pdftoppm"), os.X_OK) for p in os.environ.get("PATH", "").split(os.pathsep)) else "pymupdf-or-none",
     }

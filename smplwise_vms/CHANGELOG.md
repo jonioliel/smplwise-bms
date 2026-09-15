@@ -1,6 +1,22 @@
 # Changelog — SMPLWISE VMS add-on
 
-## 0.1.4 (pilot, in progress)
+## 0.1.5 (pilot, in progress)
+- Read-only Home Assistant sync: registries (entity/device/area/floor) and states through the
+  Supervisor proxy, `state_changed` over the Core WebSocket, tombstones, freshness, `ha_entities` table
+  (migration 0004); catalogue API and screen (ישויות HA) with domain/area/search filters and scoping
+  by floor placements; `/ha/ws` push and `home_assistant` health.
+- Entities on the map: plan editor entity picker (`?entity=` deep link from the catalogue), domain
+  layers, live state in the marker and card, freshness/unavailable warnings.
+- Safe actions through the new `custom_components/smplwise_bridge` integration (pairing code + HMAC,
+  `smplwise_bridge.execute` with `Context(user_id)`, user directory push); allow-list on both sides,
+  sensitive actions need confirmation, idempotent client ids, pending → confirmed by observed state,
+  `ha.entity.control` permission (operator and above), audit rows.
+- Settings → גשר Home Assistant: connection and sync status, pairing status, masked pairing code,
+  add-on address, install steps, code regeneration (audited).
+- Fix: recording-derived events no longer hold the SQLite write lock during NVR searches (other
+  workers hit "database is locked" at start-up); HA sync writes in short chunks with busy retries.
+
+## 0.1.4 (pilot)
 - Events: alert-stream ingestion (parse, heartbeat, dedup, reconnect, coverage gaps, audited ack),
   recording-derived motion events (inferred), event centre with live updates, markers on the playback
   timeline, ingestion state in health; `events.retention_days`.

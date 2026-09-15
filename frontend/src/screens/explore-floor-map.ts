@@ -9,6 +9,7 @@ import '../components/sw-icon';
 import '../components/sw-field';
 import '../components/sw-camera-tile';
 import '../components/sw-state-panel';
+import '../components/sw-dialog';
 import '../map/sw-plan-canvas';
 import type { PlanMarker, MarkerSelectDetail, SwPlanCanvas } from '../map/sw-plan-canvas';
 import type { StateKind } from '../components/sw-badge';
@@ -21,8 +22,9 @@ import { cameraState, loadMap, type MapBundle } from '../api/maps';
 import { snapshotUrl } from '../api/media';
 import { findFloor, firstFloor, loadTree, type CatalogTree } from '../api/catalog';
 import { isApi } from '../api/session';
-import { describeError } from '../api/client';
+import { ApiError, describeError } from '../api/client';
 import type { Anchor } from '../api/types';
+import { ACTION_STATUS_LABEL, awaitAction, domainLabel, entityMarkerKind, entityTone, fmtTime, runAction, stateLabel, subscribeHa, type HaActionRecord, type HaActionSpec, type HaEntity } from '../api/ha';
 
 type ScreenState = 'ready' | 'loading' | 'empty' | 'error' | 'forbidden' | 'stale' | 'partial';
 type Layer = 'cameras' | 'doors' | 'lights' | 'sensors';
@@ -54,6 +56,10 @@ export class ExploreFloorMap extends LitElement {
   @state() private layers = new Set<Layer>(['cameras', 'doors', 'lights', 'sensors']);
   @state() private pinned = false;
   @state() private narrow = false;
+  @state() private syncConnected = true;
+  @state() private action: { entityId: string; spec: HaActionSpec; record: HaActionRecord | null; error: string; busy: boolean } | null = null;
+  @state() private confirmSpec: { entityId: string; spec: HaActionSpec } | null = null;
+  private stopWs: (() => void) | null = null;
   @query('sw-plan-canvas') private canvas?: SwPlanCanvas;
   @query('.stage') private stage?: HTMLDivElement;
 
@@ -277,6 +283,21 @@ export class ExploreFloorMap extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     this.mq.removeEventListener('change', this.onMq);
+    this.stopWs?.();
+    this.stopWs = null;
+  }
+
+  /** Entity state pushes (scoped server-side to the floors this user may read). */
+  private startWs() {
+    if (this.stopWs || !isApi()) return;
+    this.stopWs = subscribeHa((m) => {
+      const b = this.bundle;
+      if (m.type === 'entity_state_changed' && b) {
+        if (!b.anchors.some((a) => a.resource_type === 'ha_entity' && a.resource_id === m.entity.entity_id)) return;
+        this.bundle = { ...b, anchors: b.anchors.map((a) => (a.resource_type === 'ha_entity' && a.resource_id === m.entity.entity_id ? { ...a, entity: { ...(a.entity ?? ({} as HaEntity)), ...m.entity, actions: a.entity?.actions } } : a)) };
+      } else if (m.type === 'ha_sync_state') this.syncConnected = m.connected;
+      else if (m.type === 'heartbeat') this.syncConnected = m.sync.connected;
+    });
   }
 
   protected updated(changed: Map<string, unknown>) {
@@ -308,6 +329,7 @@ export class ExploreFloorMap extends LitElement {
       }
       this.noFloors = false;
       this.bundle = await loadMap(this.floorId);
+      if (this.bundle.source === 'api') this.startWs();
     } catch (err) {
       this.loadError = describeError(err);
       this.bundle = null;
@@ -336,16 +358,16 @@ export class ExploreFloorMap extends LitElement {
       return [...cams, ...ents];
     }
     return b.anchors
-      .filter((a) => (a.resource_type === 'camera' ? this.layers.has('cameras') : true))
+      .filter((a) => (a.resource_type === 'camera' ? this.layers.has('cameras') : this.layers.has(a.layer_id === 'doors' ? 'doors' : a.layer_id === 'lights' ? 'lights' : 'sensors')))
       .map((a) => ({
         id: a.id,
-        kind: a.resource_type === 'camera' ? 'camera' : a.layer_id === 'doors' ? 'lock' : a.layer_id === 'lights' ? 'light' : 'binary_sensor',
-        label: a.camera?.name ?? a.label ?? a.resource_id,
+        kind: a.resource_type === 'camera' ? 'camera' : entityMarkerKind(a.layer_id, a.entity?.domain),
+        label: a.camera?.name ?? a.entity?.name ?? a.label ?? a.resource_id,
         x: a.position.x,
         y: a.position.y,
         rotation: a.rotation_degrees,
         fov: a.field_of_view_degrees ?? undefined,
-        state: a.resource_type === 'camera' ? cameraState(a) : 'neutral',
+        state: a.resource_type === 'camera' ? cameraState(a) : stale ? 'stale' : this.entityTone(a.entity),
       }));
   }
 
@@ -372,6 +394,77 @@ export class ExploreFloorMap extends LitElement {
   private close() {
     this.selectedId = null;
     this.anchor = null;
+  }
+
+  private entityTone(e: HaEntity | null | undefined): StateKind {
+    if (!e) return 'unknown';
+    return entityTone({ ...e, fresh: e.fresh && this.syncConnected });
+  }
+
+  // ---- HA actions (through the bridge integration, in the user's own HA identity) ----
+
+  private trigger(entityId: string, spec: HaActionSpec) {
+    if (spec.sensitive) {
+      this.confirmSpec = { entityId, spec };
+      return;
+    }
+    void this.send(entityId, spec, false);
+  }
+
+  private async send(entityId: string, spec: HaActionSpec, confirmed: boolean) {
+    this.confirmSpec = null;
+    this.action = { entityId, spec, record: null, error: '', busy: true };
+    try {
+      const r = await runAction(entityId, spec.id, {}, confirmed);
+      this.action = { entityId, spec, record: r, error: '', busy: r.status === 'pending' };
+      if (r.status === 'pending') {
+        const token = this.action;
+        await awaitAction(r.id, (a) => {
+          if (this.action === token || this.action?.record?.id === a.id) this.action = { entityId, spec, record: a, error: '', busy: a.status === 'pending' };
+        });
+      }
+    } catch (err) {
+      const msg = err instanceof ApiError && err.code === 'bridge_not_paired' ? 'גשר SMPLWISE אינו מצומד ב־Home Assistant. התקנה וצימוד: הגדרות → גשר Home Assistant.' : describeError(err);
+      this.action = { entityId, spec, record: null, error: msg, busy: false };
+    }
+  }
+
+  private apiEntityBody(a: Anchor, floorName: string) {
+    const e = a.entity;
+    if (!e) return html`<div class="note">ישות HA · <span class="ltr">${a.resource_id}</span> — לא נמצאה בקטלוג המסונכרן (ייתכן שהוסרה מ־Home Assistant).</div>`;
+    const tone = this.entityTone(e);
+    const act = this.action?.entityId === e.entity_id ? this.action : null;
+    const fresh = e.fresh && this.syncConnected;
+    return html`
+      <div class="statusrow"><sw-badge kind=${tone} label=${stateLabel(e)}></sw-badge><span>${floorName} · ${domainLabel(e.domain)}${e.area_name ? ` · ${e.area_name}` : ''}</span></div>
+      <dl class="meta">
+        <dt>${t('entity.lastChanged')}</dt><dd>${fmtTime(e.last_changed)}</dd>
+        <dt>נראה לאחרונה</dt><dd>${fmtTime(e.state_seen_at)}</dd>
+        <dt>ID</dt><dd><span class="ltr">${e.entity_id}</span></dd>
+      </dl>
+      ${!fresh ? html`<div class="warn">${e.state === 'unavailable' ? 'Home Assistant מדווח שהישות אינה זמינה.' : 'הסנכרון מול Home Assistant מנותק — המצב עלול להיות מיושן.'}</div>` : nothing}
+      ${e.actions === undefined ? html`<div class="note">${t('entity.noControl')}</div>` : e.actions.length === 0 ? html`<div class="note">קריאה בלבד — אין פעולות מותרות ל־${domainLabel(e.domain)}.</div>` : nothing}
+      ${act
+        ? html`<div class=${act.error || act.record?.status === 'failed' || act.record?.status === 'denied' ? 'warn' : 'note'}>${act.spec.label}: ${act.error ? act.error : act.record ? `${ACTION_STATUS_LABEL[act.record.status]}${act.record.error && act.record.status !== 'denied' ? ` (${act.record.error})` : ''}` : 'שולח…'}</div>`
+        : nothing}
+    `;
+  }
+
+  private entityFooter(a: Anchor) {
+    const e = a.entity;
+    const busy = Boolean(this.action && e && this.action.entityId === e.entity_id && this.action.busy);
+    const specs = e?.actions ?? [];
+    return html`${specs.map((s) => html`<sw-button size="sm" variant=${s.sensitive ? 'danger' : 'primary'} ?disabled=${busy || this.screenState === 'stale' || e?.state === 'unavailable'} @click=${() => e && this.trigger(e.entity_id, s)}>${s.label}</sw-button>`)}`;
+  }
+
+  private renderConfirm() {
+    const c = this.confirmSpec;
+    if (!c) return nothing;
+    const ent = this.bundle?.anchors.find((a) => a.resource_type === 'ha_entity' && a.resource_id === c.entityId)?.entity;
+    return html`<sw-dialog open heading=${t('entity.confirm')} subheading=${ent?.name ?? c.entityId} @close=${() => (this.confirmSpec = null)}>
+      <div style="font-size:var(--sw-fs-sm);line-height:1.5">הפעולה <strong>${c.spec.label}</strong> על <span class="ltr">${c.entityId}</span> מסומנת כרגישה. היא תבוצע ב־Home Assistant בזהות שלך ותירשם באודיט.</div>
+      <div slot="footer"><sw-button variant="danger" @click=${() => this.send(c.entityId, c.spec, true)}>${c.spec.label}</sw-button><sw-button variant="ghost" @click=${() => (this.confirmSpec = null)}>${t('actions.cancel')}</sw-button></div>
+    </sw-dialog>`;
   }
 
   // ---- demo card bodies (fixtures) ----
@@ -445,11 +538,13 @@ export class ExploreFloorMap extends LitElement {
     } else {
       const a = b.anchors.find((x) => x.id === this.selectedId);
       if (!a) return nothing;
-      heading = a.camera?.name ?? a.label ?? a.resource_id;
+      heading = a.camera?.name ?? a.entity?.name ?? a.label ?? a.resource_id;
       sub = `${b.buildingName} · ${b.floorName}`;
-      body = a.resource_type === 'camera' ? this.apiCameraBody(a, b.floorName) : html`<div class="note">ישות HA · ${a.resource_id} — מצב יגיע עם גשר HA (T025).</div>`;
-      footer = html`<sw-button variant="primary" size="sm" icon="expand" ?disabled=${a.resource_type !== 'camera' || cameraState(a) === 'offline'} @click=${() => a.camera && navigate(`/live/cameras/${a.camera.id}`)}>צפייה חיה</sw-button>
-        <sw-button size="sm" icon="history" ?disabled=${a.resource_type !== 'camera' || !a.camera} @click=${() => a.camera && navigate('/investigate/playback', { camera: a.camera.id })}>${t('camera.recordings')}</sw-button>
+      body = a.resource_type === 'camera' ? this.apiCameraBody(a, b.floorName) : this.apiEntityBody(a, b.floorName);
+      footer = html`${a.resource_type === 'camera'
+          ? html`<sw-button variant="primary" size="sm" icon="expand" ?disabled=${cameraState(a) === 'offline'} @click=${() => a.camera && navigate(`/live/cameras/${a.camera.id}`)}>צפייה חיה</sw-button>
+            <sw-button size="sm" icon="history" ?disabled=${!a.camera} @click=${() => a.camera && navigate('/investigate/playback', { camera: a.camera.id })}>${t('camera.recordings')}</sw-button>`
+          : this.entityFooter(a)}
         ${b.permissions.edit ? html`<sw-button variant="ghost" size="sm" icon="edit" @click=${() => navigate(`/explore/floors/${b.floorId}/edit`)}>עריכה</sw-button>` : nothing}`;
     }
     if (this.narrow || !this.anchor) {
@@ -509,6 +604,7 @@ export class ExploreFloorMap extends LitElement {
         <span><i style="--lg: #fff; box-shadow: 0 0 0 1px var(--sw-border-strong)"></i>ישות HA</span>
       </div>
       ${this.renderCard()}
+      ${this.renderConfirm()}
     `;
   }
 

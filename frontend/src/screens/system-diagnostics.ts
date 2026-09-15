@@ -13,10 +13,13 @@ import { isApi } from '../api/session';
 import { getSettings, listSessions, listStreams, patchSettings, syncStreams, type ProductSettings } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
 import { describeError, get } from '../api/client';
+import { navigate } from '../router';
+import { bridgePairing, haStatus, fmtTime, type HaStatus } from '../api/ha';
 
 const TABS = [
   { id: 'general', label: 'כללי' },
   { id: 'media', label: 'וידאו ומדיה' },
+  { id: 'ha', label: 'גשר Home Assistant' },
   { id: 'health', label: 'בריאות ועבודות' },
   { id: 'backup', label: 'גיבוי ושחזור' },
   { id: 'support', label: 'תמיכה' },
@@ -37,9 +40,32 @@ export class SystemDiagnostics extends LitElement {
   @state() private message = '';
   @state() private error = '';
   @state() private version = '';
+  @state() private ha: HaStatus | null = null;
+  @state() private pairing: { pairing_code: string; addon_host: string; addon_url: string; paired_at: string | null } | null = null;
+  @state() private showCode = false;
+  @state() private regenArmed = false;
+  @state() private copied = false;
   @state() private health: { discovery?: Record<string, unknown>; events?: { ingest: { connected: boolean; last_heartbeat_at: string | null; last_event_at: string | null; last_error: string | null; reconnects: number; events_stored: number }; derive: { last_ok: string | null; last_error: string | null; derived: number }; stored: number } } | null = null;
 
   static styles = css`
+    code {
+      font-family: var(--sw-font-mono, ui-monospace, monospace);
+      font-size: var(--sw-fs-xs);
+      background: var(--sw-surface-2, var(--sw-accent-soft));
+      padding: 2px 6px;
+      border-radius: 4px;
+      direction: ltr;
+      unicode-bidi: isolate;
+    }
+    .steps {
+      margin: 0;
+      padding-inline-start: 20px;
+      font-size: var(--sw-fs-sm);
+      line-height: 1.6;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
     .sections {
       display: flex;
       flex-direction: column;
@@ -164,6 +190,75 @@ export class SystemDiagnostics extends LitElement {
       this.streams = [];
       this.error = describeError(err);
     }
+  }
+
+  private async loadHa(regenerate = false) {
+    if (!isApi()) return;
+    this.error = '';
+    try {
+      this.ha = await haStatus();
+      if (this.canEdit) this.pairing = await bridgePairing(regenerate);
+      if (regenerate) {
+        this.regenArmed = false;
+        this.showCode = true;
+        this.message = 'נוצר קוד צימוד חדש; יש להגדיר מחדש את האינטגרציה ב־Home Assistant.';
+        setTimeout(() => (this.message = ''), 4000);
+      }
+    } catch (err) {
+      this.error = describeError(err);
+    }
+  }
+
+  private async copyCode() {
+    if (!this.pairing) return;
+    try {
+      await navigator.clipboard.writeText(this.pairing.pairing_code);
+      this.copied = true;
+      setTimeout(() => (this.copied = false), 2000);
+    } catch {
+      this.showCode = true;
+    }
+  }
+
+  private renderHa() {
+    if (!isApi()) {
+      return html`<div class="sections"><sw-card heading="גשר Home Assistant"><div class="muted">נתוני הדגמה — הסטטוס והצימוד זמינים מול השרת.</div></sw-card></div>`;
+    }
+    const h = this.ha;
+    const s = h?.sync;
+    const p = this.pairing;
+    return html`<div class="sections">
+      <sw-card heading="חיבור ל־Home Assistant" subheading="קריאה בלבד: מצבים, רישום ישויות, אזורים וקומות">
+        ${!h
+          ? html`<div class="muted">טוען…</div>`
+          : html`
+            <div class="row"><span class="lbl">גישה ל־API של Home Assistant<span class="muted">${h.configured ? 'דרך ה־Supervisor (homeassistant_api) או HA_URL בפיתוח' : 'לא מוגדר — ה־Add-on לא קיבל SUPERVISOR_TOKEN'}</span></span><sw-badge kind=${h.configured ? 'live' : 'offline'}></sw-badge></div>
+            <div class="row"><span class="lbl">סנכרון מצבים (WebSocket)<span class="muted">${s?.connected ? `מחובר · HA ${s.ha_version ?? '?'} · ${s.entities} ישויות · אירוע אחרון ${fmtTime(s.last_event_at)}` : `מנותק${s?.last_error ? ` · ${s.last_error}` : ''} · ${s?.reconnects ?? 0} חיבורים מחדש`}</span></span><sw-badge kind=${s?.connected ? 'live' : 'offline'}></sw-badge></div>
+            <div class="row"><span class="lbl">רישום ישויות (registry)<span class="muted">עודכן ${fmtTime(s?.last_registry_at)} · תמונת מצב ${fmtTime(s?.last_snapshot_at)}</span></span><sw-button size="sm" @click=${() => navigate('/explore/entities')}>לקטלוג</sw-button></div>`}
+      </sw-card>
+      <sw-card heading="גשר SMPLWISE (אינטגרציה ב־Home Assistant)" subheading="פעולות על ישויות רצות רק דרך הגשר, בזהות המשתמש, לפי ההרשאות של Home Assistant">
+        ${h
+          ? html`<div class="row"><span class="lbl">צימוד<span class="muted">${h.bridge.paired ? `מצומד מאז ${fmtTime(h.bridge.paired_at)}` : 'לא מצומד — פעולות HA ייחסמו עד להתקנת הגשר'}</span></span><sw-badge kind=${h.bridge.paired ? 'live' : 'stale'} label=${h.bridge.paired ? 'מצומד' : 'לא מצומד'}></sw-badge></div>
+            <div class="row"><span class="lbl">ספריית משתמשי HA<span class="muted">${h.bridge.directory_users} משתמשים · עודכן ${fmtTime(h.bridge.last_directory_at)}</span></span><sw-badge kind=${h.bridge.directory_users ? 'recorded' : 'unknown'}></sw-badge></div>`
+          : nothing}
+        ${p
+          ? html`<div class="row"><span class="lbl">כתובת ה־Add-on ברשת של HA<span class="muted">להדביק בשדה "כתובת" של האינטגרציה</span></span><code class="ltr">${p.addon_url}</code></div>
+            <div class="row"><span class="lbl">קוד צימוד<span class="muted">סוד משותף; מוצג רק למנהלי מערכת ונרשם באודיט</span></span><span style="display:flex;gap:8px;align-items:center"><code class="ltr">${this.showCode ? p.pairing_code : '••••••••••••'}</code><sw-button size="sm" @click=${() => (this.showCode = !this.showCode)}>${this.showCode ? 'הסתר' : 'הצג'}</sw-button><sw-button size="sm" @click=${() => this.copyCode()}>${this.copied ? 'הועתק' : 'העתק'}</sw-button></span></div>
+            <div class="row"><span class="lbl">יצירת קוד חדש<span class="muted">מבטל את הצימוד הקיים; יש להגדיר מחדש את האינטגרציה</span></span>${this.regenArmed ? html`<span style="display:flex;gap:8px"><sw-button size="sm" variant="danger" @click=${() => this.loadHa(true)}>אשר יצירה</sw-button><sw-button size="sm" variant="ghost" @click=${() => (this.regenArmed = false)}>ביטול</sw-button></span>` : html`<sw-button size="sm" @click=${() => (this.regenArmed = true)}>צור קוד חדש</sw-button>`}</div>`
+          : this.canEdit
+            ? nothing
+            : html`<div class="muted">קוד הצימוד מוצג למנהלי מערכת בלבד.</div>`}
+      </sw-card>
+      <sw-card heading="התקנת הגשר (פעם אחת)">
+        <ol class="steps">
+          <li>העתק את התיקייה <code class="ltr">custom_components/smplwise_bridge</code> מהמאגר אל <code class="ltr">/config/custom_components/</code> ב־Home Assistant (או הוסף את המאגר ב־HACS כ־Custom repository מסוג Integration), והפעל מחדש את Home Assistant.</li>
+          <li>הגדרות → מכשירים ושירותים → הוספת אינטגרציה → <strong>SMPLWISE Bridge</strong>.</li>
+          <li>הדבק את כתובת ה־Add-on ואת קוד הצימוד מהמסך הזה. הצימוד מאומת מיד (HMAC, חלון של 60 שניות).</li>
+          <li>הסטטוס למעלה יתעדכן ל"מצומד"; ספריית המשתמשים נשלחת כל דקה ומאפשרת להקצות תפקידים למשתמשי HA.</li>
+        </ol>
+        <div class="muted">הגשר מריץ רק פעולות מרשימת ההיתר (תאורה, מתגים, מאווררים, תריסים, מנעולים, כפתורים, סקריפטים, סצנות) ורק עבור משתמש HA קיים ופעיל. ה־Supervisor token של ה־Add-on אינו משמש לפעולות.</div>
+      </sw-card>
+    </div>`;
   }
 
   private set<K extends keyof ProductSettings>(key: K, value: ProductSettings[K]) {
@@ -305,8 +400,10 @@ export class SystemDiagnostics extends LitElement {
   render() {
     return html`
       <sw-page heading="הגדרות המערכת" subheading=${isApi() ? 'תעבורת וידאו, go2rtc, מכסות ובריאות' : 'אזור זמן, מדיניות אחסון, אינטגרציות ובריאות · נתוני הדגמה'}>
-        <sw-tabs underline .items=${TABS} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => { this.tab = e.detail.id; if (this.tab === 'media') void this.loadMedia(); }}></sw-tabs>
-        ${this.tab === 'general' ? this.renderGeneral() : this.tab === 'media' ? this.renderMedia() : this.tab === 'health' ? this.renderHealth() : this.tab === 'backup' ? this.renderBackup() : this.renderSupport()}
+        <sw-tabs underline .items=${TABS} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => { this.tab = e.detail.id; if (this.tab === 'media') void this.loadMedia(); if (this.tab === 'ha') void this.loadHa(); }}></sw-tabs>
+        ${this.message && this.tab === 'ha' ? html`<div class="muted" style="color:#15803d">${this.message}</div>` : nothing}
+        ${this.error && this.tab === 'ha' ? html`<div class="muted" style="color:var(--sw-error)">${this.error}</div>` : nothing}
+        ${this.tab === 'general' ? this.renderGeneral() : this.tab === 'media' ? this.renderMedia() : this.tab === 'ha' ? this.renderHa() : this.tab === 'health' ? this.renderHealth() : this.tab === 'backup' ? this.renderBackup() : this.renderSupport()}
       </sw-page>
     `;
   }

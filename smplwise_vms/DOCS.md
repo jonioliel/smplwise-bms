@@ -115,6 +115,31 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   verified PTS↔UTC anchor this is labelled best effort (chapter 25); a camera without a recording at that
   time is shown as such, never as a frozen frame.
 
+## Home Assistant entities and the bridge
+
+- The add-on reads Home Assistant through the Supervisor proxy (`homeassistant_api: true`): entity,
+  device, area and floor registries plus all states once at start-up, then `state_changed` events over
+  the Core WebSocket. The result is a read-only catalogue (ישויות HA) with stable ids, area/floor names,
+  disabled/hidden flags, tombstones for removed entities and a freshness flag that drops while the
+  sync is disconnected. Nothing is placed or controllable by being imported.
+- Placement: the plan editor's "הוספת ישות" searches the catalogue and pins an entity on a floor;
+  the marker takes its layer from the domain (doors, lights, sensors) and shows the live state. Floor
+  users only see entities placed on floors they may read.
+- Actions never use the add-on's own token. They go through the **SMPLWISE Bridge** custom
+  integration (`custom_components/smplwise_bridge`), which re-issues the service call with
+  `Context(user_id=<the HA user behind the VMS session>)`, so Home Assistant's per-user entity
+  permissions decide. Allow-list on both sides: light/switch/fan on-off, cover open/close/stop, lock
+  lock/unlock, button press, script and scene start. Sensitive actions (unlock, open/close cover,
+  button, script, scene) need an explicit confirmation; every request is idempotent by client id,
+  audited, and reported as pending → confirmed (state observed after the request) / unknown /
+  failed / denied. Until the integration is paired, actions are refused with `bridge_not_paired`.
+- Pairing (הגדרות → גשר Home Assistant): copy the add-on address and the pairing code, install the
+  integration (copy the folder to `/config/custom_components/` or add the repository in HACS as a
+  custom Integration repository, restart HA), add "SMPLWISE Bridge" and paste both. Requests between
+  the two are HMAC-SHA256 signed with a 60 s window and nonce replay protection. The integration also
+  pushes the HA user directory (id, name, username, active, admin, groups) every minute so VMS roles
+  can be granted to HA users.
+
 ## Limits in this build
 
 - Uploads: PDF/PNG/JPG up to 40 MB, PDF up to 20 pages; SVG and DWG/DXF are rejected.
@@ -122,6 +147,9 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
 - Playback: speed 1× only, no frame step; up to four cameras side by side (best effort sync); events are
   not drawn on the timeline yet. Export trims at key frames (the start may be a few seconds early). PTZ and two-way audio are not exposed until the
   capability is verified per camera.
+- Home Assistant actions: only the allow-listed services above, no arguments yet (brightness, position);
+  entity widgets are generic (state, unit, last change); scripts/scenes run but report "unknown" if HA
+  keeps no state to observe.
 - Live video needs a browser with H.264 support (Chrome, Edge, Safari, Firefox on desktop); Playwright's
   bundled Chromium has none, so the evidence suites run with `SW_CHROME=1`.
 

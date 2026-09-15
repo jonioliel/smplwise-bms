@@ -113,6 +113,8 @@ export interface Anchor {
   effective_to: string | null;
   updated_at: string;
   camera?: Camera | null;
+  /** Synced Home Assistant entity for ha_entity anchors (actions present only with ha.entity.control on the floor). */
+  entity?: import('./ha').HaEntity | null;
 }
 
 export interface FloorMap {

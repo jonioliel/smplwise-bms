@@ -1,0 +1,28 @@
+execute:
+  name: Execute (SMPLWISE add-on only)
+  description: >-
+    Runs an allow-listed Home Assistant action on behalf of a VMS user. Called by the SMPLWISE add-on with a
+    signed request; the action is executed with that user's own context so Home Assistant's entity permissions
+    apply. Not meant to be called from automations.
+  fields:
+    user_id:
+      description: Home Assistant user id the action runs as.
+      example: "12d05a26b0214c9eac77ac26f6cd652c"
+    domain:
+      description: Service domain.
+      example: light
+    service:
+      description: Service name.
+      example: turn_on
+    data:
+      description: Service data (must include entity_id).
+      example: '{"entity_id": "light.lobby"}'
+    request_id:
+      description: Add-on action id (for the audit trail).
+      example: "a1b2c3"
+    ts:
+      description: Unix timestamp of the signature.
+    nonce:
+      description: Random nonce.
+    sig:
+      description: HMAC-SHA256 signature computed by the add-on with the pairing secret.

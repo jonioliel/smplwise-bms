@@ -34,6 +34,8 @@ class Settings:
     max_render_px: int = 3000
     preview_px: int = 1200
     render_timeout_s: int = 30
+    ha_url: str | None = None  # Core API base: http://supervisor/core inside the add-on
+    ha_token: str | None = None  # SUPERVISOR_TOKEN inside the add-on; a developer token outside
     extra: dict = field(default_factory=dict)
 
     @property
@@ -84,4 +86,8 @@ def load_settings(options_file: str | os.PathLike | None = None) -> Settings:
         nvr_rtsp_port=int(_opt(options, "nvr_rtsp_port", "NVR_RTSP_PORT", "554") or 554),
         go2rtc_user=_opt(options, "go2rtc_api_username", "GO2RTC_API_USER"),
         go2rtc_password=_opt(options, "go2rtc_api_password", "GO2RTC_API_PASSWORD"),
+        # Home Assistant Core API: the Supervisor injects SUPERVISOR_TOKEN when config.yaml sets homeassistant_api;
+        # never taken from the options file (no user token is stored in options).
+        ha_url=("http://supervisor/core" if os.environ.get("SUPERVISOR_TOKEN") else (os.environ.get("HA_URL") or None)),
+        ha_token=os.environ.get("SUPERVISOR_TOKEN") or os.environ.get("HA_TOKEN") or None,
     )

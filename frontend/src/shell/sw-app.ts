@@ -382,7 +382,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'entities') return html`<explore-entities></explore-entities>`;
         if (s[1] === 'access') return html`<explore-access></explore-access>`;
         if (s[1] === 'floors' && s[3] === 'import') return html`<explore-plan-import .floorId=${s[2]}></explore-plan-import>`;
-        if (s[1] === 'floors' && s[3] === 'edit') return html`<explore-plan-editor .floorId=${s[2]}></explore-plan-editor>`;
+        if (s[1] === 'floors' && s[3] === 'edit') return html`<explore-plan-editor .floorId=${s[2]} .presetEntity=${r.params.get('entity') ?? ''}></explore-plan-editor>`;
         const floorId = s[1] === 'floors' && s[2] ? s[2] : 'f0';
         const screenState = (r.params.get('state') ?? 'ready') as 'ready';
         return html`<explore-floor-map .floorId=${floorId} .screenState=${screenState}></explore-floor-map>`;

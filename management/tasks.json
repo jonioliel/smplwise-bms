@@ -1220,7 +1220,10 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (HA segment, 2026-09-15): services/ha_client.py + ha_sync.py + migration 0004 - entity/device/area/floor registries and all states read through the Supervisor proxy (homeassistant_api: true; HA_URL/HA_TOKEN in dev), stable entity_id identity, registry name/area/floor resolution via device, disabled/hidden flags, rename handled by upsert, removal = tombstone (removed_at) never delete, unavailable = available=0; attributes allow-listed and capped at 4000 chars; domains without useful state skipped (update, image, person, zone, device_tracker...); GET /ha/entities (domain/q/area/placed/include_disabled) is installation-wide for readers with entity.state.read on the installation and placement-scoped for floor users; tests/test_ha.py",
+      "lab (dev backend against HA Core 2026.9.2, 2026-09-15): 923 registry entries (550 disabled) + 376 states -> 318 enabled catalogue entities in 10 domains, 8 areas with Hebrew names, 3 HA floors; catalogue screen (SC10) renders the real rows with domain chips, area filter, search and a drawer; importing places nothing and grants no control"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
@@ -1269,7 +1272,10 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (HA segment, 2026-09-15): HaSync thread - get_config -> registries -> get_states snapshot -> subscribe_events state_changed over the Core WebSocket, registry refresh every 600 s, reconnect with 5-60 s backoff; every stored row keeps last_changed/last_updated (HA) and state_seen_at (received); freshness = connected && seen; on disconnect the sync state is published and the UI marks entities stale (never invents continuity); after reconnect a full snapshot resyncs; writes in 150-row chunks with busy retries so the SQLite write lock stays short; /ha/ws pushes entity_state_changed scoped by placements plus heartbeats; health.home_assistant",
+      "lab (2026-09-15): sync connected in ~10 s with 318 entities, first state_changed event 15 s later (sequence 1); first start-up run exposed a pre-existing lock: recording-derived events held BEGIN IMMEDIATE across ISAPI searches for ~25 s -> 'database is locked' for the HA sync and the export worker; fixed by searching outside the transaction (events_derive.search_for_camera/store_segments); the 1,000-entity fixture test from the card is still open"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
@@ -1323,7 +1329,11 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (HA segment, 2026-09-15): plan editor tool 'הוספת ישות' searches the catalogue and creates an ha_entity anchor (layer by domain: doors/lights/sensors; ?entity= deep link from the catalogue drawer); the map bundle carries the entity row per anchor (state, unit, last change, freshness) and the allow-listed actions only when the viewer holds ha.entity.control on that floor; popover/drawer shows a state badge, last change, seen-at, unavailable/stale warnings; actions POST /ha/entities/{id}/actions per the entity-action contract (allowed_action_id, arguments, confirmation_grant, client_request_id, expires_at): server-side allow-list + argument ranges (services/ha_bridge.ACTIONS), sensitive actions (unlock, cover open/close, button, script, scene) need confirmation_grant=confirmed (UI dialog), duplicates by client_request_id return the same row without a second send, status pending -> confirmed only when HA reports the expected state after the request (poll GET /ha/actions/{id}), unknown after 20 s, denied when HA refuses (Unauthorized), audit ha.action; tests/test_ha.py::test_actions_through_bridge",
+      "bridge (2026-09-15): custom_components/smplwise_bridge (config flow with pairing code + add-on address, service smplwise_bridge.execute SupportsResponse.ONLY verifying HMAC-SHA256 ts.nonce.sha256(body) within 60 s with nonce replay cache, allow-list on the integration side too, hass.services.async_call(..., context=Context(user_id)) so HA's own entity permissions decide, directory push every 60 s); add-on side: GET /ha/bridge/pairing (system.configure, audited regenerate), POST /ha/bridge/ping, POST /ha/bridge/directory; hacs.json at the repository root; integration not yet installed on the lab HA -> actions return 503 bridge_not_paired (verified in the browser: message in the card, failed row + audit)",
+      "lab UI (2026-09-15): lock.m2_entrance_active_lock placed on קומה 0 through the editor, marker 'lock' on the doors layer, card shows נעול with last change and seen-at, buttons נעילה/פתיחה; נעילה -> 'גשר SMPLWISE אינו מצומד', פתיחה -> confirmation dialog; settings tab גשר Home Assistant shows connected sync (318 entities), not paired, masked 32-char pairing code, add-on address and install steps"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
@@ -2111,7 +2121,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "note (HA segment, 2026-09-15): first allow-list covers light/switch/fan on-off, cover open/close/stop, lock lock/unlock, button, script, scene with sensitive flags; climate/media/number adapters and per-role risk classes remain for this card"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null

@@ -1,0 +1,22 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "צימוד ל־Add-on של SMPLWISE VMS",
+        "description": "פתח את ה־Add-on: הגדרות → גשר Home Assistant, והעתק משם את קוד הצימוד ואת כתובת ה־Add-on.",
+        "data": {
+          "addon_url": "כתובת ה־Add-on (ברשת הפנימית של Home Assistant)",
+          "pairing_code": "קוד צימוד"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "ה־Add-on לא ענה בכתובת הזו.",
+      "invalid_auth": "קוד הצימוד נדחה על ידי ה־Add-on.",
+      "unknown": "שגיאה לא צפויה."
+    },
+    "abort": {
+      "single_instance_allowed": "אפשר להגדיר גשר אחד בלבד."
+    }
+  }
+}
