@@ -1,6 +1,19 @@
 # Changelog — SMPLWISE VMS add-on
 
-## 0.1.9 (pilot, in progress)
+## 0.1.10 (pilot)
+- Fix: the plan import crop did not match the preview when the page was rotated (the crop box was placed
+  against the container while the CSS-rotated picture kept its unrotated box). Page previews are now
+  served already rotated (`preview.png?rotation=90|180|270`), the crop rectangle is drawn with the mouse
+  over that picture and rotating resets it; the saved version is exactly the drawn area.
+- Rooms and zones (design M13): named polygons on the floor (`spatial_zones`, migration 0006). The plan
+  editor's "חדרים ואזורים" tool detects rooms on the plan locally (same wall analysis as the stylized
+  rendering; candidates only, nothing saved until accepted), lets you name, keep or drop each one, draw
+  further zones by clicking corners, and edit name / kind / colour / searchable; the viewer shows the
+  names under the pins with a layer toggle. API: GET/POST /floors/{id}/zones, PATCH/DELETE /zones/{id},
+  POST /floors/{id}/zones/detect, POST /floors/{id}/zones/accept; zones ride in the floor map bundle.
+  A map zone is spatial context only, not a camera detection zone or privacy mask.
+
+## 0.1.9 (pilot)
 - Design switch: "SW A" (mockups v1.3: four-area icon rail, 72 px top bar with breadcrumbs, SW A tokens)
   and "SW B" (the earlier boards); installation default, editable names and a per-browser choice in
   הגדרות → כללי. `docs/design/mockups-v1.3/` holds the handoff document and key screens.

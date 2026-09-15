@@ -156,13 +156,22 @@ def list_assets(floor_id: str, principal: Principal = Depends(current_principal)
 
 
 @router.get("/plan-assets/{asset_id}/pages/{page}/preview.png")
-def page_preview(asset_id: str, page: int, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> FileResponse:
+def page_preview(asset_id: str, page: int, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), rotation: int = 0) -> FileResponse:
+    """Page preview for the import wizard; `rotation` (0/90/180/270) returns the page as the derived version
+    will see it, so the crop box drawn over it maps 1:1 onto the saved image."""
     settings = settings_of(request)
     asset = get_asset(conn, asset_id)
     require(conn, principal, "map.import", ("floor", asset["floor_id"]))
     if page < 1 or page > asset["page_count"]:
         raise not_found("העמוד לא קיים.")
+    if rotation not in (0, 90, 180, 270):
+        raise ApiError(422, "validation", "סיבוב חייב להיות 0, 90, 180 או 270.")
     png = _page_png(settings, asset, page, settings.preview_px)
+    if rotation:
+        rotated = png.with_name(f"{png.stem}_r{rotation}.png")
+        if not rotated.exists() or rotated.stat().st_mtime < png.stat().st_mtime:
+            plan_render.derive_version_image(png, rotated, rotation, None, settings.preview_px)
+        png = rotated
     return FileResponse(png, media_type="image/png", headers={"Cache-Control": "private, max-age=3600"})
 
 

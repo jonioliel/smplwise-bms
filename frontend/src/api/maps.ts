@@ -5,7 +5,7 @@
 import { svg, type SVGTemplateResult } from 'lit';
 import { del, get, patch, post, resourceUrl, upload } from './client';
 import { isApi } from './session';
-import type { Anchor, Camera, FloorMap, PlanAsset, PlanVersion } from './types';
+import type { Anchor, Camera, FloorMap, PlanAsset, PlanVersion, SpatialZone } from './types';
 import { demoCameras, demoFloors, demoPlan, demoSite } from '../fixtures/demo';
 import type { StateKind } from '../components/sw-badge';
 
@@ -24,6 +24,8 @@ export interface MapBundle {
   planVersionId: string | null;
   needsAlignment: boolean;
   anchors: Anchor[];
+  /** Named rooms / areas (M13); empty when none were defined. */
+  zones: SpatialZone[];
   cameras: Camera[];
   permissions: { edit: boolean; publish: boolean; import: boolean };
   renderMode: 'source' | 'stylized';
@@ -65,6 +67,7 @@ function demoBundle(floorId: string): MapBundle {
       updated_at: '',
       camera: { id: c.id, recorder_id: 'demo', channel: i + 1, name: c.name, name_source: c.name, alias: null, enabled: true, sort_order: i, main_track: null, sub_track: null, status: c.state === 'offline' ? 'offline' : 'online', last_seen_at: null },
     })),
+    zones: [],
     cameras: [],
     permissions: { edit: true, publish: true, import: true },
   };
@@ -87,6 +90,7 @@ export async function loadMap(floorId: string, draft = false): Promise<MapBundle
     planVersionId: m.plan?.id ?? null,
     needsAlignment: m.needs_alignment,
     anchors: m.anchors,
+    zones: m.zones ?? [],
     cameras: m.cameras,
     permissions: m.permissions,
     renderMode: m.plan?.render_mode === 'stylized' ? 'stylized' : 'source',

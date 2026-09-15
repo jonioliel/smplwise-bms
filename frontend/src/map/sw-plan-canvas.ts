@@ -55,6 +55,38 @@ const MARKER_ICON: Record<MarkerKind, SVGTemplateResult> = {
  * Emits `marker-select` ({id, sx, sy}) and `view-change` (after pan/zoom) so a parent can anchor a
  * popover card to the selected pin.
  */
+export interface PlanZone {
+  id: string;
+  name: string;
+  kind?: string;
+  /** CSS colour of the fill / outline / label ring. */
+  color: string;
+  /** Normalized (0-1) polygon, origin top-left. */
+  polygon: { x: number; y: number }[];
+  /** Detection candidate not yet saved: dashed outline. */
+  candidate?: boolean;
+}
+
+/** Area-weighted polygon centroid in the polygon's own units (vertex mean for degenerate rings). */
+export function polygonCentroid(poly: { x: number; y: number }[]) {
+  let a = 0;
+  let cx = 0;
+  let cy = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const p = poly[i];
+    const q = poly[(i + 1) % poly.length];
+    const f = p.x * q.y - q.x * p.y;
+    a += f;
+    cx += (p.x + q.x) * f;
+    cy += (p.y + q.y) * f;
+  }
+  if (Math.abs(a) < 1e-12) {
+    const n = poly.length || 1;
+    return { x: poly.reduce((t, p) => t + p.x, 0) / n, y: poly.reduce((t, p) => t + p.y, 0) / n };
+  }
+  return { x: cx / (3 * a), y: cy / (3 * a) };
+}
+
 @customElement('sw-plan-canvas')
 export class SwPlanCanvas extends LitElement {
   @property({ type: Number }) planWidth = 1000;
@@ -75,6 +107,13 @@ export class SwPlanCanvas extends LitElement {
   @property({ type: Boolean }) placing = false;
   /** Radius of the coverage cone in plan pixels (an illustration, not measured coverage). */
   @property({ type: Number }) coneRadius = 140;
+  /** Named rooms / areas (design M13) drawn under the markers; a click emits `zone-select` {id}. */
+  @property({ attribute: false }) zones: PlanZone[] = [];
+  @property() selectedZoneId: string | null = null;
+  /** Show zone names at their centroids. */
+  @property({ type: Boolean }) zoneLabels = true;
+  /** Vertices of a polygon being drawn in the editor (normalized); rendered as a dashed outline. */
+  @property({ attribute: false }) draftPoints: { x: number; y: number }[] = [];
 
   @state() private scale = 1;
   @state() private tx = 0;
@@ -200,6 +239,60 @@ export class SwPlanCanvas extends LitElement {
       direction: rtl;
       unicode-bidi: plaintext;
     }
+    .zone {
+      cursor: pointer;
+      outline: none;
+    }
+    .zone polygon {
+      fill: var(--zc);
+      fill-opacity: 0.1;
+      stroke: var(--zc);
+      stroke-opacity: 0.7;
+      stroke-linejoin: round;
+      transition: fill-opacity var(--sw-t-fast) var(--sw-ease);
+    }
+    .zone:hover polygon,
+    .zone:focus-visible polygon,
+    .zone.selected polygon {
+      fill-opacity: 0.22;
+      stroke-opacity: 1;
+    }
+    .zone.candidate polygon {
+      stroke-dasharray: 6 4;
+      fill-opacity: 0.14;
+    }
+    .zone .zl-bg {
+      fill: rgba(255, 255, 255, 0.92);
+      stroke: var(--zc);
+      stroke-opacity: 0.55;
+      stroke-width: 1;
+      pointer-events: none;
+    }
+    .zone .zl {
+      pointer-events: none;
+      font-family: var(--sw-font);
+      font-size: 11.5px;
+      font-weight: 600;
+      fill: var(--sw-text);
+      text-anchor: middle;
+      direction: rtl;
+      unicode-bidi: plaintext;
+    }
+    .draft polyline,
+    .draft polygon {
+      fill: var(--sw-accent);
+      fill-opacity: 0.12;
+      stroke: var(--sw-accent);
+      stroke-dasharray: 5 4;
+      stroke-linejoin: round;
+    }
+    .draft polyline {
+      fill: none;
+    }
+    .draft circle {
+      fill: var(--sw-surface);
+      stroke: var(--sw-accent);
+    }
     .fov {
       fill: var(--sw-fov);
       stroke: var(--sw-accent);
@@ -261,6 +354,11 @@ export class SwPlanCanvas extends LitElement {
     if (changed.has('scale') || changed.has('tx') || changed.has('ty')) {
       this.dispatchEvent(new CustomEvent('view-change', { bubbles: true, composed: true }));
     }
+  }
+
+  /** Current zoom factor (plan pixels → host pixels). */
+  get zoom() {
+    return this.scale;
   }
 
   /** Host-pixel position of a normalized plan point (for popovers anchored to pins). */
@@ -404,6 +502,45 @@ export class SwPlanCanvas extends LitElement {
     this.dispatchEvent(new CustomEvent<MarkerSelectDetail>('marker-select', { detail, bubbles: true, composed: true }));
   }
 
+  private selectZone(z: PlanZone, e: Event) {
+    if (this.dragMoved || this.placing) return; // while placing / drawing the click belongs to the plan
+    e.stopPropagation();
+    this.dispatchEvent(new CustomEvent('zone-select', { detail: { id: z.id }, bubbles: true, composed: true }));
+  }
+
+  private renderZone(z: PlanZone) {
+    if (z.polygon.length < 3) return nothing;
+    const inv = 1 / this.scale;
+    const pts = z.polygon.map((p) => `${(p.x * this.planWidth).toFixed(1)},${(p.y * this.planHeight).toFixed(1)}`).join(' ');
+    const c = polygonCentroid(z.polygon);
+    const selected = this.selectedZoneId === z.id;
+    const lw = Math.max(36, z.name.length * 7 + 18);
+    return svg`
+      <g class="zone ${selected ? 'selected' : ''} ${z.candidate ? 'candidate' : ''}" style="--zc:${z.color}" role="button" tabindex="0" aria-label=${z.name} aria-pressed=${selected}
+         data-zone=${z.id}
+         @click=${(e: Event) => this.selectZone(z, e)} @keydown=${(e: KeyboardEvent) => (e.key === 'Enter' || e.key === ' ') && this.selectZone(z, e)}>
+        <polygon points=${pts} stroke-width=${((selected ? 2.2 : 1.4) * inv).toFixed(2)} />
+        ${this.zoneLabels && z.name
+          ? svg`<g transform="translate(${(c.x * this.planWidth).toFixed(1)} ${(c.y * this.planHeight).toFixed(1)}) scale(${inv})">
+              <rect class="zl-bg" x=${-lw / 2} y="-10" width=${lw} height="20" rx="10" />
+              <text class="zl" y="3.5">${z.name}</text>
+            </g>`
+          : nothing}
+      </g>`;
+  }
+
+  private renderDraft() {
+    const pts = this.draftPoints;
+    if (!pts.length) return nothing;
+    const inv = 1 / this.scale;
+    const P = pts.map((p) => ({ x: p.x * this.planWidth, y: p.y * this.planHeight }));
+    const str = P.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+    return svg`<g class="draft" pointer-events="none">
+      ${P.length >= 3 ? svg`<polygon points=${str} stroke-width=${(1.5 * inv).toFixed(2)} />` : svg`<polyline points=${str} stroke-width=${(1.5 * inv).toFixed(2)} />`}
+      ${P.map((p, i) => svg`<circle cx=${p.x.toFixed(1)} cy=${p.y.toFixed(1)} r=${((i === 0 ? 5.5 : 3.5) * inv).toFixed(2)} stroke-width=${(1.5 * inv).toFixed(2)} />`)}
+    </g>`;
+  }
+
   private onBackgroundClick = (e: MouseEvent) => {
     if (this.dragMoved) return;
     if (this.placing) {
@@ -545,7 +682,9 @@ export class SwPlanCanvas extends LitElement {
           <g transform="translate(${this.tx} ${this.ty}) scale(${this.scale})">
             ${this.imageUrl ? svg`<image href=${this.imageUrl} x="0" y="0" width=${this.planWidth} height=${this.planHeight} preserveAspectRatio="none" />` : nothing}
             ${this.plan ?? nothing}
+            ${this.zones.map((z) => this.renderZone(z))}
             ${this.markers.map((m) => this.renderMarker(m))}
+            ${this.renderDraft()}
           </g>
         </svg>
       </div>

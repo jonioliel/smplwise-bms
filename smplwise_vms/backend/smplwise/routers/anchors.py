@@ -57,6 +57,12 @@ def _current_version(conn: sqlite3.Connection, floor_id: str) -> sqlite3.Row | N
     return conn.execute("SELECT * FROM plan_versions WHERE floor_id = ? AND status = 'published'", (floor_id,)).fetchone()
 
 
+def _zones_for(conn: sqlite3.Connection, floor_id: str) -> list[dict[str, Any]]:
+    from .zones import floor_zones  # local import: zones depends on this module
+
+    return floor_zones(conn, floor_id)
+
+
 def _editor_version(conn: sqlite3.Connection, floor_id: str) -> sqlite3.Row | None:
     draft = conn.execute("SELECT * FROM plan_versions WHERE floor_id = ? AND status = 'draft' ORDER BY created_at DESC LIMIT 1", (floor_id,)).fetchone()
     return draft or _current_version(conn, floor_id)
@@ -92,6 +98,7 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal), 
         "plan": version_row(version) if version else None,
         "anchors": [dict(anchor_row(a), camera=cameras.get(a["resource_id"]) if a["resource_type"] == "camera" else None, entity=entities.get(a["resource_id"]) if a["resource_type"] == "ha_entity" else None) for a in anchors],
         "ha_sync": ha_sync.STATE.as_dict(),
+        "zones": _zones_for(conn, floor_id),
         "needs_alignment": needs_alignment,
         "permissions": {"edit": can_edit, "publish": can_publish, "import": authorize(conn, principal, "map.import", ("floor", floor_id)).allowed},
         "cameras": list(cameras.values()) if can_edit else [c for c in cameras.values() if any(a["resource_id"] == c["id"] for a in anchors)],

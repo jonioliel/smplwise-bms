@@ -129,15 +129,38 @@ export class ExplorePlanImport extends LitElement {
       display: grid;
       place-items: center;
     }
-    .preview img {
+    .preview .frame {
+      position: relative;
+      display: inline-block;
+      line-height: 0;
+      cursor: crosshair;
+      touch-action: none;
+      user-select: none;
+      overflow: hidden;
+    }
+    .preview .frame img {
       max-inline-size: 100%;
       max-block-size: 420px;
-      transition: transform var(--sw-t-med) var(--sw-ease);
+      display: block;
+      pointer-events: none;
     }
     .preview .cropbox {
       position: absolute;
       border: 2px dashed var(--sw-accent);
       box-shadow: 0 0 0 9999px rgba(17, 24, 39, 0.28);
+      pointer-events: none;
+      box-sizing: border-box;
+    }
+    .preview .hint {
+      position: absolute;
+      inset-inline-start: 8px;
+      inset-block-start: 8px;
+      background: rgba(17, 24, 39, 0.7);
+      color: #fff;
+      font-size: var(--sw-fs-xs);
+      border-radius: 6px;
+      padding: 3px 8px;
+      line-height: 1.4;
       pointer-events: none;
     }
     .row {
@@ -272,8 +295,38 @@ export class ExplorePlanImport extends LitElement {
 
   private previewUrl() {
     const p = this.asset?.pages.find((x) => x.page === this.page) ?? this.asset?.pages[0];
-    return p ? resourceUrl(p.preview_url) : '';
+    if (!p) return '';
+    const url = resourceUrl(p.preview_url);
+    return this.rotation ? `${url}${url.includes('?') ? '&' : '?'}rotation=${this.rotation}` : url;
   }
+
+  /** Draw the crop rectangle with the mouse over the (already rotated) preview; coordinates are fractions of the image. */
+  private startCrop = (e: PointerEvent) => {
+    if (e.button !== 0) return;
+    const frame = e.currentTarget as HTMLElement;
+    const rect = frame.getBoundingClientRect();
+    const norm = (ev: PointerEvent) => ({ x: Math.min(1, Math.max(0, (ev.clientX - rect.left) / rect.width)), y: Math.min(1, Math.max(0, (ev.clientY - rect.top) / rect.height)) });
+    const start = norm(e);
+    frame.setPointerCapture(e.pointerId);
+    e.preventDefault();
+    const move = (ev: PointerEvent) => {
+      const cur = norm(ev);
+      const x = Math.min(start.x, cur.x);
+      const y = Math.min(start.y, cur.y);
+      const w = Math.abs(cur.x - start.x);
+      const h = Math.abs(cur.y - start.y);
+      if (w > 0.01 && h > 0.01) this.crop = { x: +x.toFixed(4), y: +y.toFixed(4), w: +w.toFixed(4), h: +h.toFixed(4) };
+    };
+    const up = () => {
+      frame.removeEventListener('pointermove', move);
+      frame.removeEventListener('pointerup', up);
+      frame.removeEventListener('pointercancel', up);
+      if (this.crop.w < 0.02 || this.crop.h < 0.02) this.crop = { x: 0, y: 0, w: 1, h: 1 };
+    };
+    frame.addEventListener('pointermove', move);
+    frame.addEventListener('pointerup', up);
+    frame.addEventListener('pointercancel', up);
+  };
 
   private renderStep() {
     const a = this.asset;
@@ -295,19 +348,21 @@ export class ExplorePlanImport extends LitElement {
         return html`<div class="note">בחר את העמוד שמכיל את התוכנית של הקומה.</div>
           <div class="pages">${a?.pages.map((p) => html`<button class="pg ${p.page === this.page ? 'on' : ''}" @click=${() => (this.page = p.page)}><img src=${resourceUrl(p.preview_url)} alt=${`עמוד ${p.page}`} loading="lazy" />עמוד ${p.page}</button>`)}</div>`;
       case 2: {
-        const rot = this.rotation;
         const c = this.crop;
-        const box = rot % 180 === 0 ? c : { x: c.x, y: c.y, w: c.w, h: c.h };
+        const full = c.x === 0 && c.y === 0 && c.w === 1 && c.h === 1;
         return html`
           <div class="preview">
-            <img src=${this.previewUrl()} alt="תצוגה מקדימה" style="transform: rotate(${rot}deg)" />
-            <div class="cropbox" style="left:${box.x * 100}%;top:${box.y * 100}%;width:${box.w * 100}%;height:${box.h * 100}%"></div>
+            <div class="frame" @pointerdown=${this.startCrop}>
+              <img src=${this.previewUrl()} alt="תצוגה מקדימה (אחרי סיבוב)" />
+              ${full ? nothing : html`<div class="cropbox" style="left:${c.x * 100}%;top:${c.y * 100}%;width:${c.w * 100}%;height:${c.h * 100}%"></div>`}
+              <div class="hint">${full ? 'גרור מלבן על התוכנית כדי לחתוך' : `חיתוך ${Math.round(c.w * 100)}%×${Math.round(c.h * 100)}% · גרור שוב כדי לשנות`}</div>
+            </div>
           </div>
           <div class="row">
-            <sw-button size="sm" icon="refresh" @click=${() => (this.rotation = (this.rotation + 90) % 360)}>סובב 90°</sw-button>
+            <sw-button size="sm" icon="refresh" @click=${() => { this.rotation = (this.rotation + 90) % 360; this.crop = { x: 0, y: 0, w: 1, h: 1 }; }}>סובב 90°</sw-button>
             <sw-badge kind="neutral" label=${`סיבוב ${this.rotation}°`}></sw-badge>
-            <sw-button size="sm" variant="ghost" icon="fit" @click=${() => (this.crop = { x: 0, y: 0, w: 1, h: 1 })}>אפס חיתוך</sw-button>
-            <span class="note">החיתוך באחוזים מהתמונה (אחרי סיבוב): שמאל, עליון, רוחב, גובה.</span>
+            <sw-button size="sm" variant="ghost" icon="fit" ?disabled=${full} @click=${() => (this.crop = { x: 0, y: 0, w: 1, h: 1 })}>אפס חיתוך</sw-button>
+            <span class="note">התצוגה כבר מסובבת; המלבן המקווקו הוא בדיוק מה שיישמר. אפשר גם להזין אחוזים.</span>
           </div>
           <div class="two">
             <sw-field label="שמאל %"><input type="number" min="0" max="98" data-ltr .value=${String(Math.round(c.x * 100))} @change=${(e: Event) => this.setCrop('x', Number((e.target as HTMLInputElement).value))} /></sw-field>

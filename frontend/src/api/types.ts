@@ -121,12 +121,34 @@ export interface Anchor {
   entity?: import('./ha').HaEntity | null;
 }
 
+export interface ZonePoint {
+  x: number;
+  y: number;
+}
+
+/** Named room / area polygon on a floor (normalized plan coordinates, origin top-left). */
+export interface SpatialZone {
+  id: string;
+  floor_id: string;
+  plan_version_id: string | null;
+  name: string;
+  kind: 'room' | 'zone' | 'corridor' | 'outdoor' | 'service';
+  polygon: ZonePoint[];
+  color: string;
+  source: 'auto' | 'manual';
+  searchable: boolean;
+  revision: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface FloorMap {
   floor: Floor;
   building: Building;
   site: Site;
   plan: PlanVersion | null;
   anchors: Anchor[];
+  zones?: SpatialZone[];
   needs_alignment: boolean;
   permissions: { edit: boolean; publish: boolean; import: boolean };
   cameras: Camera[];

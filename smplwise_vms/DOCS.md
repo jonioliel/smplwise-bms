@@ -130,6 +130,13 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   (`ui.design_names`) and lets each browser keep its own choice. `?design=a|b` on the URL forces one.
   Without a backend (design preview) the page stays on SW B.
 
+## Plan import: rotation and crop
+
+- The wizard shows the page already rotated by the server; the crop rectangle is drawn with the mouse
+  directly over that picture (or typed as percentages), and rotating again resets the crop. What is
+  inside the dashed rectangle is exactly what the saved version contains; the original file is never
+  modified.
+
 ## Floor plan editor
 
 - Everything is done with the mouse on the plan: drag a pin to move it, drag the round handle in front
@@ -155,6 +162,22 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   takes a few seconds per plan. Rooms are counted but not named and doorways are not recognised as
   such. The source picture is never modified: "הצג מקור" switches back at any time, and anchors keep
   their coordinates because the rendering has the same geometry as the source.
+
+## Rooms and zones
+
+- The plan editor's "חדרים ואזורים" tool puts named areas on the floor. "זהה חדרים" runs the local room
+  detection on the plan (the same wall analysis as the stylized rendering, in three strengths) and
+  proposes one polygon per enclosed room, drawn dashed on the map with rows to name each one, change
+  its kind (חדר / אזור / מסדרון / חוץ / שירות) or leave it out; "שמור" stores the chosen ones. Any
+  area can also be drawn by clicking its corners ("צייר אזור"; Enter or a click on the first corner
+  closes it). Selecting a zone edits its name, kind, colour and whether it takes part in spatial search,
+  and lists the cameras and HA entities that sit inside it. The viewer shows the names under the pins;
+  the layer buttons hide them.
+- Detection is local image processing (no AI, nothing leaves the device) and only proposes; it does
+  not read room names off the drawing. Zones are a data layer next to the plan: they survive a change
+  of rendering (source / SMPLWISE language) and are never burnt into the picture. A zone on the map is
+  spatial context for search and rules only; it is not a camera detection zone and not a privacy mask,
+  and it changes nothing on the NVR.
 
 ## Users, groups and roles
 

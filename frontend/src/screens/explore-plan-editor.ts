@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { customElement, property, query, state } from 'lit/decorators.js';
 import '../components/sw-page';
 import '../components/sw-card';
 import '../components/sw-button';
@@ -9,7 +9,7 @@ import '../components/sw-icon';
 import '../components/sw-state-panel';
 import '../components/sw-toggle';
 import '../map/sw-plan-canvas';
-import type { PlanMarker, MarkerSelectDetail } from '../map/sw-plan-canvas';
+import type { PlanMarker, MarkerSelectDetail, PlanZone, SwPlanCanvas } from '../map/sw-plan-canvas';
 import type { IconName } from '../components/sw-icon';
 import { navigate } from '../router';
 import { cameraState, createAnchor, deleteAnchor, loadMap, publishVersion, updateAnchor, type MapBundle } from '../api/maps';
@@ -17,6 +17,17 @@ import { ApiError, describeError } from '../api/client';
 import type { Anchor, Camera } from '../api/types';
 import { domainLabel, entityMarkerKind, listEntities, stateLabel, type HaEntity } from '../api/ha';
 import { setRenderMode, stylizeVersion, type StylizeResult } from '../api/plans';
+import { ZONE_KINDS, acceptZones, createZone, deleteZone, detectZones, pointInPolygon, updateZone, zoneKindLabel, type SpatialZone, type ZoneKind, type ZonePoint } from '../api/zones';
+
+type Strength = 'light' | 'medium' | 'strong';
+interface ZoneCandidate {
+  polygon: ZonePoint[];
+  name: string;
+  kind: ZoneKind;
+  include: boolean;
+}
+/** Same palette as the backend assigns on save, so candidates keep their colour once accepted. */
+const PALETTE = ['#2767ED', '#22A06B', '#F59E0B', '#8B5CF6', '#0EA5E9', '#EC4899', '#14B8A6', '#F97316'];
 
 type Tool = 'select' | 'camera' | 'entity' | 'zones' | 'layers';
 type Layer = 'cameras' | 'doors' | 'lights' | 'sensors';
@@ -25,7 +36,7 @@ const TOOLS: { id: Tool; icon: IconName; label: string; ready: boolean }[] = [
   { id: 'select', icon: 'target', label: 'בחירה וגרירה', ready: true },
   { id: 'camera', icon: 'camera', label: 'הוספת מצלמה', ready: true },
   { id: 'entity', icon: 'light', label: 'הוספת ישות HA', ready: true },
-  { id: 'zones', icon: 'map', label: 'חדרים ואזורים · בקרוב', ready: false },
+  { id: 'zones', icon: 'map', label: 'חדרים ואזורים', ready: true },
   { id: 'layers', icon: 'layers', label: 'שכבות', ready: true },
 ];
 
@@ -64,6 +75,16 @@ export class ExplorePlanEditor extends LitElement {
   @state() private info = '';
   @state() private stylizing = false;
   @state() private stylized: StylizeResult | null = null;
+  @state() private zones: SpatialZone[] = [];
+  @state() private selectedZoneId: string | null = null;
+  @state() private candidates: ZoneCandidate[] | null = null;
+  @state() private detecting = false;
+  @state() private detectStrength: Strength = 'medium';
+  @state() private replaceAuto = true;
+  @state() private drawing: ZonePoint[] | null = null;
+  @state() private showZones = true;
+  @state() private zoneBusy = false;
+  @query('sw-plan-canvas') private canvas?: SwPlanCanvas;
   private entTimer = 0;
   private onKey = (e: KeyboardEvent) => this.handleKey(e);
 
@@ -298,6 +319,61 @@ export class ExplorePlanEditor extends LitElement {
       inline-size: 100%;
       accent-color: var(--sw-accent);
     }
+    .cand {
+      display: grid;
+      grid-template-columns: auto auto minmax(0, 1fr) auto;
+      gap: 6px;
+      align-items: center;
+      padding: 4px 0;
+      border-block-end: 1px solid var(--sw-border);
+    }
+    .cand input.name {
+      inline-size: 100%;
+      min-inline-size: 0;
+      border: 1px solid var(--sw-border);
+      border-radius: 6px;
+      padding: 4px 6px;
+      font: inherit;
+      color: var(--sw-text);
+      background: var(--sw-surface);
+    }
+    .cand select {
+      border: 1px solid var(--sw-border);
+      border-radius: 6px;
+      padding: 3px 4px;
+      font: inherit;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      background: var(--sw-surface);
+    }
+    i.sw {
+      display: inline-block;
+      inline-size: 12px;
+      block-size: 12px;
+      border-radius: 3px;
+      box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.15);
+      margin-inline-end: 6px;
+      vertical-align: -2px;
+    }
+    .btns {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-block-start: 10px;
+    }
+    .chk {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      margin-block-start: 8px;
+    }
+    .legend i.zone {
+      border-radius: 2px;
+      background: var(--sw-accent);
+      opacity: 0.45;
+    }
     .layerlist label {
       display: flex;
       align-items: center;
@@ -352,6 +428,8 @@ export class ExplorePlanEditor extends LitElement {
       const b = await loadMap(this.floorId || 'f0', true);
       this.bundle = b;
       this.anchors = b.anchors.map((a) => ({ ...a, position: { ...a.position } }));
+      this.zones = b.zones;
+      if (this.selectedZoneId && !this.zones.some((z) => z.id === this.selectedZoneId)) this.selectedZoneId = null;
       this.dirty = new Set();
       this.undo = [];
       this.redo = [];
@@ -389,6 +467,148 @@ export class ExplorePlanEditor extends LitElement {
 
   private anchorName(a: Anchor) {
     return a.camera?.name ?? a.entity?.name ?? a.label ?? a.resource_id;
+  }
+
+  private get selectedZone(): SpatialZone | undefined {
+    return this.zones.find((z) => z.id === this.selectedZoneId);
+  }
+
+  private get planZones(): PlanZone[] {
+    if (!this.showZones) return [];
+    const saved: PlanZone[] = this.zones.map((z) => ({ id: z.id, name: z.name, kind: z.kind, color: z.color, polygon: z.polygon }));
+    const cands: PlanZone[] = (this.candidates ?? []).map((c, i) => ({ id: `cand-${i}`, name: c.include ? c.name : '', color: c.include ? PALETTE[i % PALETTE.length] : '#9AA3B5', polygon: c.polygon, candidate: true }));
+    return [...saved, ...cands];
+  }
+
+  // ---- rooms & zones (M13) ----
+
+  private async detect() {
+    const b = this.bundle;
+    if (!b) return;
+    if (b.source === 'demo') {
+      this.info = 'נתוני הדגמה: הזיהוי עובד מול השרת.';
+      return;
+    }
+    this.detecting = true;
+    this.error = '';
+    try {
+      const r = await detectZones(b.floorId, this.detectStrength);
+      this.candidates = r.rooms.map((room, i) => ({ polygon: room.polygon, name: `חדר ${i + 1}`, kind: 'room' as ZoneKind, include: true }));
+      this.selectedZoneId = null;
+      this.selectedId = null;
+      this.info = r.rooms.length ? `${r.rooms.length} חדרים זוהו · תן שמות ושמור` : 'לא זוהו חדרים סגורים; נסה עוצמה אחרת או צייר אזור ידנית';
+      setTimeout(() => (this.info = ''), 5000);
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.detecting = false;
+    }
+  }
+
+  private setCandidate(i: number, patch: Partial<ZoneCandidate>) {
+    if (!this.candidates) return;
+    this.candidates = this.candidates.map((c, j) => (j === i ? { ...c, ...patch } : c));
+  }
+
+  private async acceptCandidates() {
+    const b = this.bundle;
+    const chosen = (this.candidates ?? []).filter((c) => c.include);
+    if (!b || !chosen.length) return;
+    this.zoneBusy = true;
+    this.error = '';
+    try {
+      const r = await acceptZones(b.floorId, chosen.map((c) => ({ polygon: c.polygon, name: c.name, kind: c.kind })), this.replaceAuto);
+      this.candidates = null;
+      this.zones = r.zones;
+      this.info = `${r.created.length} חדרים נשמרו`;
+      setTimeout(() => (this.info = ''), 3000);
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.zoneBusy = false;
+    }
+  }
+
+  private startDrawing() {
+    this.drawing = [];
+    this.placing = null;
+    this.candidates = null;
+    this.selectedZoneId = null;
+    this.selectedId = null;
+  }
+
+  private addDraftPoint(x: number, y: number) {
+    const d = this.drawing;
+    const b = this.bundle;
+    if (!d || !b) return;
+    if (d.length >= 3) {
+      // a click on the first vertex closes the shape
+      const z = this.canvas?.zoom ?? 1;
+      const dist = Math.hypot((x - d[0].x) * b.width * z, (y - d[0].y) * b.height * z);
+      if (dist < 12) {
+        void this.finishDrawing();
+        return;
+      }
+    }
+    this.drawing = [...d, { x: +x.toFixed(4), y: +y.toFixed(4) }];
+  }
+
+  private async finishDrawing() {
+    const d = this.drawing;
+    const b = this.bundle;
+    if (!d || !b || d.length < 3) return;
+    if (b.source === 'demo') {
+      this.info = 'נתוני הדגמה: השמירה עובדת מול השרת.';
+      this.drawing = null;
+      return;
+    }
+    this.zoneBusy = true;
+    this.error = '';
+    try {
+      const z = await createZone(b.floorId, { name: `אזור ${this.zones.length + 1}`, kind: 'zone', polygon: d });
+      this.drawing = null;
+      this.zones = [...this.zones, z];
+      this.selectedZoneId = z.id;
+      this.info = 'האזור נוצר · תן לו שם';
+      setTimeout(() => (this.info = ''), 3000);
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.zoneBusy = false;
+    }
+  }
+
+  private async patchZone(z: SpatialZone, body: { name?: string; kind?: ZoneKind; color?: string; searchable?: boolean }) {
+    if (this.bundle?.source === 'demo') return;
+    this.zoneBusy = true;
+    this.error = '';
+    try {
+      const nz = await updateZone(z.id, { revision: z.revision, ...body });
+      this.zones = this.zones.map((x) => (x.id === nz.id ? nz : x));
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        this.error = 'האזור השתנה בינתיים על ידי עורך אחר; נטען מחדש בלי לדרוס.';
+        await this.load();
+      } else this.error = describeError(err);
+    } finally {
+      this.zoneBusy = false;
+    }
+  }
+
+  private async removeZone(z: SpatialZone) {
+    if (this.bundle?.source === 'demo') return;
+    if (!window.confirm(`למחוק את "${z.name}"? המצלמות והישויות בקומה לא מושפעות.`)) return;
+    this.zoneBusy = true;
+    this.error = '';
+    try {
+      await deleteZone(z.id);
+      this.zones = this.zones.filter((x) => x.id !== z.id);
+      if (this.selectedZoneId === z.id) this.selectedZoneId = null;
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.zoneBusy = false;
+    }
   }
 
   // ---- edits (draft state; explicit save) ----
@@ -432,11 +652,26 @@ export class ExplorePlanEditor extends LitElement {
     const target = e.composedPath()[0] as HTMLElement | undefined;
     const typing = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable);
     if (e.key === 'Escape') {
-      if (this.placing) this.placing = null;
-      else this.selectedId = null;
+      if (this.drawing) this.drawing = null;
+      else if (this.placing) this.placing = null;
+      else if (this.candidates) this.candidates = null;
+      else {
+        this.selectedId = null;
+        this.selectedZoneId = null;
+      }
       return;
     }
     if (typing) return;
+    if (e.key === 'Enter' && this.drawing) {
+      e.preventDefault();
+      void this.finishDrawing();
+      return;
+    }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && !this.selected && this.selectedZone) {
+      e.preventDefault();
+      void this.removeZone(this.selectedZone);
+      return;
+    }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
       e.preventDefault();
       if (e.shiftKey) this.doRedo();
@@ -707,10 +942,52 @@ export class ExplorePlanEditor extends LitElement {
     }
     if (this.tool === 'layers') {
       return html`<sw-card heading="שכבות" subheading="מה מוצג בעורך (לא משפיע על הצופים)">
-        <div class="layerlist">${LAYERS.map((l) => html`<label><input type="checkbox" .checked=${this.layers.has(l.id)} @change=${(e: Event) => { const next = new Set(this.layers); if ((e.target as HTMLInputElement).checked) next.add(l.id); else next.delete(l.id); this.layers = next; }} /> ${l.label} <span class="note">(${this.anchors.filter((a) => this.layerOf(a) === l.id).length})</span></label>`)}</div>
+        <div class="layerlist">${LAYERS.map((l) => html`<label><input type="checkbox" .checked=${this.layers.has(l.id)} @change=${(e: Event) => { const next = new Set(this.layers); if ((e.target as HTMLInputElement).checked) next.add(l.id); else next.delete(l.id); this.layers = next; }} /> ${l.label} <span class="note">(${this.anchors.filter((a) => this.layerOf(a) === l.id).length})</span></label>`)}
+          <label><input type="checkbox" .checked=${this.showZones} @change=${(e: Event) => (this.showZones = (e.target as HTMLInputElement).checked)} /> חדרים ואזורים <span class="note">(${this.zones.length})</span></label></div>
       </sw-card>`;
     }
+    if (this.tool === 'zones') return this.renderZonesPanel(b);
     return html`<sw-card heading="מאפיינים"><div class="note">בחר סיכה במפה כדי לערוך אותה, או הוסף מצלמה / ישות מסרגל הכלים. גרירה מזיזה; הידיות על המצלמה הנבחרת קובעות כיוון ושדה ראייה. הצבה יוצרת Binding בלבד ואינה משנה תצורת מקור.</div></sw-card>`;
+  }
+
+  private renderZoneInspector(z: SpatialZone) {
+    const cams = this.anchors.filter((a) => a.resource_type === 'camera' && pointInPolygon(a.position, z.polygon));
+    const ents = this.anchors.filter((a) => a.resource_type !== 'camera' && pointInPolygon(a.position, z.polygon));
+    return html`<div class="zone-insp" data-zone-inspector>
+      <sw-field label="שם"><input .value=${z.name} placeholder="למשל: לובי, מחסן, חדר ישיבות" @change=${(e: Event) => this.patchZone(z, { name: (e.target as HTMLInputElement).value })} /></sw-field>
+      <div class="two">
+        <sw-field label="סוג"><select @change=${(e: Event) => this.patchZone(z, { kind: (e.target as HTMLSelectElement).value as ZoneKind })}>${ZONE_KINDS.map((k) => html`<option value=${k.id} ?selected=${z.kind === k.id}>${k.label}</option>`)}</select></sw-field>
+        <sw-field label="צבע"><input type="color" data-ltr .value=${z.color} @change=${(e: Event) => this.patchZone(z, { color: (e.target as HTMLInputElement).value })} /></sw-field>
+      </div>
+      <div class="kv"><span class="k">מצלמות באזור</span><span>${cams.length ? cams.map((a) => this.anchorName(a)).join(', ') : 'אין'}</span></div>
+      <div class="kv"><span class="k">ישויות HA באזור</span><span>${ents.length ? `${ents.length} ישויות` : 'אין'}</span></div>
+      <div class="row"><span class="lbl">הכללה בחיפוש מרחבי<span class="muted">זמין לחוקי התראה ולחיפוש לפי מקום</span></span><sw-toggle ?checked=${z.searchable} label=${z.searchable ? 'כלול' : 'לא כלול'} @click=${() => this.patchZone(z, { searchable: !z.searchable })}></sw-toggle></div>
+      <div class="note">${z.polygon.length} פינות · ${z.source === 'auto' ? 'זוהה אוטומטית מהתוכנית' : 'צויר ידנית'} · revision ${z.revision}</div>
+      <div class="note">אזור במפה הוא הקשר מרחבי בלבד: אינו אזור זיהוי במצלמה ואינו מסכת פרטיות, ואינו משנה תצורת NVR.</div>
+      <div class="btns"><sw-button size="sm" variant="danger" icon="trash" ?disabled=${this.zoneBusy} @click=${() => this.removeZone(z)}>מחק אזור</sw-button><sw-button size="sm" variant="ghost" @click=${() => (this.selectedZoneId = null)}>סגור</sw-button></div>
+    </div>`;
+  }
+
+  private renderZonesPanel(b: MapBundle) {
+    const cands = this.candidates;
+    const sel = this.selectedZone;
+    return html`<sw-card heading="חדרים ואזורים" subheading="זיהוי מהתוכנית או ציור ידני; השמות מופיעים במפה">
+      ${cands
+        ? html`<div class="note">${cands.length} חדרים זוהו · סמן, תן שם ושמור. הפוליגונים מוצגים במפה בקו מקווקו.</div>
+            <div class="candlist">${cands.map((c, i) => html`<div class="cand" data-candidate><input type="checkbox" .checked=${c.include} aria-label="כלול" @change=${(e: Event) => this.setCandidate(i, { include: (e.target as HTMLInputElement).checked })} /><i class="sw" style="background:${PALETTE[i % PALETTE.length]}"></i><input class="name" .value=${c.name} placeholder="שם החדר" aria-label="שם החדר" @input=${(e: Event) => this.setCandidate(i, { name: (e.target as HTMLInputElement).value })} /><select aria-label="סוג" @change=${(e: Event) => this.setCandidate(i, { kind: (e.target as HTMLSelectElement).value as ZoneKind })}>${ZONE_KINDS.map((k) => html`<option value=${k.id} ?selected=${c.kind === k.id}>${k.label}</option>`)}</select></div>`)}</div>
+            ${this.zones.some((z) => z.source === 'auto') ? html`<label class="chk"><input type="checkbox" .checked=${this.replaceAuto} @change=${(e: Event) => (this.replaceAuto = (e.target as HTMLInputElement).checked)} /> החלף את החדרים שזוהו אוטומטית בעבר (${this.zones.filter((z) => z.source === 'auto').length})</label>` : nothing}
+            <div class="btns"><sw-button variant="primary" size="sm" icon="check" ?disabled=${this.zoneBusy || !cands.some((c) => c.include)} @click=${() => this.acceptCandidates()}>שמור ${cands.filter((c) => c.include).length} חדרים</sw-button><sw-button variant="ghost" size="sm" @click=${() => (this.candidates = null)}>בטל</sw-button></div>`
+        : this.drawing
+          ? html`<div class="note">לחץ על התוכנית להוספת פינות (${this.drawing.length} עד כה). לחיצה על הפינה הראשונה או Enter סוגרים את הצורה · Esc לביטול.</div>
+            <div class="btns"><sw-button variant="primary" size="sm" icon="check" ?disabled=${this.drawing.length < 3 || this.zoneBusy} @click=${() => this.finishDrawing()}>סיים אזור</sw-button><sw-button variant="ghost" size="sm" @click=${() => (this.drawing = null)}>בטל</sw-button></div>`
+          : html`<div class="row"><span class="lbl">זיהוי חדרים מהתוכנית<span class="muted">עיבוד מקומי של הקירות (ללא AI); החדרים מוצעים ואתה נותן להם שמות</span></span><select aria-label="עוצמת זיהוי" @change=${(e: Event) => (this.detectStrength = (e.target as HTMLSelectElement).value as Strength)}><option value="light" ?selected=${this.detectStrength === 'light'}>קל</option><option value="medium" ?selected=${this.detectStrength === 'medium'}>בינוני</option><option value="strong" ?selected=${this.detectStrength === 'strong'}>חזק</option></select></div>
+            <div class="btns"><sw-button variant="primary" size="sm" icon="map" ?disabled=${this.detecting || b.source === 'demo' || b.planStatus === 'none'} @click=${() => this.detect()}>${this.detecting ? 'מזהה…' : 'זהה חדרים'}</sw-button><sw-button size="sm" icon="edit" ?disabled=${this.zoneBusy} @click=${() => this.startDrawing()}>צייר אזור</sw-button></div>`}
+      ${this.zones.length
+        ? html`<div class="note" style="margin-block-start:10px">${this.zones.length} אזורים בקומה · לחיצה בוחרת במפה</div>
+            <div class="list">${this.zones.map((z) => html`<button class=${z.id === this.selectedZoneId ? 'on' : ''} data-zone-row @click=${() => { this.selectedZoneId = z.id === this.selectedZoneId ? null : z.id; this.selectedId = null; }}><span><i class="sw" style="background:${z.color}"></i>${z.name}</span><span class="note" style="margin:0">${zoneKindLabel(z.kind)}${z.source === 'auto' ? ' · אוטומטי' : ''}</span></button>`)}</div>`
+        : cands || this.drawing ? nothing : html`<div class="note" style="margin-block-start:10px">עדיין אין חדרים או אזורים בקומה.</div>`}
+      ${sel ? this.renderZoneInspector(sel) : nothing}
+    </sw-card>`;
   }
 
   private renderVersionCard(b: MapBundle) {
@@ -763,17 +1040,20 @@ export class ExplorePlanEditor extends LitElement {
                   <button title="ביטול (Ctrl+Z)" aria-label="ביטול" ?disabled=${!this.undo.length} @click=${() => this.doUndo()}><sw-icon name="history" size=${18}></sw-icon></button>
                   <button title="בצע שוב (Ctrl+Y)" aria-label="בצע שוב" ?disabled=${!this.redo.length} @click=${() => this.doRedo()}><sw-icon name="refresh" size=${18}></sw-icon></button>
                 </div>
-                <sw-plan-canvas editable alwaysLabel .placing=${!!this.placing} .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .markers=${this.markers} .selectedId=${this.selectedId}
-                  @marker-select=${(e: CustomEvent<MarkerSelectDetail>) => { if (!this.placing) this.selectedId = e.detail.id; }}
+                <sw-plan-canvas editable alwaysLabel .placing=${!!this.placing || !!this.drawing} .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .markers=${this.markers} .selectedId=${this.selectedId}
+                  .zones=${this.planZones} .selectedZoneId=${this.selectedZoneId} .draftPoints=${this.drawing ?? []}
+                  @zone-select=${(e: CustomEvent<{ id: string }>) => { if (this.placing || this.drawing || e.detail.id.startsWith('cand-')) return; this.selectedZoneId = e.detail.id; this.selectedId = null; }}
+                  @marker-select=${(e: CustomEvent<MarkerSelectDetail>) => { if (this.placing || this.drawing) return; this.selectedId = e.detail.id; this.selectedZoneId = null; }}
                   @marker-move=${(e: CustomEvent<{ id: string; x: number; y: number }>) => { this.apply(e.detail.id, { position: { x: +e.detail.x.toFixed(4), y: +e.detail.y.toFixed(4) } }); this.selectedId = e.detail.id; }}
                   @marker-orient=${(e: CustomEvent<{ id: string; rotation: number; fov: number }>) => this.apply(e.detail.id, { rotation_degrees: e.detail.rotation, field_of_view_degrees: e.detail.fov })}
-                  @plan-click=${(e: CustomEvent<{ x: number; y: number }>) => this.place(e.detail.x, e.detail.y)}></sw-plan-canvas>
+                  @plan-click=${(e: CustomEvent<{ x: number; y: number }>) => (this.drawing ? this.addDraftPoint(e.detail.x, e.detail.y) : this.place(e.detail.x, e.detail.y))}></sw-plan-canvas>
                 ${this.placing ? html`<div class="placing-hint"><span>לחץ על התוכנית כדי להציב את ${this.placing.kind === 'camera' ? this.placing.camera.name : this.placing.entity.name || this.placing.entity.entity_id} · Esc לביטול</span></div>` : nothing}
-                <div class="legend"><span><i></i>מצלמות · ${cams}</span><span><i class="ent"></i>ישויות HA · ${ents}</span></div>
+                ${this.drawing ? html`<div class="placing-hint"><span>ציור אזור: לחץ להוספת פינות (${this.drawing.length}) · לחיצה על הפינה הראשונה או Enter מסיימים · Esc לביטול</span></div>` : nothing}
+                <div class="legend"><span><i></i>מצלמות · ${cams}</span><span><i class="ent"></i>ישויות HA · ${ents}</span><span><i class="zone"></i>אזורים · ${this.zones.length}</span></div>
               </div>
               <div class="props">
-                ${sel ? (sel.resource_type === 'camera' ? this.renderCameraInspector(sel) : this.renderEntityInspector(sel)) : this.renderToolPanel(b)}
-                ${sel && this.tool !== 'select' ? this.renderToolPanel(b) : nothing}
+                ${sel ? (sel.resource_type === 'camera' ? this.renderCameraInspector(sel) : this.renderEntityInspector(sel)) : this.selectedZone && this.tool !== 'zones' ? html`<sw-card heading="אזור" subheading=${this.selectedZone.name}>${this.renderZoneInspector(this.selectedZone)}</sw-card>` : this.renderToolPanel(b)}
+                ${(sel || (this.selectedZone && this.tool !== 'zones')) && this.tool !== 'select' ? this.renderToolPanel(b) : nothing}
                 ${this.renderVersionCard(b)}
               </div>
             </div>`}

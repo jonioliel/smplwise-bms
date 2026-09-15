@@ -27,13 +27,14 @@ import type { Anchor } from '../api/types';
 import { ACTION_STATUS_LABEL, awaitAction, domainLabel, entityMarkerKind, entityTone, fmtTime, runAction, stateLabel, subscribeHa, type HaActionRecord, type HaActionSpec, type HaEntity } from '../api/ha';
 
 type ScreenState = 'ready' | 'loading' | 'empty' | 'error' | 'forbidden' | 'stale' | 'partial';
-type Layer = 'cameras' | 'doors' | 'lights' | 'sensors';
+type Layer = 'cameras' | 'doors' | 'lights' | 'sensors' | 'zones';
 
-const LAYERS: { id: Layer; icon: 'camera' | 'door' | 'light' | 'sensor'; label: () => string }[] = [
+const LAYERS: { id: Layer; icon: 'camera' | 'door' | 'light' | 'sensor' | 'map'; label: () => string }[] = [
   { id: 'cameras', icon: 'camera', label: () => t('floor.cameras') },
   { id: 'doors', icon: 'door', label: () => t('floor.doors') },
   { id: 'lights', icon: 'light', label: () => t('floor.lights') },
   { id: 'sensors', icon: 'sensor', label: () => t('floor.sensors') },
+  { id: 'zones', icon: 'map', label: () => 'חדרים ואזורים' },
 ];
 
 const SCENES: SceneKind[] = ['entrance', 'lobby', 'corridor', 'hall', 'parking', 'warehouse', 'backyard', 'driveway', 'night'];
@@ -53,7 +54,7 @@ export class ExploreFloorMap extends LitElement {
   @state() private noFloors = false;
   @state() private selectedId: string | null = null;
   @state() private anchor: { x: number; y: number } | null = null;
-  @state() private layers = new Set<Layer>(['cameras', 'doors', 'lights', 'sensors']);
+  @state() private layers = new Set<Layer>(['cameras', 'doors', 'lights', 'sensors', 'zones']);
   @state() private pinned = false;
   @state() private narrow = false;
   @state() private syncConnected = true;
@@ -593,10 +594,12 @@ export class ExploreFloorMap extends LitElement {
         .imageUrl=${b.imageUrl}
         .markers=${this.markers}
         .selectedId=${this.selectedId}
+        .zones=${this.layers.has('zones') ? b.zones : []}
         .dimEntities=${this.screenState === 'stale'}
         @marker-select=${this.onSelect}
         @view-change=${this.onViewChange}></sw-plan-canvas>
       <div class="legend" aria-label="מקרא">
+        ${b.zones.length && this.layers.has('zones') ? html`<span><i style="--lg: var(--sw-accent); border-radius: 2px; opacity: 0.5"></i>${b.zones.length} אזורים</span>` : nothing}
         <span><i style="--lg: var(--sw-accent)"></i>חי</span>
         <span><i style="--lg: var(--sw-stale)"></i>לא מעודכן</span>
         <span><i style="--lg: var(--sw-offline)"></i>מנותק</span>
