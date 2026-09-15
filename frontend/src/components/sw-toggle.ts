@@ -6,6 +6,8 @@ export class SwToggle extends LitElement {
   @property({ type: Boolean, reflect: true }) checked = false;
   @property({ type: Boolean, reflect: true }) disabled = false;
   @property() label = '';
+  /** Keep `label` as the switch's accessible name but do not render it (the row already shows the text). */
+  @property({ type: Boolean }) labelHidden = false;
 
   static styles = css`
     :host {
@@ -61,7 +63,7 @@ export class SwToggle extends LitElement {
   }
 
   render() {
-    return html`<button type="button" role="switch" aria-checked=${this.checked} aria-label=${this.label} ?disabled=${this.disabled} @click=${this.flip}></button>${this.label ? html`<span>${this.label}</span>` : ''}`;
+    return html`<button type="button" role="switch" aria-checked=${this.checked} aria-label=${this.label} ?disabled=${this.disabled} @click=${this.flip}></button>${this.label && !this.labelHidden ? html`<span>${this.label}</span>` : ''}`;
   }
 }
 

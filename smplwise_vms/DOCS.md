@@ -130,6 +130,19 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   (`ui.design_names`) and lets each browser keep its own choice. `?design=a|b` on the URL forces one.
   Without a backend (design preview) the page stays on SW B.
 
+## Floor map
+
+- The map shows the published plan with the pins on it; the floor chip names the floor, the zoom
+  controls sit at the bottom-left (scroll or pinch also zooms, dragging pans) and the legend at the
+  bottom-right. "שכבות" opens a panel with one switch per layer and its count (cameras, doors and
+  intercom, lighting, security and sensors, room names); a switch only changes what is drawn and never
+  operates equipment. Room names are shown when the room is wide enough on screen.
+- Clicking a camera pin opens its card: the live picture plays inside the card (a session for that card
+  only; closing the card releases it), with the camera's status, its location (floor and the room or
+  zone the pin sits in), "צפייה מלאה" for the full-screen view and "הקלטות" for playback. Escape closes
+  the card and returns keyboard focus to the pin. Entity pins open the same card with the entity's
+  state and the actions the user is allowed to run through the bridge.
+
 ## Plan import: rotation and crop
 
 - The wizard shows the page already rotated by the server; the crop rectangle is drawn with the mouse

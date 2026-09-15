@@ -1,5 +1,13 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.11 (pilot)
+- Floor map viewer per the design (M05/M06/M07): floor chip on the map, zoom controls bottom-left and
+  legend bottom-right, a "שכבות" panel with toggles and counts (cameras, doors/intercom, lighting,
+  security/sensors, room names; a toggle changes only what is drawn), zone name chips shown by zoom
+  level, the camera card plays the camera live inside the card (session released with the card; NVR
+  snapshot as poster) with status, location (floor / zone the pin sits in), "צפייה מלאה" and "הקלטות",
+  and Escape closes the card with keyboard focus back on the pin.
+
 ## 0.1.10 (pilot)
 - Fix: the plan import crop did not match the preview when the page was rotated (the crop box was placed
   against the container while the CSS-rotated picture kept its unrotated box). Page previews are now

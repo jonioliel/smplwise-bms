@@ -24,6 +24,7 @@ import { findFloor, firstFloor, loadTree, type CatalogTree } from '../api/catalo
 import { isApi } from '../api/session';
 import { ApiError, describeError } from '../api/client';
 import type { Anchor } from '../api/types';
+import { pointInPolygon } from '../api/zones';
 import { ACTION_STATUS_LABEL, awaitAction, domainLabel, entityMarkerKind, entityTone, fmtTime, runAction, stateLabel, subscribeHa, type HaActionRecord, type HaActionSpec, type HaEntity } from '../api/ha';
 
 type ScreenState = 'ready' | 'loading' | 'empty' | 'error' | 'forbidden' | 'stale' | 'partial';
@@ -56,6 +57,7 @@ export class ExploreFloorMap extends LitElement {
   @state() private anchor: { x: number; y: number } | null = null;
   @state() private layers = new Set<Layer>(['cameras', 'doors', 'lights', 'sensors', 'zones']);
   @state() private pinned = false;
+  @state() private panel = false;
   @state() private narrow = false;
   @state() private syncConnected = true;
   @state() private action: { entityId: string; spec: HaActionSpec; record: HaActionRecord | null; error: string; busy: boolean } | null = null;
@@ -160,6 +162,80 @@ export class ExploreFloorMap extends LitElement {
       background: var(--sw-surface);
       box-shadow: var(--sw-shadow-1);
       overflow: hidden;
+    }
+    .floorchip {
+      position: absolute;
+      inset-inline-start: 12px;
+      inset-block-start: 12px;
+      z-index: var(--sw-z-map-ui);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: 10px;
+      padding: 6px 10px;
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+      box-shadow: var(--sw-shadow-1);
+    }
+    .floorchip sw-icon {
+      color: var(--sw-text-3);
+    }
+    .panel {
+      position: absolute;
+      inset-inline-end: 12px;
+      inset-block-start: 12px;
+      z-index: var(--sw-z-map-ui);
+      inline-size: 272px;
+      max-inline-size: calc(100% - 24px);
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      box-shadow: var(--sw-shadow-3);
+      padding: 12px 14px;
+    }
+    .panel h3 {
+      margin: 0;
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .panel .sub {
+      margin-block-end: 6px;
+    }
+    .panel .prow {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 0;
+      border-block-end: 1px solid var(--sw-border);
+    }
+    .panel .prow:last-of-type {
+      border-block-end: 0;
+    }
+    .panel .prow .lbl {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-medium);
+    }
+    .panel .prow .cnt {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      font-weight: var(--sw-fw-regular);
+    }
+    .panel .pnote {
+      margin-block-start: 8px;
+      padding: 8px 10px;
+      border-radius: var(--sw-r-sm);
+      background: var(--sw-surface-3);
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      display: flex;
+      gap: 6px;
+      align-items: center;
     }
     .banner {
       position: absolute;
@@ -274,15 +350,27 @@ export class ExploreFloorMap extends LitElement {
     }
   `;
 
+  private onKey = (e: KeyboardEvent) => {
+    if (e.key !== 'Escape') return;
+    if (this.confirmSpec) return; // the dialog handles its own Escape
+    if (this.selectedId) {
+      const id = this.selectedId;
+      this.close();
+      this.canvas?.focusMarker(id);
+    } else if (this.panel) this.panel = false;
+  };
+
   connectedCallback() {
     super.connectedCallback();
     this.narrow = this.mq.matches;
     this.mq.addEventListener('change', this.onMq);
+    window.addEventListener('keydown', this.onKey);
     void this.load();
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    window.removeEventListener('keydown', this.onKey);
     this.mq.removeEventListener('change', this.onMq);
     this.stopWs?.();
     this.stopWs = null;
@@ -370,6 +458,35 @@ export class ExploreFloorMap extends LitElement {
         fov: a.field_of_view_degrees ?? undefined,
         state: a.resource_type === 'camera' ? cameraState(a) : stale ? 'stale' : this.entityTone(a.entity),
       }));
+  }
+
+  /** Items per layer for the panel (M07: counts next to every toggle). */
+  private layerCounts(): Record<Layer, number> {
+    const b = this.bundle;
+    const out: Record<Layer, number> = { cameras: 0, doors: 0, lights: 0, sensors: 0, zones: b?.zones.length ?? 0 };
+    if (!b) return out;
+    if (b.source === 'demo') {
+      out.cameras = demoCameras.filter((c) => c.floorId === b.floorId).length;
+      for (const e of demoEntities.filter((x) => x.floorId === b.floorId)) {
+        if (e.domain === 'lock') out.doors++;
+        else if (e.domain === 'light') out.lights++;
+        else out.sensors++;
+      }
+      return out;
+    }
+    for (const a of b.anchors) {
+      if (a.resource_type === 'camera') out.cameras++;
+      else if (a.layer_id === 'doors') out.doors++;
+      else if (a.layer_id === 'lights') out.lights++;
+      else out.sensors++;
+    }
+    return out;
+  }
+
+  /** Name of the zone a pin sits in (M06: "קומה 2 / ליד המעליות"). */
+  private zoneOf(a: Anchor): string | null {
+    const z = this.bundle?.zones.find((zone) => pointInPolygon(a.position, zone.polygon));
+    return z?.name ?? null;
   }
 
   private toggleLayer(layer: Layer) {
@@ -502,17 +619,19 @@ export class ExploreFloorMap extends LitElement {
     const cam = a.camera;
     const st = cameraState(a);
     const scene = SCENES[((cam?.channel ?? 1) - 1) % SCENES.length];
+    const canLive = st === 'live' && !!cam && cam.can_view_live !== false;
+    const zone = this.zoneOf(a);
+    const where = zone ? `${floorName} / ${zone}` : `${floorName} · ערוץ ${cam?.channel ?? '?'}`;
     return html`
       ${st === 'offline'
         ? html`<div class="off"><div><sw-icon name="offline" size=${22}></sw-icon><div>${t('camera.offlineReason')}</div></div></div>`
-        : html`<sw-camera-tile name="" state=${st === 'live' ? 'live' : 'unknown'} scene=${scene} poster=${cam ? snapshotUrl(cam.id, Date.now()) : ''} @click=${() => cam && navigate(`/live/cameras/${cam.id}`)}></sw-camera-tile>`}
-      <div class="statusrow"><sw-badge kind=${st}></sw-badge><span>${floorName} · ערוץ ${cam?.channel ?? '?'}</span></div>
+        : html`<sw-camera-tile name="" state=${st === 'live' ? 'live' : 'unknown'} scene=${scene} poster=${cam ? snapshotUrl(cam.id, Date.now()) : ''} ?live=${canLive} .cameraId=${canLive ? cam.id : ''} data-live=${canLive ? '1' : '0'} @click=${() => cam && navigate(`/live/cameras/${cam.id}`)}></sw-camera-tile>`}
+      <div class="statusrow"><sw-badge kind=${st}></sw-badge><span data-where>${where}</span></div>
       <dl class="meta">
-        <dt>שם ב־NVR</dt><dd>${cam?.name_source || '—'}</dd>
-        <dt>Track</dt><dd><span class="ltr">${cam?.main_track ?? '?'} / ${cam?.sub_track ?? '?'}</span></dd>
+        <dt>שם ב־NVR</dt><dd>${cam?.name_source || '—'}${cam ? html` · <span class="ltr">ch ${cam.channel}</span>` : nothing}</dd>
         <dt>נראתה לאחרונה</dt><dd>${cam?.last_seen_at ? cam.last_seen_at.replace('T', ' ').replace('Z', ' UTC') : 'לא נבדק'}</dd>
       </dl>
-      <div class="note">התמונה היא צילום מה־NVR (מתרענן); "צפייה חיה" פותחת את הזרם.</div>
+      <div class="note">${canLive ? 'הזרם נפתח לכרטיס הזה בלבד ונסגר איתו; "צפייה מלאה" פותחת את המצלמה במסך מלא.' : st === 'offline' ? 'המצלמה מנותקת לפי ה־NVR.' : 'תמונה: צילום מה־NVR (מתרענן).'}</div>
     `;
   }
 
@@ -543,7 +662,7 @@ export class ExploreFloorMap extends LitElement {
       sub = `${b.buildingName} · ${b.floorName}`;
       body = a.resource_type === 'camera' ? this.apiCameraBody(a, b.floorName) : this.apiEntityBody(a, b.floorName);
       footer = html`${a.resource_type === 'camera'
-          ? html`<sw-button variant="primary" size="sm" icon="expand" ?disabled=${cameraState(a) === 'offline'} @click=${() => a.camera && navigate(`/live/cameras/${a.camera.id}`)}>צפייה חיה</sw-button>
+          ? html`<sw-button variant="primary" size="sm" icon="expand" ?disabled=${cameraState(a) === 'offline'} @click=${() => a.camera && navigate(`/live/cameras/${a.camera.id}`)}>צפייה מלאה</sw-button>
             <sw-button size="sm" icon="history" ?disabled=${!a.camera} @click=${() => a.camera && navigate('/investigate/playback', { camera: a.camera.id })}>${t('camera.recordings')}</sw-button>`
           : this.entityFooter(a)}
         ${b.permissions.edit ? html`<sw-button variant="ghost" size="sm" icon="edit" @click=${() => navigate(`/explore/floors/${b.floorId}/edit`)}>עריכה</sw-button>` : nothing}`;
@@ -554,6 +673,23 @@ export class ExploreFloorMap extends LitElement {
     const w = this.stage?.clientWidth ?? 0;
     const h = this.stage?.clientHeight ?? 0;
     return html`<sw-popover heading=${heading} .x=${this.anchor.x} .y=${this.anchor.y} .stageWidth=${w} .stageHeight=${h} @close=${this.close}>${body}<div slot="footer">${footer}</div></sw-popover>`;
+  }
+
+  private renderPanel() {
+    const counts = this.layerCounts();
+    const rows: { id: Layer; label: string; count: string }[] = [
+      { id: 'cameras', label: t('floor.cameras'), count: `${counts.cameras} ממוקמות` },
+      { id: 'doors', label: 'דלתות ואינטרקום', count: `${counts.doors} ישויות` },
+      { id: 'lights', label: t('floor.lights'), count: `${counts.lights} ישויות` },
+      { id: 'sensors', label: 'אבטחה וחיישנים', count: `${counts.sensors} ישויות` },
+      { id: 'zones', label: 'שמות חדרים', count: counts.zones ? `${counts.zones} אזורים · תוויות לפי רמת זום` : 'אין חדרים מוגדרים' },
+    ];
+    return html`<div class="panel" role="group" aria-label="שכבות פעילות" data-layers-panel>
+      <h3>שכבות פעילות</h3>
+      <div class="sub">הצג רק מה שרלוונטי כרגע</div>
+      ${rows.map((r) => html`<div class="prow"><span class="lbl">${r.label}<span class="cnt">${r.count}</span></span><sw-toggle ?checked=${this.layers.has(r.id)} label=${r.label} labelHidden data-layer=${r.id} @change=${(e: CustomEvent<{ checked: boolean }>) => { const next = new Set(this.layers); if (e.detail.checked) next.add(r.id); else next.delete(r.id); this.layers = next; }}></sw-toggle></div>`)}
+      <div class="pnote"><sw-icon name="shield" size=${14}></sw-icon><span>מתג משנה תצוגה בלבד; ייבוא ישות אינו מעניק הרשאת שליטה בה.</span></div>
+    </div>`;
   }
 
   private renderStage() {
@@ -598,6 +734,8 @@ export class ExploreFloorMap extends LitElement {
         .dimEntities=${this.screenState === 'stale'}
         @marker-select=${this.onSelect}
         @view-change=${this.onViewChange}></sw-plan-canvas>
+      <div class="floorchip" data-floorchip><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
+      ${this.panel ? this.renderPanel() : nothing}
       <div class="legend" aria-label="מקרא">
         ${b.zones.length && this.layers.has('zones') ? html`<span><i style="--lg: var(--sw-accent); border-radius: 2px; opacity: 0.5"></i>${b.zones.length} אזורים</span>` : nothing}
         <span><i style="--lg: var(--sw-accent)"></i>חי</span>
@@ -627,7 +765,7 @@ export class ExploreFloorMap extends LitElement {
           </div>
           <h1>${b ? `${b.buildingName} – ${b.floorName}` : 'מפת קומה'}</h1>
           <div class="sub">
-            <span>${cameraCount} מצלמות${b?.source === 'demo' ? ' · נתוני הדגמה' : b?.planStatus === 'published' ? ' · תוכנית מפורסמת' : ''}</span>
+            <span>${cameraCount} מצלמות${b && b.source === 'api' ? ` · ${b.anchors.length - cameraCount} ישויות HA${b.zones.length ? ` · ${b.zones.length} אזורים` : ''}` : ''}${b?.source === 'demo' ? ' · נתוני הדגמה' : b?.planStatus === 'published' ? ' · תוכנית מפורסמת' : ''}</span>
             ${apiFloor?.draft_version_id ? html`<sw-badge kind="stale" label="טיוטת תוכנית ממתינה לפרסום"></sw-badge>` : nothing}
           </div>
         </div>
@@ -636,6 +774,7 @@ export class ExploreFloorMap extends LitElement {
           <div class="layers" role="group" aria-label=${t('floor.layers')}>
             ${LAYERS.map((l) => html`<button class=${this.layers.has(l.id) ? 'on' : ''} title=${l.label()} aria-label=${l.label()} aria-pressed=${this.layers.has(l.id)} @click=${() => this.toggleLayer(l.id)}><sw-icon name=${l.icon} size=${14}></sw-icon></button>`)}
           </div>
+          <sw-button icon="layers" aria-pressed=${this.panel} @click=${() => (this.panel = !this.panel)}>${t('floor.layers')}</sw-button>
           <sw-field><select aria-label=${t('floor.switcher')} @change=${(e: Event) => navigate(`/explore/floors/${(e.target as HTMLSelectElement).value}`)}>${floors.map((f) => html`<option value=${f.id} ?selected=${f.id === this.floorId}>${f.name} · ${f.cameraCount} מצלמות${f.hasPlan ? '' : ' · אין תוכנית'}</option>`)}</select></sw-field>
           ${!b || b.permissions.edit ? html`<sw-button icon="edit" @click=${() => navigate(`/explore/floors/${this.floorId}/edit`)}>עריכת תוכנית</sw-button>` : nothing}
         </div>

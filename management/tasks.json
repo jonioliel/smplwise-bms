@@ -1175,7 +1175,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (2026-09-16, 0.1.11, design M06): the camera card on the floor map plays the camera live inside the card (sw-camera-tile live + sw-live-player, WebRTC sub profile, NVR snapshot as poster; the session belongs to the card and is released when it closes), shows the sync status badge, the location line 'floor / zone' (the zone whose polygon contains the pin, else the NVR channel), NVR name and last-seen, and the actions 'צפייה מלאה' (full view) / 'הקלטות' (playback at the camera) / 'עריכה' (editors only); Escape closes the card and returns keyboard focus to the pin (sw-plan-canvas.focusMarker). frontend/tests/evidence-viewer.spec.ts in real Chrome against the dev backend: card with live tile, location, actions, Escape → focused element is the pin - private-evidence/T007-viewer-live/viewer-camera-desktop.png. Open: mobile bottom sheet layout (the card falls back to the drawer under 768 px), media_timeout / revoked states in the card itself"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
@@ -1972,7 +1974,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (2026-09-16, 0.1.11, design M07 layers): 'שכבות' opens a floating panel on the map with one switch per layer and its count - cameras, doors/intercom, lighting, security/sensors, room names (zones; 'תוויות לפי רמת זום') - and the note that a switch only changes the drawing and that importing an entity grants no control; the quick icon toggles in the header mirror the same state; the subtitle counts cameras, HA entities and zones; floor chip, zoom controls bottom-left, legend bottom-right (M05). evidence-viewer.spec.ts: five rows with counts, switching cameras off removes exactly the camera pins and back restores them - private-evidence/T007-viewer-live/viewer-layers-desktop.png. Open: saved views ('תצוגה שמורה'), groups and search on the map"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null

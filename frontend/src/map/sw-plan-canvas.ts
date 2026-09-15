@@ -305,7 +305,7 @@ export class SwPlanCanvas extends LitElement {
     }
     .controls {
       position: absolute;
-      right: var(--sw-s-3);
+      left: var(--sw-s-3);
       bottom: var(--sw-s-3);
       display: flex;
       flex-direction: column;
@@ -319,7 +319,7 @@ export class SwPlanCanvas extends LitElement {
     }
     .scale {
       position: absolute;
-      left: var(--sw-s-3);
+      left: 56px;
       bottom: var(--sw-s-3);
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
@@ -359,6 +359,13 @@ export class SwPlanCanvas extends LitElement {
   /** Current zoom factor (plan pixels → host pixels). */
   get zoom() {
     return this.scale;
+  }
+
+  /** Keyboard focus back on a marker (M06: Escape closes the card and returns focus to the pin). */
+  focusMarker(id: string) {
+    const el = this.renderRoot.querySelector<SVGGElement>(`g.marker[data-id="${CSS.escape(id)}"]`);
+    el?.focus();
+    return Boolean(el);
   }
 
   /** Host-pixel position of a normalized plan point (for popovers anchored to pins). */
@@ -515,12 +522,17 @@ export class SwPlanCanvas extends LitElement {
     const c = polygonCentroid(z.polygon);
     const selected = this.selectedZoneId === z.id;
     const lw = Math.max(36, z.name.length * 7 + 18);
+    const xs = z.polygon.map((p) => p.x);
+    const ys = z.polygon.map((p) => p.y);
+    const screenW = (Math.max(...xs) - Math.min(...xs)) * this.planWidth * this.scale;
+    const screenH = (Math.max(...ys) - Math.min(...ys)) * this.planHeight * this.scale;
+    const labelFits = selected || z.candidate || (screenW >= lw + 12 && screenH >= 30);
     return svg`
       <g class="zone ${selected ? 'selected' : ''} ${z.candidate ? 'candidate' : ''}" style="--zc:${z.color}" role="button" tabindex="0" aria-label=${z.name} aria-pressed=${selected}
          data-zone=${z.id}
          @click=${(e: Event) => this.selectZone(z, e)} @keydown=${(e: KeyboardEvent) => (e.key === 'Enter' || e.key === ' ') && this.selectZone(z, e)}>
         <polygon points=${pts} stroke-width=${((selected ? 2.2 : 1.4) * inv).toFixed(2)} />
-        ${this.zoneLabels && z.name
+        ${this.zoneLabels && z.name && labelFits
           ? svg`<g transform="translate(${(c.x * this.planWidth).toFixed(1)} ${(c.y * this.planHeight).toFixed(1)}) scale(${inv})">
               <rect class="zl-bg" x=${-lw / 2} y="-10" width=${lw} height="20" rx="10" />
               <text class="zl" y="3.5">${z.name}</text>
@@ -647,7 +659,7 @@ export class SwPlanCanvas extends LitElement {
     const r = isCamera ? 13 : 11;
     return svg`
       <g class="marker ${m.state} ${selected ? 'selected' : ''} ${dimmed ? 'dimmed' : ''} ${this.editable ? 'editable' : ''}"
-         transform="translate(${px} ${py})"
+         transform="translate(${px} ${py})" data-id=${m.id}
          tabindex="0" role="button" aria-label=${m.label} aria-pressed=${selected}
          @mouseenter=${() => (this.hoverId = m.id)} @mouseleave=${() => (this.hoverId = null)}
          @pointerdown=${(e: PointerEvent) => this.onMarkerPointerDown(m, e)}

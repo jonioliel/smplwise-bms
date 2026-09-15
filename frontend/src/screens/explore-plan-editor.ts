@@ -220,7 +220,7 @@ export class ExplorePlanEditor extends LitElement {
     }
     .legend {
       position: absolute;
-      inset-inline-end: 12px;
+      inset-inline-start: 12px;
       inset-block-end: 12px;
       display: flex;
       gap: 12px;
