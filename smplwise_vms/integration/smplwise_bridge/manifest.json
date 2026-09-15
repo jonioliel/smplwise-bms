@@ -1,7 +1,7 @@
 {
   "domain": "smplwise_bridge",
   "name": "SMPLWISE Bridge",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "documentation": "https://github.com/jonioliel/smplwise-bms",
   "issue_tracker": "https://github.com/jonioliel/smplwise-bms/issues",
   "codeowners": [

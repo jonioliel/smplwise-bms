@@ -1,6 +1,16 @@
 # Changelog — SMPLWISE VMS add-on
 
-## 0.1.7 (pilot, in progress)
+## 0.1.8 (pilot, in progress)
+- Users and roles (הגדרות → משתמשים והרשאות): directory from Home Assistant through the bridge,
+  role bindings for users and VMS groups at installation/site/building/floor scope with a preview,
+  effective-permission view, RBAC audit tab, "sync users" button (integration 0.1.2 adds the
+  `smplwise_bridge.sync_directory` service). API: /identity/users, /identity/sync, /access/roles,
+  /access/bindings, /access/groups, /access/preview, /audit.
+- Access rules: rbac.assign only; system roles installation-wide; last administrator protected; a user
+  disabled or removed in HA loses access at the next push; revocations bump the permission revision and
+  end the user's live/playback sockets.
+
+## 0.1.7 (pilot)
 - Fix: the automatic bridge install crashed inside the add-on image (IndexError while locating the
   integration files) and the settings tab blamed the config mapping; the source lookup no longer assumes a
   repository checkout above the module, and start-up errors are logged with their traceback.

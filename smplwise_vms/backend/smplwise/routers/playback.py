@@ -21,7 +21,7 @@ from ..config import Settings
 from ..db import unlocked, Database
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize
-from ..services import go2rtc as g2
+from ..services import revocation, go2rtc as g2
 from ..services import playback as pb
 from ..services import recordings
 from ..services.relay import relay_ws
@@ -177,8 +177,10 @@ async def playback_ws(websocket: WebSocket, session_id: str, generation: int = Q
             session.first_frame_at = time.time()
             session.state = "playing"
 
+    opened_at = time.time()
+
     def superseded() -> bool:
-        return session.generation != my_gen or session.state in ("closed", "expired", "failed")
+        return session.generation != my_gen or session.state in ("closed", "expired", "failed") or revocation.revoked_since(session.user_id, opened_at)
 
     reason = "ended"
     try:

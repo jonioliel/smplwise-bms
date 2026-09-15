@@ -122,6 +122,26 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   verified PTS↔UTC anchor this is labelled best effort (chapter 25); a camera without a recording at that
   time is shown as such, never as a frozen frame.
 
+## Users, groups and roles
+
+- Users come only from Home Assistant: the bridge integration pushes the user directory (id, name,
+  username, active, admin flag, groups) every minute, and a person also appears when they open the
+  add-on through Ingress. Nobody is created here, no passwords exist here, and the HA admin flag is shown
+  as information only. הגדרות → משתמשים והרשאות lists everyone with their sync state, VMS groups and
+  role bindings; "סנכרון משתמשים מ־HA" asks the integration for a push right away.
+- A user disabled or deleted in Home Assistant loses access at the next directory push (within 60 s):
+  new requests are refused, open live/playback sockets end within seconds, and the audit keeps the id.
+  A current VMS administrator is never dropped merely because a push omitted them.
+- Roles are the built-in catalogue (viewer, operator, editor, site_admin, system_admin); a binding is a
+  role at a scope (whole installation, site, building or floor) for a user or a VMS group. Only holders
+  of `rbac.assign` (system_admin in the pilot) assign; system_admin and other system permissions can only
+  be bound installation-wide, and the last active administrator cannot be removed. Each change bumps the
+  permission revision, is audited with a before/after diff of the subject's bindings and takes effect
+  immediately.
+- The wizard shows what the role allows at the chosen scope and what stays excluded (sensitive
+  permissions such as export or entity control, other scopes). "הרשאות אפקטיביות" computes a user's
+  real permissions at a scope on the server, without impersonation.
+
 ## Home Assistant entities and the bridge
 
 - The add-on reads Home Assistant through the Supervisor proxy (`homeassistant_api: true`): entity,

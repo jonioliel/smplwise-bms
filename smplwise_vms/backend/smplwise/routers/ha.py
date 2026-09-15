@@ -19,7 +19,7 @@ from starlette.concurrency import run_in_threadpool
 from ..audit import audit
 from ..auth import current_principal, get_conn, settings_of
 from ..config import Settings
-from ..db import unlocked, Database, get_setting, now_iso, set_setting
+from ..db import unlocked, Database, bump_permission_revision, get_setting, now_iso, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import bridge_install, ha_bridge, ha_client, ha_sync
@@ -266,7 +266,7 @@ def bridge_ping(message: dict[str, Any], conn: sqlite3.Connection = Depends(get_
 
 
 @router.post("/ha/bridge/directory")
-def bridge_directory(message: dict[str, Any], conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def bridge_directory(message: dict[str, Any], request: Request, conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Signed user directory push from the integration (id, name, username, active, admin, groups)."""
     ha_bridge.verify(ha_bridge.signing_key(conn), message)
     users = message.get("users") or []
@@ -281,10 +281,38 @@ def bridge_directory(message: dict[str, Any], conn: sqlite3.Connection = Depends
     ids = [u["id"] for u in users if u.get("id")]
     if ids:
         conn.execute(f"UPDATE ha_users SET is_active = 0 WHERE id NOT IN ({','.join('?' * len(ids))})", ids)
+    _apply_directory_to_users(conn, request, {u["id"]: u for u in users if u.get("id")})
     set_setting(conn, "bridge.directory_at", now)
     if not get_setting(conn, "bridge.paired_at"):
         set_setting(conn, "bridge.paired_at", now)
     return {"ok": True, "users": len(ids)}
+
+
+def _apply_directory_to_users(conn: sqlite3.Connection, request: Request, pushed: dict[str, dict[str, Any]]) -> None:
+    """Mirror HA's active flag onto users seen through Ingress: disabled or deleted in HA means no access here
+    (observed at the next push, within 60 s); audit keeps the id. A current VMS administrator is never dropped
+    merely because a push omitted him (that needs an explicit is_active=false from HA), so a bridge hiccup
+    cannot lock the installation."""
+    from ..services import revocation
+
+    admins = {r["subject_id"] for r in conn.execute("SELECT subject_id FROM bindings WHERE subject_kind = 'user' AND role_id = 'system_admin' AND scope_type = 'installation' AND effect = 'allow' AND revoked_at IS NULL").fetchall()}
+    disabled: list[str] = []
+    for r in conn.execute("SELECT id, active FROM users WHERE source = 'ingress'").fetchall():
+        p = pushed.get(r["id"])
+        if p is None:
+            active_now = 1 if r["id"] in admins else 0
+        else:
+            active_now = 1 if p.get("is_active", True) else 0
+        if active_now == r["active"]:
+            continue
+        conn.execute("UPDATE users SET active = ? WHERE id = ?", (active_now, r["id"]))
+        audit(conn, actor=None, action="identity.user_enabled" if active_now else "identity.user_disabled", decision="allowed", resource_type="user", resource_id=r["id"],
+              reason="ha_directory" if p is not None else "missing_from_directory", request_id=getattr(request.state, "correlation_id", None))
+        if not active_now:
+            disabled.append(r["id"])
+    if disabled:
+        bump_permission_revision(conn)
+        revocation.mark(disabled)
 
 
 # ---------------------------------------------------------------- live push

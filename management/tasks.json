@@ -3992,7 +3992,9 @@
       "Acceptance evidence tied to commit and environment",
       "Desktop/mobile/RTL screenshots for UI tasks"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (users segment, 2026-09-15): the bridge integration pushes the HA user directory (id, name, username, is_active, is_admin, group_ids; system-generated users skipped, no passwords, no person.*) every 60 s and on the new smplwise_bridge.sync_directory service (integration 0.1.2); routers/ha.py bridge_directory stores it in ha_users and mirrors HA's active flag onto users seen through Ingress (identity.user_disabled / identity.user_enabled audit rows keep the id; a user missing from a full push loses access; a current VMS administrator is never dropped by omission); GET /identity/users merges directory and Ingress-seen users with sync_status verified/stale/removed/unavailable; tests/test_access.py::test_directory_drives_users_and_status; live HA: after pairing the add-on received the first directory pushes (2 users) within a minute"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
@@ -4042,7 +4044,9 @@
       "Acceptance evidence tied to commit and environment",
       "Desktop/mobile/RTL screenshots for UI tasks"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (users segment, 2026-09-15): bindings API on the existing engine (rbac.py: role x scope per binding, chain installation ⊇ site ⊇ building ⊇ floor, deny wins, group membership) - POST/GET/DELETE /access/bindings, groups (/access/groups, members), preview (/access/preview); rules: only rbac.assign holders on the target scope assign, roles carrying system permissions and system_admin are installation-wide only (422/403 delegation_exceeded), duplicates 409, last active administrator protected (409 last_admin_protected), every change bumps permission_revision and is audited with a before/after diff of the subject's bindings; tests/test_access.py"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
@@ -4095,7 +4099,9 @@
       "Acceptance evidence tied to commit and environment",
       "Desktop/mobile/RTL screenshots for UI tasks"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (users segment, 2026-09-15): SC24 against the API - users table (name, HA-admin info badge, username, bindings, groups, active/HA status, sync state, last seen), drawer with identity source, bindings and revoke, assignment wizard (role -> scope from the real site/building/floor tree -> preview of allowed vs excluded -> save), groups tab (create, members checklist, group bindings, delete), roles tab from /access/roles with Hebrew permission labels, effective-permissions tab (server-side preview, no impersonation), audit tab (/audit rbac.* + identity.*), 'sync users from HA' button (POST /identity/sync); dev run with a simulated directory push: dana -> editor of קומה 0 (revision 2), group 'עורכי קומה 0' with yossi bound operator on the floor (yossi's row shows the binding via the group), preview lists exactly the operator permissions, audit shows bind/group_create/group_members/bind; frontend/tests/evidence-access.spec.ts passed in real Chrome (private-evidence/T078-live)"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
@@ -4200,7 +4206,9 @@
       "Acceptance evidence tied to commit and environment",
       "Desktop/mobile/RTL screenshots for UI tasks"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (users segment, 2026-09-15): revoke / disable takes effect at once for REST (authorize reads bindings live, users.active enforced) and within seconds for sockets: services/revocation.py marks the user, the live and playback relays stop on the next 1 s check, open playback sessions are closed and the permission revision is bumped; a user disabled in HA is refused with reason user_inactive and re-enabled after HA restores them; tests/test_access.py (revocation + directory tests); the 60 s / 30 s targets of the card remain to be measured on the lab"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
@@ -4367,7 +4375,9 @@
       "Acceptance evidence tied to commit and environment",
       "Desktop/mobile/RTL screenshots for UI tasks"
     ],
-    "evidence": [],
+    "evidence": [
+      "partial (2026-09-15): the three-identity scenario runs in tests/test_rbac.py + tests/test_access.py (explicit VMS admin, dana editor of floor 2 only, unassigned codex): floor 2 editable, floor 3 / users / sync refused, no HA escalation path exists (no HA writes anywhere); still open on the lab: a real second HA user through Ingress, downgrade during video, delete/restore and last-admin recovery on the live add-on"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null

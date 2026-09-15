@@ -21,7 +21,7 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_track_time_interval
 
-from .const import CONF_ADDON_URL, CONF_PAIRING_CODE, DIRECTORY_INTERVAL_S, DOMAIN, SERVICE_EXECUTE, VERSION
+from .const import CONF_ADDON_URL, CONF_PAIRING_CODE, DIRECTORY_INTERVAL_S, DOMAIN, SERVICE_EXECUTE, SERVICE_SYNC, VERSION
 from .signing import Verifier, sign
 
 _LOGGER = logging.getLogger(__name__)
@@ -81,7 +81,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.services.async_register(DOMAIN, SERVICE_EXECUTE, execute, schema=EXECUTE_SCHEMA, supports_response=SupportsResponse.ONLY)
 
-    async def push_directory(_now: Any = None) -> None:
+    async def push_directory(_now: Any = None) -> int:
         users = []
         for u in await hass.auth.async_get_users():
             if u.system_generated:
@@ -96,9 +96,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             async with session.post(f"{url}/api/v1/ha/bridge/directory", json=sign(secret, {"users": users, "version": VERSION}), timeout=10) as resp:
                 if resp.status != 200:
                     _LOGGER.debug("directory push answered %s", resp.status)
+                    return 0
         except Exception as exc:  # noqa: BLE001
             _LOGGER.debug("directory push failed: %s", type(exc).__name__)
+            return 0
+        return len(users)
 
+    async def sync_directory(call: ServiceCall) -> ServiceResponse:
+        """Push the user directory now (the add-on's 'sync users' button)."""
+        return {"users": await push_directory()}
+
+    hass.services.async_register(DOMAIN, SERVICE_SYNC, sync_directory, supports_response=SupportsResponse.OPTIONAL)
     entry.async_on_unload(async_track_time_interval(hass, push_directory, timedelta(seconds=DIRECTORY_INTERVAL_S)))
     hass.async_create_task(push_directory())
     return True
@@ -106,4 +114,5 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_remove(DOMAIN, SERVICE_EXECUTE)
+    hass.services.async_remove(DOMAIN, SERVICE_SYNC)
     return True

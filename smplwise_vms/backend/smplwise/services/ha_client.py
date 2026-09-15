@@ -185,3 +185,26 @@ def post_discovery(settings: Settings, service: str, config: dict[str, Any]) -> 
         return r.json()
     except ValueError:
         return {}
+
+
+def call_service(settings: Settings, domain: str, service: str, data: dict[str, Any], return_response: bool = False, timeout: float = 15.0) -> dict[str, Any]:
+    """POST /api/services/<domain>/<service> on Home Assistant Core (only used for the bridge's own services)."""
+    if not configured(settings):
+        raise ApiError(503, "ha_not_configured", "אין גישה ל־Home Assistant (SUPERVISOR_TOKEN חסר).")
+    url = _rest_base(settings) + f"/services/{domain}/{service}" + ("?return_response" if return_response else "")
+    try:
+        with httpx.Client(timeout=timeout) as c:
+            r = c.post(url, headers=_headers(settings), json=data)
+    except httpx.HTTPError as exc:
+        raise ApiError(503, "ha_unavailable", "Home Assistant אינו זמין כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
+    if r.status_code in (400, 404):
+        raise ApiError(503, "service_not_found", "השירות אינו רשום ב־Home Assistant (האינטגרציה חסרה או ישנה).", details={"status": r.status_code})
+    if r.status_code in (401, 403):
+        raise ApiError(503, "ha_forbidden", "Home Assistant דחה את הקריאה.", details={"status": r.status_code})
+    if r.status_code >= 300:
+        raise ApiError(503, "ha_error", "Home Assistant החזיר שגיאה.", retryable=True, details={"status": r.status_code})
+    try:
+        body = r.json()
+    except ValueError:
+        return {}
+    return body.get("service_response", body) if isinstance(body, dict) else {}

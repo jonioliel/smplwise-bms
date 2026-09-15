@@ -25,7 +25,7 @@ from ..config import Settings
 from ..db import unlocked, Database
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
-from ..services import autosync
+from ..services import autosync, revocation
 from ..services import go2rtc as g2
 from ..services.access import camera_allowed
 from ..services.relay import relay_ws
@@ -200,7 +200,7 @@ async def live_ws(websocket: WebSocket, camera_id: str, profile: str = Query("su
 
     try:
         await run_in_threadpool(_audit, "video.live.start", {"session": session.id, "stream": name})
-        reason = await relay_ws(websocket, client.ws_url(name), client.ws_headers(), on_down)
+        reason = await relay_ws(websocket, client.ws_url(name), client.ws_headers(), on_down, should_stop=lambda: revocation.revoked_since(principal.user_id, session.started_at))
         log.info("live session %s ended: %s", session.id, reason)
     except Exception as exc:  # upstream refused / dropped
         log.warning("live session %s upstream failure: %s", session.id, type(exc).__name__)
