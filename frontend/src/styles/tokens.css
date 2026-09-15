@@ -123,3 +123,54 @@
     --sw-t-med: 0ms;
   }
 }
+
+/* ---------------------------------------------------------------------------------------------
+   Design "SW A": the 50-screen handoff (docs/design/mockups-v1.3). Same token names, different values;
+   the shell (sw-app) and the page header read the layout tokens. Switched by data-design on <html>.
+   --------------------------------------------------------------------------------------------- */
+:root[data-design="a"] {
+  --sw-bg: #f5f7fb;
+  --sw-surface: #ffffff;
+  --sw-surface-2: #f7f9fc;
+  --sw-surface-3: #eef2f8;
+  --sw-border: #e7ebf2;
+  --sw-border-strong: #e1e6ef;
+  --sw-text: #22314c;
+  --sw-heading: #1e2e47;
+  --sw-text-2: #5b6a85;
+  --sw-text-3: #8a97ae;
+  --sw-accent: #2767ed;
+  --sw-accent-hover: #1f57d1;
+  --sw-accent-soft: #edf3ff;
+  --sw-accent-text: #2767ed;
+  --sw-focus: #2767ed;
+  --sw-nav: #2868ef;
+  --sw-map-bg: #f7f9fc;
+  --sw-map-wall: #c5cfdd;
+  --sw-map-room-fill: #ffffff;
+  --sw-map-furniture: #eaeff6;
+  --sw-map-furniture-line: #d3dbe7;
+  --sw-map-label: #8a97ae;
+  --sw-fov: rgba(39, 103, 237, 0.12);
+  --sw-fs-xs: 11px;
+  --sw-fs-sm: 12.5px;
+  --sw-fs-md: 14px;
+  --sw-fs-lg: 15px;
+  --sw-fs-xl: 17px;
+  --sw-fs-2xl: 20px;
+  --sw-fs-3xl: 26px;
+  --sw-lh: 1.5;
+  --sw-h1: 26px;
+  --sw-h1-weight: 700;
+  --sw-h1-tracking: -0.6px;
+  --sw-page-pad: 30px;
+  --sw-r-sm: 8px;
+  --sw-r-md: 12px;
+  --sw-r-lg: 14px;
+  --sw-shadow-2: 0 6px 18px rgba(34, 49, 76, 0.06);
+  --sw-shadow-3: 0 14px 36px rgba(34, 49, 76, 0.14);
+  --sw-rail-w: 86px;
+  --sw-rail-w-wide: 86px;
+  --sw-topbar-h: 72px;
+  --sw-content-max: none;
+}

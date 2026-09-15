@@ -97,3 +97,89 @@ export function activeTabOf(r: RouteState | null): string {
       return '';
   }
 }
+
+// ---------------------------------------------------------------------------------------------
+// Design "SW A" (mockups v1.3): exactly the kit's four areas as a right icon rail; the section's pages
+// stay reachable as a tab row under the top bar.
+// ---------------------------------------------------------------------------------------------
+export type AreaId = 'live' | 'explore' | 'investigate' | 'system';
+
+export interface AreaEntry {
+  id: AreaId;
+  icon: IconName;
+  label: string;
+  href: string;
+}
+
+export const NAV_A: AreaEntry[] = [
+  { id: 'live', icon: 'camera', label: 'לייב', href: '#/live' },
+  { id: 'explore', icon: 'map', label: 'מפה', href: '#/explore/sites' },
+  { id: 'investigate', icon: 'search', label: 'חקירה', href: '#/investigate/events' },
+  { id: 'system', icon: 'system', label: 'מערכת', href: '#/system/diagnostics' },
+];
+
+export const AREA_TABS: Record<AreaId, TabItem[]> = {
+  live: [
+    { id: 'overview', label: 'תמונת מצב', href: '#/live' },
+    { id: 'wall', label: 'כל המצלמות', href: '#/live/wall' },
+    { id: 'views', label: 'תצוגות שמורות', href: '#/live/views' },
+    { id: 'devices', label: 'בריאות מצלמות', href: '#/system/devices' },
+  ],
+  explore: [
+    { id: 'sites', label: 'אתרים ומבנים', href: '#/explore/sites' },
+    { id: 'floors', label: 'מפת קומה', href: '#/explore/floors/f0' },
+    { id: 'entities', label: 'ישויות HA', href: '#/explore/entities' },
+    { id: 'access', label: 'דלתות ואינטרקום', href: '#/explore/access/d1' },
+  ],
+  investigate: [
+    { id: 'events', label: 'מרכז אירועים', href: '#/investigate/events' },
+    { id: 'playback', label: 'הקלטות', href: '#/investigate/playback' },
+    { id: 'sync', label: 'ניגון מסונכרן', href: '#/investigate/playback/sync' },
+    { id: 'history', label: 'מפה היסטורית', href: '#/investigate/floors/f0/history' },
+    { id: 'reviews', label: 'Review', href: '#/investigate/reviews' },
+    { id: 'search', label: 'חיפוש', href: '#/investigate/search' },
+    { id: 'cases', label: 'תיקים', href: '#/investigate/cases' },
+    { id: 'rules', label: 'חוקים והתראות', href: '#/investigate/rules' },
+    { id: 'exports', label: 'ייצוא', href: '#/investigate/exports' },
+  ],
+  system: [
+    { id: 'general', label: 'כללי', href: '#/system/diagnostics' },
+    { id: 'access', label: 'משתמשים והרשאות', href: '#/system/access' },
+    { id: 'audit', label: 'אודיט', href: '#/system/audit' },
+    { id: 'storage', label: 'אחסון', href: '#/system/storage' },
+    { id: 'setup', label: 'אשף התקנה', href: '#/system/setup' },
+  ],
+};
+
+export function areaOf(r: RouteState | null): AreaId | null {
+  if (!r?.mode) return null;
+  if (r.mode === 'system' && r.segments[1] === 'devices') return 'live';
+  return r.mode;
+}
+
+export function activeAreaTab(r: RouteState | null): string {
+  const a = areaOf(r);
+  if (!a || !r) return '';
+  const s = r.segments;
+  switch (a) {
+    case 'live':
+      return r.mode === 'system' ? 'devices' : s[1] === 'views' ? 'views' : s[1] === 'wall' || s[1] === 'cameras' ? 'wall' : 'overview';
+    case 'explore':
+      return s[1] === 'buildings' || s[1] === 'floors' ? 'floors' : s[1] === 'entities' ? 'entities' : s[1] === 'access' ? 'access' : 'sites';
+    case 'investigate':
+      return s[1] === 'floors' ? 'history' : s[1] === 'playback' ? (s[2] === 'sync' ? 'sync' : 'playback') : (s[1] ?? 'events');
+    case 'system':
+      return !s[1] || s[1] === 'diagnostics' ? 'general' : s[1];
+    default:
+      return '';
+  }
+}
+
+/** Breadcrumb text for the SW A top bar: area › page. */
+export function crumbsOf(r: RouteState | null): string[] {
+  const a = areaOf(r);
+  if (!a) return [];
+  const area = NAV_A.find((n) => n.id === a);
+  const tab = AREA_TABS[a].find((x) => x.id === activeAreaTab(r));
+  return [area?.label ?? '', tab?.label ?? ''].filter(Boolean);
+}

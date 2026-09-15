@@ -67,14 +67,21 @@ export class SwPlanCanvas extends LitElement {
   @property({ type: Boolean }) alwaysLabel = false;
   /** Raster background (published plan image); drawn under `plan` when set. */
   @property() imageUrl: string | null = null;
-  /** Editor mode: markers can be dragged; emits `marker-move` {id, x, y} (normalized) on drop. */
+  /** Editor mode: markers can be dragged; emits `marker-move` {id, x, y} (normalized) on drop. The selected
+   * camera shows a direction handle and two field-of-view handles; dragging them emits `marker-orient`
+   * {id, rotation, fov}. Bearing convention (design contract §ו): 0° = up, clockwise. */
   @property({ type: Boolean }) editable = false;
+  /** Placement mode: a click on the plan (not a drag) emits `plan-click` {x, y} (normalized). */
+  @property({ type: Boolean }) placing = false;
+  /** Radius of the coverage cone in plan pixels (an illustration, not measured coverage). */
+  @property({ type: Number }) coneRadius = 140;
 
   @state() private scale = 1;
   @state() private tx = 0;
   @state() private ty = 0;
   @state() private hoverId: string | null = null;
   @state() private dragging: { id: string; x: number; y: number } | null = null;
+  @state() private orienting: { id: string; rotation: number; fov: number } | null = null;
   @query('.viewport') private viewport!: HTMLDivElement;
 
   private pointers = new Map<number, { x: number; y: number }>();
@@ -105,6 +112,25 @@ export class SwPlanCanvas extends LitElement {
     }
     .viewport.dragging {
       cursor: grabbing;
+    }
+    .viewport.placing {
+      cursor: crosshair;
+    }
+    .handle {
+      fill: var(--sw-surface);
+      stroke: var(--sw-accent);
+      stroke-width: 1.6;
+      cursor: grab;
+    }
+    .handle:active {
+      cursor: grabbing;
+    }
+    .handle-line {
+      stroke: var(--sw-accent);
+      stroke-width: 1;
+      stroke-dasharray: 3 3;
+      opacity: 0.7;
+      pointer-events: none;
     }
     svg {
       inline-size: 100%;
@@ -301,8 +327,12 @@ export class SwPlanCanvas extends LitElement {
       const p = this.toPlan(ev.clientX - rect.left, ev.clientY - rect.top);
       const moved = Math.abs(p.x - m.x) > 0.0005 || Math.abs(p.y - m.y) > 0.0005;
       this.dragging = null;
-      if (moved) this.dispatchEvent(new CustomEvent('marker-move', { detail: { id: m.id, x: p.x, y: p.y }, bubbles: true, composed: true }));
-      else this.select(m, ev);
+      if (moved) {
+        // pointer capture delivers the trailing click to the viewport: swallow it so the pin stays selected
+        this.dragMoved = true;
+        setTimeout(() => (this.dragMoved = false), 0);
+        this.dispatchEvent(new CustomEvent('marker-move', { detail: { id: m.id, x: p.x, y: p.y }, bubbles: true, composed: true }));
+      } else this.select(m, ev);
     };
     this.viewport.addEventListener('pointermove', move);
     this.viewport.addEventListener('pointerup', up);
@@ -374,14 +404,87 @@ export class SwPlanCanvas extends LitElement {
     this.dispatchEvent(new CustomEvent<MarkerSelectDetail>('marker-select', { detail, bubbles: true, composed: true }));
   }
 
-  private onBackgroundClick = () => {
+  private onBackgroundClick = (e: MouseEvent) => {
     if (this.dragMoved) return;
+    if (this.placing) {
+      const rect = this.getBoundingClientRect();
+      const p = this.toPlan(e.clientX - rect.left, e.clientY - rect.top);
+      this.dispatchEvent(new CustomEvent('plan-click', { detail: { x: +p.x.toFixed(4), y: +p.y.toFixed(4) }, bubbles: true, composed: true }));
+      return;
+    }
     this.dispatchEvent(new CustomEvent<MarkerSelectDetail>('marker-select', { detail: { id: null }, bubbles: true, composed: true }));
   };
 
+  /** Bearing (0° up, clockwise) from a marker centre to a host-pixel point. */
+  private bearingTo(m: PlanMarker, px: number, py: number) {
+    const c = this.toScreen(m.x, m.y);
+    const deg = (Math.atan2(py - c.y, px - c.x) * 180) / Math.PI + 90;
+    return ((deg % 360) + 360) % 360;
+  }
+
+  private onHandlePointerDown = (m: PlanMarker, kind: 'dir' | 'left' | 'right', e: PointerEvent) => {
+    if (!this.editable || e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const rect0 = this.getBoundingClientRect();
+    const startRotation = m.rotation ?? 0;
+    const startFov = m.fov ?? 90;
+    // the edge that is not being dragged stays where it is
+    const fixedEdge = kind === 'left' ? startRotation + startFov / 2 : startRotation - startFov / 2;
+    this.orienting = { id: m.id, rotation: startRotation, fov: startFov };
+    this.viewport.setPointerCapture(e.pointerId);
+    const compute = (ev: PointerEvent) => {
+      const b = this.bearingTo(m, ev.clientX - rect0.left, ev.clientY - rect0.top);
+      if (kind === 'dir') return { rotation: Math.round(b), fov: startFov };
+      // angular distance from the fixed edge, measured the short way around
+      let span = kind === 'left' ? fixedEdge - b : b - fixedEdge;
+      span = ((span % 360) + 360) % 360;
+      const fov = Math.max(10, Math.min(180, Math.round(span)));
+      const rotation = kind === 'left' ? fixedEdge - fov / 2 : fixedEdge + fov / 2;
+      return { rotation: Math.round(((rotation % 360) + 360) % 360), fov };
+    };
+    const move = (ev: PointerEvent) => {
+      this.orienting = { id: m.id, ...compute(ev) };
+    };
+    const up = (ev: PointerEvent) => {
+      this.viewport.removeEventListener('pointermove', move);
+      this.viewport.removeEventListener('pointerup', up);
+      this.viewport.removeEventListener('pointercancel', up);
+      const o = compute(ev);
+      this.orienting = null;
+      this.dragMoved = true; // the click that follows must not deselect
+      setTimeout(() => (this.dragMoved = false), 0);
+      if (o.rotation !== startRotation || o.fov !== startFov) this.dispatchEvent(new CustomEvent('marker-orient', { detail: { id: m.id, ...o }, bubbles: true, composed: true }));
+    };
+    this.viewport.addEventListener('pointermove', move);
+    this.viewport.addEventListener('pointerup', up);
+    this.viewport.addEventListener('pointercancel', up);
+  };
+
+  private renderHandles(m: PlanMarker, rotation: number, fov: number) {
+    const r = this.coneRadius;
+    const inv = 1 / this.scale;
+    const pt = (bearing: number, radius: number) => ({ x: Math.cos(SwPlanCanvas.rad(bearing)) * radius, y: Math.sin(SwPlanCanvas.rad(bearing)) * radius });
+    const left = pt(rotation - fov / 2, r);
+    const right = pt(rotation + fov / 2, r);
+    const dir = pt(rotation, r * 0.72);
+    const hs = 7 * inv;
+    return svg`
+      <line class="handle-line" x1="0" y1="0" x2=${dir.x.toFixed(1)} y2=${dir.y.toFixed(1)} />
+      <rect class="handle" x=${(left.x - hs).toFixed(1)} y=${(left.y - hs).toFixed(1)} width=${(hs * 2).toFixed(1)} height=${(hs * 2).toFixed(1)} rx=${(1.5 * inv).toFixed(1)} role="slider" aria-label="קצה שדה ראייה" @pointerdown=${(e: PointerEvent) => this.onHandlePointerDown(m, 'left', e)} @click=${(e: Event) => e.stopPropagation()} />
+      <rect class="handle" x=${(right.x - hs).toFixed(1)} y=${(right.y - hs).toFixed(1)} width=${(hs * 2).toFixed(1)} height=${(hs * 2).toFixed(1)} rx=${(1.5 * inv).toFixed(1)} role="slider" aria-label="קצה שדה ראייה" @pointerdown=${(e: PointerEvent) => this.onHandlePointerDown(m, 'right', e)} @click=${(e: Event) => e.stopPropagation()} />
+      <circle class="handle" cx=${dir.x.toFixed(1)} cy=${dir.y.toFixed(1)} r=${(8 * inv).toFixed(1)} role="slider" aria-label="כיוון מבט" @pointerdown=${(e: PointerEvent) => this.onHandlePointerDown(m, 'dir', e)} @click=${(e: Event) => e.stopPropagation()} />
+    `;
+  }
+
+  /** Unit-circle angle (radians) of a bearing where 0° points up and degrees grow clockwise. */
+  private static rad(bearing: number) {
+    return ((bearing - 90) * Math.PI) / 180;
+  }
+
   private fovPath(rotation: number, fov: number, radius: number) {
-    const start = ((rotation - fov / 2) * Math.PI) / 180;
-    const end = ((rotation + fov / 2) * Math.PI) / 180;
+    const start = SwPlanCanvas.rad(rotation - fov / 2);
+    const end = SwPlanCanvas.rad(rotation + fov / 2);
     const x1 = Math.cos(start) * radius;
     const y1 = Math.sin(start) * radius;
     const x2 = Math.cos(end) * radius;
@@ -391,6 +494,9 @@ export class SwPlanCanvas extends LitElement {
 
   private renderMarker(m: PlanMarker) {
     const live = this.dragging?.id === m.id ? this.dragging : m;
+    const orient = this.orienting?.id === m.id ? this.orienting : null;
+    const rotation = orient ? orient.rotation : m.rotation ?? 0;
+    const fov = orient ? orient.fov : m.fov;
     const px = live.x * this.planWidth;
     const py = live.y * this.planHeight;
     const inv = 1 / this.scale;
@@ -410,9 +516,10 @@ export class SwPlanCanvas extends LitElement {
          @pointerdown=${(e: PointerEvent) => this.onMarkerPointerDown(m, e)}
          @click=${(e: Event) => (this.editable ? e.stopPropagation() : this.select(m, e))}
          @keydown=${(e: KeyboardEvent) => (e.key === 'Enter' || e.key === ' ') && this.select(m, e)}>
-        ${isCamera && m.fov && m.state !== 'forbidden'
-          ? svg`<path class="fov ${m.state === 'offline' ? 'off' : ''}" d=${this.fovPath(m.rotation ?? 0, m.fov, 140)} />`
+        ${isCamera && fov && m.state !== 'forbidden'
+          ? svg`<path class="fov ${m.state === 'offline' ? 'off' : ''}" d=${this.fovPath(rotation, fov, this.coneRadius)} />`
           : nothing}
+        ${isCamera && fov && this.editable && selected && !this.dragging ? this.renderHandles(m, rotation, fov) : nothing}
         <g transform="scale(${inv})">
           <circle class="halo" r=${r + 9} />
           <circle class="pin" r=${r} fill=${fill} />
@@ -432,7 +539,7 @@ export class SwPlanCanvas extends LitElement {
 
   render() {
     return html`
-      <div class="viewport" @wheel=${this.onWheel} @pointerdown=${this.onPointerDown} @pointermove=${this.onPointerMove}
+      <div class="viewport ${this.placing ? 'placing' : ''}" @wheel=${this.onWheel} @pointerdown=${this.onPointerDown} @pointermove=${this.onPointerMove}
            @pointerup=${this.onPointerUp} @pointercancel=${this.onPointerUp} @click=${this.onBackgroundClick}>
         <svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="תוכנית קומה">
           <g transform="translate(${this.tx} ${this.ty}) scale(${this.scale})">

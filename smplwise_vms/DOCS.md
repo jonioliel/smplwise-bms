@@ -122,6 +122,40 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   verified PTS↔UTC anchor this is labelled best effort (chapter 25); a camera without a recording at that
   time is shown as such, never as a frozen frame.
 
+## Designs "SW A" and "SW B"
+
+- Two designs ship: **SW A** (the 50-screen handoff v1.3: right icon rail with the four areas, 72 px
+  top bar with breadcrumbs/search/user, 26 px page titles, the SW A tokens) and **SW B** (the earlier
+  boards). הגדרות → כללי → "עיצוב הממשק" sets the installation default (`ui.design`), renames both
+  (`ui.design_names`) and lets each browser keep its own choice. `?design=a|b` on the URL forces one.
+  Without a backend (design preview) the page stays on SW B.
+
+## Floor plan editor
+
+- Everything is done with the mouse on the plan: drag a pin to move it, drag the round handle in front
+  of a selected camera to turn it, drag the two square handles at the edges of its cone to widen or
+  narrow the field of view, scroll to zoom, drag the background to pan. Cameras and HA entities are
+  added by picking them in the tool rail and clicking the spot on the plan. Arrow keys nudge the
+  selection (Shift = larger step), Delete removes it, Ctrl+Z / Ctrl+Y undo and redo, Ctrl+S saves.
+  The inspector mirrors the same values numerically (bearing, field of view, X/Y in percent).
+- Bearing convention (design contract §ו): 0° points up on the plan and degrees grow clockwise; the
+  cone is an illustration for planning, not measured coverage, and changing it never sends a PTZ
+  command.
+- Nothing is written until "שמירת מיקום" / "שמירה"; a stale revision (someone else edited) reloads
+  the map instead of overwriting. Publishing a draft plan is a separate action.
+
+## Stylized plan ("SMPLWISE language")
+
+- The plan editor's "עיבוד לשפת SMPLWISE" turns the uploaded architectural drawing into a clean
+  rendering in the design tokens: text, dimension lines and thin furniture outlines are removed, walls
+  become grey-blue bands, enclosed rooms are painted white and the outside stays on the canvas colour.
+  Three presets: קל (thin walls kept as drawn), בינוני (double-line walls merged; the usual choice),
+  חזק (dense drawings such as stairs or fixtures become solid blocks; thin lines kept faintly).
+- It is local image processing in the add-on (Pillow + numpy); no AI, nothing leaves the device, it
+  takes a few seconds per plan. Rooms are counted but not named and doorways are not recognised as
+  such. The source picture is never modified: "הצג מקור" switches back at any time, and anchors keep
+  their coordinates because the rendering has the same geometry as the source.
+
 ## Users, groups and roles
 
 - Users come only from Home Assistant: the bridge integration pushes the user directory (id, name,

@@ -16,7 +16,7 @@ export class SwPage extends LitElement {
       display: flex;
       flex-direction: column;
       min-block-size: 100%;
-      padding: 14px 24px 24px;
+      padding: 14px var(--sw-page-pad, 24px) 24px;
       max-inline-size: var(--sw-content-max);
       inline-size: 100%;
       box-sizing: border-box;
@@ -52,10 +52,11 @@ export class SwPage extends LitElement {
     }
     h1 {
       margin: 0;
-      font-size: var(--sw-fs-2xl);
-      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-h1, var(--sw-fs-2xl));
+      font-weight: var(--sw-h1-weight, var(--sw-fw-semibold));
       line-height: 1.2;
-      letter-spacing: -0.01em;
+      letter-spacing: var(--sw-h1-tracking, -0.01em);
+      color: var(--sw-heading, var(--sw-text));
     }
     .sub {
       margin-block-start: 2px;

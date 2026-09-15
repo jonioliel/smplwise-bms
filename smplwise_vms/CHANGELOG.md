@@ -1,6 +1,17 @@
 # Changelog — SMPLWISE VMS add-on
 
-## 0.1.8 (pilot, in progress)
+## 0.1.9 (pilot, in progress)
+- Design switch: "SW A" (mockups v1.3: four-area icon rail, 72 px top bar with breadcrumbs, SW A tokens)
+  and "SW B" (the earlier boards); installation default, editable names and a per-browser choice in
+  הגדרות → כללי. `docs/design/mockups-v1.3/` holds the handoff document and key screens.
+- Plan editor rebuilt per M12: direction and field-of-view handles on the selected camera, click-to-place
+  for cameras and HA entities, floating tool rail, numeric inspector, keyboard nudges and shortcuts,
+  layers, explicit save; bearing 0° = up, clockwise.
+- Stylized plan rendering per M11 (local): `POST /plan-versions/{id}/stylize`, `PATCH /plan-versions/{id}`
+  (render_mode), source/stylized picture endpoints, migration 0005; the map serves the chosen rendering.
+- Dependency: numpy.
+
+## 0.1.8 (pilot)
 - Users and roles (הגדרות → משתמשים והרשאות): directory from Home Assistant through the bridge,
   role bindings for users and VMS groups at installation/site/building/floor scope with a preview,
   effective-permission view, RBAC audit tab, "sync users" button (integration 0.1.2 adds the

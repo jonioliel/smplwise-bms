@@ -26,6 +26,8 @@ export interface MapBundle {
   anchors: Anchor[];
   cameras: Camera[];
   permissions: { edit: boolean; publish: boolean; import: boolean };
+  renderMode: 'source' | 'stylized';
+  stylizedAvailable: boolean;
 }
 
 function demoBundle(floorId: string): MapBundle {
@@ -44,6 +46,8 @@ function demoBundle(floorId: string): MapBundle {
     planStatus: floor.hasPlan ? 'published' : 'none',
     planVersionId: floor.hasPlan ? `demo-${floor.id}` : null,
     needsAlignment: false,
+    renderMode: 'source',
+    stylizedAvailable: false,
     anchors: cams.map((c, i) => ({
       id: `demo-anchor-${c.id}`,
       floor_id: floor.id,
@@ -85,6 +89,8 @@ export async function loadMap(floorId: string, draft = false): Promise<MapBundle
     anchors: m.anchors,
     cameras: m.cameras,
     permissions: m.permissions,
+    renderMode: m.plan?.render_mode === 'stylized' ? 'stylized' : 'source',
+    stylizedAvailable: Boolean(m.plan?.stylized_url),
   };
 }
 

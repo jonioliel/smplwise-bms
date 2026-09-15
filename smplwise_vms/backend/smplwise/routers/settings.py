@@ -2,6 +2,8 @@
 snapshot freshness. Secrets stay in the add-on options."""
 from __future__ import annotations
 
+import json
+
 import sqlite3
 from typing import Any
 
@@ -25,6 +27,8 @@ DEFAULTS: dict[str, str] = {
     "snapshots.max_age_s": "60",
     # IANA zone of the site/NVR wall clock (chapter 20). The lab NVR reports windowsZone "Israel Standard Time".
     "time.zone": "Asia/Jerusalem",
+    "ui.design": "a",
+    "ui.design_names": '{"a": "SW A", "b": "SW B"}',
     "playback.max_sessions": "4",  # playback sessions open at once (each is one NVR RTSP playback stream)
     "playback.lease_s": "600",  # idle lease; the janitor deletes the go2rtc stream after it expires
     "exports.max_mb": "2048",  # refuse export jobs whose NVR files exceed this estimate
@@ -54,6 +58,8 @@ class SettingsPatch(BaseModel):
     exports_max_mb: int | None = Field(default=None, ge=50, le=20480, alias="exports.max_mb")
     exports_retention_days: int | None = Field(default=None, ge=1, le=365, alias="exports.retention_days")
     events_retention_days: int | None = Field(default=None, ge=1, le=3650, alias="events.retention_days")
+    ui_design: str | None = Field(default=None, pattern="^(a|b)$", alias="ui.design")
+    ui_design_names: str | None = Field(default=None, max_length=200, alias="ui.design_names")
 
     model_config = {"populate_by_name": True}
 
@@ -67,6 +73,13 @@ def get_settings(principal: Principal = Depends(current_principal), conn: sqlite
 def patch_settings(body: SettingsPatch, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "system.configure", INSTALLATION)
     changes = {k: v for k, v in body.model_dump(by_alias=True).items() if v is not None}
+    if "ui.design_names" in changes:
+        try:
+            names = json.loads(changes["ui.design_names"])
+            assert isinstance(names, dict) and set(names) <= {"a", "b"} and all(isinstance(v, str) and 1 <= len(v.strip()) <= 24 for v in names.values())
+        except (ValueError, AssertionError):
+            raise ApiError(422, "validation", "שמות העיצובים: אובייקט עם a ו־b, עד 24 תווים לכל שם.")
+        changes["ui.design_names"] = json.dumps({"a": names.get("a", "SW A").strip(), "b": names.get("b", "SW B").strip()}, ensure_ascii=False)
     if "time.zone" in changes:
         from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 

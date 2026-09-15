@@ -15,6 +15,7 @@ import { invalidateSettings } from '../api/prefs';
 import { describeError, get } from '../api/client';
 import { navigate } from '../router';
 import { bridgePairing, haStatus, fmtTime, installBridge, type HaIntegrationStatus, type HaStatus } from '../api/ha';
+import { DEFAULT_NAMES, applyDesign, currentDesign, designOverride, parseNames, setDesignOverride, type DesignId } from '../api/design';
 
 const TABS = [
   { id: 'general', label: 'כללי' },
@@ -345,8 +346,30 @@ export class SystemDiagnostics extends LitElement {
     }
   }
 
+  private renderDesign() {
+    if (!isApi()) return nothing;
+    const names = parseNames(this.value('ui.design_names'));
+    const design = (this.value('ui.design') as DesignId | undefined) ?? 'a';
+    const override = designOverride();
+    const dirty = 'ui.design' in this.draft || 'ui.design_names' in this.draft;
+    const setName = (id: DesignId, v: string) => this.set('ui.design_names', JSON.stringify({ ...names, [id]: v.slice(0, 24) }));
+    return html`<sw-card heading="עיצוב הממשק" subheading=${`פעיל עכשיו בדפדפן הזה: ${names[currentDesign()]}${override ? ' (עקיפה מקומית)' : ''}`}>
+      <div class="row"><span class="lbl">ברירת המחדל של המערכת<span class="muted">חל על כל המשתמשים; כל אחד יכול לעקוף בדפדפן שלו</span></span><sw-field class="ctl"><select ?disabled=${!this.canEdit} @change=${(e: Event) => this.set('ui.design', (e.target as HTMLSelectElement).value as DesignId)}><option value="a" ?selected=${design === 'a'}>${names.a}</option><option value="b" ?selected=${design === 'b'}>${names.b}</option></select></sw-field></div>
+      <div class="row"><span class="lbl">שם העיצוב החדש<span class="muted">ברירת מחדל: ${DEFAULT_NAMES.a} · העיצוב מחבילת 50 המסכים</span></span><sw-field class="ctl"><input maxlength="24" ?disabled=${!this.canEdit} .value=${names.a} @change=${(e: Event) => setName('a', (e.target as HTMLInputElement).value)} /></sw-field></div>
+      <div class="row"><span class="lbl">שם העיצוב הקודם<span class="muted">ברירת מחדל: ${DEFAULT_NAMES.b} · הלוחות המקוריים</span></span><sw-field class="ctl"><input maxlength="24" ?disabled=${!this.canEdit} .value=${names.b} @change=${(e: Event) => setName('b', (e.target as HTMLInputElement).value)} /></sw-field></div>
+      <div class="row"><span class="lbl">בדפדפן הזה בלבד<span class="muted">עקיפה אישית שנשמרת במכשיר; לא משנה את ברירת המחדל</span></span><sw-field class="ctl"><select @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; setDesignOverride(v === 'a' || v === 'b' ? v : null); if (v !== 'a' && v !== 'b') applyDesign(design); this.requestUpdate(); }}><option value="" ?selected=${!override}>לפי ברירת המחדל</option><option value="a" ?selected=${override === 'a'}>${names.a}</option><option value="b" ?selected=${override === 'b'}>${names.b}</option></select></sw-field></div>
+      ${this.canEdit ? html`<div class="foot"><sw-button variant="primary" size="sm" icon="check" ?disabled=${!dirty || this.busy} @click=${() => this.saveDesign()}>שמור עיצוב</sw-button>${this.message && this.tab === 'general' ? html`<span class="ok" style="align-self:center">${this.message}</span>` : nothing}${this.error && this.tab === 'general' ? html`<span class="err" style="align-self:center">${this.error}</span>` : nothing}</div>` : nothing}
+    </sw-card>`;
+  }
+
+  private async saveDesign() {
+    await this.save();
+    if (!designOverride() && this.settings) applyDesign(this.settings['ui.design'] === 'b' ? 'b' : 'a');
+  }
+
   private renderGeneral() {
     return html`<div class="sections">
+      ${this.renderDesign()}
       <sw-card heading="זמן ומיקום">
         <div class="row"><span class="lbl">אזור זמן לתצוגה<span class="muted">פנימית הכל UTC; שעון קיץ לפי התאריך המבוקש</span></span><sw-field class="ctl"><select><option>(UTC+02:00) Asia/Jerusalem</option></select></sw-field></div>
         <div class="row"><span class="lbl">פרופיל זמן של ה־NVR<span class="muted">נקבע לפי ראיות לדגם ולקושחה</span></span><sw-field class="ctl"><select><option>hikvision · ds-76xx · שעון מקומי</option></select></sw-field></div>
@@ -359,7 +382,7 @@ export class SystemDiagnostics extends LitElement {
       </sw-card>
       <sw-card heading="אינטגרציות">
         <div class="row"><span class="lbl">go2rtc (חיצוני)<span class="muted">זרמים בשם smplwise_* בלבד · זרמים זרים לא ייגעו</span></span><span style="display:flex;gap:8px;align-items:center"><sw-toggle checked label="מופעל"></sw-toggle><sw-button size="sm" @click=${() => { this.tab = 'media'; void this.loadMedia(); }}>הגדרה</sw-button></span></div>
-        <div class="row"><span class="lbl">גשר Home Assistant<span class="muted">קטלוג ישויות ופעולות בשם המשתמש (T025)</span></span><span style="display:flex;gap:8px;align-items:center"><sw-toggle label="טרם"></sw-toggle><sw-button size="sm" disabled>הגדרה</sw-button></span></div>
+        <div class="row"><span class="lbl">גשר Home Assistant<span class="muted">קטלוג ישויות, פעולות בשם המשתמש וספריית המשתמשים</span></span><sw-button size="sm" @click=${() => { this.tab = 'ha'; void this.loadHa(); }}>הגדרה</sw-button></div>
       </sw-card>
       <sw-card heading="בריאות המערכת">
         <div class="row"><span class="health"><i class="dot"></i><span class="lbl">מצב חלקי<span class="muted">גשר HA טרם חובר · שאר הרכיבים תקינים</span></span></span><sw-button size="sm" icon="activity">הרצת דיאגנוסטיקה</sw-button></div>

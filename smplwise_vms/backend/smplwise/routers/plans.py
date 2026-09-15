@@ -15,10 +15,10 @@ from pydantic import BaseModel, Field
 from ..audit import audit
 from ..auth import current_principal, get_conn, settings_of
 from ..config import Settings
-from ..db import new_id, now_iso
+from ..db import new_id, now_iso, unlocked
 from ..errors import ApiError, conflict, not_found
 from ..rbac import Principal, require
-from ..services import plan_render
+from ..services import plan_render, plan_stylize
 from .catalog import get_floor
 
 router = APIRouter()
@@ -41,8 +41,22 @@ def version_row(r: sqlite3.Row) -> dict[str, Any]:
         "id": r["id"], "floor_id": r["floor_id"], "asset_id": r["asset_id"], "page": r["page"], "rotation": r["rotation"],
         "crop": json.loads(r["crop_json"]) if r["crop_json"] else None, "width_px": r["width_px"], "height_px": r["height_px"],
         "scale_m_per_px": r["scale_m_per_px"], "status": r["status"], "revision": r["revision"], "notes": r["notes"],
-        "created_at": r["created_at"], "published_at": r["published_at"], "image_url": f"api/v1/plan-versions/{r['id']}/image.png",
+        "created_at": r["created_at"], "published_at": r["published_at"],
+        # the map background follows render_mode; the source picture stays reachable for comparisons
+        "image_url": f"api/v1/plan-versions/{r['id']}/{'stylized' if _stylized(r) else 'image'}.png",
+        "source_url": f"api/v1/plan-versions/{r['id']}/source.png",
+        "render_mode": "stylized" if _stylized(r) else "source",
+        "stylized_url": f"api/v1/plan-versions/{r['id']}/stylized.png" if _has_stylized(r) else None,
     }
+
+
+def _has_stylized(r: sqlite3.Row) -> bool:
+    keys = r.keys()
+    return "stylized_path" in keys and bool(r["stylized_path"])
+
+
+def _stylized(r: sqlite3.Row) -> bool:
+    return _has_stylized(r) and r["render_mode"] == "stylized"
 
 
 def get_asset(conn: sqlite3.Connection, asset_id: str) -> sqlite3.Row:
@@ -254,3 +268,81 @@ def delete_version(version_id: str, request: Request, principal: Principal = Dep
     conn.execute("DELETE FROM plan_versions WHERE id = ?", (version_id,))
     (settings.data_dir / v["image_path"]).unlink(missing_ok=True)
     audit(conn, actor=principal, action="plan.version.delete", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request), details={"version_id": version_id})
+
+
+# ---------------------------------------------------------------- stylized rendering (design M11, local variant)
+
+class StylizeIn(BaseModel):
+    strength: str = Field(default="medium", pattern="^(light|medium|strong)$")
+    keep_lines: bool = False
+
+
+class RenderModeIn(BaseModel):
+    render_mode: str = Field(pattern="^(source|stylized)$")
+
+
+def _readable(conn: sqlite3.Connection, principal: Principal, v: sqlite3.Row) -> None:
+    if v["status"] == "published":
+        require(conn, principal, "map.read", ("floor", v["floor_id"]))
+    else:
+        require(conn, principal, "map.edit", ("floor", v["floor_id"]))
+
+
+@router.get("/plan-versions/{version_id}")
+def get_version_api(version_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    v = get_version(conn, version_id)
+    _readable(conn, principal, v)
+    return version_row(v)
+
+
+@router.get("/plan-versions/{version_id}/source.png")
+def version_source(version_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> FileResponse:
+    v = get_version(conn, version_id)
+    _readable(conn, principal, v)
+    path = settings_of(request).data_dir / v["image_path"]
+    if not path.exists():
+        raise not_found("תמונת התוכנית חסרה בדיסק.")
+    return FileResponse(path, media_type="image/png", headers={"Cache-Control": "private, max-age=86400"})
+
+
+@router.get("/plan-versions/{version_id}/stylized.png")
+def version_stylized(version_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> FileResponse:
+    v = get_version(conn, version_id)
+    _readable(conn, principal, v)
+    if not _has_stylized(v):
+        raise not_found("לגרסה זו אין עדיין תמונה מעובדת.")
+    path = settings_of(request).data_dir / v["stylized_path"]
+    if not path.exists():
+        raise not_found("התמונה המעובדת חסרה בדיסק.")
+    return FileResponse(path, media_type="image/png", headers={"Cache-Control": "private, max-age=3600"})
+
+
+@router.post("/plan-versions/{version_id}/stylize")
+def stylize_version(version_id: str, body: StylizeIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Local image processing (no AI, nothing leaves the add-on): walls and rooms in the SMPLWISE language."""
+    settings = settings_of(request)
+    v = get_version(conn, version_id)
+    require(conn, principal, "map.import", ("floor", v["floor_id"]))
+    src = settings.data_dir / v["image_path"]
+    if not src.exists():
+        raise not_found("תמונת התוכנית חסרה בדיסק.")
+    out = src.with_name(src.stem + ".stylized.png")
+    try:
+        with unlocked(conn):
+            result = plan_stylize.stylize(src, out, body.strength, body.keep_lines)
+    except (OSError, ValueError, MemoryError) as exc:
+        raise ApiError(500, "stylize_failed", "עיבוד התוכנית נכשל.", details={"error": type(exc).__name__})
+    conn.execute("UPDATE plan_versions SET stylized_path = ?, stylize_json = ? WHERE id = ?", (str(out.relative_to(settings.data_dir)).replace("\\", "/"), json.dumps(result), version_id))
+    audit(conn, actor=principal, action="plan.stylize", decision="allowed", resource_type="plan_version", resource_id=version_id, request_id=_rid(request), details=result)
+    return {**result, "version_id": version_id, "source_url": f"api/v1/plan-versions/{version_id}/source.png", "stylized_url": f"api/v1/plan-versions/{version_id}/stylized.png"}
+
+
+@router.patch("/plan-versions/{version_id}")
+def patch_version(version_id: str, body: RenderModeIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    v = get_version(conn, version_id)
+    require(conn, principal, "map.import", ("floor", v["floor_id"]))
+    if body.render_mode == "stylized" and not _has_stylized(v):
+        raise conflict("stylized_missing", "הרץ קודם את העיבוד לשפת SMPLWISE.")
+    conn.execute("UPDATE plan_versions SET render_mode = ? WHERE id = ?", (body.render_mode, version_id))
+    audit(conn, actor=principal, action="plan.render_mode", decision="allowed", resource_type="plan_version", resource_id=version_id, request_id=_rid(request), details={"render_mode": body.render_mode})
+    return version_row(get_version(conn, version_id))

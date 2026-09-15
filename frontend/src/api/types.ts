@@ -78,6 +78,10 @@ export interface PlanVersion {
   created_at: string;
   published_at: string | null;
   image_url: string;
+  /** 'stylized' serves the SMPLWISE-language rendering as the map background (the source stays). */
+  render_mode?: 'source' | 'stylized';
+  stylized_url?: string | null;
+  source_url?: string;
 }
 
 export interface Camera {

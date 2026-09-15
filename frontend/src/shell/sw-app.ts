@@ -36,7 +36,8 @@ import '../screens/system-storage';
 import '../screens/screens-index';
 import '../screens/styleguide-screen';
 import { onRouteChange, type RouteState } from '../router';
-import { NAV, GROUP_TABS, groupOf, activeTabOf } from './nav';
+import { NAV, GROUP_TABS, groupOf, activeTabOf, NAV_A, AREA_TABS, areaOf, activeAreaTab, crumbsOf } from './nav';
+import { onDesign, resolveDesign, type DesignId } from '../api/design';
 import { t } from '../i18n/he';
 import { loadSession, onSession, type Session } from '../api/session';
 import '../components/sw-state-panel';
@@ -51,8 +52,10 @@ import '../components/sw-state-panel';
 export class SwApp extends LitElement {
   @state() private route: RouteState | null = null;
   @state() private session: Session = { mode: 'loading', me: null, error: null };
+  @state() private design: DesignId = 'b';
   private stopRouter?: () => void;
   private stopSession?: () => void;
+  private stopDesign?: () => void;
 
   static styles = css`
     :host {
@@ -312,11 +315,203 @@ export class SwApp extends LitElement {
         display: none;
       }
     }
+
+    /* ---- design SW A: four-area icon rail on the right, 72px top bar with crumbs, wide search, user chip ---- */
+    :host([data-design='a']) nav.rail {
+      padding: 14px 8px 12px;
+      gap: 6px;
+      align-items: center;
+    }
+    .brand-tile {
+      display: grid;
+      place-items: center;
+      inline-size: 44px;
+      block-size: 44px;
+      border-radius: 12px;
+      background: var(--sw-accent);
+      color: #fff;
+      font-weight: 800;
+      font-size: 22px;
+      text-decoration: none;
+      margin-block-end: 12px;
+      box-shadow: 0 6px 14px rgba(39, 103, 237, 0.25);
+    }
+    a.item.a {
+      flex-direction: column;
+      justify-content: center;
+      gap: 6px;
+      inline-size: 70px;
+      min-block-size: 64px;
+      padding: 8px 0;
+      border-radius: 12px;
+      font-size: 11.5px;
+      position: relative;
+    }
+    a.item.a span {
+      display: inline;
+    }
+    a.item.a.active::after {
+      content: '';
+      position: absolute;
+      inset-inline-end: -8px;
+      inset-block: 16px;
+      inline-size: 3px;
+      border-radius: 3px;
+      background: var(--sw-accent);
+    }
+    a.item.a.small {
+      min-block-size: 44px;
+      font-size: 10.5px;
+    }
+    .secure {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      font-size: 10.5px;
+      color: var(--sw-text-3);
+      padding: 8px 0 4px;
+      text-align: center;
+      line-height: 1.25;
+    }
+    :host([data-design='a']) header.topbar {
+      padding: 0 26px;
+      gap: 14px;
+    }
+    .crumbs-a {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--sw-text-2);
+      white-space: nowrap;
+    }
+    .crumbs-a .strong {
+      color: var(--sw-heading, var(--sw-text));
+      font-weight: 700;
+    }
+    .crumbs-a sw-icon {
+      color: var(--sw-text-3);
+    }
+    .search.a {
+      inline-size: min(520px, 38vw);
+      block-size: 46px;
+      border-radius: 12px;
+      margin-inline-start: 24px;
+      padding: 0 14px;
+    }
+    .search.a input {
+      font-size: 14px;
+    }
+    .search.a kbd {
+      font: inherit;
+      font-size: 11px;
+      color: var(--sw-text-3);
+      border: 1px solid var(--sw-border-strong);
+      border-radius: 6px;
+      padding: 1px 6px;
+      background: var(--sw-surface);
+      direction: ltr;
+    }
+    .status-a {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12.5px;
+      color: #15803d;
+      white-space: nowrap;
+    }
+    .status-a i {
+      inline-size: 8px;
+      block-size: 8px;
+      border-radius: 50%;
+      background: var(--sw-live);
+    }
+    .user-a {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .who-a {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.2;
+      font-size: 12px;
+      color: var(--sw-text-2);
+      white-space: nowrap;
+    }
+    .who-a b {
+      color: var(--sw-heading, var(--sw-text));
+      font-size: 13px;
+    }
+    .logo-a {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 6px;
+      direction: ltr;
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--sw-heading, var(--sw-text));
+      margin-inline-start: 10px;
+    }
+    .logo-a b {
+      font-size: 24px;
+      letter-spacing: -0.5px;
+      font-weight: 700;
+    }
+    .logo-a small {
+      font-size: 11px;
+      letter-spacing: 2px;
+      color: var(--sw-text-3);
+    }
+    :host([data-design='a']) .subnav {
+      padding: 14px 30px 0;
+    }
+    :host([data-design='a']) nav.bottom {
+      grid-template-columns: repeat(4, 1fr);
+    }
+    @media (max-width: 1279px) {
+      .crumbs-a {
+        display: none;
+      }
+      .search.a {
+        inline-size: 260px;
+        margin-inline-start: 0;
+      }
+      .logo-a {
+        display: none;
+      }
+    }
+    @media (max-width: 1023px) {
+      :host([data-design='a']) {
+        grid-template-columns: var(--sw-rail-w) minmax(0, 1fr);
+      }
+      :host([data-design='a']) a.item.a span {
+        display: inline;
+      }
+      :host([data-design='a']) .subnav {
+        padding: 10px 16px 0;
+      }
+    }
+    @media (max-width: 767px) {
+      .who-a {
+        display: none;
+      }
+      .status-a {
+        display: none;
+      }
+    }
   `;
 
   connectedCallback() {
     super.connectedCallback();
-    this.stopSession = onSession((s) => (this.session = s));
+    this.stopSession = onSession((s) => {
+      this.session = s;
+      if (s.mode !== 'loading') void resolveDesign();
+    });
+    this.stopDesign = onDesign((d) => {
+      this.design = d;
+      this.setAttribute('data-design', d);
+    });
     void loadSession();
     this.stopRouter = onRouteChange((route) => {
       this.route = route;
@@ -328,6 +523,7 @@ export class SwApp extends LitElement {
     super.disconnectedCallback();
     this.stopRouter?.();
     this.stopSession?.();
+    this.stopDesign?.();
   }
 
   /** Full-screen gate for identity problems; `null` (not lit's `nothing`, which is truthy) when the app may render. */
@@ -390,9 +586,53 @@ export class SwApp extends LitElement {
     }
   }
 
+  private renderA() {
+    const area = areaOf(this.route);
+    const tabs = area ? AREA_TABS[area] : [];
+    const editor = this.route?.segments[3] === 'edit' || this.route?.segments[3] === 'import';
+    const crumbs = crumbsOf(this.route);
+    const me = this.session.me;
+    const name = me?.user.display_name || me?.user.username || 'יוני';
+    return html`
+      <nav class="rail" aria-label="ניווט ראשי">
+        <a class="brand-tile" href="#/live" title="SmplWise"><span>S</span></a>
+        ${NAV_A.map(
+          (n) => html`<a class=${classMap({ item: true, a: true, active: area === n.id })} href=${n.href} title=${n.label} aria-current=${area === n.id ? 'page' : 'false'}>
+            <sw-icon .name=${n.icon} size=${23}></sw-icon><span>${n.label}</span>
+          </a>`,
+        )}
+        <div class="grow"></div>
+        <a class=${classMap({ item: true, a: true, small: true, active: this.route?.segments[0] === 'screens' })} href="#/screens" title="כל המסכים"><sw-icon name="list" size=${16}></sw-icon><span>מסכים</span></a>
+        <div class="secure"><sw-icon name="shield" size=${18}></sw-icon><span>מקומי ומאובטח</span></div>
+      </nav>
+      <header class="topbar">
+        <div class="crumbs-a">${crumbs.map((c, i) => html`${i ? html`<sw-icon name="chevron" size=${12}></sw-icon>` : nothing}<span class=${i === 0 ? 'strong' : ''}>${c}</span>`)}</div>
+        <label class="search a"><sw-icon name="search" size=${16}></sw-icon><input type="search" placeholder="חיפוש מצלמות, ישויות ואירועים…" aria-label=${t('app.search')} /><kbd>⌘ K</kbd></label>
+        <span class="spacer"></span>
+        ${this.session.mode === 'api' || this.session.mode === 'no_access'
+          ? html`<span class="status-a"><i></i>מערכת מקומית</span>`
+          : this.session.mode === 'demo'
+            ? html`<sw-badge kind="neutral" label="נתוני הדגמה"></sw-badge>`
+            : nothing}
+        <sw-button class="bell" variant="ghost" size="sm" iconOnly icon="bell" label=${t('app.notifications')}></sw-button>
+        <span class="user-a"><sw-avatar name=${name} size=${34} title=${t('app.account')} aria-label=${t('app.account')}></sw-avatar><span class="who-a"><b>${name}</b><span>${me?.bindings[0]?.role_name ?? (this.session.mode === 'demo' ? 'מנהל VMS' : 'ללא שיוך')}</span></span></span>
+        <span class="logo-a"><b>smplwise</b><small>VMS</small></span>
+      </header>
+      <main>
+        ${this.renderGate() || html`
+          <div class="subnav">${tabs.length > 1 && !editor ? html`<sw-tabs .items=${tabs} .active=${activeAreaTab(this.route)}></sw-tabs>` : nothing}</div>
+          <div class="screen">${this.session.mode === 'loading' ? nothing : this.renderScreen()}</div>`}
+      </main>
+      <nav class="bottom" aria-label="ניווט ראשי">
+        ${NAV_A.map((n) => html`<a class=${classMap({ active: area === n.id })} href=${n.href}><sw-icon .name=${n.icon} size=${20}></sw-icon>${n.label}</a>`)}
+      </nav>
+    `;
+  }
+
   render() {
     const base = import.meta.env.BASE_URL;
     if (this.route?.segments[0] === 'kiosk') return html`<main style="block-size:100dvh">${this.renderScreen()}</main>`;
+    if (this.design === 'a') return this.renderA();
     const group = groupOf(this.route);
     const tabs = group ? GROUP_TABS[group] : [];
     const editor = this.route?.segments[3] === 'edit' || this.route?.segments[3] === 'import';

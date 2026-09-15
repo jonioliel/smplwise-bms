@@ -13,6 +13,9 @@ export interface ProductSettings {
   'playback.lease_s'?: number;
   'exports.max_mb'?: number;
   'exports.retention_days'?: number;
+  /** Design switch: 'a' = mockups v1.3 (SW A), 'b' = the earlier boards (SW B); names are editable. */
+  'ui.design'?: 'a' | 'b';
+  'ui.design_names'?: string;
 }
 
 export const getSettings = () => get<{ settings: ProductSettings; can_edit: boolean }>('settings');
