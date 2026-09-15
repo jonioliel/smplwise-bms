@@ -197,8 +197,10 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   its kind (חדר / אזור / מסדרון / חוץ / שירות) or leave it out; "שמור" stores the chosen ones. Any
   area can also be drawn by clicking its corners ("צייר אזור"; Enter or a click on the first corner
   closes it). Selecting a zone edits its name, kind, colour and whether it takes part in spatial search,
-  and lists the cameras and HA entities that sit inside it. The viewer shows the names under the pins;
-  the layer buttons hide them.
+  and lists the cameras and HA entities that sit inside it. The selected zone can be reshaped on the
+  map: drag a corner to move it, drag the small handle in the middle of an edge to add a corner, and
+  double-click a corner to remove it (a zone keeps at least three); every change is saved at once. The
+  viewer shows the names under the pins; the layer buttons hide them.
 - Detection is local image processing (no AI, nothing leaves the device) and only proposes; it does
   not read room names off the drawing. Zones are a data layer next to the plan: they survive a change
   of rendering (source / SMPLWISE language) and are never burnt into the picture. A zone on the map is

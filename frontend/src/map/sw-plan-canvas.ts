@@ -121,6 +121,8 @@ export class SwPlanCanvas extends LitElement {
   @state() private hoverId: string | null = null;
   @state() private dragging: { id: string; x: number; y: number } | null = null;
   @state() private orienting: { id: string; rotation: number; fov: number } | null = null;
+  @state() private zoneDraft: { id: string; polygon: { x: number; y: number }[] } | null = null;
+  private lastVertexPress: { id: string; index: number; at: number } | null = null;
   @query('.viewport') private viewport!: HTMLDivElement;
 
   private pointers = new Map<number, { x: number; y: number }>();
@@ -277,6 +279,20 @@ export class SwPlanCanvas extends LitElement {
       text-anchor: middle;
       direction: rtl;
       unicode-bidi: plaintext;
+    }
+    .vtx {
+      fill: var(--sw-surface);
+      stroke: var(--zc);
+      cursor: grab;
+    }
+    .vtx:active {
+      cursor: grabbing;
+    }
+    .vmid {
+      fill: var(--zc);
+      fill-opacity: 0.55;
+      stroke: var(--sw-surface);
+      cursor: copy;
     }
     .draft polyline,
     .draft polygon {
@@ -515,15 +531,86 @@ export class SwPlanCanvas extends LitElement {
     this.dispatchEvent(new CustomEvent('zone-select', { detail: { id: z.id }, bubbles: true, composed: true }));
   }
 
+  /** Drag a corner of the selected zone (or, with `insert`, a new corner created at an edge midpoint). */
+  private onVertexPointerDown(z: PlanZone, index: number, e: PointerEvent, insert = false) {
+    if (!this.editable || e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    if (!insert) {
+      // a second press on the same corner within 450 ms removes it (the dblclick event itself lands on the
+      // viewport because of pointer capture)
+      const last = this.lastVertexPress;
+      const now = performance.now();
+      if (last && last.id === z.id && last.index === index && now - last.at < 450) {
+        this.lastVertexPress = null;
+        this.removeVertex(z, index, e);
+        return;
+      }
+      this.lastVertexPress = { id: z.id, index, at: now };
+    }
+    const rect0 = this.getBoundingClientRect();
+    let poly = z.polygon.map((p) => ({ x: p.x, y: p.y }));
+    let idx = index;
+    if (insert) {
+      const a = poly[index];
+      const b = poly[(index + 1) % poly.length];
+      poly.splice(index + 1, 0, { x: +((a.x + b.x) / 2).toFixed(4), y: +((a.y + b.y) / 2).toFixed(4) });
+      idx = index + 1;
+    }
+    this.zoneDraft = { id: z.id, polygon: poly };
+    this.viewport.setPointerCapture(e.pointerId);
+    const move = (ev: PointerEvent) => {
+      const p = this.toPlan(ev.clientX - rect0.left, ev.clientY - rect0.top);
+      poly = poly.map((q, i) => (i === idx ? { x: +p.x.toFixed(4), y: +p.y.toFixed(4) } : q));
+      this.zoneDraft = { id: z.id, polygon: poly };
+    };
+    const up = () => {
+      this.viewport.removeEventListener('pointermove', move);
+      this.viewport.removeEventListener('pointerup', up);
+      this.viewport.removeEventListener('pointercancel', up);
+      const changed = insert || poly.some((q, i) => q.x !== z.polygon[i].x || q.y !== z.polygon[i].y);
+      this.zoneDraft = null;
+      this.dragMoved = true; // swallow the trailing click so the zone stays selected
+      setTimeout(() => (this.dragMoved = false), 0);
+      if (changed) this.dispatchEvent(new CustomEvent('zone-edit', { detail: { id: z.id, polygon: poly }, bubbles: true, composed: true }));
+    };
+    this.viewport.addEventListener('pointermove', move);
+    this.viewport.addEventListener('pointerup', up);
+    this.viewport.addEventListener('pointercancel', up);
+  }
+
+  private removeVertex(z: PlanZone, index: number, e: Event) {
+    e.stopPropagation();
+    if (!this.editable || z.polygon.length <= 3) return;
+    const polygon = z.polygon.filter((_, i) => i !== index);
+    this.dispatchEvent(new CustomEvent('zone-edit', { detail: { id: z.id, polygon }, bubbles: true, composed: true }));
+  }
+
+  private renderZoneHandles(z: PlanZone, poly: { x: number; y: number }[]) {
+    const inv = 1 / this.scale;
+    const W = this.planWidth;
+    const H = this.planHeight;
+    return svg`<g class="zone-handles">
+      ${poly.map((p, i) => {
+        const q = poly[(i + 1) % poly.length];
+        return svg`<circle class="vmid" cx=${(((p.x + q.x) / 2) * W).toFixed(1)} cy=${(((p.y + q.y) / 2) * H).toFixed(1)} r=${(4 * inv).toFixed(2)} stroke-width=${(1.2 * inv).toFixed(2)} role="button" aria-label="הוסף פינה"
+          @pointerdown=${(e: PointerEvent) => this.onVertexPointerDown(z, i, e, true)} @click=${(e: Event) => e.stopPropagation()} />`;
+      })}
+      ${poly.map((p, i) => svg`<circle class="vtx" data-vertex=${i} cx=${(p.x * W).toFixed(1)} cy=${(p.y * H).toFixed(1)} r=${(6 * inv).toFixed(2)} stroke-width=${(1.6 * inv).toFixed(2)} role="slider" aria-label=${`פינה ${i + 1}`}
+          @pointerdown=${(e: PointerEvent) => this.onVertexPointerDown(z, i, e)} @click=${(e: Event) => e.stopPropagation()} />`)}
+    </g>`;
+  }
+
   private renderZone(z: PlanZone) {
     if (z.polygon.length < 3) return nothing;
     const inv = 1 / this.scale;
-    const pts = z.polygon.map((p) => `${(p.x * this.planWidth).toFixed(1)},${(p.y * this.planHeight).toFixed(1)}`).join(' ');
-    const c = polygonCentroid(z.polygon);
+    const live = this.zoneDraft?.id === z.id ? this.zoneDraft.polygon : z.polygon;
+    const pts = live.map((p) => `${(p.x * this.planWidth).toFixed(1)},${(p.y * this.planHeight).toFixed(1)}`).join(' ');
+    const c = polygonCentroid(live);
     const selected = this.selectedZoneId === z.id;
     const lw = Math.max(36, z.name.length * 7 + 18);
-    const xs = z.polygon.map((p) => p.x);
-    const ys = z.polygon.map((p) => p.y);
+    const xs = live.map((p) => p.x);
+    const ys = live.map((p) => p.y);
     const screenW = (Math.max(...xs) - Math.min(...xs)) * this.planWidth * this.scale;
     const screenH = (Math.max(...ys) - Math.min(...ys)) * this.planHeight * this.scale;
     const labelFits = selected || z.candidate || (screenW >= lw + 12 && screenH >= 30);
@@ -538,6 +625,7 @@ export class SwPlanCanvas extends LitElement {
               <text class="zl" y="3.5">${z.name}</text>
             </g>`
           : nothing}
+        ${this.editable && selected && !z.candidate ? this.renderZoneHandles(z, live) : nothing}
       </g>`;
   }
 

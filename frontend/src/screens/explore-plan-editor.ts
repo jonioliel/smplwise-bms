@@ -578,7 +578,7 @@ export class ExplorePlanEditor extends LitElement {
     }
   }
 
-  private async patchZone(z: SpatialZone, body: { name?: string; kind?: ZoneKind; color?: string; searchable?: boolean }) {
+  private async patchZone(z: SpatialZone, body: { name?: string; kind?: ZoneKind; color?: string; searchable?: boolean; polygon?: ZonePoint[] }) {
     if (this.bundle?.source === 'demo') return;
     this.zoneBusy = true;
     this.error = '';
@@ -963,6 +963,7 @@ export class ExplorePlanEditor extends LitElement {
       <div class="kv"><span class="k">ישויות HA באזור</span><span>${ents.length ? `${ents.length} ישויות` : 'אין'}</span></div>
       <div class="row"><span class="lbl">הכללה בחיפוש מרחבי<span class="muted">זמין לחוקי התראה ולחיפוש לפי מקום</span></span><sw-toggle ?checked=${z.searchable} label=${z.searchable ? 'כלול' : 'לא כלול'} @click=${() => this.patchZone(z, { searchable: !z.searchable })}></sw-toggle></div>
       <div class="note">${z.polygon.length} פינות · ${z.source === 'auto' ? 'זוהה אוטומטית מהתוכנית' : 'צויר ידנית'} · revision ${z.revision}</div>
+      <div class="note">עריכת הצורה במפה: גרירת פינה מזיזה אותה, גרירת נקודת האמצע שבין פינות מוסיפה פינה, לחיצה כפולה על פינה מוחקת אותה. השינוי נשמר מיד.</div>
       <div class="note">אזור במפה הוא הקשר מרחבי בלבד: אינו אזור זיהוי במצלמה ואינו מסכת פרטיות, ואינו משנה תצורת NVR.</div>
       <div class="btns"><sw-button size="sm" variant="danger" icon="trash" ?disabled=${this.zoneBusy} @click=${() => this.removeZone(z)}>מחק אזור</sw-button><sw-button size="sm" variant="ghost" @click=${() => (this.selectedZoneId = null)}>סגור</sw-button></div>
     </div>`;
@@ -1043,6 +1044,7 @@ export class ExplorePlanEditor extends LitElement {
                 <sw-plan-canvas editable alwaysLabel .placing=${!!this.placing || !!this.drawing} .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .markers=${this.markers} .selectedId=${this.selectedId}
                   .zones=${this.planZones} .selectedZoneId=${this.selectedZoneId} .draftPoints=${this.drawing ?? []}
                   @zone-select=${(e: CustomEvent<{ id: string }>) => { if (this.placing || this.drawing || e.detail.id.startsWith('cand-')) return; this.selectedZoneId = e.detail.id; this.selectedId = null; }}
+                  @zone-edit=${(e: CustomEvent<{ id: string; polygon: ZonePoint[] }>) => { const z = this.zones.find((x) => x.id === e.detail.id); if (z) void this.patchZone(z, { polygon: e.detail.polygon }); }}
                   @marker-select=${(e: CustomEvent<MarkerSelectDetail>) => { if (this.placing || this.drawing) return; this.selectedId = e.detail.id; this.selectedZoneId = null; }}
                   @marker-move=${(e: CustomEvent<{ id: string; x: number; y: number }>) => { this.apply(e.detail.id, { position: { x: +e.detail.x.toFixed(4), y: +e.detail.y.toFixed(4) } }); this.selectedId = e.detail.id; }}
                   @marker-orient=${(e: CustomEvent<{ id: string; rotation: number; fov: number }>) => this.apply(e.detail.id, { rotation_degrees: e.detail.rotation, field_of_view_degrees: e.detail.fov })}

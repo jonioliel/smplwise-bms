@@ -1,5 +1,10 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.13 (pilot)
+- Zones can be reshaped on the map (design M13): the selected zone shows corner handles (drag to move,
+  double-click to remove, at least three stay) and edge-midpoint handles (drag to add a corner); each
+  change is saved at once with the zone's revision.
+
 ## 0.1.12 (pilot)
 - Event page (design M27) at #/investigate/events/{id}: the recording plays from two seconds before the
   event (event time and played frame time shown separately), context card with status / source / type /
