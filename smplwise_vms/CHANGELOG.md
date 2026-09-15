@@ -1,9 +1,12 @@
 # Changelog — SMPLWISE VMS add-on
 
-## 0.1.3 (pilot, in progress)
+## 0.1.4 (pilot, in progress)
 - Events: alert-stream ingestion (parse, heartbeat, dedup, reconnect, coverage gaps, audited ack),
   recording-derived motion events (inferred), event centre with live updates, markers on the playback
   timeline, ingestion state in health; `events.retention_days`.
+- Note: 0.1.3 was published twice under the same number; this release carries the events build.
+
+## 0.1.3 (pilot)
 - Cameras are discovered automatically: at start-up and every 10 minutes the add-on reads the NVR's
   channels (read-only) and, when go2rtc is configured, keeps the `smplwise_*` live streams in place.
   No "sync" click is needed before the first camera appears; the manual buttons remain. The last
