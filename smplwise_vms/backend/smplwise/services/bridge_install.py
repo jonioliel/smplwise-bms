@@ -45,9 +45,13 @@ _lock = threading.Lock()
 
 
 def source_dir() -> Path | None:
+    """The integration files: SW_INTEGRATION_SRC, the add-on image copy, or the repository checkout (dev)."""
     env = os.environ.get("SW_INTEGRATION_SRC")
     candidates = [Path(env)] if env else []
-    candidates += [Path("/app/integration") / DOMAIN, Path(__file__).resolve().parents[4] / "custom_components" / DOMAIN]
+    candidates.append(Path("/app/integration") / DOMAIN)
+    parents = Path(__file__).resolve().parents
+    if len(parents) > 4:  # inside the image the module sits at /app/smplwise/services: no repository above it
+        candidates.append(parents[4] / "custom_components" / DOMAIN)
     for c in candidates:
         if (c / "manifest.json").is_file():
             return c
@@ -169,8 +173,8 @@ def run_startup(db: Database, settings: Settings) -> None:
         if st["state"] == "not_available":
             log.info("bridge integration not delivered automatically (%s); manual install remains possible", st["last_error"])
     except Exception as exc:  # noqa: BLE001 - start-up must not fail because of the integration copy
-        STATE["last_error"] = type(exc).__name__
-        log.warning("bridge install at start-up failed: %s", type(exc).__name__)
+        STATE["last_error"] = f"crash:{type(exc).__name__}"
+        log.exception("bridge install at start-up failed")
 
 
 def _state(d: dict[str, Any]) -> str:

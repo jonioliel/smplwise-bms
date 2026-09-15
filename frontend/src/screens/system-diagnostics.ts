@@ -248,7 +248,11 @@ export class SystemDiagnostics extends LitElement {
       case 'error':
         return `ההעתקה נכשלה (${i.last_error ?? ''})`;
       default:
-        return `ה־Add-on לא רואה את תיקיית ההגדרות של Home Assistant (${i.last_error ?? 'אין מיפוי'}) · התקנה ידנית לפי השלבים למטה`;
+        return i.last_error === 'ha_config_not_mapped'
+          ? 'ה־Add-on לא רואה את תיקיית ההגדרות של Home Assistant (המיפוי homeassistant_config לא ניתן) · התקנה ידנית לפי השלבים למטה'
+          : i.last_error === 'source_missing'
+            ? 'קבצי האינטגרציה חסרים בתמונת ה־Add-on · התקנה ידנית לפי השלבים למטה'
+            : `ההתקנה האוטומטית נכשלה (${i.last_error ?? 'סיבה לא ידועה'}) · התקנה ידנית לפי השלבים למטה`;
     }
   }
 

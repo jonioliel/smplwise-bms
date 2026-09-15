@@ -63,6 +63,17 @@ def test_install_copies_announces_and_tracks_versions(settings, ha_cfg, monkeypa
     assert c.get("/api/v1/ha/status").json()["integration"]["state"] == "update_pending"
 
 
+def test_source_dir_survives_a_shallow_install_path(tmp_path, monkeypatch):
+    # in the add-on image the module lives at /app/smplwise/services (four parents): 0.1.6 crashed with IndexError here
+    monkeypatch.setattr(bridge_install, "__file__", str(tmp_path.anchor + "app/smplwise/services/bridge_install.py"))
+    assert bridge_install.source_dir() in (None, bridge_install.source_dir())  # no exception
+    src = tmp_path / "integ"
+    src.mkdir()
+    (src / "manifest.json").write_text(json.dumps({"version": "9.9.9"}), encoding="utf-8")
+    monkeypatch.setenv("SW_INTEGRATION_SRC", str(src))
+    assert bridge_install.source_dir() == src and bridge_install.read_version(src) == "9.9.9"
+
+
 def test_without_mapping_the_status_is_honest(settings, tmp_path, monkeypatch):
     monkeypatch.setenv("SW_HA_CONFIG_DIR", str(tmp_path / "nope"))
     app = create_app(settings)

@@ -1,6 +1,12 @@
 # Changelog — SMPLWISE VMS add-on
 
-## 0.1.6 (pilot, in progress)
+## 0.1.7 (pilot, in progress)
+- Fix: the automatic bridge install crashed inside the add-on image (IndexError while locating the
+  integration files) and the settings tab blamed the config mapping; the source lookup no longer assumes a
+  repository checkout above the module, and start-up errors are logged with their traceback.
+- Settings tab: the "not available" reason now names the actual cause (mapping missing, files missing, crash).
+
+## 0.1.6 (pilot)
 - The bridge integration is delivered by the add-on: shipped in the image, copied into Home
   Assistant's `custom_components` through the `homeassistant_config` mapping when missing/outdated,
   announced via Supervisor discovery (config flow `hassio` step with the pairing code prefilled); status
