@@ -180,6 +180,39 @@ test.describe('live video evidence', () => {
     await page.evaluate(`(async () => { ${DEEP} const s = deep(document, 'investigate-playback'); await s.endSession(); })()`);
   });
 
+
+  test('events: ingestion state, recording-derived events, timeline markers and the event centre', async ({ page, request }, testInfo) => {
+    const summary = await (await request.get('/api/v1/events/summary')).json();
+    testInfo.annotations.push({ type: 'events', description: JSON.stringify({ today: summary.today, ingest: summary.ingest, derive: summary.derive }) });
+    expect(summary.ingest).toBeTruthy();
+    const tz = (await (await request.get('/api/v1/settings')).json()).settings['time.zone'] ?? 'Asia/Jerusalem';
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    const list = await (await request.get(`/api/v1/events?date=${today}`)).json();
+    expect(Array.isArray(list.events)).toBeTruthy();
+    const cams = (await (await request.get('/api/v1/cameras')).json()).cameras.filter((c: { main_track: number | null }) => c.main_track);
+    const withEvents = cams.find((c: { id: string }) => list.events.some((e: { camera_id: string }) => e.camera_id === c.id)) ?? cams[0];
+    const markers = await (await request.get(`/api/v1/cameras/${withEvents.id}/events?date=${today}`)).json();
+    testInfo.annotations.push({ type: 'markers', description: `${markers.events.length} events for ${withEvents.id}` });
+    await page.goto(`/#/investigate/events?date=${today}`);
+    await page.waitForSelector('sw-app');
+    await page.waitForTimeout(2500);
+    await page.screenshot({ path: path.join(OUT, `events-${testInfo.project.name}.png`) });
+    await expect(page.locator('investigate-events')).toContainText('קליטה מה־NVR');
+    if (list.events.length) {
+      await page.evaluate(`${DEEP} const s = deep(document, 'investigate-events'); s.selected = s.events[0].id;`);
+      await page.waitForTimeout(600);
+      await page.screenshot({ path: path.join(OUT, `events-drawer-${testInfo.project.name}.png`) });
+    }
+    await page.goto(`/#/investigate/playback?camera=${withEvents.id}`);
+    await page.waitForSelector('sw-app');
+    await page.waitForTimeout(4000);
+    const n = await page.evaluate(`(() => { ${DEEP} const s = deep(document, 'investigate-playback'); return s.dayEvents ? s.dayEvents.length : -1; })()`);
+    testInfo.annotations.push({ type: 'timeline-markers', description: String(n) });
+    expect(n).toBe(markers.events.length);
+    await page.evaluate(`${DEEP} const t = deep(document, 'sw-timeline'); t && t.scrollIntoView({block: 'center'});`);
+    await page.screenshot({ path: path.join(OUT, `timeline-markers-${testInfo.project.name}.png`) });
+  });
+
   test('settings media tab and kiosk render against the API', async ({ page }, testInfo) => {
     await page.goto('/#/system/settings');
     await page.waitForSelector('sw-app');

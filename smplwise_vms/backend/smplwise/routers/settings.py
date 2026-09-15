@@ -29,9 +29,10 @@ DEFAULTS: dict[str, str] = {
     "playback.lease_s": "600",  # idle lease; the janitor deletes the go2rtc stream after it expires
     "exports.max_mb": "2048",  # refuse export jobs whose NVR files exceed this estimate
     "exports.retention_days": "7",  # finished export files are deleted after this many days
+    "events.retention_days": "30",  # stored events are pruned after this many days
 }
 
-INT_KEYS = ("media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "exports.max_mb", "exports.retention_days")
+INT_KEYS = ("media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "exports.max_mb", "exports.retention_days", "events.retention_days")
 
 
 def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
@@ -52,6 +53,7 @@ class SettingsPatch(BaseModel):
     playback_lease_s: int | None = Field(default=None, ge=60, le=3600, alias="playback.lease_s")
     exports_max_mb: int | None = Field(default=None, ge=50, le=20480, alias="exports.max_mb")
     exports_retention_days: int | None = Field(default=None, ge=1, le=365, alias="exports.retention_days")
+    events_retention_days: int | None = Field(default=None, ge=1, le=3650, alias="events.retention_days")
 
     model_config = {"populate_by_name": True}
 

@@ -37,6 +37,7 @@ export class SystemDiagnostics extends LitElement {
   @state() private message = '';
   @state() private error = '';
   @state() private version = '';
+  @state() private health: { discovery?: Record<string, unknown>; events?: { ingest: { connected: boolean; last_heartbeat_at: string | null; last_event_at: string | null; last_error: string | null; reconnects: number; events_stored: number }; derive: { last_ok: string | null; last_error: string | null; derived: number }; stored: number } } | null = null;
 
   static styles = css`
     .sections {
@@ -139,11 +140,12 @@ export class SystemDiagnostics extends LitElement {
   private async loadSettings() {
     if (!isApi()) return;
     try {
-      const [r, h] = await Promise.all([getSettings(), get<{ version: string }>('health').catch(() => null)]);
+      const [r, h] = await Promise.all([getSettings(), get<{ version: string; discovery?: Record<string, unknown>; events?: never }>('health').catch(() => null)]);
       this.settings = r.settings;
       this.canEdit = r.can_edit;
       this.draft = {};
       this.version = h?.version ?? '';
+      this.health = (h as unknown as typeof this.health) ?? null;
     } catch (err) {
       this.error = describeError(err);
     }
@@ -269,6 +271,8 @@ export class SystemDiagnostics extends LitElement {
       <sw-card heading="מצבים נפרדים, לא נורה אחת">${demoHealth.map((h) => html`<div class="row"><span class="lbl">${h.name}<span class="muted">${h.detail}</span></span><sw-badge kind=${h.state}></sw-badge></div>`)}
         <div class="row"><span class="lbl">הקלטה ב־NVR<span class="muted">5/10 ערוצים מקליטים כרגע (לפי תצורה)</span></span><sw-badge kind="live"></sw-badge></div>
         <div class="row"><span class="lbl">זרמים פעילים<span class="muted">${isApi() ? `${this.sessions.length} דרך ה־relay` : '4 חיים · 1 ניגון · 0 יתומים'}</span></span><sw-badge kind="live"></sw-badge></div>
+        ${isApi() && this.health?.events ? html`<div class="row"><span class="lbl">קליטת אירועים מה־NVR (alertStream)<span class="muted">${this.health.events.ingest.connected ? `מחובר · פעימה אחרונה ${this.health.events.ingest.last_heartbeat_at?.replace('T', ' ').replace('Z', ' UTC') ?? '—'}` : `מנותק${this.health.events.ingest.last_error ? ` · ${this.health.events.ingest.last_error}` : ''}`} · ${this.health.events.ingest.events_stored} אירועים נקלטו · ${this.health.events.ingest.reconnects} חיבורים מחדש</span></span><sw-badge kind=${this.health.events.ingest.connected ? 'live' : 'offline'}></sw-badge></div>
+        <div class="row"><span class="lbl">אירועים מהקלטות (inferred)<span class="muted">${this.health.events.derive.last_error ? `שגיאה: ${this.health.events.derive.last_error}` : this.health.events.derive.last_ok ? `עודכן ${this.health.events.derive.last_ok.replace('T', ' ').replace('Z', ' UTC')}` : 'טרם רץ'} · ${this.health.events.stored} אירועים במאגר</span></span><sw-badge kind=${this.health.events.derive.last_error ? 'stale' : 'recorded'}></sw-badge></div>` : nothing}
       </sw-card>
       <sw-card heading="תור עבודות">${demoJobs.map((j) => html`<div class="row"><span class="lbl">${j.title}<span class="muted">${j.status}</span></span><span style="display:flex;align-items:center;gap:10px"><span class="bar ${j.status.startsWith('נכשל') ? 'fail' : ''}"><i style="--p:${j.progress}%"></i></span><span class="ltr">${j.progress}%</span></span></div>`)}</sw-card>
     </div>`;

@@ -80,6 +80,21 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
 - A gap is shown as a gap. Requesting a time without recording starts at the next segment (and says
   so) or reports "no recording" — it never switches to live.
 
+## Events
+
+- Two sources, both labelled: **measured** alerts from the NVR's alert stream (`/ISAPI/Event/notification/alertStream`,
+  read-only, reconnecting, heartbeat used as a health signal, gaps recorded as `coverage_gap`), and
+  **inferred** events derived from the recording search (every motion/alarm recording file is an event
+  with confidence `inferred`). Inferred events are never shown as measured alerts.
+- The NVR only sends an alert to the stream when the trigger's linkage includes **Notify Surveillance
+  Center**. On the pilot NVR motion and intrusion triggers are linked to "record" and "white light" only,
+  so the stream carries heartbeats but no motion alerts until that linkage is enabled in the NVR
+  (Configuration → Event → … → Linkage Method → Notify Surveillance Center). The add-on never changes NVR
+  settings.
+- אירועים (Event centre): day/type/camera/unacked filters, live updates over a WebSocket, acknowledge
+  (`events.ack`, audited), "נגן" jumps to the recording at the event time. Markers also appear on the
+  playback timeline. Retention: `events.retention_days` (default 30).
+
 ## Export
 
 - ייצוא (Export) from the playback screen: pick a range on the selected day, get an estimate (number of

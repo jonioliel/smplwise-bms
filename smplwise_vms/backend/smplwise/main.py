@@ -16,7 +16,7 @@ from . import __version__
 from .config import Settings, load_settings
 from .db import Database
 from .errors import ApiError
-from .routers import anchors, cameras, catalog, exports, health, me, media, plans, playback, playback_groups, recordings, settings as settings_router
+from .routers import anchors, cameras, catalog, events, exports, health, me, media, plans, playback, playback_groups, recordings, settings as settings_router
 
 log = logging.getLogger("smplwise")
 
@@ -69,6 +69,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(playback.router, prefix=api, tags=["playback"])
     app.include_router(playback_groups.router, prefix=api, tags=["playback"])
     app.include_router(exports.router, prefix=api, tags=["exports"])
+    app.include_router(events.router, prefix=api, tags=["events"])
     app.include_router(health.router, prefix=api, tags=["ops"])
 
     @app.on_event("startup")
@@ -97,13 +98,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if settings.go2rtc_url:
             await run_in_threadpool(pb.sweep_orphans, settings)
         ex.WORKER.start(app.state.db, settings)
-        from .services import autosync
+        from .services import autosync, events_derive, events_ingest
+
+        def _tz() -> str:
+            with app.state.db.connection() as conn:
+                return read_settings(conn)["time.zone"]
 
         async def discover(reason: str) -> None:
             await run_in_threadpool(autosync.run_once, app.state.db, settings, reason)
             autosync.PERIODIC.mark()
+            # recording-derived events for today follow every discovery (same NVR search cache)
+            await run_in_threadpool(events_derive.run_once, app.state.db, settings, _tz())
 
         app.state.discovery = asyncio.create_task(discover("startup"))
+        events_ingest.LISTENER.start(app.state.db, settings, _tz)
 
         async def loop() -> None:
             while True:
@@ -116,6 +124,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         pb.sweep_orphans(settings)
                         pg.expire_empty()
                         ex.retention_sweep(app.state.db, settings, s["exports.retention_days"])
+                        events_derive.prune(app.state.db, s["events.retention_days"])
 
                     await run_in_threadpool(_tick)
                     if autosync.PERIODIC.due():
@@ -130,9 +139,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         task = getattr(app.state, "janitor", None)
         if task:
             task.cancel()
+        from .services import events_ingest
         from .services import exports as ex
 
         ex.WORKER.stop = True
+        events_ingest.LISTENER.shutdown()
 
     @app.get("/healthz", include_in_schema=False)
     async def healthz():

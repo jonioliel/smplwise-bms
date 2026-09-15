@@ -37,6 +37,8 @@ import {
   type RecordingsResponse,
 } from '../api/recordings';
 import { createExport, estimateExport, formatBytes, type ExportEstimate, type ExportJob } from '../api/exports';
+import { cameraEvents, markerKind, EVENT_LABEL, type VmsEvent } from '../api/events';
+import type { TimelineEvent } from '../components/sw-timeline';
 import type { Camera } from '../api/types';
 
 type Filter = 'all' | 'motion' | 'person' | 'vehicle' | 'door';
@@ -77,6 +79,7 @@ export class InvestigatePlayback extends LitElement {
   @state() private tz = 'Asia/Jerusalem';
   @state() private date = '';
   @state() private rec: RecordingsResponse | null = null;
+  @state() private dayEvents: VmsEvent[] = [];
   @state() private loadingRec = false;
   @state() private session: PlaybackSession | null = null;
   @state() private group: PlaybackGroup | null = null;
@@ -453,13 +456,24 @@ export class InvestigatePlayback extends LitElement {
     this.loadingRec = true;
     this.rec = null;
     try {
-      this.rec = await recordingsForDay(this.cameraId, this.date);
+      const [rec, ev] = await Promise.all([recordingsForDay(this.cameraId, this.date), cameraEvents(this.cameraId, this.date).catch(() => ({ events: [] as VmsEvent[] }))]);
+      this.rec = rec;
+      this.dayEvents = ev.events;
       this.error = '';
     } catch (err) {
       this.error = describeError(err);
     } finally {
       this.loadingRec = false;
     }
+  }
+
+  /** Event markers for the timeline (measured alerts and recording-derived, inferred ones). */
+  private get markers(): TimelineEvent[] {
+    return this.dayEvents.map((e) => ({
+      minute: minuteInZone(new Date(e.occurred_at), this.tz),
+      kind: markerKind(e.type),
+      label: `${EVENT_LABEL[e.type] ?? e.type}${e.confidence === 'inferred' ? ' (מהקלטה)' : ''}${e.count > 1 ? ` ×${e.count}` : ''}`,
+    }));
   }
 
   private get segmentsMin(): DemoSegment[] {
@@ -784,7 +798,7 @@ export class InvestigatePlayback extends LitElement {
           <sw-button variant="ghost" size="sm" iconOnly icon="expand" label="מסך מלא" ?disabled=${!live} @click=${() => this.masterPlayer()?.fullscreen()}></sw-button>
         </div></div>
       </div>
-      <sw-timeline .segments=${this.segmentsMin} .events=${[]} .cursor=${this.cursor} .limit=${this.limitMinute} precision=${precision} @seek=${this.onSeek} @scrub=${this.onScrub}></sw-timeline>
+      <sw-timeline .segments=${this.segmentsMin} .events=${this.markers} .cursor=${this.cursor} .limit=${this.limitMinute} precision=${precision} @seek=${this.onSeek} @scrub=${this.onScrub}></sw-timeline>
       <div class="compare">
         <span>השוואה (עד 4):</span>
         ${this.cams.filter((c) => c.id !== this.cameraId).map((c) => html`<sw-chip ?selected=${this.extra.includes(c.id)} @click=${() => this.toggleExtra(c.id)}>${c.name}</sw-chip>`)}
@@ -792,6 +806,7 @@ export class InvestigatePlayback extends LitElement {
       </div>
       <div class="filters">
         ${this.rec ? html`<sw-chip icon="history">${this.rec.segments.length} מקטעים · ${this.rec.matches} קבצים</sw-chip>` : nothing}
+        ${this.dayEvents.length ? html`<sw-chip icon="bell" @click=${() => navigate('/investigate/events', { camera: this.cameraId, date: this.date })}>${this.dayEvents.length} אירועים${this.dayEvents.every((e) => e.confidence === 'inferred') ? ' (מהקלטות)' : ''}</sw-chip>` : nothing}
         ${this.rec?.coverage === 'partial' ? html`<span class="warn">כיסוי חלקי: ${this.rec.note}</span>` : nothing}
         ${this.loadingRec ? html`<span class="session">מחפש הקלטות…</span>` : nothing}
         ${this.notice ? html`<span class="warn">${this.notice}</span>` : nothing}

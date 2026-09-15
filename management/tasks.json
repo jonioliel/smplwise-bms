@@ -1533,7 +1533,8 @@
     ],
     "evidence": [
       "pre-evidence (segment 3, 2026-09-14): frontend/src/screens/investigate-playback.ts - camera/day pickers, timeline from the search (segments in the site zone), click/±10 s seek through the session API, bubble follows the media clock, precision label from the session, gap shown as gap (never live), coverage note; route #/investigate/playback?camera=&t= from the camera view and the map popover; speeds/frame-step hidden until supported",
-      "pre-evidence (segment 4, 2026-09-15): sw-timeline.ts zoom day/6h/hour/10min/minute (buttons + wheel around the pointer), second-level seeks below one hour, drag scrubbing with a single seek on release, future greyed out for today; export dialog with estimate/confirm from the playback screen"
+      "pre-evidence (segment 4, 2026-09-15): sw-timeline.ts zoom day/6h/hour/10min/minute (buttons + wheel around the pointer), second-level seeks below one hour, drag scrubbing with a single seek on release, future greyed out for today; export dialog with estimate/confirm from the playback screen",
+      "pre-evidence (segment 5, 2026-09-15): event markers (measured and inferred, labelled) on the playback timeline from /cameras/{id}/events?date=; chip links to the event centre for the same camera/day"
     ],
     "owner": null,
     "commit": null,
@@ -1633,7 +1634,10 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (segment 5, 2026-09-15): services/events_ingest.py - alertStream listener (multipart parse, heartbeat = health signal, unknown types kept as other, detectionTarget refines person/vehicle, dedup of bursts with count and active/inactive, coverage_gap rows after a disconnect, reconnect with back-off, push to WebSocket subscribers); device time from the stream's offset when it is within 15 min of now, else wall clock (quirk T1); addresses never stored; tests/test_events.py",
+      "lab (2026-09-15): 140 s capture of the alert stream = 14 videoloss/inactive heartbeats (~10 s) and nothing else; /ISAPI/Event/triggers shows VMD-1..7 and fielddetection-1..4 linked to record/whiteLightOut only (no 'center'), so no motion alerts reach the stream until the owner enables Notify Surveillance Center on the NVR; therefore motion events are also derived from recording files (events_derive.py, confidence=inferred, labelled everywhere)"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
@@ -1683,7 +1687,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (segment 5, 2026-09-15): routers/events.py - scoped listing (events.read installation-wide or via anchored floors), day/type/camera/unacked filters, summary, per-camera markers, ack with audit (events.ack), push socket /events/ws with heartbeat and re-scoped permissions; investigate-events.ts event centre with live updates, drawer (source, confidence, occurred vs received, precision), 'להקלטה' to the playback time; retention setting"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
