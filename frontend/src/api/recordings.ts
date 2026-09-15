@@ -84,3 +84,17 @@ export function instantInZone(date: string, minute: number, timeZone: string): D
   t = guess - offsetAt(t); // second pass fixes instants near a DST transition
   return new Date(t);
 }
+
+/** Playback group (chapter 25): one reference time for 2–4 cameras, each with its own session. */
+export interface PlaybackGroup {
+  id: string;
+  requested_at: string;
+  generation: number;
+  sessions: PlaybackSession[];
+  missing: Record<string, string>;
+  sync: 'best_effort';
+}
+
+export const createGroup = (cameraIds: string[], startAt: string) => post<PlaybackGroup>('playback/groups', { camera_ids: cameraIds, start_at: startAt });
+export const seekGroup = (id: string, startAt: string) => post<PlaybackGroup>(`playback/groups/${id}/seek`, { start_at: startAt });
+export const closeGroup = (id: string) => del(`playback/groups/${id}`);

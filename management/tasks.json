@@ -300,7 +300,8 @@
     ],
     "evidence": [
       "pre-evidence (G0): go2rtc 1.9.14 API PUT persists to config, DELETE removes — private-evidence/go2rtc-probes/*/verdict.json; ADR-013",
-      "pre-evidence (segment 3, 2026-09-14): the RTSP playback path through go2rtc is proven on the lab NVR (Streaming/tracks/<track>?starttime=&endtime= in local compact time, HTTP-port playbackURI not used); first frame 2-4 s after the request in Chrome; media anchor still unverified (precision keyframe_limited) - PTS-to-source mapping measurement remains open"
+      "pre-evidence (segment 3, 2026-09-14): the RTSP playback path through go2rtc is proven on the lab NVR (Streaming/tracks/<track>?starttime=&endtime= in local compact time, HTTP-port playbackURI not used); first frame 2-4 s after the request in Chrome; media anchor still unverified (precision keyframe_limited) - PTS-to-source mapping measurement remains open",
+      "lab (2026-09-15): export path decided by evidence - RTSP playback via go2rtc for viewing, ISAPI download by file + ffmpeg remux for export (container is Hikvision PS, not MP4); media anchor still unverified"
     ],
     "owner": null,
     "commit": null,
@@ -1474,7 +1475,8 @@
     ],
     "evidence": [
       "pre-evidence (segment 3, 2026-09-14): services/playback.py + routers/playback.py - session {id, generation, state, requested_at, time_precision=keyframe_limited, media_handle (relay path, never a URL), expires_at, capabilities}; seek = generation+1 with the previous go2rtc stream deleted and old-generation sockets closed 4410; cap playback.max_sessions, lease playback.lease_s, janitor + start-up sweep of smplwise_pb_* only; audit video.playback.start/seek/stop; contract shape per contracts/schemas/playback-session.schema.json",
-      "lab (real Chrome headless + Python relay probe, 2026-09-14): fresh session plays in ~4-8 s, seek plays in ~3 s (2560x1440), fragments start with a key frame for both; old generation stream gone after seek, stream gone after close; sessions do not leak (janitor); 20-seek gate (chapter 24) still to run"
+      "lab (real Chrome headless + Python relay probe, 2026-09-14): fresh session plays in ~4-8 s, seek plays in ~3 s (2560x1440), fragments start with a key frame for both; old generation stream gone after seek, stream gone after close; sessions do not leak (janitor); 20-seek gate (chapter 24) still to run",
+      "pre-evidence (segment 4, 2026-09-15): playback groups (routers/playback_groups.py) - one reference time + generation for up to 4 cameras, per-camera sessions created in parallel, members without a recording reported as missing (gap tolerance 60 s), group seek/close, sync labelled best_effort (no verified PTS-UTC anchor); UI shows per-tile drift against the leading camera"
     ],
     "owner": null,
     "commit": null,
@@ -1527,7 +1529,8 @@
       "Build screenshots matching design reference"
     ],
     "evidence": [
-      "pre-evidence (segment 3, 2026-09-14): frontend/src/screens/investigate-playback.ts - camera/day pickers, timeline from the search (segments in the site zone), click/±10 s seek through the session API, bubble follows the media clock, precision label from the session, gap shown as gap (never live), coverage note; route #/investigate/playback?camera=&t= from the camera view and the map popover; speeds/frame-step hidden until supported"
+      "pre-evidence (segment 3, 2026-09-14): frontend/src/screens/investigate-playback.ts - camera/day pickers, timeline from the search (segments in the site zone), click/±10 s seek through the session API, bubble follows the media clock, precision label from the session, gap shown as gap (never live), coverage note; route #/investigate/playback?camera=&t= from the camera view and the map popover; speeds/frame-step hidden until supported",
+      "pre-evidence (segment 4, 2026-09-15): sw-timeline.ts zoom day/6h/hour/10min/minute (buttons + wheel around the pointer), second-level seeks below one hour, drag scrubbing with a single seek on release, future greyed out for today; export dialog with estimate/confirm from the playback screen"
     ],
     "owner": null,
     "commit": null,
@@ -2506,7 +2509,10 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (segment 4, 2026-09-15): smplwise_vms/backend/smplwise/services/exports.py + routers/exports.py - durable export_jobs table (migration 0002), estimate (files/bytes from the search's playbackURI size), queue with one worker, byte progress, cancel, partial/failed/interrupted states, retention sweep, audit create/cancel/download/delete, explicit video.export permission (operator/site_admin/system_admin); download by file is the only variant the lab NVR accepts (by-time downloadRequest -> badXmlContent)",
+      "lab (2026-09-15): the NVR returns Hikvision PS (IMKH header + MPEG-PS, H.264 + G.711u) at ~0.45 MB/s; ffmpeg (added to the image) remuxes to MP4 (video copy, AAC 8 kHz), concatenates and trims at key frames; a 40 s clip from a 54 MB file: done in 141 s, MP4 40.1 s / 10 MB, sha256 in the manifest, requested vs actual recorded; 5 export tests incl. a synthetic-PS end-to-end run with ffmpeg"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
@@ -3431,7 +3437,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "note (2026-09-15): speeds other than 1x stay hidden on the playback screen until the NVR path proves them (chapter 25); no playbackRate faking"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null

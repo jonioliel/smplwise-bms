@@ -16,7 +16,7 @@ from . import __version__
 from .config import Settings, load_settings
 from .db import Database
 from .errors import ApiError
-from .routers import anchors, cameras, catalog, health, me, media, plans, playback, recordings, settings as settings_router
+from .routers import anchors, cameras, catalog, exports, health, me, media, plans, playback, playback_groups, recordings, settings as settings_router
 
 log = logging.getLogger("smplwise")
 
@@ -67,6 +67,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(media.router, prefix=api, tags=["media"])
     app.include_router(recordings.router, prefix=api, tags=["recordings"])
     app.include_router(playback.router, prefix=api, tags=["playback"])
+    app.include_router(playback_groups.router, prefix=api, tags=["playback"])
+    app.include_router(exports.router, prefix=api, tags=["exports"])
     app.include_router(health.router, prefix=api, tags=["ops"])
 
     @app.on_event("startup")
@@ -75,11 +77,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # sessions every 30 s. Only `smplwise_pb_*` names are ever deleted.
         from starlette.concurrency import run_in_threadpool
 
+        from .services import exports as ex
         from .services import playback as pb
+        from .services import playback_groups as pg
         from .routers.settings import read_settings
 
         if settings.go2rtc_url:
             await run_in_threadpool(pb.sweep_orphans, settings)
+        ex.WORKER.start(app.state.db, settings)
 
         async def loop() -> None:
             while True:
@@ -87,9 +92,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 try:
                     def _tick() -> None:
                         with app.state.db.connection() as conn:
-                            lease = read_settings(conn)["playback.lease_s"]
-                        pb.expire_idle(settings, lease)
+                            s = read_settings(conn)
+                        pb.expire_idle(settings, s["playback.lease_s"])
                         pb.sweep_orphans(settings)
+                        pg.expire_empty()
+                        ex.retention_sweep(app.state.db, settings, s["exports.retention_days"])
 
                     await run_in_threadpool(_tick)
                 except Exception as exc:  # never let the janitor die
@@ -102,6 +109,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         task = getattr(app.state, "janitor", None)
         if task:
             task.cancel()
+        from .services import exports as ex
+
+        ex.WORKER.stop = True
 
     @app.get("/healthz", include_in_schema=False)
     async def healthz():

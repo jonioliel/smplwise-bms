@@ -221,3 +221,45 @@ def discover_channels(settings: Settings) -> list[DiscoveredChannel]:
             stream=ids[0][1] if ids and ids[0][1] else None,
         ))
     return result
+
+
+def download_file(settings: Settings, playback_uri: str, dest, progress=None) -> None:
+    """Stream one recording file from `/ISAPI/ContentMgmt/download` (download by file name is the only
+    variant this NVR supports, KNOWN_QUIRKS S4/S6) into `dest`. `progress(bytes_so_far) -> bool` may return
+    False to abort. One retry on a dropped connection before the first byte."""
+    import html as _html
+    from pathlib import Path
+
+    body = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n<downloadRequest version="1.0" xmlns="http://www.isapi.org/ver20/XMLSchema">\n'
+        f"<playbackURI>{_html.escape(playback_uri, quote=False)}</playbackURI>\n</downloadRequest>"
+    ).encode("utf-8")
+    dest = Path(dest)
+    attempts = 0
+    while True:
+        attempts += 1
+        written = 0
+        try:
+            with _client(settings) as client:
+                client.timeout = httpx.Timeout(connect=15, read=120, write=15, pool=15)
+                req = client.build_request("GET", "/ISAPI/ContentMgmt/download", content=body, headers={"Content-Type": "application/xml"})
+                r = client.send(req, stream=True)
+                try:
+                    if r.status_code in (401, 403):
+                        raise ApiError(503, "source_forbidden", "ה־NVR דחה את פרטי הגישה.", details={"op": "download", "status": r.status_code})
+                    if r.status_code != 200 or "xml" in (r.headers.get("content-type") or "").lower():
+                        snippet = r.read()[:300].decode("utf-8", "ignore")
+                        raise ApiError(503, "download_refused", "ה־NVR סירב להוריד את הקובץ.", details={"op": "download", "status": r.status_code, "body": snippet})
+                    with open(dest, "wb") as f:
+                        for chunk in r.iter_bytes(256 * 1024):
+                            f.write(chunk)
+                            written += len(chunk)
+                            if progress is not None and progress(written) is False:
+                                raise ApiError(499, "cancelled", "ההורדה בוטלה.")
+                finally:
+                    r.close()
+            return
+        except httpx.HTTPError as exc:
+            if written == 0 and attempts < 2:
+                continue
+            raise ApiError(503, "source_unavailable", "ה־NVR ניתק את ההורדה.", retryable=True, details={"op": "download", "error": type(exc).__name__, "bytes": written}) from exc

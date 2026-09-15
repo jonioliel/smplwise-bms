@@ -2,7 +2,7 @@ ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base-python:3.12-alpine3.22
 FROM ${BUILD_FROM}
 
 # poppler-utils provides pdftoppm/pdfinfo: PDF pages are rasterized in a separate, time-bounded process.
-RUN apk add --no-cache poppler-utils jpeg zlib libpng
+RUN apk add --no-cache poppler-utils jpeg zlib libpng ffmpeg
 
 WORKDIR /app
 COPY backend/requirements.txt /app/requirements.txt

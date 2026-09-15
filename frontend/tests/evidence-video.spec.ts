@@ -111,6 +111,75 @@ test.describe('live video evidence', () => {
     expect(after.streams.map((s: { name: string }) => s.name).filter((n: string) => n.includes(mine.id))).toEqual([]);
   });
 
+
+  test('export job: estimate → create → done (MP4 when ffmpeg is present)', async ({ request }, testInfo) => {
+    test.setTimeout(420_000);
+    const cams = await (await request.get('/api/v1/cameras')).json();
+    const cam = cams.cameras.find((c: { status: string; main_track: number | null }) => c.status === 'online' && c.main_track) ?? cams.cameras[0];
+    const tz = (await (await request.get('/api/v1/settings')).json()).settings['time.zone'] ?? 'Asia/Jerusalem';
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    const rec = await (await request.get(`/api/v1/cameras/${cam.id}/recordings?date=${today}`)).json();
+    test.skip(!rec.segments.length, 'no recordings today on this camera');
+    const last = rec.segments[rec.segments.length - 1];
+    const from = new Date(new Date(last.start_at).getTime() + 5_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+    const to = new Date(Math.min(new Date(last.start_at).getTime() + 35_000, new Date(last.end_at).getTime())).toISOString().replace(/\.\d{3}Z$/, 'Z');
+    const est = await (await request.post('/api/v1/exports/estimate', { data: { camera_id: cam.id, from_at: from, to_at: to } })).json();
+    expect(est.files).toBeGreaterThan(0);
+    testInfo.annotations.push({ type: 'estimate', description: JSON.stringify(est) });
+    const created = await request.post('/api/v1/exports', { data: { camera_id: cam.id, from_at: from, to_at: to } });
+    expect(created.status(), await created.text()).toBe(201);
+    const job = await created.json();
+    let state = job;
+    const deadline = Date.now() + 400_000;
+    while (Date.now() < deadline && !['done', 'partial', 'failed', 'cancelled'].includes(state.state)) {
+      await new Promise((r) => setTimeout(r, 5000));
+      state = await (await request.get(`/api/v1/exports/${job.id}`)).json();
+    }
+    testInfo.annotations.push({ type: 'job', description: `${state.state} ${state.container} remux=${state.remux} ${state.output_name}` });
+    expect(state.state, JSON.stringify(state)).toBe('done');
+    expect(state.download_ready).toBeTruthy();
+    if (est.ffmpeg) expect(state.container).toBe('mp4');
+    const dl = await request.get(`/api/v1/exports/${job.id}/download`);
+    expect(dl.ok()).toBeTruthy();
+    expect(dl.headers()['content-type']).toBe(state.media_type);
+    const manifest = await (await request.get(`/api/v1/exports/${job.id}/manifest`)).json();
+    expect(manifest.output.sha256).toBe(state.sha256);
+    await request.delete(`/api/v1/exports/${job.id}`);
+  });
+
+  test('playback group: two cameras play side by side', async ({ page, request }, testInfo) => {
+    test.setTimeout(180_000);
+    const cams = (await (await request.get('/api/v1/cameras')).json()).cameras.filter((c: { status: string; main_track: number | null }) => c.status === 'online' && c.main_track);
+    test.skip(cams.length < 2, 'need two online cameras');
+    const tz = (await (await request.get('/api/v1/settings')).json()).settings['time.zone'] ?? 'Asia/Jerusalem';
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    const rec = await (await request.get(`/api/v1/cameras/${cams[0].id}/recordings?date=${today}`)).json();
+    test.skip(!rec.segments.length, 'no recordings today');
+    const last = rec.segments[rec.segments.length - 1];
+    const at = new Date(Math.min(new Date(last.start_at).getTime() + 10_000, new Date(last.end_at).getTime() - 5_000)).toISOString().replace(/\.\d{3}Z$/, 'Z');
+    await page.goto(`/#/investigate/playback?camera=${cams[0].id}&t=${encodeURIComponent(at)}`);
+    await page.waitForSelector('sw-app');
+    await waitPlaying(page, 1, 45000);
+    await page.evaluate(`(async () => { ${DEEP} const s = deep(document, 'investigate-playback'); await s.toggleExtra('${cams[1].id}'); })()`);
+    // a member without a recording at that time is reported as missing; the others must play
+    const readGroup = () => page.evaluate(`(() => { ${DEEP} const s = deep(document, 'investigate-playback'); return s.group && {n: s.group.sessions.length, missing: s.group.missing, sync: s.group.sync}; })()`) as Promise<{ n: number; missing: Record<string, string>; sync: string } | null>;
+    let state: PlayerState[] = [];
+    let group: { n: number; missing: Record<string, string>; sync: string } | null = null;
+    const deadline = Date.now() + 45_000;
+    while (Date.now() < deadline) {
+      state = await players(page);
+      group = await readGroup();
+      if (group && state.filter((p) => p.status === 'playing' && p.width > 0).length >= 2 - Object.keys(group.missing).length) break;
+      await page.waitForTimeout(1000);
+    }
+    await page.screenshot({ path: path.join(OUT, `playback-group-${testInfo.project.name}.png`) });
+    testInfo.annotations.push({ type: 'group', description: JSON.stringify({ group, state }) });
+    expect(group?.sync).toBe('best_effort');
+    // the second camera either plays or is honestly reported as missing (no recording at that time)
+    expect(state.filter((p) => p.status === 'playing').length + Object.keys(group?.missing ?? {}).length).toBeGreaterThanOrEqual(2);
+    await page.evaluate(`(async () => { ${DEEP} const s = deep(document, 'investigate-playback'); await s.endSession(); })()`);
+  });
+
   test('settings media tab and kiosk render against the API', async ({ page }, testInfo) => {
     await page.goto('/#/system/settings');
     await page.waitForSelector('sw-app');

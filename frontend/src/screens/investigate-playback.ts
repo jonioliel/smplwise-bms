@@ -1,33 +1,62 @@
 import { LitElement, html, css, nothing } from 'lit';
-import { customElement, property, state, query } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-page';
 import '../components/sw-badge';
 import '../components/sw-button';
 import '../components/sw-chip';
+import '../components/sw-dialog';
 import '../components/sw-field';
 import '../components/sw-icon';
 import '../components/sw-scene';
 import '../components/sw-timeline';
 import '../components/sw-live-player';
 import '../components/sw-state-panel';
-import { minuteLabel } from '../components/sw-timeline';
+import { minuteLabel, secondLabel } from '../components/sw-timeline';
 import type { SwLivePlayer } from '../components/sw-live-player';
 import type { DemoSegment } from '../fixtures/catalog';
 import { demoEvents, demoScene, demoSegments, demoWall } from '../fixtures/catalog';
 import { isApi } from '../api/session';
 import { listCameras } from '../api/maps';
 import { productSettings } from '../api/prefs';
+import { navigate } from '../router';
 import { describeError, ApiError } from '../api/client';
-import { closePlayback, createPlayback, dateInZone, instantInZone, minuteInZone, playbackWsUrl, recordingsForDay, seekPlayback, type PlaybackSession, type RecordingsResponse } from '../api/recordings';
+import {
+  closeGroup,
+  closePlayback,
+  createGroup,
+  createPlayback,
+  dateInZone,
+  instantInZone,
+  minuteInZone,
+  playbackWsUrl,
+  recordingsForDay,
+  seekGroup,
+  seekPlayback,
+  type PlaybackGroup,
+  type PlaybackSession,
+  type RecordingsResponse,
+} from '../api/recordings';
+import { createExport, estimateExport, formatBytes, type ExportEstimate, type ExportJob } from '../api/exports';
 import type { Camera } from '../api/types';
 
 type Filter = 'all' | 'motion' | 'person' | 'vehicle' | 'door';
+const FINISHED = ['closed', 'expired', 'failed'];
+
+function hms(minute: number): string {
+  return secondLabel(Math.max(0, Math.min(1439.983, minute)));
+}
+function parseHms(v: string): number {
+  const [h = 0, m = 0, s = 0] = v.split(':').map(Number);
+  return h * 60 + m + s / 60;
+}
 
 /**
  * SC12 — playback & timeline (board 1 screen 7). With a backend: the NVR's recordings for a local day
- * (search with honest coverage), a playback session through the relay (seek = new generation), the blue
- * timeline whose bubble follows the media clock. Time precision is labelled from the session; a gap is
- * shown as a gap, never replaced by live. Without a backend: the demo skeleton.
+ * (search with honest coverage), a playback session through the relay (seek = new generation) or a
+ * playback group of up to four cameras (chapter 25, best effort), the blue timeline with day→minute zoom
+ * whose bubble follows the media clock, and export of a range as a durable job (chapter 27).
+ * Time precision is labelled from the session; a gap is shown as a gap, never replaced by live.
+ * Without a backend: the demo skeleton.
  */
 @customElement('investigate-playback')
 export class InvestigatePlayback extends LitElement {
@@ -50,13 +79,23 @@ export class InvestigatePlayback extends LitElement {
   @state() private rec: RecordingsResponse | null = null;
   @state() private loadingRec = false;
   @state() private session: PlaybackSession | null = null;
+  @state() private group: PlaybackGroup | null = null;
+  @state() private extra: string[] = [];
   @state() private busy = false;
   @state() private error = '';
   @state() private notice = '';
-  @state() private playerStatus = '';
+  @state() private tileStatus: Record<string, string> = {};
+  @state() private drifts: Record<string, number> = {};
   @state() private paused = false;
+  @state() private scrubbing = false;
   @state() private position: Date | null = null; // media clock → source time
-  @query('sw-live-player') private player?: SwLivePlayer;
+  @state() private exportOpen = false;
+  @state() private exportFrom = '';
+  @state() private exportTo = '';
+  @state() private estimate: ExportEstimate | null = null;
+  @state() private exportJob: ExportJob | null = null;
+  @state() private exportBusy = false;
+  @state() private exportError = '';
   private ticker: number | undefined;
 
   static styles = css`
@@ -91,6 +130,58 @@ export class InvestigatePlayback extends LitElement {
       color: var(--sw-text-2);
       box-shadow: none;
       border: 1px solid var(--sw-border);
+    }
+    .grid {
+      display: grid;
+      gap: 6px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      background: #0f1729;
+      border-radius: var(--sw-r-lg);
+      overflow: hidden;
+      box-shadow: var(--sw-shadow-2);
+      padding: 6px;
+    }
+    .grid.one {
+      grid-template-columns: 1fr;
+    }
+    .tile {
+      position: relative;
+      aspect-ratio: 16 / 9;
+      background: #111a2e;
+      border-radius: 6px;
+      overflow: hidden;
+      color: #fff;
+    }
+    .tile sw-live-player {
+      position: absolute;
+      inset: 0;
+    }
+    .tile.master {
+      outline: 2px solid var(--sw-accent);
+      outline-offset: -2px;
+    }
+    .tile .name {
+      position: absolute;
+      inset-inline-start: 8px;
+      inset-block-start: 6px;
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-semibold);
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+      z-index: 2;
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .tile .drift {
+      font-family: var(--sw-font-mono);
+      font-weight: 400;
+      direction: ltr;
+      background: rgba(17, 24, 39, 0.55);
+      border-radius: 4px;
+      padding: 0 5px;
+    }
+    .tile .drift.bad {
+      background: rgba(239, 68, 68, 0.7);
     }
     .shade {
       position: absolute;
@@ -153,6 +244,10 @@ export class InvestigatePlayback extends LitElement {
       gap: 6px;
       max-inline-size: 420px;
     }
+    .tile .center {
+      font-size: var(--sw-fs-xs);
+      color: rgba(255, 255, 255, 0.75);
+    }
     .bar {
       position: absolute;
       inset-inline: 0;
@@ -201,6 +296,16 @@ export class InvestigatePlayback extends LitElement {
       background: rgba(255, 255, 255, 0.25);
       margin-inline: 4px;
     }
+    .stage {
+      position: relative;
+    }
+    .stage .bar {
+      inset-block-end: 12px;
+    }
+    .stage .stamp {
+      inset-block-end: 60px;
+      inset-inline-start: 14px;
+    }
     .filters {
       display: flex;
       gap: 6px;
@@ -225,6 +330,37 @@ export class InvestigatePlayback extends LitElement {
       font-size: var(--sw-fs-xs);
       color: var(--sw-danger);
     }
+    .compare {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .dlg {
+      display: grid;
+      gap: 10px;
+      font-size: var(--sw-fs-sm);
+      min-inline-size: min(420px, 80vw);
+    }
+    .dlg .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .est {
+      background: var(--sw-surface-2);
+      border-radius: var(--sw-r-md);
+      padding: 8px 10px;
+      font-size: var(--sw-fs-xs);
+      display: grid;
+      gap: 4px;
+    }
+    .ltr {
+      direction: ltr;
+      unicode-bidi: isolate;
+    }
   `;
 
   connectedCallback() {
@@ -247,7 +383,26 @@ export class InvestigatePlayback extends LitElement {
     }
   }
 
-  // ---------- API mode ----------
+  // ---------- API mode: data ----------
+
+  private get members(): string[] {
+    return [this.cameraId, ...this.extra.filter((c) => c !== this.cameraId)];
+  }
+
+  private get groupMode(): boolean {
+    return this.extra.filter((c) => c !== this.cameraId).length > 0;
+  }
+
+  /** The session whose media clock drives the timeline. */
+  private get masterSession(): PlaybackSession | null {
+    if (this.groupMode) return this.group?.sessions.find((s) => s.camera_id === this.cameraId) ?? this.group?.sessions[0] ?? null;
+    return this.session;
+  }
+
+  private get live(): boolean {
+    const s = this.masterSession;
+    return !!s && !FINISHED.includes(s.state) && (this.groupMode ? !!this.group : true);
+  }
 
   private async init() {
     try {
@@ -256,13 +411,14 @@ export class InvestigatePlayback extends LitElement {
       this.cams = list.cameras.filter((c) => c.enabled);
       const first = this.cams.find((c) => c.id === this.cameraId) ?? this.cams[0];
       const at = this.at ? new Date(this.at) : null;
-      this.date = dateInZone(at && !Number.isNaN(at.getTime()) ? at : new Date(), this.tz);
+      const validAt = !!at && !Number.isNaN(at.getTime());
+      this.date = dateInZone(validAt ? at! : new Date(), this.tz);
       if (first) {
         this.cameraId = first.id;
         await this.loadRecordings();
-        if (at && !Number.isNaN(at.getTime())) {
-          this.cursor = minuteInZone(at, this.tz);
-          await this.startAt(at);
+        if (validAt) {
+          this.cursor = minuteInZone(at!, this.tz);
+          await this.startAt(at!);
         } else {
           const last = this.rec?.segments.at(-1);
           this.cursor = last ? Math.max(0, minuteInZone(new Date(last.end_at), this.tz) - 5) : Math.max(0, minuteInZone(new Date(), this.tz) - 5);
@@ -277,6 +433,7 @@ export class InvestigatePlayback extends LitElement {
     if (!id || (!fromRoute && id === this.cameraId)) return;
     await this.endSession();
     this.cameraId = id;
+    this.extra = this.extra.filter((c) => c !== id);
     this.error = '';
     this.notice = '';
     await this.loadRecordings();
@@ -319,27 +476,50 @@ export class InvestigatePlayback extends LitElement {
     return this.segmentsMin.some((s) => minute >= s.startMin && minute <= s.endMin);
   }
 
-  /** Create the session at an instant, or seek the existing one (new generation). */
+  private get limitMinute(): number {
+    return this.date === dateInZone(new Date(), this.tz) ? minuteInZone(new Date(), this.tz) : 1440;
+  }
+
+  private cameraName(id: string): string {
+    return this.cams?.find((c) => c.id === id)?.name ?? id;
+  }
+
+  // ---------- API mode: sessions ----------
+
+  /** Create the session/group at an instant, or seek the existing one (new generation). */
   private async startAt(at: Date) {
     if (!this.cameraId || this.busy) return;
     this.busy = true;
     this.error = '';
     this.notice = '';
+    this.scrubbing = false;
     try {
       const iso = at.toISOString().replace(/\.\d{3}Z$/, 'Z');
-      const session = this.session && !['closed', 'expired', 'failed'].includes(this.session.state) ? await seekPlayback(this.session.id, iso) : await createPlayback(this.cameraId, iso);
-      this.session = session;
-      this.position = new Date(session.requested_at);
-      this.cursor = minuteInZone(this.position, this.tz);
+      if (this.groupMode) {
+        const g = this.group && this.group.sessions.some((s) => !FINISHED.includes(s.state)) ? await seekGroup(this.group.id, iso) : await createGroup(this.members, iso);
+        this.group = g;
+        this.session = null;
+        this.position = new Date(g.requested_at);
+        const missing = Object.keys(g.missing);
+        if (missing.length) this.notice = `ללא הקלטה בזמן הזה: ${missing.map((id) => this.cameraName(id)).join(', ')}`;
+      } else {
+        const session = this.session && !FINISHED.includes(this.session.state) ? await seekPlayback(this.session.id, iso) : await createPlayback(this.cameraId, iso);
+        this.session = session;
+        this.group = null;
+        this.position = new Date(session.requested_at);
+        if (session.moved_to_next_segment) this.notice = `אין הקלטה בזמן שנבחר; הניגון התחיל בקטע הבא (${this.fmt(new Date(session.requested_at))}).`;
+      }
+      this.cursor = minuteInZone(this.position!, this.tz);
       this.paused = false;
-      this.playerStatus = 'connecting';
-      if (session.moved_to_next_segment) this.notice = `אין הקלטה בזמן שנבחר; הניגון התחיל בקטע הבא (${this.fmt(new Date(session.requested_at))}).`;
+      this.tileStatus = {};
+      this.drifts = {};
     } catch (err) {
       if (err instanceof ApiError && err.body.code === 'no_recording') {
         this.notice = 'אין הקלטה בזמן הזה ובשש השעות שאחריו: פער בכיסוי, לא מדלגים ל־Live.';
         this.position = at;
-      } else if (err instanceof ApiError && err.body.code === 'session_over') {
+      } else if (err instanceof ApiError && (err.body.code === 'session_over' || err.body.code === 'not_found')) {
         this.session = null;
+        this.group = null;
         this.busy = false;
         await this.startAt(at);
         return;
@@ -353,29 +533,62 @@ export class InvestigatePlayback extends LitElement {
 
   private async endSession() {
     const s = this.session;
+    const g = this.group;
     this.session = null;
-    this.playerStatus = '';
-    if (s && !['closed', 'expired', 'failed'].includes(s.state)) {
-      try {
-        await closePlayback(s.id);
-      } catch {
-        /* the janitor expires it */
-      }
+    this.group = null;
+    this.tileStatus = {};
+    this.drifts = {};
+    try {
+      if (g) await closeGroup(g.id);
+      else if (s && !FINISHED.includes(s.state)) await closePlayback(s.id);
+    } catch {
+      /* the janitor expires it */
     }
   }
 
+  private async toggleExtra(id: string) {
+    const next = this.extra.includes(id) ? this.extra.filter((c) => c !== id) : [...this.extra, id].slice(-3);
+    const cur = this.currentInstant();
+    await this.endSession();
+    this.extra = next;
+    if (cur) await this.startAt(cur);
+  }
+
+  private players(): SwLivePlayer[] {
+    return Array.from(this.renderRoot.querySelectorAll('sw-live-player')) as SwLivePlayer[];
+  }
+
+  private masterPlayer(): SwLivePlayer | undefined {
+    return this.players().find((p) => p.dataset.camera === this.cameraId) ?? this.players()[0];
+  }
+
   private currentInstant(): Date | null {
-    if (!this.session) return this.position;
-    const base = new Date(this.session.requested_at).getTime();
-    return new Date(base + (this.player?.mediaTime ?? 0) * 1000);
+    const s = this.masterSession;
+    if (!s) return this.position;
+    const base = new Date(s.requested_at).getTime();
+    return new Date(base + (this.masterPlayer()?.mediaTime ?? 0) * 1000);
   }
 
   private tick() {
-    if (!this.session || this.playerStatus !== 'playing' || this.paused) return;
+    const s = this.masterSession;
+    if (!s || this.paused || this.scrubbing) return;
+    const master = this.masterPlayer();
+    if (!master || master.status !== 'playing') return;
     const now = this.currentInstant();
     if (now) {
       this.position = now;
       this.cursor = minuteInZone(now, this.tz);
+    }
+    if (this.groupMode && this.group) {
+      const drifts: Record<string, number> = {};
+      for (const p of this.players()) {
+        const cid = p.dataset.camera ?? '';
+        const sess = this.group.sessions.find((x) => x.camera_id === cid);
+        if (!sess || cid === this.cameraId) continue;
+        const pos = new Date(sess.requested_at).getTime() + p.mediaTime * 1000;
+        drifts[cid] = p.status === 'playing' && now ? (pos - now.getTime()) / 1000 : NaN;
+      }
+      this.drifts = drifts;
     }
   }
 
@@ -384,10 +597,17 @@ export class InvestigatePlayback extends LitElement {
     const at = instantInZone(this.date, minute, this.tz);
     if (at.getTime() > Date.now()) {
       this.notice = 'לא ניתן לנגן זמן עתידי.';
+      this.scrubbing = false;
       return;
     }
     this.cursor = minute;
     await this.startAt(at);
+  }
+
+  private onScrub(e: CustomEvent<{ minute: number }>) {
+    this.scrubbing = true;
+    this.cursor = e.detail.minute;
+    this.position = instantInZone(this.date, e.detail.minute, this.tz);
   }
 
   private async nudge(seconds: number) {
@@ -397,20 +617,25 @@ export class InvestigatePlayback extends LitElement {
   }
 
   private togglePause() {
-    if (!this.player || this.playerStatus !== 'playing') return;
-    if (this.paused) this.player.resume();
-    else this.player.pause();
+    const players = this.players();
+    if (!players.length) return;
+    if (this.paused) players.forEach((p) => p.resume());
+    else players.forEach((p) => p.pause());
     this.paused = !this.paused;
   }
 
-  private onPlayer(e: CustomEvent<{ status: string; transport?: string; error?: string }>) {
-    this.playerStatus = e.detail.status;
-    if (this.session && e.detail.status === 'playing') this.session = { ...this.session, state: 'playing' };
+  private onTilePlayer(cameraId: string, e: CustomEvent<{ status: string; transport?: string; error?: string }>) {
+    this.tileStatus = { ...this.tileStatus, [cameraId]: e.detail.status };
+    if (cameraId !== this.cameraId) return;
+    if (this.masterSession && e.detail.status === 'playing') {
+      if (this.session) this.session = { ...this.session, state: 'playing' };
+    }
     if (e.detail.status === 'ended') {
       // The NVR reached the end of the requested range: continue from there if the day has more.
       const cur = this.currentInstant();
-      if (cur && this.session && new Date(this.session.playback_end_at).getTime() - cur.getTime() < 5000) {
-        void this.startAt(new Date(new Date(this.session.playback_end_at).getTime() + 1000));
+      const s = this.masterSession;
+      if (cur && s && new Date(s.playback_end_at).getTime() - cur.getTime() < 5000) {
+        void this.startAt(new Date(new Date(s.playback_end_at).getTime() + 1000));
       }
     }
   }
@@ -419,36 +644,152 @@ export class InvestigatePlayback extends LitElement {
     return new Intl.DateTimeFormat('he-IL', { timeZone: this.tz, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(d);
   }
 
+  // ---------- export ----------
+
+  private openExport() {
+    const c = Math.floor(this.cursor * 60) / 60;
+    this.exportFrom = hms(Math.max(0, c - 1));
+    this.exportTo = hms(Math.min(this.limitMinute, c + 1));
+    this.estimate = null;
+    this.exportJob = null;
+    this.exportError = '';
+    this.exportOpen = true;
+  }
+
+  private exportRange(): [string, string] | null {
+    const a = instantInZone(this.date, parseHms(this.exportFrom), this.tz);
+    const b = instantInZone(this.date, parseHms(this.exportTo), this.tz);
+    if (b.getTime() <= a.getTime()) {
+      this.exportError = 'זמן הסיום חייב להיות אחרי ההתחלה.';
+      return null;
+    }
+    return [a.toISOString().replace(/\.\d{3}Z$/, 'Z'), b.toISOString().replace(/\.\d{3}Z$/, 'Z')];
+  }
+
+  private async runEstimate() {
+    const r = this.exportRange();
+    if (!r) return;
+    this.exportBusy = true;
+    this.exportError = '';
+    try {
+      this.estimate = await estimateExport(this.cameraId, r[0], r[1]);
+    } catch (err) {
+      this.exportError = describeError(err);
+    } finally {
+      this.exportBusy = false;
+    }
+  }
+
+  private async runExport() {
+    const r = this.exportRange();
+    if (!r) return;
+    this.exportBusy = true;
+    this.exportError = '';
+    try {
+      this.exportJob = await createExport(this.cameraId, r[0], r[1]);
+    } catch (err) {
+      this.exportError = describeError(err);
+    } finally {
+      this.exportBusy = false;
+    }
+  }
+
+  private renderExportDialog() {
+    const est = this.estimate;
+    const job = this.exportJob;
+    return html`<sw-dialog ?open=${this.exportOpen} heading="ייצוא קטע" subheading=${`${this.cameraName(this.cameraId)} · ${this.date} · ${this.tz}`} @close=${() => (this.exportOpen = false)}>
+      <div class="dlg">
+        ${job
+          ? html`<div class="est"><strong>עבודת הייצוא נוצרה</strong><span>${job.files.length} קבצים · משוער ${formatBytes(job.estimate_bytes)} · מצב: ${job.state}</span><span>ההתקדמות וההורדה במסך "ייצוא".</span></div>`
+          : html`
+              <div class="row">
+                <sw-field label="מ־"><input type="time" step="1" data-ltr .value=${this.exportFrom} @change=${(e: Event) => { this.exportFrom = (e.target as HTMLInputElement).value; this.estimate = null; }} /></sw-field>
+                <sw-field label="עד"><input type="time" step="1" data-ltr .value=${this.exportTo} @change=${(e: Event) => { this.exportTo = (e.target as HTMLInputElement).value; this.estimate = null; }} /></sw-field>
+              </div>
+              ${est
+                ? html`<div class="est">
+                    <span>${est.files} קבצי NVR בטווח · נפח משוער ${formatBytes(est.estimate_bytes)} (מקסימום ${formatBytes(est.max_bytes)}) · כיסוי ${est.coverage === 'complete' ? 'מלא' : 'חלקי'}</span>
+                    ${est.first_file_at ? html`<span class="ltr">${this.fmt(new Date(est.first_file_at))} → ${this.fmt(new Date(est.last_file_end_at ?? est.first_file_at))}</span>` : nothing}
+                    <span>${est.note}</span>
+                    ${est.ffmpeg ? nothing : html`<span class="warn">ffmpeg לא זמין בשרת: הקובץ יימסר במיכל המקורי (Hikvision PS) ללא חיתוך.</span>`}
+                  </div>`
+                : html`<div class="session">הייצוא מוריד את הקבצים המקוריים מה־NVR (לפי קובץ, כך המכשיר תומך) ואז חותך לטווח ב־keyframe. חשב נפח לפני היצירה.</div>`}
+            `}
+        ${this.exportError ? html`<div class="err">${this.exportError}</div>` : nothing}
+      </div>
+      <div slot="footer" style="display:flex;gap:8px;justify-content:flex-end">
+        ${job
+          ? html`<sw-button variant="primary" icon="download" @click=${() => navigate('/investigate/exports')}>למסך הייצוא</sw-button><sw-button @click=${() => (this.exportOpen = false)}>סגור</sw-button>`
+          : html`<sw-button ?disabled=${this.exportBusy} @click=${() => this.runEstimate()}>חשב נפח</sw-button>
+              <sw-button variant="primary" icon="download" ?disabled=${this.exportBusy || !est || !est.files} @click=${() => this.runExport()}>צור ייצוא</sw-button>
+              <sw-button variant="ghost" @click=${() => (this.exportOpen = false)}>ביטול</sw-button>`}
+      </div>
+    </sw-dialog>`;
+  }
+
+  // ---------- API mode: render ----------
+
+  private renderStage(cam: Camera) {
+    const live = this.live;
+    const inGap = !live && !this.inRecording(this.cursor);
+    if (this.groupMode) {
+      const members = this.members;
+      return html`<div class="grid ${members.length === 1 ? 'one' : ''}">
+        ${members.map((cid) => {
+          const sess = this.group?.sessions.find((s) => s.camera_id === cid);
+          const missing = this.group?.missing[cid];
+          const drift = this.drifts[cid];
+          const st = this.tileStatus[cid];
+          return html`<div class="tile ${cid === this.cameraId ? 'master' : ''}">
+            ${sess && !FINISHED.includes(sess.state)
+              ? html`<sw-live-player data-camera=${cid} .wsUrl=${playbackWsUrl(sess)} mode="mse" .retry=${false} compact @player-status=${(e: CustomEvent<{ status: string }>) => this.onTilePlayer(cid, e)}></sw-live-player>`
+              : html`<div class="center"><div><sw-icon name="offline" size=${20}></sw-icon><span>${missing === 'gap' || missing === 'no_recording' ? 'אין הקלטה בזמן הזה' : missing === 'playback_quota' ? 'מכסת הניגון מלאה' : this.busy ? 'מכין…' : this.group ? 'לא זמין' : 'לחץ על ציר הזמן'}</span></div></div>`}
+            <span class="name">${this.cameraName(cid)}${cid === this.cameraId ? html` · מוביל` : nothing}${cid !== this.cameraId && sess && st === 'playing' && Number.isFinite(drift) ? html`<span class="drift ${Math.abs(drift) > 2 ? 'bad' : ''}">${drift >= 0 ? '+' : ''}${drift.toFixed(1)}s</span>` : nothing}</span>
+          </div>`;
+        })}
+      </div>`;
+    }
+    const session = this.session;
+    return html`<div class="video ${inGap ? 'gap' : ''}">
+      ${live && session
+        ? html`<sw-live-player data-camera=${cam.id} .wsUrl=${playbackWsUrl(session)} mode="mse" .retry=${false} @player-status=${(e: CustomEvent<{ status: string }>) => this.onTilePlayer(cam.id, e)}></sw-live-player>`
+        : inGap
+          ? html`<div class="center"><div><sw-icon name="offline" size=${32}></sw-icon><span>${this.notice || 'אין הקלטה בזמן הזה: פער בכיסוי, לא מדלגים ל־Live'}</span></div></div>`
+          : html`<div class="center"><div><sw-icon name="play" size=${32}></sw-icon><span>${this.busy ? 'מכין ניגון…' : 'לחץ על ציר הזמן (או על נגן) כדי להתחיל מהזמן שנבחר'}</span>${this.busy ? nothing : html`<sw-button variant="primary" size="sm" icon="play" @click=${() => this.startAt(instantInZone(this.date, this.cursor, this.tz))}>נגן מ־${hms(this.cursor)}</sw-button>`}</div></div>`}
+      <div class="tag"><sw-badge kind=${live ? 'recorded' : 'unknown'} ?onImage=${!!live}></sw-badge><span class="nm">${cam.name}</span></div>
+    </div>`;
+  }
+
   private renderApi() {
     if (this.error && !this.cams) return html`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.init()}></sw-state-panel>`;
     if (!this.cams) return html`<sw-state-panel state="loading"></sw-state-panel>`;
     if (!this.cams.length) return html`<sw-state-panel state="empty" heading="אין מצלמות" hint="סנכרן מצלמות מה־NVR או בקש הרשאת ניגון."></sw-state-panel>`;
     const cam = this.cams.find((c) => c.id === this.cameraId) ?? this.cams[0];
-    const session = this.session;
-    const live = session && ['buffering', 'playing', 'seeking', 'paused', 'creating'].includes(session.state);
-    const inGap = !live && !this.inRecording(this.cursor);
-    const precision = session?.time_precision ?? 'unknown';
+    const master = this.masterSession;
+    const live = this.live;
+    const precision = master?.time_precision ?? 'unknown';
     const pos = this.position ?? instantInZone(this.date, this.cursor, this.tz);
+    const masterStatus = this.tileStatus[this.cameraId] ?? '';
     return html`
-      <div class="video ${inGap ? 'gap' : ''}">
-        ${live
-          ? html`<sw-live-player .wsUrl=${playbackWsUrl(session)} mode="mse" .retry=${false} @player-status=${this.onPlayer}></sw-live-player>`
-          : inGap
-            ? html`<div class="center"><div><sw-icon name="offline" size=${32}></sw-icon><span>${this.notice || 'אין הקלטה בזמן הזה: פער בכיסוי, לא מדלגים ל־Live'}</span></div></div>`
-            : html`<div class="center"><div><sw-icon name="play" size=${32}></sw-icon><span>${this.busy ? 'מכין ניגון…' : 'לחץ על ציר הזמן (או על נגן) כדי להתחיל מהזמן שנבחר'}</span>${this.busy ? nothing : html`<sw-button variant="primary" size="sm" icon="play" @click=${() => this.startAt(instantInZone(this.date, this.cursor, this.tz))}>נגן מ־${minuteLabel(Math.floor(this.cursor))}</sw-button>`}</div></div>`}
-        <div class="tag"><sw-badge kind=${live ? 'recorded' : 'unknown'} ?onImage=${!!live}></sw-badge><span class="nm">${cam.name}</span></div>
-        <span class="stamp">${this.date} ${this.fmt(pos)} · ${{ verified: 'מאומת', keyframe_limited: 'דיוק לפי keyframe', estimated: 'משוער', unknown: '—' }[precision]}</span>
+      <div class="stage">
+        ${this.renderStage(cam)}
+        <span class="stamp">${this.date} ${this.fmt(pos)} · ${{ verified: 'מאומת', keyframe_limited: 'דיוק לפי keyframe', estimated: 'משוער', unknown: '—' }[precision]}${this.groupMode ? ' · סנכרון best effort' : ''}</span>
         <div class="bar"><div class="inner">
-          <sw-button variant="ghost" size="sm" iconOnly icon=${this.paused ? 'play' : 'pause'} label=${this.paused ? 'המשך' : 'השהה'} ?disabled=${!live || this.playerStatus !== 'playing'} @click=${() => this.togglePause()}></sw-button>
+          <sw-button variant="ghost" size="sm" iconOnly icon=${this.paused ? 'play' : 'pause'} label=${this.paused ? 'המשך' : 'השהה'} ?disabled=${!live || masterStatus !== 'playing'} @click=${() => this.togglePause()}></sw-button>
           <sw-button variant="ghost" size="sm" iconOnly icon="back10" label="10 שניות אחורה" ?disabled=${!live || this.busy} @click=${() => this.nudge(-10)}></sw-button>
           <sw-button variant="ghost" size="sm" iconOnly icon="forward10" label="10 שניות קדימה" ?disabled=${!live || this.busy} @click=${() => this.nudge(10)}></sw-button>
           <span class="sep"></span>
           <button class="q on" title="מהירויות נוספות יוצגו רק אם המסלול תומך">1×</button>
           <span class="sep"></span>
-          <sw-button variant="ghost" size="sm" iconOnly icon="expand" label="מסך מלא" ?disabled=${!live} @click=${() => this.player?.fullscreen()}></sw-button>
+          <sw-button variant="ghost" size="sm" iconOnly icon="expand" label="מסך מלא" ?disabled=${!live} @click=${() => this.masterPlayer()?.fullscreen()}></sw-button>
         </div></div>
       </div>
-      <sw-timeline .segments=${this.segmentsMin} .events=${[]} .cursor=${Math.floor(this.cursor)} precision=${precision} @seek=${this.onSeek}></sw-timeline>
+      <sw-timeline .segments=${this.segmentsMin} .events=${[]} .cursor=${this.cursor} .limit=${this.limitMinute} precision=${precision} @seek=${this.onSeek} @scrub=${this.onScrub}></sw-timeline>
+      <div class="compare">
+        <span>השוואה (עד 4):</span>
+        ${this.cams.filter((c) => c.id !== this.cameraId).map((c) => html`<sw-chip ?selected=${this.extra.includes(c.id)} @click=${() => this.toggleExtra(c.id)}>${c.name}</sw-chip>`)}
+        ${this.groupMode ? html`<span>· ציר הזמן עוקב אחרי המצלמה המובילה; הסטייה של כל אריח מוצגת עליו (best effort, ללא עוגן זמן מאומת)</span>` : nothing}
+      </div>
       <div class="filters">
         ${this.rec ? html`<sw-chip icon="history">${this.rec.segments.length} מקטעים · ${this.rec.matches} קבצים</sw-chip>` : nothing}
         ${this.rec?.coverage === 'partial' ? html`<span class="warn">כיסוי חלקי: ${this.rec.note}</span>` : nothing}
@@ -456,16 +797,17 @@ export class InvestigatePlayback extends LitElement {
         ${this.notice ? html`<span class="warn">${this.notice}</span>` : nothing}
         ${this.error ? html`<span class="err">${this.error}</span>` : nothing}
         <span class="grow"></span>
-        <sw-button size="sm" icon="download" disabled title="ייצוא לפי קובץ מגיע בהמשך (T044)">ייצוא</sw-button>
+        <sw-button size="sm" icon="download" ?disabled=${!this.rec?.segments.length} @click=${() => this.openExport()}>ייצוא</sw-button>
         <a href="#/explore/floors/f0"><sw-button size="sm" icon="map">במפה</sw-button></a>
       </div>
       <div class="session">
-        <span>Session: ${session ? `${session.id} · דור ${session.generation} · ${session.state}` : 'אין'}</span>
-        <span>נגן: ${this.playerStatus || '—'}${this.paused ? ' (מושהה)' : ''}</span>
+        <span>Session: ${master ? `${master.id} · דור ${this.groupMode ? this.group?.generation ?? master.generation : master.generation} · ${master.state}` : 'אין'}</span>
+        <span>נגן: ${masterStatus || '—'}${this.paused ? ' (מושהה)' : ''}</span>
         <span>אזור זמן: <span class="ltr">${this.tz}</span></span>
         <span>כיסוי: ${this.rec ? (this.rec.coverage === 'complete' ? 'מלא' : this.rec.coverage === 'partial' ? 'חלקי' : 'לא ידוע') : '—'}</span>
-        ${session ? html`<span>סוף הטווח: ${this.fmt(new Date(session.playback_end_at))}</span>` : nothing}
+        ${master ? html`<span>סוף הטווח: ${this.fmt(new Date(master.playback_end_at))}</span>` : nothing}
       </div>
+      ${this.renderExportDialog()}
     `;
   }
 
@@ -525,7 +867,7 @@ export class InvestigatePlayback extends LitElement {
     const api = isApi();
     const cam = api ? this.cams?.find((c) => c.id === this.cameraId) : demoWall.find((c) => c.id === this.demoCamera) ?? demoWall[0];
     const heading = cam?.name ?? 'הקלטות';
-    const sub = api ? `${this.date} ${minuteLabel(Math.floor(this.cursor))} · אזור זמן ${this.tz}` : `14.09.2026 ${minuteLabel(this.cursor)} · אזור זמן האתר Asia/Jerusalem · נתוני הדגמה`;
+    const sub = api ? `${this.date} ${hms(this.cursor)} · אזור זמן ${this.tz}` : `14.09.2026 ${minuteLabel(this.cursor)} · אזור זמן האתר Asia/Jerusalem · נתוני הדגמה`;
     const crumbs = api ? 'הקלטות' : `הקלטות | ${(cam as { floor?: string })?.floor ?? ''}`;
     const today = api ? dateInZone(new Date(), this.tz) : '2026-09-14';
     return html`
@@ -535,7 +877,7 @@ export class InvestigatePlayback extends LitElement {
             ? html`<sw-field><select aria-label="מצלמה" @change=${(e: Event) => this.selectCamera((e.target as HTMLSelectElement).value)}>${(this.cams ?? []).map((c) => html`<option value=${c.id} ?selected=${c.id === this.cameraId}>${c.name}</option>`)}</select></sw-field>`
             : html`<sw-field><select aria-label="מצלמה" @change=${(e: Event) => (this.demoCamera = (e.target as HTMLSelectElement).value)}>${demoWall.map((c) => html`<option value=${c.id} ?selected=${c.id === this.demoCamera}>${c.name}</option>`)}</select></sw-field>`}
           <sw-field><input type="date" .value=${api ? this.date : '2026-09-14'} max=${today} data-ltr aria-label="תאריך" @change=${(e: Event) => api && this.setDate((e.target as HTMLInputElement).value)} /></sw-field>
-          <sw-field style="inline-size:96px"><input type="time" .value=${minuteLabel(Math.floor(this.cursor))} data-ltr aria-label="שעה" @change=${(e: Event) => { const [h, m] = (e.target as HTMLInputElement).value.split(':').map(Number); if (api) void this.onSeek(new CustomEvent('seek', { detail: { minute: h * 60 + m } })); else { this.cursor = h * 60 + m; this.generation += 1; } }} /></sw-field>
+          <sw-field style="inline-size:110px"><input type="time" step="1" .value=${api ? hms(this.cursor) : minuteLabel(this.cursor)} data-ltr aria-label="שעה" @change=${(e: Event) => { const v = (e.target as HTMLInputElement).value; if (api) void this.onSeek(new CustomEvent('seek', { detail: { minute: parseHms(v) } })); else { const [h, m] = v.split(':').map(Number); this.cursor = h * 60 + m; this.generation += 1; } }} /></sw-field>
         </div>
         ${api ? nothing : html`<sw-button slot="actions" variant="ghost" iconOnly icon="download" label="ייצוא קטע"></sw-button><sw-button slot="actions" variant="ghost" iconOnly icon="link" label="שיתוף"></sw-button><sw-button slot="actions" variant="ghost" iconOnly icon="more" label="עוד"></sw-button>`}
         ${api ? this.renderApi() : this.renderDemo()}

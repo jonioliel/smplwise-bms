@@ -20,7 +20,8 @@
         "video.live",
         "video.playback",
         "events.read",
-        "events.ack"
+        "events.ack",
+        "video.export"
       ]
     },
     {
@@ -52,7 +53,8 @@
         "map.publish",
         "placement.edit",
         "views.edit",
-        "site.content.configure"
+        "site.content.configure",
+        "video.export"
       ]
     },
     {
@@ -77,7 +79,8 @@
         "rbac.assign",
         "rbac.roles.manage",
         "audit.read",
-        "backup.manage"
+        "backup.manage",
+        "video.export"
       ]
     }
   ],

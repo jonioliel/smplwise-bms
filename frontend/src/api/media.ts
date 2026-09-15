@@ -11,6 +11,8 @@ export interface ProductSettings {
   'time.zone'?: string;
   'playback.max_sessions'?: number;
   'playback.lease_s'?: number;
+  'exports.max_mb'?: number;
+  'exports.retention_days'?: number;
 }
 
 export const getSettings = () => get<{ settings: ProductSettings; can_edit: boolean }>('settings');

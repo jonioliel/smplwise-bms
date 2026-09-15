@@ -10,6 +10,11 @@
   session cap and idle lease, orphan cleanup on start-up, audit of start/seek/stop; the הקלטות screen
   plays real recordings with the timeline following the media clock (precision labelled).
 - Settings: playback cap and lease, time zone. Requirements: `tzdata`.
+- Export: durable jobs (download by file from the NVR, ffmpeg remux to MP4 with concat + key-frame trim,
+  manifest with SHA-256, cancel/partial/retention); `video.export` granted to operator and admins.
+- Multi-camera playback groups (up to four cameras, best-effort sync with per-tile drift).
+- Timeline: day → minute zoom (wheel), second-level seeks, drag scrubbing, future greyed out.
+- Image: ffmpeg added to the add-on container.
 
 ## 0.1.1 (pilot, in progress)
 - Live video: go2rtc adapter (namespaced `smplwise_*` streams only), authorized WebSocket relay,

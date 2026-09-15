@@ -77,12 +77,32 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
 - A gap is shown as a gap. Requesting a time without recording starts at the next segment (and says
   so) or reports "no recording" — it never switches to live.
 
+## Export
+
+- ייצוא (Export) from the playback screen: pick a range on the selected day, get an estimate (number of
+  NVR files and bytes), confirm, and follow the job under ניגון → ייצוא. Jobs are durable rows; one
+  download at a time; progress is byte-based; cancel and partial results are honest states.
+- The lab NVR only supports download **by file** (KNOWN_QUIRKS S4), so the add-on downloads the whole
+  recording files overlapping the range and then, with ffmpeg (in the image), remuxes the Hikvision PS
+  container to MP4 (H.264 copied, G.711 audio to AAC), concatenates and trims to the requested range at
+  key frames. The manifest records requested vs. actual range, source files, pipeline version and
+  SHA-256. Without ffmpeg the original PS files are delivered as `.mpg` (VLC plays them) and marked so.
+- Export needs the explicit `video.export` permission (operator, site_admin, system_admin). Files are
+  deleted after `exports.retention_days`; jobs above `exports.max_mb` are refused up front.
+
+## Multi-camera playback
+
+- On the playback screen, "השוואה" adds up to three more cameras: one reference time and generation,
+  a session per camera, the timeline follows the leading camera and each tile shows its drift. Without a
+  verified PTS↔UTC anchor this is labelled best effort (chapter 25); a camera without a recording at that
+  time is shown as such, never as a frozen frame.
+
 ## Limits in this build
 
 - Uploads: PDF/PNG/JPG up to 40 MB, PDF up to 20 pages; SVG and DWG/DXF are rejected.
 - PDF rasterization runs in a separate process (pdftoppm) with a 30 s limit.
-- Playback: speed 1× only, no frame step, no export yet (export goes by file — T044); one camera at a
-  time; events are not drawn on the timeline yet. PTZ and two-way audio are not exposed until the
+- Playback: speed 1× only, no frame step; up to four cameras side by side (best effort sync); events are
+  not drawn on the timeline yet. Export trims at key frames (the start may be a few seconds early). PTZ and two-way audio are not exposed until the
   capability is verified per camera.
 - Live video needs a browser with H.264 support (Chrome, Edge, Safari, Firefox on desktop); Playwright's
   bundled Chromium has none, so the evidence suites run with `SW_CHROME=1`.

@@ -71,30 +71,19 @@ def merge(segments: list[Segment]) -> list[Segment]:
     return out
 
 
-def search_segments(settings: Settings, conn: sqlite3.Connection, cam: sqlite3.Row, start: dt.datetime, end: dt.datetime, tz_name: str) -> SearchResult:
-    if end <= start:
-        raise ApiError(422, "validation", "טווח הזמן ריק.")
-    if (end - start) > dt.timedelta(days=7):
-        raise ApiError(422, "validation", "טווח חיפוש מקסימלי: 7 ימים.")
+def list_matches(settings: Settings, cam: sqlite3.Row, start: dt.datetime, end: dt.datetime, tz_name: str) -> tuple[list[nvr.SearchMatch], str, int]:
+    """Raw NVR matches (one per recording file) for [start, end): paged, serialized, de-duplicated.
+    Returns (matches, coverage, pages) where coverage is complete | partial (page cap reached)."""
     track = cam["main_track"]
     if not track:
         raise ApiError(409, "no_track", "למצלמה אין track הקלטה ידוע; הרץ סנכרון מצלמות.", details={"camera": cam["id"]})
-    key = (cam["id"], iso_utc(start), iso_utc(end))
-    now = time.time()
-    touches_now = end >= dt.datetime.now(UTC) - dt.timedelta(minutes=1)
-    ttl = 30 if touches_now else 600
-    hit = _cache.get(key)
-    if hit and now - hit[0] < ttl:
-        return hit[1]
-
     tz = zone(tz_name)
     start_wall = utc_to_nvr_wall(start, tz)
     end_wall = utc_to_nvr_wall(end, tz)
-    segments: list[Segment] = []
+    matches: list[nvr.SearchMatch] = []
     seen: set[tuple[int, str, str]] = set()
     pages = 0
     coverage = "complete"
-    note = ""
     with _search_lock:  # KNOWN_QUIRKS S2: maxConcurrentSearches = 1
         import uuid
 
@@ -109,17 +98,39 @@ def search_segments(settings: Settings, conn: sqlite3.Connection, cam: sqlite3.R
                     continue
                 seen.add(k)
                 new += 1
-                s_utc = nvr_wall_to_utc(m.start_raw, tz)
-                e_utc = nvr_wall_to_utc(m.end_raw, tz)
-                if e_utc <= start or s_utc >= end or e_utc <= s_utc:
-                    continue  # outside the window (devices may return boundary files) or malformed
-                segments.append(Segment(start_at=iso_utc(max(s_utc, start)), end_at=iso_utc(min(e_utc, end)), kind=_kind(m.record_type), track_id=m.track_id, start_raw=m.start_raw, end_raw=m.end_raw))
+                matches.append(m)
             if page.status != "MORE" or not page.matches or new == 0:
                 break
         else:
             coverage = "partial"
-            note = f"page cap ({MAX_PAGES} × {PAGE_SIZE}) reached"
-    result = SearchResult(segments=merge(segments), coverage=coverage, matches=len(seen), pages=pages, searched_at=iso_utc(dt.datetime.now(UTC)), timezone=tz_name, note=note)
+    matches.sort(key=lambda m: m.start_raw)
+    return matches, coverage, pages
+
+
+def search_segments(settings: Settings, conn: sqlite3.Connection, cam: sqlite3.Row, start: dt.datetime, end: dt.datetime, tz_name: str) -> SearchResult:
+    if end <= start:
+        raise ApiError(422, "validation", "טווח הזמן ריק.")
+    if (end - start) > dt.timedelta(days=7):
+        raise ApiError(422, "validation", "טווח חיפוש מקסימלי: 7 ימים.")
+    key = (cam["id"], iso_utc(start), iso_utc(end))
+    now = time.time()
+    touches_now = end >= dt.datetime.now(UTC) - dt.timedelta(minutes=1)
+    ttl = 30 if touches_now else 600
+    hit = _cache.get(key)
+    if hit and now - hit[0] < ttl:
+        return hit[1]
+
+    tz = zone(tz_name)
+    matches, coverage, pages = list_matches(settings, cam, start, end, tz_name)
+    segments: list[Segment] = []
+    for m in matches:
+        s_utc = nvr_wall_to_utc(m.start_raw, tz)
+        e_utc = nvr_wall_to_utc(m.end_raw, tz)
+        if e_utc <= start or s_utc >= end or e_utc <= s_utc:
+            continue  # outside the window (devices may return boundary files) or malformed
+        segments.append(Segment(start_at=iso_utc(max(s_utc, start)), end_at=iso_utc(min(e_utc, end)), kind=_kind(m.record_type), track_id=m.track_id, start_raw=m.start_raw, end_raw=m.end_raw))
+    note = f"page cap ({MAX_PAGES} × {PAGE_SIZE}) reached" if coverage == "partial" else ""
+    result = SearchResult(segments=merge(segments), coverage=coverage, matches=len(matches), pages=pages, searched_at=iso_utc(dt.datetime.now(UTC)), timezone=tz_name, note=note)
     _cache[key] = (now, result)
     if len(_cache) > 512:  # bounded
         for old in sorted(_cache, key=lambda k: _cache[k][0])[:128]:
