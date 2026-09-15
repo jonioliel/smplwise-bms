@@ -25,6 +25,7 @@ from ..config import Settings
 from ..db import Database
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
+from ..services import autosync
 from ..services import go2rtc as g2
 from ..services.access import camera_allowed
 from ..services.relay import relay_ws
@@ -77,22 +78,10 @@ def ensure_camera_stream(settings: Settings, cam: sqlite3.Row, profile: str) -> 
 
 @router.post("/media/streams/sync")
 def sync_streams(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """Pre-create our namespaced streams in go2rtc for every enabled camera (idempotent, bounded)."""
+    """Pre-create our namespaced streams in go2rtc for every enabled camera (idempotent, bounded). Also runs
+    automatically after each discovery when go2rtc is configured."""
     require(conn, principal, "sources.configure", INSTALLATION)
-    settings = settings_of(request)
-    client = g2.Go2rtc(settings)
-    result = {"created": 0, "updated": 0, "unchanged": 0, "streams": []}
-    for cam in conn.execute("SELECT * FROM cameras WHERE enabled = 1 ORDER BY channel").fetchall():
-        for profile in ("sub", "main"):
-            name = g2.stream_name(cam["recorder_id"], cam["channel"], profile)
-            outcome = client.ensure_stream(name, g2.hikvision_rtsp_url(settings, cam["channel"], profile))
-            result[outcome] += 1
-            result["streams"].append(name)
-    foreign = [n for n in client.list_streams() if not n.startswith(g2.STREAM_PREFIX)]
-    result["foreign_streams_untouched"] = len(foreign)
-    audit(conn, actor=principal, action="media.streams.sync", decision="allowed", resource_type="installation", resource_id="*",
-          request_id=getattr(request.state, "correlation_id", None), details={k: v for k, v in result.items() if k != "streams"})
-    return result
+    return autosync.ensure_streams(settings_of(request), conn, actor=principal, request_id=getattr(request.state, "correlation_id", None), reason="manual")
 
 
 @router.get("/media/streams")

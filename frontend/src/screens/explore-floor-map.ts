@@ -48,6 +48,7 @@ export class ExploreFloorMap extends LitElement {
   @state() private bundle: MapBundle | null = null;
   @state() private tree: CatalogTree | null = null;
   @state() private loadError = '';
+  @state() private noFloors = false;
   @state() private selectedId: string | null = null;
   @state() private anchor: { x: number; y: number } | null = null;
   @state() private layers = new Set<Layer>(['cameras', 'doors', 'lights', 'sensors']);
@@ -298,7 +299,14 @@ export class ExploreFloorMap extends LitElement {
           navigate(`/explore/floors/${first.id}`);
           return;
         }
+        if (!first) {
+          // Fresh installation: no site/building/floor yet — say so instead of asking the API for a fixture id.
+          this.noFloors = true;
+          this.bundle = null;
+          return;
+        }
       }
+      this.noFloors = false;
       this.bundle = await loadMap(this.floorId);
     } catch (err) {
       this.loadError = describeError(err);
@@ -455,6 +463,7 @@ export class ExploreFloorMap extends LitElement {
   private renderStage() {
     const b = this.bundle;
     if (this.loadError) return html`<div class="cover"><sw-state-panel state="error" hint=${this.loadError} actionLabel=${t('states.retry')} @action=${() => this.load()}></sw-state-panel></div>`;
+    if (this.noFloors) return html`<div class="cover"><sw-state-panel state="empty" heading="עדיין אין קומות" hint="צור אתר, מבנה וקומה ואז ייבא תוכנית קומה."><div style="margin-block-start:10px"><sw-button variant="primary" icon="building" @click=${() => navigate('/explore/sites')}>לאתרים ומבנים</sw-button></div></sw-state-panel></div>`;
     if (!b) return html`<div class="cover"><sw-state-panel state="loading"></sw-state-panel></div>`;
     switch (this.screenState) {
       case 'loading':

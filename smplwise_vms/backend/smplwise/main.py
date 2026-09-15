@@ -82,9 +82,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import playback_groups as pg
         from .routers.settings import read_settings
 
+        def _instance() -> str:
+            from .db import get_setting, set_setting
+            import secrets as _secrets
+
+            with app.state.db.connection() as conn:
+                iid = get_setting(conn, "instance_id")
+                if not iid:
+                    iid = _secrets.token_hex(4)
+                    set_setting(conn, "instance_id", iid)
+            return iid
+
+        pb.set_instance_id(await run_in_threadpool(_instance))
         if settings.go2rtc_url:
             await run_in_threadpool(pb.sweep_orphans, settings)
         ex.WORKER.start(app.state.db, settings)
+        from .services import autosync
+
+        async def discover(reason: str) -> None:
+            await run_in_threadpool(autosync.run_once, app.state.db, settings, reason)
+            autosync.PERIODIC.mark()
+
+        app.state.discovery = asyncio.create_task(discover("startup"))
 
         async def loop() -> None:
             while True:
@@ -99,6 +118,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         ex.retention_sweep(app.state.db, settings, s["exports.retention_days"])
 
                     await run_in_threadpool(_tick)
+                    if autosync.PERIODIC.due():
+                        await discover("periodic")
                 except Exception as exc:  # never let the janitor die
                     log.warning("janitor tick failed: %s", type(exc).__name__)
 

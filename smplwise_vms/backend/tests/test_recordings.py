@@ -177,7 +177,8 @@ def test_playback_session_lifecycle(lab_client, monkeypatch):
     client, s = lab_client
     recordings.invalidate()
     pb.REGISTRY.sessions.clear()
-    FakeGo2rtc.store = {"hik_cam1": ["rtsp://x"], "pb_1700000000": ["rtsp://legacy"], "smplwise_pb_dead_g0": ["rtsp://old"]}
+    pb.set_instance_id("t1")
+    FakeGo2rtc.store = {"hik_cam1": ["rtsp://x"], "pb_1700000000": ["rtsp://legacy"], "smplwise_pb_t1_dead_g0": ["rtsp://old"], "smplwise_pb_other_x_g0": ["rtsp://other-instance"]}
     FakeGo2rtc.deleted = []
     monkeypatch.setattr(pb.g2, "Go2rtc", FakeGo2rtc)
     cam = client.post("/api/v1/cameras", json={"channel": 1, "alias": "a"}).json()
@@ -189,7 +190,8 @@ def test_playback_session_lifecycle(lab_client, monkeypatch):
     monkeypatch.setattr(nvr, "search_recordings", fake_search)
     # startup sweep removes only our orphan, never legacy pb_* or other names
     removed = pb.sweep_orphans(s)
-    assert removed == ["smplwise_pb_dead_g0"] and "pb_1700000000" in FakeGo2rtc.store and "hik_cam1" in FakeGo2rtc.store
+    assert removed == ["smplwise_pb_t1_dead_g0"] and "pb_1700000000" in FakeGo2rtc.store and "hik_cam1" in FakeGo2rtc.store
+    assert "smplwise_pb_other_x_g0" in FakeGo2rtc.store, "another instance's playback streams are never touched"
 
     r = client.post("/api/v1/playback/sessions", json={"camera_id": cam["id"], "start_at": "2026-09-14T07:00:00Z"})
     assert r.status_code == 201, r.text

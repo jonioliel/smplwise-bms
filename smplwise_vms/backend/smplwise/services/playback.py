@@ -25,6 +25,7 @@ from .timeutil import UTC, compact_wall, iso_utc, zone
 log = logging.getLogger("smplwise.playback")
 
 PB_PREFIX = g2.STREAM_PREFIX + "pb_"
+_INSTANCE: dict[str, str] = {"id": ""}
 MAX_SPAN = dt.timedelta(hours=6)  # one RTSP playback request covers at most this much; the NVR concatenates files inside it
 
 
@@ -67,8 +68,19 @@ class PlaybackRegistry:
 REGISTRY = PlaybackRegistry()
 
 
+def set_instance_id(instance_id: str) -> None:
+    """Called at start-up with the persistent instance id (settings table). Playback stream names carry it so a
+    second product instance sharing the same go2rtc (a developer workstation next to the add-on) never treats
+    this instance's streams as orphans."""
+    _INSTANCE["id"] = instance_id
+
+
+def own_prefix() -> str:
+    return f"{PB_PREFIX}{_INSTANCE['id']}_" if _INSTANCE["id"] else PB_PREFIX
+
+
 def stream_name(session_id: str, generation: int) -> str:
-    return f"{PB_PREFIX}{session_id}_g{generation}"
+    return f"{own_prefix()}{session_id}_g{generation}"
 
 
 def playback_rtsp_url(settings: Settings, track_id: int, start: dt.datetime, end: dt.datetime, tz_name: str) -> str:
@@ -178,10 +190,11 @@ def sweep_orphans(settings: Settings) -> list[str]:
         return []
     live = {s.stream for s in REGISTRY.active() if s.stream}
     removed: list[str] = []
+    prefix = own_prefix()
     try:
         client = g2.Go2rtc(settings)
         for name in client.list_streams():
-            if name.startswith(PB_PREFIX) and name not in live:
+            if name.startswith(prefix) and name not in live:
                 client.delete_stream(name)
                 removed.append(name)
     except ApiError as exc:

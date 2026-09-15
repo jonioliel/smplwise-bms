@@ -111,7 +111,7 @@ export class LiveWall extends LitElement {
     const cams = this.cams;
     if (this.error) return html`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel>`;
     if (!cams) return html`<sw-state-panel state="loading"></sw-state-panel>`;
-    if (!cams.length) return html`<sw-state-panel state="empty" heading="אין מצלמות זמינות" hint="סנכרן מצלמות מה־NVR או בקש הרשאה למצלמות בקומות שלך."><div style="margin-block-start:10px"><sw-button @click=${() => navigate('/system/devices')}>למצלמות</sw-button></div></sw-state-panel>`;
+    if (!cams.length) return html`<sw-state-panel state="empty" heading="אין מצלמות זמינות" hint="המצלמות מתגלות אוטומטית מה־NVR בהפעלה ובכל 10 דקות. אם הרשימה ריקה: בדוק את פרטי ה־NVR בהגדרות ה־Add-on ואת יומן ה־Add-on, או הרץ סנכרון ידני; ייתכן גם שאין לך הרשאה למצלמות."><div style="margin-block-start:10px"><sw-button @click=${() => navigate('/system/devices')}>למצלמות</sw-button></div></sw-state-panel>`;
     const shown = cams.slice(0, this.count);
     const cols = this.count === 1 ? 1 : this.count === 2 ? 2 : this.count <= 4 ? 2 : this.count <= 9 ? 3 : 4;
     const cap = this.settings?.['media.max_live_sessions'] ?? 8;

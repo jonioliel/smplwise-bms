@@ -10,6 +10,7 @@ from .. import __version__
 from ..auth import current_principal, get_conn, settings_of
 from ..db import permission_revision
 from ..rbac import Principal
+from ..services import autosync
 
 router = APIRouter()
 
@@ -24,6 +25,7 @@ def health(request: Request, principal: Principal = Depends(current_principal), 
         "data_dir_writable": os.access(settings.data_dir, os.W_OK),
         "nvr_configured": bool(settings.nvr_host and settings.nvr_user),
         "go2rtc_configured": bool(settings.go2rtc_url),
+        "discovery": {**autosync.STATE, "cameras": conn.execute("SELECT COUNT(*) FROM cameras").fetchone()[0], "interval_s": autosync.INTERVAL_S},
         "identity_source": principal.source,
         "renderer": "pdftoppm" if any(os.access(os.path.join(p, "pdftoppm"), os.X_OK) for p in os.environ.get("PATH", "").split(os.pathsep)) else "pymupdf-or-none",
     }

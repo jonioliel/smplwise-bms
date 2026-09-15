@@ -20,7 +20,10 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
    - `go2rtc_url` — the external go2rtc API, e.g. `http://<ha-host>:1984` (the AlexxIT add-on). The
      product creates only streams named `smplwise_*` there and never touches other streams. Optional
      `go2rtc_api_username` / `go2rtc_api_password` if the go2rtc API is protected.
-4. Start the add-on and open it from the sidebar (**SMPLWISE VMS**).
+4. Start the add-on and open it from the sidebar (**SMPLWISE VMS**). With NVR details set, the cameras
+   appear by themselves within a minute (discovery at start-up and every 10 minutes); הגדרות → מצלמות
+   → "סנכרון מה־NVR" refreshes immediately. If the list stays empty, check the add-on log and
+   `/api/v1/health` (`discovery.cameras_last_error`).
 
 ## Identity and access
 

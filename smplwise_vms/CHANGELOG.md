@@ -1,5 +1,14 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.3 (pilot, in progress)
+- Cameras are discovered automatically: at start-up and every 10 minutes the add-on reads the NVR's
+  channels (read-only) and, when go2rtc is configured, keeps the `smplwise_*` live streams in place.
+  No "sync" click is needed before the first camera appears; the manual buttons remain. The last
+  discovery result and error are shown in /api/v1/health (`discovery`).
+- Playback stream names carry a per-installation id so a second product instance on the same go2rtc
+  (a developer workstation next to the add-on) never deletes this instance's playback streams.
+- Map screen: a fresh installation without floors shows what to do instead of an error.
+
 ## 0.1.2 (pilot, in progress)
 - Default video transport is now **MSE** (works through Ingress, Cloudflare and behind CGNAT);
   WebRTC or automatic WebRTC→MSE can be selected in Settings → וידאו ומדיה when UDP to the go2rtc

@@ -16,7 +16,7 @@ import type { SceneKind } from '../components/sw-scene';
 import { demoScene, demoWall } from '../fixtures/catalog';
 import { isApi } from '../api/session';
 import { listCameras, registerCamera, syncCameras, updateCamera } from '../api/maps';
-import { describeError } from '../api/client';
+import { describeError, get } from '../api/client';
 import type { Camera } from '../api/types';
 
 interface Row {
@@ -44,6 +44,7 @@ export class SystemDevices extends LitElement {
   @state() private cameras: Camera[] | null = null;
   @state() private recorder: { name: string; model: string | null; firmware: string | null; last_seen_at: string | null } | null = null;
   @state() private canSync = false;
+  @state() private discovery: { cameras_last_ok: string | null; cameras_last_error: string | null; streams_last_error: string | null; interval_s: number } | null = null;
   @state() private busy = false;
   @state() private message = '';
   @state() private error = '';
@@ -162,6 +163,7 @@ export class SystemDevices extends LitElement {
       this.cameras = r.cameras;
       this.recorder = r.recorder;
       this.canSync = r.can_sync;
+      get<{ discovery: { cameras_last_ok: string | null; cameras_last_error: string | null; streams_last_error: string | null; interval_s: number } }>('health').then((h) => (this.discovery = h.discovery)).catch(() => undefined);
     } catch (err) {
       this.error = describeError(err);
     }
@@ -263,6 +265,7 @@ export class SystemDevices extends LitElement {
     return html`
       <sw-page heading="בריאות מצלמות" subheading=${api ? `${this.recorder?.name ?? 'NVR'}${this.recorder?.model ? ` · ${this.recorder.model}` : ''} · ${all.length} מצלמות רשומות · גילוי לקריאה בלבד` : 'NVR ראשי · 10 ערוצים · Capability matrix לפי ראיות · נתוני הדגמה'}>
         ${api && this.canSync ? html`<sw-button slot="actions" icon="refresh" ?disabled=${this.busy} @click=${() => this.sync()}>${this.busy ? 'מסנכרן…' : 'סנכרון מה־NVR (קריאה)'}</sw-button>` : html`<sw-button slot="actions" icon="refresh" ?disabled=${api}>בדיקת יכולות (קריאה)</sw-button>`}
+        ${api && this.discovery ? html`<div style="font-size:var(--sw-fs-xs);color:${this.discovery.cameras_last_error ? 'var(--sw-danger)' : 'var(--sw-text-3)'};margin-block-end:8px">גילוי אוטומטי מה־NVR כל ${Math.round(this.discovery.interval_s / 60)} דק׳ · ${this.discovery.cameras_last_error ? `נכשל: ${this.discovery.cameras_last_error}` : this.discovery.cameras_last_ok ? `הצליח ${this.discovery.cameras_last_ok.replace('T', ' ').replace('Z', ' UTC')}` : 'טרם רץ'}${this.discovery.streams_last_error ? ` · זרמי go2rtc: ${this.discovery.streams_last_error}` : ''}</div>` : nothing}
         ${api && this.canSync ? html`<sw-button slot="actions" variant="primary" icon="plus" @click=${() => { this.dialog = true; this.formAlias = ''; this.formChannel = (all.length ? Math.max(...all.map((c) => c.channel)) : 0) + 1; }}>רישום ידני</sw-button>` : nothing}
         ${this.message ? html`<div class="ok">${this.message}</div>` : nothing}
         ${this.error ? html`<div class="err">${this.error}</div>` : nothing}

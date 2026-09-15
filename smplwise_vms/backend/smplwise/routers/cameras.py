@@ -16,7 +16,7 @@ from ..auth import current_principal, get_conn, settings_of
 from ..db import new_id, now_iso
 from ..errors import ApiError, not_found
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import nvr
+from ..services import autosync, nvr
 from ..services.access import camera_allowed, visible_camera_ids
 from .anchors import camera_row
 from .settings import read_settings
@@ -91,29 +91,10 @@ def now_ts() -> float:
 
 @router.post("/cameras/sync")
 def sync_cameras(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """Read-only discovery from the NVR: channels, online flag and track ids. Existing aliases/order survive."""
+    """Read-only discovery from the NVR: channels, online flag and track ids. Existing aliases/order survive.
+    The same discovery also runs automatically at start-up and every few minutes (services/autosync)."""
     require(conn, principal, "sources.configure", INSTALLATION)
-    settings = settings_of(request)
-    info = nvr.device_info(settings)
-    channels = nvr.discover_channels(settings)
-    _ensure_recorder(conn, model=info.get("model") or None, firmware=info.get("firmware") or None)
-    now = now_iso()
-    created = updated = 0
-    for ch in channels:
-        status = "online" if ch.online else "offline" if ch.online is False else "unknown"
-        caps = json.dumps({"stream": ch.stream} if ch.stream else {}, ensure_ascii=False)
-        existing = conn.execute("SELECT id FROM cameras WHERE recorder_id = ? AND channel = ?", (DEFAULT_RECORDER, ch.channel)).fetchone()
-        if existing:
-            conn.execute("UPDATE cameras SET name_source = ?, main_track = COALESCE(?, main_track), sub_track = COALESCE(?, sub_track), capabilities_json = ?, status = ?, last_seen_at = ?, updated_at = ? WHERE id = ?",
-                         (ch.name, ch.main_track, ch.sub_track, caps, status, now, now, existing["id"]))
-            updated += 1
-        else:
-            conn.execute("INSERT INTO cameras(id, recorder_id, channel, name_source, sort_order, main_track, sub_track, capabilities_json, status, last_seen_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                         (new_id(), DEFAULT_RECORDER, ch.channel, ch.name, ch.channel, ch.main_track, ch.sub_track, caps, status, now, now, now))
-            created += 1
-    audit(conn, actor=principal, action="cameras.sync", decision="allowed", resource_type="recorder", resource_id=DEFAULT_RECORDER, request_id=_rid(request),
-          details={"channels": len(channels), "created": created, "updated": updated, "model": info.get("model")})
-    return {"channels": len(channels), "created": created, "updated": updated, "recorder": {"model": info.get("model"), "firmware": info.get("firmware")}}
+    return autosync.sync_cameras(settings_of(request), conn, actor=principal, request_id=_rid(request), reason="manual")
 
 
 class CameraPatch(BaseModel):
