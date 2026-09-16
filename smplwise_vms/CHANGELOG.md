@@ -1,5 +1,13 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.26 (pilot)
+- NVR storage and recording plan, read-only (T051): מערכת › אחסון shows the disks (capacity, free space,
+  status), the recording schedule of every camera (mode, days, pre/post seconds, stream facts) and two
+  retention numbers that are deliberately different: measured (the oldest recording the NVR still has, one
+  bounded search per camera) and estimated (capacity over the configured bitrates), each with its reason.
+  Nothing is written to the device: no format, RAID, deletion, quota or schedule changes; the quota and
+  overwrite endpoints the lab NVR refuses (403) are named as such. Cached ten minutes, refresh on demand.
+
 ## 0.1.25 (pilot)
 - Investigation cases (T049): a case links events, recording clips and notes from several cameras, with tags
   and a status (open / in review / closed). "הוסף לתיק" on the event page, in playback and on the historical

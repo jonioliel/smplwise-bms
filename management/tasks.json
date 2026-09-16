@@ -2730,7 +2730,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (2026-09-16, 0.1.26): services/nvr.py parse_storage (ISAPI ContentMgmt/Storage: hdd/nas lists, work mode) + parse_tracks_schedule (record/tracks: weekly schedule blocks, modes, pre/post seconds, expiry, stream description) + oldest_recording (one search page of one result); services/storage.py report: disks + totals, per-camera plan summary (mode x days), retention measured = oldest recording per camera in a 120-day window (reason given), retention estimated = capacity / configured bitrates (reason given), limits list (no format/RAID/delete, no schedule or quota writes, quota + overwrite endpoints 403 on the lab NVR = KNOWN_QUIRKS S9), NVR unreachable / unconfigured reported not raised, 10-minute cache; routers/storage.py GET /storage (system.configure). tests/test_storage.py on documents shaped like the lab captures. UI: system-storage real mode (KPIs, retention card with both numbers and reasons, per-camera table, disks, limits, refresh). frontend/tests/evidence-storage.spec.ts against the lab NVR: 1 SATA disk 1.9 TB ~88% used, 11 cameras with schedules (7 motion 24x7 keeping ~22 days, 4 continuous keeping ~8 days), estimate 5 days at full continuous bitrate - private-evidence/T051-storage-live/*.png. Open: per-camera used space (not exposed by ISAPI on this model), retention history / fill forecast, schedule edits behind nvr.config.write with diff + approval + rollback"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null

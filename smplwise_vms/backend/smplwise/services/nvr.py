@@ -263,3 +263,120 @@ def download_file(settings: Settings, playback_uri: str, dest, progress=None) ->
             if written == 0 and attempts < 2:
                 continue
             raise ApiError(503, "source_unavailable", "ה־NVR ניתק את ההורדה.", retryable=True, details={"op": "download", "error": type(exc).__name__, "bytes": written}) from exc
+
+
+# ---------------------------------------------------------------- storage and recording plan (T051, read-only GETs)
+
+@dataclass
+class Disk:
+    id: str
+    name: str
+    kind: str  # SATA | NAS | ...
+    status: str  # ok | error | formatting | ...
+    capacity_mb: int
+    free_mb: int
+    property: str  # RW | RO | R
+    path: str = ""
+
+
+@dataclass
+class TrackSchedule:
+    track_id: int
+    channel: int
+    src_channel: int | None
+    enable_flag: bool  # the device's own <Enable> flag; the lab NVR reports false on tracks that do record
+    default_mode: str  # CMR | MOTION | ...
+    pre_s: int | None
+    post_s: int | None
+    expiry: str  # ISO-8601 duration; P0DT0H = no expiry
+    save_audio: bool | None
+    description: dict[str, object]
+    blocks: list[dict[str, object]]  # {day, start, end_day, end, record, mode}
+    modes: list[str]  # distinct recording modes of the blocks that record
+
+
+def _child(el: ET.Element, name: str) -> ET.Element | None:
+    for child in el:
+        if _local(child.tag) == name:
+            return child
+    return None
+
+
+def _int(value: str, default: int = 0) -> int:
+    m = re.match(r"-?\d+", value.strip()) if value else None
+    return int(m.group(0)) if m else default
+
+
+def parse_storage(xml: str) -> dict[str, object]:
+    """`GET /ISAPI/ContentMgmt/Storage`: hdd / nas lists (MB) and the work mode (quota | group)."""
+    root_el = ET.fromstring(xml)
+    disks: list[Disk] = []
+    nas: list[Disk] = []
+    for el in root_el.iter():
+        tag = _local(el.tag)
+        if tag not in ("hdd", "nas"):
+            continue
+        d = Disk(
+            id=_text(el, "id"), name=_text(el, "hddName") or _text(el, "nasName") or f"{tag}{_text(el, 'id')}", kind=_text(el, "hddType") or _text(el, "nasType") or tag.upper(),
+            status=_text(el, "status"), capacity_mb=_int(_text(el, "capacity")), free_mb=_int(_text(el, "freeSpace")), property=_text(el, "property"), path=_text(el, "hddPath") or _text(el, "path"),
+        )
+        (disks if tag == "hdd" else nas).append(d)
+    return {"disks": disks, "nas": nas, "work_mode": _text(root_el, "workMode")}
+
+
+def storage_status(settings: Settings) -> dict[str, object]:
+    with _client(settings) as client:
+        xml = _get(client, "/ISAPI/ContentMgmt/Storage")
+    return parse_storage(xml)
+
+
+def parse_tracks_schedule(xml: str) -> list[TrackSchedule]:
+    """`GET /ISAPI/ContentMgmt/record/tracks`: per track the weekly schedule blocks, pre/post seconds and the stream description."""
+    root_el = ET.fromstring(xml)
+    out: list[TrackSchedule] = []
+    tracks = [root_el] if _local(root_el.tag) == "Track" else [el for el in root_el.iter() if _local(el.tag) == "Track"]
+    for tr in tracks:
+        blocks: list[dict[str, object]] = []
+        for act in tr.iter():
+            if _local(act.tag) != "ScheduleAction":
+                continue
+            st, en, acts = _child(act, "ScheduleActionStartTime"), _child(act, "ScheduleActionEndTime"), _child(act, "Actions")
+            blocks.append({
+                "day": _text(st, "DayOfWeek") if st is not None else "", "start": _text(st, "TimeOfDay") if st is not None else "",
+                "end_day": _text(en, "DayOfWeek") if en is not None else "", "end": _text(en, "TimeOfDay") if en is not None else "",
+                "record": (_text(acts, "Record") if acts is not None else "") == "true", "mode": _text(acts, "ActionRecordingMode") if acts is not None else "",
+            })
+        src = _child(tr, "SrcDescriptor")
+        src_channel = _text(src, "SrcChannel") if src is not None else ""
+        desc_el = _child(tr, "Description")
+        ext = next((el for el in tr.iter() if _local(el.tag) == "CustomExtension"), None)
+        pre = _text(ext, "PreRecordTimeSeconds") if ext is not None else ""
+        post = _text(ext, "PostRecordTimeSeconds") if ext is not None else ""
+        audio = _text(ext, "SaveAudio") if ext is not None else ""
+        enable_el = _child(tr, "Enable")
+        out.append(TrackSchedule(
+            track_id=_int(_text(_child(tr, "id") or tr, "id")) if _child(tr, "id") is not None else 0,
+            channel=_int(_text(_child(tr, "Channel") or tr, "Channel")) if _child(tr, "Channel") is not None else 0,
+            src_channel=int(src_channel) if src_channel.isdigit() else None,
+            enable_flag=(enable_el.text or "").strip() == "true" if enable_el is not None else False,
+            default_mode=(_child(tr, "DefaultRecordingMode").text or "").strip() if _child(tr, "DefaultRecordingMode") is not None else "",
+            pre_s=_int(pre) if pre else None, post_s=_int(post) if post else None,
+            expiry=(_child(tr, "Duration").text or "").strip() if _child(tr, "Duration") is not None else "",
+            save_audio=(audio == "true") if audio else None,
+            description=parse_track_description((desc_el.text or "").strip()) if desc_el is not None else {},
+            blocks=blocks, modes=sorted({str(b["mode"]) for b in blocks if b["record"] and b["mode"]}),
+        ))
+    return out
+
+
+def record_schedules(settings: Settings) -> list[TrackSchedule]:
+    with _client(settings) as client:
+        xml = _get(client, "/ISAPI/ContentMgmt/record/tracks")
+    return parse_tracks_schedule(xml)
+
+
+def oldest_recording(settings: Settings, track_id: int, start_wall: str, end_wall: str) -> str | None:
+    """The device wall-clock start of the earliest recording in [start, end): one search page of one result
+    (the NVR answers in time order). None when nothing is recorded in the window."""
+    page = search_recordings(settings, track_id, start_wall, end_wall, position=0, page_size=1)
+    return page.matches[0].start_raw if page.matches else None

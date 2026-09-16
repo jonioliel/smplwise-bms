@@ -201,6 +201,16 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   inside the dashed rectangle is exactly what the saved version contains; the original file is never
   modified.
 
+## NVR storage and recording plan
+
+- מערכת › אחסון reads the NVR only: disks and free space, the recording plan of every camera (continuous /
+  motion, days, pre/post seconds, bitrate and resolution) and retention. "נמדד" is the oldest recording the
+  NVR still has for each camera (a bounded search 120 days back); "אומדן" is capacity divided by the
+  configured bitrates as if every camera recorded continuously, so motion-based cameras keep more in
+  practice. Each number carries its reason. The report is cached for ten minutes; "רענון מול ה־NVR" asks again.
+- Nothing on this screen changes the device: no format, RAID, deletion, quota or schedule edits (the lab NVR
+  also refuses the quota and overwrite endpoints, which is stated on the screen). Only the system admin sees it.
+
 ## Investigation cases
 
 - חקירה › תיקים lists the cases; a case is opened from an event page ("הוסף לתיק"), from the playback screen

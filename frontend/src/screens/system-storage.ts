@@ -1,4 +1,4 @@
-import { LitElement, html, css, svg } from 'lit';
+import { LitElement, html, css, svg, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-page';
 import '../components/sw-card';
@@ -7,6 +7,11 @@ import '../components/sw-badge';
 import '../components/sw-button';
 import '../components/sw-chip';
 import '../components/sw-icon';
+import '../components/sw-state-panel';
+import { isApi } from '../api/session';
+import { describeError } from '../api/client';
+import { productSettings } from '../api/prefs';
+import { fmtMb, getStorage, type StorageReport } from '../api/storage';
 
 const PER_CAMERA = [
   { name: 'כניסה ראשית', gb: 320 },
@@ -20,6 +25,10 @@ const PER_CAMERA = [
 @customElement('system-storage')
 export class SystemStorage extends LitElement {
   @state() private range = '30D';
+  @state() private data: StorageReport | null = null;
+  @state() private error = '';
+  @state() private loading = false;
+  @state() private tz = 'Asia/Jerusalem';
 
   static styles = css`
     .kpis {
@@ -125,6 +134,78 @@ export class SystemStorage extends LitElement {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
     }
+    .tbl {
+      display: flex;
+      flex-direction: column;
+    }
+    .tbl .r {
+      display: grid;
+      gap: 8px;
+      align-items: center;
+      padding: 7px 0;
+      border-block-end: 1px solid var(--sw-border);
+      font-size: var(--sw-fs-sm);
+    }
+    .tbl .r:last-child {
+      border-block-end: 0;
+    }
+    .tbl .h {
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+      border-block-end: 1px solid var(--sw-border-strong);
+    }
+    .tbl.disks .r {
+      grid-template-columns: minmax(0, 1.2fr) 70px 90px 90px 90px 50px;
+    }
+    .tbl.cams .r {
+      grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.6fr) 90px 130px 150px 80px;
+    }
+    .tbl small {
+      display: block;
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+    }
+    .num {
+      font-variant-numeric: tabular-nums;
+      direction: ltr;
+      unicode-bidi: isolate;
+      text-align: end;
+    }
+    .ret {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .ret .v {
+      font-size: var(--sw-fs-2xl);
+      font-weight: var(--sw-fw-bold);
+      line-height: 1.1;
+    }
+    .ret .l {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      margin-block-start: 4px;
+    }
+    .limits li {
+      font-size: var(--sw-fs-sm);
+      margin-block-end: 4px;
+    }
+    .err {
+      color: var(--sw-danger);
+      font-size: var(--sw-fs-sm);
+    }
+    @media (max-width: 767px) {
+      .tbl.disks .r,
+      .tbl.cams .r {
+        grid-template-columns: 1fr 1fr;
+      }
+      .tbl .h {
+        display: none;
+      }
+      .ret {
+        grid-template-columns: 1fr;
+      }
+    }
     @media (max-width: 1023px) {
       .grid {
         grid-template-columns: 1fr;
@@ -137,7 +218,87 @@ export class SystemStorage extends LitElement {
     }
   `;
 
+  connectedCallback() {
+    super.connectedCallback();
+    if (isApi()) void this.load();
+  }
+
+  private async load(fresh = false) {
+    this.loading = true;
+    this.error = '';
+    try {
+      const [s, d] = await Promise.all([productSettings(), getStorage(fresh)]);
+      this.tz = s['time.zone'] ?? this.tz;
+      this.data = d;
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  private fmt(iso: string | null) {
+    return iso ? new Intl.DateTimeFormat('he-IL', { timeZone: this.tz, dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso)) : '—';
+  }
+
+  private renderApi() {
+    if (this.error && !this.data) return html`<sw-page heading="אחסון ותוכנית הקלטה"><sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel></sw-page>`;
+    const d = this.data;
+    if (!d) return html`<sw-page heading="אחסון ותוכנית הקלטה"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
+    const t = d.totals;
+    const r = d.retention;
+    const ring = 16;
+    const circ = 2 * Math.PI * ring;
+    const pct = t?.used_pct ?? 0;
+    const measured = r.measured_days_min == null ? '—' : r.measured_days_min === r.measured_days_max ? `${r.measured_days_min}` : `${r.measured_days_min}–${r.measured_days_max}`;
+    return html`
+      <sw-page heading="אחסון ותוכנית הקלטה" subheading="קריאה בלבד מה־NVR · נמדד לעומת אומדן, עם הסיבה לכל מספר · אין format, RAID או מחיקה מכאן">
+        <sw-button slot="actions" icon="refresh" data-storage-refresh ?disabled=${this.loading} @click=${() => this.load(true)}>${this.loading ? 'שואל את ה־NVR…' : 'רענון מול ה־NVR'}</sw-button>
+        ${this.error ? html`<div class="err">${this.error}</div>` : nothing}
+        ${!d.nvr.configured
+          ? html`<sw-state-panel state="empty" heading="ה־NVR לא מוגדר" hint="הגדר את פרטי ה־NVR בהגדרות התוסף; המסך קורא ממנו בלבד."></sw-state-panel>`
+          : !d.nvr.reachable
+            ? html`<sw-state-panel state="error" heading="אין תשובה מה־NVR" hint=${d.nvr.error ?? ''} actionLabel="נסה שוב" @action=${() => this.load(true)}></sw-state-panel>`
+            : html`
+                <div class="kpis" data-storage-kpis>
+                  <sw-card flush class="kpi"><div><div class="v">${fmtMb(t?.used_mb)}</div><div class="l">בשימוש (נמדד מה־NVR)</div></div><div class="ic"><sw-icon name="storage" size=${16}></sw-icon></div></sw-card>
+                  <sw-card flush class="kpi"><div><div class="v">${fmtMb(t?.capacity_mb)}</div><div class="l">קיבולת · ${t?.disks ?? 0} דיסקים${t?.nas ? ` · ${t.nas} NAS` : ''} · מצב ${d.work_mode ?? '?'}</div></div><div class="ic"><sw-icon name="cpu" size=${16}></sw-icon></div></sw-card>
+                  <sw-card flush class="kpi"><div><div class="v">${t?.used_pct == null ? '—' : `${t.used_pct}%`}</div><div class="l">ניצולת · פנוי ${fmtMb(t?.free_mb)}</div></div><svg viewBox="0 0 40 40" aria-hidden="true">${svg`<circle cx="20" cy="20" r=${ring} fill="none" stroke="var(--sw-surface-3)" stroke-width="6" /><circle cx="20" cy="20" r=${ring} fill="none" stroke="var(--sw-accent)" stroke-width="6" stroke-linecap="round" stroke-dasharray=${`${(circ * pct) / 100} ${circ}`} transform="rotate(-90 20 20)" />`}</svg></sw-card>
+                </div>
+                <sw-card heading="שמירת הקלטות (retention)" subheading="שני מספרים שונים בכוונה: מה שנמדד מול מה שמוערך" data-storage-retention>
+                  <div class="ret">
+                    <div><div class="v">${measured}<span style="font-size:var(--sw-fs-sm);font-weight:400"> ימים</span></div><div class="l"><strong>נמדד</strong> · ${r.measured_reason}</div></div>
+                    <div><div class="v">${r.estimated_days == null ? '—' : `≈ ${r.estimated_days}`}<span style="font-size:var(--sw-fs-sm);font-weight:400"> ימים</span></div><div class="l"><strong>אומדן</strong> · ${r.estimated_reason}</div></div>
+                  </div>
+                </sw-card>
+                <div class="grid">
+                  <sw-card heading="תוכנית הקלטה לפי מצלמה" subheading=${d.schedule_error ?? 'נקרא מ־ISAPI record/tracks · pre/post בשניות · ההקלטה המוקדמת ביותר שנמצאה'}>
+                    <div class="tbl cams" data-storage-cameras>
+                      <div class="r h"><span>מצלמה</span><span>מצב הקלטה</span><span>pre / post</span><span>זרם</span><span>הקלטה מוקדמת ביותר</span><span class="num">ימים</span></div>
+                      ${d.cameras.map((c) => html`<div class="r" data-storage-camera><span>${c.name}<small>ערוץ ${c.channel}${c.track_id ? ` · track ${c.track_id}` : ''}</small></span><span>${c.summary}${c.expiry && c.expiry !== 'P0DT0H' ? html`<small>תפוגה ${c.expiry}</small>` : nothing}</span><span class="num">${c.pre_s ?? '—'} / ${c.post_s ?? '—'}</span><span class="num">${c.bitrate_kbps ? `${c.bitrate_kbps} kbps` : '—'}${c.resolution ? html`<small class="num">${c.resolution}${c.fps ? ` · ${c.fps} fps` : ''}</small>` : nothing}</span><span>${this.fmt(c.oldest_recording_at)}<small>${c.retention_reason}</small></span><span class="num">${c.retention_days ?? '—'}</span></div>`)}
+                    </div>
+                  </sw-card>
+                  <div>
+                    <sw-card heading="דיסקים" subheading=${`${t?.disks_ok ?? 0} מתוך ${(t?.disks ?? 0) + (t?.nas ?? 0)} תקינים`}>
+                      <div class="tbl disks" data-storage-disks>
+                        <div class="r h"><span>שם</span><span>סוג</span><span>מצב</span><span class="num">קיבולת</span><span class="num">פנוי</span><span>גישה</span></div>
+                        ${[...d.disks, ...d.nas].map((x) => html`<div class="r" data-storage-disk><span>${x.name}${x.path ? html`<small>${x.path}</small>` : nothing}</span><span>${x.kind}</span><span><sw-badge kind=${x.status === 'ok' ? 'recorded' : 'error'} label=${x.status}></sw-badge></span><span class="num">${fmtMb(x.capacity_mb)}</span><span class="num">${fmtMb(x.free_mb)}</span><span>${x.property}</span></div>`)}
+                      </div>
+                    </sw-card>
+                    <sw-card heading="מה המערכת לא עושה ב־NVR" subheading="גבולות הפיילוט" data-storage-limits>
+                      <ul class="limits">${d.limits.notes.map((n) => html`<li>${n}</li>`)}</ul>
+                      <div style="margin-block-start:6px"><sw-button size="sm" disabled icon="edit">עריכת מדיניות הקלטה (לא בפיילוט)</sw-button></div>
+                    </sw-card>
+                  </div>
+                </div>
+                <div class="hint">נקרא ${this.fmt(d.generated_at)}${d.cached ? ' · מהמטמון (עד 10 דקות)' : ' · עכשיו'} · חיפוש ההקלטה המוקדמת: ${r.lookback_days} ימים אחורה, שאילתה אחת לכל מצלמה.</div>
+              `}
+      </sw-page>
+    `;
+  }
+
   render() {
+    if (isApi()) return this.renderApi();
     const points = [0.3, 0.36, 0.45, 0.5, 0.58, 0.63, 0.7];
     const W = 600;
     const H = 200;
