@@ -1,5 +1,12 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.21 (pilot)
+- System status in the top bar (T035): the pill shows green "מערכת תקינה", amber "יש מה לבדוק" or red
+  "תקלה: …" from a cheap summary (alert stream, camera discovery, go2rtc sync, HA sync, event pictures,
+  backup age; no device probes), refreshed every minute; clicking it opens הגדרות → בריאות ועבודות. When
+  something fails a banner under the top bar names it on every screen. API: GET /health/summary (every
+  signed-in user; operator wording only). הגדרות accepts ?tab=.
+
 ## 0.1.20 (pilot)
 - Phone layout (T034): every table becomes a card list under 768 px (cells stack with their column label,
   the picture sits beside the text, nothing scrolls sideways); the event centre shows "לבדיקה / טופלו

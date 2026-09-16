@@ -45,3 +45,10 @@ def health_report(request: Request, fresh: bool = False, principal: Principal = 
     with unlocked(conn):
         report = health_report_svc.build(settings, conn, probe=True)
     return report
+
+
+@router.get("/health/summary")
+def health_summary(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """What the top bar shows every signed-in user: cached states only, no device probes, no details that a
+    non-administrator should not see (labels are operator wording, never addresses or credentials)."""
+    return health_report_svc.summary(settings_of(request), conn)

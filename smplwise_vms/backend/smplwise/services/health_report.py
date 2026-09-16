@@ -190,3 +190,45 @@ def build(settings: Settings, conn: sqlite3.Connection, probe: bool = True) -> d
         if c["status"] == "warn":
             worst = "warn"
     return {"status": worst, "version": __version__, "uptime_s": int(time.time() - STARTED), "checked_at": now_iso(), "probe_ttl_s": PROBE_TTL_S, "checks": checks}
+
+
+def summary(settings: Settings, conn: sqlite3.Connection) -> dict[str, Any]:
+    """Cheap status for every signed-in user (top-bar pill): only cached job states and the backup age, never a
+    network probe. `items` lists what is wrong in operator words; `status` is the worst of them."""
+    items: list[dict[str, str]] = []
+    nvr = bool(settings.nvr_host and settings.nvr_user)
+    ing = events_ingest.STATE
+    if nvr:
+        down_for = (time.time() - ing.disconnected_since) if (not ing.connected and ing.disconnected_since) else 0
+        if not ing.connected and (down_for > 60 or not ing.last_heartbeat_at):
+            items.append({"id": "nvr", "status": "error", "label": "NVR מנותק — אין התראות חיות; וידאו חי והקלטות עשויים להיכשל"})
+        ds = autosync.STATE
+        if ds.get("cameras_last_error") and not ds.get("cameras_last_ok"):
+            items.append({"id": "discovery", "status": "error", "label": "גילוי המצלמות מה־NVR נכשל"})
+        elif ds.get("cameras_last_error"):
+            items.append({"id": "discovery", "status": "warn", "label": "גילוי המצלמות האחרון נכשל; משתמשים ברשימה הקודמת"})
+        if ds.get("streams_last_error"):
+            items.append({"id": "go2rtc", "status": "warn", "label": "סנכרון הזרמים ל־go2rtc נכשל"})
+    else:
+        items.append({"id": "nvr", "status": "warn", "label": "ה־NVR לא הוגדר"})
+    if ha_client.configured(settings):
+        hs = ha_sync.STATE
+        if not hs.connected and hs.last_snapshot_at:
+            items.append({"id": "ha", "status": "warn", "label": "הסנכרון עם Home Assistant מנותק; מצבי ישויות עלולים להיות מיושנים"})
+        elif not hs.connected and not hs.last_snapshot_at and hs.last_error:
+            items.append({"id": "ha", "status": "warn", "label": "אין חיבור ל־Home Assistant"})
+    if thumbnails.STATE.get("last_error") == "ffmpeg_missing":
+        items.append({"id": "thumbnails", "status": "warn", "label": "ffmpeg חסר — אין תמונות אירועים"})
+    backups = backup_svc.list_backups(settings)
+    last_age = _age_s(backups[0]["created_at"]) if backups else None
+    if not backups:
+        items.append({"id": "backups", "status": "warn", "label": "אין עדיין גיבוי של הפרויקט"})
+    elif last_age is not None and last_age > 2 * 86400:
+        items.append({"id": "backups", "status": "warn", "label": "הגיבוי האחרון ישן מיומיים"})
+    worst = "ok"
+    for it in items:
+        if it["status"] == "error":
+            worst = "error"
+            break
+        worst = "warn"
+    return {"status": worst, "items": items, "checked_at": now_iso(), "version": __version__}

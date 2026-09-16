@@ -25,6 +25,15 @@ export const STATUS_KIND: Record<CheckStatus, 'live' | 'stale' | 'offline'> = { 
 
 export const healthReport = (fresh = false) => get<HealthReport>(`health/report${fresh ? '?fresh=1' : ''}`);
 
+/** Cheap status for the top bar (every signed-in user): cached job states only, never a device probe. */
+export interface HealthSummary {
+  status: CheckStatus;
+  items: { id: string; status: CheckStatus; label: string }[];
+  checked_at: string;
+  version: string;
+}
+export const healthSummary = () => get<HealthSummary>('health/summary');
+
 export function fmtUptime(s: number): string {
   if (s < 3600) return `${Math.floor(s / 60)} דק׳`;
   if (s < 86400) return `${Math.floor(s / 3600)} שע׳ ${Math.floor((s % 3600) / 60)} דק׳`;

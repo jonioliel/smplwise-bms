@@ -309,6 +309,9 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
 
 ## Troubleshooting
 
+- The pill in the top bar is the first signal: green = everything the add-on can see is working, amber =
+  something needs attention (named in the tooltip), red = a failure, and then a banner under the top bar
+  names it on every screen. Click the pill to open the health cards.
 - Start at הגדרות → בריאות ועבודות: every subsystem has its own card and status (green = working, amber =
   not configured or waiting, red = failing with the reason), plus the storage the add-on uses and the last
   backup. "בדוק עכשיו" probes the NVR and go2rtc again.

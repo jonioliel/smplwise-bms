@@ -13,7 +13,7 @@ import { isApi } from '../api/session';
 import { getSettings, listSessions, listStreams, patchSettings, syncStreams, type ProductSettings } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
 import { describeError, get } from '../api/client';
-import { navigate } from '../router';
+import { navigate, parseRoute } from '../router';
 import { bridgePairing, haStatus, fmtTime, installBridge, type HaIntegrationStatus, type HaStatus } from '../api/ha';
 import { DEFAULT_NAMES, applyDesign, currentDesign, designOverride, parseNames, setDesignOverride, type DesignId } from '../api/design';
 import { KIND_LABEL, TABLE_LABEL, backupDownloadUrl, createBackup, deleteBackup, fmtBytes, listBackups, restoreBackup, uploadBackup, type BackupEntry } from '../api/backup';
@@ -277,6 +277,14 @@ export class SystemDiagnostics extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    const wanted = parseRoute().params.get('tab');
+    if (wanted && TABS.some((x) => x.id === wanted)) {
+      this.tab = wanted;
+      if (wanted === 'health') void this.loadReport();
+      if (wanted === 'backup') void this.loadBackups();
+      if (wanted === 'media') void this.loadMedia();
+      if (wanted === 'ha') void this.loadHa();
+    }
     void this.loadSettings();
   }
 

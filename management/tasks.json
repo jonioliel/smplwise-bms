@@ -1767,7 +1767,8 @@
       "Build screenshots matching design reference"
     ],
     "evidence": [
-      "pre-evidence (2026-09-16, 0.1.18): services/health_report.py builds GET /health/report (system.configure) - checks db (integrity, WAL, size, permission revision), storage (disk free/total of /data, sizes of plans/thumbs/backups/db, warn under 2 GB / 10 %), nvr (live ISAPI deviceInfo probe with model/firmware, error text without credentials), go2rtc (version + count of smplwise_ streams vs foreign), ha_sync (connected, entities, last sync/error), bridge (paired, integration version, directory users), events_ingest, events_derive, discovery (autosync), thumbnails (queue/generated/failed/last error), exports (jobs by status), sessions (live relay + playback), backups (last copy age; warn > 2 days, error none); each check has status ok|warn|error with a Hebrew detail and meta; probes cached 20 s; uptime + version. tests/test_health_report.py (shape, unconfigured devices = warn, storage numbers, backups ok after one, viewer 403). UI: הגדרות → בריאות ועבודות renders the cards with pills and 'בדוק עשכשיו'; frontend/tests/evidence-health.spec.ts in real Chrome against the dev backend (NVR probe answers) - private-evidence/T033-health-live/health-desktop.png. Open: NVR time-offset check, per-channel recording state, alert thresholds / notifications"
+      "pre-evidence (2026-09-16, 0.1.18): services/health_report.py builds GET /health/report (system.configure) - checks db (integrity, WAL, size, permission revision), storage (disk free/total of /data, sizes of plans/thumbs/backups/db, warn under 2 GB / 10 %), nvr (live ISAPI deviceInfo probe with model/firmware, error text without credentials), go2rtc (version + count of smplwise_ streams vs foreign), ha_sync (connected, entities, last sync/error), bridge (paired, integration version, directory users), events_ingest, events_derive, discovery (autosync), thumbnails (queue/generated/failed/last error), exports (jobs by status), sessions (live relay + playback), backups (last copy age; warn > 2 days, error none); each check has status ok|warn|error with a Hebrew detail and meta; probes cached 20 s; uptime + version. tests/test_health_report.py (shape, unconfigured devices = warn, storage numbers, backups ok after one, viewer 403). UI: הגדרות → בריאות ועבודות renders the cards with pills and 'בדוק עשכשיו'; frontend/tests/evidence-health.spec.ts in real Chrome against the dev backend (NVR probe answers) - private-evidence/T033-health-live/health-desktop.png. Open: NVR time-offset check, per-channel recording state, alert thresholds / notifications",
+      "pre-evidence (2026-09-16, 0.1.21): summary pill + ?tab=health deep link into the health cards (see T035)"
     ],
     "owner": null,
     "commit": null,
@@ -1884,7 +1885,9 @@
       "Documentation, known limits and rollback notes",
       "Technical review record"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (2026-09-16, 0.1.21, disconnection visibility part): services/health_report.summary() + GET /health/summary (any signed-in user, no probes) derive ok|warn|error from cached states - alert stream down > 60 s = error 'NVR מנותק', discovery failure error/warn, go2rtc stream sync warn, HA sync disconnected warn, ffmpeg missing warn, backup missing/older than 2 days warn; tests/test_health_summary.py (unconfigured NVR = warn, viewer 200, simulated stream loss = error). UI: sw-app polls it every 60 s, top-bar pill (colour + text + tooltip listing the items, click -> הגדרות?tab=health), degraded banner under the top bar on every screen while status is error; system-diagnostics opens the tab from ?tab=. frontend/tests/evidence-status-pill.spec.ts (real Chrome, dev backend). Open: the actual disconnection drills on the lab (pull the NVR / camera network) need the owner present; player/recording states during an outage are covered by the media path's own errors"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null

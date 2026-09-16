@@ -38,6 +38,7 @@ import '../screens/screens-index';
 import '../screens/styleguide-screen';
 import { onRouteChange, type RouteState } from '../router';
 import { KIND_ICON, KIND_LABEL, search as apiSearch, type SearchResult } from '../api/search';
+import { healthSummary, type HealthSummary } from '../api/health';
 import { NAV, GROUP_TABS, groupOf, activeTabOf, NAV_A, AREA_TABS, areaOf, activeAreaTab, crumbsOf } from './nav';
 import { onDesign, resolveDesign, type DesignId } from '../api/design';
 import { t } from '../i18n/he';
@@ -55,6 +56,8 @@ export class SwApp extends LitElement {
   @state() private route: RouteState | null = null;
   @state() private session: Session = { mode: 'loading', me: null, error: null };
   @state() private design: DesignId = 'b';
+  @state() private sys: HealthSummary | null = null;
+  private sysTimer = 0;
   @state() private searchQ = '';
   @state() private searchResults: SearchResult[] = [];
   @state() private searchOpen = false;
@@ -498,6 +501,51 @@ export class SwApp extends LitElement {
       border-radius: 50%;
       background: var(--sw-live);
     }
+    button.status-a.sys {
+      border: 0;
+      background: transparent;
+      font: inherit;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: var(--sw-r-pill);
+    }
+    button.status-a.sys:hover {
+      background: var(--sw-surface-3);
+    }
+    .status-a.sys.warn {
+      color: #b45309;
+    }
+    .status-a.sys.warn i {
+      background: var(--sw-stale);
+    }
+    .status-a.sys.error {
+      color: var(--sw-danger);
+    }
+    .status-a.sys.error i {
+      background: var(--sw-danger);
+    }
+    .status-a.sys.b {
+      font-size: var(--sw-fs-xs);
+    }
+    .sysbanner {
+      position: fixed;
+      inset-inline: 0;
+      inset-block-start: var(--sw-topbar-h);
+      z-index: var(--sw-z-topbar);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 20px;
+      background: #fef2f2;
+      color: #991b1b;
+      border-block-end: 1px solid #fecaca;
+      font-size: var(--sw-fs-sm);
+    }
+    .sysbanner a {
+      color: inherit;
+      font-weight: var(--sw-fw-semibold);
+      margin-inline-start: auto;
+    }
     .user-a {
       display: inline-flex;
       align-items: center;
@@ -588,6 +636,10 @@ export class SwApp extends LitElement {
     this.stopSession = onSession((s) => {
       this.session = s;
       if (s.mode !== 'loading') void resolveDesign();
+      if (s.mode === 'api' && !this.sysTimer) {
+        void this.pollSummary();
+        this.sysTimer = window.setInterval(() => void this.pollSummary(), 60_000);
+      }
     });
     this.stopDesign = onDesign((d) => {
       this.design = d;
@@ -607,6 +659,34 @@ export class SwApp extends LitElement {
     this.stopSession?.();
     this.stopDesign?.();
     window.removeEventListener('keydown', this.onGlobalKey);
+    window.clearInterval(this.sysTimer);
+    this.sysTimer = 0;
+  }
+
+  // ---- system status (top-bar pill + degraded banner) ----
+
+  private async pollSummary() {
+    try {
+      this.sys = await healthSummary();
+    } catch {
+      /* keep the last known state; the pill shows what we last knew */
+    }
+  }
+
+  private renderSysPill(designA: boolean) {
+    const s = this.sys;
+    if (!s) return designA ? html`<span class="status-a" data-sys-pill data-status="unknown"><i></i>מערכת מקומית</span>` : nothing;
+    const first = s.items.find((i) => i.status === 'error') ?? s.items[0];
+    const text = s.status === 'ok' ? 'מערכת תקינה' : s.status === 'warn' ? 'יש מה לבדוק' : `תקלה: ${first?.label.split(' — ')[0] ?? ''}`;
+    const title = s.items.length ? s.items.map((i) => `• ${i.label}`).join('\n') : 'כל הרכיבים שהתוסף רואה עובדים';
+    return html`<button class="status-a sys ${s.status} ${designA ? '' : 'b'}" data-sys-pill data-status=${s.status} title=${title} aria-label=${`מצב המערכת: ${text}`} @click=${() => (window.location.hash = '#/system/diagnostics?tab=health')}><i></i>${text}</button>`;
+  }
+
+  private renderSysBanner() {
+    const s = this.sys;
+    if (!s || s.status !== 'error') return nothing;
+    const errors = s.items.filter((i) => i.status === 'error');
+    return html`<div class="sysbanner" role="alert" data-sys-banner><sw-icon name="warning" size=${16}></sw-icon><span>${errors.map((i) => i.label).join(' · ')}</span><a href="#/system/diagnostics?tab=health">לבריאות המערכת</a></div>`;
   }
 
   // ---- global search (top bar) ----
@@ -800,7 +880,7 @@ export class SwApp extends LitElement {
         ${this.renderSearch(true)}
         <span class="spacer"></span>
         ${this.session.mode === 'api' || this.session.mode === 'no_access'
-          ? html`<span class="status-a"><i></i>מערכת מקומית</span>`
+          ? this.renderSysPill(true)
           : this.session.mode === 'demo'
             ? html`<sw-badge kind="neutral" label="נתוני הדגמה"></sw-badge>`
             : nothing}
@@ -808,6 +888,7 @@ export class SwApp extends LitElement {
         <span class="user-a"><sw-avatar name=${name} size=${34} title=${t('app.account')} aria-label=${t('app.account')}></sw-avatar><span class="who-a"><b>${name}</b><span>${me?.bindings[0]?.role_name ?? (this.session.mode === 'demo' ? 'מנהל VMS' : 'ללא שיוך')}</span></span></span>
         <span class="logo-a"><b>smplwise</b><small>VMS</small></span>
       </header>
+      ${this.renderSysBanner()}
       <main>
         ${this.renderGate() || html`
           <div class="subnav">${tabs.length > 1 && !editor ? html`<sw-tabs .items=${tabs} .active=${activeAreaTab(this.route)}></sw-tabs>` : nothing}</div>
@@ -850,7 +931,7 @@ export class SwApp extends LitElement {
         ${this.renderSearch(false)}
         <span class="spacer"></span>
         ${this.session.mode === 'api' || this.session.mode === 'no_access'
-          ? html`<span class="who"><b>${this.session.me?.user.display_name || this.session.me?.user.username}</b>${this.session.me?.bindings[0] ? html`<span>· ${this.session.me.bindings[0].role_name}</span>` : nothing}</span>`
+          ? html`${this.renderSysPill(false)}<span class="who"><b>${this.session.me?.user.display_name || this.session.me?.user.username}</b>${this.session.me?.bindings[0] ? html`<span>· ${this.session.me.bindings[0].role_name}</span>` : nothing}</span>`
           : this.session.mode === 'demo'
             ? html`<sw-badge kind="neutral" label="נתוני הדגמה"></sw-badge>`
             : nothing}
