@@ -616,7 +616,7 @@ export class InvestigateEvents extends LitElement {
                 ${this.player?.eventId === ev.id && this.player.error ? html`<div class="err">${this.player.error}</div>` : nothing}
               </div>
               <dl>
-                <dt>מקור</dt><dd>${ev.source === 'alertstream' ? 'התראה מה־NVR (alertStream)' : ev.source === 'recording' ? 'קובץ הקלטה (חיפוש)' : 'מערכת'} · raw: <span class="ltr">${ev.raw_type}</span></dd>
+                <dt>מקור</dt><dd>${ev.source === 'alertstream' ? 'התראה מה־NVR (alertStream)' : ev.source === 'recording' ? 'קובץ הקלטה (חיפוש)' : ev.source === 'ha' ? 'חיישן HA (מעבר מצב)' : 'מערכת'} · raw: <span class="ltr">${ev.raw_type}</span></dd>
                 <dt>ודאות</dt><dd>${ev.confidence === 'measured' ? 'נמדד על ידי המכשיר' : 'נגזר (inferred)'}</dd>
                 <dt>זמן אירוע</dt><dd><span class="ltr">${this.fmtDate(ev.occurred_at)} ${this.fmt(ev.occurred_at)}</span>${ev.ended_at ? html` → <span class="ltr">${this.fmt(ev.ended_at)}</span>` : nothing} · נקלט <span class="ltr">${this.fmt(ev.received_at)}</span>${typeof ev.details.time_precision === 'string' ? html` · דיוק: ${String(ev.details.time_precision)}` : nothing}</dd>
                 <dt>חזרות</dt><dd>${ev.count} · מצב ${ev.state === 'active' ? 'פעיל' : ev.state === 'inactive' ? 'הסתיים' : '—'}</dd>

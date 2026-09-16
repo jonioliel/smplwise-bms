@@ -289,6 +289,10 @@ class HaSync:
             try:
                 with db.connection() as conn:
                     row = upsert_state(conn, new)
+                    # T053: door / motion / lock transitions are kept as events for the correlation timeline
+                    from .correlation import record_transition
+
+                    record_transition(conn, data.get("old_state"), new)
             except Exception:
                 log.exception("state update failed for %s", eid)
                 return

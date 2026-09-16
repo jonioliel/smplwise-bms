@@ -20,7 +20,7 @@ from ..config import Settings
 from ..db import Database, now_iso
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import events_derive, events_ingest, thumbnails
+from ..services import correlation, events_derive, events_ingest, thumbnails
 from ..services.access import camera_allowed, visible_camera_ids
 from ..services.timeutil import iso_utc, local_day_bounds, parse_utc, zone
 from .media import _principal_for_ws
@@ -51,6 +51,8 @@ def _with_names(conn: sqlite3.Connection, rows: list[dict[str, Any]]) -> list[di
     names = {r["id"]: (r["alias"] or r["name_source"] or r["id"]) for r in conn.execute("SELECT id, alias, name_source FROM cameras").fetchall()}
     for r in rows:
         r["camera_name"] = names.get(r.get("camera_id") or "", None)
+        if r.get("source") == "ha" and not r["camera_name"]:
+            r["camera_name"] = (r.get("details") or {}).get("name")  # a sensor transition is shown under the sensor's name (T053)
     return rows
 
 
@@ -351,6 +353,27 @@ def get_event(event_id: str, request: Request, principal: Principal = Depends(cu
     ev["location"] = _location(conn, ev["camera_id"]) if ev["camera_id"] else None
     ev["timezone"] = read_settings(conn)["time.zone"]
     return ev
+
+
+@router.get("/events/{event_id}/correlation")
+def event_correlation(event_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), window: int = Query(120, ge=10, le=3600)) -> dict[str, Any]:
+    """Door–camera–sensor neighbourhood of an event (T053): what nearby sensors, locks, commands and cameras reported
+    within ±window seconds, each with its certainty. A command is never proof; nothing here triggers an action."""
+    row = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
+    if not row:
+        raise ApiError(404, "not_found", "האירוע לא נמצא.")
+    ev = events_ingest.row_to_event(row)
+    if ev["camera_id"]:
+        if not camera_allowed(conn, principal, ev["camera_id"], "events.read"):
+            require(conn, principal, "events.read", INSTALLATION)
+    else:
+        require(conn, principal, "events.read", INSTALLATION)
+    wide, ids = _scope(conn, principal)
+    can_entities = authorize(conn, principal, "entity.state.read", INSTALLATION).allowed
+    out = correlation.correlate(conn, ev, window_s=window, camera_ids_allowed=None if wide else (ids or set()), include_entities=can_entities)
+    _with_names(conn, [ev])
+    out["event"] = {k: ev.get(k) for k in ("id", "type", "source", "camera_id", "camera_name", "occurred_at", "received_at", "confidence", "details")}
+    return out
 
 
 @router.post("/events/{event_id}/ack")

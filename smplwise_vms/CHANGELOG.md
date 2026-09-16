@@ -1,5 +1,14 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.27 (pilot)
+- Door–camera–sensor correlation (T053): state transitions of door and window contacts, motion sensors, locks
+  and gates from Home Assistant are kept as events (source "חיישן HA"). Every event page has a correlation
+  card: the sensors and locks placed around the camera on the floor plan (same room or within reach), what
+  they reported within ±2 minutes, unlock commands sent from the VMS, and the other cameras' events — each
+  with its certainty (measured / inferred / command). A pulse unlock is shown as a command that was sent,
+  never as proof that the door opened. Delayed device clocks and sensors without a state are named. No
+  action is ever triggered from a correlation.
+
 ## 0.1.26 (pilot)
 - NVR storage and recording plan, read-only (T051): מערכת › אחסון shows the disks (capacity, free space,
   status), the recording schedule of every camera (mode, days, pre/post seconds, stream facts) and two

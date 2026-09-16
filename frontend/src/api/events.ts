@@ -5,7 +5,7 @@ export type EventKind = 'motion' | 'person' | 'vehicle' | 'line' | 'field' | 'of
 
 export interface VmsEvent {
   id: string;
-  source: 'alertstream' | 'recording' | 'system';
+  source: 'alertstream' | 'recording' | 'system' | 'ha';
   raw_type: string;
   type: EventKind;
   camera_id: string | null;
@@ -240,3 +240,38 @@ export function subscribeEvents(onEvent: (ev: VmsEvent) => void, onState?: (s: I
     ws?.close();
   };
 }
+
+/** Door–camera–sensor neighbourhood of an event (T053): every link carries its certainty; a command is never proof. */
+export type Certainty = 'measured' | 'inferred' | 'command' | 'availability';
+export const CERTAINTY_LABEL: Record<Certainty, string> = { measured: 'נמדד', inferred: 'נגזר', command: 'פקודה', availability: 'זמינות' };
+export interface CorrelationLink {
+  kind: 'sensor' | 'command' | 'camera';
+  event_id?: string;
+  action_id?: string;
+  entity_id?: string;
+  camera_id?: string;
+  name: string;
+  type?: string;
+  action?: string;
+  status?: string;
+  by?: string | null;
+  at: string;
+  delta_s: number;
+  label: string;
+  certainty: Certainty;
+  note: string;
+}
+export interface Correlation {
+  event_id: string;
+  window_s: number;
+  subject: { kind: 'camera' | 'entity' | 'system'; id: string | null };
+  spatial: boolean;
+  location: { floor_id: string; floor_name: string; building_name: string; x: number; y: number; zone: string | null; radius: number } | null;
+  entities: { entity_id: string; name: string; domain: string; device_class: string | null; tracked_as: string | null; state: string | null; last_changed: string | null; state_missing: boolean; distance: number | null; same_zone: boolean }[];
+  cameras: { camera_id: string; distance: number | null; same_zone: boolean }[];
+  links: CorrelationLink[];
+  notes: { code: string; text: string }[];
+  policy: string;
+  event: { id: string; type: string; source: string; camera_id: string | null; camera_name: string | null; occurred_at: string; received_at: string; confidence: string; details: Record<string, unknown> };
+}
+export const getCorrelation = (id: string, windowS = 120) => get<Correlation>(`events/${id}/correlation?window=${windowS}`);

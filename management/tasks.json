@@ -2837,7 +2837,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (2026-09-16, 0.1.27): services/correlation.py - tracked_kind (door/window/motion classes, locks, gates, door-like names), record_transition keeps HA state changes as events (source ha, dedup per entity + last_changed, availability lost/restored kept, severity alert on open/unlock/lost) wired into ha_sync state_changed; correlate(): subject anchor (camera or entity), neighbours = anchors in the same zone or within 0.12 plan units, links = sensor transitions (measured), VMS unlock commands from ha_actions (certainty command, never proof), camera events of neighbouring cameras (measured/inferred as the NVR said), sorted by |delta|; notes delayed_clock (>30 s receipt lag), missing_state, unplaced (time-only fallback), entities_hidden (no entity.state.read); policy line: no automatic unlock/disarm. GET /events/{id}/correlation?window= (events.read per camera scope, entity states only with installation-wide entity.state.read). tests/test_correlation.py. UI: event page card with certainty badges + notes + policy, HA source labels, sensor name on HA events. frontend/tests/evidence-correlation.spec.ts against the dev backend (real event, placed lock beside the camera, card rendered) - private-evidence/T053-correlation-live/*.png. Open: a real door transition during a camera event needs the owner to open a door (physical action, not done); correlation on the historical map; per-zone tuning of the radius"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null

@@ -14,12 +14,15 @@ import type { PlanMarker } from '../map/sw-plan-canvas';
 import { navigate } from '../router';
 import { describeError } from '../api/client';
 import { isApi } from '../api/session';
-import { ackEvent, EVENT_LABEL, getEvent, listEvents, pollThumbnail, thumbnailUrl, type EventDetail, type VmsEvent } from '../api/events';
+import { ackEvent, CERTAINTY_LABEL, EVENT_LABEL, getCorrelation, getEvent, listEvents, pollThumbnail, thumbnailUrl, type Certainty, type Correlation, type EventDetail, type VmsEvent } from '../api/events';
+import type { StateKind } from '../components/sw-badge';
+
+const CERTAINTY_KIND: Record<Certainty, StateKind> = { measured: 'recorded', inferred: 'unknown', command: 'partial', availability: 'stale' };
 import { closePlayback, createPlayback, playbackWsUrl, type PlaybackSession } from '../api/recordings';
 import { cameraState, loadMap, type MapBundle } from '../api/maps';
 import { entityMarkerKind } from '../api/ha';
 
-const SOURCE_LABEL = { alertstream: 'אירוע NVR', recording: 'נגזר מהקלטה', system: 'מערכת' } as const;
+const SOURCE_LABEL = { alertstream: 'אירוע NVR', recording: 'נגזר מהקלטה', system: 'מערכת', ha: 'חיישן HA' } as const;
 const NEARBY_MS = 10 * 60 * 1000;
 
 /**
@@ -38,6 +41,8 @@ export class InvestigateEventDetail extends LitElement {
   @state() private playerError = '';
   @state() private bundle: MapBundle | null = null;
   @state() private nearby: VmsEvent[] = [];
+  @state() private corr: Correlation | null = null;
+  @state() private corrError = '';
   @state() private busy = false;
   @state() private thumbVersion = 0;
   @state() private casePick: NewCaseItem | null = null;
@@ -162,6 +167,38 @@ export class InvestigateEventDetail extends LitElement {
       font-size: var(--sw-fs-xs);
       font-weight: var(--sw-fw-semibold);
     }
+    .corr {
+      display: flex;
+      flex-direction: column;
+    }
+    .corr .link {
+      display: grid;
+      grid-template-columns: 56px minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+      padding: 6px 0;
+      border-block-end: 1px solid var(--sw-border);
+      font-size: var(--sw-fs-sm);
+    }
+    .corr .link:last-child {
+      border-block-end: 0;
+    }
+    .corr small {
+      display: block;
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+    }
+    .corr .num {
+      font-variant-numeric: tabular-nums;
+      font-family: var(--sw-font-mono);
+      font-size: var(--sw-fs-xs);
+    }
+    .corrnotes {
+      margin: 8px 0 0;
+      padding-inline-start: 18px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+    }
     .nearby {
       display: flex;
       flex-direction: column;
@@ -229,11 +266,22 @@ export class InvestigateEventDetail extends LitElement {
       if (ev.location?.has_plan) void this.loadMap(ev.location.floor_id);
       else this.bundle = null;
       void this.loadNearby(ev);
+      void this.loadCorrelation(ev.id);
       if (ev.camera_id) void this.play(ev);
       if (ev.thumbnail === 'pending') this.pollThumb(ev.id);
     } catch (err) {
       this.error = describeError(err);
       this.ev = null;
+    }
+  }
+
+  private async loadCorrelation(id: string) {
+    this.corr = null;
+    this.corrError = '';
+    try {
+      this.corr = await getCorrelation(id);
+    } catch (err) {
+      this.corrError = describeError(err);
     }
   }
 
@@ -307,6 +355,29 @@ export class InvestigateEventDetail extends LitElement {
     const time = new Intl.DateTimeFormat('he-IL', { timeZone: this.tz, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(d);
     if (!withDate) return time;
     return `${new Intl.DateTimeFormat('he-IL', { timeZone: this.tz, day: '2-digit', month: '2-digit', year: 'numeric' }).format(d)} · ${time}`;
+  }
+
+  private renderCorrelation() {
+    const c = this.corr;
+    const sub = c ? `±${c.window_s} שניות · ${c.spatial ? `סביבת ${c.location?.zone ?? 'המיקום על התוכנית'} (${c.location?.floor_name ?? ''})` : 'לפי זמן בלבד'}` : this.corrError ? 'לא נטען' : 'טוען…';
+    return html`<sw-card heading="קורלציה דלת–מצלמה–חיישן" subheading=${sub} style="margin-block-start:12px" data-correlation>
+      ${c
+        ? html`${c.entities.length
+              ? html`<div class="note" style="margin:0 0 6px" data-correlation-entities>בסביבה: ${c.entities.map((e) => `${e.name}${e.state_missing ? ' (ללא מצב)' : e.state ? ` · ${e.state}` : ''}`).join(' · ')}</div>`
+              : html`<div class="note" style="margin:0 0 6px" data-correlation-entities>אין חיישנים או מנעולים מוצבים בסביבה.</div>`}
+            ${c.links.length
+              ? html`<div class="corr" data-correlation-links>${c.links.map((l) => html`<div class="link" data-correlation-link data-certainty=${l.certainty}>
+                    <span class="ltr num">${l.delta_s > 0 ? '+' : ''}${l.delta_s}s</span>
+                    <span>${l.kind === 'camera' && l.event_id ? html`<a href=${`#/investigate/events/${l.event_id}`}>${l.label}</a>` : l.kind === 'sensor' && l.event_id ? html`<a href=${`#/investigate/events/${l.event_id}`}>${l.label}</a>` : l.label}<small>${l.note}</small></span>
+                    <sw-badge kind=${CERTAINTY_KIND[l.certainty]} label=${CERTAINTY_LABEL[l.certainty]}></sw-badge>
+                  </div>`)}</div>`
+              : html`<div class="note" style="margin:0">לא נרשם דבר בחלון הזמן מהחיישנים, המנעולים והמצלמות שבסביבה.</div>`}
+            ${c.notes.length ? html`<ul class="corrnotes">${c.notes.map((n) => html`<li data-correlation-note=${n.code}>${n.text}</li>`)}</ul>` : nothing}
+            <div class="note">${c.policy}</div>`
+        : this.corrError
+          ? html`<div class="note">${this.corrError}</div>`
+          : nothing}
+    </sw-card>`;
   }
 
   private duration(ev: VmsEvent): string {
@@ -388,6 +459,7 @@ export class InvestigateEventDetail extends LitElement {
                   : nothing}
               <div class="note">מיקום סמוך הוא הקשר, לא הוכחת קשר סיבתי; סימון "טופל" נרשם באודיט בשם המשתמש.</div>
             </sw-card>
+            ${this.renderCorrelation()}
             <sw-card heading="אירועים קרובים" subheading="±10 דקות סביב האירוע" style="margin-block-start:12px">
               ${this.nearby.length
                 ? html`<div class="nearby">${this.nearby.map((n) => html`<a href=${`#/investigate/events/${n.id}`}><span>${EVENT_LABEL[n.type] ?? n.type} · ${n.camera_name ?? (n.channel ? `ערוץ ${n.channel}` : 'מערכת')}</span><span class="ltr">${this.fmt(n.occurred_at)}</span></a>`)}</div>`

@@ -201,6 +201,19 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   inside the dashed rectangle is exactly what the saved version contains; the original file is never
   modified.
 
+## Door–camera–sensor correlation
+
+- Transitions of door / window contacts, motion sensors, locks and gates in Home Assistant are recorded as
+  events under the sensor's name (source "חיישן HA"), including a sensor going unavailable.
+- Every event page shows "קורלציה דלת–מצלמה–חיישן": the sensors and locks placed near the camera on the floor
+  plan (the same room, or within a room-scale radius), what they reported within ±2 minutes, unlock commands
+  sent from the VMS and the neighbouring cameras' events. Each line carries its certainty: "נמדד" (a sensor
+  transition or an NVR alert), "נגזר" (derived from recording metadata), "פקודה" (a command that was sent — it
+  is never proof that the door opened; the confirmation only says the entity reported the expected state).
+- The card names what it cannot know: a device clock that reported the event long before it arrived, a sensor
+  without a state, an unplaced camera (time-only comparison). Nothing is unlocked, disarmed or triggered from a
+  correlation or from video analysis.
+
 ## NVR storage and recording plan
 
 - מערכת › אחסון reads the NVR only: disks and free space, the recording plan of every camera (continuous /
