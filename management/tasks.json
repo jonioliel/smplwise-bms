@@ -3924,7 +3924,9 @@
       "Documentation, known limits and rollback notes",
       "Technical review record"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence 2026-09-17: scripts/task_runner.py — one invocation per task card through a validated local CLI (--version), dependency gate (DONE, or evidence with --gate evidence), attempt cap (2 failed runs → needs_review, no automatic retry), workspace allowlist (inside the repo, never secrets/ private-evidence/ legacy/ data/), budget bound per run (no spend authorisation path), hard timeout, manual STOP file, invocation.json + result.json against schema smplwise-task-run/1 with changed files and violations from git; dry run prints the invocation only. tests/test_task_runner.py (fake CLI: validation, gates, cap, schema, timeout, manual stop); docs/operations/TASK_RUNNER.md. Status stays BACKLOG."
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
