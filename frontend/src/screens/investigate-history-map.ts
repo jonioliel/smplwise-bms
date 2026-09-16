@@ -20,7 +20,7 @@ import { productSettings } from '../api/prefs';
 import { loadTree, type CatalogTree } from '../api/catalog';
 import { loadMap, type MapBundle } from '../api/maps';
 import { EVENT_LABEL, listEvents, type EventKind, type VmsEvent } from '../api/events';
-import { dateInZone, instantInZone, minuteInZone, recordingsForDay, type RecordingsResponse } from '../api/recordings';
+import { dateInZone, frameUrl, instantInZone, minuteInZone, recordingsForDay, type RecordingsResponse } from '../api/recordings';
 import { entityMarkerKind } from '../api/ha';
 
 const NEAR_MIN = 10;
@@ -52,6 +52,10 @@ export class InvestigateHistoryMap extends LitElement {
   @state() private selectedId: string | null = null;
   @state() private loading = false;
   @state() private error = '';
+  /** Instant (UTC ISO) whose frame is shown for the selected camera; updated after the cursor settles. */
+  @state() private frameAt = '';
+  @state() private frameFailed = false;
+  private frameTimer = 0;
 
   static styles = css`
     :host {
@@ -221,6 +225,23 @@ export class InvestigateHistoryMap extends LitElement {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
     }
+    .frame {
+      margin-block-start: 8px;
+      border-radius: var(--sw-r-sm);
+      overflow: hidden;
+      background: var(--sw-surface-3);
+      aspect-ratio: 16 / 9;
+      display: grid;
+      place-items: center;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .frame img {
+      inline-size: 100%;
+      block-size: 100%;
+      object-fit: cover;
+      display: block;
+    }
     .tl {
       margin: 0 24px 24px;
     }
@@ -286,6 +307,7 @@ export class InvestigateHistoryMap extends LitElement {
       this.date = dateInZone(start, this.tz);
       this.minute = minuteInZone(start, this.tz);
       this.bundle = await loadMap(this.floorId);
+      this.scheduleFrame();
       if (this.camera) {
         const a = this.bundle.anchors.find((x) => x.resource_type === 'camera' && x.resource_id === this.camera);
         this.selectedId = a?.id ?? null;
@@ -369,6 +391,16 @@ export class InvestigateHistoryMap extends LitElement {
 
   setMinute(m: number) {
     this.minute = Math.max(0, Math.min(this.limitMinute, m));
+    this.scheduleFrame();
+  }
+
+  /** The recording frame follows the cursor once it settles (a grab takes a few seconds; hovering must not flood). */
+  private scheduleFrame() {
+    window.clearTimeout(this.frameTimer);
+    this.frameTimer = window.setTimeout(() => {
+      this.frameAt = this.instant.toISOString().replace(/\.\d{3}Z$/, 'Z');
+      this.frameFailed = false;
+    }, 600);
   }
 
   private setDate(date: string) {
@@ -405,6 +437,7 @@ export class InvestigateHistoryMap extends LitElement {
                 <dt>אירועים ±5 דק׳</dt><dd>${this.eventsNear(cam.resource_id, 5).length}</dd>`
             : nothing}
           <dt>ישויות HA</dt><dd>לא ידוע בזמן זה <span class="note">(אין היסטוריית מצבים; לא מוצג ערך חי)</span></dd>
+          ${cam && this.frameAt ? html`<dt>פריים</dt><dd><div class="frame" data-history-frame>${this.frameFailed ? html`<span>אין פריים בהקלטה בזמן זה</span>` : html`<img src=${frameUrl(cam.resource_id, this.frameAt)} alt="פריים מההקלטה בזמן שנבחר" @error=${() => (this.frameFailed = true)} />`}</div></dd>` : nothing}
           <dt>גרסת תוכנית</dt><dd>${b.planStatus === 'published' ? 'הגרסה המפורסמת הנוכחית' : 'טיוטה'}</dd>
         </dl>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-block-start:10px">
@@ -440,7 +473,7 @@ export class InvestigateHistoryMap extends LitElement {
           <div class="chip"><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
           <div class="hist">מצב היסטורי · <span class="ltr">${secondLabel(this.minute)}</span></div>
           <sw-plan-canvas alwaysLabel .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .markers=${this.apiMarkers} .selectedId=${this.selectedId} .zones=${b.zones} dimEntities
-            @marker-select=${(e: CustomEvent<MarkerSelectDetail>) => (this.selectedId = e.detail.id)}></sw-plan-canvas>
+            @marker-select=${(e: CustomEvent<MarkerSelectDetail>) => { this.selectedId = e.detail.id; this.frameFailed = false; }}></sw-plan-canvas>
           <div class="legend"><span>כחול = יש הקלטה בזמן זה</span><span>מקווקו = אין הקלטה / לא ידוע</span><span>ישויות HA = לא ידוע</span></div>
         </div>
         ${this.renderPanel(b)}

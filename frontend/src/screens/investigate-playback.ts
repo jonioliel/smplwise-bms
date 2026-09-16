@@ -20,22 +20,7 @@ import { listCameras } from '../api/maps';
 import { productSettings } from '../api/prefs';
 import { navigate } from '../router';
 import { describeError, ApiError } from '../api/client';
-import {
-  closeGroup,
-  closePlayback,
-  createGroup,
-  createPlayback,
-  dateInZone,
-  instantInZone,
-  minuteInZone,
-  playbackWsUrl,
-  recordingsForDay,
-  seekGroup,
-  seekPlayback,
-  type PlaybackGroup,
-  type PlaybackSession,
-  type RecordingsResponse,
-} from '../api/recordings';
+import { closeGroup, closePlayback, createGroup, createPlayback, dateInZone, frameUrl, instantInZone, minuteInZone, playbackWsUrl, recordingsForDay, seekGroup, seekPlayback, type PlaybackGroup, type PlaybackSession, type RecordingsResponse } from '../api/recordings';
 import { createExport, estimateExport, formatBytes, type ExportEstimate, type ExportJob } from '../api/exports';
 import { cameraEvents, markerKind, EVENT_LABEL, type VmsEvent } from '../api/events';
 import type { TimelineEvent } from '../components/sw-timeline';
@@ -86,6 +71,9 @@ export class InvestigatePlayback extends LitElement {
   @state() private session: PlaybackSession | null = null;
   @state() private group: PlaybackGroup | null = null;
   @state() private extra: string[] = [];
+  /** Hover preview over the timeline (T044): a frame from the recording at the hovered instant. */
+  @state() private preview: { minute: number; x: number; width: number; url: string; failed: boolean } | null = null;
+  private previewTimer = 0;
   @state() private busy = false;
   @state() private error = '';
   @state() private notice = '';
@@ -335,6 +323,42 @@ export class InvestigatePlayback extends LitElement {
       font-size: var(--sw-fs-xs);
       color: var(--sw-danger);
     }
+    .tlwrap {
+      position: relative;
+    }
+    .tlpreview {
+      position: absolute;
+      inset-block-end: calc(100% + 6px);
+      transform: translateX(-50%);
+      inline-size: 200px;
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      box-shadow: var(--sw-shadow-3);
+      padding: 4px;
+      pointer-events: none;
+      z-index: var(--sw-z-map-ui);
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      text-align: center;
+      direction: ltr;
+    }
+    .tlpreview img {
+      display: block;
+      inline-size: 100%;
+      aspect-ratio: 16 / 9;
+      object-fit: cover;
+      border-radius: var(--sw-r-sm);
+      background: var(--sw-surface-3);
+    }
+    .tlpreview .none {
+      display: grid;
+      place-items: center;
+      aspect-ratio: 16 / 9;
+      background: var(--sw-surface-3);
+      border-radius: var(--sw-r-sm);
+      direction: rtl;
+    }
     .compare {
       display: flex;
       gap: 6px;
@@ -434,6 +458,21 @@ export class InvestigatePlayback extends LitElement {
       this.error = describeError(err);
     }
   }
+
+  private onTlHover = (e: CustomEvent<{ minute: number; x: number; width: number }>) => {
+    if (!this.cameraId || !isApi()) return;
+    window.clearTimeout(this.previewTimer);
+    const d = e.detail;
+    this.previewTimer = window.setTimeout(() => {
+      const at = instantInZone(this.date, d.minute, this.tz).toISOString().replace(/\.\d{3}Z$/, 'Z');
+      this.preview = { minute: d.minute, x: d.x, width: d.width, url: frameUrl(this.cameraId, at), failed: false };
+    }, 250);
+  };
+
+  private onTlHoverEnd = () => {
+    window.clearTimeout(this.previewTimer);
+    this.preview = null;
+  };
 
   private async selectCamera(id: string, fromRoute = false) {
     if (!id || (!fromRoute && id === this.cameraId)) return;
@@ -801,7 +840,15 @@ export class InvestigatePlayback extends LitElement {
           <sw-button variant="ghost" size="sm" iconOnly icon="expand" label="מסך מלא" ?disabled=${!live} @click=${() => this.masterPlayer()?.fullscreen()}></sw-button>
         </div></div>
       </div>
-      <sw-timeline .segments=${this.segmentsMin} .events=${this.markers} .cursor=${this.cursor} .limit=${this.limitMinute} precision=${precision} @seek=${this.onSeek} @scrub=${this.onScrub}></sw-timeline>
+      <div class="tlwrap">
+        <sw-timeline .segments=${this.segmentsMin} .events=${this.markers} .cursor=${this.cursor} .limit=${this.limitMinute} precision=${precision} @seek=${this.onSeek} @scrub=${this.onScrub} @hover=${this.onTlHover} @hover-end=${this.onTlHoverEnd}></sw-timeline>
+        ${this.preview
+          ? html`<div class="tlpreview" data-tl-preview style="left:${Math.max(104, Math.min(this.preview.width - 104, this.preview.x))}px">
+              ${this.preview.failed ? html`<div class="none">אין פריים בזמן זה</div>` : html`<img src=${this.preview.url} alt="" @error=${() => { if (this.preview) this.preview = { ...this.preview, failed: true }; }} />`}
+              <span>${secondLabel(this.preview.minute)}</span>
+            </div>`
+          : nothing}
+      </div>
       <div class="compare">
         <span>השוואה (עד 4):</span>
         ${this.cams.filter((c) => c.id !== this.cameraId).map((c) => html`<sw-chip ?selected=${this.extra.includes(c.id)} @click=${() => this.toggleExtra(c.id)}>${c.name}</sw-chip>`)}

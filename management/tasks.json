@@ -2366,7 +2366,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (2026-09-16, 0.1.23): routers/frames.py GET /cameras/{id}/frame?at=<utc> - ffmpeg grab (services/thumbnails._grab) from the NVR playback RTSP for a 20 s window at the instant, cached per 10-second bucket under /data/thumbs/frames/<camera>/, negative cache 10 min, two concurrent grabs, size cap 150 MB with oldest-first pruning, video.playback permission per camera, 503 without an NVR; tests/test_frames.py (cache hit, 422, 404, negative cache, 403, 503). UI: sw-timeline emits hover/hover-end per 10-second bucket, investigate-playback shows a floating preview card (image or 'אין פריים') over the timeline after 250 ms; investigate-history-map shows the selected camera's frame at the instant (600 ms after the cursor settles). frontend/tests/evidence-frames.spec.ts against the lab NVR: real JPEG from today's recording, cached second call, hover preview loaded, history frame loaded - private-evidence/T044-frames-live/*.png. Open: sprite strips for scrubbing, hover previews on the event list rows"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null

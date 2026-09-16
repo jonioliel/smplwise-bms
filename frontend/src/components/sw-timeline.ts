@@ -63,6 +63,7 @@ export class SwTimeline extends LitElement {
   @property({ type: Number }) limit = 1440;
 
   @state() private hover: number | null = null;
+  private lastHoverBucket = -1;
   @state() private viewStart = -1;
   @state() private dragging = false;
 
@@ -172,6 +173,14 @@ export class SwTimeline extends LitElement {
   private onMove(e: PointerEvent) {
     const m = this.minuteAt(e);
     this.hover = m;
+    if (!this.dragging) {
+      const bucket = Math.floor(m * 6); // 10-second buckets keep the preview requests sparse
+      if (bucket !== this.lastHoverBucket) {
+        this.lastHoverBucket = bucket;
+        const rect = (e.currentTarget as SVGElement).getBoundingClientRect();
+        this.dispatchEvent(new CustomEvent('hover', { detail: { minute: m, x: e.clientX - rect.left, width: rect.width }, bubbles: true, composed: true }));
+      }
+    }
     if (this.dragging) {
       const snapped = this.snap(m);
       this.cursor = snapped;
@@ -270,7 +279,7 @@ export class SwTimeline extends LitElement {
         viewBox="0 0 ${W} ${H}"
         preserveAspectRatio="none"
         @pointermove=${this.onMove}
-        @pointerleave=${() => (this.hover = null)}
+        @pointerleave=${() => { this.hover = null; this.lastHoverBucket = -1; this.dispatchEvent(new CustomEvent('hover-end', { bubbles: true, composed: true })); }}
         @pointerdown=${this.onDown}
         @pointerup=${this.onUp}
         @pointercancel=${() => (this.dragging = false)}

@@ -98,3 +98,6 @@ export interface PlaybackGroup {
 export const createGroup = (cameraIds: string[], startAt: string) => post<PlaybackGroup>('playback/groups', { camera_ids: cameraIds, start_at: startAt });
 export const seekGroup = (id: string, startAt: string) => post<PlaybackGroup>(`playback/groups/${id}/seek`, { start_at: startAt });
 export const closeGroup = (id: string) => del(`playback/groups/${id}`);
+
+/** JPEG frame from the recording at a UTC instant (T044); 404 when there is no picture there. */
+export const frameUrl = (cameraId: string, atIso: string) => apiUrl(`cameras/${cameraId}/frame?at=${encodeURIComponent(atIso)}`);

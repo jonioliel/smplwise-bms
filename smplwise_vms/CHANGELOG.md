@@ -1,5 +1,11 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.23 (pilot)
+- Recording frames at an instant (T044): GET /cameras/{id}/frame?at= grabs one JPEG from the recording
+  (ffmpeg on the server, cached per 10 seconds, negative-cached, capped at 150 MB, playback permission).
+  The playback timeline shows a floating preview while hovering; the historical map shows the selected
+  camera's frame at the chosen instant.
+
 ## 0.1.22 (pilot)
 - Multi-camera selection from the floor map (T043): "בחירת מצלמות" turns pins into a picker (or "בחר
   הכל"), "קיר חי" opens the live wall with exactly those cameras, "ניגון מסונכרן" opens playback with the

@@ -121,7 +121,9 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   map never shows the last live value as if it were the past. The side panel lists the events around
   the instant and the recording segment of the selected camera; the timeline at the bottom scrubs the
   day (segments and event ticks), the date picker changes the day. "נגן מכאן" opens playback at that
-  instant; "חזרה למצב חי" returns to the live map. No equipment can be operated from this screen.
+  instant; "חזרה למצב חי" returns to the live map. No equipment can be operated from this screen. The
+  side panel also shows a frame from the selected camera's recording at the chosen instant (a few seconds
+  the first time, cached afterwards); in playback, hovering the timeline shows the same kind of preview.
 
 ## Event page
 
