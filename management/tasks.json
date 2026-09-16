@@ -3311,7 +3311,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (2026-09-16, 0.1.28): routers/events.py GET /events gains site_id / building_id / floor_id / zone_id (cameras and HA entities whose current anchor lies in the place; zone by point-in-polygon), source and severity; the response carries filters.applied + filters.unsupported with a reason (a type absent in the last 90 days with a per-type reason - VCA not configured, no HA door transitions; a place with nothing placed); GET /events/facets: types / sources / severities seen with counts, unavailable types with reasons, places tree with placed cameras / sensors per floor and per zone, notes (no HA events, no placed cameras); scope-aware. tests/test_spatial_search.py. UI: event centre place + zone + source selects, facets line ('שדות עם נתונים' / 'לא זמין' with hover reasons), unsupported-filter banner instead of an empty list. frontend/tests/evidence-spatial-search.spec.ts against the dev backend - private-evidence/T062-spatial-search-live/*.png. Open: free-text search over event details, search across time ranges wider than a day in the UI, result links to a frame at the instant (today: event page + playback)"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null

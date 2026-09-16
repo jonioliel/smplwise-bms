@@ -86,10 +86,32 @@ def list_events(
     unacked: bool = False,
     acked: bool = False,
     limit: int = Query(200, ge=1, le=1000),
+    site_id: str | None = None,
+    building_id: str | None = None,
+    floor_id: str | None = None,
+    zone_id: str | None = None,
+    source: str | None = Query(None, pattern="^(alertstream|recording|system|ha)$"),
+    severity: str | None = Query(None, pattern="^(info|alert|critical)$"),
 ) -> dict[str, Any]:
+    """Events by time, camera, type, place (site / building / floor / zone, through the current anchors) and source.
+    A filter that cannot match by construction — a type this installation never produced, a place without placed
+    items — is reported in `filters.unsupported` instead of an empty list that looks like "nothing happened" (T062)."""
+    # list_windows calls this function directly: Query defaults arrive as Query objects, never as values
+    type = type if isinstance(type, str) else None
+    source = source if isinstance(source, str) else None
+    severity = severity if isinstance(severity, str) else None
     wide, ids = _scope(conn, principal)
     s = read_settings(conn)
     tz_name = s["time.zone"]
+    unsupported: list[dict[str, str]] = []
+    applied = {k: v for k, v in {"camera_id": camera_id, "type": type, "site_id": site_id, "building_id": building_id, "floor_id": floor_id, "zone_id": zone_id, "source": source, "severity": severity}.items() if v}
+    place = _place_filter(conn, site_id, building_id, floor_id, zone_id)
+    if place is not None:
+        cams, ents, note = place
+        if note:
+            unsupported.append(note)
+    if type and type not in _types_present(conn, 90):
+        unsupported.append({"field": "type", "value": type, "reason": _type_reason(type, 90)})
     if date:
         start, end = local_day_bounds(dt.date.fromisoformat(date), zone(tz_name))
     elif from_ and to:
@@ -109,6 +131,22 @@ def list_events(
     if type:
         sql += " AND type = ?"
         args.append(type)
+    if source:
+        sql += " AND source = ?"
+        args.append(source)
+    if severity:
+        sql += " AND severity = ?"
+        args.append(severity)
+    if place is not None:
+        cams, ents, _ = place
+        parts = []
+        if cams:
+            parts.append(f"camera_id IN ({','.join('?' * len(cams))})")
+            args.extend(sorted(cams))
+        if ents:
+            parts.append(f"(source = 'ha' AND json_extract(details_json, '$.entity_id') IN ({','.join('?' * len(ents))}))")
+            args.extend(sorted(ents))
+        sql += " AND (" + " OR ".join(parts) + ")" if parts else " AND 0"
     if unacked:
         sql += " AND acked_at IS NULL"
     if acked:
@@ -126,6 +164,116 @@ def list_events(
         "ingest": events_ingest.STATE.as_dict(),
         "derive": events_derive.STATE,
         "types": TYPES,
+        "filters": {"applied": applied, "unsupported": unsupported},
+    }
+
+
+# ---------------------------------------------------------------- spatial metadata search (T062)
+
+TYPE_REASON = {
+    "person": "ה־NVR לא שלח אירוע זיהוי אדם ב־{days} הימים האחרונים; דורש אירועים חכמים (VCA) במצלמה או ב־NVR",
+    "vehicle": "ה־NVR לא שלח אירוע זיהוי רכב ב־{days} הימים האחרונים; דורש אירועים חכמים (VCA) במצלמה או ב־NVR",
+    "line": "ה־NVR לא שלח חציית קו ב־{days} הימים האחרונים; דורש הגדרת line crossing במצלמה",
+    "field": "ה־NVR לא שלח חדירה לאזור ב־{days} הימים האחרונים; דורש הגדרת intrusion במצלמה",
+    "door": "לא נרשמו מעברי מצב של חיישני דלת או מנעולים מ־Home Assistant ב־{days} הימים האחרונים",
+    "coverage_gap": "לא נרשמו פערי כיסוי ב־{days} הימים האחרונים (זה טוב)",
+}
+
+
+def _type_reason(t: str, days: int) -> str:
+    return TYPE_REASON.get(t, "סוג האירוע לא הופיע ב־{days} הימים האחרונים; המערכת מציגה רק סוגים שהמקורות שלה מפיקים בפועל").format(days=days)
+
+
+def _types_present(conn: sqlite3.Connection, days: int) -> dict[str, int]:
+    since = iso_utc(dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days))
+    return {r["type"]: r["n"] for r in conn.execute("SELECT type, COUNT(*) AS n FROM events WHERE occurred_at >= ? GROUP BY type", (since,)).fetchall()}
+
+
+def _place_filter(conn: sqlite3.Connection, site_id: str | None, building_id: str | None, floor_id: str | None, zone_id: str | None) -> tuple[set[str], set[str], dict[str, str] | None] | None:
+    """Cameras and HA entities whose current anchor lies in the requested place; None when no place was asked for.
+    The third element names why the filter cannot match (nothing placed there), so the caller can say so."""
+    if not any((site_id, building_id, floor_id, zone_id)):
+        return None
+    if zone_id:
+        z = conn.execute("SELECT * FROM spatial_zones WHERE id = ? AND deleted_at IS NULL", (zone_id,)).fetchone()
+        if not z:
+            raise ApiError(404, "not_found", "האזור לא נמצא.")
+        poly = json.loads(z["polygon_json"])
+        anchors = conn.execute("SELECT resource_type, resource_id, x, y FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL", (z["floor_id"],)).fetchall()
+        cams = {a["resource_id"] for a in anchors if a["resource_type"] == "camera" and correlation._inside(a["x"], a["y"], poly)}
+        ents = {a["resource_id"] for a in anchors if a["resource_type"] == "ha_entity" and correlation._inside(a["x"], a["y"], poly)}
+        note = None if cams or ents else {"field": "zone_id", "value": zone_id, "reason": f"באזור \"{z['name']}\" לא מוצבות מצלמות או חיישנים, ולכן אין אירועים שאפשר לשייך אליו"}
+        return cams, ents, note
+    if floor_id:
+        if not conn.execute("SELECT 1 FROM floors WHERE id = ? AND deleted_at IS NULL", (floor_id,)).fetchone():
+            raise ApiError(404, "not_found", "הקומה לא נמצאה.")
+        floors, field, value = {floor_id}, "floor_id", floor_id
+    elif building_id:
+        floors = {r["id"] for r in conn.execute("SELECT id FROM floors WHERE building_id = ? AND deleted_at IS NULL", (building_id,)).fetchall()}
+        field, value = "building_id", building_id
+    else:
+        floors = {r["id"] for r in conn.execute("SELECT f.id FROM floors f JOIN buildings b ON b.id = f.building_id WHERE b.site_id = ? AND f.deleted_at IS NULL", (site_id,)).fetchall()}
+        field, value = "site_id", site_id or ""
+    cams: set[str] = set()
+    ents: set[str] = set()
+    if floors:
+        q = ",".join("?" * len(floors))
+        for a in conn.execute(f"SELECT resource_type, resource_id FROM map_anchors WHERE floor_id IN ({q}) AND effective_to IS NULL", sorted(floors)).fetchall():
+            (cams if a["resource_type"] == "camera" else ents).add(a["resource_id"])
+    note = None if cams or ents else {"field": field, "value": value, "reason": "במקום הזה לא מוצבות מצלמות או חיישנים על תוכנית; הצב פריטים בעורך התוכנית כדי לחפש לפי מיקום"}
+    return cams, ents, note
+
+
+@router.get("/events/facets")
+def event_facets(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), days: int = Query(90, ge=1, le=365)) -> dict[str, Any]:
+    """Which search fields have data in this installation and why the others are empty (T062): types, sources and
+    severities seen in the last `days`, the places (site / building / floor / zone) with what is placed in them."""
+    wide, ids = _scope(conn, principal)
+    since = iso_utc(dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days))
+    types: dict[str, int] = {}
+    sources: dict[str, int] = {}
+    severities: dict[str, int] = {}
+    for r in conn.execute("SELECT type, source, severity, camera_id, COUNT(*) AS n FROM events WHERE occurred_at >= ? GROUP BY type, source, severity, camera_id", (since,)).fetchall():
+        if not wide and (r["camera_id"] is None or r["camera_id"] not in (ids or set())):
+            continue
+        types[r["type"]] = types.get(r["type"], 0) + r["n"]
+        sources[r["source"]] = sources.get(r["source"], 0) + r["n"]
+        severities[r["severity"]] = severities.get(r["severity"], 0) + r["n"]
+    placed: dict[str, dict[str, int]] = {}
+    zone_hits: dict[str, dict[str, int]] = {}
+    anchors = conn.execute("SELECT floor_id, resource_type, resource_id, x, y FROM map_anchors WHERE effective_to IS NULL").fetchall()
+    zones = conn.execute("SELECT id, floor_id, name, kind, polygon_json FROM spatial_zones WHERE deleted_at IS NULL ORDER BY name").fetchall()
+    for a in anchors:
+        if not wide and a["resource_type"] == "camera" and a["resource_id"] not in (ids or set()):
+            continue
+        p = placed.setdefault(a["floor_id"], {"cameras": 0, "sensors": 0})
+        p["cameras" if a["resource_type"] == "camera" else "sensors"] += 1
+        for z in zones:
+            if z["floor_id"] == a["floor_id"] and correlation._inside(a["x"], a["y"], json.loads(z["polygon_json"])):
+                zh = zone_hits.setdefault(z["id"], {"cameras": 0, "sensors": 0})
+                zh["cameras" if a["resource_type"] == "camera" else "sensors"] += 1
+    places = []
+    for site in conn.execute("SELECT id, name FROM sites WHERE deleted_at IS NULL ORDER BY sort_order, name").fetchall():
+        buildings = []
+        for b in conn.execute("SELECT id, name FROM buildings WHERE site_id = ? AND deleted_at IS NULL ORDER BY sort_order, name", (site["id"],)).fetchall():
+            floors = []
+            for f in conn.execute("SELECT id, name FROM floors WHERE building_id = ? AND deleted_at IS NULL ORDER BY sort_order, level", (b["id"],)).fetchall():
+                counts = placed.get(f["id"], {"cameras": 0, "sensors": 0})
+                floors.append({"id": f["id"], "name": f["name"], **counts, "zones": [{"id": z["id"], "name": z["name"], "kind": z["kind"], **zone_hits.get(z["id"], {"cameras": 0, "sensors": 0})} for z in zones if z["floor_id"] == f["id"]]})
+            buildings.append({"id": b["id"], "name": b["name"], "floors": floors})
+        places.append({"id": site["id"], "name": site["name"], "buildings": buildings})
+    notes = []
+    if "ha" not in sources:
+        notes.append("אין אירועי חיישנים (HA) בתקופה: או ש־Home Assistant לא מחובר, או שאין חיישני דלת / תנועה / מנעולים שהשתנו")
+    if not any(p["cameras"] for p in placed.values()):
+        notes.append("אף מצלמה לא מוצבת על תוכנית: חיפוש לפי מקום אינו אפשרי עד שמציבים מצלמות בעורך התוכנית")
+    return {
+        "days": days, "since": since,
+        "types": [{"type": t, "count": n} for t, n in sorted(types.items(), key=lambda kv: -kv[1])],
+        "sources": [{"source": t, "count": n} for t, n in sorted(sources.items(), key=lambda kv: -kv[1])],
+        "severities": [{"severity": t, "count": n} for t, n in sorted(severities.items(), key=lambda kv: -kv[1])],
+        "unavailable_types": [{"type": t, "reason": _type_reason(t, days)} for t in TYPES if t not in types],
+        "places": places, "notes": notes,
     }
 
 

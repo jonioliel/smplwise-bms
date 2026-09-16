@@ -1,5 +1,13 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.28 (pilot)
+- Spatial metadata search (T062): the event centre filters by place (building · floor, then room / zone)
+  through the items placed on the floor plan, and by source (NVR alert, derived from recording, HA sensor,
+  system) and severity. A line above the list says which fields have data in the last 90 days and why the
+  others are empty (for example: no person / vehicle events because the NVR sends motion only). A filter that
+  cannot match by construction — a type this installation never produced, a room with nothing placed in it —
+  is shown as "unsupported here", never as "no results".
+
 ## 0.1.27 (pilot)
 - Door–camera–sensor correlation (T053): state transitions of door and window contacts, motion sensors, locks
   and gates from Home Assistant are kept as events (source "חיישן HA"). Every event page has a correlation

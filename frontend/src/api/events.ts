@@ -95,6 +95,8 @@ export interface DeriveState {
 }
 
 export interface EventsResponse {
+  /** Filters echoed back; `unsupported` names filters that cannot match by construction (T062). */
+  filters?: { applied: Record<string, string>; unsupported: UnsupportedFilter[] };
   events: VmsEvent[];
   from: string;
   to: string;
@@ -110,7 +112,7 @@ export interface EventsSummary {
   derive: DeriveState;
 }
 
-export function listEvents(opts: { date?: string; from?: string; to?: string; cameraId?: string; type?: string; unacked?: boolean; acked?: boolean; limit?: number } = {}) {
+export function listEvents(opts: { date?: string; from?: string; to?: string; cameraId?: string; type?: string; unacked?: boolean; acked?: boolean; limit?: number ; floorId?: string; zoneId?: string; buildingId?: string; siteId?: string; source?: string; severity?: string } = {}) {
   const q = new URLSearchParams();
   if (opts.date) q.set('date', opts.date);
   if (opts.from && opts.to) {
@@ -122,6 +124,12 @@ export function listEvents(opts: { date?: string; from?: string; to?: string; ca
   if (opts.type) q.set('type', opts.type);
   if (opts.unacked) q.set('unacked', 'true');
   if (opts.limit) q.set('limit', String(opts.limit));
+  if (opts.floorId) q.set('floor_id', opts.floorId);
+  if (opts.zoneId) q.set('zone_id', opts.zoneId);
+  if (opts.buildingId) q.set('building_id', opts.buildingId);
+  if (opts.siteId) q.set('site_id', opts.siteId);
+  if (opts.source) q.set('source', opts.source);
+  if (opts.severity) q.set('severity', opts.severity);
   const qs = q.toString();
   return get<EventsResponse>(`events${qs ? `?${qs}` : ''}`);
 }
@@ -275,3 +283,22 @@ export interface Correlation {
   event: { id: string; type: string; source: string; camera_id: string | null; camera_name: string | null; occurred_at: string; received_at: string; confidence: string; details: Record<string, unknown> };
 }
 export const getCorrelation = (id: string, windowS = 120) => get<Correlation>(`events/${id}/correlation?window=${windowS}`);
+
+/** A filter that cannot match by construction, with the reason (T062). */
+export interface UnsupportedFilter {
+  field: string;
+  value: string;
+  reason: string;
+}
+export interface EventFacets {
+  days: number;
+  since: string;
+  types: { type: string; count: number }[];
+  sources: { source: string; count: number }[];
+  severities: { severity: string; count: number }[];
+  unavailable_types: { type: string; reason: string }[];
+  places: { id: string; name: string; buildings: { id: string; name: string; floors: { id: string; name: string; cameras: number; sensors: number; zones: { id: string; name: string; kind: string; cameras: number; sensors: number }[] }[] }[] }[];
+  notes: string[];
+}
+export const getEventFacets = (days = 90) => get<EventFacets>(`events/facets?days=${days}`);
+export const SOURCE_LABEL: Record<string, string> = { alertstream: 'אירוע NVR', recording: 'נגזר מהקלטה', system: 'מערכת', ha: 'חיישן HA' };

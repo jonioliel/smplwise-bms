@@ -201,6 +201,16 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   inside the dashed rectangle is exactly what the saved version contains; the original file is never
   modified.
 
+## Searching events by place and source
+
+- חקירה › מרכז אירועים filters by camera, type, date, place and source. "מקום" lists the floors with what is
+  placed on them; choosing a floor offers its rooms and zones. An event belongs to a place through the current
+  pin of its camera (or of its HA sensor) on the floor plan, so the place filter works only for placed items.
+- The line above the list names the fields that have data in the last 90 days and the ones that do not, with
+  the reason (hover): the lab NVR sends motion alerts only, so person, vehicle, line-crossing and intrusion
+  filters cannot match until smart events are configured on the cameras. Such a filter shows "המסנן אינו
+  נתמך כאן" instead of an empty list that would look like "nothing happened".
+
 ## Door–camera–sensor correlation
 
 - Transitions of door / window contacts, motion sensors, locks and gates in Home Assistant are recorded as

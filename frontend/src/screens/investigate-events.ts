@@ -18,7 +18,7 @@ import { listCameras } from '../api/maps';
 import { productSettings } from '../api/prefs';
 import { navigate } from '../router';
 import { describeError } from '../api/client';
-import { ackEvent, ackMany, EVENT_LABEL, EVENT_TONE, listEvents, listWindows, subscribeEvents, type EventKind, type EventWindow, type IngestState, type VmsEvent, pollThumbnail, thumbnailUrl } from '../api/events';
+import { EVENT_LABEL, EVENT_TONE, SOURCE_LABEL, ackEvent, ackMany, getEventFacets, listEvents, listWindows, pollThumbnail, subscribeEvents, thumbnailUrl, type EventFacets, type EventKind, type EventWindow, type IngestState, type UnsupportedFilter, type VmsEvent } from '../api/events';
 import { dateInZone, closePlayback, createPlayback, playbackWsUrl, type PlaybackSession } from '../api/recordings';
 import type { Camera } from '../api/types';
 
@@ -55,6 +55,12 @@ export class InvestigateEvents extends LitElement {
   @state() private windowGap = 180;
   @state() private selectedWindow: string | null = null;
   @state() private windowsBusy = false;
+  /** Spatial metadata search (T062): place + source filters, facets and unsupported-filter reasons. */
+  @state() private facets: EventFacets | null = null;
+  @state() private placeFloor = '';
+  @state() private placeZone = '';
+  @state() private source = '';
+  @state() private unsupported: UnsupportedFilter[] = [];
   private unsubscribe: (() => void) | undefined;
   private thumbTimers = new Map<string, number>();
   private thumbInFlight = 0;
@@ -416,6 +422,7 @@ export class InvestigateEvents extends LitElement {
       const [settings, list] = await Promise.all([productSettings(), listCameras()]);
       this.tz = settings['time.zone'] ?? 'Asia/Jerusalem';
       this.cams = list.cameras;
+      void this.loadFacets();
       if (!this.date) this.date = dateInZone(new Date(), this.tz);
       await this.load();
     } catch (err) {
@@ -423,10 +430,38 @@ export class InvestigateEvents extends LitElement {
     }
   }
 
+  private async loadFacets() {
+    try {
+      this.facets = await getEventFacets();
+    } catch {
+      this.facets = null;
+    }
+  }
+
+  private get facetFloors() {
+    const f = this.facets;
+    if (!f) return [] as { id: string; name: string; cameras: number; sensors: number; zones: { id: string; name: string; kind: string; cameras: number; sensors: number }[] }[];
+    return f.places.flatMap((s) => s.buildings.flatMap((b) => b.floors.map((fl) => ({ ...fl, name: `${b.name} · ${fl.name}` }))));
+  }
+
+  private renderFacets() {
+    const f = this.facets;
+    if (!f) return nothing;
+    const present = f.types.map((t) => `${EVENT_LABEL[t.type as EventKind] ?? t.type} (${t.count})`).join(' · ');
+    const sources = f.sources.map((s) => `${SOURCE_LABEL[s.source] ?? s.source} (${s.count})`).join(' · ');
+    const missing = f.unavailable_types.filter((u) => ['person', 'vehicle', 'line', 'field', 'door'].includes(u.type));
+    return html`<div class="sub" data-facets style="margin:-4px 0 8px;line-height:1.6">
+      <strong>שדות עם נתונים (${f.days} ימים):</strong> ${present || 'אין אירועים'} · <strong>מקורות:</strong> ${sources || '—'}
+      ${missing.length ? html`<br /><strong>לא זמין:</strong> ${missing.map((u) => html`<span title=${u.reason}>${EVENT_LABEL[u.type as EventKind] ?? u.type}</span>`).reduce((acc, cur, i) => (i ? [...acc, ' · ', cur] : [cur]), [] as unknown[])} <span class="sub">(ריחוף מסביר למה)</span>` : nothing}
+      ${f.notes.map((n) => html`<br />${n}`)}
+    </div>`;
+  }
+
   private async load() {
     try {
-      const r = await listEvents({ date: this.date || undefined, cameraId: this.cameraId || undefined, type: this.type || undefined, unacked: this.filter === 'unacked', acked: this.filter === 'acked', limit: 500 });
+      const r = await listEvents({ date: this.date || undefined, cameraId: this.cameraId || undefined, type: this.type || undefined, unacked: this.filter === 'unacked', acked: this.filter === 'acked', limit: 500, floorId: this.placeFloor || undefined, zoneId: this.placeZone || undefined, source: this.source || undefined });
       this.events = r.events;
+      this.unsupported = (r as { filters?: { unsupported: UnsupportedFilter[] } }).filters?.unsupported ?? [];
       this.ingest = r.ingest;
       this.error = '';
       if (this.mode === 'windows') await this.loadWindows();
@@ -584,6 +619,11 @@ export class InvestigateEvents extends LitElement {
         <sw-field><select aria-label="מצלמה" @change=${(e: Event) => { this.cameraId = (e.target as HTMLSelectElement).value; void this.load(); }}><option value="" ?selected=${!this.cameraId}>כל המצלמות</option>${(this.cams ?? []).map((c) => html`<option value=${c.id} ?selected=${c.id === this.cameraId}>${c.name}</option>`)}</select></sw-field>
         <sw-field><select aria-label="סוג" @change=${(e: Event) => { this.type = (e.target as HTMLSelectElement).value; void this.load(); }}><option value="" ?selected=${!this.type}>כל סוגי האירועים</option>${(Object.keys(EVENT_LABEL) as EventKind[]).map((t) => html`<option value=${t} ?selected=${t === this.type}>${EVENT_LABEL[t]}</option>`)}</select></sw-field>
         <sw-field><input type="date" .value=${this.date} max=${dateInZone(new Date(), this.tz)} data-ltr aria-label="תאריך" @change=${(e: Event) => { this.date = (e.target as HTMLInputElement).value; void this.load(); }} /></sw-field>
+        <sw-field><select aria-label="מקום" data-filter-floor @change=${(e: Event) => { this.placeFloor = (e.target as HTMLSelectElement).value; this.placeZone = ''; void this.load(); }}><option value="" ?selected=${!this.placeFloor}>כל המקומות</option>${this.facetFloors.map((fl) => html`<option value=${fl.id} ?selected=${fl.id === this.placeFloor}>${fl.name} · ${fl.cameras} מצלמות${fl.sensors ? ` · ${fl.sensors} חיישנים` : ''}</option>`)}</select></sw-field>
+        ${this.placeFloor && this.facetFloors.find((fl) => fl.id === this.placeFloor)?.zones.length
+          ? html`<sw-field><select aria-label="חדר / אזור" data-filter-zone @change=${(e: Event) => { this.placeZone = (e.target as HTMLSelectElement).value; void this.load(); }}><option value="" ?selected=${!this.placeZone}>כל הקומה</option>${(this.facetFloors.find((fl) => fl.id === this.placeFloor)?.zones ?? []).map((z) => html`<option value=${z.id} ?selected=${z.id === this.placeZone}>${z.name} · ${z.cameras} מצלמות${z.sensors ? ` · ${z.sensors} חיישנים` : ''}</option>`)}</select></sw-field>`
+          : nothing}
+        <sw-field><select aria-label="מקור" data-filter-source @change=${(e: Event) => { this.source = (e.target as HTMLSelectElement).value; void this.load(); }}><option value="" ?selected=${!this.source}>כל המקורות</option>${Object.entries(SOURCE_LABEL).map(([k, v]) => html`<option value=${k} ?selected=${k === this.source}>${v}</option>`)}</select></sw-field>
         <span class="grow"></span>
         <sw-chip ?selected=${this.filter === 'all'} @click=${() => { this.filter = 'all'; void this.load(); }} count=${this.events.length}>הכל</sw-chip>
         <sw-chip ?selected=${this.filter === 'unacked'} @click=${() => { this.filter = 'unacked'; void this.load(); }} count=${unacked}>לבדיקה</sw-chip>
@@ -592,6 +632,8 @@ export class InvestigateEvents extends LitElement {
         <sw-chip icon="list" ?selected=${this.mode === 'raw'} @click=${() => this.setMode('raw')}>אירועים</sw-chip>
         <sw-chip icon="layers" ?selected=${this.mode === 'windows'} data-mode-windows @click=${() => this.setMode('windows')} count=${this.windows?.length}>חלונות</sw-chip>
       </div>
+      ${this.renderFacets()}
+      ${this.unsupported.length ? html`<div class="banner warn" data-unsupported>המסנן אינו נתמך כאן, לא "אין תוצאות": ${this.unsupported.map((u) => u.reason).join(' · ')}</div>` : nothing}
       ${this.error ? html`<div class="banner warn">${this.error}</div>` : nothing}
       <div class="stage">
         ${this.mode === 'windows'
