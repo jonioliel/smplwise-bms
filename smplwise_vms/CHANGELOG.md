@@ -1,5 +1,12 @@
 # Changelog — SMPLWISE VMS add-on
 
+## Documentation (2026-09-16, no version change)
+- G0 documents: dependency, licence and secrets audit (`docs/security/DEPENDENCY_AND_SECRETS_AUDIT.md`,
+  pip-audit and npm audit clean), model policy page (`docs/operations/MODEL_POLICY.md`), pilot contract
+  lock (`docs/architecture/ADR-015-pilot-contract-lock.md`) with the generated route inventory
+  (`contracts/API_INVENTORY.md`, `scripts/api_inventory.py`), and `scripts/progress.py` for the
+  progress figures in every report.
+
 ## 0.1.21 (pilot)
 - System status in the top bar (T035): the pill shows green "מערכת תקינה", amber "יש מה לבדוק" or red
   "תקלה: …" from a cheap summary (alert stream, camera discovery, go2rtc sync, HA sync, event pictures,

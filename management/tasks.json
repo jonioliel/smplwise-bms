@@ -246,7 +246,9 @@
       "Documentation, known limits and rollback notes",
       "Technical review record"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (2026-09-16): docs/security/DEPENDENCY_AND_SECRETS_AUDIT.md - runtime inventory with licences (Python deps, Alpine poppler/ffmpeg as subprocesses, lit, dev tools, HA base image), pip-audit on requirements.txt: no known vulnerabilities, npm audit: 0, repository secret scan (git grep + the segment loop's pre-commit scan): no hits, log redaction points listed, every dangerous write path reviewed with its guard (uploads, backups, exports, thumbnails, bridge install, go2rtc namespace, NVR read-only), findings: GPL tools kept as separate processes, legacy code never redistributed, scans added to the release checklist. Owner review pending"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
@@ -412,7 +414,9 @@
       "Documentation, known limits and rollback notes",
       "Technical review record"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (2026-09-16): docs/architecture/ADR-015-pilot-contract-lock.md - boundaries add-on / bridge / go2rtc / NVR confirmed, contracts/API_INVENTORY.md generated from the running application by scripts/api_inventory.py (105 HTTP routes at 0.1.21 + websocket routes), compatibility rule (additive only in the pilot), ApiError model, revision/409 rule, 16-hex ids, UTC instants, normalized plan coordinates and bearing convention, schema 0001-0006 as the locked revision with the pre-upgrade backup as rollback, bridge HMAC protocol; DECISIONS.md row added. Owner sign-off pending"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
@@ -518,7 +522,9 @@
       "Documentation, known limits and rollback notes",
       "Technical review record"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (2026-09-16): docs/operations/MODEL_POLICY.md explains MODEL_POLICY.json (aliases balanced/deep -> the interactive session model claude-fable-5-1 with medium/high effort, no automatic model switching, max_repair_attempts 2, no paid calls from product code, no physical actions, no production deployment by the assistant) and the working rules that follow (segment loop, read-only devices, BACKLOG until gates close). Owner sign-off pending"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
