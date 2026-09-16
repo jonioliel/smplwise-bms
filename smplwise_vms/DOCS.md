@@ -113,6 +113,16 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   remembered for an hour and the picture is never a live frame. Files live under `/data/thumbs`
   (pruned with the events retention, capped at 200 MB).
 
+## Historical map
+
+- חקירה → מפה היסטורית (or "המשך חקירה במפה" on an event page) shows the floor at a chosen instant: a
+  camera pin is blue when a recording covers that instant and dashed when there is none or the NVR could
+  not be asked; HA entities are always shown as "לא ידוע" because no state history is stored yet — the
+  map never shows the last live value as if it were the past. The side panel lists the events around
+  the instant and the recording segment of the selected camera; the timeline at the bottom scrubs the
+  day (segments and event ticks), the date picker changes the day. "נגן מכאן" opens playback at that
+  instant; "חזרה למצב חי" returns to the live map. No equipment can be operated from this screen.
+
 ## Event page
 
 - "סקירה מלאה" in the event centre (or a click on a nearby event) opens the event's own page: the

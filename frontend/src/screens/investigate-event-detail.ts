@@ -377,7 +377,8 @@ export class InvestigateEventDetail extends LitElement {
                     <sw-plan-canvas .planWidth=${this.bundle.width} .planHeight=${this.bundle.height} .imageUrl=${this.bundle.imageUrl} .plan=${this.bundle.planSvg} .markers=${this.markers} .selectedId=${loc.anchor_id} .zones=${this.bundle.zones} alwaysLabel dimEntities></sw-plan-canvas>
                   </div>
                   <div style="display:flex;gap:8px;margin-block-start:10px;flex-wrap:wrap">
-                    <sw-button size="sm" icon="map" @click=${() => navigate(`/explore/floors/${loc.floor_id}`)}>המשך חקירה במפה</sw-button>
+                    <sw-button size="sm" icon="map" data-history-map @click=${() => navigate(`/investigate/floors/${loc.floor_id}`, { t: ev.occurred_at, camera: ev.camera_id ?? '' })}>המשך חקירה במפה</sw-button>
+                    <sw-button size="sm" variant="ghost" icon="live" @click=${() => navigate(`/explore/floors/${loc.floor_id}`)}>מפה חיה</sw-button>
                   </div>`
                 : loc
                   ? html`<div class="note">לקומה ${loc.floor_name} אין תוכנית מפורסמת עדיין.</div>`

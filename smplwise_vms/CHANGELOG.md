@@ -1,5 +1,13 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.19 (pilot)
+- Historical map on real data (T030, design M16 basic): the floor at a chosen instant — cameras show
+  whether a recording covers that instant (blue) or not (dashed), HA entities are shown as unknown (no
+  state history is stored; never the last live value), events around the instant are listed, a day
+  timeline with recording segments and event ticks scrubs the time, a date picker and floor switch, and
+  an explicit "חזרה למצב חי". The event page's "המשך חקירה במפה" opens it at the event time with the camera
+  selected; "נגן מכאן" opens playback at the chosen instant. No physical actions in this mode.
+
 ## 0.1.18 (pilot)
 - Health and diagnostics (T033): הגדרות → בריאות ועבודות shows one card per subsystem with a real status —
   database, storage (free space and what the add-on uses), NVR (live probe: model, firmware), go2rtc

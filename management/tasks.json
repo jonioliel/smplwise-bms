@@ -1605,7 +1605,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (2026-09-16, 0.1.19, M16 basic): investigate-history-map on real data - route #/investigate/floors/{id}?t=<utc>&camera=<id>; loads the floor bundle, the day's events (floor cameras only) and each placed camera's recording segments (GET /cameras/{id}/recordings?date=, NVR search cached server-side); camera pins are 'historic' when a segment covers the instant else 'unknown' (also when the search failed), labels carry the count of events ±5 min, HA entities are always 'unknown' (no state history stored; explicitly never the last live value), zones drawn; side panel: instant + zone, selected camera coverage segment, events ±10 min (links to event pages), 'נגן מכאן' (playback at the instant), 'הוסף לתיק' disabled; sw-timeline with segments + event ticks, ±5 min / ±1 h chips, date picker, floor switch, 'חזרה למצב חי'; the event page's 'המשך חקירה במפה' now opens it at the event time. Demo rendering kept for the design preview. frontend/tests/evidence-history-map.spec.ts in real Chrome against the dev backend - private-evidence/T030-history-live/history-map-desktop.png. Open: effective plan version at the instant (versions carry no validity range yet), entity state history (needs HA history or our own log), 'false states' guard is by construction (unknown everywhere no source exists)"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
