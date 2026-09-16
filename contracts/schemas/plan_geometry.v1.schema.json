@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://smplwise.example/schemas/plan_geometry.v1.schema.json",
+  "title": "SMPLWISE plan geometry document (v1)",
+  "description": "Canonical, versioned description of one floor plan version: the immutable source, its dimensions and calibration, the transform that produced the map background, and the geometry the VMS knows (walls, doors, windows, rooms, connectors) with explicit uncertainty. All coordinates are normalized to the version image: x, y in [0, 1], origin top-left. Producers may omit collections they cannot fill; they must never invent them.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "source", "dimensions", "transform", "walls", "doors", "windows", "rooms", "connectors", "uncertainty"],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "plan_version_id": { "type": "string", "minLength": 1 },
+    "floor_id": { "type": "string", "minLength": 1 },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha256", "mime", "page"],
+      "properties": {
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "file_name": { "type": "string" },
+        "mime": { "type": "string" },
+        "page": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "dimensions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["width_px", "height_px", "calibration"],
+      "properties": {
+        "width_px": { "type": "integer", "minimum": 1 },
+        "height_px": { "type": "integer", "minimum": 1 },
+        "scale_m_per_px": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+        "calibration": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status"],
+          "properties": {
+            "status": { "enum": ["measured", "estimated", "missing"] },
+            "reason": { "type": "string" },
+            "reference": { "type": "string" }
+          }
+        }
+      }
+    },
+    "transform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rotation"],
+      "properties": {
+        "rotation": { "enum": [0, 90, 180, 270] },
+        "crop": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["x", "y", "w", "h"],
+          "properties": {
+            "x": { "$ref": "#/$defs/unit" }, "y": { "$ref": "#/$defs/unit" },
+            "w": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 }, "h": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 }
+          }
+        }
+      }
+    },
+    "walls": { "type": "array", "items": { "$ref": "#/$defs/wall" } },
+    "doors": { "type": "array", "items": { "$ref": "#/$defs/opening" } },
+    "windows": { "type": "array", "items": { "$ref": "#/$defs/opening" } },
+    "rooms": { "type": "array", "items": { "$ref": "#/$defs/room" } },
+    "connectors": { "type": "array", "items": { "$ref": "#/$defs/connector" } },
+    "uncertainty": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["overall", "notes"],
+      "properties": {
+        "overall": { "$ref": "#/$defs/unit", "description": "0 = fully measured, 1 = nothing verified" },
+        "notes": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  },
+  "$defs": {
+    "unit": { "type": "number", "minimum": 0, "maximum": 1 },
+    "point": { "type": "array", "prefixItems": [{ "$ref": "#/$defs/unit" }, { "$ref": "#/$defs/unit" }], "minItems": 2, "maxItems": 2 },
+    "confidence": { "$ref": "#/$defs/unit" },
+    "provenance": { "enum": ["manual", "auto", "imported"] },
+    "wall": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "polyline", "confidence", "source"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "polyline": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/point" } },
+        "thickness_px": { "type": ["number", "null"], "minimum": 0 },
+        "confidence": { "$ref": "#/$defs/confidence" },
+        "source": { "$ref": "#/$defs/provenance" }
+      }
+    },
+    "opening": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "position", "confidence", "source"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "position": { "$ref": "#/$defs/point" },
+        "wall_id": { "type": ["string", "null"] },
+        "width_px": { "type": ["number", "null"], "minimum": 0 },
+        "entity_id": { "type": ["string", "null"], "description": "HA entity bound to this opening, when known" },
+        "confidence": { "$ref": "#/$defs/confidence" },
+        "source": { "$ref": "#/$defs/provenance" }
+      }
+    },
+    "room": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "polygon", "kind", "confidence", "source"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string" },
+        "kind": { "enum": ["room", "zone", "corridor", "outdoor", "service"] },
+        "polygon": { "type": "array", "minItems": 3, "items": { "$ref": "#/$defs/point" } },
+        "confidence": { "$ref": "#/$defs/confidence" },
+        "source": { "$ref": "#/$defs/provenance" }
+      }
+    },
+    "connector": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "kind", "position", "confidence", "source"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "enum": ["stairs", "elevator", "corridor", "ramp"] },
+        "position": { "$ref": "#/$defs/point" },
+        "floor_ids": { "type": "array", "items": { "type": "string" } },
+        "confidence": { "$ref": "#/$defs/confidence" },
+        "source": { "$ref": "#/$defs/provenance" }
+      }
+    }
+  }
+}

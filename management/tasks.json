@@ -3155,7 +3155,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (2026-09-16, 0.1.29): contracts/schemas/plan_geometry.v1.schema.json (schema_version, source hash / page, dimensions + calibration status with reason, transform rotation / crop, walls, doors, windows, rooms, connectors, uncertainty; normalized coordinates); services/plan_schema.py validate() (bounds, polygon area and self-intersection, duplicate ids across collections, calibration consistency, crop inside bounds, enums, confidence, provenance), canonical_json() deterministic serialization, export_version() from a real plan version (asset sha256, transform, zones as rooms with provenance, doors from placed locks / door sensors, walls and windows explicitly empty with notes); docs/architecture/PLAN_GEOMETRY_SCHEMA.md; tests/test_plan_schema.py. Open: GET /plan-versions/{id}/geometry, wall / window vectorization, connectors, the regression plan set compared as geometry, a renderer that draws the document"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
@@ -3781,7 +3783,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (2026-09-16, 0.1.29): docs/operations/OPERATOR_GUIDE_HE.md - install checklist install -> NVR -> time -> HA bridge -> go2rtc -> floor/plan -> cameras -> NVR events, each step with the check that proves it (diagnostics / storage / bridge / live) and the failure explanation; daily use; investigation flow (event centre -> event page + correlation -> historical map -> playback -> case -> preserve -> export); recovery (backups, add-on rollback, NVR / HA outages, clocks); privacy and permissions (HA identity only, nothing leaves the add-on, audit, device boundaries); support checklist. Screenshots referenced from the build: private-evidence/*-live (lab, gitignored) and docs/evidence/T007 (public). Open: the guided onboarding wizard as a screen (the checks exist in diagnostics, the wizard does not), user-facing screenshots in the guide itself"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
@@ -3944,7 +3948,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (2026-09-16, 0.1.29): docs/operations/VISUAL_REGRESSION.md - the two fixture suites (129 checks, demo data, backend stopped) as the per-commit gate with PNGs under docs/evidence/T007, the live evidence specs as non-gating evidence under private-evidence, the intentional-change approval flow (git diff of PNGs, commit with the screen ids), masking rules for video / frames / clocks, feedback linking convention (screen id + requirement + version + commit on the task card), privacy-first UX metrics plan (time to camera / time to recording, numbers only, opt-in). Open: CI job with PNG diff artifacts, per-screen state matrix, perceptual thresholds"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null

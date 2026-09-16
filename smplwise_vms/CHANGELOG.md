@@ -1,5 +1,13 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.29 (pilot)
+- Documentation: operator guide in Hebrew (install → NVR → HA → go2rtc → floor → camera with the checks that
+  prove each step, daily use, investigation from event to preserved evidence, recovery, privacy and permissions,
+  what to collect for support) — docs/operations/OPERATOR_GUIDE_HE.md. Visual regression process —
+  docs/operations/VISUAL_REGRESSION.md. Canonical plan geometry schema v1 with a validator and a deterministic
+  export of a plan version — contracts/schemas/plan_geometry.v1.schema.json, docs/architecture/PLAN_GEOMETRY_SCHEMA.md.
+  No behaviour change in the add-on.
+
 ## 0.1.28 (pilot)
 - Spatial metadata search (T062): the event centre filters by place (building · floor, then room / zone)
   through the items placed on the floor plan, and by source (NVR alert, derived from recording, HA sensor,
