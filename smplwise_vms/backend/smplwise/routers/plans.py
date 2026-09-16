@@ -284,6 +284,7 @@ def delete_version(version_id: str, request: Request, principal: Principal = Dep
 class StylizeIn(BaseModel):
     strength: str = Field(default="medium", pattern="^(light|medium|strong)$")
     keep_lines: bool = False
+    room_fill: str = Field(default="white", pattern="^(white|tint|none)$")
 
 
 class RenderModeIn(BaseModel):
@@ -338,7 +339,7 @@ def stylize_version(version_id: str, body: StylizeIn, request: Request, principa
     out = src.with_name(src.stem + ".stylized.png")
     try:
         with unlocked(conn):
-            result = plan_stylize.stylize(src, out, body.strength, body.keep_lines)
+            result = plan_stylize.stylize(src, out, body.strength, body.keep_lines, body.room_fill)
     except (OSError, ValueError, MemoryError) as exc:
         raise ApiError(500, "stylize_failed", "עיבוד התוכנית נכשל.", details={"error": type(exc).__name__})
     conn.execute("UPDATE plan_versions SET stylized_path = ?, stylize_json = ? WHERE id = ?", (str(out.relative_to(settings.data_dir)).replace("\\", "/"), json.dumps(result), version_id))

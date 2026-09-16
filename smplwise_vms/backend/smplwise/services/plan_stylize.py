@@ -20,6 +20,9 @@ CANVAS = (245, 247, 251)   # --sw-bg (SW A)
 ROOM = (255, 255, 255)     # --sw-map-room-fill
 WALL = (190, 201, 218)     # --sw-map-wall, slightly darker for contrast
 FURNITURE = (214, 221, 232)
+# soft tints for "one colour per room" (room_fill = tint); pastel siblings of the zone palette
+TINTS = [(226, 236, 255), (224, 245, 233), (255, 243, 224), (240, 233, 255), (224, 242, 254), (253, 231, 243), (222, 247, 244), (255, 237, 224)]
+ROOM_FILLS = ("white", "tint", "none")
 ANALYSIS_PX = 1600
 LABEL_PX = 640
 STRENGTH = {"light": (1, 2), "medium": (1, 3), "strong": (2, 4)}  # (opening radius, closing radius) in units; strong merges dense drawings (stairs, fixtures) into blocks
@@ -108,10 +111,12 @@ def _resize_mask(mask: np.ndarray, size: tuple[int, int], method=Image.BOX) -> n
     return np.asarray(im, dtype=np.uint8) > 127
 
 
-def stylize(src: Path, out: Path, strength: str = "medium", keep_lines: bool = False) -> dict[str, Any]:
+def stylize(src: Path, out: Path, strength: str = "medium", keep_lines: bool = False, room_fill: str = "white") -> dict[str, Any]:
     t0 = time.time()
     if strength not in STRENGTH:
         raise ValueError("strength must be light | medium | strong")
+    if room_fill not in ROOM_FILLS:
+        raise ValueError("room_fill must be white | tint | none")
     with Image.open(src) as im:
         im.load()
         width, height = im.size
@@ -147,7 +152,13 @@ def stylize(src: Path, out: Path, strength: str = "medium", keep_lines: bool = F
 
     canvas = np.empty((ah, aw, 3), dtype=np.uint8)
     canvas[...] = CANVAS
-    canvas[room_mask] = ROOM
+    if room_fill == "white":
+        canvas[room_mask] = ROOM
+    elif room_fill == "tint":
+        # one pastel per enclosed room, so rooms read as distinct areas even before they are named
+        for i, lab in enumerate(room_labels):
+            m = _resize_mask(dilate(labels == lab, seal) & ~walls_coarse, (aw, ah), Image.NEAREST)
+            canvas[dilate(m, 2) & ~walls] = TINTS[i % len(TINTS)]
     if keep_lines:
         canvas[thin & ~walls] = FURNITURE
     canvas[walls] = WALL
@@ -162,6 +173,7 @@ def stylize(src: Path, out: Path, strength: str = "medium", keep_lines: bool = F
         "rooms": len(room_labels),
         "strength": strength,
         "keep_lines": keep_lines,
+        "room_fill": room_fill,
         "width_px": width,
         "height_px": height,
         "threshold": thr,

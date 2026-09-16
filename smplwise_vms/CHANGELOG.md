@@ -1,5 +1,11 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.14 (pilot)
+- Stylized rendering with choices: cleaning strength (קל / בינוני / חזק), room fill (white, one soft tint
+  per room, none) and whether furniture, doors and other thin lines from the drawing are kept in a faint
+  tone; the comparison caption names the chosen options. API: `room_fill` on POST /plan-versions/{id}/stylize.
+- Floor map: the layer switches are remembered per floor in the browser (M07).
+
 ## 0.1.13 (pilot)
 - Zones can be reshaped on the map (design M13): the selected zone shows corner handles (drag to move,
   double-click to remove, at least three stay) and edge-midpoint handles (drag to add a corner); each

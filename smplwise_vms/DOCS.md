@@ -182,8 +182,11 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
 - The plan editor's "עיבוד לשפת SMPLWISE" turns the uploaded architectural drawing into a clean
   rendering in the design tokens: text, dimension lines and thin furniture outlines are removed, walls
   become grey-blue bands, enclosed rooms are painted white and the outside stays on the canvas colour.
-  Three presets: קל (thin walls kept as drawn), בינוני (double-line walls merged; the usual choice),
-  חזק (dense drawings such as stairs or fixtures become solid blocks; thin lines kept faintly).
+  Three cleaning strengths: קל (thin walls kept as drawn), בינוני (double-line walls merged; the usual
+  choice), חזק (dense drawings such as stairs or fixtures become solid blocks). Two more choices: the room
+  fill (white, one soft tint per room so rooms read as distinct areas, or none) and whether furniture,
+  doors and other thin lines from the drawing stay in a faint tone. "עבד תצוגה מקדימה" renders a
+  comparison; "השתמש בתוצאה" makes it the map picture.
 - It is local image processing in the add-on (Pillow + numpy); no AI, nothing leaves the device, it
   takes a few seconds per plan. Rooms are counted but not named and doorways are not recognised as
   such. The source picture is never modified: "הצג מקור" switches back at any time, and anchors keep

@@ -6,11 +6,15 @@
 import { get, patch, post, resourceUrl } from './client';
 import type { PlanVersion } from './types';
 
+export type RoomFill = 'white' | 'tint' | 'none';
+export const ROOM_FILL_LABEL: Record<RoomFill, string> = { white: 'לבן', tint: 'גוון לכל חדר', none: 'ללא מילוי' };
+
 export interface StylizeResult {
   version_id: string;
   rooms: number;
   strength: 'light' | 'medium' | 'strong';
   keep_lines: boolean;
+  room_fill: RoomFill;
   width_px: number;
   height_px: number;
   ms: number;
@@ -19,7 +23,7 @@ export interface StylizeResult {
   stylized_url: string;
 }
 
-export async function stylizeVersion(versionId: string, opts: { strength: 'light' | 'medium' | 'strong'; keep_lines: boolean }): Promise<StylizeResult> {
+export async function stylizeVersion(versionId: string, opts: { strength: 'light' | 'medium' | 'strong'; keep_lines: boolean; room_fill?: RoomFill }): Promise<StylizeResult> {
   const r = await post<Omit<StylizeResult, 'source_url' | 'stylized_url'> & { source_url: string; stylized_url: string }>(`plan-versions/${versionId}/stylize`, opts);
   return { ...r, source_url: resourceUrl(r.source_url) + `?v=${Date.now()}`, stylized_url: resourceUrl(r.stylized_url) + `?v=${Date.now()}` };
 }

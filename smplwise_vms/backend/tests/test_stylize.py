@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 
 import numpy as np
+import pytest
 from conftest import as_user, bind, seed_tree
 from fastapi.testclient import TestClient
 from PIL import Image, ImageDraw
@@ -46,6 +47,22 @@ def test_stylize_removes_thin_strokes_and_finds_rooms(tmp_path):
     assert tuple(np.asarray(Image.open(tmp_path / "keep.png").convert("RGB"))[100, 200]) == plan_stylize.FURNITURE, "thin lines kept faintly on request"
 
 
+def test_stylize_room_fill_options(tmp_path):
+    src = tmp_path / "plan.png"
+    synthetic_plan().save(src)
+    r = plan_stylize.stylize(src, tmp_path / "tint.png", "medium", keep_lines=True, room_fill="tint")
+    assert r["room_fill"] == "tint" and r["keep_lines"] is True
+    px = np.asarray(Image.open(tmp_path / "tint.png").convert("RGB"))
+    inside = tuple(int(v) for v in px[200, 200])
+    other = tuple(int(v) for v in px[200, 700])
+    assert inside in plan_stylize.TINTS and other in plan_stylize.TINTS and inside != other, "each room gets its own tint"
+    assert tuple(int(v) for v in px[100, 200]) == plan_stylize.FURNITURE, "thin lines kept on request at medium strength too"
+    plan_stylize.stylize(src, tmp_path / "none.png", "medium", room_fill="none")
+    assert tuple(int(v) for v in np.asarray(Image.open(tmp_path / "none.png").convert("RGB"))[200, 200]) == plan_stylize.CANVAS, "no room fill"
+    with pytest.raises(ValueError):
+        plan_stylize.stylize(src, tmp_path / "x.png", "medium", room_fill="pink")
+
+
 def test_labeling_counts_enclosed_regions():
     free = np.ones((40, 60), dtype=bool)
     free[:, 30] = False  # a wall splitting the area in two
@@ -64,10 +81,11 @@ def test_stylize_api_and_render_mode(settings):
     asset = c.post(f"/api/v1/floors/{ids['floor2']}/plan-assets", files={"file": ("plan.png", buf.getvalue(), "image/png")}).json()
     v = c.post(f"/api/v1/floors/{ids['floor2']}/plan-versions", json={"asset_id": asset["id"]}).json()
     assert v["render_mode"] == "source" and v["stylized_url"] is None
-    r = c.post(f"/api/v1/plan-versions/{v['id']}/stylize", json={"strength": "medium", "keep_lines": False})
+    r = c.post(f"/api/v1/plan-versions/{v['id']}/stylize", json={"strength": "medium", "keep_lines": False, "room_fill": "tint"})
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["rooms"] >= 2 and body["stylized_url"].endswith("stylized.png") and body["source_url"].endswith("source.png")
+    assert body["rooms"] >= 2 and body["stylized_url"].endswith("stylized.png") and body["source_url"].endswith("source.png") and body["room_fill"] == "tint"
+    assert c.post(f"/api/v1/plan-versions/{v['id']}/stylize", json={"strength": "medium", "room_fill": "pink"}).status_code == 422
     assert c.get("/api/v1/" + body["stylized_url"].removeprefix("api/v1/")).headers["content-type"] == "image/png"
     # switching the render mode changes what the map serves; the source stays reachable
     assert c.patch(f"/api/v1/plan-versions/{v['id']}", json={"render_mode": "stylized"}).json()["render_mode"] == "stylized"

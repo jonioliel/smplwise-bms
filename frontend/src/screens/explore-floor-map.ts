@@ -417,6 +417,7 @@ export class ExploreFloorMap extends LitElement {
         }
       }
       this.noFloors = false;
+      this.restoreLayers();
       this.bundle = await loadMap(this.floorId);
       if (this.bundle.source === 'api') this.startWs();
     } catch (err) {
@@ -493,7 +494,28 @@ export class ExploreFloorMap extends LitElement {
     const next = new Set(this.layers);
     if (next.has(layer)) next.delete(layer);
     else next.add(layer);
+    this.setLayers(next);
+  }
+
+  /** Layer state is remembered per floor in this browser (M07: "מצב שכבות נשמר עם התצוגה"); never on the server. */
+  private setLayers(next: Set<Layer>) {
     this.layers = next;
+    try {
+      localStorage.setItem(`sw.floor.layers.${this.floorId}`, JSON.stringify([...next]));
+    } catch {
+      /* private mode or blocked storage: the choice lives for this page only */
+    }
+  }
+
+  private restoreLayers() {
+    try {
+      const raw = localStorage.getItem(`sw.floor.layers.${this.floorId}`);
+      if (!raw) return;
+      const arr = JSON.parse(raw) as Layer[];
+      if (Array.isArray(arr)) this.layers = new Set(arr.filter((l) => ['cameras', 'doors', 'lights', 'sensors', 'zones'].includes(l)));
+    } catch {
+      /* ignore */
+    }
   }
 
   private onSelect(e: CustomEvent<MarkerSelectDetail>) {
@@ -687,7 +709,7 @@ export class ExploreFloorMap extends LitElement {
     return html`<div class="panel" role="group" aria-label="שכבות פעילות" data-layers-panel>
       <h3>שכבות פעילות</h3>
       <div class="sub">הצג רק מה שרלוונטי כרגע</div>
-      ${rows.map((r) => html`<div class="prow"><span class="lbl">${r.label}<span class="cnt">${r.count}</span></span><sw-toggle ?checked=${this.layers.has(r.id)} label=${r.label} labelHidden data-layer=${r.id} @change=${(e: CustomEvent<{ checked: boolean }>) => { const next = new Set(this.layers); if (e.detail.checked) next.add(r.id); else next.delete(r.id); this.layers = next; }}></sw-toggle></div>`)}
+      ${rows.map((r) => html`<div class="prow"><span class="lbl">${r.label}<span class="cnt">${r.count}</span></span><sw-toggle ?checked=${this.layers.has(r.id)} label=${r.label} labelHidden data-layer=${r.id} @change=${(e: CustomEvent<{ checked: boolean }>) => { const next = new Set(this.layers); if (e.detail.checked) next.add(r.id); else next.delete(r.id); this.setLayers(next); }}></sw-toggle></div>`)}
       <div class="pnote"><sw-icon name="shield" size=${14}></sw-icon><span>מתג משנה תצוגה בלבד; ייבוא ישות אינו מעניק הרשאת שליטה בה.</span></div>
     </div>`;
   }

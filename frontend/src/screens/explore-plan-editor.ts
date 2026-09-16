@@ -16,7 +16,7 @@ import { cameraState, createAnchor, deleteAnchor, loadMap, publishVersion, updat
 import { ApiError, describeError } from '../api/client';
 import type { Anchor, Camera } from '../api/types';
 import { domainLabel, entityMarkerKind, listEntities, stateLabel, type HaEntity } from '../api/ha';
-import { setRenderMode, stylizeVersion, type StylizeResult } from '../api/plans';
+import { ROOM_FILL_LABEL, setRenderMode, stylizeVersion, type RoomFill, type StylizeResult } from '../api/plans';
 import { ZONE_KINDS, acceptZones, createZone, deleteZone, detectZones, pointInPolygon, updateZone, zoneKindLabel, type SpatialZone, type ZoneKind, type ZonePoint } from '../api/zones';
 
 type Strength = 'light' | 'medium' | 'strong';
@@ -75,6 +75,7 @@ export class ExplorePlanEditor extends LitElement {
   @state() private info = '';
   @state() private stylizing = false;
   @state() private stylized: StylizeResult | null = null;
+  @state() private stylizeOpts: { strength: Strength; keepLines: boolean; roomFill: RoomFill } = { strength: 'medium', keepLines: false, roomFill: 'white' };
   @state() private zones: SpatialZone[] = [];
   @state() private selectedZoneId: string | null = null;
   @state() private candidates: ZoneCandidate[] | null = null;
@@ -833,12 +834,14 @@ export class ExplorePlanEditor extends LitElement {
     this.entTimer = window.setTimeout(() => void this.searchEntities(), 250);
   }
 
-  private async stylize(strength: 'light' | 'medium' | 'strong', keepLines: boolean) {
+  private async stylize(strength?: Strength, keepLines?: boolean) {
     if (!this.bundle?.planVersionId || this.bundle.source === 'demo') return;
+    const o = this.stylizeOpts;
+    if (strength !== undefined || keepLines !== undefined) this.stylizeOpts = { ...o, strength: strength ?? o.strength, keepLines: keepLines ?? o.keepLines };
     this.stylizing = true;
     this.error = '';
     try {
-      this.stylized = await stylizeVersion(this.bundle.planVersionId, { strength, keep_lines: keepLines });
+      this.stylized = await stylizeVersion(this.bundle.planVersionId, { strength: this.stylizeOpts.strength, keep_lines: this.stylizeOpts.keepLines, room_fill: this.stylizeOpts.roomFill });
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -997,10 +1000,15 @@ export class ExplorePlanEditor extends LitElement {
       ${b.planStatus === 'none'
         ? nothing
         : html`<div class="row"><span class="lbl">תצוגת המפה<span class="muted">${b.renderMode === 'stylized' ? 'שפת SMPLWISE (עיבוד אוטומטי של המקור)' : 'תוכנית המקור כפי שהועלתה'}</span></span>${b.renderMode === 'stylized' ? html`<sw-button size="sm" ?disabled=${this.busy} @click=${() => this.useRender('source')}>הצג מקור</sw-button>` : b.stylizedAvailable ? html`<sw-button size="sm" ?disabled=${this.busy} @click=${() => this.useRender('stylized')}>הצג שפת SMPLWISE</sw-button>` : nothing}</div>
-          <div class="row"><span class="lbl">עיבוד לשפת SMPLWISE<span class="muted">ניקוי טקסט ומידות, הדגשת קירות וחדרים; המקור נשמר</span></span><span style="display:flex;gap:4px"><sw-button size="sm" ?disabled=${this.stylizing || b.source === 'demo'} @click=${() => this.stylize('light', false)}>קל</sw-button><sw-button size="sm" ?disabled=${this.stylizing || b.source === 'demo'} @click=${() => this.stylize('medium', false)}>בינוני</sw-button><sw-button size="sm" ?disabled=${this.stylizing || b.source === 'demo'} @click=${() => this.stylize('strong', true)}>חזק</sw-button></span></div>
-          ${this.stylizing ? html`<div class="note">מעבד את התוכנית…</div>` : nothing}
+          <div class="row"><span class="lbl">עיבוד לשפת SMPLWISE<span class="muted">בחר מה להשאיר מהתוכנית; המקור נשמר תמיד</span></span></div>
+          <div class="two" data-stylize-opts>
+            <sw-field label="עוצמת ניקוי"><select aria-label="עוצמת ניקוי" @change=${(e: Event) => (this.stylizeOpts = { ...this.stylizeOpts, strength: (e.target as HTMLSelectElement).value as Strength })}><option value="light" ?selected=${this.stylizeOpts.strength === 'light'}>קל · קירות דקים נשמרים</option><option value="medium" ?selected=${this.stylizeOpts.strength === 'medium'}>בינוני · קירות כפולים מאוחדים</option><option value="strong" ?selected=${this.stylizeOpts.strength === 'strong'}>חזק · מדרגות וריהוט לגושים</option></select></sw-field>
+            <sw-field label="מילוי חדרים"><select aria-label="מילוי חדרים" @change=${(e: Event) => (this.stylizeOpts = { ...this.stylizeOpts, roomFill: (e.target as HTMLSelectElement).value as RoomFill })}>${(Object.keys(ROOM_FILL_LABEL) as RoomFill[]).map((k) => html`<option value=${k} ?selected=${this.stylizeOpts.roomFill === k}>${ROOM_FILL_LABEL[k]}</option>`)}</select></sw-field>
+          </div>
+          <label class="chk"><input type="checkbox" .checked=${this.stylizeOpts.keepLines} @change=${(e: Event) => (this.stylizeOpts = { ...this.stylizeOpts, keepLines: (e.target as HTMLInputElement).checked })} /> ריהוט, דלתות וקווים דקים מהתוכנית (בגוון עדין)</label>
+          <div class="btns"><sw-button variant="primary" size="sm" icon="image" ?disabled=${this.stylizing || b.source === 'demo'} @click=${() => this.stylize()}>${this.stylizing ? 'מעבד…' : 'עבד תצוגה מקדימה'}</sw-button></div>
           ${st
-            ? html`<div class="compare" style="margin-block-start:8px"><div><div class="note">מקור</div><img src=${st.source_url} alt="תוכנית מקור" /></div><div><div class="note">שפת SMPLWISE · ${st.rooms} חדרים</div><img src=${st.stylized_url} alt="שפת SMPLWISE" /></div></div>
+            ? html`<div class="compare" style="margin-block-start:8px"><div><div class="note">מקור</div><img src=${st.source_url} alt="תוכנית מקור" /></div><div><div class="note" data-stylize-caption>שפת SMPLWISE · ${st.rooms} חדרים · ${ROOM_FILL_LABEL[st.room_fill] ?? st.room_fill} · ${st.keep_lines ? 'עם קווים דקים' : 'ללא קווים דקים'}</div><img src=${st.stylized_url} alt="שפת SMPLWISE" /></div></div>
               <div style="display:flex;gap:8px;margin-block-start:8px"><sw-button variant="primary" size="sm" icon="check" ?disabled=${this.busy} @click=${() => this.useRender('stylized')}>השתמש בתוצאה</sw-button><sw-button variant="ghost" size="sm" @click=${() => (this.stylized = null)}>סגור</sw-button></div>
               <div class="note" style="margin-block-start:6px">עיבוד תמונה מקומי (ללא AI וללא שליחה החוצה): קירות וחדרים מזוהים לפי עובי הקווים; חדרים אינם מזוהים בשמם. אפשר לחזור למקור בכל רגע.</div>`
             : nothing}`}
