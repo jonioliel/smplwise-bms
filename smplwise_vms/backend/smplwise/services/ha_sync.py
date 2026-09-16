@@ -123,6 +123,9 @@ def upsert_state(conn: sqlite3.Connection, st: dict[str, Any], seen: str | None 
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (eid, *common, seen),
         )
+    from . import ha_history  # local import: the history depends on db only
+
+    ha_history.record(conn, st)  # T041: every state the VMS learns of is history from now on
     return entity_row(conn.execute("SELECT * FROM ha_entities WHERE entity_id = ?", (eid,)).fetchone())
 
 

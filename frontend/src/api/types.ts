@@ -159,6 +159,8 @@ export interface FloorMap {
   at?: string | null;
   history?: 'exact' | 'current' | null;
   history_from?: string | null;
+  /** Coverage of the local HA state history (present in a historical bundle). */
+  ha_history?: { from: string | null; to: string | null; rows: number; retention_days: number; forward_fill_max_s: number } | null;
   permissions: { edit: boolean; publish: boolean; import: boolean };
   cameras: Camera[];
 }

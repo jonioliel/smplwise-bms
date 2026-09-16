@@ -124,6 +124,10 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   instant; "חזרה למצב חי" returns to the live map. No equipment can be operated from this screen. The
   side panel also shows a frame from the selected camera's recording at the chosen instant (a few seconds
   the first time, cached afterwards); in playback, hovering the timeline shows the same kind of preview.
+- Placed HA entities show the state the local history knows for that instant (door open / closed, lock locked,
+  light on) with the time it changed, or "לא ידוע" with the reason: before the local history began, no state
+  recorded, or the last confirmation is older than 24 hours with nothing later to bound it. The history starts
+  when the add-on first connected to Home Assistant and keeps 30 days; nothing is forward-filled without a bound.
 
 ## Event page
 

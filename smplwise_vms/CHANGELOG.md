@@ -1,5 +1,13 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.33 (pilot)
+- HA history on the historical map (T041): every entity state the VMS learns of (the snapshot at connect and each
+  change) is kept locally for 30 days. The historical map shows, per placed entity, the state that was in force at
+  the chosen instant — known only when the local history covers it (a later change bounds it, or the last
+  confirmation is at most 24 hours old); otherwise "unknown" with the reason (before the history began, no
+  recorded state, or too old to forward-fill). The live value is never shown in a historical bundle, and a
+  timezone change never moves the instant.
+
 ## 0.1.32 (pilot)
 - Evidence bundle (T050): "צור חבילת ראיות" on a case builds one ZIP with the preserved clips (copies of the
   finished export outputs and their export manifests), the snapshots, the notes, a manifest with a SHA-256 per

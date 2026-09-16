@@ -2213,7 +2213,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (2026-09-16, 0.1.33): migrations/0009_ha_history.sql + services/ha_history.py - record() from ha_sync.upsert_state (snapshot at connect + every state_changed, deduplicated per change time), coverage(), state_at() = known when a later recorded change bounds the state or the last confirmation (max of change time and receipt time) is within 24 h, otherwise unknown with a reason (before the history began / no recorded state / older than the forward-fill bound) while still naming the last known value; prune 30 days in the janitor. GET /floors/{id}/map?at= adds entity.state_at + ha_history coverage and nulls the live state; the plan version and anchors of the instant come from T038. tests/test_ha_history.py (bounded known, forward-fill limit, before-history unknown, timezone change keeps the instant, live bundle untouched, retention). UI: historical map markers labelled with the state at t, panel with known / total, coverage and per-entity reasons. frontend/tests/evidence-ha-history.spec.ts against the dev backend + lab HA (known now from the local history, unknown before it began) - private-evidence/T041-ha-history-live/*.png. Open: HA recorder as a second source when the local history has a gap, entity position history is already exact through anchors (effective_from / to), provenance badge per source"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null

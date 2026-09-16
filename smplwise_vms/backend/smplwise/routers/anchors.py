@@ -96,16 +96,24 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal), 
         version = _editor_version(conn, floor_id) if (draft and can_edit and not at_iso) else _current_version(conn, floor_id)
         anchors = conn.execute("SELECT * FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL ORDER BY layer_id, resource_id", (floor_id,)).fetchall()
     cameras = {r["id"]: camera_row(r) for r in conn.execute("SELECT * FROM cameras ORDER BY sort_order, channel").fetchall()}
-    from ..services import ha_bridge, ha_sync
+    from ..services import ha_bridge, ha_history, ha_sync
 
     entity_ids = [a["resource_id"] for a in anchors if a["resource_type"] == "ha_entity"]
     entities: dict[str, Any] = {}
+    ha_hist = None
     if entity_ids:
         can_control = authorize(conn, principal, "ha.entity.control", ("floor", floor_id)).allowed
+        states_at = ha_history.state_at(conn, entity_ids, at_iso) if at_iso else {}
         for r in conn.execute(f"SELECT * FROM ha_entities WHERE entity_id IN ({','.join('?' * len(entity_ids))})", entity_ids).fetchall():
             e = ha_sync.entity_row(r)
-            e["actions"] = ha_bridge.actions_for(e["domain"]) if can_control else []
+            e["actions"] = ha_bridge.actions_for(e["domain"]) if (can_control and not at_iso) else []
+            if at_iso:
+                # historical bundle: the live state is not the answer; state_at is (known only when the history covers t)
+                e["state_at"] = states_at.get(e["entity_id"], {"state": None, "changed_at": None, "known": False, "reason": "אין היסטוריה"})
+                e["state"] = None
             entities[e["entity_id"]] = e
+    if at_iso:
+        ha_hist = ha_history.coverage(conn)
     b = get_building(conn, f["building_id"])
     s = get_site(conn, b["site_id"])
     return {
@@ -120,6 +128,7 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal), 
         "at": at_iso,
         "history": history,
         "history_from": history_from,
+        "ha_history": ha_hist,
         "permissions": {"edit": can_edit, "publish": can_publish, "import": authorize(conn, principal, "map.import", ("floor", floor_id)).allowed},
         "cameras": list(cameras.values()) if can_edit else [c for c in cameras.values() if any(a["resource_id"] == c["id"] for a in anchors)],
     }

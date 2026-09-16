@@ -36,6 +36,7 @@ export interface MapBundle {
   at: string | null;
   history: 'exact' | 'current' | null;
   historyFrom: string | null;
+  haHistory: { from: string | null; to: string | null; rows: number; retention_days: number } | null;
 }
 
 function demoBundle(floorId: string): MapBundle {
@@ -61,6 +62,7 @@ function demoBundle(floorId: string): MapBundle {
     at: null,
     history: null,
     historyFrom: null,
+    haHistory: null,
     anchors: cams.map((c, i) => ({
       id: `demo-anchor-${c.id}`,
       floor_id: floor.id,
@@ -115,6 +117,7 @@ export async function loadMap(floorId: string, draft = false, at?: string): Prom
     at: m.at ?? null,
     history: m.history ?? null,
     historyFrom: m.history_from ?? null,
+    haHistory: m.ha_history ?? null,
   };
 }
 

@@ -23,7 +23,7 @@ import { loadTree, type CatalogTree } from '../api/catalog';
 import { loadMap, type MapBundle } from '../api/maps';
 import { EVENT_LABEL, listEvents, type EventKind, type VmsEvent } from '../api/events';
 import { dateInZone, frameUrl, instantInZone, minuteInZone, recordingsForDay, type RecordingsResponse } from '../api/recordings';
-import { entityMarkerKind } from '../api/ha';
+import { entityMarkerKind, stateLabel } from '../api/ha';
 
 const NEAR_MIN = 10;
 
@@ -380,7 +380,9 @@ export class InvestigateHistoryMap extends LitElement {
         const name = a.camera?.name ?? a.label ?? a.resource_id;
         return { id: a.id, kind: 'camera' as const, label: near ? `${name} · ${near} אירועים` : name, x: a.position.x, y: a.position.y, rotation: a.rotation_degrees, fov: a.field_of_view_degrees ?? undefined, state: cov.state };
       }
-      return { id: a.id, kind: entityMarkerKind(a.layer_id, a.entity?.domain), label: a.entity?.name ?? a.label ?? a.resource_id, x: a.position.x, y: a.position.y, state: 'unknown' as const };
+      const sa = a.entity?.state_at;
+      const name = a.entity?.name ?? a.label ?? a.resource_id;
+      return { id: a.id, kind: entityMarkerKind(a.layer_id, a.entity?.domain), label: sa?.known && sa.state ? `${name} · ${stateLabel({ ...(a.entity ?? { domain: '', unit: null, device_class: null, attributes: {} }), state: sa.state })}` : name, x: a.position.x, y: a.position.y, state: sa?.known ? ('historic' as const) : ('unknown' as const) };
     });
   }
 
@@ -425,6 +427,19 @@ export class InvestigateHistoryMap extends LitElement {
     }
   }
 
+  private renderEntityStates(b: MapBundle) {
+    const ents = b.anchors.filter((a) => a.resource_type === 'ha_entity');
+    if (!ents.length) return html`אין ישויות מוצבות בקומה`;
+    const known = ents.filter((a) => a.entity?.state_at?.known);
+    const cov = b.haHistory;
+    return html`${known.length} מתוך ${ents.length} ידועות בזמן זה${cov?.from ? html` <span class="note">(היסטוריה מקומית מ־<span class="ltr">${this.fmtWhen(cov.from)}</span>, ${cov.retention_days} ימים)</span>` : html` <span class="note">(אין עדיין היסטוריה מקומית)</span>`}
+      <div class="evl" style="margin-block-start:4px">${ents.slice(0, 8).map((a) => {
+        const sa = a.entity?.state_at;
+        const name = a.entity?.name ?? a.label ?? a.resource_id;
+        return html`<div data-history-entity data-known=${sa?.known ? 'true' : 'false'}><span>${name}</span><span class="note">${sa?.known && sa.state ? html`${stateLabel({ ...(a.entity ?? { domain: '', unit: null, device_class: null, attributes: {} }), state: sa.state })} · מ־<span class="ltr">${sa.changed_at ? this.fmt(sa.changed_at) : ''}</span>` : html`לא ידוע${sa?.reason ? ` · ${sa.reason}` : ''}${sa?.state ? html` <span class="ltr">(אחרון: ${sa.state})</span>` : ''}`}</span></div>`;
+      })}</div>`;
+  }
+
   private fmtWhen(iso: string) {
     return new Intl.DateTimeFormat('he-IL', { timeZone: this.tz, dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso));
   }
@@ -462,7 +477,7 @@ export class InvestigateHistoryMap extends LitElement {
             ? html`<dt>הקלטה</dt><dd>${recs === undefined ? 'טוען…' : recs === null ? 'לא ניתן לבדוק מול ה־NVR' : cov?.segment ? html`יש הקלטה · ${minuteLabel(cov.segment.startMin)}–${minuteLabel(cov.segment.endMin)} · ${cov.segment.kind === 'continuous' ? 'רציף' : 'תנועה'}` : 'אין הקלטה בזמן זה (פער)'}</dd>
                 <dt>אירועים ±5 דק׳</dt><dd>${this.eventsNear(cam.resource_id, 5).length}</dd>`
             : nothing}
-          <dt>ישויות HA</dt><dd>לא ידוע בזמן זה <span class="note">(אין היסטוריית מצבים; לא מוצג ערך חי)</span></dd>
+          <dt>ישויות HA</dt><dd data-history-entities>${this.renderEntityStates(b)}</dd>
           ${cam && this.frameAt ? html`<dt>פריים</dt><dd><div class="frame" data-history-frame>${this.frameFailed ? html`<span>אין פריים בהקלטה בזמן זה</span>` : html`<img src=${frameUrl(cam.resource_id, this.frameAt)} alt="פריים מההקלטה בזמן שנבחר" @error=${() => (this.frameFailed = true)} />`}</div></dd>` : nothing}
           <dt>גרסת תוכנית</dt><dd data-history-plan-version data-history-mode=${b.history ?? 'live'}>${b.history === 'exact' && b.planPublishedAt ? html`בתוקף באותו זמן · פורסמה <span class="ltr">${this.fmtWhen(b.planPublishedAt)}</span>${b.planArchivedAt ? html` · הוחלפה <span class="ltr">${this.fmtWhen(b.planArchivedAt)}</span>` : ''}` : b.historyFrom ? html`המפה הנוכחית · היסטוריית המפה מתחילה <span class="ltr">${this.fmtWhen(b.historyFrom)}</span>` : 'המפה הנוכחית'}</dd>
         </dl>
@@ -501,7 +516,7 @@ export class InvestigateHistoryMap extends LitElement {
           <div class="hist">מצב היסטורי · <span class="ltr">${secondLabel(this.minute)}</span></div>
           <sw-plan-canvas alwaysLabel .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .markers=${this.apiMarkers} .selectedId=${this.selectedId} .zones=${b.zones} dimEntities
             @marker-select=${(e: CustomEvent<MarkerSelectDetail>) => { this.selectedId = e.detail.id; this.frameFailed = false; }}></sw-plan-canvas>
-          <div class="legend"><span>כחול = יש הקלטה בזמן זה</span><span>מקווקו = אין הקלטה / לא ידוע</span><span>ישויות HA = לא ידוע</span></div>
+          <div class="legend"><span>כחול = יש הקלטה בזמן זה</span><span>מקווקו = אין הקלטה / לא ידוע</span><span>ישויות HA = מצב מההיסטוריה המקומית או לא ידוע</span></div>
         </div>
         ${this.renderPanel(b)}
       </div>

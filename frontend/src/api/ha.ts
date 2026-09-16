@@ -18,8 +18,18 @@ export interface HaPlacement {
   floor_name: string;
 }
 
+/** State of an entity at an instant, from the local history (T041); `known` false carries the reason. */
+export interface HaStateAt {
+  state: string | null;
+  changed_at: string | null;
+  known: boolean;
+  reason: string | null;
+}
+
 export interface HaEntity {
   entity_id: string;
+  /** Present only in a historical map bundle (`?at=`); the live `state` is null there. */
+  state_at?: HaStateAt;
   registry_id: string | null;
   platform: string | null;
   device_id: string | null;
