@@ -2947,7 +2947,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (2026-09-16, 0.1.30): services/access.py - camera_allowed / visible_camera_ids honour an explicit floor deny over an installation-wide allow; require_camera() replaces the 'if not camera_allowed: require(INSTALLATION)' fallback in cameras / cases / events / exports / media / recordings (10 sites) and audits the real reason (explicit_deny / no_binding / user_inactive); audit.prune (365 days) in the janitor. tests/test_rbac_matrix.py: viewer / operator / editor of floor 2, site admin, installation operator denied on floor 2 - map, live, playback, events list filtering (server side, even with an explicit camera_id), event page + correlation, exports (grant separate from editing), placements and zones, plan publishing per floor, cases (hidden items, adding needs playback on that camera), HA actions, storage, bindings and audit reading (admin only), every refusal audited with reason and without secrets; revocation takes effect on the next request of an open session; a deactivated user loses everything; audit retention prune. Open: audit retention as a setting, viewing audit of live sessions surfaced in the UI, per-camera bindings (today floor is the finest scope), group-based deny scenarios in the UI"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
@@ -3678,7 +3680,9 @@
       "Documentation, known limits and rollback notes",
       "Technical review record"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (2026-09-16, 0.1.30): services/xmlsafe.py refuses DOCTYPE / ENTITY in every device document (nvr.py + events_ingest.py use it); routers/plans.py answers a corrupt PDF with 422 corrupt_pdf. tests/test_security.py: SVG refused, content sniffing over name / declared type, garbage refused, corrupt PDF is a client error (never 500), size cap while streaming (413), path traversal refused on backups / plan assets / plan versions / exports / thumbnails / frames and the backup upload name, entity bomb + XXE refused (alert dropped, never resolved), OpenAPI scan finds no URL-fetching parameter (no SSRF surface), the browser gets relative media paths only and camera rows carry no RTSP URLs or credentials, bridge messages: replay / window / forged secret / tampered body all 401. Dependency scan: docs/security/DEPENDENCY_AND_SECRETS_AUDIT.md (pip-audit + npm audit clean at 0.1.21). Open: oversized media through go2rtc, token replay at the Ingress session level (HA owns it), re-scan of dependencies on each release, network exposure review of go2rtc on the owner's host (manual)"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null

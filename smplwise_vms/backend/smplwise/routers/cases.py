@@ -19,7 +19,7 @@ from ..errors import ApiError, conflict, not_found
 from ..rbac import INSTALLATION, Principal, require
 from ..services import exports as ex
 from ..services import recordings
-from ..services.access import camera_allowed, visible_camera_ids
+from ..services.access import camera_allowed, require_camera, visible_camera_ids
 from ..services.events_ingest import row_to_event
 from ..services.timeutil import iso_utc, parse_utc
 from .events import _with_names, _with_thumbs
@@ -302,8 +302,7 @@ def add_item(case_id: str, body: ItemIn, request: Request, principal: Principal 
     if camera_id:
         if not conn.execute("SELECT 1 FROM cameras WHERE id = ?", (camera_id,)).fetchone():
             raise not_found("המצלמה לא נמצאה.")
-        if not camera_allowed(conn, principal, camera_id, "video.playback"):
-            require(conn, principal, "video.playback", INSTALLATION)
+        require_camera(conn, principal, camera_id, "video.playback")
     now = now_iso()
     iid = new_id()
     conn.execute(
@@ -349,8 +348,7 @@ def preserve_item(case_id: str, item_id: str, request: Request, principal: Princ
     cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (it["camera_id"],)).fetchone()
     if not cam:
         raise not_found("המצלמה לא נמצאה.")
-    if not camera_allowed(conn, principal, cam["id"], "video.export"):
-        require(conn, principal, "video.export", INSTALLATION)
+    require_camera(conn, principal, cam["id"], "video.export")
     if not cam["main_track"]:
         raise ApiError(409, "no_track", "למצלמה אין track הקלטה ידוע; הרץ סנכרון מצלמות.")
     s = read_settings(conn)

@@ -349,6 +349,16 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   restart / active / update pending) and has a "התקן / עדכן" button that repeats the copy and the
   announcement.
 
+## Security boundaries checked by tests
+
+- Permissions are evaluated per resource on the server: a camera is reachable only through a floor the user may
+  see or an installation-wide grant, and an explicit deny on a floor is final even for installation-wide users.
+  Every refusal is written to the audit log with its reason; audit rows are kept for a year.
+- Uploads are judged by content, not by name or declared type; SVG is refused; the size cap applies while the
+  file streams; a corrupt PDF is a client error. File routes refuse path traversal. No API route accepts a URL
+  to fetch, the browser only receives relative media paths, and signed bridge messages cannot be replayed,
+  forged, tampered with or reused after their window.
+
 ## Limits in this build
 
 - Uploads: PDF/PNG/JPG up to 40 MB, PDF up to 20 pages; SVG and DWG/DXF are rejected.

@@ -36,6 +36,7 @@ import httpx
 from ..config import Settings
 from ..db import Database, now_iso
 from .timeutil import UTC, iso_utc, nvr_wall_to_utc, zone
+from . import xmlsafe
 
 log = logging.getLogger("smplwise.events")
 
@@ -92,7 +93,7 @@ def _local(tag: str) -> str:
 
 def parse_alert(xml: str) -> ParsedAlert | None:
     try:
-        root = ET.fromstring(xml)
+        root = xmlsafe.parse(xml)
     except ET.ParseError:
         return None
     tags: dict[str, str] = {}

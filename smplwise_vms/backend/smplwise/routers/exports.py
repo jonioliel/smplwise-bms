@@ -14,7 +14,7 @@ from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import exports as ex
-from ..services.access import camera_allowed
+from ..services.access import camera_allowed, require_camera
 from ..services.timeutil import parse_utc
 from .settings import read_settings
 
@@ -31,8 +31,7 @@ def _camera_for_export(conn: sqlite3.Connection, principal: Principal, camera_id
     cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
     if not cam:
         raise ApiError(404, "not_found", "המצלמה לא נמצאה.")
-    if not camera_allowed(conn, principal, camera_id, "video.export"):
-        require(conn, principal, "video.export", ("installation", "*"))
+    require_camera(conn, principal, camera_id, "video.export")
     if not cam["main_track"]:
         raise ApiError(409, "no_track", "למצלמה אין track הקלטה ידוע; הרץ סנכרון מצלמות.")
     return cam

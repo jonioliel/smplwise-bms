@@ -17,7 +17,7 @@ from ..db import unlocked, new_id, now_iso
 from ..errors import ApiError, not_found
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import autosync, nvr
-from ..services.access import camera_allowed, visible_camera_ids
+from ..services.access import camera_allowed, require_camera, visible_camera_ids
 from .anchors import camera_row
 from .settings import read_settings
 
@@ -63,8 +63,7 @@ def snapshot(camera_id: str, request: Request, principal: Principal = Depends(cu
     cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
     if not cam:
         raise not_found("המצלמה לא נמצאה.")
-    if not camera_allowed(conn, principal, camera_id, "video.live"):
-        require(conn, principal, "video.live", ("installation", "*"))
+    require_camera(conn, principal, camera_id, "video.live")
     max_age = read_settings(conn)["snapshots.max_age_s"]
     folder = settings.data_dir / "snapshots"
     folder.mkdir(parents=True, exist_ok=True)

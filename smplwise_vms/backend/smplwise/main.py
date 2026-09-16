@@ -150,6 +150,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         ex.retention_sweep(app.state.db, settings, s["exports.retention_days"])
                         events_derive.prune(app.state.db, s["events.retention_days"])
                         thumbnails.prune(settings, s["events.retention_days"])
+                        audit_mod.prune_db(app.state.db)
 
                     await run_in_threadpool(_tick)
                     if autosync.PERIODIC.due():

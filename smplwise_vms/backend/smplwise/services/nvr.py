@@ -11,6 +11,7 @@ import httpx
 
 from ..config import Settings
 from ..errors import ApiError
+from . import xmlsafe
 
 
 @dataclass
@@ -140,7 +141,7 @@ def search_recordings(settings: Settings, track_id: int, start_wall: str, end_wa
 
 
 def parse_search_response(xml: str, track_id: int) -> SearchPage:
-    root = ET.fromstring(xml)
+    root = xmlsafe.parse(xml)
     if _local(root.tag) == "ResponseStatus":
         raise ApiError(503, "source_error", "ה־NVR דחה את החיפוש.", details={"op": "search", "status": _text(root, "statusString"), "sub": _text(root, "subStatusCode")})
     status = (_text(root, "responseStatusStrg") or _text(root, "responseStatusString") or "").strip().upper()
@@ -168,7 +169,7 @@ def parse_search_response(xml: str, track_id: int) -> SearchPage:
 def device_info(settings: Settings) -> dict[str, str]:
     with _client(settings) as client:
         xml = _get(client, "/ISAPI/System/deviceInfo")
-    root = ET.fromstring(xml)
+    root = xmlsafe.parse(xml)
     return {"model": _text(root, "model"), "firmware": _text(root, "firmwareVersion"), "device_type": _text(root, "deviceType")}
 
 
@@ -186,7 +187,7 @@ def discover_channels(settings: Settings) -> list[DiscoveredChannel]:
 
     online: dict[int, bool] = {}
     if status_xml:
-        for el in ET.fromstring(status_xml).iter():
+        for el in xmlsafe.parse(status_xml).iter():
             if _local(el.tag) == "InputProxyChannelStatus":
                 cid = _text(el, "id")
                 if cid.isdigit():
@@ -196,7 +197,7 @@ def discover_channels(settings: Settings) -> list[DiscoveredChannel]:
     # channel*100+1 (T013). Lab firmware V4.84: <Channel> repeats the track id; <SrcChannel> is the input.
     tracks: dict[int, list[tuple[int, dict[str, object]]]] = {}
     if tracks_xml:
-        for el in ET.fromstring(tracks_xml).iter():
+        for el in xmlsafe.parse(tracks_xml).iter():
             if _local(el.tag) == "Track":
                 tid = _text(el, "id")
                 ch = _text(el, "SrcChannel")
@@ -204,7 +205,7 @@ def discover_channels(settings: Settings) -> list[DiscoveredChannel]:
                     tracks.setdefault(int(ch), []).append((int(tid), parse_track_description(_text(el, "Description"))))
 
     result: list[DiscoveredChannel] = []
-    for el in ET.fromstring(channels_xml).iter():
+    for el in xmlsafe.parse(channels_xml).iter():
         if _local(el.tag) != "InputProxyChannel":
             continue
         cid = _text(el, "id")
@@ -309,7 +310,7 @@ def _int(value: str, default: int = 0) -> int:
 
 def parse_storage(xml: str) -> dict[str, object]:
     """`GET /ISAPI/ContentMgmt/Storage`: hdd / nas lists (MB) and the work mode (quota | group)."""
-    root_el = ET.fromstring(xml)
+    root_el = xmlsafe.parse(xml)
     disks: list[Disk] = []
     nas: list[Disk] = []
     for el in root_el.iter():
@@ -332,7 +333,7 @@ def storage_status(settings: Settings) -> dict[str, object]:
 
 def parse_tracks_schedule(xml: str) -> list[TrackSchedule]:
     """`GET /ISAPI/ContentMgmt/record/tracks`: per track the weekly schedule blocks, pre/post seconds and the stream description."""
-    root_el = ET.fromstring(xml)
+    root_el = xmlsafe.parse(xml)
     out: list[TrackSchedule] = []
     tracks = [root_el] if _local(root_el.tag) == "Track" else [el for el in root_el.iter() if _local(el.tag) == "Track"]
     for tr in tracks:

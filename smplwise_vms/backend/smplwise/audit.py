@@ -4,7 +4,11 @@ import json
 import sqlite3
 from typing import Any
 
-from .db import now_iso, permission_revision
+import datetime as dt
+
+from .db import Database, now_iso, permission_revision
+
+RETENTION_DAYS = 365  # audit rows older than this are pruned by the janitor (T055); the setting can follow later
 
 
 def audit(
@@ -38,3 +42,14 @@ def audit(
             json.dumps(details, ensure_ascii=False) if details else None,
         ),
     )
+
+
+def prune(conn: sqlite3.Connection, days: int = RETENTION_DAYS) -> int:
+    """Delete audit rows older than `days`. Returns the number removed."""
+    cutoff = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return conn.execute("DELETE FROM audit_log WHERE at < ?", (cutoff,)).rowcount
+
+
+def prune_db(db: Database, days: int = RETENTION_DAYS) -> int:
+    with db.connection() as conn:
+        return prune(conn, days)

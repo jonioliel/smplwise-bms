@@ -21,7 +21,7 @@ from ..db import Database, now_iso
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import correlation, events_derive, events_ingest, thumbnails
-from ..services.access import camera_allowed, visible_camera_ids
+from ..services.access import camera_allowed, require_camera, visible_camera_ids
 from ..services.timeutil import iso_utc, local_day_bounds, parse_utc, zone
 from .media import _principal_for_ws
 from .settings import read_settings
@@ -420,8 +420,7 @@ def thumbnail(event_id: str, request: Request, principal: Principal = Depends(cu
         raise ApiError(404, "not_found", "האירוע לא נמצא.")
     ev = events_ingest.row_to_event(row)
     if ev["camera_id"]:
-        if not camera_allowed(conn, principal, ev["camera_id"], "events.read"):
-            require(conn, principal, "events.read", INSTALLATION)
+        require_camera(conn, principal, ev["camera_id"], "events.read")
     else:
         require(conn, principal, "events.read", INSTALLATION)
     settings = settings_of(request)
@@ -492,8 +491,7 @@ def get_event(event_id: str, request: Request, principal: Principal = Depends(cu
         raise ApiError(404, "not_found", "האירוע לא נמצא.")
     ev = events_ingest.row_to_event(row)
     if ev["camera_id"]:
-        if not camera_allowed(conn, principal, ev["camera_id"], "events.read"):
-            require(conn, principal, "events.read", INSTALLATION)
+        require_camera(conn, principal, ev["camera_id"], "events.read")
     else:
         require(conn, principal, "events.read", INSTALLATION)
     _with_thumbs(settings_of(request), [ev], queue_first=1)
@@ -512,8 +510,7 @@ def event_correlation(event_id: str, principal: Principal = Depends(current_prin
         raise ApiError(404, "not_found", "האירוע לא נמצא.")
     ev = events_ingest.row_to_event(row)
     if ev["camera_id"]:
-        if not camera_allowed(conn, principal, ev["camera_id"], "events.read"):
-            require(conn, principal, "events.read", INSTALLATION)
+        require_camera(conn, principal, ev["camera_id"], "events.read")
     else:
         require(conn, principal, "events.read", INSTALLATION)
     wide, ids = _scope(conn, principal)
@@ -531,8 +528,7 @@ def ack(event_id: str, request: Request, principal: Principal = Depends(current_
         raise ApiError(404, "not_found", "האירוע לא נמצא.")
     ev = events_ingest.row_to_event(row)
     if ev["camera_id"]:
-        if not camera_allowed(conn, principal, ev["camera_id"], "events.ack"):
-            require(conn, principal, "events.ack", INSTALLATION)
+        require_camera(conn, principal, ev["camera_id"], "events.ack")
     else:
         require(conn, principal, "events.ack", INSTALLATION)
     if not ev["acked_at"]:

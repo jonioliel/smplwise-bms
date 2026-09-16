@@ -13,7 +13,7 @@ from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import Principal, require
 from ..services import recordings
-from ..services.access import camera_allowed
+from ..services.access import camera_allowed, require_camera
 from ..services.timeutil import iso_utc, local_day_bounds, parse_utc, zone
 from .settings import read_settings
 
@@ -24,8 +24,7 @@ def camera_for_playback(conn: sqlite3.Connection, principal: Principal, camera_i
     cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
     if not cam:
         raise ApiError(404, "not_found", "המצלמה לא נמצאה.")
-    if not camera_allowed(conn, principal, camera_id, "video.playback"):
-        require(conn, principal, "video.playback", ("installation", "*"))  # raises 403 with an audit row
+    require_camera(conn, principal, camera_id, "video.playback")
     return cam
 
 

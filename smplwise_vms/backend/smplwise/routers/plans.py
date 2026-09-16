@@ -195,7 +195,10 @@ async def upload_asset(floor_id: str, request: Request, file: UploadFile = File(
                 out.write(chunk)
         page_count = 1
         if mime == "application/pdf":
-            page_count = plan_render.pdf_page_count(dest)
+            try:
+                page_count = plan_render.pdf_page_count(dest)
+            except Exception as exc:  # noqa: BLE001 - poppler / pypdf refuse the file: the upload is the problem
+                raise ApiError(422, "corrupt_pdf", "ה־PDF לא ניתן לקריאה.", details={"error": type(exc).__name__})
             if page_count < 1 or page_count > settings.max_pdf_pages:
                 raise ApiError(422, "too_many_pages", f"ה־PDF חייב להכיל 1–{settings.max_pdf_pages} עמודים.", details={"pages": page_count})
         else:

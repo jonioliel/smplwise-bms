@@ -1,5 +1,19 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.30 (pilot)
+- Spatial RBAC (T055): an explicit deny on a floor now wins over an installation-wide allow for every camera-bound
+  request (live, playback, recordings, events, cases, exports, HA); before, the fallback check re-evaluated the
+  wide scope and let the holder through. Camera refusals are audited with the real reason (explicit_deny /
+  no_binding / user_inactive). Audit rows older than 365 days are pruned by the janitor. A matrix test covers
+  viewer / operator / editor / site admin / denied operator across map, live, playback, events, cases, exports,
+  publishing, placements, HA actions, storage, access administration, revocation inside an open session and
+  deactivation.
+- File and network hardening (T069): device XML with DOCTYPE / ENTITY declarations is refused before parsing
+  (NVR search, discovery, alert stream, storage, schedules); a corrupt PDF upload is a 422 instead of a crash;
+  tests pin content sniffing (SVG refused, name and declared type ignored), the upload size cap, path traversal
+  in every file-serving route, the absence of any URL-fetching parameter, relative media paths only, and bridge
+  replay / expiry / forgery / tampering refusal.
+
 ## 0.1.29 (pilot)
 - Documentation: operator guide in Hebrew (install → NVR → HA → go2rtc → floor → camera with the checks that
   prove each step, daily use, investigation from event to preserved evidence, recovery, privacy and permissions,

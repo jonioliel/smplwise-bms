@@ -27,7 +27,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..services import autosync, revocation
 from ..services import go2rtc as g2
-from ..services.access import camera_allowed
+from ..services.access import camera_allowed, require_camera
 from ..services.relay import relay_ws
 from .settings import read_settings
 
@@ -111,8 +111,7 @@ def list_sessions(principal: Principal = Depends(current_principal), conn: sqlit
 def live_info(camera_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), profile: str = Query("sub", pattern="^(sub|main)$")) -> dict[str, Any]:
     """What the player needs before opening the socket: permission, transport default and the relay path."""
     cam = _stream_for(conn, camera_id)
-    if not camera_allowed(conn, principal, camera_id, "video.live"):
-        require(conn, principal, "video.live", ("installation", "*"))  # raises with audit
+    require_camera(conn, principal, camera_id, "video.live")
     s = read_settings(conn)
     return {
         "camera_id": cam["id"],
