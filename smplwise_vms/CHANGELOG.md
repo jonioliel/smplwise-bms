@@ -1,5 +1,13 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.34 (pilot)
+- Load probe and resource budget (T068): scripts/load_probe.py measures latency percentiles per endpoint under
+  concurrent load plus the backend process memory, and docs/operations/RESOURCE_BUDGET.md records the reference
+  measurement on the developer workstation against the lab NVR and HA. Two findings fixed on the way: identical
+  concurrent recording searches now wait for one NVR search instead of each running their own (the p95 of a
+  cold "recordings today" request under 8 workers went from about 20 s to well under 2 s), and the storage report is
+  built once even when several callers ask at the same moment. Read-only measurement; no device writes.
+
 ## 0.1.33 (pilot)
 - HA history on the historical map (T041): every entity state the VMS learns of (the snapshot at connect and each
   change) is kept locally for 30 days. The historical map shows, per placed entity, the state that was in force at

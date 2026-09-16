@@ -35,6 +35,7 @@ LIMITS = {
 
 _cache: dict[str, tuple[float, dict[str, Any]]] = {}
 _lock = threading.Lock()
+_build_lock = threading.Lock()
 
 
 def mode_label(mode: str) -> str:
@@ -69,9 +70,15 @@ def report(settings: Settings, conn: sqlite3.Connection, fresh: bool = False, no
     tz_name = read_settings(conn)["time.zone"]
     cams = [dict(r) for r in conn.execute("SELECT * FROM cameras ORDER BY sort_order, channel").fetchall()]
     with unlocked(conn):
-        out = build(settings, tz_name, cams, now or dt.datetime.now(dt.timezone.utc))
-    with _lock:
-        _cache["report"] = (time.time(), out)
+        with _build_lock:  # one build at a time: concurrent first callers wait and reuse it instead of each asking the NVR (T068)
+            if not fresh:
+                with _lock:
+                    hit = _cache.get("report")
+                if hit and time.time() - hit[0] < CACHE_S:
+                    return {**hit[1], "cached": True}
+            out = build(settings, tz_name, cams, now or dt.datetime.now(dt.timezone.utc))
+            with _lock:
+                _cache["report"] = (time.time(), out)
     return out
 
 

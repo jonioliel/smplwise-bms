@@ -50,6 +50,8 @@ class SearchResult:
 
 _cache: dict[tuple[str, str, str], tuple[float, SearchResult]] = {}
 _search_lock = threading.Lock()
+_inflight: dict[tuple[str, str, str], threading.Lock] = {}  # one search per key at a time; followers reuse the result (T068)
+_inflight_guard = threading.Lock()
 
 
 def _kind(record_type: str) -> str:
@@ -121,7 +123,20 @@ def search_segments(settings: Settings, conn: sqlite3.Connection | None, cam: sq
     hit = _cache.get(key)
     if hit and now - hit[0] < ttl:
         return hit[1]
+    with _inflight_guard:
+        lock = _inflight.setdefault(key, threading.Lock())
+    with lock:
+        hit = _cache.get(key)
+        if hit and time.time() - hit[0] < ttl:
+            return hit[1]  # a concurrent identical search already answered
+        result = _search_uncached(settings, cam, start, end, tz_name, key, ttl)
+    with _inflight_guard:
+        _inflight.pop(key, None)
+    return result
 
+
+def _search_uncached(settings: Settings, cam: sqlite3.Row, start: dt.datetime, end: dt.datetime, tz_name: str, key: tuple[str, str, str], ttl: int) -> SearchResult:
+    now = time.time()
     tz = zone(tz_name)
     matches, coverage, pages = list_matches(settings, cam, start, end, tz_name)
     segments: list[Segment] = []

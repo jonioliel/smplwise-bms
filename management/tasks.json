@@ -3637,7 +3637,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (2026-09-16, 0.1.34): scripts/load_probe.py (concurrent GETs per endpoint, p50 / p95 / max, catalogue scale, backend process working set + CPU via Get-Process) run twice against the dev backend + lab NVR / HA with 8 workers x 5 rounds; docs/operations/RESOURCE_BUDGET.md records the reference configuration, both runs, the catalogue scale, the process memory, the budgets the pilot commits to and what is not measured (streams / transcodes per host, soak with device restarts, disk full). Findings fixed: services/recordings.py in-flight lock so identical concurrent searches wait for one NVR query (cold 'recordings today' p95 under 8 workers ~20 s -> < 2 s), services/storage.py single build under concurrent first calls (16 of 40 requests failed before, 0 after). Open: streams / transcodes vs. CPU on the HA host itself, 24 h soak with HA / go2rtc / NVR restarts, export queue under disk-full, backpressure on the live relay, leak check over days"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
