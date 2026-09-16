@@ -68,3 +68,47 @@ export function setTransportOverride(v: Transport | '') {
     /* per-browser convenience only */
   }
 }
+
+/** The camera's detection configuration as the NVR holds it (T075, read-only). Coordinates are in the device's own normalized frame. */
+export interface ZoneMotion {
+  enabled: boolean;
+  region_type: string;
+  sensitivity: number | null;
+  rows: number;
+  cols: number;
+  cells: boolean[][];
+  coverage_pct: number;
+  target_types: string[];
+}
+export interface ZonePolygon {
+  id: string;
+  enabled?: boolean;
+  sensitivity?: number;
+  points: number[][];
+}
+export interface ZoneLine {
+  id: string;
+  enabled: boolean;
+  direction: string;
+  points: number[][];
+}
+export interface ZoneFrame {
+  width: number;
+  height: number;
+}
+export interface CameraZones {
+  camera_id: string;
+  channel: number;
+  source: 'nvr';
+  read_only: true;
+  write_reason: string;
+  fetched_at: string;
+  cached: boolean;
+  motion: ZoneMotion | null;
+  privacy_mask: { enabled: boolean; normalized: ZoneFrame; regions: ZonePolygon[] } | null;
+  intrusion: { enabled: boolean; normalized: ZoneFrame; regions: ZonePolygon[] } | null;
+  line_crossing: { enabled: boolean; normalized: ZoneFrame; lines: ZoneLine[] } | null;
+  unsupported: Record<string, string>;
+}
+export const cameraZones = (cameraId: string, refresh = false) => get<CameraZones>(`cameras/${cameraId}/zones${refresh ? '?refresh=true' : ''}`);
+

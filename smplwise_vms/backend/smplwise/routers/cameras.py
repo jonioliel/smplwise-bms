@@ -3,7 +3,9 @@ discovery by a read-only ISAPI sync that never renames anything on the device.""
 from __future__ import annotations
 
 import json
+import datetime as dt
 import sqlite3
+import time
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
@@ -135,3 +137,42 @@ def create_camera(body: CameraIn, request: Request, principal: Principal = Depen
         conn.execute("INSERT INTO cameras(id, recorder_id, channel, alias, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", (cid, DEFAULT_RECORDER, body.channel, body.alias, body.channel, now, now))
     audit(conn, actor=principal, action="camera.register", decision="allowed", resource_type="camera", resource_id=cid, request_id=_rid(request), details={"channel": body.channel, "alias": body.alias})
     return camera_row(conn.execute("SELECT * FROM cameras WHERE id = ?", (cid,)).fetchone())
+
+
+# ---------------------------------------------------------------- detection zones (T075, read-only)
+
+ZONES = nvr.fetch_detection_zones  # seam for tests
+_ZONES_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+ZONES_TTL_S = 60
+
+
+@router.get("/cameras/{camera_id}/zones")
+def detection_zones(camera_id: str, request: Request, refresh: bool = False, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """The camera's detection configuration as the NVR holds it — motion grid, privacy mask, intrusion regions,
+    line-crossing lines — read-only (ISAPI GET), cached for a minute, same permission as live video. These are
+    polygons in the camera image and have nothing to do with rooms on the floor plan; a browser overlay is not
+    an NVR mask and protects no recording. Editing needs an explicit approval and a verified write (not in the pilot)."""
+    cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
+    if not cam:
+        raise not_found("המצלמה לא נמצאה.")
+    require_camera(conn, principal, camera_id, "video.live")
+    now = time.time()
+    hit = _ZONES_CACHE.get(camera_id)
+    if hit and not refresh and now - hit[0] < ZONES_TTL_S:
+        data, fetched_at = hit[1], hit[0]
+    else:
+        with unlocked(conn):
+            data = ZONES(settings_of(request), int(cam["channel"]))
+        fetched_at = now
+        _ZONES_CACHE[camera_id] = (fetched_at, data)
+    return {
+        "camera_id": camera_id,
+        "channel": int(cam["channel"]),
+        "source": "nvr",
+        "read_only": True,
+        "write_reason": "pilot: writing zones or masks to the NVR needs an explicit approval and a verified write-back",
+        "fetched_at": dt.datetime.fromtimestamp(fetched_at, dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "cached": bool(hit) and not refresh and now - hit[0] < ZONES_TTL_S,
+        **data,
+    }
+

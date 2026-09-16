@@ -1,5 +1,15 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.39 (pilot)
+- Detection zones and privacy masks as the NVR holds them (T075, read-only half): the camera page reads the
+  channel's motion-detection grid (rows × columns, sensitivity, target types, coverage), privacy-mask regions,
+  intrusion (field) regions and line-crossing lines through ISAPI GETs only, parsed with the safe XML parser and
+  cached for a minute, and draws them over the snapshot with per-layer toggles. A source the device refuses or
+  lacks is listed as "not read" with the reason, never invented. The card states what it is: polygons in the
+  camera image (not rooms on the floor plan), a browser overlay that is not an NVR mask and protects no
+  recording; editing or a real mask needs an explicit approval, a verified write-back and a check in the stream,
+  none of which exist in the pilot (no write route). Same permission as live video.
+
 ## 0.1.38 (pilot)
 - Measured multi-camera sync (T042): a playback group now runs on one master clock — an opening barrier waits for
   every member to render (or 12 s), then the clock is the median rendered time of the playing tiles (the lead's

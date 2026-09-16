@@ -4023,7 +4023,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence 2026-09-17 (0.1.39), read-only half: GET /cameras/{id}/zones reads the NVR channel's motion grid (lab: 18x22 cells, 100% coverage, sensitivity 60, targets human/vehicle), privacy mask (off, 704x576 frame), intrusion regions and line-crossing lines (off) through ISAPI GETs only, parsed with the safe XML parser, cached 60 s, unsupported sources reported with a reason; the camera page draws them over the snapshot with layer toggles and the explicit not-a-mask / not-a-room statement; no write route exists. tests/test_zones_nvr.py; live evidence private-evidence/T075-zones-live. Editing, verified write-back and real privacy masks remain excluded until the owner approves NVR writes. Status stays BACKLOG."
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null

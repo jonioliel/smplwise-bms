@@ -381,3 +381,151 @@ def oldest_recording(settings: Settings, track_id: int, start_wall: str, end_wal
     (the NVR answers in time order). None when nothing is recorded in the window."""
     page = search_recordings(settings, track_id, start_wall, end_wall, position=0, page_size=1)
     return page.matches[0].start_raw if page.matches else None
+
+
+# ---------------------------------------------------------------- detection zones (T075, read-only)
+
+def _hex_bits(hexmap: str, rows: int, cols: int) -> list[list[bool]]:
+    """ISAPI gridMap: each row packed MSB-first into ceil(cols/8) bytes, rows concatenated as hex."""
+    row_bytes = (cols + 7) // 8
+    cells: list[list[bool]] = []
+    for r in range(rows):
+        chunk = hexmap[r * row_bytes * 2:(r + 1) * row_bytes * 2]
+        try:
+            value = int(chunk, 16) if chunk else 0
+        except ValueError:
+            value = 0
+        width = row_bytes * 8
+        cells.append([bool((value >> (width - 1 - c)) & 1) for c in range(cols)])
+    return cells
+
+
+def parse_motion_grid(xml: str) -> dict[str, object]:
+    """/ISAPI/System/Video/inputs/channels/{n}/motionDetection → enabled, sensitivity, grid cells, coverage."""
+    from .xmlsafe import parse
+
+    root = parse(xml)
+    grid = _child(root, "Grid")
+    rows = _int(_text(grid, "rowGranularity"), 0) if grid is not None else 0
+    cols = _int(_text(grid, "columnGranularity"), 0) if grid is not None else 0
+    layout = _child(root, "MotionDetectionLayout")
+    hexmap = ""
+    sensitivity = None
+    target = ""
+    if layout is not None:
+        sensitivity = _int(_text(layout, "sensitivityLevel"), 0)
+        target = _text(layout, "targetType")
+        inner = _child(layout, "layout")
+        if inner is not None:
+            hexmap = _text(inner, "gridMap")
+    cells = _hex_bits(hexmap, rows, cols) if rows and cols and hexmap else []
+    total = rows * cols
+    active = sum(1 for row in cells for c in row if c)
+    return {
+        "enabled": _text(root, "enabled") == "true",
+        "region_type": _text(root, "regionType") or "grid",
+        "sensitivity": sensitivity,
+        "rows": rows,
+        "cols": cols,
+        "cells": cells,
+        "coverage_pct": round(100.0 * active / total, 1) if total else 0.0,
+        "target_types": [t for t in target.split(",") if t],
+    }
+
+
+def _points(list_el: ET.Element | None, x_name: str, y_name: str) -> list[list[int]]:
+    if list_el is None:
+        return []
+    out: list[list[int]] = []
+    for pt in list(list_el):
+        x, y = _text(pt, x_name), _text(pt, y_name)
+        if x and y:
+            out.append([_int(x, 0), _int(y, 0)])
+    return out
+
+
+def _normalized(root: ET.Element, default: int) -> dict[str, int]:
+    n = _child(root, "normalizedScreenSize")
+    if n is None:
+        return {"width": default, "height": default}
+    return {"width": _int(_text(n, "normalizedScreenWidth"), default), "height": _int(_text(n, "normalizedScreenHeight"), default)}
+
+
+def parse_privacy_mask(xml: str) -> dict[str, object]:
+    """/ISAPI/System/Video/inputs/channels/{n}/privacyMask → enabled flag + polygons in the device's normalized frame."""
+    from .xmlsafe import parse
+
+    root = parse(xml)
+    regions = []
+    lst = _child(root, "PrivacyMaskRegionList")
+    for reg in list(lst) if lst is not None else []:
+        regions.append({"id": _text(reg, "id"), "enabled": _text(reg, "enabled") != "false", "points": _points(_child(reg, "RegionCoordinatesList"), "positionX", "positionY")})
+    return {"enabled": _text(root, "enabled") == "true", "normalized": _normalized(root, 704), "regions": regions}
+
+
+def parse_field_detection(xml: str) -> dict[str, object]:
+    """/ISAPI/Smart/FieldDetection/{n} (intrusion regions) → polygons in a 1000×1000 frame."""
+    from .xmlsafe import parse
+
+    root = parse(xml)
+    regions = []
+    lst = _child(root, "FieldDetectionRegionList")
+    for reg in list(lst) if lst is not None else []:
+        pts = _points(_child(reg, "RegionCoordinatesList"), "positionX", "positionY")
+        if pts:
+            regions.append({"id": _text(reg, "id"), "sensitivity": _int(_text(reg, "sensitivityLevel"), 0), "points": pts})
+    return {"enabled": _text(root, "enabled") == "true", "normalized": _normalized(root, 1000), "regions": regions}
+
+
+def parse_line_detection(xml: str) -> dict[str, object]:
+    """/ISAPI/Smart/LineDetection/{n} (line crossing) → lines with their direction sensitivity."""
+    from .xmlsafe import parse
+
+    root = parse(xml)
+    lines = []
+    lst = _child(root, "LineItemList")
+    for item in list(lst) if lst is not None else []:
+        pts = _points(_child(item, "CoordinatesList"), "positionX", "positionY")
+        if pts:
+            lines.append({"id": _text(item, "id"), "enabled": _text(item, "enabled") == "true", "direction": _text(item, "directionSensitivity") or "any", "points": pts})
+    return {"enabled": _text(root, "enabled") == "true", "normalized": _normalized(root, 1000), "lines": lines}
+
+
+ZONE_SOURCES = {
+    "motion": ("/ISAPI/System/Video/inputs/channels/{ch}/motionDetection", parse_motion_grid),
+    "privacy_mask": ("/ISAPI/System/Video/inputs/channels/{ch}/privacyMask", parse_privacy_mask),
+    "intrusion": ("/ISAPI/Smart/FieldDetection/{ch}", parse_field_detection),
+    "line_crossing": ("/ISAPI/Smart/LineDetection/{ch}", parse_line_detection),
+}
+
+
+def fetch_detection_zones(settings: Settings, channel: int) -> dict[str, object]:
+    """Four read-only GETs; a source the device refuses or lacks is reported as unsupported with its reason, never invented."""
+    out: dict[str, object] = {}
+    unsupported: dict[str, str] = {}
+    with _client(settings) as client:
+        for key, (path, parser) in ZONE_SOURCES.items():
+            try:
+                r = client.get(path.format(ch=channel))
+            except httpx.HTTPError as exc:
+                raise ApiError(503, "source_unavailable", "ה־NVR אינו זמין כרגע.", retryable=True, details={"path": path, "error": type(exc).__name__}) from exc
+            if r.status_code in (401, 403):
+                unsupported[key] = "forbidden"
+                out[key] = None
+                continue
+            if r.status_code == 404:
+                unsupported[key] = "not_supported"
+                out[key] = None
+                continue
+            if r.status_code != 200:
+                unsupported[key] = f"http_{r.status_code}"
+                out[key] = None
+                continue
+            try:
+                out[key] = parser(r.text)
+            except Exception as exc:  # noqa: BLE001 - a malformed answer is reported, not raised
+                unsupported[key] = f"unparsable_{type(exc).__name__}"
+                out[key] = None
+    out["unsupported"] = unsupported
+    return out
+

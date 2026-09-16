@@ -421,6 +421,10 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
 
 - Uploads: PDF/PNG/JPG up to 40 MB, PDF up to 20 pages; SVG and DWG/DXF are rejected.
 - PDF rasterization runs in a separate process (pdftoppm) with a 30 s limit.
+- Detection zones (camera page, read-only): the motion grid, privacy-mask regions, intrusion regions and
+  line-crossing lines exactly as the NVR holds them for that channel (ISAPI GET only, cached for a minute), drawn
+  over the snapshot with layer toggles. They are polygons in the camera image, not rooms on the plan; the overlay
+  is not an NVR mask and protects no recording; nothing is written to the device (no write route in the pilot).
 - Playback: speed 1× only (the relay delivers the NVR stream in real time, so faster speeds are disabled with
   the reason), no frame step; up to four cameras side by side on one master clock (the median rendered time of the playing
   tiles) with the drift of every tile measured against it (p95 over the last 40 samples, quality on the stamp, reported on the group); a tile out by

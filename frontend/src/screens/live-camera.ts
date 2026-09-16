@@ -1,4 +1,4 @@
-import { LitElement, html, css, nothing } from 'lit';
+import { LitElement, html, css, nothing, svg } from 'lit';
 import { customElement, property, state, query } from 'lit/decorators.js';
 import '../components/sw-page';
 import '../components/sw-camera-tile';
@@ -14,7 +14,8 @@ import type { SwLivePlayer } from '../components/sw-live-player';
 import { demoScene, demoWall } from '../fixtures/catalog';
 import { navigate } from '../router';
 import { isApi } from '../api/session';
-import { snapshotUrl, setTransportOverride, transportOverride, type ProductSettings, type Transport } from '../api/media';
+import { cameraZones, snapshotUrl, setTransportOverride, transportOverride, type CameraZones, type ProductSettings, type Transport } from '../api/media';
+import '../components/sw-chip';
 import { listCameras } from '../api/maps';
 import { effectiveTransport, productSettings } from '../api/prefs';
 import { describeError } from '../api/client';
@@ -29,6 +30,11 @@ import type { Camera } from '../api/types';
 export class LiveCamera extends LitElement {
   @property() cameraId = 'cam-1';
   @state() private cam: Camera | null = null;
+  /** T075: the NVR's detection configuration for this camera (read-only), drawn over the snapshot. */
+  @state() private zones: CameraZones | null = null;
+  @state() private zonesBusy = false;
+  @state() private zonesError = '';
+  @state() private zoneLayers = { motion: true, privacy: true, intrusion: true, lines: true };
   @state() private cams: Camera[] = [];
   @state() private settings: ProductSettings | null = null;
   @state() private error = '';
@@ -304,6 +310,66 @@ export class LiveCamera extends LitElement {
 
   protected updated(changed: Map<string, unknown>) {
     if (changed.has('cameraId') && changed.get('cameraId') !== undefined) void this.load();
+    if (changed.has('cam') && this.cam && isApi() && !this.zonesBusy && (!this.zones || this.zones.camera_id !== this.cam.id)) {
+      this.zonesError = '';
+      void this.loadZones();
+    }
+  }
+
+  private async loadZones(refresh = false) {
+    if (!this.cam) return;
+    this.zonesBusy = true;
+    this.zonesError = '';
+    try {
+      this.zones = await cameraZones(this.cam.id, refresh);
+    } catch (err) {
+      this.zonesError = describeError(err);
+    } finally {
+      this.zonesBusy = false;
+    }
+  }
+
+  private renderZones(cam: Camera) {
+    const z = this.zones;
+    if (this.zonesBusy && !z) return html`<div class="note">קורא את הגדרות הזיהוי מה־NVR…</div>`;
+    if (this.zonesError && !z) return html`<div class="note">${this.zonesError} <sw-button size="sm" @click=${() => this.loadZones(true)}>נסה שוב</sw-button></div>`;
+    if (!z) return html`<div class="note">—</div>`;
+    const L = this.zoneLayers;
+    const m = z.motion;
+    const scale = (pts: number[][], n: { width: number; height: number }) => pts.map(([x, y]) => `${(x / n.width) * 1000},${(y / n.height) * 1000}`).join(' ');
+    const target = (t: string) => (t === 'human' ? 'אדם' : t === 'vehicle' ? 'רכב' : t);
+    return html`
+      <style>
+        .zones .frame { position: relative; aspect-ratio: 16 / 9; background: #0f1729; border-radius: 8px; overflow: hidden; }
+        .zones .frame img { inline-size: 100%; block-size: 100%; object-fit: fill; display: block; }
+        .zones .frame svg { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; }
+        .zones .cell { fill: rgba(239, 68, 68, 0.28); stroke: rgba(239, 68, 68, 0.55); stroke-width: 1; }
+        .zones .mask { fill: rgba(15, 23, 42, 0.78); stroke: #0f172a; stroke-width: 3; }
+        .zones .field { fill: rgba(245, 158, 11, 0.25); stroke: #f59e0b; stroke-width: 4; }
+        .zones .line { fill: none; stroke: #2f6bff; stroke-width: 6; }
+        .zones .line.off { stroke-dasharray: 14 10; opacity: 0.6; }
+        .zones .legend { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-block-start: 8px; }
+      </style>
+      <div class="zones" data-zones-loaded>
+        <div class="frame">
+          <img src=${snapshotUrl(cam.id)} alt="" />
+          <svg viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-label="אזורי זיהוי מעל תמונת המצלמה">
+            ${L.motion && m && m.rows && m.cols ? m.cells.flatMap((row, r) => row.map((on, c) => (on ? svg`<rect x=${(c * 1000) / m.cols} y=${(r * 1000) / m.rows} width=${1000 / m.cols} height=${1000 / m.rows} class="cell"></rect>` : nothing))) : nothing}
+            ${L.privacy && z.privacy_mask ? z.privacy_mask.regions.map((reg) => svg`<polygon points=${scale(reg.points, z.privacy_mask!.normalized)} class="mask"></polygon>`) : nothing}
+            ${L.intrusion && z.intrusion ? z.intrusion.regions.map((reg) => svg`<polygon points=${scale(reg.points, z.intrusion!.normalized)} class="field"></polygon>`) : nothing}
+            ${L.lines && z.line_crossing ? z.line_crossing.lines.map((ln) => svg`<polyline points=${scale(ln.points, z.line_crossing!.normalized)} class="line ${ln.enabled ? '' : 'off'}"></polyline>`) : nothing}
+          </svg>
+        </div>
+        <div class="legend">
+          <sw-chip data-zone-layer="motion" ?selected=${L.motion} @click=${() => (this.zoneLayers = { ...L, motion: !L.motion })}>תנועה${m ? ` · ${m.enabled ? 'פעיל' : 'כבוי'} · ${m.coverage_pct}% מהתמונה · רגישות ${m.sensitivity ?? '?'}${m.target_types.length ? ` · ${m.target_types.map(target).join('/')}` : ''}` : ' · לא נקרא'}</sw-chip>
+          <sw-chip data-zone-layer="privacy" ?selected=${L.privacy} @click=${() => (this.zoneLayers = { ...L, privacy: !L.privacy })}>מסכת פרטיות${z.privacy_mask ? ` · ${z.privacy_mask.enabled ? 'פעילה' : 'כבויה'} · ${z.privacy_mask.regions.length} אזורים` : ' · לא נקרא'}</sw-chip>
+          <sw-chip data-zone-layer="intrusion" ?selected=${L.intrusion} @click=${() => (this.zoneLayers = { ...L, intrusion: !L.intrusion })}>חדירה לאזור${z.intrusion ? ` · ${z.intrusion.enabled ? 'פעיל' : 'כבוי'} · ${z.intrusion.regions.length} אזורים` : ' · לא נקרא'}</sw-chip>
+          <sw-chip data-zone-layer="lines" ?selected=${L.lines} @click=${() => (this.zoneLayers = { ...L, lines: !L.lines })}>חציית קו${z.line_crossing ? ` · ${z.line_crossing.enabled ? 'פעיל' : 'כבוי'} · ${z.line_crossing.lines.length} קווים` : ' · לא נקרא'}</sw-chip>
+          <sw-button size="sm" variant="ghost" icon="refresh" ?disabled=${this.zonesBusy} @click=${() => this.loadZones(true)}>רענון מה־NVR</sw-button>
+        </div>
+        ${Object.keys(z.unsupported).length ? html`<div class="note">לא נקרא מהמכשיר: ${Object.entries(z.unsupported).map(([k, v]) => `${k} (${v})`).join(', ')}</div>` : nothing}
+        <div class="note" data-zones-note>קריאה בלבד מה־NVR (נקרא ${z.fetched_at.replace('T', ' ').replace('Z', ' UTC')}${z.cached ? ', מהמטמון' : ''}). אלו פוליגונים בתמונת המצלמה — לא חדרים במפה. שכבת־על בדפדפן אינה מסכת NVR ואינה מגינה על הקלטות; עריכה או מסכה אמיתית דורשות אישור מפורש, כתיבה מאומתת ובדיקת התוצאה בזרם.</div>
+      </div>`;
   }
 
   private async load() {
@@ -374,6 +440,7 @@ export class LiveCamera extends LitElement {
             <dt>נראתה לאחרונה</dt><dd>${cam.last_seen_at ? cam.last_seen_at.replace('T', ' ').replace('Z', ' UTC') : '—'}</dd>
           </dl>
         </sw-card>
+        <sw-card heading="אזורי זיהוי ומסכות — כפי שמוגדר ב־NVR" data-zones>${this.renderZones(cam)}</sw-card>
         <sw-card heading="מצלמות נוספות">
           <div class="tiles">
             ${this.cams.filter((c) => c.id !== cam.id).slice(0, 4).map((c) => html`<sw-camera-tile compact name=${c.name} state=${c.status === 'online' ? 'live' : c.status === 'offline' ? 'offline' : 'unknown'} poster=${c.status === 'offline' ? '' : snapshotUrl(c.id)} @click=${() => navigate(`/live/cameras/${c.id}`)}></sw-camera-tile>`)}

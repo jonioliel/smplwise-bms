@@ -4,4 +4,4 @@ Server-side truth for the catalogue (sites → buildings → floors → plans �
 Supervisor Ingress proxy, VMS-local roles and scoped bindings, audit, and read-only source adapters.
 """
 
-__version__ = "0.1.38"
+__version__ = "0.1.39"
