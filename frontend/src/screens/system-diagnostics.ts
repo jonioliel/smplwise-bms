@@ -16,6 +16,8 @@ import { describeError, get } from '../api/client';
 import { navigate } from '../router';
 import { bridgePairing, haStatus, fmtTime, installBridge, type HaIntegrationStatus, type HaStatus } from '../api/ha';
 import { DEFAULT_NAMES, applyDesign, currentDesign, designOverride, parseNames, setDesignOverride, type DesignId } from '../api/design';
+import { KIND_LABEL, TABLE_LABEL, backupDownloadUrl, createBackup, deleteBackup, fmtBytes, listBackups, restoreBackup, uploadBackup, type BackupEntry } from '../api/backup';
+import '../components/sw-dialog';
 
 const TABS = [
   { id: 'general', label: 'כללי' },
@@ -46,6 +48,15 @@ export class SystemDiagnostics extends LitElement {
   @state() private showCode = false;
   @state() private regenArmed = false;
   @state() private copied = false;
+  @state() private backups: BackupEntry[] | null = null;
+  @state() private backupPolicy: Record<string, number> = {};
+  @state() private backupBusy = false;
+  @state() private backupNote = '';
+  @state() private backupMsg = '';
+  @state() private restoreTarget: BackupEntry | null = null;
+  @state() private restoreMode: 'replace' | 'merge' = 'replace';
+  @state() private restoreAccess = false;
+  @state() private restoreConfirm = '';
   @state() private health: { discovery?: Record<string, unknown>; events?: { ingest: { connected: boolean; last_heartbeat_at: string | null; last_event_at: string | null; last_error: string | null; reconnects: number; events_stored: number }; derive: { last_ok: string | null; last_error: string | null; derived: number }; stored: number } } | null = null;
 
   static styles = css`
@@ -116,6 +127,63 @@ export class SystemDiagnostics extends LitElement {
       block-size: 8px;
       border-radius: 50%;
       background: var(--sw-stale);
+    }
+    .blist {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-block-start: 8px;
+    }
+    .brow {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px 12px;
+      align-items: center;
+      padding: 8px 10px;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+    }
+    .brow .name {
+      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-sm);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .brow .sub {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      margin-block-start: 2px;
+    }
+    .brow .acts {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .brow a {
+      text-decoration: none;
+    }
+    .note-in {
+      inline-size: 200px;
+      border: 1px solid var(--sw-border);
+      border-radius: 8px;
+      padding: 6px 8px;
+      font: inherit;
+      color: var(--sw-text);
+      background: var(--sw-surface);
+    }
+    .confirm-in {
+      inline-size: 100%;
+      border: 1px solid var(--sw-border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font: inherit;
+      font-family: var(--sw-font-mono);
+      direction: ltr;
+      margin-block-start: 8px;
+      color: var(--sw-text);
+      background: var(--sw-surface);
     }
     .foot {
       display: flex;
@@ -440,19 +508,143 @@ export class SystemDiagnostics extends LitElement {
     </div>`;
   }
 
-  private renderBackup() {
-    return html`<div class="sections">
-      <sw-card heading="גיבוי">
-        <div class="row"><span class="lbl">גיבוי</span><span class="muted">ה־Add-on מוגדר backup: hot — הנתונים ב־/data נכללים בגיבוי של Home Assistant</span></div>
-        <div class="row"><span class="lbl">תוכן</span><span class="muted">DB, מקורות תוכניות, גרסאות, עוגנים, צילומים, הגדרות</span></div>
-        <div class="row"><span class="lbl">סודות</span><span class="muted">בהגדרות ה־Add-on בלבד (options), לא במסד הנתונים</span></div>
-      </sw-card>
-      <sw-card heading="שדרוג ו־Rollback">
-        <div class="row"><span class="lbl">גרסת Add-on</span><span class="ltr">${this.version || (isApi() ? '…' : 'נתוני הדגמה')}</span></div>
-        <div class="row"><span class="lbl">סכימת DB</span><span class="ltr">1</span></div>
-        <div class="row"><span class="lbl">Rollback</span><span class="muted">דרך HA (גרסה קודמת) + שחזור גיבוי</span></div>
-      </sw-card>
+  private async loadBackups() {
+    if (!isApi()) return;
+    try {
+      const r = await listBackups();
+      this.backups = r.backups;
+      this.backupPolicy = r.policy;
+    } catch (err) {
+      this.error = describeError(err);
+      this.backups = [];
+    }
+  }
+
+  private async createBackup() {
+    this.backupBusy = true;
+    this.backupMsg = '';
+    try {
+      const e = await createBackup({ note: this.backupNote.trim() });
+      this.backupNote = '';
+      this.backupMsg = `הגיבוי ${e.name} נוצר (${fmtBytes(e.bytes)})`;
+      await this.loadBackups();
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.backupBusy = false;
+    }
+  }
+
+  private async onBackupFile(file: File | undefined) {
+    if (!file) return;
+    this.backupBusy = true;
+    this.backupMsg = '';
+    try {
+      const e = await uploadBackup(file);
+      this.backupMsg = `הקובץ הועלה כ־${e.name}; עכשיו אפשר לשחזר ממנו`;
+      await this.loadBackups();
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.backupBusy = false;
+    }
+  }
+
+  private async removeBackup(b: BackupEntry) {
+    if (!window.confirm(`למחוק את הגיבוי ${b.name}?`)) return;
+    this.backupBusy = true;
+    try {
+      await deleteBackup(b.name);
+      await this.loadBackups();
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.backupBusy = false;
+    }
+  }
+
+  private openRestore(b: BackupEntry) {
+    this.restoreTarget = b;
+    this.restoreMode = 'replace';
+    this.restoreAccess = false;
+    this.restoreConfirm = '';
+  }
+
+  private async doRestore() {
+    const b = this.restoreTarget;
+    if (!b || this.restoreConfirm !== 'RESTORE') return;
+    this.backupBusy = true;
+    this.error = '';
+    try {
+      const r = await restoreBackup(b.name, { mode: this.restoreMode, scope: this.restoreAccess ? 'project+access' : 'project', confirm: this.restoreConfirm });
+      const parts = Object.entries(r.tables).filter(([k]) => TABLE_LABEL[k]).map(([k, n]) => `${n} ${TABLE_LABEL[k]}`);
+      this.backupMsg = `שוחזר מ־${b.name} (${r.mode === 'replace' ? 'החלפה' : 'מיזוג'}): ${parts.join(', ')} · ${r.files} קבצים`;
+      this.restoreTarget = null;
+      invalidateSettings();
+      await this.loadBackups();
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.backupBusy = false;
+    }
+  }
+
+  private fmtWhen(iso: string) {
+    return new Intl.DateTimeFormat('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(iso));
+  }
+
+  private renderBackupRow(b: BackupEntry) {
+    const counts = ['sites', 'floors', 'plan_versions', 'map_anchors', 'spatial_zones', 'cameras'].filter((k) => b.tables[k] !== undefined).map((k) => `${b.tables[k]} ${TABLE_LABEL[k]}`).join(' · ');
+    return html`<div class="brow" data-backup-row>
+      <div>
+        <div class="name"><span class="ltr">${b.name}</span><sw-badge kind=${b.kind.startsWith('auto') ? 'neutral' : b.kind === 'upload' ? 'stale' : 'live'} label=${KIND_LABEL[b.kind] ?? b.kind}></sw-badge>${!b.valid ? html`<sw-badge kind="error" label="קובץ לא תקין"></sw-badge>` : nothing}</div>
+        <div class="sub">${this.fmtWhen(b.created_at)} · ${fmtBytes(b.bytes)} · גרסה ${b.app_version ?? '?'}${b.note ? ` · ${b.note}` : ''}</div>
+        ${counts ? html`<div class="sub">${counts} · ${b.files} קבצי תוכנית</div>` : nothing}
+      </div>
+      <div class="acts">
+        <a href=${backupDownloadUrl(b.name)} download=${b.name} data-backup-download><sw-button size="sm" icon="download">הורד</sw-button></a>
+        <sw-button size="sm" icon="history" ?disabled=${!b.valid || this.backupBusy} data-backup-restore @click=${() => this.openRestore(b)}>שחזר</sw-button>
+        <sw-button size="sm" variant="ghost" icon="trash" ?disabled=${this.backupBusy} @click=${() => this.removeBackup(b)}>מחק</sw-button>
+      </div>
     </div>`;
+  }
+
+  private renderRestoreDialog(b: BackupEntry) {
+    return html`<sw-dialog open heading="שחזור גיבוי" subheading=${b.name} @close=${() => (this.restoreTarget = null)}>
+      <div class="row"><span class="lbl">אופן השחזור<span class="muted">${this.restoreMode === 'replace' ? 'הנתונים הנוכחיים של הפרויקט מוחלפים במה שבגיבוי' : 'רק פריטים שחסרים היום מתווספים; הקיימים נשארים'}</span></span>
+        <select data-restore-mode @change=${(e: Event) => (this.restoreMode = (e.target as HTMLSelectElement).value as 'replace' | 'merge')}><option value="replace" ?selected=${this.restoreMode === 'replace'}>החלפה</option><option value="merge" ?selected=${this.restoreMode === 'merge'}>מיזוג</option></select></div>
+      <div class="row"><span class="lbl">כולל משתמשים והרשאות<span class="muted">ברירת המחדל: רק נתוני הפרויקט. ההרשאות שלך נשמרות בכל מקרה.</span></span><sw-toggle ?checked=${this.restoreAccess} label="כולל הרשאות" labelHidden @change=${(e: CustomEvent<{ checked: boolean }>) => (this.restoreAccess = e.detail.checked)}></sw-toggle></div>
+      <div class="muted" style="margin-block-start:8px">הגיבוי מגרסה ${b.app_version ?? '?'} מ־${this.fmtWhen(b.created_at)}. השחזור נרשם באודיט. לאישור הקלד <code>RESTORE</code>:</div>
+      <input class="confirm-in" data-restore-confirm placeholder="RESTORE" .value=${this.restoreConfirm} @input=${(e: Event) => (this.restoreConfirm = (e.target as HTMLInputElement).value)} />
+      <div slot="footer"><sw-button variant="danger" icon="history" ?disabled=${this.restoreConfirm !== 'RESTORE' || this.backupBusy} data-restore-go @click=${() => this.doRestore()}>${this.backupBusy ? 'משחזר…' : 'שחזר עכשיו'}</sw-button><sw-button variant="ghost" @click=${() => (this.restoreTarget = null)}>ביטול</sw-button></div>
+    </sw-dialog>`;
+  }
+
+  private renderBackup() {
+    const list = this.backups ?? [];
+    return html`<div class="sections">
+      <sw-card heading="גיבויים של הפרויקט" subheading="אתרים, קומות, תוכניות, עוגנים, אזורים, מצלמות והגדרות · בלי סודות ובלי וידאו">
+        <div class="row"><span class="lbl">גיבוי ידני עכשיו<span class="muted">נשמר בתוך התוסף (/data/backups) ואפשר להוריד למחשב</span></span>
+          <span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input class="note-in" placeholder="הערה (אופציונלי)" .value=${this.backupNote} @input=${(e: Event) => (this.backupNote = (e.target as HTMLInputElement).value)} /><sw-button variant="primary" size="sm" icon="download" ?disabled=${this.backupBusy || !isApi()} data-backup-create @click=${() => this.createBackup()}>${this.backupBusy ? 'עובד…' : 'צור גיבוי'}</sw-button></span></div>
+        <div class="row"><span class="lbl">העלאת גיבוי<span class="muted">קובץ zip שהורד מכאן (גם מהתקנה קודמת); אחרי ההעלאה לוחצים "שחזר"</span></span>
+          <span><input type="file" accept=".zip,application/zip" hidden @change=${(e: Event) => { const inp = e.target as HTMLInputElement; void this.onBackupFile(inp.files?.[0]); inp.value = ''; }} /><sw-button size="sm" icon="upload" ?disabled=${this.backupBusy || !isApi()} @click=${() => (this.renderRoot.querySelector('input[type=file]') as HTMLInputElement | null)?.click()}>בחר קובץ…</sw-button></span></div>
+        ${this.backupMsg ? html`<div class="muted" style="color:#15803d;padding-block:6px" data-backup-msg>${this.backupMsg}</div>` : nothing}
+        ${!isApi()
+          ? html`<div class="muted">נתוני הדגמה: הגיבויים עובדים מול השרת.</div>`
+          : this.backups === null
+            ? html`<div class="muted">טוען…</div>`
+            : list.length
+              ? html`<div class="blist" data-backups>${list.map((b) => this.renderBackupRow(b))}</div>`
+              : html`<div class="muted" style="padding-block:6px">עדיין אין גיבויים. הראשון ייווצר אוטומטית לפני העדכון הבא, או עכשיו בלחיצה.</div>`}
+      </sw-card>
+      <sw-card heading="אוטומטי ו־Rollback">
+        <div class="row"><span class="lbl">לפני כל עדכון גרסה<span class="muted">עותק של הנתונים נכתב לפני שהגרסה החדשה נוגעת במסד; נשמרים ${this.backupPolicy['auto-pre-upgrade'] ?? 5} האחרונים</span></span><sw-badge kind="live" label="פעיל"></sw-badge></div>
+        <div class="row"><span class="lbl">יומי<span class="muted">עותק אחד ביום, נשמרים ${this.backupPolicy['auto-daily'] ?? 7} האחרונים</span></span><sw-badge kind="live" label="פעיל"></sw-badge></div>
+        <div class="row"><span class="lbl">Rollback<span class="muted">חוזרים לגרסה קודמת דרך Home Assistant ואז משחזרים את הגיבוי "לפני עדכון" (החלפה)</span></span><span class="ltr">${this.version || '…'}</span></div>
+        <div class="row"><span class="lbl">גיבוי Home Assistant<span class="muted">ה־Add-on מוגדר backup: hot, ולכן /data (כולל הגיבויים האלה) נכלל גם בגיבוי המלא של HA</span></span></div>
+      </sw-card>
+    </div>
+    ${this.restoreTarget ? this.renderRestoreDialog(this.restoreTarget) : nothing}`;
   }
 
   private renderSupport() {
@@ -467,7 +659,7 @@ export class SystemDiagnostics extends LitElement {
   render() {
     return html`
       <sw-page heading="הגדרות המערכת" subheading=${isApi() ? 'תעבורת וידאו, go2rtc, מכסות ובריאות' : 'אזור זמן, מדיניות אחסון, אינטגרציות ובריאות · נתוני הדגמה'}>
-        <sw-tabs underline .items=${TABS} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => { this.tab = e.detail.id; if (this.tab === 'media') void this.loadMedia(); if (this.tab === 'ha') void this.loadHa(); }}></sw-tabs>
+        <sw-tabs underline .items=${TABS} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => { this.tab = e.detail.id; if (this.tab === 'media') void this.loadMedia(); if (this.tab === 'ha') void this.loadHa(); if (this.tab === 'backup') void this.loadBackups(); }}></sw-tabs>
         ${this.message && this.tab === 'ha' ? html`<div class="muted" style="color:#15803d">${this.message}</div>` : nothing}
         ${this.error && this.tab === 'ha' ? html`<div class="muted" style="color:var(--sw-error)">${this.error}</div>` : nothing}
         ${this.tab === 'general' ? this.renderGeneral() : this.tab === 'media' ? this.renderMedia() : this.tab === 'ha' ? this.renderHa() : this.tab === 'health' ? this.renderHealth() : this.tab === 'backup' ? this.renderBackup() : this.renderSupport()}

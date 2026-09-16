@@ -1391,7 +1391,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (2026-09-16, 0.1.17): services/backup.py - zip format 1 (manifest.json, data/<table>.json for settings/sites/buildings/floors/plan_assets/plan_versions/map_anchors/recorders/cameras/spatial_zones + users/groups/group_members/bindings, files/plans/... for the referenced plan files); routers/backup.py GET/POST /backups, GET /backups/{name} (+manifest), download, DELETE, POST /backups/upload (zip validated, 200 MB cap), POST /backups/{name}/restore {mode replace|merge, scope project|project+access, confirm RESTORE} in one transaction (rows first, files before commit; the acting admin's identity rows survive an access restore; permission revision bumped; newer-schema backups refused with 409); backup.manage at installation scope; audited backup.create/download/upload/delete/restore. tests/test_backup.py: round trip into a fresh data dir keeps ids, plan image, zones, settings and the admin's access; merge adds only missing rows; 422 on bad zip / missing confirm; viewer 403. UI: הגדרות → גיבוי ושחזור (list with kind/date/size/counts, create with note, download, upload, restore dialog with mode/scope/RESTORE). frontend/tests/evidence-backup.spec.ts in real Chrome against the dev backend - private-evidence/T026-backup-live/*.png. Open: export of events/audit is opt-in only; no scheduled off-device copy"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
@@ -1923,7 +1925,9 @@
       "Documentation, known limits and rollback notes",
       "Technical review record"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (2026-09-16, 0.1.17, rollback safety part): backup.pre_upgrade() runs in create_app before migrations - when settings.app.version differs from the build, the existing data is written to backups/auto-pre-upgrade-<stamp>.zip (last 5 kept) and the version is recorded after the migrations; daily_loop() writes auto-daily copies (last 7); tests/test_backup.py::test_pre_upgrade_backup_and_prune. Rollback procedure documented in DOCS.md (previous version via HA + restore 'לפני עדכון' with replace). Open: release checklist, staged rollout, smoke test after upgrade"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null

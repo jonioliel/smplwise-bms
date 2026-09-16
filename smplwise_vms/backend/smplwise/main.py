@@ -16,7 +16,7 @@ from . import __version__
 from .config import Settings, load_settings
 from .db import Database
 from .errors import ApiError
-from .routers import access, anchors, cameras, catalog, events, exports, ha, health, me, media, plans, playback, playback_groups, recordings, search, settings as settings_router, zones
+from .routers import access, anchors, backup, cameras, catalog, events, exports, ha, health, me, media, plans, playback, playback_groups, recordings, search, settings as settings_router, zones
 
 log = logging.getLogger("smplwise")
 
@@ -34,9 +34,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title="SMPLWISE VMS", version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.settings = settings
     app.state.db = Database(settings.db_path)
+    from .services import backup as backup_svc
+
+    pre = backup_svc.pre_upgrade(settings)  # rollback safety: a copy of the data before a new version touches it
+    if pre:
+        log.info("pre-upgrade backup written: %s", pre.name)
     applied = app.state.db.migrate()
     if applied:
         log.info("applied migrations %s", applied)
+    backup_svc.record_version(app.state.db)
     if settings.dev_user:
         log.warning("developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant")
 
@@ -74,6 +80,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(access.router, prefix=api, tags=["access"])
     app.include_router(zones.router, prefix=api, tags=["zones"])
     app.include_router(search.router, prefix=api, tags=["search"])
+    app.include_router(backup.router, prefix=api, tags=["backup"])
     app.include_router(health.router, prefix=api, tags=["ops"])
 
     @app.on_event("startup")
@@ -122,6 +129,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import bridge_install, thumbnails
 
         thumbnails.WORKER.start_with(app.state.db, settings)
+        from .services import backup as backup_svc
+
+        app.state.backup_task = asyncio.create_task(backup_svc.daily_loop(app.state.db, settings))
         await run_in_threadpool(bridge_install.run_startup, app.state.db, settings)
 
         async def loop() -> None:

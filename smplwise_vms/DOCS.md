@@ -36,6 +36,17 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
 
 ## Data and backups
 
+- הגדרות → גיבוי ושחזור keeps project backups inside the add-on (`/data/backups`): one is written
+  automatically before every version upgrade (the last five are kept) and one a day (the last seven),
+  and "צור גיבוי" writes one on request. A backup is a zip with the project data (sites, buildings,
+  floors, plan files and versions, pins, cameras, rooms and zones, settings; users and permissions are
+  included but only restored on request) and can be downloaded to a computer or uploaded into a fresh
+  installation. "שחזר" loads a backup after typing RESTORE, either replacing the current project data or
+  merging the missing items; the administrator who restores keeps access, and the restore is audited.
+  Backups never contain the NVR or HA credentials (those live in the add-on options) and never video.
+- Rollback after a bad upgrade: install the previous version from Home Assistant, then restore the
+  "לפני עדכון" backup with "החלפה".
+
 - Everything lives in `/data` (SQLite database + original plan files + derived images) and is
   included in Home Assistant backups (`backup: hot`).
 - Original plan uploads are never modified; backgrounds are derived and can be regenerated.

@@ -21,6 +21,6 @@ ENV SW_WWW_DIR=/app/www \
     SW_PORT=8099 \
     PYTHONUNBUFFERED=1
 
-LABEL io.hass.version="0.1.16" io.hass.type="addon" io.hass.arch="amd64|aarch64"
+LABEL io.hass.version="0.1.17" io.hass.type="addon" io.hass.arch="amd64|aarch64"
 
 CMD [ "/run.sh" ]

@@ -1,5 +1,13 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.17 (pilot)
+- Project backups (T026) and rollback safety (T036): a zip with the project tables (sites, buildings,
+  floors, plan assets and versions, anchors, cameras, zones, settings; optionally users and permissions)
+  plus the plan files. Written automatically before every version upgrade (last 5 kept) and once a day
+  (last 7 kept), on request from הגדרות → גיבוי ושחזור, downloadable, uploadable, and restorable in one
+  transaction (replace or merge; the restoring administrator keeps access; RESTORE must be typed; audited).
+  Never contains secrets or video. API: /backups.
+
 ## 0.1.16 (pilot)
 - Event centre review windows (design M26): "חלונות" groups adjacent events of the same camera (gap
   1 / 3 / 5 / 10 minutes) into one row with picture, dominant type ×count, camera, time range and
