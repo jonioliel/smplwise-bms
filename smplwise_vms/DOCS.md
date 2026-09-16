@@ -429,6 +429,10 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   active key and rotates it (system.configure, audited), keeping retired public keys for older bundles. A valid
   signature proves the bundle did not change since export — not that the footage is authentic at capture, and
   it is no statement of legal admissibility.
+- DXF plans: the import wizard also takes .dxf files (content-sniffed). The drawing is inspected (units, layers,
+  entity counts, unsupported types) and rendered from the geometric entities only; text, hatches, dimensions and
+  3D entities are counted and reported as a partial conversion. Choose layers and units on the DXF card; a version
+  made from a drawing with known units gets its scale automatically. DWG must be converted to DXF first.
 - Capability facts (camera page, read-only): PTZ (supported / unsupported / unknown, with the device's reason),
   the preset list and two-way audio (available / disabled / unsupported / unknown) exactly as the NVR reports them.
   PTZ moves, preset recall and talk are device writes and are not offered in the pilot; no control is simulated.

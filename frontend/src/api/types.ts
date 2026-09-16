@@ -51,6 +51,8 @@ export interface SitesResponse {
 }
 
 export interface PlanAsset {
+  /** pdf / dxf / image, from the server's content sniffing (T065). */
+  kind?: 'pdf' | 'dxf' | 'image';
   id: string;
   floor_id: string;
   original_name: string;

@@ -1,5 +1,15 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.43 (pilot)
+- DXF floor plans (T065): the import wizard accepts .dxf (recognised by content, like every upload) through an
+  isolated conversion adapter built on ezdxf (MIT). On upload the drawing is inspected — DXF version, units from
+  the header, layers with their drawable counts, entity counts, and the entity types that are not converted
+  (TEXT/MTEXT, HATCH, DIMENSION, 3D) — and rendered from LINE / LWPOLYLINE / POLYLINE / CIRCLE / ARC / ELLIPSE /
+  SPLINE / INSERT. A partial conversion is always stated, never hidden; a selection with nothing drawable is
+  refused. Layers and units are chosen per file and re-render the preview from the untouched source; a version
+  made from a drawing with known units carries its scale (metres per pixel) automatically. DWG is not supported
+  (closed format): convert to DXF first.
+
 ## 0.1.42 (pilot)
 - Capability facts per camera (T045 / T012, read-only half): the camera page now shows what the NVR itself reports
   — PTZ supported / unsupported (only on the device's own notSupport) / unknown with the reason, the preset list

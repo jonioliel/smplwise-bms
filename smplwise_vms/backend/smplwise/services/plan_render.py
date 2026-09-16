@@ -15,7 +15,7 @@ from ..errors import ApiError
 
 Image.MAX_IMAGE_PIXELS = 60_000_000
 
-SUPPORTED = {"application/pdf": ".pdf", "image/png": ".png", "image/jpeg": ".jpg"}
+SUPPORTED = {"application/pdf": ".pdf", "image/png": ".png", "image/jpeg": ".jpg", "image/vnd.dxf": ".dxf"}
 
 
 def sniff_mime(head: bytes) -> str | None:
@@ -27,6 +27,10 @@ def sniff_mime(head: bytes) -> str | None:
         return "image/jpeg"
     if b"<svg" in head[:512].lower():
         return "image/svg+xml"
+    from . import plan_dxf
+
+    if plan_dxf.sniff(head):
+        return "image/vnd.dxf"
     return None
 
 

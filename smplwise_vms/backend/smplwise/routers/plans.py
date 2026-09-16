@@ -18,7 +18,7 @@ from ..config import Settings
 from ..db import new_id, now_iso, unlocked
 from ..errors import ApiError, conflict, not_found
 from ..rbac import Principal, require
-from ..services import plan_render, plan_stylize
+from ..services import plan_dxf, plan_render, plan_stylize
 from .catalog import get_floor
 
 router = APIRouter()
@@ -33,6 +33,7 @@ def asset_row(r: sqlite3.Row) -> dict[str, Any]:
         "id": r["id"], "floor_id": r["floor_id"], "original_name": r["original_name"], "mime": r["mime"], "sha256": r["sha256"],
         "bytes": r["bytes"], "page_count": r["page_count"], "created_at": r["created_at"],
         "pages": [{"page": p, "preview_url": f"api/v1/plan-assets/{r['id']}/pages/{p}/preview.png"} for p in range(1, r["page_count"] + 1)],
+        "kind": "pdf" if r["mime"] == "application/pdf" else "dxf" if r["mime"] == "image/vnd.dxf" else "image",
     }
 
 
@@ -156,6 +157,12 @@ def _page_png(settings: Settings, asset: sqlite3.Row, page: int, max_px: int) ->
     src = settings.data_dir / asset["storage_path"]
     if asset["mime"] == "application/pdf":
         plan_render.render_pdf_page(src, page, out, max_px, settings.render_timeout_s)
+    elif asset["mime"] == "image/vnd.dxf":
+        opts = plan_dxf.load_options(_asset_dir(settings, asset["id"]))
+        try:
+            plan_dxf.render(src, out, max_px, opts.get("layers"), opts.get("units"))
+        except plan_dxf.DxfError as exc:
+            raise ApiError(422, exc.code, "לא ניתן לרנדר את ה־DXF עם השכבות שנבחרו.", details=exc.details)
     else:
         plan_render.normalize_image(src, out, max_px)
     return out
@@ -201,6 +208,15 @@ async def upload_asset(floor_id: str, request: Request, file: UploadFile = File(
                 raise ApiError(422, "corrupt_pdf", "ה־PDF לא ניתן לקריאה.", details={"error": type(exc).__name__})
             if page_count < 1 or page_count > settings.max_pdf_pages:
                 raise ApiError(422, "too_many_pages", f"ה־PDF חייב להכיל 1–{settings.max_pdf_pages} עמודים.", details={"pages": page_count})
+        elif mime == "image/vnd.dxf":
+            try:
+                info = plan_dxf.inspect(dest)
+                if info.drawable == 0:
+                    raise plan_dxf.DxfError("dxf_empty", "nothing drawable", {"unsupported": info.unsupported})
+                result = plan_dxf.render(dest, folder / f"page-1-{settings.preview_px}.png", settings.preview_px)
+            except plan_dxf.DxfError as exc:
+                raise ApiError(422, exc.code, {"corrupt_dxf": "קובץ ה־DXF לא ניתן לקריאה.", "dxf_empty": "ב־DXF אין גאומטריה שניתן לצייר (קווים, פוליליינים, מעגלים, קשתות, בלוקים).", "dxf_too_large": "ה־DXF גדול מדי."}.get(exc.code, "ה־DXF נדחה."), details=exc.details)
+            plan_dxf.save_options(folder, {"layers": None, "units": None, "info": info.to_dict(), "render": result.to_dict()})
         else:
             plan_render.normalize_image(dest, folder / f"page-1-{settings.preview_px}.png", settings.preview_px)
     except ApiError:
@@ -278,15 +294,34 @@ def create_version(floor_id: str, body: VersionIn, request: Request, principal: 
     if body.page > asset["page_count"]:
         raise ApiError(422, "validation", "מספר עמוד מחוץ לטווח.", details={"pages": asset["page_count"]})
     page_png = _page_png(settings, asset, body.page, settings.max_render_px)
+    dxf_scale: float | None = None
+    if asset["mime"] == "image/vnd.dxf" and body.scale_m_per_px is None:
+        # the drawing's units give the scale for free: metres per unit / pixels per unit at this render, corrected for the crop and the final resize
+        opts = plan_dxf.load_options(_asset_dir(settings, asset["id"]))
+        with unlocked(conn):
+            probe = plan_dxf.render(settings.data_dir / asset["storage_path"], page_png.with_name("probe.png"), settings.max_render_px, opts.get("layers"), opts.get("units"))
+        page_png.with_name("probe.png").unlink(missing_ok=True)
+        if probe.meters_per_px:
+            dxf_scale = probe.meters_per_px
     version_id = new_id()
     out = _asset_dir(settings, asset["id"]) / f"version-{version_id}.png"
     crop = plan_render.Crop(**body.crop.model_dump()) if body.crop else None
     w, h = plan_render.derive_version_image(page_png, out, body.rotation, crop, settings.max_render_px)
+    scale_value = body.scale_m_per_px
+    if dxf_scale is not None:
+        from PIL import Image as _Image
+
+        with _Image.open(page_png) as _im:
+            rw, rh = _im.size
+        if body.rotation in (90, 270):
+            rw, rh = rh, rw
+        crop_w_px = round(crop.w * rw) if crop else rw
+        scale_value = dxf_scale * (crop_w_px / w) if w else dxf_scale
     conn.execute(
         """INSERT INTO plan_versions(id, floor_id, asset_id, page, rotation, crop_json, width_px, height_px, image_path, scale_m_per_px, status, revision, notes, created_by, created_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', 1, ?, ?, ?)""",
         (version_id, floor_id, asset["id"], body.page, body.rotation, json.dumps(body.crop.model_dump()) if body.crop else None, w, h,
-         str(out.relative_to(settings.data_dir).as_posix()), body.scale_m_per_px, body.notes, principal.user_id, now_iso()),
+         str(out.relative_to(settings.data_dir).as_posix()), scale_value, body.notes, principal.user_id, now_iso()),
     )
     audit(conn, actor=principal, action="plan.version.create", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request),
           details={"version_id": version_id, "asset_id": asset["id"], "page": body.page, "rotation": body.rotation, "crop": body.crop.model_dump() if body.crop else None})
@@ -487,3 +522,72 @@ def patch_version(version_id: str, body: RenderModeIn, request: Request, princip
     conn.execute("UPDATE plan_versions SET render_mode = ? WHERE id = ?", (body.render_mode, version_id))
     audit(conn, actor=principal, action="plan.render_mode", decision="allowed", resource_type="plan_version", resource_id=version_id, request_id=_rid(request), details={"render_mode": body.render_mode})
     return version_row(get_version(conn, version_id))
+
+
+# ---------------------------------------------------------------- DXF options (T065)
+
+class DxfOptions(BaseModel):
+    layers: list[str] | None = None
+    units: str | None = None
+
+
+def _dxf_payload(settings: Settings, asset: sqlite3.Row) -> dict[str, Any]:
+    opts = plan_dxf.load_options(_asset_dir(settings, asset["id"]))
+    return {
+        "asset_id": asset["id"],
+        "adapter": {"library": "ezdxf", "license": "MIT", "drawable": list(plan_dxf.DRAWABLE), "note": "TEXT/MTEXT, HATCH, DIMENSION and 3D entities are counted and reported, never drawn; DWG must be converted to DXF first."},
+        "info": opts.get("info"),
+        "options": {"layers": opts.get("layers"), "units": opts.get("units")},
+        "render": opts.get("render"),
+        "units_choices": sorted(plan_dxf.METERS),
+    }
+
+
+@router.get("/plan-assets/{asset_id}/dxf")
+def dxf_info(asset_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """What the DXF contains (version, units, layers with drawable counts, entity counts, unsupported types, extent),
+    the chosen layers/units and the last render (size, scale, skipped entities, partial flag)."""
+    asset = get_asset(conn, asset_id)
+    require(conn, principal, "map.import", ("floor", asset["floor_id"]))
+    if asset["mime"] != "image/vnd.dxf":
+        raise ApiError(409, "not_dxf", "הקובץ אינו DXF.")
+    return _dxf_payload(settings_of(request), asset)
+
+
+@router.put("/plan-assets/{asset_id}/dxf")
+def dxf_set_options(asset_id: str, body: DxfOptions, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Choose the layers to draw and the drawing units; the page cache is re-rendered from the untouched source.
+    A partial conversion (skipped entity types) is always reported in `render.skipped`; an empty selection is refused."""
+    settings = settings_of(request)
+    asset = get_asset(conn, asset_id)
+    require(conn, principal, "map.import", ("floor", asset["floor_id"]))
+    if asset["mime"] != "image/vnd.dxf":
+        raise ApiError(409, "not_dxf", "הקובץ אינו DXF.")
+    folder = _asset_dir(settings, asset_id)
+    opts = plan_dxf.load_options(folder)
+    known = {l["name"] for l in (opts.get("info") or {}).get("layers", [])}
+    layers = None
+    if body.layers is not None:
+        layers = [l for l in body.layers if l in known]
+        unknown = [l for l in body.layers if l not in known]
+        if unknown:
+            raise ApiError(422, "unknown_layer", "שכבה לא קיימת בקובץ.", details={"unknown": unknown})
+        if not layers:
+            raise ApiError(422, "no_layers", "יש לבחור לפחות שכבה אחת.")
+    units = body.units
+    if units is not None and units not in plan_dxf.METERS and units != "unitless":
+        raise ApiError(422, "unknown_units", "יחידה לא מוכרת.", details={"choices": sorted(plan_dxf.METERS)})
+    src = settings.data_dir / asset["storage_path"]
+    for cached in folder.glob("page-1-*.png"):
+        cached.unlink(missing_ok=True)
+    try:
+        with unlocked(conn):
+            result = plan_dxf.render(src, folder / f"page-1-{settings.preview_px}.png", settings.preview_px, layers, None if units == "unitless" else units)
+    except plan_dxf.DxfError as exc:
+        raise ApiError(422, exc.code, "השכבות שנבחרו אינן מכילות גאומטריה שניתן לצייר.", details=exc.details)
+    opts.update({"layers": layers, "units": units, "render": result.to_dict()})
+    plan_dxf.save_options(folder, opts)
+    audit(conn, actor=principal, action="plan.asset.dxf_options", decision="allowed", resource_type="floor", resource_id=asset["floor_id"], request_id=_rid(request),
+          details={"asset_id": asset_id, "layers": layers, "units": units, "rendered": result.rendered, "skipped": result.skipped})
+    return _dxf_payload(settings, asset)
+

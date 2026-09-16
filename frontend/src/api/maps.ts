@@ -3,7 +3,7 @@
  * synthetic plans when no backend is present.
  */
 import { svg, type SVGTemplateResult } from 'lit';
-import { del, get, patch, post, resourceUrl, upload } from './client';
+import { del, get, patch, post, put, resourceUrl, upload } from './client';
 import { isApi } from './session';
 import type { Anchor, Camera, FloorMap, PlanAsset, PlanVersion, SpatialZone } from './types';
 import { demoCameras, demoFloors, demoPlan, demoSite } from '../fixtures/demo';
@@ -178,3 +178,23 @@ export const updateCamera = (id: string, body: { alias?: string; sort_order?: nu
 
 /** Plain white plan area (used only where no raster and no synthetic plan exist). */
 export const blankPlan = (w: number, h: number): SVGTemplateResult => svg`<rect x="0" y="0" width=${w} height=${h} fill="var(--sw-map-bg)" />`;
+
+/** DXF source details and options (T065): what the drawing holds, what is drawn, what is skipped. */
+export interface DxfLayer {
+  name: string;
+  drawable: number;
+  off: boolean;
+  frozen: boolean;
+  color: number | null;
+}
+export interface DxfDetails {
+  asset_id: string;
+  adapter: { library: string; license: string; drawable: string[]; note: string };
+  info: { version: string; units_code: number; units: string; layers: DxfLayer[]; entity_counts: Record<string, number>; unsupported: Record<string, number>; extent: { minx: number; miny: number; maxx: number; maxy: number; width: number; height: number } | null; drawable: number; warnings: string[] } | null;
+  options: { layers: string[] | null; units: string | null };
+  render: { width: number; height: number; px_per_unit: number; units: string; meters_per_px: number | null; rendered: number; skipped: Record<string, number>; layers: string[]; partial: boolean } | null;
+  units_choices: string[];
+}
+export const getDxf = (assetId: string) => get<DxfDetails>(`plan-assets/${assetId}/dxf`);
+export const setDxf = (assetId: string, body: { layers: string[] | null; units: string | null }) => put<DxfDetails>(`plan-assets/${assetId}/dxf`, body);
+

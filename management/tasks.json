@@ -3487,7 +3487,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence 2026-09-17 (0.1.43): isolated DXF adapter services/plan_dxf.py on ezdxf (MIT; deps numpy/fonttools/pyparsing) — content sniffing (ASCII + binary DXF), inspect (version, $INSUNITS, layers with drawable counts, entity counts, unsupported types), render from LINE/LWPOLYLINE/POLYLINE/CIRCLE/ARC/ELLIPSE/SPLINE/INSERT with the source kept untouched, layer + units options per asset (PUT /plan-assets/{id}/dxf, audited) re-rendering the page cache, partial conversion always reported and an empty selection refused, version scale derived from the units (crop/resize corrected). DWG excluded (closed format). tests/test_dxf.py; live evidence private-evidence/T065-dxf-live on a scratch floor. Status stays BACKLOG."
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null

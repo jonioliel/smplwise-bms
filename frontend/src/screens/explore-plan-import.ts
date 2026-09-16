@@ -9,7 +9,7 @@ import '../components/sw-badge';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import { navigate } from '../router';
-import { createVersion, listAssets, publishVersion, uploadAsset } from '../api/maps';
+import { createVersion, getDxf, listAssets, publishVersion, setDxf, uploadAsset, type DxfDetails } from '../api/maps';
 import { findFloor, loadTree, type CatalogTree } from '../api/catalog';
 import { describeError, resourceUrl } from '../api/client';
 import { isApi } from '../api/session';
@@ -36,6 +36,12 @@ export class ExplorePlanImport extends LitElement {
   @state() private busy = false;
   @state() private error = '';
   @state() private dragOver = false;
+  /** T065: DXF details for the selected asset, the layer/units choice being edited, and a cache-buster for re-rendered previews. */
+  @state() private dxf: DxfDetails | null = null;
+  @state() private dxfLayers: string[] | null = null;
+  @state() private dxfUnits: string | null = null;
+  @state() private dxfBusy = false;
+  @state() private previewBust = 0;
 
   static styles = css`
     .layout {
@@ -237,6 +243,72 @@ export class ExplorePlanImport extends LitElement {
     return this.tree && this.floorId ? findFloor(this.tree, this.floorId) : null;
   }
 
+  protected updated(changed: Map<string, unknown>) {
+    if (changed.has('asset') && isApi()) {
+      const a = this.asset;
+      if (a && a.kind === 'dxf' && (!this.dxf || this.dxf.asset_id !== a.id)) void this.loadDxf(a.id);
+      else if (!a || a.kind !== 'dxf') this.dxf = null;
+    }
+  }
+
+  private async loadDxf(assetId: string) {
+    try {
+      const d = await getDxf(assetId);
+      this.dxf = d;
+      this.dxfLayers = d.options.layers;
+      this.dxfUnits = d.options.units ?? (d.info?.units && d.info.units !== 'unitless' ? d.info.units : null);
+    } catch (err) {
+      this.error = describeError(err);
+    }
+  }
+
+  private toggleDxfLayer(name: string) {
+    const all = this.dxf?.info?.layers.filter((l) => l.drawable > 0).map((l) => l.name) ?? [];
+    const cur = this.dxfLayers ?? all;
+    this.dxfLayers = cur.includes(name) ? cur.filter((x) => x !== name) : [...cur, name];
+  }
+
+  private async applyDxf() {
+    if (!this.dxf) return;
+    this.dxfBusy = true;
+    this.error = '';
+    try {
+      const all = this.dxf.info?.layers.filter((l) => l.drawable > 0).map((l) => l.name) ?? [];
+      const layers = this.dxfLayers && this.dxfLayers.length !== all.length ? this.dxfLayers : null;
+      this.dxf = await setDxf(this.dxf.asset_id, { layers, units: this.dxfUnits });
+      this.dxfLayers = this.dxf.options.layers;
+      this.previewBust = Date.now();
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.dxfBusy = false;
+    }
+  }
+
+  private renderDxf() {
+    const d = this.dxf;
+    if (!d || !d.info) return nothing;
+    const all = d.info.layers.filter((l) => l.drawable > 0).map((l) => l.name);
+    const chosen = this.dxfLayers ?? all;
+    const ext = d.info.extent;
+    const skipped = Object.entries(d.render?.skipped ?? d.info.unsupported);
+    const m = d.render?.meters_per_px;
+    const unitsKnown = d.render?.units && d.render.units !== 'unitless';
+    return html`<sw-card heading="DXF · שכבות, יחידות וקנה מידה" subheading=${`${d.adapter.library} (${d.adapter.license}) · המקור נשמר כפי שהועלה; התצוגה נגזרת ממנו`} data-dxf>
+      <div class="note">גרסה ${d.info.version} · יחידות בקובץ: <strong data-dxf-units>${d.info.units}</strong>${ext ? html` · היקף ${ext.width.toFixed(0)} × ${ext.height.toFixed(0)} יחידות` : nothing}${unitsKnown && ext && m ? html` · כ־${((ext.width * (m * (d.render!.px_per_unit))) ).toFixed(1)} × ${((ext.height * (m * (d.render!.px_per_unit)))).toFixed(1)} מ׳` : nothing}</div>
+      <div class="note">ישויות: ${Object.entries(d.info.entity_counts).map(([k, v]) => `${k} ${v}`).join(' · ')}</div>
+      ${skipped.length ? html`<div class="err" data-dxf-partial>המרה חלקית: ${skipped.map(([k, v]) => `${v} × ${k}`).join(', ')} לא מצוירים (טקסטים, מילויים, מידות וגופים תלת־ממדיים אינם מומרים). הדבר יוצג גם על הגרסה.</div>` : html`<div class="note">כל הישויות בקובץ מצוירות.</div>`}
+      <div class="note" style="margin-block-start:6px">שכבות (${chosen.length} מתוך ${all.length}):</div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px 12px">${d.info.layers.map((l) => html`<label style="display:flex;gap:6px;align-items:center;font-size:var(--sw-fs-sm)"><input type="checkbox" data-dxf-layer=${l.name} .checked=${chosen.includes(l.name)} ?disabled=${l.drawable === 0} @change=${() => this.toggleDxfLayer(l.name)} /> <span class="ltr">${l.name}</span> <span class="note">(${l.drawable})</span></label>`)}</div>
+      <div class="row" style="margin-block-start:8px;align-items:center;gap:8px">
+        <sw-field label="יחידות השרטוט"><select data-dxf-units-select @change=${(e: Event) => (this.dxfUnits = (e.target as HTMLSelectElement).value || null)}><option value="" ?selected=${!this.dxfUnits}>לפי הקובץ (${d.info.units})</option>${d.units_choices.map((u) => html`<option value=${u} ?selected=${this.dxfUnits === u}>${u}</option>`)}</select></sw-field>
+        <sw-button size="sm" variant="primary" data-dxf-apply ?disabled=${this.dxfBusy || chosen.length === 0} @click=${() => this.applyDxf()}>החל ורנדר מחדש</sw-button>
+      </div>
+      ${d.render ? html`<div class="note" style="margin-block-start:6px" data-dxf-render>רונדר: ${d.render.width}×${d.render.height} px · ${d.render.rendered} ישויות מ־${d.render.layers.length} שכבות${m ? ` · ${(m * 100).toFixed(2)} ס״מ לפיקסל (מיחידות ${d.render.units}; ייכנס לגרסה כקנה מידה)` : ' · קנה מידה לא ידוע: הקובץ ללא יחידות, בחר יחידות או כייל מאוחר יותר'}</div>` : nothing}
+      <div class="note">DWG אינו נתמך (פורמט סגור) — יש להמיר ל־DXF לפני הייבוא.</div>
+    </sw-card>`;
+  }
+
   private async onFile(file: File | undefined) {
     if (!file || !this.floorId) return;
     this.busy = true;
@@ -296,7 +368,7 @@ export class ExplorePlanImport extends LitElement {
   private previewUrl() {
     const p = this.asset?.pages.find((x) => x.page === this.page) ?? this.asset?.pages[0];
     if (!p) return '';
-    const url = resourceUrl(p.preview_url);
+    const url = resourceUrl(p.preview_url) + (this.previewBust ? `${p.preview_url.includes('?') ? '&' : '?'}v=${this.previewBust}` : '');
     return this.rotation ? `${url}${url.includes('?') ? '&' : '?'}rotation=${this.rotation}` : url;
   }
 
@@ -334,7 +406,7 @@ export class ExplorePlanImport extends LitElement {
       case 0:
         return html`
           <label class="drop ${this.dragOver ? 'over' : ''}" @dragover=${(e: DragEvent) => { e.preventDefault(); this.dragOver = true; }} @dragleave=${() => (this.dragOver = false)} @drop=${(e: DragEvent) => { e.preventDefault(); this.dragOver = false; void this.onFile(e.dataTransfer?.files[0]); }}>
-            <input type="file" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" @change=${(e: Event) => void this.onFile((e.target as HTMLInputElement).files?.[0])} />
+            <input type="file" accept=".pdf,.png,.jpg,.jpeg,.dxf,application/pdf,image/png,image/jpeg,image/vnd.dxf" @change=${(e: Event) => void this.onFile((e.target as HTMLInputElement).files?.[0])} />
             <div>
               <div class="ic"><sw-icon name="upload" size=${20}></sw-icon></div>
               <strong>${this.busy ? 'מעלה…' : 'גרור לכאן PDF או תמונה של התוכנית, או לחץ לבחירה'}</strong>
@@ -413,6 +485,7 @@ export class ExplorePlanImport extends LitElement {
                         ? html`<div class="note">${this.asset.original_name}</div><div class="row" style="margin-block-start:6px"><sw-badge kind="neutral" label=${`${this.asset.mime.split('/')[1].toUpperCase()} · ${(this.asset.bytes / 1024 / 1024).toFixed(1)} MB · ${this.asset.page_count} עמ׳`}></sw-badge></div><div class="note ltr" style="margin-block-start:6px">sha256 ${this.asset.sha256.slice(0, 16)}…</div>`
                         : html`<div class="note">עדיין לא נבחר קובץ.</div>`}
                     </sw-card>
+                    ${this.renderDxf()}
                     <sw-card heading="בטיחות">
                       <div class="note">הקובץ מזוהה לפי תוכנו; PDF מרונדר בתהליך נפרד עם מגבלת זמן; SVG נדחה עד sanitization. תוכן טקסטואלי בתוך הקובץ הוא נתון בלבד.</div>
                     </sw-card>
