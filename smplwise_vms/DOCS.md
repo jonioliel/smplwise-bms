@@ -421,7 +421,10 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
 
 - Uploads: PDF/PNG/JPG up to 40 MB, PDF up to 20 pages; SVG and DWG/DXF are rejected.
 - PDF rasterization runs in a separate process (pdftoppm) with a 30 s limit.
-- Playback: speed 1× only, no frame step; up to four cameras side by side (best effort sync); events are
+- Playback: speed 1× only (the relay delivers the NVR stream in real time, so faster speeds are disabled with
+  the reason), no frame step; up to four cameras side by side on one master clock (the median rendered time of the playing
+  tiles) with the drift of every tile measured against it (p95 over the last 40 samples, quality on the stamp, reported on the group); a tile out by
+  more than 2 s is re-seeked alone, never the whole group. Still best effort: no verified PTS↔UTC anchor; events are
   not drawn on the timeline yet. Export trims at key frames (the start may be a few seconds early). PTZ and two-way audio are not exposed until the
   capability is verified per camera.
 - Home Assistant actions: only the allow-listed services above, no arguments yet (brightness, position);

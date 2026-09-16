@@ -2264,7 +2264,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence 2026-09-16 (0.1.38): master clock per playback group (barrier, then the median rendered time of the playing tiles), per-tile rendered time measured against it, p95 |drift| over a 40-sample window, quality on the stamp and POST /playback/groups/{id}/sync stored on the group; a tile out by >2 s for 3 samples is re-seeked alone (aiming ahead by its measured start-up latency), missing/late tiles never shift the others; unsupported speeds disabled with the reason. tests/test_playback_sync.py; live evidence private-evidence/T042-sync-live (real Chrome, lab NVR): lab 2026-09-16/17, real Chrome, 3-4 cameras: tiles render 4-11 s after the seek; right after the barrier p95 was 1.9-2.6 s (three of four tiles within 1.2 s of the clock), degrading to 3-7 s within 1-2 minutes as MSE tiles stall; a member re-seek recovers a tile briefly; in one run two of four tiles never rendered within 100 s (concurrent playback capacity of the lab NVR / relay) - measured, shown and reported, not hidden. Found on the way and fixed: the janitor had been dead since 0.1.30 (missing import) and a playback session leaked on screen replacement. Status stays BACKLOG until the owner's acceptance review."
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null

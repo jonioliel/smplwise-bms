@@ -86,6 +86,34 @@ export function instantInZone(date: string, minute: number, timeZone: string): D
 }
 
 /** Playback group (chapter 25): one reference time for 2–4 cameras, each with its own session. */
+/** T042: what the browser measured for a group — |drift| p95 per member against the master clock. */
+export type SyncQuality = 'waiting' | 'synced' | 'slight' | 'out_of_sync';
+export interface SyncMember {
+  p95: number | null;
+  samples: number;
+  last: number | null;
+  resyncs: number;
+  state: 'waiting' | 'measured' | 'late';
+  /** Measured time from the last seek to the first rendered frame (ms); what a re-seek aims ahead by. */
+  latency_ms?: number | null;
+}
+export interface SyncStats {
+  p95: number | null;
+  quality: SyncQuality;
+  samples: number;
+  partial: boolean;
+  missing: string[];
+  members: Record<string, SyncMember>;
+}
+export interface SyncReport {
+  p95_s: number | null;
+  quality: SyncQuality;
+  samples: number;
+  partial: boolean;
+  members: Record<string, SyncMember>;
+  reported_at: string;
+}
+
 export interface PlaybackGroup {
   id: string;
   requested_at: string;
@@ -93,11 +121,14 @@ export interface PlaybackGroup {
   sessions: PlaybackSession[];
   missing: Record<string, string>;
   sync: 'best_effort';
+  sync_report?: SyncReport | null;
 }
 
 export const createGroup = (cameraIds: string[], startAt: string) => post<PlaybackGroup>('playback/groups', { camera_ids: cameraIds, start_at: startAt });
 export const seekGroup = (id: string, startAt: string) => post<PlaybackGroup>(`playback/groups/${id}/seek`, { start_at: startAt });
 export const closeGroup = (id: string) => del(`playback/groups/${id}`);
+export const reportGroupSync = (id: string, stats: SyncStats) =>
+  post<{ ok: boolean; sync_report: SyncReport }>(`playback/groups/${id}/sync`, { p95_s: stats.p95, quality: stats.quality, samples: stats.samples, partial: stats.partial, members: stats.members });
 
 /** JPEG frame from the recording at a UTC instant (T044); 404 when there is no picture there. */
 export const frameUrl = (cameraId: string, atIso: string) => apiUrl(`cameras/${cameraId}/frame?at=${encodeURIComponent(atIso)}`);

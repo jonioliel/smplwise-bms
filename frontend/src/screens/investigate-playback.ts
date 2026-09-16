@@ -23,6 +23,7 @@ import { productSettings } from '../api/prefs';
 import { navigate } from '../router';
 import { describeError, ApiError } from '../api/client';
 import { closeGroup, closePlayback, createGroup, createPlayback, dateInZone, frameUrl, instantInZone, minuteInZone, playbackWsUrl, recordingsForDay, seekGroup, seekPlayback, type PlaybackGroup, type PlaybackSession, type RecordingsResponse } from '../api/recordings';
+import { reportGroupSync, type SyncStats } from '../api/recordings';
 import { createExport, estimateExport, formatBytes, type ExportEstimate, type ExportJob } from '../api/exports';
 import { cameraEvents, markerKind, EVENT_LABEL, type VmsEvent } from '../api/events';
 import type { TimelineEvent } from '../components/sw-timeline';
@@ -47,6 +48,12 @@ function parseHms(v: string): number {
  * Time precision is labelled from the session; a gap is shown as a gap, never replaced by live.
  * Without a backend: the demo skeleton.
  */
+/** 95th percentile of |values| (T042): the number the sync quality is judged by, never the mean. */
+function p95Abs(values: number[]): number {
+  const s = values.map((v) => Math.abs(v)).sort((a, b) => a - b);
+  return s[Math.min(s.length - 1, Math.max(0, Math.ceil(0.95 * s.length) - 1))];
+}
+
 @customElement('investigate-playback')
 export class InvestigatePlayback extends LitElement {
   /** Route params (#/investigate/playback?camera=<id>&t=<utc iso>) */
@@ -82,6 +89,21 @@ export class InvestigatePlayback extends LitElement {
   @state() private notice = '';
   @state() private tileStatus: Record<string, string> = {};
   @state() private drifts: Record<string, number> = {};
+  /** T042: the group's master clock — set once the barrier passes, then driven by the wall clock, never by a tile. */
+  @state() private clock: { baseMs: number; startedAt: number } | null = null;
+  @state() private barrier: 'none' | 'waiting' | 'passed' = 'none';
+  @state() private syncStats: SyncStats | null = null;
+  private clockPausedAt = 0;
+  private driftSamples: Record<string, number[]> = {};
+  private lateSince: Record<string, number> = {};
+  private resyncAt: Record<string, number> = {};
+  private resyncs: Record<string, number> = {};
+  private groupStartedAt = 0;
+  private lastReport = 0;
+  /** Per tile: when the last seek was sent and when it first rendered, so a re-seek can aim ahead by the measured start-up latency. */
+  private seekSentAt: Record<string, number> = {};
+  private firstPlayAt: Record<string, number> = {};
+  private startLatency: Record<string, number> = {};
   @state() private paused = false;
   @state() private scrubbing = false;
   @state() private position: Date | null = null; // media clock → source time
@@ -555,8 +577,13 @@ export class InvestigatePlayback extends LitElement {
     try {
       const iso = at.toISOString().replace(/\.\d{3}Z$/, 'Z');
       if (this.groupMode) {
+        const sent = performance.now();
         const g = this.group && this.group.sessions.some((s) => !FINISHED.includes(s.state)) ? await seekGroup(this.group.id, iso) : await createGroup(this.members, iso);
         this.group = g;
+        for (const s of g.sessions) {
+          this.seekSentAt[s.camera_id] = sent;
+          delete this.firstPlayAt[s.camera_id];
+        }
         this.session = null;
         this.position = new Date(g.requested_at);
         const missing = Object.keys(g.missing);
@@ -572,6 +599,12 @@ export class InvestigatePlayback extends LitElement {
       this.paused = false;
       this.tileStatus = {};
       this.drifts = {};
+      this.resetClock();
+      if (!this.isConnected) {
+        // the screen went away while the session was being created (route change): release it, never leak it
+        await this.endSession();
+        return;
+      }
     } catch (err) {
       if (err instanceof ApiError && err.body.code === 'no_recording') {
         this.notice = 'אין הקלטה בזמן הזה ובשש השעות שאחריו: פער בכיסוי, לא מדלגים ל־Live.';
@@ -597,6 +630,7 @@ export class InvestigatePlayback extends LitElement {
     this.group = null;
     this.tileStatus = {};
     this.drifts = {};
+    this.resetClock();
     try {
       if (g) await closeGroup(g.id);
       else if (s && !FINISHED.includes(s.state)) await closePlayback(s.id);
@@ -624,6 +658,7 @@ export class InvestigatePlayback extends LitElement {
   private currentInstant(): Date | null {
     const s = this.masterSession;
     if (!s) return this.position;
+    if (this.groupMode && this.clock) return new Date(this.clockNow());
     const base = new Date(s.requested_at).getTime();
     return new Date(base + (this.masterPlayer()?.mediaTime ?? 0) * 1000);
   }
@@ -631,6 +666,10 @@ export class InvestigatePlayback extends LitElement {
   private tick() {
     const s = this.masterSession;
     if (!s || this.paused || this.scrubbing) return;
+    if (this.groupMode && this.group) {
+      this.tickGroup();
+      return;
+    }
     const master = this.masterPlayer();
     if (!master || master.status !== 'playing') return;
     const now = this.currentInstant();
@@ -638,17 +677,136 @@ export class InvestigatePlayback extends LitElement {
       this.position = now;
       this.cursor = minuteInZone(now, this.tz);
     }
-    if (this.groupMode && this.group) {
-      const drifts: Record<string, number> = {};
-      for (const p of this.players()) {
+  }
+
+  // ---- T042: master clock, barrier, measured drift ----
+
+  private resetClock() {
+    this.clock = null;
+    this.clockPausedAt = 0;
+    this.barrier = this.groupMode ? 'waiting' : 'none';
+    this.driftSamples = {};
+    this.lateSince = {};
+    this.resyncAt = {};
+    this.resyncs = {};
+    this.syncStats = null;
+    this.groupStartedAt = performance.now();
+    this.lastReport = 0;
+  }
+
+  private clockNow(): number {
+    const c = this.clock!;
+    return c.baseMs + ((this.paused && this.clockPausedAt ? this.clockPausedAt : performance.now()) - c.startedAt);
+  }
+
+  /** Every tick in group mode: pass the barrier once, then measure each tile's rendered time against the clock. */
+  private tickGroup() {
+    const g = this.group!;
+    const nowMs = performance.now();
+    const tiles = this.players()
+      .map((p) => {
         const cid = p.dataset.camera ?? '';
-        const sess = this.group.sessions.find((x) => x.camera_id === cid);
-        if (!sess || cid === this.cameraId) continue;
-        const pos = new Date(sess.requested_at).getTime() + p.mediaTime * 1000;
-        drifts[cid] = p.status === 'playing' && now ? (pos - now.getTime()) / 1000 : NaN;
+        const sess = g.sessions.find((x) => x.camera_id === cid);
+        return { cid, p, sess, at: sess ? new Date(sess.requested_at).getTime() + p.mediaTime * 1000 : NaN };
+      })
+      .filter((t) => t.sess && !FINISHED.includes(t.sess.state));
+    const playing = tiles.filter((t) => t.p.status === 'playing');
+    if (!this.clock) {
+      // barrier: every member with a session renders, or 6 s passed since the (re)start — late members are then reported, not waited for
+      const allPlaying = tiles.length > 0 && playing.length === tiles.length;
+      const timedOut = nowMs - this.groupStartedAt > 12000 && playing.length > 0;
+      if (!allPlaying && !timedOut) {
+        this.barrier = 'waiting';
+        return;
       }
-      this.drifts = drifts;
+      const lead = playing.find((t) => t.cid === this.cameraId) ?? playing[0];
+      this.clock = { baseMs: lead.at, startedAt: nowMs };
+      this.barrier = 'passed';
+      this.driftSamples = {};
+      this.lateSince = {};
     }
+    // consensus clock: the median rendered time of the playing tiles (three or more), else the lead's; the wall clock only carries it between ticks
+    let masterMs = this.clockNow();
+    if (playing.length >= 3) {
+      const sorted = playing.map((t) => t.at).sort((a, b) => a - b);
+      masterMs = sorted[Math.floor(sorted.length / 2)];
+    } else if (playing.length) {
+      masterMs = (playing.find((t) => t.cid === this.cameraId) ?? playing[0]).at;
+    }
+    this.clock = { baseMs: masterMs, startedAt: nowMs };
+    const now = new Date(masterMs);
+    this.position = now;
+    this.cursor = minuteInZone(now, this.tz);
+    const drifts: Record<string, number> = {};
+    for (const t of tiles) {
+      if (t.p.status !== 'playing') {
+        drifts[t.cid] = NaN;
+        if (!this.lateSince[t.cid]) this.lateSince[t.cid] = nowMs;
+        continue;
+      }
+      delete this.lateSince[t.cid];
+      const d = (t.at - masterMs) / 1000;
+      drifts[t.cid] = d;
+      const arr = (this.driftSamples[t.cid] ??= []);
+      arr.push(d);
+      if (arr.length > 40) arr.shift();
+      // out by more than 3 s for four consecutive samples: re-seek this tile alone (never the lead, at most twice per start, 20 s apart);
+      // every re-seek costs a stream start, so beyond that the drift is shown rather than chased. The clock and the other tiles stay put.
+      if (t.cid !== this.cameraId && arr.length >= 4 && arr.slice(-4).every((x) => Math.abs(x) > 3) && (this.resyncs[t.cid] ?? 0) < 2 && nowMs - (this.resyncAt[t.cid] ?? 0) > 20000) void this.resyncMember(t.cid, masterMs);
+    }
+    this.drifts = drifts;
+    this.syncStats = this.computeSync(tiles.map((t) => t.cid), nowMs);
+    if (nowMs - this.lastReport > 5000 && this.syncStats.samples >= 4) {
+      this.lastReport = nowMs;
+      void reportGroupSync(g.id, this.syncStats).catch(() => undefined);
+    }
+  }
+
+  private computeSync(cids: string[], nowMs: number): SyncStats {
+    const members: SyncStats['members'] = {};
+    let worst: number | null = null;
+    let samples = 0;
+    for (const cid of cids) {
+      const arr = this.driftSamples[cid] ?? [];
+      const p95 = arr.length ? p95Abs(arr) : null;
+      const late = this.lateSince[cid] ? nowMs - this.lateSince[cid] > 8000 : false;
+      members[cid] = { p95, samples: arr.length, last: arr.length ? arr[arr.length - 1] : null, resyncs: this.resyncs[cid] ?? 0, state: late ? 'late' : arr.length ? 'measured' : 'waiting', latency_ms: this.startLatency[cid] ?? null };
+      samples += arr.length;
+      if (p95 !== null) worst = worst === null ? p95 : Math.max(worst, p95);
+    }
+    const missing = Object.keys(this.group?.missing ?? {});
+    const anyLate = Object.values(members).some((m) => m.state === 'late');
+    const quality: SyncStats['quality'] = this.barrier !== 'passed' || worst === null ? 'waiting' : worst <= 0.5 ? 'synced' : worst <= 2 ? 'slight' : 'out_of_sync';
+    return { p95: worst, quality, samples, partial: missing.length > 0 || anyLate, missing, members };
+  }
+
+  /** One tile back to the master clock; never the whole group and never the clock itself. */
+  private async resyncMember(cid: string, masterMs: number) {
+    const g = this.group;
+    const sess = g?.sessions.find((x) => x.camera_id === cid);
+    if (!g || !sess || FINISHED.includes(sess.state)) return;
+    this.resyncAt[cid] = performance.now();
+    this.resyncs[cid] = (this.resyncs[cid] ?? 0) + 1;
+    this.driftSamples[cid] = [];
+    // aim ahead by this tile's measured start-up latency, so it lands on the clock instead of behind it again
+    const ahead = Math.min(this.startLatency[cid] ?? 4000, 15000);
+    try {
+      const next = await seekPlayback(sess.id, new Date(masterMs + ahead).toISOString().replace(/\.\d{3}Z$/, 'Z'));
+      if (this.group === g) this.group = { ...g, sessions: g.sessions.map((x) => (x.id === next.id ? next : x)) };
+      // the tile reconnects only now (new generation in its socket URL): measure the start-up latency from here
+      this.seekSentAt[cid] = performance.now();
+      delete this.firstPlayAt[cid];
+    } catch {
+      /* the next samples decide again */
+    }
+  }
+
+  private syncLabel(): string {
+    const st = this.syncStats;
+    if (this.barrier === 'waiting' || !st || st.quality === 'waiting') return 'סנכרון: ממתין לחסם הפתיחה';
+    const p95 = st.p95 === null ? '—' : `${st.p95.toFixed(2)} ש׳`;
+    const q = { synced: 'מסונכרן', slight: 'סטייה קלה', out_of_sync: 'לא מסונכרן', waiting: '' }[st.quality];
+    return `סנכרון: ${q} · p95 ${p95}${st.partial ? ' · חלקי' : ''}`;
   }
 
   private async onSeek(e: CustomEvent<{ minute: number }>) {
@@ -678,13 +836,23 @@ export class InvestigatePlayback extends LitElement {
   private togglePause() {
     const players = this.players();
     if (!players.length) return;
-    if (this.paused) players.forEach((p) => p.resume());
-    else players.forEach((p) => p.pause());
+    if (this.paused) {
+      players.forEach((p) => p.resume());
+      if (this.clock && this.clockPausedAt) this.clock = { ...this.clock, startedAt: this.clock.startedAt + (performance.now() - this.clockPausedAt) };
+      this.clockPausedAt = 0;
+    } else {
+      players.forEach((p) => p.pause());
+      this.clockPausedAt = performance.now();
+    }
     this.paused = !this.paused;
   }
 
   private onTilePlayer(cameraId: string, e: CustomEvent<{ status: string; transport?: string; error?: string }>) {
     this.tileStatus = { ...this.tileStatus, [cameraId]: e.detail.status };
+    if (e.detail.status === 'playing' && this.seekSentAt[cameraId] && !this.firstPlayAt[cameraId]) {
+      this.firstPlayAt[cameraId] = performance.now();
+      this.startLatency[cameraId] = this.firstPlayAt[cameraId] - this.seekSentAt[cameraId];
+    }
     if (cameraId !== this.cameraId) return;
     if (this.masterSession && e.detail.status === 'playing') {
       if (this.session) this.session = { ...this.session, state: 'playing' };
@@ -803,7 +971,7 @@ export class InvestigatePlayback extends LitElement {
             ${sess && !FINISHED.includes(sess.state)
               ? html`<sw-live-player data-camera=${cid} .wsUrl=${playbackWsUrl(sess)} mode="mse" .retry=${false} compact @player-status=${(e: CustomEvent<{ status: string }>) => this.onTilePlayer(cid, e)}></sw-live-player>`
               : html`<div class="center"><div><sw-icon name="offline" size=${20}></sw-icon><span>${missing === 'gap' || missing === 'no_recording' ? 'אין הקלטה בזמן הזה' : missing === 'playback_quota' ? 'מכסת הניגון מלאה' : this.busy ? 'מכין…' : this.group ? 'לא זמין' : 'לחץ על ציר הזמן'}</span></div></div>`}
-            <span class="name">${this.cameraName(cid)}${cid === this.cameraId ? html` · מוביל` : nothing}${cid !== this.cameraId && sess && st === 'playing' && Number.isFinite(drift) ? html`<span class="drift ${Math.abs(drift) > 2 ? 'bad' : ''}">${drift >= 0 ? '+' : ''}${drift.toFixed(1)}s</span>` : nothing}</span>
+            <span class="name" data-tile=${cid} data-tile-state=${this.syncStats?.members[cid]?.state ?? ''}>${this.cameraName(cid)}${cid === this.cameraId ? html` · מוביל` : nothing}${sess && st === 'playing' && Number.isFinite(drift) ? html`<span class="drift ${Math.abs(drift) > 2 ? 'bad' : ''}" title="סטייה מהשעון־אב, נמדדת מהפריים המוצג">${drift >= 0 ? '+' : ''}${drift.toFixed(1)}s</span>` : nothing}${this.syncStats?.members[cid]?.state === 'late' ? html`<span class="drift bad">מאחרת</span>` : nothing}${(this.syncStats?.members[cid]?.resyncs ?? 0) > 0 ? html`<span class="drift">סונכרן מחדש ×${this.syncStats!.members[cid].resyncs}</span>` : nothing}</span>
           </div>`;
         })}
       </div>`;
@@ -832,13 +1000,16 @@ export class InvestigatePlayback extends LitElement {
     return html`
       <div class="stage">
         ${this.renderStage(cam)}
-        <span class="stamp">${this.date} ${this.fmt(pos)} · ${{ verified: 'מאומת', keyframe_limited: 'דיוק לפי keyframe', estimated: 'משוער', unknown: '—' }[precision]}${this.groupMode ? ' · סנכרון best effort' : ''}</span>
+        <span class="stamp">${this.date} ${this.fmt(pos)} · ${{ verified: 'מאומת', keyframe_limited: 'דיוק לפי keyframe', estimated: 'משוער', unknown: '—' }[precision]}${this.groupMode ? html` · <span data-sync-quality=${this.syncStats?.quality ?? 'waiting'} data-sync-p95=${this.syncStats?.p95 ?? ''} data-sync-samples=${this.syncStats?.samples ?? 0}>${this.syncLabel()}</span>` : ''}</span>
         <div class="bar"><div class="inner">
           <sw-button variant="ghost" size="sm" iconOnly icon=${this.paused ? 'play' : 'pause'} label=${this.paused ? 'המשך' : 'השהה'} ?disabled=${!live || masterStatus !== 'playing'} @click=${() => this.togglePause()}></sw-button>
           <sw-button variant="ghost" size="sm" iconOnly icon="back10" label="10 שניות אחורה" ?disabled=${!live || this.busy} @click=${() => this.nudge(-10)}></sw-button>
           <sw-button variant="ghost" size="sm" iconOnly icon="forward10" label="10 שניות קדימה" ?disabled=${!live || this.busy} @click=${() => this.nudge(10)}></sw-button>
           <span class="sep"></span>
-          <button class="q on" title="מהירויות נוספות יוצגו רק אם המסלול תומך">1×</button>
+          ${[1, 2, 4].map((s) => {
+            const ok = s === 1 || (!this.groupMode && (master?.capabilities.supported_speeds ?? [1]).includes(s));
+            return html`<button class="q ${s === 1 ? 'on' : ''}" data-speed=${s} ?disabled=${!ok} title=${ok ? '' : this.groupMode ? 'בסנכרון רב־מצלמות נתמך רק 1×' : 'לא נתמך במסלול הזה: הזרם מגיע מה־NVR בזמן אמת'}>${s}×</button>`;
+          })}
           <span class="sep"></span>
           <sw-button variant="ghost" size="sm" iconOnly icon="expand" label="מסך מלא" ?disabled=${!live} @click=${() => this.masterPlayer()?.fullscreen()}></sw-button>
         </div></div>
@@ -855,7 +1026,7 @@ export class InvestigatePlayback extends LitElement {
       <div class="compare">
         <span>השוואה (עד 4):</span>
         ${this.cams.filter((c) => c.id !== this.cameraId).map((c) => html`<sw-chip ?selected=${this.extra.includes(c.id)} @click=${() => this.toggleExtra(c.id)}>${c.name}</sw-chip>`)}
-        ${this.groupMode ? html`<span>· ציר הזמן עוקב אחרי המצלמה המובילה; הסטייה של כל אריח מוצגת עליו (best effort, ללא עוגן זמן מאומת)</span>` : nothing}
+        ${this.groupMode ? html`<span>· שעון־אב אחד לכל האריחים (חסם פתיחה, ואז חציון זמני הפריימים המוצגים; מתחת לשלושה אריחים — המוביל); הסטייה של כל אריח נמדדת מול השעון, p95 על החלון האחרון; אריח מאחר מסונכרן לבד ואינו מזיז את האחרים (best effort, ללא עוגן זמן מאומת)</span>` : nothing}
       </div>
       <div class="filters">
         ${this.rec ? html`<sw-chip icon="history">${this.rec.segments.length} מקטעים · ${this.rec.matches} קבצים</sw-chip>` : nothing}

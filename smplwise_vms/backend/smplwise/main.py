@@ -21,6 +21,26 @@ from .routers import access, anchors, backup, cameras, cases, catalog, events, e
 log = logging.getLogger("smplwise")
 
 
+def janitor_tick(db: Database, settings: Settings) -> None:
+    """One housekeeping pass (every 30 s): idle playback sessions, orphan relay streams, empty playback groups,
+    export retention, event / thumbnail / audit / HA-history pruning. A plain function so a test runs it end to
+    end — from 0.1.30 to 0.1.37 the pass died silently on a missing import before the audit prune."""
+    from . import audit as audit_mod
+    from .routers.settings import read_settings
+    from .services import events_derive, exports as ex, ha_history, playback as pb, playback_groups as pg, thumbnails
+
+    with db.connection() as conn:
+        s = read_settings(conn)
+    pb.expire_idle(settings, s["playback.lease_s"])
+    pb.sweep_orphans(settings)
+    pg.expire_empty()
+    ex.retention_sweep(db, settings, s["exports.retention_days"])
+    events_derive.prune(db, s["events.retention_days"])
+    thumbnails.prune(settings, s["events.retention_days"])
+    audit_mod.prune_db(db)
+    ha_history.prune_db(db)
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or load_settings()
     logging.basicConfig(level=getattr(logging, settings.log_level.upper(), logging.INFO), format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -142,23 +162,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             while True:
                 await asyncio.sleep(30)
                 try:
-                    def _tick() -> None:
-                        with app.state.db.connection() as conn:
-                            s = read_settings(conn)
-                        pb.expire_idle(settings, s["playback.lease_s"])
-                        pb.sweep_orphans(settings)
-                        pg.expire_empty()
-                        ex.retention_sweep(app.state.db, settings, s["exports.retention_days"])
-                        events_derive.prune(app.state.db, s["events.retention_days"])
-                        thumbnails.prune(settings, s["events.retention_days"])
-                        audit_mod.prune_db(app.state.db)
-                        ha_history.prune_db(app.state.db)
-
-                    await run_in_threadpool(_tick)
+                    await run_in_threadpool(janitor_tick, app.state.db, settings)
                     if autosync.PERIODIC.due():
                         await discover("periodic")
                 except Exception as exc:  # never let the janitor die
-                    log.warning("janitor tick failed: %s", type(exc).__name__)
+                    log.warning("janitor tick failed: %s", type(exc).__name__, exc_info=True)
 
         app.state.janitor = asyncio.create_task(loop())
 

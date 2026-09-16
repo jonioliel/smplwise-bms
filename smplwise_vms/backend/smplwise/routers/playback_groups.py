@@ -116,6 +116,33 @@ def seek_group(group_id: str, body: SeekBody, request: Request, principal: Princ
     return pg.to_dict(group, s["playback.lease_s"])
 
 
+class SyncReport(BaseModel):
+    """What the browser measured against its master clock (T042): |drift| p95 per member, quality, sample count."""
+    p95_s: float | None = None
+    quality: str
+    samples: int = 0
+    partial: bool = False
+    members: dict[str, Any] = {}
+
+
+SYNC_QUALITIES = ("waiting", "synced", "slight", "out_of_sync")
+
+
+@router.post("/playback/groups/{group_id}/sync")
+def report_sync(group_id: str, body: SyncReport, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Store the measurement on the group (owner only). Nothing is seeked here: the browser re-seeks a late tile alone."""
+    group = _owned(conn, principal, group_id)
+    if body.quality not in SYNC_QUALITIES:
+        raise ApiError(422, "validation", "quality לא מוכר.", details={"allowed": list(SYNC_QUALITIES)})
+    if body.p95_s is not None and not 0 <= body.p95_s <= 3600:
+        raise ApiError(422, "validation", "p95_s מחוץ לטווח.")
+    if body.samples < 0:
+        raise ApiError(422, "validation", "samples חייב להיות אי־שלילי.")
+    members = {k: v for k, v in list(body.members.items())[:8]}
+    group.sync_report = {"p95_s": body.p95_s, "quality": body.quality, "samples": body.samples, "partial": body.partial, "members": members, "reported_at": iso_utc(dt.datetime.now(dt.timezone.utc))}
+    return {"ok": True, "sync_report": group.sync_report}
+
+
 @router.get("/playback/groups/{group_id}")
 def get_group(group_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     group = _owned(conn, principal, group_id)

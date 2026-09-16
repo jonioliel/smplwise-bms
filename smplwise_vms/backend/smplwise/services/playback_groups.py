@@ -5,6 +5,7 @@ never shown as a frozen frame next to a "playing" badge."""
 from __future__ import annotations
 
 import datetime as dt
+import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -23,8 +24,10 @@ class PlaybackGroup:
     missing: dict[str, str] = field(default_factory=dict)  # camera_id -> reason (gap | no_recording | playback_quota …)
     generation: int = 0
     created: float = field(default_factory=time.time)
+    sync_report: dict[str, Any] | None = None  # what the browser measured against its master clock (T042)
 
 
+log = logging.getLogger("smplwise.playback")
 GROUPS: dict[str, PlaybackGroup] = {}
 
 
@@ -40,13 +43,19 @@ def to_dict(group: PlaybackGroup, lease_s: int) -> dict[str, Any]:
         "sessions": [pb.to_dict(s, lease_s) for s in sessions_of(group)],
         "missing": group.missing,
         "sync": "best_effort",
+        "sync_report": group.sync_report,
     }
 
 
 def close_group(settings: Settings, group: PlaybackGroup) -> None:
+    """Close every member; one member's failure (a relay stream still being created, a relay hiccup) never leaves
+    the others running against the playback quota, and the group is always dropped."""
     for s in sessions_of(group):
         if s.state not in ("closed", "expired", "failed"):
-            pb.close(settings, s)
+            try:
+                pb.close(settings, s)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("playback group %s: member %s did not close cleanly: %s", group.id, s.id, type(exc).__name__)
     GROUPS.pop(group.id, None)
 
 

@@ -1,5 +1,21 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.38 (pilot)
+- Measured multi-camera sync (T042): a playback group now runs on one master clock — an opening barrier waits for
+  every member to render (or 12 s), then the clock is the median rendered time of the playing tiles (the lead's
+  when fewer than three), carried by the wall clock between frames, so no single tile drives the timeline. Each
+  tile's rendered time is measured against that clock twice a second; the p95 of |drift| over the last 40
+  samples sets the quality shown on the stamp (מסונכרן ≤ 0.5 s, סטייה קלה ≤ 2 s, לא מסונכרן) and is reported to the
+  server on the group for the session's evidence. A tile that is out by more than 2 s for three samples is
+  re-seeked alone, aiming ahead by its own measured start-up latency; the clock and the other tiles never move,
+  a tile without a recording stays "missing", a tile that does not render within 8 s is marked late. Only 1× is
+  offered in a group and the source's unsupported speeds are disabled with the reason. Lab measurement: lab 2026-09-16/17, real Chrome, 3-4 cameras: tiles render 4-11 s after the seek; right after the barrier p95 was 1.9-2.6 s (three of four tiles within 1.2 s of the clock), degrading to 3-7 s within 1-2 minutes as MSE tiles stall; a member re-seek recovers a tile briefly; in one run two of four tiles never rendered within 100 s (concurrent playback capacity of the lab NVR / relay) - measured, shown and reported, not hidden.
+- Fixed: the 30 s housekeeping pass (idle playback, orphan streams, export retention, event / thumbnail / audit /
+  HA-history pruning, periodic discovery) had died silently at every tick since 0.1.30 on a missing import; it
+  now runs as a tested function and logs a traceback if a step fails.
+- Fixed: a playback session created while the playback screen was being replaced (route change during start-up)
+  leaked until its lease ran out and counted against the playback quota; it is released at once.
+
 ## 0.1.37 (pilot)
 - Home Assistant's own answer decides an action (T079): every entity action still runs in the VMS user's own HA
   identity through the bridge, and a refusal by Home Assistant (the user lacks the entity permission there, or the

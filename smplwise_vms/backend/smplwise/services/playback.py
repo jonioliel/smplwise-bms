@@ -135,8 +135,23 @@ def create(settings: Settings, principal: Any, camera: Any, start: dt.datetime, 
     except ApiError:
         session.state = "failed"
         raise
-    session.state = "buffering"
+    _settle_after_stream(settings, session)
     return session
+
+
+def _settle_after_stream(settings: Settings, session: PlaybackSession) -> None:
+    """The stream took seconds to create; if the session was closed meanwhile (user left, group closed, lease
+    expired) it must not come back to life — that would run a relay stream against the playback quota until the
+    janitor noticed. Drop the new stream and refuse instead."""
+    with REGISTRY.lock:
+        if session.state in ("closed", "expired", "failed"):
+            orphan, session.stream = session.stream, ""
+        else:
+            session.state = "buffering"
+            orphan = ""
+    if orphan:
+        _delete_stream(settings, orphan)
+        raise ApiError(409, "session_over", "סשן הניגון נסגר בזמן ההכנה; פתח ניגון חדש.")
 
 
 def seek(settings: Settings, session: PlaybackSession, start: dt.datetime, segment_end: dt.datetime) -> PlaybackSession:
@@ -156,7 +171,7 @@ def seek(settings: Settings, session: PlaybackSession, start: dt.datetime, segme
     except ApiError:
         session.state = "failed"
         raise
-    session.state = "buffering"
+    _settle_after_stream(settings, session)
     return session
 
 
