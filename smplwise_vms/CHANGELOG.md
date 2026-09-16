@@ -1,5 +1,11 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.41 (pilot)
+- Synchronized playback closes small drifts without re-seeking (T042 follow-up): a tile that is between 0.25 s and
+  3 s off the master clock plays 5–15 % faster (behind) or slower (ahead) until it is back within 0.25 s; only a
+  drift beyond 3 s still costs a member re-seek. Nudges are counted per tile in the sync report. Lab measurement:
+  real Chrome, 3 cameras: right after the barrier 'slight' with p95 1.27 s and one nudge; within 90 s the second tile stalled again (two re-seeks, then late) and the third never rendered - the nudge is correct but the lab's playback delivery (NVR / relay / MSE stalls) remains the limit.
+
 ## 0.1.40 (pilot)
 - Signed evidence bundles and key management (T067): every bundle now carries manifest.sig.json — an Ed25519
   signature over manifest.json by the installation's active key, with the public key and key id embedded.

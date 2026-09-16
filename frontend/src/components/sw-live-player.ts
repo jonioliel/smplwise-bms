@@ -175,6 +175,15 @@ export class SwLivePlayer extends LitElement {
     return this.video?.currentTime ?? 0;
   }
 
+  /** Playback rate of the rendered stream (T042): a synchronized group nudges a tile a few percent faster or slower to close a small drift without a re-seek. */
+  get rate(): number {
+    return this.video?.playbackRate ?? 1;
+  }
+
+  set rate(value: number) {
+    if (this.video && Math.abs(this.video.playbackRate - value) > 0.001) this.video.playbackRate = value;
+  }
+
   get paused(): boolean {
     return this.video?.paused ?? true;
   }

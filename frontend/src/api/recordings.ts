@@ -96,6 +96,8 @@ export interface SyncMember {
   state: 'waiting' | 'measured' | 'late';
   /** Measured time from the last seek to the first rendered frame (ms); what a re-seek aims ahead by. */
   latency_ms?: number | null;
+  /** How many times the tile's playback rate was nudged (faster/slower) to close a small drift without a re-seek. */
+  nudges?: number;
 }
 export interface SyncStats {
   p95: number | null;

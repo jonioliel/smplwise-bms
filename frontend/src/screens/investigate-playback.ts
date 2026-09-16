@@ -98,6 +98,7 @@ export class InvestigatePlayback extends LitElement {
   private lateSince: Record<string, number> = {};
   private resyncAt: Record<string, number> = {};
   private resyncs: Record<string, number> = {};
+  private nudges: Record<string, number> = {};
   private groupStartedAt = 0;
   private lastReport = 0;
   /** Per tile: when the last seek was sent and when it first rendered, so a re-seek can aim ahead by the measured start-up latency. */
@@ -689,6 +690,8 @@ export class InvestigatePlayback extends LitElement {
     this.lateSince = {};
     this.resyncAt = {};
     this.resyncs = {};
+    this.nudges = {};
+    for (const p of this.players()) p.rate = 1;
     this.syncStats = null;
     this.groupStartedAt = performance.now();
     this.lastReport = 0;
@@ -750,6 +753,14 @@ export class InvestigatePlayback extends LitElement {
       const arr = (this.driftSamples[t.cid] ??= []);
       arr.push(d);
       if (arr.length > 40) arr.shift();
+      // small drifts are closed by playing the tile a little faster (behind) or slower (ahead); no re-seek, no buffer loss
+      if (arr.length >= 2 && Math.abs(d) > 0.25 && Math.abs(d) <= 3) {
+        const rate = d < 0 ? (Math.abs(d) > 1 ? 1.15 : 1.05) : Math.abs(d) > 1 ? 0.85 : 0.95;
+        if (t.p.rate !== rate) this.nudges[t.cid] = (this.nudges[t.cid] ?? 0) + 1;
+        t.p.rate = rate;
+      } else if (Math.abs(d) <= 0.25 || Math.abs(d) > 3) {
+        t.p.rate = 1;
+      }
       // out by more than 3 s for four consecutive samples: re-seek this tile alone (never the lead, at most twice per start, 20 s apart);
       // every re-seek costs a stream start, so beyond that the drift is shown rather than chased. The clock and the other tiles stay put.
       if (t.cid !== this.cameraId && arr.length >= 4 && arr.slice(-4).every((x) => Math.abs(x) > 3) && (this.resyncs[t.cid] ?? 0) < 2 && nowMs - (this.resyncAt[t.cid] ?? 0) > 20000) void this.resyncMember(t.cid, masterMs);
@@ -770,7 +781,7 @@ export class InvestigatePlayback extends LitElement {
       const arr = this.driftSamples[cid] ?? [];
       const p95 = arr.length ? p95Abs(arr) : null;
       const late = this.lateSince[cid] ? nowMs - this.lateSince[cid] > 8000 : false;
-      members[cid] = { p95, samples: arr.length, last: arr.length ? arr[arr.length - 1] : null, resyncs: this.resyncs[cid] ?? 0, state: late ? 'late' : arr.length ? 'measured' : 'waiting', latency_ms: this.startLatency[cid] ?? null };
+      members[cid] = { p95, samples: arr.length, last: arr.length ? arr[arr.length - 1] : null, resyncs: this.resyncs[cid] ?? 0, state: late ? 'late' : arr.length ? 'measured' : 'waiting', latency_ms: this.startLatency[cid] ?? null, nudges: this.nudges[cid] ?? 0 };
       samples += arr.length;
       if (p95 !== null) worst = worst === null ? p95 : Math.max(worst, p95);
     }
