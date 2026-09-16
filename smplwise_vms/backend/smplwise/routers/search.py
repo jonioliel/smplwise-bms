@@ -7,11 +7,14 @@ import sqlite3
 from typing import Any
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 
 from ..auth import current_principal, get_conn
 from ..rbac import INSTALLATION, Principal, authorize
+from ..errors import ApiError
+from ..services import semantic
 from ..services.access import visible_camera_ids
+from .settings import read_settings
 
 router = APIRouter()
 
@@ -116,3 +119,51 @@ def search(
         })
 
     return {"q": q, "results": results, "counts": counts}
+
+
+# ---------------------------------------------------------------- semantic search (T063)
+
+@router.get("/search/providers")
+def search_providers(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """The provider registry: the local baseline (no network) and the external adapter contract (opt-in, privacy
+    statement, model version, daily budget) — not bundled, so it cannot be switched on."""
+    s = read_settings(conn)
+    return {"providers": semantic.registry(), "active": s["ai.provider"], "settings": {"ai.provider": s["ai.provider"], "ai.privacy_ack": s["ai.privacy_ack"], "ai.budget_daily": s["ai.budget_daily"]}, "note": semantic.NOT_IDENTITY}
+
+
+@router.get("/search/semantic")
+def semantic_search(request: Request, q: str = Query(..., min_length=1, max_length=120), limit: int = Query(30, ge=1, le=200), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Free text → the event centre's own filters (object class from the device's detection target, places from the
+    catalogue, a time window in the site zone) → scoped events, each with a confidence and its basis. Colour and
+    appearance terms are reported as unsupported (no source produced that metadata). Never identity evidence."""
+    s = read_settings(conn)
+    if s["ai.provider"] == "none":
+        raise ApiError(409, "semantic_disabled", "החיפוש הסמנטי כבוי בהגדרות (ai.provider=none).")
+    map_floors = _visible_floors(conn, principal, "map.read")
+    parsed = semantic.parse(q, conn, s["time.zone"], floor_ok=lambda fid: map_floors is None or fid in map_floors)
+    from .events import list_events
+
+    queries: list[dict[str, str]] = []
+    for p in parsed.places:
+        queries.append({"zone_id": p["id"]} if p["kind"] == "zone" else {"floor_id": p["id"]} if p["kind"] == "floor" else {"camera_id": p["id"]})
+    if not queries:
+        queries.append({})
+    results: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    window_from = parsed.window["from"] if parsed.window else None
+    window_to = parsed.window["to"] if parsed.window else None
+    for qf in queries:
+        for typ in (parsed.types or [None]):
+            raw = list_events(request, principal, conn, date=None, from_=window_from, to=window_to, camera_id=qf.get("camera_id"), type=typ, unacked=False, acked=False, limit=min(1000, limit * 4),
+                              site_id=None, building_id=None, floor_id=qf.get("floor_id"), zone_id=qf.get("zone_id"), source=None, severity=None)
+            for ev in raw.get("events", []):
+                if ev["id"] in seen:
+                    continue
+                seen.add(ev["id"])
+                conf, basis = semantic.confidence(ev, parsed)
+                results.append({**ev, "match": {"confidence": conf, "basis": basis}})
+    results.sort(key=lambda e: (e["match"]["confidence"] != "exact", e["occurred_at"]), reverse=False)
+    results.sort(key=lambda e: e["occurred_at"], reverse=True)
+    results.sort(key=lambda e: e["match"]["confidence"] != "exact")
+    return {"q": q, "provider": semantic.LOCAL.describe(), "parsed": parsed.to_dict(), "results": results[:limit], "total": len(results), "note": semantic.NOT_IDENTITY, "unsupported": parsed.unsupported}
+

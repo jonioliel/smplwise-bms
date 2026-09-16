@@ -34,9 +34,13 @@ DEFAULTS: dict[str, str] = {
     "exports.max_mb": "2048",  # refuse export jobs whose NVR files exceed this estimate
     "exports.retention_days": "7",  # finished export files are deleted after this many days
     "events.retention_days": "30",  # stored events are pruned after this many days
+    # semantic search (T063): the local baseline needs no network; an external analysis provider is opt-in with a privacy acknowledgement and a daily budget — none is bundled
+    "ai.provider": "local",  # none | local | external
+    "ai.privacy_ack": "false",
+    "ai.budget_daily": "0",
 }
 
-INT_KEYS = ("media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "exports.max_mb", "exports.retention_days", "events.retention_days")
+INT_KEYS = ("media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "exports.max_mb", "exports.retention_days", "events.retention_days", "ai.budget_daily")
 
 
 def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
@@ -60,6 +64,9 @@ class SettingsPatch(BaseModel):
     events_retention_days: int | None = Field(default=None, ge=1, le=3650, alias="events.retention_days")
     ui_design: str | None = Field(default=None, pattern="^(a|b)$", alias="ui.design")
     ui_design_names: str | None = Field(default=None, max_length=200, alias="ui.design_names")
+    ai_provider: str | None = Field(default=None, pattern="^(none|local|external)$", alias="ai.provider")
+    ai_privacy_ack: str | None = Field(default=None, pattern="^(true|false)$", alias="ai.privacy_ack")
+    ai_budget_daily: int | None = Field(default=None, ge=0, le=100000, alias="ai.budget_daily")
 
     model_config = {"populate_by_name": True}
 
@@ -87,6 +94,9 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
             ZoneInfo(changes["time.zone"])
         except (ZoneInfoNotFoundError, ValueError):
             raise ApiError(422, "validation", "אזור זמן לא מוכר.", details={"time.zone": changes["time.zone"]})
+    if changes.get("ai.provider") == "external":
+        # the adapter contract exists (privacy, model version, budget, opt-in) but no provider is bundled: refuse, never pretend
+        raise ApiError(422, "provider_not_available", "לא מצורף ספק ניתוח חיצוני; קיים רק חוזה המתאם (פרטיות, גרסת מודל, תקציב, opt-in).", details={"choices": ["none", "local"]})
     for key, value in changes.items():
         set_setting(conn, key, str(value))
     audit(conn, actor=principal, action="settings.update", decision="allowed", resource_type="installation", resource_id="*",

@@ -429,6 +429,12 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   active key and rotates it (system.configure, audited), keeping retired public keys for older bundles. A valid
   signature proves the bundle did not change since export — not that the footage is authentic at capture, and
   it is no statement of legal admissibility.
+- Semantic search (חקירה › חיפוש AI): a free question becomes the event centre's filters through a local
+  baseline — object class from the device's detection target, places by catalogue name within your scope, a time
+  window in the site zone — with the interpretation shown as chips, unsupported terms (colour, appearance) named
+  with the reason, and every result labelled exact / partial with its basis. Results are metadata matches, never
+  identity evidence. Settings `ai.provider` (none / local), `ai.privacy_ack`, `ai.budget_daily` hold the contract
+  for an external analysis provider; none is bundled and `external` is refused.
 - DXF plans: the import wizard also takes .dxf files (content-sniffed). The drawing is inspected (units, layers,
   entity counts, unsupported types) and rendered from the geometric entities only; text, hatches, dimensions and
   3D entities are counted and reported as a partial conversion. Choose layers and units on the DXF card; a version

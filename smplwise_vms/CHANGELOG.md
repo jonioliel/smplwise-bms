@@ -1,5 +1,17 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.44 (pilot)
+- Semantic search with a local baseline (T063): חקירה › חיפוש AI takes a free question in Hebrew or English
+  ("אדם בלובי אתמול בערב", "vehicle near the gate this morning 08:00-09:30") and turns it, without any model or
+  network, into the event centre's own filters — object class from the device's detection target, places from the
+  catalogue (rooms, floors, cameras, matched by name inside the caller's scope), a time window in the site zone —
+  shows the interpretation as chips, runs the scoped query and labels every hit with a confidence (exact / partial)
+  and its basis. Colour and appearance terms are reported as unsupported because no source produced that metadata;
+  words that were not used are listed. The provider registry states the contract every analysis provider must
+  meet — model version, privacy statement (what leaves the installation), daily budget, explicit opt-in — and no
+  external provider is bundled: ai.provider=external is refused rather than pretended. Every answer carries the
+  statement that metadata matches are not identity evidence.
+
 ## 0.1.43 (pilot)
 - DXF floor plans (T065): the import wizard accepts .dxf (recognised by content, like every upload) through an
   isolated conversion adapter built on ezdxf (MIT). On upload the drawing is inspected — DXF version, units from

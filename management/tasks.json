@@ -3382,7 +3382,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence 2026-09-17 (0.1.44): services/semantic.py local baseline (no model, no network) parses Hebrew/English questions into object class (device detection target), catalogue places (rooms/floors/cameras, scoped) and a site-zone time window; GET /search/semantic runs the scoped event query and labels hits exact/partial with their basis; colour/appearance terms reported unsupported with the reason; GET /search/providers publishes the adapter contract (model version, privacy, budget, opt-in) and settings ai.provider/ai.privacy_ack/ai.budget_daily; ai.provider=external refused (none bundled); every answer states results are not identity evidence. UI: חיפוש AI real mode. tests/test_semantic.py; live evidence private-evidence/T063-semantic-live. Embeddings / image similarity remain excluded until the owner chooses a provider, acknowledges its privacy policy and sets a budget. Status stays BACKLOG."
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
