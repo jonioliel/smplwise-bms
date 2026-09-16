@@ -402,6 +402,20 @@ export class SwPlanCanvas extends LitElement {
     this.fitted = true;
   }
 
+  /** Zoom so that a normalized box fills the viewport (with a margin, capped so small rooms stay readable). */
+  zoomToBox(x0: number, y0: number, x1: number, y1: number, margin = 48) {
+    const w = this.clientWidth;
+    const h = this.clientHeight;
+    if (!w || !h || !this.planWidth || !this.planHeight) return;
+    const bw = Math.max(1e-6, x1 - x0) * this.planWidth;
+    const bh = Math.max(1e-6, y1 - y0) * this.planHeight;
+    const s = Math.max(MIN_SCALE, Math.min(MAX_SCALE, Math.min((w - margin * 2) / bw, (h - margin * 2) / bh, 2.5)));
+    this.scale = s;
+    this.tx = w / 2 - ((x0 + x1) / 2) * this.planWidth * s;
+    this.ty = h / 2 - ((y0 + y1) / 2) * this.planHeight * s;
+    this.fitted = true;
+  }
+
   zoomBy(factor: number, cx?: number, cy?: number) {
     const w = this.clientWidth;
     const h = this.clientHeight;

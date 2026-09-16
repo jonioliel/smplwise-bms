@@ -16,7 +16,7 @@ from . import __version__
 from .config import Settings, load_settings
 from .db import Database
 from .errors import ApiError
-from .routers import access, anchors, cameras, catalog, events, exports, ha, health, me, media, plans, playback, playback_groups, recordings, settings as settings_router, zones
+from .routers import access, anchors, cameras, catalog, events, exports, ha, health, me, media, plans, playback, playback_groups, recordings, search, settings as settings_router, zones
 
 log = logging.getLogger("smplwise")
 
@@ -73,6 +73,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(ha.router, prefix=api, tags=["home-assistant"])
     app.include_router(access.router, prefix=api, tags=["access"])
     app.include_router(zones.router, prefix=api, tags=["zones"])
+    app.include_router(search.router, prefix=api, tags=["search"])
     app.include_router(health.router, prefix=api, tags=["ops"])
 
     @app.on_event("startup")

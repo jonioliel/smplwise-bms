@@ -48,6 +48,11 @@ const SCENES: SceneKind[] = ['entrance', 'lobby', 'corridor', 'hall', 'parking',
 export class ExploreFloorMap extends LitElement {
   @property() floorId = 'f0';
   @property() screenState: ScreenState = 'ready';
+  /** Search hits: zone id to highlight and zoom to; camera / entity id whose pin to open. */
+  @property() focusZone = '';
+  @property() focusCamera = '';
+  @property() focusEntity = '';
+  @state() private selectedZoneId: string | null = null;
 
   @state() private bundle: MapBundle | null = null;
   @state() private tree: CatalogTree | null = null;
@@ -393,7 +398,38 @@ export class ExploreFloorMap extends LitElement {
     if (changed.has('floorId') && changed.get('floorId') !== undefined) {
       this.selectedId = null;
       this.anchor = null;
+      this.selectedZoneId = null;
       void this.load();
+    } else if ((changed.has('focusZone') || changed.has('focusCamera') || changed.has('focusEntity')) && this.bundle) {
+      void this.applyFocus();
+    }
+  }
+
+  /** Bring a search hit into view once the map is on screen. */
+  private async applyFocus() {
+    const b = this.bundle;
+    if (!b || (!this.focusZone && !this.focusCamera && !this.focusEntity)) return;
+    await this.updateComplete;
+    const canvas = this.canvas;
+    if (!canvas) return;
+    const z = this.focusZone ? b.zones.find((x) => x.id === this.focusZone) : null;
+    if (z) {
+      const xs = z.polygon.map((p) => p.x);
+      const ys = z.polygon.map((p) => p.y);
+      this.selectedZoneId = z.id;
+      canvas.zoomToBox(Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys));
+    }
+    const a = this.focusCamera
+      ? b.anchors.find((x) => x.resource_type === 'camera' && x.resource_id === this.focusCamera)
+      : this.focusEntity
+        ? b.anchors.find((x) => x.resource_type === 'ha_entity' && x.resource_id === this.focusEntity)
+        : null;
+    if (a) {
+      canvas.zoomToBox(a.position.x - 0.12, a.position.y - 0.12, a.position.x + 0.12, a.position.y + 0.12);
+      await this.updateComplete;
+      const p = canvas.toScreen(a.position.x, a.position.y);
+      this.selectedId = a.id;
+      this.anchor = { x: p.x, y: p.y };
     }
   }
 
@@ -420,6 +456,7 @@ export class ExploreFloorMap extends LitElement {
       this.restoreLayers();
       this.bundle = await loadMap(this.floorId);
       if (this.bundle.source === 'api') this.startWs();
+      void this.applyFocus();
     } catch (err) {
       this.loadError = describeError(err);
       this.bundle = null;
@@ -519,6 +556,7 @@ export class ExploreFloorMap extends LitElement {
   }
 
   private onSelect(e: CustomEvent<MarkerSelectDetail>) {
+    this.selectedZoneId = null;
     this.selectedId = e.detail.id;
     this.anchor = e.detail.id && e.detail.sx !== undefined && e.detail.sy !== undefined ? { x: e.detail.sx, y: e.detail.sy } : null;
   }
@@ -753,7 +791,9 @@ export class ExploreFloorMap extends LitElement {
         .markers=${this.markers}
         .selectedId=${this.selectedId}
         .zones=${this.layers.has('zones') ? b.zones : []}
+        .selectedZoneId=${this.selectedZoneId}
         .dimEntities=${this.screenState === 'stale'}
+        @zone-select=${(e: CustomEvent<{ id: string }>) => { this.selectedZoneId = this.selectedZoneId === e.detail.id ? null : e.detail.id; this.close(); }}
         @marker-select=${this.onSelect}
         @view-change=${this.onViewChange}></sw-plan-canvas>
       <div class="floorchip" data-floorchip><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>

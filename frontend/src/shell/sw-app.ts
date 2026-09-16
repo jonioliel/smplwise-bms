@@ -37,10 +37,11 @@ import '../screens/system-storage';
 import '../screens/screens-index';
 import '../screens/styleguide-screen';
 import { onRouteChange, type RouteState } from '../router';
+import { KIND_ICON, KIND_LABEL, search as apiSearch, type SearchResult } from '../api/search';
 import { NAV, GROUP_TABS, groupOf, activeTabOf, NAV_A, AREA_TABS, areaOf, activeAreaTab, crumbsOf } from './nav';
 import { onDesign, resolveDesign, type DesignId } from '../api/design';
 import { t } from '../i18n/he';
-import { loadSession, onSession, type Session } from '../api/session';
+import { isApi, loadSession, onSession, type Session } from '../api/session';
 import '../components/sw-state-panel';
 
 /**
@@ -54,6 +55,13 @@ export class SwApp extends LitElement {
   @state() private route: RouteState | null = null;
   @state() private session: Session = { mode: 'loading', me: null, error: null };
   @state() private design: DesignId = 'b';
+  @state() private searchQ = '';
+  @state() private searchResults: SearchResult[] = [];
+  @state() private searchOpen = false;
+  @state() private searchIndex = -1;
+  @state() private searchBusy = false;
+  private searchTimer = 0;
+  private searchSeq = 0;
   private stopRouter?: () => void;
   private stopSession?: () => void;
   private stopDesign?: () => void;
@@ -394,6 +402,68 @@ export class SwApp extends LitElement {
     .crumbs-a sw-icon {
       color: var(--sw-text-3);
     }
+    .searchwrap {
+      position: relative;
+      display: inline-flex;
+    }
+    .results {
+      position: absolute;
+      inset-inline-start: 0;
+      inset-block-start: calc(100% + 6px);
+      inline-size: min(560px, 90vw);
+      max-block-size: 60vh;
+      overflow: auto;
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: 12px;
+      box-shadow: var(--sw-shadow-3);
+      padding: 6px;
+      z-index: var(--sw-z-drawer);
+    }
+    .searchwrap.a .results {
+      inset-inline-start: 24px;
+    }
+    .results .row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      color: var(--sw-text);
+    }
+    .results .row.on,
+    .results .row:hover {
+      background: var(--sw-accent-soft);
+    }
+    .results .row sw-icon {
+      color: var(--sw-text-3);
+      flex: none;
+    }
+    .results .txt {
+      display: flex;
+      flex-direction: column;
+      min-inline-size: 0;
+      flex: 1;
+    }
+    .results .t {
+      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-sm);
+    }
+    .results .s {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .results .kind {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      flex: none;
+    }
+    .results .empty {
+      padding: 10px 12px;
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text-3);
+    }
     .search.a {
       inline-size: min(520px, 38vw);
       block-size: 46px;
@@ -514,6 +584,7 @@ export class SwApp extends LitElement {
       this.setAttribute('data-design', d);
     });
     void loadSession();
+    window.addEventListener('keydown', this.onGlobalKey);
     this.stopRouter = onRouteChange((route) => {
       this.route = route;
       this.toggleAttribute('data-kiosk', route.segments[0] === 'kiosk');
@@ -525,6 +596,113 @@ export class SwApp extends LitElement {
     this.stopRouter?.();
     this.stopSession?.();
     this.stopDesign?.();
+    window.removeEventListener('keydown', this.onGlobalKey);
+  }
+
+  // ---- global search (top bar) ----
+
+  private onGlobalKey = (e: KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      const input = this.renderRoot.querySelector<HTMLInputElement>('.search input');
+      input?.focus();
+      input?.select();
+      if (this.searchQ.trim() && this.searchResults.length) this.searchOpen = true;
+    }
+  };
+
+  private onSearchInput(e: Event) {
+    const q = (e.target as HTMLInputElement).value;
+    this.searchQ = q;
+    window.clearTimeout(this.searchTimer);
+    if (!q.trim()) {
+      this.searchResults = [];
+      this.searchOpen = false;
+      return;
+    }
+    this.searchTimer = window.setTimeout(() => void this.runSearch(q), 180);
+  }
+
+  private async runSearch(q: string) {
+    if (!isApi()) {
+      this.searchResults = [];
+      this.searchOpen = true;
+      return;
+    }
+    const seq = ++this.searchSeq;
+    this.searchBusy = true;
+    try {
+      const r = await apiSearch(q, 6);
+      if (seq !== this.searchSeq) return;
+      this.searchResults = r.results;
+      this.searchIndex = r.results.length ? 0 : -1;
+      this.searchOpen = true;
+    } catch {
+      if (seq === this.searchSeq) {
+        this.searchResults = [];
+        this.searchOpen = true;
+      }
+    } finally {
+      if (seq === this.searchSeq) this.searchBusy = false;
+    }
+  }
+
+  private onSearchKey(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      this.closeSearch();
+      (e.target as HTMLInputElement).blur();
+      return;
+    }
+    if (!this.searchOpen || !this.searchResults.length) {
+      if (e.key === 'Enter' && this.searchQ.trim()) void this.runSearch(this.searchQ);
+      return;
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      this.searchIndex = (this.searchIndex + 1) % this.searchResults.length;
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      this.searchIndex = (this.searchIndex - 1 + this.searchResults.length) % this.searchResults.length;
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const r = this.searchResults[this.searchIndex] ?? this.searchResults[0];
+      if (r) this.openResult(r);
+    }
+  }
+
+  private openResult(r: SearchResult) {
+    this.closeSearch();
+    const input = this.renderRoot.querySelector<HTMLInputElement>('.search input');
+    if (input) {
+      input.value = '';
+      input.blur();
+    }
+    this.searchQ = '';
+    this.searchResults = [];
+    window.location.hash = `#${r.route}`;
+  }
+
+  private closeSearch() {
+    this.searchOpen = false;
+    this.searchIndex = -1;
+  }
+
+  private renderSearch(designA: boolean) {
+    const open = this.searchOpen && !!this.searchQ.trim();
+    return html`<span class="searchwrap ${designA ? 'a' : ''}">
+      <label class="search ${designA ? 'a' : ''}"><sw-icon name="search" size=${designA ? 16 : 14}></sw-icon><input type="search" placeholder=${designA ? 'חיפוש חדרים, מצלמות, קומות וישויות…' : t('app.search')} aria-label=${t('app.search')} autocomplete="off" role="combobox" aria-expanded=${open} aria-controls="search-results" .value=${this.searchQ} @input=${this.onSearchInput} @keydown=${this.onSearchKey} @focus=${() => { if (this.searchResults.length) this.searchOpen = true; }} @blur=${() => setTimeout(() => this.closeSearch(), 150)} />${designA ? html`<kbd>⌘ K</kbd>` : nothing}</label>
+      ${open
+        ? html`<div class="results" id="search-results" role="listbox" aria-label="תוצאות חיפוש">
+            ${!isApi()
+              ? html`<div class="empty">החיפוש עובד מול השרת (במצב הדגמה אין נתונים).</div>`
+              : this.searchBusy && !this.searchResults.length
+                ? html`<div class="empty">מחפש…</div>`
+                : this.searchResults.length
+                  ? this.searchResults.map((r, i) => html`<div class="row ${i === this.searchIndex ? 'on' : ''}" role="option" aria-selected=${i === this.searchIndex} @mousedown=${(e: Event) => e.preventDefault()} @click=${() => this.openResult(r)}><sw-icon .name=${KIND_ICON[r.kind]} size=${16}></sw-icon><span class="txt"><span class="t">${r.title}</span><span class="s">${r.subtitle}</span></span><span class="kind">${KIND_LABEL[r.kind]}</span></div>`)
+                  : html`<div class="empty">לא נמצא דבר עבור "${this.searchQ}". חדרים מופיעים רק אם סומנו "הכללה בחיפוש מרחבי"; אירועים מסוננים במרכז האירועים.</div>`}
+          </div>`
+        : nothing}
+    </span>`;
   }
 
   /** Full-screen gate for identity problems; `null` (not lit's `nothing`, which is truthy) when the app may render. */
@@ -583,7 +761,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'floors' && s[3] === 'edit') return html`<explore-plan-editor .floorId=${s[2]} .presetEntity=${r.params.get('entity') ?? ''}></explore-plan-editor>`;
         const floorId = s[1] === 'floors' && s[2] ? s[2] : 'f0';
         const screenState = (r.params.get('state') ?? 'ready') as 'ready';
-        return html`<explore-floor-map .floorId=${floorId} .screenState=${screenState}></explore-floor-map>`;
+        return html`<explore-floor-map .floorId=${floorId} .screenState=${screenState} .focusZone=${r.params.get('zone') ?? ''} .focusCamera=${r.params.get('camera') ?? ''} .focusEntity=${r.params.get('entity') ?? ''}></explore-floor-map>`;
       }
     }
   }
@@ -609,7 +787,7 @@ export class SwApp extends LitElement {
       </nav>
       <header class="topbar">
         <div class="crumbs-a">${crumbs.map((c, i) => html`${i ? html`<sw-icon name="chevron" size=${12}></sw-icon>` : nothing}<span class=${i === 0 ? 'strong' : ''}>${c}</span>`)}</div>
-        <label class="search a"><sw-icon name="search" size=${16}></sw-icon><input type="search" placeholder="חיפוש מצלמות, ישויות ואירועים…" aria-label=${t('app.search')} /><kbd>⌘ K</kbd></label>
+        ${this.renderSearch(true)}
         <span class="spacer"></span>
         ${this.session.mode === 'api' || this.session.mode === 'no_access'
           ? html`<span class="status-a"><i></i>מערכת מקומית</span>`
@@ -659,7 +837,7 @@ export class SwApp extends LitElement {
       </nav>
       <header class="topbar">
         <span class="brand-mobile"><img src="${base}brand/smplwise-mark.png" alt="SmplWise" /></span>
-        <label class="search"><sw-icon name="search" size=${14}></sw-icon><input type="search" placeholder=${t('app.search')} aria-label=${t('app.search')} /></label>
+        ${this.renderSearch(false)}
         <span class="spacer"></span>
         ${this.session.mode === 'api' || this.session.mode === 'no_access'
           ? html`<span class="who"><b>${this.session.me?.user.display_name || this.session.me?.user.username}</b>${this.session.me?.bindings[0] ? html`<span>· ${this.session.me.bindings[0].role_name}</span>` : nothing}</span>`

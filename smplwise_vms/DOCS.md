@@ -143,6 +143,15 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   (`ui.design_names`) and lets each browser keep its own choice. `?design=a|b` on the URL forces one.
   Without a backend (design preview) the page stays on SW B.
 
+## Search
+
+- The search field in the top bar (Ctrl+K or ⌘K) finds rooms and zones, cameras (by name or channel
+  number), floors, buildings and Home Assistant entities, and shows where each one is. Choosing a room
+  opens its floor with the room highlighted and zoomed in; a camera or entity placed on a plan opens its
+  card on the map; a camera that is not placed opens its live view. Only rooms marked "הכללה בחיפוש
+  מרחבי" appear, and every user sees only what their roles allow. Events are searched in the event
+  centre with its own filters.
+
 ## Floor map
 
 - The map shows the published plan with the pins on it; the floor chip names the floor, the zoom

@@ -1,5 +1,13 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.15 (pilot)
+- Global search in the top bar (design M48, pilot scope): Ctrl/⌘+K focuses it; typing lists rooms and
+  zones (those marked for spatial search), cameras (name or channel), floors, buildings and HA entities,
+  each with its place; arrows + Enter or a click open the hit — a room opens its floor highlighted and
+  zoomed, a placed camera or entity opens its card on the map, an unplaced camera opens the live view.
+  Results are filtered by the user's scope. API: GET /search?q=.
+- Floor map: ?zone= / ?camera= / ?entity= on the floor route select and zoom to the item.
+
 ## 0.1.14 (pilot)
 - Stylized rendering with choices: cleaning strength (קל / בינוני / חזק), room fill (white, one soft tint
   per room, none) and whether furniture, doors and other thin lines from the drawing are kept in a faint
