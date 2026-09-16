@@ -229,6 +229,48 @@ export class InvestigateEvents extends LitElement {
     .dot.on {
       background: var(--sw-live);
     }
+    .kpis {
+      display: none;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-block-end: 10px;
+    }
+    .kpi {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 14px;
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+    }
+    .kpi .n {
+      font-size: var(--sw-fs-2xl);
+      font-weight: var(--sw-fw-semibold);
+      line-height: 1;
+    }
+    .kpi .l {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .kpi .ic {
+      inline-size: 36px;
+      block-size: 36px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent-text);
+    }
+    @media (max-width: 767px) {
+      .kpis {
+        display: grid;
+      }
+      .filters sw-field {
+        inline-size: 100%;
+      }
+    }
     .wlist {
       display: flex;
       flex-direction: column;
@@ -533,6 +575,10 @@ export class InvestigateEvents extends LitElement {
         <span>קליטה מה־NVR: ${ing ? (ing.connected ? 'מחובר' : `מנותק${ing.last_error ? ` (${ing.last_error})` : ''}`) : '—'}${ing?.last_heartbeat_at ? ` · פעימה ${this.fmt(ing.last_heartbeat_at)}` : ''}</span>
         <span>· עדכונים חיים: ${this.live ? 'פעיל' : 'מתחבר…'}</span>
         <span>· אירועים "נגזר מהקלטה" הם עדות מקובץ ההקלטה (inferred), לא התראה שנמדדה</span>
+      </div>
+      <div class="kpis" data-kpis>
+        <div class="kpi"><div><div class="n">${unacked}</div><div class="l">לבדיקה</div></div><div class="ic"><sw-icon name="bell" size=${18}></sw-icon></div></div>
+        <div class="kpi"><div><div class="n">${this.events.length - unacked}</div><div class="l">טופלו היום</div></div><div class="ic"><sw-icon name="check" size=${18}></sw-icon></div></div>
       </div>
       <div class="filters">
         <sw-field><select aria-label="מצלמה" @change=${(e: Event) => { this.cameraId = (e.target as HTMLSelectElement).value; void this.load(); }}><option value="" ?selected=${!this.cameraId}>כל המצלמות</option>${(this.cams ?? []).map((c) => html`<option value=${c.id} ?selected=${c.id === this.cameraId}>${c.name}</option>`)}</select></sw-field>

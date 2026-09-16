@@ -1,5 +1,13 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.20 (pilot)
+- Phone layout (T034): every table becomes a card list under 768 px (cells stack with their column label,
+  the picture sits beside the text, nothing scrolls sideways); the event centre shows "לבדיקה / טופלו
+  היום" tiles on phones (M45); the camera card, event drawer, event page and historical map already stack
+  or open as bottom sheets. Fix: in design SW A the phone layout kept an empty rail column and squeezed
+  every screen into a narrow strip; the shell now collapses to one column on phones. Verified at 390 px
+  against the developer backend.
+
 ## 0.1.19 (pilot)
 - Historical map on real data (T030, design M16 basic): the floor at a chosen instant — cameras show
   whether a recording covers that instant (blue) or not (dashed), HA entities are shown as unknown (no

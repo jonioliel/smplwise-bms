@@ -51,6 +51,55 @@ export class SwTable extends LitElement {
     :host([dense]) td {
       padding: 7px 12px;
     }
+    /* Phones (M45): each row is a card — cells stack, the column label becomes a small caption, the first
+       column (picture / avatar) sits beside the text. Nothing scrolls sideways. */
+    @media (max-width: 767px) {
+      :host {
+        overflow: visible;
+      }
+      table {
+        min-inline-size: 0;
+        display: block;
+      }
+      thead {
+        display: none;
+      }
+      tbody {
+        display: block;
+      }
+      tr {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 2px 12px;
+        padding: 10px 12px;
+        border-block-end: 1px solid var(--sw-border);
+      }
+      tr > td:first-child {
+        grid-row: span 6;
+        align-self: start;
+      }
+      tr > td:first-child:not([data-label='']) {
+        grid-row: auto;
+        grid-column: 1 / -1;
+      }
+      td {
+        display: block;
+        padding: 0;
+        border: 0;
+        white-space: normal;
+        grid-column: 2;
+      }
+      td:not([data-label=''])::before {
+        content: attr(data-label);
+        display: block;
+        font-size: var(--sw-fs-xs);
+        color: var(--sw-text-3);
+        line-height: 1.3;
+      }
+      tr.selected {
+        box-shadow: inset 3px 0 0 var(--sw-accent);
+      }
+    }
     th {
       position: sticky;
       top: 0;
@@ -104,7 +153,7 @@ export class SwTable extends LitElement {
         <tbody>
           ${this.rows.map(
             (row) => html`<tr class="clickable ${this.selected === String(row[this.rowKey]) ? 'selected' : ''}" @click=${() => this.pick(row)}>
-              ${this.columns.map((c) => html`<td class=${c.ltr ? 'ltr' : ''}>${c.render ? c.render(row) : String(row[c.key] ?? '')}</td>`)}
+              ${this.columns.map((c) => html`<td class=${c.ltr ? 'ltr' : ''} data-label=${c.label}>${c.render ? c.render(row) : String(row[c.key] ?? '')}</td>`)}
             </tr>`,
           )}
         </tbody>

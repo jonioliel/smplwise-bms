@@ -1825,7 +1825,10 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (2026-09-16, 0.1.20): sw-table card mode under 768 px (rows as grid cards, td[data-label] captions from the column labels, first column as the picture beside the text, selected row accent bar, no min-width) - applies to events, windows, cameras, users, audit and every other table; events centre M45 summary tiles (לבדיקה / טופלו היום) on phones; sw-drawer already a bottom sheet under 768 px (camera card, event drawer); event page and historical map stack under 900 px. frontend/tests/evidence-mobile.spec.ts (Playwright 'mobile' project, Pixel 7 390x844, real Chrome, dev backend): no sideways scroll on the events centre / floor map / event page / historical map, card rows, bottom sheets anchored to the bottom edge - private-evidence/T034-mobile-live/*.png; the 129 fixture checks include the mobile project for all screens (no horizontal overflow rule). Open: bottom navigation labels per M41, swipe gestures, kiosk / tablet drawer variants",
+      "fix (2026-09-16, 0.1.20): design SW A on phones kept the tablet grid (rail column + content) because that rule was more specific than the base phone rule, so every screen was squeezed into a ~230 px strip on the right (seen in the first mobile evidence run); sw-app now repeats the single-column phone grid for SW A under 768 px - private-evidence/T034-mobile-live/*.png show the corrected layout"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null

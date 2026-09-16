@@ -564,6 +564,16 @@ export class SwApp extends LitElement {
       }
     }
     @media (max-width: 767px) {
+      /* the tablet rule above (rail + content) is more specific than the base phone rule: repeat the
+         single-column phone grid for SW A, otherwise the hidden rail keeps an empty column */
+      :host([data-design='a']) {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: var(--sw-topbar-h) minmax(0, 1fr) var(--sw-bottomnav-h);
+        grid-template-areas:
+          'topbar'
+          'main'
+          'bottom';
+      }
       .who-a {
         display: none;
       }
