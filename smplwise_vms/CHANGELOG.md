@@ -1,5 +1,12 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.16 (pilot)
+- Event centre review windows (design M26): "חלונות" groups adjacent events of the same camera (gap
+  1 / 3 / 5 / 10 minutes) into one row with picture, dominant type ×count, camera, time range and
+  handling status; a window opens a drawer with its raw events, "סמן הכל כטופל" handles them at once
+  (each ack audited by name) and "סקירה מלאה" opens the event page. Nothing is merged or deleted in
+  the store. API: GET /events/windows, POST /events/ack-many. The chosen view is remembered.
+
 ## 0.1.15 (pilot)
 - Global search in the top bar (design M48, pilot scope): Ctrl/⌘+K focuses it; typing lists rooms and
   zones (those marked for spatial search), cameras (name or channel), floors, buildings and HA entities,

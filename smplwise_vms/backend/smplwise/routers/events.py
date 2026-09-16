@@ -10,6 +10,7 @@ import sqlite3
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request, WebSocket
+from pydantic import BaseModel, Field
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.concurrency import run_in_threadpool
 
@@ -141,6 +142,110 @@ def summary(principal: Principal = Depends(current_principal), conn: sqlite3.Con
         "ingest": events_ingest.STATE.as_dict(),
         "derive": events_derive.STATE,
     }
+
+
+SEVERITY_RANK = {"info": 0, "alert": 1, "critical": 2}
+
+
+def group_windows(events: list[dict[str, Any]], gap_seconds: int) -> list[dict[str, Any]]:
+    """Merge events of the same camera whose gaps are at most `gap_seconds` into review windows (newest first).
+    System events (no camera) form one window each. The raw events keep their ids inside the window."""
+    by_cam: dict[str | None, list[dict[str, Any]]] = {}
+    for ev in events:
+        by_cam.setdefault(ev.get("camera_id"), []).append(ev)
+    windows: list[dict[str, Any]] = []
+    for cam, items in by_cam.items():
+        items.sort(key=lambda e: e["occurred_at"])
+        current: dict[str, Any] | None = None
+        for ev in items:
+            start = parse_utc(ev["occurred_at"])
+            end = parse_utc(ev["ended_at"]) if ev.get("ended_at") else start
+            if current is not None and cam is not None and (start - current["_end"]).total_seconds() <= gap_seconds:
+                current["_end"] = max(current["_end"], end)
+                current["_events"].append(ev)
+            else:
+                current = {"_start": start, "_end": end, "_events": [ev], "camera_id": cam}
+                windows.append(current)
+    out: list[dict[str, Any]] = []
+    for w in windows:
+        evs = w["_events"]
+        types: dict[str, int] = {}
+        for ev in evs:
+            types[ev["type"]] = types.get(ev["type"], 0) + 1
+        dominant = max(types.items(), key=lambda kv: (kv[1], kv[0]))[0]
+        severity = max((ev["severity"] for ev in evs), key=lambda sv: SEVERITY_RANK.get(sv, 0))
+        acked = sum(1 for ev in evs if ev.get("acked_at"))
+        thumb_ev = next((ev for ev in evs if ev.get("thumbnail") == "ready"), None) or next((ev for ev in evs if ev.get("thumbnail") == "pending"), None) or evs[0]
+        out.append({
+            "id": f"{w['camera_id'] or 'system'}:{iso_utc(w['_start'])}",
+            "camera_id": w["camera_id"],
+            "camera_name": evs[0].get("camera_name"),
+            "channel": evs[0].get("channel"),
+            "start": iso_utc(w["_start"]),
+            "end": iso_utc(w["_end"]),
+            "count": len(evs),
+            "types": types,
+            "dominant_type": dominant,
+            "severity": severity,
+            "acked_count": acked,
+            "acked": acked == len(evs),
+            "first_event_id": evs[0]["id"],
+            "last_event_id": evs[-1]["id"],
+            "event_ids": [ev["id"] for ev in evs],
+            "thumbnail": thumb_ev.get("thumbnail", "none"),
+            "thumbnail_event_id": thumb_ev["id"],
+            "confidence": "measured" if any(ev.get("confidence") == "measured" for ev in evs) else "inferred",
+        })
+    out.sort(key=lambda w: w["start"], reverse=True)
+    return out
+
+
+@router.get("/events/windows")
+def list_windows(
+    request: Request,
+    principal: Principal = Depends(current_principal),
+    conn: sqlite3.Connection = Depends(get_conn),
+    date: str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    from_: str | None = Query(None, alias="from"),
+    to: str | None = None,
+    camera_id: str | None = None,
+    gap: int = Query(180, ge=30, le=3600),
+    limit: int = Query(200, ge=1, le=1000),
+) -> dict[str, Any]:
+    """Review windows (design M26): the day's events grouped per camera by proximity; nothing is deleted or merged
+    in the store, the raw events stay reachable through their ids."""
+    raw = list_events(request, principal, conn, date=date, from_=from_, to=to, camera_id=camera_id, type=None, unacked=False, acked=False, limit=1000)
+    windows = group_windows(raw["events"], gap)[:limit]
+    return {"windows": windows, "from": raw["from"], "to": raw["to"], "timezone": raw["timezone"], "gap_seconds": gap, "events_total": len(raw["events"]), "ingest": raw["ingest"]}
+
+
+class AckManyIn(BaseModel):
+    event_ids: list[str] = Field(min_length=1, max_length=500)
+
+
+@router.post("/events/ack-many")
+def ack_many(body: AckManyIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Handle a whole window: every event is checked for scope like a single ack; each ack is audited by name."""
+    acked: list[str] = []
+    skipped: list[str] = []
+    for eid in dict.fromkeys(body.event_ids):
+        row = conn.execute("SELECT * FROM events WHERE id = ?", (eid,)).fetchone()
+        if not row:
+            skipped.append(eid)
+            continue
+        ev = events_ingest.row_to_event(row)
+        allowed = camera_allowed(conn, principal, ev["camera_id"], "events.ack") if ev["camera_id"] else authorize(conn, principal, "events.ack", INSTALLATION).allowed
+        if not allowed and not authorize(conn, principal, "events.ack", INSTALLATION).allowed:
+            skipped.append(eid)
+            continue
+        if not ev["acked_at"]:
+            conn.execute("UPDATE events SET acked_at = ?, acked_by = ?, acked_by_username = ? WHERE id = ?", (now_iso(), principal.user_id, principal.username, eid))
+            audit(conn, actor=principal, action="event.ack", decision="allowed", resource_type="event", resource_id=eid,
+                  request_id=getattr(request.state, "correlation_id", None), details={"type": ev["type"], "camera_id": ev["camera_id"], "occurred_at": ev["occurred_at"], "window": True})
+        acked.append(eid)
+    if not acked and skipped:
+        require(conn, principal, "events.ack", INSTALLATION)
+    return {"acked": acked, "skipped": skipped}
 
 
 @router.get("/cameras/{camera_id}/events")

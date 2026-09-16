@@ -45,6 +45,38 @@ export interface EventDetail extends VmsEvent {
   playerHint?: string;
 }
 
+/** Review window (design M26): adjacent events of one camera; the raw events stay reachable by id. */
+export interface EventWindow {
+  id: string;
+  camera_id: string | null;
+  camera_name?: string | null;
+  channel: number | null;
+  start: string;
+  end: string;
+  count: number;
+  types: Record<string, number>;
+  dominant_type: EventKind;
+  severity: 'info' | 'alert' | 'critical';
+  acked_count: number;
+  acked: boolean;
+  first_event_id: string;
+  last_event_id: string;
+  event_ids: string[];
+  thumbnail: 'ready' | 'pending' | 'unavailable' | 'none';
+  thumbnail_event_id: string;
+  confidence: 'measured' | 'inferred';
+}
+
+export interface WindowsResponse {
+  windows: EventWindow[];
+  from: string;
+  to: string;
+  timezone: string;
+  gap_seconds: number;
+  events_total: number;
+  ingest: IngestState;
+}
+
 export interface IngestState {
   connected: boolean;
   last_heartbeat_at: string | null;
@@ -96,6 +128,16 @@ export function listEvents(opts: { date?: string; from?: string; to?: string; ca
 export const eventsSummary = () => get<EventsSummary>('events/summary');
 export const cameraEvents = (cameraId: string, date: string) => get<{ camera_id: string; date: string; timezone: string; events: VmsEvent[] }>(`cameras/${cameraId}/events?date=${date}`);
 export const ackEvent = (id: string) => post<VmsEvent>(`events/${id}/ack`);
+export const ackMany = (ids: string[]) => post<{ acked: string[]; skipped: string[] }>('events/ack-many', { event_ids: ids });
+export function listWindows(opts: { date?: string; cameraId?: string; gap?: number; limit?: number } = {}) {
+  const q = new URLSearchParams();
+  if (opts.date) q.set('date', opts.date);
+  if (opts.cameraId) q.set('camera_id', opts.cameraId);
+  if (opts.gap) q.set('gap', String(opts.gap));
+  if (opts.limit) q.set('limit', String(opts.limit));
+  const qs = q.toString();
+  return get<WindowsResponse>(`events/windows${qs ? `?${qs}` : ''}`);
+}
 export const getEvent = (id: string) => get<EventDetail>(`events/${id}`);
 export const thumbnailUrl = (id: string, v = 0) => apiUrl(`events/${id}/thumbnail${v ? `?v=${v}` : ''}`);
 

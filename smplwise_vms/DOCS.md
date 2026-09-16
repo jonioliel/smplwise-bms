@@ -113,7 +113,10 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   "הנגן המלא עם ציר הזמן" opens playback at the event; "סמן כטופל" is recorded in the audit log under
   the user's name. Events from the same ten minutes are listed for context; a nearby event is context,
   not proof of a causal link.
-- The centre's tabs: לבדיקה (not yet handled), הכל, טופלו.
+- The centre's tabs: לבדיקה (not yet handled), הכל, טופלו. "חלונות" switches the list to review
+  windows: adjacent events of the same camera (gap of 1 to 10 minutes, selectable) become one row with
+  the dominant type and count; opening a window shows its raw events, "סמן הכל כטופל" handles them
+  together and "סקירה מלאה" opens the event page. The raw events are never merged or deleted.
 
 ## Export
 

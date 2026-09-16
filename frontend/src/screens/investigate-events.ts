@@ -18,7 +18,7 @@ import { listCameras } from '../api/maps';
 import { productSettings } from '../api/prefs';
 import { navigate } from '../router';
 import { describeError } from '../api/client';
-import { ackEvent, EVENT_LABEL, EVENT_TONE, listEvents, subscribeEvents, type EventKind, type IngestState, type VmsEvent, pollThumbnail, thumbnailUrl } from '../api/events';
+import { ackEvent, ackMany, EVENT_LABEL, EVENT_TONE, listEvents, listWindows, subscribeEvents, type EventKind, type EventWindow, type IngestState, type VmsEvent, pollThumbnail, thumbnailUrl } from '../api/events';
 import { dateInZone, closePlayback, createPlayback, playbackWsUrl, type PlaybackSession } from '../api/recordings';
 import type { Camera } from '../api/types';
 
@@ -50,6 +50,11 @@ export class InvestigateEvents extends LitElement {
   @state() private busy = false;
   @state() private thumbVersion = new Map<string, number>();
   @state() private player: { eventId: string; session: PlaybackSession | null; error: string } | null = null;
+  @state() private mode: 'raw' | 'windows' = 'raw';
+  @state() private windows: EventWindow[] | null = null;
+  @state() private windowGap = 180;
+  @state() private selectedWindow: string | null = null;
+  @state() private windowsBusy = false;
   private unsubscribe: (() => void) | undefined;
   private thumbTimers = new Map<string, number>();
   private thumbInFlight = 0;
@@ -224,6 +229,26 @@ export class InvestigateEvents extends LitElement {
     .dot.on {
       background: var(--sw-live);
     }
+    .wlist {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .wrow {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 10px;
+      align-items: center;
+      padding: 6px 8px;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-sm);
+      text-decoration: none;
+      color: var(--sw-text);
+      font-size: var(--sw-fs-sm);
+    }
+    .wrow:hover {
+      background: var(--sw-surface-3);
+    }
     .ltr {
       direction: ltr;
       unicode-bidi: isolate;
@@ -341,6 +366,11 @@ export class InvestigateEvents extends LitElement {
 
   private async init() {
     try {
+      try {
+        if (localStorage.getItem('sw.events.mode') === 'windows') this.mode = 'windows';
+      } catch {
+        /* ignore */
+      }
       const [settings, list] = await Promise.all([productSettings(), listCameras()]);
       this.tz = settings['time.zone'] ?? 'Asia/Jerusalem';
       this.cams = list.cameras;
@@ -357,9 +387,85 @@ export class InvestigateEvents extends LitElement {
       this.events = r.events;
       this.ingest = r.ingest;
       this.error = '';
+      if (this.mode === 'windows') await this.loadWindows();
     } catch (err) {
       this.error = describeError(err);
     }
+  }
+
+  // ---- review windows (M26): adjacent events of one camera shown as one row; raw events stay ----
+
+  private async loadWindows() {
+    this.windowsBusy = true;
+    try {
+      const r = await listWindows({ date: this.date || undefined, cameraId: this.cameraId || undefined, gap: this.windowGap, limit: 300 });
+      this.windows = r.windows;
+      if (this.selectedWindow && !r.windows.some((w) => w.id === this.selectedWindow)) this.selectedWindow = null;
+    } catch (err) {
+      this.error = describeError(err);
+      this.windows = [];
+    } finally {
+      this.windowsBusy = false;
+    }
+  }
+
+  private setMode(mode: 'raw' | 'windows') {
+    this.mode = mode;
+    this.select(null);
+    this.selectedWindow = null;
+    try {
+      localStorage.setItem('sw.events.mode', mode);
+    } catch {
+      /* ignore */
+    }
+    if (mode === 'windows' && this.windows === null) void this.loadWindows();
+  }
+
+  private async ackWindow(w: EventWindow) {
+    this.busy = true;
+    try {
+      const r = await ackMany(w.event_ids);
+      const done = new Set(r.acked);
+      this.events = (this.events ?? []).map((e) => (done.has(e.id) && !e.acked_at ? { ...e, acked_at: new Date().toISOString(), acked_by_username: 'אני' } : e));
+      await this.loadWindows();
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private windowTitle(w: EventWindow) {
+    const cam = w.camera_name ?? (w.channel ? `ערוץ ${w.channel}` : 'מערכת');
+    return `${EVENT_LABEL[w.dominant_type] ?? w.dominant_type} · ${cam}`;
+  }
+
+  private windowColumns: TableColumn[] = [
+    { key: 'thumb', label: '', width: '72px', render: (r) => this.renderWindowThumb(r as unknown as EventWindow) },
+    { key: 'title', label: 'חלון אירוע', render: (r) => { const w = r as unknown as EventWindow; return html`<span class="ty" style="--tone:${EVENT_TONE[w.dominant_type] ?? '#6b7280'}"><i></i>${EVENT_LABEL[w.dominant_type] ?? w.dominant_type}${w.count > 1 ? html` <span class="sub">×${String(w.count)}</span>` : nothing}</span><div class="sub">${Object.entries(w.types).map(([t, n]) => `${EVENT_LABEL[t as EventKind] ?? t} ${n}`).join(' · ')} · ${w.confidence === 'inferred' ? 'נגזר מהקלטה' : 'התראות מה־NVR'}</div>`; } },
+    { key: 'camera_name', label: 'מצלמה', render: (r) => { const w = r as unknown as EventWindow; return html`${w.camera_name ?? (w.channel ? `ערוץ ${w.channel}` : 'מערכת')}`; } },
+    { key: 'start', label: 'זמן', render: (r) => { const w = r as unknown as EventWindow; return html`${this.fmt(w.start)}${w.end !== w.start ? html` – ${this.fmt(w.end)}` : nothing}<div class="sub">${this.fmtDate(w.start)}</div>`; } },
+    { key: 'acked', label: 'מצב', render: (r) => { const w = r as unknown as EventWindow; return html`<sw-badge kind=${w.acked ? 'live' : w.acked_count ? 'stale' : 'neutral'} label=${w.acked ? 'טופל' : w.acked_count ? `בטיפול ${w.acked_count}/${w.count}` : 'חדש'}></sw-badge>`; } },
+  ];
+
+  private renderWindowThumb(w: EventWindow) {
+    if (w.thumbnail === 'ready') return html`<img class="thumb" src=${thumbnailUrl(w.thumbnail_event_id, this.thumbVersion.get(w.thumbnail_event_id) ?? 0)} alt="" loading="lazy" style="inline-size:64px;block-size:40px;object-fit:cover;border-radius:6px;display:block;background:var(--sw-surface-3)" />`;
+    return html`<div style="inline-size:64px;block-size:40px;border-radius:6px;background:var(--sw-surface-3);display:grid;place-items:center;color:var(--sw-text-3)"><sw-icon name=${w.camera_id ? 'image' : 'info'} size=${14}></sw-icon></div>`;
+  }
+
+  private renderWindowDrawer(w: EventWindow) {
+    const evs = (this.events ?? []).filter((e) => w.event_ids.includes(e.id));
+    return html`<sw-drawer open heading=${this.windowTitle(w)} subheading=${`${this.fmtDate(w.start)} · ${this.fmt(w.start)} – ${this.fmt(w.end)} · ${w.count} אירועים`} @close=${() => (this.selectedWindow = null)}>
+      <div class="note" style="font-size:var(--sw-fs-xs);color:var(--sw-text-3);margin-block-end:8px">מספר התראות סמוכות (עד ${Math.round(this.windowGap / 60)} דק׳ ביניהן) הופכות לחלון אחד. האירועים המקוריים נשמרים ומוצגים כאן.</div>
+      <div class="wlist" data-window-events>
+        ${evs.map((e) => html`<a class="wrow" href=${`#/investigate/events/${e.id}`}><span class="ty" style="--tone:${EVENT_TONE[e.type] ?? '#6b7280'}"><i></i>${EVENT_LABEL[e.type] ?? e.type}</span><span class="ltr">${this.fmt(e.occurred_at)}</span><span class="sub">${e.acked_at ? 'טופל' : 'ממתין'}</span></a>`)}
+        ${evs.length < w.count ? html`<div class="sub">${w.count - evs.length} אירועים נוספים אינם בסינון הנוכחי.</div>` : nothing}
+      </div>
+      <div slot="footer">
+        <sw-button variant="primary" size="sm" icon="expand" data-review-window @click=${() => navigate(`/investigate/events/${w.first_event_id}`)}>סקירה מלאה</sw-button>
+        <sw-button size="sm" icon="check" ?disabled=${w.acked || this.busy} @click=${() => this.ackWindow(w)}>${w.acked ? 'טופל' : 'סמן הכל כטופל'}</sw-button>
+      </div>
+    </sw-drawer>`;
   }
 
   private onPushed(ev: VmsEvent) {
@@ -436,12 +542,23 @@ export class InvestigateEvents extends LitElement {
         <sw-chip ?selected=${this.filter === 'all'} @click=${() => { this.filter = 'all'; void this.load(); }} count=${this.events.length}>הכל</sw-chip>
         <sw-chip ?selected=${this.filter === 'unacked'} @click=${() => { this.filter = 'unacked'; void this.load(); }} count=${unacked}>לבדיקה</sw-chip>
         <sw-chip ?selected=${this.filter === 'acked'} @click=${() => { this.filter = 'acked'; void this.load(); }}>טופלו</sw-chip>
+        <span class="sub" style="margin-inline-start:6px">·</span>
+        <sw-chip icon="list" ?selected=${this.mode === 'raw'} @click=${() => this.setMode('raw')}>אירועים</sw-chip>
+        <sw-chip icon="layers" ?selected=${this.mode === 'windows'} data-mode-windows @click=${() => this.setMode('windows')} count=${this.windows?.length}>חלונות</sw-chip>
       </div>
       ${this.error ? html`<div class="banner warn">${this.error}</div>` : nothing}
       <div class="stage">
-        ${this.events.length
-          ? html`<sw-table .columns=${this.apiColumns} .rows=${this.events as unknown as Record<string, unknown>[]} .selected=${this.selected} @row-select=${(e: CustomEvent<{ id: string }>) => this.select(e.detail.id)}></sw-table>`
-          : html`<sw-state-panel state="empty" heading="אין אירועים ביום הזה" hint="התראות מגיעות מה־NVR רק כשהטריגר מוגדר עם 'Notify Surveillance Center'; אירועי תנועה נגזרים מקובצי ההקלטה בהפעלה ובכל 10 דקות."></sw-state-panel>`}
+        ${this.mode === 'windows'
+          ? this.windows === null || (this.windowsBusy && !this.windows.length)
+            ? html`<sw-state-panel state="loading"></sw-state-panel>`
+            : this.windows.length
+              ? html`<div class="banner" style="margin-block-end:8px"><sw-icon name="info" size=${14}></sw-icon><span>מספר התראות סמוכות באותה מצלמה הופכות לחלון אירוע אחד (מרווח עד ${Math.round(this.windowGap / 60)} דק׳). האירועים המקוריים נשמרים לצפייה.</span><span class="grow"></span><sw-field><select aria-label="מרווח קיבוץ" @change=${(e: Event) => { this.windowGap = Number((e.target as HTMLSelectElement).value); void this.loadWindows(); }}>${[60, 180, 300, 600].map((g) => html`<option value=${g} ?selected=${this.windowGap === g}>${g / 60} דק׳</option>`)}</select></sw-field></div>
+                <sw-table .columns=${this.windowColumns} .rows=${this.windows as unknown as Record<string, unknown>[]} .selected=${this.selectedWindow} @row-select=${(e: CustomEvent<{ id: string }>) => (this.selectedWindow = e.detail.id)}></sw-table>`
+              : html`<sw-state-panel state="empty" heading="אין חלונות אירוע ביום הזה" hint="חלון נוצר מאירועים סמוכים של אותה מצלמה."></sw-state-panel>`
+          : this.events.length
+            ? html`<sw-table .columns=${this.apiColumns} .rows=${this.events as unknown as Record<string, unknown>[]} .selected=${this.selected} @row-select=${(e: CustomEvent<{ id: string }>) => this.select(e.detail.id)}></sw-table>`
+            : html`<sw-state-panel state="empty" heading="אין אירועים ביום הזה" hint="התראות מגיעות מה־NVR רק כשהטריגר מוגדר עם 'Notify Surveillance Center'; אירועי תנועה נגזרים מקובצי ההקלטה בהפעלה ובכל 10 דקות."></sw-state-panel>`}
+        ${this.mode === 'windows' && this.selectedWindow && this.windows ? (() => { const w = this.windows.find((x) => x.id === this.selectedWindow); return w ? this.renderWindowDrawer(w) : nothing; })() : nothing}
         ${ev
           ? html`<sw-drawer open heading=${EVENT_LABEL[ev.type] ?? ev.type} subheading=${`${ev.camera_name ?? (ev.channel ? `ערוץ ${ev.channel}` : 'מערכת')} · ${this.fmt(ev.occurred_at)}`} @close=${() => this.closeDrawer()}>
               <div class="big">
