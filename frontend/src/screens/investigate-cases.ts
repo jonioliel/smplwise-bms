@@ -535,15 +535,23 @@ export class InvestigateCaseDetail extends LitElement {
     return html`<sw-card heading="חבילת ראיות" subheading="ZIP עם הקטעים השמורים, התמונות, ההערות, manifest עם SHA-256 לכל קובץ ודוח קריא" data-bundle>
       ${d.can_manage ? html`<sw-button size="sm" variant="primary" icon="download" data-bundle-create ?disabled=${this.busy} @click=${() => void this.run(async () => { await createBundle(d.id); }, 'החבילה נוצרה; פריטים שאינם עותק שמור מופיעים בה כ"לא נכללו"')}>צור חבילת ראיות</sw-button>` : nothing}
       ${this.bundles.length
-        ? html`<div class="items" style="margin-block-start:8px">${this.bundles.map((b) => html`<div class="item" data-bundle-row style="grid-template-columns:minmax(0,1fr) auto"><div class="body"><strong class="ltr">${b.name}</strong><span class="meta">${formatBytes(b.bytes)} · ${this.fmt(b.created_at)}</span></div><div class="acts"><a href=${bundleUrl(d.id, b.name)} download><sw-button size="sm" icon="download">הורדה</sw-button></a></div></div>`)}</div>`
+        ? html`<div class="items" style="margin-block-start:8px">${this.bundles.map((b) => html`<div class="item" data-bundle-row style="grid-template-columns:minmax(0,1fr) auto"><div class="body"><strong class="ltr">${b.name}</strong><span class="meta">${formatBytes(b.bytes)} · ${this.fmt(b.created_at)}${b.signed ? ` · חתום · מפתח ${b.signed}` : ' · ללא חתימה'}</span></div><div class="acts"><a href=${bundleUrl(d.id, b.name)} download><sw-button size="sm" icon="download">הורדה</sw-button></a></div></div>`)}</div>`
         : html`<div class="hint" style="margin-block-start:6px">עדיין לא נוצרה חבילה לתיק הזה.</div>`}
       <div class="composer"><sw-field label="אימות חבילה (בחר קובץ ZIP שהורד)"><input type="file" accept=".zip,application/zip" data-bundle-verify-file @change=${(e: Event) => void this.verify((e.target as HTMLInputElement).files?.[0])} /></sw-field></div>
       ${v
         ? html`<div class="note" data-bundle-verify-result>${v.ok ? `החבילה אומתה: ${v.files.length} קבצים תואמים ל־manifest${v.case ? ` · תיק "${v.case}"` : ''}` : `האימות נכשל${v.errors.length ? `: ${v.errors.join(', ')}` : ''}`}
             ${v.files.some((f) => f.status !== 'ok') || v.extra.length ? html`<ul class="hint" style="margin:4px 0 0;padding-inline-start:18px">${v.files.filter((f) => f.status !== 'ok').map((f) => html`<li class="ltr">${f.path}: ${f.status}</li>`)}${v.extra.map((x) => html`<li class="ltr">${x}: extra</li>`)}</ul>` : nothing}
+            ${v.signature
+              ? html`<div data-bundle-signature data-signature-trust=${v.signature.trust}>${!v.signature.present
+                  ? 'ללא חתימה (חבילה מגרסה ישנה, או שהחתימה הוסרה) — נבדקו רק הגיבובים.'
+                  : v.signature.valid
+                    ? `חתימה תקינה · Ed25519 · מפתח ${v.signature.kid}${v.signature.trust === 'installation' ? (v.signature.retired ? ' · מפתח שהוחלף, מוכר למתקן זה' : ' · המפתח הפעיל של מתקן זה') : ' · מפתח שאינו מוכר למתקן זה — שלמות בלבד, לא אמון'}`
+                    : `חתימה לא תקינה${v.signature.reason ? ` (${v.signature.reason})` : ''} — ה־manifest שונה אחרי הייצוא או שהחתימה זויפה.`}</div>`
+              : nothing}
+            ${v.authenticity ? html`<div class="hint" style="margin-block-start:4px">${v.authenticity}</div>` : nothing}
           </div>`
         : nothing}
-      <div class="hint" style="margin-block-start:6px">SHA-256 מוכיח שהקובץ לא השתנה מאז יצירת החבילה, לא את אמיתות הצילום מול המצלמה; חתימה ואימות מקור הם יכולות נפרדות.</div>
+      <div class="hint" style="margin-block-start:6px">SHA-256 מוכיח שכל קובץ לא השתנה מאז יצירת החבילה; חתימת Ed25519 על ה־manifest מוכיחה שהחבילה לא שונתה מאז הייצוא על ידי מחזיק המפתח של המתקן (integrity-at-export). אף אחד מהם אינו מוכיח את אמיתות הצילום במקור (capture authenticity), ואין כאן הצהרה על קבילות משפטית. אימות מחוץ למערכת: scripts/verify_bundle.py.</div>
     </sw-card>`;
   }
 

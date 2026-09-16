@@ -3587,7 +3587,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence 2026-09-17 (0.1.40): Ed25519 signature over manifest.json in every bundle (manifest.sig.json with the public key and key id), keyring with rotation (POST /evidence/signing/rotate, system.configure, audited; retired public keys kept), private key only in /data/keys mode 0600 and excluded from backups, verification in-app and offline (scripts/verify_bundle.py) reporting installation / embedded-key-only / unsigned, tamper detection on file, manifest and signature (foreign key, wrong kid, wrong alg). Trust statement separates integrity-at-export from capture authenticity and disclaims legal admissibility. tests/test_signing.py; live evidence private-evidence/T067-signing-live. Status stays BACKLOG until the owner's acceptance review."
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null

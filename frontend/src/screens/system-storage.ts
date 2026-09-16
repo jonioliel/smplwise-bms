@@ -12,6 +12,7 @@ import { isApi } from '../api/session';
 import { describeError } from '../api/client';
 import { productSettings } from '../api/prefs';
 import { fmtMb, getStorage, type StorageReport } from '../api/storage';
+import { getSigning, rotateSigning, type SigningInfo } from '../api/cases';
 
 const PER_CAMERA = [
   { name: 'כניסה ראשית', gb: 320 },
@@ -220,7 +221,10 @@ export class SystemStorage extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    if (isApi()) void this.load();
+    if (isApi()) {
+      void this.load();
+      void this.loadSigning();
+    }
   }
 
   private async load(fresh = false) {
@@ -239,6 +243,55 @@ export class SystemStorage extends LitElement {
 
   private fmt(iso: string | null) {
     return iso ? new Intl.DateTimeFormat('he-IL', { timeZone: this.tz, dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso)) : '—';
+  }
+
+  @state() private signing: SigningInfo | null = null;
+  @state() private signingError = '';
+  @state() private signingBusy = false;
+  @state() private rotateConfirm = false;
+
+  private async loadSigning() {
+    try {
+      this.signing = await getSigning();
+      this.signingError = '';
+    } catch (err) {
+      this.signingError = describeError(err);
+    }
+  }
+
+  private async rotateKey() {
+    this.signingBusy = true;
+    try {
+      this.signing = await rotateSigning();
+      this.rotateConfirm = false;
+    } catch (err) {
+      this.signingError = describeError(err);
+    } finally {
+      this.signingBusy = false;
+    }
+  }
+
+  private renderSigning() {
+    const s = this.signing;
+    const fmt = (iso: string | null) => (iso ? iso.replace('T', ' ').replace('Z', ' UTC') : '—');
+    return html`<sw-card heading="חתימת ראיות" subheading="כל חבילת ראיות חתומה ב־Ed25519 במפתח הפעיל של המתקן; החלק הפרטי נשאר ב־/data/keys ואינו נכלל בגיבוי" data-signing>
+      ${this.signingError ? html`<div class="note">${this.signingError}</div>` : nothing}
+      ${s
+        ? html`<div class="kv">
+              <div><span>מפתח פעיל</span><strong class="ltr" data-signing-active>${s.active ?? '—'}</strong></div>
+              <div><span>נוצר</span><strong>${fmt(s.keys.find((k) => k.kid === s.active)?.created_at ?? null)}</strong></div>
+              <div><span>מפתחות שהוחלפו</span><strong>${s.keys.filter((k) => k.retired_at).length}</strong></div>
+              <div><span>מפתח ציבורי (base64)</span><strong class="ltr" style="word-break:break-all;font-size:11px">${s.keys.find((k) => k.kid === s.active)?.public_key ?? '—'}</strong></div>
+            </div>
+            ${s.keys.filter((k) => k.retired_at).length ? html`<div class="note">מפתחות שהוחלפו נשמרים לאימות חבילות ישנות: ${s.keys.filter((k) => k.retired_at).map((k) => `${k.kid} (עד ${fmt(k.retired_at)})`).join(', ')}</div>` : nothing}
+            <div class="note" style="margin-block-start:6px">${s.trust} אימות מחוץ למערכת: <span class="ltr">scripts/verify_bundle.py bundle.zip --keyring keyring.json</span></div>
+            ${s.can_rotate
+              ? this.rotateConfirm
+                ? html`<div class="note" style="margin-block-start:6px">החלפת מפתח: חבילות חדשות ייחתמו במפתח חדש; הישן נשאר בטבעת לאימות. הפעולה נרשמת באודיט. <sw-button size="sm" variant="danger" data-signing-rotate-confirm ?disabled=${this.signingBusy} @click=${() => this.rotateKey()}>החלף עכשיו</sw-button> <sw-button size="sm" variant="ghost" @click=${() => (this.rotateConfirm = false)}>ביטול</sw-button></div>`
+                : html`<div style="margin-block-start:8px"><sw-button size="sm" icon="refresh" data-signing-rotate @click=${() => (this.rotateConfirm = true)}>החלפת מפתח חתימה</sw-button></div>`
+              : nothing}`
+        : html`<div class="note">טוען…</div>`}
+    </sw-card>`;
   }
 
   private renderApi() {
@@ -285,6 +338,7 @@ export class SystemStorage extends LitElement {
                         ${[...d.disks, ...d.nas].map((x) => html`<div class="r" data-storage-disk><span>${x.name}${x.path ? html`<small>${x.path}</small>` : nothing}</span><span>${x.kind}</span><span><sw-badge kind=${x.status === 'ok' ? 'recorded' : 'error'} label=${x.status}></sw-badge></span><span class="num">${fmtMb(x.capacity_mb)}</span><span class="num">${fmtMb(x.free_mb)}</span><span>${x.property}</span></div>`)}
                       </div>
                     </sw-card>
+                    ${this.renderSigning()}
                     <sw-card heading="מה המערכת לא עושה ב־NVR" subheading="גבולות הפיילוט" data-storage-limits>
                       <ul class="limits">${d.limits.notes.map((n) => html`<li>${n}</li>`)}</ul>
                       <div style="margin-block-start:6px"><sw-button size="sm" disabled icon="edit">עריכת מדיניות הקלטה (לא בפיילוט)</sw-button></div>

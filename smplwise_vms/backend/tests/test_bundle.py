@@ -63,9 +63,9 @@ def test_snapshot_item_bundle_and_verification(settings, monkeypatch):
     assert c.get(f"/api/v1/cases/{case['id']}/bundles/../../etc/passwd").status_code == 404
     z = zipfile.ZipFile(io.BytesIO(dl.content))
     names = set(z.namelist())
-    assert {"manifest.json", "MANIFEST.sha256", "report.html", "notes.md", f"snapshots/{snap['id']}.jpg", f"clips/{clip['id']}_entrance_2026-09-14.mp4", f"clips/{clip['id']}.export-manifest.json"} == names
+    assert {"manifest.json", "MANIFEST.sha256", "manifest.sig.json", "report.html", "notes.md", f"snapshots/{snap['id']}.jpg", f"clips/{clip['id']}_entrance_2026-09-14.mp4", f"clips/{clip['id']}.export-manifest.json"} == names
     m = json.loads(z.read("manifest.json"))
-    assert m["schema"] == "smplwise-evidence-bundle/1" and m["case"]["title"] == "פריצה" and m["generated_by"] and "אמיתות" in m["integrity"] and m["signature"] is None
+    assert m["schema"] == "smplwise-evidence-bundle/1" and m["case"]["title"] == "פריצה" and m["generated_by"] and "אמיתות" in m["integrity"] and m["signature"] == "manifest.sig.json"
     by = {i["item_id"]: i for i in m["items"]}
     assert by[snap["id"]]["file"]["sha256"] == hashlib.sha256(JPEG).hexdigest() and by[snap["id"]]["source"]["kind"] == "live-snapshot"
     assert by[clip["id"]]["source"]["job_id"] == "job1" and by[clip["id"]]["source"]["actual_from"] == "2026-09-14T09:59:58Z" and by[clip["id"]]["file"]["bytes"] == 300

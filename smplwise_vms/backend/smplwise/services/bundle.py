@@ -2,7 +2,8 @@
 their export manifests), the snapshots, the notes, a manifest with a SHA-256 per file and the source / time
 details of every item, and a readable Hebrew report. `verify()` recomputes the hashes of a bundle and reports
 each file. The hash proves the file did not change since the bundle was made — not that the picture is
-authentic against the camera; signing and key management are a separate, later capability (T067)."""
+authentic against the camera. Since 0.1.40 the manifest is signed (Ed25519, manifest.sig.json, T067): the
+signature proves integrity since the export by a key of this installation — still not capture authenticity."""
 from __future__ import annotations
 
 import datetime as dt
@@ -19,6 +20,7 @@ from typing import Any
 from .. import __version__
 from ..config import Settings
 from . import exports as ex
+from . import signing
 
 SCHEMA = "smplwise-evidence-bundle/1"
 INTEGRITY_NOTE = "SHA-256 מוכיח שהקובץ לא השתנה מאז יצירת החבילה; הוא אינו מוכיח את אמיתות הצילום מול המצלמה. חתימה ואימות מקור הם יכולות נפרדות."
@@ -97,14 +99,17 @@ def build(settings: Settings, conn: sqlite3.Connection, case: dict[str, Any], it
         manifest = {
             "schema": SCHEMA, "generated_at": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "generated_by": getattr(actor, "username", None), "app_version": __version__, "timezone": tz_name,
             "case": {k: case[k] for k in ("id", "title", "description", "status", "tags", "owner_username", "created_at", "updated_at")},
-            "items": manifest_items, "skipped": skipped, "files": files, "integrity": INTEGRITY_NOTE, "signature": None,
+            "items": manifest_items, "skipped": skipped, "files": files, "integrity": INTEGRITY_NOTE, "signature": signing.SIG_NAME,
         }
         mbytes = json.dumps(manifest, ensure_ascii=False, indent=2).encode("utf-8")
         z.writestr("manifest.json", mbytes)
         z.writestr("MANIFEST.sha256", _sha256_bytes(mbytes) + "  manifest.json\n")
+        sig = signing.sign_manifest(settings, mbytes)
+        z.writestr(signing.SIG_NAME, json.dumps(sig, ensure_ascii=False, indent=2).encode("utf-8"))
     data = buf.getvalue()
     path.write_bytes(data)
-    return {"name": name, "bytes": len(data), "sha256": _sha256_bytes(data), "files": len(files), "skipped": skipped, "created_at": manifest["generated_at"], "download_url": f"api/v1/cases/{case['id']}/bundles/{name}"}
+    return {"name": name, "bytes": len(data), "sha256": _sha256_bytes(data), "files": len(files), "skipped": skipped, "created_at": manifest["generated_at"], "download_url": f"api/v1/cases/{case['id']}/bundles/{name}",
+            "signature": {"alg": sig["alg"], "kid": sig["kid"]}}
 
 
 def _report_html(case: dict[str, Any], items: list[dict[str, Any]], skipped: list[dict[str, Any]], now: dt.datetime, tz_name: str, actor: Any) -> str:
@@ -127,9 +132,10 @@ def _report_html(case: dict[str, Any], items: list[dict[str, Any]], skipped: lis
 </body></html>"""
 
 
-def verify(zip_bytes: bytes) -> dict[str, Any]:
-    """Recompute every hash listed in the bundle's manifest. Never raises for a bad bundle: it reports."""
-    out: dict[str, Any] = {"ok": False, "schema": None, "files": [], "extra": [], "manifest_ok": None, "errors": []}
+def verify(zip_bytes: bytes, keyring: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Recompute every hash listed in the bundle's manifest and check the manifest signature against `keyring`
+    (this installation's public keys). Never raises for a bad bundle: it reports."""
+    out: dict[str, Any] = {"ok": False, "schema": None, "files": [], "extra": [], "manifest_ok": None, "errors": [], "signature": {"present": False, "valid": False, "kid": None, "known": False, "retired": None, "trust": "unsigned", "reason": "no signature (bundle made before 0.1.40, or the signature was removed)"}, "authenticity": signing.TRUST_NOTE}
     try:
         z = zipfile.ZipFile(io.BytesIO(zip_bytes))
     except zipfile.BadZipFile:
@@ -155,6 +161,11 @@ def verify(zip_bytes: bytes) -> dict[str, Any]:
                 out["manifest_ok"] = recorded == _sha256_bytes(mbytes)
             except Exception:  # noqa: BLE001
                 out["manifest_ok"] = False
+        if signing.SIG_NAME in names:
+            try:
+                out["signature"] = signing.verify_signature(json.loads(z.read(signing.SIG_NAME).decode("utf-8")), mbytes, keyring)
+            except Exception:  # noqa: BLE001 - unreadable signature file: reported as invalid, never raised
+                out["signature"] = {"present": True, "valid": False, "kid": None, "known": False, "retired": None, "trust": "unsigned", "reason": "signature file unreadable"}
         listed = {f["path"] for f in manifest.get("files", [])}
         for f in manifest.get("files", []):
             if f["path"] not in names:
@@ -167,6 +178,7 @@ def verify(zip_bytes: bytes) -> dict[str, Any]:
                 continue
             actual = _sha256_bytes(data)
             out["files"].append({"path": f["path"], "status": "ok" if actual == f["sha256"] else "mismatch", "expected": f["sha256"], "actual": actual})
-        out["extra"] = sorted(n for n in names if n not in listed and n not in ("manifest.json", "MANIFEST.sha256") and not n.endswith("/"))
-    out["ok"] = out["schema"] == SCHEMA and out["manifest_ok"] is not False and all(f["status"] == "ok" for f in out["files"]) and not out["extra"]
+        out["extra"] = sorted(n for n in names if n not in listed and n not in ("manifest.json", "MANIFEST.sha256", signing.SIG_NAME) and not n.endswith("/"))
+    sig_ok = not out["signature"]["present"] or out["signature"]["valid"]
+    out["ok"] = out["schema"] == SCHEMA and out["manifest_ok"] is not False and all(f["status"] == "ok" for f in out["files"]) and not out["extra"] and sig_ok
     return out

@@ -108,6 +108,26 @@ export interface Bundle {
   sha256?: string;
   files?: number;
   skipped?: { item_id: string; reason: string }[];
+  /** Key id the bundle's manifest was signed with (T067); null for bundles made before 0.1.40. */
+  signed?: string | null;
+  signature?: { alg: string; kid: string };
+}
+/** Verdict on the manifest signature: integrity since export, and whether the key belongs to this installation. */
+export interface SignatureVerdict {
+  present: boolean;
+  valid: boolean;
+  kid?: string | null;
+  known?: boolean;
+  retired?: boolean | null;
+  trust: 'installation' | 'embedded_key_only' | 'unsigned';
+  reason?: string | null;
+}
+export interface SigningInfo {
+  alg: string;
+  active: string | null;
+  keys: { kid: string; alg: string; public_key: string; created_at: string; retired_at: string | null }[];
+  trust: string;
+  can_rotate: boolean;
 }
 export interface BundleVerification {
   ok: boolean;
@@ -115,10 +135,14 @@ export interface BundleVerification {
   case?: string;
   generated_at?: string;
   manifest_ok: boolean | null;
-  files: { path: string; status: 'ok' | 'mismatch' | 'missing'; expected: string; actual: string | null }[];
+  files: { path: string; status: 'ok' | 'mismatch' | 'missing' | 'corrupt'; expected: string; actual: string | null }[];
   extra: string[];
   errors: string[];
+  signature?: SignatureVerdict;
+  authenticity?: string;
 }
+export const getSigning = () => get<SigningInfo>('evidence/signing');
+export const rotateSigning = () => post<SigningInfo>('evidence/signing/rotate');
 export const createBundle = (id: string) => post<Bundle>(`cases/${id}/bundle`);
 export const listBundles = (id: string) => get<{ bundles: Bundle[] }>(`cases/${id}/bundles`);
 export const bundleUrl = (id: string, name: string) => apiUrl(`cases/${id}/bundles/${name}`);

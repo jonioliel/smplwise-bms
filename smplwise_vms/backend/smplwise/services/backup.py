@@ -81,6 +81,8 @@ def _rel(settings: Settings, ref: str) -> str | None:
     rel = p.as_posix()
     if rel.startswith("../") or "/../" in rel or rel.startswith("/"):
         return None
+    if rel == "keys" or rel.startswith("keys/"):
+        return None  # private signing keys never enter a backup (T067); a restored installation gets its own key
     return rel
 
 

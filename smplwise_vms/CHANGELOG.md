@@ -1,5 +1,18 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.40 (pilot)
+- Signed evidence bundles and key management (T067): every bundle now carries manifest.sig.json — an Ed25519
+  signature over manifest.json by the installation's active key, with the public key and key id embedded.
+  Verification (in the app or offline with scripts/verify_bundle.py) recomputes every hash and checks the
+  signature, and says which of three things it found: signed by a key of this installation (active or retired),
+  signed by a key this installation does not know (integrity only), or unsigned (bundles from before 0.1.40).
+  Tampering with a file, the manifest or the signature is reported. The private key is created in /data/keys
+  with mode 0600, never leaves it and never enters a backup; הגדרות → אחסון shows the active key and lets a system
+  administrator rotate it (audited) — retired public keys stay in the keyring so older bundles still verify.
+  The trust statement is explicit: a signature proves the bundle did not change since export by that key
+  (integrity-at-export); it does not prove the footage is authentic at capture and is no statement of legal
+  admissibility. New dependency: cryptography.
+
 ## 0.1.39 (pilot)
 - Detection zones and privacy masks as the NVR holds them (T075, read-only half): the camera page reads the
   channel's motion-detection grid (rows × columns, sensitivity, target types, coverage), privacy-mask regions,

@@ -421,6 +421,14 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
 
 - Uploads: PDF/PNG/JPG up to 40 MB, PDF up to 20 pages; SVG and DWG/DXF are rejected.
 - PDF rasterization runs in a separate process (pdftoppm) with a 30 s limit.
+- Evidence bundles are signed: manifest.sig.json holds an Ed25519 signature over manifest.json by the
+  installation's active key (public key and key id embedded). Verify in the case page or offline with
+  `python scripts/verify_bundle.py bundle.zip --keyring keyring.json`; the result separates "signed by a key of
+  this installation" (active or retired), "signed by an unknown key" (integrity only) and "unsigned" (older
+  bundles). The private key lives only in /data/keys (mode 0600) and is never backed up; הגדרות → אחסון shows the
+  active key and rotates it (system.configure, audited), keeping retired public keys for older bundles. A valid
+  signature proves the bundle did not change since export — not that the footage is authentic at capture, and
+  it is no statement of legal admissibility.
 - Detection zones (camera page, read-only): the motion grid, privacy-mask regions, intrusion regions and
   line-crossing lines exactly as the NVR holds them for that channel (ISAPI GET only, cached for a minute), drawn
   over the snapshot with layer toggles. They are polygons in the camera image, not rooms on the plan; the overlay

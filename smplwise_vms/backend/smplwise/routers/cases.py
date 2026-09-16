@@ -19,8 +19,9 @@ from ..auth import current_principal, get_conn, settings_of
 from ..config import Settings
 from ..db import new_id, now_iso, unlocked
 from ..errors import ApiError, conflict, not_found
-from ..rbac import INSTALLATION, Principal, require
+from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import bundle as bundle_svc
+from ..services import signing
 from ..services import exports as ex
 from ..services import nvr, recordings
 from ..services.access import camera_allowed, require_camera, visible_camera_ids
@@ -439,7 +440,7 @@ def list_bundles(case_id: str, request: Request, principal: Principal = Depends(
     d = bundle_svc.bundles_dir(settings_of(request), case_id)
     out = []
     for p in sorted(d.glob("*.zip"), reverse=True) if d.is_dir() else []:
-        out.append({"name": p.name, "bytes": p.stat().st_size, "created_at": dt.datetime.fromtimestamp(p.stat().st_mtime, dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "download_url": f"api/v1/cases/{case_id}/bundles/{p.name}"})
+        out.append({"name": p.name, "bytes": p.stat().st_size, "created_at": dt.datetime.fromtimestamp(p.stat().st_mtime, dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "download_url": f"api/v1/cases/{case_id}/bundles/{p.name}", "signed": signing.bundle_kid(p)})
     return {"bundles": out}
 
 
@@ -470,7 +471,28 @@ async def verify_bundle(request: Request, file: UploadFile = File(...), principa
         if size > MAX_BUNDLE_UPLOAD:
             raise ApiError(413, "payload_too_large", "החבילה גדולה מדי לאימות דרך הדפדפן.")
         chunks.append(chunk)
-    result = bundle_svc.verify(b"".join(chunks))
+    result = bundle_svc.verify(b"".join(chunks), signing.load_keyring(settings_of(request)))
     audit(conn, actor=principal, action="case.bundle.verify", decision="allowed", resource_type="bundle", resource_id=file.filename or "", request_id=_rid(request),
           details={"ok": result["ok"], "files": len(result["files"]), "mismatches": sum(1 for f in result["files"] if f["status"] != "ok"), "extra": len(result["extra"])})
     return result
+
+
+# ---------------------------------------------------------------- evidence signing keys (T067)
+
+@router.get("/evidence/signing")
+def signing_info(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """The installation's evidence-signing keys — public halves only — with the trust statement; anyone who can
+    verify a bundle may read them. The private half never leaves /data/keys and is not part of any backup."""
+    return {**signing.public_info(settings_of(request)), "can_rotate": authorize(conn, principal, "system.configure", INSTALLATION).allowed}
+
+
+@router.post("/evidence/signing/rotate")
+def rotate_signing(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """New active key (system.configure); the previous public key stays in the ring as retired, so earlier bundles
+    still verify and are reported as signed by a retired key of this installation."""
+    require(conn, principal, "system.configure", INSTALLATION)
+    info = signing.rotate(settings_of(request))
+    audit(conn, actor=principal, action="evidence.key.rotate", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
+          details={"active": info["active"], "keys": len(info["keys"])})
+    return {**info, "can_rotate": True}
+
