@@ -18,6 +18,7 @@ import { bridgePairing, haStatus, fmtTime, installBridge, type HaIntegrationStat
 import { DEFAULT_NAMES, applyDesign, currentDesign, designOverride, parseNames, setDesignOverride, type DesignId } from '../api/design';
 import { KIND_LABEL, TABLE_LABEL, backupDownloadUrl, createBackup, deleteBackup, fmtBytes, listBackups, restoreBackup, uploadBackup, type BackupEntry } from '../api/backup';
 import '../components/sw-dialog';
+import { STATUS_KIND, STATUS_LABEL, fmtUptime, healthReport, type HealthReport } from '../api/health';
 
 const TABS = [
   { id: 'general', label: 'כללי' },
@@ -48,6 +49,8 @@ export class SystemDiagnostics extends LitElement {
   @state() private showCode = false;
   @state() private regenArmed = false;
   @state() private copied = false;
+  @state() private report: HealthReport | null = null;
+  @state() private reportBusy = false;
   @state() private backups: BackupEntry[] | null = null;
   @state() private backupPolicy: Record<string, number> = {};
   @state() private backupBusy = false;
@@ -127,6 +130,51 @@ export class SystemDiagnostics extends LitElement {
       block-size: 8px;
       border-radius: 50%;
       background: var(--sw-stale);
+    }
+    .hgrid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 10px;
+    }
+    .hcard {
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      padding: 10px 12px;
+      background: var(--sw-surface);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .hcard.error {
+      border-color: var(--sw-danger);
+    }
+    .hcard.warn {
+      border-color: var(--sw-stale);
+    }
+    .hcard .hh {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-sm);
+    }
+    .hcard .hd {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      line-height: 1.5;
+    }
+    .hsum {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-block-end: 10px;
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text-2);
+    }
+    .hsum .grow {
+      flex: 1;
     }
     .blist {
       display: flex;
@@ -496,7 +544,33 @@ export class SystemDiagnostics extends LitElement {
     </div>`;
   }
 
+  private async loadReport(fresh = false) {
+    if (!isApi()) return;
+    this.reportBusy = true;
+    try {
+      this.report = await healthReport(fresh);
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.reportBusy = false;
+    }
+  }
+
+  private renderReport() {
+    const r = this.report;
+    if (!r) return html`<div class="sections"><sw-card heading="בריאות המערכת"><div class="muted">${this.reportBusy ? 'בודק…' : 'טוען…'}</div></sw-card></div>`;
+    const checked = new Intl.DateTimeFormat('he-IL', { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(new Date(r.checked_at));
+    return html`<div class="sections">
+      <sw-card heading="בריאות המערכת" subheading="מצב נפרד לכל רכיב, לא נורה אחת">
+        <div class="hsum"><sw-badge kind=${STATUS_KIND[r.status]} label=${r.status === 'ok' ? 'הכל תקין' : r.status === 'warn' ? 'יש מה לבדוק' : 'יש תקלה'}></sw-badge><span>גרסה <span class="ltr">${r.version}</span> · פעיל ${fmtUptime(r.uptime_s)} · נבדק <span class="ltr" data-health-checked>${checked}</span></span><span class="grow"></span><sw-button size="sm" icon="refresh" ?disabled=${this.reportBusy} @click=${() => this.loadReport(true)}>${this.reportBusy ? 'בודק…' : 'בדוק עכשיו'}</sw-button></div>
+        <div class="hgrid">${r.checks.map((c) => html`<div class="hcard ${c.status}" data-health-card=${c.id}><div class="hh"><span>${c.label}</span><sw-badge kind=${STATUS_KIND[c.status]} label=${STATUS_LABEL[c.status]}></sw-badge></div><div class="hd">${c.detail}</div></div>`)}</div>
+        <div class="muted" style="margin-block-start:10px">בדיקות המכשירים (NVR, go2rtc) נשמרות ${r.probe_ttl_s} שניות; "בדוק עכשיו" מריץ אותן מחדש. זרמים זרים ב־go2rtc לעולם אינם נוגעים.</div>
+      </sw-card>
+    </div>`;
+  }
+
   private renderHealth() {
+    if (isApi()) return this.renderReport();
     return html`<div class="sections">
       <sw-card heading="מצבים נפרדים, לא נורה אחת">${demoHealth.map((h) => html`<div class="row"><span class="lbl">${h.name}<span class="muted">${h.detail}</span></span><sw-badge kind=${h.state}></sw-badge></div>`)}
         <div class="row"><span class="lbl">הקלטה ב־NVR<span class="muted">5/10 ערוצים מקליטים כרגע (לפי תצורה)</span></span><sw-badge kind="live"></sw-badge></div>
@@ -659,7 +733,7 @@ export class SystemDiagnostics extends LitElement {
   render() {
     return html`
       <sw-page heading="הגדרות המערכת" subheading=${isApi() ? 'תעבורת וידאו, go2rtc, מכסות ובריאות' : 'אזור זמן, מדיניות אחסון, אינטגרציות ובריאות · נתוני הדגמה'}>
-        <sw-tabs underline .items=${TABS} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => { this.tab = e.detail.id; if (this.tab === 'media') void this.loadMedia(); if (this.tab === 'ha') void this.loadHa(); if (this.tab === 'backup') void this.loadBackups(); }}></sw-tabs>
+        <sw-tabs underline .items=${TABS} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => { this.tab = e.detail.id; if (this.tab === 'media') void this.loadMedia(); if (this.tab === 'ha') void this.loadHa(); if (this.tab === 'backup') void this.loadBackups(); if (this.tab === 'health') void this.loadReport(); }}></sw-tabs>
         ${this.message && this.tab === 'ha' ? html`<div class="muted" style="color:#15803d">${this.message}</div>` : nothing}
         ${this.error && this.tab === 'ha' ? html`<div class="muted" style="color:var(--sw-error)">${this.error}</div>` : nothing}
         ${this.tab === 'general' ? this.renderGeneral() : this.tab === 'media' ? this.renderMedia() : this.tab === 'ha' ? this.renderHa() : this.tab === 'health' ? this.renderHealth() : this.tab === 'backup' ? this.renderBackup() : this.renderSupport()}

@@ -299,6 +299,10 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
 
 ## Troubleshooting
 
+- Start at הגדרות → בריאות ועבודות: every subsystem has its own card and status (green = working, amber =
+  not configured or waiting, red = failing with the reason), plus the storage the add-on uses and the last
+  backup. "בדוק עכשיו" probes the NVR and go2rtc again.
+
 - "Home Assistant לא העביר זהות משתמש": the Supervisor did not send the `X-Remote-User-*` headers.
   Update Supervisor/Core; the add-on refuses to guess an identity.
 - "אין הרשאה": your HA user has no VMS role yet — ask the VMS administrator (bootstrap user).

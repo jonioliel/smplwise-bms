@@ -1,5 +1,12 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.18 (pilot)
+- Health and diagnostics (T033): הגדרות → בריאות ועבודות shows one card per subsystem with a real status —
+  database, storage (free space and what the add-on uses), NVR (live probe: model, firmware), go2rtc
+  (version, our streams), HA sync, bridge, event ingest, recording-derived events, camera discovery,
+  event pictures, exports, live and playback sessions, backups — with "בדוק עכשיו". API: GET /health/report
+  (system.configure), probes cached for 20 seconds.
+
 ## 0.1.17 (pilot)
 - Project backups (T026) and rollback safety (T036): a zip with the project tables (sites, buildings,
   floors, plan assets and versions, anchors, cameras, zones, settings; optionally users and permissions)

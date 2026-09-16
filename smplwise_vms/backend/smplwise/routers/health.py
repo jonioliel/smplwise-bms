@@ -8,9 +8,10 @@ from fastapi import APIRouter, Depends, Request
 
 from .. import __version__
 from ..auth import current_principal, get_conn, settings_of
-from ..db import permission_revision
-from ..rbac import Principal
+from ..db import permission_revision, unlocked
+from ..rbac import INSTALLATION, Principal, require
 from ..services import autosync, events_derive, events_ingest, ha_client, ha_sync
+from ..services import health_report as health_report_svc
 
 router = APIRouter()
 
@@ -31,3 +32,16 @@ def health(request: Request, principal: Principal = Depends(current_principal), 
         "identity_source": principal.source,
         "renderer": "pdftoppm" if any(os.access(os.path.join(p, "pdftoppm"), os.X_OK) for p in os.environ.get("PATH", "").split(os.pathsep)) else "pymupdf-or-none",
     }
+
+
+@router.get("/health/report")
+def health_report(request: Request, fresh: bool = False, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """One status per subsystem (T033). Device probes are network calls, so they run outside the request's
+    write transaction; `fresh=1` drops the probe cache first."""
+    require(conn, principal, "system.configure", INSTALLATION)
+    if fresh:
+        health_report_svc.invalidate()
+    settings = settings_of(request)
+    with unlocked(conn):
+        report = health_report_svc.build(settings, conn, probe=True)
+    return report
