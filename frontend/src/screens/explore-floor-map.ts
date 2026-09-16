@@ -25,7 +25,7 @@ import { isApi } from '../api/session';
 import { ApiError, describeError } from '../api/client';
 import type { Anchor } from '../api/types';
 import { pointInPolygon } from '../api/zones';
-import { ACTION_STATUS_LABEL, awaitAction, domainLabel, entityMarkerKind, entityTone, fmtTime, runAction, stateLabel, subscribeHa, type HaActionRecord, type HaActionSpec, type HaEntity } from '../api/ha';
+import { ACTION_ERROR_LABEL, ACTION_STATUS_LABEL, awaitAction, domainLabel, entityMarkerKind, entityTone, fmtTime, runAction, stateLabel, subscribeHa, type HaActionRecord, type HaActionSpec, type HaEntity } from '../api/ha';
 
 type ScreenState = 'ready' | 'loading' | 'empty' | 'error' | 'forbidden' | 'stale' | 'partial';
 type Layer = 'cameras' | 'doors' | 'lights' | 'sensors' | 'zones';
@@ -702,8 +702,9 @@ export class ExploreFloorMap extends LitElement {
       </dl>
       ${!fresh ? html`<div class="warn">${e.state === 'unavailable' ? 'Home Assistant מדווח שהישות אינה זמינה.' : 'הסנכרון מול Home Assistant מנותק — המצב עלול להיות מיושן.'}</div>` : nothing}
       ${e.actions === undefined ? html`<div class="note">${t('entity.noControl')}</div>` : e.actions.length === 0 ? html`<div class="note">קריאה בלבד — אין פעולות מותרות ל־${domainLabel(e.domain)}.</div>` : nothing}
+      ${e.actions?.some((s) => s.granted === false) ? html`<div class="note" data-grant-note>פעולה מעומעמת דורשת הרשאה נפרדת (למשל פתיחת דלת) שאינה חלק משליטה כללית בישויות.</div>` : nothing}
       ${act
-        ? html`<div class=${act.error || act.record?.status === 'failed' || act.record?.status === 'denied' ? 'warn' : 'note'}>${act.spec.label}: ${act.error ? act.error : act.record ? `${ACTION_STATUS_LABEL[act.record.status]}${act.record.error && act.record.status !== 'denied' ? ` (${act.record.error})` : ''}` : 'שולח…'}</div>`
+        ? html`<div class=${act.error || act.record?.status === 'failed' || act.record?.status === 'denied' ? 'warn' : 'note'}>${act.spec.label}: ${act.error ? act.error : act.record ? `${ACTION_STATUS_LABEL[act.record.status]}${act.record.error ? ` — ${ACTION_ERROR_LABEL[act.record.error] ?? act.record.error}` : ''}` : 'שולח…'}</div>`
         : nothing}
     `;
   }
@@ -712,7 +713,7 @@ export class ExploreFloorMap extends LitElement {
     const e = a.entity;
     const busy = Boolean(this.action && e && this.action.entityId === e.entity_id && this.action.busy);
     const specs = e?.actions ?? [];
-    return html`${specs.map((s) => html`<sw-button size="sm" variant=${s.sensitive ? 'danger' : 'primary'} ?disabled=${busy || this.screenState === 'stale' || e?.state === 'unavailable'} @click=${() => e && this.trigger(e.entity_id, s)}>${s.label}</sw-button>`)}`;
+    return html`${specs.map((s) => html`<sw-button size="sm" variant=${s.sensitive ? 'danger' : 'primary'} ?disabled=${busy || this.screenState === 'stale' || e?.state === 'unavailable' || s.granted === false} title=${s.granted === false ? `נדרשת הרשאה נפרדת: ${s.grant ?? ''}` : ''} data-action=${s.id} data-granted=${s.granted === false ? 'no' : 'yes'} @click=${() => e && this.trigger(e.entity_id, s)}>${s.label}</sw-button>`)}`;
   }
 
   private renderConfirm() {

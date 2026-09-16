@@ -8,7 +8,8 @@
 - Directory: the integration pushes the HA user list to the add-on (`POST /api/v1/ha/bridge/directory`),
   signed the same way, for the user/role screens.
 
-Allow-listed actions are the only writes the product knows; arguments are validated here."""
+Allow-listed actions are the only writes the product knows; arguments are validated here. An action with a
+`grant` (lock.unlock -> door.unlock) needs that separate permission on top of ha.entity.control (T079)."""
 from __future__ import annotations
 
 import hashlib
@@ -87,7 +88,7 @@ ACTIONS: dict[str, dict[str, Any]] = {
     "cover.close_cover": {"domain": "cover", "service": "close_cover", "args": {}, "expect": "closed", "sensitive": True, "label": "סגירה"},
     "cover.stop_cover": {"domain": "cover", "service": "stop_cover", "args": {}, "expect": None, "sensitive": False, "label": "עצירה"},
     "lock.lock": {"domain": "lock", "service": "lock", "args": {}, "expect": "locked", "sensitive": False, "label": "נעילה"},
-    "lock.unlock": {"domain": "lock", "service": "unlock", "args": {}, "expect": "unlocked", "sensitive": True, "label": "פתיחה"},
+    "lock.unlock": {"domain": "lock", "service": "unlock", "args": {}, "expect": "unlocked", "sensitive": True, "label": "פתיחה", "grant": "door.unlock"},
     "button.press": {"domain": "button", "service": "press", "args": {}, "expect": None, "sensitive": True, "label": "לחיצה"},
     "script.turn_on": {"domain": "script", "service": "turn_on", "args": {}, "expect": None, "sensitive": True, "label": "הפעלת סקריפט"},
     "scene.turn_on": {"domain": "scene", "service": "turn_on", "args": {}, "expect": None, "sensitive": True, "label": "הפעלת סצנה"},
@@ -95,7 +96,7 @@ ACTIONS: dict[str, dict[str, Any]] = {
 
 
 def actions_for(domain: str) -> list[dict[str, Any]]:
-    return [{"id": aid, "label": a["label"], "sensitive": a["sensitive"], "arguments": list(a["args"])} for aid, a in ACTIONS.items() if a["domain"] == domain]
+    return [{"id": aid, "label": a["label"], "sensitive": a["sensitive"], "arguments": list(a["args"]), "grant": a.get("grant")} for aid, a in ACTIONS.items() if a["domain"] == domain]
 
 
 def validate_action(action_id: str, entity_id: str, arguments: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:

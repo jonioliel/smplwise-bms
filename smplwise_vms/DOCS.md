@@ -385,6 +385,15 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   button, script, scene) need an explicit confirmation; every request is idempotent by client id,
   audited, and reported as pending → confirmed (state observed after the request) / unknown /
   failed / denied. Until the integration is paired, actions are refused with `bridge_not_paired`.
+- Authority on an action is checked twice (T079): the VMS checks `ha.entity.control` at the entity's floor
+  (map editing is a different permission and grants nothing here) plus the action's own grant when it has one —
+  unlocking a lock needs `door.unlock`, which no built-in role carries and only a custom role can hold; the card
+  disables such a button and says why, and the refusal is audited as `grant_required` before anything is sent.
+  Home Assistant then applies the user's own entity permissions, because the call runs in that user's context:
+  its refusal is recorded as `ha_unauthorized` (or `ha_unknown_user` when the HA user behind the session no
+  longer exists), shown in words and audited, and the bridge's own token being an administrator changes
+  nothing. The request body is closed — it cannot carry a user id, a context or a raw service call — and only the
+  allow-listed actions exist, so there is no generic service proxy.
 - Installing the bridge (once): the add-on ships the integration and, with the `homeassistant_config`
   mapping, copies it to `<config>/custom_components/smplwise_bridge` at start-up (only that folder,
   only when missing or outdated) and announces it to the Supervisor discovery API. Restart Home

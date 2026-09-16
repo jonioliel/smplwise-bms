@@ -4233,7 +4233,9 @@
       "Acceptance evidence tied to commit and environment",
       "Desktop/mobile/RTL screenshots for UI tasks"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence 2026-09-16 (0.1.37): VMS permission + scope + separate grant (lock.unlock -> door.unlock, custom roles only) + allow-listed capability, then Home Assistant's own per-user answer in the user's context; HA refusals recorded/audited as ha_unauthorized / ha_unknown_user; closed request body (no user_id/context/service); map.edit grants no control. tests/test_ha_authority.py + updated tests/test_ha.py. Live evidence with a second, restricted HA user still pending (owner declined creating one for now). Status stays BACKLOG until the owner's acceptance review."
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null

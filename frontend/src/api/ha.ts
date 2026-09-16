@@ -11,6 +11,9 @@ export interface HaActionSpec {
   label: string;
   sensitive: boolean;
   arguments: string[];
+  /** A separate permission the action needs on top of entity control (T079), and whether this caller holds it. */
+  grant?: string | null;
+  granted?: boolean;
 }
 
 export interface HaPlacement {
@@ -161,6 +164,17 @@ export async function awaitAction(id: string, onUpdate: (a: HaActionRecord) => v
   }
   return a;
 }
+
+/** Why an action ended denied or failed, in words (the code stays in the record for the audit). */
+export const ACTION_ERROR_LABEL: Record<string, string> = {
+  ha_unauthorized: 'Home Assistant דחה את הפעולה: למשתמש שלך אין הרשאה לישות זו ב־Home Assistant',
+  ha_unknown_user: 'Home Assistant אינו מכיר את המשתמש שמאחורי ההפעלה הזו',
+  bridge_not_paired: 'גשר SMPLWISE אינו מצומד',
+  bridge_error: 'הגשר החזיר שגיאה',
+  ha_unavailable: 'Home Assistant אינו זמין',
+  service_not_allowed: 'הגשר סירב: השירות אינו ברשימת הפעולות המאושרות',
+  unknown_user: 'Home Assistant אינו מכיר את המשתמש',
+};
 
 export const ACTION_STATUS_LABEL: Record<HaActionStatus, string> = {
   pending: 'נשלח · ממתין לעדכון מ־Home Assistant',

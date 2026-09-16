@@ -155,11 +155,16 @@ def test_actions_through_bridge(ha_app, monkeypatch):
     with app.state.db.connection() as conn:
         ha_sync.upsert_state(conn, {"entity_id": "light.lobby", "state": "on", "attributes": {"friendly_name": "Lobby light"}, "last_changed": dt.datetime.now(dt.timezone.utc).isoformat(), "last_updated": dt.datetime.now(dt.timezone.utc).isoformat()})
     assert c.get(f"/api/v1/ha/actions/{a['id']}").json()["status"] == "confirmed"
-    # sensitive action needs an explicit grant; HA's own permission answer is honoured (denied)
-    r = c.post("/api/v1/ha/entities/lock.front/actions", json=body(allowed_action_id="lock.unlock", arguments={}, client_request_id="req-3"))
+    # unlock needs its own grant on top of control (T079); the administrator gets it only through a custom role
+    r = c.post("/api/v1/ha/entities/lock.front/actions", json=body(allowed_action_id="lock.unlock", arguments={}, client_request_id="req-3", confirmation_grant="confirmed"))
+    assert r.status_code == 403 and r.json()["code"] == "grant_required" and r.json()["details"]["grant"] == "door.unlock"
+    opener = c.post("/api/v1/access/roles", json={"name": "פותח דלתות", "permissions": ["map.read"], "sensitive": ["door.unlock"]}).json()
+    assert c.post("/api/v1/access/bindings", json={"subject_kind": "user", "subject_id": "dev-joni", "role_id": opener["id"], "scope_type": "installation", "scope_id": "*"}).status_code == 201
+    # sensitive action needs an explicit confirmation; HA's own permission answer is honoured (denied)
+    r = c.post("/api/v1/ha/entities/lock.front/actions", json=body(allowed_action_id="lock.unlock", arguments={}, client_request_id="req-3b"))
     assert r.status_code == 409 and r.json()["code"] == "confirmation_required"
     r = c.post("/api/v1/ha/entities/lock.front/actions", json=body(allowed_action_id="lock.unlock", arguments={}, client_request_id="req-4", confirmation_grant="confirmed"))
-    assert r.status_code == 202 and r.json()["status"] == "denied" and r.json()["error"] == "unauthorized"
+    assert r.status_code == 202 and r.json()["status"] == "denied" and r.json()["error"] == "ha_unauthorized"
     # permission: a viewer cannot act; an operator on another floor cannot act on an unplaced entity
     bind(c, s, "ron", "viewer", "installation", "*")
     assert c.post("/api/v1/ha/entities/light.lobby/actions", json=body(client_request_id="req-5"), headers=as_user("ron")).status_code == 403

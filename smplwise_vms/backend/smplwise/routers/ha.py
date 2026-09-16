@@ -13,7 +13,7 @@ import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request, WebSocket
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
 from ..audit import audit
@@ -53,6 +53,12 @@ def _entity_allowed(conn: sqlite3.Connection, principal: Principal, entity_id: s
         return True
     placed = _placements(conn).get(entity_id, [])
     return any(p["floor_id"] in floors for p in placed)
+
+
+def _grant_label(permission: str) -> str:
+    from .access import PERMISSION_LABELS  # the one Hebrew label catalogue (lazy: routers stay independent)
+
+    return PERMISSION_LABELS.get(permission, permission)
 
 
 def _entity(conn: sqlite3.Connection, entity_id: str) -> dict[str, Any]:
@@ -135,8 +141,9 @@ def get_entity(entity_id: str, principal: Principal = Depends(current_principal)
         require(conn, principal, "entity.state.read", INSTALLATION)
     e = _entity(conn, entity_id)
     e["placements"] = _placements(conn).get(entity_id, [])
-    e["actions"] = ha_bridge.actions_for(e["domain"])
     e["can_control"] = _entity_allowed(conn, principal, entity_id, "ha.entity.control")
+    # each action says whether this caller holds it: control plus the action's own grant when it has one (T079)
+    e["actions"] = [{**a, "granted": e["can_control"] and (not a["grant"] or _entity_allowed(conn, principal, entity_id, a["grant"]))} for a in ha_bridge.actions_for(e["domain"])]
     e["recent_actions"] = [dict(r) for r in conn.execute("SELECT id, action_id, status, requested_at, confirmed_at, principal_username, error FROM ha_actions WHERE entity_id = ? ORDER BY requested_at DESC, rowid DESC LIMIT 5", (entity_id,)).fetchall()]
     return e
 
@@ -144,7 +151,9 @@ def get_entity(entity_id: str, principal: Principal = Depends(current_principal)
 # ---------------------------------------------------------------- actions (through the bridge only)
 
 class ActionBody(BaseModel):
-    """contracts/schemas/entity-action.schema.json"""
+    """contracts/schemas/entity-action.schema.json — closed: the body never carries an identity or a raw service call (T079)."""
+    model_config = ConfigDict(extra="forbid")
+    entity_binding_id: str | None = None
     allowed_action_id: str = Field(min_length=1, max_length=60)
     arguments: dict[str, Any] = Field(default_factory=dict)
     expected_state_version: str | None = None
@@ -180,6 +189,12 @@ def run_action(entity_id: str, body: ActionBody, request: Request, principal: Pr
     if existing:
         return _action_row(conn, existing["id"])  # idempotent: a duplicate click never sends twice
     spec, data = ha_bridge.validate_action(body.allowed_action_id, entity_id, body.arguments)
+    grant = spec.get("grant")
+    if grant and not _entity_allowed(conn, principal, entity_id, grant):
+        # unlock and its kind need their own grant; general entity control never implies them (T079)
+        audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="grant_required",
+              request_id=getattr(request.state, "correlation_id", None), details={"action": body.allowed_action_id, "grant": grant})
+        raise ApiError(403, "grant_required", f"הפעולה דורשת הרשאה נפרדת ({_grant_label(grant)}); שליטה כללית בישויות אינה כוללת אותה.", details={"action": body.allowed_action_id, "grant": grant})
     if spec["sensitive"] and body.confirmation_grant != "confirmed":
         raise ApiError(409, "confirmation_required", "פעולה רגישה דורשת אישור מפורש.", details={"action": body.allowed_action_id})
     if principal.source != "ingress" and not settings.dev_user:
@@ -206,9 +221,12 @@ def run_action(entity_id: str, body: ActionBody, request: Request, principal: Pr
               request_id=getattr(request.state, "correlation_id", None), details={"action": body.allowed_action_id, "id": aid, "status": "failed"})
         raise
     ok = bool(result.get("ok"))
-    status = "pending" if ok else ("denied" if result.get("error") == "unauthorized" else "failed")
-    conn.execute("UPDATE ha_actions SET status = ?, error = ?, responded_at = ? WHERE id = ?", (status, None if ok else str(result.get("error") or "bridge_error"), now_iso(), aid))
-    audit(conn, actor=principal, action="ha.action", decision="allowed" if ok else "denied", resource_type="ha_entity", resource_id=entity_id, reason=None if ok else str(result.get("error")),
+    error = None if ok else str(result.get("error") or "bridge_error")
+    if error in ("unauthorized", "unknown_user"):
+        error = "ha_" + error  # Home Assistant's own answer about this user: a denial, whatever the bridge token could do
+    status = "pending" if ok else ("denied" if error in ("ha_unauthorized", "ha_unknown_user") else "failed")
+    conn.execute("UPDATE ha_actions SET status = ?, error = ?, responded_at = ? WHERE id = ?", (status, error, now_iso(), aid))
+    audit(conn, actor=principal, action="ha.action", decision="allowed" if ok else "denied", resource_type="ha_entity", resource_id=entity_id, reason=error,
           request_id=getattr(request.state, "correlation_id", None), details={"action": body.allowed_action_id, "id": aid, "arguments": body.arguments, "sensitive": spec["sensitive"]})
     out = _action_row(conn, aid)
     out["note"] = "הבקשה התקבלה; המצב מאושר רק כשמגיע עדכון מ־Home Assistant." if ok else None

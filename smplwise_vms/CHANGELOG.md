@@ -1,5 +1,16 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.37 (pilot)
+- Home Assistant's own answer decides an action (T079): every entity action still runs in the VMS user's own HA
+  identity through the bridge, and a refusal by Home Assistant (the user lacks the entity permission there, or the
+  HA user behind the session no longer exists) is now recorded and audited as `ha_unauthorized` / `ha_unknown_user`
+  and explained in words on the map — the add-on's own token being an administrator changes nothing. Unlocking a
+  lock needs the separate `door.unlock` grant on top of entity control: no built-in role carries it, a custom role
+  can, the entity card disables the button and says why, and the refusal (`grant_required`) is audited without
+  anything reaching Home Assistant. Map editing grants no control. The action request is closed — it cannot carry
+  a user id, a context or a raw service call, and only the allow-listed actions exist, so there is no generic
+  service proxy. Live evidence with a second, restricted HA user is still pending (owner's item).
+
 ## 0.1.36 (pilot)
 - Custom roles and delegated administration (T082): הגדרות › משתמשים והרשאות › תפקידים lets a system
   administrator compose a custom role from ordinary permissions plus sensitive grants that must be ticked
