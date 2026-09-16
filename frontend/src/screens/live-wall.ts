@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing } from 'lit';
-import { customElement, state } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-page';
 import '../components/sw-camera-tile';
 import '../components/sw-button';
@@ -26,6 +26,8 @@ const VIEWS = [
 /** SC07 — multi-camera grid (board 1 screen 6): real streams (sub profile) with snapshot posters, or the demo grid. */
 @customElement('live-wall')
 export class LiveWall extends LitElement {
+  /** Comma-separated camera ids chosen on a floor map (T043); empty = all cameras. */
+  @property() cameras = '';
   @state() private count = 4;
   @state() private stream: 'auto' | 'main' | 'sub' = 'auto';
   @state() private view = 'all';
@@ -112,8 +114,11 @@ export class LiveWall extends LitElement {
     if (this.error) return html`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel>`;
     if (!cams) return html`<sw-state-panel state="loading"></sw-state-panel>`;
     if (!cams.length) return html`<sw-state-panel state="empty" heading="אין מצלמות זמינות" hint="המצלמות מתגלות אוטומטית מה־NVR בהפעלה ובכל 10 דקות. אם הרשימה ריקה: בדוק את פרטי ה־NVR בהגדרות ה־Add-on ואת יומן ה־Add-on, או הרץ סנכרון ידני; ייתכן גם שאין לך הרשאה למצלמות."><div style="margin-block-start:10px"><sw-button @click=${() => navigate('/system/devices')}>למצלמות</sw-button></div></sw-state-panel>`;
-    const shown = cams.slice(0, this.count);
-    const cols = this.count === 1 ? 1 : this.count === 2 ? 2 : this.count <= 4 ? 2 : this.count <= 9 ? 3 : 4;
+    const wanted = this.cameras ? this.cameras.split(',').filter(Boolean) : [];
+    const pool = wanted.length ? cams.filter((c) => wanted.includes(c.id)) : cams;
+    const n = wanted.length ? Math.max(1, pool.length) : this.count;
+    const shown = pool.slice(0, n);
+    const cols = n === 1 ? 1 : n === 2 ? 2 : n <= 4 ? 2 : n <= 9 ? 3 : 4;
     const cap = this.settings?.['media.max_live_sessions'] ?? 8;
     const profile: 'sub' | 'main' = this.stream === 'auto' ? (this.settings?.['media.wall_profile'] ?? 'sub') : this.stream;
     const transport: Transport = effectiveTransport(this.settings);
@@ -128,10 +133,11 @@ export class LiveWall extends LitElement {
             profile=${profile}
             transport=${transport}
             poster=${c.status === 'offline' ? '' : snapshotUrl(c.id, this.posterBust)}
-            ?compact=${this.count >= 9}
+            ?compact=${n >= 9}
             @click=${() => navigate(`/live/cameras/${c.id}`)}></sw-camera-tile>`,
         )}
       </div>
+      ${wanted.length ? html`<div class="note" data-wall-picked>מפה: ${shown.length} מצלמות שנבחרו${shown.length < wanted.length ? ` (${wanted.length - shown.length} לא זמינות)` : ''} · <a href="#/live/wall">כל המצלמות</a></div>` : nothing}
       <div class="note">${shown.length} מתוך ${cams.length} מצלמות · פרופיל ${profile === 'sub' ? 'משני' : 'ראשי'} · תעבורה ${transport} · מכסת זרמים ${cap}${shown.length > cap ? ` — מעבר למכסה מוצג צילום בלבד` : ''} · צילומים מתרעננים כל דקה</div>
     `;
   }

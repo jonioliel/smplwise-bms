@@ -1,5 +1,11 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.22 (pilot)
+- Multi-camera selection from the floor map (T043): "בחירת מצלמות" turns pins into a picker (or "בחר
+  הכל"), "קיר חי" opens the live wall with exactly those cameras, "ניגון מסונכרן" opens playback with the
+  first as lead and up to three more as the synchronized group. The live wall accepts `?cameras=` and
+  playback accepts `?extra=`.
+
 ## Documentation (2026-09-16, no version change)
 - G0 documents: dependency, licence and secrets audit (`docs/security/DEPENDENCY_AND_SECRETS_AUDIT.md`,
   pip-audit and npm audit clean), model policy page (`docs/operations/MODEL_POLICY.md`), pilot contract

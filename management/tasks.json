@@ -2314,7 +2314,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (2026-09-16, 0.1.22): explore-floor-map selection mode ('בחירת מצלמות'): pin clicks toggle cameras (no card opens), chips with the picked names, 'בחר הכל', 'נקה', 'סיום'; sw-plan-canvas selectedIds highlights several pins; 'קיר חי' -> #/live/wall?cameras=a,b (live-wall filters to those cameras, tile count = selection, note with a link back to all cameras); 'ניגון מסונכרן' -> #/investigate/playback?camera=lead&extra=b,c (playback takes up to three extras into the synchronized group at start). frontend/tests/evidence-multiselect.spec.ts in real Chrome against the dev backend - private-evidence/T043-multiselect-live/*.png. Open: lasso / rectangle selection, saving a selection as a view (T057 saved views)"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null

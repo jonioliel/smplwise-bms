@@ -94,6 +94,8 @@ export class SwPlanCanvas extends LitElement {
   @property({ attribute: false }) plan: SVGTemplateResult | null = null;
   @property({ attribute: false }) markers: PlanMarker[] = [];
   @property() selectedId: string | null = null;
+  /** Additional highlighted markers (multi-selection); no card is anchored to them. */
+  @property({ attribute: false }) selectedIds: string[] = [];
   @property({ type: Boolean }) dimEntities = false;
 
   @property({ type: Boolean }) alwaysLabel = false;
@@ -753,7 +755,7 @@ export class SwPlanCanvas extends LitElement {
     const inv = 1 / this.scale;
     const isCamera = m.kind === 'camera';
     const fill = PIN_FILL[m.state] ?? PIN_FILL.neutral;
-    const selected = this.selectedId === m.id;
+    const selected = this.selectedId === m.id || this.selectedIds.includes(m.id);
     // Boards show bare pins; the name appears on hover / selection (labels never intercept clicks).
     const showLabel = this.alwaysLabel || selected || this.hoverId === m.id;
     const labelWidth = Math.max(44, m.label.length * 6.5 + 16);

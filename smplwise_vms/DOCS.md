@@ -183,6 +183,9 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   bottom-right. "שכבות" opens a panel with one switch per layer and its count (cameras, doors and
   intercom, lighting, security and sensors, room names); a switch only changes what is drawn and never
   operates equipment. Room names are shown when the room is wide enough on screen.
+- "בחירת מצלמות" switches the map into a picker: clicks add or remove cameras (or "בחר הכל"), then
+  "קיר חי" shows exactly those cameras on the live wall and "ניגון מסונכרן" opens playback with the
+  first one leading and up to three more following it.
 - Clicking a camera pin opens its card: the live picture plays inside the card (a session for that card
   only; closing the card releases it), with the camera's status, its location (floor and the room or
   zone the pin sits in), "צפייה מלאה" for the full-screen view and "הקלטות" for playback. Escape closes

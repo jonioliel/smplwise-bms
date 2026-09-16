@@ -65,6 +65,8 @@ export class InvestigatePlayback extends LitElement {
   /** Route params (#/investigate/playback?camera=<id>&t=<utc iso>) */
   @property() cameraId = '';
   @property() at = '';
+  /** Comma-separated extra camera ids for a synchronized group (from the floor map, T043). */
+  @property() extraParam = '';
 
   // demo
   @state() private demoCamera = 'cam-10';
@@ -418,6 +420,7 @@ export class InvestigatePlayback extends LitElement {
       this.date = dateInZone(validAt ? at! : new Date(), this.tz);
       if (first) {
         this.cameraId = first.id;
+        if (this.extraParam) this.extra = this.extraParam.split(',').filter((id) => id && id !== first.id && this.cams!.some((c) => c.id === id)).slice(0, 3);
         await this.loadRecordings();
         if (validAt) {
           this.cursor = minuteInZone(at!, this.tz);

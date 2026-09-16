@@ -816,13 +816,13 @@ export class SwApp extends LitElement {
     if (s[0] === 'kiosk') return html`<kiosk-wall></kiosk-wall>`;
     switch (r.mode) {
       case 'live':
-        if (s[1] === 'wall') return html`<live-wall></live-wall>`;
+        if (s[1] === 'wall') return html`<live-wall .cameras=${r.params.get('cameras') ?? ''}></live-wall>`;
         if (s[1] === 'views') return html`<live-views></live-views>`;
         if (s[1] === 'cameras') return html`<live-camera .cameraId=${s[2] ?? 'cam-1'}></live-camera>`;
         return html`<live-overview></live-overview>`;
       case 'investigate':
         if (s[1] === 'playback' && s[2] === 'sync') return html`<investigate-sync></investigate-sync>`;
-        if (s[1] === 'playback') return html`<investigate-playback .cameraId=${r.params.get('camera') ?? ''} .at=${r.params.get('t') ?? ''}></investigate-playback>`;
+        if (s[1] === 'playback') return html`<investigate-playback .cameraId=${r.params.get('camera') ?? ''} .at=${r.params.get('t') ?? ''} .extraParam=${r.params.get('extra') ?? ''}></investigate-playback>`;
         if (s[1] === 'floors') return html`<investigate-history-map .floorId=${s[2] ?? 'f0'} .at=${r.params.get('t') ?? ''} .camera=${r.params.get('camera') ?? ''}></investigate-history-map>`;
         if (s[1] === 'events' && s[2]) return html`<investigate-event-detail .eventId=${s[2]}></investigate-event-detail>`;
         if (s[1] === 'events') return html`<investigate-events .cameraId=${r.params.get('camera') ?? ''} .date=${r.params.get('date') ?? ''}></investigate-events>`;
