@@ -201,6 +201,22 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   inside the dashed rectangle is exactly what the saved version contains; the original file is never
   modified.
 
+## Wall display (kiosk)
+
+- Open #/kiosk/all on the wall screen. The saved view is the URL: `cameras=a,b,c` (ids from the live wall's
+  multi-selection), `cols=2..4`, `rotate=30` (seconds per page; 0 = no rotation). The wall shows live tiles,
+  the clock, a system health pill and nothing else: no menus, no settings, no unlock. After three failed health
+  polls it dims and says the server is unreachable; the first successful poll reloads the tiles. An offline
+  camera is shown as offline, never as a live feed.
+- Give the wall its own Home Assistant user and bind it to the "תצוגת קיוסק" role: map and live video only.
+
+## Suggested path after an event
+
+- The event page of a placed camera lists "המשך מסלול מוצע": cameras in the same room, in adjacent rooms and
+  within reach on the floor plan, ranked, with the activity each reported in the window and a play button at
+  the event time. It is a hypothesis from the map's topology — never a claim that it is the same person or
+  vehicle — and it never triggers anything; the operator confirms the sequence in a case.
+
 ## Searching events by place and source
 
 - חקירה › מרכז אירועים filters by camera, type, date, place and source. "מקום" lists the floors with what is

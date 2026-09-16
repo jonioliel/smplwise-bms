@@ -211,3 +211,96 @@ def correlate(conn: sqlite3.Connection, ev: dict[str, Any], window_s: int = 120,
         "entities": entities, "cameras": [{"camera_id": c, "distance": dist_of.get(c, {}).get("distance"), "same_zone": dist_of.get(c, {}).get("same_zone", False)} for c in camera_ids],
         "links": links, "notes": notes, "policy": POLICY,
     }
+
+
+# ---------------------------------------------------------------- suggested path (T064): topology only, always hypothetical
+
+ROUTE_RADIUS = 0.2
+ROUTE_BEFORE_S = 15
+ROUTE_POLICY = "הצעה לפי טופולוגיית המפה בלבד (אותו חדר, חדר סמוך, קרבה). אין כאן טענה שמדובר באותו אדם או רכב; המפעיל בוחר את הרצף ומאשר אותו בתיק. שום פעולת אבטחה אינה מופעלת מהצעה."
+RELATION_LABEL = {"same_zone": "אותו חדר", "adjacent_zone": "חדר סמוך", "nearby": "בקרבת מקום"}
+
+
+def _seg_dist(px: float, py: float, a: dict[str, float], b: dict[str, float]) -> float:
+    ax, ay, bx, by = a["x"], a["y"], b["x"], b["y"]
+    dx, dy = bx - ax, by - ay
+    if dx == 0 and dy == 0:
+        return math.hypot(px - ax, py - ay)
+    u = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)))
+    return math.hypot(px - (ax + u * dx), py - (ay + u * dy))
+
+
+def polygons_touch(pa: list[dict[str, float]], pb: list[dict[str, float]], eps: float = 0.01) -> bool:
+    """Two rooms are adjacent when they share a border (a vertex of one lies on or inside the other, within eps)."""
+    for poly, other in ((pa, pb), (pb, pa)):
+        for p in poly:
+            if _inside(p["x"], p["y"], other):
+                return True
+            for i in range(len(other)):
+                if _seg_dist(p["x"], p["y"], other[i], other[(i + 1) % len(other)]) <= eps:
+                    return True
+    return False
+
+
+def suggest_route(conn: sqlite3.Connection, ev: dict[str, Any], window_s: int = 90, camera_ids_allowed: set[str] | None = None) -> dict[str, Any]:
+    """Cameras worth looking at next after `ev`, ranked same room → adjacent room → within reach, with the time window
+    and the activity each camera reported in it. Every suggestion is hypothetical linkage, never an identification."""
+    t = parse_utc(ev["occurred_at"])
+    lo, hi = iso_utc(t - dt.timedelta(seconds=ROUTE_BEFORE_S)), iso_utc(t + dt.timedelta(seconds=window_s))
+    out: dict[str, Any] = {"event_id": ev["id"], "hypothetical": True, "spatial": False, "subject": None, "location": None, "window": {"from": lo, "to": hi}, "suggestions": [], "notes": [], "policy": ROUTE_POLICY}
+    names = {r["id"]: (r["alias"] or r["name_source"] or f"ערוץ {r['channel']}") for r in conn.execute("SELECT id, alias, name_source, channel FROM cameras").fetchall()}
+    if not ev.get("camera_id"):
+        out["notes"].append("אירוע ללא מצלמה; אין נקודת מוצא למסלול.")
+        return out
+    out["subject"] = {"camera_id": ev["camera_id"], "name": names.get(ev["camera_id"], ev["camera_id"]), "zone": None}
+    anchor = _anchor(conn, "camera", ev["camera_id"])
+    if anchor is None:
+        out["notes"].append("המצלמה אינה מוצבת על תוכנית קומה; אין טופולוגיה להציע ממנה.")
+        return out
+    out["spatial"] = True
+    out["location"] = {"floor_id": anchor["floor_id"], "floor_name": anchor["floor_name"], "building_name": anchor["building_name"]}
+    zones = [(z["name"], json.loads(z["polygon_json"])) for z in conn.execute("SELECT name, polygon_json FROM spatial_zones WHERE floor_id = ? AND deleted_at IS NULL", (anchor["floor_id"],)).fetchall()]
+    zones = [(n, p) for n, p in zones if len(p) >= 3]
+
+    def zone_of(x: float, y: float) -> tuple[str | None, list[dict[str, float]] | None]:
+        best = None
+        for name, poly in zones:
+            if _inside(x, y, poly):
+                area = abs(sum(poly[i]["x"] * poly[(i + 1) % len(poly)]["y"] - poly[(i + 1) % len(poly)]["x"] * poly[i]["y"] for i in range(len(poly)))) / 2
+                if best is None or area < best[0]:
+                    best = (area, name, poly)
+        return (best[1], best[2]) if best else (None, None)
+
+    zname, zpoly = zone_of(anchor["x"], anchor["y"])
+    out["subject"]["zone"] = zname
+    others = conn.execute("SELECT * FROM map_anchors WHERE floor_id = ? AND resource_type = 'camera' AND effective_to IS NULL AND id != ?", (anchor["floor_id"], anchor["id"])).fetchall()
+    ids = [a["resource_id"] for a in others]
+    activity: dict[str, int] = {}
+    if ids:
+        q = f"SELECT camera_id, COUNT(*) AS n FROM events WHERE camera_id IN ({','.join('?' * len(ids))}) AND occurred_at >= ? AND occurred_at <= ? AND id != ? GROUP BY camera_id"
+        activity = {r["camera_id"]: r["n"] for r in conn.execute(q, (*ids, lo, hi, ev["id"])).fetchall()}
+    rank = {"same_zone": 0, "adjacent_zone": 1, "nearby": 2}
+    for a in others:
+        if camera_ids_allowed is not None and a["resource_id"] not in camera_ids_allowed:
+            continue
+        dist = math.hypot(a["x"] - anchor["x"], a["y"] - anchor["y"])
+        cz, cpoly = zone_of(a["x"], a["y"])
+        if zpoly is not None and cpoly is zpoly:
+            relation = "same_zone"
+        elif zpoly is not None and cpoly is not None and polygons_touch(zpoly, cpoly):
+            relation = "adjacent_zone"
+        elif dist <= ROUTE_RADIUS:
+            relation = "nearby"
+        else:
+            continue
+        out["suggestions"].append({
+            "camera_id": a["resource_id"], "name": names.get(a["resource_id"], a["resource_id"]), "relation": relation, "relation_label": RELATION_LABEL[relation],
+            "distance": round(dist, 3), "zone": cz, "activity_events": activity.get(a["resource_id"], 0), "playback_at": ev["occurred_at"],
+        })
+    out["suggestions"].sort(key=lambda s_: (rank[s_["relation"]], s_["distance"]))
+    if not zones:
+        out["notes"].append("אין חדרים או אזורים מוגדרים בקומה; ההצעה לפי מרחק בלבד.")
+    out["notes"].append("מעברי קומה (מדרגות, מעליות) אינם מוגדרים עדיין; ההצעה נשארת באותה קומה.")
+    if not out["suggestions"]:
+        out["notes"].append("אין מצלמות נוספות בסביבה על התוכנית.")
+    return out

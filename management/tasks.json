@@ -3052,7 +3052,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (2026-09-16, 0.1.31): kiosk-wall real mode - saved view in the URL (cameras, cols, rotate), page rotation timer, health pill from GET /health/summary every 15 s, disconnected overlay after 3 failed polls with tiles forced to 'unknown' (never live) and automatic reload on the first success, offline cameras never live, no admin chrome (shell renders <main> only); roles.json 'kiosk' role = map.read + video.live; tests/test_kiosk_role.py (map + live + health summary 200; recordings, events, cases, storage, audit, health report, backups, HA action, settings, exports, placements all 403). frontend/tests/evidence-kiosk.spec.ts against the dev backend (rotation page 1 -> 2, two-camera view, offline camera tile not live) - private-evidence/T057-kiosk-live/*.png. Open: saved views stored server-side with names, kiosk session principal enforced by the shell (today by role), restore of the exact page after reconnect"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
@@ -3419,7 +3421,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (2026-09-16, 0.1.31): services/correlation.py suggest_route - subject anchor + zone, neighbours ranked same_zone / adjacent_zone (polygons_touch: shared wall within 0.01) / nearby (<= 0.2 plan units), activity count per camera in the window (-15 s .. +window), playback_at, honest notes (unplaced camera, no rooms, no floor connectors yet), policy: hypothetical, no identification, no action; GET /events/{id}/route?window= (events.read on the camera, scope-filtered). tests/test_route.py. UI: event page card with relation badges, activity and play buttons. frontend/tests/evidence-route.spec.ts against the dev backend (a spare camera placed beside the event camera for the evidence and removed afterwards) - private-evidence/T064-route-live/*.png. Open: cross-floor connectors (stairs / elevators), confirming the sequence into a case in one click, direction hints from consecutive events"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null

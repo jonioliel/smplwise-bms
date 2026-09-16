@@ -14,7 +14,7 @@ import type { PlanMarker } from '../map/sw-plan-canvas';
 import { navigate } from '../router';
 import { describeError } from '../api/client';
 import { isApi } from '../api/session';
-import { ackEvent, CERTAINTY_LABEL, EVENT_LABEL, getCorrelation, getEvent, listEvents, pollThumbnail, thumbnailUrl, type Certainty, type Correlation, type EventDetail, type VmsEvent } from '../api/events';
+import { CERTAINTY_LABEL, EVENT_LABEL, ackEvent, getCorrelation, getEvent, getEventRoute, listEvents, pollThumbnail, thumbnailUrl, type Certainty, type Correlation, type EventDetail, type EventRoute, type VmsEvent } from '../api/events';
 import type { StateKind } from '../components/sw-badge';
 
 const CERTAINTY_KIND: Record<Certainty, StateKind> = { measured: 'recorded', inferred: 'unknown', command: 'partial', availability: 'stale' };
@@ -43,6 +43,7 @@ export class InvestigateEventDetail extends LitElement {
   @state() private nearby: VmsEvent[] = [];
   @state() private corr: Correlation | null = null;
   @state() private corrError = '';
+  @state() private route: EventRoute | null = null;
   @state() private busy = false;
   @state() private thumbVersion = 0;
   @state() private casePick: NewCaseItem | null = null;
@@ -267,12 +268,38 @@ export class InvestigateEventDetail extends LitElement {
       else this.bundle = null;
       void this.loadNearby(ev);
       void this.loadCorrelation(ev.id);
+      void this.loadRoute(ev.id);
       if (ev.camera_id) void this.play(ev);
       if (ev.thumbnail === 'pending') this.pollThumb(ev.id);
     } catch (err) {
       this.error = describeError(err);
       this.ev = null;
     }
+  }
+
+  private async loadRoute(id: string) {
+    this.route = null;
+    try {
+      this.route = await getEventRoute(id);
+    } catch {
+      this.route = null;
+    }
+  }
+
+  private renderRoute() {
+    const r = this.route;
+    if (!r || !r.spatial) return nothing;
+    return html`<sw-card heading="המשך מסלול מוצע" subheading="השערה לפי טופולוגיית המפה · ±${Math.round((new Date(r.window.to).getTime() - new Date(r.window.from).getTime()) / 1000)} שניות" style="margin-block-start:12px" data-route>
+      ${r.suggestions.length
+        ? html`<div class="corr" data-route-list>${r.suggestions.map((s) => html`<div class="link" data-route-item data-relation=${s.relation}>
+              <span><sw-badge kind=${s.relation === 'same_zone' ? 'recorded' : s.relation === 'adjacent_zone' ? 'partial' : 'neutral'} label=${s.relation_label}></sw-badge></span>
+              <span>${s.name}${s.zone ? html` · ${s.zone}` : nothing}<small>${s.activity_events ? `${s.activity_events} אירועים בחלון` : 'ללא אירועים בחלון'} · מרחק ${Math.round(s.distance * 100)} יח׳ תוכנית</small></span>
+              <sw-button size="sm" icon="play" @click=${() => navigate('/investigate/playback', { camera: s.camera_id, t: s.playback_at })}>נגן</sw-button>
+            </div>`)}</div>`
+        : html`<div class="note" style="margin:0">אין מצלמות נוספות בסביבה על התוכנית.</div>`}
+      ${r.notes.length ? html`<ul class="corrnotes">${r.notes.map((n) => html`<li>${n}</li>`)}</ul>` : nothing}
+      <div class="note">${r.policy}</div>
+    </sw-card>`;
   }
 
   private async loadCorrelation(id: string) {
@@ -460,6 +487,7 @@ export class InvestigateEventDetail extends LitElement {
               <div class="note">מיקום סמוך הוא הקשר, לא הוכחת קשר סיבתי; סימון "טופל" נרשם באודיט בשם המשתמש.</div>
             </sw-card>
             ${this.renderCorrelation()}
+            ${this.renderRoute()}
             <sw-card heading="אירועים קרובים" subheading="±10 דקות סביב האירוע" style="margin-block-start:12px">
               ${this.nearby.length
                 ? html`<div class="nearby">${this.nearby.map((n) => html`<a href=${`#/investigate/events/${n.id}`}><span>${EVENT_LABEL[n.type] ?? n.type} · ${n.camera_name ?? (n.channel ? `ערוץ ${n.channel}` : 'מערכת')}</span><span class="ltr">${this.fmt(n.occurred_at)}</span></a>`)}</div>`

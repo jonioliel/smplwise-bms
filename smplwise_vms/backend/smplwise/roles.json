@@ -12,6 +12,14 @@
       ]
     },
     {
+      "id": "kiosk",
+      "name_he": "תצוגת קיוסק",
+      "permissions": [
+        "map.read",
+        "video.live"
+      ]
+    },
+    {
       "id": "operator",
       "name_he": "מפעיל",
       "permissions": [

@@ -521,6 +521,22 @@ def event_correlation(event_id: str, principal: Principal = Depends(current_prin
     return out
 
 
+@router.get("/events/{event_id}/route")
+def event_route(event_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), window: int = Query(90, ge=10, le=900)) -> dict[str, Any]:
+    """Suggested next cameras for a hypothetical path after the event (T064): same room, adjacent room, within reach —
+    ranked, with the window to look at and the activity each camera reported. Never an identification; never an action."""
+    row = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
+    if not row:
+        raise ApiError(404, "not_found", "האירוע לא נמצא.")
+    ev = events_ingest.row_to_event(row)
+    if ev["camera_id"]:
+        require_camera(conn, principal, ev["camera_id"], "events.read")
+    else:
+        require(conn, principal, "events.read", INSTALLATION)
+    wide, ids = _scope(conn, principal)
+    return correlation.suggest_route(conn, ev, window_s=window, camera_ids_allowed=None if wide else (ids or set()))
+
+
 @router.post("/events/{event_id}/ack")
 def ack(event_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     row = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()

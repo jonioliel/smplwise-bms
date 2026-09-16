@@ -1,5 +1,14 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.31 (pilot)
+- Kiosk / wall display (T057): #/kiosk/all takes a saved view in the URL (cameras, cols, rotate seconds),
+  rotates pages, shows the system health pill from the summary endpoint, dims the wall after three failed
+  polls and reloads it on the first success, and never shows an offline camera as live. A new "תצוגת קיוסק"
+  role (map + live only) lets a wall log in without events, playback, exports, HA control or settings.
+- Suggested path (T064): every event page of a placed camera offers "המשך מסלול מוצע" — the neighbouring
+  cameras ranked same room → adjacent room → within reach, with the window to look at and the activity each
+  reported. Labelled hypothetical: no claim of the same person or vehicle, no action.
+
 ## 0.1.30 (pilot)
 - Spatial RBAC (T055): an explicit deny on a floor now wins over an installation-wide allow for every camera-bound
   request (live, playback, recordings, events, cases, exports, HA); before, the fallback check re-evaluated the

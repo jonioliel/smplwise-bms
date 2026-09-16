@@ -1,4 +1,4 @@
-import { LitElement, html, css } from 'lit';
+import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-camera-tile';
 import '../components/sw-badge';
@@ -8,7 +8,16 @@ import { isApi, onSession } from '../api/session';
 import { snapshotUrl, type ProductSettings } from '../api/media';
 import { listCameras } from '../api/maps';
 import { effectiveTransport, productSettings } from '../api/prefs';
+import { healthSummary, STATUS_LABEL, type HealthSummary } from '../api/health';
+import { parseRoute } from '../router';
 import type { Camera } from '../api/types';
+
+/** Saved view = the URL: #/kiosk/all?cameras=a,b,c&cols=3&rotate=30 (seconds per page; 0 = no rotation). */
+function viewParams() {
+  const p = parseRoute().params;
+  const cols = Math.min(4, Math.max(1, Number(p.get('cols') ?? 3) || 3));
+  return { cameras: (p.get('cameras') ?? '').split(',').map((s) => s.trim()).filter(Boolean), cols, rotate: Math.max(0, Number(p.get('rotate') ?? 0) || 0) };
+}
 
 /** SC31 — wall display / kiosk (board 3 screen 24): dark navy, 3×3 tiles (real sub streams when a backend exists), big stat tiles, no admin controls. */
 @customElement('kiosk-wall')
@@ -16,8 +25,20 @@ export class KioskWall extends LitElement {
   @state() private cams: Camera[] | null = null;
   @state() private settings: ProductSettings | null = null;
   @state() private clock = '';
+  @state() private page = 0;
+  @state() private health: HealthSummary | null = null;
+  @state() private disconnected = false;
+  @state() private view = viewParams();
   private timer: number | undefined;
+  private rotateTimer: number | undefined;
+  private healthTimer: number | undefined;
+  private failures = 0;
   private unsubscribe: (() => void) | undefined;
+  private onHash = () => {
+    this.view = viewParams();
+    this.page = 0;
+    this.startRotation();
+  };
 
   static styles = css`
     :host {
@@ -54,10 +75,35 @@ export class KioskWall extends LitElement {
       font-variant-numeric: tabular-nums;
       direction: ltr;
     }
+    .overlay {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: rgba(15, 23, 42, 0.86);
+      color: #fff;
+      font-size: var(--sw-fs-xl);
+      z-index: 50;
+      text-align: center;
+      line-height: 1.6;
+    }
+    .pill {
+      font-size: var(--sw-fs-xs);
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.12);
+      color: rgba(255, 255, 255, 0.85);
+    }
+    .pill[data-status='warn'] {
+      background: rgba(245, 158, 11, 0.25);
+    }
+    .pill[data-status='error'] {
+      background: rgba(239, 68, 68, 0.3);
+    }
     .grid {
       flex: 1;
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr));
       gap: 10px;
     }
     .grid sw-camera-tile {
@@ -124,12 +170,51 @@ export class KioskWall extends LitElement {
       if (s.mode === 'api' && this.cams === null) void this.load();
       else if (s.mode !== 'loading') this.requestUpdate();
     });
+    window.addEventListener('hashchange', this.onHash);
+    this.startRotation();
+    void this.pollHealth();
+    this.healthTimer = window.setInterval(() => void this.pollHealth(), 15000);
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     window.clearInterval(this.timer);
+    window.clearInterval(this.rotateTimer);
+    window.clearInterval(this.healthTimer);
+    window.removeEventListener('hashchange', this.onHash);
     this.unsubscribe?.();
+  }
+
+  private startRotation() {
+    window.clearInterval(this.rotateTimer);
+    if (this.view.rotate > 0) this.rotateTimer = window.setInterval(() => (this.page = this.page + 1), this.view.rotate * 1000);
+  }
+
+  /** The wall never shows a dead feed as live: three failed health polls dim the wall; the first success reloads it. */
+  private async pollHealth() {
+    if (!isApi()) return;
+    try {
+      this.health = await healthSummary();
+      if (this.disconnected || this.failures >= 3) void this.load();
+      this.failures = 0;
+      this.disconnected = false;
+    } catch {
+      this.failures += 1;
+      if (this.failures >= 3) this.disconnected = true;
+    }
+  }
+
+  private get pageSize() {
+    return this.view.cols * this.view.cols;
+  }
+
+  private get selected(): Camera[] {
+    const all = (this.cams ?? []).filter((c) => this.view.cameras.length === 0 || this.view.cameras.includes(c.id));
+    return this.view.cameras.length ? this.view.cameras.map((id) => all.find((c) => c.id === id)).filter((c): c is Camera => !!c) : all;
+  }
+
+  private get pages() {
+    return Math.max(1, Math.ceil(this.selected.length / this.pageSize));
   }
 
   private tick() {
@@ -151,7 +236,8 @@ export class KioskWall extends LitElement {
   render() {
     const base = import.meta.env.BASE_URL;
     const api = isApi();
-    const real = api ? (this.cams ?? []).slice(0, 9) : [];
+    const pageIndex = this.page % this.pages;
+    const real = api ? this.selected.slice(pageIndex * this.pageSize, (pageIndex + 1) * this.pageSize) : [];
     const demo = demoWall.filter((c) => c.state !== 'forbidden').slice(0, 9);
     const online = api ? real.filter((c) => c.status === 'online').length : 7;
     const cap = this.settings?.['media.max_live_sessions'] ?? 8;
@@ -160,12 +246,15 @@ export class KioskWall extends LitElement {
         <img src="${base}brand/smplwise-mark.png" alt="SmplWise" />
         <h1>ניטור חי</h1>
         <span class="spacer"></span>
-        <sw-badge kind="live" label=${`${api ? real.length : demo.length} מצלמות · ${online} חיות`}></sw-badge>
+        <sw-badge kind="live" label=${`${api ? this.selected.length : demo.length} מצלמות · ${online} חיות`}></sw-badge>
+        ${api && this.pages > 1 ? html`<span class="pill" data-kiosk-page>עמוד ${pageIndex + 1}/${this.pages}${this.view.rotate ? ` · כל ${this.view.rotate} שנ׳` : ''}</span>` : nothing}
+        ${api && this.health ? html`<span class="pill" data-kiosk-health data-status=${this.health.status}>מערכת: ${STATUS_LABEL[this.health.status]}${this.health.items.filter((i) => i.status !== 'ok').length ? ` · ${this.health.items.filter((i) => i.status !== 'ok').map((i) => i.label).join(', ')}` : ''}</span>` : nothing}
         <span class="clock">${this.clock || '—'}</span>
       </header>
-      <div class="grid">
+      ${this.disconnected ? html`<div class="overlay" data-kiosk-disconnected>אין קשר לשרת ה־VMS<br /><small>הזרמים אינם חיים · מנסה להתחבר מחדש</small></div>` : nothing}
+      <div class="grid" style=${`--cols:${api ? this.view.cols : 3}`}>
         ${api
-          ? real.map((c, i) => html`<sw-camera-tile dark name=${c.name} state=${c.status === 'online' ? 'live' : c.status === 'offline' ? 'offline' : 'unknown'} ?live=${c.status !== 'offline' && i < cap} cameraId=${c.id} profile="sub" transport=${effectiveTransport(this.settings)} poster=${c.status === 'offline' ? '' : snapshotUrl(c.id)} noDemo></sw-camera-tile>`)
+          ? real.map((c, i) => html`<sw-camera-tile dark data-kiosk-tile name=${c.name} state=${this.disconnected ? 'unknown' : c.status === 'online' ? 'live' : c.status === 'offline' ? 'offline' : 'unknown'} ?live=${!this.disconnected && c.status !== 'offline' && i < cap} cameraId=${c.id} profile="sub" transport=${effectiveTransport(this.settings)} poster=${c.status === 'offline' ? '' : snapshotUrl(c.id)} noDemo></sw-camera-tile>`)
           : demo.map((c) => html`<sw-camera-tile dark name=${c.name} state=${c.state} scene=${demoScene[c.id] ?? 'lobby'} noDemo></sw-camera-tile>`)}
       </div>
       <div class="stats">
@@ -174,7 +263,7 @@ export class KioskWall extends LitElement {
         <div class="stat"><div class="ic"><sw-icon name="building" size=${16}></sw-icon></div><div><b>${api ? Math.min(real.length, cap) : 2}</b><span>${api ? 'זרמים חיים במקביל' : 'מבנים'}</span></div></div>
         <div class="stat"><div class="ic green"><sw-icon name="check" size=${16}></sw-icon></div><div><b style="font-size:var(--sw-fs-lg)">${api ? 'פעיל' : 'חלקי'}</b><span>${api ? 'go2rtc + NVR' : 'מצב מערכת · גשר HA לא רענן'}</span></div></div>
       </div>
-      <div class="note">תצוגת קיוסק: קריאה בלבד, ללא פקדי ניהול, חיבור מחדש אוטומטי${api ? '' : ' · נתוני הדגמה (סצנות מאוירות עד חיבור הזרמים)'}</div>
+      <div class="note">תצוגת קיוסק: קריאה בלבד, ללא פקדי ניהול, חיבור מחדש אוטומטי · תצוגה שמורה = הכתובת (cameras, cols, rotate)${api ? '' : ' · נתוני הדגמה (סצנות מאוירות עד חיבור הזרמים)'}</div>
     `;
   }
 }

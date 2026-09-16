@@ -302,3 +302,17 @@ export interface EventFacets {
 }
 export const getEventFacets = (days = 90) => get<EventFacets>(`events/facets?days=${days}`);
 export const SOURCE_LABEL: Record<string, string> = { alertstream: 'אירוע NVR', recording: 'נגזר מהקלטה', system: 'מערכת', ha: 'חיישן HA' };
+
+/** Suggested next cameras after an event (T064): topology only, always hypothetical, never an action. */
+export interface EventRoute {
+  event_id: string;
+  hypothetical: true;
+  spatial: boolean;
+  subject: { camera_id: string; name: string; zone: string | null } | null;
+  location: { floor_id: string; floor_name: string; building_name: string } | null;
+  window: { from: string; to: string };
+  suggestions: { camera_id: string; name: string; relation: 'same_zone' | 'adjacent_zone' | 'nearby'; relation_label: string; distance: number; zone: string | null; activity_events: number; playback_at: string }[];
+  notes: string[];
+  policy: string;
+}
+export const getEventRoute = (id: string, windowS = 90) => get<EventRoute>(`events/${id}/route?window=${windowS}`);
