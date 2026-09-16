@@ -650,6 +650,15 @@ export class SwApp extends LitElement {
     this.stopRouter = onRouteChange((route) => {
       this.route = route;
       this.toggleAttribute('data-kiosk', route.segments[0] === 'kiosk');
+      // embed=1 (Lovelace card iframe, T056): no chrome for the rest of the session, whatever the in-app navigation does
+      if (route.params.get('embed') === '1') {
+        try {
+          sessionStorage.setItem('sw-embed', '1');
+        } catch {
+          /* private mode: the attribute below still applies to this route */
+        }
+      }
+      this.toggleAttribute('data-embed', this.embedded(route));
     });
   }
 
@@ -900,9 +909,19 @@ export class SwApp extends LitElement {
     `;
   }
 
+  private embedded(route = this.route): boolean {
+    if (route?.params.get('embed') === '1') return true;
+    try {
+      return sessionStorage.getItem('sw-embed') === '1';
+    } catch {
+      return false;
+    }
+  }
+
   render() {
     const base = import.meta.env.BASE_URL;
     if (this.route?.segments[0] === 'kiosk') return html`<main style="block-size:100dvh">${this.renderScreen()}</main>`;
+    if (this.embedded()) return html`<main class="embed" style="block-size:100dvh;overflow:auto">${this.renderScreen()}</main>`;
     if (this.design === 'a') return this.renderA();
     const group = groupOf(this.route);
     const tabs = group ? GROUP_TABS[group] : [];

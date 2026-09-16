@@ -6,11 +6,15 @@ It does two things and nothing else:
    permissions decide. The add-on's Supervisor token never acts as a person by itself.
 2. Pushes the Home Assistant user directory (id, name, username, active, admin, groups) to the add-on
    every minute, signed the same way, so the VMS can assign roles to HA users without touching HA.
+3. Serves the Lovelace card `custom:smplwise-card` (www/smplwise-card.js) and registers it as a dashboard
+   resource, so a dashboard can embed a VMS screen through the add-on's Ingress page — the person's own HA
+   identity, the VMS's own roles, no secret in YAML, no entities (T056).
 """
 from __future__ import annotations
 
 import logging
 from datetime import timedelta
+from pathlib import Path
 from typing import Any
 
 import voluptuous as vol
@@ -48,7 +52,58 @@ ALLOWED_SERVICES = {
 }
 
 
+CARD_URL = "/smplwise_bridge/smplwise-card.js"
+
+
+async def _async_register_card(hass: HomeAssistant) -> None:
+    """Serve the Lovelace card (www/smplwise-card.js) next to the integration and register it as a dashboard
+    resource once. Best effort: in YAML-mode dashboards or on an older core the person adds the resource by hand,
+    and the log says so — nothing is retried in a loop, nothing is registered twice."""
+    flag = f"{DOMAIN}_card_registered"
+    if hass.data.get(flag):
+        return
+    hass.data[flag] = True
+    path = Path(__file__).parent / "www" / "smplwise-card.js"
+    if not path.is_file():
+        _LOGGER.warning("smplwise-card.js is missing next to the integration; the Lovelace card is unavailable")
+        return
+    try:
+        try:
+            from homeassistant.components.http import StaticPathConfig
+
+            await hass.http.async_register_static_paths([StaticPathConfig(CARD_URL, str(path), False)])
+        except ImportError:  # cores before 2024.7
+            hass.http.register_static_path(CARD_URL, str(path), cache_headers=False)
+    except Exception as exc:  # noqa: BLE001
+        _LOGGER.warning("could not serve the Lovelace card at %s: %s", CARD_URL, type(exc).__name__)
+        return
+    url = f"{CARD_URL}?v={VERSION}"
+    try:
+        lovelace = hass.data.get("lovelace")
+        resources = None
+        if lovelace is not None:
+            resources = getattr(lovelace, "resources", None)
+            if resources is None and isinstance(lovelace, dict):
+                resources = lovelace.get("resources")
+        if resources is None or not hasattr(resources, "async_create_item"):
+            _LOGGER.info("Lovelace resources are not managed here (YAML mode?): add %s as a module resource by hand", url)
+            return
+        if hasattr(resources, "loaded") and not resources.loaded:
+            await resources.async_load()
+        existing = [r for r in resources.async_items() if str(r.get("url", "")).split("?")[0] == CARD_URL]
+        if existing:
+            if existing[0].get("url") != url:
+                await resources.async_update_item(existing[0]["id"], {"url": url})
+                _LOGGER.info("Lovelace resource updated to %s", url)
+            return
+        await resources.async_create_item({"res_type": "module", "url": url})
+        _LOGGER.info("Lovelace resource %s registered; add 'custom:smplwise-card' to a dashboard", url)
+    except Exception as exc:  # noqa: BLE001
+        _LOGGER.warning("Lovelace resource not registered (%s): add %s as a module resource by hand", type(exc).__name__, url)
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    await _async_register_card(hass)
     url = entry.data[CONF_ADDON_URL].rstrip("/")
     secret = entry.data[CONF_PAIRING_CODE]
     verifier = Verifier(secret)

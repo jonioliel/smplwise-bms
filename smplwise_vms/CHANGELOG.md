@@ -1,5 +1,15 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.45 (pilot)
+- Lovelace card (T056): the SMPLWISE Bridge integration (now 0.2.0) ships `custom:smplwise-card` and registers it
+  as a dashboard resource on load (best effort — in YAML-mode dashboards the log names the resource to add by
+  hand). The card embeds the add-on's own Ingress page for one view — `camera` (with a camera id), `map` (with a
+  floor id), `events`, `health` or `wall` — so the person is who Home Assistant says they are and the VMS applies
+  its own roles: no secret in YAML, no entities, no way around a permission. The VMS gained an embed mode
+  (`embed=1` in the route): the screen renders without the shell chrome, and stays that way for in-app navigation
+  inside the iframe. After updating the add-on, restart Home Assistant once so the 0.2.0 integration (with the
+  card) loads; then add the card to a dashboard.
+
 ## 0.1.44 (pilot)
 - Semantic search with a local baseline (T063): חקירה › חיפוש AI takes a free question in Hebrew or English
   ("אדם בלובי אתמול בערב", "vehicle near the gate this morning 08:00-09:30") and turns it, without any model or

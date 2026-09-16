@@ -407,6 +407,26 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   restart / active / update pending) and has a "התקן / עדכן" button that repeats the copy and the
   announcement.
 
+## Lovelace cards
+
+- The bridge integration serves `custom:smplwise-card` (resource `/smplwise_bridge/smplwise-card.js`, registered
+  automatically when the integration loads; in YAML-mode dashboards add it as a module resource yourself). A card
+  embeds one VMS screen through the add-on's Ingress page, so it needs no secret, creates no entity and cannot bypass
+  a VMS role — the viewer is the Home Assistant user, exactly as in the sidebar panel.
+
+  ```yaml
+  type: custom:smplwise-card
+  view: camera          # camera | map | events | health | wall
+  camera: <camera id>   # for view: camera — the id in the VMS camera page URL
+  floor: <floor id>     # for view: map
+  height: 360
+  title: כניסה ראשית
+  ```
+
+  Optional keys: `addon` (the add-on slug, default `0b8c26d5_smplwise_vms`) and `ingress_url` for a user whose
+  Home Assistant account may not read add-on info. The card creates the Ingress session itself and keeps it
+  alive while the dashboard is open. Screens inside the card open with `embed=1`, i.e. without the shell chrome.
+
 ## Security boundaries checked by tests
 
 - Permissions are evaluated per resource on the server: a camera is reachable only through a floor the user may

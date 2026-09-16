@@ -3015,7 +3015,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence 2026-09-17 (0.1.45, bridge integration 0.2.0): custom:smplwise-card (www/smplwise-card.js served by the integration at /smplwise_bridge/smplwise-card.js and registered as a Lovelace module resource on load, best effort with a logged manual fallback) embeds the add-on's Ingress page for camera / map / events / health / wall views with the HA user's identity and the VMS roles (creates the ingress session itself, no secret in YAML, no entities); VMS embed=1 mode hides the shell chrome and persists for in-app navigation. tests/test_lovelace_card.py (shipping, copies identical, compile, installer carries the card); live evidence private-evidence/T056-lovelace-live (card harness with a fake hass + VMS embed mode). Live evidence inside the owner's HA dashboard needs his restart of HA and adding the card. Status stays BACKLOG."
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
