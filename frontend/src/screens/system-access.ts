@@ -12,6 +12,8 @@ import '../components/sw-steps';
 import '../components/sw-icon';
 import '../components/sw-avatar';
 import '../components/sw-state-panel';
+import '../components/sw-dialog';
+import '../components/sw-chip';
 import type { TableColumn } from '../components/sw-table';
 import { demoGroups, demoRoles, demoUsers, demoAudit } from '../fixtures/catalog';
 import { isApi, session } from '../api/session';
@@ -27,6 +29,13 @@ import {
   listAudit,
   listGroups,
   listRoles,
+  createRole,
+  updateRole,
+  deleteRole,
+  previewRole,
+  setDelegation,
+  type RoleImpact,
+  type RoleInfo,
   listUsers,
   previewAccess,
   revokeBinding,
@@ -87,6 +96,10 @@ export class SystemAccess extends LitElement {
   @state() private error = '';
   @state() private message = '';
   @state() private forbidden = false;
+  @state() private roleEdit: { id: string | null; revision: number; name: string; description: string; permissions: string[]; sensitive: string[]; delegable: boolean } | null = null;
+  @state() private roleImpact: RoleImpact | null = null;
+  @state() private roleDelete: RoleInfo | null = null;
+  private roleImpactTimer = 0;
 
   static styles = css`
     .notice {
@@ -142,6 +155,36 @@ export class SystemAccess extends LitElement {
     }
     .status.off i {
       background: var(--sw-offline);
+    }
+    .perms {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2px 10px;
+    }
+    .chk {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: var(--sw-fs-sm);
+    }
+    .chk.sens {
+      color: var(--sw-warning, #b45309);
+    }
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .impact {
+      margin-block-start: 8px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: var(--sw-surface-2);
+      font-size: var(--sw-fs-sm);
+    }
+    .err {
+      color: var(--sw-danger);
+      font-size: var(--sw-fs-sm);
     }
     .roles {
       display: grid;
@@ -547,9 +590,138 @@ export class SystemAccess extends LitElement {
     `;
   }
 
+  private openRole(r?: RoleInfo) {
+    this.roleImpact = null;
+    const sens = new Set(this.roles?.sensitive ?? []);
+    this.roleEdit = r
+      ? { id: r.id, revision: r.revision ?? 1, name: r.name, description: r.description ?? '', permissions: r.permissions.filter((p) => !sens.has(p)), sensitive: r.permissions.filter((p) => sens.has(p)), delegable: !!r.delegable }
+      : { id: null, revision: 0, name: '', description: '', permissions: ['map.read'], sensitive: [], delegable: false };
+    this.scheduleImpact();
+  }
+
+  private toggleRolePerm(p: string, sensitive: boolean) {
+    const e = this.roleEdit;
+    if (!e) return;
+    const key = sensitive ? 'sensitive' : 'permissions';
+    const list = e[key].includes(p) ? e[key].filter((x) => x !== p) : [...e[key], p];
+    this.roleEdit = { ...e, [key]: list };
+    this.scheduleImpact();
+  }
+
+  private scheduleImpact() {
+    window.clearTimeout(this.roleImpactTimer);
+    this.roleImpactTimer = window.setTimeout(() => void this.loadImpact(), 300);
+  }
+
+  private async loadImpact() {
+    const e = this.roleEdit;
+    if (!e || (!e.permissions.length && !e.sensitive.length)) {
+      this.roleImpact = null;
+      return;
+    }
+    try {
+      this.roleImpact = await previewRole({ role_id: e.id, permissions: e.permissions, sensitive: e.sensitive });
+    } catch (err) {
+      this.error = describeError(err);
+    }
+  }
+
+  private async saveRole() {
+    const e = this.roleEdit;
+    if (!e || !e.name.trim()) return;
+    this.busy = true;
+    this.error = '';
+    try {
+      const body = { name: e.name.trim(), description: e.description, permissions: e.permissions, sensitive: e.sensitive, delegable: e.delegable };
+      if (e.id) await updateRole(e.id, { ...body, revision: e.revision });
+      else await createRole(body);
+      this.roleEdit = null;
+      this.roleImpact = null;
+      this.message = e.id ? 'התפקיד עודכן; השינוי חל על כל המשויכים ברענון הבא' : 'התפקיד נוצר';
+      this.roles = await listRoles();
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private async removeRole(r: RoleInfo) {
+    this.busy = true;
+    this.error = '';
+    try {
+      await deleteRole(r.id);
+      this.roleDelete = null;
+      this.roles = await listRoles();
+    } catch (err) {
+      this.error = describeError(err);
+      this.roleDelete = null;
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private async toggleDelegable(roleId: string) {
+    const current = this.roles?.delegable_roles ?? [];
+    const next = current.includes(roleId) ? current.filter((x) => x !== roleId) : [...current, roleId];
+    this.busy = true;
+    this.error = '';
+    try {
+      await setDelegation(next);
+      this.roles = await listRoles();
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private renderRoleDialog() {
+    const e = this.roleEdit;
+    const roles = this.roles;
+    if (!e || !roles) return nothing;
+    const sens = new Set(roles.sensitive);
+    const sys = new Set(roles.system_permissions ?? []);
+    const ordinary = Object.keys(roles.labels).filter((p) => !sens.has(p) && !sys.has(p));
+    const im = this.roleImpact;
+    return html`<sw-dialog open heading=${e.id ? 'עריכת תפקיד מותאם' : 'תפקיד מותאם חדש'} subheading="הרשאות רגילות + הרשאות רגישות במפורש · ללא הרשאות מערכת · ההשפעה מוצגת לפני השמירה" data-role-dialog @close=${() => (this.roleEdit = null)}>
+      ${this.error ? html`<div class="err">${this.error}</div>` : nothing}
+      <sw-field label="שם"><input data-role-name .value=${e.name} @input=${(ev: Event) => (this.roleEdit = { ...e, name: (ev.target as HTMLInputElement).value })} /></sw-field>
+      <sw-field label="תיאור"><input .value=${e.description} @input=${(ev: Event) => (this.roleEdit = { ...e, description: (ev.target as HTMLInputElement).value })} /></sw-field>
+      <div class="hint">הרשאות רגילות</div>
+      <div class="perms">${ordinary.map((p) => html`<label class="chk"><input type="checkbox" data-role-perm=${p} .checked=${e.permissions.includes(p)} @change=${() => this.toggleRolePerm(p, false)} /> ${roles.labels[p]}</label>`)}</div>
+      <div class="hint" style="margin-block-start:6px">הרשאות רגישות — לעולם לא מרומזות, נדרשות במפורש</div>
+      <div class="perms">${roles.sensitive.map((p) => html`<label class="chk sens"><input type="checkbox" data-role-sensitive=${p} .checked=${e.sensitive.includes(p)} @change=${() => this.toggleRolePerm(p, true)} /> ${roles.labels[p] ?? p}</label>`)}</div>
+      <label class="chk" style="margin-block-start:6px"><input type="checkbox" data-role-delegable .checked=${e.delegable} @change=${(ev: Event) => (this.roleEdit = { ...e, delegable: (ev.target as HTMLInputElement).checked })} /> מנהל אתר רשאי להקצות תפקיד זה בהיקפו (בכפוף להרשאות שהוא מחזיק)</label>
+      ${im
+        ? html`<div class="impact" data-role-impact>
+            <strong>השפעת השינוי:</strong> ${im.bindings} שיוכים · ${im.users.length} משתמשים${im.users.length ? ` (${im.users.map((u) => u.name).join(', ')})` : ''}${im.groups.length ? ` · ${im.groups.length} קבוצות` : ''}${im.scopes.length ? ` · היקפים: ${im.scopes.join(', ')}` : ''}
+            <div>${im.added.length ? html`יתווספו: ${im.added.map((p) => roles.labels[p] ?? p).join(', ')}` : 'ללא הרשאות חדשות'} · ${im.removed.length ? html`<span class="err">יוסרו: ${im.removed.map((p) => roles.labels[p] ?? p).join(', ')}</span>` : 'ללא הסרות'}</div>
+          </div>`
+        : nothing}
+      <sw-button slot="footer" variant="ghost" @click=${() => (this.roleEdit = null)}>ביטול</sw-button>
+      <sw-button slot="footer" variant="primary" icon="check" data-role-save ?disabled=${this.busy || !e.name.trim() || (!e.permissions.length && !e.sensitive.length)} @click=${() => this.saveRole()}>${e.id ? 'שמירה' : 'צור תפקיד'}</sw-button>
+    </sw-dialog>`;
+  }
+
   private renderRolesApi() {
     const roles = this.roles!;
-    return html`<div class="roles">${roles.roles.map((r) => html`<sw-card class="role"><h4><span class="ic"><sw-icon name=${r.id === 'viewer' ? 'eye' : r.id === 'operator' ? 'play' : r.id === 'editor' ? 'edit' : r.id === 'site_admin' ? 'building' : 'shield'} size=${14}></sw-icon></span>${r.name}${r.system_role ? html` <sw-badge kind="neutral" label="הרשאות מערכת"></sw-badge>` : nothing}</h4><div class="a">מותר: ${r.permissions.map((p) => this.label(p)).join(', ')}</div><div class="d">לא כלול אוטומטית: ${r.sensitive_missing.map((p) => this.label(p)).join(', ') || '—'}</div></sw-card>`)}</div><div class="hint">תפקידים מובנים בפיילוט; תפקידים מותאמים והאצלה מקומית ב־V1 (T082). התפקידים אינם סולם: עריכת מפה והיסטוריית וידאו הן יכולות נפרדות.</div>`;
+    return html`<div class="roles">${roles.roles.map((r) => html`<sw-card class="role" data-role-card=${r.id}><h4><span class="ic"><sw-icon name=${r.custom ? 'user' : r.id === 'viewer' ? 'eye' : r.id === 'operator' ? 'play' : r.id === 'editor' ? 'edit' : r.id === 'site_admin' ? 'building' : r.id === 'kiosk' ? 'grid' : 'shield'} size=${14}></sw-icon></span>${r.name}${r.custom ? html` <sw-badge kind="recorded" label="מותאם"></sw-badge>` : nothing}${r.system_role ? html` <sw-badge kind="neutral" label="הרשאות מערכת"></sw-badge>` : nothing}${r.delegable ? html` <sw-badge kind="historic" label="ניתן להאצלה"></sw-badge>` : nothing}</h4>${r.description ? html`<div class="d">${r.description}</div>` : nothing}<div class="a">מותר: ${r.permissions.map((p) => this.label(p)).join(', ')}</div><div class="d">לא כלול אוטומטית: ${r.sensitive_missing.map((p) => this.label(p)).join(', ') || '—'}</div>${r.custom && roles.can_manage_roles ? html`<div style="display:flex;gap:6px;margin-block-start:8px"><sw-button size="sm" data-role-edit @click=${() => this.openRole(r)}>עריכה</sw-button><sw-button size="sm" variant="ghost" icon="trash" data-role-delete @click=${() => (this.roleDelete = r)}>מחיקה</sw-button></div>` : nothing}</sw-card>`)}</div>
+      ${roles.can_manage_roles
+        ? html`<div style="margin-block-start:10px"><sw-button variant="primary" icon="plus" data-role-new @click=${() => this.openRole()}>תפקיד מותאם חדש</sw-button></div>
+            <sw-card heading="האצלת ניהול למנהלי אתר" subheading="מנהל אתר משייך רק תפקידים מהרשימה הזו, רק הרשאות שהוא מחזיק בהיקף, למשתמשים בלבד ובתוך ההיקף שלו; תפקידי מערכת לעולם לא" style="margin-block-start:12px" data-delegation>
+              <div class="chips">${roles.roles.filter((r) => !r.system_role).map((r) => html`<sw-chip data-delegable=${r.id} ?selected=${(roles.delegable_roles ?? []).includes(r.id)} @click=${() => void this.toggleDelegable(r.id)}>${r.name}</sw-chip>`)}</div>
+            </sw-card>`
+        : nothing}
+      <div class="hint">תפקידים מובנים אינם נערכים; תפקיד מותאם מורכב מהרשאות רגילות ומהרשאות רגישות שניתנות במפורש, ולעולם לא מהרשאות מערכת. התפקידים אינם סולם: עריכת מפה והיסטוריית וידאו הן יכולות נפרדות.</div>
+      ${this.renderRoleDialog()}
+      ${this.roleDelete
+        ? html`<sw-dialog open heading="מחיקת תפקיד" subheading=${this.roleDelete.name} @close=${() => (this.roleDelete = null)}>
+            <div class="hint">תפקיד משויך אינו נמחק: בטל קודם את השיוכים. המחיקה נרשמת באודיט.</div>
+            <sw-button slot="footer" variant="ghost" @click=${() => (this.roleDelete = null)}>ביטול</sw-button>
+            <sw-button slot="footer" variant="danger" icon="trash" data-role-delete-confirm ?disabled=${this.busy} @click=${() => void this.removeRole(this.roleDelete!)}>מחק</sw-button>
+          </sw-dialog>`
+        : nothing}`;
   }
 
   private renderEffectiveApi() {

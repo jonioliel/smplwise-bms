@@ -62,8 +62,8 @@
       "scope": "site-a",
       "action": "rbac.assign",
       "target": "site-a",
-      "expected_allow": false,
-      "reason": "Pilot site admin has no delegation grant."
+      "expected_allow": true,
+      "reason": "V1 delegated administration (T082): the site admin holds a limited rbac.assign inside their own subtree. The limits (allowlisted roles only, nothing above their own permissions at that scope, users only, never a system role, never outside the subtree) are enforced by the delegation check on top of this coarse decision."
     },
     {
       "id": "system-admin-not-ha-admin",

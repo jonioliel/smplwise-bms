@@ -2,7 +2,7 @@
  * Users from Home Assistant, VMS groups, role bindings, effective-permission preview and the RBAC audit
  * trail (chapters 8/40). Identity is Home Assistant's; assignments live only inside SMPLWISE.
  */
-import { del, get, post, put } from './client';
+import { del, get, patch, post, put } from './client';
 
 export interface AccessBinding {
   id: string;
@@ -52,12 +52,41 @@ export interface RoleInfo {
   sensitive_included: string[];
   sensitive_missing: string[];
   system_role: boolean;
+  /** Custom roles (T082): editable, never a system permission, sensitive grants listed explicitly. */
+  custom?: boolean;
+  description?: string;
+  revision?: number | null;
+  delegable?: boolean;
+  created_by_username?: string | null;
+  updated_by_username?: string | null;
 }
 
 export interface RolesResponse {
   roles: RoleInfo[];
   labels: Record<string, string>;
   sensitive: string[];
+  system_permissions?: string[];
+  delegable_roles?: string[];
+  can_manage_roles?: boolean;
+}
+
+/** Who a role change touches, computed before saving (T082). */
+export interface RoleImpact {
+  role_id: string | null;
+  added: string[];
+  removed: string[];
+  bindings: number;
+  users: { id: string; name: string }[];
+  groups: { id: string; name: string }[];
+  scopes: string[];
+  labels?: Record<string, string>;
+}
+export interface CustomRoleBody {
+  name: string;
+  description: string;
+  permissions: string[];
+  sensitive: string[];
+  delegable: boolean;
 }
 
 export interface AccessGroup {
@@ -143,3 +172,10 @@ export function fmtWhen(iso: string | null | undefined): string {
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' });
 }
+
+export const createRole = (body: CustomRoleBody) => post<RoleInfo>('access/roles', body);
+export const updateRole = (id: string, body: CustomRoleBody & { revision: number }) => patch<RoleInfo & { impact: RoleImpact }>(`access/roles/${id}`, body);
+export const deleteRole = (id: string) => del(`access/roles/${id}`);
+export const previewRole = (body: { role_id?: string | null; permissions: string[]; sensitive: string[] }) => post<RoleImpact>('access/roles/preview', body);
+export const getDelegation = () => get<{ delegable_roles: string[]; default: string[]; rules: string[] }>('access/delegation');
+export const setDelegation = (roles: string[]) => put<{ delegable_roles: string[]; revision: number }>('access/delegation', { delegable_roles: roles });

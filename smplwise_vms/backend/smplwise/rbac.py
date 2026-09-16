@@ -8,7 +8,7 @@ import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 
-from .db import now_iso
+from .db import now_iso, permission_revision
 from .errors import forbidden
 
 ROLES: dict[str, list[str]] = {
@@ -20,6 +20,31 @@ ROLE_NAMES_HE: dict[str, str] = {
 
 SCOPE_ORDER = ("installation", "site", "building", "floor")
 INSTALLATION = ("installation", "*")
+
+_CUSTOM_CACHE: dict[int, dict[str, list[str]]] = {}
+
+
+def custom_roles(conn: sqlite3.Connection) -> dict[str, list[str]]:
+    """Custom roles (T082) as {id: permissions}; cached per permission revision, which every role change bumps."""
+    rev = permission_revision(conn)
+    cached = _CUSTOM_CACHE.get(rev)
+    if cached is None:
+        try:
+            rows = conn.execute("SELECT id, permissions_json, sensitive_json FROM custom_roles WHERE deleted_at IS NULL").fetchall()
+        except sqlite3.OperationalError:  # before the migration ran
+            rows = []
+        cached = {r["id"]: sorted(set(json.loads(r["permissions_json"])) | set(json.loads(r["sensitive_json"] or "[]"))) for r in rows}
+        _CUSTOM_CACHE.clear()
+        _CUSTOM_CACHE[rev] = cached
+    return cached
+
+
+def role_permissions(conn: sqlite3.Connection, role_id: str) -> list[str]:
+    return ROLES.get(role_id) or custom_roles(conn).get(role_id, [])
+
+
+def all_roles(conn: sqlite3.Connection) -> dict[str, list[str]]:
+    return {**ROLES, **custom_roles(conn)}
 
 
 @dataclass(frozen=True)
@@ -80,7 +105,7 @@ def authorize(conn: sqlite3.Connection, principal: Principal, permission: str, t
     for b in _active_bindings(conn, principal):
         if (b["scope_type"], b["scope_id"]) not in chain:
             continue
-        if permission not in ROLES.get(b["role_id"], []):
+        if permission not in role_permissions(conn, b["role_id"]):
             continue
         if b["effect"] == "deny":
             return Decision(False, "explicit_deny", b["id"], b["role_id"], (b["scope_type"], b["scope_id"]))
@@ -105,7 +130,7 @@ def effective_permissions(conn: sqlite3.Connection, principal: Principal, target
     for b in _active_bindings(conn, principal):
         if (b["scope_type"], b["scope_id"]) not in chain:
             continue
-        perms = ROLES.get(b["role_id"], [])
+        perms = role_permissions(conn, b["role_id"])
         (denied if b["effect"] == "deny" else allowed).update(perms)
     return sorted(allowed - denied)
 

@@ -4397,7 +4397,9 @@
       "Acceptance evidence tied to commit and environment",
       "Desktop/mobile/RTL screenshots for UI tasks"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence 2026-09-16 (0.1.36): custom roles (ordinary + explicit sensitive grants, never a system permission, impact preview, revision guard, delete refused while bound, backup) and delegated administration for site admins (allowlist setting, own-permission ceiling, users only, no system roles, audited denials). tests/test_custom_roles.py + updated test_rbac_matrix.py and the contract vector site-admin-users; live evidence private-evidence/T082-custom-roles-live (create in the dialog, bind, impact preview, edit applied at once, delete guard, allowlist toggle). Status stays BACKLOG until the owner's acceptance review."
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null

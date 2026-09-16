@@ -67,7 +67,8 @@
         "video.export",
         "ha.entity.control",
         "cases.manage",
-        "rules.manage"
+        "rules.manage",
+        "rbac.assign"
       ]
     },
     {

@@ -347,12 +347,22 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
 - A user disabled or deleted in Home Assistant loses access at the next directory push (within 60 s):
   new requests are refused, open live/playback sockets end within seconds, and the audit keeps the id.
   A current VMS administrator is never dropped merely because a push omitted them.
-- Roles are the built-in catalogue (viewer, operator, editor, site_admin, system_admin); a binding is a
-  role at a scope (whole installation, site, building or floor) for a user or a VMS group. Only holders
-  of `rbac.assign` (system_admin in the pilot) assign; system_admin and other system permissions can only
-  be bound installation-wide, and the last active administrator cannot be removed. Each change bumps the
-  permission revision, is audited with a before/after diff of the subject's bindings and takes effect
-  immediately.
+- Roles are the built-in catalogue (viewer, operator, editor, kiosk, site_admin, system_admin) plus custom
+  roles; a binding is a role at a scope (whole installation, site, building or floor) for a user or a VMS
+  group. System_admin and other system permissions can only be bound installation-wide, and the last active
+  administrator cannot be removed. Each change bumps the permission revision, is audited with a before/after
+  diff of the subject's bindings and takes effect immediately.
+- Custom roles (תפקידים tab): a system administrator composes a role from ordinary permissions plus sensitive
+  grants that must be ticked explicitly; a custom role never carries a system permission (configuration,
+  role or binding management) and built-in roles cannot be edited. Before saving, the dialog shows the impact
+  (bindings, users, groups, scopes, permissions added or removed); the change applies to every affected
+  session on its next request, a stale edit is refused (revision), and a role that is still bound cannot be
+  deleted. Custom roles are included in the settings backup.
+- Delegated administration: a site administrator may assign roles inside their own site, subject to four
+  limits — only roles on the delegation allowlist (edited on the same tab; built-in viewer/operator/editor/kiosk
+  by default plus custom roles marked "ניתן להאצלה"), only roles whose permissions they themselves hold at that
+  scope, only to users (never groups), and never a role with a system permission. Anything outside the limits
+  is refused with a reason (`role_not_delegable`, `delegation_escalation`, `delegation_groups`) and audited.
 - The wizard shows what the role allows at the chosen scope and what stays excluded (sensitive
   permissions such as export or entity control, other scopes). "הרשאות אפקטיביות" computes a user's
   real permissions at a scope on the server, without impersonation.

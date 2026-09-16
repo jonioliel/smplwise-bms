@@ -1,5 +1,18 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.36 (pilot)
+- Custom roles and delegated administration (T082): הגדרות › משתמשים והרשאות › תפקידים lets a system
+  administrator compose a custom role from ordinary permissions plus sensitive grants that must be ticked
+  explicitly (export, entity control, unlock, PTZ, talk…); system permissions (configuration, role management,
+  binding management) can never be part of a custom role, and built-in roles stay immutable. Before a role is
+  saved the screen shows its impact — how many bindings, which users and groups, at which scopes, and which
+  permissions are added or removed — and a change takes effect on the next request of every affected session
+  (optimistic revision, so two administrators cannot overwrite each other). A role that is still bound cannot be
+  deleted. Delegation: a site administrator may now assign roles inside their own site, but only roles on the
+  delegation allowlist (a setting edited on the same tab), only roles whose permissions they hold at that scope,
+  only to users (never groups) and never a role that carries a system permission; every refused delegation is
+  audited with its reason. Custom roles are part of the settings backup.
+
 ## 0.1.35 (pilot)
 - Alarm rules with a dry run (T052): חקירה › חוקים והתראות builds a rule from trigger (event types, sources,
   minimum severity), scope (floors, rooms, cameras through the floor plan), a site-local time window and a

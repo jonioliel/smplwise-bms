@@ -17,9 +17,9 @@ from pydantic import BaseModel, Field
 
 from ..audit import audit
 from ..auth import current_principal, get_conn, settings_of
-from ..db import bump_permission_revision, get_setting, new_id, now_iso, permission_revision, unlocked
+from ..db import set_setting, bump_permission_revision, get_setting, new_id, now_iso, permission_revision, unlocked
 from ..errors import ApiError
-from ..rbac import INSTALLATION, ROLE_NAMES_HE, ROLES, Principal, authorize, effective_permissions, require, scope_name
+from ..rbac import INSTALLATION, ROLE_NAMES_HE, ROLES, Principal, all_roles, authorize, effective_permissions, require, role_permissions, scope_name
 from ..services import ha_client, revocation
 from ..services import playback as pb
 from ..services.timeutil import parse_utc
@@ -54,7 +54,8 @@ PERMISSION_LABELS: dict[str, str] = {
     "alarm.disarm": "ניטרול אזעקה",
     "nvr.config.write": "כתיבה להגדרות ה־NVR",
 }
-SYSTEM_PERMISSIONS = {"system.configure", "sources.configure", "identity.directory.read", "rbac.assign", "rbac.roles.manage", "audit.read", "backup.manage"}
+SYSTEM_PERMISSIONS = {"system.configure", "sources.configure", "identity.directory.read", "rbac.roles.manage", "audit.read", "backup.manage"}  # rbac.assign is delegable (T082)
+DEFAULT_DELEGABLE = ["viewer", "operator", "editor", "kiosk"]
 SENSITIVE: list[str] = list(json.loads((Path(__file__).resolve().parents[1] / "roles.json").read_text(encoding="utf-8")).get("sensitive_permissions_not_implied", []))
 SCOPE_TABLES = {"site": "sites", "building": "buildings", "floor": "floors"}
 STALE_S = 300  # the integration pushes the directory every 60 s
@@ -184,17 +185,43 @@ def _scope_exists(conn: sqlite3.Connection, scope_type: str, scope_id: str) -> b
     return conn.execute(f"SELECT 1 FROM {table} WHERE id = ? AND deleted_at IS NULL", (scope_id,)).fetchone() is not None
 
 
-def _check_delegation(conn: sqlite3.Connection, principal: Principal, role_id: str, scope: tuple[str, str]) -> None:
-    """Pilot rule (§7): only holders of rbac.assign on the target scope assign; system permissions and the
-    system_admin role stay installation-wide and need installation-wide authority (no self-escalation)."""
+def delegable_roles(conn: sqlite3.Connection) -> list[str]:
+    """Roles a delegated (non installation-wide) administrator may assign: the configured allowlist plus custom roles flagged delegable."""
+    raw = get_setting(conn, "rbac.delegable_roles")
+    try:
+        chosen = [r for r in json.loads(raw) if isinstance(r, str)] if raw else list(DEFAULT_DELEGABLE)
+    except ValueError:
+        chosen = list(DEFAULT_DELEGABLE)
+    custom = [r["id"] for r in conn.execute("SELECT id FROM custom_roles WHERE deleted_at IS NULL AND delegable = 1").fetchall()]
+    return sorted(set(chosen) | set(custom))
+
+
+def _check_delegation(conn: sqlite3.Connection, principal: Principal, role_id: str, scope: tuple[str, str], subject_kind: str = "user") -> None:
+    """Pilot rule (§7) plus T082: only holders of rbac.assign on the target scope assign; system permissions and the
+    system_admin role stay installation-wide and need installation-wide authority. A delegated administrator (site
+    scope) may assign only allowlisted roles, only permissions they hold themselves at that scope (no self-escalation),
+    and only to users (no cross-scope group membership through delegation)."""
     require(conn, principal, "rbac.assign", scope)
-    perms = set(ROLES.get(role_id, []))
+    perms = set(role_permissions(conn, role_id))
+    wide = authorize(conn, principal, "rbac.assign", INSTALLATION).allowed
     if perms & SYSTEM_PERMISSIONS:
         if role_id == "system_admin" and scope != INSTALLATION:
             raise ApiError(422, "scope_not_allowed_for_role", "מנהל מערכת VMS מוקצה רק ברמת ההתקנה כולה.")
-        if not authorize(conn, principal, "rbac.assign", INSTALLATION).allowed:
+        if not wide:
             audit(conn, actor=principal, action="rbac.bind", decision="denied", resource_type=scope[0], resource_id=scope[1], reason="delegation_exceeded", details={"role_id": role_id})
             raise ApiError(403, "delegation_exceeded", "הקצאת תפקיד עם הרשאות מערכת דורשת סמכות על ההתקנה כולה.")
+    if wide:
+        return
+    if role_id not in delegable_roles(conn):
+        audit(conn, actor=principal, action="rbac.bind", decision="denied", resource_type=scope[0], resource_id=scope[1], reason="role_not_delegable", details={"role_id": role_id})
+        raise ApiError(403, "role_not_delegable", "מנהל מקומי רשאי להקצות רק תפקידים מרשימת ההאצלה.", details={"delegable": delegable_roles(conn)})
+    missing = sorted(perms - set(effective_permissions(conn, principal, scope)))
+    if missing:
+        audit(conn, actor=principal, action="rbac.bind", decision="denied", resource_type=scope[0], resource_id=scope[1], reason="delegation_escalation", details={"role_id": role_id, "missing": missing})
+        raise ApiError(403, "delegation_escalation", "אי אפשר להאציל הרשאות שאין לך בהיקף הזה.", details={"missing": missing})
+    if subject_kind != "user":
+        audit(conn, actor=principal, action="rbac.bind", decision="denied", resource_type=scope[0], resource_id=scope[1], reason="delegation_groups", details={"role_id": role_id})
+        raise ApiError(403, "delegation_groups", "מנהל מקומי משייך משתמשים בלבד; קבוצות חוצות היקפים מנוהלות על ידי מנהל המערכת.")
 
 
 def _terminate(conn: sqlite3.Connection, settings: Any, user_ids: set[str]) -> None:
@@ -272,17 +299,17 @@ def sync_directory(request: Request, principal: Principal = Depends(current_prin
 @router.get("/access/roles")
 def list_roles(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "identity.directory.read", INSTALLATION)
+    delegable = delegable_roles(conn)
     roles = []
     for rid, perms in ROLES.items():
         roles.append({
-            "id": rid,
-            "name": ROLE_NAMES_HE.get(rid, rid),
-            "permissions": list(perms),
-            "sensitive_included": [p for p in perms if p in SENSITIVE],
-            "sensitive_missing": [p for p in SENSITIVE if p not in perms],
-            "system_role": bool(set(perms) & SYSTEM_PERMISSIONS),
+            "id": rid, "name": ROLE_NAMES_HE.get(rid, rid), "permissions": list(perms), "custom": False, "description": "", "revision": None, "delegable": rid in delegable,
+            "sensitive_included": [p for p in perms if p in SENSITIVE], "sensitive_missing": [p for p in SENSITIVE if p not in perms], "system_role": bool(set(perms) & SYSTEM_PERMISSIONS),
         })
-    return {"roles": roles, "labels": PERMISSION_LABELS, "sensitive": SENSITIVE}
+    for r in conn.execute("SELECT * FROM custom_roles WHERE deleted_at IS NULL ORDER BY created_at").fetchall():
+        roles.append(_custom_role_dict(conn, r))
+    return {"roles": roles, "labels": PERMISSION_LABELS, "sensitive": SENSITIVE, "system_permissions": sorted(SYSTEM_PERMISSIONS), "delegable_roles": delegable,
+            "can_manage_roles": authorize(conn, principal, "rbac.roles.manage", INSTALLATION).allowed}
 
 
 # ---------------------------------------------------------------- bindings
@@ -305,7 +332,7 @@ def list_bindings(principal: Principal = Depends(current_principal), conn: sqlit
 
 @router.post("/access/bindings", status_code=201)
 def create_binding(body: BindingBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    if body.role_id not in ROLES:
+    if body.role_id not in all_roles(conn):
         raise ApiError(422, "role_unknown", "תפקיד לא מוכר.")
     scope = (body.scope_type, body.scope_id)
     if not _scope_exists(conn, *scope):
@@ -316,7 +343,7 @@ def create_binding(body: BindingBody, request: Request, principal: Principal = D
                 raise ApiError(422, "validation", "expires_at כבר עבר.")
         except ValueError:
             raise ApiError(422, "validation", "expires_at חייב להיות UTC (Z).")
-    _check_delegation(conn, principal, body.role_id, scope)
+    _check_delegation(conn, principal, body.role_id, scope, body.subject_kind)
     if body.subject_kind == "user":
         _ensure_user_row(conn, body.subject_id)
     elif not conn.execute("SELECT 1 FROM groups WHERE id = ?", (body.subject_id,)).fetchone():
@@ -511,3 +538,172 @@ def list_audit(
             d["details"] = {}
         rows.append(d)
     return {"rows": rows}
+
+
+# ---------------------------------------------------------------- custom roles and delegation (T082)
+
+class CustomRoleBody(BaseModel):
+    name: str = Field(min_length=1, max_length=60)
+    description: str = Field(default="", max_length=300)
+    permissions: list[str] = Field(default_factory=list, max_length=40)
+    sensitive: list[str] = Field(default_factory=list, max_length=20)
+    delegable: bool = False
+
+
+class CustomRolePatch(CustomRoleBody):
+    revision: int = Field(ge=1)
+
+
+class RolePreviewBody(BaseModel):
+    role_id: str | None = Field(default=None, max_length=60)
+    permissions: list[str] = Field(default_factory=list, max_length=40)
+    sensitive: list[str] = Field(default_factory=list, max_length=20)
+
+
+class DelegationBody(BaseModel):
+    delegable_roles: list[str] = Field(default_factory=list, max_length=50)
+
+
+def _custom_role_dict(conn: sqlite3.Connection, r: sqlite3.Row) -> dict[str, Any]:
+    perms = json.loads(r["permissions_json"])
+    sens = json.loads(r["sensitive_json"] or "[]")
+    allp = sorted(set(perms) | set(sens))
+    return {
+        "id": r["id"], "name": r["name_he"], "description": r["description"], "permissions": allp, "custom": True, "revision": r["revision"], "delegable": bool(r["delegable"]),
+        "sensitive_included": [p for p in allp if p in SENSITIVE], "sensitive_missing": [p for p in SENSITIVE if p not in allp], "system_role": False,
+        "created_by_username": r["created_by_username"], "updated_by_username": r["updated_by_username"], "updated_at": r["updated_at"],
+    }
+
+
+def _validate_role_body(permissions: list[str], sensitive: list[str]) -> tuple[list[str], list[str]]:
+    perms = sorted({p for p in permissions if p})
+    sens = sorted({p for p in sensitive if p})
+    unknown = [p for p in perms + sens if p not in PERMISSION_LABELS]
+    if unknown:
+        raise ApiError(422, "permission_unknown", "הרשאה לא מוכרת.", details={"unknown": unknown})
+    if set(perms) & set(SENSITIVE):
+        raise ApiError(422, "sensitive_in_permissions", "הרשאות רגישות ניתנות רק ברשימת ההרשאות הרגישות, במפורש.", details={"sensitive": sorted(set(perms) & set(SENSITIVE))})
+    if set(perms) & SYSTEM_PERMISSIONS or set(sens) & SYSTEM_PERMISSIONS:
+        raise ApiError(422, "system_permission_not_allowed", "הרשאות מערכת נשארות בתפקידים המובנים בלבד.", details={"system": sorted((set(perms) | set(sens)) & SYSTEM_PERMISSIONS)})
+    if set(sens) - set(SENSITIVE):
+        raise ApiError(422, "not_sensitive", "רק הרשאות מהרשימה הרגישה נכנסות לרשימת ההרשאות הרגישות.", details={"invalid": sorted(set(sens) - set(SENSITIVE))})
+    if not perms and not sens:
+        raise ApiError(422, "validation", "תפקיד חייב לכלול לפחות הרשאה אחת.")
+    return perms, sens
+
+
+def _role_impact(conn: sqlite3.Connection, role_id: str | None, new_perms: list[str]) -> dict[str, Any]:
+    """Who is touched by a role change: bindings, users (direct and through groups), groups and scopes, plus the permission diff."""
+    current = role_permissions(conn, role_id) if role_id else []
+    out: dict[str, Any] = {"role_id": role_id, "added": sorted(set(new_perms) - set(current)), "removed": sorted(set(current) - set(new_perms)), "bindings": 0, "users": [], "groups": [], "scopes": []}
+    if not role_id:
+        return out
+    now = now_iso()
+    users: dict[str, str] = {}
+    groups: dict[str, str] = {}
+    scopes: set[str] = set()
+    for b in conn.execute(_active_bindings_sql("AND role_id = ?"), (now, role_id)).fetchall():
+        out["bindings"] += 1
+        scopes.add(scope_name(conn, b["scope_type"], b["scope_id"]))
+        if b["subject_kind"] == "user":
+            u = conn.execute("SELECT display_name, username FROM users WHERE id = ?", (b["subject_id"],)).fetchone()
+            users[b["subject_id"]] = (u["display_name"] or u["username"]) if u else b["subject_id"]
+        else:
+            g = conn.execute("SELECT name FROM groups WHERE id = ?", (b["subject_id"],)).fetchone()
+            groups[b["subject_id"]] = g["name"] if g else b["subject_id"]
+            for uid in _group_members(conn, b["subject_id"]):
+                u = conn.execute("SELECT display_name, username FROM users WHERE id = ?", (uid,)).fetchone()
+                users[uid] = (u["display_name"] or u["username"]) if u else uid
+    out["users"] = [{"id": k, "name": v} for k, v in sorted(users.items(), key=lambda kv: kv[1])]
+    out["groups"] = [{"id": k, "name": v} for k, v in sorted(groups.items(), key=lambda kv: kv[1])]
+    out["scopes"] = sorted(scopes)
+    return out
+
+
+@router.post("/access/roles", status_code=201)
+def create_custom_role(body: CustomRoleBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    require(conn, principal, "rbac.roles.manage", INSTALLATION)
+    perms, sens = _validate_role_body(body.permissions, body.sensitive)
+    if body.name.strip() in ROLE_NAMES_HE.values() or conn.execute("SELECT 1 FROM custom_roles WHERE name_he = ? AND deleted_at IS NULL", (body.name.strip(),)).fetchone():
+        raise ApiError(409, "role_name_taken", "כבר קיים תפקיד בשם הזה.")
+    rid = f"custom-{new_id()[:8]}"
+    now = now_iso()
+    conn.execute(
+        "INSERT INTO custom_roles(id, name_he, description, permissions_json, sensitive_json, delegable, revision, created_by, created_by_username, updated_by, updated_by_username, created_at, updated_at) VALUES (?,?,?,?,?,?,1,?,?,?,?,?,?)",
+        (rid, body.name.strip(), body.description, json.dumps(perms), json.dumps(sens), int(body.delegable), principal.user_id, principal.username, principal.user_id, principal.username, now, now),
+    )
+    rev = bump_permission_revision(conn)
+    audit(conn, actor=principal, action="rbac.role.create", decision="allowed", resource_type="role", resource_id=rid, request_id=_rid(request), details={"name": body.name.strip(), "permissions": perms, "sensitive": sens, "delegable": body.delegable, "revision": rev})
+    return _custom_role_dict(conn, conn.execute("SELECT * FROM custom_roles WHERE id = ?", (rid,)).fetchone())
+
+
+@router.post("/access/roles/preview")
+def preview_role_change(body: RolePreviewBody, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Before saving: who holds the role today (users, groups, scopes) and which permissions the change adds or removes."""
+    require(conn, principal, "rbac.roles.manage", INSTALLATION)
+    perms, sens = _validate_role_body(body.permissions, body.sensitive)
+    if body.role_id and body.role_id not in all_roles(conn):
+        raise ApiError(404, "not_found", "התפקיד לא נמצא.")
+    return {**_role_impact(conn, body.role_id, sorted(set(perms) | set(sens))), "labels": PERMISSION_LABELS}
+
+
+@router.patch("/access/roles/{role_id}")
+def update_custom_role(role_id: str, body: CustomRolePatch, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    require(conn, principal, "rbac.roles.manage", INSTALLATION)
+    if role_id in ROLES:
+        raise ApiError(409, "builtin_role", "תפקידים מובנים אינם ניתנים לעריכה; צור תפקיד מותאם.")
+    r = conn.execute("SELECT * FROM custom_roles WHERE id = ? AND deleted_at IS NULL", (role_id,)).fetchone()
+    if not r:
+        raise ApiError(404, "not_found", "התפקיד לא נמצא.")
+    if body.revision != r["revision"]:
+        raise ApiError(409, "stale_revision", "התפקיד השתנה בינתיים; טען מחדש.", details={"current_revision": r["revision"], "sent_revision": body.revision})
+    perms, sens = _validate_role_body(body.permissions, body.sensitive)
+    impact = _role_impact(conn, role_id, sorted(set(perms) | set(sens)))
+    conn.execute(
+        "UPDATE custom_roles SET name_he = ?, description = ?, permissions_json = ?, sensitive_json = ?, delegable = ?, revision = revision + 1, updated_by = ?, updated_by_username = ?, updated_at = ? WHERE id = ?",
+        (body.name.strip(), body.description, json.dumps(perms), json.dumps(sens), int(body.delegable), principal.user_id, principal.username, now_iso(), role_id),
+    )
+    rev = bump_permission_revision(conn)
+    if impact["removed"]:
+        _terminate(conn, settings_of(request), {u["id"] for u in impact["users"]})
+    audit(conn, actor=principal, action="rbac.role.update", decision="allowed", resource_type="role", resource_id=role_id, request_id=_rid(request),
+          details={"added": impact["added"], "removed": impact["removed"], "affected_users": len(impact["users"]), "affected_bindings": impact["bindings"], "delegable": body.delegable, "revision": rev})
+    return {**_custom_role_dict(conn, conn.execute("SELECT * FROM custom_roles WHERE id = ?", (role_id,)).fetchone()), "impact": impact}
+
+
+@router.delete("/access/roles/{role_id}")
+def delete_custom_role(role_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    require(conn, principal, "rbac.roles.manage", INSTALLATION)
+    if role_id in ROLES:
+        raise ApiError(409, "builtin_role", "תפקידים מובנים אינם נמחקים.")
+    r = conn.execute("SELECT * FROM custom_roles WHERE id = ? AND deleted_at IS NULL", (role_id,)).fetchone()
+    if not r:
+        raise ApiError(404, "not_found", "התפקיד לא נמצא.")
+    impact = _role_impact(conn, role_id, [])
+    if impact["bindings"]:
+        raise ApiError(409, "role_in_use", "התפקיד עדיין משויך; בטל את השיוכים קודם.", details={"bindings": impact["bindings"], "users": impact["users"], "groups": impact["groups"]})
+    conn.execute("UPDATE custom_roles SET deleted_at = ?, updated_by = ?, updated_by_username = ? WHERE id = ?", (now_iso(), principal.user_id, principal.username, role_id))
+    rev = bump_permission_revision(conn)
+    audit(conn, actor=principal, action="rbac.role.delete", decision="allowed", resource_type="role", resource_id=role_id, request_id=_rid(request), details={"name": r["name_he"], "revision": rev})
+    return {"deleted": role_id, "revision": rev}
+
+
+@router.get("/access/delegation")
+def get_delegation(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    require(conn, principal, "identity.directory.read", INSTALLATION)
+    return {"delegable_roles": delegable_roles(conn), "default": DEFAULT_DELEGABLE, "rules": ["מנהל אתר משייך רק תפקידים מרשימה זו", "רק הרשאות שהוא מחזיק באותו היקף", "משתמשים בלבד, לא קבוצות", "בתוך היקף השיוך שלו בלבד", "אין שינוי של תפקידים גלובליים ואין בקשות מרובות"]}
+
+
+@router.put("/access/delegation")
+def set_delegation(body: DelegationBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    require(conn, principal, "rbac.roles.manage", INSTALLATION)
+    known = all_roles(conn)
+    chosen = sorted({r for r in body.delegable_roles if r in known})
+    blocked = [r for r in chosen if set(known[r]) & SYSTEM_PERMISSIONS]
+    if blocked:
+        raise ApiError(422, "system_role_not_delegable", "תפקיד עם הרשאות מערכת אינו ניתן להאצלה.", details={"blocked": blocked})
+    before = delegable_roles(conn)
+    set_setting(conn, "rbac.delegable_roles", json.dumps(chosen))
+    rev = bump_permission_revision(conn)
+    audit(conn, actor=principal, action="rbac.delegation.update", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request), details={"before": before, "after": delegable_roles(conn), "revision": rev})
+    return {"delegable_roles": delegable_roles(conn), "revision": rev}

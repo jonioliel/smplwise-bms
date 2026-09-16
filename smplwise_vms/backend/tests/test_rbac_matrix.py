@@ -122,7 +122,9 @@ def test_matrix_by_role_scope_and_deny(settings):
     assert st("vera", "post", "/api/v1/ha/entities/lock.front/actions", json=action) == 403
     assert st("sara", "get", "/api/v1/storage") == 403 and c.get("/api/v1/storage").status_code == 200
     binding = {"subject_kind": "user", "subject_id": "dev-vera", "role_id": "operator", "scope_type": "floor", "scope_id": f2}
-    assert st("omer", "post", "/api/v1/access/bindings", json=binding) == 403 and st("sara", "post", "/api/v1/access/bindings", json=binding) == 403
+    assert st("omer", "post", "/api/v1/access/bindings", json=binding) == 403
+    assert st("sara", "post", "/api/v1/access/bindings", json={**binding, "role_id": "system_admin"}) in (403, 422), "a site admin never hands out system roles"
+    assert st("sara", "post", "/api/v1/access/bindings", json=binding) == 201, "delegated: an allowlisted role inside her site (T082)"
     assert st("vera", "get", "/api/v1/audit") == 403 and st("sara", "get", "/api/v1/audit") == 403
     # every refusal is audited with its reason, without secrets
     rows = c.get("/api/v1/audit?prefix=&limit=500").json()

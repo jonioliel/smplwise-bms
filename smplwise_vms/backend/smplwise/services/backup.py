@@ -22,7 +22,7 @@ log = logging.getLogger("smplwise.backup")
 
 FORMAT = 1
 PROJECT_TABLES = ["settings", "sites", "buildings", "floors", "plan_assets", "plan_versions", "map_anchors", "recorders", "cameras", "spatial_zones", "cases", "case_items"]
-ACCESS_TABLES = ["users", "groups", "group_members", "bindings"]
+ACCESS_TABLES = ["users", "groups", "group_members", "bindings", "custom_roles"]
 OPTIONAL_TABLES = {"audit": ["audit_log"], "events": ["events"]}
 FILE_COLUMNS = {"plan_assets": ["storage_path"], "plan_versions": ["image_path", "stylized_path"]}
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.zip$")
