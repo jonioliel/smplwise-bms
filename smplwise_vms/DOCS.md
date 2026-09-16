@@ -429,6 +429,9 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   active key and rotates it (system.configure, audited), keeping retired public keys for older bundles. A valid
   signature proves the bundle did not change since export — not that the footage is authentic at capture, and
   it is no statement of legal admissibility.
+- Capability facts (camera page, read-only): PTZ (supported / unsupported / unknown, with the device's reason),
+  the preset list and two-way audio (available / disabled / unsupported / unknown) exactly as the NVR reports them.
+  PTZ moves, preset recall and talk are device writes and are not offered in the pilot; no control is simulated.
 - Detection zones (camera page, read-only): the motion grid, privacy-mask regions, intrusion regions and
   line-crossing lines exactly as the NVR holds them for that channel (ISAPI GET only, cached for a minute), drawn
   over the snapshot with layer toggles. They are polygons in the camera image, not rooms on the plan; the overlay

@@ -638,7 +638,8 @@
       "pre-evidence: implemented ahead of dependency closure (T005/T006/T008 contracts lock, T076/T077 bridge); status stays BACKLOG until dependencies are DONE per project_status rules",
       "smplwise/services/nvr.py: read-only ISAPI adapter (deviceInfo, InputProxy channels + status, record tracks) with digest auth and bounded timeouts; lab run 2026-09-14: DS-7616NXI-K2(D) V4.84.101, 10 channels online, per-track codec/resolution/fps/bitrate recorded as evidence",
       "open: capability matrix (PTZ/audio/smart search) and supported/unsupported/unknown states beyond stream facts",
-      "finding (2026-09-15, live HA): cameras=0 and sites=0 on the owner's instance although the NVR options were set - discovery only ran on a manual 'sync' click nobody pressed. Fix in 0.1.3: services/autosync.py runs discovery at start-up and every 10 min (read-only ISAPI), keeps smplwise_* go2rtc streams, reports last_ok/last_error in /health and on the devices screen; tests/test_autosync.py"
+      "finding (2026-09-15, live HA): cameras=0 and sites=0 on the owner's instance although the NVR options were set - discovery only ran on a manual 'sync' click nobody pressed. Fix in 0.1.3: services/autosync.py runs discovery at start-up and every 10 min (read-only ISAPI), keeps smplwise_* go2rtc streams, reports last_ok/last_error in /health and on the devices screen; tests/test_autosync.py",
+      "pre-evidence 2026-09-17 (0.1.42): the capability matrix opened in the earlier finding is now read per camera from the device (PTZ / presets / two-way audio with supported / unsupported / unknown states and reasons) and cached five minutes; smart-search capability stays open."
     ],
     "owner": null,
     "commit": null,
@@ -2425,7 +2426,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence 2026-09-17 (0.1.42), read-only half: GET /cameras/{id}/capabilities reads PTZ capability (supported / unsupported only on the device's notSupport / unknown with reason), the preset list and the two-way audio channel state through ISAPI GETs; the camera page shows them as badges and states that moves, preset recall and talk are device writes not offered in the pilot (no fake control), digital zoom = browser only. Lab: fixed cameras report PTZ notSupport, empty presets, audio channel present but disabled. tests/test_capabilities.py; live evidence private-evidence/T045-capabilities-live. Moves, presets recall, talk with microphone consent and arbitration remain excluded until the owner approves device writes."
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null

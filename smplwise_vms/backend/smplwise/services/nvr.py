@@ -529,3 +529,108 @@ def fetch_detection_zones(settings: Settings, channel: int) -> dict[str, object]
     out["unsupported"] = unsupported
     return out
 
+
+# ---------------------------------------------------------------- capability facts (T045 / T012, read-only)
+
+def parse_presets(xml: str) -> list[dict[str, object]]:
+    """/ISAPI/PTZCtrl/channels/{n}/presets → [{id, name}] (an empty list is a valid answer)."""
+    from .xmlsafe import parse
+
+    root = parse(xml)
+    out: list[dict[str, object]] = []
+    for p in list(root):
+        if _local(p.tag) != "PTZPreset":
+            continue
+        out.append({"id": _text(p, "id"), "name": _text(p, "presetName")})
+    return out
+
+
+def parse_two_way_audio(xml: str, channel: int) -> dict[str, object] | None:
+    """/ISAPI/System/TwoWayAudio/channels → the audio channel associated with video input `channel`, or None."""
+    from .xmlsafe import parse
+
+    root = parse(xml)
+    for ch in list(root):
+        if _local(ch.tag) != "TwoWayAudioChannel":
+            continue
+        assoc = _child(ch, "associateVideoInputs")
+        lst = _child(assoc, "videoInputChannelList") if assoc is not None else None
+        inputs = [_int((v.text or "").strip(), -1) for v in list(lst)] if lst is not None else []
+        if channel in inputs:
+            return {"channel_id": _text(ch, "id"), "enabled": _text(ch, "enabled") == "true", "codec": _text(ch, "audioCompressionType") or None}
+    return None
+
+
+def _response_status(xml: str) -> dict[str, str]:
+    """Hikvision error bodies (ResponseStatus): statusString + subStatusCode, e.g. 'Invalid Operation' / 'notSupport'."""
+    try:
+        from .xmlsafe import parse
+
+        root = parse(xml)
+        if _local(root.tag) != "ResponseStatus":
+            return {}
+        return {"status": _text(root, "statusString"), "sub": _text(root, "subStatusCode")}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def fetch_capabilities(settings: Settings, channel: int) -> dict[str, object]:
+    """Three read-only GETs. 'unknown' is an honest answer (the NVR account may not read a capability document);
+    'unsupported' only when the device itself says notSupport."""
+    out: dict[str, object] = {"ptz": {"state": "unknown", "reason": None, "presets": None, "preset_count": None}, "audio": {"state": "unknown", "reason": None, "channel_id": None, "codec": None}}
+    with _client(settings) as client:
+        try:
+            r = client.get(f"/ISAPI/PTZCtrl/channels/{channel}/capabilities")
+        except httpx.HTTPError as exc:
+            raise ApiError(503, "source_unavailable", "ה־NVR אינו זמין כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
+        ptz = out["ptz"]
+        if r.status_code == 200:
+            ptz["state"] = "supported"
+            ptz["reason"] = "device capability document read"
+        else:
+            rs = _response_status(r.text)
+            if rs.get("sub") == "notSupport":
+                ptz["state"] = "unsupported"
+                ptz["reason"] = f"device: {rs.get('status') or 'notSupport'} / notSupport"
+            elif r.status_code in (401, 403):
+                ptz["reason"] = f"forbidden for the NVR account (http {r.status_code}{', ' + rs['sub'] if rs.get('sub') else ''})"
+            else:
+                ptz["reason"] = f"http {r.status_code}"
+        try:
+            r = client.get(f"/ISAPI/PTZCtrl/channels/{channel}/presets")
+        except httpx.HTTPError as exc:
+            raise ApiError(503, "source_unavailable", "ה־NVR אינו זמין כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
+        if r.status_code == 200:
+            try:
+                presets = parse_presets(r.text)
+                ptz["presets"] = presets
+                ptz["preset_count"] = len(presets)
+            except Exception as exc:  # noqa: BLE001
+                ptz["presets"] = None
+                ptz["reason"] = (ptz["reason"] or "") + f"; presets unparsable ({type(exc).__name__})"
+        try:
+            r = client.get("/ISAPI/System/TwoWayAudio/channels")
+        except httpx.HTTPError as exc:
+            raise ApiError(503, "source_unavailable", "ה־NVR אינו זמין כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
+        audio = out["audio"]
+        if r.status_code == 200:
+            try:
+                found = parse_two_way_audio(r.text, channel)
+            except Exception as exc:  # noqa: BLE001
+                found = None
+                audio["reason"] = f"unparsable ({type(exc).__name__})"
+            if found is None:
+                if audio["reason"] is None:
+                    audio["state"] = "unsupported"
+                    audio["reason"] = "no two-way audio channel is associated with this video input"
+            else:
+                audio["channel_id"] = found["channel_id"]
+                audio["codec"] = found["codec"]
+                audio["state"] = "available" if found["enabled"] else "disabled"
+                audio["reason"] = "enabled on the device" if found["enabled"] else "the channel exists but is disabled on the device"
+        elif r.status_code in (401, 403):
+            audio["reason"] = f"forbidden for the NVR account (http {r.status_code})"
+        else:
+            audio["reason"] = f"http {r.status_code}"
+    return out
+

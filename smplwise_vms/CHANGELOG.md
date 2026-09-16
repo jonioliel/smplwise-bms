@@ -1,5 +1,14 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.42 (pilot)
+- Capability facts per camera (T045 / T012, read-only half): the camera page now shows what the NVR itself reports
+  — PTZ supported / unsupported (only on the device's own notSupport) / unknown with the reason, the preset list
+  (read, never recalled), and two-way audio available / disabled on the device / unsupported / unknown — as badges,
+  cached five minutes, same permission as live video. Moving the camera, recalling a preset and talking are device
+  writes: not offered in the pilot and never shown as a fake control; digital zoom is named for what it is, a
+  browser enlargement. Lab: the fixed cameras answer PTZ notSupport, an empty preset list and an audio channel that
+  exists but is disabled.
+
 ## 0.1.41 (pilot)
 - Synchronized playback closes small drifts without re-seeking (T042 follow-up): a tile that is between 0.25 s and
   3 s off the master clock plays 5–15 % faster (behind) or slower (ahead) until it is back within 0.25 s; only a

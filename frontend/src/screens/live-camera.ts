@@ -14,7 +14,7 @@ import type { SwLivePlayer } from '../components/sw-live-player';
 import { demoScene, demoWall } from '../fixtures/catalog';
 import { navigate } from '../router';
 import { isApi } from '../api/session';
-import { cameraZones, snapshotUrl, setTransportOverride, transportOverride, type CameraZones, type ProductSettings, type Transport } from '../api/media';
+import { cameraCapabilities, cameraZones, snapshotUrl, setTransportOverride, transportOverride, type CameraCapabilities, type CameraZones, type ProductSettings, type Transport } from '../api/media';
 import '../components/sw-chip';
 import { listCameras } from '../api/maps';
 import { effectiveTransport, productSettings } from '../api/prefs';
@@ -35,6 +35,9 @@ export class LiveCamera extends LitElement {
   @state() private zonesBusy = false;
   @state() private zonesError = '';
   @state() private zoneLayers = { motion: true, privacy: true, intrusion: true, lines: true };
+  /** T045 / T012: capability facts from the NVR (PTZ, presets, two-way audio), read-only. */
+  @state() private caps: CameraCapabilities | null = null;
+  @state() private capsError = '';
   @state() private cams: Camera[] = [];
   @state() private settings: ProductSettings | null = null;
   @state() private error = '';
@@ -314,6 +317,7 @@ export class LiveCamera extends LitElement {
       this.zonesError = '';
       void this.loadZones();
     }
+    if (changed.has('cam') && this.cam && isApi() && (!this.caps || this.caps.camera_id !== this.cam.id)) void this.loadCaps();
   }
 
   private async loadZones(refresh = false) {
@@ -327,6 +331,32 @@ export class LiveCamera extends LitElement {
     } finally {
       this.zonesBusy = false;
     }
+  }
+
+  private async loadCaps(refresh = false) {
+    if (!this.cam) return;
+    this.capsError = '';
+    try {
+      this.caps = await cameraCapabilities(this.cam.id, refresh);
+    } catch (err) {
+      this.capsError = describeError(err);
+    }
+  }
+
+  private renderCaps() {
+    const c = this.caps;
+    if (this.capsError && !c) return html`<div class="note" data-caps>יכולות המצלמה לא נקראו מה־NVR: ${this.capsError}</div>`;
+    if (!c) return html`<div class="note" data-caps>קורא יכולות מה־NVR…</div>`;
+    const ptzKind = c.ptz.state === 'supported' ? 'live' : c.ptz.state === 'unsupported' ? 'neutral' : 'unknown';
+    const ptzLabel = c.ptz.state === 'supported' ? `PTZ: נתמך${c.ptz.preset_count !== null ? ` · ${c.ptz.preset_count} presets` : ''}` : c.ptz.state === 'unsupported' ? 'PTZ: לא נתמך במצלמה זו' : 'PTZ: לא ידוע';
+    const audioKind = c.audio.state === 'available' ? 'live' : c.audio.state === 'disabled' ? 'stale' : c.audio.state === 'unsupported' ? 'neutral' : 'unknown';
+    const audioLabel = c.audio.state === 'available' ? `שמע דו־כיווני: ערוץ פעיל${c.audio.codec ? ` (${c.audio.codec})` : ''}` : c.audio.state === 'disabled' ? 'שמע דו־כיווני: ערוץ קיים אך כבוי במכשיר' : c.audio.state === 'unsupported' ? 'שמע דו־כיווני: אין ערוץ למצלמה זו' : 'שמע דו־כיווני: לא ידוע';
+    return html`<div class="note" style="margin-block-start:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center" data-caps data-ptz=${c.ptz.state} data-audio=${c.audio.state}>
+      <sw-badge kind=${ptzKind} label=${ptzLabel} title=${c.ptz.reason ?? ''}></sw-badge>
+      <sw-badge kind=${audioKind} label=${audioLabel} title=${c.audio.reason ?? ''}></sw-badge>
+      <sw-badge kind="neutral" label="זום דיגיטלי: הגדלה בדפדפן בלבד, לא הנעת מצלמה"></sw-badge>
+      <span>${c.ptz.reason ? `PTZ לפי המכשיר: ${c.ptz.reason}. ` : ''}הנעת PTZ, קריאת preset ודיבור הם כתיבה למכשיר ואינם מוצעים בפיילוט ללא אישור מפורש — אין פקד מדומה. נקרא מה־NVR ${c.fetched_at.replace('T', ' ').replace('Z', ' UTC')}${c.cached ? ' (מהמטמון)' : ''}.</span>
+    </div>`;
   }
 
   private renderZones(cam: Camera) {
@@ -428,7 +458,7 @@ export class LiveCamera extends LitElement {
         </div>
         <div class="note">${this.playerStatus === 'playing' ? `מנגן דרך ${this.playerTransport === 'webrtc' ? 'WebRTC' : 'MSE'}` : this.playerStatus === 'error' ? 'הזרם לא זמין' : 'מתחבר…'}</div>
       </div>
-      <div class="note" style="margin-block-start:8px">PTZ ושמע יוצגו אחרי אימות היכולת מול המכשיר (T012/T031); פקד שלא נתמך מוסתר או מוסבר, לא מדומה.</div>
+      ${this.renderCaps()}
       <div class="grid">
         <sw-card heading="פרטים">
           <dl>

@@ -112,3 +112,18 @@ export interface CameraZones {
 }
 export const cameraZones = (cameraId: string, refresh = false) => get<CameraZones>(`cameras/${cameraId}/zones${refresh ? '?refresh=true' : ''}`);
 
+/** Capability facts the NVR reports for a camera (T045 / T012, read-only): never guessed, 'unknown' is an honest state. */
+export interface CameraCapabilities {
+  camera_id: string;
+  channel: number;
+  source: 'nvr';
+  read_only: true;
+  writes: { ptz_move: string; preset_recall: string; talk: string; reason: string };
+  digital_zoom: 'browser_only';
+  fetched_at: string;
+  cached: boolean;
+  ptz: { state: 'supported' | 'unsupported' | 'unknown'; reason: string | null; presets: { id: string; name: string }[] | null; preset_count: number | null };
+  audio: { state: 'available' | 'disabled' | 'unsupported' | 'unknown'; reason: string | null; channel_id: string | null; codec: string | null };
+}
+export const cameraCapabilities = (cameraId: string, refresh = false) => get<CameraCapabilities>(`cameras/${cameraId}/capabilities${refresh ? '?refresh=true' : ''}`);
+

@@ -176,3 +176,43 @@ def detection_zones(camera_id: str, request: Request, refresh: bool = False, pri
         **data,
     }
 
+
+# ---------------------------------------------------------------- capability facts (T045 / T012, read-only)
+
+CAPS = nvr.fetch_capabilities  # seam for tests
+_CAPS_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+CAPS_TTL_S = 300
+
+
+@router.get("/cameras/{camera_id}/capabilities")
+def camera_capabilities(camera_id: str, request: Request, refresh: bool = False, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """What the NVR says this camera can do — PTZ (supported / unsupported / unknown, with the device's reason),
+    its preset list, two-way audio (available / disabled / unsupported / unknown). Read-only, cached five minutes,
+    same permission as live video. Moving the camera, recalling a preset or talking are device writes: not offered
+    in the pilot, and never shown as a fake control. Digital zoom is a browser-side enlargement, not a camera move."""
+    cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
+    if not cam:
+        raise not_found("המצלמה לא נמצאה.")
+    require_camera(conn, principal, camera_id, "video.live")
+    now = time.time()
+    hit = _CAPS_CACHE.get(camera_id)
+    cached = bool(hit) and not refresh and now - hit[0] < CAPS_TTL_S
+    if cached:
+        data, fetched_at = hit[1], hit[0]
+    else:
+        with unlocked(conn):
+            data = CAPS(settings_of(request), int(cam["channel"]))
+        fetched_at = now
+        _CAPS_CACHE[camera_id] = (fetched_at, data)
+    return {
+        "camera_id": camera_id,
+        "channel": int(cam["channel"]),
+        "source": "nvr",
+        "read_only": True,
+        "writes": {"ptz_move": "not_offered", "preset_recall": "not_offered", "talk": "not_offered", "reason": "device writes need an explicit approval; nothing is simulated"},
+        "digital_zoom": "browser_only",
+        "fetched_at": dt.datetime.fromtimestamp(fetched_at, dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "cached": cached,
+        **data,
+    }
+
