@@ -15,7 +15,8 @@ from ..db import new_id, now_iso
 from ..errors import ApiError, conflict, not_found
 from ..rbac import Principal, authorize, require
 from .catalog import building_row, floor_row, get_building, get_floor, get_site, site_row
-from .plans import version_row
+from ..services.timeutil import parse_utc
+from .plans import needs_alignment, version_at, version_row
 
 router = APIRouter()
 
@@ -69,14 +70,31 @@ def _editor_version(conn: sqlite3.Connection, floor_id: str) -> sqlite3.Row | No
 
 
 @router.get("/floors/{floor_id}/map")
-def floor_map(floor_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), draft: bool = False) -> dict[str, Any]:
-    """Everything the map needs in one call. `draft=true` (editors) prefers the latest draft background."""
+def floor_map(floor_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), draft: bool = False, at: str | None = None) -> dict[str, Any]:
+    """Everything the map needs in one call. `draft=true` (editors) prefers the latest draft background; `at=<UTC>`
+    returns the version that was published at that instant and the anchors effective then (historical map, T038)."""
     f = get_floor(conn, floor_id)
     require(conn, principal, "map.read", ("floor", floor_id))
     can_edit = authorize(conn, principal, "placement.edit", ("floor", floor_id)).allowed
     can_publish = authorize(conn, principal, "map.publish", ("floor", floor_id)).allowed
-    version = _editor_version(conn, floor_id) if (draft and can_edit) else _current_version(conn, floor_id)
-    anchors = conn.execute("SELECT * FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL ORDER BY layer_id, resource_id", (floor_id,)).fetchall()
+    at_iso: str | None = None
+    history: str | None = None
+    history_from = conn.execute("SELECT MIN(published_at) FROM plan_versions WHERE floor_id = ? AND published_at IS NOT NULL", (floor_id,)).fetchone()[0]
+    if at:
+        try:
+            at_iso = parse_utc(at).strftime("%Y-%m-%dT%H:%M:%SZ")
+        except ValueError:
+            raise ApiError(422, "validation", "זמן חייב להיות UTC (Z).")
+    if at_iso and history_from and at_iso >= history_from:
+        # the floor's map history begins with its first publish; from then on the version and the anchors of that instant
+        history = "exact"
+        version = version_at(conn, floor_id, at_iso)
+        anchors = conn.execute("SELECT * FROM map_anchors WHERE floor_id = ? AND effective_from <= ? AND (effective_to IS NULL OR effective_to > ?) ORDER BY layer_id, resource_id", (floor_id, at_iso, at_iso)).fetchall()
+    else:
+        # before the history begins (or without `at`): the current map, so older events still get a map
+        history = "current" if at_iso else None
+        version = _editor_version(conn, floor_id) if (draft and can_edit and not at_iso) else _current_version(conn, floor_id)
+        anchors = conn.execute("SELECT * FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL ORDER BY layer_id, resource_id", (floor_id,)).fetchall()
     cameras = {r["id"]: camera_row(r) for r in conn.execute("SELECT * FROM cameras ORDER BY sort_order, channel").fetchall()}
     from ..services import ha_bridge, ha_sync
 
@@ -88,7 +106,6 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal), 
             e = ha_sync.entity_row(r)
             e["actions"] = ha_bridge.actions_for(e["domain"]) if can_control else []
             entities[e["entity_id"]] = e
-    needs_alignment = bool(version) and any(a["plan_version_id"] != version["id"] for a in anchors)
     b = get_building(conn, f["building_id"])
     s = get_site(conn, b["site_id"])
     return {
@@ -99,7 +116,10 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal), 
         "anchors": [dict(anchor_row(a), camera=cameras.get(a["resource_id"]) if a["resource_type"] == "camera" else None, entity=entities.get(a["resource_id"]) if a["resource_type"] == "ha_entity" else None) for a in anchors],
         "ha_sync": ha_sync.STATE.as_dict(),
         "zones": _zones_for(conn, floor_id),
-        "needs_alignment": needs_alignment,
+        "needs_alignment": needs_alignment(conn, version, anchors),
+        "at": at_iso,
+        "history": history,
+        "history_from": history_from,
         "permissions": {"edit": can_edit, "publish": can_publish, "import": authorize(conn, principal, "map.import", ("floor", floor_id)).allowed},
         "cameras": list(cameras.values()) if can_edit else [c for c in cameras.values() if any(a["resource_id"] == c["id"] for a in anchors)],
     }

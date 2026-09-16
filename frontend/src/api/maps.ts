@@ -30,6 +30,12 @@ export interface MapBundle {
   permissions: { edit: boolean; publish: boolean; import: boolean };
   renderMode: 'source' | 'stylized';
   stylizedAvailable: boolean;
+  /** Published period of the shown version and, when loaded at an instant, how the history was resolved (T038). */
+  planPublishedAt: string | null;
+  planArchivedAt: string | null;
+  at: string | null;
+  history: 'exact' | 'current' | null;
+  historyFrom: string | null;
 }
 
 function demoBundle(floorId: string): MapBundle {
@@ -50,6 +56,11 @@ function demoBundle(floorId: string): MapBundle {
     needsAlignment: false,
     renderMode: 'source',
     stylizedAvailable: false,
+    planPublishedAt: null,
+    planArchivedAt: null,
+    at: null,
+    history: null,
+    historyFrom: null,
     anchors: cams.map((c, i) => ({
       id: `demo-anchor-${c.id}`,
       floor_id: floor.id,
@@ -73,9 +84,13 @@ function demoBundle(floorId: string): MapBundle {
   };
 }
 
-export async function loadMap(floorId: string, draft = false): Promise<MapBundle> {
+export async function loadMap(floorId: string, draft = false, at?: string): Promise<MapBundle> {
   if (!isApi()) return demoBundle(floorId);
-  const m = await get<FloorMap>(`floors/${floorId}/map${draft ? '?draft=true' : ''}`);
+  const q = new URLSearchParams();
+  if (draft) q.set('draft', 'true');
+  if (at) q.set('at', at);
+  const qs = q.toString();
+  const m = await get<FloorMap>(`floors/${floorId}/map${qs ? `?${qs}` : ''}`);
   return {
     source: 'api',
     floorId: m.floor.id,
@@ -95,6 +110,11 @@ export async function loadMap(floorId: string, draft = false): Promise<MapBundle
     permissions: m.permissions,
     renderMode: m.plan?.render_mode === 'stylized' ? 'stylized' : 'source',
     stylizedAvailable: Boolean(m.plan?.stylized_url),
+    planPublishedAt: m.plan?.published_at ?? null,
+    planArchivedAt: m.plan?.archived_at ?? null,
+    at: m.at ?? null,
+    history: m.history ?? null,
+    historyFrom: m.history_from ?? null,
   };
 }
 
@@ -119,6 +139,23 @@ export const listVersions = (floorId: string) => get<{ versions: PlanVersion[] }
 export const createVersion = (floorId: string, body: { asset_id: string; page: number; rotation: number; crop?: { x: number; y: number; w: number; h: number } | null; notes?: string }) =>
   post<PlanVersion>(`floors/${floorId}/plan-versions`, body);
 export const publishVersion = (versionId: string) => post<PlanVersion>(`plan-versions/${versionId}/publish`);
+
+/** What publishing or restoring a version means: geometry changes against the published one and the fate of every placed item (T038). */
+export interface VersionDiff {
+  from: PlanVersion | null;
+  to: PlanVersion;
+  geometry: { same: boolean; changes: { field: string; from: unknown; to: unknown }[] };
+  anchors: {
+    total: number;
+    carried: number;
+    needs_alignment: number;
+    items: { anchor_id: string; resource_type: 'camera' | 'ha_entity'; resource_id: string; name: string; on_version_id: string; outcome: 'carried' | 'needs_alignment' }[];
+  };
+}
+export const versionDiff = (versionId: string, against?: string) => get<VersionDiff>(`plan-versions/${versionId}/diff${against ? `?against=${against}` : ''}`);
+/** Restore an archived version as a new published copy; `revision` and the expected published id make a concurrent change a clear 409. */
+export const rollbackVersion = (versionId: string, revision: number, expectedPublishedId: string | null) =>
+  post<PlanVersion>(`plan-versions/${versionId}/rollback`, { revision, expected_published_id: expectedPublishedId });
 export const deleteVersion = (versionId: string) => del(`plan-versions/${versionId}`);
 
 // ---- anchors ----

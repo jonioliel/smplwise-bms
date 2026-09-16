@@ -2053,7 +2053,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (2026-09-16, 0.1.24): routers/plans.py - version rows with archived_at/authors/anchors_on; anchors follow a new version only when the geometry (asset, page, rotation, crop) is identical; GET /plan-versions/{id}/diff previews geometry changes + fate of every placed item; POST /plan-versions/{id}/rollback restores an archived version as a new published copy (own image files, one published period per version) with revision + expected_published_id checks (409 stale_revision / stale_published), revisions bump on every status change, audit plan.version.rollback; archived images readable by viewers. routers/anchors.py - GET /floors/{id}/map?at= returns the version in force and the anchors effective at the instant (history=exact from the first publish on, history=current before). tests/test_plan_versions.py. UI: explore-plan-editor version history card (thumbnails, status, dates, counts, notes), compare dialog, publish through the preview, restore from the archive; investigate-history-map loads the bundle at the instant and names the version in force. frontend/tests/evidence-plan-versions.spec.ts against the dev backend: same-geometry draft published through the preview, original restored with both pins at the same positions, archived rows undeletable, stale revision 409, historical map exact/current - private-evidence/T038-plan-versions-live/*.png. Open: alignment assistant for pins on a differently cropped plan (today they stay on the old version and are marked); draft autosave lock"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null

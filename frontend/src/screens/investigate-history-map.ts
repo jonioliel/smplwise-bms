@@ -306,7 +306,7 @@ export class InvestigateHistoryMap extends LitElement {
       const start = this.at ? new Date(this.at) : new Date();
       this.date = dateInZone(start, this.tz);
       this.minute = minuteInZone(start, this.tz);
-      this.bundle = await loadMap(this.floorId);
+      this.bundle = await loadMap(this.floorId, false, this.instant.toISOString().replace(/\.\d{3}Z$/, 'Z'));
       this.scheduleFrame();
       if (this.camera) {
         const a = this.bundle.anchors.find((x) => x.resource_type === 'camera' && x.resource_id === this.camera);
@@ -400,7 +400,30 @@ export class InvestigateHistoryMap extends LitElement {
     this.frameTimer = window.setTimeout(() => {
       this.frameAt = this.instant.toISOString().replace(/\.\d{3}Z$/, 'Z');
       this.frameFailed = false;
+      void this.ensureVersion();
     }, 600);
+  }
+
+  /** The plan version and the anchors follow the instant (T038): reload the bundle once the cursor leaves the shown version's period. */
+  private async ensureVersion() {
+    const b = this.bundle;
+    if (!b || b.source !== 'api' || !b.at) return;
+    const t = this.instant.toISOString().replace(/\.\d{3}Z$/, 'Z');
+    const inside = b.history === 'current' ? !b.historyFrom || t < b.historyFrom : (!b.planPublishedAt || b.planPublishedAt <= t) && (!b.planArchivedAt || t < b.planArchivedAt);
+    if (inside) return;
+    try {
+      const nb = await loadMap(this.floorId, false, t);
+      const before = b.anchors.map((a) => a.resource_id).sort().join(',');
+      this.bundle = nb;
+      if (this.selectedId && !nb.anchors.some((a) => a.id === this.selectedId)) this.selectedId = null;
+      if (nb.anchors.map((a) => a.resource_id).sort().join(',') !== before) await this.loadDay();
+    } catch {
+      /* keep the bundle that is shown */
+    }
+  }
+
+  private fmtWhen(iso: string) {
+    return new Intl.DateTimeFormat('he-IL', { timeZone: this.tz, dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso));
   }
 
   private setDate(date: string) {
@@ -438,7 +461,7 @@ export class InvestigateHistoryMap extends LitElement {
             : nothing}
           <dt>ישויות HA</dt><dd>לא ידוע בזמן זה <span class="note">(אין היסטוריית מצבים; לא מוצג ערך חי)</span></dd>
           ${cam && this.frameAt ? html`<dt>פריים</dt><dd><div class="frame" data-history-frame>${this.frameFailed ? html`<span>אין פריים בהקלטה בזמן זה</span>` : html`<img src=${frameUrl(cam.resource_id, this.frameAt)} alt="פריים מההקלטה בזמן שנבחר" @error=${() => (this.frameFailed = true)} />`}</div></dd>` : nothing}
-          <dt>גרסת תוכנית</dt><dd>${b.planStatus === 'published' ? 'הגרסה המפורסמת הנוכחית' : 'טיוטה'}</dd>
+          <dt>גרסת תוכנית</dt><dd data-history-plan-version data-history-mode=${b.history ?? 'live'}>${b.history === 'exact' && b.planPublishedAt ? html`בתוקף באותו זמן · פורסמה <span class="ltr">${this.fmtWhen(b.planPublishedAt)}</span>${b.planArchivedAt ? html` · הוחלפה <span class="ltr">${this.fmtWhen(b.planArchivedAt)}</span>` : ''}` : b.historyFrom ? html`המפה הנוכחית · היסטוריית המפה מתחילה <span class="ltr">${this.fmtWhen(b.historyFrom)}</span>` : 'המפה הנוכחית'}</dd>
         </dl>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-block-start:10px">
           ${cam ? html`<sw-button variant="primary" size="sm" icon="history" @click=${() => navigate('/investigate/playback', { camera: cam.resource_id, t: tISO })}>נגן מכאן</sw-button>` : nothing}

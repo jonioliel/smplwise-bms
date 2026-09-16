@@ -203,6 +203,11 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
 
 ## Floor plan editor
 
+- Version history: the "גרסת תוכנית" card lists every version of the floor. "השווה" shows the two pictures side
+  by side, the geometry change and what happens to every placed item; "פרסום גרסה" always goes through that
+  preview. "שחזר" restores an archived version as a new published copy; pins follow whenever the geometry is
+  identical, otherwise they stay where they were and the map marks them for a check. Published versions are
+  never deleted, so the historical map can show the plan that was in force at any instant.
 - Everything is done with the mouse on the plan: drag a pin to move it, drag the round handle in front
   of a selected camera to turn it, drag the two square handles at the edges of its cone to widen or
   narrow the field of view, scroll to zoom, drag the background to pan. Cameras and HA entities are

@@ -77,6 +77,11 @@ export interface PlanVersion {
   notes: string;
   created_at: string;
   published_at: string | null;
+  archived_at?: string | null;
+  created_by?: string | null;
+  published_by?: string | null;
+  /** Active anchors placed on this version (version history, T038). */
+  anchors_on?: number;
   image_url: string;
   /** 'stylized' serves the SMPLWISE-language rendering as the map background (the source stays). */
   render_mode?: 'source' | 'stylized';
@@ -150,6 +155,10 @@ export interface FloorMap {
   anchors: Anchor[];
   zones?: SpatialZone[];
   needs_alignment: boolean;
+  /** Set when the bundle was requested at an instant (historical map, T038). */
+  at?: string | null;
+  history?: 'exact' | 'current' | null;
+  history_from?: string | null;
   permissions: { edit: boolean; publish: boolean; import: boolean };
   cameras: Camera[];
 }

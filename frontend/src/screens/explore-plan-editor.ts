@@ -8,13 +8,14 @@ import '../components/sw-badge';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import '../components/sw-toggle';
+import '../components/sw-dialog';
 import '../map/sw-plan-canvas';
 import type { PlanMarker, MarkerSelectDetail, PlanZone, SwPlanCanvas } from '../map/sw-plan-canvas';
 import type { IconName } from '../components/sw-icon';
 import { navigate } from '../router';
-import { cameraState, createAnchor, deleteAnchor, loadMap, publishVersion, updateAnchor, type MapBundle } from '../api/maps';
-import { ApiError, describeError } from '../api/client';
-import type { Anchor, Camera } from '../api/types';
+import { cameraState, createAnchor, deleteAnchor, listVersions, loadMap, publishVersion, rollbackVersion, updateAnchor, versionDiff, type MapBundle, type VersionDiff } from '../api/maps';
+import { ApiError, describeError, resourceUrl } from '../api/client';
+import type { Anchor, Camera, PlanVersion } from '../api/types';
 import { domainLabel, entityMarkerKind, listEntities, stateLabel, type HaEntity } from '../api/ha';
 import { ROOM_FILL_LABEL, setRenderMode, stylizeVersion, type RoomFill, type StylizeResult } from '../api/plans';
 import { ZONE_KINDS, acceptZones, createZone, deleteZone, detectZones, pointInPolygon, updateZone, zoneKindLabel, type SpatialZone, type ZoneKind, type ZonePoint } from '../api/zones';
@@ -53,6 +54,10 @@ const LAYERS: { id: Layer; label: string }[] = [
  * inspector, keyboard nudges, undo/redo, explicit save with optimistic revisions (409 → reload, nothing
  * is overwritten silently), publish a draft plan, and the stylized "SMPLWISE language" rendering.
  */
+type DiffMode = 'publish' | 'rollback' | 'compare';
+const GEOM_LABEL: Record<string, string> = { asset: 'קובץ', page: 'עמוד', rotation: 'סיבוב', crop: 'חיתוך', width_px: 'רוחב', height_px: 'גובה' };
+const fmtWhen = (iso: string | null | undefined) => (iso ? new Intl.DateTimeFormat('he-IL', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso)) : '');
+
 @customElement('explore-plan-editor')
 export class ExplorePlanEditor extends LitElement {
   @property() floorId = '';
@@ -77,6 +82,9 @@ export class ExplorePlanEditor extends LitElement {
   @state() private stylized: StylizeResult | null = null;
   @state() private stylizeOpts: { strength: Strength; keepLines: boolean; roomFill: RoomFill } = { strength: 'medium', keepLines: false, roomFill: 'white' };
   @state() private zones: SpatialZone[] = [];
+  /** Version history of the floor (T038) and the compare / publish / rollback dialog. */
+  @state() private versions: PlanVersion[] = [];
+  @state() private diff: { mode: DiffMode; version: PlanVersion; data: VersionDiff | null; error: string } | null = null;
   @state() private selectedZoneId: string | null = null;
   @state() private candidates: ZoneCandidate[] | null = null;
   @state() private detecting = false;
@@ -391,6 +399,67 @@ export class ExplorePlanEditor extends LitElement {
       grid-template-columns: 1fr 1fr;
       gap: 8px;
     }
+    .vlist {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-block-size: 320px;
+      overflow: auto;
+      margin-block-start: 6px;
+    }
+    .vrow {
+      display: grid;
+      grid-template-columns: 56px minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+      padding: 6px 8px;
+      border: 1px solid var(--sw-border);
+      border-radius: 8px;
+      font-size: var(--sw-fs-xs);
+    }
+    .vrow.cur {
+      border-color: var(--sw-accent);
+      background: var(--sw-accent-soft);
+    }
+    .vrow img {
+      inline-size: 56px;
+      block-size: 40px;
+      object-fit: cover;
+      border-radius: 4px;
+      background: var(--sw-map-bg);
+      border: 1px solid var(--sw-border);
+    }
+    .vrow .meta {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-inline-size: 0;
+    }
+    .vrow .acts {
+      display: flex;
+      gap: 4px;
+    }
+    .dsum {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      font-size: var(--sw-fs-sm);
+    }
+    .ditems {
+      display: flex;
+      flex-direction: column;
+      max-block-size: 160px;
+      overflow: auto;
+      font-size: var(--sw-fs-xs);
+    }
+    .ditems div {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 3px 0;
+      border-block-end: 1px solid var(--sw-border);
+    }
     .compare img {
       inline-size: 100%;
       border: 1px solid var(--sw-border);
@@ -430,6 +499,7 @@ export class ExplorePlanEditor extends LitElement {
       this.bundle = b;
       this.anchors = b.anchors.map((a) => ({ ...a, position: { ...a.position } }));
       this.zones = b.zones;
+      void this.loadVersions();
       if (this.selectedZoneId && !this.zones.some((z) => z.id === this.selectedZoneId)) this.selectedZoneId = null;
       this.dirty = new Set();
       this.undo = [];
@@ -798,17 +868,74 @@ export class ExplorePlanEditor extends LitElement {
     }
   }
 
+  private async loadVersions() {
+    const b = this.bundle;
+    if (!b || b.source === 'demo' || !b.permissions.edit) {
+      this.versions = [];
+      return;
+    }
+    try {
+      this.versions = (await listVersions(b.floorId)).versions;
+    } catch {
+      this.versions = [];
+    }
+  }
+
+  /** Publishing always goes through the preview: what changes for viewers and what happens to every placed item (T038). */
   private async publish() {
     if (!this.bundle?.planVersionId) return;
     if (this.dirty.size && !(await this.save())) return;
+    const draft = this.versions.find((v) => v.id === this.bundle?.planVersionId);
+    if (!draft) {
+      await this.publishNow(this.bundle.planVersionId);
+      return;
+    }
+    await this.openDiff('publish', draft);
+  }
+
+  private async publishNow(versionId: string) {
     this.busy = true;
     this.error = '';
     try {
-      await publishVersion(this.bundle.planVersionId);
+      await publishVersion(versionId);
       this.info = 'הגרסה פורסמה; הצופים רואים אותה עכשיו';
       await this.load();
     } catch (err) {
       this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private async openDiff(mode: DiffMode, version: PlanVersion) {
+    this.diff = { mode, version, data: null, error: '' };
+    try {
+      const data = await versionDiff(version.id);
+      if (this.diff?.version.id === version.id) this.diff = { mode, version, data, error: '' };
+    } catch (err) {
+      this.diff = { mode, version, data: null, error: describeError(err) };
+    }
+  }
+
+  private async confirmDiff() {
+    const d = this.diff;
+    if (!d?.data || d.mode === 'compare') return;
+    this.busy = true;
+    this.error = '';
+    try {
+      if (d.mode === 'publish') {
+        await publishVersion(d.version.id);
+        this.info = 'הגרסה פורסמה; הצופים רואים אותה עכשיו';
+      } else {
+        await rollbackVersion(d.version.id, d.version.revision, d.data.from?.id ?? null);
+        this.info = 'הגרסה שוחזרה ופורסמה מחדש; העוגנים נשמרו';
+      }
+      this.diff = null;
+      await this.load();
+      setTimeout(() => (this.info = ''), 4000);
+    } catch (err) {
+      this.diff = { ...d, error: describeError(err) };
+      if (err instanceof ApiError && err.status === 409) void this.loadVersions();
     } finally {
       this.busy = false;
     }
@@ -1012,8 +1139,65 @@ export class ExplorePlanEditor extends LitElement {
               <div style="display:flex;gap:8px;margin-block-start:8px"><sw-button variant="primary" size="sm" icon="check" ?disabled=${this.busy} @click=${() => this.useRender('stylized')}>השתמש בתוצאה</sw-button><sw-button variant="ghost" size="sm" @click=${() => (this.stylized = null)}>סגור</sw-button></div>
               <div class="note" style="margin-block-start:6px">עיבוד תמונה מקומי (ללא AI וללא שליחה החוצה): קירות וחדרים מזוהים לפי עובי הקווים; חדרים אינם מזוהים בשמם. אפשר לחזור למקור בכל רגע.</div>`
             : nothing}`}
+      ${this.renderVersionHistory(b)}
       <div style="margin-block-start:8px"><sw-button size="sm" icon="upload" @click=${() => navigate(`/explore/floors/${b.floorId}/import`)}>ייבוא תוכנית חדשה</sw-button></div>
     </sw-card>`;
+  }
+
+  private renderVersionHistory(b: MapBundle) {
+    if (!this.versions.length) return nothing;
+    return html`<div class="row" style="margin-block-start:10px"><span class="lbl">היסטוריית גרסאות<span class="muted">כל פרסום נשמר; אפשר להשוות ולשחזר גרסה מהארכיון בלי לאבד עוגנים</span></span></div>
+      <div class="vlist" data-version-list>
+        ${this.versions.map((v) => {
+          const cur = v.id === b.planVersionId;
+          const kind = v.status === 'published' ? 'recorded' : v.status === 'draft' ? 'partial' : 'neutral';
+          const label = v.status === 'published' ? 'מפורסמת' : v.status === 'draft' ? 'טיוטה' : 'ארכיון';
+          return html`<div class="vrow ${cur ? 'cur' : ''}" data-version-row data-version-id=${v.id} data-version-status=${v.status}>
+            <img src=${resourceUrl(v.image_url)} alt="" loading="lazy" />
+            <div class="meta">
+              <span><sw-badge kind=${kind} label=${label}></sw-badge> <span class="ltr">${fmtWhen(v.published_at ?? v.created_at)}</span></span>
+              <span class="note">${v.width_px}×${v.height_px}${v.rotation ? ` · סיבוב ${v.rotation}°` : ''}${v.crop ? ' · חיתוך' : ''} · ${v.anchors_on ?? 0} פריטים${v.notes ? ` · ${v.notes}` : ''}</span>
+            </div>
+            <div class="acts">
+              ${v.status !== 'published' ? html`<sw-button size="sm" variant="ghost" data-version-compare ?disabled=${this.busy} @click=${() => this.openDiff(v.status === 'draft' && b.permissions.publish ? 'publish' : 'compare', v)}>השווה</sw-button>` : nothing}
+              ${v.status === 'archived' && b.permissions.publish ? html`<sw-button size="sm" icon="history" data-version-rollback ?disabled=${this.busy} @click=${() => this.openDiff('rollback', v)}>שחזר</sw-button>` : nothing}
+            </div>
+          </div>`;
+        })}
+      </div>`;
+  }
+
+  private renderDiffDialog() {
+    const d = this.diff;
+    if (!d) return nothing;
+    const data = d.data;
+    const title = d.mode === 'publish' ? 'פרסום גרסה' : d.mode === 'rollback' ? 'שחזור גרסה מהארכיון' : 'השוואת גרסאות';
+    const sub = d.mode === 'publish' ? 'מה ישתנה לצופים ומה יקרה לפריטים המוצבים' : d.mode === 'rollback' ? 'הגרסה תפורסם מחדש כעותק חדש; הגרסה הנוכחית תעבור לארכיון' : 'מול הגרסה המפורסמת';
+    return html`<sw-dialog open heading=${title} subheading=${sub} data-diff-dialog @close=${() => (this.diff = null)}>
+      ${d.error ? html`<div class="err" data-diff-error>${d.error}</div>` : nothing}
+      ${!data
+        ? html`<div class="note">טוען השוואה…</div>`
+        : html`<div class="compare">
+              <div><div class="note">${data.from ? `מפורסמת · ${fmtWhen(data.from.published_at ?? data.from.created_at)}` : 'אין גרסה מפורסמת'}</div>${data.from ? html`<img src=${resourceUrl(data.from.image_url)} alt="הגרסה המפורסמת" />` : html`<div class="note">—</div>`}</div>
+              <div><div class="note">${d.mode === 'rollback' ? 'לשחזור' : 'חדשה'} · ${fmtWhen(data.to.published_at ?? data.to.created_at)}</div><img src=${resourceUrl(data.to.image_url)} alt="הגרסה החדשה" /></div>
+            </div>
+            <div class="dsum" data-diff-summary>
+              ${data.from
+                ? data.geometry.same
+                  ? html`<sw-badge kind="recorded" label="גאומטריה זהה"></sw-badge>`
+                  : html`<sw-badge kind="partial" label=${`שינוי: ${data.geometry.changes.map((c) => GEOM_LABEL[c.field] ?? c.field).join(', ')}`}></sw-badge>`
+                : html`<sw-badge kind="neutral" label="פרסום ראשון"></sw-badge>`}
+              <span>${data.anchors.total} פריטים מוצבים · ${data.anchors.carried} עוברים כמו שהם · ${data.anchors.needs_alignment} ידרשו יישור</span>
+            </div>
+            ${data.anchors.items.length
+              ? html`<div class="ditems" data-diff-items>${data.anchors.items.map((i) => html`<div><span>${i.resource_type === 'camera' ? 'מצלמה' : 'ישות'} · ${i.name}</span><span class=${i.outcome === 'carried' ? '' : 'err'}>${i.outcome === 'carried' ? 'עובר' : 'יישור נדרש'}</span></div>`)}</div>`
+              : nothing}
+            ${data.anchors.needs_alignment ? html`<div class="note">פריטים שידרשו יישור נשארים במקומם על גרסת התוכנית הקודמת ומסומנים במפה; שום פריט לא מוזז למיקום מומצא.</div>` : nothing}`}
+      <sw-button slot="footer" variant="ghost" @click=${() => (this.diff = null)}>${d.mode === 'compare' ? 'סגור' : 'ביטול'}</sw-button>
+      ${d.mode !== 'compare' && data
+        ? html`<sw-button slot="footer" variant="primary" icon=${d.mode === 'publish' ? 'check' : 'history'} data-diff-confirm ?disabled=${this.busy} @click=${() => this.confirmDiff()}>${d.mode === 'publish' ? 'פרסם גרסה' : 'שחזר ופרסם'}</sw-button>`
+        : nothing}
+    </sw-dialog>`;
   }
 
   render() {
@@ -1067,6 +1251,7 @@ export class ExplorePlanEditor extends LitElement {
                 ${this.renderVersionCard(b)}
               </div>
             </div>`}
+        ${this.renderDiffDialog()}
       </sw-page>
     `;
   }

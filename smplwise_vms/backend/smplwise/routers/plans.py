@@ -41,12 +41,83 @@ def version_row(r: sqlite3.Row) -> dict[str, Any]:
         "id": r["id"], "floor_id": r["floor_id"], "asset_id": r["asset_id"], "page": r["page"], "rotation": r["rotation"],
         "crop": json.loads(r["crop_json"]) if r["crop_json"] else None, "width_px": r["width_px"], "height_px": r["height_px"],
         "scale_m_per_px": r["scale_m_per_px"], "status": r["status"], "revision": r["revision"], "notes": r["notes"],
-        "created_at": r["created_at"], "published_at": r["published_at"],
+        "created_at": r["created_at"], "published_at": r["published_at"], "archived_at": r["archived_at"],
+        "created_by": r["created_by"], "published_by": r["published_by"],
         # the map background follows render_mode; the source picture stays reachable for comparisons
         "image_url": f"api/v1/plan-versions/{r['id']}/{'stylized' if _stylized(r) else 'image'}.png",
         "source_url": f"api/v1/plan-versions/{r['id']}/source.png",
         "render_mode": "stylized" if _stylized(r) else "source",
         "stylized_url": f"api/v1/plan-versions/{r['id']}/stylized.png" if _has_stylized(r) else None,
+    }
+
+
+def _geometry(r: sqlite3.Row) -> tuple[Any, ...]:
+    """Two versions with the same asset, page, rotation and crop share one pixel space: anchors move between them freely."""
+    return (r["asset_id"], r["page"], r["rotation"], r["crop_json"] or None)
+
+
+def _published(conn: sqlite3.Connection, floor_id: str) -> sqlite3.Row | None:
+    return conn.execute("SELECT * FROM plan_versions WHERE floor_id = ? AND status = 'published'", (floor_id,)).fetchone()
+
+
+def _carry_anchors(conn: sqlite3.Connection, target: sqlite3.Row, now: str) -> tuple[int, int]:
+    """Active anchors placed on a version with identical geometry follow the target version. Others keep their
+    version id and the map reports needs_alignment: nothing is ever moved to an invented location (T038)."""
+    same = [r["id"] for r in conn.execute("SELECT * FROM plan_versions WHERE floor_id = ? AND id != ?", (target["floor_id"], target["id"])).fetchall() if _geometry(r) == _geometry(target)]
+    carried = 0
+    if same:
+        carried = conn.execute(
+            f"UPDATE map_anchors SET plan_version_id = ?, updated_at = ? WHERE floor_id = ? AND effective_to IS NULL AND plan_version_id IN ({','.join('?' * len(same))})",
+            (target["id"], now, target["floor_id"], *same),
+        ).rowcount
+    pending = conn.execute("SELECT COUNT(*) FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL AND plan_version_id != ?", (target["floor_id"], target["id"])).fetchone()[0]
+    return carried, pending
+
+
+def needs_alignment(conn: sqlite3.Connection, version: sqlite3.Row | None, anchors: list[sqlite3.Row]) -> bool:
+    """An anchor needs a look when it was placed on a version whose pixel space differs from the shown one."""
+    if not version or not anchors:
+        return False
+    versions = {r["id"]: r for r in conn.execute("SELECT * FROM plan_versions WHERE floor_id = ?", (version["floor_id"],)).fetchall()}
+    g = _geometry(version)
+    return any(a["plan_version_id"] != version["id"] and (a["plan_version_id"] not in versions or _geometry(versions[a["plan_version_id"]]) != g) for a in anchors)
+
+
+def version_at(conn: sqlite3.Connection, floor_id: str, iso: str) -> sqlite3.Row | None:
+    """The version that was published at the instant (every version keeps one published period; a restore creates a copy)."""
+    return conn.execute(
+        "SELECT * FROM plan_versions WHERE floor_id = ? AND status != 'draft' AND published_at IS NOT NULL AND published_at <= ? AND (archived_at IS NULL OR archived_at > ?) ORDER BY published_at DESC LIMIT 1",
+        (floor_id, iso, iso),
+    ).fetchone()
+
+
+def version_diff(conn: sqlite3.Connection, target: sqlite3.Row, base: sqlite3.Row | None) -> dict[str, Any]:
+    """What publishing (or restoring) `target` means: geometry changes against `base` and the fate of every placed item."""
+    changes: list[dict[str, Any]] = []
+    if base is not None:
+        for name, col in (("asset", "asset_id"), ("page", "page"), ("rotation", "rotation"), ("crop", "crop_json"), ("width_px", "width_px"), ("height_px", "height_px")):
+            a, b = base[col], target[col]
+            if col == "crop_json":
+                a, b = (json.loads(a) if a else None), (json.loads(b) if b else None)
+            if a != b:
+                changes.append({"field": name, "from": a, "to": b})
+    g = _geometry(target)
+    versions = {r["id"]: r for r in conn.execute("SELECT * FROM plan_versions WHERE floor_id = ?", (target["floor_id"],)).fetchall()}
+    cameras = {r["id"]: r for r in conn.execute("SELECT id, channel, name_source, alias FROM cameras").fetchall()}
+    items = []
+    for a in conn.execute("SELECT * FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL ORDER BY layer_id, resource_id", (target["floor_id"],)).fetchall():
+        on = versions.get(a["plan_version_id"])
+        carried = a["plan_version_id"] == target["id"] or (on is not None and _geometry(on) == g)
+        cam = cameras.get(a["resource_id"]) if a["resource_type"] == "camera" else None
+        name = (cam["alias"] or cam["name_source"] or f"ערוץ {cam['channel']}") if cam else (a["label"] or a["resource_id"])
+        items.append({"anchor_id": a["id"], "resource_type": a["resource_type"], "resource_id": a["resource_id"], "name": name,
+                      "on_version_id": a["plan_version_id"], "outcome": "carried" if carried else "needs_alignment"})
+    carried_n = sum(1 for i in items if i["outcome"] == "carried")
+    return {
+        "from": version_row(base) if base is not None else None,
+        "to": version_row(target),
+        "geometry": {"same": base is not None and not changes, "changes": changes},
+        "anchors": {"total": len(items), "carried": carried_n, "needs_alignment": len(items) - carried_n, "items": items},
     }
 
 
@@ -224,18 +295,16 @@ def list_versions(floor_id: str, principal: Principal = Depends(current_principa
     get_floor(conn, floor_id)
     require(conn, principal, "map.edit", ("floor", floor_id))
     rows = conn.execute("SELECT * FROM plan_versions WHERE floor_id = ? ORDER BY created_at DESC", (floor_id,)).fetchall()
-    return {"versions": [version_row(r) for r in rows]}
+    counts = {r["plan_version_id"]: r["n"] for r in conn.execute("SELECT plan_version_id, COUNT(*) AS n FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL GROUP BY plan_version_id", (floor_id,)).fetchall()}
+    return {"versions": [dict(version_row(r), anchors_on=counts.get(r["id"], 0)) for r in rows]}
 
 
 @router.get("/plan-versions/{version_id}/image.png")
 def version_image(version_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> FileResponse:
     settings = settings_of(request)
     v = get_version(conn, version_id)
-    # Viewers read only the published version; editors may also see drafts (ch. 9 / T019).
-    if v["status"] == "published":
-        require(conn, principal, "map.read", ("floor", v["floor_id"]))
-    else:
-        require(conn, principal, "map.edit", ("floor", v["floor_id"]))
+    # Viewers read published and archived versions (the historical map shows old plans); drafts need an editor (ch. 9 / T019).
+    _readable(conn, principal, v)
     path = settings.data_dir / v["image_path"]
     if not path.exists():
         raise not_found("תמונת התוכנית חסרה בדיסק.")
@@ -249,20 +318,79 @@ def publish_version(version_id: str, request: Request, principal: Principal = De
     if v["status"] != "draft":
         raise conflict("not_draft", "רק טיוטה ניתנת לפרסום.", status=v["status"])
     now = now_iso()
-    previous = conn.execute("SELECT * FROM plan_versions WHERE floor_id = ? AND status = 'published'", (v["floor_id"],)).fetchone()
-    same_geometry = bool(previous) and previous["asset_id"] == v["asset_id"] and previous["page"] == v["page"] and previous["rotation"] == v["rotation"] and (previous["crop_json"] or None) == (v["crop_json"] or None)
+    previous = _published(conn, v["floor_id"])
     if previous:
-        conn.execute("UPDATE plan_versions SET status = 'archived', archived_at = ? WHERE id = ?", (now, previous["id"]))
-    conn.execute("UPDATE plan_versions SET status = 'published', published_by = ?, published_at = ? WHERE id = ?", (principal.user_id, now, version_id))
-    # Anchors never migrate to an invented location: they follow only when the geometry is identical;
-    # otherwise they keep their old version id and the map reports needs_alignment (T038 completes this).
-    carried = 0
-    if same_geometry:
-        carried = conn.execute("UPDATE map_anchors SET plan_version_id = ?, updated_at = ? WHERE floor_id = ? AND effective_to IS NULL AND plan_version_id = ?",
-                               (version_id, now, v["floor_id"], previous["id"])).rowcount
+        conn.execute("UPDATE plan_versions SET status = 'archived', archived_at = ?, revision = revision + 1 WHERE id = ?", (now, previous["id"]))
+    conn.execute("UPDATE plan_versions SET status = 'published', published_by = ?, published_at = ?, revision = revision + 1 WHERE id = ?", (principal.user_id, now, version_id))
+    # Anchors never migrate to an invented location: they follow only between versions with identical geometry;
+    # otherwise they keep their old version id and the map reports needs_alignment (T038).
+    carried, pending = _carry_anchors(conn, get_version(conn, version_id), now)
     audit(conn, actor=principal, action="plan.version.publish", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
-          details={"version_id": version_id, "previous_version_id": previous["id"] if previous else None, "anchors_carried": carried, "same_geometry": same_geometry})
+          details={"version_id": version_id, "previous_version_id": previous["id"] if previous else None, "anchors_carried": carried, "needs_alignment": pending,
+                   "same_geometry": bool(previous) and _geometry(previous) == _geometry(v)})
     return version_row(get_version(conn, version_id))
+
+
+@router.get("/plan-versions/{version_id}/diff")
+def diff_version(version_id: str, against: str | None = None, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Preview shown before publishing or restoring: geometry changes against the published version (or `against`)
+    and what happens to every placed item (T038)."""
+    v = get_version(conn, version_id)
+    require(conn, principal, "map.edit", ("floor", v["floor_id"]))
+    base = get_version(conn, against) if against else _published(conn, v["floor_id"])
+    if base is not None and base["floor_id"] != v["floor_id"]:
+        raise ApiError(422, "validation", "הגרסאות שייכות לקומות שונות.")
+    return version_diff(conn, v, base)
+
+
+class RollbackIn(BaseModel):
+    revision: int = Field(ge=1)
+    expected_published_id: str | None = Field(default=None, max_length=32)
+
+
+@router.post("/plan-versions/{version_id}/rollback", status_code=201)
+def rollback_version(version_id: str, body: RollbackIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Restore an archived version as a new published version (its own copy of the picture and the same geometry), so
+    every version keeps exactly one published period for the historical map. Anchors follow by geometry. The archived
+    row and the previously published version bump their revision, so a concurrent restore or publish is a clear 409."""
+    settings = settings_of(request)
+    v = get_version(conn, version_id)
+    require(conn, principal, "map.publish", ("floor", v["floor_id"]))
+    if v["status"] != "archived":
+        raise conflict("not_archived", "רק גרסה מהארכיון ניתנת לשחזור.", status=v["status"])
+    if body.revision != v["revision"]:
+        raise conflict("stale_revision", "הגרסה השתנתה בינתיים; טען מחדש את היסטוריית הגרסאות.", current_revision=v["revision"], sent_revision=body.revision)
+    previous = _published(conn, v["floor_id"])
+    if body.expected_published_id is not None and (previous["id"] if previous else None) != body.expected_published_id:
+        raise conflict("stale_published", "בינתיים פורסמה גרסה אחרת; בדוק את ההשוואה שוב.", published_version_id=previous["id"] if previous else None)
+    src = settings.data_dir / v["image_path"]
+    if not src.exists():
+        raise not_found("תמונת התוכנית חסרה בדיסק.")
+    now = now_iso()
+    restored_id = new_id()
+    out = src.with_name(f"version-{restored_id}.png")
+    shutil.copyfile(src, out)
+    stylized_rel = None
+    if _has_stylized(v) and (settings.data_dir / v["stylized_path"]).exists():
+        so = out.with_name(out.stem + ".stylized.png")
+        shutil.copyfile(settings.data_dir / v["stylized_path"], so)
+        stylized_rel = str(so.relative_to(settings.data_dir).as_posix())
+    if previous:
+        conn.execute("UPDATE plan_versions SET status = 'archived', archived_at = ?, revision = revision + 1 WHERE id = ?", (now, previous["id"]))
+    conn.execute("UPDATE plan_versions SET revision = revision + 1 WHERE id = ?", (version_id,))
+    notes = f"שחזור של גרסה שפורסמה ב־{v['published_at'] or v['created_at']}"
+    conn.execute(
+        """INSERT INTO plan_versions(id, floor_id, asset_id, page, rotation, crop_json, width_px, height_px, image_path, scale_m_per_px, status, revision, notes,
+                                     created_by, created_at, published_by, published_at, render_mode, stylized_path, stylize_json)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'published', 1, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (restored_id, v["floor_id"], v["asset_id"], v["page"], v["rotation"], v["crop_json"], v["width_px"], v["height_px"], str(out.relative_to(settings.data_dir).as_posix()),
+         v["scale_m_per_px"], notes, principal.user_id, now, principal.user_id, now, v["render_mode"] if stylized_rel else "source", stylized_rel, v["stylize_json"] if stylized_rel else None),
+    )
+    restored = get_version(conn, restored_id)
+    carried, pending = _carry_anchors(conn, restored, now)
+    audit(conn, actor=principal, action="plan.version.rollback", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
+          details={"restored_from": version_id, "version_id": restored_id, "previous_version_id": previous["id"] if previous else None, "anchors_carried": carried, "needs_alignment": pending})
+    return version_row(restored)
 
 
 @router.delete("/plan-versions/{version_id}", status_code=204)
@@ -292,10 +420,10 @@ class RenderModeIn(BaseModel):
 
 
 def _readable(conn: sqlite3.Connection, principal: Principal, v: sqlite3.Row) -> None:
-    if v["status"] == "published":
-        require(conn, principal, "map.read", ("floor", v["floor_id"]))
-    else:
+    if v["status"] == "draft":
         require(conn, principal, "map.edit", ("floor", v["floor_id"]))
+    else:
+        require(conn, principal, "map.read", ("floor", v["floor_id"]))
 
 
 @router.get("/plan-versions/{version_id}")

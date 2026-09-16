@@ -1,5 +1,14 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.24 (pilot)
+- Plan version history (T038): the editor lists every version of the floor (thumbnail, status, date, placed
+  items, notes). Publishing always shows a preview first: geometry changes against the published version and
+  what happens to every placed item. An archived version can be restored: it is published again as a new copy,
+  the previous one goes to the archive, and pins follow whenever the geometry is identical (never to an
+  invented location). Concurrent changes are refused clearly (409 stale_revision / stale_published).
+- Historical map: the plan version and the pins shown are the ones in force at the chosen instant once the
+  floor's history has begun; earlier instants show the current map and say so.
+
 ## 0.1.23 (pilot)
 - Recording frames at an instant (T044): GET /cameras/{id}/frame?at= grabs one JPEG from the recording
   (ffmpeg on the server, cached per 10 seconds, negative-cached, capped at 150 MB, playback permission).
