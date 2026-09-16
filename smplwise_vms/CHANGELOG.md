@@ -1,5 +1,14 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.25 (pilot)
+- Investigation cases (T049): a case links events, recording clips and notes from several cameras, with tags
+  and a status (open / in review / closed). "הוסף לתיק" on the event page, in playback and on the historical
+  map; the case page shows every item with its preservation state: a clip is a bookmark into the NVR until
+  "שמור עותק" runs an export job that copies it (preserved only when the copy is complete); footage the NVR no
+  longer has is shown as missing and never as preserved; an unreachable NVR reads "not checked". Edits need
+  the cases.manage permission (operator, site admin, system admin) and the current revision (409 on a stale
+  one). Cases are part of the project backup.
+
 ## 0.1.24 (pilot)
 - Plan version history (T038): the editor lists every version of the floor (thumbnail, status, date, placed
   items, notes). Publishing always shows a preview first: geometry changes against the published version and

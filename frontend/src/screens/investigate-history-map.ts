@@ -8,6 +8,8 @@ import '../components/sw-icon';
 import '../components/sw-field';
 import '../components/sw-state-panel';
 import '../components/sw-timeline';
+import '../components/sw-case-picker';
+import { clipAround, type NewCaseItem } from '../api/cases';
 import '../map/sw-plan-canvas';
 import type { PlanMarker, MarkerSelectDetail } from '../map/sw-plan-canvas';
 import { minuteLabel, secondLabel, type TimelineEvent } from '../components/sw-timeline';
@@ -55,6 +57,7 @@ export class InvestigateHistoryMap extends LitElement {
   /** Instant (UTC ISO) whose frame is shown for the selected camera; updated after the cursor settles. */
   @state() private frameAt = '';
   @state() private frameFailed = false;
+  @state() private casePick: NewCaseItem | null = null;
   private frameTimer = 0;
 
   static styles = css`
@@ -465,9 +468,10 @@ export class InvestigateHistoryMap extends LitElement {
         </dl>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-block-start:10px">
           ${cam ? html`<sw-button variant="primary" size="sm" icon="history" @click=${() => navigate('/investigate/playback', { camera: cam.resource_id, t: tISO })}>נגן מכאן</sw-button>` : nothing}
-          <sw-button size="sm" icon="case" disabled title="תיקי חקירה — בשלב הבא">הוסף לתיק</sw-button>
+          <sw-button size="sm" icon="case" data-add-to-case ?disabled=${!cam} title=${cam ? 'קטע של המצלמה הנבחרת סביב הזמן שנבחר (15 שניות לפני, 45 אחרי)' : 'בחר מצלמה במפה'} @click=${() => { if (cam) this.casePick = { kind: 'clip', camera_id: cam.resource_id, ...clipAround(this.instant) }; }}>הוסף לתיק</sw-button>
         </div>
       </sw-card>
+      <sw-case-picker .item=${this.casePick} subheading=${cam ? `${cam.camera?.name ?? cam.resource_id} · ${this.date} ${secondLabel(this.minute)}` : ''} @close=${() => (this.casePick = null)}></sw-case-picker>
       <sw-card heading="אירועים סביב הזמן" subheading=${`±${NEAR_MIN} דקות · מצלמות הקומה`}>
         ${near.length
           ? html`<div class="evl" data-history-events>${near.slice(0, 8).map((e) => html`<a class=${cam && e.camera_id === cam.resource_id ? 'hit' : ''} href=${`#/investigate/events/${e.id}`}><span>${EVENT_LABEL[e.type] ?? e.type} · ${e.camera_name ?? e.channel ?? ''}<div class="s">${e.confidence === 'inferred' ? 'נגזר מהקלטה' : 'התראה מה־NVR'}${e.acked_at ? ' · טופל' : ''}</div></span><span class="ltr">${this.fmt(e.occurred_at)}</span></a>`)}</div>`

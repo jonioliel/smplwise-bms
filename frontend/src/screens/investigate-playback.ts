@@ -11,6 +11,8 @@ import '../components/sw-scene';
 import '../components/sw-timeline';
 import '../components/sw-live-player';
 import '../components/sw-state-panel';
+import '../components/sw-case-picker';
+import { clipAround, type NewCaseItem } from '../api/cases';
 import { minuteLabel, secondLabel } from '../components/sw-timeline';
 import type { SwLivePlayer } from '../components/sw-live-player';
 import type { DemoSegment } from '../fixtures/catalog';
@@ -71,6 +73,7 @@ export class InvestigatePlayback extends LitElement {
   @state() private session: PlaybackSession | null = null;
   @state() private group: PlaybackGroup | null = null;
   @state() private extra: string[] = [];
+  @state() private casePick: NewCaseItem | null = null;
   /** Hover preview over the timeline (T044): a frame from the recording at the hovered instant. */
   @state() private preview: { minute: number; x: number; width: number; url: string; failed: boolean } | null = null;
   private previewTimer = 0;
@@ -862,9 +865,11 @@ export class InvestigatePlayback extends LitElement {
         ${this.notice ? html`<span class="warn">${this.notice}</span>` : nothing}
         ${this.error ? html`<span class="err">${this.error}</span>` : nothing}
         <span class="grow"></span>
+        <sw-button size="sm" icon="case" data-add-to-case ?disabled=${!this.cameraId} @click=${() => (this.casePick = { kind: 'clip', camera_id: this.cameraId, ...clipAround(instantInZone(this.date, this.cursor, this.tz)) })}>הוסף לתיק</sw-button>
         <sw-button size="sm" icon="download" ?disabled=${!this.rec?.segments.length} @click=${() => this.openExport()}>ייצוא</sw-button>
         <a href="#/explore/floors/f0"><sw-button size="sm" icon="map">במפה</sw-button></a>
       </div>
+      <sw-case-picker .item=${this.casePick} subheading=${`${this.cams?.find((c) => c.id === this.cameraId)?.name ?? ''} · ${this.date} ${secondLabel(this.cursor)}`} @close=${() => (this.casePick = null)}></sw-case-picker>
       <div class="session">
         <span>Session: ${master ? `${master.id} · דור ${this.groupMode ? this.group?.generation ?? master.generation : master.generation} · ${master.state}` : 'אין'}</span>
         <span>נגן: ${masterStatus || '—'}${this.paused ? ' (מושהה)' : ''}</span>

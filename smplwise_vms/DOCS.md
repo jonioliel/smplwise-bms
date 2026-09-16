@@ -201,6 +201,18 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   inside the dashed rectangle is exactly what the saved version contains; the original file is never
   modified.
 
+## Investigation cases
+
+- חקירה › תיקים lists the cases; a case is opened from an event page ("הוסף לתיק"), from the playback screen
+  (a clip around the cursor: 15 s before, 45 s after) or from the historical map (the selected camera around
+  the chosen instant), or with "תיק חדש" in the list. Notes are written on the case page.
+- Every item shows what it really is: "סימנייה ל־NVR בלבד" points at the recording on the NVR and can still be
+  overwritten; "שמור עותק" starts an export job (T048) and the item becomes "עותק שמור" only when the copy is
+  complete; "חסר" means the NVR no longer has the footage (it is never called preserved); "לא נבדק" means the
+  NVR could not be asked. Closing a case stops new items; deleting a case removes its items only.
+- Managing cases (create, edit, add or remove items, preserve) needs the cases.manage permission — operators,
+  site admins and the system admin have it; viewers see nothing here. Every change is audited.
+
 ## Floor plan editor
 
 - Version history: the "גרסת תוכנית" card lists every version of the floor. "השווה" shows the two pictures side

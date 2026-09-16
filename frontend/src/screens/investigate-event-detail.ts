@@ -7,6 +7,8 @@ import '../components/sw-badge';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import '../components/sw-live-player';
+import '../components/sw-case-picker';
+import type { NewCaseItem } from '../api/cases';
 import '../map/sw-plan-canvas';
 import type { PlanMarker } from '../map/sw-plan-canvas';
 import { navigate } from '../router';
@@ -38,6 +40,7 @@ export class InvestigateEventDetail extends LitElement {
   @state() private nearby: VmsEvent[] = [];
   @state() private busy = false;
   @state() private thumbVersion = 0;
+  @state() private casePick: NewCaseItem | null = null;
   private pollTimer = 0;
 
   static styles = css`
@@ -340,7 +343,7 @@ export class InvestigateEventDetail extends LitElement {
     return html`
       <sw-page heading=${`${label} · ${camera}`} subheading=${`${SOURCE_LABEL[ev.source] ?? ev.source} · ${this.fmt(ev.occurred_at, true)}`} crumbs=${`חקירה | אירועים | ${label}`} wide>
         <sw-button slot="actions" variant=${acked ? 'ghost' : 'primary'} icon="check" ?disabled=${acked || this.busy} @click=${() => this.ack()}>${acked ? 'טופל' : 'סמן כטופל'}</sw-button>
-        <sw-button slot="actions" icon="case" disabled title="תיקי חקירה — בשלב הבא">הוסף לתיק</sw-button>
+        <sw-button slot="actions" icon="case" data-add-to-case @click=${() => (this.casePick = { kind: 'event', event_id: ev.id })}>הוסף לתיק</sw-button>
         <sw-button slot="actions" variant="ghost" icon="list" @click=${() => navigate('/investigate/events')}>למרכז האירועים</sw-button>
         ${this.error ? html`<div class="err">${this.error}</div>` : nothing}
         <div class="layout">
@@ -392,6 +395,7 @@ export class InvestigateEventDetail extends LitElement {
             </sw-card>
           </div>
         </div>
+        <sw-case-picker .item=${this.casePick} subheading=${`${label} · ${camera} · ${this.fmt(ev.occurred_at, true)}`} @close=${() => (this.casePick = null)}></sw-case-picker>
       </sw-page>
     `;
   }
