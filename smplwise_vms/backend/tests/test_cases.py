@@ -37,7 +37,7 @@ def test_cases_crud_items_and_preservation(settings, monkeypatch):
     assert r.status_code == 201, r.text
     case = r.json()
     assert case["title"] == "כניסה לא מורשית" and case["status"] == "open" and case["revision"] == 1 and case["tags"] == ["כניסה", "לילה"]
-    assert case["counts"] == {"items": 0, "events": 0, "clips": 0, "notes": 0, "preserved": 0} and case["owner_username"]
+    assert case["counts"] == {"items": 0, "events": 0, "clips": 0, "notes": 0, "snapshots": 0, "preserved": 0} and case["owner_username"]
     lst = c.get("/api/v1/cases").json()
     assert lst["cases"][0]["id"] == case["id"] and lst["can_manage"] is True
     stale = c.patch(f"/api/v1/cases/{case['id']}", json={"revision": 5, "title": "x"})
@@ -71,7 +71,7 @@ def test_cases_crud_items_and_preservation(settings, monkeypatch):
     by = {i["id"]: i for i in d["items"]}
     assert d["checked"] is True and d["hidden_items"] == 0
     assert by[ev_item["id"]]["preservation"] == "nvr_only" and by[clip["id"]]["preservation"] == "missing" and by[note["id"]]["preservation"] == "none"
-    assert d["counts"] == {"items": 3, "events": 1, "clips": 1, "notes": 1, "preserved": 0}
+    assert d["counts"] == {"items": 3, "events": 1, "clips": 1, "notes": 1, "snapshots": 0, "preserved": 0}
     assert {i["preservation"] for i in c.get(f"/api/v1/cases/{case['id']}?check=false").json()["items"]} == {"unknown", "none"}
 
     def failing_search(s, conn, cam, start, end, tz):

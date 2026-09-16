@@ -4,11 +4,14 @@ no longer has is reported as missing and never as preserved. Edits need cases.ma
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import json
+import pathlib
 import sqlite3
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from ..audit import audit
@@ -17,8 +20,9 @@ from ..config import Settings
 from ..db import new_id, now_iso, unlocked
 from ..errors import ApiError, conflict, not_found
 from ..rbac import INSTALLATION, Principal, require
+from ..services import bundle as bundle_svc
 from ..services import exports as ex
-from ..services import recordings
+from ..services import nvr, recordings
 from ..services.access import camera_allowed, require_camera, visible_camera_ids
 from ..services.events_ingest import row_to_event
 from ..services.timeutil import iso_utc, parse_utc
@@ -31,6 +35,8 @@ EVENT_BEFORE_S = 5
 EVENT_AFTER_S = 30
 MAX_CLIP = dt.timedelta(hours=6)
 SEARCH = recordings.search_segments  # replaced in tests
+SNAPSHOT = nvr.fetch_snapshot  # replaced in tests
+MAX_BUNDLE_UPLOAD = 2048 * 1024 * 1024
 
 
 def _rid(request: Request) -> str | None:
@@ -72,15 +78,15 @@ def _clean_tags(tags: list[str]) -> list[str]:
 
 
 def _counts(conn: sqlite3.Connection, case_ids: list[str]) -> dict[str, dict[str, int]]:
-    out = {cid: {"items": 0, "events": 0, "clips": 0, "notes": 0, "preserved": 0} for cid in case_ids}
+    out = {cid: {"items": 0, "events": 0, "clips": 0, "notes": 0, "snapshots": 0, "preserved": 0} for cid in case_ids}
     if not case_ids:
         return out
     q = ",".join("?" * len(case_ids))
     for r in conn.execute(f"SELECT ci.case_id, ci.kind, ej.state AS job_state, ej.payload_json FROM case_items ci LEFT JOIN export_jobs ej ON ej.id = ci.export_job_id WHERE ci.case_id IN ({q})", case_ids).fetchall():
         c = out[r["case_id"]]
         c["items"] += 1
-        c[{"event": "events", "clip": "clips", "note": "notes"}[r["kind"]]] += 1
-        if r["job_state"] in ("done", "partial") and json.loads(r["payload_json"] or "{}").get("output"):
+        c[{"event": "events", "clip": "clips", "note": "notes", "snapshot": "snapshots"}[r["kind"]]] += 1
+        if r["kind"] == "snapshot" or (r["job_state"] in ("done", "partial") and json.loads(r["payload_json"] or "{}").get("output")):
             c["preserved"] += 1
     return out
 
@@ -109,6 +115,9 @@ def _preservation(settings: Settings, conn: sqlite3.Connection, item: sqlite3.Ro
                 return "preserved", export
             if job["state"] in ("queued", "running"):
                 return "preserving", export
+    if item["kind"] == "snapshot":
+        p = settings.data_dir / item["file_path"] if item["file_path"] else None
+        return ("preserved" if p and p.is_file() else "missing"), None
     if item["kind"] == "note" or cam is None or not item["from_at"] or not item["to_at"]:
         return "none", export
     if not check or not settings.nvr_host or not cam["main_track"]:
@@ -151,6 +160,8 @@ def _items(settings: Settings, conn: sqlite3.Connection, case_id: str, scope: se
             "event": {k: ev.get(k) for k in ("type", "occurred_at", "ended_at", "severity", "confidence", "thumbnail", "acked_at", "source")} if ev else None,
             "export_job_id": r["export_job_id"], "from_at": r["from_at"], "to_at": r["to_at"], "note": r["note"],
             "added_by_username": r["added_by_username"], "created_at": r["created_at"], "preservation": preservation, "export": export,
+            "file_path": r["file_path"], "file_sha256": r["file_sha256"],
+            "file_url": f"api/v1/cases/{case_id}/items/{r['id']}/file" if r["file_path"] else None,
         })
     return out, hidden
 
@@ -255,7 +266,7 @@ def delete_case(case_id: str, request: Request, principal: Principal = Depends(c
 # ---------------------------------------------------------------- items
 
 class ItemIn(BaseModel):
-    kind: str = Field(pattern="^(event|clip|note)$")
+    kind: str = Field(pattern="^(event|clip|note|snapshot)$")
     event_id: str | None = Field(default=None, max_length=64)
     camera_id: str | None = Field(default=None, max_length=32)
     from_at: str | None = Field(default=None, max_length=40)
@@ -297,6 +308,10 @@ def add_item(case_id: str, body: ItemIn, request: Request, principal: Principal 
         if t1 <= t0 or (t1 - t0) > MAX_CLIP:
             raise ApiError(422, "validation", "טווח הקטע ריק או ארוך מ־6 שעות.")
         camera_id, from_at, to_at = body.camera_id, iso_utc(t0), iso_utc(t1)
+    elif body.kind == "snapshot":
+        if not body.camera_id:
+            raise ApiError(422, "validation", "תמונה דורשת מצלמה.")
+        camera_id = body.camera_id
     elif not body.note.strip():
         raise ApiError(422, "validation", "הערה ריקה.")
     if camera_id:
@@ -305,9 +320,25 @@ def add_item(case_id: str, body: ItemIn, request: Request, principal: Principal 
         require_camera(conn, principal, camera_id, "video.playback")
     now = now_iso()
     iid = new_id()
+    file_path = file_sha = None
+    if body.kind == "snapshot":
+        settings = settings_of(request)
+        if not settings.nvr_host:
+            raise ApiError(503, "nvr_unconfigured", "לא הוגדר NVR; אין ממה לצלם.")
+        cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
+        with unlocked(conn):
+            data = SNAPSHOT(settings, int(cam["channel"]))
+        if not data or not data.startswith(b"\xff\xd8\xff"):
+            raise ApiError(503, "snapshot_unavailable", "המצלמה לא סיפקה תמונה.", retryable=True)
+        rel = pathlib.Path("cases") / case_id / f"{iid}.jpg"
+        dest = settings.data_dir / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(data)
+        file_path, file_sha = rel.as_posix(), hashlib.sha256(data).hexdigest()
+        from_at = to_at = now
     conn.execute(
-        "INSERT INTO case_items(id, case_id, kind, camera_id, event_id, export_job_id, from_at, to_at, note, added_by, added_by_username, created_at, sort_order) VALUES (?,?,?,?,?,NULL,?,?,?,?,?,?,0)",
-        (iid, case_id, body.kind, camera_id, event_id, from_at, to_at, body.note.strip(), principal.user_id, principal.username, now),
+        "INSERT INTO case_items(id, case_id, kind, camera_id, event_id, export_job_id, from_at, to_at, note, added_by, added_by_username, created_at, sort_order, file_path, file_sha256) VALUES (?,?,?,?,?,NULL,?,?,?,?,?,?,0,?,?)",
+        (iid, case_id, body.kind, camera_id, event_id, from_at, to_at, body.note.strip(), principal.user_id, principal.username, now, file_path, file_sha),
     )
     conn.execute("UPDATE cases SET updated_at = ? WHERE id = ?", (now, case_id))
     audit(conn, actor=principal, action="case.item.add", decision="allowed", resource_type="case", resource_id=case_id, request_id=_rid(request),
@@ -323,6 +354,8 @@ def remove_item(case_id: str, item_id: str, request: Request, principal: Princip
     if not it:
         raise not_found("הפריט לא נמצא.")
     now = now_iso()
+    if it["file_path"]:
+        (settings_of(request).data_dir / it["file_path"]).unlink(missing_ok=True)
     conn.execute("DELETE FROM case_items WHERE id = ?", (item_id,))
     conn.execute("UPDATE cases SET updated_at = ? WHERE id = ?", (now, case_id))
     audit(conn, actor=principal, action="case.item.remove", decision="allowed", resource_type="case", resource_id=case_id, request_id=_rid(request), details={"item": item_id, "kind": it["kind"]})
@@ -361,3 +394,83 @@ def preserve_item(case_id: str, item_id: str, request: Request, principal: Princ
     audit(conn, actor=principal, action="case.item.preserve", decision="allowed", resource_type="case", resource_id=case_id, request_id=_rid(request),
           details={"item": item_id, "job": job["id"], "camera_id": cam["id"], "from": it["from_at"], "to": it["to_at"]})
     return _item(settings, conn, case_id, item_id)
+
+
+# ---------------------------------------------------------------- item files, evidence bundles (T050) and verification
+
+@router.get("/cases/{case_id}/items/{item_id}/file")
+def item_file(case_id: str, item_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> FileResponse:
+    scope = _read_scope(conn, principal)
+    _get(conn, case_id)
+    it = conn.execute("SELECT * FROM case_items WHERE id = ? AND case_id = ?", (item_id, case_id)).fetchone()
+    if not it or not it["file_path"]:
+        raise not_found("אין קובץ לפריט.")
+    if it["camera_id"] and scope is not None and it["camera_id"] not in scope:
+        require(conn, principal, "events.read", INSTALLATION)
+    p = settings_of(request).data_dir / it["file_path"]
+    if not p.is_file():
+        raise not_found("הקובץ חסר בדיסק.")
+    return FileResponse(p, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"})
+
+
+@router.post("/cases/{case_id}/bundle", status_code=201)
+def create_bundle(case_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """One ZIP with the preserved clips, the snapshots, the notes, a manifest with SHA-256 per file and a readable
+    report. Items that are only bookmarks (not preserved) are listed as skipped, never silently included."""
+    _require_manage(conn, principal)
+    settings = settings_of(request)
+    scope = _read_scope(conn, principal)
+    r = _get(conn, case_id)
+    items, hidden = _items(settings, conn, case_id, scope, False)
+    case = case_row(r, _counts(conn, [case_id])[case_id])
+    tz_name = read_settings(conn)["time.zone"]
+    with unlocked(conn):
+        desc = bundle_svc.build(settings, conn, case, items, principal, tz_name)
+    desc["hidden_items"] = hidden
+    audit(conn, actor=principal, action="case.bundle", decision="allowed", resource_type="case", resource_id=case_id, request_id=_rid(request),
+          details={"bundle": desc["name"], "bytes": desc["bytes"], "sha256": desc["sha256"], "files": desc["files"], "skipped": len(desc["skipped"])})
+    return desc
+
+
+@router.get("/cases/{case_id}/bundles")
+def list_bundles(case_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    _read_scope(conn, principal)
+    _get(conn, case_id)
+    d = bundle_svc.bundles_dir(settings_of(request), case_id)
+    out = []
+    for p in sorted(d.glob("*.zip"), reverse=True) if d.is_dir() else []:
+        out.append({"name": p.name, "bytes": p.stat().st_size, "created_at": dt.datetime.fromtimestamp(p.stat().st_mtime, dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "download_url": f"api/v1/cases/{case_id}/bundles/{p.name}"})
+    return {"bundles": out}
+
+
+@router.get("/cases/{case_id}/bundles/{name}")
+def download_bundle(case_id: str, name: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> FileResponse:
+    _read_scope(conn, principal)
+    _get(conn, case_id)
+    if not bundle_svc.re.fullmatch(r"case-[0-9a-f]{8}-\d{8}T\d{6}Z\.zip", name):
+        raise not_found("החבילה לא נמצאה.")
+    p = bundle_svc.bundles_dir(settings_of(request), case_id) / name
+    if not p.is_file():
+        raise not_found("החבילה לא נמצאה.")
+    audit(conn, actor=principal, action="case.bundle.download", decision="allowed", resource_type="case", resource_id=case_id, request_id=_rid(request), details={"bundle": name})
+    return FileResponse(p, media_type="application/zip", filename=name)
+
+
+@router.post("/cases/bundles/verify")
+async def verify_bundle(request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Recompute the hashes of an uploaded bundle against its manifest. Reports per file; never trusts the archive."""
+    _read_scope(conn, principal)
+    chunks: list[bytes] = []
+    size = 0
+    while True:
+        chunk = await file.read(1024 * 1024)
+        if not chunk:
+            break
+        size += len(chunk)
+        if size > MAX_BUNDLE_UPLOAD:
+            raise ApiError(413, "payload_too_large", "החבילה גדולה מדי לאימות דרך הדפדפן.")
+        chunks.append(chunk)
+    result = bundle_svc.verify(b"".join(chunks))
+    audit(conn, actor=principal, action="case.bundle.verify", decision="allowed", resource_type="bundle", resource_id=file.filename or "", request_id=_rid(request),
+          details={"ok": result["ok"], "files": len(result["files"]), "mismatches": sum(1 for f in result["files"] if f["status"] != "ok"), "extra": len(result["extra"])})
+    return result

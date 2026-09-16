@@ -22,8 +22,10 @@ import { ApiError, describeError } from '../api/client';
 import { productSettings } from '../api/prefs';
 import { EVENT_LABEL, thumbnailUrl, type EventKind } from '../api/events';
 import { frameUrl } from '../api/recordings';
-import { exportDownloadUrl } from '../api/exports';
-import { CASE_STATUS_LABEL, PRESERVATION_LABEL, addCaseItem, createCase, deleteCase, getCase, listCases, preserveCaseItem, removeCaseItem, updateCase, type Case, type CaseDetail, type CaseItem, type CaseStatus, type Preservation } from '../api/cases';
+import { exportDownloadUrl, formatBytes } from '../api/exports';
+import { listCameras } from '../api/maps';
+import type { Camera } from '../api/types';
+import { CASE_STATUS_LABEL, PRESERVATION_LABEL, addCaseItem, bundleUrl, caseItemFileUrl, createBundle, createCase, deleteCase, getCase, listBundles, listCases, preserveCaseItem, removeCaseItem, updateCase, verifyBundle, type Bundle, type BundleVerification, type Case, type CaseDetail, type CaseItem, type CaseStatus, type Preservation } from '../api/cases';
 
 const STATUS_KIND: Record<CaseStatus, StateKind> = { open: 'stale', in_review: 'recorded', closed: 'neutral' };
 const PRES_KIND: Record<Preservation, StateKind> = { preserved: 'recorded', preserving: 'partial', nvr_only: 'stale', missing: 'error', unknown: 'unknown', none: 'neutral' };
@@ -183,6 +185,10 @@ export class InvestigateCaseDetail extends LitElement {
   @state() private editDesc = '';
   @state() private editTags = '';
   @state() private confirmDelete = false;
+  @state() private bundles: Bundle[] = [];
+  @state() private verifyResult: BundleVerification | null = null;
+  @state() private cams: Camera[] = [];
+  @state() private snapCam = '';
   private loadedFor = '';
   private pollTimer = 0;
 
@@ -470,6 +476,11 @@ export class InvestigateCaseDetail extends LitElement {
       const [s, d] = await Promise.all([productSettings(), getCase(id)]);
       this.tz = s['time.zone'] ?? this.tz;
       this.data = d;
+      this.bundles = (await listBundles(id).catch(() => ({ bundles: [] as Bundle[] }))).bundles;
+      if (!this.cams.length) {
+        this.cams = (await listCameras().catch(() => ({ cameras: [] as Camera[] }))).cameras.filter((c) => c.enabled);
+        if (!this.snapCam && this.cams[0]) this.snapCam = this.cams[0].id;
+      }
       window.clearTimeout(this.pollTimer);
       if (d.items.some((i) => i.preservation === 'preserving')) this.pollTimer = window.setTimeout(() => void this.load(), 5000);
     } catch (err) {
@@ -505,14 +516,47 @@ export class InvestigateCaseDetail extends LitElement {
     });
   }
 
+  private async verify(file?: File) {
+    if (!file) return;
+    this.verifyResult = null;
+    this.busy = true;
+    this.error = '';
+    try {
+      this.verifyResult = await verifyBundle(file);
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private renderBundleCard(d: CaseDetail) {
+    const v = this.verifyResult;
+    return html`<sw-card heading="חבילת ראיות" subheading="ZIP עם הקטעים השמורים, התמונות, ההערות, manifest עם SHA-256 לכל קובץ ודוח קריא" data-bundle>
+      ${d.can_manage ? html`<sw-button size="sm" variant="primary" icon="download" data-bundle-create ?disabled=${this.busy} @click=${() => void this.run(async () => { await createBundle(d.id); }, 'החבילה נוצרה; פריטים שאינם עותק שמור מופיעים בה כ"לא נכללו"')}>צור חבילת ראיות</sw-button>` : nothing}
+      ${this.bundles.length
+        ? html`<div class="items" style="margin-block-start:8px">${this.bundles.map((b) => html`<div class="item" data-bundle-row style="grid-template-columns:minmax(0,1fr) auto"><div class="body"><strong class="ltr">${b.name}</strong><span class="meta">${formatBytes(b.bytes)} · ${this.fmt(b.created_at)}</span></div><div class="acts"><a href=${bundleUrl(d.id, b.name)} download><sw-button size="sm" icon="download">הורדה</sw-button></a></div></div>`)}</div>`
+        : html`<div class="hint" style="margin-block-start:6px">עדיין לא נוצרה חבילה לתיק הזה.</div>`}
+      <div class="composer"><sw-field label="אימות חבילה (בחר קובץ ZIP שהורד)"><input type="file" accept=".zip,application/zip" data-bundle-verify-file @change=${(e: Event) => void this.verify((e.target as HTMLInputElement).files?.[0])} /></sw-field></div>
+      ${v
+        ? html`<div class="note" data-bundle-verify-result>${v.ok ? `החבילה אומתה: ${v.files.length} קבצים תואמים ל־manifest${v.case ? ` · תיק "${v.case}"` : ''}` : `האימות נכשל${v.errors.length ? `: ${v.errors.join(', ')}` : ''}`}
+            ${v.files.some((f) => f.status !== 'ok') || v.extra.length ? html`<ul class="hint" style="margin:4px 0 0;padding-inline-start:18px">${v.files.filter((f) => f.status !== 'ok').map((f) => html`<li class="ltr">${f.path}: ${f.status}</li>`)}${v.extra.map((x) => html`<li class="ltr">${x}: extra</li>`)}</ul>` : nothing}
+          </div>`
+        : nothing}
+      <div class="hint" style="margin-block-start:6px">SHA-256 מוכיח שהקובץ לא השתנה מאז יצירת החבילה, לא את אמיתות הצילום מול המצלמה; חתימה ואימות מקור הם יכולות נפרדות.</div>
+    </sw-card>`;
+  }
+
   private renderItem(it: CaseItem, d: CaseDetail) {
-    const kind = it.kind === 'event' ? `אירוע · ${EVENT_LABEL[(it.event?.type ?? 'other') as EventKind] ?? it.event?.type ?? ''}` : it.kind === 'clip' ? 'קטע הקלטה' : 'הערה';
+    const kind = it.kind === 'event' ? `אירוע · ${EVENT_LABEL[(it.event?.type ?? 'other') as EventKind] ?? it.event?.type ?? ''}` : it.kind === 'clip' ? 'קטע הקלטה' : it.kind === 'snapshot' ? 'תמונה' : 'הערה';
     const pres = it.preservation;
     const at = it.kind === 'event' && it.event ? it.event.occurred_at : it.from_at;
     const thumb =
       it.kind === 'note'
         ? html`<div class="thumb"><sw-icon name="edit" size=${18}></sw-icon></div>`
-        : it.kind === 'event' && it.event?.thumbnail === 'ready' && it.event_id
+        : it.kind === 'snapshot'
+          ? html`<img class="thumb" src=${caseItemFileUrl(d.id, it.id)} alt="תמונה מהמצלמה" />`
+          : it.kind === 'event' && it.event?.thumbnail === 'ready' && it.event_id
           ? html`<img class="thumb" src=${thumbnailUrl(it.event_id)} alt="" />`
           : it.camera_id && at
             ? html`<img class="thumb" src=${frameUrl(it.camera_id, at)} alt="" @error=${(e: Event) => ((e.target as HTMLElement).style.visibility = 'hidden')} />`
@@ -526,7 +570,8 @@ export class InvestigateCaseDetail extends LitElement {
         <div class="meta">${it.added_by_username} · ${this.fmt(it.created_at)}${it.export?.error ? ` · ייצוא: ${it.export.error}` : ''}${pres === 'missing' ? ' · לא ניתן לשמר: ההקלטה כבר לא ב־NVR' : ''}</div>
       </div>
       <div class="acts">
-        ${it.camera_id && at ? html`<sw-button size="sm" icon="play" @click=${() => navigate('/investigate/playback', { camera: it.camera_id ?? '', t: at })}>נגן</sw-button>` : nothing}
+        ${it.camera_id && at && it.kind !== 'snapshot' ? html`<sw-button size="sm" icon="play" @click=${() => navigate('/investigate/playback', { camera: it.camera_id ?? '', t: at })}>נגן</sw-button>` : nothing}
+        ${it.kind === 'snapshot' && it.file_sha256 ? html`<span class="meta ltr" title="SHA-256">${it.file_sha256.slice(0, 12)}…</span>` : nothing}
         ${it.event_id ? html`<sw-button size="sm" variant="ghost" icon="bell" @click=${() => navigate(`/investigate/events/${it.event_id}`)}>אירוע</sw-button>` : nothing}
         ${d.can_manage && it.kind !== 'note' && (pres === 'nvr_only' || pres === 'unknown') ? html`<sw-button size="sm" icon="download" data-item-preserve ?disabled=${this.busy} @click=${() => void this.run(() => preserveCaseItem(d.id, it.id).then(() => undefined), 'עבודת שימור נוצרה; הפריט יסומן כשמור כשההעתקה תסתיים')}>שמור עותק</sw-button>` : nothing}
         ${it.export?.download_ready ? html`<a href=${exportDownloadUrl(it.export.id)} download><sw-button size="sm" variant="ghost" icon="download">הורדה</sw-button></a>` : nothing}
@@ -558,9 +603,11 @@ export class InvestigateCaseDetail extends LitElement {
             ${d.items.length ? html`<div class="items" data-case-items>${d.items.map((it) => this.renderItem(it, d))}</div>` : html`<div class="hint">עדיין אין פריטים בתיק. הוסף מאירוע, מהנגן או מהמפה ההיסטורית (הוסף לתיק).</div>`}
             ${d.hidden_items ? html`<div class="hint">${d.hidden_items} פריטים ממצלמות שאינן בהרשאתך אינם מוצגים.</div>` : nothing}
             ${d.can_manage && d.status !== 'closed'
-              ? html`<div class="composer"><sw-field label="הערה חדשה"><textarea rows="2" data-note-text .value=${this.noteText} @input=${(e: Event) => (this.noteText = (e.target as HTMLTextAreaElement).value)}></textarea></sw-field><sw-button size="sm" icon="plus" data-note-add ?disabled=${this.busy || !this.noteText.trim()} @click=${() => void this.run(async () => { await addCaseItem(d.id, { kind: 'note', note: this.noteText.trim() }); this.noteText = ''; })}>הוסף הערה</sw-button></div>`
+              ? html`<div class="composer"><sw-field label="הערה חדשה"><textarea rows="2" data-note-text .value=${this.noteText} @input=${(e: Event) => (this.noteText = (e.target as HTMLTextAreaElement).value)}></textarea></sw-field><sw-button size="sm" icon="plus" data-note-add ?disabled=${this.busy || !this.noteText.trim()} @click=${() => void this.run(async () => { await addCaseItem(d.id, { kind: 'note', note: this.noteText.trim() }); this.noteText = ''; })}>הוסף הערה</sw-button></div>
+                  <div class="composer"><sw-field label="תמונה ממצלמה לתיק (עותק שמור מיידי)"><select aria-label="מצלמה לצילום" data-snapshot-camera @change=${(e: Event) => (this.snapCam = (e.target as HTMLSelectElement).value)}>${this.cams.map((c) => html`<option value=${c.id} ?selected=${c.id === this.snapCam}>${c.name}</option>`)}</select></sw-field><sw-button size="sm" icon="camera" data-snapshot-add ?disabled=${this.busy || !this.snapCam} @click=${() => void this.run(async () => { await addCaseItem(d.id, { kind: 'snapshot', camera_id: this.snapCam }); }, 'התמונה נשמרה בתיק עם ה־hash שלה')}>צלם תמונה לתיק</sw-button></div>`
               : nothing}
           </sw-card>
+          ${this.renderBundleCard(d)}
           <div class="hint">סימנייה מצביעה על ההקלטה ב־NVR ואינה שימור: קטע נחשב שמור רק אחרי שעבודת ייצוא העתיקה אותו (sha256 ב־manifest). קטע שה־NVR כבר מחק מוצג כחסר ולעולם לא כשמור.</div>
         </div>
         ${this.editing

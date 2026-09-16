@@ -1,5 +1,16 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.32 (pilot)
+- Evidence bundle (T050): "צור חבילת ראיות" on a case builds one ZIP with the preserved clips (copies of the
+  finished export outputs and their export manifests), the snapshots, the notes, a manifest with a SHA-256 per
+  file and the source / time details of every item, and a readable Hebrew report. Items that are only
+  bookmarks are listed as skipped, never silently included. "אימות חבילה" recomputes every hash of an
+  uploaded bundle and reports each file (ok / mismatch / missing / extra). The hash proves the file did not
+  change since the bundle was made — not the authenticity of the picture; signing is a separate capability.
+- Snapshots into a case (T046): "צלם תמונה לתיק" copies one JPEG from the camera into the case with its hash;
+  the item is "עותק שמור" from the start. Manual recording and OSD sync are not offered in this build: no
+  proven ISAPI capability on the lab NVR and no approval for device writes — there is no placeholder button.
+
 ## 0.1.31 (pilot)
 - Kiosk / wall display (T057): #/kiosk/all takes a saved view in the URL (cameras, cols, rotate seconds),
   rotates pages, shows the system health pill from the summary endpoint, dims the wall after three failed

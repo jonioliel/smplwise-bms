@@ -259,6 +259,11 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   overwritten; "שמור עותק" starts an export job (T048) and the item becomes "עותק שמור" only when the copy is
   complete; "חסר" means the NVR no longer has the footage (it is never called preserved); "לא נבדק" means the
   NVR could not be asked. Closing a case stops new items; deleting a case removes its items only.
+- "צלם תמונה לתיק" copies one picture from a camera into the case (a real copy, hashed, "עותק שמור").
+  "צור חבילת ראיות" writes one ZIP: preserved clips with their export manifests, snapshots, notes, a manifest
+  with SHA-256 per file and a readable report; bookmarks that were never preserved are listed as skipped.
+  "אימות חבילה" recomputes the hashes of any bundle file and reports each entry. The hash proves integrity since
+  the bundle was made, not authenticity against the camera; signing and key management come later.
 - Managing cases (create, edit, add or remove items, preserve) needs the cases.manage permission — operators,
   site admins and the system admin have it; viewers see nothing here. Every change is audited.
 

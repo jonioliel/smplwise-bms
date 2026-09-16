@@ -2472,7 +2472,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (2026-09-16, 0.1.32): migrations/0008_case_snapshots.sql (case item kind snapshot, file_path, file_sha256); POST /cases/{id}/items kind=snapshot copies one JPEG from the camera (nvr.fetch_snapshot, read-only) into /data/cases/<case>/<item>.jpg with its sha256, preservation = preserved (own copy) / missing (file gone), GET /cases/{id}/items/{item}/file, removal deletes the file; bookmarks = clip items (T049). tests/test_bundle.py (snapshot item, hash, file served, 503 without an NVR, 422 without a camera). UI: 'צלם תמונה לתיק' on the case page with a camera picker; snapshot items render the stored picture. Honest gaps: manual recording start/stop and OSD sync are not offered (no proven ISAPI capability on the lab NVR: manual record capabilities endpoint answers 403; device writes need approval) and there is no placeholder button. Open: snapshot from the live camera page, bookmark on the timeline itself, manual recording behind nvr.config.write with true status + timeout once a capability probe succeeds"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
@@ -2680,7 +2682,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (2026-09-16, 0.1.32): services/bundle.py build() - ZIP with clips/<item>_<export output> (copies of finished export outputs) + clips/<item>.export-manifest.json, snapshots/<item>.jpg, notes.md, report.html (Hebrew, RTL, per-item table with sha256, integrity statement), manifest.json (schema smplwise-evidence-bundle/1, case, items with source / time / preservation, files with sha256 + bytes, skipped list, integrity note, signature: null) and MANIFEST.sha256; verify() recomputes every hash and reports ok / mismatch / missing / extra + manifest hash. routers/cases.py: POST /cases/{id}/bundle (cases.manage, scope-filtered items, audited), GET bundles, GET download (name pattern checked), POST /cases/bundles/verify (upload, audited). tests/test_bundle.py (contents, hashes, tampered clip = mismatch, removed snapshot = missing, extra file, bad zip). UI: case page bundle card (create, list / download, verify with per-file results). frontend/tests/evidence-bundle.spec.ts against the dev backend + lab NVR (real snapshot, bundle, verify genuine + tampered) - private-evidence/T050-bundle-live/*.png. Open: signed manifest + key rotation (T067), import of a bundle into another installation, clip thumbnails inside the report"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
