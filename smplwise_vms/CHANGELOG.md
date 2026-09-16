@@ -1,5 +1,14 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.35 (pilot)
+- Alarm rules with a dry run (T052): חקירה › חוקים והתראות builds a rule from trigger (event types, sources,
+  minimum severity), scope (floors, rooms, cameras through the floor plan), a site-local time window and a
+  cooldown; the only action in the pilot is a VMS notification. "הרצה יבשה" replays the day's stored events and
+  explains, per event, why an alert would or would not have been raised — nothing is written or sent. Enabled
+  rules evaluate new NVR alerts and HA sensor transitions as they arrive; alerts are acknowledged on the
+  "התראות" tab. Alerts are not events (no loops), one alert per rule and event, cooldowns compare event times,
+  every change carries its author and revision, and a rule owned by Home Assistant is a reference only.
+
 ## 0.1.34 (pilot)
 - Load probe and resource budget (T068): scripts/load_probe.py measures latency percentiles per endpoint under
   concurrent load plus the backend process memory, and docs/operations/RESOURCE_BUDGET.md records the reference

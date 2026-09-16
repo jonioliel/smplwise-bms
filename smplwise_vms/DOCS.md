@@ -205,6 +205,20 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   inside the dashed rectangle is exactly what the saved version contains; the original file is never
   modified.
 
+## Alarm rules and alerts
+
+- חקירה › חוקים והתראות: a rule is trigger × scope × time window × cooldown. Trigger = event types (motion,
+  door, offline, …), sources (NVR alert, derived from recording, HA sensor, system) and a minimum severity;
+  scope = floors, rooms / zones and cameras, resolved through the pins on the floor plan (an empty scope means the
+  whole installation); the window is in the site's time zone and may cross midnight; the cooldown suppresses
+  repeats per rule and camera (or sensor), measured between event times.
+- The only action is a notification inside the VMS (the "התראות" tab, acknowledged by name). No device
+  commands, no webhooks, no Home Assistant services — a rule can never feed itself or another rule, and a
+  rule you keep in Home Assistant is stored here as a reference only, so nothing fires twice.
+- "הרצה יבשה" replays the stored events of the last 24 hours (up to 14 days through the API) through the same
+  matcher and lists every event with the reason it would or would not have raised an alert. It writes nothing.
+  Managing rules needs the rules.manage permission (site admin at installation scope, system admin).
+
 ## Wall display (kiosk)
 
 - Open #/kiosk/all on the wall screen. The saved view is the URL: `cameras=a,b,c` (ids from the live wall's

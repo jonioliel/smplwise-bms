@@ -301,6 +301,13 @@ class AlertStreamListener:
             return
         with self.db.connection() as conn:
             stored = store_alert(conn, alert, self.tz_getter(), self._camera_lookup(conn))
+            if stored:
+                from . import rules as rules_svc  # local import: rules depend on correlation which depends on this module
+
+                try:
+                    rules_svc.evaluate_event(conn, stored, self.tz_getter())
+                except Exception:  # noqa: BLE001 - a rule must never break ingestion
+                    log.exception("rule evaluation failed for %s", stored.get("id"))
         if stored:
             STATE.last_event_at = stored["occurred_at"]
             STATE.events_stored += 1

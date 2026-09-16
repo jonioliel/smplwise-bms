@@ -295,7 +295,14 @@ class HaSync:
                     # T053: door / motion / lock transitions are kept as events for the correlation timeline
                     from .correlation import record_transition
 
-                    record_transition(conn, data.get("old_state"), new)
+                    transition = record_transition(conn, data.get("old_state"), new)
+                    if transition:
+                        from . import rules as rules_svc
+
+                        try:
+                            rules_svc.evaluate_event(conn, transition)
+                        except Exception:  # noqa: BLE001
+                            log.exception("rule evaluation failed for %s", transition.get("id"))
             except Exception:
                 log.exception("state update failed for %s", eid)
                 return

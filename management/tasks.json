@@ -2789,7 +2789,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (2026-09-16, 0.1.35): migrations/0010_rules.sql (rules, rule_alerts with a unique (rule, event) index), services/rules.py - scope_sets through placements (site / building / floor / zone polygon / camera / entity), in_window (site-local days, hours, overnight), match() with a reason per step, cooldown per rule + target measured between event times, evaluate_event() on stored events (hooked into the alert stream and HA transitions; failures never break ingestion), dry_run() replaying stored events with an in-memory cooldown and writing nothing; actions allowlist = notify only (webhooks / device commands rejected with 422), HA-owned rules never evaluated locally (one owner per automation), alerts are not events (loop-free by construction). routers/rules.py: CRUD with revision + author + audit, POST /rules/dry-run (stored or inline rule), GET /rules/alerts (scope-filtered), ack; rules.manage permission (site_admin, system_admin). tests/test_rules.py. UI: rules list with enable toggles and authors, rule dialog with chips for types / sources / floors / zones / cameras / days, window, cooldown, message, owner, dry run with per-event reasons; alerts tab with acknowledgement. frontend/tests/evidence-rules.spec.ts against the dev backend (dry run over the day's real events, save, toggle, stale revision 409, delete) - private-evidence/T052-rules-live/*.png. Open: notification channels beyond the VMS (HA notify service behind an explicit grant), schedules as first-class objects, alert digests, rule templates"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
