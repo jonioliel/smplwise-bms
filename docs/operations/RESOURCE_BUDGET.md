@@ -64,10 +64,11 @@ Run 2 (after the fixes), backend restarted seconds before the run (cold caches, 
 ## What the numbers say
 
 - **Single requests are fast** (tens of milliseconds for every screen except the events list and a cold NVR search).
-- **Concurrency is serialized by design:** every request holds SQLite's write lock for its whole life (`BEGIN IMMEDIATE`,
-  see the dev-loop note), so 8 simultaneous callers queue behind each other; p95 grows roughly linearly with the number
-  of workers. The pilot budget therefore assumes **up to 4 concurrent operators**; a read-only connection mode for GET
-  requests is the obvious next step (open below).
+- **Concurrency was serialized until 0.1.47:** every request held SQLite's write lock for its whole life
+  (`BEGIN IMMEDIATE`), so 8 simultaneous callers queued behind each other and p95 grew roughly linearly with the number
+  of workers. Since 0.1.48 the busy GET handlers run in a deferred, query-only transaction (WAL readers never wait for
+  the writer); only write requests still take the lock up front. The re-run at the end of this document shows the
+  effect; the pilot budget of **up to 4 concurrent operators** is kept as the commitment, now with margin.
 - **Fixed by this measurement:** (1) identical concurrent recording searches each ran their own NVR query behind the
   single-search lock — a cold "recordings today" p95 of ~20 s under 8 workers; an in-flight lock now lets followers reuse
   the first result (p95 2.1 s in run 2, on a cold backend). (2) The storage report was built by every concurrent first
@@ -85,7 +86,7 @@ Run 2 (after the fixes), backend restarted seconds before the run (cold caches, 
 | Budget | Target | Measured |
 |---|---|---|
 | Any screen, one operator, warm cache | p50 < 300 ms | met (max p50 256 ms, events list) |
-| Map / live / search under 4 operators | p95 < 1.5 s | not yet measured at 4; at 8 workers 0.6–1.7 s |
+| Map / live / search under 4 operators | p95 < 1.5 s | met at 8 workers since 0.1.48 (map 0.32 s, cameras 0.35 s, search 0.74 s) |
 | Cold NVR search per camera-day | < 3 s, one query per key | met after the in-flight fix (2.1 s p95 at 8 workers) |
 | Backend working set, idle + HA sync | < 200 MB | met (92.5 MB) |
 | Live streams / transcodes | measured on the HA host, not here | open |
@@ -97,8 +98,11 @@ Run 2 (after the fixes), backend restarted seconds before the run (cold caches, 
 - A 24-hour soak with HA / go2rtc / NVR restarts; today's evidence is ~25 backend restarts during the day with the health
   report back to OK within 15–25 s each time, and HA reconnecting on its own.
 - Export queue under a full disk and backpressure on the live relay.
-- Read-only SQLite connections for GET requests (removes most of the serialization above), asynchronous cold build of
-  the storage report, and the two events-list errors of run 2.
+- The events list itself: with the lock gone, eight concurrent 24 h lists still take ≈ 3.1 s each (p50 ≈ p95) because
+  they now share the CPU instead of queueing — the list is built in Python per request (derived events, filters,
+  spatial joins); caching the assembled day or paging the derivation is the next optimisation. Done since this section
+  was written: read-only connections (0.1.48), background build of the storage report (0.1.47), and the two events-list
+  errors of run 2 did not reproduce in the 0.1.47 and 0.1.48 runs.
 
 Re-run: `python scripts/load_probe.py --workers 8 --rounds 5 --markdown out.md` with the dev backend up.
 
@@ -125,3 +129,44 @@ storage report is never cold any more (warmed at start-up and every 8 minutes by
 the events list under eight concurrent workers still shows the serialisation cost of the write lock taken by
 every request (p95 ≈ 9 s for the 24 h list; p50 232 ms) — read-only connections for GET handlers remain the next
 optimisation and are not in the pilot.
+
+## Re-run 2026-09-17 (0.1.48, read-mode connections for the busy GET handlers)
+
+`python scripts/load_probe.py --workers 8 --rounds 5` against the developer backend, lab NVR and HA, right after a
+restart (storage report warmed in the background in 31.9 s), with the same catalogue as the 0.1.47 run:
+
+| endpoint | n | errors | p50 ms | p95 ms | max ms |
+|---|---|---|---|---|---|
+| health/summary | 40 | 0 | 370.5 | 912.2 | 919.1 |
+| cameras | 40 | 0 | 297.9 | 350.1 | 384.3 |
+| floor map | 40 | 0 | 271.8 | 322.9 | 329.8 |
+| floor map @instant | 40 | 0 | 295.7 | 349.3 | 352.7 |
+| events (24 h) | 40 | 0 | 3086.6 | 3457.1 | 3634.7 |
+| events/facets | 40 | 0 | 240.2 | 306.2 | 345.2 |
+| search | 40 | 0 | 560.6 | 741.5 | 813.0 |
+| storage (cached) | 40 | 0 | 172.0 | 386.4 | 407.9 |
+| cases | 40 | 0 | 288.0 | 359.2 | 413.9 |
+| camera recordings today | 40 | 0 | 192.2 | 1814.6 | 1831.2 |
+
+Single worker × 3 rounds on the same backend (per-request cost without contention):
+
+| endpoint | n | errors | p50 ms | p95 ms | max ms |
+|---|---|---|---|---|---|
+| health/summary | 3 | 0 | 54.2 | 69.1 | 69.1 |
+| cameras | 3 | 0 | 37.3 | 38.8 | 38.8 |
+| floor map | 3 | 0 | 37.8 | 38.6 | 38.6 |
+| floor map @instant | 3 | 0 | 62.1 | 68.7 | 68.7 |
+| events (24 h) | 3 | 0 | 285.4 | 293.9 | 293.9 |
+| events/facets | 3 | 0 | 50.7 | 51.1 | 51.1 |
+| search | 3 | 0 | 43.1 | 48.4 | 48.4 |
+| storage (cached) | 3 | 0 | 14.9 | 15.8 | 15.8 |
+| cases | 3 | 0 | 17.1 | 23.4 | 23.4 |
+| camera recordings today | 3 | 0 | 43.1 | 1528.8 | 1528.8 |
+
+Findings: no request waited for the write lock any more — p95 fell from 9.0 s to 3.5 s on the 24 h events list, from
+2.7 s to 0.9 s on the health summary and from 1.0–1.8 s to 0.3–0.35 s on the map, cameras, facets, storage and cases
+(0 errors, no "database is locked" in the log). The p50 of the busiest endpoints rose (events 0.23 s → 3.1 s) because
+eight requests now really run at the same time and share one Python process instead of one running while seven wait:
+the wall time of a round of eight fell from 9.7 s to 3.6 s, but every caller in that round pays about the same. The
+single-worker table shows the cost of one request stays where it was (the deferred BEGIN and `query_only` add nothing
+measurable). "Camera recordings today" keeps its NVR-bound p95 (one search per camera-day behind the in-flight lock).

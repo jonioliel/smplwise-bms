@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..config import Settings
 from ..db import new_id, now_iso, unlocked
 from ..errors import ApiError, conflict, not_found
@@ -186,8 +186,8 @@ class CasePatch(BaseModel):
 
 @router.get("/cases")
 def list_cases(
-    principal: Principal = Depends(current_principal),
-    conn: sqlite3.Connection = Depends(get_conn),
+    principal: Principal = Depends(current_principal_ro),
+    conn: sqlite3.Connection = Depends(get_read_conn),
     status: str | None = Query(None, pattern="^(open|in_review|closed)$"),
     q: str | None = Query(None, max_length=80),
     limit: int = Query(100, ge=1, le=500),

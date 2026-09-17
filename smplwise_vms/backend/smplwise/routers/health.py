@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Request
 
 from .. import __version__
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import permission_revision, unlocked
 from ..rbac import INSTALLATION, Principal, require
 from ..services import autosync, events_derive, events_ingest, ha_client, ha_sync
@@ -48,7 +48,7 @@ def health_report(request: Request, fresh: bool = False, principal: Principal = 
 
 
 @router.get("/health/summary")
-def health_summary(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def health_summary(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """What the top bar shows every signed-in user: cached states only, no device probes, no details that a
     non-administrator should not see (labels are operator wording, never addresses or credentials)."""
     return health_report_svc.summary(settings_of(request), conn)

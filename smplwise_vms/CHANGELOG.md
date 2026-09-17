@@ -1,5 +1,15 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.48 (pilot)
+- Read requests no longer take the database write lock: the busy GET handlers (events list / facets, floor map,
+  cameras, health summary, search, storage report, cases, camera recordings, /me) run in a deferred, query-only
+  SQLite transaction, so eight concurrent operators are served side by side instead of one after the other
+  (load probe: events 24 h p95 9.0 s → 3.5 s, health 2.7 s → 0.9 s, map / cameras / cases / facets ≈ 1–1.8 s →
+  0.3–0.35 s; see docs/operations/RESOURCE_BUDGET.md). What such a request must still record — the audit row of a
+  refusal, the one-time admin bootstrap, the user's last-seen stamp — is written through a short side transaction;
+  the last-seen stamp is now updated at most once a minute per user instead of on every request. Write handlers
+  are unchanged (BEGIN IMMEDIATE for their whole life).
+
 ## 0.1.47 (pilot)
 - Storage report always warm: the report that costs one NVR search per camera (~40–50 s cold) is now built in the
   background once after start-up discovery and refreshed by the janitor every 8 minutes, so הגדרות › אחסון opens

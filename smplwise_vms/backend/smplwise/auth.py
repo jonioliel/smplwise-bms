@@ -14,7 +14,9 @@ from fastapi import Depends, Request
 
 from .audit import audit
 from .config import Settings
-from .db import Database, get_setting, new_id, now_iso, permission_revision, set_setting
+import time
+
+from .db import Database, database_of, get_setting, new_id, now_iso, permission_revision, read_mode, set_setting
 from .errors import unauthenticated
 from .rbac import Principal
 
@@ -31,6 +33,13 @@ def settings_of(request: Request) -> Settings:
 def get_conn(request: Request):
     db: Database = request.app.state.db
     with db.connection() as conn:
+        yield conn
+
+
+def get_read_conn(request: Request):
+    """Deferred, query-only request connection for the busy read paths (see Database.connection)."""
+    db: Database = request.app.state.db
+    with db.connection(mode="read") as conn:
         yield conn
 
 
@@ -59,15 +68,32 @@ def resolve_principal(request: Request, settings: Settings) -> Principal:
     )
 
 
-def touch_user(conn: sqlite3.Connection, principal: Principal) -> None:
+TOUCH_EVERY_S = 60
+_touched: dict[str, float] = {}  # fallback for connections outside a Database (tests, side tools)
+
+
+def touch_user(conn: sqlite3.Connection, principal: Principal, force: bool = False) -> bool:
+    """Upsert the user row and its last_seen_at — at most once a minute per user (the row is the same anyway),
+    through a side transaction when the request runs read-only. Returns True when a row was written."""
+    key = f"{principal.user_id}|{principal.username}|{principal.display_name}"
+    stamp = time.time()
+    db = database_of(conn)
+    touched = db.touched if db is not None else _touched
+    if not force and stamp - touched.get(key, 0.0) < TOUCH_EVERY_S:
+        return False
     now = now_iso()
-    conn.execute(
-        """INSERT INTO users(id, username, display_name, source, active, first_seen_at, last_seen_at)
+    sql = """INSERT INTO users(id, username, display_name, source, active, first_seen_at, last_seen_at)
            VALUES (?, ?, ?, ?, 1, ?, ?)
            ON CONFLICT(id) DO UPDATE SET username = excluded.username, display_name = excluded.display_name,
-                                         last_seen_at = excluded.last_seen_at""",
-        (principal.user_id, principal.username, principal.display_name, principal.source, now, now),
-    )
+                                         last_seen_at = excluded.last_seen_at"""
+    args = (principal.user_id, principal.username, principal.display_name, principal.source, now, now)
+    if db is not None and read_mode(conn):
+        with db.write_aside() as w:
+            w.execute(sql, args)
+    else:
+        conn.execute(sql, args)
+    touched[key] = stamp
+    return True
 
 
 def maybe_bootstrap(conn: sqlite3.Connection, settings: Settings, principal: Principal, request_id: str | None) -> None:
@@ -78,20 +104,44 @@ def maybe_bootstrap(conn: sqlite3.Connection, settings: Settings, principal: Pri
         return
     if principal.username != settings.bootstrap_admin_username:
         return
-    conn.execute(
-        """INSERT INTO bindings(id, subject_kind, subject_id, role_id, scope_type, scope_id, effect, permission_revision,
-                                assigned_by, created_at)
-           VALUES (?, 'user', ?, 'system_admin', 'installation', '*', 'allow', ?, 'bootstrap', ?)""",
-        (new_id(), principal.user_id, permission_revision(conn), now_iso()),
-    )
-    set_setting(conn, "bootstrap_state", f"done:{principal.user_id}")
-    audit(conn, actor=principal, action="rbac.bootstrap_admin", decision="granted", resource_type="user",
-          resource_id=principal.user_id, reason="bootstrap_admin_username matched", request_id=request_id)
+
+    def grant(w: sqlite3.Connection) -> None:
+        if get_setting(w, "bootstrap_state", "pending") != "pending":
+            return  # another request won the race
+        w.execute(
+            """INSERT INTO bindings(id, subject_kind, subject_id, role_id, scope_type, scope_id, effect, permission_revision,
+                                    assigned_by, created_at)
+               VALUES (?, 'user', ?, 'system_admin', 'installation', '*', 'allow', ?, 'bootstrap', ?)""",
+            (new_id(), principal.user_id, permission_revision(w), now_iso()),
+        )
+        set_setting(w, "bootstrap_state", f"done:{principal.user_id}")
+        audit(w, actor=principal, action="rbac.bootstrap_admin", decision="granted", resource_type="user",
+              resource_id=principal.user_id, reason="bootstrap_admin_username matched", request_id=request_id)
+
+    db = database_of(conn) if read_mode(conn) else None
+    if db is not None:
+        with db.write_aside() as w:
+            grant(w)
+        # a deferred read transaction keeps the snapshot it started with: restart it so this very request
+        # (typically the first /me of the admin) already sees the new binding
+        conn.execute("COMMIT")
+        conn.execute("BEGIN")
+    else:
+        grant(conn)
 
 
-def current_principal(request: Request, conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
+def _principal(request: Request, conn: sqlite3.Connection) -> Principal:
     settings = settings_of(request)
     principal = resolve_principal(request, settings)
     touch_user(conn, principal)
     maybe_bootstrap(conn, settings, principal, getattr(request.state, "correlation_id", None))
     return principal
+
+
+def current_principal(request: Request, conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
+    return _principal(request, conn)
+
+
+def current_principal_ro(request: Request, conn: sqlite3.Connection = Depends(get_read_conn)) -> Principal:
+    """The same identity resolution on the request's read-mode connection (handlers that only read)."""
+    return _principal(request, conn)

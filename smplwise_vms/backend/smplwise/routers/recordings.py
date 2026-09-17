@@ -8,7 +8,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request
 
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import Principal, require
@@ -32,8 +32,8 @@ def camera_for_playback(conn: sqlite3.Connection, principal: Principal, camera_i
 def camera_recordings(
     camera_id: str,
     request: Request,
-    principal: Principal = Depends(current_principal),
-    conn: sqlite3.Connection = Depends(get_conn),
+    principal: Principal = Depends(current_principal_ro),
+    conn: sqlite3.Connection = Depends(get_read_conn),
     date: str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
     from_: str | None = Query(None, alias="from"),
     to: str | None = None,

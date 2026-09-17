@@ -20,9 +20,22 @@ def new_id() -> str:
     return secrets.token_hex(8)
 
 
+_MODES: dict[int, tuple[str, "Database"]] = {}
+
+
+def read_mode(conn: sqlite3.Connection) -> bool:
+    """True for a request connection opened with mode="read" (deferred, query-only)."""
+    return _MODES.get(id(conn), ("write", None))[0] == "read"
+
+
+def database_of(conn: sqlite3.Connection) -> "Database | None":
+    return _MODES.get(id(conn), ("write", None))[1]
+
+
 class Database:
     def __init__(self, path: Path):
         self.path = path
+        self.touched: dict[str, float] = {}  # per-user last touch stamp (auth.touch_user throttle)
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
     def _open(self) -> sqlite3.Connection:
@@ -53,22 +66,49 @@ class Database:
         return applied
 
     @contextmanager
-    def connection(self) -> Iterator[sqlite3.Connection]:
+    def connection(self, mode: str = "write") -> Iterator[sqlite3.Connection]:
         """One transaction per request. Expected API errors (403, 409 …) still commit so that the
-        audit row describing the refusal is kept; anything unexpected rolls back."""
+        audit row describing the refusal is kept; anything unexpected rolls back.
+
+        mode="write" (default): BEGIN IMMEDIATE takes the single write lock up front (honouring busy_timeout).
+        A deferred BEGIN that reads first and writes later fails at once with "database is locked"
+        (SQLITE_BUSY_SNAPSHOT) whenever another request committed in between, so writers never start deferred.
+        mode="read": a deferred, query-only transaction — WAL readers run concurrently with the writer and with
+        each other. Anything such a request must still write (an audit row for a refusal, the throttled user
+        touch, the one-time bootstrap) goes through write_aside(), a short IMMEDIATE transaction of its own."""
         from .errors import ApiError
 
         conn = self._open()
+        _MODES[id(conn)] = (mode, self)
         try:
-            # IMMEDIATE: take the write lock up front (honouring busy_timeout). A deferred BEGIN that
-            # reads first and writes later fails at once with "database is locked" (SQLITE_BUSY_SNAPSHOT)
-            # whenever another request committed in between, e.g. two live sessions ending together.
-            conn.execute("BEGIN IMMEDIATE")
+            if mode == "read":
+                conn.execute("PRAGMA query_only=1")
+                conn.execute("BEGIN")
+            else:
+                conn.execute("BEGIN IMMEDIATE")
             yield conn
             conn.execute("COMMIT")
         except ApiError:
             conn.execute("COMMIT")
             raise
+        except BaseException:
+            try:
+                conn.execute("ROLLBACK")
+            except sqlite3.Error:
+                pass
+            raise
+        finally:
+            _MODES.pop(id(conn), None)
+            conn.close()
+
+    @contextmanager
+    def write_aside(self) -> Iterator[sqlite3.Connection]:
+        """A short write transaction of its own, for the few rows a read-mode request must still record."""
+        conn = self._open()
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            yield conn
+            conn.execute("COMMIT")
         except BaseException:
             try:
                 conn.execute("ROLLBACK")
@@ -110,4 +150,4 @@ def unlocked(conn: sqlite3.Connection) -> Iterator[None]:
     try:
         yield
     finally:
-        conn.execute("BEGIN IMMEDIATE")
+        conn.execute("BEGIN" if read_mode(conn) else "BEGIN IMMEDIATE")

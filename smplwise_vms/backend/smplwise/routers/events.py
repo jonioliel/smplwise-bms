@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from starlette.concurrency import run_in_threadpool
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..config import Settings
 from ..db import Database, now_iso
 from ..errors import ApiError
@@ -76,8 +76,8 @@ def _with_thumbs(settings: Settings, rows: list[dict[str, Any]], queue_first: in
 @router.get("/events")
 def list_events(
     request: Request,
-    principal: Principal = Depends(current_principal),
-    conn: sqlite3.Connection = Depends(get_conn),
+    principal: Principal = Depends(current_principal_ro),
+    conn: sqlite3.Connection = Depends(get_read_conn),
     date: str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
     from_: str | None = Query(None, alias="from"),
     to: str | None = None,
@@ -225,7 +225,7 @@ def _place_filter(conn: sqlite3.Connection, site_id: str | None, building_id: st
 
 
 @router.get("/events/facets")
-def event_facets(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), days: int = Query(90, ge=1, le=365)) -> dict[str, Any]:
+def event_facets(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), days: int = Query(90, ge=1, le=365)) -> dict[str, Any]:
     """Which search fields have data in this installation and why the others are empty (T062): types, sources and
     severities seen in the last `days`, the places (site / building / floor / zone) with what is placed in them."""
     wide, ids = _scope(conn, principal)

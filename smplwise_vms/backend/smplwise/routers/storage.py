@@ -6,7 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Request
 
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..rbac import INSTALLATION, Principal, require
 from ..services import storage
 
@@ -14,7 +14,7 @@ router = APIRouter()
 
 
 @router.get("/storage")
-def storage_report(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), fresh: bool = False) -> dict[str, Any]:
+def storage_report(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), fresh: bool = False) -> dict[str, Any]:
     """Disks, per-camera recording schedule, retention measured vs. estimated (with reasons) and the pilot's
     device limits. Cached ten minutes; `fresh=true` asks the NVR again. Nothing here writes to the device."""
     require(conn, principal, "system.configure", INSTALLATION)

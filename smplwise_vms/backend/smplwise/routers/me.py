@@ -4,7 +4,7 @@ import sqlite3
 
 from fastapi import APIRouter, Depends
 
-from ..auth import current_principal, get_conn
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
 from ..db import get_setting, permission_revision
 from ..rbac import INSTALLATION, Principal, bindings_of, effective_permissions, has_any_binding
 
@@ -12,7 +12,7 @@ router = APIRouter()
 
 
 @router.get("/me")
-def me(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict:
+def me(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict:
     return {
         "user": {
             "id": principal.user_id,

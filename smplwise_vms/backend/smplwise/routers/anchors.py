@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
 from ..audit import audit
-from ..auth import current_principal, get_conn
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
 from ..db import new_id, now_iso
 from ..errors import ApiError, conflict, not_found
 from ..rbac import Principal, authorize, require
@@ -70,7 +70,7 @@ def _editor_version(conn: sqlite3.Connection, floor_id: str) -> sqlite3.Row | No
 
 
 @router.get("/floors/{floor_id}/map")
-def floor_map(floor_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), draft: bool = False, at: str | None = None) -> dict[str, Any]:
+def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), draft: bool = False, at: str | None = None) -> dict[str, Any]:
     """Everything the map needs in one call. `draft=true` (editors) prefers the latest draft background; `at=<UTC>`
     returns the version that was published at that instant and the anchors effective then (historical map, T038)."""
     f = get_floor(conn, floor_id)

@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from fastapi.responses import Response
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import unlocked, new_id, now_iso
 from ..errors import ApiError, not_found
 from ..rbac import INSTALLATION, Principal, authorize, require
@@ -41,7 +41,7 @@ def _ensure_recorder(conn: sqlite3.Connection, name: str = "NVR ראשי", model
 
 
 @router.get("/cameras")
-def list_cameras(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_cameras(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Cameras the caller may see: everything for installation-wide readers, otherwise only cameras
     anchored on floors the caller can read."""
     rows = conn.execute("SELECT * FROM cameras ORDER BY sort_order, channel").fetchall()

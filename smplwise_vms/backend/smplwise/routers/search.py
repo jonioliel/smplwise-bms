@@ -9,7 +9,7 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Query, Request
 
-from ..auth import current_principal, get_conn
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
 from ..rbac import INSTALLATION, Principal, authorize
 from ..errors import ApiError
 from ..services import semantic
@@ -37,8 +37,8 @@ def _contains(hay: str | None, needle: str) -> bool:
 def search(
     q: str = Query(..., min_length=1, max_length=80),
     limit: int = Query(8, ge=1, le=20),
-    principal: Principal = Depends(current_principal),
-    conn: sqlite3.Connection = Depends(get_conn),
+    principal: Principal = Depends(current_principal_ro),
+    conn: sqlite3.Connection = Depends(get_read_conn),
 ) -> dict[str, Any]:
     needle = q.strip().casefold()
     if not needle:
@@ -124,7 +124,7 @@ def search(
 # ---------------------------------------------------------------- semantic search (T063)
 
 @router.get("/search/providers")
-def search_providers(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def search_providers(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The provider registry: the local baseline (no network) and the external adapter contract (opt-in, privacy
     statement, model version, daily budget) — not bundled, so it cannot be switched on."""
     s = read_settings(conn)
@@ -132,7 +132,7 @@ def search_providers(principal: Principal = Depends(current_principal), conn: sq
 
 
 @router.get("/search/semantic")
-def semantic_search(request: Request, q: str = Query(..., min_length=1, max_length=120), limit: int = Query(30, ge=1, le=200), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def semantic_search(request: Request, q: str = Query(..., min_length=1, max_length=120), limit: int = Query(30, ge=1, le=200), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Free text → the event centre's own filters (object class from the device's detection target, places from the
     catalogue, a time window in the site zone) → scoped events, each with a confidence and its basis. Colour and
     appearance terms are reported as unsupported (no source produced that metadata). Never identity evidence."""
