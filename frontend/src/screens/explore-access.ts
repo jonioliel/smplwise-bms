@@ -1,4 +1,6 @@
 import { LitElement, html, css } from 'lit';
+import '../components/sw-state-panel';
+import { isApi } from '../api/session';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-page';
 import '../components/sw-card';
@@ -129,6 +131,11 @@ export class ExploreAccess extends LitElement {
   `;
 
   render() {
+    if (isApi()) {
+      return html`<sw-page heading="דלתות ואינטרקום" subheading="V1 · מצלמה, צלצול, מגע דלת וממסר הם ארבעה נתונים שונים">
+        <sw-state-panel data-access-pending state="empty" heading="אינטרקום ובקרת כניסה טרם חוברו" hint="המסך יופעל כשמערכת האינטרקום / בקרת הכניסה תחובר (T054): נדרשות ישויות Home Assistant של הדלת, הצלצול והממסר או תחנת דלת ב־go2rtc. עד אז מעברי דלתות ומנעולים מחיישני HA מופיעים במרכז האירועים ועל המפה."></sw-state-panel>
+      </sw-page>`;
+    }
     const d = DOORS.find((x) => x.id === this.selected) ?? DOORS[0];
     return html`
       <sw-page heading="דלתות ואינטרקום" subheading="V1 · מצלמה, צלצול, מגע דלת וממסר הם ארבעה נתונים שונים · נתוני הדגמה">

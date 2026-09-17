@@ -583,7 +583,7 @@ export class InvestigateEvents extends LitElement {
 
   private apiColumns: TableColumn[] = [
     { key: 'thumb', label: '', width: '72px', render: (r) => this.renderThumb(r as unknown as VmsEvent) },
-    { key: 'type', label: 'אירוע', render: (r) => html`<span class="ty" style="--tone:${EVENT_TONE[r.type as EventKind] ?? '#6b7280'}"><i></i>${EVENT_LABEL[r.type as EventKind] ?? String(r.type)}${Number(r.count) > 1 ? html` <span class="sub">×${String(r.count)}</span>` : nothing}</span><div class="sub">${r.confidence === 'inferred' ? 'נגזר מהקלטה' : 'התראה מה־NVR'} · ${r.acked_at ? `טופל · ${String(r.acked_by_username ?? '')}` : 'ממתין לטיפול'}</div>` },
+    { key: 'type', label: 'אירוע', render: (r) => html`<span class="ty" style="--tone:${EVENT_TONE[r.type as EventKind] ?? '#6b7280'}"><i></i>${EVENT_LABEL[r.type as EventKind] ?? String(r.type)}${Number(r.count) > 1 ? html` <span class="sub">×${String(r.count)}</span>` : nothing}</span><div class="sub">${r.source === 'ha' ? 'חיישן HA' : r.source === 'system' ? 'מערכת' : r.confidence === 'inferred' ? 'נגזר מהקלטה' : 'התראה מה־NVR'} · ${r.acked_at ? `טופל · ${String(r.acked_by_username ?? '')}` : 'ממתין לטיפול'}</div>` },
     { key: 'camera_name', label: 'מצלמה', render: (r) => html`${String(r.camera_name ?? (r.channel ? `ערוץ ${String(r.channel)}` : 'מערכת'))}<div class="sub ltr">${String(r.raw_type)}</div>` },
     { key: 'occurred_at', label: 'זמן', render: (r) => html`${this.fmt(String(r.occurred_at))}<div class="sub">${this.fmtDate(String(r.occurred_at))}${r.ended_at ? ` · עד ${this.fmt(String(r.ended_at))}` : ''}</div>` },
     { key: 'severity', label: 'חומרה', render: (r) => html`<sw-badge kind=${r.severity === 'critical' ? 'error' : r.severity === 'alert' ? 'stale' : 'neutral'} label=${SEV_LABEL[r.severity as keyof typeof SEV_LABEL] ?? String(r.severity)}></sw-badge>` },
@@ -610,6 +610,7 @@ export class InvestigateEvents extends LitElement {
         <span>קליטה מה־NVR: ${ing ? (ing.connected ? 'מחובר' : `מנותק${ing.last_error ? ` (${ing.last_error})` : ''}`) : '—'}${ing?.last_heartbeat_at ? ` · פעימה ${this.fmt(ing.last_heartbeat_at)}` : ''}</span>
         <span>· עדכונים חיים: ${this.live ? 'פעיל' : 'מתחבר…'}</span>
         <span>· אירועים "נגזר מהקלטה" הם עדות מקובץ ההקלטה (inferred), לא התראה שנמדדה</span>
+        ${ing?.connected && this.facets && !this.facets.sources.some((s) => s.source === 'alertstream') ? html`<span data-no-alerts style="color:var(--sw-warning, #b45309);font-weight:600">· ה־NVR לא שלח התראות ב־${this.facets.days} הימים האחרונים — הפעל "Notify Surveillance Center" ב־linkage של זיהוי התנועה ב־NVR</span>` : nothing}
       </div>
       <div class="kpis" data-kpis>
         <div class="kpi"><div><div class="n">${unacked}</div><div class="l">לבדיקה</div></div><div class="ic"><sw-icon name="bell" size=${18}></sw-icon></div></div>

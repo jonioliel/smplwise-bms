@@ -54,7 +54,11 @@ def record_transition(conn: sqlite3.Connection, old: dict[str, Any] | None, new:
     kind = tracked_kind(eid, domain, attrs.get("device_class"), name)
     if not kind:
         return None
-    old_state = (old or {}).get("state")
+    if old is None:
+        # the entity just appeared (HA start-up, integration reload): there is no previous state, so nothing moved.
+        # Without this every HA restart wrote one "None → state" door event per lock and sensor (live review F11).
+        return None
+    old_state = old.get("state")
     state = new.get("state")
     if state is None or old_state == state:
         return None
@@ -184,7 +188,7 @@ def correlate(conn: sqlite3.Connection, ev: dict[str, Any], window_s: int = 120,
             avail = d.get("availability")
             links.append({
                 "kind": "sensor", "event_id": e["id"], "entity_id": d["entity_id"], "name": d.get("name") or d["entity_id"], "type": e["type"], "at": e["occurred_at"], "delta_s": _delta(e["occurred_at"], t),
-                "label": f"{d.get('name') or d['entity_id']}: {d.get('from')} → {d.get('to')}", "certainty": "measured" if not avail else "availability",
+                "label": f"{d.get('name') or d['entity_id']}: {d.get('from') or 'לא ידוע'} → {d.get('to')}", "certainty": "measured" if not avail else "availability",
                 "note": "החיישן איבד קשר" if avail == "lost" else "החיישן חזר לדווח" if avail == "restored" else "מצב שנמדד בחיישן (זמן HA)",
             })
         q = f"SELECT * FROM ha_actions WHERE entity_id IN ({','.join('?' * len(entity_ids))}) AND requested_at >= ? AND requested_at <= ? ORDER BY requested_at"

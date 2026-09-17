@@ -40,6 +40,18 @@ def _ensure_recorder(conn: sqlite3.Connection, name: str = "NVR ראשי", model
     )
 
 
+def disambiguate(cameras: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Two channels with the same NVR name (the lab has "כניסה M1" twice) are told apart by their channel number in
+    every list, wall and selector; an alias set in the VMS wins as before (live review F24)."""
+    seen: dict[str, int] = {}
+    for c in cameras:
+        seen[c["name"]] = seen.get(c["name"], 0) + 1
+    for c in cameras:
+        if seen[c["name"]] > 1:
+            c["name"] = f"{c['name']} · ערוץ {c['channel']}"
+    return cameras
+
+
 @router.get("/cameras")
 def list_cameras(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Cameras the caller may see: everything for installation-wide readers, otherwise only cameras
@@ -50,7 +62,7 @@ def list_cameras(principal: Principal = Depends(current_principal_ro), conn: sql
     recorder = conn.execute("SELECT * FROM recorders WHERE id = ?", (DEFAULT_RECORDER,)).fetchone()
     live_ok = {r["id"]: camera_allowed(conn, principal, r["id"], "video.live") for r in visible}
     return {
-        "cameras": [dict(camera_row(r), can_view_live=live_ok[r["id"]]) for r in visible],
+        "cameras": disambiguate([dict(camera_row(r), can_view_live=live_ok[r["id"]]) for r in visible]),
         "recorder": {"id": recorder["id"], "name": recorder["name"], "model": recorder["model"], "firmware": recorder["firmware"], "last_seen_at": recorder["last_seen_at"]} if recorder else None,
         "can_sync": authorize(conn, principal, "sources.configure", INSTALLATION).allowed,
         "media": read_settings(conn),

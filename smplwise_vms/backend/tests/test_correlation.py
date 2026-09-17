@@ -34,6 +34,8 @@ def test_tracked_kinds_and_transitions(settings):
     assert correlation.tracked_kind("lock.x", "lock", None) == "door" and correlation.tracked_kind("light.x", "light", None) is None
     with app.state.db.connection() as conn:
         assert correlation.record_transition(conn, None, _st("light.hall", "on", "2026-09-16T10:00:00+00:00")) is None
+        assert correlation.record_transition(conn, None, _st("binary_sensor.d", "on", "2026-09-16T09:59:00+00:00", device_class="door")) is None, "an entity that just appeared (HA restart) is not a transition"
+        assert correlation.record_transition(conn, None, _st("lock.front", "locked", "2026-09-16T09:59:00+00:00")) is None, "same for a lock at HA start-up"
         assert correlation.record_transition(conn, _st("binary_sensor.d", "on", "x"), _st("binary_sensor.d", "on", "2026-09-16T10:00:00+00:00", device_class="door")) is None, "no change"
         e = correlation.record_transition(conn, _st("binary_sensor.d", "off", "x"), _st("binary_sensor.d", "on", "2026-09-16T10:00:00.250000+00:00", device_class="door", friendly_name="דלת אחורית"))
         assert e and e["source"] == "ha" and e["type"] == "door" and e["occurred_at"] == "2026-09-16T10:00:00Z" and e["severity"] == "alert" and e["confidence"] == "measured"

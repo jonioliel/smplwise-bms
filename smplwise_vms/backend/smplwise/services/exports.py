@@ -188,7 +188,7 @@ def request_cancel(conn: sqlite3.Connection, job_id: str) -> None:
     if not row:
         raise ApiError(404, "not_found", "עבודת הייצוא לא נמצאה.")
     if row["state"] == "queued":
-        conn.execute("UPDATE export_jobs SET state = 'cancelled', updated_at = ? WHERE id = ?", (now_iso(), job_id))
+        conn.execute("UPDATE export_jobs SET state = 'cancelled', error = 'בוטל על ידי המשתמש', updated_at = ? WHERE id = ?", (now_iso(), job_id))
     elif row["state"] == "running":
         WORKER.cancel_flags.add(job_id)
     else:

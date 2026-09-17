@@ -22,6 +22,7 @@ import { cameraState, loadMap, type MapBundle } from '../api/maps';
 import { snapshotUrl } from '../api/media';
 import { findFloor, firstFloor, loadTree, type CatalogTree } from '../api/catalog';
 import { isApi } from '../api/session';
+import { bidi } from '../i18n/bidi';
 import { ApiError, describeError } from '../api/client';
 import type { Anchor } from '../api/types';
 import { pointInPolygon } from '../api/zones';
@@ -921,7 +922,7 @@ export class ExploreFloorMap extends LitElement {
           </div>
           <sw-button icon="layers" aria-pressed=${this.panel} @click=${() => (this.panel = !this.panel)}>${t('floor.layers')}</sw-button>
           ${b && b.source === 'api' ? html`<sw-button icon="grid" aria-pressed=${this.multi} data-multi-toggle @click=${() => this.setMulti(!this.multi)}>בחירת מצלמות</sw-button>` : nothing}
-          <sw-field><select aria-label=${t('floor.switcher')} @change=${(e: Event) => navigate(`/explore/floors/${(e.target as HTMLSelectElement).value}`)}>${floors.map((f) => html`<option value=${f.id} ?selected=${f.id === this.floorId}>${f.name} · ${f.cameraCount} מצלמות${f.hasPlan ? '' : ' · אין תוכנית'}</option>`)}</select></sw-field>
+          <sw-field style="min-inline-size:280px"><select aria-label=${t('floor.switcher')} @change=${(e: Event) => navigate(`/explore/floors/${(e.target as HTMLSelectElement).value}`)}>${floors.map((f) => html`<option value=${f.id} ?selected=${f.id === this.floorId}>${bidi(f.name)} · ${f.cameraCount} מצלמות${f.hasPlan ? '' : ' · אין תוכנית'}</option>`)}</select></sw-field>
           ${!b || b.permissions.edit ? html`<sw-button icon="edit" @click=${() => navigate(`/explore/floors/${this.floorId}/edit`)}>עריכת תוכנית</sw-button>` : nothing}
         </div>
       </div>

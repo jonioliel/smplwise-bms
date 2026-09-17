@@ -21,6 +21,10 @@ const STEPS = ['קובץ', 'עמוד', 'חיתוך וסיבוב', 'שם והער
  * SC05 — plan import (board 2 screen 13): file → page → crop/rotate → name → draft → publish.
  * The original stays untouched on the server; every step here only describes a derived version.
  */
+function fmtSize(bytes: number): string {
+  return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
 @customElement('explore-plan-import')
 export class ExplorePlanImport extends LitElement {
   @property() floorId = '';
@@ -409,12 +413,12 @@ export class ExplorePlanImport extends LitElement {
             <input type="file" accept=".pdf,.png,.jpg,.jpeg,.dxf,application/pdf,image/png,image/jpeg,image/vnd.dxf" @change=${(e: Event) => void this.onFile((e.target as HTMLInputElement).files?.[0])} />
             <div>
               <div class="ic"><sw-icon name="upload" size=${20}></sw-icon></div>
-              <strong>${this.busy ? 'מעלה…' : 'גרור לכאן PDF או תמונה של התוכנית, או לחץ לבחירה'}</strong>
-              <small>PDF עד 20 עמודים, PNG / JPG · עד 40 MB · הזיהוי לפי תוכן הקובץ · המקור נשמר ללא שינוי</small>
+              <strong>${this.busy ? 'מעלה…' : 'גרור לכאן PDF, תמונה או DXF של התוכנית, או לחץ לבחירה'}</strong>
+              <small>PDF עד 20 עמודים, PNG / JPG, DXF (AutoCAD; DWG יש להמיר) · עד 40 MB · הזיהוי לפי תוכן הקובץ · המקור נשמר ללא שינוי</small>
             </div>
           </label>
           ${this.assets.length
-            ? html`<div class="assets"><div class="note" style="margin-block-end:4px">קבצים שכבר הועלו לקומה זו:</div>${this.assets.map((x) => html`<button @click=${() => { this.asset = x; this.page = 1; this.step = x.page_count > 1 ? 1 : 2; }}><span>${x.original_name}</span><span class="ltr">${x.page_count} עמ׳ · ${(x.bytes / 1024 / 1024).toFixed(1)} MB</span></button>`)}</div>`
+            ? html`<div class="assets"><div class="note" style="margin-block-end:4px">קבצים שכבר הועלו לקומה זו:</div>${this.assets.map((x) => html`<button @click=${() => { this.asset = x; this.page = 1; this.step = x.page_count > 1 ? 1 : 2; }}><span>${x.original_name}</span><span class="ltr">${x.page_count} עמ׳ · ${fmtSize(x.bytes)}</span></button>`)}</div>`
             : nothing}`;
       case 1:
         return html`<div class="note">בחר את העמוד שמכיל את התוכנית של הקומה.</div>
@@ -482,7 +486,7 @@ export class ExplorePlanImport extends LitElement {
                   <div class="side">
                     <sw-card heading="קובץ">
                       ${this.asset
-                        ? html`<div class="note">${this.asset.original_name}</div><div class="row" style="margin-block-start:6px"><sw-badge kind="neutral" label=${`${this.asset.mime.split('/')[1].toUpperCase()} · ${(this.asset.bytes / 1024 / 1024).toFixed(1)} MB · ${this.asset.page_count} עמ׳`}></sw-badge></div><div class="note ltr" style="margin-block-start:6px">sha256 ${this.asset.sha256.slice(0, 16)}…</div>`
+                        ? html`<div class="note">${this.asset.original_name}</div><div class="row" style="margin-block-start:6px"><sw-badge kind="neutral" label=${`${this.asset.mime.split('/')[1].toUpperCase()} · ${fmtSize(this.asset.bytes)} · ${this.asset.page_count} עמ׳`}></sw-badge></div><div class="note ltr" style="margin-block-start:6px">sha256 ${this.asset.sha256.slice(0, 16)}…</div>`
                         : html`<div class="note">עדיין לא נבחר קובץ.</div>`}
                     </sw-card>
                     ${this.renderDxf()}

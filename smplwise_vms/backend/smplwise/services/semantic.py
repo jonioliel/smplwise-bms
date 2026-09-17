@@ -83,7 +83,7 @@ EXTERNAL_TEMPLATE = Provider(
 
 
 def registry() -> list[dict[str, Any]]:
-    return [LOCAL.describe(), {**EXTERNAL_TEMPLATE.describe(), "available": False, "reason": "no external provider is bundled; the adapter interface, opt-in, privacy statement and budget settings exist so one cannot be enabled silently"}]
+    return [LOCAL.describe(), {**EXTERNAL_TEMPLATE.describe(), "available": False, "reason": "לא מצורף ספק חיצוני; ממשק המתאם, ההסכמה המפורשת, הצהרת הפרטיות והתקציב קיימים כדי שלא ניתן יהיה להפעיל ספק בשקט"}]
 
 
 @dataclass

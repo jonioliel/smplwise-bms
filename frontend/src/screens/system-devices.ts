@@ -10,6 +10,7 @@ import '../components/sw-drawer';
 import '../components/sw-field';
 import '../components/sw-dialog';
 import '../components/sw-scene';
+import { snapshotUrl } from '../api/media';
 import '../components/sw-state-panel';
 import type { TableColumn } from '../components/sw-table';
 import type { SceneKind } from '../components/sw-scene';
@@ -71,6 +72,14 @@ export class SystemDevices extends LitElement {
       display: flex;
       align-items: center;
       gap: 10px;
+    }
+    .cam img.snap {
+      inline-size: 48px;
+      block-size: 32px;
+      object-fit: cover;
+      border-radius: 5px;
+      flex-shrink: 0;
+      background: var(--sw-surface-3);
     }
     .cam sw-scene,
     .cam .none {
@@ -247,7 +256,7 @@ export class SystemDevices extends LitElement {
   }
 
   private columns: TableColumn[] = [
-    { key: 'name', label: 'מצלמה', render: (r) => html`<div class="cam">${r.scene ? html`<sw-scene kind=${r.scene as SceneKind}></sw-scene>` : html`<div class="none"></div>`}<div><b>${String(r.name)}</b><small>${String(r.sub)}</small></div></div>` },
+    { key: 'name', label: 'מצלמה', render: (r) => html`<div class="cam">${r.api && (r.api as { status?: string }).status === 'online' ? html`<img class="snap" src=${snapshotUrl(String(r.id))} alt="" loading="lazy" style="inline-size:64px;block-size:40px;object-fit:cover;border-radius:5px;flex-shrink:0;background:var(--sw-surface-3);display:block" @error=${(e: Event) => ((e.target as HTMLImageElement).style.visibility = 'hidden')} />` : r.scene ? html`<sw-scene kind=${r.scene as SceneKind}></sw-scene>` : html`<div class="none"></div>`}<div><b>${String(r.name)}</b><small>${String(r.sub)}</small></div></div>` },
     { key: 'state', label: 'מצב', render: (r) => html`<span class="status"><i style="--c:${r.state === 'live' ? 'var(--sw-live)' : r.state === 'offline' ? 'var(--sw-danger)' : r.state === 'unknown' ? 'var(--sw-unknown)' : 'var(--sw-stale)'}"></i>${r.state === 'live' ? 'מחוברת' : r.state === 'offline' ? 'מנותקת' : r.state === 'stale' ? 'לא מעודכן' : r.state === 'forbidden' ? 'ללא הרשאה' : 'לא נבדק'}</span>` },
     { key: 'fps', label: 'FPS', ltr: true },
     { key: 'bitrate', label: 'קצב', ltr: true },

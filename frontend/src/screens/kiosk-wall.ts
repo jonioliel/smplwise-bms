@@ -12,11 +12,13 @@ import { healthSummary, STATUS_LABEL, type HealthSummary } from '../api/health';
 import { parseRoute } from '../router';
 import type { Camera } from '../api/types';
 
-/** Saved view = the URL: #/kiosk/all?cameras=a,b,c&cols=3&rotate=30 (seconds per page; 0 = no rotation). */
+/** Saved view = the URL: #/kiosk/all?cameras=a,b,c&cols=3&rows=2&rotate=30 (seconds per page; 0 = no rotation).
+ * Default 3×2: with nine sub streams at once the lab NVR / relay let the last tiles stall (live review F15). */
 function viewParams() {
   const p = parseRoute().params;
   const cols = Math.min(4, Math.max(1, Number(p.get('cols') ?? 3) || 3));
-  return { cameras: (p.get('cameras') ?? '').split(',').map((s) => s.trim()).filter(Boolean), cols, rotate: Math.max(0, Number(p.get('rotate') ?? 0) || 0) };
+  const rows = Math.min(4, Math.max(1, Number(p.get('rows') ?? 2) || 2));
+  return { cameras: (p.get('cameras') ?? '').split(',').map((s) => s.trim()).filter(Boolean), cols, rows, rotate: Math.max(0, Number(p.get('rotate') ?? 0) || 0) };
 }
 
 /** SC31 — wall display / kiosk (board 3 screen 24): dark navy, 3×3 tiles (real sub streams when a backend exists), big stat tiles, no admin controls. */
@@ -177,6 +179,7 @@ export class KioskWall extends LitElement {
   }
 
   disconnectedCallback() {
+    window.clearTimeout(this.staggerTimer);
     super.disconnectedCallback();
     window.clearInterval(this.timer);
     window.clearInterval(this.rotateTimer);
@@ -187,7 +190,8 @@ export class KioskWall extends LitElement {
 
   private startRotation() {
     window.clearInterval(this.rotateTimer);
-    if (this.view.rotate > 0) this.rotateTimer = window.setInterval(() => (this.page = this.page + 1), this.view.rotate * 1000);
+    if (this.view.rotate > 0) this.rotateTimer = window.setInterval(() => { this.page = this.page + 1; this.stagger(); }, this.view.rotate * 1000);
+    this.stagger();
   }
 
   /** The wall never shows a dead feed as live: three failed health polls dim the wall; the first success reloads it. */
@@ -205,7 +209,23 @@ export class KioskWall extends LitElement {
   }
 
   private get pageSize() {
-    return this.view.cols * this.view.cols;
+    return this.view.cols * this.view.rows;
+  }
+
+  /** Streams start one after another (~400 ms apart) so the relay is not hit by a page of requests at once. */
+  @state() private started = 0;
+  private staggerTimer = 0;
+
+  private stagger() {
+    window.clearTimeout(this.staggerTimer);
+    this.started = 0;
+    const step = () => {
+      if (this.started < this.pageSize) {
+        this.started += 1;
+        this.staggerTimer = window.setTimeout(step, 400);
+      }
+    };
+    step();
   }
 
   private get selected(): Camera[] {
@@ -254,7 +274,7 @@ export class KioskWall extends LitElement {
       ${this.disconnected ? html`<div class="overlay" data-kiosk-disconnected>אין קשר לשרת ה־VMS<br /><small>הזרמים אינם חיים · מנסה להתחבר מחדש</small></div>` : nothing}
       <div class="grid" style=${`--cols:${api ? this.view.cols : 3}`}>
         ${api
-          ? real.map((c, i) => html`<sw-camera-tile dark data-kiosk-tile name=${c.name} state=${this.disconnected ? 'unknown' : c.status === 'online' ? 'live' : c.status === 'offline' ? 'offline' : 'unknown'} ?live=${!this.disconnected && c.status !== 'offline' && i < cap} cameraId=${c.id} profile="sub" transport=${effectiveTransport(this.settings)} poster=${c.status === 'offline' ? '' : snapshotUrl(c.id)} noDemo></sw-camera-tile>`)
+          ? real.map((c, i) => html`<sw-camera-tile dark data-kiosk-tile name=${c.name} state=${this.disconnected ? 'unknown' : c.status === 'online' ? 'live' : c.status === 'offline' ? 'offline' : 'unknown'} ?live=${!this.disconnected && c.status !== 'offline' && i < cap && i < this.started} cameraId=${c.id} profile="sub" transport=${effectiveTransport(this.settings)} poster=${c.status === 'offline' ? '' : snapshotUrl(c.id)} noDemo></sw-camera-tile>`)
           : demo.map((c) => html`<sw-camera-tile dark name=${c.name} state=${c.state} scene=${demoScene[c.id] ?? 'lobby'} noDemo></sw-camera-tile>`)}
       </div>
       <div class="stats">

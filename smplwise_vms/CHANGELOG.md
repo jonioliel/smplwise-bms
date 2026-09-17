@@ -1,5 +1,29 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.49 (pilot) — live review fixes (docs/operations/LIVE_REVIEW_2026-09-17_HE.md)
+- No demo data with a real backend: the demo-only screens are hidden from the tab bars and their routes land on
+  the real screen — לייב › תמונת מצב → כל המצלמות, תצוגות שמורות → כל המצלמות, Review → מרכז אירועים,
+  ניגון מסונכרן → הקלטות (the real sync is the comparison there), אשף התקנה → הגדרות (F1 F3 F4 F5 F6 F10).
+  דלתות ואינטרקום shows an honest "not connected yet" state until the hardware exists (F7); the invented
+  NTP toggle is gone from settings (F8). The demo versions stay for the design fixtures.
+- Audit log for real (F2): הגדרות › אודיט lists the installation's `audit_log` — action family, user, count
+  filters, decision badges, reason and details, CSV export.
+- Camera health shows the camera's own snapshot instead of an illustration (F9).
+- Events: the row subtitle names the real source — התראה מה־NVR / נגזר מהקלטה / חיישן HA / מערכת (F12); when
+  the NVR alert stream is connected but produced no alert in the facet window, the header says so and names the
+  NVR setting to enable ("Notify Surveillance Center", F14).
+- A Home Assistant restart no longer writes one "None → state" door event per lock and sensor: an entity that
+  just appeared has no transition (F11); older rows of that kind read "לא ידוע → …" instead of "None".
+- HA sync: the periodic registry refresher is cancelled with its session, so a reconnect no longer leaves a stale
+  task warning "registry refresh failed: ConnectionClosedOK" every 10 minutes (F13).
+- Kiosk: 3×2 tiles per page by default (`rows=` in the URL restores 3×3) and streams start 400 ms apart, so the
+  last tiles of a page no longer stall on the lab NVR / relay (F15).
+- Polish: negative floor levels render "-1" instead of "1-" (F16); the floor selector no longer clips its label
+  (F17); a favicon (F18); the import wizard names DXF and shows KB for small files (F19); version-history rows
+  wrap their actions (F20); the AI-search provider note is in Hebrew (F21); the playback time field shows all
+  digits (F22); two channels with the same NVR name are told apart by their channel number (F24); a cancelled
+  queued export says who cancelled it (F25); a user without a role sees no developer links or search box (F26).
+
 ## 0.1.48 (pilot)
 - Read requests no longer take the database write lock: the busy GET handlers (events list / facets, floor map,
   cameras, health summary, search, storage report, cases, camera recordings, /me) run in a deferred, query-only

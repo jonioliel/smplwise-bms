@@ -39,7 +39,8 @@ import '../screens/styleguide-screen';
 import { onRouteChange, type RouteState } from '../router';
 import { KIND_ICON, KIND_LABEL, search as apiSearch, type SearchResult } from '../api/search';
 import { healthSummary, type HealthSummary } from '../api/health';
-import { NAV, GROUP_TABS, groupOf, activeTabOf, NAV_A, AREA_TABS, areaOf, activeAreaTab, crumbsOf } from './nav';
+import { NAV, GROUP_TABS, groupOf, activeTabOf, NAV_A, AREA_TABS, areaOf, activeAreaTab, crumbsOf, visibleTabs, demoRedirect } from './nav';
+import { bidi } from '../i18n/bidi';
 import { currentDesign, onDesign, resolveDesign, type DesignId } from '../api/design';
 import { t } from '../i18n/he';
 import { isApi, loadSession, onSession, type Session } from '../api/session';
@@ -636,6 +637,7 @@ export class SwApp extends LitElement {
     this.stopSession = onSession((s) => {
       this.session = s;
       if (s.mode !== 'loading') void resolveDesign();
+      if (s.mode === 'api' && this.route) this.redirectDemo(this.route);
       if (s.mode === 'api' && !this.sysTimer) {
         void this.pollSummary();
         this.sysTimer = window.setInterval(() => void this.pollSummary(), 60_000);
@@ -649,6 +651,7 @@ export class SwApp extends LitElement {
     window.addEventListener('keydown', this.onGlobalKey);
     this.stopRouter = onRouteChange((route) => {
       this.route = route;
+      if (this.redirectDemo(route)) return;
       this.toggleAttribute('data-kiosk', route.segments[0] === 'kiosk');
       // embed=1 (Lovelace card iframe, T056): no chrome for the rest of the session, whatever the in-app navigation does
       if (route.params.get('embed') === '1') {
@@ -786,7 +789,20 @@ export class SwApp extends LitElement {
     this.searchIndex = -1;
   }
 
+  /** Demo-only routes land on their real counterpart once a backend is known (F1 F3 F4 F5 F6 F10). */
+  private redirectDemo(route: RouteState): boolean {
+    const target = demoRedirect(route.path, this.session.mode === 'api');
+    if (!target) return false;
+    window.location.replace(`#${target}`);
+    return true;
+  }
+
+  private get gated(): boolean {
+    return this.session.mode === 'no_access' || this.session.mode === 'unauthenticated';
+  }
+
   private renderSearch(designA: boolean) {
+    if (this.gated) return nothing;
     const open = this.searchOpen && !!this.searchQ.trim();
     return html`<span class="searchwrap ${designA ? 'a' : ''}">
       <label class="search ${designA ? 'a' : ''}"><sw-icon name="search" size=${designA ? 16 : 14}></sw-icon><input type="search" placeholder=${designA ? 'חיפוש חדרים, מצלמות, קומות וישויות…' : t('app.search')} aria-label=${t('app.search')} autocomplete="off" role="combobox" aria-expanded=${open} aria-controls="search-results" .value=${this.searchQ} @input=${this.onSearchInput} @keydown=${this.onSearchKey} @focus=${() => { if (this.searchResults.length) this.searchOpen = true; }} @blur=${() => setTimeout(() => this.closeSearch(), 150)} />${designA ? html`<kbd>⌘ K</kbd>` : nothing}</label>
@@ -867,7 +883,7 @@ export class SwApp extends LitElement {
 
   private renderA() {
     const area = areaOf(this.route);
-    const tabs = area ? AREA_TABS[area] : [];
+    const tabs = area ? visibleTabs(AREA_TABS[area], this.session.mode === 'api') : [];
     const editor = this.route?.segments[3] === 'edit' || this.route?.segments[3] === 'import';
     const crumbs = crumbsOf(this.route);
     const me = this.session.me;
@@ -881,11 +897,11 @@ export class SwApp extends LitElement {
           </a>`,
         )}
         <div class="grow"></div>
-        <a class=${classMap({ item: true, a: true, small: true, active: this.route?.segments[0] === 'screens' })} href="#/screens" title="כל המסכים"><sw-icon name="list" size=${16}></sw-icon><span>מסכים</span></a>
+        ${this.gated ? nothing : html`<a class=${classMap({ item: true, a: true, small: true, active: this.route?.segments[0] === 'screens' })} href="#/screens" title="כל המסכים"><sw-icon name="list" size=${16}></sw-icon><span>מסכים</span></a>`}
         <div class="secure"><sw-icon name="shield" size=${18}></sw-icon><span>מקומי ומאובטח</span></div>
       </nav>
       <header class="topbar">
-        <div class="crumbs-a">${crumbs.map((c, i) => html`${i ? html`<sw-icon name="chevron" size=${12}></sw-icon>` : nothing}<span class=${i === 0 ? 'strong' : ''}>${c}</span>`)}</div>
+        <div class="crumbs-a">${crumbs.map((c, i) => html`${i ? html`<sw-icon name="chevron" size=${12}></sw-icon>` : nothing}<span class=${i === 0 ? 'strong' : ''}>${bidi(c)}</span>`)}</div>
         ${this.renderSearch(true)}
         <span class="spacer"></span>
         ${this.session.mode === 'api' || this.session.mode === 'no_access'
@@ -924,7 +940,7 @@ export class SwApp extends LitElement {
     if (this.embedded()) return html`<main class="embed" style="block-size:100dvh;overflow:auto">${this.renderScreen()}</main>`;
     if (this.design === 'a') return this.renderA();
     const group = groupOf(this.route);
-    const tabs = group ? GROUP_TABS[group] : [];
+    const tabs = group ? visibleTabs(GROUP_TABS[group], this.session.mode === 'api') : [];
     const editor = this.route?.segments[3] === 'edit' || this.route?.segments[3] === 'import';
     return html`
       <nav class="rail" aria-label="ניווט ראשי">
@@ -938,12 +954,12 @@ export class SwApp extends LitElement {
           </a>`,
         )}
         <div class="grow"></div>
-        <a class=${classMap({ item: true, small: true, active: this.route?.segments[0] === 'screens' })} href="#/screens" title="כל המסכים">
+        ${this.gated ? nothing : html`<a class=${classMap({ item: true, small: true, active: this.route?.segments[0] === 'screens' })} href="#/screens" title="כל המסכים">
           <sw-icon name="list" size=${14}></sw-icon><span>כל המסכים</span>
         </a>
         <a class=${classMap({ item: true, small: true, active: this.route?.segments[0] === 'styleguide' })} href="#/styleguide" title=${t('nav.styleguide')}>
           <sw-icon name="layers" size=${14}></sw-icon><span>${t('nav.styleguide')}</span>
-        </a>
+        </a>`}
       </nav>
       <header class="topbar">
         <span class="brand-mobile"><img src="${base}brand/smplwise-mark.png" alt="SmplWise" /></span>

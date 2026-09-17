@@ -109,7 +109,8 @@ def test_export_partial_and_cancel(lab, monkeypatch):
     assert job["state"] == "partial" and [f["state"] for f in job["files"]] == ["downloaded", "failed"] and job["error"]
     # cancel a queued job
     q = c.post("/api/v1/exports", json={"camera_id": cam["id"], "from_at": "2026-09-14T07:00:00Z", "to_at": "2026-09-14T07:10:00Z"}).json()
-    assert c.post(f"/api/v1/exports/{q['id']}/cancel").json()["state"] == "cancelled"
+    cancelled = c.post(f"/api/v1/exports/{q['id']}/cancel").json()
+    assert cancelled["state"] == "cancelled" and cancelled["error"] == "בוטל על ידי המשתמש", "a queued job says who stopped it, like a running one"
     # too large
     c.patch("/api/v1/settings", json={"exports.max_mb": 50})
     monkeypatch.setattr(nvr, "search_recordings", fake_pages([("2026-09-14T10:00:00Z", "2026-09-14T10:02:00Z", "CMR", "big", 60 * 1024 * 1024)]))

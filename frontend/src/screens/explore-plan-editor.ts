@@ -409,8 +409,9 @@ export class ExplorePlanEditor extends LitElement {
     }
     .vrow {
       display: grid;
-      grid-template-columns: 56px minmax(0, 1fr) auto;
-      gap: 8px;
+      grid-template-columns: 56px minmax(0, 1fr);
+      grid-template-areas: "img meta" "img acts";
+      gap: 4px 8px;
       align-items: center;
       padding: 6px 8px;
       border: 1px solid var(--sw-border);
@@ -422,6 +423,7 @@ export class ExplorePlanEditor extends LitElement {
       background: var(--sw-accent-soft);
     }
     .vrow img {
+      grid-area: img;
       inline-size: 56px;
       block-size: 40px;
       object-fit: cover;
@@ -430,14 +432,20 @@ export class ExplorePlanEditor extends LitElement {
       border: 1px solid var(--sw-border);
     }
     .vrow .meta {
+      grid-area: meta;
       display: flex;
       flex-direction: column;
       gap: 2px;
       min-inline-size: 0;
     }
     .vrow .acts {
+      grid-area: acts;
       display: flex;
       gap: 4px;
+      justify-content: flex-end;
+    }
+    .vrow .acts:empty {
+      display: none;
     }
     .dsum {
       display: flex;

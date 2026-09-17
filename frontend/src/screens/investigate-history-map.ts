@@ -16,6 +16,7 @@ import { minuteLabel, secondLabel, type TimelineEvent } from '../components/sw-t
 import type { DemoSegment } from '../fixtures/catalog';
 import { demoCameras, demoEntities, demoFloors, demoPlan } from '../fixtures/demo';
 import { isApi } from '../api/session';
+import { bidi } from '../i18n/bidi';
 import { navigate } from '../router';
 import { describeError } from '../api/client';
 import { productSettings } from '../api/prefs';
@@ -506,7 +507,7 @@ export class InvestigateHistoryMap extends LitElement {
       <div class="head">
         <div><h1>המפה בזמן שנבחר · ${b.floorName}</h1><div class="sub">${b.buildingName} · <span class="ltr">${this.date} ${secondLabel(this.minute)}</span> · ${this.tz}</div></div>
         <span class="grow"></span>
-        ${this.floors.length > 1 ? html`<sw-field><select aria-label="קומה" @change=${(e: Event) => navigate(`/investigate/floors/${(e.target as HTMLSelectElement).value}`, { t: this.instant.toISOString() })}>${this.floors.map((f) => html`<option value=${f.id} ?selected=${f.id === this.floorId}>${f.name}</option>`)}</select></sw-field>` : nothing}
+        ${this.floors.length > 1 ? html`<sw-field><select aria-label="קומה" @change=${(e: Event) => navigate(`/investigate/floors/${(e.target as HTMLSelectElement).value}`, { t: this.instant.toISOString() })}>${this.floors.map((f) => html`<option value=${f.id} ?selected=${f.id === this.floorId}>${bidi(f.name)}</option>`)}</select></sw-field>` : nothing}
         <sw-button icon="live" data-back-live @click=${() => navigate(`/explore/floors/${b.floorId}`)}>חזרה למצב חי</sw-button>
       </div>
       <div class="bar"><sw-icon name="clock" size=${14}></sw-icon><span>מצב חקירה היסטורי — פעולות פיזיות אינן זמינות. מצב ללא היסטוריה מוצג כלא ידוע, לא כערך החי האחרון.</span>${this.loading ? html`<span class="note">טוען הקלטות ואירועים…</span>` : nothing}</div>
@@ -547,7 +548,7 @@ export class InvestigateHistoryMap extends LitElement {
     const floor = demoFloors.find((f) => f.id === this.floorId) ?? demoFloors[0];
     return html`
       <div class="head">
-        <div><h1>מפה היסטורית · ${floor.name}</h1><div class="sub">מצב המפה בזמן נבחר · פעולות פיזיות כבויות בחקירה · נתוני הדגמה</div></div>
+        <div><h1>מפה היסטורית · ${bidi(floor.name)}</h1><div class="sub">מצב המפה בזמן נבחר · פעולות פיזיות כבויות בחקירה · נתוני הדגמה</div></div>
         <span class="grow"></span>
         <a href="#/explore/floors/${floor.id}"><sw-button icon="live">חזרה ל־Live</sw-button></a>
       </div>

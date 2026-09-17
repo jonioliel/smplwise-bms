@@ -1,4 +1,5 @@
 import { LitElement, html, css, nothing } from 'lit';
+import { bidi, ltrNum } from '../i18n/bidi';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-page';
 import '../components/sw-card';
@@ -249,8 +250,8 @@ export class ExploreFloors extends LitElement {
               ${floors.map(
                 (f) => html`<button class="floor ${sel?.id === f.id ? 'on' : ''}" @click=${() => (sel?.id === f.id ? navigate(`/explore/floors/${f.id}`) : (this.selected = f.id))} aria-pressed=${sel?.id === f.id}>
                   <div class="txt">
-                    <div class="title">${f.name}</div>
-                    <div class="counts">${f.camera_count} מצלמות · ${f.anchor_count} פריטים במפה · מפלס ${f.level}${f.has_plan ? '' : ' · אין תוכנית עדיין'}${f.draft_version_id ? ' · טיוטה ממתינה לפרסום' : ''}</div>
+                    <div class="title">${bidi(f.name)}</div>
+                    <div class="counts">${f.camera_count} מצלמות · ${f.anchor_count} פריטים במפה · מפלס ${ltrNum(f.level)}${f.has_plan ? '' : ' · אין תוכנית עדיין'}${f.draft_version_id ? ' · טיוטה ממתינה לפרסום' : ''}</div>
                   </div>
                   <sw-floor-iso .rooms=${tree.source === 'demo' ? demoRooms(f.id) : []} ?selected=${sel?.id === f.id} ?empty=${!f.has_plan} width=${128}></sw-floor-iso>
                   <span class="chev"><sw-icon name="chevron" size=${16}></sw-icon></span>
@@ -273,7 +274,7 @@ export class ExploreFloors extends LitElement {
               </div>
             </div>`
           : this.tab === 'cameras'
-            ? html`<div class="cams">${floors.map((f) => html`<sw-card heading=${f.name} subheading="${f.camera_count} מצלמות" interactive @click=${() => navigate(`/explore/floors/${f.id}`)}></sw-card>`)}</div>`
+            ? html`<div class="cams">${floors.map((f) => html`<sw-card heading=${bidi(f.name)} subheading="${f.camera_count} מצלמות" interactive @click=${() => navigate(`/explore/floors/${f.id}`)}></sw-card>`)}</div>`
             : html`<sw-card heading="פרטי המבנה">
                 <dl>
                   <dt>אתר</dt><dd>${site.name}</dd>

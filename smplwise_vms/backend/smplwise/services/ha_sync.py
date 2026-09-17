@@ -310,7 +310,10 @@ class HaSync:
             STATE.last_event_at = now_iso()
             publish({"type": "entity_state_changed", "sequence": STATE.sequence, "entity": row})
 
+        refresher_task: asyncio.Task[None] | None = None
+
         async def on_ready(call) -> None:
+            nonlocal refresher_task
             cfg = await call("get_config")
             STATE.ha_version = (cfg.get("result") or {}).get("version")
             await self._refresh_registry(call)
@@ -334,9 +337,15 @@ class HaSync:
                     except Exception as exc:
                         log.warning("registry refresh failed: %s", type(exc).__name__)
 
-            asyncio.create_task(refresher())
+            refresher_task = asyncio.create_task(refresher(), name="ha-registry-refresher")
 
-        await ha_client.ws_session(settings, on_ready, on_event, stop_evt)
+        try:
+            await ha_client.ws_session(settings, on_ready, on_event, stop_evt)
+        finally:
+            # the refresher belongs to this session: without this every reconnect leaked one more task that kept
+            # calling the closed socket ("registry refresh failed: ConnectionClosedOK" every 10 minutes, F13)
+            if refresher_task is not None:
+                refresher_task.cancel()
 
     async def _refresh_registry(self, call) -> None:
         assert self.db
