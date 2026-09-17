@@ -82,3 +82,7 @@
 - **תחזוקה**: ניקוי תקופתי (janitor) פועל, סשני ניגון משוחררים בעזיבת דף, דוח האחסון מחומם ברקע.
 
 צ'קליסט בדיקה מפורט: `docs/operations/MORNING_CHECKLIST_2026-09-17_HE.md`.
+
+## מעבר מה־Add-on הישן ושחרור
+- מדריך המעבר (dry run, כינויים, תקופת צל, חזרה לאחור): `docs/operations/MIGRATION_FROM_LEGACY_HE.md` והכלי `scripts/migrate_legacy.py`.
+- חבילת השחרור ובדיקת העקביות לפני חתימה: `docs/release/RELEASE_PACKAGE_V1.md`, `python scripts/release_check.py --tag`.

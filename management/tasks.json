@@ -3764,7 +3764,9 @@
       "Documentation, known limits and rollback notes",
       "Technical review record"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (2026-09-17): scripts/migrate_legacy.py — migration dry run from the legacy Hikvision NVR Panel 1.5.27: reads the add-on options, /config/hikvision_nvr_override.json (NVR overrides, camera_names, recording display offset, manual_recording) and the JSONL event store; maps every option to its VMS place (PINs -> HA users + roles), matches legacy aliases to VMS cameras by channel (set_alias / same / keep_vms_alias / no_vms_camera / vms_only), computes the legacy's effective display offset and warns when it is not 0 (the VMS shows NVR wall-clock times, T014), names what is not migrated (manual recording = NVR write, legacy events), lists feature parity, a six-step rollout and the rollback (start the legacy again; the NVR is never written); secrets never printed, hosts masked; the only write is --apply-aliases to the VMS (empty aliases only, --force-aliases to overwrite). Shadow comparison ran against the dev VMS with a synthetic legacy config (report under private-evidence/migration/). tests/test_migrate_legacy.py; docs/operations/MIGRATION_FROM_LEGACY_HE.md. Open: golden traces / characterization (T003/T004) need the owner's access to the legacy add-on; the staged rollout itself runs on the owner's installation"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
@@ -3879,7 +3881,9 @@
       "Documentation, known limits and rollback notes",
       "Technical review record"
     ],
-    "evidence": [],
+    "evidence": [
+      "pre-evidence (2026-09-17): docs/release/RELEASE_PACKAGE_V1.md — what is released, compatibility matrix (HA 2026.9.2, HAOS 18.2, Supervisor 2026.09.2, DS-7616NXI-K2(D) V4.84.101, go2rtc 1.9.14, Chrome), evidence sources, eight known limits, rollback (pre-upgrade backups, additive migrations, previous version from the repository), owner-gated items and an approval block with the tag commands; scripts/release_check.py verifies one version everywhere (config.yaml, Dockerfile, __version__, CHANGELOG head, API inventory), identical bridge copies + consistent bridge version, contiguous migrations, built UI, package and known-limits documents, tag presence (informational) — exit 1 when a required check fails; tests/test_release_check.py (repository passes, a mismatched tree fails). Open: the owner's acceptance round and signature, the tag after approval"
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
