@@ -140,8 +140,11 @@ class ThumbnailWorker(threading.Thread):
     def start_with(self, db: Database, settings: Settings) -> None:
         self.db, self.settings = db, settings
         self.stop_evt.clear()
-        if not self.is_alive():
-            self.start()
+        if self.is_alive():
+            return
+        if self._started.is_set():  # a finished thread cannot be started again: re-initialise the Thread state (tests start several apps in one process)
+            threading.Thread.__init__(self, name=self.name, daemon=True)
+        self.start()
 
     def is_pending(self, event_id: str) -> bool:
         with self.lock:

@@ -1,5 +1,15 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.64 (pilot) — first write to the NVR: "Notify Surveillance Center" from the VMS
+- Foundation for the owner-approved NVR writes: every change is GET → PUT → GET-verify, kept with the document
+  before and after (`nvr_changes`), audited (`nvr.write`, `nvr.rollback`) and reversible from the connections page.
+  Thirteen new sensitive permissions (`nvr.config.events`, `nvr.config.detection`, … `nvr.system.reboot`) - never
+  implied by a built-in role, granted only through a custom role.
+- Connections page › "התראות מה־NVR": a matrix per channel (motion + smart events) read from the NVR, "הפעל תנועה
+  בכל הערוצים" / "הפעל גם אירועים חכמים" / per-channel "הפעל" behind a confirmation dialog, the last changes with
+  "החזר". `GET/PUT /nvr/notify`, `GET /nvr/changes`, `POST /nvr/changes/{id}/rollback`.
+- Fixed on the way: the custom-role cache was shared between databases in one process (tests only).
+
 ## 0.1.63 (pilot) — the owner's test round, batch 3
 - Floor map: a "רשימה" panel lists the cameras (status) and the HA entities (by kind, with state) placed on the
   plan; a click zooms to the pin and opens its card, or adds the camera while picking. Open state kept per browser.

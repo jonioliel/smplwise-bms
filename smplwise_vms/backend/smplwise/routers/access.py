@@ -53,6 +53,19 @@ PERMISSION_LABELS: dict[str, str] = {
     "door.unlock": "פתיחת דלת",
     "alarm.disarm": "ניטרול אזעקה",
     "nvr.config.write": "כתיבה להגדרות ה־NVR",
+    "nvr.config.events": "NVR: הפעלת התראות (Notify Surveillance Center) ולוחות זימון",
+    "nvr.config.detection": "NVR: עריכת אזורי זיהוי תנועה ורגישות",
+    "nvr.config.privacy": "NVR: עריכת מסכות פרטיות",
+    "nvr.config.smart": "NVR: עריכת כללי Smart Event",
+    "nvr.config.schedule": "NVR: עריכת לוח ההקלטה",
+    "nvr.config.stream": "NVR: תצורת זרם (רזולוציה, bitrate)",
+    "nvr.config.osd": "NVR: שם ערוץ ו־OSD",
+    "nvr.config.time": "NVR: שעון ו־NTP",
+    "nvr.record.manual": "NVR: הקלטה ידנית",
+    "nvr.record.lock": "NVR: נעילת קטע הקלטה",
+    "nvr.alarm_output": "NVR: הפעלת יציאת אזעקה",
+    "nvr.storage.test": "NVR: בדיקת דיסק",
+    "nvr.system.reboot": "NVR: הפעלה מחדש",
 }
 SYSTEM_PERMISSIONS = {"system.configure", "sources.configure", "identity.directory.read", "rbac.roles.manage", "audit.read", "backup.manage"}  # rbac.assign is delegable (T082)
 DEFAULT_DELEGABLE = ["viewer", "operator", "editor", "kiosk"]

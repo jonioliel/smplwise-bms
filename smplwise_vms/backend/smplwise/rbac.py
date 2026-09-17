@@ -21,12 +21,17 @@ ROLE_NAMES_HE: dict[str, str] = {
 SCOPE_ORDER = ("installation", "site", "building", "floor")
 INSTALLATION = ("installation", "*")
 
-_CUSTOM_CACHE: dict[int, dict[str, list[str]]] = {}
+_CUSTOM_CACHE: dict[tuple[str, int], dict[str, list[str]]] = {}
 
 
 def custom_roles(conn: sqlite3.Connection) -> dict[str, list[str]]:
-    """Custom roles (T082) as {id: permissions}; cached per permission revision, which every role change bumps."""
-    rev = permission_revision(conn)
+    """Custom roles (T082) as {id: permissions}; cached per (database, permission revision) - every role change bumps
+    the revision, and the database file keeps two databases in one process (tests) from sharing a cache entry."""
+    try:
+        dbfile = str(conn.execute("PRAGMA database_list").fetchone()[2])
+    except sqlite3.Error:
+        dbfile = ""
+    rev = (dbfile, permission_revision(conn))
     cached = _CUSTOM_CACHE.get(rev)
     if cached is None:
         try:

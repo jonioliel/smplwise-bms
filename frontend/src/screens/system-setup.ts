@@ -12,6 +12,8 @@ import { isApi } from '../api/session';
 import { get, describeError } from '../api/client';
 import { listCameras } from '../api/maps';
 import { healthReport, type HealthReport } from '../api/health';
+import { listNvrChanges, notifyStatus, rollbackNvrChange, setNotify, type NotifyStatus, type NvrChange } from '../api/nvr';
+import '../components/sw-dialog';
 
 /** GET /api/v1/health — the add-on's own connection facts (no device probe, every signed-in user). */
 interface RawHealth {
@@ -58,6 +60,13 @@ export class SystemSetup extends LitElement {
   @state() private recorder: { model: string | null; firmware: string | null; name: string; last_seen_at: string | null } | null = null;
   @state() private error = '';
   @state() private busy = false;
+  /** NVR writes (0.1.64): the notify matrix, the pending confirmation, the last result and the change log. */
+  @state() private notify: NotifyStatus | null = null;
+  @state() private notifyError = '';
+  @state() private notifyPlan: { channels: number[] | null; smart: boolean; enabled: boolean; label: string } | null = null;
+  @state() private notifyBusy = false;
+  @state() private notifyResult = '';
+  @state() private changes: NvrChange[] = [];
 
   connectedCallback() {
     super.connectedCallback();
@@ -65,6 +74,7 @@ export class SystemSetup extends LitElement {
   }
 
   private async load() {
+    void this.loadNvr();
     this.busy = true;
     try {
       this.raw = await get<RawHealth>('health');
@@ -94,6 +104,90 @@ export class SystemSetup extends LitElement {
     return html`<div class="check"><span>${label}</span><span class=${`val ${tone}`}>${value === null || value === undefined || value === '' ? '—' : String(value)}</span></div>`;
   }
 
+  private async loadNvr() {
+    if (!isApi()) return;
+    try {
+      const [n, c] = await Promise.all([notifyStatus(), listNvrChanges(10)]);
+      this.notify = n;
+      this.changes = c.changes;
+      this.notifyError = '';
+    } catch (err) {
+      this.notifyError = describeError(err);
+    }
+  }
+
+  private planNotify(channels: number[] | null, smart: boolean, enabled: boolean) {
+    const n = channels ? channels.length : this.notify?.channels.length ?? 0;
+    this.notifyResult = '';
+    this.notifyPlan = { channels, smart, enabled, label: `${enabled ? 'הפעלת' : 'כיבוי'} Notify Surveillance Center ב־${n} ערוצים${smart ? ' · תנועה + אירועים חכמים' : ' · זיהוי תנועה'}` };
+  }
+
+  private async runNotify() {
+    const p = this.notifyPlan;
+    if (!p || this.notifyBusy) return;
+    this.notifyBusy = true;
+    try {
+      const r = await setNotify({ channels: p.channels, smart: p.smart, enabled: p.enabled });
+      this.notifyResult = `בוצע: ${r.applied} שינויים · ${r.unchanged} כבר היו כך · ${r.skipped} דולגו (סוג אירוע שלא מוגדר בערוץ) · ${r.failed} נכשלו`;
+      this.notifyPlan = null;
+      await this.loadNvr();
+    } catch (err) {
+      this.notifyResult = describeError(err);
+    } finally {
+      this.notifyBusy = false;
+    }
+  }
+
+  private async rollback(c: NvrChange) {
+    if (this.notifyBusy) return;
+    this.notifyBusy = true;
+    try {
+      await rollbackNvrChange(c.id);
+      this.notifyResult = `השינוי ${c.target} הוחזר למצב הקודם.`;
+      await this.loadNvr();
+    } catch (err) {
+      this.notifyResult = describeError(err);
+    } finally {
+      this.notifyBusy = false;
+    }
+  }
+
+  private renderNotifyCard() {
+    const n = this.notify;
+    const yes = (v: boolean | null) => (v === null ? '—' : v ? '✓' : '✗');
+    return html`<sw-card heading="התראות מה־NVR (Notify Surveillance Center)" subheading="אילו ערוצים מודיעים ל־VMS על תנועה ועל אירועים חכמים · כתיבה מאושרת ל־NVR, עם החזר" data-nvr-notify>
+      ${this.notifyError ? html`<div class="hint" data-nvr-notify-error>${this.notifyError}</div>` : nothing}
+      ${!n
+        ? this.notifyError ? nothing : html`<div class="hint">קורא את הגדרות ה־NVR…</div>`
+        : html`<table class="matrix" data-nvr-matrix>
+            <thead><tr><th>ערוץ</th><th>מצלמה</th><th>תנועה</th><th>אירועים חכמים</th><th></th></tr></thead>
+            <tbody>${n.channels.map((c) => html`<tr data-nvr-channel=${c.channel}>
+              <td class="ltr">${c.channel}</td><td>${c.name}</td>
+              <td data-nvr-motion=${c.motion.supported ? String(c.motion.center) : 'none'}>${c.motion.supported ? yes(c.motion.center) : 'לא מוגדר'}</td>
+              <td>${c.smart_supported ? `${c.smart_center}/${c.smart_supported}` : 'אין'}</td>
+              <td>${n.can_write && c.motion.supported && !c.motion.center ? html`<sw-button size="sm" data-nvr-enable-one=${c.channel} @click=${() => this.planNotify([c.channel], false, true)}>הפעל</sw-button>` : nothing}</td>
+            </tr>`)}</tbody>
+          </table>
+          <div class="hint">✓ = ההתראה נשלחת ל־VMS · ✗ = הערוץ מקליט אבל לא מודיע · אירועים חכמים = חציית קו, פריצה לאזור, כניסה ויציאה מאזור (רק במצלמות שמגדירות אותם).</div>
+          ${n.can_write
+            ? html`<div class="actions">
+                <sw-button variant="primary" size="sm" icon="bell" ?disabled=${this.notifyBusy} data-nvr-enable-all @click=${() => this.planNotify(null, false, true)}>הפעל תנועה בכל הערוצים</sw-button>
+                <sw-button size="sm" icon="bell" ?disabled=${this.notifyBusy} data-nvr-enable-smart @click=${() => this.planNotify(null, true, true)}>הפעל גם אירועים חכמים</sw-button>
+              </div>`
+            : html`<div class="hint" data-nvr-no-permission>לכתיבה ל־NVR נדרשת ההרשאה "${n.permission}" — מוקנית רק דרך תפקיד מותאם (הגדרות › משתמשים והרשאות › תפקידים), גם למנהל מערכת.</div>`}
+          ${this.notifyResult ? html`<div class="hint" data-nvr-result>${this.notifyResult}</div>` : nothing}
+          ${this.changes.length ? html`<div class="hint" style="margin-block-start:8px"><b>שינויים אחרונים ב־NVR</b></div>
+            <ul class="changes" data-nvr-changes>${this.changes.map((c) => html`<li><span class="ltr">${c.created_at.slice(0, 16).replace('T', ' ')}</span> · ${c.target} · ${c.note || c.kind} · ${c.status === 'applied' ? 'בוצע' : c.status === 'unchanged' ? 'ללא שינוי' : c.status === 'rolled_back' ? 'הוחזר' : 'נכשל'}${c.actor_username ? ` · ${c.actor_username}` : ''}
+              ${c.status === 'applied' && n.can_write ? html`<sw-button variant="ghost" size="sm" ?disabled=${this.notifyBusy} data-nvr-rollback=${c.id} @click=${() => this.rollback(c)}>החזר</sw-button>` : nothing}</li>`)}</ul>` : nothing}`}
+      ${this.notifyPlan
+        ? html`<sw-dialog open heading="כתיבה ל־NVR" subheading=${this.notifyPlan.label} data-nvr-confirm @close=${() => (this.notifyPlan = null)}>
+            <div style="font-size:var(--sw-fs-sm);line-height:1.5">השינוי נכתב להגדרות ה־NVR בזהות המשתמש המוגדר ב־Add-on, נרשם באודיט עם המסמך לפני ואחרי, וניתן להחזרה מרשימת השינויים. הקלטות אינן מושפעות.</div>
+            <div slot="footer"><sw-button variant="primary" ?disabled=${this.notifyBusy} data-nvr-confirm-run @click=${() => this.runNotify()}>${this.notifyBusy ? 'כותב…' : 'כתוב ל־NVR'}</sw-button><sw-button variant="ghost" @click=${() => (this.notifyPlan = null)}>ביטול</sw-button></div>
+          </sw-dialog>`
+        : nothing}
+    </sw-card>`;
+  }
+
   private renderApi() {
     const h = this.raw;
     return html`
@@ -114,6 +208,7 @@ export class SystemSetup extends LitElement {
                 ${h.events.ingest.connected && !h.events.ingest.last_event_at ? html`<div class="hint" data-no-alerts-hint>ה־NVR מחובר אבל לא שלח התראה מאז ההפעלה — ב־NVR יש להפעיל "Notify Surveillance Center" ב־linkage של זיהוי התנועה; עד אז אירועי תנועה נגזרים מההקלטות כל 10 דקות.</div>` : nothing}
                 ${this.row('אירועים שנגזרו מהקלטות (ריצה אחרונה)', `${h.events.derive.derived} · ${when(h.events.derive.last_ok)}`, h.events.derive.last_error ? 'warn' : '')}
               </sw-card>
+              ${this.renderNotifyCard()}
               <sw-card heading="go2rtc (relay לווידאו)" subheading=${h.go2rtc_configured ? 'מוגדר' : 'לא מוגדר'}>
                 ${this.row('מוגדר ב־Add-on options', h.go2rtc_configured ? 'כן' : 'לא', h.go2rtc_configured ? 'ok' : 'err')}
                 ${this.row('סנכרון זרמים אחרון תקין', when(h.discovery.streams_last_ok), h.discovery.streams_last_error ? 'warn' : 'ok')}
@@ -149,6 +244,38 @@ export class SystemSetup extends LitElement {
   }
 
   static styles = css`
+    .matrix {
+      inline-size: 100%;
+      border-collapse: collapse;
+      font-size: var(--sw-fs-sm);
+      margin-block: 6px;
+    }
+    .matrix th,
+    .matrix td {
+      text-align: start;
+      padding: 4px 8px;
+      border-block-end: 1px solid var(--sw-border);
+    }
+    .matrix th {
+      color: var(--sw-text-3);
+      font-weight: 500;
+      font-size: var(--sw-fs-xs);
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-block-start: 8px;
+    }
+    ul.changes {
+      margin: 4px 0 0;
+      padding-inline-start: 18px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+    }
+    ul.changes li {
+      margin-block: 2px;
+    }
     .wrap {
       max-inline-size: 760px;
       display: flex;

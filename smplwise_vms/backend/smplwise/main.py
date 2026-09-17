@@ -16,7 +16,7 @@ from . import __version__
 from .config import Settings, load_settings
 from .db import Database
 from .errors import ApiError
-from .routers import access, anchors, backup, cameras, cases, catalog, events, exports, frames, ha, health, me, media, plans, playback, playback_groups, recordings, rules, search, settings as settings_router, storage, views, zones
+from .routers import access, anchors, backup, cameras, cases, catalog, events, exports, frames, ha, health, me, media, plans, playback, playback_groups, recordings, rules, search, settings as settings_router, storage, views, zones, nvr_write
 
 log = logging.getLogger("smplwise")
 
@@ -110,6 +110,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(rules.router, prefix=api, tags=["rules"])
     app.include_router(health.router, prefix=api, tags=["ops"])
     app.include_router(views.router, prefix=api, tags=["views"])
+    app.include_router(nvr_write.router, prefix=api, tags=["nvr"])
 
     @app.on_event("startup")
     async def _start_janitor() -> None:
