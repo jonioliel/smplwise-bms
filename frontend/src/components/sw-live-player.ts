@@ -21,6 +21,9 @@ const MSE_TIMEOUT_MS = 20000;
 const RETRY_BASE_MS = 3000;
 const RETRY_MAX_MS = 30000;
 
+/** Recorded playback: how much media may wait ahead of a paused or slowed playhead before fragments are dropped. */
+const MAX_AHEAD_S = 25;
+
 @customElement('sw-live-player')
 export class SwLivePlayer extends LitElement {
   @property() cameraId = '';
@@ -33,6 +36,11 @@ export class SwLivePlayer extends LitElement {
   @property() wsUrl = '';
   /** Playback streams end when the NVR reaches the requested end time: no automatic reconnect then. */
   @property({ type: Boolean }) retry = true;
+  /** Recorded playback (T066): no live-edge catch-up — a paused or slowed playhead may lag the buffer; the look-ahead
+   * is bounded instead (fragments beyond MAX_AHEAD_S are dropped and `stale` tells the screen to re-seek on resume). */
+  @property({ type: Boolean }) recorded = false;
+  /** True once fragments were dropped because the look-ahead buffer was full: the media after the buffer is gone. */
+  stale = false;
   @state() status: PlayerStatus = 'idle';
   @state() transport: 'webrtc' | 'mse' | '' = '';
   @state() error = '';
@@ -175,6 +183,39 @@ export class SwLivePlayer extends LitElement {
     return this.video?.currentTime ?? 0;
   }
 
+  /** Seconds of media already buffered ahead of the playhead (0 when nothing is buffered around it). */
+  get bufferAhead(): number {
+    const v = this.video;
+    if (!v || !v.buffered.length) return 0;
+    for (let i = 0; i < v.buffered.length; i++) {
+      if (v.currentTime >= v.buffered.start(i) - 0.05 && v.currentTime <= v.buffered.end(i)) return v.buffered.end(i) - v.currentTime;
+    }
+    return 0;
+  }
+
+  /** T066 frame step inside the buffered media: pauses and moves the playhead by `frames` at `fps`. Returns false
+   * (and moves nothing) when the target frame is not buffered — a real seek is needed then. */
+  stepFrame(frames: number, fps = 25): boolean {
+    const v = this.video;
+    if (!v || !v.buffered.length || !fps) return false;
+    v.pause();
+    const target = v.currentTime + frames / fps;
+    for (let i = 0; i < v.buffered.length; i++) {
+      if (target >= v.buffered.start(i) && target <= v.buffered.end(i)) {
+        v.currentTime = target;
+        return true;
+      }
+    }
+    // forward, just past what has arrived: the relay keeps sending while paused, so the frame is on its way — the
+    // element waits for it; backward beyond the buffer is gone (evicted) and needs a real seek
+    const end = v.buffered.end(v.buffered.length - 1);
+    if (frames > 0 && target > end && target - end <= 1.0) {
+      v.currentTime = target;
+      return true;
+    }
+    return false;
+  }
+
   /** Playback rate of the rendered stream (T042): a synchronized group nudges a tile a few percent faster or slower to close a small drift without a re-seek. */
   get rate(): number {
     return this.video?.playbackRate ?? 1;
@@ -282,6 +323,7 @@ export class SwLivePlayer extends LitElement {
     }
     this.sb = null;
     this.queue = [];
+    this.stale = false;
     this.ms = null;
     if (this.video) {
       this.video.pause();
@@ -379,6 +421,7 @@ export class SwLivePlayer extends LitElement {
     window.clearTimeout(this.timer);
     this.transport = 'mse';
     this.queue = [];
+    this.stale = false;
     this.sb = null;
     const ms = new MediaSource();
     this.ms = ms;
@@ -447,6 +490,10 @@ export class SwLivePlayer extends LitElement {
   }
 
   private onFragment(buf: ArrayBuffer) {
+    if (this.recorded && this.bufferAhead > MAX_AHEAD_S) {
+      this.stale = true; // paused or slowed for long: keep memory bounded, the screen re-seeks when it needs more
+      return;
+    }
     this.queue.push(buf);
     this.flush();
   }
@@ -495,7 +542,7 @@ export class SwLivePlayer extends LitElement {
 
   private onTimeUpdate() {
     const v = this.video;
-    if (this.transport !== 'mse' || !v.buffered.length) return;
+    if (this.transport !== 'mse' || !v.buffered.length || this.recorded) return; // live only: recorded playback may lag on purpose
     const end = v.buffered.end(v.buffered.length - 1);
     if (end - v.currentTime > 2.5) v.currentTime = end - 0.5;
   }

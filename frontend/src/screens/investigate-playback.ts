@@ -677,6 +677,8 @@ export class InvestigatePlayback extends LitElement {
     if (now) {
       this.position = now;
       this.cursor = minuteInZone(now, this.tz);
+      // slow motion consumed the bounded look-ahead and later media was dropped: re-seek to where we are (T066)
+      if (master.stale && master.bufferAhead < 0.4 && !this.busy) void this.startAt(now);
     }
   }
 
@@ -692,6 +694,7 @@ export class InvestigatePlayback extends LitElement {
     this.resyncs = {};
     this.nudges = {};
     for (const p of this.players()) p.rate = 1;
+    if (this.groupMode) this.speed = 1;
     this.syncStats = null;
     this.groupStartedAt = performance.now();
     this.lastReport = 0;
@@ -844,10 +847,43 @@ export class InvestigatePlayback extends LitElement {
     await this.startAt(new Date(cur.getTime() + seconds * 1000));
   }
 
+  /** T066: a rate the source can honour — slow motion consumes the real-time buffer slower, so the rendered time
+   * (and the position derived from it) stays the source time. Faster than 1× is never offered on this path. */
+  private setSpeed(s: number) {
+    if (this.groupMode || s > 1) return;
+    this.speed = s;
+    const p = this.masterPlayer();
+    if (p) p.rate = s;
+  }
+
+  /** T066: one frame back or forward inside the buffered media (paused); a real seek is needed beyond the buffer. */
+  private stepFrame(frames: number) {
+    const p = this.masterPlayer();
+    const cam = this.cams?.find((c) => c.id === this.cameraId);
+    const fps = cam?.stream?.fps && cam.stream.fps > 0 ? cam.stream.fps : 25;
+    if (!p) return;
+    if (!p.stepFrame(frames, fps)) {
+      this.notice = 'הפריים המבוקש מחוץ למאגר שכבר הגיע מה־NVR — השתמש בקפיצה של 10 שניות או בציר הזמן.';
+      return;
+    }
+    this.notice = '';
+    const now = this.currentInstant();
+    if (now) {
+      this.position = now;
+      this.cursor = minuteInZone(now, this.tz);
+    }
+  }
+
   private togglePause() {
     const players = this.players();
     if (!players.length) return;
     if (this.paused) {
+      const master = this.masterPlayer();
+      if (!this.groupMode && master?.stale && this.position) {
+        // the look-ahead buffer filled up while paused and later media was dropped: resume from where we stand
+        void this.startAt(this.position);
+        return;
+      }
       players.forEach((p) => p.resume());
       if (this.clock && this.clockPausedAt) this.clock = { ...this.clock, startedAt: this.clock.startedAt + (performance.now() - this.clockPausedAt) };
       this.clockPausedAt = 0;
@@ -867,6 +903,11 @@ export class InvestigatePlayback extends LitElement {
     if (cameraId !== this.cameraId) return;
     if (this.masterSession && e.detail.status === 'playing') {
       if (this.session) this.session = { ...this.session, state: 'playing' };
+      // a fresh media element starts at 1×: keep the chosen slow-motion rate across reconnects and seeks (T066)
+      if (!this.groupMode && this.speed !== 1) {
+        const p = this.masterPlayer();
+        if (p && p.rate !== this.speed) p.rate = this.speed;
+      }
     }
     if (e.detail.status === 'ended') {
       // The NVR reached the end of the requested range: continue from there if the day has more.
@@ -980,7 +1021,7 @@ export class InvestigatePlayback extends LitElement {
           const st = this.tileStatus[cid];
           return html`<div class="tile ${cid === this.cameraId ? 'master' : ''}">
             ${sess && !FINISHED.includes(sess.state)
-              ? html`<sw-live-player data-camera=${cid} .wsUrl=${playbackWsUrl(sess)} mode="mse" .retry=${false} compact @player-status=${(e: CustomEvent<{ status: string }>) => this.onTilePlayer(cid, e)}></sw-live-player>`
+              ? html`<sw-live-player data-camera=${cid} .wsUrl=${playbackWsUrl(sess)} mode="mse" .retry=${false} recorded compact @player-status=${(e: CustomEvent<{ status: string }>) => this.onTilePlayer(cid, e)}></sw-live-player>`
               : html`<div class="center"><div><sw-icon name="offline" size=${20}></sw-icon><span>${missing === 'gap' || missing === 'no_recording' ? 'אין הקלטה בזמן הזה' : missing === 'playback_quota' ? 'מכסת הניגון מלאה' : this.busy ? 'מכין…' : this.group ? 'לא זמין' : 'לחץ על ציר הזמן'}</span></div></div>`}
             <span class="name" data-tile=${cid} data-tile-state=${this.syncStats?.members[cid]?.state ?? ''}>${this.cameraName(cid)}${cid === this.cameraId ? html` · מוביל` : nothing}${sess && st === 'playing' && Number.isFinite(drift) ? html`<span class="drift ${Math.abs(drift) > 2 ? 'bad' : ''}" title="סטייה מהשעון־אב, נמדדת מהפריים המוצג">${drift >= 0 ? '+' : ''}${drift.toFixed(1)}s</span>` : nothing}${this.syncStats?.members[cid]?.state === 'late' ? html`<span class="drift bad">מאחרת</span>` : nothing}${(this.syncStats?.members[cid]?.resyncs ?? 0) > 0 ? html`<span class="drift">סונכרן מחדש ×${this.syncStats!.members[cid].resyncs}</span>` : nothing}</span>
           </div>`;
@@ -990,7 +1031,7 @@ export class InvestigatePlayback extends LitElement {
     const session = this.session;
     return html`<div class="video ${inGap ? 'gap' : ''}">
       ${live && session
-        ? html`<sw-live-player data-camera=${cam.id} .wsUrl=${playbackWsUrl(session)} mode="mse" .retry=${false} @player-status=${(e: CustomEvent<{ status: string }>) => this.onTilePlayer(cam.id, e)}></sw-live-player>`
+        ? html`<sw-live-player data-camera=${cam.id} .wsUrl=${playbackWsUrl(session)} mode="mse" .retry=${false} recorded @player-status=${(e: CustomEvent<{ status: string }>) => this.onTilePlayer(cam.id, e)}></sw-live-player>`
         : inGap
           ? html`<div class="center"><div><sw-icon name="offline" size=${32}></sw-icon><span>${this.notice || 'אין הקלטה בזמן הזה: פער בכיסוי, לא מדלגים ל־Live'}</span></div></div>`
           : html`<div class="center"><div><sw-icon name="play" size=${32}></sw-icon><span>${this.busy ? 'מכין ניגון…' : 'לחץ על ציר הזמן (או על נגן) כדי להתחיל מהזמן שנבחר'}</span>${this.busy ? nothing : html`<sw-button variant="primary" size="sm" icon="play" @click=${() => this.startAt(instantInZone(this.date, this.cursor, this.tz))}>נגן מ־${hms(this.cursor)}</sw-button>`}</div></div>`}
@@ -1011,16 +1052,22 @@ export class InvestigatePlayback extends LitElement {
     return html`
       <div class="stage">
         ${this.renderStage(cam)}
-        <span class="stamp">${this.date} ${this.fmt(pos)} · ${{ verified: 'מאומת', keyframe_limited: 'דיוק לפי keyframe', estimated: 'משוער', unknown: '—' }[precision]}${this.groupMode ? html` · <span data-sync-quality=${this.syncStats?.quality ?? 'waiting'} data-sync-p95=${this.syncStats?.p95 ?? ''} data-sync-samples=${this.syncStats?.samples ?? 0}>${this.syncLabel()}</span>` : ''}</span>
+        <span class="stamp">${this.date} ${this.fmt(pos)} · ${{ verified: 'מאומת', keyframe_limited: 'דיוק לפי keyframe', estimated: 'משוער', unknown: '—' }[precision]}${!this.groupMode && this.speed !== 1 ? html` · <span data-speed-active=${this.speed}>${this.speed}× הילוך איטי</span>` : nothing}${this.paused && !this.groupMode ? html` · <span data-paused>מושהה · צעד־פריים</span>` : nothing}${this.groupMode ? html` · <span data-sync-quality=${this.syncStats?.quality ?? 'waiting'} data-sync-p95=${this.syncStats?.p95 ?? ''} data-sync-samples=${this.syncStats?.samples ?? 0}>${this.syncLabel()}</span>` : ''}</span>
         <div class="bar"><div class="inner">
-          <sw-button variant="ghost" size="sm" iconOnly icon=${this.paused ? 'play' : 'pause'} label=${this.paused ? 'המשך' : 'השהה'} ?disabled=${!live || masterStatus !== 'playing'} @click=${() => this.togglePause()}></sw-button>
+          <sw-button variant="ghost" size="sm" iconOnly icon=${this.paused ? 'play' : 'pause'} label=${this.paused ? 'המשך' : 'השהה'} data-pause ?disabled=${!live || masterStatus !== 'playing'} @click=${() => this.togglePause()}></sw-button>
           <sw-button variant="ghost" size="sm" iconOnly icon="back10" label="10 שניות אחורה" ?disabled=${!live || this.busy} @click=${() => this.nudge(-10)}></sw-button>
           <sw-button variant="ghost" size="sm" iconOnly icon="forward10" label="10 שניות קדימה" ?disabled=${!live || this.busy} @click=${() => this.nudge(10)}></sw-button>
           <span class="sep"></span>
-          ${[1, 2, 4].map((s) => {
-            const ok = s === 1 || (!this.groupMode && (master?.capabilities.supported_speeds ?? [1]).includes(s));
-            return html`<button class="q ${s === 1 ? 'on' : ''}" data-speed=${s} ?disabled=${!ok} title=${ok ? '' : this.groupMode ? 'בסנכרון רב־מצלמות נתמך רק 1×' : 'לא נתמך במסלול הזה: הזרם מגיע מה־NVR בזמן אמת'}>${s}×</button>`;
+          ${[0.25, 0.5, 1, 2, 4].map((s) => {
+            const supported = (master?.capabilities.supported_speeds ?? [1]).includes(s);
+            const mse = this.masterPlayer()?.transport === 'mse';
+            const ok = s === 1 || (!this.groupMode && supported && (s > 1 || mse));
+            const why = ok ? (s < 1 ? 'הילוך איטי: המאגר מתמלא בזמן אמת ונצרך לאט יותר — זמן המקור נשאר מדויק' : '') : this.groupMode ? 'בסנכרון רב־מצלמות נתמך רק 1×' : s > 1 ? 'לא נתמך במסלול הזה: הזרם מגיע מה־NVR בזמן אמת; מהירות מוגברת דורשת מקור ששולח מהר מזמן אמת' : 'הילוך איטי זמין רק בנתיב MSE';
+            return html`<button class="q ${this.speed === s ? 'on' : ''}" data-speed=${s} ?disabled=${!ok} title=${why} @click=${() => this.setSpeed(s)}>${s}×</button>`;
           })}
+          <span class="sep"></span>
+          <button class="q" data-frame-step="-1" ?disabled=${!live || this.groupMode || !this.paused} title=${this.groupMode ? 'צעד־פריים זמין במצלמה בודדת' : this.paused ? 'פריים אחד אחורה (בתוך המאגר)' : 'צעד־פריים זמין בהשהיה'} @click=${() => this.stepFrame(-1)}>‹ פריים</button>
+          <button class="q" data-frame-step="1" ?disabled=${!live || this.groupMode || !this.paused} title=${this.groupMode ? 'צעד־פריים זמין במצלמה בודדת' : this.paused ? 'פריים אחד קדימה (בתוך המאגר)' : 'צעד־פריים זמין בהשהיה'} @click=${() => this.stepFrame(1)}>פריים ›</button>
           <span class="sep"></span>
           <sw-button variant="ghost" size="sm" iconOnly icon="expand" label="מסך מלא" ?disabled=${!live} @click=${() => this.masterPlayer()?.fullscreen()}></sw-button>
         </div></div>

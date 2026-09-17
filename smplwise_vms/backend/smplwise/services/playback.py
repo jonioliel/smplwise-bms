@@ -239,7 +239,9 @@ def to_dict(session: PlaybackSession, lease_s: int) -> dict[str, Any]:
         "time_precision": "keyframe_limited",
         "media_handle": f"api/v1/playback/sessions/{session.id}/ws?generation={session.generation}" if session.state not in ("closed", "expired", "failed") else None,
         "expires_at": iso_utc(dt.datetime.fromtimestamp(expires, UTC)),
-        "capabilities": {"seek": True, "pause": True, "frame_step": False, "supported_speeds": [1]},
+        # T066: slow motion and frame stepping are real on the MSE path (the buffer fills at real time and is consumed
+        # slower or stepped through); faster speeds need a source that sends faster than real time — the relay does not
+        "capabilities": {"seek": True, "pause": True, "frame_step": True, "supported_speeds": [0.25, 0.5, 1]},
         "playback_end_at": iso_utc(session.end_at),
         "username": session.username,
         "bytes_down": session.bytes_down,

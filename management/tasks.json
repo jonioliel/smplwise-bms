@@ -3547,7 +3547,8 @@
       "Build screenshots matching design reference"
     ],
     "evidence": [
-      "note (2026-09-15): speeds other than 1x stay hidden on the playback screen until the NVR path proves them (chapter 25); no playbackRate faking"
+      "note (2026-09-15): speeds other than 1x stay hidden on the playback screen until the NVR path proves them (chapter 25); no playbackRate faking",
+      "pre-evidence (2026-09-17, 0.1.53): slow motion ×0.5 / ×0.25 and frame stepping on the MSE path only — the buffer fills at real time from the relay and is consumed slower or stepped through, so the shown time is the source time (sw-live-player.stepFrame / bufferAhead, investigate-playback setSpeed / stepFrame, position from the rendered media time); 2× / 4× remain disabled with the reason (a source that sends faster than real time is needed; the relay does not), 1× only in a synchronized group; services/playback.py capabilities frame_step=True, supported_speeds=[0.25, 0.5, 1]. Evidence: frontend/tests/evidence-speeds.spec.ts in real Chrome against the lab NVR measures the position advance ratio at ×0.5 and 1× and the media-time movement of five frame steps forward and back. Open: camera-side RTSP speed (Scale) is not exposed by go2rtc; audio at slow motion is muted by the browser"
     ],
     "owner": null,
     "commit": null,

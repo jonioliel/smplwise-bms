@@ -1,5 +1,13 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.53 (pilot) — slow motion and frame stepping (T066)
+- הקלטות: **הילוך איטי ×0.5 / ×0.25** and **צעד־פריים** (one frame back / forward while paused) on the MSE
+  playback path. Both are honest about the source: the relay delivers the NVR stream in real time, so the buffer
+  is consumed slower or stepped through and the time on the stamp stays the source time (measured: at ×0.5 the
+  position advances at about half the wall time). A frame outside the buffered media asks for a real seek.
+- 2× / 4× stay disabled with the reason (they need a source that sends faster than real time); in a synchronized
+  group only 1×. The session's capabilities now say so (`frame_step`, `supported_speeds`).
+
 ## 0.1.52 (pilot) — more entity adapters with risk classes (T040)
 - Entity actions on the floor map now cover, beside lights / switches / fans / covers / locks / buttons / scripts /
   scenes: **climate** (operating mode, target temperature), **media players** (play, pause, stop, volume),

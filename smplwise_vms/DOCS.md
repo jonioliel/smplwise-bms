@@ -466,8 +466,10 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   line-crossing lines exactly as the NVR holds them for that channel (ISAPI GET only, cached for a minute), drawn
   over the snapshot with layer toggles. They are polygons in the camera image, not rooms on the plan; the overlay
   is not an NVR mask and protects no recording; nothing is written to the device (no write route in the pilot).
-- Playback: speed 1× only (the relay delivers the NVR stream in real time, so faster speeds are disabled with
-  the reason), no frame step; up to four cameras side by side on one master clock (the median rendered time of the playing
+- Playback: 1×, slow motion ×0.5 / ×0.25 and frame stepping (T066) on the MSE path — the relay delivers the NVR
+  stream in real time, so the buffer is consumed slower or stepped through and the shown time stays the source
+  time; faster speeds are disabled with the reason (they need a source that sends faster than real time);
+  in a synchronized group only 1×; up to four cameras side by side on one master clock (the median rendered time of the playing
   tiles) with the drift of every tile measured against it (p95 over the last 40 samples, quality on the stamp, reported on the group); a tile out by
   more than 2 s is re-seeked alone, never the whole group. Still best effort: no verified PTS↔UTC anchor; events are
   not drawn on the timeline yet. Export trims at key frames (the start may be a few seconds early). PTZ and two-way audio are not exposed until the
