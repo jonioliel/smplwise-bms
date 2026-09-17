@@ -107,6 +107,10 @@ export interface CameraZones {
   source: 'nvr';
   read_only: true;
   write_reason: string;
+  /** 0.1.65: the caller holds nvr.config.detection - the motion grid can be edited and written to the NVR. */
+  can_edit_motion?: boolean;
+  /** The sensitivity values the device accepts (min / max / step); the NVR ignores values in between. */
+  sensitivity_caps?: { min: number; max: number; step: number } | null;
   fetched_at: string;
   cached: boolean;
   motion: ZoneMotion | null;

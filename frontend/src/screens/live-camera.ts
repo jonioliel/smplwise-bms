@@ -13,6 +13,8 @@ import '../components/sw-state-panel';
 import type { SwLivePlayer } from '../components/sw-live-player';
 import { demoScene, demoWall } from '../fixtures/catalog';
 import { navigate } from '../router';
+import { setMotion } from '../api/nvr';
+import '../components/sw-dialog';
 import { isApi } from '../api/session';
 import { cameraCapabilities, cameraZones, snapshotUrl, setTransportOverride, transportOverride, type CameraCapabilities, type CameraZones, type ProductSettings, type Transport } from '../api/media';
 import '../components/sw-chip';
@@ -34,6 +36,12 @@ export class LiveCamera extends LitElement {
   @state() private zones: CameraZones | null = null;
   @state() private zonesBusy = false;
   @state() private zonesError = '';
+  /** B2 (0.1.65): editing the motion grid - a working copy of the cells, the sensitivity and the enabled flag. */
+  @state() private motionEdit: { cells: boolean[][]; sensitivity: number; enabled: boolean } | null = null;
+  @state() private motionConfirm = false;
+  @state() private motionBusy = false;
+  @state() private motionMsg = '';
+  private paintValue: boolean | null = null;
   @state() private zoneLayers = { motion: true, privacy: true, intrusion: true, lines: true };
   /** T045 / T012: capability facts from the NVR (PTZ, presets, two-way audio), read-only. */
   @state() private caps: CameraCapabilities | null = null;
@@ -359,6 +367,87 @@ export class LiveCamera extends LitElement {
     </div>`;
   }
 
+  private startMotionEdit() {
+    const m = this.zones?.motion;
+    if (!m || !m.rows || !m.cols) return;
+    this.motionMsg = '';
+    this.motionEdit = { cells: m.cells.map((r) => [...r]), sensitivity: m.sensitivity ?? 50, enabled: m.enabled };
+  }
+
+  private paintCell(r: number, c: number, start = false) {
+    const e = this.motionEdit;
+    if (!e) return;
+    if (start) this.paintValue = !e.cells[r][c];
+    if (this.paintValue === null) return;
+    if (e.cells[r][c] === this.paintValue) return;
+    const cells = e.cells.map((row) => [...row]);
+    cells[r][c] = this.paintValue;
+    this.motionEdit = { ...e, cells };
+  }
+
+  private fillMotion(on: boolean) {
+    const e = this.motionEdit;
+    if (!e) return;
+    this.motionEdit = { ...e, cells: e.cells.map((row) => row.map(() => on)) };
+  }
+
+  private motionDiff() {
+    const m = this.zones?.motion;
+    const e = this.motionEdit;
+    if (!m || !e) return { added: 0, removed: 0, sensitivity: false, enabled: false };
+    let added = 0;
+    let removed = 0;
+    e.cells.forEach((row, r) => row.forEach((on, c) => { const was = m.cells[r]?.[c] ?? false; if (on && !was) added++; if (!on && was) removed++; }));
+    return { added, removed, sensitivity: e.sensitivity !== (m.sensitivity ?? 50), enabled: e.enabled !== m.enabled };
+  }
+
+  private async saveMotion() {
+    const e = this.motionEdit;
+    const cam = this.cam;
+    if (!e || !cam || this.motionBusy) return;
+    const d = this.motionDiff();
+    this.motionBusy = true;
+    try {
+      const rec = await setMotion(cam.id, { ...(d.added || d.removed ? { cells: e.cells } : {}), ...(d.sensitivity ? { sensitivity: e.sensitivity } : {}), ...(d.enabled ? { enabled: e.enabled } : {}) });
+      this.motionMsg = rec.status === 'unchanged' ? 'ה־NVR כבר היה במצב הזה, לא נכתב דבר.' : `נכתב ל־NVR (שינוי ${rec.id.slice(0, 8)}). ניתן להחזיר מהגדרות › חיבורים › שינויים אחרונים.`;
+      this.motionEdit = null;
+      this.motionConfirm = false;
+      await this.loadZones(true);
+    } catch (err) {
+      this.motionMsg = describeError(err);
+      this.motionConfirm = false;
+    } finally {
+      this.motionBusy = false;
+    }
+  }
+
+  private renderMotionEditor(m: NonNullable<CameraZones['motion']>) {
+    const e = this.motionEdit!;
+    const d = this.motionDiff();
+    const changed = d.added || d.removed || d.sensitivity || d.enabled;
+    const active = e.cells.flat().filter(Boolean).length;
+    return html`<div class="legend" data-motion-editor>
+      <span class="note">לחץ או גרור על התמונה כדי לסמן תאים שמזהים תנועה · ${active} מתוך ${m.rows * m.cols} תאים</span>
+      <sw-button size="sm" variant="ghost" @click=${() => this.fillMotion(true)}>בחר הכל</sw-button>
+      <sw-button size="sm" variant="ghost" @click=${() => this.fillMotion(false)}>נקה</sw-button>
+      <label class="note" style="display:inline-flex;align-items:center;gap:6px">רגישות <input type="range" min=${this.zones?.sensitivity_caps?.min ?? 0} max=${this.zones?.sensitivity_caps?.max ?? 100} step=${this.zones?.sensitivity_caps?.step ?? 20} .value=${String(e.sensitivity)} data-motion-sensitivity @input=${(ev: Event) => (this.motionEdit = { ...e, sensitivity: Number((ev.target as HTMLInputElement).value) })} /> <b class="ltr">${e.sensitivity}</b></label>
+      <label class="note" style="display:inline-flex;align-items:center;gap:6px"><input type="checkbox" .checked=${e.enabled} data-motion-enabled @change=${(ev: Event) => (this.motionEdit = { ...e, enabled: (ev.target as HTMLInputElement).checked })} /> זיהוי תנועה פעיל</label>
+      <span class="grow"></span>
+      <sw-button variant="primary" size="sm" icon="check" ?disabled=${!changed || this.motionBusy} data-motion-save @click=${() => (this.motionConfirm = true)}>שמור ל־NVR</sw-button>
+      <sw-button size="sm" variant="ghost" icon="close" ?disabled=${this.motionBusy} data-motion-cancel @click=${() => (this.motionEdit = null)}>ביטול</sw-button>
+      ${this.motionConfirm
+        ? html`<sw-dialog open heading="כתיבה ל־NVR: זיהוי תנועה" subheading=${`${this.cam?.name ?? ''} · ערוץ ${this.zones?.channel ?? ''}`} data-motion-confirm @close=${() => (this.motionConfirm = false)}>
+            <div style="font-size:var(--sw-fs-sm);line-height:1.6">
+              <div>${d.added ? `+${d.added} תאים נוספים לזיהוי` : ''}${d.added && d.removed ? ' · ' : ''}${d.removed ? `−${d.removed} תאים מוסרים` : ''}${!d.added && !d.removed ? 'הרשת ללא שינוי' : ''}</div>
+              <div>רגישות: ${d.sensitivity ? `${m.sensitivity ?? '—'} → ${e.sensitivity}` : 'ללא שינוי'} · זיהוי: ${d.enabled ? (e.enabled ? 'כבוי → פעיל' : 'פעיל → כבוי') : 'ללא שינוי'}</div>
+              <div style="margin-block-start:6px;color:var(--sw-text-3)">המסמך לפני ואחרי נשמר, השינוי נרשם באודיט וניתן להחזרה. ההקלטות אינן מושפעות; אזור שלא מסומן לא יפעיל הקלטת תנועה.</div>
+            </div>
+            <div slot="footer"><sw-button variant="primary" ?disabled=${this.motionBusy} data-motion-confirm-run @click=${() => this.saveMotion()}>${this.motionBusy ? 'כותב…' : 'כתוב ל־NVR'}</sw-button><sw-button variant="ghost" @click=${() => (this.motionConfirm = false)}>ביטול</sw-button></div>
+          </sw-dialog>`
+        : nothing}
+    </div>`;
+  }
+
   private renderZones(cam: Camera) {
     const z = this.zones;
     if (this.zonesBusy && !z) return html`<div class="note">קורא את הגדרות הזיהוי מה־NVR…</div>`;
@@ -384,7 +473,10 @@ export class LiveCamera extends LitElement {
         <div class="frame">
           <img src=${snapshotUrl(cam.id)} alt="" />
           <svg viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-label="אזורי זיהוי מעל תמונת המצלמה">
-            ${L.motion && m && m.rows && m.cols ? m.cells.flatMap((row, r) => row.map((on, c) => (on ? svg`<rect x=${(c * 1000) / m.cols} y=${(r * 1000) / m.rows} width=${1000 / m.cols} height=${1000 / m.rows} class="cell"></rect>` : nothing))) : nothing}
+            ${this.motionEdit && m && m.rows && m.cols
+              ? this.motionEdit.cells.flatMap((row, r) => row.map((on, c) => svg`<rect class=${on ? 'cell' : 'cell off'} data-motion-cell=${`${r}-${c}`} x=${(c * 1000) / m.cols} y=${(r * 1000) / m.rows} width=${1000 / m.cols} height=${1000 / m.rows} style="cursor:crosshair;${on ? '' : 'fill:rgba(255,255,255,0.03);stroke:rgba(255,255,255,0.18)'}" @pointerdown=${(ev: PointerEvent) => { ev.preventDefault(); this.paintCell(r, c, true); }} @pointerenter=${(ev: PointerEvent) => { if (ev.buttons & 1) this.paintCell(r, c); }} @pointerup=${() => (this.paintValue = null)}></rect>`))
+              : nothing}
+            ${!this.motionEdit && L.motion && m && m.rows && m.cols ? m.cells.flatMap((row, r) => row.map((on, c) => (on ? svg`<rect x=${(c * 1000) / m.cols} y=${(r * 1000) / m.rows} width=${1000 / m.cols} height=${1000 / m.rows} class="cell"></rect>` : nothing))) : nothing}
             ${L.privacy && z.privacy_mask ? z.privacy_mask.regions.map((reg) => svg`<polygon points=${scale(reg.points, z.privacy_mask!.normalized)} class="mask"></polygon>`) : nothing}
             ${L.intrusion && z.intrusion ? z.intrusion.regions.map((reg) => svg`<polygon points=${scale(reg.points, z.intrusion!.normalized)} class="field"></polygon>`) : nothing}
             ${L.lines && z.line_crossing ? z.line_crossing.lines.map((ln) => svg`<polyline points=${scale(ln.points, z.line_crossing!.normalized)} class="line ${ln.enabled ? '' : 'off'}"></polyline>`) : nothing}
@@ -396,7 +488,10 @@ export class LiveCamera extends LitElement {
           <sw-chip data-zone-layer="intrusion" ?selected=${L.intrusion} @click=${() => (this.zoneLayers = { ...L, intrusion: !L.intrusion })}>חדירה לאזור${z.intrusion ? ` · ${z.intrusion.enabled ? 'פעיל' : 'כבוי'} · ${z.intrusion.regions.length} אזורים` : ' · לא נקרא'}</sw-chip>
           <sw-chip data-zone-layer="lines" ?selected=${L.lines} @click=${() => (this.zoneLayers = { ...L, lines: !L.lines })}>חציית קו${z.line_crossing ? ` · ${z.line_crossing.enabled ? 'פעיל' : 'כבוי'} · ${z.line_crossing.lines.length} קווים` : ' · לא נקרא'}</sw-chip>
           <sw-button size="sm" variant="ghost" icon="refresh" ?disabled=${this.zonesBusy} @click=${() => this.loadZones(true)}>רענון מה־NVR</sw-button>
+          ${z.can_edit_motion && m && m.rows && m.cols && !this.motionEdit ? html`<sw-button size="sm" icon="edit" data-motion-edit @click=${() => this.startMotionEdit()}>עריכת אזורי תנועה</sw-button>` : nothing}
         </div>
+        ${this.motionEdit && m ? this.renderMotionEditor(m) : nothing}
+        ${this.motionMsg ? html`<div class="note" data-motion-msg>${this.motionMsg}</div>` : nothing}
         ${Object.keys(z.unsupported).length ? html`<div class="note">לא נקרא מהמכשיר: ${Object.entries(z.unsupported).map(([k, v]) => `${k} (${v})`).join(', ')}</div>` : nothing}
         <div class="note" data-zones-note>קריאה בלבד מה־NVR (נקרא ${z.fetched_at.replace('T', ' ').replace('Z', ' UTC')}${z.cached ? ', מהמטמון' : ''}). אלו פוליגונים בתמונת המצלמה — לא חדרים במפה. שכבת־על בדפדפן אינה מסכת NVR ואינה מגינה על הקלטות; עריכה או מסכה אמיתית דורשות אישור מפורש, כתיבה מאומתת ובדיקת התוצאה בזרם.</div>
       </div>`;

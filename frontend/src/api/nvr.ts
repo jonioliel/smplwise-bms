@@ -34,3 +34,5 @@ export const notifyStatus = () => get<NotifyStatus>('nvr/notify');
 export const setNotify = (body: { channels?: number[] | null; smart?: boolean; enabled?: boolean }) => put<NotifyResult>('nvr/notify', body);
 export const listNvrChanges = (limit = 20) => get<{ changes: NvrChange[] }>(`nvr/changes?limit=${limit}`);
 export const rollbackNvrChange = (id: string) => post<NvrChange>(`nvr/changes/${id}/rollback`);
+/** B2: the camera's motion grid / sensitivity / enabled flag written to the NVR as one reversible change. */
+export const setMotion = (cameraId: string, body: { cells?: boolean[][]; sensitivity?: number; enabled?: boolean }) => put<NvrChange>(`cameras/${cameraId}/motion`, body);

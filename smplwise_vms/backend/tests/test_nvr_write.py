@@ -99,3 +99,86 @@ def test_notify_endpoints_change_log_and_rollback(settings, monkeypatch):
         assert "nvr.write" in actions and "nvr.rollback" in actions
         # unknown channel
         assert c.put("/api/v1/nvr/notify", json={"channels": [9]}, headers=h).status_code == 422
+
+
+MOTION = ('<?xml version="1.0" encoding="UTF-8" ?><MotionDetection version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema"><enabled>true</enabled>'
+          '<enableHighlight>true</enableHighlight><samplingInterval>5</samplingInterval><regionType>grid</regionType><Grid><rowGranularity>2</rowGranularity>'
+          '<columnGranularity>10</columnGranularity></Grid><MotionDetectionLayout version="2.0"><sensitivityLevel>60</sensitivityLevel><layout><gridMap>ffc0ffc0</gridMap></layout>'
+          '<targetType>human,vehicle</targetType></MotionDetectionLayout></MotionDetection>')
+
+
+def test_motion_document_and_endpoint(settings, monkeypatch):
+    from smplwise.services.nvr import _hex_bits
+
+    # helper: the grid round-trips through the NVR's hex packing, other settings stay untouched
+    cells = [[True] * 10, [False] * 10]
+    doc = nvr_write.motion_document(MOTION, cells=cells, sensitivity=35, enabled=False)
+    assert "<gridMap>ffc00000</gridMap>" in doc and "<sensitivityLevel>35</sensitivityLevel>" in doc and doc.count("<enabled>false</enabled>") == 1
+    assert "<enableHighlight>true</enableHighlight>" in doc and "<targetType>human,vehicle</targetType>" in doc
+    assert _hex_bits("ffc00000", 2, 10) == cells
+    try:
+        nvr_write.motion_document(MOTION, cells=[[True] * 9, [False] * 9], sensitivity=None, enabled=None)
+        raise AssertionError("a grid of the wrong size must be refused")
+    except Exception as exc:  # noqa: BLE001
+        assert getattr(exc, "code", "") == "validation"
+
+    fake = FakeNvr()
+    fake.docs["/ISAPI/System/Video/inputs/channels/1/motionDetection"] = MOTION
+    monkeypatch.setattr(nvr_write, "_client", fake.client)
+    app = create_app(settings)
+    with TestClient(app) as c:
+        cam = c.post("/api/v1/cameras", json={"channel": 1, "alias": "לובי"}).json()
+        assert c.put(f"/api/v1/cameras/{cam['id']}/motion", json={"sensitivity": 40}).status_code == 403, "sensitive: never implied"
+        role = c.post("/api/v1/access/roles", json={"name": "עורך זיהוי", "description": "", "permissions": ["map.read", "video.live"], "sensitive": ["nvr.config.detection"]}).json()
+        bind(c, settings, "dan", role["id"], "installation", "*")
+        h = as_user("dan")
+        assert c.put(f"/api/v1/cameras/{cam['id']}/motion", json={}, headers=h).status_code == 422
+        r = c.put(f"/api/v1/cameras/{cam['id']}/motion", json={"cells": cells, "sensitivity": 40}, headers=h)
+        assert r.status_code == 200, r.text
+        rec = r.json()
+        assert rec["status"] == "applied" and rec["kind"] == "detection" and rec["target"] == "motion-1"
+        assert "<gridMap>ffc00000</gridMap>" in fake.docs["/ISAPI/System/Video/inputs/channels/1/motionDetection"]
+        rb = c.post(f"/api/v1/nvr/changes/{rec['id']}/rollback", headers=h)
+        assert rb.status_code == 201 and "<gridMap>ffc0ffc0</gridMap>" in fake.docs["/ISAPI/System/Video/inputs/channels/1/motionDetection"]
+
+
+def test_no_effect_and_sensitivity_snap(settings, monkeypatch):
+    """A device that answers OK but keeps its document is reported as no_effect (409) and the change log says so;
+    the sensitivity is snapped to the device's step before writing (the lab NVR accepts 0, 20, ... 100 only)."""
+    fake = FakeNvr()
+    fake.docs["/ISAPI/System/Video/inputs/channels/1/motionDetection"] = MOTION
+    fake.docs["/ISAPI/System/Video/inputs/channels/1/motionDetection/capabilities"] = MOTION.replace("<sensitivityLevel>60</sensitivityLevel>", '<sensitivityLevel min="0" max="100" step="20">60</sensitivityLevel>')
+    ignore = {"on": False}
+    original = fake.handler
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "PUT" and ignore["on"]:
+            return httpx.Response(200, text=OK)  # OK, but the document stays as it was
+        return original(request)
+
+    fake.handler = handler
+    monkeypatch.setattr(nvr_write, "_client", fake.client)
+    from smplwise.routers import cameras as cameras_router
+
+    monkeypatch.setattr(cameras_router, "ZONES", lambda _s, _ch: {"motion": None, "privacy_mask": None, "intrusion": None, "line_crossing": None, "unsupported": {}})
+    nvr_write._MOTION_CAPS.clear()
+    assert nvr_write.snap_sensitivity(65, {"min": 0, "max": 100, "step": 20}) == 60 and nvr_write.snap_sensitivity(71, {"min": 0, "max": 100, "step": 20}) == 80
+    assert nvr_write.snap_sensitivity(130, {"min": 0, "max": 100, "step": 20}) == 100
+    app = create_app(settings)
+    with TestClient(app) as c:
+        cam = c.post("/api/v1/cameras", json={"channel": 1, "alias": "לובי"}).json()
+        role = c.post("/api/v1/access/roles", json={"name": "עורך זיהוי", "description": "", "permissions": ["map.read", "video.live"], "sensitive": ["nvr.config.detection"]}).json()
+        bind(c, settings, "dan", role["id"], "installation", "*")
+        h = as_user("dan")
+        z = c.get(f"/api/v1/cameras/{cam['id']}/zones", headers=h).json()
+        assert z["can_edit_motion"] is True and z["sensitivity_caps"] == {"min": 0, "max": 100, "step": 20}
+        r = c.put(f"/api/v1/cameras/{cam['id']}/motion", json={"sensitivity": 65}, headers=h)
+        assert r.status_code == 200 and r.json()["sensitivity_written"] == 60 and r.json()["status"] == "unchanged", r.text
+        r = c.put(f"/api/v1/cameras/{cam['id']}/motion", json={"sensitivity": 71}, headers=h)
+        assert r.status_code == 200 and r.json()["sensitivity_written"] == 80 and "<sensitivityLevel>80</sensitivityLevel>" in fake.docs["/ISAPI/System/Video/inputs/channels/1/motionDetection"]
+        ignore["on"] = True
+        r = c.put(f"/api/v1/cameras/{cam['id']}/motion", json={"sensitivity": 40}, headers=h)
+        assert r.status_code == 409 and r.json()["code"] == "nvr_no_effect", r.text
+        changes = c.get("/api/v1/nvr/changes", headers=h).json()["changes"]
+        assert changes[0]["status"] == "no_effect"
+

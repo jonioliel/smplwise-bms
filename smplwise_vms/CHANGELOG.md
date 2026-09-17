@@ -1,5 +1,15 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.65 (pilot) — B2: motion-detection zones and sensitivity written to the NVR
+- Camera screen › "אזורי זיהוי ומסכות": with the sensitive permission `nvr.config.detection` (custom role) the
+  motion grid becomes editable - paint cells with a click or a drag, "בחר הכל" / "נקה", sensitivity in the device's
+  own steps (the lab NVR accepts 0, 20, … 100; a value in between is snapped, never silently ignored), the
+  enabled flag - and "שמור ל־NVR" shows the difference (+/− cells, old → new sensitivity) before one recorded,
+  reversible write. `PUT /cameras/{id}/motion`; masks and smart rules stay read-only for now.
+- Write framework: a write the device answered OK but did not keep is reported as `no_effect` (409) and logged,
+  instead of counting as applied; the change log is readable by whoever holds any NVR-write permission.
+- Verified on the owner's NVR: sensitivity 60 → 80 written and rolled back, the grid untouched.
+
 ## 0.1.64 (pilot) — first write to the NVR: "Notify Surveillance Center" from the VMS
 - Foundation for the owner-approved NVR writes: every change is GET → PUT → GET-verify, kept with the document
   before and after (`nvr_changes`), audited (`nvr.write`, `nvr.rollback`) and reversible from the connections page.

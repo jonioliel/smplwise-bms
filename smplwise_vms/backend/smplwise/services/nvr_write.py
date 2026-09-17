@@ -50,6 +50,10 @@ def with_center(xml: str, on: bool) -> str:
     return re.sub(r"<EventTriggerNotification>\s*<id>center</id>.*?</EventTriggerNotification>\s*", "", xml, count=1, flags=re.S)
 
 
+def _normalize(xml: str) -> str:
+    return re.sub(r"\s+", "", xml)
+
+
 def response_status(xml: str) -> tuple[int | None, str | None]:
     code = re.search(r"<statusCode>(\d+)</statusCode>", xml)
     sub = re.search(r"<subStatusCode>(.*?)</subStatusCode>", xml)
@@ -126,6 +130,11 @@ def apply_change(settings: Settings, conn: sqlite3.Connection, principal: Any, *
     finally:
         if own:
             c.close()
+    if _normalize(verify) == _normalize(before):
+        # the device answered OK but kept its old document (e.g. a sensitivity outside the values it accepts)
+        rec = _record(conn, principal, kind=kind, permission=permission, target=target, path=path, before=before, after=verify, status="no_effect", note=note)
+        audit(conn, actor=principal, action="nvr.write", decision="denied", resource_type="nvr", resource_id=target, reason="no_effect", request_id=request_id, details={"kind": kind, "path": path, "change_id": rec["id"]})
+        raise ApiError(409, "nvr_no_effect", "ה־NVR אישר את הכתיבה אבל לא שינה את ההגדרה (ערך מחוץ לטווח שהמכשיר מקבל?).", details={"path": path, "change_id": rec["id"]})
     rec = _record(conn, principal, kind=kind, permission=permission, target=target, path=path, before=before, after=verify, status="applied", note=note)
     audit(conn, actor=principal, action="nvr.write", decision="allowed", resource_type="nvr", resource_id=target, request_id=request_id,
           details={"kind": kind, "path": path, "change_id": rec["id"], "permission": permission, "note": note})
@@ -153,6 +162,85 @@ def rollback(settings: Settings, conn: sqlite3.Connection, principal: Any, chang
     audit(conn, actor=principal, action="nvr.rollback", decision="allowed", resource_type="nvr", resource_id=orig["target"], request_id=request_id,
           details={"kind": orig["kind"], "path": orig["path"], "change_id": rec["id"], "rollback_of": change_id})
     return rec
+
+
+# ---------------------------------------------------------------- B2: motion detection grid + sensitivity
+
+def motion_path(channel: int) -> str:
+    return f"/ISAPI/System/Video/inputs/channels/{channel}/motionDetection"
+
+
+_MOTION_CAPS: dict[int, dict[str, int]] = {}
+
+
+def motion_capabilities(settings: Settings, channel: int, *, client: httpx.Client | None = None) -> dict[str, int]:
+    """min / max / step of the sensitivity as the device reports them (cached per process); defaults 0 / 100 / 1."""
+    if channel in _MOTION_CAPS:
+        return _MOTION_CAPS[channel]
+    own = client is None
+    c = client or _client(settings)
+    try:
+        status, text = _probe(c, motion_path(channel) + "/capabilities")
+    finally:
+        if own:
+            c.close()
+    caps = {"min": 0, "max": 100, "step": 1}
+    if status == 200:
+        m = re.search(r"<sensitivityLevel([^>]*)>", text)
+        if m:
+            for key in ("min", "max", "step"):
+                v = re.search(rf'{key}="(\d+)"', m.group(1))
+                if v:
+                    caps[key] = int(v.group(1))
+    _MOTION_CAPS[channel] = caps
+    return caps
+
+
+def snap_sensitivity(value: int, caps: dict[str, int]) -> int:
+    """The nearest value the device accepts (its min / max / step) - a value in between is silently ignored by the NVR."""
+    step = max(1, caps.get("step", 1))
+    lo, hi = caps.get("min", 0), caps.get("max", 100)
+    snapped = lo + round((value - lo) / step) * step
+    return max(lo, min(hi, snapped))
+
+
+def bits_to_hex(cells: list[list[bool]], cols: int) -> str:
+    """Inverse of nvr._hex_bits: each row packed MSB-first into ceil(cols/8) bytes, rows concatenated as hex."""
+    row_bytes = (cols + 7) // 8
+    width = row_bytes * 8
+    out = []
+    for row in cells:
+        value = 0
+        for c in range(cols):
+            if c < len(row) and row[c]:
+                value |= 1 << (width - 1 - c)
+        out.append(format(value, f"0{row_bytes * 2}x"))
+    return "".join(out)
+
+
+def motion_document(xml: str, *, cells: list[list[bool]] | None, sensitivity: int | None, enabled: bool | None) -> str:
+    """The motionDetection document with a new grid / sensitivity / enabled flag; every other setting stays as it is.
+    The grid must match the device's granularity (rows x columns) - anything else is refused before any write."""
+    rows_m = re.search(r"<rowGranularity>(\d+)</rowGranularity>", xml)
+    cols_m = re.search(r"<columnGranularity>(\d+)</columnGranularity>", xml)
+    if cells is not None:
+        if not rows_m or not cols_m:
+            raise ApiError(409, "nvr_not_supported", "המצלמה אינה מדווחת רשת זיהוי (regionType אינו grid).")
+        rows, cols = int(rows_m.group(1)), int(cols_m.group(1))
+        if len(cells) != rows or any(len(r) != cols for r in cells):
+            raise ApiError(422, "validation", "הרשת אינה תואמת את המצלמה.", details={"rows": rows, "cols": cols, "got_rows": len(cells), "got_cols": len(cells[0]) if cells else 0})
+        if not re.search(r"<gridMap>[0-9a-fA-F]*</gridMap>", xml):
+            raise ApiError(409, "nvr_not_supported", "במסמך אין gridMap לעריכה.")
+        xml = re.sub(r"<gridMap>[0-9a-fA-F]*</gridMap>", f"<gridMap>{bits_to_hex(cells, cols)}</gridMap>", xml, count=1)
+    if sensitivity is not None:
+        if not 0 <= sensitivity <= 100:
+            raise ApiError(422, "validation", "רגישות בין 0 ל־100.")
+        if not re.search(r"<sensitivityLevel>\d+</sensitivityLevel>", xml):
+            raise ApiError(409, "nvr_not_supported", "במסמך אין sensitivityLevel לעריכה.")
+        xml = re.sub(r"<sensitivityLevel>\d+</sensitivityLevel>", f"<sensitivityLevel>{sensitivity}</sensitivityLevel>", xml, count=1)
+    if enabled is not None:
+        xml = re.sub(r"(<MotionDetection[^>]*>\s*)<enabled>(true|false)</enabled>", lambda m: f"{m.group(1)}<enabled>{'true' if enabled else 'false'}</enabled>", xml, count=1)
+    return xml
 
 
 # ---------------------------------------------------------------- B1: Notify Surveillance Center

@@ -158,6 +158,17 @@ _ZONES_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 ZONES_TTL_S = 60
 
 
+def _motion_caps(request: Request, conn: sqlite3.Connection, channel: int) -> dict[str, int] | None:
+    """The sensitivity min / max / step the device reports (only for editors; one cached GET per channel)."""
+    from ..services import nvr_write
+
+    try:
+        with unlocked(conn):
+            return nvr_write.motion_capabilities(settings_of(request), channel)
+    except ApiError:
+        return None
+
+
 @router.get("/cameras/{camera_id}/zones")
 def detection_zones(camera_id: str, request: Request, refresh: bool = False, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The camera's detection configuration as the NVR holds it — motion grid, privacy mask, intrusion regions,
@@ -182,7 +193,9 @@ def detection_zones(camera_id: str, request: Request, refresh: bool = False, pri
         "channel": int(cam["channel"]),
         "source": "nvr",
         "read_only": True,
-        "write_reason": "pilot: writing zones or masks to the NVR needs an explicit approval and a verified write-back",
+        "write_reason": "editing the motion grid needs the sensitive permission nvr.config.detection (custom role); masks and smart rules are still read-only",
+        "can_edit_motion": authorize(conn, principal, "nvr.config.detection", INSTALLATION).allowed,
+        "sensitivity_caps": _motion_caps(request, conn, int(cam["channel"])) if authorize(conn, principal, "nvr.config.detection", INSTALLATION).allowed else None,
         "fetched_at": dt.datetime.fromtimestamp(fetched_at, dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "cached": bool(hit) and not refresh and now - hit[0] < ZONES_TTL_S,
         **data,

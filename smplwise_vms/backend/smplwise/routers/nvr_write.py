@@ -22,9 +22,15 @@ def _rid(request: Request) -> str | None:
     return getattr(request.state, "correlation_id", None)
 
 
+NVR_PERMISSIONS = ("nvr.config.events", "nvr.config.detection", "nvr.config.privacy", "nvr.config.smart", "nvr.config.schedule", "nvr.config.stream",
+                   "nvr.config.osd", "nvr.config.time", "nvr.record.manual", "nvr.record.lock", "nvr.alarm_output", "nvr.storage.test", "nvr.system.reboot")
+
+
 def _require_read(conn: sqlite3.Connection, principal: Principal) -> None:
-    """The state and the log are readable by system administrators and by whoever may write."""
+    """The state and the log are readable by system administrators and by whoever may write anything to the NVR."""
     if authorize(conn, principal, "system.configure", INSTALLATION).allowed:
+        return
+    if any(authorize(conn, principal, perm, INSTALLATION).allowed for perm in NVR_PERMISSIONS):
         return
     require(conn, principal, NOTIFY_PERMISSION, INSTALLATION)
 
@@ -101,6 +107,41 @@ def set_notify(body: NotifyIn, request: Request, principal: Principal = Depends(
         client.close()
     return {"results": results, "applied": sum(1 for r in results if r["status"] == "applied"), "unchanged": sum(1 for r in results if r["status"] == "unchanged"),
             "skipped": sum(1 for r in results if r["status"] == "skipped"), "failed": sum(1 for r in results if r["status"] == "failed")}
+
+
+class MotionIn(BaseModel):
+    cells: list[list[bool]] | None = Field(default=None, max_length=64)
+    sensitivity: int | None = Field(default=None, ge=0, le=100)
+    enabled: bool | None = None
+
+
+@router.put("/cameras/{camera_id}/motion")
+def set_motion(camera_id: str, body: MotionIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """B2: write the camera's motion-detection grid, sensitivity and/or enabled flag to the NVR (one recorded,
+    reversible change). Needs `nvr.config.detection` and the camera in the caller's live scope."""
+    from ..services.access import require_camera
+    from .cameras import _ZONES_CACHE
+
+    if body.cells is None and body.sensitivity is None and body.enabled is None:
+        raise ApiError(422, "validation", "אין מה לשנות.")
+    cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
+    if not cam or cam["channel"] is None:
+        raise ApiError(404, "not_found", "המצלמה לא נמצאה.")
+    require(conn, principal, "nvr.config.detection", INSTALLATION)
+    require_camera(conn, principal, camera_id, "video.live")
+    ch = int(cam["channel"])
+    sensitivity = body.sensitivity
+    if sensitivity is not None:
+        with unlocked(conn):
+            sensitivity = nvr_write.snap_sensitivity(sensitivity, nvr_write.motion_capabilities(settings_of(request), ch))
+    parts = [p for p, v in (("רשת", body.cells), (f"רגישות {sensitivity}", sensitivity), ("הפעלה", body.enabled)) if v is not None]
+    with unlocked(conn):
+        rec = nvr_write.apply_change(settings_of(request), conn, principal, kind="detection", permission="nvr.config.detection", target=f"motion-{ch}",
+                                     path=nvr_write.motion_path(ch), mutate=lambda x: nvr_write.motion_document(x, cells=body.cells, sensitivity=sensitivity, enabled=body.enabled),
+                                     note="זיהוי תנועה: " + " + ".join(parts), request_id=_rid(request))
+    _ZONES_CACHE.pop(camera_id, None)
+    rec["sensitivity_written"] = sensitivity
+    return rec
 
 
 @router.get("/nvr/changes")
