@@ -671,6 +671,8 @@ export class ExploreFloorMap extends LitElement {
         y: a.position.y,
         rotation: a.rotation_degrees,
         fov: a.field_of_view_degrees ?? undefined,
+        radius: a.coverage_radius ?? undefined,
+        polygon: a.coverage_polygon ? a.coverage_polygon.map(([x, y]) => ({ x, y })) : undefined,
         state: a.resource_type === 'camera' ? cameraState(a) : stale ? 'stale' : this.entityTone(a.entity),
       }));
   }

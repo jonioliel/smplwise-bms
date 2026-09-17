@@ -58,8 +58,8 @@ test.describe('plan editor with the mouse (SW A)', () => {
     expect(moved.y).toBeGreaterThan(cameraAnchor.position.y);
 
     // 2) the selected camera shows handles; dragging the direction handle changes the bearing
-    await expect(canvas.locator('circle.handle')).toHaveCount(1);
-    const handle = await canvas.locator('circle.handle').boundingBox();
+    await expect(canvas.locator('circle.handle:not(.range)')).toHaveCount(1); // the range handle (R2) is a second circle
+    const handle = await canvas.locator('circle.handle:not(.range)').boundingBox();
     expect(handle).toBeTruthy();
     const hx = handle!.x + handle!.width / 2;
     const hy = handle!.y + handle!.height / 2;

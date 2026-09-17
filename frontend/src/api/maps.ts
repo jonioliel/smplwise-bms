@@ -72,6 +72,8 @@ function demoBundle(floorId: string): MapBundle {
       position: { x: c.x, y: c.y },
       rotation_degrees: c.rotation,
       field_of_view_degrees: c.fov,
+      coverage_radius: null,
+      coverage_polygon: null,
       layer_id: 'cameras',
       label: c.name,
       revision: 1,
@@ -165,7 +167,7 @@ export const deleteVersion = (versionId: string) => del(`plan-versions/${version
 
 export const createAnchor = (floorId: string, body: { resource_type: 'camera' | 'ha_entity'; resource_id: string; x: number; y: number; rotation_degrees?: number; field_of_view_degrees?: number | null; layer_id?: string; label?: string | null }) =>
   post<Anchor>(`floors/${floorId}/anchors`, body);
-export const updateAnchor = (id: string, body: { revision: number; x?: number; y?: number; rotation_degrees?: number; field_of_view_degrees?: number | null; label?: string | null }) =>
+export const updateAnchor = (id: string, body: { revision: number; x?: number; y?: number; rotation_degrees?: number; field_of_view_degrees?: number | null; label?: string | null; coverage_radius?: number | null; coverage_polygon?: [number, number][] | null }) =>
   patch<Anchor>(`map-anchors/${id}`, body);
 export const deleteAnchor = (id: string) => del(`map-anchors/${id}`);
 

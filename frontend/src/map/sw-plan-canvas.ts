@@ -14,6 +14,10 @@ export interface PlanMarker {
   y: number;
   rotation?: number; // degrees, cameras only
   fov?: number; // degrees, cameras only
+  /** Manual coverage (R2): cone radius as a fraction of the plan width (undefined = the default illustration). */
+  radius?: number;
+  /** Manual coverage (R2): a free polygon in normalized plan space; drawn instead of the cone. */
+  polygon?: { x: number; y: number }[];
   state: StateKind;
 }
 
@@ -128,6 +132,8 @@ export class SwPlanCanvas extends LitElement {
   @state() private hoverId: string | null = null;
   @state() private dragging: { id: string; x: number; y: number } | null = null;
   @state() private orienting: { id: string; rotation: number; fov: number } | null = null;
+  /** Live preview while the range handle (cone radius) or a polygon vertex is dragged (R2). */
+  @state() private shaping: { id: string; radius?: number; polygon?: { x: number; y: number }[] } | null = null;
   @state() private zoneDraft: { id: string; polygon: { x: number; y: number }[] } | null = null;
   private lastVertexPress: { id: string; index: number; at: number } | null = null;
   @query('.viewport') private viewport!: HTMLDivElement;
@@ -184,6 +190,17 @@ export class SwPlanCanvas extends LitElement {
     }
     .handle:active {
       cursor: grabbing;
+    }
+    .handle.mid {
+      fill: var(--sw-accent);
+      stroke: var(--sw-surface);
+      opacity: 0.8;
+      cursor: copy;
+    }
+    .handle.range {
+      fill: var(--sw-accent);
+      stroke: #fff;
+      cursor: ns-resize;
     }
     .handle-line {
       stroke: var(--sw-accent);
@@ -485,12 +502,12 @@ export class SwPlanCanvas extends LitElement {
       const p = this.toPlan(ev.clientX - rect.left, ev.clientY - rect.top);
       const moved = Math.abs(p.x - m.x) > 0.0005 || Math.abs(p.y - m.y) > 0.0005;
       this.dragging = null;
-      if (moved) {
-        // pointer capture delivers the trailing click to the viewport: swallow it so the pin stays selected
-        this.dragMoved = true;
-        setTimeout(() => (this.dragMoved = false), 0);
-        this.dispatchEvent(new CustomEvent('marker-move', { detail: { id: m.id, x: p.x, y: p.y }, bubbles: true, composed: true }));
-      } else this.select(m, ev);
+      // pointer capture delivers the trailing click to the viewport: swallow it so the pin stays selected
+      // (a plain press selects; without this the background click deselected it right away - R2 evidence)
+      if (moved) this.dispatchEvent(new CustomEvent('marker-move', { detail: { id: m.id, x: p.x, y: p.y }, bubbles: true, composed: true }));
+      else this.select(m, ev);
+      this.dragMoved = true;
+      setTimeout(() => (this.dragMoved = false), 0);
     };
     this.viewport.addEventListener('pointermove', move);
     this.viewport.addEventListener('pointerup', up);
@@ -764,8 +781,128 @@ export class SwPlanCanvas extends LitElement {
     this.viewport.addEventListener('pointercancel', up);
   };
 
+  /** Cone radius in plan pixels for a marker (its own fraction of the plan width, else the default illustration). */
+  private radiusOf(m: PlanMarker) {
+    const live = this.shaping?.id === m.id && this.shaping.radius !== undefined ? this.shaping.radius : m.radius;
+    return live ? Math.max(12, live * this.planWidth) : this.coneRadius;
+  }
+
+  /** Drag the cone's range handle: the radius follows the pointer's distance from the pin; emits `marker-coverage` {id, radius}. */
+  private onRangePointerDown = (m: PlanMarker, e: PointerEvent) => {
+    if (!this.editable || e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const rect0 = this.getBoundingClientRect();
+    const start = m.radius ?? this.coneRadius / this.planWidth;
+    this.shaping = { id: m.id, radius: start };
+    this.viewport.setPointerCapture(e.pointerId);
+    const compute = (ev: PointerEvent) => {
+      const c = this.toScreen(m.x, m.y);
+      const d = Math.hypot(ev.clientX - rect0.left - c.x, ev.clientY - rect0.top - c.y) / this.scale;
+      return +Math.max(0.02, Math.min(1, d / this.planWidth)).toFixed(4);
+    };
+    const move = (ev: PointerEvent) => (this.shaping = { id: m.id, radius: compute(ev) });
+    const up = (ev: PointerEvent) => {
+      this.viewport.removeEventListener('pointermove', move);
+      this.viewport.removeEventListener('pointerup', up);
+      this.viewport.removeEventListener('pointercancel', up);
+      const radius = compute(ev);
+      this.shaping = null;
+      this.dragMoved = true;
+      setTimeout(() => (this.dragMoved = false), 0);
+      if (radius !== start) this.dispatchEvent(new CustomEvent('marker-coverage', { detail: { id: m.id, radius }, bubbles: true, composed: true }));
+    };
+    this.viewport.addEventListener('pointermove', move);
+    this.viewport.addEventListener('pointerup', up);
+    this.viewport.addEventListener('pointercancel', up);
+  };
+
+  /** Drag a vertex of the coverage polygon (normalized plan space); emits `marker-coverage` {id, polygon}. */
+  private onCoverageVertexDown = (m: PlanMarker, index: number, e: PointerEvent) => {
+    if (!this.editable || e.button !== 0 || !m.polygon) return;
+    e.stopPropagation();
+    e.preventDefault();
+    // a second press on the same vertex within 450 ms removes it (pointer capture keeps dblclick from reaching the circle)
+    const now = Date.now();
+    if (this.lastVertexPress && this.lastVertexPress.id === m.id && this.lastVertexPress.index === index && now - this.lastVertexPress.at < 450) {
+      this.lastVertexPress = null;
+      this.editPolygon(m, { remove: index });
+      return;
+    }
+    this.lastVertexPress = { id: m.id, index, at: now };
+    const rect0 = this.getBoundingClientRect();
+    const base = m.polygon.map((p) => ({ ...p }));
+    this.shaping = { id: m.id, polygon: base };
+    this.viewport.setPointerCapture(e.pointerId);
+    let moved = false;
+    const compute = (ev: PointerEvent) => {
+      const p = this.toPlan(ev.clientX - rect0.left, ev.clientY - rect0.top);
+      const pts = base.map((q) => ({ ...q }));
+      pts[index] = { x: +Math.max(0, Math.min(1, p.x)).toFixed(4), y: +Math.max(0, Math.min(1, p.y)).toFixed(4) };
+      return pts;
+    };
+    const move = (ev: PointerEvent) => {
+      moved = true;
+      this.shaping = { id: m.id, polygon: compute(ev) };
+    };
+    const up = (ev: PointerEvent) => {
+      this.viewport.removeEventListener('pointermove', move);
+      this.viewport.removeEventListener('pointerup', up);
+      this.viewport.removeEventListener('pointercancel', up);
+      const polygon = compute(ev);
+      this.shaping = null;
+      this.dragMoved = true;
+      setTimeout(() => (this.dragMoved = false), 0);
+      if (moved) this.dispatchEvent(new CustomEvent('marker-coverage', { detail: { id: m.id, polygon }, bubbles: true, composed: true }));
+    };
+    this.viewport.addEventListener('pointermove', move);
+    this.viewport.addEventListener('pointerup', up);
+    this.viewport.addEventListener('pointercancel', up);
+  };
+
+  /** A midpoint handle adds a vertex there; a double click on a vertex removes it (never below 3). */
+  private editPolygon(m: PlanMarker, action: { insertAfter: number } | { remove: number }) {
+    if (!m.polygon) return;
+    let pts = m.polygon.map((p) => ({ ...p }));
+    if ('remove' in action) {
+      if (pts.length <= 3) return;
+      pts = pts.filter((_, i) => i !== action.remove);
+    } else {
+      const a = pts[action.insertAfter];
+      const b = pts[(action.insertAfter + 1) % pts.length];
+      if (pts.length >= 40) return;
+      pts.splice(action.insertAfter + 1, 0, { x: +((a.x + b.x) / 2).toFixed(4), y: +((a.y + b.y) / 2).toFixed(4) });
+    }
+    this.dispatchEvent(new CustomEvent('marker-coverage', { detail: { id: m.id, polygon: pts }, bubbles: true, composed: true }));
+  }
+
+  /** The polygon relative to the marker's own translate (plan pixels). */
+  private polygonPath(m: PlanMarker) {
+    const pts = this.shaping?.id === m.id && this.shaping.polygon ? this.shaping.polygon : m.polygon;
+    if (!pts || pts.length < 3) return null;
+    return pts.map((p) => `${((p.x - m.x) * this.planWidth).toFixed(1)},${((p.y - m.y) * this.planHeight).toFixed(1)}`).join(' ');
+  }
+
+  private renderPolygonHandles(m: PlanMarker) {
+    const pts = this.shaping?.id === m.id && this.shaping.polygon ? this.shaping.polygon : m.polygon;
+    if (!pts) return nothing;
+    const inv = 1 / this.scale;
+    const rel = (p: { x: number; y: number }) => ({ x: (p.x - m.x) * this.planWidth, y: (p.y - m.y) * this.planHeight });
+    return svg`
+      ${pts.map((p, i) => {
+        const q = rel(p);
+        const n = rel(pts[(i + 1) % pts.length]);
+        return svg`
+          <circle class="handle mid" cx=${((q.x + n.x) / 2).toFixed(1)} cy=${((q.y + n.y) / 2).toFixed(1)} r=${(4.5 * inv).toFixed(1)} data-cov-mid=${i} role="button" aria-label="הוסף נקודה"
+            @pointerdown=${(e: PointerEvent) => { e.stopPropagation(); e.preventDefault(); }} @click=${(e: Event) => { e.stopPropagation(); this.editPolygon(m, { insertAfter: i }); }} />
+          <circle class="handle" cx=${q.x.toFixed(1)} cy=${q.y.toFixed(1)} r=${(6.5 * inv).toFixed(1)} data-cov-vertex=${i} role="slider" aria-label="נקודת כיסוי"
+            @pointerdown=${(e: PointerEvent) => this.onCoverageVertexDown(m, i, e)} @dblclick=${(e: Event) => { e.stopPropagation(); this.editPolygon(m, { remove: i }); }} />`;
+      })}
+    `;
+  }
+
   private renderHandles(m: PlanMarker, rotation: number, fov: number) {
-    const r = this.coneRadius;
+    const r = this.radiusOf(m);
     const inv = 1 / this.scale;
     const pt = (bearing: number, radius: number) => ({ x: Math.cos(SwPlanCanvas.rad(bearing)) * radius, y: Math.sin(SwPlanCanvas.rad(bearing)) * radius });
     const left = pt(rotation - fov / 2, r);
@@ -777,6 +914,7 @@ export class SwPlanCanvas extends LitElement {
       <rect class="handle" x=${(left.x - hs).toFixed(1)} y=${(left.y - hs).toFixed(1)} width=${(hs * 2).toFixed(1)} height=${(hs * 2).toFixed(1)} rx=${(1.5 * inv).toFixed(1)} role="slider" aria-label="קצה שדה ראייה" @pointerdown=${(e: PointerEvent) => this.onHandlePointerDown(m, 'left', e)} @click=${(e: Event) => e.stopPropagation()} />
       <rect class="handle" x=${(right.x - hs).toFixed(1)} y=${(right.y - hs).toFixed(1)} width=${(hs * 2).toFixed(1)} height=${(hs * 2).toFixed(1)} rx=${(1.5 * inv).toFixed(1)} role="slider" aria-label="קצה שדה ראייה" @pointerdown=${(e: PointerEvent) => this.onHandlePointerDown(m, 'right', e)} @click=${(e: Event) => e.stopPropagation()} />
       <circle class="handle" cx=${dir.x.toFixed(1)} cy=${dir.y.toFixed(1)} r=${(8 * inv).toFixed(1)} role="slider" aria-label="כיוון מבט" @pointerdown=${(e: PointerEvent) => this.onHandlePointerDown(m, 'dir', e)} @click=${(e: Event) => e.stopPropagation()} />
+      <circle class="handle range" cx=${pt(rotation, r).x.toFixed(1)} cy=${pt(rotation, r).y.toFixed(1)} r=${(6.5 * inv).toFixed(1)} role="slider" aria-label="טווח כיסוי" data-cov-range @pointerdown=${(e: PointerEvent) => this.onRangePointerDown(m, e)} />
     `;
   }
 
@@ -820,9 +958,11 @@ export class SwPlanCanvas extends LitElement {
          @click=${(e: Event) => (this.editable ? e.stopPropagation() : this.select(m, e))}
          @keydown=${(e: KeyboardEvent) => (e.key === 'Enter' || e.key === ' ') && this.select(m, e)}>
         ${isCamera && fov && m.state !== 'forbidden'
-          ? svg`<path class="fov ${m.state === 'offline' ? 'off' : ''}" d=${this.fovPath(rotation, fov, this.coneRadius)} />`
+          ? (() => { const poly = this.polygonPath(m); return poly
+            ? svg`<polygon class="fov ${m.state === 'offline' ? 'off' : ''}" data-cov-polygon points=${poly} />`
+            : svg`<path class="fov ${m.state === 'offline' ? 'off' : ''}" d=${this.fovPath(rotation, fov, this.radiusOf(m))} />`; })()
           : nothing}
-        ${isCamera && fov && this.editable && selected && !this.dragging ? this.renderHandles(m, rotation, fov) : nothing}
+        ${isCamera && fov && this.editable && selected && !this.dragging ? (this.polygonPath(m) ? this.renderPolygonHandles(m) : this.renderHandles(m, rotation, fov)) : nothing}
         <g transform="scale(${inv})">
           <circle class="halo" r=${r + 9} />
           <circle class="pin" r=${r} fill=${fill} />

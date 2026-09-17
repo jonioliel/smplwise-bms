@@ -540,6 +540,8 @@ export class ExplorePlanEditor extends LitElement {
         y: a.position.y,
         rotation: a.rotation_degrees,
         fov: a.field_of_view_degrees ?? undefined,
+        radius: a.coverage_radius ?? undefined,
+        polygon: a.coverage_polygon ? a.coverage_polygon.map(([x, y]) => ({ x, y })) : undefined,
         state: a.resource_type === 'camera' ? (this.bundle?.source === 'demo' ? 'live' : cameraState(a)) : 'neutral',
       }));
   }
@@ -802,7 +804,8 @@ export class ExplorePlanEditor extends LitElement {
         const a = this.anchors.find((x) => x.id === id);
         if (!a) continue;
         try {
-          const saved = await updateAnchor(id, { revision: a.revision, x: a.position.x, y: a.position.y, rotation_degrees: a.rotation_degrees, field_of_view_degrees: a.field_of_view_degrees, label: a.label });
+          const saved = await updateAnchor(id, { revision: a.revision, x: a.position.x, y: a.position.y, rotation_degrees: a.rotation_degrees, field_of_view_degrees: a.field_of_view_degrees, label: a.label,
+            coverage_radius: a.coverage_radius ?? null, coverage_polygon: a.coverage_polygon ?? null });
           this.anchors = this.anchors.map((x) => (x.id === id ? { ...x, revision: saved.revision } : x));
         } catch (err) {
           if (err instanceof ApiError && err.code === 'stale_revision') conflict = true;
@@ -1009,6 +1012,38 @@ export class ExplorePlanEditor extends LitElement {
 
   // ---- panels ----
 
+  /** R2: the coverage area - a cone radius (fraction of the plan width, dragged from the range handle or typed) or a
+   * free polygon for special cameras (fisheye, panoramic): vertices dragged, added on midpoints, removed with a double click. */
+  private renderCoverage(a: Anchor) {
+    const poly = a.coverage_polygon;
+    const radius = a.coverage_radius ?? 0;
+    const pct = Math.round((radius || 0.1) * 100);
+    const toPolygon = () => {
+      // start from the cone as it is drawn: the pin plus the arc, sampled every ~15°
+      const fov = a.field_of_view_degrees ?? 90;
+      const r = radius || 0.1;
+      const ar = this.bundle && this.bundle.height ? this.bundle.width / this.bundle.height : 1;
+      const pts: [number, number][] = [[a.position.x, a.position.y]];
+      const steps = Math.max(3, Math.round(fov / 15));
+      for (let i = 0; i <= steps; i++) {
+        const b = ((a.rotation_degrees - fov / 2 + (fov * i) / steps - 90) * Math.PI) / 180;
+        pts.push([+Math.max(0, Math.min(1, a.position.x + Math.cos(b) * r)).toFixed(4), +Math.max(0, Math.min(1, a.position.y + Math.sin(b) * r * ar)).toFixed(4)]);
+      }
+      this.apply(a.id, { coverage_polygon: pts });
+    };
+    return html`<div class="row" data-coverage style="flex-direction:column;align-items:stretch;gap:6px">
+      <span class="lbl">שטח כיסוי${poly ? ' · מצולע ידני' : ''}<span class="muted">${poly ? `${poly.length} נקודות · גרירה מזיזה, לחיצה על נקודת אמצע מוסיפה, לחיצה כפולה מסירה` : 'טווח הקשת: גרירת הידית בקצה הקשת, או אחוז מרוחב התוכנית'}</span></span>
+      ${poly
+        ? html`<div style="display:flex;gap:8px;flex-wrap:wrap"><sw-button size="sm" icon="undo" data-coverage-cone @click=${() => this.apply(a.id, { coverage_polygon: null })}>חזרה לקשת</sw-button></div>`
+        : html`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <sw-field label="טווח (% מרוחב התוכנית)" style="inline-size:150px"><input type="number" step="1" min="2" max="100" data-ltr data-coverage-radius .value=${String(pct)} @change=${(e: Event) => this.apply(a.id, { coverage_radius: Math.min(1, Math.max(0.02, Number((e.target as HTMLInputElement).value) / 100)) })} /></sw-field>
+            <input type="range" min="2" max="100" step="1" .value=${String(pct)} aria-label="טווח כיסוי" style="flex:1" @input=${(e: Event) => this.apply(a.id, { coverage_radius: Number((e.target as HTMLInputElement).value) / 100 })} />
+            ${radius ? html`<sw-button size="sm" variant="ghost" @click=${() => this.apply(a.id, { coverage_radius: null })}>ברירת מחדל</sw-button>` : nothing}
+            <sw-button size="sm" icon="edit" data-coverage-polygon @click=${toPolygon}>כיסוי ידני (מצולע)</sw-button>
+          </div>`}
+    </div>`;
+  }
+
   private renderCameraInspector(a: Anchor) {
     const cam = a.camera;
     const fov = a.field_of_view_degrees ?? 0;
@@ -1025,6 +1060,7 @@ export class ExplorePlanEditor extends LitElement {
         <sw-field label="מיקום Y (%)"><input type="number" step="0.1" min="0" max="100" data-ltr .value=${(a.position.y * 100).toFixed(1)} @change=${(e: Event) => this.apply(a.id, { position: { x: a.position.x, y: Math.min(1, Math.max(0, Number((e.target as HTMLInputElement).value) / 100)) } })} /></sw-field>
       </div>
       <sw-field label="תווית (אופציונלי)"><input .value=${a.label ?? ''} @change=${(e: Event) => this.apply(a.id, { label: (e.target as HTMLInputElement).value || null })} /></sw-field>
+      ${fov ? this.renderCoverage(a) : nothing}
       <div class="row"><span class="lbl">הצג כיסוי משוער<span class="muted">זווית לתכנון, לא מדידת כיסוי בפועל</span></span><sw-toggle ?checked=${!!fov} label=${fov ? 'מוצג' : 'מוסתר'} @click=${() => this.apply(a.id, { field_of_view_degrees: fov ? null : 90 })}></sw-toggle></div>
       <div class="row"><span class="lbl">0° = למעלה, עם כיוון השעון<span class="muted">שינוי כיוון במפה אינו פקודת PTZ למצלמה</span></span></div>
       <div class="note" style="margin-block-start:6px">revision ${a.revision}${this.dirty.has(a.id) ? ' · שינויים לא שמורים' : ''} · חצים = הזזה עדינה (Shift = גדולה) · Delete = הסרה</div>
@@ -1248,6 +1284,7 @@ export class ExplorePlanEditor extends LitElement {
                   @marker-select=${(e: CustomEvent<MarkerSelectDetail>) => { if (this.placing || this.drawing) return; this.selectedId = e.detail.id; this.selectedZoneId = null; }}
                   @marker-move=${(e: CustomEvent<{ id: string; x: number; y: number }>) => { this.apply(e.detail.id, { position: { x: +e.detail.x.toFixed(4), y: +e.detail.y.toFixed(4) } }); this.selectedId = e.detail.id; }}
                   @marker-orient=${(e: CustomEvent<{ id: string; rotation: number; fov: number }>) => this.apply(e.detail.id, { rotation_degrees: e.detail.rotation, field_of_view_degrees: e.detail.fov })}
+                  @marker-coverage=${(e: CustomEvent<{ id: string; radius?: number; polygon?: { x: number; y: number }[] }>) => this.apply(e.detail.id, e.detail.polygon ? { coverage_polygon: e.detail.polygon.map((p) => [p.x, p.y] as [number, number]) } : { coverage_radius: e.detail.radius })}
                   @plan-click=${(e: CustomEvent<{ x: number; y: number }>) => (this.drawing ? this.addDraftPoint(e.detail.x, e.detail.y) : this.place(e.detail.x, e.detail.y))}></sw-plan-canvas>
                 ${this.placing ? html`<div class="placing-hint"><span>לחץ על התוכנית כדי להציב את ${this.placing.kind === 'camera' ? this.placing.camera.name : this.placing.entity.name || this.placing.entity.entity_id} · Esc לביטול</span></div>` : nothing}
                 ${this.drawing ? html`<div class="placing-hint"><span>ציור אזור: לחץ להוספת פינות (${this.drawing.length}) · לחיצה על הפינה הראשונה או Enter מסיימים · Esc לביטול</span></div>` : nothing}

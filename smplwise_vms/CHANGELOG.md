@@ -1,5 +1,16 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.69 (pilot) — R2: manual coverage area per camera
+- Plan editor › camera: the coverage cone has a range handle at its tip - drag it to make the covered area larger or
+  smaller (also a "% of the plan width" field and slider; "ברירת מחדל" returns to the illustration radius). For
+  special cameras "כיסוי ידני (מצולע)" turns the cone into a free polygon: drag a vertex, click a midpoint to add one,
+  press a vertex twice to remove it (3 to 40 points), "חזרה לקשת" drops it. Saved with the anchor
+  (`coverage_radius`, `coverage_polygon`, migration 0016); the viewer and the history map draw the manual area
+  instead of the cone (owner test 2.3).
+- Plan editor: a plain click on a pin now keeps it selected (the captured trailing click used to deselect it).
+- Evidence: `tests/test_anchor_coverage.py`, `frontend/tests/evidence-owner-round6.spec.ts` (range drag, polygon
+  editing, save, viewer against the dev backend).
+
 ## 0.1.68 (pilot) — owner round 2: start screen, kiosk exit, wall best fit, playback without scrolling
 - הגדרות › כללי › "מסך פתיחה": the screen the UI opens on when the address carries no route (map / overview / all
   cameras / events / playback; `ui.start_route`). "הסתרת המפה" removes the map area from the navigation for everyone

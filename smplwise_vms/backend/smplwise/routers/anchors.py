@@ -31,7 +31,30 @@ def anchor_row(r: sqlite3.Row) -> dict[str, Any]:
         "resource_id": r["resource_id"], "position": {"x": r["x"], "y": r["y"]}, "rotation_degrees": r["rotation_degrees"],
         "field_of_view_degrees": r["field_of_view_degrees"], "layer_id": r["layer_id"], "label": r["label"], "revision": r["revision"],
         "effective_from": r["effective_from"], "effective_to": r["effective_to"], "updated_at": r["updated_at"],
+        "coverage_radius": r["coverage_radius"], "coverage_polygon": _polygon(r["coverage_polygon"]),
     }
+
+
+def _polygon(raw: str | None) -> list[list[float]] | None:
+    if not raw:
+        return None
+    try:
+        pts = json.loads(raw)
+    except ValueError:
+        return None
+    return pts if isinstance(pts, list) and len(pts) >= 3 else None
+
+
+COVERAGE_KEYS = ("coverage_radius", "coverage_polygon")
+
+
+def _check_polygon(pts: list[list[float]] | None) -> str | None:
+    """JSON text of a valid polygon (3..40 points, each [x, y] within the plan) or None; raises 422 otherwise."""
+    if pts is None:
+        return None
+    if not 3 <= len(pts) <= 40 or any(len(p) != 2 or not all(isinstance(v, (int, float)) and 0 <= v <= 1 for v in p) for p in pts):
+        raise ApiError(422, "validation", "מצולע הכיסוי צריך 3 עד 40 נקודות בתוך התוכנית.")
+    return json.dumps([[round(float(p[0]), 4), round(float(p[1]), 4)] for p in pts])
 
 
 def camera_row(r: sqlite3.Row) -> dict[str, Any]:
@@ -143,6 +166,10 @@ class AnchorIn(BaseModel):
     field_of_view_degrees: float | None = Field(default=None, gt=0, le=360)
     layer_id: str = Field(default="cameras", max_length=40)
     label: str | None = Field(default=None, max_length=120)
+    coverage_radius: float | None = Field(default=None, gt=0, le=1)  # fraction of the plan width
+    coverage_polygon: list[list[float]] | None = None  # [[x, y], ...] normalized
+    coverage_radius: float | None = Field(default=None, gt=0, le=1)  # fraction of the plan width
+    coverage_polygon: list[list[float]] | None = None  # [[x, y], ...] normalized
 
 
 class AnchorPatch(BaseModel):
@@ -153,6 +180,12 @@ class AnchorPatch(BaseModel):
     field_of_view_degrees: float | None = Field(default=None, gt=0, le=360)
     layer_id: str | None = Field(default=None, max_length=40)
     label: str | None = Field(default=None, max_length=120)
+    # coverage: an explicit null clears it (back to the default cone); absent = unchanged
+    coverage_radius: float | None = Field(default=None, gt=0, le=1)
+    coverage_polygon: list[list[float]] | None = None
+    # coverage: an explicit null clears it (back to the default cone); absent = unchanged
+    coverage_radius: float | None = Field(default=None, gt=0, le=1)
+    coverage_polygon: list[list[float]] | None = None
 
 
 @router.get("/floors/{floor_id}/anchors")
@@ -183,9 +216,10 @@ def create_anchor(floor_id: str, body: AnchorIn, request: Request, principal: Pr
         raise conflict("already_placed", "הפריט כבר מוצב על הקומה הזו.", anchor_id=dup["id"])
     aid, now = new_id(), now_iso()
     conn.execute(
-        """INSERT INTO map_anchors(id, floor_id, plan_version_id, resource_type, resource_id, x, y, rotation_degrees, field_of_view_degrees, layer_id, label, revision, effective_from, created_by, updated_by, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)""",
-        (aid, floor_id, version["id"], body.resource_type, body.resource_id, body.x, body.y, body.rotation_degrees, body.field_of_view_degrees, body.layer_id, body.label, now, principal.user_id, principal.user_id, now),
+        """INSERT INTO map_anchors(id, floor_id, plan_version_id, resource_type, resource_id, x, y, rotation_degrees, field_of_view_degrees, layer_id, label, revision, effective_from, created_by, updated_by, updated_at, coverage_radius, coverage_polygon)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)""",
+        (aid, floor_id, version["id"], body.resource_type, body.resource_id, body.x, body.y, body.rotation_degrees, body.field_of_view_degrees, body.layer_id, body.label, now, principal.user_id, principal.user_id, now,
+         body.coverage_radius, _check_polygon(body.coverage_polygon)),
     )
     audit(conn, actor=principal, action="anchor.create", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request),
           details={"anchor_id": aid, "resource": f"{body.resource_type}:{body.resource_id}", "x": body.x, "y": body.y})
@@ -198,7 +232,9 @@ def update_anchor(anchor_id: str, body: AnchorPatch, request: Request, principal
     require(conn, principal, "placement.edit", ("floor", a["floor_id"]))
     if body.revision != a["revision"]:
         raise conflict("stale_revision", "העוגן השתנה בינתיים; טען מחדש ובחר איך למזג.", current_revision=a["revision"], sent_revision=body.revision)
-    fields = {k: v for k, v in body.model_dump().items() if k != "revision" and v is not None}
+    fields = {k: v for k, v in body.model_dump().items() if k != "revision" and (v is not None or (k in COVERAGE_KEYS and k in body.model_fields_set))}
+    if "coverage_polygon" in fields:
+        fields["coverage_polygon"] = _check_polygon(fields["coverage_polygon"])
     before = {k: a[k] for k in fields}
     if fields:
         sets = ", ".join(f"{k} = ?" for k in fields)

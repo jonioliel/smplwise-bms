@@ -120,6 +120,10 @@ export interface Anchor {
   position: { x: number; y: number };
   rotation_degrees: number;
   field_of_view_degrees: number | null;
+  /** Manual coverage (R2): cone radius as a fraction of the plan width; null = the default illustration. */
+  coverage_radius?: number | null;
+  /** Manual coverage (R2): a free polygon [[x, y], ...] normalized to the plan; null = the cone. */
+  coverage_polygon?: [number, number][] | null;
   layer_id: string;
   label: string | null;
   revision: number;
