@@ -19,7 +19,7 @@ import { productSettings } from '../api/prefs';
 import { navigate } from '../router';
 import { describeError } from '../api/client';
 import { EVENT_LABEL, EVENT_TONE, SOURCE_LABEL, ackEvent, ackMany, getEventFacets, listEvents, listWindows, pollThumbnail, subscribeEvents, thumbnailUrl, type EventFacets, type EventKind, type EventWindow, type IngestState, type UnsupportedFilter, type VmsEvent } from '../api/events';
-import { dateInZone, closePlayback, createPlayback, playbackWsUrl, type PlaybackSession } from '../api/recordings';
+import { dateInZone, closePlayback, createPlayback, frameUrl, playbackWsUrl, type PlaybackSession } from '../api/recordings';
 import type { Camera } from '../api/types';
 
 const TONE: Record<DemoEvent['type'], string> = { person: '#2f6bff', vehicle: '#22c55e', motion: '#ef4444', line: '#f59e0b', offline: '#6b7280', door: '#8b5cf6' };
@@ -299,6 +299,64 @@ export class InvestigateEvents extends LitElement {
     .wrow:hover {
       background: var(--sw-surface-3);
     }
+    /* hover preview over an event row (T044): the event's frame and the frames 5 s before / after it */
+    .rowpreview {
+      position: fixed;
+      z-index: var(--sw-z-popover, 40);
+      inline-size: 372px;
+      max-inline-size: calc(100vw - 32px);
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border-strong);
+      border-radius: var(--sw-r-md);
+      box-shadow: var(--sw-shadow-3, var(--sw-shadow-2));
+      padding: 8px;
+      pointer-events: none;
+    }
+    .rowpreview .strip {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+    .rowpreview .cell {
+      aspect-ratio: 16 / 9;
+      background: var(--sw-surface-3);
+      border-radius: 6px;
+      overflow: hidden;
+      display: grid;
+      place-items: center;
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+      position: relative;
+    }
+    .rowpreview .cell.main {
+      outline: 2px solid var(--sw-accent);
+      outline-offset: -2px;
+    }
+    .rowpreview img {
+      inline-size: 100%;
+      block-size: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .rowpreview .t {
+      position: absolute;
+      inset-block-end: 3px;
+      inset-inline-end: 5px;
+      font-family: var(--sw-font-mono);
+      font-size: 10px;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.55);
+      padding: 0 4px;
+      border-radius: 3px;
+    }
+    .rowpreview .cap {
+      margin-block-start: 6px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
     .ltr {
       direction: ltr;
       unicode-bidi: isolate;
@@ -329,11 +387,52 @@ export class InvestigateEvents extends LitElement {
 
   // ---- thumbnails (grabbed lazily from the recording; the list marks pending rows, we poll them) ----
 
+  // ---- hover preview (T044): after 250 ms over a row's thumbnail, the frames 5 s before, at and 5 s after the event ----
+
+  @state() private rowPreview: { id: string; x: number; y: number; frames: { at: string; url: string; label: string; failed: boolean }[]; camera: string } | null = null;
+  private rowPreviewTimer = 0;
+
+  private hoverStart(ev: VmsEvent, e: PointerEvent) {
+    if (!ev.camera_id || e.pointerType === 'touch') return;
+    window.clearTimeout(this.rowPreviewTimer);
+    const x = e.clientX;
+    const y = e.clientY;
+    this.rowPreviewTimer = window.setTimeout(() => {
+      const t0 = new Date(ev.occurred_at).getTime();
+      const frames = [-5, 0, 5].map((d) => {
+        const at = new Date(t0 + d * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+        return { at, url: frameUrl(ev.camera_id!, at), label: d === 0 ? this.fmt(ev.occurred_at) : `${d > 0 ? '+' : ''}${d} ש׳`, failed: false };
+      });
+      this.rowPreview = { id: ev.id, x, y, frames, camera: ev.camera_name ?? '' };
+    }, 250);
+  }
+
+  private hoverEnd() {
+    window.clearTimeout(this.rowPreviewTimer);
+    this.rowPreview = null;
+  }
+
+  private renderRowPreview() {
+    const p = this.rowPreview;
+    if (!p) return nothing;
+    const left = Math.max(16, Math.min(window.innerWidth - 388, p.x - 186));
+    const top = p.y + 18 + 230 > window.innerHeight ? p.y - 18 - 230 : p.y + 18;
+    return html`<div class="rowpreview" data-row-preview style="left:${left}px;top:${top}px">
+      <div class="strip">
+        ${p.frames.map((f, i) => html`<div class="cell ${i === 1 ? 'main' : ''}">
+          ${f.failed ? html`<span>אין פריים</span>` : html`<img src=${f.url} alt="" @error=${() => { f.failed = true; this.rowPreview = { ...p }; }} />`}
+          <span class="t">${f.label}</span>
+        </div>`)}
+      </div>
+      <div class="cap"><span>${p.camera}</span><span>פריימים מההקלטה · 5 שניות לפני ואחרי</span></div>
+    </div>`;
+  }
+
   /** Rendered inside sw-table's shadow root, so the box is styled inline (the screen's stylesheet does not reach it). */
   private renderThumb(ev: VmsEvent) {
     const box = 'inline-size:64px;block-size:40px;border-radius:6px;overflow:hidden;background:var(--sw-surface-3);display:grid;place-items:center;color:var(--sw-text-3)';
     if (ev.thumbnail === 'ready') {
-      return html`<img class="thumb" src=${thumbnailUrl(ev.id, this.thumbVersion.get(ev.id) ?? 0)} alt="" loading="lazy" style="inline-size:64px;block-size:40px;object-fit:cover;border-radius:6px;display:block;background:var(--sw-surface-3)" />`;
+      return html`<img class="thumb" src=${thumbnailUrl(ev.id, this.thumbVersion.get(ev.id) ?? 0)} alt="" loading="lazy" data-thumb=${ev.id} style="inline-size:64px;block-size:40px;object-fit:cover;border-radius:6px;display:block;background:var(--sw-surface-3);cursor:zoom-in" @pointerenter=${(e: PointerEvent) => this.hoverStart(ev, e)} @pointerleave=${() => this.hoverEnd()} />`;
     }
     if ((ev.thumbnail === 'pending' || ev.thumbnail === 'none') && ev.camera_id) {
       this.schedulePoll(ev.id, 3000, 0);
@@ -650,6 +749,7 @@ export class InvestigateEvents extends LitElement {
           : this.events.length
             ? html`<sw-table .columns=${this.apiColumns} .rows=${this.events as unknown as Record<string, unknown>[]} .selected=${this.selected} @row-select=${(e: CustomEvent<{ id: string }>) => this.select(e.detail.id)}></sw-table>`
             : html`<sw-state-panel state="empty" heading="אין אירועים ביום הזה" hint="התראות מגיעות מה־NVR רק כשהטריגר מוגדר עם 'Notify Surveillance Center'; אירועי תנועה נגזרים מקובצי ההקלטה בהפעלה ובכל 10 דקות."></sw-state-panel>`}
+        ${this.renderRowPreview()}
         ${this.mode === 'windows' && this.selectedWindow && this.windows ? (() => { const w = this.windows.find((x) => x.id === this.selectedWindow); return w ? this.renderWindowDrawer(w) : nothing; })() : nothing}
         ${ev
           ? html`<sw-drawer open heading=${EVENT_LABEL[ev.type] ?? ev.type} subheading=${`${ev.camera_name ?? (ev.channel ? `ערוץ ${ev.channel}` : 'מערכת')} · ${this.fmt(ev.occurred_at)}`} @close=${() => this.closeDrawer()}>

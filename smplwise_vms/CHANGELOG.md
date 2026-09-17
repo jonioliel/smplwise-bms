@@ -1,5 +1,10 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.60 (pilot) — hover preview on event rows
+- Event centre (T044): resting the pointer on an event's thumbnail for a quarter of a second opens a strip with the
+  frames 5 s before, at and 5 s after the event, taken from the recording through the existing frame endpoint
+  (cached, two grabs at a time); a frame the recording cannot give says so. Touch devices are not affected.
+
 ## 0.1.59 (pilot) — playback opens inside the last recording
 - The recordings screen opened "five minutes before the last segment ends", which on cameras that record on
   motion only landed in a gap between short clips ("no recording at this time" until a click). It now opens inside
