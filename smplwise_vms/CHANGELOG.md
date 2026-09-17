@@ -1,5 +1,11 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.63 (pilot) — the owner's test round, batch 3
+- Floor map: a "רשימה" panel lists the cameras (status) and the HA entities (by kind, with state) placed on the
+  plan; a click zooms to the pin and opens its card, or adds the camera while picking. Open state kept per browser.
+- Pick bar: one chip per room that holds cameras ("אולם ספורט (2)") picks or drops the room's cameras by name, so a
+  concave room never needs a click inside its shape; "קיר חי" is the first action in the bar.
+
 ## 0.1.62 (pilot) — the owner's test round, batch 2
 - History map: the navigation linked the demo floor id, so an installation opened "הקומה לא נמצאה" (3.11). The
   screen now lands on the first real floor and keeps its floor selector.

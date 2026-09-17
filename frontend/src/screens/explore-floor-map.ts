@@ -71,6 +71,8 @@ export class ExploreFloorMap extends LitElement {
   @state() private panel = false;
   /** Multi-camera selection (T043): anchor ids of the picked cameras while the mode is on. */
   @state() private multi = false;
+  /** Side list of what is on the plan (2.10): open state kept per browser. */
+  @state() private sideList = (() => { try { return localStorage.getItem('sw.map.sidelist') === '1'; } catch { return false; } })();
   /** "Save the selection as a view" dialog (T043) and the view it produced. */
   @state() private saveView: { name: string; cols: number; rows: number; shared: boolean; canShare: boolean; busy: boolean; error: string | null } | null = null;
   @state() private savedView: SavedView | null = null;
@@ -276,6 +278,92 @@ export class ExploreFloorMap extends LitElement {
     }
     .pickbar .grow {
       flex: 1;
+    }
+    .pickbar .roomchips {
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+    .sidelist {
+      position: absolute;
+      inset-inline-end: 12px;
+      inset-block: 12px 56px;
+      inline-size: 236px;
+      z-index: var(--sw-z-map-ui);
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      box-shadow: var(--sw-shadow-2);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      font-size: var(--sw-fs-sm);
+    }
+    .sidelist .sh {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 10px;
+      border-block-end: 1px solid var(--sw-border);
+      font-weight: 600;
+    }
+    .sidelist .sh .grow {
+      flex: 1;
+    }
+    .sidelist .body {
+      overflow: auto;
+      padding: 4px 0 8px;
+    }
+    .sidelist .grp {
+      padding: 8px 10px 2px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      text-transform: none;
+    }
+    .sidelist button.it {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      inline-size: 100%;
+      padding: 6px 10px;
+      border: 0;
+      background: none;
+      color: var(--sw-text);
+      font: inherit;
+      text-align: start;
+      cursor: pointer;
+    }
+    .sidelist button.it:hover,
+    .sidelist button.it.on {
+      background: var(--sw-surface-3);
+    }
+    .sidelist button.it:focus-visible {
+      outline: 2px solid var(--sw-accent);
+      outline-offset: -2px;
+    }
+    .sidelist .dot {
+      inline-size: 8px;
+      block-size: 8px;
+      border-radius: 50%;
+      background: var(--dot, var(--sw-text-3));
+      flex: none;
+    }
+    .sidelist .nm {
+      flex: 1;
+      min-inline-size: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .sidelist .st {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    @media (max-width: 720px) {
+      .sidelist {
+        inline-size: min(236px, 70vw);
+      }
     }
     .pickbar .saved {
       flex-basis: 100%;
@@ -684,6 +772,68 @@ export class ExploreFloorMap extends LitElement {
     this.picked = all ? this.picked.filter((id) => !inside.includes(id)) : [...this.picked, ...inside.filter((id) => !this.picked.includes(id))];
   }
 
+  /** One chip per room that holds cameras (2.4): picking a room by name never needs a click inside a concave shape. */
+  private roomChips() {
+    const b = this.bundle;
+    if (!b) return nothing;
+    const cams = this.cameraAnchors();
+    const rooms = b.zones.map((z) => ({ z, ids: cams.filter((a) => pointInPolygon(a.position, z.polygon)).map((a) => a.id) })).filter((r) => r.ids.length);
+    if (!rooms.length) return nothing;
+    return html`<span class="roomchips" data-room-chips>${rooms.map((r) => html`<sw-chip icon="layers" data-room-chip=${r.z.id} ?selected=${r.ids.every((id) => this.picked.includes(id))} @click=${() => this.pickZone(r.z.id)}>${r.z.name} (${r.ids.length})</sw-chip>`)}</span>`;
+  }
+
+  /** Side list (2.10): cameras and HA entities on this plan; a click zooms to the pin and opens its card. */
+  private toggleSideList() {
+    this.sideList = !this.sideList;
+    try {
+      localStorage.setItem('sw.map.sidelist', this.sideList ? '1' : '0');
+    } catch {
+      /* private mode */
+    }
+  }
+
+  private async jumpTo(a: Anchor) {
+    if (a.resource_type === 'camera') {
+      this.focusCamera = a.resource_id;
+      this.focusEntity = '';
+    } else {
+      this.focusEntity = a.resource_id;
+      this.focusCamera = '';
+    }
+    this.focusZone = '';
+    if (this.multi && a.resource_type === 'camera') {
+      this.togglePick(a.id);
+      return;
+    }
+    await this.applyFocus();
+  }
+
+  private renderSideList() {
+    const b = this.bundle;
+    if (!b || !this.sideList || b.source !== 'api') return nothing;
+    const cams = b.anchors.filter((a) => a.resource_type === 'camera');
+    const ents = b.anchors.filter((a) => a.resource_type === 'ha_entity');
+    const domains: Record<string, string> = { light: 'תאורה', switch: 'מפסקים', lock: 'מנעולים', binary_sensor: 'חיישנים', sensor: 'חיישנים', cover: 'תריסים', climate: 'מיזוג', media_player: 'מדיה', alarm_control_panel: 'אזעקה' };
+    const groups = new Map<string, Anchor[]>();
+    for (const a of ents) {
+      const d = a.entity?.domain ?? a.resource_id.split('.')[0];
+      groups.set(d, [...(groups.get(d) ?? []), a]);
+    }
+    const dotOf = (a: Anchor) => (a.camera ? (a.camera.status === 'online' ? '#22c55e' : a.camera.status === 'offline' ? '#ef4444' : 'var(--sw-text-3)') : a.entity?.state === 'on' || a.entity?.state === 'unlocked' || a.entity?.state === 'open' ? 'var(--sw-accent)' : 'var(--sw-text-3)');
+    return html`<div class="sidelist" data-sidelist>
+      <div class="sh"><sw-icon name="list" size=${14}></sw-icon>על התוכנית<span class="grow"></span><sw-button variant="ghost" size="sm" iconOnly icon="close" label="סגור" @click=${() => this.toggleSideList()}></sw-button></div>
+      <div class="body">
+        <div class="grp">מצלמות (${cams.length})</div>
+        ${cams.map((a) => html`<button class="it ${this.selectedId === a.id || this.picked.includes(a.id) ? 'on' : ''}" data-side-camera=${a.resource_id} @click=${() => this.jumpTo(a)}>
+          <span class="dot" style="--dot:${dotOf(a)}"></span><span class="nm">${a.camera?.name ?? a.label ?? a.resource_id}</span><span class="st">${a.camera?.status === 'online' ? 'חיה' : a.camera?.status === 'offline' ? 'מנותקת' : ''}</span></button>`)}
+        ${[...groups.entries()].map(([d, list]) => html`<div class="grp">${domains[d] ?? d} (${list.length})</div>
+          ${list.map((a) => html`<button class="it ${this.selectedId === a.id ? 'on' : ''}" data-side-entity=${a.resource_id} @click=${() => this.jumpTo(a)}>
+            <span class="dot" style="--dot:${dotOf(a)}"></span><span class="nm">${a.entity?.name ?? a.label ?? a.resource_id}</span><span class="st">${a.entity ? stateLabel(a.entity) : ''}</span></button>`)}`)}
+        ${!cams.length && !ents.length ? html`<div class="grp">אין פריטים מוצבים על התוכנית הזו.</div>` : nothing}
+      </div>
+    </div>`;
+  }
+
   /** The selection split the way the task card asks: watchable now, offline, and without live permission. */
   private pickSummary() {
     const picked = this.picked.map((id) => this.bundle?.anchors.find((a) => a.id === id)).filter((a): a is Anchor => !!a);
@@ -788,6 +938,7 @@ export class ExploreFloorMap extends LitElement {
       <span class="hint" data-pick-hint>${hint}</span>
       ${this.picked.map((id) => { const a = anchorOf(id); const denied = a?.camera?.can_view_live === false; return html`<sw-chip selected icon="camera" dot=${this.pickDot(a)} title=${denied ? 'אין הרשאת צפייה חיה' : a?.camera?.status === 'online' ? 'מקוונת' : 'לא מקוונת'} data-pick-chip=${denied ? 'denied' : a?.camera?.status ?? 'unknown'} @click=${() => this.togglePick(id)}>${name(id)}</sw-chip>`; })}
       <sw-chip data-pick-all @click=${() => (this.picked = cams.map((a) => a.id))}>בחר הכל (${cams.length})</sw-chip>
+      ${this.roomChips()}
       <span class="grow"></span>
       <sw-button variant="primary" size="sm" icon="live" ?disabled=${!this.picked.length} data-pick-wall @click=${() => this.openWall()}>קיר חי (${this.picked.length})</sw-button>
       <sw-button size="sm" icon="history" ?disabled=${!this.picked.length || this.picked.length > 4} data-pick-sync @click=${() => this.openSync()}>ניגון מסונכרן</sw-button>
@@ -1105,6 +1256,7 @@ export class ExploreFloorMap extends LitElement {
       <div class="floorchip" data-floorchip><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
       ${this.panel ? this.renderPanel() : nothing}
       ${this.multi ? this.renderPickbar() : nothing}
+      ${this.renderSideList()}
       ${this.renderSaveDialog()}
       <div class="legend" aria-label="מקרא">
         ${b.zones.length && this.layers.has('zones') ? html`<span><i style="--lg: var(--sw-accent); border-radius: 2px; opacity: 0.5"></i>${b.zones.length} אזורים</span>` : nothing}
@@ -1145,7 +1297,7 @@ export class ExploreFloorMap extends LitElement {
             ${LAYERS.map((l) => html`<button class=${this.layers.has(l.id) ? 'on' : ''} title=${l.label()} aria-label=${l.label()} aria-pressed=${this.layers.has(l.id)} @click=${() => this.toggleLayer(l.id)}><sw-icon name=${l.icon} size=${14}></sw-icon></button>`)}
           </div>
           <sw-button icon="layers" aria-pressed=${this.panel} @click=${() => (this.panel = !this.panel)}>${t('floor.layers')}</sw-button>
-          ${b && b.source === 'api' ? html`<sw-button icon="grid" aria-pressed=${this.multi} data-multi-toggle @click=${() => this.setMulti(!this.multi)}>בחירת מצלמות</sw-button>` : nothing}
+          ${b && b.source === 'api' ? html`<sw-button icon="list" aria-pressed=${this.sideList} data-sidelist-toggle @click=${() => this.toggleSideList()}>רשימה</sw-button><sw-button icon="grid" aria-pressed=${this.multi} data-multi-toggle @click=${() => this.setMulti(!this.multi)}>בחירת מצלמות</sw-button>` : nothing}
           <sw-field style="min-inline-size:280px"><select aria-label=${t('floor.switcher')} @change=${(e: Event) => navigate(`/explore/floors/${(e.target as HTMLSelectElement).value}`)}>${floors.map((f) => html`<option value=${f.id} ?selected=${f.id === this.floorId}>${bidi(f.name)} · ${f.cameraCount} מצלמות${f.hasPlan ? '' : ' · אין תוכנית'}</option>`)}</select></sw-field>
           ${!b || b.permissions.edit ? html`<sw-button icon="edit" @click=${() => navigate(`/explore/floors/${this.floorId}/edit`)}>עריכת תוכנית</sw-button>` : nothing}
         </div>
