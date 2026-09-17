@@ -87,3 +87,4 @@
 - מדריך המעבר (dry run, כינויים, תקופת צל, חזרה לאחור): `docs/operations/MIGRATION_FROM_LEGACY_HE.md` והכלי `scripts/migrate_legacy.py`.
 - חבילת השחרור ובדיקת העקביות לפני חתימה: `docs/release/RELEASE_PACKAGE_V1.md`, `python scripts/release_check.py --tag`.
 - בדיקת עשן אחרי כל עדכון: `python scripts/smoke_after_upgrade.py --live` (או `--base` מול backend מקומי) — 16 בדיקות קריאה בלבד, יציאה 1 כשמשהו נשבר.
+- בחירת מצלמות במפה (0.1.56): במצב "בחירת מצלמות" גרירת מלבן בוחרת את כל המצלמות שבתוכו, לחיצה על חדר בוחרת את מצלמותיו, ו"שמור כתצוגה" הופך את הבחירה לתצוגה שמורה (קיר חי / קיוסק). Shift+גרירה מזיזה את המפה.

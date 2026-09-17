@@ -26,6 +26,8 @@ import { bidi } from '../i18n/bidi';
 import { ApiError, describeError } from '../api/client';
 import type { Anchor } from '../api/types';
 import { pointInPolygon } from '../api/zones';
+import { createView, listViews, wallHref, type SavedView } from '../api/views';
+import '../components/sw-toggle';
 import { ACTION_ERROR_LABEL, ACTION_STATUS_LABEL, awaitAction, domainLabel, entityMarkerKind, entityTone, fmtTime, runAction, stateLabel, subscribeHa, type HaActionArgSpec, type HaActionRecord, type HaActionSpec, type HaEntity } from '../api/ha';
 
 /** Hebrew names for enum choices the adapters offer (T040). */
@@ -69,6 +71,9 @@ export class ExploreFloorMap extends LitElement {
   @state() private panel = false;
   /** Multi-camera selection (T043): anchor ids of the picked cameras while the mode is on. */
   @state() private multi = false;
+  /** "Save the selection as a view" dialog (T043) and the view it produced. */
+  @state() private saveView: { name: string; cols: number; rows: number; shared: boolean; canShare: boolean; busy: boolean; error: string | null } | null = null;
+  @state() private savedView: SavedView | null = null;
   @state() private picked: string[] = [];
   @state() private narrow = false;
   @state() private syncConnected = true;
@@ -271,6 +276,32 @@ export class ExploreFloorMap extends LitElement {
     }
     .pickbar .grow {
       flex: 1;
+    }
+    .pickbar .saved {
+      flex-basis: 100%;
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-xs);
+    }
+    .pickbar .saved a {
+      color: var(--sw-accent);
+    }
+    .saveform {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-inline-size: min(480px, 80vw);
+      font-size: var(--sw-fs-sm);
+    }
+    .saveform .row {
+      display: flex;
+      gap: 12px;
+    }
+    .saveform .note {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .saveform .err {
+      color: var(--sw-danger);
     }
     .banner {
       position: absolute;
@@ -631,7 +662,102 @@ export class ExploreFloorMap extends LitElement {
   private setMulti(on: boolean) {
     this.multi = on;
     this.picked = [];
+    this.saveView = null;
+    this.savedView = null;
     if (on) this.close();
+  }
+
+  /** Rectangle selection from the canvas: the cameras inside the box join the selection (T043). */
+  private addPicks(ids: string[]) {
+    const cams = new Set(this.cameraAnchors().map((a) => a.id));
+    const add = ids.filter((id) => cams.has(id) && !this.picked.includes(id));
+    if (add.length) this.picked = [...this.picked, ...add];
+  }
+
+  /** A click on a room while picking toggles every camera placed inside it (T043 "room"). */
+  private pickZone(zoneId: string) {
+    const z = this.bundle?.zones.find((x) => x.id === zoneId);
+    if (!z) return;
+    const inside = this.cameraAnchors().filter((a) => pointInPolygon(a.position, z.polygon)).map((a) => a.id);
+    if (!inside.length) return;
+    const all = inside.every((id) => this.picked.includes(id));
+    this.picked = all ? this.picked.filter((id) => !inside.includes(id)) : [...this.picked, ...inside.filter((id) => !this.picked.includes(id))];
+  }
+
+  /** The selection split the way the task card asks: watchable now, offline, and without live permission. */
+  private pickSummary() {
+    const picked = this.picked.map((id) => this.bundle?.anchors.find((a) => a.id === id)).filter((a): a is Anchor => !!a);
+    const denied = picked.filter((a) => a.camera?.can_view_live === false).length;
+    const online = picked.filter((a) => a.camera?.can_view_live !== false && a.camera?.status === 'online').length;
+    return { total: picked.length, online, offline: picked.length - online - denied, denied };
+  }
+
+  private pickDot(a: Anchor | undefined): string {
+    if (!a?.camera) return 'var(--sw-text-3)';
+    if (a.camera.can_view_live === false) return 'var(--sw-text-3)';
+    return a.camera.status === 'online' ? '#22c55e' : '#ef4444';
+  }
+
+  /** The cameras a saved view may hold: the picked ones the caller may watch live, sixteen at most. */
+  private saveableCameraIds(): string[] {
+    const by = new Map((this.bundle?.anchors ?? []).map((a) => [a.id, a]));
+    return this.picked.map((id) => by.get(id)).filter((a): a is Anchor => !!a && a.camera?.can_view_live !== false).map((a) => a.resource_id).slice(0, 16);
+  }
+
+  private openSave() {
+    const n = this.saveableCameraIds().length;
+    if (!n) return;
+    const cols = n <= 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : 4;
+    const rows = Math.max(1, Math.min(4, Math.ceil(n / cols)));
+    const floorName = this.floors.find((f) => f.id === this.floorId)?.name ?? this.bundle?.floorName ?? 'מפה';
+    this.savedView = null;
+    this.saveView = { name: `${floorName} · ${n} מצלמות`, cols, rows, shared: false, canShare: false, busy: false, error: null };
+    listViews().then((r) => { if (this.saveView) this.saveView = { ...this.saveView, canShare: r.can_share }; }).catch(() => undefined);
+  }
+
+  private async submitSave() {
+    const s = this.saveView;
+    if (!s || s.busy) return;
+    if (!s.name.trim()) {
+      this.saveView = { ...s, error: 'לתצוגה צריך שם.' };
+      return;
+    }
+    const cameras = this.saveableCameraIds();
+    if (!cameras.length) {
+      this.saveView = { ...s, error: 'אין בבחירה מצלמה שמותר לך לצפות בה.' };
+      return;
+    }
+    this.saveView = { ...s, busy: true, error: null };
+    try {
+      this.savedView = await createView({ name: s.name.trim(), cameras, cols: s.cols, rows: s.rows, shared: s.shared, kiosk: false });
+      this.saveView = null;
+    } catch (err) {
+      this.saveView = { ...s, busy: false, error: describeError(err) };
+    }
+  }
+
+  private renderSaveDialog() {
+    const s = this.saveView;
+    if (!s) return nothing;
+    const cameras = this.saveableCameraIds();
+    const { denied } = this.pickSummary();
+    const over = Math.max(0, this.picked.length - denied - 16);
+    const set = (patch: Partial<NonNullable<typeof s>>) => (this.saveView = { ...s, ...patch });
+    return html`<sw-dialog open heading="שמירה כתצוגה" subheading=${`${cameras.length} מצלמות מהמפה · התצוגה נפתחת בקיר החי או בקיוסק`} data-save-view-dialog @close=${() => (this.saveView = null)}>
+      <div class="saveform">
+        <sw-field label="שם"><input data-save-view-name .value=${s.name} maxlength="60" @input=${(ev: Event) => set({ name: (ev.target as HTMLInputElement).value })} @keydown=${(ev: KeyboardEvent) => ev.key === 'Enter' && this.submitSave()} /></sw-field>
+        <div class="row">
+          <sw-field label="עמודות (קיוסק)"><select data-save-view-cols @change=${(ev: Event) => set({ cols: Number((ev.target as HTMLSelectElement).value) })}>${[1, 2, 3, 4].map((n) => html`<option value=${n} ?selected=${n === s.cols}>${n}</option>`)}</select></sw-field>
+          <sw-field label="שורות (קיוסק)"><select data-save-view-rows @change=${(ev: Event) => set({ rows: Number((ev.target as HTMLSelectElement).value) })}>${[1, 2, 3, 4].map((n) => html`<option value=${n} ?selected=${n === s.rows}>${n}</option>`)}</select></sw-field>
+        </div>
+        <sw-toggle ?checked=${s.shared} ?disabled=${!s.canShare} label=${s.canShare ? 'משותפת לכל המשתמשים' : 'משותפת (דורש הרשאת ניהול משתמשים)'} data-save-view-shared @change=${(ev: CustomEvent<{ checked: boolean }>) => set({ shared: ev.detail.checked })}></sw-toggle>
+        ${denied ? html`<div class="note">${denied} מצלמות ללא הרשאת צפייה חיה לא ייכללו בתצוגה.</div>` : nothing}
+        ${over ? html`<div class="note">תצוגה מכילה עד 16 מצלמות; ${over} האחרונות שנבחרו לא ייכללו.</div>` : nothing}
+        <div class="note">הקיר פותח את המצלמות בפריסה אוטומטית; הקיוסק מציג ${s.cols}×${s.rows} מצלמות בעמוד.</div>
+        ${s.error ? html`<div class="err" role="alert" data-save-view-error>${s.error}</div>` : nothing}
+      </div>
+      <div slot="footer"><sw-button variant="primary" ?disabled=${s.busy} data-save-view-submit @click=${() => this.submitSave()}>${s.busy ? 'שומר…' : 'שמור תצוגה'}</sw-button><sw-button variant="ghost" @click=${() => (this.saveView = null)}>${t('actions.cancel')}</sw-button></div>
+    </sw-dialog>`;
   }
 
   private openWall() {
@@ -649,16 +775,26 @@ export class ExploreFloorMap extends LitElement {
     const b = this.bundle;
     if (!b) return nothing;
     const cams = this.cameraAnchors();
-    const name = (id: string) => { const a = b.anchors.find((x) => x.id === id); return a?.camera?.name ?? a?.label ?? a?.resource_id ?? id; };
+    const anchorOf = (id: string) => b.anchors.find((x) => x.id === id);
+    const name = (id: string) => { const a = anchorOf(id); return a?.camera?.name ?? a?.label ?? a?.resource_id ?? id; };
+    const sum = this.pickSummary();
+    const placed = b.anchors.filter((a) => a.resource_type === 'camera').length;
+    const onFloor = this.floors.find((f) => f.id === this.floorId)?.cameraCount ?? placed;
+    const unplaced = Math.max(0, onFloor - placed);
+    const hint = sum.total
+      ? `נבחרו ${sum.total} · ${sum.online} זמינות${sum.offline ? ` · ${sum.offline} לא מקוונות` : ''}${sum.denied ? ` · ${sum.denied} ללא הרשאה` : ''}${unplaced ? ` · ${unplaced} מצלמות של הקומה אינן על המפה` : ''}`
+      : `לחץ על מצלמות או גרור מלבן על המפה · לחיצה על חדר בוחרת את מצלמותיו · Shift+גרירה מזיזה את המפה · עד 4 לניגון מסונכרן${unplaced ? ` · ${unplaced} מצלמות של הקומה אינן על המפה` : ''}`;
     return html`<div class="pickbar" data-pickbar>
-      <span class="hint">לחץ על מצלמות במפה כדי לבחור · עד 4 לניגון מסונכרן</span>
-      ${this.picked.map((id) => html`<sw-chip selected icon="camera" @click=${() => this.togglePick(id)}>${name(id)}</sw-chip>`)}
+      <span class="hint" data-pick-hint>${hint}</span>
+      ${this.picked.map((id) => { const a = anchorOf(id); const denied = a?.camera?.can_view_live === false; return html`<sw-chip selected icon="camera" dot=${this.pickDot(a)} title=${denied ? 'אין הרשאת צפייה חיה' : a?.camera?.status === 'online' ? 'מקוונת' : 'לא מקוונת'} data-pick-chip=${denied ? 'denied' : a?.camera?.status ?? 'unknown'} @click=${() => this.togglePick(id)}>${name(id)}</sw-chip>`; })}
       <sw-chip data-pick-all @click=${() => (this.picked = cams.map((a) => a.id))}>בחר הכל (${cams.length})</sw-chip>
       <span class="grow"></span>
       <sw-button variant="primary" size="sm" icon="live" ?disabled=${!this.picked.length} data-pick-wall @click=${() => this.openWall()}>קיר חי (${this.picked.length})</sw-button>
       <sw-button size="sm" icon="history" ?disabled=${!this.picked.length || this.picked.length > 4} data-pick-sync @click=${() => this.openSync()}>ניגון מסונכרן</sw-button>
+      <sw-button size="sm" icon="layers" ?disabled=${!this.saveableCameraIds().length} data-pick-save @click=${() => this.openSave()}>שמור כתצוגה</sw-button>
       <sw-button variant="ghost" size="sm" @click=${() => (this.picked = [])}>נקה</sw-button>
       <sw-button variant="ghost" size="sm" icon="close" @click=${() => this.setMulti(false)}>סיום</sw-button>
+      ${this.savedView ? html`<span class="saved" data-view-saved>התצוגה „${this.savedView.name}” נשמרה (${this.savedView.cameras.length} מצלמות) · <a href="#/live/views" data-view-saved-open>תצוגות שמורות</a> · <a href=${wallHref(this.savedView)}>פתח בקיר</a></span>` : nothing}
     </div>`;
   }
 
@@ -958,15 +1094,18 @@ export class ExploreFloorMap extends LitElement {
         .markers=${this.markers}
         .selectedId=${this.selectedId}
         .selectedIds=${this.multi ? this.picked : []}
+        .boxSelect=${this.multi}
+        @box-select=${(e: CustomEvent<{ ids: string[] }>) => this.addPicks(e.detail.ids)}
         .zones=${this.layers.has('zones') ? b.zones : []}
         .selectedZoneId=${this.selectedZoneId}
         .dimEntities=${this.screenState === 'stale'}
-        @zone-select=${(e: CustomEvent<{ id: string }>) => { this.selectedZoneId = this.selectedZoneId === e.detail.id ? null : e.detail.id; this.close(); }}
+        @zone-select=${(e: CustomEvent<{ id: string }>) => { if (this.multi) { this.pickZone(e.detail.id); return; } this.selectedZoneId = this.selectedZoneId === e.detail.id ? null : e.detail.id; this.close(); }}
         @marker-select=${this.onSelect}
         @view-change=${this.onViewChange}></sw-plan-canvas>
       <div class="floorchip" data-floorchip><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
       ${this.panel ? this.renderPanel() : nothing}
       ${this.multi ? this.renderPickbar() : nothing}
+      ${this.renderSaveDialog()}
       <div class="legend" aria-label="מקרא">
         ${b.zones.length && this.layers.has('zones') ? html`<span><i style="--lg: var(--sw-accent); border-radius: 2px; opacity: 0.5"></i>${b.zones.length} אזורים</span>` : nothing}
         <span><i style="--lg: var(--sw-accent)"></i>חי</span>

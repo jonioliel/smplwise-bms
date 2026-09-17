@@ -116,6 +116,11 @@ export class SwPlanCanvas extends LitElement {
   @property({ type: Boolean }) zoneLabels = true;
   /** Vertices of a polygon being drawn in the editor (normalized); rendered as a dashed outline. */
   @property({ attribute: false }) draftPoints: { x: number; y: number }[] = [];
+  /** Selection mode (T043): a primary-button drag on the plan draws a rectangle and emits `box-select` with the ids
+   * of the markers inside it. Shift + drag, a second finger and the wheel still pan and zoom. */
+  @property({ type: Boolean }) boxSelect = false;
+  @state() private box: { x0: number; y0: number; x1: number; y1: number } | null = null;
+  private boxStart: { x: number; y: number } | null = null;
 
   @state() private scale = 1;
   @state() private tx = 0;
@@ -155,6 +160,16 @@ export class SwPlanCanvas extends LitElement {
     }
     .viewport.dragging {
       cursor: grabbing;
+    }
+    .viewport.boxing {
+      cursor: crosshair;
+    }
+    rect.box {
+      fill: color-mix(in srgb, var(--sw-accent) 14%, transparent);
+      stroke: var(--sw-accent);
+      stroke-width: 1.5;
+      stroke-dasharray: 6 4;
+      pointer-events: none;
     }
     .viewport.placing {
       cursor: crosshair;
@@ -482,11 +497,19 @@ export class SwPlanCanvas extends LitElement {
     this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     this.dragMoved = false;
     if (this.pointers.size === 1) {
+      if (this.boxSelect && e.button === 0 && !e.shiftKey && !this.editable && !this.placing) {
+        const rect = this.getBoundingClientRect();
+        this.boxStart = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+        this.lastPan = null;
+        return;
+      }
       this.lastPan = { x: e.clientX, y: e.clientY };
       this.viewport.classList.add('dragging');
     } else if (this.pointers.size === 2) {
       this.lastPinchDist = this.pinchDistance();
       this.lastPan = null;
+      this.boxStart = null;
+      this.box = null;
     }
   };
 
@@ -504,6 +527,17 @@ export class SwPlanCanvas extends LitElement {
       this.dragMoved = true;
       return;
     }
+    if (this.boxStart) {
+      const rect = this.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      if (!this.dragMoved && Math.abs(x - this.boxStart.x) + Math.abs(y - this.boxStart.y) > 3) {
+        this.dragMoved = true;
+        if (!this.viewport.hasPointerCapture(e.pointerId)) this.viewport.setPointerCapture(e.pointerId);
+      }
+      if (this.dragMoved) this.box = { x0: Math.min(this.boxStart.x, x), y0: Math.min(this.boxStart.y, y), x1: Math.max(this.boxStart.x, x), y1: Math.max(this.boxStart.y, y) };
+      return;
+    }
     if (this.lastPan) {
       const dx = e.clientX - this.lastPan.x;
       const dy = e.clientY - this.lastPan.y;
@@ -519,6 +553,16 @@ export class SwPlanCanvas extends LitElement {
 
   private onPointerUp = (e: PointerEvent) => {
     this.pointers.delete(e.pointerId);
+    if (this.boxStart && this.pointers.size === 0) {
+      const b = this.box;
+      this.boxStart = null;
+      this.box = null;
+      if (b && b.x1 - b.x0 >= 4 && b.y1 - b.y0 >= 4) {
+        const ids = this.markers.filter((m) => { const p = this.toScreen(m.x, m.y); return p.x >= b.x0 && p.x <= b.x1 && p.y >= b.y0 && p.y <= b.y1; }).map((m) => m.id);
+        this.dispatchEvent(new CustomEvent<{ ids: string[] }>('box-select', { detail: { ids }, bubbles: true, composed: true }));
+      }
+      // dragMoved stays set so the click that follows the drag does not clear the selection
+    }
     if (this.pointers.size === 0) {
       this.lastPan = null;
       this.viewport.classList.remove('dragging');
@@ -792,7 +836,7 @@ export class SwPlanCanvas extends LitElement {
 
   render() {
     return html`
-      <div class="viewport ${this.placing ? 'placing' : ''}" @wheel=${this.onWheel} @pointerdown=${this.onPointerDown} @pointermove=${this.onPointerMove}
+      <div class="viewport ${this.placing ? 'placing' : ''} ${this.boxSelect ? 'boxing' : ''}" @wheel=${this.onWheel} @pointerdown=${this.onPointerDown} @pointermove=${this.onPointerMove}
            @pointerup=${this.onPointerUp} @pointercancel=${this.onPointerUp} @click=${this.onBackgroundClick}>
         <svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="תוכנית קומה">
           <g transform="translate(${this.tx} ${this.ty}) scale(${this.scale})">
@@ -802,6 +846,7 @@ export class SwPlanCanvas extends LitElement {
             ${this.markers.map((m) => this.renderMarker(m))}
             ${this.renderDraft()}
           </g>
+          ${this.box ? svg`<rect class="box" data-box x=${this.box.x0.toFixed(1)} y=${this.box.y0.toFixed(1)} width=${(this.box.x1 - this.box.x0).toFixed(1)} height=${(this.box.y1 - this.box.y0).toFixed(1)} />` : nothing}
         </svg>
       </div>
       <div class="controls" role="group" aria-label="זום">

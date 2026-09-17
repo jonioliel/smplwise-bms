@@ -1,5 +1,14 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.56 (pilot) — selection on the map: rectangle, room, save as a view
+- Floor map, "בחירת מצלמות" (T043): dragging a rectangle over the plan picks every camera under it (Shift + drag, a
+  second finger and the wheel still move and zoom the plan); a click on a room picks the cameras placed inside it
+  (a second click drops them); the pick bar counts the selection as watchable / offline / without live permission
+  and says how many of the floor's cameras are not placed on the plan yet.
+- "שמור כתצוגה": the selection becomes a saved view (name, kiosk layout, shared when the caller may share) that
+  opens from the pick bar in the saved-views screen or straight on the live wall. Cameras the caller may not watch
+  live are left out and counted; a view holds sixteen cameras at most.
+
 ## 0.1.55 (pilot) — kiosk restore and a smoke test after upgrades
 - Kiosk (T057): the wall comes back to the exact page it showed after a reload, a power cycle or a reconnect (kept
   per view in the browser), and a user whose only role is "תצוגת קיוסק" is kept on the kiosk by the shell — any other
