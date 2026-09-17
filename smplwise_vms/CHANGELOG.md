@@ -1,5 +1,20 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.51 (pilot) — the last two hidden screens built for real (live review F1 F3)
+- לייב › **תמונת מצב** (F1): a real dashboard — greeting by the product time zone, cameras online / total with
+  the recorder model, sites and floors with plans, today's events with the unreviewed count, the system status
+  from the health summary; two live camera posters; storage (used %, capacity, measured retention — only for
+  users who may read the storage report); sites and buildings with plan coverage and the NVR row; the last six
+  events with pictures; and "דורש תשומת לב": offline cameras, failing health checks, unreviewed events, an alert
+  stream that never delivered ("Notify Surveillance Center"), a lost Home Assistant connection — each with the
+  reason it is shown and a button to the right screen. Refreshes every minute.
+- לייב › **תצוגות שמורות** (F3): saved views for real — `saved_views` table (migration 0012), `GET/POST/PUT/DELETE
+  /api/v1/views`. A view is a name, up to 16 cameras and a cols × rows layout; personal views belong to their
+  owner, shared views (visible to everyone) need `rbac.assign` at the installation or at a site; every camera must
+  be one the caller may watch live, and a reader who may not see one of a shared view's cameras gets the view
+  without it (counted). The screen shows snapshot mosaics, opens a view on the live wall or in the kiosk
+  (cols × rows per page), and edits or deletes with the owner's rights. Audited; part of project backups.
+
 ## 0.1.50 (pilot) — three of the hidden screens built for real (live review F4 F5 F6)
 - חקירה › **Review · חלונות** (F4): the tab opens the event centre grouped into review windows (the day's events
   per camera by proximity, `/events/windows`), the same data the "חלונות" toggle shows — no demo queue any more.

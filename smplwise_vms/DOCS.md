@@ -491,3 +491,13 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   Update Supervisor/Core; the add-on refuses to guess an identity.
 - "אין הרשאה": your HA user has no VMS role yet — ask the VMS administrator (bootstrap user).
 - Logs: the add-on **Log** tab; set `log_level: debug` for request-level detail (never prints secrets).
+
+## Saved views (0.1.51)
+
+לייב › תצוגות שמורות keeps named camera sets with a layout. A personal view belongs to the user who made it;
+a shared view is visible to every signed-in user and can be created by a site administrator or a system
+administrator (`rbac.assign`). Every camera in a view must be one the creator may watch live, and a reader who
+may not watch one of the cameras sees the view without it. "פתח" opens the cameras on the live wall; "קיוסק"
+opens `#/kiosk/all?cameras=…&cols=…&rows=…` in a new tab (the kiosk pages through the cameras, cols × rows at a
+time). Views travel with the project backup.
+

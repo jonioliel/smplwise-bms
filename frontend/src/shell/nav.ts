@@ -187,7 +187,7 @@ export function crumbsOf(r: RouteState | null, api = false): string[] {
 
 /** Screens that still show demo data only. With a real backend they are hidden from the tab bars until they are
  * built for real (live review 2026-09-17, F1 F3 F4 F5 F6 F7); the shell also redirects their routes. */
-export const DEMO_ONLY_HREFS = new Set(['#/live', '#/live/views', '#/explore/access/d1']);
+export const DEMO_ONLY_HREFS = new Set(['#/explore/access/d1']);
 
 /** Tabs whose real screen has a different name than the design's demo screen. */
 export const API_LABELS: Record<string, string> = { '#/investigate/reviews': 'Review · חלונות', '#/investigate/playback/sync': 'ניגון מסונכרן', '#/system/setup': 'חיבורים' };
@@ -199,7 +199,6 @@ export function visibleTabs(items: TabItem[], api: boolean): TabItem[] {
 /** Route → real screen for the demo-only routes when a backend exists; null when the route is fine. */
 export function demoRedirect(path: string, api: boolean): string | null {
   if (!api) return null;
-  if (path === '/live' || path === '/live/' || path.startsWith('/live/views')) return '/live/wall';
   if (/^\/investigate\/rules\/[^/]+$/.test(path)) return '/investigate/rules';
   return null;
 }
