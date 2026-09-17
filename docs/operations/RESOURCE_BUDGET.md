@@ -170,3 +170,24 @@ eight requests now really run at the same time and share one Python process inst
 the wall time of a round of eight fell from 9.7 s to 3.6 s, but every caller in that round pays about the same. The
 single-worker table shows the cost of one request stays where it was (the deferred BEGIN and `query_only` add nothing
 measurable). "Camera recordings today" keeps its NVR-bound p95 (one search per camera-day behind the in-flight lock).
+
+Second run, ten minutes later on the same backend (steady state: thumbnails of the listed events already generated,
+no start-up work left):
+
+| endpoint | n | errors | p50 ms | p95 ms | max ms |
+|---|---|---|---|---|---|
+| health/summary | 40 | 0 | 78.5 | 88.2 | 94.1 |
+| cameras | 40 | 0 | 83.2 | 93.2 | 95.5 |
+| floor map | 40 | 0 | 75.7 | 85.3 | 145.0 |
+| floor map @instant | 40 | 0 | 78.5 | 149.3 | 157.7 |
+| events (24 h) | 40 | 0 | 793.5 | 863.1 | 872.1 |
+| events/facets | 40 | 0 | 60.3 | 78.6 | 99.2 |
+| search | 40 | 0 | 165.8 | 176.6 | 181.5 |
+| storage (cached) | 40 | 0 | 30.8 | 40.9 | 51.0 |
+| cases | 40 | 0 | 77.4 | 87.5 | 109.4 |
+| camera recordings today | 40 | 0 | 43.2 | 1476.6 | 1479.4 |
+
+The first run after a restart pays for what the requests themselves trigger — every 24 h events list queues up to 30
+missing thumbnails, each an ffmpeg grab from the NVR that competes for the CPU — plus the HA snapshot and discovery
+still settling; the steady-state run is what an operator sees during the day: p95 under 0.2 s on every screen except
+the 24 h events list (0.86 s for 500 rows under eight concurrent callers) and the NVR-bound recordings search.
