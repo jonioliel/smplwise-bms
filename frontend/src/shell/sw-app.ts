@@ -851,7 +851,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'floors') return html`<investigate-history-map .floorId=${s[2] ?? 'f0'} .at=${r.params.get('t') ?? ''} .camera=${r.params.get('camera') ?? ''}></investigate-history-map>`;
         if (s[1] === 'events' && s[2]) return html`<investigate-event-detail .eventId=${s[2]}></investigate-event-detail>`;
         if (s[1] === 'events') return html`<investigate-events .cameraId=${r.params.get('camera') ?? ''} .date=${r.params.get('date') ?? ''}></investigate-events>`;
-        if (s[1] === 'reviews') return html`<investigate-reviews></investigate-reviews>`;
+        if (s[1] === 'reviews') return this.session.mode === 'api' ? html`<investigate-events .initialMode=${'windows'} .cameraId=${r.params.get('camera') ?? ''} .date=${r.params.get('date') ?? ''}></investigate-events>` : html`<investigate-reviews></investigate-reviews>`;
         if (s[1] === 'cases' && s[2]) return html`<investigate-case-detail .caseId=${s[2]}></investigate-case-detail>`;
         if (s[1] === 'cases') return html`<investigate-cases></investigate-cases>`;
         if (s[1] === 'exports') return html`<investigate-exports></investigate-exports>`;
@@ -885,7 +885,7 @@ export class SwApp extends LitElement {
     const area = areaOf(this.route);
     const tabs = area ? visibleTabs(AREA_TABS[area], this.session.mode === 'api') : [];
     const editor = this.route?.segments[3] === 'edit' || this.route?.segments[3] === 'import';
-    const crumbs = crumbsOf(this.route);
+    const crumbs = crumbsOf(this.route, this.session.mode === 'api');
     const me = this.session.me;
     const name = me?.user.display_name || me?.user.username || 'יוני';
     return html`

@@ -36,6 +36,8 @@ export class InvestigateEvents extends LitElement {
   /** Route params (#/investigate/events?camera=&date=) */
   @property() cameraId = '';
   @property() date = '';
+  /** 'windows' when opened from the Review tab (F4): the day's events grouped per camera. */
+  @property() initialMode = '';
 
   @state() private selected: string | null = null;
   @state() private filter: 'all' | 'unacked' | 'acked' = 'all';
@@ -419,6 +421,7 @@ export class InvestigateEvents extends LitElement {
       } catch {
         /* ignore */
       }
+      if (this.initialMode === 'windows' || this.initialMode === 'raw') this.mode = this.initialMode;
       const [settings, list] = await Promise.all([productSettings(), listCameras()]);
       this.tz = settings['time.zone'] ?? 'Asia/Jerusalem';
       this.cams = list.cameras;

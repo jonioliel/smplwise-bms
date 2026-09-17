@@ -1,5 +1,19 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.50 (pilot) — three of the hidden screens built for real (live review F4 F5 F6)
+- חקירה › **Review · חלונות** (F4): the tab opens the event centre grouped into review windows (the day's events
+  per camera by proximity, `/events/windows`), the same data the "חלונות" toggle shows — no demo queue any more.
+- חקירה › **ניגון מסונכרן** (F5): a real launcher — pick 2–4 cameras (the first is the lead / reference clock),
+  a start time, open the comparison in the recordings screen; the last six sets are kept in the browser. The
+  measured sync itself is unchanged (0.1.38 / 0.1.41).
+- הגדרות › **חיבורים** (F6, replaces the demo setup wizard): read-only facts about the add-on's connections —
+  NVR (model, firmware, discovery, alert stream, stored alerts with the "Notify Surveillance Center" hint when
+  none arrive), go2rtc (stream sync, health check), Home Assistant (connection, entities, snapshot / event /
+  registry times, reconnects, identity source), storage and tools (DB, /data, PDF renderer, thumbnails,
+  backups), and the list of Add-on option names with where they are set. Values are never shown.
+- Breadcrumbs and tab labels use the real screen names with a backend; the design fixtures keep the demo
+  screens.
+
 ## 0.1.49 (pilot) — live review fixes (docs/operations/LIVE_REVIEW_2026-09-17_HE.md)
 - No demo data with a real backend: the demo-only screens are hidden from the tab bars and their routes land on
   the real screen — לייב › תמונת מצב → כל המצלמות, תצוגות שמורות → כל המצלמות, Review → מרכז אירועים,

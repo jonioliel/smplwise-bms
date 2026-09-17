@@ -1,4 +1,4 @@
-import { LitElement, html, css } from 'lit';
+import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-page';
 import '../components/sw-card';
@@ -7,6 +7,45 @@ import '../components/sw-button';
 import '../components/sw-steps';
 import '../components/sw-field';
 import '../components/sw-icon';
+import '../components/sw-state-panel';
+import { isApi } from '../api/session';
+import { get, describeError } from '../api/client';
+import { listCameras } from '../api/maps';
+import { healthReport, type HealthReport } from '../api/health';
+
+/** GET /api/v1/health — the add-on's own connection facts (no device probe, every signed-in user). */
+interface RawHealth {
+  status: string;
+  version: string;
+  db: { ok: boolean; permission_revision: number };
+  data_dir_writable: boolean;
+  nvr_configured: boolean;
+  go2rtc_configured: boolean;
+  discovery: { cameras_last_ok: string | null; cameras_last_error: string | null; cameras_last_run: string | null; streams_last_ok: string | null; streams_last_error: string | null; last_reason: string | null; cameras: number; interval_s: number };
+  events: { ingest: { connected: boolean; last_heartbeat_at: string | null; last_event_at: string | null; last_error: string | null; reconnects: number; events_stored: number; started_at: string | null }; derive: { last_run: string | null; last_ok: string | null; last_error: string | null; derived: number }; stored: number };
+  home_assistant: { configured: boolean; connected: boolean; last_snapshot_at: string | null; last_event_at: string | null; last_registry_at: string | null; last_error: string | null; reconnects: number; sequence: number; entities: number; started_at: string | null; ha_version: string | null };
+  identity_source: string;
+  renderer: string | null;
+}
+
+const OPTIONS: { key: string; label: string }[] = [
+  { key: 'nvr_host', label: 'כתובת ה־NVR' },
+  { key: 'nvr_http_port', label: 'פורט ISAPI (HTTP)' },
+  { key: 'nvr_rtsp_port', label: 'פורט RTSP' },
+  { key: 'nvr_username', label: 'משתמש NVR (קריאה)' },
+  { key: 'nvr_password', label: 'סיסמת NVR' },
+  { key: 'go2rtc_url', label: 'כתובת go2rtc' },
+  { key: 'go2rtc_api_username', label: 'משתמש go2rtc (אם מוגן)' },
+  { key: 'go2rtc_api_password', label: 'סיסמת go2rtc' },
+  { key: 'bootstrap_admin_username', label: 'שם משתמש HA של המנהל הראשון' },
+  { key: 'log_level', label: 'רמת לוג' },
+];
+
+function when(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? String(iso) : d.toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
 
 const STEPS = ['גילוי', 'NVR', 'go2rtc', 'גשר HA', 'מנהל ראשון', 'שעון', 'סיום'];
 
@@ -14,6 +53,100 @@ const STEPS = ['גילוי', 'NVR', 'go2rtc', 'גשר HA', 'מנהל ראשון'
 @customElement('system-setup')
 export class SystemSetup extends LitElement {
   @state() private step = 0;
+  @state() private raw: RawHealth | null = null;
+  @state() private report: HealthReport | null = null;
+  @state() private recorder: { model: string | null; firmware: string | null; name: string; last_seen_at: string | null } | null = null;
+  @state() private error = '';
+  @state() private busy = false;
+
+  connectedCallback() {
+    super.connectedCallback();
+    if (isApi()) void this.load();
+  }
+
+  private async load() {
+    this.busy = true;
+    try {
+      this.raw = await get<RawHealth>('health');
+      this.error = '';
+    } catch (err) {
+      this.error = describeError(err);
+    }
+    // extra facts when the caller may see them; neither is required for the page
+    try {
+      this.recorder = (await listCameras()).recorder;
+    } catch {
+      this.recorder = null;
+    }
+    try {
+      this.report = await healthReport();
+    } catch {
+      this.report = null;
+    }
+    this.busy = false;
+  }
+
+  private check(id: string) {
+    return this.report?.checks.find((c) => c.id === id) ?? null;
+  }
+
+  private row(label: string, value: unknown, tone: 'ok' | 'warn' | 'err' | '' = '') {
+    return html`<div class="check"><span>${label}</span><span class=${`val ${tone}`}>${value === null || value === undefined || value === '' ? '—' : String(value)}</span></div>`;
+  }
+
+  private renderApi() {
+    const h = this.raw;
+    return html`
+      <sw-page heading="חיבורים" subheading="מצב החיבורים של ה־Add-on: NVR, go2rtc, Home Assistant ואחסון · קריאה בלבד · הערכים עצמם מוגדרים ב־Home Assistant › Add-ons › SMPLWISE VMS › Configuration">
+        <sw-button slot="actions" icon="refresh" ?disabled=${this.busy} @click=${() => this.load()}>${this.busy ? 'בודק…' : 'רענון'}</sw-button>
+        ${this.error ? html`<sw-state-panel state="error" heading="מצב החיבורים לא נטען" hint=${this.error}></sw-state-panel>` : nothing}
+        ${!h
+          ? this.error ? nothing : html`<sw-state-panel state="loading" heading="קורא את מצב החיבורים…"></sw-state-panel>`
+          : html`<div class="two" data-connections>
+              <sw-card heading="NVR (Hikvision, ISAPI + RTSP)" subheading=${h.nvr_configured ? 'מוגדר · קריאה בלבד' : 'לא מוגדר'}>
+                ${this.row('מוגדר ב־Add-on options', h.nvr_configured ? 'כן' : 'לא', h.nvr_configured ? 'ok' : 'err')}
+                ${this.recorder ? this.row('דגם · קושחה', `${this.recorder.model ?? '—'} · ${this.recorder.firmware ?? '—'}`) : nothing}
+                ${this.row('גילוי מצלמות', `${h.discovery.cameras} ערוצים · כל ${Math.round(h.discovery.interval_s / 60)} דק׳`)}
+                ${this.row('גילוי אחרון תקין', when(h.discovery.cameras_last_ok), h.discovery.cameras_last_error ? 'warn' : 'ok')}
+                ${h.discovery.cameras_last_error ? this.row('שגיאת גילוי', h.discovery.cameras_last_error, 'err') : nothing}
+                ${this.row('זרם התראות (alertStream)', h.events.ingest.connected ? `מחובר · פעימה ${when(h.events.ingest.last_heartbeat_at)}` : `מנותק${h.events.ingest.last_error ? ` · ${h.events.ingest.last_error}` : ''}`, h.events.ingest.connected ? 'ok' : 'err')}
+                ${this.row('התראות שנשמרו מאז ההפעלה', h.events.ingest.events_stored, h.events.ingest.connected && !h.events.ingest.events_stored ? 'warn' : '')}
+                ${h.events.ingest.connected && !h.events.ingest.last_event_at ? html`<div class="hint" data-no-alerts-hint>ה־NVR מחובר אבל לא שלח התראה מאז ההפעלה — ב־NVR יש להפעיל "Notify Surveillance Center" ב־linkage של זיהוי התנועה; עד אז אירועי תנועה נגזרים מההקלטות כל 10 דקות.</div>` : nothing}
+                ${this.row('אירועים שנגזרו מהקלטות (ריצה אחרונה)', `${h.events.derive.derived} · ${when(h.events.derive.last_ok)}`, h.events.derive.last_error ? 'warn' : '')}
+              </sw-card>
+              <sw-card heading="go2rtc (relay לווידאו)" subheading=${h.go2rtc_configured ? 'מוגדר' : 'לא מוגדר'}>
+                ${this.row('מוגדר ב־Add-on options', h.go2rtc_configured ? 'כן' : 'לא', h.go2rtc_configured ? 'ok' : 'err')}
+                ${this.row('סנכרון זרמים אחרון תקין', when(h.discovery.streams_last_ok), h.discovery.streams_last_error ? 'warn' : 'ok')}
+                ${h.discovery.streams_last_error ? this.row('שגיאת סנכרון זרמים', h.discovery.streams_last_error, 'err') : nothing}
+                ${this.check('go2rtc') ? this.row('בדיקת בריאות', this.check('go2rtc')!.detail, this.check('go2rtc')!.status === 'ok' ? 'ok' : this.check('go2rtc')!.status === 'warn' ? 'warn' : 'err') : html`<div class="hint">פרטי הזרמים והגרסה מוצגים ב"הגדרות › כללי › בריאות ועבודות" (דורש הרשאת ניהול).</div>`}
+              </sw-card>
+              <sw-card heading="Home Assistant" subheading=${h.home_assistant.connected ? `מחובר · HA ${h.home_assistant.ha_version ?? ''}` : h.home_assistant.configured ? 'מוגדר, מנותק' : 'לא מוגדר'}>
+                ${this.row('חיבור', h.home_assistant.connected ? 'מחובר' : `מנותק${h.home_assistant.last_error ? ` · ${h.home_assistant.last_error}` : ''}`, h.home_assistant.connected ? 'ok' : 'err')}
+                ${this.row('ישויות בקטלוג', h.home_assistant.entities)}
+                ${this.row('תמונת מצב אחרונה', when(h.home_assistant.last_snapshot_at))}
+                ${this.row('עדכון ישות אחרון', when(h.home_assistant.last_event_at))}
+                ${this.row('רישום (אזורים / קומות) עודכן', when(h.home_assistant.last_registry_at))}
+                ${this.row('התחברויות מחדש מאז ההפעלה', h.home_assistant.reconnects, h.home_assistant.reconnects > 3 ? 'warn' : '')}
+                ${this.row('מקור הזהות', h.identity_source === 'ingress' ? 'Home Assistant Ingress' : h.identity_source)}
+              </sw-card>
+              <sw-card heading="אחסון וכלים" subheading=${`גרסה ${h.version}`}>
+                ${this.row('בסיס הנתונים', h.db.ok ? `תקין · מהדורת הרשאות ${h.db.permission_revision}` : 'שגיאה', h.db.ok ? 'ok' : 'err')}
+                ${this.row('תיקיית הנתונים (/data)', h.data_dir_writable ? 'ניתנת לכתיבה' : 'לא ניתנת לכתיבה', h.data_dir_writable ? 'ok' : 'err')}
+                ${this.row('ממיר תוכניות PDF', h.renderer ?? 'חסר', h.renderer ? 'ok' : 'warn')}
+                ${this.row('אירועים שמורים', h.events.stored)}
+                ${this.check('thumbnails') ? this.row('תמונות אירועים (ffmpeg)', this.check('thumbnails')!.detail, this.check('thumbnails')!.status === 'ok' ? 'ok' : 'warn') : nothing}
+                ${this.check('backups') ? this.row('גיבויים', this.check('backups')!.detail, this.check('backups')!.status === 'ok' ? 'ok' : 'warn') : nothing}
+              </sw-card>
+            </div>
+            <sw-card heading="איפה מגדירים" subheading="הערכים אינם מוצגים כאן ואינם נשמרים ב־VMS; שינוי דורש הפעלה מחדש של ה־Add-on">
+              <div class="opts" data-connection-options>
+                ${OPTIONS.map((o) => html`<div class="check"><span>${o.label}</span><span class="val ltr">${o.key}</span></div>`)}
+              </div>
+              <div class="hint">Home Assistant › הגדרות › Add-ons › SMPLWISE VMS › Configuration. משתמש ה־NVR צריך הרשאות צפייה והקלטות בלבד; ה־VMS לא כותב ל־NVR.</div>
+            </sw-card>`}
+      </sw-page>
+    `;
+  }
 
   static styles = css`
     .wrap {
@@ -42,6 +175,37 @@ export class SystemSetup extends LitElement {
     .hint {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
+    }
+    .val {
+      color: var(--sw-text-2);
+      text-align: start;
+      max-inline-size: 60%;
+      overflow-wrap: anywhere;
+    }
+    .val.ok {
+      color: var(--sw-success, #15803d);
+    }
+    .val.warn {
+      color: var(--sw-warning, #b45309);
+    }
+    .val.err {
+      color: var(--sw-danger);
+      font-weight: 600;
+    }
+    .opts {
+      columns: 2;
+      column-gap: 24px;
+    }
+    .opts .check {
+      break-inside: avoid;
+    }
+    @media (max-width: 767px) {
+      .two {
+        grid-template-columns: 1fr;
+      }
+      .opts {
+        columns: 1;
+      }
     }
     .foot {
       display: flex;
@@ -196,6 +360,7 @@ export class SystemSetup extends LitElement {
   }
 
   render() {
+    if (isApi()) return this.renderApi();
     return html`
       <sw-page heading="אשף התקנה" subheading="גילוי NVR ומצלמות, בדיקת זרמים, שמות וקומות · בדיקות קריאה בלבד · נתוני הדגמה">
         <div class="wrap">
