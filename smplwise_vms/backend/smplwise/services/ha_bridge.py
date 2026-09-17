@@ -76,27 +76,78 @@ def verify(secret: str | None, message: dict[str, Any], now: float | None = None
 
 # ---------------------------------------------------------------- allow-listed actions
 
+# Risk classes (T040): "routine" runs at once; "attention" needs an explicit confirmation (side effects the VMS
+# cannot see: scripts, scenes, buttons, sirens, arming, covers); "sensitive" needs its own grant on top of entity
+# control (never implied by a role) and a confirmation. `sensitive` (bool) stays for the older clients: it is
+# True for attention and sensitive alike.
+RISK_LABEL = {"routine": "שגרתית", "attention": "דורשת אישור", "sensitive": "רגישה — הרשאה נפרדת"}
+HVAC_MODES = ["off", "heat", "cool", "heat_cool", "auto", "dry", "fan_only"]
+
+
+def _a(domain: str, service: str, label: str, *, args: dict[str, Any] | None = None, expect: str | None = None, risk: str = "routine", grant: str | None = None, expect_from: str | None = None) -> dict[str, Any]:
+    d: dict[str, Any] = {"domain": domain, "service": service, "args": args or {}, "expect": expect, "sensitive": risk != "routine", "risk": risk, "label": label}
+    if grant:
+        d["grant"] = grant
+    if expect_from:
+        d["expect_from"] = expect_from
+    return d
+
+
 ACTIONS: dict[str, dict[str, Any]] = {
-    # id: domain, service, argument schema {name: (type, min, max)}, expected state after success, sensitive
-    "light.turn_on": {"domain": "light", "service": "turn_on", "args": {"brightness_pct": ("int", 1, 100)}, "expect": "on", "sensitive": False, "label": "הדלקה"},
-    "light.turn_off": {"domain": "light", "service": "turn_off", "args": {}, "expect": "off", "sensitive": False, "label": "כיבוי"},
-    "switch.turn_on": {"domain": "switch", "service": "turn_on", "args": {}, "expect": "on", "sensitive": False, "label": "הדלקה"},
-    "switch.turn_off": {"domain": "switch", "service": "turn_off", "args": {}, "expect": "off", "sensitive": False, "label": "כיבוי"},
-    "fan.turn_on": {"domain": "fan", "service": "turn_on", "args": {"percentage": ("int", 1, 100)}, "expect": "on", "sensitive": False, "label": "הפעלה"},
-    "fan.turn_off": {"domain": "fan", "service": "turn_off", "args": {}, "expect": "off", "sensitive": False, "label": "כיבוי"},
-    "cover.open_cover": {"domain": "cover", "service": "open_cover", "args": {}, "expect": "open", "sensitive": True, "label": "פתיחה"},
-    "cover.close_cover": {"domain": "cover", "service": "close_cover", "args": {}, "expect": "closed", "sensitive": True, "label": "סגירה"},
-    "cover.stop_cover": {"domain": "cover", "service": "stop_cover", "args": {}, "expect": None, "sensitive": False, "label": "עצירה"},
-    "lock.lock": {"domain": "lock", "service": "lock", "args": {}, "expect": "locked", "sensitive": False, "label": "נעילה"},
-    "lock.unlock": {"domain": "lock", "service": "unlock", "args": {}, "expect": "unlocked", "sensitive": True, "label": "פתיחה", "grant": "door.unlock"},
-    "button.press": {"domain": "button", "service": "press", "args": {}, "expect": None, "sensitive": True, "label": "לחיצה"},
-    "script.turn_on": {"domain": "script", "service": "turn_on", "args": {}, "expect": None, "sensitive": True, "label": "הפעלת סקריפט"},
-    "scene.turn_on": {"domain": "scene", "service": "turn_on", "args": {}, "expect": None, "sensitive": True, "label": "הפעלת סצנה"},
+    # id: domain, service, argument schema {name: (type, lo, hi) | ("enum", choices) | ("str", min_len, max_len)},
+    # expected state after success (or the argument it comes from), risk class, extra grant
+    "light.turn_on": _a("light", "turn_on", "הדלקה", args={"brightness_pct": ("int", 1, 100)}, expect="on"),
+    "light.turn_off": _a("light", "turn_off", "כיבוי", expect="off"),
+    "switch.turn_on": _a("switch", "turn_on", "הדלקה", expect="on"),
+    "switch.turn_off": _a("switch", "turn_off", "כיבוי", expect="off"),
+    "fan.turn_on": _a("fan", "turn_on", "הפעלה", args={"percentage": ("int", 1, 100)}, expect="on"),
+    "fan.turn_off": _a("fan", "turn_off", "כיבוי", expect="off"),
+    "cover.open_cover": _a("cover", "open_cover", "פתיחה", expect="open", risk="attention"),
+    "cover.close_cover": _a("cover", "close_cover", "סגירה", expect="closed", risk="attention"),
+    "cover.stop_cover": _a("cover", "stop_cover", "עצירה"),
+    "lock.lock": _a("lock", "lock", "נעילה", expect="locked"),
+    "lock.unlock": _a("lock", "unlock", "פתיחה", expect="unlocked", risk="sensitive", grant="door.unlock"),
+    "button.press": _a("button", "press", "לחיצה", risk="attention"),
+    "script.turn_on": _a("script", "turn_on", "הפעלת סקריפט", risk="attention"),
+    "scene.turn_on": _a("scene", "turn_on", "הפעלת סצנה", risk="attention"),
+    # T040: more adapters
+    "climate.set_hvac_mode": _a("climate", "set_hvac_mode", "מצב פעולה", args={"hvac_mode": ("enum", HVAC_MODES)}, expect_from="hvac_mode"),
+    "climate.set_temperature": _a("climate", "set_temperature", "טמפרטורת יעד", args={"temperature": ("float", 5, 35)}),
+    "media_player.media_play": _a("media_player", "media_play", "נגן", expect="playing"),
+    "media_player.media_pause": _a("media_player", "media_pause", "השהה", expect="paused"),
+    "media_player.media_stop": _a("media_player", "media_stop", "עצור"),
+    "media_player.volume_set": _a("media_player", "volume_set", "עוצמת שמע", args={"volume_level": ("float", 0, 1)}),
+    "number.set_value": _a("number", "set_value", "קביעת ערך", args={"value": ("float", -1e9, 1e9)}, expect_from="value"),
+    "input_number.set_value": _a("input_number", "set_value", "קביעת ערך", args={"value": ("float", -1e9, 1e9)}, expect_from="value"),
+    "select.select_option": _a("select", "select_option", "בחירה", args={"option": ("str", 1, 80)}, expect_from="option"),
+    "input_select.select_option": _a("input_select", "select_option", "בחירה", args={"option": ("str", 1, 80)}, expect_from="option"),
+    "input_boolean.turn_on": _a("input_boolean", "turn_on", "הפעלה", expect="on"),
+    "input_boolean.turn_off": _a("input_boolean", "turn_off", "כיבוי", expect="off"),
+    "vacuum.start": _a("vacuum", "start", "התחל ניקוי", expect="cleaning"),
+    "vacuum.return_to_base": _a("vacuum", "return_to_base", "חזרה לעמדה", expect="returning"),
+    "siren.turn_on": _a("siren", "turn_on", "הפעלת צופר", expect="on", risk="attention"),
+    "siren.turn_off": _a("siren", "turn_off", "כיבוי צופר", expect="off"),
+    "alarm_control_panel.alarm_arm_home": _a("alarm_control_panel", "alarm_arm_home", "דריכה בבית", expect="armed_home", risk="attention"),
+    "alarm_control_panel.alarm_arm_away": _a("alarm_control_panel", "alarm_arm_away", "דריכה מלאה", expect="armed_away", risk="attention"),
+    "alarm_control_panel.alarm_disarm": _a("alarm_control_panel", "alarm_disarm", "נטרול", expect="disarmed", risk="sensitive", grant="alarm.disarm"),
 }
 
 
+def _arg_spec(name: str, schema: tuple[Any, ...]) -> dict[str, Any]:
+    typ = schema[0]
+    if typ == "enum":
+        return {"name": name, "type": "enum", "choices": list(schema[1])}
+    if typ == "str":
+        return {"name": name, "type": "str", "min_len": schema[1], "max_len": schema[2]}
+    return {"name": name, "type": typ, "min": schema[1], "max": schema[2]}
+
+
 def actions_for(domain: str) -> list[dict[str, Any]]:
-    return [{"id": aid, "label": a["label"], "sensitive": a["sensitive"], "arguments": list(a["args"]), "grant": a.get("grant")} for aid, a in ACTIONS.items() if a["domain"] == domain]
+    return [
+        {"id": aid, "label": a["label"], "sensitive": a["sensitive"], "risk": a["risk"], "risk_label": RISK_LABEL[a["risk"]], "arguments": list(a["args"]),
+         "argument_specs": [_arg_spec(n, sc) for n, sc in a["args"].items()], "grant": a.get("grant")}
+        for aid, a in ACTIONS.items() if a["domain"] == domain
+    ]
 
 
 def validate_action(action_id: str, entity_id: str, arguments: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -110,13 +161,32 @@ def validate_action(action_id: str, entity_id: str, arguments: dict[str, Any]) -
     for name, value in (arguments or {}).items():
         if name not in spec["args"]:
             raise ApiError(422, "argument_not_allowed", f"ארגומנט לא מאושר: {name}", details={"argument": name})
-        typ, lo, hi = spec["args"][name]
-        if typ == "int":
+        schema = spec["args"][name]
+        typ = schema[0]
+        if typ in ("int", "float"):
+            lo, hi = schema[1], schema[2]
             try:
-                iv = int(value)
+                num = int(value) if typ == "int" else float(value)
             except (TypeError, ValueError):
                 raise ApiError(422, "validation", f"{name} חייב להיות מספר.")
-            if not lo <= iv <= hi:
+            if isinstance(value, bool) or num != num:  # bools and NaN never pass as numbers
+                raise ApiError(422, "validation", f"{name} חייב להיות מספר.")
+            if not lo <= num <= hi:
                 raise ApiError(422, "validation", f"{name} מחוץ לטווח {lo}–{hi}.")
-            data[name] = iv
+            data[name] = num
+        elif typ == "enum":
+            if not isinstance(value, str) or value not in schema[1]:
+                raise ApiError(422, "validation", f"{name}: ערך לא מוכר.", details={"choices": list(schema[1])})
+            data[name] = value
+        elif typ == "str":
+            if not isinstance(value, str) or not schema[1] <= len(value.strip()) <= schema[2]:
+                raise ApiError(422, "validation", f"{name}: טקסט באורך {schema[1]}–{schema[2]} תווים.")
+            data[name] = value.strip()
+    missing = [n for n in spec["args"] if n not in data and spec.get("expect_from") == n]
+    if missing:
+        raise ApiError(422, "validation", f"חסר ארגומנט: {missing[0]}", details={"argument": missing[0]})
+    if spec.get("expect_from") and spec["expect_from"] in data:
+        # the state Home Assistant reports after success is the value we asked for (a mode, an option, a number)
+        v = data[spec["expect_from"]]
+        spec = {**spec, "expect": (str(int(v)) if isinstance(v, float) and v.is_integer() else str(v))}
     return spec, data

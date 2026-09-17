@@ -1,5 +1,19 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.52 (pilot) — more entity adapters with risk classes (T040)
+- Entity actions on the floor map now cover, beside lights / switches / fans / covers / locks / buttons / scripts /
+  scenes: **climate** (operating mode, target temperature), **media players** (play, pause, stop, volume),
+  **number / input_number** (set a value), **select / input_select** (choose an option), **input_boolean**,
+  **vacuum** (start, return to base), **siren** (on / off) and the **alarm panel** (arm home / away, disarm).
+- Every action carries a risk class: *routine* runs at once; *attention* (scripts, scenes, buttons, covers,
+  sirens, arming) asks for an explicit confirmation; *sensitive* (unlocking a door, disarming the alarm) also needs
+  its own grant that no role implies — `door.unlock` and the new `alarm.disarm`, granted through a custom role.
+- Arguments are validated by the add-on before anything reaches Home Assistant (numbers in range, modes and
+  options from a fixed list, texts bounded), the expected state follows the requested value (a mode, an option,
+  a number), and the entity card offers an input per argument with sensible defaults from the entity itself.
+- Bridge integration 0.2.1: the allow-list learns the new services. Home Assistant must be restarted once
+  after the update for the new services to pass; until then they answer "service not allowed" with a hint.
+
 ## 0.1.51 (pilot) — the last two hidden screens built for real (live review F1 F3)
 - לייב › **תמונת מצב** (F1): a real dashboard — greeting by the product time zone, cameras online / total with
   the recorder model, sites and floors with plans, today's events with the unreviewed count, the system status

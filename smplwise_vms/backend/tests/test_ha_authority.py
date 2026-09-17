@@ -107,4 +107,10 @@ def test_map_edit_is_not_control_and_no_client_identity(paired):
     # the catalogue advertises only the allow-list, and the allow-list has no admin-only service
     listed = c.get("/api/v1/ha/entities").json()["entities"]
     assert listed and all(a["id"] in ha_bridge.ACTIONS for e in listed for a in e["actions"])
-    assert all(spec["domain"] not in ("homeassistant", "hassio", "alarm_control_panel") for spec in ha_bridge.ACTIONS.values())
+    assert all(spec["domain"] not in ("homeassistant", "hassio") for spec in ha_bridge.ACTIONS.values())
+    # T040: the alarm panel is allow-listed, but disarming carries its own sensitive grant and arming needs a confirmation
+    for aid, spec in ha_bridge.ACTIONS.items():
+        if spec["domain"] == "alarm_control_panel":
+            assert spec["sensitive"] is True
+            if spec["service"] == "alarm_disarm":
+                assert spec["grant"] == "alarm.disarm", aid

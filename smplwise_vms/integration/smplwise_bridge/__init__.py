@@ -49,6 +49,13 @@ ALLOWED_SERVICES = {
     ("light", "turn_on"), ("light", "turn_off"), ("switch", "turn_on"), ("switch", "turn_off"), ("fan", "turn_on"), ("fan", "turn_off"),
     ("cover", "open_cover"), ("cover", "close_cover"), ("cover", "stop_cover"), ("lock", "lock"), ("lock", "unlock"),
     ("button", "press"), ("script", "turn_on"), ("scene", "turn_on"),
+    # 0.2.1 (T040): more adapters — the add-on validates the arguments, Home Assistant decides per user
+    ("climate", "set_hvac_mode"), ("climate", "set_temperature"),
+    ("media_player", "media_play"), ("media_player", "media_pause"), ("media_player", "media_stop"), ("media_player", "volume_set"),
+    ("number", "set_value"), ("input_number", "set_value"), ("select", "select_option"), ("input_select", "select_option"),
+    ("input_boolean", "turn_on"), ("input_boolean", "turn_off"), ("vacuum", "start"), ("vacuum", "return_to_base"),
+    ("siren", "turn_on"), ("siren", "turn_off"),
+    ("alarm_control_panel", "alarm_arm_home"), ("alarm_control_panel", "alarm_arm_away"), ("alarm_control_panel", "alarm_disarm"),
 }
 
 

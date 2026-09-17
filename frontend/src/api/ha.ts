@@ -6,11 +6,25 @@ import { apiUrl, get, post } from './client';
 import type { StateKind } from '../components/sw-badge';
 import type { MarkerKind } from '../map/sw-plan-canvas';
 
+export interface HaActionArgSpec {
+  name: string;
+  type: 'int' | 'float' | 'enum' | 'str';
+  min?: number;
+  max?: number;
+  min_len?: number;
+  max_len?: number;
+  choices?: string[];
+}
+
 export interface HaActionSpec {
   id: string;
   label: string;
   sensitive: boolean;
+  /** T040 risk class: routine runs at once, attention asks for a confirmation, sensitive also needs its own grant. */
+  risk?: 'routine' | 'attention' | 'sensitive';
+  risk_label?: string;
   arguments: string[];
+  argument_specs?: HaActionArgSpec[];
   /** A separate permission the action needs on top of entity control (T079), and whether this caller holds it. */
   grant?: string | null;
   granted?: boolean;
@@ -172,7 +186,7 @@ export const ACTION_ERROR_LABEL: Record<string, string> = {
   bridge_not_paired: 'גשר SMPLWISE אינו מצומד',
   bridge_error: 'הגשר החזיר שגיאה',
   ha_unavailable: 'Home Assistant אינו זמין',
-  service_not_allowed: 'הגשר סירב: השירות אינו ברשימת הפעולות המאושרות',
+  service_not_allowed: 'הגשר סירב: השירות אינו ברשימת הפעולות המאושרות (גשר ישן? מאז 0.2.1 נוספו climate / media / number / select / alarm — הפעל את Home Assistant מחדש כדי לטעון את הגרסה החדשה)',
   unknown_user: 'Home Assistant אינו מכיר את המשתמש',
 };
 

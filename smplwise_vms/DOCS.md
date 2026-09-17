@@ -501,3 +501,25 @@ may not watch one of the cameras sees the view without it. "פתח" opens the ca
 opens `#/kiosk/all?cameras=…&cols=…&rows=…` in a new tab (the kiosk pages through the cameras, cols × rows at a
 time). Views travel with the project backup.
 
+## Entity actions and risk classes (0.1.52, T040)
+
+Actions on Home Assistant entities run through the SMPLWISE Bridge integration in the acting user's own HA
+identity; Home Assistant's own permissions decide last. The add-on allow-lists the services and validates the
+arguments first:
+
+| Domain | Actions | Risk |
+|---|---|---|
+| light, switch, fan, input_boolean, vacuum | on / off (brightness or speed for light / fan), start / return to base | routine |
+| climate | operating mode (from the entity's modes), target temperature 5–35 ° | routine |
+| media_player | play, pause, stop, volume 0–100 % | routine |
+| number, input_number, select, input_select | set a value / choose an option (the expected state is the value) | routine |
+| cover | open / close (stop is routine) | attention — confirmation |
+| button, script, scene, siren | press / run / activate / on | attention — confirmation |
+| alarm_control_panel | arm home / arm away | attention — confirmation |
+| lock | unlock | sensitive — confirmation + `door.unlock` grant |
+| alarm_control_panel | disarm | sensitive — confirmation + `alarm.disarm` grant |
+
+Sensitive grants are never implied by a built-in role; a custom role that lists them explicitly (הגדרות › משתמשים
+והרשאות › תפקידים) gives them at a scope. Every action, refusal and its reason is audited. The bridge
+integration's allow-list must match (0.2.1 for the domains above): restart Home Assistant once after updating.
+

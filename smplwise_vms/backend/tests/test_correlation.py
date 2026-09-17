@@ -102,7 +102,7 @@ def test_correlation_neighbourhood_certainty_and_notes(settings):
     assert c.get("/api/v1/events/cam1/correlation?window=30").json()["links"][-1]["delta_s"] == 10.0, "window trims the inferred camera event and the later door close"
 
     # the sensor event as subject: its neighbourhood includes the camera's events
-    door_evt = c.get("/api/v1/events?limit=50").json()["events"]
+    door_evt = c.get("/api/v1/events?date=2026-09-16&limit=50").json()["events"]  # the fixture day, not "the last 24 h"
     sensor_id = next(e["id"] for e in door_evt if e["source"] == "ha" and e["details"]["entity_id"] == "binary_sensor.door" and e["details"]["to"] == "on")
     d2 = c.get(f"/api/v1/events/{sensor_id}/correlation").json()
     assert d2["subject"] == {"kind": "entity", "id": "binary_sensor.door"} and d2["location"]["zone"] == "לובי"

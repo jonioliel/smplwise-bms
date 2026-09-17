@@ -26,7 +26,10 @@ import { bidi } from '../i18n/bidi';
 import { ApiError, describeError } from '../api/client';
 import type { Anchor } from '../api/types';
 import { pointInPolygon } from '../api/zones';
-import { ACTION_ERROR_LABEL, ACTION_STATUS_LABEL, awaitAction, domainLabel, entityMarkerKind, entityTone, fmtTime, runAction, stateLabel, subscribeHa, type HaActionRecord, type HaActionSpec, type HaEntity } from '../api/ha';
+import { ACTION_ERROR_LABEL, ACTION_STATUS_LABEL, awaitAction, domainLabel, entityMarkerKind, entityTone, fmtTime, runAction, stateLabel, subscribeHa, type HaActionArgSpec, type HaActionRecord, type HaActionSpec, type HaEntity } from '../api/ha';
+
+/** Hebrew names for enum choices the adapters offer (T040). */
+const ARG_CHOICE_HE: Record<string, string> = { off: 'כבוי', heat: 'חימום', cool: 'קירור', heat_cool: 'חימום/קירור', auto: 'אוטומטי', dry: 'ייבוש', fan_only: 'מאוורר בלבד' };
 
 type ScreenState = 'ready' | 'loading' | 'empty' | 'error' | 'forbidden' | 'stale' | 'partial';
 type Layer = 'cameras' | 'doors' | 'lights' | 'sensors' | 'zones';
@@ -339,6 +342,34 @@ export class ExploreFloorMap extends LitElement {
     .warn {
       color: var(--sw-danger);
       font-size: var(--sw-fs-xs);
+    }
+    .actrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+    .actrow .arg {
+      font: inherit;
+      font-size: var(--sw-fs-xs);
+      border: 1px solid var(--sw-border-strong);
+      border-radius: 6px;
+      padding: 3px 6px;
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      max-inline-size: 110px;
+    }
+    .actrow input.arg[type='number'] {
+      inline-size: 72px;
+    }
+    .actrow .argwrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+    }
+    .actrow .unit {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
     }
     .statusrow {
       display: flex;
@@ -662,6 +693,59 @@ export class ExploreFloorMap extends LitElement {
 
   // ---- HA actions (through the bridge integration, in the user's own HA identity) ----
 
+  /** Values typed for actions with arguments (T040), keyed by action id; defaults come from the entity's attributes. */
+  @state() private actionArgs: Record<string, string> = {};
+
+  private argDefault(e: HaEntity, arg: HaActionArgSpec): string {
+    const at = e.attributes as Record<string, unknown>;
+    if (arg.name === 'hvac_mode') return String((at.hvac_mode as string) ?? e.state ?? arg.choices?.[0] ?? '');
+    if (arg.name === 'temperature') return String((at.temperature as number) ?? 21);
+    if (arg.name === 'volume_level') return String(Math.round(((at.volume_level as number) ?? 0.5) * 100));
+    if (arg.name === 'value') return String(e.state ?? at.min ?? 0);
+    if (arg.name === 'option') return String(e.state ?? (at.options as string[] | undefined)?.[0] ?? '');
+    if (arg.name === 'brightness_pct') return String(typeof at.brightness === 'number' ? Math.round((at.brightness / 255) * 100) : 100);
+    if (arg.name === 'percentage') return String((at.percentage as number) ?? 100);
+    return String(arg.choices?.[0] ?? arg.min ?? '');
+  }
+
+  /** The argument values to send: numbers as numbers (volume back to a fraction), enums / text as typed. */
+  private argsFor(e: HaEntity, spec: HaActionSpec): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const a of spec.argument_specs ?? []) {
+      const raw = this.actionArgs[`${spec.id}:${a.name}`] ?? this.argDefault(e, a);
+      if (a.type === 'int' || a.type === 'float') {
+        const n = Number(raw);
+        if (!Number.isFinite(n)) continue;
+        out[a.name] = a.name === 'volume_level' ? Math.min(1, Math.max(0, n / 100)) : n;
+      } else out[a.name] = raw;
+    }
+    return out;
+  }
+
+  private argChoices(e: HaEntity, arg: HaActionArgSpec): string[] {
+    const at = e.attributes as Record<string, unknown>;
+    if (arg.name === 'hvac_mode' && Array.isArray(at.hvac_modes)) return (at.hvac_modes as string[]).filter((m) => arg.choices?.includes(m));
+    if (arg.name === 'option' && Array.isArray(at.options)) return at.options as string[];
+    return arg.choices ?? [];
+  }
+
+  private renderArg(e: HaEntity, spec: HaActionSpec, arg: HaActionArgSpec) {
+    const key = `${spec.id}:${arg.name}`;
+    const value = this.actionArgs[key] ?? this.argDefault(e, arg);
+    const set = (v: string) => (this.actionArgs = { ...this.actionArgs, [key]: v });
+    const at = e.attributes as Record<string, unknown>;
+    const choices = this.argChoices(e, arg);
+    if (choices.length) return html`<select class="arg" data-action-arg=${key} aria-label=${arg.name} @change=${(ev: Event) => set((ev.target as HTMLSelectElement).value)}>${choices.map((c) => html`<option value=${c} ?selected=${c === value}>${ARG_CHOICE_HE[c] ?? c}</option>`)}</select>`;
+    if (arg.type === 'int' || arg.type === 'float') {
+      const min = arg.name === 'volume_level' ? 0 : arg.name === 'value' ? ((at.min as number) ?? arg.min) : arg.name === 'temperature' ? ((at.min_temp as number) ?? arg.min) : arg.min;
+      const max = arg.name === 'volume_level' ? 100 : arg.name === 'value' ? ((at.max as number) ?? arg.max) : arg.name === 'temperature' ? ((at.max_temp as number) ?? arg.max) : arg.max;
+      const step = arg.name === 'value' ? ((at.step as number) ?? 1) : arg.name === 'temperature' ? 0.5 : 1;
+      const unit = arg.name === 'volume_level' || arg.name === 'brightness_pct' || arg.name === 'percentage' ? '%' : arg.name === 'temperature' ? '°' : '';
+      return html`<span class="argwrap"><input class="arg" type="number" data-action-arg=${key} aria-label=${arg.name} .value=${value} min=${String(min ?? '')} max=${String(max ?? '')} step=${String(step)} data-ltr @change=${(ev: Event) => set((ev.target as HTMLInputElement).value)} />${unit ? html`<span class="unit">${unit}</span>` : nothing}</span>`;
+    }
+    return html`<input class="arg" type="text" data-action-arg=${key} aria-label=${arg.name} .value=${value} maxlength=${String(arg.max_len ?? 80)} @change=${(ev: Event) => set((ev.target as HTMLInputElement).value)} />`;
+  }
+
   private trigger(entityId: string, spec: HaActionSpec) {
     if (spec.sensitive) {
       this.confirmSpec = { entityId, spec };
@@ -674,7 +758,8 @@ export class ExploreFloorMap extends LitElement {
     this.confirmSpec = null;
     this.action = { entityId, spec, record: null, error: '', busy: true };
     try {
-      const r = await runAction(entityId, spec.id, {}, confirmed);
+      const ent = this.bundle?.anchors.find((a) => a.resource_type === 'ha_entity' && a.resource_id === entityId)?.entity;
+      const r = await runAction(entityId, spec.id, ent ? this.argsFor(ent, spec) : {}, confirmed);
       this.action = { entityId, spec, record: r, error: '', busy: r.status === 'pending' };
       if (r.status === 'pending') {
         const token = this.action;
@@ -714,7 +799,7 @@ export class ExploreFloorMap extends LitElement {
     const e = a.entity;
     const busy = Boolean(this.action && e && this.action.entityId === e.entity_id && this.action.busy);
     const specs = e?.actions ?? [];
-    return html`${specs.map((s) => html`<sw-button size="sm" variant=${s.sensitive ? 'danger' : 'primary'} ?disabled=${busy || this.screenState === 'stale' || e?.state === 'unavailable' || s.granted === false} title=${s.granted === false ? `נדרשת הרשאה נפרדת: ${s.grant ?? ''}` : ''} data-action=${s.id} data-granted=${s.granted === false ? 'no' : 'yes'} @click=${() => e && this.trigger(e.entity_id, s)}>${s.label}</sw-button>`)}`;
+    return html`${specs.map((s) => html`<span class="actrow" data-action-row=${s.id}>${e && s.argument_specs?.length ? s.argument_specs.map((a) => this.renderArg(e, s, a)) : nothing}<sw-button size="sm" variant=${s.risk === 'sensitive' ? 'danger' : s.sensitive ? 'danger' : 'primary'} ?disabled=${busy || this.screenState === 'stale' || e?.state === 'unavailable' || s.granted === false} title=${s.granted === false ? `נדרשת הרשאה נפרדת: ${s.grant ?? ''}` : s.risk_label ? `פעולה ${s.risk_label}` : ''} data-action=${s.id} data-risk=${s.risk ?? (s.sensitive ? 'attention' : 'routine')} data-granted=${s.granted === false ? 'no' : 'yes'} @click=${() => e && this.trigger(e.entity_id, s)}>${s.label}</sw-button></span>`)}`;
   }
 
   private renderConfirm() {
@@ -722,7 +807,7 @@ export class ExploreFloorMap extends LitElement {
     if (!c) return nothing;
     const ent = this.bundle?.anchors.find((a) => a.resource_type === 'ha_entity' && a.resource_id === c.entityId)?.entity;
     return html`<sw-dialog open heading=${t('entity.confirm')} subheading=${ent?.name ?? c.entityId} @close=${() => (this.confirmSpec = null)}>
-      <div style="font-size:var(--sw-fs-sm);line-height:1.5">הפעולה <strong>${c.spec.label}</strong> על <span class="ltr">${c.entityId}</span> מסומנת כרגישה. היא תבוצע ב־Home Assistant בזהות שלך ותירשם באודיט.</div>
+      <div style="font-size:var(--sw-fs-sm);line-height:1.5">הפעולה <strong>${c.spec.label}</strong> על <span class="ltr">${c.entityId}</span> היא פעולה ${c.spec.risk_label ?? 'רגישה'}${c.spec.risk === 'sensitive' ? ' (הרשאה נפרדת)' : ''}. היא תבוצע ב־Home Assistant בזהות שלך ותירשם באודיט.</div>
       <div slot="footer"><sw-button variant="danger" @click=${() => this.send(c.entityId, c.spec, true)}>${c.spec.label}</sw-button><sw-button variant="ghost" @click=${() => (this.confirmSpec = null)}>${t('actions.cancel')}</sw-button></div>
     </sw-dialog>`;
   }

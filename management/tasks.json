@@ -2163,7 +2163,8 @@
       "Build screenshots matching design reference"
     ],
     "evidence": [
-      "note (HA segment, 2026-09-15): first allow-list covers light/switch/fan on-off, cover open/close/stop, lock lock/unlock, button, script, scene with sensitive flags; climate/media/number adapters and per-role risk classes remain for this card"
+      "note (HA segment, 2026-09-15): first allow-list covers light/switch/fan on-off, cover open/close/stop, lock lock/unlock, button, script, scene with sensitive flags; climate/media/number adapters and per-role risk classes remain for this card",
+      "pre-evidence (2026-09-17, 0.1.52): services/ha_bridge.py ACTIONS carries a risk class per action (routine / attention / sensitive) and adapters for climate (set_hvac_mode enum, set_temperature 5-35), media_player (play / pause / stop / volume_set 0-1), number / input_number (set_value), select / input_select (select_option), input_boolean, vacuum, siren (attention), alarm_control_panel (arm home / away attention, disarm sensitive with the alarm.disarm grant); validate_action checks int / float / enum / str arguments and derives the expected state from the requested value; bridge integration 0.2.1 allow-list; floor-map entity card renders an input per argument with defaults from the entity attributes and names the risk class; tests/test_ha_adapters.py (catalogue, validation, bridge payload, confirmation, grant) + test_ha_authority updated. Open: live evidence with a climate / media entity on the owner's HA (the lab HA has none placed), HA restart for bridge 0.2.1"
     ],
     "owner": null,
     "commit": null,

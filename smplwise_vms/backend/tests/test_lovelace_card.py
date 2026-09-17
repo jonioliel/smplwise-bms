@@ -25,7 +25,7 @@ def test_card_is_shipped_and_the_copies_agree():
         assert (SRC / name).read_bytes() == (COPY / name).read_bytes(), name
     manifest = json.loads((SRC / "manifest.json").read_text(encoding="utf-8"))
     const = (SRC / "const.py").read_text(encoding="utf-8")
-    assert manifest["version"] == "0.2.0" and 'VERSION = "0.2.0"' in const
+    assert manifest["version"] == "0.2.1" and 'VERSION = "0.2.1"' in const
     py_compile.compile(str(SRC / "__init__.py"), doraise=True)
     src = card.read_text(encoding="utf-8")
     assert "customElements.define('smplwise-card'" in src and "hassio/ingress/session" in src and "embed=1" in src
@@ -50,4 +50,4 @@ def test_installer_carries_the_card(settings, ha_cfg, monkeypatch):
     app = create_app(settings)
     st = bridge_install.install(app.state.db, settings)
     target = ha_cfg / "custom_components" / "smplwise_bridge"
-    assert (target / "www" / "smplwise-card.js").is_file() and st["source_version"] == "0.2.0"
+    assert (target / "www" / "smplwise-card.js").is_file() and st["source_version"] == "0.2.1"
