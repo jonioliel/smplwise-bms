@@ -1,5 +1,14 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.61 (pilot) — the owner's test round, batch 1
+- Camera wall: the tile count is remembered per browser and opens with the owner's default (הגדרות › כללי ›
+  "מצלמות בקיר כברירת מחדל"); layouts up to 32 tiles (above the live-stream cap the extra tiles show snapshots).
+- Kiosk: a layout picker in the header (2×2 … 6×4) writes cols/rows into the kiosk URL and is remembered per browser;
+  the owner's default layout applies when the URL carries none.
+- Event centre: "סמן הכול כטופל (N)" acknowledges every unreviewed event of the shown list (chunks of 500).
+- Settings: "הסתרת חיפוש AI" removes the search tab from the navigation.
+- Floor map: a plan larger than the viewport now zooms out until it fits (the "-1" plan opened huge).
+
 ## 0.1.60 (pilot) — hover preview on event rows
 - Event centre (T044): resting the pointer on an event's thumbnail for a quarter of a second opens a strip with the
   frames 5 s before, at and 5 s after the event, taken from the recording through the existing frame endpoint

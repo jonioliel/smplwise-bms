@@ -192,8 +192,11 @@ export const DEMO_ONLY_HREFS = new Set(['#/explore/access/d1']);
 /** Tabs whose real screen has a different name than the design's demo screen. */
 export const API_LABELS: Record<string, string> = { '#/investigate/reviews': 'Review · חלונות', '#/investigate/playback/sync': 'ניגון מסונכרן', '#/system/setup': 'חיבורים' };
 
+/** Tabs the owner hid in the settings (0.1.61: the AI search); filled by the shell once the product settings load. */
+export const HIDDEN_HREFS = new Set<string>();
+
 export function visibleTabs(items: TabItem[], api: boolean): TabItem[] {
-  return api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '')).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items;
+  return api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '') && !HIDDEN_HREFS.has(t.href ?? '')).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items;
 }
 
 /** Route → real screen for the demo-only routes when a backend exists; null when the route is fine. */

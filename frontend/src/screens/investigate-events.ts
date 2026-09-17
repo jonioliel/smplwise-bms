@@ -441,6 +441,21 @@ export class InvestigateEvents extends LitElement {
     return html`<div class="thumb none" style=${box}><sw-icon name=${ev.type === 'offline' || ev.type === 'coverage_gap' ? 'offline' : ev.type === 'person' ? 'user' : ev.type === 'vehicle' ? 'route' : ev.type === 'door' || ev.type === 'io' ? 'door' : 'bell'} size=${14}></sw-icon></div>`;
   }
 
+  /** Every unreviewed event in the current list becomes "טופל" (chunks of 500, the API's limit) - the owner's ask (3.1). */
+  private async ackAll() {
+    const ids = (this.events ?? []).filter((e) => !e.acked_at).map((e) => e.id);
+    if (!ids.length || this.busy) return;
+    this.busy = true;
+    try {
+      for (let i = 0; i < ids.length; i += 500) await ackMany(ids.slice(i, i + 500));
+      await this.load();
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
   private schedulePoll(id: string, delay: number, attempt: number) {
     if (this.thumbTimers.has(id)) return;
     this.thumbTimers.set(id, window.setTimeout(() => void this.poll(id, attempt), delay));
@@ -731,6 +746,7 @@ export class InvestigateEvents extends LitElement {
         <sw-chip ?selected=${this.filter === 'all'} @click=${() => { this.filter = 'all'; void this.load(); }} count=${this.events.length}>הכל</sw-chip>
         <sw-chip ?selected=${this.filter === 'unacked'} @click=${() => { this.filter = 'unacked'; void this.load(); }} count=${unacked}>לבדיקה</sw-chip>
         <sw-chip ?selected=${this.filter === 'acked'} @click=${() => { this.filter = 'acked'; void this.load(); }}>טופלו</sw-chip>
+        <sw-button size="sm" icon="check" ?disabled=${!unacked || this.busy} data-ack-all title="מסמן כטופלו את כל האירועים ברשימה שעדיין לבדיקה (לפי הסינון הנוכחי)" @click=${() => this.ackAll()}>סמן הכול כטופל (${unacked})</sw-button>
         <span class="sub" style="margin-inline-start:6px">·</span>
         <sw-chip icon="list" ?selected=${this.mode === 'raw'} @click=${() => this.setMode('raw')}>אירועים</sw-chip>
         <sw-chip icon="layers" ?selected=${this.mode === 'windows'} data-mode-windows @click=${() => this.setMode('windows')} count=${this.windows?.length}>חלונות</sw-chip>

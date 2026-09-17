@@ -39,11 +39,12 @@ import '../screens/styleguide-screen';
 import { onRouteChange, type RouteState } from '../router';
 import { KIND_ICON, KIND_LABEL, search as apiSearch, type SearchResult } from '../api/search';
 import { healthSummary, type HealthSummary } from '../api/health';
-import { NAV, GROUP_TABS, groupOf, activeTabOf, NAV_A, AREA_TABS, areaOf, activeAreaTab, crumbsOf, visibleTabs, demoRedirect } from './nav';
+import { NAV, GROUP_TABS, groupOf, activeTabOf, NAV_A, AREA_TABS, areaOf, activeAreaTab, crumbsOf, visibleTabs, demoRedirect, HIDDEN_HREFS } from './nav';
 import { bidi } from '../i18n/bidi';
 import { currentDesign, onDesign, resolveDesign, type DesignId } from '../api/design';
 import { t } from '../i18n/he';
 import { isApi, loadSession, onSession, type Session } from '../api/session';
+import { productSettings } from '../api/prefs';
 import '../components/sw-state-panel';
 
 /**
@@ -639,6 +640,11 @@ export class SwApp extends LitElement {
       if (s.mode !== 'loading') void resolveDesign();
       if (s.mode === 'api' && this.route) this.redirectDemo(this.route);
       if (s.mode === 'api' && !this.sysTimer) {
+        void productSettings().then((ps) => {
+          HIDDEN_HREFS.clear();
+          if (String(ps['ui.hide_search'] ?? 'false') === 'true') HIDDEN_HREFS.add('#/investigate/search');
+          this.requestUpdate();
+        }).catch(() => undefined);
         void this.pollSummary();
         this.sysTimer = window.setInterval(() => void this.pollSummary(), 60_000);
       }

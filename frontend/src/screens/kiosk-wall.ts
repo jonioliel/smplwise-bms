@@ -14,10 +14,29 @@ import type { Camera } from '../api/types';
 
 /** Saved view = the URL: #/kiosk/all?cameras=a,b,c&cols=3&rows=2&rotate=30 (seconds per page; 0 = no rotation).
  * Default 3×2: with nine sub streams at once the lab NVR / relay let the last tiles stall (live review F15). */
-function viewParams() {
+const LAYOUT_KEY = 'sw.kiosk.layout';
+const LAYOUTS = [[2, 2], [3, 2], [3, 3], [4, 3], [4, 4], [5, 4], [6, 4]] as const;
+
+/** cols x rows for a kiosk page: the URL wins, then this browser's last pick, then the owner's default (0.1.61). */
+function defaultLayout(settings?: { 'ui.kiosk_cols'?: number | string; 'ui.kiosk_rows'?: number | string } | null): { cols: number; rows: number } {
+  try {
+    const s = localStorage.getItem(LAYOUT_KEY);
+    if (s) {
+      const [c, r] = s.split('x').map(Number);
+      if (c >= 1 && r >= 1) return { cols: c, rows: r };
+    }
+  } catch {
+    /* private mode */
+  }
+  const c = Number(settings?.['ui.kiosk_cols'] ?? 0);
+  const r = Number(settings?.['ui.kiosk_rows'] ?? 0);
+  return { cols: c >= 1 ? c : 3, rows: r >= 1 ? r : 2 };
+}
+
+function viewParams(def = defaultLayout()) {
   const p = parseRoute().params;
-  const cols = Math.min(4, Math.max(1, Number(p.get('cols') ?? 3) || 3));
-  const rows = Math.min(4, Math.max(1, Number(p.get('rows') ?? 2) || 2));
+  const cols = Math.min(6, Math.max(1, Number(p.get('cols') ?? def.cols) || def.cols));
+  const rows = Math.min(5, Math.max(1, Number(p.get('rows') ?? def.rows) || def.rows));
   return { cameras: (p.get('cameras') ?? '').split(',').map((s) => s.trim()).filter(Boolean), cols, rows, rotate: Math.max(0, Number(p.get('rotate') ?? 0) || 0) };
 }
 
@@ -44,6 +63,21 @@ export class KioskWall extends LitElement {
 
   /** The page shown for this exact view (cameras + layout), kept in the browser so a reload, a power cycle or a
    * reconnect brings the wall back to the same page (T057). */
+  /** The picker writes the layout into the URL (a kiosk view is its URL) and remembers it for this browser. */
+  private setLayout(v: string) {
+    const [c, r] = v.split('x').map(Number);
+    if (!(c >= 1 && r >= 1)) return;
+    try {
+      localStorage.setItem(LAYOUT_KEY, `${c}x${r}`);
+    } catch {
+      /* private mode */
+    }
+    const p = new URLSearchParams(parseRoute().params);
+    p.set('cols', String(c));
+    p.set('rows', String(r));
+    window.location.replace(`#/kiosk/all?${p.toString()}`);
+  }
+
   private get pageKey(): string {
     return `sw.kiosk.page:${this.view.cameras.join(',')}|${this.view.cols}x${this.view.rows}`;
   }
@@ -125,6 +159,15 @@ export class KioskWall extends LitElement {
     }
     .pill[data-status='error'] {
       background: rgba(239, 68, 68, 0.3);
+    }
+    header select.layout {
+      background: rgba(255, 255, 255, 0.08);
+      color: inherit;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 8px;
+      padding: 3px 8px;
+      font: inherit;
+      font-size: 12px;
     }
     .grid {
       flex: 1;
@@ -273,6 +316,7 @@ export class KioskWall extends LitElement {
       const [list, settings] = await Promise.all([listCameras(), productSettings()]);
       this.cams = list.cameras.filter((c) => c.enabled);
       this.settings = settings;
+      this.view = viewParams(defaultLayout(settings));
     } catch {
       this.cams = [];
     }
@@ -293,6 +337,9 @@ export class KioskWall extends LitElement {
         <span class="spacer"></span>
         <sw-badge kind="live" label=${`${api ? this.selected.length : demo.length} מצלמות · ${online} חיות`}></sw-badge>
         ${api && this.pages > 1 ? html`<span class="pill" data-kiosk-page>עמוד ${pageIndex + 1}/${this.pages}${this.view.rotate ? ` · כל ${this.view.rotate} שנ׳` : ''}</span>` : nothing}
+        ${api ? html`<select class="layout" data-kiosk-layout aria-label="פריסה" @change=${(e: Event) => this.setLayout((e.target as HTMLSelectElement).value)}>
+          ${LAYOUTS.map(([c, r]) => html`<option value=${`${c}x${r}`} ?selected=${c === this.view.cols && r === this.view.rows}>${c}×${r} · ${c * r} מצלמות בעמוד</option>`)}
+        </select>` : nothing}
         ${api && this.health ? html`<span class="pill" data-kiosk-health data-status=${this.health.status}>מערכת: ${STATUS_LABEL[this.health.status]}${this.health.items.filter((i) => i.status !== 'ok').length ? ` · ${this.health.items.filter((i) => i.status !== 'ok').map((i) => i.label).join(', ')}` : ''}</span>` : nothing}
         <span class="clock">${this.clock || '—'}</span>
       </header>

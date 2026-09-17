@@ -29,6 +29,10 @@ DEFAULTS: dict[str, str] = {
     "time.zone": "Asia/Jerusalem",
     "ui.design": "a",
     "ui.design_names": '{"a": "SW A", "b": "SW B"}',
+    "ui.wall_count": "4",  # tiles the camera wall opens with (a browser can override it for itself)
+    "ui.kiosk_cols": "3",  # kiosk page layout when the URL carries none
+    "ui.kiosk_rows": "2",
+    "ui.hide_search": "false",  # hide the AI search tab (the owner's choice while it is not in use)
     "playback.max_sessions": "4",  # playback sessions open at once (each is one NVR RTSP playback stream)
     "playback.lease_s": "600",  # idle lease; the janitor deletes the go2rtc stream after it expires
     "exports.max_mb": "2048",  # refuse export jobs whose NVR files exceed this estimate
@@ -64,6 +68,10 @@ class SettingsPatch(BaseModel):
     events_retention_days: int | None = Field(default=None, ge=1, le=3650, alias="events.retention_days")
     ui_design: str | None = Field(default=None, pattern="^(a|b)$", alias="ui.design")
     ui_design_names: str | None = Field(default=None, max_length=200, alias="ui.design_names")
+    ui_wall_count: int | None = Field(default=None, ge=1, le=32, alias="ui.wall_count")
+    ui_kiosk_cols: int | None = Field(default=None, ge=1, le=6, alias="ui.kiosk_cols")
+    ui_kiosk_rows: int | None = Field(default=None, ge=1, le=5, alias="ui.kiosk_rows")
+    ui_hide_search: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.hide_search")
     ai_provider: str | None = Field(default=None, pattern="^(none|local|external)$", alias="ai.provider")
     ai_privacy_ack: str | None = Field(default=None, pattern="^(true|false)$", alias="ai.privacy_ack")
     ai_budget_daily: int | None = Field(default=None, ge=0, le=100000, alias="ai.budget_daily")

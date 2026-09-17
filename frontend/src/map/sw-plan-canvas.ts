@@ -138,6 +138,8 @@ export class SwPlanCanvas extends LitElement {
   private dragMoved = false;
   private resizeObserver?: ResizeObserver;
   private fitted = false;
+  /** A plan larger than the viewport may zoom out below MIN_SCALE, down to the size that fits it (2.10). */
+  private minScale = MIN_SCALE;
 
   static styles = css`
     :host {
@@ -413,7 +415,8 @@ export class SwPlanCanvas extends LitElement {
     if (!w || !h || !this.planWidth || !this.planHeight) return;
     const margin = 24;
     const s = Math.min((w - margin * 2) / this.planWidth, (h - margin * 2) / this.planHeight);
-    this.scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, s));
+    this.minScale = Math.min(MIN_SCALE, s);
+    this.scale = Math.max(this.minScale, Math.min(MAX_SCALE, s));
     this.tx = (w - this.planWidth * this.scale) / 2;
     this.ty = (h - this.planHeight * this.scale) / 2;
     this.fitted = true;
@@ -438,7 +441,7 @@ export class SwPlanCanvas extends LitElement {
     const h = this.clientHeight;
     const px = cx ?? w / 2;
     const py = cy ?? h / 2;
-    const next = Math.max(MIN_SCALE, Math.min(MAX_SCALE, this.scale * factor));
+    const next = Math.max(this.minScale, Math.min(MAX_SCALE, this.scale * factor));
     const ratio = next / this.scale;
     this.tx = px - (px - this.tx) * ratio;
     this.ty = py - (py - this.ty) * ratio;

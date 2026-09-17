@@ -15,7 +15,8 @@ import { effectiveTransport, productSettings } from '../api/prefs';
 import { describeError } from '../api/client';
 import type { Camera } from '../api/types';
 
-const COUNTS = [1, 2, 4, 6, 8, 9, 12, 16];
+const COUNTS = [1, 2, 4, 6, 8, 9, 12, 16, 20, 25, 32];
+const COUNT_KEY = 'sw.wall.count';
 const VIEWS = [
   { id: 'all', label: 'כל המצלמות' },
   { id: 'outside', label: 'חוץ' },
@@ -98,12 +99,31 @@ export class LiveWall extends LitElement {
     window.clearInterval(this.posterTimer);
   }
 
+  /** The layout the wall opens with: this browser's last choice, else the owner's default (הגדרות › כללי). */
+  private setCount(n: number) {
+    this.count = n;
+    try {
+      localStorage.setItem(COUNT_KEY, String(n));
+    } catch {
+      /* private mode */
+    }
+  }
+
   private async load() {
     if (!isApi()) return;
     try {
       const [list, settings] = await Promise.all([listCameras(), productSettings()]);
       this.cams = list.cameras.filter((c) => c.enabled);
       this.settings = settings;
+      let stored = 0;
+      try {
+        stored = Number(localStorage.getItem(COUNT_KEY) ?? 0);
+      } catch {
+        /* private mode */
+      }
+      const def = Number(settings['ui.wall_count'] ?? 0);
+      const pick = COUNTS.includes(stored) ? stored : COUNTS.includes(def) ? def : 0;
+      if (pick) this.count = pick;
     } catch (err) {
       this.error = describeError(err);
     }
@@ -118,7 +138,7 @@ export class LiveWall extends LitElement {
     const pool = wanted.length ? cams.filter((c) => wanted.includes(c.id)) : cams;
     const n = wanted.length ? Math.max(1, pool.length) : this.count;
     const shown = pool.slice(0, n);
-    const cols = n === 1 ? 1 : n === 2 ? 2 : n <= 4 ? 2 : n <= 9 ? 3 : 4;
+    const cols = n === 1 ? 1 : n === 2 ? 2 : n <= 4 ? 2 : n <= 9 ? 3 : n <= 16 ? 4 : n <= 25 ? 5 : 6;
     const cap = this.settings?.['media.max_live_sessions'] ?? 8;
     const profile: 'sub' | 'main' = this.stream === 'auto' ? (this.settings?.['media.wall_profile'] ?? 'sub') : this.stream;
     const transport: Transport = effectiveTransport(this.settings);
@@ -161,7 +181,7 @@ export class LiveWall extends LitElement {
         ${api ? nothing : html`<sw-field slot="actions"><select aria-label="תצוגה" @change=${(e: Event) => (this.view = (e.target as HTMLSelectElement).value)}>${VIEWS.map((v) => html`<option value=${v.id} ?selected=${v.id === this.view}>${v.label}</option>`)}</select></sw-field>`}
         <sw-field slot="actions"><select aria-label="זרם" @change=${(e: Event) => (this.stream = (e.target as HTMLSelectElement).value as 'auto')}><option value="auto">חי · אוטומטי</option><option value="main">חי · ראשי</option><option value="sub">חי · משני</option></select></sw-field>
         <div slot="actions" class="layouts" role="group" aria-label="פריסה">
-          ${COUNTS.map((n) => html`<button class=${n === this.count ? 'on' : ''} @click=${() => (this.count = n)} aria-pressed=${n === this.count}>${n}</button>`)}
+          ${COUNTS.map((n) => html`<button class=${n === this.count ? 'on' : ''} @click=${() => this.setCount(n)} aria-pressed=${n === this.count}>${n}</button>`)}
         </div>
         <a slot="actions" href="#/kiosk/all"><sw-button variant="ghost" iconOnly icon="expand" label="מצב קיוסק"></sw-button></a>
         ${api ? this.renderApi() : this.renderDemo()}

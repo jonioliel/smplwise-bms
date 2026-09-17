@@ -527,6 +527,18 @@ export class SystemDiagnostics extends LitElement {
           <sw-field class="ctl"><select ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('media.wall_profile', (e.target as HTMLSelectElement).value as 'sub' | 'main')}>
             <option value="sub" ?selected=${(this.value('media.wall_profile') ?? 'sub') === 'sub'}>משני</option><option value="main" ?selected=${this.value('media.wall_profile') === 'main'}>ראשי</option>
           </select></sw-field></div>
+        <div class="row"><span class="lbl">מצלמות בקיר כברירת מחדל<span class="muted">כל דפדפן זוכר את הבחירה האחרונה שלו; זו נקודת הפתיחה. מעל מכסת הזרמים החיים האריחים מציגים צילום</span></span>
+          <sw-field class="ctl"><select data-set-wall-count ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.wall_count', Number((e.target as HTMLSelectElement).value))}>
+            ${[1, 2, 4, 6, 8, 9, 12, 16, 20, 25, 32].map((n) => html`<option value=${n} ?selected=${Number(this.value('ui.wall_count') ?? 4) === n}>${n}</option>`)}
+          </select></sw-field></div>
+        <div class="row"><span class="lbl">פריסת קיוסק כברירת מחדל<span class="muted">עמודות × שורות בעמוד; קישור קיוסק עם cols/rows גובר</span></span>
+          <sw-field class="ctl"><select data-set-kiosk-layout ?disabled=${!api || !this.canEdit} @change=${(e: Event) => { const [c, r] = (e.target as HTMLSelectElement).value.split('x').map(Number); this.set('ui.kiosk_cols', c); this.set('ui.kiosk_rows', r); }}>
+            ${[[2, 2], [3, 2], [3, 3], [4, 3], [4, 4], [5, 4], [6, 4]].map(([c, r]) => html`<option value=${`${c}x${r}`} ?selected=${Number(this.value('ui.kiosk_cols') ?? 3) === c && Number(this.value('ui.kiosk_rows') ?? 2) === r}>${c}×${r} · ${c * r} מצלמות</option>`)}
+          </select></sw-field></div>
+        <div class="row"><span class="lbl">הסתרת חיפוש AI<span class="muted">מסיר את הלשונית מהניווט; המסך עצמו נשאר זמין בכתובת</span></span>
+          <sw-field class="ctl"><select data-set-hide-search ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.hide_search', (e.target as HTMLSelectElement).value)}>
+            <option value="false" ?selected=${String(this.value('ui.hide_search') ?? 'false') !== 'true'}>מוצג</option><option value="true" ?selected=${String(this.value('ui.hide_search') ?? 'false') === 'true'}>מוסתר</option>
+          </select></sw-field></div>
         <div class="row"><span class="lbl">מקסימום זרמים חיים במקביל<span class="muted">מגן על ה־NVR; מעבר למכסה מוצג צילום בלבד</span></span><sw-field class="ctl"><input type="number" min="1" max="32" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('media.max_live_sessions') ?? 8)} @change=${(e: Event) => this.set('media.max_live_sessions', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
         <div class="row"><span class="lbl">רעננות צילום (שניות)<span class="muted">snapshot מה־NVR לאריחים; cache בשרת</span></span><sw-field class="ctl"><input type="number" min="5" max="3600" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('snapshots.max_age_s') ?? 60)} @change=${(e: Event) => this.set('snapshots.max_age_s', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
         <div class="row"><span class="lbl">סשני ניגון במקביל<span class="muted">כל ניגון = זרם playback אחד מה־NVR דרך go2rtc</span></span><sw-field class="ctl"><input type="number" min="1" max="16" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('playback.max_sessions') ?? 4)} @change=${(e: Event) => this.set('playback.max_sessions', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
