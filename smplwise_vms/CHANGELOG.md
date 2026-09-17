@@ -1,5 +1,11 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.59 (pilot) — playback opens inside the last recording
+- The recordings screen opened "five minutes before the last segment ends", which on cameras that record on
+  motion only landed in a gap between short clips ("no recording at this time" until a click). It now opens inside
+  the last segment (its start when the segment is shorter than five minutes). Found in the review of the owner's
+  installation on 0.1.58.
+
 ## 0.1.58 (pilot) — hotfix: the first real NVR alerts froze the installation
 - The alert handler read the time zone through a second write connection while it already held the write lock:
   every alert blocked every writer for the busy timeout (10 s), and with "Notify Surveillance Center" enabled the

@@ -480,7 +480,7 @@ export class InvestigatePlayback extends LitElement {
           await this.startAt(at!);
         } else {
           const last = this.rec?.segments.at(-1);
-          this.cursor = last ? Math.max(0, minuteInZone(new Date(last.end_at), this.tz) - 5) : Math.max(0, minuteInZone(new Date(), this.tz) - 5);
+          this.cursor = last ? this.insideLast(last) : Math.max(0, minuteInZone(new Date(), this.tz) - 5);
         }
       }
     } catch (err) {
@@ -519,7 +519,15 @@ export class InvestigatePlayback extends LitElement {
     this.date = date;
     await this.loadRecordings();
     const last = this.rec?.segments.at(-1);
-    this.cursor = last ? Math.max(0, minuteInZone(new Date(last.end_at), this.tz) - 5) : 540;
+    this.cursor = last ? this.insideLast(last) : 540;
+  }
+
+  /** Where a day opens: five minutes before the last segment ends, but never before that segment starts - cameras
+   * that record on motion only have short segments, and "end - 5 min" used to land in a gap (0.1.59). */
+  private insideLast(last: { start_at: string; end_at: string }): number {
+    const start = minuteInZone(new Date(last.start_at), this.tz);
+    const end = minuteInZone(new Date(last.end_at), this.tz);
+    return Math.max(0, start, end - 5);
   }
 
   private async loadRecordings() {
