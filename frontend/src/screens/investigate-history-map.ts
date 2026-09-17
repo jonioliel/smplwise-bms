@@ -21,7 +21,7 @@ import { navigate } from '../router';
 import { describeError } from '../api/client';
 import { productSettings } from '../api/prefs';
 import { loadTree, type CatalogTree } from '../api/catalog';
-import { loadMap, type MapBundle } from '../api/maps';
+import { entityName, loadMap, type MapBundle } from '../api/maps';
 import { EVENT_LABEL, listEvents, type EventKind, type VmsEvent } from '../api/events';
 import { dateInZone, frameUrl, instantInZone, minuteInZone, recordingsForDay, type RecordingsResponse } from '../api/recordings';
 import { entityMarkerKind, stateLabel } from '../api/ha';
@@ -388,7 +388,7 @@ export class InvestigateHistoryMap extends LitElement {
         return { id: a.id, kind: 'camera' as const, label: near ? `${name} · ${near} אירועים` : name, x: a.position.x, y: a.position.y, rotation: a.rotation_degrees, fov: a.field_of_view_degrees ?? undefined, radius: a.coverage_radius ?? undefined, polygon: a.coverage_polygon ? a.coverage_polygon.map(([x, y]) => ({ x, y })) : undefined, state: cov.state };
       }
       const sa = a.entity?.state_at;
-      const name = a.entity?.name ?? a.label ?? a.resource_id;
+      const name = entityName(a);
       return { id: a.id, kind: entityMarkerKind(a.layer_id, a.entity?.domain), label: sa?.known && sa.state ? `${name} · ${stateLabel({ ...(a.entity ?? { domain: '', unit: null, device_class: null, attributes: {} }), state: sa.state })}` : name, x: a.position.x, y: a.position.y, state: sa?.known ? ('historic' as const) : ('unknown' as const) };
     });
   }
@@ -442,7 +442,7 @@ export class InvestigateHistoryMap extends LitElement {
     return html`${known.length} מתוך ${ents.length} ידועות בזמן זה${cov?.from ? html` <span class="note">(היסטוריה מקומית מ־<span class="ltr">${this.fmtWhen(cov.from)}</span>, ${cov.retention_days} ימים)</span>` : html` <span class="note">(אין עדיין היסטוריה מקומית)</span>`}
       <div class="evl" style="margin-block-start:4px">${ents.slice(0, 8).map((a) => {
         const sa = a.entity?.state_at;
-        const name = a.entity?.name ?? a.label ?? a.resource_id;
+        const name = entityName(a);
         return html`<div data-history-entity data-known=${sa?.known ? 'true' : 'false'}><span>${name}</span><span class="note">${sa?.known && sa.state ? html`${stateLabel({ ...(a.entity ?? { domain: '', unit: null, device_class: null, attributes: {} }), state: sa.state })} · מ־<span class="ltr">${sa.changed_at ? this.fmt(sa.changed_at) : ''}</span>` : html`לא ידוע${sa?.reason ? ` · ${sa.reason}` : ''}${sa?.state ? html` <span class="ltr">(אחרון: ${sa.state})</span>` : ''}`}</span></div>`;
       })}</div>`;
   }

@@ -163,6 +163,12 @@ export const rollbackVersion = (versionId: string, revision: number, expectedPub
   post<PlanVersion>(`plan-versions/${versionId}/rollback`, { revision, expected_published_id: expectedPublishedId });
 export const deleteVersion = (versionId: string) => del(`plan-versions/${versionId}`);
 
+/** The name a placed item shows: cameras keep the NVR / alias name; an HA entity shows its manual name first (R3). */
+export function entityName(a: { resource_type: string; label: string | null; camera?: { name: string } | null; entity?: { name: string | null } | null; resource_id: string }): string {
+  if (a.resource_type === 'camera') return a.camera?.name ?? a.label ?? a.resource_id;
+  return a.label ?? a.entity?.name ?? a.resource_id;
+}
+
 // ---- anchors ----
 
 export const createAnchor = (floorId: string, body: { resource_type: 'camera' | 'ha_entity'; resource_id: string; x: number; y: number; rotation_degrees?: number; field_of_view_degrees?: number | null; layer_id?: string; label?: string | null }) =>

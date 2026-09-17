@@ -30,13 +30,14 @@ interface ZoneCandidate {
 /** Same palette as the backend assigns on save, so candidates keep their colour once accepted. */
 const PALETTE = ['#2767ED', '#22A06B', '#F59E0B', '#8B5CF6', '#0EA5E9', '#EC4899', '#14B8A6', '#F97316'];
 
-type Tool = 'select' | 'camera' | 'entity' | 'zones' | 'layers';
+type Tool = 'select' | 'camera' | 'lights' | 'entity' | 'zones' | 'layers';
 type Layer = 'cameras' | 'doors' | 'lights' | 'sensors';
 
 const TOOLS: { id: Tool; icon: IconName; label: string; ready: boolean }[] = [
   { id: 'select', icon: 'target', label: 'בחירה וגרירה', ready: true },
   { id: 'camera', icon: 'camera', label: 'הוספת מצלמה', ready: true },
-  { id: 'entity', icon: 'light', label: 'הוספת ישות HA', ready: true },
+  { id: 'lights', icon: 'light', label: 'הוספת תאורה (מפסקים)', ready: true },
+  { id: 'entity', icon: 'plus', label: 'ישות HA אחרת', ready: true },
   { id: 'zones', icon: 'map', label: 'חדרים ואזורים', ready: true },
   { id: 'layers', icon: 'layers', label: 'שכבות', ready: true },
 ];
@@ -75,6 +76,8 @@ export class ExplorePlanEditor extends LitElement {
   @state() private entQ = '';
   @state() private entResults: HaEntity[] | null = null;
   @state() private entBusy = false;
+  /** The lighting tool lists switches only (the owner's relays); this adds `light.*` entities to it (R3). */
+  @state() private lightsAll = false;
   @state() private busy = false;
   @state() private error = '';
   @state() private info = '';
@@ -535,7 +538,7 @@ export class ExplorePlanEditor extends LitElement {
       .map((a) => ({
         id: a.id,
         kind: a.resource_type === 'camera' ? 'camera' : entityMarkerKind(a.layer_id, a.entity?.domain),
-        label: a.camera?.name ?? a.entity?.name ?? a.label ?? a.resource_id,
+        label: this.anchorName(a),
         x: a.position.x,
         y: a.position.y,
         rotation: a.rotation_degrees,
@@ -546,8 +549,10 @@ export class ExplorePlanEditor extends LitElement {
       }));
   }
 
+  /** Cameras keep the NVR / alias name; a placed HA entity shows its manual name first (R3), then the HA name. */
   private anchorName(a: Anchor) {
-    return a.camera?.name ?? a.entity?.name ?? a.label ?? a.resource_id;
+    if (a.resource_type === 'camera') return a.camera?.name ?? a.label ?? a.resource_id;
+    return a.label ?? a.entity?.name ?? a.resource_id;
   }
 
   private get selectedZone(): SpatialZone | undefined {
@@ -956,8 +961,10 @@ export class ExplorePlanEditor extends LitElement {
     if (this.bundle?.source === 'demo') return;
     this.entBusy = true;
     try {
-      const r = await listEntities({ q: this.entQ || undefined, limit: 40 });
-      this.entResults = r.entities;
+      // lighting tool: switches only (plus light.* when asked); the other tool: anything in the catalogue
+      const lights = this.tool === 'lights';
+      const r = await listEntities({ q: this.entQ || undefined, domain: lights && !this.lightsAll ? 'switch' : undefined, limit: lights ? 200 : 40 });
+      this.entResults = lights ? r.entities.filter((e) => e.domain === 'switch' || (this.lightsAll && e.domain === 'light')).slice(0, 60) : r.entities;
     } catch (err) {
       this.error = describeError(err);
       this.entResults = [];
@@ -1007,7 +1014,10 @@ export class ExplorePlanEditor extends LitElement {
   private pickTool(tool: Tool) {
     this.tool = tool;
     this.placing = null;
-    if (tool === 'entity' && this.entResults === null) void this.searchEntities();
+    if (tool === 'entity' || tool === 'lights') {
+      this.entResults = null; // the two tools list different sets
+      void this.searchEntities();
+    }
   }
 
   // ---- panels ----
@@ -1082,7 +1092,8 @@ export class ExplorePlanEditor extends LitElement {
         <sw-field label="מיקום X (%)"><input type="number" step="0.1" min="0" max="100" data-ltr .value=${(a.position.x * 100).toFixed(1)} @change=${(ev: Event) => this.apply(a.id, { position: { x: Math.min(1, Math.max(0, Number((ev.target as HTMLInputElement).value) / 100)), y: a.position.y } })} /></sw-field>
         <sw-field label="מיקום Y (%)"><input type="number" step="0.1" min="0" max="100" data-ltr .value=${(a.position.y * 100).toFixed(1)} @change=${(ev: Event) => this.apply(a.id, { position: { x: a.position.x, y: Math.min(1, Math.max(0, Number((ev.target as HTMLInputElement).value) / 100)) } })} /></sw-field>
       </div>
-      <sw-field label="תווית (אופציונלי)"><input .value=${a.label ?? ''} @change=${(ev: Event) => this.apply(a.id, { label: (ev.target as HTMLInputElement).value || null })} /></sw-field>
+      <sw-field label="שם במפה (ידני)"><input data-entity-name placeholder=${e?.name ?? a.resource_id} .value=${a.label ?? ''} @change=${(ev: Event) => this.apply(a.id, { label: (ev.target as HTMLInputElement).value.trim() || null })} /></sw-field>
+      <div class="note">ריק = השם מ־Home Assistant${e?.name ? ` („${e.name}“)` : ''}. השם הידני מוצג במפה, ברשימת הצד ובכרטיס.</div>
       <div class="note" style="margin-block-start:6px">revision ${a.revision}${this.dirty.has(a.id) ? ' · שינויים לא שמורים' : ''}</div>
       <div style="display:flex;gap:8px;margin-block-start:10px;flex-wrap:wrap">
         <sw-button variant="primary" size="sm" icon="check" ?disabled=${!this.dirty.size || this.busy} @click=${() => this.save()}>שמירת מיקום</sw-button>
@@ -1101,10 +1112,12 @@ export class ExplorePlanEditor extends LitElement {
           : html`<div class="note">${b.cameras.length ? 'כל המצלמות הרשומות כבר מוצבות על הקומה.' : 'אין מצלמות רשומות עדיין; הגילוי מה־NVR רץ אוטומטית.'}</div><div style="margin-block-start:8px"><sw-button size="sm" @click=${() => navigate('/system/devices')}>למצלמות</sw-button></div>`}
       </sw-card>`;
     }
-    if (this.tool === 'entity') {
+    if (this.tool === 'entity' || this.tool === 'lights') {
+      const lights = this.tool === 'lights';
       const results = (this.entResults ?? []).filter((e) => !anchoredIds.has(e.entity_id));
-      return html`<sw-card heading="הוספת ישות Home Assistant" subheading="בחר ישות מהקטלוג ואז לחץ על התוכנית">
-        <sw-field><input type="search" placeholder="חיפוש לפי שם, entity_id או אזור" data-ltr .value=${this.entQ} @input=${(e: Event) => this.onEntQuery((e.target as HTMLInputElement).value)} /></sw-field>
+      return html`<sw-card heading=${lights ? 'הוספת תאורה' : 'הוספת ישות Home Assistant אחרת'} subheading=${lights ? 'מפסקים (switch) מהקטלוג; לחץ על התוכנית להצבה. השם ניתן לשינוי אחרי ההצבה.' : 'כל ישות אחרת בקטלוג (דלתות, חיישנים, מזגנים…) ואז לחיצה על התוכנית'} data-tool-panel=${this.tool}>
+        <sw-field><input type="search" placeholder=${lights ? 'חיפוש מפסק לפי שם או אזור' : 'חיפוש לפי שם, entity_id או אזור'} data-ltr .value=${this.entQ} @input=${(e: Event) => this.onEntQuery((e.target as HTMLInputElement).value)} /></sw-field>
+        ${lights ? html`<label class="note" style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-lights-all .checked=${this.lightsAll} @change=${(e: Event) => { this.lightsAll = (e.target as HTMLInputElement).checked; void this.searchEntities(); }} /> להציג גם ישויות light (נורות חכמות)</label>` : nothing}
         ${b.source === 'demo'
           ? html`<div class="note">נתוני הדגמה: החיפוש עובד מול השרת.</div>`
           : this.entBusy && !this.entResults
@@ -1272,7 +1285,7 @@ export class ExplorePlanEditor extends LitElement {
                 </div>
                 <div class="floorchip"><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
                 <div class="rail" role="toolbar" aria-label="כלי עריכה">
-                  ${TOOLS.map((tl) => html`<button class=${tl.id === this.tool ? 'on' : ''} ?disabled=${!tl.ready} title=${tl.label} aria-label=${tl.label} aria-pressed=${tl.id === this.tool} @click=${() => this.pickTool(tl.id)}><sw-icon .name=${tl.icon} size=${18}></sw-icon></button>`)}
+                  ${TOOLS.map((tl) => html`<button class=${tl.id === this.tool ? 'on' : ''} data-tool=${tl.id} ?disabled=${!tl.ready} title=${tl.label} aria-label=${tl.label} aria-pressed=${tl.id === this.tool} @click=${() => this.pickTool(tl.id)}><sw-icon .name=${tl.icon} size=${18}></sw-icon></button>`)}
                   <hr />
                   <button title="ביטול (Ctrl+Z)" aria-label="ביטול" ?disabled=${!this.undo.length} @click=${() => this.doUndo()}><sw-icon name="history" size=${18}></sw-icon></button>
                   <button title="בצע שוב (Ctrl+Y)" aria-label="בצע שוב" ?disabled=${!this.redo.length} @click=${() => this.doRedo()}><sw-icon name="refresh" size=${18}></sw-icon></button>

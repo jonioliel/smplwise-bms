@@ -18,7 +18,7 @@ import { demoCameras, demoEntities, demoFloors, type DemoCamera, type DemoEntity
 import { demoScene } from '../fixtures/catalog';
 import { t } from '../i18n/he';
 import { navigate } from '../router';
-import { cameraState, loadMap, type MapBundle } from '../api/maps';
+import { cameraState, entityName, loadMap, updateAnchor, type MapBundle } from '../api/maps';
 import { snapshotUrl } from '../api/media';
 import { findFloor, firstFloor, loadTree, type CatalogTree } from '../api/catalog';
 import { isApi } from '../api/session';
@@ -498,6 +498,58 @@ export class ExploreFloorMap extends LitElement {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
     }
+    /* HA entity card (R3): state first, actions as big buttons, details folded */
+    .ecard {
+      display: grid;
+      gap: 10px;
+    }
+    .estate {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: var(--sw-r-sm);
+      background: var(--sw-surface-2);
+      border: 1px solid var(--sw-border);
+    }
+    .estate.live {
+      background: color-mix(in srgb, var(--sw-accent) 10%, var(--sw-surface));
+      border-color: color-mix(in srgb, var(--sw-accent) 35%, var(--sw-border));
+    }
+    .estate .esub {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .eactions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .eactions .actrow sw-button {
+      min-inline-size: 110px;
+    }
+    .rename {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .rename input {
+      flex: 1;
+      font: inherit;
+      padding: 6px 8px;
+      border: 1px solid var(--sw-border-strong);
+      border-radius: 6px;
+      background: var(--sw-surface);
+      color: inherit;
+    }
+    details.more summary {
+      cursor: pointer;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    details.more .meta {
+      margin-block-start: 6px;
+    }
     .off {
       aspect-ratio: 16 / 9;
       background: var(--sw-surface-3);
@@ -666,7 +718,7 @@ export class ExploreFloorMap extends LitElement {
       .map((a) => ({
         id: a.id,
         kind: a.resource_type === 'camera' ? 'camera' : entityMarkerKind(a.layer_id, a.entity?.domain),
-        label: a.camera?.name ?? a.entity?.name ?? a.label ?? a.resource_id,
+        label: entityName(a),
         x: a.position.x,
         y: a.position.y,
         rotation: a.rotation_degrees,
@@ -833,7 +885,7 @@ export class ExploreFloorMap extends LitElement {
           <span class="dot" style="--dot:${dotOf(a)}"></span><span class="nm">${a.camera?.name ?? a.label ?? a.resource_id}</span><span class="st">${a.camera?.status === 'online' ? 'חיה' : a.camera?.status === 'offline' ? 'מנותקת' : ''}</span></button>`)}
         ${[...groups.entries()].map(([d, list]) => html`<div class="grp">${domains[d] ?? d} (${list.length})</div>
           ${list.map((a) => html`<button class="it ${this.selectedId === a.id ? 'on' : ''}" data-side-entity=${a.resource_id} @click=${() => this.jumpTo(a)}>
-            <span class="dot" style="--dot:${dotOf(a)}"></span><span class="nm">${a.entity?.name ?? a.label ?? a.resource_id}</span><span class="st">${a.entity ? stateLabel(a.entity) : ''}</span></button>`)}`)}
+            <span class="dot" style="--dot:${dotOf(a)}"></span><span class="nm">${entityName(a)}</span><span class="st">${a.entity ? stateLabel(a.entity) : ''}</span></button>`)}`)}
         ${!cams.length && !ents.length ? html`<div class="grp">אין פריטים מוצבים על התוכנית הזו.</div>` : nothing}
       </div>
     </div>`;
@@ -1071,13 +1123,26 @@ export class ExploreFloorMap extends LitElement {
     const tone = this.entityTone(e);
     const act = this.action?.entityId === e.entity_id ? this.action : null;
     const fresh = e.fresh && this.syncConnected;
+    const renaming = this.renaming?.id === a.id ? this.renaming : null;
     return html`
-      <div class="statusrow"><sw-badge kind=${tone} label=${stateLabel(e)}></sw-badge><span>${floorName} · ${domainLabel(e.domain)}${e.area_name ? ` · ${e.area_name}` : ''}</span></div>
-      <dl class="meta">
-        <dt>${t('entity.lastChanged')}</dt><dd>${fmtTime(e.last_changed)}</dd>
-        <dt>נראה לאחרונה</dt><dd>${fmtTime(e.state_seen_at)}</dd>
-        <dt>ID</dt><dd><span class="ltr">${e.entity_id}</span></dd>
-      </dl>
+      <div class="ecard" data-entity-card>
+        <div class="estate ${tone}"><sw-badge kind=${tone} label=${stateLabel(e)}></sw-badge><span class="esub">${domainLabel(e.domain)}${e.area_name ? ` · ${e.area_name}` : ''} · ${floorName}</span></div>
+        ${a.label && e.name && a.label !== e.name ? html`<div class="note">ב־Home Assistant: ${e.name}</div>` : nothing}
+        ${this.notice ? html`<div class="note" data-notice>${this.notice}</div>` : nothing}
+        ${renaming
+          ? html`<div class="rename" data-rename-form><input .value=${renaming.value} placeholder=${e.name ?? a.resource_id} aria-label="שם במפה" @input=${(ev: Event) => (this.renaming = { id: a.id, value: (ev.target as HTMLInputElement).value })} @keydown=${(ev: KeyboardEvent) => { if (ev.key === 'Enter') void this.saveRename(a); if (ev.key === 'Escape') this.renaming = null; }} />
+              <sw-button size="sm" variant="primary" icon="check" data-rename-save ?disabled=${renaming.busy} @click=${() => this.saveRename(a)}>שמור</sw-button>
+              <sw-button size="sm" variant="ghost" @click=${() => (this.renaming = null)}>ביטול</sw-button></div>`
+          : nothing}
+        ${this.entityActions(a)}
+        <details class="more"><summary>פרטים</summary>
+          <dl class="meta">
+            <dt>${t('entity.lastChanged')}</dt><dd>${fmtTime(e.last_changed)}</dd>
+            <dt>נראה לאחרונה</dt><dd>${fmtTime(e.state_seen_at)}</dd>
+            <dt>ID</dt><dd><span class="ltr">${e.entity_id}</span></dd>
+          </dl>
+        </details>
+      </div>
       ${!fresh ? html`<div class="warn">${e.state === 'unavailable' ? 'Home Assistant מדווח שהישות אינה זמינה.' : 'הסנכרון מול Home Assistant מנותק — המצב עלול להיות מיושן.'}</div>` : nothing}
       ${e.actions === undefined ? html`<div class="note">${t('entity.noControl')}</div>` : e.actions.length === 0 ? html`<div class="note">קריאה בלבד — אין פעולות מותרות ל־${domainLabel(e.domain)}.</div>` : nothing}
       ${e.actions?.some((s) => s.granted === false) ? html`<div class="note" data-grant-note>פעולה מעומעמת דורשת הרשאה נפרדת (למשל פתיחת דלת) שאינה חלק משליטה כללית בישויות.</div>` : nothing}
@@ -1085,6 +1150,33 @@ export class ExploreFloorMap extends LitElement {
         ? html`<div class=${act.error || act.record?.status === 'failed' || act.record?.status === 'denied' ? 'warn' : 'note'}>${act.spec.label}: ${act.error ? act.error : act.record ? `${ACTION_STATUS_LABEL[act.record.status]}${act.record.error ? ` — ${ACTION_ERROR_LABEL[act.record.error] ?? act.record.error}` : ''}` : 'שולח…'}</div>`
         : nothing}
     `;
+  }
+
+  /** Rename from the card (R3): the manual name lives on the anchor (`label`) and needs placement.edit. */
+  @state() private renaming: { id: string; value: string; busy?: boolean } | null = null;
+  @state() private notice = '';
+
+  private async saveRename(a: Anchor) {
+    const r = this.renaming;
+    if (!r || r.id !== a.id || r.busy) return;
+    this.renaming = { ...r, busy: true };
+    try {
+      const saved = await updateAnchor(a.id, { revision: a.revision, label: r.value.trim() || null });
+      if (this.bundle) this.bundle = { ...this.bundle, anchors: this.bundle.anchors.map((x) => (x.id === a.id ? { ...x, label: saved.label, revision: saved.revision } : x)) };
+      this.renaming = null;
+      this.notice = saved.label ? `השם „${saved.label}“ נשמר` : 'חזרה לשם מ־Home Assistant';
+    } catch (err) {
+      this.notice = describeError(err);
+      this.renaming = { ...r, busy: false };
+    }
+  }
+
+  /** The actions as big buttons inside the card (R3) - the footer keeps only edit / rename. */
+  private entityActions(a: Anchor) {
+    const e = a.entity;
+    const specs = e?.actions ?? [];
+    if (!specs.length) return nothing;
+    return html`<div class="eactions" data-entity-actions>${this.entityFooter(a)}</div>`;
   }
 
   private entityFooter(a: Anchor) {
@@ -1177,13 +1269,14 @@ export class ExploreFloorMap extends LitElement {
     } else {
       const a = b.anchors.find((x) => x.id === this.selectedId);
       if (!a) return nothing;
-      heading = a.camera?.name ?? a.entity?.name ?? a.label ?? a.resource_id;
+      heading = entityName(a);
       sub = `${b.buildingName} · ${b.floorName}`;
       body = a.resource_type === 'camera' ? this.apiCameraBody(a, b.floorName) : this.apiEntityBody(a, b.floorName);
       footer = html`${a.resource_type === 'camera'
           ? html`<sw-button variant="primary" size="sm" icon="expand" ?disabled=${cameraState(a) === 'offline'} @click=${() => a.camera && navigate(`/live/cameras/${a.camera.id}`)}>צפייה מלאה</sw-button>
             <sw-button size="sm" icon="history" ?disabled=${!a.camera} @click=${() => a.camera && navigate('/investigate/playback', { camera: a.camera.id })}>${t('camera.recordings')}</sw-button>`
-          : this.entityFooter(a)}
+          : nothing}
+        ${a.resource_type === 'ha_entity' && b.permissions.edit && a.entity ? html`<sw-button variant="ghost" size="sm" icon="edit" data-rename @click=${() => (this.renaming = { id: a.id, value: a.label ?? '' })}>שנה שם</sw-button>` : nothing}
         ${b.permissions.edit ? html`<sw-button variant="ghost" size="sm" icon="edit" @click=${() => navigate(`/explore/floors/${b.floorId}/edit`)}>עריכה</sw-button>` : nothing}`;
     }
     if (this.narrow || !this.anchor) {

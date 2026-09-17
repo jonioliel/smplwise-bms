@@ -1,5 +1,16 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.70 (pilot) — R3: HA entity card, lighting = switches only, manual names
+- Plan editor: two tools instead of one - "הוספת תאורה (מפסקים)" lists `switch.*` entities only (a checkbox adds
+  `light.*`), "ישות HA אחרת" lists anything else in the catalogue (doors, sensors, climate…).
+- Manual name: the entity inspector's "שם במפה (ידני)" and a "שנה שם" button on the card (placement.edit) store the
+  name on the anchor; the map label, the side list, the card heading and the history map show it first, with the
+  Home Assistant name underneath.
+- Entity card redesigned: a state row first, the actions as big buttons inside the card, details (last change, last
+  seen, entity id) folded under "פרטים"; the footer keeps rename and edit (owner test 2.8).
+- Evidence: `frontend/tests/evidence-owner-round7.spec.ts` (switch-only list, other-entity list, rename from the card
+  → map, side list and API).
+
 ## 0.1.69 (pilot) — R2: manual coverage area per camera
 - Plan editor › camera: the coverage cone has a range handle at its tip - drag it to make the covered area larger or
   smaller (also a "% of the plan width" field and slider; "ברירת מחדל" returns to the illustration radius). For
