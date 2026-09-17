@@ -95,6 +95,24 @@ export const addCaseItem = (id: string, body: NewCaseItem) => post<CaseItem>(`ca
 export const removeCaseItem = (id: string, itemId: string) => del(`cases/${id}/items/${itemId}`);
 export const preserveCaseItem = (id: string, itemId: string) => post<CaseItem>(`cases/${id}/items/${itemId}/preserve`);
 
+/** A bookmark on the playback timeline (T049): an event / clip item of a case, for one camera and local day.
+ * `nvr` = the NVR still has to serve it (no copy yet); preserved / preserving follow the export job. */
+export interface Bookmark {
+  id: string;
+  case_id: string;
+  case_title: string;
+  case_status: CaseStatus;
+  kind: CaseItemKind;
+  event_id: string | null;
+  from_at: string;
+  to_at: string;
+  note: string;
+  added_by_username: string;
+  preservation: 'preserved' | 'preserving' | 'nvr';
+}
+export const BOOKMARK_LABEL: Record<Bookmark['preservation'], string> = { preserved: 'עותק שמור', preserving: 'מעתיק מה־NVR…', nvr: 'סימנייה ל־NVR' };
+export const listBookmarks = (cameraId: string, date: string) => get<{ bookmarks: Bookmark[] }>(`cases/bookmarks?camera_id=${encodeURIComponent(cameraId)}&date=${encodeURIComponent(date)}`);
+
 const isoSec = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
 /** A clip bookmark around an instant (default 15 s before, 45 s after). */
 export const clipAround = (at: Date, beforeS = 15, afterS = 45) => ({ from_at: isoSec(new Date(at.getTime() - beforeS * 1000)), to_at: isoSec(new Date(at.getTime() + afterS * 1000)) });

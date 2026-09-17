@@ -1,5 +1,13 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.57 (pilot) — bookmarks on the playback timeline
+- Playback (T049): the day's case items of the camera (event windows and clips) show as flags on the timeline,
+  coloured by preservation (copy saved / copying / bookmark the NVR still serves); a flag click seeks to it and
+  names the case with a link to it; Alt + click on the track bookmarks that instant through the case picker
+  (10 s before, 20 s after), and the new flag appears at once. `GET /cases/bookmarks?camera_id&date` (events.read
+  on the camera; no NVR probe). The whole-case export with a manifest across items has existed since 0.1.40
+  (evidence bundles).
+
 ## 0.1.56 (pilot) — selection on the map: rectangle, room, save as a view
 - Floor map, "בחירת מצלמות" (T043): dragging a rectangle over the plan picks every camera under it (Shift + drag, a
   second finger and the wheel still move and zoom the plan); a click on a room picks the cameras placed inside it

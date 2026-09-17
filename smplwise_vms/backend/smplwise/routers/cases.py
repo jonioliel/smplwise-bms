@@ -26,7 +26,7 @@ from ..services import exports as ex
 from ..services import nvr, recordings
 from ..services.access import camera_allowed, require_camera, visible_camera_ids
 from ..services.events_ingest import row_to_event
-from ..services.timeutil import iso_utc, parse_utc
+from ..services.timeutil import iso_utc, local_day_bounds, parse_utc, zone
 from .events import _with_names, _with_thumbs
 from .settings import read_settings
 
@@ -219,6 +219,46 @@ def create_case(body: CaseIn, request: Request, principal: Principal = Depends(c
     )
     audit(conn, actor=principal, action="case.create", decision="allowed", resource_type="case", resource_id=cid, request_id=_rid(request), details={"title": body.title.strip(), "status": body.status})
     return case_row(_get(conn, cid), _counts(conn, [cid])[cid])
+
+
+@router.get("/cases/bookmarks")
+def list_bookmarks(
+    request: Request,
+    camera_id: str = Query(min_length=1, max_length=120),
+    date: str = Query(pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    principal: Principal = Depends(current_principal_ro),
+    conn: sqlite3.Connection = Depends(get_read_conn),
+) -> dict[str, Any]:
+    """The timeline's bookmarks (T049): the event / clip items of every case for one camera whose window meets a
+    local day. Preservation comes from the export job alone (no NVR probe here): preserved, preserving, or nvr - a
+    bookmark the NVR still has to serve. Declared before /cases/{case_id} so 'bookmarks' is never read as an id."""
+    _read_scope(conn, principal)
+    require_camera(conn, principal, camera_id, "events.read")
+    cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
+    if not cam:
+        raise not_found("המצלמה לא נמצאה.")
+    try:
+        day = dt.date.fromisoformat(date)
+    except ValueError:
+        raise ApiError(422, "validation", "תאריך לא תקין.") from None
+    tz_name = read_settings(conn)["time.zone"]
+    start, end = local_day_bounds(day, zone(tz_name))
+    rows = conn.execute(
+        "SELECT ci.*, c.title AS case_title, c.status AS case_status FROM case_items ci JOIN cases c ON c.id = ci.case_id "
+        "WHERE ci.camera_id = ? AND ci.kind IN ('event', 'clip') AND ci.from_at IS NOT NULL AND ci.to_at IS NOT NULL "
+        "AND ci.from_at < ? AND ci.to_at > ? ORDER BY ci.from_at, ci.created_at",
+        (camera_id, iso_utc(end), iso_utc(start)),
+    ).fetchall()
+    settings = settings_of(request)
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        preservation, _export = _preservation(settings, conn, r, cam, tz_name, False)
+        out.append({
+            "id": r["id"], "case_id": r["case_id"], "case_title": r["case_title"], "case_status": r["case_status"], "kind": r["kind"],
+            "event_id": r["event_id"], "from_at": r["from_at"], "to_at": r["to_at"], "note": r["note"], "added_by_username": r["added_by_username"],
+            "preservation": preservation if preservation in ("preserved", "preserving") else "nvr",
+        })
+    return {"camera_id": camera_id, "date": date, "bookmarks": out}
 
 
 @router.get("/cases/{case_id}")

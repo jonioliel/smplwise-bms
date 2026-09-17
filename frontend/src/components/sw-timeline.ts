@@ -8,6 +8,17 @@ export interface TimelineEvent {
   label: string;
 }
 
+/** A case bookmark on the track (T049): a flag at its start, a thin band over its window. */
+export interface TimelineBookmark {
+  id: string;
+  minute: number;
+  endMinute: number;
+  label: string;
+  preservation: 'preserved' | 'preserving' | 'nvr';
+}
+
+const BOOKMARK_COLOR: Record<TimelineBookmark['preservation'], string> = { preserved: '#16a34a', preserving: '#d97706', nvr: '#7c3aed' };
+
 /** Zoom windows from a whole day down to one minute (chapter 23: zoom must not re-query per pixel). */
 export const WINDOWS: { label: string; minutes: number }[] = [
   { label: 'יום', minutes: 1440 },
@@ -54,6 +65,7 @@ const EVENT_COLOR: Record<TimelineEvent['kind'], string> = {
 export class SwTimeline extends LitElement {
   @property({ attribute: false }) segments: DemoSegment[] = [];
   @property({ attribute: false }) events: TimelineEvent[] = [];
+  @property({ attribute: false }) bookmarks: TimelineBookmark[] = [];
   @property({ type: Number }) cursor = 615;
   @property({ type: Number }) windowMinutes = 360;
   @property() precision: 'verified' | 'keyframe_limited' | 'estimated' | 'unknown' = 'estimated';
@@ -112,6 +124,13 @@ export class SwTimeline extends LitElement {
     .precision {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
+    }
+    g.bm {
+      cursor: pointer;
+    }
+    g.bm:focus-visible polygon {
+      stroke: var(--sw-text);
+      stroke-width: 1.5;
     }
     svg {
       inline-size: 100%;
@@ -202,7 +221,7 @@ export class SwTimeline extends LitElement {
     const minute = this.snap(this.minuteAt(e));
     this.cursor = minute;
     this.follow = true;
-    this.dispatchEvent(new CustomEvent('seek', { detail: { minute }, bubbles: true, composed: true }));
+    this.dispatchEvent(new CustomEvent('seek', { detail: { minute, alt: e.altKey }, bubbles: true, composed: true }));
   }
 
   private onWheel(e: WheelEvent) {
@@ -299,11 +318,32 @@ export class SwTimeline extends LitElement {
           if (x < 0 || x > W) return nothing;
           return svg`<g><circle cx=${x} cy=${baseY - heights[3] - 8} r="3.5" fill=${EVENT_COLOR[ev.kind]} /><title>${ev.label} · ${minuteLabel(ev.minute)}</title></g>`;
         })}
+        ${this.bookmarks.map((b) => {
+          const x = this.x(b.minute, W);
+          const x2 = this.x(b.endMinute, W);
+          if (x2 < 0 || x > W) return nothing;
+          const c = BOOKMARK_COLOR[b.preservation];
+          // the track captures the pointer on pointerdown, which would retarget the click to the SVG: the flag keeps
+          // the pointerdown to itself and does the seek on its own
+          const open = (e: Event) => {
+            e.stopPropagation();
+            this.cursor = b.minute;
+            this.follow = true;
+            this.dispatchEvent(new CustomEvent('seek', { detail: { minute: b.minute, alt: false }, bubbles: true, composed: true }));
+            this.dispatchEvent(new CustomEvent('bookmark-click', { detail: { id: b.id, minute: b.minute }, bubbles: true, composed: true }));
+          };
+          return svg`<g class="bm" data-bookmark=${b.id} role="button" tabindex="0" aria-label=${b.label} @pointerdown=${(e: Event) => e.stopPropagation()} @click=${open} @keydown=${(e: KeyboardEvent) => (e.key === 'Enter' || e.key === ' ') && open(e)}>
+            <rect x=${Math.max(0, x)} y="13" width=${Math.max(2, Math.min(W, x2) - Math.max(0, x))} height="3" rx="1.5" fill=${c} opacity="0.55" />
+            <line x1=${x} x2=${x} y1="3" y2=${baseY} stroke=${c} stroke-dasharray="2 3" opacity="0.6" />
+            <polygon points=${`${x},2 ${x + 9},6 ${x},10`} fill=${c} />
+            <title>${b.label} · ${minuteLabel(b.minute)}</title>
+          </g>`;
+        })}
         ${this.hover !== null && !this.dragging
-          ? svg`<line x1=${this.x(this.hover, W)} x2=${this.x(this.hover, W)} y1="18" y2=${baseY} stroke="var(--sw-text-3)" stroke-dasharray="3 3" /><text x=${this.x(this.hover, W)} y="12" font-size="10" text-anchor="middle" fill="var(--sw-text-3)" font-family="var(--sw-font-mono)">${this.label(this.hover)}</text>`
+          ? svg`<line pointer-events="none" x1=${this.x(this.hover, W)} x2=${this.x(this.hover, W)} y1="18" y2=${baseY} stroke="var(--sw-text-3)" stroke-dasharray="3 3" /><text pointer-events="none" x=${this.x(this.hover, W)} y="12" font-size="10" text-anchor="middle" fill="var(--sw-text-3)" font-family="var(--sw-font-mono)">${this.label(this.hover)}</text>`
           : nothing}
         ${cx >= -60 && cx <= W + 60
-          ? svg`<g transform="translate(${cx} 0)">
+          ? svg`<g transform="translate(${cx} 0)" pointer-events="none">
               <line x1="0" x2="0" y1="15" y2=${baseY + 4} stroke="var(--sw-accent)" stroke-width="2" />
               <rect x=${-bubble / 2} y="0" width=${bubble} height="16" rx="5" fill="var(--sw-accent)" />
               <text x="0" y="11.5" font-size="10.5" text-anchor="middle" fill="#fff" font-family="var(--sw-font-mono)" font-weight="600">${label}</text>

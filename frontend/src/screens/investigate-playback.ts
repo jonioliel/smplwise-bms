@@ -12,7 +12,7 @@ import '../components/sw-timeline';
 import '../components/sw-live-player';
 import '../components/sw-state-panel';
 import '../components/sw-case-picker';
-import { clipAround, type NewCaseItem } from '../api/cases';
+import { BOOKMARK_LABEL, clipAround, listBookmarks, type Bookmark, type NewCaseItem } from '../api/cases';
 import { minuteLabel, secondLabel } from '../components/sw-timeline';
 import type { SwLivePlayer } from '../components/sw-live-player';
 import type { DemoSegment } from '../fixtures/catalog';
@@ -26,7 +26,7 @@ import { closeGroup, closePlayback, createGroup, createPlayback, dateInZone, fra
 import { reportGroupSync, type SyncStats } from '../api/recordings';
 import { createExport, estimateExport, formatBytes, type ExportEstimate, type ExportJob } from '../api/exports';
 import { cameraEvents, markerKind, EVENT_LABEL, type VmsEvent } from '../api/events';
-import type { TimelineEvent } from '../components/sw-timeline';
+import type { TimelineBookmark, TimelineEvent } from '../components/sw-timeline';
 import type { Camera } from '../api/types';
 
 type Filter = 'all' | 'motion' | 'person' | 'vehicle' | 'door';
@@ -76,6 +76,9 @@ export class InvestigatePlayback extends LitElement {
   @state() private date = '';
   @state() private rec: RecordingsResponse | null = null;
   @state() private dayEvents: VmsEvent[] = [];
+  /** The day's case items of this camera, shown as flags on the timeline (T049); the one last clicked. */
+  @state() private bookmarks: Bookmark[] = [];
+  @state() private activeBookmark: Bookmark | null = null;
   @state() private loadingRec = false;
   @state() private session: PlaybackSession | null = null;
   @state() private group: PlaybackGroup | null = null;
@@ -524,9 +527,15 @@ export class InvestigatePlayback extends LitElement {
     this.loadingRec = true;
     this.rec = null;
     try {
-      const [rec, ev] = await Promise.all([recordingsForDay(this.cameraId, this.date), cameraEvents(this.cameraId, this.date).catch(() => ({ events: [] as VmsEvent[] }))]);
+      const [rec, ev, bm] = await Promise.all([
+        recordingsForDay(this.cameraId, this.date),
+        cameraEvents(this.cameraId, this.date).catch(() => ({ events: [] as VmsEvent[] })),
+        listBookmarks(this.cameraId, this.date).catch(() => ({ bookmarks: [] as Bookmark[] })),
+      ]);
       this.rec = rec;
       this.dayEvents = ev.events;
+      this.bookmarks = bm.bookmarks;
+      this.activeBookmark = null;
       this.error = '';
     } catch (err) {
       this.error = describeError(err);
@@ -542,6 +551,32 @@ export class InvestigatePlayback extends LitElement {
       kind: markerKind(e.type),
       label: `${EVENT_LABEL[e.type] ?? e.type}${e.confidence === 'inferred' ? ' (מהקלטה)' : ''}${e.count > 1 ? ` ×${e.count}` : ''}`,
     }));
+  }
+
+  /** Bookmarks of the day as timeline flags (T049). */
+  private get bookmarkMarkers(): TimelineBookmark[] {
+    return this.bookmarks.map((b) => ({
+      id: b.id,
+      minute: minuteInZone(new Date(b.from_at), this.tz),
+      endMinute: minuteInZone(new Date(b.to_at), this.tz),
+      label: `תיק „${b.case_title}”${b.note ? ` · ${b.note}` : ''} · ${BOOKMARK_LABEL[b.preservation]}`,
+      preservation: b.preservation,
+    }));
+  }
+
+  private async loadBookmarks() {
+    if (!this.cameraId || !this.date) return;
+    try {
+      this.bookmarks = (await listBookmarks(this.cameraId, this.date)).bookmarks;
+    } catch {
+      /* without events.read the track simply carries no flags */
+    }
+  }
+
+  /** Alt + click on the track bookmarks that instant: the case picker opens with a short clip around it. */
+  private bookmarkAt(minute: number) {
+    if (!this.cameraId) return;
+    this.casePick = { kind: 'clip', camera_id: this.cameraId, ...clipAround(instantInZone(this.date, minute, this.tz), 10, 20), note: 'סימנייה' };
   }
 
   private get segmentsMin(): DemoSegment[] {
@@ -823,7 +858,7 @@ export class InvestigatePlayback extends LitElement {
     return `סנכרון: ${q} · p95 ${p95}${st.partial ? ' · חלקי' : ''}`;
   }
 
-  private async onSeek(e: CustomEvent<{ minute: number }>) {
+  private async onSeek(e: CustomEvent<{ minute: number; alt?: boolean }>) {
     const minute = e.detail.minute;
     const at = instantInZone(this.date, minute, this.tz);
     if (at.getTime() > Date.now()) {
@@ -832,6 +867,7 @@ export class InvestigatePlayback extends LitElement {
       return;
     }
     this.cursor = minute;
+    if (e.detail.alt) this.bookmarkAt(minute);
     await this.startAt(at);
   }
 
@@ -1073,7 +1109,7 @@ export class InvestigatePlayback extends LitElement {
         </div></div>
       </div>
       <div class="tlwrap">
-        <sw-timeline .segments=${this.segmentsMin} .events=${this.markers} .cursor=${this.cursor} .limit=${this.limitMinute} precision=${precision} @seek=${this.onSeek} @scrub=${this.onScrub} @hover=${this.onTlHover} @hover-end=${this.onTlHoverEnd}></sw-timeline>
+        <sw-timeline .segments=${this.segmentsMin} .events=${this.markers} .bookmarks=${this.bookmarkMarkers} .cursor=${this.cursor} .limit=${this.limitMinute} precision=${precision} @seek=${this.onSeek} @bookmark-click=${(e: CustomEvent<{ id: string }>) => (this.activeBookmark = this.bookmarks.find((b) => b.id === e.detail.id) ?? null)} @scrub=${this.onScrub} @hover=${this.onTlHover} @hover-end=${this.onTlHoverEnd}></sw-timeline>
         ${this.preview
           ? html`<div class="tlpreview" data-tl-preview style="left:${Math.max(104, Math.min(this.preview.width - 104, this.preview.x))}px">
               ${this.preview.failed ? html`<div class="none">אין פריים בזמן זה</div>` : html`<img src=${this.preview.url} alt="" @error=${() => { if (this.preview) this.preview = { ...this.preview, failed: true }; }} />`}
@@ -1089,16 +1125,18 @@ export class InvestigatePlayback extends LitElement {
       <div class="filters">
         ${this.rec ? html`<sw-chip icon="history">${this.rec.segments.length} מקטעים · ${this.rec.matches} קבצים</sw-chip>` : nothing}
         ${this.dayEvents.length ? html`<sw-chip icon="bell" @click=${() => navigate('/investigate/events', { camera: this.cameraId, date: this.date })}>${this.dayEvents.length} אירועים${this.dayEvents.every((e) => e.confidence === 'inferred') ? ' (מהקלטות)' : ''}</sw-chip>` : nothing}
+        ${this.bookmarks.length ? html`<sw-chip icon="case" data-bookmarks-count title="סימניות מתיקי חקירה על ציר הזמן · Alt+לחיצה על הציר מוסיפה סימנייה">${this.bookmarks.length} סימניות</sw-chip>` : nothing}
+        ${this.activeBookmark ? html`<sw-chip selected icon="case" data-bookmark-active @click=${() => navigate(`/investigate/cases/${this.activeBookmark!.case_id}`)}>תיק „${this.activeBookmark.case_title}”${this.activeBookmark.note ? ` · ${this.activeBookmark.note}` : ''} · ${BOOKMARK_LABEL[this.activeBookmark.preservation]} · פתח</sw-chip>` : nothing}
         ${this.rec?.coverage === 'partial' ? html`<span class="warn">כיסוי חלקי: ${this.rec.note}</span>` : nothing}
         ${this.loadingRec ? html`<span class="session">מחפש הקלטות…</span>` : nothing}
         ${this.notice ? html`<span class="warn">${this.notice}</span>` : nothing}
         ${this.error ? html`<span class="err">${this.error}</span>` : nothing}
         <span class="grow"></span>
-        <sw-button size="sm" icon="case" data-add-to-case ?disabled=${!this.cameraId} @click=${() => (this.casePick = { kind: 'clip', camera_id: this.cameraId, ...clipAround(instantInZone(this.date, this.cursor, this.tz)) })}>הוסף לתיק</sw-button>
+        <sw-button size="sm" icon="case" data-add-to-case title="סימנייה בנקודה הנוכחית · Alt+לחיצה על הציר מסמנת נקודה אחרת" ?disabled=${!this.cameraId} @click=${() => (this.casePick = { kind: 'clip', camera_id: this.cameraId, ...clipAround(instantInZone(this.date, this.cursor, this.tz)) })}>הוסף לתיק</sw-button>
         <sw-button size="sm" icon="download" ?disabled=${!this.rec?.segments.length} @click=${() => this.openExport()}>ייצוא</sw-button>
         <a href="#/explore/floors/f0"><sw-button size="sm" icon="map">במפה</sw-button></a>
       </div>
-      <sw-case-picker .item=${this.casePick} subheading=${`${this.cams?.find((c) => c.id === this.cameraId)?.name ?? ''} · ${this.date} ${secondLabel(this.cursor)}`} @close=${() => (this.casePick = null)}></sw-case-picker>
+      <sw-case-picker .item=${this.casePick} subheading=${`${this.cams?.find((c) => c.id === this.cameraId)?.name ?? ''} · ${this.date} ${secondLabel(this.cursor)}`} @added=${() => void this.loadBookmarks()} @close=${() => (this.casePick = null)}></sw-case-picker>
       <div class="session">
         <span>Session: ${master ? `${master.id} · דור ${this.groupMode ? this.group?.generation ?? master.generation : master.generation} · ${master.state}` : 'אין'}</span>
         <span>נגן: ${masterStatus || '—'}${this.paused ? ' (מושהה)' : ''}</span>

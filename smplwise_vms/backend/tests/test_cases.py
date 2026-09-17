@@ -126,3 +126,33 @@ def test_cases_preserve_without_nvr_and_permissions(client, settings):
     assert lst["can_manage"] is True and len(lst["cases"]) == 1
     assert client.post("/api/v1/cases", json={"title": "של דן"}, headers=h).status_code == 201
     assert client.get(f"/api/v1/cases/{case['id']}", headers=h).json()["items"][0]["kind"] == "clip"
+
+
+def test_case_bookmarks_for_a_camera_day(client, settings):
+    """GET /cases/bookmarks lists the camera's event / clip items whose window meets the local day (T049 timeline)."""
+    ids = seed_tree(client)
+    cam = client.post("/api/v1/cameras", json={"channel": 1, "alias": "a"}).json()
+    other = client.post("/api/v1/cameras", json={"channel": 2, "alias": "b"}).json()
+    case = client.post("/api/v1/cases", json={"title": "פריצה"}).json()
+    clip = client.post(f"/api/v1/cases/{case['id']}/items", json={"kind": "clip", "camera_id": cam["id"], "from_at": "2026-09-14T11:00:00Z", "to_at": "2026-09-14T11:01:00Z", "note": "רכב"}).json()
+    # a clip that straddles local midnight (Asia/Jerusalem, UTC+3 in September) belongs to both days
+    night = client.post(f"/api/v1/cases/{case['id']}/items", json={"kind": "clip", "camera_id": cam["id"], "from_at": "2026-09-13T20:59:00Z", "to_at": "2026-09-13T21:01:00Z"}).json()
+    assert client.post(f"/api/v1/cases/{case['id']}/items", json={"kind": "clip", "camera_id": other["id"], "from_at": "2026-09-14T11:00:00Z", "to_at": "2026-09-14T11:01:00Z"}).status_code == 201
+    assert client.post(f"/api/v1/cases/{case['id']}/items", json={"kind": "note", "note": "הערה"}).status_code == 201
+
+    r = client.get("/api/v1/cases/bookmarks", params={"camera_id": cam["id"], "date": "2026-09-14"})
+    assert r.status_code == 200, r.text
+    bms = r.json()["bookmarks"]
+    assert [b["id"] for b in bms] == [night["id"], clip["id"]], "ordered by start, other cameras and notes left out"
+    assert bms[1]["case_title"] == "פריצה" and bms[1]["note"] == "רכב" and bms[1]["kind"] == "clip"
+    assert bms[1]["preservation"] == "nvr", "no NVR probe: a plain bookmark"
+    assert [b["id"] for b in client.get("/api/v1/cases/bookmarks", params={"camera_id": cam["id"], "date": "2026-09-13"}).json()["bookmarks"]] == [night["id"]]
+    assert client.get("/api/v1/cases/bookmarks", params={"camera_id": cam["id"], "date": "2026-09-15"}).json()["bookmarks"] == []
+    assert client.get("/api/v1/cases/bookmarks", params={"camera_id": cam["id"], "date": "2026-13-40"}).status_code == 422
+    assert client.get("/api/v1/cases/bookmarks", params={"camera_id": "nope", "date": "2026-09-14"}).status_code in (403, 404)
+    # a viewer bound to another floor may not read this camera's bookmarks; an installation-wide operator may
+    bind(client, settings, "ron", "viewer", "floor", ids["floor2"])
+    assert client.get("/api/v1/cases/bookmarks", params={"camera_id": cam["id"], "date": "2026-09-14"}, headers=as_user("ron")).status_code == 403
+    bind(client, settings, "dan", "operator", "installation", "*")
+    assert len(client.get("/api/v1/cases/bookmarks", params={"camera_id": cam["id"], "date": "2026-09-14"}, headers=as_user("dan")).json()["bookmarks"]) == 2
+
