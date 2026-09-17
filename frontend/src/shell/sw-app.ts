@@ -791,9 +791,23 @@ export class SwApp extends LitElement {
 
   /** Demo-only routes land on their real counterpart once a backend is known (F1 F3 F4 F5 F6 F10). */
   private redirectDemo(route: RouteState): boolean {
+    if (this.enforceKiosk(route)) return true;
     const target = demoRedirect(route.path, this.session.mode === 'api');
     if (!target) return false;
     window.location.replace(`#${target}`);
+    return true;
+  }
+
+  /** A user whose only role is the kiosk role belongs on the wall: the shell keeps such a session there (T057).
+   * The API already limits the role to map.read + video.live; this closes the navigation side. */
+  private get kioskOnly(): boolean {
+    const b = (this.session.me?.bindings ?? []).filter((x) => x.effect !== 'deny');
+    return this.session.mode === 'api' && b.length > 0 && b.every((x) => x.role_id === 'kiosk');
+  }
+
+  private enforceKiosk(route: RouteState): boolean {
+    if (!this.kioskOnly || route.segments[0] === 'kiosk') return false;
+    window.location.replace('#/kiosk/all');
     return true;
   }
 

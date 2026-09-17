@@ -57,6 +57,13 @@ consistency items below and prints the tag commands to run after approval.
 8. **Legacy comparison (T003 / T004 golden traces)** is still owner-gated; the migration dry run
    (`scripts/migrate_legacy.py`, `docs/operations/MIGRATION_FROM_LEGACY_HE.md`) covers the mapping, rollout and rollback.
 
+## 4b. Smoke test after every upgrade
+
+`python scripts/smoke_after_upgrade.py --live` (owner's installation through Ingress; the privileged checks need a VMS
+role for the token's user) or `--base http://127.0.0.1:8099` (developer backend). Sixteen read-only checks; the only
+side effect is one playback session the script closes. A FAIL line names what broke; a skip names what the caller
+may not run.
+
 ## 5. Rollback
 
 1. Every version step writes `/data/backups/auto-pre-upgrade-<stamp>.zip` before migrating (kept: last 5).

@@ -86,3 +86,4 @@
 ## מעבר מה־Add-on הישן ושחרור
 - מדריך המעבר (dry run, כינויים, תקופת צל, חזרה לאחור): `docs/operations/MIGRATION_FROM_LEGACY_HE.md` והכלי `scripts/migrate_legacy.py`.
 - חבילת השחרור ובדיקת העקביות לפני חתימה: `docs/release/RELEASE_PACKAGE_V1.md`, `python scripts/release_check.py --tag`.
+- בדיקת עשן אחרי כל עדכון: `python scripts/smoke_after_upgrade.py --live` (או `--base` מול backend מקומי) — 16 בדיקות קריאה בלבד, יציאה 1 כשמשהו נשבר.

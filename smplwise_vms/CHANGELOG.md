@@ -1,5 +1,14 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.55 (pilot) — kiosk restore and a smoke test after upgrades
+- Kiosk (T057): the wall comes back to the exact page it showed after a reload, a power cycle or a reconnect (kept
+  per view in the browser), and a user whose only role is "תצוגת קיוסק" is kept on the kiosk by the shell — any other
+  route lands on `#/kiosk/all` (the API already limits that role to map.read + video.live).
+- Tooling (T036, outside the add-on): `scripts/smoke_after_upgrade.py` runs sixteen read-only checks against a VMS
+  (health facts, identity, cameras, sites, events, snapshot, a playback session it closes itself, export estimate,
+  saved views, storage, audit, the built UI, and the bridge on the owner's installation) and exits non-zero on real
+  breakage; checks the caller may not run are skipped, not failed.
+
 ## 0.1.54 (pilot) — export queue order
 - Export jobs now run **smallest first**: the NVR hands files out at a fixed, modest rate (a 1 GB file took over
   half an hour in the lab), so a short clip no longer waits behind a whole-file preservation. A job that has waited

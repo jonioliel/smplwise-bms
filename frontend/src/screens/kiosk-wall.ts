@@ -27,7 +27,7 @@ export class KioskWall extends LitElement {
   @state() private cams: Camera[] | null = null;
   @state() private settings: ProductSettings | null = null;
   @state() private clock = '';
-  @state() private page = 0;
+  @state() private page = 0; // restored per view in connectedCallback / onHash (T057)
   @state() private health: HealthSummary | null = null;
   @state() private disconnected = false;
   @state() private view = viewParams();
@@ -38,9 +38,33 @@ export class KioskWall extends LitElement {
   private unsubscribe: (() => void) | undefined;
   private onHash = () => {
     this.view = viewParams();
-    this.page = 0;
+    this.page = this.restorePage();
     this.startRotation();
   };
+
+  /** The page shown for this exact view (cameras + layout), kept in the browser so a reload, a power cycle or a
+   * reconnect brings the wall back to the same page (T057). */
+  private get pageKey(): string {
+    return `sw.kiosk.page:${this.view.cameras.join(',')}|${this.view.cols}x${this.view.rows}`;
+  }
+
+  private restorePage(): number {
+    try {
+      const n = Number(localStorage.getItem(this.pageKey) ?? '0');
+      return Number.isFinite(n) && n >= 0 ? n : 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  private setPage(n: number) {
+    this.page = n;
+    try {
+      localStorage.setItem(this.pageKey, String(n % Math.max(1, this.pages)));
+    } catch {
+      /* private mode */
+    }
+  }
 
   static styles = css`
     :host {
@@ -165,6 +189,7 @@ export class KioskWall extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    this.page = this.restorePage();
     this.tick();
     this.timer = window.setInterval(() => this.tick(), 1000);
     // The kiosk renders outside the session gate, so wait for the backend answer instead of assuming demo.
@@ -190,7 +215,7 @@ export class KioskWall extends LitElement {
 
   private startRotation() {
     window.clearInterval(this.rotateTimer);
-    if (this.view.rotate > 0) this.rotateTimer = window.setInterval(() => { this.page = this.page + 1; this.stagger(); }, this.view.rotate * 1000);
+    if (this.view.rotate > 0) this.rotateTimer = window.setInterval(() => { this.setPage(this.page + 1); this.stagger(); }, this.view.rotate * 1000);
     this.stagger();
   }
 
