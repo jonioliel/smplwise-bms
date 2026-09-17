@@ -184,12 +184,17 @@ def close(settings: Settings, session: PlaybackSession, state: str = "closed") -
         _delete_stream(settings, name)
 
 
+NEVER_CONNECTED_S = 90  # a session nobody ever connected to (page left during start-up, a lost tab) is dropped early
+
+
 def expire_idle(settings: Settings, lease_s: int) -> list[str]:
-    """Close sessions without a socket whose lease ran out. Returns the expired ids."""
+    """Close sessions without a socket whose lease ran out — and, much sooner, sessions that never relayed a byte:
+    they hold a relay stream and a quota slot for a viewer who is not there. Returns the expired ids."""
     now = time.time()
     expired: list[str] = []
     for session in list(REGISTRY.active()):
-        if not session.ws_open and now - session.last_activity > lease_s:
+        never_connected = not session.ws_open and session.first_frame_at is None and session.bytes_down == 0 and now - session.created > NEVER_CONNECTED_S
+        if never_connected or (not session.ws_open and now - session.last_activity > lease_s):
             close(settings, session, "expired")
             expired.append(session.id)
     # drop finished sessions from memory after a while so the listing stays small

@@ -1,5 +1,12 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.46 (pilot)
+- Playback quota hygiene: a playback session nobody ever connected to (a tab closed during start-up, a screen
+  left before its stream arrived) is dropped after 90 s instead of holding a relay stream and one of the four
+  quota slots for the whole idle lease; and the browser releases its own sessions and groups when a page is left
+  (beacon to the new POST …/close routes, which do the same as DELETE). Found during the night's regression sweep,
+  where a burst of screens produced "מכסת הניגון מלאה".
+
 ## 0.1.45 (pilot)
 - Lovelace card (T056): the SMPLWISE Bridge integration (now 0.2.0) ships `custom:smplwise-card` and registers it
   as a dashboard resource on load (best effort — in YAML-mode dashboards the log names the resource to add by

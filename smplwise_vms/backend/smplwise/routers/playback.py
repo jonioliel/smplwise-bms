@@ -137,6 +137,18 @@ def close_session(session_id: str, request: Request, principal: Principal = Depe
     return {"id": session.id, "state": session.state}
 
 
+@router.post("/playback/sessions/{session_id}/close")
+def close_session_beacon(session_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Same as DELETE, reachable by navigator.sendBeacon on page unload (a beacon can only POST)."""
+    session = _owned(conn, principal, session_id)
+    if session.state in ("closed", "expired", "failed"):
+        return {"id": session.id, "state": session.state}
+    pb.close(settings_of(request), session)
+    audit(conn, actor=principal, action="video.playback.stop", decision="allowed", resource_type="camera", resource_id=session.camera_id,
+          request_id=getattr(request.state, "correlation_id", None), details={"session": session.id, "generation": session.generation, "bytes_down": session.bytes_down, "via": "beacon"})
+    return {"id": session.id, "state": session.state}
+
+
 @router.websocket("/playback/sessions/{session_id}/ws")
 async def playback_ws(websocket: WebSocket, session_id: str, generation: int = Query(0)) -> None:
     settings: Settings = websocket.app.state.settings

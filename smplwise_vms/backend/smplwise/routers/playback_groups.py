@@ -149,6 +149,16 @@ def get_group(group_id: str, principal: Principal = Depends(current_principal), 
     return pg.to_dict(group, read_settings(conn)["playback.lease_s"])
 
 
+@router.post("/playback/groups/{group_id}/close")
+def close_group_beacon(group_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Same as DELETE, reachable by navigator.sendBeacon on page unload."""
+    group = _owned(conn, principal, group_id)
+    pg.close_group(settings_of(request), group)
+    audit(conn, actor=principal, action="video.playback.group.stop", decision="allowed", resource_type="installation", resource_id="*",
+          request_id=getattr(request.state, "correlation_id", None), details={"group": group.id, "via": "beacon"})
+    return {"id": group.id, "state": "closed"}
+
+
 @router.delete("/playback/groups/{group_id}")
 def close_group(group_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     group = _owned(conn, principal, group_id)

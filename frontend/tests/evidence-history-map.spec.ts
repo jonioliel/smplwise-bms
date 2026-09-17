@@ -47,7 +47,8 @@ test.describe('historical map (SW A)', () => {
     const cls = await hm.locator('sw-plan-canvas g.marker.selected').getAttribute('class');
     expect(cls).toMatch(/historic|unknown/);
     // entities never show a live value here
-    await expect(hm.locator('[data-history-panel]')).toContainText('לא ידוע בזמן זה');
+    // the local HA history grows with every day the backend runs: before it began the panel says unknown, inside it the entity is known
+    await expect(hm.locator('[data-history-panel]')).toContainText(/לא ידוע בזמן זה|ידועות בזמן זה/);
     await page.waitForTimeout(1500);
     await page.screenshot({ path: path.join(OUT, `history-map-${testInfo.project.name}.png`), fullPage: true });
 

@@ -43,9 +43,28 @@ export interface PlaybackSession {
   moved_to_next_segment?: boolean;
 }
 
-export const createPlayback = (cameraId: string, startAt: string) => post<PlaybackSession>('playback/sessions', { camera_id: cameraId, start_at: startAt });
+/** Sessions and groups this page opened; released with a beacon when the page is left, so a closed tab never holds a quota slot. */
+const openSessions = new Set<string>();
+const openGroups = new Set<string>();
+function releaseOnUnload(): void {
+  if (!openSessions.size && !openGroups.size) return;
+  for (const id of openGroups) navigator.sendBeacon?.(apiUrl(`playback/groups/${id}/close`), '');
+  for (const id of openSessions) navigator.sendBeacon?.(apiUrl(`playback/sessions/${id}/close`), '');
+  openSessions.clear();
+  openGroups.clear();
+}
+if (typeof window !== 'undefined') window.addEventListener('pagehide', releaseOnUnload);
+
+export const createPlayback = async (cameraId: string, startAt: string) => {
+  const s = await post<PlaybackSession>('playback/sessions', { camera_id: cameraId, start_at: startAt });
+  openSessions.add(s.id);
+  return s;
+};
 export const seekPlayback = (id: string, startAt: string) => post<PlaybackSession>(`playback/sessions/${id}/seek`, { start_at: startAt });
-export const closePlayback = (id: string) => del(`playback/sessions/${id}`);
+export const closePlayback = (id: string) => {
+  openSessions.delete(id);
+  return del(`playback/sessions/${id}`);
+};
 export const listPlayback = () => get<{ sessions: (PlaybackSession & { username: string; bytes_down: number; seconds: number })[]; max_sessions: number; lease_s: number }>('playback/sessions');
 
 /** ws(s):// URL of a session's relay socket for one generation (works under Ingress). */
@@ -126,9 +145,16 @@ export interface PlaybackGroup {
   sync_report?: SyncReport | null;
 }
 
-export const createGroup = (cameraIds: string[], startAt: string) => post<PlaybackGroup>('playback/groups', { camera_ids: cameraIds, start_at: startAt });
+export const createGroup = async (cameraIds: string[], startAt: string) => {
+  const g = await post<PlaybackGroup>('playback/groups', { camera_ids: cameraIds, start_at: startAt });
+  openGroups.add(g.id);
+  return g;
+};
 export const seekGroup = (id: string, startAt: string) => post<PlaybackGroup>(`playback/groups/${id}/seek`, { start_at: startAt });
-export const closeGroup = (id: string) => del(`playback/groups/${id}`);
+export const closeGroup = (id: string) => {
+  openGroups.delete(id);
+  return del(`playback/groups/${id}`);
+};
 export const reportGroupSync = (id: string, stats: SyncStats) =>
   post<{ ok: boolean; sync_report: SyncReport }>(`playback/groups/${id}/sync`, { p95_s: stats.p95, quality: stats.quality, samples: stats.samples, partial: stats.partial, members: stats.members });
 

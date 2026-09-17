@@ -28,7 +28,8 @@ test.describe('evidence signing (SW A)', () => {
     await page.goto('/#/system/storage');
     await page.waitForSelector('sw-app');
     const card = page.locator('system-storage [data-signing]');
-    await expect(card.locator('[data-signing-active]')).toHaveText(info.active, { timeout: 30_000 });
+    // the storage screen renders its cards only after the storage report, which can take ~50 s when the NVR cache is cold
+    await expect(card.locator('[data-signing-active]')).toHaveText(info.active, { timeout: 120_000 });
     await card.scrollIntoViewIfNeeded();
     await page.screenshot({ path: path.join(OUT, `signing-key-${testInfo.project.name}.png`), fullPage: true });
 
