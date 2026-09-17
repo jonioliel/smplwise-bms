@@ -299,13 +299,16 @@ class AlertStreamListener:
         if alert.is_heartbeat:
             STATE.last_heartbeat_at = now_iso()
             return
+        # the zone is read BEFORE the write connection opens: the getter opens its own connection, and doing that
+        # while this thread held the write lock blocked every writer for busy_timeout on every alert (0.1.58)
+        tz = self.tz_getter()
         with self.db.connection() as conn:
-            stored = store_alert(conn, alert, self.tz_getter(), self._camera_lookup(conn))
+            stored = store_alert(conn, alert, tz, self._camera_lookup(conn))
             if stored:
                 from . import rules as rules_svc  # local import: rules depend on correlation which depends on this module
 
                 try:
-                    rules_svc.evaluate_event(conn, stored, self.tz_getter())
+                    rules_svc.evaluate_event(conn, stored, tz)
                 except Exception:  # noqa: BLE001 - a rule must never break ingestion
                     log.exception("rule evaluation failed for %s", stored.get("id"))
         if stored:

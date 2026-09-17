@@ -1,5 +1,13 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.58 (pilot) — hotfix: the first real NVR alerts froze the installation
+- The alert handler read the time zone through a second write connection while it already held the write lock:
+  every alert blocked every writer for the busy timeout (10 s), and with "Notify Surveillance Center" enabled the
+  installation answered `database is locked` everywhere. The zone is now read before the write connection opens,
+  and the zone getter uses a read-only connection. Regression test in tests/test_events.py.
+- The bridge integration's running version is recorded on every directory push, not only at pairing: the
+  connections page no longer says "Home Assistant still runs 0.1.1" after an update and a restart.
+
 ## 0.1.57 (pilot) — bookmarks on the playback timeline
 - Playback (T049): the day's case items of the camera (event windows and clips) show as flags on the timeline,
   coloured by preservation (copy saved / copying / bookmark the NVR still serves); a flag click seeks to it and

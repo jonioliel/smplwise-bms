@@ -135,3 +135,30 @@ def test_scope_ack_and_push(settings):
         events_ingest.publish(ev)
         msg = json.loads(ws.receive_text())
         assert msg["type"] == "event_added" and msg["payload"]["id"] == ev["id"] and msg["version"] == 1
+
+
+def test_alert_handling_reads_the_zone_before_taking_the_write_lock(settings):
+    """0.1.58: the zone getter opens its own connection; calling it while the alert handler held the write lock made
+    every writer wait busy_timeout on every alert (the owner's installation froze the moment real alerts arrived)."""
+    import sqlite3
+
+    app = create_app(settings)
+    with TestClient(app):
+        db = app.state.db
+        listener = events_ingest.AlertStreamListener()
+        calls: list[str] = []
+
+        def tz() -> str:
+            c = sqlite3.connect(str(db.path), timeout=0.5, isolation_level=None)
+            try:
+                c.execute("BEGIN IMMEDIATE")  # raises "database is locked" at once if the handler holds the lock
+                c.execute("ROLLBACK")
+            finally:
+                c.close()
+            calls.append("ok")
+            return "Asia/Jerusalem"
+
+        listener.db, listener.settings, listener.tz_getter = db, settings, tz
+        listener._handle(events_ingest.parse_alert(alert()))
+        assert calls == ["ok"], "the zone is read once, before the write connection opens"
+

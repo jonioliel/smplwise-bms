@@ -303,6 +303,12 @@ def bridge_directory(message: dict[str, Any], request: Request, conn: sqlite3.Co
     set_setting(conn, "bridge.directory_at", now)
     if not get_setting(conn, "bridge.paired_at"):
         set_setting(conn, "bridge.paired_at", now)
+    # the running integration's version travels with every push: recording it only at pairing left the connections
+    # page saying "HA still runs <old>" forever after an update + restart (0.1.58)
+    version = str(message.get("version") or "")
+    if version and version != (get_setting(conn, "bridge.integration_version") or ""):
+        set_setting(conn, "bridge.integration_version", version)
+        audit(conn, actor=None, action="bridge.version_seen", decision="allowed", resource_type="installation", resource_id="*", details={"integration_version": version})
     return {"ok": True, "users": len(ids)}
 
 

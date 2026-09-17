@@ -111,6 +111,14 @@ def test_bridge_signing_and_directory(ha_app):
     r = c.post("/api/v1/ha/bridge/ping", json=ha_bridge.sign(secret, {"version": "0.1.0"}))
     assert r.status_code == 200 and r.json()["ok"]
     r = c.post("/api/v1/ha/bridge/directory", json=ha_bridge.sign(secret, {"users": [{"id": "u1", "name": "Yoni", "username": "yoni", "is_active": True, "is_admin": True, "group_ids": ["system-admin"]}, {"id": "u2", "name": "Guest", "is_active": True}]}))
+    assert r.status_code == 200
+    # the running version travels with every push and is recorded (0.1.58) - not only at pairing time
+    from smplwise.services import bridge_install
+
+    assert bridge_install.status(db=c.app.state.db)["active_version"] == "0.1.0"
+    r = c.post("/api/v1/ha/bridge/directory", json=ha_bridge.sign(secret, {"users": [{"id": "u1", "name": "Yoni", "username": "yoni", "is_active": True, "is_admin": True, "group_ids": ["system-admin"]}, {"id": "u2", "name": "Guest", "is_active": True}], "version": "0.2.1"}))
+    assert r.status_code == 200
+    assert bridge_install.status(db=c.app.state.db)["active_version"] == "0.2.1"
     assert r.status_code == 200 and r.json()["users"] == 2
     assert c.post("/api/v1/ha/bridge/directory", json={"users": [], "ts": int(time.time()), "nonce": "x", "sig": "bad"}).status_code == 401
     st = c.get("/api/v1/ha/status").json()

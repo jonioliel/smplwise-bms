@@ -140,7 +140,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import autosync, events_derive, events_ingest
 
         def _tz() -> str:
-            with app.state.db.connection() as conn:
+            with app.state.db.connection(mode="read") as conn:  # never takes the write lock
                 return read_settings(conn)["time.zone"]
 
         async def discover(reason: str) -> None:
