@@ -297,24 +297,71 @@ def summary(principal: Principal = Depends(current_principal), conn: sqlite3.Con
 SEVERITY_RANK = {"info": 0, "alert": 1, "critical": 2}
 
 
-def group_windows(events: list[dict[str, Any]], gap_seconds: int) -> list[dict[str, Any]]:
-    """Merge events of the same camera whose gaps are at most `gap_seconds` into review windows (newest first).
-    System events (no camera) form one window each. The raw events keep their ids inside the window."""
-    by_cam: dict[str | None, list[dict[str, Any]]] = {}
+GROUP_MODES = ("camera", "all", "zone", "floor")
+
+
+def camera_groups(conn: sqlite3.Connection, by: str) -> dict[str, tuple[str, str]]:
+    """camera_id -> (group key, label) for the zone / floor grouping modes, from the current map anchors."""
+    out: dict[str, tuple[str, str]] = {}
+    if by not in ("zone", "floor"):
+        return out
+    floors = {r["id"]: f"{r['bname']} · {r['fname']}" for r in conn.execute(
+        "SELECT f.id, f.name AS fname, b.name AS bname FROM floors f JOIN buildings b ON b.id = f.building_id WHERE f.deleted_at IS NULL").fetchall()}
+    zones: dict[str, list[tuple[str, str, list[dict[str, float]]]]] = {}
+    if by == "zone":
+        for z in conn.execute("SELECT id, floor_id, name, polygon_json FROM spatial_zones WHERE deleted_at IS NULL ORDER BY name").fetchall():
+            try:
+                poly = json.loads(z["polygon_json"] or "[]")
+            except ValueError:
+                poly = []
+            if len(poly) >= 3:
+                zones.setdefault(z["floor_id"], []).append((z["id"], z["name"], poly))
+    for a in conn.execute("SELECT floor_id, resource_id, x, y FROM map_anchors WHERE resource_type = 'camera' AND effective_to IS NULL").fetchall():
+        if by == "floor":
+            out[a["resource_id"]] = (f"floor:{a['floor_id']}", floors.get(a["floor_id"], "קומה"))
+            continue
+        hit = next(((zid, name) for zid, name, poly in zones.get(a["floor_id"], []) if correlation._inside(a["x"], a["y"], poly)), None)
+        out[a["resource_id"]] = (f"zone:{hit[0]}", hit[1]) if hit else (f"nozone:{a['floor_id']}", f"ללא חדר · {floors.get(a['floor_id'], 'קומה')}")
+    return out
+
+
+def group_windows(events: list[dict[str, Any]], gap_seconds: int, by: str = "camera", groups: dict[str, tuple[str, str]] | None = None) -> list[dict[str, Any]]:
+    """Merge events whose gaps are at most `gap_seconds` into review windows (newest first). `by` picks what a window
+    spans: one camera (default), every camera together, a room (zone) or a floor - `groups` maps camera ids to the
+    (key, label) of the last two; cameras without a place fall into "לא ממופה". System events (no camera) form one
+    window each. The raw events keep their ids inside the window."""
+    groups = groups or {}
+
+    def key_of(ev: dict[str, Any]) -> tuple[str | None, str | None]:
+        cam = ev.get("camera_id")
+        if cam is None:
+            return None, None
+        if by == "camera":
+            return cam, None
+        if by == "all":
+            return "all", "כל המצלמות"
+        g = groups.get(cam)
+        return (g[0], g[1]) if g else ("unplaced", "לא ממופה")
+
+    by_key: dict[str | None, list[dict[str, Any]]] = {}
+    labels: dict[str | None, str | None] = {}
     for ev in events:
-        by_cam.setdefault(ev.get("camera_id"), []).append(ev)
+        k, label = key_of(ev)
+        by_key.setdefault(k, []).append(ev)
+        labels[k] = label
     windows: list[dict[str, Any]] = []
-    for cam, items in by_cam.items():
+    for k, items in by_key.items():
         items.sort(key=lambda e: e["occurred_at"])
         current: dict[str, Any] | None = None
         for ev in items:
             start = parse_utc(ev["occurred_at"])
             end = parse_utc(ev["ended_at"]) if ev.get("ended_at") else start
-            if current is not None and cam is not None and (start - current["_end"]).total_seconds() <= gap_seconds:
+            if current is not None and k is not None and (start - current["_end"]).total_seconds() <= gap_seconds:
                 current["_end"] = max(current["_end"], end)
                 current["_events"].append(ev)
             else:
-                current = {"_start": start, "_end": end, "_events": [ev], "camera_id": cam}
+                cam = ev.get("camera_id") if by == "camera" else None
+                current = {"_start": start, "_end": end, "_events": [ev], "camera_id": cam, "_key": k, "_label": labels.get(k)}
                 windows.append(current)
     out: list[dict[str, Any]] = []
     for w in windows:
@@ -326,11 +373,16 @@ def group_windows(events: list[dict[str, Any]], gap_seconds: int) -> list[dict[s
         severity = max((ev["severity"] for ev in evs), key=lambda sv: SEVERITY_RANK.get(sv, 0))
         acked = sum(1 for ev in evs if ev.get("acked_at"))
         thumb_ev = next((ev for ev in evs if ev.get("thumbnail") == "ready"), None) or next((ev for ev in evs if ev.get("thumbnail") == "pending"), None) or evs[0]
+        cameras = sorted({ev.get("camera_id") for ev in evs if ev.get("camera_id")})
         out.append({
-            "id": f"{w['camera_id'] or 'system'}:{iso_utc(w['_start'])}",
+            "id": f"{w['_key'] or 'system'}:{iso_utc(w['_start'])}",
             "camera_id": w["camera_id"],
-            "camera_name": evs[0].get("camera_name"),
-            "channel": evs[0].get("channel"),
+            "camera_name": evs[0].get("camera_name") if by == "camera" or w["_key"] is None else w["_label"],
+            "channel": evs[0].get("channel") if by == "camera" or w["_key"] is None else None,
+            "group": by,
+            "group_label": w["_label"],
+            "camera_ids": cameras,
+            "camera_names": sorted({ev.get("camera_name") for ev in evs if ev.get("camera_name")}),
             "start": iso_utc(w["_start"]),
             "end": iso_utc(w["_end"]),
             "count": len(evs),
@@ -361,12 +413,14 @@ def list_windows(
     camera_id: str | None = None,
     gap: int = Query(180, ge=30, le=3600),
     limit: int = Query(200, ge=1, le=1000),
+    by: str = Query("camera", pattern="^(camera|all|zone|floor)$"),
 ) -> dict[str, Any]:
-    """Review windows (design M26): the day's events grouped per camera by proximity; nothing is deleted or merged
-    in the store, the raw events stay reachable through their ids."""
+    """Review windows (design M26): the day's events grouped by proximity - per camera, all cameras together, per
+    room or per floor (`by`, 0.1.62); nothing is deleted or merged in the store, the raw events stay reachable
+    through their ids."""
     raw = list_events(request, principal, conn, date=date, from_=from_, to=to, camera_id=camera_id, type=None, unacked=False, acked=False, limit=1000)
-    windows = group_windows(raw["events"], gap)[:limit]
-    return {"windows": windows, "from": raw["from"], "to": raw["to"], "timezone": raw["timezone"], "gap_seconds": gap, "events_total": len(raw["events"]), "ingest": raw["ingest"]}
+    windows = group_windows(raw["events"], gap, by, camera_groups(conn, by))[:limit]
+    return {"windows": windows, "from": raw["from"], "to": raw["to"], "timezone": raw["timezone"], "gap_seconds": gap, "group": by, "events_total": len(raw["events"]), "ingest": raw["ingest"]}
 
 
 class AckManyIn(BaseModel):

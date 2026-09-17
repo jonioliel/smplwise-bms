@@ -1,5 +1,5 @@
 name: SMPLWISE VMS
-version: "0.1.61"
+version: "0.1.62"
 slug: smplwise_vms
 description: Map-centred video management for Hikvision NVRs and Home Assistant (pilot build)
 url: https://github.com/jonioliel/smplwise-bms

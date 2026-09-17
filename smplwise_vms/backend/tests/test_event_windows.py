@@ -72,3 +72,23 @@ def test_windows_api_ack_many_and_scope(settings):
     bind(c, settings, "ron", "operator", "floor", ids["floor3"])
     assert c.get("/api/v1/events/windows", headers=as_user("ron")).status_code == 403
     assert c.post("/api/v1/events/ack-many", json={"event_ids": ["e3"]}, headers=as_user("ron")).status_code == 403
+
+
+def test_group_windows_modes():
+    """0.1.62: one window may span every camera, a room or a floor; cameras without a place fall into 'לא ממופה'."""
+    evs = [
+        {"id": "a", "camera_id": "c1", "camera_name": "לובי", "type": "motion", "severity": "info", "occurred_at": "2026-09-14T10:00:00Z", "ended_at": None, "thumbnail": "none"},
+        {"id": "b", "camera_id": "c2", "camera_name": "קבלה", "type": "person", "severity": "alert", "occurred_at": "2026-09-14T10:01:00Z", "ended_at": None, "thumbnail": "none"},
+        {"id": "c", "camera_id": "c3", "camera_name": "חניה", "type": "motion", "severity": "info", "occurred_at": "2026-09-14T10:20:00Z", "ended_at": None, "thumbnail": "none"},
+    ]
+    per_camera = group_windows(evs, 180)
+    assert len(per_camera) == 3 and all(w["group"] == "camera" for w in per_camera)
+    together = group_windows(evs, 180, "all")
+    assert [w["count"] for w in together] == [1, 2], "a and b are one window for every camera together, c is 19 minutes later"
+    assert together[1]["camera_name"] == "כל המצלמות" and together[1]["camera_ids"] == ["c1", "c2"] and together[1]["camera_id"] is None
+    groups = {"c1": ("zone:z1", "לובי ראשי"), "c2": ("zone:z1", "לובי ראשי")}
+    by_zone = group_windows(evs, 180, "zone", groups)
+    labels = {w["group_label"]: w["count"] for w in by_zone}
+    assert labels == {"לובי ראשי": 2, "לא ממופה": 1}
+    assert by_zone[0]["id"].startswith("unplaced:") or by_zone[1]["id"].startswith("unplaced:")
+

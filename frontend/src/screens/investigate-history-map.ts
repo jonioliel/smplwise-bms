@@ -307,6 +307,12 @@ export class InvestigateHistoryMap extends LitElement {
       const [settings, tree] = await Promise.all([productSettings(), this.tree ? Promise.resolve(this.tree) : loadTree()]);
       this.tz = settings['time.zone'] ?? this.tz;
       this.tree = tree;
+      // the navigation links the generic 'f0': with a backend, land on the first real floor (3.11)
+      if (isApi() && this.floors.length && !this.floors.some((f) => f.id === this.floorId)) {
+        const q = new URLSearchParams(window.location.hash.split('?')[1] ?? '').toString();
+        window.location.replace(`#/investigate/floors/${this.floors[0].id}/history${q ? `?${q}` : ''}`);
+        return;
+      }
       const start = this.at ? new Date(this.at) : new Date();
       this.date = dateInZone(start, this.tz);
       this.minute = minuteInZone(start, this.tz);

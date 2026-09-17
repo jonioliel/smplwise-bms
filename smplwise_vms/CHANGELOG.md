@@ -1,5 +1,12 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.62 (pilot) — the owner's test round, batch 2
+- History map: the navigation linked the demo floor id, so an installation opened "הקומה לא נמצאה" (3.11). The
+  screen now lands on the first real floor and keeps its floor selector.
+- Review windows (3.12): grouping by camera (as before), all cameras together, room or floor, with the gap
+  selectable from 1 to 60 minutes; a grouped window lists the cameras inside it. Sensor events without a camera
+  stay one window each.
+
 ## 0.1.61 (pilot) — the owner's test round, batch 1
 - Camera wall: the tile count is remembered per browser and opens with the owner's default (הגדרות › כללי ›
   "מצלמות בקיר כברירת מחדל"); layouts up to 32 tiles (above the live-stream cap the extra tiles show snapshots).

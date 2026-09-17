@@ -50,6 +50,11 @@ export interface EventWindow {
   id: string;
   camera_id: string | null;
   camera_name?: string | null;
+  /** 0.1.62: what the window spans and the cameras inside it (group modes other than 'camera'). */
+  group?: WindowGroup;
+  group_label?: string | null;
+  camera_ids?: string[];
+  camera_names?: string[];
   channel: number | null;
   start: string;
   end: string;
@@ -137,11 +142,15 @@ export const eventsSummary = () => get<EventsSummary>('events/summary');
 export const cameraEvents = (cameraId: string, date: string) => get<{ camera_id: string; date: string; timezone: string; events: VmsEvent[] }>(`cameras/${cameraId}/events?date=${date}`);
 export const ackEvent = (id: string) => post<VmsEvent>(`events/${id}/ack`);
 export const ackMany = (ids: string[]) => post<{ acked: string[]; skipped: string[] }>('events/ack-many', { event_ids: ids });
-export function listWindows(opts: { date?: string; cameraId?: string; gap?: number; limit?: number } = {}) {
+export type WindowGroup = 'camera' | 'all' | 'zone' | 'floor';
+export const WINDOW_GROUP_LABEL: Record<WindowGroup, string> = { camera: 'לפי מצלמה', all: 'כל המצלמות יחד', zone: 'לפי חדר', floor: 'לפי קומה' };
+
+export function listWindows(opts: { date?: string; cameraId?: string; gap?: number; limit?: number; by?: WindowGroup } = {}) {
   const q = new URLSearchParams();
   if (opts.date) q.set('date', opts.date);
   if (opts.cameraId) q.set('camera_id', opts.cameraId);
   if (opts.gap) q.set('gap', String(opts.gap));
+  if (opts.by) q.set('by', opts.by);
   if (opts.limit) q.set('limit', String(opts.limit));
   const qs = q.toString();
   return get<WindowsResponse>(`events/windows${qs ? `?${qs}` : ''}`);
