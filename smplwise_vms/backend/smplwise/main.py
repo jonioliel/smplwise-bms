@@ -39,6 +39,9 @@ def janitor_tick(db: Database, settings: Settings) -> None:
     thumbnails.prune(settings, s["events.retention_days"])
     audit_mod.prune_db(db)
     ha_history.prune_db(db)
+    from .services import storage
+
+    storage.warm(db, settings)  # non-blocking; keeps the storage report warm between opens
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -144,6 +147,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             autosync.PERIODIC.mark()
             # recording-derived events for today follow every discovery (same NVR search cache)
             await run_in_threadpool(events_derive.run_once, app.state.db, settings, _tz())
+            if reason == "startup":
+                from .services import storage
+
+                storage.warm(app.state.db, settings, force=True)
 
         app.state.discovery = asyncio.create_task(discover("startup"))
         events_ingest.LISTENER.start(app.state.db, settings, _tz)

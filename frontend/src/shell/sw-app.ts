@@ -40,7 +40,7 @@ import { onRouteChange, type RouteState } from '../router';
 import { KIND_ICON, KIND_LABEL, search as apiSearch, type SearchResult } from '../api/search';
 import { healthSummary, type HealthSummary } from '../api/health';
 import { NAV, GROUP_TABS, groupOf, activeTabOf, NAV_A, AREA_TABS, areaOf, activeAreaTab, crumbsOf } from './nav';
-import { onDesign, resolveDesign, type DesignId } from '../api/design';
+import { currentDesign, onDesign, resolveDesign, type DesignId } from '../api/design';
 import { t } from '../i18n/he';
 import { isApi, loadSession, onSession, type Session } from '../api/session';
 import '../components/sw-state-panel';
@@ -55,7 +55,7 @@ import '../components/sw-state-panel';
 export class SwApp extends LitElement {
   @state() private route: RouteState | null = null;
   @state() private session: Session = { mode: 'loading', me: null, error: null };
-  @state() private design: DesignId = 'b';
+  @state() private design: DesignId = currentDesign();
   @state() private sys: HealthSummary | null = null;
   private sysTimer = 0;
   @state() private searchQ = '';

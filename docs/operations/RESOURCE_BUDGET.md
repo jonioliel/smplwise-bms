@@ -101,3 +101,27 @@ Run 2 (after the fixes), backend restarted seconds before the run (cold caches, 
   the storage report, and the two events-list errors of run 2.
 
 Re-run: `python scripts/load_probe.py --workers 8 --rounds 5 --markdown out.md` with the dev backend up.
+
+## Re-run 2026-09-17 morning (0.1.47, after the janitor, playback-quota and storage warm-up changes)
+
+`python scripts/load_probe.py --workers 8 --rounds 5` against the developer backend, lab NVR and HA, right after a
+restart (storage report warmed in the background in 42.7 s):
+
+| endpoint | n | errors | p50 ms | p95 ms | max ms |
+|---|---|---|---|---|---|
+| health/summary | 40 | 0 | 128.2 | 2705.1 | 3147.2 |
+| cameras | 40 | 0 | 101.9 | 1019.6 | 1503.2 |
+| floor map | 40 | 0 | 94.9 | 1123.8 | 1252.7 |
+| floor map @instant | 40 | 0 | 102.7 | 1381.0 | 1512.7 |
+| events (24 h) | 40 | 0 | 232.5 | 8955.3 | 9653.3 |
+| events/facets | 40 | 0 | 119.0 | 1836.2 | 2043.2 |
+| search | 40 | 0 | 108.0 | 1261.1 | 1771.7 |
+| storage (cached) | 40 | 0 | 64.4 | 1048.4 | 1379.9 |
+| cases | 40 | 0 | 103.2 | 952.1 | 1344.4 |
+| camera recordings today | 40 | 0 | 67.2 | 1792.5 | 2445.7 |
+
+Findings: the two events-list errors seen on 2026-09-16 did not reproduce (0 errors on every endpoint); the
+storage report is never cold any more (warmed at start-up and every 8 minutes by the janitor, cache 10 minutes);
+the events list under eight concurrent workers still shows the serialisation cost of the write lock taken by
+every request (p95 ≈ 9 s for the 24 h list; p50 232 ms) — read-only connections for GET handlers remain the next
+optimisation and are not in the pilot.

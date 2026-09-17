@@ -34,6 +34,23 @@ function safeSet(key: string, value: string | null) {
   }
 }
 
+/** Seed synchronously from what this page load already knows (URL param, per-browser override, the design seen last),
+ *  so the shell's first render is already right and screens are not recreated when the product setting arrives. */
+function seedDesign(): DesignId {
+  try {
+    const url = new URLSearchParams(window.location.search).get('design');
+    if (url === 'a' || url === 'b') return url;
+  } catch {
+    /* no window */
+  }
+  const override = safeGet(OVERRIDE_KEY);
+  if (override === 'a' || override === 'b') return override;
+  const last = safeGet(LAST_KEY);
+  return last === 'a' || last === 'b' ? last : 'b';
+}
+
+current = seedDesign();
+
 export function designOverride(): DesignId | null {
   const v = safeGet(OVERRIDE_KEY);
   return v === 'a' || v === 'b' ? v : null;

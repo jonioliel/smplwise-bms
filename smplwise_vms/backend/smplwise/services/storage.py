@@ -10,6 +10,8 @@ import threading
 import time
 from typing import Any
 
+import logging
+
 from ..config import Settings
 from ..db import unlocked
 from ..routers.settings import read_settings
@@ -80,6 +82,39 @@ def report(settings: Settings, conn: sqlite3.Connection, fresh: bool = False, no
             with _lock:
                 _cache["report"] = (time.time(), out)
     return out
+
+
+log = logging.getLogger("smplwise.storage")
+WARM_EVERY_S = 480  # below CACHE_S, so a warm report is always at hand
+_warm_lock = threading.Lock()
+_warm_state = {"running": False, "last": 0.0, "builds": 0}
+
+
+def warm(db: Any, settings: Settings, force: bool = False) -> bool:
+    """Rebuild the report in a daemon thread — at most one at a time, at most every WARM_EVERY_S unless forced —
+    so the first open of the storage screen after a quiet spell does not pay the ~50 s cold build (T068 finding).
+    Returns True when a build was started."""
+    with _warm_lock:
+        if _warm_state["running"] or (not force and time.time() - _warm_state["last"] < WARM_EVERY_S):
+            return False
+        _warm_state["running"] = True
+
+    def run() -> None:
+        started = time.time()
+        try:
+            with db.connection() as conn:
+                report(settings, conn, fresh=True)
+            log.info("storage report warmed in %.1f s", time.time() - started)
+        except Exception as exc:  # noqa: BLE001 - a warm-up must never take anything down; the next request builds on demand
+            log.warning("storage report warm-up failed: %s", type(exc).__name__)
+        finally:
+            with _warm_lock:
+                _warm_state["running"] = False
+                _warm_state["last"] = time.time()
+                _warm_state["builds"] += 1
+
+    threading.Thread(target=run, name="storage-warm", daemon=True).start()
+    return True
 
 
 def invalidate() -> None:

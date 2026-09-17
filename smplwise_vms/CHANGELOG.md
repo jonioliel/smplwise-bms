@@ -1,5 +1,17 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.47 (pilot)
+- Storage report always warm: the report that costs one NVR search per camera (~40–50 s cold) is now built in the
+  background once after start-up discovery and refreshed by the janitor every 8 minutes, so הגדרות › אחסון opens
+  from cache; a failed warm-up is logged and the next request builds on demand.
+- No screen recreation on first load: the shell now starts with the design this browser saw last (or the URL /
+  per-browser override), so the product setting arriving a moment later no longer swaps the layout and rebuilds
+  the screen — typing or uploading during the first second is no longer lost. First visit on a fresh browser still
+  switches once when the setting differs from the default.
+- Load probe re-run (docs/operations/RESOURCE_BUDGET.md): 0 errors on every endpoint under eight workers; the
+  24 h events list still pays the write-lock serialisation (p95 ≈ 9 s under that load; read-only connections
+  remain the next optimisation).
+
 ## 0.1.46 (pilot)
 - Playback quota hygiene: a playback session nobody ever connected to (a tab closed during start-up, a screen
   left before its stream arrived) is dropped after 90 s instead of holding a relay stream and one of the four
