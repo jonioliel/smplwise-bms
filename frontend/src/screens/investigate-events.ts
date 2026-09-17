@@ -393,7 +393,7 @@ export class InvestigateEvents extends LitElement {
   @state() private rowPreview: { id: string; x: number; y: number; frames: { at: string; url: string; label: string; failed: boolean }[]; camera: string } | null = null;
   private rowPreviewTimer = 0;
 
-  private hoverStart(ev: VmsEvent, e: PointerEvent) {
+  private hoverStart(ev: VmsEvent, e: { clientX: number; clientY: number; pointerType?: string }) {
     if (!ev.camera_id || e.pointerType === 'touch') return;
     window.clearTimeout(this.rowPreviewTimer);
     const x = e.clientX;
@@ -433,7 +433,7 @@ export class InvestigateEvents extends LitElement {
   private renderThumb(ev: VmsEvent) {
     const box = 'inline-size:64px;block-size:40px;border-radius:6px;overflow:hidden;background:var(--sw-surface-3);display:grid;place-items:center;color:var(--sw-text-3)';
     if (ev.thumbnail === 'ready') {
-      return html`<img class="thumb" src=${thumbnailUrl(ev.id, this.thumbVersion.get(ev.id) ?? 0)} alt="" loading="lazy" data-thumb=${ev.id} style="inline-size:64px;block-size:40px;object-fit:cover;border-radius:6px;display:block;background:var(--sw-surface-3);cursor:zoom-in" @pointerenter=${(e: PointerEvent) => this.hoverStart(ev, e)} @pointerleave=${() => this.hoverEnd()} />`;
+      return html`<img class="thumb" src=${thumbnailUrl(ev.id, this.thumbVersion.get(ev.id) ?? 0)} alt="" loading="lazy" data-thumb=${ev.id} style="inline-size:64px;block-size:40px;object-fit:cover;border-radius:6px;display:block;background:var(--sw-surface-3);cursor:zoom-in" />`;
     }
     if ((ev.thumbnail === 'pending' || ev.thumbnail === 'none') && ev.camera_id) {
       this.schedulePoll(ev.id, 3000, 0);
@@ -766,7 +766,7 @@ export class InvestigateEvents extends LitElement {
                 <sw-table .columns=${this.windowColumns} .rows=${this.windows as unknown as Record<string, unknown>[]} .selected=${this.selectedWindow} @row-select=${(e: CustomEvent<{ id: string }>) => (this.selectedWindow = e.detail.id)}></sw-table>`
               : html`<sw-state-panel state="empty" heading="אין חלונות אירוע ביום הזה" hint="חלון נוצר מאירועים סמוכים של אותה מצלמה."></sw-state-panel>`
           : this.events.length
-            ? html`<sw-table .columns=${this.apiColumns} .rows=${this.events as unknown as Record<string, unknown>[]} .selected=${this.selected} @row-select=${(e: CustomEvent<{ id: string }>) => this.select(e.detail.id)}></sw-table>`
+            ? html`<sw-table .columns=${this.apiColumns} .rows=${this.events as unknown as Record<string, unknown>[]} .selected=${this.selected} @row-hover=${(e: CustomEvent<{ id: string; clientX: number; clientY: number; pointerType?: string }>) => { const ev2 = this.events?.find((x) => x.id === e.detail.id); if (ev2) this.hoverStart(ev2, e.detail); }} @row-leave=${() => this.hoverEnd()} @row-select=${(e: CustomEvent<{ id: string }>) => this.select(e.detail.id)}></sw-table>`
             : html`<sw-state-panel state="empty" heading="אין אירועים ביום הזה" hint="התראות מגיעות מה־NVR רק כשהטריגר מוגדר עם 'Notify Surveillance Center'; אירועי תנועה נגזרים מקובצי ההקלטה בהפעלה ובכל 10 דקות."></sw-state-panel>`}
         ${this.renderRowPreview()}
         ${this.mode === 'windows' && this.selectedWindow && this.windows ? (() => { const w = this.windows.find((x) => x.id === this.selectedWindow); return w ? this.renderWindowDrawer(w) : nothing; })() : nothing}

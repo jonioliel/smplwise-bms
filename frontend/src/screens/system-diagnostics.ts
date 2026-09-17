@@ -535,6 +535,14 @@ export class SystemDiagnostics extends LitElement {
           <sw-field class="ctl"><select data-set-kiosk-layout ?disabled=${!api || !this.canEdit} @change=${(e: Event) => { const [c, r] = (e.target as HTMLSelectElement).value.split('x').map(Number); this.set('ui.kiosk_cols', c); this.set('ui.kiosk_rows', r); }}>
             ${[[2, 2], [3, 2], [3, 3], [4, 3], [4, 4], [5, 4], [6, 4]].map(([c, r]) => html`<option value=${`${c}x${r}`} ?selected=${Number(this.value('ui.kiosk_cols') ?? 3) === c && Number(this.value('ui.kiosk_rows') ?? 2) === r}>${c}×${r} · ${c * r} מצלמות</option>`)}
           </select></sw-field></div>
+        <div class="row"><span class="lbl">מסך פתיחה<span class="muted">המסך שהמערכת נפתחת עליו כשהכתובת לא מציינת מסך (ריענון של הכתובת הראשית)</span></span>
+          <sw-field class="ctl"><select data-set-start-route ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.start_route', (e.target as HTMLSelectElement).value)}>
+            ${[['explore', 'מפת קומה'], ['live', 'סקירה (לייב)'], ['wall', 'כל המצלמות'], ['events', 'מרכז אירועים'], ['playback', 'הקלטות']].map(([v, l]) => html`<option value=${v} ?selected=${String(this.value('ui.start_route') ?? 'explore') === v}>${l}</option>`)}
+          </select></sw-field></div>
+        <div class="row"><span class="lbl">הסתרת המפה<span class="muted">מסיר את אזור המפה מהניווט לכל המשתמשים; למשתמש בודד: תפקיד בלי ההרשאה map.read</span></span>
+          <sw-field class="ctl"><select data-set-hide-map ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.hide_map', (e.target as HTMLSelectElement).value)}>
+            <option value="false" ?selected=${String(this.value('ui.hide_map') ?? 'false') !== 'true'}>מוצגת</option><option value="true" ?selected=${String(this.value('ui.hide_map') ?? 'false') === 'true'}>מוסתרת</option>
+          </select></sw-field></div>
         <div class="row"><span class="lbl">הסתרת חיפוש AI<span class="muted">מסיר את הלשונית מהניווט; המסך עצמו נשאר זמין בכתובת</span></span>
           <sw-field class="ctl"><select data-set-hide-search ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.hide_search', (e.target as HTMLSelectElement).value)}>
             <option value="false" ?selected=${String(this.value('ui.hide_search') ?? 'false') !== 'true'}>מוצג</option><option value="true" ?selected=${String(this.value('ui.hide_search') ?? 'false') === 'true'}>מוסתר</option>

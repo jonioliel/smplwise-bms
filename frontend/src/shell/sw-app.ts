@@ -36,10 +36,10 @@ import '../screens/system-diagnostics';
 import '../screens/system-storage';
 import '../screens/screens-index';
 import '../screens/styleguide-screen';
-import { onRouteChange, type RouteState } from '../router';
+import { onRouteChange, type RouteState, parseRoute } from '../router';
 import { KIND_ICON, KIND_LABEL, search as apiSearch, type SearchResult } from '../api/search';
 import { healthSummary, type HealthSummary } from '../api/health';
-import { NAV, GROUP_TABS, groupOf, activeTabOf, NAV_A, AREA_TABS, areaOf, activeAreaTab, crumbsOf, visibleTabs, demoRedirect, HIDDEN_HREFS } from './nav';
+import { NAV, GROUP_TABS, groupOf, activeTabOf, NAV_A, AREA_TABS, areaOf, activeAreaTab, crumbsOf, visibleTabs, demoRedirect, HIDDEN_HREFS, START_ROUTES, MAP_HREFS } from './nav';
 import { bidi } from '../i18n/bidi';
 import { currentDesign, onDesign, resolveDesign, type DesignId } from '../api/design';
 import { t } from '../i18n/he';
@@ -633,6 +633,12 @@ export class SwApp extends LitElement {
     }
   `;
 
+  /** True when the page opened without a route (or on the default one): the start-screen setting may redirect it. */
+  private landedDefault = ['', '#', '#/', '#/explore/floors/f0'].includes(window.location.hash);
+  /** The default screen waits for the product settings (the start-screen choice) before it renders - otherwise the
+   * map's own floor redirect would race the start-screen redirect. */
+  @state() private startResolved = false;
+
   connectedCallback() {
     super.connectedCallback();
     this.stopSession = onSession((s) => {
@@ -643,8 +649,18 @@ export class SwApp extends LitElement {
         void productSettings().then((ps) => {
           HIDDEN_HREFS.clear();
           if (String(ps['ui.hide_search'] ?? 'false') === 'true') HIDDEN_HREFS.add('#/investigate/search');
+          const hideMap = String(ps['ui.hide_map'] ?? 'false') === 'true';
+          if (hideMap) for (const h of MAP_HREFS) HIDDEN_HREFS.add(h);
+          // the start screen (0.1.68): only when the address carried no route of its own
+          const start = START_ROUTES[String(ps['ui.start_route'] ?? 'explore')] ?? START_ROUTES.explore;
+          const target = hideMap && start.startsWith('/explore') ? '/live/wall' : start;
+          if (this.landedDefault && target !== START_ROUTES.explore) {
+            this.landedDefault = false;
+            window.location.replace(`#${target}`);
+            this.route = parseRoute(`#${target}`); // now, not on the next hashchange - the map must never mount in between
+          }
           this.requestUpdate();
-        }).catch(() => undefined);
+        }).catch(() => undefined).finally(() => (this.startResolved = true));
         void this.pollSummary();
         this.sysTimer = window.setInterval(() => void this.pollSummary(), 60_000);
       }
@@ -855,6 +871,7 @@ export class SwApp extends LitElement {
   private renderScreen() {
     const r = this.route;
     if (!r) return nothing;
+    if (this.landedDefault && this.session.mode === 'api' && !this.startResolved) return html`<sw-state-panel state="loading"></sw-state-panel>`;
     const s = r.segments;
     if (s[0] === 'styleguide') return html`<styleguide-screen></styleguide-screen>`;
     if (s[0] === 'screens') return html`<screens-index></screens-index>`;
@@ -911,7 +928,7 @@ export class SwApp extends LitElement {
     return html`
       <nav class="rail" aria-label="ניווט ראשי">
         <a class="brand-tile" href="#/live" title="SmplWise"><span>S</span></a>
-        ${NAV_A.map(
+        ${NAV_A.filter((n) => !HIDDEN_HREFS.has(n.href)).map(
           (n) => html`<a class=${classMap({ item: true, a: true, active: area === n.id })} href=${n.href} title=${n.label} aria-current=${area === n.id ? 'page' : 'false'}>
             <sw-icon .name=${n.icon} size=${23}></sw-icon><span>${n.label}</span>
           </a>`,
@@ -940,7 +957,7 @@ export class SwApp extends LitElement {
           <div class="screen">${this.session.mode === 'loading' ? nothing : this.renderScreen()}</div>`}
       </main>
       <nav class="bottom" aria-label="ניווט ראשי">
-        ${NAV_A.map((n) => html`<a class=${classMap({ active: area === n.id })} href=${n.href}><sw-icon .name=${n.icon} size=${20}></sw-icon>${n.label}</a>`)}
+        ${NAV_A.filter((n) => !HIDDEN_HREFS.has(n.href)).map((n) => html`<a class=${classMap({ active: area === n.id })} href=${n.href}><sw-icon .name=${n.icon} size=${20}></sw-icon>${n.label}</a>`)}
       </nav>
     `;
   }

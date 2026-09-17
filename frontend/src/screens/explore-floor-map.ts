@@ -602,7 +602,7 @@ export class ExploreFloorMap extends LitElement {
         ? b.anchors.find((x) => x.resource_type === 'ha_entity' && x.resource_id === this.focusEntity)
         : null;
     if (a) {
-      canvas.zoomToBox(a.position.x - 0.12, a.position.y - 0.12, a.position.x + 0.12, a.position.y + 0.12);
+      canvas.zoomToBox(a.position.x - 0.15, a.position.y - 0.15, a.position.x + 0.15, a.position.y + 0.15, 48, 2.2);
       await this.updateComplete;
       const p = canvas.toScreen(a.position.x, a.position.y);
       this.selectedId = a.id;

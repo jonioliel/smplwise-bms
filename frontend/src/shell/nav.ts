@@ -195,6 +195,11 @@ export const API_LABELS: Record<string, string> = { '#/investigate/reviews': 'Re
 /** Tabs the owner hid in the settings (0.1.61: the AI search); filled by the shell once the product settings load. */
 export const HIDDEN_HREFS = new Set<string>();
 
+/** הגדרות › מסך פתיחה (0.1.68): the route the UI lands on when the address carries none. */
+export const START_ROUTES: Record<string, string> = { explore: '/explore/floors/f0', live: '/live', wall: '/live/wall', events: '/investigate/events', playback: '/investigate/playback' };
+/** The map area's entries, hidden for everyone with הגדרות › הסתרת המפה (0.1.68). */
+export const MAP_HREFS = ['#/explore/sites', '#/explore/floors/f0', '#/explore/entities'];
+
 export function visibleTabs(items: TabItem[], api: boolean): TabItem[] {
   return api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '') && !HIDDEN_HREFS.has(t.href ?? '')).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items;
 }

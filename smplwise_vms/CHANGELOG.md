@@ -1,5 +1,24 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.68 (pilot) — owner round 2: start screen, kiosk exit, wall best fit, playback without scrolling
+- הגדרות › כללי › "מסך פתיחה": the screen the UI opens on when the address carries no route (map / overview / all
+  cameras / events / playback; `ui.start_route`). "הסתרת המפה" removes the map area from the navigation for everyone
+  (`ui.hide_map`; a single user is hidden with a role that lacks `map.read`). The default screen waits for the
+  settings so the map never flashes first (owner 1.2).
+- Kiosk: the layout picker is readable (dark entries on white) and a "יציאה" link returns to the wall; a kiosk-only
+  user still stays in the kiosk (owner 1.4). The wall's header has a labelled "קיוסק" button that opens `#/kiosk/all`
+  in a new tab (owner 1.5).
+- Camera wall: the tiles fill the screen as a rectangle - the number of columns is the one that makes the tiles
+  biggest for the window (two picked cameras stack on a tall window, sit side by side on a wide one); nothing hangs
+  below the fold. While the map's pick is shown the count buttons claim no layout; one click returns to the full wall
+  (owner 2.3 / 2.4).
+- Floor map › side list: a click jumps to the pin at most 2.2 × the whole-plan fit instead of a microscope zoom (owner 2.1).
+- Events: the hover strip (5 s before / at / 5 s after) opens from anywhere on the row, not only from the 64 px
+  thumbnail; `sw-table` emits `row-hover` / `row-leave` and tags rows with `data-row-id` (owner 3.2).
+- Playback: the video area shrinks with the window so the controls and the timeline fit without a page scroll; the
+  compare and filter rows moved above the stage - the timeline is the last block (owner 3.5).
+- Evidence: `tests/test_ui_settings.py`, `frontend/tests/evidence-owner-round5.spec.ts` (5 tests against the dev backend).
+
 ## 0.1.67 (pilot) — R1: site / building admin tools and a floor tree beside the map
 - Sites screen: every site and building card has a menu - edit (name, address / notes), photo (PNG / JPEG up to
   8 MB, re-encoded to JPEG and capped at 1600 px, `image_path` on sites / buildings, migration 0015), remove photo,

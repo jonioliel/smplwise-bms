@@ -21,6 +21,10 @@ export interface ProductSettings {
   'ui.kiosk_cols'?: number | string;
   'ui.kiosk_rows'?: number | string;
   'ui.hide_search'?: string;
+  /** Screen the UI opens on (0.1.68): explore | live | wall | events | playback. */
+  'ui.start_route'?: string;
+  /** 'true' hides the map area from the navigation for everyone (0.1.68). */
+  'ui.hide_map'?: string;
 }
 
 export const getSettings = () => get<{ settings: ProductSettings; can_edit: boolean }>('settings');

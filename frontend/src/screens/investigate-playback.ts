@@ -138,7 +138,8 @@ export class InvestigatePlayback extends LitElement {
       color: #fff;
       background: #0f1729;
       box-shadow: var(--sw-shadow-2);
-      max-block-size: 62vh;
+      /* 0.1.68: the whole page (controls + timeline) fits the window - no scrolling to reach the timeline (owner 3.5) */
+      max-block-size: max(200px, calc(100dvh - 560px));
       margin-inline: auto;
       inline-size: 100%;
     }
@@ -1094,6 +1095,25 @@ export class InvestigatePlayback extends LitElement {
     const pos = this.position ?? instantInZone(this.date, this.cursor, this.tz);
     const masterStatus = this.tileStatus[this.cameraId] ?? '';
     return html`
+      <div class="filters">
+        ${this.rec ? html`<sw-chip icon="history">${this.rec.segments.length} מקטעים · ${this.rec.matches} קבצים</sw-chip>` : nothing}
+        ${this.dayEvents.length ? html`<sw-chip icon="bell" @click=${() => navigate('/investigate/events', { camera: this.cameraId, date: this.date })}>${this.dayEvents.length} אירועים${this.dayEvents.every((e) => e.confidence === 'inferred') ? ' (מהקלטות)' : ''}</sw-chip>` : nothing}
+        ${this.bookmarks.length ? html`<sw-chip icon="case" data-bookmarks-count title="סימניות מתיקי חקירה על ציר הזמן · Alt+לחיצה על הציר מוסיפה סימנייה">${this.bookmarks.length} סימניות</sw-chip>` : nothing}
+        ${this.activeBookmark ? html`<sw-chip selected icon="case" data-bookmark-active @click=${() => navigate(`/investigate/cases/${this.activeBookmark!.case_id}`)}>תיק „${this.activeBookmark.case_title}”${this.activeBookmark.note ? ` · ${this.activeBookmark.note}` : ''} · ${BOOKMARK_LABEL[this.activeBookmark.preservation]} · פתח</sw-chip>` : nothing}
+        ${this.rec?.coverage === 'partial' ? html`<span class="warn">כיסוי חלקי: ${this.rec.note}</span>` : nothing}
+        ${this.loadingRec ? html`<span class="session">מחפש הקלטות…</span>` : nothing}
+        ${this.notice ? html`<span class="warn">${this.notice}</span>` : nothing}
+        ${this.error ? html`<span class="err">${this.error}</span>` : nothing}
+        <span class="grow"></span>
+        <sw-button size="sm" icon="case" data-add-to-case title="סימנייה בנקודה הנוכחית · Alt+לחיצה על הציר מסמנת נקודה אחרת" ?disabled=${!this.cameraId} @click=${() => (this.casePick = { kind: 'clip', camera_id: this.cameraId, ...clipAround(instantInZone(this.date, this.cursor, this.tz)) })}>הוסף לתיק</sw-button>
+        <sw-button size="sm" icon="download" ?disabled=${!this.rec?.segments.length} @click=${() => this.openExport()}>ייצוא</sw-button>
+        <a href="#/explore/floors/f0"><sw-button size="sm" icon="map">במפה</sw-button></a>
+      </div>
+      <div class="compare">
+        <span>השוואה (עד 4):</span>
+        ${this.cams.filter((c) => c.id !== this.cameraId).map((c) => html`<sw-chip ?selected=${this.extra.includes(c.id)} @click=${() => this.toggleExtra(c.id)}>${c.name}</sw-chip>`)}
+        ${this.groupMode ? html`<span>· שעון־אב אחד לכל האריחים (חסם פתיחה, ואז חציון זמני הפריימים המוצגים; מתחת לשלושה אריחים — המוביל); הסטייה של כל אריח נמדדת מול השעון, p95 על החלון האחרון; אריח מאחר מסונכרן לבד ואינו מזיז את האחרים (best effort, ללא עוגן זמן מאומת)</span>` : nothing}
+      </div>
       <div class="stage">
         ${this.renderStage(cam)}
         <span class="stamp">${this.date} ${this.fmt(pos)} · ${{ verified: 'מאומת', keyframe_limited: 'דיוק לפי keyframe', estimated: 'משוער', unknown: '—' }[precision]}${!this.groupMode && this.speed !== 1 ? html` · <span data-speed-active=${this.speed}>${this.speed}× הילוך איטי</span>` : nothing}${this.paused && !this.groupMode ? html` · <span data-paused>מושהה · צעד־פריים</span>` : nothing}${this.groupMode ? html` · <span data-sync-quality=${this.syncStats?.quality ?? 'waiting'} data-sync-p95=${this.syncStats?.p95 ?? ''} data-sync-samples=${this.syncStats?.samples ?? 0}>${this.syncLabel()}</span>` : ''}</span>
@@ -1124,25 +1144,6 @@ export class InvestigatePlayback extends LitElement {
               <span>${secondLabel(this.preview.minute)}</span>
             </div>`
           : nothing}
-      </div>
-      <div class="compare">
-        <span>השוואה (עד 4):</span>
-        ${this.cams.filter((c) => c.id !== this.cameraId).map((c) => html`<sw-chip ?selected=${this.extra.includes(c.id)} @click=${() => this.toggleExtra(c.id)}>${c.name}</sw-chip>`)}
-        ${this.groupMode ? html`<span>· שעון־אב אחד לכל האריחים (חסם פתיחה, ואז חציון זמני הפריימים המוצגים; מתחת לשלושה אריחים — המוביל); הסטייה של כל אריח נמדדת מול השעון, p95 על החלון האחרון; אריח מאחר מסונכרן לבד ואינו מזיז את האחרים (best effort, ללא עוגן זמן מאומת)</span>` : nothing}
-      </div>
-      <div class="filters">
-        ${this.rec ? html`<sw-chip icon="history">${this.rec.segments.length} מקטעים · ${this.rec.matches} קבצים</sw-chip>` : nothing}
-        ${this.dayEvents.length ? html`<sw-chip icon="bell" @click=${() => navigate('/investigate/events', { camera: this.cameraId, date: this.date })}>${this.dayEvents.length} אירועים${this.dayEvents.every((e) => e.confidence === 'inferred') ? ' (מהקלטות)' : ''}</sw-chip>` : nothing}
-        ${this.bookmarks.length ? html`<sw-chip icon="case" data-bookmarks-count title="סימניות מתיקי חקירה על ציר הזמן · Alt+לחיצה על הציר מוסיפה סימנייה">${this.bookmarks.length} סימניות</sw-chip>` : nothing}
-        ${this.activeBookmark ? html`<sw-chip selected icon="case" data-bookmark-active @click=${() => navigate(`/investigate/cases/${this.activeBookmark!.case_id}`)}>תיק „${this.activeBookmark.case_title}”${this.activeBookmark.note ? ` · ${this.activeBookmark.note}` : ''} · ${BOOKMARK_LABEL[this.activeBookmark.preservation]} · פתח</sw-chip>` : nothing}
-        ${this.rec?.coverage === 'partial' ? html`<span class="warn">כיסוי חלקי: ${this.rec.note}</span>` : nothing}
-        ${this.loadingRec ? html`<span class="session">מחפש הקלטות…</span>` : nothing}
-        ${this.notice ? html`<span class="warn">${this.notice}</span>` : nothing}
-        ${this.error ? html`<span class="err">${this.error}</span>` : nothing}
-        <span class="grow"></span>
-        <sw-button size="sm" icon="case" data-add-to-case title="סימנייה בנקודה הנוכחית · Alt+לחיצה על הציר מסמנת נקודה אחרת" ?disabled=${!this.cameraId} @click=${() => (this.casePick = { kind: 'clip', camera_id: this.cameraId, ...clipAround(instantInZone(this.date, this.cursor, this.tz)) })}>הוסף לתיק</sw-button>
-        <sw-button size="sm" icon="download" ?disabled=${!this.rec?.segments.length} @click=${() => this.openExport()}>ייצוא</sw-button>
-        <a href="#/explore/floors/f0"><sw-button size="sm" icon="map">במפה</sw-button></a>
       </div>
       <sw-case-picker .item=${this.casePick} subheading=${`${this.cams?.find((c) => c.id === this.cameraId)?.name ?? ''} · ${this.date} ${secondLabel(this.cursor)}`} @added=${() => void this.loadBookmarks()} @close=${() => (this.casePick = null)}></sw-case-picker>
       <div class="session">

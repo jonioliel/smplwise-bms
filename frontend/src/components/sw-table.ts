@@ -152,7 +152,9 @@ export class SwTable extends LitElement {
         </thead>
         <tbody>
           ${this.rows.map(
-            (row) => html`<tr class="clickable ${this.selected === String(row[this.rowKey]) ? 'selected' : ''}" @click=${() => this.pick(row)}>
+            (row) => html`<tr class="clickable ${this.selected === String(row[this.rowKey]) ? 'selected' : ''}" data-row-id=${String(row[this.rowKey] ?? '')} @click=${() => this.pick(row)}
+              @pointerenter=${(e: PointerEvent) => this.dispatchEvent(new CustomEvent('row-hover', { detail: { id: String(row[this.rowKey] ?? ''), row, clientX: e.clientX, clientY: e.clientY, pointerType: e.pointerType }, bubbles: true, composed: true }))}
+              @pointerleave=${() => this.dispatchEvent(new CustomEvent('row-leave', { detail: { id: String(row[this.rowKey] ?? '') }, bubbles: true, composed: true }))}>
               ${this.columns.map((c) => html`<td class=${c.ltr ? 'ltr' : ''} data-label=${c.label}>${c.render ? c.render(row) : String(row[c.key] ?? '')}</td>`)}
             </tr>`,
           )}

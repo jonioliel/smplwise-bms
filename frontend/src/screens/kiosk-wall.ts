@@ -161,13 +161,28 @@ export class KioskWall extends LitElement {
       background: rgba(239, 68, 68, 0.3);
     }
     header select.layout {
-      background: rgba(255, 255, 255, 0.08);
-      color: inherit;
+      background: #1e293b;
+      color: #fff;
       border: 1px solid rgba(255, 255, 255, 0.18);
       border-radius: 8px;
       padding: 3px 8px;
       font: inherit;
       font-size: 12px;
+    }
+    header select.layout option {
+      color: #0f1729;
+      background: #fff;
+    }
+    header a.exit {
+      color: rgba(255, 255, 255, 0.85);
+      text-decoration: none;
+      font-size: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 8px;
+      padding: 3px 10px;
+    }
+    header a.exit:hover {
+      background: rgba(255, 255, 255, 0.12);
     }
     .grid {
       flex: 1;
@@ -342,6 +357,7 @@ export class KioskWall extends LitElement {
         </select>` : nothing}
         ${api && this.health ? html`<span class="pill" data-kiosk-health data-status=${this.health.status}>מערכת: ${STATUS_LABEL[this.health.status]}${this.health.items.filter((i) => i.status !== 'ok').length ? ` · ${this.health.items.filter((i) => i.status !== 'ok').map((i) => i.label).join(', ')}` : ''}</span>` : nothing}
         <span class="clock">${this.clock || '—'}</span>
+        <a class="exit" href="#/live/wall" data-kiosk-exit title="חזרה למערכת (משתמש קיוסק בלבד נשאר כאן)">יציאה</a>
       </header>
       ${this.disconnected ? html`<div class="overlay" data-kiosk-disconnected>אין קשר לשרת ה־VMS<br /><small>הזרמים אינם חיים · מנסה להתחבר מחדש</small></div>` : nothing}
       <div class="grid" style=${`--cols:${api ? this.view.cols : 3}`}>

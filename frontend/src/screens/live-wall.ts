@@ -72,6 +72,11 @@ export class LiveWall extends LitElement {
       gap: 12px;
       grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
     }
+    /* best fit (0.1.68): the tiles fill the screen as a rectangle - as many columns as make the tiles biggest */
+    .grid.fit {
+      grid-template-columns: repeat(var(--cols), var(--tile));
+      justify-content: center;
+    }
     .note {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
@@ -88,6 +93,42 @@ export class LiveWall extends LitElement {
     }
   `;
 
+  /** The room the grid has: its width and the height left under it in the window (0 until measured). */
+  @state() private box = { w: 0, h: 0 };
+  private ro: ResizeObserver | undefined;
+
+  private measure = () => {
+    const g = this.renderRoot.querySelector<HTMLElement>('.grid');
+    if (!g) return;
+    const w = Math.round(g.clientWidth);
+    const h = Math.round(window.innerHeight - g.getBoundingClientRect().top - 56);
+    if (w !== this.box.w || h !== this.box.h) this.box = { w, h };
+  };
+
+  /** Columns and tile width that make the tiles biggest for n tiles (16:9) inside w × h; null when not measured. */
+  private bestFit(n: number): { cols: number; tile: number } | null {
+    const { w, h } = this.box;
+    if (!w || h < 120 || n < 1) return null;
+    const gap = 12;
+    let best = { cols: 1, tile: 0 };
+    for (let cols = 1; cols <= n; cols++) {
+      const rows = Math.ceil(n / cols);
+      const tile = Math.min((w - gap * (cols - 1)) / cols, ((h - gap * (rows - 1)) / rows) * (16 / 9));
+      if (tile > best.tile) best = { cols, tile };
+    }
+    return best.tile > 80 ? { cols: best.cols, tile: Math.floor(best.tile) } : null;
+  }
+
+  firstUpdated() {
+    this.ro = new ResizeObserver(() => this.measure());
+    this.ro.observe(this);
+    window.addEventListener('resize', this.measure);
+  }
+
+  updated() {
+    this.measure();
+  }
+
   connectedCallback() {
     super.connectedCallback();
     void this.load();
@@ -97,6 +138,8 @@ export class LiveWall extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     window.clearInterval(this.posterTimer);
+    this.ro?.disconnect();
+    window.removeEventListener('resize', this.measure);
   }
 
   /** The layout the wall opens with: this browser's last choice, else the owner's default (הגדרות › כללי). */
@@ -138,12 +181,13 @@ export class LiveWall extends LitElement {
     const pool = wanted.length ? cams.filter((c) => wanted.includes(c.id)) : cams;
     const n = wanted.length ? Math.max(1, pool.length) : this.count;
     const shown = pool.slice(0, n);
-    const cols = n === 1 ? 1 : n === 2 ? 2 : n <= 4 ? 2 : n <= 9 ? 3 : n <= 16 ? 4 : n <= 25 ? 5 : 6;
+    const fit = window.innerWidth >= 768 ? this.bestFit(shown.length) : null;
+    const cols = fit ? fit.cols : n === 1 ? 1 : n === 2 ? 2 : n <= 4 ? 2 : n <= 9 ? 3 : n <= 16 ? 4 : n <= 25 ? 5 : 6;
     const cap = this.settings?.['media.max_live_sessions'] ?? 8;
     const profile: 'sub' | 'main' = this.stream === 'auto' ? (this.settings?.['media.wall_profile'] ?? 'sub') : this.stream;
     const transport: Transport = effectiveTransport(this.settings);
     return html`
-      <div class="grid" style="--cols:${cols}">
+      <div class="grid ${fit ? 'fit' : ''}" style="--cols:${cols};--tile:${fit ? `${fit.tile}px` : 'auto'}" data-wall-cols=${cols}>
         ${shown.map(
           (c, i) => html`<sw-camera-tile
             name=${c.name}
@@ -181,9 +225,9 @@ export class LiveWall extends LitElement {
         ${api ? nothing : html`<sw-field slot="actions"><select aria-label="תצוגה" @change=${(e: Event) => (this.view = (e.target as HTMLSelectElement).value)}>${VIEWS.map((v) => html`<option value=${v.id} ?selected=${v.id === this.view}>${v.label}</option>`)}</select></sw-field>`}
         <sw-field slot="actions"><select aria-label="זרם" @change=${(e: Event) => (this.stream = (e.target as HTMLSelectElement).value as 'auto')}><option value="auto">חי · אוטומטי</option><option value="main">חי · ראשי</option><option value="sub">חי · משני</option></select></sw-field>
         <div slot="actions" class="layouts" role="group" aria-label="פריסה">
-          ${COUNTS.map((n) => html`<button class=${n === this.count ? 'on' : ''} @click=${() => this.setCount(n)} aria-pressed=${n === this.count}>${n}</button>`)}
+          ${COUNTS.map((n) => html`<button class=${n === this.count && !this.cameras ? 'on' : ''} @click=${() => { this.setCount(n); if (this.cameras) navigate('/live/wall'); }} aria-pressed=${n === this.count && !this.cameras}>${n}</button>`)}
         </div>
-        <a slot="actions" href="#/kiosk/all"><sw-button variant="ghost" iconOnly icon="expand" label="מצב קיוסק"></sw-button></a>
+        <a slot="actions" href="#/kiosk/all" target="_blank" rel="noopener" data-open-kiosk title="פותח את הקיוסק בלשונית חדשה (הכתובת: #/kiosk/all)"><sw-button variant="ghost" icon="expand">קיוסק</sw-button></a>
         ${api ? this.renderApi() : this.renderDemo()}
       </sw-page>
     `;
