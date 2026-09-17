@@ -1,5 +1,16 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.67 (pilot) — R1: site / building admin tools and a floor tree beside the map
+- Sites screen: every site and building card has a menu - edit (name, address / notes), photo (PNG / JPEG up to
+  8 MB, re-encoded to JPEG and capped at 1600 px, `image_path` on sites / buildings, migration 0015), remove photo,
+  delete. Deleting is guarded: a site with buildings or a building with floors shows the count and keeps the
+  button disabled until the children are gone. `POST/DELETE /sites/{id}/image`, `POST/DELETE /buildings/{id}/image`,
+  `GET /catalog/images/{kind}/{id}`; `image_url` on the catalogue tree.
+- Floor map › "רשימה": a "קומות" group at the top of the side list (all floors of the installation, current one
+  marked) - one click moves to another floor without leaving the map (owner test 2.1).
+- Evidence: `tests/test_catalog_images.py`, `frontend/tests/evidence-owner-round4.spec.ts` (edit, photo, delete
+  guard, floor tree against the dev backend).
+
 ## 0.1.66 (pilot) — A1: manual recording from the camera screen
 - Camera screen: with the sensitive permission `nvr.record.manual` (custom role) "הקלט עכשיו" starts a manual
   recording on the camera's main track for 5 / 10 / 30 / 60 / 120 minutes; a badge shows the remaining time and

@@ -16,6 +16,8 @@ export interface Site {
   timezone: string;
   sort_order: number;
   updated_at: string;
+  /** R1 (0.1.67): a photo of the site, served by the API (null without one). */
+  image_url?: string | null;
   buildings?: Building[];
 }
 
@@ -25,6 +27,7 @@ export interface Building {
   name: string;
   sort_order: number;
   updated_at: string;
+  image_url?: string | null;
   floors?: Floor[];
 }
 

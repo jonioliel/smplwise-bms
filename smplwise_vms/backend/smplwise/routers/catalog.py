@@ -5,13 +5,14 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from ..audit import audit
-from ..auth import current_principal, get_conn
+from ..auth import current_principal, get_conn, settings_of
 from ..db import new_id, now_iso
-from ..errors import conflict, not_found
+from ..errors import ApiError, conflict, not_found
 from ..rbac import INSTALLATION, Principal, authorize, require
 
 router = APIRouter()
@@ -27,12 +28,114 @@ def _rid(request: Request) -> str | None:
 
 # ---------- serializers ----------
 
+def _image_url(kind: str, r: sqlite3.Row) -> str | None:
+    try:
+        return f"api/v1/catalog/images/{kind}/{r['id']}?v={r['updated_at']}" if r["image_path"] else None
+    except (IndexError, KeyError):  # before migration 0015
+        return None
+
+
 def site_row(r: sqlite3.Row) -> dict[str, Any]:
-    return {"id": r["id"], "name": r["name"], "address": r["address"], "timezone": r["timezone"], "sort_order": r["sort_order"], "updated_at": r["updated_at"]}
+    return {"id": r["id"], "name": r["name"], "address": r["address"], "timezone": r["timezone"], "sort_order": r["sort_order"], "updated_at": r["updated_at"], "image_url": _image_url("site", r)}
 
 
 def building_row(r: sqlite3.Row) -> dict[str, Any]:
-    return {"id": r["id"], "site_id": r["site_id"], "name": r["name"], "sort_order": r["sort_order"], "updated_at": r["updated_at"]}
+    return {"id": r["id"], "site_id": r["site_id"], "name": r["name"], "sort_order": r["sort_order"], "updated_at": r["updated_at"], "image_url": _image_url("building", r)}
+
+
+# ---------- photos (R1) ----------
+
+IMAGE_MAX_PX = 1600
+IMAGE_MAX_BYTES = 12 * 1024 * 1024
+
+
+def _image_dir(request: Request) -> Any:
+    d = settings_of(request).data_dir / "catalog_images"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+async def _store_image(request: Request, kind: str, obj_id: str, file: UploadFile) -> str:
+    """Read the upload (PNG / JPEG only, by content), re-encode as a bounded JPEG, return the relative path."""
+    from io import BytesIO
+
+    from PIL import Image, ImageOps
+
+    data = await file.read(IMAGE_MAX_BYTES + 1)
+    if len(data) > IMAGE_MAX_BYTES:
+        raise ApiError(413, "payload_too_large", "התמונה גדולה מ־12 MB.")
+    if not (data.startswith(b"\x89PNG") or data.startswith(b"\xff\xd8")):
+        raise ApiError(415, "unsupported_format", "התמונה חייבת להיות PNG או JPG (הזיהוי לפי התוכן).")
+    try:
+        im = Image.open(BytesIO(data))
+        im = ImageOps.exif_transpose(im).convert("RGB")
+        if max(im.size) > IMAGE_MAX_PX:
+            im.thumbnail((IMAGE_MAX_PX, IMAGE_MAX_PX), Image.Resampling.LANCZOS)
+    except Exception as exc:  # noqa: BLE001 - a broken image is the upload's problem
+        raise ApiError(422, "corrupt_image", "התמונה לא ניתנת לקריאה.", details={"error": type(exc).__name__})
+    rel = f"{kind}-{obj_id}.jpg"
+    im.save(_image_dir(request) / rel, format="JPEG", quality=86, optimize=True)
+    return rel
+
+
+@router.post("/sites/{site_id}/image")
+async def site_image_upload(site_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    get_site(conn, site_id)
+    require(conn, principal, P_CONTENT, ("site", site_id))
+    rel = await _store_image(request, "site", site_id, file)
+    conn.execute("UPDATE sites SET image_path = ?, updated_at = ? WHERE id = ?", (rel, now_iso(), site_id))
+    audit(conn, actor=principal, action="site.update", decision="allowed", resource_type="site", resource_id=site_id, request_id=_rid(request), details={"image": True})
+    return site_row(get_site(conn, site_id))
+
+
+@router.delete("/sites/{site_id}/image")
+def site_image_delete(site_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    r = get_site(conn, site_id)
+    require(conn, principal, P_CONTENT, ("site", site_id))
+    if r["image_path"]:
+        (_image_dir(request) / r["image_path"]).unlink(missing_ok=True)
+    conn.execute("UPDATE sites SET image_path = NULL, updated_at = ? WHERE id = ?", (now_iso(), site_id))
+    audit(conn, actor=principal, action="site.update", decision="allowed", resource_type="site", resource_id=site_id, request_id=_rid(request), details={"image": False})
+    return site_row(get_site(conn, site_id))
+
+
+@router.post("/buildings/{building_id}/image")
+async def building_image_upload(building_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    get_building(conn, building_id)
+    require(conn, principal, P_CONTENT, ("building", building_id))
+    rel = await _store_image(request, "building", building_id, file)
+    conn.execute("UPDATE buildings SET image_path = ?, updated_at = ? WHERE id = ?", (rel, now_iso(), building_id))
+    audit(conn, actor=principal, action="building.update", decision="allowed", resource_type="building", resource_id=building_id, request_id=_rid(request), details={"image": True})
+    return building_row(get_building(conn, building_id))
+
+
+@router.delete("/buildings/{building_id}/image")
+def building_image_delete(building_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    r = get_building(conn, building_id)
+    require(conn, principal, P_CONTENT, ("building", building_id))
+    if r["image_path"]:
+        (_image_dir(request) / r["image_path"]).unlink(missing_ok=True)
+    conn.execute("UPDATE buildings SET image_path = NULL, updated_at = ? WHERE id = ?", (now_iso(), building_id))
+    audit(conn, actor=principal, action="building.update", decision="allowed", resource_type="building", resource_id=building_id, request_id=_rid(request), details={"image": False})
+    return building_row(get_building(conn, building_id))
+
+
+@router.get("/catalog/images/{kind}/{obj_id}")
+def catalog_image(kind: str, obj_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> FileResponse:
+    if kind == "site":
+        r = get_site(conn, obj_id)
+        require(conn, principal, "map.read", ("site", obj_id))
+    elif kind == "building":
+        r = get_building(conn, obj_id)
+        require(conn, principal, "map.read", ("building", obj_id))
+    else:
+        raise not_found("לא נמצא.")
+    if not r["image_path"]:
+        raise not_found("אין תמונה.")
+    p = _image_dir(request) / r["image_path"]
+    if not p.is_file():
+        raise not_found("אין תמונה.")
+    return FileResponse(p, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
 
 
 def floor_row(conn: sqlite3.Connection, r: sqlite3.Row) -> dict[str, Any]:

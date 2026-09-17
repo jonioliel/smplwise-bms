@@ -2,7 +2,7 @@
  * Catalogue data source: the backend when a session exists, otherwise the demo fixtures (static
  * preview / design review). Screens call these helpers instead of touching fixtures directly.
  */
-import { del, get, patch, post } from './client';
+import { del, get, patch, post, upload, api, apiUrl } from './client';
 import { isApi } from './session';
 import type { Building, Floor, Site, SitesResponse } from './types';
 import { demoBuildings, demoSites } from '../fixtures/catalog';
@@ -69,6 +69,15 @@ export const deleteBuilding = (id: string) => del(`buildings/${id}`);
 export const createFloor = (buildingId: string, body: { name: string; level: number }) => post<Floor>(`buildings/${buildingId}/floors`, body);
 export const updateFloor = (id: string, body: Partial<Pick<Floor, 'name' | 'level' | 'sort_order'>>) => patch<Floor>(`floors/${id}`, body);
 export const deleteFloor = (id: string, force = false) => del(`floors/${id}${force ? '?force=true' : ''}`);
+
+/** R1 (0.1.67): photos of sites and buildings. */
+export function uploadImage(kind: 'site' | 'building', id: string, file: File) {
+  const form = new FormData();
+  form.append('file', file, file.name);
+  return upload<Site | Building>(`${kind}s/${id}/image`, form);
+}
+export const deleteImage = (kind: 'site' | 'building', id: string) => api<Site | Building>(`${kind}s/${id}/image`, { method: 'DELETE' });
+export const imageSrc = (url: string) => apiUrl(url.replace(/^api\/v1\//, ''));
 
 /** Find a floor (with its building and site) in a loaded tree. */
 export function findFloor(tree: CatalogTree, floorId: string): { site: Site; building: Building; floor: Floor } | null {
