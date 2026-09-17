@@ -13,7 +13,7 @@ import '../components/sw-state-panel';
 import type { SwLivePlayer } from '../components/sw-live-player';
 import { demoScene, demoWall } from '../fixtures/catalog';
 import { navigate } from '../router';
-import { setMotion } from '../api/nvr';
+import { recordStart, recordStatus, recordStop, setMotion, type RecordStatus } from '../api/nvr';
 import '../components/sw-dialog';
 import { isApi } from '../api/session';
 import { cameraCapabilities, cameraZones, snapshotUrl, setTransportOverride, transportOverride, type CameraCapabilities, type CameraZones, type ProductSettings, type Transport } from '../api/media';
@@ -42,6 +42,59 @@ export class LiveCamera extends LitElement {
   @state() private motionBusy = false;
   @state() private motionMsg = '';
   private paintValue: boolean | null = null;
+  /** A1 (0.1.66): manual recording state for this camera, polled while one is running. */
+  @state() private rec: RecordStatus | null = null;
+  @state() private recMinutes = 10;
+  @state() private recBusy = false;
+  @state() private recMsg = '';
+  private recTimer = 0;
+
+  private async loadRecord() {
+    if (!this.cam || !isApi()) return;
+    try {
+      this.rec = await recordStatus(this.cam.id);
+    } catch {
+      this.rec = null;
+    }
+    window.clearTimeout(this.recTimer);
+    if (this.rec?.active) this.recTimer = window.setTimeout(() => void this.loadRecord(), 15000);
+  }
+
+  private async toggleRecord() {
+    if (!this.cam || this.recBusy) return;
+    this.recBusy = true;
+    this.recMsg = '';
+    try {
+      if (this.rec?.active) {
+        await recordStop(this.cam.id);
+        this.recMsg = 'ההקלטה הידנית נעצרה.';
+      } else {
+        const r = await recordStart(this.cam.id, this.recMinutes);
+        this.recMsg = `הקלטה ידנית החלה · תיעצר אוטומטית ב־${new Date(r.stop_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}.`;
+      }
+      await this.loadRecord();
+    } catch (err) {
+      this.recMsg = describeError(err);
+    } finally {
+      this.recBusy = false;
+    }
+  }
+
+  private renderRecord() {
+    const r = this.rec;
+    if (!r || !r.can_write) return nothing;
+    const a = r.active;
+    const mm = a ? `${Math.floor(a.remaining_s / 60)}:${String(a.remaining_s % 60).padStart(2, '0')}` : '';
+    return html`<div class="note" style="margin-block-start:8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center" data-manual-record data-active=${a ? 'yes' : 'no'}>
+      ${a
+        ? html`<sw-badge kind="live" label=${`הקלטה ידנית פעילה · נותרו ${mm}`}></sw-badge>
+          <sw-button size="sm" variant="danger" icon="close" ?disabled=${this.recBusy} data-record-stop @click=${() => this.toggleRecord()}>עצור הקלטה</sw-button>`
+        : html`<sw-field><select aria-label="משך הקלטה ידנית" data-record-minutes @change=${(e: Event) => (this.recMinutes = Number((e.target as HTMLSelectElement).value))}>${[5, 10, 30, 60, 120].map((m) => html`<option value=${m} ?selected=${m === this.recMinutes}>${m} דק׳</option>`)}</select></sw-field>
+          <sw-button size="sm" variant="primary" icon="live" ?disabled=${this.recBusy || !r.track_id} data-record-start @click=${() => this.toggleRecord()}>הקלט עכשיו</sw-button>
+          <span>הקלטה ידנית ב־NVR על הזרם הראשי; נעצרת אוטומטית בתום הזמן גם אם המסך נסגר.</span>`}
+      ${this.recMsg ? html`<span data-record-msg>${this.recMsg}</span>` : nothing}
+    </div>`;
+  }
   @state() private zoneLayers = { motion: true, privacy: true, intrusion: true, lines: true };
   /** T045 / T012: capability facts from the NVR (PTZ, presets, two-way audio), read-only. */
   @state() private caps: CameraCapabilities | null = null;
@@ -322,6 +375,7 @@ export class LiveCamera extends LitElement {
   protected updated(changed: Map<string, unknown>) {
     if (changed.has('cameraId') && changed.get('cameraId') !== undefined) void this.load();
     if (changed.has('cam') && this.cam && isApi() && !this.zonesBusy && (!this.zones || this.zones.camera_id !== this.cam.id)) {
+      void this.loadRecord();
       this.zonesError = '';
       void this.loadZones();
     }
@@ -554,6 +608,7 @@ export class LiveCamera extends LitElement {
         <div class="note">${this.playerStatus === 'playing' ? `מנגן דרך ${this.playerTransport === 'webrtc' ? 'WebRTC' : 'MSE'}` : this.playerStatus === 'error' ? 'הזרם לא זמין' : 'מתחבר…'}</div>
       </div>
       ${this.renderCaps()}
+      ${this.renderRecord()}
       <div class="grid">
         <sw-card heading="פרטים">
           <dl>

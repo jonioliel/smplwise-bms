@@ -7,6 +7,7 @@ are never touched here.
 """
 from __future__ import annotations
 
+import datetime as dt
 import re
 import sqlite3
 from collections.abc import Callable
@@ -241,6 +242,90 @@ def motion_document(xml: str, *, cells: list[list[bool]] | None, sensitivity: in
     if enabled is not None:
         xml = re.sub(r"(<MotionDetection[^>]*>\s*)<enabled>(true|false)</enabled>", lambda m: f"{m.group(1)}<enabled>{'true' if enabled else 'false'}</enabled>", xml, count=1)
     return xml
+
+
+# ---------------------------------------------------------------- A1: manual recording (start / stop, auto-stop)
+
+MANUAL_MAX_MIN = 120
+
+
+def manual_record(settings: Settings, track_id: int, on: bool, *, client: httpx.Client | None = None) -> None:
+    """PUT /ISAPI/ContentMgmt/record/control/manual/{start|stop}/tracks/<track>. The NVR answers OK and keeps no
+    readable state for it (this firmware refuses the status path), so the caller records the session itself."""
+    own = client is None
+    c = client or _client(settings)
+    try:
+        _put(c, f"/ISAPI/ContentMgmt/record/control/manual/{'start' if on else 'stop'}/tracks/{track_id}", "")
+    finally:
+        if own:
+            c.close()
+
+
+def manual_active(conn: sqlite3.Connection, camera_id: str) -> sqlite3.Row | None:
+    return conn.execute("SELECT * FROM manual_recordings WHERE camera_id = ? AND stopped_at IS NULL ORDER BY started_at DESC LIMIT 1", (camera_id,)).fetchone()
+
+
+def manual_row(r: sqlite3.Row | None) -> dict[str, Any] | None:
+    if not r:
+        return None
+    d = {k: r[k] for k in r.keys()}
+    d["remaining_s"] = max(0, int((_parse(r["stop_at"]) - _now()).total_seconds())) if not r["stopped_at"] else 0
+    return d
+
+
+def start_manual(settings: Settings, conn: sqlite3.Connection, principal: Any, camera_id: str, track_id: int, minutes: int, *, request_id: str | None = None) -> dict[str, Any]:
+    minutes = max(1, min(MANUAL_MAX_MIN, minutes))
+    if manual_active(conn, camera_id):
+        raise ApiError(409, "already_recording", "כבר יש הקלטה ידנית פעילה למצלמה הזו.")
+    manual_record(settings, track_id, True)
+    rid = new_id()
+    now = _now()
+    conn.execute("INSERT INTO manual_recordings(id, camera_id, track_id, started_at, stop_at, actor_id, actor_username) VALUES (?,?,?,?,?,?,?)",
+                 (rid, camera_id, track_id, _iso(now), _iso(now + dt.timedelta(minutes=minutes)), getattr(principal, "user_id", None), getattr(principal, "username", None)))
+    audit(conn, actor=principal, action="nvr.record.start", decision="allowed", resource_type="camera", resource_id=camera_id, request_id=request_id, details={"track": track_id, "minutes": minutes, "id": rid})
+    return manual_row(conn.execute("SELECT * FROM manual_recordings WHERE id = ?", (rid,)).fetchone()) or {}
+
+
+def stop_manual(settings: Settings, conn: sqlite3.Connection, principal: Any, camera_id: str, *, reason: str = "user", request_id: str | None = None) -> dict[str, Any] | None:
+    r = manual_active(conn, camera_id)
+    if not r:
+        return None
+    manual_record(settings, int(r["track_id"]), False)
+    conn.execute("UPDATE manual_recordings SET stopped_at = ?, stop_reason = ? WHERE id = ?", (_iso(_now()), reason, r["id"]))
+    audit(conn, actor=principal, action="nvr.record.stop", decision="allowed", resource_type="camera", resource_id=camera_id, request_id=request_id, details={"track": int(r["track_id"]), "reason": reason, "id": r["id"]})
+    return manual_row(conn.execute("SELECT * FROM manual_recordings WHERE id = ?", (r["id"],)).fetchone())
+
+
+def stop_expired_manual(db: Any, settings: Settings) -> int:
+    """Janitor: every manual recording whose planned stop has passed is stopped on the NVR and closed here."""
+    with db.connection() as conn:
+        try:
+            rows = conn.execute("SELECT * FROM manual_recordings WHERE stopped_at IS NULL AND stop_at <= ?", (_iso(_now()),)).fetchall()
+        except sqlite3.OperationalError:
+            return 0
+        n = 0
+        for r in rows:
+            try:
+                manual_record(settings, int(r["track_id"]), False)
+                reason = "expired"
+            except ApiError as exc:
+                reason = f"expired_unconfirmed:{exc.code}"  # the NVR could not be told; the row still closes, the reason says so
+            conn.execute("UPDATE manual_recordings SET stopped_at = ?, stop_reason = ? WHERE id = ?", (_iso(_now()), reason, r["id"]))
+            audit(conn, actor=None, action="nvr.record.stop", decision="allowed", resource_type="camera", resource_id=r["camera_id"], reason=reason, details={"track": int(r["track_id"]), "id": r["id"]})
+            n += 1
+    return n
+
+
+def _now() -> dt.datetime:
+    return dt.datetime.now(dt.timezone.utc)
+
+
+def _iso(d: dt.datetime) -> str:
+    return d.astimezone(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _parse(s: str) -> dt.datetime:
+    return dt.datetime.fromisoformat(s.replace("Z", "+00:00"))
 
 
 # ---------------------------------------------------------------- B1: Notify Surveillance Center

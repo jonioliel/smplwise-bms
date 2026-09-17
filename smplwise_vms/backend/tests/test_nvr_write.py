@@ -42,6 +42,9 @@ class FakeNvr:
         if request.method == "GET":
             return httpx.Response(200, text=self.docs[path]) if path in self.docs else httpx.Response(403, text=NOT_SUPPORTED)
         if request.method == "PUT":
+            if path.startswith("/ISAPI/ContentMgmt/record/control/manual/"):
+                self.puts.append((path, ""))
+                return httpx.Response(200, text=OK)
             if path not in self.docs:
                 return httpx.Response(403, text=NOT_SUPPORTED)
             self.docs[path] = request.content.decode("utf-8")
@@ -181,4 +184,47 @@ def test_no_effect_and_sensitivity_snap(settings, monkeypatch):
         assert r.status_code == 409 and r.json()["code"] == "nvr_no_effect", r.text
         changes = c.get("/api/v1/nvr/changes", headers=h).json()["changes"]
         assert changes[0]["status"] == "no_effect"
+
+
+def test_manual_recording(settings, monkeypatch):
+    """A1: start (NVR PUT start), status with the remaining time, stop (PUT stop), the janitor stops an expired one,
+    and the sensitive permission gate."""
+    import datetime as dt
+
+    from smplwise.main import janitor_tick
+
+    fake = FakeNvr()
+    monkeypatch.setattr(nvr_write, "_client", fake.client)
+    app = create_app(settings)
+    with TestClient(app) as c:
+        cam = c.post("/api/v1/cameras", json={"channel": 1, "alias": "לובי"}).json()
+        with app.state.db.connection() as conn:
+            conn.execute("UPDATE cameras SET main_track = 101 WHERE id = ?", (cam["id"],))
+        assert c.post(f"/api/v1/cameras/{cam['id']}/record/start", json={"minutes": 5}).status_code == 403
+        st = c.get(f"/api/v1/cameras/{cam['id']}/record").json()
+        assert st["active"] is None and st["can_write"] is False and st["track_id"] == 101
+        role = c.post("/api/v1/access/roles", json={"name": "מקליט", "description": "", "permissions": ["map.read", "video.live"], "sensitive": ["nvr.record.manual"]}).json()
+        bind(c, settings, "dan", role["id"], "installation", "*")
+        h = as_user("dan")
+        r = c.post(f"/api/v1/cameras/{cam['id']}/record/start", json={"minutes": 5}, headers=h)
+        assert r.status_code == 201, r.text
+        assert fake.puts[-1][0] == "/ISAPI/ContentMgmt/record/control/manual/start/tracks/101"
+        st = c.get(f"/api/v1/cameras/{cam['id']}/record", headers=h).json()
+        assert st["active"]["track_id"] == 101 and 250 <= st["active"]["remaining_s"] <= 300 and st["can_write"] is True
+        assert c.post(f"/api/v1/cameras/{cam['id']}/record/start", json={"minutes": 5}, headers=h).json()["code"] == "already_recording"
+        r = c.post(f"/api/v1/cameras/{cam['id']}/record/stop", headers=h)
+        assert r.status_code == 200 and r.json()["stop_reason"] == "user" and fake.puts[-1][0].endswith("/stop/tracks/101")
+        assert c.post(f"/api/v1/cameras/{cam['id']}/record/stop", headers=h).json()["code"] == "not_recording"
+        # expiry: a recording whose planned stop already passed is stopped by the janitor
+        c.post(f"/api/v1/cameras/{cam['id']}/record/start", json={"minutes": 1}, headers=h)
+        with app.state.db.connection() as conn:
+            conn.execute("UPDATE manual_recordings SET stop_at = ? WHERE stopped_at IS NULL", ((dt.datetime.now(dt.timezone.utc) - dt.timedelta(seconds=5)).strftime("%Y-%m-%dT%H:%M:%SZ"),))
+        n_puts = len(fake.puts)
+        janitor_tick(app.state.db, settings)
+        assert len(fake.puts) == n_puts + 1 and fake.puts[-1][0].endswith("/stop/tracks/101")
+        assert c.get(f"/api/v1/cameras/{cam['id']}/record", headers=h).json()["active"] is None
+        with app.state.db.connection(mode="read") as conn:
+            reasons = [r["stop_reason"] for r in conn.execute("SELECT stop_reason FROM manual_recordings ORDER BY started_at").fetchall()]
+            actions = [r["action"] for r in conn.execute("SELECT action FROM audit_log WHERE action LIKE 'nvr.record.%' ORDER BY id").fetchall()]
+        assert reasons == ["user", "expired"] and actions.count("nvr.record.start") == 2 and actions.count("nvr.record.stop") == 2
 

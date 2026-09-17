@@ -1,5 +1,13 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.66 (pilot) — A1: manual recording from the camera screen
+- Camera screen: with the sensitive permission `nvr.record.manual` (custom role) "הקלט עכשיו" starts a manual
+  recording on the camera's main track for 5 / 10 / 30 / 60 / 120 minutes; a badge shows the remaining time and
+  "עצור הקלטה" ends it. The NVR keeps no readable state for manual recording on this firmware, so the VMS keeps its
+  own and the janitor stops an expired recording on the NVR even when the screen is closed. Every start and stop
+  is audited (`nvr.record.start` / `nvr.record.stop`, reason user / expired).
+  `GET /cameras/{id}/record`, `POST /cameras/{id}/record/start`, `POST /cameras/{id}/record/stop`.
+
 ## 0.1.65 (pilot) — B2: motion-detection zones and sensitivity written to the NVR
 - Camera screen › "אזורי זיהוי ומסכות": with the sensitive permission `nvr.config.detection` (custom role) the
   motion grid becomes editable - paint cells with a click or a drag, "בחר הכל" / "נקה", sensitivity in the device's

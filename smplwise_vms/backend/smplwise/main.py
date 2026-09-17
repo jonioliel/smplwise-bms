@@ -42,6 +42,9 @@ def janitor_tick(db: Database, settings: Settings) -> None:
     from .services import storage
 
     storage.warm(db, settings)  # non-blocking; keeps the storage report warm between opens
+    from .services import nvr_write
+
+    nvr_write.stop_expired_manual(db, settings)  # A1: manual recordings past their planned stop
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:

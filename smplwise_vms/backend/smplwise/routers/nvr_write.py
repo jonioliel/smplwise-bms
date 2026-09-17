@@ -144,6 +144,51 @@ def set_motion(camera_id: str, body: MotionIn, request: Request, principal: Prin
     return rec
 
 
+class RecordIn(BaseModel):
+    minutes: int = Field(default=10, ge=1, le=nvr_write.MANUAL_MAX_MIN)
+
+
+def _camera_for_record(conn: sqlite3.Connection, principal: Principal, camera_id: str) -> sqlite3.Row:
+    from ..services.access import require_camera
+
+    cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
+    if not cam:
+        raise ApiError(404, "not_found", "המצלמה לא נמצאה.")
+    require(conn, principal, "nvr.record.manual", INSTALLATION)
+    require_camera(conn, principal, camera_id, "video.live")
+    return cam
+
+
+@router.get("/cameras/{camera_id}/record")
+def record_status(camera_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """A1: the manual recording the VMS started for this camera (if any) and whether the caller may start one."""
+    cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
+    if not cam:
+        raise ApiError(404, "not_found", "המצלמה לא נמצאה.")
+    can = authorize(conn, principal, "nvr.record.manual", INSTALLATION).allowed
+    return {"camera_id": camera_id, "active": nvr_write.manual_row(nvr_write.manual_active(conn, camera_id)), "can_write": can, "max_minutes": nvr_write.MANUAL_MAX_MIN, "track_id": cam["main_track"]}
+
+
+@router.post("/cameras/{camera_id}/record/start", status_code=201)
+def record_start(camera_id: str, body: RecordIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Start a manual recording on the camera's main track; the VMS stops it after `minutes` (default 10)."""
+    cam = _camera_for_record(conn, principal, camera_id)
+    if not cam["main_track"]:
+        raise ApiError(409, "no_track", "למצלמה אין track ראשי ידוע (גילוי מה־NVR עדיין לא רץ).")
+    with unlocked(conn):
+        pass
+    return nvr_write.start_manual(settings_of(request), conn, principal, camera_id, int(cam["main_track"]), body.minutes, request_id=_rid(request))
+
+
+@router.post("/cameras/{camera_id}/record/stop")
+def record_stop(camera_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    _camera_for_record(conn, principal, camera_id)
+    r = nvr_write.stop_manual(settings_of(request), conn, principal, camera_id, request_id=_rid(request))
+    if not r:
+        raise ApiError(409, "not_recording", "אין הקלטה ידנית פעילה למצלמה הזו.")
+    return r
+
+
 @router.get("/nvr/changes")
 def list_changes(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), limit: int = Query(50, ge=1, le=500)) -> dict[str, Any]:
     _require_read(conn, principal)
