@@ -1,5 +1,13 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.54 (pilot) — export queue order
+- Export jobs now run **smallest first**: the NVR hands files out at a fixed, modest rate (a 1 GB file took over
+  half an hour in the lab), so a short clip no longer waits behind a whole-file preservation. A job that has waited
+  more than 15 minutes goes first regardless, so big jobs never starve. One download at a time, as before (the NVR's
+  playback slots are the limit).
+- Tooling (outside the add-on): `scripts/migrate_legacy.py` (migration dry run from the legacy add-on, T070) and
+  `scripts/release_check.py` + `docs/release/RELEASE_PACKAGE_V1.md` (T072).
+
 ## 0.1.53 (pilot) — slow motion and frame stepping (T066)
 - הקלטות: **הילוך איטי ×0.5 / ×0.25** and **צעד־פריים** (one frame back / forward while paused) on the MSE
   playback path. Both are honest about the source: the relay delivers the NVR stream in real time, so the buffer

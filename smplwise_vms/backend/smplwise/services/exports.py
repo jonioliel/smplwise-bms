@@ -269,7 +269,7 @@ class Worker:
         ran = 0
         while not self.stop:
             with self.db.connection() as conn:
-                row = conn.execute("SELECT * FROM export_jobs WHERE state = 'queued' ORDER BY created_at LIMIT 1").fetchone()
+                row = conn.execute(NEXT_JOB_SQL, (_aged_cutoff(),)).fetchone()
                 if not row:
                     return ran
                 conn.execute("UPDATE export_jobs SET state = 'running', updated_at = ? WHERE id = ?", (now_iso(), row["id"]))
@@ -461,6 +461,20 @@ def _sha256(path: Path) -> str:
 def _safe(name: str) -> str:
     keep = "".join(c if c.isalnum() or c in "-_ " else "_" for c in name).strip().replace(" ", "_")
     return keep[:40] or "camera"
+
+
+# Shortest job first: the NVR hands files out at a fixed, modest rate, so a 20 MB clip must not wait behind a 1 GB file
+# (seen on 2026-09-17: 30+ minutes). A job that has waited longer than AGED_S goes first regardless, so big jobs never
+# starve while small ones keep arriving.
+AGED_S = 15 * 60
+NEXT_JOB_SQL = (
+    "SELECT * FROM export_jobs WHERE state = 'queued' "
+    "ORDER BY CASE WHEN created_at <= ? THEN 0 ELSE 1 END, COALESCE(json_extract(payload_json, '$.estimate_bytes'), 0), created_at LIMIT 1"
+)
+
+
+def _aged_cutoff() -> str:
+    return iso_utc(dt.datetime.now(UTC) - dt.timedelta(seconds=AGED_S))
 
 
 WORKER = Worker()

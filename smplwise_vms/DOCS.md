@@ -525,3 +525,10 @@ Sensitive grants are never implied by a built-in role; a custom role that lists 
 והרשאות › תפקידים) gives them at a scope. Every action, refusal and its reason is audited. The bridge
 integration's allow-list must match (0.2.1 for the domains above): restart Home Assistant once after updating.
 
+## Export queue (0.1.54)
+
+Export and preservation jobs download the original files from the NVR one at a time (the NVR's playback slots are
+the limit) at the rate the NVR allows — in the lab about 0.5–1 MB/s, so a whole 1 GB recording file takes half an
+hour. Jobs therefore run smallest first (by the estimated size); a job that has waited more than 15 minutes goes
+first regardless. חקירה › ייצוא shows the queue with progress; a queued job can be cancelled.
+
