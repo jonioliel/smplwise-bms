@@ -63,6 +63,14 @@ def load_settings(options_file: str | os.PathLike | None = None) -> Settings:
         in_addon = path == Path("/data/options.json")
 
     data_dir = Path(os.environ.get("SW_DATA_DIR") or ("/data" if in_addon else Path.cwd() / "data"))
+    # D4 (0.1.71): outside the add-on the connections page saves the NVR connection next to the data; inside, it goes
+    # through the Supervisor options, so this file is never consulted there.
+    override = data_dir / "nvr_connection.json"
+    if not in_addon and override.exists():
+        try:
+            options = {**options, **{k: v for k, v in json.loads(override.read_text(encoding="utf-8")).items() if v not in (None, "")}}
+        except ValueError:
+            pass
     www_raw = os.environ.get("SW_WWW_DIR") or ("/app/www" if in_addon else None)
     www_dir = Path(www_raw) if www_raw else None
 

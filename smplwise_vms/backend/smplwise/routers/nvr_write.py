@@ -8,11 +8,12 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 
+from ..audit import audit
 from ..auth import current_principal, get_conn, settings_of
 from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import nvr_write
+from ..services import nvr, nvr_system, nvr_write
 
 router = APIRouter()
 NOTIFY_PERMISSION = "nvr.config.events"
@@ -187,6 +188,175 @@ def record_stop(camera_id: str, request: Request, principal: Principal = Depends
     if not r:
         raise ApiError(409, "not_recording", "אין הקלטה ידנית פעילה למצלמה הזו.")
     return r
+
+
+# ---------------------------------------------------------------- 0.1.71: system (clock, storage, outputs, reboot, connection)
+
+def _can(conn: sqlite3.Connection, principal: Principal) -> dict[str, bool]:
+    return {key: authorize(conn, principal, perm, INSTALLATION).allowed for key, perm in
+            (("time", "nvr.config.time"), ("storage", "nvr.storage.test"), ("alarm", "nvr.alarm_output"), ("reboot", "nvr.system.reboot"), ("osd", "nvr.config.osd"), ("connection", "system.configure"))}
+
+
+@router.get("/nvr/system")
+def system_status(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Clock + NTP, disks with S.M.A.R.T., alarm outputs - read-only, with what this user may write."""
+    _require_read(conn, principal)
+    settings = settings_of(request)
+    out: dict[str, Any] = {"time": None, "disks": [], "outputs": [], "errors": {}, "can": _can(conn, principal)}
+    with unlocked(conn):
+        client = nvr_write._client(settings)
+        try:
+            for key, fn in (("time", lambda: nvr_system.time_status(settings, client=client)), ("disks", lambda: nvr_system.hdd_list(settings, client=client)), ("outputs", lambda: nvr_system.alarm_outputs(settings, client=client))):
+                try:
+                    out[key] = fn()
+                except ApiError as exc:
+                    out["errors"][key] = exc.code
+        finally:
+            client.close()
+    return out
+
+
+class TimeIn(BaseModel):
+    sync_now: bool = False
+    mode: str | None = Field(default=None, pattern="^(NTP|manual)$")
+
+
+@router.put("/nvr/time")
+def set_time(body: TimeIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    require(conn, principal, "nvr.config.time", INSTALLATION)
+    if not body.sync_now and not body.mode:
+        raise ApiError(422, "validation", "אין מה לכתוב: סנכרון או מצב.")
+    with unlocked(conn):
+        if body.sync_now:
+            return nvr_system.sync_clock(settings_of(request), conn, principal, mode=body.mode, request_id=_rid(request))
+        return nvr_system.set_time_mode(settings_of(request), conn, principal, mode=body.mode or "NTP", request_id=_rid(request))
+
+
+class NtpIn(BaseModel):
+    host: str = Field(min_length=1, max_length=120, pattern=r"^[A-Za-z0-9.\-]+$")
+    port: int = Field(default=123, ge=1, le=65535)
+    interval_min: int | None = Field(default=None, ge=1, le=10080)
+
+
+@router.put("/nvr/ntp")
+def set_ntp(body: NtpIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    require(conn, principal, "nvr.config.time", INSTALLATION)
+    with unlocked(conn):
+        return nvr_system.set_ntp(settings_of(request), conn, principal, host=body.host, port=body.port, interval_min=body.interval_min, request_id=_rid(request))
+
+
+@router.post("/nvr/outputs/{output_id}/pulse", status_code=201)
+def pulse_output(output_id: int, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    require(conn, principal, "nvr.alarm_output", INSTALLATION)
+    with unlocked(conn):
+        return nvr_system.pulse_output(settings_of(request), conn, principal, output_id, request_id=_rid(request))
+
+
+class SmartIn(BaseModel):
+    kind: str = Field(default="short", pattern="^(short|extended)$")
+
+
+@router.post("/nvr/storage/{hdd_id}/smart-test", status_code=201)
+def smart_test(hdd_id: int, body: SmartIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    require(conn, principal, "nvr.storage.test", INSTALLATION)
+    with unlocked(conn):
+        return nvr_system.start_smart_test(settings_of(request), conn, principal, hdd_id, body.kind, request_id=_rid(request))
+
+
+class RebootIn(BaseModel):
+    confirm: str = Field(max_length=20)
+
+
+@router.post("/nvr/reboot", status_code=201)
+def reboot_nvr(body: RebootIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """The typed word is the second confirmation the owner asked for (no live video / recording for 1-2 minutes)."""
+    require(conn, principal, "nvr.system.reboot", INSTALLATION)
+    if body.confirm.strip().upper() != "RESTART":
+        raise ApiError(422, "confirm_required", "יש להקליד RESTART כדי להפעיל מחדש.")
+    with unlocked(conn):
+        return nvr_system.reboot(settings_of(request), conn, principal, request_id=_rid(request))
+
+
+@router.get("/nvr/connection")
+def get_connection(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    require(conn, principal, "system.configure", INSTALLATION)
+    return nvr_system.connection_view(settings_of(request))
+
+
+class ConnectionIn(BaseModel):
+    host: str = Field(min_length=1, max_length=120, pattern=r"^[A-Za-z0-9.\-]+$")
+    http_port: int = Field(default=80, ge=1, le=65535)
+    rtsp_port: int = Field(default=554, ge=1, le=65535)
+    user: str = Field(min_length=1, max_length=64)
+    password: str | None = Field(default=None, max_length=128)  # absent = keep the current one
+
+
+@router.put("/nvr/connection")
+def set_connection(body: ConnectionIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """D4: test the new connection (deviceInfo), then persist it - Supervisor options + add-on restart inside HA, a
+    data-dir file on a workstation - and use it in this process right away."""
+    require(conn, principal, "system.configure", INSTALLATION)
+    settings = settings_of(request)
+    new = nvr_system.with_connection(settings, host=body.host, http_port=body.http_port, rtsp_port=body.rtsp_port, user=body.user, password=body.password)
+    with unlocked(conn):
+        info = nvr.device_info(new)  # raises source_unavailable / source_forbidden when the details are wrong
+        where = nvr_system.save_connection(settings, new)
+    request.app.state.settings = new
+    audit(conn, actor=principal, action="nvr.connection.update", decision="allowed", resource_type="nvr", resource_id="connection", request_id=_rid(request),
+          details={"host": body.host, "http_port": body.http_port, "rtsp_port": body.rtsp_port, "user": body.user, "password_changed": body.password is not None, "saved": where})
+    return {"saved": where, "device": info, "restarting": where == "supervisor", **nvr_system.connection_view(new)}
+
+
+class OsdIn(BaseModel):
+    name_enabled: bool | None = None
+    datetime_enabled: bool | None = None
+    date_style: str | None = Field(default=None, pattern="^(MM-DD-YYYY|DD-MM-YYYY|YYYY-MM-DD|MM/DD/YYYY|DD/MM/YYYY|YYYY/MM/DD)$")
+    time_style: str | None = Field(default=None, pattern="^(24hour|12hour)$")
+    display_week: bool | None = None
+
+
+def _channel_of(conn: sqlite3.Connection, camera_id: str) -> tuple[sqlite3.Row, int]:
+    cam = conn.execute("SELECT id, channel, alias, name_source FROM cameras WHERE id = ?", (camera_id,)).fetchone()
+    if not cam or cam["channel"] is None:
+        raise ApiError(404, "not_found", "המצלמה לא נמצאה.")
+    return cam, int(cam["channel"])
+
+
+@router.get("/cameras/{camera_id}/osd")
+def get_osd(camera_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    _require_read(conn, principal)
+    cam, ch = _channel_of(conn, camera_id)
+    with unlocked(conn):
+        st = nvr_system.osd_status(settings_of(request), ch)
+    return {**st, "camera_id": camera_id, "channel": ch, "vms_name": cam["alias"] or cam["name_source"] or f"ערוץ {ch}",
+            "can_write": authorize(conn, principal, "nvr.config.osd", INSTALLATION).allowed, "date_styles": list(nvr_system.DATE_STYLES)}
+
+
+@router.put("/cameras/{camera_id}/osd")
+def set_osd(camera_id: str, body: OsdIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    require(conn, principal, "nvr.config.osd", INSTALLATION)
+    _cam, ch = _channel_of(conn, camera_id)
+    parts = [p for p, v in (("שם", body.name_enabled), ("תאריך ושעה", body.datetime_enabled), ("פורמט תאריך", body.date_style), ("פורמט שעה", body.time_style), ("יום בשבוע", body.display_week)) if v is not None]
+    if not parts:
+        raise ApiError(422, "validation", "אין מה לכתוב.")
+    with unlocked(conn):
+        return nvr_write.apply_change(settings_of(request), conn, principal, kind="osd", permission="nvr.config.osd", target=f"osd-{ch}", path=nvr_system.overlays_path(ch),
+                                      mutate=lambda x: nvr_system.osd_document(x, name_enabled=body.name_enabled, datetime_enabled=body.datetime_enabled, date_style=body.date_style, time_style=body.time_style, display_week=body.display_week),
+                                      note="OSD: " + " + ".join(parts), request_id=_rid(request))
+
+
+class NameIn(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=32)  # absent = the VMS name
+
+
+@router.post("/cameras/{camera_id}/osd/name", status_code=201)
+def write_channel_name(camera_id: str, body: NameIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    require(conn, principal, "nvr.config.osd", INSTALLATION)
+    cam, ch = _channel_of(conn, camera_id)
+    name = (body.name or cam["alias"] or cam["name_source"] or f"ערוץ {ch}")[:32]
+    with unlocked(conn):
+        rec = nvr_system.set_channel_name(settings_of(request), conn, principal, ch, name, request_id=_rid(request))
+    return {**rec, "name": name}
 
 
 @router.get("/nvr/changes")

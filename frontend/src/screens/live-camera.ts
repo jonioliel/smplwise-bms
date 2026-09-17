@@ -13,7 +13,7 @@ import '../components/sw-state-panel';
 import type { SwLivePlayer } from '../components/sw-live-player';
 import { demoScene, demoWall } from '../fixtures/catalog';
 import { navigate } from '../router';
-import { recordStart, recordStatus, recordStop, setMotion, type RecordStatus } from '../api/nvr';
+import { osdStatus, recordStart, recordStatus, recordStop, setMotion, setOsd, writeChannelName, type OsdStatus, type RecordStatus } from '../api/nvr';
 import '../components/sw-dialog';
 import { isApi } from '../api/session';
 import { cameraCapabilities, cameraZones, snapshotUrl, setTransportOverride, transportOverride, type CameraCapabilities, type CameraZones, type ProductSettings, type Transport } from '../api/media';
@@ -44,10 +44,52 @@ export class LiveCamera extends LitElement {
   private paintValue: boolean | null = null;
   /** A1 (0.1.66): manual recording state for this camera, polled while one is running. */
   @state() private rec: RecordStatus | null = null;
+  /** D1 (0.1.71): the channel's name and OSD overlays on the NVR. */
+  @state() private osd: OsdStatus | null = null;
+  @state() private osdMsg = '';
+  @state() private osdBusy = false;
   @state() private recMinutes = 10;
   @state() private recBusy = false;
   @state() private recMsg = '';
   private recTimer = 0;
+
+  private async loadOsd() {
+    if (!this.cam || !isApi()) return;
+    try {
+      this.osd = await osdStatus(this.cam.id);
+    } catch {
+      this.osd = null;
+    }
+  }
+
+  private async osdAction(label: string, run: () => Promise<unknown>) {
+    if (this.osdBusy) return;
+    this.osdBusy = true;
+    this.osdMsg = '';
+    try {
+      await run();
+      this.osdMsg = `${label}: נכתב ל־NVR ונרשם.`;
+      await this.loadOsd();
+    } catch (err) {
+      this.osdMsg = `${label}: ${describeError(err)}`;
+    } finally {
+      this.osdBusy = false;
+    }
+  }
+
+  private renderOsd() {
+    const o = this.osd;
+    if (!o || !o.can_write) return nothing;
+    const same = (o.nvr_name ?? '') === o.vms_name;
+    return html`<div class="note" style="margin-block-start:8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center" data-osd>
+      <span>שם ב־NVR: <b data-osd-nvr-name>${o.nvr_name ?? '—'}</b>${same ? ' (זהה לשם ב־VMS)' : ` · ב־VMS: ${o.vms_name}`}</span>
+      <sw-button size="sm" icon="edit" ?disabled=${this.osdBusy || same} data-osd-write-name @click=${() => this.osdAction('שם הערוץ', () => writeChannelName(this.cam!.id))}>כתוב את שם ה־VMS ל־NVR</sw-button>
+      ${o.channel_name ? html`<label style="display:inline-flex;gap:4px;align-items:center"><input type="checkbox" data-osd-name-enabled .checked=${o.channel_name.enabled} ?disabled=${this.osdBusy} @change=${(e: Event) => this.osdAction('שם על התמונה', () => setOsd(this.cam!.id, { name_enabled: (e.target as HTMLInputElement).checked }))} /> שם על התמונה</label>` : nothing}
+      ${o.datetime ? html`<label style="display:inline-flex;gap:4px;align-items:center"><input type="checkbox" data-osd-datetime-enabled .checked=${o.datetime.enabled} ?disabled=${this.osdBusy} @change=${(e: Event) => this.osdAction('חותמת זמן', () => setOsd(this.cam!.id, { datetime_enabled: (e.target as HTMLInputElement).checked }))} /> חותמת זמן</label>
+        <sw-field><select aria-label="פורמט תאריך" data-osd-date-style ?disabled=${this.osdBusy} @change=${(e: Event) => this.osdAction('פורמט תאריך', () => setOsd(this.cam!.id, { date_style: (e.target as HTMLSelectElement).value }))}>${o.date_styles.map((d) => html`<option value=${d} ?selected=${d === o.datetime!.date_style}>${d}</option>`)}</select></sw-field>` : nothing}
+      ${this.osdMsg ? html`<span data-osd-msg>${this.osdMsg}</span>` : nothing}
+    </div>`;
+  }
 
   private async loadRecord() {
     if (!this.cam || !isApi()) return;
@@ -376,6 +418,7 @@ export class LiveCamera extends LitElement {
     if (changed.has('cameraId') && changed.get('cameraId') !== undefined) void this.load();
     if (changed.has('cam') && this.cam && isApi() && !this.zonesBusy && (!this.zones || this.zones.camera_id !== this.cam.id)) {
       void this.loadRecord();
+      void this.loadOsd();
       this.zonesError = '';
       void this.loadZones();
     }
@@ -609,6 +652,7 @@ export class LiveCamera extends LitElement {
       </div>
       ${this.renderCaps()}
       ${this.renderRecord()}
+      ${this.renderOsd()}
       <div class="grid">
         <sw-card heading="פרטים">
           <dl>

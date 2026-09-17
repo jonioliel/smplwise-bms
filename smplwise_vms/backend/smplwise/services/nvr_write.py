@@ -111,16 +111,17 @@ def _record(conn: sqlite3.Connection, principal: Any, *, kind: str, permission: 
 
 
 def apply_change(settings: Settings, conn: sqlite3.Connection, principal: Any, *, kind: str, permission: str, target: str, path: str,
-                 mutate: Callable[[str], str], note: str = "", request_id: str | None = None, client: httpx.Client | None = None) -> dict[str, Any]:
+                 mutate: Callable[[str], str], note: str = "", request_id: str | None = None, client: httpx.Client | None = None, keep_before: bool = True) -> dict[str, Any]:
     """GET → mutate → PUT → GET-verify → record + audit. `unchanged` when the document already says what was asked.
-    The caller holds the request's connection; NVR I/O happens on `client` (opened here unless given)."""
+    The caller holds the request's connection; NVR I/O happens on `client` (opened here unless given).
+    keep_before=False records no previous document, so the change cannot be rolled back (a clock write, for one)."""
     own = client is None
     c = client or _client(settings)
     try:
         before = _get(c, path)
         after = mutate(before)
         if after == before:
-            return _record(conn, principal, kind=kind, permission=permission, target=target, path=path, before=before, after=after, status="unchanged", note=note)
+            return _record(conn, principal, kind=kind, permission=permission, target=target, path=path, before=before if keep_before else None, after=after, status="unchanged", note=note)
         try:
             _put(c, path, after)
         except ApiError as exc:
@@ -131,12 +132,12 @@ def apply_change(settings: Settings, conn: sqlite3.Connection, principal: Any, *
     finally:
         if own:
             c.close()
-    if _normalize(verify) == _normalize(before):
+    if _normalize(verify) == _normalize(before) and keep_before:
         # the device answered OK but kept its old document (e.g. a sensitivity outside the values it accepts)
         rec = _record(conn, principal, kind=kind, permission=permission, target=target, path=path, before=before, after=verify, status="no_effect", note=note)
         audit(conn, actor=principal, action="nvr.write", decision="denied", resource_type="nvr", resource_id=target, reason="no_effect", request_id=request_id, details={"kind": kind, "path": path, "change_id": rec["id"]})
         raise ApiError(409, "nvr_no_effect", "ה־NVR אישר את הכתיבה אבל לא שינה את ההגדרה (ערך מחוץ לטווח שהמכשיר מקבל?).", details={"path": path, "change_id": rec["id"]})
-    rec = _record(conn, principal, kind=kind, permission=permission, target=target, path=path, before=before, after=verify, status="applied", note=note)
+    rec = _record(conn, principal, kind=kind, permission=permission, target=target, path=path, before=before if keep_before else None, after=verify, status="applied", note=note)
     audit(conn, actor=principal, action="nvr.write", decision="allowed", resource_type="nvr", resource_id=target, request_id=request_id,
           details={"kind": kind, "path": path, "change_id": rec["id"], "permission": permission, "note": note})
     return rec

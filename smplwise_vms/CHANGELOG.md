@@ -1,5 +1,29 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.71 (pilot) — NVR system: clock / NTP, OSD, alarm outputs, S.M.A.R.T. test, reboot, connection edit
+- הגדרות › חיבורים › "מערכת ה־NVR" (read for administrators; every write behind its sensitive permission):
+  - D2 clock: the NVR time, its drift from the server clock and the NTP server; "סנכרן לשעון השרת עכשיו" writes the
+    server time (manual mode for the write, the mode put back) and "שרת NTP…" rewrites the first NTP server
+    (`nvr.config.time`). Clock writes are recorded without a previous document - they cannot be rolled back.
+  - C3 disks: status, capacity, free space and S.M.A.R.T. (temperature, power-on days, health); "בדיקת S.M.A.R.T.
+    קצרה" sends the short self-test command (`nvr.storage.test`); the lab NVR accepted it but kept reporting
+    "not_tested" - the status is shown as the device reports it.
+  - A3 alarm outputs: the NVR's own relays get "הפעל (pulse)" (`nvr.alarm_output`); a camera's output (white light)
+    is listed but cannot be triggered through this NVR firmware (it answers invalidOperation) - the card says so.
+  - D3 reboot: "הפעל מחדש את ה־NVR…" needs the typed word RESTART in the dialog and again in the API
+    (`nvr.system.reboot`); the reboot itself was not exercised on the owner's NVR.
+- D4 "חיבור ל־NVR": host, ports, user and password edited from the page; deviceInfo is read with the new details
+  before anything is saved. Inside Home Assistant the details go to the add-on options through the Supervisor and
+  the add-on restarts; on a workstation they go to `<data>/nvr_connection.json` (merged by load_settings).
+- D1 camera screen › OSD (`nvr.config.osd`): the channel's name on the NVR next to the VMS name with "כתוב את שם
+  ה־VMS ל־NVR", the name / date-time overlays toggled, the date style chosen. All reversible from the change log.
+- Backend: `services/nvr_system.py`, endpoints `GET /nvr/system`, `PUT /nvr/time`, `PUT /nvr/ntp`,
+  `POST /nvr/outputs/{id}/pulse`, `POST /nvr/storage/{id}/smart-test`, `POST /nvr/reboot`, `GET/PUT /nvr/connection`,
+  `GET/PUT /cameras/{id}/osd`, `POST /cameras/{id}/osd/name`; `apply_change(keep_before=False)`.
+- Evidence: `tests/test_nvr_system.py`; `frontend/tests/evidence-owner-round8.spec.ts` against the lab NVR (clock
+  synced, NTP unchanged, relay pulsed, S.M.A.R.T. short test started, OSD week flag toggled and rolled back, channel
+  name written and rolled back, reboot gate, connection re-saved).
+
 ## 0.1.70 (pilot) — R3: HA entity card, lighting = switches only, manual names
 - Plan editor: two tools instead of one - "הוספת תאורה (מפסקים)" lists `switch.*` entities only (a checkbox adds
   `light.*`), "ישות HA אחרת" lists anything else in the catalogue (doors, sensors, climate…).
