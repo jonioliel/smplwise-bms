@@ -68,4 +68,23 @@ export interface OsdStatus {
 }
 export const osdStatus = (cameraId: string) => get<OsdStatus>(`cameras/${cameraId}/osd`);
 export const setOsd = (cameraId: string, body: { name_enabled?: boolean; datetime_enabled?: boolean; date_style?: string; time_style?: string; display_week?: boolean }) => put<NvrChange>(`cameras/${cameraId}/osd`, body);
+// ---- 0.1.72: schedules (B5, C1) and smart rules (B4) ----
+export interface WeekRange { begin: string; end: string; mode?: string }
+export type ArmingKind = 'motion' | 'line' | 'field';
+export interface CameraSchedules {
+  camera_id: string; channel: number; track_id: number;
+  arming: Partial<Record<ArmingKind, WeekRange[][]>>;
+  record: { enabled: boolean; schedule_enabled: boolean | null; default_mode: string | null; pre_record_s: number | null; post_record_s: number | null; days: WeekRange[][] } | null;
+  unsupported: Record<string, string>;
+  can: { events: boolean; schedule: boolean };
+  modes: string[];
+}
+export const cameraSchedules = (cameraId: string) => get<CameraSchedules>(`cameras/${cameraId}/schedules`);
+export const setArming = (cameraId: string, kind: ArmingKind, days: WeekRange[][]) => put<NvrChange>(`cameras/${cameraId}/schedules/${kind}`, { days });
+export const setRecordSchedule = (cameraId: string, body: { days?: WeekRange[][]; enabled?: boolean; schedule_enabled?: boolean }) => put<NvrChange>(`cameras/${cameraId}/record-schedule`, body);
+export interface SmartLine { id: number; enabled: boolean; sensitivity: number; direction: string; points: number[][]; human: boolean; vehicle: boolean }
+export interface SmartRegion { id: number; sensitivity: number; points: number[][]; human: boolean; vehicle: boolean }
+export interface CameraSmart { camera_id: string; channel: number; can_write: boolean; line: { enabled: boolean; lines: SmartLine[] } | null; field: { enabled: boolean; regions: SmartRegion[] } | null }
+export const cameraSmart = (cameraId: string) => get<CameraSmart>(`cameras/${cameraId}/smart`);
+export const setSmart = (cameraId: string, body: { line?: { enabled?: boolean; lines?: Partial<SmartLine>[] }; field?: { enabled?: boolean; regions?: Partial<SmartRegion>[] } }) => put<Record<string, NvrChange & { enable_refused?: boolean }>>(`cameras/${cameraId}/smart`, body);
 export const writeChannelName = (cameraId: string, name?: string) => post<NvrChange & { name: string }>(`cameras/${cameraId}/osd/name`, name ? { name } : {});

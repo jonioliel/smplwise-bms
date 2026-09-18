@@ -1,5 +1,23 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.72 (pilot) — schedules (B5, C1) and smart rules (B4) written to the NVR
+- Camera screen › "לוחות זימון והקלטה": week grids (Sunday first, hourly cells) for the arming schedule of motion /
+  line crossing / intrusion (`nvr.config.events`) and for the main track's recording schedule with a mode per hour -
+  continuous / motion / event / alarm (`nvr.config.schedule`), plus the "לוח פעיל" flag. Painted with the mouse,
+  confirmed in a dialog, recorded with the previous document for a one-click rollback.
+- Camera screen › "עריכת כללים חכמים": line crossing (two clicks per line, direction, sensitivity, human / vehicle
+  filters) and intrusion regions (4-10 clicks, sensitivity, filters) drawn on the snapshot; both documents written
+  (`nvr.config.smart`), the zones view refreshed. The hint reminds that "אדם" / "רכב" events reach the VMS only when
+  the channel notifies the surveillance centre. The lab firmware writes shapes and parameters but refuses to enable
+  the rule through the NVR (invalidOperation - the camera's VCA resource decides): the write then keeps the shapes
+  and says the enable was refused instead of failing.
+- Backend: `services/nvr_schedule.py` (TimeBlockList / Track ScheduleBlock / LineDetection / FieldDetection
+  documents), `GET /cameras/{id}/schedules`, `PUT /cameras/{id}/schedules/{motion|line|field}`,
+  `PUT /cameras/{id}/record-schedule`, `GET/PUT /cameras/{id}/smart`; `components/sw-week-grid`.
+- Evidence: `tests/test_nvr_schedule.py`; `frontend/tests/evidence-owner-round9.spec.ts` against the lab NVR (motion
+  arming cleared for one day and rolled back, recording schedule unchanged / changed / rolled back, line 1 drawn and
+  enabled then rolled back).
+
 ## 0.1.71 (pilot) — NVR system: clock / NTP, OSD, alarm outputs, S.M.A.R.T. test, reboot, connection edit
 - הגדרות › חיבורים › "מערכת ה־NVR" (read for administrators; every write behind its sensitive permission):
   - D2 clock: the NVR time, its drift from the server clock and the NTP server; "סנכרן לשעון השרת עכשיו" writes the

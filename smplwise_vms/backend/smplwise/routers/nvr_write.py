@@ -13,7 +13,7 @@ from ..auth import current_principal, get_conn, settings_of
 from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import nvr, nvr_system, nvr_write
+from ..services import nvr, nvr_schedule, nvr_system, nvr_write
 
 router = APIRouter()
 NOTIFY_PERMISSION = "nvr.config.events"
@@ -357,6 +357,146 @@ def write_channel_name(camera_id: str, body: NameIn, request: Request, principal
     with unlocked(conn):
         rec = nvr_system.set_channel_name(settings_of(request), conn, principal, ch, name, request_id=_rid(request))
     return {**rec, "name": name}
+
+
+# ---------------------------------------------------------------- 0.1.72: schedules (B5, C1) and smart rules (B4)
+
+def _track_of(conn: sqlite3.Connection, camera_id: str) -> tuple[sqlite3.Row, int, int]:
+    cam = conn.execute("SELECT id, channel, alias, name_source, main_track FROM cameras WHERE id = ?", (camera_id,)).fetchone()
+    if not cam or cam["channel"] is None:
+        raise ApiError(404, "not_found", "המצלמה לא נמצאה.")
+    ch = int(cam["channel"])
+    return cam, ch, int(cam["main_track"] or f"{ch}01")
+
+
+@router.get("/cameras/{camera_id}/schedules")
+def get_schedules(camera_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Arming schedules of motion / line crossing / intrusion and the main track's recording schedule (read-only)."""
+    _require_read(conn, principal)
+    _cam, ch, track = _track_of(conn, camera_id)
+    settings = settings_of(request)
+    out: dict[str, Any] = {"camera_id": camera_id, "channel": ch, "track_id": track, "arming": {}, "record": None, "unsupported": {},
+                           "can": {"events": authorize(conn, principal, "nvr.config.events", INSTALLATION).allowed, "schedule": authorize(conn, principal, "nvr.config.schedule", INSTALLATION).allowed},
+                           "modes": list(nvr_schedule.RECORD_MODES)}
+    with unlocked(conn):
+        client = nvr_write._client(settings)
+        try:
+            for kind in nvr_schedule.SCHEDULE_KINDS:
+                status, text = nvr_write._probe(client, nvr_schedule.schedule_path(kind, ch))
+                if status == 200:
+                    out["arming"][kind] = nvr_schedule.week_from_schedule(text)
+                else:
+                    out["unsupported"][kind] = nvr_write.response_status(text)[1] or str(status)
+            status, text = nvr_write._probe(client, nvr_schedule.track_path(track))
+            if status == 200:
+                out["record"] = nvr_schedule.record_from_track(text)
+            else:
+                out["unsupported"]["record"] = nvr_write.response_status(text)[1] or str(status)
+        finally:
+            client.close()
+    return out
+
+
+class WeekIn(BaseModel):
+    days: list[list[dict[str, Any]]] = Field(min_length=7, max_length=7)
+
+
+@router.put("/cameras/{camera_id}/schedules/{kind}")
+def set_arming(camera_id: str, kind: str, body: WeekIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    require(conn, principal, "nvr.config.events", INSTALLATION)
+    if kind not in nvr_schedule.SCHEDULE_KINDS:
+        raise ApiError(404, "not_found", "סוג לוח לא מוכר.")
+    _cam, ch, _track = _track_of(conn, camera_id)
+    days = nvr_schedule.check_week(body.days)
+    active = sum(len(d) for d in days)
+    settings = settings_of(request)
+    path = nvr_schedule.schedule_path(kind, ch)
+    with unlocked(conn):
+        client = nvr_write._client(settings)
+        try:
+            status, _text = nvr_write._probe(client, path)
+            if status != 200:
+                raise ApiError(409, "nvr_not_supported", "לערוץ הזה אין לוח זימון מהסוג הזה ב־NVR.", details={"kind": kind, "status": status})
+            return nvr_write.apply_change(settings, conn, principal, kind="schedule", permission="nvr.config.events", target=f"{kind}-schedule-{ch}", path=path,
+                                          mutate=lambda x: nvr_schedule.schedule_document(x, days), note=f"לוח זימון {nvr_write.TYPE_LABEL.get(nvr_schedule.SCHEDULE_KINDS[kind][1], kind)}: {active} טווחים", request_id=_rid(request), client=client)
+        finally:
+            client.close()
+
+
+class RecordScheduleIn(BaseModel):
+    days: list[list[dict[str, Any]]] | None = Field(default=None, min_length=7, max_length=7)
+    enabled: bool | None = None
+    schedule_enabled: bool | None = None
+
+
+@router.put("/cameras/{camera_id}/record-schedule")
+def set_record_schedule(camera_id: str, body: RecordScheduleIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """C1: the weekly recording schedule of the main track; a mistake here means hours without recording, so the UI
+    shows the difference first and the change log keeps the previous document for a one-click rollback."""
+    require(conn, principal, "nvr.config.schedule", INSTALLATION)
+    _cam, ch, track = _track_of(conn, camera_id)
+    days = nvr_schedule.check_week(body.days, modes=True) if body.days is not None else None
+    if days is None and body.enabled is None and body.schedule_enabled is None:
+        raise ApiError(422, "validation", "אין מה לכתוב.")
+    parts = [p for p, v in (("לוח שבועי", days), ("הקלטה", body.enabled), ("לוח פעיל", body.schedule_enabled)) if v is not None]
+    with unlocked(conn):
+        return nvr_write.apply_change(settings_of(request), conn, principal, kind="record_schedule", permission="nvr.config.schedule", target=f"track-{track}", path=nvr_schedule.track_path(track),
+                                      mutate=lambda x: nvr_schedule.track_document(x, days, enabled=body.enabled, schedule_enabled=body.schedule_enabled), note="לוח הקלטה: " + " + ".join(parts), request_id=_rid(request))
+
+
+@router.get("/cameras/{camera_id}/smart")
+def get_smart(camera_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    _require_read(conn, principal)
+    _cam, ch, _track = _track_of(conn, camera_id)
+    settings = settings_of(request)
+    with unlocked(conn):
+        client = nvr_write._client(settings)
+        try:
+            s1, line = nvr_write._probe(client, f"/ISAPI/Smart/LineDetection/{ch}")
+            s2, field = nvr_write._probe(client, f"/ISAPI/Smart/FieldDetection/{ch}")
+        finally:
+            client.close()
+    out = nvr_schedule.smart_from_docs(line if s1 == 200 else None, field if s2 == 200 else None)
+    return {**out, "camera_id": camera_id, "channel": ch, "can_write": authorize(conn, principal, "nvr.config.smart", INSTALLATION).allowed}
+
+
+class SmartRulesIn(BaseModel):
+    line: dict[str, Any] | None = None
+    field: dict[str, Any] | None = None
+
+
+@router.put("/cameras/{camera_id}/smart")
+def set_smart(camera_id: str, body: SmartRulesIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """B4: line crossing and intrusion rules - one recorded change per document; the zones cache is dropped so the
+    camera screen shows the new shapes right away."""
+    require(conn, principal, "nvr.config.smart", INSTALLATION)
+    _cam, ch, _track = _track_of(conn, camera_id)
+    if body.line is None and body.field is None:
+        raise ApiError(422, "validation", "אין מה לכתוב.")
+    from .cameras import _ZONES_CACHE
+
+    settings = settings_of(request)
+    results: dict[str, Any] = {}
+
+    def write(key: str, spec: dict[str, Any], path: str, build: Any, note: str) -> None:
+        """The lab firmware writes shapes and parameters but answers invalidOperation when the document is enabled
+        through the NVR (the camera's own VCA resource decides): retry without the enable flag and say so."""
+        try:
+            results[key] = nvr_write.apply_change(settings, conn, principal, kind="smart", permission="nvr.config.smart", target=f"{key}-{ch}", path=path, mutate=lambda x: build(x, spec), note=note, request_id=_rid(request))
+        except ApiError as exc:
+            if exc.code != "source_forbidden" or not spec.get("enabled"):
+                raise
+            shapes = {k: v for k, v in spec.items() if k != "enabled"}
+            results[key] = nvr_write.apply_change(settings, conn, principal, kind="smart", permission="nvr.config.smart", target=f"{key}-{ch}", path=path, mutate=lambda x: build(x, shapes), note=note + " (ההפעלה נדחתה)", request_id=_rid(request))
+            results[key]["enable_refused"] = True
+
+    with unlocked(conn):
+        if body.line is not None:
+            write("line", body.line, f"/ISAPI/Smart/LineDetection/{ch}", nvr_schedule.line_document, f"חציית קו: {len((body.line or {}).get('lines') or [])} קווים")
+        if body.field is not None:
+            write("field", body.field, f"/ISAPI/Smart/FieldDetection/{ch}", nvr_schedule.field_document, f"פריצה לאזור: {len((body.field or {}).get('regions') or [])} אזורים")
+    _ZONES_CACHE.pop(camera_id, None)
+    return results
 
 
 @router.get("/nvr/changes")

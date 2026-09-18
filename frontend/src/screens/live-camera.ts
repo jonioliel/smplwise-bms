@@ -13,7 +13,8 @@ import '../components/sw-state-panel';
 import type { SwLivePlayer } from '../components/sw-live-player';
 import { demoScene, demoWall } from '../fixtures/catalog';
 import { navigate } from '../router';
-import { osdStatus, recordStart, recordStatus, recordStop, setMotion, setOsd, writeChannelName, type OsdStatus, type RecordStatus } from '../api/nvr';
+import { cameraSchedules, cameraSmart, osdStatus, recordStart, recordStatus, recordStop, setArming, setMotion, setOsd, setRecordSchedule, setSmart, writeChannelName, type ArmingKind, type CameraSchedules, type CameraSmart, type OsdStatus, type RecordStatus, type WeekRange } from '../api/nvr';
+import '../components/sw-week-grid';
 import '../components/sw-dialog';
 import { isApi } from '../api/session';
 import { cameraCapabilities, cameraZones, snapshotUrl, setTransportOverride, transportOverride, type CameraCapabilities, type CameraZones, type ProductSettings, type Transport } from '../api/media';
@@ -46,12 +47,232 @@ export class LiveCamera extends LitElement {
   @state() private rec: RecordStatus | null = null;
   /** D1 (0.1.71): the channel's name and OSD overlays on the NVR. */
   @state() private osd: OsdStatus | null = null;
+  /** 0.1.72: arming + recording schedules (week grids) and the smart-rule editor. */
+  @state() private sched: CameraSchedules | null = null;
+  @state() private schedError = '';
+  @state() private schedTab: ArmingKind | 'record' = 'motion';
+  @state() private schedEdit: { kind: ArmingKind | 'record'; days: WeekRange[][]; schedule_enabled?: boolean | null; enabled?: boolean } | null = null;
+  @state() private schedBusy = false;
+  @state() private schedMsg = '';
+  @state() private schedConfirm = false;
+  @state() private smart: CameraSmart | null = null;
+  @state() private smartEdit: { line: { enabled: boolean; lines: { id: number; enabled: boolean; sensitivity: number; direction: string; points: number[][]; human: boolean; vehicle: boolean }[] } | null; field: { enabled: boolean; regions: { id: number; sensitivity: number; points: number[][]; human: boolean; vehicle: boolean }[] } | null; tool: { type: 'line' | 'field'; id: number } } | null = null;
+  @state() private smartBusy = false;
+  @state() private smartMsg = '';
   @state() private osdMsg = '';
   @state() private osdBusy = false;
   @state() private recMinutes = 10;
   @state() private recBusy = false;
   @state() private recMsg = '';
   private recTimer = 0;
+
+  private async loadSchedules() {
+    if (!this.cam || !isApi()) return;
+    try {
+      this.sched = await cameraSchedules(this.cam.id);
+      this.schedError = '';
+      if (!this.sched.arming[this.schedTab as ArmingKind] && this.schedTab !== 'record') this.schedTab = (Object.keys(this.sched.arming)[0] as ArmingKind) ?? 'record';
+    } catch (err) {
+      this.schedError = describeError(err);
+    }
+    try {
+      this.smart = await cameraSmart(this.cam.id);
+    } catch {
+      this.smart = null;
+    }
+  }
+
+  private startSchedEdit() {
+    const s = this.sched;
+    if (!s) return;
+    const kind = this.schedTab;
+    const days = (kind === 'record' ? s.record?.days : s.arming[kind]) ?? Array.from({ length: 7 }, () => []);
+    this.schedMsg = '';
+    this.schedEdit = { kind, days: days.map((d) => d.map((r) => ({ ...r }))), schedule_enabled: s.record?.schedule_enabled ?? null, enabled: s.record?.enabled };
+  }
+
+  private schedDiff(): number {
+    const e = this.schedEdit;
+    const s = this.sched;
+    if (!e || !s) return 0;
+    const before = (e.kind === 'record' ? s.record?.days : s.arming[e.kind]) ?? [];
+    const key = (d: WeekRange[][]) => d.map((day) => day.map((r) => `${r.begin}-${r.end}-${r.mode ?? ''}`).join(',')).join('|');
+    return key(before) === key(e.days) ? 0 : 1;
+  }
+
+  private async saveSched() {
+    const e = this.schedEdit;
+    if (!e || !this.cam || this.schedBusy) return;
+    this.schedBusy = true;
+    this.schedConfirm = false;
+    try {
+      const rec = e.kind === 'record'
+        ? await setRecordSchedule(this.cam.id, { days: e.days, ...(e.schedule_enabled !== null && e.schedule_enabled !== this.sched?.record?.schedule_enabled ? { schedule_enabled: e.schedule_enabled ?? undefined } : {}) })
+        : await setArming(this.cam.id, e.kind, e.days);
+      this.schedMsg = rec.status === 'unchanged' ? 'ה־NVR כבר היה במצב הזה — לא נכתב דבר.' : 'הלוח נכתב ל־NVR ונרשם (ניתן להחזרה מרשימת השינויים בהגדרות › חיבורים).';
+      this.schedEdit = null;
+      await this.loadSchedules();
+    } catch (err) {
+      this.schedMsg = describeError(err);
+    } finally {
+      this.schedBusy = false;
+    }
+  }
+
+  private renderSchedules() {
+    const s = this.sched;
+    if (this.schedError && !s) return html`<div class="note">${this.schedError}</div>`;
+    if (!s) return html`<div class="note">קורא לוחות מה־NVR…</div>`;
+    const kinds: { id: ArmingKind | 'record'; label: string; ok: boolean }[] = [
+      { id: 'motion', label: 'זיהוי תנועה', ok: !!s.arming.motion },
+      { id: 'line', label: 'חציית קו', ok: !!s.arming.line },
+      { id: 'field', label: 'פריצה לאזור', ok: !!s.arming.field },
+      { id: 'record', label: 'לוח הקלטה', ok: !!s.record },
+    ];
+    const tab = this.schedTab;
+    const e = this.schedEdit?.kind === tab ? this.schedEdit : null;
+    const days = e ? e.days : tab === 'record' ? s.record?.days : s.arming[tab];
+    const recordModes = [
+      { id: 'CMR', label: 'רציף', color: '#2f6bff' },
+      { id: 'MOTION', label: 'תנועה', color: '#16a34a' },
+      { id: 'EDR', label: 'אירוע', color: '#f59e0b' },
+      { id: 'ALARM', label: 'אזעקה', color: '#dc2626' },
+    ];
+    const canEdit = tab === 'record' ? s.can.schedule : s.can.events;
+    const label = kinds.find((k) => k.id === tab)?.label ?? '';
+    return html`<div class="legend" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-block-end:8px" data-schedules-tabs>
+        ${kinds.map((k) => html`<sw-chip ?selected=${tab === k.id} ?disabled=${!k.ok} data-sched-tab=${k.id} @click=${() => { if (k.ok) { this.schedTab = k.id; this.schedEdit = null; } }}>${k.label}${k.ok ? '' : ' · לא זמין'}</sw-chip>`)}
+        <span class="grow"></span>
+        ${canEdit && !e ? html`<sw-button size="sm" icon="edit" data-sched-edit @click=${() => this.startSchedEdit()}>עריכה</sw-button>` : nothing}
+      </div>
+      ${days
+        ? html`<sw-week-grid data-week-grid .days=${days} .modes=${tab === 'record' ? recordModes : [{ id: 'on', label: 'פעיל', color: 'var(--sw-accent)' }]} ?editable=${!!e}
+            @change=${(ev: CustomEvent<{ days: WeekRange[][] }>) => { if (this.schedEdit) this.schedEdit = { ...this.schedEdit, days: ev.detail.days }; }}></sw-week-grid>`
+        : html`<div class="note">הלוח הזה לא נקרא מה־NVR${s.unsupported[tab] ? ` (${s.unsupported[tab]})` : ''}.</div>`}
+      ${tab === 'record' && s.record
+        ? html`<div class="note" style="margin-block-start:6px">ברירת מחדל: ${s.record.default_mode ?? '—'} · לפני אירוע ${s.record.pre_record_s ?? '—'} שנ׳ · אחרי ${s.record.post_record_s ?? '—'} שנ׳ · הקלטה ${s.record.enabled ? 'פעילה' : 'כבויה'} · לוח ${s.record.schedule_enabled === false ? 'כבוי (מקליט לפי ברירת המחדל)' : 'פעיל'}
+            ${e ? html`<label style="display:inline-flex;gap:4px;align-items:center;margin-inline-start:8px"><input type="checkbox" data-sched-enabled .checked=${e.schedule_enabled !== false} @change=${(ev: Event) => (this.schedEdit = { ...e, schedule_enabled: (ev.target as HTMLInputElement).checked })} /> לוח פעיל</label>` : nothing}</div>`
+        : nothing}
+      ${e
+        ? html`<div class="legend" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-block-start:8px" data-sched-editor>
+            <span class="note">${tab === 'record' ? 'צבע = מצב הקלטה לשעה זו; תא ריק = אין הקלטה בשעה זו. טעות כאן = שעות בלי הקלטה, לכן יש אישור והחזר.' : 'תא צבוע = הזיהוי פעיל בשעה זו; כיבוי כל היום = בלי התראות מהערוץ בזמן הזה.'}</span>
+            <span class="grow"></span>
+            <sw-button variant="primary" size="sm" icon="check" ?disabled=${this.schedBusy || (!this.schedDiff() && (tab !== 'record' || e.schedule_enabled === (s.record?.schedule_enabled ?? null)))} data-sched-save @click=${() => (this.schedConfirm = true)}>שמור ל־NVR</sw-button>
+            <sw-button size="sm" variant="ghost" icon="close" ?disabled=${this.schedBusy} data-sched-cancel @click=${() => (this.schedEdit = null)}>ביטול</sw-button>
+          </div>`
+        : nothing}
+      ${this.schedConfirm && e
+        ? html`<sw-dialog open heading=${`כתיבה ל־NVR: ${label}`} subheading=${`${this.cam?.name ?? ''} · ערוץ ${s.channel}`} data-sched-confirm @close=${() => (this.schedConfirm = false)}>
+            <div style="font-size:var(--sw-fs-sm);line-height:1.6">
+              <div>${e.days.map((d) => d.length).reduce((a, b) => a + b, 0)} טווחים בשבוע${tab === 'record' ? ` · ${e.days.flat().filter((r) => r.mode === 'CMR').length} רציף, ${e.days.flat().filter((r) => r.mode === 'MOTION').length} תנועה, ${e.days.flat().filter((r) => r.mode === 'EDR').length} אירוע` : ''}.</div>
+              <div style="margin-block-start:6px;color:var(--sw-text-3)">המסמך לפני ואחרי נשמר, השינוי נרשם באודיט וניתן להחזרה בלחיצה.</div>
+            </div>
+            <div slot="footer"><sw-button variant="primary" ?disabled=${this.schedBusy} data-sched-confirm-run @click=${() => this.saveSched()}>${this.schedBusy ? 'כותב…' : 'כתוב ל־NVR'}</sw-button><sw-button variant="ghost" @click=${() => (this.schedConfirm = false)}>ביטול</sw-button></div>
+          </sw-dialog>`
+        : nothing}
+      ${this.schedMsg ? html`<div class="note" data-sched-msg>${this.schedMsg}</div>` : nothing}`;
+  }
+
+  // ---- B4: smart rules editor (line crossing, intrusion) drawn on the snapshot ----
+
+  private startSmartEdit() {
+    const sm = this.smart;
+    if (!sm) return;
+    this.smartMsg = '';
+    const line = sm.line ? { enabled: sm.line.enabled, lines: sm.line.lines.map((l) => ({ ...l, points: l.points.map((p) => [...p]) })) } : null;
+    const field = sm.field ? { enabled: sm.field.enabled, regions: sm.field.regions.map((r) => ({ ...r, points: r.points.map((p) => [...p]) })) } : null;
+    this.smartEdit = { line, field, tool: line ? { type: 'line', id: line.lines[0]?.id ?? 1 } : { type: 'field', id: field?.regions[0]?.id ?? 1 } };
+  }
+
+  private smartClick(e: MouseEvent) {
+    const ed = this.smartEdit;
+    if (!ed) return;
+    const svg = e.currentTarget as SVGSVGElement;
+    const r = svg.getBoundingClientRect();
+    const x = Math.round(Math.max(0, Math.min(1000, ((e.clientX - r.left) / r.width) * 1000)));
+    const y = Math.round(Math.max(0, Math.min(1000, ((e.clientY - r.top) / r.height) * 1000)));
+    if (ed.tool.type === 'line' && ed.line) {
+      const lines = ed.line.lines.map((l) => {
+        if (l.id !== ed.tool.id) return l;
+        const pts = l.points.length >= 2 && !(l.points[0][0] === 0 && l.points[0][1] === 1000 && l.points[1][0] === 0 && l.points[1][1] === 1000) && l.points.length !== 1 ? [] : l.points.filter((p) => !(p[0] === 0 && p[1] === 1000));
+        const next = [...pts, [x, y]].slice(-2);
+        return { ...l, points: next, enabled: next.length === 2 ? true : l.enabled };
+      });
+      this.smartEdit = { ...ed, line: { ...ed.line, lines } };
+    } else if (ed.tool.type === 'field' && ed.field) {
+      const regions = ed.field.regions.map((rg) => (rg.id === ed.tool.id && rg.points.length < 10 ? { ...rg, points: [...rg.points, [x, y]] } : rg));
+      this.smartEdit = { ...ed, field: { ...ed.field, regions } };
+    }
+  }
+
+  private async saveSmart() {
+    const ed = this.smartEdit;
+    if (!ed || !this.cam || this.smartBusy) return;
+    this.smartBusy = true;
+    try {
+      const body: Parameters<typeof setSmart>[1] = {};
+      if (ed.line) body.line = { enabled: ed.line.enabled, lines: ed.line.lines.filter((l) => l.points.length === 2) };
+      if (ed.field) body.field = { enabled: ed.field.enabled, regions: ed.field.regions.filter((r) => r.points.length === 0 || r.points.length >= 4) };
+      const res = await setSmart(this.cam.id, body);
+      const st = Object.values(res).map((r) => r.status);
+      const refused = Object.values(res).some((r) => r.enable_refused);
+      this.smartMsg = st.every((s) => s === 'unchanged')
+        ? 'ה־NVR כבר היה במצב הזה — לא נכתב דבר.'
+        : refused
+          ? 'הצורות והפרמטרים נכתבו ל־NVR ונרשמו, אבל ה־NVR סירב להפעיל את הכלל דרך ה־ISAPI (invalidOperation). בקושחה הזו ההפעלה נעשית בממשק ה־NVR / המצלמה (משאב VCA של המצלמה); אחרי ההפעלה שם התצוגה כאן תתעדכן.'
+          : 'הכללים נכתבו ל־NVR ונרשמו (ניתנים להחזרה). התראות "אדם" / "רכב" מגיעות רק כשהערוץ מודיע ל־VMS (הגדרות › חיבורים › התראות מה־NVR).';
+      this.smartEdit = null;
+      await Promise.all([this.loadSchedules(), this.loadZones(true)]);
+    } catch (err) {
+      this.smartMsg = describeError(err);
+    } finally {
+      this.smartBusy = false;
+    }
+  }
+
+  private renderSmartOverlay() {
+    const ed = this.smartEdit;
+    if (!ed) return nothing;
+    const active = (type: 'line' | 'field', id: number) => ed.tool.type === type && ed.tool.id === id;
+    return svg`
+      ${ed.field ? ed.field.regions.filter((r) => r.points.length >= 1).map((r) => svg`<polygon points=${r.points.map((p) => p.join(',')).join(' ')} class="field" style=${active('field', r.id) ? 'stroke:#fff;stroke-width:6' : ''}></polygon>${r.points.map((p) => svg`<circle cx=${p[0]} cy=${p[1]} r="9" fill="#f59e0b" stroke="#fff" stroke-width="3"></circle>`)}`) : nothing}
+      ${ed.line ? ed.line.lines.filter((l) => l.points.length >= 1 && !(l.points[0][0] === 0 && l.points[0][1] === 1000)).map((l) => svg`<polyline points=${l.points.map((p) => p.join(',')).join(' ')} class="line ${l.enabled ? '' : 'off'}" style=${active('line', l.id) ? 'stroke:#fff' : ''}></polyline>${l.points.map((p) => svg`<circle cx=${p[0]} cy=${p[1]} r="9" fill="#2f6bff" stroke="#fff" stroke-width="3"></circle>`)}`) : nothing}
+    `;
+  }
+
+  private renderSmartEditor() {
+    const ed = this.smartEdit!;
+    const dir = (d: string) => ({ any: 'שני הכיוונים', 'left-right': 'שמאל → ימין', 'right-left': 'ימין → שמאל' })[d] ?? d;
+    return html`<div class="legend" data-smart-editor style="display:grid;gap:8px;margin-block-start:8px">
+      <div class="note">בחר כלל ולחץ על התמונה: קו = שתי לחיצות; אזור = 4 עד 10 לחיצות. "אדם" / "רכב" = סינון אזעקות שווא (רק מטרה מסוג זה מפעילה).</div>
+      ${ed.line ? html`<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center" data-smart-lines>
+          <label class="note" style="display:inline-flex;align-items:center;gap:4px"><input type="checkbox" data-smart-line-enabled .checked=${ed.line.enabled} @change=${(e: Event) => (this.smartEdit = { ...ed, line: { ...ed.line!, enabled: (e.target as HTMLInputElement).checked } })} /> חציית קו פעילה</label>
+          ${ed.line.lines.map((l) => html`<span style="display:inline-flex;gap:6px;align-items:center;border:1px solid var(--sw-border);border-radius:8px;padding:4px 8px" data-smart-line=${l.id}>
+            <sw-chip ?selected=${ed.tool.type === 'line' && ed.tool.id === l.id} data-smart-pick-line=${l.id} @click=${() => (this.smartEdit = { ...ed, tool: { type: 'line', id: l.id } })}>קו ${l.id}${l.points.length === 2 && !(l.points[0][0] === 0 && l.points[0][1] === 1000) ? '' : ' · לא מצויר'}</sw-chip>
+            <label class="note"><input type="checkbox" .checked=${l.enabled} @change=${(e: Event) => (this.smartEdit = { ...ed, line: { ...ed.line!, lines: ed.line!.lines.map((x) => (x.id === l.id ? { ...x, enabled: (e.target as HTMLInputElement).checked } : x)) } })} /> פעיל</label>
+            <select class="note" aria-label="כיוון" .value=${l.direction} @change=${(e: Event) => (this.smartEdit = { ...ed, line: { ...ed.line!, lines: ed.line!.lines.map((x) => (x.id === l.id ? { ...x, direction: (e.target as HTMLSelectElement).value } : x)) } })}>${['any', 'left-right', 'right-left'].map((d) => html`<option value=${d} ?selected=${d === l.direction}>${dir(d)}</option>`)}</select>
+            <label class="note">רגישות <input type="range" min="1" max="100" .value=${String(l.sensitivity)} @input=${(e: Event) => (this.smartEdit = { ...ed, line: { ...ed.line!, lines: ed.line!.lines.map((x) => (x.id === l.id ? { ...x, sensitivity: Number((e.target as HTMLInputElement).value) } : x)) } })} /> ${l.sensitivity}</label>
+            <label class="note"><input type="checkbox" .checked=${l.human} @change=${(e: Event) => (this.smartEdit = { ...ed, line: { ...ed.line!, lines: ed.line!.lines.map((x) => (x.id === l.id ? { ...x, human: (e.target as HTMLInputElement).checked } : x)) } })} /> אדם</label>
+            <label class="note"><input type="checkbox" .checked=${l.vehicle} @change=${(e: Event) => (this.smartEdit = { ...ed, line: { ...ed.line!, lines: ed.line!.lines.map((x) => (x.id === l.id ? { ...x, vehicle: (e.target as HTMLInputElement).checked } : x)) } })} /> רכב</label>
+          </span>`)}
+        </div>` : nothing}
+      ${ed.field ? html`<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center" data-smart-regions>
+          <label class="note" style="display:inline-flex;align-items:center;gap:4px"><input type="checkbox" data-smart-field-enabled .checked=${ed.field.enabled} @change=${(e: Event) => (this.smartEdit = { ...ed, field: { ...ed.field!, enabled: (e.target as HTMLInputElement).checked } })} /> פריצה לאזור פעילה</label>
+          ${ed.field.regions.map((r) => html`<span style="display:inline-flex;gap:6px;align-items:center;border:1px solid var(--sw-border);border-radius:8px;padding:4px 8px" data-smart-region=${r.id}>
+            <sw-chip ?selected=${ed.tool.type === 'field' && ed.tool.id === r.id} data-smart-pick-region=${r.id} @click=${() => (this.smartEdit = { ...ed, tool: { type: 'field', id: r.id } })}>אזור ${r.id} · ${r.points.length} נק׳</sw-chip>
+            <sw-button size="sm" variant="ghost" data-smart-region-clear=${r.id} @click=${() => (this.smartEdit = { ...ed, field: { ...ed.field!, regions: ed.field!.regions.map((x) => (x.id === r.id ? { ...x, points: [] } : x)) } })}>נקה</sw-button>
+            <label class="note">רגישות <input type="range" min="1" max="100" .value=${String(r.sensitivity)} @input=${(e: Event) => (this.smartEdit = { ...ed, field: { ...ed.field!, regions: ed.field!.regions.map((x) => (x.id === r.id ? { ...x, sensitivity: Number((e.target as HTMLInputElement).value) } : x)) } })} /> ${r.sensitivity}</label>
+            <label class="note"><input type="checkbox" .checked=${r.human} @change=${(e: Event) => (this.smartEdit = { ...ed, field: { ...ed.field!, regions: ed.field!.regions.map((x) => (x.id === r.id ? { ...x, human: (e.target as HTMLInputElement).checked } : x)) } })} /> אדם</label>
+            <label class="note"><input type="checkbox" .checked=${r.vehicle} @change=${(e: Event) => (this.smartEdit = { ...ed, field: { ...ed.field!, regions: ed.field!.regions.map((x) => (x.id === r.id ? { ...x, vehicle: (e.target as HTMLInputElement).checked } : x)) } })} /> רכב</label>
+          </span>`)}
+        </div>` : nothing}
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <span class="grow"></span>
+        <sw-button variant="primary" size="sm" icon="check" ?disabled=${this.smartBusy} data-smart-save @click=${() => this.saveSmart()}>${this.smartBusy ? 'כותב…' : 'שמור ל־NVR'}</sw-button>
+        <sw-button size="sm" variant="ghost" icon="close" ?disabled=${this.smartBusy} data-smart-cancel @click=${() => (this.smartEdit = null)}>ביטול</sw-button>
+      </div>
+    </div>`;
+  }
 
   private async loadOsd() {
     if (!this.cam || !isApi()) return;
@@ -419,6 +640,7 @@ export class LiveCamera extends LitElement {
     if (changed.has('cam') && this.cam && isApi() && !this.zonesBusy && (!this.zones || this.zones.camera_id !== this.cam.id)) {
       void this.loadRecord();
       void this.loadOsd();
+      void this.loadSchedules();
       this.zonesError = '';
       void this.loadZones();
     }
@@ -569,14 +791,15 @@ export class LiveCamera extends LitElement {
       <div class="zones" data-zones-loaded>
         <div class="frame">
           <img src=${snapshotUrl(cam.id)} alt="" />
-          <svg viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-label="אזורי זיהוי מעל תמונת המצלמה">
+          <svg viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-label="אזורי זיהוי מעל תמונת המצלמה" style=${this.smartEdit ? 'cursor:crosshair' : ''} data-zones-svg @click=${(e: MouseEvent) => this.smartClick(e)}>
             ${this.motionEdit && m && m.rows && m.cols
               ? this.motionEdit.cells.flatMap((row, r) => row.map((on, c) => svg`<rect class=${on ? 'cell' : 'cell off'} data-motion-cell=${`${r}-${c}`} x=${(c * 1000) / m.cols} y=${(r * 1000) / m.rows} width=${1000 / m.cols} height=${1000 / m.rows} style="cursor:crosshair;${on ? '' : 'fill:rgba(255,255,255,0.03);stroke:rgba(255,255,255,0.18)'}" @pointerdown=${(ev: PointerEvent) => { ev.preventDefault(); this.paintCell(r, c, true); }} @pointerenter=${(ev: PointerEvent) => { if (ev.buttons & 1) this.paintCell(r, c); }} @pointerup=${() => (this.paintValue = null)}></rect>`))
               : nothing}
             ${!this.motionEdit && L.motion && m && m.rows && m.cols ? m.cells.flatMap((row, r) => row.map((on, c) => (on ? svg`<rect x=${(c * 1000) / m.cols} y=${(r * 1000) / m.rows} width=${1000 / m.cols} height=${1000 / m.rows} class="cell"></rect>` : nothing))) : nothing}
             ${L.privacy && z.privacy_mask ? z.privacy_mask.regions.map((reg) => svg`<polygon points=${scale(reg.points, z.privacy_mask!.normalized)} class="mask"></polygon>`) : nothing}
-            ${L.intrusion && z.intrusion ? z.intrusion.regions.map((reg) => svg`<polygon points=${scale(reg.points, z.intrusion!.normalized)} class="field"></polygon>`) : nothing}
-            ${L.lines && z.line_crossing ? z.line_crossing.lines.map((ln) => svg`<polyline points=${scale(ln.points, z.line_crossing!.normalized)} class="line ${ln.enabled ? '' : 'off'}"></polyline>`) : nothing}
+            ${L.intrusion && z.intrusion && !this.smartEdit ? z.intrusion.regions.map((reg) => svg`<polygon points=${scale(reg.points, z.intrusion!.normalized)} class="field"></polygon>`) : nothing}
+            ${L.lines && z.line_crossing && !this.smartEdit ? z.line_crossing.lines.map((ln) => svg`<polyline points=${scale(ln.points, z.line_crossing!.normalized)} class="line ${ln.enabled ? '' : 'off'}"></polyline>`) : nothing}
+            ${this.renderSmartOverlay()}
           </svg>
         </div>
         <div class="legend">
@@ -586,8 +809,11 @@ export class LiveCamera extends LitElement {
           <sw-chip data-zone-layer="lines" ?selected=${L.lines} @click=${() => (this.zoneLayers = { ...L, lines: !L.lines })}>חציית קו${z.line_crossing ? ` · ${z.line_crossing.enabled ? 'פעיל' : 'כבוי'} · ${z.line_crossing.lines.length} קווים` : ' · לא נקרא'}</sw-chip>
           <sw-button size="sm" variant="ghost" icon="refresh" ?disabled=${this.zonesBusy} @click=${() => this.loadZones(true)}>רענון מה־NVR</sw-button>
           ${z.can_edit_motion && m && m.rows && m.cols && !this.motionEdit ? html`<sw-button size="sm" icon="edit" data-motion-edit @click=${() => this.startMotionEdit()}>עריכת אזורי תנועה</sw-button>` : nothing}
+          ${this.smart?.can_write && (this.smart.line || this.smart.field) && !this.smartEdit && !this.motionEdit ? html`<sw-button size="sm" icon="edit" data-smart-edit @click=${() => this.startSmartEdit()}>עריכת כללים חכמים</sw-button>` : nothing}
         </div>
         ${this.motionEdit && m ? this.renderMotionEditor(m) : nothing}
+        ${this.smartEdit ? this.renderSmartEditor() : nothing}
+        ${this.smartMsg ? html`<div class="note" data-smart-msg>${this.smartMsg}</div>` : nothing}
         ${this.motionMsg ? html`<div class="note" data-motion-msg>${this.motionMsg}</div>` : nothing}
         ${Object.keys(z.unsupported).length ? html`<div class="note">לא נקרא מהמכשיר: ${Object.entries(z.unsupported).map(([k, v]) => `${k} (${v})`).join(', ')}</div>` : nothing}
         <div class="note" data-zones-note>קריאה בלבד מה־NVR (נקרא ${z.fetched_at.replace('T', ' ').replace('Z', ' UTC')}${z.cached ? ', מהמטמון' : ''}). אלו פוליגונים בתמונת המצלמה — לא חדרים במפה. שכבת־על בדפדפן אינה מסכת NVR ואינה מגינה על הקלטות; עריכה או מסכה אמיתית דורשות אישור מפורש, כתיבה מאומתת ובדיקת התוצאה בזרם.</div>
@@ -664,6 +890,7 @@ export class LiveCamera extends LitElement {
             <dt>נראתה לאחרונה</dt><dd>${cam.last_seen_at ? cam.last_seen_at.replace('T', ' ').replace('Z', ' UTC') : '—'}</dd>
           </dl>
         </sw-card>
+        <sw-card heading="לוחות זימון והקלטה — כפי שמוגדר ב־NVR" subheading="מתי כל זיהוי פעיל ומתי הערוץ מקליט (רציף / תנועה / אירוע) · עריכה דורשת הרשאה רגישה ונרשמת עם החזר" data-schedules>${this.renderSchedules()}</sw-card>
         <sw-card heading="אזורי זיהוי ומסכות — כפי שמוגדר ב־NVR" data-zones>${this.renderZones(cam)}</sw-card>
         <sw-card heading="מצלמות נוספות">
           <div class="tiles">

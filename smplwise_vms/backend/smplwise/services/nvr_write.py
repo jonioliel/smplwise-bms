@@ -66,6 +66,8 @@ def response_status(xml: str) -> tuple[int | None, str | None]:
 def _probe(client: httpx.Client, path: str) -> tuple[int, str]:
     try:
         r = client.get(path)
+        if r.status_code == 401:  # a stale digest nonce under parallel requests: one retry answers the fresh challenge
+            r = client.get(path)
     except httpx.HTTPError as exc:
         raise ApiError(503, "source_unavailable", "ה־NVR אינו זמין כרגע.", retryable=True, details={"path": path, "error": type(exc).__name__}) from exc
     return r.status_code, r.text
@@ -120,7 +122,7 @@ def apply_change(settings: Settings, conn: sqlite3.Connection, principal: Any, *
     try:
         before = _get(c, path)
         after = mutate(before)
-        if after == before:
+        if after == before or _normalize(after) == _normalize(before):  # a rebuilt document may differ only in whitespace
             return _record(conn, principal, kind=kind, permission=permission, target=target, path=path, before=before if keep_before else None, after=after, status="unchanged", note=note)
         try:
             _put(c, path, after)
