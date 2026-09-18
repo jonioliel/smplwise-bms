@@ -57,7 +57,7 @@ def test_rules_match_alerts_dry_run_and_permissions(settings):
     assert c.post("/api/v1/rules", json={**body, "actions": [{"kind": "webhook", "url": "http://x"}]}).status_code == 422, "only VMS notifications in the pilot"
     assert c.post("/api/v1/rules", json={**body, "owner": "ha"}).status_code == 422, "an HA-owned rule names its automation"
     lst = c.get("/api/v1/rules").json()
-    assert [x["id"] for x in lst["rules"]] == [rule["id"]] and lst["action_kinds"] == ["notify"]
+    assert [x["id"] for x in lst["rules"]] == [rule["id"]] and lst["action_kinds"] == ["notify", "ha_notify"]
 
     # events: 01:00 local = 22:00 UTC previous day
     night = "2026-09-15T22:00:00Z"

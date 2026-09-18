@@ -25,6 +25,8 @@ export interface ProductSettings {
   'ui.start_route'?: string;
   /** 'true' hides the map area from the navigation for everyone (0.1.68). */
   'ui.hide_map'?: string;
+  /** S2: 'true' lets the Home Assistant recorder fill entity states the local history does not know (marked as secondary). */
+  'history.ha_secondary'?: string;
 }
 
 export const getSettings = () => get<{ settings: ProductSettings; can_edit: boolean }>('settings');

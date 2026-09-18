@@ -1,5 +1,21 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.73 (pilot) — label positions (R4), HA recorder as a secondary source (S2), realign (S4), HA notify rules (S5)
+- R4: rooms and placed items have "מיקום התווית" (auto / above / below / left / right) in the plan editor; the map, the
+  editor and the history map draw the name there (`label_pos` on zones and anchors, migration 0017).
+- S2: הגדרות › כללי › "HA recorder כמקור משני להיסטוריה" - when on, the history map asks the Home Assistant recorder
+  for entity states the local history does not know and marks them "HA recorder" (`history.ha_secondary`,
+  `GET /api/history/period` with the add-on token; any failure leaves the state unknown as before).
+- S4: items placed on an earlier plan version - "יישר לפי החיתוך" maps them through the two crops when the new
+  version is a re-crop of the same drawing (exact), "אשר מיקומים" re-stamps them after a visual check
+  (`POST /floors/{id}/anchors/realign`, audited).
+- S5: a rule action "התראה דרך Home Assistant (notify)" with the notify service name, behind the new sensitive
+  permission `rules.ha_notify` (custom role); delivery goes through `notify.<service>` with the SMPLWISE title and
+  is reported per firing. Three rule templates fill the editor: אדם בלילה, מצלמה מנותקת, דלת נפתחה אחרי שעות.
+- Housekeeping: duplicated coverage fields in the anchor models (left by the 0.1.69 patch) removed.
+- Evidence: `tests/test_p2_batch.py`; `frontend/tests/evidence-owner-round10.spec.ts` (label position from the editor to
+  the map, realign answer, the setting, a template and the HA notify gate) against the dev backend.
+
 ## 0.1.72 (pilot) — schedules (B5, C1) and smart rules (B4) written to the NVR
 - Camera screen › "לוחות זימון והקלטה": week grids (Sunday first, hourly cells) for the arming schedule of motion /
   line crossing / intrusion (`nvr.config.events`) and for the main track's recording schedule with a mode per hour -

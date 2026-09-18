@@ -19,7 +19,25 @@ from .timeutil import iso_utc, parse_utc, zone
 
 SEVERITY_RANK = {"info": 0, "alert": 1, "critical": 2}
 DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
-ACTION_KINDS = ("notify",)  # webhooks / device commands are not actions in the pilot (loop and blast-radius control)
+ACTION_KINDS = ("notify", "ha_notify")  # webhooks / device commands are not actions in the pilot (loop and blast-radius control)
+
+
+def deliver_ha_notify(service: str, message: str, title: str) -> str:
+    """S5 (0.1.73): POST notify.<service> on Home Assistant Core with the add-on's token; returns a short status."""
+    from ..config import load_settings
+    from ..errors import ApiError
+    from .ha_client import call_service
+
+    try:
+        call_service(load_settings(), "notify", service, {"message": message, "title": f"SMPLWISE · {title}"})
+        return "sent"
+    except ApiError as exc:
+        return exc.code
+    except Exception as exc:  # noqa: BLE001
+        return type(exc).__name__
+
+
+HA_NOTIFY = deliver_ha_notify  # tests replace this
 MAX_ACTIONS = 3
 DRY_RUN_MAX_HOURS = 24 * 14
 
@@ -148,7 +166,11 @@ def evaluate_event(conn: sqlite3.Connection, ev: dict[str, Any], tz_name: str | 
             (aid, rule["id"], ev["id"], target_cam, target_ent, now, ev["occurred_at"], json.dumps(m["reasons"], ensure_ascii=False), message),
         )
         conn.execute("UPDATE rules SET last_fired_at = ? WHERE id = ?", (now, rule["id"]))
-        fired.append({"id": aid, "rule_id": rule["id"], "rule_name": rule["name"], "event_id": ev["id"], "message": message, "reasons": m["reasons"]})
+        delivery: dict[str, str] = {}
+        for a in rule["actions"]:
+            if a.get("kind") == "ha_notify" and a.get("service"):
+                delivery[a["service"]] = HA_NOTIFY(a["service"], a.get("message") or message, rule["name"])
+        fired.append({"id": aid, "rule_id": rule["id"], "rule_name": rule["name"], "event_id": ev["id"], "message": message, "reasons": m["reasons"], "ha_notify": delivery})
     return fired
 
 

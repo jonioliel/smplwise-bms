@@ -36,6 +36,10 @@ class ZoneIn(BaseModel):
     polygon: list[Point] = Field(min_length=3, max_length=200)
     color: str | None = Field(default=None, pattern="^#[0-9a-fA-F]{6}$")
     searchable: bool = True
+    label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
+    label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
+    label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
+    label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
 
 
 class ZonePatch(BaseModel):
@@ -45,6 +49,10 @@ class ZonePatch(BaseModel):
     polygon: list[Point] | None = Field(default=None, min_length=3, max_length=200)
     color: str | None = Field(default=None, pattern="^#[0-9a-fA-F]{6}$")
     searchable: bool | None = None
+    label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
+    label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
+    label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
+    label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
 
 
 class DetectIn(BaseModel):
@@ -71,6 +79,7 @@ def zone_row(r: sqlite3.Row) -> dict[str, Any]:
         "kind": r["kind"],
         "polygon": json.loads(r["polygon_json"]),
         "color": r["color"],
+        "label_pos": r["label_pos"] or "auto",
         "source": r["source"],
         "searchable": bool(r["searchable"]),
         "revision": r["revision"],
@@ -139,6 +148,14 @@ def update_zone(zone_id: str, body: ZonePatch, request: Request, principal: Prin
         fields["color"] = body.color
     if body.searchable is not None:
         fields["searchable"] = 1 if body.searchable else 0
+    if body.label_pos is not None:
+        fields["label_pos"] = body.label_pos
+    if body.label_pos is not None:
+        fields["label_pos"] = body.label_pos
+    if body.label_pos is not None:
+        fields["label_pos"] = body.label_pos
+    if body.label_pos is not None:
+        fields["label_pos"] = body.label_pos
     if not fields:
         return zone_row(z)
     fields["revision"] = z["revision"] + 1

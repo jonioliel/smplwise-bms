@@ -41,6 +41,8 @@ export interface HaStateAt {
   changed_at: string | null;
   known: boolean;
   reason: string | null;
+  /** S2: where the state came from - the local history or the Home Assistant recorder (secondary). */
+  source?: 'vms' | 'ha_recorder';
 }
 
 export interface HaEntity {

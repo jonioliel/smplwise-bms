@@ -18,6 +18,8 @@ export interface PlanMarker {
   radius?: number;
   /** Manual coverage (R2): a free polygon in normalized plan space; drawn instead of the cone. */
   polygon?: { x: number; y: number }[];
+  /** R4: where the name label sits relative to the pin (auto = below). */
+  labelPos?: string;
   state: StateKind;
 }
 
@@ -67,6 +69,8 @@ export interface PlanZone {
   color: string;
   /** Normalized (0-1) polygon, origin top-left. */
   polygon: { x: number; y: number }[];
+  /** R4: where the name label sits relative to the polygon (auto = centroid). */
+  labelPos?: string;
   /** Detection candidate not yet saved: dashed outline. */
   candidate?: boolean;
 }
@@ -703,13 +707,38 @@ export class SwPlanCanvas extends LitElement {
          @click=${(e: Event) => this.selectZone(z, e)} @keydown=${(e: KeyboardEvent) => (e.key === 'Enter' || e.key === ' ') && this.selectZone(z, e)}>
         <polygon points=${pts} stroke-width=${((selected ? 2.2 : 1.4) * inv).toFixed(2)} />
         ${this.zoneLabels && z.name && labelFits
-          ? svg`<g transform="translate(${(c.x * this.planWidth).toFixed(1)} ${(c.y * this.planHeight).toFixed(1)}) scale(${inv})">
+          ? svg`<g transform="translate(${this.zoneLabelPoint(z, live, c).x.toFixed(1)} ${this.zoneLabelPoint(z, live, c).y.toFixed(1)}) scale(${inv})">
               <rect class="zl-bg" x=${-lw / 2} y="-10" width=${lw} height="20" rx="10" />
               <text class="zl" y="3.5">${z.name}</text>
             </g>`
           : nothing}
         ${this.editable && selected && !z.candidate ? this.renderZoneHandles(z, live) : nothing}
       </g>`;
+  }
+
+  /** R4: the label anchor for a zone - the centroid, or just outside the polygon's bounding box on the chosen side. */
+  private zoneLabelPoint(z: PlanZone, pts: { x: number; y: number }[], c: { x: number; y: number }) {
+    const inv = 1 / this.scale;
+    const xs = pts.map((p) => p.x * this.planWidth);
+    const ys = pts.map((p) => p.y * this.planHeight);
+    const lw = Math.max(36, z.name.length * 7 + 18) * inv;
+    switch (z.labelPos) {
+      case 'top': return { x: c.x * this.planWidth, y: Math.min(...ys) - 14 * inv };
+      case 'bottom': return { x: c.x * this.planWidth, y: Math.max(...ys) + 14 * inv };
+      case 'left': return { x: Math.min(...xs) - lw / 2 - 6 * inv, y: c.y * this.planHeight };
+      case 'right': return { x: Math.max(...xs) + lw / 2 + 6 * inv, y: c.y * this.planHeight };
+      default: return { x: c.x * this.planWidth, y: c.y * this.planHeight };
+    }
+  }
+
+  /** R4: the label offset for a marker (screen pixels, before the inverse scale). */
+  private static labelOffset(pos: string | undefined, r: number, labelWidth: number): { x: number; y: number } {
+    switch (pos) {
+      case 'top': return { x: 0, y: -(r + 14) };
+      case 'left': return { x: -(r + 8 + labelWidth / 2), y: 0 };
+      case 'right': return { x: r + 8 + labelWidth / 2, y: 0 };
+      default: return { x: 0, y: r + 14 };
+    }
   }
 
   private renderDraft() {
@@ -970,7 +999,7 @@ export class SwPlanCanvas extends LitElement {
           ${m.state === 'offline' ? svg`<line x1="-9" y1="-9" x2="9" y2="9" stroke="#fff" stroke-width="2.5" />` : nothing}
           ${m.state === 'forbidden' ? svg`<g transform="translate(8 -8)"><circle r="6.5" fill="#fff" /><g fill="none" stroke="var(--sw-forbidden)" stroke-width="1.5" transform="scale(0.45)"><rect x="-6" y="-2" width="12" height="9" rx="2"/><path d="M-3.5 -2v-3a3.5 3.5 0 0 1 7 0v3"/></g></g>` : nothing}
           ${showLabel
-            ? svg`<g transform="translate(0 ${r + 14})">
+            ? svg`<g transform="translate(${SwPlanCanvas.labelOffset(m.labelPos, r, labelWidth).x.toFixed(1)} ${SwPlanCanvas.labelOffset(m.labelPos, r, labelWidth).y.toFixed(1)})" data-label-pos=${m.labelPos ?? 'auto'}>
                 <rect class="lbl-bg" x=${-labelWidth / 2} y="-10" width=${labelWidth} height="20" rx="6" />
                 <text class="lbl" y="3.5">${m.label}</text>
               </g>`

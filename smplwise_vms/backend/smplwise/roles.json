@@ -102,6 +102,7 @@
     }
   ],
   "sensitive_permissions_not_implied": [
+    "rules.ha_notify",
     "video.export",
     "audio.talk",
     "camera.ptz",

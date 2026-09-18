@@ -35,6 +35,8 @@ DEFAULTS: dict[str, str] = {
     "ui.hide_search": "false",  # hide the AI search tab (the owner's choice while it is not in use)
     "ui.start_route": "explore",  # screen the UI opens on: explore (map) | live (overview) | wall | events | playback
     "ui.hide_map": "false",  # hide the map area from the navigation for everyone (a single user: a role without map.read)
+    "history.ha_secondary": "false",  # S2: the HA recorder fills entity states the local history does not know (marked as secondary)
+    "history.ha_secondary": "false",  # S2: the HA recorder fills entity states the local history does not know (marked as secondary)
     "playback.max_sessions": "4",  # playback sessions open at once (each is one NVR RTSP playback stream)
     "playback.lease_s": "600",  # idle lease; the janitor deletes the go2rtc stream after it expires
     "exports.max_mb": "2048",  # refuse export jobs whose NVR files exceed this estimate
@@ -76,6 +78,8 @@ class SettingsPatch(BaseModel):
     ui_hide_search: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.hide_search")
     ui_start_route: str | None = Field(default=None, pattern="^(explore|live|wall|events|playback)$", alias="ui.start_route")
     ui_hide_map: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.hide_map")
+    history_ha_secondary: str | None = Field(default=None, pattern="^(true|false)$", alias="history.ha_secondary")
+    history_ha_secondary: str | None = Field(default=None, pattern="^(true|false)$", alias="history.ha_secondary")
     ai_provider: str | None = Field(default=None, pattern="^(none|local|external)$", alias="ai.provider")
     ai_privacy_ack: str | None = Field(default=None, pattern="^(true|false)$", alias="ai.privacy_ack")
     ai_budget_daily: int | None = Field(default=None, ge=0, le=100000, alias="ai.budget_daily")

@@ -20,8 +20,10 @@ export interface RuleWindow {
   to: string | null;
 }
 export interface RuleAction {
-  kind: 'notify';
+  kind: 'notify' | 'ha_notify';
   message: string;
+  /** ha_notify: the notify.<service> in Home Assistant (e.g. mobile_app_phone). */
+  service?: string | null;
 }
 export interface RuleBody {
   name: string;

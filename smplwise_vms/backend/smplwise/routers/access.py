@@ -66,6 +66,7 @@ PERMISSION_LABELS: dict[str, str] = {
     "nvr.alarm_output": "NVR: הפעלת יציאת אזעקה",
     "nvr.storage.test": "NVR: בדיקת דיסק",
     "nvr.system.reboot": "NVR: הפעלה מחדש",
+    "rules.ha_notify": "חוקים: התראה דרך Home Assistant (notify)",
 }
 SYSTEM_PERMISSIONS = {"system.configure", "sources.configure", "identity.directory.read", "rbac.roles.manage", "audit.read", "backup.manage"}  # rbac.assign is delegable (T082)
 DEFAULT_DELEGABLE = ["viewer", "operator", "editor", "kiosk"]

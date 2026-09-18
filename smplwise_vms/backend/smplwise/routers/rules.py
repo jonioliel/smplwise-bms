@@ -50,8 +50,9 @@ class Window(BaseModel):
 
 
 class Action(BaseModel):
-    kind: str = Field(pattern="^(notify)$")
+    kind: str = Field(pattern="^(notify|ha_notify)$")
     message: str = Field(default="", max_length=300)
+    service: str | None = Field(default=None, max_length=80, pattern=r"^[a-z0-9_]+$")  # ha_notify: the notify.<service> in Home Assistant
 
 
 class RuleIn(BaseModel):
@@ -112,6 +113,8 @@ def list_rules(principal: Principal = Depends(current_principal), conn: sqlite3.
 @router.post("/rules", status_code=201)
 def create_rule(body: RuleIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "rules.manage", INSTALLATION)
+    if any(a.kind == "ha_notify" for a in body.actions):
+        require(conn, principal, "rules.ha_notify", INSTALLATION)  # sensitive: a rule that pushes through Home Assistant
     if body.owner == "ha" and not body.ha_automation_id:
         raise ApiError(422, "validation", "חוק בבעלות HA חייב לציין את מזהה האוטומציה ב־HA.")
     cols = body.columns()
@@ -175,6 +178,8 @@ def get_rule(rule_id: str, principal: Principal = Depends(current_principal), co
 @router.patch("/rules/{rule_id}")
 def update_rule(rule_id: str, body: RulePatch, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "rules.manage", INSTALLATION)
+    if any(a.kind == "ha_notify" for a in body.actions):
+        require(conn, principal, "rules.ha_notify", INSTALLATION)  # sensitive: a rule that pushes through Home Assistant
     r = _get(conn, rule_id)
     if body.revision != r["revision"]:
         raise conflict("stale_revision", "החוק השתנה בינתיים; טען מחדש.", current_revision=r["revision"], sent_revision=body.revision)

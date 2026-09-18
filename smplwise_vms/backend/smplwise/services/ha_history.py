@@ -66,6 +66,56 @@ def state_at(conn: sqlite3.Connection, entity_ids: list[str], at_iso: str) -> di
         else:
             known, reason = False, "המצב האחרון שנרשם ישן מ־24 שעות ואין שינוי מאוחר יותר שתוחם אותו; לא ממלאים קדימה ללא גבול"
         out[eid] = {"state": row["state"], "changed_at": row["changed_at"], "known": known, "reason": reason}
+    for v in out.values():
+        v.setdefault("source", "vms")
+    return out
+
+
+RECORDER_WINDOW_H = 24
+
+
+def recorder_state_at(entity_ids: list[str], at_iso: str, *, fetch: Any | None = None) -> dict[str, dict[str, Any]]:
+    """S2 (0.1.73): the state each entity had at t according to the Home Assistant recorder (a secondary source, used
+    only when the local history does not know). One GET /api/history/period over the 24 h before t; the last change
+    before t wins. Any failure returns {} - the map then says "unknown" as before."""
+    import datetime as dt
+
+    from ..config import load_settings
+    from .ha_client import _headers, _rest_base, configured
+
+    t = parse_utc(at_iso)
+    start = (t - dt.timedelta(hours=RECORDER_WINDOW_H)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+    end = t.strftime("%Y-%m-%dT%H:%M:%S+00:00")
+    try:
+        if fetch is None:
+            settings = load_settings()
+            if not configured(settings):
+                return {}
+            import httpx
+
+            with httpx.Client(timeout=15) as c:
+                r = c.get(f"{_rest_base(settings)}/history/period/{start}", params={"filter_entity_id": ",".join(entity_ids), "end_time": end, "minimal_response": "", "no_attributes": ""}, headers=_headers(settings))
+            if r.status_code != 200:
+                return {}
+            data = r.json()
+        else:
+            data = fetch(entity_ids, start, end)
+    except Exception:  # noqa: BLE001 - a secondary source never breaks the map
+        return {}
+    out: dict[str, dict[str, Any]] = {}
+    for series in data or []:
+        if not series:
+            continue
+        eid = series[0].get("entity_id")
+        if not eid:
+            continue
+        last = None
+        for item in series:
+            changed = item.get("last_changed") or item.get("last_updated")
+            if changed and changed[:19] <= at_iso[:19]:
+                last = item
+        if last is not None:
+            out[eid] = {"state": last.get("state"), "changed_at": (last.get("last_changed") or "")[:19] + "Z" if last.get("last_changed") else None, "known": True, "reason": None, "source": "ha_recorder"}
     return out
 
 

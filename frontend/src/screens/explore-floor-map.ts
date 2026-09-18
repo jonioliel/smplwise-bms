@@ -725,6 +725,7 @@ export class ExploreFloorMap extends LitElement {
         fov: a.field_of_view_degrees ?? undefined,
         radius: a.coverage_radius ?? undefined,
         polygon: a.coverage_polygon ? a.coverage_polygon.map(([x, y]) => ({ x, y })) : undefined,
+        labelPos: a.label_pos ?? undefined,
         state: a.resource_type === 'camera' ? cameraState(a) : stale ? 'stale' : this.entityTone(a.entity),
       }));
   }
@@ -1345,7 +1346,7 @@ export class ExploreFloorMap extends LitElement {
         .selectedIds=${this.multi ? this.picked : []}
         .boxSelect=${this.multi}
         @box-select=${(e: CustomEvent<{ ids: string[] }>) => this.addPicks(e.detail.ids)}
-        .zones=${this.layers.has('zones') ? b.zones : []}
+        .zones=${this.layers.has('zones') ? b.zones.map((z) => ({ ...z, labelPos: z.label_pos })) : []}
         .selectedZoneId=${this.selectedZoneId}
         .dimEntities=${this.screenState === 'stale'}
         @zone-select=${(e: CustomEvent<{ id: string }>) => { if (this.multi) { this.pickZone(e.detail.id); return; } this.selectedZoneId = this.selectedZoneId === e.detail.id ? null : e.detail.id; this.close(); }}

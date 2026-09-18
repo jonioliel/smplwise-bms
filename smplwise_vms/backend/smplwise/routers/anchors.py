@@ -17,6 +17,7 @@ from ..rbac import Principal, authorize, require
 from .catalog import building_row, floor_row, get_building, get_floor, get_site, site_row
 from ..services.timeutil import parse_utc
 from .plans import needs_alignment, version_at, version_row
+from .settings import read_settings
 
 router = APIRouter()
 
@@ -32,6 +33,7 @@ def anchor_row(r: sqlite3.Row) -> dict[str, Any]:
         "field_of_view_degrees": r["field_of_view_degrees"], "layer_id": r["layer_id"], "label": r["label"], "revision": r["revision"],
         "effective_from": r["effective_from"], "effective_to": r["effective_to"], "updated_at": r["updated_at"],
         "coverage_radius": r["coverage_radius"], "coverage_polygon": _polygon(r["coverage_polygon"]),
+        "label_pos": r["label_pos"] or "auto",
     }
 
 
@@ -127,6 +129,16 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
     if entity_ids:
         can_control = authorize(conn, principal, "ha.entity.control", ("floor", floor_id)).allowed
         states_at = ha_history.state_at(conn, entity_ids, at_iso) if at_iso else {}
+        if at_iso and str(read_settings(conn).get("history.ha_secondary", "false")) == "true":
+            # S2: the Home Assistant recorder fills what the local history does not know (marked as a secondary source)
+            missing = [e for e in entity_ids if not states_at.get(e, {}).get("known")]
+            if missing:
+                states_at.update(ha_history.recorder_state_at(missing, at_iso))
+        if at_iso and str(read_settings(conn).get("history.ha_secondary", "false")) == "true":
+            # S2: the Home Assistant recorder fills what the local history does not know (marked as a secondary source)
+            missing = [e for e in entity_ids if not states_at.get(e, {}).get("known")]
+            if missing:
+                states_at.update(ha_history.recorder_state_at(missing, at_iso))
         for r in conn.execute(f"SELECT * FROM ha_entities WHERE entity_id IN ({','.join('?' * len(entity_ids))})", entity_ids).fetchall():
             e = ha_sync.entity_row(r)
             e["actions"] = ha_bridge.actions_for(e["domain"]) if (can_control and not at_iso) else []
@@ -168,8 +180,8 @@ class AnchorIn(BaseModel):
     label: str | None = Field(default=None, max_length=120)
     coverage_radius: float | None = Field(default=None, gt=0, le=1)  # fraction of the plan width
     coverage_polygon: list[list[float]] | None = None  # [[x, y], ...] normalized
-    coverage_radius: float | None = Field(default=None, gt=0, le=1)  # fraction of the plan width
-    coverage_polygon: list[list[float]] | None = None  # [[x, y], ...] normalized
+    label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
+    label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
 
 
 class AnchorPatch(BaseModel):
@@ -183,9 +195,8 @@ class AnchorPatch(BaseModel):
     # coverage: an explicit null clears it (back to the default cone); absent = unchanged
     coverage_radius: float | None = Field(default=None, gt=0, le=1)
     coverage_polygon: list[list[float]] | None = None
-    # coverage: an explicit null clears it (back to the default cone); absent = unchanged
-    coverage_radius: float | None = Field(default=None, gt=0, le=1)
-    coverage_polygon: list[list[float]] | None = None
+    label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
+    label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
 
 
 @router.get("/floors/{floor_id}/anchors")
@@ -216,14 +227,94 @@ def create_anchor(floor_id: str, body: AnchorIn, request: Request, principal: Pr
         raise conflict("already_placed", "הפריט כבר מוצב על הקומה הזו.", anchor_id=dup["id"])
     aid, now = new_id(), now_iso()
     conn.execute(
-        """INSERT INTO map_anchors(id, floor_id, plan_version_id, resource_type, resource_id, x, y, rotation_degrees, field_of_view_degrees, layer_id, label, revision, effective_from, created_by, updated_by, updated_at, coverage_radius, coverage_polygon)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)""",
+        """INSERT INTO map_anchors(id, floor_id, plan_version_id, resource_type, resource_id, x, y, rotation_degrees, field_of_view_degrees, layer_id, label, revision, effective_from, created_by, updated_by, updated_at, coverage_radius, coverage_polygon, label_pos)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)""",
         (aid, floor_id, version["id"], body.resource_type, body.resource_id, body.x, body.y, body.rotation_degrees, body.field_of_view_degrees, body.layer_id, body.label, now, principal.user_id, principal.user_id, now,
-         body.coverage_radius, _check_polygon(body.coverage_polygon)),
+         body.coverage_radius, _check_polygon(body.coverage_polygon), body.label_pos),
     )
     audit(conn, actor=principal, action="anchor.create", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request),
           details={"anchor_id": aid, "resource": f"{body.resource_type}:{body.resource_id}", "x": body.x, "y": body.y})
     return anchor_row(get_anchor(conn, aid))
+
+
+class RealignIn(BaseModel):
+    mode: str = Field(pattern="^(crop|accept)$")
+
+
+@router.post("/floors/{floor_id}/anchors/realign")
+def realign_anchors(floor_id: str, body: RealignIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """S4: items placed on an earlier plan version. `crop` maps them through the two crops when both versions come from
+    the same asset / page / rotation (a re-crop keeps the drawing, so the maths is exact); `accept` re-stamps them on the
+    current version after the editor checked them by eye. Anything else is left for the editor."""
+    get_floor(conn, floor_id)
+    require(conn, principal, "placement.edit", ("floor", floor_id))
+    version = _editor_version(conn, floor_id) or _current_version(conn, floor_id)
+    if not version:
+        raise conflict("no_plan", "לקומה אין תוכנית.")
+    versions = {r["id"]: r for r in conn.execute("SELECT * FROM plan_versions WHERE floor_id = ?", (floor_id,)).fetchall()}
+    anchors = conn.execute("SELECT * FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL AND plan_version_id != ?", (floor_id, version["id"])).fetchall()
+    moved: list[str] = []
+    skipped: list[str] = []
+    now = now_iso()
+    nc = json.loads(version["crop_json"]) if version["crop_json"] else {"x": 0, "y": 0, "w": 1, "h": 1}
+    for a in anchors:
+        old = versions.get(a["plan_version_id"])
+        if body.mode == "crop":
+            same_drawing = old is not None and old["asset_id"] == version["asset_id"] and old["page"] == version["page"] and old["rotation"] == version["rotation"]
+            if not same_drawing:
+                skipped.append(a["id"])
+                continue
+            oc = json.loads(old["crop_json"]) if old["crop_json"] else {"x": 0, "y": 0, "w": 1, "h": 1}
+            sx, sy = oc["x"] + a["x"] * oc["w"], oc["y"] + a["y"] * oc["h"]
+            nx, ny = (sx - nc["x"]) / nc["w"], (sy - nc["y"]) / nc["h"]
+            nx, ny = round(max(0.0, min(1.0, nx)), 4), round(max(0.0, min(1.0, ny)), 4)
+            conn.execute("UPDATE map_anchors SET x = ?, y = ?, plan_version_id = ?, revision = revision + 1, updated_by = ?, updated_at = ? WHERE id = ?", (nx, ny, version["id"], principal.user_id, now, a["id"]))
+        else:
+            conn.execute("UPDATE map_anchors SET plan_version_id = ?, revision = revision + 1, updated_by = ?, updated_at = ? WHERE id = ?", (version["id"], principal.user_id, now, a["id"]))
+        moved.append(a["id"])
+    audit(conn, actor=principal, action="anchor.realign", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request),
+          details={"mode": body.mode, "version_id": version["id"], "moved": len(moved), "skipped": len(skipped)})
+    return {"mode": body.mode, "version_id": version["id"], "moved": len(moved), "skipped": len(skipped), "needs_alignment": bool(skipped)}
+
+
+class RealignIn(BaseModel):
+    mode: str = Field(pattern="^(crop|accept)$")
+
+
+@router.post("/floors/{floor_id}/anchors/realign")
+def realign_anchors(floor_id: str, body: RealignIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """S4: items placed on an earlier plan version. `crop` maps them through the two crops when both versions come from
+    the same asset / page / rotation (a re-crop keeps the drawing, so the maths is exact); `accept` re-stamps them on the
+    current version after the editor checked them by eye. Anything else is left for the editor."""
+    get_floor(conn, floor_id)
+    require(conn, principal, "placement.edit", ("floor", floor_id))
+    version = _editor_version(conn, floor_id) or _current_version(conn, floor_id)
+    if not version:
+        raise conflict("no_plan", "לקומה אין תוכנית.")
+    versions = {r["id"]: r for r in conn.execute("SELECT * FROM plan_versions WHERE floor_id = ?", (floor_id,)).fetchall()}
+    anchors = conn.execute("SELECT * FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL AND plan_version_id != ?", (floor_id, version["id"])).fetchall()
+    moved: list[str] = []
+    skipped: list[str] = []
+    now = now_iso()
+    nc = json.loads(version["crop_json"]) if version["crop_json"] else {"x": 0, "y": 0, "w": 1, "h": 1}
+    for a in anchors:
+        old = versions.get(a["plan_version_id"])
+        if body.mode == "crop":
+            same_drawing = old is not None and old["asset_id"] == version["asset_id"] and old["page"] == version["page"] and old["rotation"] == version["rotation"]
+            if not same_drawing:
+                skipped.append(a["id"])
+                continue
+            oc = json.loads(old["crop_json"]) if old["crop_json"] else {"x": 0, "y": 0, "w": 1, "h": 1}
+            sx, sy = oc["x"] + a["x"] * oc["w"], oc["y"] + a["y"] * oc["h"]
+            nx, ny = (sx - nc["x"]) / nc["w"], (sy - nc["y"]) / nc["h"]
+            nx, ny = round(max(0.0, min(1.0, nx)), 4), round(max(0.0, min(1.0, ny)), 4)
+            conn.execute("UPDATE map_anchors SET x = ?, y = ?, plan_version_id = ?, revision = revision + 1, updated_by = ?, updated_at = ? WHERE id = ?", (nx, ny, version["id"], principal.user_id, now, a["id"]))
+        else:
+            conn.execute("UPDATE map_anchors SET plan_version_id = ?, revision = revision + 1, updated_by = ?, updated_at = ? WHERE id = ?", (version["id"], principal.user_id, now, a["id"]))
+        moved.append(a["id"])
+    audit(conn, actor=principal, action="anchor.realign", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request),
+          details={"mode": body.mode, "version_id": version["id"], "moved": len(moved), "skipped": len(skipped)})
+    return {"mode": body.mode, "version_id": version["id"], "moved": len(moved), "skipped": len(skipped), "needs_alignment": bool(skipped)}
 
 
 @router.patch("/map-anchors/{anchor_id}")

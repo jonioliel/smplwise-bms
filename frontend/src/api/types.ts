@@ -124,6 +124,8 @@ export interface Anchor {
   coverage_radius?: number | null;
   /** Manual coverage (R2): a free polygon [[x, y], ...] normalized to the plan; null = the cone. */
   coverage_polygon?: [number, number][] | null;
+  /** R4: where the name label sits - auto | top | bottom | left | right. */
+  label_pos?: string | null;
   layer_id: string;
   label: string | null;
   revision: number;
@@ -151,6 +153,8 @@ export interface SpatialZone {
   color: string;
   source: 'auto' | 'manual';
   searchable: boolean;
+  /** R4: where the name label sits - auto | top | bottom | left | right. */
+  label_pos?: string;
   revision: number;
   created_at: string;
   updated_at: string;

@@ -385,7 +385,7 @@ export class InvestigateHistoryMap extends LitElement {
         const cov = this.coverageAt(a.resource_id);
         const near = this.eventsNear(a.resource_id, 5).length;
         const name = a.camera?.name ?? a.label ?? a.resource_id;
-        return { id: a.id, kind: 'camera' as const, label: near ? `${name} · ${near} אירועים` : name, x: a.position.x, y: a.position.y, rotation: a.rotation_degrees, fov: a.field_of_view_degrees ?? undefined, radius: a.coverage_radius ?? undefined, polygon: a.coverage_polygon ? a.coverage_polygon.map(([x, y]) => ({ x, y })) : undefined, state: cov.state };
+        return { id: a.id, kind: 'camera' as const, label: near ? `${name} · ${near} אירועים` : name, x: a.position.x, y: a.position.y, rotation: a.rotation_degrees, fov: a.field_of_view_degrees ?? undefined, radius: a.coverage_radius ?? undefined, polygon: a.coverage_polygon ? a.coverage_polygon.map(([x, y]) => ({ x, y })) : undefined, labelPos: a.label_pos ?? undefined, state: cov.state };
       }
       const sa = a.entity?.state_at;
       const name = entityName(a);
@@ -443,7 +443,7 @@ export class InvestigateHistoryMap extends LitElement {
       <div class="evl" style="margin-block-start:4px">${ents.slice(0, 8).map((a) => {
         const sa = a.entity?.state_at;
         const name = entityName(a);
-        return html`<div data-history-entity data-known=${sa?.known ? 'true' : 'false'}><span>${name}</span><span class="note">${sa?.known && sa.state ? html`${stateLabel({ ...(a.entity ?? { domain: '', unit: null, device_class: null, attributes: {} }), state: sa.state })} · מ־<span class="ltr">${sa.changed_at ? this.fmt(sa.changed_at) : ''}</span>` : html`לא ידוע${sa?.reason ? ` · ${sa.reason}` : ''}${sa?.state ? html` <span class="ltr">(אחרון: ${sa.state})</span>` : ''}`}</span></div>`;
+        return html`<div data-history-entity data-known=${sa?.known ? 'true' : 'false'} data-source=${sa?.source ?? 'vms'}><span>${name}${sa?.source === 'ha_recorder' ? html` <span class="note" title="המצב מגיע מה־recorder של Home Assistant (מקור משני)">· HA recorder</span>` : nothing}</span><span class="note">${sa?.known && sa.state ? html`${stateLabel({ ...(a.entity ?? { domain: '', unit: null, device_class: null, attributes: {} }), state: sa.state })} · מ־<span class="ltr">${sa.changed_at ? this.fmt(sa.changed_at) : ''}</span>` : html`לא ידוע${sa?.reason ? ` · ${sa.reason}` : ''}${sa?.state ? html` <span class="ltr">(אחרון: ${sa.state})</span>` : ''}`}</span></div>`;
       })}</div>`;
   }
 

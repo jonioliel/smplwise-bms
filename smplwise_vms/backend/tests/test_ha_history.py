@@ -50,7 +50,7 @@ def test_record_state_at_and_prune(settings):
     assert before["binary_sensor.door"]["known"] is False and "לפני תחילת" in before["binary_sensor.door"]["reason"] and before["_cov"]["rows"] == 4
     assert before["_live"] == [None, None], "the historical bundle never shows the live value"
     mid = at(now - dt.timedelta(minutes=20))
-    assert mid["binary_sensor.door"] == {"state": "on", "changed_at": iso(now - dt.timedelta(minutes=30)), "known": True, "reason": None}, "bounded by the later close"
+    assert mid["binary_sensor.door"] == {"state": "on", "changed_at": iso(now - dt.timedelta(minutes=30)), "known": True, "reason": None, "source": "vms"}, "bounded by the later close"
     assert mid["lock.front"]["known"] is True and mid["lock.front"]["state"] == "locked", "confirmed 2 h ago, within the forward-fill bound"
     late = at(now - dt.timedelta(minutes=5))
     assert late["binary_sensor.door"]["state"] == "off" and late["binary_sensor.door"]["known"] is True

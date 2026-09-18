@@ -10,7 +10,7 @@ import { loadTree, type CatalogTree } from '../api/catalog';
 import { listCameras } from '../api/maps';
 import { listZones, type SpatialZone } from '../api/zones';
 import { EVENT_LABEL, type EventKind } from '../api/events';
-import { DAY_LABEL, SOURCE_LABEL_RULE, ackAlert, createRule, deleteRule, dryRunRule, emptyRule, listAlerts, listRules, updateRule, type DryRunResult, type Rule, type RuleAlert, type RuleBody, type RuleTrigger } from '../api/rules';
+import { DAY_LABEL, SOURCE_LABEL_RULE, ackAlert, createRule, deleteRule, dryRunRule, emptyRule, listAlerts, listRules, updateRule, type DryRunResult, type Rule, type RuleAction, type RuleAlert, type RuleBody, type RuleTrigger } from '../api/rules';
 import type { Camera } from '../api/types';
 import '../components/sw-card';
 import '../components/sw-badge';
@@ -32,6 +32,14 @@ const RULE_ICON: Record<string, { icon: IconName; bg: string; fg: string }> = {
 };
 
 /** SC21 — alerts & automation rules (board 3 screen 19): tabs, rule cards with icon square, toggle, Edit, ⋯. */
+
+/** S5 (0.1.73): starting points for common rules - every field stays editable. */
+const RULE_TEMPLATES: { id: string; label: string; body: Partial<RuleBody> }[] = [
+  { id: 'person-night', label: 'אדם בלילה', body: { name: 'אדם בלילה', description: 'זיהוי אדם בשעות הסגירה', trigger: { types: ['person'], sources: [], severity_min: 'info' }, window: { days: [], from: '22:00', to: '06:00' }, cooldown_s: 300, actions: [{ kind: 'notify', message: 'זוהה אדם בשעות הסגירה' }] } },
+  { id: 'camera-offline', label: 'מצלמה מנותקת', body: { name: 'מצלמה מנותקת', description: 'התראה כשמצלמה יורדת מהרשת', trigger: { types: ['offline'], sources: [], severity_min: 'info' }, window: { days: [], from: null, to: null }, cooldown_s: 1800, actions: [{ kind: 'notify', message: 'מצלמה מנותקת' }] } },
+  { id: 'door-after-hours', label: 'דלת נפתחה אחרי שעות', body: { name: 'דלת נפתחה אחרי שעות', description: 'פתיחת דלת מחוץ לשעות הפעילות', trigger: { types: ['door'], sources: ['ha'], severity_min: 'info' }, window: { days: [], from: '20:00', to: '07:00' }, cooldown_s: 600, actions: [{ kind: 'notify', message: 'דלת נפתחה מחוץ לשעות הפעילות' }] } },
+];
+
 @customElement('investigate-rules')
 export class InvestigateRules extends LitElement {
   @state() private tab = 'rules';
@@ -173,6 +181,7 @@ export class InvestigateRules extends LitElement {
     const dry = this.dry;
     return html`<sw-dialog open heading=${e.id ? 'עריכת חוק' : 'חוק חדש'} subheading="Trigger → היקף → חלון זמן → השהיה → התראה במערכת · הרצה יבשה לפני שמירה" data-rule-dialog @close=${() => (this.editing = null)}>
       ${this.error ? html`<div class="err">${this.error}</div>` : nothing}
+      ${!e.id ? html`<sw-field label="תבניות (ממלאות את הטופס; אפשר לשנות אחר כך)"><div class="chips">${RULE_TEMPLATES.map((t) => html`<sw-chip data-rule-template=${t.id} @click=${() => this.edit((x) => Object.assign(x, JSON.parse(JSON.stringify(t.body))))}>${t.label}</sw-chip>`)}</div></sw-field>` : nothing}
       <sw-field label="שם"><input data-rule-name .value=${b.name} @input=${(ev: Event) => this.edit((x) => (x.name = (ev.target as HTMLInputElement).value))} /></sw-field>
       <sw-field label="סוגי אירועים (ריק = הכל)"><div class="chips">${this.meta.types.map((t) => html`<sw-chip data-rule-type=${t} ?selected=${b.trigger.types.includes(t)} @click=${() => this.edit((x) => this.toggleIn(x.trigger.types, t))}>${EVENT_LABEL[t as EventKind] ?? t}</sw-chip>`)}</div></sw-field>
       <sw-field label="מקורות (ריק = הכל)"><div class="chips">${this.meta.sources.map((s) => html`<sw-chip ?selected=${b.trigger.sources.includes(s)} @click=${() => this.edit((x) => this.toggleIn(x.trigger.sources, s))}>${SOURCE_LABEL_RULE[s] ?? s}</sw-chip>`)}</div></sw-field>
@@ -188,7 +197,16 @@ export class InvestigateRules extends LitElement {
         <sw-field label="משעה (זמן האתר)"><input type="time" data-ltr .value=${b.window.from ?? ''} @change=${(ev: Event) => this.edit((x) => (x.window.from = (ev.target as HTMLInputElement).value || null))} /></sw-field>
         <sw-field label="עד שעה"><input type="time" data-ltr .value=${b.window.to ?? ''} @change=${(ev: Event) => this.edit((x) => (x.window.to = (ev.target as HTMLInputElement).value || null))} /></sw-field>
       </div>
-      <sw-field label="הודעת ההתראה"><input data-rule-message .value=${b.actions[0]?.message ?? ''} @input=${(ev: Event) => this.edit((x) => (x.actions = [{ kind: 'notify', message: (ev.target as HTMLInputElement).value }]))} /></sw-field>
+      <div class="two">
+        <sw-field label="פעולה"><select data-rule-action-kind @change=${(ev: Event) => this.edit((x) => (x.actions = [{ ...(x.actions[0] ?? { message: '' }), kind: (ev.target as HTMLSelectElement).value as RuleAction['kind'] }]))}>
+          <option value="notify" ?selected=${(b.actions[0]?.kind ?? 'notify') === 'notify'}>התראה במערכת</option><option value="ha_notify" ?selected=${b.actions[0]?.kind === 'ha_notify'}>התראה דרך Home Assistant (notify)</option>
+        </select></sw-field>
+        ${b.actions[0]?.kind === 'ha_notify'
+          ? html`<sw-field label="שירות notify ב־HA (למשל mobile_app_phone)"><input data-ltr data-rule-service placeholder="mobile_app_phone" .value=${b.actions[0]?.service ?? ''} @input=${(ev: Event) => this.edit((x) => (x.actions = [{ ...x.actions[0], service: (ev.target as HTMLInputElement).value.trim() }]))} /></sw-field>`
+          : nothing}
+      </div>
+      <sw-field label="הודעת ההתראה"><input data-rule-message .value=${b.actions[0]?.message ?? ''} @input=${(ev: Event) => this.edit((x) => (x.actions = [{ ...(x.actions[0] ?? { kind: 'notify' }), message: (ev.target as HTMLInputElement).value }]))} /></sw-field>
+      ${b.actions[0]?.kind === 'ha_notify' ? html`<div class="hint">התראה דרך HA דורשת את ההרשאה הרגישה "חוקים: התראה דרך Home Assistant" (תפקיד מותאם). ההודעה נשלחת ל־notify.&lt;שירות&gt; עם הכותרת SMPLWISE.</div>` : nothing}
       <div class="two">
         <sw-field label="בעלות"><select @change=${(ev: Event) => this.edit((x) => (x.owner = (ev.target as HTMLSelectElement).value as RuleBody['owner']))}><option value="local" ?selected=${b.owner === 'local'}>מקומי (המערכת מפעילה)</option><option value="ha" ?selected=${b.owner === 'ha'}>Home Assistant (הפניה בלבד)</option></select></sw-field>
         ${b.owner === 'ha' ? html`<sw-field label="מזהה אוטומציה ב־HA"><input .value=${b.ha_automation_id ?? ''} @input=${(ev: Event) => this.edit((x) => (x.ha_automation_id = (ev.target as HTMLInputElement).value || null))} /></sw-field>` : html`<label class="chk"><input type="checkbox" .checked=${b.enabled} @change=${(ev: Event) => this.edit((x) => (x.enabled = (ev.target as HTMLInputElement).checked))} /> פעיל</label>`}
