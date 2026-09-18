@@ -443,6 +443,16 @@ export class SwPlanCanvas extends LitElement {
     this.fitted = true;
   }
 
+  /** Centre a normalized point in the viewport without changing the zoom (owner round 3: jump without zoom). */
+  centerOn(nx: number, ny: number) {
+    const w = this.clientWidth;
+    const h = this.clientHeight;
+    if (!w || !h) return;
+    this.tx = w / 2 - nx * this.planWidth * this.scale;
+    this.ty = h / 2 - ny * this.planHeight * this.scale;
+    this.fitted = true;
+  }
+
   /** Zoom so that a normalized box fills the viewport (with a margin, capped so small rooms stay readable). */
   zoomToBox(x0: number, y0: number, x1: number, y1: number, margin = 48, relCap = 0) {
     const w = this.clientWidth;

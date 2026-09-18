@@ -97,7 +97,21 @@
         "video.export",
         "ha.entity.control",
         "cases.manage",
-        "rules.manage"
+        "rules.manage",
+        "nvr.config.write",
+        "nvr.config.events",
+        "nvr.config.detection",
+        "nvr.config.privacy",
+        "nvr.config.smart",
+        "nvr.config.schedule",
+        "nvr.config.stream",
+        "nvr.config.osd",
+        "nvr.config.time",
+        "nvr.record.manual",
+        "nvr.record.lock",
+        "nvr.alarm_output",
+        "nvr.storage.test",
+        "nvr.system.reboot"
       ]
     }
   ],

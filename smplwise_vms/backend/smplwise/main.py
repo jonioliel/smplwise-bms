@@ -69,6 +69,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     if applied:
         log.info("applied migrations %s", applied)
     backup_svc.record_version(app.state.db)
+    try:  # 0.1.74: HA Hikvision-integration events get their camera (one cheap pass; new events get it on insert)
+        from .services.correlation import backfill_ha_event_cameras
+
+        with app.state.db.connection() as _c:
+            fixed = backfill_ha_event_cameras(_c)
+        if fixed:
+            log.info("attached %s Home Assistant NVR events to their cameras", fixed)
+    except Exception:  # noqa: BLE001 - never block the start
+        log.exception("HA event camera backfill failed")
     if settings.dev_user:
         log.warning("developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant")
 

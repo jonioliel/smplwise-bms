@@ -93,8 +93,10 @@ def test_schedule_and_smart_endpoints(settings, monkeypatch):
         cam = c.post("/api/v1/cameras", json={"channel": 1, "alias": "לובי"}).json()
         s = c.get(f"/api/v1/cameras/{cam['id']}/schedules").json()
         assert s["track_id"] == 101 and len(s["arming"]["motion"]) == 7 and "line" in s["unsupported"] and s["record"]["days"][1][0]["mode"] == "CMR"
-        assert s["can"] == {"events": False, "schedule": False}
-        assert c.put(f"/api/v1/cameras/{cam['id']}/schedules/motion", json={"days": [[] for _ in range(7)]}).status_code == 403
+        assert s["can"] == {"events": True, "schedule": True}
+        bind(c, settings, "sam", "site_admin", "installation", "*")  # a site administrator: NVR writes stay out of reach
+        hs = as_user("sam")
+        assert c.put(f"/api/v1/cameras/{cam['id']}/schedules/motion", json={"days": [[] for _ in range(7)]}, headers=hs).status_code == 403
         role = c.post("/api/v1/access/roles", json={"name": "לוחות", "description": "", "permissions": ["map.read"], "sensitive": ["nvr.config.events", "nvr.config.schedule", "nvr.config.smart"]}).json()
         bind(c, settings, "dan", role["id"], "installation", "*")
         h = as_user("dan")

@@ -96,7 +96,7 @@ export class SystemAccess extends LitElement {
   @state() private error = '';
   @state() private message = '';
   @state() private forbidden = false;
-  @state() private roleEdit: { id: string | null; revision: number; name: string; description: string; permissions: string[]; sensitive: string[]; delegable: boolean } | null = null;
+  @state() private roleEdit: { id: string | null; revision: number; name: string; description: string; permissions: string[]; sensitive: string[]; delegable: boolean; assignMe?: boolean } | null = null;
   @state() private roleImpact: RoleImpact | null = null;
   @state() private roleDelete: RoleInfo | null = null;
   private roleImpactTimer = 0;
@@ -633,11 +633,20 @@ export class SystemAccess extends LitElement {
     this.error = '';
     try {
       const body = { name: e.name.trim(), description: e.description, permissions: e.permissions, sensitive: e.sensitive, delegable: e.delegable };
+      let assigned = false;
       if (e.id) await updateRole(e.id, { ...body, revision: e.revision });
-      else await createRole(body);
+      else {
+        const created = await createRole(body);
+        const me = session.me?.user.id;
+        if (e.assignMe !== false && me) {
+          // owner round 3 (4.1): a role nobody holds looked like "it did not save" - assign it to the creator right away
+          await createBinding({ subject_kind: 'user', subject_id: me, role_id: created.id, scope_type: 'installation', scope_id: '*' });
+          assigned = true;
+        }
+      }
       this.roleEdit = null;
       this.roleImpact = null;
-      this.message = e.id ? 'התפקיד עודכן; השינוי חל על כל המשויכים ברענון הבא' : 'התפקיד נוצר';
+      this.message = e.id ? 'התפקיד עודכן; השינוי חל על כל המשויכים ברענון הבא' : assigned ? 'התפקיד נוצר ושויך אליך (כל המתקן). רענן את הדף כדי לראות את ההרשאות החדשות.' : 'התפקיד נוצר. שייך אותו למשתמש או לקבוצה בלשונית "שיוכים".';
       this.roles = await listRoles();
     } catch (err) {
       this.error = describeError(err);
@@ -692,6 +701,7 @@ export class SystemAccess extends LitElement {
       <div class="perms">${ordinary.map((p) => html`<label class="chk"><input type="checkbox" data-role-perm=${p} .checked=${e.permissions.includes(p)} @change=${() => this.toggleRolePerm(p, false)} /> ${roles.labels[p]}</label>`)}</div>
       <div class="hint" style="margin-block-start:6px">הרשאות רגישות — לעולם לא מרומזות, נדרשות במפורש</div>
       <div class="perms">${roles.sensitive.map((p) => html`<label class="chk sens"><input type="checkbox" data-role-sensitive=${p} .checked=${e.sensitive.includes(p)} @change=${() => this.toggleRolePerm(p, true)} /> ${roles.labels[p] ?? p}</label>`)}</div>
+      ${!e.id ? html`<label class="chk" style="margin-block-start:6px"><input type="checkbox" data-role-assign-me .checked=${e.assignMe !== false} @change=${(ev: Event) => (this.roleEdit = { ...e, assignMe: (ev.target as HTMLInputElement).checked })} /> שייך את התפקיד אליי מיד (כל המתקן)</label>` : nothing}
       <label class="chk" style="margin-block-start:6px"><input type="checkbox" data-role-delegable .checked=${e.delegable} @change=${(ev: Event) => (this.roleEdit = { ...e, delegable: (ev.target as HTMLInputElement).checked })} /> מנהל אתר רשאי להקצות תפקיד זה בהיקפו (בכפוף להרשאות שהוא מחזיק)</label>
       ${im
         ? html`<div class="impact" data-role-impact>

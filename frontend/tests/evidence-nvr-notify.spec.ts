@@ -16,13 +16,13 @@ test.describe('NVR notify matrix (SW A)', () => {
     test.setTimeout(180000);
     const status = await (await request.get('/api/v1/nvr/notify')).json();
     expect(status.channels.length, 'channels probed on the NVR').toBeGreaterThan(0);
-    expect(status.can_write, 'the bootstrap admin holds no sensitive permission').toBe(false);
+    expect(status.can_write, 'since 0.1.74 the system administrator holds the NVR write permissions').toBe(true);
     await page.goto('/?design=a#/system/setup');
     const card = page.locator('[data-nvr-notify]');
     await expect(card.locator('[data-nvr-matrix]')).toBeVisible({ timeout: 90000 });
     await expect(card.locator('[data-nvr-channel]')).toHaveCount(status.channels.length);
-    await expect(card.locator('[data-nvr-no-permission]')).toBeVisible();
-    await expect(card.locator('[data-nvr-enable-all]')).toHaveCount(0);
+    await expect(card.locator('[data-nvr-no-permission]')).toHaveCount(0);
+    await expect(card.locator('[data-nvr-enable-all]')).toBeVisible();
     await page.screenshot({ path: path.join(OUT, `matrix-${testInfo.project.name}.png`), fullPage: true });
 
     // a custom role with the sensitive permission, bound to the current user: the controls appear

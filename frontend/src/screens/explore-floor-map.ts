@@ -50,6 +50,18 @@ const SCENES: SceneKind[] = ['entrance', 'lobby', 'corridor', 'hall', 'parking',
  * SC04 — interactive floor plan (board 1 screen 4). Backed by the add-on API (published plan image,
  * anchors, camera registry) with the demo fixtures as a stand-in when no backend answers.
  */
+
+/** A short label for a floor button: the number in the name ("קומה -1" → "-1", "מתנס – קרקע" → "קרקע", else first 4 letters). */
+function floorShort(name: string): string {
+  const num = name.match(/-?\d+/);
+  if (num) return num[0];
+  if (/קרקע/.test(name)) return 'ק';
+  if (/גג/.test(name)) return 'גג';
+  if (/מרתף/.test(name)) return 'מ';
+  const last = name.split(/[\s–-]+/).filter(Boolean).pop() ?? name;
+  return last.slice(0, 4);
+}
+
 @customElement('explore-floor-map')
 export class ExploreFloorMap extends LitElement {
   @property() floorId = 'f0';
@@ -73,6 +85,9 @@ export class ExploreFloorMap extends LitElement {
   @state() private multi = false;
   /** Side list of what is on the plan (2.10): open state kept per browser. */
   @state() private sideList = (() => { try { return localStorage.getItem('sw.map.sidelist') === '1'; } catch { return false; } })();
+  /** Owner round 3 (2.6): a jump from the list pans only, unless the viewer asks for a zoom as well. */
+  @state() private jumpZoom = (() => { try { return localStorage.getItem('sw.map.jumpzoom') === '1'; } catch { return false; } })();
+  private focusZoom = true;
   /** "Save the selection as a view" dialog (T043) and the view it produced. */
   @state() private saveView: { name: string; cols: number; rows: number; shared: boolean; canShare: boolean; busy: boolean; error: string | null } | null = null;
   @state() private savedView: SavedView | null = null;
@@ -181,6 +196,67 @@ export class ExploreFloorMap extends LitElement {
       background: var(--sw-surface);
       box-shadow: var(--sw-shadow-1);
       overflow: hidden;
+    }
+    .floorbtns {
+      position: absolute;
+      inset-inline-start: 12px;
+      inset-block-start: 56px;
+      z-index: var(--sw-z-map-ui);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-block-size: 60%;
+      overflow: auto;
+    }
+    .floorbtns button {
+      font: inherit;
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-semibold);
+      min-inline-size: 38px;
+      padding: 6px 8px;
+      border-radius: 9px;
+      border: 1px solid var(--sw-border);
+      background: var(--sw-surface);
+      color: var(--sw-text-2);
+      cursor: pointer;
+      box-shadow: var(--sw-shadow-1);
+      direction: ltr;
+    }
+    .floorbtns button.on {
+      background: var(--sw-accent);
+      border-color: var(--sw-accent);
+      color: #fff;
+    }
+    .jz {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      padding: 6px 12px;
+      border-block-end: 1px solid var(--sw-border);
+    }
+    /* entity card on phones (owner round 3, 3.6): full-width actions, stacked state row */
+    @media (max-width: 640px) {
+      .estate {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+      }
+      .eactions {
+        flex-direction: column;
+      }
+      .eactions .actrow {
+        display: flex;
+        inline-size: 100%;
+      }
+      .eactions .actrow sw-button {
+        flex: 1;
+        min-inline-size: 0;
+      }
+      .rename {
+        flex-wrap: wrap;
+      }
     }
     .floorchip {
       position: absolute;
@@ -654,7 +730,8 @@ export class ExploreFloorMap extends LitElement {
         ? b.anchors.find((x) => x.resource_type === 'ha_entity' && x.resource_id === this.focusEntity)
         : null;
     if (a) {
-      canvas.zoomToBox(a.position.x - 0.15, a.position.y - 0.15, a.position.x + 0.15, a.position.y + 0.15, 48, 2.2);
+      if (this.focusZoom) canvas.zoomToBox(a.position.x - 0.15, a.position.y - 0.15, a.position.x + 0.15, a.position.y + 0.15, 48, 2.2);
+      else canvas.centerOn(a.position.x, a.position.y);
       await this.updateComplete;
       const p = canvas.toScreen(a.position.x, a.position.y);
       this.selectedId = a.id;
@@ -860,7 +937,19 @@ export class ExploreFloorMap extends LitElement {
       this.togglePick(a.id);
       return;
     }
+    this.focusZoom = this.jumpZoom;
     await this.applyFocus();
+    // the focus properties re-trigger applyFocus on the next update: keep the choice for that pass, then back to the default
+    window.setTimeout(() => (this.focusZoom = true), 900);
+  }
+
+  private setJumpZoom(on: boolean) {
+    this.jumpZoom = on;
+    try {
+      localStorage.setItem('sw.map.jumpzoom', on ? '1' : '0');
+    } catch {
+      /* private mode */
+    }
   }
 
   private renderSideList() {
@@ -877,6 +966,7 @@ export class ExploreFloorMap extends LitElement {
     const dotOf = (a: Anchor) => (a.camera ? (a.camera.status === 'online' ? '#22c55e' : a.camera.status === 'offline' ? '#ef4444' : 'var(--sw-text-3)') : a.entity?.state === 'on' || a.entity?.state === 'unlocked' || a.entity?.state === 'open' ? 'var(--sw-accent)' : 'var(--sw-text-3)');
     return html`<div class="sidelist" data-sidelist>
       <div class="sh"><sw-icon name="list" size=${14}></sw-icon>על התוכנית<span class="grow"></span><sw-button variant="ghost" size="sm" iconOnly icon="close" label="סגור" @click=${() => this.toggleSideList()}></sw-button></div>
+      <label class="jz" data-jump-zoom-row><input type="checkbox" data-jump-zoom .checked=${this.jumpZoom} @change=${(e: Event) => this.setJumpZoom((e.target as HTMLInputElement).checked)} /> זום בקפיצה לרכיב</label>
       <div class="body">
         <div class="grp">קומות</div>
         ${this.floors.map((f) => html`<button class="it ${f.id === this.floorId ? 'on' : ''}" data-side-floor=${f.id} @click=${() => { if (f.id !== this.floorId) navigate(`/explore/floors/${f.id}`); }}>
@@ -1353,6 +1443,11 @@ export class ExploreFloorMap extends LitElement {
         @marker-select=${this.onSelect}
         @view-change=${this.onViewChange}></sw-plan-canvas>
       <div class="floorchip" data-floorchip><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
+      ${b.source === 'api' && this.floors.length > 1
+        ? html`<div class="floorbtns" role="group" aria-label="מעבר מהיר בין קומות" data-floor-buttons>
+            ${this.floors.map((f) => html`<button class=${f.id === this.floorId ? 'on' : ''} data-floor-button=${f.id} title=${`${f.name}${f.hasPlan ? '' : ' · אין תוכנית'}`} aria-pressed=${f.id === this.floorId} @click=${() => { if (f.id !== this.floorId) navigate(`/explore/floors/${f.id}`); }}>${floorShort(f.name)}</button>`)}
+          </div>`
+        : nothing}
       ${this.panel ? this.renderPanel() : nothing}
       ${this.multi ? this.renderPickbar() : nothing}
       ${this.renderSideList()}

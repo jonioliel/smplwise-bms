@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import re
 import math
 import sqlite3
 import uuid
@@ -74,12 +75,42 @@ def record_transition(conn: sqlite3.Connection, old: dict[str, Any] | None, new:
     details = {"entity_id": eid, "name": name, "domain": domain, "device_class": attrs.get("device_class"), "from": old_state, "to": state, "availability": availability, "area": attrs.get("area_id")}
     now = now_iso()
     event_id = uuid.uuid4().hex[:12]
+    camera_id, channel = nvr_entity_camera(conn, eid)
     conn.execute(
         "INSERT INTO events(id, source, raw_type, type, camera_id, channel, occurred_at, ended_at, received_at, state, count, severity, confidence, details_json, dedup_key, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (event_id, "ha", f"{domain}.{attrs.get('device_class') or ''}".rstrip("."), kind, None, None, occurred, None, now, "none", 1, severity, "measured", json.dumps(details, ensure_ascii=False), key, now),
+        (event_id, "ha", f"{domain}.{attrs.get('device_class') or ''}".rstrip("."), kind, camera_id, channel, occurred, None, now, "none", 1, severity, "measured", json.dumps(details, ensure_ascii=False), key, now),
     )
     return row_to_event(conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone())
 
+
+
+NVR_ENTITY_RE = re.compile(r"_(\d{1,2})_(motiondetection|linedetection|fielddetection|regionentrance|regionexiting|scenechangedetection|shelteralarm|videoloss)$")
+
+
+def nvr_entity_camera(conn: sqlite3.Connection, entity_id: str) -> tuple[str | None, int | None]:
+    """0.1.74: the Home Assistant Hikvision integration names its sensors `<device>_<channel>_<event>`; such an event
+    belongs to the camera on that channel (pictures, hover frames, playback). Anything else has no camera."""
+    m = NVR_ENTITY_RE.search(entity_id or "")
+    if not m:
+        return None, None
+    ch = int(m.group(1))
+    row = conn.execute("SELECT id FROM cameras WHERE channel = ? AND enabled = 1 ORDER BY sort_order LIMIT 1", (ch,)).fetchone()
+    return (row["id"], ch) if row else (None, None)
+
+
+def backfill_ha_event_cameras(conn: sqlite3.Connection) -> int:
+    """One pass over stored HA events without a camera (cheap: only rows whose entity id matches the pattern)."""
+    n = 0
+    for r in conn.execute("SELECT id, details_json FROM events WHERE source = 'ha' AND camera_id IS NULL").fetchall():
+        try:
+            eid = json.loads(r["details_json"] or "{}").get("entity_id") or ""
+        except ValueError:
+            continue
+        cam, ch = nvr_entity_camera(conn, eid)
+        if cam:
+            conn.execute("UPDATE events SET camera_id = ?, channel = ? WHERE id = ?", (cam, ch, r["id"]))
+            n += 1
+    return n
 
 def _inside(x: float, y: float, poly: list[dict[str, float]]) -> bool:
     inside = False

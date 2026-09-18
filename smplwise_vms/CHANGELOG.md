@@ -1,5 +1,22 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.74 (pilot) — owner round 3: NVR writes for the system administrator, events with a camera, map and wall controls
+- Permissions (owner decision): the built-in "מנהל מערכת VMS" role now holds every `nvr.*` write permission - the
+  NVR cards, OSD, schedules, smart rules and manual recording work for the administrator without a custom role.
+  Other roles still need the sensitive permission through a custom role. A new custom role is assigned to its
+  creator in the same step ("שייך את התפקיד אליי מיד"), so it no longer looks as if it "did not save".
+- Events from the Home Assistant Hikvision integration (`…_<channel>_motiondetection` and the smart types) are
+  attached to the camera on that channel - new events on insert, stored ones in a one-time pass at start - so they
+  get a picture, the hover strip, playback and the map (this was why hovering did nothing on the owner's list).
+- Sites: a visible "מבנה" button on every site card (a second building was only reachable through a bare "+").
+- Floor map: quick floor buttons under the floor chip (one per floor, the current one highlighted); "זום בקפיצה
+  לרכיב" in the side list - off by default, a jump only centres the item.
+- Camera wall: "עמודות: אוטו / 1–6" lets the viewer override the best-fit column count (kept per browser).
+- Plan editor › coverage: two labelled sliders - "רוחב" (degrees to each side) and "מרחק" (% of the plan width).
+- Entity card on phones: stacked state row and full-width action buttons.
+- Evidence: `tests/test_ha_event_camera.py`, NVR tests moved their negative checks to a site administrator;
+  `frontend/tests/evidence-owner-round11.spec.ts` (3 tests) and the NVR live specs updated for the new default.
+
 ## 0.1.73 (pilot) — label positions (R4), HA recorder as a secondary source (S2), realign (S4), HA notify rules (S5)
 - R4: rooms and placed items have "מיקום התווית" (auto / above / below / left / right) in the plan editor; the map, the
   editor and the history map draw the name there (`label_pos` on zones and anchors, migration 0017).

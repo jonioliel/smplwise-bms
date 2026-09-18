@@ -18,13 +18,13 @@ test.describe('NVR motion grid editor (SW A)', () => {
     expect(cam, 'an online camera').toBeTruthy();
     const zones = await (await request.get(`/api/v1/cameras/${cam.id}/zones`)).json();
     expect(zones.motion?.rows, 'a motion grid on the NVR').toBeGreaterThan(0);
-    expect(zones.can_edit_motion).toBe(false);
+    expect(zones.can_edit_motion).toBe(true); // the system administrator (0.1.74)
     // without the permission: no edit button, PUT refused
     await page.goto(`/?design=a#/live/cameras/${cam.id}`);
     const screen = page.locator('live-camera');
     await expect(screen.locator('[data-zones-loaded]')).toBeVisible({ timeout: 90000 });
-    await expect(screen.locator('[data-motion-edit]')).toHaveCount(0);
-    expect((await request.put(`/api/v1/cameras/${cam.id}/motion`, { data: { sensitivity: 50 } })).status()).toBe(403);
+    await expect(screen.locator('[data-motion-edit]')).toBeVisible({ timeout: 60000 });
+    // (the 403 for users without the permission is covered by the backend tests; the dev identity is the system administrator)
 
     const me = await (await request.get('/api/v1/me')).json();
     const role = await (await request.post('/api/v1/access/roles', { data: { name: `NVR זיהוי ${Date.now()}`, description: 'ראיה', permissions: ['map.read', 'video.live'], sensitive: ['nvr.config.detection'] } })).json();

@@ -232,6 +232,7 @@ export class ExploreSites extends LitElement {
     const id = b ? b.id : s.id;
     const stop = (e: Event) => e.stopPropagation();
     return html`<span class="menu" @click=${stop}>
+      ${!b ? html`<sw-button variant="ghost" size="sm" icon="plus" data-add-building=${s.id} @click=${() => this.open({ kind: 'building', site: s })}>מבנה</sw-button>` : nothing}
       <sw-button variant="ghost" size="sm" iconOnly icon="edit" label="עריכה" data-edit=${id} @click=${() => this.open(b ? { kind: 'edit-building', building: b, site: s } : { kind: 'edit-site', site: s })}></sw-button>
       <sw-button variant="ghost" size="sm" iconOnly icon="camera" label=${hasImage ? 'החלף תמונה' : 'תמונה'} ?disabled=${this.busy} data-image=${id} @click=${() => this.pickImage(kind, id)}></sw-button>
       ${hasImage ? html`<sw-button variant="ghost" size="sm" iconOnly icon="close" label="הסר תמונה" ?disabled=${this.busy} @click=${() => this.removeImage(kind, id)}></sw-button>` : nothing}

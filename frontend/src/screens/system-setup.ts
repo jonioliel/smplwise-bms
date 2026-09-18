@@ -320,7 +320,7 @@ export class SystemSetup extends LitElement {
                 <sw-button variant="primary" size="sm" icon="bell" ?disabled=${this.notifyBusy} data-nvr-enable-all @click=${() => this.planNotify(null, false, true)}>הפעל תנועה בכל הערוצים</sw-button>
                 <sw-button size="sm" icon="bell" ?disabled=${this.notifyBusy} data-nvr-enable-smart @click=${() => this.planNotify(null, true, true)}>הפעל גם אירועים חכמים</sw-button>
               </div>`
-            : html`<div class="hint" data-nvr-no-permission>לכתיבה ל־NVR נדרשת ההרשאה "${n.permission}" — מוקנית רק דרך תפקיד מותאם (הגדרות › משתמשים והרשאות › תפקידים), גם למנהל מערכת.</div>`}
+            : html`<div class="hint" data-nvr-no-permission>לכתיבה ל־NVR נדרשת ההרשאה "${n.permission}" — מוקנית למנהל המערכת, ולאחרים דרך תפקיד מותאם (הגדרות › משתמשים והרשאות › תפקידים), גם למנהל מערכת.</div>`}
           ${this.notifyResult ? html`<div class="hint" data-nvr-result>${this.notifyResult}</div>` : nothing}
           ${this.changes.length ? html`<div class="hint" style="margin-block-start:8px"><b>שינויים אחרונים ב־NVR</b></div>
             <ul class="changes" data-nvr-changes>${this.changes.map((c) => html`<li><span class="ltr">${c.created_at.slice(0, 16).replace('T', ' ')}</span> · ${c.target} · ${c.note || c.kind} · ${c.status === 'applied' ? 'בוצע' : c.status === 'unchanged' ? 'ללא שינוי' : c.status === 'rolled_back' ? 'הוחזר' : 'נכשל'}${c.actor_username ? ` · ${c.actor_username}` : ''}

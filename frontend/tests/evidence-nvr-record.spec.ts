@@ -17,12 +17,12 @@ test.describe('NVR manual recording (SW A)', () => {
     const cam = cams[0];
     expect(cam, 'an online camera').toBeTruthy();
     const st0 = await (await request.get(`/api/v1/cameras/${cam.id}/record`)).json();
-    expect(st0.can_write).toBe(false);
+    expect(st0.can_write).toBe(true); // the system administrator (0.1.74)
     expect(st0.track_id, 'main track known from discovery').toBeTruthy();
     await page.goto(`/?design=a#/live/cameras/${cam.id}`);
     const screen = page.locator('live-camera');
     await expect(screen.locator('[data-caps]')).toBeVisible({ timeout: 60000 });
-    await expect(screen.locator('[data-manual-record]')).toHaveCount(0);
+    await expect(screen.locator('[data-manual-record]')).toBeVisible({ timeout: 60000 });
 
     const me = await (await request.get('/api/v1/me')).json();
     const role = await (await request.post('/api/v1/access/roles', { data: { name: `NVR הקלטה ${Date.now()}`, description: 'ראיה', permissions: ['map.read', 'video.live'], sensitive: ['nvr.record.manual'] } })).json();

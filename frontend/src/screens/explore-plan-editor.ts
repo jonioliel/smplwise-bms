@@ -1058,7 +1058,13 @@ export class ExplorePlanEditor extends LitElement {
       this.apply(a.id, { coverage_polygon: pts });
     };
     return html`<div class="row" data-coverage style="flex-direction:column;align-items:stretch;gap:6px">
-      <span class="lbl">שטח כיסוי${poly ? ' · מצולע ידני' : ''}<span class="muted">${poly ? `${poly.length} נקודות · גרירה מזיזה, לחיצה על נקודת אמצע מוסיפה, לחיצה כפולה מסירה` : 'טווח הקשת: גרירת הידית בקצה הקשת, או אחוז מרוחב התוכנית'}</span></span>
+      <span class="lbl">שטח כיסוי${poly ? ' · מצולע ידני' : ''}<span class="muted">${poly ? `${poly.length} נקודות · גרירה מזיזה, לחיצה על נקודת אמצע מוסיפה, לחיצה כפולה מסירה` : 'שני מחוונים: רוחב (כמה ימינה ושמאלה, שווה לשני הצדדים) ומרחק (עד איפה המצלמה רואה). אפשר גם לגרור את הידיות על המפה.'}</span></span>
+      ${poly ? nothing : html`<label class="note" style="display:flex;gap:8px;align-items:center" data-coverage-width>רוחב
+          <input type="range" min="10" max="180" step="1" style="flex:1" .value=${String(Math.round(a.field_of_view_degrees ?? 90))} aria-label="רוחב שדה הראייה" @input=${(e: Event) => this.apply(a.id, { field_of_view_degrees: Number((e.target as HTMLInputElement).value) })} />
+          <span class="ltr" style="min-inline-size:64px">${Math.round((a.field_of_view_degrees ?? 90) / 2)}° לכל צד</span></label>
+        <label class="note" style="display:flex;gap:8px;align-items:center" data-coverage-distance>מרחק
+          <input type="range" min="2" max="100" step="1" style="flex:1" .value=${String(pct)} aria-label="מרחק ראייה" @input=${(e: Event) => this.apply(a.id, { coverage_radius: Number((e.target as HTMLInputElement).value) / 100 })} />
+          <span class="ltr" style="min-inline-size:64px">${pct}% מהרוחב</span></label>`}
       ${poly
         ? html`<div style="display:flex;gap:8px;flex-wrap:wrap"><sw-button size="sm" icon="undo" data-coverage-cone @click=${() => this.apply(a.id, { coverage_polygon: null })}>חזרה לקשת</sw-button></div>`
         : html`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">

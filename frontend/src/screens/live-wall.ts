@@ -73,6 +73,21 @@ export class LiveWall extends LitElement {
       grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
     }
     /* best fit (0.1.68): the tiles fill the screen as a rectangle - as many columns as make the tiles biggest */
+    .colbtn {
+      font: inherit;
+      font-size: var(--sw-fs-xs);
+      border: 1px solid var(--sw-border);
+      background: var(--sw-surface);
+      color: var(--sw-text-2);
+      border-radius: 6px;
+      padding: 2px 8px;
+      cursor: pointer;
+    }
+    .colbtn.on {
+      background: var(--sw-accent);
+      border-color: var(--sw-accent);
+      color: #fff;
+    }
     .grid.fit {
       grid-template-columns: repeat(var(--cols), var(--tile));
       justify-content: center;
@@ -92,6 +107,18 @@ export class LiveWall extends LitElement {
       }
     }
   `;
+
+  /** Owner round 3 (2.5): columns chosen by hand for the wall (0 = best fit); kept per browser. */
+  @state() private colsOverride = (() => { try { return Number(localStorage.getItem('sw.wall.cols') ?? 0) || 0; } catch { return 0; } })();
+
+  private setCols(n: number) {
+    this.colsOverride = n;
+    try {
+      localStorage.setItem('sw.wall.cols', String(n));
+    } catch {
+      /* private mode */
+    }
+  }
 
   /** The room the grid has: its width and the height left under it in the window (0 until measured). */
   @state() private box = { w: 0, h: 0 };
@@ -181,7 +208,12 @@ export class LiveWall extends LitElement {
     const pool = wanted.length ? cams.filter((c) => wanted.includes(c.id)) : cams;
     const n = wanted.length ? Math.max(1, pool.length) : this.count;
     const shown = pool.slice(0, n);
-    const fit = window.innerWidth >= 768 ? this.bestFit(shown.length) : null;
+    let fit = window.innerWidth >= 768 ? this.bestFit(shown.length) : null;
+    if (fit && this.colsOverride && this.box.w) {
+      const c = Math.min(this.colsOverride, Math.max(1, shown.length));
+      const rows = Math.ceil(shown.length / c);
+      fit = { cols: c, tile: Math.floor(Math.min((this.box.w - 12 * (c - 1)) / c, ((this.box.h - 12 * (rows - 1)) / rows) * (16 / 9))) };
+    }
     const cols = fit ? fit.cols : n === 1 ? 1 : n === 2 ? 2 : n <= 4 ? 2 : n <= 9 ? 3 : n <= 16 ? 4 : n <= 25 ? 5 : 6;
     const cap = this.settings?.['media.max_live_sessions'] ?? 8;
     const profile: 'sub' | 'main' = this.stream === 'auto' ? (this.settings?.['media.wall_profile'] ?? 'sub') : this.stream;
@@ -202,6 +234,9 @@ export class LiveWall extends LitElement {
         )}
       </div>
       ${wanted.length ? html`<div class="note" data-wall-picked>מפה: ${shown.length} מצלמות שנבחרו${shown.length < wanted.length ? ` (${wanted.length - shown.length} לא זמינות)` : ''} · <a href="#/live/wall">כל המצלמות</a></div>` : nothing}
+      <div class="note" data-wall-cols-row style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">עמודות:
+        ${[0, 1, 2, 3, 4, 5, 6].map((n) => html`<button class="colbtn ${this.colsOverride === n ? 'on' : ''}" data-wall-cols-set=${n} @click=${() => this.setCols(n)}>${n === 0 ? 'אוטו' : n}</button>`)}
+      </div>
       <div class="note">${shown.length} מתוך ${cams.length} מצלמות · פרופיל ${profile === 'sub' ? 'משני' : 'ראשי'} · תעבורה ${transport} · מכסת זרמים ${cap}${shown.length > cap ? ` — מעבר למכסה מוצג צילום בלבד` : ''} · צילומים מתרעננים כל דקה</div>
     `;
   }

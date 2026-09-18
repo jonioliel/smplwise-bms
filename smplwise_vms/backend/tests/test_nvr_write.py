@@ -68,9 +68,11 @@ def test_notify_endpoints_change_log_and_rollback(settings, monkeypatch):
         by = {ch["channel"]: ch for ch in st["channels"]}
         assert by[1]["camera_id"] == cam1["id"] and by[1]["motion"] == {"supported": True, "center": False} and by[1]["smart_supported"] == 1 and by[1]["smart_center"] == 0
         assert by[2]["motion"]["center"] is True and by[2]["smart_supported"] == 0
-        assert st["can_write"] is False, "a sensitive permission is never implied, not even for the system admin"
-        # writing needs the sensitive permission through a custom role
-        assert c.put("/api/v1/nvr/notify", json={"smart": True}).status_code == 403
+        assert st["can_write"] is True, "since 0.1.74 the system administrator holds the NVR write permissions (owner decision)"
+        # everyone else needs the sensitive permission through a custom role
+        bind(c, settings, "sam", "site_admin", "installation", "*")  # a site administrator: NVR writes stay out of reach
+        hs = as_user("sam")
+        assert c.put("/api/v1/nvr/notify", json={"smart": True}, headers=hs).status_code == 403
         role = c.post("/api/v1/access/roles", json={"name": "מפעיל NVR", "description": "התראות", "permissions": ["map.read"], "sensitive": ["nvr.config.events"]}).json()
         assert "id" in role, role
         bind(c, settings, "dan", role["id"], "installation", "*")
@@ -91,7 +93,7 @@ def test_notify_endpoints_change_log_and_rollback(settings, monkeypatch):
         first = next(x for x in applied if x["target"] == "VMD-1")
         detail = c.get(f"/api/v1/nvr/changes/{first['id']}", headers=h).json()
         assert not nvr_write.has_center(detail["before_xml"]) and nvr_write.has_center(detail["after_xml"])
-        assert c.post(f"/api/v1/nvr/changes/{first['id']}/rollback").status_code == 403, "rollback needs the same permission"
+        assert c.post(f"/api/v1/nvr/changes/{first['id']}/rollback", headers=hs).status_code == 403, "rollback needs the same permission"
         rb = c.post(f"/api/v1/nvr/changes/{first['id']}/rollback", headers=h)
         assert rb.status_code == 201 and rb.json()["rollback_of"] == first["id"]
         assert not nvr_write.has_center(fake.docs["/ISAPI/Event/triggers/VMD-1"])
@@ -131,7 +133,9 @@ def test_motion_document_and_endpoint(settings, monkeypatch):
     app = create_app(settings)
     with TestClient(app) as c:
         cam = c.post("/api/v1/cameras", json={"channel": 1, "alias": "לובי"}).json()
-        assert c.put(f"/api/v1/cameras/{cam['id']}/motion", json={"sensitivity": 40}).status_code == 403, "sensitive: never implied"
+        bind(c, settings, "sam", "site_admin", "installation", "*")  # a site administrator: NVR writes stay out of reach
+        hs = as_user("sam")
+        assert c.put(f"/api/v1/cameras/{cam['id']}/motion", json={"sensitivity": 40}, headers=hs).status_code == 403, "sensitive: not implied below the system administrator"
         role = c.post("/api/v1/access/roles", json={"name": "עורך זיהוי", "description": "", "permissions": ["map.read", "video.live"], "sensitive": ["nvr.config.detection"]}).json()
         bind(c, settings, "dan", role["id"], "installation", "*")
         h = as_user("dan")
@@ -200,9 +204,11 @@ def test_manual_recording(settings, monkeypatch):
         cam = c.post("/api/v1/cameras", json={"channel": 1, "alias": "לובי"}).json()
         with app.state.db.connection() as conn:
             conn.execute("UPDATE cameras SET main_track = 101 WHERE id = ?", (cam["id"],))
-        assert c.post(f"/api/v1/cameras/{cam['id']}/record/start", json={"minutes": 5}).status_code == 403
+        bind(c, settings, "sam", "site_admin", "installation", "*")  # a site administrator: NVR writes stay out of reach
+        hs = as_user("sam")
+        assert c.post(f"/api/v1/cameras/{cam['id']}/record/start", json={"minutes": 5}, headers=hs).status_code == 403
         st = c.get(f"/api/v1/cameras/{cam['id']}/record").json()
-        assert st["active"] is None and st["can_write"] is False and st["track_id"] == 101
+        assert st["active"] is None and st["can_write"] is True and st["track_id"] == 101
         role = c.post("/api/v1/access/roles", json={"name": "מקליט", "description": "", "permissions": ["map.read", "video.live"], "sensitive": ["nvr.record.manual"]}).json()
         bind(c, settings, "dan", role["id"], "installation", "*")
         h = as_user("dan")

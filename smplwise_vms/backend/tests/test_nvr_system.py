@@ -81,9 +81,11 @@ def test_system_status_and_writes(settings, monkeypatch):
         assert st["time"]["mode"] == "NTP" and st["time"]["ntp"]["host"] == "ntp.example.org" and isinstance(st["time"]["drift_s"], int)
         assert st["disks"][0]["id"] == 2 and st["disks"][0]["smart"]["temperature_c"] == 40 and st["disks"][0]["smart"]["power_on_days"] == 23
         assert [o["id"] for o in st["outputs"]] == [1, 802] and st["outputs"][1]["use_type"] == "whiteLight" and st["outputs"][0]["pulse_supported"] and not st["outputs"][1]["pulse_supported"]
-        assert st["can"] == {"time": False, "storage": False, "alarm": False, "reboot": False, "osd": False, "connection": True}
+        assert st["can"] == {"time": True, "storage": True, "alarm": True, "reboot": True, "osd": True, "connection": True}, "the system administrator writes to the NVR"
+        bind(c, settings, "sam", "site_admin", "installation", "*")  # a site administrator: NVR writes stay out of reach
+        hs = as_user("sam")
         # every write needs its own sensitive permission
-        assert c.put("/api/v1/nvr/time", json={"sync_now": True}).status_code == 403
+        assert c.put("/api/v1/nvr/time", json={"sync_now": True}, headers=hs).status_code == 403
         h = _grant(c, settings, ["nvr.config.time", "nvr.config.osd", "nvr.alarm_output", "nvr.storage.test", "nvr.system.reboot"])
         # clock: written in manual mode, mode put back to NTP; neither record can be rolled back
         r = c.put("/api/v1/nvr/time", json={"sync_now": True}, headers=h)
