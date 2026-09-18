@@ -17,7 +17,8 @@ test.describe('spatial metadata search (SW A)', () => {
     test.setTimeout(180000);
     const f = (await (await request.get('/api/v1/events/facets')).json()) as Facets;
     expect(f.types.length).toBeGreaterThan(0);
-    expect(f.unavailable_types.map((u) => u.type)).toContain('person');
+    // 'person' is unavailable only while no smart-event source produced one (the lab NVR started sending them in September)
+    if (!f.types.some((t) => t.type === 'person')) expect(f.unavailable_types.map((u) => u.type)).toContain('person');
     for (const u of f.unavailable_types) expect(u.reason.length).toBeGreaterThan(10);
     const floors = f.places.flatMap((s) => s.buildings.flatMap((b) => b.floors));
     const floor = floors.find((x) => x.cameras > 0);
@@ -32,8 +33,13 @@ test.describe('spatial metadata search (SW A)', () => {
     const placed = new Set(map.anchors.filter((a: { resource_type: string }) => a.resource_type === 'camera').map((a: { resource_id: string }) => a.resource_id));
     for (const e of byFloor.events) if (e.camera_id) expect(placed.has(e.camera_id)).toBe(true);
     const person = await (await request.get('/api/v1/events?type=person')).json();
-    expect(person.events).toEqual([]);
-    expect(person.filters.unsupported[0].field).toBe('type');
+    if (f.types.some((t) => t.type === 'person')) {
+      expect(person.events.length).toBeGreaterThan(0); // the NVR sends person events now: a real filter
+      expect(person.filters.unsupported).toEqual([]);
+    } else {
+      expect(person.events).toEqual([]);
+      expect(person.filters.unsupported[0].field).toBe('type');
+    }
     const zoneWithCam = floor!.zones.find((z) => z.cameras > 0);
     if (zoneWithCam) {
       const byZone = await (await request.get(`/api/v1/events?zone_id=${zoneWithCam.id}&limit=200`)).json();
@@ -52,8 +58,13 @@ test.describe('spatial metadata search (SW A)', () => {
     await expect(screen.locator('[data-unsupported]')).toHaveCount(0);
     await page.screenshot({ path: path.join(OUT, `events-by-floor-${testInfo.project.name}.png`) });
     await screen.locator('select[aria-label="סוג"]').selectOption('person');
-    await expect(screen.locator('[data-unsupported]')).toBeVisible({ timeout: 15000 });
-    await expect(screen.locator('[data-unsupported]')).toContainText('אינו נתמך');
+    if (f.types.some((t) => t.type === 'person')) {
+      await page.waitForTimeout(1500);
+      await expect(screen.locator('[data-unsupported]')).toHaveCount(0); // person is a real type now: no banner
+    } else {
+      await expect(screen.locator('[data-unsupported]')).toBeVisible({ timeout: 15000 });
+      await expect(screen.locator('[data-unsupported]')).toContainText('אינו נתמך');
+    }
     await page.screenshot({ path: path.join(OUT, `unsupported-type-${testInfo.project.name}.png`) });
   });
 });

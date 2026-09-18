@@ -83,10 +83,11 @@ test.describe('rectangle / room selection and save as a view (SW A)', () => {
     if (room) {
       const g = viewer.locator(`sw-plan-canvas g.zone[data-zone="${room.z.id}"]`);
       await g.dispatchEvent('click');
-      await expect(bar.locator('sw-chip[selected]')).toHaveCount(room.cams.length);
+      // camera chips only: since 0.1.63 the bar also carries a chip per room, selected when all its cameras are picked
+      await expect(bar.locator('sw-chip[selected]:not([data-room-chip])')).toHaveCount(room.cams.length);
       await expect(bar.locator('[data-pick-hint]')).toContainText(`נבחרו ${room.cams.length}`);
       await g.dispatchEvent('click');
-      await expect(bar.locator('sw-chip[selected]')).toHaveCount(0);
+      await expect(bar.locator('sw-chip[selected]:not([data-room-chip])')).toHaveCount(0);
     } else {
       test.info().annotations.push({ type: 'note', description: 'no zone with cameras inside it on this floor - room pick not exercised' });
     }
@@ -103,7 +104,7 @@ test.describe('rectangle / room selection and save as a view (SW A)', () => {
     await page.screenshot({ path: path.join(OUT, `box-drag-${testInfo.project.name}.png`) });
     await page.mouse.up();
     await expect(canvas.locator('rect[data-box]')).toHaveCount(0);
-    await expect(bar.locator('sw-chip[selected]')).toHaveCount(cams.length);
+    await expect(bar.locator('sw-chip[selected]:not([data-room-chip])')).toHaveCount(cams.length);
     await expect(viewer.locator('sw-plan-canvas g.marker.selected')).toHaveCount(cams.length);
 
     // availability split: online / offline / without live permission, as counted from the map bundle

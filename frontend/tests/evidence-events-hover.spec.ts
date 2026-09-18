@@ -13,9 +13,11 @@ test.describe('event row hover preview (SW A)', () => {
 
   test('hovering a thumbnail shows three frames from the recording', async ({ page, request }, testInfo) => {
     test.setTimeout(120000);
-    const list = await (await request.get('/api/v1/events?limit=60')).json();
+    const list = await (await request.get('/api/v1/events?limit=500')).json();
     // thumbnails are grabbed lazily once the list renders; pick an event with a camera whose grab is possible
-    const ev = (list.events as { id: string; camera_id: string | null; thumbnail: string; occurred_at: string }[]).find((e) => e.camera_id && e.thumbnail !== 'unavailable' && Date.now() - new Date(e.occurred_at).getTime() > 90000);
+    // prefer an event whose picture is already there; the lab NVR keeps recordings for a few days only. UTC hours 3-20 keep
+    // the UTC date and the site's local date (Asia/Jerusalem) the same, so the screen's day filter finds it.
+    const ev = (list.events as { id: string; camera_id: string | null; thumbnail: string; occurred_at: string }[]).find((e) => e.camera_id && e.thumbnail === 'ready' && new Date(e.occurred_at).getUTCHours() >= 3 && new Date(e.occurred_at).getUTCHours() <= 20 && Date.now() - new Date(e.occurred_at).getTime() > 90000);
     expect(ev, 'an event with a camera, at least 90 s old').toBeTruthy();
     const date = ev!.occurred_at.slice(0, 10);
     await page.goto(`/?design=a#/investigate/events?date=${date}`);
