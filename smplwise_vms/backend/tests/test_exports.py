@@ -43,6 +43,7 @@ def lab(settings, monkeypatch):
     monkeypatch.setattr(nvr, "search_recordings", fake_pages(files))
     ex.WORKER.db, ex.WORKER.settings = app.state.db, s
     ex.WORKER.cancel_flags.clear()
+    ex.WORKER.stop = False  # an application closed by an earlier test file leaves the shared worker stopped
     return c, s, cam
 
 

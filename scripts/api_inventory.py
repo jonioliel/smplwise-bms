@@ -49,7 +49,7 @@ def main() -> None:
                 continue
             tag = (op.get("tags") or ["?"])[0]
             doc = (op.get("description") or "").strip().splitlines()
-            rows.append((path, method.upper(), tag, (doc[0] if doc else "").replace("|", "\|")))
+            rows.append((path, method.upper(), tag, (doc[0] if doc else "").replace("|", "\\|")))
 
     # websocket routes are not part of OpenAPI: walk the included routers
     def walk(routes, prefix=""):
@@ -63,7 +63,7 @@ def main() -> None:
     for path, r in walk(app.routes):
         if path.startswith("/api/v1"):
             doc = ((getattr(r.endpoint, "__doc__", None) or "").strip().splitlines() or [""])[0]
-            rows.append((path, "WS", "websocket", doc.replace("|", "\|")))
+            rows.append((path, "WS", "websocket", doc.replace("|", "\\|")))
     rows.sort(key=lambda x: (x[2], x[0], x[1]))
     lines = [
         "# API inventory (generated)",

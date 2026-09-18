@@ -19,7 +19,7 @@ import '../components/sw-dialog';
 import { isApi } from '../api/session';
 import { cameraCapabilities, cameraZones, snapshotUrl, setTransportOverride, transportOverride, type CameraCapabilities, type CameraZones, type ProductSettings, type Transport } from '../api/media';
 import '../components/sw-chip';
-import { listCameras } from '../api/maps';
+import { listCameras, updateCamera } from '../api/maps';
 import { effectiveTransport, productSettings } from '../api/prefs';
 import { describeError } from '../api/client';
 import type { Camera } from '../api/types';
@@ -60,6 +60,10 @@ export class LiveCamera extends LitElement {
   @state() private smartBusy = false;
   @state() private smartMsg = '';
   @state() private osdMsg = '';
+  /** Owner request (2026-09-18): rename the camera from its own screen (the VMS alias; the NVR name stays unless OSD writes it). */
+  @state() private renameTo: string | null = null;
+  @state() private renameBusy = false;
+  @state() private renameMsg = '';
   @state() private osdBusy = false;
   @state() private recMinutes = 10;
   @state() private recBusy = false;
@@ -272,6 +276,33 @@ export class LiveCamera extends LitElement {
         <sw-button size="sm" variant="ghost" icon="close" ?disabled=${this.smartBusy} data-smart-cancel @click=${() => (this.smartEdit = null)}>ביטול</sw-button>
       </div>
     </div>`;
+  }
+
+  private async saveRename() {
+    if (this.renameTo === null || !this.cam || this.renameBusy) return;
+    this.renameBusy = true;
+    this.renameMsg = '';
+    try {
+      const saved = await updateCamera(this.cam.id, { alias: this.renameTo.trim() });
+      this.cam = { ...this.cam, ...saved };
+      this.cams = this.cams.map((c) => (c.id === saved.id ? { ...c, ...saved } : c));
+      this.renameTo = null;
+      void this.loadOsd();
+    } catch (err) {
+      this.renameMsg = describeError(err);
+    } finally {
+      this.renameBusy = false;
+    }
+  }
+
+  private renderRename() {
+    if (this.renameTo === null) return nothing;
+    return html`<sw-dialog open heading="שינוי שם המצלמה" subheading="השם במערכת (בקיר, במפה, באירועים). השם ב־NVR לא משתנה, אלא אם כותבים אותו מסעיף ה־OSD למטה." data-rename-dialog @close=${() => (this.renameTo = null)}>
+      <sw-field label="שם"><input data-rename-input maxlength="80" .value=${this.renameTo} placeholder=${this.cam?.name_source ?? ''} @input=${(e: Event) => (this.renameTo = (e.target as HTMLInputElement).value)} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') void this.saveRename(); }} /></sw-field>
+      <div class="note">ריק = השם מה־NVR${this.cam?.name_source ? ` („${this.cam.name_source}“)` : ''}.</div>
+      ${this.renameMsg ? html`<div class="note" style="color:var(--sw-danger)">${this.renameMsg}</div>` : nothing}
+      <div slot="footer"><sw-button variant="primary" icon="check" ?disabled=${this.renameBusy} data-rename-save @click=${() => this.saveRename()}>שמור</sw-button><sw-button variant="ghost" @click=${() => (this.renameTo = null)}>ביטול</sw-button></div>
+    </sw-dialog>`;
   }
 
   private async loadOsd() {
@@ -970,6 +1001,8 @@ export class LiveCamera extends LitElement {
     return html`
       <sw-page heading=${title} subheading=${sub} crumbs="מצלמות | שידור חי">
         ${this.cam ? html`<sw-badge slot="actions" kind=${this.cam.status === 'online' ? 'live' : this.cam.status === 'offline' ? 'offline' : 'unknown'}></sw-badge>` : nothing}
+        ${api && this.cam ? html`<sw-button slot="actions" variant="ghost" icon="edit" data-camera-rename @click=${() => { this.renameMsg = ''; this.renameTo = this.cam?.alias ?? this.cam?.name ?? ''; }}>שנה שם</sw-button>` : nothing}
+        ${this.renderRename()}
         <a slot="actions" href=${api && this.cam ? `#/investigate/playback?camera=${this.cam.id}` : '#/investigate/playback'}><sw-button icon="history">הקלטות</sw-button></a>
         <a slot="actions" href="#/explore/floors/f0"><sw-button variant="ghost" iconOnly icon="map" label="במפה"></sw-button></a>
         ${api ? this.renderApi() : this.renderDemo()}

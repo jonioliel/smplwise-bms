@@ -61,7 +61,8 @@ test.describe('owner round 11: round-3 notes (SW A)', () => {
     const start = floors.find((f) => f.has_plan)!;
     await open(page, `/explore/floors/${start.id}`);
     const viewer = page.locator('explore-floor-map');
-    await expect(viewer.locator('[data-floor-buttons] button')).toHaveCount(floors.length, { timeout: 30000 });
+    const building = tree.sites.flatMap((s: { buildings: { floors: { id: string }[] }[] }) => s.buildings).find((b: { floors: { id: string }[] }) => b.floors.some((f) => f.id === start.id));
+    await expect(viewer.locator('[data-floor-buttons] button')).toHaveCount(building.floors.length, { timeout: 30000 }); // the floors of this building
     await expect(viewer.locator(`[data-floor-button="${start.id}"]`)).toHaveClass(/on/);
     await page.screenshot({ path: path.join(OUT, `floor-buttons-${testInfo.project.name}.png`) });
     // jump without zoom (default): the scale stays, the pin is centred
@@ -80,7 +81,7 @@ test.describe('owner round 11: round-3 notes (SW A)', () => {
     await page.waitForTimeout(600);
     expect(await canvas.evaluate((el) => (el as unknown as { scale: number }).scale)).toBeGreaterThan(scale0);
     await viewer.locator('[data-jump-zoom]').uncheck();
-    const other = floors.find((f) => f.id !== start.id);
+    const other = (building.floors as { id: string }[]).find((f) => f.id !== start.id);
     if (other) {
       await viewer.locator(`[data-floor-button="${other.id}"]`).click();
       await expect.poll(() => page.evaluate(() => location.hash)).toContain(other.id);
@@ -118,5 +119,23 @@ test.describe('owner round 11: round-3 notes (SW A)', () => {
     await editor.locator('[data-coverage-distance] input').evaluate((el) => { (el as HTMLInputElement).value = '40'; el.dispatchEvent(new Event('input', { bubbles: true })); });
     const radius = await editor.evaluate((el, id) => (el as unknown as { anchors: { id: string; coverage_radius?: number | null }[] }).anchors.find((a) => a.id === id)!.coverage_radius, anchor.id);
     expect(radius).toBeCloseTo(0.4, 3); // not saved: the editor is left without saving
+  });
+
+  test('camera screen: rename from the header, restored afterwards', async ({ page, request }) => {
+    const cam = ((await (await request.get('/api/v1/cameras')).json()).cameras as { id: string; enabled: boolean; alias: string | null; name: string }[]).filter((c) => c.enabled)[0];
+    const before = cam.alias ?? '';
+    const name = `בדיקת שם ${Date.now() % 1000}`;
+    try {
+      await open(page, `/live/cameras/${cam.id}`);
+      const screen = page.locator('live-camera');
+      await screen.locator('[data-camera-rename]').click();
+      await screen.locator('[data-rename-input]').fill(name);
+      await screen.locator('[data-rename-save]').click();
+      await expect(page.locator('live-camera sw-page')).toHaveAttribute('heading', new RegExp(name), { timeout: 15000 });
+      const saved = ((await (await request.get('/api/v1/cameras')).json()).cameras as { id: string; name: string }[]).find((c) => c.id === cam.id)!;
+      expect(saved.name).toBe(name);
+    } finally {
+      await request.patch(`/api/v1/cameras/${cam.id}`, { data: { alias: before } });
+    }
   });
 });

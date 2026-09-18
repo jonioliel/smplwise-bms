@@ -199,7 +199,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import events_ingest
         from .services import exports as ex
 
-        ex.WORKER.stop = True
+        ex.WORKER.shutdown()
         events_ingest.LISTENER.shutdown()
         from .services import thumbnails as th
 

@@ -244,15 +244,28 @@ export class ExploreFloorMap extends LitElement {
         gap: 4px;
       }
       .eactions {
-        flex-direction: column;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
       .eactions .actrow {
         display: flex;
-        inline-size: 100%;
+        flex-direction: column;
+        align-items: stretch;
       }
       .eactions .actrow sw-button {
-        flex: 1;
         min-inline-size: 0;
+      }
+      /* the map keeps the screen: one scrolling row of tools, floor buttons replace the floor select, no editor entry */
+      .tools {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        max-inline-size: 100%;
+        padding-block-end: 2px;
+      }
+      .tools .layers,
+      .tools sw-field,
+      .tools sw-button[icon='edit'] {
+        display: none;
       }
       .rename {
         flex-wrap: wrap;
@@ -769,6 +782,20 @@ export class ExploreFloorMap extends LitElement {
     }
   }
 
+  /** Floors of the building this floor belongs to, with a short unique label each (the quick buttons on the map). */
+  private get buildingFloors(): { id: string; name: string; short: string; hasPlan: boolean }[] {
+    if (this.tree?.source !== 'api') return [];
+    for (const s of this.tree.sites) {
+      for (const b of s.buildings ?? []) {
+        const fl = b.floors ?? [];
+        if (!fl.some((f) => f.id === this.floorId)) continue;
+        const shorts = fl.map((f) => floorShort(f.name));
+        return fl.map((f, i) => ({ id: f.id, name: f.name, hasPlan: f.has_plan, short: shorts.filter((x) => x === shorts[i]).length > 1 ? `${shorts[i]}${i + 1}` : shorts[i] }));
+      }
+    }
+    return [];
+  }
+
   private get floors(): { id: string; name: string; cameraCount: number; hasPlan: boolean }[] {
     if (this.tree?.source === 'api') {
       return this.tree.sites.flatMap((s) => (s.buildings ?? []).flatMap((b) => (b.floors ?? []).map((f) => ({ id: f.id, name: `${b.name} · ${f.name}`, cameraCount: f.camera_count, hasPlan: f.has_plan }))));
@@ -1274,7 +1301,7 @@ export class ExploreFloorMap extends LitElement {
     const e = a.entity;
     const busy = Boolean(this.action && e && this.action.entityId === e.entity_id && this.action.busy);
     const specs = e?.actions ?? [];
-    return html`${specs.map((s) => html`<span class="actrow" data-action-row=${s.id}>${e && s.argument_specs?.length ? s.argument_specs.map((a) => this.renderArg(e, s, a)) : nothing}<sw-button size="sm" variant=${s.risk === 'sensitive' ? 'danger' : s.sensitive ? 'danger' : 'primary'} ?disabled=${busy || this.screenState === 'stale' || e?.state === 'unavailable' || s.granted === false} title=${s.granted === false ? `נדרשת הרשאה נפרדת: ${s.grant ?? ''}` : s.risk_label ? `פעולה ${s.risk_label}` : ''} data-action=${s.id} data-risk=${s.risk ?? (s.sensitive ? 'attention' : 'routine')} data-granted=${s.granted === false ? 'no' : 'yes'} @click=${() => e && this.trigger(e.entity_id, s)}>${s.label}</sw-button></span>`)}`;
+    return html`${specs.map((s) => html`<span class="actrow" data-action-row=${s.id}>${e && s.argument_specs?.length ? s.argument_specs.map((a) => this.renderArg(e, s, a)) : nothing}<sw-button block variant=${s.risk === 'sensitive' ? 'danger' : s.sensitive ? 'danger' : 'primary'} ?disabled=${busy || this.screenState === 'stale' || e?.state === 'unavailable' || s.granted === false} title=${s.granted === false ? `נדרשת הרשאה נפרדת: ${s.grant ?? ''}` : s.risk_label ? `פעולה ${s.risk_label}` : ''} data-action=${s.id} data-risk=${s.risk ?? (s.sensitive ? 'attention' : 'routine')} data-granted=${s.granted === false ? 'no' : 'yes'} @click=${() => e && this.trigger(e.entity_id, s)}>${s.label}</sw-button></span>`)}`;
   }
 
   private renderConfirm() {
@@ -1443,9 +1470,9 @@ export class ExploreFloorMap extends LitElement {
         @marker-select=${this.onSelect}
         @view-change=${this.onViewChange}></sw-plan-canvas>
       <div class="floorchip" data-floorchip><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
-      ${b.source === 'api' && this.floors.length > 1
+      ${b.source === 'api' && this.buildingFloors.length > 1
         ? html`<div class="floorbtns" role="group" aria-label="מעבר מהיר בין קומות" data-floor-buttons>
-            ${this.floors.map((f) => html`<button class=${f.id === this.floorId ? 'on' : ''} data-floor-button=${f.id} title=${`${f.name}${f.hasPlan ? '' : ' · אין תוכנית'}`} aria-pressed=${f.id === this.floorId} @click=${() => { if (f.id !== this.floorId) navigate(`/explore/floors/${f.id}`); }}>${floorShort(f.name)}</button>`)}
+            ${this.buildingFloors.map((f) => html`<button class=${f.id === this.floorId ? 'on' : ''} data-floor-button=${f.id} title=${`${f.name}${f.hasPlan ? '' : ' · אין תוכנית'}`} aria-pressed=${f.id === this.floorId} @click=${() => { if (f.id !== this.floorId) navigate(`/explore/floors/${f.id}`); }}>${f.short}</button>`)}
           </div>`
         : nothing}
       ${this.panel ? this.renderPanel() : nothing}

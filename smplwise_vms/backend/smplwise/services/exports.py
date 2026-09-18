@@ -240,6 +240,7 @@ class Worker:
         self.settings: Settings | None = None
         self.downloader: Callable[..., None] = nvr.download_file  # swapped in tests
         self.stop = False
+        self.generation = 0  # a loop from an earlier start() ends itself when this moves on (0.1.75)
 
     def start(self, db: Database, settings: Settings) -> None:
         self.db, self.settings = db, settings
@@ -248,16 +249,32 @@ class Worker:
         if n:
             log.warning("%d export job(s) were running at shutdown; marked interrupted", n)
         self.stop = False
-        self.thread = threading.Thread(target=self._loop, name="export-worker", daemon=True)
+        self.generation += 1
+        self.event.set()  # let a loop left over from an earlier application notice the new generation and end
+        self.thread = threading.Thread(target=self._loop, args=(self.generation,), name="export-worker", daemon=True)
         self.thread.start()
+
+    def shutdown(self) -> None:
+        """End this application's loop now (not at its next 15 s wake-up): a later application in the same process
+        must never share the queue with it."""
+        self.stop = True
+        self.generation += 1
+        self.event.set()
+        t = self.thread
+        if t and t.is_alive() and t is not threading.current_thread():
+            t.join(timeout=2)
 
     def wake(self) -> None:
         self.event.set()
 
-    def _loop(self) -> None:
-        while not self.stop:
+    def _loop(self, generation: int = 0) -> None:
+        # One loop per start(): a second application in the same process (tests, a restart inside the add-on) used to
+        # leave the old loop alive, and two loops raced for the same queued job.
+        while not self.stop and generation == self.generation:
             self.event.wait(timeout=15)
             self.event.clear()
+            if self.stop or generation != self.generation:
+                break
             try:
                 self.run_pending()
             except Exception as exc:  # never die

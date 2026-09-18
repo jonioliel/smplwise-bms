@@ -68,10 +68,12 @@ def test_semantic_endpoint_scoped_with_confidence(settings):
     app, c, ids, cam, cam2 = _setup(settings)
     tz = ZoneInfo("Asia/Jerusalem")
     now = dt.datetime.now(tz)
+    # always "today" in the site's zone, also just after midnight: fractions of the time since the local midnight
+    since_midnight = now - now.replace(hour=0, minute=0, second=0, microsecond=0)
     with app.state.db.connection() as conn:
-        person = _event(conn, cam, "person", now - dt.timedelta(hours=1), "measured", "human")
-        vehicle = _event(conn, cam2, "vehicle", now - dt.timedelta(hours=1), "measured", "vehicle")
-        inferred = _event(conn, cam, "person", now - dt.timedelta(hours=2), "inferred")
+        person = _event(conn, cam, "person", now - since_midnight / 3, "measured", "human")
+        vehicle = _event(conn, cam2, "vehicle", now - since_midnight / 3, "measured", "vehicle")
+        inferred = _event(conn, cam, "person", now - since_midnight / 2, "inferred")
     r = c.get("/api/v1/search/semantic", params={"q": "אדם בקומה 2 היום"})
     assert r.status_code == 200, r.text
     d = r.json()

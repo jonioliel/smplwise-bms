@@ -24,6 +24,13 @@ export class SwButton extends LitElement {
     :host([hidden]) {
       display: none;
     }
+    /* block: the button fills its container (phone layouts, action grids) */
+    :host([block]) {
+      display: flex;
+    }
+    :host([block]) button {
+      inline-size: 100%;
+    }
     button {
       display: inline-flex;
       align-items: center;

@@ -1,5 +1,18 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.75 (pilot) — camera rename from its screen, phone layout of the map, clean worker shutdown
+- Camera screen: "שנה שם" in the header renames the camera in the VMS (wall, map, events); the NVR name changes only
+  through the OSD section. It used to be reachable only from לייב › בריאות מצלמות ("כינוי מקומי").
+- Floor map on phones: one scrolling row of tools (layer icons, the floor select and the editor entry are hidden -
+  the floor buttons and the "שכבות" panel cover them), so the plan keeps most of the screen; the entity card shows
+  its actions as a two-column grid of full-width buttons (`sw-button[block]`).
+- Floor quick buttons list the floors of the current building with unique short labels.
+- Export worker: a real `shutdown()` ends the loop at once and a new start never shares the queue with an older loop
+  (this was the source of three export tests failing only in full runs). The semantic "today" test no longer depends
+  on the hour; `scripts/api_inventory.py` escape warning fixed; `scripts/dev_cleanup.ps1` removes leftovers of test runs
+  on the developer workstation.
+- Evidence: `frontend/tests/evidence-owner-round11.spec.ts` (4 tests, rename included); full backend suite in one run.
+
 ## 0.1.74 (pilot) — owner round 3: NVR writes for the system administrator, events with a camera, map and wall controls
 - Permissions (owner decision): the built-in "מנהל מערכת VMS" role now holds every `nvr.*` write permission - the
   NVR cards, OSD, schedules, smart rules and manual recording work for the administrator without a custom role.
