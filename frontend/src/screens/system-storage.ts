@@ -311,7 +311,8 @@ export class SystemStorage extends LitElement {
         ${!d.nvr.configured
           ? html`<sw-state-panel state="empty" heading="ה־NVR לא מוגדר" hint="הגדר את פרטי ה־NVR בהגדרות התוסף; המסך קורא ממנו בלבד."></sw-state-panel>`
           : !d.nvr.reachable
-            ? html`<sw-state-panel state="error" heading="אין תשובה מה־NVR" hint=${d.nvr.error ?? ''} actionLabel="נסה שוב" @action=${() => this.load(true)}></sw-state-panel>`
+            ? html`<sw-state-panel state="error" heading="אין תשובה מה־NVR" hint=${d.nvr.error ?? ''} actionLabel="נסה שוב" @action=${() => this.load(true)}></sw-state-panel>
+                ${this.renderSigning()}`
             : html`
                 <div class="kpis" data-storage-kpis>
                   <sw-card flush class="kpi"><div><div class="v">${fmtMb(t?.used_mb)}</div><div class="l">בשימוש (נמדד מה־NVR)</div></div><div class="ic"><sw-icon name="storage" size=${16}></sw-icon></div></sw-card>

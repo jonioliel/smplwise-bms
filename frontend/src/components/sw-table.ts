@@ -88,6 +88,10 @@ export class SwTable extends LitElement {
         border: 0;
         white-space: normal;
         grid-column: 2;
+        /* full-system sweep: an audit "details" cell (a JSON-ish string with no spaces) or a long entity id
+           has no break opportunity, so it ran off the card's edge and widened the whole page sideways */
+        min-inline-size: 0;
+        overflow-wrap: anywhere;
       }
       td:not([data-label=''])::before {
         content: attr(data-label);

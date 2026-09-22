@@ -21,6 +21,13 @@ test.describe('custom roles (SW A)', () => {
     const cams = (await (await request.get('/api/v1/cameras')).json()).cameras as { id: string }[];
     const map = await (await request.get(`/api/v1/floors/${floor.id}/map`)).json();
     const placed = map.anchors.find((a: { resource_type: string }) => a.resource_type === 'camera')?.resource_id ?? cams[0].id;
+    // a run that failed before its cleanup leaves the guard bound to an earlier copy of this role, which still grants
+    // video.export and hides the 403 expected below (0.1.79 sweep): remove such leftovers first (developer database)
+    const stale = ((await (await request.get('/api/v1/access/bindings')).json()).bindings as { id: string; subject_id: string; role_id: string }[]).filter((b) => b.subject_id === 'dev-guard');
+    for (const b of stale) {
+      await request.delete(`/api/v1/access/bindings/${b.id}`);
+      if (b.role_id.startsWith('custom-')) await request.delete(`/api/v1/access/roles/${b.role_id}`); // 409 while bound elsewhere: left alone
+    }
 
     await page.goto('/?design=a#/system/access');
     await page.waitForSelector('sw-app');

@@ -28,7 +28,11 @@ test.describe('owner round 5: round-2 notes (SW A)', () => {
     await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/live/wall');
     const wall = page.locator('live-wall');
     await expect(wall.locator('[data-open-kiosk]')).toBeVisible({ timeout: 30000 });
-    await expect(wall.locator('[data-open-kiosk]')).toHaveAttribute('target', '_blank');
+    // 0.1.76 turned the link into a button that opens the kiosk in a new tab itself (window.open, noopener)
+    const [popup] = await Promise.all([page.context().waitForEvent('page', { timeout: 15000 }), wall.locator('[data-open-kiosk]').click()]);
+    await popup.waitForLoadState();
+    expect(popup.url()).toContain('#/kiosk/all');
+    await popup.close();
   });
 
   test('wall best fit: picked cameras fill the screen as a rectangle', async ({ page, request }, testInfo) => {

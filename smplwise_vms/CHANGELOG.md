@@ -1,5 +1,34 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.79 (pilot) — full-system review: every screen walked, every suite run, six fixes, honest device-blocked reporting
+- Storage and connections screens showed the word "ApiError" as the reason when a device did not answer; a shared
+  `reason_of()` (errors.py) now names the code and the underlying error (`source_unavailable · ConnectTimeout`),
+  used by the storage report and the health probes.
+- Phone layouts (375 px): `sw-table` cells wrap long unbroken text, so הגדרות › אודיט (details JSON, 644 px) and
+  מפה › ישויות HA (entity ids, 484 px) no longer scroll sideways; the playback control bar wraps and hides the
+  ×2/×4 speeds the relay refuses anyway (428 px before).
+- Playback: the day's events and the case bookmarks are local data - they stay on the bar when the NVR
+  recordings search fails (a failure used to drop them together with the recordings).
+- Storage screen: the evidence-signing card (the installation's own key ring) stays visible when the NVR does
+  not answer; it used to sit inside the "NVR reachable" branch.
+- The red "NVR מנותק" system banner under the topbar sat at the topbar's own z-index and, being later in the
+  DOM, painted over the Ctrl+K search results: the first rows could not be clicked while the banner showed. It
+  now sits one level under the topbar (still above drawers and content).
+- Backend: the duplicate `history.ha_secondary` entry in the settings defaults and PATCH model is gone (no
+  behaviour change).
+- Evidence specs repaired where the sweep showed them, not the product, out of date: custom roles removes stale
+  guard bindings a run that died before its cleanup left behind (they hid the expected 403); the ack-all check
+  reads its count after the remembered filters applied; the kiosk button has opened its own tab since 0.1.76
+  (no `target` attribute); the coverage slider has a number field beside it (`input[type="range"]`).
+- Review record: `docs/operations/TEST_ROUND_RESULTS_2026-09-22_HE.md`. Backend suite green (twice), `tsc`
+  clean, the demo fixture chain green, and the 86 live evidence specs run in one sweep with the owner's NVR and
+  HA unreachable from the workstation the whole evening: 42 passed, 43 failed of which 36 need device data
+  (events, recordings, NVR/HA/go2rtc answers) and are BLOCKED, not broken, 3 were the product gaps above and
+  4 were specs out of date; after the fixes the 7 touched spec files re-ran green except the 2 tests that still
+  need the NVR (notify permissions, a row to hover). Round-6 checklist for the
+  owner (0.1.78 + 0.1.79 items, plus the device-only flows the sweep could not reach).
+
+
 ## 0.1.78 (pilot) — audit retention as a setting, a deny option in the role wizard
 - Audit log retention was a fixed 365-day constant in code; it is `audit.retention_days` now (30-3650 days),
   editable in הגדרות › כללי next to the export/event retention fields the janitor already used the same way.

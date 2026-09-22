@@ -533,7 +533,9 @@ export class SwApp extends LitElement {
       position: fixed;
       inset-inline: 0;
       inset-block-start: var(--sw-topbar-h);
-      z-index: var(--sw-z-topbar);
+      /* one level under the topbar: at the topbar's own level the banner (later in the DOM) painted over the
+         search results that drop out of the topbar, and their first rows could not be clicked (0.1.79 sweep) */
+      z-index: calc(var(--sw-z-topbar) - 1);
       display: flex;
       align-items: center;
       gap: 10px;

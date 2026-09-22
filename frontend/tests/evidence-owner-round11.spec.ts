@@ -116,7 +116,8 @@ test.describe('owner round 11: round-3 notes (SW A)', () => {
     }, anchor.id);
     await page.mouse.click(box.x + centre.x, box.y + centre.y);
     await expect(editor.locator('[data-coverage-width] input')).toBeVisible({ timeout: 15000 });
-    await editor.locator('[data-coverage-distance] input').evaluate((el) => { (el as HTMLInputElement).value = '40'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+    // the slider has an exact-percent number field next to it since 0.1.7x: address the range input
+    await editor.locator('[data-coverage-distance] input[type="range"]').evaluate((el) => { (el as HTMLInputElement).value = '40'; el.dispatchEvent(new Event('input', { bubbles: true })); });
     const radius = await editor.evaluate((el, id) => (el as unknown as { anchors: { id: string; coverage_radius?: number | null }[] }).anchors.find((a) => a.id === id)!.coverage_radius, anchor.id);
     expect(radius).toBeCloseTo(0.4, 3); // not saved: the editor is left without saving
   });

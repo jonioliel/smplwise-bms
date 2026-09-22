@@ -24,6 +24,12 @@ STORAGE = nvr.storage_status  # test seams
 TRACKS = nvr.record_schedules
 OLDEST = nvr.oldest_recording
 
+
+def _reason(exc: BaseException) -> str:
+    from ..errors import reason_of
+
+    return reason_of(exc)
+
 MODE_LABEL = {"CMR": "רציף", "MOTION": "תנועה", "ALARM": "התראה", "EDR": "אירוע", "MANUAL": "ידני", "TIMING": "מתוזמן", "ALLEVENT": "כל אירוע", "MOTIONALARM": "תנועה או התראה"}
 DAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 LIMITS = {
@@ -136,8 +142,8 @@ def build(settings: Settings, tz_name: str, cams: list[dict[str, Any]], now: dt.
     try:
         st = STORAGE(settings)
     except Exception as exc:  # noqa: BLE001 - an unreachable NVR is reported, never raised into the screen
-        out["nvr"]["error"] = type(exc).__name__
-        out["retention"]["measured_reason"] = out["retention"]["estimated_reason"] = f"אין תשובה מה־NVR ({type(exc).__name__})"
+        out["nvr"]["error"] = _reason(exc)
+        out["retention"]["measured_reason"] = out["retention"]["estimated_reason"] = f"אין תשובה מה־NVR ({_reason(exc)})"
         return out
     out["nvr"]["reachable"] = True
     out["work_mode"] = st["work_mode"]
@@ -150,7 +156,7 @@ def build(settings: Settings, tz_name: str, cams: list[dict[str, Any]], now: dt.
     try:
         tracks = {t.track_id: t for t in TRACKS(settings)}
     except Exception as exc:  # noqa: BLE001
-        out["schedule_error"] = f"תוכנית ההקלטה לא נקראה ({type(exc).__name__})"
+        out["schedule_error"] = f"תוכנית ההקלטה לא נקראה ({_reason(exc)})"
     tz = zone(tz_name)
     start_wall = utc_to_nvr_wall(now - dt.timedelta(days=LOOKBACK_DAYS), tz)
     end_wall = utc_to_nvr_wall(now, tz)
@@ -187,7 +193,7 @@ def build(settings: Settings, tz_name: str, cams: list[dict[str, Any]], now: dt.
                 else:
                     entry["retention_reason"] = f"לא נמצאו הקלטות ב־{LOOKBACK_DAYS} הימים האחרונים"
             except Exception as exc:  # noqa: BLE001
-                entry["retention_reason"] = f"החיפוש נכשל ({type(exc).__name__})"
+                entry["retention_reason"] = f"החיפוש נכשל ({_reason(exc)})"
         else:
             entry["retention_reason"] = "אין track הקלטה ידוע; הרץ סנכרון מצלמות"
         out["cameras"].append(entry)

@@ -25,6 +25,16 @@ class ApiError(Exception):
         }
 
 
+def reason_of(exc: BaseException) -> str:
+    """Short reason for a screen or a status field when a device call fails: an ApiError names its code and
+    the underlying error (`source_unavailable · ConnectTimeout`); `type(exc).__name__` on one is only the
+    word "ApiError", which is what the storage and health screens used to show."""
+    if isinstance(exc, ApiError):
+        inner = (exc.details or {}).get("error")
+        return f"{exc.code} · {inner}" if inner else exc.code
+    return type(exc).__name__
+
+
 def unauthenticated(code: str, message: str) -> ApiError:
     return ApiError(401, code, message)
 

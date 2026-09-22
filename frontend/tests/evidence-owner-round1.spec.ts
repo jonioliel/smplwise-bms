@@ -77,10 +77,15 @@ test.describe('owner round 1 (SW A)', () => {
     const screen = page.locator('investigate-events');
     const btn = screen.locator('[data-ack-all]');
     await expect(btn).toBeVisible({ timeout: 30000 });
-    const text = (await btn.textContent()) ?? '';
+    // the list loads again once the remembered filters apply, so a count read right after the first render can be
+    // stale (0.1.79 sweep: "(0)" read, then the button turned enabled): settle the network and read a stable count
+    await page.waitForLoadState('networkidle');
+    let text = (await btn.textContent()) ?? '';
+    await expect.poll(async () => { const now = (await btn.textContent()) ?? ''; const stable = now === text; text = now; return stable; }, { timeout: 15000, intervals: [800] }).toBe(true);
     const n = Number((text.match(/\((\d+)\)/) ?? [])[1] ?? 0);
     if (n === 0) {
-      await expect(btn).toBeDisabled();
+      // sw-button reflects `disabled` onto its inner native button; the host element itself is not a form control
+      await expect(btn.locator('button')).toBeDisabled();
       test.info().annotations.push({ type: 'note', description: 'no unreviewed events on the shown day - only the disabled state is verified' });
       return;
     }

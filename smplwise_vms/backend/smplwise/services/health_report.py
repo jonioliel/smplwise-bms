@@ -14,6 +14,7 @@ from typing import Any
 from .. import __version__
 from ..config import Settings
 from ..db import get_setting, now_iso, permission_revision
+from ..errors import reason_of
 from . import autosync, events_derive, events_ingest, ha_client, ha_sync, thumbnails
 from . import backup as backup_svc
 
@@ -86,7 +87,7 @@ def _probe_nvr(settings: Settings) -> dict[str, Any]:
     try:
         info = nvr.device_info(settings)
     except Exception as exc:  # noqa: BLE001 - the report must never fail because a device is down
-        return {"status": "error", "detail": f"אין תשובה מה־NVR ({type(exc).__name__}).", "configured": True, "error": type(exc).__name__}
+        return {"status": "error", "detail": f"אין תשובה מה־NVR ({reason_of(exc)}).", "configured": True, "error": reason_of(exc)}
     return {"status": "ok", "detail": f"מחובר · {info.get('model') or 'דגם לא ידוע'} · קושחה {info.get('firmware') or '?'}", "configured": True, "model": info.get("model"), "firmware": info.get("firmware"), "ms": int((time.time() - t0) * 1000)}
 
 
@@ -100,7 +101,7 @@ def _probe_go2rtc(settings: Settings) -> dict[str, Any]:
         info = g.info()
         streams = g.list_streams()
     except Exception as exc:  # noqa: BLE001
-        return {"status": "error", "detail": f"go2rtc אינו זמין ({type(exc).__name__}).", "configured": True, "error": type(exc).__name__}
+        return {"status": "error", "detail": f"go2rtc אינו זמין ({reason_of(exc)}).", "configured": True, "error": reason_of(exc)}
     ours = [s for s in streams if s.startswith(STREAM_PREFIX)]
     online = sum(1 for s in ours if streams[s].online)
     return {"status": "ok", "detail": f"גרסה {info.get('version', '?')} · {len(ours)} זרמים שלנו ({online} פעילים) · {len(streams) - len(ours)} זרמים זרים לא נגעו", "configured": True, "version": info.get("version"), "streams": len(ours), "online": online, "foreign": len(streams) - len(ours)}

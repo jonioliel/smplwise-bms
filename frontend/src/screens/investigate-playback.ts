@@ -420,6 +420,20 @@ export class InvestigatePlayback extends LitElement {
       direction: ltr;
       unicode-bidi: isolate;
     }
+    /* full-system sweep: on a phone the floating control pill (frame step, speeds, skip) was wider than the
+       screen and its end buttons were clipped; it wraps now, and speeds the relay refuses anyway (2×/4×) are
+       dropped there instead of taking room as disabled buttons. */
+    @media (max-width: 767px) {
+      .bar .inner {
+        flex-wrap: wrap;
+        justify-content: center;
+        row-gap: 4px;
+        max-inline-size: calc(100% - 16px);
+      }
+      .bar .q[disabled] {
+        display: none;
+      }
+    }
   `;
 
   connectedCallback() {
@@ -536,15 +550,18 @@ export class InvestigatePlayback extends LitElement {
     this.loadingRec = true;
     this.rec = null;
     try {
+      // the day's events and the case bookmarks are local data: they stay on the bar even when the NVR search
+      // fails (0.1.79 sweep with the NVR unreachable: the failure used to drop them together with the recordings)
       const [rec, ev, bm] = await Promise.all([
-        recordingsForDay(this.cameraId, this.date),
+        recordingsForDay(this.cameraId, this.date).then((r) => ({ ok: true as const, r }), (e: unknown) => ({ ok: false as const, e })),
         cameraEvents(this.cameraId, this.date).catch(() => ({ events: [] as VmsEvent[] })),
         listBookmarks(this.cameraId, this.date).catch(() => ({ bookmarks: [] as Bookmark[] })),
       ]);
-      this.rec = rec;
       this.dayEvents = ev.events;
       this.bookmarks = bm.bookmarks;
       this.activeBookmark = null;
+      if (!rec.ok) throw rec.e;
+      this.rec = rec.r;
       this.error = '';
     } catch (err) {
       this.error = describeError(err);
