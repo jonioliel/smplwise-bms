@@ -135,8 +135,8 @@
       "AT005",
       "AT006"
     ],
-    "status": "READY",
-    "blocker": null,
+    "status": "BLOCKED",
+    "blocker": "Excluded from G0 by owner decision 2026-09-22 - not to be worked (see the evidence entry).",
     "priority": "P0",
     "model_policy": {
       "implementation": "balanced",
@@ -150,7 +150,9 @@
       "Documentation, known limits and rollback notes",
       "Technical review record"
     ],
-    "evidence": [],
+    "evidence": [
+      "EXCLUDED - owner decision 2026-09-22 (\"the new part has already proved itself; this stage is not needed\"): no trace capture from the legacy add-on and no characterization diff will be produced. Six test rounds on the owner's installation (TEST_ROUND_RESULTS_2026-09-17_HE.md, _2026-09-22_HE.md) are the acceptance basis instead; docs/legacy/KNOWN_QUIRKS.md keeps the quirks found by reading the legacy code; the migration dry run and the rollout / rollback runbook (T070) stand. Recorded in docs/architecture/DECISIONS.md and in the V1 release package (known limit 8). This line is an exclusion record, not implementation evidence."
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
@@ -183,8 +185,8 @@
       "AT007",
       "AT008"
     ],
-    "status": "BACKLOG",
-    "blocker": null,
+    "status": "BLOCKED",
+    "blocker": "Excluded from G0 by owner decision 2026-09-22 - not to be worked (see the evidence entry).",
     "priority": "P0",
     "model_policy": {
       "implementation": "balanced",
@@ -198,7 +200,9 @@
       "Documentation, known limits and rollback notes",
       "Technical review record"
     ],
-    "evidence": [],
+    "evidence": [
+      "EXCLUDED - owner decision 2026-09-22 (\"the new part has already proved itself; this stage is not needed\"): no trace capture from the legacy add-on and no characterization diff will be produced. Six test rounds on the owner's installation (TEST_ROUND_RESULTS_2026-09-17_HE.md, _2026-09-22_HE.md) are the acceptance basis instead; docs/legacy/KNOWN_QUIRKS.md keeps the quirks found by reading the legacy code; the migration dry run and the rollout / rollback runbook (T070) stand. Recorded in docs/architecture/DECISIONS.md and in the V1 release package (known limit 8). This line is an exclusion record, not implementation evidence."
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
@@ -3787,7 +3791,8 @@
       "Technical review record"
     ],
     "evidence": [
-      "pre-evidence (2026-09-17): scripts/migrate_legacy.py — migration dry run from the legacy Hikvision NVR Panel 1.5.27: reads the add-on options, /config/hikvision_nvr_override.json (NVR overrides, camera_names, recording display offset, manual_recording) and the JSONL event store; maps every option to its VMS place (PINs -> HA users + roles), matches legacy aliases to VMS cameras by channel (set_alias / same / keep_vms_alias / no_vms_camera / vms_only), computes the legacy's effective display offset and warns when it is not 0 (the VMS shows NVR wall-clock times, T014), names what is not migrated (manual recording = NVR write, legacy events), lists feature parity, a six-step rollout and the rollback (start the legacy again; the NVR is never written); secrets never printed, hosts masked; the only write is --apply-aliases to the VMS (empty aliases only, --force-aliases to overwrite). Shadow comparison ran against the dev VMS with a synthetic legacy config (report under private-evidence/migration/). tests/test_migrate_legacy.py; docs/operations/MIGRATION_FROM_LEGACY_HE.md. Open: golden traces / characterization (T003/T004) need the owner's access to the legacy add-on; the staged rollout itself runs on the owner's installation"
+      "pre-evidence (2026-09-17): scripts/migrate_legacy.py — migration dry run from the legacy Hikvision NVR Panel 1.5.27: reads the add-on options, /config/hikvision_nvr_override.json (NVR overrides, camera_names, recording display offset, manual_recording) and the JSONL event store; maps every option to its VMS place (PINs -> HA users + roles), matches legacy aliases to VMS cameras by channel (set_alias / same / keep_vms_alias / no_vms_camera / vms_only), computes the legacy's effective display offset and warns when it is not 0 (the VMS shows NVR wall-clock times, T014), names what is not migrated (manual recording = NVR write, legacy events), lists feature parity, a six-step rollout and the rollback (start the legacy again; the NVR is never written); secrets never printed, hosts masked; the only write is --apply-aliases to the VMS (empty aliases only, --force-aliases to overwrite). Shadow comparison ran against the dev VMS with a synthetic legacy config (report under private-evidence/migration/). tests/test_migrate_legacy.py; docs/operations/MIGRATION_FROM_LEGACY_HE.md. Open: golden traces / characterization (T003/T004) need the owner's access to the legacy add-on; the staged rollout itself runs on the owner's installation",
+      "2026-09-22: the legacy parity comparison is no longer gated on T003/T004 - the owner excluded both (the new adapter proved itself in six test rounds on the installation). What remains for this card is the staged rollout with a real rollback on the owner's installation and the decommission approval; the dry run, the mapping and the runbook are in place."
     ],
     "owner": null,
     "commit": null,

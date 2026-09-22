@@ -61,8 +61,12 @@ consistency items below and prints the tag commands to run after approval.
 6. **Concurrency budget**: up to 4 concurrent operators on the reference workstation; the storage report is warmed in the
    background (cold build ≈ 30–50 s on the lab NVR).
 7. **Bridge changes need one HA restart** (0.2.1 added the climate / media / number / select / alarm services).
-8. **Legacy comparison (T003 / T004 golden traces)** is still owner-gated; the migration dry run
-   (`scripts/migrate_legacy.py`, `docs/operations/MIGRATION_FROM_LEGACY_HE.md`) covers the mapping, rollout and rollback.
+8. **Legacy comparison (T003 / T004 golden traces) — excluded by owner decision (2026-09-22)**: the new adapter proved
+   itself in six test rounds on the owner's installation, so no trace capture from the legacy add-on and no
+   characterization diff will be produced. What stands in their place: `docs/legacy/KNOWN_QUIRKS.md` (the quirks found
+   by reading the legacy code), the migration dry run (`scripts/migrate_legacy.py`,
+   `docs/operations/MIGRATION_FROM_LEGACY_HE.md`) and the rollout / rollback runbook. Time-mapping mismatches, if any
+   surface later, are handled as bugs against the NVR's wall clock (chapter 20), never by a fixed hour shift.
 9. **Playback speeds (T066), written as exclusions**: camera-side RTSP `Scale` is not exposed by go2rtc, so faster than
    real time stays disabled with its reason; audio in slow motion is muted by the browser; behaviour across a recording
    gap after a speed change and group drift after a speed change are not evidenced on a real recording and are not
@@ -92,8 +96,6 @@ may not run.
 ## 6. Open items that only the owner can close
 
 - Acceptance test round on the owner's installation (round-6 checklist: 0.1.78–0.1.81 items plus the device-only flows).
-- Golden traces from the legacy add-on (T003 / T004) for the characterization comparison — ~30 min of SSH / file-editor
-  access to the legacy add-on, then the capture runs on the workstation.
 - Confirming the two V1 exclusions in known limit 5 (T054 intercom, T058 second NVR), or supplying the hardware.
 - The keyframe-offset / PTS→source-time measurement on a known-time reference frame (T006, lab NVR, ~3 h with access).
 - "Notify Surveillance Center" on the NVR (done on 8 channels 2026-09-17; keep it on).
