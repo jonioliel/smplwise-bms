@@ -64,6 +64,11 @@ export class InvestigateEvents extends LitElement {
   @state() private placeZone = '';
   @state() private source = '';
   @state() private unsupported: UnsupportedFilter[] = [];
+  /** T062 (open corner): free text over the camera name and the event's own details, and a range wider than one
+   * day. `date` stays the anchor (its own end); `rangeDays` picks how many days end there. */
+  @state() private q = '';
+  @state() private rangeDays = 1;
+  private qTimer = 0;
   private unsubscribe: (() => void) | undefined;
   private thumbTimers = new Map<string, number>();
   private thumbInFlight = 0;
@@ -78,8 +83,34 @@ export class InvestigateEvents extends LitElement {
     .filters sw-field {
       inline-size: 150px;
     }
+    .filters sw-field:has(input[type='search']) {
+      inline-size: 210px;
+    }
     .filters .grow {
       flex: 1;
+    }
+    .rangepick {
+      display: inline-flex;
+      gap: 2px;
+      background: var(--sw-surface-3);
+      border-radius: 8px;
+      padding: 2px;
+    }
+    .rangepick button {
+      font: inherit;
+      font-size: var(--sw-fs-xs);
+      border: 0;
+      background: transparent;
+      color: var(--sw-text-2);
+      border-radius: 6px;
+      padding: 4px 8px;
+      cursor: pointer;
+    }
+    .rangepick button.on {
+      background: var(--sw-surface);
+      color: var(--sw-accent-text);
+      font-weight: var(--sw-fw-semibold);
+      box-shadow: var(--sw-shadow-1);
     }
     .stage {
       position: relative;
@@ -575,9 +606,20 @@ export class InvestigateEvents extends LitElement {
     </div>`;
   }
 
+  /** `date` (or today, in local time) as the range's last day; `rangeDays` days ending there. Day 1 = the plain
+   * `date` filter the backend already resolves correctly in the installation's own time zone; wider ranges are
+   * an additive browsing convenience, so a UTC day-boundary approximation is an acceptable trade for staying simple. */
+  private searchWindow(): { date?: string; from?: string; to?: string } {
+    if (this.rangeDays <= 1) return { date: this.date || undefined };
+    const to = new Date(`${this.date || dateInZone(new Date(), this.tz)}T23:59:59.999Z`);
+    const from = new Date(to.getTime() - (this.rangeDays - 1) * 86_400_000);
+    from.setUTCHours(0, 0, 0, 0);
+    return { from: from.toISOString(), to: to.toISOString() };
+  }
+
   private async load() {
     try {
-      const r = await listEvents({ date: this.date || undefined, cameraId: this.cameraId || undefined, type: this.type || undefined, unacked: this.filter === 'unacked', acked: this.filter === 'acked', limit: 500, floorId: this.placeFloor || undefined, zoneId: this.placeZone || undefined, source: this.source || undefined });
+      const r = await listEvents({ ...this.searchWindow(), cameraId: this.cameraId || undefined, type: this.type || undefined, unacked: this.filter === 'unacked', acked: this.filter === 'acked', limit: 500, floorId: this.placeFloor || undefined, zoneId: this.placeZone || undefined, source: this.source || undefined, query: this.q.trim() || undefined });
       this.events = r.events;
       this.unsupported = (r as { filters?: { unsupported: UnsupportedFilter[] } }).filters?.unsupported ?? [];
       this.ingest = r.ingest;
@@ -586,6 +628,17 @@ export class InvestigateEvents extends LitElement {
     } catch (err) {
       this.error = describeError(err);
     }
+  }
+
+  private onSearchInput(value: string) {
+    this.q = value;
+    window.clearTimeout(this.qTimer);
+    this.qTimer = window.setTimeout(() => void this.load(), 350);
+  }
+
+  private setRange(days: number) {
+    this.rangeDays = days;
+    void this.load();
   }
 
   // ---- review windows (M26): adjacent events of one camera shown as one row; raw events stay ----
@@ -735,9 +788,13 @@ export class InvestigateEvents extends LitElement {
         <div class="kpi"><div><div class="n">${this.events.length - unacked}</div><div class="l">טופלו היום</div></div><div class="ic"><sw-icon name="check" size=${18}></sw-icon></div></div>
       </div>
       <div class="filters">
+        <sw-field><input type="search" data-events-q placeholder="חיפוש חופשי (שם מצלמה, ישות HA, פרטי אירוע)" aria-label="חיפוש חופשי" .value=${this.q} @input=${(e: Event) => this.onSearchInput((e.target as HTMLInputElement).value)} /></sw-field>
         <sw-field><select aria-label="מצלמה" @change=${(e: Event) => { this.cameraId = (e.target as HTMLSelectElement).value; void this.load(); }}><option value="" ?selected=${!this.cameraId}>כל המצלמות</option>${(this.cams ?? []).map((c) => html`<option value=${c.id} ?selected=${c.id === this.cameraId}>${c.name}</option>`)}</select></sw-field>
         <sw-field><select aria-label="סוג" @change=${(e: Event) => { this.type = (e.target as HTMLSelectElement).value; void this.load(); }}><option value="" ?selected=${!this.type}>כל סוגי האירועים</option>${(Object.keys(EVENT_LABEL) as EventKind[]).map((t) => html`<option value=${t} ?selected=${t === this.type}>${EVENT_LABEL[t]}</option>`)}</select></sw-field>
         <sw-field><input type="date" .value=${this.date} max=${dateInZone(new Date(), this.tz)} data-ltr aria-label="תאריך" @change=${(e: Event) => { this.date = (e.target as HTMLInputElement).value; void this.load(); }} /></sw-field>
+        <span class="rangepick" role="group" aria-label="טווח ימים" data-events-range>
+          ${[[1, 'יום'], [7, '7 ימים'], [30, '30 יום']].map(([n, label]) => html`<button class=${this.rangeDays === n ? 'on' : ''} data-events-range-set=${n} @click=${() => this.setRange(n as number)}>${label}</button>`)}
+        </span>
         <sw-field><select aria-label="מקום" data-filter-floor @change=${(e: Event) => { this.placeFloor = (e.target as HTMLSelectElement).value; this.placeZone = ''; void this.load(); }}><option value="" ?selected=${!this.placeFloor}>כל המקומות</option>${this.facetFloors.map((fl) => html`<option value=${fl.id} ?selected=${fl.id === this.placeFloor}>${fl.name} · ${fl.cameras} מצלמות${fl.sensors ? ` · ${fl.sensors} חיישנים` : ''}</option>`)}</select></sw-field>
         ${this.placeFloor && this.facetFloors.find((fl) => fl.id === this.placeFloor)?.zones.length
           ? html`<sw-field><select aria-label="חדר / אזור" data-filter-zone @change=${(e: Event) => { this.placeZone = (e.target as HTMLSelectElement).value; void this.load(); }}><option value="" ?selected=${!this.placeZone}>כל הקומה</option>${(this.facetFloors.find((fl) => fl.id === this.placeFloor)?.zones ?? []).map((z) => html`<option value=${z.id} ?selected=${z.id === this.placeZone}>${z.name} · ${z.cameras} מצלמות${z.sensors ? ` · ${z.sensors} חיישנים` : ''}</option>`)}</select></sw-field>`

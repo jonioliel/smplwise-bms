@@ -116,6 +116,10 @@ export class SystemSetup extends LitElement {
     return html`<div class="check"><span>${label}</span><span class=${`val ${tone}`}>${value === null || value === undefined || value === '' ? '—' : String(value)}</span></div>`;
   }
 
+  private sectionHead(icon: string, label: string) {
+    return html`<div class="syshead"><sw-icon name=${icon} size=${15}></sw-icon>${label}</div>`;
+  }
+
   private async loadNvr() {
     if (!isApi()) return;
     try {
@@ -185,7 +189,7 @@ export class SystemSetup extends LitElement {
       ${!s
         ? this.sysError ? nothing : html`<div class="hint">קורא את מצב המערכת מה־NVR…</div>`
         : html`
-          <div class="hint" style="margin-block-start:4px"><b>שעון</b></div>
+          ${this.sectionHead('clock', 'שעון')}
           ${s.time
             ? html`${this.row('שעון ה־NVR', `${s.time.local_time ?? '—'} · ${s.time.mode === 'NTP' ? 'NTP' : 'ידני'}`)}
                 ${this.row('סטייה מול שעון השרת', drift === null ? '—' : `${drift > 0 ? '+' : ''}${drift} שנ׳`, driftTone as 'ok' | 'warn' | 'err' | '')}
@@ -204,7 +208,7 @@ export class SystemSetup extends LitElement {
                       : nothing}`
                   : html`<div class="hint">כתיבת שעון / NTP: הרשאה nvr.config.time (תפקיד מותאם).</div>`}`
             : html`<div class="hint">השעון לא נקרא${s.errors.time ? ` (${s.errors.time})` : ''}.</div>`}
-          <div class="hint" style="margin-block-start:10px"><b>דיסקים</b></div>
+          ${this.sectionHead('storage', 'דיסקים ו־S.M.A.R.T.')}
           ${s.disks.length
             ? s.disks.map((d) => html`<div data-nvr-disk=${d.id}>
                 ${this.row(`${d.name} (${d.type})`, `${d.status} · ${gb(d.capacity_mb)} · פנוי ${gb(d.free_mb)} (${d.capacity_mb ? Math.round((d.free_mb / d.capacity_mb) * 100) : 0}%)`, d.status === 'ok' ? 'ok' : 'warn')}
@@ -214,7 +218,7 @@ export class SystemSetup extends LitElement {
                 ${s.can.storage ? html`<div class="actions"><sw-button size="sm" icon="storage" ?disabled=${this.sysBusy} data-nvr-smart-test=${d.id} @click=${() => this.sysAction('בדיקת S.M.A.R.T. קצרה', () => startSmartTest(d.id, 'short'))}>בדיקת S.M.A.R.T. קצרה</sw-button><span class="hint">מעמיסה את הדיסק בזמן ריצתה; מומלץ בשעות שקטות</span></div>` : nothing}
               </div>`)
             : html`<div class="hint">לא נקראו דיסקים${s.errors.disks ? ` (${s.errors.disks})` : ''}.</div>`}
-          <div class="hint" style="margin-block-start:10px"><b>יציאות אזעקה</b></div>
+          ${this.sectionHead('bell', 'יציאות אזעקה')}
           ${s.outputs.length
             ? s.outputs.map((o) => html`<div class="check" data-nvr-output=${o.id}><span>יציאה ${o.id}${o.name ? ` · ${o.name}` : ''} <span class="hint">${o.io_type === 'local' ? 'ממסר ב־NVR' : 'במצלמה'} · ${o.use_type === 'whiteLight' ? 'אור לבן' : o.use_type === 'disable' ? 'לא בשימוש' : o.use_type}${o.pulse_ms ? ` · פולס ${o.pulse_ms / 1000} שנ׳` : ''}</span></span>
                 ${!o.pulse_supported
@@ -222,7 +226,7 @@ export class SystemSetup extends LitElement {
                   : s.can.alarm ? html`<sw-button size="sm" icon="bell" ?disabled=${this.sysBusy || !o.enabled} data-nvr-pulse=${o.id} @click=${() => this.sysAction(`הפעלת יציאה ${o.id}`, () => pulseNvrOutput(o.id))}>הפעל (pulse)</sw-button>` : html`<span class="val">${o.enabled ? 'פעיל' : 'כבוי'}</span>`}
               </div>`)
             : html`<div class="hint">אין יציאות${s.errors.outputs ? ` (${s.errors.outputs})` : ''}.</div>`}
-          <div class="hint" style="margin-block-start:10px"><b>הפעלה מחדש</b></div>
+          ${this.sectionHead('refresh', 'הפעלה מחדש')}
           ${s.can.reboot
             ? html`<div class="actions"><sw-button size="sm" variant="danger" icon="refresh" ?disabled=${this.sysBusy} data-nvr-reboot @click=${() => { this.rebootWord = ''; this.rebootOpen = true; }}>הפעל מחדש את ה־NVR…</sw-button><span class="hint">1–2 דקות בלי לייב ובלי הקלטה</span></div>`
             : html`<div class="hint">הפעלה מחדש: הרשאה nvr.system.reboot (תפקיד מותאם).</div>`}
@@ -343,6 +347,7 @@ export class SystemSetup extends LitElement {
         ${!h
           ? this.error ? nothing : html`<sw-state-panel state="loading" heading="קורא את מצב החיבורים…"></sw-state-panel>`
           : html`<div class="two" data-connections>
+              <div class="grouplabel">מערכת ה־NVR</div>
               <sw-card heading="NVR (Hikvision, ISAPI + RTSP)" subheading=${h.nvr_configured ? 'מוגדר · קריאה בלבד' : 'לא מוגדר'}>
                 ${this.row('מוגדר ב־Add-on options', h.nvr_configured ? 'כן' : 'לא', h.nvr_configured ? 'ok' : 'err')}
                 ${this.recorder ? this.row('דגם · קושחה', `${this.recorder.model ?? '—'} · ${this.recorder.firmware ?? '—'}`) : nothing}
@@ -357,6 +362,7 @@ export class SystemSetup extends LitElement {
               ${this.renderNotifyCard()}
               ${this.renderSystemCard()}
               ${this.renderConnectionCard()}
+              <div class="grouplabel">שירותים ותשתית נוספים</div>
               <sw-card heading="go2rtc (relay לווידאו)" subheading=${h.go2rtc_configured ? 'מוגדר' : 'לא מוגדר'}>
                 ${this.row('מוגדר ב־Add-on options', h.go2rtc_configured ? 'כן' : 'לא', h.go2rtc_configured ? 'ok' : 'err')}
                 ${this.row('סנכרון זרמים אחרון תקין', when(h.discovery.streams_last_ok), h.discovery.streams_last_error ? 'warn' : 'ok')}
@@ -446,6 +452,39 @@ export class SystemSetup extends LitElement {
     }
     .check:last-child {
       border-block-end: 0;
+    }
+    /* owner round 4 (1.1): the system card packed clock/disks/outputs/reboot behind bare bold text with no
+       separation - a wall of controls. A real section head (icon, label, rule) makes it scannable. */
+    .syshead {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-block: 14px 4px;
+      padding-block-start: 12px;
+      border-block-start: 1px solid var(--sw-border);
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading, var(--sw-text));
+    }
+    .syshead:first-child {
+      margin-block-start: 0;
+      padding-block-start: 0;
+      border-block-start: 0;
+    }
+    .syshead sw-icon {
+      color: var(--sw-accent);
+    }
+    .grouplabel {
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-text-3);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-block: 4px 2px;
+      grid-column: 1 / -1;
+    }
+    .grouplabel:not(:first-child) {
+      margin-block-start: 14px;
     }
     .hint {
       font-size: var(--sw-fs-xs);

@@ -411,6 +411,12 @@ export class LiveCamera extends LitElement {
     .video {
       position: relative;
       aspect-ratio: 16 / 9;
+      /* owner report: on a wide desktop (design A has no page max-width), a 16:9 box at full page width grows
+         taller than the viewport - the controls and settings below need a scroll to even see they exist. Capping
+         the height (the width then follows from the ratio) keeps the whole screen reachable without scrolling. */
+      max-block-size: min(60dvh, 640px);
+      inline-size: 100%;
+      margin-inline: auto;
       border-radius: var(--sw-r-lg);
       overflow: hidden;
       background: #0f1729;

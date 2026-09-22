@@ -92,19 +92,23 @@ def list_events(
     zone_id: str | None = None,
     source: str | None = Query(None, pattern="^(alertstream|recording|system|ha)$"),
     severity: str | None = Query(None, pattern="^(info|alert|critical)$"),
+    q: str | None = Query(None, max_length=200),
 ) -> dict[str, Any]:
-    """Events by time, camera, type, place (site / building / floor / zone, through the current anchors) and source.
+    """Events by time, camera, type, place (site / building / floor / zone, through the current anchors), source
+    and free text (T062: over the camera's name and the event's own details - an HA entity's friendly name, a
+    device class, anything stored on the row - not just the structured filters above).
     A filter that cannot match by construction — a type this installation never produced, a place without placed
-    items — is reported in `filters.unsupported` instead of an empty list that looks like "nothing happened" (T062)."""
+    items — is reported in `filters.unsupported` instead of an empty list that looks like "nothing happened"."""
     # list_windows calls this function directly: Query defaults arrive as Query objects, never as values
     type = type if isinstance(type, str) else None
     source = source if isinstance(source, str) else None
     severity = severity if isinstance(severity, str) else None
+    q = q.strip() if isinstance(q, str) else None
     wide, ids = _scope(conn, principal)
     s = read_settings(conn)
     tz_name = s["time.zone"]
     unsupported: list[dict[str, str]] = []
-    applied = {k: v for k, v in {"camera_id": camera_id, "type": type, "site_id": site_id, "building_id": building_id, "floor_id": floor_id, "zone_id": zone_id, "source": source, "severity": severity}.items() if v}
+    applied = {k: v for k, v in {"camera_id": camera_id, "type": type, "site_id": site_id, "building_id": building_id, "floor_id": floor_id, "zone_id": zone_id, "source": source, "severity": severity, "q": q}.items() if v}
     place = _place_filter(conn, site_id, building_id, floor_id, zone_id)
     if place is not None:
         cams, ents, note = place
@@ -137,6 +141,10 @@ def list_events(
     if severity:
         sql += " AND severity = ?"
         args.append(severity)
+    if q:
+        like = f"%{q}%"
+        sql += " AND (details_json LIKE ? OR camera_id IN (SELECT id FROM cameras WHERE alias LIKE ? OR name_source LIKE ?))"
+        args.extend([like, like, like])
     if place is not None:
         cams, ents, _ = place
         parts = []

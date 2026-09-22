@@ -1,5 +1,27 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.77 (pilot) — the camera video no longer outgrows the screen, free-text event search, a friendlier NVR card
+- Camera screen: the video's 16:9 box had no height limit, so on a wide desktop (design A has no page max-width)
+  it grew taller than the viewport - the controls and the settings accordion needed a scroll to even know they
+  were there. The owner caught this live, on 0.1.76, right after it shipped. The video is capped to a sane share
+  of the viewport height now, on every screen width.
+- Event centre: a free-text field searches the camera's own name and the event's stored details (an HA entity's
+  friendly name, a device class - not just the structured type/place/source filters), and "יום / 7 ימים / 30 יום"
+  browses ranges wider than a single day. Both combine with the existing filters instead of replacing them
+  (T062's last open corner).
+- Connections screen: the "מערכת ה־NVR" card used to pack clock, disks, alarm outputs and reboot behind bare bold
+  text with no separation - a wall of controls. Each is its own clearly headed section now (icon, label, rule),
+  and the page groups the NVR-related cards apart from go2rtc/Home Assistant/storage (round-4 item 1.1, deferred
+  at the time to a dedicated pass).
+- Evidence: `tests/test_spatial_search.py::test_free_text_search` (camera-name match, details-json match, AND with
+  an existing filter, no-match stays a 200 with an empty list, a from/to range reaching outside a single day);
+  full backend suite; `tsc` + `vite build` clean; dev-environment verification via the browser pane (video height
+  at 1920×1000, the search/range network calls, the NVR card's section structure) - the dev backend's own event
+  stream had nothing in the last 24h at the time (alertStream reconnecting), so the three evidence specs that
+  depend on recent live events were not re-verified against fresh data tonight; nothing in this version touches
+  the code paths they cover.
+
+
 ## 0.1.76 (pilot) — round-5 fixes for everything the owner's round-4 pass flagged, mobile improvement pass
 - Custom roles: "בחר הכל / נקה הכל" on both permission groups; saving a new role and auto-assigning it to its
   creator are no longer one failure unit - if the role is created but the auto-assign call fails, the role still

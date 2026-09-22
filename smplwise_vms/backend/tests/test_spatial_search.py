@@ -13,11 +13,11 @@ from smplwise.main import create_app
 from smplwise.services import correlation, ha_sync
 
 
-def _insert(app, eid: str, camera_id: str | None, occurred: str, etype: str = "motion", source: str = "alertstream", severity: str = "info") -> None:
+def _insert(app, eid: str, camera_id: str | None, occurred: str, etype: str = "motion", source: str = "alertstream", severity: str = "info", details: dict | None = None) -> None:
     with app.state.db.connection() as conn:
         conn.execute(
             "INSERT INTO events(id, source, raw_type, type, camera_id, channel, occurred_at, ended_at, received_at, state, count, severity, confidence, details_json, dedup_key, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (eid, source, "VMD", etype, camera_id, 1, occurred, None, occurred, "inactive", 1, severity, "measured", json.dumps({}), f"t:{eid}", occurred),
+            (eid, source, "VMD", etype, camera_id, 1, occurred, None, occurred, "inactive", 1, severity, "measured", json.dumps(details or {}, ensure_ascii=False), f"t:{eid}", occurred),
         )
 
 
@@ -86,4 +86,40 @@ def test_place_source_filters_facets_and_unsupported(settings):
     zones = {z["id"]: z for z in floors[f2]["zones"]}
     assert zones[lobby["id"]] == {"id": lobby["id"], "name": "לובי", "kind": "room", "cameras": 1, "sensors": 1} and zones[empty["id"]]["cameras"] == 0
     assert f["notes"] == [], "HA events and placed cameras exist"
+
+
+def test_free_text_search(settings):
+    """T062 (open corner, closed 0.1.77): `q` matches the camera's own name and the event's stored details - not
+    just the structured filters - and combines with them (AND), and a range wider than one day works via from/to."""
+    app = create_app(settings)
+    c = TestClient(app)
+    cam_a = c.post("/api/v1/cameras", json={"channel": 1, "alias": "מחסן אחורי"}).json()
+    cam_b = c.post("/api/v1/cameras", json={"channel": 2, "alias": "כניסה צפונית"}).json()
+    now = dt.datetime.now(dt.timezone.utc)
+    t = lambda m: (now - dt.timedelta(minutes=m)).strftime("%Y-%m-%dT%H:%M:%SZ")  # noqa: E731
+    _insert(app, "a1", cam_a["id"], t(5))
+    _insert(app, "b1", cam_b["id"], t(4), etype="door", source="ha", details={"entity_id": "binary_sensor.kitchen_door", "friendly_name": "דלת מטבח"})
+    _insert(app, "b2", cam_b["id"], t(3), severity="alert")
+    old = (now - dt.timedelta(days=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    _insert(app, "old1", cam_a["id"], old)
+
+    ev_ids = lambda r: sorted(e["id"] for e in r.json()["events"])  # noqa: E731
+
+    # by camera alias (a substring, not the whole name)
+    r = c.get("/api/v1/events?q=" + "מחסן")
+    assert r.status_code == 200 and ev_ids(r) == ["a1"] and r.json()["filters"]["applied"]["q"] == "מחסן"
+
+    # by the event's own stored details (an HA entity's friendly name), not just structured fields
+    assert ev_ids(c.get("/api/v1/events?q=" + "מטבח")) == ["b1"]
+    assert ev_ids(c.get("/api/v1/events?q=kitchen_door")) == ["b1"]
+
+    # combines with an existing filter as AND, not OR
+    assert ev_ids(c.get(f"/api/v1/events?q=" + "כניסה" + "&severity=alert")) == ["b2"]
+
+    # no match is an empty, successful list - never an error
+    r = c.get("/api/v1/events?q=" + "שם-שלא-קיים")
+    assert r.status_code == 200 and r.json()["events"] == []
+
+    # a range wider than one day (from/to) reaches an event a single day never would
+    assert ev_ids(c.get(f"/api/v1/events?from={old}&to={t(0)}&camera_id={cam_a['id']}")) == sorted(["a1", "old1"])
     assert c.get("/api/v1/events/facets?days=1").json()["types"], "recent events counted"
