@@ -44,4 +44,17 @@ export function can(permission: string): boolean {
   return session.me?.permissions_installation.includes(permission) ?? false;
 }
 
+/** The permission at any scope - a floor-scoped binding counts. The shell's navigation asks this (0.1.81). */
+export function canAnywhere(permission: string): boolean {
+  const me = session.me;
+  return (me?.permissions_any ?? me?.permissions_installation ?? []).includes(permission);
+}
+
+/** Who may read the NVR configuration (OSD, schedules, smart rules) - mirrors nvr_write._require_read: a system
+ * administrator or anyone holding any NVR write permission. The camera screen skips those reads otherwise. */
+export function canReadNvrConfig(): boolean {
+  const perms = session.me?.permissions_any ?? session.me?.permissions_installation ?? [];
+  return perms.some((p) => p === 'system.configure' || p.startsWith('nvr.'));
+}
+
 export const isApi = () => session.mode === 'api';

@@ -4,6 +4,8 @@ export interface Me {
   user: { id: string; username: string; display_name: string; source: 'ingress' | 'dev' };
   bindings: { id: string; role_id: string; role_name: string; scope_type: string; scope_id: string; scope_name: string; effect: string }[];
   permissions_installation: string[];
+  /** Held at any scope (union of the allow bindings, minus installation-wide denies): what the shell may show. */
+  permissions_any?: string[];
   has_access: boolean;
   permission_revision: number;
   bootstrap_state: string;

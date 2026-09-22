@@ -39,11 +39,11 @@ import '../screens/styleguide-screen';
 import { onRouteChange, type RouteState, parseRoute } from '../router';
 import { KIND_ICON, KIND_LABEL, search as apiSearch, type SearchResult } from '../api/search';
 import { healthSummary, type HealthSummary } from '../api/health';
-import { NAV, GROUP_TABS, groupOf, activeTabOf, NAV_A, AREA_TABS, areaOf, activeAreaTab, crumbsOf, visibleTabs, demoRedirect, HIDDEN_HREFS, START_ROUTES, MAP_HREFS } from './nav';
+import { NAV, GROUP_TABS, groupOf, activeTabOf, AREA_TABS, areaOf, activeAreaTab, crumbsOf, visibleTabs, visibleAreas, tabAllowed, demoRedirect, HIDDEN_HREFS, START_ROUTES, MAP_HREFS } from './nav';
 import { bidi } from '../i18n/bidi';
 import { currentDesign, onDesign, resolveDesign, type DesignId } from '../api/design';
 import { t } from '../i18n/he';
-import { isApi, loadSession, onSession, type Session } from '../api/session';
+import { canAnywhere, isApi, loadSession, onSession, type Session } from '../api/session';
 import { productSettings } from '../api/prefs';
 import '../components/sw-state-panel';
 
@@ -922,7 +922,7 @@ export class SwApp extends LitElement {
 
   private renderA() {
     const area = areaOf(this.route);
-    const tabs = area ? visibleTabs(AREA_TABS[area], this.session.mode === 'api') : [];
+    const tabs = area ? visibleTabs(AREA_TABS[area], this.session.mode === 'api', canAnywhere) : [];
     const editor = this.route?.segments[3] === 'edit' || this.route?.segments[3] === 'import';
     const crumbs = crumbsOf(this.route, this.session.mode === 'api');
     const me = this.session.me;
@@ -930,7 +930,7 @@ export class SwApp extends LitElement {
     return html`
       <nav class="rail" aria-label="ניווט ראשי">
         <a class="brand-tile" href="#/live" title="SmplWise"><span>S</span></a>
-        ${NAV_A.filter((n) => !HIDDEN_HREFS.has(n.href)).map(
+        ${visibleAreas(this.session.mode === 'api', canAnywhere).map(
           (n) => html`<a class=${classMap({ item: true, a: true, active: area === n.id })} href=${n.href} title=${n.label} aria-current=${area === n.id ? 'page' : 'false'}>
             <sw-icon .name=${n.icon} size=${23}></sw-icon><span>${n.label}</span>
           </a>`,
@@ -959,7 +959,7 @@ export class SwApp extends LitElement {
           <div class="screen">${this.session.mode === 'loading' ? nothing : this.renderScreen()}</div>`}
       </main>
       <nav class="bottom" aria-label="ניווט ראשי">
-        ${NAV_A.filter((n) => !HIDDEN_HREFS.has(n.href)).map((n) => html`<a class=${classMap({ active: area === n.id })} href=${n.href}><sw-icon .name=${n.icon} size=${20}></sw-icon>${n.label}</a>`)}
+        ${visibleAreas(this.session.mode === 'api', canAnywhere).map((n) => html`<a class=${classMap({ active: area === n.id })} href=${n.href}><sw-icon .name=${n.icon} size=${20}></sw-icon>${n.label}</a>`)}
       </nav>
     `;
   }
@@ -979,7 +979,7 @@ export class SwApp extends LitElement {
     if (this.embedded()) return html`<main class="embed" style="block-size:100dvh;overflow:auto">${this.renderScreen()}</main>`;
     if (this.design === 'a') return this.renderA();
     const group = groupOf(this.route);
-    const tabs = group ? visibleTabs(GROUP_TABS[group], this.session.mode === 'api') : [];
+    const tabs = group ? visibleTabs(GROUP_TABS[group], this.session.mode === 'api', canAnywhere) : [];
     const editor = this.route?.segments[3] === 'edit' || this.route?.segments[3] === 'import';
     return html`
       <nav class="rail" aria-label="ניווט ראשי">
@@ -987,7 +987,7 @@ export class SwApp extends LitElement {
           <img src="${base}brand/smplwise-mark.png" alt="SmplWise" />
           <span class="name">SmplWise</span>
         </div>
-        ${NAV.map(
+        ${NAV.filter((n) => this.session.mode !== 'api' || tabAllowed(n.href, canAnywhere)).map(
           (n) => html`<a class=${classMap({ item: true, active: group === n.id })} href=${n.href} title=${n.label} aria-current=${group === n.id ? 'page' : 'false'}>
             <sw-icon .name=${n.icon} size=${16}></sw-icon><span>${n.label}</span>
           </a>`,

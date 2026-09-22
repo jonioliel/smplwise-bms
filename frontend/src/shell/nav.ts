@@ -200,8 +200,52 @@ export const START_ROUTES: Record<string, string> = { explore: '/explore/floors/
 /** The map area's entries, hidden for everyone with הגדרות › הסתרת המפה (0.1.68). */
 export const MAP_HREFS = ['#/explore/sites', '#/explore/floors/f0', '#/explore/entities'];
 
-export function visibleTabs(items: TabItem[], api: boolean): TabItem[] {
-  return api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '') && !HIDDEN_HREFS.has(t.href ?? '')).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items;
+/** What a tab needs before the shell shows it: any one of the listed permissions, at any scope (owner decision
+ * 2026-09-22, 0.1.81 - a viewer used to see every category and land on "אין הרשאה"). Tabs without an entry are
+ * always shown; the mapping follows what each screen's first request requires. */
+export const TAB_PERMISSIONS: Record<string, string[]> = {
+  '#/live/wall': ['video.live'],
+  '#/live/views': ['video.live'],
+  '#/system/devices': ['video.live'],
+  '#/explore/sites': ['map.read'],
+  '#/explore/floors/f0': ['map.read'],
+  '#/explore/entities': ['entity.state.read'],
+  '#/investigate/events': ['events.read'],
+  '#/investigate/playback': ['video.playback'],
+  '#/investigate/playback/sync': ['video.playback'],
+  '#/investigate/floors/f0/history': ['video.playback'],
+  '#/investigate/reviews': ['events.read'],
+  '#/investigate/search': ['events.read'],
+  '#/investigate/cases': ['cases.manage'],
+  '#/investigate/rules': ['rules.manage'],
+  '#/investigate/exports': ['video.export'],
+  '#/system/diagnostics': ['system.configure'],
+  '#/system/access': ['rbac.assign', 'rbac.roles.manage', 'identity.directory.read'],
+  '#/system/audit': ['audit.read'],
+  '#/system/storage': ['system.configure'],
+  '#/system/setup': ['system.configure', 'sources.configure'],
+};
+
+export type Can = (permission: string) => boolean;
+
+export function tabAllowed(href: string, can?: Can): boolean {
+  const need = TAB_PERMISSIONS[href];
+  return !need || !can || need.some(can);
+}
+
+export function visibleTabs(items: TabItem[], api: boolean, can?: Can): TabItem[] {
+  return api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '') && !HIDDEN_HREFS.has(t.href ?? '') && tabAllowed(t.href ?? '', can)).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items;
+}
+
+/** The rail entries the user gets: an area stays while one of its tabs is visible (the live area always - the
+ * overview needs nothing), and it opens on its first visible tab when its default page is not one of them. */
+export function visibleAreas(api: boolean, can?: Can): AreaEntry[] {
+  return NAV_A.filter((n) => !HIDDEN_HREFS.has(n.href)).flatMap((n) => {
+    const tabs = visibleTabs(AREA_TABS[n.id], api, can);
+    if (api && n.id !== 'live' && !tabs.length) return [];
+    const first = tabs[0]?.href;
+    return [first && !tabs.some((t) => t.href === n.href) ? { ...n, href: first } : n];
+  });
 }
 
 /** Route → real screen for the demo-only routes when a backend exists; null when the route is fine. */

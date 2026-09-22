@@ -16,7 +16,7 @@ import { navigate } from '../router';
 import { cameraSchedules, cameraSmart, osdStatus, recordStart, recordStatus, recordStop, setArming, setMotion, setOsd, setRecordSchedule, setSmart, writeChannelName, type ArmingKind, type CameraSchedules, type CameraSmart, type OsdStatus, type RecordStatus, type WeekRange } from '../api/nvr';
 import '../components/sw-week-grid';
 import '../components/sw-dialog';
-import { isApi } from '../api/session';
+import { canReadNvrConfig, isApi } from '../api/session';
 import { cameraCapabilities, cameraZones, snapshotUrl, setTransportOverride, transportOverride, type CameraCapabilities, type CameraZones, type ProductSettings, type Transport } from '../api/media';
 import '../components/sw-chip';
 import { listCameras, updateCamera } from '../api/maps';
@@ -72,6 +72,14 @@ export class LiveCamera extends LitElement {
 
   private async loadSchedules() {
     if (!this.cam || !isApi()) return;
+    if (!canReadNvrConfig()) {
+      // the NVR's schedules and smart rules are readable by administrators and NVR writers only (nvr_write._require_read):
+      // asking anyway cost every other user two refused requests per camera (0.1.81)
+      this.sched = null;
+      this.smart = null;
+      this.schedError = 'לוחות הזמנים וחוקי ה־smart של ה־NVR נקראים עם הרשאת ניהול NVR.';
+      return;
+    }
     try {
       this.sched = await cameraSchedules(this.cam.id);
       this.schedError = '';
@@ -308,6 +316,10 @@ export class LiveCamera extends LitElement {
 
   private async loadOsd() {
     if (!this.cam || !isApi()) return;
+    if (!canReadNvrConfig()) {
+      this.osd = null; // the OSD card is for NVR writers; nothing to read for anyone else
+      return;
+    }
     try {
       this.osd = await osdStatus(this.cam.id);
     } catch {

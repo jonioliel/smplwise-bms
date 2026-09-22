@@ -1,5 +1,26 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.81 (pilot) — the navigation shows what the user may open; the camera screen stops asking the NVR for what it may not read
+- Owner decision (2026-09-22, 1.א): the shell hides tabs and areas the user has no permission for. `/me` gained
+  `permissions_any` - the permissions held at any scope (union of the allow bindings, minus an installation-wide
+  deny), so a floor-scoped viewer, who holds nothing at the root, still sees the map and the live area. `nav.ts`
+  maps every tab to the permission its screen's first request needs (`TAB_PERMISSIONS`: events.read for the
+  events centre, video.playback for recordings, cases.manage, rules.manage, video.export, system.configure for
+  settings / storage / connections, audit.read, rbac.* for users); an area rail entry disappears when none of its
+  tabs remain (the live area stays - the overview needs nothing) and opens on its first visible tab when its
+  default page is hidden. Tabs the owner hid in the settings (AI search, the map) behave as before. Direct URLs
+  still work and land on the 0.1.80 lock panel.
+- Owner decision (2): the camera screen asked the NVR for OSD, schedules and smart rules for every user; those
+  reads are for administrators and NVR writers (`nvr_write._require_read`), so everyone else got three refused
+  requests per camera view. `canReadNvrConfig()` mirrors that rule in the shell and the screen skips the reads.
+- Evidence: `tests/test_me_permissions.py` (a floor viewer has an empty `permissions_installation` and the
+  viewer set in `permissions_any`; a second binding adds to the union; an installation-wide deny removes from it
+  everywhere); navigation verified per role in real Chrome (`nav_verify.cjs`): a viewer gets the live and map areas
+  only, an operator also the investigate area without "חוקים והתראות", an editor live and map, the administrator
+  everything; `cam_calls.cjs`: the camera screen sends no OSD / schedules / smart request as a viewer or an
+  operator and still does as the administrator. Backend suite green, tsc clean.
+
+
 ## 0.1.80 (pilot) — refused saves say why, dialogs take the keyboard, a viewer sees a lock instead of "something broke"
 - A value pydantic refuses (an out-of-range retention, a bad time zone pattern, a missing field) came back as
   FastAPI's bare `{"detail": [...]}`, which no screen can read: הגדרות › "שמור" with 5 days of audit retention

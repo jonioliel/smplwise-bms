@@ -140,6 +140,22 @@ def effective_permissions(conn: sqlite3.Connection, principal: Principal, target
     return sorted(allowed - denied)
 
 
+def permissions_anywhere(conn: sqlite3.Connection, principal: Principal) -> list[str]:
+    """Permissions the user holds at any scope: the union of the allow bindings' roles, minus what an installation-wide
+    deny takes away everywhere. For the shell's navigation (0.1.81, owner decision 2026-09-22): a floor-scoped viewer
+    has no installation-level permission at all, yet must still see the map and the live area."""
+    allowed: set[str] = set()
+    denied_everywhere: set[str] = set()
+    for b in _active_bindings(conn, principal):
+        perms = role_permissions(conn, b["role_id"])
+        if b["effect"] == "deny":
+            if (b["scope_type"], b["scope_id"]) == INSTALLATION:
+                denied_everywhere.update(perms)
+        else:
+            allowed.update(perms)
+    return sorted(allowed - denied_everywhere)
+
+
 def bindings_of(conn: sqlite3.Connection, principal: Principal) -> list[dict]:
     out = []
     for b in _active_bindings(conn, principal):
