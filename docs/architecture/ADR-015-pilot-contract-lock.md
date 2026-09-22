@@ -28,7 +28,7 @@ code is linked or copied (see the secrets and licence audit).
 - Base path `/api/v1`; JSON; identity from the Supervisor Ingress headers behind a trusted-proxy check;
   developer identity only with `SW_DEV_USER` outside Home Assistant.
 - The route table is generated into [`contracts/API_INVENTORY.md`](../../contracts/API_INVENTORY.md)
-  by `scripts/api_inventory.py` (105 HTTP routes at 0.1.21, plus the websocket routes `/media/live/{camera_id}/ws`,
+  by `scripts/api_inventory.py` (105 HTTP routes at 0.1.21; 186 at 0.1.81, every addition additive under the rule below, plus the websocket routes `/media/live/{camera_id}/ws`,
   `/playback/sessions/{session_id}/ws`, `/events/ws`, `/ha/ws`). The generated file is the contract of record; the design-time
   `contracts/openapi.core-design.json` stays as history.
 - Compatibility rule for the pilot: additive changes (new routes, new optional fields) are allowed in any
@@ -52,7 +52,10 @@ code is linked or copied (see the secrets and licence audit).
 
 ### Schema
 
-- Migrations `0001_init` … `0006_zones` are the locked pilot schema. New tables and columns arrive as
+- Migrations `0001_init` … `0006_zones` are the locked pilot schema; by 0.1.81 the chain runs to `0017_labels_ha_notify`
+  (0007–0017 added tables and nullable columns only - cases, bundles, signing keys, NVR changes, plan versions, catalog
+  images, anchor coverage, HA notify labels - so a backend of any 0.1.x still opens a newer database, which the
+  rollback runbook in `docs/release/RELEASE_PACKAGE_V1.md` §5 relies on). New tables and columns arrive as
   new numbered migrations; existing columns are never repurposed. A backup written before an upgrade
   (`auto-pre-upgrade-*`) is the rollback path (ADR-014, T036); backups from a newer schema are refused.
 - Permission revision (`settings.permission_revision`) bumps on every binding change and on an access

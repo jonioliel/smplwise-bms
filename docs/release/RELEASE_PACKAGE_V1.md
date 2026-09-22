@@ -22,7 +22,7 @@ consistency items below and prints the tag commands to run after approval.
 |---|---|---|
 | Home Assistant Core | 2026.9.2 | Ingress identity headers, Supervisor `supervisor/api`, hassio discovery for the bridge |
 | Home Assistant OS / Supervisor | HAOS 18.2 · Supervisor 2026.09.2 | amd64 generic-x86-64 lab host |
-| NVR | Hikvision DS-7616NXI-K2(D), firmware V4.84.101, ISAPI over HTTP (port 90 in the lab), RTSP 554 | read-only user is enough; no NVR writes in the pilot |
+| NVR | Hikvision DS-7616NXI-K2(D), firmware V4.84.101, ISAPI over HTTP (port 90 in the lab), RTSP 554 | a read-only NVR user is enough for viewing; the NVR writes added in 0.1.64–0.1.72 (manual recording, OSD, schedules, motion grid, notify matrix, clock, reboot) need the NVR's admin user and sit behind 13 sensitive permissions, every change recorded with a rollback (הגדרות › חיבורים) |
 | Relay | go2rtc add-on (AlexxIT) 1.9.14 on the HA host, port 1984 | only the `smplwise_` stream namespace is touched |
 | Browsers | Chrome (real, desktop) for MSE / WebRTC / H.264 main profile; Playwright Chromium for the design fixtures | WebRTC decodes the sub profile only; the main profile plays over MSE (see docs/legacy/KNOWN_QUIRKS.md and the lab video facts) |
 | Screens | 1440×900 desktop reviewed screen by screen; mobile layout covered by `evidence-mobile.spec.ts` | |
@@ -30,8 +30,10 @@ consistency items below and prints the tag commands to run after approval.
 
 ## 3. Evidence that backs this package
 
-- Backend: `smplwise_vms/backend/tests` (pytest, 140+ tests at package time) — run `python -m pytest -q` in the backend folder.
-- Live evidence in real Chrome against the lab NVR + HA: `frontend/tests/evidence-*.spec.ts` (`SW_LIVE=1 SW_CHROME=1`), 40+ specs; screenshots under `private-evidence/` (never committed).
+- Backend: `smplwise_vms/backend/tests` (pytest, 176 tests at 0.1.81) — run `python -m pytest` in the backend folder.
+- Live evidence in real Chrome against the lab NVR + HA: `frontend/tests/evidence-*.spec.ts` (`SW_LIVE=1 SW_CHROME=1`), 86 specs at 0.1.81; screenshots under `private-evidence/` (never committed).
+- Test rounds on the owner's installation and the full-system reviews: `docs/operations/TEST_ROUND_RESULTS_2026-09-17_HE.md` (rounds 1–5) and `TEST_ROUND_RESULTS_2026-09-22_HE.md` (the 86-spec sweep, the least-privilege walk as viewer / operator / editor, 0.1.79–0.1.81).
+- Security: `docs/security/DEPENDENCY_AND_SECRETS_AUDIT.md` (re-scanned at 0.1.81: pip-audit clean, npm audit 0, tree grep 0).
 - Design fixtures: 129 checks (`frontend/tests/screenshots.spec.ts`, `screens.spec.ts`) against the demo data.
 - Load: `docs/operations/RESOURCE_BUDGET.md` (8 concurrent workers, steady-state p95 < 0.2 s on every screen except the 24 h events list at 0.86 s).
 - Live review of the owner's installation: `docs/operations/LIVE_REVIEW_2026-09-17_HE.md` (F1–F26, all handled by 0.1.51).
@@ -47,15 +49,27 @@ consistency items below and prints the tag commands to run after approval.
    kiosk streams can stall one tile (kiosk defaults to 3×2 per page).
 3. **Playback speeds**: 1×, slow motion ×0.5 / ×0.25 and frame stepping on the MSE path; 2× / 4× are disabled because the
    relay delivers the NVR stream in real time (camera-side RTSP speed is not exposed by go2rtc).
-4. **No NVR writes** in the pilot: manual recording, PTZ, two-way talk, zone / mask editing and reboots are not offered
-   (read-only facts are shown instead) until the owner approves writes (T075 / T045).
-5. **Intercom / access control (T054)** and a **second NVR (T058)** are not part of this release; the doors screen says
-   "not connected yet".
+4. **NVR writes are scoped to what the owner approved** (0.1.64–0.1.72): manual recording, OSD, arming / recording
+   schedules, motion grid and sensitivity, notify matrix, clock / NTP, alarm outputs, storage test, reboot — each behind
+   its own sensitive permission, written only after a confirmation that shows the diff, verified by a read-back and
+   recorded with a rollback. Still not offered: PTZ, two-way talk, **privacy masks** (the open half of T075: no write
+   route, no approval flow, no stream check yet) and the smart-rule parts the V4.84 firmware refuses (`notSupport`).
+5. **Excluded from V1 (proposed 2026-09-22, owner to confirm in §7)**: intercom / access control (T054 — no door station
+   in the lab; the relay-pulse plumbing works, the doors screen says "not connected yet") and a second NVR / multi-site
+   (T058 — an 8–12 h catalogue refactor whose acceptance evidence needs a second recorder). Both stay on the V1 card
+   list as explicit exclusions, not as open work.
 6. **Concurrency budget**: up to 4 concurrent operators on the reference workstation; the storage report is warmed in the
    background (cold build ≈ 30–50 s on the lab NVR).
 7. **Bridge changes need one HA restart** (0.2.1 added the climate / media / number / select / alarm services).
 8. **Legacy comparison (T003 / T004 golden traces)** is still owner-gated; the migration dry run
    (`scripts/migrate_legacy.py`, `docs/operations/MIGRATION_FROM_LEGACY_HE.md`) covers the mapping, rollout and rollback.
+9. **Playback speeds (T066), written as exclusions**: camera-side RTSP `Scale` is not exposed by go2rtc, so faster than
+   real time stays disabled with its reason; audio in slow motion is muted by the browser; behaviour across a recording
+   gap after a speed change and group drift after a speed change are not evidenced on a real recording and are not
+   claimed.
+10. **What a limited user sees**: since 0.1.81 the navigation shows only the areas and tabs the user's bindings allow
+    (`TAB_PERMISSIONS`); a direct URL to a screen the user may not open shows the lock panel. Per-camera binding scope
+    does not exist yet — the finest scope is the floor (T055).
 
 ## 4b. Smoke test after every upgrade
 
@@ -77,10 +91,13 @@ may not run.
 
 ## 6. Open items that only the owner can close
 
-- Acceptance test round on the owner's installation (the morning checklist + the live review's "מה לבדוק").
-- Golden traces from the legacy add-on (T003 / T004) for the characterization comparison.
-- NVR write approval (T075 / T045), intercom hardware (T054), second NVR (T058).
-- "Notify Surveillance Center" on the NVR.
+- Acceptance test round on the owner's installation (round-6 checklist: 0.1.78–0.1.81 items plus the device-only flows).
+- Golden traces from the legacy add-on (T003 / T004) for the characterization comparison — ~30 min of SSH / file-editor
+  access to the legacy add-on, then the capture runs on the workstation.
+- Confirming the two V1 exclusions in known limit 5 (T054 intercom, T058 second NVR), or supplying the hardware.
+- The keyframe-offset / PTS→source-time measurement on a known-time reference frame (T006, lab NVR, ~3 h with access).
+- "Notify Surveillance Center" on the NVR (done on 8 channels 2026-09-17; keep it on).
+- The design verdict on SW A (T007) and the sign-off of the contract lock (T008) and of the audit (T005).
 
 ## 7. Approval
 

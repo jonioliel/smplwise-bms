@@ -1,9 +1,10 @@
 # Dependency, licence and secrets audit (T005)
 
-Date: 2026-09-16 · Scope: the add-on repository at 0.1.21 (backend, integration, frontend, image) ·
-Method: inventory from the lock files, `pip-audit` and `npm audit` runs on the workstation, `git grep` for
-credentials and lab addresses, review of every path the add-on writes to. Re-run before each pilot release
-(`python -m pip_audit -r smplwise_vms/backend/requirements.txt`, `npm audit` in `frontend/`).
+Date: 2026-09-16 (first audit at 0.1.21) · re-run 2026-09-22 at 0.1.81 (§2, §6) · Scope: the add-on repository
+(backend, integration, frontend, image) · Method: inventory from the lock files, `pip-audit` and `npm audit` runs on
+the workstation, `git grep` for credentials and lab addresses, review of every path the add-on writes to. Re-run
+before each pilot release (`python -m pip_audit -r smplwise_vms/backend/requirements.txt`, `npm audit` in
+`frontend/`, the tracked-tree grep in §3).
 
 ## 1. Runtime inventory and licences
 
@@ -18,6 +19,8 @@ credentials and lab addresses, review of every path the add-on writes to. Re-run
 | python-multipart | 0.0.32 | Apache-2.0 | uploads | |
 | pillow | 12.3.0 | MIT-CMU (HPND) | plan rendering | |
 | numpy | ≥2,<3 | BSD-3 | plan stylization / room detection | |
+| cryptography | ≥45,<51 (50.0.1 on the workstation) | Apache-2.0 OR BSD-3 | Ed25519 evidence-bundle signing (0.1.67) | added after the first audit |
+| ezdxf | ≥1.3,<2 (1.4.4 on the workstation) | MIT | DXF plan import (0.1.43) | added after the first audit; pure Python |
 | tzdata | ≥2024.1 | Apache-2.0 | time zones | |
 | poppler-utils (Alpine) | distro | GPL-2.0 / GPL-3.0 | `pdftoppm` **as a subprocess** | not linked into our code; invoked per page with a timeout |
 | ffmpeg (Alpine) | distro | LGPL-2.1+ / GPL-2.0+ (Alpine build enables GPL parts) | frame grabs, export remux **as a subprocess** | not linked; command lines redacted in logs |
@@ -33,10 +36,11 @@ Home Assistant core APIs.
 
 ## 2. Vulnerability scan
 
-| Scan | Result (2026-09-16) |
-|---|---|
-| `pip-audit -r smplwise_vms/backend/requirements.txt` | No known vulnerabilities found |
-| `npm audit` (frontend, runtime + dev) | 0 vulnerabilities (info/low/moderate/high/critical all 0) |
+| Scan | Result (2026-09-16, 0.1.21) | Result (2026-09-22, 0.1.81) |
+|---|---|---|
+| `pip-audit -r smplwise_vms/backend/requirements.txt` | No known vulnerabilities found | No known vulnerabilities found (11 requirements incl. cryptography, ezdxf) |
+| `npm audit` (frontend, runtime + dev) | 0 vulnerabilities (info/low/moderate/high/critical all 0) | 0 vulnerabilities; 7 prod / 70 dev packages; runtime dependency still `lit` only |
+| tracked-tree grep (credentials, tokens, lab addresses, serials, MACs; `legacy/` scanned separately) | no hits apart from a fake fixture string | 0 hits; `legacy/` 0 hits |
 
 Both scans go into the release checklist (T036); a finding of severity high or above blocks a release until
 the dependency is updated or the exposure is documented as not reachable.
@@ -81,3 +85,15 @@ the dependency is updated or the exposure is documented as not reachable.
    the access log should be turned down to WARNING (already possible through the `log_level` option).
 
 No finding blocks fixture distribution or the pilot build.
+
+## 6. Re-scan log
+
+| Date | Version | pip-audit | npm audit | tree grep | New since the previous scan |
+|---|---|---|---|---|---|
+| 2026-09-16 | 0.1.21 | clean | 0 | fake fixture only | — |
+| 2026-09-22 | 0.1.81 | clean | 0 | 0 | `cryptography` (signing), `ezdxf` (DXF import) added to the inventory with their licences; dev tooling moved to Playwright 1.63 / Vite 6.4 / TypeScript 5.9; the secret scan now also refuses serial numbers and MAC addresses (the segment loop's pre-commit gate has done so since 0.1.6x). The pre-commit gate ran with 0 hits on every release commit of 2026-09-22 (0.1.76–0.1.81). |
+
+Still open from T069 that this re-scan does not cover: oversized media pushed through go2rtc (needs the relay), the
+go2rtc API/RTSP exposure review on the owner's host (owner), and Ingress-session token replay, which is Home
+Assistant's session layer and is recorded as an explicit exclusion (the add-on never sees or stores that token; the
+bridge's own HMAC replay window is tested in `tests/test_security.py`).
