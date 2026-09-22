@@ -31,25 +31,43 @@ def has_evidence(task: dict) -> bool:
     return False
 
 
+def is_excluded(task: dict) -> bool:
+    """An owner decision took the card out of scope (T003/T004, 2026-09-22): recorded as an "EXCLUDED - owner
+    decision" evidence line and an "Excluded" blocker. Such a card leaves the denominator and is shown apart -
+    it is neither evidenced nor open."""
+    if str(task.get("blocker") or "").startswith("Excluded"):
+        return True
+    return any(isinstance(line, str) and line.startswith("EXCLUDED") for line in task.get("evidence") or [])
+
+
 def compute() -> dict:
     tasks = json.loads(TASKS.read_text(encoding="utf-8"))
-    per = {k: {"done": 0, "total": 0} for k in PHASES}
+    per = {k: {"done": 0, "total": 0, "excluded": 0} for k in PHASES}
     for t in tasks:
         ph = str(t.get("phase", "")).upper()
         if ph not in per:
+            continue
+        if is_excluded(t):
+            per[ph]["excluded"] += 1
             continue
         per[ph]["total"] += 1
         if has_evidence(t):
             per[ph]["done"] += 1
     total_done = sum(v["done"] for v in per.values())
     total = sum(v["total"] for v in per.values())
+    excluded = sum(v["excluded"] for v in per.values())
     wsum = sum(WEIGHTS[k] * v["total"] for k, v in per.items())
     wdone = sum(WEIGHTS[k] * v["done"] for k, v in per.items())
     return {
         "phases": {k: {**v, "pct": round(100 * v["done"] / v["total"]) if v["total"] else 0} for k, v in per.items()},
-        "overall": {"done": total_done, "total": total, "pct": round(100 * total_done / total) if total else 0},
+        "overall": {"done": total_done, "total": total, "excluded": excluded, "pct": round(100 * total_done / total) if total else 0},
         "weighted_pct": round(100 * wdone / wsum) if wsum else 0,
     }
+
+
+def cell(v: dict) -> str:
+    base = f"{v['done']} מתוך {v['total']}"
+    return f"{base} (+{v['excluded']} הוחרגו בהחלטת הבעלים)" if v.get("excluded") else base
 
 
 def main() -> None:
@@ -62,9 +80,9 @@ def main() -> None:
     print("|---|---|---|")
     for k, label in PHASES.items():
         v = r["phases"][k]
-        print(f"| {label} | {v['done']} מתוך {v['total']} | {v['pct']}% |")
+        print(f"| {label} | {cell(v)} | {v['pct']}% |")
     o = r["overall"]
-    print(f"| **סה\"כ** | **{o['done']} מתוך {o['total']}** | **{o['pct']}%** |")
+    print(f"| **סה\"כ** | **{cell(o)}** | **{o['pct']}%** |")
     print()
     print(f"הערכה משוקללת (פיילוט במשקל גבוה): {r['weighted_pct']}%. ראיות מימוש ≠ קבלה: הכרטיסים נשארים BACKLOG עד סגירת שערי G0 ובדיקת הבעלים.")
 
