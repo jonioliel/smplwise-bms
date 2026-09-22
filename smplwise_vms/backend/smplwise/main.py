@@ -8,6 +8,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -15,7 +16,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from . import __version__
 from .config import Settings, load_settings
 from .db import Database
-from .errors import ApiError
+from .errors import ApiError, validation_payload
 from .routers import access, anchors, backup, cameras, cases, catalog, events, exports, frames, ha, health, me, media, plans, playback, playback_groups, recordings, rules, search, settings as settings_router, storage, views, zones, nvr_write
 
 log = logging.getLogger("smplwise")
@@ -97,6 +98,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         code = {401: "unauthenticated", 403: "forbidden", 404: "not_found", 405: "method_not_allowed", 413: "payload_too_large"}.get(exc.status_code, "http_error")
         return JSONResponse(status_code=exc.status_code, content={"code": code, "user_message": str(exc.detail), "retryable": False,
                                                                   "correlation_id": getattr(request.state, "correlation_id", ""), "details": {}})
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_error(request: Request, exc: RequestValidationError):
+        # the same envelope as every other error, so a screen can show why a save was refused
+        return JSONResponse(status_code=422, content=validation_payload(list(exc.errors()), getattr(request.state, "correlation_id", "")))
 
     api = "/api/v1"
     app.include_router(me.router, prefix=api, tags=["identity"])

@@ -11,7 +11,7 @@ import '../components/sw-camera-tile';
 import { demoEvents, demoHealth, demoScene, demoSites, demoWall, eventTypeLabel } from '../fixtures/catalog';
 import { navigate } from '../router';
 import { isApi, session } from '../api/session';
-import { get } from '../api/client';
+import { ApiError, get } from '../api/client';
 import { listCameras } from '../api/maps';
 import { eventsSummary, listEvents, thumbnailUrl, EVENT_LABEL, EVENT_TONE as API_EVENT_TONE, type EventsSummary, type VmsEvent } from '../api/events';
 import { getStorage, fmtMb, type StorageReport } from '../api/storage';
@@ -57,6 +57,7 @@ export class LiveOverview extends LitElement {
   @state() private recorder: { name: string; model: string | null } | null = null;
   @state() private sites: Site[] | null = null;
   @state() private summary: EventsSummary | null = null;
+  @state() private summaryDenied = false; // events.read missing: the KPI says so instead of a misleading 0 (0.1.80)
   @state() private recent: VmsEvent[] = [];
   @state() private storage: StorageReport | null = null;
   @state() private health: HealthSummary | null = null;
@@ -101,6 +102,7 @@ export class LiveOverview extends LitElement {
     if (sites.status === 'fulfilled') this.sites = sites.value.sites;
     else if (this.sites === null) this.sites = [];
     if (summary.status === 'fulfilled') this.summary = summary.value;
+    else this.summaryDenied = summary.reason instanceof ApiError && summary.reason.status === 403;
     if (recent.status === 'fulfilled') this.recent = recent.value.events;
     if (health.status === 'fulfilled') this.health = health.value;
     if (raw.status === 'fulfilled') this.raw = raw.value;
@@ -168,7 +170,7 @@ export class LiveOverview extends LitElement {
         <div class="kpis" data-overview-kpis>
           <sw-kpi icon="camera" tone=${cams.length && online === cams.length ? 'live' : online ? 'stale' : 'offline'} value=${`${online}/${cams.length}`} label="מצלמות" detail=${this.recorder ? `מחוברות · ${this.recorder.model ?? this.recorder.name}` : 'מחוברות'}></sw-kpi>
           <sw-kpi icon="building" value=${String(sites.length)} label="אתרים" detail=${`${floors.length} קומות · ${floors.filter((f) => f.has_plan).length} עם תוכנית`} tone="neutral"></sw-kpi>
-          <sw-kpi icon="bell" value=${String(this.summary?.today.total ?? 0)} label="אירועים" detail="היום" tone="neutral" badge=${this.summary?.today.unacked ? `${this.summary.today.unacked} לבדיקה` : ''}></sw-kpi>
+          <sw-kpi icon="bell" value=${this.summaryDenied ? '—' : String(this.summary?.today.total ?? 0)} label="אירועים" detail=${this.summaryDenied ? 'ללא הרשאה לאירועים' : 'היום'} tone="neutral" badge=${this.summary?.today.unacked ? `${this.summary.today.unacked} לבדיקה` : ''}></sw-kpi>
           <sw-kpi icon="shield" tone=${tone} value=${h ? STATUS_LABEL[h.status] : '…'} label="מצב מערכת" detail=${firstIssue ? firstIssue.label : 'NVR, go2rtc, HA ואחסון'}></sw-kpi>
         </div>
         ${favorites.length

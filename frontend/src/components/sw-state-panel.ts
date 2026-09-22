@@ -62,7 +62,8 @@ export class SwStatePanel extends LitElement {
       background: var(--sw-danger-soft);
       color: var(--sw-danger);
     }
-    :host([state='forbidden']) .icon {
+    :host([state='forbidden']) .icon,
+    .icon[data-look='forbidden'] {
       background: var(--sw-forbidden-soft);
       color: var(--sw-forbidden);
     }
@@ -104,16 +105,20 @@ export class SwStatePanel extends LitElement {
   `;
 
   render() {
-    const preset = PRESETS[this.state];
+    // A screen that only kept the message of a refused request still gets the lock: every 403 the backend writes
+    // says "אין הרשאה…" (rbac.forbidden), so for such a hint the error preset yields to the forbidden one and the
+    // retry button goes away - a viewer used to see "משהו השתבש · נסה שוב" on the events centre (0.1.80).
+    const forbidden = this.state === 'error' && /אין (לך )?הרשא/.test(this.hint);
+    const preset = PRESETS[forbidden ? 'forbidden' : this.state];
     const hint = this.hint || preset.hint();
     return html`
-      <div class="icon" aria-hidden="true"><sw-icon .name=${preset.icon} size=${this.compact ? 20 : 26}></sw-icon></div>
+      <div class="icon" data-look=${forbidden ? 'forbidden' : ''} aria-hidden="true"><sw-icon .name=${preset.icon} size=${this.compact ? 20 : 26}></sw-icon></div>
       <div class="text" role="status">
         <h4>${this.heading || preset.title()}</h4>
         ${hint ? html`<p>${hint}</p>` : ''}
         <slot></slot>
       </div>
-      ${this.actionLabel
+      ${this.actionLabel && !forbidden
         ? html`<sw-button variant=${this.state === 'error' ? 'primary' : 'secondary'} size="sm" @click=${() => this.dispatchEvent(new CustomEvent('action', { bubbles: true, composed: true }))}>${this.actionLabel}</sw-button>`
         : ''}
     `;

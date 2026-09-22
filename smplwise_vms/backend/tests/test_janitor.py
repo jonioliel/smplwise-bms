@@ -42,6 +42,11 @@ def test_audit_retention_setting_controls_pruning(settings):
     with app.state.db.connection() as conn:
         assert conn.execute("SELECT COUNT(*) c FROM audit_log WHERE action = 'test.old_row'").fetchone()["c"] == 0
 
-    # out-of-range values are rejected, not silently clamped
-    assert c.patch("/api/v1/settings", json={"audit.retention_days": 10}).status_code == 422
+    # out-of-range values are rejected, not silently clamped - in the error envelope the screens read (FastAPI's
+    # bare {"detail": [...]} left the settings save without a word until 0.1.80)
+    r = c.patch("/api/v1/settings", json={"audit.retention_days": 10})
+    assert r.status_code == 422
+    body = r.json()
+    assert body["code"] == "validation" and "audit.retention_days" in body["user_message"] and "30" in body["user_message"]
+    assert body["details"]["errors"][0]["type"] == "greater_than_equal"
     assert c.patch("/api/v1/settings", json={"audit.retention_days": 5000}).status_code == 422

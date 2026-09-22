@@ -78,6 +78,31 @@ export class SwDialog extends LitElement {
     if (e.key === 'Escape' && this.open) this.close();
   };
 
+  /** Keyboard focus moves into the dialog when it opens (the first field, else the first button, else the box):
+   * until 0.1.80 it stayed on the page behind, so a keyboard user had to tab through the whole page. */
+  updated(changed: Map<string, unknown>) {
+    if (!changed.has('open') || !this.open) return;
+    requestAnimationFrame(() => {
+      const pick = (root: ParentNode): HTMLElement | null => {
+        for (const el of root.querySelectorAll<HTMLElement>('[autofocus], input, textarea, select, sw-button, button')) {
+          if (el.hasAttribute('disabled') || (el as HTMLInputElement).type === 'hidden' || el.slot === 'footer') continue;
+          if (el.tagName === 'SW-BUTTON') return el.shadowRoot?.querySelector<HTMLElement>('button') ?? el;
+          return el;
+        }
+        for (const el of root.querySelectorAll<HTMLElement>('*')) {
+          const inner = el.shadowRoot && pick(el.shadowRoot);
+          if (inner) return inner;
+        }
+        return null;
+      };
+      const target = pick(this) ?? this.renderRoot.querySelector<HTMLElement>('.box');
+      if (target) {
+        if (!target.hasAttribute('tabindex') && !target.matches('input, textarea, select, button, a[href]')) target.setAttribute('tabindex', '-1');
+        target.focus({ preventScroll: true });
+      }
+    });
+  }
+
   connectedCallback() {
     super.connectedCallback();
     window.addEventListener('keydown', this.onKey);

@@ -1,5 +1,28 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.80 (pilot) — refused saves say why, dialogs take the keyboard, a viewer sees a lock instead of "something broke"
+- A value pydantic refuses (an out-of-range retention, a bad time zone pattern, a missing field) came back as
+  FastAPI's bare `{"detail": [...]}`, which no screen can read: הגדרות › "שמור" with 5 days of audit retention
+  failed without a word. Every validation error now uses the product's error envelope (`code: validation`, a
+  Hebrew message naming the field and the rule - "audit.retention_days: לפחות 30" - and the raw errors in
+  `details`), so the save shows why it was refused. `describeError` also has a last-resort text for an error
+  body with neither message nor code.
+- `sw-dialog` moves keyboard focus into itself when it opens (first field, else first button); it used to leave
+  focus on the page behind, so a keyboard user tabbed through the whole page to reach the new-role/new-case/new-site
+  form. Escape still closes.
+- `sw-state-panel`: a refused request ("אין הרשאה…", every 403 the backend writes) renders with the lock and
+  without a "נסה שוב" button even when the screen only kept the message - a viewer opening the events centre,
+  cases, rules, storage, audit or users saw "משהו השתבש · נסה שוב" until now.
+- Round-6 checklist: the audit-retention field lives under הגדרות › "וידאו ומדיה" (next to the export/event
+  retention fields), not "כללי" as 0.1.78's notes said; the item points there now.
+- Least-privilege walk (new this session): every route opened as a user with no binding, a viewer, an operator and
+  an editor - all 32 screens render for each, zero page errors; the no-binding user meets the "no role yet" gate
+  everywhere; a viewer is sent to 16 routes it has no permission for (34 refused requests), an operator to 9
+  (17), an editor to 15 (33). Not changed, needs a product decision: the navigation does not hide categories
+  by permission, and the camera screen asks for OSD / schedules / smart data without checking `nvr.config.*`.
+  Record: `docs/operations/TEST_ROUND_RESULTS_2026-09-22_HE.md` section 5.
+
+
 ## 0.1.79 (pilot) — full-system review: every screen walked, every suite run, six fixes, honest device-blocked reporting
 - Storage and connections screens showed the word "ApiError" as the reason when a device did not answer; a shared
   `reason_of()` (errors.py) now names the code and the underlying error (`source_unavailable · ConnectTimeout`),
