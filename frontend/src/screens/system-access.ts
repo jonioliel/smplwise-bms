@@ -70,6 +70,10 @@ interface Wizard {
   subjectName: string;
   roleId: string;
   scopeKey: string; // `${type}:${id}`
+  /** T055: a deny binding blocks exactly the chosen role's permissions in this scope, overriding any allow
+   * elsewhere in the chain (rbac.authorize / effective_permissions) - the backend always supported it, the
+   * wizard just never offered it. */
+  effect: 'allow' | 'deny';
 }
 
 /** SC24 — user roles & permissions (board 3 screen 20): identity from HA only; assignments live only inside SMPLWISE. */
@@ -378,7 +382,7 @@ export class SystemAccess extends LitElement {
   }
 
   private startWizard(kind: 'user' | 'group', id: string, name: string) {
-    this.wizard = { subjectKind: kind, subjectId: id, subjectName: name, roleId: 'viewer', scopeKey: 'installation:*' };
+    this.wizard = { subjectKind: kind, subjectId: id, subjectName: name, roleId: 'viewer', scopeKey: 'installation:*', effect: 'allow' };
   }
 
   private async saveWizard() {
@@ -388,8 +392,8 @@ export class SystemAccess extends LitElement {
     this.busy = true;
     this.error = '';
     try {
-      const b = await createBinding({ subject_kind: w.subjectKind, subject_id: w.subjectId, role_id: w.roleId, scope_type: scopeType, scope_id: scopeId });
-      this.flash(`שויך: ${b.role_name} · ${b.scope_name} (רוויזיה ${b.revision})`);
+      const b = await createBinding({ subject_kind: w.subjectKind, subject_id: w.subjectId, role_id: w.roleId, scope_type: scopeType, scope_id: scopeId, effect: w.effect });
+      this.flash(w.effect === 'deny' ? `נחסם: ${b.role_name} · ${b.scope_name} (רוויזיה ${b.revision})` : `שויך: ${b.role_name} · ${b.scope_name} (רוויזיה ${b.revision})`);
       this.wizard = null;
       await this.load();
     } catch (err) {
@@ -505,16 +509,26 @@ export class SystemAccess extends LitElement {
     const role = this.roles.roles.find((r) => r.id === w.roleId);
     const scope = this.scopeOptions.find((s) => `${s.type}:${s.id}` === w.scopeKey);
     const systemRole = role?.system_role ?? false;
+    const deny = w.effect === 'deny';
     return html`<div class="wiz">
       <sw-steps .steps=${['תפקיד', 'היקף', 'תצוגה מקדימה', 'שמירה']} .current=${2}></sw-steps>
       <div class="hint">שיוך ל${w.subjectKind === 'group' ? 'קבוצה' : 'משתמש'}: <strong>${w.subjectName}</strong></div>
+      <sw-field label="סוג שיוך"><select data-wizard-effect @change=${(e: Event) => (this.wizard = { ...w, effect: (e.target as HTMLSelectElement).value as 'allow' | 'deny' })}>
+          <option value="allow" ?selected=${!deny}>הרשאה — מוסיף את הרשאות התפקיד בהיקף</option>
+          <option value="deny" ?selected=${deny}>חסימה — מסיר את הרשאות התפקיד בהיקף, גם אם שיוך אחר מרשה</option>
+        </select></sw-field>
       <sw-field label="תפקיד"><select @change=${(e: Event) => (this.wizard = { ...w, roleId: (e.target as HTMLSelectElement).value })}>${this.roles.roles.map((r) => html`<option value=${r.id} ?selected=${r.id === w.roleId}>${r.name}</option>`)}</select></sw-field>
       <sw-field label="היקף"><select @change=${(e: Event) => (this.wizard = { ...w, scopeKey: (e.target as HTMLSelectElement).value })}>${this.scopeOptions.map((s) => html`<option value=${`${s.type}:${s.id}`} ?selected=${`${s.type}:${s.id}` === w.scopeKey} ?disabled=${systemRole && s.type !== 'installation'}>${s.name}</option>`)}</select></sw-field>
       ${role
-        ? html`<div class="eff">
-            <div><div style="font-weight:600;margin-block-end:4px;font-size:var(--sw-fs-xs)">מותר ב־${scope?.name ?? 'ההיקף'}</div>${role.permissions.map((p) => html`<div class="row"><span>${this.label(p)}</span><sw-icon name="check" size=${14} style="color:var(--sw-live)"></sw-icon></div>`)}</div>
-            <div><div style="font-weight:600;margin-block-end:4px;font-size:var(--sw-fs-xs)">לא כלול / מחוץ להיקף</div>${role.sensitive_missing.map((p) => html`<div class="row"><span>${this.label(p)}</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div>`)}<div class="row"><span>כל היקף אחר</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div></div>
-          </div>`
+        ? deny
+          ? html`<div class="eff">
+              <div><div style="font-weight:600;margin-block-end:4px;font-size:var(--sw-fs-xs)">ייחסמו ב־${scope?.name ?? 'ההיקף'}</div>${role.permissions.map((p) => html`<div class="row"><span>${this.label(p)}</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div>`)}</div>
+              <div class="hint" style="align-self:start">חסימה פועלת רק על ההרשאות שהתפקיד הזה מקנה, ורק בהיקף שנבחר. היא גוברת על כל שיוך "הרשאה" אחר לאותו משתמש באותה הרשאה ובאותו היקף (או היקף שמכיל אותו) — לא על שיוכים בהיקפים לא קשורים.</div>
+            </div>`
+          : html`<div class="eff">
+              <div><div style="font-weight:600;margin-block-end:4px;font-size:var(--sw-fs-xs)">מותר ב־${scope?.name ?? 'ההיקף'}</div>${role.permissions.map((p) => html`<div class="row"><span>${this.label(p)}</span><sw-icon name="check" size=${14} style="color:var(--sw-live)"></sw-icon></div>`)}</div>
+              <div><div style="font-weight:600;margin-block-end:4px;font-size:var(--sw-fs-xs)">לא כלול / מחוץ להיקף</div>${role.sensitive_missing.map((p) => html`<div class="row"><span>${this.label(p)}</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div>`)}<div class="row"><span>כל היקף אחר</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div></div>
+            </div>`
         : nothing}
       ${systemRole ? html`<div class="hint">תפקיד עם הרשאות מערכת מוקצה רק ברמת ההתקנה כולה.</div>` : nothing}
       <div class="hint">הרשאות בתוך SMPLWISE בלבד. שום דבר לא נכתב ל־Home Assistant. השינוי נרשם באודיט עם diff לפני/אחרי.</div>

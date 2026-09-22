@@ -37,7 +37,7 @@ def janitor_tick(db: Database, settings: Settings) -> None:
     ex.retention_sweep(db, settings, s["exports.retention_days"])
     events_derive.prune(db, s["events.retention_days"])
     thumbnails.prune(settings, s["events.retention_days"])
-    audit_mod.prune_db(db)
+    audit_mod.prune_db(db, s["audit.retention_days"])
     ha_history.prune_db(db)
     from .services import storage
 

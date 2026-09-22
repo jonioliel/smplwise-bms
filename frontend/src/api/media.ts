@@ -13,6 +13,9 @@ export interface ProductSettings {
   'playback.lease_s'?: number;
   'exports.max_mb'?: number;
   'exports.retention_days'?: number;
+  'events.retention_days'?: number;
+  /** T055: audit rows older than this are pruned by the janitor (was a fixed 365-day constant). */
+  'audit.retention_days'?: number;
   /** Design switch: 'a' = mockups v1.3 (SW A), 'b' = the earlier boards (SW B); names are editable. */
   'ui.design'?: 'a' | 'b';
   'ui.design_names'?: string;

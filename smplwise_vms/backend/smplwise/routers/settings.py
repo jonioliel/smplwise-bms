@@ -42,13 +42,14 @@ DEFAULTS: dict[str, str] = {
     "exports.max_mb": "2048",  # refuse export jobs whose NVR files exceed this estimate
     "exports.retention_days": "7",  # finished export files are deleted after this many days
     "events.retention_days": "30",  # stored events are pruned after this many days
+    "audit.retention_days": "365",  # T055: the janitor prunes audit rows older than this (was a fixed constant)
     # semantic search (T063): the local baseline needs no network; an external analysis provider is opt-in with a privacy acknowledgement and a daily budget — none is bundled
     "ai.provider": "local",  # none | local | external
     "ai.privacy_ack": "false",
     "ai.budget_daily": "0",
 }
 
-INT_KEYS = ("media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "exports.max_mb", "exports.retention_days", "events.retention_days", "ai.budget_daily")
+INT_KEYS = ("media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "ai.budget_daily")
 
 
 def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
@@ -70,6 +71,7 @@ class SettingsPatch(BaseModel):
     exports_max_mb: int | None = Field(default=None, ge=50, le=20480, alias="exports.max_mb")
     exports_retention_days: int | None = Field(default=None, ge=1, le=365, alias="exports.retention_days")
     events_retention_days: int | None = Field(default=None, ge=1, le=3650, alias="events.retention_days")
+    audit_retention_days: int | None = Field(default=None, ge=30, le=3650, alias="audit.retention_days")
     ui_design: str | None = Field(default=None, pattern="^(a|b)$", alias="ui.design")
     ui_design_names: str | None = Field(default=None, max_length=200, alias="ui.design_names")
     ui_wall_count: int | None = Field(default=None, ge=1, le=32, alias="ui.wall_count")

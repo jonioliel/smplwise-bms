@@ -1,5 +1,24 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.78 (pilot) — audit retention as a setting, a deny option in the role wizard
+- Audit log retention was a fixed 365-day constant in code; it is `audit.retention_days` now (30-3650 days),
+  editable in הגדרות › כללי next to the export/event retention fields the janitor already used the same way.
+- Users והרשאות › שיוך תפקיד gained a "סוג שיוך" choice: הרשאה (allow, the only option until now) or חסימה
+  (deny) - the backend has supported deny-effect bindings since the RBAC model shipped (rbac.authorize already
+  gives an explicit deny at a scope priority over any allow for the same permission in the same chain), the
+  assignment wizard just never exposed the choice. The preview panel switches its copy and icons for a deny
+  pick (ייחסמו, not מותר) so it reads as a block, not a grant.
+- Evidence: `tests/test_janitor.py::test_audit_retention_setting_controls_pruning` (a real janitor pass respects
+  the configured value in both directions - a 40-day-old row survives at the 365-day default and is pruned once
+  retention is lowered to 30; out-of-range values are rejected); full backend suite green; live-verified in the
+  browser pane against the dev backend - the effect selector renders, the preview panel updates, and picking
+  "חסימה" actually creates a `deny` binding end to end (checked directly against `/api/v1/access/bindings`,
+  then removed).
+- Left for later, deliberately not attempted tonight: per-camera scope (today's finest binding scope is still
+  floor) touches the RBAC model itself and deserves its own session, not an unsupervised one; live-session audit
+  surfacing in the UI needs new backend session-listing infrastructure first.
+
+
 ## 0.1.77 (pilot) — the camera video no longer outgrows the screen, free-text event search, a friendlier NVR card
 - Camera screen: the video's 16:9 box had no height limit, so on a wide desktop (design A has no page max-width)
   it grew taller than the viewport - the controls and the settings accordion needed a scroll to even know they
