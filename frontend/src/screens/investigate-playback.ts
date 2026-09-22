@@ -1010,6 +1010,15 @@ export class InvestigatePlayback extends LitElement {
     this.exportBusy = true;
     this.exportError = '';
     try {
+      // owner round 4 (5.10): "צור ייצוא" used to stay disabled until "חשב נפח" had been clicked first, with
+      // nothing on screen explaining why - it looked broken. One button now does both: estimate if needed, then
+      // create, so the export the user asked for is the only click that has to land.
+      const est = this.estimate ?? (await estimateExport(this.cameraId, r[0], r[1]));
+      this.estimate = est;
+      if (!est.files) {
+        this.exportError = 'אין קבצים מוקלטים בטווח שנבחר.';
+        return;
+      }
       this.exportJob = await createExport(this.cameraId, r[0], r[1]);
     } catch (err) {
       this.exportError = describeError(err);
@@ -1024,7 +1033,7 @@ export class InvestigatePlayback extends LitElement {
     return html`<sw-dialog ?open=${this.exportOpen} heading="ייצוא קטע" subheading=${`${this.cameraName(this.cameraId)} · ${this.date} · ${this.tz}`} @close=${() => (this.exportOpen = false)}>
       <div class="dlg">
         ${job
-          ? html`<div class="est"><strong>עבודת הייצוא נוצרה</strong><span>${job.files.length} קבצים · משוער ${formatBytes(job.estimate_bytes)} · מצב: ${job.state}</span><span>ההתקדמות וההורדה במסך "ייצוא".</span></div>`
+          ? html`<div class="est"><strong>עבודת הייצוא נוצרה</strong><span>${job.files.length} קבצים · משוער ${formatBytes(job.estimate_bytes)} · מצב: ${job.state}</span><span>ה־NVR עדיין מכין את הקובץ; "מעקב והורדה" למטה עובר למסך שבו כפתור ההורדה יופיע ברגע שהוא מוכן.</span></div>`
           : html`
               <div class="row">
                 <sw-field label="מ־"><input type="time" step="1" data-ltr .value=${this.exportFrom} @change=${(e: Event) => { this.exportFrom = (e.target as HTMLInputElement).value; this.estimate = null; }} /></sw-field>
@@ -1043,9 +1052,9 @@ export class InvestigatePlayback extends LitElement {
       </div>
       <div slot="footer" style="display:flex;gap:8px;justify-content:flex-end">
         ${job
-          ? html`<sw-button variant="primary" icon="download" @click=${() => navigate('/investigate/exports')}>למסך הייצוא</sw-button><sw-button @click=${() => (this.exportOpen = false)}>סגור</sw-button>`
+          ? html`<sw-button variant="primary" icon="download" @click=${() => navigate('/investigate/exports')}>מעקב והורדה</sw-button><sw-button @click=${() => (this.exportOpen = false)}>סגור</sw-button>`
           : html`<sw-button ?disabled=${this.exportBusy} @click=${() => this.runEstimate()}>חשב נפח</sw-button>
-              <sw-button variant="primary" icon="download" ?disabled=${this.exportBusy || !est || !est.files} @click=${() => this.runExport()}>צור ייצוא</sw-button>
+              <sw-button variant="primary" icon="download" ?disabled=${this.exportBusy} @click=${() => this.runExport()}>צור ייצוא</sw-button>
               <sw-button variant="ghost" @click=${() => (this.exportOpen = false)}>ביטול</sw-button>`}
       </div>
     </sw-dialog>`;
@@ -1098,7 +1107,9 @@ export class InvestigatePlayback extends LitElement {
       <div class="filters">
         ${this.rec ? html`<sw-chip icon="history">${this.rec.segments.length} מקטעים · ${this.rec.matches} קבצים</sw-chip>` : nothing}
         ${this.dayEvents.length ? html`<sw-chip icon="bell" @click=${() => navigate('/investigate/events', { camera: this.cameraId, date: this.date })}>${this.dayEvents.length} אירועים${this.dayEvents.every((e) => e.confidence === 'inferred') ? ' (מהקלטות)' : ''}</sw-chip>` : nothing}
-        ${this.bookmarks.length ? html`<sw-chip icon="case" data-bookmarks-count title="סימניות מתיקי חקירה על ציר הזמן · Alt+לחיצה על הציר מוסיפה סימנייה">${this.bookmarks.length} סימניות</sw-chip>` : nothing}
+        ${this.bookmarks.length
+          ? html`<sw-chip icon="case" data-bookmarks-count title="סימניות מתיקי חקירה על ציר הזמן · Alt+לחיצה על הציר מוסיפה סימנייה">${this.bookmarks.length} סימניות</sw-chip>`
+          : html`<span class="session" data-bookmarks-hint>אין עדיין סימניות · "הוסף לתיק" מסמן את הרגע הנוכחי, או Alt+לחיצה על הציר מסמנת נקודה אחרת</span>`}
         ${this.activeBookmark ? html`<sw-chip selected icon="case" data-bookmark-active @click=${() => navigate(`/investigate/cases/${this.activeBookmark!.case_id}`)}>תיק „${this.activeBookmark.case_title}”${this.activeBookmark.note ? ` · ${this.activeBookmark.note}` : ''} · ${BOOKMARK_LABEL[this.activeBookmark.preservation]} · פתח</sw-chip>` : nothing}
         ${this.rec?.coverage === 'partial' ? html`<span class="warn">כיסוי חלקי: ${this.rec.note}</span>` : nothing}
         ${this.loadingRec ? html`<span class="session">מחפש הקלטות…</span>` : nothing}

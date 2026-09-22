@@ -1057,22 +1057,25 @@ export class ExplorePlanEditor extends LitElement {
       }
       this.apply(a.id, { coverage_polygon: pts });
     };
+    // owner round 4 (1.8): "רוחב" and "מרחק" looked coupled because coverage_radius had THREE separate
+    // controls (a "מרחק" slider here, plus a duplicate "טווח" slider + number field below it) - dragging
+    // one visually moved the other, since both were just bound to the same value. Now there is exactly one
+    // slider per concept, and the precise number entry lives on the distance row instead of duplicating it.
     return html`<div class="row" data-coverage style="flex-direction:column;align-items:stretch;gap:6px">
-      <span class="lbl">שטח כיסוי${poly ? ' · מצולע ידני' : ''}<span class="muted">${poly ? `${poly.length} נקודות · גרירה מזיזה, לחיצה על נקודת אמצע מוסיפה, לחיצה כפולה מסירה` : 'שני מחוונים: רוחב (כמה ימינה ושמאלה, שווה לשני הצדדים) ומרחק (עד איפה המצלמה רואה). אפשר גם לגרור את הידיות על המפה.'}</span></span>
+      <span class="lbl">שטח כיסוי${poly ? ' · מצולע ידני' : ''}<span class="muted">${poly ? `${poly.length} נקודות · גרירה מזיזה, לחיצה על נקודת אמצע מוסיפה, לחיצה כפולה מסירה` : 'שני מחוונים נפרדים לגמרי זה מזה: רוחב (כמה ימינה ושמאלה, שווה לשני הצדדים) ומרחק (עד איפה המצלמה רואה). אפשר גם לגרור את הידיות על המפה.'}</span></span>
       ${poly ? nothing : html`<label class="note" style="display:flex;gap:8px;align-items:center" data-coverage-width>רוחב
           <input type="range" min="10" max="180" step="1" style="flex:1" .value=${String(Math.round(a.field_of_view_degrees ?? 90))} aria-label="רוחב שדה הראייה" @input=${(e: Event) => this.apply(a.id, { field_of_view_degrees: Number((e.target as HTMLInputElement).value) })} />
           <span class="ltr" style="min-inline-size:64px">${Math.round((a.field_of_view_degrees ?? 90) / 2)}° לכל צד</span></label>
         <label class="note" style="display:flex;gap:8px;align-items:center" data-coverage-distance>מרחק
           <input type="range" min="2" max="100" step="1" style="flex:1" .value=${String(pct)} aria-label="מרחק ראייה" @input=${(e: Event) => this.apply(a.id, { coverage_radius: Number((e.target as HTMLInputElement).value) / 100 })} />
-          <span class="ltr" style="min-inline-size:64px">${pct}% מהרוחב</span></label>`}
-      ${poly
-        ? html`<div style="display:flex;gap:8px;flex-wrap:wrap"><sw-button size="sm" icon="undo" data-coverage-cone @click=${() => this.apply(a.id, { coverage_polygon: null })}>חזרה לקשת</sw-button></div>`
-        : html`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <sw-field label="טווח (% מרוחב התוכנית)" style="inline-size:150px"><input type="number" step="1" min="2" max="100" data-ltr data-coverage-radius .value=${String(pct)} @change=${(e: Event) => this.apply(a.id, { coverage_radius: Math.min(1, Math.max(0.02, Number((e.target as HTMLInputElement).value) / 100)) })} /></sw-field>
-            <input type="range" min="2" max="100" step="1" .value=${String(pct)} aria-label="טווח כיסוי" style="flex:1" @input=${(e: Event) => this.apply(a.id, { coverage_radius: Number((e.target as HTMLInputElement).value) / 100 })} />
-            ${radius ? html`<sw-button size="sm" variant="ghost" @click=${() => this.apply(a.id, { coverage_radius: null })}>ברירת מחדל</sw-button>` : nothing}
-            <sw-button size="sm" icon="edit" data-coverage-polygon @click=${toPolygon}>כיסוי ידני (מצולע)</sw-button>
-          </div>`}
+          <input type="number" step="1" min="2" max="100" data-ltr data-coverage-radius style="inline-size:56px" .value=${String(pct)} aria-label="מרחק ראייה, אחוז מדויק" @change=${(e: Event) => this.apply(a.id, { coverage_radius: Math.min(1, Math.max(0.02, Number((e.target as HTMLInputElement).value) / 100)) })} />
+          <span class="ltr" style="min-inline-size:24px">%</span></label>`}
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        ${poly
+          ? html`<sw-button size="sm" icon="undo" data-coverage-cone @click=${() => this.apply(a.id, { coverage_polygon: null })}>חזרה לקשת</sw-button>`
+          : html`${radius ? html`<sw-button size="sm" variant="ghost" @click=${() => this.apply(a.id, { coverage_radius: null })}>מרחק לברירת מחדל</sw-button>` : nothing}
+            <sw-button size="sm" icon="edit" data-coverage-polygon @click=${toPolygon}>כיסוי ידני (מצולע)</sw-button>`}
+      </div>
     </div>`;
   }
 
@@ -1082,11 +1085,7 @@ export class ExplorePlanEditor extends LitElement {
     return html`<sw-card heading="הגדרות מצלמה" subheading="גרירה במפה, ידיות לכיוון ולשדה הראייה, או הזנה מדויקת">
       <div class="kv"><span class="k">מצלמה</span><strong>${this.anchorName(a)}</strong></div>
       <div class="kv"><span class="k">מקור</span><span class="ltr">${cam ? `NVR · ch ${cam.channel}` : a.resource_id}</span></div>
-      <div class="two" style="margin-block-start:10px">
-        <sw-field label="כיוון מבט (°)"><input type="number" step="1" min="0" max="359" data-ltr .value=${String(Math.round(a.rotation_degrees))} @change=${(e: Event) => this.apply(a.id, { rotation_degrees: ((Number((e.target as HTMLInputElement).value) % 360) + 360) % 360 })} /></sw-field>
-        <sw-field label="שדה ראייה (°)"><input type="number" step="1" min="10" max="180" data-ltr .value=${String(Math.round(fov || 90))} ?disabled=${!fov} @change=${(e: Event) => this.apply(a.id, { field_of_view_degrees: Math.min(180, Math.max(10, Number((e.target as HTMLInputElement).value))) })} /></sw-field>
-      </div>
-      <input type="range" min="10" max="180" step="1" .value=${String(fov || 90)} ?disabled=${!fov} aria-label="שדה ראייה" @input=${(e: Event) => this.apply(a.id, { field_of_view_degrees: Number((e.target as HTMLInputElement).value) })} />
+      <sw-field label="כיוון מבט (°)" style="margin-block-start:10px"><input type="number" step="1" min="0" max="359" data-ltr .value=${String(Math.round(a.rotation_degrees))} @change=${(e: Event) => this.apply(a.id, { rotation_degrees: ((Number((e.target as HTMLInputElement).value) % 360) + 360) % 360 })} /></sw-field>
       <div class="two">
         <sw-field label="מיקום X (%)"><input type="number" step="0.1" min="0" max="100" data-ltr .value=${(a.position.x * 100).toFixed(1)} @change=${(e: Event) => this.apply(a.id, { position: { x: Math.min(1, Math.max(0, Number((e.target as HTMLInputElement).value) / 100)), y: a.position.y } })} /></sw-field>
         <sw-field label="מיקום Y (%)"><input type="number" step="0.1" min="0" max="100" data-ltr .value=${(a.position.y * 100).toFixed(1)} @change=${(e: Event) => this.apply(a.id, { position: { x: a.position.x, y: Math.min(1, Math.max(0, Number((e.target as HTMLInputElement).value) / 100)) } })} /></sw-field>

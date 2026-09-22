@@ -15,6 +15,7 @@ const PATHS: Record<string, ReturnType<typeof svg>> = {
   expand: svg`<path d="M15 4h5v5M9 20H4v-5M20 4l-6 6M4 20l6-6"/>`,
   close: svg`<path d="M6 6l12 12M18 6 6 18"/>`,
   chevron: svg`<path d="m9 6 6 6-6 6"/>`,
+  chevronBack: svg`<path d="m15 6-6 6 6 6"/>`,
   warning: svg`<path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/>`,
   info: svg`<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>`,
   lock: svg`<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>`,
@@ -113,7 +114,7 @@ export class SwIcon extends LitElement {
 
   render() {
     this.style.setProperty('--sw-icon-size', `${this.size}px`);
-    const directional = this.name === 'chevron';
+    const directional = this.name === 'chevron' || this.name === 'chevronBack';
     return html`<svg viewBox="0 0 24 24" aria-hidden="true" ?data-dir=${directional}>${PATHS[this.name] ?? PATHS.info}</svg>`;
   }
 }

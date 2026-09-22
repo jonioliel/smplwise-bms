@@ -126,11 +126,32 @@ export class SwWeekGrid extends LitElement {
     .legend button.on {
       outline: 2px solid var(--sw-accent);
     }
+    .legend .lbl {
+      color: var(--sw-text-3);
+    }
+    .legend .chip {
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+      padding: 2px 10px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+    }
+    .legend .chip.muted {
+      color: var(--sw-text-3);
+    }
+    .legend .hint {
+      color: var(--sw-text-3);
+    }
     .sw {
       inline-size: 10px;
       block-size: 10px;
       border-radius: 3px;
       display: inline-block;
+    }
+    .sw.empty {
+      background: var(--sw-surface-3);
+      border: 1px solid var(--sw-border-strong);
     }
   `;
 
@@ -197,6 +218,23 @@ export class SwWeekGrid extends LitElement {
     window.removeEventListener('pointerup', this.end);
   }
 
+  /** Owner round 4 (3.1, second time): the legend was gated behind `editable && modes.length > 1`, so a
+   * read-only grid or a single-mode one (most recording/motion schedules) showed colored cells with no
+   * explanation at all. Always show what each color means; keep the paint-mode picker only where it applies. */
+  private renderLegend() {
+    const pickable = this.editable && this.modes.length > 1;
+    return html`<div class="legend" data-week-legend>
+      <span class="lbl">מקרא:</span>
+      ${this.modes.map((m) =>
+        pickable
+          ? html`<button class=${m.id === this.mode ? 'on' : ''} data-week-mode=${m.id} @click=${() => (this.mode = m.id)}><span class="sw" style="background:${m.color}"></span>${m.label}</button>`
+          : html`<span class="chip"><span class="sw" style="background:${m.color}"></span>${m.label}</span>`,
+      )}
+      <span class="chip muted"><span class="sw empty"></span>${this.modes.length > 1 ? 'ללא' : 'לא פעיל'}</span>
+      ${pickable ? html`<span class="hint">לחיצה על תא צבוע באותו צבע מנקה אותו</span>` : nothing}
+    </div>`;
+  }
+
   render() {
     this.sync();
     return html`
@@ -208,9 +246,7 @@ export class SwWeekGrid extends LitElement {
           ${this.cells[d].map((v, h) => html`<div class="c ${v ? 'on' : ''}" data-cell=${`${d}-${h}`} data-mode=${v} style=${v ? `--cell:${this.colorOf(v)}` : ''} title=${`${NAMES[i]} ${pad(h)}:00–${pad(h + 1)}:00${v ? ` · ${this.modes.find((m) => m.id === v)?.label ?? v}` : ''}`}></div>`)}
         `)}
       </div>
-      ${this.editable && this.modes.length > 1
-        ? html`<div class="legend">צבע: ${this.modes.map((m) => html`<button class=${m.id === this.mode ? 'on' : ''} data-week-mode=${m.id} @click=${() => (this.mode = m.id)}><span class="sw" style="background:${m.color}"></span>${m.label}</button>`)}<span style="color:var(--sw-text-3)">לחיצה על תא צבוע באותו צבע מנקה אותו</span></div>`
-        : nothing}
+      ${this.renderLegend()}
     `;
   }
 }

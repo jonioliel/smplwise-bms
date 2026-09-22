@@ -30,6 +30,9 @@ test.describe('custom roles (SW A)', () => {
     await screen.locator('[data-role-new]').click();
     const dlg = screen.locator('[data-role-dialog]');
     await dlg.locator('[data-role-name]').fill(name);
+    // owner round 3 (4.1): a new role is auto-assigned to its creator by default - this test wants a clean role
+    // with exactly the one binding it creates explicitly below (guard), so it opts out of that default.
+    await dlg.locator('[data-role-assign-me]').uncheck();
     await dlg.locator('[data-role-perm="video.live"]').check();
     await dlg.locator('[data-role-perm="events.read"]').check();
     await dlg.locator('[data-role-sensitive="video.export"]').check();

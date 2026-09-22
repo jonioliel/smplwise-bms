@@ -1,13 +1,21 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import './sw-icon';
+import './sw-button';
+import { t } from '../i18n/he';
+import { navigate } from '../router';
 
-/** Page frame as on the boards: optional breadcrumb, 18px title, grey one-line subtitle, actions on the end side. */
+/** Page frame as on the boards: optional breadcrumb, 18px title, grey one-line subtitle, actions on the end side.
+ * `backHref` (owner round 4, 1.11/2.6): a drill-down screen reached by clicking into something (a camera, an
+ * event, an editor) has no way back except the browser's own back button - invisible in most mobile/kiosk/HA
+ * Ingress contexts. Setting it (a bare router path, e.g. "/live/wall", no leading "#") renders an explicit,
+ * always-visible back control before the heading. */
 @customElement('sw-page')
 export class SwPage extends LitElement {
   @property() heading = '';
   @property() subheading = '';
   @property() crumbs = '';
+  @property() backHref = '';
   @property({ type: Boolean, reflect: true }) wide = false;
   @property({ type: Boolean, reflect: true }) flush = false;
 
@@ -38,6 +46,15 @@ export class SwPage extends LitElement {
     }
     :host([flush]) header {
       padding: 12px 16px 0;
+    }
+    .titlebar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .back {
+      flex: none;
+      margin-inline-start: -6px;
     }
     .crumbs {
       display: flex;
@@ -92,7 +109,10 @@ export class SwPage extends LitElement {
       <header>
         <div>
           ${crumbs.length ? html`<div class="crumbs">${crumbs.map((c, i) => html`${i ? html`<sw-icon name="chevron" size=${11}></sw-icon>` : ''}<span>${c}</span>`)}</div>` : ''}
-          <h1>${this.heading}</h1>
+          <div class="titlebar">
+            ${this.backHref ? html`<sw-button class="back" data-page-back variant="ghost" size="sm" iconOnly icon="chevronBack" label=${t('actions.back')} @click=${() => navigate(this.backHref)}></sw-button>` : ''}
+            <h1>${this.heading}</h1>
+          </div>
           ${this.subheading ? html`<div class="sub">${this.subheading}</div>` : ''}
         </div>
         <div class="actions"><slot name="actions"></slot></div>

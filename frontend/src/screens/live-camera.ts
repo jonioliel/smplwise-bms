@@ -144,8 +144,9 @@ export class LiveCamera extends LitElement {
     ];
     const canEdit = tab === 'record' ? s.can.schedule : s.can.events;
     const label = kinds.find((k) => k.id === tab)?.label ?? '';
-    return html`<div class="legend" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-block-end:8px" data-schedules-tabs>
-        ${kinds.map((k) => html`<sw-chip ?selected=${tab === k.id} ?disabled=${!k.ok} data-sched-tab=${k.id} @click=${() => { if (k.ok) { this.schedTab = k.id; this.schedEdit = null; } }}>${k.label}${k.ok ? '' : ' · לא זמין'}</sw-chip>`)}
+    return html`<div class="note">${kinds.length} לוחות בכרטיס הזה, כולל <strong>לוח הקלטה</strong> (מתי הערוץ מקליט בפועל) — לא רק לוחות הזיהוי.</div>
+      <div class="legend" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-block-end:8px" data-schedules-tabs>
+        ${kinds.map((k) => html`<sw-chip ?selected=${tab === k.id} ?disabled=${!k.ok} data-sched-tab=${k.id} title=${k.ok ? '' : (s.unsupported[k.id] ?? 'לא נתמך בערוץ זה')} @click=${() => { if (k.ok) { this.schedTab = k.id; this.schedEdit = null; } }}>${k.label}${k.ok ? '' : ' · לא זמין'}</sw-chip>`)}
         <span class="grow"></span>
         ${canEdit && !e ? html`<sw-button size="sm" icon="edit" data-sched-edit @click=${() => this.startSchedEdit()}>עריכה</sw-button>` : nothing}
       </div>
@@ -248,7 +249,7 @@ export class LiveCamera extends LitElement {
     const ed = this.smartEdit!;
     const dir = (d: string) => ({ any: 'שני הכיוונים', 'left-right': 'שמאל → ימין', 'right-left': 'ימין → שמאל' })[d] ?? d;
     return html`<div class="legend" data-smart-editor style="display:grid;gap:8px;margin-block-start:8px">
-      <div class="note">בחר כלל ולחץ על התמונה: קו = שתי לחיצות; אזור = 4 עד 10 לחיצות. "אדם" / "רכב" = סינון אזעקות שווא (רק מטרה מסוג זה מפעילה).</div>
+      <div class="note">בחר כלל ולחץ על התמונה כדי לצייר: קו = <strong>שתי</strong> לחיצות (התחלה וסוף — לחיצה נוספת מזיזה את הסוף); אזור פריצה = <strong>4 עד 10</strong> לחיצות (נקודה לכל פינה), ואז ישר "שמור ל־NVR" למטה — אין צורך לסגור את הצורה. "אדם" / "רכב" = סינון אזעקות שווא (רק מטרה מסוג זה מפעילה).</div>
       ${ed.line ? html`<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center" data-smart-lines>
           <label class="note" style="display:inline-flex;align-items:center;gap:4px"><input type="checkbox" data-smart-line-enabled .checked=${ed.line.enabled} @change=${(e: Event) => (this.smartEdit = { ...ed, line: { ...ed.line!, enabled: (e.target as HTMLInputElement).checked } })} /> חציית קו פעילה</label>
           ${ed.line.lines.map((l) => html`<span style="display:inline-flex;gap:6px;align-items:center;border:1px solid var(--sw-border);border-radius:8px;padding:4px 8px" data-smart-line=${l.id}>
@@ -385,7 +386,7 @@ export class LiveCamera extends LitElement {
           <sw-button size="sm" variant="danger" icon="close" ?disabled=${this.recBusy} data-record-stop @click=${() => this.toggleRecord()}>עצור הקלטה</sw-button>`
         : html`<sw-field><select aria-label="משך הקלטה ידנית" data-record-minutes @change=${(e: Event) => (this.recMinutes = Number((e.target as HTMLSelectElement).value))}>${[5, 10, 30, 60, 120].map((m) => html`<option value=${m} ?selected=${m === this.recMinutes}>${m} דק׳</option>`)}</select></sw-field>
           <sw-button size="sm" variant="primary" icon="live" ?disabled=${this.recBusy || !r.track_id} data-record-start @click=${() => this.toggleRecord()}>הקלט עכשיו</sw-button>
-          <span>הקלטה ידנית ב־NVR על הזרם הראשי; נעצרת אוטומטית בתום הזמן גם אם המסך נסגר.</span>`}
+          ${!r.track_id ? html`<span class="warn" data-record-unavailable>אין זרם ראשי זמין למצלמה זו כרגע, אי אפשר להקליט ידנית.</span>` : html`<span>הקלטה ידנית ב־NVR על הזרם הראשי; נעצרת אוטומטית בתום הזמן גם אם המסך נסגר. ההקלטה עצמה מצטרפת להקלטות הרגילות של הערוץ — היא נמצאת לפי הזמן במסך "הקלטות", לא בתגית נפרדת.</span>`}`}
       ${this.recMsg ? html`<span data-record-msg>${this.recMsg}</span>` : nothing}
     </div>`;
   }
@@ -394,6 +395,7 @@ export class LiveCamera extends LitElement {
   @state() private caps: CameraCapabilities | null = null;
   @state() private capsError = '';
   @state() private cams: Camera[] = [];
+  @state() private canConfigure = false;
   @state() private settings: ProductSettings | null = null;
   @state() private error = '';
   @state() private loading = true;
@@ -659,6 +661,63 @@ export class LiveCamera extends LitElement {
         grid-template-columns: 1fr;
       }
     }
+    /* settings accordion (owner round 4, 2.6): the video keeps its place, everything below starts collapsed
+       under one "camera settings" toggle, and each setting inside is its own collapsed row. */
+    .acc-root {
+      margin-block-start: 12px;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface);
+      box-shadow: var(--sw-shadow-1);
+    }
+    .acc-root > summary {
+      padding: 12px 14px;
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .acc-root[open] > summary {
+      border-block-end: 1px solid var(--sw-border);
+    }
+    .acc-body {
+      padding: 4px 14px 8px;
+      display: flex;
+      flex-direction: column;
+    }
+    summary {
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      list-style: none;
+    }
+    summary::-webkit-details-marker {
+      display: none;
+    }
+    summary .chev {
+      flex: none;
+      color: var(--sw-text-3);
+      transition: transform var(--sw-t-fast) var(--sw-ease);
+    }
+    details[open] > summary .chev {
+      transform: rotate(90deg);
+    }
+    .acc {
+      border-block-start: 1px solid var(--sw-border);
+    }
+    .acc > summary {
+      padding: 10px 2px;
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-medium);
+      justify-content: space-between;
+    }
+    .acc > summary .lbl {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .acc-content {
+      padding: 0 2px 12px;
+    }
   `;
 
   connectedCallback() {
@@ -859,6 +918,7 @@ export class LiveCamera extends LitElement {
         const [list, settings] = await Promise.all([listCameras(), productSettings()]);
         this.cams = list.cameras;
         this.cam = list.cameras.find((c) => c.id === this.cameraId) ?? null;
+        this.canConfigure = list.can_sync;
         this.settings = settings;
         this.transport = effectiveTransport(settings);
       }
@@ -907,29 +967,65 @@ export class LiveCamera extends LitElement {
         </div>
         <div class="note">${this.playerStatus === 'playing' ? `מנגן דרך ${this.playerTransport === 'webrtc' ? 'WebRTC' : 'MSE'}` : this.playerStatus === 'error' ? 'הזרם לא זמין' : 'מתחבר…'}</div>
       </div>
-      ${this.renderCaps()}
-      ${this.renderRecord()}
-      ${this.renderOsd()}
-      <div class="grid">
-        <sw-card heading="פרטים">
-          <dl>
-            <dt>מצב</dt><dd><sw-badge kind=${cam.status === 'online' ? 'live' : cam.status === 'offline' ? 'offline' : 'unknown'}></sw-badge></dd>
-            <dt>ערוץ</dt><dd>${cam.channel} · <span class="ltr">track ${cam.main_track ?? '?'}</span></dd>
-            <dt>שם ב־NVR</dt><dd>${cam.name_source || '—'}</dd>
-            <dt>זרם ראשי</dt><dd>${stream ? `${stream.resolution ?? ''} · ${stream.fps ?? '?'} fps · ${stream.bitrate_kbps ?? '?'} kbps` : 'לא נבדק'}</dd>
-            <dt>זמן מקור</dt><dd>NVR · <span class="ltr">Asia/Jerusalem</span></dd>
-            <dt>נראתה לאחרונה</dt><dd>${cam.last_seen_at ? cam.last_seen_at.replace('T', ' ').replace('Z', ' UTC') : '—'}</dd>
-          </dl>
-        </sw-card>
-        <sw-card heading="לוחות זימון והקלטה — כפי שמוגדר ב־NVR" subheading="מתי כל זיהוי פעיל ומתי הערוץ מקליט (רציף / תנועה / אירוע) · עריכה דורשת הרשאה רגישה ונרשמת עם החזר" data-schedules>${this.renderSchedules()}</sw-card>
-        <sw-card heading="אזורי זיהוי ומסכות — כפי שמוגדר ב־NVR" data-zones>${this.renderZones(cam)}</sw-card>
-        <sw-card heading="מצלמות נוספות">
-          <div class="tiles">
+      ${this.renderSettingsAccordion(cam, stream)}
+    `;
+  }
+
+  /** Owner round 4 (2.6): the video used to share the screen with everything expanded below it - four cards plus
+   * loose capability/record/OSD rows. All of it now lives under one "camera settings" toggle, collapsed by
+   * default, and each setting inside is its own collapsed row so the video stays the first thing you see. */
+  private renderSettingsAccordion(cam: Camera, stream: Camera['stream']) {
+    const caps = this.renderCaps();
+    const record = this.renderRecord();
+    const osd = this.renderOsd();
+    return html`<details class="acc-root" data-camera-settings>
+      <summary><sw-icon class="chev" name="chevron" size=${16}></sw-icon>הגדרות מצלמה</summary>
+      <div class="acc-body">
+        ${record !== nothing
+          ? html`<details class="acc" data-acc-record ?open=${!!this.rec?.active}>
+              <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>הקלטה ידנית</span>${this.rec?.active ? html`<sw-badge kind="live" label="פעילה"></sw-badge>` : nothing}</summary>
+              <div class="acc-content">${record}</div>
+            </details>`
+          : nothing}
+        <details class="acc" data-acc-details>
+          <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>פרטים</span></summary>
+          <div class="acc-content">
+            <dl>
+              <dt>מצב</dt><dd><sw-badge kind=${cam.status === 'online' ? 'live' : cam.status === 'offline' ? 'offline' : 'unknown'}></sw-badge></dd>
+              <dt>ערוץ</dt><dd>${cam.channel} · <span class="ltr">track ${cam.main_track ?? '?'}</span></dd>
+              <dt>שם ב־NVR</dt><dd>${cam.name_source || '—'}</dd>
+              <dt>זרם ראשי</dt><dd>${stream ? `${stream.resolution ?? ''} · ${stream.fps ?? '?'} fps · ${stream.bitrate_kbps ?? '?'} kbps` : 'לא נבדק'}</dd>
+              <dt>זמן מקור</dt><dd>NVR · <span class="ltr">Asia/Jerusalem</span></dd>
+              <dt>נראתה לאחרונה</dt><dd>${cam.last_seen_at ? cam.last_seen_at.replace('T', ' ').replace('Z', ' UTC') : '—'}</dd>
+            </dl>
+            ${caps}
+          </div>
+        </details>
+        ${osd !== nothing
+          ? html`<details class="acc" data-acc-osd>
+              <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>OSD — כיתוב על התמונה</span></summary>
+              <div class="acc-content">${osd}</div>
+            </details>`
+          : nothing}
+        <details class="acc" data-acc-schedules>
+          <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>לוחות זימון והקלטה — כפי שמוגדר ב־NVR</span></summary>
+          <div class="acc-content">
+            <div class="note">מתי כל זיהוי פעיל ומתי הערוץ מקליט (רציף / תנועה / אירוע) · עריכה דורשת הרשאה רגישה ונרשמת עם החזר</div>
+            ${this.renderSchedules()}
+          </div>
+        </details>
+        <details class="acc" data-acc-zones>
+          <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>אזורי זיהוי ומסכות — כפי שמוגדר ב־NVR</span></summary>
+          <div class="acc-content">${this.renderZones(cam)}</div>
+        </details>
+        <details class="acc" data-acc-more>
+          <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>מצלמות נוספות</span></summary>
+          <div class="acc-content tiles">
             ${this.cams.filter((c) => c.id !== cam.id).slice(0, 4).map((c) => html`<sw-camera-tile compact name=${c.name} state=${c.status === 'online' ? 'live' : c.status === 'offline' ? 'offline' : 'unknown'} poster=${c.status === 'offline' ? '' : snapshotUrl(c.id)} @click=${() => navigate(`/live/cameras/${c.id}`)}></sw-camera-tile>`)}
           </div>
-        </sw-card>
+        </details>
       </div>
-    `;
+    </details>`;
   }
 
   private renderDemo() {
@@ -999,9 +1095,9 @@ export class LiveCamera extends LitElement {
     const title = api ? this.cam?.name ?? 'מצלמה' : (demoWall.find((c) => c.id === this.cameraId) ?? demoWall[0]).name;
     const sub = api ? (this.cam ? `ערוץ ${this.cam.channel} · ${this.cam.name_source || ''}` : '') : `${(demoWall.find((c) => c.id === this.cameraId) ?? demoWall[0]).floor} · נתוני הדגמה`;
     return html`
-      <sw-page heading=${title} subheading=${sub} crumbs="מצלמות | שידור חי">
+      <sw-page heading=${title} subheading=${sub} crumbs="מצלמות | שידור חי" backHref="/live/wall">
         ${this.cam ? html`<sw-badge slot="actions" kind=${this.cam.status === 'online' ? 'live' : this.cam.status === 'offline' ? 'offline' : 'unknown'}></sw-badge>` : nothing}
-        ${api && this.cam ? html`<sw-button slot="actions" variant="ghost" icon="edit" data-camera-rename @click=${() => { this.renameMsg = ''; this.renameTo = this.cam?.alias ?? this.cam?.name ?? ''; }}>שנה שם</sw-button>` : nothing}
+        ${api && this.cam && this.canConfigure ? html`<sw-button slot="actions" variant="ghost" icon="edit" data-camera-rename @click=${() => { this.renameMsg = ''; this.renameTo = this.cam?.alias ?? this.cam?.name ?? ''; }}>שנה שם</sw-button>` : nothing}
         ${this.renderRename()}
         <a slot="actions" href=${api && this.cam ? `#/investigate/playback?camera=${this.cam.id}` : '#/investigate/playback'}><sw-button icon="history">הקלטות</sw-button></a>
         <a slot="actions" href="#/explore/floors/f0"><sw-button variant="ghost" iconOnly icon="map" label="במפה"></sw-button></a>

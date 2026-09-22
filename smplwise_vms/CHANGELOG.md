@@ -1,5 +1,43 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.76 (pilot) — round-5 fixes for everything the owner's round-4 pass flagged, mobile improvement pass
+- Custom roles: "בחר הכל / נקה הכל" on both permission groups; saving a new role and auto-assigning it to its
+  creator are no longer one failure unit - if the role is created but the auto-assign call fails, the role still
+  shows up and the dialog still closes, with a clear message instead of looking like nothing happened. The
+  in-dialog error is now a visible banner, not a thin line of text.
+- Live wall "עמודות" (columns): the manual override was silently ignored on any window narrower than 768px, or
+  before the grid's box was first measured - so the buttons looked broken on smaller screens. A chosen column
+  count now always applies.
+- Plan editor coverage: `coverage_radius` had three separate controls on screen at once (a "מרחק" slider plus a
+  duplicate "טווח" number field + its own slider) - dragging one visibly moved the other. Down to one slider per
+  concept (width, distance); the duplicate field-of-view control in the inspector body is gone too.
+- `sw-page` gained a `backHref` affordance: a clear, always-visible back control next to the heading. Wired into
+  the camera screen, whose only way back used to be the browser's own back button - easy to lose track of inside
+  Ingress/kiosk/mobile contexts, which is what "clicking a camera takes over the screen" was actually describing.
+- Camera screen: capabilities, manual recording, OSD, details, schedules, detection zones and other cameras all
+  move under one "הגדרות מצלמה" accordion, collapsed by default, each setting collapsed inside it too - the video
+  is the first thing on the screen again. The manual-record button explains itself when disabled, and says
+  plainly that a manual recording has no separate tag - it is found by time on the normal recordings screen.
+  "שנה שם" (rename) now only shows for a user who actually holds the permission the endpoint requires.
+- `sw-week-grid`: the color legend used to be hidden for a read-only grid or a single-mode one (most recording
+  and motion schedules) - it is always shown now, including what an empty cell means.
+- The recording-schedule chip inside the schedules card explains why it might be disabled instead of a bare "לא
+  זמין", and the card's own intro line spells out that recording schedule lives there too, not on a separate tab.
+- Kiosk "open in a new tab": built from the current page's own origin/path/search instead of a bare `#`-only
+  link, so the new tab stays on the same Ingress-proxied path instead of possibly landing outside it.
+- Export dialog: "צור ייצוא" no longer requires a separate "חשב נפח" click first with no explanation why it was
+  disabled - one click estimates (if needed) and creates. The post-creation message names the download step
+  explicitly instead of just "the export screen".
+- A day with no bookmarks yet showed no hint that Alt+click on the timeline adds one (the hint lived only on a
+  chip that doesn't render without an existing bookmark); a persistent line replaces it. The line/region drawing
+  hint in the smart-rule editor is more specific about exactly what each click does.
+- Evidence: live-reproduced the role-creation flow (many individually-checked permissions, then save) against the
+  owner's production installation via Playwright over Ingress - role and auto-assign both succeed, matching the
+  code path; TypeScript + `vite build` clean; dev-environment verification of the accordion, back button (desktop
+  and 375px mobile), and column override via the browser pane. `docs/operations/TEST_ROUND_RESULTS_2026-09-17_HE.md`
+  §סבב 5 lists every round-4 "bad" item against what changed.
+
+
 ## 0.1.75 (pilot) — camera rename from its screen, phone layout of the map, clean worker shutdown
 - Camera screen: "שנה שם" in the header renames the camera in the VMS (wall, map, events); the NVR name changes only
   through the OSD section. It used to be reachable only from לייב › בריאות מצלמות ("כינוי מקומי").

@@ -102,8 +102,12 @@ export class LiveWall extends LitElement {
     }
     @media (max-width: 767px) {
       .grid {
-        grid-template-columns: repeat(min(var(--cols), 2), minmax(0, 1fr));
         gap: 8px;
+      }
+      /* a safe default cap on phones so auto layout never crams tiny tiles - but an explicit column
+         choice (owner round 4, 1.7) is a deliberate override and wins even here. */
+      .grid:not([data-wall-cols-manual]) {
+        grid-template-columns: repeat(min(var(--cols), 2), minmax(0, 1fr));
       }
     }
   `;
@@ -208,18 +212,22 @@ export class LiveWall extends LitElement {
     const pool = wanted.length ? cams.filter((c) => wanted.includes(c.id)) : cams;
     const n = wanted.length ? Math.max(1, pool.length) : this.count;
     const shown = pool.slice(0, n);
-    let fit = window.innerWidth >= 768 ? this.bestFit(shown.length) : null;
-    if (fit && this.colsOverride && this.box.w) {
-      const c = Math.min(this.colsOverride, Math.max(1, shown.length));
-      const rows = Math.ceil(shown.length / c);
-      fit = { cols: c, tile: Math.floor(Math.min((this.box.w - 12 * (c - 1)) / c, ((this.box.h - 12 * (rows - 1)) / rows) * (16 / 9))) };
+    // owner round 4 (1.7): "עמודות" only ever adjusted `bestFit`'s own column count, so on any screen narrower
+    // than 768px - or before the grid's box was first measured - bestFit never ran and the buttons did nothing.
+    // Columns are chosen first (override beats auto-fit beats the static ladder); fit only sizes the tiles after.
+    const autoFit = window.innerWidth >= 768 ? this.bestFit(shown.length) : null;
+    const cols = this.colsOverride ? Math.min(this.colsOverride, Math.max(1, shown.length)) : autoFit ? autoFit.cols : n === 1 ? 1 : n === 2 ? 2 : n <= 4 ? 2 : n <= 9 ? 3 : n <= 16 ? 4 : n <= 25 ? 5 : 6;
+    let fit: { cols: number; tile: number } | null = autoFit && !this.colsOverride ? autoFit : null;
+    if (this.box.w && (this.colsOverride || !fit)) {
+      const rows = Math.ceil(shown.length / cols);
+      const tile = Math.min((this.box.w - 12 * (cols - 1)) / cols, this.box.h > 120 ? ((this.box.h - 12 * (rows - 1)) / rows) * (16 / 9) : Infinity);
+      if (tile > 80 && Number.isFinite(tile)) fit = { cols, tile: Math.floor(tile) };
     }
-    const cols = fit ? fit.cols : n === 1 ? 1 : n === 2 ? 2 : n <= 4 ? 2 : n <= 9 ? 3 : n <= 16 ? 4 : n <= 25 ? 5 : 6;
     const cap = this.settings?.['media.max_live_sessions'] ?? 8;
     const profile: 'sub' | 'main' = this.stream === 'auto' ? (this.settings?.['media.wall_profile'] ?? 'sub') : this.stream;
     const transport: Transport = effectiveTransport(this.settings);
     return html`
-      <div class="grid ${fit ? 'fit' : ''}" style="--cols:${cols};--tile:${fit ? `${fit.tile}px` : 'auto'}" data-wall-cols=${cols}>
+      <div class="grid ${fit ? 'fit' : ''}" style="--cols:${cols};--tile:${fit ? `${fit.tile}px` : 'auto'}" data-wall-cols=${cols} ?data-wall-cols-manual=${!!this.colsOverride}>
         ${shown.map(
           (c, i) => html`<sw-camera-tile
             name=${c.name}
@@ -252,6 +260,15 @@ export class LiveWall extends LitElement {
     `;
   }
 
+  /** Owner round 4 (5.1): a plain `href="#/kiosk/all"` opened a new tab that landed outside HA's Ingress path
+   * (the token-bearing prefix comes only from the CURRENT document's own location, not from a bare hash link).
+   * Reusing this page's own origin+path - proven to work, since it's what's rendering right now - keeps the
+   * new tab under the same Ingress session instead of guessing at URL resolution. */
+  private openKiosk() {
+    const url = `${window.location.origin}${window.location.pathname}${window.location.search}#/kiosk/all`;
+    window.open(url, '_blank', 'noopener');
+  }
+
   render() {
     const api = isApi();
     const total = api ? this.cams?.length ?? 0 : demoWall.length;
@@ -262,7 +279,7 @@ export class LiveWall extends LitElement {
         <div slot="actions" class="layouts" role="group" aria-label="פריסה">
           ${COUNTS.map((n) => html`<button class=${n === this.count && !this.cameras ? 'on' : ''} @click=${() => { this.setCount(n); if (this.cameras) navigate('/live/wall'); }} aria-pressed=${n === this.count && !this.cameras}>${n}</button>`)}
         </div>
-        <a slot="actions" href="#/kiosk/all" target="_blank" rel="noopener" data-open-kiosk title="פותח את הקיוסק בלשונית חדשה (הכתובת: #/kiosk/all)"><sw-button variant="ghost" icon="expand">קיוסק</sw-button></a>
+        <sw-button slot="actions" variant="ghost" icon="expand" data-open-kiosk title="פותח את הקיוסק בלשונית חדשה" @click=${() => this.openKiosk()}>קיוסק</sw-button>
         ${api ? this.renderApi() : this.renderDemo()}
       </sw-page>
     `;

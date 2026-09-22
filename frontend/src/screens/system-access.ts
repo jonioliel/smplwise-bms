@@ -186,6 +186,22 @@ export class SystemAccess extends LitElement {
       color: var(--sw-danger);
       font-size: var(--sw-fs-sm);
     }
+    .err.banner {
+      padding: 8px 12px;
+      border-radius: var(--sw-r-sm);
+      background: var(--sw-danger-soft);
+      border: 1px solid var(--sw-danger);
+    }
+    .permsrow {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .permsel {
+      display: flex;
+      gap: 4px;
+    }
     .roles {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -633,26 +649,44 @@ export class SystemAccess extends LitElement {
     this.error = '';
     try {
       const body = { name: e.name.trim(), description: e.description, permissions: e.permissions, sensitive: e.sensitive, delegable: e.delegable };
-      let assigned = false;
-      if (e.id) await updateRole(e.id, { ...body, revision: e.revision });
-      else {
-        const created = await createRole(body);
-        const me = session.me?.user.id;
-        if (e.assignMe !== false && me) {
-          // owner round 3 (4.1): a role nobody holds looked like "it did not save" - assign it to the creator right away
-          await createBinding({ subject_kind: 'user', subject_id: me, role_id: created.id, scope_type: 'installation', scope_id: '*' });
-          assigned = true;
-        }
+      if (e.id) {
+        await updateRole(e.id, { ...body, revision: e.revision });
+        this.roleEdit = null;
+        this.roleImpact = null;
+        this.message = 'התפקיד עודכן; השינוי חל על כל המשויכים ברענון הבא';
+        this.roles = await listRoles();
+        return;
       }
+      const created = await createRole(body);
+      // owner round 4 (1.2): the role itself is saved from this point on, whatever happens next - close the
+      // dialog and refresh the list right away, so a failure in the *separate* auto-assign call below (it used
+      // to be inside the same try/catch) can never again read as "the role did not save".
       this.roleEdit = null;
       this.roleImpact = null;
-      this.message = e.id ? 'התפקיד עודכן; השינוי חל על כל המשויכים ברענון הבא' : assigned ? 'התפקיד נוצר ושויך אליך (כל המתקן). רענן את הדף כדי לראות את ההרשאות החדשות.' : 'התפקיד נוצר. שייך אותו למשתמש או לקבוצה בלשונית "שיוכים".';
       this.roles = await listRoles();
+      const me = session.me?.user.id;
+      if (e.assignMe !== false && me) {
+        try {
+          await createBinding({ subject_kind: 'user', subject_id: me, role_id: created.id, scope_type: 'installation', scope_id: '*' });
+          this.message = `התפקיד "${created.name}" נוצר ושויך אליך (כל המתקן). ההרשאות החדשות ייכנסו לתוקף ברענון הבא של הדף.`;
+        } catch (bindErr) {
+          this.message = `התפקיד "${created.name}" נוצר, אך השיוך האוטומטי אליך נכשל (${describeError(bindErr)}). שייך אותו ידנית בלשונית "שיוכים".`;
+        }
+      } else {
+        this.message = `התפקיד "${created.name}" נוצר. שייך אותו למשתמש או לקבוצה בלשונית "שיוכים".`;
+      }
     } catch (err) {
       this.error = describeError(err);
     } finally {
       this.busy = false;
     }
+  }
+
+  private setAllRolePerms(kind: 'permissions' | 'sensitive', ids: string[], on: boolean) {
+    const e = this.roleEdit;
+    if (!e) return;
+    this.roleEdit = { ...e, [kind]: on ? [...new Set([...e[kind], ...ids])] : e[kind].filter((p) => !ids.includes(p)) };
+    this.scheduleImpact();
   }
 
   private async removeRole(r: RoleInfo) {
@@ -694,12 +728,22 @@ export class SystemAccess extends LitElement {
     const ordinary = Object.keys(roles.labels).filter((p) => !sens.has(p) && !sys.has(p));
     const im = this.roleImpact;
     return html`<sw-dialog open heading=${e.id ? 'עריכת תפקיד מותאם' : 'תפקיד מותאם חדש'} subheading="הרשאות רגילות + הרשאות רגישות במפורש · ללא הרשאות מערכת · ההשפעה מוצגת לפני השמירה" data-role-dialog @close=${() => (this.roleEdit = null)}>
-      ${this.error ? html`<div class="err">${this.error}</div>` : nothing}
+      ${this.error ? html`<div class="err banner" data-role-error>${this.error}</div>` : nothing}
       <sw-field label="שם"><input data-role-name .value=${e.name} @input=${(ev: Event) => (this.roleEdit = { ...e, name: (ev.target as HTMLInputElement).value })} /></sw-field>
       <sw-field label="תיאור"><input .value=${e.description} @input=${(ev: Event) => (this.roleEdit = { ...e, description: (ev.target as HTMLInputElement).value })} /></sw-field>
-      <div class="hint">הרשאות רגילות</div>
+      <div class="hint permsrow">הרשאות רגילות
+        <span class="permsel">
+          <sw-button size="sm" variant="ghost" data-role-perm-all @click=${() => this.setAllRolePerms('permissions', ordinary, true)}>בחר הכל</sw-button>
+          <sw-button size="sm" variant="ghost" data-role-perm-none @click=${() => this.setAllRolePerms('permissions', ordinary, false)}>נקה הכל</sw-button>
+        </span>
+      </div>
       <div class="perms">${ordinary.map((p) => html`<label class="chk"><input type="checkbox" data-role-perm=${p} .checked=${e.permissions.includes(p)} @change=${() => this.toggleRolePerm(p, false)} /> ${roles.labels[p]}</label>`)}</div>
-      <div class="hint" style="margin-block-start:6px">הרשאות רגישות — לעולם לא מרומזות, נדרשות במפורש</div>
+      <div class="hint permsrow" style="margin-block-start:6px">הרשאות רגישות — לעולם לא מרומזות, נדרשות במפורש
+        <span class="permsel">
+          <sw-button size="sm" variant="ghost" data-role-sensitive-all @click=${() => this.setAllRolePerms('sensitive', roles.sensitive, true)}>בחר הכל</sw-button>
+          <sw-button size="sm" variant="ghost" data-role-sensitive-none @click=${() => this.setAllRolePerms('sensitive', roles.sensitive, false)}>נקה הכל</sw-button>
+        </span>
+      </div>
       <div class="perms">${roles.sensitive.map((p) => html`<label class="chk sens"><input type="checkbox" data-role-sensitive=${p} .checked=${e.sensitive.includes(p)} @change=${() => this.toggleRolePerm(p, true)} /> ${roles.labels[p] ?? p}</label>`)}</div>
       ${!e.id ? html`<label class="chk" style="margin-block-start:6px"><input type="checkbox" data-role-assign-me .checked=${e.assignMe !== false} @change=${(ev: Event) => (this.roleEdit = { ...e, assignMe: (ev.target as HTMLInputElement).checked })} /> שייך את התפקיד אליי מיד (כל המתקן)</label>` : nothing}
       <label class="chk" style="margin-block-start:6px"><input type="checkbox" data-role-delegable .checked=${e.delegable} @change=${(ev: Event) => (this.roleEdit = { ...e, delegable: (ev.target as HTMLInputElement).checked })} /> מנהל אתר רשאי להקצות תפקיד זה בהיקפו (בכפוף להרשאות שהוא מחזיק)</label>
