@@ -35,7 +35,6 @@ MAX_WARNINGS = 200  # only _check_openings' overlap loop emits warnings; it stop
                     # added (an O(1) local counter) - an error or a structural issue is never bounded by this cap
 MAX_DEPTH = 64  # a document this deeply nested is not something any client UI produces; refuse it rather than walk it
 DIFF_COLLECTIONS = ("levels", "walls", "openings", "labels", "rooms", "objects", "circuits", "connectors", "groups")
-MIN_CUT_WALL = 0.001  # normalized: a two-point wall shorter than this after a re-crop is dropped (about a pixel on a 1000 px plan)
 
 
 def _num(v: Any) -> bool:
@@ -68,11 +67,14 @@ def _issue(issues: list[dict[str, Any]], code: str, message: str, *, item: str |
 # ---------------------------------------------------------------- construction
 
 def calibration_of(version: Mapping[str, Any], asset: Mapping[str, Any] | None) -> dict[str, Any]:
-    """The calibration block a document takes from its plan version - the version is the only place it changes."""
+    """The calibration block a document takes from its plan version - the version is the only place it changes. A
+    record may say it is only an estimate (a scale carried from an uncalibrated version): that status is kept, so the
+    UI shows the approximate sign; any other stored status reads as measured."""
     raw = version["calibration_json"]
     if raw:
         rec = json.loads(raw)
-        return {"status": "measured", "method": rec.get("method", "two_point"), "pairs": rec.get("pairs", []), "residual_pct": rec.get("residual_pct"), "reason": None}
+        status = rec.get("status") if rec.get("status") in ("measured", "estimated") else "measured"
+        return {"status": status, "method": rec.get("method", "two_point"), "pairs": rec.get("pairs", []), "residual_pct": rec.get("residual_pct"), "reason": None}
     if version["scale_m_per_px"]:
         method = "dxf_units" if asset is not None and asset["mime"] == "image/vnd.dxf" else "manual"
         return {"status": "measured", "method": method, "pairs": [], "residual_pct": None, "reason": None}
@@ -509,15 +511,15 @@ def transform_crop(doc: Mapping[str, Any], old_crop: Mapping[str, Any] | None, n
     """A re-crop of the same page: every point goes through the old crop to the page and back through the new one
     (the anchors' realign uses the same maths).
     - A two-point wall is cut at the new crop's edges (Liang-Barsky) and its openings move with the cut,
-      t' = (t - u0) / (u1 - u0): a crop map is affine, so ratios along a segment hold. A wall with nothing inside, or
-      shorter than MIN_CUT_WALL in the new crop (cut or not), is dropped with its openings; an opening that falls off
-      its cut wall (t' outside 0..1) is dropped.
+      t' = (t - u0) / (u1 - u0): a crop map is affine, so ratios along a segment hold. A wall with nothing inside is
+      dropped with its openings; an opening that falls off its cut wall (t' outside 0..1) is dropped. A wall cut very
+      short stays: whether it and its openings still fit is prune_unfit's call, in the target's pixels and metres.
     - A polyline of three or more points keeps the per-point rule: dropped when every point is outside, else the
       points outside are clamped to the edge and its openings keep t (a recorded follow-up).
     - A label outside is dropped.
-    A note says so when a point was clamped, another how many items were dropped (R-T7-2, review of 80249d1). A
-    malformed polyline or position (wrong type, missing) is left exactly as it is rather than crashing the remap - it
-    already failed validation and stays with the draft."""
+    A note says so when a point was clamped, another how many items were dropped (R-T7-2, reviews of 80249d1 and
+    c6c35fc). A malformed polyline or position (wrong type, missing) is left exactly as it is rather than crashing the
+    remap - it already failed validation and stays with the draft."""
     oc = old_crop or {"x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0}
     nc = new_crop or {"x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0}
 
@@ -547,7 +549,7 @@ def transform_crop(doc: Mapping[str, Any], old_crop: Mapping[str, Any] | None, n
             if isinstance(line, list) and len(line) == 2 and all(_finite_point(p) for p in line):
                 a, b = move(line[0]), move(line[1])
                 span = _clip_unit(a, b)
-                if span is None or (span[1] - span[0]) * math.hypot(b[0] - a[0], b[1] - a[1]) < MIN_CUT_WALL:
+                if span is None:
                     dropped += 1
                     if isinstance(wid, str):
                         gone_walls.add(wid)
@@ -604,9 +606,63 @@ def transform_crop(doc: Mapping[str, Any], old_crop: Mapping[str, Any] | None, n
     notes = list(unc.get("notes", []))
     if clamped:
         notes.append("המבנה הועבר מגרסה עם חיתוך אחר; נקודות שמחוץ לחיתוך הוצמדו לשוליים.")
-    if dropped == 1:
-        notes.append("פריט אחד שמחוץ לחיתוך החדש הושמט.")
-    elif dropped:
-        notes.append(f"{dropped} פריטים שמחוץ לחיתוך החדש הושמטו.")
+    if dropped:
+        notes.append(_dropped_note(dropped))
     unc["notes"] = notes
     return out
+
+
+def _dropped_note(n: int) -> str:
+    """The note a re-crop leaves when it drops items (walls, openings, labels); singular for one."""
+    return "פריט אחד שמחוץ לחיתוך החדש הושמט." if n == 1 else f"{n} פריטים שמחוץ לחיתוך החדש הושמטו."
+
+
+def prune_unfit(doc: Mapping[str, Any]) -> tuple[dict[str, Any], int]:
+    """What a rebased document (its dimensions are the target's) cannot keep, judged in the target's pixels and metres
+    by validate()'s own rules and tolerance: a wall under a pixel long (too_short) goes with its openings, and an
+    opening whose span leaves its wall by more than 0.01 m (opening_outside_wall) goes, on two-point and longer walls
+    alike. carry and copy_from run it after the rebase, so a re-crop drops what the publish would refuse (review of
+    c6c35fc). Returns the pruned copy (the input is untouched) and how many items went, with the dropped note when any
+    did. What validate() would not judge that way passes through: a non-dict entry, a polyline that is not at least two
+    points inside the plan, an unknown wall, a malformed t or width, unusable dimensions."""
+    out = copy.deepcopy(dict(doc))
+    dims = out.get("dimensions")
+    width = dims.get("width_px") if isinstance(dims, dict) else None
+    height = dims.get("height_px") if isinstance(dims, dict) else None
+    if not (_num(width) and width > 0 and _num(height) and height > 0):
+        return out, 0
+    scale, _ = effective_scale(out)
+    dropped = 0
+    gone: set[str] = set()
+    length_m: dict[str, float] = {}
+    if isinstance(out.get("walls"), list):
+        walls = []
+        for w in out["walls"]:
+            line = w.get("polyline") if isinstance(w, dict) else None
+            if isinstance(w, dict) and isinstance(w.get("id"), str) and isinstance(line, list) and len(line) >= 2 and all(_pt(p) for p in line):
+                px = polyline_length_px(line, width, height)
+                if px < 1:
+                    dropped += 1
+                    gone.add(w["id"])
+                    continue
+                length_m[w["id"]] = px * scale
+            walls.append(w)
+        out["walls"] = walls
+    if isinstance(out.get("openings"), list):
+        openings = []
+        for o in out["openings"]:
+            wid = o.get("wall_id") if isinstance(o, dict) else None
+            if isinstance(wid, str) and wid in gone:
+                dropped += 1
+                continue
+            if isinstance(wid, str) and wid in length_m and _unit(o.get("t")) and _num(o.get("width_m")) and 0 < o["width_m"] <= 10:
+                length, centre, half = length_m[wid], o["t"] * length_m[wid], o["width_m"] / 2
+                if centre - half < -0.01 or centre + half > length + 0.01:
+                    dropped += 1
+                    continue
+            openings.append(o)
+        out["openings"] = openings
+    if dropped:
+        unc = out.setdefault("uncertainty", {"overall": 0.5, "notes": []})
+        unc["notes"] = [*unc.get("notes", []), _dropped_note(dropped)]
+    return out, dropped

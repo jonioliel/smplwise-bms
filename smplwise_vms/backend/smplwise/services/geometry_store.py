@@ -171,12 +171,20 @@ def copy_published(conn: sqlite3.Connection, source: sqlite3.Row, target: sqlite
 
 
 def carry_calibration(conn: sqlite3.Connection, source: sqlite3.Row, target: sqlite3.Row) -> None:
-    """Metres per pixel follow a re-crop of the same drawing: m_new = m_old x (old width x new crop w) / (old crop w x new width)."""
-    if target["scale_m_per_px"] or not source["scale_m_per_px"]:
+    """Metres per pixel follow a re-crop of the same drawing: m_new = m_old x (old width x new crop w) / (old crop w x new width).
+    An uncalibrated source passes on its estimated scale (a 0.2 m wall drawn ESTIMATED_WALL_FRACTION of its width wide),
+    so metres stay consistent across the re-crop before anyone calibrates; the record then says estimated (the UI shows
+    the approximate sign), and so does one carried on from an estimated record. A measured source gives a measured
+    record, as before."""
+    if target["scale_m_per_px"]:
         return
+    measured = bool(source["scale_m_per_px"]) and pg.calibration_of(source, None)["status"] == "measured"
+    old = source["scale_m_per_px"] or pg.DEFAULT_WALL_THICKNESS_M / (pg.ESTIMATED_WALL_FRACTION * source["width_px"])
     oc, nc = _crop(source), _crop(target)
-    scale = source["scale_m_per_px"] * (source["width_px"] * nc["w"]) / (oc["w"] * target["width_px"])
-    record = {"method": "carried", "pairs": [], "residual_pct": None, "from_version": source["id"]}
+    scale = old * (source["width_px"] * nc["w"]) / (oc["w"] * target["width_px"])
+    record: dict[str, Any] = {"method": "carried", "pairs": [], "residual_pct": None, "from_version": source["id"]}
+    if not measured:
+        record["status"] = "estimated"
     conn.execute("UPDATE plan_versions SET scale_m_per_px = ?, calibration_json = ? WHERE id = ?", (scale, json.dumps(record), target["id"]))
 
 
@@ -185,12 +193,14 @@ def carry(conn: sqlite3.Connection, target: sqlite3.Row, actor_id: str | None, n
     copies it, a re-crop of the same page maps it through both crops, anything else starts empty (the editor offers a
     manual copy). A structure that is only a draft is not carried - publishing the new plan version would publish work
     in progress (R-T7-2); copy_from still offers it. The calibration belongs to the published plan version, not to its
-    structure, so the same drawing takes it whatever the structure is. Returns "copied" | "transformed" | "none"."""
+    structure, so the same drawing takes it whatever the structure is. What the new version cannot keep is pruned in
+    its own pixels and metres, after the rebase, as its publish will judge it (review of c6c35fc).
+    Returns "copied" | "transformed" | "none"."""
     now = now or now_iso()
     source = conn.execute("SELECT * FROM plan_versions WHERE floor_id = ? AND status = 'published' AND id != ?", (target["floor_id"], target["id"])).fetchone()
     if source is None or not _same_drawing(source, target):
         return "none"
-    carry_calibration(conn, source, target)
+    carry_calibration(conn, source, target)  # before the structure checks; transform_crop below is metric-free
     row = published_row(conn, source["id"])
     if row is None or draft_row(conn, target["id"]) is not None:
         return "none"
@@ -201,7 +211,9 @@ def carry(conn: sqlite3.Connection, target: sqlite3.Row, actor_id: str | None, n
     if _crop(source) != _crop(target):  # parsed, so no crop and an explicit full crop are the same crop
         doc = pg.transform_crop(doc, _crop(source), _crop(target))
         mode = "transformed"
-    save_draft(conn, conn.execute("SELECT * FROM plan_versions WHERE id = ?", (target["id"],)).fetchone(), doc, 0, actor_id, now)
+    target = conn.execute("SELECT * FROM plan_versions WHERE id = ?", (target["id"],)).fetchone()  # with the carried scale
+    doc, _ = pg.prune_unfit(pg.rebase(doc, target, _asset(conn, target)))
+    save_draft(conn, target, doc, 0, actor_id, now)
     return mode
 
 
@@ -221,8 +233,10 @@ def copy_candidates(conn: sqlite3.Connection, target: sqlite3.Row) -> list[dict[
 
 
 def copy_from(conn: sqlite3.Connection, target: sqlite3.Row, source: sqlite3.Row, actor_id: str | None, now: str | None = None) -> sqlite3.Row:
-    """The editor's manual copy into a version without structure: a re-crop of the same page maps every point through
-    both crops (as carry does), another drawing is copied as it is with a note that nothing was aligned."""
+    """The editor's manual copy into a version without structure: a re-crop of the same page maps it through both
+    crops (as carry does), another drawing is copied as it is with a note that nothing was aligned. Either way what
+    the target cannot keep is pruned in its pixels and metres after the rebase, as carry prunes (review of c6c35fc).
+    It carries no calibration (a recorded design question)."""
     now = now or now_iso()
     current, draft = working_doc(conn, target)
     if not pg.is_empty(current):
@@ -231,10 +245,14 @@ def copy_from(conn: sqlite3.Connection, target: sqlite3.Row, source: sqlite3.Row
     source_doc = load_doc(row) if row is not None else None
     if source_doc is None or pg.is_empty(source_doc):
         raise conflict("nothing_to_copy", "לגרסה שנבחרה אין מבנה.")
-    doc = pg.rebase(source_doc, target, _asset(conn, target))
+    asset = _asset(conn, target)
     if not _same_drawing(source, target):
+        doc = pg.rebase(source_doc, target, asset)
         unc = doc.get("uncertainty") or {"overall": 0.5, "notes": []}
         doc["uncertainty"] = {**unc, "notes": [*unc.get("notes", []), "המבנה הועתק מגרסה עם שרטוט אחר, בלי יישור — בדוק מיקומים."]}
     elif _crop(source) != _crop(target):
-        doc = pg.transform_crop(doc, _crop(source), _crop(target))
+        doc = pg.rebase(pg.transform_crop(source_doc, _crop(source), _crop(target)), target, asset)
+    else:
+        doc = pg.rebase(source_doc, target, asset)
+    doc, _ = pg.prune_unfit(doc)
     return save_draft(conn, target, doc, draft["revision"] if draft is not None else 0, actor_id, now)

@@ -16,6 +16,7 @@ VERSION = {"id": "v1", "floor_id": "f1", "asset_id": "a1", "page": 1, "rotation"
            "scale_m_per_px": 0.02, "calibration_json": None}
 ASSET = {"sha256": "b" * 64, "original_name": "plan.pdf", "mime": "application/pdf"}
 HALF = {"x": 0.0, "y": 0.0, "w": 0.5, "h": 1.0}  # a re-crop to the left half of the page
+HALF_TARGET = dict(VERSION, id="v2", crop_json=json.dumps(HALF), width_px=500, height_px=500)  # that half at the same 0.02 m/px
 
 
 def _doc() -> dict:
@@ -57,6 +58,17 @@ def test_calibration_record_and_rebase_come_from_the_version():
     tampered["dimensions"]["scale_m_per_px"] = 99
     back = pg.rebase(tampered, VERSION, ASSET)
     assert back["plan_version_id"] == "v1" and back["dimensions"]["scale_m_per_px"] == 0.02 and back["walls"] == tampered["walls"]
+
+
+def test_calibration_of_honours_a_stored_status():
+    """A scale carried from an uncalibrated version is an estimate: its record says so, the document says so (the UI
+    shows "≈") and effective_scale uses the carried scale, flagged estimated. Any other stored status reads as measured."""
+    est = dict(VERSION, calibration_json=json.dumps({"method": "carried", "pairs": [], "residual_pct": None, "status": "estimated"}))
+    assert (pg.calibration_of(est, ASSET)["status"], pg.calibration_of(est, ASSET)["method"]) == ("estimated", "carried")
+    assert pg.effective_scale(pg.new_document(est, ASSET)) == (0.02, True)
+    for status in (None, "measured", "missing", "bogus"):
+        rec = {"method": "carried"} if status is None else {"method": "carried", "status": status}
+        assert pg.calibration_of(dict(VERSION, calibration_json=json.dumps(rec)), ASSET)["status"] == "measured", status
 
 
 def test_structural_problems_are_flagged_as_structural():
@@ -304,22 +316,78 @@ def test_transform_crop_clips_a_two_point_wall_and_remaps_its_openings():
 
 
 def test_transform_crop_drops_what_is_outside():
-    """R-T7-2 and the review of 80249d1: a two-point wall with nothing inside the new crop, or less than 0.001 of it
-    (about a pixel on a 1000 px plan), is dropped with its openings, and so is a label outside. A polyline of three or more points keeps the
-    per-point rule (dropped when every point is outside, else clamped, its openings keep t: a recorded follow-up), and
-    only a clamp adds the clamp note. The dropped note counts walls, openings and labels."""
+    """R-T7-2 and the reviews of 80249d1 and c6c35fc: a two-point wall with nothing inside the new crop is dropped with
+    its openings, and so is a label outside; a wall cut short, or short already, stays - prune_unfit judges it in the
+    target's pixels after the rebase. A polyline of three or more points keeps the per-point rule (dropped when every
+    point is outside, else clamped, its openings keep t: a recorded follow-up), and only a clamp adds the clamp note.
+    The dropped note counts walls, openings and labels."""
     d = _doc()
     wall, door, label = d["walls"][0], d["openings"][0], d["labels"][0]
     d["walls"] = [dict(wall, id="out", polyline=[[0.6, 0.2], [0.9, 0.2]]), dict(wall, id="sliver", polyline=[[0.49975, 0.2], [0.9, 0.2]]),
+                  dict(wall, id="stub", polyline=[[0.2, 0.3], [0.2002, 0.3]]),
                   dict(wall, id="far", polyline=[[0.6, 0.1], [0.9, 0.1], [0.9, 0.4]]), dict(wall, id="bent", polyline=[[0.2, 0.2], [0.8, 0.2], [0.8, 0.6]])]
     d["openings"] = [dict(door, id="o_out", wall_id="out"), dict(door, id="o_sliver", wall_id="sliver"), dict(door, id="o_bent", wall_id="bent", t=0.3)]
     d["labels"] = [dict(label, id="t_out", position=[0.7, 0.5]), dict(label, id="t_in", position=[0.2, 0.5])]
     out = pg.transform_crop(d, None, HALF)
-    assert [(w["id"], w["polyline"]) for w in out["walls"]] == [("bent", [[0.4, 0.2], [1.0, 0.2], [1.0, 0.6]])]
-    assert [(o["id"], o["t"]) for o in out["openings"]] == [("o_bent", 0.3)]
+    assert [(w["id"], w["polyline"]) for w in out["walls"]] == [("sliver", [[0.9995, 0.2], [1.0, 0.2]]), ("stub", [[0.4, 0.3], [0.4004, 0.3]]),
+                                                                ("bent", [[0.4, 0.2], [1.0, 0.2], [1.0, 0.6]])]
+    assert [(o["id"], o["t"]) for o in out["openings"]] == [("o_bent", 0.3)], "o_sliver: t 0.5 on a cut with u1 = 0.000625 is t' 800, off its wall"
     assert [(lb["id"], lb["position"]) for lb in out["labels"]] == [("t_in", [0.4, 0.5])]
     notes = out["uncertainty"]["notes"]
-    assert "הוצמדו" in notes[0] and notes[1:] == ["6 פריטים שמחוץ לחיתוך החדש הושמטו."], "out, sliver, far, their two doors, one label"
+    assert "הוצמדו" in notes[0] and notes[1:] == ["5 פריטים שמחוץ לחיתוך החדש הושמטו."], "out and far, their doors o_out and o_sliver, t_out"
+    pruned, n = pg.prune_unfit(pg.rebase(out, HALF_TARGET, ASSET))
+    assert n == 2 and [w["id"] for w in pruned["walls"]] == ["bent"], "the sliver (0.25 px) and the stub (0.2 px) go in the target's pixels"
+    assert [i for i in pg.validate(pruned) if i["severity"] == "error"] == []
+
+
+def _fit_doc() -> dict:
+    """A document rebased on HALF_TARGET, 500 x 500 px at 0.02 m/px: 0.001 of the width is 0.5 px, 0.4 of it is 4 m."""
+    d = pg.rebase(_doc(), HALF_TARGET, ASSET)
+    wall, door = d["walls"][0], d["openings"][0]
+    d["walls"] = [dict(wall, id="tiny", polyline=[[0.1, 0.1], [0.101, 0.1]]),                # 0.5 px
+                  dict(wall, id="w4", polyline=[[0.1, 0.5], [0.5, 0.5]]),                    # 200 px = 4 m
+                  dict(wall, id="bent", polyline=[[0.6, 0.1], [0.8, 0.1], [0.8, 0.3]])]      # 100 + 100 px = 4 m
+    d["openings"] = [dict(door, id="o_tiny", wall_id="tiny"),
+                     dict(door, id="o_end", wall_id="w4", t=0.95),                           # centre 3.8 m, 0.2 m from the end: 3.35..4.25
+                     dict(door, id="o_edge", wall_id="w4", t=0.8875),                        # centre 3.55 m, 0.45 m from the end: 3.10..4.00
+                     dict(door, id="o_bent", wall_id="bent", t=0.98),                        # centre 3.92 m: 3.47..4.37
+                     dict(door, id="o_bent_ok", wall_id="bent", t=0.5)]                      # centre 2 m: 1.55..2.45
+    return d
+
+
+def test_prune_unfit_drops_what_does_not_fit_the_target_metric():
+    """Review of c6c35fc: what a re-crop cannot keep is judged on the rebased document, in the target's pixels and
+    metres, by validate()'s own rules: a wall under a pixel (too_short) goes with its openings, and an opening whose
+    span leaves its wall by more than 0.01 m (opening_outside_wall) goes, on two-point and longer walls alike."""
+    d = _fit_doc()
+    before = copy.deepcopy(d)
+    out, n = pg.prune_unfit(d)
+    assert d == before, "the input is not modified"
+    assert [w["id"] for w in out["walls"]] == ["w4", "bent"]
+    assert [o["id"] for o in out["openings"]] == ["o_edge", "o_bent_ok"], "o_edge: 0.45 - 0.45 = 0.00 >= -0.01, it stays"
+    assert n == 4 and out["uncertainty"]["notes"][-1] == "4 פריטים שמחוץ לחיתוך החדש הושמטו.", "tiny, its door, o_end, o_bent"
+    assert [i for i in pg.validate(out) if i["severity"] == "error"] == [], "what is left publishes"
+    one, n1 = pg.prune_unfit(dict(d, walls=[w for w in d["walls"] if w["id"] == "w4"], openings=[o for o in d["openings"] if o["id"] == "o_end"]))
+    assert n1 == 1 and one["openings"] == [] and one["uncertainty"]["notes"][-1] == "פריט אחד שמחוץ לחיתוך החדש הושמט."
+    again, n0 = pg.prune_unfit(out)
+    assert n0 == 0 and again == out, "nothing unfit: nothing dropped, no note"
+
+
+def test_prune_unfit_passes_malformed_values_through():
+    """What validate() would not judge as too_short or opening_outside_wall is not pruned: a non-dict entry, a polyline
+    that is not a list of at least two points inside the plan, an opening with an unknown or malformed wall, t or width,
+    and a document without usable dimensions."""
+    d = pg.rebase(_doc(), HALF_TARGET, ASSET)
+    wall, door = d["walls"][0], d["openings"][0]
+    d["walls"] = [7, dict(wall, id="w_none", polyline=None), dict(wall, id="w_one", polyline=[[0.2, 0.2]]),
+                  dict(wall, id="w_mixed", polyline=[[0.2, 0.2], "x"]), dict(wall, id="w_out", polyline=[[0.9, 0.2], [1.5, 0.2]]),
+                  dict(wall, id="w4", polyline=[[0.1, 0.5], [0.5, 0.5]])]
+    d["openings"] = ["junk", dict(door, id="o_none", wall_id="w_none"), dict(door, id="o_out", wall_id="w_out", t=0.99),
+                     dict(door, id="o_unknown", wall_id="nope"), dict(door, id="o_list", wall_id=["w4"]), dict(door, id="o_t", wall_id="w4", t="a"),
+                     dict(door, id="o_t_range", wall_id="w4", t=1.5), dict(door, id="o_w", wall_id="w4", width_m="wide")]
+    out, n = pg.prune_unfit(d)
+    assert n == 0 and out == d
+    assert pg.prune_unfit(dict(_fit_doc(), dimensions=None)) == (dict(_fit_doc(), dimensions=None), 0)
 
 
 def test_counts():

@@ -17,6 +17,8 @@ from smplwise.services import geometry_store as store
 FMT = "%Y-%m-%dT%H:%M:%SZ"
 WALL = {"id": "w1", "level_id": "L0", "polyline": [[0.1, 0.2], [0.6, 0.2]], "thickness_m": 0.2, "height_m": None, "base_z_m": 0, "kind": "interior",
         "confidence": 1, "source": "manual", "locked": False, "external_ids": {}}
+DOOR = {"id": "d1", "wall_id": "w1", "t": 0.5, "kind": "door", "width_m": 0.9, "height_m": 2.1, "sill_m": 0, "swing": "right", "hinge": "start",
+        "anchor_ref": None, "confidence": 1, "source": "manual", "external_ids": {}}
 
 
 def _setup(settings):
@@ -29,9 +31,10 @@ def _setup(settings):
     return app, c, ids, v["id"], asset["id"]
 
 
-def _put(c, vid, walls):
+def _put(c, vid, walls, openings=None):
     g = c.get(f"/api/v1/plan-versions/{vid}/geometry?draft=true").json()
-    r = c.put(f"/api/v1/plan-versions/{vid}/geometry", json={"doc": dict(g["doc"], walls=walls), "base_revision": g["geometry"]["revision"]})
+    doc = dict(g["doc"], walls=walls) if openings is None else dict(g["doc"], walls=walls, openings=openings)
+    r = c.put(f"/api/v1/plan-versions/{vid}/geometry", json={"doc": doc, "base_revision": g["geometry"]["revision"]})
     assert r.status_code == 200, r.text
     return r.json()
 
@@ -69,6 +72,24 @@ def test_the_draft_reference_needs_map_edit(settings):
     assert c.get(f"/api/v1/plan-versions/{vid}/geometry?draft=true", headers=as_user("placer")).status_code == 403, "the draft document needs map.edit"
     admin = c.get(f"/api/v1/floors/{f2}/map?draft=true").json()
     assert admin["geometry"]["status"] == "draft" and admin["permissions"]["structure"] is True
+
+
+def test_a_recropped_version_publishes_what_fits(settings):
+    """Review of c6c35fc, end to end: an uncalibrated structure with a wall across the future crop edge and two doors -
+    one well inside, one centred 0.167 m inside that edge - becomes a re-cropped plan version that publishes at once. The
+    new version keeps the source's estimated metres, the door that fits (moved to t 0.15 on the cut wall) and a note
+    for the one that does not."""
+    app, c, ids, v1, asset_id = _setup(settings)
+    _put(c, v1, [dict(WALL, polyline=[[0.3, 0.2], [0.9, 0.2]])], [dict(DOOR, id="d_in", t=0.05), dict(DOOR, id="d_edge", t=0.325)])
+    assert c.post(f"/api/v1/plan-versions/{v1}/geometry/publish").json()["unchanged"] is False
+    half = c.post(f"/api/v1/floors/{ids['floor2']}/plan-versions", json={"asset_id": asset_id, "crop": {"x": 0, "y": 0, "w": 0.5, "h": 1}}).json()
+    assert half["geometry_carry"] == "transformed"
+    assert c.post(f"/api/v1/plan-versions/{half['id']}/publish").status_code == 200
+    pub = c.get(f"/api/v1/plan-versions/{half['id']}/geometry").json()
+    assert [(o["id"], o["t"]) for o in pub["doc"]["openings"]] == [("d_in", 0.15)], "d_edge: t' 0.975 on 6.667 m, 6.05..6.95 m"
+    assert [i for i in pub["issues"] if i["severity"] == "error"] == [] and pub["doc"]["uncertainty"]["notes"] == ["פריט אחד שמחוץ לחיתוך החדש הושמט."]
+    assert pub["doc"]["dimensions"]["calibration"]["status"] == "estimated"
+    assert abs(half["scale_m_per_px"] - 0.2 / (0.006 * 640)) < 1e-9, "320 px for half of the 640 px page: the same estimated metres per pixel"
 
 
 def test_the_historical_map_gets_the_structure_of_its_instant(settings):

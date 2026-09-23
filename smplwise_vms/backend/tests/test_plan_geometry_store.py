@@ -17,6 +17,9 @@ from smplwise.services import plan_geometry as pg
 
 WALL = {"id": "w1", "level_id": "L0", "polyline": [[0.1, 0.2], [0.6, 0.2]], "thickness_m": 0.2, "height_m": None, "base_z_m": 0, "kind": "interior",
         "confidence": 1, "source": "manual", "locked": False, "external_ids": {}}
+DOOR = {"id": "d1", "wall_id": "w1", "t": 0.5, "kind": "door", "width_m": 0.9, "height_m": 2.1, "sill_m": 0, "swing": "right", "hinge": "start",
+        "anchor_ref": None, "confidence": 1, "source": "manual", "external_ids": {}}
+HALF = {"x": 0.0, "y": 0.0, "w": 0.5, "h": 1.0}
 
 
 def _setup(settings):
@@ -165,6 +168,55 @@ def test_carry_takes_only_a_published_structure(settings):
         assert _version(conn, half["id"])["scale_m_per_px"] == pytest.approx(0.01), "0.02 x (640 x 0.5) / (1.0 x 640)"
         assert json.loads(_version(conn, half["id"])["calibration_json"])["method"] == "carried"
         assert store.load_doc(store.copy_from(conn, same, _version(conn, vid), "u"))["walls"][0]["id"] == "w1", "copy_from stays available"
+
+
+def test_carry_prunes_what_does_not_fit_the_new_version(settings):
+    """Review of c6c35fc: the carried structure is judged in the new version's own pixels and metres, as its publish
+    will judge it. The source's only door is centred 0.256 m inside the new crop's edge: its 0.9 m do not fit the cut
+    wall, so it goes, with one note, and the new version's structure is publishable."""
+    app, vid = _setup(settings)
+    with app.state.db.connection() as conn:
+        conn.execute("UPDATE plan_versions SET scale_m_per_px = 0.02 WHERE id = ?", (vid,))
+        v = _version(conn, vid)
+        doc, _ = store.working_doc(conn, v)
+        d = _with(doc, dict(WALL, polyline=[[0.3, 0.2], [0.9, 0.2]]))  # 384 px = 7.68 m
+        d["openings"] = [dict(DOOR, t=0.3)]  # centre 2.304 m, at page x 0.48
+        store.save_draft(conn, v, d, 0, "u")
+        assert store.publish(conn, v, "u")["unchanged"] is False
+        half = _clone(conn, v, crop=HALF, width=640)
+        assert store.carry(conn, half, "u") == "transformed"
+        carried = store.load_doc(store.draft_row(conn, half["id"]))
+        assert carried["walls"][0]["polyline"] == [[0.6, 0.2], [1.0, 0.2]] and carried["openings"] == [], "t' 0.9 on 2.56 m: 1.854..2.754 m"
+        assert carried["uncertainty"]["notes"] == ["פריט אחד שמחוץ לחיתוך החדש הושמט."]
+        assert store.pending_doc(conn, _version(conn, half["id"])) is not None, "no 422: the new version publishes"
+
+
+def test_an_uncalibrated_source_passes_on_its_estimated_scale(settings):
+    """Review of c6c35fc: before anyone calibrates, a re-crop keeps metres consistent - the new version takes the
+    source's estimated scale through the crop formula, recorded as carried and estimated, so its document still says
+    estimated (the UI shows the approximate sign); a version carried on from it stays estimated."""
+    app, vid = _setup(settings)
+    with app.state.db.connection() as conn:
+        v = _version(conn, vid)
+        doc, _ = store.working_doc(conn, v)
+        store.save_draft(conn, v, _with(doc, WALL), 0, "u")
+        store.publish(conn, v, "u")
+        half = _clone(conn, v, crop=HALF, width=640)
+        assert store.carry(conn, half, "u") == "transformed"
+        est = pg.DEFAULT_WALL_THICKNESS_M / (pg.ESTIMATED_WALL_FRACTION * 640)  # the source's own estimate, 0.0521 m/px
+        half = _version(conn, half["id"])
+        assert half["scale_m_per_px"] == pytest.approx(est * (640 * 0.5) / (1.0 * 640))
+        rec = json.loads(half["calibration_json"])
+        assert (rec["method"], rec["status"]) == ("carried", "estimated")
+        dims = store.load_doc(store.draft_row(conn, half["id"]))["dimensions"]
+        assert dims["calibration"]["status"] == "estimated" and dims["scale_m_per_px"] == round(half["scale_m_per_px"], 6), "stored as canonical JSON"
+        conn.execute("UPDATE plan_versions SET status = 'archived' WHERE id = ?", (vid,))
+        conn.execute("UPDATE plan_versions SET status = 'published' WHERE id = ?", (half["id"],))
+        quarter = _clone(conn, half, crop={"x": 0.0, "y": 0.0, "w": 0.25, "h": 1.0}, width=640)
+        store.carry(conn, quarter, "u")
+        q = _version(conn, quarter["id"])
+        assert json.loads(q["calibration_json"]).get("status") == "estimated", "carried on from an estimate, it stays one"
+        assert q["scale_m_per_px"] * 640 / 0.25 == pytest.approx(est * 640), "the page is as wide in metres as the first estimate made it"
 
 
 def test_copy_from_maps_a_recrop_and_refuses_an_empty_source(settings):
