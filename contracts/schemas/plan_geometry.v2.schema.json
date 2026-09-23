@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://smplwise.local/contracts/plan_geometry.v2.schema.json",
+  "title": "SMPLWISE plan geometry document v2 (Plan Studio, T084 / CR-003)",
+  "description": "The structure layer of one plan version. Coordinates are normalized 0..1 to the plan version image (origin top-left), points are [x, y]; sizes are metres; the server owns plan_version_id, floor_id, source, dimensions and transform.",
+  "type": "object",
+  "required": ["schema_version", "plan_version_id", "floor_id", "source", "dimensions", "transform", "levels", "walls", "openings", "rooms", "objects", "circuits", "connectors", "labels", "groups", "uncertain_regions", "uncertainty", "meta"],
+  "properties": {
+    "schema_version": {"const": "2.0"},
+    "plan_version_id": {"type": "string"},
+    "floor_id": {"type": "string"},
+    "source": {"type": "object", "required": ["sha256", "page"], "properties": {"sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "file_name": {"type": "string"}, "mime": {"type": "string"}, "page": {"type": "integer", "minimum": 1}}},
+    "dimensions": {"type": "object", "required": ["width_px", "height_px", "scale_m_per_px", "calibration"], "properties": {"width_px": {"type": "integer", "minimum": 1}, "height_px": {"type": "integer", "minimum": 1}, "scale_m_per_px": {"type": ["number", "null"], "exclusiveMinimum": 0}, "calibration": {"$ref": "#/$defs/calibration"}}},
+    "transform": {"type": "object", "required": ["rotation"], "properties": {"rotation": {"enum": [0, 90, 180, 270]}, "crop": {"type": ["object", "null"]}}},
+    "levels": {"type": "array", "minItems": 1, "maxItems": 20, "items": {"$ref": "#/$defs/level"}},
+    "walls": {"type": "array", "maxItems": 2000, "items": {"$ref": "#/$defs/wall"}},
+    "openings": {"type": "array", "maxItems": 4000, "items": {"$ref": "#/$defs/opening"}},
+    "rooms": {"type": "array", "maxItems": 500, "items": {"$ref": "#/$defs/room"}},
+    "objects": {"type": "array", "maxItems": 5000, "items": {"$ref": "#/$defs/item"}},
+    "circuits": {"type": "array", "maxItems": 500, "items": {"$ref": "#/$defs/item"}},
+    "connectors": {"type": "array", "maxItems": 200, "items": {"$ref": "#/$defs/item"}},
+    "labels": {"type": "array", "maxItems": 1000, "items": {"$ref": "#/$defs/label"}},
+    "groups": {"type": "array", "maxItems": 500, "items": {"$ref": "#/$defs/item"}},
+    "uncertain_regions": {"type": "array", "maxItems": 200, "items": {"$ref": "#/$defs/item"}},
+    "uncertainty": {"type": "object", "required": ["overall", "notes"], "properties": {"overall": {"$ref": "#/$defs/unit"}, "notes": {"type": "array", "items": {"type": "string"}}}},
+    "meta": {"type": "object"}
+  },
+  "$defs": {
+    "unit": {"type": "number", "minimum": 0, "maximum": 1},
+    "point": {"type": "array", "prefixItems": [{"$ref": "#/$defs/unit"}, {"$ref": "#/$defs/unit"}], "minItems": 2, "maxItems": 2},
+    "id": {"type": "string", "minLength": 1, "maxLength": 64},
+    "external_ids": {"type": "object", "additionalProperties": {"type": "string"}},
+    "source": {"enum": ["manual", "auto", "imported"]},
+    "anchor_ref": {"type": ["object", "null"], "required": ["resource_type", "resource_id"], "properties": {"resource_type": {"enum": ["camera", "ha_entity"]}, "resource_id": {"type": "string", "minLength": 1}}},
+    "calibration": {"type": "object", "required": ["status"], "properties": {"status": {"enum": ["measured", "estimated", "missing"]}, "method": {"enum": ["two_point", "dxf_units", "door_width", "manual", "carried", null]}, "pairs": {"type": "array", "items": {"type": "object", "required": ["a", "b", "metres"], "properties": {"a": {"$ref": "#/$defs/point"}, "b": {"$ref": "#/$defs/point"}, "metres": {"type": "number", "exclusiveMinimum": 0}}}}, "residual_pct": {"type": ["number", "null"]}, "reason": {"type": ["string", "null"]}}},
+    "level": {"type": "object", "required": ["id", "name", "elevation_m", "ceiling_height_m", "is_default"], "properties": {"id": {"$ref": "#/$defs/id"}, "name": {"type": "string", "minLength": 1}, "elevation_m": {"type": "number", "minimum": -50, "maximum": 500}, "ceiling_height_m": {"type": "number", "exclusiveMinimum": 0, "maximum": 50}, "is_default": {"type": "boolean"}, "external_ids": {"$ref": "#/$defs/external_ids"}}},
+    "wall": {"type": "object", "required": ["id", "level_id", "polyline", "thickness_m", "kind", "confidence", "source"], "properties": {"id": {"$ref": "#/$defs/id"}, "level_id": {"type": "string"}, "polyline": {"type": "array", "minItems": 2, "items": {"$ref": "#/$defs/point"}}, "thickness_m": {"type": "number", "exclusiveMinimum": 0, "maximum": 3}, "height_m": {"type": ["number", "null"]}, "base_z_m": {"type": "number"}, "kind": {"enum": ["exterior", "interior", "partition", "railing", "low"]}, "confidence": {"$ref": "#/$defs/unit"}, "source": {"$ref": "#/$defs/source"}, "locked": {"type": "boolean"}, "external_ids": {"$ref": "#/$defs/external_ids"}}},
+    "opening": {"type": "object", "required": ["id", "wall_id", "t", "kind", "width_m", "height_m", "sill_m", "swing", "hinge", "confidence", "source"], "properties": {"id": {"$ref": "#/$defs/id"}, "wall_id": {"type": "string"}, "t": {"$ref": "#/$defs/unit"}, "kind": {"enum": ["door", "window", "passage"]}, "width_m": {"type": "number", "exclusiveMinimum": 0, "maximum": 10}, "height_m": {"type": "number", "exclusiveMinimum": 0, "maximum": 10}, "sill_m": {"type": "number", "minimum": 0, "maximum": 10}, "swing": {"enum": ["left", "right", "double", "sliding", "none"]}, "hinge": {"enum": ["start", "end"]}, "anchor_ref": {"$ref": "#/$defs/anchor_ref"}, "confidence": {"$ref": "#/$defs/unit"}, "source": {"$ref": "#/$defs/source"}, "external_ids": {"$ref": "#/$defs/external_ids"}}},
+    "room": {"type": "object", "required": ["id"], "properties": {"id": {"$ref": "#/$defs/id"}, "level_id": {"type": ["string", "null"]}, "ceiling_height_m": {"type": ["number", "null"]}, "external_ids": {"$ref": "#/$defs/external_ids"}}},
+    "label": {"type": "object", "required": ["id", "text", "position", "level_id", "size"], "properties": {"id": {"$ref": "#/$defs/id"}, "text": {"type": "string", "minLength": 1, "maxLength": 80}, "position": {"$ref": "#/$defs/point"}, "level_id": {"type": "string"}, "size": {"type": "number", "minimum": 6, "maximum": 200}}},
+    "item": {"type": "object", "required": ["id"], "properties": {"id": {"$ref": "#/$defs/id"}}}
+  }
+}
