@@ -444,14 +444,23 @@ def _check_rooms(rooms: list[dict[str, Any]], levels: set[str], issues: list[dic
 
 # ---------------------------------------------------------------- comparison and transforms
 
+def _by_id(doc: Mapping[str, Any] | None, coll: str) -> dict[str, Any]:
+    """The collection's items keyed by id, tolerating a missing, None or otherwise non-list collection (an empty
+    dict, not a crash) - a document mid-edit on the client can have any field in that shape."""
+    raw = (doc or {}).get(coll)
+    if not isinstance(raw, list):
+        return {}
+    return {i["id"]: i for i in raw if isinstance(i, dict) and isinstance(i.get("id"), str)}
+
+
 def diff(old: Mapping[str, Any] | None, new: Mapping[str, Any]) -> dict[str, Any]:
     """What publishing `new` changes against `old`: ids added, removed and changed per collection, and whether the
     calibration moved. `old` is None for a first publish."""
     out: dict[str, dict[str, list[str]]] = {}
     total = 0
     for coll in DIFF_COLLECTIONS:
-        a = {i["id"]: i for i in (old or {}).get(coll, []) if isinstance(i, dict) and isinstance(i.get("id"), str)}
-        b = {i["id"]: i for i in new.get(coll, []) if isinstance(i, dict) and isinstance(i.get("id"), str)}
+        a = _by_id(old, coll)
+        b = _by_id(new, coll)
         added = sorted(set(b) - set(a))
         removed = sorted(set(a) - set(b))
         changed = sorted(k for k in set(a) & set(b) if canonical_json(a[k]) != canonical_json(b[k]))
@@ -461,13 +470,15 @@ def diff(old: Mapping[str, Any] | None, new: Mapping[str, Any]) -> dict[str, Any
     old_dims = (old or {}).get("dimensions") or {}
     new_dims = new.get("dimensions") or {}
     cal = old is not None and (canonical_json(old_dims.get("calibration") or {}) != canonical_json(new_dims.get("calibration") or {})
-                               or old_dims.get("scale_m_per_px") != new_dims.get("scale_m_per_px"))
+                               or canonical_json(old_dims.get("scale_m_per_px")) != canonical_json(new_dims.get("scale_m_per_px")))
     return {"collections": out, "total": total, "calibration_changed": bool(cal), "same": total == 0 and not cal}
 
 
 def transform_crop(doc: Mapping[str, Any], old_crop: Mapping[str, Any] | None, new_crop: Mapping[str, Any] | None) -> dict[str, Any]:
     """A re-crop of the same page: every point goes through the old crop to the page and back through the new one
-    (the anchors' realign uses the same maths). Points outside the new crop are clamped to its edge and a note says so."""
+    (the anchors' realign uses the same maths). Points outside the new crop are clamped to its edge and a note says
+    so. A malformed polyline or position (wrong type, missing) is left exactly as it is rather than crashing the
+    remap - it already failed validation and stays with the draft."""
     oc = old_crop or {"x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0}
     nc = new_crop or {"x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0}
 
@@ -476,10 +487,12 @@ def transform_crop(doc: Mapping[str, Any], old_crop: Mapping[str, Any] | None, n
         return [min(1.0, max(0.0, round((sx - nc["x"]) / nc["w"], 6))), min(1.0, max(0.0, round((sy - nc["y"]) / nc["h"], 6)))]
 
     out = copy.deepcopy(dict(doc))
-    for w in out.get("walls", []):
-        w["polyline"] = [move(p) for p in w["polyline"]]
-    for lb in out.get("labels", []):
-        lb["position"] = move(lb["position"])
+    for w in out.get("walls") or []:
+        if isinstance(w.get("polyline"), list):
+            w["polyline"] = [move(p) if _finite_point(p) else p for p in w["polyline"]]
+    for lb in out.get("labels") or []:
+        if _finite_point(lb.get("position")):
+            lb["position"] = move(lb["position"])
     unc = out.setdefault("uncertainty", {"overall": 0.5, "notes": []})
     unc["notes"] = [*unc.get("notes", []), "המבנה הועבר מגרסה עם חיתוך אחר; נקודות שמחוץ לחיתוך הוצמדו לשוליים."]
     return out

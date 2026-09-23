@@ -260,16 +260,44 @@ def test_diff_names_added_removed_and_changed_items():
     c = copy.deepcopy(a)
     c["dimensions"]["scale_m_per_px"] = 0.03
     assert pg.diff(a, c)["calibration_changed"] is True
+    c2 = copy.deepcopy(a)
+    c2["dimensions"]["scale_m_per_px"] = 0.03
+    c3 = copy.deepcopy(a)
+    c3["dimensions"]["scale_m_per_px"] = 0.03 + 1e-10  # same at canonical_json's 6-digit rounding: not a real change
+    noise = pg.diff(c2, c3)
+    assert noise["calibration_changed"] is False and noise["same"] is True
+    c4 = copy.deepcopy(a)
+    c4["dimensions"]["calibration"]["method"] = "two_point"  # _doc()'s method is already "manual"; pick a value that differs
+    assert pg.diff(a, c4)["calibration_changed"] is True
 
 
 def test_transform_crop_maps_points_through_both_crops():
     d = _doc()
+    d["walls"].append({"id": "w3", "level_id": "L0", "polyline": [[0.6, 0.2], [0.9, 0.3]], "thickness_m": 0.2, "height_m": None,
+                       "base_z_m": 0, "kind": "interior", "confidence": 1, "source": "manual", "locked": False, "external_ids": {}})
     out = pg.transform_crop(d, None, {"x": 0.0, "y": 0.0, "w": 0.5, "h": 1.0})
     assert out["walls"][0]["polyline"] == [[0.2, 0.2], [1.0, 0.2]]
     assert out["labels"][0]["position"] == [0.6, 0.4]
+    assert out["walls"][2]["polyline"] == [[1.0, 0.2], [1.0, 0.3]], "points past the new crop's edge are clamped to it"
     assert d["walls"][0]["polyline"] == [[0.1, 0.2], [0.5, 0.2]], "the input is not modified"
     assert any("חיתוך" in n for n in out["uncertainty"]["notes"])
 
 
 def test_counts():
     assert pg.counts(_doc()) == {"walls": 2, "openings": 1, "labels": 1, "objects": 0}
+
+
+def test_diff_and_transform_crop_tolerate_malformed_data():
+    a = _doc()
+    b = dict(_doc(), walls=None)
+    d = pg.diff(a, b)
+    assert d["collections"]["walls"]["removed"] == ["w1", "w2"]
+
+    m = _doc()
+    m["walls"][0]["polyline"] = None
+    m["walls"][1]["polyline"] = [[0.1, 0.1], "x", [0.2, 0.2]]
+    del m["labels"][0]["position"]
+    out = pg.transform_crop(m, None, {"x": 0.0, "y": 0.0, "w": 0.5, "h": 1.0})
+    assert out["walls"][0]["polyline"] is None
+    assert out["walls"][1]["polyline"] == [[0.2, 0.1], "x", [0.4, 0.2]]
+    assert out["labels"][0] == m["labels"][0]
