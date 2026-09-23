@@ -79,6 +79,8 @@ export interface PlanVersion {
   width_px: number;
   height_px: number;
   scale_m_per_px: number | null;
+  /** Two-point calibration record (Plan Studio): pairs, method, residual. */
+  calibration?: { method: string; pairs: { a: [number, number]; b: [number, number]; metres: number }[]; residual_pct: number | null } | null;
   status: 'draft' | 'published' | 'archived';
   revision: number;
   notes: string;
@@ -94,6 +96,15 @@ export interface PlanVersion {
   render_mode?: 'source' | 'stylized';
   stylized_url?: string | null;
   source_url?: string;
+}
+
+/** Plan Studio (T084): the structure document the map bundle points to - fetched separately and cached by hash. */
+export interface GeometryRef {
+  id: string | null;
+  doc_hash: string;
+  status: 'new' | 'draft' | 'published' | 'archived';
+  revision: number;
+  published_at: string | null;
 }
 
 export interface Camera {
@@ -167,6 +178,8 @@ export interface FloorMap {
   building: Building;
   site: Site;
   plan: PlanVersion | null;
+  /** Reference to the structure document of the shown version (null when none is published). */
+  geometry?: GeometryRef | null;
   anchors: Anchor[];
   zones?: SpatialZone[];
   needs_alignment: boolean;
