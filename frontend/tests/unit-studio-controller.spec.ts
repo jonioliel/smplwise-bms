@@ -70,4 +70,36 @@ test.describe('studio controller (unit)', () => {
     c.publishedHash = c.hash;
     expect(c.pendingPublish).toBe(false);
   });
+
+  // The editor awaits flush() before calibrating, copying, switching versions and publishing. When an edit lands while
+  // the autosave is in flight, a flush called meanwhile must also wait for the save that carries that edit.
+  test('a second flush waits for the save of an edit made while the first save was in flight', async () => {
+    const releases: (() => void)[] = []; // saves finish only when released, like a slow PUT
+    let rev = 0;
+    const api: StudioApi = {
+      load: async (): Promise<GeometryResponse> => ({ geometry: row(0, 'new'), doc: sample(), issues: [], published_hash: null, copy_candidates: [] }),
+      save: (_id, d) => new Promise<GeometryResponse>((resolve) => releases.push(() => {
+        rev += 1;
+        resolve({ geometry: row(rev, 'draft'), doc: d, issues: [], published_hash: null });
+      })),
+    };
+    const c = new StudioController(host(), api, 20);
+    await c.load('v1');
+    c.commit({ ...c.doc!, walls: c.doc!.walls.slice(0, 3) });
+    const autosave = c.flush(); // save 1 in flight
+    c.commit({ ...c.doc!, walls: c.doc!.walls.slice(0, 2) }); // an edit while it runs
+    let waited = false;
+    const beforeAction = c.flush().then(() => {
+      waited = true;
+    });
+    releases[0](); // save 1 done: the edit goes out as save 2
+    await sleep(10);
+    expect(releases.length).toBe(2);
+    expect(waited).toBe(false);
+    releases[1]();
+    await Promise.all([autosave, beforeAction]);
+    expect(waited).toBe(true);
+    expect(c.revision).toBe(2);
+    expect(c.saveState).toBe('saved');
+  });
 });

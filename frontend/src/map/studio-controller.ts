@@ -98,7 +98,10 @@ export class StudioController implements ReactiveController {
   async flush(): Promise<void> {
     clearTimeout(this.timer);
     for (;;) {
-      if (this.inflight) await this.inflight;
+      if (this.inflight) {
+        await this.inflight; // a save another caller started; an edit made meanwhile goes out next, so look again
+        continue;
+      }
       if (!this.dirty || this.saveState === 'error') return;
       this.inflight = this.saveOnce();
       await this.inflight;
