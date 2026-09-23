@@ -5,10 +5,13 @@ frontend/src/map/geometry.ts computes the same list for the map; contracts/fixtu
 Coordinates are rounded half-up to 0.01 px, the same arithmetic on both sides."""
 from __future__ import annotations
 
+import io
 import math
+from pathlib import Path
 from typing import Any
+from xml.sax.saxutils import escape, quoteattr
 
-from .plan_geometry import DEFAULT_WALL_THICKNESS_M, effective_scale
+from .plan_geometry import DEFAULT_LEVEL_ID, DEFAULT_WALL_THICKNESS_M, effective_scale
 
 Point = tuple[float, float]
 
@@ -156,3 +159,112 @@ def structure_primitives(doc: dict[str, Any], width: float, height: float, level
         prims.append({"kind": "label", "id": lb["id"], "x": r2(float(lb["position"][0]) * width), "y": r2(float(lb["position"][1]) * height),
                       "text": str(lb.get("text") or ""), "size": r2(float(lb.get("size") or 14))})
     return prims
+
+
+# ---------------------------------------------------------------- exports (same primitives as the map)
+
+TOKENS = {"canvas": "#ffffff", "structure": "#4b5567", "opening": "#2f6bff", "glass": "#7fb2ff", "label": "#8b96a8", "room_fill": "#eef3ff", "room_line": "#c5cfdd"}
+
+
+def _n(v: float) -> str:
+    s = f"{r2(v):.2f}".rstrip("0").rstrip(".")
+    return "0" if s in ("", "-0") else s
+
+
+def _pts(points: Any) -> str:
+    return " ".join(f"{_n(x)},{_n(y)}" for x, y in points)
+
+
+def _rooms(zones: list[dict[str, Any]], width: float, height: float, level: str | None) -> list[tuple[dict[str, Any], list[tuple[float, float]]]]:
+    out = []
+    for z in sorted(zones, key=lambda z: z["id"]):
+        if level is not None and (z.get("level_id") or DEFAULT_LEVEL_ID) != level:
+            continue
+        out.append((z, [(r2(p["x"] * width), r2(p["y"] * height)) for p in z["polygon"]]))
+    return out
+
+
+def render_svg(doc: dict[str, Any], zones: list[dict[str, Any]], width: float, height: float, *, level: str | None = None, labels: bool = True, rooms: bool = True) -> str:
+    prims = structure_primitives(doc, width, height, level)
+    w, h = _n(width), _n(height)
+    out = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">', f'<rect width="{w}" height="{h}" fill="{TOKENS["canvas"]}"/>']
+    if rooms:
+        out.append('<g id="rooms">')
+        for z, pts in _rooms(zones, width, height, level):
+            out.append(f'<polygon data-room={quoteattr(z["id"])} points="{_pts(pts)}" fill="{TOKENS["room_fill"]}" stroke="{TOKENS["room_line"]}" stroke-width="1"/>')
+        out.append("</g>")
+    out.append(f'<g id="walls" fill="none" stroke="{TOKENS["structure"]}" stroke-linecap="butt" stroke-linejoin="miter">')
+    out.extend(f'<polyline data-wall={quoteattr(p["id"])} points="{_pts(p["points"])}" stroke-width="{_n(p["width"])}"/>' for p in prims if p["kind"] == "wall")
+    out.append("</g>")
+    out.append('<g id="openings" fill="none">')
+    for p in prims:
+        if p["kind"] == "door":
+            out.append(f'<g data-opening={quoteattr(p["id"])}>')
+            out.extend(f'<line x1="{_n(a[0])}" y1="{_n(a[1])}" x2="{_n(b[0])}" y2="{_n(b[1])}" stroke="{TOKENS["opening"]}" stroke-width="1.5"/>' for a, b in p["leaves"])
+            out.extend(f'<path d="M {_n(a["from"][0])} {_n(a["from"][1])} A {_n(a["r"])} {_n(a["r"])} 0 0 {a["sweep"]} {_n(a["to"][0])} {_n(a["to"][1])}" '
+                       f'stroke="{TOKENS["opening"]}" stroke-width="1" stroke-dasharray="4 3"/>' for a in p["arcs"])
+            out.append("</g>")
+        elif p["kind"] == "window":
+            out.append(f'<g data-opening={quoteattr(p["id"])}>')
+            out.extend(f'<line x1="{_n(a[0])}" y1="{_n(a[1])}" x2="{_n(b[0])}" y2="{_n(b[1])}" stroke="{TOKENS["glass"]}" stroke-width="1.5"/>' for a, b in p["lines"])
+            out.append("</g>")
+        elif p["kind"] == "passage":
+            a, b = p["gap"]
+            out.append(f'<line data-opening={quoteattr(p["id"])} x1="{_n(a[0])}" y1="{_n(a[1])}" x2="{_n(b[0])}" y2="{_n(b[1])}" stroke="{TOKENS["structure"]}" '
+                       f'stroke-width="1" stroke-dasharray="2 3"/>')
+    out.append("</g>")
+    if labels:
+        out.append(f'<g id="labels" font-family="Arial, Helvetica, sans-serif" font-weight="600" fill="{TOKENS["label"]}" text-anchor="middle" dominant-baseline="middle">')
+        out.extend(f'<text data-label={quoteattr(p["id"])} x="{_n(p["x"])}" y="{_n(p["y"])}" font-size="{_n(p["size"])}">{escape(p["text"])}</text>'
+                   for p in prims if p["kind"] == "label")
+        out.append("</g>")
+    out.append("</svg>")
+    return "\n".join(out) + "\n"
+
+
+def _rgb(hex_color: str, alpha: int = 255) -> tuple[int, int, int, int]:
+    h = hex_color.lstrip("#")
+    return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16), alpha
+
+
+def render_png(doc: dict[str, Any], zones: list[dict[str, Any]], width: float, height: float, *, background: Path | None = None, level: str | None = None) -> bytes:
+    """The structure over the plan picture (or white). Labels stay in the SVG: Pillow cannot shape Hebrew text."""
+    from PIL import Image, ImageDraw
+
+    size = (int(round(width)), int(round(height)))
+    if background is not None:
+        with Image.open(background) as im:
+            base = im.convert("RGBA")
+            if base.size != size:
+                base = base.resize(size)
+    else:
+        base = Image.new("RGBA", size, _rgb(TOKENS["canvas"]))
+    layer = Image.new("RGBA", size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(layer)
+    for _z, pts in _rooms(zones, width, height, level):
+        draw.polygon([tuple(p) for p in pts], fill=_rgb(TOKENS["room_fill"], 110), outline=_rgb(TOKENS["room_line"]))
+    prims = structure_primitives(doc, width, height, level)
+    for p in prims:
+        if p["kind"] == "wall":
+            draw.line([tuple(q) for q in p["points"]], fill=_rgb(TOKENS["structure"]), width=max(1, int(round(p["width"]))), joint="curve")
+    for p in prims:
+        if p["kind"] == "door":
+            arcs = p["arcs"] or [None] * len(p["leaves"])
+            for (a, b), arc in zip(p["leaves"], arcs):
+                draw.line([tuple(a), tuple(b)], fill=_rgb(TOKENS["opening"]), width=2)
+                if arc is not None:
+                    cx, cy, r = a[0], a[1], arc["r"]
+                    start = math.degrees(math.atan2(arc["from"][1] - cy, arc["from"][0] - cx))
+                    end = math.degrees(math.atan2(arc["to"][1] - cy, arc["to"][0] - cx))
+                    if not arc["sweep"]:
+                        start, end = end, start
+                    draw.arc([cx - r, cy - r, cx + r, cy + r], start=start, end=end, fill=_rgb(TOKENS["opening"]), width=1)
+        elif p["kind"] == "window":
+            for a, b in p["lines"]:
+                draw.line([tuple(a), tuple(b)], fill=_rgb(TOKENS["glass"]), width=2)
+        elif p["kind"] == "passage":
+            draw.line([tuple(p["gap"][0]), tuple(p["gap"][1])], fill=_rgb(TOKENS["structure"]), width=1)
+    out = Image.alpha_composite(base, layer).convert("RGB")
+    buf = io.BytesIO()
+    out.save(buf, format="PNG")
+    return buf.getvalue()

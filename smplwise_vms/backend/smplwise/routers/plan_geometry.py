@@ -12,14 +12,16 @@ from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 
 from ..audit import audit
-from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import now_iso
 from ..errors import ApiError, conflict, not_found
 from ..rbac import Principal, require
 from ..services import geometry_store as store
 from ..services import plan_geometry as pg
+from ..services import plan_geometry_render as render
 from ..services.timeutil import parse_utc
 from .plans import get_version, version_row
+from .zones import floor_zones
 
 router = APIRouter()
 NO_CACHE = {"Cache-Control": "private, no-cache"}
@@ -206,3 +208,34 @@ def calibrate(version_id: str, body: CalibrationIn, request: Request, principal:
           details={"version_id": v["id"], "scale_m_per_px": scale, "residual_pct": residual, "pairs": len(body.pairs)})
     warning = "הזוגות לא מסכימים ביניהם ביותר מ־3%: ייתכן שהסריקה מעוותת. כייל שוב או הוסף זוג." if residual > 3 else None
     return {"version": version_row(v2), "scale_m_per_px": scale, "residual_pct": residual, "warning": warning}
+
+
+def _export_doc(conn: sqlite3.Connection, principal: Principal, version_id: str, draft: bool) -> tuple[sqlite3.Row, dict[str, Any]]:
+    v = get_version(conn, version_id)
+    if draft:
+        require(conn, principal, "map.edit", _floor(v))
+        return v, store.working_doc(conn, v)[0]
+    require(conn, principal, "map.edit" if v["status"] == "draft" else "map.read", _floor(v))
+    row = store.published_row(conn, v["id"])
+    if row is None:
+        raise not_found("אין מבנה מפורסם לגרסה הזו.")
+    return v, store.load_doc(row)
+
+
+@router.get("/plan-versions/{version_id}/export.svg", response_model=None)
+def export_svg(version_id: str, draft: bool = False, level: str | None = None, labels: bool = True, rooms: bool = True,
+               principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Response:
+    v, doc = _export_doc(conn, principal, version_id, draft)
+    text = render.render_svg(doc, floor_zones(conn, v["floor_id"]), v["width_px"], v["height_px"], level=level, labels=labels, rooms=rooms)
+    return Response(content=text.encode("utf-8"), media_type="image/svg+xml; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="plan-{v["id"]}.svg"', **NO_CACHE})
+
+
+@router.get("/plan-versions/{version_id}/export.png", response_model=None)
+def export_png(version_id: str, request: Request, draft: bool = False, level: str | None = None, background: bool = True,
+               principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Response:
+    v, doc = _export_doc(conn, principal, version_id, draft)
+    picture = settings_of(request).data_dir / v["image_path"] if background else None
+    data = render.render_png(doc, floor_zones(conn, v["floor_id"]), v["width_px"], v["height_px"],
+                             background=picture if picture is not None and picture.exists() else None, level=level)
+    return Response(content=data, media_type="image/png", headers={"Content-Disposition": f'attachment; filename="plan-{v["id"]}.png"', **NO_CACHE})
