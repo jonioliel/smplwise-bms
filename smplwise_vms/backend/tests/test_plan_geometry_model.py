@@ -220,3 +220,25 @@ def test_huge_dimensions_are_structural():
     d["dimensions"]["width_px"] = 10**400
     issues = pg.validate(d)
     assert any(i["code"] == "dimensions" and i["structural"] for i in issues)
+
+
+def test_dimension_bounds_edges():
+    d = _doc()
+    d["dimensions"]["width_px"] = 100000
+    assert not any(i["code"] == "dimensions" for i in pg.validate(d))
+    d = _doc()
+    d["dimensions"]["width_px"] = 100001
+    issues = pg.validate(d)
+    assert any(i["code"] == "dimensions" and i["structural"] for i in issues)
+    d = _doc()
+    d["dimensions"]["height_px"] = 10**400
+    issues = pg.validate(d)
+    assert any(i["code"] == "dimensions" and i["structural"] for i in issues)
+
+
+def test_the_walk_reports_the_first_problem():
+    d = _doc()
+    d["objects"] = [{"id": "ob1", "v": float("nan")}, {"id": "ob2", "w": float("nan")}]
+    issues = pg.validate(d)
+    assert len(issues) == 1
+    assert issues[0]["path"] == "objects[0].v"

@@ -31,8 +31,8 @@ ANCHOR_TYPES = ("camera", "ha_entity")
 COLLECTIONS = ("levels", "walls", "openings", "rooms", "objects", "circuits", "connectors", "labels", "groups", "uncertain_regions")
 LIMITS = {"levels": 20, "walls": 2000, "openings": 4000, "rooms": 500, "objects": 5000, "circuits": 500, "connectors": 200, "labels": 1000,
           "groups": 500, "uncertain_regions": 200}
-MAX_WARNINGS = 200  # bounds only the noise of many geometric warnings (e.g. overlaps); an error or a structural
-                    # issue is never dropped - their count is already bounded by LIMITS, not by this cap
+MAX_WARNINGS = 200  # only _check_openings' overlap loop emits warnings; it stops emitting once this many have been
+                    # added (an O(1) local counter) - an error or a structural issue is never bounded by this cap
 MAX_DEPTH = 64  # a document this deeply nested is not something any client UI produces; refuse it rather than walk it
 DIFF_COLLECTIONS = ("levels", "walls", "openings", "labels", "rooms", "objects", "circuits", "connectors", "groups")
 
@@ -61,8 +61,6 @@ def _finite_point(p: Any) -> bool:
 
 
 def _issue(issues: list[dict[str, Any]], code: str, message: str, *, item: str | None = None, path: str = "", severity: str = "error", structural: bool = False) -> None:
-    if severity == "warning" and not structural and sum(1 for i in issues if i["severity"] == "warning") >= MAX_WARNINGS:
-        return  # only warnings are capped; a save is never refused or silently missing an error because of this cap
     issues.append({"code": code, "severity": severity, "structural": structural, "id": item, "path": path, "message": message})
 
 
@@ -185,13 +183,11 @@ def validate(doc: Any) -> list[dict[str, Any]]:
                 _issue(issues, "type", f"{coll}[{i}] חייב להיות אובייקט עם id טקסטואלי.", path=f"{coll}[{i}]", structural=True)
                 continue
             _check_fields(coll, i, item, issues)
-    if not any(i["structural"] for i in issues):  # a document already refused does not need this extra pass
-        found = _find_nonfinite(doc)
-        if found is not None:
-            message, parts = found
-            path = _join_path(parts)
-            if not any(i["path"] == path for i in issues):  # _check_fields may have reported the same field already
-                _issue(issues, "type", message, path=path, structural=True)
+    if not any(i["structural"] for i in issues):
+        hit = _find_nonfinite(doc)
+        if hit is not None:
+            code, path = hit
+            _issue(issues, "type", "ערך מספרי לא סופי." if code == "nan" else "עומק הקינון חורג מהמותר.", path=path, structural=True)
     if any(i["structural"] for i in issues):
         return issues
     width, height = dims["width_px"], dims["height_px"]
@@ -214,40 +210,46 @@ def validate(doc: Any) -> list[dict[str, Any]]:
     return issues
 
 
-def _join_path(parts: tuple[Any, ...]) -> str:
-    """Path parts (raw dict keys and list indices) to the dotted / bracketed string used throughout this module
-    (e.g. "walls[0].thickness_m"). Kept separate from the walk so the string is built only for a path that is
-    actually being reported, never for every node visited along the way."""
+def _path(parts: list[Any]) -> str:
     out = ""
     for p in parts:
-        if isinstance(p, int):
-            out += f"[{p}]"
-        elif out:
-            out += f".{p}"
-        else:
-            out = str(p)
+        out += f"[{p}]" if isinstance(p, int) else (f".{p}" if out else str(p))
     return out
 
 
-def _find_nonfinite(doc: dict[str, Any]) -> tuple[str, tuple[Any, ...]] | None:
-    """Iterative walk (an explicit stack, not recursion - json.loads accepts nesting far deeper than Python's call
-    stack allows) for the first problem anywhere in the document: a value nested past MAX_DEPTH, or a float that is
-    NaN or +-infinity (Python's JSON parser accepts them, canonical_json would store them, and a browser cannot
-    parse them back). Returns (message, path_parts) for the first one found, or None for a clean document. Path
-    parts are raw keys/indices, not strings - joining is the caller's job, and happens at most once."""
-    stack: list[tuple[Any, tuple[Any, ...], int]] = [(doc, (), 0)]
+def _children(v: Any):
+    if isinstance(v, dict):
+        return iter(v.items())
+    if isinstance(v, (list, tuple)):
+        return iter(enumerate(v))
+    return None
+
+
+def _find_nonfinite(doc: Any) -> tuple[str, str] | None:
+    """The first non-finite float in document order ("nan", path) or a container nested deeper than MAX_DEPTH
+    ("depth", path); None when the document is clean. Iterative: the stack holds one iterator per open container, so
+    memory grows with the nesting depth, never with the width; the path string is joined only on a match."""
+    root = _children(doc)
+    if root is None:
+        return None
+    stack = [root]
+    path: list[Any] = []
     while stack:
-        node, parts, depth = stack.pop()
-        if depth > MAX_DEPTH:
-            return "עומק הקינון חורג מהמותר.", parts
-        if isinstance(node, float) and not math.isfinite(node):
-            return "ערך מספרי לא סופי.", parts
-        if isinstance(node, dict):
-            for k, v in node.items():
-                stack.append((v, parts + (k,), depth + 1))
-        elif isinstance(node, (list, tuple)):
-            for i, v in enumerate(node):
-                stack.append((v, parts + (i,), depth + 1))
+        try:
+            key, value = next(stack[-1])
+        except StopIteration:
+            stack.pop()
+            if path:
+                path.pop()
+            continue
+        if isinstance(value, float) and not math.isfinite(value):
+            return "nan", _path([*path, key])
+        child = _children(value)
+        if child is not None:
+            if len(stack) >= MAX_DEPTH:
+                return "depth", _path([*path, key])
+            stack.append(child)
+            path.append(key)
     return None
 
 
@@ -409,11 +411,14 @@ def _check_openings(doc: dict[str, Any], walls: dict[str, dict[str, Any]], width
         if centre - width_m / 2 < -0.01 or centre + width_m / 2 > length_m + 0.01:
             _issue(issues, "opening_outside_wall", "הפתח חורג מאורך הקיר.", item=oid, path="openings")
         spans.setdefault(wall["id"], []).append((centre - width_m / 2, centre + width_m / 2, oid))
+    warnings_emitted = 0
     for items in spans.values():
         items.sort()
         for (_a0, a1, first), (b0, _b1, second) in zip(items, items[1:]):
             if b0 < a1 - 0.01:
-                _issue(issues, "overlap", f"הפתחים {first} ו־{second} חופפים על אותו קיר.", item=second, path="openings", severity="warning")
+                if warnings_emitted < MAX_WARNINGS:  # an O(1) local counter - never rescans the shared issues list
+                    _issue(issues, "overlap", f"הפתחים {first} ו־{second} חופפים על אותו קיר.", item=second, path="openings", severity="warning")
+                    warnings_emitted += 1
 
 
 def _check_labels(labels: list[dict[str, Any]], levels: set[str], issues: list[dict[str, Any]]) -> None:
