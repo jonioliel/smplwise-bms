@@ -242,3 +242,34 @@ def test_the_walk_reports_the_first_problem():
     issues = pg.validate(d)
     assert len(issues) == 1
     assert issues[0]["path"] == "objects[0].v"
+
+
+def test_diff_names_added_removed_and_changed_items():
+    a = _doc()
+    b = copy.deepcopy(a)
+    b["walls"][0]["thickness_m"] = 0.3
+    b["walls"].pop(1)
+    b["labels"].append({"id": "t2", "text": "x", "position": [0.1, 0.1], "level_id": "L0", "size": 12})
+    d = pg.diff(a, b)
+    assert d["collections"]["walls"] == {"added": [], "removed": ["w2"], "changed": ["w1"]}
+    assert d["collections"]["labels"] == {"added": ["t2"], "removed": [], "changed": []}
+    assert d["total"] == 3 and d["same"] is False and d["calibration_changed"] is False
+    assert pg.diff(a, copy.deepcopy(a))["same"] is True
+    first = pg.diff(None, a)
+    assert first["collections"]["walls"]["added"] == ["w1", "w2"] and first["calibration_changed"] is False
+    c = copy.deepcopy(a)
+    c["dimensions"]["scale_m_per_px"] = 0.03
+    assert pg.diff(a, c)["calibration_changed"] is True
+
+
+def test_transform_crop_maps_points_through_both_crops():
+    d = _doc()
+    out = pg.transform_crop(d, None, {"x": 0.0, "y": 0.0, "w": 0.5, "h": 1.0})
+    assert out["walls"][0]["polyline"] == [[0.2, 0.2], [1.0, 0.2]]
+    assert out["labels"][0]["position"] == [0.6, 0.4]
+    assert d["walls"][0]["polyline"] == [[0.1, 0.2], [0.5, 0.2]], "the input is not modified"
+    assert any("חיתוך" in n for n in out["uncertainty"]["notes"])
+
+
+def test_counts():
+    assert pg.counts(_doc()) == {"walls": 2, "openings": 1, "labels": 1, "objects": 0}
