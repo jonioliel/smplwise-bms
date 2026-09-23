@@ -4,9 +4,11 @@ restores it."""
 from __future__ import annotations
 
 import datetime as dt
+import io
+import zipfile
 from dataclasses import replace
 
-from conftest import png_bytes, seed_tree
+from conftest import as_user, png_bytes, seed_tree
 from fastapi.testclient import TestClient
 
 from smplwise.main import create_app
@@ -47,6 +49,26 @@ def test_the_map_bundle_carries_a_reference_not_the_document(settings):
     editor = c.get(f"/api/v1/floors/{ids['floor2']}/map?draft=true").json()
     assert editor["geometry"]["status"] == "draft" and editor["geometry"]["doc_hash"] != pub["geometry"]["doc_hash"]
     assert c.get(f"/api/v1/floors/{ids['floor2']}/map").json()["geometry"]["status"] == "published", "viewers keep the published one"
+
+
+def test_the_draft_reference_needs_map_edit(settings):
+    """R-T7-3: placement.edit without map.edit cannot load the draft document, so the bundle hands it the published
+    reference; permissions.structure says whether the structure editor is open to the user."""
+    app, c, ids, vid, _ = _setup(settings)
+    f2 = ids["floor2"]
+    _put(c, vid, [WALL])
+    c.post(f"/api/v1/plan-versions/{vid}/geometry/publish")
+    _put(c, vid, [dict(WALL, thickness_m=0.3)])
+    role = c.post("/api/v1/access/roles", json={"name": "הצבה בלבד", "permissions": ["map.read", "placement.edit"]}).json()
+    c.get("/api/v1/me", headers=as_user("placer"))
+    b = c.post("/api/v1/access/bindings", json={"subject_kind": "user", "subject_id": "dev-placer", "role_id": role["id"], "scope_type": "floor", "scope_id": f2})
+    assert b.status_code == 201, b.text
+    placer = c.get(f"/api/v1/floors/{f2}/map?draft=true", headers=as_user("placer")).json()
+    assert placer["geometry"]["status"] == "published", "placement.edit alone gets the published reference, not the draft"
+    assert placer["permissions"]["edit"] is True and placer["permissions"]["structure"] is False
+    assert c.get(f"/api/v1/plan-versions/{vid}/geometry?draft=true", headers=as_user("placer")).status_code == 403, "the draft document needs map.edit"
+    admin = c.get(f"/api/v1/floors/{f2}/map?draft=true").json()
+    assert admin["geometry"]["status"] == "draft" and admin["permissions"]["structure"] is True
 
 
 def test_the_historical_map_gets_the_structure_of_its_instant(settings):
@@ -91,6 +113,7 @@ def test_plan_versions_carry_publish_restore_and_delete_their_structure(settings
     bad = c.post(f"/api/v1/plan-versions/{turned['id']}/publish")
     assert bad.status_code == 422 and bad.json()["code"] == "geometry_invalid"
     assert c.get(f"/api/v1/plan-versions/{turned['id']}").json()["status"] == "draft"
+    assert c.get(f"/api/v1/plan-versions/{same['id']}").json()["status"] == "published", "the floor's published plan is untouched"
     # restoring the archived first version brings back its structure
     rb = c.post(f"/api/v1/plan-versions/{v1}/rollback", json={"revision": c.get(f"/api/v1/plan-versions/{v1}").json()["revision"]})
     assert rb.status_code == 201, rb.text
@@ -113,3 +136,28 @@ def test_a_backup_restores_the_structure(settings, tmp_path):
     up = c2.post("/api/v1/backups/upload", files={"file": ("copy.zip", data, "application/zip")}).json()
     assert c2.post(f"/api/v1/backups/{up['name']}/restore", json={"mode": "replace", "scope": "project", "confirm": "RESTORE"}).status_code == 200
     assert c2.get(f"/api/v1/plan-versions/{vid}/geometry").json()["geometry"]["doc_hash"] == before
+
+
+def test_a_backup_without_structure_restores_over_one(settings):
+    """R-T7-1: a backup written before this release has no data/plan_geometry.json. Restoring it in replace mode over
+    a database with a published structure empties plan_geometry too (the restored project equals the backup) instead
+    of failing on the structure's foreign key to plan_versions."""
+    app, c, ids, vid, _ = _setup(settings)
+    e = c.post("/api/v1/backups", json={"note": "before Plan Studio"}).json()
+    _put(c, vid, [WALL])
+    assert c.patch(f"/api/v1/plan-versions/{vid}/calibration", json={"pairs": [{"a": [0.1, 0.5], "b": [0.6, 0.5], "metres": 8.0}]}).status_code == 200
+    c.post(f"/api/v1/plan-versions/{vid}/geometry/publish")
+    assert c.get(f"/api/v1/plan-versions/{vid}/geometry").status_code == 200 and c.get(f"/api/v1/plan-versions/{vid}").json()["scale_m_per_px"]
+    old = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(c.get(f"/api/v1/backups/{e['name']}/download").content)) as src, zipfile.ZipFile(old, "w") as dst:
+        for item in src.infolist():
+            if item.filename != "data/plan_geometry.json":
+                dst.writestr(item, src.read(item))
+    up = c.post("/api/v1/backups/upload", files={"file": ("old.zip", old.getvalue(), "application/zip")}).json()
+    r = c.post(f"/api/v1/backups/{up['name']}/restore", json={"mode": "replace", "scope": "project", "confirm": "RESTORE"})
+    assert r.status_code == 200, r.text
+    assert c.get(f"/api/v1/plan-versions/{vid}/geometry").status_code == 404, "the structure drawn after the backup is gone"
+    back = c.get(f"/api/v1/plan-versions/{vid}").json()
+    assert back["status"] == "published" and back["scale_m_per_px"] is None, "the plan version is the one in the backup"
+    with app.state.db.connection() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM plan_geometry").fetchone()[0] == 0, "its draft too"

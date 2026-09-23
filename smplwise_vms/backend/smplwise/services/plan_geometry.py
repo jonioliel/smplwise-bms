@@ -490,23 +490,59 @@ def diff(old: Mapping[str, Any] | None, new: Mapping[str, Any]) -> dict[str, Any
 
 def transform_crop(doc: Mapping[str, Any], old_crop: Mapping[str, Any] | None, new_crop: Mapping[str, Any] | None) -> dict[str, Any]:
     """A re-crop of the same page: every point goes through the old crop to the page and back through the new one
-    (the anchors' realign uses the same maths). Points outside the new crop are clamped to its edge and a note says
-    so. A malformed polyline or position (wrong type, missing) is left exactly as it is rather than crashing the
-    remap - it already failed validation and stays with the draft."""
+    (the anchors' realign uses the same maths). A wall with at least one point inside the new crop keeps all its
+    points, those outside clamped to the edge; a wall with every point outside is dropped with its openings, and so is
+    a label outside (clamped, such a wall became zero-length and blocked the publish, R-T7-2). Notes say so. A
+    malformed polyline or position (wrong type, missing) is left exactly as it is rather than crashing the remap - it
+    already failed validation and stays with the draft."""
     oc = old_crop or {"x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0}
     nc = new_crop or {"x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0}
 
-    def move(p: Any) -> list[float]:
+    def move(p: Any) -> list[float]:  # not clamped yet: inside() decides first
         sx, sy = oc["x"] + p[0] * oc["w"], oc["y"] + p[1] * oc["h"]
-        return [min(1.0, max(0.0, round((sx - nc["x"]) / nc["w"], 6))), min(1.0, max(0.0, round((sy - nc["y"]) / nc["h"], 6)))]
+        return [round((sx - nc["x"]) / nc["w"], 6), round((sy - nc["y"]) / nc["h"], 6)]
+
+    def inside(p: list[float]) -> bool:
+        return 0.0 <= p[0] <= 1.0 and 0.0 <= p[1] <= 1.0
+
+    def clamp(p: list[float]) -> list[float]:
+        return [min(1.0, max(0.0, p[0])), min(1.0, max(0.0, p[1]))]
 
     out = copy.deepcopy(dict(doc))
-    for w in out.get("walls") or []:
-        if isinstance(w.get("polyline"), list):
-            w["polyline"] = [move(p) if _finite_point(p) else p for p in w["polyline"]]
-    for lb in out.get("labels") or []:
-        if _finite_point(lb.get("position")):
-            lb["position"] = move(lb["position"])
+    dropped = 0
+    gone_walls: set[str] = set()
+    if isinstance(out.get("walls"), list):
+        walls = []
+        for w in out["walls"]:
+            line = w.get("polyline") if isinstance(w, dict) else None
+            if isinstance(line, list):
+                moved = [move(p) if _finite_point(p) else p for p in line]
+                if line and all(_finite_point(p) for p in line) and not any(inside(p) for p in moved):
+                    dropped += 1
+                    if isinstance(w.get("id"), str):
+                        gone_walls.add(w["id"])
+                    continue
+                w["polyline"] = [clamp(m) if _finite_point(p) else p for m, p in zip(moved, line)]
+            walls.append(w)
+        out["walls"] = walls
+    if gone_walls and isinstance(out.get("openings"), list):
+        openings = [o for o in out["openings"] if not (isinstance(o, dict) and isinstance(o.get("wall_id"), str) and o["wall_id"] in gone_walls)]
+        dropped += len(out["openings"]) - len(openings)
+        out["openings"] = openings
+    if isinstance(out.get("labels"), list):
+        labels = []
+        for lb in out["labels"]:
+            if isinstance(lb, dict) and _finite_point(lb.get("position")):
+                p = move(lb["position"])
+                if not inside(p):
+                    dropped += 1
+                    continue
+                lb["position"] = p
+            labels.append(lb)
+        out["labels"] = labels
     unc = out.setdefault("uncertainty", {"overall": 0.5, "notes": []})
-    unc["notes"] = [*unc.get("notes", []), "המבנה הועבר מגרסה עם חיתוך אחר; נקודות שמחוץ לחיתוך הוצמדו לשוליים."]
+    notes = [*unc.get("notes", []), "המבנה הועבר מגרסה עם חיתוך אחר; נקודות שמחוץ לחיתוך הוצמדו לשוליים."]
+    if dropped:
+        notes.append(f"{dropped} פריטים שמחוץ לחיתוך החדש הושמטו.")
+    unc["notes"] = notes
     return out

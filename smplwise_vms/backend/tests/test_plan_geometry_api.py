@@ -53,6 +53,19 @@ def test_draft_round_trip_and_what_viewers_see(settings):
         assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'geometry.publish'").fetchone()[0] == 1
 
 
+def test_the_structure_of_an_instant_and_a_bad_instant(settings):
+    """?at= serves the structure published at that instant with its ETag; an instant the UTC conversion cannot
+    represent (an extreme offset overflows) is the same 422 as a malformed one, not a 500 (R-T6-1)."""
+    app, c, ids, vid, _ = _setup(settings)
+    _save(c, vid, [WALL], 0)
+    pub = c.post(f"/api/v1/plan-versions/{vid}/geometry/publish").json()["published"]
+    ok = c.get(f"/api/v1/plan-versions/{vid}/geometry", params={"at": pub["published_at"]})
+    assert ok.status_code == 200 and ok.headers["etag"] == f'"{pub["doc_hash"]}"' and ok.json()["geometry"]["id"] == pub["id"]
+    for bad in ("9999-12-31T23:59:59-01:00", "0001-01-01T00:00:00+01:00", "yesterday"):
+        r = c.get(f"/api/v1/plan-versions/{vid}/geometry", params={"at": bad})
+        assert r.status_code == 422 and r.json()["code"] == "validation", bad
+
+
 def test_permissions(settings):
     app, c, ids, vid, _ = _setup(settings)
     _save(c, vid, [WALL], 0)

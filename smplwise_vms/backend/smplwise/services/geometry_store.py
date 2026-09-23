@@ -181,12 +181,13 @@ def carry_calibration(conn: sqlite3.Connection, source: sqlite3.Row, target: sql
 
 
 def carry(conn: sqlite3.Connection, target: sqlite3.Row, actor_id: str | None, now: str | None = None) -> str:
-    """A new plan version starts from the structure of the floor's published plan: the same drawing and crop copies it,
-    a re-crop of the same page maps every point through both crops, anything else starts empty (the editor offers a
-    manual copy). Returns "copied" | "transformed" | "none"."""
+    """A new plan version starts from the published structure of the floor's published plan: the same drawing and crop
+    copies it, a re-crop of the same page maps every point through both crops, anything else starts empty (the editor
+    offers a manual copy). A structure that is only a draft is not carried - publishing the new plan version would
+    publish work in progress (R-T7-2); copy_from still offers it. Returns "copied" | "transformed" | "none"."""
     now = now or now_iso()
     source = conn.execute("SELECT * FROM plan_versions WHERE floor_id = ? AND status = 'published' AND id != ?", (target["floor_id"], target["id"])).fetchone()
-    row = (published_row(conn, source["id"]) or draft_row(conn, source["id"])) if source is not None else None
+    row = published_row(conn, source["id"]) if source is not None else None
     if row is None or draft_row(conn, target["id"]) is not None:
         return "none"
     doc = load_doc(row)

@@ -273,14 +273,34 @@ def test_diff_names_added_removed_and_changed_items():
 
 def test_transform_crop_maps_points_through_both_crops():
     d = _doc()
-    d["walls"].append({"id": "w3", "level_id": "L0", "polyline": [[0.6, 0.2], [0.9, 0.3]], "thickness_m": 0.2, "height_m": None,
+    d["walls"].append({"id": "w3", "level_id": "L0", "polyline": [[0.4, 0.2], [0.9, 0.3]], "thickness_m": 0.2, "height_m": None,
                        "base_z_m": 0, "kind": "interior", "confidence": 1, "source": "manual", "locked": False, "external_ids": {}})
     out = pg.transform_crop(d, None, {"x": 0.0, "y": 0.0, "w": 0.5, "h": 1.0})
     assert out["walls"][0]["polyline"] == [[0.2, 0.2], [1.0, 0.2]]
     assert out["labels"][0]["position"] == [0.6, 0.4]
-    assert out["walls"][2]["polyline"] == [[1.0, 0.2], [1.0, 0.3]], "points past the new crop's edge are clamped to it"
+    assert out["walls"][2]["polyline"] == [[0.8, 0.2], [1.0, 0.3]], "a wall with a point inside keeps its points past the edge, clamped to it"
     assert d["walls"][0]["polyline"] == [[0.1, 0.2], [0.5, 0.2]], "the input is not modified"
     assert any("חיתוך" in n for n in out["uncertainty"]["notes"])
+
+
+def test_transform_crop_drops_what_is_outside():
+    """R-T7-2: a wall with every point outside the new crop is dropped with its openings (clamped, it became a
+    zero-length wall that blocked the publish); a wall with a point inside keeps all its points, clamped; a label
+    outside is dropped; a second note counts what was dropped."""
+    d = _doc()
+    d["walls"] = [dict(d["walls"][0], id="out", polyline=[[0.6, 0.2], [0.9, 0.2]]), dict(d["walls"][0], id="part", polyline=[[0.4, 0.2], [0.9, 0.2]])]
+    d["openings"] = [dict(d["openings"][0], id="o_out", wall_id="out"), dict(d["openings"][0], id="o_part", wall_id="part")]
+    d["labels"] = [dict(d["labels"][0], id="t_out", position=[0.7, 0.5]), dict(d["labels"][0], id="t_in", position=[0.2, 0.5])]
+    half = {"x": 0.0, "y": 0.0, "w": 0.5, "h": 1.0}
+    out = pg.transform_crop(d, None, half)
+    assert [(w["id"], w["polyline"]) for w in out["walls"]] == [("part", [[0.8, 0.2], [1.0, 0.2]])]
+    assert [o["id"] for o in out["openings"]] == ["o_part"], "the door of the dropped wall goes with it"
+    assert [(lb["id"], lb["position"]) for lb in out["labels"]] == [("t_in", [0.4, 0.5])]
+    assert out["uncertainty"]["notes"][-1] == "3 פריטים שמחוץ לחיתוך החדש הושמטו.", "one wall, its door and one label"
+    assert "הוצמדו" in out["uncertainty"]["notes"][-2], "the clamp note is kept"
+    assert [i for i in pg.validate(out) if i["severity"] == "error"] == [], "nothing left that blocks the publish"
+    kept = pg.transform_crop(_doc(), None, half)
+    assert not any("הושמטו" in n for n in kept["uncertainty"]["notes"]), "nothing dropped: no such note"
 
 
 def test_counts():

@@ -48,7 +48,7 @@ def test_floor_editor_scope(client, settings):
     assert client.post("/api/v1/sites", json={"name": "y"}, headers=h).status_code == 403
     assert client.post("/api/v1/cameras/sync", headers=h).status_code == 403
     m = client.get(f"/api/v1/floors/{ids['floor2']}/map", headers=h).json()
-    assert m["permissions"] == {"edit": True, "publish": True, "import": True}
+    assert m["permissions"] == {"edit": True, "publish": True, "import": True, "structure": True}
     # the refusal itself is audited
     with Database(settings.db_path).connection() as conn:
         denied = conn.execute("SELECT action, resource_type, reason FROM audit_log WHERE decision = 'denied' AND actor_username = 'dana'").fetchall()

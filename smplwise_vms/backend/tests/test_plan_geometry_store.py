@@ -145,6 +145,19 @@ def test_structure_follows_a_new_version_of_the_same_drawing(settings):
         assert e.value.code == "not_empty"
 
 
+def test_carry_takes_only_a_published_structure(settings):
+    """R-T7-2: a work-in-progress draft of the source version is not carried (publishing the new plan version would
+    publish it); the editor can still copy it by hand."""
+    app, vid = _setup(settings)
+    with app.state.db.connection() as conn:
+        v = _version(conn, vid)
+        doc, _ = store.working_doc(conn, v)
+        store.save_draft(conn, v, _with(doc, WALL), 0, "u")
+        same = _clone(conn, _version(conn, vid))
+        assert store.carry(conn, same, "u") == "none" and store.draft_row(conn, same["id"]) is None
+        assert store.load_doc(store.copy_from(conn, same, _version(conn, vid), "u"))["walls"][0]["id"] == "w1", "copy_from stays available"
+
+
 def test_copy_from_maps_a_recrop_and_refuses_an_empty_source(settings):
     app, vid = _setup(settings)
     with app.state.db.connection() as conn:

@@ -101,6 +101,7 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
     f = get_floor(conn, floor_id)
     require(conn, principal, "map.read", ("floor", floor_id))
     can_edit = authorize(conn, principal, "placement.edit", ("floor", floor_id)).allowed
+    can_structure = authorize(conn, principal, "map.edit", ("floor", floor_id)).allowed  # loading a structure draft needs map.edit
     can_publish = authorize(conn, principal, "map.publish", ("floor", floor_id)).allowed
     at_iso: str | None = None
     history: str | None = None
@@ -126,7 +127,7 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
     if version is not None:
         if at_iso and history == "exact":
             geometry = geometry_store.ref(geometry_store.at_row(conn, version["id"], at_iso))
-        elif draft and can_edit and not at_iso:
+        elif draft and can_edit and can_structure and not at_iso:
             geometry = geometry_store.ref(geometry_store.draft_row(conn, version["id"]) or geometry_store.published_row(conn, version["id"]))
         else:
             geometry = geometry_store.ref(geometry_store.published_row(conn, version["id"]))
@@ -175,7 +176,8 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
         "history": history,
         "history_from": history_from,
         "ha_history": ha_hist,
-        "permissions": {"edit": can_edit, "publish": can_publish, "import": authorize(conn, principal, "map.import", ("floor", floor_id)).allowed},
+        "permissions": {"edit": can_edit, "publish": can_publish, "import": authorize(conn, principal, "map.import", ("floor", floor_id)).allowed,
+                        "structure": can_structure},
         "cameras": list(cameras.values()) if can_edit else [c for c in cameras.values() if any(a["resource_id"] == c["id"] for a in anchors)],
     }
 

@@ -66,7 +66,7 @@ def get_geometry(version_id: str, request: Request, draft: bool = False, at: str
     if at:
         try:
             iso = parse_utc(at).strftime("%Y-%m-%dT%H:%M:%SZ")
-        except ValueError:
+        except (ValueError, OverflowError):  # an extreme offset (9999-12-31T23:59:59-01:00) overflows the UTC conversion
             raise ApiError(422, "validation", "זמן חייב להיות UTC (Z).")
         row = store.at_row(conn, v["id"], iso)
     else:

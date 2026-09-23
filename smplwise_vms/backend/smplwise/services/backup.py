@@ -218,9 +218,10 @@ def _insert_rows(conn: sqlite3.Connection, table: str, rows: list[dict[str, Any]
 
 
 def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str = "replace", scope: str = "project", actor_user_id: str | None = None) -> dict[str, Any]:
-    """Load a backup into the current database inside the caller's transaction. `replace` empties the chosen
-    tables first (identity rows of the acting user are kept), `merge` only adds missing rows. Files are written
-    before the commit; a failure rolls the rows back."""
+    """Load a backup into the current database inside the caller's transaction. `replace` empties every table of
+    the scope first, also one the archive does not have (a backup older than the table): the restored project equals
+    the backup, and no row is left pointing at a parent row being replaced (R-T7-1). Identity rows of the acting user
+    are kept. `merge` only adds missing rows. Files are written before the commit; a failure rolls the rows back."""
     if mode not in ("replace", "merge"):
         raise ValueError("mode must be replace | merge")
     if scope not in ("project", "project+access"):
@@ -240,9 +241,7 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
                 data[t] = json.loads(z.read(member).decode("utf-8"))
         keep = _actor_rows(conn, actor_user_id) if scope == "project+access" else {}
         if mode == "replace":
-            for t in reversed(tables):
-                if t not in data:
-                    continue
+            for t in reversed(tables):  # children before parents; a table missing from the archive is emptied too
                 if t == "settings":
                     conn.execute(f"DELETE FROM settings WHERE key NOT IN ({', '.join('?' * len(SETTINGS_KEEP))})", list(SETTINGS_KEEP))
                 else:
