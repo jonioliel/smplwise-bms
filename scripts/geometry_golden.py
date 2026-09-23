@@ -21,7 +21,10 @@ def main() -> int:
     text = json.dumps(out, ensure_ascii=False, indent=1) + "\n"
     target = FIX / "sample-v2.primitives.json"
     if "--check" in sys.argv:
-        return 0 if target.exists() and target.read_text(encoding="utf-8") == text else 1
+        if target.exists() and target.read_text(encoding="utf-8") == text:
+            return 0
+        print(f"stale: {target.relative_to(ROOT)} - run scripts/geometry_golden.py to regenerate")
+        return 1
     target.write_text(text, encoding="utf-8", newline="\n")
     print(f"written {target.relative_to(ROOT)}: {len(out['all'])} primitives")
     return 0

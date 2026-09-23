@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import random
 
 from smplwise.services import plan_geometry as pg
 from smplwise.services import plan_geometry_render as render
@@ -49,3 +50,20 @@ def test_primitives_are_deterministic_and_match_the_golden_file():
     assert golden["width"] == 1000 and golden["height"] == 800
     assert render.structure_primitives(doc, 1000, 800) == golden["all"]
     assert render.structure_primitives(doc, 1000, 800, "L1") == golden["level_L1"]
+
+
+def test_input_order_does_not_matter():
+    """The golden file pins output order, not input order: a document that lists its walls, openings and
+    labels in some other order (a reversed collection, or a shuffled one) must still produce the exact same
+    primitives - id order for walls and openings, along-wall position for the cuts on each wall."""
+    golden = json.loads((FIX / "sample-v2.primitives.json").read_text(encoding="utf-8"))
+    reversed_doc = _sample()
+    for coll in ("walls", "openings", "labels"):
+        reversed_doc[coll] = list(reversed(reversed_doc[coll]))
+    shuffled_doc = _sample()
+    rng = random.Random(7)
+    for coll in ("walls", "openings", "labels"):
+        rng.shuffle(shuffled_doc[coll])
+    for doc in (reversed_doc, shuffled_doc):
+        assert render.structure_primitives(doc, 1000, 800) == golden["all"]
+        assert render.structure_primitives(doc, 1000, 800, "L1") == golden["level_L1"]
