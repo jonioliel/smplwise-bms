@@ -134,3 +134,46 @@ def test_schema_file_matches_the_validator():
     assert set(defs["calibration"]["properties"]["status"]["enum"]) == set(pg.CAL_STATUSES)
     assert set(schema["required"]) >= {"schema_version", "source", "dimensions", "transform", *pg.COLLECTIONS, "uncertainty"}
     assert copy.deepcopy(_doc())["schema_version"] == schema["properties"]["schema_version"]["const"]
+
+
+def test_malformed_field_values_are_structural_not_crashes():
+    def check(d, field_hint):
+        issues = pg.validate(d)  # must return, never raise, even for client-controlled junk that passed the id check
+        assert issues and all(i["structural"] for i in issues)
+        assert any(i["code"] == "type" and field_hint in i["path"] for i in issues)
+
+    d = _doc()
+    d["walls"][0]["level_id"] = []
+    check(d, "level_id")
+    d = _doc()
+    d["labels"][0]["level_id"] = {}
+    check(d, "level_id")
+    d = _doc()
+    d["rooms"].append({"id": "r1", "level_id": ["L0"]})
+    check(d, "level_id")
+    d = _doc()
+    d["openings"][0]["wall_id"] = ["w1"]
+    check(d, "wall_id")
+    d = _doc()
+    d["walls"][0]["thickness_m"] = 10**400
+    check(d, "thickness_m")
+    d = _doc()
+    d["walls"][0]["thickness_m"] = "abc"
+    check(d, "thickness_m")
+    d = _doc()
+    d["walls"][0]["polyline"] = "nope"
+    check(d, "polyline")
+    d = _doc()
+    d["dimensions"]["calibration"] = "x"
+    check(d, "calibration")
+    d = _doc()
+    d["walls"][0]["thickness_m"] = float("nan")
+    check(d, "thickness_m")
+
+
+def test_an_over_limit_collection_yields_one_issue():
+    d = _doc()
+    d["walls"] = [0] * (pg.LIMITS["walls"] + 1)
+    issues = pg.validate(d)
+    assert len(issues) == 1
+    assert issues[0]["code"] == "limit" and issues[0]["path"] == "walls" and issues[0]["structural"] is True

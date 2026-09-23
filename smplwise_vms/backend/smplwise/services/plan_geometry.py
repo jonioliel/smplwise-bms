@@ -31,11 +31,17 @@ ANCHOR_TYPES = ("camera", "ha_entity")
 COLLECTIONS = ("levels", "walls", "openings", "rooms", "objects", "circuits", "connectors", "labels", "groups", "uncertain_regions")
 LIMITS = {"levels": 20, "walls": 2000, "openings": 4000, "rooms": 500, "objects": 5000, "circuits": 500, "connectors": 200, "labels": 1000,
           "groups": 500, "uncertain_regions": 200}
+MAX_ISSUES = 500  # bounds the work (and the response size) of validating one save, however malformed or huge
 DIFF_COLLECTIONS = ("levels", "walls", "openings", "labels", "rooms", "objects", "circuits", "connectors", "groups")
 
 
 def _num(v: Any) -> bool:
-    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+    if not isinstance(v, (int, float)) or isinstance(v, bool):
+        return False
+    try:
+        return math.isfinite(v)
+    except OverflowError:  # an int too large for a C double (e.g. a 400-digit thickness_m) is not a number either
+        return False
 
 
 def _unit(v: Any) -> bool:
@@ -46,7 +52,15 @@ def _pt(p: Any) -> bool:
     return isinstance(p, (list, tuple)) and len(p) == 2 and _unit(p[0]) and _unit(p[1])
 
 
+def _finite_point(p: Any) -> bool:
+    """Like _pt but without the 0..1 bound: for structural checks where the type must be right before a geometric
+    check may look at whether the value is also in range."""
+    return isinstance(p, (list, tuple)) and len(p) == 2 and _num(p[0]) and _num(p[1])
+
+
 def _issue(issues: list[dict[str, Any]], code: str, message: str, *, item: str | None = None, path: str = "", severity: str = "error", structural: bool = False) -> None:
+    if len(issues) >= MAX_ISSUES:
+        return  # a save is refused by its first structural issue; issues past the cap cannot change the outcome
     issues.append({"code": code, "severity": severity, "structural": structural, "id": item, "path": path, "message": message})
 
 
@@ -115,7 +129,8 @@ def effective_scale(doc: Mapping[str, Any]) -> tuple[float, bool]:
     """Metres per version pixel and whether it is only an estimate (no calibration: a 0.2 m wall = 0.6 % of the width)."""
     dims = doc.get("dimensions") or {}
     scale = dims.get("scale_m_per_px")
-    status = (dims.get("calibration") or {}).get("status")
+    cal = dims.get("calibration")
+    status = cal.get("status") if isinstance(cal, dict) else None
     if _num(scale) and scale > 0 and status in ("measured", "estimated"):
         return float(scale), status == "estimated"
     return DEFAULT_WALL_THICKNESS_M / (ESTIMATED_WALL_FRACTION * int(dims.get("width_px") or 1000)), True
@@ -149,6 +164,12 @@ def validate(doc: Any) -> list[dict[str, Any]]:
     dims = doc.get("dimensions")
     if not isinstance(dims, dict) or not all(isinstance(dims.get(k), int) and not isinstance(dims.get(k), bool) and dims.get(k) > 0 for k in ("width_px", "height_px")):
         _issue(issues, "dimensions", "dimensions.width_px ו־height_px חייבים להיות מספרים שלמים חיוביים.", path="dimensions", structural=True)
+    if isinstance(dims, dict):
+        scale = dims.get("scale_m_per_px")
+        if scale is not None and not _num(scale):
+            _issue(issues, "type", "השדה scale_m_per_px בסוג לא נכון.", path="dimensions.scale_m_per_px", structural=True)
+        if not isinstance(dims.get("calibration"), dict):
+            _issue(issues, "type", "השדה calibration בסוג לא נכון.", path="dimensions.calibration", structural=True)
     for coll in COLLECTIONS:
         items = doc.get(coll)
         if not isinstance(items, list):
@@ -156,9 +177,15 @@ def validate(doc: Any) -> list[dict[str, Any]]:
             continue
         if len(items) > LIMITS[coll]:
             _issue(issues, "limit", f"{coll}: יותר מ־{LIMITS[coll]} פריטים.", path=coll, structural=True)
+            continue  # an over-limit collection gets exactly one issue; per-item checks cannot bound their own work
         for i, item in enumerate(items):
             if not isinstance(item, dict) or not isinstance(item.get("id"), str) or not 1 <= len(item["id"]) <= 64:
                 _issue(issues, "type", f"{coll}[{i}] חייב להיות אובייקט עם id טקסטואלי.", path=f"{coll}[{i}]", structural=True)
+                continue
+            _check_fields(coll, i, item, issues)
+    bad_path = _find_nonfinite(doc, "")
+    if bad_path is not None:
+        _issue(issues, "type", "ערך מספרי לא סופי.", path=bad_path, structural=True)
     if any(i["structural"] for i in issues):
         return issues
     width, height = dims["width_px"], dims["height_px"]
@@ -179,6 +206,87 @@ def validate(doc: Any) -> list[dict[str, Any]]:
     if not isinstance(unc, dict) or not _unit(unc.get("overall")) or not isinstance(unc.get("notes"), list):
         _issue(issues, "uncertainty", "uncertainty צריך overall בין 0 ל־1 ורשימת notes.", path="uncertainty")
     return issues
+
+
+def _find_nonfinite(node: Any, path: str) -> str | None:
+    """DFS for the first NaN or +-infinity float anywhere in the document (dicts, lists, tuples): Python's JSON
+    parser accepts them, canonical_json would store them, and a browser cannot parse them back, so any occurrence -
+    named field or not - is a structural problem. Stops at the first match, so a clean document is one linear pass
+    and a match never costs more than reaching it."""
+    if isinstance(node, float) and not math.isfinite(node):
+        return path
+    if isinstance(node, dict):
+        for k, v in node.items():
+            found = _find_nonfinite(v, f"{path}.{k}" if path else str(k))
+            if found is not None:
+                return found
+    elif isinstance(node, (list, tuple)):
+        for i, v in enumerate(node):
+            found = _find_nonfinite(v, f"{path}[{i}]")
+            if found is not None:
+                return found
+    return None
+
+
+def _check_fields(coll: str, i: int, item: dict[str, Any], issues: list[dict[str, Any]]) -> None:
+    """Structural field-type checks for one item that already passed the id check: a wrong type refuses the save
+    the same way a missing collection does, instead of reaching a geometric check that assumes the type is right
+    (e.g. a level_id used as a set member, a wall_id used as a dict key). A missing optional field is fine; a
+    required field that is absent reads as None, which is also the wrong type. Value ranges stay geometric."""
+    iid = item["id"]
+
+    def bad(field: str) -> None:
+        _issue(issues, "type", f"השדה {field} בסוג לא נכון.", item=iid, path=f"{coll}[{i}].{field}", structural=True)
+
+    def req(field: str, ok: bool) -> None:
+        if not ok:
+            bad(field)
+
+    def opt(field: str, predicate: Any) -> None:
+        v = item.get(field)
+        if v is not None and not predicate(v):
+            bad(field)
+
+    if coll == "levels":
+        req("name", isinstance(item.get("name"), str))
+        req("elevation_m", _num(item.get("elevation_m")))
+        req("ceiling_height_m", _num(item.get("ceiling_height_m")))
+        req("is_default", isinstance(item.get("is_default"), bool))
+        opt("external_ids", lambda v: isinstance(v, dict))
+    elif coll == "walls":
+        req("level_id", isinstance(item.get("level_id"), str))
+        pl = item.get("polyline")
+        req("polyline", isinstance(pl, list) and all(_finite_point(p) for p in pl))
+        req("thickness_m", _num(item.get("thickness_m")))
+        opt("height_m", _num)
+        opt("base_z_m", _num)
+        req("kind", isinstance(item.get("kind"), str))
+        req("source", isinstance(item.get("source"), str))
+        req("confidence", _num(item.get("confidence")))
+        opt("locked", lambda v: isinstance(v, bool))
+        opt("external_ids", lambda v: isinstance(v, dict))
+    elif coll == "openings":
+        req("wall_id", isinstance(item.get("wall_id"), str))
+        req("t", _num(item.get("t")))
+        req("width_m", _num(item.get("width_m")))
+        req("height_m", _num(item.get("height_m")))
+        req("sill_m", _num(item.get("sill_m")))
+        req("confidence", _num(item.get("confidence")))
+        req("kind", isinstance(item.get("kind"), str))
+        req("swing", isinstance(item.get("swing"), str))
+        req("hinge", isinstance(item.get("hinge"), str))
+        req("source", isinstance(item.get("source"), str))
+        opt("anchor_ref", lambda v: isinstance(v, dict))
+        opt("external_ids", lambda v: isinstance(v, dict))
+    elif coll == "labels":
+        req("text", isinstance(item.get("text"), str))
+        req("position", _finite_point(item.get("position")))
+        req("level_id", isinstance(item.get("level_id"), str))
+        req("size", _num(item.get("size")))
+    elif coll == "rooms":
+        opt("level_id", lambda v: isinstance(v, str))
+        opt("ceiling_height_m", _num)
+    # objects, circuits, connectors, groups, uncertain_regions: no field rules in phase 1
 
 
 def _check_calibration(dims: dict[str, Any], issues: list[dict[str, Any]]) -> None:
