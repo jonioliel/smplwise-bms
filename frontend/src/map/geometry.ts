@@ -120,7 +120,7 @@ export function effectiveScale(doc: Pick<GeometryDoc, 'dimensions'>): { scale: n
   const d = doc.dimensions;
   const s = d.scale_m_per_px;
   const st = d.calibration?.status;
-  if (typeof s === 'number' && s > 0 && (st === 'measured' || st === 'estimated')) return { scale: s, estimated: st === 'estimated' };
+  if (typeof s === 'number' && Number.isFinite(s) && s > 0 && (st === 'measured' || st === 'estimated')) return { scale: s, estimated: st === 'estimated' };
   return { scale: DEFAULT_WALL_THICKNESS_M / (ESTIMATED_WALL_FRACTION * (d.width_px || 1000)), estimated: true };
 }
 
@@ -191,10 +191,16 @@ export function buildPrimitives(doc: GeometryDoc, width: number, height: number,
   const { scale } = effectiveScale(doc);
   const pxPerM = 1 / scale;
   const byWall = new Map<string, GeomOpening[]>();
-  for (const o of doc.openings) byWall.set(o.wall_id, [...(byWall.get(o.wall_id) ?? []), o]);
+  for (const o of doc.openings) {
+    const bucket = byWall.get(o.wall_id);
+    if (bucket) bucket.push(o);
+    else byWall.set(o.wall_id, [o]);
+  }
   const prims: Primitive[] = [];
   const geo = new Map<string, { pts: Pt[]; cum: number[]; wpx: number }>();
-  for (const w of [...doc.walls].sort(byId)) {
+  // Draft documents can carry duplicate wall ids (duplicate_id is not structural); the backend's export
+  // collapses them by id, keeping the last occurrence, and draws one wall - mirror that here.
+  for (const w of [...new Map(doc.walls.map((x) => [x.id, x])).values()].sort(byId)) {
     if (level !== null && w.level_id !== level) continue;
     const pts: Pt[] = w.polyline.map((p) => [p[0] * width, p[1] * height]);
     const cum = cumulative(pts);
