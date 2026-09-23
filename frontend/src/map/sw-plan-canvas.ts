@@ -3,6 +3,7 @@ import { customElement, property, state, query } from 'lit/decorators.js';
 import '../components/sw-button';
 import { t } from '../i18n/he';
 import type { StateKind } from '../components/sw-badge';
+import { buildPrimitives, type GeometryDoc, type Primitive, type Pt } from './geometry';
 
 export type MarkerKind = 'camera' | 'lock' | 'light' | 'binary_sensor';
 
@@ -95,6 +96,8 @@ export function polygonCentroid(poly: { x: number; y: number }[]) {
   return { x: cx / (3 * a), y: cy / (3 * a) };
 }
 
+const ptsAttr = (ps: Pt[]): string => ps.map((p) => `${p[0]},${p[1]}`).join(' ');
+
 @customElement('sw-plan-canvas')
 export class SwPlanCanvas extends LitElement {
   @property({ type: Number }) planWidth = 1000;
@@ -127,6 +130,14 @@ export class SwPlanCanvas extends LitElement {
   /** Selection mode (T043): a primary-button drag on the plan draws a rectangle and emits `box-select` with the ids
    * of the markers inside it. Shift + drag, a second finger and the wheel still pan and zoom. */
   @property({ type: Boolean }) boxSelect = false;
+  /** Plan Studio (T084): the structure document, drawn between the rooms and the pins on every map. */
+  @property({ attribute: false }) geometry: GeometryDoc | null = null;
+  /** Show one level only (null = all levels). */
+  @property() structureLevel: string | null = null;
+  /** Items with a validation error, drawn in red (editor). */
+  @property({ attribute: false }) issueIds: string[] = [];
+  @property() selectedGeomId: string | null = null;
+  private primCache: { doc: GeometryDoc; w: number; h: number; level: string | null; prims: Primitive[] } | null = null;
   @state() private box: { x0: number; y0: number; x1: number; y1: number } | null = null;
   private boxStart: { x: number; y: number } | null = null;
 
@@ -348,6 +359,45 @@ export class SwPlanCanvas extends LitElement {
     .draft circle {
       fill: var(--sw-surface);
       stroke: var(--sw-accent);
+    }
+    .structure {
+      pointer-events: none;
+    }
+    .structure .wall {
+      fill: none;
+      stroke: var(--sw-map-structure);
+      stroke-linecap: butt;
+      stroke-linejoin: miter;
+    }
+    .structure .sel .wall {
+      stroke: var(--sw-accent);
+    }
+    .structure .issue .wall,
+    .structure .opening.issue line,
+    .structure .opening.issue path {
+      stroke: var(--sw-danger);
+    }
+    .structure .leaf,
+    .structure .arc {
+      fill: none;
+      stroke: var(--sw-accent);
+    }
+    .structure .glass {
+      stroke: var(--sw-map-glass);
+    }
+    .structure .gapline {
+      stroke: var(--sw-map-structure);
+    }
+    .structure .opening.sel .leaf,
+    .structure .opening.sel .glass,
+    .structure .opening.sel .gapline {
+      stroke: var(--sw-accent-hover);
+    }
+    .structure .glabel {
+      fill: var(--sw-map-label);
+      font-weight: 600;
+      text-anchor: middle;
+      dominant-baseline: middle;
     }
     .fov {
       fill: var(--sw-fov);
@@ -1019,6 +1069,42 @@ export class SwPlanCanvas extends LitElement {
     `;
   }
 
+  /** Primitives of the shown document, recomputed only when the document, the plan size or the level changes. */
+  private primitives(doc: GeometryDoc): Primitive[] {
+    const c = this.primCache;
+    if (c && c.doc === doc && c.w === this.planWidth && c.h === this.planHeight && c.level === this.structureLevel) return c.prims;
+    const prims = buildPrimitives(doc, this.planWidth, this.planHeight, this.structureLevel);
+    this.primCache = { doc, w: this.planWidth, h: this.planHeight, level: this.structureLevel, prims };
+    return prims;
+  }
+
+  private renderStructure() {
+    const doc = this.geometry;
+    if (!doc) return nothing;
+    const inv = 1 / this.scale;
+    const issues = new Set(this.issueIds);
+    return svg`<g class="structure" data-structure>${this.primitives(doc).map((p) => this.renderPrimitive(p, inv, issues))}</g>`;
+  }
+
+  private renderPrimitive(p: Primitive, inv: number, issues: Set<string>) {
+    const cls = `${p.id === this.selectedGeomId ? 'sel' : ''} ${issues.has(p.id) ? 'issue' : ''}`;
+    switch (p.kind) {
+      case 'wall':
+        return svg`<g class="wall-g ${cls}" data-wall=${p.id}><polyline class="wall" points=${ptsAttr(p.points)} stroke-width=${p.width} /></g>`;
+      case 'door':
+        return svg`<g class="opening ${cls}" data-opening=${p.id} data-kind="door">
+          ${p.leaves.map(([a, b]) => svg`<line class="leaf" x1=${a[0]} y1=${a[1]} x2=${b[0]} y2=${b[1]} stroke-width=${1.6 * inv} />`)}
+          ${p.arcs.map((a) => svg`<path class="arc" d=${`M ${a.from[0]} ${a.from[1]} A ${a.r} ${a.r} 0 0 ${a.sweep} ${a.to[0]} ${a.to[1]}`} stroke-width=${1.1 * inv} stroke-dasharray=${`${4 * inv} ${3 * inv}`} />`)}
+        </g>`;
+      case 'window':
+        return svg`<g class="opening ${cls}" data-opening=${p.id} data-kind="window">${p.lines.map(([a, b]) => svg`<line class="glass" x1=${a[0]} y1=${a[1]} x2=${b[0]} y2=${b[1]} stroke-width=${1.6 * inv} />`)}</g>`;
+      case 'passage':
+        return svg`<g class="opening ${cls}" data-opening=${p.id} data-kind="passage"><line class="gapline" x1=${p.gap[0][0]} y1=${p.gap[0][1]} x2=${p.gap[1][0]} y2=${p.gap[1][1]} stroke-width=${inv} stroke-dasharray=${`${2 * inv} ${3 * inv}`} /></g>`;
+      case 'label':
+        return svg`<text class="glabel" data-label=${p.id} x=${p.x} y=${p.y} font-size=${p.size}>${p.text}</text>`;
+    }
+  }
+
   render() {
     return html`
       <div class="viewport ${this.placing ? 'placing' : ''} ${this.boxSelect ? 'boxing' : ''}" @wheel=${this.onWheel} @pointerdown=${this.onPointerDown} @pointermove=${this.onPointerMove}
@@ -1028,6 +1114,7 @@ export class SwPlanCanvas extends LitElement {
             ${this.imageUrl ? svg`<image href=${this.imageUrl} x="0" y="0" width=${this.planWidth} height=${this.planHeight} preserveAspectRatio="none" />` : nothing}
             ${this.plan ?? nothing}
             ${this.zones.map((z) => this.renderZone(z))}
+            ${this.renderStructure()}
             ${this.markers.map((m) => this.renderMarker(m))}
             ${this.renderDraft()}
           </g>

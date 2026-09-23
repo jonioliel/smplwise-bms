@@ -54,6 +54,8 @@
   --sw-map-room-fill: #ffffff;
   --sw-map-furniture: #eef2f8;
   --sw-map-furniture-line: #c9d3e3;
+  --sw-map-structure: #4b5567;
+  --sw-map-glass: #7fb2ff;
   --sw-map-label: #8b96a8;
   --sw-fov: rgba(47, 107, 255, 0.14);
 
@@ -150,6 +152,8 @@
   --sw-map-room-fill: #ffffff;
   --sw-map-furniture: #eaeff6;
   --sw-map-furniture-line: #d3dbe7;
+  --sw-map-structure: #56617a;
+  --sw-map-glass: #7fb2ff;
   --sw-map-label: #8a97ae;
   --sw-fov: rgba(39, 103, 237, 0.12);
   --sw-fs-xs: 11px;

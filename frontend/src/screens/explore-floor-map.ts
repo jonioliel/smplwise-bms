@@ -29,19 +29,22 @@ import { pointInPolygon } from '../api/zones';
 import { createView, listViews, wallHref, type SavedView } from '../api/views';
 import '../components/sw-toggle';
 import { ACTION_ERROR_LABEL, ACTION_STATUS_LABEL, awaitAction, domainLabel, entityMarkerKind, entityTone, fmtTime, runAction, stateLabel, subscribeHa, type HaActionArgSpec, type HaActionRecord, type HaActionSpec, type HaEntity } from '../api/ha';
+import { geometryFor } from '../api/geometry';
+import type { GeometryDoc } from '../map/geometry';
 
 /** Hebrew names for enum choices the adapters offer (T040). */
 const ARG_CHOICE_HE: Record<string, string> = { off: 'כבוי', heat: 'חימום', cool: 'קירור', heat_cool: 'חימום/קירור', auto: 'אוטומטי', dry: 'ייבוש', fan_only: 'מאוורר בלבד' };
 
 type ScreenState = 'ready' | 'loading' | 'empty' | 'error' | 'forbidden' | 'stale' | 'partial';
-type Layer = 'cameras' | 'doors' | 'lights' | 'sensors' | 'zones';
+type Layer = 'cameras' | 'doors' | 'lights' | 'sensors' | 'zones' | 'structure';
 
-const LAYERS: { id: Layer; icon: 'camera' | 'door' | 'light' | 'sensor' | 'map'; label: () => string }[] = [
+const LAYERS: { id: Layer; icon: 'camera' | 'door' | 'light' | 'sensor' | 'map' | 'wall'; label: () => string }[] = [
   { id: 'cameras', icon: 'camera', label: () => t('floor.cameras') },
   { id: 'doors', icon: 'door', label: () => t('floor.doors') },
   { id: 'lights', icon: 'light', label: () => t('floor.lights') },
   { id: 'sensors', icon: 'sensor', label: () => t('floor.sensors') },
   { id: 'zones', icon: 'map', label: () => 'חדרים ואזורים' },
+  { id: 'structure', icon: 'wall', label: () => 'מבנה' },
 ];
 
 const SCENES: SceneKind[] = ['entrance', 'lobby', 'corridor', 'hall', 'parking', 'warehouse', 'backyard', 'driveway', 'night'];
@@ -78,7 +81,10 @@ export class ExploreFloorMap extends LitElement {
   @state() private noFloors = false;
   @state() private selectedId: string | null = null;
   @state() private anchor: { x: number; y: number } | null = null;
-  @state() private layers = new Set<Layer>(['cameras', 'doors', 'lights', 'sensors', 'zones']);
+  @state() private layers = new Set<Layer>(['cameras', 'doors', 'lights', 'sensors', 'zones', 'structure']);
+  /** Plan Studio: the published structure of the shown version (fetched by hash after the bundle). */
+  @state() private geometry: GeometryDoc | null = null;
+  private geomSeq = 0;
   @state() private pinned = false;
   @state() private panel = false;
   /** Multi-camera selection (T043): anchor ids of the picked cameras while the mode is on. */
@@ -774,6 +780,11 @@ export class ExploreFloorMap extends LitElement {
       this.noFloors = false;
       this.restoreLayers();
       this.bundle = await loadMap(this.floorId);
+      const seq = ++this.geomSeq;
+      this.geometry = null;
+      void geometryFor(this.bundle).then((g) => {
+        if (seq === this.geomSeq) this.geometry = g; // live HA updates replace the bundle object: compare loads, not objects
+      });
       if (this.bundle.source === 'api') this.startWs();
       void this.applyFocus();
     } catch (err) {
@@ -837,7 +848,7 @@ export class ExploreFloorMap extends LitElement {
   /** Items per layer for the panel (M07: counts next to every toggle). */
   private layerCounts(): Record<Layer, number> {
     const b = this.bundle;
-    const out: Record<Layer, number> = { cameras: 0, doors: 0, lights: 0, sensors: 0, zones: b?.zones.length ?? 0 };
+    const out: Record<Layer, number> = { cameras: 0, doors: 0, lights: 0, sensors: 0, zones: b?.zones.length ?? 0, structure: this.geometry?.walls.length ?? 0 };
     if (!b) return out;
     if (b.source === 'demo') {
       out.cameras = demoCameras.filter((c) => c.floorId === b.floorId).length;
@@ -870,11 +881,14 @@ export class ExploreFloorMap extends LitElement {
     this.setLayers(next);
   }
 
-  /** Layer state is remembered per floor in this browser (M07: "מצב שכבות נשמר עם התצוגה"); never on the server. */
+  /** Layer state is remembered per floor in this browser (M07: "מצב שכבות נשמר עם התצוגה"); never on the server.
+   * '-structure' records an explicit "off": lists stored before the structure layer existed must still show it. */
   private setLayers(next: Set<Layer>) {
     this.layers = next;
     try {
-      localStorage.setItem(`sw.floor.layers.${this.floorId}`, JSON.stringify([...next]));
+      const stored: string[] = [...next];
+      if (!next.has('structure')) stored.push('-structure');
+      localStorage.setItem(`sw.floor.layers.${this.floorId}`, JSON.stringify(stored));
     } catch {
       /* private mode or blocked storage: the choice lives for this page only */
     }
@@ -884,8 +898,11 @@ export class ExploreFloorMap extends LitElement {
     try {
       const raw = localStorage.getItem(`sw.floor.layers.${this.floorId}`);
       if (!raw) return;
-      const arr = JSON.parse(raw) as Layer[];
-      if (Array.isArray(arr)) this.layers = new Set(arr.filter((l) => ['cameras', 'doors', 'lights', 'sensors', 'zones'].includes(l)));
+      const arr = JSON.parse(raw) as string[];
+      if (!Array.isArray(arr)) return;
+      const next = new Set<Layer>(arr.filter((l): l is Layer => LAYERS.some((x) => x.id === l)));
+      if (!arr.includes('-structure')) next.add('structure');
+      this.layers = next;
     } catch {
       /* ignore */
     }
@@ -1413,6 +1430,7 @@ export class ExploreFloorMap extends LitElement {
       { id: 'lights', label: t('floor.lights'), count: `${counts.lights} ישויות` },
       { id: 'sensors', label: 'אבטחה וחיישנים', count: `${counts.sensors} ישויות` },
       { id: 'zones', label: 'שמות חדרים', count: counts.zones ? `${counts.zones} אזורים · תוויות לפי רמת זום` : 'אין חדרים מוגדרים' },
+      { id: 'structure', label: 'מבנה', count: this.geometry ? `${this.geometry.walls.length} קירות · ${this.geometry.openings.length} פתחים` : 'לא שורטט מבנה' },
     ];
     return html`<div class="panel" role="group" aria-label="שכבות פעילות" data-layers-panel>
       <h3>שכבות פעילות</h3>
@@ -1458,6 +1476,7 @@ export class ExploreFloorMap extends LitElement {
         .planHeight=${b.height}
         .plan=${b.planSvg}
         .imageUrl=${b.imageUrl}
+        .geometry=${this.layers.has('structure') ? this.geometry : null}
         .markers=${this.markers}
         .selectedId=${this.selectedId}
         .selectedIds=${this.multi ? this.picked : []}
