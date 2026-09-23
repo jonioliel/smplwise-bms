@@ -4319,8 +4319,10 @@ const SAVE_LABEL: Record<SaveState, string> = {
   error: 'השמירה נכשלה',
 };
 
-/** Metres for display: "≈" when the plan is not calibrated (design section 6). */
-export function fmtMetres(m: number, estimated: boolean): string {
+/** Metres for display: "≈" when the plan is not calibrated (design section 6). Owner decision 2026-09-23: the setting
+ * `plan.estimates` = false hides metres until the plan is calibrated (`show` = false). */
+export function fmtMetres(m: number, estimated: boolean, show = true): string {
+  if (estimated && !show) return 'לא מכויל';
   return `${estimated ? '≈' : ''}${m < 10 ? m.toFixed(2) : m.toFixed(1)} מ׳`;
 }
 
@@ -4342,6 +4344,8 @@ export interface StudioView {
   exportSvg: string;
   exportPng: string;
   busy: boolean;
+  /** Setting `plan.estimates`: show estimated metres ("≈") before calibration, or hide them. */
+  showEstimates: boolean;
 }
 
 export interface StudioActions {
@@ -4413,7 +4417,7 @@ function renderWall(w: GeomWall, v: StudioView, a: StudioActions, scale: number,
   const len = lengthPx(w.polyline, v.W, v.H) * scale;
   const openings = v.doc.openings.filter((o) => o.wall_id === w.id).length;
   return html`<div class="sel" data-selected-wall=${w.id}>
-    <div class="selhead"><strong>קיר ${WALL_KIND_LABEL[w.kind]}</strong><span class="muted">${fmtMetres(len, estimated)} · ${openings} פתחים</span></div>
+    <div class="selhead"><strong>קיר ${WALL_KIND_LABEL[w.kind]}</strong><span class="muted">${fmtMetres(len, estimated, v.showEstimates)} · ${openings} פתחים</span></div>
     <div class="two">
       <sw-field label="עובי (מ׳)"><input type="number" min="0.01" max="3" step="0.01" data-ltr .value=${String(w.thickness_m)}
         @change=${(e: Event) => { const x = numberOf(e); if (x > 0 && x <= 3) a.patchWall(w.id, { thickness_m: x }); }} /></sw-field>
@@ -4591,6 +4595,7 @@ Imports, after the `../api/zones` import line:
 
 ```ts
 import { copyGeometryFrom, exportUrl } from '../api/geometry';
+import { productSettings } from '../api/prefs';
 import { nearestWall, pointOnWall, snapPoint, type GeometryDoc, type Pt } from '../map/geometry';
 import { StudioController } from '../map/studio-controller';
 import { addLabel, addOpening, addWall, moveVertex, patchLabel, patchOpening, patchWall, removeItem, type WallDefaults } from '../map/studio-ops';
@@ -4629,6 +4634,8 @@ State, after `@query('sw-plan-canvas') private canvas?: SwPlanCanvas;`:
   @state() private geomSel: GeomSel | null = null;
   @state() private wallDraft: Pt[] | null = null;
   @state() private hover: Pt | null = null;
+  /** Setting `plan.estimates` (default true): estimated metres carry "≈" before calibration; false hides them. */
+  @state() private showEstimates = true;
 ```
 
 Replace `disconnectedCallback` with:
@@ -4645,7 +4652,12 @@ In `load()`, right after `this.bundle = b;` add:
 
 ```ts
       void this.loadStudio(b);
+      void productSettings().then((s) => {
+        this.showEstimates = s['plan.estimates'] !== 'false'; // the key exists on ProductSettings from Task 13; until then it is simply undefined
+      });
 ```
+
+(`'plan.estimates'` is added to the `ProductSettings` interface in Task 13; add it now as `'plan.estimates'?: 'true' | 'false';` in `frontend/src/api/media.ts`, after `'snapshots.max_age_s': number;`, so this compiles.)
 
 In `handleKey`, replace the Escape block and the `typing` guard
 
@@ -4934,6 +4946,7 @@ Add this block right after `pickTool`:
       {
         doc, W: b.width, H: b.height, mode: this.studioMode, wallDefaults: this.wallDefaults, sel: this.geomSel, saveState: this.studio.saveState, saveError: this.studio.error,
         issues: this.studio.issues, copyCandidates: this.studio.copyCandidates, exportSvg: exportUrl(versionId, 'svg', { draft: true }), exportPng: exportUrl(versionId, 'png', { draft: true }), busy: this.busy,
+        showEstimates: this.showEstimates,
       },
       {
         setMode: (m) => {
@@ -5023,6 +5036,8 @@ test "$(bash /c/cloude/smplwisebms/secrets/scan_staged.sh)" = 0 && git commit -F
 ### Task 13: Calibration and measuring in the editor
 
 **Files:**
+- Modify: `smplwise_vms/backend/smplwise/routers/settings.py` (setting `plan.estimates`), `frontend/src/api/media.ts` (its type), `frontend/src/screens/system-diagnostics.ts` (its row)
+- Create: `smplwise_vms/backend/tests/test_plan_estimates_setting.py`
 - Modify: `frontend/src/map/sw-plan-canvas.ts` (rulers)
 - Modify: `frontend/src/screens/plan-studio-panel.ts` (calibration and measure panels, the calibrate action)
 - Modify: `frontend/src/screens/explore-plan-editor.ts` (two tools, state, clicks, rulers, save)
@@ -5031,6 +5046,62 @@ test "$(bash /c/cloude/smplwisebms/secrets/scan_staged.sh)" = 0 && git commit -F
 **Interfaces:**
 - Consumes: `calibrate(versionId, pairs)` (Task 10), `PATCH /plan-versions/{id}/calibration` (Task 6), `effectiveScale`, `distanceM`, `lengthPx`, `polygonAreaM2`, `perimeterM` (Task 9), `fmtMetres`, `fmtScale` (Task 12).
 - Produces: canvas `RulerOverlay {a, b, label, tone: 'accent'|'muted'}` and property `rulers`, DOM `[data-ruler]`; panel `fmtArea`, `CalibView`, `renderCalibPanel`, `renderMeasurePanel`, action `calibrate()`, DOM `[data-studio-calibrate]`, `[data-calib-panel]`, `[data-calib-metres]`, `[data-calib-save]`, `[data-calib-reset]`, `[data-calib-result]`, `[data-calib-warning]`, `[data-measure-panel]`, `[data-measure-distance]`, `[data-measure-area]`, `[data-measure-clear]`; editor tools `[data-tool="calibrate"]`, `[data-tool="measure"]`.
+
+- [ ] **Step 0: The setting `plan.estimates` (owner decision 2026-09-23)**
+
+Before calibration the editor shows estimated metres marked "≈" (the default); the setting lets an installation hide metres until the plan is calibrated. Failing test first, `smplwise_vms/backend/tests/test_plan_estimates_setting.py`:
+
+```python
+"""Plan Studio (T084, owner decision 2026-09-23): the setting plan.estimates says whether the editor shows estimated
+metres ("≈") before a plan is calibrated (default) or hides them until calibration."""
+from __future__ import annotations
+
+from conftest import as_user, bind
+from fastapi.testclient import TestClient
+
+from smplwise.main import create_app
+
+
+def test_plan_estimates_setting_defaults_to_true_and_accepts_only_booleans(settings):
+    c = TestClient(create_app(settings))
+    assert c.get("/api/v1/settings").json()["settings"]["plan.estimates"] == "true"
+    assert c.patch("/api/v1/settings", json={"plan.estimates": "false"}).json()["settings"]["plan.estimates"] == "false"
+    assert c.get("/api/v1/settings").json()["settings"]["plan.estimates"] == "false"
+    assert c.patch("/api/v1/settings", json={"plan.estimates": "maybe"}).status_code == 422
+    bind(c, settings, "dana", "viewer", "installation", "*")
+    assert c.patch("/api/v1/settings", json={"plan.estimates": "true"}, headers=as_user("dana")).status_code == 403
+```
+
+Run: `cd smplwise_vms/backend && MSYS_NO_PATHCONV=1 $PY -m pytest tests/test_plan_estimates_setting.py -p no:cacheprovider` → FAIL (`KeyError: 'plan.estimates'`).
+
+In `routers/settings.py`, add to `DEFAULTS` after the `"history.ha_secondary"` line:
+
+```python
+    "plan.estimates": "true",  # Plan Studio: show estimated metres (≈) before a plan is calibrated; false hides metres until calibration (owner decision 2026-09-23)
+```
+
+and to `SettingsPatch` after the `history_ha_secondary` field:
+
+```python
+    plan_estimates: str | None = Field(default=None, pattern="^(true|false)$", alias="plan.estimates")
+```
+
+Run the test again → `1 passed`; also `tests/test_ui_settings.py` → unchanged.
+
+In `frontend/src/api/media.ts`, add to `ProductSettings` after `'snapshots.max_age_s': number;` (if Task 12 did not already):
+
+```ts
+  'plan.estimates'?: 'true' | 'false';
+```
+
+In `frontend/src/screens/system-diagnostics.ts`, add after the `history.ha_secondary` row (the `<div class="row">` whose select carries `data-set-ha-secondary`):
+
+```ts
+        <div class="row"><span class="lbl">מידות לפני כיול<span class="muted">בעורך התוכנית, כשגרסת התוכנית עדיין לא כוילה: להציג אורכים ושטחים משוערים עם ≈, או להסתיר מטרים עד הכיול</span></span>
+          <sw-field class="ctl"><select data-set-plan-estimates ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('plan.estimates', (e.target as HTMLSelectElement).value)}>
+            <option value="true" ?selected=${String(this.value('plan.estimates') ?? 'true') !== 'false'}>משוערות עם ≈</option><option value="false" ?selected=${String(this.value('plan.estimates') ?? 'true') === 'false'}>מוסתרות עד כיול</option>
+          </select></sw-field></div>
+```
 
 - [ ] **Step 1: Failing live test**
 
@@ -5041,6 +5112,12 @@ Append inside the `test.describe.serial` block of `frontend/tests/evidence-plan-
     const ed = 'explore-plan-editor';
     await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
     await expect(page.locator(`${ed} sw-plan-canvas [data-wall]`).first()).toBeVisible({ timeout: 20000 });
+    // before calibration: estimates, marked "≈" (the default of plan.estimates)
+    await page.locator(`${ed} [data-tool="measure"]`).click();
+    await clickPlan(page, ed, 0.3, 0.3);
+    await clickPlan(page, ed, 0.55, 0.3);
+    await expect(page.locator(`${ed} [data-measure-distance]`)).toContainText('≈');
+    await page.locator(`${ed} [data-measure-clear]`).click();
     await page.locator(`${ed} [data-tool="calibrate"]`).click();
     await expect(page.locator(`${ed} [data-calib-panel]`)).toBeVisible();
     await clickPlan(page, ed, 0.2, 0.5);
@@ -5155,7 +5232,8 @@ import { effectiveScale, lengthPx, perimeterM, polygonAreaM2, type GeometryDoc, 
 After `fmtScale` add:
 
 ```ts
-export function fmtArea(m2: number, estimated: boolean): string {
+export function fmtArea(m2: number, estimated: boolean, show = true): string {
+  if (estimated && !show) return 'לא מכויל';
   return `${estimated ? '≈' : ''}${m2 < 100 ? m2.toFixed(1) : m2.toFixed(0)} מ״ר`;
 }
 ```
@@ -5183,6 +5261,7 @@ export interface CalibView {
   pixels: number | null;
   scale: number;
   estimated: boolean;
+  showEstimates: boolean;
   result: string;
   warning: string;
   busy: boolean;
@@ -5191,7 +5270,8 @@ export interface CalibView {
 export function renderCalibPanel(v: CalibView, onMetres: (value: string) => void, onSave: () => void, onReset: () => void): TemplateResult {
   const metres = parseFloat(v.metres);
   const ready = !!v.a && !!v.b && metres > 0 && !v.busy;
-  return html`<sw-card heading="כיול קנה מידה" subheading=${v.estimated ? 'התוכנית לא מכוילת: מידות מוצגות כמשוערות (≈)' : `מכויל · ${fmtScale(v.scale)}`} data-calib-panel>
+  const notCalibrated = v.showEstimates ? 'התוכנית לא מכוילת: מידות מוצגות כמשוערות (≈)' : 'התוכנית לא מכוילת: מידות מוסתרות עד הכיול (הגדרות)';
+  return html`<sw-card heading="כיול קנה מידה" subheading=${v.estimated ? notCalibrated : `מכויל · ${fmtScale(v.scale)}`} data-calib-panel>
     <ol class="steps">
       <li class=${v.a ? 'done' : ''}>לחץ על נקודה שהמרחק ממנה ידוע, למשל פינת קיר</li>
       <li class=${v.b ? 'done' : ''}>לחץ על הנקודה השנייה</li>
@@ -5210,13 +5290,14 @@ export function renderCalibPanel(v: CalibView, onMetres: (value: string) => void
   </sw-card>`;
 }
 
-export function renderMeasurePanel(pts: Pt[], W: number, H: number, scale: number, estimated: boolean, onClear: () => void): TemplateResult {
+export function renderMeasurePanel(pts: Pt[], W: number, H: number, scale: number, estimated: boolean, show: boolean, onClear: () => void): TemplateResult {
   const total = pts.length > 1 ? lengthPx(pts, W, H) * scale : 0;
-  return html`<sw-card heading="מדידה" subheading=${estimated ? 'לא מכויל: הערכים משוערים (≈)' : 'לפי הכיול של גרסת התוכנית'} data-measure-panel>
+  const sub = estimated ? (show ? 'לא מכויל: הערכים משוערים (≈)' : 'לא מכויל: המידות מוסתרות עד הכיול (הגדרות)') : 'לפי הכיול של גרסת התוכנית';
+  return html`<sw-card heading="מדידה" subheading=${sub} data-measure-panel>
     <div class="note">לחץ נקודות על התוכנית. Shift מבטל הצמדה לזוויות, Esc מנקה.</div>
-    <div class="measure-val" data-measure-distance>${pts.length > 1 ? fmtMetres(total, estimated) : '—'}</div>
+    <div class="measure-val" data-measure-distance>${pts.length > 1 ? fmtMetres(total, estimated, show) : '—'}</div>
     ${pts.length >= 3
-      ? html`<div class="note">שטח המצולע <span class="measure-val" data-measure-area>${fmtArea(polygonAreaM2(pts, W, H, scale), estimated)}</span> · היקף ${fmtMetres(perimeterM(pts, W, H, scale), estimated)}</div>`
+      ? html`<div class="note">שטח המצולע <span class="measure-val" data-measure-area>${fmtArea(polygonAreaM2(pts, W, H, scale), estimated, show)}</span> · היקף ${fmtMetres(perimeterM(pts, W, H, scale), estimated, show)}</div>`
       : nothing}
     <div class="btns"><sw-button variant="ghost" size="sm" data-measure-clear ?disabled=${!pts.length} @click=${onClear}>נקה</sw-button></div>
   </sw-card>`;
@@ -5349,7 +5430,7 @@ Add after `renderStructurePanel`:
     const doc = this.studio.doc;
     if (!bundle || !doc) return [];
     const { scale, estimated } = effectiveScale(doc);
-    const len = (a: Pt, c: Pt) => fmtMetres(distanceM(a, c, bundle.width, bundle.height, scale), estimated);
+    const len = (a: Pt, c: Pt) => fmtMetres(distanceM(a, c, bundle.width, bundle.height, scale), estimated, this.showEstimates);
     if (this.tool === 'calibrate') {
       const { a, b: end, metres } = this.calib;
       const tip = end ?? this.hover;
@@ -5393,7 +5474,7 @@ Add after `renderStructurePanel`:
     const c = this.calib;
     const pixels = c.a && c.b ? Math.hypot((c.b[0] - c.a[0]) * bundle.width, (c.b[1] - c.a[1]) * bundle.height) : null;
     return renderCalibPanel(
-      { a: c.a, b: c.b, metres: c.metres, pixels, scale, estimated, result: c.result, warning: c.warning, busy: this.busy },
+      { a: c.a, b: c.b, metres: c.metres, pixels, scale, estimated, showEstimates: this.showEstimates, result: c.result, warning: c.warning, busy: this.busy },
       (value) => {
         this.calib = { ...this.calib, metres: value };
       },
@@ -5408,7 +5489,7 @@ Add after `renderStructurePanel`:
     const doc = this.studio.doc;
     if (!doc) return html`<sw-card heading="מדידה"><div class="note">${bundle.source === 'demo' ? 'נתוני הדגמה: המדידה עובדת מול השרת.' : 'טוען…'}</div></sw-card>`;
     const { scale, estimated } = effectiveScale(doc);
-    return renderMeasurePanel(this.measurePts, bundle.width, bundle.height, scale, estimated, () => {
+    return renderMeasurePanel(this.measurePts, bundle.width, bundle.height, scale, estimated, this.showEstimates, () => {
       this.measurePts = [];
     });
   }
@@ -5779,7 +5860,8 @@ Insert at the top of `smplwise_vms/CHANGELOG.md`, right after the `# Changelog �
   corners and to 45 degrees, doors / windows / passages placed on a wall (they cut it), labels, selection, dragging
   of corners, openings and labels, undo / redo and a server-side draft saved two seconds after the last edit;
   **calibrate** - two points and a known distance (more pairs expose a distorted scan); **measure** - distance,
-  area and perimeter in metres, marked "≈" until the plan is calibrated.
+  area and perimeter in metres, marked "≈" until the plan is calibrated (the new setting "מידות לפני כיול" /
+  `plan.estimates` hides them until calibration instead - owner decision 2026-09-23).
 - A draft belongs to the editor: viewers keep the published structure until "פרסום המבנה" (a preview of what
   changes; blocked while the validator reports errors, which are red on the map and listed in the panel).
   Publishing a draft plan version publishes its structure with it and refuses (422) before anything changes when
@@ -5897,6 +5979,7 @@ Create `docs/operations/PLAN_STUDIO_PHASE1_CHECKLIST_HE.md`:
 | 13 | בפאנל המבנה: SVG, PNG, JSON | שלושה קבצים יורדים; ה־SVG נפתח בדפדפן |
 | 14 | משתמש צופה (בלי הרשאת עריכה) פותח את המפה | רואה רק את המבנה המפורסם, לא טיוטה |
 | 15 | אופציונלי: גיבוי ושחזור של הפרויקט | המבנה חוזר כפי שהיה |
+| 16 | הגדרות ← "מידות לפני כיול" ← "מוסתרות עד כיול", ואז כלי המדידה בגרסת תוכנית שעדיין לא כוילה | במקום מספרים עם ≈ מוצג "לא מכויל"; אחרי החזרה ל"משוערות עם ≈" המספרים חוזרים |
 
 **חשוב לדעת:** טיוטה לא מגיעה לצופים עד הפרסום. שגיאה במבנה (למשל קיר מחוץ לתוכנית) מסומנת באדום, מופיעה ברשימת
 הבעיות בפאנל וחוסמת פרסום; לחיצה עליה מביאה לפריט.
