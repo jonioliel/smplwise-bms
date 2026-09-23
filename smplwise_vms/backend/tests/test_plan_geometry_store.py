@@ -13,6 +13,7 @@ from smplwise.db import new_id, now_iso
 from smplwise.errors import ApiError
 from smplwise.main import create_app
 from smplwise.services import geometry_store as store
+from smplwise.services import plan_geometry as pg
 
 WALL = {"id": "w1", "level_id": "L0", "polyline": [[0.1, 0.2], [0.6, 0.2]], "thickness_m": 0.2, "height_m": None, "base_z_m": 0, "kind": "interior",
         "confidence": 1, "source": "manual", "locked": False, "external_ids": {}}
@@ -142,3 +143,24 @@ def test_structure_follows_a_new_version_of_the_same_drawing(settings):
         with pytest.raises(ApiError) as e:
             store.copy_from(conn, turned, _version(conn, vid), "u")
         assert e.value.code == "not_empty"
+
+
+def test_copy_from_maps_a_recrop_and_refuses_an_empty_source(settings):
+    app, vid = _setup(settings)
+    with app.state.db.connection() as conn:
+        v = _version(conn, vid)
+        doc, _ = store.working_doc(conn, v)
+        store.save_draft(conn, v, _with(doc, WALL), 0, "u")
+        store.publish(conn, v, "u")
+        half = _clone(conn, _version(conn, vid), crop={"x": 0.0, "y": 0.0, "w": 0.5, "h": 1.0}, width=640)
+        mapped = store.load_doc(store.copy_from(conn, half, _version(conn, vid), "u"))
+        assert mapped["walls"][0]["polyline"] == [[0.2, 0.2], [1.0, 0.2]], "a manual copy maps a re-crop of the same page as carry does"
+        assert any("חיתוך" in n for n in mapped["uncertainty"]["notes"])
+        explicit = _clone(conn, _version(conn, vid), crop={"x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0})
+        assert store.carry(conn, explicit, "u") == "copied", "an explicit full crop is the same crop as none"
+        assert not any("חיתוך" in n for n in store.load_doc(store.draft_row(conn, explicit["id"]))["uncertainty"]["notes"])
+        blank = _clone(conn, _version(conn, vid))
+        store.save_draft(conn, blank, pg.new_document(blank, None), 0, "u")
+        with pytest.raises(ApiError) as e:
+            store.copy_from(conn, _clone(conn, _version(conn, vid)), blank, "u")
+        assert e.value.code == "nothing_to_copy"

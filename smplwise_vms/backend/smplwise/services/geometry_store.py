@@ -193,7 +193,7 @@ def carry(conn: sqlite3.Connection, target: sqlite3.Row, actor_id: str | None, n
     if pg.is_empty(doc) or not _same_drawing(source, target):
         return "none"
     mode = "copied"
-    if (source["crop_json"] or None) != (target["crop_json"] or None):
+    if _crop(source) != _crop(target):  # parsed, so no crop and an explicit full crop are the same crop
         doc = pg.transform_crop(doc, _crop(source), _crop(target))
         mode = "transformed"
     carry_calibration(conn, source, target)
@@ -217,15 +217,20 @@ def copy_candidates(conn: sqlite3.Connection, target: sqlite3.Row) -> list[dict[
 
 
 def copy_from(conn: sqlite3.Connection, target: sqlite3.Row, source: sqlite3.Row, actor_id: str | None, now: str | None = None) -> sqlite3.Row:
+    """The editor's manual copy into a version without structure: a re-crop of the same page maps every point through
+    both crops (as carry does), another drawing is copied as it is with a note that nothing was aligned."""
     now = now or now_iso()
     current, draft = working_doc(conn, target)
     if not pg.is_empty(current):
         raise conflict("not_empty", "לגרסה הזו כבר יש מבנה; מחק אותו לפני העתקה.")
     row = published_row(conn, source["id"]) or draft_row(conn, source["id"])
-    if row is None:
+    source_doc = load_doc(row) if row is not None else None
+    if source_doc is None or pg.is_empty(source_doc):
         raise conflict("nothing_to_copy", "לגרסה שנבחרה אין מבנה.")
-    doc = pg.rebase(load_doc(row), target, _asset(conn, target))
+    doc = pg.rebase(source_doc, target, _asset(conn, target))
     if not _same_drawing(source, target):
         unc = doc.get("uncertainty") or {"overall": 0.5, "notes": []}
         doc["uncertainty"] = {**unc, "notes": [*unc.get("notes", []), "המבנה הועתק מגרסה עם שרטוט אחר, בלי יישור — בדוק מיקומים."]}
+    elif _crop(source) != _crop(target):
+        doc = pg.transform_crop(doc, _crop(source), _crop(target))
     return save_draft(conn, target, doc, draft["revision"] if draft is not None else 0, actor_id, now)
