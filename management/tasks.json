@@ -3477,7 +3477,8 @@
     "phase": "V2",
     "dependencies": [
       "T020",
-      "T059"
+      "T059",
+      "T086"
     ],
     "chapters": [
       11,
@@ -4525,6 +4526,371 @@
     "evidence": [
       "partial (2026-09-15): the three-identity scenario runs in tests/test_rbac.py + tests/test_access.py (explicit VMS admin, dana editor of floor 2 only, unassigned codex): floor 2 editable, floor 3 / users / sync refused, no HA escalation path exists (no HA writes anywhere); still open on the lab: a real second HA user through Ingress, downgrade during video, delete/restore and last-admin recovery on the live add-on"
     ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "T084",
+    "title": "סטודיו התוכנית 1 — מסמך גאומטריה, כיול, קירות ופתחים בכל המפות",
+    "epic": "MAP",
+    "phase": "V2",
+    "dependencies": [
+      "T020",
+      "T021",
+      "T038"
+    ],
+    "chapters": [
+      10,
+      11,
+      12,
+      16,
+      18
+    ],
+    "screens": [
+      "SC04",
+      "SC05",
+      "SC06",
+      "SC11",
+      "SC32"
+    ],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "כיול קנה מידה בשתי נקודות ומרחק ידוע, ומיחידות השרטוט ב־DXF, עם סטטוס measured/estimated/missing ושארית; שינוי כיול אינו מזיז אף עצם, ומטרים מוצגים רק כשהתוכנית מכוילת.",
+      "מסמך גאומטריה קנוני v2 לכל גרסת תוכנית (קירות, פתחים, מפלסים, תוויות, external_ids) עם טיוטה, פרסום, diff, rollback, אודיט ונעילה אופטימית; שכבת המבנה מוצגת בכל מסך מפה במערכת (מפה חיה, עורך, מפה היסטורית בזמן t, עמוד אירוע, Lovelace), עוברת לגרסת תוכנית חדשה ונכללת בגיבוי."
+    ],
+    "requirement_ids": [
+      "R167",
+      "R168"
+    ],
+    "test_ids": [
+      "AT167",
+      "AT168"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch",
+      "Acceptance evidence tied to commit and environment",
+      "Documentation, known limits and rollback notes",
+      "Desktop/mobile/RTL screenshots for UI tasks"
+    ],
+    "evidence": [],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "T085",
+    "title": "סטודיו התוכנית 2 — ספריית עצמים, מפלסים ותאורה",
+    "epic": "MAP",
+    "phase": "V2",
+    "dependencies": [
+      "T084"
+    ],
+    "chapters": [
+      10,
+      12,
+      13
+    ],
+    "screens": [
+      "SC04",
+      "SC06",
+      "SC19"
+    ],
+    "owner_role": "frontend",
+    "requires_hardware": true,
+    "acceptance": [
+      "ספריית עצמים מובנית (כ־150 פריטים ב־12 קטגוריות, כולל רפואה, ספורט ובטיחות) ופריטים מותאמים, עם חיפוש בעברית ובאנגלית, הצבה, סיבוב, מתיחה ומערך; עצם שמייצג ישות HA הוא הגוף של העוגן הקיים — מיקום אחד, מצב חי אחד, אותן הרשאות.",
+      "מפלסים בקומה (גובה רצפה ותקרה, גם לעוגנים ולחדרים) ומחברים (מדרגות, רמפה, טריבונה, מעלית) בין מפלסים וקומות; מעגלי תאורה (כמה מנורות על ישות מפסק ב־HA) במצב חי ובהפעלה מהמפה החיה בהרשאה; עצמים נמצאים בחיפוש הגלובלי."
+    ],
+    "requirement_ids": [
+      "R169",
+      "R170"
+    ],
+    "test_ids": [
+      "AT169",
+      "AT170"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch",
+      "Acceptance evidence tied to commit and environment",
+      "Documentation, known limits and rollback notes",
+      "Desktop/mobile/RTL screenshots for UI tasks"
+    ],
+    "evidence": [],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "T086",
+    "title": "סטודיו התוכנית 3 — זיהוי אוטומטי של קירות, דלתות וחלונות",
+    "epic": "MAP",
+    "phase": "V2",
+    "dependencies": [
+      "T084"
+    ],
+    "chapters": [
+      11,
+      17,
+      18
+    ],
+    "screens": [
+      "SC05",
+      "SC06"
+    ],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "זיהוי מקומי, בלי ענן, של קירות, דלתות וחלונות מתוכנית רסטר, ומיפוי שכבות ובלוקים מ־DXF, כמועמדים עם ציון ביטחון ומסך קבל/דחה/ערוך; שום מועמד אינו מתפרסם בלי אדם.",
+      "סט תוכניות בדיקה (סינתטיות ואמיתיות מצונזרות) עם baseline: לפחות 90% מהקירות ו־80% מהדלתות על סט הייחוס, עד 15 שניות לתוכנית A3; רמז כיול מרוחב דלת מסומן כמשוער."
+    ],
+    "requirement_ids": [
+      "R171",
+      "R172"
+    ],
+    "test_ids": [
+      "AT171",
+      "AT172"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch",
+      "Acceptance evidence tied to commit and environment",
+      "Documentation, known limits and rollback notes",
+      "Desktop/mobile/RTL screenshots for UI tasks"
+    ],
+    "evidence": [],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "T087",
+    "title": "סטודיו התוכנית 4 — תלת־ממד בתוך המפה",
+    "epic": "MAP",
+    "phase": "V2",
+    "dependencies": [
+      "T084",
+      "T085"
+    ],
+    "chapters": [
+      10,
+      13,
+      16
+    ],
+    "screens": [
+      "SC03",
+      "SC04",
+      "SC11",
+      "SC32"
+    ],
+    "owner_role": "frontend",
+    "requires_hardware": true,
+    "acceptance": [
+      "תצוגת 3D בתוך מסך המפה (מתג 2D/3D), גם במפה ההיסטורית ובעמוד האירוע, הנבנית באופן דטרמיניסטי מהמסמך: קירות בגובה, פתחים, עצמים, מפלסים ומחברים, מצלמות עם קונוס וישויות HA במצב חי; הבחירה מסונכרנת עם ה־2D והפעולות באותן הרשאות.",
+      "ה־3D נטען כ־chunk נפרד (עד 200KB gzip) רק לפי דרישה, עובד בטלפון ובכרטיס ה־Lovelace (לפחות 30fps עד 3,000 עצמים) ומייצא glTF; כיסוי המצלמות נעצר בקירות (מידע תכנוני) ודף המבנה מציג איזומטרי אמיתי."
+    ],
+    "requirement_ids": [
+      "R173",
+      "R174"
+    ],
+    "test_ids": [
+      "AT173",
+      "AT174"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch",
+      "Acceptance evidence tied to commit and environment",
+      "Documentation, known limits and rollback notes",
+      "Desktop/mobile/RTL screenshots for UI tasks"
+    ],
+    "evidence": [],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "T088",
+    "title": "סטודיו התוכנית 5 — ייצוא, DXF וחבילות תוכנית",
+    "epic": "MAP",
+    "phase": "V2",
+    "dependencies": [
+      "T084",
+      "T085"
+    ],
+    "chapters": [
+      11,
+      12
+    ],
+    "screens": [
+      "SC05",
+      "SC06"
+    ],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "ייצוא SVG/PNG דטרמיניסטי, DXF עם שכבות מוגדרות, וחבילת תוכנית חתומה (מקור, גאומטריה, חדרים, עוגנים, פריטים מותאמים ודוח) עם ייבוא שמשחזר את התוכנית כטיוטה ומדווח על ישויות חסרות.",
+      "round-trip: ייצוא וייבוא של חבילה מחזירים אותו hash גאומטרי; DXF מיוצא נקרא חזרה עם אותן ישויות; ייבוא JSON עובר ולידציה מלאה ונכנס כטיוטה."
+    ],
+    "requirement_ids": [
+      "R175",
+      "R176"
+    ],
+    "test_ids": [
+      "AT175",
+      "AT176"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch",
+      "Acceptance evidence tied to commit and environment",
+      "Documentation, known limits and rollback notes"
+    ],
+    "evidence": [],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "T089",
+    "title": "סטודיו התוכנית 6 — תלת־ממד ריאליסטי וסיור בגובה עין",
+    "epic": "MAP",
+    "phase": "V2",
+    "dependencies": [
+      "T087"
+    ],
+    "chapters": [
+      10,
+      13
+    ],
+    "screens": [
+      "SC04"
+    ],
+    "owner_role": "frontend",
+    "requires_hardware": false,
+    "acceptance": [
+      "רמת 3D ריאליסטית (חומרים, צללים, שעה ביום) כמתג איכות, וסיור בגובה עין עם התנגשות בקירות ומעבר בדלתות פתוחות.",
+      "ביצועים: לפחות 30fps בטלפון בסצנה של 1,000 עצמים; ברירת המחדל נשארת סכמטית."
+    ],
+    "requirement_ids": [
+      "R177",
+      "R178"
+    ],
+    "test_ids": [
+      "AT177",
+      "AT178"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch",
+      "Acceptance evidence tied to commit and environment",
+      "Documentation, known limits and rollback notes",
+      "Desktop/mobile/RTL screenshots for UI tasks"
+    ],
+    "evidence": [],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "T090",
+    "title": "סטודיו התוכנית 8 — BIM / IFC",
+    "epic": "MAP",
+    "phase": "V2",
+    "dependencies": [
+      "T085",
+      "T088"
+    ],
+    "chapters": [
+      11,
+      17,
+      18
+    ],
+    "screens": [
+      "SC05",
+      "SC06"
+    ],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "ייצוא IFC4 של הקומה בכותב עצמי: IfcBuildingStorey לכל מפלס, קירות, פתחים, חללים, עצמים לפי מחלקת IFC מהספרייה, מצלמות כ־IfcAudioVisualAppliance ומזהי HA ב־property set, עם GlobalId יציב בין ייצואים.",
+      "ייבוא IFC (קומות, קירות, פתחים, חללים, ריהוט) כמועמדים למסך האישור, אחרי בדיקת זמינות של IfcOpenShell (LGPL) על תמונת ה־add-on; ייבוא חלקי מדווח ואינו מתקבל בשקט."
+    ],
+    "requirement_ids": [
+      "R179",
+      "R180"
+    ],
+    "test_ids": [
+      "AT179",
+      "AT180"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch",
+      "Acceptance evidence tied to commit and environment",
+      "Documentation, known limits and rollback notes"
+    ],
+    "evidence": [],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null

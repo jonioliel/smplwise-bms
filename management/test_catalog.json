@@ -4677,5 +4677,397 @@
     "evidence": [],
     "executed_at": null,
     "notes": "Planning only. Follow docs/security/HA_IDENTITY_RBAC_HE.md; real hardware run is required where specified."
+  },
+  {
+    "id": "AT167",
+    "requirement_ids": [
+      "R167"
+    ],
+    "task_ids": [
+      "T084"
+    ],
+    "title": "סטודיו התוכנית 1 — מסמך גאומטריה, כיול, קירות ופתחים בכל המפות — 1",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "כיול קנה מידה בשתי נקודות ומרחק ידוע, ומיחידות השרטוט ב־DXF, עם סטטוס measured/estimated/missing ושארית; שינוי כיול אינו מזיז אף עצם, ומטרים מוצגים רק כשהתוכנית מכוילת.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT168",
+    "requirement_ids": [
+      "R168"
+    ],
+    "task_ids": [
+      "T084"
+    ],
+    "title": "סטודיו התוכנית 1 — מסמך גאומטריה, כיול, קירות ופתחים בכל המפות — 2",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "מסמך גאומטריה קנוני v2 לכל גרסת תוכנית (קירות, פתחים, מפלסים, תוויות, external_ids) עם טיוטה, פרסום, diff, rollback, אודיט ונעילה אופטימית; שכבת המבנה מוצגת בכל מסך מפה במערכת (מפה חיה, עורך, מפה היסטורית בזמן t, עמוד אירוע, Lovelace), עוברת לגרסת תוכנית חדשה ונכללת בגיבוי.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT169",
+    "requirement_ids": [
+      "R169"
+    ],
+    "task_ids": [
+      "T085"
+    ],
+    "title": "סטודיו התוכנית 2 — ספריית עצמים, מפלסים ותאורה — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "ספריית עצמים מובנית (כ־150 פריטים ב־12 קטגוריות, כולל רפואה, ספורט ובטיחות) ופריטים מותאמים, עם חיפוש בעברית ובאנגלית, הצבה, סיבוב, מתיחה ומערך; עצם שמייצג ישות HA הוא הגוף של העוגן הקיים — מיקום אחד, מצב חי אחד, אותן הרשאות.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT170",
+    "requirement_ids": [
+      "R170"
+    ],
+    "task_ids": [
+      "T085"
+    ],
+    "title": "סטודיו התוכנית 2 — ספריית עצמים, מפלסים ותאורה — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "מפלסים בקומה (גובה רצפה ותקרה, גם לעוגנים ולחדרים) ומחברים (מדרגות, רמפה, טריבונה, מעלית) בין מפלסים וקומות; מעגלי תאורה (כמה מנורות על ישות מפסק ב־HA) במצב חי ובהפעלה מהמפה החיה בהרשאה; עצמים נמצאים בחיפוש הגלובלי.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT171",
+    "requirement_ids": [
+      "R171"
+    ],
+    "task_ids": [
+      "T086"
+    ],
+    "title": "סטודיו התוכנית 3 — זיהוי אוטומטי של קירות, דלתות וחלונות — 1",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "זיהוי מקומי, בלי ענן, של קירות, דלתות וחלונות מתוכנית רסטר, ומיפוי שכבות ובלוקים מ־DXF, כמועמדים עם ציון ביטחון ומסך קבל/דחה/ערוך; שום מועמד אינו מתפרסם בלי אדם.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT172",
+    "requirement_ids": [
+      "R172"
+    ],
+    "task_ids": [
+      "T086"
+    ],
+    "title": "סטודיו התוכנית 3 — זיהוי אוטומטי של קירות, דלתות וחלונות — 2",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "סט תוכניות בדיקה (סינתטיות ואמיתיות מצונזרות) עם baseline: לפחות 90% מהקירות ו־80% מהדלתות על סט הייחוס, עד 15 שניות לתוכנית A3; רמז כיול מרוחב דלת מסומן כמשוער.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT173",
+    "requirement_ids": [
+      "R173"
+    ],
+    "task_ids": [
+      "T087"
+    ],
+    "title": "סטודיו התוכנית 4 — תלת־ממד בתוך המפה — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "תצוגת 3D בתוך מסך המפה (מתג 2D/3D), גם במפה ההיסטורית ובעמוד האירוע, הנבנית באופן דטרמיניסטי מהמסמך: קירות בגובה, פתחים, עצמים, מפלסים ומחברים, מצלמות עם קונוס וישויות HA במצב חי; הבחירה מסונכרנת עם ה־2D והפעולות באותן הרשאות.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT174",
+    "requirement_ids": [
+      "R174"
+    ],
+    "task_ids": [
+      "T087"
+    ],
+    "title": "סטודיו התוכנית 4 — תלת־ממד בתוך המפה — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Dedicated authorized test environment"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "ה־3D נטען כ־chunk נפרד (עד 200KB gzip) רק לפי דרישה, עובד בטלפון ובכרטיס ה־Lovelace (לפחות 30fps עד 3,000 עצמים) ומייצא glTF; כיסוי המצלמות נעצר בקירות (מידע תכנוני) ודף המבנה מציג איזומטרי אמיתי.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT175",
+    "requirement_ids": [
+      "R175"
+    ],
+    "task_ids": [
+      "T088"
+    ],
+    "title": "סטודיו התוכנית 5 — ייצוא, DXF וחבילות תוכנית — 1",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "ייצוא SVG/PNG דטרמיניסטי, DXF עם שכבות מוגדרות, וחבילת תוכנית חתומה (מקור, גאומטריה, חדרים, עוגנים, פריטים מותאמים ודוח) עם ייבוא שמשחזר את התוכנית כטיוטה ומדווח על ישויות חסרות.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT176",
+    "requirement_ids": [
+      "R176"
+    ],
+    "task_ids": [
+      "T088"
+    ],
+    "title": "סטודיו התוכנית 5 — ייצוא, DXF וחבילות תוכנית — 2",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "round-trip: ייצוא וייבוא של חבילה מחזירים אותו hash גאומטרי; DXF מיוצא נקרא חזרה עם אותן ישויות; ייבוא JSON עובר ולידציה מלאה ונכנס כטיוטה.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT177",
+    "requirement_ids": [
+      "R177"
+    ],
+    "task_ids": [
+      "T089"
+    ],
+    "title": "סטודיו התוכנית 6 — תלת־ממד ריאליסטי וסיור בגובה עין — 1",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "רמת 3D ריאליסטית (חומרים, צללים, שעה ביום) כמתג איכות, וסיור בגובה עין עם התנגשות בקירות ומעבר בדלתות פתוחות.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT178",
+    "requirement_ids": [
+      "R178"
+    ],
+    "task_ids": [
+      "T089"
+    ],
+    "title": "סטודיו התוכנית 6 — תלת־ממד ריאליסטי וסיור בגובה עין — 2",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "ביצועים: לפחות 30fps בטלפון בסצנה של 1,000 עצמים; ברירת המחדל נשארת סכמטית.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT179",
+    "requirement_ids": [
+      "R179"
+    ],
+    "task_ids": [
+      "T090"
+    ],
+    "title": "סטודיו התוכנית 8 — BIM / IFC — 1",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "ייצוא IFC4 של הקומה בכותב עצמי: IfcBuildingStorey לכל מפלס, קירות, פתחים, חללים, עצמים לפי מחלקת IFC מהספרייה, מצלמות כ־IfcAudioVisualAppliance ומזהי HA ב־property set, עם GlobalId יציב בין ייצואים.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT180",
+    "requirement_ids": [
+      "R180"
+    ],
+    "task_ids": [
+      "T090"
+    ],
+    "title": "סטודיו התוכנית 8 — BIM / IFC — 2",
+    "kind": "unit/contract/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Task dependencies accepted",
+      "Pinned local test environment and approved fixtures"
+    ],
+    "procedure": [
+      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
+      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
+      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+    ],
+    "expected": "ייבוא IFC (קומות, קירות, פתחים, חללים, ריהוט) כמועמדים למסך האישור, אחרי בדיקת זמינות של IfcOpenShell (LGPL) על תמונת ה־add-on; ייבוא חלקי מדווח ואינו מתקבל בשקט.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
   }
 ]

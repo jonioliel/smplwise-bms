@@ -71,7 +71,8 @@
     "responsive": "Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.",
     "task_ids": [
       "T019",
-      "T039"
+      "T039",
+      "T087"
     ]
   },
   {
@@ -103,7 +104,11 @@
       "T043",
       "T074",
       "T079",
-      "T083"
+      "T083",
+      "T084",
+      "T085",
+      "T087",
+      "T089"
     ]
   },
   {
@@ -131,7 +136,11 @@
       "T059",
       "T060",
       "T061",
-      "T065"
+      "T065",
+      "T084",
+      "T086",
+      "T088",
+      "T090"
     ]
   },
   {
@@ -159,7 +168,12 @@
       "T038",
       "T059",
       "T060",
-      "T061"
+      "T061",
+      "T084",
+      "T085",
+      "T086",
+      "T088",
+      "T090"
     ]
   },
   {
@@ -294,7 +308,9 @@
       "T043",
       "T053",
       "T064",
-      "T074"
+      "T074",
+      "T084",
+      "T087"
     ]
   },
   {
@@ -501,7 +517,8 @@
     "task_ids": [
       "T062",
       "T063",
-      "T064"
+      "T064",
+      "T085"
     ]
   },
   {
@@ -838,7 +855,9 @@
     "status": "PLANNED",
     "responsive": "Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.",
     "task_ids": [
-      "T056"
+      "T056",
+      "T084",
+      "T087"
     ]
   }
 ]

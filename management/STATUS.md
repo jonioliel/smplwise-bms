@@ -1,13 +1,13 @@
 # Project status — generated view
 
-Generated: 2026-09-22T16:39:10.653717+00:00
+Generated: 2026-09-23T05:49:58.599524+00:00
 
-Tasks: 83 | Requirements: 166 | Tests: 166 | Screens: 32
+Tasks: 90 | Requirements: 180 | Tests: 180 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
 ## Status counts
-- BACKLOG: 77
+- BACKLOG: 84
 - BLOCKED: 2
 - DONE: 2
 - IN_PROGRESS: 1
@@ -18,7 +18,7 @@ No VMS implementation or hardware test is implied by this planning registry.
 - G0: 8
 - PILOT: 35
 - V1: 15
-- V2: 5
+- V2: 12
 
 ## Blockers
 - T003: Excluded from G0 by owner decision 2026-09-22 - not to be worked (see the evidence entry).
@@ -91,7 +91,7 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [T062](tasks/T062.md) | BETA | BACKLOG | חיפוש metadata מרחבי | T031, T039, T047 |
 | [T063](tasks/T063.md) | V2 | BACKLOG | חיפוש סמנטי ו־AI provider אופציונלי | T055, T062 |
 | [T064](tasks/T064.md) | V2 | BACKLOG | שחזור מסלול מוצע לחקירה | T043, T049, T063 |
-| [T065](tasks/T065.md) | V2 | BACKLOG | DWG/DXF וייבוא מתקדם | T020, T059 |
+| [T065](tasks/T065.md) | V2 | BACKLOG | DWG/DXF וייבוא מתקדם | T020, T059, T086 |
 | [T066](tasks/T066.md) | V1 | BACKLOG | מהירויות Playback ו־Frame stepping | T042, T044 |
 | [T067](tasks/T067.md) | V2 | BACKLOG | חתימת ראיות וניהול מפתחות | T050, T055 |
 | [T068](tasks/T068.md) | V1 | BACKLOG | Load/Soak ותקציב משאבים | T042, T048, T051, T057, T058 |
@@ -110,3 +110,10 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [T081](tasks/T081.md) | PILOT | BACKLOG | Ingress ו־Add-on נגישים למשתמש HA רגיל | T009, T011, T078 |
 | [T082](tasks/T082.md) | V1 | BACKLOG | תפקידים מותאמים והאצלת ניהול מקומית | T055, T078 |
 | [T083](tasks/T083.md) | PILOT | BACKLOG | בדיקות קבלה לזהות HA והרשאות מרחביות | T019, T025, T028, T078, T080, T081 |
+| [T084](tasks/T084.md) | V2 | BACKLOG | סטודיו התוכנית 1 — מסמך גאומטריה, כיול, קירות ופתחים בכל המפות | T020, T021, T038 |
+| [T085](tasks/T085.md) | V2 | BACKLOG | סטודיו התוכנית 2 — ספריית עצמים, מפלסים ותאורה | T084 |
+| [T086](tasks/T086.md) | V2 | BACKLOG | סטודיו התוכנית 3 — זיהוי אוטומטי של קירות, דלתות וחלונות | T084 |
+| [T087](tasks/T087.md) | V2 | BACKLOG | סטודיו התוכנית 4 — תלת־ממד בתוך המפה | T084, T085 |
+| [T088](tasks/T088.md) | V2 | BACKLOG | סטודיו התוכנית 5 — ייצוא, DXF וחבילות תוכנית | T084, T085 |
+| [T089](tasks/T089.md) | V2 | BACKLOG | סטודיו התוכנית 6 — תלת־ממד ריאליסטי וסיור בגובה עין | T087 |
+| [T090](tasks/T090.md) | V2 | BACKLOG | סטודיו התוכנית 8 — BIM / IFC | T085, T088 |
