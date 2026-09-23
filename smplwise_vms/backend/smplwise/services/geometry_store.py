@@ -233,10 +233,12 @@ def copy_candidates(conn: sqlite3.Connection, target: sqlite3.Row) -> list[dict[
 
 
 def copy_from(conn: sqlite3.Connection, target: sqlite3.Row, source: sqlite3.Row, actor_id: str | None, now: str | None = None) -> sqlite3.Row:
-    """The editor's manual copy into a version without structure: a re-crop of the same page maps it through both
-    crops (as carry does), another drawing is copied as it is with a note that nothing was aligned. Either way what
-    the target cannot keep is pruned in its pixels and metres after the rebase, as carry prunes (review of c6c35fc).
-    It carries no calibration (a recorded design question)."""
+    """The editor's manual copy into a version without structure. The same drawing first takes the source's calibration
+    when it has none (as carry does), so the copy is judged in the source's metric; a re-crop then maps the structure
+    through both crops and prunes what the re-crop made unfit in the target's pixels and metres (as carry does). The
+    same crop, and another drawing (with a note that nothing was aligned, and no calibration), are copied as they are:
+    they transform nothing, so nothing is pruned - what does not fit stays, flagged by the validator in the editor
+    (review of af47d01)."""
     now = now or now_iso()
     current, draft = working_doc(conn, target)
     if not pg.is_empty(current):
@@ -245,14 +247,16 @@ def copy_from(conn: sqlite3.Connection, target: sqlite3.Row, source: sqlite3.Row
     source_doc = load_doc(row) if row is not None else None
     if source_doc is None or pg.is_empty(source_doc):
         raise conflict("nothing_to_copy", "לגרסה שנבחרה אין מבנה.")
-    asset = _asset(conn, target)
     if not _same_drawing(source, target):
-        doc = pg.rebase(source_doc, target, asset)
+        doc = pg.rebase(source_doc, target, _asset(conn, target))
         unc = doc.get("uncertainty") or {"overall": 0.5, "notes": []}
         doc["uncertainty"] = {**unc, "notes": [*unc.get("notes", []), "המבנה הועתק מגרסה עם שרטוט אחר, בלי יישור — בדוק מיקומים."]}
-    elif _crop(source) != _crop(target):
-        doc = pg.rebase(pg.transform_crop(source_doc, _crop(source), _crop(target)), target, asset)
     else:
-        doc = pg.rebase(source_doc, target, asset)
-    doc, _ = pg.prune_unfit(doc)
+        if not target["scale_m_per_px"]:  # after the refusals above: a refused copy (409, committed for its audit) changes nothing
+            carry_calibration(conn, source, target)
+            target = conn.execute("SELECT * FROM plan_versions WHERE id = ?", (target["id"],)).fetchone()
+        if _crop(source) != _crop(target):
+            doc, _ = pg.prune_unfit(pg.rebase(pg.transform_crop(source_doc, _crop(source), _crop(target)), target, _asset(conn, target)))
+        else:
+            doc = pg.rebase(source_doc, target, _asset(conn, target))
     return save_draft(conn, target, doc, draft["revision"] if draft is not None else 0, actor_id, now)

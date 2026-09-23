@@ -219,6 +219,64 @@ def test_an_uncalibrated_source_passes_on_its_estimated_scale(settings):
         assert q["scale_m_per_px"] * 640 / 0.25 == pytest.approx(est * 640), "the page is as wide in metres as the first estimate made it"
 
 
+def test_copy_from_another_drawing_copies_as_it_is(settings):
+    """Review of af47d01: a copy from another drawing transforms nothing, so it prunes nothing and carries no
+    calibration - a door valid in its measured source stays, although the uncalibrated target's own estimate would not
+    fit it (the validator flags it in the editor instead)."""
+    app, vid = _setup(settings)
+    with app.state.db.connection() as conn:
+        conn.execute("UPDATE plan_versions SET scale_m_per_px = 0.1 WHERE id = ?", (vid,))
+        v = _version(conn, vid)
+        doc, _ = store.working_doc(conn, v)
+        d = _with(doc, dict(WALL, polyline=[[0.1, 0.2], [0.15, 0.2]]))  # 32 px = 3.2 m at 0.1 m/px
+        d["openings"] = [dict(DOOR, t=0.2)]  # centre 0.64 m: 0.19..1.09 m
+        store.save_draft(conn, v, d, 0, "u")
+        turned = _clone(conn, v, rotation=90)
+        copied = store.load_doc(store.copy_from(conn, turned, v, "u"))
+        assert [o["id"] for o in copied["openings"]] == ["d1"] and not any("הושמט" in n for n in copied["uncertainty"]["notes"])
+        assert _version(conn, turned["id"])["scale_m_per_px"] is None and _version(conn, turned["id"])["calibration_json"] is None
+
+
+def test_copy_from_the_same_drawing_and_crop_copies_as_it_is_with_the_calibration(settings):
+    """Review of af47d01: the same drawing and crop transforms nothing either, so nothing is pruned - a draft door that
+    overruns its wall stays, t unchanged, for the validator to flag in the editor - and an uncalibrated target first
+    takes the source's calibration, as carry does, so the copy is judged in the source's metric."""
+    app, vid = _setup(settings)
+    with app.state.db.connection() as conn:
+        conn.execute("UPDATE plan_versions SET scale_m_per_px = 0.02 WHERE id = ?", (vid,))
+        v = _version(conn, vid)
+        doc, _ = store.working_doc(conn, v)
+        d = _with(doc, WALL)  # 320 px = 6.4 m
+        d["openings"] = [dict(DOOR, t=0.95)]  # centre 6.08 m: 5.63..6.53 m, past the end
+        store.save_draft(conn, v, d, 0, "u")
+        same = _clone(conn, v)
+        copied = store.load_doc(store.copy_from(conn, same, v, "u"))
+        assert [(o["id"], o["t"]) for o in copied["openings"]] == [("d1", 0.95)] and not any("הושמט" in n for n in copied["uncertainty"]["notes"])
+        assert ("opening_outside_wall", "d1") in {(i["code"], i["id"]) for i in pg.validate(copied)}, "flagged in the editor, not deleted"
+        same = _version(conn, same["id"])
+        assert same["scale_m_per_px"] == pytest.approx(0.02) and json.loads(same["calibration_json"])["method"] == "carried"
+
+
+def test_copy_from_a_recrop_takes_the_calibration_before_it_prunes(settings):
+    """Review of af47d01: a re-crop of the same drawing into an uncalibrated target first takes the source's
+    calibration (0.02 m/px through the half crop: 0.01 m/px), then prunes only what the re-crop made unfit in that
+    metric: the door straddling the cut goes, the door well inside the cut wall stays."""
+    app, vid = _setup(settings)
+    with app.state.db.connection() as conn:
+        conn.execute("UPDATE plan_versions SET scale_m_per_px = 0.02 WHERE id = ?", (vid,))
+        v = _version(conn, vid)
+        doc, _ = store.working_doc(conn, v)
+        d = _with(doc, dict(WALL, polyline=[[0.3, 0.2], [0.9, 0.2]]))  # 384 px = 7.68 m
+        d["openings"] = [dict(DOOR, id="d_in", t=0.15), dict(DOOR, id="d_edge", t=0.3)]  # centres 1.152 m and 2.304 m (page x 0.48)
+        store.save_draft(conn, v, d, 0, "u")
+        half = _clone(conn, v, crop=HALF, width=640)
+        copied = store.load_doc(store.copy_from(conn, half, v, "u"))
+        assert _version(conn, half["id"])["scale_m_per_px"] == pytest.approx(0.01)
+        assert [(o["id"], o["t"]) for o in copied["openings"]] == [("d_in", 0.45)], "on the 2.56 m cut wall: d_in 0.702..1.602 m, d_edge 1.854..2.754 m"
+        assert copied["uncertainty"]["notes"] == ["פריט אחד שמחוץ לחיתוך החדש הושמט."]
+        assert [i for i in pg.validate(copied) if i["severity"] == "error"] == []
+
+
 def test_copy_from_maps_a_recrop_and_refuses_an_empty_source(settings):
     app, vid = _setup(settings)
     with app.state.db.connection() as conn:
