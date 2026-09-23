@@ -15,6 +15,7 @@ SCHEMA = pathlib.Path(__file__).resolve().parents[3] / "contracts" / "schemas" /
 VERSION = {"id": "v1", "floor_id": "f1", "asset_id": "a1", "page": 1, "rotation": 0, "crop_json": None, "width_px": 1000, "height_px": 500,
            "scale_m_per_px": 0.02, "calibration_json": None}
 ASSET = {"sha256": "b" * 64, "original_name": "plan.pdf", "mime": "application/pdf"}
+HALF = {"x": 0.0, "y": 0.0, "w": 0.5, "h": 1.0}  # a re-crop to the left half of the page
 
 
 def _doc() -> dict:
@@ -275,32 +276,50 @@ def test_transform_crop_maps_points_through_both_crops():
     d = _doc()
     d["walls"].append({"id": "w3", "level_id": "L0", "polyline": [[0.4, 0.2], [0.9, 0.3]], "thickness_m": 0.2, "height_m": None,
                        "base_z_m": 0, "kind": "interior", "confidence": 1, "source": "manual", "locked": False, "external_ids": {}})
-    out = pg.transform_crop(d, None, {"x": 0.0, "y": 0.0, "w": 0.5, "h": 1.0})
+    out = pg.transform_crop(d, None, HALF)
     assert out["walls"][0]["polyline"] == [[0.2, 0.2], [1.0, 0.2]]
     assert out["labels"][0]["position"] == [0.6, 0.4]
-    assert out["walls"][2]["polyline"] == [[0.8, 0.2], [1.0, 0.3]], "a wall with a point inside keeps its points past the edge, clamped to it"
+    assert out["walls"][2]["polyline"] == [[0.8, 0.2], [1.0, 0.22]], "a two-point wall is cut at the crop's edge along its own line, not bent"
     assert d["walls"][0]["polyline"] == [[0.1, 0.2], [0.5, 0.2]], "the input is not modified"
-    assert any("חיתוך" in n for n in out["uncertainty"]["notes"])
+    assert out["uncertainty"]["notes"] == [], "nothing clamped, nothing dropped: no note"
+
+
+def test_transform_crop_clips_a_two_point_wall_and_remaps_its_openings():
+    """Review of 80249d1: t is a fraction of the wall's length, so cutting a wall at the crop's edge remaps it,
+    t' = (t - u0) / (u1 - u0) (an affine crop map keeps ratios along a segment). A door inside the new crop keeps its
+    place and still fits; a door outside is dropped and counted; a wall across the whole crop is cut at both edges,
+    not dropped. Cutting is exact, so it adds no clamp note."""
+    d = _doc()
+    d["walls"] = [dict(d["walls"][0], polyline=[[0.3, 0.2], [0.9, 0.2]])]  # w1: 12 m of the 20 m page
+    d["openings"] = [dict(d["openings"][0], t=0.05), dict(d["openings"][0], id="o2", t=0.5)]  # centres at page x 0.33 (inside) and 0.6 (outside)
+    out = pg.transform_crop(d, None, HALF)
+    assert out["walls"][0]["polyline"] == [[0.6, 0.2], [1.0, 0.2]]
+    assert [(o["id"], o["t"]) for o in out["openings"]] == [("o1", 0.15)], "u1 = 1/3: t 0.05 becomes 0.15, t 0.5 becomes 1.5 and is dropped"
+    assert out["uncertainty"]["notes"] == ["פריט אחד שמחוץ לחיתוך החדש הושמט."]
+    target = dict(VERSION, id="v2", crop_json=json.dumps(HALF), width_px=500, height_px=500)  # the half page at the same 0.02 m/px
+    assert [i for i in pg.validate(pg.rebase(out, target, ASSET)) if i["severity"] == "error"] == [], "a 4 m wall, the door at 0.15..1.05 m"
+    across = pg.transform_crop(dict(d, walls=[dict(d["walls"][0], polyline=[[0.1, 0.5], [0.9, 0.5]])], openings=[]), None, {"x": 0.3, "y": 0.0, "w": 0.4, "h": 1.0})
+    assert across["walls"][0]["polyline"] == [[0.0, 0.5], [1.0, 0.5]], "a wall across the whole new crop is cut at both edges, not dropped"
+    assert across["uncertainty"]["notes"] == [], "cutting is exact: no clamp note"
 
 
 def test_transform_crop_drops_what_is_outside():
-    """R-T7-2: a wall with every point outside the new crop is dropped with its openings (clamped, it became a
-    zero-length wall that blocked the publish); a wall with a point inside keeps all its points, clamped; a label
-    outside is dropped; a second note counts what was dropped."""
+    """R-T7-2 and the review of 80249d1: a two-point wall with nothing inside the new crop, or less than 0.001 of it
+    (about a pixel on a 1000 px plan), is dropped with its openings, and so is a label outside. A polyline of three or more points keeps the
+    per-point rule (dropped when every point is outside, else clamped, its openings keep t: a recorded follow-up), and
+    only a clamp adds the clamp note. The dropped note counts walls, openings and labels."""
     d = _doc()
-    d["walls"] = [dict(d["walls"][0], id="out", polyline=[[0.6, 0.2], [0.9, 0.2]]), dict(d["walls"][0], id="part", polyline=[[0.4, 0.2], [0.9, 0.2]])]
-    d["openings"] = [dict(d["openings"][0], id="o_out", wall_id="out"), dict(d["openings"][0], id="o_part", wall_id="part")]
-    d["labels"] = [dict(d["labels"][0], id="t_out", position=[0.7, 0.5]), dict(d["labels"][0], id="t_in", position=[0.2, 0.5])]
-    half = {"x": 0.0, "y": 0.0, "w": 0.5, "h": 1.0}
-    out = pg.transform_crop(d, None, half)
-    assert [(w["id"], w["polyline"]) for w in out["walls"]] == [("part", [[0.8, 0.2], [1.0, 0.2]])]
-    assert [o["id"] for o in out["openings"]] == ["o_part"], "the door of the dropped wall goes with it"
+    wall, door, label = d["walls"][0], d["openings"][0], d["labels"][0]
+    d["walls"] = [dict(wall, id="out", polyline=[[0.6, 0.2], [0.9, 0.2]]), dict(wall, id="sliver", polyline=[[0.49975, 0.2], [0.9, 0.2]]),
+                  dict(wall, id="far", polyline=[[0.6, 0.1], [0.9, 0.1], [0.9, 0.4]]), dict(wall, id="bent", polyline=[[0.2, 0.2], [0.8, 0.2], [0.8, 0.6]])]
+    d["openings"] = [dict(door, id="o_out", wall_id="out"), dict(door, id="o_sliver", wall_id="sliver"), dict(door, id="o_bent", wall_id="bent", t=0.3)]
+    d["labels"] = [dict(label, id="t_out", position=[0.7, 0.5]), dict(label, id="t_in", position=[0.2, 0.5])]
+    out = pg.transform_crop(d, None, HALF)
+    assert [(w["id"], w["polyline"]) for w in out["walls"]] == [("bent", [[0.4, 0.2], [1.0, 0.2], [1.0, 0.6]])]
+    assert [(o["id"], o["t"]) for o in out["openings"]] == [("o_bent", 0.3)]
     assert [(lb["id"], lb["position"]) for lb in out["labels"]] == [("t_in", [0.4, 0.5])]
-    assert out["uncertainty"]["notes"][-1] == "3 פריטים שמחוץ לחיתוך החדש הושמטו.", "one wall, its door and one label"
-    assert "הוצמדו" in out["uncertainty"]["notes"][-2], "the clamp note is kept"
-    assert [i for i in pg.validate(out) if i["severity"] == "error"] == [], "nothing left that blocks the publish"
-    kept = pg.transform_crop(_doc(), None, half)
-    assert not any("הושמטו" in n for n in kept["uncertainty"]["notes"]), "nothing dropped: no such note"
+    notes = out["uncertainty"]["notes"]
+    assert "הוצמדו" in notes[0] and notes[1:] == ["6 פריטים שמחוץ לחיתוך החדש הושמטו."], "out, sliver, far, their two doors, one label"
 
 
 def test_counts():

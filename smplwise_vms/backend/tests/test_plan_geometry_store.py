@@ -147,14 +147,23 @@ def test_structure_follows_a_new_version_of_the_same_drawing(settings):
 
 def test_carry_takes_only_a_published_structure(settings):
     """R-T7-2: a work-in-progress draft of the source version is not carried (publishing the new plan version would
-    publish it); the editor can still copy it by hand."""
+    publish it); the editor can still copy it by hand. The calibration belongs to the published plan version, not to
+    its structure, so a new version of the same drawing takes it when the source has only a draft structure, or none
+    (review of 80249d1)."""
     app, vid = _setup(settings)
     with app.state.db.connection() as conn:
+        conn.execute("UPDATE plan_versions SET scale_m_per_px = 0.02 WHERE id = ?", (vid,))
         v = _version(conn, vid)
+        bare = _clone(conn, v)
+        assert store.carry(conn, bare, "u") == "none" and _version(conn, bare["id"])["scale_m_per_px"] == pytest.approx(0.02), "no structure at all"
         doc, _ = store.working_doc(conn, v)
         store.save_draft(conn, v, _with(doc, WALL), 0, "u")
-        same = _clone(conn, _version(conn, vid))
+        same = _clone(conn, v)
         assert store.carry(conn, same, "u") == "none" and store.draft_row(conn, same["id"]) is None
+        half = _clone(conn, v, crop={"x": 0.0, "y": 0.0, "w": 0.5, "h": 1.0}, width=640)
+        assert store.carry(conn, half, "u") == "none" and store.draft_row(conn, half["id"]) is None
+        assert _version(conn, half["id"])["scale_m_per_px"] == pytest.approx(0.01), "0.02 x (640 x 0.5) / (1.0 x 640)"
+        assert json.loads(_version(conn, half["id"])["calibration_json"])["method"] == "carried"
         assert store.load_doc(store.copy_from(conn, same, _version(conn, vid), "u"))["walls"][0]["id"] == "w1", "copy_from stays available"
 
 
@@ -168,7 +177,7 @@ def test_copy_from_maps_a_recrop_and_refuses_an_empty_source(settings):
         half = _clone(conn, _version(conn, vid), crop={"x": 0.0, "y": 0.0, "w": 0.5, "h": 1.0}, width=640)
         mapped = store.load_doc(store.copy_from(conn, half, _version(conn, vid), "u"))
         assert mapped["walls"][0]["polyline"] == [[0.2, 0.2], [1.0, 0.2]], "a manual copy maps a re-crop of the same page as carry does"
-        assert any("חיתוך" in n for n in mapped["uncertainty"]["notes"])
+        assert not any("הוצמדו" in n for n in mapped["uncertainty"]["notes"]), "the wall is cut at the crop's edge, not clamped: no clamp note"
         explicit = _clone(conn, _version(conn, vid), crop={"x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0})
         assert store.carry(conn, explicit, "u") == "copied", "an explicit full crop is the same crop as none"
         assert not any("חיתוך" in n for n in store.load_doc(store.draft_row(conn, explicit["id"]))["uncertainty"]["notes"])

@@ -2,10 +2,14 @@
 diff / versions / timeline / rollback, copy from another version, and the two-point calibration."""
 from __future__ import annotations
 
+import datetime as dt
+
+import pytest
 from conftest import as_user, bind, png_bytes, seed_tree
 from fastapi.testclient import TestClient
 
 from smplwise.main import create_app
+from smplwise.services.timeutil import parse_utc
 
 WALL = {"id": "w1", "level_id": "L0", "polyline": [[0.1, 0.2], [0.6, 0.2]], "thickness_m": 0.2, "height_m": None, "base_z_m": 0, "kind": "interior",
         "confidence": 1, "source": "manual", "locked": False, "external_ids": {}}
@@ -55,7 +59,8 @@ def test_draft_round_trip_and_what_viewers_see(settings):
 
 def test_the_structure_of_an_instant_and_a_bad_instant(settings):
     """?at= serves the structure published at that instant with its ETag; an instant the UTC conversion cannot
-    represent (an extreme offset overflows) is the same 422 as a malformed one, not a 500 (R-T6-1)."""
+    represent (an extreme offset overflows) is the same 422 as a malformed one, not a 500 (R-T6-1), and so it is on
+    the map bundle's ?at=, through parse_utc (R-T7b-1)."""
     app, c, ids, vid, _ = _setup(settings)
     _save(c, vid, [WALL], 0)
     pub = c.post(f"/api/v1/plan-versions/{vid}/geometry/publish").json()["published"]
@@ -64,6 +69,17 @@ def test_the_structure_of_an_instant_and_a_bad_instant(settings):
     for bad in ("9999-12-31T23:59:59-01:00", "0001-01-01T00:00:00+01:00", "yesterday"):
         r = c.get(f"/api/v1/plan-versions/{vid}/geometry", params={"at": bad})
         assert r.status_code == 422 and r.json()["code"] == "validation", bad
+        m = c.get(f"/api/v1/floors/{ids['floor2']}/map", params={"at": bad})
+        assert m.status_code == 422 and m.json()["code"] == "validation", bad
+
+
+def test_parse_utc_refuses_an_instant_it_cannot_convert():
+    """R-T7b-1: an instant the UTC conversion cannot represent is a ValueError like a malformed one, so a route that
+    answers a ValueError from parse_utc with 422 does so for it too, instead of a 500."""
+    for bad in ("9999-12-31T23:59:59-01:00", "0001-01-01T00:00:00+01:00"):
+        with pytest.raises(ValueError):
+            parse_utc(bad)
+    assert parse_utc("9999-12-31T23:59:59+01:00") == dt.datetime(9999, 12, 31, 22, 59, 59, tzinfo=dt.timezone.utc), "the edge itself converts"
 
 
 def test_permissions(settings):

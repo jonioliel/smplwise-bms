@@ -35,6 +35,7 @@ MAX_WARNINGS = 200  # only _check_openings' overlap loop emits warnings; it stop
                     # added (an O(1) local counter) - an error or a structural issue is never bounded by this cap
 MAX_DEPTH = 64  # a document this deeply nested is not something any client UI produces; refuse it rather than walk it
 DIFF_COLLECTIONS = ("levels", "walls", "openings", "labels", "rooms", "objects", "circuits", "connectors", "groups")
+MIN_CUT_WALL = 0.001  # normalized: a two-point wall shorter than this after a re-crop is dropped (about a pixel on a 1000 px plan)
 
 
 def _num(v: Any) -> bool:
@@ -488,17 +489,39 @@ def diff(old: Mapping[str, Any] | None, new: Mapping[str, Any]) -> dict[str, Any
     return {"collections": out, "total": total, "calibration_changed": bool(cal), "same": total == 0 and not cal}
 
 
+def _clip_unit(a: list[float], b: list[float]) -> tuple[float, float] | None:
+    """Liang-Barsky: the parameters u0 < u1 of the part of the segment a -> b inside the unit square, or None when
+    nothing of it (or a single point) is inside."""
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    u0, u1 = 0.0, 1.0
+    for p, q in ((-dx, a[0]), (dx, 1.0 - a[0]), (-dy, a[1]), (dy, 1.0 - a[1])):
+        if p == 0:
+            if q < 0:
+                return None  # parallel to this edge and beyond it
+        elif p < 0:
+            u0 = max(u0, q / p)
+        else:
+            u1 = min(u1, q / p)
+    return (u0, u1) if u0 < u1 else None
+
+
 def transform_crop(doc: Mapping[str, Any], old_crop: Mapping[str, Any] | None, new_crop: Mapping[str, Any] | None) -> dict[str, Any]:
     """A re-crop of the same page: every point goes through the old crop to the page and back through the new one
-    (the anchors' realign uses the same maths). A wall with at least one point inside the new crop keeps all its
-    points, those outside clamped to the edge; a wall with every point outside is dropped with its openings, and so is
-    a label outside (clamped, such a wall became zero-length and blocked the publish, R-T7-2). Notes say so. A
+    (the anchors' realign uses the same maths).
+    - A two-point wall is cut at the new crop's edges (Liang-Barsky) and its openings move with the cut,
+      t' = (t - u0) / (u1 - u0): a crop map is affine, so ratios along a segment hold. A wall with nothing inside, or
+      shorter than MIN_CUT_WALL in the new crop (cut or not), is dropped with its openings; an opening that falls off
+      its cut wall (t' outside 0..1) is dropped.
+    - A polyline of three or more points keeps the per-point rule: dropped when every point is outside, else the
+      points outside are clamped to the edge and its openings keep t (a recorded follow-up).
+    - A label outside is dropped.
+    A note says so when a point was clamped, another how many items were dropped (R-T7-2, review of 80249d1). A
     malformed polyline or position (wrong type, missing) is left exactly as it is rather than crashing the remap - it
     already failed validation and stays with the draft."""
     oc = old_crop or {"x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0}
     nc = new_crop or {"x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0}
 
-    def move(p: Any) -> list[float]:  # not clamped yet: inside() decides first
+    def move(p: Any) -> list[float]:  # not clamped: the cut or inside() decides first
         sx, sy = oc["x"] + p[0] * oc["w"], oc["y"] + p[1] * oc["h"]
         return [round((sx - nc["x"]) / nc["w"], 6), round((sy - nc["y"]) / nc["h"], 6)]
 
@@ -508,26 +531,63 @@ def transform_crop(doc: Mapping[str, Any], old_crop: Mapping[str, Any] | None, n
     def clamp(p: list[float]) -> list[float]:
         return [min(1.0, max(0.0, p[0])), min(1.0, max(0.0, p[1]))]
 
+    def point_at(a: list[float], b: list[float], u: float) -> list[float]:  # a cut end lies on the edge: float noise must not pass it
+        return clamp([round(a[0] + u * (b[0] - a[0]), 6), round(a[1] + u * (b[1] - a[1]), 6)])
+
     out = copy.deepcopy(dict(doc))
     dropped = 0
+    clamped = False
     gone_walls: set[str] = set()
+    cuts: dict[str, tuple[float, float]] = {}
     if isinstance(out.get("walls"), list):
         walls = []
         for w in out["walls"]:
             line = w.get("polyline") if isinstance(w, dict) else None
-            if isinstance(line, list):
+            wid = w.get("id") if isinstance(w, dict) else None
+            if isinstance(line, list) and len(line) == 2 and all(_finite_point(p) for p in line):
+                a, b = move(line[0]), move(line[1])
+                span = _clip_unit(a, b)
+                if span is None or (span[1] - span[0]) * math.hypot(b[0] - a[0], b[1] - a[1]) < MIN_CUT_WALL:
+                    dropped += 1
+                    if isinstance(wid, str):
+                        gone_walls.add(wid)
+                    continue
+                w["polyline"] = [point_at(a, b, span[0]), point_at(a, b, span[1])]
+                if span != (0.0, 1.0) and isinstance(wid, str):
+                    cuts[wid] = span
+            elif isinstance(line, list):
                 moved = [move(p) if _finite_point(p) else p for p in line]
                 if line and all(_finite_point(p) for p in line) and not any(inside(p) for p in moved):
                     dropped += 1
-                    if isinstance(w.get("id"), str):
-                        gone_walls.add(w["id"])
+                    if isinstance(wid, str):
+                        gone_walls.add(wid)
                     continue
-                w["polyline"] = [clamp(m) if _finite_point(p) else p for m, p in zip(moved, line)]
+                kept = []
+                for m, p in zip(moved, line):
+                    if _finite_point(p):
+                        c = clamp(m)
+                        clamped = clamped or c != m
+                        kept.append(c)
+                    else:
+                        kept.append(p)
+                w["polyline"] = kept
             walls.append(w)
         out["walls"] = walls
-    if gone_walls and isinstance(out.get("openings"), list):
-        openings = [o for o in out["openings"] if not (isinstance(o, dict) and isinstance(o.get("wall_id"), str) and o["wall_id"] in gone_walls)]
-        dropped += len(out["openings"]) - len(openings)
+    if (gone_walls or cuts) and isinstance(out.get("openings"), list):
+        openings = []
+        for o in out["openings"]:
+            wid = o.get("wall_id") if isinstance(o, dict) else None
+            if isinstance(wid, str) and wid in gone_walls:
+                dropped += 1
+                continue
+            if isinstance(wid, str) and wid in cuts and _num(o.get("t")):
+                u0, u1 = cuts[wid]
+                t = round((o["t"] - u0) / (u1 - u0), 6) + 0.0  # + 0.0: never a -0.0
+                if not 0.0 <= t <= 1.0:
+                    dropped += 1
+                    continue
+                o["t"] = t
+            openings.append(o)
         out["openings"] = openings
     if isinstance(out.get("labels"), list):
         labels = []
@@ -537,12 +597,16 @@ def transform_crop(doc: Mapping[str, Any], old_crop: Mapping[str, Any] | None, n
                 if not inside(p):
                     dropped += 1
                     continue
-                lb["position"] = p
+                lb["position"] = clamp(p)  # inside already: only turns a rounded -0.0 into 0.0
             labels.append(lb)
         out["labels"] = labels
     unc = out.setdefault("uncertainty", {"overall": 0.5, "notes": []})
-    notes = [*unc.get("notes", []), "המבנה הועבר מגרסה עם חיתוך אחר; נקודות שמחוץ לחיתוך הוצמדו לשוליים."]
-    if dropped:
+    notes = list(unc.get("notes", []))
+    if clamped:
+        notes.append("המבנה הועבר מגרסה עם חיתוך אחר; נקודות שמחוץ לחיתוך הוצמדו לשוליים.")
+    if dropped == 1:
+        notes.append("פריט אחד שמחוץ לחיתוך החדש הושמט.")
+    elif dropped:
         notes.append(f"{dropped} פריטים שמחוץ לחיתוך החדש הושמטו.")
     unc["notes"] = notes
     return out
