@@ -31,7 +31,9 @@ ANCHOR_TYPES = ("camera", "ha_entity")
 COLLECTIONS = ("levels", "walls", "openings", "rooms", "objects", "circuits", "connectors", "labels", "groups", "uncertain_regions")
 LIMITS = {"levels": 20, "walls": 2000, "openings": 4000, "rooms": 500, "objects": 5000, "circuits": 500, "connectors": 200, "labels": 1000,
           "groups": 500, "uncertain_regions": 200}
-MAX_ISSUES = 500  # bounds the work (and the response size) of validating one save, however malformed or huge
+MAX_WARNINGS = 200  # bounds only the noise of many geometric warnings (e.g. overlaps); an error or a structural
+                    # issue is never dropped - their count is already bounded by LIMITS, not by this cap
+MAX_DEPTH = 64  # a document this deeply nested is not something any client UI produces; refuse it rather than walk it
 DIFF_COLLECTIONS = ("levels", "walls", "openings", "labels", "rooms", "objects", "circuits", "connectors", "groups")
 
 
@@ -59,8 +61,8 @@ def _finite_point(p: Any) -> bool:
 
 
 def _issue(issues: list[dict[str, Any]], code: str, message: str, *, item: str | None = None, path: str = "", severity: str = "error", structural: bool = False) -> None:
-    if len(issues) >= MAX_ISSUES:
-        return  # a save is refused by its first structural issue; issues past the cap cannot change the outcome
+    if severity == "warning" and not structural and sum(1 for i in issues if i["severity"] == "warning") >= MAX_WARNINGS:
+        return  # only warnings are capped; a save is never refused or silently missing an error because of this cap
     issues.append({"code": code, "severity": severity, "structural": structural, "id": item, "path": path, "message": message})
 
 
@@ -162,8 +164,8 @@ def validate(doc: Any) -> list[dict[str, Any]]:
     if doc.get("schema_version") != SCHEMA_VERSION:
         _issue(issues, "schema_version", f"schema_version חייב להיות {SCHEMA_VERSION}.", path="schema_version", structural=True)
     dims = doc.get("dimensions")
-    if not isinstance(dims, dict) or not all(isinstance(dims.get(k), int) and not isinstance(dims.get(k), bool) and dims.get(k) > 0 for k in ("width_px", "height_px")):
-        _issue(issues, "dimensions", "dimensions.width_px ו־height_px חייבים להיות מספרים שלמים חיוביים.", path="dimensions", structural=True)
+    if not isinstance(dims, dict) or not all(isinstance(dims.get(k), int) and not isinstance(dims.get(k), bool) and 1 <= dims.get(k) <= 100000 for k in ("width_px", "height_px")):
+        _issue(issues, "dimensions", "dimensions.width_px ו־height_px חייבים להיות מספרים שלמים בין 1 ל־100000.", path="dimensions", structural=True)
     if isinstance(dims, dict):
         scale = dims.get("scale_m_per_px")
         if scale is not None and not _num(scale):
@@ -183,9 +185,13 @@ def validate(doc: Any) -> list[dict[str, Any]]:
                 _issue(issues, "type", f"{coll}[{i}] חייב להיות אובייקט עם id טקסטואלי.", path=f"{coll}[{i}]", structural=True)
                 continue
             _check_fields(coll, i, item, issues)
-    bad_path = _find_nonfinite(doc, "")
-    if bad_path is not None:
-        _issue(issues, "type", "ערך מספרי לא סופי.", path=bad_path, structural=True)
+    if not any(i["structural"] for i in issues):  # a document already refused does not need this extra pass
+        found = _find_nonfinite(doc)
+        if found is not None:
+            message, parts = found
+            path = _join_path(parts)
+            if not any(i["path"] == path for i in issues):  # _check_fields may have reported the same field already
+                _issue(issues, "type", message, path=path, structural=True)
     if any(i["structural"] for i in issues):
         return issues
     width, height = dims["width_px"], dims["height_px"]
@@ -208,23 +214,40 @@ def validate(doc: Any) -> list[dict[str, Any]]:
     return issues
 
 
-def _find_nonfinite(node: Any, path: str) -> str | None:
-    """DFS for the first NaN or +-infinity float anywhere in the document (dicts, lists, tuples): Python's JSON
-    parser accepts them, canonical_json would store them, and a browser cannot parse them back, so any occurrence -
-    named field or not - is a structural problem. Stops at the first match, so a clean document is one linear pass
-    and a match never costs more than reaching it."""
-    if isinstance(node, float) and not math.isfinite(node):
-        return path
-    if isinstance(node, dict):
-        for k, v in node.items():
-            found = _find_nonfinite(v, f"{path}.{k}" if path else str(k))
-            if found is not None:
-                return found
-    elif isinstance(node, (list, tuple)):
-        for i, v in enumerate(node):
-            found = _find_nonfinite(v, f"{path}[{i}]")
-            if found is not None:
-                return found
+def _join_path(parts: tuple[Any, ...]) -> str:
+    """Path parts (raw dict keys and list indices) to the dotted / bracketed string used throughout this module
+    (e.g. "walls[0].thickness_m"). Kept separate from the walk so the string is built only for a path that is
+    actually being reported, never for every node visited along the way."""
+    out = ""
+    for p in parts:
+        if isinstance(p, int):
+            out += f"[{p}]"
+        elif out:
+            out += f".{p}"
+        else:
+            out = str(p)
+    return out
+
+
+def _find_nonfinite(doc: dict[str, Any]) -> tuple[str, tuple[Any, ...]] | None:
+    """Iterative walk (an explicit stack, not recursion - json.loads accepts nesting far deeper than Python's call
+    stack allows) for the first problem anywhere in the document: a value nested past MAX_DEPTH, or a float that is
+    NaN or +-infinity (Python's JSON parser accepts them, canonical_json would store them, and a browser cannot
+    parse them back). Returns (message, path_parts) for the first one found, or None for a clean document. Path
+    parts are raw keys/indices, not strings - joining is the caller's job, and happens at most once."""
+    stack: list[tuple[Any, tuple[Any, ...], int]] = [(doc, (), 0)]
+    while stack:
+        node, parts, depth = stack.pop()
+        if depth > MAX_DEPTH:
+            return "עומק הקינון חורג מהמותר.", parts
+        if isinstance(node, float) and not math.isfinite(node):
+            return "ערך מספרי לא סופי.", parts
+        if isinstance(node, dict):
+            for k, v in node.items():
+                stack.append((v, parts + (k,), depth + 1))
+        elif isinstance(node, (list, tuple)):
+            for i, v in enumerate(node):
+                stack.append((v, parts + (i,), depth + 1))
     return None
 
 

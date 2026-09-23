@@ -177,3 +177,46 @@ def test_an_over_limit_collection_yields_one_issue():
     issues = pg.validate(d)
     assert len(issues) == 1
     assert issues[0]["code"] == "limit" and issues[0]["path"] == "walls" and issues[0]["structural"] is True
+
+
+def test_warnings_never_hide_errors():
+    d = _doc()
+    d["walls"] = [{"id": "w1", "level_id": "L0", "polyline": [[0.1, 0.2], [0.5, 0.2]], "thickness_m": 0.2, "height_m": None, "base_z_m": 0,
+                   "kind": "exterior", "confidence": 1, "source": "manual", "locked": False, "external_ids": {}}]
+    d["openings"] = [{"id": f"o{i}", "wall_id": "w1", "t": 0.5, "kind": "door", "width_m": 0.1, "height_m": 2.1, "sill_m": 0, "swing": "right",
+                      "hinge": "start", "anchor_ref": None, "confidence": 1, "source": "manual", "external_ids": {}} for i in range(501)]
+    d["labels"] = [{"id": "t1", "text": "x", "position": [0.3, 0.4], "level_id": "L9", "size": 14}]
+    issues = pg.validate(d)
+    errors = {(i["code"], i["id"]) for i in issues if i["severity"] == "error"}
+    assert ("unknown_level", "t1") in errors
+    assert sum(1 for i in issues if i["severity"] == "warning") == pg.MAX_WARNINGS
+
+
+def test_deep_nesting_is_refused_not_a_crash():
+    nested: list = []
+    for _ in range(1500):
+        nested = [nested]
+    d = _doc()
+    d["meta"] = {"x": nested}
+    issues = pg.validate(d)
+    assert issues and all(i["structural"] for i in issues)
+    assert any(i["code"] == "type" for i in issues)
+
+
+def test_nan_in_an_untyped_field_is_structural():
+    d = _doc()
+    d["objects"] = [{"id": "ob1", "v": float("nan")}]
+    issues = pg.validate(d)
+    assert len(issues) == 1
+    assert issues[0]["structural"] is True and issues[0]["code"] == "type" and issues[0]["path"] == "objects[0].v"
+    d = _doc()
+    d["walls"][0]["thickness_m"] = float("nan")
+    issues = pg.validate(d)
+    assert len([i for i in issues if i["path"] == "walls[0].thickness_m"]) == 1
+
+
+def test_huge_dimensions_are_structural():
+    d = _doc()
+    d["dimensions"]["width_px"] = 10**400
+    issues = pg.validate(d)
+    assert any(i["code"] == "dimensions" and i["structural"] for i in issues)
