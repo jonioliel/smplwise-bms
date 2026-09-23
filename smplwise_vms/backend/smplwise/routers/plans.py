@@ -42,6 +42,7 @@ def version_row(r: sqlite3.Row) -> dict[str, Any]:
         "id": r["id"], "floor_id": r["floor_id"], "asset_id": r["asset_id"], "page": r["page"], "rotation": r["rotation"],
         "crop": json.loads(r["crop_json"]) if r["crop_json"] else None, "width_px": r["width_px"], "height_px": r["height_px"],
         "scale_m_per_px": r["scale_m_per_px"], "status": r["status"], "revision": r["revision"], "notes": r["notes"],
+        "calibration": json.loads(r["calibration_json"]) if "calibration_json" in r.keys() and r["calibration_json"] else None,
         "created_at": r["created_at"], "published_at": r["published_at"], "archived_at": r["archived_at"],
         "created_by": r["created_by"], "published_by": r["published_by"],
         # the map background follows render_mode; the source picture stays reachable for comparisons
