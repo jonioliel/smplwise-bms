@@ -1,0 +1,38 @@
+{
+  "schema_version": "2.0",
+  "plan_version_id": "sample",
+  "floor_id": "sample-floor",
+  "source": {"sha256": "0000000000000000000000000000000000000000000000000000000000000000", "file_name": "sample.pdf", "mime": "application/pdf", "page": 1},
+  "dimensions": {"width_px": 1000, "height_px": 800, "scale_m_per_px": 0.01, "calibration": {"status": "measured", "method": "two_point", "pairs": [{"a": [0.1, 0.1], "b": [0.9, 0.1], "metres": 8.0}], "residual_pct": 0.0, "reason": null}},
+  "transform": {"rotation": 0, "crop": null},
+  "levels": [
+    {"id": "L0", "name": "מפלס ראשי", "elevation_m": 0.0, "ceiling_height_m": 3.0, "is_default": true, "external_ids": {}},
+    {"id": "L1", "name": "אולם תחתון", "elevation_m": -1.2, "ceiling_height_m": 6.0, "is_default": false, "external_ids": {}}
+  ],
+  "walls": [
+    {"id": "wa", "level_id": "L0", "polyline": [[0.1, 0.1], [0.9, 0.1], [0.9, 0.6]], "thickness_m": 0.3, "height_m": null, "base_z_m": 0, "kind": "exterior", "confidence": 1, "source": "manual", "locked": false, "external_ids": {}},
+    {"id": "wb", "level_id": "L0", "polyline": [[0.1, 0.5], [0.6, 0.5]], "thickness_m": 0.15, "height_m": null, "base_z_m": 0, "kind": "interior", "confidence": 1, "source": "manual", "locked": false, "external_ids": {}},
+    {"id": "wc", "level_id": "L0", "polyline": [[0.6, 0.1], [0.6, 0.5]], "thickness_m": 0.1, "height_m": 2.4, "base_z_m": 0, "kind": "partition", "confidence": 0.8, "source": "auto", "locked": false, "external_ids": {}},
+    {"id": "wd", "level_id": "L1", "polyline": [[0.1, 0.7], [0.4, 0.7]], "thickness_m": 0.2, "height_m": null, "base_z_m": 0, "kind": "interior", "confidence": 1, "source": "manual", "locked": false, "external_ids": {}}
+  ],
+  "openings": [
+    {"id": "oa", "wall_id": "wa", "t": 0.2, "kind": "door", "width_m": 0.9, "height_m": 2.1, "sill_m": 0, "swing": "right", "hinge": "start", "anchor_ref": null, "confidence": 1, "source": "manual", "external_ids": {}},
+    {"id": "ob", "wall_id": "wa", "t": 0.75, "kind": "window", "width_m": 1.2, "height_m": 1.2, "sill_m": 0.9, "swing": "none", "hinge": "start", "anchor_ref": null, "confidence": 1, "source": "manual", "external_ids": {}},
+    {"id": "oc", "wall_id": "wb", "t": 0.5, "kind": "door", "width_m": 0.8, "height_m": 2.1, "sill_m": 0, "swing": "left", "hinge": "end", "anchor_ref": {"resource_type": "ha_entity", "resource_id": "lock.store"}, "confidence": 1, "source": "manual", "external_ids": {}},
+    {"id": "od", "wall_id": "wc", "t": 0.5, "kind": "door", "width_m": 1.6, "height_m": 2.1, "sill_m": 0, "swing": "double", "hinge": "start", "anchor_ref": null, "confidence": 1, "source": "manual", "external_ids": {}},
+    {"id": "oe", "wall_id": "wb", "t": 0.9, "kind": "passage", "width_m": 1.0, "height_m": 2.1, "sill_m": 0, "swing": "none", "hinge": "start", "anchor_ref": null, "confidence": 1, "source": "manual", "external_ids": {}},
+    {"id": "of", "wall_id": "wd", "t": 0.5, "kind": "door", "width_m": 1.0, "height_m": 2.1, "sill_m": 0, "swing": "sliding", "hinge": "start", "anchor_ref": null, "confidence": 1, "source": "manual", "external_ids": {}}
+  ],
+  "rooms": [],
+  "objects": [],
+  "circuits": [],
+  "connectors": [],
+  "labels": [
+    {"id": "la", "text": "מחסן", "position": [0.3, 0.3], "level_id": "L0", "size": 16},
+    {"id": "lb", "text": "אולם", "position": [0.25, 0.75], "level_id": "L1", "size": 16}
+  ],
+  "groups": [],
+  "uncertain_regions": [],
+  "uncertainty": {"overall": 0.2, "notes": []},
+  "meta": {"generator": "fixture", "tokens_version": "map-1", "detector_version": null}
+}
