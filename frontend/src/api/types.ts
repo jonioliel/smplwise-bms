@@ -178,7 +178,8 @@ export interface FloorMap {
   building: Building;
   site: Site;
   plan: PlanVersion | null;
-  /** Reference to the structure document of the shown version (null when none is published). */
+  /** Reference to the structure document of the shown version: the draft (else the published one) for an editor bundle,
+   * the row in force at the instant for an exact-history bundle, else the published one; null when none. */
   geometry?: GeometryRef | null;
   anchors: Anchor[];
   zones?: SpatialZone[];

@@ -14,8 +14,9 @@ const DEFAULT_API: StudioApi = { load: (id) => getGeometry(id, { draft: true }),
 
 /**
  * Plan Studio draft state for the editor (T084): the working document, undo / redo, and the autosave that PUTs the
- * draft `delayMs` after the last edit with the revision the server gave last time. A 409 keeps the local edit and says
- * so; the editor offers a reload.
+ * draft `delayMs` after the last edit with the revision the server gave last time. A 409 keeps the local edit, says so
+ * and holds every save until the editor reloads. Any other failure keeps the edit unsaved: the next edit arms the
+ * autosave again and every explicit flush tries once more.
  */
 export class StudioController implements ReactiveController {
   doc: GeometryDoc | null = null;
@@ -32,6 +33,12 @@ export class StudioController implements ReactiveController {
   private timer: ReturnType<typeof setTimeout> | undefined;
   private dirty = false;
   private inflight: Promise<void> | null = null;
+  /** A save was refused as stale: nothing is sent until load() brings the current draft. */
+  private conflict = false;
+  /** Every load() takes a token; only the answer of the latest one is used. */
+  private loadToken = 0;
+  /** The token of the load the working state comes from; a save answered after a newer load is ignored. */
+  private loaded = 0;
 
   constructor(private readonly host: ReactiveControllerHost, private readonly api: StudioApi = DEFAULT_API, private readonly delayMs = 2000) {
     host.addController(this);
@@ -55,19 +62,30 @@ export class StudioController implements ReactiveController {
   get pendingPublish(): boolean {
     const d = this.doc;
     if (!d || !this.hash || this.hash === this.publishedHash) return false;
-    return this.publishedHash !== null || d.walls.length > 0 || d.openings.length > 0 || d.labels.length > 0;
+    // What the server's is_empty counts.
+    return this.publishedHash !== null || d.walls.length > 0 || d.openings.length > 0 || d.labels.length > 0 || d.objects.length > 0 || d.connectors.length > 0;
   }
 
   async load(versionId: string): Promise<void> {
     clearTimeout(this.timer);
+    const token = ++this.loadToken;
+    let r: GeometryResponse;
+    try {
+      r = await this.api.load(versionId);
+    } catch (err) {
+      if (token === this.loadToken) throw err;
+      return; // a later load() took over: its outcome is the one that counts
+    }
+    if (token !== this.loadToken) return;
+    this.loaded = token;
     this.versionId = versionId;
-    const r = await this.api.load(versionId);
     this.apply(r);
     this.doc = r.doc;
     this.copyCandidates = r.copy_candidates ?? [];
     this.undoStack = [];
     this.redoStack = [];
     this.dirty = false;
+    this.conflict = false;
     this.saveState = 'idle';
     this.error = '';
     this.host.requestUpdate();
@@ -75,7 +93,7 @@ export class StudioController implements ReactiveController {
 
   commit(next: GeometryDoc): void {
     if (!this.doc) return;
-    this.undoStack = [...this.undoStack.slice(-60), this.doc];
+    this.undoStack = [...this.undoStack.slice(-59), this.doc]; // at most 60 steps back
     this.redoStack = [];
     this.change(next);
   }
@@ -94,27 +112,34 @@ export class StudioController implements ReactiveController {
     this.change(next);
   }
 
-  /** Save now and wait: before publishing, calibrating or leaving the editor. */
-  async flush(): Promise<void> {
+  /** Save now and wait: before publishing, calibrating or leaving the editor. True when nothing is left unsaved. A
+   * conflict sends nothing; after any other failure each call tries once more, and a failure of its own ends it. */
+  async flush(): Promise<boolean> {
     clearTimeout(this.timer);
+    let attempted = false;
     for (;;) {
       if (this.inflight) {
         await this.inflight; // a save another caller started; an edit made meanwhile goes out next, so look again
         continue;
       }
-      if (!this.dirty || this.saveState === 'error') return;
+      if (!this.dirty || this.conflict || (attempted && this.saveState === 'error')) break;
+      attempted = true;
       this.inflight = this.saveOnce();
       await this.inflight;
       this.inflight = null;
     }
+    return !this.dirty && this.saveState !== 'error';
   }
 
   private change(next: GeometryDoc): void {
     this.doc = next;
     this.dirty = true;
-    if (this.saveState !== 'saving') this.saveState = 'pending';
     clearTimeout(this.timer);
-    this.timer = setTimeout(() => void this.flush(), this.delayMs);
+    if (!this.conflict) {
+      // While a conflict holds, the edit stays local and the error stays up until the editor reloads.
+      if (this.saveState !== 'saving') this.saveState = 'pending';
+      this.timer = setTimeout(() => void this.flush(), this.delayMs);
+    }
     this.host.requestUpdate();
   }
 
@@ -128,19 +153,23 @@ export class StudioController implements ReactiveController {
   private async saveOnce(): Promise<void> {
     const doc = this.doc;
     const id = this.versionId;
+    const loaded = this.loaded;
     if (!doc || !id) return;
     this.dirty = false;
     this.saveState = 'saving';
     this.host.requestUpdate();
     try {
       const r = await this.api.save(id, doc, this.revision);
+      if (loaded !== this.loaded) return; // a newer load replaced the working state: this answer belongs to the old one
       this.apply(r);
       this.saveState = this.dirty ? 'pending' : 'saved';
       this.error = '';
     } catch (err) {
+      if (loaded !== this.loaded) return;
       this.dirty = true;
+      if (err instanceof ApiError && err.code === 'stale_revision') this.conflict = true;
       this.saveState = 'error';
-      this.error = err instanceof ApiError && err.code === 'stale_revision' ? 'טיוטת המבנה נערכה במקום אחר; טען מחדש את העורך כדי לא לדרוס שינוי.' : describeError(err);
+      this.error = this.conflict ? 'טיוטת המבנה נערכה במקום אחר; טען מחדש את העורך כדי לא לדרוס שינוי.' : describeError(err);
     } finally {
       this.host.requestUpdate();
     }

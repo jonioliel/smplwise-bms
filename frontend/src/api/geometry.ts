@@ -81,7 +81,8 @@ export async function geometryFor(bundle: MapBundle): Promise<GeometryDoc | null
   const hit = byHash.get(ref.doc_hash);
   if (hit) return hit;
   try {
-    const r = await getGeometry(bundle.planVersionId, ref.status === 'draft' ? { draft: true } : {});
+    // A published or archived row is asked for by its publish instant, so an exact-history bundle gets the row it names.
+    const r = await getGeometry(bundle.planVersionId, ref.status === 'draft' ? { draft: true } : ref.published_at ? { at: ref.published_at } : {});
     byHash.set(r.geometry.doc_hash, r.doc);
     return r.doc;
   } catch {

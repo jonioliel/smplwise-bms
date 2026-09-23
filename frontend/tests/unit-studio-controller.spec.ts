@@ -17,19 +17,33 @@ const row = (revision: number, status: GeometryRow['status']): GeometryRow => ({
   created_at: null, updated_at: null, published_at: null, published_by: null, archived_at: null });
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** A server holding one draft. `attempts` records the base revision of every save sent, `failOnce` makes the next save
+ * fail with the given error, `elsewhere` is a save by another editor. */
 function fakeApi(doc: GeometryDoc) {
   const saves: { revision: number; walls: number }[] = [];
+  const attempts: number[] = [];
   let rev = 0;
+  let failure: Error | null = null;
   const api: StudioApi = {
-    load: async (): Promise<GeometryResponse> => ({ geometry: row(0, 'new'), doc, issues: [], published_hash: null, copy_candidates: [] }),
+    load: async (): Promise<GeometryResponse> => ({ geometry: row(rev, rev ? 'draft' : 'new'), doc, issues: [], published_hash: null, copy_candidates: [] }),
     save: async (_id, d, base): Promise<GeometryResponse> => {
+      attempts.push(base);
+      const fail = failure;
+      failure = null;
+      if (fail) throw fail;
       if (base !== rev) throw new ApiError(409, { code: 'stale_revision', user_message: 'x', retryable: false, correlation_id: '', details: {} });
       rev += 1;
       saves.push({ revision: rev, walls: d.walls.length });
       return { geometry: row(rev, 'draft'), doc: d, issues: [], published_hash: null };
     },
   };
-  return { api, saves };
+  const failOnce = (err: Error) => {
+    failure = err;
+  };
+  const elsewhere = () => {
+    rev += 1;
+  };
+  return { api, saves, attempts, failOnce, elsewhere };
 }
 
 test.describe('studio controller (unit)', () => {
@@ -101,5 +115,118 @@ test.describe('studio controller (unit)', () => {
     expect(waited).toBe(true);
     expect(c.revision).toBe(2);
     expect(c.saveState).toBe('saved');
+  });
+
+  test('after a failed save each explicit flush tries once more, and flush says whether everything is saved', async () => {
+    const { api, attempts, failOnce } = fakeApi(sample());
+    const c = new StudioController(host(), api, 20);
+    await c.load('v1');
+    failOnce(new ApiError(503, { code: 'http_503', user_message: 'y', retryable: true, correlation_id: '', details: {} }));
+    c.commit({ ...c.doc!, walls: c.doc!.walls.slice(0, 2) });
+    expect(await c.flush()).toBe(false);
+    expect(c.saveState).toBe('error');
+    expect(c.error).toBe('y');
+    await sleep(60); // the failure does not re-arm the autosave
+    expect(attempts).toEqual([0]);
+    expect(await c.flush()).toBe(true);
+    expect(attempts).toEqual([0, 0]);
+    expect(c.saveState).toBe('saved');
+    expect(c.revision).toBe(1);
+  });
+
+  test('after a conflict nothing is sent until the editor reloads, then edits save on the reloaded revision', async () => {
+    const { api, attempts, elsewhere } = fakeApi(sample());
+    const c = new StudioController(host(), api, 20);
+    await c.load('v1');
+    elsewhere(); // another editor saved: the server is at revision 1
+    c.commit({ ...c.doc!, walls: c.doc!.walls.slice(0, 3) });
+    expect(await c.flush()).toBe(false);
+    expect(attempts).toEqual([0]);
+    c.commit({ ...c.doc!, walls: c.doc!.walls.slice(0, 2) });
+    expect(c.saveState).toBe('error');
+    await sleep(60); // no autosave
+    expect(await c.flush()).toBe(false); // and no explicit save either
+    expect(attempts).toEqual([0]);
+    expect(c.saveState).toBe('error');
+    expect(c.doc!.walls.length).toBe(2);
+    await c.load('v1');
+    expect(c.saveState).toBe('idle');
+    expect(c.revision).toBe(1);
+    c.commit({ ...c.doc!, walls: c.doc!.walls.slice(0, 1) });
+    expect(await c.flush()).toBe(true);
+    expect(attempts).toEqual([0, 1]);
+    expect(c.revision).toBe(2);
+    expect(c.saveState).toBe('saved');
+  });
+
+  test('undo keeps exactly the last 60 steps', async () => {
+    const { api } = fakeApi(sample());
+    const c = new StudioController(host(), api, 20);
+    await c.load('v1');
+    for (let i = 1; i <= 61; i++) c.commit({ ...c.doc!, meta: { ...c.doc!.meta, generator: `edit ${i}` } });
+    for (let i = 0; i < 60; i++) {
+      expect(c.canUndo).toBe(true);
+      c.undo();
+    }
+    expect(c.canUndo).toBe(false);
+    expect(c.doc!.meta.generator).toBe('edit 1'); // the loaded document is the step that fell off
+    await c.flush();
+  });
+
+  test('pendingPublish counts objects and connectors, as the server does', async () => {
+    const bare: GeometryDoc = { ...sample(), walls: [], openings: [], labels: [], objects: [], connectors: [] };
+    const shows = async (doc: GeometryDoc) => {
+      const c = new StudioController(host(), fakeApi(doc).api, 20);
+      await c.load('v1');
+      return c.pendingPublish;
+    };
+    expect(await shows({ ...bare, objects: [{ id: 'o1' }] })).toBe(true);
+    expect(await shows({ ...bare, connectors: [{ id: 'c1' }] })).toBe(true);
+    expect(await shows(bare)).toBe(false);
+  });
+
+  // Loads and saves answer only when the test says so, to replay the races of switching and reloading versions.
+  test('an overtaken load and a save answered after a newer load change nothing', async () => {
+    const answer: Record<string, (r: GeometryResponse) => void> = {};
+    const reply = (id: string, revision: number): GeometryResponse =>
+      ({ geometry: { ...row(revision, 'draft'), plan_version_id: id, doc_hash: `${id}-h${revision}` }, doc: sample(), issues: [], published_hash: null });
+    const api: StudioApi = {
+      load: (id) => new Promise<GeometryResponse>((resolve) => {
+        answer[`load ${id}`] = resolve;
+      }),
+      save: (id) => new Promise<GeometryResponse>((resolve) => {
+        answer[`save ${id}`] = resolve;
+      }),
+    };
+    const c = new StudioController(host(), api, 20);
+    const first = c.load('v1');
+    answer['load v1'](reply('v1', 3));
+    await first;
+    c.commit({ ...c.doc!, walls: [] });
+    const saving = c.flush(); // the save of v1 is in flight
+    const toV2 = c.load('v2');
+    const toV3 = c.load('v3'); // overtakes the load of v2
+    answer['load v3'](reply('v3', 9));
+    await toV3;
+    answer['load v2'](reply('v2', 5)); // answered late: ignored
+    await toV2;
+    expect(c.hash).toBe('v3-h9');
+    answer['save v1'](reply('v1', 4)); // answered after v3 loaded: ignored
+    expect(await saving).toBe(true);
+    expect(c.revision).toBe(9);
+    expect(c.hash).toBe('v3-h9');
+    expect(c.saveState).toBe('idle');
+    // A reload of the same version too: its answer is the state, not a save answered after it. The reload may have
+    // been read before that save landed; taking the save's revision over the reloaded document would let the next
+    // save overwrite the saved edit unnoticed, while keeping the reloaded revision makes it a visible conflict.
+    c.commit({ ...c.doc!, walls: [] });
+    const saving2 = c.flush();
+    const reload = c.load('v3');
+    answer['load v3'](reply('v3', 9));
+    await reload;
+    answer['save v3'](reply('v3', 10));
+    expect(await saving2).toBe(true);
+    expect(c.revision).toBe(9);
+    expect(c.hash).toBe('v3-h9');
   });
 });
