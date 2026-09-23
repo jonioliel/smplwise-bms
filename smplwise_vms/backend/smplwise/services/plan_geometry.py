@@ -183,6 +183,7 @@ def validate(doc: Any) -> list[dict[str, Any]]:
                 _issue(issues, "type", f"{coll}[{i}] חייב להיות אובייקט עם id טקסטואלי.", path=f"{coll}[{i}]", structural=True)
                 continue
             _check_fields(coll, i, item, issues)
+    _check_uncertainty_shape(doc.get("uncertainty"), issues)
     if not any(i["structural"] for i in issues):
         hit = _find_nonfinite(doc)
         if hit is not None:
@@ -312,6 +313,19 @@ def _check_fields(coll: str, i: int, item: dict[str, Any], issues: list[dict[str
         opt("level_id", lambda v: isinstance(v, str))
         opt("ceiling_height_m", _num)
     # objects, circuits, connectors, groups, uncertain_regions: no field rules in phase 1
+
+
+def _check_uncertainty_shape(unc: Any, issues: list[dict[str, Any]]) -> None:
+    """Structural shape of the uncertainty block: a stored draft with a string block or notes that are not a list of
+    strings made copy_from / transform_crop raise. The 0..1 range of overall stays a geometric check."""
+    if not isinstance(unc, dict):
+        _issue(issues, "type", "השדה uncertainty בסוג לא נכון.", path="uncertainty", structural=True)
+        return
+    if not _num(unc.get("overall")):
+        _issue(issues, "type", "השדה uncertainty.overall בסוג לא נכון.", path="uncertainty.overall", structural=True)
+    notes = unc.get("notes")
+    if not isinstance(notes, list) or not all(isinstance(n, str) for n in notes):
+        _issue(issues, "type", "השדה uncertainty.notes בסוג לא נכון.", path="uncertainty.notes", structural=True)
 
 
 def _check_calibration(dims: dict[str, Any], issues: list[dict[str, Any]]) -> None:

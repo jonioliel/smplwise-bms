@@ -301,3 +301,22 @@ def test_diff_and_transform_crop_tolerate_malformed_data():
     assert out["walls"][0]["polyline"] is None
     assert out["walls"][1]["polyline"] == [[0.2, 0.1], "x", [0.4, 0.2]]
     assert out["labels"][0] == m["labels"][0]
+
+
+def test_malformed_uncertainty_is_structural():
+    """A stored draft with a malformed uncertainty block made copy_from / transform_crop raise, so its shape is structural
+    (the save is refused); only the 0..1 range of overall stays geometric (kept with the draft, blocks publishing)."""
+    cases = [("x", "uncertainty"), (None, "uncertainty"), ({"overall": 0.5, "notes": None}, "uncertainty.notes"),
+             ({"overall": 0.5, "notes": ["ok", 3]}, "uncertainty.notes"), ({"overall": "a", "notes": []}, "uncertainty.overall"),
+             ({"overall": True, "notes": []}, "uncertainty.overall")]
+    for unc, path in cases:
+        d = _doc()
+        d["uncertainty"] = unc
+        issues = pg.validate(d)  # returns, never raises
+        assert [(i["code"], i["structural"], i["path"]) for i in issues] == [("type", True, path)], unc
+    d = _doc()
+    del d["uncertainty"]
+    assert [(i["code"], i["structural"], i["path"]) for i in pg.validate(d)] == [("type", True, "uncertainty")]
+    d = _doc()
+    d["uncertainty"] = {"overall": 1.5, "notes": []}
+    assert [(i["code"], i["structural"]) for i in pg.validate(d)] == [("uncertainty", False)], "the 0..1 range stays geometric"
