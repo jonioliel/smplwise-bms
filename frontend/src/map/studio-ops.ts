@@ -51,6 +51,22 @@ export function patchOpening(doc: GeometryDoc, id: string, patch: Partial<GeomOp
   };
 }
 
+/** The positions t that keep an opening `widthM` wide inside a wall `lengthM` long (the validator's opening_outside_wall):
+ * half the width from either end. An opening wider than its wall has only the middle. */
+export function openingRange(widthM: number, lengthM: number): [number, number] {
+  if (!(lengthM > 0)) return [0, 1];
+  const half = Math.max(0, widthM) / 2 / lengthM;
+  return half >= 0.5 ? [0.5, 0.5] : [half, 1 - half];
+}
+
+/** A fine move of an opening along its wall by `dt` (a fraction of the wall's length): it stops at the end of `range`, and
+ * never goes against the key - an opening that already sticks out does not jump, it only moves back towards the wall. */
+export function nudgeT(t: number, dt: number, [lo, hi]: [number, number]): number {
+  if (dt > 0) return Math.max(t, Math.min(t + dt, hi));
+  if (dt < 0) return Math.min(t, Math.max(t + dt, lo));
+  return t;
+}
+
 export function moveVertex(doc: GeometryDoc, id: string, index: number, p: Pt): GeometryDoc {
   return { ...doc, walls: doc.walls.map((w) => (w.id === id ? { ...w, polyline: w.polyline.map((q, i) => (i === index ? clampPt(p) : q)) } : w)) };
 }

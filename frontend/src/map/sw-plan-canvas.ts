@@ -3,7 +3,7 @@ import { customElement, property, state, query } from 'lit/decorators.js';
 import '../components/sw-button';
 import { t } from '../i18n/he';
 import type { StateKind } from '../components/sw-badge';
-import { buildPrimitives, isClosedOutline, type GeometryDoc, type Primitive, type Pt } from './geometry';
+import { buildPrimitives, isClosedOutline, type DoorPrim, type GeometryDoc, type LabelPrim, type PassagePrim, type Primitive, type Pt, type WallPrim, type WindowPrim } from './geometry';
 
 export type MarkerKind = 'camera' | 'lock' | 'light' | 'binary_sensor';
 
@@ -98,6 +98,19 @@ export function polygonCentroid(poly: { x: number; y: number }[]) {
 
 const ptsAttr = (ps: Pt[]): string => ps.map((p) => `${p[0]},${p[1]}`).join(' ');
 
+/** A structure drag (Plan Studio): a wall corner (`index`), an opening or a label, and the pointer in normalized plan space. */
+export interface GeomDragDetail {
+  kind: 'vertex' | 'opening' | 'label';
+  id: string;
+  index: number;
+  x: number;
+  y: number;
+}
+
+/** What the pointer can grab in the structure: 'all' (the structure tool's select mode) walls, openings, labels and the
+ * selected wall's corners; 'items' (its drawing modes) the existing openings and labels only; 'none' nothing. */
+export type GeomDragMode = 'all' | 'items' | 'none';
+
 /** A measured segment drawn over the plan (calibration, measuring): normalized end points and a label. */
 export interface RulerOverlay {
   a: Pt;
@@ -146,15 +159,22 @@ export class SwPlanCanvas extends LitElement {
   @property({ attribute: false }) issueIds: string[] = [];
   @property() selectedGeomId: string | null = null;
   private primCache: { doc: GeometryDoc; w: number; h: number; level: string | null; prims: Primitive[] } | null = null;
-  /** Plan Studio editor: walls, openings and labels can be picked and dragged (the structure tool's select mode). */
-  @property({ type: Boolean }) geomEditable = false;
+  /** Plan Studio editor: what can be picked and dragged. 'all' in the structure tool's select mode; 'items' in its drawing
+   * modes, where a press on an existing opening or label drags (or, without moving, selects) it and every other press
+   * still goes to the tool as a `plan-click`; 'none' on viewers and in the other tools. */
+  @property() geomDrag: GeomDragMode = 'none';
+  /** The selected corner of the selected wall (the arrow keys move it), drawn filled among the wall's corner handles. */
+  @property({ attribute: false }) selectedVertex: number | null = null;
   /** The wall being drawn (normalized points) and the snapped cursor the editor computed (rubber band, snap dot). */
   @property({ attribute: false }) wallDraft: Pt[] = [];
   @property({ attribute: false }) hoverPoint: Pt | null = null;
   @property({ attribute: false }) rulers: RulerOverlay[] = [];
-  @state() private geomDrag: { x: number; y: number } | null = null;
+  /** The pointer during a structure drag (a small dot where the item is being taken). */
+  @state() private geomDragAt: { x: number; y: number } | null = null;
+  /** A press on a structure item is in progress: the placing tool gets no hover until it ends. */
+  private geomPress = false;
   private hoverFrame = 0;
-  private hoverEvent: { x: number; y: number; shift: boolean } | null = null;
+  private hoverEvent: { x: number; y: number; shift: boolean; item: boolean } | null = null;
   @state() private box: { x0: number; y0: number; x1: number; y1: number } | null = null;
   private boxStart: { x: number; y: number } | null = null;
 
@@ -440,12 +460,15 @@ export class SwPlanCanvas extends LitElement {
       cursor: grab;
     }
     .geom-hits line.hit {
-      cursor: ew-resize;
+      cursor: grab; /* an opening slides along its wall, whatever the wall's direction */
     }
     .gvtx {
       fill: var(--sw-surface);
       stroke: var(--sw-accent);
       cursor: grab;
+    }
+    .gvtx.on {
+      fill: var(--sw-accent);
     }
     .gdrag {
       fill: var(--sw-accent);
@@ -691,7 +714,7 @@ export class SwPlanCanvas extends LitElement {
   };
 
   private onPointerMove = (e: PointerEvent) => {
-    if (this.placing && e.pointerType !== 'touch') this.queueHover(e);
+    if (this.placing && !this.geomPress && e.pointerType !== 'touch') this.queueHover(e);
     if (!this.pointers.has(e.pointerId)) return;
     this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (this.pointers.size === 2) {
@@ -1196,11 +1219,14 @@ export class SwPlanCanvas extends LitElement {
     }
   }
 
-  /** Placing tools get the cursor position once per frame; the editor snaps it and hands it back as hoverPoint. */
+  /** Placing tools get the cursor position once per frame; the editor snaps it and hands it back as hoverPoint. `item`:
+   * the cursor is on an existing opening or label, where a press takes that item instead of placing a new one. */
   private queueHover(e: PointerEvent) {
     const rect = this.getBoundingClientRect();
     const p = this.toPlan(e.clientX - rect.left, e.clientY - rect.top);
-    this.hoverEvent = { x: p.x, y: p.y, shift: e.shiftKey };
+    const under = e.composedPath()[0];
+    const item = under instanceof Element && !!under.closest('[data-hit-opening], [data-hit-label]');
+    this.hoverEvent = { x: p.x, y: p.y, shift: e.shiftKey, item };
     if (this.hoverFrame) return;
     this.hoverFrame = requestAnimationFrame(() => {
       this.hoverFrame = 0;
@@ -1215,60 +1241,77 @@ export class SwPlanCanvas extends LitElement {
     this.dispatchEvent(new CustomEvent('geom-select', { detail: { id, kind: 'wall' }, bubbles: true, composed: true }));
   }
 
-  /** Drag a corner of the selected wall, an opening along its wall, or a label; a press without movement selects. */
-  private onGeomDragStart(kind: 'vertex' | 'opening' | 'label', id: string, index: number, e: PointerEvent) {
-    if (!this.geomEditable || e.button !== 0) return;
-    e.stopPropagation();
+  /** Drag a corner of the selected wall, an opening along its wall, or a label. While the pointer moves, `geom-drag-move`
+   * carries its position (the editor shows the item there; nothing is saved); the drop is one `geom-drag`, an interrupted
+   * gesture a `geom-drag-cancel`. A press without movement selects the item (a corner: that corner of its wall). */
+  private onGeomDragStart(kind: GeomDragDetail['kind'], id: string, index: number, e: PointerEvent) {
+    if (e.button !== 0 || this.geomDrag === 'none' || (kind === 'vertex' && this.geomDrag !== 'all')) return;
+    e.stopPropagation(); // the press is the item's: no pan, and in a drawing mode no new point / opening either
     e.preventDefault();
     const rect0 = this.getBoundingClientRect();
     const start = this.toPlan(e.clientX - rect0.left, e.clientY - rect0.top);
     let moved = false;
     let last = start;
+    const detail = (p: { x: number; y: number }): GeomDragDetail => ({ kind, id, index, x: +p.x.toFixed(5), y: +p.y.toFixed(5) });
+    const emit = (type: string, d: object) => this.dispatchEvent(new CustomEvent(type, { detail: d, bubbles: true, composed: true }));
+    this.geomPress = true;
     this.viewport.setPointerCapture(e.pointerId);
     const move = (ev: PointerEvent) => {
       const p = this.toPlan(ev.clientX - rect0.left, ev.clientY - rect0.top);
       if (!moved && Math.hypot((p.x - start.x) * this.planWidth, (p.y - start.y) * this.planHeight) * this.scale < 3) return;
       moved = true;
       last = p;
-      this.geomDrag = { x: p.x, y: p.y };
+      this.geomDragAt = { x: p.x, y: p.y };
+      emit('geom-drag-move', detail(p));
     };
     const end = () => {
       this.viewport.removeEventListener('pointermove', move);
       this.viewport.removeEventListener('pointerup', up);
       this.viewport.removeEventListener('pointercancel', cancel);
-      this.geomDrag = null;
+      this.geomDragAt = null;
+      this.geomPress = false;
       this.dragMoved = true; // pointer capture sends the trailing click to the viewport: swallow it
       setTimeout(() => (this.dragMoved = false), 0);
     };
     const up = () => {
       end();
-      if (moved) this.dispatchEvent(new CustomEvent('geom-drag', { detail: { kind, id, index, x: +last.x.toFixed(5), y: +last.y.toFixed(5) }, bubbles: true, composed: true }));
-      else if (kind !== 'vertex') this.dispatchEvent(new CustomEvent('geom-select', { detail: { id, kind }, bubbles: true, composed: true }));
+      if (moved) emit('geom-drag', detail(last));
+      else emit('geom-select', kind === 'vertex' ? { id, kind: 'wall', vertex: index } : { id, kind });
     };
-    const cancel = () => end(); // an interrupted gesture changes nothing
+    const cancel = () => {
+      end();
+      if (moved) emit('geom-drag-cancel', detail(last)); // an interrupted gesture changes nothing
+    };
     this.viewport.addEventListener('pointermove', move);
     this.viewport.addEventListener('pointerup', up);
     this.viewport.addEventListener('pointercancel', cancel);
   }
 
-  /** Invisible wide strokes to pick a wall part, an opening or a label, and the selected wall's corner handles (the
-   * closing corner of an outline is one handle, index 0). Hidden while a placing tool is active, so clicks reach the
-   * plan. Markers stay above them. */
+  /** Invisible wide strokes to pick an item, and the selected wall's corner handles (the closing corner of an outline is
+   * one handle, index 0). 'all': wall parts, openings, labels and corners. 'items' (a drawing mode, `placing` is set):
+   * openings and labels only, so a press on a bare wall or on the plan still reaches the tool. Openings and labels are
+   * drawn after every wall part, so their targets sit above the walls': a press on an existing door takes that door.
+   * Markers stay above all of them. */
   private renderGeomHits() {
     const doc = this.geometry;
-    if (!doc || !this.geomEditable || this.placing) return nothing;
+    const mode = this.geomDrag;
+    if (!doc || mode === 'none') return nothing;
     const inv = 1 / this.scale;
     const W = this.planWidth;
     const H = this.planHeight;
-    const selWall = doc.walls.find((w) => w.id === this.selectedGeomId);
-    const drag = this.geomDrag;
+    const prims = this.primitives(doc);
+    const walls = mode === 'all' ? prims.filter((p): p is WallPrim => p.kind === 'wall') : [];
+    const openings = prims.filter((p): p is DoorPrim | WindowPrim | PassagePrim => p.kind === 'door' || p.kind === 'window' || p.kind === 'passage');
+    const labels = prims.filter((p): p is LabelPrim => p.kind === 'label');
+    const selWall = mode === 'all' ? doc.walls.find((w) => w.id === this.selectedGeomId) : undefined;
+    const drag = this.geomDragAt;
     return svg`<g class="geom-hits">
-      ${this.primitives(doc).map((p) => {
-        if (p.kind === 'wall') return svg`<polyline class="hit" data-hit-wall=${p.id} points=${ptsAttr(p.points)} stroke-width=${Math.max(p.width, 12 * inv)} @click=${(e: Event) => this.pickGeom(p.id, e)} />`;
-        if (p.kind === 'label') return svg`<circle class="hit" data-hit-label=${p.id} cx=${p.x} cy=${p.y} r=${Math.max(p.size, 10 * inv)} @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('label', p.id, 0, e)} @click=${(e: Event) => e.stopPropagation()} />`;
-        return svg`<line class="hit" data-hit-opening=${p.id} x1=${p.gap[0][0]} y1=${p.gap[0][1]} x2=${p.gap[1][0]} y2=${p.gap[1][1]} stroke-width=${14 * inv} @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('opening', p.id, 0, e)} @click=${(e: Event) => e.stopPropagation()} />`;
-      })}
-      ${selWall ? (isClosedOutline(selWall.polyline) ? selWall.polyline.slice(0, -1) : selWall.polyline).map((v, i) => svg`<circle class="gvtx" data-wall-vertex=${i} cx=${v[0] * W} cy=${v[1] * H} r=${6 * inv} stroke-width=${1.6 * inv} aria-label=${`פינת קיר ${i + 1}`}
+      ${walls.map((p) => svg`<polyline class="hit" data-hit-wall=${p.id} points=${ptsAttr(p.points)} stroke-width=${Math.max(p.width, 12 * inv)} @click=${(e: Event) => this.pickGeom(p.id, e)} />`)}
+      ${openings.map((p) => svg`<line class="hit" data-hit-opening=${p.id} x1=${p.gap[0][0]} y1=${p.gap[0][1]} x2=${p.gap[1][0]} y2=${p.gap[1][1]} stroke-width=${14 * inv}
+          @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('opening', p.id, 0, e)} @click=${(e: Event) => e.stopPropagation()} />`)}
+      ${labels.map((p) => svg`<circle class="hit" data-hit-label=${p.id} cx=${p.x} cy=${p.y} r=${Math.max(p.size, 10 * inv)}
+          @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('label', p.id, 0, e)} @click=${(e: Event) => e.stopPropagation()} />`)}
+      ${selWall ? (isClosedOutline(selWall.polyline) ? selWall.polyline.slice(0, -1) : selWall.polyline).map((v, i) => svg`<circle class="gvtx ${i === this.selectedVertex ? 'on' : ''}" data-wall-vertex=${i} cx=${v[0] * W} cy=${v[1] * H} r=${6 * inv} stroke-width=${1.6 * inv} aria-label=${`פינת קיר ${i + 1}`}
           @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('vertex', selWall.id, i, e)} @click=${(e: Event) => e.stopPropagation()} />`) : nothing}
       ${drag ? svg`<circle class="gdrag" cx=${drag.x * W} cy=${drag.y * H} r=${5 * inv} stroke-width=${1.5 * inv} />` : nothing}
     </g>`;
