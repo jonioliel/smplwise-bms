@@ -355,5 +355,9 @@ def delete_anchor(anchor_id: str, request: Request, principal: Principal = Depen
     require(conn, principal, "placement.edit", ("floor", a["floor_id"]))
     now = now_iso()
     conn.execute("UPDATE map_anchors SET effective_to = ?, updated_by = ?, updated_at = ? WHERE id = ?", (now, principal.user_id, now, anchor_id))
+    from ..services import geometry_store
+
+    unbound = geometry_store.unbind_anchor(conn, a["floor_id"], a["resource_type"], a["resource_id"], principal.user_id, now,
+                                           last={"x": a["x"], "y": a["y"], "rotation": a["rotation_degrees"] or 0})  # its bodies stay where the anchor was, unbound
     audit(conn, actor=principal, action="anchor.delete", decision="allowed", resource_type="floor", resource_id=a["floor_id"], request_id=_rid(request),
-          details={"anchor_id": anchor_id, "resource": f"{a['resource_type']}:{a['resource_id']}"})
+          details={"anchor_id": anchor_id, "resource": f"{a['resource_type']}:{a['resource_id']}", "unbound_bodies": unbound})
