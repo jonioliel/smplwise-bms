@@ -98,13 +98,16 @@ export function polygonCentroid(poly: { x: number; y: number }[]) {
 
 const ptsAttr = (ps: Pt[]): string => ps.map((p) => `${p[0]},${p[1]}`).join(' ');
 
-/** A structure drag (Plan Studio): a wall corner (`index`), an opening or a label, and the pointer in normalized plan space. */
+/** A structure drag (Plan Studio): a wall corner (`index`), an opening or a label; the pointer now (x, y) and where the
+ * press started (sx, sy), in normalized plan space - so an item keeps its offset from the pointer instead of jumping. */
 export interface GeomDragDetail {
   kind: 'vertex' | 'opening' | 'label';
   id: string;
   index: number;
   x: number;
   y: number;
+  sx: number;
+  sy: number;
 }
 
 /** What the pointer can grab in the structure: 'all' (the structure tool's select mode) walls, openings, labels and the
@@ -165,6 +168,9 @@ export class SwPlanCanvas extends LitElement {
   @property() geomDrag: GeomDragMode = 'none';
   /** The selected corner of the selected wall (the arrow keys move it), drawn filled among the wall's corner handles. */
   @property({ attribute: false }) selectedVertex: number | null = null;
+  /** Wall mode: the editor's corner snap radius in screen pixels. A press that close to a wall corner belongs to the
+   * drawing tool even on an opening or a label (the corner snap wins over the item); 0 = off. */
+  @property({ type: Number }) cornerSnapPx = 0;
   /** The wall being drawn (normalized points) and the snapped cursor the editor computed (rubber band, snap dot). */
   @property({ attribute: false }) wallDraft: Pt[] = [];
   @property({ attribute: false }) hoverPoint: Pt | null = null;
@@ -1225,7 +1231,7 @@ export class SwPlanCanvas extends LitElement {
     const rect = this.getBoundingClientRect();
     const p = this.toPlan(e.clientX - rect.left, e.clientY - rect.top);
     const under = e.composedPath()[0];
-    const item = under instanceof Element && !!under.closest('[data-hit-opening], [data-hit-label]');
+    const item = under instanceof Element && !!under.closest('[data-hit-opening], [data-hit-label]') && !this.nearCorner(e.clientX, e.clientY);
     this.hoverEvent = { x: p.x, y: p.y, shift: e.shiftKey, item };
     if (this.hoverFrame) return;
     this.hoverFrame = requestAnimationFrame(() => {
@@ -1241,18 +1247,45 @@ export class SwPlanCanvas extends LitElement {
     this.dispatchEvent(new CustomEvent('geom-select', { detail: { id, kind: 'wall' }, bubbles: true, composed: true }));
   }
 
+  /** Wall mode (`cornerSnapPx`): the pointer is within the corner snap radius of a wall corner, where a press starts or
+   * continues a wall instead of taking an opening or a label that lies under it. */
+  private nearCorner(clientX: number, clientY: number): boolean {
+    const doc = this.geometry;
+    const r = this.cornerSnapPx;
+    if (!doc || !(r > 0)) return false;
+    const rect = this.getBoundingClientRect();
+    const p = this.toPlan(clientX - rect.left, clientY - rect.top);
+    return doc.walls.some((w) => w.polyline.some((v) => Math.hypot((v[0] - p.x) * this.planWidth, (v[1] - p.y) * this.planHeight) * this.scale <= r));
+  }
+
+  /** A press on an item cancels the browser's default action (preventDefault), which would have moved the focus: a form
+   * field that still holds it gives it up here (its change, if any, is committed as on any blur), so the arrow keys
+   * reach the item instead of stepping the field. Walks the shadow roots down to the element that really has focus. */
+  private releaseFieldFocus() {
+    let el: Element | null = document.activeElement;
+    while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
+    if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement) el.blur();
+  }
+
+  /** The click after a press on an opening or a label stays with the item, unless the press was left to the drawing tool. */
+  private itemClick = (e: MouseEvent) => {
+    if (!this.nearCorner(e.clientX, e.clientY)) e.stopPropagation();
+  };
+
   /** Drag a corner of the selected wall, an opening along its wall, or a label. While the pointer moves, `geom-drag-move`
    * carries its position (the editor shows the item there; nothing is saved); the drop is one `geom-drag`, an interrupted
    * gesture a `geom-drag-cancel`. A press without movement selects the item (a corner: that corner of its wall). */
   private onGeomDragStart(kind: GeomDragDetail['kind'], id: string, index: number, e: PointerEvent) {
     if (e.button !== 0 || this.geomDrag === 'none' || (kind === 'vertex' && this.geomDrag !== 'all')) return;
+    if (kind !== 'vertex' && this.nearCorner(e.clientX, e.clientY)) return; // wall mode: the press draws from that corner
     e.stopPropagation(); // the press is the item's: no pan, and in a drawing mode no new point / opening either
     e.preventDefault();
+    this.releaseFieldFocus();
     const rect0 = this.getBoundingClientRect();
     const start = this.toPlan(e.clientX - rect0.left, e.clientY - rect0.top);
     let moved = false;
     let last = start;
-    const detail = (p: { x: number; y: number }): GeomDragDetail => ({ kind, id, index, x: +p.x.toFixed(5), y: +p.y.toFixed(5) });
+    const detail = (p: { x: number; y: number }): GeomDragDetail => ({ kind, id, index, x: +p.x.toFixed(5), y: +p.y.toFixed(5), sx: +start.x.toFixed(5), sy: +start.y.toFixed(5) });
     const emit = (type: string, d: object) => this.dispatchEvent(new CustomEvent(type, { detail: d, bubbles: true, composed: true }));
     this.geomPress = true;
     this.viewport.setPointerCapture(e.pointerId);
@@ -1291,6 +1324,8 @@ export class SwPlanCanvas extends LitElement {
    * one handle, index 0). 'all': wall parts, openings, labels and corners. 'items' (a drawing mode, `placing` is set):
    * openings and labels only, so a press on a bare wall or on the plan still reaches the tool. Openings and labels are
    * drawn after every wall part, so their targets sit above the walls': a press on an existing door takes that door.
+   * An opening's target is 28 screen px thick, or the wall's drawn thickness when that is more: it covers the band in
+   * which a placing click finds the wall (the editor also refuses a second opening inside an existing one's span).
    * Markers stay above all of them. */
   private renderGeomHits() {
     const doc = this.geometry;
@@ -1303,14 +1338,17 @@ export class SwPlanCanvas extends LitElement {
     const walls = mode === 'all' ? prims.filter((p): p is WallPrim => p.kind === 'wall') : [];
     const openings = prims.filter((p): p is DoorPrim | WindowPrim | PassagePrim => p.kind === 'door' || p.kind === 'window' || p.kind === 'passage');
     const labels = prims.filter((p): p is LabelPrim => p.kind === 'label');
+    const wallPx = new Map<string, number>();
+    for (const p of prims) if (p.kind === 'wall') wallPx.set(p.id, Math.max(wallPx.get(p.id) ?? 0, p.width));
+    const hostOf = new Map(doc.openings.map((o) => [o.id, o.wall_id]));
     const selWall = mode === 'all' ? doc.walls.find((w) => w.id === this.selectedGeomId) : undefined;
     const drag = this.geomDragAt;
     return svg`<g class="geom-hits">
       ${walls.map((p) => svg`<polyline class="hit" data-hit-wall=${p.id} points=${ptsAttr(p.points)} stroke-width=${Math.max(p.width, 12 * inv)} @click=${(e: Event) => this.pickGeom(p.id, e)} />`)}
-      ${openings.map((p) => svg`<line class="hit" data-hit-opening=${p.id} x1=${p.gap[0][0]} y1=${p.gap[0][1]} x2=${p.gap[1][0]} y2=${p.gap[1][1]} stroke-width=${14 * inv}
-          @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('opening', p.id, 0, e)} @click=${(e: Event) => e.stopPropagation()} />`)}
+      ${openings.map((p) => svg`<line class="hit" data-hit-opening=${p.id} x1=${p.gap[0][0]} y1=${p.gap[0][1]} x2=${p.gap[1][0]} y2=${p.gap[1][1]} stroke-width=${Math.max(28 * inv, wallPx.get(hostOf.get(p.id) ?? '') ?? 0)}
+          @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('opening', p.id, 0, e)} @click=${this.itemClick} />`)}
       ${labels.map((p) => svg`<circle class="hit" data-hit-label=${p.id} cx=${p.x} cy=${p.y} r=${Math.max(p.size, 10 * inv)}
-          @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('label', p.id, 0, e)} @click=${(e: Event) => e.stopPropagation()} />`)}
+          @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('label', p.id, 0, e)} @click=${this.itemClick} />`)}
       ${selWall ? (isClosedOutline(selWall.polyline) ? selWall.polyline.slice(0, -1) : selWall.polyline).map((v, i) => svg`<circle class="gvtx ${i === this.selectedVertex ? 'on' : ''}" data-wall-vertex=${i} cx=${v[0] * W} cy=${v[1] * H} r=${6 * inv} stroke-width=${1.6 * inv} aria-label=${`פינת קיר ${i + 1}`}
           @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('vertex', selWall.id, i, e)} @click=${(e: Event) => e.stopPropagation()} />`) : nothing}
       ${drag ? svg`<circle class="gdrag" cx=${drag.x * W} cy=${drag.y * H} r=${5 * inv} stroke-width=${1.5 * inv} />` : nothing}

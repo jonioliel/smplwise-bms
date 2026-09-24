@@ -7,7 +7,7 @@ import { css, html, nothing, type TemplateResult } from 'lit';
 import type { CopyCandidate, GeometryIssue } from '../api/geometry';
 import { effectiveScale, lengthPx, perimeterM, polygonAreaM2, type GeometryDoc, type GeomLabel, type GeomOpening, type GeomWall, type Hinge, type OpeningKind, type Pt, type Swing, type WallKind } from '../map/geometry';
 import type { SaveState } from '../map/studio-controller';
-import { kindDefaults, openingRange, type WallDefaults } from '../map/studio-ops';
+import { cornerRemovable, kindDefaults, openingRange, type WallDefaults } from '../map/studio-ops';
 
 export type StudioMode = 'select' | 'wall' | 'door' | 'window' | 'passage' | 'label';
 export type GeomKind = 'wall' | 'opening' | 'label';
@@ -182,7 +182,9 @@ function renderWall(w: GeomWall, v: StudioView, a: StudioActions, scale: number,
     </div>
     <sw-field label="גובה (מ׳, ריק = עד התקרה)"><input type="number" min="0.1" max="50" step="0.1" data-ltr .value=${w.height_m === null ? '' : String(w.height_m)}
       @change=${(e: Event) => { const raw = (e.target as HTMLInputElement).value.trim(); const x = parseFloat(raw); if (!raw) a.patchWall(w.id, { height_m: null }); else if (x > 0 && x <= 50) a.patchWall(w.id, { height_m: x }); }} /></sw-field>
-    ${v.mode === 'select' && v.sel?.vertex !== undefined ? html`<div class="note" data-selected-vertex=${v.sel.vertex}>פינה ${v.sel.vertex + 1} נבחרה: החצים מזיזים אותה (Shift = צעד גדול)</div>` : nothing}
+    ${v.mode === 'select' && v.sel?.vertex !== undefined
+      ? html`<div class="note" data-selected-vertex=${v.sel.vertex}>פינה ${v.sel.vertex + 1} נבחרה: החצים מזיזים אותה (Shift = צעד גדול); ${cornerRemovable(w.polyline) ? 'Delete מוחק את הפינה.' : 'Delete מוחק את כל הקיר, כי בלי הפינה לא נשאר קיר.'}</div>`
+      : nothing}
     <div class="btns"><sw-button size="sm" variant="ghost" icon="trash" data-geom-delete @click=${() => a.remove(w.id)}>מחק קיר</sw-button><span class="note">הפתחים שבקיר נמחקים איתו</span></div>
   </div>`;
 }
@@ -204,8 +206,8 @@ function renderPlacement(o: GeomOpening, v: StudioView, a: StudioActions, scale:
     if (t !== o.t) a.patchOpening(o.id, { t });
     input.value = fmt(t); // shows the kept value also when the clamp left the position as it was
   };
-  // The arrow-key convention (a wall can run in any direction): towards the wall's end or its start.
-  const keys = 'חץ ימינה או למעלה: לכיוון סוף הקיר; שמאלה או למטה: לכיוון תחילתו.';
+  // The arrow keys work in screen directions: the opening follows the arrow along its wall (owner ruling on 0.1.83).
+  const keys = 'חצים מזיזים את הפתח לכיוון החץ לאורך הקיר.';
   return estimated
     ? html`<sw-field label="מיקום על הקיר (%)" hint=${`מרכז הפתח: 0 = תחילת הקיר, 100 = סופו. ${keys}`}><input type="number" min="0" max="100" step="0.1" data-ltr data-opening-percent
         aria-label="מיקום על הקיר (%)" .value=${fmt(o.t)} @change=${set} /></sw-field>`

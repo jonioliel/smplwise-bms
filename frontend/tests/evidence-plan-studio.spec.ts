@@ -276,41 +276,51 @@ test.describe.serial('plan studio (SW A)', () => {
     near(startValue, t0 * L, 0.006); // metres from the wall's start, two decimals
     await expect(page.locator(`${ed} sw-plan-canvas [data-opening]`)).toHaveCount(1);
 
-    // drag it 40 px towards the wall's end, without leaving the door mode; the distance field follows the pointer
+    // drag it 40 px towards the wall's end, without leaving the door mode, grabbed 4 px off its centre: it moves by the
+    // pointer's 40 px (no jump to the pointer), and the distance field follows before the drop
     const canvas = page.locator(`${ed} sw-plan-canvas`);
     const box = (await canvas.boundingBox())!;
     const at = await canvas.evaluate((el) => {
-      const c = el as unknown as { toScreen: (a: number, b: number) => { x: number; y: number }; zoom: number; planWidth: number };
-      return { ...c.toScreen(0.35, 0.5), zoom: c.zoom, w: c.planWidth };
+      const c = el as unknown as { toScreen: (a: number, b: number) => { x: number; y: number }; zoom: number; planWidth: number; planHeight: number };
+      return { ...c.toScreen(0.35, 0.5), zoom: c.zoom, w: c.planWidth, h: c.planHeight };
     });
-    await page.mouse.move(box.x + at.x, box.y + at.y);
+    const tpx = 1 / (at.zoom * 0.6 * at.w); // one screen pixel along the wall, as a fraction of the wall
+    await page.mouse.move(box.x + at.x + 4, box.y + at.y);
     await page.mouse.down();
-    await page.mouse.move(box.x + at.x + 40, box.y + at.y, { steps: 8 });
+    await page.mouse.move(box.x + at.x + 44, box.y + at.y, { steps: 8 });
     await expect(dist).not.toHaveValue(startValue); // live, before the drop
     await page.mouse.up();
-    const expected = t0 + 40 / at.zoom / (0.6 * at.w);
-    await expect.poll(async () => (await doorT())[0], { timeout: 10000 }).toBeGreaterThan(t0 + (expected - t0) / 2);
+    const expected = t0 + 40 * tpx;
+    await expect.poll(async () => (await doorT())[0], { timeout: 10000 }).toBeGreaterThan(t0 + 20 * tpx);
     const [t1, ...more] = await doorT();
     expect(more, 'the press took the existing door: no second door').toHaveLength(0);
-    expect(Math.abs(t1 - expected)).toBeLessThan(0.01);
+    expect(Math.abs(t1 - expected), `moved ${(t1 - t0) / tpx} px`).toBeLessThan(1.5 * tpx);
     await expect(page.locator(`${ed} sw-plan-canvas [data-opening]`)).toHaveCount(1);
 
-    // ArrowRight three times: 1 cm each towards the wall's end on a calibrated plan
+    // ArrowRight three times on this left-to-right wall: 1 cm each to the right (the arrow's direction) on a calibrated plan
     const before = await dist.inputValue();
     for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowRight');
     await expect(dist).not.toHaveValue(before);
     await expect.poll(async () => (await doorT())[0], { timeout: 10000 }).toBeCloseTo(t1 + 0.03 / L, 4);
-    // the burst is one undo step: Ctrl+Z puts the door back where the drag left it
+    // the burst is one undo step: Ctrl+Z puts the door back where the drag left it (and clears the selection)
     await page.keyboard.press('Control+z');
     await expect.poll(async () => (await doorT())[0], { timeout: 10000 }).toBeCloseTo(t1, 5);
 
-    // select it again (a press in door mode) and type its distance from the wall's start
-    await clickPlan(page, ed, 0.2 + 0.6 * t1, 0.5);
+    // a click just past the door's end and 10 px off the wall - outside the door's own target, inside the band in which a
+    // click finds the wall - takes the door instead of stacking a second one on it
+    await clickPlan(page, ed, 0.2 + 0.6 * (t1 + 0.45 / L + 3 * tpx), 0.5 + 10 / (at.zoom * at.h));
     await expect(page.locator(`${ed} [data-selected-opening]`)).toBeVisible();
+    await expect(page.locator(`${ed} sw-plan-canvas [data-opening]`)).toHaveCount(1);
+    // type its distance from the wall's start (Enter commits it and leaves the focus in the field)
     await dist.fill('7.5');
     await dist.press('Enter');
     await expect(dist).toHaveValue('7.50');
     await expect.poll(async () => (await doorT())[0], { timeout: 10000 }).toBeCloseTo(7.5 / L, 3);
+    // a press on the door takes the focus from the field, so the arrow moves the door and does not go to the field
+    const t2 = (await doorT())[0];
+    await clickPlan(page, ed, 0.2 + 0.6 * t2, 0.5);
+    await page.keyboard.press('ArrowRight');
+    await expect.poll(async () => (await doorT())[0], { timeout: 10000 }).toBeCloseTo(t2 + 0.01 / L, 4);
     expect(await doorT()).toHaveLength(1);
     await expect(page.locator(`${ed} [data-studio-panel][data-studio-save="saved"]`)).toHaveCount(1, { timeout: 10000 });
   });

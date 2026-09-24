@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildPrimitives, distanceM, effectiveScale, isClosedOutline, nearestWall, perimeterM, pointOnWall, polygonAreaM2, snapPoint, type GeometryDoc, type Primitive, type Pt, type WallPrim } from '../src/map/geometry';
-import { addLabel, addOpening, addWall, moveVertex, patchLabel, patchOpening, removeItem } from '../src/map/studio-ops';
+import { addLabel, addOpening, addWall, cornerRemovable, moveVertex, nudgeT, openingRange, patchLabel, patchOpening, removeCorner, removeItem, wallDirectionAt } from '../src/map/studio-ops';
 import { fmtArea, fmtMetres } from '../src/screens/plan-studio-panel';
 
 // Plan Studio (T084): the map's structure primitives equal the backend renderer's (the shared golden file), and the
@@ -92,9 +92,77 @@ test.describe('plan studio geometry (unit)', () => {
     expect(isClosedOutline(ring.doc.walls.find((x) => x.id === ring.id)!.polyline)).toBe(true);
     expect(isClosedOutline([[0.2, 0.2], [0.4, 0.2], [0.2, 0.2]])).toBe(false);
     expect(isClosedOutline([[0.2, 0.2], [0.4, 0.2], [0.4, 0.4], [0.2, 0.21]])).toBe(false);
+    // Deleting a selected corner (0.1.83): an open wall keeps at least two points, a closed outline stays closed with at
+    // least three corners; a wall that would drop below that goes instead, with its openings.
+    const polyOf = (d: GeometryDoc, id: string) => d.walls.find((x) => x.id === id)?.polyline;
+    expect(cornerRemovable(polyOf(ring.doc, ring.id)!)).toBe(false); // a triangle
+    const lost = removeCorner(ring.doc, ring.id, 1);
+    expect(lost.wallRemoved).toBe(true);
+    expect(polyOf(lost.doc, ring.id)).toBeUndefined();
+    const quad = addWall(doc, [[0.2, 0.2], [0.4, 0.2], [0.4, 0.4], [0.2, 0.4], [0.2, 0.2]], { thickness_m: 0.2, kind: 'interior' });
+    const q0 = removeCorner(quad.doc, quad.id, 0); // the closing corner: the outline now closes on the next one
+    expect(q0.wallRemoved).toBe(false);
+    expect(polyOf(q0.doc, quad.id)).toEqual([[0.4, 0.2], [0.4, 0.4], [0.2, 0.4], [0.4, 0.2]]);
+    expect(polyOf(removeCorner(quad.doc, quad.id, 2).doc, quad.id)).toEqual([[0.2, 0.2], [0.4, 0.2], [0.2, 0.4], [0.2, 0.2]]);
+    const bent = addWall(doc, [[0.1, 0.1], [0.2, 0.1], [0.2, 0.2]], { thickness_m: 0.2, kind: 'interior' });
+    expect(polyOf(removeCorner(bent.doc, bent.id, 1).doc, bent.id)).toEqual([[0.1, 0.1], [0.2, 0.2]]);
+    const straight = addWall(doc, [[0.1, 0.1], [0.2, 0.1]], { thickness_m: 0.2, kind: 'interior' });
+    expect(removeCorner(straight.doc, straight.id, 0).wallRemoved).toBe(true);
+    expect(removeCorner(bent.doc, bent.id, 5).doc).toBe(bent.doc); // no such corner: nothing changes
     // Every op above returns a new document rather than mutating its input (addWall's input, captured as
     // `original` before the sequence ran, must still equal its own before-snapshot).
     expect(JSON.stringify(original)).toBe(before);
+  });
+
+  // Fine placement of an opening (0.1.83): openingRange keeps it inside its wall (the validator's opening_outside_wall),
+  // nudgeT moves it by one arrow press.
+  test('openingRange: a wall without length sets no limit', () => {
+    expect(openingRange(0.9, 0)).toEqual([0, 1]);
+    expect(openingRange(0.9, Number.NaN)).toEqual([0, 1]);
+    expect(nudgeT(0.5, 0.1, openingRange(0.9, 0))).toBeCloseTo(0.6, 12);
+    expect(nudgeT(0.95, 0.1, openingRange(0.9, 0))).toBe(1);
+    expect(nudgeT(0.05, -0.1, openingRange(0.9, 0))).toBe(0);
+  });
+
+  test('openingRange: an opening as wide as its wall or wider only fits the middle', () => {
+    const [lo, hi] = openingRange(0.9, 12); // half the width from either end
+    expect(lo).toBeCloseTo(0.0375, 12);
+    expect(hi).toBeCloseTo(0.9625, 12);
+    expect(openingRange(1.5, 1.5)).toEqual([0.5, 0.5]);
+    expect(openingRange(2, 1.5)).toEqual([0.5, 0.5]);
+    const middle = openingRange(2, 1.5);
+    expect(nudgeT(0.5, 0.01, middle)).toBe(0.5);
+    expect(nudgeT(0.5, -0.01, middle)).toBe(0.5);
+    expect(nudgeT(0.3, 0.5, middle)).toBe(0.5); // towards the middle, never past it
+    expect(nudgeT(0.3, -0.01, middle)).toBe(0.3); // and never further away
+  });
+
+  test('an opening that already sticks out of its wall does not jump against the key', () => {
+    const range = openingRange(0.9, 12);
+    expect(nudgeT(0.01, -0.002, range)).toBe(0.01); // further out: nothing moves
+    expect(nudgeT(0.01, 0.002, range)).toBeCloseTo(0.012, 12); // back towards the wall by one step, no jump to the limit
+    expect(nudgeT(0.99, 0.002, range)).toBe(0.99);
+    expect(nudgeT(0.99, -0.002, range)).toBeCloseTo(0.988, 12);
+    expect(nudgeT(0.036, 0.01, range)).toBeCloseTo(0.046, 12); // a step that crosses into the wall is taken whole
+    expect(nudgeT(0.5, 0, range)).toBe(0.5);
+  });
+
+  test('nudging to the end of a wall stops at the limit and stays there after rounding', () => {
+    // A 0.9 m door on a 3.7 m wall: the limit is t = 1 - 0.45 / 3.7 = 0.8783783..., which patchOpening's 5-decimal
+    // rounding turns into 0.87838, just above it. 1 cm steps from t = 0.87 reach it and a further press stays there.
+    const placed = addOpening(sample(), 'wb', 0.87, 'door');
+    let doc = placed.doc;
+    const t = () => doc.openings.find((o) => o.id === placed.id)!.t;
+    const range = openingRange(0.9, 3.7);
+    const step = 0.01 / 3.7;
+    for (let i = 0; i < 10; i++) doc = patchOpening(doc, placed.id, { t: nudgeT(t(), step, range) });
+    expect(t()).toBe(0.87838);
+    expect(t()).toBeGreaterThan(range[1]);
+    doc = patchOpening(doc, placed.id, { t: nudgeT(t(), step, range) });
+    expect(t()).toBe(0.87838); // no creeping on, no jump back below the limit
+    expect(t() * 3.7 + 0.45).toBeLessThanOrEqual(3.7 + 0.01); // inside the wall by the validator's 1 cm tolerance
+    doc = patchOpening(doc, placed.id, { t: nudgeT(t(), -step, range) });
+    expect(t()).toBeCloseTo(0.87838 - step, 5); // the other way it moves one step
   });
 
   // Controller note (golden review, T084): the golden fixture cannot catch a sort that works by accident. Two
@@ -220,6 +288,13 @@ test.describe('plan studio geometry (unit)', () => {
     const mid = pointOnWall(wb, 0.5, 1000, 800); // (100,400)-(600,400) px
     expect(mid[0]).toBeCloseTo(0.35, 9);
     expect(mid[1]).toBeCloseTo(0.5, 9);
+    // The wall's direction at a position, towards its end, y down (the arrow keys move an opening by it): the segment
+    // the position lies on.
+    expect(wallDirectionAt(wb, 0.5, 1000, 800)).toEqual([1, 0]);
+    expect(wallDirectionAt({ ...wb, polyline: [[0.5, 0.9], [0.5, 0.1]] }, 0.3, 1000, 800)).toEqual([0, -1]);
+    const bend = { ...wb, polyline: [[0.1, 0.1], [0.5, 0.1], [0.5, 0.6]] as Pt[] }; // 400 px across, then 400 px down
+    expect(wallDirectionAt(bend, 0.25, 1000, 800)).toEqual([1, 0]);
+    expect(wallDirectionAt(bend, 0.75, 1000, 800)).toEqual([0, 1]);
     doc = removeItem(doc, l.id);
     expect(doc.labels.some((x) => x.id === l.id)).toBe(false);
   });

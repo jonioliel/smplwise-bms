@@ -21,9 +21,9 @@ import { ROOM_FILL_LABEL, setRenderMode, stylizeVersion, type RoomFill, type Sty
 import { ZONE_KINDS, acceptZones, createZone, deleteZone, detectZones, pointInPolygon, updateZone, zoneKindLabel, type SpatialZone, type ZoneKind, type ZonePoint } from '../api/zones';
 import { calibrate, copyGeometryFrom, exportUrl, geometryDiff, publishGeometry, type GeometryDiffResponse } from '../api/geometry';
 import { productSettings } from '../api/prefs';
-import { distanceM, effectiveScale, isClosedOutline, lengthPx, nearestWall, pointOnWall, snapPoint, type GeometryDoc, type GeomWall, type Pt } from '../map/geometry';
+import { distanceM, effectiveScale, isClosedOutline, lengthPx, nearestWall, pointOnWall, snapPoint, type GeometryDoc, type GeomOpening, type GeomWall, type Pt } from '../map/geometry';
 import { StudioController } from '../map/studio-controller';
-import { addLabel, addOpening, addWall, moveVertex, nudgeT, openingRange, patchLabel, patchOpening, patchWall, removeItem, type WallDefaults } from '../map/studio-ops';
+import { addLabel, addOpening, addWall, kindDefaults, moveVertex, nudgeT, openingRange, patchLabel, patchOpening, patchWall, removeCorner, removeItem, wallDirectionAt, type WallDefaults } from '../map/studio-ops';
 import { COLL_LABEL, countLabel, fmtMetres, fmtScale, renderCalibPanel, renderMeasurePanel, renderStudioPanel, studioPanelStyles, type GeomKind, type GeomSel, type StudioMode } from './plan-studio-panel';
 
 type Strength = 'light' | 'medium' | 'strong';
@@ -64,6 +64,13 @@ const EMPTY_CALIB: CalibState = { a: null, b: null, metres: '', result: '', warn
 /** Arrow presses on one structure item less than this far apart (a held key, a quick run of taps) are one undo step. */
 const NUDGE_BURST_MS = 1000;
 const ARROWS = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
+/** Screen pixels: a wall corner attracts a drawing / calibrating / measuring point this close (and in wall mode such a
+ * press draws even on top of an opening or a label). */
+const CORNER_SNAP_PX = 10;
+/** Screen pixels: a click this close to a wall's centre line places an opening on that wall. */
+const WALL_PICK_PX = 14;
+/** Screen pixels beyond an opening's own width in which a placing click selects that opening instead of adding one. */
+const OPENING_PICK_MARGIN_PX = 6;
 /** The walls and openings of a structure in the publish previews ("קיר אחד, 3 פתחים"). */
 const wallsAndOpenings = (walls: number, openings: number) => `${countLabel(walls, 'קיר אחד', 'קירות')}, ${countLabel(openings, 'פתח אחד', 'פתחים')}`;
 
@@ -1216,7 +1223,7 @@ export class ExplorePlanEditor extends LitElement {
     const b = this.bundle;
     const doc = this.studio.doc;
     if (!b || !doc) return p;
-    return snapPoint(p, prev, doc.walls, b.width, b.height, { tolPx: 10 / (this.canvas?.zoom ?? 1), free });
+    return snapPoint(p, prev, doc.walls, b.width, b.height, { tolPx: CORNER_SNAP_PX / (this.canvas?.zoom ?? 1), free });
   }
 
   /** A point of the wall being drawn: from three points on, the draft's own first point (closing the outline) wins over
@@ -1224,8 +1231,26 @@ export class ExplorePlanEditor extends LitElement {
   private snapDraw(p: Pt, draft: Pt[], free: boolean): Pt {
     const b = this.bundle;
     const first = draft.length >= 3 ? draft[0] : null;
-    if (b && first && Math.hypot((p[0] - first[0]) * b.width, (p[1] - first[1]) * b.height) * (this.canvas?.zoom ?? 1) <= 10) return first;
+    if (b && first && Math.hypot((p[0] - first[0]) * b.width, (p[1] - first[1]) * b.height) * (this.canvas?.zoom ?? 1) <= CORNER_SNAP_PX) return first;
     return this.snap(p, draft.at(-1) ?? null, free);
+  }
+
+  /** The existing opening on `wall` whose span, widened by a few screen pixels, holds position t (the nearest one): a
+   * placing click there takes that opening instead of stacking a second one on it (review of 0.1.83: a click 7 to 14 px
+   * off the wall missed the opening's hit target but still found the wall). */
+  private openingAt(doc: GeometryDoc, wall: GeomWall, t: number): GeomOpening | null {
+    const lengthM = this.wallLengthM(wall, doc);
+    const marginM = (OPENING_PICK_MARGIN_PX / (this.canvas?.zoom ?? 1)) * effectiveScale(doc).scale;
+    let best: GeomOpening | null = null;
+    let bestM = Number.POSITIVE_INFINITY;
+    for (const o of doc.openings) {
+      const m = o.wall_id === wall.id ? Math.abs(o.t - t) * lengthM : Number.POSITIVE_INFINITY;
+      if (m <= o.width_m / 2 + marginM && m < bestM) {
+        best = o;
+        bestM = m;
+      }
+    }
+    return best;
   }
 
   /** `onItem`: the cursor is on an existing opening or label - a press there takes that item, so no placing dot. */
@@ -1242,8 +1267,9 @@ export class ExplorePlanEditor extends LitElement {
     else if (this.studioMode === 'wall') this.hover = this.snapDraw(p, this.wallDraft ?? [], shift);
     else if (this.studioMode === 'label') this.hover = p;
     else {
-      const hit = nearestWall(p, doc.walls, b.width, b.height, 14 / (this.canvas?.zoom ?? 1));
-      this.hover = hit ? pointOnWall(hit.wall, hit.t, b.width, b.height) : null;
+      // no dot where a click would take an existing opening rather than place a new one
+      const hit = nearestWall(p, doc.walls, b.width, b.height, WALL_PICK_PX / (this.canvas?.zoom ?? 1));
+      this.hover = hit && !this.openingAt(doc, hit.wall, hit.t) ? pointOnWall(hit.wall, hit.t, b.width, b.height) : null;
     }
   }
 
@@ -1291,13 +1317,20 @@ export class ExplorePlanEditor extends LitElement {
       return;
     }
     if (mode === 'select') return;
-    const hit = nearestWall(p, doc.walls, b.width, b.height, 14 / zoom);
+    const hit = nearestWall(p, doc.walls, b.width, b.height, WALL_PICK_PX / zoom);
     if (!hit) {
       this.info = 'לחץ על קיר כדי להציב פתח';
       setTimeout(() => (this.info = ''), 2500);
       return;
     }
-    const r = addOpening(doc, hit.wall.id, hit.t, mode);
+    const existing = this.openingAt(doc, hit.wall, hit.t);
+    if (existing) {
+      this.onGeomSelect(existing.id, 'opening'); // a click on an existing opening takes it: no second one on top
+      return;
+    }
+    // a click near the end of the wall places the opening flush with the end, never sticking out of it
+    const [lo, hi] = openingRange(kindDefaults(mode).width_m, this.wallLengthM(hit.wall, doc));
+    const r = addOpening(doc, hit.wall.id, Math.min(hi, Math.max(lo, hit.t)), mode);
     this.studio.commit(r.doc);
     this.geomSel = { id: r.id, kind: 'opening' };
   }
@@ -1326,8 +1359,9 @@ export class ExplorePlanEditor extends LitElement {
   }
 
   /** Where a structure drag puts its item: the document after the drop and what is selected then. A corner snaps to the
-   * other walls' corners; an opening follows the pointer along its own wall and stays inside it; a label goes where the
-   * pointer is. The live preview and the drop use the same answer. */
+   * other walls' corners; an opening moves along its own wall by as much as the pointer did (it keeps the offset it was
+   * grabbed at, no jump to the pointer) and stays inside the wall; a label moves by the pointer's movement. The live
+   * preview and the drop use the same answer. */
   private dragged(doc: GeometryDoc, d: GeomDragDetail): { doc: GeometryDoc; sel: GeomSel } | null {
     const b = this.bundle;
     if (!b) return null;
@@ -1344,19 +1378,22 @@ export class ExplorePlanEditor extends LitElement {
       const skip = closed ? [(i + corners - 1) % corners, i, (i + 1) % corners] : [i - 1, i, i + 1];
       const own: GeomWall = { ...w, polyline: pl.slice(0, corners).filter((_, k) => !skip.includes(k)) };
       const targets = [...doc.walls.filter((v) => v.id !== d.id), own];
-      const q = snapPoint(p, i > 0 ? pl[i - 1] : null, targets, b.width, b.height, { tolPx: 10 / (this.canvas?.zoom ?? 1), free: true });
+      const q = snapPoint(p, i > 0 ? pl[i - 1] : null, targets, b.width, b.height, { tolPx: CORNER_SNAP_PX / (this.canvas?.zoom ?? 1), free: true });
       return { doc: closed && i === 0 ? moveVertex(moveVertex(doc, d.id, 0, q), d.id, last, q) : moveVertex(doc, d.id, i, q), sel: { id: d.id, kind: 'wall', vertex: i } };
     }
     if (d.kind === 'opening') {
       const sel: GeomSel = { id: d.id, kind: 'opening' };
       const o = doc.openings.find((v) => v.id === d.id);
       const w = o && doc.walls.find((v) => v.id === o.wall_id);
-      const hit = o && w ? nearestWall(p, [w], b.width, b.height, Number.POSITIVE_INFINITY) : null;
-      if (!o || !w || !hit) return { doc, sel };
+      const now = o && w ? nearestWall(p, [w], b.width, b.height, Number.POSITIVE_INFINITY) : null;
+      const grab = o && w ? nearestWall([d.sx, d.sy], [w], b.width, b.height, Number.POSITIVE_INFINITY) : null;
+      if (!o || !w || !now || !grab) return { doc, sel };
       const [lo, hi] = openingRange(o.width_m, this.wallLengthM(w, doc));
-      return { doc: patchOpening(doc, d.id, { t: Math.min(hi, Math.max(lo, hit.t)) }), sel };
+      return { doc: patchOpening(doc, d.id, { t: Math.min(hi, Math.max(lo, o.t + now.t - grab.t)) }), sel };
     }
-    return { doc: patchLabel(doc, d.id, { position: p }), sel: { id: d.id, kind: 'label' } };
+    const l = doc.labels.find((v) => v.id === d.id);
+    const sel: GeomSel = { id: d.id, kind: 'label' };
+    return l ? { doc: patchLabel(doc, d.id, { position: [l.position[0] + d.x - d.sx, l.position[1] + d.y - d.sy] }), sel } : { doc, sel };
   }
 
   /** While the pointer moves: the dragged item is the selection and shows where it is going (nothing is saved yet). */
@@ -1377,29 +1414,38 @@ export class ExplorePlanEditor extends LitElement {
     this.onGeomSelect(r.sel.id, r.sel.kind, r.sel.vertex);
   }
 
-  /** Arrow keys on the selected structure item (the structure tool, any mode). An opening moves along its wall - Left and
-   * Down towards the wall's start, Right and Up towards its end - by 1 cm (Shift: 10 cm) on a calibrated plan, else by
-   * 0.2 % (Shift: 2 %) of the wall, and never out of the wall. A label, and in select mode a selected wall corner, move
-   * in screen directions by the same 1 / 10 cm (uncalibrated: 0.2 % / 2 % of the plan's width), inside the plan. */
+  /** Arrow keys on the selected structure item (the structure tool, any mode), in screen directions. An opening moves
+   * along its wall towards the arrow (owner ruling on 0.1.83): on a wall that runs more across the screen than up it
+   * (|dx| >= |dy| at the opening) Right moves it towards the end with the larger x and Left the other way, on a steeper
+   * wall Up moves it towards the end with the smaller y and Down the other way; a key across the wall does nothing. It
+   * moves 1 cm (Shift: 10 cm) on a calibrated plan, else 0.2 % of the plan's width (Shift: 1 %), whatever the wall's
+   * length, and never out of the wall. A label, and in select mode a selected wall corner, move by the same steps,
+   * inside the plan. */
   private nudgeGeom(e: KeyboardEvent): boolean {
     const sel = this.geomSel;
     const b = this.bundle;
     const doc = this.studio.doc;
     if (!sel || !b || !doc || this.geomPreview || this.wallDraft || e.ctrlKey || e.metaKey || e.altKey) return false;
     const { scale, estimated } = effectiveScale(doc);
-    const big = e.shiftKey;
+    const stepPx = estimated ? (e.shiftKey ? 0.01 : 0.002) * b.width : (e.shiftKey ? 0.1 : 0.01) / scale; // plan pixels
     let next: GeometryDoc;
     let key = sel.id;
     if (sel.kind === 'opening') {
       const o = doc.openings.find((x) => x.id === sel.id);
       const w = o && doc.walls.find((x) => x.id === o.wall_id);
-      const lengthM = w ? this.wallLengthM(w, doc) : 0;
-      if (!o || !(lengthM > 0)) return false;
-      const along = e.key === 'ArrowRight' || e.key === 'ArrowUp' ? 1 : -1;
-      const dt = along * (estimated ? (big ? 0.02 : 0.002) : (big ? 0.1 : 0.01) / lengthM);
-      next = patchOpening(doc, o.id, { t: nudgeT(o.t, dt, openingRange(o.width_m, lengthM)) });
+      const lengthPxW = w ? lengthPx(w.polyline, b.width, b.height) : 0;
+      if (!o || !w || !(lengthPxW > 0)) return false;
+      const [dx, dy] = wallDirectionAt(w, o.t, b.width, b.height); // towards the wall's end, y down
+      const across = Math.abs(dx) >= Math.abs(dy); // the wall runs across the screen rather than up it
+      let along = 0; // +1 towards the wall's end, -1 towards its start
+      if (across && e.key === 'ArrowRight') along = Math.sign(dx);
+      else if (across && e.key === 'ArrowLeft') along = -Math.sign(dx);
+      else if (!across && e.key === 'ArrowDown') along = Math.sign(dy);
+      else if (!across && e.key === 'ArrowUp') along = -Math.sign(dy);
+      e.preventDefault(); // the key is the item's, also when it points across the wall (no page scroll)
+      if (!along) return true;
+      next = patchOpening(doc, o.id, { t: nudgeT(o.t, (along * stepPx) / lengthPxW, openingRange(o.width_m, this.wallLengthM(w, doc))) });
     } else {
-      const stepPx = estimated ? (big ? 0.02 : 0.002) * b.width : (big ? 0.1 : 0.01) / scale;
       const dx = (e.key === 'ArrowRight' ? stepPx : e.key === 'ArrowLeft' ? -stepPx : 0) / b.width;
       const dy = (e.key === 'ArrowDown' ? stepPx : e.key === 'ArrowUp' ? -stepPx : 0) / b.height;
       if (sel.kind === 'label') {
@@ -1452,7 +1498,15 @@ export class ExplorePlanEditor extends LitElement {
     }
     if ((e.key === 'Delete' || e.key === 'Backspace') && this.geomSel) {
       e.preventDefault();
-      const id = this.geomSel.id;
+      const { id, kind, vertex } = this.geomSel;
+      if (kind === 'wall' && vertex !== undefined && this.studioMode === 'select') {
+        // a selected corner goes alone while the wall keeps enough corners (studio-ops removeCorner), else the wall goes
+        const doc = this.studio.doc;
+        const r = doc ? removeCorner(doc, id, vertex) : null;
+        if (r) this.edit(() => r.doc);
+        this.geomSel = r && !r.wallRemoved ? { id, kind } : null;
+        return true;
+      }
       this.edit((d) => removeItem(d, id));
       this.geomSel = null;
       return true;
@@ -1542,6 +1596,8 @@ export class ExplorePlanEditor extends LitElement {
           this.studioMode = m;
           this.wallDraft = null;
           this.hover = null;
+          // corner handles live in select mode only: elsewhere the wall itself stays selected
+          if (m !== 'select' && this.geomSel?.vertex !== undefined) this.geomSel = { id: this.geomSel.id, kind: this.geomSel.kind };
         },
         setWallDefaults: (d) => {
           this.wallDefaults = d;
@@ -1961,6 +2017,7 @@ export class ExplorePlanEditor extends LitElement {
                 <sw-plan-canvas editable alwaysLabel .placing=${!!this.placing || !!this.drawing || this.studioPlacing} .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .markers=${this.markers} .selectedId=${this.selectedId}
                   .zones=${this.planZones} .selectedZoneId=${this.selectedZoneId} .draftPoints=${this.drawing ?? []}
                   .geometry=${this.geomPreview ?? this.studio.doc} .geomDrag=${this.geomDragMode} .selectedGeomId=${this.geomSel?.id ?? null} .selectedVertex=${this.geomSel?.vertex ?? null} .issueIds=${this.issueIds}
+                  .cornerSnapPx=${this.tool === 'structure' && this.studioMode === 'wall' ? CORNER_SNAP_PX : 0}
                   .wallDraft=${this.wallDraft ?? []} .hoverPoint=${this.studioPlacing ? this.hover : null} .rulers=${this.rulers}
                   @plan-hover=${(e: CustomEvent<{ x: number; y: number; shift: boolean; item?: boolean }>) => this.onPlanHover(e.detail.x, e.detail.y, e.detail.shift, !!e.detail.item)}
                   @geom-select=${(e: CustomEvent<{ id: string; kind: GeomKind; vertex?: number }>) => this.onGeomSelect(e.detail.id, e.detail.kind, e.detail.vertex)}
