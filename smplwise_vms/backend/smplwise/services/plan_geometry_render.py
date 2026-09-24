@@ -17,6 +17,7 @@ from .plan_symbols import symbol_markup
 
 LAYERS = ("structure", "objects", "labels", "connectors")
 ARROW_PX = 14.0
+MAX_TRIBUNE_ROWS = 60  # tribune.stepped's params_schema cap (catalog/objects.json); a saved value above it still draws, capped, never a rows-1 unbounded loop
 OBJECT_COLORS = {"object": "#7b8794", "structure": "#4b5567", "circulation": "#6b7f99", "furniture": "#9aa7b8", "light": "#f2b544", "electrical": "#e07a2f",
                  "safety": "#e0443c", "medical": "#2fa7b3", "sport": "#3fa25b", "sanitary": "#5b9bd5", "security": "#7a5cc7", "outdoor": "#5c9e4f"}
 CIRCUIT_COLORS = {"circuit-1": "#2f6bff", "circuit-2": "#f59e0b", "circuit-3": "#22c55e", "circuit-4": "#a855f7", "circuit-5": "#ef4444", "circuit-6": "#14b8a6"}
@@ -107,15 +108,20 @@ def _rotated(cx: float, cy: float, x: float, y: float, theta: float) -> Point:
 
 def connector_label(levels: dict[str, Any], c: dict[str, Any]) -> str:
     """"↓ −1.2 מ׳": the arrow and the signed elevation difference from level_from to level_to; a connector's own label
-    wins; a cross-floor connector (no level_to here) shows only the two-way arrow. The same string comes from
-    geometry.ts connectorLabel, so the export and the map agree."""
+    wins; a cross-floor connector (no level_to here) shows only the two-way arrow. Two levels at the same elevation
+    show "↕" too, the same as a cross-floor connector - there is no up or down to point. The magnitude is rounded
+    half-up to 0.1 m (r2's rule, scaled), not Python's banker's rounding: 0.25 must read 0.3, matching JavaScript's
+    toFixed(1) in geometry.ts connectorLabel, so the export and the map agree."""
     if c.get("label"):
         return str(c["label"])
     a, b = levels.get(c.get("level_from")), levels.get(c.get("level_to"))
     if a is None or b is None:
         return "↕"
     delta = float(b["elevation_m"]) - float(a["elevation_m"])
-    return f"{'↓' if delta < 0 else '↑'} {'−' if delta < 0 else '+'}{abs(delta):.1f} מ׳"
+    if delta == 0:
+        return "↕"
+    d = math.floor(abs(delta) * 10 + 0.5) / 10
+    return f"{'↓' if delta < 0 else '↑'} {'−' if delta < 0 else '+'}{d:.1f} מ׳"
 
 
 def _connector_prims(doc: dict[str, Any], width: float, height: float, px_per_m: float) -> list[dict[str, Any]]:
@@ -158,6 +164,7 @@ def _object_prims(doc: dict[str, Any], width: float, height: float, px_per_m: fl
         params = o.get("params") if isinstance(o.get("params"), dict) else {}
         rows = params.get("rows")
         if shape == "stepped" and isinstance(rows, int) and rows >= 2:
+            rows = min(rows, MAX_TRIBUNE_ROWS)  # the catalog's params_schema caps rows at 60; a saved value beyond that draws as 60, never hangs
             for i in range(1, rows):
                 y = -hd + 2 * hd * i / rows
                 steps.append([_p(_rotated(cx, cy, -hw, y, theta)), _p(_rotated(cx, cy, hw, y, theta))])
@@ -240,7 +247,6 @@ def structure_primitives(doc: dict[str, Any], width: float, height: float, level
             continue
         prims.append({"kind": "label", "id": lb["id"], "x": r2(float(lb["position"][0]) * width), "y": r2(float(lb["position"][1]) * height),
                       "text": str(lb.get("text") or ""), "size": r2(float(lb.get("size") or 14))})
-    px_per_m = 1.0 / scale
     prims.extend(_connector_prims(doc, width, height, px_per_m))
     prims.extend(_object_prims(doc, width, height, px_per_m, level, plan_catalog.builtin()["items"] if items is None else items))
     return prims

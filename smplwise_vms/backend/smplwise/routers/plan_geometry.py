@@ -29,14 +29,15 @@ NO_CACHE = {"Cache-Control": "private, no-cache"}
 
 
 def _layers(raw: str | None) -> set[str] | None:
-    """?layers=structure,objects,labels,connectors - any subset; an unknown name is a 422."""
+    """?layers=structure,objects,labels,connectors - any subset; an unknown name is a 422. An empty value (?layers=
+    or ?layers=,) means all layers, the same as omitting the parameter - not a blank export."""
     if raw is None:
         return None
     chosen = {x.strip() for x in raw.split(",") if x.strip()}
     unknown = sorted(chosen - set(render.LAYERS))
     if unknown:
         raise ApiError(422, "validation", "שכבות לא מוכרות בייצוא.", details={"unknown": unknown, "layers": list(render.LAYERS)})
-    return chosen
+    return chosen or None
 
 
 def _rid(request: Request) -> str | None:

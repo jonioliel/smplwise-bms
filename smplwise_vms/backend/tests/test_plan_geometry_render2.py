@@ -60,6 +60,13 @@ def test_object_primitives_are_rotated_footprints_with_a_symbol():
     assert ghost["shape"] == "box" and ghost["icon"] == "box" and ghost["color"] == "object" and ghost["corners"] == o1["corners"]
 
 
+def test_tribune_rows_are_capped_so_an_extreme_value_cannot_hang_an_export():
+    doc = _sample()
+    doc["objects"][3]["params"]["rows"] = 1_000_000_000  # a saved value this large must not draw a billion step lines
+    o4 = _by_id(render.structure_primitives(doc, 1000, 800), "o4")
+    assert render.MAX_TRIBUNE_ROWS == 60 and len(o4["steps"]) == render.MAX_TRIBUNE_ROWS - 1 == 59
+
+
 def test_connector_primitives_carry_an_arrow_and_a_level_delta_label():
     prims = render.structure_primitives(_sample(), 1000, 800)
     c1 = _by_id(prims, "c1")
@@ -72,6 +79,17 @@ def test_connector_primitives_carry_an_arrow_and_a_level_delta_label():
     assert render.connector_label(levels, {"level_from": "L1", "level_to": "L0", "label": None}) == "↑ +1.2 מ׳"
     assert render.connector_label(levels, {"level_from": "L0", "level_to": None, "label": None, "floor_ids": ["f2"]}) == "↕"
     assert render.connector_label(levels, {"level_from": "L0", "level_to": "L1", "label": "לגלריה"}) == "לגלריה"
+
+
+def test_connector_label_rounds_half_up_and_treats_equal_elevations_as_two_way():
+    # 0.25 must read 0.3: Python's f"{0.25:.1f}" is banker's-rounded to "0.2", but the project rule (and
+    # JavaScript's toFixed(1), which frontend/src/map/geometry.ts uses) rounds 0.25 up to 0.3.
+    levels = {"a": {"elevation_m": 0.0}, "b": {"elevation_m": 0.25}}
+    assert render.connector_label(levels, {"level_from": "a", "level_to": "b", "label": None}) == "↑ +0.3 מ׳"
+    assert render.connector_label(levels, {"level_from": "b", "level_to": "a", "label": None}) == "↓ −0.3 מ׳"
+    # two levels at the same elevation: no up or down to point, same as a cross-floor connector
+    same = {"a": {"elevation_m": 1.5}, "c": {"elevation_m": 1.5}}
+    assert render.connector_label(same, {"level_from": "a", "level_to": "c", "label": None}) == "↕"
 
 
 def test_the_level_filter_keeps_connectors_and_anchors_move_bound_bodies():
@@ -115,7 +133,7 @@ def test_svg_draws_objects_connectors_and_honours_layers():
     assert 'cx="900"' in lifted
 
 
-def test_png_draws_footprints(tmp_path):
+def test_png_draws_footprints():
     data = render.render_png(_sample(), [], 1000, 800)
     im = Image.open(io.BytesIO(data)).convert("RGB")
     assert im.getpixel((200, 160)) != (255, 255, 255), "the chair footprint is tinted"
@@ -140,3 +158,33 @@ def test_export_routes_take_a_layer_list(settings):
     assert svg.status_code == 200 and 'data-object="o1"' in svg.text and "data-connector" not in svg.text and ">שולחן<" in svg.text
     assert c.get(f"/api/v1/plan-versions/{vid}/export.svg?layers=walls").status_code == 422
     assert c.get(f"/api/v1/plan-versions/{vid}/export.png?layers=structure,connectors").status_code == 200
+    # an empty ?layers= (or one that is only commas) means all layers, the same as omitting it - never a blank export:
+    # the connector is missing from the ?layers=objects,labels export above, but must be back with an empty value
+    empty = c.get(f"/api/v1/plan-versions/{vid}/export.svg?layers=")
+    assert empty.status_code == 200 and 'data-object="o1"' in empty.text and 'data-connector="c1"' in empty.text
+    commas_only = c.get(f"/api/v1/plan-versions/{vid}/export.svg?layers=,,")
+    assert commas_only.status_code == 200 and 'data-object="o1"' in commas_only.text and 'data-connector="c1"' in commas_only.text
+    assert empty.text == c.get(f"/api/v1/plan-versions/{vid}/export.svg").text, "an empty value renders exactly like omitting the parameter"
+
+
+def test_export_svg_follows_a_live_anchor(settings):
+    """A body bound to a camera or ha_entity anchor follows the anchor's live position - not what was last saved -
+    through the export route (store.anchor_positions reads the floor's current map_anchors row)."""
+    app = create_app(settings)
+    c = TestClient(app)
+    ids = seed_tree(c)
+    cam = c.post("/api/v1/cameras", json={"channel": 7, "alias": "מצלמה"}).json()
+    asset = c.post(f"/api/v1/floors/{ids['floor2']}/plan-assets", files={"file": ("plan.png", png_bytes(), "image/png")}).json()
+    vid = c.post(f"/api/v1/floors/{ids['floor2']}/plan-versions", json={"asset_id": asset["id"]}).json()["id"]
+    c.post(f"/api/v1/plan-versions/{vid}/publish")
+    anchor = c.post(f"/api/v1/floors/{ids['floor2']}/anchors",
+                    json={"resource_type": "camera", "resource_id": cam["id"], "x": 0.9, "y": 0.9, "rotation_degrees": 0}).json()
+    assert anchor.get("id"), anchor
+    g = c.get(f"/api/v1/plan-versions/{vid}/geometry?draft=true").json()
+    sample = _sample()
+    lamp = dict(sample["objects"][2], id="o1", group_id=None, anchor_ref={"resource_type": "camera", "resource_id": cam["id"]})  # o3: light.ceiling, cylinder-shaped
+    doc = dict(g["doc"], levels=sample["levels"], objects=[lamp])
+    assert c.put(f"/api/v1/plan-versions/{vid}/geometry", json={"doc": doc, "base_revision": 0}).status_code == 200
+    assert c.post(f"/api/v1/plan-versions/{vid}/geometry/publish").status_code == 200
+    svg = c.get(f"/api/v1/plan-versions/{vid}/export.svg")
+    assert svg.status_code == 200 and 'cx="576"' in svg.text, "x=0.9 over a 640 px wide plan asset"
