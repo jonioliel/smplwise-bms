@@ -317,8 +317,11 @@ export class InvestigateEventDetail extends LitElement {
 
   private async loadMap(floorId: string) {
     try {
-      this.bundle = await loadMap(floorId);
-      this.geometry = await geometryFor(this.bundle);
+      const b = await loadMap(floorId);
+      this.bundle = b;
+      this.geometry = null; // the map renders without its structure until the document arrives
+      const g = await geometryFor(b);
+      if (this.bundle === b) this.geometry = g; // a later event (another floor) may have replaced the bundle meanwhile
     } catch {
       this.bundle = null;
       this.geometry = null;

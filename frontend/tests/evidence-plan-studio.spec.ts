@@ -38,10 +38,14 @@ test.describe.serial('plan studio (SW A)', () => {
 
   test.afterAll(async () => {
     if (!api) return;
-    if (ids.floor) await api.delete(`api/v1/floors/${ids.floor}?force=true`);
-    if (ids.building) await api.delete(`api/v1/buildings/${ids.building}`);
-    if (ids.site) await api.delete(`api/v1/sites/${ids.site}`);
-    await api.dispose();
+    try {
+      // every delete is asserted, so a test site left on the developer backend is reported (each route answers 204)
+      if (ids.floor) expect((await api.delete(`api/v1/floors/${ids.floor}?force=true`)).status(), 'test floor removed').toBe(204);
+      if (ids.building) expect((await api.delete(`api/v1/buildings/${ids.building}`)).status(), 'test building removed').toBe(204);
+      if (ids.site) expect((await api.delete(`api/v1/sites/${ids.site}`)).status(), 'test site removed').toBe(204);
+    } finally {
+      await api.dispose();
+    }
   });
 
   test('a published structure shows on the live map, with a layer switch, and on the history map', async ({ page }) => {

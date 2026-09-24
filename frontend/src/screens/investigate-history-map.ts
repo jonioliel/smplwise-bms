@@ -322,6 +322,7 @@ export class InvestigateHistoryMap extends LitElement {
       this.date = dateInZone(start, this.tz);
       this.minute = minuteInZone(start, this.tz);
       this.bundle = await loadMap(this.floorId, false, this.instant.toISOString().replace(/\.\d{3}Z$/, 'Z'));
+      this.geometry = null; // another floor or instant: no structure until its document arrives
       void this.updateGeometry();
       this.scheduleFrame();
       if (this.camera) {
@@ -449,6 +450,7 @@ export class InvestigateHistoryMap extends LitElement {
       const nb = await loadMap(this.floorId, false, t);
       const before = b.anchors.map((a) => a.resource_id).sort().join(',');
       this.bundle = nb;
+      if (nb.planVersionId !== b.planVersionId) this.geometry = null; // another plan version: its own structure, once fetched
       void this.updateGeometry();
       if (this.selectedId && !nb.anchors.some((a) => a.id === this.selectedId)) this.selectedId = null;
       if (nb.anchors.map((a) => a.resource_id).sort().join(',') !== before) await this.loadDay();

@@ -94,7 +94,13 @@ export async function geometryFor(bundle: MapBundle): Promise<GeometryDoc | null
 export async function geometryAt(versionId: string, iso: string): Promise<GeometryDoc | null> {
   let tl = timelines.get(versionId);
   if (!tl) {
-    tl = get<{ timeline: GeometryPeriod[] }>(`plan-versions/${versionId}/geometry/timeline`).then((r) => r.timeline).catch(() => []);
+    const fetched: Promise<GeometryPeriod[]> = get<{ timeline: GeometryPeriod[] }>(`plan-versions/${versionId}/geometry/timeline`)
+      .then((r) => r.timeline)
+      .catch(() => {
+        if (timelines.get(versionId) === fetched) timelines.delete(versionId); // a failed read is not remembered: the next move asks again
+        return [];
+      });
+    tl = fetched;
     timelines.set(versionId, tl);
   }
   const period = (await tl).find((p) => p.published_at <= iso && (!p.archived_at || iso < p.archived_at));
@@ -112,8 +118,13 @@ export async function geometryAt(versionId: string, iso: string): Promise<Geomet
 
 export const saveGeometryDraft = (versionId: string, doc: GeometryDoc, baseRevision: number) =>
   put<GeometryResponse>(`plan-versions/${versionId}/geometry`, { doc, base_revision: baseRevision });
-export const publishGeometry = (versionId: string) =>
-  post<{ published: GeometryRow | null; diff: GeometryDiff; unchanged: boolean }>(`plan-versions/${versionId}/geometry/publish`);
+/** A publish changes the version's timeline: the cached one is dropped (documents stay cached by hash), so an open
+ * historical map shows the new structure at instants after it. */
+export async function publishGeometry(versionId: string): Promise<{ published: GeometryRow | null; diff: GeometryDiff; unchanged: boolean }> {
+  const r = await post<{ published: GeometryRow | null; diff: GeometryDiff; unchanged: boolean }>(`plan-versions/${versionId}/geometry/publish`);
+  timelines.delete(versionId);
+  return r;
+}
 export const geometryDiff = (versionId: string) =>
   get<{ diff: GeometryDiff; issues: GeometryIssue[]; counts: Record<string, number>; published_counts: Record<string, number> | null }>(`plan-versions/${versionId}/geometry/diff`);
 export const copyGeometryFrom = (versionId: string, fromVersionId: string) =>

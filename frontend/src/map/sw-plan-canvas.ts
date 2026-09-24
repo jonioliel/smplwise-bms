@@ -369,14 +369,6 @@ export class SwPlanCanvas extends LitElement {
       stroke-linecap: butt;
       stroke-linejoin: miter;
     }
-    .structure .sel .wall {
-      stroke: var(--sw-accent);
-    }
-    .structure .issue .wall,
-    .structure .opening.issue line,
-    .structure .opening.issue path {
-      stroke: var(--sw-danger);
-    }
     .structure .leaf,
     .structure .arc {
       fill: none;
@@ -388,16 +380,37 @@ export class SwPlanCanvas extends LitElement {
     .structure .gapline {
       stroke: var(--sw-map-structure);
     }
-    .structure .opening.sel .leaf,
-    .structure .opening.sel .glass,
-    .structure .opening.sel .gapline {
-      stroke: var(--sw-accent-hover);
-    }
     .structure .glabel {
       fill: var(--sw-map-label);
       font-weight: 600;
       text-anchor: middle;
       dominant-baseline: middle;
+    }
+    /* Selection, then validation issues: same specificity, so an item that is both shows the issue red. */
+    .structure .sel .wall {
+      stroke: var(--sw-accent);
+    }
+    .structure .opening.sel {
+      filter: drop-shadow(0 0 2px var(--sw-accent));
+    }
+    .structure .opening.sel .leaf,
+    .structure .opening.sel .arc,
+    .structure .opening.sel .glass,
+    .structure .opening.sel .gapline {
+      stroke: var(--sw-accent-hover);
+    }
+    .structure .glabel.sel {
+      fill: var(--sw-accent);
+    }
+    .structure .issue .wall,
+    .structure .opening.issue .leaf,
+    .structure .opening.issue .arc,
+    .structure .opening.issue .glass,
+    .structure .opening.issue .gapline {
+      stroke: var(--sw-danger);
+    }
+    .structure .glabel.issue {
+      fill: var(--sw-danger);
     }
     .fov {
       fill: var(--sw-fov);
@@ -1101,7 +1114,7 @@ export class SwPlanCanvas extends LitElement {
       case 'passage':
         return svg`<g class="opening ${cls}" data-opening=${p.id} data-kind="passage"><line class="gapline" x1=${p.gap[0][0]} y1=${p.gap[0][1]} x2=${p.gap[1][0]} y2=${p.gap[1][1]} stroke-width=${inv} stroke-dasharray=${`${2 * inv} ${3 * inv}`} /></g>`;
       case 'label':
-        return svg`<text class="glabel" data-label=${p.id} x=${p.x} y=${p.y} font-size=${p.size}>${p.text}</text>`;
+        return svg`<text class="glabel ${cls}" data-label=${p.id} x=${p.x} y=${p.y} font-size=${p.size}>${p.text}</text>`;
     }
   }
 
