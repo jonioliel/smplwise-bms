@@ -136,3 +136,47 @@ def test_calibration_sets_the_scale_and_updates_the_draft(settings):
     assert c.patch(f"/api/v1/plan-versions/{vid}/calibration", json={"pairs": [{"a": [1.5, 0.5], "b": [0.6, 0.5], "metres": 8}]}).status_code == 422
     with app.state.db.connection() as conn:
         assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'plan.calibrate'").fetchone()[0] == 2
+
+
+def test_calibration_leaves_walls_openings_pins_and_the_published_document_unchanged(settings):
+    """R167 / AT167: a calibration changes the metres, never a position. The draft keeps its walls, openings and labels
+    (only the calibration record and the scale in `dimensions` change), the pins stay where they are, and viewers keep
+    the published document - same row, same doc_hash, same content - until the next publish."""
+    app, c, ids, vid, _ = _setup(settings)
+    floor = ids["floor2"]
+    cam = c.post("/api/v1/cameras", json={"channel": 1, "alias": "כניסה"}).json()
+    pin = c.post(f"/api/v1/floors/{floor}/anchors", json={"resource_type": "camera", "resource_id": cam["id"], "x": 0.25, "y": 0.4,
+                                                          "rotation_degrees": 90, "field_of_view_degrees": 70})
+    assert pin.status_code == 201, pin.text
+    door = {"id": "o1", "wall_id": "w1", "t": 0.5, "kind": "door", "width_m": 0.9, "height_m": 2.1, "sill_m": 0, "swing": "right", "hinge": "start",
+            "anchor_ref": None, "confidence": 1, "source": "manual", "external_ids": {}}
+    label = {"id": "t1", "text": "מחסן", "position": [0.3, 0.4], "level_id": "L0", "size": 14}
+    g = _draft(c, vid)
+    doc = dict(g["doc"], walls=[WALL], openings=[door], labels=[label])
+    assert c.put(f"/api/v1/plan-versions/{vid}/geometry", json={"doc": doc, "base_revision": g["geometry"]["revision"]}).status_code == 200
+    assert c.post(f"/api/v1/plan-versions/{vid}/geometry/publish").status_code == 200
+
+    def pins() -> dict:
+        keys = ("plan_version_id", "position", "rotation_degrees", "field_of_view_degrees", "revision", "updated_at")
+        return {a["id"]: {k: a[k] for k in keys} for a in c.get(f"/api/v1/floors/{floor}/map").json()["anchors"]}
+
+    draft_before = _draft(c, vid)["doc"]
+    published_before = c.get(f"/api/v1/plan-versions/{vid}/geometry").json()
+    pins_before = pins()
+    assert pin.json()["id"] in pins_before and pins_before[pin.json()["id"]]["position"] == {"x": 0.25, "y": 0.4}
+    assert [w["id"] for w in published_before["doc"]["walls"]] == ["w1"] and published_before["doc"]["openings"][0]["id"] == "o1"
+
+    r = c.patch(f"/api/v1/plan-versions/{vid}/calibration", json={"pairs": [{"a": [0.1, 0.2], "b": [0.6, 0.2], "metres": 8.0}]})
+    assert r.status_code == 200, r.text
+    draft_after = _draft(c, vid)["doc"]
+    assert draft_before["dimensions"]["scale_m_per_px"] is None and draft_after["dimensions"]["scale_m_per_px"] == r.json()["scale_m_per_px"]
+    assert draft_after["dimensions"]["calibration"]["method"] == "two_point" and draft_after["dimensions"]["calibration"]["status"] == "measured"
+    for key in ("walls", "openings", "labels"):
+        assert draft_after[key] == draft_before[key], key
+    assert {k: v for k, v in draft_after.items() if k != "dimensions"} == {k: v for k, v in draft_before.items() if k != "dimensions"}
+    assert {k: v for k, v in draft_after["dimensions"].items() if k not in ("scale_m_per_px", "calibration")} == \
+        {k: v for k, v in draft_before["dimensions"].items() if k not in ("scale_m_per_px", "calibration")}
+    published_after = c.get(f"/api/v1/plan-versions/{vid}/geometry").json()
+    assert published_after["geometry"]["doc_hash"] == published_before["geometry"]["doc_hash"]
+    assert published_after["geometry"] == published_before["geometry"] and published_after["doc"] == published_before["doc"]
+    assert pins() == pins_before

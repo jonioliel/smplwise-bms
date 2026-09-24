@@ -4717,9 +4717,9 @@
       "smplwise_vms/backend/tests/test_dxf.py (a version made from a DXF takes the scale its drawing units imply)",
       "frontend/tests/unit-geometry.spec.ts (metres from the calibration, estimated with '≈' without it, 'לא מכויל' when plan.estimates hides them)",
       "frontend/tests/evidence-plan-studio.spec.ts ('≈' before calibration; calibrate 16 m on a seeded 640 px wall, then measure 10.0 m without '≈')",
-      "ad-hoc check in the release run, not a committed test: after PATCH calibration a camera pin keeps its position, rotation and plan version, the draft's wall and door are unchanged and the published document is unchanged until the next publish"
+      "smplwise_vms/backend/tests/test_plan_geometry_api.py::test_calibration_leaves_walls_openings_pins_and_the_published_document_unchanged (added by the release review after c501415; the product code under test is 72ae1a2's): after a one-pair calibration the draft keeps its walls, openings and labels (only its scale and calibration record change), a camera pin keeps its position, rotation and revision, and the published row keeps its doc_hash and content"
     ],
-    "executed_at": "2026-09-24T03:57:15Z",
+    "executed_at": "2026-09-24T04:18:24Z",
     "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
   },
   {
