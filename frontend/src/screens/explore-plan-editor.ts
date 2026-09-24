@@ -10,7 +10,7 @@ import '../components/sw-state-panel';
 import '../components/sw-toggle';
 import '../components/sw-dialog';
 import '../map/sw-plan-canvas';
-import type { PlanMarker, MarkerSelectDetail, PlanZone, SwPlanCanvas } from '../map/sw-plan-canvas';
+import type { PlanMarker, MarkerSelectDetail, PlanZone, RulerOverlay, SwPlanCanvas } from '../map/sw-plan-canvas';
 import type { IconName } from '../components/sw-icon';
 import { navigate } from '../router';
 import { cameraState, createAnchor, deleteAnchor, listVersions, loadMap, publishVersion, rollbackVersion, updateAnchor, versionDiff, type MapBundle, type VersionDiff, realignAnchors } from '../api/maps';
@@ -19,12 +19,12 @@ import type { Anchor, Camera, PlanVersion } from '../api/types';
 import { domainLabel, entityMarkerKind, listEntities, stateLabel, type HaEntity } from '../api/ha';
 import { ROOM_FILL_LABEL, setRenderMode, stylizeVersion, type RoomFill, type StylizeResult } from '../api/plans';
 import { ZONE_KINDS, acceptZones, createZone, deleteZone, detectZones, pointInPolygon, updateZone, zoneKindLabel, type SpatialZone, type ZoneKind, type ZonePoint } from '../api/zones';
-import { copyGeometryFrom, exportUrl } from '../api/geometry';
+import { calibrate, copyGeometryFrom, exportUrl } from '../api/geometry';
 import { productSettings } from '../api/prefs';
-import { isClosedOutline, nearestWall, pointOnWall, snapPoint, type GeometryDoc, type GeomWall, type Pt } from '../map/geometry';
+import { distanceM, effectiveScale, isClosedOutline, nearestWall, pointOnWall, snapPoint, type GeometryDoc, type GeomWall, type Pt } from '../map/geometry';
 import { StudioController } from '../map/studio-controller';
 import { addLabel, addOpening, addWall, moveVertex, patchLabel, patchOpening, patchWall, removeItem, type WallDefaults } from '../map/studio-ops';
-import { renderStudioPanel, studioPanelStyles, type GeomKind, type GeomSel, type StudioMode } from './plan-studio-panel';
+import { fmtMetres, fmtScale, renderCalibPanel, renderMeasurePanel, renderStudioPanel, studioPanelStyles, type GeomKind, type GeomSel, type StudioMode } from './plan-studio-panel';
 
 type Strength = 'light' | 'medium' | 'strong';
 interface ZoneCandidate {
@@ -36,7 +36,7 @@ interface ZoneCandidate {
 /** Same palette as the backend assigns on save, so candidates keep their colour once accepted. */
 const PALETTE = ['#2767ED', '#22A06B', '#F59E0B', '#8B5CF6', '#0EA5E9', '#EC4899', '#14B8A6', '#F97316'];
 
-type Tool = 'select' | 'camera' | 'lights' | 'entity' | 'zones' | 'structure' | 'layers';
+type Tool = 'select' | 'camera' | 'lights' | 'entity' | 'zones' | 'structure' | 'calibrate' | 'measure' | 'layers';
 type Layer = 'cameras' | 'doors' | 'lights' | 'sensors';
 
 const TOOLS: { id: Tool; icon: IconName; label: string; ready: boolean }[] = [
@@ -46,11 +46,21 @@ const TOOLS: { id: Tool; icon: IconName; label: string; ready: boolean }[] = [
   { id: 'entity', icon: 'plus', label: 'ישות HA אחרת', ready: true },
   { id: 'zones', icon: 'map', label: 'חדרים ואזורים', ready: true },
   { id: 'structure', icon: 'wall', label: 'מבנה: קירות, דלתות וחלונות', ready: true },
+  { id: 'calibrate', icon: 'scale', label: 'כיול קנה מידה', ready: true },
+  { id: 'measure', icon: 'ruler', label: 'מדידת מרחק ושטח', ready: true },
   { id: 'layers', icon: 'layers', label: 'שכבות', ready: true },
 ];
 
 /** Tools that work on the Plan Studio structure document (they need map.edit on the floor). */
-const STUDIO_TOOLS: Tool[] = ['structure'];
+const STUDIO_TOOLS: Tool[] = ['structure', 'calibrate', 'measure'];
+interface CalibState {
+  a: Pt | null;
+  b: Pt | null;
+  metres: string;
+  result: string;
+  warning: string;
+}
+const EMPTY_CALIB: CalibState = { a: null, b: null, metres: '', result: '', warning: '' };
 
 const LAYERS: { id: Layer; label: string }[] = [
   { id: 'cameras', label: 'מצלמות' },
@@ -117,6 +127,8 @@ export class ExplorePlanEditor extends LitElement {
   /** Raw plan position of the click that added the draft's last point (a double click there ends the wall). */
   private lastDrawClick: Pt | null = null;
   @state() private hover: Pt | null = null;
+  @state() private calib: CalibState = { ...EMPTY_CALIB };
+  @state() private measurePts: Pt[] = [];
   /** Setting `plan.estimates` (default true): estimated metres carry "≈" before calibration; false hides them. */
   @state() private showEstimates = true;
   private entTimer = 0;
@@ -786,7 +798,9 @@ export class ExplorePlanEditor extends LitElement {
       if (this.wallDraft) {
         this.wallDraft = null;
         this.hover = null;
-      } else if (this.drawing) this.drawing = null;
+      } else if (this.tool === 'measure' && this.measurePts.length) this.measurePts = [];
+      else if (this.tool === 'calibrate' && this.calib.a) this.calib = { ...EMPTY_CALIB };
+      else if (this.drawing) this.drawing = null;
       else if (this.placing) this.placing = null;
       else if (this.candidates) this.candidates = null;
       else {
@@ -1067,6 +1081,8 @@ export class ExplorePlanEditor extends LitElement {
     this.wallDraft = null;
     this.hover = null;
     if (tool !== 'structure') this.geomSel = null;
+    if (tool !== 'measure') this.measurePts = [];
+    if (tool !== 'calibrate') this.calib = { ...EMPTY_CALIB };
     if (tool === 'entity' || tool === 'lights') {
       this.entResults = null; // the two tools list different sets
       void this.searchEntities();
@@ -1147,7 +1163,9 @@ export class ExplorePlanEditor extends LitElement {
       return;
     }
     const p: Pt = [x, y];
-    if (this.studioMode === 'wall') this.hover = this.snapDraw(p, this.wallDraft ?? [], shift);
+    if (this.tool === 'calibrate') this.hover = this.snap(p, null, true);
+    else if (this.tool === 'measure') this.hover = this.snap(p, this.measurePts.at(-1) ?? null, shift);
+    else if (this.studioMode === 'wall') this.hover = this.snapDraw(p, this.wallDraft ?? [], shift);
     else if (this.studioMode === 'label') this.hover = p;
     else {
       const hit = nearestWall(p, doc.walls, b.width, b.height, 14 / (this.canvas?.zoom ?? 1));
@@ -1160,6 +1178,16 @@ export class ExplorePlanEditor extends LitElement {
     const doc = this.studio.doc;
     if (!b || !doc) return;
     const p: Pt = [x, y];
+    if (this.tool === 'calibrate') {
+      const q = this.snap(p, null, true); // corners of walls attract; no angle snapping - the distance is what counts
+      const c = this.calib;
+      this.calib = !c.a || c.b ? { ...EMPTY_CALIB, a: q } : { ...c, b: q };
+      return;
+    }
+    if (this.tool === 'measure') {
+      this.measurePts = [...this.measurePts, this.snap(p, this.measurePts.at(-1) ?? null, shift)];
+      return;
+    }
     const mode = this.studioMode;
     const zoom = this.canvas?.zoom ?? 1;
     if (mode === 'wall') {
@@ -1368,11 +1396,86 @@ export class ExplorePlanEditor extends LitElement {
         copyFrom: (id) => void this.copyStructure(id),
         exportJson: () => this.exportJson(),
         reload: () => void this.loadStudio(b, true),
+        calibrate: () => this.pickTool('calibrate'),
         retry: async () => {
           if (await this.studio.flush()) void this.loadStudio(b); // a version switch held back by the failed save goes ahead
         },
       },
     );
+  }
+
+  /** Calibration and measuring segments with their lengths, drawn by the canvas. */
+  private get rulers(): RulerOverlay[] {
+    const bundle = this.bundle;
+    const doc = this.studio.doc;
+    if (!bundle || !doc) return [];
+    const { scale, estimated } = effectiveScale(doc);
+    const len = (a: Pt, c: Pt) => fmtMetres(distanceM(a, c, bundle.width, bundle.height, scale), estimated, this.showEstimates);
+    if (this.tool === 'calibrate') {
+      const { a, b: end, metres } = this.calib;
+      const tip = end ?? this.hover;
+      if (!a || !tip) return [];
+      return [{ a, b: tip, label: end ? (parseFloat(metres) > 0 ? `${metres} מ׳` : '? מ׳') : '', tone: end ? 'accent' : 'muted' }];
+    }
+    if (this.tool === 'measure') {
+      const fixed = this.measurePts;
+      const pts = this.hover && fixed.length ? [...fixed, this.hover] : fixed;
+      const out: RulerOverlay[] = [];
+      for (let i = 1; i < pts.length; i++) out.push({ a: pts[i - 1], b: pts[i], label: len(pts[i - 1], pts[i]), tone: i > fixed.length - 1 ? 'muted' : 'accent' });
+      if (fixed.length >= 3) out.push({ a: fixed[fixed.length - 1], b: fixed[0], label: '', tone: 'muted' });
+      return out;
+    }
+    return [];
+  }
+
+  private async saveCalibration() {
+    const bundle = this.bundle;
+    const { a, b: end, metres } = this.calib;
+    const m = parseFloat(metres);
+    if (!bundle?.planVersionId || !a || !end || !(m > 0)) return;
+    this.busy = true;
+    this.error = '';
+    try {
+      // The server rewrites the stored draft: an edit that is not saved yet would be lost or refused as stale.
+      if (!(await this.studio.flush())) {
+        this.error = this.studio.error;
+        return;
+      }
+      const r = await calibrate(bundle.planVersionId, [{ a, b: end, metres: m }]);
+      await this.loadStudio(bundle, true); // the server rewrote the draft's dimensions
+      this.calib = { ...EMPTY_CALIB, result: `קנה המידה נשמר: ${fmtScale(r.scale_m_per_px)}`, warning: r.warning ?? '' };
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private renderCalibrate(bundle: MapBundle) {
+    const doc = this.studio.doc;
+    if (!doc) return html`<sw-card heading="כיול קנה מידה"><div class="note">${bundle.source === 'demo' ? 'נתוני הדגמה: הכיול עובד מול השרת.' : 'טוען…'}</div></sw-card>`;
+    const { scale, estimated } = effectiveScale(doc);
+    const c = this.calib;
+    const pixels = c.a && c.b ? Math.hypot((c.b[0] - c.a[0]) * bundle.width, (c.b[1] - c.a[1]) * bundle.height) : null;
+    return renderCalibPanel(
+      { a: c.a, b: c.b, metres: c.metres, pixels, scale, estimated, showEstimates: this.showEstimates, result: c.result, warning: c.warning, busy: this.busy },
+      (value) => {
+        this.calib = { ...this.calib, metres: value };
+      },
+      () => void this.saveCalibration(),
+      () => {
+        this.calib = { ...EMPTY_CALIB };
+      },
+    );
+  }
+
+  private renderMeasure(bundle: MapBundle) {
+    const doc = this.studio.doc;
+    if (!doc) return html`<sw-card heading="מדידה"><div class="note">${bundle.source === 'demo' ? 'נתוני הדגמה: המדידה עובדת מול השרת.' : 'טוען…'}</div></sw-card>`;
+    const { scale, estimated } = effectiveScale(doc);
+    return renderMeasurePanel(this.measurePts, bundle.width, bundle.height, scale, estimated, this.showEstimates, () => {
+      this.measurePts = [];
+    });
   }
 
   // ---- panels ----
@@ -1467,6 +1570,8 @@ export class ExplorePlanEditor extends LitElement {
   private renderToolPanel(b: MapBundle) {
     const anchoredIds = new Set(this.anchors.map((a) => a.resource_id));
     if (this.tool === 'structure') return this.renderStructurePanel(b);
+    if (this.tool === 'calibrate') return this.renderCalibrate(b);
+    if (this.tool === 'measure') return this.renderMeasure(b);
     if (this.tool === 'camera') {
       const available = b.cameras.filter((c) => !anchoredIds.has(c.id));
       return html`<sw-card heading="הוספת מצלמה" subheading="בחר מצלמה ואז לחץ על התוכנית במקום המבוקש">
@@ -1659,7 +1764,7 @@ export class ExplorePlanEditor extends LitElement {
                 <sw-plan-canvas editable alwaysLabel .placing=${!!this.placing || !!this.drawing || this.studioPlacing} .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .markers=${this.markers} .selectedId=${this.selectedId}
                   .zones=${this.planZones} .selectedZoneId=${this.selectedZoneId} .draftPoints=${this.drawing ?? []}
                   .geometry=${this.studio.doc} .geomEditable=${this.tool === 'structure' && this.studioMode === 'select'} .selectedGeomId=${this.geomSel?.id ?? null} .issueIds=${this.issueIds}
-                  .wallDraft=${this.wallDraft ?? []} .hoverPoint=${this.studioPlacing ? this.hover : null}
+                  .wallDraft=${this.wallDraft ?? []} .hoverPoint=${this.studioPlacing ? this.hover : null} .rulers=${this.rulers}
                   @plan-hover=${(e: CustomEvent<{ x: number; y: number; shift: boolean }>) => this.onPlanHover(e.detail.x, e.detail.y, e.detail.shift)}
                   @geom-select=${(e: CustomEvent<{ id: string; kind: GeomKind }>) => this.onGeomSelect(e.detail.id, e.detail.kind)}
                   @geom-drag=${(e: CustomEvent<{ kind: 'vertex' | 'opening' | 'label'; id: string; index: number; x: number; y: number }>) => this.onGeomDrag(e.detail)}

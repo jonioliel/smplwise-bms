@@ -5,7 +5,7 @@
  */
 import { css, html, nothing, type TemplateResult } from 'lit';
 import type { CopyCandidate, GeometryIssue } from '../api/geometry';
-import { effectiveScale, lengthPx, type GeometryDoc, type GeomLabel, type GeomOpening, type GeomWall, type Hinge, type OpeningKind, type Swing, type WallKind } from '../map/geometry';
+import { effectiveScale, lengthPx, perimeterM, polygonAreaM2, type GeometryDoc, type GeomLabel, type GeomOpening, type GeomWall, type Hinge, type OpeningKind, type Pt, type Swing, type WallKind } from '../map/geometry';
 import type { SaveState } from '../map/studio-controller';
 import { kindDefaults, type WallDefaults } from '../map/studio-ops';
 
@@ -48,6 +48,11 @@ export function fmtScale(scaleMPerPx: number): string {
   return `1 מ׳ = ${(1 / scaleMPerPx).toFixed(1)} פיקסלים בתוכנית`;
 }
 
+export function fmtArea(m2: number, estimated: boolean, show = true): string {
+  if (estimated && !show) return 'לא מכויל';
+  return `${estimated ? '≈' : ''}${m2 < 100 ? m2.toFixed(1) : m2.toFixed(0)} מ״ר`;
+}
+
 export interface StudioView {
   doc: GeometryDoc;
   W: number;
@@ -79,6 +84,7 @@ export interface StudioActions {
   copyFrom(versionId: string): void;
   exportJson(): void;
   reload(): void;
+  calibrate(): void;
   retry(): void;
 }
 
@@ -96,7 +102,7 @@ export function renderStudioPanel(v: StudioView, a: StudioActions): TemplateResu
     </div>
     <div class="note">${mode.hint}</div>
     ${v.mode === 'wall' ? renderWallDefaults(v.wallDefaults, a) : nothing}
-    <div class="row"><span class="lbl">קנה מידה<span class="muted" data-studio-scale>${estimated ? (v.showEstimates ? 'לא מכויל: מידות משוערות (≈)' : 'לא מכויל: מידות מוסתרות עד הכיול') : fmtScale(scale)}</span></span></div>
+    <div class="row"><span class="lbl">קנה מידה<span class="muted" data-studio-scale>${estimated ? (v.showEstimates ? 'לא מכויל: מידות משוערות (≈)' : 'לא מכויל: מידות מוסתרות עד הכיול') : fmtScale(scale)}</span></span><sw-button size="sm" icon="scale" data-studio-calibrate @click=${() => a.calibrate()}>${estimated ? 'כיול' : 'כיול מחדש'}</sw-button></div>
     <div class="note" data-studio-counts>${v.doc.walls.length} קירות · ${v.doc.openings.length} פתחים · ${v.doc.labels.length} תוויות</div>
     ${v.sel ? renderSelection(v, v.sel, a, scale, estimated) : nothing}
     ${errors.length || warnings.length ? renderIssues(errors, warnings, a) : nothing}
@@ -215,6 +221,56 @@ function renderCopy(cands: CopyCandidate[], a: StudioActions, busy: boolean) {
   </div>`;
 }
 
+export interface CalibView {
+  a: Pt | null;
+  b: Pt | null;
+  metres: string;
+  /** Distance between the two points in plan pixels (null until both are set). */
+  pixels: number | null;
+  scale: number;
+  estimated: boolean;
+  showEstimates: boolean;
+  result: string;
+  warning: string;
+  busy: boolean;
+}
+
+export function renderCalibPanel(v: CalibView, onMetres: (value: string) => void, onSave: () => void, onReset: () => void): TemplateResult {
+  const metres = parseFloat(v.metres);
+  const ready = !!v.a && !!v.b && metres > 0 && !v.busy;
+  const notCalibrated = v.showEstimates ? 'התוכנית לא מכוילת: מידות מוצגות כמשוערות (≈)' : 'התוכנית לא מכוילת: מידות מוסתרות עד הכיול (הגדרות)';
+  return html`<sw-card heading="כיול קנה מידה" subheading=${v.estimated ? notCalibrated : `מכויל · ${fmtScale(v.scale)}`} data-calib-panel>
+    <ol class="steps">
+      <li class=${v.a ? 'done' : ''}>לחץ על נקודה שהמרחק ממנה ידוע, למשל פינת קיר</li>
+      <li class=${v.b ? 'done' : ''}>לחץ על הנקודה השנייה</li>
+      <li>הקלד את המרחק האמיתי ביניהן</li>
+    </ol>
+    <sw-field label="מרחק (מ׳)"><input type="number" min="0.01" max="1000" step="0.01" data-ltr data-calib-metres .value=${v.metres} ?disabled=${!v.b}
+      @input=${(e: Event) => onMetres((e.target as HTMLInputElement).value)} /></sw-field>
+    ${v.pixels !== null ? html`<div class="note">${v.pixels.toFixed(0)} פיקסלים בתוכנית${metres > 0 ? ` · 1 מ׳ = ${(v.pixels / metres).toFixed(1)} פיקסלים` : ''}</div>` : nothing}
+    <div class="btns">
+      <sw-button variant="primary" size="sm" icon="check" data-calib-save ?disabled=${!ready} @click=${onSave}>שמור כיול</sw-button>
+      <sw-button variant="ghost" size="sm" data-calib-reset @click=${onReset}>נקה נקודות</sw-button>
+    </div>
+    ${v.result ? html`<div class="note" data-calib-result>${v.result}</div>` : nothing}
+    ${v.warning ? html`<div class="err" data-calib-warning>${v.warning}</div>` : nothing}
+    <div class="note">המיקומים על המפה לא זזים, רק המטרים משתנים. הכיול נכנס לטיוטת המבנה והצופים רואים אותו אחרי פרסום.</div>
+  </sw-card>`;
+}
+
+export function renderMeasurePanel(pts: Pt[], W: number, H: number, scale: number, estimated: boolean, show: boolean, onClear: () => void): TemplateResult {
+  const total = pts.length > 1 ? lengthPx(pts, W, H) * scale : 0;
+  const sub = estimated ? (show ? 'לא מכויל: הערכים משוערים (≈)' : 'לא מכויל: המידות מוסתרות עד הכיול (הגדרות)') : 'לפי הכיול של גרסת התוכנית';
+  return html`<sw-card heading="מדידה" subheading=${sub} data-measure-panel>
+    <div class="note">לחץ נקודות על התוכנית. Shift מבטל הצמדה לזוויות, Esc מנקה.</div>
+    <div class="measure-val" data-measure-distance>${pts.length > 1 ? fmtMetres(total, estimated, show) : '—'}</div>
+    ${pts.length >= 3
+      ? html`<div class="note">שטח המצולע <span class="measure-val" data-measure-area>${fmtArea(polygonAreaM2(pts, W, H, scale), estimated, show)}</span> · היקף ${fmtMetres(perimeterM(pts, W, H, scale), estimated, show)}</div>`
+      : nothing}
+    <div class="btns"><sw-button variant="ghost" size="sm" data-measure-clear ?disabled=${!pts.length} @click=${onClear}>נקה</sw-button></div>
+  </sw-card>`;
+}
+
 export const studioPanelStyles = css`
   .modes {
     display: flex;
@@ -310,5 +366,22 @@ export const studioPanelStyles = css`
     font: inherit;
     cursor: pointer;
     padding: 0;
+  }
+  .steps {
+    margin: 0 0 8px;
+    padding-inline-start: 18px;
+    display: grid;
+    gap: 2px;
+    font-size: var(--sw-fs-sm);
+  }
+  .steps li.done {
+    color: var(--sw-text-2);
+    text-decoration: line-through;
+  }
+  .measure-val {
+    font-family: var(--sw-font-mono);
+    font-size: var(--sw-fs-lg);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
   }
 `;

@@ -127,4 +127,34 @@ test.describe.serial('plan studio (SW A)', () => {
     await expect(page.locator(`${ed} sw-plan-canvas [data-wall]`)).toHaveCount(6); // 5 before the outline
     await expect(page.locator(`${ed} [data-studio-panel][data-studio-save="saved"]`)).toHaveCount(1, { timeout: 10000 });
   });
+
+  test('calibrate with two points and a known distance, then measure in metres', async ({ page }) => {
+    const ed = 'explore-plan-editor';
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
+    await expect(page.locator(`${ed} sw-plan-canvas [data-wall]`).first()).toBeAttached({ timeout: 20000 });
+    // before calibration: estimates, marked "≈" (the default of plan.estimates)
+    await page.locator(`${ed} [data-tool="measure"]`).click();
+    await clickPlan(page, ed, 0.3, 0.3);
+    await clickPlan(page, ed, 0.55, 0.3);
+    await expect(page.locator(`${ed} [data-measure-distance]`)).toContainText('≈');
+    await page.locator(`${ed} [data-measure-clear]`).click();
+    await page.locator(`${ed} [data-tool="calibrate"]`).click();
+    await expect(page.locator(`${ed} [data-calib-panel]`)).toBeVisible();
+    await clickPlan(page, ed, 0.2, 0.5);
+    await clickPlan(page, ed, 0.7, 0.5);
+    await page.locator(`${ed} [data-calib-metres]`).fill('10');
+    await expect(page.locator(`${ed} [data-calib-save]`)).not.toHaveAttribute('disabled', '');
+    const saved = page.waitForResponse((r) => r.url().includes('/calibration') && r.request().method() === 'PATCH');
+    await page.locator(`${ed} [data-calib-save]`).click();
+    expect((await saved).status()).toBe(200);
+    await expect(page.locator(`${ed} [data-calib-result]`)).toContainText('40.0'); // 1 m = 40 px
+    const v = await (await api.get(`api/v1/plan-versions/${ids.version}`)).json();
+    expect(v.scale_m_per_px).toBeCloseTo(0.025, 4); // 10 m over 0.5 x 800 px
+    expect(v.calibration.method).toBe('two_point');
+    await page.locator(`${ed} [data-tool="measure"]`).click();
+    await clickPlan(page, ed, 0.3, 0.3);
+    await clickPlan(page, ed, 0.55, 0.3);
+    await expect(page.locator(`${ed} [data-measure-distance]`)).toContainText('5.00'); // 0.25 x 800 px x 0.025
+    await expect(page.locator(`${ed} [data-measure-distance]`)).not.toContainText('≈');
+  });
 });

@@ -98,6 +98,14 @@ export function polygonCentroid(poly: { x: number; y: number }[]) {
 
 const ptsAttr = (ps: Pt[]): string => ps.map((p) => `${p[0]},${p[1]}`).join(' ');
 
+/** A measured segment drawn over the plan (calibration, measuring): normalized end points and a label. */
+export interface RulerOverlay {
+  a: Pt;
+  b: Pt;
+  label: string;
+  tone: 'accent' | 'muted';
+}
+
 @customElement('sw-plan-canvas')
 export class SwPlanCanvas extends LitElement {
   @property({ type: Number }) planWidth = 1000;
@@ -143,6 +151,7 @@ export class SwPlanCanvas extends LitElement {
   /** The wall being drawn (normalized points) and the snapped cursor the editor computed (rubber band, snap dot). */
   @property({ attribute: false }) wallDraft: Pt[] = [];
   @property({ attribute: false }) hoverPoint: Pt | null = null;
+  @property({ attribute: false }) rulers: RulerOverlay[] = [];
   @state() private geomDrag: { x: number; y: number } | null = null;
   private hoverFrame = 0;
   private hoverEvent: { x: number; y: number; shift: boolean } | null = null;
@@ -454,6 +463,30 @@ export class SwPlanCanvas extends LitElement {
     }
     .wdraft circle.snap {
       fill: var(--sw-accent);
+    }
+    .ruler line {
+      stroke: var(--sw-accent);
+    }
+    .ruler.muted line {
+      stroke: var(--sw-text-2);
+      stroke-dasharray: 4 3;
+    }
+    .ruler circle {
+      fill: var(--sw-surface);
+      stroke: var(--sw-accent);
+    }
+    .ruler rect {
+      fill: var(--sw-surface);
+      stroke: var(--sw-border);
+    }
+    .ruler text {
+      fill: var(--sw-text);
+      font-family: var(--sw-font);
+      font-weight: 600;
+      text-anchor: middle;
+      dominant-baseline: middle;
+      direction: rtl;
+      unicode-bidi: plaintext;
     }
     .fov {
       fill: var(--sw-fov);
@@ -1258,6 +1291,32 @@ export class SwPlanCanvas extends LitElement {
     </g>`;
   }
 
+  private renderRulers() {
+    if (!this.rulers.length) return nothing;
+    const inv = 1 / this.scale;
+    const W = this.planWidth;
+    const H = this.planHeight;
+    return svg`<g class="rulers" pointer-events="none">
+      ${this.rulers.map((r) => {
+        const ax = r.a[0] * W;
+        const ay = r.a[1] * H;
+        const bx = r.b[0] * W;
+        const by = r.b[1] * H;
+        const mx = (ax + bx) / 2;
+        const my = (ay + by) / 2;
+        const tw = (r.label.length * 7 + 14) * inv;
+        return svg`<g class="ruler ${r.tone}" data-ruler>
+          <line x1=${ax} y1=${ay} x2=${bx} y2=${by} stroke-width=${2 * inv} />
+          <circle cx=${ax} cy=${ay} r=${3.5 * inv} stroke-width=${1.5 * inv} />
+          <circle cx=${bx} cy=${by} r=${3.5 * inv} stroke-width=${1.5 * inv} />
+          ${r.label
+            ? svg`<rect x=${mx - tw / 2} y=${my - 11 * inv} width=${tw} height=${22 * inv} rx=${11 * inv} stroke-width=${inv} /><text x=${mx} y=${my} font-size=${12 * inv}>${r.label}</text>`
+            : nothing}
+        </g>`;
+      })}
+    </g>`;
+  }
+
   render() {
     return html`
       <div class="viewport ${this.placing ? 'placing' : ''} ${this.boxSelect ? 'boxing' : ''}" @wheel=${this.onWheel} @pointerdown=${this.onPointerDown} @pointermove=${this.onPointerMove}
@@ -1272,6 +1331,7 @@ export class SwPlanCanvas extends LitElement {
             ${this.markers.map((m) => this.renderMarker(m))}
             ${this.renderDraft()}
             ${this.renderWallDraft()}
+            ${this.renderRulers()}
           </g>
           ${this.box ? svg`<rect class="box" data-box x=${this.box.x0.toFixed(1)} y=${this.box.y0.toFixed(1)} width=${(this.box.x1 - this.box.x0).toFixed(1)} height=${(this.box.y1 - this.box.y0).toFixed(1)} />` : nothing}
         </svg>
