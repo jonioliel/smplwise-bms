@@ -260,3 +260,9 @@ def copy_from(conn: sqlite3.Connection, target: sqlite3.Row, source: sqlite3.Row
         else:
             doc = pg.rebase(source_doc, target, _asset(conn, target))
     return save_draft(conn, target, doc, draft["revision"] if draft is not None else 0, actor_id, now)
+
+
+def anchor_positions(conn: sqlite3.Connection, floor_id: str) -> dict[str, dict[str, float]]:
+    """The live anchors of a floor keyed "<type>:<id>": what a bound object takes its position and rotation from."""
+    return {f"{r['resource_type']}:{r['resource_id']}": {"x": r["x"], "y": r["y"], "rotation": r["rotation_degrees"] or 0}
+            for r in conn.execute("SELECT resource_type, resource_id, x, y, rotation_degrees FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL", (floor_id,)).fetchall()}

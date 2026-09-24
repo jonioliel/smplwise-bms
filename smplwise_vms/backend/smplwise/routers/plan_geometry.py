@@ -17,6 +17,7 @@ from ..db import now_iso
 from ..errors import ApiError, conflict, not_found
 from ..rbac import Principal, require
 from ..services import geometry_store as store
+from ..services import plan_catalog
 from ..services import plan_geometry as pg
 from ..services import plan_geometry_render as render
 from ..services.timeutil import parse_utc
@@ -25,6 +26,17 @@ from .zones import floor_zones
 
 router = APIRouter()
 NO_CACHE = {"Cache-Control": "private, no-cache"}
+
+
+def _layers(raw: str | None) -> set[str] | None:
+    """?layers=structure,objects,labels,connectors - any subset; an unknown name is a 422."""
+    if raw is None:
+        return None
+    chosen = {x.strip() for x in raw.split(",") if x.strip()}
+    unknown = sorted(chosen - set(render.LAYERS))
+    if unknown:
+        raise ApiError(422, "validation", "שכבות לא מוכרות בייצוא.", details={"unknown": unknown, "layers": list(render.LAYERS)})
+    return chosen
 
 
 def _rid(request: Request) -> str | None:
@@ -223,19 +235,20 @@ def _export_doc(conn: sqlite3.Connection, principal: Principal, version_id: str,
 
 
 @router.get("/plan-versions/{version_id}/export.svg", response_model=None)
-def export_svg(version_id: str, draft: bool = False, level: str | None = None, labels: bool = True, rooms: bool = True,
+def export_svg(version_id: str, draft: bool = False, level: str | None = None, labels: bool = True, rooms: bool = True, layers: str | None = None,
                principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Response:
     v, doc = _export_doc(conn, principal, version_id, draft)
-    text = render.render_svg(doc, floor_zones(conn, v["floor_id"]), v["width_px"], v["height_px"], level=level, labels=labels, rooms=rooms)
+    text = render.render_svg(doc, floor_zones(conn, v["floor_id"]), v["width_px"], v["height_px"], level=level, labels=labels, rooms=rooms, layers=_layers(layers),
+                             anchors=store.anchor_positions(conn, v["floor_id"]), items=plan_catalog.item_index(conn))
     return Response(content=text.encode("utf-8"), media_type="image/svg+xml; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="plan-{v["id"]}.svg"', **NO_CACHE})
 
 
 @router.get("/plan-versions/{version_id}/export.png", response_model=None)
-def export_png(version_id: str, request: Request, draft: bool = False, level: str | None = None, background: bool = True,
+def export_png(version_id: str, request: Request, draft: bool = False, level: str | None = None, background: bool = True, layers: str | None = None,
                principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Response:
     v, doc = _export_doc(conn, principal, version_id, draft)
     picture = settings_of(request).data_dir / v["image_path"] if background else None
-    data = render.render_png(doc, floor_zones(conn, v["floor_id"]), v["width_px"], v["height_px"],
-                             background=picture if picture is not None and picture.exists() else None, level=level)
+    data = render.render_png(doc, floor_zones(conn, v["floor_id"]), v["width_px"], v["height_px"], background=picture if picture is not None and picture.exists() else None,
+                             level=level, layers=_layers(layers), anchors=store.anchor_positions(conn, v["floor_id"]), items=plan_catalog.item_index(conn))
     return Response(content=data, media_type="image/png", headers={"Content-Disposition": f'attachment; filename="plan-{v["id"]}.png"', **NO_CACHE})

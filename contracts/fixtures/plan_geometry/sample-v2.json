@@ -24,14 +24,27 @@
     {"id": "oc", "wall_id": "wb", "t": 0.5, "kind": "door", "width_m": 0.8, "height_m": 2.1, "sill_m": 0, "swing": "left", "hinge": "end", "anchor_ref": {"resource_type": "ha_entity", "resource_id": "lock.store"}, "confidence": 1, "source": "manual", "external_ids": {}}
   ],
   "rooms": [],
-  "objects": [],
-  "circuits": [],
-  "connectors": [],
+  "objects": [
+    {"id": "o1", "item_id": "chair.basic", "level_id": "L0", "position": [0.2, 0.2], "rotation_deg": 0, "size": {"w_m": 0.45, "d_m": 0.45, "h_m": 0.85}, "z_m": 0, "params": {}, "label": null, "anchor_ref": null, "group_id": "g1", "confidence": 1, "source": "manual", "locked": false, "external_ids": {}},
+    {"id": "o2", "item_id": "table.desk", "level_id": "L0", "position": [0.3, 0.4], "rotation_deg": 90, "size": {"w_m": 1.4, "d_m": 0.7, "h_m": 0.75}, "z_m": 0, "params": {}, "label": "שולחן", "anchor_ref": null, "group_id": "g1", "confidence": 1, "source": "manual", "locked": false, "external_ids": {}},
+    {"id": "o3", "item_id": "light.ceiling", "level_id": "L0", "position": [0.5, 0.3], "rotation_deg": 0, "size": {"w_m": 0.4, "d_m": 0.4, "h_m": 0.1}, "z_m": 2.7, "params": {}, "label": null, "anchor_ref": {"resource_type": "ha_entity", "resource_id": "light.store"}, "group_id": null, "confidence": 1, "source": "manual", "locked": false, "external_ids": {}},
+    {"id": "o4", "item_id": "tribune.stepped", "level_id": "L0", "position": [0.25, 0.6], "rotation_deg": 180, "size": {"w_m": 4, "d_m": 3, "h_m": 1.2}, "z_m": 0, "params": {"rows": 4, "step_height_m": 0.3, "step_width_m": 1.0, "connects_levels": "L1"}, "label": null, "anchor_ref": null, "group_id": null, "confidence": 1, "source": "manual", "locked": false, "external_ids": {}},
+    {"id": "o5", "item_id": "extinguisher.co2", "level_id": "L1", "position": [0.15, 0.8], "rotation_deg": 0, "size": {"w_m": 0.2, "d_m": 0.2, "h_m": 0.6}, "z_m": 0.9, "params": {}, "label": "מטף", "anchor_ref": null, "group_id": null, "confidence": 1, "source": "manual", "locked": false, "external_ids": {}}
+  ],
+  "circuits": [
+    {"id": "k1", "name": "מעגל אולם", "switch_entity_id": "switch.hall_a", "member_ids": ["o3"], "color_token": "circuit-1", "power_w": 36}
+  ],
+  "connectors": [
+    {"id": "c1", "kind": "stairs", "level_from": "L0", "level_to": "L1", "floor_ids": [], "polyline": [[0.7, 0.7], [0.8, 0.7]], "width_m": 1.2, "label": null, "object_id": null, "source": "manual", "external_ids": {}},
+    {"id": "cx-o4", "kind": "tribune", "level_from": "L0", "level_to": "L1", "floor_ids": [], "polyline": [[0.25, 0.4125], [0.25, 0.7875]], "width_m": 4.0, "label": null, "object_id": "o4", "source": "auto", "external_ids": {}}
+  ],
   "labels": [
     {"id": "lb", "text": "אולם", "position": [0.25, 0.75], "level_id": "L1", "size": 16},
     {"id": "la", "text": "מחסן", "position": [0.3, 0.3], "level_id": "L0", "size": 16}
   ],
-  "groups": [],
+  "groups": [
+    {"id": "g1", "kind": "manual", "member_ids": ["o1", "o2"], "params": {}, "label": null}
+  ],
   "uncertain_regions": [],
   "uncertainty": {"overall": 0.2, "notes": []},
   "meta": {"generator": "fixture", "tokens_version": "map-1", "detector_version": null}
