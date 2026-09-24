@@ -1,0 +1,11202 @@
+(function(){const t=document.createElement("link").relList;if(t&&t.supports&&t.supports("modulepreload"))return;for(const a of document.querySelectorAll('link[rel="modulepreload"]'))i(a);new MutationObserver(a=>{for(const r of a)if(r.type==="childList")for(const o of r.addedNodes)o.tagName==="LINK"&&o.rel==="modulepreload"&&i(o)}).observe(document,{childList:!0,subtree:!0});function s(a){const r={};return a.integrity&&(r.integrity=a.integrity),a.referrerPolicy&&(r.referrerPolicy=a.referrerPolicy),a.crossOrigin==="use-credentials"?r.credentials="include":a.crossOrigin==="anonymous"?r.credentials="omit":r.credentials="same-origin",r}function i(a){if(a.ep)return;a.ep=!0;const r=s(a);fetch(a.href,r)}})();/**
+ * @license
+ * Copyright 2019 Google LLC
+ * SPDX-License-Identifier: BSD-3-Clause
+ */const ni=globalThis,_a=ni.ShadowRoot&&(ni.ShadyCSS===void 0||ni.ShadyCSS.nativeShadow)&&"adoptedStyleSheets"in Document.prototype&&"replace"in CSSStyleSheet.prototype,za=Symbol(),Ua=new WeakMap;let sr=class{constructor(t,s,i){if(this._$cssResult$=!0,i!==za)throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");this.cssText=t,this.t=s}get styleSheet(){let t=this.o;const s=this.t;if(_a&&t===void 0){const i=s!==void 0&&s.length===1;i&&(t=Ua.get(s)),t===void 0&&((this.o=t=new CSSStyleSheet).replaceSync(this.cssText),i&&Ua.set(s,t))}return t}toString(){return this.cssText}};const Qr=e=>new sr(typeof e=="string"?e:e+"",void 0,za),A=(e,...t)=>{const s=e.length===1?e[0]:t.reduce((i,a,r)=>i+(o=>{if(o._$cssResult$===!0)return o.cssText;if(typeof o=="number")return o;throw Error("Value passed to 'css' function must be a 'css' function result: "+o+". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.")})(a)+e[r+1],e[0]);return new sr(s,e,za)},eo=(e,t)=>{if(_a)e.adoptedStyleSheets=t.map(s=>s instanceof CSSStyleSheet?s:s.styleSheet);else for(const s of t){const i=document.createElement("style"),a=ni.litNonce;a!==void 0&&i.setAttribute("nonce",a),i.textContent=s.cssText,e.appendChild(i)}},Za=_a?e=>e:e=>e instanceof CSSStyleSheet?(t=>{let s="";for(const i of t.cssRules)s+=i.cssText;return Qr(s)})(e):e;/**
+ * @license
+ * Copyright 2017 Google LLC
+ * SPDX-License-Identifier: BSD-3-Clause
+ */const{is:to,defineProperty:so,getOwnPropertyDescriptor:io,getOwnPropertyNames:ao,getOwnPropertySymbols:no,getPrototypeOf:ro}=Object,xi=globalThis,qa=xi.trustedTypes,oo=qa?qa.emptyScript:"",lo=xi.reactiveElementPolyfillSupport,$s=(e,t)=>e,ci={toAttribute(e,t){switch(t){case Boolean:e=e?oo:null;break;case Object:case Array:e=e==null?e:JSON.stringify(e)}return e},fromAttribute(e,t){let s=e;switch(t){case Boolean:s=e!==null;break;case Number:s=e===null?null:Number(e);break;case Object:case Array:try{s=JSON.parse(e)}catch{s=null}}return s}},Sa=(e,t)=>!to(e,t),Ga={attribute:!0,type:String,converter:ci,reflect:!1,useDefault:!1,hasChanged:Sa};Symbol.metadata??=Symbol("metadata"),xi.litPropertyMetadata??=new WeakMap;let Jt=class extends HTMLElement{static addInitializer(t){this._$Ei(),(this.l??=[]).push(t)}static get observedAttributes(){return this.finalize(),this._$Eh&&[...this._$Eh.keys()]}static createProperty(t,s=Ga){if(s.state&&(s.attribute=!1),this._$Ei(),this.prototype.hasOwnProperty(t)&&((s=Object.create(s)).wrapped=!0),this.elementProperties.set(t,s),!s.noAccessor){const i=Symbol(),a=this.getPropertyDescriptor(t,i,s);a!==void 0&&so(this.prototype,t,a)}}static getPropertyDescriptor(t,s,i){const{get:a,set:r}=io(this.prototype,t)??{get(){return this[s]},set(o){this[s]=o}};return{get:a,set(o){const l=a?.call(this);r?.call(this,o),this.requestUpdate(t,l,i)},configurable:!0,enumerable:!0}}static getPropertyOptions(t){return this.elementProperties.get(t)??Ga}static _$Ei(){if(this.hasOwnProperty($s("elementProperties")))return;const t=ro(this);t.finalize(),t.l!==void 0&&(this.l=[...t.l]),this.elementProperties=new Map(t.elementProperties)}static finalize(){if(this.hasOwnProperty($s("finalized")))return;if(this.finalized=!0,this._$Ei(),this.hasOwnProperty($s("properties"))){const s=this.properties,i=[...ao(s),...no(s)];for(const a of i)this.createProperty(a,s[a])}const t=this[Symbol.metadata];if(t!==null){const s=litPropertyMetadata.get(t);if(s!==void 0)for(const[i,a]of s)this.elementProperties.set(i,a)}this._$Eh=new Map;for(const[s,i]of this.elementProperties){const a=this._$Eu(s,i);a!==void 0&&this._$Eh.set(a,s)}this.elementStyles=this.finalizeStyles(this.styles)}static finalizeStyles(t){const s=[];if(Array.isArray(t)){const i=new Set(t.flat(1/0).reverse());for(const a of i)s.unshift(Za(a))}else t!==void 0&&s.push(Za(t));return s}static _$Eu(t,s){const i=s.attribute;return i===!1?void 0:typeof i=="string"?i:typeof t=="string"?t.toLowerCase():void 0}constructor(){super(),this._$Ep=void 0,this.isUpdatePending=!1,this.hasUpdated=!1,this._$Em=null,this._$Ev()}_$Ev(){this._$ES=new Promise(t=>this.enableUpdating=t),this._$AL=new Map,this._$E_(),this.requestUpdate(),this.constructor.l?.forEach(t=>t(this))}addController(t){(this._$EO??=new Set).add(t),this.renderRoot!==void 0&&this.isConnected&&t.hostConnected?.()}removeController(t){this._$EO?.delete(t)}_$E_(){const t=new Map,s=this.constructor.elementProperties;for(const i of s.keys())this.hasOwnProperty(i)&&(t.set(i,this[i]),delete this[i]);t.size>0&&(this._$Ep=t)}createRenderRoot(){const t=this.shadowRoot??this.attachShadow(this.constructor.shadowRootOptions);return eo(t,this.constructor.elementStyles),t}connectedCallback(){this.renderRoot??=this.createRenderRoot(),this.enableUpdating(!0),this._$EO?.forEach(t=>t.hostConnected?.())}enableUpdating(t){}disconnectedCallback(){this._$EO?.forEach(t=>t.hostDisconnected?.())}attributeChangedCallback(t,s,i){this._$AK(t,i)}_$ET(t,s){const i=this.constructor.elementProperties.get(t),a=this.constructor._$Eu(t,i);if(a!==void 0&&i.reflect===!0){const r=(i.converter?.toAttribute!==void 0?i.converter:ci).toAttribute(s,i.type);this._$Em=t,r==null?this.removeAttribute(a):this.setAttribute(a,r),this._$Em=null}}_$AK(t,s){const i=this.constructor,a=i._$Eh.get(t);if(a!==void 0&&this._$Em!==a){const r=i.getPropertyOptions(a),o=typeof r.converter=="function"?{fromAttribute:r.converter}:r.converter?.fromAttribute!==void 0?r.converter:ci;this._$Em=a;const l=o.fromAttribute(s,r.type);this[a]=l??this._$Ej?.get(a)??l,this._$Em=null}}requestUpdate(t,s,i,a=!1,r){if(t!==void 0){const o=this.constructor;if(a===!1&&(r=this[t]),i??=o.getPropertyOptions(t),!((i.hasChanged??Sa)(r,s)||i.useDefault&&i.reflect&&r===this._$Ej?.get(t)&&!this.hasAttribute(o._$Eu(t,i))))return;this.C(t,s,i)}this.isUpdatePending===!1&&(this._$ES=this._$EP())}C(t,s,{useDefault:i,reflect:a,wrapped:r},o){i&&!(this._$Ej??=new Map).has(t)&&(this._$Ej.set(t,o??s??this[t]),r!==!0||o!==void 0)||(this._$AL.has(t)||(this.hasUpdated||i||(s=void 0),this._$AL.set(t,s)),a===!0&&this._$Em!==t&&(this._$Eq??=new Set).add(t))}async _$EP(){this.isUpdatePending=!0;try{await this._$ES}catch(s){Promise.reject(s)}const t=this.scheduleUpdate();return t!=null&&await t,!this.isUpdatePending}scheduleUpdate(){return this.performUpdate()}performUpdate(){if(!this.isUpdatePending)return;if(!this.hasUpdated){if(this.renderRoot??=this.createRenderRoot(),this._$Ep){for(const[a,r]of this._$Ep)this[a]=r;this._$Ep=void 0}const i=this.constructor.elementProperties;if(i.size>0)for(const[a,r]of i){const{wrapped:o}=r,l=this[a];o!==!0||this._$AL.has(a)||l===void 0||this.C(a,void 0,r,l)}}let t=!1;const s=this._$AL;try{t=this.shouldUpdate(s),t?(this.willUpdate(s),this._$EO?.forEach(i=>i.hostUpdate?.()),this.update(s)):this._$EM()}catch(i){throw t=!1,this._$EM(),i}t&&this._$AE(s)}willUpdate(t){}_$AE(t){this._$EO?.forEach(s=>s.hostUpdated?.()),this.hasUpdated||(this.hasUpdated=!0,this.firstUpdated(t)),this.updated(t)}_$EM(){this._$AL=new Map,this.isUpdatePending=!1}get updateComplete(){return this.getUpdateComplete()}getUpdateComplete(){return this._$ES}shouldUpdate(t){return!0}update(t){this._$Eq&&=this._$Eq.forEach(s=>this._$ET(s,this[s])),this._$EM()}updated(t){}firstUpdated(t){}};Jt.elementStyles=[],Jt.shadowRootOptions={mode:"open"},Jt[$s("elementProperties")]=new Map,Jt[$s("finalized")]=new Map,lo?.({ReactiveElement:Jt}),(xi.reactiveElementVersions??=[]).push("2.1.2");/**
+ * @license
+ * Copyright 2017 Google LLC
+ * SPDX-License-Identifier: BSD-3-Clause
+ */const Ma=globalThis,Ka=e=>e,pi=Ma.trustedTypes,Ya=pi?pi.createPolicy("lit-html",{createHTML:e=>e}):void 0,ir="$lit$",yt=`lit$${Math.random().toFixed(9).slice(2)}$`,ar="?"+yt,co=`<${ar}>`,Nt=document,Ds=()=>Nt.createComment(""),Ts=e=>e===null||typeof e!="object"&&typeof e!="function",Aa=Array.isArray,po=e=>Aa(e)||typeof e?.[Symbol.iterator]=="function",Oi=`[ 	
+\f\r]`,gs=/<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g,Ja=/-->/g,Xa=/>/g,Et=RegExp(`>|${Oi}(?:([^\\s"'>=/]+)(${Oi}*=${Oi}*(?:[^ 	
+\f\r"'\`<>=]|("|')|))|$)`,"g"),Qa=/'/g,en=/"/g,nr=/^(?:script|style|textarea|title)$/i,rr=e=>(t,...s)=>({_$litType$:e,strings:t,values:s}),n=rr(1),m=rr(2),Lt=Symbol.for("lit-noChange"),d=Symbol.for("lit-nothing"),tn=new WeakMap,Ot=Nt.createTreeWalker(Nt,129);function or(e,t){if(!Aa(e)||!e.hasOwnProperty("raw"))throw Error("invalid template strings array");return Ya!==void 0?Ya.createHTML(t):t}const ho=(e,t)=>{const s=e.length-1,i=[];let a,r=t===2?"<svg>":t===3?"<math>":"",o=gs;for(let l=0;l<s;l++){const p=e[l];let h,u,f=-1,v=0;for(;v<p.length&&(o.lastIndex=v,u=o.exec(p),u!==null);)v=o.lastIndex,o===gs?u[1]==="!--"?o=Ja:u[1]!==void 0?o=Xa:u[2]!==void 0?(nr.test(u[2])&&(a=RegExp("</"+u[2],"g")),o=Et):u[3]!==void 0&&(o=Et):o===Et?u[0]===">"?(o=a??gs,f=-1):u[1]===void 0?f=-2:(f=o.lastIndex-u[2].length,h=u[1],o=u[3]===void 0?Et:u[3]==='"'?en:Qa):o===en||o===Qa?o=Et:o===Ja||o===Xa?o=gs:(o=Et,a=void 0);const w=o===Et&&e[l+1].startsWith("/>")?" ":"";r+=o===gs?p+co:f>=0?(i.push(h),p.slice(0,f)+ir+p.slice(f)+yt+w):p+yt+(f===-2?l:w)}return[or(e,r+(e[s]||"<?>")+(t===2?"</svg>":t===3?"</math>":"")),i]};class Os{constructor({strings:t,_$litType$:s},i){let a;this.parts=[];let r=0,o=0;const l=t.length-1,p=this.parts,[h,u]=ho(t,s);if(this.el=Os.createElement(h,i),Ot.currentNode=this.el.content,s===2||s===3){const f=this.el.content.firstChild;f.replaceWith(...f.childNodes)}for(;(a=Ot.nextNode())!==null&&p.length<l;){if(a.nodeType===1){if(a.hasAttributes())for(const f of a.getAttributeNames())if(f.endsWith(ir)){const v=u[o++],w=a.getAttribute(f).split(yt),y=/([.?@])?(.*)/.exec(v);p.push({type:1,index:r,name:y[2],strings:w,ctor:y[1]==="."?mo:y[1]==="?"?fo:y[1]==="@"?go:ki}),a.removeAttribute(f)}else f.startsWith(yt)&&(p.push({type:6,index:r}),a.removeAttribute(f));if(nr.test(a.tagName)){const f=a.textContent.split(yt),v=f.length-1;if(v>0){a.textContent=pi?pi.emptyScript:"";for(let w=0;w<v;w++)a.append(f[w],Ds()),Ot.nextNode(),p.push({type:2,index:++r});a.append(f[v],Ds())}}}else if(a.nodeType===8)if(a.data===ar)p.push({type:2,index:r});else{let f=-1;for(;(f=a.data.indexOf(yt,f+1))!==-1;)p.push({type:7,index:r}),f+=yt.length-1}r++}}static createElement(t,s){const i=Nt.createElement("template");return i.innerHTML=t,i}}function ts(e,t,s=e,i){if(t===Lt)return t;let a=i!==void 0?s._$Co?.[i]:s._$Cl;const r=Ts(t)?void 0:t._$litDirective$;return a?.constructor!==r&&(a?._$AO?.(!1),r===void 0?a=void 0:(a=new r(e),a._$AT(e,s,i)),i!==void 0?(s._$Co??=[])[i]=a:s._$Cl=a),a!==void 0&&(t=ts(e,a._$AS(e,t.values),a,i)),t}class uo{constructor(t,s){this._$AV=[],this._$AN=void 0,this._$AD=t,this._$AM=s}get parentNode(){return this._$AM.parentNode}get _$AU(){return this._$AM._$AU}u(t){const{el:{content:s},parts:i}=this._$AD,a=(t?.creationScope??Nt).importNode(s,!0);Ot.currentNode=a;let r=Ot.nextNode(),o=0,l=0,p=i[0];for(;p!==void 0;){if(o===p.index){let h;p.type===2?h=new js(r,r.nextSibling,this,t):p.type===1?h=new p.ctor(r,p.name,p.strings,this,t):p.type===6&&(h=new wo(r,this,t)),this._$AV.push(h),p=i[++l]}o!==p?.index&&(r=Ot.nextNode(),o++)}return Ot.currentNode=Nt,a}p(t){let s=0;for(const i of this._$AV)i!==void 0&&(i.strings!==void 0?(i._$AI(t,i,s),s+=i.strings.length-2):i._$AI(t[s])),s++}}class js{get _$AU(){return this._$AM?._$AU??this._$Cv}constructor(t,s,i,a){this.type=2,this._$AH=d,this._$AN=void 0,this._$AA=t,this._$AB=s,this._$AM=i,this.options=a,this._$Cv=a?.isConnected??!0}get parentNode(){let t=this._$AA.parentNode;const s=this._$AM;return s!==void 0&&t?.nodeType===11&&(t=s.parentNode),t}get startNode(){return this._$AA}get endNode(){return this._$AB}_$AI(t,s=this){t=ts(this,t,s),Ts(t)?t===d||t==null||t===""?(this._$AH!==d&&this._$AR(),this._$AH=d):t!==this._$AH&&t!==Lt&&this._(t):t._$litType$!==void 0?this.$(t):t.nodeType!==void 0?this.T(t):po(t)?this.k(t):this._(t)}O(t){return this._$AA.parentNode.insertBefore(t,this._$AB)}T(t){this._$AH!==t&&(this._$AR(),this._$AH=this.O(t))}_(t){this._$AH!==d&&Ts(this._$AH)?this._$AA.nextSibling.data=t:this.T(Nt.createTextNode(t)),this._$AH=t}$(t){const{values:s,_$litType$:i}=t,a=typeof i=="number"?this._$AC(t):(i.el===void 0&&(i.el=Os.createElement(or(i.h,i.h[0]),this.options)),i);if(this._$AH?._$AD===a)this._$AH.p(s);else{const r=new uo(a,this),o=r.u(this.options);r.p(s),this.T(o),this._$AH=r}}_$AC(t){let s=tn.get(t.strings);return s===void 0&&tn.set(t.strings,s=new Os(t)),s}k(t){Aa(this._$AH)||(this._$AH=[],this._$AR());const s=this._$AH;let i,a=0;for(const r of t)a===s.length?s.push(i=new js(this.O(Ds()),this.O(Ds()),this,this.options)):i=s[a],i._$AI(r),a++;a<s.length&&(this._$AR(i&&i._$AB.nextSibling,a),s.length=a)}_$AR(t=this._$AA.nextSibling,s){for(this._$AP?.(!1,!0,s);t!==this._$AB;){const i=Ka(t).nextSibling;Ka(t).remove(),t=i}}setConnected(t){this._$AM===void 0&&(this._$Cv=t,this._$AP?.(t))}}class ki{get tagName(){return this.element.tagName}get _$AU(){return this._$AM._$AU}constructor(t,s,i,a,r){this.type=1,this._$AH=d,this._$AN=void 0,this.element=t,this.name=s,this._$AM=a,this.options=r,i.length>2||i[0]!==""||i[1]!==""?(this._$AH=Array(i.length-1).fill(new String),this.strings=i):this._$AH=d}_$AI(t,s=this,i,a){const r=this.strings;let o=!1;if(r===void 0)t=ts(this,t,s,0),o=!Ts(t)||t!==this._$AH&&t!==Lt,o&&(this._$AH=t);else{const l=t;let p,h;for(t=r[0],p=0;p<r.length-1;p++)h=ts(this,l[i+p],s,p),h===Lt&&(h=this._$AH[p]),o||=!Ts(h)||h!==this._$AH[p],h===d?t=d:t!==d&&(t+=(h??"")+r[p+1]),this._$AH[p]=h}o&&!a&&this.j(t)}j(t){t===d?this.element.removeAttribute(this.name):this.element.setAttribute(this.name,t??"")}}class mo extends ki{constructor(){super(...arguments),this.type=3}j(t){this.element[this.name]=t===d?void 0:t}}class fo extends ki{constructor(){super(...arguments),this.type=4}j(t){this.element.toggleAttribute(this.name,!!t&&t!==d)}}class go extends ki{constructor(t,s,i,a,r){super(t,s,i,a,r),this.type=5}_$AI(t,s=this){if((t=ts(this,t,s,0)??d)===Lt)return;const i=this._$AH,a=t===d&&i!==d||t.capture!==i.capture||t.once!==i.once||t.passive!==i.passive,r=t!==d&&(i===d||a);a&&this.element.removeEventListener(this.name,this,i),r&&this.element.addEventListener(this.name,this,t),this._$AH=t}handleEvent(t){typeof this._$AH=="function"?this._$AH.call(this.options?.host??this.element,t):this._$AH.handleEvent(t)}}class wo{constructor(t,s,i){this.element=t,this.type=6,this._$AN=void 0,this._$AM=s,this.options=i}get _$AU(){return this._$AM._$AU}_$AI(t){ts(this,t)}}const vo=Ma.litHtmlPolyfillSupport;vo?.(Os,js),(Ma.litHtmlVersions??=[]).push("3.3.3");const bo=(e,t,s)=>{const i=s?.renderBefore??t;let a=i._$litPart$;if(a===void 0){const r=s?.renderBefore??null;i._$litPart$=a=new js(t.insertBefore(Ds(),r),r,void 0,s??{})}return a._$AI(e),a};/**
+ * @license
+ * Copyright 2017 Google LLC
+ * SPDX-License-Identifier: BSD-3-Clause
+ */const Pa=globalThis;let M=class extends Jt{constructor(){super(...arguments),this.renderOptions={host:this},this._$Do=void 0}createRenderRoot(){const t=super.createRenderRoot();return this.renderOptions.renderBefore??=t.firstChild,t}update(t){const s=this.render();this.hasUpdated||(this.renderOptions.isConnected=this.isConnected),super.update(t),this._$Do=bo(s,this.renderRoot,this.renderOptions)}connectedCallback(){super.connectedCallback(),this._$Do?.setConnected(!0)}disconnectedCallback(){super.disconnectedCallback(),this._$Do?.setConnected(!1)}render(){return Lt}};M._$litElement$=!0,M.finalized=!0,Pa.litElementHydrateSupport?.({LitElement:M});const yo=Pa.litElementPolyfillSupport;yo?.({LitElement:M});(Pa.litElementVersions??=[]).push("4.2.2");/**
+ * @license
+ * Copyright 2017 Google LLC
+ * SPDX-License-Identifier: BSD-3-Clause
+ */const P=e=>(t,s)=>{s!==void 0?s.addInitializer(()=>{customElements.define(e,t)}):customElements.define(e,t)};/**
+ * @license
+ * Copyright 2017 Google LLC
+ * SPDX-License-Identifier: BSD-3-Clause
+ */const $o={attribute:!0,type:String,converter:ci,reflect:!1,hasChanged:Sa},xo=(e=$o,t,s)=>{const{kind:i,metadata:a}=s;let r=globalThis.litPropertyMetadata.get(a);if(r===void 0&&globalThis.litPropertyMetadata.set(a,r=new Map),i==="setter"&&((e=Object.create(e)).wrapped=!0),r.set(s.name,e),i==="accessor"){const{name:o}=s;return{set(l){const p=t.get.call(this);t.set.call(this,l),this.requestUpdate(o,p,e,!0,l)},init(l){return l!==void 0&&this.C(o,void 0,e,l),l}}}if(i==="setter"){const{name:o}=s;return function(l){const p=this[o];t.call(this,l),this.requestUpdate(o,p,e,!0,l)}}throw Error("Unsupported decorator location: "+i)};function g(e){return(t,s)=>typeof s=="object"?xo(e,t,s):((i,a,r)=>{const o=a.hasOwnProperty(r);return a.constructor.createProperty(r,i),o?Object.getOwnPropertyDescriptor(a,r):void 0})(e,t,s)}/**
+ * @license
+ * Copyright 2017 Google LLC
+ * SPDX-License-Identifier: BSD-3-Clause
+ */function c(e){return g({...e,state:!0,attribute:!1})}/**
+ * @license
+ * Copyright 2017 Google LLC
+ * SPDX-License-Identifier: BSD-3-Clause
+ */const ko=(e,t,s)=>(s.configurable=!0,s.enumerable=!0,Reflect.decorate&&typeof t!="object"&&Object.defineProperty(e,t,s),s);/**
+ * @license
+ * Copyright 2017 Google LLC
+ * SPDX-License-Identifier: BSD-3-Clause
+ */function cs(e,t){return(s,i,a)=>{const r=o=>o.renderRoot?.querySelector(e)??null;return ko(s,i,{get(){return r(this)}})}}/**
+ * @license
+ * Copyright 2017 Google LLC
+ * SPDX-License-Identifier: BSD-3-Clause
+ */const _o={ATTRIBUTE:1},zo=e=>(...t)=>({_$litDirective$:e,values:t});class So{constructor(t){}get _$AU(){return this._$AM._$AU}_$AT(t,s,i){this._$Ct=t,this._$AM=s,this._$Ci=i}_$AS(t,s){return this.update(t,s)}update(t,s){return this.render(...s)}}/**
+ * @license
+ * Copyright 2018 Google LLC
+ * SPDX-License-Identifier: BSD-3-Clause
+ */const gt=zo(class extends So{constructor(e){if(super(e),e.type!==_o.ATTRIBUTE||e.name!=="class"||e.strings?.length>2)throw Error("`classMap()` can only be used in the `class` attribute and must be the only part in the attribute.")}render(e){return" "+Object.keys(e).filter(t=>e[t]).join(" ")+" "}update(e,[t]){if(this.st===void 0){this.st=new Set,e.strings!==void 0&&(this.nt=new Set(e.strings.join(" ").split(/\s/).filter(i=>i!=="")));for(const i in t)t[i]&&!this.nt?.has(i)&&this.st.add(i);return this.render(t)}const s=e.element.classList;for(const i of this.st)i in t||(s.remove(i),this.st.delete(i));for(const i in t){const a=!!t[i];a===this.st.has(i)||this.nt?.has(i)||(a?(s.add(i),this.st.add(i)):(s.remove(i),this.st.delete(i)))}return Lt}});var Mo=Object.defineProperty,Ao=Object.getOwnPropertyDescriptor,_i=(e,t,s,i)=>{for(var a=i>1?void 0:i?Ao(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Mo(t,s,a),a};const sn={live:m`<circle cx="12" cy="12" r="3"/><path d="M6.3 6.3a8 8 0 0 0 0 11.4M17.7 6.3a8 8 0 0 1 0 11.4M3.5 3.5a12 12 0 0 0 0 17M20.5 3.5a12 12 0 0 1 0 17"/>`,explore:m`<path d="M3 6.5 9 4l6 2.5 6-2.5v13.5L15 20l-6-2.5L3 20z"/><path d="M9 4v13.5M15 6.5V20"/>`,investigate:m`<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.3-4.3M11 8v3l2 1.5"/>`,system:m`<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>`,camera:m`<path d="M3 8.5A1.5 1.5 0 0 1 4.5 7H8l1.5-2h5L16 7h3.5A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z"/><circle cx="12" cy="13" r="3.5"/>`,search:m`<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.3-4.3"/>`,bell:m`<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/>`,user:m`<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>`,play:m`<path d="M7 5v14l11-7z"/>`,expand:m`<path d="M15 4h5v5M9 20H4v-5M20 4l-6 6M4 20l6-6"/>`,close:m`<path d="M6 6l12 12M18 6 6 18"/>`,chevron:m`<path d="m9 6 6 6-6 6"/>`,chevronBack:m`<path d="m15 6-6 6 6 6"/>`,warning:m`<path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/>`,info:m`<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>`,lock:m`<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>`,unlock:m`<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/>`,offline:m`<path d="M2 8.5a15 15 0 0 1 20 0M5.5 12a10 10 0 0 1 13 0M9 15.5a5 5 0 0 1 6 0"/><path d="M12 19h.01"/><path d="M3 3l18 18"/>`,refresh:m`<path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/>`,layers:m`<path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5M3 17.5l9 5 9-5"/>`,floor:m`<path d="M4 6h16M4 12h16M4 18h16"/><path d="M8 3v18"/>`,plus:m`<path d="M12 5v14M5 12h14"/>`,minus:m`<path d="M5 12h14"/>`,fit:m`<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>`,door:m`<rect x="6" y="3" width="12" height="18" rx="1"/><path d="M14 12h.01"/>`,light:m`<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.8.6 1.5 1.6 1.5 2.6h4c0-1 .7-2 1.5-2.6A6 6 0 0 0 12 3z"/>`,sensor:m`<circle cx="12" cy="12" r="2"/><path d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 7.8a6 6 0 0 1 0 8.4M4.9 4.9a10 10 0 0 0 0 14.2M19.1 4.9a10 10 0 0 1 0 14.2"/>`,check:m`<path d="m5 12 5 5 9-10"/>`,clock:m`<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>`,download:m`<path d="M12 4v11M7 10l5 5 5-5M4 20h16"/>`,pin:m`<path d="M9 4h6l-1 6 3 3v2H7v-2l3-3z"/><path d="M12 15v6"/>`,more:m`<circle cx="6" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18" cy="12" r="1.3"/>`,building:m`<rect x="4" y="3" width="16" height="18" rx="1"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2M10 21v-3h4v3"/>`,map:m`<path d="M3 6.5 9 4l6 2.5 6-2.5v13.5L15 20l-6-2.5L3 20z"/>`,upload:m`<path d="M12 16V5M7 10l5-5 5 5M4 20h16"/>`,list:m`<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>`,history:m`<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5M12 8v4l3 2"/>`,target:m`<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>`,filter:m`<path d="M4 5h16l-6 8v6l-4-2v-4z"/>`,users:m`<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.5"/><path d="M15.5 14.5A5 5 0 0 1 21.5 20"/>`,shield:m`<path d="M12 3 4 6v6c0 4.5 3.4 7.7 8 9 4.6-1.3 8-4.5 8-9V6z"/><path d="m9 12 2 2 4-4"/>`,storage:m`<rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/><path d="M7 7h.01M7 17h.01"/>`,edit:m`<path d="M4 20h4l10.5-10.5a2 2 0 0 0 0-2.8l-1.2-1.2a2 2 0 0 0-2.8 0L4 16z"/><path d="m13 7 4 4"/>`,pause:m`<path d="M8 5v14M16 5v14"/>`,skip:m`<path d="M5 5v14l8-7zM15 5h2v14h-2z"/>`,case:m`<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18"/>`,rule:m`<path d="M4 6h10M4 12h16M4 18h7"/><circle cx="18" cy="6" r="2"/><circle cx="15" cy="18" r="2"/>`,link:m`<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>`,grid:m`<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>`,dashboard:m`<rect x="3" y="3" width="8" height="10" rx="1.5"/><rect x="13" y="3" width="8" height="6" rx="1.5"/><rect x="13" y="11" width="8" height="10" rx="1.5"/><rect x="3" y="15" width="8" height="6" rx="1.5"/>`,home:m`<path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>`,star:m`<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2-5.5-2.9L6.5 20.2l1-6.2L3 9.6l6.2-.9z"/>`,aperture:m`<circle cx="12" cy="12" r="9"/><path d="m14.3 4.5-5 8.6M20.7 9.5H10.8M18.4 17.5l-5-8.6M9.7 19.5l5-8.6M3.3 14.5h9.9M5.6 6.5l5 8.6"/>`,volume:m`<path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/>`,mic:m`<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M9 21h6"/>`,back10:m`<path d="M4 12a8 8 0 1 0 2.3-5.7"/><path d="M4 4v5h5"/><path d="M10.5 15.5V10l-1.5 1"/><rect x="13.5" y="10" width="3.5" height="5.5" rx="1.7"/>`,forward10:m`<path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/><path d="M10.5 15.5V10l-1.5 1"/><rect x="13.5" y="10" width="3.5" height="5.5" rx="1.7"/>`,chevronDown:m`<path d="m6 9 6 6 6-6"/>`,stairs:m`<path d="M3 20h4v-4h4v-4h4V8h5"/>`,wall:m`<path d="M3 5h18v4H3zM3 15h18v4H3zM8 9v6M16 9v6"/>`,ruler:m`<path d="M3 16 16 3l5 5L8 21z"/><path d="m7 12 2 2M10 9l2 2M13 6l2 2"/>`,scale:m`<path d="M4 20h16M4 20V8M20 20V8M4 8l8-4 8 4M8 14h8"/>`,elevator:m`<rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M12 3v18M8 10l1.5-2 1.5 2M14.5 14l1.5 2 1.5-2"/>`,menu:m`<path d="M4 7h16M4 12h16M4 17h16"/>`,calendar:m`<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>`,trash:m`<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>`,eye:m`<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>`,cpu:m`<rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/>`,activity:m`<path d="M3 12h4l3-8 4 16 3-8h4"/>`,image:m`<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m21 16-5-5-9 9"/>`,wifi:m`<path d="M2 8.5a15 15 0 0 1 20 0M5.5 12a10 10 0 0 1 13 0M9 15.5a5 5 0 0 1 6 0"/><path d="M12 19h.01"/>`,signal:m`<path d="M4 18v-3M9 18v-7M14 18V7M19 18V4"/>`,move:m`<path d="M12 3v18M3 12h18M8 7l4-4 4 4M8 17l4 4 4-4M7 8l-4 4 4 4M17 8l4 4-4 4"/>`,bookmark:m`<path d="M6 3h12v18l-6-4-6 4z"/>`,route:m`<circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8 17c5-1 3-9 8-10"/>`,logout:m`<path d="M10 4H5v16h5M14 8l4 4-4 4M18 12H9"/>`};let ss=class extends M{constructor(){super(...arguments),this.name="info",this.size=20,this.flip=!1}render(){this.style.setProperty("--sw-icon-size",`${this.size}px`);const e=this.name==="chevron"||this.name==="chevronBack";return n`<svg viewBox="0 0 24 24" aria-hidden="true" ?data-dir=${e}>${sn[this.name]??sn.info}</svg>`}};ss.styles=A`
+    :host {
+      display: inline-flex;
+      inline-size: var(--sw-icon-size, 20px);
+      block-size: var(--sw-icon-size, 20px);
+      color: inherit;
+      vertical-align: middle;
+      flex-shrink: 0;
+    }
+    :host([flip]) svg {
+      transform: scaleX(-1);
+    }
+    :host-context([dir='rtl']) svg[data-dir] {
+      transform: scaleX(-1);
+    }
+    svg {
+      inline-size: 100%;
+      block-size: 100%;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+  `;_i([g()],ss.prototype,"name",2);_i([g({type:Number})],ss.prototype,"size",2);_i([g({type:Boolean,reflect:!0})],ss.prototype,"flip",2);ss=_i([P("sw-icon")],ss);var Po=Object.defineProperty,Eo=Object.getOwnPropertyDescriptor,ut=(e,t,s,i)=>{for(var a=i>1?void 0:i?Eo(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Po(t,s,a),a};let Ue=class extends M{constructor(){super(...arguments),this.variant="secondary",this.size="md",this.disabled=!1,this.iconOnly=!1,this.round=!1,this.label="",this.type="button"}render(){return n`
+      <button type=${this.type} ?disabled=${this.disabled} aria-label=${this.iconOnly?this.label:""} title=${this.iconOnly?this.label:""}>
+        ${this.icon?n`<sw-icon .name=${this.icon} size=${this.size==="sm"?13:this.size==="lg"?18:15}></sw-icon>`:""}
+        ${this.iconOnly?"":n`<slot>${this.label}</slot>`}
+      </button>
+    `}};Ue.styles=A`
+    :host {
+      display: inline-flex;
+    }
+    :host([hidden]) {
+      display: none;
+    }
+    /* block: the button fills its container (phone layouts, action grids) */
+    :host([block]) {
+      display: flex;
+    }
+    :host([block]) button {
+      inline-size: 100%;
+    }
+    button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      min-block-size: 30px;
+      padding-inline: 12px;
+      border-radius: 8px;
+      border: 1px solid var(--sw-border-strong);
+      font: inherit;
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-medium);
+      line-height: 1;
+      cursor: pointer;
+      transition: background var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease);
+      white-space: nowrap;
+      color: var(--sw-text);
+      background: var(--sw-surface);
+      box-shadow: var(--sw-shadow-1);
+    }
+    button:hover {
+      background: var(--sw-surface-2);
+    }
+    :host([size='sm']) button {
+      min-block-size: 26px;
+      padding-inline: 9px;
+      font-size: var(--sw-fs-xs);
+      border-radius: 7px;
+      gap: 5px;
+    }
+    :host([size='lg']) button {
+      min-block-size: 36px;
+      padding-inline: 16px;
+      font-size: var(--sw-fs-md);
+    }
+    :host([variant='primary']) button {
+      background: var(--sw-accent);
+      border-color: var(--sw-accent);
+      color: var(--sw-text-inverse);
+      box-shadow: 0 1px 2px rgba(47, 107, 255, 0.25);
+    }
+    :host([variant='primary']) button:hover {
+      background: var(--sw-accent-hover);
+      border-color: var(--sw-accent-hover);
+    }
+    :host([variant='ghost']) button {
+      background: transparent;
+      border-color: transparent;
+      box-shadow: none;
+      color: var(--sw-text-2);
+    }
+    :host([variant='ghost']) button:hover {
+      background: var(--sw-surface-3);
+      color: var(--sw-text);
+    }
+    :host([variant='danger']) button {
+      background: var(--sw-surface);
+      border-color: var(--sw-danger);
+      color: var(--sw-danger);
+    }
+    :host([variant='danger']) button:hover {
+      background: var(--sw-danger-soft);
+    }
+    :host([disabled]) button {
+      cursor: not-allowed;
+      opacity: 0.45;
+    }
+    :host([icononly]) button {
+      inline-size: 30px;
+      padding-inline: 0;
+    }
+    :host([icononly][size='sm']) button {
+      inline-size: 26px;
+    }
+    :host([icononly][size='lg']) button {
+      inline-size: 36px;
+    }
+    :host([round]) button {
+      border-radius: 50%;
+    }
+  `;ut([g()],Ue.prototype,"variant",2);ut([g()],Ue.prototype,"size",2);ut([g()],Ue.prototype,"icon",2);ut([g({type:Boolean,reflect:!0})],Ue.prototype,"disabled",2);ut([g({type:Boolean,reflect:!0})],Ue.prototype,"iconOnly",2);ut([g({type:Boolean,reflect:!0})],Ue.prototype,"round",2);ut([g()],Ue.prototype,"label",2);ut([g()],Ue.prototype,"type",2);Ue=ut([P("sw-button")],Ue);const Io={app:{name:"SMPLWISE VMS",search:"חיפוש מצלמה, קומה, ישות או אירוע…",notifications:"התראות",account:"חשבון"},modes:{live:"שידור חי",explore:"מפות",investigate:"חקירה",system:"מערכת"},nav:{styleguide:"ספריית רכיבים"},breadcrumb:{site:"אתר",building:"מבנה",floor:"קומה"},floor:{switcher:"בחירת קומה",layers:"שכבות",cameras:"מצלמות",doors:"דלתות",lights:"תאורה",sensors:"חיישנים",zoomIn:"הגדלה",zoomOut:"הקטנה",fit:"התאמה למסך",noPlan:"לקומה הזו עדיין אין תוכנית",noPlanHint:"אפשר להעלות PDF או תמונה של התוכנית, או לעבוד עם רשימת המצלמות בינתיים.",uploadPlan:"העלאת תוכנית",listView:"תצוגת רשימה",stalePlan:"התוכנית מוצגת כרקע בלבד"},states:{loading:"טוען…",empty:"אין נתונים להצגה",error:"משהו השתבש",errorHint:"לא הצלחנו לטעון את הנתונים. אפשר לנסות שוב.",retry:"נסה שוב",forbidden:"אין הרשאה",forbiddenHint:"למשתמש שלך אין הרשאה לצפות בתוכן הזה. פנה למנהל ה־VMS כדי לקבל שיוך.",stale:"הנתונים אינם עדכניים",staleHint:"החיבור ל־Home Assistant נותק. מוצג המצב האחרון שנקלט.",partial:"חלק מהנתונים חסר",offline:"לא מחובר",unknown:"לא ידוע",live:"חי",recorded:"מוקלט",historic:"צפייה היסטורית"},camera:{preview:"תצוגה מקדימה",enlarge:"הגדל",recordings:"הקלטות",pin:"הצמד",unpin:"בטל הצמדה",snapshot:"צילום",offlineReason:"המצלמה אינה מחוברת ל־NVR",forbiddenReason:"אין לך הרשאת צפייה במצלמה הזו",staleReason:"מצב המצלמה אינו מעודכן",source:"מקור",timeSource:"זמן מקור",quality:"איכות",main:"ראשי",sub:"משני"},entity:{state:"מצב",lastChanged:"עודכן לאחרונה",control:"הפעלה",noControl:"אין הרשאה לשליטה",openInHa:"פתח ב־Home Assistant",door:"דלת",light:"תאורה",sensor:"חיישן",locked:"נעול",unlocked:"פתוח",on:"דולק",off:"כבוי",confirm:"אישור פעולה"},actions:{close:"סגור",cancel:"ביטול",save:"שמירה",apply:"החל",refresh:"רענון",more:"עוד",back:"חזרה"}};function _(e){const t=e.split(".").reduce((s,i)=>s?.[i],Io);return typeof t=="string"?t:e}var Co=Object.defineProperty,Do=Object.getOwnPropertyDescriptor,zi=(e,t,s,i)=>{for(var a=i>1?void 0:i?Do(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Co(t,s,a),a};const To={live:()=>_("states.live"),recorded:()=>_("states.recorded"),historic:()=>_("states.historic"),offline:()=>_("states.offline"),stale:()=>_("states.stale"),unknown:()=>_("states.unknown"),forbidden:()=>_("states.forbidden"),error:()=>_("states.error"),partial:()=>_("states.partial"),neutral:()=>""};let is=class extends M{constructor(){super(...arguments),this.kind="neutral",this.label="",this.onImage=!1}render(){const e=this.label||To[this.kind]();return n`<span class="dot" aria-hidden="true"></span><span>${e}</span>`}};is.styles=A`
+    :host {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 1px 8px;
+      border-radius: var(--sw-r-pill);
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-medium);
+      line-height: 16px;
+      background: var(--sw-surface-3);
+      color: var(--sw-text-2);
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+    :host([onimage]) {
+      background: rgba(255, 255, 255, 0.92);
+      color: var(--sw-text);
+      box-shadow: var(--sw-shadow-1);
+    }
+    .dot {
+      inline-size: 6px;
+      block-size: 6px;
+      border-radius: 50%;
+      background: currentColor;
+      flex-shrink: 0;
+    }
+    :host([kind='live']) {
+      background: var(--sw-live-soft);
+      color: #15803d;
+    }
+    :host([kind='live']) .dot {
+      background: var(--sw-live);
+      animation: pulse 1.6s ease-in-out infinite;
+    }
+    :host([onimage][kind='live']) {
+      background: rgba(255, 255, 255, 0.92);
+      color: var(--sw-text);
+    }
+    :host([kind='recorded']),
+    :host([kind='historic']) {
+      background: var(--sw-recorded-soft);
+      color: var(--sw-accent-text);
+    }
+    :host([kind='offline']) {
+      background: var(--sw-offline-soft);
+      color: #6b7280;
+    }
+    :host([kind='offline']) .dot {
+      background: transparent;
+      border: 2px solid currentColor;
+      box-sizing: border-box;
+    }
+    :host([kind='stale']),
+    :host([kind='partial']) {
+      background: var(--sw-stale-soft);
+      color: #b45309;
+      border-style: dashed;
+      border-color: var(--sw-stale);
+    }
+    :host([kind='unknown']) {
+      background: var(--sw-unknown-soft);
+      color: var(--sw-text-3);
+      border: 1px dashed var(--sw-border-strong);
+    }
+    :host([kind='unknown']) .dot {
+      background: transparent;
+      border: 1px dashed currentColor;
+      box-sizing: border-box;
+    }
+    :host([kind='forbidden']),
+    :host([kind='error']) {
+      background: var(--sw-danger-soft);
+      color: #b91c1c;
+    }
+    @keyframes pulse {
+      0%,
+      100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.35;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      :host([kind='live']) .dot {
+        animation: none;
+      }
+    }
+  `;zi([g({reflect:!0})],is.prototype,"kind",2);zi([g()],is.prototype,"label",2);zi([g({type:Boolean,reflect:!0})],is.prototype,"onImage",2);is=zi([P("sw-badge")],is);var Oo=Object.defineProperty,Ro=Object.getOwnPropertyDescriptor,Ws=(e,t,s,i)=>{for(var a=i>1?void 0:i?Ro(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Oo(t,s,a),a};let Bt=class extends M{constructor(){super(...arguments),this.items=[],this.active="",this.segmented=!1,this.underline=!1}choose(e){this.active=e.id,this.dispatchEvent(new CustomEvent("change",{detail:{id:e.id},bubbles:!0,composed:!0}))}render(){return n`${this.items.map(e=>e.href?n`<a href=${e.href} class=${e.id===this.active?"on":""} aria-current=${e.id===this.active?"page":"false"}>${e.label}${e.count!==void 0?n`<span class="count">(${e.count})</span>`:""}</a>`:n`<button type="button" class=${e.id===this.active?"on":""} aria-pressed=${e.id===this.active} @click=${()=>this.choose(e)}>${e.label}${e.count!==void 0?n`<span class="count">(${e.count})</span>`:""}</button>`)}`}};Bt.styles=A`
+    :host {
+      display: inline-flex;
+      gap: 2px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      max-inline-size: 100%;
+      background: var(--sw-surface-3);
+      border-radius: 8px;
+      padding: 2px;
+    }
+    :host::-webkit-scrollbar {
+      display: none;
+    }
+    :host([underline]) {
+      display: flex;
+      background: transparent;
+      padding: 0;
+      border-radius: 0;
+      border-block-end: 1px solid var(--sw-border);
+      gap: 2px;
+    }
+    a,
+    button {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 12px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--sw-text-2);
+      text-decoration: none;
+      font: inherit;
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-medium);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease);
+    }
+    a:hover,
+    button:hover {
+      color: var(--sw-text);
+    }
+    .on {
+      background: var(--sw-surface);
+      color: var(--sw-accent-text);
+      box-shadow: var(--sw-shadow-1);
+    }
+    :host([underline]) a,
+    :host([underline]) button {
+      padding: 8px 12px;
+      border-radius: 0;
+      border-block-end: 2px solid transparent;
+      margin-block-end: -1px;
+    }
+    :host([underline]) .on {
+      background: transparent;
+      box-shadow: none;
+      border-block-end-color: var(--sw-accent);
+    }
+    .count {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .on .count {
+      color: var(--sw-accent-text);
+    }
+  `;Ws([g({attribute:!1})],Bt.prototype,"items",2);Ws([g()],Bt.prototype,"active",2);Ws([g({type:Boolean,reflect:!0})],Bt.prototype,"segmented",2);Ws([g({type:Boolean,reflect:!0})],Bt.prototype,"underline",2);Bt=Ws([P("sw-tabs")],Bt);var No=Object.defineProperty,Lo=Object.getOwnPropertyDescriptor,Ea=(e,t,s,i)=>{for(var a=i>1?void 0:i?Lo(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&No(t,s,a),a};let Rs=class extends M{constructor(){super(...arguments),this.name="",this.size=32}render(){this.style.setProperty("--sz",`${this.size}px`);const e=this.name.trim().split(/\s+/),t=e.length>1?e[0][0]+e[1][0]:this.name.slice(0,2);return n`${t}`}};Rs.styles=A`
+    :host {
+      display: inline-grid;
+      place-items: center;
+      inline-size: var(--sz, 32px);
+      block-size: var(--sz, 32px);
+      border-radius: 50%;
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent-text);
+      font-size: calc(var(--sz, 32px) * 0.38);
+      font-weight: var(--sw-fw-semibold);
+      flex-shrink: 0;
+      user-select: none;
+    }
+  `;Ea([g()],Rs.prototype,"name",2);Ea([g({type:Number})],Rs.prototype,"size",2);Rs=Ea([P("sw-avatar")],Rs);var Bo=Object.defineProperty,Vo=Object.getOwnPropertyDescriptor,Us=(e,t,s,i)=>{for(var a=i>1?void 0:i?Vo(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Bo(t,s,a),a};let Vt=class extends M{constructor(){super(...arguments),this.selected=!1,this.dot=""}render(){return n`
+      <button type="button" aria-pressed=${this.selected}>
+        ${this.dot?n`<span class="d" style="--dot:${this.dot}"></span>`:""}
+        ${this.icon?n`<sw-icon .name=${this.icon} size=${13}></sw-icon>`:""}
+        <slot></slot>
+        ${this.count!==void 0?n`<span class="count">(${this.count})</span>`:""}
+      </button>
+    `}};Vt.styles=A`
+    :host {
+      display: inline-flex;
+    }
+    button {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-block-size: 28px;
+      padding-inline: 11px;
+      border-radius: 8px;
+      border: 1px solid var(--sw-border-strong);
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      font: inherit;
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-medium);
+      cursor: pointer;
+      white-space: nowrap;
+      box-shadow: var(--sw-shadow-1);
+      transition: background var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease);
+    }
+    button:hover {
+      background: var(--sw-surface-2);
+    }
+    :host([selected]) button {
+      background: var(--sw-accent);
+      border-color: var(--sw-accent);
+      color: var(--sw-text-inverse);
+    }
+    .d {
+      inline-size: 7px;
+      block-size: 7px;
+      border-radius: 50%;
+      background: var(--dot);
+      flex-shrink: 0;
+    }
+    :host([selected]) .d {
+      outline: 2px solid rgba(255, 255, 255, 0.7);
+    }
+    .count {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    :host([selected]) .count {
+      color: rgba(255, 255, 255, 0.8);
+    }
+  `;Us([g({type:Boolean,reflect:!0})],Vt.prototype,"selected",2);Us([g()],Vt.prototype,"icon",2);Us([g({type:Number})],Vt.prototype,"count",2);Us([g()],Vt.prototype,"dot",2);Vt=Us([P("sw-chip")],Vt);var Ho=Object.defineProperty,Fo=Object.getOwnPropertyDescriptor,Si=(e,t,s,i)=>{for(var a=i>1?void 0:i?Fo(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Ho(t,s,a),a};let as=class extends M{constructor(){super(...arguments),this.open=!1,this.heading="",this.subheading=""}close(){this.open=!1,this.dispatchEvent(new CustomEvent("close",{bubbles:!0,composed:!0}))}render(){return n`
+      <aside class="panel" role="dialog" aria-modal="false" aria-label=${this.heading} ?hidden=${!this.open}>
+        <div class="grip" aria-hidden="true"></div>
+        <header>
+          <div class="titles">
+            <h3>${this.heading}</h3>
+            ${this.subheading?n`<div class="sub">${this.subheading}</div>`:""}
+          </div>
+          <sw-button variant="ghost" size="sm" iconOnly icon="close" label=${_("actions.close")} @click=${this.close}></sw-button>
+        </header>
+        <div class="body"><slot></slot></div>
+        <footer><slot name="footer"></slot></footer>
+      </aside>
+    `}};as.styles=A`
+    :host {
+      display: contents;
+    }
+    .panel {
+      position: absolute;
+      inset-block: 0;
+      inset-inline-start: 0;
+      inline-size: min(var(--sw-drawer-w), 100%);
+      background: var(--sw-surface);
+      border-inline-end: 1px solid var(--sw-border);
+      box-shadow: var(--sw-shadow-3);
+      display: flex;
+      flex-direction: column;
+      z-index: var(--sw-z-drawer);
+      transform: translateX(100%);
+      transition: transform var(--sw-t-med) var(--sw-ease);
+      visibility: hidden;
+    }
+    :host-context([dir='ltr']) .panel {
+      transform: translateX(-100%);
+    }
+    :host([open]) .panel {
+      transform: none;
+      visibility: visible;
+    }
+    header {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--sw-s-3);
+      padding: 12px 14px;
+      border-block-end: 1px solid var(--sw-border);
+    }
+    .titles {
+      flex: 1;
+      min-inline-size: 0;
+    }
+    h3 {
+      margin: 0;
+      font-size: var(--sw-fs-lg);
+      font-weight: var(--sw-fw-semibold);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .sub {
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-sm);
+    }
+    .body {
+      flex: 1;
+      overflow: auto;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    footer {
+      display: flex;
+      gap: var(--sw-s-2);
+      padding: 10px 14px;
+      border-block-start: 1px solid var(--sw-border);
+      flex-wrap: wrap;
+    }
+    footer:empty,
+    footer:not(:has(*)) {
+      display: none;
+    }
+    .grip {
+      display: none;
+    }
+    @media (max-width: 767px) {
+      .panel {
+        inset: auto 0 0 0;
+        inline-size: 100%;
+        max-block-size: 62dvh;
+        border-inline-end: 0;
+        border-block-start: 1px solid var(--sw-border);
+        border-start-start-radius: var(--sw-r-lg);
+        border-start-end-radius: var(--sw-r-lg);
+        transform: translateY(100%);
+        box-shadow: var(--sw-shadow-3);
+      }
+      :host-context([dir='ltr']) .panel {
+        transform: translateY(100%);
+      }
+      .grip {
+        display: block;
+        inline-size: 40px;
+        block-size: 4px;
+        border-radius: 2px;
+        background: var(--sw-border-strong);
+        margin: var(--sw-s-2) auto 0;
+      }
+    }
+  `;Si([g({type:Boolean,reflect:!0})],as.prototype,"open",2);Si([g()],as.prototype,"heading",2);Si([g()],as.prototype,"subheading",2);as=Si([P("sw-drawer")],as);var jo=Object.defineProperty,Wo=Object.getOwnPropertyDescriptor,ps=(e,t,s,i)=>{for(var a=i>1?void 0:i?Wo(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&jo(t,s,a),a};let xt=class extends M{constructor(){super(...arguments),this.heading="",this.x=0,this.y=0,this.stageWidth=0,this.stageHeight=0}connectedCallback(){super.connectedCallback(),this.setAttribute("role","dialog"),this.setAttribute("aria-modal","false")}willUpdate(){this.heading&&this.setAttribute("aria-label",this.heading)}close(){this.dispatchEvent(new CustomEvent("close",{bubbles:!0,composed:!0}))}updated(){const t=this.offsetHeight||260,s=16;let i=this.x+s;this.stageWidth&&i+268>this.stageWidth-8&&(i=Math.max(8,this.x-268-s));let a=this.y-t/2;this.stageHeight&&(a=Math.max(8,Math.min(this.stageHeight-t-8,a))),this.style.left=`${i}px`,this.style.top=`${Math.max(8,a)}px`}render(){return n`
+      <header><h4>${this.heading}</h4><sw-button variant="ghost" size="sm" iconOnly icon="close" label="סגור" @click=${this.close}></sw-button></header>
+      <slot></slot>
+      <footer><slot name="footer"></slot></footer>
+    `}};xt.styles=A`
+    :host {
+      position: absolute;
+      z-index: var(--sw-z-drawer);
+      inline-size: 268px;
+      max-inline-size: calc(100% - 24px);
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      box-shadow: var(--sw-shadow-3);
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      animation: pop var(--sw-t-med) var(--sw-ease);
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    h4 {
+      margin: 0;
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    footer {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    footer:not(:has(*)) {
+      display: none;
+    }
+    @keyframes pop {
+      from {
+        opacity: 0;
+        transform: translateY(4px);
+      }
+    }
+  `;ps([g()],xt.prototype,"heading",2);ps([g({type:Number})],xt.prototype,"x",2);ps([g({type:Number})],xt.prototype,"y",2);ps([g({type:Number})],xt.prototype,"stageWidth",2);ps([g({type:Number})],xt.prototype,"stageHeight",2);xt=ps([P("sw-popover")],xt);var Uo=Object.defineProperty,Zo=Object.getOwnPropertyDescriptor,Mi=(e,t,s,i)=>{for(var a=i>1?void 0:i?Zo(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Uo(t,s,a),a};let ns=class extends M{constructor(){super(...arguments),this.label="",this.hint="",this.inline=!1}render(){return n`
+      ${this.label?n`<label>${this.label}</label>`:""}
+      <slot></slot>
+      ${this.hint?n`<div class="hint">${this.hint}</div>`:""}
+    `}};ns.styles=A`
+    :host {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-inline-size: 0;
+    }
+    :host([inline]) {
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--sw-s-3);
+    }
+    label {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      font-weight: var(--sw-fw-medium);
+    }
+    .hint {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    ::slotted(input),
+    ::slotted(select),
+    ::slotted(textarea) {
+      inline-size: 100%;
+      box-sizing: border-box;
+      min-block-size: 30px;
+      padding: 5px 10px;
+      border: 1px solid var(--sw-border-strong);
+      border-radius: var(--sw-r-sm);
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      font: inherit;
+      font-size: var(--sw-fs-sm);
+      transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease);
+    }
+    ::slotted(input:focus),
+    ::slotted(select:focus),
+    ::slotted(textarea:focus) {
+      outline: none;
+      border-color: var(--sw-accent);
+      box-shadow: 0 0 0 3px var(--sw-accent-soft);
+    }
+    ::slotted([data-ltr]) {
+      direction: ltr;
+      text-align: left;
+      font-family: var(--sw-font-mono);
+    }
+  `;Mi([g()],ns.prototype,"label",2);Mi([g()],ns.prototype,"hint",2);Mi([g({type:Boolean,reflect:!0})],ns.prototype,"inline",2);ns=Mi([P("sw-field")],ns);var qo=Object.defineProperty,Go=Object.getOwnPropertyDescriptor,lr=(e,t,s,i)=>{for(var a=i>1?void 0:i?Go(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&qo(t,s,a),a};let Ko=0,hi=class extends M{constructor(){super(...arguments),this.kind="lobby",this.uid=`sc${Ko+=1}`}grad(e,t,s=!0){const i=`${e}-${this.uid}`;return m`<linearGradient id=${i} x1="0" y1="0" x2=${s?0:1} y2=${s?1:0}>${t.map(([a,r])=>m`<stop offset=${a} stop-color=${r} />`)}</linearGradient>`}url(e){return`url(#${e}-${this.uid})`}vignette(){const e=`vig-${this.uid}`;return m`<defs><radialGradient id=${e} cx="50%" cy="45%" r="72%"><stop offset="0.55" stop-color="#000" stop-opacity="0" /><stop offset="1" stop-color="#000" stop-opacity="0.38" /></radialGradient></defs><rect width="320" height="180" fill=${`url(#${e})`} />`}entrance(){return m`
+      <defs>${this.grad("wall",[[0,"#f3f1ec"],[1,"#d8d4cc"]])}${this.grad("floor",[[0,"#d2cdc2"],[1,"#a19a8c"]])}${this.grad("glass",[[0,"#e3edf6"],[.55,"#bfd2e6"],[1,"#8fa9c4"]],!1)}</defs>
+      <rect width="320" height="180" fill=${this.url("wall")} />
+      <polygon points="0,0 320,0 250,30 70,30" fill="#e9e6df" />
+      <rect x="0" y="118" width="320" height="62" fill=${this.url("floor")} />
+      ${[0,1,2,3,4,5].map(e=>m`<line x1=${-40+e*80} y1="180" x2=${100+e*24} y2="118" stroke="#fff" stroke-opacity="0.18" />`)}
+      <rect x="0" y="30" width="70" height="88" fill="#8b6e4e" />
+      ${[0,1,2,3,4,5].map(e=>m`<rect x=${4+e*11} y="30" width="4" height="88" fill="#6f563d" />`)}
+      <rect x="250" y="30" width="70" height="88" fill="#ece9e3" />
+      <rect x="118" y="32" width="114" height="86" fill="#2b2f36" />
+      <rect x="124" y="38" width="48" height="74" fill=${this.url("glass")} />
+      <rect x="178" y="38" width="48" height="74" fill=${this.url("glass")} />
+      <polygon points="124,38 160,38 140,112 124,112" fill="#fff" fill-opacity="0.22" />
+      <rect x="168" y="68" width="3" height="18" rx="1" fill="#d5dae2" />
+      <rect x="179" y="68" width="3" height="18" rx="1" fill="#d5dae2" />
+      <rect x="118" y="118" width="114" height="34" fill="#fff" fill-opacity="0.14" />
+      <ellipse cx="276" cy="94" rx="19" ry="14" fill="#3f7d4b" /><ellipse cx="266" cy="85" rx="12" ry="10" fill="#4f9159" /><ellipse cx="288" cy="88" rx="11" ry="9" fill="#356d43" />
+      <rect x="266" y="106" width="20" height="14" rx="2" fill="#6b6257" />
+      <ellipse cx="100" cy="13" rx="11" ry="3" fill="#fff" fill-opacity="0.85" /><ellipse cx="220" cy="13" rx="11" ry="3" fill="#fff" fill-opacity="0.85" />
+    `}lobby(){return m`
+      <defs>${this.grad("wall",[[0,"#f5f0e7"],[1,"#e2d9ca"]])}${this.grad("floor",[[0,"#dccdb2"],[1,"#b19973"]])}</defs>
+      <rect width="320" height="180" fill=${this.url("wall")} />
+      <rect x="196" y="26" width="96" height="66" rx="2" fill="#d9e7f4" />
+      <path d="M244 26v66M196 59h96" stroke="#fff" stroke-width="3" />
+      <rect x="196" y="26" width="96" height="66" fill="none" stroke="#c8bfae" stroke-width="3" />
+      <rect x="0" y="118" width="320" height="62" fill=${this.url("floor")} />
+      ${[0,1,2,3].map(e=>m`<line x1="0" y1=${132+e*14} x2="320" y2=${132+e*14} stroke="#fff" stroke-opacity="0.14" />`)}
+      <rect x="26" y="86" width="132" height="8" rx="2" fill="#7c6248" />
+      <rect x="30" y="94" width="124" height="36" rx="3" fill="#5a4636" />
+      <rect x="188" y="102" width="96" height="28" rx="7" fill="#4a5568" />
+      <rect x="194" y="92" width="40" height="16" rx="5" fill="#5b6a82" /><rect x="238" y="92" width="40" height="16" rx="5" fill="#5b6a82" />
+      <ellipse cx="172" cy="86" rx="14" ry="11" fill="#3f7d4b" /><ellipse cx="164" cy="78" rx="9" ry="8" fill="#4f9159" />
+      <rect x="166" y="96" width="12" height="16" rx="2" fill="#7a6c5d" />
+      ${[60,120,180,240].map(e=>m`<ellipse cx=${e} cy="9" rx="7" ry="2.5" fill="#fff" fill-opacity="0.9" />`)}
+    `}corridor(){return m`
+      <defs>${this.grad("floor",[[0,"#cfc9bd"],[1,"#9c9587"]])}${this.grad("ceil",[[0,"#f3f1ec"],[1,"#e2ded6"]])}</defs>
+      <rect width="320" height="180" fill="#d6d0c5" />
+      <polygon points="0,0 320,0 200,42 120,42" fill=${this.url("ceil")} />
+      <polygon points="0,0 120,42 120,138 0,180" fill="#e6e1d8" />
+      <polygon points="320,0 200,42 200,138 320,180" fill="#d2ccc0" />
+      <rect x="120" y="42" width="80" height="96" fill="#cbc4b8" />
+      <rect x="150" y="70" width="22" height="68" fill="#8b7a67" />
+      <rect x="153" y="73" width="16" height="30" fill="#c5d5e3" />
+      <polygon points="0,180 320,180 200,138 120,138" fill=${this.url("floor")} />
+      ${[0,1,2].map(e=>m`<line x1=${40+e*80} y1="180" x2=${140+e*20} y2="138" stroke="#fff" stroke-opacity="0.16" />`)}
+      ${[0,1,2,3].map(e=>m`<rect x=${152-e*12} y=${24-e*6} width=${16+e*24} height="4" rx="2" fill="#fff" fill-opacity=${.9-e*.15} />`)}
+      ${[0,1,2].map(e=>m`<rect x=${22+e*30} y=${58+e*10} width="10" height=${60-e*10} fill="#c9d5e3" fill-opacity="0.9" />`)}
+    `}hall(){return m`
+      <defs>${this.grad("wall",[[0,"#f2eee6"],[1,"#ddd6c9"]])}${this.grad("floor",[[0,"#c9c0b0"],[1,"#9a9081"]])}</defs>
+      <rect width="320" height="180" fill=${this.url("wall")} />
+      <rect x="0" y="112" width="320" height="68" fill=${this.url("floor")} />
+      ${[0,1,2,3,4].map(e=>[0,1,2,3,4,5,6].map(t=>m`<rect x=${28+t*40+e*4} y=${96+e*14} width="22" height="9" rx="2" fill="#3b4557" />`))}
+      <rect x="40" y="40" width="240" height="50" rx="2" fill="#dfe8f2" />
+      <rect x="40" y="40" width="240" height="50" fill="none" stroke="#c9c1b3" stroke-width="3" />
+      ${[80,140,200,240].map(e=>m`<line x1=${e} y1="40" x2=${e} y2="90" stroke="#fff" stroke-width="2" />`)}
+      ${[60,130,200,260].map(e=>m`<ellipse cx=${e} cy="12" rx="9" ry="3" fill="#fff" fill-opacity="0.9" />`)}
+    `}parking(){return m`
+      <defs>${this.grad("wall",[[0,"#d3d7de"],[1,"#a1a7b1"]])}${this.grad("floor",[[0,"#8f959f"],[1,"#666c76"]])}</defs>
+      <rect width="320" height="180" fill=${this.url("wall")} />
+      <rect x="0" y="0" width="320" height="26" fill="#b9bec7" />
+      ${[0,1,2].map(e=>m`<rect x="0" y=${8+e*6} width="320" height="2" fill="#98a0ab" />`)}
+      <rect x="0" y="116" width="320" height="64" fill=${this.url("floor")} />
+      ${[0,1,2,3,4,5].map(e=>m`<line x1=${-20+e*72} y1="180" x2=${90+e*28} y2="116" stroke="#e5e8ee" stroke-opacity="0.6" stroke-width="2" />`)}
+      <rect x="34" y="26" width="20" height="100" fill="#7d8591" /><rect x="266" y="26" width="20" height="100" fill="#7d8591" />
+      <rect x="110" y="102" width="72" height="24" rx="6" fill="#e8ebf0" /><polygon points="124,102 138,86 168,86 178,102" fill="#c6cfda" /><circle cx="126" cy="127" r="7" fill="#2c2f36" /><circle cx="170" cy="127" r="7" fill="#2c2f36" />
+      <rect x="196" y="104" width="62" height="22" rx="6" fill="#3f4a5c" /><polygon points="208,104 220,90 244,90 252,104" fill="#5c6a80" /><circle cx="210" cy="127" r="6" fill="#1f232b" /><circle cx="246" cy="127" r="6" fill="#1f232b" />
+      <rect x="130" y="30" width="60" height="5" rx="2" fill="#fff" fill-opacity="0.85" />
+    `}warehouse(){return m`
+      <defs>${this.grad("wall",[[0,"#e6e9ef"],[1,"#c6cbd3"]])}${this.grad("floor",[[0,"#b7bcc4"],[1,"#7f8592"]])}</defs>
+      <rect width="320" height="180" fill=${this.url("wall")} />
+      <rect x="0" y="104" width="320" height="76" fill=${this.url("floor")} />
+      <line x1="118" y1="180" x2="150" y2="104" stroke="#e2b43a" stroke-width="3" /><line x1="202" y1="180" x2="170" y2="104" stroke="#e2b43a" stroke-width="3" />
+      ${[[10,96],[230,316]].map(([e,t])=>m`
+        <rect x=${e} y="18" width="6" height="150" fill="#c9772f" /><rect x=${t-6} y="40" width="6" height="128" fill="#c9772f" />
+        ${[0,1,2].map(s=>m`<polygon points="${e},${52+s*36} ${t},${64+s*30} ${t},${68+s*30} ${e},${56+s*36}" fill="#b96a22" />`)}
+        ${[0,1,2].map(s=>[0,1,2].map(i=>m`<rect x=${e+10+i*26} y=${32+s*36+i*3} width="20" height="16" rx="1" fill=${i%2?"#a8825d":"#c7a17a"} />`))}
+      `)}
+      <rect x="130" y="8" width="60" height="6" rx="3" fill="#fff" fill-opacity="0.9" /><rect x="120" y="40" width="80" height="5" rx="2" fill="#fff" fill-opacity="0.6" />
+    `}backyard(){return m`
+      <defs>${this.grad("sky",[[0,"#c4d9ee"],[1,"#e9f1f8"]])}${this.grad("lawn",[[0,"#86bb6f"],[1,"#4d8240"]])}</defs>
+      <rect width="320" height="180" fill=${this.url("sky")} />
+      <rect x="0" y="62" width="320" height="50" fill="#b8905f" />
+      ${Array.from({length:27},(e,t)=>m`<rect x=${t*12} y="62" width="2" height="50" fill="#9c7749" />`)}
+      <rect x="0" y="66" width="320" height="4" fill="#a37e51" /><rect x="0" y="100" width="320" height="4" fill="#a37e51" />
+      <circle cx="42" cy="52" r="27" fill="#3f7f45" /><circle cx="72" cy="46" r="20" fill="#4f9552" /><circle cx="282" cy="48" r="32" fill="#36763f" /><circle cx="250" cy="58" r="18" fill="#4a8a4c" />
+      <rect x="0" y="112" width="320" height="68" fill=${this.url("lawn")} />
+      ${[0,1,2].map(e=>m`<rect x="0" y=${118+e*20} width="320" height="10" fill="#fff" fill-opacity="0.07" />`)}
+      <polygon points="150,180 320,180 300,128 172,128" fill="#c9c3b5" />
+      <ellipse cx="238" cy="146" rx="28" ry="9" fill="#4a4f57" /><rect x="236" y="146" width="4" height="18" fill="#3a3f47" />
+      <rect x="196" y="140" width="16" height="11" rx="3" fill="#565b64" /><rect x="262" y="140" width="16" height="11" rx="3" fill="#565b64" />
+    `}driveway(){return m`
+      <defs>${this.grad("sky",[[0,"#bfd6ee"],[1,"#eaf1f8"]])}${this.grad("drive",[[0,"#b6bac2"],[1,"#868b95"]])}${this.grad("lawn",[[0,"#8fbf72"],[1,"#5c8f47"]])}</defs>
+      <rect width="320" height="180" fill=${this.url("sky")} />
+      <circle cx="20" cy="92" r="22" fill="#4f8d4f" /><circle cx="300" cy="96" r="18" fill="#437d47" />
+      <polygon points="28,66 100,26 172,66" fill="#7d6e62" />
+      <rect x="40" y="64" width="120" height="52" fill="#efe9df" />
+      <rect x="55" y="76" width="22" height="18" fill="#9fb8d3" /><rect x="120" y="76" width="22" height="18" fill="#9fb8d3" /><rect x="92" y="84" width="18" height="32" fill="#5b4a3b" />
+      <rect x="0" y="110" width="200" height="70" fill=${this.url("lawn")} />
+      <rect x="0" y="98" width="200" height="14" rx="6" fill="#4b8248" />
+      <polygon points="160,180 320,180 300,110 200,110" fill=${this.url("drive")} />
+      <rect x="205" y="118" width="100" height="30" rx="8" fill="#f4f6f9" />
+      <polygon points="226,118 246,100 286,100 300,118" fill="#dfe5ee" /><polygon points="231,117 248,103 283,103 296,117" fill="#8ea3bb" />
+      <circle cx="226" cy="150" r="10" fill="#2c2f36" /><circle cx="226" cy="150" r="4" fill="#8a8f99" /><circle cx="290" cy="150" r="10" fill="#2c2f36" /><circle cx="290" cy="150" r="4" fill="#8a8f99" />
+      <rect x="300" y="128" width="6" height="8" rx="2" fill="#fff3c4" />
+    `}night(){const e=`glow-${this.uid}`;return m`
+      <defs>${this.grad("sky",[[0,"#0d1730"],[1,"#050912"]])}<radialGradient id=${e} cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#f5d78a" stop-opacity="0.55" /><stop offset="1" stop-color="#f5d78a" stop-opacity="0" /></radialGradient></defs>
+      <rect width="320" height="180" fill=${this.url("sky")} />
+      <rect x="0" y="120" width="320" height="60" fill="#0a1020" />
+      <circle cx="251" cy="34" r="110" fill=${`url(#${e})`} />
+      <rect x="250" y="30" width="3" height="92" fill="#2a3350" /><rect x="238" y="24" width="27" height="8" rx="3" fill="#3b4666" />
+      <ellipse cx="251" cy="124" rx="70" ry="12" fill="#f5d78a" fill-opacity="0.16" />
+      <rect x="60" y="100" width="92" height="24" rx="7" fill="#131b33" /><polygon points="78,100 94,84 124,84 138,100" fill="#1a2440" />
+      <circle cx="80" cy="125" r="8" fill="#0a0f1f" /><circle cx="134" cy="125" r="8" fill="#0a0f1f" />
+      ${[0,1,2,3,4,5,6].map(t=>m`<rect x=${t*48} y="88" width="2" height="34" fill="#1b2440" />`)}
+      <rect x="0" y="88" width="320" height="2" fill="#1b2440" />
+    `}building(){return m`
+      <defs>${this.grad("sky",[[0,"#c2d7ec"],[1,"#e9f0f7"]])}${this.grad("face",[[0,"#e6eaf0"],[1,"#c8cfd9"]],!1)}</defs>
+      <rect width="320" height="180" fill=${this.url("sky")} />
+      <rect x="0" y="156" width="320" height="24" fill="#aab2be" />
+      <rect x="92" y="28" width="136" height="130" fill=${this.url("face")} />
+      <rect x="228" y="52" width="46" height="106" fill="#b9c1cd" />
+      ${[0,1,2,3,4,5].map(e=>[0,1,2,3,4].map(t=>m`<rect x=${102+t*24} y=${38+e*19} width="16" height="12" rx="1" fill=${(e+t)%3?"#8fa8c6":"#c9dbee"} />`))}
+      ${[0,1,2,3,4].map(e=>[0,1].map(t=>m`<rect x=${236+t*18} y=${62+e*19} width="12" height="10" rx="1" fill="#8ea3bd" />`))}
+      <rect x="118" y="138" width="84" height="8" rx="2" fill="#4b5565" /><rect x="140" y="146" width="40" height="12" fill="#6d7f9a" />
+      <circle cx="40" cy="132" r="26" fill="#4a8a4c" /><circle cx="292" cy="140" r="20" fill="#3f7d45" />
+    `}house(){return m`
+      <defs>${this.grad("sky",[[0,"#c2d7ec"],[1,"#ebf1f7"]])}${this.grad("lawn",[[0,"#8dbd70"],[1,"#5a8d46"]])}</defs>
+      <rect width="320" height="180" fill=${this.url("sky")} />
+      <rect x="0" y="128" width="320" height="52" fill=${this.url("lawn")} />
+      <polygon points="58,76 160,22 262,76" fill="#6e5f55" />
+      <rect x="78" y="74" width="164" height="60" fill="#f2ede4" />
+      <rect x="96" y="88" width="26" height="22" fill="#9fb8d3" /><rect x="148" y="90" width="20" height="44" fill="#5b4a3b" /><rect x="182" y="94" width="50" height="40" fill="#cfd4dc" />
+      <path d="M182 104h50M182 114h50M182 124h50" stroke="#b9c0ca" stroke-width="2" />
+      <polygon points="140,180 180,180 176,134 152,134" fill="#c7c1b4" />
+      <circle cx="30" cy="112" r="24" fill="#4a8a4c" /><circle cx="296" cy="118" r="20" fill="#3f7d45" />
+    `}scene(){switch(this.kind){case"entrance":return this.entrance();case"lobby":return this.lobby();case"corridor":return this.corridor();case"hall":return this.hall();case"parking":return this.parking();case"warehouse":return this.warehouse();case"backyard":return this.backyard();case"driveway":return this.driveway();case"night":return this.night();case"building":return this.building();case"house":return this.house();default:return d}}render(){return this.kind==="none"?n``:n`<svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${this.scene()}${this.vignette()}</svg>`}};hi.styles=A`
+    :host {
+      display: block;
+      inline-size: 100%;
+      block-size: 100%;
+      overflow: hidden;
+      background: #0f1729;
+    }
+    svg {
+      display: block;
+      inline-size: 100%;
+      block-size: 100%;
+    }
+  `;lr([g({reflect:!0})],hi.prototype,"kind",2);hi=lr([P("sw-scene")],hi);class fe extends Error{constructor(t,s){super(s.user_message||s.code),this.status=t,this.body=s}get code(){return this.body.code}}function Yo(){return new URL("api/v1/",document.baseURI)}function ge(e){return new URL(e.replace(/^\/+/,""),Yo()).toString()}function Qe(e){return new URL(e.replace(/^\/+/,""),document.baseURI).toString()}async function Ut(e,t={}){const s=new Headers(t.headers);t.body&&!(t.body instanceof FormData)&&!s.has("Content-Type")&&s.set("Content-Type","application/json");const i=await fetch(ge(e),{...t,headers:s,credentials:"same-origin"});if(i.status===204)return;const a=await i.text();let r=null;try{r=a?JSON.parse(a):null}catch{r=null}if(!i.ok){const o=r??{code:`http_${i.status}`,user_message:i.statusText,retryable:!1,correlation_id:"",details:{}};throw new fe(i.status,o)}return r}const S=e=>Ut(e),E=(e,t)=>Ut(e,{method:"POST",body:t===void 0?void 0:JSON.stringify(t)}),Le=(e,t)=>Ut(e,{method:"PATCH",body:JSON.stringify(t)}),Me=(e,t)=>Ut(e,{method:"PUT",body:JSON.stringify(t)}),ve=e=>Ut(e,{method:"DELETE"}),Ai=(e,t)=>Ut(e,{method:"POST",body:t});function b(e){return e instanceof fe?e.body.user_message||e.body.code||`השרת דחה את הבקשה (${e.status})`:e instanceof TypeError?"אין חיבור לשרת.":e instanceof Error?e.message:String(e)}const dr=()=>S("settings"),Jo=e=>Le("settings",e),Xo=()=>E("media/streams/sync"),Qo=()=>S("media/streams"),el=()=>S("media/sessions");function et(e,t){return ge(`cameras/${e}/snapshot.jpg${t?`?t=${t}`:""}`)}function tl(e,t){const s=new URL(ge(`media/live/${e}/ws?profile=${t}`));return s.protocol=s.protocol==="https:"?"wss:":"ws:",s.toString()}const aa="sw.transport";function cr(){try{const e=localStorage.getItem(aa);return e==="webrtc"||e==="mse"||e==="auto"?e:""}catch{return""}}function sl(e){try{e?localStorage.setItem(aa,e):localStorage.removeItem(aa)}catch{}}const il=(e,t=!1)=>S(`cameras/${e}/zones${t?"?refresh=true":""}`),al=(e,t=!1)=>S(`cameras/${e}/capabilities${t?"?refresh=true":""}`);var nl=Object.defineProperty,rl=Object.getOwnPropertyDescriptor,xe=(e,t,s,i)=>{for(var a=i>1?void 0:i?rl(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&nl(t,s,a),a};const ol=["avc1.640029","avc1.64002A","avc1.640033","hvc1.1.6.L153.B0","mp4a.40.2","mp4a.40.5","flac","opus"],ll=12e3,dl=2e4,cl=3e3,pl=3e4,hl=25;let ue=class extends M{constructor(){super(...arguments),this.cameraId="",this.profile="sub",this.mode="auto",this.poster="",this.active=!0,this.compact=!1,this.wsUrl="",this.retry=!0,this.recorded=!1,this.stale=!1,this.status="idle",this.transport="",this.error="",this.muted=!0,this.ws=null,this.pc=null,this.ms=null,this.sb=null,this.queue=[],this.generation=0,this.triedWebrtc=!1,this.pendingMime="",this.attempts=0,this.lastPreferMse=!1}disconnectedCallback(){super.disconnectedCallback(),this.disconnect()}updated(e){(e.has("active")||e.has("cameraId")||e.has("profile")||e.has("mode")||e.has("wsUrl"))&&(!this.active||!this.cameraId&&!this.wsUrl?this.disconnect():this.reconnect())}get mediaTime(){return this.video?.currentTime??0}get bufferAhead(){const e=this.video;if(!e||!e.buffered.length)return 0;for(let t=0;t<e.buffered.length;t++)if(e.currentTime>=e.buffered.start(t)-.05&&e.currentTime<=e.buffered.end(t))return e.buffered.end(t)-e.currentTime;return 0}stepFrame(e,t=25){const s=this.video;if(!s||!s.buffered.length||!t)return!1;s.pause();const i=s.currentTime+e/t;for(let r=0;r<s.buffered.length;r++)if(i>=s.buffered.start(r)&&i<=s.buffered.end(r))return s.currentTime=i,!0;const a=s.buffered.end(s.buffered.length-1);return e>0&&i>a&&i-a<=1?(s.currentTime=i,!0):!1}get rate(){return this.video?.playbackRate??1}set rate(e){this.video&&Math.abs(this.video.playbackRate-e)>.001&&(this.video.playbackRate=e)}get paused(){return this.video?.paused??!0}pause(){this.video?.pause()}resume(){this.video?.play().catch(()=>{})}reconnect(){this.disconnect(),this.connect()}connect(e=!1){if(!this.cameraId&&!this.wsUrl||!this.active)return;this.teardown();const t=this.generation+=1;this.status="connecting",this.error="",this.transport="",this.triedWebrtc=e,this.lastPreferMse=e;let s;try{s=new WebSocket(this.wsUrl||tl(this.cameraId,this.profile))}catch{this.fail("לא ניתן לפתוח חיבור");return}s.binaryType="arraybuffer",this.ws=s,s.onopen=()=>{t===this.generation&&(this.wsUrl||this.mode==="mse"||this.mode==="auto"&&e?this.startMse():this.startWebrtc())},s.onmessage=i=>{t===this.generation&&(typeof i.data=="string"?this.onSignal(i.data):this.onFragment(i.data))},s.onerror=()=>{},s.onclose=i=>{if(t!==this.generation||this.status==="error")return;if(this.mode==="auto"&&this.transport==="webrtc"&&this.status!=="playing"&&i.code<4e3){this.webrtcFailed("WebRTC נכשל");return}if(!this.retry&&this.status==="playing"&&i.code<4e3){this.teardown(),this.status="ended",this.dispatchEvent(new CustomEvent("player-status",{detail:{status:"ended"},bubbles:!0,composed:!0}));return}const a=i.code===4403?"אין הרשאת צפייה":i.code===4429?"הגיע למכסת הזרמים":i.code===4503?"go2rtc לא זמין":i.code===4401?"נדרשת הזדהות":i.code===4404?"סשן הניגון פג":i.code===4410?"הסשן הוחלף":this.status==="playing"?"החיבור נותק":"החיבור נסגר";this.fail(a,this.retry&&i.code!==4401&&i.code!==4403&&i.code!==4404&&i.code!==4410)}}disconnect(){this.teardown(),window.clearTimeout(this.retryTimer),this.attempts=0,this.status="idle",this.transport=""}teardown(){this.generation+=1,window.clearTimeout(this.timer),window.clearTimeout(this.retryTimer),this.pendingMime="",this.pc&&(this.pc.close(),this.pc=null),this.ws&&(this.ws.onclose=null,this.ws.onerror=null,this.ws.onmessage=null,this.ws.onopen=null,this.ws.close(),this.ws=null),this.sb=null,this.queue=[],this.stale=!1,this.ms=null,this.video&&(this.video.pause(),this.video.srcObject=null,this.video.src.startsWith("blob:")&&URL.revokeObjectURL(this.video.src),this.video.removeAttribute("src"),this.video.load())}send(e){this.ws&&this.ws.readyState===WebSocket.OPEN&&this.ws.send(JSON.stringify(e))}fail(e,t=!0){if(this.teardown(),this.status="error",this.error=e,this.dispatchEvent(new CustomEvent("player-status",{detail:{status:"error",error:e},bubbles:!0,composed:!0})),t&&this.retry&&this.active&&(this.cameraId||this.wsUrl)){const s=Math.min(pl,cl*2**Math.min(this.attempts,6));this.attempts+=1,this.retryTimer=window.setTimeout(()=>this.connect(this.lastPreferMse),s)}}async startWebrtc(){this.triedWebrtc=!0,this.transport="webrtc";const e=this.generation,t=new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]});this.pc=t,t.ontrack=s=>{if(e!==this.generation)return;const i=s.streams[0]??new MediaStream([s.track]);this.video.srcObject!==i&&(this.video.srcObject=i,this.video.play().catch(()=>{}))},t.onicecandidate=s=>{e===this.generation&&s.candidate&&this.send({type:"webrtc/candidate",value:s.candidate.candidate})},t.onconnectionstatechange=()=>{e===this.generation&&(t.connectionState==="failed"||t.connectionState==="disconnected"||t.connectionState==="closed")&&this.webrtcFailed("WebRTC נכשל")},t.addTransceiver("video",{direction:"recvonly"}),t.addTransceiver("audio",{direction:"recvonly"});try{const s=await t.createOffer();await t.setLocalDescription(s),this.send({type:"webrtc/offer",value:s.sdp})}catch{this.webrtcFailed("WebRTC לא נתמך בדפדפן");return}window.clearTimeout(this.timer),this.timer=window.setTimeout(()=>{if(this.status==="playing")return;const s=this.pc?.connectionState==="connected";this.webrtcFailed(s?"WebRTC התחבר אך הדפדפן לא מפענח את הזרם הזה — בחר MSE או אוטומטי":"WebRTC לא התחבר (UDP חסום?)")},ll)}webrtcFailed(e){if(this.status==="playing"&&this.transport==="webrtc"){this.fail("החיבור נותק");return}if(this.mode==="auto"&&!this.triedWebrtc){this.fail(e);return}this.mode==="auto"?(this.disconnect(),this.connect(!0)):this.fail(e)}startMse(){if(!("MediaSource"in window)){this.fail("MSE לא נתמך בדפדפן");return}window.clearTimeout(this.timer),this.transport="mse",this.queue=[],this.stale=!1,this.sb=null;const e=new MediaSource;this.ms=e,this.video.srcObject=null,this.video.src=URL.createObjectURL(e);const t=this.generation;e.addEventListener("sourceopen",()=>{if(t!==this.generation)return;const s=ol.filter(i=>MediaSource.isTypeSupported(`video/mp4; codecs="${i}"`)).join(",");this.send({type:"mse",value:s}),this.pendingMime&&this.openSourceBuffer(this.pendingMime)},{once:!0}),this.timer=window.setTimeout(()=>{this.status!=="playing"&&this.fail(`לא התקבל וידאו (${this.mseTrace()})`)},dl)}mseTrace(){const e=this.video;return`ms=${this.ms?.readyState??"-"} sb=${this.sb?"y":"n"} q=${this.queue.length} rs=${e?.readyState??"-"} buf=${e?.buffered.length?e.buffered.end(e.buffered.length-1).toFixed(1):"-"}`}openSourceBuffer(e){if(!this.ms||this.ms.readyState!=="open"){this.pendingMime=e;return}this.pendingMime="";try{const t=this.ms.addSourceBuffer(e);t.mode="segments",t.addEventListener("updateend",()=>this.flush()),this.sb=t,this.video.play().catch(()=>{}),this.flush()}catch{this.fail("הדפדפן לא תומך ב־codec של המצלמה")}}onSignal(e){let t;try{t=JSON.parse(e)}catch{return}switch(t.type){case"webrtc/answer":this.pc?.setRemoteDescription({type:"answer",sdp:t.value??""}).catch(()=>this.webrtcFailed("WebRTC: תשובה לא תקינה"));break;case"webrtc/candidate":this.pc?.addIceCandidate({candidate:t.value??"",sdpMid:"0"}).catch(()=>{});break;case"mse":this.openSourceBuffer(t.value??'video/mp4; codecs="avc1.640029"');break;case"error":this.transport==="webrtc"&&this.mode==="auto"?this.webrtcFailed(t.value??"WebRTC"):this.fail(t.value==="upstream_unavailable"?"go2rtc לא זמין":`שגיאת זרם: ${t.value??""}`);break}}onFragment(e){if(this.recorded&&this.bufferAhead>hl){this.stale=!0;return}this.queue.push(e),this.flush()}evict(e){const t=this.sb,s=this.video;if(!t||t.updating||!s.buffered.length)return!1;const i=s.buffered.start(0),a=Math.max(i,s.currentTime-e);if(a-i<1)return!1;try{return t.remove(i,a),!0}catch{return!1}}flush(){const e=this.sb;if(!e||e.updating||!this.ms||this.ms.readyState!=="open")return;const t=this.video;if(t.buffered.length&&t.readyState<3&&t.currentTime<t.buffered.start(0)&&(t.currentTime=t.buffered.start(0)),t.buffered.length&&t.currentTime-t.buffered.start(0)>12&&this.evict(6))return;const s=this.queue.shift();if(s)try{e.appendBuffer(s)}catch(i){const a=i?.name??"Error";if(a==="QuotaExceededError"){this.queue.unshift(s),this.evict(2)||this.queue.shift();return}console.warn("sw-live-player: appendBuffer failed",a,i?.message),this.fail(`שגיאת buffer (${a})`)}}onTimeUpdate(){const e=this.video;if(this.transport!=="mse"||!e.buffered.length||this.recorded)return;const t=e.buffered.end(e.buffered.length-1);t-e.currentTime>2.5&&(e.currentTime=t-.5)}onPlaying(){window.clearTimeout(this.timer),this.attempts=0,this.status="playing",this.dispatchEvent(new CustomEvent("player-status",{detail:{status:"playing",transport:this.transport},bubbles:!0,composed:!0}))}toggleMute(){this.muted=!this.muted,this.video.muted=this.muted}fullscreen(){this.video.requestFullscreen?.()??Promise.resolve()}render(){const e=this.status!=="playing";return n`
+      ${this.poster&&e?n`<img class="poster" src=${this.poster} alt="" />`:d}
+      <video class=${e?"hidden":""} autoplay playsinline muted @playing=${this.onPlaying} @timeupdate=${this.onTimeUpdate}></video>
+      ${this.status==="connecting"?n`<div class="center"><div><span class="spin"></span><span>מתחבר${this.transport?` · ${this.transport==="webrtc"?"WebRTC":"MSE"}`:""}…</span></div></div>`:d}
+      ${this.status==="error"?n`<div class="center"><div><sw-icon name="offline" size=${22}></sw-icon><span>${this.error}</span></div></div>`:d}
+      ${this.status==="ended"?n`<div class="center"><div><sw-icon name="history" size=${22}></sw-icon><span>הקטע הסתיים</span></div></div>`:d}
+      ${this.status==="idle"&&!this.poster?n`<div class="center"><div><sw-icon name="camera" size=${22}></sw-icon><span>לא מחובר</span></div></div>`:d}
+      <span class="status ${this.status}"><i></i><span class="t">${this.status==="playing"?`${this.wsUrl?"הקלטה":"חי"} · ${this.transport==="webrtc"?"WebRTC":"MSE"}`:this.status==="connecting"?"מתחבר":this.status==="error"?"לא זמין":this.status==="ended"?"הסתיים":"תמונה"}</span></span>
+      ${this.status==="playing"?n`<button class="mute" title=${this.muted?"הפעל שמע":"השתק"} aria-label=${this.muted?"הפעל שמע":"השתק"} @click=${this.toggleMute}><sw-icon name=${this.muted?"volume":"mic"} size=${13}></sw-icon></button>`:d}
+    `}};ue.styles=A`
+    :host {
+      display: block;
+      position: relative;
+      inline-size: 100%;
+      block-size: 100%;
+      background: #0f1729;
+      overflow: hidden;
+    }
+    video,
+    img.poster {
+      position: absolute;
+      inset: 0;
+      inline-size: 100%;
+      block-size: 100%;
+      object-fit: contain;
+      background: #0f1729;
+    }
+    img.poster {
+      object-fit: cover;
+    }
+    video.hidden {
+      visibility: hidden;
+    }
+    .status {
+      position: absolute;
+      inset-inline-start: 8px;
+      inset-block-end: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10.5px;
+      font-weight: 600;
+      color: #fff;
+      background: rgba(17, 24, 39, 0.6);
+      border-radius: 999px;
+      padding: 2px 8px;
+      backdrop-filter: blur(6px);
+    }
+    .status i {
+      inline-size: 6px;
+      block-size: 6px;
+      border-radius: 50%;
+      background: #f59e0b;
+    }
+    .status.playing i {
+      background: #22c55e;
+    }
+    .status.error i {
+      background: #ef4444;
+    }
+    .center {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      color: rgba(255, 255, 255, 0.85);
+      font-size: 11.5px;
+      text-align: center;
+      padding: 12px;
+      background: rgba(15, 23, 41, 0.35);
+    }
+    .center div {
+      display: grid;
+      justify-items: center;
+      gap: 6px;
+    }
+    .spin {
+      inline-size: 22px;
+      block-size: 22px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .spin {
+        animation: none;
+      }
+    }
+    .mute {
+      position: absolute;
+      inset-inline-end: 8px;
+      inset-block-end: 8px;
+      inline-size: 26px;
+      block-size: 26px;
+      border-radius: 50%;
+      border: 0;
+      background: rgba(17, 24, 39, 0.6);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+    }
+    :host([compact]) .mute,
+    :host([compact]) .status span.t {
+      display: none;
+    }
+  `;xe([g()],ue.prototype,"cameraId",2);xe([g()],ue.prototype,"profile",2);xe([g()],ue.prototype,"mode",2);xe([g()],ue.prototype,"poster",2);xe([g({type:Boolean})],ue.prototype,"active",2);xe([g({type:Boolean,reflect:!0})],ue.prototype,"compact",2);xe([g()],ue.prototype,"wsUrl",2);xe([g({type:Boolean})],ue.prototype,"retry",2);xe([g({type:Boolean})],ue.prototype,"recorded",2);xe([c()],ue.prototype,"status",2);xe([c()],ue.prototype,"transport",2);xe([c()],ue.prototype,"error",2);xe([c()],ue.prototype,"muted",2);xe([cs("video")],ue.prototype,"video",2);ue=xe([P("sw-live-player")],ue);var ul=Object.defineProperty,ml=Object.getOwnPropertyDescriptor,ke=(e,t,s,i)=>{for(var a=i>1?void 0:i?ml(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&ul(t,s,a),a};let me=class extends M{constructor(){super(...arguments),this.name="",this.meta="",this.state="unknown",this.scene="lobby",this.selected=!1,this.compact=!1,this.dark=!1,this.noDemo=!1,this.stamp="",this.poster="",this.cameraId="",this.live=!1,this.profile="sub",this.transport="auto"}offMessage(){return this.state==="forbidden"?"אין הרשאת צפייה":this.state==="offline"?"המצלמה מנותקת":"מצב לא ידוע"}render(){if(this.state==="offline"||this.state==="forbidden"||this.state==="unknown")return n`<div class="off">
+        <sw-icon name=${this.state==="forbidden"?"lock":"offline"} size=${this.compact?18:24}></sw-icon>
+        <span>${this.offMessage()}</span>
+        ${this.name?n`<span class="label"><span class="dot"></span>${this.name}</span>`:d}
+      </div>`;const t=this.live&&this.cameraId?"live":this.poster?"poster":"scene";return n`
+      ${t==="live"?n`<sw-live-player .cameraId=${this.cameraId} .profile=${this.profile} .mode=${this.transport} .poster=${this.poster} compact></sw-live-player>`:t==="poster"?n`<img class="poster" src=${this.poster} alt="" />`:n`<sw-scene kind=${this.scene}></sw-scene>`}
+      <div class="shade"></div>
+      ${t==="scene"&&!this.noDemo?n`<span class="demo">דמו</span>`:t==="poster"?n`<span class="demo">צילום</span>`:d}
+      ${this.state==="stale"||this.state==="recorded"||this.state==="historic"?n`<sw-badge class="pill" onImage kind=${this.state}></sw-badge>`:d}
+      ${this.name?n`<span class="label"><span class="dot"></span>${this.name}</span>`:d}
+      ${this.stamp?n`<span class="stamp">${this.stamp}</span>`:this.meta&&!this.compact?n`<span class="meta">${this.meta}</span>`:d}
+    `}};me.styles=A`
+    :host {
+      display: block;
+      position: relative;
+      aspect-ratio: 16 / 9;
+      border-radius: var(--sw-r-md);
+      overflow: hidden;
+      background: var(--sw-surface-3);
+      cursor: pointer;
+      min-inline-size: 0;
+      box-shadow: var(--sw-shadow-1);
+      transition: box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease);
+      isolation: isolate;
+    }
+    :host(:hover) {
+      box-shadow: var(--sw-shadow-2);
+    }
+    :host([selected]) {
+      box-shadow: 0 0 0 2px var(--sw-accent), var(--sw-shadow-2);
+    }
+    sw-scene,
+    sw-live-player,
+    img.poster {
+      position: absolute;
+      inset: 0;
+      inline-size: 100%;
+      block-size: 100%;
+      object-fit: cover;
+    }
+    .shade {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(0, 0, 0, 0.12) 0%, rgba(0, 0, 0, 0) 30%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.45) 100%);
+      pointer-events: none;
+    }
+    .off {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      background: var(--sw-surface-3);
+      text-align: center;
+      padding: 8px;
+    }
+    :host([dark]) .off {
+      background: #172036;
+      color: rgba(255, 255, 255, 0.65);
+    }
+    .off sw-icon {
+      color: var(--sw-text-3);
+    }
+    .demo {
+      position: absolute;
+      inset-inline-end: 8px;
+      inset-block-start: 8px;
+      font-size: 9.5px;
+      letter-spacing: 0.04em;
+      background: rgba(17, 24, 39, 0.5);
+      color: #fff;
+      border-radius: 4px;
+      padding: 1px 6px;
+    }
+    .pill {
+      position: absolute;
+      inset-inline-start: 8px;
+      inset-block-start: 8px;
+    }
+    .label {
+      position: absolute;
+      inset-inline-start: 10px;
+      inset-block-end: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: #fff;
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+      max-inline-size: calc(100% - 20px);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    :host([compact]) .label {
+      font-size: var(--sw-fs-xs);
+      inset-inline-start: 8px;
+      inset-block-end: 6px;
+    }
+    .label .dot {
+      inline-size: 7px;
+      block-size: 7px;
+      border-radius: 50%;
+      background: var(--sw-live);
+      box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.5);
+      flex-shrink: 0;
+    }
+    :host([state='stale']) .label .dot {
+      background: var(--sw-stale);
+    }
+    :host([state='recorded']) .label .dot,
+    :host([state='historic']) .label .dot {
+      background: var(--sw-accent);
+    }
+    .off .label {
+      position: static;
+      color: var(--sw-text);
+      text-shadow: none;
+      font-weight: var(--sw-fw-semibold);
+    }
+    :host([dark]) .off .label {
+      color: #fff;
+    }
+    .off .label .dot {
+      background: var(--sw-offline);
+      box-shadow: none;
+    }
+    :host([state='forbidden']) .off .label .dot {
+      background: var(--sw-danger);
+    }
+    .stamp {
+      position: absolute;
+      inset-inline-end: 10px;
+      inset-block-end: 8px;
+      font-family: var(--sw-font-mono);
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.9);
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+      direction: ltr;
+    }
+    :host([compact]) .stamp {
+      display: none;
+    }
+    .meta {
+      position: absolute;
+      inset-inline-end: 10px;
+      inset-block-end: 8px;
+      font-size: var(--sw-fs-xs);
+      color: rgba(255, 255, 255, 0.85);
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+    }
+  `;ke([g()],me.prototype,"name",2);ke([g()],me.prototype,"meta",2);ke([g({reflect:!0})],me.prototype,"state",2);ke([g({reflect:!0})],me.prototype,"scene",2);ke([g({type:Boolean,reflect:!0})],me.prototype,"selected",2);ke([g({type:Boolean,reflect:!0})],me.prototype,"compact",2);ke([g({type:Boolean,reflect:!0})],me.prototype,"dark",2);ke([g({type:Boolean,reflect:!0})],me.prototype,"noDemo",2);ke([g()],me.prototype,"stamp",2);ke([g()],me.prototype,"poster",2);ke([g()],me.prototype,"cameraId",2);ke([g({type:Boolean})],me.prototype,"live",2);ke([g()],me.prototype,"profile",2);ke([g()],me.prototype,"transport",2);me=ke([P("sw-camera-tile")],me);var fl=Object.defineProperty,gl=Object.getOwnPropertyDescriptor,hs=(e,t,s,i)=>{for(var a=i>1?void 0:i?gl(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&fl(t,s,a),a};const wl={loading:{icon:"clock",title:()=>_("states.loading"),hint:()=>"",tone:"neutral"},empty:{icon:"map",title:()=>_("states.empty"),hint:()=>"",tone:"neutral"},error:{icon:"warning",title:()=>_("states.error"),hint:()=>_("states.errorHint"),tone:"danger"},forbidden:{icon:"lock",title:()=>_("states.forbidden"),hint:()=>_("states.forbiddenHint"),tone:"forbidden"},stale:{icon:"offline",title:()=>_("states.stale"),hint:()=>_("states.staleHint"),tone:"stale"},partial:{icon:"info",title:()=>_("states.partial"),hint:()=>"",tone:"stale"}};let kt=class extends M{constructor(){super(...arguments),this.state="empty",this.heading="",this.hint="",this.actionLabel="",this.compact=!1}render(){const e=this.state==="error"&&/אין (לך )?הרשא/.test(this.hint),t=wl[e?"forbidden":this.state],s=this.hint||t.hint();return n`
+      <div class="icon" data-look=${e?"forbidden":""} aria-hidden="true"><sw-icon .name=${t.icon} size=${this.compact?20:26}></sw-icon></div>
+      <div class="text" role="status">
+        <h4>${this.heading||t.title()}</h4>
+        ${s?n`<p>${s}</p>`:""}
+        <slot></slot>
+      </div>
+      ${this.actionLabel&&!e?n`<sw-button variant=${this.state==="error"?"primary":"secondary"} size="sm" @click=${()=>this.dispatchEvent(new CustomEvent("action",{bubbles:!0,composed:!0}))}>${this.actionLabel}</sw-button>`:""}
+    `}};kt.styles=A`
+    :host {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      gap: var(--sw-s-3);
+      padding: var(--sw-s-8) var(--sw-s-4);
+      color: var(--sw-text-2);
+      min-block-size: 220px;
+    }
+    :host([compact]) {
+      min-block-size: 0;
+      padding: var(--sw-s-4);
+      flex-direction: row;
+      text-align: start;
+      justify-content: flex-start;
+    }
+    .icon {
+      display: grid;
+      place-items: center;
+      inline-size: 48px;
+      block-size: 48px;
+      border-radius: var(--sw-r-lg);
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent-text);
+    }
+    :host([compact]) .icon {
+      inline-size: 34px;
+      block-size: 34px;
+      border-radius: var(--sw-r-sm);
+    }
+    :host([state='error']) .icon {
+      background: var(--sw-danger-soft);
+      color: var(--sw-danger);
+    }
+    :host([state='forbidden']) .icon,
+    .icon[data-look='forbidden'] {
+      background: var(--sw-forbidden-soft);
+      color: var(--sw-forbidden);
+    }
+    :host([state='stale']) .icon,
+    :host([state='partial']) .icon {
+      background: var(--sw-stale-soft);
+      color: var(--sw-stale);
+    }
+    :host([state='loading']) .icon {
+      animation: spin 1.2s linear infinite;
+    }
+    h4 {
+      margin: 0;
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-text);
+    }
+    p {
+      margin: 0;
+      max-inline-size: 42ch;
+      font-size: var(--sw-fs-sm);
+    }
+    .text {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sw-s-1);
+      align-items: inherit;
+    }
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      :host([state='loading']) .icon {
+        animation: none;
+      }
+    }
+  `;hs([g({reflect:!0})],kt.prototype,"state",2);hs([g()],kt.prototype,"heading",2);hs([g()],kt.prototype,"hint",2);hs([g()],kt.prototype,"actionLabel",2);hs([g({type:Boolean,reflect:!0})],kt.prototype,"compact",2);kt=hs([P("sw-state-panel")],kt);var vl=Object.defineProperty,bl=Object.getOwnPropertyDescriptor,Pi=(e,t,s,i)=>{for(var a=i>1?void 0:i?bl(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&vl(t,s,a),a};let rs=class extends M{constructor(){super(...arguments),this.open=!1,this.heading="",this.subheading="",this.onKey=e=>{e.key==="Escape"&&this.open&&this.close()}}close(){this.open=!1,this.dispatchEvent(new CustomEvent("close",{bubbles:!0,composed:!0}))}updated(e){!e.has("open")||!this.open||requestAnimationFrame(()=>{const t=i=>{for(const a of i.querySelectorAll("[autofocus], input, textarea, select, sw-button, button"))if(!(a.hasAttribute("disabled")||a.type==="hidden"||a.slot==="footer"))return a.tagName==="SW-BUTTON"?a.shadowRoot?.querySelector("button")??a:a;for(const a of i.querySelectorAll("*")){const r=a.shadowRoot&&t(a.shadowRoot);if(r)return r}return null},s=t(this)??this.renderRoot.querySelector(".box");s&&(!s.hasAttribute("tabindex")&&!s.matches("input, textarea, select, button, a[href]")&&s.setAttribute("tabindex","-1"),s.focus({preventScroll:!0}))})}connectedCallback(){super.connectedCallback(),window.addEventListener("keydown",this.onKey)}disconnectedCallback(){super.disconnectedCallback(),window.removeEventListener("keydown",this.onKey)}render(){return n`<div class="backdrop" @click=${e=>e.target===e.currentTarget&&this.close()}>
+      <div class="box" role="dialog" aria-modal="true" aria-label=${this.heading}>
+        <header><div><h3>${this.heading}</h3>${this.subheading?n`<div class="sub">${this.subheading}</div>`:""}</div><sw-button variant="ghost" size="sm" iconOnly icon="close" label="סגור" @click=${this.close}></sw-button></header>
+        <div class="body"><slot></slot></div>
+        <footer><slot name="footer"></slot></footer>
+      </div>
+    </div>`}};rs.styles=A`
+    :host {
+      display: none;
+    }
+    :host([open]) {
+      display: block;
+    }
+    .backdrop {
+      position: fixed;
+      inset: 0;
+      background: var(--sw-overlay);
+      z-index: var(--sw-z-modal);
+      display: grid;
+      place-items: center;
+      padding: 16px;
+    }
+    .box {
+      inline-size: min(440px, 100%);
+      background: var(--sw-surface);
+      border-radius: var(--sw-r-lg);
+      box-shadow: var(--sw-shadow-3);
+      display: flex;
+      flex-direction: column;
+      max-block-size: calc(100dvh - 32px);
+    }
+    header {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 14px 16px 10px;
+    }
+    header div {
+      flex: 1;
+    }
+    h3 {
+      margin: 0;
+      font-size: var(--sw-fs-lg);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .sub {
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+      margin-block-start: 2px;
+    }
+    .body {
+      padding: 0 16px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow: auto;
+    }
+    footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 10px 16px 14px;
+      border-block-start: 1px solid var(--sw-border);
+    }
+  `;Pi([g({type:Boolean,reflect:!0})],rs.prototype,"open",2);Pi([g()],rs.prototype,"heading",2);Pi([g()],rs.prototype,"subheading",2);rs=Pi([P("sw-dialog")],rs);const yl="L0",pr=.2,$l=.006,xl={door:{width_m:.9,height_m:2.1,sill_m:0},window:{width_m:1.2,height_m:1.2,sill_m:.9},passage:{width_m:1,height_m:2.1,sill_m:0}},$t=e=>Math.floor(e*100+.5)/100,he=e=>[$t(e[0]),$t(e[1])],Ri=(e,t)=>e.id<t.id?-1:e.id>t.id?1:0,an=e=>Math.min(1,Math.max(0,e));function vt(e){const t=e.dimensions,s=t.scale_m_per_px,i=t.calibration?.status;return typeof s=="number"&&Number.isFinite(s)&&s>0&&(i==="measured"||i==="estimated")?{scale:s,estimated:i==="estimated"}:{scale:pr/($l*(t.width_px||1e3)),estimated:!0}}function Ia(e){const t=[0];for(let s=1;s<e.length;s++)t.push(t[s-1]+Math.hypot(e[s][0]-e[s-1][0],e[s][1]-e[s-1][1]));return t}function Ns(e,t,s){let i=0;for(;i<e.length-2&&s>t[i+1];)i++;const[a,r]=e[i],[o,l]=e[i+1],p=t[i+1]-t[i];if(p<=1e-9)return{p:[a,r],d:[1,0]};const h=Math.min(1,Math.max(0,(s-t[i])/p));return{p:[a+(o-a)*h,r+(l-r)*h],d:[(o-a)/p,(l-r)/p]}}function kl(e,t,s,i){const a=[];for(let r=1;r<e.length-1;r++)s<t[r]&&t[r]<i&&a.push(e[r]);return[Ns(e,t,s).p,...a,Ns(e,t,i).p]}const nn=(e,t,s)=>{const i=e[0]-t[0],a=e[1]-t[1],r=Math.hypot(i,a);return r<1e-9?e:[e[0]+i/r*s,e[1]+a/r*s]},We=(e,t,s)=>[e[0]+t[0]*s,e[1]+t[1]*s],rn=(e,t,s)=>(t[0]-e[0])*(s[1]-e[1])-(t[1]-e[1])*(s[0]-e[0])>0?1:0;function _l(e,t,s,i,a){const r=[s[1],-s[0]],o=[-s[1],s[0]],l=i.swing||"right";if(l==="none")return{leaves:[],arcs:[]};if(l==="sliding"){const v=a*.12;return{leaves:[[he(We(e,r,v)),he(We(t,r,v))]],arcs:[]}}if(l==="double"){const v=a/2,w=[],y=[],k=[[e,s],[t,[-s[0],-s[1]]]];for(const[R,z]of k){const C=We(R,r,v),Q=We(R,z,v);w.push([he(R),he(C)]),y.push({from:he(C),to:he(Q),r:$t(v),sweep:rn(R,C,Q)})}return{leaves:w,arcs:y}}const p=l==="left"?r:o,[h,u]=(i.hinge||"start")==="start"?[e,t]:[t,e],f=We(h,p,a);return{leaves:[[he(h),he(f)]],arcs:[{from:he(f),to:he(u),r:$t(a),sweep:rn(h,f,u)}]}}function zl(e,t,s,i=null){const{scale:a}=vt(e),r=1/a,o=new Map;for(const h of e.openings){const u=o.get(h.wall_id);u?u.push(h):o.set(h.wall_id,[h])}const l=[],p=new Map;for(const h of[...new Map(e.walls.map(u=>[u.id,u])).values()].sort(Ri)){if(i!==null&&h.level_id!==i)continue;const u=h.polyline.map(C=>[C[0]*t,C[1]*s]),f=Ia(u),v=f[f.length-1];if(v<=1e-6)continue;const w=Math.max(1,(h.thickness_m||pr)*r);p.set(h.id,{pts:u,cum:f,wpx:w});const y=(o.get(h.id)??[]).map(C=>{const Q=(C.t||0)*v,ye=(C.width_m||0)*r/2;return[Math.max(0,Q-ye),Math.min(v,Q+ye)]});y.sort((C,Q)=>C[0]-Q[0]||C[1]-Q[1]);const k=[];let R=0;for(const[C,Q]of y)C>R&&k.push([R,C]),R=Math.max(R,Q);R<v&&k.push([R,v]);let z=0;for(const[C,Q]of k){if(Q-C<=.01)continue;const ye=kl(u,f,C,Q);C<=0&&(ye[0]=nn(ye[0],ye[1],w/2)),Q>=v&&(ye[ye.length-1]=nn(ye[ye.length-1],ye[ye.length-2],w/2)),l.push({kind:"wall",id:h.id,part:z,points:ye.map(he),width:$t(w)}),z+=1}}for(const h of[...e.openings].sort(Ri)){const u=p.get(h.wall_id);if(!u)continue;const{p:f,d:v}=Ns(u.pts,u.cum,(h.t||0)*u.cum[u.cum.length-1]),w=(h.width_m||0)*r,y=We(f,v,-w/2),k=We(f,v,w/2),R=[he(y),he(k)];if(h.kind==="door")l.push({kind:"door",id:h.id,gap:R,..._l(y,k,v,h,w)});else if(h.kind==="window"){const z=[v[1],-v[0]],C=u.wpx/4;l.push({kind:"window",id:h.id,gap:R,lines:[[he(We(y,z,C)),he(We(k,z,C))],[he(We(y,z,-C)),he(We(k,z,-C))]]})}else l.push({kind:"passage",id:h.id,gap:R})}for(const h of[...e.labels].sort(Ri))i!==null&&h.level_id!==i||l.push({kind:"label",id:h.id,x:$t(h.position[0]*t),y:$t(h.position[1]*s),text:String(h.text??""),size:$t(h.size||14)});return l}function os(e,t,s){let i=0;for(let a=1;a<e.length;a++)i+=Math.hypot((e[a][0]-e[a-1][0])*t,(e[a][1]-e[a-1][1])*s);return i}function Sl(e,t,s,i,a){return Math.hypot((t[0]-e[0])*s,(t[1]-e[1])*i)*a}function Ml(e,t,s,i){let a=0;for(let r=0;r<e.length;r++){const[o,l]=e[r],[p,h]=e[(r+1)%e.length];a+=o*t*(h*s)-p*t*(l*s)}return Math.abs(a)/2*i*i}function Al(e,t,s,i){return os([...e,e[0]],t,s)*i}function Ys(e,t,s,i,a,r){const o=[e[0]*s,e[1]*i];let l=null;for(const p of t){const h=p.polyline.map(v=>[v[0]*s,v[1]*i]),u=Ia(h),f=u[u.length-1];if(!(f<=1e-6))for(let v=0;v<h.length-1;v++){const[w,y]=h[v],k=h[v+1][0]-w,R=h[v+1][1]-y,z=k*k+R*R,C=z>0?Math.max(0,Math.min(1,((o[0]-w)*k+(o[1]-y)*R)/z)):0,Q=Math.hypot(o[0]-(w+C*k),o[1]-(y+C*R));Q<=a&&(!l||Q<l.distPx)&&(l={wall:p,t:(u[v]+C*Math.sqrt(z))/f,distPx:Q})}}return l}function on(e,t,s,i,a,r){let o=null,l=r.tolPx;for(const w of s)for(const y of w.polyline){const k=Math.hypot((y[0]-e[0])*i,(y[1]-e[1])*a);k<=l&&(o=y,l=k)}if(o)return[o[0],o[1]];if(!t||r.free)return e;const p=(e[0]-t[0])*i,h=(e[1]-t[1])*a,u=Math.hypot(p,h);if(u<1e-9)return e;const f=Math.PI/4,v=Math.round(Math.atan2(h,p)/f)*f;return[an(t[0]+Math.cos(v)*u/i),an(t[1]+Math.sin(v)*u/a)]}function Ni(e,t,s,i){const a=e.polyline.map(l=>[l[0]*s,l[1]*i]),r=Ia(a),{p:o}=Ns(a,r,Math.min(1,Math.max(0,t))*r[r.length-1]);return[o[0]/s,o[1]/i]}function Ls(e){const t=e.length;return t>=4&&e[0][0]===e[t-1][0]&&e[0][1]===e[t-1][1]}var Pl=Object.defineProperty,El=Object.getOwnPropertyDescriptor,V=(e,t,s,i)=>{for(var a=i>1?void 0:i?El(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Pl(t,s,a),a};const Li=.2,Bi=6,ln={live:"var(--sw-accent)",recorded:"var(--sw-accent)",historic:"var(--sw-accent)",offline:"var(--sw-offline)",stale:"var(--sw-stale)",unknown:"var(--sw-unknown)",forbidden:"var(--sw-forbidden)",error:"var(--sw-danger)",neutral:"var(--sw-surface)",partial:"var(--sw-stale)"},Il={camera:m`<path d="M-7 -4.5A1.5 1.5 0 0 1 -5.5 -6H-2l1.5-2h5L6 -6h1.5A1.5 1.5 0 0 1 9 -4.5v9A1.5 1.5 0 0 1 7.5 6h-13A1.5 1.5 0 0 1 -7 4.5z" transform="translate(-1 0) scale(0.9)"/><circle cx="-1" cy="0" r="3"/>`,lock:m`<rect x="-6" y="-2" width="12" height="9" rx="2"/><path d="M-3.5 -2v-3a3.5 3.5 0 0 1 7 0v3"/>`,light:m`<path d="M-3 6h6M-2 8.5h4"/><path d="M0 -8a5 5 0 0 0-3 9c.7.5 1.2 1.3 1.2 2.2h3.6c0-.9.5-1.7 1.2-2.2A5 5 0 0 0 0 -8z"/>`,binary_sensor:m`<circle cx="0" cy="0" r="2"/><path d="M-4.5 -4.5a6.4 6.4 0 0 0 0 9M4.5 -4.5a6.4 6.4 0 0 1 0 9"/>`};function Cl(e){let t=0,s=0,i=0;for(let a=0;a<e.length;a++){const r=e[a],o=e[(a+1)%e.length],l=r.x*o.y-o.x*r.y;t+=l,s+=(r.x+o.x)*l,i+=(r.y+o.y)*l}if(Math.abs(t)<1e-12){const a=e.length||1;return{x:e.reduce((r,o)=>r+o.x,0)/a,y:e.reduce((r,o)=>r+o.y,0)/a}}return{x:s/(3*t),y:i/(3*t)}}const dn=e=>e.map(t=>`${t[0]},${t[1]}`).join(" ");let D=class extends M{constructor(){super(...arguments),this.planWidth=1e3,this.planHeight=700,this.plan=null,this.markers=[],this.selectedId=null,this.selectedIds=[],this.dimEntities=!1,this.alwaysLabel=!1,this.imageUrl=null,this.editable=!1,this.placing=!1,this.coneRadius=140,this.zones=[],this.selectedZoneId=null,this.zoneLabels=!0,this.draftPoints=[],this.boxSelect=!1,this.geometry=null,this.structureLevel=null,this.issueIds=[],this.selectedGeomId=null,this.primCache=null,this.geomDrag="none",this.selectedVertex=null,this.cornerSnapPx=0,this.wallDraft=[],this.hoverPoint=null,this.rulers=[],this.geomDragAt=null,this.geomPress=!1,this.hoverFrame=0,this.hoverEvent=null,this.box=null,this.boxStart=null,this.scale=1,this.tx=0,this.ty=0,this.hoverId=null,this.dragging=null,this.orienting=null,this.shaping=null,this.zoneDraft=null,this.lastVertexPress=null,this.pointers=new Map,this.lastPan=null,this.lastPinchDist=0,this.dragMoved=!1,this.fitted=!1,this.minScale=Li,this.onWheel=e=>{e.preventDefault();const t=this.getBoundingClientRect();this.zoomBy(e.deltaY<0?1.15:1/1.15,e.clientX-t.left,e.clientY-t.top)},this.onMarkerPointerDown=(e,t)=>{if(!this.editable||t.button!==0)return;t.stopPropagation(),t.preventDefault(),this.dragging={id:e.id,x:e.x,y:e.y},this.viewport.setPointerCapture(t.pointerId);const s=a=>{const r=this.getBoundingClientRect(),o=this.toPlan(a.clientX-r.left,a.clientY-r.top);this.dragging={id:e.id,x:o.x,y:o.y}},i=a=>{this.viewport.removeEventListener("pointermove",s),this.viewport.removeEventListener("pointerup",i),this.viewport.removeEventListener("pointercancel",i);const r=this.getBoundingClientRect(),o=this.toPlan(a.clientX-r.left,a.clientY-r.top),l=Math.abs(o.x-e.x)>5e-4||Math.abs(o.y-e.y)>5e-4;this.dragging=null,l?this.dispatchEvent(new CustomEvent("marker-move",{detail:{id:e.id,x:o.x,y:o.y},bubbles:!0,composed:!0})):this.select(e,a),this.dragMoved=!0,setTimeout(()=>this.dragMoved=!1,0)};this.viewport.addEventListener("pointermove",s),this.viewport.addEventListener("pointerup",i),this.viewport.addEventListener("pointercancel",i)},this.onPointerDown=e=>{if(this.pointers.set(e.pointerId,{x:e.clientX,y:e.clientY}),this.dragMoved=!1,this.pointers.size===1){if(this.boxSelect&&e.button===0&&!e.shiftKey&&!this.editable&&!this.placing){const t=this.getBoundingClientRect();this.boxStart={x:e.clientX-t.left,y:e.clientY-t.top},this.lastPan=null;return}this.lastPan={x:e.clientX,y:e.clientY},this.viewport.classList.add("dragging")}else this.pointers.size===2&&(this.lastPinchDist=this.pinchDistance(),this.lastPan=null,this.boxStart=null,this.box=null)},this.onPointerMove=e=>{if(this.placing&&!this.geomPress&&e.pointerType!=="touch"&&this.queueHover(e),!!this.pointers.has(e.pointerId)){if(this.pointers.set(e.pointerId,{x:e.clientX,y:e.clientY}),this.pointers.size===2){const t=this.pinchDistance();if(this.lastPinchDist>0){const[s,i]=[...this.pointers.values()],a=this.getBoundingClientRect();this.zoomBy(t/this.lastPinchDist,(s.x+i.x)/2-a.left,(s.y+i.y)/2-a.top)}this.lastPinchDist=t,this.dragMoved=!0;return}if(this.boxStart){const t=this.getBoundingClientRect(),s=e.clientX-t.left,i=e.clientY-t.top;!this.dragMoved&&Math.abs(s-this.boxStart.x)+Math.abs(i-this.boxStart.y)>3&&(this.dragMoved=!0,this.viewport.hasPointerCapture(e.pointerId)||this.viewport.setPointerCapture(e.pointerId)),this.dragMoved&&(this.box={x0:Math.min(this.boxStart.x,s),y0:Math.min(this.boxStart.y,i),x1:Math.max(this.boxStart.x,s),y1:Math.max(this.boxStart.y,i)});return}if(this.lastPan){const t=e.clientX-this.lastPan.x,s=e.clientY-this.lastPan.y;!this.dragMoved&&Math.abs(t)+Math.abs(s)>2&&(this.dragMoved=!0,this.viewport.hasPointerCapture(e.pointerId)||this.viewport.setPointerCapture(e.pointerId)),this.tx+=t,this.ty+=s,this.lastPan={x:e.clientX,y:e.clientY}}}},this.onPointerUp=e=>{if(this.pointers.delete(e.pointerId),this.boxStart&&this.pointers.size===0){const t=this.box;if(this.boxStart=null,this.box=null,t&&t.x1-t.x0>=4&&t.y1-t.y0>=4){const s=this.markers.filter(i=>{const a=this.toScreen(i.x,i.y);return a.x>=t.x0&&a.x<=t.x1&&a.y>=t.y0&&a.y<=t.y1}).map(i=>i.id);this.dispatchEvent(new CustomEvent("box-select",{detail:{ids:s},bubbles:!0,composed:!0}))}}if(this.pointers.size===0)this.lastPan=null,this.viewport.classList.remove("dragging");else if(this.pointers.size===1){const[t]=[...this.pointers.values()];this.lastPan={x:t.x,y:t.y}}},this.onBackgroundClick=e=>{if(!this.dragMoved){if(this.placing){const t=this.getBoundingClientRect(),s=this.toPlan(e.clientX-t.left,e.clientY-t.top);this.dispatchEvent(new CustomEvent("plan-click",{detail:{x:+s.x.toFixed(4),y:+s.y.toFixed(4),shift:e.shiftKey},bubbles:!0,composed:!0}));return}this.dispatchEvent(new CustomEvent("marker-select",{detail:{id:null},bubbles:!0,composed:!0}))}},this.onHandlePointerDown=(e,t,s)=>{if(!this.editable||s.button!==0)return;s.stopPropagation(),s.preventDefault();const i=this.getBoundingClientRect(),a=e.rotation??0,r=e.fov??90,o=t==="left"?a+r/2:a-r/2;this.orienting={id:e.id,rotation:a,fov:r},this.viewport.setPointerCapture(s.pointerId);const l=u=>{const f=this.bearingTo(e,u.clientX-i.left,u.clientY-i.top);if(t==="dir")return{rotation:Math.round(f),fov:r};let v=t==="left"?o-f:f-o;v=(v%360+360)%360;const w=Math.max(10,Math.min(180,Math.round(v))),y=t==="left"?o-w/2:o+w/2;return{rotation:Math.round((y%360+360)%360),fov:w}},p=u=>{this.orienting={id:e.id,...l(u)}},h=u=>{this.viewport.removeEventListener("pointermove",p),this.viewport.removeEventListener("pointerup",h),this.viewport.removeEventListener("pointercancel",h);const f=l(u);this.orienting=null,this.dragMoved=!0,setTimeout(()=>this.dragMoved=!1,0),(f.rotation!==a||f.fov!==r)&&this.dispatchEvent(new CustomEvent("marker-orient",{detail:{id:e.id,...f},bubbles:!0,composed:!0}))};this.viewport.addEventListener("pointermove",p),this.viewport.addEventListener("pointerup",h),this.viewport.addEventListener("pointercancel",h)},this.onRangePointerDown=(e,t)=>{if(!this.editable||t.button!==0)return;t.stopPropagation(),t.preventDefault();const s=this.getBoundingClientRect(),i=e.radius??this.coneRadius/this.planWidth;this.shaping={id:e.id,radius:i},this.viewport.setPointerCapture(t.pointerId);const a=l=>{const p=this.toScreen(e.x,e.y),h=Math.hypot(l.clientX-s.left-p.x,l.clientY-s.top-p.y)/this.scale;return+Math.max(.02,Math.min(1,h/this.planWidth)).toFixed(4)},r=l=>this.shaping={id:e.id,radius:a(l)},o=l=>{this.viewport.removeEventListener("pointermove",r),this.viewport.removeEventListener("pointerup",o),this.viewport.removeEventListener("pointercancel",o);const p=a(l);this.shaping=null,this.dragMoved=!0,setTimeout(()=>this.dragMoved=!1,0),p!==i&&this.dispatchEvent(new CustomEvent("marker-coverage",{detail:{id:e.id,radius:p},bubbles:!0,composed:!0}))};this.viewport.addEventListener("pointermove",r),this.viewport.addEventListener("pointerup",o),this.viewport.addEventListener("pointercancel",o)},this.onCoverageVertexDown=(e,t,s)=>{if(!this.editable||s.button!==0||!e.polygon)return;s.stopPropagation(),s.preventDefault();const i=Date.now();if(this.lastVertexPress&&this.lastVertexPress.id===e.id&&this.lastVertexPress.index===t&&i-this.lastVertexPress.at<450){this.lastVertexPress=null,this.editPolygon(e,{remove:t});return}this.lastVertexPress={id:e.id,index:t,at:i};const a=this.getBoundingClientRect(),r=e.polygon.map(u=>({...u}));this.shaping={id:e.id,polygon:r},this.viewport.setPointerCapture(s.pointerId);let o=!1;const l=u=>{const f=this.toPlan(u.clientX-a.left,u.clientY-a.top),v=r.map(w=>({...w}));return v[t]={x:+Math.max(0,Math.min(1,f.x)).toFixed(4),y:+Math.max(0,Math.min(1,f.y)).toFixed(4)},v},p=u=>{o=!0,this.shaping={id:e.id,polygon:l(u)}},h=u=>{this.viewport.removeEventListener("pointermove",p),this.viewport.removeEventListener("pointerup",h),this.viewport.removeEventListener("pointercancel",h);const f=l(u);this.shaping=null,this.dragMoved=!0,setTimeout(()=>this.dragMoved=!1,0),o&&this.dispatchEvent(new CustomEvent("marker-coverage",{detail:{id:e.id,polygon:f},bubbles:!0,composed:!0}))};this.viewport.addEventListener("pointermove",p),this.viewport.addEventListener("pointerup",h),this.viewport.addEventListener("pointercancel",h)},this.itemClick=e=>{this.nearCorner(e.clientX,e.clientY)||e.stopPropagation()}}connectedCallback(){super.connectedCallback(),this.resizeObserver=new ResizeObserver(()=>{this.fitted||this.fit()}),this.resizeObserver.observe(this)}disconnectedCallback(){super.disconnectedCallback(),this.resizeObserver?.disconnect(),cancelAnimationFrame(this.hoverFrame),this.hoverFrame=0}updated(e){(e.has("planWidth")||e.has("planHeight"))&&(this.fitted=!1,this.fit()),(e.has("scale")||e.has("tx")||e.has("ty"))&&this.dispatchEvent(new CustomEvent("view-change",{bubbles:!0,composed:!0}))}get zoom(){return this.scale}focusMarker(e){const t=this.renderRoot.querySelector(`g.marker[data-id="${CSS.escape(e)}"]`);return t?.focus(),!!t}toScreen(e,t){return{x:this.tx+e*this.planWidth*this.scale,y:this.ty+t*this.planHeight*this.scale}}fit(){const e=this.clientWidth,t=this.clientHeight;if(!e||!t||!this.planWidth||!this.planHeight)return;const s=24,i=Math.min((e-s*2)/this.planWidth,(t-s*2)/this.planHeight);this.minScale=Math.min(Li,i),this.scale=Math.max(this.minScale,Math.min(Bi,i)),this.tx=(e-this.planWidth*this.scale)/2,this.ty=(t-this.planHeight*this.scale)/2,this.fitted=!0}centerOn(e,t){const s=this.clientWidth,i=this.clientHeight;!s||!i||(this.tx=s/2-e*this.planWidth*this.scale,this.ty=i/2-t*this.planHeight*this.scale,this.fitted=!0)}zoomToBox(e,t,s,i,a=48,r=0){const o=this.clientWidth,l=this.clientHeight;if(!o||!l||!this.planWidth||!this.planHeight)return;const p=Math.max(1e-6,s-e)*this.planWidth,h=Math.max(1e-6,i-t)*this.planHeight,u=Math.min((o-48)/this.planWidth,(l-48)/this.planHeight),f=r>0?Math.min(2.5,Math.max(u*r,u)):2.5,v=Math.max(Li,Math.min(Bi,Math.min((o-a*2)/p,(l-a*2)/h,f)));this.scale=v,this.tx=o/2-(e+s)/2*this.planWidth*v,this.ty=l/2-(t+i)/2*this.planHeight*v,this.fitted=!0}zoomBy(e,t,s){const i=this.clientWidth,a=this.clientHeight,r=t??i/2,o=s??a/2,l=Math.max(this.minScale,Math.min(Bi,this.scale*e)),p=l/this.scale;this.tx=r-(r-this.tx)*p,this.ty=o-(o-this.ty)*p,this.scale=l,this.fitted=!0}toPlan(e,t){return{x:Math.min(1,Math.max(0,(e-this.tx)/this.scale/this.planWidth)),y:Math.min(1,Math.max(0,(t-this.ty)/this.scale/this.planHeight))}}pinchDistance(){const[e,t]=[...this.pointers.values()];return Math.hypot(e.x-t.x,e.y-t.y)}select(e,t){if(this.dragMoved)return;t.stopPropagation();const s=this.toScreen(e.x,e.y),i={id:e.id,sx:s.x,sy:s.y};this.dispatchEvent(new CustomEvent("marker-select",{detail:i,bubbles:!0,composed:!0}))}selectZone(e,t){this.dragMoved||this.placing||(t.stopPropagation(),this.dispatchEvent(new CustomEvent("zone-select",{detail:{id:e.id},bubbles:!0,composed:!0})))}onVertexPointerDown(e,t,s,i=!1){if(!this.editable||s.button!==0)return;if(s.stopPropagation(),s.preventDefault(),!i){const h=this.lastVertexPress,u=performance.now();if(h&&h.id===e.id&&h.index===t&&u-h.at<450){this.lastVertexPress=null,this.removeVertex(e,t,s);return}this.lastVertexPress={id:e.id,index:t,at:u}}const a=this.getBoundingClientRect();let r=e.polygon.map(h=>({x:h.x,y:h.y})),o=t;if(i){const h=r[t],u=r[(t+1)%r.length];r.splice(t+1,0,{x:+((h.x+u.x)/2).toFixed(4),y:+((h.y+u.y)/2).toFixed(4)}),o=t+1}this.zoneDraft={id:e.id,polygon:r},this.viewport.setPointerCapture(s.pointerId);const l=h=>{const u=this.toPlan(h.clientX-a.left,h.clientY-a.top);r=r.map((f,v)=>v===o?{x:+u.x.toFixed(4),y:+u.y.toFixed(4)}:f),this.zoneDraft={id:e.id,polygon:r}},p=()=>{this.viewport.removeEventListener("pointermove",l),this.viewport.removeEventListener("pointerup",p),this.viewport.removeEventListener("pointercancel",p);const h=i||r.some((u,f)=>u.x!==e.polygon[f].x||u.y!==e.polygon[f].y);this.zoneDraft=null,this.dragMoved=!0,setTimeout(()=>this.dragMoved=!1,0),h&&this.dispatchEvent(new CustomEvent("zone-edit",{detail:{id:e.id,polygon:r},bubbles:!0,composed:!0}))};this.viewport.addEventListener("pointermove",l),this.viewport.addEventListener("pointerup",p),this.viewport.addEventListener("pointercancel",p)}removeVertex(e,t,s){if(s.stopPropagation(),!this.editable||e.polygon.length<=3)return;const i=e.polygon.filter((a,r)=>r!==t);this.dispatchEvent(new CustomEvent("zone-edit",{detail:{id:e.id,polygon:i},bubbles:!0,composed:!0}))}renderZoneHandles(e,t){const s=1/this.scale,i=this.planWidth,a=this.planHeight;return m`<g class="zone-handles">
+      ${t.map((r,o)=>{const l=t[(o+1)%t.length];return m`<circle class="vmid" cx=${((r.x+l.x)/2*i).toFixed(1)} cy=${((r.y+l.y)/2*a).toFixed(1)} r=${(4*s).toFixed(2)} stroke-width=${(1.2*s).toFixed(2)} role="button" aria-label="הוסף פינה"
+          @pointerdown=${p=>this.onVertexPointerDown(e,o,p,!0)} @click=${p=>p.stopPropagation()} />`})}
+      ${t.map((r,o)=>m`<circle class="vtx" data-vertex=${o} cx=${(r.x*i).toFixed(1)} cy=${(r.y*a).toFixed(1)} r=${(6*s).toFixed(2)} stroke-width=${(1.6*s).toFixed(2)} role="slider" aria-label=${`פינה ${o+1}`}
+          @pointerdown=${l=>this.onVertexPointerDown(e,o,l)} @click=${l=>l.stopPropagation()} />`)}
+    </g>`}renderZone(e){if(e.polygon.length<3)return d;const t=1/this.scale,s=this.zoneDraft?.id===e.id?this.zoneDraft.polygon:e.polygon,i=s.map(v=>`${(v.x*this.planWidth).toFixed(1)},${(v.y*this.planHeight).toFixed(1)}`).join(" "),a=Cl(s),r=this.selectedZoneId===e.id,o=Math.max(36,e.name.length*7+18),l=s.map(v=>v.x),p=s.map(v=>v.y),h=(Math.max(...l)-Math.min(...l))*this.planWidth*this.scale,u=(Math.max(...p)-Math.min(...p))*this.planHeight*this.scale,f=r||e.candidate||h>=o+12&&u>=30;return m`
+      <g class="zone ${r?"selected":""} ${e.candidate?"candidate":""}" style="--zc:${e.color}" role="button" tabindex="0" aria-label=${e.name} aria-pressed=${r}
+         data-zone=${e.id}
+         @click=${v=>this.selectZone(e,v)} @keydown=${v=>(v.key==="Enter"||v.key===" ")&&this.selectZone(e,v)}>
+        <polygon points=${i} stroke-width=${((r?2.2:1.4)*t).toFixed(2)} />
+        ${this.zoneLabels&&e.name&&f?m`<g transform="translate(${this.zoneLabelPoint(e,s,a).x.toFixed(1)} ${this.zoneLabelPoint(e,s,a).y.toFixed(1)}) scale(${t})">
+              <rect class="zl-bg" x=${-o/2} y="-10" width=${o} height="20" rx="10" />
+              <text class="zl" y="3.5">${e.name}</text>
+            </g>`:d}
+        ${this.editable&&r&&!e.candidate?this.renderZoneHandles(e,s):d}
+      </g>`}zoneLabelPoint(e,t,s){const i=1/this.scale,a=t.map(l=>l.x*this.planWidth),r=t.map(l=>l.y*this.planHeight),o=Math.max(36,e.name.length*7+18)*i;switch(e.labelPos){case"top":return{x:s.x*this.planWidth,y:Math.min(...r)-14*i};case"bottom":return{x:s.x*this.planWidth,y:Math.max(...r)+14*i};case"left":return{x:Math.min(...a)-o/2-6*i,y:s.y*this.planHeight};case"right":return{x:Math.max(...a)+o/2+6*i,y:s.y*this.planHeight};default:return{x:s.x*this.planWidth,y:s.y*this.planHeight}}}static labelOffset(e,t,s){switch(e){case"top":return{x:0,y:-(t+14)};case"left":return{x:-(t+8+s/2),y:0};case"right":return{x:t+8+s/2,y:0};default:return{x:0,y:t+14}}}renderDraft(){const e=this.draftPoints;if(!e.length)return d;const t=1/this.scale,s=e.map(a=>({x:a.x*this.planWidth,y:a.y*this.planHeight})),i=s.map(a=>`${a.x.toFixed(1)},${a.y.toFixed(1)}`).join(" ");return m`<g class="draft" pointer-events="none">
+      ${s.length>=3?m`<polygon points=${i} stroke-width=${(1.5*t).toFixed(2)} />`:m`<polyline points=${i} stroke-width=${(1.5*t).toFixed(2)} />`}
+      ${s.map((a,r)=>m`<circle cx=${a.x.toFixed(1)} cy=${a.y.toFixed(1)} r=${((r===0?5.5:3.5)*t).toFixed(2)} stroke-width=${(1.5*t).toFixed(2)} />`)}
+    </g>`}bearingTo(e,t,s){const i=this.toScreen(e.x,e.y);return((Math.atan2(s-i.y,t-i.x)*180/Math.PI+90)%360+360)%360}radiusOf(e){const t=this.shaping?.id===e.id&&this.shaping.radius!==void 0?this.shaping.radius:e.radius;return t?Math.max(12,t*this.planWidth):this.coneRadius}editPolygon(e,t){if(!e.polygon)return;let s=e.polygon.map(i=>({...i}));if("remove"in t){if(s.length<=3)return;s=s.filter((i,a)=>a!==t.remove)}else{const i=s[t.insertAfter],a=s[(t.insertAfter+1)%s.length];if(s.length>=40)return;s.splice(t.insertAfter+1,0,{x:+((i.x+a.x)/2).toFixed(4),y:+((i.y+a.y)/2).toFixed(4)})}this.dispatchEvent(new CustomEvent("marker-coverage",{detail:{id:e.id,polygon:s},bubbles:!0,composed:!0}))}polygonPath(e){const t=this.shaping?.id===e.id&&this.shaping.polygon?this.shaping.polygon:e.polygon;return!t||t.length<3?null:t.map(s=>`${((s.x-e.x)*this.planWidth).toFixed(1)},${((s.y-e.y)*this.planHeight).toFixed(1)}`).join(" ")}renderPolygonHandles(e){const t=this.shaping?.id===e.id&&this.shaping.polygon?this.shaping.polygon:e.polygon;if(!t)return d;const s=1/this.scale,i=a=>({x:(a.x-e.x)*this.planWidth,y:(a.y-e.y)*this.planHeight});return m`
+      ${t.map((a,r)=>{const o=i(a),l=i(t[(r+1)%t.length]);return m`
+          <circle class="handle mid" cx=${((o.x+l.x)/2).toFixed(1)} cy=${((o.y+l.y)/2).toFixed(1)} r=${(4.5*s).toFixed(1)} data-cov-mid=${r} role="button" aria-label="הוסף נקודה"
+            @pointerdown=${p=>{p.stopPropagation(),p.preventDefault()}} @click=${p=>{p.stopPropagation(),this.editPolygon(e,{insertAfter:r})}} />
+          <circle class="handle" cx=${o.x.toFixed(1)} cy=${o.y.toFixed(1)} r=${(6.5*s).toFixed(1)} data-cov-vertex=${r} role="slider" aria-label="נקודת כיסוי"
+            @pointerdown=${p=>this.onCoverageVertexDown(e,r,p)} @dblclick=${p=>{p.stopPropagation(),this.editPolygon(e,{remove:r})}} />`})}
+    `}renderHandles(e,t,s){const i=this.radiusOf(e),a=1/this.scale,r=(u,f)=>({x:Math.cos(D.rad(u))*f,y:Math.sin(D.rad(u))*f}),o=r(t-s/2,i),l=r(t+s/2,i),p=r(t,i*.72),h=7*a;return m`
+      <line class="handle-line" x1="0" y1="0" x2=${p.x.toFixed(1)} y2=${p.y.toFixed(1)} />
+      <rect class="handle" x=${(o.x-h).toFixed(1)} y=${(o.y-h).toFixed(1)} width=${(h*2).toFixed(1)} height=${(h*2).toFixed(1)} rx=${(1.5*a).toFixed(1)} role="slider" aria-label="קצה שדה ראייה" @pointerdown=${u=>this.onHandlePointerDown(e,"left",u)} @click=${u=>u.stopPropagation()} />
+      <rect class="handle" x=${(l.x-h).toFixed(1)} y=${(l.y-h).toFixed(1)} width=${(h*2).toFixed(1)} height=${(h*2).toFixed(1)} rx=${(1.5*a).toFixed(1)} role="slider" aria-label="קצה שדה ראייה" @pointerdown=${u=>this.onHandlePointerDown(e,"right",u)} @click=${u=>u.stopPropagation()} />
+      <circle class="handle" cx=${p.x.toFixed(1)} cy=${p.y.toFixed(1)} r=${(8*a).toFixed(1)} role="slider" aria-label="כיוון מבט" @pointerdown=${u=>this.onHandlePointerDown(e,"dir",u)} @click=${u=>u.stopPropagation()} />
+      <circle class="handle range" cx=${r(t,i).x.toFixed(1)} cy=${r(t,i).y.toFixed(1)} r=${(6.5*a).toFixed(1)} role="slider" aria-label="טווח כיסוי" data-cov-range @pointerdown=${u=>this.onRangePointerDown(e,u)} />
+    `}static rad(e){return(e-90)*Math.PI/180}fovPath(e,t,s){const i=D.rad(e-t/2),a=D.rad(e+t/2),r=Math.cos(i)*s,o=Math.sin(i)*s,l=Math.cos(a)*s,p=Math.sin(a)*s;return`M0 0 L${r.toFixed(1)} ${o.toFixed(1)} A${s} ${s} 0 ${t>180?1:0} 1 ${l.toFixed(1)} ${p.toFixed(1)} Z`}renderMarker(e){const t=this.dragging?.id===e.id?this.dragging:e,s=this.orienting?.id===e.id?this.orienting:null,i=s?s.rotation:e.rotation??0,a=s?s.fov:e.fov,r=t.x*this.planWidth,o=t.y*this.planHeight,l=1/this.scale,p=e.kind==="camera",h=ln[e.state]??ln.neutral,u=this.selectedId===e.id||this.selectedIds.includes(e.id),f=this.alwaysLabel||u||this.hoverId===e.id,v=Math.max(44,e.label.length*6.5+16),w=this.dimEntities&&!p,y=p?13:11;return m`
+      <g class="marker ${e.state} ${u?"selected":""} ${w?"dimmed":""} ${this.editable?"editable":""}"
+         transform="translate(${r} ${o})" data-id=${e.id}
+         tabindex="0" role="button" aria-label=${e.label} aria-pressed=${u}
+         @mouseenter=${()=>this.hoverId=e.id} @mouseleave=${()=>this.hoverId=null}
+         @pointerdown=${k=>this.onMarkerPointerDown(e,k)}
+         @click=${k=>this.editable?k.stopPropagation():this.select(e,k)}
+         @keydown=${k=>(k.key==="Enter"||k.key===" ")&&this.select(e,k)}>
+        ${p&&a&&e.state!=="forbidden"?(()=>{const k=this.polygonPath(e);return k?m`<polygon class="fov ${e.state==="offline"?"off":""}" data-cov-polygon points=${k} />`:m`<path class="fov ${e.state==="offline"?"off":""}" d=${this.fovPath(i,a,this.radiusOf(e))} />`})():d}
+        ${p&&a&&this.editable&&u&&!this.dragging?this.polygonPath(e)?this.renderPolygonHandles(e):this.renderHandles(e,i,a):d}
+        <g transform="scale(${l})">
+          <circle class="halo" r=${y+9} />
+          <circle class="pin" r=${y} fill=${h} />
+          <g class="icon" transform="scale(${p?.85:.75})">${Il[e.kind]}</g>
+          ${e.state==="offline"?m`<line x1="-9" y1="-9" x2="9" y2="9" stroke="#fff" stroke-width="2.5" />`:d}
+          ${e.state==="forbidden"?m`<g transform="translate(8 -8)"><circle r="6.5" fill="#fff" /><g fill="none" stroke="var(--sw-forbidden)" stroke-width="1.5" transform="scale(0.45)"><rect x="-6" y="-2" width="12" height="9" rx="2"/><path d="M-3.5 -2v-3a3.5 3.5 0 0 1 7 0v3"/></g></g>`:d}
+          ${f?m`<g transform="translate(${D.labelOffset(e.labelPos,y,v).x.toFixed(1)} ${D.labelOffset(e.labelPos,y,v).y.toFixed(1)})" data-label-pos=${e.labelPos??"auto"}>
+                <rect class="lbl-bg" x=${-v/2} y="-10" width=${v} height="20" rx="6" />
+                <text class="lbl" y="3.5">${e.label}</text>
+              </g>`:d}
+        </g>
+      </g>
+    `}primitives(e){const t=this.primCache;if(t&&t.doc===e&&t.w===this.planWidth&&t.h===this.planHeight&&t.level===this.structureLevel)return t.prims;const s=zl(e,this.planWidth,this.planHeight,this.structureLevel);return this.primCache={doc:e,w:this.planWidth,h:this.planHeight,level:this.structureLevel,prims:s},s}renderStructure(){const e=this.geometry;if(!e)return d;const t=1/this.scale,s=new Set(this.issueIds);return m`<g class="structure" data-structure>${this.primitives(e).map(i=>this.renderPrimitive(i,t,s))}</g>`}renderPrimitive(e,t,s){const i=`${e.id===this.selectedGeomId?"sel":""} ${s.has(e.id)?"issue":""}`;switch(e.kind){case"wall":return m`<g class="wall-g ${i}" data-wall=${e.id}><polyline class="wall" points=${dn(e.points)} stroke-width=${e.width} /></g>`;case"door":return m`<g class="opening ${i}" data-opening=${e.id} data-kind="door">
+          ${e.leaves.map(([a,r])=>m`<line class="leaf" x1=${a[0]} y1=${a[1]} x2=${r[0]} y2=${r[1]} stroke-width=${1.6*t} />`)}
+          ${e.arcs.map(a=>m`<path class="arc" d=${`M ${a.from[0]} ${a.from[1]} A ${a.r} ${a.r} 0 0 ${a.sweep} ${a.to[0]} ${a.to[1]}`} stroke-width=${1.1*t} stroke-dasharray=${`${4*t} ${3*t}`} />`)}
+        </g>`;case"window":return m`<g class="opening ${i}" data-opening=${e.id} data-kind="window">${e.lines.map(([a,r])=>m`<line class="glass" x1=${a[0]} y1=${a[1]} x2=${r[0]} y2=${r[1]} stroke-width=${1.6*t} />`)}</g>`;case"passage":return m`<g class="opening ${i}" data-opening=${e.id} data-kind="passage"><line class="gapline" x1=${e.gap[0][0]} y1=${e.gap[0][1]} x2=${e.gap[1][0]} y2=${e.gap[1][1]} stroke-width=${t} stroke-dasharray=${`${2*t} ${3*t}`} /></g>`;case"label":return m`<text class="glabel ${i}" data-label=${e.id} x=${e.x} y=${e.y} font-size=${e.size}>${e.text}</text>`}}queueHover(e){const t=this.getBoundingClientRect(),s=this.toPlan(e.clientX-t.left,e.clientY-t.top),i=e.composedPath()[0],a=i instanceof Element&&!!i.closest("[data-hit-opening], [data-hit-label]")&&!this.nearCorner(e.clientX,e.clientY);this.hoverEvent={x:s.x,y:s.y,shift:e.shiftKey,item:a},!this.hoverFrame&&(this.hoverFrame=requestAnimationFrame(()=>{this.hoverFrame=0;const r=this.hoverEvent;r&&this.dispatchEvent(new CustomEvent("plan-hover",{detail:r,bubbles:!0,composed:!0}))}))}pickGeom(e,t){t.stopPropagation(),!this.dragMoved&&this.dispatchEvent(new CustomEvent("geom-select",{detail:{id:e,kind:"wall"},bubbles:!0,composed:!0}))}nearCorner(e,t){const s=this.geometry,i=this.cornerSnapPx;if(!s||!(i>0))return!1;const a=this.getBoundingClientRect(),r=this.toPlan(e-a.left,t-a.top);return s.walls.some(o=>o.polyline.some(l=>Math.hypot((l[0]-r.x)*this.planWidth,(l[1]-r.y)*this.planHeight)*this.scale<=i))}releaseFieldFocus(){let e=document.activeElement;for(;e?.shadowRoot?.activeElement;)e=e.shadowRoot.activeElement;(e instanceof HTMLInputElement||e instanceof HTMLSelectElement||e instanceof HTMLTextAreaElement)&&e.blur()}onGeomDragStart(e,t,s,i){if(i.button!==0||this.geomDrag==="none"||e==="vertex"&&this.geomDrag!=="all"||e!=="vertex"&&this.nearCorner(i.clientX,i.clientY))return;i.stopPropagation(),i.preventDefault(),this.releaseFieldFocus();const a=this.getBoundingClientRect(),r=this.toPlan(i.clientX-a.left,i.clientY-a.top);let o=!1,l=r;const p=y=>({kind:e,id:t,index:s,x:+y.x.toFixed(5),y:+y.y.toFixed(5),sx:+r.x.toFixed(5),sy:+r.y.toFixed(5)}),h=(y,k)=>this.dispatchEvent(new CustomEvent(y,{detail:k,bubbles:!0,composed:!0}));this.geomPress=!0,this.viewport.setPointerCapture(i.pointerId);const u=y=>{const k=this.toPlan(y.clientX-a.left,y.clientY-a.top);!o&&Math.hypot((k.x-r.x)*this.planWidth,(k.y-r.y)*this.planHeight)*this.scale<3||(o=!0,l=k,this.geomDragAt={x:k.x,y:k.y},h("geom-drag-move",p(k)))},f=()=>{this.viewport.removeEventListener("pointermove",u),this.viewport.removeEventListener("pointerup",v),this.viewport.removeEventListener("pointercancel",w),this.geomDragAt=null,this.geomPress=!1,this.dragMoved=!0,setTimeout(()=>this.dragMoved=!1,0)},v=()=>{f(),o?h("geom-drag",p(l)):h("geom-select",e==="vertex"?{id:t,kind:"wall",vertex:s}:{id:t,kind:e})},w=()=>{f(),o&&h("geom-drag-cancel",p(l))};this.viewport.addEventListener("pointermove",u),this.viewport.addEventListener("pointerup",v),this.viewport.addEventListener("pointercancel",w)}renderGeomHits(){const e=this.geometry,t=this.geomDrag;if(!e||t==="none")return d;const s=1/this.scale,i=this.planWidth,a=this.planHeight,r=this.primitives(e),o=t==="all"?r.filter(w=>w.kind==="wall"):[],l=r.filter(w=>w.kind==="door"||w.kind==="window"||w.kind==="passage"),p=r.filter(w=>w.kind==="label"),h=new Map;for(const w of r)w.kind==="wall"&&h.set(w.id,Math.max(h.get(w.id)??0,w.width));const u=new Map(e.openings.map(w=>[w.id,w.wall_id])),f=t==="all"?e.walls.find(w=>w.id===this.selectedGeomId):void 0,v=this.geomDragAt;return m`<g class="geom-hits">
+      ${o.map(w=>m`<polyline class="hit" data-hit-wall=${w.id} points=${dn(w.points)} stroke-width=${Math.max(w.width,12*s)} @click=${y=>this.pickGeom(w.id,y)} />`)}
+      ${l.map(w=>m`<line class="hit" data-hit-opening=${w.id} x1=${w.gap[0][0]} y1=${w.gap[0][1]} x2=${w.gap[1][0]} y2=${w.gap[1][1]} stroke-width=${Math.max(28*s,h.get(u.get(w.id)??"")??0)}
+          @pointerdown=${y=>this.onGeomDragStart("opening",w.id,0,y)} @click=${this.itemClick} />`)}
+      ${p.map(w=>m`<circle class="hit" data-hit-label=${w.id} cx=${w.x} cy=${w.y} r=${Math.max(w.size,10*s)}
+          @pointerdown=${y=>this.onGeomDragStart("label",w.id,0,y)} @click=${this.itemClick} />`)}
+      ${f?(Ls(f.polyline)?f.polyline.slice(0,-1):f.polyline).map((w,y)=>m`<circle class="gvtx ${y===this.selectedVertex?"on":""}" data-wall-vertex=${y} cx=${w[0]*i} cy=${w[1]*a} r=${6*s} stroke-width=${1.6*s} aria-label=${`פינת קיר ${y+1}`}
+          @pointerdown=${k=>this.onGeomDragStart("vertex",f.id,y,k)} @click=${k=>k.stopPropagation()} />`):d}
+      ${v?m`<circle class="gdrag" cx=${v.x*i} cy=${v.y*a} r=${5*s} stroke-width=${1.5*s} />`:d}
+    </g>`}renderWallDraft(){const e=this.wallDraft,t=this.hoverPoint;if(!e.length&&!t)return d;const s=1/this.scale,i=this.planWidth,a=this.planHeight,r=[...e,...t&&e.length?[t]:[]].map(o=>`${o[0]*i},${o[1]*a}`).join(" ");return m`<g class="wdraft" pointer-events="none">
+      ${e.length?m`<polyline points=${r} stroke-width=${2*s} stroke-dasharray=${`${6*s} ${4*s}`} />`:d}
+      ${e.map(o=>m`<circle cx=${o[0]*i} cy=${o[1]*a} r=${3.5*s} stroke-width=${1.5*s} />`)}
+      ${t?m`<circle class="snap" data-hover-point cx=${t[0]*i} cy=${t[1]*a} r=${4.5*s} stroke-width=${1.5*s} />`:d}
+    </g>`}renderRulers(){if(!this.rulers.length)return d;const e=1/this.scale,t=this.planWidth,s=this.planHeight;return m`<g class="rulers" pointer-events="none">
+      ${this.rulers.map(i=>{const a=i.a[0]*t,r=i.a[1]*s,o=i.b[0]*t,l=i.b[1]*s,p=(a+o)/2,h=(r+l)/2,u=(i.label.length*7+14)*e;return m`<g class="ruler ${i.tone}" data-ruler>
+          <line x1=${a} y1=${r} x2=${o} y2=${l} stroke-width=${2*e} stroke-dasharray=${i.tone==="muted"?`${4*e} ${3*e}`:d} />
+          <circle cx=${a} cy=${r} r=${3.5*e} stroke-width=${1.5*e} />
+          <circle cx=${o} cy=${l} r=${3.5*e} stroke-width=${1.5*e} />
+          ${i.label?m`<rect x=${p-u/2} y=${h-11*e} width=${u} height=${22*e} rx=${11*e} stroke-width=${e} /><text x=${p} y=${h} font-size=${12*e}>${i.label}</text>`:d}
+        </g>`})}
+    </g>`}render(){return n`
+      <div class="viewport ${this.placing?"placing":""} ${this.boxSelect?"boxing":""}" @wheel=${this.onWheel} @pointerdown=${this.onPointerDown} @pointermove=${this.onPointerMove}
+           @pointerup=${this.onPointerUp} @pointercancel=${this.onPointerUp} @click=${this.onBackgroundClick}>
+        <svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="תוכנית קומה">
+          <g transform="translate(${this.tx} ${this.ty}) scale(${this.scale})">
+            ${this.imageUrl?m`<image href=${this.imageUrl} x="0" y="0" width=${this.planWidth} height=${this.planHeight} preserveAspectRatio="none" />`:d}
+            ${this.plan??d}
+            ${this.zones.map(e=>this.renderZone(e))}
+            ${this.renderStructure()}
+            ${this.renderGeomHits()}
+            ${this.markers.map(e=>this.renderMarker(e))}
+            ${this.renderDraft()}
+            ${this.renderWallDraft()}
+            ${this.renderRulers()}
+          </g>
+          ${this.box?m`<rect class="box" data-box x=${this.box.x0.toFixed(1)} y=${this.box.y0.toFixed(1)} width=${(this.box.x1-this.box.x0).toFixed(1)} height=${(this.box.y1-this.box.y0).toFixed(1)} />`:d}
+        </svg>
+      </div>
+      <div class="controls" role="group" aria-label="זום">
+        <sw-button variant="ghost" size="sm" iconOnly icon="plus" label=${_("floor.zoomIn")} @click=${()=>this.zoomBy(1.25)}></sw-button>
+        <sw-button variant="ghost" size="sm" iconOnly icon="minus" label=${_("floor.zoomOut")} @click=${()=>this.zoomBy(.8)}></sw-button>
+        <sw-button variant="ghost" size="sm" iconOnly icon="fit" label=${_("floor.fit")} @click=${()=>{this.fitted=!1,this.fit()}}></sw-button>
+      </div>
+      <div class="scale" aria-live="polite">${Math.round(this.scale*100)}%</div>
+    `}};D.styles=A`
+    :host {
+      display: block;
+      position: relative;
+      direction: ltr;
+      inline-size: 100%;
+      block-size: 100%;
+      min-block-size: 320px;
+      background: var(--sw-map-bg);
+      overflow: hidden;
+      touch-action: none;
+      user-select: none;
+      border-radius: inherit;
+    }
+    .viewport {
+      position: absolute;
+      inset: 0;
+      cursor: grab;
+    }
+    .viewport.dragging {
+      cursor: grabbing;
+    }
+    .viewport.boxing {
+      cursor: crosshair;
+    }
+    rect.box {
+      fill: color-mix(in srgb, var(--sw-accent) 14%, transparent);
+      stroke: var(--sw-accent);
+      stroke-width: 1.5;
+      stroke-dasharray: 6 4;
+      pointer-events: none;
+    }
+    .viewport.placing {
+      cursor: crosshair;
+    }
+    .handle {
+      fill: var(--sw-surface);
+      stroke: var(--sw-accent);
+      stroke-width: 1.6;
+      cursor: grab;
+    }
+    .handle:active {
+      cursor: grabbing;
+    }
+    .handle.mid {
+      fill: var(--sw-accent);
+      stroke: var(--sw-surface);
+      opacity: 0.8;
+      cursor: copy;
+    }
+    .handle.range {
+      fill: var(--sw-accent);
+      stroke: #fff;
+      cursor: ns-resize;
+    }
+    .handle-line {
+      stroke: var(--sw-accent);
+      stroke-width: 1;
+      stroke-dasharray: 3 3;
+      opacity: 0.7;
+      pointer-events: none;
+    }
+    svg {
+      inline-size: 100%;
+      block-size: 100%;
+      display: block;
+    }
+    .marker {
+      cursor: pointer;
+      outline: none;
+    }
+    .marker.editable {
+      cursor: grab;
+    }
+    .marker.editable:active {
+      cursor: grabbing;
+    }
+    .marker .halo {
+      fill: var(--sw-accent);
+      opacity: 0;
+      pointer-events: none; /* an invisible halo must never steal clicks from a neighbouring pin */
+      transition: opacity var(--sw-t-fast) var(--sw-ease);
+    }
+    .marker.selected .halo,
+    .marker:focus-visible .halo,
+    .marker:hover .halo {
+      opacity: 0.18;
+    }
+    .marker .pin {
+      stroke: #fff;
+      stroke-width: 2.5;
+      filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.28));
+    }
+    .marker.neutral .pin {
+      stroke: var(--sw-border-strong);
+      stroke-width: 1.5;
+    }
+    .marker .icon {
+      fill: none;
+      stroke: #fff;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .marker.neutral .icon {
+      stroke: var(--sw-text);
+    }
+    .marker.stale .pin,
+    .marker.partial .pin,
+    .marker.unknown .pin {
+      stroke-dasharray: 3 2;
+    }
+    .marker.dimmed {
+      opacity: 0.55;
+    }
+    .marker .lbl-bg {
+      fill: var(--sw-surface);
+      filter: drop-shadow(0 1px 3px rgba(15, 23, 42, 0.18));
+      pointer-events: none;
+    }
+    .marker .lbl {
+      pointer-events: none;
+      font-family: var(--sw-font);
+      font-size: 11px;
+      font-weight: 600;
+      fill: var(--sw-text);
+      text-anchor: middle;
+      direction: rtl;
+      unicode-bidi: plaintext;
+    }
+    .zone {
+      cursor: pointer;
+      outline: none;
+    }
+    .zone polygon {
+      fill: var(--zc);
+      fill-opacity: 0.1;
+      stroke: var(--zc);
+      stroke-opacity: 0.7;
+      stroke-linejoin: round;
+      transition: fill-opacity var(--sw-t-fast) var(--sw-ease);
+    }
+    .zone:hover polygon,
+    .zone:focus-visible polygon,
+    .zone.selected polygon {
+      fill-opacity: 0.22;
+      stroke-opacity: 1;
+    }
+    .zone.candidate polygon {
+      stroke-dasharray: 6 4;
+      fill-opacity: 0.14;
+    }
+    .zone .zl-bg {
+      fill: rgba(255, 255, 255, 0.92);
+      stroke: var(--zc);
+      stroke-opacity: 0.55;
+      stroke-width: 1;
+      pointer-events: none;
+    }
+    .zone .zl {
+      pointer-events: none;
+      font-family: var(--sw-font);
+      font-size: 11.5px;
+      font-weight: 600;
+      fill: var(--sw-text);
+      text-anchor: middle;
+      direction: rtl;
+      unicode-bidi: plaintext;
+    }
+    .vtx {
+      fill: var(--sw-surface);
+      stroke: var(--zc);
+      cursor: grab;
+    }
+    .vtx:active {
+      cursor: grabbing;
+    }
+    .vmid {
+      fill: var(--zc);
+      fill-opacity: 0.55;
+      stroke: var(--sw-surface);
+      cursor: copy;
+    }
+    .draft polyline,
+    .draft polygon {
+      fill: var(--sw-accent);
+      fill-opacity: 0.12;
+      stroke: var(--sw-accent);
+      stroke-dasharray: 5 4;
+      stroke-linejoin: round;
+    }
+    .draft polyline {
+      fill: none;
+    }
+    .draft circle {
+      fill: var(--sw-surface);
+      stroke: var(--sw-accent);
+    }
+    .structure {
+      pointer-events: none;
+    }
+    .structure .wall {
+      fill: none;
+      stroke: var(--sw-map-structure);
+      stroke-linecap: butt;
+      stroke-linejoin: miter;
+    }
+    .structure .leaf,
+    .structure .arc {
+      fill: none;
+      stroke: var(--sw-accent);
+    }
+    .structure .glass {
+      stroke: var(--sw-map-glass);
+    }
+    .structure .gapline {
+      stroke: var(--sw-map-structure);
+    }
+    .structure .glabel {
+      fill: var(--sw-map-label);
+      font-weight: 600;
+      text-anchor: middle;
+      dominant-baseline: middle;
+    }
+    /* Selection, then validation issues: same specificity, so an item that is both shows the issue red. */
+    .structure .sel .wall {
+      stroke: var(--sw-accent);
+    }
+    .structure .opening.sel {
+      filter: drop-shadow(0 0 2px var(--sw-accent));
+    }
+    .structure .opening.sel .leaf,
+    .structure .opening.sel .arc,
+    .structure .opening.sel .glass,
+    .structure .opening.sel .gapline {
+      stroke: var(--sw-accent-hover);
+    }
+    .structure .glabel.sel {
+      fill: var(--sw-accent);
+    }
+    .structure .issue .wall,
+    .structure .opening.issue .leaf,
+    .structure .opening.issue .arc,
+    .structure .opening.issue .glass,
+    .structure .opening.issue .gapline {
+      stroke: var(--sw-danger);
+    }
+    .structure .glabel.issue {
+      fill: var(--sw-danger);
+    }
+    .geom-hits .hit {
+      fill: transparent;
+      stroke: transparent;
+      pointer-events: stroke;
+      cursor: pointer;
+    }
+    .geom-hits circle.hit {
+      pointer-events: all;
+      cursor: grab;
+    }
+    .geom-hits line.hit {
+      cursor: grab; /* an opening slides along its wall, whatever the wall's direction */
+    }
+    .gvtx {
+      fill: var(--sw-surface);
+      stroke: var(--sw-accent);
+      cursor: grab;
+    }
+    .gvtx.on {
+      fill: var(--sw-accent);
+    }
+    .gdrag {
+      fill: var(--sw-accent);
+      fill-opacity: 0.35;
+      stroke: var(--sw-accent);
+      pointer-events: none;
+    }
+    .wdraft polyline {
+      fill: none;
+      stroke: var(--sw-accent);
+    }
+    .wdraft circle {
+      fill: var(--sw-surface);
+      stroke: var(--sw-accent);
+    }
+    .wdraft circle.snap {
+      fill: var(--sw-accent);
+    }
+    .ruler line {
+      stroke: var(--sw-accent);
+    }
+    .ruler.muted line {
+      stroke: var(--sw-text-2);
+    }
+    .ruler circle {
+      fill: var(--sw-surface);
+      stroke: var(--sw-accent);
+    }
+    .ruler rect {
+      fill: var(--sw-surface);
+      stroke: var(--sw-border);
+    }
+    .ruler text {
+      fill: var(--sw-text);
+      font-family: var(--sw-font);
+      font-weight: 600;
+      text-anchor: middle;
+      dominant-baseline: middle;
+      direction: rtl;
+      unicode-bidi: plaintext;
+    }
+    .fov {
+      fill: var(--sw-fov);
+      stroke: var(--sw-accent);
+      stroke-opacity: 0.25;
+      stroke-width: 1;
+    }
+    .fov.off {
+      fill: rgba(154, 163, 181, 0.14);
+      stroke: var(--sw-offline);
+    }
+    .controls {
+      position: absolute;
+      left: var(--sw-s-3);
+      bottom: var(--sw-s-3);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: 10px;
+      box-shadow: var(--sw-shadow-2);
+      padding: 3px;
+      z-index: var(--sw-z-map-ui);
+    }
+    .scale {
+      position: absolute;
+      left: 56px;
+      bottom: var(--sw-s-3);
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-pill);
+      padding: 2px 8px;
+      z-index: var(--sw-z-map-ui);
+      font-family: var(--sw-font-mono);
+      box-shadow: var(--sw-shadow-1);
+    }
+  `;V([g({type:Number})],D.prototype,"planWidth",2);V([g({type:Number})],D.prototype,"planHeight",2);V([g({attribute:!1})],D.prototype,"plan",2);V([g({attribute:!1})],D.prototype,"markers",2);V([g()],D.prototype,"selectedId",2);V([g({attribute:!1})],D.prototype,"selectedIds",2);V([g({type:Boolean})],D.prototype,"dimEntities",2);V([g({type:Boolean})],D.prototype,"alwaysLabel",2);V([g()],D.prototype,"imageUrl",2);V([g({type:Boolean})],D.prototype,"editable",2);V([g({type:Boolean})],D.prototype,"placing",2);V([g({type:Number})],D.prototype,"coneRadius",2);V([g({attribute:!1})],D.prototype,"zones",2);V([g()],D.prototype,"selectedZoneId",2);V([g({type:Boolean})],D.prototype,"zoneLabels",2);V([g({attribute:!1})],D.prototype,"draftPoints",2);V([g({type:Boolean})],D.prototype,"boxSelect",2);V([g({attribute:!1})],D.prototype,"geometry",2);V([g()],D.prototype,"structureLevel",2);V([g({attribute:!1})],D.prototype,"issueIds",2);V([g()],D.prototype,"selectedGeomId",2);V([g()],D.prototype,"geomDrag",2);V([g({attribute:!1})],D.prototype,"selectedVertex",2);V([g({type:Number})],D.prototype,"cornerSnapPx",2);V([g({attribute:!1})],D.prototype,"wallDraft",2);V([g({attribute:!1})],D.prototype,"hoverPoint",2);V([g({attribute:!1})],D.prototype,"rulers",2);V([c()],D.prototype,"geomDragAt",2);V([c()],D.prototype,"box",2);V([c()],D.prototype,"scale",2);V([c()],D.prototype,"tx",2);V([c()],D.prototype,"ty",2);V([c()],D.prototype,"hoverId",2);V([c()],D.prototype,"dragging",2);V([c()],D.prototype,"orienting",2);V([c()],D.prototype,"shaping",2);V([c()],D.prototype,"zoneDraft",2);V([cs(".viewport")],D.prototype,"viewport",2);D=V([P("sw-plan-canvas")],D);const cn={name:"אתר הדגמה",building:"מבנה א"},_t=[{id:"f0",name:"קומה 0",hasPlan:!0,planWidth:1200,planHeight:800,cameraCount:6,entityCount:4},{id:"f-1",name:"קומה 1-",hasPlan:!0,planWidth:900,planHeight:1100,cameraCount:3,entityCount:1},{id:"f-2",name:"קומה 2-",hasPlan:!1,planWidth:0,planHeight:0,cameraCount:2,entityCount:0}],xs=[{id:"cam-1",name:"כניסה ראשית",floorId:"f0",x:.09,y:.52,rotation:20,fov:70,state:"live",source:"NVR ערוץ 1"},{id:"cam-2",name:"לובי",floorId:"f0",x:.34,y:.3,rotation:120,fov:80,state:"live",source:"NVR ערוץ 2"},{id:"cam-3",name:"מסדרון מזרחי",floorId:"f0",x:.62,y:.55,rotation:180,fov:60,state:"offline",source:"NVR ערוץ 3"},{id:"cam-4",name:"אולם",floorId:"f0",x:.82,y:.22,rotation:210,fov:90,state:"live",source:"NVR ערוץ 4"},{id:"cam-5",name:"חדר מדרגות",floorId:"f0",x:.9,y:.8,rotation:250,fov:60,state:"stale",source:"NVR ערוץ 5"},{id:"cam-6",name:"חניה",floorId:"f0",x:.4,y:.86,rotation:300,fov:75,state:"forbidden",source:"NVR ערוץ 6"},{id:"cam-7",name:"מחסן",floorId:"f-1",x:.3,y:.3,rotation:45,fov:70,state:"live",source:"NVR ערוץ 7"},{id:"cam-8",name:"חדר מכונות",floorId:"f-1",x:.7,y:.6,rotation:200,fov:70,state:"live",source:"NVR ערוץ 8"},{id:"cam-9",name:"מקלט",floorId:"f-1",x:.5,y:.85,rotation:270,fov:70,state:"offline",source:"NVR ערוץ 9"}],ri=[{id:"lock.main_door",name:"דלת כניסה",floorId:"f0",x:.05,y:.4,domain:"lock",state:"locked",stateLabelKey:"entity.locked",controllable:!1,lastChanged:"לפני 12 דק׳"},{id:"light.lobby",name:"תאורת לובי",floorId:"f0",x:.3,y:.42,domain:"light",state:"on",stateLabelKey:"entity.on",controllable:!0,lastChanged:"לפני שעה"},{id:"binary_sensor.hall_motion",name:"תנועה באולם",floorId:"f0",x:.7,y:.3,domain:"binary_sensor",state:"off",stateLabelKey:"entity.off",controllable:!1,lastChanged:"לפני 3 דק׳"},{id:"light.corridor",name:"תאורת מסדרון",floorId:"f0",x:.55,y:.66,domain:"light",state:"off",stateLabelKey:"entity.off",controllable:!0,lastChanged:"אתמול 22:10"},{id:"lock.shelter",name:"דלת מקלט",floorId:"f-1",x:.46,y:.9,domain:"lock",state:"locked",stateLabelKey:"entity.locked",controllable:!1,lastChanged:"לפני 2 שעות"}],hr={f0:[{x:40,y:40,w:300,h:260,label:"לובי",kind:"lobby"},{x:40,y:340,w:300,h:220,label:"משרדים",kind:"office"},{x:40,y:600,w:460,h:160,label:"חניה מקורה",kind:"parking"},{x:380,y:40,w:420,h:300,label:"אולם",kind:"hall"},{x:840,y:40,w:320,h:300,label:"אולם ב",kind:"meeting"},{x:380,y:380,w:300,h:180,label:"חדר ישיבות",kind:"meeting"},{x:720,y:380,w:440,h:180,label:"מסדרון מזרחי",kind:"corridor"},{x:540,y:600,w:620,h:160,label:"שירותים ומדרגות",kind:"stairs"}],"f-1":[{x:40,y:40,w:400,h:400,label:"מחסן",kind:"storage"},{x:480,y:40,w:380,h:400,label:"חדר מכונות",kind:"machines"},{x:40,y:480,w:820,h:200,label:"מסדרון",kind:"corridor"},{x:40,y:720,w:820,h:340,label:"מקלט",kind:"shelter"}]};function na(e){const t=hr[e],s=_t.find(i=>i.id===e);return!t||!s?.hasPlan?[]:t.map(i=>({x:i.x/s.planWidth,y:i.y/s.planHeight,w:i.w/s.planWidth,h:i.h/s.planHeight}))}const pe="var(--sw-map-furniture)",se="var(--sw-map-furniture-line)";function Dl(e){const t=e.x+e.w/2,s=e.y+e.h/2;switch(e.kind){case"lobby":return m`<rect x=${e.x+30} y=${e.y+e.h-70} width="130" height="30" rx="4" fill=${pe} stroke=${se} /><rect x=${e.x+170} y=${e.y+30} width="110" height="36" rx="10" fill=${pe} stroke=${se} /><circle cx=${e.x+22} cy=${e.y+22} r="10" fill="#dfe9d9" stroke="#b9cfae" /><circle cx=${e.x+e.w-22} cy=${e.y+22} r="10" fill="#dfe9d9" stroke="#b9cfae" />`;case"office":return m`${[0,1].map(i=>[0,1,2].map(a=>m`<rect x=${e.x+30+a*92} y=${e.y+36+i*92} width="56" height="28" rx="2" fill=${pe} stroke=${se} /><circle cx=${e.x+58+a*92} cy=${e.y+78+i*92} r="8" fill=${pe} stroke=${se} />`))}`;case"parking":return m`${[0,1,2,3,4,5,6,7].map(i=>m`<line x1=${e.x+30+i*56} y1=${e.y+20} x2=${e.x+30+i*56} y2=${e.y+e.h-20} stroke=${se} stroke-dasharray="6 6" />`)}${[1,3,4].map(i=>m`<rect x=${e.x+42+i*56} y=${e.y+36} width="30" height="70" rx="8" fill="#d5dce8" stroke=${se} />`)}`;case"hall":return m`${[0,1,2,3].map(i=>[0,1,2,3,4,5].map(a=>m`<rect x=${e.x+50+a*56} y=${e.y+60+i*52} width="26" height="16" rx="3" fill=${pe} stroke=${se} />`))}<rect x=${e.x+40} y=${e.y+20} width=${e.w-80} height="14" rx="2" fill=${pe} stroke=${se} />`;case"meeting":return m`<rect x=${t-80} y=${s-26} width="160" height="52" rx="12" fill=${pe} stroke=${se} />${[0,1,2].map(i=>m`<circle cx=${t-50+i*50} cy=${s-44} r="9" fill=${pe} stroke=${se} /><circle cx=${t-50+i*50} cy=${s+44} r="9" fill=${pe} stroke=${se} />`)}`;case"corridor":return m`<rect x=${e.x+30} y=${s-8} width="90" height="16" rx="3" fill=${pe} stroke=${se} />`;case"stairs":return m`<rect x=${e.x+e.w-130} y=${e.y+30} width="100" height="100" fill=${pe} stroke=${se} />${[1,2,3,4,5,6,7].map(i=>m`<line x1=${e.x+e.w-130} y1=${e.y+30+i*12.5} x2=${e.x+e.w-30} y2=${e.y+30+i*12.5} stroke=${se} />`)}${[0,1,2,3].map(i=>m`<rect x=${e.x+30+i*46} y=${e.y+30} width="36" height="46" fill=${pe} stroke=${se} />`)}`;case"storage":return m`${[0,1,2,3].map(i=>m`<rect x=${e.x+40+i*92} y=${e.y+40} width="30" height=${e.h-80} fill=${pe} stroke=${se} />`)}`;case"machines":return m`${[0,1,2].map(i=>m`<rect x=${e.x+40} y=${e.y+40+i*120} width="110" height="72" rx="4" fill=${pe} stroke=${se} /><circle cx=${e.x+240} cy=${e.y+76+i*120} r="26" fill=${pe} stroke=${se} />`)}`;case"shelter":return m`${[0,1,2,3].map(i=>m`<rect x=${e.x+60} y=${e.y+50+i*70} width="220" height="22" rx="3" fill=${pe} stroke=${se} /><rect x=${e.x+e.w-280} y=${e.y+50+i*70} width="220" height="22" rx="3" fill=${pe} stroke=${se} />`)}`;default:return""}}function ur(e){const t=hr[e],s=_t.find(i=>i.id===e);return!t||!s?null:m`
+    <rect x="0" y="0" width=${s.planWidth} height=${s.planHeight} fill="var(--sw-map-bg)" />
+    <rect x="20" y="20" width=${s.planWidth-40} height=${s.planHeight-40} fill="none" stroke="var(--sw-map-wall)" stroke-width="3" />
+    ${t.map(i=>m`
+        <rect x=${i.x} y=${i.y} width=${i.w} height=${i.h} fill="var(--sw-map-room-fill)" stroke="var(--sw-map-wall)" stroke-width="1.6" />
+        ${Dl(i)}
+        <text x=${i.x+14} y=${i.y+26} text-anchor="start" font-size="15" font-weight="500" fill="var(--sw-map-label)" font-family="var(--sw-font)" direction="rtl" style="unicode-bidi: plaintext">${i.label}</text>
+      `)}
+  `}const ra=[{id:"site-a",name:"אתר הדגמה",address:"רחוב הדוגמה 1",buildings:2,cameras:10,online:9,alerts:2,health:"stale"},{id:"site-b",name:"סניף צפון",address:"שדרות הדגמה 20",buildings:1,cameras:6,online:6,alerts:0,health:"live"},{id:"site-c",name:"מחסן לוגיסטי",address:"אזור תעשייה",buildings:1,cameras:4,online:3,alerts:1,health:"offline"}],Tl=[{id:"bld-a",siteId:"site-a",name:"מבנה א",floors:[{id:"f0",name:"קומה 0",cameras:6,entities:4,hasPlan:!0},{id:"f-1",name:"קומה 1-",cameras:3,entities:1,hasPlan:!0},{id:"f-2",name:"קומה 2-",cameras:2,entities:0,hasPlan:!1}]},{id:"bld-b",siteId:"site-a",name:"מבנה ב",floors:[{id:"b-f0",name:"קרקע",cameras:1,entities:2,hasPlan:!1}]}],X=[{id:"cam-1",name:"כניסה ראשית",floor:"קומה 0",state:"live",stream:"sub",fps:25,bitrateKbps:3072,firmware:"V5.8.10",lastEvent:"לפני 2 דק׳",recording:"continuous",ptz:!1,audio:!1},{id:"cam-2",name:"לובי",floor:"קומה 0",state:"live",stream:"sub",fps:25,bitrateKbps:3072,firmware:"V5.8.10",lastEvent:"לפני 5 דק׳",recording:"motion",ptz:!1,audio:!0},{id:"cam-3",name:"מסדרון מזרחי",floor:"קומה 0",state:"offline",stream:"sub",fps:null,bitrateKbps:null,firmware:"V5.8.10",lastEvent:"לפני שעה",recording:"unknown",ptz:!1,audio:!1},{id:"cam-4",name:"אולם",floor:"קומה 0",state:"live",stream:"main",fps:25,bitrateKbps:5120,firmware:"V5.8.10",lastEvent:"לפני 12 דק׳",recording:"continuous",ptz:!0,audio:!1},{id:"cam-5",name:"חדר מדרגות",floor:"קומה 0",state:"stale",stream:"sub",fps:20,bitrateKbps:2048,firmware:"V5.8.9",lastEvent:"לפני 40 דק׳",recording:"continuous",ptz:!1,audio:!1},{id:"cam-6",name:"חניה מקורה",floor:"קומה 0",state:"forbidden",stream:"sub",fps:null,bitrateKbps:null,firmware:"—",lastEvent:"—",recording:"unknown",ptz:!1,audio:!1},{id:"cam-7",name:"מחסן",floor:"קומה 1-",state:"live",stream:"sub",fps:25,bitrateKbps:3072,firmware:"V5.8.10",lastEvent:"לפני 3 שעות",recording:"motion",ptz:!1,audio:!1},{id:"cam-8",name:"חדר מכונות",floor:"קומה 1-",state:"live",stream:"sub",fps:25,bitrateKbps:3072,firmware:"V5.8.10",lastEvent:"אתמול",recording:"continuous",ptz:!1,audio:!1},{id:"cam-9",name:"מקלט",floor:"קומה 1-",state:"offline",stream:"sub",fps:null,bitrateKbps:null,firmware:"V5.8.10",lastEvent:"לפני יומיים",recording:"unknown",ptz:!1,audio:!1},{id:"cam-10",name:"חצר אחורית",floor:"חוץ",state:"live",stream:"sub",fps:25,bitrateKbps:4096,firmware:"V5.8.10",lastEvent:"לפני 8 דק׳",recording:"continuous",ptz:!0,audio:!0}],tt={"cam-1":"entrance","cam-2":"lobby","cam-3":"corridor","cam-4":"hall","cam-5":"corridor","cam-6":"parking","cam-7":"warehouse","cam-8":"warehouse","cam-9":"night","cam-10":"backyard"},oa={person:"זיהוי אדם",vehicle:"זיהוי רכב",motion:"תנועה",line:"חציית קו",offline:"מצלמה מנותקת",door:"דלת נפתחה"},ot=[{id:"ev-1",time:"היום 10:14",minuteOfDay:614,type:"person",title:"אדם זוהה",camera:"כניסה ראשית",floor:"קומה 0",source:"NVR",acked:!1,severity:"alert"},{id:"ev-2",time:"היום 09:42",minuteOfDay:582,type:"vehicle",title:"רכב זוהה",camera:"חצר אחורית",floor:"חוץ",source:"NVR",acked:!1,severity:"info"},{id:"ev-3",time:"היום 08:31",minuteOfDay:511,type:"motion",title:"תנועה",camera:"מחסן",floor:"קומה 1-",source:"NVR",acked:!0,severity:"info"},{id:"ev-4",time:"היום 08:12",minuteOfDay:492,type:"door",title:"דלת כניסה נפתחה",camera:"כניסה ראשית",floor:"קומה 0",source:"HA",acked:!0,severity:"info"},{id:"ev-5",time:"היום 07:55",minuteOfDay:475,type:"offline",title:"מסדרון מזרחי מנותק",camera:"מסדרון מזרחי",floor:"קומה 0",source:"NVR",acked:!1,severity:"critical"},{id:"ev-6",time:"היום 06:43",minuteOfDay:403,type:"line",title:"חציית קו",camera:"חניה מקורה",floor:"קומה 0",source:"NVR",acked:!0,severity:"alert"},{id:"ev-7",time:"אתמול 23:10",minuteOfDay:1390,type:"person",title:"אדם זוהה",camera:"לובי",floor:"קומה 0",source:"NVR",acked:!0,severity:"info"}],ui=[{startMin:0,endMin:190,kind:"continuous"},{startMin:205,endMin:460,kind:"continuous"},{startMin:470,endMin:474,kind:"motion"},{startMin:480,endMin:486,kind:"motion"},{startMin:492,endMin:640,kind:"continuous"},{startMin:660,endMin:1439,kind:"continuous"}],la=[{id:"u-1",name:"יוני",haUser:"joni",active:!0,lastSync:"לפני 20 שנ׳",groups:["מנהלי מערכת"],bindings:[{role:"מנהל מערכת VMS",scope:"כל ההתקנה"}],haAdmin:!0},{id:"u-2",name:"דנה",haUser:"dana",active:!0,lastSync:"לפני 20 שנ׳",groups:["עורכי קומה 2"],bindings:[{role:"עורך מפות",scope:"מבנה א · קומה 2"}],haAdmin:!1},{id:"u-3",name:"יוסי",haUser:"yossi",active:!0,lastSync:"לפני 20 שנ׳",groups:["מנהלי מבנה א"],bindings:[{role:"מנהל אתר/מבנה",scope:"מבנה א"}],haAdmin:!1},{id:"u-4",name:"codex",haUser:"codex",active:!0,lastSync:"לפני 20 שנ׳",groups:[],bindings:[],haAdmin:!1},{id:"u-5",name:"רון",haUser:"ron",active:!1,lastSync:"לפני 3 ימים",groups:["צופים"],bindings:[{role:"צופה",scope:"אתר הדגמה"}],haAdmin:!1}],mr=[{id:"g-1",name:"מנהלי מערכת",members:1,bindings:["מנהל מערכת VMS · כל ההתקנה"]},{id:"g-2",name:"עורכי קומה 2",members:1,bindings:["עורך מפות · מבנה א · קומה 2"]},{id:"g-3",name:"מנהלי מבנה א",members:1,bindings:["מנהל אתר/מבנה · מבנה א"]},{id:"g-4",name:"צופים",members:1,bindings:["צופה · אתר הדגמה"]}],fr=[{id:"viewer",name:"צופה",allowed:"מפה, מצב ישויות מורשה, שידור חי",denied:"היסטוריה, עריכה, ייצוא, שליטה"},{id:"operator",name:"מפעיל",allowed:"צפייה, Playback, סקירת אירועים וסימון טיפול",denied:"עריכת מפות, תפקידים, ייצוא, פעולות פיזיות"},{id:"editor",name:"עורך מפות ותצוגות",allowed:"צפייה, יבוא/עריכה/פרסום מפות, מיקומים ותצוגות",denied:"Playback, ייצוא, משתמשים, סודות, שליטה"},{id:"site_admin",name:"מנהל אתר / מבנה / קומה",allowed:"מפעיל + עורך, הגדרות תוכן מקומיות",denied:"הגדרות מערכת, תפקידים, סודות, כתיבה ל־NVR"},{id:"system_admin",name:"מנהל מערכת VMS",allowed:"הגדרות מוצר, מקורות, מדיניות, קבוצות ושיוכים",denied:"ניהול HA, שליטה פיזית, ייצוא ראיות ללא grant"}],gr=[{time:"10:24",user:"יוני",action:"צפייה חיה",resource:"כניסה ראשית",decision:"הותר",role:"מנהל מערכת · כל ההתקנה"},{time:"10:18",user:"דנה",action:"פרסום תוכנית",resource:"מבנה א · קומה 2",decision:"הותר",role:"עורך מפות · קומה 2"},{time:"10:11",user:"דנה",action:"עריכת תוכנית",resource:"מבנה א · קומה 3",decision:"נחסם: מחוץ להיקף",role:"עורך מפות · קומה 2"},{time:"09:55",user:"יוסי",action:"ייצוא קטע",resource:"לובי 09:10–09:20",decision:"נחסם: אין הרשאת ייצוא",role:"מנהל מבנה · מבנה א"},{time:"09:43",user:"codex",action:"כניסה דרך Ingress",resource:"—",decision:"הותר, ללא שיוך",role:"—"},{time:"09:30",user:"יוני",action:"הפעלת תאורה",resource:"light.lobby",decision:"הותר (HA אישר)",role:"מנהל מערכת"},{time:"08:12",user:"מערכת",action:"סנכרון משתמשים",resource:"HA bridge",decision:"5 משתמשים, 0 שינויים",role:"—"}],wr=[{id:"job-1",title:"ייצוא: כניסה ראשית 09:10–09:25",status:"הושלם",progress:100,size:"182 MB",hash:"sha256 ✓"},{id:"job-2",title:"ייצוא: לובי 23:00–23:40",status:"בתהליך",progress:62,size:"—",hash:"—"},{id:"job-3",title:"תמונות מקדימות: קומה 0",status:"ממתין",progress:0,size:"—",hash:"—"},{id:"job-4",title:"ייצוא: חצר אחורית 02:00–04:00",status:"נכשל: פער בהקלטה",progress:35,size:"—",hash:"—"}],da=[{id:"case-1",title:"כניסה לא מורשית — 13.09",status:"פתוח",owner:"יוני",clips:3,notes:2,preserved:2,missing:1},{id:"case-2",title:"נזק לרכב בחניה",status:"בבדיקה",owner:"יוסי",clips:2,notes:1,preserved:2,missing:0},{id:"case-3",title:"דלת מקלט פתוחה בלילה",status:"סגור",owner:"יוני",clips:1,notes:3,preserved:1,missing:0}],ca=[{id:"r-1",name:"אדם בלילה",trigger:"זיהוי אדם",scope:"חוץ · 22:00–06:00",action:"התראה + פתיחת מצלמות",enabled:!0,last:"אתמול 23:10"},{id:"r-2",name:"רכב באזור מוגבל",trigger:"זיהוי רכב",scope:"חניה מקורה",action:"התראה",enabled:!0,last:"היום 09:42"},{id:"r-3",name:"דלת נשארה פתוחה",trigger:"דלת > 60 שנ׳",scope:"כל הדלתות",action:"התראה + הקלטה",enabled:!0,last:"—"},{id:"r-4",name:"מצלמה מנותקת",trigger:"ניתוק",scope:"כל האתר",action:"התראה מיידית",enabled:!1,last:"היום 07:55"}],vr=[{name:"NVR (הקלטה)",state:"live",detail:"10/10 ערוצים, דיסק תקין"},{name:"go2rtc (מדיה)",state:"live",detail:"גרסה ‎1.9.x‎ · 4 זרמים פעילים"},{name:"גשר Home Assistant",state:"stale",detail:"סנכרון אחרון לפני 4 דק׳"},{name:"מסד נתונים",state:"live",detail:"WAL · גיבוי אחרון אתמול 02:00"},{name:"תור עבודות",state:"partial",detail:"1 בתהליך · 1 נכשל"}],Ol=["live","explore","investigate","system"];function ls(e=window.location.hash){const t=e.replace(/^#/,"")||"/explore/floors/f0",[s,i=""]=t.split("?"),a=s.startsWith("/")?s:`/${s}`,r=a.split("/").filter(Boolean),o=r[0];return{path:a,segments:r,params:new URLSearchParams(i),mode:o&&Ol.includes(o)?o:null}}function x(e,t){const s=t?`?${new URLSearchParams(t).toString()}`:"";window.location.hash=`#${e}${s}`}function Rl(e){const t=()=>e(ls());return window.addEventListener("hashchange",t),e(ls()),()=>window.removeEventListener("hashchange",t)}const pa=new Set;let Te={mode:"loading",me:null,error:null};function Js(e){Te=e,pa.forEach(t=>t(Te))}function br(e){return pa.add(e),e(Te),()=>pa.delete(e)}async function Nl(){try{const e=await S("me");Js({mode:e.has_access?"api":"no_access",me:e,error:null})}catch(e){e instanceof fe&&e.status===401?Js({mode:"unauthenticated",me:null,error:e.body.user_message}):e instanceof fe?Js({mode:"demo",me:null,error:e.body.user_message}):Js({mode:"demo",me:null,error:null})}return Te}function ws(e){const t=Te.me;return(t?.permissions_any??t?.permissions_installation??[]).includes(e)}function pn(){return(Te.me?.permissions_any??Te.me?.permissions_installation??[]).some(t=>t==="system.configure"||t.startsWith("nvr."))}const $=()=>Te.mode==="api";function Ll(e){const t=_t.find(i=>i.id===e)??_t[0],s=xs.filter(i=>i.floorId===t.id);return{source:"demo",floorId:t.id,floorName:t.name,buildingName:cn.building,siteName:cn.name,width:t.planWidth||1200,height:t.planHeight||800,imageUrl:null,planSvg:t.hasPlan?ur(t.id):null,planStatus:t.hasPlan?"published":"none",planVersionId:t.hasPlan?`demo-${t.id}`:null,needsAlignment:!1,renderMode:"source",stylizedAvailable:!1,planPublishedAt:null,planArchivedAt:null,at:null,history:null,historyFrom:null,haHistory:null,geometryRef:null,scaleMPerPx:null,anchors:s.map((i,a)=>({id:`demo-anchor-${i.id}`,floor_id:t.id,plan_version_id:`demo-${t.id}`,resource_type:"camera",resource_id:i.id,position:{x:i.x,y:i.y},rotation_degrees:i.rotation,field_of_view_degrees:i.fov,coverage_radius:null,coverage_polygon:null,layer_id:"cameras",label:i.name,revision:1,effective_from:"",effective_to:null,updated_at:"",camera:{id:i.id,recorder_id:"demo",channel:a+1,name:i.name,name_source:i.name,alias:null,enabled:!0,sort_order:a,main_track:null,sub_track:null,status:i.state==="offline"?"offline":"online",last_seen_at:null}})),zones:[],cameras:[],permissions:{edit:!0,publish:!0,import:!0,structure:!1}}}async function Bs(e,t=!1,s){if(!$())return Ll(e);const i=new URLSearchParams;t&&i.set("draft","true"),s&&i.set("at",s);const a=i.toString(),r=await S(`floors/${e}/map${a?`?${a}`:""}`);return{source:"api",floorId:r.floor.id,floorName:r.floor.name,buildingName:r.building.name,siteName:r.site.name,width:r.plan?.width_px??1200,height:r.plan?.height_px??800,imageUrl:r.plan?Qe(r.plan.image_url):null,planSvg:null,planStatus:r.plan?r.plan.status==="published"?"published":"draft":"none",planVersionId:r.plan?.id??null,needsAlignment:r.needs_alignment,anchors:r.anchors,zones:r.zones??[],cameras:r.cameras,permissions:r.permissions,renderMode:r.plan?.render_mode==="stylized"?"stylized":"source",stylizedAvailable:!!r.plan?.stylized_url,planPublishedAt:r.plan?.published_at??null,planArchivedAt:r.plan?.archived_at??null,at:r.at??null,history:r.history??null,historyFrom:r.history_from??null,haHistory:r.ha_history??null,geometryRef:r.geometry??null,scaleMPerPx:r.plan?.scale_m_per_px??null}}function ks(e,t){const s=e.camera;return s?s.status==="online"?"live":s.status==="offline"?"offline":t??"unknown":t??"unknown"}const Bl=e=>S(`floors/${e}/plan-assets`),Vl=(e,t)=>{const s=new FormData;return s.append("file",t,t.name),Ai(`floors/${e}/plan-assets`,s)},Hl=e=>S(`floors/${e}/plan-versions`),Fl=(e,t)=>E(`floors/${e}/plan-versions`,t),yr=e=>E(`plan-versions/${e}/publish`),jl=(e,t)=>S(`plan-versions/${e}/diff`),Wl=(e,t,s)=>E(`plan-versions/${e}/rollback`,{revision:t,expected_published_id:s});function _s(e){return e.resource_type==="camera"?e.camera?.name??e.label??e.resource_id:e.label??e.entity?.name??e.resource_id}const hn=(e,t)=>E(`floors/${e}/anchors`,t),$r=(e,t)=>Le(`map-anchors/${e}`,t),Ul=(e,t)=>E(`floors/${e}/anchors/realign`,{mode:t}),Zl=e=>ve(`map-anchors/${e}`),Be=()=>S("cameras"),ql=()=>E("cameras/sync"),Gl=e=>E("cameras",e),xr=(e,t)=>Le(`cameras/${e}`,t),Kl=e=>S(`plan-assets/${e}/dxf`),Yl=(e,t)=>Me(`plan-assets/${e}/dxf`,t);function Jl(){return{source:"demo",sites:ra.map((t,s)=>({id:t.id,name:t.name,address:t.address,timezone:"Asia/Jerusalem",sort_order:s,updated_at:"",buildings:Tl.filter(i=>i.siteId===t.id).map((i,a)=>({id:i.id,site_id:t.id,name:i.name,sort_order:a,updated_at:"",floors:i.floors.map((r,o)=>{const l=_t.find(p=>p.id===r.id);return{id:r.id,building_id:i.id,name:r.name,level:-o,sort_order:o,ha_area_id:null,has_plan:r.hasPlan,published_version_id:r.hasPlan?`demo-${r.id}`:null,plan_width_px:l?.planWidth??null,plan_height_px:l?.planHeight??null,draft_version_id:null,anchor_count:r.cameras+r.entities,camera_count:r.cameras,updated_at:""}})}))})),canCreateSite:!0}}async function At(){if(!$())return Jl();const e=await S("sites?tree=true");return{source:"api",sites:e.sites,canCreateSite:e.can_create_site}}const Xl=e=>E("sites",e),Ql=(e,t)=>Le(`sites/${e}`,t),ed=e=>ve(`sites/${e}`),kr=(e,t)=>E(`sites/${e}/buildings`,t),td=(e,t)=>Le(`buildings/${e}`,t),sd=e=>ve(`buildings/${e}`),id=(e,t)=>E(`buildings/${e}/floors`,t),ad=(e,t)=>Le(`floors/${e}`,t),nd=(e,t=!1)=>ve(`floors/${e}${t?"?force=true":""}`);function rd(e,t,s){const i=new FormData;return i.append("file",s,s.name),Ai(`${e}s/${t}/image`,i)}const od=(e,t)=>Ut(`${e}s/${t}/image`,{method:"DELETE"}),un=e=>ge(e.replace(/^api\/v1\//,""));function _r(e,t){for(const s of e.sites)for(const i of s.buildings??[]){const a=(i.floors??[]).find(r=>r.id===t);if(a)return{site:s,building:i,floor:a}}return null}function zr(e){for(const t of e.sites)for(const s of t.buildings??[])for(const i of s.floors??[])return i;return null}function Ht(e){return String(e??"").replace(/(^|[^\w])(-\d)/g,"$1‎$2")}function ld(e){return e==null?"":`‎${e}`}const ha=[{id:"room",label:"חדר"},{id:"zone",label:"אזור"},{id:"corridor",label:"מסדרון"},{id:"outdoor",label:"חוץ"},{id:"service",label:"שירות / טכני"}],dd=e=>ha.find(t=>t.id===e)?.label??e,cd=e=>S(`floors/${e}/zones`),pd=(e,t)=>E(`floors/${e}/zones`,t),hd=(e,t)=>Le(`zones/${e}`,t),ud=e=>ve(`zones/${e}`),md=(e,t="medium")=>E(`floors/${e}/zones/detect`,{strength:t}),fd=(e,t,s)=>E(`floors/${e}/zones/accept`,{candidates:t,replace_auto:s});function zs(e,t){let s=!1;for(let i=0,a=t.length-1;i<t.length;a=i++){const r=t[i],o=t[a];r.y>e.y!=o.y>e.y&&e.x<(o.x-r.x)*(e.y-r.y)/(o.y-r.y)+r.x&&(s=!s)}return s}const Sr=()=>S("views"),Mr=e=>E("views",e),gd=(e,t)=>Me(`views/${e}`,t),wd=e=>ve(`views/${e}`),Ar=e=>`#/live/wall?cameras=${encodeURIComponent(e.cameras.join(","))}`,vd=e=>`#/kiosk/all?cameras=${encodeURIComponent(e.cameras.join(","))}&cols=${e.cols}&rows=${e.rows}`;var bd=Object.defineProperty,yd=Object.getOwnPropertyDescriptor,Zs=(e,t,s,i)=>{for(var a=i>1?void 0:i?yd(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&bd(t,s,a),a};let Ft=class extends M{constructor(){super(...arguments),this.checked=!1,this.disabled=!1,this.label="",this.labelHidden=!1}flip(){this.disabled||(this.checked=!this.checked,this.dispatchEvent(new CustomEvent("change",{detail:{checked:this.checked},bubbles:!0,composed:!0})))}render(){return n`<button type="button" role="switch" aria-checked=${this.checked} aria-label=${this.label} ?disabled=${this.disabled} @click=${this.flip}></button>${this.label&&!this.labelHidden?n`<span>${this.label}</span>`:""}`}};Ft.styles=A`
+    :host {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--sw-s-2);
+    }
+    button {
+      inline-size: 42px;
+      block-size: 24px;
+      border-radius: var(--sw-r-pill);
+      border: 0;
+      background: var(--sw-border-strong);
+      position: relative;
+      cursor: pointer;
+      transition: background var(--sw-t-fast) var(--sw-ease);
+      padding: 0;
+    }
+    button::after {
+      content: '';
+      position: absolute;
+      inset-block-start: 3px;
+      inset-inline-start: 3px;
+      inline-size: 18px;
+      block-size: 18px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: var(--sw-shadow-1);
+      transition: transform var(--sw-t-fast) var(--sw-ease);
+    }
+    :host([checked]) button {
+      background: var(--sw-accent);
+    }
+    :host([checked]) button::after {
+      transform: translateX(-18px);
+    }
+    :host-context([dir='ltr'][checked]) button::after {
+      transform: translateX(18px);
+    }
+    :host([disabled]) button {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    span {
+      font-size: var(--sw-fs-sm);
+    }
+  `;Zs([g({type:Boolean,reflect:!0})],Ft.prototype,"checked",2);Zs([g({type:Boolean,reflect:!0})],Ft.prototype,"disabled",2);Zs([g()],Ft.prototype,"label",2);Zs([g({type:Boolean})],Ft.prototype,"labelHidden",2);Ft=Zs([P("sw-toggle")],Ft);function Pr(e={}){const t=new URLSearchParams;e.domain&&t.set("domain",e.domain),e.q&&t.set("q",e.q),e.area&&t.set("area",e.area),e.placed!==void 0&&t.set("placed",String(e.placed)),e.includeDisabled&&t.set("include_disabled","true"),e.limit&&t.set("limit",String(e.limit));const s=t.toString();return S(`ha/entities${s?`?${s}`:""}`)}const $d=()=>S("ha/status"),xd=(e=!1)=>S(`ha/bridge/pairing${e?"?regenerate=true":""}`),mn=e=>S(`ha/actions/${e}`),kd=()=>E("ha/bridge/install");function _d(e,t,s={},i=!1){const a={allowed_action_id:t,arguments:s,expected_state_version:null,confirmation_grant:i?"confirmed":null,client_request_id:crypto.randomUUID(),expires_at:new Date(Date.now()+6e4).toISOString().replace(/\.\d{3}Z$/,"Z")};return E(`ha/entities/${encodeURIComponent(e)}/actions`,a)}async function zd(e,t,s){let i=await mn(e);t(i);for(let a=0;a<16&&i.status==="pending";a++)await new Promise(r=>setTimeout(r,1500)),i=await mn(e),t(i);return i}const Sd={ha_unauthorized:"Home Assistant דחה את הפעולה: למשתמש שלך אין הרשאה לישות זו ב־Home Assistant",ha_unknown_user:"Home Assistant אינו מכיר את המשתמש שמאחורי ההפעלה הזו",bridge_not_paired:"גשר SMPLWISE אינו מצומד",bridge_error:"הגשר החזיר שגיאה",ha_unavailable:"Home Assistant אינו זמין",service_not_allowed:"הגשר סירב: השירות אינו ברשימת הפעולות המאושרות (גשר ישן? מאז 0.2.1 נוספו climate / media / number / select / alarm — הפעל את Home Assistant מחדש כדי לטעון את הגרסה החדשה)",unknown_user:"Home Assistant אינו מכיר את המשתמש"},Md={pending:"נשלח · ממתין לעדכון מ־Home Assistant",confirmed:"אושר · המצב התעדכן",unknown:"לא ידוע · לא התקבל עדכון מצב",failed:"נכשל",denied:"נדחה · אין הרשאה ב־Home Assistant"},Ad=new Set(["on","open","opening","unlocked","unlocking","playing","home","heat","cool","heat_cool","dry","fan_only","cleaning","active","detected","problem","running"]),Xs={on:"דולק",off:"כבוי",locked:"נעול",unlocked:"פתוח",locking:"נועל…",unlocking:"פותח…",jammed:"תקוע",open:"פתוח",closed:"סגור",opening:"נפתח…",closing:"נסגר…",unavailable:"לא זמין",unknown:"לא ידוע",idle:"לא פעיל",home:"בבית",not_home:"מחוץ לבית",playing:"מנגן",paused:"מושהה",standby:"המתנה",heat:"חימום",cool:"קירור",auto:"אוטומטי",dry:"ייבוש",fan_only:"מאוורר",docked:"בתחנה",cleaning:"מנקה",returning:"חוזר"},Pd={motion:["תנועה","ללא תנועה"],occupancy:["נוכחות","ללא נוכחות"],presence:["נוכח","לא נוכח"],door:["פתוחה","סגורה"],window:["פתוח","סגור"],opening:["פתוח","סגור"],garage_door:["פתוח","סגור"],lock:["פתוח","נעול"],connectivity:["מחובר","מנותק"],power:["פועל","כבוי"],problem:["תקלה","תקין"],safety:["לא בטוח","בטוח"],smoke:["עשן","ללא עשן"],moisture:["רטוב","יבש"],battery:["סוללה חלשה","סוללה תקינה"],running:["פועל","לא פועל"],sound:["רעש","שקט"],vibration:["רטט","ללא רטט"],update:["עדכון זמין","מעודכן"]};function zt(e){const t=e.state;if(t==null)return"לא ידוע";if(t==="unavailable"||t==="unknown")return Xs[t];if(e.domain==="binary_sensor"){const s=Pd[e.device_class??""];return s?t==="on"?s[0]:s[1]:t==="on"?"פעיל":"לא פעיל"}if(e.domain==="sensor"||e.domain==="number"||e.domain==="input_number"){const s=Number(t);return!Number.isNaN(s)&&t.trim()!==""?`${Number.isInteger(s)?s:s.toFixed(Math.min(2,(t.split(".")[1]??"").length))}${e.unit?` ${e.unit}`:""}`:t}return e.domain==="light"&&t==="on"&&typeof e.attributes.brightness=="number"?`דולק · ${Math.round(e.attributes.brightness/255*100)}%`:e.domain==="cover"&&typeof e.attributes.current_position=="number"&&(t==="open"||t==="closed")?`${Xs[t]} · ${e.attributes.current_position}%`:e.domain==="climate"&&typeof e.attributes.current_temperature=="number"?`${Xs[t]??t} · ${e.attributes.current_temperature}°`:Xs[t]??t}function ua(e){return!e||e.removed_at?"unknown":e.state==="unavailable"||!e.available?"offline":e.fresh?e.state===null||e.state==="unknown"?"unknown":Ad.has(e.state)?"live":"neutral":"stale"}function Ei(e,t){return e==="doors"||t==="lock"||t==="cover"?"lock":e==="lights"||t==="light"||t==="switch"||t==="fan"?"light":"binary_sensor"}function Vs(e){return{light:"תאורה",switch:"מתג",lock:"מנעול",cover:"תריס / שער",binary_sensor:"חיישן בינארי",sensor:"חיישן",fan:"מאוורר",climate:"אקלים",camera:"מצלמת HA",button:"כפתור",script:"סקריפט",scene:"סצנה",automation:"אוטומציה",media_player:"נגן",event:"אירוע",number:"מספר",select:"בחירה",input_boolean:"דגל",alarm_control_panel:"אזעקה",siren:"צופר",vacuum:"שואב",weather:"מזג אוויר",sun:"שמש"}[e]??e}function je(e){if(!e)return"—";const t=new Date(e);return Number.isNaN(t.getTime())?e:t.toLocaleString("he-IL",{dateStyle:"short",timeStyle:"medium"})}function Er(e,t){let s=null,i=!1,a=2e3;const r=(()=>{const l=new URL(ge("ha/ws"));return l.protocol=l.protocol==="https:"?"wss:":"ws:",l.toString()})(),o=()=>{if(!i){try{s=new WebSocket(r)}catch{return}s.onopen=()=>{a=2e3},s.onmessage=l=>{try{const p=JSON.parse(l.data);p.type==="entity_state_changed"?e({type:"entity_state_changed",entity:p.payload.entity}):p.type==="ha_sync_state"?e({type:"ha_sync_state",connected:!!p.payload.connected}):p.type==="heartbeat"&&e({type:"heartbeat",sync:p.payload.sync})}catch{}},s.onclose=l=>{!i&&l.code!==4403&&l.code!==4401&&(window.setTimeout(o,a),a=Math.min(3e4,a*2))}}};return o(),()=>{i=!0,s?.close()}}const mi=new Map,ys=new Map;function Ca(e,t={}){const s=new URLSearchParams;t.draft&&s.set("draft","true"),t.at&&s.set("at",t.at);const i=s.toString();return S(`plan-versions/${e}/geometry${i?`?${i}`:""}`)}async function Da(e){const t=e.geometryRef;if(e.source!=="api"||!t||!e.planVersionId)return null;const s=mi.get(t.doc_hash);if(s)return s;try{const i=await Ca(e.planVersionId,t.status==="draft"?{draft:!0}:t.published_at?{at:t.published_at}:{});return mi.set(i.geometry.doc_hash,i.doc),i.doc}catch{return null}}async function Ed(e,t){let s=ys.get(e);if(!s){const r=S(`plan-versions/${e}/geometry/timeline`).then(o=>o.timeline).catch(()=>(ys.get(e)===r&&ys.delete(e),[]));s=r,ys.set(e,s)}const i=(await s).find(r=>r.published_at<=t&&(!r.archived_at||t<r.archived_at));if(!i)return null;const a=mi.get(i.doc_hash);if(a)return a;try{const r=await Ca(e,{at:i.published_at});return mi.set(r.geometry.doc_hash,r.doc),r.doc}catch{return null}}const Id=(e,t,s)=>Me(`plan-versions/${e}/geometry`,{doc:t,base_revision:s});async function Cd(e){const t=await E(`plan-versions/${e}/geometry/publish`);return ys.delete(e),t}const Dd=e=>S(`plan-versions/${e}/geometry/diff`),Td=(e,t)=>E(`plan-versions/${e}/geometry/copy-from`,{from_version_id:t}),Od=(e,t)=>Le(`plan-versions/${e}/calibration`,{pairs:t});function fn(e,t,s={}){return Qe(`api/v1/plan-versions/${e}/export.${t}${s.draft?"?draft=true":""}`)}var Rd=Object.defineProperty,Nd=Object.getOwnPropertyDescriptor,W=(e,t,s,i)=>{for(var a=i>1?void 0:i?Nd(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Rd(t,s,a),a};const Ld={off:"כבוי",heat:"חימום",cool:"קירור",heat_cool:"חימום/קירור",auto:"אוטומטי",dry:"ייבוש",fan_only:"מאוורר בלבד"},gn=[{id:"cameras",icon:"camera",label:()=>_("floor.cameras")},{id:"doors",icon:"door",label:()=>_("floor.doors")},{id:"lights",icon:"light",label:()=>_("floor.lights")},{id:"sensors",icon:"sensor",label:()=>_("floor.sensors")},{id:"zones",icon:"map",label:()=>"חדרים ואזורים"},{id:"structure",icon:"wall",label:()=>"מבנה"}],wn=["entrance","lobby","corridor","hall","parking","warehouse","backyard","driveway","night"];function Bd(e){const t=e.match(/-?\d+/);return t?t[0]:/קרקע/.test(e)?"ק":/גג/.test(e)?"גג":/מרתף/.test(e)?"מ":(e.split(/[\s–-]+/).filter(Boolean).pop()??e).slice(0,4)}let H=class extends M{constructor(){super(...arguments),this.floorId="f0",this.screenState="ready",this.focusZone="",this.focusCamera="",this.focusEntity="",this.selectedZoneId=null,this.bundle=null,this.tree=null,this.loadError="",this.noFloors=!1,this.selectedId=null,this.anchor=null,this.layers=new Set(["cameras","doors","lights","sensors","zones","structure"]),this.geometry=null,this.geomSeq=0,this.pinned=!1,this.panel=!1,this.multi=!1,this.sideList=(()=>{try{return localStorage.getItem("sw.map.sidelist")==="1"}catch{return!1}})(),this.jumpZoom=(()=>{try{return localStorage.getItem("sw.map.jumpzoom")==="1"}catch{return!1}})(),this.focusZoom=!0,this.saveView=null,this.savedView=null,this.picked=[],this.narrow=!1,this.syncConnected=!0,this.action=null,this.confirmSpec=null,this.stopWs=null,this.mq=window.matchMedia("(max-width: 767px)"),this.onMq=()=>this.narrow=this.mq.matches,this.onKey=e=>{if(e.key==="Escape"&&!this.confirmSpec)if(this.selectedId){const t=this.selectedId;this.close(),this.canvas?.focusMarker(t)}else this.panel&&(this.panel=!1)},this.actionArgs={},this.renaming=null,this.notice=""}connectedCallback(){super.connectedCallback(),this.narrow=this.mq.matches,this.mq.addEventListener("change",this.onMq),window.addEventListener("keydown",this.onKey),this.load()}disconnectedCallback(){super.disconnectedCallback(),window.removeEventListener("keydown",this.onKey),this.mq.removeEventListener("change",this.onMq),this.stopWs?.(),this.stopWs=null}startWs(){this.stopWs||!$()||(this.stopWs=Er(e=>{const t=this.bundle;if(e.type==="entity_state_changed"&&t){if(!t.anchors.some(s=>s.resource_type==="ha_entity"&&s.resource_id===e.entity.entity_id))return;this.bundle={...t,anchors:t.anchors.map(s=>s.resource_type==="ha_entity"&&s.resource_id===e.entity.entity_id?{...s,entity:{...s.entity??{},...e.entity,actions:s.entity?.actions}}:s)}}else e.type==="ha_sync_state"?this.syncConnected=e.connected:e.type==="heartbeat"&&(this.syncConnected=e.sync.connected)}))}updated(e){e.has("floorId")&&e.get("floorId")!==void 0?(this.selectedId=null,this.anchor=null,this.selectedZoneId=null,this.load()):(e.has("focusZone")||e.has("focusCamera")||e.has("focusEntity"))&&this.bundle&&this.applyFocus()}async applyFocus(){const e=this.bundle;if(!e||!this.focusZone&&!this.focusCamera&&!this.focusEntity)return;await this.updateComplete;const t=this.canvas;if(!t)return;const s=this.focusZone?e.zones.find(a=>a.id===this.focusZone):null;if(s){const a=s.polygon.map(o=>o.x),r=s.polygon.map(o=>o.y);this.selectedZoneId=s.id,t.zoomToBox(Math.min(...a),Math.min(...r),Math.max(...a),Math.max(...r))}const i=this.focusCamera?e.anchors.find(a=>a.resource_type==="camera"&&a.resource_id===this.focusCamera):this.focusEntity?e.anchors.find(a=>a.resource_type==="ha_entity"&&a.resource_id===this.focusEntity):null;if(i){this.focusZoom?t.zoomToBox(i.position.x-.15,i.position.y-.15,i.position.x+.15,i.position.y+.15,48,2.2):t.centerOn(i.position.x,i.position.y),await this.updateComplete;const a=t.toScreen(i.position.x,i.position.y);this.selectedId=i.id,this.anchor={x:a.x,y:a.y}}}async load(){this.loadError="";try{const e=this.tree??await At();if(this.tree=e,$()&&!_r(e,this.floorId)){const s=zr(e);if(s&&s.id!==this.floorId){x(`/explore/floors/${s.id}`);return}if(!s){this.noFloors=!0,this.bundle=null;return}}this.noFloors=!1,this.restoreLayers(),this.bundle=await Bs(this.floorId);const t=++this.geomSeq;this.geometry=null,Da(this.bundle).then(s=>{t===this.geomSeq&&(this.geometry=s)}),this.bundle.source==="api"&&this.startWs(),this.applyFocus()}catch(e){this.loadError=b(e),this.bundle=null}}get buildingFloors(){if(this.tree?.source!=="api")return[];for(const e of this.tree.sites)for(const t of e.buildings??[]){const s=t.floors??[];if(!s.some(a=>a.id===this.floorId))continue;const i=s.map(a=>Bd(a.name));return s.map((a,r)=>({id:a.id,name:a.name,hasPlan:a.has_plan,short:i.filter(o=>o===i[r]).length>1?`${i[r]}${r+1}`:i[r]}))}return[]}get floors(){return this.tree?.source==="api"?this.tree.sites.flatMap(e=>(e.buildings??[]).flatMap(t=>(t.floors??[]).map(s=>({id:s.id,name:`${t.name} · ${s.name}`,cameraCount:s.camera_count,hasPlan:s.has_plan})))):_t.map(e=>({id:e.id,name:e.name,cameraCount:e.cameraCount,hasPlan:e.hasPlan}))}get markers(){const e=this.bundle;if(!e)return[];const t=this.screenState==="stale";if(e.source==="demo"){const s=this.layers.has("cameras")?xs.filter(a=>a.floorId===e.floorId).map(a=>({id:a.id,kind:"camera",label:a.name,x:a.x,y:a.y,rotation:a.rotation,fov:a.fov,state:a.state})):[],i=ri.filter(a=>a.floorId===e.floorId).filter(a=>a.domain==="lock"&&this.layers.has("doors")||a.domain==="light"&&this.layers.has("lights")||a.domain==="binary_sensor"&&this.layers.has("sensors")).map(a=>({id:a.id,kind:a.domain,label:a.name,x:a.x,y:a.y,state:t?"stale":"neutral"}));return[...s,...i]}return e.anchors.filter(s=>s.resource_type==="camera"?this.layers.has("cameras"):this.layers.has(s.layer_id==="doors"?"doors":s.layer_id==="lights"?"lights":"sensors")).map(s=>({id:s.id,kind:s.resource_type==="camera"?"camera":Ei(s.layer_id,s.entity?.domain),label:_s(s),x:s.position.x,y:s.position.y,rotation:s.rotation_degrees,fov:s.field_of_view_degrees??void 0,radius:s.coverage_radius??void 0,polygon:s.coverage_polygon?s.coverage_polygon.map(([i,a])=>({x:i,y:a})):void 0,labelPos:s.label_pos??void 0,state:s.resource_type==="camera"?ks(s):t?"stale":this.entityTone(s.entity)}))}layerCounts(){const e=this.bundle,t={cameras:0,doors:0,lights:0,sensors:0,zones:e?.zones.length??0,structure:this.geometry?.walls.length??0};if(!e)return t;if(e.source==="demo"){t.cameras=xs.filter(s=>s.floorId===e.floorId).length;for(const s of ri.filter(i=>i.floorId===e.floorId))s.domain==="lock"?t.doors++:s.domain==="light"?t.lights++:t.sensors++;return t}for(const s of e.anchors)s.resource_type==="camera"?t.cameras++:s.layer_id==="doors"?t.doors++:s.layer_id==="lights"?t.lights++:t.sensors++;return t}zoneOf(e){return this.bundle?.zones.find(s=>zs(e.position,s.polygon))?.name??null}toggleLayer(e){const t=new Set(this.layers);t.has(e)?t.delete(e):t.add(e),this.setLayers(t)}setLayers(e){this.layers=e;try{const t=[...e];e.has("structure")||t.push("-structure"),localStorage.setItem(`sw.floor.layers.${this.floorId}`,JSON.stringify(t))}catch{}}restoreLayers(){try{const e=localStorage.getItem(`sw.floor.layers.${this.floorId}`);if(!e)return;const t=JSON.parse(e);if(!Array.isArray(t))return;const s=new Set(t.filter(i=>gn.some(a=>a.id===i)));t.includes("-structure")||s.add("structure"),this.layers=s}catch{}}cameraAnchors(){return(this.bundle?.anchors??[]).filter(e=>e.resource_type==="camera"&&this.layers.has("cameras"))}togglePick(e){this.picked=this.picked.includes(e)?this.picked.filter(t=>t!==e):[...this.picked,e]}pickedCameraIds(){const e=new Map((this.bundle?.anchors??[]).map(t=>[t.id,t.resource_id]));return this.picked.map(t=>e.get(t)).filter(t=>!!t)}setMulti(e){this.multi=e,this.picked=[],this.saveView=null,this.savedView=null,e&&this.close()}addPicks(e){const t=new Set(this.cameraAnchors().map(i=>i.id)),s=e.filter(i=>t.has(i)&&!this.picked.includes(i));s.length&&(this.picked=[...this.picked,...s])}pickZone(e){const t=this.bundle?.zones.find(a=>a.id===e);if(!t)return;const s=this.cameraAnchors().filter(a=>zs(a.position,t.polygon)).map(a=>a.id);if(!s.length)return;const i=s.every(a=>this.picked.includes(a));this.picked=i?this.picked.filter(a=>!s.includes(a)):[...this.picked,...s.filter(a=>!this.picked.includes(a))]}roomChips(){const e=this.bundle;if(!e)return d;const t=this.cameraAnchors(),s=e.zones.map(i=>({z:i,ids:t.filter(a=>zs(a.position,i.polygon)).map(a=>a.id)})).filter(i=>i.ids.length);return s.length?n`<span class="roomchips" data-room-chips>${s.map(i=>n`<sw-chip icon="layers" data-room-chip=${i.z.id} ?selected=${i.ids.every(a=>this.picked.includes(a))} @click=${()=>this.pickZone(i.z.id)}>${i.z.name} (${i.ids.length})</sw-chip>`)}</span>`:d}toggleSideList(){this.sideList=!this.sideList;try{localStorage.setItem("sw.map.sidelist",this.sideList?"1":"0")}catch{}}async jumpTo(e){if(e.resource_type==="camera"?(this.focusCamera=e.resource_id,this.focusEntity=""):(this.focusEntity=e.resource_id,this.focusCamera=""),this.focusZone="",this.multi&&e.resource_type==="camera"){this.togglePick(e.id);return}this.focusZoom=this.jumpZoom,await this.applyFocus(),window.setTimeout(()=>this.focusZoom=!0,900)}setJumpZoom(e){this.jumpZoom=e;try{localStorage.setItem("sw.map.jumpzoom",e?"1":"0")}catch{}}renderSideList(){const e=this.bundle;if(!e||!this.sideList||e.source!=="api")return d;const t=e.anchors.filter(o=>o.resource_type==="camera"),s=e.anchors.filter(o=>o.resource_type==="ha_entity"),i={light:"תאורה",switch:"מפסקים",lock:"מנעולים",binary_sensor:"חיישנים",sensor:"חיישנים",cover:"תריסים",climate:"מיזוג",media_player:"מדיה",alarm_control_panel:"אזעקה"},a=new Map;for(const o of s){const l=o.entity?.domain??o.resource_id.split(".")[0];a.set(l,[...a.get(l)??[],o])}const r=o=>o.camera?o.camera.status==="online"?"#22c55e":o.camera.status==="offline"?"#ef4444":"var(--sw-text-3)":o.entity?.state==="on"||o.entity?.state==="unlocked"||o.entity?.state==="open"?"var(--sw-accent)":"var(--sw-text-3)";return n`<div class="sidelist" data-sidelist>
+      <div class="sh"><sw-icon name="list" size=${14}></sw-icon>על התוכנית<span class="grow"></span><sw-button variant="ghost" size="sm" iconOnly icon="close" label="סגור" @click=${()=>this.toggleSideList()}></sw-button></div>
+      <label class="jz" data-jump-zoom-row><input type="checkbox" data-jump-zoom .checked=${this.jumpZoom} @change=${o=>this.setJumpZoom(o.target.checked)} /> זום בקפיצה לרכיב</label>
+      <div class="body">
+        <div class="grp">קומות</div>
+        ${this.floors.map(o=>n`<button class="it ${o.id===this.floorId?"on":""}" data-side-floor=${o.id} @click=${()=>{o.id!==this.floorId&&x(`/explore/floors/${o.id}`)}}>
+          <sw-icon name="building" size=${12}></sw-icon><span class="nm">${Ht(o.name)}</span><span class="st">${o.cameraCount} מצלמות${o.hasPlan?"":" · אין תוכנית"}</span></button>`)}
+        <div class="grp">מצלמות (${t.length})</div>
+        ${t.map(o=>n`<button class="it ${this.selectedId===o.id||this.picked.includes(o.id)?"on":""}" data-side-camera=${o.resource_id} @click=${()=>this.jumpTo(o)}>
+          <span class="dot" style="--dot:${r(o)}"></span><span class="nm">${o.camera?.name??o.label??o.resource_id}</span><span class="st">${o.camera?.status==="online"?"חיה":o.camera?.status==="offline"?"מנותקת":""}</span></button>`)}
+        ${[...a.entries()].map(([o,l])=>n`<div class="grp">${i[o]??o} (${l.length})</div>
+          ${l.map(p=>n`<button class="it ${this.selectedId===p.id?"on":""}" data-side-entity=${p.resource_id} @click=${()=>this.jumpTo(p)}>
+            <span class="dot" style="--dot:${r(p)}"></span><span class="nm">${_s(p)}</span><span class="st">${p.entity?zt(p.entity):""}</span></button>`)}`)}
+        ${!t.length&&!s.length?n`<div class="grp">אין פריטים מוצבים על התוכנית הזו.</div>`:d}
+      </div>
+    </div>`}pickSummary(){const e=this.picked.map(i=>this.bundle?.anchors.find(a=>a.id===i)).filter(i=>!!i),t=e.filter(i=>i.camera?.can_view_live===!1).length,s=e.filter(i=>i.camera?.can_view_live!==!1&&i.camera?.status==="online").length;return{total:e.length,online:s,offline:e.length-s-t,denied:t}}pickDot(e){return!e?.camera||e.camera.can_view_live===!1?"var(--sw-text-3)":e.camera.status==="online"?"#22c55e":"#ef4444"}saveableCameraIds(){const e=new Map((this.bundle?.anchors??[]).map(t=>[t.id,t]));return this.picked.map(t=>e.get(t)).filter(t=>!!t&&t.camera?.can_view_live!==!1).map(t=>t.resource_id).slice(0,16)}openSave(){const e=this.saveableCameraIds().length;if(!e)return;const t=e<=1?1:e<=4?2:e<=9?3:4,s=Math.max(1,Math.min(4,Math.ceil(e/t))),i=this.floors.find(a=>a.id===this.floorId)?.name??this.bundle?.floorName??"מפה";this.savedView=null,this.saveView={name:`${i} · ${e} מצלמות`,cols:t,rows:s,shared:!1,canShare:!1,busy:!1,error:null},Sr().then(a=>{this.saveView&&(this.saveView={...this.saveView,canShare:a.can_share})}).catch(()=>{})}async submitSave(){const e=this.saveView;if(!e||e.busy)return;if(!e.name.trim()){this.saveView={...e,error:"לתצוגה צריך שם."};return}const t=this.saveableCameraIds();if(!t.length){this.saveView={...e,error:"אין בבחירה מצלמה שמותר לך לצפות בה."};return}this.saveView={...e,busy:!0,error:null};try{this.savedView=await Mr({name:e.name.trim(),cameras:t,cols:e.cols,rows:e.rows,shared:e.shared,kiosk:!1}),this.saveView=null}catch(s){this.saveView={...e,busy:!1,error:b(s)}}}renderSaveDialog(){const e=this.saveView;if(!e)return d;const t=this.saveableCameraIds(),{denied:s}=this.pickSummary(),i=Math.max(0,this.picked.length-s-16),a=r=>this.saveView={...e,...r};return n`<sw-dialog open heading="שמירה כתצוגה" subheading=${`${t.length} מצלמות מהמפה · התצוגה נפתחת בקיר החי או בקיוסק`} data-save-view-dialog @close=${()=>this.saveView=null}>
+      <div class="saveform">
+        <sw-field label="שם"><input data-save-view-name .value=${e.name} maxlength="60" @input=${r=>a({name:r.target.value})} @keydown=${r=>r.key==="Enter"&&this.submitSave()} /></sw-field>
+        <div class="row">
+          <sw-field label="עמודות (קיוסק)"><select data-save-view-cols @change=${r=>a({cols:Number(r.target.value)})}>${[1,2,3,4].map(r=>n`<option value=${r} ?selected=${r===e.cols}>${r}</option>`)}</select></sw-field>
+          <sw-field label="שורות (קיוסק)"><select data-save-view-rows @change=${r=>a({rows:Number(r.target.value)})}>${[1,2,3,4].map(r=>n`<option value=${r} ?selected=${r===e.rows}>${r}</option>`)}</select></sw-field>
+        </div>
+        <sw-toggle ?checked=${e.shared} ?disabled=${!e.canShare} label=${e.canShare?"משותפת לכל המשתמשים":"משותפת (דורש הרשאת ניהול משתמשים)"} data-save-view-shared @change=${r=>a({shared:r.detail.checked})}></sw-toggle>
+        ${s?n`<div class="note">${s} מצלמות ללא הרשאת צפייה חיה לא ייכללו בתצוגה.</div>`:d}
+        ${i?n`<div class="note">תצוגה מכילה עד 16 מצלמות; ${i} האחרונות שנבחרו לא ייכללו.</div>`:d}
+        <div class="note">הקיר פותח את המצלמות בפריסה אוטומטית; הקיוסק מציג ${e.cols}×${e.rows} מצלמות בעמוד.</div>
+        ${e.error?n`<div class="err" role="alert" data-save-view-error>${e.error}</div>`:d}
+      </div>
+      <div slot="footer"><sw-button variant="primary" ?disabled=${e.busy} data-save-view-submit @click=${()=>this.submitSave()}>${e.busy?"שומר…":"שמור תצוגה"}</sw-button><sw-button variant="ghost" @click=${()=>this.saveView=null}>${_("actions.cancel")}</sw-button></div>
+    </sw-dialog>`}openWall(){const e=this.pickedCameraIds();e.length&&x("/live/wall",{cameras:e.join(",")})}openSync(){const e=this.pickedCameraIds();e.length&&x("/investigate/playback",{camera:e[0],extra:e.slice(1,4).join(",")})}renderPickbar(){const e=this.bundle;if(!e)return d;const t=this.cameraAnchors(),s=h=>e.anchors.find(u=>u.id===h),i=h=>{const u=s(h);return u?.camera?.name??u?.label??u?.resource_id??h},a=this.pickSummary(),r=e.anchors.filter(h=>h.resource_type==="camera").length,o=this.floors.find(h=>h.id===this.floorId)?.cameraCount??r,l=Math.max(0,o-r),p=a.total?`נבחרו ${a.total} · ${a.online} זמינות${a.offline?` · ${a.offline} לא מקוונות`:""}${a.denied?` · ${a.denied} ללא הרשאה`:""}${l?` · ${l} מצלמות של הקומה אינן על המפה`:""}`:`לחץ על מצלמות או גרור מלבן על המפה · לחיצה על חדר בוחרת את מצלמותיו · Shift+גרירה מזיזה את המפה · עד 4 לניגון מסונכרן${l?` · ${l} מצלמות של הקומה אינן על המפה`:""}`;return n`<div class="pickbar" data-pickbar>
+      <span class="hint" data-pick-hint>${p}</span>
+      ${this.picked.map(h=>{const u=s(h),f=u?.camera?.can_view_live===!1;return n`<sw-chip selected icon="camera" dot=${this.pickDot(u)} title=${f?"אין הרשאת צפייה חיה":u?.camera?.status==="online"?"מקוונת":"לא מקוונת"} data-pick-chip=${f?"denied":u?.camera?.status??"unknown"} @click=${()=>this.togglePick(h)}>${i(h)}</sw-chip>`})}
+      <sw-chip data-pick-all @click=${()=>this.picked=t.map(h=>h.id)}>בחר הכל (${t.length})</sw-chip>
+      ${this.roomChips()}
+      <span class="grow"></span>
+      <sw-button variant="primary" size="sm" icon="live" ?disabled=${!this.picked.length} data-pick-wall @click=${()=>this.openWall()}>קיר חי (${this.picked.length})</sw-button>
+      <sw-button size="sm" icon="history" ?disabled=${!this.picked.length||this.picked.length>4} data-pick-sync @click=${()=>this.openSync()}>ניגון מסונכרן</sw-button>
+      <sw-button size="sm" icon="layers" ?disabled=${!this.saveableCameraIds().length} data-pick-save @click=${()=>this.openSave()}>שמור כתצוגה</sw-button>
+      <sw-button variant="ghost" size="sm" @click=${()=>this.picked=[]}>נקה</sw-button>
+      <sw-button variant="ghost" size="sm" icon="close" @click=${()=>this.setMulti(!1)}>סיום</sw-button>
+      ${this.savedView?n`<span class="saved" data-view-saved>התצוגה „${this.savedView.name}” נשמרה (${this.savedView.cameras.length} מצלמות) · <a href="#/live/views" data-view-saved-open>תצוגות שמורות</a> · <a href=${Ar(this.savedView)}>פתח בקיר</a></span>`:d}
+    </div>`}onSelect(e){if(this.multi){const t=e.detail.id?this.bundle?.anchors.find(s=>s.id===e.detail.id):null;t?.resource_type==="camera"&&this.togglePick(t.id);return}this.selectedZoneId=null,this.selectedId=e.detail.id,this.anchor=e.detail.id&&e.detail.sx!==void 0&&e.detail.sy!==void 0?{x:e.detail.sx,y:e.detail.sy}:null}onViewChange(){if(!this.selectedId||!this.canvas)return;const e=this.markers.find(s=>s.id===this.selectedId);if(!e)return;const t=this.canvas.toScreen(e.x,e.y);this.anchor={x:t.x,y:t.y}}close(){this.selectedId=null,this.anchor=null}entityTone(e){return e?ua({...e,fresh:e.fresh&&this.syncConnected}):"unknown"}argDefault(e,t){const s=e.attributes;return t.name==="hvac_mode"?String(s.hvac_mode??e.state??t.choices?.[0]??""):t.name==="temperature"?String(s.temperature??21):t.name==="volume_level"?String(Math.round((s.volume_level??.5)*100)):t.name==="value"?String(e.state??s.min??0):t.name==="option"?String(e.state??s.options?.[0]??""):t.name==="brightness_pct"?String(typeof s.brightness=="number"?Math.round(s.brightness/255*100):100):t.name==="percentage"?String(s.percentage??100):String(t.choices?.[0]??t.min??"")}argsFor(e,t){const s={};for(const i of t.argument_specs??[]){const a=this.actionArgs[`${t.id}:${i.name}`]??this.argDefault(e,i);if(i.type==="int"||i.type==="float"){const r=Number(a);if(!Number.isFinite(r))continue;s[i.name]=i.name==="volume_level"?Math.min(1,Math.max(0,r/100)):r}else s[i.name]=a}return s}argChoices(e,t){const s=e.attributes;return t.name==="hvac_mode"&&Array.isArray(s.hvac_modes)?s.hvac_modes.filter(i=>t.choices?.includes(i)):t.name==="option"&&Array.isArray(s.options)?s.options:t.choices??[]}renderArg(e,t,s){const i=`${t.id}:${s.name}`,a=this.actionArgs[i]??this.argDefault(e,s),r=p=>this.actionArgs={...this.actionArgs,[i]:p},o=e.attributes,l=this.argChoices(e,s);if(l.length)return n`<select class="arg" data-action-arg=${i} aria-label=${s.name} @change=${p=>r(p.target.value)}>${l.map(p=>n`<option value=${p} ?selected=${p===a}>${Ld[p]??p}</option>`)}</select>`;if(s.type==="int"||s.type==="float"){const p=s.name==="volume_level"?0:s.name==="value"?o.min??s.min:s.name==="temperature"?o.min_temp??s.min:s.min,h=s.name==="volume_level"?100:s.name==="value"?o.max??s.max:s.name==="temperature"?o.max_temp??s.max:s.max,u=s.name==="value"?o.step??1:s.name==="temperature"?.5:1,f=s.name==="volume_level"||s.name==="brightness_pct"||s.name==="percentage"?"%":s.name==="temperature"?"°":"";return n`<span class="argwrap"><input class="arg" type="number" data-action-arg=${i} aria-label=${s.name} .value=${a} min=${String(p??"")} max=${String(h??"")} step=${String(u)} data-ltr @change=${v=>r(v.target.value)} />${f?n`<span class="unit">${f}</span>`:d}</span>`}return n`<input class="arg" type="text" data-action-arg=${i} aria-label=${s.name} .value=${a} maxlength=${String(s.max_len??80)} @change=${p=>r(p.target.value)} />`}trigger(e,t){if(t.sensitive){this.confirmSpec={entityId:e,spec:t};return}this.send(e,t,!1)}async send(e,t,s){this.confirmSpec=null,this.action={entityId:e,spec:t,record:null,error:"",busy:!0};try{const i=this.bundle?.anchors.find(r=>r.resource_type==="ha_entity"&&r.resource_id===e)?.entity,a=await _d(e,t.id,i?this.argsFor(i,t):{},s);if(this.action={entityId:e,spec:t,record:a,error:"",busy:a.status==="pending"},a.status==="pending"){const r=this.action;await zd(a.id,o=>{(this.action===r||this.action?.record?.id===o.id)&&(this.action={entityId:e,spec:t,record:o,error:"",busy:o.status==="pending"})})}}catch(i){const a=i instanceof fe&&i.code==="bridge_not_paired"?"גשר SMPLWISE אינו מצומד ב־Home Assistant. התקנה וצימוד: הגדרות → גשר Home Assistant.":b(i);this.action={entityId:e,spec:t,record:null,error:a,busy:!1}}}apiEntityBody(e,t){const s=e.entity;if(!s)return n`<div class="note">ישות HA · <span class="ltr">${e.resource_id}</span> — לא נמצאה בקטלוג המסונכרן (ייתכן שהוסרה מ־Home Assistant).</div>`;const i=this.entityTone(s),a=this.action?.entityId===s.entity_id?this.action:null,r=s.fresh&&this.syncConnected,o=this.renaming?.id===e.id?this.renaming:null;return n`
+      <div class="ecard" data-entity-card>
+        <div class="estate ${i}"><sw-badge kind=${i} label=${zt(s)}></sw-badge><span class="esub">${Vs(s.domain)}${s.area_name?` · ${s.area_name}`:""} · ${t}</span></div>
+        ${e.label&&s.name&&e.label!==s.name?n`<div class="note">ב־Home Assistant: ${s.name}</div>`:d}
+        ${this.notice?n`<div class="note" data-notice>${this.notice}</div>`:d}
+        ${o?n`<div class="rename" data-rename-form><input .value=${o.value} placeholder=${s.name??e.resource_id} aria-label="שם במפה" @input=${l=>this.renaming={id:e.id,value:l.target.value}} @keydown=${l=>{l.key==="Enter"&&this.saveRename(e),l.key==="Escape"&&(this.renaming=null)}} />
+              <sw-button size="sm" variant="primary" icon="check" data-rename-save ?disabled=${o.busy} @click=${()=>this.saveRename(e)}>שמור</sw-button>
+              <sw-button size="sm" variant="ghost" @click=${()=>this.renaming=null}>ביטול</sw-button></div>`:d}
+        ${this.entityActions(e)}
+        <details class="more"><summary>פרטים</summary>
+          <dl class="meta">
+            <dt>${_("entity.lastChanged")}</dt><dd>${je(s.last_changed)}</dd>
+            <dt>נראה לאחרונה</dt><dd>${je(s.state_seen_at)}</dd>
+            <dt>ID</dt><dd><span class="ltr">${s.entity_id}</span></dd>
+          </dl>
+        </details>
+      </div>
+      ${r?d:n`<div class="warn">${s.state==="unavailable"?"Home Assistant מדווח שהישות אינה זמינה.":"הסנכרון מול Home Assistant מנותק — המצב עלול להיות מיושן."}</div>`}
+      ${s.actions===void 0?n`<div class="note">${_("entity.noControl")}</div>`:s.actions.length===0?n`<div class="note">קריאה בלבד — אין פעולות מותרות ל־${Vs(s.domain)}.</div>`:d}
+      ${s.actions?.some(l=>l.granted===!1)?n`<div class="note" data-grant-note>פעולה מעומעמת דורשת הרשאה נפרדת (למשל פתיחת דלת) שאינה חלק משליטה כללית בישויות.</div>`:d}
+      ${a?n`<div class=${a.error||a.record?.status==="failed"||a.record?.status==="denied"?"warn":"note"}>${a.spec.label}: ${a.error?a.error:a.record?`${Md[a.record.status]}${a.record.error?` — ${Sd[a.record.error]??a.record.error}`:""}`:"שולח…"}</div>`:d}
+    `}async saveRename(e){const t=this.renaming;if(!(!t||t.id!==e.id||t.busy)){this.renaming={...t,busy:!0};try{const s=await $r(e.id,{revision:e.revision,label:t.value.trim()||null});this.bundle&&(this.bundle={...this.bundle,anchors:this.bundle.anchors.map(i=>i.id===e.id?{...i,label:s.label,revision:s.revision}:i)}),this.renaming=null,this.notice=s.label?`השם „${s.label}“ נשמר`:"חזרה לשם מ־Home Assistant"}catch(s){this.notice=b(s),this.renaming={...t,busy:!1}}}}entityActions(e){return(e.entity?.actions??[]).length?n`<div class="eactions" data-entity-actions>${this.entityFooter(e)}</div>`:d}entityFooter(e){const t=e.entity,s=!!(this.action&&t&&this.action.entityId===t.entity_id&&this.action.busy),i=t?.actions??[];return n`${i.map(a=>n`<span class="actrow" data-action-row=${a.id}>${t&&a.argument_specs?.length?a.argument_specs.map(r=>this.renderArg(t,a,r)):d}<sw-button block variant=${a.risk==="sensitive"||a.sensitive?"danger":"primary"} ?disabled=${s||this.screenState==="stale"||t?.state==="unavailable"||a.granted===!1} title=${a.granted===!1?`נדרשת הרשאה נפרדת: ${a.grant??""}`:a.risk_label?`פעולה ${a.risk_label}`:""} data-action=${a.id} data-risk=${a.risk??(a.sensitive?"attention":"routine")} data-granted=${a.granted===!1?"no":"yes"} @click=${()=>t&&this.trigger(t.entity_id,a)}>${a.label}</sw-button></span>`)}`}renderConfirm(){const e=this.confirmSpec;if(!e)return d;const t=this.bundle?.anchors.find(s=>s.resource_type==="ha_entity"&&s.resource_id===e.entityId)?.entity;return n`<sw-dialog open heading=${_("entity.confirm")} subheading=${t?.name??e.entityId} @close=${()=>this.confirmSpec=null}>
+      <div style="font-size:var(--sw-fs-sm);line-height:1.5">הפעולה <strong>${e.spec.label}</strong> על <span class="ltr">${e.entityId}</span> היא פעולה ${e.spec.risk_label??"רגישה"}${e.spec.risk==="sensitive"?" (הרשאה נפרדת)":""}. היא תבוצע ב־Home Assistant בזהות שלך ותירשם באודיט.</div>
+      <div slot="footer"><sw-button variant="danger" @click=${()=>this.send(e.entityId,e.spec,!0)}>${e.spec.label}</sw-button><sw-button variant="ghost" @click=${()=>this.confirmSpec=null}>${_("actions.cancel")}</sw-button></div>
+    </sw-dialog>`}demoCameraBody(e,t){const s=e.state==="offline"?_("camera.offlineReason"):e.state==="forbidden"?_("camera.forbiddenReason"):e.state==="stale"?_("camera.staleReason"):"",i=e.state==="live"||e.state==="stale";return n`
+      ${i?n`<sw-camera-tile name="" state=${e.state} scene=${tt[e.id]??"lobby"} @click=${()=>x(`/live/cameras/${e.id}`)}></sw-camera-tile>`:n`<div class="off"><div><sw-icon name=${e.state==="forbidden"?"lock":"offline"} size=${22}></sw-icon><div>${s}</div></div></div>`}
+      <div class="statusrow"><sw-badge kind=${e.state}></sw-badge><span>${t} · ${e.source}</span></div>
+      ${s&&i?n`<div class="warn">${s}</div>`:d}
+    `}demoEntityBody(e){const t=this.screenState==="stale",s=t?"stale":e.state==="on"||e.state==="unlocked"?"live":"neutral";return n`
+      <dl class="meta">
+        <dt>${_("entity.state")}</dt><dd><sw-badge kind=${s} label=${_(e.stateLabelKey)}></sw-badge></dd>
+        <dt>${_("entity.lastChanged")}</dt><dd>${e.lastChanged}</dd>
+        <dt>ID</dt><dd><span class="ltr">${e.id}</span></dd>
+      </dl>
+      ${t?n`<div class="warn">${_("states.staleHint")}</div>`:d}
+      ${e.controllable?d:n`<div class="note">${_("entity.noControl")}</div>`}
+    `}apiCameraBody(e,t){const s=e.camera,i=ks(e),a=wn[((s?.channel??1)-1)%wn.length],r=i==="live"&&!!s&&s.can_view_live!==!1,o=this.zoneOf(e),l=o?`${t} / ${o}`:`${t} · ערוץ ${s?.channel??"?"}`;return n`
+      ${i==="offline"?n`<div class="off"><div><sw-icon name="offline" size=${22}></sw-icon><div>${_("camera.offlineReason")}</div></div></div>`:n`<sw-camera-tile name="" state=${i==="live"?"live":"unknown"} scene=${a} poster=${s?et(s.id,Date.now()):""} ?live=${r} .cameraId=${r?s.id:""} data-live=${r?"1":"0"} @click=${()=>s&&x(`/live/cameras/${s.id}`)}></sw-camera-tile>`}
+      <div class="statusrow"><sw-badge kind=${i}></sw-badge><span data-where>${l}</span></div>
+      <dl class="meta">
+        <dt>שם ב־NVR</dt><dd>${s?.name_source||"—"}${s?n` · <span class="ltr">ch ${s.channel}</span>`:d}</dd>
+        <dt>נראתה לאחרונה</dt><dd>${s?.last_seen_at?s.last_seen_at.replace("T"," ").replace("Z"," UTC"):"לא נבדק"}</dd>
+      </dl>
+      <div class="note">${r?'הזרם נפתח לכרטיס הזה בלבד ונסגר איתו; "צפייה מלאה" פותחת את המצלמה במסך מלא.':i==="offline"?"המצלמה מנותקת לפי ה־NVR.":"תמונה: צילום מה־NVR (מתרענן)."}</div>
+    `}renderCard(){const e=this.bundle;if(!this.selectedId||!e)return d;let t="",s="",i=d,a=d;if(e.source==="demo"){const l=xs.find(u=>u.id===this.selectedId),p=l?void 0:ri.find(u=>u.id===this.selectedId);if(!l&&!p)return d;t=l?l.name:p.name,s=l?`${e.floorName} · ${l.source}`:`${e.floorName} · ${_(p.domain==="lock"?"entity.door":p.domain==="light"?"entity.light":"entity.sensor")}`,i=l?this.demoCameraBody(l,e.floorName):this.demoEntityBody(p);const h=l?l.state==="live"||l.state==="stale":!1;a=l?n`<sw-button variant="primary" size="sm" icon="expand" ?disabled=${!h} @click=${()=>x(`/live/cameras/${l.id}`)}>צפייה חיה</sw-button>
+            <sw-button size="sm" icon="history" ?disabled=${l.state==="forbidden"} @click=${()=>x("/investigate/playback")}>${_("camera.recordings")}</sw-button>
+            <sw-button variant="ghost" size="sm" iconOnly icon="pin" label=${this.pinned?_("camera.unpin"):_("camera.pin")} @click=${()=>this.pinned=!this.pinned}></sw-button>`:n`<sw-button variant="primary" size="sm" ?disabled=${!p.controllable||this.screenState==="stale"}>${_("entity.control")}</sw-button><sw-button variant="ghost" size="sm">${_("entity.openInHa")}</sw-button>`}else{const l=e.anchors.find(p=>p.id===this.selectedId);if(!l)return d;t=_s(l),s=`${e.buildingName} · ${e.floorName}`,i=l.resource_type==="camera"?this.apiCameraBody(l,e.floorName):this.apiEntityBody(l,e.floorName),a=n`${l.resource_type==="camera"?n`<sw-button variant="primary" size="sm" icon="expand" ?disabled=${ks(l)==="offline"} @click=${()=>l.camera&&x(`/live/cameras/${l.camera.id}`)}>צפייה מלאה</sw-button>
+            <sw-button size="sm" icon="history" ?disabled=${!l.camera} @click=${()=>l.camera&&x("/investigate/playback",{camera:l.camera.id})}>${_("camera.recordings")}</sw-button>`:d}
+        ${l.resource_type==="ha_entity"&&e.permissions.edit&&l.entity?n`<sw-button variant="ghost" size="sm" icon="edit" data-rename @click=${()=>this.renaming={id:l.id,value:l.label??""}}>שנה שם</sw-button>`:d}
+        ${e.permissions.edit?n`<sw-button variant="ghost" size="sm" icon="edit" @click=${()=>x(`/explore/floors/${e.floorId}/edit`)}>עריכה</sw-button>`:d}`}if(this.narrow||!this.anchor)return n`<sw-drawer open heading=${t} subheading=${s} @close=${this.close}>${i}<div slot="footer">${a}</div></sw-drawer>`;const r=this.stage?.clientWidth??0,o=this.stage?.clientHeight??0;return n`<sw-popover heading=${t} .x=${this.anchor.x} .y=${this.anchor.y} .stageWidth=${r} .stageHeight=${o} @close=${this.close}>${i}<div slot="footer">${a}</div></sw-popover>`}renderPanel(){const e=this.layerCounts(),t=[{id:"cameras",label:_("floor.cameras"),count:`${e.cameras} ממוקמות`},{id:"doors",label:"דלתות ואינטרקום",count:`${e.doors} ישויות`},{id:"lights",label:_("floor.lights"),count:`${e.lights} ישויות`},{id:"sensors",label:"אבטחה וחיישנים",count:`${e.sensors} ישויות`},{id:"zones",label:"שמות חדרים",count:e.zones?`${e.zones} אזורים · תוויות לפי רמת זום`:"אין חדרים מוגדרים"},{id:"structure",label:"מבנה",count:this.geometry?`${this.geometry.walls.length} קירות · ${this.geometry.openings.length} פתחים`:"לא שורטט מבנה"}];return n`<div class="panel" role="group" aria-label="שכבות פעילות" data-layers-panel>
+      <h3>שכבות פעילות</h3>
+      <div class="sub">הצג רק מה שרלוונטי כרגע</div>
+      ${t.map(s=>n`<div class="prow"><span class="lbl">${s.label}<span class="cnt">${s.count}</span></span><sw-toggle ?checked=${this.layers.has(s.id)} label=${s.label} labelHidden data-layer=${s.id} @change=${i=>{const a=new Set(this.layers);i.detail.checked?a.add(s.id):a.delete(s.id),this.setLayers(a)}}></sw-toggle></div>`)}
+      <div class="pnote"><sw-icon name="shield" size=${14}></sw-icon><span>מתג משנה תצוגה בלבד; ייבוא ישות אינו מעניק הרשאת שליטה בה.</span></div>
+    </div>`}renderStage(){const e=this.bundle;if(this.loadError)return n`<div class="cover"><sw-state-panel state="error" hint=${this.loadError} actionLabel=${_("states.retry")} @action=${()=>this.load()}></sw-state-panel></div>`;if(this.noFloors)return n`<div class="cover"><sw-state-panel state="empty" heading="עדיין אין קומות" hint="צור אתר, מבנה וקומה ואז ייבא תוכנית קומה."><div style="margin-block-start:10px"><sw-button variant="primary" icon="building" @click=${()=>x("/explore/sites")}>לאתרים ומבנים</sw-button></div></sw-state-panel></div>`;if(!e)return n`<div class="cover"><sw-state-panel state="loading"></sw-state-panel></div>`;switch(this.screenState){case"loading":return n`<div class="cover"><sw-state-panel state="loading"></sw-state-panel></div>`;case"error":return n`<div class="cover"><sw-state-panel state="error" actionLabel=${_("states.retry")}></sw-state-panel></div>`;case"forbidden":return n`<div class="cover"><sw-state-panel state="forbidden"></sw-state-panel></div>`}return this.screenState==="empty"||e.planStatus==="none"?n`<div class="cover">
+        <sw-state-panel state="empty" heading=${_("floor.noPlan")} hint=${e.permissions.import?_("floor.noPlanHint"):"עורך המפות של הקומה יכול להעלות תוכנית."}>
+          <div style="display:flex;gap:8px;margin-block-start:10px;justify-content:center;flex-wrap:wrap">
+            ${e.permissions.import?n`<sw-button variant="primary" icon="upload" @click=${()=>x(`/explore/floors/${e.floorId}/import`)}>${_("floor.uploadPlan")}</sw-button>`:d}
+            <sw-button icon="list" @click=${()=>x("/live/wall")}>${_("floor.listView")}</sw-button>
+          </div>
+        </sw-state-panel>
+      </div>`:n`
+      ${this.screenState==="stale"||this.screenState==="partial"?n`<div class="banner"><sw-state-panel compact state=${this.screenState}></sw-state-panel></div>`:e.needsAlignment?n`<div class="banner"><sw-state-panel compact state="partial" heading="פריטים הוצבו על גרסת תוכנית קודמת" hint="בדוק שהמיקומים עדיין נכונים על הרקע החדש (עורך התוכנית)."></sw-state-panel></div>`:d}
+      <sw-plan-canvas
+        .planWidth=${e.width}
+        .planHeight=${e.height}
+        .plan=${e.planSvg}
+        .imageUrl=${e.imageUrl}
+        .geometry=${this.layers.has("structure")?this.geometry:null}
+        .markers=${this.markers}
+        .selectedId=${this.selectedId}
+        .selectedIds=${this.multi?this.picked:[]}
+        .boxSelect=${this.multi}
+        @box-select=${t=>this.addPicks(t.detail.ids)}
+        .zones=${this.layers.has("zones")?e.zones.map(t=>({...t,labelPos:t.label_pos})):[]}
+        .selectedZoneId=${this.selectedZoneId}
+        .dimEntities=${this.screenState==="stale"}
+        @zone-select=${t=>{if(this.multi){this.pickZone(t.detail.id);return}this.selectedZoneId=this.selectedZoneId===t.detail.id?null:t.detail.id,this.close()}}
+        @marker-select=${this.onSelect}
+        @view-change=${this.onViewChange}></sw-plan-canvas>
+      <div class="floorchip" data-floorchip><sw-icon name="building" size=${14}></sw-icon>${e.floorName}</div>
+      ${e.source==="api"&&this.buildingFloors.length>1?n`<div class="floorbtns" role="group" aria-label="מעבר מהיר בין קומות" data-floor-buttons>
+            ${this.buildingFloors.map(t=>n`<button class=${t.id===this.floorId?"on":""} data-floor-button=${t.id} title=${`${t.name}${t.hasPlan?"":" · אין תוכנית"}`} aria-pressed=${t.id===this.floorId} @click=${()=>{t.id!==this.floorId&&x(`/explore/floors/${t.id}`)}}>${t.short}</button>`)}
+          </div>`:d}
+      ${this.panel?this.renderPanel():d}
+      ${this.multi?this.renderPickbar():d}
+      ${this.renderSideList()}
+      ${this.renderSaveDialog()}
+      <div class="legend" aria-label="מקרא">
+        ${e.zones.length&&this.layers.has("zones")?n`<span><i style="--lg: var(--sw-accent); border-radius: 2px; opacity: 0.5"></i>${e.zones.length} אזורים</span>`:d}
+        <span><i style="--lg: var(--sw-accent)"></i>חי</span>
+        <span><i style="--lg: var(--sw-stale)"></i>לא מעודכן</span>
+        <span><i style="--lg: var(--sw-offline)"></i>מנותק</span>
+        <span><i style="--lg: var(--sw-forbidden)"></i>ללא הרשאה</span>
+        <span><i style="--lg: #fff; box-shadow: 0 0 0 1px var(--sw-border-strong)"></i>ישות HA</span>
+      </div>
+      ${this.renderCard()}
+      ${this.renderConfirm()}
+    `}render(){const e=this.bundle,t=this.floors,s=t.find(r=>r.id===this.floorId),i=e?e.source==="demo"?s?.cameraCount??0:e.anchors.filter(r=>r.resource_type==="camera").length:0,a=this.tree?.source==="api"?this.tree.sites.flatMap(r=>(r.buildings??[]).flatMap(o=>o.floors??[])).find(r=>r.id===this.floorId):null;return n`
+      <div class="head">
+        <div>
+          <div class="crumbs">
+            <a href="#/explore/sites">${e?.siteName??"אתרים"}</a><sw-icon name="chevron" size=${11}></sw-icon>
+            <a href="#/explore/buildings/${e?.source==="api"?a?.building_id??"bld-a":"bld-a"}/floors">${e?.buildingName??""}</a><sw-icon name="chevron" size=${11}></sw-icon>
+            <span>${e?.floorName??""}</span>
+          </div>
+          <h1>${e?`${e.buildingName} – ${e.floorName}`:"מפת קומה"}</h1>
+          <div class="sub">
+            <span>${i} מצלמות${e&&e.source==="api"?` · ${e.anchors.length-i} ישויות HA${e.zones.length?` · ${e.zones.length} אזורים`:""}`:""}${e?.source==="demo"?" · נתוני הדגמה":e?.planStatus==="published"?" · תוכנית מפורסמת":""}</span>
+            ${a?.draft_version_id?n`<sw-badge kind="stale" label="טיוטת תוכנית ממתינה לפרסום"></sw-badge>`:d}
+          </div>
+        </div>
+        <div class="spacer"></div>
+        <div class="tools">
+          <div class="layers" role="group" aria-label=${_("floor.layers")}>
+            ${gn.map(r=>n`<button class=${this.layers.has(r.id)?"on":""} title=${r.label()} aria-label=${r.label()} aria-pressed=${this.layers.has(r.id)} @click=${()=>this.toggleLayer(r.id)}><sw-icon name=${r.icon} size=${14}></sw-icon></button>`)}
+          </div>
+          <sw-button icon="layers" aria-pressed=${this.panel} @click=${()=>this.panel=!this.panel}>${_("floor.layers")}</sw-button>
+          ${e&&e.source==="api"?n`<sw-button icon="list" aria-pressed=${this.sideList} data-sidelist-toggle @click=${()=>this.toggleSideList()}>רשימה</sw-button><sw-button icon="grid" aria-pressed=${this.multi} data-multi-toggle @click=${()=>this.setMulti(!this.multi)}>בחירת מצלמות</sw-button>`:d}
+          <sw-field style="min-inline-size:280px"><select aria-label=${_("floor.switcher")} @change=${r=>x(`/explore/floors/${r.target.value}`)}>${t.map(r=>n`<option value=${r.id} ?selected=${r.id===this.floorId}>${Ht(r.name)} · ${r.cameraCount} מצלמות${r.hasPlan?"":" · אין תוכנית"}</option>`)}</select></sw-field>
+          ${!e||e.permissions.edit?n`<sw-button icon="edit" @click=${()=>x(`/explore/floors/${this.floorId}/edit`)}>עריכת תוכנית</sw-button>`:d}
+        </div>
+      </div>
+      <div class="stage">${this.renderStage()}</div>
+    `}};H.styles=A`
+    :host {
+      display: flex;
+      flex-direction: column;
+      block-size: 100%;
+      min-block-size: 0;
+    }
+    .head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: 10px 12px;
+      padding: 14px 24px 12px;
+    }
+    .crumbs {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+      margin-block-end: 4px;
+    }
+    .crumbs a {
+      color: inherit;
+      text-decoration: none;
+    }
+    .crumbs a:hover {
+      color: var(--sw-accent-text);
+    }
+    .crumbs sw-icon {
+      color: var(--sw-border-strong);
+    }
+    h1 {
+      margin: 0;
+      font-size: var(--sw-fs-2xl);
+      font-weight: var(--sw-fw-semibold);
+      line-height: 1.2;
+      letter-spacing: -0.01em;
+    }
+    .sub {
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-sm);
+      margin-block-start: 2px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .spacer {
+      flex: 1;
+    }
+    .tools {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .tools sw-field {
+      inline-size: 170px;
+    }
+    .layers {
+      display: inline-flex;
+      gap: 2px;
+      background: var(--sw-surface-3);
+      border-radius: 8px;
+      padding: 2px;
+    }
+    .layers button {
+      border: 0;
+      background: transparent;
+      inline-size: 28px;
+      block-size: 26px;
+      border-radius: 6px;
+      display: grid;
+      place-items: center;
+      color: var(--sw-text-3);
+      cursor: pointer;
+    }
+    .layers button.on {
+      background: var(--sw-surface);
+      color: var(--sw-accent-text);
+      box-shadow: var(--sw-shadow-1);
+    }
+    .stage {
+      position: relative;
+      flex: 1;
+      min-block-size: 360px;
+      margin: 0 24px 24px;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-lg);
+      background: var(--sw-surface);
+      box-shadow: var(--sw-shadow-1);
+      overflow: hidden;
+    }
+    .floorbtns {
+      position: absolute;
+      inset-inline-start: 12px;
+      inset-block-start: 56px;
+      z-index: var(--sw-z-map-ui);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-block-size: 60%;
+      overflow: auto;
+    }
+    .floorbtns button {
+      font: inherit;
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-semibold);
+      min-inline-size: 38px;
+      padding: 6px 8px;
+      border-radius: 9px;
+      border: 1px solid var(--sw-border);
+      background: var(--sw-surface);
+      color: var(--sw-text-2);
+      cursor: pointer;
+      box-shadow: var(--sw-shadow-1);
+      direction: ltr;
+    }
+    .floorbtns button.on {
+      background: var(--sw-accent);
+      border-color: var(--sw-accent);
+      color: #fff;
+    }
+    .jz {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      padding: 6px 12px;
+      border-block-end: 1px solid var(--sw-border);
+    }
+    /* entity card on phones (owner round 3, 3.6): full-width actions, stacked state row */
+    @media (max-width: 640px) {
+      .estate {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+      }
+      .eactions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .eactions .actrow {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .eactions .actrow sw-button {
+        min-inline-size: 0;
+      }
+      /* the map keeps the screen: one scrolling row of tools, floor buttons replace the floor select, no editor entry */
+      .tools {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        max-inline-size: 100%;
+        padding-block-end: 2px;
+      }
+      .tools .layers,
+      .tools sw-field,
+      .tools sw-button[icon='edit'] {
+        display: none;
+      }
+      .rename {
+        flex-wrap: wrap;
+      }
+    }
+    .floorchip {
+      position: absolute;
+      inset-inline-start: 12px;
+      inset-block-start: 12px;
+      z-index: var(--sw-z-map-ui);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: 10px;
+      padding: 6px 10px;
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+      box-shadow: var(--sw-shadow-1);
+    }
+    .floorchip sw-icon {
+      color: var(--sw-text-3);
+    }
+    .panel {
+      position: absolute;
+      inset-inline-end: 12px;
+      inset-block-start: 12px;
+      z-index: var(--sw-z-map-ui);
+      inline-size: 272px;
+      max-inline-size: calc(100% - 24px);
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      box-shadow: var(--sw-shadow-3);
+      padding: 12px 14px;
+    }
+    .panel h3 {
+      margin: 0;
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .panel .sub {
+      margin-block-end: 6px;
+    }
+    .panel .prow {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 0;
+      border-block-end: 1px solid var(--sw-border);
+    }
+    .panel .prow:last-of-type {
+      border-block-end: 0;
+    }
+    .panel .prow .lbl {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-medium);
+    }
+    .panel .prow .cnt {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      font-weight: var(--sw-fw-regular);
+    }
+    .panel .pnote {
+      margin-block-start: 8px;
+      padding: 8px 10px;
+      border-radius: var(--sw-r-sm);
+      background: var(--sw-surface-3);
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .pickbar {
+      position: absolute;
+      inset-inline: 12px;
+      inset-block-start: 56px;
+      z-index: var(--sw-z-map-ui);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-accent);
+      border-radius: var(--sw-r-md);
+      padding: 8px 10px;
+      box-shadow: var(--sw-shadow-2);
+      font-size: var(--sw-fs-sm);
+    }
+    .pickbar .hint {
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+    }
+    .pickbar .grow {
+      flex: 1;
+    }
+    .pickbar .roomchips {
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+    .sidelist {
+      position: absolute;
+      inset-inline-end: 12px;
+      inset-block: 12px 56px;
+      inline-size: 236px;
+      z-index: var(--sw-z-map-ui);
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      box-shadow: var(--sw-shadow-2);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      font-size: var(--sw-fs-sm);
+    }
+    .sidelist .sh {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 10px;
+      border-block-end: 1px solid var(--sw-border);
+      font-weight: 600;
+    }
+    .sidelist .sh .grow {
+      flex: 1;
+    }
+    .sidelist .body {
+      overflow: auto;
+      padding: 4px 0 8px;
+    }
+    .sidelist .grp {
+      padding: 8px 10px 2px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      text-transform: none;
+    }
+    .sidelist button.it {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      inline-size: 100%;
+      padding: 6px 10px;
+      border: 0;
+      background: none;
+      color: var(--sw-text);
+      font: inherit;
+      text-align: start;
+      cursor: pointer;
+    }
+    .sidelist button.it:hover,
+    .sidelist button.it.on {
+      background: var(--sw-surface-3);
+    }
+    .sidelist button.it:focus-visible {
+      outline: 2px solid var(--sw-accent);
+      outline-offset: -2px;
+    }
+    .sidelist .dot {
+      inline-size: 8px;
+      block-size: 8px;
+      border-radius: 50%;
+      background: var(--dot, var(--sw-text-3));
+      flex: none;
+    }
+    .sidelist .nm {
+      flex: 1;
+      min-inline-size: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .sidelist .st {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    @media (max-width: 720px) {
+      .sidelist {
+        inline-size: min(236px, 70vw);
+      }
+    }
+    .pickbar .saved {
+      flex-basis: 100%;
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-xs);
+    }
+    .pickbar .saved a {
+      color: var(--sw-accent);
+    }
+    .saveform {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-inline-size: min(480px, 80vw);
+      font-size: var(--sw-fs-sm);
+    }
+    .saveform .row {
+      display: flex;
+      gap: 12px;
+    }
+    .saveform .note {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .saveform .err {
+      color: var(--sw-danger);
+    }
+    .banner {
+      position: absolute;
+      inset-inline: 12px;
+      inset-block-start: 12px;
+      z-index: var(--sw-z-map-ui);
+      background: var(--sw-stale-soft);
+      border: 1px dashed var(--sw-stale);
+      border-radius: var(--sw-r-md);
+      color: var(--sw-text);
+    }
+    .banner sw-state-panel {
+      --sw-accent-soft: transparent;
+    }
+    .cover {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: var(--sw-surface);
+      z-index: var(--sw-z-map-ui);
+    }
+    .legend {
+      position: absolute;
+      inset-inline-start: 12px;
+      inset-block-end: 12px;
+      z-index: var(--sw-z-map-ui);
+      display: flex;
+      gap: 10px;
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-pill);
+      padding: 3px 10px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      backdrop-filter: blur(6px);
+    }
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .legend i {
+      inline-size: 9px;
+      block-size: 9px;
+      border-radius: 50%;
+      background: var(--lg);
+      box-shadow: 0 0 0 1px #fff;
+    }
+    .meta {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 4px 10px;
+      font-size: var(--sw-fs-xs);
+      margin: 0;
+    }
+    .meta dt {
+      color: var(--sw-text-3);
+      margin: 0;
+    }
+    .meta dd {
+      margin: 0;
+      font-weight: var(--sw-fw-medium);
+    }
+    .note {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .warn {
+      color: var(--sw-danger);
+      font-size: var(--sw-fs-xs);
+    }
+    .actrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+    .actrow .arg {
+      font: inherit;
+      font-size: var(--sw-fs-xs);
+      border: 1px solid var(--sw-border-strong);
+      border-radius: 6px;
+      padding: 3px 6px;
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      max-inline-size: 110px;
+    }
+    .actrow input.arg[type='number'] {
+      inline-size: 72px;
+    }
+    .actrow .argwrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+    }
+    .actrow .unit {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .statusrow {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    /* HA entity card (R3): state first, actions as big buttons, details folded */
+    .ecard {
+      display: grid;
+      gap: 10px;
+    }
+    .estate {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: var(--sw-r-sm);
+      background: var(--sw-surface-2);
+      border: 1px solid var(--sw-border);
+    }
+    .estate.live {
+      background: color-mix(in srgb, var(--sw-accent) 10%, var(--sw-surface));
+      border-color: color-mix(in srgb, var(--sw-accent) 35%, var(--sw-border));
+    }
+    .estate .esub {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .eactions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .eactions .actrow sw-button {
+      min-inline-size: 110px;
+    }
+    .rename {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .rename input {
+      flex: 1;
+      font: inherit;
+      padding: 6px 8px;
+      border: 1px solid var(--sw-border-strong);
+      border-radius: 6px;
+      background: var(--sw-surface);
+      color: inherit;
+    }
+    details.more summary {
+      cursor: pointer;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    details.more .meta {
+      margin-block-start: 6px;
+    }
+    .off {
+      aspect-ratio: 16 / 9;
+      background: var(--sw-surface-3);
+      border-radius: var(--sw-r-sm);
+      display: grid;
+      place-items: center;
+      color: var(--sw-text-2);
+      text-align: center;
+      padding: 10px;
+      font-size: var(--sw-fs-xs);
+    }
+    .off sw-icon {
+      margin-block-end: 4px;
+      color: var(--sw-text-3);
+    }
+    @media (max-width: 767px) {
+      .head {
+        padding: 12px 12px 8px;
+      }
+      .stage {
+        margin: 0;
+        border-radius: 0;
+        border-inline: 0;
+        box-shadow: none;
+      }
+      h1 {
+        font-size: var(--sw-fs-xl);
+      }
+      .legend {
+        display: none;
+      }
+    }
+  `;W([g()],H.prototype,"floorId",2);W([g()],H.prototype,"screenState",2);W([g()],H.prototype,"focusZone",2);W([g()],H.prototype,"focusCamera",2);W([g()],H.prototype,"focusEntity",2);W([c()],H.prototype,"selectedZoneId",2);W([c()],H.prototype,"bundle",2);W([c()],H.prototype,"tree",2);W([c()],H.prototype,"loadError",2);W([c()],H.prototype,"noFloors",2);W([c()],H.prototype,"selectedId",2);W([c()],H.prototype,"anchor",2);W([c()],H.prototype,"layers",2);W([c()],H.prototype,"geometry",2);W([c()],H.prototype,"pinned",2);W([c()],H.prototype,"panel",2);W([c()],H.prototype,"multi",2);W([c()],H.prototype,"sideList",2);W([c()],H.prototype,"jumpZoom",2);W([c()],H.prototype,"saveView",2);W([c()],H.prototype,"savedView",2);W([c()],H.prototype,"picked",2);W([c()],H.prototype,"narrow",2);W([c()],H.prototype,"syncConnected",2);W([c()],H.prototype,"action",2);W([c()],H.prototype,"confirmSpec",2);W([cs("sw-plan-canvas")],H.prototype,"canvas",2);W([cs(".stage")],H.prototype,"stage",2);W([c()],H.prototype,"actionArgs",2);W([c()],H.prototype,"renaming",2);W([c()],H.prototype,"notice",2);H=W([P("explore-floor-map")],H);var Vd=Object.defineProperty,Hd=Object.getOwnPropertyDescriptor,Zt=(e,t,s,i)=>{for(var a=i>1?void 0:i?Hd(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Vd(t,s,a),a};let dt=class extends M{constructor(){super(...arguments),this.heading="",this.subheading="",this.crumbs="",this.backHref="",this.wide=!1,this.flush=!1}render(){const e=this.crumbs?this.crumbs.split("|").map(t=>t.trim()):[];return n`
+      <header>
+        <div>
+          ${e.length?n`<div class="crumbs">${e.map((t,s)=>n`${s?n`<sw-icon name="chevron" size=${11}></sw-icon>`:""}<span>${t}</span>`)}</div>`:""}
+          <div class="titlebar">
+            ${this.backHref?n`<sw-button class="back" data-page-back variant="ghost" size="sm" iconOnly icon="chevronBack" label=${_("actions.back")} @click=${()=>x(this.backHref)}></sw-button>`:""}
+            <h1>${this.heading}</h1>
+          </div>
+          ${this.subheading?n`<div class="sub">${this.subheading}</div>`:""}
+        </div>
+        <div class="actions"><slot name="actions"></slot></div>
+      </header>
+      <div class="body"><slot></slot></div>
+    `}};dt.styles=A`
+    :host {
+      display: flex;
+      flex-direction: column;
+      min-block-size: 100%;
+      padding: 14px var(--sw-page-pad, 24px) 24px;
+      max-inline-size: var(--sw-content-max);
+      inline-size: 100%;
+      box-sizing: border-box;
+      gap: 14px;
+    }
+    :host([wide]) {
+      max-inline-size: none;
+    }
+    :host([flush]) {
+      padding: 0;
+      gap: 0;
+    }
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 10px 12px;
+    }
+    :host([flush]) header {
+      padding: 12px 16px 0;
+    }
+    .titlebar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .back {
+      flex: none;
+      margin-inline-start: -6px;
+    }
+    .crumbs {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      margin-block-end: 4px;
+    }
+    .crumbs sw-icon {
+      color: var(--sw-border-strong);
+    }
+    h1 {
+      margin: 0;
+      font-size: var(--sw-h1, var(--sw-fs-2xl));
+      font-weight: var(--sw-h1-weight, var(--sw-fw-semibold));
+      line-height: 1.2;
+      letter-spacing: var(--sw-h1-tracking, -0.01em);
+      color: var(--sw-heading, var(--sw-text));
+    }
+    .sub {
+      margin-block-start: 2px;
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-sm);
+    }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    .body {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      min-block-size: 0;
+      flex: 1;
+    }
+    @media (max-width: 767px) {
+      :host {
+        padding: 12px 12px 16px;
+      }
+      h1 {
+        font-size: var(--sw-fs-xl);
+      }
+    }
+  `;Zt([g()],dt.prototype,"heading",2);Zt([g()],dt.prototype,"subheading",2);Zt([g()],dt.prototype,"crumbs",2);Zt([g()],dt.prototype,"backHref",2);Zt([g({type:Boolean,reflect:!0})],dt.prototype,"wide",2);Zt([g({type:Boolean,reflect:!0})],dt.prototype,"flush",2);dt=Zt([P("sw-page")],dt);var Fd=Object.defineProperty,jd=Object.getOwnPropertyDescriptor,qs=(e,t,s,i)=>{for(var a=i>1?void 0:i?jd(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Fd(t,s,a),a};let jt=class extends M{constructor(){super(...arguments),this.heading="",this.subheading="",this.flush=!1,this.interactive=!1}render(){return n`
+      ${this.heading||this.querySelector('[slot="actions"]')?n`<header><div><h3>${this.heading}</h3>${this.subheading?n`<div class="sub">${this.subheading}</div>`:""}</div><slot name="actions"></slot></header>`:""}
+      <slot></slot>
+    `}};jt.styles=A`
+    :host {
+      display: block;
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      box-shadow: var(--sw-shadow-1);
+      padding: 14px;
+      min-inline-size: 0;
+    }
+    :host([flush]) {
+      padding: 0;
+      overflow: hidden;
+    }
+    :host([interactive]) {
+      cursor: pointer;
+      transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease);
+    }
+    :host([interactive]:hover) {
+      border-color: var(--sw-border-strong);
+      box-shadow: var(--sw-shadow-2);
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-block-end: 10px;
+    }
+    h3 {
+      margin: 0;
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .sub {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      font-weight: var(--sw-fw-regular);
+      margin-block-start: 1px;
+    }
+  `;qs([g()],jt.prototype,"heading",2);qs([g()],jt.prototype,"subheading",2);qs([g({type:Boolean,reflect:!0})],jt.prototype,"flush",2);qs([g({type:Boolean,reflect:!0})],jt.prototype,"interactive",2);jt=qs([P("sw-card")],jt);var Wd=Object.defineProperty,Ud=Object.getOwnPropertyDescriptor,mt=(e,t,s,i)=>{for(var a=i>1?void 0:i?Ud(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Wd(t,s,a),a};const Zd=["house","building","warehouse"];let Ze=class extends M{constructor(){super(...arguments),this.tab="all",this.tree=null,this.dialog=null,this.notice="",this.formName="",this.formAddress="",this.busy=!1,this.error=""}connectedCallback(){super.connectedCallback(),this.reload()}async reload(){try{this.tree=await At()}catch(e){this.error=b(e)}}open(e){this.formName=e&&e.kind==="edit-site"?e.site.name:e&&e.kind==="edit-building"?e.building.name:"",this.formAddress=e&&e.kind==="edit-site"?e.site.address:"",this.error="",this.dialog=e}pickImage(e,t){const s=document.createElement("input");s.type="file",s.accept="image/png,image/jpeg",s.addEventListener("change",async()=>{const i=s.files?.[0];if(i){this.busy=!0;try{await rd(e,t,i),this.notice="התמונה נשמרה.",await this.reload()}catch(a){this.notice=b(a)}finally{this.busy=!1}}}),s.click()}async removeImage(e,t){this.busy=!0;try{await od(e,t),await this.reload()}catch(s){this.notice=b(s)}finally{this.busy=!1}}renderMenu(e,t,s){const i=s?!!s.image_url:!!t.image_url,a=s?s.id:t.id;return n`<span class="menu" @click=${o=>o.stopPropagation()}>
+      ${s?d:n`<sw-button variant="ghost" size="sm" icon="plus" data-add-building=${t.id} @click=${()=>this.open({kind:"building",site:t})}>מבנה</sw-button>`}
+      <sw-button variant="ghost" size="sm" iconOnly icon="edit" label="עריכה" data-edit=${a} @click=${()=>this.open(s?{kind:"edit-building",building:s,site:t}:{kind:"edit-site",site:t})}></sw-button>
+      <sw-button variant="ghost" size="sm" iconOnly icon="camera" label=${i?"החלף תמונה":"תמונה"} ?disabled=${this.busy} data-image=${a} @click=${()=>this.pickImage(e,a)}></sw-button>
+      ${i?n`<sw-button variant="ghost" size="sm" iconOnly icon="close" label="הסר תמונה" ?disabled=${this.busy} @click=${()=>this.removeImage(e,a)}></sw-button>`:d}
+      <sw-button variant="ghost" size="sm" iconOnly icon="trash" label="מחיקה" data-delete=${a} @click=${()=>this.open(s?{kind:"delete-building",building:s,site:t}:{kind:"delete-site",site:t})}></sw-button>
+    </span>`}async submit(){const e=this.dialog;if(e){this.busy=!0,this.error="";try{if(e.kind==="site"){const t=await Xl({name:this.formName.trim(),address:this.formAddress.trim()});this.dialog=null,await this.reload(),this.open({kind:"building",site:t})}else if(e.kind==="building"){const t=await kr(e.site.id,{name:this.formName.trim()});this.dialog=null,x(`/explore/buildings/${t.id}/floors`)}else e.kind==="edit-site"?(await Ql(e.site.id,{name:this.formName.trim(),address:this.formAddress.trim()}),this.dialog=null,await this.reload()):e.kind==="edit-building"?(await td(e.building.id,{name:this.formName.trim()}),this.dialog=null,await this.reload()):e.kind==="delete-site"?(await ed(e.site.id),this.dialog=null,await this.reload()):e.kind==="delete-building"&&(await sd(e.building.id),this.dialog=null,await this.reload())}catch(t){this.error=b(t)}finally{this.busy=!1}}}openSite(e){const t=e.buildings?.[0];t?x(`/explore/buildings/${t.id}/floors`):this.open({kind:"building",site:e})}renderSites(e){return n`<div class="grid">
+      ${e.sites.map((t,s)=>{const i=t.buildings??[],a=i.reduce((r,o)=>r+(o.floors??[]).reduce((l,p)=>l+p.camera_count,0),0);return n`<sw-card flush interactive data-site-card=${t.id} @click=${()=>this.openSite(t)}>
+          <div class="pic">${t.image_url?n`<img class="photo" src=${un(t.image_url)} alt="" />`:n`<sw-scene kind=${Zd[s%3]}></sw-scene>${e.source==="demo"?n`<span class="demo">דמו</span>`:n`<span class="demo">איור</span>`}`}</div>
+          <div class="info">
+            <div><b>${t.name}</b><small>${i.length} ${i.length===1?"מבנה":"מבנים"} · ${a} מצלמות${t.address?` · ${t.address}`:""}</small></div>
+            ${e.source==="api"?this.renderMenu("site",t):d}
+            <sw-button variant="ghost" size="sm" iconOnly icon="plus" label="מבנה חדש" @click=${r=>{r.stopPropagation(),this.open({kind:"building",site:t})}}></sw-button>
+          </div>
+        </sw-card>`})}
+      ${e.canCreateSite?n`<button class="add" @click=${()=>this.open({kind:"site"})}><div><div class="ic"><sw-icon name="plus" size=${18}></sw-icon></div><strong>הוספת אתר חדש</strong><small>יצירת מיקום חדש כדי להתחיל</small></div></button>`:d}
+    </div>`}renderBuildings(e){const t=e.sites.flatMap(s=>(s.buildings??[]).map(i=>({s,b:i})));return n`<div class="blist">
+      ${t.map(({s,b:i},a)=>n`<sw-card class="brow" data-building-card=${i.id} @click=${()=>x(`/explore/buildings/${i.id}/floors`)}>
+          ${i.image_url?n`<img class="photo small" src=${un(i.image_url)} alt="" />`:n`<sw-scene kind=${a%2?"house":"building"}></sw-scene>`}
+          <div><b>${i.name}</b><small>${s.name} · ${(i.floors??[]).length} קומות · ${(i.floors??[]).reduce((r,o)=>r+o.camera_count,0)} מצלמות</small></div>
+          ${e.source==="api"?this.renderMenu("building",s,i):d}
+          <sw-icon name="chevron" size=${14}></sw-icon>
+        </sw-card>`)}
+      ${t.length?d:n`<div class="map" style="min-block-size:120px">אין מבנים עדיין.</div>`}
+    </div>`}render(){const e=this.tree;if(!e)return n`<sw-page heading="אתרים ומבנים"><sw-state-panel state=${this.error?"error":"loading"} hint=${this.error}></sw-state-panel></sw-page>`;const t=this.dialog;return n`
+      <sw-page heading="אתרים ומבנים" subheading=${`ניהול המיקומים והמבנים שלך${e.source==="demo"?" · נתוני הדגמה":""}`}>
+        ${e.canCreateSite?n`<sw-button slot="actions" variant="primary" icon="plus" @click=${()=>this.open({kind:"site"})}>אתר חדש</sw-button>`:d}
+        <sw-tabs .items=${[{id:"all",label:"כל האתרים",count:e.sites.length},{id:"buildings",label:"מבנים",count:e.sites.reduce((s,i)=>s+(i.buildings?.length??0),0)},{id:"map",label:"מפה"}]} .active=${this.tab} @change=${s=>this.tab=s.detail.id}></sw-tabs>
+        ${e.sites.length===0&&this.tab==="all"?n`<sw-state-panel state="empty" heading="עוד אין אתרים" hint="התחל ביצירת האתר הראשון; אחר כך מבנה, קומות ותוכניות.">${e.canCreateSite?n`<div style="margin-block-start:10px"><sw-button variant="primary" icon="plus" @click=${()=>this.open({kind:"site"})}>אתר חדש</sw-button></div>`:d}</sw-state-panel>`:this.tab==="all"?this.renderSites(e):this.tab==="buildings"?this.renderBuildings(e):n`<div class="map">מפת אתרים (לוח 3 · מסך 17) תצטרף עם שכבת מיקום גאוגרפי · Beta</div>`}
+        ${this.notice?n`<div class="err" data-sites-notice style="margin-block:8px">${this.notice}</div>`:d}
+        ${t&&(t.kind==="delete-site"||t.kind==="delete-building")?(()=>{const s=t.kind==="delete-site"?(t.site.buildings??[]).length:(t.building.floors??[]).length,i=t.kind==="delete-site"?t.site.name:t.building.name;return n`<sw-dialog open heading=${t.kind==="delete-site"?"מחיקת אתר":"מחיקת מבנה"} subheading=${i} data-delete-dialog @close=${()=>this.dialog=null}>
+                ${s?n`<div class="err">${t.kind==="delete-site"?`לאתר יש ${s} מבנים`:`למבנה יש ${s} קומות`}. מחק אותם קודם; מחיקה לא מוחקת מצלמות, רק את המיקום בקטלוג.</div>`:n`<div>המיקום יוסר מהקטלוג (מחיקה רכה, נרשמת באודיט). מצלמות והקלטות אינן מושפעות.</div>`}
+                ${this.error?n`<div class="err">${this.error}</div>`:d}
+                <sw-button slot="footer" variant="ghost" @click=${()=>this.dialog=null}>ביטול</sw-button>
+                <sw-button slot="footer" variant="danger" ?disabled=${!!s||this.busy} data-delete-confirm @click=${()=>this.submit()}>מחק</sw-button>
+              </sw-dialog>`})():t?n`<sw-dialog open heading=${t.kind==="site"?"אתר חדש":t.kind==="building"?"מבנה חדש":t.kind==="edit-site"?"עריכת אתר":"עריכת מבנה"} subheading=${t.kind==="building"?t.site.name:t.kind==="site"?"שם, כתובת ואזור זמן ברירת מחדל Asia/Jerusalem":t.kind==="edit-building"?t.site.name:t.site.address||""} data-edit-dialog @close=${()=>this.dialog=null}>
+                <sw-field label="שם"><input data-form-name .value=${this.formName} @input=${s=>this.formName=s.target.value} placeholder=${t.kind==="site"||t.kind==="edit-site"?"למשל: משרדי החברה":"למשל: מבנה ראשי"} /></sw-field>
+                ${t.kind==="site"||t.kind==="edit-site"?n`<sw-field label="כתובת (אופציונלי)"><input data-form-address .value=${this.formAddress} @input=${s=>this.formAddress=s.target.value} /></sw-field>`:d}
+                ${this.error?n`<div class="err">${this.error}</div>`:d}
+                ${e.source==="demo"?n`<div class="err">נתוני הדגמה: אין שרת מחובר, השינוי לא יישמר.</div>`:d}
+                <sw-button slot="footer" variant="ghost" @click=${()=>this.dialog=null}>ביטול</sw-button>
+                <sw-button slot="footer" variant="primary" ?disabled=${!this.formName.trim()||this.busy||e.source==="demo"} data-form-submit @click=${()=>this.submit()}>${t.kind==="site"?"צור אתר":t.kind==="building"?"צור מבנה":"שמור"}</sw-button>
+              </sw-dialog>`:d}
+      </sw-page>
+    `}};Ze.styles=A`
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+      gap: 14px;
+    }
+    .pic {
+      position: relative;
+      aspect-ratio: 16 / 10;
+      overflow: hidden;
+    }
+    .pic sw-scene {
+      position: absolute;
+      inset: 0;
+    }
+    .pic .demo {
+      position: absolute;
+      inset-inline-end: 8px;
+      inset-block-start: 8px;
+      font-size: 9.5px;
+      letter-spacing: 0.04em;
+      background: rgba(17, 24, 39, 0.5);
+      color: #fff;
+      border-radius: 4px;
+      padding: 1px 6px;
+    }
+    .info {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 12px 12px;
+    }
+    .info b {
+      display: block;
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .info small {
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+    }
+    .add {
+      display: grid;
+      place-items: center;
+      min-block-size: 200px;
+      border: 1.5px dashed var(--sw-border-strong);
+      border-radius: var(--sw-r-md);
+      color: var(--sw-text-2);
+      text-align: center;
+      cursor: pointer;
+      transition: border-color var(--sw-t-fast) var(--sw-ease), background var(--sw-t-fast) var(--sw-ease);
+      font-size: var(--sw-fs-sm);
+      background: transparent;
+      font-family: inherit;
+    }
+    .add:hover {
+      border-color: var(--sw-accent);
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent-text);
+    }
+    .add .ic {
+      display: grid;
+      place-items: center;
+      inline-size: 40px;
+      block-size: 40px;
+      border-radius: 50%;
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent);
+      margin: 0 auto 8px;
+    }
+    .add small {
+      display: block;
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+    }
+    .blist {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 12px;
+    }
+    .brow {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+    }
+    .brow sw-scene {
+      inline-size: 64px;
+      block-size: 44px;
+      border-radius: 6px;
+      flex-shrink: 0;
+    }
+    .brow b {
+      display: block;
+      font-weight: var(--sw-fw-semibold);
+    }
+    .brow small {
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+    }
+    .brow sw-icon {
+      margin-inline-start: auto;
+      color: var(--sw-text-3);
+    }
+    .menu {
+      display: inline-flex;
+      gap: 2px;
+      align-items: center;
+    }
+    .brow .menu {
+      margin-inline-start: auto;
+    }
+    .brow .menu + sw-icon {
+      margin-inline-start: 0;
+    }
+    img.photo {
+      inline-size: 100%;
+      block-size: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    img.photo.small {
+      inline-size: 64px;
+      block-size: 44px;
+      border-radius: 6px;
+      flex-shrink: 0;
+    }
+    .map {
+      min-block-size: 360px;
+      border-radius: var(--sw-r-md);
+      border: 1px solid var(--sw-border);
+      background: var(--sw-surface);
+      display: grid;
+      place-items: center;
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-sm);
+    }
+    .err {
+      color: var(--sw-danger);
+      font-size: var(--sw-fs-xs);
+    }
+  `;mt([c()],Ze.prototype,"tab",2);mt([c()],Ze.prototype,"tree",2);mt([c()],Ze.prototype,"dialog",2);mt([c()],Ze.prototype,"notice",2);mt([c()],Ze.prototype,"formName",2);mt([c()],Ze.prototype,"formAddress",2);mt([c()],Ze.prototype,"busy",2);mt([c()],Ze.prototype,"error",2);Ze=mt([P("explore-sites")],Ze);var qd=Object.defineProperty,Gd=Object.getOwnPropertyDescriptor,Gs=(e,t,s,i)=>{for(var a=i>1?void 0:i?Gd(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&qd(t,s,a),a};let Wt=class extends M{constructor(){super(...arguments),this.rooms=[],this.selected=!1,this.empty=!1,this.width=132}iso(e,t){return{x:60+(e-t)*58,y:6+(e+t)*26}}poly(e){return e.map(t=>`${t.x.toFixed(1)},${t.y.toFixed(1)}`).join(" ")}render(){this.style.setProperty("--w",`${this.width}px`);const e=[this.iso(0,0),this.iso(1,0),this.iso(1,1),this.iso(0,1)],t=7,s=[this.iso(1,0),this.iso(1,1),{x:this.iso(1,1).x,y:this.iso(1,1).y+t},{x:this.iso(1,0).x,y:this.iso(1,0).y+t}],i=[this.iso(0,1),this.iso(1,1),{x:this.iso(1,1).x,y:this.iso(1,1).y+t},{x:this.iso(0,1).x,y:this.iso(0,1).y+t}];return n`<svg viewBox="0 0 120 72" aria-hidden="true">
+      ${m`<polygon class="side" points=${this.poly(s)} /><polygon class="side" points=${this.poly(i)} />`}
+      ${m`<polygon class="top" points=${this.poly(e)} />`}
+      ${this.empty?"":this.rooms.map(a=>m`<polygon class="room" points=${this.poly([this.iso(a.x,a.y),this.iso(a.x+a.w,a.y),this.iso(a.x+a.w,a.y+a.h),this.iso(a.x,a.y+a.h)])} />`)}
+    </svg>`}};Wt.styles=A`
+    :host {
+      display: inline-block;
+      inline-size: var(--w, 132px);
+      flex-shrink: 0;
+    }
+    svg {
+      display: block;
+      inline-size: 100%;
+      block-size: auto;
+      overflow: visible;
+    }
+    .side {
+      fill: #cfd7e3;
+    }
+    .top {
+      fill: #ffffff;
+      stroke: #b7c3d4;
+      stroke-width: 1.2;
+      stroke-linejoin: round;
+    }
+    .room {
+      fill: none;
+      stroke: #b7c3d4;
+      stroke-width: 1;
+      stroke-linejoin: round;
+    }
+    :host([selected]) .side {
+      fill: #9db9ff;
+    }
+    :host([selected]) .top {
+      fill: #dbe6ff;
+      stroke: var(--sw-accent);
+    }
+    :host([selected]) .room {
+      stroke: var(--sw-accent);
+    }
+    :host([empty]) .top {
+      fill: #f6f8fb;
+      stroke-dasharray: 3 3;
+    }
+  `;Gs([g({attribute:!1})],Wt.prototype,"rooms",2);Gs([g({type:Boolean,reflect:!0})],Wt.prototype,"selected",2);Gs([g({type:Boolean,reflect:!0})],Wt.prototype,"empty",2);Gs([g({type:Number})],Wt.prototype,"width",2);Wt=Gs([P("sw-floor-iso")],Wt);var Kd=Object.defineProperty,Yd=Object.getOwnPropertyDescriptor,it=(e,t,s,i)=>{for(var a=i>1?void 0:i?Yd(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Kd(t,s,a),a};let Oe=class extends M{constructor(){super(...arguments),this.buildingId="bld-a",this.tree=null,this.selected=null,this.tab="floors",this.dialog=null,this.busy=!1,this.error="",this.formName="",this.formLevel=0}connectedCallback(){super.connectedCallback(),this.reload()}updated(e){e.has("buildingId")&&e.get("buildingId")!==void 0&&(this.selected=null)}async reload(){try{this.tree=await At(),this.error=""}catch(e){this.error=b(e)}}get context(){if(!this.tree)return null;for(const s of this.tree.sites)for(const i of s.buildings??[])if(i.id===this.buildingId)return{site:s,building:i};const e=this.tree.sites[0],t=e?.buildings?.[0];return e&&t?{site:e,building:t}:null}async run(e){this.busy=!0,this.error="";try{await e(),this.dialog=null,await this.reload()}catch(t){t instanceof fe&&t.code==="has_anchors"&&this.dialog?.kind==="delete"?(this.dialog={...this.dialog,force:!0},this.error=`${t.body.user_message} (${t.body.details.anchors??""} פריטים)`):this.error=b(t)}finally{this.busy=!1}}openDialog(e){this.error="",this.formName=e?.kind==="rename"?e.floor.name:"",this.formLevel=e?.kind==="rename"?e.floor.level:0,this.dialog=e}renderDialog(e){const t=this.dialog;if(!t)return d;const s=this.tree?.source==="demo",i=n`<sw-field label="שם"><input .value=${this.formName} @input=${l=>this.formName=l.target.value} placeholder="למשל: קומה 1" autofocus /></sw-field>`,a=n`<sw-field label="מפלס (0 = קרקע, שלילי = מרתף)" hint="קובע את סדר התצוגה בין הקומות"><input type="number" data-ltr .value=${String(this.formLevel)} @input=${l=>this.formLevel=Number(l.target.value)} /></sw-field>`,r=this.error?n`<div class="err">${this.error}</div>`:d,o=s?n`<div class="err">נתוני הדגמה: אין שרת מחובר, השינוי לא יישמר.</div>`:d;switch(t.kind){case"floor":return n`<sw-dialog open heading="קומה חדשה" subheading=${`${e.name}`} @close=${()=>this.dialog=null}>
+          ${i}${a}${r}${o}
+          <sw-button slot="footer" variant="ghost" @click=${()=>this.dialog=null}>ביטול</sw-button>
+          <sw-button slot="footer" variant="primary" ?disabled=${!this.formName.trim()||this.busy||s} @click=${()=>this.run(async()=>{const l=await id(e.id,{name:this.formName.trim(),level:this.formLevel});this.selected=l.id})}>הוסף קומה</sw-button>
+        </sw-dialog>`;case"rename":return n`<sw-dialog open heading="עריכת קומה" subheading=${t.floor.name} @close=${()=>this.dialog=null}>
+          ${i}${a}${r}${o}
+          <sw-button slot="footer" variant="ghost" @click=${()=>this.dialog=null}>ביטול</sw-button>
+          <sw-button slot="footer" variant="primary" ?disabled=${!this.formName.trim()||this.busy||s} @click=${()=>this.run(()=>ad(t.floor.id,{name:this.formName.trim(),level:this.formLevel}))}>שמירה</sw-button>
+        </sw-dialog>`;case"delete":return n`<sw-dialog open heading="מחיקת קומה" subheading=${t.floor.name} @close=${()=>this.dialog=null}>
+          <div style="font-size:var(--sw-fs-sm)">${t.force?"על הקומה מוצבים פריטים. מחיקה תסיר אותם מהמפה (ההיסטוריה נשמרת באודיט). להמשיך?":"הקומה תוסר מהמערכת. תוכניות שפורסמו נשמרות בארכיון; מצלמות והקלטות ב־NVR אינן נמחקות."}</div>
+          ${r}${o}
+          <sw-button slot="footer" variant="ghost" @click=${()=>this.dialog=null}>ביטול</sw-button>
+          <sw-button slot="footer" variant="danger" ?disabled=${this.busy||s} @click=${()=>this.run(async()=>{await nd(t.floor.id,t.force),this.selected===t.floor.id&&(this.selected=null)})}>${t.force?"מחק כולל הפריטים":"מחק קומה"}</sw-button>
+        </sw-dialog>`;case"building":return n`<sw-dialog open heading="מבנה חדש" subheading=${this.context?.site.name??""} @close=${()=>this.dialog=null}>
+          ${i}${r}${o}
+          <sw-button slot="footer" variant="ghost" @click=${()=>this.dialog=null}>ביטול</sw-button>
+          <sw-button slot="footer" variant="primary" ?disabled=${!this.formName.trim()||this.busy||s} @click=${()=>this.run(async()=>{const l=await kr(this.context.site.id,{name:this.formName.trim()});x(`/explore/buildings/${l.id}/floors`)})}>הוסף מבנה</sw-button>
+        </sw-dialog>`}}render(){if(!this.tree)return n`<sw-page heading="קומות"><sw-state-panel state=${this.error?"error":"loading"} hint=${this.error}></sw-state-panel></sw-page>`;const e=this.context;if(!e)return n`<sw-page heading="קומות" subheading="אין עדיין אתרים ומבנים">
+        <sw-state-panel state="empty" heading="עוד אין מבנים" hint="צור אתר ומבנה כדי להוסיף קומות ותוכניות.">
+          <div style="margin-block-start:10px"><sw-button variant="primary" icon="plus" @click=${()=>x("/explore/sites")}>לאתרים</sw-button></div>
+        </sw-state-panel>
+      </sw-page>`;const{site:t,building:s}=e,i=s.floors??[],a=i.find(l=>l.id===this.selected)??i[0]??null,r=i.reduce((l,p)=>l+p.camera_count,0),o=this.tree;return n`
+      <sw-page heading=${s.name} subheading=${`${t.address||t.name} · ${i.length} קומות${o.source==="demo"?" · נתוני הדגמה":""}`} crumbs=${`אתרים | ${t.name} | ${s.name}`}>
+        <div slot="actions" class="pic"><sw-scene kind="building"></sw-scene></div>
+        <sw-tabs .items=${[{id:"floors",label:"קומות",count:i.length},{id:"cameras",label:"מצלמות",count:r},{id:"details",label:"פרטים"}]} .active=${this.tab} @change=${l=>this.tab=l.detail.id}></sw-tabs>
+        ${this.tab==="floors"?n`<div class="list">
+              ${i.length?d:n`<div class="empty">למבנה הזה אין עדיין קומות. הוסף קומה, ואז העלה תוכנית (PDF או תמונה).</div>`}
+              ${i.map(l=>n`<button class="floor ${a?.id===l.id?"on":""}" @click=${()=>a?.id===l.id?x(`/explore/floors/${l.id}`):this.selected=l.id} aria-pressed=${a?.id===l.id}>
+                  <div class="txt">
+                    <div class="title">${Ht(l.name)}</div>
+                    <div class="counts">${l.camera_count} מצלמות · ${l.anchor_count} פריטים במפה · מפלס ${ld(l.level)}${l.has_plan?"":" · אין תוכנית עדיין"}${l.draft_version_id?" · טיוטה ממתינה לפרסום":""}</div>
+                  </div>
+                  <sw-floor-iso .rooms=${o.source==="demo"?na(l.id):[]} ?selected=${a?.id===l.id} ?empty=${!l.has_plan} width=${128}></sw-floor-iso>
+                  <span class="chev"><sw-icon name="chevron" size=${16}></sw-icon></span>
+                </button>`)}
+              ${this.error&&!this.dialog?n`<div class="err">${this.error}</div>`:d}
+              <div class="actions">
+                <div>
+                  <sw-button icon="plus" @click=${()=>this.openDialog({kind:"floor"})}>קומה חדשה</sw-button>
+                  <sw-button variant="ghost" icon="building" @click=${()=>this.openDialog({kind:"building"})}>מבנה חדש</sw-button>
+                </div>
+                ${a?n`<div>
+                      <sw-button variant="ghost" icon="edit" @click=${()=>this.openDialog({kind:"rename",floor:a})}>עריכה</sw-button>
+                      <sw-button variant="ghost" icon="trash" @click=${()=>this.openDialog({kind:"delete",floor:a,force:!1})}>מחיקה</sw-button>
+                      <sw-button icon="upload" @click=${()=>x(`/explore/floors/${a.id}/import`)}>${a.has_plan?"תוכנית חדשה":"העלאת תוכנית"}</sw-button>
+                      <sw-button variant="primary" icon="map" @click=${()=>x(`/explore/floors/${a.id}`)}>פתח את ${a.name}</sw-button>
+                    </div>`:d}
+              </div>
+            </div>`:this.tab==="cameras"?n`<div class="cams">${i.map(l=>n`<sw-card heading=${Ht(l.name)} subheading="${l.camera_count} מצלמות" interactive @click=${()=>x(`/explore/floors/${l.id}`)}></sw-card>`)}</div>`:n`<sw-card heading="פרטי המבנה">
+                <dl>
+                  <dt>אתר</dt><dd>${t.name}</dd>
+                  <dt>כתובת</dt><dd>${t.address||"—"}</dd>
+                  <dt>אזור זמן</dt><dd><span class="ltr">${t.timezone}</span></dd>
+                  <dt>קומות</dt><dd>${i.length} · ${i.filter(l=>l.has_plan).length} עם תוכנית מפורסמת</dd>
+                  <dt>קשרים בין קומות</dt><dd>מדרגות ומעלית יוגדרו בעורך (Beta)</dd>
+                </dl>
+              </sw-card>`}
+        ${this.renderDialog(s)}
+      </sw-page>
+    `}};Oe.styles=A`
+    .pic {
+      inline-size: 112px;
+      block-size: 72px;
+      border-radius: var(--sw-r-sm);
+      overflow: hidden;
+      position: relative;
+      box-shadow: var(--sw-shadow-1);
+    }
+    .pic sw-scene {
+      position: absolute;
+      inset: 0;
+    }
+    .list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-inline-size: 720px;
+    }
+    .floor {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 10px 14px;
+      border: 1.5px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface);
+      text-align: start;
+      font: inherit;
+      color: inherit;
+      cursor: pointer;
+      box-shadow: var(--sw-shadow-1);
+      transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease);
+    }
+    .floor:hover {
+      border-color: var(--sw-border-strong);
+      box-shadow: var(--sw-shadow-2);
+    }
+    .floor.on {
+      border-color: var(--sw-accent);
+      box-shadow: 0 0 0 3px var(--sw-accent-soft);
+    }
+    .floor .txt {
+      flex: 1;
+      min-inline-size: 0;
+    }
+    .title {
+      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-md);
+    }
+    .counts {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      margin-block-start: 2px;
+    }
+    .chev {
+      color: var(--sw-text-3);
+    }
+    .floor.on .chev {
+      color: var(--sw-accent);
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+    .actions div {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .err {
+      color: var(--sw-danger);
+      font-size: var(--sw-fs-xs);
+    }
+    .empty {
+      border: 1.5px dashed var(--sw-border-strong);
+      border-radius: var(--sw-r-md);
+      padding: 24px;
+      text-align: center;
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-sm);
+    }
+    dl {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 8px 14px;
+      margin: 0;
+      font-size: var(--sw-fs-sm);
+      max-inline-size: 520px;
+    }
+    dt {
+      color: var(--sw-text-3);
+    }
+    dd {
+      margin: 0;
+    }
+    .cams {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 12px;
+    }
+  `;it([g()],Oe.prototype,"buildingId",2);it([c()],Oe.prototype,"tree",2);it([c()],Oe.prototype,"selected",2);it([c()],Oe.prototype,"tab",2);it([c()],Oe.prototype,"dialog",2);it([c()],Oe.prototype,"busy",2);it([c()],Oe.prototype,"error",2);it([c()],Oe.prototype,"formName",2);it([c()],Oe.prototype,"formLevel",2);Oe=it([P("explore-floors")],Oe);var Jd=Object.defineProperty,Xd=Object.getOwnPropertyDescriptor,Ta=(e,t,s,i)=>{for(var a=i>1?void 0:i?Xd(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Jd(t,s,a),a};let Hs=class extends M{constructor(){super(...arguments),this.steps=[],this.current=0}render(){return n`${this.steps.map((e,t)=>n`
+        <div class="step ${t<this.current?"done":t===this.current?"current":""}">
+          <span class="n">${t<this.current?n`<sw-icon name="check" size=${13}></sw-icon>`:t+1}</span><span>${e}</span>
+        </div>
+        ${t<this.steps.length-1?n`<div class="line ${t<this.current?"done":""}"></div>`:""}
+      `)}`}};Hs.styles=A`
+    :host {
+      display: flex;
+      align-items: flex-start;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+      min-inline-size: 72px;
+    }
+    .n {
+      display: grid;
+      place-items: center;
+      inline-size: 28px;
+      block-size: 28px;
+      border-radius: 50%;
+      border: 2px solid var(--sw-border-strong);
+      background: var(--sw-surface);
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .step.done {
+      color: var(--sw-text-2);
+    }
+    .step.done .n {
+      background: var(--sw-live);
+      border-color: var(--sw-live);
+      color: #fff;
+    }
+    .step.current {
+      color: var(--sw-accent-text);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .step.current .n {
+      border-color: var(--sw-accent);
+      background: var(--sw-accent);
+      color: #fff;
+      box-shadow: 0 0 0 4px var(--sw-accent-soft);
+    }
+    .line {
+      flex: 1;
+      min-inline-size: 20px;
+      block-size: 2px;
+      margin-block-start: 13px;
+      background: var(--sw-border);
+      border-radius: 1px;
+    }
+    .line.done {
+      background: var(--sw-live);
+    }
+  `;Ta([g({attribute:!1})],Hs.prototype,"steps",2);Ta([g({type:Number})],Hs.prototype,"current",2);Hs=Ta([P("sw-steps")],Hs);var Qd=Object.defineProperty,ec=Object.getOwnPropertyDescriptor,re=(e,t,s,i)=>{for(var a=i>1?void 0:i?ec(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Qd(t,s,a),a};const Vi=["קובץ","עמוד","חיתוך וסיבוב","שם והערות","שמירה ופרסום"];function vn(e){return e>=1024*1024?`${(e/1024/1024).toFixed(1)} MB`:`${Math.max(1,Math.round(e/1024))} KB`}let te=class extends M{constructor(){super(...arguments),this.floorId="",this.step=0,this.tree=null,this.assets=[],this.asset=null,this.page=1,this.rotation=0,this.crop={x:0,y:0,w:1,h:1},this.notes="",this.version=null,this.busy=!1,this.error="",this.dragOver=!1,this.dxf=null,this.dxfLayers=null,this.dxfUnits=null,this.dxfBusy=!1,this.previewBust=0,this.startCrop=e=>{if(e.button!==0)return;const t=e.currentTarget,s=t.getBoundingClientRect(),i=l=>({x:Math.min(1,Math.max(0,(l.clientX-s.left)/s.width)),y:Math.min(1,Math.max(0,(l.clientY-s.top)/s.height))}),a=i(e);t.setPointerCapture(e.pointerId),e.preventDefault();const r=l=>{const p=i(l),h=Math.min(a.x,p.x),u=Math.min(a.y,p.y),f=Math.abs(p.x-a.x),v=Math.abs(p.y-a.y);f>.01&&v>.01&&(this.crop={x:+h.toFixed(4),y:+u.toFixed(4),w:+f.toFixed(4),h:+v.toFixed(4)})},o=()=>{t.removeEventListener("pointermove",r),t.removeEventListener("pointerup",o),t.removeEventListener("pointercancel",o),(this.crop.w<.02||this.crop.h<.02)&&(this.crop={x:0,y:0,w:1,h:1})};t.addEventListener("pointermove",r),t.addEventListener("pointerup",o),t.addEventListener("pointercancel",o)}}connectedCallback(){super.connectedCallback(),this.init()}async init(){try{this.tree=await At(),$()&&this.floorId&&(this.assets=(await Bl(this.floorId)).assets)}catch(e){this.error=b(e)}}get floor(){return this.tree&&this.floorId?_r(this.tree,this.floorId):null}updated(e){if(e.has("asset")&&$()){const t=this.asset;t&&t.kind==="dxf"&&(!this.dxf||this.dxf.asset_id!==t.id)?this.loadDxf(t.id):(!t||t.kind!=="dxf")&&(this.dxf=null)}}async loadDxf(e){try{const t=await Kl(e);this.dxf=t,this.dxfLayers=t.options.layers,this.dxfUnits=t.options.units??(t.info?.units&&t.info.units!=="unitless"?t.info.units:null)}catch(t){this.error=b(t)}}toggleDxfLayer(e){const t=this.dxf?.info?.layers.filter(i=>i.drawable>0).map(i=>i.name)??[],s=this.dxfLayers??t;this.dxfLayers=s.includes(e)?s.filter(i=>i!==e):[...s,e]}async applyDxf(){if(this.dxf){this.dxfBusy=!0,this.error="";try{const e=this.dxf.info?.layers.filter(s=>s.drawable>0).map(s=>s.name)??[],t=this.dxfLayers&&this.dxfLayers.length!==e.length?this.dxfLayers:null;this.dxf=await Yl(this.dxf.asset_id,{layers:t,units:this.dxfUnits}),this.dxfLayers=this.dxf.options.layers,this.previewBust=Date.now()}catch(e){this.error=b(e)}finally{this.dxfBusy=!1}}}renderDxf(){const e=this.dxf;if(!e||!e.info)return d;const t=e.info.layers.filter(l=>l.drawable>0).map(l=>l.name),s=this.dxfLayers??t,i=e.info.extent,a=Object.entries(e.render?.skipped??e.info.unsupported),r=e.render?.meters_per_px,o=e.render?.units&&e.render.units!=="unitless";return n`<sw-card heading="DXF · שכבות, יחידות וקנה מידה" subheading=${`${e.adapter.library} (${e.adapter.license}) · המקור נשמר כפי שהועלה; התצוגה נגזרת ממנו`} data-dxf>
+      <div class="note">גרסה ${e.info.version} · יחידות בקובץ: <strong data-dxf-units>${e.info.units}</strong>${i?n` · היקף ${i.width.toFixed(0)} × ${i.height.toFixed(0)} יחידות`:d}${o&&i&&r?n` · כ־${(i.width*(r*e.render.px_per_unit)).toFixed(1)} × ${(i.height*(r*e.render.px_per_unit)).toFixed(1)} מ׳`:d}</div>
+      <div class="note">ישויות: ${Object.entries(e.info.entity_counts).map(([l,p])=>`${l} ${p}`).join(" · ")}</div>
+      ${a.length?n`<div class="err" data-dxf-partial>המרה חלקית: ${a.map(([l,p])=>`${p} × ${l}`).join(", ")} לא מצוירים (טקסטים, מילויים, מידות וגופים תלת־ממדיים אינם מומרים). הדבר יוצג גם על הגרסה.</div>`:n`<div class="note">כל הישויות בקובץ מצוירות.</div>`}
+      <div class="note" style="margin-block-start:6px">שכבות (${s.length} מתוך ${t.length}):</div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px 12px">${e.info.layers.map(l=>n`<label style="display:flex;gap:6px;align-items:center;font-size:var(--sw-fs-sm)"><input type="checkbox" data-dxf-layer=${l.name} .checked=${s.includes(l.name)} ?disabled=${l.drawable===0} @change=${()=>this.toggleDxfLayer(l.name)} /> <span class="ltr">${l.name}</span> <span class="note">(${l.drawable})</span></label>`)}</div>
+      <div class="row" style="margin-block-start:8px;align-items:center;gap:8px">
+        <sw-field label="יחידות השרטוט"><select data-dxf-units-select @change=${l=>this.dxfUnits=l.target.value||null}><option value="" ?selected=${!this.dxfUnits}>לפי הקובץ (${e.info.units})</option>${e.units_choices.map(l=>n`<option value=${l} ?selected=${this.dxfUnits===l}>${l}</option>`)}</select></sw-field>
+        <sw-button size="sm" variant="primary" data-dxf-apply ?disabled=${this.dxfBusy||s.length===0} @click=${()=>this.applyDxf()}>החל ורנדר מחדש</sw-button>
+      </div>
+      ${e.render?n`<div class="note" style="margin-block-start:6px" data-dxf-render>רונדר: ${e.render.width}×${e.render.height} px · ${e.render.rendered} ישויות מ־${e.render.layers.length} שכבות${r?` · ${(r*100).toFixed(2)} ס״מ לפיקסל (מיחידות ${e.render.units}; ייכנס לגרסה כקנה מידה)`:" · קנה מידה לא ידוע: הקובץ ללא יחידות, בחר יחידות או כייל מאוחר יותר"}</div>`:d}
+      <div class="note">DWG אינו נתמך (פורמט סגור) — יש להמיר ל־DXF לפני הייבוא.</div>
+    </sw-card>`}async onFile(e){if(!(!e||!this.floorId)){this.busy=!0,this.error="";try{this.asset=await Vl(this.floorId,e),this.page=1,this.rotation=0,this.crop={x:0,y:0,w:1,h:1},this.version=null,this.step=this.asset.page_count>1?1:2,this.assets=[this.asset,...this.assets.filter(t=>t.id!==this.asset.id)]}catch(t){this.error=b(t)}finally{this.busy=!1}}}async save(){if(!(!this.asset||!this.floorId)){this.busy=!0,this.error="";try{const e=this.crop.x===0&&this.crop.y===0&&this.crop.w===1&&this.crop.h===1;this.version=await Fl(this.floorId,{asset_id:this.asset.id,page:this.page,rotation:this.rotation,crop:e?null:this.crop,notes:this.notes})}catch(e){this.error=b(e)}finally{this.busy=!1}}}async publish(){if(this.version){this.busy=!0,this.error="";try{this.version=await yr(this.version.id)}catch(e){this.error=b(e)}finally{this.busy=!1}}}setCrop(e,t){const s=Math.max(0,Math.min(100,t))/100,i={...this.crop,[e]:s};i.x+i.w>1&&(i.w=1-i.x),i.y+i.h>1&&(i.h=1-i.y),i.w<=.02&&(i.w=.02),i.h<=.02&&(i.h=.02),this.crop=i}previewUrl(){const e=this.asset?.pages.find(s=>s.page===this.page)??this.asset?.pages[0];if(!e)return"";const t=Qe(e.preview_url)+(this.previewBust?`${e.preview_url.includes("?")?"&":"?"}v=${this.previewBust}`:"");return this.rotation?`${t}${t.includes("?")?"&":"?"}rotation=${this.rotation}`:t}renderStep(){const e=this.asset;switch(this.step){case 0:return n`
+          <label class="drop ${this.dragOver?"over":""}" @dragover=${t=>{t.preventDefault(),this.dragOver=!0}} @dragleave=${()=>this.dragOver=!1} @drop=${t=>{t.preventDefault(),this.dragOver=!1,this.onFile(t.dataTransfer?.files[0])}}>
+            <input type="file" accept=".pdf,.png,.jpg,.jpeg,.dxf,application/pdf,image/png,image/jpeg,image/vnd.dxf" @change=${t=>void this.onFile(t.target.files?.[0])} />
+            <div>
+              <div class="ic"><sw-icon name="upload" size=${20}></sw-icon></div>
+              <strong>${this.busy?"מעלה…":"גרור לכאן PDF, תמונה או DXF של התוכנית, או לחץ לבחירה"}</strong>
+              <small>PDF עד 20 עמודים, PNG / JPG, DXF (AutoCAD; DWG יש להמיר) · עד 40 MB · הזיהוי לפי תוכן הקובץ · המקור נשמר ללא שינוי</small>
+            </div>
+          </label>
+          ${this.assets.length?n`<div class="assets"><div class="note" style="margin-block-end:4px">קבצים שכבר הועלו לקומה זו:</div>${this.assets.map(t=>n`<button @click=${()=>{this.asset=t,this.page=1,this.step=t.page_count>1?1:2}}><span>${t.original_name}</span><span class="ltr">${t.page_count} עמ׳ · ${vn(t.bytes)}</span></button>`)}</div>`:d}`;case 1:return n`<div class="note">בחר את העמוד שמכיל את התוכנית של הקומה.</div>
+          <div class="pages">${e?.pages.map(t=>n`<button class="pg ${t.page===this.page?"on":""}" @click=${()=>this.page=t.page}><img src=${Qe(t.preview_url)} alt=${`עמוד ${t.page}`} loading="lazy" />עמוד ${t.page}</button>`)}</div>`;case 2:{const t=this.crop,s=t.x===0&&t.y===0&&t.w===1&&t.h===1;return n`
+          <div class="preview">
+            <div class="frame" @pointerdown=${this.startCrop}>
+              <img src=${this.previewUrl()} alt="תצוגה מקדימה (אחרי סיבוב)" />
+              ${s?d:n`<div class="cropbox" style="left:${t.x*100}%;top:${t.y*100}%;width:${t.w*100}%;height:${t.h*100}%"></div>`}
+              <div class="hint">${s?"גרור מלבן על התוכנית כדי לחתוך":`חיתוך ${Math.round(t.w*100)}%×${Math.round(t.h*100)}% · גרור שוב כדי לשנות`}</div>
+            </div>
+          </div>
+          <div class="row">
+            <sw-button size="sm" icon="refresh" @click=${()=>{this.rotation=(this.rotation+90)%360,this.crop={x:0,y:0,w:1,h:1}}}>סובב 90°</sw-button>
+            <sw-badge kind="neutral" label=${`סיבוב ${this.rotation}°`}></sw-badge>
+            <sw-button size="sm" variant="ghost" icon="fit" ?disabled=${s} @click=${()=>this.crop={x:0,y:0,w:1,h:1}}>אפס חיתוך</sw-button>
+            <span class="note">התצוגה כבר מסובבת; המלבן המקווקו הוא בדיוק מה שיישמר. אפשר גם להזין אחוזים.</span>
+          </div>
+          <div class="two">
+            <sw-field label="שמאל %"><input type="number" min="0" max="98" data-ltr .value=${String(Math.round(t.x*100))} @change=${i=>this.setCrop("x",Number(i.target.value))} /></sw-field>
+            <sw-field label="עליון %"><input type="number" min="0" max="98" data-ltr .value=${String(Math.round(t.y*100))} @change=${i=>this.setCrop("y",Number(i.target.value))} /></sw-field>
+            <sw-field label="רוחב %"><input type="number" min="2" max="100" data-ltr .value=${String(Math.round(t.w*100))} @change=${i=>this.setCrop("w",Number(i.target.value))} /></sw-field>
+            <sw-field label="גובה %"><input type="number" min="2" max="100" data-ltr .value=${String(Math.round(t.h*100))} @change=${i=>this.setCrop("h",Number(i.target.value))} /></sw-field>
+          </div>`}case 3:return n`
+          <sw-field label="קומה"><input .value=${this.floor?.floor.name??""} disabled /></sw-field>
+          <sw-field label="הערות לגרסה (אופציונלי)" hint="למשל: תוכנית מעודכנת אחרי שיפוץ 2026"><input .value=${this.notes} @input=${t=>this.notes=t.target.value} /></sw-field>
+          <div class="note">קנה מידה (מטרים לפיקסל) יכויל בעורך בשתי נקודות ומרחק ידוע; עד אז מרחקים מוצגים כמשוערים.</div>`;default:return n`
+          ${this.version?n`<div class="ok">✓ הגרסה נשמרה (${this.version.width_px}×${this.version.height_px} px) · ${this.version.status==="published"?"פורסמה — היא הרקע של הקומה":"טיוטה — עורכי הקומה רואים אותה, צופים עדיין לא"}</div>
+                <div class="preview" style="min-block-size:220px"><img src=${Qe(this.version.image_url)} alt="רקע התוכנית" /></div>`:n`<div class="note">סיכום: ${e?.original_name} · עמוד ${this.page} · סיבוב ${this.rotation}° · חיתוך ${Math.round(this.crop.w*100)}%×${Math.round(this.crop.h*100)}%. השמירה מייצרת רקע נגזר; המקור לא משתנה.</div>`}
+          <div class="row">
+            ${this.version?d:n`<sw-button variant="primary" icon="check" ?disabled=${this.busy} @click=${()=>this.save()}>שמור כטיוטה</sw-button>`}
+            ${this.version&&this.version.status==="draft"?n`<sw-button variant="primary" icon="check" ?disabled=${this.busy} @click=${()=>this.publish()}>פרסום</sw-button>`:d}
+            ${this.version?n`<sw-button icon="map" @click=${()=>x(`/explore/floors/${this.floorId}`)}>פתח במפה</sw-button><sw-button variant="ghost" icon="edit" @click=${()=>x(`/explore/floors/${this.floorId}/edit`)}>הצב מצלמות</sw-button>`:d}
+          </div>`}}renderDemo(){return n`<sw-card><sw-state-panel state="empty" heading="ייבוא תוכנית עובד מול השרת" hint="בתצוגת ההדגמה אין שרת מחובר. בהתקנה ב־Home Assistant המסך מעלה PDF/PNG, בוחר עמוד, מסובב וחותך, ומפרסם גרסה."></sw-state-panel></sw-card>`}render(){const e=this.floor,t=this.step===0?!!this.asset:this.step===1?!!this.asset:!0;return n`
+      <sw-page heading=${e?`ייבוא תוכנית ל${e.floor.name}`:"ייבוא תוכנית"} subheading="המקור נשמר ללא שינוי; כל תיקון הוא שכבה נגזרת" crumbs=${e?`אתרים | ${e.site.name} | ${e.building.name} | ${e.floor.name}`:"אתרים"}>
+        ${$()?!this.floorId||this.tree&&!e?n`<sw-state-panel state="empty" heading="בחר קומה" hint="ייבוא תוכנית מתחיל מדף הקומות."><div style="margin-block-start:10px"><sw-button variant="primary" @click=${()=>x("/explore/sites")}>לאתרים</sw-button></div></sw-state-panel>`:n`
+                <sw-card><sw-steps .steps=${Vi} .current=${this.step}></sw-steps></sw-card>
+                <div class="layout">
+                  <div class="stage">${this.renderStep()}${this.error?n`<div class="err">${this.error}</div>`:d}</div>
+                  <div class="side">
+                    <sw-card heading="קובץ">
+                      ${this.asset?n`<div class="note">${this.asset.original_name}</div><div class="row" style="margin-block-start:6px"><sw-badge kind="neutral" label=${`${this.asset.mime.split("/")[1].toUpperCase()} · ${vn(this.asset.bytes)} · ${this.asset.page_count} עמ׳`}></sw-badge></div><div class="note ltr" style="margin-block-start:6px">sha256 ${this.asset.sha256.slice(0,16)}…</div>`:n`<div class="note">עדיין לא נבחר קובץ.</div>`}
+                    </sw-card>
+                    ${this.renderDxf()}
+                    <sw-card heading="בטיחות">
+                      <div class="note">הקובץ מזוהה לפי תוכנו; PDF מרונדר בתהליך נפרד עם מגבלת זמן; SVG נדחה עד sanitization. תוכן טקסטואלי בתוך הקובץ הוא נתון בלבד.</div>
+                    </sw-card>
+                    <div class="foot">
+                      <sw-button variant="ghost" icon="chevron" ?disabled=${this.step===0||this.busy} @click=${()=>this.step=Math.max(0,this.step-1)}>הקודם</sw-button>
+                      ${this.step<Vi.length-1?n`<sw-button variant="primary" ?disabled=${!t||this.busy} @click=${()=>this.step=Math.min(Vi.length-1,this.step+1)}>הבא</sw-button>`:d}
+                    </div>
+                  </div>
+                </div>`:this.renderDemo()}
+      </sw-page>
+    `}};te.styles=A`
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr);
+      gap: 12px;
+      align-items: start;
+    }
+    .stage {
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-lg);
+      padding: 14px;
+      min-block-size: 360px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .drop {
+      flex: 1;
+      min-block-size: 300px;
+      border: 1.5px dashed var(--sw-border-strong);
+      border-radius: var(--sw-r-md);
+      display: grid;
+      place-items: center;
+      text-align: center;
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-sm);
+      cursor: pointer;
+      transition: background var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease);
+    }
+    .drop.over,
+    .drop:hover {
+      border-color: var(--sw-accent);
+      background: var(--sw-accent-soft);
+    }
+    .drop .ic {
+      display: grid;
+      place-items: center;
+      inline-size: 44px;
+      block-size: 44px;
+      border-radius: 50%;
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent);
+      margin: 0 auto 8px;
+    }
+    .drop small {
+      display: block;
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+      margin-block-start: 4px;
+    }
+    input[type='file'] {
+      display: none;
+    }
+    .pages {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 10px;
+    }
+    .pg {
+      border: 1.5px solid var(--sw-border);
+      border-radius: 8px;
+      padding: 6px;
+      background: var(--sw-surface);
+      cursor: pointer;
+      font: inherit;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+    }
+    .pg.on {
+      border-color: var(--sw-accent);
+      box-shadow: 0 0 0 3px var(--sw-accent-soft);
+    }
+    .pg img {
+      inline-size: 100%;
+      aspect-ratio: 1;
+      object-fit: contain;
+      background: #f3f5f9;
+      border-radius: 4px;
+      display: block;
+      margin-block-end: 4px;
+    }
+    .preview {
+      position: relative;
+      flex: 1;
+      min-block-size: 320px;
+      background: #f3f5f9;
+      border-radius: var(--sw-r-md);
+      overflow: hidden;
+      display: grid;
+      place-items: center;
+    }
+    .preview .frame {
+      position: relative;
+      display: inline-block;
+      line-height: 0;
+      cursor: crosshair;
+      touch-action: none;
+      user-select: none;
+      overflow: hidden;
+    }
+    .preview .frame img {
+      max-inline-size: 100%;
+      max-block-size: 420px;
+      display: block;
+      pointer-events: none;
+    }
+    .preview .cropbox {
+      position: absolute;
+      border: 2px dashed var(--sw-accent);
+      box-shadow: 0 0 0 9999px rgba(17, 24, 39, 0.28);
+      pointer-events: none;
+      box-sizing: border-box;
+    }
+    .preview .hint {
+      position: absolute;
+      inset-inline-start: 8px;
+      inset-block-start: 8px;
+      background: rgba(17, 24, 39, 0.7);
+      color: #fff;
+      font-size: var(--sw-fs-xs);
+      border-radius: 6px;
+      padding: 3px 8px;
+      line-height: 1.4;
+      pointer-events: none;
+    }
+    .row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .two {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .side {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .foot {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .note {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .err {
+      color: var(--sw-danger);
+      font-size: var(--sw-fs-xs);
+    }
+    .ok {
+      color: #15803d;
+      font-size: var(--sw-fs-sm);
+    }
+    .assets button {
+      display: flex;
+      justify-content: space-between;
+      inline-size: 100%;
+      gap: 8px;
+      padding: 6px 8px;
+      border: 1px solid var(--sw-border);
+      border-radius: 6px;
+      background: var(--sw-surface);
+      font: inherit;
+      font-size: var(--sw-fs-xs);
+      cursor: pointer;
+      text-align: start;
+      margin-block-end: 4px;
+    }
+    @media (max-width: 1023px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+  `;re([g()],te.prototype,"floorId",2);re([c()],te.prototype,"step",2);re([c()],te.prototype,"tree",2);re([c()],te.prototype,"assets",2);re([c()],te.prototype,"asset",2);re([c()],te.prototype,"page",2);re([c()],te.prototype,"rotation",2);re([c()],te.prototype,"crop",2);re([c()],te.prototype,"notes",2);re([c()],te.prototype,"version",2);re([c()],te.prototype,"busy",2);re([c()],te.prototype,"error",2);re([c()],te.prototype,"dragOver",2);re([c()],te.prototype,"dxf",2);re([c()],te.prototype,"dxfLayers",2);re([c()],te.prototype,"dxfUnits",2);re([c()],te.prototype,"dxfBusy",2);re([c()],te.prototype,"previewBust",2);te=re([P("explore-plan-import")],te);const Hi={white:"לבן",tint:"גוון לכל חדר",none:"ללא מילוי"};async function tc(e,t){const s=await E(`plan-versions/${e}/stylize`,t);return{...s,source_url:Qe(s.source_url)+`?v=${Date.now()}`,stylized_url:Qe(s.stylized_url)+`?v=${Date.now()}`}}const sc=(e,t)=>Le(`plan-versions/${e}`,{render_mode:t});let oi=null,Qs=null;const ic={"media.transport_default":"mse","media.max_live_sessions":8,"media.wall_profile":"sub","snapshots.max_age_s":60};async function Ve(e=!1){return $()?oi&&!e?oi:(Qs||(Qs=dr().then(t=>oi=t.settings).finally(()=>Qs=null)),Qs):ic}function bn(){oi=null}function Oa(e){return cr()||e?.["media.transport_default"]||"mse"}const ac={load:e=>Ca(e,{draft:!0}),save:(e,t,s)=>Id(e,t,s)};class nc{constructor(t,s=ac,i=2e3){this.host=t,this.api=s,this.delayMs=i,this.doc=null,this.revision=0,this.hash=null,this.publishedHash=null,this.issues=[],this.copyCandidates=[],this.saveState="idle",this.error="",this.versionId=null,this.undoStack=[],this.redoStack=[],this.dirty=!1,this.inflight=null,this.conflicted=!1,this.loadToken=0,this.loaded=0,t.addController(this)}hostConnected(){}hostDisconnected(){clearTimeout(this.timer)}get canUndo(){return this.undoStack.length>0}get canRedo(){return this.redoStack.length>0}get hasConflict(){return this.conflicted}get pendingPublish(){const t=this.doc;return!t||!this.hash||this.hash===this.publishedHash?!1:this.publishedHash!==null||t.walls.length>0||t.openings.length>0||t.labels.length>0||t.objects.length>0||t.connectors.length>0}async load(t){clearTimeout(this.timer);const s=++this.loadToken;let i;try{i=await this.api.load(t)}catch(a){if(s===this.loadToken)throw a;return}s===this.loadToken&&(this.loaded=s,this.versionId=t,this.apply(i),this.doc=i.doc,this.copyCandidates=i.copy_candidates??[],this.undoStack=[],this.redoStack=[],this.dirty=!1,this.conflicted=!1,this.saveState="idle",this.error="",this.host.requestUpdate())}commit(t){this.doc&&(this.undoStack=[...this.undoStack.slice(-59),this.doc],this.redoStack=[],this.change(t))}undo(){const t=this.undoStack.pop();!t||!this.doc||(this.redoStack.push(this.doc),this.change(t))}redo(){const t=this.redoStack.pop();!t||!this.doc||(this.undoStack.push(this.doc),this.change(t))}async flush(){clearTimeout(this.timer);let t=!1;for(;;){if(this.inflight){await this.inflight;continue}if(!this.dirty||this.conflicted||t&&this.saveState==="error")break;t=!0,this.inflight=this.saveOnce(),await this.inflight,this.inflight=null}return!this.dirty&&this.saveState!=="error"}change(t){this.doc=t,this.dirty=!0,clearTimeout(this.timer),this.conflicted||(this.saveState!=="saving"&&(this.saveState="pending"),this.timer=setTimeout(()=>void this.flush(),this.delayMs)),this.host.requestUpdate()}apply(t){this.revision=t.geometry.revision,this.hash=t.geometry.doc_hash,this.publishedHash=t.published_hash,this.issues=t.issues}async saveOnce(){const t=this.doc,s=this.versionId,i=this.loaded;if(!t||!s){this.dirty=!1;return}this.dirty=!1,this.saveState="saving",this.host.requestUpdate();try{const a=await this.api.save(s,t,this.revision);if(i!==this.loaded)return;this.apply(a),this.saveState=this.dirty?"pending":"saved",this.error=""}catch(a){if(i!==this.loaded)return;this.dirty=!0,a instanceof fe&&a.code==="stale_revision"&&(this.conflicted=!0),this.saveState="error",this.error=this.conflicted?"טיוטת המבנה נערכה במקום אחר; טען מחדש את העורך כדי לא לדרוס שינוי.":b(a)}finally{this.host.requestUpdate()}}}function Ra(){const e=new Uint8Array(8);return crypto.getRandomValues(e),Array.from(e,t=>t.toString(16).padStart(2,"0")).join("")}const fi=e=>Math.round(e*1e5)/1e5,Ii=e=>[fi(Math.min(1,Math.max(0,e[0]))),fi(Math.min(1,Math.max(0,e[1])))];function Ir(e){return e.levels.find(t=>t.is_default)?.id??yl}function Na(e){const t=e==="door"?"right":"none";return{kind:e,...xl[e],swing:t}}function rc(e,t,s){const i=Ra(),a={id:i,level_id:Ir(e),polyline:t.map(Ii),thickness_m:s.thickness_m,height_m:null,base_z_m:0,kind:s.kind,confidence:1,source:"manual",locked:!1,external_ids:{}};return{doc:{...e,walls:[...e.walls,a]},id:i}}function oc(e,t,s,i){const a={id:Ra(),wall_id:t,t:fi(Math.min(1,Math.max(0,s))),...Na(i),hinge:"start",anchor_ref:null,confidence:1,source:"manual",external_ids:{}};return{doc:{...e,openings:[...e.openings,a]},id:a.id}}function lc(e,t,s){return{...e,walls:e.walls.map(i=>i.id===t?{...i,...s,id:i.id}:i)}}function Fi(e,t,s){return{...e,openings:e.openings.map(i=>i.id===t?{...i,...s,id:i.id,t:s.t===void 0?i.t:fi(Math.min(1,Math.max(0,s.t)))}:i)}}function li(e,t){if(!(t>0))return[0,1];const s=Math.max(0,e)/2/t;return s>=.5?[.5,.5]:[s,1-s]}function dc(e,t,[s,i]){return t>0?Math.max(e,Math.min(e+t,i)):t<0?Math.min(e,Math.max(e+t,s)):e}function cc(e,t,s,i){const a=e.polyline.map(o=>[o[0]*s,o[1]*i]);if(a.length<2)return[1,0];const r=[0];for(let o=1;o<a.length;o++)r.push(r[o-1]+Math.hypot(a[o][0]-a[o-1][0],a[o][1]-a[o-1][1]));return Ns(a,r,Math.min(1,Math.max(0,t))*r[r.length-1]).d}function Yt(e,t,s,i){return{...e,walls:e.walls.map(a=>a.id===t?{...a,polyline:a.polyline.map((r,o)=>o===s?Ii(i):r)}:a)}}function Cr(e){return Ls(e)?e.length>=5:e.length>=3}function pc(e,t,s){const i=e.walls.find(p=>p.id===t);if(!i)return{doc:e,wallRemoved:!1};const a=i.polyline,r=Ls(a);if(s<0||s>=(r?a.length-1:a.length))return{doc:e,wallRemoved:!1};if(!Cr(a))return{doc:ma(e,t),wallRemoved:!0};const o=(r?a.slice(0,-1):a).filter((p,h)=>h!==s),l=r?[...o,[o[0][0],o[0][1]]]:o;return{doc:{...e,walls:e.walls.map(p=>p.id===t?{...p,polyline:l}:p)},wallRemoved:!1}}function ma(e,t){return e.walls.some(s=>s.id===t)?{...e,walls:e.walls.filter(s=>s.id!==t),openings:e.openings.filter(s=>s.wall_id!==t)}:{...e,openings:e.openings.filter(s=>s.id!==t),labels:e.labels.filter(s=>s.id!==t)}}function hc(e,t,s){const i={id:Ra(),text:s,position:Ii(t),level_id:Ir(e),size:14};return{doc:{...e,labels:[...e.labels,i]},id:i.id}}function ji(e,t,s){return{...e,labels:e.labels.map(i=>i.id===t?{...i,...s,id:i.id,position:s.position?Ii(s.position):i.position}:i)}}const Wi="גרירת פתח קיים מזיזה אותו לאורך הקיר; חצים להזזה עדינה (Shift = צעד גדול)",Ui=[{id:"select",label:"בחירה",hint:"לחץ על קיר, פתח או תווית כדי לערוך. גרור פתח לאורך הקיר, תווית למקומה ופינה של קיר נבחר; החצים מזיזים בעדינות פתח, תווית או פינה שנבחרו (Shift = צעד גדול)."},{id:"wall",label:"קיר",hint:"לחץ נקודה אחר נקודה. Enter או לחיצה חוזרת על הנקודה האחרונה מסיימים, לחיצה על הנקודה הראשונה סוגרת מתאר, Shift מבטל הצמדה לזוויות, Backspace מוחק נקודה."},{id:"door",label:"דלת",hint:"לחץ על קיר כדי להציב דלת. כיוון הפתיחה והציר נקבעים כאן בפאנל.",drag:Wi},{id:"window",label:"חלון",hint:"לחץ על קיר כדי להציב חלון.",drag:Wi},{id:"passage",label:"מעבר",hint:"פתח בלי דלת בקיר.",drag:Wi},{id:"label",label:"תווית",hint:"לחץ במקום התווית ואז הקלד את הטקסט כאן בפאנל.",drag:"גרירת תווית קיימת מזיזה אותה; חצים להזזה עדינה (Shift = צעד גדול)"}],Ss={exterior:"חיצוני",interior:"פנימי",partition:"מחיצה",railing:"מעקה",low:"קיר נמוך"},ei={door:"דלת",window:"חלון",passage:"מעבר"},yn={right:"לצד ימין של הקיר",left:"לצד שמאל של הקיר",double:"כנף כפולה",sliding:"הזזה",none:"ללא כנף"},$n={start:"בצד תחילת הקיר",end:"בצד סוף הקיר"},uc={idle:"טיוטת המבנה",pending:"שינויים ממתינים לשמירה…",saving:"שומר…",saved:"הטיוטה נשמרה · הצופים יראו אותה אחרי פרסום",error:"השמירה נכשלה"},mc={walls:"קירות",openings:"פתחים",labels:"תוויות",levels:"מפלסים",rooms:"חדרים",objects:"עצמים",circuits:"מעגלי תאורה",connectors:"מחברים",groups:"קבוצות"};function gi(e,t,s=!0){return t&&!s?"לא מכויל":`${t?"≈":""}${e<10?e.toFixed(2):e.toFixed(1)} מ׳`}function lt(e,t,s){return e===1?t:`${e} ${s}`}function La(e){return`1 מ׳ = ${(1/e).toFixed(1)} פיקסלים בתוכנית`}function fc(e,t,s=!0){return t&&!s?"לא מכויל":`${t?"≈":""}${e<100?e.toFixed(1):e.toFixed(0)} מ״ר`}const Qt=e=>parseFloat(e.target.value);function gc(e,t){const{scale:s,estimated:i}=vt(e.doc),a=e.issues.filter(p=>p.severity==="error"),r=e.issues.filter(p=>p.severity==="warning"),o=Ui.find(p=>p.id===e.mode)??Ui[0],l=!e.doc.walls.length&&!e.doc.openings.length&&!e.doc.labels.length;return n`<sw-card heading="מבנה" subheading=${uc[e.saveState]} data-studio-panel data-studio-save=${e.saveState}>
+    <div class="modes" role="group" aria-label="כלי ציור">
+      ${Ui.map(p=>n`<button class=${p.id===e.mode?"on":""} data-studio-mode=${p.id} aria-pressed=${p.id===e.mode} @click=${()=>t.setMode(p.id)}>${p.label}</button>`)}
+    </div>
+    <div class="note">${o.hint}</div>
+    ${o.drag?n`<div class="note" data-studio-drag-hint>${o.drag}</div>`:d}
+    ${e.mode==="wall"?wc(e.wallDefaults,t):d}
+    <div class="row"><span class="lbl">קנה מידה<span class="muted" data-studio-scale>${i?e.showEstimates?"לא מכויל: מידות משוערות (≈)":"לא מכויל: מידות מוסתרות עד הכיול":La(s)}</span></span><sw-button size="sm" icon="scale" data-studio-calibrate @click=${()=>t.calibrate()}>${i?"כיול":"כיול מחדש"}</sw-button></div>
+    <div class="note" data-studio-counts>${lt(e.doc.walls.length,"קיר אחד","קירות")} · ${lt(e.doc.openings.length,"פתח אחד","פתחים")} · ${lt(e.doc.labels.length,"תווית אחת","תוויות")}</div>
+    ${e.sel?vc(e,e.sel,t,s,i):d}
+    ${a.length||r.length?kc(a,r,t):d}
+    ${l&&e.copyCandidates.length?_c(e.copyCandidates,t,e.busy):d}
+    <div class="exports" role="group" aria-label="ייצוא המבנה">
+      <a class="btnlink" data-export-svg href=${e.exportSvg} download>SVG</a>
+      <a class="btnlink" data-export-png href=${e.exportPng} download>PNG</a>
+      <button class="btnlink" data-export-json @click=${()=>t.exportJson()}>JSON</button>
+      <span class="note">ייצוא הטיוטה כפי שהיא</span>
+    </div>
+    ${e.saveState==="error"?n`<div class="err">${e.saveError} ${e.conflict?n`<button class="linkbtn" data-studio-reload @click=${()=>t.reload()}>טען מחדש</button>`:n`<button class="linkbtn" data-studio-retry @click=${()=>t.retry()}>נסה שוב</button>`}</div>`:d}
+  </sw-card>`}function wc(e,t){return n`<div class="two">
+    <sw-field label="עובי קיר (מ׳)"><input type="number" min="0.01" max="3" step="0.01" data-ltr data-wall-thickness .value=${String(e.thickness_m)}
+      @change=${s=>{const i=Qt(s);i>0&&i<=3&&t.setWallDefaults({...e,thickness_m:i})}} /></sw-field>
+    <sw-field label="סוג קיר"><select aria-label="סוג קיר" data-wall-kind @change=${s=>t.setWallDefaults({...e,kind:s.target.value})}>
+      ${Object.keys(Ss).map(s=>n`<option value=${s} ?selected=${e.kind===s}>${Ss[s]}</option>`)}
+    </select></sw-field>
+  </div>`}function vc(e,t,s,i,a){if(t.kind==="wall"){const o=e.doc.walls.find(l=>l.id===t.id);return o?bc(o,e,s,i,a):d}if(t.kind==="opening"){const o=e.doc.openings.find(l=>l.id===t.id);return o?$c(o,e,s,i,a):d}const r=e.doc.labels.find(o=>o.id===t.id);return r?xc(r,s):d}function bc(e,t,s,i,a){const r=os(e.polyline,t.W,t.H)*i,o=t.doc.openings.filter(l=>l.wall_id===e.id).length;return n`<div class="sel" data-selected-wall=${e.id}>
+    <div class="selhead"><strong>קיר ${Ss[e.kind]}</strong><span class="muted">${gi(r,a,t.showEstimates)} · ${lt(o,"פתח אחד","פתחים")}</span></div>
+    <div class="two">
+      <sw-field label="עובי (מ׳)"><input type="number" min="0.01" max="3" step="0.01" data-ltr .value=${String(e.thickness_m)}
+        @change=${l=>{const p=Qt(l);p>0&&p<=3&&s.patchWall(e.id,{thickness_m:p})}} /></sw-field>
+      <sw-field label="סוג"><select aria-label="סוג קיר" @change=${l=>s.patchWall(e.id,{kind:l.target.value})}>
+        ${Object.keys(Ss).map(l=>n`<option value=${l} ?selected=${e.kind===l}>${Ss[l]}</option>`)}
+      </select></sw-field>
+    </div>
+    <sw-field label="גובה (מ׳, ריק = עד התקרה)"><input type="number" min="0.1" max="50" step="0.1" data-ltr .value=${e.height_m===null?"":String(e.height_m)}
+      @change=${l=>{const p=l.target.value.trim(),h=parseFloat(p);p?h>0&&h<=50&&s.patchWall(e.id,{height_m:h}):s.patchWall(e.id,{height_m:null})}} /></sw-field>
+    ${t.mode==="select"&&t.sel?.vertex!==void 0?n`<div class="note" data-selected-vertex=${t.sel.vertex}>פינה ${t.sel.vertex+1} נבחרה: החצים מזיזים אותה (Shift = צעד גדול); ${Cr(e.polyline)?"Delete מוחק את הפינה.":"Delete מוחק את כל הקיר, כי בלי הפינה לא נשאר קיר."}</div>`:d}
+    <div class="btns"><sw-button size="sm" variant="ghost" icon="trash" data-geom-delete @click=${()=>s.remove(e.id)}>מחק קיר</sw-button><span class="note">הפתחים שבקיר נמחקים איתו</span></div>
+  </div>`}function yc(e,t,s,i,a){const r=t.doc.walls.find(v=>v.id===e.wall_id),o=r?os(r.polyline,t.W,t.H)*i:0;if(!(o>0))return d;const[l,p]=li(e.width_m,o),h=v=>a?(v*100).toFixed(1):(v*o).toFixed(2),u=v=>{const w=v.target,y=parseFloat(w.value),k=Number.isFinite(y)?Math.min(p,Math.max(l,a?y/100:y/o)):e.t;k!==e.t&&s.patchOpening(e.id,{t:k}),w.value=h(k)},f="חצים מזיזים את הפתח לכיוון החץ לאורך הקיר.";return a?n`<sw-field label="מיקום על הקיר (%)" hint=${`מרכז הפתח: 0 = תחילת הקיר, 100 = סופו. ${f}`}><input type="number" min="0" max="100" step="0.1" data-ltr data-opening-percent
+        aria-label="מיקום על הקיר (%)" .value=${h(e.t)} @change=${u} /></sw-field>`:n`<sw-field label="מרחק מתחילת הקיר (מ׳)" hint=${`עד מרכז הפתח; אורך הקיר ${o.toFixed(2)} מ׳. ${f}`}><input type="number" min=${(l*o).toFixed(2)} max=${(p*o).toFixed(2)} step="0.01"
+        data-ltr data-opening-distance aria-label="מרחק מתחילת הקיר (מ׳)" .value=${h(e.t)} @change=${u} /></sw-field>`}function $c(e,t,s,i,a){return n`<div class="sel" data-selected-opening=${e.id}>
+    <div class="selhead"><strong>${ei[e.kind]}</strong><span class="muted">${e.width_m.toFixed(2)} מ׳ רוחב${e.anchor_ref?" · מקושר לישות":""}</span></div>
+    <div class="two">
+      <sw-field label="סוג"><select aria-label="סוג פתח" @change=${r=>s.patchOpening(e.id,Na(r.target.value))}>
+        ${Object.keys(ei).map(r=>n`<option value=${r} ?selected=${e.kind===r}>${ei[r]}</option>`)}
+      </select></sw-field>
+      <sw-field label="רוחב (מ׳)"><input type="number" min="0.1" max="10" step="0.05" data-ltr .value=${String(e.width_m)}
+        @change=${r=>{const o=Qt(r);o>0&&o<=10&&s.patchOpening(e.id,{width_m:o})}} /></sw-field>
+    </div>
+    ${yc(e,t,s,i,a)}
+    <div class="two">
+      <sw-field label="גובה (מ׳)"><input type="number" min="0.1" max="10" step="0.05" data-ltr .value=${String(e.height_m)}
+        @change=${r=>{const o=Qt(r);o>0&&o<=10&&s.patchOpening(e.id,{height_m:o})}} /></sw-field>
+      ${e.kind==="window"?n`<sw-field label="גובה אדן (מ׳)"><input type="number" min="0" max="10" step="0.05" data-ltr .value=${String(e.sill_m)}
+            @change=${r=>{const o=Qt(r);o>=0&&o<=10&&s.patchOpening(e.id,{sill_m:o})}} /></sw-field>`:d}
+    </div>
+    ${e.kind==="door"?n`<div class="two">
+          <sw-field label="כיוון פתיחה"><select aria-label="כיוון פתיחה" @change=${r=>s.patchOpening(e.id,{swing:r.target.value})}>
+            ${Object.keys(yn).map(r=>n`<option value=${r} ?selected=${e.swing===r}>${yn[r]}</option>`)}
+          </select></sw-field>
+          <sw-field label="ציר"><select aria-label="ציר" @change=${r=>s.patchOpening(e.id,{hinge:r.target.value})}>
+            ${Object.keys($n).map(r=>n`<option value=${r} ?selected=${e.hinge===r}>${$n[r]}</option>`)}
+          </select></sw-field>
+        </div>`:d}
+    <div class="btns"><sw-button size="sm" variant="ghost" icon="trash" data-geom-delete @click=${()=>s.remove(e.id)}>מחק ${ei[e.kind]}</sw-button></div>
+  </div>`}function xc(e,t){return n`<div class="sel" data-selected-label=${e.id}>
+    <sw-field label="טקסט"><input type="text" maxlength="80" data-label-text .value=${e.text}
+      @change=${s=>{const i=s.target.value.trim();i&&t.patchLabel(e.id,{text:i})}} /></sw-field>
+    <sw-field label="גודל"><input type="number" min="6" max="200" step="1" data-ltr .value=${String(e.size)}
+      @change=${s=>{const i=Qt(s);i>=6&&i<=200&&t.patchLabel(e.id,{size:i})}} /></sw-field>
+    <div class="btns"><sw-button size="sm" variant="ghost" icon="trash" data-geom-delete @click=${()=>t.remove(e.id)}>מחק תווית</sw-button></div>
+  </div>`}function kc(e,t,s){return n`<div class="issues" data-studio-issues>
+    <div class="ilbl">${e.length?`${e.length} שגיאות חוסמות פרסום`:"אין שגיאות חוסמות"}${t.length?` · ${t.length} אזהרות`:""}</div>
+    ${[...e,...t].slice(0,20).map(i=>n`<button class="issue ${i.severity}" data-issue=${i.code} data-issue-id=${i.id??""} ?disabled=${!i.id} @click=${()=>{i.id&&s.focus(i.id)}}>${i.message}</button>`)}
+  </div>`}function _c(e,t,s){return n`<div class="copy" data-copy-candidates>
+    <div class="ilbl">להתחיל ממבנה קיים?</div>
+    ${e.map(i=>n`<button class="issue" data-copy-from=${i.version_id} ?disabled=${s} @click=${()=>t.copyFrom(i.version_id)}>
+      <span>העתק ${lt(i.walls,"קיר אחד","קירות")} ו${i.openings===1?"":"־"}${lt(i.openings,"פתח אחד","פתחים")} מגרסה ${i.status==="published"?"מפורסמת":i.status==="draft"?"בטיוטה":"מהארכיון"}</span>
+      <span class="muted">${i.same_drawing?"אותו שרטוט":"שרטוט אחר: המיקומים לא מיושרים, בדוק אותם"}</span>
+    </button>`)}
+  </div>`}function zc(e,t,s,i){const a=parseFloat(e.metres),r=e.pixels!==null&&e.pixels<5,o=!!e.a&&!!e.b&&e.pixels!==null&&e.pixels>=5&&a>0&&a<=1e3&&!e.busy,l=e.showEstimates?"התוכנית לא מכוילת: מידות מוצגות כמשוערות (≈)":"התוכנית לא מכוילת: מידות מוסתרות עד הכיול (הגדרות)";return n`<sw-card heading="כיול קנה מידה" subheading=${e.estimated?l:`מכויל · ${La(e.scale)}`} data-calib-panel>
+    <ol class="steps">
+      <li class=${e.a?"done":""}>לחץ על נקודה שהמרחק ממנה ידוע, למשל פינת קיר</li>
+      <li class=${e.b?"done":""}>לחץ על הנקודה השנייה</li>
+      <li>הקלד את המרחק האמיתי ביניהן</li>
+    </ol>
+    <sw-field label="מרחק (מ׳)"><input type="number" min="0.01" max="1000" step="0.01" data-ltr data-calib-metres .value=${e.metres} ?disabled=${!e.b}
+      @input=${p=>t(p.target.value)} /></sw-field>
+    ${e.pixels!==null?n`<div class=${r?"note err":"note"}>${e.pixels.toFixed(0)} פיקסלים בתוכנית${r?" · הנקודות קרובות מדי":a>0?` · 1 מ׳ = ${(e.pixels/a).toFixed(1)} פיקסלים`:""}</div>`:d}
+    <div class="btns">
+      <sw-button variant="primary" size="sm" icon="check" data-calib-save ?disabled=${!o} @click=${s}>שמור כיול</sw-button>
+      <sw-button variant="ghost" size="sm" data-calib-reset @click=${i}>נקה נקודות</sw-button>
+    </div>
+    ${e.result?n`<div class="note" data-calib-result>${e.result}</div>`:d}
+    ${e.warning?n`<div class="err" data-calib-warning>${e.warning}</div>`:d}
+    <div class="note">המיקומים על המפה לא זזים, רק המטרים משתנים. הכיול נכנס לטיוטת המבנה והצופים רואים אותו אחרי פרסום.</div>
+  </sw-card>`}function Sc(e,t,s,i,a,r,o){const l=e.length>1?os(e,t,s)*i:0;return n`<sw-card heading="מדידה" subheading=${a?r?"לא מכויל: הערכים משוערים (≈)":"לא מכויל: המידות מוסתרות עד הכיול (הגדרות)":"לפי הכיול של גרסת התוכנית"} data-measure-panel>
+    <div class="note">לחץ נקודות על התוכנית. Shift מבטל הצמדה לזוויות, Esc מנקה.</div>
+    <div class="measure-val" data-measure-distance>${e.length>1?gi(l,a,r):"—"}</div>
+    ${e.length>=3?n`<div class="note">שטח המצולע <span class="measure-val" data-measure-area>${fc(Ml(e,t,s,i),a,r)}</span> · היקף ${gi(Al(e,t,s,i),a,r)}</div>`:d}
+    <div class="btns"><sw-button variant="ghost" size="sm" data-measure-clear ?disabled=${!e.length} @click=${o}>נקה</sw-button></div>
+  </sw-card>`}const Mc=A`
+  .modes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-block-end: 8px;
+  }
+  .modes button,
+  .btnlink {
+    border: 1px solid var(--sw-border);
+    background: var(--sw-surface);
+    color: var(--sw-text);
+    border-radius: var(--sw-r-pill);
+    padding: 4px 10px;
+    font: inherit;
+    font-size: var(--sw-fs-sm);
+    cursor: pointer;
+    text-decoration: none;
+  }
+  .modes button.on {
+    background: var(--sw-accent);
+    border-color: var(--sw-accent);
+    color: #fff;
+  }
+  .modes button:focus-visible,
+  .btnlink:focus-visible,
+  .issue:focus-visible {
+    outline: 2px solid var(--sw-accent);
+    outline-offset: 1px;
+  }
+  .sel {
+    border-block-start: 1px solid var(--sw-border);
+    margin-block-start: 10px;
+    padding-block-start: 10px;
+    display: grid;
+    gap: 8px;
+  }
+  .selhead {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .selhead .muted,
+  .issue .muted {
+    color: var(--sw-text-2);
+    font-size: var(--sw-fs-sm);
+  }
+  .issues,
+  .copy {
+    display: grid;
+    gap: 4px;
+    margin-block-start: 10px;
+  }
+  .ilbl {
+    font-weight: 600;
+    font-size: var(--sw-fs-sm);
+  }
+  .issue {
+    text-align: start;
+    border: 1px solid var(--sw-border);
+    background: var(--sw-surface);
+    color: var(--sw-text);
+    border-radius: 8px;
+    padding: 6px 8px;
+    font: inherit;
+    font-size: var(--sw-fs-sm);
+    cursor: pointer;
+    display: grid;
+    gap: 2px;
+  }
+  .issue.error {
+    border-color: var(--sw-danger);
+  }
+  .issue.warning {
+    border-color: var(--sw-warning);
+  }
+  .issue:disabled {
+    cursor: default;
+    opacity: 0.7;
+  }
+  .exports {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    margin-block-start: 10px;
+  }
+  .linkbtn {
+    border: 0;
+    background: none;
+    color: var(--sw-accent);
+    font: inherit;
+    cursor: pointer;
+    padding: 0;
+  }
+  .steps {
+    margin: 0 0 8px;
+    padding-inline-start: 18px;
+    display: grid;
+    gap: 2px;
+    font-size: var(--sw-fs-sm);
+  }
+  .steps li.done {
+    color: var(--sw-text-2);
+    text-decoration: line-through;
+  }
+  .measure-val {
+    font-family: var(--sw-font-mono);
+    font-size: var(--sw-fs-lg);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+`;var Ac=Object.defineProperty,Pc=Object.getOwnPropertyDescriptor,N=(e,t,s,i)=>{for(var a=i>1?void 0:i?Pc(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Ac(t,s,a),a};const ti=["#2767ED","#22A06B","#F59E0B","#8B5CF6","#0EA5E9","#EC4899","#14B8A6","#F97316"],Ec=[{id:"select",icon:"target",label:"בחירה וגרירה",ready:!0},{id:"camera",icon:"camera",label:"הוספת מצלמה",ready:!0},{id:"lights",icon:"light",label:"הוספת תאורה (מפסקים)",ready:!0},{id:"entity",icon:"plus",label:"ישות HA אחרת",ready:!0},{id:"zones",icon:"map",label:"חדרים ואזורים",ready:!0},{id:"structure",icon:"wall",label:"מבנה: קירות, דלתות וחלונות",ready:!0},{id:"calibrate",icon:"scale",label:"כיול קנה מידה",ready:!0},{id:"measure",icon:"ruler",label:"מדידת מרחק ושטח",ready:!0},{id:"layers",icon:"layers",label:"שכבות",ready:!0}],xn=["structure","calibrate","measure"],It={a:null,b:null,metres:"",result:"",warning:""},Ic=1e3,Cc=["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"],si=10,kn=14,Dc=6,Zi=(e,t)=>`${lt(e,"קיר אחד","קירות")}, ${lt(t,"פתח אחד","פתחים")}`,_n=[{id:"cameras",label:"מצלמות"},{id:"doors",label:"דלתות ומנעולים"},{id:"lights",label:"תאורה ומתגים"},{id:"sensors",label:"חיישנים"}],Tc={asset:"קובץ",page:"עמוד",rotation:"סיבוב",crop:"חיתוך",width_px:"רוחב",height_px:"גובה"},qi=e=>e?new Intl.DateTimeFormat("he-IL",{dateStyle:"short",timeStyle:"short"}).format(new Date(e)):"";let T=class extends M{constructor(){super(...arguments),this.floorId="",this.presetEntity="",this.bundle=null,this.anchors=[],this.dirty=new Set,this.undo=[],this.redo=[],this.selectedId=null,this.tool="select",this.layers=new Set(["cameras","doors","lights","sensors"]),this.placing=null,this.entQ="",this.entResults=null,this.entBusy=!1,this.lightsAll=!1,this.busy=!1,this.error="",this.info="",this.stylizing=!1,this.stylized=null,this.stylizeOpts={strength:"medium",keepLines:!1,roomFill:"white"},this.zones=[],this.versions=[],this.diff=null,this.selectedZoneId=null,this.candidates=null,this.detecting=!1,this.detectStrength="medium",this.replaceAuto=!0,this.drawing=null,this.showZones=!0,this.zoneBusy=!1,this.studio=new nc(this),this.studioVersion=null,this.studioMode="wall",this.wallDefaults={thickness_m:.2,kind:"interior"},this.geomSel=null,this.geomPreview=null,this.nudgeBurst=null,this.wallDraft=null,this.lastDrawClick=null,this.hover=null,this.calib={...It},this.measurePts=[],this.geomDiff=null,this.showEstimates=!0,this.entTimer=0,this.onKey=e=>this.handleKey(e)}connectedCallback(){super.connectedCallback(),this.load(),window.addEventListener("keydown",this.onKey),this.presetEntity&&(this.tool="entity",this.entQ=this.presetEntity,this.searchEntities())}disconnectedCallback(){super.disconnectedCallback(),window.removeEventListener("keydown",this.onKey),this.studio.flush()}async realign(e){if(!(!this.bundle||this.busy)){this.busy=!0;try{const t=await Ul(this.bundle.floorId,e);this.error=t.moved||!t.skipped?"":`${t.skipped} פריטים לא ניתנים ליישור אוטומטי (שרטוט אחר) — בדוק אותם ולחץ "אשר מיקומים".`,await this.load()}catch(t){this.error=b(t)}finally{this.busy=!1}}}async load(){this.error="";try{const e=await Bs(this.floorId||"f0",!0);this.bundle=e,this.loadStudio(e),Ve().then(t=>{this.showEstimates=t["plan.estimates"]!=="false"}).catch(()=>{}),this.anchors=e.anchors.map(t=>({...t,position:{...t.position}})),this.zones=e.zones,this.loadVersions(),this.selectedZoneId&&!this.zones.some(t=>t.id===this.selectedZoneId)&&(this.selectedZoneId=null),this.dirty=new Set,this.undo=[],this.redo=[],this.selectedId&&!this.anchors.some(t=>t.id===this.selectedId)&&(this.selectedId=null)}catch(e){this.error=b(e)}}get selected(){return this.anchors.find(e=>e.id===this.selectedId)}layerOf(e){return e.resource_type==="camera"?"cameras":e.layer_id==="doors"?"doors":e.layer_id==="lights"?"lights":"sensors"}get markers(){return this.anchors.filter(e=>this.layers.has(this.layerOf(e))).map(e=>({id:e.id,kind:e.resource_type==="camera"?"camera":Ei(e.layer_id,e.entity?.domain),label:this.anchorName(e),x:e.position.x,y:e.position.y,rotation:e.rotation_degrees,fov:e.field_of_view_degrees??void 0,radius:e.coverage_radius??void 0,polygon:e.coverage_polygon?e.coverage_polygon.map(([t,s])=>({x:t,y:s})):void 0,labelPos:e.label_pos??void 0,state:e.resource_type==="camera"?this.bundle?.source==="demo"?"live":ks(e):"neutral"}))}anchorName(e){return e.resource_type==="camera"?e.camera?.name??e.label??e.resource_id:e.label??e.entity?.name??e.resource_id}get selectedZone(){return this.zones.find(e=>e.id===this.selectedZoneId)}get planZones(){if(!this.showZones)return[];const e=this.zones.map(s=>({id:s.id,name:s.name,kind:s.kind,color:s.color,polygon:s.polygon,labelPos:s.label_pos})),t=(this.candidates??[]).map((s,i)=>({id:`cand-${i}`,name:s.include?s.name:"",color:s.include?ti[i%ti.length]:"#9AA3B5",polygon:s.polygon,candidate:!0}));return[...e,...t]}async detect(){const e=this.bundle;if(e){if(e.source==="demo"){this.info="נתוני הדגמה: הזיהוי עובד מול השרת.";return}this.detecting=!0,this.error="";try{const t=await md(e.floorId,this.detectStrength);this.candidates=t.rooms.map((s,i)=>({polygon:s.polygon,name:`חדר ${i+1}`,kind:"room",include:!0})),this.selectedZoneId=null,this.selectedId=null,this.info=t.rooms.length?`${t.rooms.length} חדרים זוהו · תן שמות ושמור`:"לא זוהו חדרים סגורים; נסה עוצמה אחרת או צייר אזור ידנית",setTimeout(()=>this.info="",5e3)}catch(t){this.error=b(t)}finally{this.detecting=!1}}}setCandidate(e,t){this.candidates&&(this.candidates=this.candidates.map((s,i)=>i===e?{...s,...t}:s))}async acceptCandidates(){const e=this.bundle,t=(this.candidates??[]).filter(s=>s.include);if(!(!e||!t.length)){this.zoneBusy=!0,this.error="";try{const s=await fd(e.floorId,t.map(i=>({polygon:i.polygon,name:i.name,kind:i.kind})),this.replaceAuto);this.candidates=null,this.zones=s.zones,this.info=`${s.created.length} חדרים נשמרו`,setTimeout(()=>this.info="",3e3)}catch(s){this.error=b(s)}finally{this.zoneBusy=!1}}}startDrawing(){this.drawing=[],this.placing=null,this.candidates=null,this.selectedZoneId=null,this.selectedId=null}addDraftPoint(e,t){const s=this.drawing,i=this.bundle;if(!(!s||!i)){if(s.length>=3){const a=this.canvas?.zoom??1;if(Math.hypot((e-s[0].x)*i.width*a,(t-s[0].y)*i.height*a)<12){this.finishDrawing();return}}this.drawing=[...s,{x:+e.toFixed(4),y:+t.toFixed(4)}]}}async finishDrawing(){const e=this.drawing,t=this.bundle;if(!(!e||!t||e.length<3)){if(t.source==="demo"){this.info="נתוני הדגמה: השמירה עובדת מול השרת.",this.drawing=null;return}this.zoneBusy=!0,this.error="";try{const s=await pd(t.floorId,{name:`אזור ${this.zones.length+1}`,kind:"zone",polygon:e});this.drawing=null,this.zones=[...this.zones,s],this.selectedZoneId=s.id,this.info="האזור נוצר · תן לו שם",setTimeout(()=>this.info="",3e3)}catch(s){this.error=b(s)}finally{this.zoneBusy=!1}}}async patchZone(e,t){if(this.bundle?.source!=="demo"){this.zoneBusy=!0,this.error="";try{const s=await hd(e.id,{revision:e.revision,...t});this.zones=this.zones.map(i=>i.id===s.id?s:i)}catch(s){s instanceof fe&&s.status===409?(this.error="האזור השתנה בינתיים על ידי עורך אחר; נטען מחדש בלי לדרוס.",await this.load()):this.error=b(s)}finally{this.zoneBusy=!1}}}async removeZone(e){if(this.bundle?.source!=="demo"&&window.confirm(`למחוק את "${e.name}"? המצלמות והישויות בקומה לא מושפעות.`)){this.zoneBusy=!0,this.error="";try{await ud(e.id),this.zones=this.zones.filter(t=>t.id!==e.id),this.selectedZoneId===e.id&&(this.selectedZoneId=null)}catch(t){this.error=b(t)}finally{this.zoneBusy=!1}}}snapshot(){this.undo=[...this.undo.slice(-40),this.anchors.map(e=>({...e,position:{...e.position}}))],this.redo=[]}apply(e,t){this.snapshot(),this.anchors=this.anchors.map(s=>s.id===e?{...s,...t,position:t.position??s.position}:s),this.dirty=new Set(this.dirty).add(e)}nudge(e,t){const s=this.selected;s&&this.apply(s.id,{position:{x:+Math.min(1,Math.max(0,s.position.x+e)).toFixed(4),y:+Math.min(1,Math.max(0,s.position.y+t)).toFixed(4)}})}doUndo(){const e=this.undo[this.undo.length-1];e&&(this.redo=[...this.redo,this.anchors],this.undo=this.undo.slice(0,-1),this.anchors=e,this.dirty=new Set(this.anchors.map(t=>t.id)))}doRedo(){const e=this.redo[this.redo.length-1];e&&(this.undo=[...this.undo,this.anchors],this.redo=this.redo.slice(0,-1),this.anchors=e,this.dirty=new Set(this.anchors.map(t=>t.id)))}handleKey(e){const t=e.composedPath()[0],s=t&&(t.tagName==="INPUT"||t.tagName==="TEXTAREA"||t.tagName==="SELECT"||t.isContentEditable);if(e.key==="Escape"){this.wallDraft?(this.wallDraft=null,this.hover=null):this.tool==="measure"&&this.measurePts.length?this.measurePts=[]:this.tool==="calibrate"&&this.calib.a?this.calib={...It}:this.drawing?this.drawing=null:this.placing?this.placing=null:this.candidates?this.candidates=null:(this.selectedId=null,this.selectedZoneId=null,this.geomSel=null);return}if(s||this.studioOn&&this.handleStudioKey(e))return;if(e.key==="Enter"&&this.drawing){e.preventDefault(),this.finishDrawing();return}if((e.key==="Delete"||e.key==="Backspace")&&!this.selected&&this.selectedZone){e.preventDefault(),this.removeZone(this.selectedZone);return}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"){e.preventDefault(),e.shiftKey?this.doRedo():this.doUndo();return}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="y"){e.preventDefault(),this.doRedo();return}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="s"){e.preventDefault(),this.save();return}if(!this.selected)return;const i=e.shiftKey?.01:.002;e.key==="ArrowLeft"?(e.preventDefault(),this.nudge(-i,0)):e.key==="ArrowRight"?(e.preventDefault(),this.nudge(i,0)):e.key==="ArrowUp"?(e.preventDefault(),this.nudge(0,-i)):e.key==="ArrowDown"?(e.preventDefault(),this.nudge(0,i)):(e.key==="Delete"||e.key==="Backspace")&&(e.preventDefault(),this.removeSelected())}async save(){if(!this.bundle||this.bundle.source==="demo")return this.info="נתוני הדגמה: השינויים נשמרים רק במסך זה.",this.dirty=new Set,!0;if(!this.dirty.size)return!0;this.busy=!0,this.error="";let e=!1;try{for(const t of this.dirty){const s=this.anchors.find(i=>i.id===t);if(s)try{const i=await $r(t,{revision:s.revision,x:s.position.x,y:s.position.y,rotation_degrees:s.rotation_degrees,field_of_view_degrees:s.field_of_view_degrees,label:s.label,coverage_radius:s.coverage_radius??null,coverage_polygon:s.coverage_polygon??null,label_pos:s.label_pos??"auto"});this.anchors=this.anchors.map(a=>a.id===t?{...a,revision:i.revision}:a)}catch(i){if(i instanceof fe&&i.code==="stale_revision")e=!0;else throw i}}return e?(this.error="חלק מהפריטים השתנו בינתיים על ידי עורך אחר; המפה נטענה מחדש בלי לדרוס את השינוי שלו.",await this.load(),!1):(this.dirty=new Set,this.info="המיקומים נשמרו",setTimeout(()=>this.info="",2500),!0)}catch(t){return this.error=b(t),!1}finally{this.busy=!1}}async place(e,t){const s=this.placing;if(!(!s||!this.bundle)){if(this.bundle.source==="demo"){this.info="נתוני הדגמה: הוספה עובדת מול השרת.",this.placing=null;return}if(!(this.dirty.size&&!await this.save())){this.busy=!0,this.error="";try{const i=s.kind==="camera"?await hn(this.bundle.floorId,{resource_type:"camera",resource_id:s.camera.id,x:e,y:t,rotation_degrees:0,field_of_view_degrees:90}):await hn(this.bundle.floorId,{resource_type:"ha_entity",resource_id:s.entity.entity_id,x:e,y:t,rotation_degrees:0,field_of_view_degrees:null});this.placing=null,await this.load(),this.selectedId=i.id,this.tool="select",this.info=`${this.anchorName(i)} הוצב · גרור לדיוק, קבע כיוון בידיות`,setTimeout(()=>this.info="",4e3)}catch(i){this.error=b(i)}finally{this.busy=!1}}}}async removeSelected(){const e=this.selected;if(!(!e||!this.bundle)){if(this.bundle.source==="demo"){this.info="נתוני הדגמה: הסרה עובדת מול השרת.";return}if(window.confirm(`להסיר את "${this.anchorName(e)}" מהמפה? המקור עצמו לא נמחק.`)){this.busy=!0,this.error="";try{await Zl(e.id),this.selectedId=null,await this.load()}catch(t){this.error=b(t)}finally{this.busy=!1}}}}async loadVersions(){const e=this.bundle;if(!e||e.source==="demo"||!e.permissions.edit){this.versions=[];return}try{this.versions=(await Hl(e.floorId)).versions}catch{this.versions=[]}}async publish(){const e=this.bundle;if(!e?.planVersionId||this.dirty.size&&!await this.save())return;if(!await this.studio.flush()){this.error=this.studio.error;return}if(this.error="",e.planStatus==="published"){await this.openGeomDiff(e.planVersionId);return}let t=this.versions.find(s=>s.id===e.planVersionId);if(t||(await this.loadVersions(),t=this.versions.find(s=>s.id===e.planVersionId)),!t){this.error="לא נמצאה טיוטה לפרסום — טען מחדש";return}await this.openDiff("publish",t)}async openGeomDiff(e){this.geomDiff={versionId:e,data:null,error:""};try{const t=await Dd(e);this.geomDiff?.versionId===e&&(this.geomDiff={versionId:e,data:t,error:""})}catch(t){this.geomDiff?.versionId===e&&(this.geomDiff={versionId:e,data:null,error:b(t)})}}async confirmGeomPublish(){const e=this.bundle,t=this.geomDiff;if(!(!e||!t?.data)){this.busy=!0;try{const s=await Cd(t.versionId);this.geomDiff=null,this.info=s.unchanged?"אין שינוי לפרסום":"המבנה פורסם; הצופים רואים אותו עכשיו",setTimeout(()=>this.info="",4e3),await this.loadStudio(e,!0)}catch(s){this.geomDiff={...t,error:b(s)}}finally{this.busy=!1}}}async openDiff(e,t){this.diff={mode:e,version:t,data:null,error:""};try{const s=await jl(t.id);this.diff?.version.id===t.id&&(this.diff={mode:e,version:t,data:s,error:""})}catch(s){this.diff?.version.id===t.id&&(this.diff={mode:e,version:t,data:null,error:b(s)})}}async confirmDiff(){const e=this.diff;if(!e?.data||e.mode==="compare")return;const t=e.version.id===this.bundle?.planVersionId;this.busy=!0,this.error="";try{if(t&&!await this.studio.flush()){this.diff={...e,error:this.studio.error};return}e.mode==="publish"?(await yr(e.version.id),this.info="הגרסה פורסמה; הצופים רואים אותה עכשיו"):(await Wl(e.version.id,e.version.revision,e.data.from?.id??null),this.info="הגרסה שוחזרה ופורסמה מחדש; העוגנים נשמרו"),this.diff=null,await this.load(),this.bundle&&await this.loadStudio(this.bundle,!0),setTimeout(()=>this.info="",4e3)}catch(s){this.diff={...e,error:b(s)},s instanceof fe&&s.status===409&&this.loadVersions(),t&&s instanceof fe&&s.code==="geometry_invalid"&&(this.pickTool("structure"),this.studioMode="select")}finally{this.busy=!1}}async searchEntities(){if(this.bundle?.source!=="demo"){this.entBusy=!0;try{const e=this.tool==="lights",t=await Pr({q:this.entQ||void 0,domain:e&&!this.lightsAll?"switch":void 0,limit:e?200:40});this.entResults=e?t.entities.filter(s=>s.domain==="switch"||this.lightsAll&&s.domain==="light").slice(0,60):t.entities}catch(e){this.error=b(e),this.entResults=[]}finally{this.entBusy=!1}}}onEntQuery(e){this.entQ=e,window.clearTimeout(this.entTimer),this.entTimer=window.setTimeout(()=>void this.searchEntities(),250)}async stylize(e,t){if(!this.bundle?.planVersionId||this.bundle.source==="demo")return;const s=this.stylizeOpts;(e!==void 0||t!==void 0)&&(this.stylizeOpts={...s,strength:e??s.strength,keepLines:t??s.keepLines}),this.stylizing=!0,this.error="";try{this.stylized=await tc(this.bundle.planVersionId,{strength:this.stylizeOpts.strength,keep_lines:this.stylizeOpts.keepLines,room_fill:this.stylizeOpts.roomFill})}catch(i){this.error=b(i)}finally{this.stylizing=!1}}async useRender(e){if(this.bundle?.planVersionId){this.busy=!0,this.error="";try{await sc(this.bundle.planVersionId,e),this.stylized=null,await this.load(),this.info=e==="stylized"?"המפה מציגה עכשיו את שפת SMPLWISE":"המפה מציגה את תוכנית המקור",setTimeout(()=>this.info="",3e3)}catch(t){this.error=b(t)}finally{this.busy=!1}}}pickTool(e){this.tool=e,this.placing=null,this.wallDraft=null,this.hover=null,this.geomPreview=null,e!=="structure"&&(this.geomSel=null),e!=="measure"&&(this.measurePts=[]),e!=="calibrate"&&(this.calib={...It}),(e==="entity"||e==="lights")&&(this.entResults=null,this.searchEntities())}async loadStudio(e,t=!1){if(e.source!=="api"||!e.planVersionId||!e.permissions.structure||!t&&this.studioVersion===e.planVersionId)return!1;this.studioVersion=e.planVersionId;try{return!await this.studio.flush()&&!(t&&this.studio.hasConflict)?(this.studioVersion=null,this.error=this.studio.error,!1):(await this.studio.load(e.planVersionId),this.geomSel=null,this.geomPreview=null,this.wallDraft=null,this.calib={...It},this.measurePts=[],!0)}catch(s){return this.studioVersion=null,this.error=b(s),!1}}get studioOn(){return xn.includes(this.tool)&&!!this.studio.doc}get studioPlacing(){return this.studioOn&&(this.tool!=="structure"||this.studioMode!=="select")}get geomDragMode(){return this.tool!=="structure"||!this.studio.doc?"none":this.studioMode==="select"?"all":this.wallDraft?"none":"items"}get issueIds(){return this.studio.issues.filter(e=>e.severity==="error"&&e.id).map(e=>e.id)}edit(e){const t=this.studio.doc;if(!t)return;const s=e(t);s===t||JSON.stringify(s)===JSON.stringify(t)||this.studio.commit(s)}snap(e,t,s){const i=this.bundle,a=this.studio.doc;return!i||!a?e:on(e,t,a.walls,i.width,i.height,{tolPx:si/(this.canvas?.zoom??1),free:s})}snapDraw(e,t,s){const i=this.bundle,a=t.length>=3?t[0]:null;return i&&a&&Math.hypot((e[0]-a[0])*i.width,(e[1]-a[1])*i.height)*(this.canvas?.zoom??1)<=si?a:this.snap(e,t.at(-1)??null,s)}openingAt(e,t,s){const i=this.wallLengthM(t,e),a=Dc/(this.canvas?.zoom??1)*vt(e).scale;let r=null,o=Number.POSITIVE_INFINITY;for(const l of e.openings){const p=l.wall_id===t.id?Math.abs(l.t-s)*i:Number.POSITIVE_INFINITY;p<=l.width_m/2+a&&p<o&&(r=l,o=p)}return r}onPlanHover(e,t,s,i=!1){const a=this.bundle,r=this.studio.doc;if(!a||!r||!this.studioPlacing||i){this.hover=null;return}const o=[e,t];if(this.tool==="calibrate")this.hover=this.snap(o,null,!0);else if(this.tool==="measure")this.hover=this.snap(o,this.measurePts.at(-1)??null,s);else if(this.studioMode==="wall")this.hover=this.snapDraw(o,this.wallDraft??[],s);else if(this.studioMode==="label")this.hover=o;else{const l=Ys(o,r.walls,a.width,a.height,kn/(this.canvas?.zoom??1));this.hover=l&&!this.openingAt(r,l.wall,l.t)?Ni(l.wall,l.t,a.width,a.height):null}}studioClick(e,t,s){const i=this.bundle,a=this.studio.doc;if(!i||!a)return;const r=[e,t];if(this.tool==="calibrate"){const w=this.snap(r,null,!0),y=this.calib;this.calib=!y.a||y.b?{...It,a:w}:{...y,b:w};return}if(this.tool==="measure"){this.measurePts=[...this.measurePts,this.snap(r,this.measurePts.at(-1)??null,s)];return}const o=this.studioMode,l=this.canvas?.zoom??1;if(o==="wall"){const w=this.wallDraft??[],y=this.snapDraw(r,w,s),k=R=>!!R&&Math.hypot((R[0]-r[0])*i.width,(R[1]-r[1])*i.height)*l<8;if(w.length&&(k(w[w.length-1])||k(this.lastDrawClick))){this.finishWall();return}if(w.length>=3&&y===w[0]){this.wallDraft=[...w,w[0]],this.finishWall();return}this.wallDraft=[...w,y],this.lastDrawClick=r;return}if(o==="label"){const w=hc(a,r,"תווית");this.studio.commit(w.doc),this.geomSel={id:w.id,kind:"label"};return}if(o==="select")return;const p=Ys(r,a.walls,i.width,i.height,kn/l);if(!p){this.info="לחץ על קיר כדי להציב פתח",setTimeout(()=>this.info="",2500);return}const h=this.openingAt(a,p.wall,p.t);if(h){this.onGeomSelect(h.id,"opening");return}const[u,f]=li(Na(o).width_m,this.wallLengthM(p.wall,a)),v=oc(a,p.wall.id,Math.min(f,Math.max(u,p.t)),o);this.studio.commit(v.doc),this.geomSel={id:v.id,kind:"opening"}}finishWall(){const e=this.wallDraft;this.wallDraft=null,this.hover=null;const t=this.studio.doc;if(!t||!e||e.length<2)return;const s=rc(t,e,this.wallDefaults);this.studio.commit(s.doc),this.geomSel={id:s.id,kind:"wall"}}onGeomSelect(e,t,s){this.geomSel=s===void 0?{id:e,kind:t}:{id:e,kind:t,vertex:s},this.selectedId=null,this.selectedZoneId=null}wallLengthM(e,t){const s=this.bundle;return s?os(e.polyline,s.width,s.height)*vt(t).scale:0}dragged(e,t){const s=this.bundle;if(!s)return null;const i=[t.x,t.y];if(t.kind==="vertex"){const o=e.walls.find(R=>R.id===t.id);if(!o)return null;const l=o.polyline,p=l.length-1,h=Ls(l),u=h&&t.index===p?0:t.index,f=h?p:l.length,v=h?[(u+f-1)%f,u,(u+1)%f]:[u-1,u,u+1],w={...o,polyline:l.slice(0,f).filter((R,z)=>!v.includes(z))},y=[...e.walls.filter(R=>R.id!==t.id),w],k=on(i,u>0?l[u-1]:null,y,s.width,s.height,{tolPx:si/(this.canvas?.zoom??1),free:!0});return{doc:h&&u===0?Yt(Yt(e,t.id,0,k),t.id,p,k):Yt(e,t.id,u,k),sel:{id:t.id,kind:"wall",vertex:u}}}if(t.kind==="opening"){const o={id:t.id,kind:"opening"},l=e.openings.find(w=>w.id===t.id),p=l&&e.walls.find(w=>w.id===l.wall_id),h=l&&p?Ys(i,[p],s.width,s.height,Number.POSITIVE_INFINITY):null,u=l&&p?Ys([t.sx,t.sy],[p],s.width,s.height,Number.POSITIVE_INFINITY):null;if(!l||!p||!h||!u)return{doc:e,sel:o};const[f,v]=li(l.width_m,this.wallLengthM(p,e));return{doc:Fi(e,t.id,{t:Math.min(v,Math.max(f,l.t+h.t-u.t))}),sel:o}}const a=e.labels.find(o=>o.id===t.id),r={id:t.id,kind:"label"};return a?{doc:ji(e,t.id,{position:[a.position[0]+t.x-t.sx,a.position[1]+t.y-t.sy]}),sel:r}:{doc:e,sel:r}}onGeomDragMove(e){const t=this.studio.doc,s=t?this.dragged(t,e):null;this.geomPreview=s?.doc??null,s&&this.onGeomSelect(s.sel.id,s.sel.kind,s.sel.vertex)}onGeomDrag(e){this.geomPreview=null;const t=this.studio.doc,s=t?this.dragged(t,e):null;s&&(this.edit(()=>s.doc),this.onGeomSelect(s.sel.id,s.sel.kind,s.sel.vertex))}nudgeGeom(e){const t=this.geomSel,s=this.bundle,i=this.studio.doc;if(!t||!s||!i||this.geomPreview||this.wallDraft||e.ctrlKey||e.metaKey||e.altKey)return!1;const{scale:a,estimated:r}=vt(i),o=r?(e.shiftKey?.01:.002)*s.width:(e.shiftKey?.1:.01)/a;let l,p=t.id;if(t.kind==="opening"){const u=i.openings.find(z=>z.id===t.id),f=u&&i.walls.find(z=>z.id===u.wall_id),v=f?os(f.polyline,s.width,s.height):0;if(!u||!f||!(v>0))return!1;const[w,y]=cc(f,u.t,s.width,s.height),k=Math.abs(w)>=Math.abs(y);let R=0;if(k&&e.key==="ArrowRight"?R=Math.sign(w):k&&e.key==="ArrowLeft"?R=-Math.sign(w):!k&&e.key==="ArrowDown"?R=Math.sign(y):!k&&e.key==="ArrowUp"&&(R=-Math.sign(y)),e.preventDefault(),!R)return!0;l=Fi(i,u.id,{t:dc(u.t,R*o/v,li(u.width_m,this.wallLengthM(f,i)))})}else{const u=(e.key==="ArrowRight"?o:e.key==="ArrowLeft"?-o:0)/s.width,f=(e.key==="ArrowDown"?o:e.key==="ArrowUp"?-o:0)/s.height;if(t.kind==="label"){const v=i.labels.find(w=>w.id===t.id);if(!v)return!1;l=ji(i,v.id,{position:[v.position[0]+u,v.position[1]+f]})}else{const v=i.walls.find(R=>R.id===t.id),w=t.vertex;if(this.studioMode!=="select"||!v||w===void 0||!v.polyline[w])return!1;const y=[v.polyline[w][0]+u,v.polyline[w][1]+f],k=v.polyline.length-1;l=Ls(v.polyline)&&w===0?Yt(Yt(i,v.id,0,y),v.id,k,y):Yt(i,v.id,w,y),p=`${v.id}:${w}`}}e.preventDefault();const h=u=>JSON.stringify(t.kind==="opening"?u.openings.find(f=>f.id===t.id):t.kind==="label"?u.labels.find(f=>f.id===t.id):u.walls.find(f=>f.id===t.id));return h(l)!==h(i)&&this.commitNudge(p,l),!0}commitNudge(e,t){const s=this.studio.doc;if(!s)return;const i=performance.now(),a=this.nudgeBurst;a&&a.key===e&&a.doc===s&&i-a.at<Ic&&this.studio.canUndo&&this.studio.undo(),this.studio.commit(t),this.nudgeBurst={key:e,doc:t,at:i}}handleStudioKey(e){const t=e.ctrlKey||e.metaKey,s=e.key.toLowerCase();if(e.key==="Enter"&&this.wallDraft)return e.preventDefault(),this.finishWall(),!0;if((e.key==="Backspace"||e.key==="Delete")&&this.wallDraft)return e.preventDefault(),this.wallDraft=this.wallDraft.length>1?this.wallDraft.slice(0,-1):null,this.lastDrawClick=null,!0;if((e.key==="Delete"||e.key==="Backspace")&&this.geomSel){e.preventDefault();const{id:i,kind:a,vertex:r}=this.geomSel;if(a==="wall"&&r!==void 0&&this.studioMode==="select"){const o=this.studio.doc,l=o?pc(o,i,r):null;return l&&this.edit(()=>l.doc),this.geomSel=l&&!l.wallRemoved?{id:i,kind:a}:null,!0}return this.edit(o=>ma(o,i)),this.geomSel=null,!0}return Cc.includes(e.key)&&this.tool==="structure"&&this.nudgeGeom(e)?!0:t&&(s==="z"||s==="y")?(e.preventDefault(),s==="y"||e.shiftKey?this.studio.redo():this.studio.undo(),this.geomSel=null,!0):t&&s==="s"?(e.preventDefault(),this.studio.flush(),!0):!1}focusGeom(e){const t=this.bundle,s=this.studio.doc;if(!t||!s)return;const i=s.walls.find(p=>p.id===e),a=s.openings.find(p=>p.id===e),r=s.labels.find(p=>p.id===e),o=a?s.walls.find(p=>p.id===a.wall_id):void 0,l=i?Ni(i,.5,t.width,t.height):a&&o?Ni(o,a.t,t.width,t.height):r?r.position:null;this.tool="structure",this.studioMode="select",this.wallDraft=null,this.geomSel=i?{id:e,kind:"wall"}:a?{id:e,kind:"opening"}:r?{id:e,kind:"label"}:null,l&&this.canvas?.centerOn(Math.min(1,Math.max(0,l[0])),Math.min(1,Math.max(0,l[1])))}async copyStructure(e){const t=this.bundle;if(t?.planVersionId){this.busy=!0,this.error="";try{if(!await this.studio.flush()){this.error=this.studio.error;return}await Td(t.planVersionId,e),await this.loadStudio(t,!0)&&(this.info="המבנה הועתק לטיוטה; בדוק מיקומים ופרסם",setTimeout(()=>this.info="",4e3))}catch(s){this.error=b(s)}finally{this.busy=!1}}}exportJson(){const e=this.studio.doc;if(!e)return;const t=URL.createObjectURL(new Blob([JSON.stringify(e,null,2)],{type:"application/json"})),s=document.createElement("a");s.href=t,s.download=`plan-structure-${e.plan_version_id}.json`,s.click(),setTimeout(()=>URL.revokeObjectURL(t),1e3)}renderStructurePanel(e){const t=this.studio.doc,s=e.planVersionId;return!t||!s?n`<sw-card heading="מבנה"><div class="note">${e.source==="demo"?"נתוני הדגמה: ציור המבנה עובד מול השרת.":this.error||"טוען את טיוטת המבנה…"}</div></sw-card>`:gc({doc:this.geomPreview??t,W:e.width,H:e.height,mode:this.studioMode,wallDefaults:this.wallDefaults,sel:this.geomSel,saveState:this.studio.saveState,saveError:this.studio.error,conflict:this.studio.hasConflict,issues:this.studio.issues,copyCandidates:this.studio.copyCandidates,exportSvg:fn(s,"svg",{draft:!0}),exportPng:fn(s,"png",{draft:!0}),busy:this.busy,showEstimates:this.showEstimates},{setMode:i=>{this.studioMode=i,this.wallDraft=null,this.hover=null,i!=="select"&&this.geomSel?.vertex!==void 0&&(this.geomSel={id:this.geomSel.id,kind:this.geomSel.kind})},setWallDefaults:i=>{this.wallDefaults=i},patchWall:(i,a)=>this.edit(r=>lc(r,i,a)),patchOpening:(i,a)=>this.edit(r=>Fi(r,i,a)),patchLabel:(i,a)=>this.edit(r=>ji(r,i,a)),remove:i=>{this.edit(a=>ma(a,i)),this.geomSel=null},focus:i=>this.focusGeom(i),copyFrom:i=>void this.copyStructure(i),exportJson:()=>this.exportJson(),reload:()=>void this.loadStudio(e,!0),calibrate:()=>this.pickTool("calibrate"),retry:async()=>{await this.studio.flush()&&this.loadStudio(e)}})}get rulers(){const e=this.bundle,t=this.studio.doc;if(!e||!t)return[];const{scale:s,estimated:i}=vt(t),a=(r,o)=>gi(Sl(r,o,e.width,e.height,s),i,this.showEstimates);if(this.tool==="calibrate"){const{a:r,b:o,metres:l}=this.calib,p=o??this.hover;return!r||!p?[]:[{a:r,b:p,label:o?parseFloat(l)>0?`${l} מ׳`:"? מ׳":"",tone:o?"accent":"muted"}]}if(this.tool==="measure"){const r=this.measurePts,o=this.hover&&r.length?[...r,this.hover]:r,l=[];for(let p=1;p<o.length;p++)l.push({a:o[p-1],b:o[p],label:a(o[p-1],o[p]),tone:p>r.length-1?"muted":"accent"});return r.length>=3&&l.push({a:r[r.length-1],b:r[0],label:"",tone:"muted"}),l}return[]}async saveCalibration(){const e=this.bundle,{a:t,b:s,metres:i}=this.calib,a=parseFloat(i);if(!(!e?.planVersionId||!t||!s||!(a>0))){this.busy=!0,this.error="";try{if(!await this.studio.flush()){this.error=this.studio.error;return}const r=await Od(e.planVersionId,[{a:t,b:s,metres:a}]);await this.loadStudio(e,!0),this.calib={...It,result:`קנה המידה נשמר: ${La(r.scale_m_per_px)}`,warning:r.warning??""}}catch(r){this.error=b(r)}finally{this.busy=!1}}}renderCalibrate(e){const t=this.studio.doc;if(!t)return n`<sw-card heading="כיול קנה מידה"><div class="note">${e.source==="demo"?"נתוני הדגמה: הכיול עובד מול השרת.":"טוען…"}</div></sw-card>`;const{scale:s,estimated:i}=vt(t),a=this.calib,r=a.a&&a.b?Math.hypot((a.b[0]-a.a[0])*e.width,(a.b[1]-a.a[1])*e.height):null;return zc({a:a.a,b:a.b,metres:a.metres,pixels:r,scale:s,estimated:i,showEstimates:this.showEstimates,result:a.result,warning:a.warning,busy:this.busy},o=>{this.calib={...this.calib,metres:o}},()=>void this.saveCalibration(),()=>{this.calib={...It}})}renderMeasure(e){const t=this.studio.doc;if(!t)return n`<sw-card heading="מדידה"><div class="note">${e.source==="demo"?"נתוני הדגמה: המדידה עובדת מול השרת.":"טוען…"}</div></sw-card>`;const{scale:s,estimated:i}=vt(t);return Sc(this.measurePts,e.width,e.height,s,i,this.showEstimates,()=>{this.measurePts=[]})}renderCoverage(e){const t=e.coverage_polygon,s=e.coverage_radius??0,i=Math.round((s||.1)*100),a=()=>{const r=e.field_of_view_degrees??90,o=s||.1,l=this.bundle&&this.bundle.height?this.bundle.width/this.bundle.height:1,p=[[e.position.x,e.position.y]],h=Math.max(3,Math.round(r/15));for(let u=0;u<=h;u++){const f=(e.rotation_degrees-r/2+r*u/h-90)*Math.PI/180;p.push([+Math.max(0,Math.min(1,e.position.x+Math.cos(f)*o)).toFixed(4),+Math.max(0,Math.min(1,e.position.y+Math.sin(f)*o*l)).toFixed(4)])}this.apply(e.id,{coverage_polygon:p})};return n`<div class="row" data-coverage style="flex-direction:column;align-items:stretch;gap:6px">
+      <span class="lbl">שטח כיסוי${t?" · מצולע ידני":""}<span class="muted">${t?`${t.length} נקודות · גרירה מזיזה, לחיצה על נקודת אמצע מוסיפה, לחיצה כפולה מסירה`:"שני מחוונים נפרדים לגמרי זה מזה: רוחב (כמה ימינה ושמאלה, שווה לשני הצדדים) ומרחק (עד איפה המצלמה רואה). אפשר גם לגרור את הידיות על המפה."}</span></span>
+      ${t?d:n`<label class="note" style="display:flex;gap:8px;align-items:center" data-coverage-width>רוחב
+          <input type="range" min="10" max="180" step="1" style="flex:1" .value=${String(Math.round(e.field_of_view_degrees??90))} aria-label="רוחב שדה הראייה" @input=${r=>this.apply(e.id,{field_of_view_degrees:Number(r.target.value)})} />
+          <span class="ltr" style="min-inline-size:64px">${Math.round((e.field_of_view_degrees??90)/2)}° לכל צד</span></label>
+        <label class="note" style="display:flex;gap:8px;align-items:center" data-coverage-distance>מרחק
+          <input type="range" min="2" max="100" step="1" style="flex:1" .value=${String(i)} aria-label="מרחק ראייה" @input=${r=>this.apply(e.id,{coverage_radius:Number(r.target.value)/100})} />
+          <input type="number" step="1" min="2" max="100" data-ltr data-coverage-radius style="inline-size:56px" .value=${String(i)} aria-label="מרחק ראייה, אחוז מדויק" @change=${r=>this.apply(e.id,{coverage_radius:Math.min(1,Math.max(.02,Number(r.target.value)/100))})} />
+          <span class="ltr" style="min-inline-size:24px">%</span></label>`}
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        ${t?n`<sw-button size="sm" icon="undo" data-coverage-cone @click=${()=>this.apply(e.id,{coverage_polygon:null})}>חזרה לקשת</sw-button>`:n`${s?n`<sw-button size="sm" variant="ghost" @click=${()=>this.apply(e.id,{coverage_radius:null})}>מרחק לברירת מחדל</sw-button>`:d}
+            <sw-button size="sm" icon="edit" data-coverage-polygon @click=${a}>כיסוי ידני (מצולע)</sw-button>`}
+      </div>
+    </div>`}renderCameraInspector(e){const t=e.camera,s=e.field_of_view_degrees??0;return n`<sw-card heading="הגדרות מצלמה" subheading="גרירה במפה, ידיות לכיוון ולשדה הראייה, או הזנה מדויקת">
+      <div class="kv"><span class="k">מצלמה</span><strong>${this.anchorName(e)}</strong></div>
+      <div class="kv"><span class="k">מקור</span><span class="ltr">${t?`NVR · ch ${t.channel}`:e.resource_id}</span></div>
+      <sw-field label="כיוון מבט (°)" style="margin-block-start:10px"><input type="number" step="1" min="0" max="359" data-ltr .value=${String(Math.round(e.rotation_degrees))} @change=${i=>this.apply(e.id,{rotation_degrees:(Number(i.target.value)%360+360)%360})} /></sw-field>
+      <div class="two">
+        <sw-field label="מיקום X (%)"><input type="number" step="0.1" min="0" max="100" data-ltr .value=${(e.position.x*100).toFixed(1)} @change=${i=>this.apply(e.id,{position:{x:Math.min(1,Math.max(0,Number(i.target.value)/100)),y:e.position.y}})} /></sw-field>
+        <sw-field label="מיקום Y (%)"><input type="number" step="0.1" min="0" max="100" data-ltr .value=${(e.position.y*100).toFixed(1)} @change=${i=>this.apply(e.id,{position:{x:e.position.x,y:Math.min(1,Math.max(0,Number(i.target.value)/100))}})} /></sw-field>
+      </div>
+      <sw-field label="תווית (אופציונלי)"><input .value=${e.label??""} @change=${i=>this.apply(e.id,{label:i.target.value||null})} /></sw-field>
+      <sw-field label="מיקום התווית"><select data-label-pos @change=${i=>this.apply(e.id,{label_pos:i.target.value})}>${[["auto","אוטומטי"],["top","מעל"],["bottom","מתחת"],["left","משמאל"],["right","מימין"]].map(([i,a])=>n`<option value=${i} ?selected=${(e.label_pos??"auto")===i}>${a}</option>`)}</select></sw-field>
+      ${s?this.renderCoverage(e):d}
+      <div class="row"><span class="lbl">הצג כיסוי משוער<span class="muted">זווית לתכנון, לא מדידת כיסוי בפועל</span></span><sw-toggle ?checked=${!!s} label=${s?"מוצג":"מוסתר"} @click=${()=>this.apply(e.id,{field_of_view_degrees:s?null:90})}></sw-toggle></div>
+      <div class="row"><span class="lbl">0° = למעלה, עם כיוון השעון<span class="muted">שינוי כיוון במפה אינו פקודת PTZ למצלמה</span></span></div>
+      <div class="note" style="margin-block-start:6px">revision ${e.revision}${this.dirty.has(e.id)?" · שינויים לא שמורים":""} · חצים = הזזה עדינה (Shift = גדולה) · Delete = הסרה</div>
+      <div style="display:flex;gap:8px;margin-block-start:10px;flex-wrap:wrap">
+        <sw-button variant="primary" size="sm" icon="check" ?disabled=${!this.dirty.size||this.busy} @click=${()=>this.save()}>שמירת מיקום</sw-button>
+        <sw-button size="sm" variant="danger" icon="trash" ?disabled=${this.busy} @click=${()=>this.removeSelected()}>הסר מהמפה</sw-button>
+      </div>
+    </sw-card>`}renderEntityInspector(e){const t=e.entity;return n`<sw-card heading="הגדרות ישות" subheading="הצבה בלבד; שליטה דורשת הרשאה נפרדת">
+      <div class="kv"><span class="k">ישות</span><strong>${this.anchorName(e)}</strong></div>
+      <div class="kv"><span class="k">מזהה</span><span class="ltr">${e.resource_id}</span></div>
+      ${t?n`<div class="kv"><span class="k">מצב עכשיו</span><span>${zt(t)}</span></div><div class="kv"><span class="k">סוג</span><span>${Vs(t.domain)}</span></div>`:d}
+      <sw-field label="שכבה" style="margin-block-start:8px"><select @change=${s=>this.apply(e.id,{layer_id:s.target.value})}>${_n.filter(s=>s.id!=="cameras").map(s=>n`<option value=${s.id} ?selected=${e.layer_id===s.id}>${s.label}</option>`)}</select></sw-field>
+      <div class="two">
+        <sw-field label="מיקום X (%)"><input type="number" step="0.1" min="0" max="100" data-ltr .value=${(e.position.x*100).toFixed(1)} @change=${s=>this.apply(e.id,{position:{x:Math.min(1,Math.max(0,Number(s.target.value)/100)),y:e.position.y}})} /></sw-field>
+        <sw-field label="מיקום Y (%)"><input type="number" step="0.1" min="0" max="100" data-ltr .value=${(e.position.y*100).toFixed(1)} @change=${s=>this.apply(e.id,{position:{x:e.position.x,y:Math.min(1,Math.max(0,Number(s.target.value)/100))}})} /></sw-field>
+      </div>
+      <sw-field label="שם במפה (ידני)"><input data-entity-name placeholder=${t?.name??e.resource_id} .value=${e.label??""} @change=${s=>this.apply(e.id,{label:s.target.value.trim()||null})} /></sw-field>
+      <sw-field label="מיקום התווית"><select data-label-pos @change=${s=>this.apply(e.id,{label_pos:s.target.value})}>${[["auto","אוטומטי"],["top","מעל"],["bottom","מתחת"],["left","משמאל"],["right","מימין"]].map(([s,i])=>n`<option value=${s} ?selected=${(e.label_pos??"auto")===s}>${i}</option>`)}</select></sw-field>
+      <div class="note">ריק = השם מ־Home Assistant${t?.name?` („${t.name}“)`:""}. השם הידני מוצג במפה, ברשימת הצד ובכרטיס.</div>
+      <div class="note" style="margin-block-start:6px">revision ${e.revision}${this.dirty.has(e.id)?" · שינויים לא שמורים":""}</div>
+      <div style="display:flex;gap:8px;margin-block-start:10px;flex-wrap:wrap">
+        <sw-button variant="primary" size="sm" icon="check" ?disabled=${!this.dirty.size||this.busy} @click=${()=>this.save()}>שמירת מיקום</sw-button>
+        <sw-button size="sm" variant="danger" icon="trash" ?disabled=${this.busy} @click=${()=>this.removeSelected()}>הסר מהמפה</sw-button>
+      </div>
+    </sw-card>`}renderToolPanel(e){const t=new Set(this.anchors.map(s=>s.resource_id));if(this.tool==="structure")return this.renderStructurePanel(e);if(this.tool==="calibrate")return this.renderCalibrate(e);if(this.tool==="measure")return this.renderMeasure(e);if(this.tool==="camera"){const s=e.cameras.filter(i=>!t.has(i.id));return n`<sw-card heading="הוספת מצלמה" subheading="בחר מצלמה ואז לחץ על התוכנית במקום המבוקש">
+        ${s.length?n`<div class="list">${s.map(i=>n`<button class=${this.placing?.kind==="camera"&&this.placing.camera.id===i.id?"on":""} @click=${()=>this.placing={kind:"camera",camera:i}}><span>${i.name}</span><span class="ltr">ch ${i.channel} · ${i.status}</span></button>`)}</div>`:n`<div class="note">${e.cameras.length?"כל המצלמות הרשומות כבר מוצבות על הקומה.":"אין מצלמות רשומות עדיין; הגילוי מה־NVR רץ אוטומטית."}</div><div style="margin-block-start:8px"><sw-button size="sm" @click=${()=>x("/system/devices")}>למצלמות</sw-button></div>`}
+      </sw-card>`}if(this.tool==="entity"||this.tool==="lights"){const s=this.tool==="lights",i=(this.entResults??[]).filter(a=>!t.has(a.entity_id));return n`<sw-card heading=${s?"הוספת תאורה":"הוספת ישות Home Assistant אחרת"} subheading=${s?"מפסקים (switch) מהקטלוג; לחץ על התוכנית להצבה. השם ניתן לשינוי אחרי ההצבה.":"כל ישות אחרת בקטלוג (דלתות, חיישנים, מזגנים…) ואז לחיצה על התוכנית"} data-tool-panel=${this.tool}>
+        <sw-field><input type="search" placeholder=${s?"חיפוש מפסק לפי שם או אזור":"חיפוש לפי שם, entity_id או אזור"} data-ltr .value=${this.entQ} @input=${a=>this.onEntQuery(a.target.value)} /></sw-field>
+        ${s?n`<label class="note" style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-lights-all .checked=${this.lightsAll} @change=${a=>{this.lightsAll=a.target.checked,this.searchEntities()}} /> להציג גם ישויות light (נורות חכמות)</label>`:d}
+        ${e.source==="demo"?n`<div class="note">נתוני הדגמה: החיפוש עובד מול השרת.</div>`:this.entBusy&&!this.entResults?n`<div class="note">מחפש…</div>`:i.length?n`<div class="list">${i.map(a=>n`<button class=${this.placing?.kind==="entity"&&this.placing.entity.entity_id===a.entity_id?"on":""} @click=${()=>this.placing={kind:"entity",entity:a}}><span>${a.name||a.original_name||a.entity_id}<div class="note" style="margin:0">${Vs(a.domain)}${a.area_name?` · ${a.area_name}`:""} · ${zt(a)}</div></span><span class="ltr">${a.entity_id}</span></button>`)}</div>`:n`<div class="note">${this.entResults?"לא נמצאו ישויות (או שכולן כבר מוצבות).":""}</div>`}
+      </sw-card>`}return this.tool==="layers"?n`<sw-card heading="שכבות" subheading="מה מוצג בעורך (לא משפיע על הצופים)">
+        <div class="layerlist">${_n.map(s=>n`<label><input type="checkbox" .checked=${this.layers.has(s.id)} @change=${i=>{const a=new Set(this.layers);i.target.checked?a.add(s.id):a.delete(s.id),this.layers=a}} /> ${s.label} <span class="note">(${this.anchors.filter(i=>this.layerOf(i)===s.id).length})</span></label>`)}
+          <label><input type="checkbox" .checked=${this.showZones} @change=${s=>this.showZones=s.target.checked} /> חדרים ואזורים <span class="note">(${this.zones.length})</span></label></div>
+      </sw-card>`:this.tool==="zones"?this.renderZonesPanel(e):n`<sw-card heading="מאפיינים"><div class="note">בחר סיכה במפה כדי לערוך אותה, או הוסף מצלמה / ישות מסרגל הכלים. גרירה מזיזה; הידיות על המצלמה הנבחרת קובעות כיוון ושדה ראייה. הצבה יוצרת Binding בלבד ואינה משנה תצורת מקור.</div></sw-card>`}renderZoneInspector(e){const t=this.anchors.filter(i=>i.resource_type==="camera"&&zs(i.position,e.polygon)),s=this.anchors.filter(i=>i.resource_type!=="camera"&&zs(i.position,e.polygon));return n`<div class="zone-insp" data-zone-inspector>
+      <sw-field label="שם"><input .value=${e.name} placeholder="למשל: לובי, מחסן, חדר ישיבות" @change=${i=>this.patchZone(e,{name:i.target.value})} /></sw-field>
+      <div class="two">
+        <sw-field label="סוג"><select @change=${i=>this.patchZone(e,{kind:i.target.value})}>${ha.map(i=>n`<option value=${i.id} ?selected=${e.kind===i.id}>${i.label}</option>`)}</select></sw-field>
+        <sw-field label="צבע"><input type="color" data-ltr .value=${e.color} @change=${i=>this.patchZone(e,{color:i.target.value})} /></sw-field>
+      </div>
+      <sw-field label="מיקום שם החדר"><select data-zone-label-pos @change=${i=>this.patchZone(e,{label_pos:i.target.value})}>${[["auto","אוטומטי"],["top","מעל"],["bottom","מתחת"],["left","משמאל"],["right","מימין"]].map(([i,a])=>n`<option value=${i} ?selected=${(e.label_pos??"auto")===i}>${a}</option>`)}</select></sw-field>
+      <div class="kv"><span class="k">מצלמות באזור</span><span>${t.length?t.map(i=>this.anchorName(i)).join(", "):"אין"}</span></div>
+      <div class="kv"><span class="k">ישויות HA באזור</span><span>${s.length?`${s.length} ישויות`:"אין"}</span></div>
+      <div class="row"><span class="lbl">הכללה בחיפוש מרחבי<span class="muted">זמין לחוקי התראה ולחיפוש לפי מקום</span></span><sw-toggle ?checked=${e.searchable} label=${e.searchable?"כלול":"לא כלול"} @click=${()=>this.patchZone(e,{searchable:!e.searchable})}></sw-toggle></div>
+      <div class="note">${e.polygon.length} פינות · ${e.source==="auto"?"זוהה אוטומטית מהתוכנית":"צויר ידנית"} · revision ${e.revision}</div>
+      <div class="note">עריכת הצורה במפה: גרירת פינה מזיזה אותה, גרירת נקודת האמצע שבין פינות מוסיפה פינה, לחיצה כפולה על פינה מוחקת אותה. השינוי נשמר מיד.</div>
+      <div class="note">אזור במפה הוא הקשר מרחבי בלבד: אינו אזור זיהוי במצלמה ואינו מסכת פרטיות, ואינו משנה תצורת NVR.</div>
+      <div class="btns"><sw-button size="sm" variant="danger" icon="trash" ?disabled=${this.zoneBusy} @click=${()=>this.removeZone(e)}>מחק אזור</sw-button><sw-button size="sm" variant="ghost" @click=${()=>this.selectedZoneId=null}>סגור</sw-button></div>
+    </div>`}renderZonesPanel(e){const t=this.candidates,s=this.selectedZone;return n`<sw-card heading="חדרים ואזורים" subheading="זיהוי מהתוכנית או ציור ידני; השמות מופיעים במפה">
+      ${t?n`<div class="note">${t.length} חדרים זוהו · סמן, תן שם ושמור. הפוליגונים מוצגים במפה בקו מקווקו.</div>
+            <div class="candlist">${t.map((i,a)=>n`<div class="cand" data-candidate><input type="checkbox" .checked=${i.include} aria-label="כלול" @change=${r=>this.setCandidate(a,{include:r.target.checked})} /><i class="sw" style="background:${ti[a%ti.length]}"></i><input class="name" .value=${i.name} placeholder="שם החדר" aria-label="שם החדר" @input=${r=>this.setCandidate(a,{name:r.target.value})} /><select aria-label="סוג" @change=${r=>this.setCandidate(a,{kind:r.target.value})}>${ha.map(r=>n`<option value=${r.id} ?selected=${i.kind===r.id}>${r.label}</option>`)}</select></div>`)}</div>
+            ${this.zones.some(i=>i.source==="auto")?n`<label class="chk"><input type="checkbox" .checked=${this.replaceAuto} @change=${i=>this.replaceAuto=i.target.checked} /> החלף את החדרים שזוהו אוטומטית בעבר (${this.zones.filter(i=>i.source==="auto").length})</label>`:d}
+            <div class="btns"><sw-button variant="primary" size="sm" icon="check" ?disabled=${this.zoneBusy||!t.some(i=>i.include)} @click=${()=>this.acceptCandidates()}>שמור ${t.filter(i=>i.include).length} חדרים</sw-button><sw-button variant="ghost" size="sm" @click=${()=>this.candidates=null}>בטל</sw-button></div>`:this.drawing?n`<div class="note">לחץ על התוכנית להוספת פינות (${this.drawing.length} עד כה). לחיצה על הפינה הראשונה או Enter סוגרים את הצורה · Esc לביטול.</div>
+            <div class="btns"><sw-button variant="primary" size="sm" icon="check" ?disabled=${this.drawing.length<3||this.zoneBusy} @click=${()=>this.finishDrawing()}>סיים אזור</sw-button><sw-button variant="ghost" size="sm" @click=${()=>this.drawing=null}>בטל</sw-button></div>`:n`<div class="row"><span class="lbl">זיהוי חדרים מהתוכנית<span class="muted">עיבוד מקומי של הקירות (ללא AI); החדרים מוצעים ואתה נותן להם שמות</span></span><select aria-label="עוצמת זיהוי" @change=${i=>this.detectStrength=i.target.value}><option value="light" ?selected=${this.detectStrength==="light"}>קל</option><option value="medium" ?selected=${this.detectStrength==="medium"}>בינוני</option><option value="strong" ?selected=${this.detectStrength==="strong"}>חזק</option></select></div>
+            <div class="btns"><sw-button variant="primary" size="sm" icon="map" ?disabled=${this.detecting||e.source==="demo"||e.planStatus==="none"} @click=${()=>this.detect()}>${this.detecting?"מזהה…":"זהה חדרים"}</sw-button><sw-button size="sm" icon="edit" ?disabled=${this.zoneBusy} @click=${()=>this.startDrawing()}>צייר אזור</sw-button></div>`}
+      ${this.zones.length?n`<div class="note" style="margin-block-start:10px">${this.zones.length} אזורים בקומה · לחיצה בוחרת במפה</div>
+            <div class="list">${this.zones.map(i=>n`<button class=${i.id===this.selectedZoneId?"on":""} data-zone-row @click=${()=>{this.selectedZoneId=i.id===this.selectedZoneId?null:i.id,this.selectedId=null}}><span><i class="sw" style="background:${i.color}"></i>${i.name}</span><span class="note" style="margin:0">${dd(i.kind)}${i.source==="auto"?" · אוטומטי":""}</span></button>`)}</div>`:t||this.drawing?d:n`<div class="note" style="margin-block-start:10px">עדיין אין חדרים או אזורים בקומה.</div>`}
+      ${s?this.renderZoneInspector(s):d}
+    </sw-card>`}renderVersionCard(e){const t=this.stylized;return n`<sw-card heading="גרסת תוכנית" subheading=${e.planStatus==="draft"?"טיוטה: צופים רואים את הגרסה הקודמת":e.planStatus==="published"?"גרסה מפורסמת":"אין תוכנית"}>
+      ${e.planStatus==="none"?d:n`<div class="row"><span class="lbl">תצוגת המפה<span class="muted">${e.renderMode==="stylized"?"שפת SMPLWISE (עיבוד אוטומטי של המקור)":"תוכנית המקור כפי שהועלתה"}</span></span>${e.renderMode==="stylized"?n`<sw-button size="sm" ?disabled=${this.busy} @click=${()=>this.useRender("source")}>הצג מקור</sw-button>`:e.stylizedAvailable?n`<sw-button size="sm" ?disabled=${this.busy} @click=${()=>this.useRender("stylized")}>הצג שפת SMPLWISE</sw-button>`:d}</div>
+          <div class="row"><span class="lbl">עיבוד לשפת SMPLWISE<span class="muted">בחר מה להשאיר מהתוכנית; המקור נשמר תמיד</span></span></div>
+          <div class="two" data-stylize-opts>
+            <sw-field label="עוצמת ניקוי"><select aria-label="עוצמת ניקוי" @change=${s=>this.stylizeOpts={...this.stylizeOpts,strength:s.target.value}}><option value="light" ?selected=${this.stylizeOpts.strength==="light"}>קל · קירות דקים נשמרים</option><option value="medium" ?selected=${this.stylizeOpts.strength==="medium"}>בינוני · קירות כפולים מאוחדים</option><option value="strong" ?selected=${this.stylizeOpts.strength==="strong"}>חזק · מדרגות וריהוט לגושים</option></select></sw-field>
+            <sw-field label="מילוי חדרים"><select aria-label="מילוי חדרים" @change=${s=>this.stylizeOpts={...this.stylizeOpts,roomFill:s.target.value}}>${Object.keys(Hi).map(s=>n`<option value=${s} ?selected=${this.stylizeOpts.roomFill===s}>${Hi[s]}</option>`)}</select></sw-field>
+          </div>
+          <label class="chk"><input type="checkbox" .checked=${this.stylizeOpts.keepLines} @change=${s=>this.stylizeOpts={...this.stylizeOpts,keepLines:s.target.checked}} /> ריהוט, דלתות וקווים דקים מהתוכנית (בגוון עדין)</label>
+          <div class="btns"><sw-button variant="primary" size="sm" icon="image" ?disabled=${this.stylizing||e.source==="demo"} @click=${()=>this.stylize()}>${this.stylizing?"מעבד…":"עבד תצוגה מקדימה"}</sw-button></div>
+          ${t?n`<div class="compare" style="margin-block-start:8px"><div><div class="note">מקור</div><img src=${t.source_url} alt="תוכנית מקור" /></div><div><div class="note" data-stylize-caption>שפת SMPLWISE · ${t.rooms} חדרים · ${Hi[t.room_fill]??t.room_fill} · ${t.keep_lines?"עם קווים דקים":"ללא קווים דקים"}</div><img src=${t.stylized_url} alt="שפת SMPLWISE" /></div></div>
+              <div style="display:flex;gap:8px;margin-block-start:8px"><sw-button variant="primary" size="sm" icon="check" ?disabled=${this.busy} @click=${()=>this.useRender("stylized")}>השתמש בתוצאה</sw-button><sw-button variant="ghost" size="sm" @click=${()=>this.stylized=null}>סגור</sw-button></div>
+              <div class="note" style="margin-block-start:6px">עיבוד תמונה מקומי (ללא AI וללא שליחה החוצה): קירות וחדרים מזוהים לפי עובי הקווים; חדרים אינם מזוהים בשמם. אפשר לחזור למקור בכל רגע.</div>`:d}`}
+      ${this.renderVersionHistory(e)}
+      <div style="margin-block-start:8px"><sw-button size="sm" icon="upload" @click=${()=>x(`/explore/floors/${e.floorId}/import`)}>ייבוא תוכנית חדשה</sw-button></div>
+    </sw-card>`}renderVersionHistory(e){return this.versions.length?n`<div class="row" style="margin-block-start:10px"><span class="lbl">היסטוריית גרסאות<span class="muted">כל פרסום נשמר; אפשר להשוות ולשחזר גרסה מהארכיון בלי לאבד עוגנים</span></span></div>
+      <div class="vlist" data-version-list>
+        ${this.versions.map(t=>{const s=t.id===e.planVersionId,i=t.status==="published"?"recorded":t.status==="draft"?"partial":"neutral",a=t.status==="published"?"מפורסמת":t.status==="draft"?"טיוטה":"ארכיון";return n`<div class="vrow ${s?"cur":""}" data-version-row data-version-id=${t.id} data-version-status=${t.status}>
+            <img src=${Qe(t.image_url)} alt="" loading="lazy" />
+            <div class="meta">
+              <span><sw-badge kind=${i} label=${a}></sw-badge> <span class="ltr">${qi(t.published_at??t.created_at)}</span></span>
+              <span class="note">${t.width_px}×${t.height_px}${t.rotation?` · סיבוב ${t.rotation}°`:""}${t.crop?" · חיתוך":""} · ${t.anchors_on??0} פריטים${t.notes?` · ${t.notes}`:""}</span>
+            </div>
+            <div class="acts">
+              ${t.status!=="published"?n`<sw-button size="sm" variant="ghost" data-version-compare ?disabled=${this.busy} @click=${()=>this.openDiff(t.status==="draft"&&e.permissions.publish?"publish":"compare",t)}>השווה</sw-button>`:d}
+              ${t.status==="archived"&&e.permissions.publish?n`<sw-button size="sm" icon="history" data-version-rollback ?disabled=${this.busy} @click=${()=>this.openDiff("rollback",t)}>שחזר</sw-button>`:d}
+            </div>
+          </div>`})}
+      </div>`:d}renderDiffDialog(){const e=this.diff;if(!e)return d;const t=e.data,s=e.mode==="publish"&&e.version.id===this.bundle?.planVersionId?this.studio.doc:null,i=s&&(s.walls.length||s.openings.length||s.labels.length||s.objects.length||s.connectors.length)?s:null,a=!!i&&this.studio.issues.some(l=>l.severity==="error"),r=e.mode==="publish"?"פרסום גרסה":e.mode==="rollback"?"שחזור גרסה מהארכיון":"השוואת גרסאות",o=e.mode==="publish"?"מה ישתנה לצופים ומה יקרה לפריטים המוצבים":e.mode==="rollback"?"הגרסה תפורסם מחדש כעותק חדש; הגרסה הנוכחית תעבור לארכיון":"מול הגרסה המפורסמת";return n`<sw-dialog open heading=${r} subheading=${o} data-diff-dialog @close=${()=>this.diff=null}>
+      ${e.error?n`<div class="err" data-diff-error>${e.error}</div>`:d}
+      ${t?n`<div class="compare">
+              <div><div class="note">${t.from?`מפורסמת · ${qi(t.from.published_at??t.from.created_at)}`:"אין גרסה מפורסמת"}</div>${t.from?n`<img src=${Qe(t.from.image_url)} alt="הגרסה המפורסמת" />`:n`<div class="note">—</div>`}</div>
+              <div><div class="note">${e.mode==="rollback"?"לשחזור":"חדשה"} · ${qi(t.to.published_at??t.to.created_at)}</div><img src=${Qe(t.to.image_url)} alt="הגרסה החדשה" /></div>
+            </div>
+            <div class="dsum" data-diff-summary>
+              ${t.from?t.geometry.same?n`<sw-badge kind="recorded" label="גאומטריה זהה"></sw-badge>`:n`<sw-badge kind="partial" label=${`שינוי: ${t.geometry.changes.map(l=>Tc[l.field]??l.field).join(", ")}`}></sw-badge>`:n`<sw-badge kind="neutral" label="פרסום ראשון"></sw-badge>`}
+              <span>${t.anchors.total} פריטים מוצבים · ${t.anchors.carried} עוברים כמו שהם · ${t.anchors.needs_alignment} ידרשו יישור</span>
+            </div>
+            ${i?n`<div class="note" data-diff-structure>המבנה של הטיוטה (${Zi(i.walls.length,i.openings.length)}) יפורסם יחד עם הגרסה${a?"; יש בו שגיאות שחוסמות את הפרסום עד לתיקון: ראה את הסימון האדום על המפה ואת רשימת הבעיות של המבנה":""}.</div>`:d}
+            ${t.anchors.items.length?n`<div class="ditems" data-diff-items>${t.anchors.items.map(l=>n`<div><span>${l.resource_type==="camera"?"מצלמה":"ישות"} · ${l.name}</span><span class=${l.outcome==="carried"?"":"err"}>${l.outcome==="carried"?"עובר":"יישור נדרש"}</span></div>`)}</div>`:d}
+            ${t.anchors.needs_alignment?n`<div class="note">פריטים שידרשו יישור נשארים במקומם על גרסת התוכנית הקודמת ומסומנים במפה; שום פריט לא מוזז למיקום מומצא.</div>`:d}`:n`<div class="note">טוען השוואה…</div>`}
+      <sw-button slot="footer" variant="ghost" @click=${()=>this.diff=null}>${e.mode==="compare"?"סגור":"ביטול"}</sw-button>
+      ${e.mode!=="compare"&&t?n`<sw-button slot="footer" variant="primary" icon=${e.mode==="publish"?"check":"history"} data-diff-confirm ?disabled=${this.busy||a} @click=${()=>this.confirmDiff()}>${e.mode==="publish"?"פרסם גרסה":"שחזר ופרסם"}</sw-button>`:d}
+    </sw-dialog>`}renderGeomDiffDialog(){const e=this.geomDiff;if(!e)return d;const t=e.data,s=t?t.issues.filter(a=>a.severity==="error"):[],i=t?Object.entries(t.diff.collections):[];return n`<sw-dialog open heading="פרסום המבנה" subheading="מה ישתנה לצופים במפה" data-geom-diff @close=${()=>this.geomDiff=null}>
+      ${e.error?n`<div class="err" data-geom-diff-error>${e.error}</div>`:d}
+      ${t?n`<div class="ditems" data-geom-diff-rows>
+              ${i.length?i.map(([a,r])=>n`<div><span>${mc[a]??a}</span><span>${r.added.length} נוספו · ${r.changed.length} שונו · ${r.removed.length} הוסרו</span></div>`):n`<div><span>אין שינוי בפריטים</span></div>`}
+              ${t.diff.calibration_changed?n`<div><span>כיול</span><span>קנה המידה השתנה</span></div>`:d}
+            </div>
+            <div class="note">${t.published_counts?`כעת: ${Zi(t.published_counts.walls,t.published_counts.openings)}`:"פרסום ראשון של מבנה"} · אחרי הפרסום: ${Zi(t.counts.walls,t.counts.openings)}</div>
+            ${s.length?n`<div class="err" data-geom-diff-error>${lt(s.length,"שגיאה חוסמת אחת","שגיאות חוסמות")} בטיוטה: הפרסום חסום עד לתיקון. ראה את הסימון האדום על המפה ואת רשימת הבעיות של המבנה.</div>`:d}`:e.error?d:n`<div class="note">טוען השוואה…</div>`}
+      <sw-button slot="footer" variant="ghost" data-geom-cancel @click=${()=>this.geomDiff=null}>ביטול</sw-button>
+      <sw-button slot="footer" variant="primary" icon="check" data-geom-publish ?disabled=${this.busy||!t||s.length>0} @click=${()=>this.confirmGeomPublish()}>פרסם מבנה</sw-button>
+    </sw-dialog>`}render(){const e=this.bundle;if(this.error&&!e)return n`<sw-page heading="עורך תוכנית"><sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${()=>this.load()}></sw-state-panel></sw-page>`;if(!e)return n`<sw-page heading="עורך תוכנית"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;const t=this.selected,s=this.dirty.size,i=this.anchors.filter(r=>r.resource_type==="camera").length,a=this.anchors.length-i;return n`
+      <sw-page heading="עורך תוכנית" subheading=${`${e.buildingName} · ${e.floorName} · ${e.planStatus==="draft"?"טיוטה":e.planStatus==="published"?"תוכנית מפורסמת":"אין תוכנית"} · העוגנים נשמרים בנפרד מתמונת המקור${e.source==="demo"?" · נתוני הדגמה":""}`} crumbs=${`אתרים | ${e.siteName} | ${e.buildingName} | ${e.floorName}`} wide>
+        ${e.permissions.publish&&(e.planStatus==="draft"||this.studio.pendingPublish)?n`<sw-button slot="actions" variant="primary" icon="check" data-publish ?disabled=${this.busy} @click=${()=>this.publish()}>${e.planStatus==="draft"?"פרסום גרסה":"פרסום המבנה"}</sw-button>`:d}
+        <sw-button slot="actions" icon="eye" @click=${()=>x(`/explore/floors/${e.floorId}`)}>תצוגה מקדימה</sw-button>
+        <sw-button slot="actions" ?disabled=${!s||this.busy} icon="check" @click=${()=>this.save()}>${s?`שמירה (${s})`:"הכל שמור"}</sw-button>
+        <sw-button slot="actions" variant="ghost" icon="history" ?disabled=${!this.undo.length} @click=${()=>this.doUndo()}>ביטול שינוי</sw-button>
+        ${e.planStatus==="none"?n`<sw-state-panel state="empty" heading="לקומה אין תוכנית" hint="העלה תוכנית קודם; אחר כך אפשר להציב מצלמות וישויות."><div style="margin-block-start:10px"><sw-button variant="primary" icon="upload" @click=${()=>x(`/explore/floors/${e.floorId}/import`)}>העלאת תוכנית</sw-button></div></sw-state-panel>`:n`<div class="layout">
+              <div class="mapwrap">
+                <div class="bar">
+                  <span class="autosave ${s?"dirty":""}"><i></i>${s?`${s} שינויים לא שמורים`:"הכל שמור"}</span>
+                  ${this.info?n`<span style="color:#15803d">${this.info}</span>`:d}
+                  ${this.error?n`<span class="err">${this.error}</span>`:d}
+                  <span class="grow"></span>
+                  ${e.needsAlignment?n`<sw-badge kind="partial" label="פריטים מגרסת תוכנית קודמת — בדוק מיקומים"></sw-badge>
+                    <sw-button size="sm" data-realign-crop ?disabled=${this.busy} title="כשהגרסה החדשה היא חיתוך אחר של אותו שרטוט, המיקומים מחושבים דרך שני החיתוכים" @click=${()=>this.realign("crop")}>יישר לפי החיתוך</sw-button>
+                    <sw-button size="sm" variant="ghost" data-realign-accept ?disabled=${this.busy} title="אחרי בדיקה בעין: הפריטים נרשמים על הגרסה הנוכחית כפי שהם" @click=${()=>this.realign("accept")}>אשר מיקומים</sw-button>`:d}
+                  <span>גרירה מזיזה · גלגלת = זום · ידיות = כיוון ושדה ראייה</span>
+                </div>
+                <div class="floorchip"><sw-icon name="building" size=${14}></sw-icon>${e.floorName}</div>
+                <div class="rail" role="toolbar" aria-label="כלי עריכה">
+                  ${Ec.map(r=>n`<button class=${r.id===this.tool?"on":""} data-tool=${r.id} ?disabled=${!r.ready||xn.includes(r.id)&&!e.permissions.structure} title=${r.label} aria-label=${r.label} aria-pressed=${r.id===this.tool} @click=${()=>this.pickTool(r.id)}><sw-icon .name=${r.icon} size=${18}></sw-icon></button>`)}
+                  <hr />
+                  <button title="ביטול (Ctrl+Z)" aria-label="ביטול" ?disabled=${this.studioOn?!this.studio.canUndo:!this.undo.length} @click=${()=>{this.studioOn?(this.studio.undo(),this.geomSel=null):this.doUndo()}}><sw-icon name="history" size=${18}></sw-icon></button>
+                  <button title="בצע שוב (Ctrl+Y)" aria-label="בצע שוב" ?disabled=${this.studioOn?!this.studio.canRedo:!this.redo.length} @click=${()=>{this.studioOn?(this.studio.redo(),this.geomSel=null):this.doRedo()}}><sw-icon name="refresh" size=${18}></sw-icon></button>
+                </div>
+                <sw-plan-canvas editable alwaysLabel .placing=${!!this.placing||!!this.drawing||this.studioPlacing} .planWidth=${e.width} .planHeight=${e.height} .plan=${e.planSvg} .imageUrl=${e.imageUrl} .markers=${this.markers} .selectedId=${this.selectedId}
+                  .zones=${this.planZones} .selectedZoneId=${this.selectedZoneId} .draftPoints=${this.drawing??[]}
+                  .geometry=${this.geomPreview??this.studio.doc} .geomDrag=${this.geomDragMode} .selectedGeomId=${this.geomSel?.id??null} .selectedVertex=${this.geomSel?.vertex??null} .issueIds=${this.issueIds}
+                  .cornerSnapPx=${this.tool==="structure"&&this.studioMode==="wall"?si:0}
+                  .wallDraft=${this.wallDraft??[]} .hoverPoint=${this.studioPlacing?this.hover:null} .rulers=${this.rulers}
+                  @plan-hover=${r=>this.onPlanHover(r.detail.x,r.detail.y,r.detail.shift,!!r.detail.item)}
+                  @geom-select=${r=>this.onGeomSelect(r.detail.id,r.detail.kind,r.detail.vertex)}
+                  @geom-drag-move=${r=>this.onGeomDragMove(r.detail)}
+                  @geom-drag-cancel=${()=>this.geomPreview=null}
+                  @geom-drag=${r=>this.onGeomDrag(r.detail)}
+                  @zone-select=${r=>{if(!(this.placing||this.drawing||this.studioPlacing||r.detail.id.startsWith("cand-"))){if(this.tool==="structure"){this.geomSel=null;return}this.selectedZoneId=r.detail.id,this.selectedId=null}}}
+                  @zone-edit=${r=>{const o=this.zones.find(l=>l.id===r.detail.id);o&&this.patchZone(o,{polygon:r.detail.polygon})}}
+                  @marker-select=${r=>{this.placing||this.drawing||this.studioPlacing||(this.selectedId=r.detail.id,this.selectedZoneId=null,this.geomSel=null)}}
+                  @marker-move=${r=>{this.apply(r.detail.id,{position:{x:+r.detail.x.toFixed(4),y:+r.detail.y.toFixed(4)}}),this.selectedId=r.detail.id}}
+                  @marker-orient=${r=>this.apply(r.detail.id,{rotation_degrees:r.detail.rotation,field_of_view_degrees:r.detail.fov})}
+                  @marker-coverage=${r=>this.apply(r.detail.id,r.detail.polygon?{coverage_polygon:r.detail.polygon.map(o=>[o.x,o.y])}:{coverage_radius:r.detail.radius})}
+                  @plan-click=${r=>this.drawing?this.addDraftPoint(r.detail.x,r.detail.y):this.studioPlacing?this.studioClick(r.detail.x,r.detail.y,!!r.detail.shift):this.place(r.detail.x,r.detail.y)}></sw-plan-canvas>
+                ${this.placing?n`<div class="placing-hint"><span>לחץ על התוכנית כדי להציב את ${this.placing.kind==="camera"?this.placing.camera.name:this.placing.entity.name||this.placing.entity.entity_id} · Esc לביטול</span></div>`:d}
+                ${this.drawing?n`<div class="placing-hint"><span>ציור אזור: לחץ להוספת פינות (${this.drawing.length}) · לחיצה על הפינה הראשונה או Enter מסיימים · Esc לביטול</span></div>`:d}
+                ${this.wallDraft?n`<div class="placing-hint"><span>ציור קיר: ${this.wallDraft.length} נקודות · Enter או לחיצה חוזרת על הנקודה האחרונה מסיימים · לחיצה על הנקודה הראשונה סוגרת מתאר · Esc לביטול</span></div>`:d}
+                <div class="legend"><span><i></i>מצלמות · ${i}</span><span><i class="ent"></i>ישויות HA · ${a}</span><span><i class="zone"></i>אזורים · ${this.zones.length}</span></div>
+              </div>
+              <div class="props">
+                ${t?t.resource_type==="camera"?this.renderCameraInspector(t):this.renderEntityInspector(t):this.selectedZone&&this.tool!=="zones"?n`<sw-card heading="אזור" subheading=${this.selectedZone.name}>${this.renderZoneInspector(this.selectedZone)}</sw-card>`:this.renderToolPanel(e)}
+                ${(t||this.selectedZone&&this.tool!=="zones")&&this.tool!=="select"?this.renderToolPanel(e):d}
+                ${this.renderVersionCard(e)}
+              </div>
+            </div>`}
+        ${this.renderDiffDialog()}
+        ${this.renderGeomDiffDialog()}
+      </sw-page>
+    `}};T.styles=[A`
+    :host {
+      display: flex;
+      flex-direction: column;
+      min-block-size: 100%;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 300px;
+      gap: 16px;
+      min-block-size: 560px;
+      flex: 1;
+    }
+    .mapwrap {
+      position: relative;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-lg);
+      overflow: hidden;
+      background: var(--sw-surface);
+      min-block-size: 520px;
+      box-shadow: var(--sw-shadow-1);
+      display: flex;
+      flex-direction: column;
+    }
+    .mapwrap sw-plan-canvas {
+      flex: 1;
+    }
+    .rail {
+      position: absolute;
+      inset-inline-start: 12px;
+      inset-block-start: 64px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: 12px;
+      box-shadow: var(--sw-shadow-2);
+      padding: 5px;
+      z-index: var(--sw-z-map-ui);
+    }
+    .rail button {
+      display: grid;
+      place-items: center;
+      inline-size: 38px;
+      block-size: 38px;
+      border: 0;
+      border-radius: 9px;
+      background: transparent;
+      color: var(--sw-text-2);
+      cursor: pointer;
+    }
+    .rail button:hover {
+      background: var(--sw-surface-3);
+      color: var(--sw-text);
+    }
+    .rail button.on {
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent);
+    }
+    .rail button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .rail hr {
+      border: 0;
+      border-block-start: 1px solid var(--sw-border);
+      margin: 2px 4px;
+    }
+    .floorchip {
+      position: absolute;
+      inset-inline-start: 12px;
+      inset-block-start: 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: 12px;
+      box-shadow: var(--sw-shadow-1);
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+      z-index: var(--sw-z-map-ui);
+    }
+    .bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      padding: 8px 12px;
+      border-block-end: 1px solid var(--sw-border);
+      background: var(--sw-surface);
+    }
+    .bar .grow {
+      flex: 1;
+    }
+    .autosave {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .autosave i {
+      inline-size: 7px;
+      block-size: 7px;
+      border-radius: 50%;
+      background: var(--sw-live);
+    }
+    .autosave.dirty i {
+      background: var(--sw-stale);
+    }
+    .placing-hint {
+      position: absolute;
+      inset-inline: 0;
+      inset-block-end: 14px;
+      display: flex;
+      justify-content: center;
+      pointer-events: none;
+      z-index: var(--sw-z-map-ui);
+    }
+    .placing-hint span {
+      background: var(--sw-text);
+      color: #fff;
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-size: var(--sw-fs-sm);
+      box-shadow: var(--sw-shadow-2);
+    }
+    .legend {
+      position: absolute;
+      inset-inline-start: 12px;
+      inset-block-end: 12px;
+      display: flex;
+      gap: 12px;
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: 10px;
+      padding: 5px 10px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      z-index: var(--sw-z-map-ui);
+    }
+    .legend i {
+      display: inline-block;
+      inline-size: 8px;
+      block-size: 8px;
+      border-radius: 50%;
+      margin-inline-end: 5px;
+      background: var(--sw-accent);
+    }
+    .legend i.ent {
+      background: var(--sw-live);
+    }
+    .props {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-inline-size: 0;
+    }
+    .two {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .note {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .err {
+      color: var(--sw-danger);
+    }
+    .list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-block-size: 260px;
+      overflow: auto;
+    }
+    .list button {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 9px;
+      border: 1px solid var(--sw-border);
+      border-radius: 8px;
+      background: var(--sw-surface);
+      font: inherit;
+      font-size: var(--sw-fs-xs);
+      cursor: pointer;
+      text-align: start;
+    }
+    .list button:hover,
+    .list button.on {
+      background: var(--sw-accent-soft);
+      border-color: var(--sw-accent);
+    }
+    .kv {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 6px 0;
+      border-block-end: 1px solid var(--sw-border);
+      font-size: var(--sw-fs-sm);
+    }
+    .kv .k {
+      color: var(--sw-text-3);
+    }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 0;
+      border-block-end: 1px solid var(--sw-border);
+      font-size: var(--sw-fs-sm);
+    }
+    .row .lbl {
+      display: flex;
+      flex-direction: column;
+    }
+    .row .muted {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    input[type='range'] {
+      inline-size: 100%;
+      accent-color: var(--sw-accent);
+    }
+    .cand {
+      display: grid;
+      grid-template-columns: auto auto minmax(0, 1fr) auto;
+      gap: 6px;
+      align-items: center;
+      padding: 4px 0;
+      border-block-end: 1px solid var(--sw-border);
+    }
+    .cand input.name {
+      inline-size: 100%;
+      min-inline-size: 0;
+      border: 1px solid var(--sw-border);
+      border-radius: 6px;
+      padding: 4px 6px;
+      font: inherit;
+      color: var(--sw-text);
+      background: var(--sw-surface);
+    }
+    .cand select {
+      border: 1px solid var(--sw-border);
+      border-radius: 6px;
+      padding: 3px 4px;
+      font: inherit;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      background: var(--sw-surface);
+    }
+    i.sw {
+      display: inline-block;
+      inline-size: 12px;
+      block-size: 12px;
+      border-radius: 3px;
+      box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.15);
+      margin-inline-end: 6px;
+      vertical-align: -2px;
+    }
+    .btns {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-block-start: 10px;
+    }
+    .chk {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      margin-block-start: 8px;
+    }
+    .legend i.zone {
+      border-radius: 2px;
+      background: var(--sw-accent);
+      opacity: 0.45;
+    }
+    .layerlist label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 0;
+      font-size: var(--sw-fs-sm);
+    }
+    .ltr {
+      direction: ltr;
+      unicode-bidi: isolate;
+    }
+    .compare {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .vlist {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-block-size: 320px;
+      overflow: auto;
+      margin-block-start: 6px;
+    }
+    .vrow {
+      display: grid;
+      grid-template-columns: 56px minmax(0, 1fr);
+      grid-template-areas: "img meta" "img acts";
+      gap: 4px 8px;
+      align-items: center;
+      padding: 6px 8px;
+      border: 1px solid var(--sw-border);
+      border-radius: 8px;
+      font-size: var(--sw-fs-xs);
+    }
+    .vrow.cur {
+      border-color: var(--sw-accent);
+      background: var(--sw-accent-soft);
+    }
+    .vrow img {
+      grid-area: img;
+      inline-size: 56px;
+      block-size: 40px;
+      object-fit: cover;
+      border-radius: 4px;
+      background: var(--sw-map-bg);
+      border: 1px solid var(--sw-border);
+    }
+    .vrow .meta {
+      grid-area: meta;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-inline-size: 0;
+    }
+    .vrow .acts {
+      grid-area: acts;
+      display: flex;
+      gap: 4px;
+      justify-content: flex-end;
+    }
+    .vrow .acts:empty {
+      display: none;
+    }
+    .dsum {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      font-size: var(--sw-fs-sm);
+    }
+    .ditems {
+      display: flex;
+      flex-direction: column;
+      max-block-size: 160px;
+      overflow: auto;
+      font-size: var(--sw-fs-xs);
+    }
+    .ditems div {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 3px 0;
+      border-block-end: 1px solid var(--sw-border);
+    }
+    .compare img {
+      inline-size: 100%;
+      border: 1px solid var(--sw-border);
+      border-radius: 8px;
+      background: var(--sw-map-bg);
+    }
+    @media (max-width: 1023px) {
+      .layout {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .props {
+        order: 2;
+      }
+    }
+  `,Mc];N([g()],T.prototype,"floorId",2);N([g()],T.prototype,"presetEntity",2);N([c()],T.prototype,"bundle",2);N([c()],T.prototype,"anchors",2);N([c()],T.prototype,"dirty",2);N([c()],T.prototype,"undo",2);N([c()],T.prototype,"redo",2);N([c()],T.prototype,"selectedId",2);N([c()],T.prototype,"tool",2);N([c()],T.prototype,"layers",2);N([c()],T.prototype,"placing",2);N([c()],T.prototype,"entQ",2);N([c()],T.prototype,"entResults",2);N([c()],T.prototype,"entBusy",2);N([c()],T.prototype,"lightsAll",2);N([c()],T.prototype,"busy",2);N([c()],T.prototype,"error",2);N([c()],T.prototype,"info",2);N([c()],T.prototype,"stylizing",2);N([c()],T.prototype,"stylized",2);N([c()],T.prototype,"stylizeOpts",2);N([c()],T.prototype,"zones",2);N([c()],T.prototype,"versions",2);N([c()],T.prototype,"diff",2);N([c()],T.prototype,"selectedZoneId",2);N([c()],T.prototype,"candidates",2);N([c()],T.prototype,"detecting",2);N([c()],T.prototype,"detectStrength",2);N([c()],T.prototype,"replaceAuto",2);N([c()],T.prototype,"drawing",2);N([c()],T.prototype,"showZones",2);N([c()],T.prototype,"zoneBusy",2);N([cs("sw-plan-canvas")],T.prototype,"canvas",2);N([c()],T.prototype,"studioMode",2);N([c()],T.prototype,"wallDefaults",2);N([c()],T.prototype,"geomSel",2);N([c()],T.prototype,"geomPreview",2);N([c()],T.prototype,"wallDraft",2);N([c()],T.prototype,"hover",2);N([c()],T.prototype,"calib",2);N([c()],T.prototype,"measurePts",2);N([c()],T.prototype,"geomDiff",2);N([c()],T.prototype,"showEstimates",2);T=N([P("explore-plan-editor")],T);var Oc=Object.defineProperty,Rc=Object.getOwnPropertyDescriptor,qt=(e,t,s,i)=>{for(var a=i>1?void 0:i?Rc(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Oc(t,s,a),a};let ct=class extends M{constructor(){super(...arguments),this.columns=[],this.rows=[],this.rowKey="id",this.selected=null,this.emptyText="אין שורות להצגה",this.dense=!1}pick(e){const t=String(e[this.rowKey]??"");this.dispatchEvent(new CustomEvent("row-select",{detail:{id:t,row:e},bubbles:!0,composed:!0}))}render(){return this.rows.length?n`
+      <table>
+        <thead>
+          <tr>${this.columns.map(e=>n`<th style=${e.width?`width:${e.width}`:""}>${e.label}</th>`)}</tr>
+        </thead>
+        <tbody>
+          ${this.rows.map(e=>n`<tr class="clickable ${this.selected===String(e[this.rowKey])?"selected":""}" data-row-id=${String(e[this.rowKey]??"")} @click=${()=>this.pick(e)}
+              @pointerenter=${t=>this.dispatchEvent(new CustomEvent("row-hover",{detail:{id:String(e[this.rowKey]??""),row:e,clientX:t.clientX,clientY:t.clientY,pointerType:t.pointerType},bubbles:!0,composed:!0}))}
+              @pointerleave=${()=>this.dispatchEvent(new CustomEvent("row-leave",{detail:{id:String(e[this.rowKey]??"")},bubbles:!0,composed:!0}))}>
+              ${this.columns.map(t=>n`<td class=${t.ltr?"ltr":""} data-label=${t.label}>${t.render?t.render(e):String(e[t.key]??"")}</td>`)}
+            </tr>`)}
+        </tbody>
+      </table>
+    `:n`<div class="empty">${this.emptyText}</div>`}};ct.styles=A`
+    :host {
+      display: block;
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      box-shadow: var(--sw-shadow-1);
+      overflow: auto;
+      max-inline-size: 100%;
+    }
+    table {
+      inline-size: 100%;
+      border-collapse: collapse;
+      font-size: var(--sw-fs-sm);
+      min-inline-size: 560px;
+    }
+    th,
+    td {
+      padding: 9px 14px;
+      text-align: start;
+      border-block-end: 1px solid var(--sw-border);
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+    :host([dense]) th,
+    :host([dense]) td {
+      padding: 7px 12px;
+    }
+    /* Phones (M45): each row is a card — cells stack, the column label becomes a small caption, the first
+       column (picture / avatar) sits beside the text. Nothing scrolls sideways. */
+    @media (max-width: 767px) {
+      :host {
+        overflow: visible;
+      }
+      table {
+        min-inline-size: 0;
+        display: block;
+      }
+      thead {
+        display: none;
+      }
+      tbody {
+        display: block;
+      }
+      tr {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 2px 12px;
+        padding: 10px 12px;
+        border-block-end: 1px solid var(--sw-border);
+      }
+      tr > td:first-child {
+        grid-row: span 6;
+        align-self: start;
+      }
+      tr > td:first-child:not([data-label='']) {
+        grid-row: auto;
+        grid-column: 1 / -1;
+      }
+      td {
+        display: block;
+        padding: 0;
+        border: 0;
+        white-space: normal;
+        grid-column: 2;
+        /* full-system sweep: an audit "details" cell (a JSON-ish string with no spaces) or a long entity id
+           has no break opportunity, so it ran off the card's edge and widened the whole page sideways */
+        min-inline-size: 0;
+        overflow-wrap: anywhere;
+      }
+      td:not([data-label=''])::before {
+        content: attr(data-label);
+        display: block;
+        font-size: var(--sw-fs-xs);
+        color: var(--sw-text-3);
+        line-height: 1.3;
+      }
+      tr.selected {
+        box-shadow: inset 3px 0 0 var(--sw-accent);
+      }
+    }
+    th {
+      position: sticky;
+      top: 0;
+      background: var(--sw-surface);
+      color: var(--sw-text-3);
+      font-weight: var(--sw-fw-medium);
+      font-size: var(--sw-fs-xs);
+      z-index: 1;
+    }
+    tbody tr {
+      transition: background var(--sw-t-fast) var(--sw-ease);
+    }
+    tbody tr:hover {
+      background: var(--sw-surface-2);
+    }
+    tbody tr.selected {
+      background: var(--sw-accent-soft);
+    }
+    tbody tr:last-child td {
+      border-block-end: 0;
+    }
+    tr.clickable {
+      cursor: pointer;
+    }
+    td.ltr {
+      direction: ltr;
+      text-align: left;
+      font-family: var(--sw-font-mono);
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+    }
+    .empty {
+      padding: var(--sw-s-6);
+      text-align: center;
+      color: var(--sw-text-3);
+    }
+  `;qt([g({attribute:!1})],ct.prototype,"columns",2);qt([g({attribute:!1})],ct.prototype,"rows",2);qt([g()],ct.prototype,"rowKey",2);qt([g()],ct.prototype,"selected",2);qt([g()],ct.prototype,"emptyText",2);qt([g({type:Boolean,reflect:!0})],ct.prototype,"dense",2);ct=qt([P("sw-table")],ct);var Nc=Object.defineProperty,Lc=Object.getOwnPropertyDescriptor,Ge=(e,t,s,i)=>{for(var a=i>1?void 0:i?Lc(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Nc(t,s,a),a};const ii=[{id:"lock.main_door",name:"דלת כניסה",domain:"lock",area:"לובי",state:"נעול",fresh:"live",placed:!0,actions:"נעילה / פתיחה (grant נפרד)"},{id:"light.lobby",name:"תאורת לובי",domain:"light",area:"לובי",state:"דולק · 80%",fresh:"live",placed:!0,actions:"הדלקה / כיבוי / עמעום"},{id:"binary_sensor.hall_motion",name:"תנועה באולם",domain:"binary_sensor",area:"אולם",state:"ללא תנועה",fresh:"live",placed:!0,actions:"קריאה בלבד"},{id:"climate.hall",name:"מזגן אולם",domain:"climate",area:"אולם",state:"קירור · 23°",fresh:"stale",placed:!1,actions:"יעד טמפרטורה (allowlist)"},{id:"cover.parking_gate",name:"שער חניה",domain:"cover",area:"חניה",state:"סגור",fresh:"live",placed:!1,actions:"פתיחה / סגירה (רגיש)"},{id:"script.night_mode",name:"מצב לילה",domain:"script",area:"—",state:"—",fresh:"unknown",placed:!1,actions:"חסום עד allowlist"},{id:"sensor.power_main",name:"צריכת חשמל",domain:"sensor",area:"חדר מכונות",state:"4.2 kW",fresh:"live",placed:!1,actions:"קריאה בלבד"},{id:"camera.intercom_m2",name:"אינטרקום M2",domain:"camera",area:"כניסה",state:"זמין",fresh:"live",placed:!1,actions:"צפייה (provider נפרד)"}];function Bc(e){return e==="lock"||e==="cover"?"lock":e==="light"||e==="switch"||e==="fan"?"light":e==="camera"?"camera":e==="climate"||e==="script"||e==="scene"||e==="button"||e==="automation"?"activity":"sensor"}let Pe=class extends M{constructor(){super(...arguments),this.selected=null,this.domain="all",this.q="",this.area="",this.onlyPlaced=!1,this.cat=null,this.error="",this.loading=!1,this.sync=null,this.firstFloorId=null,this.stopWs=null,this.searchTimer=0,this.columns=[{key:"name",label:"ישות",render:e=>n`<span style="display:inline-flex;align-items:center;gap:8px"><span style="display:grid;place-items:center;inline-size:26px;block-size:26px;border-radius:7px;background:var(--sw-accent-soft);color:var(--sw-accent)"><sw-icon name=${Bc(String(e.domain))} size=${13}></sw-icon></span><span><strong>${String(e.name)}</strong><div class="ltr" style="font-size:var(--sw-fs-xs);color:var(--sw-text-3)">${String(e.id)}</div></span></span>`},{key:"domain",label:"Domain",ltr:!0},{key:"area",label:"אזור HA"},{key:"state",label:"מצב"},{key:"fresh",label:"רעננות",render:e=>n`<sw-badge kind=${e.fresh} label=${e.fresh==="live"||e.fresh==="neutral"?"עדכני":e.fresh==="stale"?"מיושן":e.fresh==="offline"?"לא זמין":"לא ידוע"}></sw-badge>`},{key:"placed",label:"במפה",render:e=>e.placed?n`<sw-badge kind="recorded" label="מוצב"></sw-badge>`:n`<span style="color:var(--sw-text-3)">לא</span>`}]}connectedCallback(){super.connectedCallback(),$()&&(this.load(),At().then(e=>this.firstFloorId=zr(e)?.id??null).catch(()=>{}),this.stopWs=Er(e=>{if(e.type==="entity_state_changed"&&this.cat){const t=this.cat.entities.findIndex(s=>s.entity_id===e.entity.entity_id);if(t>=0){const s=[...this.cat.entities];s[t]={...s[t],...e.entity,placements:s[t].placements,actions:s[t].actions},this.cat={...this.cat,entities:s}}}else e.type==="heartbeat"?this.sync=e.sync:e.type==="ha_sync_state"&&this.sync&&(this.sync={...this.sync,connected:e.connected})}))}disconnectedCallback(){super.disconnectedCallback(),this.stopWs?.(),this.stopWs=null}async load(){this.loading=!0,this.error="";try{this.cat=await Pr({domain:this.domain==="all"?void 0:this.domain,q:this.q||void 0,area:this.area||void 0,placed:this.onlyPlaced?!0:void 0,limit:800}),this.sync=this.cat.sync}catch(e){this.error=b(e)}finally{this.loading=!1}}onSearch(e){this.q=e,window.clearTimeout(this.searchTimer),this.searchTimer=window.setTimeout(()=>void this.load(),250)}toRow(e){return{id:e.entity_id,name:e.name||e.original_name||e.entity_id,domain:e.domain,area:e.area_name??"—",state:zt(e),fresh:ua(e),placed:!!e.placements?.length,actions:e.actions?.length?e.actions.map(t=>`${t.label}${t.sensitive?" (רגיש)":""}`).join(" / "):"קריאה בלבד"}}renderApiDrawer(e){const t=ua(e),s=Object.entries(e.attributes).filter(([i])=>i!=="friendly_name"&&i!=="icon").slice(0,14);return n`<sw-drawer open heading=${e.name||e.original_name||e.entity_id} subheading=${e.entity_id} @close=${()=>this.selected=null}>
+      <dl>
+        <dt>מצב</dt><dd><sw-badge kind=${t} label=${zt(e)}></sw-badge></dd>
+        <dt>Domain</dt><dd><span class="ltr">${e.domain}</span> · ${Vs(e.domain)}${e.device_class?n` · <span class="ltr">${e.device_class}</span>`:d}</dd>
+        <dt>אזור HA</dt><dd>${e.area_name??"—"}${e.ha_floor_name?` · ${e.ha_floor_name}`:""}</dd>
+        <dt>שינוי אחרון</dt><dd>${je(e.last_changed)}</dd>
+        <dt>נראה לאחרונה</dt><dd>${je(e.state_seen_at)}${e.fresh?"":" · הסנכרון מנותק"}</dd>
+        <dt>אינטגרציה</dt><dd><span class="ltr">${e.platform??"—"}</span></dd>
+        <dt>פעולות נתמכות</dt><dd>${e.actions?.length?e.actions.map(i=>`${i.label}${i.sensitive?" (רגיש)":""}`).join(" / "):"קריאה בלבד"}</dd>
+        <dt>במפה</dt><dd>${e.placements?.length?n`<span class="chips">${e.placements.map(i=>n`<sw-chip @click=${()=>x(`/explore/floors/${i.floor_id}`)}>${i.floor_name}</sw-chip>`)}</span>`:"לא מוצב"}</dd>
+      </dl>
+      ${s.length?n`<div class="attrs">${s.map(([i,a])=>n`<span>${i}</span><span>${typeof a=="object"?JSON.stringify(a):String(a)}</span>`)}</div>`:d}
+      <div class="note">הקטלוג הוא שיקוף לקריאה בלבד של Home Assistant. הפעולות רצות דרך גשר SMPLWISE בזהות המשתמש; שליטה מהמפה דורשת הרשאת ha.entity.control.</div>
+      <div slot="footer">
+        ${e.placements?.length?n`<sw-button variant="primary" icon="map" @click=${()=>x(`/explore/floors/${e.placements[0].floor_id}`)}>הצג במפה</sw-button>`:n`<sw-button variant="primary" icon="map" ?disabled=${!this.firstFloorId} title=${this.firstFloorId?"פותח את עורך התוכנית עם הישות מוכנה להצבה":"אין קומות עדיין"} @click=${()=>this.firstFloorId&&x(`/explore/floors/${this.firstFloorId}/edit`,{entity:e.entity_id})}>הצב במפה</sw-button>`}
+      </div>
+    </sw-drawer>`}renderApi(){const e=this.cat,t=this.sync,s=e?e.entities.map(l=>this.toRow(l)):[],i=e?Object.entries(e.domains).sort((l,p)=>p[1]-l[1]):[],a=e?.entities.find(l=>l.entity_id===this.selected),r=i.reduce((l,[,p])=>l+p,0),o=t?`${r} ישויות בקטלוג · ${t.connected?`סנכרון פעיל · HA ${t.ha_version??""}`:`הסנכרון מנותק${t.last_error?` · ${t.last_error}`:""}`}`:"טוען את הקטלוג…";return n`
+      <sw-page heading="קטלוג ישויות Home Assistant" subheading=${o}>
+        <sw-button slot="actions" icon="refresh" ?disabled=${this.loading} @click=${()=>this.load()}>רענון</sw-button>
+        <div class="filters">
+          <sw-field class="search"><input type="search" placeholder="חיפוש לפי שם, entity_id או אזור" .value=${this.q} @input=${l=>this.onSearch(l.target.value)} /></sw-field>
+          <sw-field><select aria-label="אזור" @change=${l=>{this.area=l.target.value,this.load()}}><option value="">כל האזורים</option>${(e?.areas??[]).map(l=>n`<option value=${l.area_id} ?selected=${l.area_id===this.area}>${l.area_name??l.area_id}</option>`)}</select></sw-field>
+          <sw-chip ?selected=${this.onlyPlaced} icon="map" @click=${()=>{this.onlyPlaced=!this.onlyPlaced,this.load()}}>מוצבות בלבד</sw-chip>
+        </div>
+        <div class="filters">
+          <sw-chip ?selected=${this.domain==="all"} count=${r} @click=${()=>{this.domain="all",this.load()}}>הכל</sw-chip>
+          ${i.map(([l,p])=>n`<sw-chip ?selected=${l===this.domain} count=${p} @click=${()=>{this.domain=l,this.load()}}><span class="ltr">${l}</span></sw-chip>`)}
+        </div>
+        <div class="stage">
+          ${this.error?n`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${()=>this.load()}></sw-state-panel>`:e?s.length?n`<sw-table .columns=${this.columns} .rows=${s} .selected=${this.selected} @row-select=${l=>this.selected=l.detail.id}></sw-table>`:n`<sw-state-panel state="empty" heading=${r?"אין ישויות שתואמות את הסינון":"הקטלוג ריק"} hint=${r?"נקה את החיפוש או בחר domain אחר.":t?.connected?"ההסנכרון פעיל אך טרם התקבלו מצבים.":"ה־Add-on לא מחובר ל־Home Assistant. בדוק בהגדרות → גשר Home Assistant."}></sw-state-panel>`:n`<sw-state-panel state="loading"></sw-state-panel>`}
+          ${a?this.renderApiDrawer(a):d}
+        </div>
+      </sw-page>
+    `}render(){if($())return this.renderApi();const e=["all",...new Set(ii.map(i=>i.domain))],t=ii.filter(i=>this.domain==="all"||i.domain===this.domain),s=ii.find(i=>i.id===this.selected);return n`
+      <sw-page heading="קטלוג ישויות Home Assistant" subheading="${ii.length} ישויות מורשות לחיבור · הצבה על המפה ושליטה הן הרשאות נפרדות · נתוני הדגמה">
+        <sw-button slot="actions" icon="refresh">סנכרון</sw-button>
+        <div class="filters">
+          <sw-field class="search"><input type="search" placeholder="חיפוש לפי שם, entity_id או אזור" /></sw-field>
+          ${e.map(i=>n`<sw-chip ?selected=${i===this.domain} @click=${()=>this.domain=i}>${i==="all"?"הכל":i}</sw-chip>`)}
+        </div>
+        <div class="stage">
+          <sw-table .columns=${this.columns} .rows=${t} .selected=${this.selected} @row-select=${i=>this.selected=i.detail.id}></sw-table>
+          ${s?n`<sw-drawer open heading=${s.name} subheading=${s.id} @close=${()=>this.selected=null}>
+                <dl>
+                  <dt>מצב</dt><dd><sw-badge kind=${s.fresh} label=${s.state}></sw-badge></dd>
+                  <dt>Domain</dt><dd><span class="ltr">${s.domain}</span></dd>
+                  <dt>אזור HA</dt><dd>${s.area}</dd>
+                  <dt>פעולות נתמכות</dt><dd>${s.actions}</dd>
+                  <dt>במפה</dt><dd>${s.placed?"קומה 0":"לא מוצב"}</dd>
+                </dl>
+                <div class="note">ישות מ־domain לא מוכר מקבלת כרטיס כללי לקריאה בלבד. scripts ו־scenes חסומים עד allowlist.</div>
+                <div slot="footer">
+                  <sw-button variant="primary" icon="map">${s.placed?"הצג במפה":"הצב במפה"}</sw-button>
+                  <sw-button variant="ghost">פתח ב־HA</sw-button>
+                </div>
+              </sw-drawer>`:""}
+        </div>
+      </sw-page>
+    `}};Pe.styles=A`
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--sw-s-2);
+      align-items: center;
+    }
+    .search {
+      flex: 1;
+      min-inline-size: 220px;
+      max-inline-size: 420px;
+    }
+    .stage {
+      position: relative;
+      min-block-size: 420px;
+    }
+    dl {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 8px 14px;
+      margin: 0;
+      font-size: var(--sw-fs-sm);
+    }
+    dt {
+      color: var(--sw-text-2);
+    }
+    dd {
+      margin: 0;
+      min-inline-size: 0;
+      overflow-wrap: anywhere;
+    }
+    .note {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      margin-block-start: 10px;
+    }
+    .attrs {
+      margin-block-start: 10px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 3px 10px;
+      direction: ltr;
+      text-align: left;
+    }
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .statusline {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .ltr {
+      direction: ltr;
+      unicode-bidi: isolate;
+    }
+  `;Ge([c()],Pe.prototype,"selected",2);Ge([c()],Pe.prototype,"domain",2);Ge([c()],Pe.prototype,"q",2);Ge([c()],Pe.prototype,"area",2);Ge([c()],Pe.prototype,"onlyPlaced",2);Ge([c()],Pe.prototype,"cat",2);Ge([c()],Pe.prototype,"error",2);Ge([c()],Pe.prototype,"loading",2);Ge([c()],Pe.prototype,"sync",2);Ge([c()],Pe.prototype,"firstFloorId",2);Pe=Ge([P("explore-entities")],Pe);var Vc=Object.defineProperty,Hc=Object.getOwnPropertyDescriptor,Dr=(e,t,s,i)=>{for(var a=i>1?void 0:i?Hc(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Vc(t,s,a),a};const Gi=[{id:"d1",name:"כניסה ראשית",kind:"דלת זכוכית",lock:"נעול",contact:"סגור",relay:"לא פעיל",ringing:!1,scene:"entrance"},{id:"d2",name:"לובי",kind:"דלת פנימית",lock:"פתוח",contact:"פתוח",relay:"לא פעיל",ringing:!1,scene:"lobby"},{id:"d3",name:"אינטרקום M2",kind:"עמדת דלת",lock:"נעול",contact:"סגור",relay:"לא פעיל",ringing:!0,scene:"entrance"},{id:"d4",name:"מחסן",kind:"דלת שירות",lock:"נעול",contact:"סגור",relay:"לא פעיל",ringing:!1,scene:"warehouse"}];let wi=class extends M{constructor(){super(...arguments),this.selected="d1"}render(){if($())return n`<sw-page heading="דלתות ואינטרקום" subheading="V1 · מצלמה, צלצול, מגע דלת וממסר הם ארבעה נתונים שונים">
+        <sw-state-panel data-access-pending state="empty" heading="אינטרקום ובקרת כניסה טרם חוברו" hint="המסך יופעל כשמערכת האינטרקום / בקרת הכניסה תחובר (T054): נדרשות ישויות Home Assistant של הדלת, הצלצול והממסר או תחנת דלת ב־go2rtc. עד אז מעברי דלתות ומנעולים מחיישני HA מופיעים במרכז האירועים ועל המפה."></sw-state-panel>
+      </sw-page>`;const e=Gi.find(t=>t.id===this.selected)??Gi[0];return n`
+      <sw-page heading="דלתות ואינטרקום" subheading="V1 · מצלמה, צלצול, מגע דלת וממסר הם ארבעה נתונים שונים · נתוני הדגמה">
+        <sw-tabs .items=${[{id:"doors",label:"דלתות",count:4},{id:"intercom",label:"אינטרקום",count:1},{id:"linked",label:"מצלמות מקושרות",count:4}]} active="doors"></sw-tabs>
+        <div class="layout">
+          <div class="list">
+            ${Gi.map(t=>n`<button class="door ${t.id===this.selected?"on":""}" @click=${()=>this.selected=t.id} aria-pressed=${t.id===this.selected}>
+                <div class="ic"><sw-icon name=${t.lock==="נעול"?"lock":"unlock"} size=${15}></sw-icon></div>
+                <div style="flex:1"><b>${t.name}</b><small>${t.kind}</small></div>
+                <span class="st ${t.ringing?"ring":t.lock==="נעול"?"":"open"}"><i></i>${t.ringing?"מצלצל":t.lock}</span>
+              </button>`)}
+          </div>
+          <sw-card heading=${e.name} subheading=${e.kind}>
+            <sw-camera-tile name="מצלמת הדלת" state="live" scene=${e.scene}></sw-camera-tile>
+            <div class="facts">
+              <div class="fact"><span>מנעול</span>${e.lock}</div>
+              <div class="fact"><span>מגע דלת</span>${e.contact}</div>
+              <div class="fact"><span>ממסר</span>${e.relay}</div>
+              <div class="fact"><span>צלצול</span>${e.ringing?"כן":"לא"}</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <sw-button variant="primary" icon="unlock" disabled>פתח דלת</sw-button>
+              <sw-button icon="clock" disabled>השאר פתוח</sw-button>
+              <sw-button variant="ghost" icon="history">אירועי הדלת</sw-button>
+            </div>
+            <div class="note" style="margin-block-start:8px">פתיחה דורשת grant מפורש (<span class="ltr">door.unlock</span>), הרשאת HA של המשתמש, אישור מפורש ורישום באודיט. אין שליחה חוזרת אחרי timeout או reconnect.</div>
+            <h4>מצלמות מקושרות (2)</h4>
+            <div class="linked">
+              <sw-camera-tile compact name="כניסה ראשית" state="live" scene="entrance"></sw-camera-tile>
+              <sw-camera-tile compact name="לובי" state="live" scene="lobby"></sw-camera-tile>
+            </div>
+          </sw-card>
+        </div>
+      </sw-page>
+    `}};wi.styles=A`
+    .layout {
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+    }
+    .list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .door {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border: 1.5px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface);
+      cursor: pointer;
+      box-shadow: var(--sw-shadow-1);
+      text-align: start;
+      font: inherit;
+      color: inherit;
+    }
+    .door.on {
+      border-color: var(--sw-accent);
+      box-shadow: 0 0 0 3px var(--sw-accent-soft);
+    }
+    .door .ic {
+      display: grid;
+      place-items: center;
+      inline-size: 30px;
+      block-size: 30px;
+      border-radius: 8px;
+      background: var(--sw-surface-3);
+      color: var(--sw-text-2);
+    }
+    .door b {
+      display: block;
+      font-weight: var(--sw-fw-semibold);
+    }
+    .door small {
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+    }
+    .st {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+    }
+    .st i {
+      inline-size: 7px;
+      block-size: 7px;
+      border-radius: 50%;
+      background: var(--sw-live);
+    }
+    .st.open i {
+      background: var(--sw-danger);
+    }
+    .st.ring i {
+      background: var(--sw-stale);
+    }
+    .facts {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-block: 10px;
+    }
+    .fact {
+      border: 1px solid var(--sw-border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .fact span {
+      display: block;
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-regular);
+    }
+    .linked {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .note {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    h4 {
+      margin: 12px 0 8px;
+      font-size: var(--sw-fs-sm);
+    }
+    @media (max-width: 1023px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+      .facts {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+  `;Dr([c()],wi.prototype,"selected",2);wi=Dr([P("explore-access")],wi);var Fc=Object.defineProperty,jc=Object.getOwnPropertyDescriptor,Gt=(e,t,s,i)=>{for(var a=i>1?void 0:i?jc(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Fc(t,s,a),a};let pt=class extends M{constructor(){super(...arguments),this.label="",this.value="",this.detail="",this.icon="info",this.tone="neutral",this.badge=""}render(){return n`
+      <div class="icon"><sw-icon .name=${this.icon} size=${16}></sw-icon></div>
+      ${this.badge?n`<span class="badge">${this.badge}</span>`:""}
+      <div>
+        <div class="value">${this.value}</div>
+        <div class="label">${this.label}</div>
+        ${this.detail?n`<div class="detail">${this.detail}</div>`:""}
+      </div>
+    `}};pt.styles=A`
+    :host {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 12px 14px;
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      box-shadow: var(--sw-shadow-1);
+      min-inline-size: 0;
+      position: relative;
+    }
+    .icon {
+      display: grid;
+      place-items: center;
+      inline-size: 30px;
+      block-size: 30px;
+      border-radius: 8px;
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent);
+    }
+    :host([tone='error']) .icon,
+    :host([tone='offline']) .icon {
+      background: var(--sw-danger-soft);
+      color: var(--sw-danger);
+    }
+    :host([tone='stale']) .icon,
+    :host([tone='partial']) .icon {
+      background: var(--sw-stale-soft);
+      color: var(--sw-stale);
+    }
+    :host([tone='live']) .icon {
+      background: var(--sw-live-soft);
+      color: #16a34a;
+    }
+    .value {
+      font-size: var(--sw-fs-2xl);
+      font-weight: var(--sw-fw-bold);
+      line-height: 1.1;
+      letter-spacing: -0.01em;
+      font-variant-numeric: tabular-nums;
+    }
+    .label {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      margin-block-start: 2px;
+    }
+    .detail {
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-medium);
+      color: #16a34a;
+      margin-block-start: 1px;
+    }
+    :host([tone='stale']) .detail,
+    :host([tone='partial']) .detail {
+      color: #b45309;
+    }
+    :host([tone='error']) .detail,
+    :host([tone='offline']) .detail {
+      color: var(--sw-danger);
+    }
+    :host([tone='neutral']) .detail {
+      color: var(--sw-text-3);
+    }
+    .badge {
+      position: absolute;
+      inset-inline-end: 10px;
+      inset-block-start: 10px;
+      background: var(--sw-danger);
+      color: #fff;
+      font-size: 9.5px;
+      font-weight: var(--sw-fw-semibold);
+      border-radius: var(--sw-r-pill);
+      padding: 1px 7px;
+    }
+  `;Gt([g()],pt.prototype,"label",2);Gt([g()],pt.prototype,"value",2);Gt([g()],pt.prototype,"detail",2);Gt([g()],pt.prototype,"icon",2);Gt([g({reflect:!0})],pt.prototype,"tone",2);Gt([g()],pt.prototype,"badge",2);pt=Gt([P("sw-kpi")],pt);function Ci(e={}){const t=new URLSearchParams;e.date&&t.set("date",e.date),e.from&&e.to&&(t.set("from",e.from),t.set("to",e.to)),e.acked&&t.set("acked","true"),e.cameraId&&t.set("camera_id",e.cameraId),e.type&&t.set("type",e.type),e.unacked&&t.set("unacked","true"),e.limit&&t.set("limit",String(e.limit)),e.floorId&&t.set("floor_id",e.floorId),e.zoneId&&t.set("zone_id",e.zoneId),e.buildingId&&t.set("building_id",e.buildingId),e.siteId&&t.set("site_id",e.siteId),e.source&&t.set("source",e.source),e.severity&&t.set("severity",e.severity),e.query&&t.set("q",e.query);const s=t.toString();return S(`events${s?`?${s}`:""}`)}const Wc=()=>S("events/summary"),Uc=(e,t)=>S(`cameras/${e}/events?date=${t}`),Tr=e=>E(`events/${e}/ack`),zn=e=>E("events/ack-many",{event_ids:e}),Sn={camera:"לפי מצלמה",all:"כל המצלמות יחד",zone:"לפי חדר",floor:"לפי קומה"};function Zc(e={}){const t=new URLSearchParams;e.date&&t.set("date",e.date),e.cameraId&&t.set("camera_id",e.cameraId),e.gap&&t.set("gap",String(e.gap)),e.by&&t.set("by",e.by),e.limit&&t.set("limit",String(e.limit));const s=t.toString();return S(`events/windows${s?`?${s}`:""}`)}const qc=e=>S(`events/${e}`),Rt=(e,t=0)=>ge(`events/${e}/thumbnail${t?`?v=${t}`:""}`);async function Or(e){try{const t=await fetch(Rt(e),{credentials:"include",cache:"no-store"});return t.status===200?"ready":t.status===202?"pending":"unavailable"}catch{return"pending"}}const ee={motion:"תנועה",person:"אדם",vehicle:"רכב",line:"חציית קו",field:"חדירה לאזור",offline:"אובדן וידאו",tamper:"חבלה במצלמה",door:"דלת",io:"כניסת חיווי",storage:"אחסון",system:"מערכת",coverage_gap:"פער בקליטת אירועים",manual:"הקלטה ידנית",other:"אחר"},di={motion:"#ef4444",person:"#2f6bff",vehicle:"#22c55e",line:"#f59e0b",field:"#f59e0b",offline:"#6b7280",tamper:"#b45309",door:"#8b5cf6",io:"#8b5cf6",storage:"#6b7280",system:"#6b7280",coverage_gap:"#6b7280",manual:"#2f6bff",other:"#6b7280"};function Gc(e){return e==="person"||e==="vehicle"||e==="motion"||e==="line"||e==="offline"||e==="door"?e:e==="field"?"line":e==="io"?"door":e==="tamper"||e==="coverage_gap"||e==="storage"||e==="system"?"offline":"motion"}function Kc(e,t){let s=null,i=!1,a=2e3;const r=(()=>{const l=new URL(ge("events/ws"));return l.protocol=l.protocol==="https:"?"wss:":"ws:",l.toString()})(),o=()=>{if(!i){try{s=new WebSocket(r)}catch{return}s.onopen=()=>{a=2e3,t?.(null,!0)},s.onmessage=l=>{try{const p=JSON.parse(l.data);p.type==="event_added"||p.type==="event_updated"?e(p.payload):p.type==="heartbeat"&&t?.(p.payload.ingest,!0)}catch{}},s.onclose=()=>{t?.(null,!1),i||(window.setTimeout(o,a),a=Math.min(3e4,a*2))}}};return o(),()=>{i=!0,s?.close()}}const Yc={measured:"נמדד",inferred:"נגזר",command:"פקודה",availability:"זמינות"},Jc=(e,t=120)=>S(`events/${e}/correlation?window=${t}`),Xc=(e=90)=>S(`events/facets?days=${e}`),Mn={alertstream:"אירוע NVR",recording:"נגזר מהקלטה",system:"מערכת",ha:"חיישן HA"},Qc=(e,t=90)=>S(`events/${e}/route?window=${t}`),Rr=(e=!1)=>S(`storage${e?"?fresh=true":""}`);function Tt(e){return e==null?"—":e>=1024*1024?`${(e/1024/1024).toFixed(2)} TB`:e>=1024?`${(e/1024).toFixed(0)} GB`:`${e} MB`}const Ms={ok:"תקין",warn:"לתשומת לב",error:"שגיאה"},An={ok:"live",warn:"stale",error:"offline"},Nr=(e=!1)=>S(`health/report${e?"?fresh=1":""}`),Ba=()=>S("health/summary");function ep(e){return e<3600?`${Math.floor(e/60)} דק׳`:e<86400?`${Math.floor(e/3600)} שע׳ ${Math.floor(e%3600/60)} דק׳`:`${Math.floor(e/86400)} ימים ${Math.floor(e%86400/3600)} שע׳`}var tp=Object.defineProperty,sp=Object.getOwnPropertyDescriptor,Ce=(e,t,s,i)=>{for(var a=i>1?void 0:i?sp(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&tp(t,s,a),a};function ip(e){return e<5?"לילה טוב":e<12?"בוקר טוב":e<17?"צהריים טובים":e<21?"ערב טוב":"לילה טוב"}const ap={person:"var(--sw-accent)",vehicle:"var(--sw-live)",motion:"var(--sw-danger)",line:"var(--sw-stale)",offline:"var(--sw-offline)",door:"var(--sw-purple)"},np={"כניסה ראשית":"entrance","חצר אחורית":"backyard",מחסן:"warehouse",לובי:"lobby","חניה מקורה":"parking"};let $e=class extends M{constructor(){super(...arguments),this.cams=null,this.recorder=null,this.sites=null,this.summary=null,this.summaryDenied=!1,this.recent=[],this.storage=null,this.health=null,this.raw=null,this.tz="Asia/Jerusalem",this.now=new Date,this.loaded=!1,this.timer=0,this.clockTimer=0}connectedCallback(){super.connectedCallback(),$()&&(this.load(),this.timer=window.setInterval(()=>void this.load(),6e4),this.clockTimer=window.setInterval(()=>this.now=new Date,3e4))}disconnectedCallback(){window.clearInterval(this.timer),window.clearInterval(this.clockTimer),super.disconnectedCallback()}async load(){this.loadStorage();const[e,t,s,i,a,r,o]=await Promise.allSettled([Ve(),Be(),S("sites?tree=true"),Wc(),Ci({limit:6}),Ba(),S("health")]);e.status==="fulfilled"&&(this.tz=e.value["time.zone"]??this.tz),t.status==="fulfilled"?(this.cams=t.value.cameras.filter(l=>l.enabled),this.recorder=t.value.recorder):this.cams===null&&(this.cams=[]),s.status==="fulfilled"?this.sites=s.value.sites:this.sites===null&&(this.sites=[]),i.status==="fulfilled"?this.summary=i.value:this.summaryDenied=i.reason instanceof fe&&i.reason.status===403,a.status==="fulfilled"&&(this.recent=a.value.events),r.status==="fulfilled"&&(this.health=r.value),o.status==="fulfilled"&&(this.raw=o.value),this.loaded=!0,this.now=new Date}async loadStorage(){try{this.storage=await Rr()}catch{this.storage=null}}fmtTime(e){return new Date(e).toLocaleTimeString("he-IL",{hour:"2-digit",minute:"2-digit",timeZone:this.tz})}spots(){const e=[],t=this.cams??[];for(const a of t.filter(r=>r.status==="offline"))e.push({kind:"critical",title:`מצלמה מנותקת: ${a.name}`,meta:`ערוץ ${a.channel}${a.last_seen_at?` · נראתה לאחרונה ${this.fmtTime(a.last_seen_at)}`:""}`,why:"מוצג כי ה־NVR מדווח שהערוץ אינו מחובר",link:`#/live/cameras/${a.id}`});for(const a of(this.health?.items??[]).filter(r=>r.status!=="ok"))e.push({kind:a.status==="error"?"critical":"alert",title:a.label,meta:`בדיקת מערכת · ${Ms[a.status]}`,why:"מוצג כי בדיקת הבריאות של ה־Add-on מדווחת על כך",link:"#/system/diagnostics"});const s=this.summary?.today.unacked??0;if(s>0){const a=Object.entries(this.summary?.today.by_type??{}).sort((r,o)=>o[1]-r[1]).slice(0,3).map(([r,o])=>`${ee[r]??r} ${o}`).join(" · ");e.push({kind:"alert",title:`${s} אירועים שלא נבדקו היום`,meta:a,why:"מוצג כי אירועים ממתינים לסימון טיפול במרכז האירועים",link:"#/investigate/events"})}const i=this.raw?.events.ingest;return i?.connected&&!i.events_stored&&!i.last_event_at&&e.push({kind:"info",title:"ה־NVR לא שלח התראות מאז ההפעלה",meta:"אירועי תנועה נגזרים מההקלטות כל 10 דקות",why:'מוצג כי זרם ההתראות מחובר אך ריק — ב־NVR יש להפעיל "Notify Surveillance Center" ב־linkage של זיהוי התנועה',link:"#/system/setup"}),this.raw?.home_assistant.configured&&!this.raw.home_assistant.connected&&e.push({kind:"alert",title:"אין חיבור ל־Home Assistant",meta:this.raw.home_assistant.last_error??"",why:"מוצג כי מצבי הישויות והדלתות עלולים להיות מיושנים",link:"#/system/setup"}),e}renderApi(){const e=Te.me?.user,t=e?.display_name||e?.username||"",s=Number(this.now.toLocaleString("en-GB",{hour:"numeric",hour12:!1,timeZone:this.tz})),i=this.cams??[],a=i.filter(z=>z.status==="online").length,r=this.sites??[],o=r.flatMap(z=>(z.buildings??[]).flatMap(C=>C.floors??[])),l=this.health,p=l?l.status==="ok"?"live":l.status==="warn"?"stale":"offline":"neutral",h=l?.items.find(z=>z.status!=="ok"),u=this.loaded?this.spots():[],f=this.storage,v=f?.totals??null,w=v?.used_pct??null,y=34,k=2*Math.PI*y,R=i.filter(z=>z.status==="online").slice(0,2);return n`
+      <sw-page heading=${`${ip(s)}${t?`, ${t}`:""}`} subheading=${l?`מצב המערכת: ${Ms[l.status]}${h?` · ${h.label}`:" · כל הבדיקות תקינות"}`:"קורא את מצב המערכת…"}>
+        <div slot="actions" class="date">${this.now.toLocaleDateString("he-IL",{weekday:"long",day:"numeric",month:"long",year:"numeric",timeZone:this.tz})}<br />${this.now.toLocaleTimeString("he-IL",{hour:"2-digit",minute:"2-digit",timeZone:this.tz})}</div>
+        <div class="kpis" data-overview-kpis>
+          <sw-kpi icon="camera" tone=${i.length&&a===i.length?"live":a?"stale":"offline"} value=${`${a}/${i.length}`} label="מצלמות" detail=${this.recorder?`מחוברות · ${this.recorder.model??this.recorder.name}`:"מחוברות"}></sw-kpi>
+          <sw-kpi icon="building" value=${String(r.length)} label="אתרים" detail=${`${o.length} קומות · ${o.filter(z=>z.has_plan).length} עם תוכנית`} tone="neutral"></sw-kpi>
+          <sw-kpi icon="bell" value=${this.summaryDenied?"—":String(this.summary?.today.total??0)} label="אירועים" detail=${this.summaryDenied?"ללא הרשאה לאירועים":"היום"} tone="neutral" badge=${this.summary?.today.unacked?`${this.summary.today.unacked} לבדיקה`:""}></sw-kpi>
+          <sw-kpi icon="shield" tone=${p} value=${l?Ms[l.status]:"…"} label="מצב מערכת" detail=${h?h.label:"NVR, go2rtc, HA ואחסון"}></sw-kpi>
+        </div>
+        ${R.length?n`<div class="fav" data-overview-favorites>
+              ${R.map(z=>n`<sw-camera-tile name=${z.name} state="live" cameraId=${z.id} poster=${et(z.id)} noDemo @click=${()=>x(`/live/cameras/${z.id}`)}></sw-camera-tile>`)}
+            </div>`:d}
+        <div class="row2">
+          ${f&&v?n`<sw-card heading="אחסון" subheading=${f.cached?"מהמטמון · נמדד מול ה־NVR":"נמדד מול ה־NVR"}>
+                <div class="donut">
+                  <svg viewBox="0 0 84 84" role="img" aria-label=${`אחסון בשימוש ${w??0}%`}>
+                    ${m`<circle cx="42" cy="42" r=${y} fill="none" stroke="var(--sw-surface-3)" stroke-width="9" />
+                    <circle cx="42" cy="42" r=${y} fill="none" stroke="var(--sw-accent)" stroke-width="9" stroke-linecap="round" stroke-dasharray=${`${k*(w??0)/100} ${k}`} transform="rotate(-90 42 42)" />
+                    <text x="42" y="47" text-anchor="middle" font-size="15" font-weight="700" fill="var(--sw-text)" font-family="var(--sw-font)">${w??0}%</text>`}
+                  </svg>
+                  <div class="txt">
+                    <div class="big">${Tt(v.used_mb)} מתוך ${Tt(v.capacity_mb)}</div>
+                    <div class="bar"><i style=${`inline-size:${w??0}%`}></i></div>
+                    <div class="muted">${f.retention.measured_days_min!==null?`הקלטה ישנה ביותר ≈ ${f.retention.measured_days_min}${f.retention.measured_days_max!==null&&f.retention.measured_days_max!==f.retention.measured_days_min?`–${f.retention.measured_days_max}`:""} ימים (נמדד)`:f.retention.measured_reason}${f.work_mode?` · ${f.work_mode}`:""} · ${v.disks} דיסקים</div>
+                  </div>
+                </div>
+              </sw-card>`:d}
+          <sw-card heading="אתרים ומבנים" subheading=${r.length?`${r.length} אתרים · ${o.length} קומות`:"עדיין לא הוגדרו אתרים"}>
+            ${r.map(z=>{const C=(z.buildings??[]).flatMap(fs=>fs.floors??[]),Q=C.filter(fs=>fs.has_plan).length,ye=C.reduce((fs,Xr)=>fs+Xr.camera_count,0);return n`<div class="hrow" @click=${()=>x("/explore/sites")} style="cursor:pointer"><span>${z.name}<div class="muted">${(z.buildings??[]).length} מבנים · ${C.length} קומות · ${ye} מצלמות מוצבות · ${Q}/${C.length} תוכניות</div></span><span class="status"><i style=${`--c:${C.length&&Q===C.length?"var(--sw-live)":"var(--sw-stale)"}`}></i>${C.length&&Q===C.length?"תוכניות מפורסמות":"חסרות תוכניות"}</span></div>`})}
+            ${this.recorder?n`<div class="hrow"><span>NVR · ${this.recorder.name}<div class="muted">${this.recorder.model??""} · ${a}/${i.length} מצלמות מחוברות</div></span><span class="status"><i style=${`--c:${a===i.length?"var(--sw-live)":"var(--sw-offline)"}`}></i>${a===i.length?"מחובר":`${i.length-a} מנותקות`}</span></div>`:d}
+          </sw-card>
+        </div>
+        <div class="row3">
+          <sw-card heading="אירועים אחרונים" subheading=${this.summary?`${this.summary.today.total} היום · ${this.summary.today.measured} נמדדו · ${this.summary.today.inferred} נגזרו מהקלטה`:""}>
+            <a slot="actions" class="seeall" href="#/investigate/events">הצג הכל</a>
+            ${this.recent.length?this.recent.map(z=>n`<div class="ev" data-overview-event @click=${()=>x(`/investigate/events/${z.id}`)}>
+                    ${z.thumbnail==="ready"?n`<img class="thumb" src=${Rt(z.id)} alt="" loading="lazy" />`:n`<div class="none"><sw-icon name=${z.type==="offline"||z.type==="coverage_gap"?"offline":z.type==="door"||z.type==="io"?"door":z.type==="person"?"user":z.type==="vehicle"?"route":"bell"} size=${14}></sw-icon></div>`}
+                    <div class="txt"><b style=${`--tone:${di[z.type]??"#6b7280"}`}><i></i>${ee[z.type]??z.type}${z.acked_at?"":" · לבדיקה"}</b><small>${z.camera_name??z.details?.name??"ללא מצלמה"} · ${z.confidence==="inferred"?"נגזר מהקלטה":z.source==="ha"?"חיישן HA":"התראה"}</small></div>
+                    <time>${this.fmtTime(z.occurred_at)}</time>
+                  </div>`):n`<div class="muted">${this.loaded?"אין אירועים ב־24 השעות האחרונות":"טוען…"}</div>`}
+          </sw-card>
+          <sw-card heading="דורש תשומת לב" subheading="כל פריט מסביר מדוע הוא מוצג">
+            ${u.length?u.map(z=>n`<div class="spot ${z.kind}" data-overview-spot>
+                    <div class="ic"><sw-icon name=${z.kind==="critical"?"offline":z.kind==="info"?"info":"warning"} size=${15}></sw-icon></div>
+                    <div><div class="t">${z.title}</div><div class="muted">${z.meta}</div><div class="why">${z.why}</div></div>
+                    <div class="actions"><a href=${z.link}><sw-button size="sm">פתח</sw-button></a></div>
+                  </div>`):n`<div class="muted" data-overview-calm>${this.loaded?"הכול תקין — אין פריטים שדורשים תשומת לב כרגע.":"בודק…"}</div>`}
+          </sw-card>
+        </div>
+      </sw-page>
+    `}render(){if($())return this.renderApi();const e=X.filter(l=>l.state==="live"||l.state==="stale").length,t=ot.filter(l=>!l.acked),s=[{kind:"critical",title:"מצלמה מנותקת: מסדרון מזרחי",meta:"קומה 0 · מאז 07:55",why:"מוצג כי אין הקלטה ממצלמה זו כבר שעתיים",link:"#/system/devices"},{kind:"alert",title:`${t.length} אירועים שלא נבדקו`,meta:"אדם בכניסה הראשית 10:14, רכב בחצר 09:42",why:"מוצג כי אירועי אדם/רכב מחכים לסימון טיפול",link:"#/investigate/events"},{kind:"alert",title:"החיבור ל־Home Assistant לא רענן",meta:"סנכרון אחרון לפני 4 דק׳",why:"מוצג כי מצבי הישויות עלולים להיות מיושנים",link:"#/system/diagnostics"}],i=.68,a=34,r=2*Math.PI*a,o=X.filter(l=>l.state==="live").slice(0,2);return n`
+      <sw-page heading="בוקר טוב, יוני" subheading="המערכת פועלת · גשר Home Assistant לא רענן · נתוני הדגמה">
+        <div slot="actions" class="date">יום שני, 14 בספטמבר 2026<br />10:24</div>
+        <div class="kpis">
+          <sw-kpi icon="camera" tone="live" value=${String(e)} label="מצלמות" detail="מחוברות"></sw-kpi>
+          <sw-kpi icon="building" value=${String(ra.length)} label="אתרים" detail="פעילים" tone="neutral"></sw-kpi>
+          <sw-kpi icon="bell" value=${String(ot.length)} label="אירועים" detail="ב־24 השעות" tone="neutral" badge=${`${t.length} חדשים`}></sw-kpi>
+          <sw-kpi icon="shield" tone="stale" value="חלקי" label="מצב מערכת" detail="גשר HA לא רענן"></sw-kpi>
+        </div>
+        <div class="fav">
+          ${o.map(l=>n`<sw-camera-tile name=${l.name} state=${l.state} scene=${tt[l.id]??"lobby"} @click=${()=>x(`/live/cameras/${l.id}`)}></sw-camera-tile>`)}
+        </div>
+        <div class="row2">
+          <sw-card heading="אחסון">
+            <div class="donut">
+              <svg viewBox="0 0 84 84" role="img" aria-label="אחסון בשימוש 68%">
+                ${m`<circle cx="42" cy="42" r=${a} fill="none" stroke="var(--sw-surface-3)" stroke-width="9" />
+                <circle cx="42" cy="42" r=${a} fill="none" stroke="var(--sw-accent)" stroke-width="9" stroke-linecap="round" stroke-dasharray=${`${r*i} ${r}`} transform="rotate(-90 42 42)" />
+                <text x="42" y="47" text-anchor="middle" font-size="15" font-weight="700" fill="var(--sw-text)" font-family="var(--sw-font)">68%</text>`}
+              </svg>
+              <div class="txt">
+                <div class="big">1.3 TB מתוך 1.9 TB</div>
+                <div class="bar"><i></i></div>
+                <div class="muted">הקלטה ישנה ביותר ≈ 11 ימים (נמדד) · overwrite פעיל</div>
+              </div>
+            </div>
+          </sw-card>
+          <sw-card heading="בריאות האתרים">
+            ${ra.map(l=>n`<div class="hrow"><span>${l.name}<div class="muted">${l.online}/${l.cameras} מצלמות · ${l.alerts} התראות</div></span><span class="status"><i style="--c:${l.health==="live"?"var(--sw-live)":l.health==="offline"?"var(--sw-danger)":"var(--sw-stale)"}"></i>${l.health==="live"?"מחובר":l.health==="offline"?"מנותק":"חלקי"}</span></div>`)}
+            ${vr.slice(0,2).map(l=>n`<div class="hrow"><span>${l.name}<div class="muted">${l.detail}</div></span><span class="status"><i style="--c:${l.state==="live"?"var(--sw-live)":"var(--sw-stale)"}"></i>${l.state==="live"?"מחובר":"לא רענן"}</span></div>`)}
+          </sw-card>
+        </div>
+        <div class="row3">
+          <sw-card heading="אירועים אחרונים">
+            <a slot="actions" class="seeall" href="#/investigate/events">הצג הכל</a>
+            ${ot.slice(0,5).map(l=>n`<div class="ev" @click=${()=>x("/investigate/events")}>
+                ${l.type==="offline"||l.type==="door"?n`<div class="none"><sw-icon name=${l.type==="offline"?"offline":"door"} size=${14}></sw-icon></div>`:n`<sw-scene kind=${np[l.camera]??"lobby"}></sw-scene>`}
+                <div class="txt"><b style="--tone:${ap[l.type]}"><i></i>${oa[l.type]}</b><small>${l.camera} · ${l.floor}</small></div>
+                <time>${l.time}</time>
+              </div>`)}
+          </sw-card>
+          <sw-card heading="דורש תשומת לב" subheading="כל פריט מסביר מדוע הוא מוצג">
+            ${s.map(l=>n`<div class="spot ${l.kind}">
+                <div class="ic"><sw-icon name=${l.kind==="critical"?"offline":"warning"} size=${15}></sw-icon></div>
+                <div><div class="t">${l.title}</div><div class="muted">${l.meta}</div><div class="why">${l.why}</div></div>
+                <div class="actions"><a href=${l.link}><sw-button size="sm">פתח</sw-button></a></div>
+              </div>`)}
+          </sw-card>
+        </div>
+      </sw-page>
+    `}};$e.styles=A`
+    .date {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      text-align: end;
+      line-height: 1.3;
+    }
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .row2 {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+      gap: 12px;
+      align-items: stretch;
+    }
+    .row3 {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+    }
+    .donut {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .donut svg {
+      inline-size: 84px;
+      block-size: 84px;
+      flex-shrink: 0;
+    }
+    .donut .txt {
+      flex: 1;
+      min-inline-size: 0;
+    }
+    .donut .big {
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .bar {
+      block-size: 6px;
+      border-radius: 3px;
+      background: var(--sw-surface-3);
+      overflow: hidden;
+      margin-block: 6px 4px;
+    }
+    .bar i {
+      display: block;
+      block-size: 100%;
+      inline-size: 68%;
+      background: var(--sw-accent);
+    }
+    .muted {
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+    }
+    .hrow {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 7px 0;
+      border-block-end: 1px solid var(--sw-border);
+      font-size: var(--sw-fs-sm);
+    }
+    .hrow:last-child {
+      border-block-end: 0;
+    }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+    }
+    .status i {
+      inline-size: 7px;
+      block-size: 7px;
+      border-radius: 50%;
+      background: var(--c);
+    }
+    .ev {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 0;
+      border-block-end: 1px solid var(--sw-border);
+      font-size: var(--sw-fs-sm);
+      cursor: pointer;
+    }
+    .ev:last-child {
+      border-block-end: 0;
+    }
+    .ev sw-scene,
+    .ev img.thumb,
+    .ev .none {
+      inline-size: 56px;
+      block-size: 36px;
+      border-radius: 6px;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+    .ev img.thumb {
+      object-fit: cover;
+      display: block;
+      background: var(--sw-surface-3);
+    }
+    .spot.info .ic {
+      color: var(--sw-accent);
+      background: var(--sw-accent-soft);
+    }
+    .ev .none {
+      background: var(--sw-surface-3);
+      display: grid;
+      place-items: center;
+      color: var(--sw-text-3);
+    }
+    .ev .txt {
+      flex: 1;
+      min-inline-size: 0;
+    }
+    .ev .txt b {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-sm);
+    }
+    .ev .txt b i {
+      inline-size: 7px;
+      block-size: 7px;
+      border-radius: 50%;
+      background: var(--tone);
+      flex-shrink: 0;
+    }
+    .ev .txt small {
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+      display: block;
+    }
+    .ev time {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      white-space: nowrap;
+    }
+    .spot {
+      display: flex;
+      gap: 10px;
+      padding: 8px 0;
+      border-block-end: 1px solid var(--sw-border);
+      align-items: flex-start;
+      font-size: var(--sw-fs-sm);
+    }
+    .spot:last-child {
+      border-block-end: 0;
+    }
+    .spot .ic {
+      display: grid;
+      place-items: center;
+      inline-size: 30px;
+      block-size: 30px;
+      border-radius: 8px;
+      background: var(--sw-stale-soft);
+      color: var(--sw-stale);
+      flex-shrink: 0;
+    }
+    .spot.critical .ic {
+      background: var(--sw-danger-soft);
+      color: var(--sw-danger);
+    }
+    .spot .t {
+      font-weight: var(--sw-fw-semibold);
+    }
+    .spot .why {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .spot .actions {
+      margin-inline-start: auto;
+      align-self: center;
+    }
+    .seeall {
+      color: var(--sw-accent-text);
+      text-decoration: none;
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-medium);
+    }
+    .fav {
+      display: none;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    @media (max-width: 1023px) {
+      .row2,
+      .row3 {
+        grid-template-columns: 1fr;
+      }
+    }
+    @media (max-width: 767px) {
+      .kpis {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .fav {
+        display: grid;
+      }
+      .date {
+        display: none;
+      }
+    }
+  `;Ce([c()],$e.prototype,"cams",2);Ce([c()],$e.prototype,"recorder",2);Ce([c()],$e.prototype,"sites",2);Ce([c()],$e.prototype,"summary",2);Ce([c()],$e.prototype,"summaryDenied",2);Ce([c()],$e.prototype,"recent",2);Ce([c()],$e.prototype,"storage",2);Ce([c()],$e.prototype,"health",2);Ce([c()],$e.prototype,"raw",2);Ce([c()],$e.prototype,"tz",2);Ce([c()],$e.prototype,"now",2);Ce([c()],$e.prototype,"loaded",2);$e=Ce([P("live-overview")],$e);var rp=Object.defineProperty,op=Object.getOwnPropertyDescriptor,Ke=(e,t,s,i)=>{for(var a=i>1?void 0:i?op(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&rp(t,s,a),a};const Ki=[1,2,4,6,8,9,12,16,20,25,32],Pn="sw.wall.count",En=[{id:"all",label:"כל המצלמות"},{id:"outside",label:"חוץ"},{id:"inside",label:"פנים"},{id:"night",label:"לילה"}];let Ee=class extends M{constructor(){super(...arguments),this.cameras="",this.count=4,this.stream="auto",this.view="all",this.cams=null,this.settings=null,this.error="",this.posterBust=Date.now(),this.colsOverride=(()=>{try{return Number(localStorage.getItem("sw.wall.cols")??0)||0}catch{return 0}})(),this.box={w:0,h:0},this.measure=()=>{const e=this.renderRoot.querySelector(".grid");if(!e)return;const t=Math.round(e.clientWidth),s=Math.round(window.innerHeight-e.getBoundingClientRect().top-56);(t!==this.box.w||s!==this.box.h)&&(this.box={w:t,h:s})}}setCols(e){this.colsOverride=e;try{localStorage.setItem("sw.wall.cols",String(e))}catch{}}bestFit(e){const{w:t,h:s}=this.box;if(!t||s<120||e<1)return null;const i=12;let a={cols:1,tile:0};for(let r=1;r<=e;r++){const o=Math.ceil(e/r),l=Math.min((t-i*(r-1))/r,(s-i*(o-1))/o*(16/9));l>a.tile&&(a={cols:r,tile:l})}return a.tile>80?{cols:a.cols,tile:Math.floor(a.tile)}:null}firstUpdated(){this.ro=new ResizeObserver(()=>this.measure()),this.ro.observe(this),window.addEventListener("resize",this.measure)}updated(){this.measure()}connectedCallback(){super.connectedCallback(),this.load(),this.posterTimer=window.setInterval(()=>this.posterBust=Date.now(),6e4)}disconnectedCallback(){super.disconnectedCallback(),window.clearInterval(this.posterTimer),this.ro?.disconnect(),window.removeEventListener("resize",this.measure)}setCount(e){this.count=e;try{localStorage.setItem(Pn,String(e))}catch{}}async load(){if($())try{const[e,t]=await Promise.all([Be(),Ve()]);this.cams=e.cameras.filter(r=>r.enabled),this.settings=t;let s=0;try{s=Number(localStorage.getItem(Pn)??0)}catch{}const i=Number(t["ui.wall_count"]??0),a=Ki.includes(s)?s:Ki.includes(i)?i:0;a&&(this.count=a)}catch(e){this.error=b(e)}}renderApi(){const e=this.cams;if(this.error)return n`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${()=>this.load()}></sw-state-panel>`;if(!e)return n`<sw-state-panel state="loading"></sw-state-panel>`;if(!e.length)return n`<sw-state-panel state="empty" heading="אין מצלמות זמינות" hint="המצלמות מתגלות אוטומטית מה־NVR בהפעלה ובכל 10 דקות. אם הרשימה ריקה: בדוק את פרטי ה־NVR בהגדרות ה־Add-on ואת יומן ה־Add-on, או הרץ סנכרון ידני; ייתכן גם שאין לך הרשאה למצלמות."><div style="margin-block-start:10px"><sw-button @click=${()=>x("/system/devices")}>למצלמות</sw-button></div></sw-state-panel>`;const t=this.cameras?this.cameras.split(",").filter(Boolean):[],s=t.length?e.filter(f=>t.includes(f.id)):e,i=t.length?Math.max(1,s.length):this.count,a=s.slice(0,i),r=window.innerWidth>=768?this.bestFit(a.length):null,o=this.colsOverride?Math.min(this.colsOverride,Math.max(1,a.length)):r?r.cols:i===1?1:i===2||i<=4?2:i<=9?3:i<=16?4:i<=25?5:6;let l=r&&!this.colsOverride?r:null;if(this.box.w&&(this.colsOverride||!l)){const f=Math.ceil(a.length/o),v=Math.min((this.box.w-12*(o-1))/o,this.box.h>120?(this.box.h-12*(f-1))/f*(16/9):1/0);v>80&&Number.isFinite(v)&&(l={cols:o,tile:Math.floor(v)})}const p=this.settings?.["media.max_live_sessions"]??8,h=this.stream==="auto"?this.settings?.["media.wall_profile"]??"sub":this.stream,u=Oa(this.settings);return n`
+      <div class="grid ${l?"fit":""}" style="--cols:${o};--tile:${l?`${l.tile}px`:"auto"}" data-wall-cols=${o} ?data-wall-cols-manual=${!!this.colsOverride}>
+        ${a.map((f,v)=>n`<sw-camera-tile
+            name=${f.name}
+            state=${f.status==="online"?"live":f.status==="offline"?"offline":"unknown"}
+            ?live=${f.status!=="offline"&&f.can_view_live!==!1&&v<p}
+            cameraId=${f.id}
+            profile=${h}
+            transport=${u}
+            poster=${f.status==="offline"?"":et(f.id,this.posterBust)}
+            ?compact=${i>=9}
+            @click=${()=>x(`/live/cameras/${f.id}`)}></sw-camera-tile>`)}
+      </div>
+      ${t.length?n`<div class="note" data-wall-picked>מפה: ${a.length} מצלמות שנבחרו${a.length<t.length?` (${t.length-a.length} לא זמינות)`:""} · <a href="#/live/wall">כל המצלמות</a></div>`:d}
+      <div class="note" data-wall-cols-row style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">עמודות:
+        ${[0,1,2,3,4,5,6].map(f=>n`<button class="colbtn ${this.colsOverride===f?"on":""}" data-wall-cols-set=${f} @click=${()=>this.setCols(f)}>${f===0?"אוטו":f}</button>`)}
+      </div>
+      <div class="note">${a.length} מתוך ${e.length} מצלמות · פרופיל ${h==="sub"?"משני":"ראשי"} · תעבורה ${u} · מכסת זרמים ${p}${a.length>p?" — מעבר למכסה מוצג צילום בלבד":""} · צילומים מתרעננים כל דקה</div>
+    `}renderDemo(){const e=X.slice(0,this.count),t=this.count===1?1:this.count===2||this.count<=4?2:this.count<=9?3:4;return n`
+      <div class="grid" style="--cols:${t}">
+        ${e.map(s=>n`<sw-camera-tile name=${s.name} meta=${`${s.floor} · ${this.stream==="auto"?this.count>4?"משני":"ראשי":this.stream==="main"?"ראשי":"משני"}`} state=${s.state} scene=${tt[s.id]??"lobby"} ?compact=${this.count>=9} @click=${()=>x(`/live/cameras/${s.id}`)}></sw-camera-tile>`)}
+      </div>
+      <div class="note">נתוני הדגמה: קיר של ${this.count} אריחים אינו פותח ${this.count} זרמים ראשיים במקביל; במצב אוטומטי מוצג הזרם המשני במטריצה והראשי במיקוד.</div>
+    `}openKiosk(){const e=`${window.location.origin}${window.location.pathname}${window.location.search}#/kiosk/all`;window.open(e,"_blank","noopener")}render(){const e=$(),t=e?this.cams?.length??0:X.length;return n`
+      <sw-page heading="כל המצלמות" subheading="${t} מצלמות${e?"":` · תצוגה: ${En.find(s=>s.id===this.view)?.label} · נתוני הדגמה`}" wide>
+        ${e?d:n`<sw-field slot="actions"><select aria-label="תצוגה" @change=${s=>this.view=s.target.value}>${En.map(s=>n`<option value=${s.id} ?selected=${s.id===this.view}>${s.label}</option>`)}</select></sw-field>`}
+        <sw-field slot="actions"><select aria-label="זרם" @change=${s=>this.stream=s.target.value}><option value="auto">חי · אוטומטי</option><option value="main">חי · ראשי</option><option value="sub">חי · משני</option></select></sw-field>
+        <div slot="actions" class="layouts" role="group" aria-label="פריסה">
+          ${Ki.map(s=>n`<button class=${s===this.count&&!this.cameras?"on":""} @click=${()=>{this.setCount(s),this.cameras&&x("/live/wall")}} aria-pressed=${s===this.count&&!this.cameras}>${s}</button>`)}
+        </div>
+        <sw-button slot="actions" variant="ghost" icon="expand" data-open-kiosk title="פותח את הקיוסק בלשונית חדשה" @click=${()=>this.openKiosk()}>קיוסק</sw-button>
+        ${e?this.renderApi():this.renderDemo()}
+      </sw-page>
+    `}};Ee.styles=A`
+    .layouts {
+      display: inline-flex;
+      gap: 2px;
+      background: var(--sw-surface-3);
+      border-radius: 8px;
+      padding: 2px;
+    }
+    .layouts button {
+      border: 0;
+      background: transparent;
+      font: inherit;
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-semibold);
+      min-inline-size: 28px;
+      block-size: 26px;
+      border-radius: 6px;
+      cursor: pointer;
+      color: var(--sw-text-2);
+      padding: 0 6px;
+    }
+    .layouts button.on {
+      background: var(--sw-surface);
+      color: var(--sw-accent-text);
+      box-shadow: var(--sw-shadow-1);
+    }
+    sw-field {
+      inline-size: 140px;
+    }
+    .grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+    }
+    /* best fit (0.1.68): the tiles fill the screen as a rectangle - as many columns as make the tiles biggest */
+    .colbtn {
+      font: inherit;
+      font-size: var(--sw-fs-xs);
+      border: 1px solid var(--sw-border);
+      background: var(--sw-surface);
+      color: var(--sw-text-2);
+      border-radius: 6px;
+      padding: 2px 8px;
+      cursor: pointer;
+    }
+    .colbtn.on {
+      background: var(--sw-accent);
+      border-color: var(--sw-accent);
+      color: #fff;
+    }
+    .grid.fit {
+      grid-template-columns: repeat(var(--cols), var(--tile));
+      justify-content: center;
+    }
+    .note {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .err {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-danger);
+    }
+    @media (max-width: 767px) {
+      .grid {
+        gap: 8px;
+      }
+      /* a safe default cap on phones so auto layout never crams tiny tiles - but an explicit column
+         choice (owner round 4, 1.7) is a deliberate override and wins even here. */
+      .grid:not([data-wall-cols-manual]) {
+        grid-template-columns: repeat(min(var(--cols), 2), minmax(0, 1fr));
+      }
+    }
+  `;Ke([g()],Ee.prototype,"cameras",2);Ke([c()],Ee.prototype,"count",2);Ke([c()],Ee.prototype,"stream",2);Ke([c()],Ee.prototype,"view",2);Ke([c()],Ee.prototype,"cams",2);Ke([c()],Ee.prototype,"settings",2);Ke([c()],Ee.prototype,"error",2);Ke([c()],Ee.prototype,"posterBust",2);Ke([c()],Ee.prototype,"colsOverride",2);Ke([c()],Ee.prototype,"box",2);Ee=Ke([P("live-wall")],Ee);const lp=()=>S("nvr/notify"),dp=e=>Me("nvr/notify",e),In=(e=20)=>S(`nvr/changes?limit=${e}`),cp=e=>E(`nvr/changes/${e}/rollback`),pp=e=>S(`cameras/${e}/record`),hp=(e,t)=>E(`cameras/${e}/record/start`,{minutes:t}),up=e=>E(`cameras/${e}/record/stop`),mp=(e,t)=>Me(`cameras/${e}/motion`,t),fp=()=>S("nvr/system"),gp=e=>Me("nvr/time",e),wp=e=>Me("nvr/ntp",e),vp=e=>E(`nvr/outputs/${e}/pulse`),bp=(e,t="short")=>E(`nvr/storage/${e}/smart-test`,{kind:t}),yp=e=>E("nvr/reboot",{confirm:e}),$p=()=>S("nvr/connection"),xp=e=>Me("nvr/connection",e),kp=e=>S(`cameras/${e}/osd`),Yi=(e,t)=>Me(`cameras/${e}/osd`,t),_p=e=>S(`cameras/${e}/schedules`),zp=(e,t,s)=>Me(`cameras/${e}/schedules/${t}`,{days:s}),Sp=(e,t)=>Me(`cameras/${e}/record-schedule`,t),Mp=e=>S(`cameras/${e}/smart`),Ap=(e,t)=>Me(`cameras/${e}/smart`,t),Pp=(e,t)=>E(`cameras/${e}/osd/name`,{});var Ep=Object.defineProperty,Ip=Object.getOwnPropertyDescriptor,us=(e,t,s,i)=>{for(var a=i>1?void 0:i?Ip(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Ep(t,s,a),a};const Cp=[6,0,1,2,3,4,5],Cn=["א׳","ב׳","ג׳","ד׳","ה׳","ו׳","ש׳"],Xt=e=>String(e).padStart(2,"0"),Dn=e=>Number(e.slice(0,2))+Number(e.slice(3,5))/60;function Dp(e){return Array.from({length:7},(t,s)=>{const i=Array.from({length:24},()=>"");for(const a of e[s]??[]){const r=Math.floor(Dn(a.begin)),o=Math.min(24,Math.ceil(Dn(a.end)));for(let l=r;l<o;l++)i[l]=a.mode??"on"}return i})}function Tp(e,t){return e.map(s=>{const i=[];let a=0;for(;a<24;){const r=s[a];if(!r){a++;continue}let o=a;for(;o<24&&s[o]===r;)o++;i.push(t?{begin:`${Xt(a)}:00:00`,end:`${Xt(o)}:00:00`,mode:r}:{begin:`${Xt(a)}:00:00`,end:`${Xt(o)}:00:00`}),a=o}return i})}let St=class extends M{constructor(){super(...arguments),this.days=Array.from({length:7},()=>[]),this.modes=[{id:"on",label:"פעיל",color:"var(--sw-accent)"}],this.mode="on",this.editable=!1,this.painting=null,this.cells=[],this.lastDays=null,this.end=()=>{this.painting=null},this.onDown=e=>{if(!this.editable||e.button!==0)return;const t=this.cellAt(e);t&&(e.preventDefault(),e.currentTarget.setPointerCapture(e.pointerId),this.paint(t[0],t[1],!0))},this.onMove=e=>{if(this.painting===null||!e.buttons)return;const t=this.cellAt(e);t&&this.paint(t[0],t[1],!1)}}sync(){this.lastDays!==this.days&&(this.cells=Dp(this.days),this.lastDays=this.days)}colorOf(e){return this.modes.find(t=>t.id===e)?.color??"var(--sw-accent)"}paint(e,t,s){if(!this.editable||(s&&(this.painting=this.cells[e][t]===this.mode?"":this.mode),this.painting===null)||this.cells[e][t]===this.painting)return;this.cells=this.cells.map((a,r)=>r===e?a.map((o,l)=>l===t?this.painting:o):a);const i=Tp(this.cells,this.modes.length>1||this.modes[0]?.id!=="on");this.lastDays=i,this.days=i,this.dispatchEvent(new CustomEvent("change",{detail:{days:i},bubbles:!0,composed:!0}))}cellAt(e){const t=this.renderRoot,i=(t.elementFromPoint?t.elementFromPoint(e.clientX,e.clientY):null)?.dataset?.cell;if(!i)return null;const[a,r]=i.split("-").map(Number);return Number.isFinite(a)&&Number.isFinite(r)?[a,r]:null}connectedCallback(){super.connectedCallback(),window.addEventListener("pointerup",this.end)}disconnectedCallback(){super.disconnectedCallback(),window.removeEventListener("pointerup",this.end)}renderLegend(){const e=this.editable&&this.modes.length>1;return n`<div class="legend" data-week-legend>
+      <span class="lbl">מקרא:</span>
+      ${this.modes.map(t=>e?n`<button class=${t.id===this.mode?"on":""} data-week-mode=${t.id} @click=${()=>this.mode=t.id}><span class="sw" style="background:${t.color}"></span>${t.label}</button>`:n`<span class="chip"><span class="sw" style="background:${t.color}"></span>${t.label}</span>`)}
+      <span class="chip muted"><span class="sw empty"></span>${this.modes.length>1?"ללא":"לא פעיל"}</span>
+      ${e?n`<span class="hint">לחיצה על תא צבוע באותו צבע מנקה אותו</span>`:d}
+    </div>`}render(){return this.sync(),n`
+      <div class="grid" role="grid" aria-label="לוח שבועי" @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.end} @pointercancel=${this.end}>
+        <span></span>
+        ${Array.from({length:24},(e,t)=>n`<span class="h">${t%3===0?t:""}</span>`)}
+        ${Cp.map((e,t)=>n`
+          <span class="d">${Cn[t]}</span>
+          ${this.cells[e].map((s,i)=>n`<div class="c ${s?"on":""}" data-cell=${`${e}-${i}`} data-mode=${s} style=${s?`--cell:${this.colorOf(s)}`:""} title=${`${Cn[t]} ${Xt(i)}:00–${Xt(i+1)}:00${s?` · ${this.modes.find(a=>a.id===s)?.label??s}`:""}`}></div>`)}
+        `)}
+      </div>
+      ${this.renderLegend()}
+    `}};St.styles=A`
+    :host {
+      display: block;
+      direction: ltr;
+      font-size: var(--sw-fs-xs);
+      user-select: none;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 28px repeat(24, minmax(0, 1fr));
+      gap: 2px;
+    }
+    .h {
+      color: var(--sw-text-3);
+      text-align: center;
+      font-size: 10px;
+    }
+    .d {
+      color: var(--sw-text-2);
+      align-self: center;
+      text-align: center;
+      font-weight: var(--sw-fw-semibold);
+    }
+    .c {
+      block-size: 18px;
+      border-radius: 3px;
+      background: var(--sw-surface-3);
+      border: 1px solid transparent;
+    }
+    .c.on {
+      background: var(--cell, var(--sw-accent));
+    }
+    :host([editable]) .c {
+      cursor: crosshair;
+    }
+    .legend {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-block-start: 6px;
+      direction: rtl;
+      align-items: center;
+    }
+    .legend button {
+      font: inherit;
+      border: 1px solid var(--sw-border-strong);
+      background: var(--sw-surface);
+      border-radius: 999px;
+      padding: 2px 10px;
+      cursor: pointer;
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .legend button.on {
+      outline: 2px solid var(--sw-accent);
+    }
+    .legend .lbl {
+      color: var(--sw-text-3);
+    }
+    .legend .chip {
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+      padding: 2px 10px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+    }
+    .legend .chip.muted {
+      color: var(--sw-text-3);
+    }
+    .legend .hint {
+      color: var(--sw-text-3);
+    }
+    .sw {
+      inline-size: 10px;
+      block-size: 10px;
+      border-radius: 3px;
+      display: inline-block;
+    }
+    .sw.empty {
+      background: var(--sw-surface-3);
+      border: 1px solid var(--sw-border-strong);
+    }
+  `;us([g({attribute:!1})],St.prototype,"days",2);us([g({attribute:!1})],St.prototype,"modes",2);us([g()],St.prototype,"mode",2);us([g({type:Boolean})],St.prototype,"editable",2);us([c()],St.prototype,"painting",2);St=us([P("sw-week-grid")],St);var Op=Object.defineProperty,Rp=Object.getOwnPropertyDescriptor,O=(e,t,s,i)=>{for(var a=i>1?void 0:i?Rp(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Op(t,s,a),a};let I=class extends M{constructor(){super(...arguments),this.cameraId="cam-1",this.cam=null,this.zones=null,this.zonesBusy=!1,this.zonesError="",this.motionEdit=null,this.motionConfirm=!1,this.motionBusy=!1,this.motionMsg="",this.paintValue=null,this.rec=null,this.osd=null,this.sched=null,this.schedError="",this.schedTab="motion",this.schedEdit=null,this.schedBusy=!1,this.schedMsg="",this.schedConfirm=!1,this.smart=null,this.smartEdit=null,this.smartBusy=!1,this.smartMsg="",this.osdMsg="",this.renameTo=null,this.renameBusy=!1,this.renameMsg="",this.osdBusy=!1,this.recMinutes=10,this.recBusy=!1,this.recMsg="",this.recTimer=0,this.zoneLayers={motion:!0,privacy:!0,intrusion:!0,lines:!0},this.caps=null,this.capsError="",this.cams=[],this.canConfigure=!1,this.settings=null,this.error="",this.loading=!0,this.profile="main",this.transport="auto",this.playerStatus="",this.playerTransport="",this.posterBust=Date.now(),this.ptzMode="presets"}async loadSchedules(){if(!(!this.cam||!$())){if(!pn()){this.sched=null,this.smart=null,this.schedError="לוחות הזמנים וחוקי ה־smart של ה־NVR נקראים עם הרשאת ניהול NVR.";return}try{this.sched=await _p(this.cam.id),this.schedError="",!this.sched.arming[this.schedTab]&&this.schedTab!=="record"&&(this.schedTab=Object.keys(this.sched.arming)[0]??"record")}catch(e){this.schedError=b(e)}try{this.smart=await Mp(this.cam.id)}catch{this.smart=null}}}startSchedEdit(){const e=this.sched;if(!e)return;const t=this.schedTab,s=(t==="record"?e.record?.days:e.arming[t])??Array.from({length:7},()=>[]);this.schedMsg="",this.schedEdit={kind:t,days:s.map(i=>i.map(a=>({...a}))),schedule_enabled:e.record?.schedule_enabled??null,enabled:e.record?.enabled}}schedDiff(){const e=this.schedEdit,t=this.sched;if(!e||!t)return 0;const s=(e.kind==="record"?t.record?.days:t.arming[e.kind])??[],i=a=>a.map(r=>r.map(o=>`${o.begin}-${o.end}-${o.mode??""}`).join(",")).join("|");return i(s)===i(e.days)?0:1}async saveSched(){const e=this.schedEdit;if(!(!e||!this.cam||this.schedBusy)){this.schedBusy=!0,this.schedConfirm=!1;try{const t=e.kind==="record"?await Sp(this.cam.id,{days:e.days,...e.schedule_enabled!==null&&e.schedule_enabled!==this.sched?.record?.schedule_enabled?{schedule_enabled:e.schedule_enabled??void 0}:{}}):await zp(this.cam.id,e.kind,e.days);this.schedMsg=t.status==="unchanged"?"ה־NVR כבר היה במצב הזה — לא נכתב דבר.":"הלוח נכתב ל־NVR ונרשם (ניתן להחזרה מרשימת השינויים בהגדרות › חיבורים).",this.schedEdit=null,await this.loadSchedules()}catch(t){this.schedMsg=b(t)}finally{this.schedBusy=!1}}}renderSchedules(){const e=this.sched;if(this.schedError&&!e)return n`<div class="note">${this.schedError}</div>`;if(!e)return n`<div class="note">קורא לוחות מה־NVR…</div>`;const t=[{id:"motion",label:"זיהוי תנועה",ok:!!e.arming.motion},{id:"line",label:"חציית קו",ok:!!e.arming.line},{id:"field",label:"פריצה לאזור",ok:!!e.arming.field},{id:"record",label:"לוח הקלטה",ok:!!e.record}],s=this.schedTab,i=this.schedEdit?.kind===s?this.schedEdit:null,a=i?i.days:s==="record"?e.record?.days:e.arming[s],r=[{id:"CMR",label:"רציף",color:"#2f6bff"},{id:"MOTION",label:"תנועה",color:"#16a34a"},{id:"EDR",label:"אירוע",color:"#f59e0b"},{id:"ALARM",label:"אזעקה",color:"#dc2626"}],o=s==="record"?e.can.schedule:e.can.events,l=t.find(p=>p.id===s)?.label??"";return n`<div class="note">${t.length} לוחות בכרטיס הזה, כולל <strong>לוח הקלטה</strong> (מתי הערוץ מקליט בפועל) — לא רק לוחות הזיהוי.</div>
+      <div class="legend" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-block-end:8px" data-schedules-tabs>
+        ${t.map(p=>n`<sw-chip ?selected=${s===p.id} ?disabled=${!p.ok} data-sched-tab=${p.id} title=${p.ok?"":e.unsupported[p.id]??"לא נתמך בערוץ זה"} @click=${()=>{p.ok&&(this.schedTab=p.id,this.schedEdit=null)}}>${p.label}${p.ok?"":" · לא זמין"}</sw-chip>`)}
+        <span class="grow"></span>
+        ${o&&!i?n`<sw-button size="sm" icon="edit" data-sched-edit @click=${()=>this.startSchedEdit()}>עריכה</sw-button>`:d}
+      </div>
+      ${a?n`<sw-week-grid data-week-grid .days=${a} .modes=${s==="record"?r:[{id:"on",label:"פעיל",color:"var(--sw-accent)"}]} ?editable=${!!i}
+            @change=${p=>{this.schedEdit&&(this.schedEdit={...this.schedEdit,days:p.detail.days})}}></sw-week-grid>`:n`<div class="note">הלוח הזה לא נקרא מה־NVR${e.unsupported[s]?` (${e.unsupported[s]})`:""}.</div>`}
+      ${s==="record"&&e.record?n`<div class="note" style="margin-block-start:6px">ברירת מחדל: ${e.record.default_mode??"—"} · לפני אירוע ${e.record.pre_record_s??"—"} שנ׳ · אחרי ${e.record.post_record_s??"—"} שנ׳ · הקלטה ${e.record.enabled?"פעילה":"כבויה"} · לוח ${e.record.schedule_enabled===!1?"כבוי (מקליט לפי ברירת המחדל)":"פעיל"}
+            ${i?n`<label style="display:inline-flex;gap:4px;align-items:center;margin-inline-start:8px"><input type="checkbox" data-sched-enabled .checked=${i.schedule_enabled!==!1} @change=${p=>this.schedEdit={...i,schedule_enabled:p.target.checked}} /> לוח פעיל</label>`:d}</div>`:d}
+      ${i?n`<div class="legend" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-block-start:8px" data-sched-editor>
+            <span class="note">${s==="record"?"צבע = מצב הקלטה לשעה זו; תא ריק = אין הקלטה בשעה זו. טעות כאן = שעות בלי הקלטה, לכן יש אישור והחזר.":"תא צבוע = הזיהוי פעיל בשעה זו; כיבוי כל היום = בלי התראות מהערוץ בזמן הזה."}</span>
+            <span class="grow"></span>
+            <sw-button variant="primary" size="sm" icon="check" ?disabled=${this.schedBusy||!this.schedDiff()&&(s!=="record"||i.schedule_enabled===(e.record?.schedule_enabled??null))} data-sched-save @click=${()=>this.schedConfirm=!0}>שמור ל־NVR</sw-button>
+            <sw-button size="sm" variant="ghost" icon="close" ?disabled=${this.schedBusy} data-sched-cancel @click=${()=>this.schedEdit=null}>ביטול</sw-button>
+          </div>`:d}
+      ${this.schedConfirm&&i?n`<sw-dialog open heading=${`כתיבה ל־NVR: ${l}`} subheading=${`${this.cam?.name??""} · ערוץ ${e.channel}`} data-sched-confirm @close=${()=>this.schedConfirm=!1}>
+            <div style="font-size:var(--sw-fs-sm);line-height:1.6">
+              <div>${i.days.map(p=>p.length).reduce((p,h)=>p+h,0)} טווחים בשבוע${s==="record"?` · ${i.days.flat().filter(p=>p.mode==="CMR").length} רציף, ${i.days.flat().filter(p=>p.mode==="MOTION").length} תנועה, ${i.days.flat().filter(p=>p.mode==="EDR").length} אירוע`:""}.</div>
+              <div style="margin-block-start:6px;color:var(--sw-text-3)">המסמך לפני ואחרי נשמר, השינוי נרשם באודיט וניתן להחזרה בלחיצה.</div>
+            </div>
+            <div slot="footer"><sw-button variant="primary" ?disabled=${this.schedBusy} data-sched-confirm-run @click=${()=>this.saveSched()}>${this.schedBusy?"כותב…":"כתוב ל־NVR"}</sw-button><sw-button variant="ghost" @click=${()=>this.schedConfirm=!1}>ביטול</sw-button></div>
+          </sw-dialog>`:d}
+      ${this.schedMsg?n`<div class="note" data-sched-msg>${this.schedMsg}</div>`:d}`}startSmartEdit(){const e=this.smart;if(!e)return;this.smartMsg="";const t=e.line?{enabled:e.line.enabled,lines:e.line.lines.map(i=>({...i,points:i.points.map(a=>[...a])}))}:null,s=e.field?{enabled:e.field.enabled,regions:e.field.regions.map(i=>({...i,points:i.points.map(a=>[...a])}))}:null;this.smartEdit={line:t,field:s,tool:t?{type:"line",id:t.lines[0]?.id??1}:{type:"field",id:s?.regions[0]?.id??1}}}smartClick(e){const t=this.smartEdit;if(!t)return;const i=e.currentTarget.getBoundingClientRect(),a=Math.round(Math.max(0,Math.min(1e3,(e.clientX-i.left)/i.width*1e3))),r=Math.round(Math.max(0,Math.min(1e3,(e.clientY-i.top)/i.height*1e3)));if(t.tool.type==="line"&&t.line){const o=t.line.lines.map(l=>{if(l.id!==t.tool.id)return l;const h=[...l.points.length>=2&&!(l.points[0][0]===0&&l.points[0][1]===1e3&&l.points[1][0]===0&&l.points[1][1]===1e3)&&l.points.length!==1?[]:l.points.filter(u=>!(u[0]===0&&u[1]===1e3)),[a,r]].slice(-2);return{...l,points:h,enabled:h.length===2?!0:l.enabled}});this.smartEdit={...t,line:{...t.line,lines:o}}}else if(t.tool.type==="field"&&t.field){const o=t.field.regions.map(l=>l.id===t.tool.id&&l.points.length<10?{...l,points:[...l.points,[a,r]]}:l);this.smartEdit={...t,field:{...t.field,regions:o}}}}async saveSmart(){const e=this.smartEdit;if(!(!e||!this.cam||this.smartBusy)){this.smartBusy=!0;try{const t={};e.line&&(t.line={enabled:e.line.enabled,lines:e.line.lines.filter(r=>r.points.length===2)}),e.field&&(t.field={enabled:e.field.enabled,regions:e.field.regions.filter(r=>r.points.length===0||r.points.length>=4)});const s=await Ap(this.cam.id,t),i=Object.values(s).map(r=>r.status),a=Object.values(s).some(r=>r.enable_refused);this.smartMsg=i.every(r=>r==="unchanged")?"ה־NVR כבר היה במצב הזה — לא נכתב דבר.":a?"הצורות והפרמטרים נכתבו ל־NVR ונרשמו, אבל ה־NVR סירב להפעיל את הכלל דרך ה־ISAPI (invalidOperation). בקושחה הזו ההפעלה נעשית בממשק ה־NVR / המצלמה (משאב VCA של המצלמה); אחרי ההפעלה שם התצוגה כאן תתעדכן.":'הכללים נכתבו ל־NVR ונרשמו (ניתנים להחזרה). התראות "אדם" / "רכב" מגיעות רק כשהערוץ מודיע ל־VMS (הגדרות › חיבורים › התראות מה־NVR).',this.smartEdit=null,await Promise.all([this.loadSchedules(),this.loadZones(!0)])}catch(t){this.smartMsg=b(t)}finally{this.smartBusy=!1}}}renderSmartOverlay(){const e=this.smartEdit;if(!e)return d;const t=(s,i)=>e.tool.type===s&&e.tool.id===i;return m`
+      ${e.field?e.field.regions.filter(s=>s.points.length>=1).map(s=>m`<polygon points=${s.points.map(i=>i.join(",")).join(" ")} class="field" style=${t("field",s.id)?"stroke:#fff;stroke-width:6":""}></polygon>${s.points.map(i=>m`<circle cx=${i[0]} cy=${i[1]} r="9" fill="#f59e0b" stroke="#fff" stroke-width="3"></circle>`)}`):d}
+      ${e.line?e.line.lines.filter(s=>s.points.length>=1&&!(s.points[0][0]===0&&s.points[0][1]===1e3)).map(s=>m`<polyline points=${s.points.map(i=>i.join(",")).join(" ")} class="line ${s.enabled?"":"off"}" style=${t("line",s.id)?"stroke:#fff":""}></polyline>${s.points.map(i=>m`<circle cx=${i[0]} cy=${i[1]} r="9" fill="#2f6bff" stroke="#fff" stroke-width="3"></circle>`)}`):d}
+    `}renderSmartEditor(){const e=this.smartEdit,t=s=>({any:"שני הכיוונים","left-right":"שמאל → ימין","right-left":"ימין → שמאל"})[s]??s;return n`<div class="legend" data-smart-editor style="display:grid;gap:8px;margin-block-start:8px">
+      <div class="note">בחר כלל ולחץ על התמונה כדי לצייר: קו = <strong>שתי</strong> לחיצות (התחלה וסוף — לחיצה נוספת מזיזה את הסוף); אזור פריצה = <strong>4 עד 10</strong> לחיצות (נקודה לכל פינה), ואז ישר "שמור ל־NVR" למטה — אין צורך לסגור את הצורה. "אדם" / "רכב" = סינון אזעקות שווא (רק מטרה מסוג זה מפעילה).</div>
+      ${e.line?n`<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center" data-smart-lines>
+          <label class="note" style="display:inline-flex;align-items:center;gap:4px"><input type="checkbox" data-smart-line-enabled .checked=${e.line.enabled} @change=${s=>this.smartEdit={...e,line:{...e.line,enabled:s.target.checked}}} /> חציית קו פעילה</label>
+          ${e.line.lines.map(s=>n`<span style="display:inline-flex;gap:6px;align-items:center;border:1px solid var(--sw-border);border-radius:8px;padding:4px 8px" data-smart-line=${s.id}>
+            <sw-chip ?selected=${e.tool.type==="line"&&e.tool.id===s.id} data-smart-pick-line=${s.id} @click=${()=>this.smartEdit={...e,tool:{type:"line",id:s.id}}}>קו ${s.id}${s.points.length===2&&!(s.points[0][0]===0&&s.points[0][1]===1e3)?"":" · לא מצויר"}</sw-chip>
+            <label class="note"><input type="checkbox" .checked=${s.enabled} @change=${i=>this.smartEdit={...e,line:{...e.line,lines:e.line.lines.map(a=>a.id===s.id?{...a,enabled:i.target.checked}:a)}}} /> פעיל</label>
+            <select class="note" aria-label="כיוון" .value=${s.direction} @change=${i=>this.smartEdit={...e,line:{...e.line,lines:e.line.lines.map(a=>a.id===s.id?{...a,direction:i.target.value}:a)}}}>${["any","left-right","right-left"].map(i=>n`<option value=${i} ?selected=${i===s.direction}>${t(i)}</option>`)}</select>
+            <label class="note">רגישות <input type="range" min="1" max="100" .value=${String(s.sensitivity)} @input=${i=>this.smartEdit={...e,line:{...e.line,lines:e.line.lines.map(a=>a.id===s.id?{...a,sensitivity:Number(i.target.value)}:a)}}} /> ${s.sensitivity}</label>
+            <label class="note"><input type="checkbox" .checked=${s.human} @change=${i=>this.smartEdit={...e,line:{...e.line,lines:e.line.lines.map(a=>a.id===s.id?{...a,human:i.target.checked}:a)}}} /> אדם</label>
+            <label class="note"><input type="checkbox" .checked=${s.vehicle} @change=${i=>this.smartEdit={...e,line:{...e.line,lines:e.line.lines.map(a=>a.id===s.id?{...a,vehicle:i.target.checked}:a)}}} /> רכב</label>
+          </span>`)}
+        </div>`:d}
+      ${e.field?n`<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center" data-smart-regions>
+          <label class="note" style="display:inline-flex;align-items:center;gap:4px"><input type="checkbox" data-smart-field-enabled .checked=${e.field.enabled} @change=${s=>this.smartEdit={...e,field:{...e.field,enabled:s.target.checked}}} /> פריצה לאזור פעילה</label>
+          ${e.field.regions.map(s=>n`<span style="display:inline-flex;gap:6px;align-items:center;border:1px solid var(--sw-border);border-radius:8px;padding:4px 8px" data-smart-region=${s.id}>
+            <sw-chip ?selected=${e.tool.type==="field"&&e.tool.id===s.id} data-smart-pick-region=${s.id} @click=${()=>this.smartEdit={...e,tool:{type:"field",id:s.id}}}>אזור ${s.id} · ${s.points.length} נק׳</sw-chip>
+            <sw-button size="sm" variant="ghost" data-smart-region-clear=${s.id} @click=${()=>this.smartEdit={...e,field:{...e.field,regions:e.field.regions.map(i=>i.id===s.id?{...i,points:[]}:i)}}}>נקה</sw-button>
+            <label class="note">רגישות <input type="range" min="1" max="100" .value=${String(s.sensitivity)} @input=${i=>this.smartEdit={...e,field:{...e.field,regions:e.field.regions.map(a=>a.id===s.id?{...a,sensitivity:Number(i.target.value)}:a)}}} /> ${s.sensitivity}</label>
+            <label class="note"><input type="checkbox" .checked=${s.human} @change=${i=>this.smartEdit={...e,field:{...e.field,regions:e.field.regions.map(a=>a.id===s.id?{...a,human:i.target.checked}:a)}}} /> אדם</label>
+            <label class="note"><input type="checkbox" .checked=${s.vehicle} @change=${i=>this.smartEdit={...e,field:{...e.field,regions:e.field.regions.map(a=>a.id===s.id?{...a,vehicle:i.target.checked}:a)}}} /> רכב</label>
+          </span>`)}
+        </div>`:d}
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <span class="grow"></span>
+        <sw-button variant="primary" size="sm" icon="check" ?disabled=${this.smartBusy} data-smart-save @click=${()=>this.saveSmart()}>${this.smartBusy?"כותב…":"שמור ל־NVR"}</sw-button>
+        <sw-button size="sm" variant="ghost" icon="close" ?disabled=${this.smartBusy} data-smart-cancel @click=${()=>this.smartEdit=null}>ביטול</sw-button>
+      </div>
+    </div>`}async saveRename(){if(!(this.renameTo===null||!this.cam||this.renameBusy)){this.renameBusy=!0,this.renameMsg="";try{const e=await xr(this.cam.id,{alias:this.renameTo.trim()});this.cam={...this.cam,...e},this.cams=this.cams.map(t=>t.id===e.id?{...t,...e}:t),this.renameTo=null,this.loadOsd()}catch(e){this.renameMsg=b(e)}finally{this.renameBusy=!1}}}renderRename(){return this.renameTo===null?d:n`<sw-dialog open heading="שינוי שם המצלמה" subheading="השם במערכת (בקיר, במפה, באירועים). השם ב־NVR לא משתנה, אלא אם כותבים אותו מסעיף ה־OSD למטה." data-rename-dialog @close=${()=>this.renameTo=null}>
+      <sw-field label="שם"><input data-rename-input maxlength="80" .value=${this.renameTo} placeholder=${this.cam?.name_source??""} @input=${e=>this.renameTo=e.target.value} @keydown=${e=>{e.key==="Enter"&&this.saveRename()}} /></sw-field>
+      <div class="note">ריק = השם מה־NVR${this.cam?.name_source?` („${this.cam.name_source}“)`:""}.</div>
+      ${this.renameMsg?n`<div class="note" style="color:var(--sw-danger)">${this.renameMsg}</div>`:d}
+      <div slot="footer"><sw-button variant="primary" icon="check" ?disabled=${this.renameBusy} data-rename-save @click=${()=>this.saveRename()}>שמור</sw-button><sw-button variant="ghost" @click=${()=>this.renameTo=null}>ביטול</sw-button></div>
+    </sw-dialog>`}async loadOsd(){if(!(!this.cam||!$())){if(!pn()){this.osd=null;return}try{this.osd=await kp(this.cam.id)}catch{this.osd=null}}}async osdAction(e,t){if(!this.osdBusy){this.osdBusy=!0,this.osdMsg="";try{await t(),this.osdMsg=`${e}: נכתב ל־NVR ונרשם.`,await this.loadOsd()}catch(s){this.osdMsg=`${e}: ${b(s)}`}finally{this.osdBusy=!1}}}renderOsd(){const e=this.osd;if(!e||!e.can_write)return d;const t=(e.nvr_name??"")===e.vms_name;return n`<div class="note" style="margin-block-start:8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center" data-osd>
+      <span>שם ב־NVR: <b data-osd-nvr-name>${e.nvr_name??"—"}</b>${t?" (זהה לשם ב־VMS)":` · ב־VMS: ${e.vms_name}`}</span>
+      <sw-button size="sm" icon="edit" ?disabled=${this.osdBusy||t} data-osd-write-name @click=${()=>this.osdAction("שם הערוץ",()=>Pp(this.cam.id))}>כתוב את שם ה־VMS ל־NVR</sw-button>
+      ${e.channel_name?n`<label style="display:inline-flex;gap:4px;align-items:center"><input type="checkbox" data-osd-name-enabled .checked=${e.channel_name.enabled} ?disabled=${this.osdBusy} @change=${s=>this.osdAction("שם על התמונה",()=>Yi(this.cam.id,{name_enabled:s.target.checked}))} /> שם על התמונה</label>`:d}
+      ${e.datetime?n`<label style="display:inline-flex;gap:4px;align-items:center"><input type="checkbox" data-osd-datetime-enabled .checked=${e.datetime.enabled} ?disabled=${this.osdBusy} @change=${s=>this.osdAction("חותמת זמן",()=>Yi(this.cam.id,{datetime_enabled:s.target.checked}))} /> חותמת זמן</label>
+        <sw-field><select aria-label="פורמט תאריך" data-osd-date-style ?disabled=${this.osdBusy} @change=${s=>this.osdAction("פורמט תאריך",()=>Yi(this.cam.id,{date_style:s.target.value}))}>${e.date_styles.map(s=>n`<option value=${s} ?selected=${s===e.datetime.date_style}>${s}</option>`)}</select></sw-field>`:d}
+      ${this.osdMsg?n`<span data-osd-msg>${this.osdMsg}</span>`:d}
+    </div>`}async loadRecord(){if(!(!this.cam||!$())){try{this.rec=await pp(this.cam.id)}catch{this.rec=null}window.clearTimeout(this.recTimer),this.rec?.active&&(this.recTimer=window.setTimeout(()=>void this.loadRecord(),15e3))}}async toggleRecord(){if(!(!this.cam||this.recBusy)){this.recBusy=!0,this.recMsg="";try{if(this.rec?.active)await up(this.cam.id),this.recMsg="ההקלטה הידנית נעצרה.";else{const e=await hp(this.cam.id,this.recMinutes);this.recMsg=`הקלטה ידנית החלה · תיעצר אוטומטית ב־${new Date(e.stop_at).toLocaleTimeString("he-IL",{hour:"2-digit",minute:"2-digit"})}.`}await this.loadRecord()}catch(e){this.recMsg=b(e)}finally{this.recBusy=!1}}}renderRecord(){const e=this.rec;if(!e||!e.can_write)return d;const t=e.active,s=t?`${Math.floor(t.remaining_s/60)}:${String(t.remaining_s%60).padStart(2,"0")}`:"";return n`<div class="note" style="margin-block-start:8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center" data-manual-record data-active=${t?"yes":"no"}>
+      ${t?n`<sw-badge kind="live" label=${`הקלטה ידנית פעילה · נותרו ${s}`}></sw-badge>
+          <sw-button size="sm" variant="danger" icon="close" ?disabled=${this.recBusy} data-record-stop @click=${()=>this.toggleRecord()}>עצור הקלטה</sw-button>`:n`<sw-field><select aria-label="משך הקלטה ידנית" data-record-minutes @change=${i=>this.recMinutes=Number(i.target.value)}>${[5,10,30,60,120].map(i=>n`<option value=${i} ?selected=${i===this.recMinutes}>${i} דק׳</option>`)}</select></sw-field>
+          <sw-button size="sm" variant="primary" icon="live" ?disabled=${this.recBusy||!e.track_id} data-record-start @click=${()=>this.toggleRecord()}>הקלט עכשיו</sw-button>
+          ${e.track_id?n`<span>הקלטה ידנית ב־NVR על הזרם הראשי; נעצרת אוטומטית בתום הזמן גם אם המסך נסגר. ההקלטה עצמה מצטרפת להקלטות הרגילות של הערוץ — היא נמצאת לפי הזמן במסך "הקלטות", לא בתגית נפרדת.</span>`:n`<span class="warn" data-record-unavailable>אין זרם ראשי זמין למצלמה זו כרגע, אי אפשר להקליט ידנית.</span>`}`}
+      ${this.recMsg?n`<span data-record-msg>${this.recMsg}</span>`:d}
+    </div>`}connectedCallback(){super.connectedCallback(),this.load()}updated(e){e.has("cameraId")&&e.get("cameraId")!==void 0&&this.load(),e.has("cam")&&this.cam&&$()&&!this.zonesBusy&&(!this.zones||this.zones.camera_id!==this.cam.id)&&(this.loadRecord(),this.loadOsd(),this.loadSchedules(),this.zonesError="",this.loadZones()),e.has("cam")&&this.cam&&$()&&(!this.caps||this.caps.camera_id!==this.cam.id)&&this.loadCaps()}async loadZones(e=!1){if(this.cam){this.zonesBusy=!0,this.zonesError="";try{this.zones=await il(this.cam.id,e)}catch(t){this.zonesError=b(t)}finally{this.zonesBusy=!1}}}async loadCaps(e=!1){if(this.cam){this.capsError="";try{this.caps=await al(this.cam.id,e)}catch(t){this.capsError=b(t)}}}renderCaps(){const e=this.caps;if(this.capsError&&!e)return n`<div class="note" data-caps>יכולות המצלמה לא נקראו מה־NVR: ${this.capsError}</div>`;if(!e)return n`<div class="note" data-caps>קורא יכולות מה־NVR…</div>`;const t=e.ptz.state==="supported"?"live":e.ptz.state==="unsupported"?"neutral":"unknown",s=e.ptz.state==="supported"?`PTZ: נתמך${e.ptz.preset_count!==null?` · ${e.ptz.preset_count} presets`:""}`:e.ptz.state==="unsupported"?"PTZ: לא נתמך במצלמה זו":"PTZ: לא ידוע",i=e.audio.state==="available"?"live":e.audio.state==="disabled"?"stale":e.audio.state==="unsupported"?"neutral":"unknown",a=e.audio.state==="available"?`שמע דו־כיווני: ערוץ פעיל${e.audio.codec?` (${e.audio.codec})`:""}`:e.audio.state==="disabled"?"שמע דו־כיווני: ערוץ קיים אך כבוי במכשיר":e.audio.state==="unsupported"?"שמע דו־כיווני: אין ערוץ למצלמה זו":"שמע דו־כיווני: לא ידוע";return n`<div class="note" style="margin-block-start:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center" data-caps data-ptz=${e.ptz.state} data-audio=${e.audio.state}>
+      <sw-badge kind=${t} label=${s} title=${e.ptz.reason??""}></sw-badge>
+      <sw-badge kind=${i} label=${a} title=${e.audio.reason??""}></sw-badge>
+      <sw-badge kind="neutral" label="זום דיגיטלי: הגדלה בדפדפן בלבד, לא הנעת מצלמה"></sw-badge>
+      <span>${e.ptz.reason?`PTZ לפי המכשיר: ${e.ptz.reason}. `:""}הנעת PTZ, קריאת preset ודיבור הם כתיבה למכשיר ואינם מוצעים בפיילוט ללא אישור מפורש — אין פקד מדומה. נקרא מה־NVR ${e.fetched_at.replace("T"," ").replace("Z"," UTC")}${e.cached?" (מהמטמון)":""}.</span>
+    </div>`}startMotionEdit(){const e=this.zones?.motion;!e||!e.rows||!e.cols||(this.motionMsg="",this.motionEdit={cells:e.cells.map(t=>[...t]),sensitivity:e.sensitivity??50,enabled:e.enabled})}paintCell(e,t,s=!1){const i=this.motionEdit;if(!i||(s&&(this.paintValue=!i.cells[e][t]),this.paintValue===null)||i.cells[e][t]===this.paintValue)return;const a=i.cells.map(r=>[...r]);a[e][t]=this.paintValue,this.motionEdit={...i,cells:a}}fillMotion(e){const t=this.motionEdit;t&&(this.motionEdit={...t,cells:t.cells.map(s=>s.map(()=>e))})}motionDiff(){const e=this.zones?.motion,t=this.motionEdit;if(!e||!t)return{added:0,removed:0,sensitivity:!1,enabled:!1};let s=0,i=0;return t.cells.forEach((a,r)=>a.forEach((o,l)=>{const p=e.cells[r]?.[l]??!1;o&&!p&&s++,!o&&p&&i++})),{added:s,removed:i,sensitivity:t.sensitivity!==(e.sensitivity??50),enabled:t.enabled!==e.enabled}}async saveMotion(){const e=this.motionEdit,t=this.cam;if(!e||!t||this.motionBusy)return;const s=this.motionDiff();this.motionBusy=!0;try{const i=await mp(t.id,{...s.added||s.removed?{cells:e.cells}:{},...s.sensitivity?{sensitivity:e.sensitivity}:{},...s.enabled?{enabled:e.enabled}:{}});this.motionMsg=i.status==="unchanged"?"ה־NVR כבר היה במצב הזה, לא נכתב דבר.":`נכתב ל־NVR (שינוי ${i.id.slice(0,8)}). ניתן להחזיר מהגדרות › חיבורים › שינויים אחרונים.`,this.motionEdit=null,this.motionConfirm=!1,await this.loadZones(!0)}catch(i){this.motionMsg=b(i),this.motionConfirm=!1}finally{this.motionBusy=!1}}renderMotionEditor(e){const t=this.motionEdit,s=this.motionDiff(),i=s.added||s.removed||s.sensitivity||s.enabled,a=t.cells.flat().filter(Boolean).length;return n`<div class="legend" data-motion-editor>
+      <span class="note">לחץ או גרור על התמונה כדי לסמן תאים שמזהים תנועה · ${a} מתוך ${e.rows*e.cols} תאים</span>
+      <sw-button size="sm" variant="ghost" @click=${()=>this.fillMotion(!0)}>בחר הכל</sw-button>
+      <sw-button size="sm" variant="ghost" @click=${()=>this.fillMotion(!1)}>נקה</sw-button>
+      <label class="note" style="display:inline-flex;align-items:center;gap:6px">רגישות <input type="range" min=${this.zones?.sensitivity_caps?.min??0} max=${this.zones?.sensitivity_caps?.max??100} step=${this.zones?.sensitivity_caps?.step??20} .value=${String(t.sensitivity)} data-motion-sensitivity @input=${r=>this.motionEdit={...t,sensitivity:Number(r.target.value)}} /> <b class="ltr">${t.sensitivity}</b></label>
+      <label class="note" style="display:inline-flex;align-items:center;gap:6px"><input type="checkbox" .checked=${t.enabled} data-motion-enabled @change=${r=>this.motionEdit={...t,enabled:r.target.checked}} /> זיהוי תנועה פעיל</label>
+      <span class="grow"></span>
+      <sw-button variant="primary" size="sm" icon="check" ?disabled=${!i||this.motionBusy} data-motion-save @click=${()=>this.motionConfirm=!0}>שמור ל־NVR</sw-button>
+      <sw-button size="sm" variant="ghost" icon="close" ?disabled=${this.motionBusy} data-motion-cancel @click=${()=>this.motionEdit=null}>ביטול</sw-button>
+      ${this.motionConfirm?n`<sw-dialog open heading="כתיבה ל־NVR: זיהוי תנועה" subheading=${`${this.cam?.name??""} · ערוץ ${this.zones?.channel??""}`} data-motion-confirm @close=${()=>this.motionConfirm=!1}>
+            <div style="font-size:var(--sw-fs-sm);line-height:1.6">
+              <div>${s.added?`+${s.added} תאים נוספים לזיהוי`:""}${s.added&&s.removed?" · ":""}${s.removed?`−${s.removed} תאים מוסרים`:""}${!s.added&&!s.removed?"הרשת ללא שינוי":""}</div>
+              <div>רגישות: ${s.sensitivity?`${e.sensitivity??"—"} → ${t.sensitivity}`:"ללא שינוי"} · זיהוי: ${s.enabled?t.enabled?"כבוי → פעיל":"פעיל → כבוי":"ללא שינוי"}</div>
+              <div style="margin-block-start:6px;color:var(--sw-text-3)">המסמך לפני ואחרי נשמר, השינוי נרשם באודיט וניתן להחזרה. ההקלטות אינן מושפעות; אזור שלא מסומן לא יפעיל הקלטת תנועה.</div>
+            </div>
+            <div slot="footer"><sw-button variant="primary" ?disabled=${this.motionBusy} data-motion-confirm-run @click=${()=>this.saveMotion()}>${this.motionBusy?"כותב…":"כתוב ל־NVR"}</sw-button><sw-button variant="ghost" @click=${()=>this.motionConfirm=!1}>ביטול</sw-button></div>
+          </sw-dialog>`:d}
+    </div>`}renderZones(e){const t=this.zones;if(this.zonesBusy&&!t)return n`<div class="note">קורא את הגדרות הזיהוי מה־NVR…</div>`;if(this.zonesError&&!t)return n`<div class="note">${this.zonesError} <sw-button size="sm" @click=${()=>this.loadZones(!0)}>נסה שוב</sw-button></div>`;if(!t)return n`<div class="note">—</div>`;const s=this.zoneLayers,i=t.motion,a=(o,l)=>o.map(([p,h])=>`${p/l.width*1e3},${h/l.height*1e3}`).join(" "),r=o=>o==="human"?"אדם":o==="vehicle"?"רכב":o;return n`
+      <style>
+        .zones .frame { position: relative; aspect-ratio: 16 / 9; background: #0f1729; border-radius: 8px; overflow: hidden; }
+        .zones .frame img { inline-size: 100%; block-size: 100%; object-fit: fill; display: block; }
+        .zones .frame svg { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; }
+        .zones .cell { fill: rgba(239, 68, 68, 0.28); stroke: rgba(239, 68, 68, 0.55); stroke-width: 1; }
+        .zones .mask { fill: rgba(15, 23, 42, 0.78); stroke: #0f172a; stroke-width: 3; }
+        .zones .field { fill: rgba(245, 158, 11, 0.25); stroke: #f59e0b; stroke-width: 4; }
+        .zones .line { fill: none; stroke: #2f6bff; stroke-width: 6; }
+        .zones .line.off { stroke-dasharray: 14 10; opacity: 0.6; }
+        .zones .legend { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-block-start: 8px; }
+      </style>
+      <div class="zones" data-zones-loaded>
+        <div class="frame">
+          <img src=${et(e.id)} alt="" />
+          <svg viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-label="אזורי זיהוי מעל תמונת המצלמה" style=${this.smartEdit?"cursor:crosshair":""} data-zones-svg @click=${o=>this.smartClick(o)}>
+            ${this.motionEdit&&i&&i.rows&&i.cols?this.motionEdit.cells.flatMap((o,l)=>o.map((p,h)=>m`<rect class=${p?"cell":"cell off"} data-motion-cell=${`${l}-${h}`} x=${h*1e3/i.cols} y=${l*1e3/i.rows} width=${1e3/i.cols} height=${1e3/i.rows} style="cursor:crosshair;${p?"":"fill:rgba(255,255,255,0.03);stroke:rgba(255,255,255,0.18)"}" @pointerdown=${u=>{u.preventDefault(),this.paintCell(l,h,!0)}} @pointerenter=${u=>{u.buttons&1&&this.paintCell(l,h)}} @pointerup=${()=>this.paintValue=null}></rect>`)):d}
+            ${!this.motionEdit&&s.motion&&i&&i.rows&&i.cols?i.cells.flatMap((o,l)=>o.map((p,h)=>p?m`<rect x=${h*1e3/i.cols} y=${l*1e3/i.rows} width=${1e3/i.cols} height=${1e3/i.rows} class="cell"></rect>`:d)):d}
+            ${s.privacy&&t.privacy_mask?t.privacy_mask.regions.map(o=>m`<polygon points=${a(o.points,t.privacy_mask.normalized)} class="mask"></polygon>`):d}
+            ${s.intrusion&&t.intrusion&&!this.smartEdit?t.intrusion.regions.map(o=>m`<polygon points=${a(o.points,t.intrusion.normalized)} class="field"></polygon>`):d}
+            ${s.lines&&t.line_crossing&&!this.smartEdit?t.line_crossing.lines.map(o=>m`<polyline points=${a(o.points,t.line_crossing.normalized)} class="line ${o.enabled?"":"off"}"></polyline>`):d}
+            ${this.renderSmartOverlay()}
+          </svg>
+        </div>
+        <div class="legend">
+          <sw-chip data-zone-layer="motion" ?selected=${s.motion} @click=${()=>this.zoneLayers={...s,motion:!s.motion}}>תנועה${i?` · ${i.enabled?"פעיל":"כבוי"} · ${i.coverage_pct}% מהתמונה · רגישות ${i.sensitivity??"?"}${i.target_types.length?` · ${i.target_types.map(r).join("/")}`:""}`:" · לא נקרא"}</sw-chip>
+          <sw-chip data-zone-layer="privacy" ?selected=${s.privacy} @click=${()=>this.zoneLayers={...s,privacy:!s.privacy}}>מסכת פרטיות${t.privacy_mask?` · ${t.privacy_mask.enabled?"פעילה":"כבויה"} · ${t.privacy_mask.regions.length} אזורים`:" · לא נקרא"}</sw-chip>
+          <sw-chip data-zone-layer="intrusion" ?selected=${s.intrusion} @click=${()=>this.zoneLayers={...s,intrusion:!s.intrusion}}>חדירה לאזור${t.intrusion?` · ${t.intrusion.enabled?"פעיל":"כבוי"} · ${t.intrusion.regions.length} אזורים`:" · לא נקרא"}</sw-chip>
+          <sw-chip data-zone-layer="lines" ?selected=${s.lines} @click=${()=>this.zoneLayers={...s,lines:!s.lines}}>חציית קו${t.line_crossing?` · ${t.line_crossing.enabled?"פעיל":"כבוי"} · ${t.line_crossing.lines.length} קווים`:" · לא נקרא"}</sw-chip>
+          <sw-button size="sm" variant="ghost" icon="refresh" ?disabled=${this.zonesBusy} @click=${()=>this.loadZones(!0)}>רענון מה־NVR</sw-button>
+          ${t.can_edit_motion&&i&&i.rows&&i.cols&&!this.motionEdit?n`<sw-button size="sm" icon="edit" data-motion-edit @click=${()=>this.startMotionEdit()}>עריכת אזורי תנועה</sw-button>`:d}
+          ${this.smart?.can_write&&(this.smart.line||this.smart.field)&&!this.smartEdit&&!this.motionEdit?n`<sw-button size="sm" icon="edit" data-smart-edit @click=${()=>this.startSmartEdit()}>עריכת כללים חכמים</sw-button>`:d}
+        </div>
+        ${this.motionEdit&&i?this.renderMotionEditor(i):d}
+        ${this.smartEdit?this.renderSmartEditor():d}
+        ${this.smartMsg?n`<div class="note" data-smart-msg>${this.smartMsg}</div>`:d}
+        ${this.motionMsg?n`<div class="note" data-motion-msg>${this.motionMsg}</div>`:d}
+        ${Object.keys(t.unsupported).length?n`<div class="note">לא נקרא מהמכשיר: ${Object.entries(t.unsupported).map(([o,l])=>`${o} (${l})`).join(", ")}</div>`:d}
+        <div class="note" data-zones-note>קריאה בלבד מה־NVR (נקרא ${t.fetched_at.replace("T"," ").replace("Z"," UTC")}${t.cached?", מהמטמון":""}). אלו פוליגונים בתמונת המצלמה — לא חדרים במפה. שכבת־על בדפדפן אינה מסכת NVR ואינה מגינה על הקלטות; עריכה או מסכה אמיתית דורשות אישור מפורש, כתיבה מאומתת ובדיקת התוצאה בזרם.</div>
+      </div>`}async load(){this.loading=!0,this.error="";try{if($()){const[e,t]=await Promise.all([Be(),Ve()]);this.cams=e.cameras,this.cam=e.cameras.find(s=>s.id===this.cameraId)??null,this.canConfigure=e.can_sync,this.settings=t,this.transport=Oa(t)}}catch(e){this.error=b(e)}finally{this.loading=!1}}setTransport(e){sl(e===(this.settings?.["media.transport_default"]??"mse")?"":e),this.transport=e}onPlayer(e){this.playerStatus=e.detail.status,this.playerTransport=e.detail.transport??""}renderApi(){const e=this.cam;if(this.loading)return n`<sw-state-panel state="loading"></sw-state-panel>`;if(this.error)return n`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${()=>this.load()}></sw-state-panel>`;if(!e)return n`<sw-state-panel state="forbidden" heading="המצלמה לא זמינה" hint="המצלמה לא נמצאה או שאין לך הרשאת צפייה בה."></sw-state-panel>`;const t=e.can_view_live!==!1&&e.status!=="offline",s=et(e.id,this.posterBust),i=e.stream;return n`
+      <div class="video ${t?"":"off"}">
+        ${t?n`<sw-live-player .cameraId=${e.id} .profile=${this.profile} .mode=${this.transport} .poster=${s} @player-status=${this.onPlayer}></sw-live-player>`:n`<div class="center"><div><sw-icon name="offline" size=${32}></sw-icon><span>${e.status==="offline"?"המצלמה מנותקת מה־NVR (לפי הסנכרון האחרון)":"אין הרשאת צפייה חיה במצלמה זו"}</span></div></div>`}
+      </div>
+      <div class="controls">
+        <div class="round" role="group" aria-label="פקדי מצלמה">
+          <button title="רענון תמונה" aria-label="רענון תמונה" @click=${()=>this.posterBust=Date.now()}><sw-icon name="aperture" size=${16}></sw-icon></button>
+          <button title="מסך מלא" aria-label="מסך מלא" ?disabled=${this.playerStatus!=="playing"} @click=${()=>this.player?.fullscreen()}><sw-icon name="expand" size=${16}></sw-icon></button>
+          <button title="התחבר מחדש" aria-label="התחבר מחדש" @click=${()=>this.player?.reconnect()}><sw-icon name="refresh" size=${16}></sw-icon></button>
+          <button class="q ${this.profile==="main"?"on":""}" @click=${()=>this.profile="main"}>ראשי</button>
+          <button class="q ${this.profile==="sub"?"on":""}" @click=${()=>this.profile="sub"}>משני</button>
+          <div class="transport" role="group" aria-label="תעבורה">
+            ${["auto","webrtc","mse"].map(a=>n`<button class=${this.transport===a?"on":""} @click=${()=>this.setTransport(a)}>${a==="auto"?"אוטומטי":a==="webrtc"?"WebRTC":"MSE"}</button>`)}
+          </div>
+          ${cr()?n`<span class="note">ברירת המחדל של המערכת: ${this.settings?.["media.transport_default"]??"mse"}</span>`:d}
+        </div>
+        <div class="note">${this.playerStatus==="playing"?`מנגן דרך ${this.playerTransport==="webrtc"?"WebRTC":"MSE"}`:this.playerStatus==="error"?"הזרם לא זמין":"מתחבר…"}</div>
+      </div>
+      ${this.renderSettingsAccordion(e,i)}
+    `}renderSettingsAccordion(e,t){const s=this.renderCaps(),i=this.renderRecord(),a=this.renderOsd();return n`<details class="acc-root" data-camera-settings>
+      <summary><sw-icon class="chev" name="chevron" size=${16}></sw-icon>הגדרות מצלמה</summary>
+      <div class="acc-body">
+        ${i!==d?n`<details class="acc" data-acc-record ?open=${!!this.rec?.active}>
+              <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>הקלטה ידנית</span>${this.rec?.active?n`<sw-badge kind="live" label="פעילה"></sw-badge>`:d}</summary>
+              <div class="acc-content">${i}</div>
+            </details>`:d}
+        <details class="acc" data-acc-details>
+          <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>פרטים</span></summary>
+          <div class="acc-content">
+            <dl>
+              <dt>מצב</dt><dd><sw-badge kind=${e.status==="online"?"live":e.status==="offline"?"offline":"unknown"}></sw-badge></dd>
+              <dt>ערוץ</dt><dd>${e.channel} · <span class="ltr">track ${e.main_track??"?"}</span></dd>
+              <dt>שם ב־NVR</dt><dd>${e.name_source||"—"}</dd>
+              <dt>זרם ראשי</dt><dd>${t?`${t.resolution??""} · ${t.fps??"?"} fps · ${t.bitrate_kbps??"?"} kbps`:"לא נבדק"}</dd>
+              <dt>זמן מקור</dt><dd>NVR · <span class="ltr">Asia/Jerusalem</span></dd>
+              <dt>נראתה לאחרונה</dt><dd>${e.last_seen_at?e.last_seen_at.replace("T"," ").replace("Z"," UTC"):"—"}</dd>
+            </dl>
+            ${s}
+          </div>
+        </details>
+        ${a!==d?n`<details class="acc" data-acc-osd>
+              <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>OSD — כיתוב על התמונה</span></summary>
+              <div class="acc-content">${a}</div>
+            </details>`:d}
+        <details class="acc" data-acc-schedules>
+          <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>לוחות זימון והקלטה — כפי שמוגדר ב־NVR</span></summary>
+          <div class="acc-content">
+            <div class="note">מתי כל זיהוי פעיל ומתי הערוץ מקליט (רציף / תנועה / אירוע) · עריכה דורשת הרשאה רגישה ונרשמת עם החזר</div>
+            ${this.renderSchedules()}
+          </div>
+        </details>
+        <details class="acc" data-acc-zones>
+          <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>אזורי זיהוי ומסכות — כפי שמוגדר ב־NVR</span></summary>
+          <div class="acc-content">${this.renderZones(e)}</div>
+        </details>
+        <details class="acc" data-acc-more>
+          <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>מצלמות נוספות</span></summary>
+          <div class="acc-content tiles">
+            ${this.cams.filter(r=>r.id!==e.id).slice(0,4).map(r=>n`<sw-camera-tile compact name=${r.name} state=${r.status==="online"?"live":r.status==="offline"?"offline":"unknown"} poster=${r.status==="offline"?"":et(r.id)} @click=${()=>x(`/live/cameras/${r.id}`)}></sw-camera-tile>`)}
+          </div>
+        </details>
+      </div>
+    </details>`}renderDemo(){const e=X.find(i=>i.id===this.cameraId)??X[0],t=e.state==="live"||e.state==="stale",s=tt[e.id]??"lobby";return n`
+      <div class="video ${t?s:"off"}">
+        ${t?n`<sw-scene kind=${s}></sw-scene><div class="shade"></div><span class="demo">דמו · אין שרת מחובר</span>
+              <span class="stamp">2026-09-14 10:24:36</span>
+              <span class="quality">${this.profile==="main"?"1440p · H.265":"360p · H.264"}</span>`:n`<div class="center"><div>
+              <sw-icon name=${e.state==="offline"?"offline":"lock"} size=${32}></sw-icon>
+              <span>${e.state==="offline"?"המצלמה אינה מחוברת ל־NVR":"אין הרשאת צפייה במצלמה זו"}</span>
+            </div></div>`}
+      </div>
+      <div class="controls">
+        <div class="round" role="group" aria-label="פקדי מצלמה">
+          ${e.audio?n`<button title="מיקרופון" aria-label="מיקרופון" ?disabled=${!t}><sw-icon name="mic" size=${16}></sw-icon></button><button title="שמע" aria-label="שמע" ?disabled=${!t}><sw-icon name="volume" size=${16}></sw-icon></button>`:d}
+          <button title="צילום מסך" aria-label="צילום מסך" ?disabled=${!t}><sw-icon name="aperture" size=${16}></sw-icon></button>
+          <button title="מסך מלא" aria-label="מסך מלא" ?disabled=${!t}><sw-icon name="expand" size=${16}></sw-icon></button>
+          <button class="q ${this.profile==="main"?"on":""}" @click=${()=>this.profile="main"}>1440p</button>
+          <button class="q ${this.profile==="sub"?"on":""}" @click=${()=>this.profile="sub"}>360p</button>
+        </div>
+        ${e.ptz?n`<div class="ptz" role="group" aria-label="בקרת PTZ">
+              <div class="joy">
+                <button class="u" aria-label="למעלה"><sw-icon name="chevronDown" size=${14} style="transform:rotate(180deg)"></sw-icon></button>
+                <button class="d" aria-label="למטה"><sw-icon name="chevronDown" size=${14}></sw-icon></button>
+                <button class="l" aria-label="שמאלה"><sw-icon name="chevron" size=${14} flip></sw-icon></button>
+                <button class="r" aria-label="ימינה"><sw-icon name="chevron" size=${14}></sw-icon></button>
+                <span class="c" aria-hidden="true"></span>
+              </div>
+              <div class="zoom"><button aria-label="זום פנימה"><sw-icon name="plus" size=${14}></sw-icon></button><button aria-label="זום החוצה"><sw-icon name="minus" size=${14}></sw-icon></button></div>
+            </div>`:d}
+      </div>
+      ${e.ptz?n`<div class="modes">
+            <sw-chip icon="bookmark" ?selected=${this.ptzMode==="presets"} @click=${()=>this.ptzMode="presets"}>Presets</sw-chip>
+            <sw-chip icon="target" ?selected=${this.ptzMode==="track"} @click=${()=>this.ptzMode="track"}>מעקב אוטומטי</sw-chip>
+            <sw-chip icon="route" ?selected=${this.ptzMode==="patrol"} @click=${()=>this.ptzMode="patrol"}>סיור</sw-chip>
+          </div>`:n`<div class="note" style="margin-block-start:8px">PTZ ושמע אינם מוצגים במצלמה זו: היכולת לא אומתה. פקד שלא נתמך מוסתר או מוסבר, לא מדומה.</div>`}
+      <div class="grid">
+        <sw-card heading="פרטים">
+          <dl>
+            <dt>מצב</dt><dd><sw-badge kind=${e.state}></sw-badge></dd>
+            <dt>הקלטה</dt><dd>${{continuous:"רציפה",motion:"לפי תנועה",off:"כבויה",unknown:"לא ידוע"}[e.recording]}</dd>
+            <dt>זרם</dt><dd>${e.fps?`${e.fps} fps · ${e.bitrateKbps} kbps`:"—"}</dd>
+            <dt>קושחה</dt><dd><span class="ltr">${e.firmware}</span></dd>
+            <dt>אירוע אחרון</dt><dd>${e.lastEvent}</dd>
+          </dl>
+        </sw-card>
+        <sw-card heading="מצלמות באותה קומה">
+          <div class="tiles">
+            ${X.filter(i=>i.floor===e.floor&&i.id!==e.id).slice(0,4).map(i=>n`<sw-camera-tile compact name=${i.name} state=${i.state} scene=${tt[i.id]??"lobby"} @click=${()=>x(`/live/cameras/${i.id}`)}></sw-camera-tile>`)}
+          </div>
+        </sw-card>
+      </div>
+    `}render(){const e=$(),t=e?this.cam?.name??"מצלמה":(X.find(i=>i.id===this.cameraId)??X[0]).name,s=e?this.cam?`ערוץ ${this.cam.channel} · ${this.cam.name_source||""}`:"":`${(X.find(i=>i.id===this.cameraId)??X[0]).floor} · נתוני הדגמה`;return n`
+      <sw-page heading=${t} subheading=${s} crumbs="מצלמות | שידור חי" backHref="/live/wall">
+        ${this.cam?n`<sw-badge slot="actions" kind=${this.cam.status==="online"?"live":this.cam.status==="offline"?"offline":"unknown"}></sw-badge>`:d}
+        ${e&&this.cam&&this.canConfigure?n`<sw-button slot="actions" variant="ghost" icon="edit" data-camera-rename @click=${()=>{this.renameMsg="",this.renameTo=this.cam?.alias??this.cam?.name??""}}>שנה שם</sw-button>`:d}
+        ${this.renderRename()}
+        <a slot="actions" href=${e&&this.cam?`#/investigate/playback?camera=${this.cam.id}`:"#/investigate/playback"}><sw-button icon="history">הקלטות</sw-button></a>
+        <a slot="actions" href="#/explore/floors/f0"><sw-button variant="ghost" iconOnly icon="map" label="במפה"></sw-button></a>
+        ${e?this.renderApi():this.renderDemo()}
+      </sw-page>
+    `}};I.styles=A`
+    .video {
+      position: relative;
+      aspect-ratio: 16 / 9;
+      /* owner report: on a wide desktop (design A has no page max-width), a 16:9 box at full page width grows
+         taller than the viewport - the controls and settings below need a scroll to even see they exist. Capping
+         the height (the width then follows from the ratio) keeps the whole screen reachable without scrolling. */
+      max-block-size: min(60dvh, 640px);
+      inline-size: 100%;
+      margin-inline: auto;
+      border-radius: var(--sw-r-lg);
+      overflow: hidden;
+      background: #0f1729;
+      color: #fff;
+      box-shadow: var(--sw-shadow-2);
+    }
+    .video sw-scene,
+    .video sw-live-player {
+      position: absolute;
+      inset: 0;
+    }
+    .video.off {
+      background: var(--sw-surface-3);
+      color: var(--sw-text-2);
+      box-shadow: none;
+      border: 1px solid var(--sw-border);
+    }
+    .shade {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0) 25%, rgba(0, 0, 0, 0) 65%, rgba(0, 0, 0, 0.45) 100%);
+      pointer-events: none;
+    }
+    .demo {
+      position: absolute;
+      inset-inline-end: 12px;
+      inset-block-start: 10px;
+      font-size: 10px;
+      letter-spacing: 0.04em;
+      background: rgba(17, 24, 39, 0.55);
+      color: #fff;
+      border-radius: 4px;
+      padding: 2px 7px;
+      z-index: 2;
+    }
+    .stamp {
+      position: absolute;
+      inset-inline-start: 12px;
+      inset-block-end: 10px;
+      font-family: var(--sw-font-mono);
+      font-size: var(--sw-fs-xs);
+      direction: ltr;
+      color: rgba(255, 255, 255, 0.92);
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+    }
+    .quality {
+      position: absolute;
+      inset-inline-end: 12px;
+      inset-block-end: 10px;
+      font-size: var(--sw-fs-xs);
+      color: rgba(255, 255, 255, 0.92);
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+      direction: ltr;
+      z-index: 2;
+    }
+    .center {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      font-size: var(--sw-fs-sm);
+    }
+    .center > div {
+      display: grid;
+      justify-items: center;
+      gap: 6px;
+    }
+    .controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-block-start: 12px;
+    }
+    .round {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .round button {
+      inline-size: 38px;
+      block-size: 38px;
+      border-radius: 50%;
+      border: 1px solid var(--sw-border-strong);
+      background: var(--sw-surface);
+      color: var(--sw-text-2);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      box-shadow: var(--sw-shadow-1);
+    }
+    .round button:hover {
+      background: var(--sw-surface-2);
+      color: var(--sw-text);
+    }
+    .round button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    .round .q {
+      inline-size: auto;
+      border-radius: var(--sw-r-pill);
+      padding-inline: 10px;
+      font: inherit;
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-semibold);
+      block-size: 30px;
+    }
+    .round .q.on {
+      background: var(--sw-accent);
+      border-color: var(--sw-accent);
+      color: #fff;
+    }
+    .transport {
+      display: inline-flex;
+      gap: 2px;
+      background: var(--sw-surface-3);
+      border-radius: 8px;
+      padding: 2px;
+    }
+    .round .transport button {
+      display: inline-block;
+      inline-size: auto;
+      block-size: 26px;
+      border: 0;
+      background: transparent;
+      box-shadow: none;
+      font: inherit;
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-medium);
+      padding: 0 9px;
+      border-radius: 6px;
+      color: var(--sw-text-2);
+      cursor: pointer;
+    }
+    .round .transport button.on {
+      background: var(--sw-surface);
+      color: var(--sw-accent-text);
+      box-shadow: var(--sw-shadow-1);
+    }
+    .ptz {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .joy {
+      position: relative;
+      inline-size: 64px;
+      block-size: 64px;
+      border-radius: 50%;
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border-strong);
+      box-shadow: var(--sw-shadow-1);
+    }
+    .joy button {
+      position: absolute;
+      inline-size: 20px;
+      block-size: 20px;
+      border: 0;
+      background: transparent;
+      color: var(--sw-text-2);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      border-radius: 50%;
+    }
+    .joy .u {
+      inset-block-start: 3px;
+      inset-inline-start: 22px;
+    }
+    .joy .d {
+      inset-block-end: 3px;
+      inset-inline-start: 22px;
+    }
+    .joy .l {
+      inset-inline-start: 3px;
+      inset-block-start: 22px;
+    }
+    .joy .r {
+      inset-inline-end: 3px;
+      inset-block-start: 22px;
+    }
+    .joy .c {
+      inset-inline-start: 26px;
+      inset-block-start: 26px;
+      inline-size: 12px;
+      block-size: 12px;
+      border-radius: 50%;
+      background: var(--sw-accent);
+    }
+    .zoom {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .zoom button {
+      inline-size: 28px;
+      block-size: 28px;
+      border-radius: 8px;
+      border: 1px solid var(--sw-border-strong);
+      background: var(--sw-surface);
+      color: var(--sw-text-2);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+    }
+    .modes {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-block-start: 10px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 12px;
+      margin-block-start: 12px;
+      align-items: start;
+    }
+    dl {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 6px 14px;
+      margin: 0;
+      font-size: var(--sw-fs-sm);
+    }
+    dt {
+      color: var(--sw-text-3);
+    }
+    dd {
+      margin: 0;
+      font-weight: var(--sw-fw-medium);
+    }
+    .tiles {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .note {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    @media (max-width: 767px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    /* settings accordion (owner round 4, 2.6): the video keeps its place, everything below starts collapsed
+       under one "camera settings" toggle, and each setting inside is its own collapsed row. */
+    .acc-root {
+      margin-block-start: 12px;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface);
+      box-shadow: var(--sw-shadow-1);
+    }
+    .acc-root > summary {
+      padding: 12px 14px;
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .acc-root[open] > summary {
+      border-block-end: 1px solid var(--sw-border);
+    }
+    .acc-body {
+      padding: 4px 14px 8px;
+      display: flex;
+      flex-direction: column;
+    }
+    summary {
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      list-style: none;
+    }
+    summary::-webkit-details-marker {
+      display: none;
+    }
+    summary .chev {
+      flex: none;
+      color: var(--sw-text-3);
+      transition: transform var(--sw-t-fast) var(--sw-ease);
+    }
+    details[open] > summary .chev {
+      transform: rotate(90deg);
+    }
+    .acc {
+      border-block-start: 1px solid var(--sw-border);
+    }
+    .acc > summary {
+      padding: 10px 2px;
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-medium);
+      justify-content: space-between;
+    }
+    .acc > summary .lbl {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .acc-content {
+      padding: 0 2px 12px;
+    }
+  `;O([g()],I.prototype,"cameraId",2);O([c()],I.prototype,"cam",2);O([c()],I.prototype,"zones",2);O([c()],I.prototype,"zonesBusy",2);O([c()],I.prototype,"zonesError",2);O([c()],I.prototype,"motionEdit",2);O([c()],I.prototype,"motionConfirm",2);O([c()],I.prototype,"motionBusy",2);O([c()],I.prototype,"motionMsg",2);O([c()],I.prototype,"rec",2);O([c()],I.prototype,"osd",2);O([c()],I.prototype,"sched",2);O([c()],I.prototype,"schedError",2);O([c()],I.prototype,"schedTab",2);O([c()],I.prototype,"schedEdit",2);O([c()],I.prototype,"schedBusy",2);O([c()],I.prototype,"schedMsg",2);O([c()],I.prototype,"schedConfirm",2);O([c()],I.prototype,"smart",2);O([c()],I.prototype,"smartEdit",2);O([c()],I.prototype,"smartBusy",2);O([c()],I.prototype,"smartMsg",2);O([c()],I.prototype,"osdMsg",2);O([c()],I.prototype,"renameTo",2);O([c()],I.prototype,"renameBusy",2);O([c()],I.prototype,"renameMsg",2);O([c()],I.prototype,"osdBusy",2);O([c()],I.prototype,"recMinutes",2);O([c()],I.prototype,"recBusy",2);O([c()],I.prototype,"recMsg",2);O([c()],I.prototype,"zoneLayers",2);O([c()],I.prototype,"caps",2);O([c()],I.prototype,"capsError",2);O([c()],I.prototype,"cams",2);O([c()],I.prototype,"canConfigure",2);O([c()],I.prototype,"settings",2);O([c()],I.prototype,"error",2);O([c()],I.prototype,"loading",2);O([c()],I.prototype,"profile",2);O([c()],I.prototype,"transport",2);O([c()],I.prototype,"playerStatus",2);O([c()],I.prototype,"playerTransport",2);O([c()],I.prototype,"posterBust",2);O([c()],I.prototype,"ptzMode",2);O([cs("sw-live-player")],I.prototype,"player",2);I=O([P("live-camera")],I);var Np=Object.defineProperty,Lp=Object.getOwnPropertyDescriptor,at=(e,t,s,i)=>{for(var a=i>1?void 0:i?Lp(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Np(t,s,a),a};const Bp={name:"",cameras:[],cols:2,rows:2,shared:!1,kiosk:!1},Vp=[{name:"כל המצלמות",layout:9,scope:"משותפת",mobile:"4 · משני",owner:"יוני",kiosk:!0},{name:"חוץ",layout:4,scope:"משותפת",mobile:"2 · משני",owner:"יוני",kiosk:!1},{name:"פנים",layout:6,scope:"משותפת",mobile:"ללא",owner:"יוסי",kiosk:!1},{name:"לילה",layout:4,scope:"אישית",mobile:"4 · משני",owner:"דנה",kiosk:!1}];let Re=class extends M{constructor(){super(...arguments),this.views=null,this.cams=[],this.canShare=!1,this.canManageAll=!1,this.editing=null,this.confirmDelete=null,this.busy=!1,this.error="",this.formError=""}connectedCallback(){super.connectedCallback(),$()&&this.load()}async load(){try{const[e,t]=await Promise.all([Sr(),Be()]);this.views=e.views,this.canShare=e.can_share,this.canManageAll=e.can_manage_all,this.cams=t.cameras.filter(s=>s.enabled&&s.can_view_live!==!1),this.error=""}catch(e){this.error=b(e),this.views=this.views??[]}}canEdit(e){return this.canManageAll||e.owner_user_id===Te.me?.user.id}open(e){this.formError="",this.editing=e?{id:e.id,name:e.name,cameras:[...e.cameras],cols:e.cols,rows:e.rows,shared:e.shared,kiosk:e.kiosk}:{...Bp,cameras:[]}}toggleCamera(e){if(!this.editing)return;const t=this.editing.cameras.includes(e);!t&&this.editing.cameras.length>=16||(this.editing={...this.editing,cameras:t?this.editing.cameras.filter(s=>s!==e):[...this.editing.cameras,e]})}async save(){const e=this.editing;if(e){if(!e.name.trim()){this.formError="לתצוגה צריך שם.";return}if(!e.cameras.length){this.formError="בחר לפחות מצלמה אחת.";return}this.busy=!0;try{const t={name:e.name.trim(),cameras:e.cameras,cols:e.cols,rows:e.rows,shared:e.shared,kiosk:e.kiosk};e.id?await gd(e.id,t):await Mr(t),this.editing=null,await this.load()}catch(t){this.formError=b(t)}finally{this.busy=!1}}}async removeView(){const e=this.confirmDelete;if(e){this.busy=!0;try{await wd(e.id),this.confirmDelete=null,await this.load()}catch(t){this.error=b(t)}finally{this.busy=!1}}}renderEditor(){const e=this.editing;return n`<sw-dialog open heading=${e.id?"עריכת תצוגה":"תצוגה חדשה"} subheading="שם, מצלמות ופריסה · תצוגה משותפת נראית לכל המשתמשים" data-view-dialog @close=${()=>this.editing=null}>
+      <div class="form">
+        <sw-field label="שם"><input data-view-name .value=${e.name} maxlength="60" @input=${t=>this.editing={...e,name:t.target.value}} /></sw-field>
+        <div class="lbl">מצלמות (${e.cameras.length} מתוך ${this.cams.length})</div>
+        <div class="chips" data-view-cameras>
+          ${this.cams.map(t=>n`<sw-chip ?selected=${e.cameras.includes(t.id)} data-view-camera=${t.id} dot=${t.status==="online"?"#22c55e":"#ef4444"} @click=${()=>this.toggleCamera(t.id)}>${t.name}</sw-chip>`)}
+        </div>
+        <div class="two">
+          <sw-field label="עמודות"><select data-view-cols .value=${String(e.cols)} @change=${t=>this.editing={...e,cols:Number(t.target.value)}}>${[1,2,3,4].map(t=>n`<option value=${t} ?selected=${t===e.cols}>${t}</option>`)}</select></sw-field>
+          <sw-field label="שורות"><select data-view-rows .value=${String(e.rows)} @change=${t=>this.editing={...e,rows:Number(t.target.value)}}>${[1,2,3,4].map(t=>n`<option value=${t} ?selected=${t===e.rows}>${t}</option>`)}</select></sw-field>
+        </div>
+        <div class="toggles">
+          <sw-toggle ?checked=${e.shared} ?disabled=${!this.canShare} label=${this.canShare?"משותפת לכל המשתמשים":"משותפת (דורש הרשאת ניהול משתמשים)"} data-view-shared @change=${t=>this.editing={...e,shared:t.detail.checked}}></sw-toggle>
+          <sw-toggle ?checked=${e.kiosk} label="מיועדת לקיוסק (מסך קיר)" data-view-kiosk @change=${t=>this.editing={...e,kiosk:t.detail.checked}}></sw-toggle>
+        </div>
+        <div class="note">הקיר פותח את המצלמות בפריסה אוטומטית; הקיוסק מציג ${e.cols}×${e.rows} מצלמות בעמוד ומדפדף בין העמודים.</div>
+        ${this.formError?n`<div class="err" data-view-error>${this.formError}</div>`:d}
+      </div>
+      <div slot="footer">
+        <sw-button variant="ghost" @click=${()=>this.editing=null}>ביטול</sw-button>
+        <sw-button variant="primary" icon="check" data-view-save ?disabled=${this.busy} @click=${()=>this.save()}>${e.id?"שמור":"צור תצוגה"}</sw-button>
+      </div>
+    </sw-dialog>`}renderApi(){const e=this.views;return n`
+      <sw-page heading="תצוגות שמורות" subheading="קבוצות מצלמות עם פריסה — אישיות או משותפות — לפתיחה בקיר החי או בקיוסק">
+        <sw-button slot="actions" variant="primary" icon="plus" data-view-new @click=${()=>this.open()}>תצוגה חדשה</sw-button>
+        ${this.error?n`<sw-state-panel state="error" heading="התצוגות לא נטענו" hint=${this.error}></sw-state-panel>`:d}
+        ${e===null?n`<sw-state-panel state="loading" heading="טוען תצוגות…"></sw-state-panel>`:e.length?n`<div class="grid" data-views>
+                ${e.map(t=>n`<sw-card data-view=${t.id}>
+                    <div class="thumb" style=${`grid-template-columns:repeat(${Math.min(2,Math.max(1,t.cameras.length))}, 1fr)`}>
+                      ${t.cameras.slice(0,4).map(s=>n`<img src=${et(s)} alt="" loading="lazy" @error=${i=>i.target.style.visibility="hidden"} />`)}
+                      ${t.cameras.length?d:n`<div class="empty">אין מצלמות שמותר לך לראות בתצוגה זו</div>`}
+                    </div>
+                    <div class="head"><b>${t.name}</b><sw-badge kind=${t.shared?"live":"neutral"} label=${t.shared?"משותפת":"אישית"}></sw-badge>${t.kiosk?n`<sw-badge kind="neutral" label="קיוסק"></sw-badge>`:d}</div>
+                    <dl>
+                      <dt>מצלמות</dt><dd>${t.camera_names.join(" · ")||"—"}${t.hidden_cameras?n` <span class="muted">(+${t.hidden_cameras} ללא הרשאה)</span>`:d}</dd>
+                      <dt>פריסה</dt><dd class="ltr">${t.cols}×${t.rows}</dd>
+                      <dt>בעלים</dt><dd>${t.owner_username??"—"}</dd>
+                    </dl>
+                    <div class="foot">
+                      <a href=${Ar(t)}><sw-button size="sm" variant="primary" icon="play" data-view-open ?disabled=${!t.cameras.length}>פתח</sw-button></a>
+                      <a href=${vd(t)} target="_blank" rel="noopener"><sw-button size="sm" icon="layers" data-view-kiosk-open ?disabled=${!t.cameras.length}>קיוסק</sw-button></a>
+                      <span class="grow"></span>
+                      ${this.canEdit(t)?n`<sw-button size="sm" variant="ghost" icon="edit" data-view-edit @click=${()=>this.open(t)}>עריכה</sw-button><sw-button size="sm" variant="ghost" icon="trash" data-view-delete @click=${()=>this.confirmDelete=t}>מחיקה</sw-button>`:d}
+                    </div>
+                  </sw-card>`)}
+              </div>`:n`<sw-state-panel state="empty" heading="אין עדיין תצוגות שמורות" hint="צור תצוגה: שם, מצלמות ופריסה. תצוגה משותפת נראית לכל המשתמשים; קיוסק פותח אותה במסך קיר בלי פקדים."></sw-state-panel>`}
+        ${this.editing?this.renderEditor():d}
+        ${this.confirmDelete?n`<sw-dialog open heading="מחיקת תצוגה" subheading=${this.confirmDelete.name} @close=${()=>this.confirmDelete=null}>
+              <p>התצוגה תוסר מהרשימה. המצלמות וההקלטות אינן מושפעות.</p>
+              <div slot="footer"><sw-button variant="ghost" @click=${()=>this.confirmDelete=null}>ביטול</sw-button><sw-button variant="danger" icon="trash" data-view-delete-confirm ?disabled=${this.busy} @click=${()=>this.removeView()}>מחק</sw-button></div>
+            </sw-dialog>`:d}
+      </sw-page>
+    `}render(){return $()?this.renderApi():n`
+      <sw-page heading="תצוגות שמורות" subheading="תבניות 1 / 2 / 4 / 6 / 9 / 12 / 16 / מותאם, אישיות או משותפות, עם התאמה למובייל · נתוני הדגמה">
+        <sw-button slot="actions" variant="primary" icon="plus">תצוגה חדשה</sw-button>
+        <div class="grid">
+          ${Vp.map(e=>{const t=Math.ceil(Math.sqrt(e.layout));return n`<sw-card heading=${e.name}>
+              <sw-badge slot="actions" kind="neutral" label=${e.scope}></sw-badge>
+              <div class="thumb" style="grid-template-columns:repeat(${t},1fr)">${X.filter(s=>s.state==="live").slice(0,e.layout).map(s=>n`<sw-scene kind=${tt[s.id]??"lobby"}></sw-scene>`)}</div>
+              <dl>
+                <dt>פריסה</dt><dd>${e.layout} אריחים</dd>
+                <dt>מובייל</dt><dd>${e.mobile}</dd>
+                <dt>בעלים</dt><dd>${e.owner}</dd>
+              </dl>
+              <div class="foot">
+                <a href="#/live/wall"><sw-button size="sm" icon="play">פתח</sw-button></a>
+                <sw-button size="sm" variant="ghost">עריכה</sw-button>
+                <sw-toggle ?checked=${e.kiosk} label="קיוסק"></sw-toggle>
+              </div>
+            </sw-card>`})}
+        </div>
+      </sw-page>
+    `}};Re.styles=A`
+    .thumb img {
+      inline-size: 100%;
+      block-size: 100%;
+      object-fit: cover;
+      border-radius: 3px;
+      background: #1e293b;
+      display: block;
+    }
+    .thumb .empty {
+      grid-column: 1 / -1;
+      color: #cbd5e1;
+      font-size: var(--sw-fs-xs);
+      display: grid;
+      place-items: center;
+      text-align: center;
+      padding: 8px;
+    }
+    .head {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-block-end: 6px;
+    }
+    .head b {
+      flex: 1;
+      min-inline-size: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .grow {
+      flex: 1;
+    }
+    .muted {
+      color: var(--sw-text-3);
+    }
+    .form {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-inline-size: min(560px, 80vw);
+    }
+    .form .lbl {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .two {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .toggles {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .note {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .err {
+      color: var(--sw-danger);
+      font-size: var(--sw-fs-sm);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 12px;
+    }
+    .thumb {
+      display: grid;
+      gap: 3px;
+      background: #0f172a;
+      border-radius: 8px;
+      padding: 4px;
+      aspect-ratio: 16 / 9;
+      margin-block-end: 10px;
+      overflow: hidden;
+    }
+    .thumb sw-scene {
+      border-radius: 3px;
+      inline-size: 100%;
+      block-size: 100%;
+    }
+    dl {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 4px 10px;
+      margin: 0;
+      font-size: var(--sw-fs-xs);
+    }
+    dt {
+      color: var(--sw-text-3);
+    }
+    dd {
+      margin: 0;
+    }
+    .foot {
+      display: flex;
+      gap: 6px;
+      margin-block-start: 10px;
+      align-items: center;
+    }
+  `;at([c()],Re.prototype,"views",2);at([c()],Re.prototype,"cams",2);at([c()],Re.prototype,"canShare",2);at([c()],Re.prototype,"canManageAll",2);at([c()],Re.prototype,"editing",2);at([c()],Re.prototype,"confirmDelete",2);at([c()],Re.prototype,"busy",2);at([c()],Re.prototype,"error",2);at([c()],Re.prototype,"formError",2);Re=at([P("live-views")],Re);var Hp=Object.defineProperty,Fp=Object.getOwnPropertyDescriptor,ft=(e,t,s,i)=>{for(var a=i>1?void 0:i?Fp(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Hp(t,s,a),a};const Lr="sw.kiosk.layout",jp=[[2,2],[3,2],[3,3],[4,3],[4,4],[5,4],[6,4]];function Br(e){try{const i=localStorage.getItem(Lr);if(i){const[a,r]=i.split("x").map(Number);if(a>=1&&r>=1)return{cols:a,rows:r}}}catch{}const t=Number(e?.["ui.kiosk_cols"]??0),s=Number(e?.["ui.kiosk_rows"]??0);return{cols:t>=1?t:3,rows:s>=1?s:2}}function Ji(e=Br()){const t=ls().params,s=Math.min(6,Math.max(1,Number(t.get("cols")??e.cols)||e.cols)),i=Math.min(5,Math.max(1,Number(t.get("rows")??e.rows)||e.rows));return{cameras:(t.get("cameras")??"").split(",").map(a=>a.trim()).filter(Boolean),cols:s,rows:i,rotate:Math.max(0,Number(t.get("rotate")??0)||0)}}let qe=class extends M{constructor(){super(...arguments),this.cams=null,this.settings=null,this.clock="",this.page=0,this.health=null,this.disconnected=!1,this.view=Ji(),this.failures=0,this.onHash=()=>{this.view=Ji(),this.page=this.restorePage(),this.startRotation()},this.started=0,this.staggerTimer=0}setLayout(e){const[t,s]=e.split("x").map(Number);if(!(t>=1&&s>=1))return;try{localStorage.setItem(Lr,`${t}x${s}`)}catch{}const i=new URLSearchParams(ls().params);i.set("cols",String(t)),i.set("rows",String(s)),window.location.replace(`#/kiosk/all?${i.toString()}`)}get pageKey(){return`sw.kiosk.page:${this.view.cameras.join(",")}|${this.view.cols}x${this.view.rows}`}restorePage(){try{const e=Number(localStorage.getItem(this.pageKey)??"0");return Number.isFinite(e)&&e>=0?e:0}catch{return 0}}setPage(e){this.page=e;try{localStorage.setItem(this.pageKey,String(e%Math.max(1,this.pages)))}catch{}}connectedCallback(){super.connectedCallback(),this.page=this.restorePage(),this.tick(),this.timer=window.setInterval(()=>this.tick(),1e3),this.unsubscribe=br(e=>{e.mode==="api"&&this.cams===null?this.load():e.mode!=="loading"&&this.requestUpdate()}),window.addEventListener("hashchange",this.onHash),this.startRotation(),this.pollHealth(),this.healthTimer=window.setInterval(()=>void this.pollHealth(),15e3)}disconnectedCallback(){window.clearTimeout(this.staggerTimer),super.disconnectedCallback(),window.clearInterval(this.timer),window.clearInterval(this.rotateTimer),window.clearInterval(this.healthTimer),window.removeEventListener("hashchange",this.onHash),this.unsubscribe?.()}startRotation(){window.clearInterval(this.rotateTimer),this.view.rotate>0&&(this.rotateTimer=window.setInterval(()=>{this.setPage(this.page+1),this.stagger()},this.view.rotate*1e3)),this.stagger()}async pollHealth(){if($())try{this.health=await Ba(),(this.disconnected||this.failures>=3)&&this.load(),this.failures=0,this.disconnected=!1}catch{this.failures+=1,this.failures>=3&&(this.disconnected=!0)}}get pageSize(){return this.view.cols*this.view.rows}stagger(){window.clearTimeout(this.staggerTimer),this.started=0;const e=()=>{this.started<this.pageSize&&(this.started+=1,this.staggerTimer=window.setTimeout(e,400))};e()}get selected(){const e=(this.cams??[]).filter(t=>this.view.cameras.length===0||this.view.cameras.includes(t.id));return this.view.cameras.length?this.view.cameras.map(t=>e.find(s=>s.id===t)).filter(t=>!!t):e}get pages(){return Math.max(1,Math.ceil(this.selected.length/this.pageSize))}tick(){const e=new Date;this.clock=`${e.toLocaleDateString("he-IL",{weekday:"long",day:"2-digit",month:"2-digit",year:"numeric"})} · ${e.toLocaleTimeString("he-IL")}`}async load(){if($())try{const[e,t]=await Promise.all([Be(),Ve()]);this.cams=e.cameras.filter(s=>s.enabled),this.settings=t,this.view=Ji(Br(t))}catch{this.cams=[]}}render(){const t=$(),s=this.page%this.pages,i=t?this.selected.slice(s*this.pageSize,(s+1)*this.pageSize):[],a=X.filter(l=>l.state!=="forbidden").slice(0,9),r=t?i.filter(l=>l.status==="online").length:7,o=this.settings?.["media.max_live_sessions"]??8;return n`
+      <header>
+        <img src="${"./"}brand/smplwise-mark.png" alt="SmplWise" />
+        <h1>ניטור חי</h1>
+        <span class="spacer"></span>
+        <sw-badge kind="live" label=${`${t?this.selected.length:a.length} מצלמות · ${r} חיות`}></sw-badge>
+        ${t&&this.pages>1?n`<span class="pill" data-kiosk-page>עמוד ${s+1}/${this.pages}${this.view.rotate?` · כל ${this.view.rotate} שנ׳`:""}</span>`:d}
+        ${t?n`<select class="layout" data-kiosk-layout aria-label="פריסה" @change=${l=>this.setLayout(l.target.value)}>
+          ${jp.map(([l,p])=>n`<option value=${`${l}x${p}`} ?selected=${l===this.view.cols&&p===this.view.rows}>${l}×${p} · ${l*p} מצלמות בעמוד</option>`)}
+        </select>`:d}
+        ${t&&this.health?n`<span class="pill" data-kiosk-health data-status=${this.health.status}>מערכת: ${Ms[this.health.status]}${this.health.items.filter(l=>l.status!=="ok").length?` · ${this.health.items.filter(l=>l.status!=="ok").map(l=>l.label).join(", ")}`:""}</span>`:d}
+        <span class="clock">${this.clock||"—"}</span>
+        <a class="exit" href="#/live/wall" data-kiosk-exit title="חזרה למערכת (משתמש קיוסק בלבד נשאר כאן)">יציאה</a>
+      </header>
+      ${this.disconnected?n`<div class="overlay" data-kiosk-disconnected>אין קשר לשרת ה־VMS<br /><small>הזרמים אינם חיים · מנסה להתחבר מחדש</small></div>`:d}
+      <div class="grid" style=${`--cols:${t?this.view.cols:3}`}>
+        ${t?i.map((l,p)=>n`<sw-camera-tile dark data-kiosk-tile name=${l.name} state=${this.disconnected?"unknown":l.status==="online"?"live":l.status==="offline"?"offline":"unknown"} ?live=${!this.disconnected&&l.status!=="offline"&&p<o&&p<this.started} cameraId=${l.id} profile="sub" transport=${Oa(this.settings)} poster=${l.status==="offline"?"":et(l.id)} noDemo></sw-camera-tile>`):a.map(l=>n`<sw-camera-tile dark name=${l.name} state=${l.state} scene=${tt[l.id]??"lobby"} noDemo></sw-camera-tile>`)}
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="ic"><sw-icon name="camera" size=${16}></sw-icon></div><div><b>${t?`${r}/${i.length}`:"7/9"}</b><span>מצלמות מחוברות</span></div></div>
+        <div class="stat"><div class="ic red"><sw-icon name="warning" size=${16}></sw-icon></div><div><b>${t?i.filter(l=>l.status==="offline").length:3}</b><span>${t?"מצלמות מנותקות":"התראות פתוחות"}</span></div></div>
+        <div class="stat"><div class="ic"><sw-icon name="building" size=${16}></sw-icon></div><div><b>${t?Math.min(i.length,o):2}</b><span>${t?"זרמים חיים במקביל":"מבנים"}</span></div></div>
+        <div class="stat"><div class="ic green"><sw-icon name="check" size=${16}></sw-icon></div><div><b style="font-size:var(--sw-fs-lg)">${t?"פעיל":"חלקי"}</b><span>${t?"go2rtc + NVR":"מצב מערכת · גשר HA לא רענן"}</span></div></div>
+      </div>
+      <div class="note">תצוגת קיוסק: קריאה בלבד, ללא פקדי ניהול, חיבור מחדש אוטומטי · תצוגה שמורה = הכתובת (cameras, cols, rotate)${t?"":" · נתוני הדגמה (סצנות מאוירות עד חיבור הזרמים)"}</div>
+    `}};qe.styles=A`
+    :host {
+      display: flex;
+      flex-direction: column;
+      min-block-size: 100%;
+      background: #0f172a;
+      color: #fff;
+      padding: 14px 20px 16px;
+      gap: 12px;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header img {
+      block-size: 24px;
+      inline-size: auto;
+      filter: brightness(0) invert(1);
+      opacity: 0.9;
+    }
+    h1 {
+      margin: 0;
+      font-size: var(--sw-fs-xl);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .spacer {
+      flex: 1;
+    }
+    .clock {
+      font-size: var(--sw-fs-sm);
+      color: rgba(255, 255, 255, 0.75);
+      font-variant-numeric: tabular-nums;
+      direction: ltr;
+    }
+    .overlay {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: rgba(15, 23, 42, 0.86);
+      color: #fff;
+      font-size: var(--sw-fs-xl);
+      z-index: 50;
+      text-align: center;
+      line-height: 1.6;
+    }
+    .pill {
+      font-size: var(--sw-fs-xs);
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.12);
+      color: rgba(255, 255, 255, 0.85);
+    }
+    .pill[data-status='warn'] {
+      background: rgba(245, 158, 11, 0.25);
+    }
+    .pill[data-status='error'] {
+      background: rgba(239, 68, 68, 0.3);
+    }
+    header select.layout {
+      background: #1e293b;
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 8px;
+      padding: 3px 8px;
+      font: inherit;
+      font-size: 12px;
+    }
+    header select.layout option {
+      color: #0f1729;
+      background: #fff;
+    }
+    header a.exit {
+      color: rgba(255, 255, 255, 0.85);
+      text-decoration: none;
+      font-size: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 8px;
+      padding: 3px 10px;
+    }
+    header a.exit:hover {
+      background: rgba(255, 255, 255, 0.12);
+    }
+    .grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr));
+      gap: 10px;
+    }
+    .grid sw-camera-tile {
+      border-radius: 8px;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+    .stat {
+      background: #172036;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .stat .ic {
+      display: grid;
+      place-items: center;
+      inline-size: 32px;
+      block-size: 32px;
+      border-radius: 8px;
+      background: rgba(47, 107, 255, 0.22);
+      color: #8fb0ff;
+    }
+    .stat .ic.red {
+      background: rgba(239, 68, 68, 0.2);
+      color: #f87171;
+    }
+    .stat .ic.green {
+      background: rgba(34, 197, 94, 0.2);
+      color: #4ade80;
+    }
+    .stat b {
+      display: block;
+      font-size: var(--sw-fs-2xl);
+      line-height: 1.1;
+    }
+    .stat span {
+      color: rgba(255, 255, 255, 0.6);
+      font-size: var(--sw-fs-xs);
+    }
+    .note {
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.4);
+    }
+    @media (max-width: 767px) {
+      .grid,
+      .stats {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+  `;ft([c()],qe.prototype,"cams",2);ft([c()],qe.prototype,"settings",2);ft([c()],qe.prototype,"clock",2);ft([c()],qe.prototype,"page",2);ft([c()],qe.prototype,"health",2);ft([c()],qe.prototype,"disconnected",2);ft([c()],qe.prototype,"view",2);ft([c()],qe.prototype,"started",2);qe=ft([P("kiosk-wall")],qe);var Wp=Object.defineProperty,Up=Object.getOwnPropertyDescriptor,He=(e,t,s,i)=>{for(var a=i>1?void 0:i?Up(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Wp(t,s,a),a};const Zp={preserved:"#16a34a",preserving:"#d97706",nvr:"#7c3aed"},ai=[{label:"יום",minutes:1440},{label:"6 שע׳",minutes:360},{label:"שעה",minutes:60},{label:"10 דק׳",minutes:10},{label:"דקה",minutes:1}];function fa(e){return String(e).padStart(2,"0")}function De(e){const t=(e%1440+1440)%1440;return`${fa(Math.floor(t/60))}:${fa(Math.floor(t%60))}`}function rt(e){const t=(e%1440+1440)%1440,s=Math.min(59,Math.round(t%1*60));return`${De(t)}:${fa(s)}`}const qp={motion:"#ef4444",person:"#2f6bff",vehicle:"#22c55e",line:"#f59e0b",offline:"#6b7280",door:"#8b5cf6"};let _e=class extends M{constructor(){super(...arguments),this.segments=[],this.events=[],this.bookmarks=[],this.cursor=615,this.windowMinutes=360,this.precision="estimated",this.follow=!0,this.limit=1440,this.hover=null,this.lastHoverBucket=-1,this.viewStart=-1,this.dragging=!1}get start(){const e=Math.max(0,1440-this.windowMinutes);return this.viewStart>=0&&!this.follow?Math.max(0,Math.min(e,this.viewStart)):Math.max(0,Math.min(e,this.cursor-this.windowMinutes/2))}get step(){return this.windowMinutes>=360?1:this.windowMinutes>=60?1/6:1/60}snap(e){const t=this.step;return Math.max(0,Math.min(this.limit,Math.round(e/t)*t))}x(e,t){return(e-this.start)/this.windowMinutes*t}minuteAt(e){const t=e.currentTarget.getBoundingClientRect();return this.start+(e.clientX-t.left)/t.width*this.windowMinutes}onMove(e){const t=this.minuteAt(e);if(this.hover=t,!this.dragging){const s=Math.floor(t*6);if(s!==this.lastHoverBucket){this.lastHoverBucket=s;const i=e.currentTarget.getBoundingClientRect();this.dispatchEvent(new CustomEvent("hover",{detail:{minute:t,x:e.clientX-i.left,width:i.width},bubbles:!0,composed:!0}))}}if(this.dragging){const s=this.snap(t);this.cursor=s,this.dispatchEvent(new CustomEvent("scrub",{detail:{minute:s},bubbles:!0,composed:!0}))}}onDown(e){e.button===0&&(e.currentTarget.setPointerCapture(e.pointerId),this.dragging=!0,this.viewStart=this.start,this.follow=!1)}onUp(e){if(!this.dragging)return;this.dragging=!1;const t=this.snap(this.minuteAt(e));this.cursor=t,this.follow=!0,this.dispatchEvent(new CustomEvent("seek",{detail:{minute:t,alt:e.altKey},bubbles:!0,composed:!0}))}onWheel(e){e.preventDefault();const t=ai.findIndex(i=>i.minutes===this.windowMinutes),s=Math.max(0,Math.min(ai.length-1,t+(e.deltaY>0?-1:1)));s!==t&&this.setWindow(ai[s].minutes,this.minuteAt(e))}setWindow(e,t=this.cursor){const s=Math.max(0,Math.min(1,(t-this.start)/this.windowMinutes));this.windowMinutes=e,this.viewStart=t-s*e,this.follow=!1,this.dispatchEvent(new CustomEvent("window-change",{detail:{minutes:e},bubbles:!0,composed:!0}))}buckets(e){const t=[],s=this.windowMinutes/e;for(let i=0;i<e;i++){const a=this.start+i*s,r=a+s;let o=0;for(const l of this.segments)l.endMin>a&&l.startMin<r&&(o=Math.max(o,l.kind==="motion"?2:1));o&&this.events.some(l=>l.minute>=a-s&&l.minute<=r+s)&&(o=3),t.push(o)}return t}tickEvery(){const e=this.windowMinutes;return e<=1?10/60:e<=10?1:e<=60?10:e<=360?60:180}label(e){return this.windowMinutes<=10?rt(e):De(e)}render(){const r=this.tickEvery(),o=[];for(let w=Math.ceil(this.start/r-1e-9)*r;w<=this.start+this.windowMinutes+1e-9;w+=r)o.push(w);const l=[0,12,26,36],p={verified:"זמן מאומת",keyframe_limited:"דיוק לפי keyframe",estimated:"זמן משוער",unknown:"דיוק לא ידוע"}[this.precision],h=this.x(this.cursor,1e3),u=this.label(this.cursor),f=u.length>5?62:48,v=this.limit<this.start+this.windowMinutes?Math.max(0,this.x(this.limit,1e3)):null;return n`
+      <div class="bar">
+        <span class="precision">${p} · לחיצה או גרירה = seek · גלגלת = זום</span>
+        <div class="windows">
+          ${ai.map(w=>n`<button class=${w.minutes===this.windowMinutes?"on":""} @click=${()=>this.setWindow(w.minutes)}>${w.label}</button>`)}
+        </div>
+      </div>
+      <svg
+        class=${this.dragging?"dragging":""}
+        viewBox="0 0 ${1e3} ${84}"
+        preserveAspectRatio="none"
+        @pointermove=${this.onMove}
+        @pointerleave=${()=>{this.hover=null,this.lastHoverBucket=-1,this.dispatchEvent(new CustomEvent("hover-end",{bubbles:!0,composed:!0}))}}
+        @pointerdown=${this.onDown}
+        @pointerup=${this.onUp}
+        @pointercancel=${()=>this.dragging=!1}
+        @wheel=${this.onWheel}
+        role="img"
+        aria-label="ציר זמן הקלטות">
+        <line x1="0" x2=${1e3} y1=${58+.5} y2=${58+.5} stroke="var(--sw-border)" />
+        ${v!==null?m`<rect x=${v} y="14" width=${Math.max(0,1e3-v)} height=${44} fill="var(--sw-surface-3)" opacity="0.7" />`:d}
+        ${this.buckets(160).map((w,y)=>{if(!w)return d;const k=l[w];return m`<rect x=${y*6.25+1} y=${58-k} width=${Math.max(2,6.25-2)} height=${k} rx="1.5" fill="var(--sw-accent)" opacity=${w===1?.45:w===2?.8:1} />`})}
+        ${o.map(w=>m`<line x1=${this.x(w,1e3)} x2=${this.x(w,1e3)} y1=${58} y2=${63} stroke="var(--sw-border-strong)" /><text x=${this.x(w,1e3)} y=${78} font-size="10.5" text-anchor="middle" fill="var(--sw-text-3)" font-family="var(--sw-font)">${this.label(w)}</text>`)}
+        ${this.events.map(w=>{const y=this.x(w.minute,1e3);return y<0||y>1e3?d:m`<g><circle cx=${y} cy=${58-l[3]-8} r="3.5" fill=${qp[w.kind]} /><title>${w.label} · ${De(w.minute)}</title></g>`})}
+        ${this.bookmarks.map(w=>{const y=this.x(w.minute,1e3),k=this.x(w.endMinute,1e3);if(k<0||y>1e3)return d;const R=Zp[w.preservation],z=C=>{C.stopPropagation(),this.cursor=w.minute,this.follow=!0,this.dispatchEvent(new CustomEvent("seek",{detail:{minute:w.minute,alt:!1},bubbles:!0,composed:!0})),this.dispatchEvent(new CustomEvent("bookmark-click",{detail:{id:w.id,minute:w.minute},bubbles:!0,composed:!0}))};return m`<g class="bm" data-bookmark=${w.id} role="button" tabindex="0" aria-label=${w.label} @pointerdown=${C=>C.stopPropagation()} @click=${z} @keydown=${C=>(C.key==="Enter"||C.key===" ")&&z(C)}>
+            <rect x=${Math.max(0,y)} y="13" width=${Math.max(2,Math.min(1e3,k)-Math.max(0,y))} height="3" rx="1.5" fill=${R} opacity="0.55" />
+            <line x1=${y} x2=${y} y1="3" y2=${58} stroke=${R} stroke-dasharray="2 3" opacity="0.6" />
+            <polygon points=${`${y},2 ${y+9},6 ${y},10`} fill=${R} />
+            <title>${w.label} · ${De(w.minute)}</title>
+          </g>`})}
+        ${this.hover!==null&&!this.dragging?m`<line pointer-events="none" x1=${this.x(this.hover,1e3)} x2=${this.x(this.hover,1e3)} y1="18" y2=${58} stroke="var(--sw-text-3)" stroke-dasharray="3 3" /><text pointer-events="none" x=${this.x(this.hover,1e3)} y="12" font-size="10" text-anchor="middle" fill="var(--sw-text-3)" font-family="var(--sw-font-mono)">${this.label(this.hover)}</text>`:d}
+        ${h>=-60&&h<=1060?m`<g transform="translate(${h} 0)" pointer-events="none">
+              <line x1="0" x2="0" y1="15" y2=${62} stroke="var(--sw-accent)" stroke-width="2" />
+              <rect x=${-f/2} y="0" width=${f} height="16" rx="5" fill="var(--sw-accent)" />
+              <text x="0" y="11.5" font-size="10.5" text-anchor="middle" fill="#fff" font-family="var(--sw-font-mono)" font-weight="600">${u}</text>
+            </g>`:d}
+      </svg>
+      <div class="legend">
+        <span style="--lg: var(--sw-accent)">הקלטה (גובה = פעילות)</span>
+        <span style="--lg: #ef4444">תנועה</span>
+        <span style="--lg: #2f6bff">אדם</span>
+        <span style="--lg: #22c55e">רכב</span>
+        <span style="--lg: #8b5cf6">דלת</span>
+        <span style="--lg: var(--sw-border-strong)">ריק = אין הקלטה / לא נבדק</span>
+        ${this.limit<1440?n`<span style="--lg: var(--sw-surface-3)">אפור = עתיד</span>`:d}
+      </div>
+    `}};_e.styles=A`
+    :host {
+      display: block;
+      direction: ltr;
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      padding: var(--sw-s-3) var(--sw-s-3) var(--sw-s-2);
+      user-select: none;
+      box-shadow: var(--sw-shadow-1);
+    }
+    .bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--sw-s-2);
+      direction: rtl;
+      margin-block-end: 6px;
+      flex-wrap: wrap;
+    }
+    .windows {
+      display: inline-flex;
+      gap: 2px;
+      background: var(--sw-surface-3);
+      border-radius: 7px;
+      padding: 2px;
+    }
+    .windows button {
+      border: 0;
+      background: transparent;
+      font: inherit;
+      font-size: var(--sw-fs-xs);
+      padding: 4px 10px;
+      border-radius: 5px;
+      cursor: pointer;
+      color: var(--sw-text-2);
+    }
+    .windows button.on {
+      background: var(--sw-surface);
+      color: var(--sw-accent-text);
+      box-shadow: var(--sw-shadow-1);
+    }
+    .precision {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    g.bm {
+      cursor: pointer;
+    }
+    g.bm:focus-visible polygon {
+      stroke: var(--sw-text);
+      stroke-width: 1.5;
+    }
+    svg {
+      inline-size: 100%;
+      block-size: 84px;
+      display: block;
+      cursor: crosshair;
+      touch-action: none;
+    }
+    svg.dragging {
+      cursor: grabbing;
+    }
+    .legend {
+      display: flex;
+      gap: var(--sw-s-4);
+      direction: rtl;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      margin-block-start: 4px;
+      flex-wrap: wrap;
+    }
+    .legend span::before {
+      content: '';
+      display: inline-block;
+      inline-size: 10px;
+      block-size: 10px;
+      border-radius: 50%;
+      margin-inline-end: 6px;
+      vertical-align: middle;
+      background: var(--lg);
+    }
+  `;He([g({attribute:!1})],_e.prototype,"segments",2);He([g({attribute:!1})],_e.prototype,"events",2);He([g({attribute:!1})],_e.prototype,"bookmarks",2);He([g({type:Number})],_e.prototype,"cursor",2);He([g({type:Number})],_e.prototype,"windowMinutes",2);He([g()],_e.prototype,"precision",2);He([g({type:Boolean})],_e.prototype,"follow",2);He([g({type:Number})],_e.prototype,"limit",2);He([c()],_e.prototype,"hover",2);He([c()],_e.prototype,"viewStart",2);He([c()],_e.prototype,"dragging",2);_e=He([P("sw-timeline")],_e);const As={open:"פתוח",in_review:"בבדיקה",closed:"סגור"},Gp={preserved:"עותק שמור",preserving:"מעתיק מה־NVR…",nvr_only:"סימנייה ל־NVR בלבד",missing:"חסר: ה־NVR כבר לא מחזיק את הקטע",unknown:"לא נבדק מול ה־NVR",none:""};function Vr(e={}){const t=new URLSearchParams;e.status&&t.set("status",e.status),e.q&&t.set("q",e.q);const s=t.toString();return S(`cases${s?`?${s}`:""}`)}const Hr=e=>E("cases",e),Kp=(e,t=!0)=>S(`cases/${e}${t?"":"?check=false"}`),Yp=(e,t)=>Le(`cases/${e}`,t),Jp=e=>ve(`cases/${e}`),ga=(e,t)=>E(`cases/${e}/items`,t),Xp=(e,t)=>ve(`cases/${e}/items/${t}`),Qp=(e,t)=>E(`cases/${e}/items/${t}/preserve`),Tn={preserved:"עותק שמור",preserving:"מעתיק מה־NVR…",nvr:"סימנייה ל־NVR"},On=(e,t)=>S(`cases/bookmarks?camera_id=${encodeURIComponent(e)}&date=${encodeURIComponent(t)}`),Rn=e=>e.toISOString().replace(/\.\d{3}Z$/,"Z"),wa=(e,t=15,s=45)=>({from_at:Rn(new Date(e.getTime()-t*1e3)),to_at:Rn(new Date(e.getTime()+s*1e3))}),eh=()=>S("evidence/signing"),th=()=>E("evidence/signing/rotate"),sh=e=>E(`cases/${e}/bundle`),ih=e=>S(`cases/${e}/bundles`),ah=(e,t)=>ge(`cases/${e}/bundles/${t}`),nh=(e,t)=>ge(`cases/${e}/items/${t}/file`);function rh(e){const t=new FormData;return t.append("file",e,e.name),Ai("cases/bundles/verify",t)}var oh=Object.defineProperty,lh=Object.getOwnPropertyDescriptor,Fe=(e,t,s,i)=>{for(var a=i>1?void 0:i?lh(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&oh(t,s,a),a};let ze=class extends M{constructor(){super(...arguments),this.item=null,this.subheading="",this.cases=[],this.loading=!1,this.error="",this.picked="",this.newTitle="",this.note="",this.busy=!1,this.done=null,this.canManage=!0}updated(e){e.has("item")&&this.item&&this.load()}async load(){this.loading=!0,this.error="",this.done=null,this.note="";try{const e=await Vr({status:"open"});this.cases=e.cases,this.canManage=e.can_manage,this.picked=e.cases[0]?.id??"new"}catch(e){this.error=b(e)}finally{this.loading=!1}}close(){this.item=null,this.dispatchEvent(new CustomEvent("close",{bubbles:!0,composed:!0}))}async confirm(){const e=this.item;if(e){this.busy=!0,this.error="";try{let t=this.picked,s=this.cases.find(a=>a.id===t)?.title??"";if(t==="new"){if(!this.newTitle.trim()){this.error="תן שם לתיק החדש.";return}const a=await Hr({title:this.newTitle.trim()});t=a.id,s=a.title}const i=await ga(t,{...e,note:this.note.trim()||e.note});this.done={id:t,title:s},this.dispatchEvent(new CustomEvent("added",{detail:{caseId:t,item:i},bubbles:!0,composed:!0}))}catch(t){this.error=b(t)}finally{this.busy=!1}}}render(){const e=this.item;if(!e)return d;const t=e.kind==="event"?"האירוע":e.kind==="clip"?"הקטע":"ההערה";return n`<sw-dialog open heading="הוסף לתיק" subheading=${this.subheading} data-case-picker @close=${()=>this.close()}>
+      ${this.error?n`<div class="err" data-case-error>${this.error}</div>`:d}
+      ${this.done?n`<div class="ok" data-case-added>${t} נוסף לתיק "${this.done.title}".</div>`:this.loading?n`<div class="note">טוען תיקים…</div>`:n`${this.canManage?d:n`<div class="note">אין לך הרשאה לנהל תיקים.</div>`}
+              <sw-field label="תיק">
+                <select aria-label="תיק" data-case-select @change=${s=>this.picked=s.target.value}>
+                  ${this.cases.map(s=>n`<option value=${s.id} ?selected=${s.id===this.picked}>${s.title} · ${s.counts.items} פריטים</option>`)}
+                  <option value="new" ?selected=${this.picked==="new"}>+ תיק חדש</option>
+                </select>
+              </sw-field>
+              ${this.picked==="new"?n`<sw-field label="שם התיק החדש"><input data-case-new-title .value=${this.newTitle} placeholder="למשל: כניסה לא מורשית" @input=${s=>this.newTitle=s.target.value} /></sw-field>`:d}
+              ${e.kind!=="note"?n`<sw-field label="הערה לפריט (לא חובה)"><input data-case-note .value=${this.note} @input=${s=>this.note=s.target.value} /></sw-field>`:d}
+              <div class="note">
+                ${e.kind==="clip"?"הקטע נשמר כסימנייה שמצביעה ל־NVR; שימור עותק מאומת נעשה מתוך התיק.":e.kind==="event"?"האירוע נוסף עם חלון של 5 שניות לפני ו־30 שניות אחרי; שימור עותק מאומת נעשה מתוך התיק.":""}
+              </div>`}
+      ${this.done?n`<sw-button slot="footer" variant="ghost" @click=${()=>this.close()}>סגור</sw-button>
+            <sw-button slot="footer" variant="primary" icon="case" data-case-open @click=${()=>{const s=this.done?.id??"";this.close(),x(`/investigate/cases/${s}`)}}>פתח את התיק</sw-button>`:n`<sw-button slot="footer" variant="ghost" @click=${()=>this.close()}>ביטול</sw-button>
+            <sw-button slot="footer" variant="primary" icon="plus" data-case-confirm ?disabled=${this.busy||this.loading||!this.canManage} @click=${()=>this.confirm()}>הוסף</sw-button>`}
+    </sw-dialog>`}};ze.styles=A`
+    .err {
+      color: var(--sw-danger);
+      font-size: var(--sw-fs-sm);
+    }
+    .ok {
+      color: var(--sw-success, #15803d);
+      font-size: var(--sw-fs-sm);
+    }
+    .note {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    select,
+    input {
+      inline-size: 100%;
+      font: inherit;
+      padding: 7px 9px;
+      border: 1px solid var(--sw-border);
+      border-radius: 8px;
+      background: var(--sw-surface);
+      color: var(--sw-text);
+    }
+  `;Fe([g({attribute:!1})],ze.prototype,"item",2);Fe([g()],ze.prototype,"subheading",2);Fe([c()],ze.prototype,"cases",2);Fe([c()],ze.prototype,"loading",2);Fe([c()],ze.prototype,"error",2);Fe([c()],ze.prototype,"picked",2);Fe([c()],ze.prototype,"newTitle",2);Fe([c()],ze.prototype,"note",2);Fe([c()],ze.prototype,"busy",2);Fe([c()],ze.prototype,"done",2);Fe([c()],ze.prototype,"canManage",2);ze=Fe([P("sw-case-picker")],ze);const Fr=(e,t)=>S(`cameras/${e}/recordings?date=${t}`),Ps=new Set,Es=new Set;function dh(){if(!(!Ps.size&&!Es.size)){for(const e of Es)navigator.sendBeacon?.(ge(`playback/groups/${e}/close`),"");for(const e of Ps)navigator.sendBeacon?.(ge(`playback/sessions/${e}/close`),"");Ps.clear(),Es.clear()}}typeof window<"u"&&window.addEventListener("pagehide",dh);const Va=async(e,t)=>{const s=await E("playback/sessions",{camera_id:e,start_at:t});return Ps.add(s.id),s},Nn=(e,t)=>E(`playback/sessions/${e}/seek`,{start_at:t}),Fs=e=>(Ps.delete(e),ve(`playback/sessions/${e}`));function vi(e){const t=new URL(ge(`playback/sessions/${e.id}/ws?generation=${e.generation}`));return t.protocol=t.protocol==="https:"?"wss:":"ws:",t.toString()}function Xe(e,t){const s=new Intl.DateTimeFormat("en-CA",{timeZone:t,year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(e),i=a=>s.find(r=>r.type===a)?.value??"";return`${i("year")}-${i("month")}-${i("day")}`}function ne(e,t){const s=new Intl.DateTimeFormat("en-GB",{timeZone:t,hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"}).formatToParts(e),i=a=>Number(s.find(r=>r.type===a)?.value??0);return i("hour")*60+i("minute")+i("second")/60}function Je(e,t,s){const[i,a,r]=e.split("-").map(Number),o=Date.UTC(i,a-1,r,Math.floor(t/60),Math.floor(t%60),Math.round(t%1*60)),l=h=>{const u=new Intl.DateTimeFormat("en-US",{timeZone:s,hour12:!1,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit"}).formatToParts(new Date(h)),f=w=>Number(u.find(y=>y.type===w)?.value??0);return Date.UTC(f("year"),f("month")-1,f("day"),f("hour")%24,f("minute"),f("second"))-h};let p=o-l(o);return p=o-l(p),new Date(p)}const ch=async(e,t)=>{const s=await E("playback/groups",{camera_ids:e,start_at:t});return Es.add(s.id),s},ph=(e,t)=>E(`playback/groups/${e}/seek`,{start_at:t}),hh=e=>(Es.delete(e),ve(`playback/groups/${e}`)),uh=(e,t)=>E(`playback/groups/${e}/sync`,{p95_s:t.p95,quality:t.quality,samples:t.samples,partial:t.partial,members:t.members}),Di=(e,t)=>ge(`cameras/${e}/frame?at=${encodeURIComponent(t)}`),jr=(e,t,s)=>({camera_id:e,from_at:t,to_at:s}),Ln=(e,t,s)=>E("exports/estimate",jr(e,t,s)),mh=(e,t,s)=>E("exports",jr(e,t,s)),fh=()=>S("exports"),gh=e=>E(`exports/${e}/cancel`),wh=e=>ve(`exports/${e}`),Wr=e=>ge(`exports/${e}/download`),vh=e=>ge(`exports/${e}/manifest`);function es(e){return e==null?"—":e<1024*1024?`${Math.round(e/1024)} KB`:e<1024*1024*1024?`${(e/1024/1024).toFixed(1)} MB`:`${(e/1024/1024/1024).toFixed(2)} GB`}var bh=Object.defineProperty,yh=Object.getOwnPropertyDescriptor,B=(e,t,s,i)=>{for(var a=i>1?void 0:i?yh(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&bh(t,s,a),a};const Ct=["closed","expired","failed"];function vs(e){return rt(Math.max(0,Math.min(1439.983,e)))}function Xi(e){const[t=0,s=0,i=0]=e.split(":").map(Number);return t*60+s+i/60}function $h(e){const t=e.map(s=>Math.abs(s)).sort((s,i)=>s-i);return t[Math.min(t.length-1,Math.max(0,Math.ceil(.95*t.length)-1))]}let L=class extends M{constructor(){super(...arguments),this.cameraId="",this.at="",this.extraParam="",this.demoCamera="cam-10",this.cursor=615,this.generation=3,this.playing=!0,this.speed=1,this.filter="all",this.cams=null,this.tz="Asia/Jerusalem",this.date="",this.rec=null,this.dayEvents=[],this.bookmarks=[],this.activeBookmark=null,this.loadingRec=!1,this.session=null,this.group=null,this.extra=[],this.casePick=null,this.preview=null,this.previewTimer=0,this.busy=!1,this.error="",this.notice="",this.tileStatus={},this.drifts={},this.clock=null,this.barrier="none",this.syncStats=null,this.clockPausedAt=0,this.driftSamples={},this.lateSince={},this.resyncAt={},this.resyncs={},this.nudges={},this.groupStartedAt=0,this.lastReport=0,this.seekSentAt={},this.firstPlayAt={},this.startLatency={},this.paused=!1,this.scrubbing=!1,this.position=null,this.exportOpen=!1,this.exportFrom="",this.exportTo="",this.estimate=null,this.exportJob=null,this.exportBusy=!1,this.exportError="",this.onTlHover=e=>{if(!this.cameraId||!$())return;window.clearTimeout(this.previewTimer);const t=e.detail;this.previewTimer=window.setTimeout(()=>{const s=Je(this.date,t.minute,this.tz).toISOString().replace(/\.\d{3}Z$/,"Z");this.preview={minute:t.minute,x:t.x,width:t.width,url:Di(this.cameraId,s),failed:!1}},250)},this.onTlHoverEnd=()=>{window.clearTimeout(this.previewTimer),this.preview=null}}connectedCallback(){super.connectedCallback(),$()&&(this.init(),this.ticker=window.setInterval(()=>this.tick(),500))}disconnectedCallback(){super.disconnectedCallback(),window.clearInterval(this.ticker),this.endSession()}updated(e){$()&&e.has("cameraId")&&e.get("cameraId")!==void 0&&this.cams&&this.selectCamera(this.cameraId,!0)}get members(){return[this.cameraId,...this.extra.filter(e=>e!==this.cameraId)]}get groupMode(){return this.extra.filter(e=>e!==this.cameraId).length>0}get masterSession(){return this.groupMode?this.group?.sessions.find(e=>e.camera_id===this.cameraId)??this.group?.sessions[0]??null:this.session}get live(){const e=this.masterSession;return!!e&&!Ct.includes(e.state)&&(this.groupMode?!!this.group:!0)}async init(){try{const[e,t]=await Promise.all([Ve(),Be()]);this.tz=e["time.zone"]??"Asia/Jerusalem",this.cams=t.cameras.filter(r=>r.enabled);const s=this.cams.find(r=>r.id===this.cameraId)??this.cams[0],i=this.at?new Date(this.at):null,a=!!i&&!Number.isNaN(i.getTime());if(this.date=Xe(a?i:new Date,this.tz),s)if(this.cameraId=s.id,this.extraParam&&(this.extra=this.extraParam.split(",").filter(r=>r&&r!==s.id&&this.cams.some(o=>o.id===r)).slice(0,3)),await this.loadRecordings(),a)this.cursor=ne(i,this.tz),await this.startAt(i);else{const r=this.rec?.segments.at(-1);this.cursor=r?this.insideLast(r):Math.max(0,ne(new Date,this.tz)-5)}}catch(e){this.error=b(e)}}async selectCamera(e,t=!1){!e||!t&&e===this.cameraId||(await this.endSession(),this.cameraId=e,this.extra=this.extra.filter(s=>s!==e),this.error="",this.notice="",await this.loadRecordings())}async setDate(e){if(!e||e===this.date)return;await this.endSession(),this.date=e,await this.loadRecordings();const t=this.rec?.segments.at(-1);this.cursor=t?this.insideLast(t):540}insideLast(e){const t=ne(new Date(e.start_at),this.tz),s=ne(new Date(e.end_at),this.tz);return Math.max(0,t,s-5)}async loadRecordings(){if(!(!this.cameraId||!this.date)){this.loadingRec=!0,this.rec=null;try{const[e,t,s]=await Promise.all([Fr(this.cameraId,this.date).then(i=>({ok:!0,r:i}),i=>({ok:!1,e:i})),Uc(this.cameraId,this.date).catch(()=>({events:[]})),On(this.cameraId,this.date).catch(()=>({bookmarks:[]}))]);if(this.dayEvents=t.events,this.bookmarks=s.bookmarks,this.activeBookmark=null,!e.ok)throw e.e;this.rec=e.r,this.error=""}catch(e){this.error=b(e)}finally{this.loadingRec=!1}}}get markers(){return this.dayEvents.map(e=>({minute:ne(new Date(e.occurred_at),this.tz),kind:Gc(e.type),label:`${ee[e.type]??e.type}${e.confidence==="inferred"?" (מהקלטה)":""}${e.count>1?` ×${e.count}`:""}`}))}get bookmarkMarkers(){return this.bookmarks.map(e=>({id:e.id,minute:ne(new Date(e.from_at),this.tz),endMinute:ne(new Date(e.to_at),this.tz),label:`תיק „${e.case_title}”${e.note?` · ${e.note}`:""} · ${Tn[e.preservation]}`,preservation:e.preservation}))}async loadBookmarks(){if(!(!this.cameraId||!this.date))try{this.bookmarks=(await On(this.cameraId,this.date)).bookmarks}catch{}}bookmarkAt(e){this.cameraId&&(this.casePick={kind:"clip",camera_id:this.cameraId,...wa(Je(this.date,e,this.tz),10,20),note:"סימנייה"})}get segmentsMin(){return this.rec?this.rec.segments.map(e=>{const t=ne(new Date(e.start_at),this.tz);let s=ne(new Date(e.end_at),this.tz);return s<t&&(s=1440),{startMin:t,endMin:s,kind:e.kind==="continuous"?"continuous":"motion"}}):[]}inRecording(e){return this.segmentsMin.some(t=>e>=t.startMin&&e<=t.endMin)}get limitMinute(){return this.date===Xe(new Date,this.tz)?ne(new Date,this.tz):1440}cameraName(e){return this.cams?.find(t=>t.id===e)?.name??e}async startAt(e){if(!(!this.cameraId||this.busy)){this.busy=!0,this.error="",this.notice="",this.scrubbing=!1;try{const t=e.toISOString().replace(/\.\d{3}Z$/,"Z");if(this.groupMode){const s=performance.now(),i=this.group&&this.group.sessions.some(r=>!Ct.includes(r.state))?await ph(this.group.id,t):await ch(this.members,t);this.group=i;for(const r of i.sessions)this.seekSentAt[r.camera_id]=s,delete this.firstPlayAt[r.camera_id];this.session=null,this.position=new Date(i.requested_at);const a=Object.keys(i.missing);a.length&&(this.notice=`ללא הקלטה בזמן הזה: ${a.map(r=>this.cameraName(r)).join(", ")}`)}else{const s=this.session&&!Ct.includes(this.session.state)?await Nn(this.session.id,t):await Va(this.cameraId,t);this.session=s,this.group=null,this.position=new Date(s.requested_at),s.moved_to_next_segment&&(this.notice=`אין הקלטה בזמן שנבחר; הניגון התחיל בקטע הבא (${this.fmt(new Date(s.requested_at))}).`)}if(this.cursor=ne(this.position,this.tz),this.paused=!1,this.tileStatus={},this.drifts={},this.resetClock(),!this.isConnected){await this.endSession();return}}catch(t){if(t instanceof fe&&t.body.code==="no_recording")this.notice="אין הקלטה בזמן הזה ובשש השעות שאחריו: פער בכיסוי, לא מדלגים ל־Live.",this.position=e;else if(t instanceof fe&&(t.body.code==="session_over"||t.body.code==="not_found")){this.session=null,this.group=null,this.busy=!1,await this.startAt(e);return}else this.error=b(t)}finally{this.busy=!1}}}async endSession(){const e=this.session,t=this.group;this.session=null,this.group=null,this.tileStatus={},this.drifts={},this.resetClock();try{t?await hh(t.id):e&&!Ct.includes(e.state)&&await Fs(e.id)}catch{}}async toggleExtra(e){const t=this.extra.includes(e)?this.extra.filter(i=>i!==e):[...this.extra,e].slice(-3),s=this.currentInstant();await this.endSession(),this.extra=t,s&&await this.startAt(s)}players(){return Array.from(this.renderRoot.querySelectorAll("sw-live-player"))}masterPlayer(){return this.players().find(e=>e.dataset.camera===this.cameraId)??this.players()[0]}currentInstant(){const e=this.masterSession;if(!e)return this.position;if(this.groupMode&&this.clock)return new Date(this.clockNow());const t=new Date(e.requested_at).getTime();return new Date(t+(this.masterPlayer()?.mediaTime??0)*1e3)}tick(){if(!this.masterSession||this.paused||this.scrubbing)return;if(this.groupMode&&this.group){this.tickGroup();return}const t=this.masterPlayer();if(!t||t.status!=="playing")return;const s=this.currentInstant();s&&(this.position=s,this.cursor=ne(s,this.tz),t.stale&&t.bufferAhead<.4&&!this.busy&&this.startAt(s))}resetClock(){this.clock=null,this.clockPausedAt=0,this.barrier=this.groupMode?"waiting":"none",this.driftSamples={},this.lateSince={},this.resyncAt={},this.resyncs={},this.nudges={};for(const e of this.players())e.rate=1;this.groupMode&&(this.speed=1),this.syncStats=null,this.groupStartedAt=performance.now(),this.lastReport=0}clockNow(){const e=this.clock;return e.baseMs+((this.paused&&this.clockPausedAt?this.clockPausedAt:performance.now())-e.startedAt)}tickGroup(){const e=this.group,t=performance.now(),s=this.players().map(l=>{const p=l.dataset.camera??"",h=e.sessions.find(u=>u.camera_id===p);return{cid:p,p:l,sess:h,at:h?new Date(h.requested_at).getTime()+l.mediaTime*1e3:NaN}}).filter(l=>l.sess&&!Ct.includes(l.sess.state)),i=s.filter(l=>l.p.status==="playing");if(!this.clock){const l=s.length>0&&i.length===s.length,p=t-this.groupStartedAt>12e3&&i.length>0;if(!l&&!p){this.barrier="waiting";return}const h=i.find(u=>u.cid===this.cameraId)??i[0];this.clock={baseMs:h.at,startedAt:t},this.barrier="passed",this.driftSamples={},this.lateSince={}}let a=this.clockNow();if(i.length>=3){const l=i.map(p=>p.at).sort((p,h)=>p-h);a=l[Math.floor(l.length/2)]}else i.length&&(a=(i.find(l=>l.cid===this.cameraId)??i[0]).at);this.clock={baseMs:a,startedAt:t};const r=new Date(a);this.position=r,this.cursor=ne(r,this.tz);const o={};for(const l of s){if(l.p.status!=="playing"){o[l.cid]=NaN,this.lateSince[l.cid]||(this.lateSince[l.cid]=t);continue}delete this.lateSince[l.cid];const p=(l.at-a)/1e3;o[l.cid]=p;const h=this.driftSamples[l.cid]??=[];if(h.push(p),h.length>40&&h.shift(),h.length>=2&&Math.abs(p)>.25&&Math.abs(p)<=3){const u=p<0?Math.abs(p)>1?1.15:1.05:Math.abs(p)>1?.85:.95;l.p.rate!==u&&(this.nudges[l.cid]=(this.nudges[l.cid]??0)+1),l.p.rate=u}else(Math.abs(p)<=.25||Math.abs(p)>3)&&(l.p.rate=1);l.cid!==this.cameraId&&h.length>=4&&h.slice(-4).every(u=>Math.abs(u)>3)&&(this.resyncs[l.cid]??0)<2&&t-(this.resyncAt[l.cid]??0)>2e4&&this.resyncMember(l.cid,a)}this.drifts=o,this.syncStats=this.computeSync(s.map(l=>l.cid),t),t-this.lastReport>5e3&&this.syncStats.samples>=4&&(this.lastReport=t,uh(e.id,this.syncStats).catch(()=>{}))}computeSync(e,t){const s={};let i=null,a=0;for(const p of e){const h=this.driftSamples[p]??[],u=h.length?$h(h):null,f=this.lateSince[p]?t-this.lateSince[p]>8e3:!1;s[p]={p95:u,samples:h.length,last:h.length?h[h.length-1]:null,resyncs:this.resyncs[p]??0,state:f?"late":h.length?"measured":"waiting",latency_ms:this.startLatency[p]??null,nudges:this.nudges[p]??0},a+=h.length,u!==null&&(i=i===null?u:Math.max(i,u))}const r=Object.keys(this.group?.missing??{}),o=Object.values(s).some(p=>p.state==="late"),l=this.barrier!=="passed"||i===null?"waiting":i<=.5?"synced":i<=2?"slight":"out_of_sync";return{p95:i,quality:l,samples:a,partial:r.length>0||o,missing:r,members:s}}async resyncMember(e,t){const s=this.group,i=s?.sessions.find(r=>r.camera_id===e);if(!s||!i||Ct.includes(i.state))return;this.resyncAt[e]=performance.now(),this.resyncs[e]=(this.resyncs[e]??0)+1,this.driftSamples[e]=[];const a=Math.min(this.startLatency[e]??4e3,15e3);try{const r=await Nn(i.id,new Date(t+a).toISOString().replace(/\.\d{3}Z$/,"Z"));this.group===s&&(this.group={...s,sessions:s.sessions.map(o=>o.id===r.id?r:o)}),this.seekSentAt[e]=performance.now(),delete this.firstPlayAt[e]}catch{}}syncLabel(){const e=this.syncStats;if(this.barrier==="waiting"||!e||e.quality==="waiting")return"סנכרון: ממתין לחסם הפתיחה";const t=e.p95===null?"—":`${e.p95.toFixed(2)} ש׳`;return`סנכרון: ${{synced:"מסונכרן",slight:"סטייה קלה",out_of_sync:"לא מסונכרן",waiting:""}[e.quality]} · p95 ${t}${e.partial?" · חלקי":""}`}async onSeek(e){const t=e.detail.minute,s=Je(this.date,t,this.tz);if(s.getTime()>Date.now()){this.notice="לא ניתן לנגן זמן עתידי.",this.scrubbing=!1;return}this.cursor=t,e.detail.alt&&this.bookmarkAt(t),await this.startAt(s)}onScrub(e){this.scrubbing=!0,this.cursor=e.detail.minute,this.position=Je(this.date,e.detail.minute,this.tz)}async nudge(e){const t=this.currentInstant();t&&await this.startAt(new Date(t.getTime()+e*1e3))}setSpeed(e){if(this.groupMode||e>1)return;this.speed=e;const t=this.masterPlayer();t&&(t.rate=e)}stepFrame(e){const t=this.masterPlayer(),s=this.cams?.find(r=>r.id===this.cameraId),i=s?.stream?.fps&&s.stream.fps>0?s.stream.fps:25;if(!t)return;if(!t.stepFrame(e,i)){this.notice="הפריים המבוקש מחוץ למאגר שכבר הגיע מה־NVR — השתמש בקפיצה של 10 שניות או בציר הזמן.";return}this.notice="";const a=this.currentInstant();a&&(this.position=a,this.cursor=ne(a,this.tz))}togglePause(){const e=this.players();if(e.length){if(this.paused){const t=this.masterPlayer();if(!this.groupMode&&t?.stale&&this.position){this.startAt(this.position);return}e.forEach(s=>s.resume()),this.clock&&this.clockPausedAt&&(this.clock={...this.clock,startedAt:this.clock.startedAt+(performance.now()-this.clockPausedAt)}),this.clockPausedAt=0}else e.forEach(t=>t.pause()),this.clockPausedAt=performance.now();this.paused=!this.paused}}onTilePlayer(e,t){if(this.tileStatus={...this.tileStatus,[e]:t.detail.status},t.detail.status==="playing"&&this.seekSentAt[e]&&!this.firstPlayAt[e]&&(this.firstPlayAt[e]=performance.now(),this.startLatency[e]=this.firstPlayAt[e]-this.seekSentAt[e]),e===this.cameraId){if(this.masterSession&&t.detail.status==="playing"&&(this.session&&(this.session={...this.session,state:"playing"}),!this.groupMode&&this.speed!==1)){const s=this.masterPlayer();s&&s.rate!==this.speed&&(s.rate=this.speed)}if(t.detail.status==="ended"){const s=this.currentInstant(),i=this.masterSession;s&&i&&new Date(i.playback_end_at).getTime()-s.getTime()<5e3&&this.startAt(new Date(new Date(i.playback_end_at).getTime()+1e3))}}}fmt(e){return new Intl.DateTimeFormat("he-IL",{timeZone:this.tz,hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"}).format(e)}openExport(){const e=Math.floor(this.cursor*60)/60;this.exportFrom=vs(Math.max(0,e-1)),this.exportTo=vs(Math.min(this.limitMinute,e+1)),this.estimate=null,this.exportJob=null,this.exportError="",this.exportOpen=!0}exportRange(){const e=Je(this.date,Xi(this.exportFrom),this.tz),t=Je(this.date,Xi(this.exportTo),this.tz);return t.getTime()<=e.getTime()?(this.exportError="זמן הסיום חייב להיות אחרי ההתחלה.",null):[e.toISOString().replace(/\.\d{3}Z$/,"Z"),t.toISOString().replace(/\.\d{3}Z$/,"Z")]}async runEstimate(){const e=this.exportRange();if(e){this.exportBusy=!0,this.exportError="";try{this.estimate=await Ln(this.cameraId,e[0],e[1])}catch(t){this.exportError=b(t)}finally{this.exportBusy=!1}}}async runExport(){const e=this.exportRange();if(e){this.exportBusy=!0,this.exportError="";try{const t=this.estimate??await Ln(this.cameraId,e[0],e[1]);if(this.estimate=t,!t.files){this.exportError="אין קבצים מוקלטים בטווח שנבחר.";return}this.exportJob=await mh(this.cameraId,e[0],e[1])}catch(t){this.exportError=b(t)}finally{this.exportBusy=!1}}}renderExportDialog(){const e=this.estimate,t=this.exportJob;return n`<sw-dialog ?open=${this.exportOpen} heading="ייצוא קטע" subheading=${`${this.cameraName(this.cameraId)} · ${this.date} · ${this.tz}`} @close=${()=>this.exportOpen=!1}>
+      <div class="dlg">
+        ${t?n`<div class="est"><strong>עבודת הייצוא נוצרה</strong><span>${t.files.length} קבצים · משוער ${es(t.estimate_bytes)} · מצב: ${t.state}</span><span>ה־NVR עדיין מכין את הקובץ; "מעקב והורדה" למטה עובר למסך שבו כפתור ההורדה יופיע ברגע שהוא מוכן.</span></div>`:n`
+              <div class="row">
+                <sw-field label="מ־"><input type="time" step="1" data-ltr .value=${this.exportFrom} @change=${s=>{this.exportFrom=s.target.value,this.estimate=null}} /></sw-field>
+                <sw-field label="עד"><input type="time" step="1" data-ltr .value=${this.exportTo} @change=${s=>{this.exportTo=s.target.value,this.estimate=null}} /></sw-field>
+              </div>
+              ${e?n`<div class="est">
+                    <span>${e.files} קבצי NVR בטווח · נפח משוער ${es(e.estimate_bytes)} (מקסימום ${es(e.max_bytes)}) · כיסוי ${e.coverage==="complete"?"מלא":"חלקי"}</span>
+                    ${e.first_file_at?n`<span class="ltr">${this.fmt(new Date(e.first_file_at))} → ${this.fmt(new Date(e.last_file_end_at??e.first_file_at))}</span>`:d}
+                    <span>${e.note}</span>
+                    ${e.ffmpeg?d:n`<span class="warn">ffmpeg לא זמין בשרת: הקובץ יימסר במיכל המקורי (Hikvision PS) ללא חיתוך.</span>`}
+                  </div>`:n`<div class="session">הייצוא מוריד את הקבצים המקוריים מה־NVR (לפי קובץ, כך המכשיר תומך) ואז חותך לטווח ב־keyframe. חשב נפח לפני היצירה.</div>`}
+            `}
+        ${this.exportError?n`<div class="err">${this.exportError}</div>`:d}
+      </div>
+      <div slot="footer" style="display:flex;gap:8px;justify-content:flex-end">
+        ${t?n`<sw-button variant="primary" icon="download" @click=${()=>x("/investigate/exports")}>מעקב והורדה</sw-button><sw-button @click=${()=>this.exportOpen=!1}>סגור</sw-button>`:n`<sw-button ?disabled=${this.exportBusy} @click=${()=>this.runEstimate()}>חשב נפח</sw-button>
+              <sw-button variant="primary" icon="download" ?disabled=${this.exportBusy} @click=${()=>this.runExport()}>צור ייצוא</sw-button>
+              <sw-button variant="ghost" @click=${()=>this.exportOpen=!1}>ביטול</sw-button>`}
+      </div>
+    </sw-dialog>`}renderStage(e){const t=this.live,s=!t&&!this.inRecording(this.cursor);if(this.groupMode){const a=this.members;return n`<div class="grid ${a.length===1?"one":""}">
+        ${a.map(r=>{const o=this.group?.sessions.find(u=>u.camera_id===r),l=this.group?.missing[r],p=this.drifts[r],h=this.tileStatus[r];return n`<div class="tile ${r===this.cameraId?"master":""}">
+            ${o&&!Ct.includes(o.state)?n`<sw-live-player data-camera=${r} .wsUrl=${vi(o)} mode="mse" .retry=${!1} recorded compact @player-status=${u=>this.onTilePlayer(r,u)}></sw-live-player>`:n`<div class="center"><div><sw-icon name="offline" size=${20}></sw-icon><span>${l==="gap"||l==="no_recording"?"אין הקלטה בזמן הזה":l==="playback_quota"?"מכסת הניגון מלאה":this.busy?"מכין…":this.group?"לא זמין":"לחץ על ציר הזמן"}</span></div></div>`}
+            <span class="name" data-tile=${r} data-tile-state=${this.syncStats?.members[r]?.state??""}>${this.cameraName(r)}${r===this.cameraId?n` · מוביל`:d}${o&&h==="playing"&&Number.isFinite(p)?n`<span class="drift ${Math.abs(p)>2?"bad":""}" title="סטייה מהשעון־אב, נמדדת מהפריים המוצג">${p>=0?"+":""}${p.toFixed(1)}s</span>`:d}${this.syncStats?.members[r]?.state==="late"?n`<span class="drift bad">מאחרת</span>`:d}${(this.syncStats?.members[r]?.resyncs??0)>0?n`<span class="drift">סונכרן מחדש ×${this.syncStats.members[r].resyncs}</span>`:d}</span>
+          </div>`})}
+      </div>`}const i=this.session;return n`<div class="video ${s?"gap":""}">
+      ${t&&i?n`<sw-live-player data-camera=${e.id} .wsUrl=${vi(i)} mode="mse" .retry=${!1} recorded @player-status=${a=>this.onTilePlayer(e.id,a)}></sw-live-player>`:s?n`<div class="center"><div><sw-icon name="offline" size=${32}></sw-icon><span>${this.notice||"אין הקלטה בזמן הזה: פער בכיסוי, לא מדלגים ל־Live"}</span></div></div>`:n`<div class="center"><div><sw-icon name="play" size=${32}></sw-icon><span>${this.busy?"מכין ניגון…":"לחץ על ציר הזמן (או על נגן) כדי להתחיל מהזמן שנבחר"}</span>${this.busy?d:n`<sw-button variant="primary" size="sm" icon="play" @click=${()=>this.startAt(Je(this.date,this.cursor,this.tz))}>נגן מ־${vs(this.cursor)}</sw-button>`}</div></div>`}
+      <div class="tag"><sw-badge kind=${t?"recorded":"unknown"} ?onImage=${!!t}></sw-badge><span class="nm">${e.name}</span></div>
+    </div>`}renderApi(){if(this.error&&!this.cams)return n`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${()=>this.init()}></sw-state-panel>`;if(!this.cams)return n`<sw-state-panel state="loading"></sw-state-panel>`;if(!this.cams.length)return n`<sw-state-panel state="empty" heading="אין מצלמות" hint="סנכרן מצלמות מה־NVR או בקש הרשאת ניגון."></sw-state-panel>`;const e=this.cams.find(o=>o.id===this.cameraId)??this.cams[0],t=this.masterSession,s=this.live,i=t?.time_precision??"unknown",a=this.position??Je(this.date,this.cursor,this.tz),r=this.tileStatus[this.cameraId]??"";return n`
+      <div class="filters">
+        ${this.rec?n`<sw-chip icon="history">${this.rec.segments.length} מקטעים · ${this.rec.matches} קבצים</sw-chip>`:d}
+        ${this.dayEvents.length?n`<sw-chip icon="bell" @click=${()=>x("/investigate/events",{camera:this.cameraId,date:this.date})}>${this.dayEvents.length} אירועים${this.dayEvents.every(o=>o.confidence==="inferred")?" (מהקלטות)":""}</sw-chip>`:d}
+        ${this.bookmarks.length?n`<sw-chip icon="case" data-bookmarks-count title="סימניות מתיקי חקירה על ציר הזמן · Alt+לחיצה על הציר מוסיפה סימנייה">${this.bookmarks.length} סימניות</sw-chip>`:n`<span class="session" data-bookmarks-hint>אין עדיין סימניות · "הוסף לתיק" מסמן את הרגע הנוכחי, או Alt+לחיצה על הציר מסמנת נקודה אחרת</span>`}
+        ${this.activeBookmark?n`<sw-chip selected icon="case" data-bookmark-active @click=${()=>x(`/investigate/cases/${this.activeBookmark.case_id}`)}>תיק „${this.activeBookmark.case_title}”${this.activeBookmark.note?` · ${this.activeBookmark.note}`:""} · ${Tn[this.activeBookmark.preservation]} · פתח</sw-chip>`:d}
+        ${this.rec?.coverage==="partial"?n`<span class="warn">כיסוי חלקי: ${this.rec.note}</span>`:d}
+        ${this.loadingRec?n`<span class="session">מחפש הקלטות…</span>`:d}
+        ${this.notice?n`<span class="warn">${this.notice}</span>`:d}
+        ${this.error?n`<span class="err">${this.error}</span>`:d}
+        <span class="grow"></span>
+        <sw-button size="sm" icon="case" data-add-to-case title="סימנייה בנקודה הנוכחית · Alt+לחיצה על הציר מסמנת נקודה אחרת" ?disabled=${!this.cameraId} @click=${()=>this.casePick={kind:"clip",camera_id:this.cameraId,...wa(Je(this.date,this.cursor,this.tz))}}>הוסף לתיק</sw-button>
+        <sw-button size="sm" icon="download" ?disabled=${!this.rec?.segments.length} @click=${()=>this.openExport()}>ייצוא</sw-button>
+        <a href="#/explore/floors/f0"><sw-button size="sm" icon="map">במפה</sw-button></a>
+      </div>
+      <div class="compare">
+        <span>השוואה (עד 4):</span>
+        ${this.cams.filter(o=>o.id!==this.cameraId).map(o=>n`<sw-chip ?selected=${this.extra.includes(o.id)} @click=${()=>this.toggleExtra(o.id)}>${o.name}</sw-chip>`)}
+        ${this.groupMode?n`<span>· שעון־אב אחד לכל האריחים (חסם פתיחה, ואז חציון זמני הפריימים המוצגים; מתחת לשלושה אריחים — המוביל); הסטייה של כל אריח נמדדת מול השעון, p95 על החלון האחרון; אריח מאחר מסונכרן לבד ואינו מזיז את האחרים (best effort, ללא עוגן זמן מאומת)</span>`:d}
+      </div>
+      <div class="stage">
+        ${this.renderStage(e)}
+        <span class="stamp">${this.date} ${this.fmt(a)} · ${{verified:"מאומת",keyframe_limited:"דיוק לפי keyframe",estimated:"משוער",unknown:"—"}[i]}${!this.groupMode&&this.speed!==1?n` · <span data-speed-active=${this.speed}>${this.speed}× הילוך איטי</span>`:d}${this.paused&&!this.groupMode?n` · <span data-paused>מושהה · צעד־פריים</span>`:d}${this.groupMode?n` · <span data-sync-quality=${this.syncStats?.quality??"waiting"} data-sync-p95=${this.syncStats?.p95??""} data-sync-samples=${this.syncStats?.samples??0}>${this.syncLabel()}</span>`:""}</span>
+        <div class="bar"><div class="inner">
+          <sw-button variant="ghost" size="sm" iconOnly icon=${this.paused?"play":"pause"} label=${this.paused?"המשך":"השהה"} data-pause ?disabled=${!s||r!=="playing"} @click=${()=>this.togglePause()}></sw-button>
+          <sw-button variant="ghost" size="sm" iconOnly icon="back10" label="10 שניות אחורה" ?disabled=${!s||this.busy} @click=${()=>this.nudge(-10)}></sw-button>
+          <sw-button variant="ghost" size="sm" iconOnly icon="forward10" label="10 שניות קדימה" ?disabled=${!s||this.busy} @click=${()=>this.nudge(10)}></sw-button>
+          <span class="sep"></span>
+          ${[.25,.5,1,2,4].map(o=>{const l=(t?.capabilities.supported_speeds??[1]).includes(o),p=this.masterPlayer()?.transport==="mse",h=o===1||!this.groupMode&&l&&(o>1||p),u=h?o<1?"הילוך איטי: המאגר מתמלא בזמן אמת ונצרך לאט יותר — זמן המקור נשאר מדויק":"":this.groupMode?"בסנכרון רב־מצלמות נתמך רק 1×":o>1?"לא נתמך במסלול הזה: הזרם מגיע מה־NVR בזמן אמת; מהירות מוגברת דורשת מקור ששולח מהר מזמן אמת":"הילוך איטי זמין רק בנתיב MSE";return n`<button class="q ${this.speed===o?"on":""}" data-speed=${o} ?disabled=${!h} title=${u} @click=${()=>this.setSpeed(o)}>${o}×</button>`})}
+          <span class="sep"></span>
+          <button class="q" data-frame-step="-1" ?disabled=${!s||this.groupMode||!this.paused} title=${this.groupMode?"צעד־פריים זמין במצלמה בודדת":this.paused?"פריים אחד אחורה (בתוך המאגר)":"צעד־פריים זמין בהשהיה"} @click=${()=>this.stepFrame(-1)}>‹ פריים</button>
+          <button class="q" data-frame-step="1" ?disabled=${!s||this.groupMode||!this.paused} title=${this.groupMode?"צעד־פריים זמין במצלמה בודדת":this.paused?"פריים אחד קדימה (בתוך המאגר)":"צעד־פריים זמין בהשהיה"} @click=${()=>this.stepFrame(1)}>פריים ›</button>
+          <span class="sep"></span>
+          <sw-button variant="ghost" size="sm" iconOnly icon="expand" label="מסך מלא" ?disabled=${!s} @click=${()=>this.masterPlayer()?.fullscreen()}></sw-button>
+        </div></div>
+      </div>
+      <div class="tlwrap">
+        <sw-timeline .segments=${this.segmentsMin} .events=${this.markers} .bookmarks=${this.bookmarkMarkers} .cursor=${this.cursor} .limit=${this.limitMinute} precision=${i} @seek=${this.onSeek} @bookmark-click=${o=>this.activeBookmark=this.bookmarks.find(l=>l.id===o.detail.id)??null} @scrub=${this.onScrub} @hover=${this.onTlHover} @hover-end=${this.onTlHoverEnd}></sw-timeline>
+        ${this.preview?n`<div class="tlpreview" data-tl-preview style="left:${Math.max(104,Math.min(this.preview.width-104,this.preview.x))}px">
+              ${this.preview.failed?n`<div class="none">אין פריים בזמן זה</div>`:n`<img src=${this.preview.url} alt="" @error=${()=>{this.preview&&(this.preview={...this.preview,failed:!0})}} />`}
+              <span>${rt(this.preview.minute)}</span>
+            </div>`:d}
+      </div>
+      <sw-case-picker .item=${this.casePick} subheading=${`${this.cams?.find(o=>o.id===this.cameraId)?.name??""} · ${this.date} ${rt(this.cursor)}`} @added=${()=>void this.loadBookmarks()} @close=${()=>this.casePick=null}></sw-case-picker>
+      <div class="session">
+        <span>Session: ${t?`${t.id} · דור ${this.groupMode?this.group?.generation??t.generation:t.generation} · ${t.state}`:"אין"}</span>
+        <span>נגן: ${r||"—"}${this.paused?" (מושהה)":""}</span>
+        <span>אזור זמן: <span class="ltr">${this.tz}</span></span>
+        <span>כיסוי: ${this.rec?this.rec.coverage==="complete"?"מלא":this.rec.coverage==="partial"?"חלקי":"לא ידוע":"—"}</span>
+        ${t?n`<span>סוף הטווח: ${this.fmt(new Date(t.playback_end_at))}</span>`:d}
+      </div>
+      ${this.renderExportDialog()}
+    `}seekDemo(e){this.cursor=e.detail.minute,this.generation+=1}renderDemo(){const e=X.find(i=>i.id===this.demoCamera)??X[0],t=!ui.some(i=>this.cursor>=i.startMin&&this.cursor<=i.endMin),s=ot.filter(i=>i.minuteOfDay<1440).filter(i=>this.filter==="all"||i.type===this.filter).map(i=>({minute:i.minuteOfDay,kind:i.type,label:i.title}));return n`
+      <div class="video ${t?"gap":""}">
+        ${t?n`<div class="center"><div><sw-icon name="offline" size=${32}></sw-icon><span>אין הקלטה בזמן הזה: פער בכיסוי, לא מדלגים ל־Live</span></div></div>`:n`<sw-scene kind=${tt[e.id]??"lobby"}></sw-scene><div class="shade"></div><span class="demo">דמו · אין שרת מחובר</span>`}
+        <div class="tag"><sw-badge kind=${t?"unknown":"recorded"} ?onImage=${!t}></sw-badge><span class="nm">${e.name}</span></div>
+        <span class="stamp">2026-09-14 ${De(this.cursor)}:00 · actual: ${t?"—":De(this.cursor)}</span>
+        <div class="bar"><div class="inner">
+          <sw-button variant="ghost" size="sm" iconOnly icon=${this.playing?"pause":"play"} label=${this.playing?"השהה":"נגן"} @click=${()=>this.playing=!this.playing}></sw-button>
+          <sw-button variant="ghost" size="sm" iconOnly icon="back10" label="10 שניות אחורה"></sw-button>
+          <sw-button variant="ghost" size="sm" iconOnly icon="forward10" label="10 שניות קדימה"></sw-button>
+          <span class="sep"></span>
+          ${[1,2,4].map(i=>n`<button class="q ${this.speed===i?"on":""}" @click=${()=>this.speed=i}>${i}×</button>`)}
+          <span class="sep"></span>
+          <sw-button variant="ghost" size="sm" iconOnly icon="aperture" label="צילום מהקלטה"></sw-button>
+          <button class="q on">1080p</button>
+          <sw-button variant="ghost" size="sm" iconOnly icon="expand" label="מסך מלא"></sw-button>
+        </div></div>
+      </div>
+      <sw-timeline .segments=${ui} .events=${s} .cursor=${this.cursor} precision="estimated" @seek=${this.seekDemo}></sw-timeline>
+      <div class="filters">
+        <sw-chip ?selected=${this.filter==="all"} @click=${()=>this.filter="all"}>הכל</sw-chip>
+        <sw-chip dot="#ef4444" ?selected=${this.filter==="motion"} @click=${()=>this.filter="motion"}>תנועה</sw-chip>
+        <sw-chip dot="#2f6bff" ?selected=${this.filter==="person"} @click=${()=>this.filter="person"}>אדם</sw-chip>
+        <sw-chip dot="#22c55e" ?selected=${this.filter==="vehicle"} @click=${()=>this.filter="vehicle"}>רכב</sw-chip>
+        <sw-chip dot="#8b5cf6" ?selected=${this.filter==="door"} @click=${()=>this.filter="door"}>דלת</sw-chip>
+        <span class="grow"></span>
+        <sw-button size="sm" icon="case">הוסף לתיק</sw-button>
+        <a href="#/investigate/floors/f0/history"><sw-button size="sm" icon="map">במפה בזמן הזה</sw-button></a>
+      </div>
+      <div class="session">
+        <span>Session: ${this.playing?"playing":"paused"} · ${this.speed}×</span>
+        <span>דור ${this.generation}</span>
+        <span>דיוק זמן: משוער</span>
+        <span>כיסוי: ${t?"פער":"מלא"} · 6 מקטעים ביום</span>
+        <span>WebRTC → MSE</span>
+        ${t?d:n`<span>מצלמה: ${e.name}</span>`}
+      </div>
+    `}render(){const e=$(),t=e?this.cams?.find(o=>o.id===this.cameraId):X.find(o=>o.id===this.demoCamera)??X[0],s=t?.name??"הקלטות",i=e?`${this.date} ${vs(this.cursor)} · אזור זמן ${this.tz}`:`14.09.2026 ${De(this.cursor)} · אזור זמן האתר Asia/Jerusalem · נתוני הדגמה`,a=e?"הקלטות":`הקלטות | ${t?.floor??""}`,r=e?Xe(new Date,this.tz):"2026-09-14";return n`
+      <sw-page heading=${s} subheading=${i} crumbs=${a} wide>
+        <div slot="actions" class="pick">
+          ${e?n`<sw-field><select aria-label="מצלמה" @change=${o=>this.selectCamera(o.target.value)}>${(this.cams??[]).map(o=>n`<option value=${o.id} ?selected=${o.id===this.cameraId}>${o.name}</option>`)}</select></sw-field>`:n`<sw-field><select aria-label="מצלמה" @change=${o=>this.demoCamera=o.target.value}>${X.map(o=>n`<option value=${o.id} ?selected=${o.id===this.demoCamera}>${o.name}</option>`)}</select></sw-field>`}
+          <sw-field><input type="date" .value=${e?this.date:"2026-09-14"} max=${r} data-ltr aria-label="תאריך" @change=${o=>e&&this.setDate(o.target.value)} /></sw-field>
+          <sw-field style="inline-size:132px"><input type="time" step="1" .value=${e?vs(this.cursor):De(this.cursor)} data-ltr aria-label="שעה" @change=${o=>{const l=o.target.value;if(e)this.onSeek(new CustomEvent("seek",{detail:{minute:Xi(l)}}));else{const[p,h]=l.split(":").map(Number);this.cursor=p*60+h,this.generation+=1}}} /></sw-field>
+        </div>
+        ${e?d:n`<sw-button slot="actions" variant="ghost" iconOnly icon="download" label="ייצוא קטע"></sw-button><sw-button slot="actions" variant="ghost" iconOnly icon="link" label="שיתוף"></sw-button><sw-button slot="actions" variant="ghost" iconOnly icon="more" label="עוד"></sw-button>`}
+        ${e?this.renderApi():this.renderDemo()}
+      </sw-page>
+    `}};L.styles=A`
+    .pick {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .pick sw-field {
+      inline-size: 150px;
+    }
+    .video {
+      position: relative;
+      aspect-ratio: 16 / 9;
+      border-radius: var(--sw-r-lg);
+      overflow: hidden;
+      color: #fff;
+      background: #0f1729;
+      box-shadow: var(--sw-shadow-2);
+      /* 0.1.68: the whole page (controls + timeline) fits the window - no scrolling to reach the timeline (owner 3.5) */
+      max-block-size: max(200px, calc(100dvh - 560px));
+      margin-inline: auto;
+      inline-size: 100%;
+    }
+    .video sw-scene,
+    .video sw-live-player {
+      position: absolute;
+      inset: 0;
+    }
+    .video.gap {
+      background: var(--sw-surface-3);
+      color: var(--sw-text-2);
+      box-shadow: none;
+      border: 1px solid var(--sw-border);
+    }
+    .grid {
+      display: grid;
+      gap: 6px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      background: #0f1729;
+      border-radius: var(--sw-r-lg);
+      overflow: hidden;
+      box-shadow: var(--sw-shadow-2);
+      padding: 6px;
+    }
+    .grid.one {
+      grid-template-columns: 1fr;
+    }
+    .tile {
+      position: relative;
+      aspect-ratio: 16 / 9;
+      background: #111a2e;
+      border-radius: 6px;
+      overflow: hidden;
+      color: #fff;
+    }
+    .tile sw-live-player {
+      position: absolute;
+      inset: 0;
+    }
+    .tile.master {
+      outline: 2px solid var(--sw-accent);
+      outline-offset: -2px;
+    }
+    .tile .name {
+      position: absolute;
+      inset-inline-start: 8px;
+      inset-block-start: 6px;
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-semibold);
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+      z-index: 2;
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .tile .drift {
+      font-family: var(--sw-font-mono);
+      font-weight: 400;
+      direction: ltr;
+      background: rgba(17, 24, 39, 0.55);
+      border-radius: 4px;
+      padding: 0 5px;
+    }
+    .tile .drift.bad {
+      background: rgba(239, 68, 68, 0.7);
+    }
+    .shade {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(0, 0, 0, 0.12) 0%, rgba(0, 0, 0, 0) 25%, rgba(0, 0, 0, 0) 60%, rgba(0, 0, 0, 0.5) 100%);
+      pointer-events: none;
+    }
+    .tag {
+      position: absolute;
+      inset-inline-start: 12px;
+      inset-block-start: 10px;
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      z-index: 2;
+    }
+    .tag .nm {
+      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-sm);
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+    }
+    .video.gap .tag .nm {
+      text-shadow: none;
+    }
+    .demo {
+      position: absolute;
+      inset-inline-end: 12px;
+      inset-block-start: 10px;
+      font-size: 10px;
+      background: rgba(17, 24, 39, 0.55);
+      color: #fff;
+      border-radius: 4px;
+      padding: 2px 7px;
+    }
+    .stamp {
+      position: absolute;
+      inset-inline-start: 12px;
+      inset-block-end: 58px;
+      font-family: var(--sw-font-mono);
+      font-size: var(--sw-fs-xs);
+      direction: ltr;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+      z-index: 2;
+    }
+    .video.gap .stamp {
+      text-shadow: none;
+    }
+    .center {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      font-size: var(--sw-fs-sm);
+      z-index: 1;
+    }
+    .center > div {
+      display: grid;
+      justify-items: center;
+      gap: 6px;
+      max-inline-size: 420px;
+    }
+    .tile .center {
+      font-size: var(--sw-fs-xs);
+      color: rgba(255, 255, 255, 0.75);
+    }
+    .bar {
+      position: absolute;
+      inset-inline: 0;
+      inset-block-end: 10px;
+      display: flex;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 3;
+    }
+    .bar .inner {
+      pointer-events: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      padding: 4px 8px;
+      border-radius: var(--sw-r-pill);
+      background: rgba(17, 24, 39, 0.72);
+      backdrop-filter: blur(8px);
+      color: #fff;
+      box-shadow: var(--sw-shadow-2);
+    }
+    .bar sw-button {
+      --sw-text-2: #fff;
+      --sw-text: #fff;
+      --sw-surface-3: rgba(255, 255, 255, 0.14);
+    }
+    .bar .q {
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-semibold);
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      border-radius: var(--sw-r-pill);
+      padding: 3px 9px;
+      margin-inline: 2px;
+      background: transparent;
+      color: #fff;
+      font-family: inherit;
+      cursor: pointer;
+    }
+    .bar .q.on {
+      background: var(--sw-accent);
+      border-color: var(--sw-accent);
+    }
+    .bar .sep {
+      inline-size: 1px;
+      block-size: 18px;
+      background: rgba(255, 255, 255, 0.25);
+      margin-inline: 4px;
+    }
+    .stage {
+      position: relative;
+    }
+    .stage .bar {
+      inset-block-end: 12px;
+    }
+    .stage .stamp {
+      inset-block-end: 60px;
+      inset-inline-start: 14px;
+    }
+    .filters {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .filters .grow {
+      flex: 1;
+    }
+    .session {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .warn {
+      font-size: var(--sw-fs-xs);
+      color: #b45309;
+    }
+    .err {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-danger);
+    }
+    .tlwrap {
+      position: relative;
+    }
+    .tlpreview {
+      position: absolute;
+      inset-block-end: calc(100% + 6px);
+      transform: translateX(-50%);
+      inline-size: 200px;
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      box-shadow: var(--sw-shadow-3);
+      padding: 4px;
+      pointer-events: none;
+      z-index: var(--sw-z-map-ui);
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      text-align: center;
+      direction: ltr;
+    }
+    .tlpreview img {
+      display: block;
+      inline-size: 100%;
+      aspect-ratio: 16 / 9;
+      object-fit: cover;
+      border-radius: var(--sw-r-sm);
+      background: var(--sw-surface-3);
+    }
+    .tlpreview .none {
+      display: grid;
+      place-items: center;
+      aspect-ratio: 16 / 9;
+      background: var(--sw-surface-3);
+      border-radius: var(--sw-r-sm);
+      direction: rtl;
+    }
+    .compare {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .dlg {
+      display: grid;
+      gap: 10px;
+      font-size: var(--sw-fs-sm);
+      min-inline-size: min(420px, 80vw);
+    }
+    .dlg .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .est {
+      background: var(--sw-surface-2);
+      border-radius: var(--sw-r-md);
+      padding: 8px 10px;
+      font-size: var(--sw-fs-xs);
+      display: grid;
+      gap: 4px;
+    }
+    .ltr {
+      direction: ltr;
+      unicode-bidi: isolate;
+    }
+    /* full-system sweep: on a phone the floating control pill (frame step, speeds, skip) was wider than the
+       screen and its end buttons were clipped; it wraps now, and speeds the relay refuses anyway (2×/4×) are
+       dropped there instead of taking room as disabled buttons. */
+    @media (max-width: 767px) {
+      .bar .inner {
+        flex-wrap: wrap;
+        justify-content: center;
+        row-gap: 4px;
+        max-inline-size: calc(100% - 16px);
+      }
+      .bar .q[disabled] {
+        display: none;
+      }
+    }
+  `;B([g()],L.prototype,"cameraId",2);B([g()],L.prototype,"at",2);B([g()],L.prototype,"extraParam",2);B([c()],L.prototype,"demoCamera",2);B([c()],L.prototype,"cursor",2);B([c()],L.prototype,"generation",2);B([c()],L.prototype,"playing",2);B([c()],L.prototype,"speed",2);B([c()],L.prototype,"filter",2);B([c()],L.prototype,"cams",2);B([c()],L.prototype,"tz",2);B([c()],L.prototype,"date",2);B([c()],L.prototype,"rec",2);B([c()],L.prototype,"dayEvents",2);B([c()],L.prototype,"bookmarks",2);B([c()],L.prototype,"activeBookmark",2);B([c()],L.prototype,"loadingRec",2);B([c()],L.prototype,"session",2);B([c()],L.prototype,"group",2);B([c()],L.prototype,"extra",2);B([c()],L.prototype,"casePick",2);B([c()],L.prototype,"preview",2);B([c()],L.prototype,"busy",2);B([c()],L.prototype,"error",2);B([c()],L.prototype,"notice",2);B([c()],L.prototype,"tileStatus",2);B([c()],L.prototype,"drifts",2);B([c()],L.prototype,"clock",2);B([c()],L.prototype,"barrier",2);B([c()],L.prototype,"syncStats",2);B([c()],L.prototype,"paused",2);B([c()],L.prototype,"scrubbing",2);B([c()],L.prototype,"position",2);B([c()],L.prototype,"exportOpen",2);B([c()],L.prototype,"exportFrom",2);B([c()],L.prototype,"exportTo",2);B([c()],L.prototype,"estimate",2);B([c()],L.prototype,"exportJob",2);B([c()],L.prototype,"exportBusy",2);B([c()],L.prototype,"exportError",2);L=B([P("investigate-playback")],L);var xh=Object.defineProperty,kh=Object.getOwnPropertyDescriptor,Pt=(e,t,s,i)=>{for(var a=i>1?void 0:i?kh(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&xh(t,s,a),a};const Bn="sw.sync.recent";function Qi(e){const t=s=>String(s).padStart(2,"0");return`${e.getFullYear()}-${t(e.getMonth()+1)}-${t(e.getDate())}T${t(e.getHours())}:${t(e.getMinutes())}:${t(e.getSeconds())}`}let st=class extends M{constructor(){super(...arguments),this.cursor=615,this.playing=!1,this.cams=null,this.picked=[],this.when=Qi(new Date(Date.now()-10*6e4)),this.recent=[],this.error=""}connectedCallback(){if(super.connectedCallback(),!!$()){try{this.recent=JSON.parse(localStorage.getItem(Bn)??"[]")}catch{this.recent=[]}this.load()}}async load(){try{const e=await Be();this.cams=e.cameras.filter(t=>t.enabled&&t.can_view_live!==!1),this.error=""}catch(e){this.error=b(e),this.cams=[]}}toggle(e){this.picked=this.picked.includes(e)?this.picked.filter(t=>t!==e):this.picked.length>=4?this.picked:[...this.picked,e]}launch(e=this.picked,t){if(e.length<2)return;const s=t??new Date(this.when).toISOString(),i={cameras:e,at:s,opened:new Date().toISOString()},a=this.recent.filter(r=>r.cameras.join(",")!==e.join(","));this.recent=[i,...a].slice(0,6);try{localStorage.setItem(Bn,JSON.stringify(this.recent))}catch{}x("/investigate/playback",{camera:e[0],extra:e.slice(1).join(","),t:s})}name(e){return this.cams?.find(t=>t.id===e)?.name??e}renderApi(){const e=this.cams;return n`
+      <sw-page heading="ניגון מסונכרן" subheading="בחר 2–4 מצלמות וזמן — ההשוואה נפתחת במסך ההקלטות עם שעון ייחוס אחד ומדידת סטייה בין המקורות" wide>
+        ${this.error?n`<sw-state-panel state="error" heading="המצלמות לא נטענו" hint=${this.error}></sw-state-panel>`:d}
+        ${e===null?n`<sw-state-panel state="loading" heading="טוען מצלמות…"></sw-state-panel>`:n`
+            <sw-card heading="מצלמות להשוואה" subheading=${`${this.picked.length} מתוך 4 · הראשונה שנבחרת היא המובילה (שעון הייחוס)`}>
+              <div class="filters" data-sync-cameras>
+                ${e.map(t=>n`<sw-chip ?selected=${this.picked.includes(t.id)} ?disabled=${!this.picked.includes(t.id)&&this.picked.length>=4} data-sync-camera=${t.id} dot=${t.status==="online"?"#22c55e":"#ef4444"} @click=${()=>this.toggle(t.id)}>${t.name}</sw-chip>`)}
+              </div>
+              ${this.picked.length?n`<div class="picks">${this.picked.map((t,s)=>n`<div class="pick" data-sync-pick=${t}>
+                    <img src=${et(t)} alt="" loading="lazy" @error=${i=>i.target.style.visibility="hidden"} />
+                    <div class="cap"><span>${this.name(t)}</span>${s===0?n`<sw-badge kind="live" label="מובילה"></sw-badge>`:d}</div>
+                  </div>`)}</div>`:n`<div class="note">עדיין לא נבחרו מצלמות. אפשר גם להתחיל מהמפה: בחירה מרובה › "ניגון מסונכרן".</div>`}
+            </sw-card>
+            <sw-card heading="זמן התחלה" subheading="זמן מקומי של הדפדפן; ההקלטה נפתחת מהפריים הקרוב ביותר">
+              <div class="transport">
+                <sw-field><input type="datetime-local" step="1" data-ltr data-sync-when .value=${this.when} aria-label="זמן" @change=${t=>this.when=t.target.value} /></sw-field>
+                <sw-button size="sm" @click=${()=>this.when=Qi(new Date(Date.now()-10*6e4))}>לפני 10 דק׳</sw-button>
+                <sw-button size="sm" @click=${()=>this.when=Qi(new Date(Date.now()-60*6e4))}>לפני שעה</sw-button>
+                <span class="grow"></span>
+                <sw-button variant="primary" icon="play" data-sync-launch ?disabled=${this.picked.length<2} @click=${()=>this.launch()}>פתח השוואה (${this.picked.length})</sw-button>
+              </div>
+              <div class="note">בהשוואה מהירויות שונות מ־1× כבויות; אריח מאחר מסונכרן מחדש לבד וסטיית ה־p95 מוצגת בחותמת. מקור בלי הקלטה בזמן הזה מוצג כ"אין הקלטה", לא כמסונכרן.</div>
+            </sw-card>
+            ${this.recent.length?n`<sw-card heading="השוואות אחרונות" subheading="נשמר בדפדפן הזה בלבד">
+                  ${this.recent.map(t=>n`<div class="recent" data-sync-recent>
+                    <span>${t.cameras.map(s=>this.name(s)).join(" · ")}</span>
+                    <span class="ltr note">${new Date(t.at).toLocaleString("he-IL")}</span>
+                    <sw-button size="sm" icon="play" @click=${()=>this.launch(t.cameras,t.at)}>פתח</sw-button>
+                  </div>`)}
+                </sw-card>`:d}
+          `}
+      </sw-page>
+    `}render(){if($())return this.renderApi();const e=[{cam:X[0],drift:"+0.2s",state:"recorded"},{cam:X[9],drift:"-0.4s",state:"recorded"},{cam:X[3],drift:"gap",state:"unknown"},{cam:X[1],drift:"buffering",state:"stale"}];return n`
+      <sw-page heading="מרכז שליטה" subheading="ניטור חי עם ניגון מסונכרן · 4 מקורות · שעון ייחוס אחד · נתוני הדגמה" wide>
+        <sw-field slot="actions"><select aria-label="תצוגה"><option>כל המסכים</option><option>כניסה + חצר</option></select></sw-field>
+        <sw-button slot="actions" variant="primary" icon="case">שמור כתיק</sw-button>
+        <div class="grid">
+          ${e.map(t=>n`<div class="tile">
+              <span class="drift">${t.drift}</span>
+              <sw-camera-tile name=${t.cam.name} state=${t.state} scene=${tt[t.cam.id]??"lobby"}></sw-camera-tile>
+            </div>`)}
+        </div>
+        <div class="transport">
+          <sw-field><input type="datetime-local" value=${`2026-09-14T${De(this.cursor)}`} data-ltr aria-label="זמן" @change=${t=>{const s=t.target.value.split("T")[1]??"10:15",[i,a]=s.split(":").map(Number);this.cursor=i*60+a}} /></sw-field>
+          <sw-button iconOnly icon="mic" label="דיבור"></sw-button>
+          <sw-button iconOnly icon="back10" label="אחורה"></sw-button>
+          <sw-button variant="primary" iconOnly icon=${this.playing?"pause":"play"} label=${this.playing?"השהה הכל":"נגן הכל"} @click=${()=>this.playing=!this.playing}></sw-button>
+          <sw-button iconOnly icon="forward10" label="קדימה"></sw-button>
+          <sw-chip selected>1×</sw-chip><sw-chip>2×</sw-chip>
+          <span class="grow"></span>
+          <sw-badge kind="stale" label="Best effort: אין מיפוי PTS→UTC מאומת"></sw-badge>
+          <a href="#/live/wall"><sw-button variant="primary" size="sm" icon="live">Live</sw-button></a>
+        </div>
+        <sw-timeline .segments=${ui} .events=${ot.slice(0,4).map(t=>({minute:t.minuteOfDay,kind:t.type,label:t.title}))} .cursor=${this.cursor} precision="estimated" @seek=${t=>this.cursor=t.detail.minute}></sw-timeline>
+        <div class="filters">
+          <sw-chip selected icon="check">כל המצלמות</sw-chip>
+          <sw-chip dot="#ef4444">תנועה</sw-chip><sw-chip dot="#2f6bff">אדם</sw-chip><sw-chip dot="#22c55e">רכב</sw-chip><sw-chip dot="#8b5cf6">אחר</sw-chip>
+        </div>
+        <div class="note">מקור שאינו מוכן מוצג במפורש (buffering / gap) ואינו מוצג כמסונכרן. יעד הנדסי: סטייה עד שנייה ב־95% מהדגימות, לאחר בדיקה עם אירוע חזותי משותף.</div>
+      </sw-page>
+    `}};st.styles=A`
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .tile {
+      position: relative;
+    }
+    .drift {
+      position: absolute;
+      inset-inline-end: 8px;
+      inset-block-end: 8px;
+      z-index: 2;
+      font-family: var(--sw-font-mono);
+      font-size: 10px;
+      background: rgba(17, 24, 39, 0.6);
+      color: #fff;
+      padding: 1px 7px;
+      border-radius: var(--sw-r-pill);
+      direction: ltr;
+    }
+    .transport {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .transport .grow {
+      flex: 1;
+    }
+    .transport sw-field {
+      inline-size: 170px;
+    }
+    .filters {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .note {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .picks {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 10px;
+      margin-block-start: 10px;
+    }
+    .pick img {
+      inline-size: 100%;
+      aspect-ratio: 16 / 9;
+      object-fit: cover;
+      border-radius: 8px;
+      background: var(--sw-surface-3);
+      display: block;
+    }
+    .pick .cap {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+      font-size: var(--sw-fs-xs);
+      margin-block-start: 4px;
+    }
+    .recent {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 0;
+      border-block-end: 1px solid var(--sw-border);
+      font-size: var(--sw-fs-sm);
+    }
+    .recent:last-child {
+      border-block-end: 0;
+    }
+    .recent > span:first-child {
+      flex: 1;
+      min-inline-size: 0;
+    }
+    @media (max-width: 767px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  `;Pt([c()],st.prototype,"cursor",2);Pt([c()],st.prototype,"playing",2);Pt([c()],st.prototype,"cams",2);Pt([c()],st.prototype,"picked",2);Pt([c()],st.prototype,"when",2);Pt([c()],st.prototype,"recent",2);Pt([c()],st.prototype,"error",2);st=Pt([P("investigate-sync")],st);var _h=Object.defineProperty,zh=Object.getOwnPropertyDescriptor,de=(e,t,s,i)=>{for(var a=i>1?void 0:i?zh(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&_h(t,s,a),a};const ea=10;function Sh(e){return e==="person"||e==="vehicle"||e==="motion"||e==="line"||e==="offline"||e==="door"?e:"motion"}let ie=class extends M{constructor(){super(...arguments),this.floorId="f0",this.at="",this.camera="",this.minute=615,this.tz="Asia/Jerusalem",this.date="",this.tree=null,this.bundle=null,this.events=[],this.recordings=new Map,this.selectedId=null,this.loading=!1,this.error="",this.frameAt="",this.frameFailed=!1,this.casePick=null,this.geometry=null,this.geomSeq=0,this.frameTimer=0}connectedCallback(){super.connectedCallback(),$()&&this.init()}updated(e){$()&&(e.has("floorId")&&e.get("floorId")!==void 0||e.has("at")&&e.get("at")!==void 0)&&this.init()}async init(){this.loading=!0,this.error="";try{const[e,t]=await Promise.all([Ve(),this.tree?Promise.resolve(this.tree):At()]);if(this.tz=e["time.zone"]??this.tz,this.tree=t,$()&&this.floors.length&&!this.floors.some(i=>i.id===this.floorId)){const i=new URLSearchParams(window.location.hash.split("?")[1]??"").toString();window.location.replace(`#/investigate/floors/${this.floors[0].id}/history${i?`?${i}`:""}`);return}const s=this.at?new Date(this.at):new Date;if(this.date=Xe(s,this.tz),this.minute=ne(s,this.tz),this.bundle=await Bs(this.floorId,!1,this.instant.toISOString().replace(/\.\d{3}Z$/,"Z")),this.geometry=null,this.updateGeometry(),this.scheduleFrame(),this.camera){const i=this.bundle.anchors.find(a=>a.resource_type==="camera"&&a.resource_id===this.camera);this.selectedId=i?.id??null}await this.loadDay()}catch(e){this.error=b(e)}finally{this.loading=!1}}async loadDay(){const e=this.bundle;if(!e)return;const t=e.anchors.filter(r=>r.resource_type==="camera").map(r=>r.resource_id),[s,i]=await Promise.all([Ci({date:this.date,limit:1e3}).then(r=>r.events.filter(o=>o.camera_id&&t.includes(o.camera_id))).catch(()=>[]),Promise.allSettled(t.map(r=>Fr(r,this.date)))]);this.events=s;const a=new Map;t.forEach((r,o)=>{const l=i[o];a.set(r,l.status==="fulfilled"?l.value:null)}),this.recordings=a}get instant(){return Je(this.date,this.minute,this.tz)}segmentsFor(e){const t=this.recordings.get(e);return t?t.segments.map(s=>{const i=ne(new Date(s.start_at),this.tz);let a=ne(new Date(s.end_at),this.tz);return a<i&&(a=1440),{startMin:i,endMin:a,kind:s.kind==="continuous"?"continuous":"motion"}}):null}coverageAt(e){const t=this.segmentsFor(e);if(!t)return{state:"unknown"};const s=t.find(i=>this.minute>=i.startMin&&this.minute<=i.endMin);return s?{state:"historic",segment:s}:{state:"unknown"}}eventsNear(e,t=ea){const s=this.instant.getTime();return this.events.filter(i=>(!e||i.camera_id===e)&&Math.abs(new Date(i.occurred_at).getTime()-s)<=t*60*1e3).sort((i,a)=>Math.abs(new Date(i.occurred_at).getTime()-s)-Math.abs(new Date(a.occurred_at).getTime()-s))}get apiMarkers(){const e=this.bundle;return e?e.anchors.map(t=>{if(t.resource_type==="camera"){const a=this.coverageAt(t.resource_id),r=this.eventsNear(t.resource_id,5).length,o=t.camera?.name??t.label??t.resource_id;return{id:t.id,kind:"camera",label:r?`${o} · ${r} אירועים`:o,x:t.position.x,y:t.position.y,rotation:t.rotation_degrees,fov:t.field_of_view_degrees??void 0,radius:t.coverage_radius??void 0,polygon:t.coverage_polygon?t.coverage_polygon.map(([l,p])=>({x:l,y:p})):void 0,labelPos:t.label_pos??void 0,state:a.state}}const s=t.entity?.state_at,i=_s(t);return{id:t.id,kind:Ei(t.layer_id,t.entity?.domain),label:s?.known&&s.state?`${i} · ${zt({...t.entity??{domain:"",unit:null,device_class:null,attributes:{}},state:s.state})}`:i,x:t.position.x,y:t.position.y,state:s?.known?"historic":"unknown"}}):[]}get selectedAnchor(){return this.bundle?.anchors.find(e=>e.id===this.selectedId)??null}get limitMinute(){return this.date===Xe(new Date,this.tz)?ne(new Date,this.tz):1440}setMinute(e){this.minute=Math.max(0,Math.min(this.limitMinute,e)),this.scheduleFrame()}scheduleFrame(){window.clearTimeout(this.frameTimer),this.frameTimer=window.setTimeout(()=>{this.frameAt=this.instant.toISOString().replace(/\.\d{3}Z$/,"Z"),this.frameFailed=!1,this.ensureVersion()},600)}async updateGeometry(){const e=this.bundle,t=++this.geomSeq;if(!e||e.source!=="api"||!e.planVersionId){this.geometry=null;return}const s=this.instant.toISOString().replace(/\.\d{3}Z$/,"Z"),i=e.history==="exact"?await Ed(e.planVersionId,s):await Da(e);t===this.geomSeq&&(this.geometry=i)}async ensureVersion(){const e=this.bundle;if(!e||e.source!=="api"||!e.at)return;const t=this.instant.toISOString().replace(/\.\d{3}Z$/,"Z");if(e.history==="current"?!e.historyFrom||t<e.historyFrom:(!e.planPublishedAt||e.planPublishedAt<=t)&&(!e.planArchivedAt||t<e.planArchivedAt)){this.updateGeometry();return}try{const i=await Bs(this.floorId,!1,t),a=e.anchors.map(r=>r.resource_id).sort().join(",");this.bundle=i,i.planVersionId!==e.planVersionId&&(this.geometry=null),this.updateGeometry(),this.selectedId&&!i.anchors.some(r=>r.id===this.selectedId)&&(this.selectedId=null),i.anchors.map(r=>r.resource_id).sort().join(",")!==a&&await this.loadDay()}catch{}}renderEntityStates(e){const t=e.anchors.filter(a=>a.resource_type==="ha_entity");if(!t.length)return n`אין ישויות מוצבות בקומה`;const s=t.filter(a=>a.entity?.state_at?.known),i=e.haHistory;return n`${s.length} מתוך ${t.length} ידועות בזמן זה${i?.from?n` <span class="note">(היסטוריה מקומית מ־<span class="ltr">${this.fmtWhen(i.from)}</span>, ${i.retention_days} ימים)</span>`:n` <span class="note">(אין עדיין היסטוריה מקומית)</span>`}
+      <div class="evl" style="margin-block-start:4px">${t.slice(0,8).map(a=>{const r=a.entity?.state_at,o=_s(a);return n`<div data-history-entity data-known=${r?.known?"true":"false"} data-source=${r?.source??"vms"}><span>${o}${r?.source==="ha_recorder"?n` <span class="note" title="המצב מגיע מה־recorder של Home Assistant (מקור משני)">· HA recorder</span>`:d}</span><span class="note">${r?.known&&r.state?n`${zt({...a.entity??{domain:"",unit:null,device_class:null,attributes:{}},state:r.state})} · מ־<span class="ltr">${r.changed_at?this.fmt(r.changed_at):""}</span>`:n`לא ידוע${r?.reason?` · ${r.reason}`:""}${r?.state?n` <span class="ltr">(אחרון: ${r.state})</span>`:""}`}</span></div>`})}</div>`}fmtWhen(e){return new Intl.DateTimeFormat("he-IL",{timeZone:this.tz,dateStyle:"short",timeStyle:"short"}).format(new Date(e))}setDate(e){this.date=e,this.minute=Math.min(this.minute,this.limitMinute),this.loadDay()}fmt(e){return new Intl.DateTimeFormat("he-IL",{timeZone:this.tz,hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"}).format(new Date(e))}get floors(){return this.tree?.source!=="api"?[]:this.tree.sites.flatMap(e=>(e.buildings??[]).flatMap(t=>(t.floors??[]).map(s=>({id:s.id,name:`${t.name} · ${s.name}`}))))}renderPanel(e){const t=this.selectedAnchor,s=t?.resource_type==="camera"?t:null,i=s?this.coverageAt(s.resource_id):null,a=s?this.recordings.get(s.resource_id):void 0,r=this.eventsNear(void 0,ea),o=this.instant.toISOString().replace(/\.\d{3}Z$/,"Z");return n`<div class="panel">
+      <sw-card heading="בנקודת הזמן שנבחרה" subheading="זמן ונתונים מאותו רגע" data-history-panel>
+        <dl>
+          <dt>זמן</dt><dd><span class="ltr" data-history-time>${this.date} ${rt(this.minute)}</span> <span class="note">${this.tz}</span></dd>
+          <dt>מצלמה נבחרת</dt><dd data-history-camera>${s?s.camera?.name??s.resource_id:"לחץ על מצלמה במפה"}</dd>
+          ${s?n`<dt>הקלטה</dt><dd>${a===void 0?"טוען…":a===null?"לא ניתן לבדוק מול ה־NVR":i?.segment?n`יש הקלטה · ${De(i.segment.startMin)}–${De(i.segment.endMin)} · ${i.segment.kind==="continuous"?"רציף":"תנועה"}`:"אין הקלטה בזמן זה (פער)"}</dd>
+                <dt>אירועים ±5 דק׳</dt><dd>${this.eventsNear(s.resource_id,5).length}</dd>`:d}
+          <dt>ישויות HA</dt><dd data-history-entities>${this.renderEntityStates(e)}</dd>
+          ${s&&this.frameAt?n`<dt>פריים</dt><dd><div class="frame" data-history-frame>${this.frameFailed?n`<span>אין פריים בהקלטה בזמן זה</span>`:n`<img src=${Di(s.resource_id,this.frameAt)} alt="פריים מההקלטה בזמן שנבחר" @error=${()=>this.frameFailed=!0} />`}</div></dd>`:d}
+          <dt>גרסת תוכנית</dt><dd data-history-plan-version data-history-mode=${e.history??"live"}>${e.history==="exact"&&e.planPublishedAt?n`בתוקף באותו זמן · פורסמה <span class="ltr">${this.fmtWhen(e.planPublishedAt)}</span>${e.planArchivedAt?n` · הוחלפה <span class="ltr">${this.fmtWhen(e.planArchivedAt)}</span>`:""}`:e.historyFrom?n`המפה הנוכחית · היסטוריית המפה מתחילה <span class="ltr">${this.fmtWhen(e.historyFrom)}</span>`:"המפה הנוכחית"}</dd>
+        </dl>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-block-start:10px">
+          ${s?n`<sw-button variant="primary" size="sm" icon="history" @click=${()=>x("/investigate/playback",{camera:s.resource_id,t:o})}>נגן מכאן</sw-button>`:d}
+          <sw-button size="sm" icon="case" data-add-to-case ?disabled=${!s} title=${s?"קטע של המצלמה הנבחרת סביב הזמן שנבחר (15 שניות לפני, 45 אחרי)":"בחר מצלמה במפה"} @click=${()=>{s&&(this.casePick={kind:"clip",camera_id:s.resource_id,...wa(this.instant)})}}>הוסף לתיק</sw-button>
+        </div>
+      </sw-card>
+      <sw-case-picker .item=${this.casePick} subheading=${s?`${s.camera?.name??s.resource_id} · ${this.date} ${rt(this.minute)}`:""} @close=${()=>this.casePick=null}></sw-case-picker>
+      <sw-card heading="אירועים סביב הזמן" subheading=${`±${ea} דקות · מצלמות הקומה`}>
+        ${r.length?n`<div class="evl" data-history-events>${r.slice(0,8).map(l=>n`<a class=${s&&l.camera_id===s.resource_id?"hit":""} href=${`#/investigate/events/${l.id}`}><span>${ee[l.type]??l.type} · ${l.camera_name??l.channel??""}<div class="s">${l.confidence==="inferred"?"נגזר מהקלטה":"התראה מה־NVR"}${l.acked_at?" · טופל":""}</div></span><span class="ltr">${this.fmt(l.occurred_at)}</span></a>`)}</div>`:n`<div class="note">אין אירועים בחלון הזה.</div>`}
+      </sw-card>
+    </div>`}renderApi(){const e=this.bundle;if(this.error&&!e)return n`<div class="head"><h1>מפה היסטורית</h1></div><sw-state-panel state="error" hint=${this.error}></sw-state-panel>`;if(!e)return n`<div class="head"><h1>מפה היסטורית</h1></div><sw-state-panel state="loading"></sw-state-panel>`;const t=this.selectedAnchor,s=t?.resource_type==="camera"?this.segmentsFor(t.resource_id)??[]:Array.from(this.recordings.keys()).flatMap(a=>this.segmentsFor(a)??[]),i=(t?.resource_type==="camera"?this.events.filter(a=>a.camera_id===t.resource_id):this.events).map(a=>({minute:ne(new Date(a.occurred_at),this.tz),kind:Sh(a.type),label:`${ee[a.type]??a.type}${a.count>1?` ×${a.count}`:""}`}));return n`
+      <div class="head">
+        <div><h1>המפה בזמן שנבחר · ${e.floorName}</h1><div class="sub">${e.buildingName} · <span class="ltr">${this.date} ${rt(this.minute)}</span> · ${this.tz}</div></div>
+        <span class="grow"></span>
+        ${this.floors.length>1?n`<sw-field><select aria-label="קומה" @change=${a=>x(`/investigate/floors/${a.target.value}`,{t:this.instant.toISOString()})}>${this.floors.map(a=>n`<option value=${a.id} ?selected=${a.id===this.floorId}>${Ht(a.name)}</option>`)}</select></sw-field>`:d}
+        <sw-button icon="live" data-back-live @click=${()=>x(`/explore/floors/${e.floorId}`)}>חזרה למצב חי</sw-button>
+      </div>
+      <div class="bar"><sw-icon name="clock" size=${14}></sw-icon><span>מצב חקירה היסטורי — פעולות פיזיות אינן זמינות. מצב ללא היסטוריה מוצג כלא ידוע, לא כערך החי האחרון.</span>${this.loading?n`<span class="note">טוען הקלטות ואירועים…</span>`:d}</div>
+      <div class="layout">
+        <div class="stage">
+          <div class="chip"><sw-icon name="building" size=${14}></sw-icon>${e.floorName}</div>
+          <div class="hist">מצב היסטורי · <span class="ltr">${rt(this.minute)}</span></div>
+          <sw-plan-canvas alwaysLabel .planWidth=${e.width} .planHeight=${e.height} .plan=${e.planSvg} .imageUrl=${e.imageUrl} .markers=${this.apiMarkers} .selectedId=${this.selectedId} .zones=${e.zones} .geometry=${this.geometry} dimEntities
+            @marker-select=${a=>{this.selectedId=a.detail.id,this.frameFailed=!1}}></sw-plan-canvas>
+          <div class="legend"><span>כחול = יש הקלטה בזמן זה</span><span>מקווקו = אין הקלטה / לא ידוע</span><span>ישויות HA = מצב מההיסטוריה המקומית או לא ידוע</span></div>
+        </div>
+        ${this.renderPanel(e)}
+      </div>
+      <div class="tl">
+        <div class="tlbar">
+          <sw-badge kind="historic"></sw-badge>
+          <span class="time">${this.date} ${rt(this.minute)}</span>
+          <sw-chip @click=${()=>this.setMinute(this.minute-60)}>-1 שעה</sw-chip><sw-chip @click=${()=>this.setMinute(this.minute-5)}>-5 דק׳</sw-chip><sw-chip @click=${()=>this.setMinute(this.minute+5)}>+5 דק׳</sw-chip><sw-chip @click=${()=>this.setMinute(this.minute+60)}>+1 שעה</sw-chip>
+          <span class="grow"></span>
+          <sw-field><input type="date" .value=${this.date} max=${Xe(new Date,this.tz)} data-ltr aria-label="תאריך" @change=${a=>this.setDate(a.target.value)} /></sw-field>
+          <span class="note">${t?.resource_type==="camera"?`ציר הזמן: ${t.camera?.name??""}`:"ציר הזמן: כל מצלמות הקומה"}</span>
+        </div>
+        <sw-timeline .segments=${s} .events=${i} .cursor=${this.minute} .limit=${this.limitMinute} .follow=${!1} precision="estimated" @seek=${a=>this.setMinute(a.detail.minute)} @scrub=${a=>this.setMinute(a.detail.minute)}></sw-timeline>
+      </div>
+    `}get demoMarkers(){const e=i=>i==="cam-3"||this.minute>=190&&this.minute<=205?"unknown":"historic",t=xs.filter(i=>i.floorId===this.floorId).map(i=>({id:i.id,kind:"camera",label:i.name,x:i.x,y:i.y,rotation:i.rotation,fov:i.fov,state:i.state==="forbidden"?"forbidden":e(i.id)})),s=ri.filter(i=>i.floorId===this.floorId).map((i,a)=>({id:i.id,kind:i.domain,label:i.name,x:i.x,y:i.y,state:a%2?"unknown":"historic"}));return[...t,...s]}renderDemo(){const e=_t.find(t=>t.id===this.floorId)??_t[0];return n`
+      <div class="head">
+        <div><h1>מפה היסטורית · ${Ht(e.name)}</h1><div class="sub">מצב המפה בזמן נבחר · פעולות פיזיות כבויות בחקירה · נתוני הדגמה</div></div>
+        <span class="grow"></span>
+        <a href="#/explore/floors/${e.id}"><sw-button icon="live">חזרה ל־Live</sw-button></a>
+      </div>
+      <div class="bar">
+        <sw-badge kind="historic"></sw-badge>
+        <span class="time">2026-09-14 ${De(this.minute)}</span>
+        <input type="range" min="0" max="1439" .value=${String(this.minute)} @input=${t=>this.minute=Number(t.target.value)} aria-label="זמן" />
+        <sw-chip @click=${()=>this.minute=Math.max(0,this.minute-60)}>-1 שעה</sw-chip><sw-chip @click=${()=>this.minute=Math.min(1439,this.minute+60)}>+1 שעה</sw-chip>
+        <span class="grow"></span>
+        <span style="font-size:var(--sw-fs-xs);color:var(--sw-text-2)">גרסת מפה 3 (תקפה מ־01.09)</span>
+      </div>
+      <div class="stage alone">
+        <sw-plan-canvas .planWidth=${e.planWidth} .planHeight=${e.planHeight} .plan=${ur(e.id)} .markers=${this.demoMarkers}></sw-plan-canvas>
+        <div class="legend"><span>כחול = יש הקלטה בזמן זה</span><span>מקווקו = לא ידוע / פער</span><span>ישות: מצב ידוע אחרון</span></div>
+      </div>
+    `}render(){return $()?this.renderApi():this.renderDemo()}};ie.styles=A`
+    :host {
+      display: flex;
+      flex-direction: column;
+      min-block-size: 100%;
+    }
+    .head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 24px 12px;
+    }
+    h1 {
+      margin: 0;
+      font-size: var(--sw-fs-2xl);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .sub {
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text-3);
+      margin-block-start: 2px;
+    }
+    .grow {
+      flex: 1;
+    }
+    .bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0 24px 10px;
+      padding: 8px 12px;
+      background: var(--sw-recorded-soft);
+      border: 1px solid #cddcff;
+      border-radius: var(--sw-r-md);
+      font-size: var(--sw-fs-sm);
+      flex-wrap: wrap;
+    }
+    .time {
+      font-family: var(--sw-font-mono);
+      direction: ltr;
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-accent-text);
+    }
+    input[type='range'] {
+      inline-size: 260px;
+      direction: ltr;
+      accent-color: var(--sw-accent);
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 320px;
+      gap: 14px;
+      margin: 0 24px 12px;
+      align-items: start;
+    }
+    .stage {
+      position: relative;
+      block-size: 540px;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-lg);
+      background: var(--sw-surface);
+      box-shadow: var(--sw-shadow-1);
+      overflow: hidden;
+    }
+    .stage.alone {
+      block-size: auto;
+      min-block-size: 480px;
+      flex: 1;
+      margin: 0 24px 24px;
+    }
+    .stage sw-plan-canvas {
+      block-size: 100%;
+    }
+    .legend {
+      position: absolute;
+      inset-inline-start: 12px;
+      inset-block-end: 12px;
+      z-index: var(--sw-z-map-ui);
+      display: flex;
+      gap: 12px;
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-pill);
+      padding: 3px 10px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+    }
+    .chip {
+      position: absolute;
+      inset-inline-start: 12px;
+      inset-block-start: 12px;
+      z-index: var(--sw-z-map-ui);
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: 10px;
+      padding: 5px 10px;
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .hist {
+      position: absolute;
+      inset-inline-end: 12px;
+      inset-block-start: 12px;
+      z-index: var(--sw-z-map-ui);
+      background: #f3e8ff;
+      color: #6d28d9;
+      border-radius: 10px;
+      padding: 4px 10px;
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .panel {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-inline-size: 0;
+    }
+    dl {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 8px 12px;
+      margin: 0;
+      font-size: var(--sw-fs-sm);
+    }
+    dt {
+      color: var(--sw-text-3);
+    }
+    dd {
+      margin: 0;
+      font-weight: var(--sw-fw-medium);
+    }
+    .evl {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .evl a {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      padding: 6px 8px;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-sm);
+      text-decoration: none;
+      color: var(--sw-text);
+      font-size: var(--sw-fs-sm);
+    }
+    .evl a.hit {
+      border-color: var(--sw-accent);
+      background: var(--sw-accent-soft);
+    }
+    .evl .s {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .ltr {
+      direction: ltr;
+      unicode-bidi: isolate;
+      font-family: var(--sw-font-mono);
+    }
+    .note {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .frame {
+      margin-block-start: 8px;
+      border-radius: var(--sw-r-sm);
+      overflow: hidden;
+      background: var(--sw-surface-3);
+      aspect-ratio: 16 / 9;
+      display: grid;
+      place-items: center;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .frame img {
+      inline-size: 100%;
+      block-size: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .tl {
+      margin: 0 24px 24px;
+    }
+    .tl sw-field {
+      inline-size: 160px;
+    }
+    .tlbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-block-end: 6px;
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text-2);
+    }
+    @media (max-width: 900px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+    @media (max-width: 767px) {
+      .head,
+      .bar,
+      .tl {
+        margin-inline: 12px;
+        padding-inline: 12px;
+      }
+      .head {
+        padding-inline: 0;
+      }
+      .layout {
+        margin-inline: 0;
+      }
+      .stage {
+        border-radius: 0;
+      }
+      .legend {
+        display: none;
+      }
+    }
+  `;de([g()],ie.prototype,"floorId",2);de([g()],ie.prototype,"at",2);de([g()],ie.prototype,"camera",2);de([c()],ie.prototype,"minute",2);de([c()],ie.prototype,"tz",2);de([c()],ie.prototype,"date",2);de([c()],ie.prototype,"tree",2);de([c()],ie.prototype,"bundle",2);de([c()],ie.prototype,"events",2);de([c()],ie.prototype,"recordings",2);de([c()],ie.prototype,"selectedId",2);de([c()],ie.prototype,"loading",2);de([c()],ie.prototype,"error",2);de([c()],ie.prototype,"frameAt",2);de([c()],ie.prototype,"frameFailed",2);de([c()],ie.prototype,"casePick",2);de([c()],ie.prototype,"geometry",2);ie=de([P("investigate-history-map")],ie);var Mh=Object.defineProperty,Ah=Object.getOwnPropertyDescriptor,U=(e,t,s,i)=>{for(var a=i>1?void 0:i?Ah(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Mh(t,s,a),a};const Ph={person:"#2f6bff",vehicle:"#22c55e",motion:"#ef4444",line:"#f59e0b",offline:"#6b7280",door:"#8b5cf6"},Vn={"כניסה ראשית":"entrance","חצר אחורית":"backyard",מחסן:"warehouse",לובי:"lobby","חניה מקורה":"parking","מסדרון מזרחי":"corridor"},Eh={info:"מידע",alert:"התראה",critical:"קריטי"};let F=class extends M{constructor(){super(...arguments),this.cameraId="",this.date="",this.initialMode="",this.selected=null,this.filter="all",this.cams=null,this.tz="Asia/Jerusalem",this.type="",this.events=null,this.ingest=null,this.live=!1,this.error="",this.busy=!1,this.thumbVersion=new Map,this.player=null,this.mode="raw",this.windows=null,this.windowGap=180,this.windowBy="camera",this.selectedWindow=null,this.windowsBusy=!1,this.facets=null,this.placeFloor="",this.placeZone="",this.source="",this.unsupported=[],this.q="",this.rangeDays=1,this.qTimer=0,this.thumbTimers=new Map,this.thumbInFlight=0,this.rowPreview=null,this.rowPreviewTimer=0,this.windowColumns=[{key:"thumb",label:"",width:"72px",render:e=>this.renderWindowThumb(e)},{key:"title",label:"חלון אירוע",render:e=>{const t=e;return n`<span class="ty" style="--tone:${di[t.dominant_type]??"#6b7280"}"><i></i>${ee[t.dominant_type]??t.dominant_type}${t.count>1?n` <span class="sub">×${String(t.count)}</span>`:d}</span><div class="sub">${Object.entries(t.types).map(([s,i])=>`${ee[s]??s} ${i}`).join(" · ")} · ${t.confidence==="inferred"?"נגזר מהקלטה":"התראות מה־NVR"}</div>`}},{key:"camera_name",label:"מצלמה / קבוצה",render:e=>{const t=e;return n`${t.camera_name??(t.channel?`ערוץ ${t.channel}`:"מערכת")}${t.group&&t.group!=="camera"&&t.camera_names?.length?n`<div class="sub">${t.camera_names.join(" · ")}</div>`:d}`}},{key:"start",label:"זמן",render:e=>{const t=e;return n`${this.fmt(t.start)}${t.end!==t.start?n` – ${this.fmt(t.end)}`:d}<div class="sub">${this.fmtDate(t.start)}</div>`}},{key:"acked",label:"מצב",render:e=>{const t=e;return n`<sw-badge kind=${t.acked?"live":t.acked_count?"stale":"neutral"} label=${t.acked?"טופל":t.acked_count?`בטיפול ${t.acked_count}/${t.count}`:"חדש"}></sw-badge>`}}],this.apiColumns=[{key:"thumb",label:"",width:"72px",render:e=>this.renderThumb(e)},{key:"type",label:"אירוע",render:e=>n`<span class="ty" style="--tone:${di[e.type]??"#6b7280"}"><i></i>${ee[e.type]??String(e.type)}${Number(e.count)>1?n` <span class="sub">×${String(e.count)}</span>`:d}</span><div class="sub">${e.source==="ha"?"חיישן HA":e.source==="system"?"מערכת":e.confidence==="inferred"?"נגזר מהקלטה":"התראה מה־NVR"} · ${e.acked_at?`טופל · ${String(e.acked_by_username??"")}`:"ממתין לטיפול"}</div>`},{key:"camera_name",label:"מצלמה",render:e=>n`${String(e.camera_name??(e.channel?`ערוץ ${String(e.channel)}`:"מערכת"))}<div class="sub ltr">${String(e.raw_type)}</div>`},{key:"occurred_at",label:"זמן",render:e=>n`${this.fmt(String(e.occurred_at))}<div class="sub">${this.fmtDate(String(e.occurred_at))}${e.ended_at?` · עד ${this.fmt(String(e.ended_at))}`:""}</div>`},{key:"severity",label:"חומרה",render:e=>n`<sw-badge kind=${e.severity==="critical"?"error":e.severity==="alert"?"stale":"neutral"} label=${Eh[e.severity]??String(e.severity)}></sw-badge>`}],this.columns=[{key:"thumb",label:"תמונה",width:"80px",render:e=>e.type==="offline"||e.type==="door"?n`<div class="thumb none"><sw-icon name=${e.type==="offline"?"offline":"door"} size=${14}></sw-icon></div>`:n`<sw-scene class="thumb" kind=${Vn[String(e.camera)]??"lobby"}></sw-scene>`},{key:"title",label:"אירוע",render:e=>n`<span class="ty" style="--tone:${Ph[e.type]}"><i></i>${oa[e.type]}</span><div class="sub">${String(e.title)} · ${e.acked?"טופל":"ממתין לטיפול"}</div>`},{key:"camera",label:"מצלמה",render:e=>n`${String(e.camera)}<div class="sub">${String(e.floor)}</div>`},{key:"time",label:"זמן",render:e=>n`${String(e.time)}<div class="sub ltr">${String(e.source)}</div>`},{key:"severity",label:"חומרה",render:e=>n`<sw-badge kind=${e.severity==="critical"?"error":e.severity==="alert"?"stale":"neutral"} label=${{info:"מידע",alert:"התראה",critical:"קריטי"}[e.severity]}></sw-badge>`},{key:"more",label:"",width:"40px",render:()=>n`<sw-button variant="ghost" size="sm" iconOnly icon="more" label="עוד"></sw-button>`}]}connectedCallback(){super.connectedCallback(),$()&&(this.init(),this.unsubscribe=Kc(e=>this.onPushed(e),(e,t)=>{this.live=t,e&&(this.ingest=e)}))}disconnectedCallback(){super.disconnectedCallback(),this.unsubscribe?.();for(const e of this.thumbTimers.values())window.clearTimeout(e);this.thumbTimers.clear(),this.stopPlayer()}hoverStart(e,t){if(!e.camera_id||t.pointerType==="touch")return;window.clearTimeout(this.rowPreviewTimer);const s=t.clientX,i=t.clientY;this.rowPreviewTimer=window.setTimeout(()=>{const a=new Date(e.occurred_at).getTime(),r=[-5,0,5].map(o=>{const l=new Date(a+o*1e3).toISOString().replace(/\.\d{3}Z$/,"Z");return{at:l,url:Di(e.camera_id,l),label:o===0?this.fmt(e.occurred_at):`${o>0?"+":""}${o} ש׳`,failed:!1}});this.rowPreview={id:e.id,x:s,y:i,frames:r,camera:e.camera_name??""}},250)}hoverEnd(){window.clearTimeout(this.rowPreviewTimer),this.rowPreview=null}renderRowPreview(){const e=this.rowPreview;if(!e)return d;const t=Math.max(16,Math.min(window.innerWidth-388,e.x-186)),s=e.y+18+230>window.innerHeight?e.y-18-230:e.y+18;return n`<div class="rowpreview" data-row-preview style="left:${t}px;top:${s}px">
+      <div class="strip">
+        ${e.frames.map((i,a)=>n`<div class="cell ${a===1?"main":""}">
+          ${i.failed?n`<span>אין פריים</span>`:n`<img src=${i.url} alt="" @error=${()=>{i.failed=!0,this.rowPreview={...e}}} />`}
+          <span class="t">${i.label}</span>
+        </div>`)}
+      </div>
+      <div class="cap"><span>${e.camera}</span><span>פריימים מההקלטה · 5 שניות לפני ואחרי</span></div>
+    </div>`}renderThumb(e){const t="inline-size:64px;block-size:40px;border-radius:6px;overflow:hidden;background:var(--sw-surface-3);display:grid;place-items:center;color:var(--sw-text-3)";return e.thumbnail==="ready"?n`<img class="thumb" src=${Rt(e.id,this.thumbVersion.get(e.id)??0)} alt="" loading="lazy" data-thumb=${e.id} style="inline-size:64px;block-size:40px;object-fit:cover;border-radius:6px;display:block;background:var(--sw-surface-3);cursor:zoom-in" />`:(e.thumbnail==="pending"||e.thumbnail==="none")&&e.camera_id?(this.schedulePoll(e.id,3e3,0),n`<div class="thumb pending" style=${t} title="מכין תמונה מההקלטה…"><sw-icon name="camera" size=${14} style="opacity:.45"></sw-icon></div>`):n`<div class="thumb none" style=${t}><sw-icon name=${e.type==="offline"||e.type==="coverage_gap"?"offline":e.type==="person"?"user":e.type==="vehicle"?"route":e.type==="door"||e.type==="io"?"door":"bell"} size=${14}></sw-icon></div>`}async ackAll(){const e=(this.events??[]).filter(t=>!t.acked_at).map(t=>t.id);if(!(!e.length||this.busy)){this.busy=!0;try{for(let t=0;t<e.length;t+=500)await zn(e.slice(t,t+500));await this.load()}catch(t){this.error=b(t)}finally{this.busy=!1}}}schedulePoll(e,t,s){this.thumbTimers.has(e)||this.thumbTimers.set(e,window.setTimeout(()=>void this.poll(e,s),t))}cancelPoll(e){const t=this.thumbTimers.get(e);t!==void 0&&window.clearTimeout(t),this.thumbTimers.delete(e)}async poll(e,t){if(this.thumbTimers.delete(e),!this.isConnected||!this.events?.some(i=>i.id===e))return;if(this.thumbInFlight>=2){this.schedulePoll(e,1500,t);return}this.thumbInFlight++;let s;try{s=await Or(e)}finally{this.thumbInFlight--}if(s==="pending"){t<14&&this.schedulePoll(e,Math.min(15e3,3e3*1.35**t),t+1);return}this.setThumb(e,s)}setThumb(e,t){t==="ready"&&(this.thumbVersion=new Map(this.thumbVersion).set(e,Date.now())),this.events=(this.events??[]).map(s=>s.id===e?{...s,thumbnail:t}:s)}select(e){e!==this.player?.eventId&&this.stopPlayer(),this.selected=e}closeDrawer(){this.select(null)}async play(e){if(this.player?.eventId===e.id){await this.stopPlayer();return}if(await this.stopPlayer(),!!e.camera_id){this.player={eventId:e.id,session:null,error:""};try{const t=new Date(new Date(e.occurred_at).getTime()-2e3).toISOString().replace(/\.\d{3}Z$/,"Z"),s=await Va(e.camera_id,t);this.player?.eventId===e.id?this.player={eventId:e.id,session:s,error:""}:await Fs(s.id).catch(()=>{})}catch(t){this.player={eventId:e.id,session:null,error:b(t)}}}}async stopPlayer(){const e=this.player;this.player=null,e?.session&&await Fs(e.session.id).catch(()=>{})}async init(){try{try{localStorage.getItem("sw.events.mode")==="windows"&&(this.mode="windows")}catch{}(this.initialMode==="windows"||this.initialMode==="raw")&&(this.mode=this.initialMode);const[e,t]=await Promise.all([Ve(),Be()]);this.tz=e["time.zone"]??"Asia/Jerusalem",this.cams=t.cameras,this.loadFacets(),this.date||(this.date=Xe(new Date,this.tz)),await this.load()}catch(e){this.error=b(e)}}async loadFacets(){try{this.facets=await Xc()}catch{this.facets=null}}get facetFloors(){const e=this.facets;return e?e.places.flatMap(t=>t.buildings.flatMap(s=>s.floors.map(i=>({...i,name:`${s.name} · ${i.name}`})))):[]}renderFacets(){const e=this.facets;if(!e)return d;const t=e.types.map(a=>`${ee[a.type]??a.type} (${a.count})`).join(" · "),s=e.sources.map(a=>`${Mn[a.source]??a.source} (${a.count})`).join(" · "),i=e.unavailable_types.filter(a=>["person","vehicle","line","field","door"].includes(a.type));return n`<div class="sub" data-facets style="margin:-4px 0 8px;line-height:1.6">
+      <strong>שדות עם נתונים (${e.days} ימים):</strong> ${t||"אין אירועים"} · <strong>מקורות:</strong> ${s||"—"}
+      ${i.length?n`<br /><strong>לא זמין:</strong> ${i.map(a=>n`<span title=${a.reason}>${ee[a.type]??a.type}</span>`).reduce((a,r,o)=>o?[...a," · ",r]:[r],[])} <span class="sub">(ריחוף מסביר למה)</span>`:d}
+      ${e.notes.map(a=>n`<br />${a}`)}
+    </div>`}searchWindow(){if(this.rangeDays<=1)return{date:this.date||void 0};const e=new Date(`${this.date||Xe(new Date,this.tz)}T23:59:59.999Z`),t=new Date(e.getTime()-(this.rangeDays-1)*864e5);return t.setUTCHours(0,0,0,0),{from:t.toISOString(),to:e.toISOString()}}async load(){try{const e=await Ci({...this.searchWindow(),cameraId:this.cameraId||void 0,type:this.type||void 0,unacked:this.filter==="unacked",acked:this.filter==="acked",limit:500,floorId:this.placeFloor||void 0,zoneId:this.placeZone||void 0,source:this.source||void 0,query:this.q.trim()||void 0});this.events=e.events,this.unsupported=e.filters?.unsupported??[],this.ingest=e.ingest,this.error="",this.mode==="windows"&&await this.loadWindows()}catch(e){this.error=b(e)}}onSearchInput(e){this.q=e,window.clearTimeout(this.qTimer),this.qTimer=window.setTimeout(()=>void this.load(),350)}setRange(e){this.rangeDays=e,this.load()}async loadWindows(){this.windowsBusy=!0;try{const e=await Zc({date:this.date||void 0,cameraId:this.cameraId||void 0,gap:this.windowGap,by:this.windowBy,limit:300});this.windows=e.windows,this.selectedWindow&&!e.windows.some(t=>t.id===this.selectedWindow)&&(this.selectedWindow=null)}catch(e){this.error=b(e),this.windows=[]}finally{this.windowsBusy=!1}}setMode(e){this.mode=e,this.select(null),this.selectedWindow=null;try{localStorage.setItem("sw.events.mode",e)}catch{}e==="windows"&&this.windows===null&&this.loadWindows()}async ackWindow(e){this.busy=!0;try{const t=await zn(e.event_ids),s=new Set(t.acked);this.events=(this.events??[]).map(i=>s.has(i.id)&&!i.acked_at?{...i,acked_at:new Date().toISOString(),acked_by_username:"אני"}:i),await this.loadWindows()}catch(t){this.error=b(t)}finally{this.busy=!1}}windowTitle(e){const t=e.camera_name??(e.channel?`ערוץ ${e.channel}`:"מערכת");return`${ee[e.dominant_type]??e.dominant_type} · ${t}`}renderWindowThumb(e){return e.thumbnail==="ready"?n`<img class="thumb" src=${Rt(e.thumbnail_event_id,this.thumbVersion.get(e.thumbnail_event_id)??0)} alt="" loading="lazy" style="inline-size:64px;block-size:40px;object-fit:cover;border-radius:6px;display:block;background:var(--sw-surface-3)" />`:n`<div style="inline-size:64px;block-size:40px;border-radius:6px;background:var(--sw-surface-3);display:grid;place-items:center;color:var(--sw-text-3)"><sw-icon name=${e.camera_id?"image":"info"} size=${14}></sw-icon></div>`}renderWindowDrawer(e){const t=(this.events??[]).filter(s=>e.event_ids.includes(s.id));return n`<sw-drawer open heading=${this.windowTitle(e)} subheading=${`${this.fmtDate(e.start)} · ${this.fmt(e.start)} – ${this.fmt(e.end)} · ${e.count} אירועים`} @close=${()=>this.selectedWindow=null}>
+      <div class="note" style="font-size:var(--sw-fs-xs);color:var(--sw-text-3);margin-block-end:8px">מספר התראות סמוכות (עד ${Math.round(this.windowGap/60)} דק׳ ביניהן) הופכות לחלון אחד. האירועים המקוריים נשמרים ומוצגים כאן.</div>
+      <div class="wlist" data-window-events>
+        ${t.map(s=>n`<a class="wrow" href=${`#/investigate/events/${s.id}`}><span class="ty" style="--tone:${di[s.type]??"#6b7280"}"><i></i>${ee[s.type]??s.type}</span><span class="ltr">${this.fmt(s.occurred_at)}</span><span class="sub">${s.acked_at?"טופל":"ממתין"}</span></a>`)}
+        ${t.length<e.count?n`<div class="sub">${e.count-t.length} אירועים נוספים אינם בסינון הנוכחי.</div>`:d}
+      </div>
+      <div slot="footer">
+        <sw-button variant="primary" size="sm" icon="expand" data-review-window @click=${()=>x(`/investigate/events/${e.first_event_id}`)}>סקירה מלאה</sw-button>
+        <sw-button size="sm" icon="check" ?disabled=${e.acked||this.busy} @click=${()=>this.ackWindow(e)}>${e.acked?"טופל":"סמן הכל כטופל"}</sw-button>
+      </div>
+    </sw-drawer>`}onPushed(e){if(!this.events)return;const t=Xe(new Date(e.occurred_at),this.tz);if(this.date&&t!==this.date||this.cameraId&&e.camera_id!==this.cameraId||this.type&&e.type!==this.type)return;const s=this.cams?.find(r=>r.id===e.camera_id)?.name??null,i={...e,camera_name:e.camera_name??s};(e.thumbnail==="ready"||e.thumbnail==="unavailable")&&(this.cancelPoll(e.id),e.thumbnail==="ready"&&(this.thumbVersion=new Map(this.thumbVersion).set(e.id,Date.now())));const a=this.events.findIndex(r=>r.id===e.id);this.events=a>=0?this.events.map((r,o)=>o===a?{...r,...i}:r):[i,...this.events]}fmt(e){return new Intl.DateTimeFormat("he-IL",{timeZone:this.tz,hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"}).format(new Date(e))}fmtDate(e){return new Intl.DateTimeFormat("he-IL",{timeZone:this.tz,day:"2-digit",month:"2-digit"}).format(new Date(e))}async ack(e){this.busy=!0;try{const t=await Tr(e.id);this.events=(this.events??[]).map(s=>s.id===e.id?{...s,...t}:s)}catch(t){this.error=b(t)}finally{this.busy=!1}}renderApi(){if(this.error&&!this.events)return n`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${()=>this.init()}></sw-state-panel>`;if(!this.events)return n`<sw-state-panel state="loading"></sw-state-panel>`;const e=this.events.find(i=>i.id===this.selected)??null,t=this.ingest,s=this.events.filter(i=>!i.acked_at).length;return n`
+      <div class="banner ${t&&!t.connected?"warn":""}">
+        <span class="dot ${t?.connected?"on":""}"></span>
+        <span>קליטה מה־NVR: ${t?t.connected?"מחובר":`מנותק${t.last_error?` (${t.last_error})`:""}`:"—"}${t?.last_heartbeat_at?` · פעימה ${this.fmt(t.last_heartbeat_at)}`:""}</span>
+        <span>· עדכונים חיים: ${this.live?"פעיל":"מתחבר…"}</span>
+        <span>· אירועים "נגזר מהקלטה" הם עדות מקובץ ההקלטה (inferred), לא התראה שנמדדה</span>
+        ${t?.connected&&this.facets&&!this.facets.sources.some(i=>i.source==="alertstream")?n`<span data-no-alerts style="color:var(--sw-warning, #b45309);font-weight:600">· ה־NVR לא שלח התראות ב־${this.facets.days} הימים האחרונים — הפעל "Notify Surveillance Center" ב־linkage של זיהוי התנועה ב־NVR</span>`:d}
+      </div>
+      <div class="kpis" data-kpis>
+        <div class="kpi"><div><div class="n">${s}</div><div class="l">לבדיקה</div></div><div class="ic"><sw-icon name="bell" size=${18}></sw-icon></div></div>
+        <div class="kpi"><div><div class="n">${this.events.length-s}</div><div class="l">טופלו היום</div></div><div class="ic"><sw-icon name="check" size=${18}></sw-icon></div></div>
+      </div>
+      <div class="filters">
+        <sw-field><input type="search" data-events-q placeholder="חיפוש חופשי (שם מצלמה, ישות HA, פרטי אירוע)" aria-label="חיפוש חופשי" .value=${this.q} @input=${i=>this.onSearchInput(i.target.value)} /></sw-field>
+        <sw-field><select aria-label="מצלמה" @change=${i=>{this.cameraId=i.target.value,this.load()}}><option value="" ?selected=${!this.cameraId}>כל המצלמות</option>${(this.cams??[]).map(i=>n`<option value=${i.id} ?selected=${i.id===this.cameraId}>${i.name}</option>`)}</select></sw-field>
+        <sw-field><select aria-label="סוג" @change=${i=>{this.type=i.target.value,this.load()}}><option value="" ?selected=${!this.type}>כל סוגי האירועים</option>${Object.keys(ee).map(i=>n`<option value=${i} ?selected=${i===this.type}>${ee[i]}</option>`)}</select></sw-field>
+        <sw-field><input type="date" .value=${this.date} max=${Xe(new Date,this.tz)} data-ltr aria-label="תאריך" @change=${i=>{this.date=i.target.value,this.load()}} /></sw-field>
+        <span class="rangepick" role="group" aria-label="טווח ימים" data-events-range>
+          ${[[1,"יום"],[7,"7 ימים"],[30,"30 יום"]].map(([i,a])=>n`<button class=${this.rangeDays===i?"on":""} data-events-range-set=${i} @click=${()=>this.setRange(i)}>${a}</button>`)}
+        </span>
+        <sw-field><select aria-label="מקום" data-filter-floor @change=${i=>{this.placeFloor=i.target.value,this.placeZone="",this.load()}}><option value="" ?selected=${!this.placeFloor}>כל המקומות</option>${this.facetFloors.map(i=>n`<option value=${i.id} ?selected=${i.id===this.placeFloor}>${i.name} · ${i.cameras} מצלמות${i.sensors?` · ${i.sensors} חיישנים`:""}</option>`)}</select></sw-field>
+        ${this.placeFloor&&this.facetFloors.find(i=>i.id===this.placeFloor)?.zones.length?n`<sw-field><select aria-label="חדר / אזור" data-filter-zone @change=${i=>{this.placeZone=i.target.value,this.load()}}><option value="" ?selected=${!this.placeZone}>כל הקומה</option>${(this.facetFloors.find(i=>i.id===this.placeFloor)?.zones??[]).map(i=>n`<option value=${i.id} ?selected=${i.id===this.placeZone}>${i.name} · ${i.cameras} מצלמות${i.sensors?` · ${i.sensors} חיישנים`:""}</option>`)}</select></sw-field>`:d}
+        <sw-field><select aria-label="מקור" data-filter-source @change=${i=>{this.source=i.target.value,this.load()}}><option value="" ?selected=${!this.source}>כל המקורות</option>${Object.entries(Mn).map(([i,a])=>n`<option value=${i} ?selected=${i===this.source}>${a}</option>`)}</select></sw-field>
+        <span class="grow"></span>
+        <sw-chip ?selected=${this.filter==="all"} @click=${()=>{this.filter="all",this.load()}} count=${this.events.length}>הכל</sw-chip>
+        <sw-chip ?selected=${this.filter==="unacked"} @click=${()=>{this.filter="unacked",this.load()}} count=${s}>לבדיקה</sw-chip>
+        <sw-chip ?selected=${this.filter==="acked"} @click=${()=>{this.filter="acked",this.load()}}>טופלו</sw-chip>
+        <sw-button size="sm" icon="check" ?disabled=${!s||this.busy} data-ack-all title="מסמן כטופלו את כל האירועים ברשימה שעדיין לבדיקה (לפי הסינון הנוכחי)" @click=${()=>this.ackAll()}>סמן הכול כטופל (${s})</sw-button>
+        <span class="sub" style="margin-inline-start:6px">·</span>
+        <sw-chip icon="list" ?selected=${this.mode==="raw"} @click=${()=>this.setMode("raw")}>אירועים</sw-chip>
+        <sw-chip icon="layers" ?selected=${this.mode==="windows"} data-mode-windows @click=${()=>this.setMode("windows")} count=${this.windows?.length}>חלונות</sw-chip>
+      </div>
+      ${this.renderFacets()}
+      ${this.unsupported.length?n`<div class="banner warn" data-unsupported>המסנן אינו נתמך כאן, לא "אין תוצאות": ${this.unsupported.map(i=>i.reason).join(" · ")}</div>`:d}
+      ${this.error?n`<div class="banner warn">${this.error}</div>`:d}
+      <div class="stage">
+        ${this.mode==="windows"?this.windows===null||this.windowsBusy&&!this.windows.length?n`<sw-state-panel state="loading"></sw-state-panel>`:this.windows.length?n`<div class="banner" style="margin-block-end:8px"><sw-icon name="info" size=${14}></sw-icon><span>${this.windowBy==="camera"?"התראות סמוכות באותה מצלמה":this.windowBy==="all"?"התראות סמוכות מכל המצלמות":this.windowBy==="zone"?"התראות סמוכות באותו חדר":"התראות סמוכות באותה קומה"} הופכות לחלון אירוע אחד (מרווח עד ${Math.round(this.windowGap/60)} דק׳). האירועים המקוריים נשמרים לצפייה.</span><span class="grow"></span>
+                  <sw-field><select aria-label="קיבוץ" data-window-by @change=${i=>{this.windowBy=i.target.value,this.loadWindows()}}>${Object.keys(Sn).map(i=>n`<option value=${i} ?selected=${this.windowBy===i}>${Sn[i]}</option>`)}</select></sw-field>
+                  <sw-field><select aria-label="מרווח קיבוץ" data-window-gap @change=${i=>{this.windowGap=Number(i.target.value),this.loadWindows()}}>${[60,180,300,600,900,1800,3600].map(i=>n`<option value=${i} ?selected=${this.windowGap===i}>${i/60} דק׳</option>`)}</select></sw-field></div>
+                <sw-table .columns=${this.windowColumns} .rows=${this.windows} .selected=${this.selectedWindow} @row-select=${i=>this.selectedWindow=i.detail.id}></sw-table>`:n`<sw-state-panel state="empty" heading="אין חלונות אירוע ביום הזה" hint="חלון נוצר מאירועים סמוכים של אותה מצלמה."></sw-state-panel>`:this.events.length?n`<sw-table .columns=${this.apiColumns} .rows=${this.events} .selected=${this.selected} @row-hover=${i=>{const a=this.events?.find(r=>r.id===i.detail.id);a&&this.hoverStart(a,i.detail)}} @row-leave=${()=>this.hoverEnd()} @row-select=${i=>this.select(i.detail.id)}></sw-table>`:n`<sw-state-panel state="empty" heading="אין אירועים ביום הזה" hint="התראות מגיעות מה־NVR רק כשהטריגר מוגדר עם 'Notify Surveillance Center'; אירועי תנועה נגזרים מקובצי ההקלטה בהפעלה ובכל 10 דקות."></sw-state-panel>`}
+        ${this.renderRowPreview()}
+        ${this.mode==="windows"&&this.selectedWindow&&this.windows?(()=>{const i=this.windows.find(a=>a.id===this.selectedWindow);return i?this.renderWindowDrawer(i):d})():d}
+        ${e?n`<sw-drawer open heading=${ee[e.type]??e.type} subheading=${`${e.camera_name??(e.channel?`ערוץ ${e.channel}`:"מערכת")} · ${this.fmt(e.occurred_at)}`} @close=${()=>this.closeDrawer()}>
+              <div class="big">
+                ${this.player?.eventId===e.id&&this.player.session?n`<sw-live-player .wsUrl=${vi(this.player.session)} mode="mse" .retry=${!1}></sw-live-player>`:e.thumbnail==="ready"?n`<img src=${Rt(e.id,this.thumbVersion.get(e.id)??0)} alt="תמונת האירוע מההקלטה" />`:n`<div class="hint">${e.camera_id?e.thumbnail==="unavailable"?"אין פריים זמין בהקלטה בזמן האירוע":this.player?.eventId===e.id?"פותח את ההקלטה…":"מכין תמונה מההקלטה…":"אירוע ללא מצלמה"}</div>`}
+                ${this.player?.eventId===e.id&&this.player.error?n`<div class="err">${this.player.error}</div>`:d}
+              </div>
+              <dl>
+                <dt>מקור</dt><dd>${e.source==="alertstream"?"התראה מה־NVR (alertStream)":e.source==="recording"?"קובץ הקלטה (חיפוש)":e.source==="ha"?"חיישן HA (מעבר מצב)":"מערכת"} · raw: <span class="ltr">${e.raw_type}</span></dd>
+                <dt>ודאות</dt><dd>${e.confidence==="measured"?"נמדד על ידי המכשיר":"נגזר (inferred)"}</dd>
+                <dt>זמן אירוע</dt><dd><span class="ltr">${this.fmtDate(e.occurred_at)} ${this.fmt(e.occurred_at)}</span>${e.ended_at?n` → <span class="ltr">${this.fmt(e.ended_at)}</span>`:d} · נקלט <span class="ltr">${this.fmt(e.received_at)}</span>${typeof e.details.time_precision=="string"?n` · דיוק: ${String(e.details.time_precision)}`:d}</dd>
+                <dt>חזרות</dt><dd>${e.count} · מצב ${e.state==="active"?"פעיל":e.state==="inactive"?"הסתיים":"—"}</dd>
+                <dt>טיפול</dt><dd>${e.acked_at?`טופל בידי ${e.acked_by_username??""} · ${this.fmt(e.acked_at)}`:"ממתין"}</dd>
+                ${typeof e.details.description=="string"&&e.details.description?n`<dt>תיאור</dt><dd class="ltr">${String(e.details.description)}</dd>`:d}
+                ${typeof e.details.seconds=="number"?n`<dt>משך ההקלטה</dt><dd>${String(e.details.seconds)} שנ׳</dd>`:d}
+              </dl>
+              <div slot="footer">
+                <sw-button variant="primary" size="sm" icon="expand" data-review @click=${()=>x(`/investigate/events/${e.id}`)}>סקירה מלאה</sw-button>
+                ${e.camera_id?n`<sw-button size="sm" icon="play" @click=${()=>this.play(e)}>${this.player?.eventId===e.id?"עצור":"נגן כאן"}</sw-button>
+                    <sw-button size="sm" icon="history" @click=${()=>x("/investigate/playback",{camera:e.camera_id,t:e.occurred_at})}>להקלטה</sw-button>`:d}
+                <sw-button variant="ghost" size="sm" icon="check" ?disabled=${!!e.acked_at||this.busy} @click=${()=>this.ack(e)}>סמן טופל</sw-button>
+              </div>
+            </sw-drawer>`:d}
+      </div>
+    `}renderDemo(){const e=ot.filter(s=>this.filter==="all"||!s.acked),t=ot.find(s=>s.id===this.selected);return n`
+      <div class="filters">
+        <sw-field><select aria-label="אתר"><option>כל האתרים</option><option>אתר הדגמה</option></select></sw-field>
+        <sw-field><select aria-label="מצלמה"><option>כל המצלמות</option></select></sw-field>
+        <sw-field><select aria-label="סוג"><option>כל סוגי האירועים</option><option>אדם</option><option>רכב</option><option>תנועה</option><option>ניתוק</option></select></sw-field>
+        <sw-field><input type="date" value="2026-09-14" data-ltr aria-label="תאריך" /></sw-field>
+        <span class="grow"></span>
+        <sw-chip ?selected=${this.filter==="all"} @click=${()=>this.filter="all"} count=${ot.length}>הכל</sw-chip>
+        <sw-chip ?selected=${this.filter==="unacked"} @click=${()=>this.filter="unacked"} count=${ot.filter(s=>!s.acked).length}>ללא טיפול</sw-chip>
+      </div>
+      <div class="stage">
+        <sw-table .columns=${this.columns} .rows=${e} .selected=${this.selected} @row-select=${s=>this.selected=s.detail.id}></sw-table>
+        ${t?n`<sw-drawer open heading=${oa[t.type]} subheading=${`${t.camera} · ${t.time}`} @close=${()=>this.selected=null}>
+              <div class="preview">${t.type==="offline"||t.type==="door"?"אין תמונה לאירוע זה":n`<sw-scene kind=${Vn[t.camera]??"lobby"}></sw-scene><span class="demo">דמו · תמונת אירוע מה־NVR (T044)</span>`}</div>
+              <dl>
+                <dt>מקור</dt><dd><span class="ltr">${t.source}</span> · raw: <span class="ltr">${t.type}</span></dd>
+                <dt>זמן אירוע</dt><dd>${t.time} · נקלט +1.2s</dd>
+                <dt>קומה</dt><dd>${t.floor}</dd>
+                <dt>כיסוי הקלטה</dt><dd>${t.type==="offline"?"אין":"קיים · 10 שנ׳ לפני/אחרי"}</dd>
+                <dt>טיפול</dt><dd>${t.acked?"טופל בידי יוני, 09:50":"ממתין"}</dd>
+              </dl>
+              <div slot="footer">
+                <a href="#/investigate/playback"><sw-button variant="primary" size="sm" icon="history">להקלטה</sw-button></a>
+                <a href="#/investigate/floors/f0/history"><sw-button size="sm" icon="map">במפה</sw-button></a>
+                <sw-button variant="ghost" size="sm" icon="check" ?disabled=${t.acked}>סמן טופל</sw-button>
+              </div>
+            </sw-drawer>`:""}
+      </div>
+    `}render(){const e=$();return n`
+      <sw-page heading="מרכז אירועים" subheading=${e?`חיפוש, סינון וסקירה · מקור, ודאות וזמן קליטה נשמרים · אזור זמן ${this.tz}`:"חיפוש, סינון וסקירה של כל האירועים · מקור וזמן קליטה נשמרים · נתוני הדגמה"}>
+        ${e?d:n`<sw-button slot="actions" icon="download">ייצוא</sw-button>`}
+        ${e?this.renderApi():this.renderDemo()}
+      </sw-page>
+    `}};F.styles=A`
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    .filters sw-field {
+      inline-size: 150px;
+    }
+    .filters sw-field:has(input[type='search']) {
+      inline-size: 210px;
+    }
+    .filters .grow {
+      flex: 1;
+    }
+    .rangepick {
+      display: inline-flex;
+      gap: 2px;
+      background: var(--sw-surface-3);
+      border-radius: 8px;
+      padding: 2px;
+    }
+    .rangepick button {
+      font: inherit;
+      font-size: var(--sw-fs-xs);
+      border: 0;
+      background: transparent;
+      color: var(--sw-text-2);
+      border-radius: 6px;
+      padding: 4px 8px;
+      cursor: pointer;
+    }
+    .rangepick button.on {
+      background: var(--sw-surface);
+      color: var(--sw-accent-text);
+      font-weight: var(--sw-fw-semibold);
+      box-shadow: var(--sw-shadow-1);
+    }
+    .stage {
+      position: relative;
+      min-block-size: 420px;
+    }
+    sw-scene.thumb,
+    .thumb.none {
+      inline-size: 64px;
+      block-size: 40px;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .thumb.none {
+      background: var(--sw-surface-3);
+      display: grid;
+      place-items: center;
+      color: var(--sw-text-3);
+    }
+    .thumb img {
+      inline-size: 64px;
+      block-size: 40px;
+      object-fit: cover;
+      border-radius: 6px;
+      display: block;
+      background: var(--sw-surface-3);
+    }
+    .thumb.pending {
+      background: linear-gradient(90deg, var(--sw-surface-3) 25%, var(--sw-surface-2) 50%, var(--sw-surface-3) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.6s linear infinite;
+    }
+    @keyframes shimmer {
+      from {
+        background-position: 200% 0;
+      }
+      to {
+        background-position: -200% 0;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .thumb.pending {
+        animation: none;
+      }
+    }
+    .big {
+      position: relative;
+      aspect-ratio: 16 / 9;
+      border-radius: var(--sw-r-md);
+      overflow: hidden;
+      background: var(--sw-surface-3);
+      display: grid;
+      place-items: center;
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-xs);
+      text-align: center;
+    }
+    .big img,
+    .big sw-live-player {
+      position: absolute;
+      inset: 0;
+      inline-size: 100%;
+      block-size: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .big .hint {
+      padding: 10px;
+    }
+    .big .err {
+      position: absolute;
+      inset-inline: 8px;
+      inset-block-end: 8px;
+      background: rgba(17, 24, 39, 0.7);
+      color: #fff;
+      border-radius: 6px;
+      padding: 4px 8px;
+    }
+    .ty {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-weight: var(--sw-fw-semibold);
+    }
+    .ty i {
+      inline-size: 8px;
+      block-size: 8px;
+      border-radius: 50%;
+      background: var(--tone);
+    }
+    .sub {
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+    }
+    .preview {
+      position: relative;
+      aspect-ratio: 16 / 9;
+      border-radius: var(--sw-r-md);
+      overflow: hidden;
+      background: var(--sw-surface-3);
+      color: var(--sw-text-2);
+      display: grid;
+      place-items: center;
+      font-size: var(--sw-fs-xs);
+      text-align: center;
+      padding: 10px;
+    }
+    .preview sw-scene {
+      position: absolute;
+      inset: 0;
+    }
+    .preview .demo {
+      position: absolute;
+      inset-inline-end: 8px;
+      inset-block-start: 8px;
+      font-size: 10px;
+      background: rgba(17, 24, 39, 0.55);
+      color: #fff;
+      border-radius: 4px;
+      padding: 1px 6px;
+    }
+    dl {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 6px 12px;
+      margin: 0;
+      font-size: var(--sw-fs-sm);
+    }
+    dt {
+      color: var(--sw-text-3);
+    }
+    dd {
+      margin: 0;
+    }
+    .banner {
+      font-size: var(--sw-fs-xs);
+      padding: 6px 10px;
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface-2);
+      color: var(--sw-text-2);
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .banner.warn {
+      background: var(--sw-stale-soft);
+      color: #7c2d12;
+    }
+    .dot {
+      inline-size: 8px;
+      block-size: 8px;
+      border-radius: 50%;
+      background: var(--sw-offline);
+      display: inline-block;
+    }
+    .dot.on {
+      background: var(--sw-live);
+    }
+    .kpis {
+      display: none;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-block-end: 10px;
+    }
+    .kpi {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 14px;
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+    }
+    .kpi .n {
+      font-size: var(--sw-fs-2xl);
+      font-weight: var(--sw-fw-semibold);
+      line-height: 1;
+    }
+    .kpi .l {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .kpi .ic {
+      inline-size: 36px;
+      block-size: 36px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent-text);
+    }
+    @media (max-width: 767px) {
+      .kpis {
+        display: grid;
+      }
+      .filters sw-field {
+        inline-size: 100%;
+      }
+    }
+    .wlist {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .wrow {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 10px;
+      align-items: center;
+      padding: 6px 8px;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-sm);
+      text-decoration: none;
+      color: var(--sw-text);
+      font-size: var(--sw-fs-sm);
+    }
+    .wrow:hover {
+      background: var(--sw-surface-3);
+    }
+    /* hover preview over an event row (T044): the event's frame and the frames 5 s before / after it */
+    .rowpreview {
+      position: fixed;
+      z-index: var(--sw-z-popover, 40);
+      inline-size: 372px;
+      max-inline-size: calc(100vw - 32px);
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border-strong);
+      border-radius: var(--sw-r-md);
+      box-shadow: var(--sw-shadow-3, var(--sw-shadow-2));
+      padding: 8px;
+      pointer-events: none;
+    }
+    .rowpreview .strip {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+    .rowpreview .cell {
+      aspect-ratio: 16 / 9;
+      background: var(--sw-surface-3);
+      border-radius: 6px;
+      overflow: hidden;
+      display: grid;
+      place-items: center;
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+      position: relative;
+    }
+    .rowpreview .cell.main {
+      outline: 2px solid var(--sw-accent);
+      outline-offset: -2px;
+    }
+    .rowpreview img {
+      inline-size: 100%;
+      block-size: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .rowpreview .t {
+      position: absolute;
+      inset-block-end: 3px;
+      inset-inline-end: 5px;
+      font-family: var(--sw-font-mono);
+      font-size: 10px;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.55);
+      padding: 0 4px;
+      border-radius: 3px;
+    }
+    .rowpreview .cap {
+      margin-block-start: 6px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .ltr {
+      direction: ltr;
+      unicode-bidi: isolate;
+    }
+  `;U([g()],F.prototype,"cameraId",2);U([g()],F.prototype,"date",2);U([g()],F.prototype,"initialMode",2);U([c()],F.prototype,"selected",2);U([c()],F.prototype,"filter",2);U([c()],F.prototype,"cams",2);U([c()],F.prototype,"tz",2);U([c()],F.prototype,"type",2);U([c()],F.prototype,"events",2);U([c()],F.prototype,"ingest",2);U([c()],F.prototype,"live",2);U([c()],F.prototype,"error",2);U([c()],F.prototype,"busy",2);U([c()],F.prototype,"thumbVersion",2);U([c()],F.prototype,"player",2);U([c()],F.prototype,"mode",2);U([c()],F.prototype,"windows",2);U([c()],F.prototype,"windowGap",2);U([c()],F.prototype,"windowBy",2);U([c()],F.prototype,"selectedWindow",2);U([c()],F.prototype,"windowsBusy",2);U([c()],F.prototype,"facets",2);U([c()],F.prototype,"placeFloor",2);U([c()],F.prototype,"placeZone",2);U([c()],F.prototype,"source",2);U([c()],F.prototype,"unsupported",2);U([c()],F.prototype,"q",2);U([c()],F.prototype,"rangeDays",2);U([c()],F.prototype,"rowPreview",2);F=U([P("investigate-events")],F);var Ih=Object.defineProperty,Ch=Object.getOwnPropertyDescriptor,be=(e,t,s,i)=>{for(var a=i>1?void 0:i?Ch(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Ih(t,s,a),a};const Dh={measured:"recorded",inferred:"unknown",command:"partial",availability:"stale"},Hn={alertstream:"אירוע NVR",recording:"נגזר מהקלטה",system:"מערכת",ha:"חיישן HA"},Fn=600*1e3;let oe=class extends M{constructor(){super(...arguments),this.eventId="",this.ev=null,this.error="",this.tz="Asia/Jerusalem",this.session=null,this.playerError="",this.bundle=null,this.nearby=[],this.corr=null,this.corrError="",this.route=null,this.busy=!1,this.thumbVersion=0,this.casePick=null,this.geometry=null,this.pollTimer=0}connectedCallback(){super.connectedCallback(),this.load()}disconnectedCallback(){super.disconnectedCallback(),window.clearTimeout(this.pollTimer),this.stopPlayer()}updated(e){e.has("eventId")&&e.get("eventId")!==void 0&&this.load()}async load(){if($()){this.error="",await this.stopPlayer();try{const e=await qc(this.eventId);this.ev=e,this.tz=e.timezone||this.tz,e.location?.has_plan?this.loadMap(e.location.floor_id):this.bundle=null,this.loadNearby(e),this.loadCorrelation(e.id),this.loadRoute(e.id),e.camera_id&&this.play(e),e.thumbnail==="pending"&&this.pollThumb(e.id)}catch(e){this.error=b(e),this.ev=null}}}async loadRoute(e){this.route=null;try{this.route=await Qc(e)}catch{this.route=null}}renderRoute(){const e=this.route;return!e||!e.spatial?d:n`<sw-card heading="המשך מסלול מוצע" subheading="השערה לפי טופולוגיית המפה · ±${Math.round((new Date(e.window.to).getTime()-new Date(e.window.from).getTime())/1e3)} שניות" style="margin-block-start:12px" data-route>
+      ${e.suggestions.length?n`<div class="corr" data-route-list>${e.suggestions.map(t=>n`<div class="link" data-route-item data-relation=${t.relation}>
+              <span><sw-badge kind=${t.relation==="same_zone"?"recorded":t.relation==="adjacent_zone"?"partial":"neutral"} label=${t.relation_label}></sw-badge></span>
+              <span>${t.name}${t.zone?n` · ${t.zone}`:d}<small>${t.activity_events?`${t.activity_events} אירועים בחלון`:"ללא אירועים בחלון"} · מרחק ${Math.round(t.distance*100)} יח׳ תוכנית</small></span>
+              <sw-button size="sm" icon="play" @click=${()=>x("/investigate/playback",{camera:t.camera_id,t:t.playback_at})}>נגן</sw-button>
+            </div>`)}</div>`:n`<div class="note" style="margin:0">אין מצלמות נוספות בסביבה על התוכנית.</div>`}
+      ${e.notes.length?n`<ul class="corrnotes">${e.notes.map(t=>n`<li>${t}</li>`)}</ul>`:d}
+      <div class="note">${e.policy}</div>
+    </sw-card>`}async loadCorrelation(e){this.corr=null,this.corrError="";try{this.corr=await Jc(e)}catch(t){this.corrError=b(t)}}async loadMap(e){try{const t=await Bs(e);this.bundle=t,this.geometry=null;const s=await Da(t);this.bundle===t&&(this.geometry=s)}catch{this.bundle=null,this.geometry=null}}async loadNearby(e){try{const t=new Date(e.occurred_at).getTime(),s=a=>new Date(a).toISOString().replace(/\.\d{3}Z$/,"Z"),i=await Ci({from:s(t-Fn),to:s(t+Fn),limit:30});this.nearby=i.events.filter(a=>a.id!==e.id).slice(0,6)}catch{this.nearby=[]}}pollThumb(e){window.clearTimeout(this.pollTimer),this.pollTimer=window.setTimeout(async()=>{const t=await Or(e).catch(()=>"unavailable");this.ev?.id===e&&(t==="pending"?this.pollThumb(e):(this.ev={...this.ev,thumbnail:t},t==="ready"&&(this.thumbVersion=Date.now())))},1500)}async play(e){if(e.camera_id){this.playerError="";try{const t=new Date(new Date(e.occurred_at).getTime()-2e3).toISOString().replace(/\.\d{3}Z$/,"Z"),s=await Va(e.camera_id,t);this.ev?.id===e.id?this.session=s:await Fs(s.id).catch(()=>{})}catch(t){this.playerError=b(t)}}}async stopPlayer(){const e=this.session;this.session=null,e&&await Fs(e.id).catch(()=>{})}async ack(){const e=this.ev;if(!(!e||e.acked_at)){this.busy=!0;try{const t=await Tr(e.id);this.ev={...e,acked_at:t.acked_at,acked_by_username:t.acked_by_username}}catch(t){this.error=b(t)}finally{this.busy=!1}}}fmt(e,t=!1){const s=new Date(e),i=new Intl.DateTimeFormat("he-IL",{timeZone:this.tz,hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"}).format(s);return t?`${new Intl.DateTimeFormat("he-IL",{timeZone:this.tz,day:"2-digit",month:"2-digit",year:"numeric"}).format(s)} · ${i}`:i}renderCorrelation(){const e=this.corr,t=e?`±${e.window_s} שניות · ${e.spatial?`סביבת ${e.location?.zone??"המיקום על התוכנית"} (${e.location?.floor_name??""})`:"לפי זמן בלבד"}`:this.corrError?"לא נטען":"טוען…";return n`<sw-card heading="קורלציה דלת–מצלמה–חיישן" subheading=${t} style="margin-block-start:12px" data-correlation>
+      ${e?n`${e.entities.length?n`<div class="note" style="margin:0 0 6px" data-correlation-entities>בסביבה: ${e.entities.map(s=>`${s.name}${s.state_missing?" (ללא מצב)":s.state?` · ${s.state}`:""}`).join(" · ")}</div>`:n`<div class="note" style="margin:0 0 6px" data-correlation-entities>אין חיישנים או מנעולים מוצבים בסביבה.</div>`}
+            ${e.links.length?n`<div class="corr" data-correlation-links>${e.links.map(s=>n`<div class="link" data-correlation-link data-certainty=${s.certainty}>
+                    <span class="ltr num">${s.delta_s>0?"+":""}${s.delta_s}s</span>
+                    <span>${s.kind==="camera"&&s.event_id?n`<a href=${`#/investigate/events/${s.event_id}`}>${s.label}</a>`:s.kind==="sensor"&&s.event_id?n`<a href=${`#/investigate/events/${s.event_id}`}>${s.label}</a>`:s.label}<small>${s.note}</small></span>
+                    <sw-badge kind=${Dh[s.certainty]} label=${Yc[s.certainty]}></sw-badge>
+                  </div>`)}</div>`:n`<div class="note" style="margin:0">לא נרשם דבר בחלון הזמן מהחיישנים, המנעולים והמצלמות שבסביבה.</div>`}
+            ${e.notes.length?n`<ul class="corrnotes">${e.notes.map(s=>n`<li data-correlation-note=${s.code}>${s.text}</li>`)}</ul>`:d}
+            <div class="note">${e.policy}</div>`:this.corrError?n`<div class="note">${this.corrError}</div>`:d}
+    </sw-card>`}duration(e){if(!e.ended_at)return typeof e.details.seconds=="number"?`${e.details.seconds} שנ׳ (הקלטה)`:"—";const t=Math.max(0,Math.round((new Date(e.ended_at).getTime()-new Date(e.occurred_at).getTime())/1e3));return`${String(Math.floor(t/60)).padStart(2,"0")}:${String(t%60).padStart(2,"0")}`}get markers(){const e=this.bundle;return e?e.anchors.map(t=>({id:t.id,kind:t.resource_type==="camera"?"camera":Ei(t.layer_id,t.entity?.domain),label:t.camera?.name??t.entity?.name??t.label??t.resource_id,x:t.position.x,y:t.position.y,rotation:t.rotation_degrees,fov:t.field_of_view_degrees??void 0,state:t.resource_type==="camera"?ks(t):"neutral"})):[]}render(){if(!$())return n`<sw-page heading="אירוע"><sw-state-panel state="empty" heading="דף האירוע זמין עם השרת" hint="במצב הדגמה אין אירועים אמיתיים."></sw-state-panel></sw-page>`;if(this.error&&!this.ev)return n`<sw-page heading="אירוע"><sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${()=>this.load()}></sw-state-panel></sw-page>`;const e=this.ev;if(!e)return n`<sw-page heading="אירוע"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;const t=ee[e.type]??e.type,s=e.camera_name??(e.channel?`ערוץ ${e.channel}`:"מערכת"),i=e.location,a=i?`${i.building_name} · ${i.floor_name}${i.zone?` / ${i.zone}`:""}`:null,r=!!e.acked_at;return n`
+      <sw-page heading=${`${t} · ${s}`} subheading=${`${Hn[e.source]??e.source} · ${this.fmt(e.occurred_at,!0)}`} crumbs=${`חקירה | אירועים | ${t}`} wide>
+        <sw-button slot="actions" variant=${r?"ghost":"primary"} icon="check" ?disabled=${r||this.busy} @click=${()=>this.ack()}>${r?"טופל":"סמן כטופל"}</sw-button>
+        <sw-button slot="actions" icon="case" data-add-to-case @click=${()=>this.casePick={kind:"event",event_id:e.id}}>הוסף לתיק</sw-button>
+        <sw-button slot="actions" variant="ghost" icon="list" @click=${()=>x("/investigate/events")}>למרכז האירועים</sw-button>
+        ${this.error?n`<div class="err">${this.error}</div>`:d}
+        <div class="layout">
+          <div>
+            <div class="player" data-player>
+              ${this.session?n`<sw-live-player .wsUrl=${vi(this.session)} mode="mse" .retry=${!1}></sw-live-player>`:e.thumbnail==="ready"?n`<img src=${Rt(e.id,this.thumbVersion)} alt="תמונת האירוע מההקלטה" />`:n`<div class="hint">${e.camera_id?this.playerError?`ההקלטה לא נפתחה: ${this.playerError}`:e.thumbnail==="unavailable"?"אין הקלטה זמינה בזמן האירוע":"פותח את ההקלטה…":"אירוע ללא מצלמה — אין וידאו"}</div>`}
+              <span class="chip"><sw-icon name="clock" size=${12}></sw-icon>${this.session?"הקלטה":e.thumbnail==="ready"&&!this.session?"תמונה מההקלטה":"אירוע"}</span>
+              <div class="caption">${s}<small>זמן האירוע <span class="ltr">${this.fmt(e.occurred_at)}</span>${this.session?.actual_start_at?n` · הנגן מתחיל <span class="ltr">${this.fmt(this.session.actual_start_at)}</span>${this.session.time_precision!=="verified"?` (${this.session.time_precision==="keyframe_limited"?"לפי keyframe":"משוער"})`:""}`:d}</small></div>
+            </div>
+            <div class="bar">
+              <span>${this.session?"הנגן פותח את ההקלטה שתי שניות לפני זמן האירוע; זמן האירוע וזמן הפריים המנוגן מוצגים בנפרד.":e.playerHint??""}</span>
+              <span class="grow"></span>
+              ${e.camera_id?n`<sw-button size="sm" icon="history" @click=${()=>x("/investigate/playback",{camera:e.camera_id,t:e.occurred_at})}>הנגן המלא עם ציר הזמן</sw-button>`:d}
+              ${e.camera_id?n`<sw-button size="sm" variant="ghost" icon="play" @click=${()=>this.session?this.stopPlayer():this.play(e)}>${this.session?"עצור":"נגן שוב"}</sw-button>`:d}
+            </div>
+          </div>
+          <div>
+            <sw-card heading="הקשר האירוע" data-context>
+              <dl class="meta">
+                <dt>מצב</dt><dd data-status>${r?n`<sw-badge kind="live" label=${`טופל · ${e.acked_by_username??""}`}></sw-badge> <span class="note" style="margin:0">${this.fmt(e.acked_at,!0)}</span>`:n`<sw-badge kind="stale" label="טרם טופל"></sw-badge>`}</dd>
+                <dt>מקור</dt><dd>${Hn[e.source]??e.source}${e.camera_id?n` / ${s}`:d} <span class="note" style="margin:0">raw <span class="ltr">${e.raw_type}</span></span></dd>
+                <dt>סוג</dt><dd>${t}${e.confidence==="inferred"?" · נגזר (inferred)":""}</dd>
+                <dt>זמן התחלה</dt><dd><span class="ltr">${this.fmt(e.occurred_at,!0)}</span></dd>
+                <dt>משך החלון</dt><dd>${this.duration(e)}${e.count>1?` · ${e.count} חזרות`:""}</dd>
+                <dt>מיקום</dt><dd data-where>${a??(e.camera_id?"המצלמה עדיין לא מוצבת על תוכנית":"—")}</dd>
+              </dl>
+              ${i&&i.has_plan&&this.bundle?n`<div class="map">
+                    <div class="floorchip"><sw-icon name="building" size=${12}></sw-icon>${i.floor_name}</div>
+                    <sw-plan-canvas .planWidth=${this.bundle.width} .planHeight=${this.bundle.height} .imageUrl=${this.bundle.imageUrl} .plan=${this.bundle.planSvg} .markers=${this.markers} .selectedId=${i.anchor_id} .zones=${this.bundle.zones} .geometry=${this.geometry} alwaysLabel dimEntities></sw-plan-canvas>
+                  </div>
+                  <div style="display:flex;gap:8px;margin-block-start:10px;flex-wrap:wrap">
+                    <sw-button size="sm" icon="map" data-history-map @click=${()=>x(`/investigate/floors/${i.floor_id}`,{t:e.occurred_at,camera:e.camera_id??""})}>המשך חקירה במפה</sw-button>
+                    <sw-button size="sm" variant="ghost" icon="live" @click=${()=>x(`/explore/floors/${i.floor_id}`)}>מפה חיה</sw-button>
+                  </div>`:i?n`<div class="note">לקומה ${i.floor_name} אין תוכנית מפורסמת עדיין.</div>`:d}
+              <div class="note">מיקום סמוך הוא הקשר, לא הוכחת קשר סיבתי; סימון "טופל" נרשם באודיט בשם המשתמש.</div>
+            </sw-card>
+            ${this.renderCorrelation()}
+            ${this.renderRoute()}
+            <sw-card heading="אירועים קרובים" subheading="±10 דקות סביב האירוע" style="margin-block-start:12px">
+              ${this.nearby.length?n`<div class="nearby">${this.nearby.map(o=>n`<a href=${`#/investigate/events/${o.id}`}><span>${ee[o.type]??o.type} · ${o.camera_name??(o.channel?`ערוץ ${o.channel}`:"מערכת")}</span><span class="ltr">${this.fmt(o.occurred_at)}</span></a>`)}</div>`:n`<div class="note" style="margin:0">אין אירועים נוספים בחלון הזה.</div>`}
+            </sw-card>
+          </div>
+        </div>
+        <sw-case-picker .item=${this.casePick} subheading=${`${t} · ${s} · ${this.fmt(e.occurred_at,!0)}`} @close=${()=>this.casePick=null}></sw-case-picker>
+      </sw-page>
+    `}};oe.styles=A`
+    :host {
+      display: flex;
+      flex-direction: column;
+      min-block-size: 100%;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 340px;
+      gap: 16px;
+      align-items: start;
+    }
+    .player {
+      position: relative;
+      aspect-ratio: 16 / 9;
+      background: #0f172a;
+      border-radius: var(--sw-r-lg);
+      overflow: hidden;
+      box-shadow: var(--sw-shadow-1);
+    }
+    .player sw-live-player,
+    .player img {
+      position: absolute;
+      inset: 0;
+      inline-size: 100%;
+      block-size: 100%;
+      object-fit: contain;
+    }
+    .player .hint {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      color: rgba(255, 255, 255, 0.8);
+      font-size: var(--sw-fs-sm);
+      text-align: center;
+      padding: 20px;
+    }
+    .chip {
+      position: absolute;
+      inset-inline-start: 12px;
+      inset-block-start: 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(17, 24, 39, 0.72);
+      color: #fff;
+      border-radius: 8px;
+      padding: 4px 10px;
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .caption {
+      position: absolute;
+      inset-inline-start: 12px;
+      inset-block-end: 12px;
+      color: #fff;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+      font-size: var(--sw-fs-sm);
+    }
+    .caption small {
+      display: block;
+      opacity: 0.85;
+      font-size: var(--sw-fs-xs);
+    }
+    .bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-block-start: 10px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+    }
+    .bar .grow {
+      flex: 1;
+    }
+    dl.meta {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 8px 12px;
+      margin: 0;
+      font-size: var(--sw-fs-sm);
+    }
+    dl.meta dt {
+      color: var(--sw-text-3);
+    }
+    dl.meta dd {
+      margin: 0;
+      font-weight: var(--sw-fw-medium);
+    }
+    .map {
+      position: relative;
+      block-size: 230px;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      overflow: hidden;
+      background: var(--sw-map-bg);
+      margin-block-start: 10px;
+    }
+    .map sw-plan-canvas {
+      block-size: 100%;
+      min-block-size: 0;
+    }
+    .floorchip {
+      position: absolute;
+      inset-inline-start: 8px;
+      inset-block-start: 8px;
+      z-index: var(--sw-z-map-ui);
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: 8px;
+      padding: 3px 8px;
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .corr {
+      display: flex;
+      flex-direction: column;
+    }
+    .corr .link {
+      display: grid;
+      grid-template-columns: 56px minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+      padding: 6px 0;
+      border-block-end: 1px solid var(--sw-border);
+      font-size: var(--sw-fs-sm);
+    }
+    .corr .link:last-child {
+      border-block-end: 0;
+    }
+    .corr small {
+      display: block;
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+    }
+    .corr .num {
+      font-variant-numeric: tabular-nums;
+      font-family: var(--sw-font-mono);
+      font-size: var(--sw-fs-xs);
+    }
+    .corrnotes {
+      margin: 8px 0 0;
+      padding-inline-start: 18px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+    }
+    .nearby {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-block-start: 6px;
+    }
+    .nearby a {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 6px 8px;
+      border-radius: var(--sw-r-sm);
+      text-decoration: none;
+      color: var(--sw-text);
+      font-size: var(--sw-fs-sm);
+      border: 1px solid var(--sw-border);
+    }
+    .nearby a:hover {
+      background: var(--sw-surface-3);
+    }
+    .note {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      margin-block-start: 8px;
+    }
+    .err {
+      color: var(--sw-danger);
+      font-size: var(--sw-fs-xs);
+    }
+    .ltr {
+      direction: ltr;
+      unicode-bidi: isolate;
+      font-family: var(--sw-font-mono);
+    }
+    @media (max-width: 900px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+  `;be([g()],oe.prototype,"eventId",2);be([c()],oe.prototype,"ev",2);be([c()],oe.prototype,"error",2);be([c()],oe.prototype,"tz",2);be([c()],oe.prototype,"session",2);be([c()],oe.prototype,"playerError",2);be([c()],oe.prototype,"bundle",2);be([c()],oe.prototype,"nearby",2);be([c()],oe.prototype,"corr",2);be([c()],oe.prototype,"corrError",2);be([c()],oe.prototype,"route",2);be([c()],oe.prototype,"busy",2);be([c()],oe.prototype,"thumbVersion",2);be([c()],oe.prototype,"casePick",2);be([c()],oe.prototype,"geometry",2);oe=be([P("investigate-event-detail")],oe);var Th=Object.getOwnPropertyDescriptor,Oh=(e,t,s,i)=>{for(var a=i>1?void 0:i?Th(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=o(a)||a);return a};const Rh=[{id:"rv-1",title:"כניסה ראשית · 10:12–10:16",primary:"כניסה ראשית",scene:"entrance",related:["לובי"],events:3,severity:"alert",status:"חדש"},{id:"rv-2",title:"חצר אחורית · 09:40–09:44",primary:"חצר אחורית",scene:"backyard",related:[],events:2,severity:"info",status:"בבדיקה"},{id:"rv-3",title:"חניה מקורה · 06:41–06:45",primary:"חניה מקורה",scene:"parking",related:["כניסה ראשית"],events:1,severity:"alert",status:"טופל"},{id:"rv-4",title:"לובי · אתמול 23:08–23:12",primary:"לובי",scene:"lobby",related:[],events:4,severity:"info",status:"false positive"}];let va=class extends M{render(){return n`
+      <sw-page heading="תור Review" subheading="אירועים סמוכים מקובצים לחלון אחד עם מצלמה ראשית · נתוני הדגמה">
+        <div class="filters">
+          <sw-chip selected count=${1}>חדש</sw-chip><sw-chip count=${1}>בבדיקה</sw-chip><sw-chip count=${1}>טופל</sw-chip><sw-chip count=${1}>false positive</sw-chip>
+          <sw-chip icon="filter">חומרה</sw-chip><sw-chip icon="camera">מצלמה</sw-chip>
+        </div>
+        <div class="list">
+          ${Rh.map(e=>n`<sw-card>
+              <sw-camera-tile name=${e.primary} meta=${`${e.events} אירועים`} state="recorded" scene=${e.scene}></sw-camera-tile>
+              <div class="meta"><strong>${e.title}</strong><sw-badge kind=${e.status==="חדש"?"stale":e.status==="טופל"?"neutral":"recorded"} label=${e.status}></sw-badge></div>
+              <div class="sub">מצלמות קשורות: ${e.related.length?e.related.join(", "):"אין"} · ${e.severity==="alert"?"התראה":"מידע"}</div>
+              <div class="actions">
+                <a href="#/investigate/playback"><sw-button size="sm" icon="play">נגן</sw-button></a>
+                <a href="#/investigate/events"><sw-button size="sm" variant="ghost">אירועים גולמיים</sw-button></a>
+                <sw-button size="sm" variant="ghost" icon="check">טופל</sw-button>
+              </div>
+            </sw-card>`)}
+        </div>
+      </sw-page>
+    `}};va.styles=A`
+    .filters {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 12px;
+    }
+    .meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-block: 8px 4px;
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text-2);
+      flex-wrap: wrap;
+    }
+    .meta strong {
+      color: var(--sw-text);
+    }
+    .sub {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      margin-block-end: 8px;
+    }
+    .actions {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+  `;va=Oh([P("investigate-reviews")],va);var Nh=Object.defineProperty,Lh=Object.getOwnPropertyDescriptor,Z=(e,t,s,i)=>{for(var a=i>1?void 0:i?Lh(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Nh(t,s,a),a};const Bh={open:"stale",in_review:"recorded",closed:"neutral"},Vh={preserved:"recorded",preserving:"partial",nvr_only:"stale",missing:"error",unknown:"unknown",none:"neutral"},Hh=(e,t)=>new Intl.DateTimeFormat("he-IL",{timeZone:t,dateStyle:"short",timeStyle:"short"}).format(new Date(e)),Fh=[{key:"title",label:"תיק",render:e=>n`<strong>${String(e.title)}</strong>${e.tags?n`<div style="font-size:11px;color:var(--sw-text-3)">${String(e.tags)}</div>`:d}`},{key:"status",label:"סטטוס",render:e=>n`<sw-badge kind=${Bh[e.status]} label=${As[e.status]}></sw-badge>`},{key:"owner",label:"בעלים"},{key:"items",label:"פריטים"},{key:"preserved",label:"עותקים שמורים",render:e=>n`${String(e.preserved)} מתוך ${String(e.clips)}`},{key:"updated",label:"עודכן",ltr:!0,render:e=>Hh(String(e.updated))}],jh=[{key:"title",label:"תיק",render:e=>n`<strong>${String(e.title)}</strong>`},{key:"status",label:"סטטוס",render:e=>n`<sw-badge kind=${e.status==="פתוח"?"stale":e.status==="סגור"?"neutral":"recorded"} label=${String(e.status)}></sw-badge>`},{key:"owner",label:"בעלים"},{key:"clips",label:"קטעים"},{key:"notes",label:"הערות"},{key:"preserved",label:"ראיות שמורות",render:e=>n`${e.preserved} שמורות${Number(e.missing)?n` · <span style="color:var(--sw-danger)">${e.missing} חסרות</span>`:""}`},{key:"more",label:"",width:"40px",render:()=>n`<sw-button variant="ghost" size="sm" iconOnly icon="more" label="עוד"></sw-button>`}];let Se=class extends M{constructor(){super(...arguments),this.cases=[],this.canManage=!1,this.loading=!1,this.error="",this.status="all",this.q="",this.creating=!1,this.newTitle="",this.newDesc="",this.newTags="",this.busy=!1,this.qTimer=0}connectedCallback(){super.connectedCallback(),$()&&this.load()}async load(){this.loading=!0,this.error="";try{const e=await Vr({status:this.status==="all"?void 0:this.status,q:this.q||void 0});this.cases=e.cases,this.canManage=e.can_manage}catch(e){this.error=b(e)}finally{this.loading=!1}}setStatus(e){this.status=e,this.load()}onQuery(e){this.q=e,window.clearTimeout(this.qTimer),this.qTimer=window.setTimeout(()=>void this.load(),250)}async create(){if(this.newTitle.trim()){this.busy=!0,this.error="";try{const e=await Hr({title:this.newTitle.trim(),description:this.newDesc,tags:this.newTags.split(",").map(t=>t.trim()).filter(Boolean)});this.creating=!1,this.newTitle=this.newDesc=this.newTags="",x(`/investigate/cases/${e.id}`)}catch(e){this.error=b(e)}finally{this.busy=!1}}}renderApi(){const e=this.cases.map(t=>({id:t.id,title:t.title,status:t.status,owner:t.owner_username,items:t.counts.items,clips:t.counts.events+t.counts.clips,preserved:t.counts.preserved,updated:t.updated_at,tags:t.tags.join(" · ")}));return n`
+      <sw-page heading="תיקים" subheading="קישור להקלטה אינו שימור: ראיה נחשבת שמורה רק אחרי העתקה מאומתת מה־NVR">
+        ${this.canManage?n`<sw-button slot="actions" variant="primary" icon="plus" data-case-new @click=${()=>this.creating=!0}>תיק חדש</sw-button>`:d}
+        <div class="bar">
+          ${["all","open","in_review","closed"].map(t=>n`<sw-chip ?selected=${this.status===t} @click=${()=>this.setStatus(t)}>${t==="all"?"הכל":As[t]}</sw-chip>`)}
+          <span class="grow"></span>
+          <sw-field><input type="search" placeholder="חיפוש בכותרת, תיאור ותגיות" aria-label="חיפוש תיקים" .value=${this.q} @input=${t=>this.onQuery(t.target.value)} /></sw-field>
+        </div>
+        ${this.error?n`<div class="err">${this.error}</div>`:d}
+        ${this.loading&&!this.cases.length?n`<sw-state-panel state="loading"></sw-state-panel>`:this.cases.length?n`<sw-table data-cases-table .columns=${Fh} .rows=${e} @row-select=${t=>x(`/investigate/cases/${t.detail.id}`)}></sw-table>`:n`<sw-state-panel state="empty" heading="אין תיקים עדיין" hint="פתח תיק מדף אירוע, מהנגן או מהמפה ההיסטורית (הוסף לתיק), או כאן."></sw-state-panel>`}
+        ${this.creating?n`<sw-dialog open heading="תיק חדש" subheading="כותרת קצרה; פריטים נוספים מדפי האירוע, הנגן והמפה" data-case-create @close=${()=>this.creating=!1}>
+              <sw-field label="כותרת"><input data-case-title .value=${this.newTitle} @input=${t=>this.newTitle=t.target.value} /></sw-field>
+              <sw-field label="תיאור"><textarea rows="3" .value=${this.newDesc} @input=${t=>this.newDesc=t.target.value}></textarea></sw-field>
+              <sw-field label="תגיות (מופרדות בפסיק)"><input .value=${this.newTags} @input=${t=>this.newTags=t.target.value} /></sw-field>
+              <sw-button slot="footer" variant="ghost" @click=${()=>this.creating=!1}>ביטול</sw-button>
+              <sw-button slot="footer" variant="primary" icon="plus" data-case-create-confirm ?disabled=${this.busy||!this.newTitle.trim()} @click=${()=>this.create()}>צור תיק</sw-button>
+            </sw-dialog>`:d}
+      </sw-page>
+    `}render(){return $()?this.renderApi():n`
+      <sw-page heading="תיקים" subheading="קישור להקלטה אינו שימור: ראיה נחשבת שמורה רק אחרי העתקה מאומתת ו־hash · נתוני הדגמה">
+        <sw-button slot="actions" variant="primary" icon="plus">תיק חדש</sw-button>
+        <sw-table .columns=${jh} .rows=${da} @row-select=${e=>x(`/investigate/cases/${e.detail.id}`)}></sw-table>
+      </sw-page>
+    `}};Se.styles=A`
+    .bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-block-end: 10px;
+    }
+    .grow {
+      flex: 1;
+    }
+    .err {
+      color: var(--sw-danger);
+      font-size: var(--sw-fs-sm);
+      margin-block-end: 8px;
+    }
+  `;Z([c()],Se.prototype,"cases",2);Z([c()],Se.prototype,"canManage",2);Z([c()],Se.prototype,"loading",2);Z([c()],Se.prototype,"error",2);Z([c()],Se.prototype,"status",2);Z([c()],Se.prototype,"q",2);Z([c()],Se.prototype,"creating",2);Z([c()],Se.prototype,"newTitle",2);Z([c()],Se.prototype,"newDesc",2);Z([c()],Se.prototype,"newTags",2);Z([c()],Se.prototype,"busy",2);Se=Z([P("investigate-cases")],Se);let ae=class extends M{constructor(){super(...arguments),this.caseId="case-1",this.tab="details",this.data=null,this.error="",this.info="",this.busy=!1,this.tz="Asia/Jerusalem",this.noteText="",this.editing=!1,this.editTitle="",this.editDesc="",this.editTags="",this.confirmDelete=!1,this.bundles=[],this.verifyResult=null,this.cams=[],this.snapCam="",this.loadedFor="",this.pollTimer=0}updated(e){e.has("caseId")&&$()&&this.loadedFor!==this.caseId&&this.load()}disconnectedCallback(){super.disconnectedCallback(),window.clearTimeout(this.pollTimer)}async load(){const e=this.caseId;this.loadedFor=e,this.error="";try{const[t,s]=await Promise.all([Ve(),Kp(e)]);this.tz=t["time.zone"]??this.tz,this.data=s,this.bundles=(await ih(e).catch(()=>({bundles:[]}))).bundles,this.cams.length||(this.cams=(await Be().catch(()=>({cameras:[]}))).cameras.filter(i=>i.enabled),!this.snapCam&&this.cams[0]&&(this.snapCam=this.cams[0].id)),window.clearTimeout(this.pollTimer),s.items.some(i=>i.preservation==="preserving")&&(this.pollTimer=window.setTimeout(()=>void this.load(),5e3))}catch(t){this.error=b(t)}}fmt(e){return new Intl.DateTimeFormat("he-IL",{timeZone:this.tz,dateStyle:"short",timeStyle:"medium"}).format(new Date(e))}async run(e,t=""){this.busy=!0,this.error="";try{await e(),this.info=t,await this.load(),t&&setTimeout(()=>this.info="",4e3)}catch(s){this.error=b(s),s instanceof fe&&s.status===409&&await this.load()}finally{this.busy=!1}}patchCase(e){const t=this.data;t&&this.run(async()=>{await Yp(t.id,{revision:t.revision,...e})})}async verify(e){if(e){this.verifyResult=null,this.busy=!0,this.error="";try{this.verifyResult=await rh(e)}catch(t){this.error=b(t)}finally{this.busy=!1}}}renderBundleCard(e){const t=this.verifyResult;return n`<sw-card heading="חבילת ראיות" subheading="ZIP עם הקטעים השמורים, התמונות, ההערות, manifest עם SHA-256 לכל קובץ ודוח קריא" data-bundle>
+      ${e.can_manage?n`<sw-button size="sm" variant="primary" icon="download" data-bundle-create ?disabled=${this.busy} @click=${()=>void this.run(async()=>{await sh(e.id)},'החבילה נוצרה; פריטים שאינם עותק שמור מופיעים בה כ"לא נכללו"')}>צור חבילת ראיות</sw-button>`:d}
+      ${this.bundles.length?n`<div class="items" style="margin-block-start:8px">${this.bundles.map(s=>n`<div class="item" data-bundle-row style="grid-template-columns:minmax(0,1fr) auto"><div class="body"><strong class="ltr">${s.name}</strong><span class="meta">${es(s.bytes)} · ${this.fmt(s.created_at)}${s.signed?` · חתום · מפתח ${s.signed}`:" · ללא חתימה"}</span></div><div class="acts"><a href=${ah(e.id,s.name)} download><sw-button size="sm" icon="download">הורדה</sw-button></a></div></div>`)}</div>`:n`<div class="hint" style="margin-block-start:6px">עדיין לא נוצרה חבילה לתיק הזה.</div>`}
+      <div class="composer"><sw-field label="אימות חבילה (בחר קובץ ZIP שהורד)"><input type="file" accept=".zip,application/zip" data-bundle-verify-file @change=${s=>void this.verify(s.target.files?.[0])} /></sw-field></div>
+      ${t?n`<div class="note" data-bundle-verify-result>${t.ok?`החבילה אומתה: ${t.files.length} קבצים תואמים ל־manifest${t.case?` · תיק "${t.case}"`:""}`:`האימות נכשל${t.errors.length?`: ${t.errors.join(", ")}`:""}`}
+            ${t.files.some(s=>s.status!=="ok")||t.extra.length?n`<ul class="hint" style="margin:4px 0 0;padding-inline-start:18px">${t.files.filter(s=>s.status!=="ok").map(s=>n`<li class="ltr">${s.path}: ${s.status}</li>`)}${t.extra.map(s=>n`<li class="ltr">${s}: extra</li>`)}</ul>`:d}
+            ${t.signature?n`<div data-bundle-signature data-signature-trust=${t.signature.trust}>${t.signature.present?t.signature.valid?`חתימה תקינה · Ed25519 · מפתח ${t.signature.kid}${t.signature.trust==="installation"?t.signature.retired?" · מפתח שהוחלף, מוכר למתקן זה":" · המפתח הפעיל של מתקן זה":" · מפתח שאינו מוכר למתקן זה — שלמות בלבד, לא אמון"}`:`חתימה לא תקינה${t.signature.reason?` (${t.signature.reason})`:""} — ה־manifest שונה אחרי הייצוא או שהחתימה זויפה.`:"ללא חתימה (חבילה מגרסה ישנה, או שהחתימה הוסרה) — נבדקו רק הגיבובים."}</div>`:d}
+            ${t.authenticity?n`<div class="hint" style="margin-block-start:4px">${t.authenticity}</div>`:d}
+          </div>`:d}
+      <div class="hint" style="margin-block-start:6px">SHA-256 מוכיח שכל קובץ לא השתנה מאז יצירת החבילה; חתימת Ed25519 על ה־manifest מוכיחה שהחבילה לא שונתה מאז הייצוא על ידי מחזיק המפתח של המתקן (integrity-at-export). אף אחד מהם אינו מוכיח את אמיתות הצילום במקור (capture authenticity), ואין כאן הצהרה על קבילות משפטית. אימות מחוץ למערכת: scripts/verify_bundle.py.</div>
+    </sw-card>`}renderItem(e,t){const s=e.kind==="event"?`אירוע · ${ee[e.event?.type??"other"]??e.event?.type??""}`:e.kind==="clip"?"קטע הקלטה":e.kind==="snapshot"?"תמונה":"הערה",i=e.preservation,a=e.kind==="event"&&e.event?e.event.occurred_at:e.from_at,r=e.kind==="note"?n`<div class="thumb"><sw-icon name="edit" size=${18}></sw-icon></div>`:e.kind==="snapshot"?n`<img class="thumb" src=${nh(t.id,e.id)} alt="תמונה מהמצלמה" />`:e.kind==="event"&&e.event?.thumbnail==="ready"&&e.event_id?n`<img class="thumb" src=${Rt(e.event_id)} alt="" />`:e.camera_id&&a?n`<img class="thumb" src=${Di(e.camera_id,a)} alt="" @error=${o=>o.target.style.visibility="hidden"} />`:n`<div class="thumb"></div>`;return n`<div class="item" data-case-item data-kind=${e.kind} data-preservation=${i}>
+      ${r}
+      <div class="body">
+        <div class="head"><strong>${s}</strong>${e.camera_name?n`<span>· ${e.camera_name}</span>`:d}${i!=="none"?n`<sw-badge kind=${Vh[i]} label=${Gp[i]}></sw-badge>`:d}</div>
+        ${e.from_at&&e.to_at?n`<div class="range ltr">${this.fmt(e.from_at)} → ${this.fmt(e.to_at)}</div>`:d}
+        ${e.note?n`<div>${e.note}</div>`:d}
+        <div class="meta">${e.added_by_username} · ${this.fmt(e.created_at)}${e.export?.error?` · ייצוא: ${e.export.error}`:""}${i==="missing"?" · לא ניתן לשמר: ההקלטה כבר לא ב־NVR":""}</div>
+      </div>
+      <div class="acts">
+        ${e.camera_id&&a&&e.kind!=="snapshot"?n`<sw-button size="sm" icon="play" @click=${()=>x("/investigate/playback",{camera:e.camera_id??"",t:a})}>נגן</sw-button>`:d}
+        ${e.kind==="snapshot"&&e.file_sha256?n`<span class="meta ltr" title="SHA-256">${e.file_sha256.slice(0,12)}…</span>`:d}
+        ${e.event_id?n`<sw-button size="sm" variant="ghost" icon="bell" @click=${()=>x(`/investigate/events/${e.event_id}`)}>אירוע</sw-button>`:d}
+        ${t.can_manage&&e.kind!=="note"&&(i==="nvr_only"||i==="unknown")?n`<sw-button size="sm" icon="download" data-item-preserve ?disabled=${this.busy} @click=${()=>void this.run(()=>Qp(t.id,e.id).then(()=>{}),"עבודת שימור נוצרה; הפריט יסומן כשמור כשההעתקה תסתיים")}>שמור עותק</sw-button>`:d}
+        ${e.export?.download_ready?n`<a href=${Wr(e.export.id)} download><sw-button size="sm" variant="ghost" icon="download">הורדה</sw-button></a>`:d}
+        ${t.can_manage?n`<sw-button size="sm" variant="ghost" iconOnly icon="close" label="הסר מהתיק" data-item-remove ?disabled=${this.busy} @click=${()=>void this.run(()=>Xp(t.id,e.id).then(()=>{}))}></sw-button>`:d}
+      </div>
+    </div>`}renderApi(){if(this.error&&!this.data)return n`<sw-page heading="תיק"><sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${()=>this.load()}></sw-state-panel></sw-page>`;const e=this.data;if(!e)return n`<sw-page heading="תיק"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;const t=e.counts;return n`
+      <sw-page heading=${e.title} subheading=${`${As[e.status]} · בעלים: ${e.owner_username} · ${t.items} פריטים · ${t.preserved} עותקים שמורים · עודכן ${this.fmt(e.updated_at)}`} crumbs="חקירה | תיקים" wide>
+        ${e.can_manage?n`<sw-field slot="actions"><select aria-label="סטטוס" data-case-status ?disabled=${this.busy} @change=${s=>this.patchCase({status:s.target.value})}>${Object.keys(As).map(s=>n`<option value=${s} ?selected=${s===e.status}>${As[s]}</option>`)}</select></sw-field>
+              <sw-button slot="actions" icon="edit" data-case-edit @click=${()=>{this.editTitle=e.title,this.editDesc=e.description,this.editTags=e.tags.join(", "),this.editing=!0}}>עריכה</sw-button>
+              <sw-button slot="actions" variant="ghost" icon="trash" data-case-delete @click=${()=>this.confirmDelete=!0}>מחיקה</sw-button>`:d}
+        <sw-button slot="actions" variant="ghost" icon="list" @click=${()=>x("/investigate/cases")}>לרשימת התיקים</sw-button>
+        <div class="wrap">
+          ${this.error?n`<div class="err" data-case-error>${this.error}</div>`:d}
+          ${this.info?n`<div class="ok" data-case-info>${this.info}</div>`:d}
+          ${e.description||e.tags.length?n`<sw-card>${e.description?n`<div class="desc" data-case-description>${e.description}</div>`:d}${e.tags.length?n`<div class="tags">${e.tags.map(s=>n`<sw-chip>${s}</sw-chip>`)}</div>`:d}</sw-card>`:d}
+          <sw-card heading="ראיות והערות" subheading=${e.checked?"מצב השימור נבדק מול ה־NVR עכשיו":"מצב השימור לא נבדק מול ה־NVR"}>
+            ${e.items.length?n`<div class="items" data-case-items>${e.items.map(s=>this.renderItem(s,e))}</div>`:n`<div class="hint">עדיין אין פריטים בתיק. הוסף מאירוע, מהנגן או מהמפה ההיסטורית (הוסף לתיק).</div>`}
+            ${e.hidden_items?n`<div class="hint">${e.hidden_items} פריטים ממצלמות שאינן בהרשאתך אינם מוצגים.</div>`:d}
+            ${e.can_manage&&e.status!=="closed"?n`<div class="composer"><sw-field label="הערה חדשה"><textarea rows="2" data-note-text .value=${this.noteText} @input=${s=>this.noteText=s.target.value}></textarea></sw-field><sw-button size="sm" icon="plus" data-note-add ?disabled=${this.busy||!this.noteText.trim()} @click=${()=>void this.run(async()=>{await ga(e.id,{kind:"note",note:this.noteText.trim()}),this.noteText=""})}>הוסף הערה</sw-button></div>
+                  <div class="composer"><sw-field label="תמונה ממצלמה לתיק (עותק שמור מיידי)"><select aria-label="מצלמה לצילום" data-snapshot-camera @change=${s=>this.snapCam=s.target.value}>${this.cams.map(s=>n`<option value=${s.id} ?selected=${s.id===this.snapCam}>${s.name}</option>`)}</select></sw-field><sw-button size="sm" icon="camera" data-snapshot-add ?disabled=${this.busy||!this.snapCam} @click=${()=>void this.run(async()=>{await ga(e.id,{kind:"snapshot",camera_id:this.snapCam})},"התמונה נשמרה בתיק עם ה־hash שלה")}>צלם תמונה לתיק</sw-button></div>`:d}
+          </sw-card>
+          ${this.renderBundleCard(e)}
+          <div class="hint">סימנייה מצביעה על ההקלטה ב־NVR ואינה שימור: קטע נחשב שמור רק אחרי שעבודת ייצוא העתיקה אותו (sha256 ב־manifest). קטע שה־NVR כבר מחק מוצג כחסר ולעולם לא כשמור.</div>
+        </div>
+        ${this.editing?n`<sw-dialog open heading="עריכת תיק" data-case-edit-dialog @close=${()=>this.editing=!1}>
+              <sw-field label="כותרת"><input data-edit-title .value=${this.editTitle} @input=${s=>this.editTitle=s.target.value} /></sw-field>
+              <sw-field label="תיאור"><textarea rows="4" data-edit-description .value=${this.editDesc} @input=${s=>this.editDesc=s.target.value}></textarea></sw-field>
+              <sw-field label="תגיות (מופרדות בפסיק)"><input .value=${this.editTags} @input=${s=>this.editTags=s.target.value} /></sw-field>
+              <sw-button slot="footer" variant="ghost" @click=${()=>this.editing=!1}>ביטול</sw-button>
+              <sw-button slot="footer" variant="primary" icon="check" data-case-edit-save ?disabled=${this.busy||!this.editTitle.trim()} @click=${()=>{this.editing=!1,this.patchCase({title:this.editTitle.trim(),description:this.editDesc,tags:this.editTags.split(",").map(s=>s.trim()).filter(Boolean)})}}>שמירה</sw-button>
+            </sw-dialog>`:d}
+        ${this.confirmDelete?n`<sw-dialog open heading="מחיקת תיק" subheading="הפריטים בתיק יימחקו; ההקלטות ב־NVR והעותקים שיוצאו נשארים" @close=${()=>this.confirmDelete=!1}>
+              <sw-button slot="footer" variant="ghost" @click=${()=>this.confirmDelete=!1}>ביטול</sw-button>
+              <sw-button slot="footer" variant="danger" icon="trash" data-case-delete-confirm ?disabled=${this.busy} @click=${()=>{this.confirmDelete=!1,this.run(async()=>{await Jp(e.id),x("/investigate/cases")})}}>מחק תיק</sw-button>
+            </sw-dialog>`:d}
+      </sw-page>
+    `}render(){if($())return this.renderApi();const e=da.find(t=>t.id===this.caseId)??da[0];return n`
+      <sw-page heading="סקירת אירוע" subheading=${`${e.title} · בעלים: ${e.owner} · נתוני הדגמה`} crumbs="אירועים | תיקים | 13.09.2026 10:12 | כניסה ראשית">
+        <sw-field slot="actions"><select aria-label="סטטוס"><option>${e.status}</option><option>בבדיקה</option><option>סגור</option></select></sw-field>
+        <div class="wrap">
+          <div class="video">
+            <sw-scene kind="entrance"></sw-scene>
+            <span class="stamp">2026-09-13 10:12:04</span>
+            <span class="demo">דמו · הקטע ינוגן מהתיק (T050)</span>
+            <div class="bar">
+              <sw-button variant="ghost" size="sm" iconOnly icon="play" label="נגן"></sw-button>
+              <span class="ltr">0:00 / 0:13</span>
+              <span class="track"><i></i></span>
+              <sw-button variant="ghost" size="sm" iconOnly icon="back10" label="אחורה"></sw-button>
+              <sw-button variant="ghost" size="sm" iconOnly icon="expand" label="מסך מלא"></sw-button>
+            </div>
+          </div>
+          <div class="clips">
+            <div class="clip on"><sw-scene kind="entrance"></sw-scene><span class="t">00:00</span></div>
+            <div class="clip"><sw-scene kind="lobby"></sw-scene><span class="t">00:06</span></div>
+            <div class="clip missing"><span>מסדרון 10:15<br />לא שמור: NVR מחק</span></div>
+            <div class="add"><span><sw-icon name="plus" size=${14}></sw-icon> הוסף קטע</span></div>
+          </div>
+          <sw-tabs .items=${[{id:"details",label:"פרטים"},{id:"notes",label:"הערות",count:2},{id:"related",label:"מצלמות קשורות",count:3}]} .active=${this.tab} @change=${t=>this.tab=t.detail.id}></sw-tabs>
+          ${this.tab==="details"?n`<div class="form">
+                <div class="stack">
+                  <sw-field label="כותרת"><input value=${e.title} /></sw-field>
+                  <sw-field label="תיאור"><textarea rows="3">אדם נכנס אחרי פתיחת הדלת ב־10:12. לבדוק אם מסדרון מזרחי הקליט (המצלמה מנותקת מ־07:55).</textarea></sw-field>
+                </div>
+                <div class="pills">
+                  <div class="pill"><sw-icon name="calendar" size=${14}></sw-icon>13.09.2026 · 10:12</div>
+                  <div class="pill"><sw-icon name="camera" size=${14}></sw-icon>כניסה ראשית · לובי</div>
+                  <div class="pill"><sw-icon name="shield" size=${14}></sw-icon>2/3 ראיות שמורות · sha256</div>
+                </div>
+              </div>`:this.tab==="notes"?n`<sw-card>
+                  <div class="note">נראה אדם נכנס אחרי פתיחת הדלת ב־10:12.<small>יוני · 10:40</small></div>
+                  <div class="note">לבדוק אם מסדרון מזרחי הקליט (המצלמה מנותקת מ־07:55).<small>יוסי · 10:52</small></div>
+                  <sw-field style="margin-block-start:8px"><textarea rows="2" placeholder="הערה חדשה…"></textarea></sw-field>
+                </sw-card>`:n`<div class="clips">
+                  <sw-camera-tile compact name="כניסה ראשית" state="recorded" scene="entrance"></sw-camera-tile>
+                  <sw-camera-tile compact name="לובי" state="recorded" scene="lobby"></sw-camera-tile>
+                  <sw-camera-tile compact name="מסדרון מזרחי" state="unknown"></sw-camera-tile>
+                </div>`}
+          <div class="foot">
+            <sw-button icon="link">שיתוף</sw-button>
+            <sw-button variant="primary" icon="download">ייצוא ראיות</sw-button>
+          </div>
+          <div class="hint">Manifest: clips 2/3 · notes 2 · requested/actual ranges · timezone Asia/Jerusalem · pipeline v0.1 · sha256 לכל קובץ. Hash מוכיח התאמה לקובץ שנשמר, לא אותנטיות מאז המצלמה. "מצלמות מוצעות לחקירה" בלבד: אין קביעה שמדובר באותו אדם.</div>
+        </div>
+      </sw-page>
+    `}};ae.styles=A`
+    .wrap {
+      max-inline-size: 860px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .video {
+      position: relative;
+      aspect-ratio: 16 / 9;
+      border-radius: var(--sw-r-lg);
+      overflow: hidden;
+      box-shadow: var(--sw-shadow-2);
+      color: #fff;
+    }
+    .video sw-scene {
+      position: absolute;
+      inset: 0;
+    }
+    .video .stamp {
+      position: absolute;
+      inset-inline-start: 12px;
+      inset-block-start: 10px;
+      font-family: var(--sw-font-mono);
+      font-size: var(--sw-fs-xs);
+      direction: ltr;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+    }
+    .video .demo {
+      position: absolute;
+      inset-inline-end: 12px;
+      inset-block-start: 10px;
+      font-size: 10px;
+      background: rgba(17, 24, 39, 0.55);
+      border-radius: 4px;
+      padding: 2px 7px;
+    }
+    .bar {
+      position: absolute;
+      inset-inline: 12px;
+      inset-block-end: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(17, 24, 39, 0.65);
+      backdrop-filter: blur(8px);
+      border-radius: var(--sw-r-pill);
+      padding: 4px 10px;
+      font-size: var(--sw-fs-xs);
+    }
+    .bar sw-button {
+      --sw-text-2: #fff;
+      --sw-text: #fff;
+      --sw-surface-3: rgba(255, 255, 255, 0.14);
+    }
+    .bar .track {
+      flex: 1;
+      block-size: 4px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.3);
+      overflow: hidden;
+    }
+    .bar .track i {
+      display: block;
+      inline-size: 35%;
+      block-size: 100%;
+      background: #fff;
+    }
+    .clips {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .clip {
+      position: relative;
+      aspect-ratio: 16 / 9;
+      border-radius: 8px;
+      overflow: hidden;
+      cursor: pointer;
+      box-shadow: var(--sw-shadow-1);
+    }
+    .clip sw-scene {
+      position: absolute;
+      inset: 0;
+    }
+    .clip.on {
+      box-shadow: 0 0 0 2px var(--sw-accent);
+    }
+    .clip .t {
+      position: absolute;
+      inset-inline-start: 6px;
+      inset-block-end: 5px;
+      color: #fff;
+      font-size: 10px;
+      font-family: var(--sw-font-mono);
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+    }
+    .clip.missing {
+      background: var(--sw-surface-3);
+      display: grid;
+      place-items: center;
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+      text-align: center;
+    }
+    .add {
+      aspect-ratio: 16 / 9;
+      border: 1.5px dashed var(--sw-border-strong);
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      color: var(--sw-accent-text);
+      font-size: var(--sw-fs-xs);
+      cursor: pointer;
+    }
+    .form {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(200px, 1fr);
+      gap: 12px;
+      align-items: start;
+    }
+    .stack {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .pills {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border: 1px solid var(--sw-border);
+      border-radius: 8px;
+      font-size: var(--sw-fs-sm);
+      background: var(--sw-surface-2);
+    }
+    .pill sw-icon {
+      color: var(--sw-accent);
+    }
+    .foot {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .items {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .item {
+      display: grid;
+      grid-template-columns: 112px minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      padding: 8px;
+      border: 1px solid var(--sw-border);
+      border-radius: 10px;
+      background: var(--sw-surface);
+    }
+    .item[data-preservation='missing'] {
+      border-color: var(--sw-danger);
+    }
+    .item .thumb {
+      inline-size: 112px;
+      aspect-ratio: 16 / 9;
+      object-fit: cover;
+      border-radius: 6px;
+      background: var(--sw-surface-3);
+      display: grid;
+      place-items: center;
+      color: var(--sw-text-3);
+    }
+    .item .body {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      min-inline-size: 0;
+      font-size: var(--sw-fs-sm);
+    }
+    .item .head {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .item .range {
+      font-family: var(--sw-font-mono);
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+    }
+    .item .meta {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .item .acts {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .composer {
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+      margin-block-start: 10px;
+    }
+    .composer sw-field {
+      flex: 1;
+    }
+    .desc {
+      white-space: pre-wrap;
+      font-size: var(--sw-fs-sm);
+    }
+    .tags {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-block-start: 6px;
+    }
+    .err {
+      color: var(--sw-danger);
+      font-size: var(--sw-fs-sm);
+    }
+    .ok {
+      color: #15803d;
+      font-size: var(--sw-fs-sm);
+    }
+    .ltr {
+      direction: ltr;
+      unicode-bidi: isolate;
+    }
+    @media (max-width: 767px) {
+      .item {
+        grid-template-columns: 1fr;
+      }
+      .item .thumb {
+        inline-size: 100%;
+      }
+    }
+    .note {
+      padding: 8px 0;
+      border-block-end: 1px solid var(--sw-border);
+      font-size: var(--sw-fs-sm);
+    }
+    .note small {
+      color: var(--sw-text-3);
+      display: block;
+    }
+    .hint {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    @media (max-width: 767px) {
+      .clips {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .form {
+        grid-template-columns: 1fr;
+      }
+    }
+  `;Z([g()],ae.prototype,"caseId",2);Z([c()],ae.prototype,"tab",2);Z([c()],ae.prototype,"data",2);Z([c()],ae.prototype,"error",2);Z([c()],ae.prototype,"info",2);Z([c()],ae.prototype,"busy",2);Z([c()],ae.prototype,"tz",2);Z([c()],ae.prototype,"noteText",2);Z([c()],ae.prototype,"editing",2);Z([c()],ae.prototype,"editTitle",2);Z([c()],ae.prototype,"editDesc",2);Z([c()],ae.prototype,"editTags",2);Z([c()],ae.prototype,"confirmDelete",2);Z([c()],ae.prototype,"bundles",2);Z([c()],ae.prototype,"verifyResult",2);Z([c()],ae.prototype,"cams",2);Z([c()],ae.prototype,"snapCam",2);ae=Z([P("investigate-case-detail")],ae);var Wh=Object.defineProperty,Uh=Object.getOwnPropertyDescriptor,Ti=(e,t,s,i)=>{for(var a=i>1?void 0:i?Uh(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Wh(t,s,a),a};const jn={queued:"ממתין",running:"מוריד",done:"הושלם",partial:"חלקי",failed:"נכשל",cancelled:"בוטל",interrupted:"הופסק"},Zh={queued:"neutral",running:"live",done:"recorded",partial:"partial",failed:"error",cancelled:"unknown",interrupted:"stale"};let ds=class extends M{constructor(){super(...arguments),this.jobs=null,this.ffmpeg=!0,this.error=""}connectedCallback(){super.connectedCallback(),$()&&(this.load(),this.timer=window.setInterval(()=>this.poll(),3e3))}disconnectedCallback(){super.disconnectedCallback(),window.clearInterval(this.timer)}async load(){try{const e=await fh();this.jobs=e.jobs,this.ffmpeg=e.ffmpeg,this.error=""}catch(e){this.error=b(e)}}poll(){this.jobs?.some(e=>e.state==="queued"||e.state==="running")&&this.load()}fmt(e,t){return new Intl.DateTimeFormat("he-IL",{timeZone:t,day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"}).format(new Date(e))}async cancel(e){try{await gh(e.id),await this.load()}catch(t){this.error=b(t)}}async removeJob(e){try{await wh(e.id),await this.load()}catch(t){this.error=b(t)}}renderApi(){return this.error&&!this.jobs?n`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${()=>this.load()}></sw-state-panel>`:this.jobs?this.jobs.length?n`
+      ${this.ffmpeg?d:n`<div class="warn">ffmpeg לא זמין בשרת: קבצי הייצוא נמסרים במיכל המקורי של ה־NVR (Hikvision PS, ניתן לניגון ב־VLC) ולא נחתכים לטווח המדויק.</div>`}
+      ${this.error?n`<div class="warn">${this.error}</div>`:d}
+      <sw-card>
+        ${this.jobs.map(e=>{const t=Math.round((e.progress??0)*100),s=e.files.filter(i=>i.state==="downloaded"||i.state==="remuxed").length;return n`<div class="job">
+            <div>
+              <div class="title"><strong>${e.camera_name}</strong><sw-badge kind=${Zh[e.state]} label=${jn[e.state]}></sw-badge></div>
+              <div class="meta"><span class="ltr">${this.fmt(e.requested_from,e.timezone)} → ${this.fmt(e.requested_to,e.timezone)}</span> · ${e.files.length} קבצים (${s} ירדו) · משוער ${es(e.estimate_bytes)}${e.actual_from?n` · בפועל <span class="ltr">${this.fmt(e.actual_from,e.timezone)} → ${this.fmt(e.actual_to??e.actual_from,e.timezone)}</span>`:d}</div>
+              ${e.error?n`<div class="warn">${e.error}</div>`:d}
+              ${e.note&&(e.state==="done"||e.state==="partial")?n`<div class="meta">${e.note}</div>`:d}
+              ${e.sha256?n`<div class="meta ltr">sha256 ${e.sha256.slice(0,16)}… · ${e.container}</div>`:d}
+            </div>
+            <div><div class="bar ${e.state==="failed"?"fail":e.state==="partial"?"partial":""}"><i style="inline-size:${t}%"></i></div><div class="meta">${jn[e.state]} · ${t}%${e.state==="running"?` · ${es(e.files.reduce((i,a)=>i+a.bytes,0))}`:""}</div></div>
+            <div class="actions">
+              ${e.download_ready?n`<a href=${Wr(e.id)} download=${e.output_name??""}><sw-button size="sm" icon="download">הורדה</sw-button></a><a href=${vh(e.id)} target="_blank" rel="noopener"><sw-button size="sm" variant="ghost" icon="list">מניפסט</sw-button></a>`:d}
+              ${e.state==="queued"||e.state==="running"?n`<sw-button size="sm" variant="ghost" icon="close" @click=${()=>this.cancel(e)}>בטל</sw-button>`:n`<sw-button size="sm" variant="ghost" icon="trash" @click=${()=>this.removeJob(e)}>מחק</sw-button>`}
+            </div>
+          </div>`})}
+      </sw-card>
+      <div class="meta">ההורדה נבדקת מול ההרשאה בזמן היצירה, הביצוע וההורדה. sha256 מוכיח שהקובץ תואם ל־hash שנשמר בייצוא, לא שהצילום אותנטי מאז המצלמה. הקבצים נמחקים אוטומטית אחרי תקופת השמירה שבהגדרות.</div>
+    `:n`<sw-state-panel state="empty" heading="אין עבודות ייצוא" hint="פתח הקלטה, בחר טווח ולחץ ייצוא."><div style="margin-block-start:10px"><sw-button variant="primary" icon="history" @click=${()=>x("/investigate/playback")}>להקלטות</sw-button></div></sw-state-panel>`:n`<sw-state-panel state="loading"></sw-state-panel>`}renderDemo(){return n`
+      <sw-card>
+        ${wr.map(e=>n`<div class="job">
+            <div><strong>${e.title}</strong><div class="meta">${e.size} · ${e.hash}</div></div>
+            <div><div class="bar ${e.status.startsWith("נכשל")?"fail":""}"><i style="inline-size:${e.progress}%"></i></div><div class="meta">${e.status} · ${e.progress}%</div></div>
+            <div class="actions">
+              ${e.progress===100?n`<sw-button size="sm" icon="download">הורדה</sw-button>`:e.status.startsWith("נכשל")?n`<sw-button size="sm" icon="refresh">נסה שוב</sw-button>`:n`<sw-button size="sm" variant="ghost" icon="close">בטל</sw-button>`}
+            </div>
+          </div>`)}
+      </sw-card>
+      <div class="meta">ההורדה נבדקת מול ההרשאה בזמן היצירה, הביצוע וההורדה. sha256 מוכיח שהקובץ תואם ל־hash שנשמר, לא שהצילום אותנטי מאז המצלמה.</div>
+    `}render(){const e=$();return n`
+      <sw-page heading="ייצוא והורדות" subheading=${e?"עבודות עמידות · ייצוא חלקי אינו מסומן כהצלחה מלאה":"עבודות עמידות · ייצוא חלקי אינו מסומן כהצלחה מלאה · נתוני הדגמה"}>
+        <sw-button slot="actions" variant="primary" icon="download" @click=${()=>x("/investigate/playback")}>ייצוא חדש</sw-button>
+        ${e?this.renderApi():this.renderDemo()}
+      </sw-page>
+    `}};ds.styles=A`
+    .job {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 180px auto;
+      gap: var(--sw-s-3);
+      align-items: center;
+      padding: 10px 0;
+      border-block-end: 1px solid var(--sw-border);
+      font-size: var(--sw-fs-sm);
+    }
+    .job:last-child {
+      border-block-end: 0;
+    }
+    .bar {
+      block-size: 6px;
+      border-radius: 3px;
+      background: var(--sw-surface-3);
+      overflow: hidden;
+    }
+    .bar i {
+      display: block;
+      block-size: 100%;
+      background: var(--sw-accent);
+    }
+    .bar.fail i {
+      background: var(--sw-danger);
+    }
+    .bar.partial i {
+      background: var(--sw-stale);
+    }
+    .meta {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .actions {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+    .title {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .ltr {
+      direction: ltr;
+      unicode-bidi: isolate;
+    }
+    .warn {
+      font-size: var(--sw-fs-xs);
+      color: #b45309;
+    }
+    @media (max-width: 767px) {
+      .job {
+        grid-template-columns: 1fr;
+      }
+    }
+  `;Ti([c()],ds.prototype,"jobs",2);Ti([c()],ds.prototype,"ffmpeg",2);Ti([c()],ds.prototype,"error",2);ds=Ti([P("investigate-exports")],ds);const qh={zone:"חדר / אזור",camera:"מצלמה",floor:"קומה",building:"מבנה",entity:"ישות HA"},Gh={zone:"map",camera:"camera",floor:"floor",building:"building",entity:"light"},Kh=(e,t=8)=>S(`search?q=${encodeURIComponent(e)}&limit=${t}`),Yh=(e,t=30)=>S(`search/semantic?q=${encodeURIComponent(e)}&limit=${t}`),Jh=()=>S("search/providers"),Xh={person:"אדם",vehicle:"רכב",motion:"תנועה",door:"דלת",line:"חציית קו",field:"חדירה"};var Qh=Object.defineProperty,eu=Object.getOwnPropertyDescriptor,Kt=(e,t,s,i)=>{for(var a=i>1?void 0:i?eu(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Qh(t,s,a),a};const tu=[{scene:"entrance",when:"14.09.2026 10:14",cam:"כניסה ראשית",why:"NVR: זיהוי אדם (Smart)"},{scene:"lobby",when:"14.09.2026 10:13",cam:"לובי",why:"NVR: תנועה + סמיכות במפה לכניסה"},{scene:"parking",when:"14.09.2026 06:43",cam:"חניה מקורה",why:"NVR: חציית קו"},{scene:"entrance",when:"14.09.2026 08:12",cam:"כניסה ראשית",why:"HA: דלת נפתחה + תנועה"},{scene:"corridor",when:"13.09.2026 23:10",cam:"מסדרון מזרחי",why:"NVR: זיהוי אדם"},{scene:"backyard",when:"13.09.2026 18:03",cam:"חצר אחורית",why:"NVR: תנועה"}];let ht=class extends M{constructor(){super(...arguments),this.by="person",this.q="",this.answer=null,this.providers=null,this.busy=!1,this.error=""}connectedCallback(){super.connectedCallback(),$()&&this.loadProviders()}async loadProviders(){try{this.providers=await Jh()}catch(e){this.error=b(e)}}async run(){const e=this.q.trim();if(e){this.busy=!0,this.error="";try{this.answer=await Yh(e)}catch(t){this.error=b(t)}finally{this.busy=!1}}}fmt(e){try{return new Date(e).toLocaleString("he-IL",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}catch{return e}}renderApi(){const e=this.answer,t=this.providers,s=t?.providers.find(r=>r.id==="local"),i=t?.providers.find(r=>r.id==="external"),a={person:"אדם",vehicle:"רכב",motion:"תנועה",line:"חציית קו",field:"חדירה",door:"דלת",offline:"ניתוק",coverage_gap:"פער כיסוי",other:"אחר"};return n`
+      <sw-page heading="חיפוש AI" subheading="שאלה חופשית → מסננים של מרכז האירועים (סוג, מקום, זמן) · baseline מקומי ללא רשת · ספק חיצוני רק ב־opt-in">
+        <sw-badge slot="actions" kind=${t?.active==="local"?"live":"unknown"} label=${t?t.active==="local"?`ספק: baseline מקומי · ${s?.model_version??""}`:t.active==="none"?"חיפוש סמנטי כבוי":`ספק: ${t.active}`:"טוען…"}></sw-badge>
+        <div class="wrap">
+          <div class="searchrow">
+            <sw-field><input type="search" data-semantic-q placeholder="למשל: אדם בלובי אתמול בערב · vehicle near the gate this morning" aria-label="חיפוש" .value=${this.q} @input=${r=>this.q=r.target.value} @keydown=${r=>{r.key==="Enter"&&this.run()}} /></sw-field>
+            <sw-button variant="primary" icon="search" data-semantic-run ?disabled=${this.busy||!this.q.trim()} @click=${()=>this.run()}>חפש</sw-button>
+          </div>
+          ${this.error?n`<div class="note" style="color:var(--sw-danger)">${this.error}</div>`:d}
+          ${e?n`<sw-card heading="כך פורשה השאלה" subheading=${`${e.provider.name} · ${e.provider.model_version} · ללא רשת`} data-semantic-parsed>
+                  <div class="chips">
+                    ${e.parsed.objects.map(r=>n`<sw-chip selected icon="target">${Xh[r]??r}</sw-chip>`)}
+                    ${e.parsed.places.map(r=>n`<sw-chip selected icon=${r.kind==="camera"?"camera":r.kind==="floor"?"floor":"map"} title=${`התאמה ${r.match==="exact"?"מדויקת":"חלקית"} למונח "${r.term}"`}>${r.name}${r.match==="partial"?" (~)":""}</sw-chip>`)}
+                    ${e.parsed.window?n`<sw-chip selected icon="clock">${e.parsed.window.label}</sw-chip>`:d}
+                    ${!e.parsed.objects.length&&!e.parsed.places.length&&!e.parsed.window?n`<span class="note">לא זוהה סוג, מקום או זמן — מוצגים אירועי היום בהיקף שלך.</span>`:d}
+                  </div>
+                  ${e.unsupported.length?n`<div class="note" style="margin-block-start:6px;color:var(--sw-warning, #b45309)" data-semantic-unsupported>לא נתמך ב־baseline המקומי: ${e.unsupported.map(r=>`"${r.term}" — ${r.reason.startsWith("color")?"צבע":"מאפיין מראה"} דורש ספק ניתוח ב־opt-in`).join(" · ")}</div>`:d}
+                  ${e.parsed.leftovers.length?n`<div class="note" style="margin-block-start:4px">מילים שלא שימשו: ${e.parsed.leftovers.join(", ")}</div>`:d}
+                </sw-card>
+                <div class="head"><span>${e.total} התאמות (לפי metadata)</span><a href="#/investigate/events">מרכז האירועים</a></div>
+                ${e.results.length?n`<div class="list">${e.results.map(r=>n`<div class="row" data-semantic-result data-confidence=${r.match.confidence} @click=${()=>x(`/investigate/events/${r.id}`)}>
+                        <sw-badge kind=${r.match.confidence==="exact"?"live":"stale"} label=${r.match.confidence==="exact"?"התאמה מדויקת":"התאמה חלקית"}></sw-badge>
+                        <div class="body"><strong>${a[r.type]??r.type} · ${r.camera_name??"—"}</strong><span class="note">${this.fmt(r.occurred_at)} · ${r.confidence==="measured"?"נמדד במכשיר":"משוער"} · ${r.match.basis.join(" · ")}</span></div>
+                      </div>`)}</div>`:n`<div class="note">אין אירועים תואמים בהיקף ובחלון הזמן.</div>`}
+                <div class="note" data-semantic-note>${e.note}</div>`:n`<div class="note">כתוב שאלה חופשית בעברית או באנגלית. ה־baseline מבין סוג (אדם/רכב/תנועה/דלת/חצייה/חדירה), מקומות מהקטלוג (חדרים, קומות, מצלמות) וזמן (היום, אתמול, בערב, 08:00–09:30, השבוע).</div>`}
+          <sw-card heading="ספקי ניתוח" subheading="מדיניות פרטיות, גרסת מודל, תקציב ו־opt-in הם חלק מהחוזה של כל ספק" data-semantic-provider>
+            ${s?n`<div class="prov"><strong>${s.name}</strong> · גרסה ${s.model_version} · ${s.network?"רשת":"ללא רשת"} · תקציב יומי ${s.budget_daily}<div class="note">${s.privacy}</div><div class="note">יכולות: ${s.capabilities.join(", ")}</div></div>`:d}
+            ${i?n`<div class="prov" style="margin-block-start:8px"><strong>${i.name}</strong> · ${i.available===!1?"לא זמין":"זמין"} · opt-in נדרש<div class="note">${i.privacy}</div><div class="note">${i.reason??""}</div><div class="note">הגדרות: ai.provider=${t?.settings["ai.provider"]} · ai.privacy_ack=${t?.settings["ai.privacy_ack"]} · ai.budget_daily=${t?.settings["ai.budget_daily"]}</div></div>`:d}
+            <div class="actions" style="margin-block-start:8px"><sw-button size="sm" icon="upload" disabled title="דורש ספק ניתוח חיצוני ב־opt-in">חיפוש לפי תמונה</sw-button><sw-button size="sm" icon="aperture" disabled title="דורש ספק ניתוח חיצוני ב־opt-in">השתמש בפריים הנוכחי</sw-button><span class="note">חיפוש לפי תמונה, צבע ומראה אינו פעיל עד שמוגדר ספק עם הסכמה ותקציב.</span></div>
+          </sw-card>
+        </div>
+      </sw-page>
+    `}render(){return $()?this.renderApi():n`
+      <sw-page heading="חיפוש AI" subheading="מצא בדיוק את מה שאתה מחפש · חיפוש סמנטי רק עם אינדקס אמיתי · נתוני הדגמה">
+        <sw-badge slot="actions" kind="unknown" label="אין ספק AI מוגדר · רמה 0 (מטא־דאטה NVR)"></sw-badge>
+        <div class="wrap">
+          <div class="searchrow">
+            <sw-field><input type="search" value="אדם בכניסה הראשית היום" aria-label="חיפוש" /></sw-field>
+            <sw-button variant="primary" icon="search">חפש</sw-button>
+          </div>
+          <sw-tabs .items=${[{id:"person",label:"אדם"},{id:"vehicle",label:"רכב"},{id:"object",label:"עצם"},{id:"color",label:"צבע"},{id:"time",label:"זמן"},{id:"site",label:"אתר"}]} .active=${this.by} @change=${e=>this.by=e.detail.id}></sw-tabs>
+          <sw-card>
+            <div class="by">
+              <div class="ref"><sw-scene kind="entrance"></sw-scene></div>
+              <div class="txt">
+                <b>חיפוש לפי ${this.by==="person"?"אדם":this.by==="vehicle"?"רכב":"מאפיין"}</b>
+                <p>מציאת הופעות של אותו אדם בכל המצלמות. פורש כ: סוג = אדם · קומה 0 · היום. זיהוי צבע, פנים או טקסט חופשי אינם פעילים עד שמוגדר ספק ומאושר dataset.</p>
+                <div class="actions"><sw-button variant="primary" size="sm" icon="upload" disabled>העלאת תמונה</sw-button><sw-button size="sm" icon="aperture" disabled>השתמש בפריים הנוכחי</sw-button><sw-chip selected icon="target">אדם</sw-chip><sw-chip selected icon="floor">קומה 0</sw-chip><sw-chip selected icon="clock">היום</sw-chip></div>
+              </div>
+            </div>
+          </sw-card>
+          <div class="head"><span>התאמות (לפי מטא־דאטה)</span><a href="#/investigate/events">הצג הכל</a></div>
+          <div class="results">
+            ${tu.map(e=>n`<div class="res" @click=${()=>window.location.hash="#/investigate/playback"}><div class="pic"><sw-scene kind=${e.scene}></sw-scene><span class="demo">דמו</span></div><div class="cap">${e.when}<small>${e.cam} · ${e.why}</small></div></div>`)}
+          </div>
+        </div>
+      </sw-page>
+    `}};ht.styles=A`
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-line);
+      cursor: pointer;
+    }
+    .row .body {
+      display: flex;
+      flex-direction: column;
+      min-inline-size: 0;
+    }
+    .prov {
+      font-size: var(--sw-fs-sm);
+    }
+    .wrap {
+      max-inline-size: 860px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .by {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .by .ref {
+      inline-size: 120px;
+      block-size: 90px;
+      border-radius: 8px;
+      overflow: hidden;
+      flex-shrink: 0;
+      position: relative;
+    }
+    .by .ref sw-scene {
+      position: absolute;
+      inset: 0;
+    }
+    .by .txt {
+      flex: 1;
+      min-inline-size: 0;
+    }
+    .by b {
+      display: block;
+      font-size: var(--sw-fs-md);
+    }
+    .by p {
+      margin: 2px 0 10px;
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .head a {
+      color: var(--sw-accent-text);
+      text-decoration: none;
+      font-weight: var(--sw-fw-medium);
+      font-size: var(--sw-fs-xs);
+    }
+    .results {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .res {
+      cursor: pointer;
+    }
+    .res .pic {
+      position: relative;
+      aspect-ratio: 4 / 3;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: var(--sw-shadow-1);
+    }
+    .res .pic sw-scene {
+      position: absolute;
+      inset: 0;
+    }
+    .res .pic .demo {
+      position: absolute;
+      inset-inline-end: 6px;
+      inset-block-start: 6px;
+      font-size: 9.5px;
+      background: rgba(17, 24, 39, 0.5);
+      color: #fff;
+      border-radius: 4px;
+      padding: 1px 6px;
+    }
+    .res .cap {
+      margin-block-start: 6px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      line-height: 1.35;
+    }
+    .res .cap small {
+      display: block;
+      color: var(--sw-text-3);
+    }
+    .searchrow {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .searchrow sw-field {
+      flex: 1;
+    }
+    @media (max-width: 767px) {
+      .results {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+  `;Kt([c()],ht.prototype,"by",2);Kt([c()],ht.prototype,"q",2);Kt([c()],ht.prototype,"answer",2);Kt([c()],ht.prototype,"providers",2);Kt([c()],ht.prototype,"busy",2);Kt([c()],ht.prototype,"error",2);ht=Kt([P("investigate-search")],ht);const su=()=>({name:"",description:"",enabled:!0,owner:"local",ha_automation_id:null,trigger:{types:[],sources:[],severity_min:"info"},scope:{site_ids:[],building_ids:[],floor_ids:[],zone_ids:[],camera_ids:[],entity_ids:[]},window:{days:[],from:null,to:null},cooldown_s:300,actions:[{kind:"notify",message:""}]}),iu=()=>S("rules"),au=e=>E("rules",e),Wn=(e,t)=>Le(`rules/${e}`,t),nu=e=>ve(`rules/${e}`),Un=(e,t=24)=>E("rules/dry-run",{rule:e,hours:t}),ru=(e=!1)=>S(`rules/alerts${e?"?unacked=true":""}`),ou=e=>E(`rules/alerts/${e}/ack`),Zn={mon:"ב׳",tue:"ג׳",wed:"ד׳",thu:"ה׳",fri:"ו׳",sat:"ש׳",sun:"א׳"},lu={alertstream:"התראת NVR",recording:"נגזר מהקלטה",system:"מערכת",ha:"חיישן HA"};var du=Object.defineProperty,cu=Object.getOwnPropertyDescriptor,ce=(e,t,s,i)=>{for(var a=i>1?void 0:i?cu(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&du(t,s,a),a};const qn={"r-1":{icon:"user",bg:"#eaf0ff",fg:"#2f6bff"},"r-2":{icon:"move",bg:"#e8f8ee",fg:"#16a34a"},"r-3":{icon:"door",bg:"#fff4e0",fg:"#d97706"},"r-4":{icon:"offline",bg:"#fdecec",fg:"#ef4444"}},pu=[{id:"person-night",label:"אדם בלילה",body:{name:"אדם בלילה",description:"זיהוי אדם בשעות הסגירה",trigger:{types:["person"],sources:[],severity_min:"info"},window:{days:[],from:"22:00",to:"06:00"},cooldown_s:300,actions:[{kind:"notify",message:"זוהה אדם בשעות הסגירה"}]}},{id:"camera-offline",label:"מצלמה מנותקת",body:{name:"מצלמה מנותקת",description:"התראה כשמצלמה יורדת מהרשת",trigger:{types:["offline"],sources:[],severity_min:"info"},window:{days:[],from:null,to:null},cooldown_s:1800,actions:[{kind:"notify",message:"מצלמה מנותקת"}]}},{id:"door-after-hours",label:"דלת נפתחה אחרי שעות",body:{name:"דלת נפתחה אחרי שעות",description:"פתיחת דלת מחוץ לשעות הפעילות",trigger:{types:["door"],sources:["ha"],severity_min:"info"},window:{days:[],from:"20:00",to:"07:00"},cooldown_s:600,actions:[{kind:"notify",message:"דלת נפתחה מחוץ לשעות הפעילות"}]}}];let le=class extends M{constructor(){super(...arguments),this.tab="rules",this.rules=[],this.alerts=[],this.unacked=0,this.meta={types:[],sources:[],days:[]},this.error="",this.busy=!1,this.loading=!1,this.editing=null,this.dry=null,this.dryBusy=!1,this.tree=null,this.cams=[],this.zones=[],this.confirmDelete=null,this.tz="Asia/Jerusalem"}connectedCallback(){super.connectedCallback(),$()&&this.load()}async load(){this.loading=!0,this.error="";try{const[e,t]=await Promise.all([iu(),ru()]);if(this.rules=e.rules,this.meta={types:e.types,sources:e.sources,days:e.days},this.alerts=t.alerts,this.unacked=t.unacked,!this.tree){const[s,i]=await Promise.all([At(),Be()]);this.tree=s,this.cams=i.cameras.filter(a=>a.enabled)}}catch(e){this.error=b(e)}finally{this.loading=!1}}fmt(e){return e?new Intl.DateTimeFormat("he-IL",{timeZone:this.tz,dateStyle:"short",timeStyle:"short"}).format(new Date(e)):"—"}get floors(){return(this.tree?.sites??[]).flatMap(e=>(e.buildings??[]).flatMap(t=>(t.floors??[]).map(s=>({id:s.id,name:`${t.name} · ${s.name}`}))))}async run(e){this.busy=!0,this.error="";try{await e(),await this.load()}catch(t){this.error=b(t),t instanceof fe&&t.status===409&&await this.load()}finally{this.busy=!1}}openEditor(e){if(this.dry=null,this.zones=[],e){const{id:t,revision:s,alerts:i,created_by_username:a,updated_by_username:r,created_at:o,updated_at:l,last_fired_at:p,...h}=e;this.editing={id:t,revision:s,body:JSON.parse(JSON.stringify(h))},h.scope.floor_ids.length===1&&this.loadZones(h.scope.floor_ids[0])}else this.editing={id:null,revision:0,body:su()}}async loadZones(e){try{this.zones=(await cd(e)).zones}catch{this.zones=[]}}edit(e){if(!this.editing)return;const t=JSON.parse(JSON.stringify(this.editing.body));e(t),this.editing={...this.editing,body:t}}toggleIn(e,t){const s=e.indexOf(t);s>=0?e.splice(s,1):e.push(t)}async dryRun(){if(this.editing){this.dryBusy=!0,this.error="";try{this.dry=this.editing.id?await Un({...this.editing.body},24):await Un(this.editing.body,24)}catch(e){this.error=b(e)}finally{this.dryBusy=!1}}}save(){const e=this.editing;!e||!e.body.name.trim()||this.run(async()=>{e.id?await Wn(e.id,{...e.body,revision:e.revision}):await au(e.body),this.editing=null,this.dry=null})}summary(e){const t=e.trigger.types.length?e.trigger.types.map(a=>ee[a]??a).join(", "):"כל הסוגים",s=e.scope.floor_ids.length||e.scope.zone_ids.length||e.scope.camera_ids.length||e.scope.building_ids.length||e.scope.site_ids.length?[e.scope.floor_ids.length?`${e.scope.floor_ids.length} קומות`:"",e.scope.zone_ids.length?`${e.scope.zone_ids.length} אזורים`:"",e.scope.camera_ids.length?`${e.scope.camera_ids.length} מצלמות`:""].filter(Boolean).join(" · "):"כל המתקן",i=e.window.from||e.window.to||e.window.days.length?`${e.window.days.map(a=>Zn[a]??a).join("")||"כל יום"} ${e.window.from??"00:00"}–${e.window.to??"24:00"}`:"תמיד";return`${t} · ${s} · ${i} · השהיה ${e.cooldown_s} שנ׳ · ${e.owner==="ha"?`בבעלות HA (${e.ha_automation_id})`:"התראה במערכת"}`}renderEditor(){const e=this.editing;if(!e)return d;const t=e.body,s=this.dry;return n`<sw-dialog open heading=${e.id?"עריכת חוק":"חוק חדש"} subheading="Trigger → היקף → חלון זמן → השהיה → התראה במערכת · הרצה יבשה לפני שמירה" data-rule-dialog @close=${()=>this.editing=null}>
+      ${this.error?n`<div class="err">${this.error}</div>`:d}
+      ${e.id?d:n`<sw-field label="תבניות (ממלאות את הטופס; אפשר לשנות אחר כך)"><div class="chips">${pu.map(i=>n`<sw-chip data-rule-template=${i.id} @click=${()=>this.edit(a=>Object.assign(a,JSON.parse(JSON.stringify(i.body))))}>${i.label}</sw-chip>`)}</div></sw-field>`}
+      <sw-field label="שם"><input data-rule-name .value=${t.name} @input=${i=>this.edit(a=>a.name=i.target.value)} /></sw-field>
+      <sw-field label="סוגי אירועים (ריק = הכל)"><div class="chips">${this.meta.types.map(i=>n`<sw-chip data-rule-type=${i} ?selected=${t.trigger.types.includes(i)} @click=${()=>this.edit(a=>this.toggleIn(a.trigger.types,i))}>${ee[i]??i}</sw-chip>`)}</div></sw-field>
+      <sw-field label="מקורות (ריק = הכל)"><div class="chips">${this.meta.sources.map(i=>n`<sw-chip ?selected=${t.trigger.sources.includes(i)} @click=${()=>this.edit(a=>this.toggleIn(a.trigger.sources,i))}>${lu[i]??i}</sw-chip>`)}</div></sw-field>
+      <div class="two">
+        <sw-field label="חומרה מינימלית"><select @change=${i=>this.edit(a=>a.trigger.severity_min=i.target.value)}>${["info","alert","critical"].map(i=>n`<option value=${i} ?selected=${t.trigger.severity_min===i}>${i==="info"?"מידע":i==="alert"?"התראה":"קריטי"}</option>`)}</select></sw-field>
+        <sw-field label="השהיה בין התראות (שניות)"><input type="number" min="0" max="86400" data-rule-cooldown .value=${String(t.cooldown_s)} @input=${i=>this.edit(a=>a.cooldown_s=Math.max(0,Number(i.target.value)||0))} /></sw-field>
+      </div>
+      <sw-field label="היקף: קומות (ריק = כל המתקן)"><div class="chips">${this.floors.map(i=>n`<sw-chip data-rule-floor=${i.id} ?selected=${t.scope.floor_ids.includes(i.id)} @click=${()=>{this.edit(r=>this.toggleIn(r.scope.floor_ids,i.id));const a=this.editing?.body.scope.floor_ids??[];a.length===1?this.loadZones(a[0]):this.zones=[]}}>${i.name}</sw-chip>`)}</div></sw-field>
+      ${this.zones.length?n`<sw-field label="חדרים / אזורים בקומה שנבחרה"><div class="chips">${this.zones.map(i=>n`<sw-chip ?selected=${t.scope.zone_ids.includes(i.id)} @click=${()=>this.edit(a=>this.toggleIn(a.scope.zone_ids,i.id))}>${i.name}</sw-chip>`)}</div></sw-field>`:d}
+      <sw-field label="מצלמות ספציפיות (לא חובה)"><div class="chips">${this.cams.map(i=>n`<sw-chip ?selected=${t.scope.camera_ids.includes(i.id)} @click=${()=>this.edit(a=>this.toggleIn(a.scope.camera_ids,i.id))}>${i.name}</sw-chip>`)}</div></sw-field>
+      <sw-field label="ימים (ריק = כל יום)"><div class="chips">${this.meta.days.map(i=>n`<sw-chip ?selected=${t.window.days.includes(i)} @click=${()=>this.edit(a=>this.toggleIn(a.window.days,i))}>${Zn[i]??i}</sw-chip>`)}</div></sw-field>
+      <div class="two">
+        <sw-field label="משעה (זמן האתר)"><input type="time" data-ltr .value=${t.window.from??""} @change=${i=>this.edit(a=>a.window.from=i.target.value||null)} /></sw-field>
+        <sw-field label="עד שעה"><input type="time" data-ltr .value=${t.window.to??""} @change=${i=>this.edit(a=>a.window.to=i.target.value||null)} /></sw-field>
+      </div>
+      <div class="two">
+        <sw-field label="פעולה"><select data-rule-action-kind @change=${i=>this.edit(a=>a.actions=[{...a.actions[0]??{message:""},kind:i.target.value}])}>
+          <option value="notify" ?selected=${(t.actions[0]?.kind??"notify")==="notify"}>התראה במערכת</option><option value="ha_notify" ?selected=${t.actions[0]?.kind==="ha_notify"}>התראה דרך Home Assistant (notify)</option>
+        </select></sw-field>
+        ${t.actions[0]?.kind==="ha_notify"?n`<sw-field label="שירות notify ב־HA (למשל mobile_app_phone)"><input data-ltr data-rule-service placeholder="mobile_app_phone" .value=${t.actions[0]?.service??""} @input=${i=>this.edit(a=>a.actions=[{...a.actions[0],service:i.target.value.trim()}])} /></sw-field>`:d}
+      </div>
+      <sw-field label="הודעת ההתראה"><input data-rule-message .value=${t.actions[0]?.message??""} @input=${i=>this.edit(a=>a.actions=[{...a.actions[0]??{kind:"notify"},message:i.target.value}])} /></sw-field>
+      ${t.actions[0]?.kind==="ha_notify"?n`<div class="hint">התראה דרך HA דורשת את ההרשאה הרגישה "חוקים: התראה דרך Home Assistant" (תפקיד מותאם). ההודעה נשלחת ל־notify.&lt;שירות&gt; עם הכותרת SMPLWISE.</div>`:d}
+      <div class="two">
+        <sw-field label="בעלות"><select @change=${i=>this.edit(a=>a.owner=i.target.value)}><option value="local" ?selected=${t.owner==="local"}>מקומי (המערכת מפעילה)</option><option value="ha" ?selected=${t.owner==="ha"}>Home Assistant (הפניה בלבד)</option></select></sw-field>
+        ${t.owner==="ha"?n`<sw-field label="מזהה אוטומציה ב־HA"><input .value=${t.ha_automation_id??""} @input=${i=>this.edit(a=>a.ha_automation_id=i.target.value||null)} /></sw-field>`:n`<label class="chk"><input type="checkbox" .checked=${t.enabled} @change=${i=>this.edit(a=>a.enabled=i.target.checked)} /> פעיל</label>`}
+      </div>
+      <div class="hint">הפעולה היחידה בפיילוט: התראה במערכת. אין פקודות למכשירים ואין webhooks; התראה אינה אירוע ולכן חוק לא יכול להזין את עצמו. חוק בבעלות HA אינו מופעל כאן (בעלים אחד לכל אוטומציה).</div>
+      <div class="dryhead"><sw-button size="sm" icon="refresh" data-rule-dryrun ?disabled=${this.dryBusy} @click=${()=>this.dryRun()}>${this.dryBusy?"מריץ…":"הרצה יבשה על 24 שעות"}</sw-button>${s?n`<span class="hint" data-dryrun-result>${s.evaluated} אירועים נבדקו · <strong>${s.would_fire.length}</strong> התראות היו נוצרות · ${s.suppressed.length} נחסמו בהשהיה · ${s.not_matched} לא תאמו</span>`:d}</div>
+      ${s?n`<div class="dry">${[...s.would_fire.map(i=>({...i,fire:!0})),...s.suppressed.map(i=>({...i,fire:!1}))].sort((i,a)=>i.occurred_at.localeCompare(a.occurred_at)).slice(0,40).map(i=>n`<div class="dryrow" data-dryrun-row data-fire=${i.fire?"true":"false"}><span class="ltr">${this.fmt(i.occurred_at)}</span><span>${ee[i.type]??i.type} · ${i.camera_name??"—"}</span><span class="hint">${i.fire?i.reasons.join(" · "):`נחסם: ${i.suppressed}`}</span></div>`)}${s.would_fire.length+s.suppressed.length>40?n`<div class="hint">מוצגות 40 הראשונות</div>`:d}<div class="hint">${s.note}</div></div>`:d}
+      <sw-button slot="footer" variant="ghost" @click=${()=>this.editing=null}>ביטול</sw-button>
+      <sw-button slot="footer" variant="primary" icon="check" data-rule-save ?disabled=${this.busy||!t.name.trim()} @click=${()=>this.save()}>${e.id?"שמירה":"צור חוק"}</sw-button>
+    </sw-dialog>`}renderApi(){return this.error&&!this.rules.length&&!this.editing?n`<sw-page heading="התראות וחוקי אוטומציה"><sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${()=>this.load()}></sw-state-panel></sw-page>`:n`
+      <sw-page heading="התראות וחוקי אוטומציה" subheading="Trigger → היקף → חלון זמן → השהיה → התראה במערכת · הרצה יבשה לפני הפעלה · אין פקודות למכשירים">
+        <sw-button slot="actions" variant="primary" icon="plus" data-rule-new @click=${()=>this.openEditor()}>חוק חדש</sw-button>
+        <sw-tabs .items=${[{id:"rules",label:"חוקים",count:this.rules.length},{id:"alerts",label:"התראות",count:this.unacked}]} .active=${this.tab} @change=${e=>this.tab=e.detail.id}></sw-tabs>
+        ${this.error&&!this.editing?n`<div class="err">${this.error}</div>`:d}
+        ${this.tab==="rules"?this.loading&&!this.rules.length?n`<sw-state-panel state="loading"></sw-state-panel>`:this.rules.length?n`<div class="list">${this.rules.map(e=>n`<sw-card flush class="rule" data-rule-row data-rule-id=${e.id} style="--bg:#eaf0ff;--fg:#2f6bff">
+                    <div class="ic"><sw-icon name=${e.owner==="ha"?"home":"bell"} size=${16}></sw-icon></div>
+                    <div class="txt"><b>${e.name}</b><small>${this.summary(e)}</small><small>התראות: ${e.alerts.open} פתוחות מתוך ${e.alerts.total} · שונה על ידי ${e.updated_by_username??e.created_by_username??"—"} ${this.fmt(e.updated_at)}</small></div>
+                    <span class="last">הופעל: ${e.last_fired_at?this.fmt(e.last_fired_at):"—"}</span>
+                    <sw-toggle ?checked=${e.enabled} ?disabled=${this.busy||e.owner==="ha"} labelHidden label="פעיל" data-rule-toggle @change=${t=>void this.run(async()=>{const{id:s,revision:i,alerts:a,created_by_username:r,updated_by_username:o,created_at:l,updated_at:p,last_fired_at:h,...u}=e;await Wn(s,{...u,enabled:t.detail.checked,revision:i})})}></sw-toggle>
+                    <sw-button size="sm" data-rule-edit @click=${()=>this.openEditor(e)}>עריכה</sw-button>
+                    <sw-button variant="ghost" size="sm" iconOnly icon="trash" label="מחיקה" data-rule-delete @click=${()=>this.confirmDelete=e}></sw-button>
+                  </sw-card>`)}</div>`:n`<sw-state-panel state="empty" heading="אין חוקים עדיין" hint="חוק בודק אירועים שכבר נשמרו ומייצר התראה במערכת; הרץ הרצה יבשה לפני שמירה."></sw-state-panel>`:n`<div class="list">${this.alerts.length?this.alerts.map(e=>n`<sw-card flush class="rule" data-alert-row data-acked=${e.acked_at?"true":"false"} style="--bg:${e.acked_at?"#f1f5f9":"#fff4e0"};--fg:${e.acked_at?"#64748b":"#d97706"}">
+                  <div class="ic"><sw-icon name="bell" size=${16}></sw-icon></div>
+                  <div class="txt"><b>${e.message||e.rule_name}</b><small>${e.rule_name} · ${e.camera_id?`מצלמה ${e.camera_id}`:e.entity_id??""} · <span class="ltr">${this.fmt(e.fired_at)}</span></small><small>${e.reasons.join(" · ")}</small></div>
+                  <a href=${`#/investigate/events/${e.event_id}`}><sw-button size="sm" variant="ghost" icon="bell">לאירוע</sw-button></a>
+                  ${e.acked_at?n`<span class="last">טופל · ${e.acked_by_username??""}</span>`:n`<sw-button size="sm" icon="check" data-alert-ack ?disabled=${this.busy} @click=${()=>void this.run(async()=>{await ou(e.id)})}>סמן כטופל</sw-button>`}
+                </sw-card>`):n`<sw-state-panel state="empty" heading="אין התראות" hint="התראות נוצרות כשאירוע חדש תואם חוק פעיל."></sw-state-panel>`}</div>`}
+        ${this.renderEditor()}
+        ${this.confirmDelete?n`<sw-dialog open heading="מחיקת חוק" subheading=${this.confirmDelete.name} @close=${()=>this.confirmDelete=null}>
+              <div class="hint">ההתראות של החוק יימחקו יחד איתו; האירועים עצמם נשארים.</div>
+              <sw-button slot="footer" variant="ghost" @click=${()=>this.confirmDelete=null}>ביטול</sw-button>
+              <sw-button slot="footer" variant="danger" icon="trash" data-rule-delete-confirm @click=${()=>{const e=this.confirmDelete;this.confirmDelete=null,this.run(async()=>{await nu(e.id)})}}>מחק</sw-button>
+            </sw-dialog>`:d}
+      </sw-page>
+    `}render(){return $()?this.renderApi():n`
+      <sw-page heading="התראות וחוקי אוטומציה" subheading="Trigger → היקף → תנאים → פעולה · בדיקה יבשה לפני הפעלה · נתוני הדגמה">
+        <sw-button slot="actions" variant="primary" icon="plus" @click=${()=>x("/investigate/rules/new")}>חוק חדש</sw-button>
+        <sw-tabs .items=${[{id:"rules",label:"חוקים",count:ca.length},{id:"notif",label:"התראות"},{id:"sched",label:"לוחות זמנים"},{id:"trig",label:"Triggers"}]} .active=${this.tab} @change=${e=>this.tab=e.detail.id}></sw-tabs>
+        ${this.tab==="rules"?n`<div class="list">
+              ${ca.map(e=>{const t=qn[e.id]??qn["r-1"];return n`<sw-card flush class="rule" style="--bg:${t.bg};--fg:${t.fg}">
+                  <div class="ic"><sw-icon .name=${t.icon} size=${16}></sw-icon></div>
+                  <div class="txt"><b>${e.name}</b><small>${e.trigger} · ${e.scope} · ${e.action}</small></div>
+                  <span class="last">הופעל: ${e.last}</span>
+                  <sw-toggle ?checked=${e.enabled} label=""></sw-toggle>
+                  <sw-button size="sm" @click=${()=>x(`/investigate/rules/${e.id}`)}>עריכה</sw-button>
+                  <sw-button variant="ghost" size="sm" iconOnly icon="more" label="עוד"></sw-button>
+                </sw-card>`})}
+            </div>`:n`<sw-card><div class="empty">${this.tab==="notif"?"ערוצי התראה: Push דרך HA, מייל (Beta). ההגדרה מגיעה עם T063.":this.tab==="sched"?"לוחות זמנים בזמן האתר (Asia/Jerusalem), שעון קיץ לפי התאריך.":"Triggers זמינים: אירועי NVR (אדם, רכב, תנועה, חציית קו, ניתוק) ושינויי מצב HA (allowlist)."}</div></sw-card>`}
+      </sw-page>
+    `}};le.styles=A`
+    .list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-inline-size: 860px;
+    }
+    .rule {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+    }
+    .ic {
+      display: grid;
+      place-items: center;
+      inline-size: 36px;
+      block-size: 36px;
+      border-radius: 9px;
+      background: var(--bg);
+      color: var(--fg);
+      flex-shrink: 0;
+    }
+    .txt {
+      flex: 1;
+      min-inline-size: 0;
+    }
+    .txt b {
+      display: block;
+      font-weight: var(--sw-fw-semibold);
+    }
+    .txt small {
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+    }
+    .last {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      white-space: nowrap;
+    }
+    .empty {
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-sm);
+      padding: 24px;
+      text-align: center;
+    }
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .two {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .hint {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .err {
+      color: var(--sw-danger);
+      font-size: var(--sw-fs-sm);
+    }
+    .chk {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: var(--sw-fs-sm);
+      align-self: end;
+      padding-block-end: 8px;
+    }
+    .dryhead {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .dry {
+      display: flex;
+      flex-direction: column;
+      max-block-size: 220px;
+      overflow: auto;
+    }
+    .dryrow {
+      display: grid;
+      grid-template-columns: 110px minmax(0, 1fr) minmax(0, 1.4fr);
+      gap: 8px;
+      padding: 4px 0;
+      border-block-end: 1px solid var(--sw-border);
+      font-size: var(--sw-fs-xs);
+    }
+    .dryrow[data-fire='false'] {
+      color: var(--sw-text-3);
+    }
+    .ltr {
+      direction: ltr;
+      unicode-bidi: isolate;
+    }
+    @media (max-width: 767px) {
+      .last {
+        display: none;
+      }
+      .two {
+        grid-template-columns: 1fr;
+      }
+    }
+  `;ce([c()],le.prototype,"tab",2);ce([c()],le.prototype,"rules",2);ce([c()],le.prototype,"alerts",2);ce([c()],le.prototype,"unacked",2);ce([c()],le.prototype,"meta",2);ce([c()],le.prototype,"error",2);ce([c()],le.prototype,"busy",2);ce([c()],le.prototype,"loading",2);ce([c()],le.prototype,"editing",2);ce([c()],le.prototype,"dry",2);ce([c()],le.prototype,"dryBusy",2);ce([c()],le.prototype,"tree",2);ce([c()],le.prototype,"cams",2);ce([c()],le.prototype,"zones",2);ce([c()],le.prototype,"confirmDelete",2);le=ce([P("investigate-rules")],le);let bi=class extends M{constructor(){super(...arguments),this.ruleId="r-1"}render(){const e=ca.find(t=>t.id===this.ruleId)??{name:"חוק חדש",trigger:"זיהוי אדם",scope:"חוץ",action:"התראה"};return n`
+      <sw-page heading=${e.name} subheading="עורך חוק · גרסה 2 · נתוני הדגמה" crumbs="אירועים | חוקים והתראות">
+        <sw-button slot="actions" icon="play">בדיקה יבשה</sw-button>
+        <sw-button slot="actions" variant="primary" icon="check">שמירה</sw-button>
+        <sw-steps .steps=${["Trigger","היקף","תנאים","פעולה"]} .current=${1}></sw-steps>
+        <div class="layout">
+          <div class="stack">
+            <sw-card heading="Trigger">
+              <div class="two">
+                <sw-field label="מקור"><select><option>אירוע NVR</option><option>שינוי HA</option></select></sw-field>
+                <sw-field label="סוג"><select><option>${e.trigger}</option><option>זיהוי רכב</option><option>תנועה</option></select></sw-field>
+              </div>
+            </sw-card>
+            <sw-card heading="היקף">
+              <div class="two">
+                <sw-field label="היקף"><select><option>${e.scope}</option><option>כל האתר</option></select></sw-field>
+                <sw-field label="לוח זמנים (זמן האתר)"><input value="22:00–06:00" data-ltr /></sw-field>
+              </div>
+            </sw-card>
+            <sw-card heading="תנאים">
+              <sw-field label="חלון סמיכות"><input value="90 שניות" /></sw-field>
+              <div class="hint">״אירועים סמוכים בזמן ובאזור״, לא הוכחה סיבתית. החלון מתחשב באיחור שעון ובזמן קליטה.</div>
+            </sw-card>
+            <sw-card heading="פעולה">
+              <div class="two">
+                <sw-field label="פעולה"><select><option>${e.action}</option><option>Push דרך HA</option><option>פתיחת תצוגת מצלמות</option></select></sw-field>
+                <sw-field label="Cooldown"><input value="5 דקות" /></sw-field>
+              </div>
+              <div class="hint">unlock / disarm אינם מופעלים על סמך תוצאת AI. שליטה אוטומטית היא opt-in לפי allowlist.</div>
+            </sw-card>
+          </div>
+          <div class="stack">
+            <sw-card heading="בדיקה יבשה על 24 שעות">
+              <div class="dry">10:14 · כניסה ראשית · <sw-badge kind="live" label="היה מפעיל"></sw-badge></div>
+              <div class="dry">09:42 · חצר · <sw-badge kind="neutral" label="מחוץ ללוח הזמנים"></sw-badge></div>
+              <div class="dry">אתמול 23:10 · לובי · <sw-badge kind="live" label="היה מפעיל"></sw-badge></div>
+              <div class="hint" style="margin-block-start:8px">2 הפעלות · 0 כפילויות · correlation id לכל אירוע · מניעת לולאה: פעולה שיצרה אירוע לא מפעילה את אותו חוק.</div>
+            </sw-card>
+          </div>
+        </div>
+      </sw-page>
+    `}};bi.styles=A`
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr);
+      gap: 12px;
+      align-items: start;
+    }
+    .stack {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .two {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .hint {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .dry {
+      font-size: var(--sw-fs-sm);
+      padding: 6px 0;
+      border-block-end: 1px solid var(--sw-border);
+    }
+    @media (max-width: 1023px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+  `;ce([g()],bi.prototype,"ruleId",2);bi=ce([P("investigate-rule-editor")],bi);const hu=()=>S("identity/users"),uu=()=>E("identity/sync"),bs=()=>S("access/roles"),Gn=e=>E("access/bindings",e),mu=e=>ve(`access/bindings/${e}`),fu=()=>S("access/groups"),gu=e=>E("access/groups",{name:e}),wu=e=>ve(`access/groups/${e}`),vu=(e,t)=>Me(`access/groups/${e}/members`,{user_ids:t}),bu=e=>E("access/preview",e),Kn=(e={})=>{const t=new URLSearchParams;e.prefix&&t.set("prefix",e.prefix),e.actor&&t.set("actor",e.actor),e.resourceId&&t.set("resource_id",e.resourceId),e.limit&&t.set("limit",String(e.limit));const s=t.toString();return S(`audit${s?`?${s}`:""}`)},Yn={verified:"מסונכרן",stale:"סנכרון מיושן",removed:"מושבת / נמחק ב־HA",unavailable:"לא בספריית HA",unknown:"טרם סונכרן",dev:"משתמש פיתוח"},yu={"rbac.bind":"שיוך תפקיד","rbac.unbind":"ביטול שיוך","rbac.group_create":"יצירת קבוצה","rbac.group_members":"שינוי חברי קבוצה","rbac.group_delete":"מחיקת קבוצה","rbac.bootstrap_admin":"מנהל ראשון (bootstrap)","identity.user_disabled":"משתמש הושבת (HA)","identity.user_enabled":"משתמש הופעל (HA)","identity.sync":"סנכרון ספרייה"};function wt(e){if(!e)return"—";const t=new Date(e);return Number.isNaN(t.getTime())?e:t.toLocaleString("he-IL",{dateStyle:"short",timeStyle:"short"})}const $u=e=>E("access/roles",e),xu=(e,t)=>Le(`access/roles/${e}`,t),ku=e=>ve(`access/roles/${e}`),_u=e=>E("access/roles/preview",e),zu=e=>Me("access/delegation",{delegable_roles:e});var Su=Object.defineProperty,Mu=Object.getOwnPropertyDescriptor,Y=(e,t,s,i)=>{for(var a=i>1?void 0:i?Mu(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Su(t,s,a),a};const Au=[{id:"users",label:"משתמשים",count:la.length},{id:"groups",label:"קבוצות",count:mr.length},{id:"roles",label:"תפקידים",count:fr.length},{id:"effective",label:"הרשאות אפקטיביות"},{id:"audit",label:"אודיט הרשאות"}];let G=class extends M{constructor(){super(...arguments),this.tab="users",this.selected=null,this.assigning=!1,this.step=0,this.directory=null,this.roles=null,this.groups=null,this.tree=null,this.audit=null,this.selectedGroup=null,this.wizard=null,this.members=null,this.newGroup="",this.preview=null,this.previewUser="",this.previewScope="installation:*",this.busy=!1,this.error="",this.message="",this.forbidden=!1,this.roleEdit=null,this.roleImpact=null,this.roleDelete=null,this.roleImpactTimer=0,this.userColumns=[{key:"name",label:"שם",render:e=>n`<div class="who"><sw-avatar name=${String(e.name)} size=${30}></sw-avatar><div><strong>${String(e.name)}</strong>${e.haAdmin?n` <sw-badge kind="neutral" label="מנהל HA · מידע בלבד"></sw-badge>`:""}<div class="ltr sub">${String(e.haUser)}@ha.local</div></div></div>`},{key:"role",label:"תפקיד",render:e=>{const t=e.bindings[0];return t?n`<span class="pillsel">${t.role}<sw-icon name="chevronDown" size=${11}></sw-icon></span>`:n`<span class="pillsel" style="color:var(--sw-text-3)">ללא שיוך<sw-icon name="chevronDown" size=${11}></sw-icon></span>`}},{key:"scope",label:"היקף גישה",render:e=>{const t=e.bindings[0];return t?n`<span class="pillsel">${t.scope}<sw-icon name="chevronDown" size=${11}></sw-icon></span>`:n`<span class="sub">—</span>`}},{key:"active",label:"מצב",render:e=>n`<span class="status ${e.active?"":"off"}"><i></i>${e.active?"פעיל":"מושבת ב־HA"}</span>`},{key:"lastSync",label:"סנכרון"},{key:"more",label:"",width:"40px",render:()=>n`<sw-button variant="ghost" size="sm" iconOnly icon="more" label="עוד"></sw-button>`}]}connectedCallback(){super.connectedCallback(),$()&&this.load()}async load(){this.error="";try{const[e,t,s,i]=await Promise.all([hu(),bs(),fu(),At()]);this.directory=e,this.roles=t,this.groups=s.groups,this.tree=i,this.forbidden=!1,this.previewUser||(this.previewUser=Te.me?.user.id??"")}catch(e){const t=b(e);this.error=t,this.forbidden=/403|הרשאה|forbidden/i.test(t)&&!this.directory}}async loadAudit(){try{const[e,t]=await Promise.all([Kn({prefix:"rbac.",limit:100}),Kn({prefix:"identity.",limit:50})]);this.audit=[...e.rows,...t.rows].sort((s,i)=>s.at<i.at?1:-1).slice(0,150)}catch(e){this.error=b(e),this.audit=[]}}flash(e){this.message=e,setTimeout(()=>this.message="",3500)}get scopeOptions(){const e=[{type:"installation",id:"*",name:"כל ההתקנה"}];for(const t of this.tree?.sites??[]){e.push({type:"site",id:t.id,name:`אתר · ${t.name}`});for(const s of t.buildings??[]){e.push({type:"building",id:s.id,name:`${t.name} · ${s.name}`});for(const i of s.floors??[])e.push({type:"floor",id:i.id,name:`${t.name} · ${s.name} · ${i.name}`})}}return e}userName(e){return this.directory?.users.find(t=>t.id===e)?.name??e}label(e){return this.roles?.labels[e]??e}startWizard(e,t,s){this.wizard={subjectKind:e,subjectId:t,subjectName:s,roleId:"viewer",scopeKey:"installation:*",effect:"allow"}}async saveWizard(){const e=this.wizard;if(!e)return;const[t,s]=e.scopeKey.split(":");this.busy=!0,this.error="";try{const i=await Gn({subject_kind:e.subjectKind,subject_id:e.subjectId,role_id:e.roleId,scope_type:t,scope_id:s,effect:e.effect});this.flash(e.effect==="deny"?`נחסם: ${i.role_name} · ${i.scope_name} (רוויזיה ${i.revision})`:`שויך: ${i.role_name} · ${i.scope_name} (רוויזיה ${i.revision})`),this.wizard=null,await this.load()}catch(i){this.error=b(i)}finally{this.busy=!1}}async revoke(e){this.busy=!0,this.error="";try{await mu(e.id),this.flash(`בוטל: ${e.role_name} · ${e.scope_name}`),await this.load()}catch(t){this.error=b(t)}finally{this.busy=!1}}async sync(){this.busy=!0,this.error="";try{const e=await uu();this.flash(e.requested?"הספרייה נדחפה מ־Home Assistant":e.note??"הספרייה מתעדכנת אוטומטית כל דקה"),await this.load()}catch(e){this.error=b(e)}finally{this.busy=!1}}async addGroup(){const e=this.newGroup.trim();if(e){this.busy=!0,this.error="";try{const t=await gu(e);this.newGroup="",this.flash(`נוצרה קבוצה "${t.name}"`),await this.load(),this.selectedGroup=t.id}catch(t){this.error=b(t)}finally{this.busy=!1}}}async saveMembers(e){if(this.members){this.busy=!0,this.error="";try{await vu(e.id,[...this.members]),this.members=null,this.flash("חברי הקבוצה עודכנו"),await this.load()}catch(t){this.error=b(t)}finally{this.busy=!1}}}async removeGroup(e){this.busy=!0,this.error="";try{await wu(e.id),this.selectedGroup=null,this.flash(`הקבוצה "${e.name}" נמחקה והשיוכים שלה בוטלו`),await this.load()}catch(t){this.error=b(t)}finally{this.busy=!1}}async runPreview(){if(!this.previewUser)return;const[e,t]=this.previewScope.split(":");this.busy=!0,this.error="";try{this.preview=await bu({user_id:this.previewUser,scope_type:e,scope_id:t})}catch(s){this.error=b(s)}finally{this.busy=!1}}renderBindingRow(e,t){return n`<div class="bind">
+      <div><strong>${e.role_name}</strong> · ${e.scope_name}${e.effect==="deny"?n` <sw-badge kind="forbidden" label="חסימה"></sw-badge>`:d}<div class="sub">${e.via_group?`דרך קבוצה "${e.via_group}" · `:""}מאז ${wt(e.created_at)}${e.expires_at?` · עד ${wt(e.expires_at)}`:""} · רוויזיה ${e.permission_revision}</div></div>
+      ${t&&!e.via_group?n`<sw-button size="sm" variant="ghost" icon="trash" ?disabled=${this.busy} @click=${()=>this.revoke(e)}>ביטול</sw-button>`:d}
+    </div>`}renderWizard(){const e=this.wizard;if(!e||!this.roles)return d;const t=this.roles.roles.find(r=>r.id===e.roleId),s=this.scopeOptions.find(r=>`${r.type}:${r.id}`===e.scopeKey),i=t?.system_role??!1,a=e.effect==="deny";return n`<div class="wiz">
+      <sw-steps .steps=${["תפקיד","היקף","תצוגה מקדימה","שמירה"]} .current=${2}></sw-steps>
+      <div class="hint">שיוך ל${e.subjectKind==="group"?"קבוצה":"משתמש"}: <strong>${e.subjectName}</strong></div>
+      <sw-field label="סוג שיוך"><select data-wizard-effect @change=${r=>this.wizard={...e,effect:r.target.value}}>
+          <option value="allow" ?selected=${!a}>הרשאה — מוסיף את הרשאות התפקיד בהיקף</option>
+          <option value="deny" ?selected=${a}>חסימה — מסיר את הרשאות התפקיד בהיקף, גם אם שיוך אחר מרשה</option>
+        </select></sw-field>
+      <sw-field label="תפקיד"><select @change=${r=>this.wizard={...e,roleId:r.target.value}}>${this.roles.roles.map(r=>n`<option value=${r.id} ?selected=${r.id===e.roleId}>${r.name}</option>`)}</select></sw-field>
+      <sw-field label="היקף"><select @change=${r=>this.wizard={...e,scopeKey:r.target.value}}>${this.scopeOptions.map(r=>n`<option value=${`${r.type}:${r.id}`} ?selected=${`${r.type}:${r.id}`===e.scopeKey} ?disabled=${i&&r.type!=="installation"}>${r.name}</option>`)}</select></sw-field>
+      ${t?a?n`<div class="eff">
+              <div><div style="font-weight:600;margin-block-end:4px;font-size:var(--sw-fs-xs)">ייחסמו ב־${s?.name??"ההיקף"}</div>${t.permissions.map(r=>n`<div class="row"><span>${this.label(r)}</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div>`)}</div>
+              <div class="hint" style="align-self:start">חסימה פועלת רק על ההרשאות שהתפקיד הזה מקנה, ורק בהיקף שנבחר. היא גוברת על כל שיוך "הרשאה" אחר לאותו משתמש באותה הרשאה ובאותו היקף (או היקף שמכיל אותו) — לא על שיוכים בהיקפים לא קשורים.</div>
+            </div>`:n`<div class="eff">
+              <div><div style="font-weight:600;margin-block-end:4px;font-size:var(--sw-fs-xs)">מותר ב־${s?.name??"ההיקף"}</div>${t.permissions.map(r=>n`<div class="row"><span>${this.label(r)}</span><sw-icon name="check" size=${14} style="color:var(--sw-live)"></sw-icon></div>`)}</div>
+              <div><div style="font-weight:600;margin-block-end:4px;font-size:var(--sw-fs-xs)">לא כלול / מחוץ להיקף</div>${t.sensitive_missing.map(r=>n`<div class="row"><span>${this.label(r)}</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div>`)}<div class="row"><span>כל היקף אחר</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div></div>
+            </div>`:d}
+      ${i?n`<div class="hint">תפקיד עם הרשאות מערכת מוקצה רק ברמת ההתקנה כולה.</div>`:d}
+      <div class="hint">הרשאות בתוך SMPLWISE בלבד. שום דבר לא נכתב ל־Home Assistant. השינוי נרשם באודיט עם diff לפני/אחרי.</div>
+    </div>`}renderUsersApi(){const e=this.directory,t=e.can_assign,s=[{key:"name",label:"שם",render:a=>n`<div style="display:flex;align-items:center;gap:10px"><sw-avatar name=${String(a.name)} size=${30}></sw-avatar><div><strong>${String(a.name)}</strong>${a.is_admin?n` <sw-badge kind="neutral" label="מנהל HA · מידע בלבד"></sw-badge>`:d}${a.is_self?n` <sw-badge kind="recorded" label="אני"></sw-badge>`:d}<div style="font-size:var(--sw-fs-xs);color:var(--sw-text-3);direction:ltr;text-align:start">${String(a.username||a.id)}</div></div></div>`},{key:"bindings",label:"תפקיד · היקף",render:a=>{const r=a.bindings;return r.length?n`${r.slice(0,2).map(o=>n`<div style="font-size:var(--sw-fs-xs)"><strong>${o.role_name}</strong> · ${o.scope_name}${o.via_group?" (קבוצה)":""}</div>`)}${r.length>2?n`<div style="font-size:var(--sw-fs-xs);color:var(--sw-text-3)">+${r.length-2}</div>`:d}`:n`<span style="font-size:var(--sw-fs-xs);color:var(--sw-text-3)">ללא שיוך · אין גישה לתוכן</span>`}},{key:"groups",label:"קבוצות",render:a=>n`<span style="font-size:var(--sw-fs-xs)">${a.groups.map(r=>r.name).join(", ")||"—"}</span>`},{key:"active",label:"מצב",render:a=>n`<span style="display:inline-flex;align-items:center;gap:6px;font-size:var(--sw-fs-xs)"><i style="inline-size:7px;block-size:7px;border-radius:50%;background:${a.active?"var(--sw-live)":"var(--sw-offline)"}"></i>${a.active?"פעיל":"ללא גישה (HA)"}</span>`},{key:"sync_status",label:"סנכרון",render:a=>n`<span style="font-size:var(--sw-fs-xs)">${Yn[a.sync_status]}</span><div style="font-size:var(--sw-fs-xs);color:var(--sw-text-3)">${a.last_seen_at?`נראה ${wt(String(a.last_seen_at))}`:"טרם נכנס"}</div>`}],i=e.users.find(a=>a.id===this.selected)??null;return n`
+      <div class="stage">
+        ${e.users.length?n`<sw-table .columns=${s} .rows=${e.users} .selected=${this.selected} @row-select=${a=>{this.selected=a.detail.id,this.wizard=null}}></sw-table>`:n`<sw-state-panel state="empty" heading="אין משתמשים עדיין" hint=${e.directory.paired?"הספרייה תגיע מהגשר תוך דקה.":"צמד את גשר SMPLWISE ב־Home Assistant כדי לקבל את רשימת המשתמשים."}></sw-state-panel>`}
+        ${i?n`<sw-drawer open heading=${i.name} subheading=${`Home Assistant · ${i.username||i.id} · ${i.active?"פעיל":"ללא גישה"}`} @close=${()=>{this.selected=null,this.wizard=null}}>
+              ${this.wizard&&this.wizard.subjectKind==="user"?this.renderWizard():n`<dl>
+                    <dt>מקור זהות</dt><dd>Home Assistant · <span class="ltr">${i.id}</span></dd>
+                    <dt>סנכרון</dt><dd>${Yn[i.sync_status]}${i.synced_at?` · ${wt(i.synced_at)}`:""}</dd>
+                    <dt>ב־VMS</dt><dd>${i.first_seen_at?`מאז ${wt(i.first_seen_at)} · לאחרונה ${wt(i.last_seen_at)}`:"טרם נכנס לממשק"}</dd>
+                    <dt>מנהל HA</dt><dd>${i.is_admin?"כן · מידע בלבד, לא תפקיד VMS":"לא"}</dd>
+                    <dt>קבוצות</dt><dd>${i.groups.map(a=>a.name).join(", ")||"—"}</dd>
+                  </dl>
+                  <div style="margin-block-start:10px;font-weight:600;font-size:var(--sw-fs-xs)">שיוכים</div>
+                  ${i.bindings.length?i.bindings.map(a=>this.renderBindingRow(a,t)):n`<div class="hint">ללא שיוך: אין גישה לתוכן.</div>`}
+                  <div class="hint" style="margin-block-start:8px">אין כפתור לשינוי סיסמת HA או להפיכה למנהל HA. מנהל HA אינו מקבל תפקיד VMS אוטומטית.</div>`}
+              <div slot="footer">
+                ${this.wizard?n`<sw-button variant="primary" size="sm" icon="check" ?disabled=${this.busy} @click=${()=>this.saveWizard()}>שמור שיוך</sw-button><sw-button variant="ghost" size="sm" @click=${()=>this.wizard=null}>ביטול</sw-button>`:n`${t?n`<sw-button variant="primary" size="sm" icon="plus" @click=${()=>this.startWizard("user",i.id,i.name)}>שיוך תפקיד</sw-button>`:d}
+                    <sw-button variant="ghost" size="sm" icon="shield" @click=${()=>{this.previewUser=i.id,this.tab="effective",this.runPreview()}}>הרשאות אפקטיביות</sw-button>`}
+              </div>
+            </sw-drawer>`:d}
+      </div>
+    `}renderGroupsApi(){const e=this.groups??[],t=this.directory,s=t.can_assign,i=[{key:"name",label:"קבוצה",render:o=>n`<strong>${String(o.name)}</strong>`},{key:"members",label:"חברים",render:o=>n`${o.members.length}`},{key:"bindings",label:"שיוכים (תפקיד · היקף)",render:o=>n`${o.bindings.map(l=>n`<div style="font-size:var(--sw-fs-xs)">${l.role_name} · ${l.scope_name}</div>`)}`}],a=e.find(o=>o.id===this.selectedGroup)??null,r=this.members??new Set(a?.members.map(o=>o.id)??[]);return n`
+      ${s?n`<div class="toolbar"><sw-field label="קבוצה חדשה"><input .value=${this.newGroup} placeholder="למשל: עורכי קומה 2" @input=${o=>this.newGroup=o.target.value} @keydown=${o=>{o.key==="Enter"&&this.addGroup()}} /></sw-field><sw-button size="sm" icon="plus" ?disabled=${this.busy||!this.newGroup.trim()} @click=${()=>this.addGroup()}>יצירה</sw-button></div>`:d}
+      <div class="stage">
+        ${e.length?n`<sw-table .columns=${i} .rows=${e} .selected=${this.selectedGroup} @row-select=${o=>{this.selectedGroup=o.detail.id,this.members=null,this.wizard=null}}></sw-table>`:n`<sw-state-panel state="empty" heading="אין קבוצות" hint="קבוצה מקבלת תפקיד בהיקף, וכל חבריה יורשים אותו. קבוצות VMS בלבד, לא קבוצות HA."></sw-state-panel>`}
+        ${a?n`<sw-drawer open heading=${a.name} subheading=${`${a.members.length} חברים · ${a.bindings.length} שיוכים`} @close=${()=>{this.selectedGroup=null,this.members=null,this.wizard=null}}>
+              ${this.wizard&&this.wizard.subjectKind==="group"?this.renderWizard():n`<div style="font-weight:600;font-size:var(--sw-fs-xs);margin-block-end:4px">שיוכים של הקבוצה</div>
+                  ${a.bindings.length?a.bindings.map(o=>this.renderBindingRow(o,s)):n`<div class="hint">ללא שיוך: החברים אינם מקבלים דבר דרך הקבוצה.</div>`}
+                  <div style="font-weight:600;font-size:var(--sw-fs-xs);margin-block:10px 4px">חברים</div>
+                  <div class="members">${t.users.map(o=>n`<label><input type="checkbox" ?disabled=${!s} .checked=${r.has(o.id)} @change=${l=>{const p=new Set(r);l.target.checked?p.add(o.id):p.delete(o.id),this.members=p}} /> ${o.name}<span class="hint">${o.active?"":" · ללא גישה"}</span></label>`)}</div>
+                  <div class="hint" style="margin-block-start:8px">שינוי חברות נבדק מול כל השיוכים של הקבוצה ונרשם באודיט.</div>`}
+              <div slot="footer">
+                ${this.wizard?n`<sw-button variant="primary" size="sm" icon="check" ?disabled=${this.busy} @click=${()=>this.saveWizard()}>שמור שיוך</sw-button><sw-button variant="ghost" size="sm" @click=${()=>this.wizard=null}>ביטול</sw-button>`:s?n`<sw-button variant="primary" size="sm" icon="check" ?disabled=${this.busy||!this.members} @click=${()=>this.saveMembers(a)}>שמור חברים</sw-button>
+                      <sw-button size="sm" icon="plus" ?disabled=${this.busy} @click=${()=>this.startWizard("group",a.id,a.name)}>שיוך תפקיד</sw-button>
+                      <sw-button variant="danger" size="sm" icon="trash" ?disabled=${this.busy} @click=${()=>this.removeGroup(a)}>מחיקה</sw-button>`:d}
+              </div>
+            </sw-drawer>`:d}
+      </div>
+    `}openRole(e){this.roleImpact=null;const t=new Set(this.roles?.sensitive??[]);this.roleEdit=e?{id:e.id,revision:e.revision??1,name:e.name,description:e.description??"",permissions:e.permissions.filter(s=>!t.has(s)),sensitive:e.permissions.filter(s=>t.has(s)),delegable:!!e.delegable}:{id:null,revision:0,name:"",description:"",permissions:["map.read"],sensitive:[],delegable:!1},this.scheduleImpact()}toggleRolePerm(e,t){const s=this.roleEdit;if(!s)return;const i=t?"sensitive":"permissions",a=s[i].includes(e)?s[i].filter(r=>r!==e):[...s[i],e];this.roleEdit={...s,[i]:a},this.scheduleImpact()}scheduleImpact(){window.clearTimeout(this.roleImpactTimer),this.roleImpactTimer=window.setTimeout(()=>void this.loadImpact(),300)}async loadImpact(){const e=this.roleEdit;if(!e||!e.permissions.length&&!e.sensitive.length){this.roleImpact=null;return}try{this.roleImpact=await _u({role_id:e.id,permissions:e.permissions,sensitive:e.sensitive})}catch(t){this.error=b(t)}}async saveRole(){const e=this.roleEdit;if(!(!e||!e.name.trim())){this.busy=!0,this.error="";try{const t={name:e.name.trim(),description:e.description,permissions:e.permissions,sensitive:e.sensitive,delegable:e.delegable};if(e.id){await xu(e.id,{...t,revision:e.revision}),this.roleEdit=null,this.roleImpact=null,this.message="התפקיד עודכן; השינוי חל על כל המשויכים ברענון הבא",this.roles=await bs();return}const s=await $u(t);this.roleEdit=null,this.roleImpact=null,this.roles=await bs();const i=Te.me?.user.id;if(e.assignMe!==!1&&i)try{await Gn({subject_kind:"user",subject_id:i,role_id:s.id,scope_type:"installation",scope_id:"*"}),this.message=`התפקיד "${s.name}" נוצר ושויך אליך (כל המתקן). ההרשאות החדשות ייכנסו לתוקף ברענון הבא של הדף.`}catch(a){this.message=`התפקיד "${s.name}" נוצר, אך השיוך האוטומטי אליך נכשל (${b(a)}). שייך אותו ידנית בלשונית "שיוכים".`}else this.message=`התפקיד "${s.name}" נוצר. שייך אותו למשתמש או לקבוצה בלשונית "שיוכים".`}catch(t){this.error=b(t)}finally{this.busy=!1}}}setAllRolePerms(e,t,s){const i=this.roleEdit;i&&(this.roleEdit={...i,[e]:s?[...new Set([...i[e],...t])]:i[e].filter(a=>!t.includes(a))},this.scheduleImpact())}async removeRole(e){this.busy=!0,this.error="";try{await ku(e.id),this.roleDelete=null,this.roles=await bs()}catch(t){this.error=b(t),this.roleDelete=null}finally{this.busy=!1}}async toggleDelegable(e){const t=this.roles?.delegable_roles??[],s=t.includes(e)?t.filter(i=>i!==e):[...t,e];this.busy=!0,this.error="";try{await zu(s),this.roles=await bs()}catch(i){this.error=b(i)}finally{this.busy=!1}}renderRoleDialog(){const e=this.roleEdit,t=this.roles;if(!e||!t)return d;const s=new Set(t.sensitive),i=new Set(t.system_permissions??[]),a=Object.keys(t.labels).filter(o=>!s.has(o)&&!i.has(o)),r=this.roleImpact;return n`<sw-dialog open heading=${e.id?"עריכת תפקיד מותאם":"תפקיד מותאם חדש"} subheading="הרשאות רגילות + הרשאות רגישות במפורש · ללא הרשאות מערכת · ההשפעה מוצגת לפני השמירה" data-role-dialog @close=${()=>this.roleEdit=null}>
+      ${this.error?n`<div class="err banner" data-role-error>${this.error}</div>`:d}
+      <sw-field label="שם"><input data-role-name .value=${e.name} @input=${o=>this.roleEdit={...e,name:o.target.value}} /></sw-field>
+      <sw-field label="תיאור"><input .value=${e.description} @input=${o=>this.roleEdit={...e,description:o.target.value}} /></sw-field>
+      <div class="hint permsrow">הרשאות רגילות
+        <span class="permsel">
+          <sw-button size="sm" variant="ghost" data-role-perm-all @click=${()=>this.setAllRolePerms("permissions",a,!0)}>בחר הכל</sw-button>
+          <sw-button size="sm" variant="ghost" data-role-perm-none @click=${()=>this.setAllRolePerms("permissions",a,!1)}>נקה הכל</sw-button>
+        </span>
+      </div>
+      <div class="perms">${a.map(o=>n`<label class="chk"><input type="checkbox" data-role-perm=${o} .checked=${e.permissions.includes(o)} @change=${()=>this.toggleRolePerm(o,!1)} /> ${t.labels[o]}</label>`)}</div>
+      <div class="hint permsrow" style="margin-block-start:6px">הרשאות רגישות — לעולם לא מרומזות, נדרשות במפורש
+        <span class="permsel">
+          <sw-button size="sm" variant="ghost" data-role-sensitive-all @click=${()=>this.setAllRolePerms("sensitive",t.sensitive,!0)}>בחר הכל</sw-button>
+          <sw-button size="sm" variant="ghost" data-role-sensitive-none @click=${()=>this.setAllRolePerms("sensitive",t.sensitive,!1)}>נקה הכל</sw-button>
+        </span>
+      </div>
+      <div class="perms">${t.sensitive.map(o=>n`<label class="chk sens"><input type="checkbox" data-role-sensitive=${o} .checked=${e.sensitive.includes(o)} @change=${()=>this.toggleRolePerm(o,!0)} /> ${t.labels[o]??o}</label>`)}</div>
+      ${e.id?d:n`<label class="chk" style="margin-block-start:6px"><input type="checkbox" data-role-assign-me .checked=${e.assignMe!==!1} @change=${o=>this.roleEdit={...e,assignMe:o.target.checked}} /> שייך את התפקיד אליי מיד (כל המתקן)</label>`}
+      <label class="chk" style="margin-block-start:6px"><input type="checkbox" data-role-delegable .checked=${e.delegable} @change=${o=>this.roleEdit={...e,delegable:o.target.checked}} /> מנהל אתר רשאי להקצות תפקיד זה בהיקפו (בכפוף להרשאות שהוא מחזיק)</label>
+      ${r?n`<div class="impact" data-role-impact>
+            <strong>השפעת השינוי:</strong> ${r.bindings} שיוכים · ${r.users.length} משתמשים${r.users.length?` (${r.users.map(o=>o.name).join(", ")})`:""}${r.groups.length?` · ${r.groups.length} קבוצות`:""}${r.scopes.length?` · היקפים: ${r.scopes.join(", ")}`:""}
+            <div>${r.added.length?n`יתווספו: ${r.added.map(o=>t.labels[o]??o).join(", ")}`:"ללא הרשאות חדשות"} · ${r.removed.length?n`<span class="err">יוסרו: ${r.removed.map(o=>t.labels[o]??o).join(", ")}</span>`:"ללא הסרות"}</div>
+          </div>`:d}
+      <sw-button slot="footer" variant="ghost" @click=${()=>this.roleEdit=null}>ביטול</sw-button>
+      <sw-button slot="footer" variant="primary" icon="check" data-role-save ?disabled=${this.busy||!e.name.trim()||!e.permissions.length&&!e.sensitive.length} @click=${()=>this.saveRole()}>${e.id?"שמירה":"צור תפקיד"}</sw-button>
+    </sw-dialog>`}renderRolesApi(){const e=this.roles;return n`<div class="roles">${e.roles.map(t=>n`<sw-card class="role" data-role-card=${t.id}><h4><span class="ic"><sw-icon name=${t.custom?"user":t.id==="viewer"?"eye":t.id==="operator"?"play":t.id==="editor"?"edit":t.id==="site_admin"?"building":t.id==="kiosk"?"grid":"shield"} size=${14}></sw-icon></span>${t.name}${t.custom?n` <sw-badge kind="recorded" label="מותאם"></sw-badge>`:d}${t.system_role?n` <sw-badge kind="neutral" label="הרשאות מערכת"></sw-badge>`:d}${t.delegable?n` <sw-badge kind="historic" label="ניתן להאצלה"></sw-badge>`:d}</h4>${t.description?n`<div class="d">${t.description}</div>`:d}<div class="a">מותר: ${t.permissions.map(s=>this.label(s)).join(", ")}</div><div class="d">לא כלול אוטומטית: ${t.sensitive_missing.map(s=>this.label(s)).join(", ")||"—"}</div>${t.custom&&e.can_manage_roles?n`<div style="display:flex;gap:6px;margin-block-start:8px"><sw-button size="sm" data-role-edit @click=${()=>this.openRole(t)}>עריכה</sw-button><sw-button size="sm" variant="ghost" icon="trash" data-role-delete @click=${()=>this.roleDelete=t}>מחיקה</sw-button></div>`:d}</sw-card>`)}</div>
+      ${e.can_manage_roles?n`<div style="margin-block-start:10px"><sw-button variant="primary" icon="plus" data-role-new @click=${()=>this.openRole()}>תפקיד מותאם חדש</sw-button></div>
+            <sw-card heading="האצלת ניהול למנהלי אתר" subheading="מנהל אתר משייך רק תפקידים מהרשימה הזו, רק הרשאות שהוא מחזיק בהיקף, למשתמשים בלבד ובתוך ההיקף שלו; תפקידי מערכת לעולם לא" style="margin-block-start:12px" data-delegation>
+              <div class="chips">${e.roles.filter(t=>!t.system_role).map(t=>n`<sw-chip data-delegable=${t.id} ?selected=${(e.delegable_roles??[]).includes(t.id)} @click=${()=>void this.toggleDelegable(t.id)}>${t.name}</sw-chip>`)}</div>
+            </sw-card>`:d}
+      <div class="hint">תפקידים מובנים אינם נערכים; תפקיד מותאם מורכב מהרשאות רגילות ומהרשאות רגישות שניתנות במפורש, ולעולם לא מהרשאות מערכת. התפקידים אינם סולם: עריכת מפה והיסטוריית וידאו הן יכולות נפרדות.</div>
+      ${this.renderRoleDialog()}
+      ${this.roleDelete?n`<sw-dialog open heading="מחיקת תפקיד" subheading=${this.roleDelete.name} @close=${()=>this.roleDelete=null}>
+            <div class="hint">תפקיד משויך אינו נמחק: בטל קודם את השיוכים. המחיקה נרשמת באודיט.</div>
+            <sw-button slot="footer" variant="ghost" @click=${()=>this.roleDelete=null}>ביטול</sw-button>
+            <sw-button slot="footer" variant="danger" icon="trash" data-role-delete-confirm ?disabled=${this.busy} @click=${()=>void this.removeRole(this.roleDelete)}>מחק</sw-button>
+          </sw-dialog>`:d}`}renderEffectiveApi(){const e=this.directory,t=this.preview;return n`
+      <div class="toolbar">
+        <sw-field label="משתמש"><select @change=${s=>this.previewUser=s.target.value}>${e.users.map(s=>n`<option value=${s.id} ?selected=${s.id===this.previewUser}>${s.name}</option>`)}</select></sw-field>
+        <sw-field label="היקף"><select @change=${s=>this.previewScope=s.target.value}>${this.scopeOptions.map(s=>n`<option value=${`${s.type}:${s.id}`} ?selected=${`${s.type}:${s.id}`===this.previewScope}>${s.name}</option>`)}</select></sw-field>
+        <sw-button size="sm" icon="shield" ?disabled=${this.busy||!this.previewUser} @click=${()=>this.runPreview()}>חשב</sw-button>
+      </div>
+      ${t?n`<sw-card heading=${`${this.userName(t.user_id)} · ${t.scope_name}`} subheading=${t.active?`רוויזיה ${t.revision}`:"המשתמש ללא גישה (מושבת או נמחק ב־HA)"}>
+            <div class="eff">
+              <div><div style="font-weight:600;margin-block-end:4px;font-size:var(--sw-fs-xs)">מותר בהיקף</div>${t.allowed.length?t.allowed.map(s=>n`<div class="row"><span>${this.label(s)}</span><sw-icon name="check" size=${14} style="color:var(--sw-live)"></sw-icon></div>`):n`<div class="row"><span>כלום</span></div>`}</div>
+              <div><div style="font-weight:600;margin-block-end:4px;font-size:var(--sw-fs-xs)">מחוץ להיקף / לא מוקנה</div>${t.denied.map(s=>n`<div class="row"><span>${this.label(s)}</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div>`)}</div>
+            </div>
+            ${t.bindings.length?n`<div style="margin-block-start:10px;font-weight:600;font-size:var(--sw-fs-xs)">שיוכים שנלקחו בחשבון</div>${t.bindings.map(s=>n`<div class="bind"><div>${s.role_name} · ${s.scope_name}${s.via_group?` (קבוצה "${s.via_group}")`:""}</div></div>`)}`:d}
+            <div class="hint" style="margin-block-start:8px">תצוגה זו אינה מתחזה למשתמש ואינה מאפשרת לעקוף את הגישה שלו; החישוב נעשה בצד השרת.</div>
+          </sw-card>`:n`<div class="hint">בחר משתמש והיקף כדי לראות מה מותר ומה לא.</div>`}
+    `}renderAuditApi(){if(!this.audit)return this.loadAudit(),n`<sw-state-panel state="loading"></sw-state-panel>`;const e=[{key:"at",label:"זמן",render:t=>n`<span style="font-size:var(--sw-fs-xs)">${wt(String(t.at))}</span>`},{key:"actor_username",label:"מבצע",render:t=>n`${String(t.actor_username??"מערכת / HA")}`},{key:"action",label:"פעולה",render:t=>n`${yu[String(t.action)]??String(t.action)}`},{key:"resource_id",label:"משאב",render:t=>n`${t.resource_type==="user"?this.userName(String(t.resource_id)):t.resource_type==="group"?this.groups?.find(s=>s.id===t.resource_id)?.name??String(t.resource_id):String(t.resource_id??"")}`},{key:"decision",label:"החלטה",render:t=>n`<sw-badge kind=${t.decision==="denied"?"forbidden":"live"} label=${t.decision==="denied"?`נחסם${t.reason?` · ${String(t.reason)}`:""}`:"הותר"}></sw-badge>`},{key:"details",label:"פרטים",render:t=>{const s=t.details,i=[s.role_id?`${String(s.role_id)}`:"",s.scope?String(s.scope):"",Array.isArray(s.added)&&s.added.length?`+${s.added.length}`:"",Array.isArray(s.removed)&&s.removed.length?`−${s.removed.length}`:"",s.revision?`rev ${String(s.revision)}`:""].filter(Boolean);return n`<span style="font-size:var(--sw-fs-xs);direction:ltr;unicode-bidi:isolate">${i.join(" · ")}</span>`}}];return this.audit.length?n`<sw-table dense .columns=${e} .rows=${this.audit} rowKey="at"></sw-table>`:n`<sw-state-panel state="empty" heading="אין רשומות אודיט הרשאות" hint="כל שיוך, ביטול, קבוצה או שינוי מצב משתמש יופיע כאן."></sw-state-panel>`}renderApi(){if(this.forbidden)return n`<sw-page heading="משתמשים והרשאות"><sw-state-panel state="forbidden" hint="צפייה בספריית המשתמשים דורשת תפקיד מנהל מערכת VMS."></sw-state-panel></sw-page>`;if(this.error&&!this.directory)return n`<sw-page heading="משתמשים והרשאות"><sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${()=>this.load()}></sw-state-panel></sw-page>`;if(!this.directory||!this.roles)return n`<sw-page heading="משתמשים והרשאות"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;const e=this.directory,t=[{id:"users",label:"משתמשים",count:e.users.length},{id:"groups",label:"קבוצות",count:this.groups?.length??0},{id:"roles",label:"תפקידים",count:this.roles.roles.length},{id:"effective",label:"הרשאות אפקטיביות"},{id:"audit",label:"אודיט הרשאות"}],s=e.directory.paired?`זהות מ־Home Assistant · ${e.directory.users} משתמשים בספרייה · עודכן ${wt(e.directory.last_directory_at)} · רוויזיית הרשאות ${e.revision}`:"זהות מ־Home Assistant · הגשר עדיין לא מצומד: מוצגים רק משתמשים שנכנסו דרך Ingress";return n`
+      <sw-page heading="משתמשים והרשאות" subheading=${s}>
+        <sw-button slot="actions" icon="refresh" ?disabled=${this.busy} @click=${()=>this.sync()}>סנכרון משתמשים מ־HA</sw-button>
+        <sw-tabs .items=${t} .active=${this.tab} @change=${i=>{this.tab=i.detail.id,this.tab==="audit"&&this.loadAudit()}}></sw-tabs>
+        <div class="notice"><sw-icon name="shield" size=${14}></sw-icon>שיוך כאן אינו משנה דבר ב־Home Assistant: לא קבוצות HA, לא דגל מנהל, לא סיסמאות. אין "הוספת משתמש" — משתמשים נוצרים ב־HA בלבד.</div>
+        ${this.message||this.error?n`<div class="bar">${this.message?n`<span class="ok">${this.message}</span>`:d}${this.error?n`<span class="err">${this.error}</span>`:d}</div>`:d}
+        ${this.tab==="users"?this.renderUsersApi():this.tab==="groups"?this.renderGroupsApi():this.tab==="roles"?this.renderRolesApi():this.tab==="effective"?this.renderEffectiveApi():this.renderAuditApi()}
+      </sw-page>
+    `}renderUsers(){const e=la.find(t=>t.id===this.selected);return n`
+      <div class="stage">
+        <sw-table .columns=${this.userColumns} .rows=${la} .selected=${this.selected} @row-select=${t=>{this.selected=t.detail.id,this.assigning=!1}}></sw-table>
+        ${e?n`<sw-drawer open heading=${e.name} subheading=${`HA: ${e.haUser} · ${e.active?"פעיל":"מושבת"}`} @close=${()=>this.selected=null}>
+              ${this.assigning?n`<div class="wiz">
+                    <sw-steps .steps=${["תפקיד","היקף","תצוגה מקדימה","שמירה"]} .current=${this.step}></sw-steps>
+                    <sw-field label="קבוצה או תפקיד"><select><option>עורך מפות ותצוגות</option><option>מפעיל</option><option>צופה</option><option>מנהל אתר/מבנה/קומה</option></select></sw-field>
+                    <sw-field label="היקף"><select><option>מבנה א · קומה 2</option><option>מבנה א</option><option>אתר הדגמה</option></select></sw-field>
+                    <div class="eff">
+                      <div><div style="font-weight:600;margin-block-end:4px;font-size:var(--sw-fs-xs)">מותר בהיקף</div><div class="row"><span>עריכת תוכנית קומה 2</span><sw-icon name="check" size=${14} style="color:var(--sw-live)"></sw-icon></div><div class="row"><span>הצבת ציוד מורשה</span><sw-icon name="check" size=${14} style="color:var(--sw-live)"></sw-icon></div></div>
+                      <div><div style="font-weight:600;margin-block-end:4px;font-size:var(--sw-fs-xs)">לא ניתן</div><div class="row"><span>עריכת קומה 3</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div><div class="row"><span>ניהול משתמשים / NVR</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div><div class="row"><span>פתיחת מנעול</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div></div>
+                    </div>
+                    <div class="hint">הרשאות בתוך SMPLWISE בלבד. שום דבר לא נכתב ל־HA. השינוי ירשם באודיט עם diff לפני/אחרי.</div>
+                  </div>`:n`<dl>
+                    <dt>מקור זהות</dt><dd>Home Assistant · <span class="ltr">${e.haUser}</span></dd>
+                    <dt>סנכרון אחרון</dt><dd>${e.lastSync}</dd>
+                    <dt>קבוצות</dt><dd>${e.groups.join(", ")||"—"}</dd>
+                    <dt>שיוכים</dt><dd>${e.bindings.length?e.bindings.map(t=>n`<div>${t.role} · ${t.scope}</div>`):"ללא: אין גישה לתוכן"}</dd>
+                  </dl>
+                  <div class="hint">אין כפתור לשינוי סיסמת HA או להפיכה למנהל HA. מנהל HA אינו מקבל תפקיד VMS אוטומטית.</div>`}
+              <div slot="footer">
+                ${this.assigning?n`<sw-button variant="primary" size="sm" icon="check">שמור שיוך</sw-button><sw-button variant="ghost" size="sm" @click=${()=>this.assigning=!1}>ביטול</sw-button>`:n`<sw-button variant="primary" size="sm" icon="plus" @click=${()=>{this.assigning=!0,this.step=2}}>שיוך תפקיד</sw-button><sw-button variant="ghost" size="sm" icon="shield">הרשאות אפקטיביות</sw-button>`}
+              </div>
+            </sw-drawer>`:""}
+      </div>
+    `}renderGroups(){return n`<sw-table .columns=${[{key:"name",label:"קבוצה",render:t=>n`<strong>${String(t.name)}</strong>`},{key:"members",label:"חברים"},{key:"bindings",label:"שיוכים (תפקיד · היקף)",render:t=>n`${t.bindings.map(s=>n`<div>${s}</div>`)}`},{key:"more",label:"",width:"40px",render:()=>n`<sw-button variant="ghost" size="sm" iconOnly icon="more" label="עוד"></sw-button>`}]} .rows=${mr}></sw-table><div class="hint">שיוך חבר לקבוצה מציג את כל ה־bindings שלה: קבוצה בשני אתרים אינה ניתנת לניהול בידי מי שקיבל האצלה לקומה אחת.</div>`}renderRoles(){return n`<div class="roles">${fr.map(e=>n`<sw-card class="role"><h4><span class="ic"><sw-icon name=${e.id==="viewer"?"eye":e.id==="operator"?"play":e.id==="editor"?"edit":e.id==="site_admin"?"building":"shield"} size=${14}></sw-icon></span>${e.name}</h4><div class="a">מותר: ${e.allowed}</div><div class="d">לא ניתן אוטומטית: ${e.denied}</div></sw-card>`)}</div><div class="hint">תפקידים מובנים בפיילוט; תפקידים מותאמים והאצלה מקומית ב־V1 (T082). התפקידים אינם סולם: עריכת מפה והיסטוריית וידאו הן יכולות נפרדות.</div>`}renderEffective(){return n`
+      <sw-card heading="דנה · עורכת קומה 2">
+        <div class="eff">
+          <div>
+            <div style="font-weight:600;margin-block-end:4px;font-size:var(--sw-fs-xs)">מבנה א · קומה 2</div>
+            ${["מפה: קריאה","תוכנית: יבוא/עריכה/פרסום","מיקומים ותצוגות: עריכה","שידור חי: מצלמות מורשות"].map(e=>n`<div class="row"><span>${e}</span><sw-icon name="check" size=${14} style="color:var(--sw-live)"></sw-icon></div>`)}
+          </div>
+          <div>
+            <div style="font-weight:600;margin-block-end:4px;font-size:var(--sw-fs-xs)">מחוץ להיקף / לא מוקנה</div>
+            ${["קומה 3: הכל","Playback וייצוא","ניהול משתמשים","הגדרות NVR / go2rtc","פתיחת מנעול"].map(e=>n`<div class="row"><span>${e}</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div>`)}
+          </div>
+        </div>
+        <div class="hint" style="margin-block-start:8px">תצוגה זו אינה מתחזה למשתמש ואינה מאפשרת לעקוף את הגישה שלו. permission_revision: 7.</div>
+      </sw-card>
+    `}renderAudit(){return n`<sw-table dense .columns=${[{key:"time",label:"זמן"},{key:"user",label:"משתמש",render:t=>n`<div class="who"><sw-avatar name=${String(t.user)} size=${24}></sw-avatar>${String(t.user)}</div>`},{key:"action",label:"פעולה"},{key:"resource",label:"משאב"},{key:"decision",label:"החלטה",render:t=>n`<sw-badge kind=${String(t.decision).startsWith("נחסם")?"forbidden":"live"} label=${String(t.decision)}></sw-badge>`},{key:"role",label:"תפקיד/היקף ששימשו"}]} .rows=${gr.filter(t=>t.action.includes("תוכנית")||t.action.includes("סנכרון")||t.action.includes("Ingress"))}></sw-table>`}render(){return $()?this.renderApi():n`
+      <sw-page heading="משתמשים והרשאות" subheading="זהות מ־Home Assistant · הרשאות בתוך SMPLWISE בלבד · נתוני הדגמה">
+        <sw-button slot="actions" icon="refresh">סנכרון משתמשים מ־HA</sw-button>
+        <sw-tabs .items=${Au} .active=${this.tab} @change=${e=>this.tab=e.detail.id}></sw-tabs>
+        <div class="notice"><sw-icon name="shield" size=${14}></sw-icon>שיוך כאן אינו משנה דבר ב־Home Assistant: לא קבוצות HA, לא דגל מנהל, לא סיסמאות. אין "הוספת משתמש" — משתמשים נוצרים ב־HA בלבד.</div>
+        ${this.tab==="users"?this.renderUsers():this.tab==="groups"?this.renderGroups():this.tab==="roles"?this.renderRoles():this.tab==="effective"?this.renderEffective():this.renderAudit()}
+      </sw-page>
+    `}};G.styles=A`
+    .notice {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent-text);
+      border-radius: var(--sw-r-sm);
+      font-size: var(--sw-fs-xs);
+    }
+    .stage {
+      position: relative;
+      min-block-size: 420px;
+    }
+    .who {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .who .sub {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      text-align: start;
+    }
+    .pillsel {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid var(--sw-border-strong);
+      border-radius: 7px;
+      padding: 3px 8px;
+      font-size: var(--sw-fs-xs);
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      white-space: nowrap;
+    }
+    .pillsel sw-icon {
+      color: var(--sw-text-3);
+    }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: var(--sw-fs-xs);
+    }
+    .status i {
+      inline-size: 7px;
+      block-size: 7px;
+      border-radius: 50%;
+      background: var(--sw-live);
+    }
+    .status.off i {
+      background: var(--sw-offline);
+    }
+    .perms {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2px 10px;
+    }
+    .chk {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: var(--sw-fs-sm);
+    }
+    .chk.sens {
+      color: var(--sw-warning, #b45309);
+    }
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .impact {
+      margin-block-start: 8px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: var(--sw-surface-2);
+      font-size: var(--sw-fs-sm);
+    }
+    .err {
+      color: var(--sw-danger);
+      font-size: var(--sw-fs-sm);
+    }
+    .err.banner {
+      padding: 8px 12px;
+      border-radius: var(--sw-r-sm);
+      background: var(--sw-danger-soft);
+      border: 1px solid var(--sw-danger);
+    }
+    .permsrow {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .permsel {
+      display: flex;
+      gap: 4px;
+    }
+    .roles {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 12px;
+    }
+    .role h4 {
+      margin: 0 0 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: var(--sw-fs-md);
+    }
+    .role .ic {
+      display: grid;
+      place-items: center;
+      inline-size: 28px;
+      block-size: 28px;
+      border-radius: 8px;
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent);
+    }
+    .role .a {
+      color: #15803d;
+      font-size: var(--sw-fs-xs);
+    }
+    .role .d {
+      color: var(--sw-danger);
+      font-size: var(--sw-fs-xs);
+    }
+    dl {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 6px 12px;
+      margin: 0;
+      font-size: var(--sw-fs-sm);
+    }
+    dt {
+      color: var(--sw-text-3);
+    }
+    dd {
+      margin: 0;
+      min-inline-size: 0;
+    }
+    .eff {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+    }
+    .eff .row {
+      display: flex;
+      justify-content: space-between;
+      padding: 5px 0;
+      border-block-end: 1px solid var(--sw-border);
+      font-size: var(--sw-fs-xs);
+    }
+    .hint {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .wiz {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .bind {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 6px 0;
+      border-block-end: 1px solid var(--sw-border);
+      font-size: var(--sw-fs-sm);
+    }
+    .bind .sub {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .members {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-block-size: 260px;
+      overflow: auto;
+      font-size: var(--sw-fs-sm);
+    }
+    .members label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 2px;
+    }
+    .bar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      font-size: var(--sw-fs-xs);
+    }
+    .ok {
+      color: #15803d;
+    }
+    .err {
+      color: var(--sw-danger);
+    }
+    .ltr {
+      direction: ltr;
+      unicode-bidi: isolate;
+    }
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+      flex-wrap: wrap;
+    }
+  `;Y([c()],G.prototype,"tab",2);Y([c()],G.prototype,"selected",2);Y([c()],G.prototype,"assigning",2);Y([c()],G.prototype,"step",2);Y([c()],G.prototype,"directory",2);Y([c()],G.prototype,"roles",2);Y([c()],G.prototype,"groups",2);Y([c()],G.prototype,"tree",2);Y([c()],G.prototype,"audit",2);Y([c()],G.prototype,"selectedGroup",2);Y([c()],G.prototype,"wizard",2);Y([c()],G.prototype,"members",2);Y([c()],G.prototype,"newGroup",2);Y([c()],G.prototype,"preview",2);Y([c()],G.prototype,"previewUser",2);Y([c()],G.prototype,"previewScope",2);Y([c()],G.prototype,"busy",2);Y([c()],G.prototype,"error",2);Y([c()],G.prototype,"message",2);Y([c()],G.prototype,"forbidden",2);Y([c()],G.prototype,"roleEdit",2);Y([c()],G.prototype,"roleImpact",2);Y([c()],G.prototype,"roleDelete",2);G=Y([P("system-access")],G);var Pu=Object.defineProperty,Eu=Object.getOwnPropertyDescriptor,ms=(e,t,s,i)=>{for(var a=i>1?void 0:i?Eu(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Pu(t,s,a),a};const Iu=[{key:"time",label:"זמן",render:e=>n`14.09.2026 ${String(e.time)}`},{key:"user",label:"משתמש",render:e=>n`<span style="display:inline-flex;align-items:center;gap:8px"><sw-avatar name=${String(e.user)} size=${24}></sw-avatar>${String(e.user)}</span>`},{key:"action",label:"פעולה",render:e=>n`<span style=${String(e.decision).startsWith("נחסם")?"color:var(--sw-danger);font-weight:600":""}>${String(e.action)}</span>`},{key:"resource",label:"פרטים",render:e=>n`${String(e.resource)} <span style="color:var(--sw-text-3)">· ${String(e.decision)}</span>`},{key:"role",label:"תפקיד / היקף"},{key:"rev",label:"rev",ltr:!0,render:()=>n`7`}],Cu=[{id:"",label:"כל הפעולות"},{id:"rbac.",label:"הרשאות ותפקידים"},{id:"video.",label:"וידאו (לייב, הקלטות, ייצוא)"},{id:"events.",label:"אירועים"},{id:"cases.",label:"תיקים וראיות"},{id:"ha.",label:"פעולות Home Assistant"},{id:"system.",label:"מערכת והגדרות"},{id:"plan.",label:"תוכניות ומפות"}],Du={allowed:{kind:"success",label:"הותר"},granted:{kind:"success",label:"הוענק"},denied:{kind:"danger",label:"נחסם"},refused:{kind:"danger",label:"סורב"},failed:{kind:"warning",label:"נכשל"}},Tu=[{key:"at",label:"זמן",ltr:!0,render:e=>n`<span class="ltr">${new Date(String(e.at)).toLocaleString("he-IL",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit"})}</span>`},{key:"actor",label:"משתמש",render:e=>n`<span style="display:inline-flex;align-items:center;gap:8px"><sw-avatar name=${String(e.actor_username??"מערכת")} size=${24}></sw-avatar>${String(e.actor_username??"מערכת")}</span>`},{key:"action",label:"פעולה",ltr:!0,render:e=>n`<span class="ltr">${String(e.action)}</span>`},{key:"decision",label:"החלטה",render:e=>{const t=Du[String(e.decision)]??{kind:"neutral",label:String(e.decision)};return n`<sw-badge kind=${t.kind} label=${t.label}></sw-badge>`}},{key:"resource",label:"משאב",render:e=>n`${e.resource_type?n`<span style="color:var(--sw-text-3)">${String(e.resource_type)}</span> `:d}<span class="ltr">${String(e.resource_id??"")}</span>`},{key:"reason",label:"סיבה / פרטים",render:e=>n`${String(e.reason??"")}${Object.keys(e.details??{}).length?n` <span style="color:var(--sw-text-3)" class="ltr">${JSON.stringify(e.details).slice(0,120)}</span>`:d}`},{key:"permission_revision",label:"rev",ltr:!0}];let Mt=class extends M{constructor(){super(...arguments),this.rows=null,this.error="",this.family="",this.actor="",this.limit=100}connectedCallback(){super.connectedCallback(),$()&&this.load()}async load(){try{const e=new URLSearchParams({prefix:this.family,limit:String(this.limit)});this.actor.trim()&&e.set("actor",this.actor.trim());const t=await S(`/audit?${e.toString()}`);this.rows=t.rows,this.error=""}catch(e){this.error=b(e),this.rows=[]}}exportCsv(){const e=this.rows??[],t=r=>`"${String(r??"").replace(/"/g,'""')}"`,s=[["at","actor","action","decision","resource_type","resource_id","reason","request_id","permission_revision"].join(",")];for(const r of e)s.push([r.at,r.actor_username,r.action,r.decision,r.resource_type,r.resource_id,r.reason,r.request_id,r.permission_revision].map(t).join(","));const i=new Blob(["\uFEFF"+s.join(`
+`)],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");a.href=URL.createObjectURL(i),a.download=`audit-${new Date().toISOString().slice(0,10)}.csv`,a.click(),setTimeout(()=>URL.revokeObjectURL(a.href),2e3)}renderApi(){const e=this.rows;return n`
+      <sw-page heading="יומן אודיט" subheading="מי צפה, שינה, ייצא או שלח פעולה · actor, פעולה, החלטה, משאב, סיבה, request_id, permission_revision · אין סיסמאות או טוקנים ביומן">
+        <sw-button slot="actions" icon="download" ?disabled=${!e?.length} @click=${()=>this.exportCsv()}>ייצוא CSV</sw-button>
+        <div class="filters" data-audit-filters>
+          <sw-field><select aria-label="פעולה" .value=${this.family} @change=${t=>{this.family=t.target.value,this.load()}}>${Cu.map(t=>n`<option value=${t.id} ?selected=${t.id===this.family}>${t.label}</option>`)}</select></sw-field>
+          <sw-field><input type="search" placeholder="שם משתמש" aria-label="משתמש" .value=${this.actor} @change=${t=>{this.actor=t.target.value,this.load()}} /></sw-field>
+          <sw-field><select aria-label="כמות" @change=${t=>{this.limit=Number(t.target.value),this.load()}}>${[100,250,500].map(t=>n`<option value=${t} ?selected=${t===this.limit}>${t} אחרונות</option>`)}</select></sw-field>
+          <sw-button size="sm" icon="refresh" @click=${()=>this.load()}>רענון</sw-button>
+        </div>
+        ${this.error?n`<sw-state-panel state="error" heading="יומן האודיט לא נטען" hint=${this.error}></sw-state-panel>`:d}
+        ${e===null?n`<sw-state-panel state="loading" heading="טוען יומן…"></sw-state-panel>`:e.length?n`<sw-table data-audit-table .columns=${Tu} .rows=${e}></sw-table>`:this.error?d:n`<sw-state-panel state="empty" heading="אין רשומות לסינון הזה" hint="נסה משפחת פעולות אחרת או נקה את שם המשתמש"></sw-state-panel>`}
+        <div class="pager"><span>${e?`מציג ${e.length} רשומות אחרונות · צפייה ממושכת נרשמת כ־start/stop`:""}</span></div>
+      </sw-page>
+    `}render(){return $()?this.renderApi():n`
+      <sw-page heading="יומן אודיט" subheading="מי צפה, שינה, ייצא או שלח פעולה · actor, מקור זהות, תפקיד והיקף, החלטה, request_id, permission_revision · נתוני הדגמה">
+        <sw-button slot="actions" icon="download">ייצוא</sw-button>
+        <div class="filters">
+          <sw-field><select aria-label="פעולה"><option>כל הפעולות</option><option>צפייה</option><option>שינוי</option><option>ייצוא</option><option>פעולת HA</option></select></sw-field>
+          <sw-field><select aria-label="משתמש"><option>כל המשתמשים</option></select></sw-field>
+          <sw-field><select aria-label="אתר"><option>כל האתרים</option></select></sw-field>
+          <sw-field><input type="date" value="2026-09-14" data-ltr aria-label="תאריך" /></sw-field>
+          <sw-chip icon="clock">שמירה: 180 יום</sw-chip>
+        </div>
+        <sw-table .columns=${Iu} .rows=${gr}></sw-table>
+        <div class="pager">
+          <span>מציג 1–7 מתוך 128 · אין סיסמאות או טוקנים באודיט; צפייה ממושכת נרשמת כ־start/stop</span>
+          <span class="pages"><button aria-label="קודם"><sw-icon name="chevron" size=${11} flip></sw-icon></button><button class="on">1</button><button>2</button><button>3</button><button>4</button><button>5</button><button aria-label="הבא"><sw-icon name="chevron" size=${11}></sw-icon></button></span>
+        </div>
+      </sw-page>
+    `}};Mt.styles=A`
+    .filters {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .filters sw-field {
+      inline-size: 150px;
+    }
+    .pager {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      justify-content: space-between;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .pages {
+      display: inline-flex;
+      gap: 4px;
+    }
+    .pages button {
+      inline-size: 26px;
+      block-size: 26px;
+      border: 1px solid var(--sw-border-strong);
+      border-radius: 6px;
+      background: var(--sw-surface);
+      font: inherit;
+      font-size: var(--sw-fs-xs);
+      cursor: pointer;
+      color: var(--sw-text-2);
+    }
+    .pages button.on {
+      background: var(--sw-accent);
+      border-color: var(--sw-accent);
+      color: #fff;
+    }
+  `;ms([c()],Mt.prototype,"rows",2);ms([c()],Mt.prototype,"error",2);ms([c()],Mt.prototype,"family",2);ms([c()],Mt.prototype,"actor",2);ms([c()],Mt.prototype,"limit",2);Mt=ms([P("system-audit")],Mt);var Ou=Object.defineProperty,Ru=Object.getOwnPropertyDescriptor,J=(e,t,s,i)=>{for(var a=i>1?void 0:i?Ru(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Ou(t,s,a),a};const Nu=[{key:"nvr_host",label:"כתובת ה־NVR"},{key:"nvr_http_port",label:"פורט ISAPI (HTTP)"},{key:"nvr_rtsp_port",label:"פורט RTSP"},{key:"nvr_username",label:"משתמש NVR (קריאה)"},{key:"nvr_password",label:"סיסמת NVR"},{key:"go2rtc_url",label:"כתובת go2rtc"},{key:"go2rtc_api_username",label:"משתמש go2rtc (אם מוגן)"},{key:"go2rtc_api_password",label:"סיסמת go2rtc"},{key:"bootstrap_admin_username",label:"שם משתמש HA של המנהל הראשון"},{key:"log_level",label:"רמת לוג"}];function Dt(e){if(!e)return"—";const t=new Date(e);return Number.isNaN(t.getTime())?String(e):t.toLocaleString("he-IL",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit"})}const ta=["גילוי","NVR","go2rtc","גשר HA","מנהל ראשון","שעון","סיום"];let K=class extends M{constructor(){super(...arguments),this.step=0,this.raw=null,this.report=null,this.recorder=null,this.error="",this.busy=!1,this.notify=null,this.notifyError="",this.notifyPlan=null,this.notifyBusy=!1,this.notifyResult="",this.sys=null,this.sysError="",this.sysMsg="",this.sysBusy=!1,this.ntpForm=null,this.rebootWord="",this.rebootOpen=!1,this.connection=null,this.connForm=null,this.connMsg="",this.connBusy=!1,this.changes=[]}connectedCallback(){super.connectedCallback(),$()&&this.load()}async load(){this.loadNvr(),this.busy=!0;try{this.raw=await S("health"),this.error=""}catch(e){this.error=b(e)}try{this.recorder=(await Be()).recorder}catch{this.recorder=null}try{this.report=await Nr()}catch{this.report=null}this.busy=!1}check(e){return this.report?.checks.find(t=>t.id===e)??null}row(e,t,s=""){return n`<div class="check"><span>${e}</span><span class=${`val ${s}`}>${t==null||t===""?"—":String(t)}</span></div>`}sectionHead(e,t){return n`<div class="syshead"><sw-icon name=${e} size=${15}></sw-icon>${t}</div>`}async loadNvr(){if($()){try{const[e,t]=await Promise.all([lp(),In(10)]);this.notify=e,this.changes=t.changes,this.notifyError=""}catch(e){this.notifyError=b(e)}this.loadSystem(),$p().then(e=>this.connection=e).catch(()=>this.connection=null)}}async loadSystem(){try{this.sys=await fp(),this.sysError=""}catch(e){this.sysError=b(e)}}async sysAction(e,t){if(!this.sysBusy){this.sysBusy=!0,this.sysMsg="";try{await t(),await Promise.all([this.loadSystem(),In(10).then(s=>this.changes=s.changes)]),this.sysMsg=`${e}: בוצע ונרשם באודיט.`}catch(s){this.sysMsg=`${e}: ${b(s)}`}finally{this.sysBusy=!1}}}async saveConnection(){const e=this.connForm;if(!(!e||this.connBusy)){this.connBusy=!0,this.connMsg="";try{const t=await xp({host:e.host.trim(),http_port:e.http_port,rtsp_port:e.rtsp_port,user:e.user.trim(),...e.password?{password:e.password}:{}});this.connection=t,this.connForm=null,this.connMsg=t.restarting?`החיבור נבדק (${t.device.model} · ${t.device.firmware}) ונשמר ב־Add-on options; ה־Add-on מופעל מחדש כעת.`:`החיבור נבדק (${t.device.model} · ${t.device.firmware}) ונשמר; בתוקף מיד.`,this.loadSystem()}catch(t){this.connMsg=`לא נשמר: ${b(t)}`}finally{this.connBusy=!1}}}renderSystemCard(){const e=this.sys,t=a=>`${(a/1024).toFixed(0)} GB`,s=e?.time?.drift_s??null,i=s===null?"":Math.abs(s)<=2?"ok":Math.abs(s)<=30?"warn":"err";return n`<sw-card heading="מערכת ה־NVR" subheading="שעון ו־NTP, דיסקים ובדיקת S.M.A.R.T., יציאות אזעקה, הפעלה מחדש · כל כתיבה דורשת הרשאה רגישה ונרשמת" data-nvr-system>
+      ${this.sysError?n`<div class="hint" data-nvr-system-error>${this.sysError}</div>`:d}
+      ${e?n`
+          ${this.sectionHead("clock","שעון")}
+          ${e.time?n`${this.row("שעון ה־NVR",`${e.time.local_time??"—"} · ${e.time.mode==="NTP"?"NTP":"ידני"}`)}
+                ${this.row("סטייה מול שעון השרת",s===null?"—":`${s>0?"+":""}${s} שנ׳`,i)}
+                ${this.row("שרת NTP",e.time.ntp?`${e.time.ntp.host??"—"}:${e.time.ntp.port} · כל ${e.time.ntp.interval_min} דק׳`:"—")}
+                ${e.can.time?n`<div class="actions">
+                      <sw-button size="sm" icon="clock" ?disabled=${this.sysBusy} data-nvr-sync-clock @click=${()=>this.sysAction("סנכרון השעון",()=>gp({sync_now:!0}))}>סנכרן לשעון השרת עכשיו</sw-button>
+                      <sw-button size="sm" variant="ghost" ?disabled=${this.sysBusy} data-nvr-ntp-edit @click=${()=>this.ntpForm=this.ntpForm?null:{host:e.time?.ntp?.host??"",port:e.time?.ntp?.port??123,interval_min:e.time?.ntp?.interval_min||1440}}>שרת NTP…</sw-button>
+                    </div>
+                    ${this.ntpForm?n`<div class="two" data-nvr-ntp-form>
+                          <sw-field label="שרת NTP"><input data-ltr .value=${this.ntpForm.host} @input=${a=>this.ntpForm={...this.ntpForm,host:a.target.value}} /></sw-field>
+                          <sw-field label="מרווח (דקות)"><input type="number" min="1" max="10080" data-ltr .value=${String(this.ntpForm.interval_min)} @input=${a=>this.ntpForm={...this.ntpForm,interval_min:Number(a.target.value)}} /></sw-field>
+                          <div class="actions"><sw-button size="sm" variant="primary" ?disabled=${this.sysBusy||!this.ntpForm.host} data-nvr-ntp-save @click=${()=>{const a=this.ntpForm;this.sysAction("שרת NTP",async()=>{await wp({host:a.host.trim(),port:a.port,interval_min:a.interval_min}),this.ntpForm=null})}}>כתוב ל־NVR</sw-button></div>
+                        </div>`:d}`:n`<div class="hint">כתיבת שעון / NTP: הרשאה nvr.config.time (תפקיד מותאם).</div>`}`:n`<div class="hint">השעון לא נקרא${e.errors.time?` (${e.errors.time})`:""}.</div>`}
+          ${this.sectionHead("storage","דיסקים ו־S.M.A.R.T.")}
+          ${e.disks.length?e.disks.map(a=>n`<div data-nvr-disk=${a.id}>
+                ${this.row(`${a.name} (${a.type})`,`${a.status} · ${t(a.capacity_mb)} · פנוי ${t(a.free_mb)} (${a.capacity_mb?Math.round(a.free_mb/a.capacity_mb*100):0}%)`,a.status==="ok"?"ok":"warn")}
+                ${a.smart?this.row("S.M.A.R.T.",`${a.smart.all_eval??"—"} · ${a.smart.temperature_c??"—"}°C · ${a.smart.power_on_days??"—"} ימי פעילות${a.smart.test_status?` · בדיקה: ${a.smart.test_status} ${a.smart.test_percent}%`:""}`,a.smart.all_eval==="functional"?"ok":"warn"):this.row("S.M.A.R.T.","לא זמין")}
+                ${e.can.storage?n`<div class="actions"><sw-button size="sm" icon="storage" ?disabled=${this.sysBusy} data-nvr-smart-test=${a.id} @click=${()=>this.sysAction("בדיקת S.M.A.R.T. קצרה",()=>bp(a.id,"short"))}>בדיקת S.M.A.R.T. קצרה</sw-button><span class="hint">מעמיסה את הדיסק בזמן ריצתה; מומלץ בשעות שקטות</span></div>`:d}
+              </div>`):n`<div class="hint">לא נקראו דיסקים${e.errors.disks?` (${e.errors.disks})`:""}.</div>`}
+          ${this.sectionHead("bell","יציאות אזעקה")}
+          ${e.outputs.length?e.outputs.map(a=>n`<div class="check" data-nvr-output=${a.id}><span>יציאה ${a.id}${a.name?` · ${a.name}`:""} <span class="hint">${a.io_type==="local"?"ממסר ב־NVR":"במצלמה"} · ${a.use_type==="whiteLight"?"אור לבן":a.use_type==="disable"?"לא בשימוש":a.use_type}${a.pulse_ms?` · פולס ${a.pulse_ms/1e3} שנ׳`:""}</span></span>
+                ${a.pulse_supported?e.can.alarm?n`<sw-button size="sm" icon="bell" ?disabled=${this.sysBusy||!a.enabled} data-nvr-pulse=${a.id} @click=${()=>this.sysAction(`הפעלת יציאה ${a.id}`,()=>vp(a.id))}>הפעל (pulse)</sw-button>`:n`<span class="val">${a.enabled?"פעיל":"כבוי"}</span>`:n`<span class="val" data-nvr-output-unsupported>הפעלה דרך המצלמה בלבד (ה־NVR לא מעביר)</span>`}
+              </div>`):n`<div class="hint">אין יציאות${e.errors.outputs?` (${e.errors.outputs})`:""}.</div>`}
+          ${this.sectionHead("refresh","הפעלה מחדש")}
+          ${e.can.reboot?n`<div class="actions"><sw-button size="sm" variant="danger" icon="refresh" ?disabled=${this.sysBusy} data-nvr-reboot @click=${()=>{this.rebootWord="",this.rebootOpen=!0}}>הפעל מחדש את ה־NVR…</sw-button><span class="hint">1–2 דקות בלי לייב ובלי הקלטה</span></div>`:n`<div class="hint">הפעלה מחדש: הרשאה nvr.system.reboot (תפקיד מותאם).</div>`}
+          ${this.sysMsg?n`<div class="hint" data-nvr-system-msg>${this.sysMsg}</div>`:d}`:this.sysError?d:n`<div class="hint">קורא את מצב המערכת מה־NVR…</div>`}
+      ${this.rebootOpen?n`<sw-dialog open heading="הפעלה מחדש של ה־NVR" subheading="במשך 1–2 דקות אין לייב ואין הקלטה" data-nvr-reboot-dialog @close=${()=>this.rebootOpen=!1}>
+            <div style="font-size:var(--sw-fs-sm);line-height:1.6">הקלד <b>RESTART</b> כדי לאשר. הפעולה נרשמת באודיט עם שם המשתמש.</div>
+            <sw-field label="אישור"><input data-ltr data-nvr-reboot-word .value=${this.rebootWord} @input=${a=>this.rebootWord=a.target.value} /></sw-field>
+            <div slot="footer"><sw-button variant="danger" ?disabled=${this.sysBusy||this.rebootWord.trim().toUpperCase()!=="RESTART"} data-nvr-reboot-run @click=${()=>{const a=this.rebootWord;this.rebootOpen=!1,this.sysAction("הפעלה מחדש",()=>yp(a))}}>הפעל מחדש</sw-button><sw-button variant="ghost" @click=${()=>this.rebootOpen=!1}>ביטול</sw-button></div>
+          </sw-dialog>`:d}
+    </sw-card>`}renderConnectionCard(){const e=this.connection;if(!e)return d;const t=this.connForm;return n`<sw-card heading="חיבור ל־NVR" subheading=${e.in_addon?"נשמר ב־Add-on options דרך ה־Supervisor; שמירה מפעילה מחדש את ה־Add-on":"נשמר ליד הנתונים (nvr_connection.json); בתוקף מיד"} data-nvr-connection>
+      ${this.row("כתובת · פורט HTTP · RTSP",`${e.host??"—"} · ${e.http_port} · ${e.rtsp_port}`)}
+      ${this.row("משתמש",`${e.user??"—"} · ${e.has_password?"סיסמה מוגדרת":"ללא סיסמה"}`,e.has_password?"ok":"warn")}
+      ${t?n`<div class="two" data-nvr-connection-form>
+            <sw-field label="כתובת"><input data-ltr data-conn-host .value=${t.host} @input=${s=>this.connForm={...t,host:s.target.value}} /></sw-field>
+            <sw-field label="פורט HTTP"><input type="number" data-ltr .value=${String(t.http_port)} @input=${s=>this.connForm={...t,http_port:Number(s.target.value)}} /></sw-field>
+            <sw-field label="פורט RTSP"><input type="number" data-ltr .value=${String(t.rtsp_port)} @input=${s=>this.connForm={...t,rtsp_port:Number(s.target.value)}} /></sw-field>
+            <sw-field label="משתמש"><input data-ltr data-conn-user .value=${t.user} @input=${s=>this.connForm={...t,user:s.target.value}} /></sw-field>
+            <sw-field label="סיסמה (ריק = ללא שינוי)"><input type="password" data-ltr data-conn-password .value=${t.password} @input=${s=>this.connForm={...t,password:s.target.value}} /></sw-field>
+            <div class="actions">
+              <sw-button size="sm" variant="primary" icon="check" ?disabled=${this.connBusy||!t.host||!t.user} data-conn-save @click=${()=>this.saveConnection()}>${this.connBusy?"בודק…":"בדוק ושמור"}</sw-button>
+              <sw-button size="sm" variant="ghost" ?disabled=${this.connBusy} @click=${()=>this.connForm=null}>ביטול</sw-button>
+            </div>
+            <div class="hint">הבדיקה קוראת deviceInfo עם הפרטים החדשים; בלי הצלחה לא נשמר דבר.</div>
+          </div>`:n`<div class="actions"><sw-button size="sm" icon="edit" data-conn-edit @click=${()=>this.connForm={host:e.host??"",http_port:e.http_port,rtsp_port:e.rtsp_port,user:e.user??"",password:""}}>עריכת פרטי החיבור</sw-button></div>`}
+      ${this.connMsg?n`<div class="hint" data-conn-msg>${this.connMsg}</div>`:d}
+    </sw-card>`}planNotify(e,t,s){const i=e?e.length:this.notify?.channels.length??0;this.notifyResult="",this.notifyPlan={channels:e,smart:t,enabled:s,label:`${s?"הפעלת":"כיבוי"} Notify Surveillance Center ב־${i} ערוצים${t?" · תנועה + אירועים חכמים":" · זיהוי תנועה"}`}}async runNotify(){const e=this.notifyPlan;if(!(!e||this.notifyBusy)){this.notifyBusy=!0;try{const t=await dp({channels:e.channels,smart:e.smart,enabled:e.enabled});this.notifyResult=`בוצע: ${t.applied} שינויים · ${t.unchanged} כבר היו כך · ${t.skipped} דולגו (סוג אירוע שלא מוגדר בערוץ) · ${t.failed} נכשלו`,this.notifyPlan=null,await this.loadNvr()}catch(t){this.notifyResult=b(t)}finally{this.notifyBusy=!1}}}async rollback(e){if(!this.notifyBusy){this.notifyBusy=!0;try{await cp(e.id),this.notifyResult=`השינוי ${e.target} הוחזר למצב הקודם.`,await this.loadNvr()}catch(t){this.notifyResult=b(t)}finally{this.notifyBusy=!1}}}renderNotifyCard(){const e=this.notify,t=s=>s===null?"—":s?"✓":"✗";return n`<sw-card heading="התראות מה־NVR (Notify Surveillance Center)" subheading="אילו ערוצים מודיעים ל־VMS על תנועה ועל אירועים חכמים · כתיבה מאושרת ל־NVR, עם החזר" data-nvr-notify>
+      ${this.notifyError?n`<div class="hint" data-nvr-notify-error>${this.notifyError}</div>`:d}
+      ${e?n`<table class="matrix" data-nvr-matrix>
+            <thead><tr><th>ערוץ</th><th>מצלמה</th><th>תנועה</th><th>אירועים חכמים</th><th></th></tr></thead>
+            <tbody>${e.channels.map(s=>n`<tr data-nvr-channel=${s.channel}>
+              <td class="ltr">${s.channel}</td><td>${s.name}</td>
+              <td data-nvr-motion=${s.motion.supported?String(s.motion.center):"none"}>${s.motion.supported?t(s.motion.center):"לא מוגדר"}</td>
+              <td>${s.smart_supported?`${s.smart_center}/${s.smart_supported}`:"אין"}</td>
+              <td>${e.can_write&&s.motion.supported&&!s.motion.center?n`<sw-button size="sm" data-nvr-enable-one=${s.channel} @click=${()=>this.planNotify([s.channel],!1,!0)}>הפעל</sw-button>`:d}</td>
+            </tr>`)}</tbody>
+          </table>
+          <div class="hint">✓ = ההתראה נשלחת ל־VMS · ✗ = הערוץ מקליט אבל לא מודיע · אירועים חכמים = חציית קו, פריצה לאזור, כניסה ויציאה מאזור (רק במצלמות שמגדירות אותם).</div>
+          ${e.can_write?n`<div class="actions">
+                <sw-button variant="primary" size="sm" icon="bell" ?disabled=${this.notifyBusy} data-nvr-enable-all @click=${()=>this.planNotify(null,!1,!0)}>הפעל תנועה בכל הערוצים</sw-button>
+                <sw-button size="sm" icon="bell" ?disabled=${this.notifyBusy} data-nvr-enable-smart @click=${()=>this.planNotify(null,!0,!0)}>הפעל גם אירועים חכמים</sw-button>
+              </div>`:n`<div class="hint" data-nvr-no-permission>לכתיבה ל־NVR נדרשת ההרשאה "${e.permission}" — מוקנית למנהל המערכת, ולאחרים דרך תפקיד מותאם (הגדרות › משתמשים והרשאות › תפקידים), גם למנהל מערכת.</div>`}
+          ${this.notifyResult?n`<div class="hint" data-nvr-result>${this.notifyResult}</div>`:d}
+          ${this.changes.length?n`<div class="hint" style="margin-block-start:8px"><b>שינויים אחרונים ב־NVR</b></div>
+            <ul class="changes" data-nvr-changes>${this.changes.map(s=>n`<li><span class="ltr">${s.created_at.slice(0,16).replace("T"," ")}</span> · ${s.target} · ${s.note||s.kind} · ${s.status==="applied"?"בוצע":s.status==="unchanged"?"ללא שינוי":s.status==="rolled_back"?"הוחזר":"נכשל"}${s.actor_username?` · ${s.actor_username}`:""}
+              ${s.status==="applied"&&e.can_write?n`<sw-button variant="ghost" size="sm" ?disabled=${this.notifyBusy} data-nvr-rollback=${s.id} @click=${()=>this.rollback(s)}>החזר</sw-button>`:d}</li>`)}</ul>`:d}`:this.notifyError?d:n`<div class="hint">קורא את הגדרות ה־NVR…</div>`}
+      ${this.notifyPlan?n`<sw-dialog open heading="כתיבה ל־NVR" subheading=${this.notifyPlan.label} data-nvr-confirm @close=${()=>this.notifyPlan=null}>
+            <div style="font-size:var(--sw-fs-sm);line-height:1.5">השינוי נכתב להגדרות ה־NVR בזהות המשתמש המוגדר ב־Add-on, נרשם באודיט עם המסמך לפני ואחרי, וניתן להחזרה מרשימת השינויים. הקלטות אינן מושפעות.</div>
+            <div slot="footer"><sw-button variant="primary" ?disabled=${this.notifyBusy} data-nvr-confirm-run @click=${()=>this.runNotify()}>${this.notifyBusy?"כותב…":"כתוב ל־NVR"}</sw-button><sw-button variant="ghost" @click=${()=>this.notifyPlan=null}>ביטול</sw-button></div>
+          </sw-dialog>`:d}
+    </sw-card>`}renderApi(){const e=this.raw;return n`
+      <sw-page heading="חיבורים" subheading="מצב החיבורים של ה־Add-on: NVR, go2rtc, Home Assistant ואחסון · קריאה בלבד · הערכים עצמם מוגדרים ב־Home Assistant › Add-ons › SMPLWISE VMS › Configuration">
+        <sw-button slot="actions" icon="refresh" ?disabled=${this.busy} @click=${()=>this.load()}>${this.busy?"בודק…":"רענון"}</sw-button>
+        ${this.error?n`<sw-state-panel state="error" heading="מצב החיבורים לא נטען" hint=${this.error}></sw-state-panel>`:d}
+        ${e?n`<div class="two" data-connections>
+              <div class="grouplabel">מערכת ה־NVR</div>
+              <sw-card heading="NVR (Hikvision, ISAPI + RTSP)" subheading=${e.nvr_configured?"מוגדר · קריאה בלבד":"לא מוגדר"}>
+                ${this.row("מוגדר ב־Add-on options",e.nvr_configured?"כן":"לא",e.nvr_configured?"ok":"err")}
+                ${this.recorder?this.row("דגם · קושחה",`${this.recorder.model??"—"} · ${this.recorder.firmware??"—"}`):d}
+                ${this.row("גילוי מצלמות",`${e.discovery.cameras} ערוצים · כל ${Math.round(e.discovery.interval_s/60)} דק׳`)}
+                ${this.row("גילוי אחרון תקין",Dt(e.discovery.cameras_last_ok),e.discovery.cameras_last_error?"warn":"ok")}
+                ${e.discovery.cameras_last_error?this.row("שגיאת גילוי",e.discovery.cameras_last_error,"err"):d}
+                ${this.row("זרם התראות (alertStream)",e.events.ingest.connected?`מחובר · פעימה ${Dt(e.events.ingest.last_heartbeat_at)}`:`מנותק${e.events.ingest.last_error?` · ${e.events.ingest.last_error}`:""}`,e.events.ingest.connected?"ok":"err")}
+                ${this.row("התראות שנשמרו מאז ההפעלה",e.events.ingest.events_stored,e.events.ingest.connected&&!e.events.ingest.events_stored?"warn":"")}
+                ${e.events.ingest.connected&&!e.events.ingest.last_event_at?n`<div class="hint" data-no-alerts-hint>ה־NVR מחובר אבל לא שלח התראה מאז ההפעלה — ב־NVR יש להפעיל "Notify Surveillance Center" ב־linkage של זיהוי התנועה; עד אז אירועי תנועה נגזרים מההקלטות כל 10 דקות.</div>`:d}
+                ${this.row("אירועים שנגזרו מהקלטות (ריצה אחרונה)",`${e.events.derive.derived} · ${Dt(e.events.derive.last_ok)}`,e.events.derive.last_error?"warn":"")}
+              </sw-card>
+              ${this.renderNotifyCard()}
+              ${this.renderSystemCard()}
+              ${this.renderConnectionCard()}
+              <div class="grouplabel">שירותים ותשתית נוספים</div>
+              <sw-card heading="go2rtc (relay לווידאו)" subheading=${e.go2rtc_configured?"מוגדר":"לא מוגדר"}>
+                ${this.row("מוגדר ב־Add-on options",e.go2rtc_configured?"כן":"לא",e.go2rtc_configured?"ok":"err")}
+                ${this.row("סנכרון זרמים אחרון תקין",Dt(e.discovery.streams_last_ok),e.discovery.streams_last_error?"warn":"ok")}
+                ${e.discovery.streams_last_error?this.row("שגיאת סנכרון זרמים",e.discovery.streams_last_error,"err"):d}
+                ${this.check("go2rtc")?this.row("בדיקת בריאות",this.check("go2rtc").detail,this.check("go2rtc").status==="ok"?"ok":this.check("go2rtc").status==="warn"?"warn":"err"):n`<div class="hint">פרטי הזרמים והגרסה מוצגים ב"הגדרות › כללי › בריאות ועבודות" (דורש הרשאת ניהול).</div>`}
+              </sw-card>
+              <sw-card heading="Home Assistant" subheading=${e.home_assistant.connected?`מחובר · HA ${e.home_assistant.ha_version??""}`:e.home_assistant.configured?"מוגדר, מנותק":"לא מוגדר"}>
+                ${this.row("חיבור",e.home_assistant.connected?"מחובר":`מנותק${e.home_assistant.last_error?` · ${e.home_assistant.last_error}`:""}`,e.home_assistant.connected?"ok":"err")}
+                ${this.row("ישויות בקטלוג",e.home_assistant.entities)}
+                ${this.row("תמונת מצב אחרונה",Dt(e.home_assistant.last_snapshot_at))}
+                ${this.row("עדכון ישות אחרון",Dt(e.home_assistant.last_event_at))}
+                ${this.row("רישום (אזורים / קומות) עודכן",Dt(e.home_assistant.last_registry_at))}
+                ${this.row("התחברויות מחדש מאז ההפעלה",e.home_assistant.reconnects,e.home_assistant.reconnects>3?"warn":"")}
+                ${this.row("מקור הזהות",e.identity_source==="ingress"?"Home Assistant Ingress":e.identity_source)}
+              </sw-card>
+              <sw-card heading="אחסון וכלים" subheading=${`גרסה ${e.version}`}>
+                ${this.row("בסיס הנתונים",e.db.ok?`תקין · מהדורת הרשאות ${e.db.permission_revision}`:"שגיאה",e.db.ok?"ok":"err")}
+                ${this.row("תיקיית הנתונים (/data)",e.data_dir_writable?"ניתנת לכתיבה":"לא ניתנת לכתיבה",e.data_dir_writable?"ok":"err")}
+                ${this.row("ממיר תוכניות PDF",e.renderer??"חסר",e.renderer?"ok":"warn")}
+                ${this.row("אירועים שמורים",e.events.stored)}
+                ${this.check("thumbnails")?this.row("תמונות אירועים (ffmpeg)",this.check("thumbnails").detail,this.check("thumbnails").status==="ok"?"ok":"warn"):d}
+                ${this.check("backups")?this.row("גיבויים",this.check("backups").detail,this.check("backups").status==="ok"?"ok":"warn"):d}
+              </sw-card>
+            </div>
+            <sw-card heading="איפה מגדירים" subheading="הערכים אינם מוצגים כאן ואינם נשמרים ב־VMS; שינוי דורש הפעלה מחדש של ה־Add-on">
+              <div class="opts" data-connection-options>
+                ${Nu.map(t=>n`<div class="check"><span>${t.label}</span><span class="val ltr">${t.key}</span></div>`)}
+              </div>
+              <div class="hint">Home Assistant › הגדרות › Add-ons › SMPLWISE VMS › Configuration. משתמש ה־NVR צריך הרשאות צפייה והקלטות בלבד; ה־VMS לא כותב ל־NVR.</div>
+            </sw-card>`:this.error?d:n`<sw-state-panel state="loading" heading="קורא את מצב החיבורים…"></sw-state-panel>`}
+      </sw-page>
+    `}renderStep(){switch(this.step){case 0:return n`<sw-card heading="גילוי מכשירים" subheading="חיפוש NVR ומצלמות ברשת המקומית · קריאה בלבד, ללא שינוי תצורה במכשיר">
+          <div class="scan">
+            <div class="ic"><sw-icon name="wifi" size=${22}></sw-icon></div>
+            <b>סורק את הרשת…</b>
+            <span class="hint">מחפש NVR, מצלמות ומכשירים תואמים. זה עשוי לקחת כמה רגעים.</span>
+            <div class="track"><i></i></div>
+            <span class="found">3 מכשירים נמצאו</span>
+          </div>
+          <div class="dev"><input type="checkbox" checked aria-label="בחר" /><span>NVR ראשי</span><span class="ip">192.168.x.x</span><span class="grow"></span><span class="hint">10 ערוצים</span><sw-button size="sm" variant="primary">הוסף הכל</sw-button></div>
+          <div class="dev"><input type="checkbox" checked aria-label="בחר" /><span>מצלמת כניסה</span><span class="ip">192.168.x.x</span><span class="grow"></span><span class="hint">ONVIF</span><sw-button size="sm">הוסף</sw-button></div>
+          <div class="dev"><input type="checkbox" aria-label="בחר" /><span>מצלמת חניה</span><span class="ip">192.168.x.x</span><span class="grow"></span><span class="hint">RTSP</span><sw-button size="sm">הוסף</sw-button></div>
+        </sw-card>`;case 1:return n`<sw-card heading="חיבור ל־NVR">
+          <div class="two">
+            <sw-field label="כתובת"><input data-ltr placeholder="192.168.x.x" /></sw-field>
+            <sw-field label="פורט HTTP"><input data-ltr value="80" /></sw-field>
+            <sw-field label="משתמש"><input data-ltr placeholder="smplwise" /></sw-field>
+            <sw-field label="סיסמה"><input type="password" data-ltr /></sw-field>
+          </div>
+          <div class="hint">מומלץ משתמש ייעודי לא־admin. בדיקת החיבור קוראת deviceInfo, time ו־capabilities בלבד.</div>
+        </sw-card>`;case 2:return n`<sw-card heading="go2rtc חיצוני">
+          <div class="two">
+            <sw-field label="כתובת API"><input data-ltr value="http://…:1984" /></sw-field>
+            <sw-field label="אימות API (מומלץ)"><input data-ltr placeholder="user:password" /></sw-field>
+          </div>
+          <div class="check"><span>גרסה</span><sw-badge kind="live" label="1.9.x"></sw-badge></div>
+          <div class="check"><span>שמירת זרמים לקובץ ההגדרות</span><sw-badge kind="stale" label="כן: המוצר ישתמש במאגר slots קבוע"></sw-badge></div>
+          <div class="check"><span>זרמים זרים (אינטרקום, מצלמות)</span><sw-badge kind="neutral" label="20 · לא ייגעו"></sw-badge></div>
+        </sw-card>`;case 3:return n`<sw-card heading="גשר Home Assistant">
+          <div class="check"><span>אינטגרציה מותקנת</span><sw-badge kind="live" label="smplwise_vms 0.1"></sw-badge></div>
+          <div class="check"><span>Pairing</span><sw-badge kind="stale" label="ממתין לאישור מנהל HA"></sw-badge></div>
+          <div class="check"><span>סנכרון משתמשים</span><sw-badge kind="unknown" label="טרם בוצע"></sw-badge></div>
+          <div class="check"><span>Ingress: זהות משתמש מהכותרות</span><sw-badge kind="live" label="מאומת מול ה־proxy"></sw-badge></div>
+          <div class="hint">ה־Bridge מספק קטלוג מצומצם ומבצע פעולות בשם המשתמש. אין קריאת config/auth/list מהדפדפן ואין קידום משתמשים.</div>
+        </sw-card>`;case 4:return n`<sw-card heading="בחירת מנהל VMS ראשון">
+          <div class="hint" style="margin-block-end:8px">מנהל HA מזוהה בוחר במפורש משתמש HA קיים. אין קידום אוטומטי לכל מנהלי HA; הבחירה נרשמת פעם אחת באודיט וה־bootstrap ננעל.</div>
+          <div class="users">
+            <label><input type="radio" name="admin" checked /> יוני (joni)</label>
+            <label><input type="radio" name="admin" /> דנה (dana) — משתמשת רגילה ב־HA, מותר</label>
+            <label><input type="radio" name="admin" /> יוסי (yossi)</label>
+          </div>
+        </sw-card>`;case 5:return n`<sw-card heading="פרופיל שעון">
+          <div class="check"><span>אזור זמן האתר</span><span class="ltr">Asia/Jerusalem</span></div>
+          <div class="check"><span>שעון NVR מול שרת</span><sw-badge kind="live" label="סטייה 2 שנ׳"></sw-badge></div>
+          <div class="check"><span>פרשנות זמני חיפוש</span><sw-badge kind="stale" label="שעון מקומי (פרופיל דגם)"></sw-badge></div>
+          <div class="hint">אין הזזה קבועה של שעות. שעון קיץ/חורף לפי התאריך המבוקש.</div>
+        </sw-card>`;default:return n`<sw-card heading="מצלמה ומפה ראשונות">
+          <div class="check"><span>ערוצים שהתגלו</span><span>10 (ללא נוסחת track)</span></div>
+          <div class="check"><span>קומה ראשונה</span><span>קומה 0 · תוכנית: להעלות</span></div>
+          <div class="check"><span>Add-on</span><sw-badge kind="live" label="רץ · /data מתמשך"></sw-badge></div>
+          <div class="check"><span>panel_admin</span><sw-badge kind="neutral" label="false"></sw-badge></div>
+          <div class="check"><span>משתמש רגיל דרך Ingress</span><sw-badge kind="stale" label="לבדיקה (T081)"></sw-badge></div>
+          <div class="hint">גילוי אינו משנה תצורה במכשיר. הצבה על המפה יוצרת Binding בלבד.</div>
+        </sw-card>`}}render(){return $()?this.renderApi():n`
+      <sw-page heading="אשף התקנה" subheading="גילוי NVR ומצלמות, בדיקת זרמים, שמות וקומות · בדיקות קריאה בלבד · נתוני הדגמה">
+        <div class="wrap">
+          <sw-card><sw-steps .steps=${ta} .current=${this.step}></sw-steps></sw-card>
+          ${this.renderStep()}
+          <div class="foot">
+            <sw-button variant="ghost" ?disabled=${this.step===0} @click=${()=>this.step=Math.max(0,this.step-1)}>הקודם</sw-button>
+            <div style="display:flex;gap:8px">
+              <sw-button>ביטול</sw-button>
+              <sw-button variant="primary" @click=${()=>this.step=Math.min(ta.length-1,this.step+1)}>${this.step===ta.length-1?"סיום":"הבא"}</sw-button>
+            </div>
+          </div>
+        </div>
+      </sw-page>
+    `}};K.styles=A`
+    .matrix {
+      inline-size: 100%;
+      border-collapse: collapse;
+      font-size: var(--sw-fs-sm);
+      margin-block: 6px;
+    }
+    .matrix th,
+    .matrix td {
+      text-align: start;
+      padding: 4px 8px;
+      border-block-end: 1px solid var(--sw-border);
+    }
+    .matrix th {
+      color: var(--sw-text-3);
+      font-weight: 500;
+      font-size: var(--sw-fs-xs);
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-block-start: 8px;
+    }
+    ul.changes {
+      margin: 4px 0 0;
+      padding-inline-start: 18px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+    }
+    ul.changes li {
+      margin-block: 2px;
+    }
+    .wrap {
+      max-inline-size: 760px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .two {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .check {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 0;
+      border-block-end: 1px solid var(--sw-border);
+      font-size: var(--sw-fs-sm);
+    }
+    .check:last-child {
+      border-block-end: 0;
+    }
+    /* owner round 4 (1.1): the system card packed clock/disks/outputs/reboot behind bare bold text with no
+       separation - a wall of controls. A real section head (icon, label, rule) makes it scannable. */
+    .syshead {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-block: 14px 4px;
+      padding-block-start: 12px;
+      border-block-start: 1px solid var(--sw-border);
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading, var(--sw-text));
+    }
+    .syshead:first-child {
+      margin-block-start: 0;
+      padding-block-start: 0;
+      border-block-start: 0;
+    }
+    .syshead sw-icon {
+      color: var(--sw-accent);
+    }
+    .grouplabel {
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-text-3);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-block: 4px 2px;
+      grid-column: 1 / -1;
+    }
+    .grouplabel:not(:first-child) {
+      margin-block-start: 14px;
+    }
+    .hint {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .val {
+      color: var(--sw-text-2);
+      text-align: start;
+      max-inline-size: 60%;
+      overflow-wrap: anywhere;
+    }
+    .val.ok {
+      color: var(--sw-success, #15803d);
+    }
+    .val.warn {
+      color: var(--sw-warning, #b45309);
+    }
+    .val.err {
+      color: var(--sw-danger);
+      font-weight: 600;
+    }
+    .opts {
+      columns: 2;
+      column-gap: 24px;
+    }
+    .opts .check {
+      break-inside: avoid;
+    }
+    @media (max-width: 767px) {
+      .two {
+        grid-template-columns: 1fr;
+      }
+      .opts {
+        columns: 1;
+      }
+    }
+    .foot {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .scan {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      padding: 18px 0 14px;
+      text-align: center;
+    }
+    .scan .ic {
+      display: grid;
+      place-items: center;
+      inline-size: 48px;
+      block-size: 48px;
+      border-radius: 50%;
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent);
+      margin-block-end: 4px;
+    }
+    .scan b {
+      font-size: var(--sw-fs-md);
+    }
+    .track {
+      block-size: 6px;
+      border-radius: 3px;
+      background: var(--sw-surface-3);
+      overflow: hidden;
+      inline-size: 100%;
+      max-inline-size: 420px;
+      margin-block: 8px 4px;
+    }
+    .track i {
+      display: block;
+      block-size: 100%;
+      inline-size: 72%;
+      background: var(--sw-accent);
+      border-radius: 3px;
+    }
+    .found {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-accent-text);
+    }
+    .dev {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      border-block-end: 1px solid var(--sw-border);
+      font-size: var(--sw-fs-sm);
+    }
+    .dev:last-child {
+      border-block-end: 0;
+    }
+    .dev .grow {
+      flex: 1;
+    }
+    .dev .ip {
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+      font-family: var(--sw-font-mono);
+      direction: ltr;
+    }
+    .users label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 0;
+      border-block-end: 1px solid var(--sw-border);
+      font-size: var(--sw-fs-sm);
+    }
+    @media (max-width: 767px) {
+      .two {
+        grid-template-columns: 1fr;
+      }
+    }
+  `;J([c()],K.prototype,"step",2);J([c()],K.prototype,"raw",2);J([c()],K.prototype,"report",2);J([c()],K.prototype,"recorder",2);J([c()],K.prototype,"error",2);J([c()],K.prototype,"busy",2);J([c()],K.prototype,"notify",2);J([c()],K.prototype,"notifyError",2);J([c()],K.prototype,"notifyPlan",2);J([c()],K.prototype,"notifyBusy",2);J([c()],K.prototype,"notifyResult",2);J([c()],K.prototype,"sys",2);J([c()],K.prototype,"sysError",2);J([c()],K.prototype,"sysMsg",2);J([c()],K.prototype,"sysBusy",2);J([c()],K.prototype,"ntpForm",2);J([c()],K.prototype,"rebootWord",2);J([c()],K.prototype,"rebootOpen",2);J([c()],K.prototype,"connection",2);J([c()],K.prototype,"connForm",2);J([c()],K.prototype,"connMsg",2);J([c()],K.prototype,"connBusy",2);J([c()],K.prototype,"changes",2);K=J([P("system-setup")],K);var Lu=Object.defineProperty,Bu=Object.getOwnPropertyDescriptor,Ae=(e,t,s,i)=>{for(var a=i>1?void 0:i?Bu(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Lu(t,s,a),a};const Jn=["entrance","lobby","corridor","hall","parking","warehouse","backyard","driveway","night"];let we=class extends M{constructor(){super(...arguments),this.selected=null,this.filter="all",this.cameras=null,this.recorder=null,this.canSync=!1,this.discovery=null,this.busy=!1,this.message="",this.error="",this.dialog=!1,this.formChannel=1,this.formAlias="",this.alias="",this.columns=[{key:"name",label:"מצלמה",render:e=>n`<div class="cam">${e.api&&e.api.status==="online"?n`<img class="snap" src=${et(String(e.id))} alt="" loading="lazy" style="inline-size:64px;block-size:40px;object-fit:cover;border-radius:5px;flex-shrink:0;background:var(--sw-surface-3);display:block" @error=${t=>t.target.style.visibility="hidden"} />`:e.scene?n`<sw-scene kind=${e.scene}></sw-scene>`:n`<div class="none"></div>`}<div><b>${String(e.name)}</b><small>${String(e.sub)}</small></div></div>`},{key:"state",label:"מצב",render:e=>n`<span class="status"><i style="--c:${e.state==="live"?"var(--sw-live)":e.state==="offline"?"var(--sw-danger)":e.state==="unknown"?"var(--sw-unknown)":"var(--sw-stale)"}"></i>${e.state==="live"?"מחוברת":e.state==="offline"?"מנותקת":e.state==="stale"?"לא מעודכן":e.state==="forbidden"?"ללא הרשאה":"לא נבדק"}</span>`},{key:"fps",label:"FPS",ltr:!0},{key:"bitrate",label:"קצב",ltr:!0},{key:"firmware",label:"זרם ראשי",ltr:!0},{key:"lastEvent",label:"נראתה לאחרונה"},{key:"net",label:"רשת",render:e=>this.net(e.state==="live"?4:e.state==="stale"?2:0)},{key:"more",label:"",width:"40px",render:()=>n`<sw-button variant="ghost" size="sm" iconOnly icon="more" label="עוד"></sw-button>`}]}connectedCallback(){super.connectedCallback(),this.reload()}async reload(){if(!$()){this.cameras=null;return}try{const e=await Be();this.cameras=e.cameras,this.recorder=e.recorder,this.canSync=e.can_sync,S("health").then(t=>this.discovery=t.discovery).catch(()=>{})}catch(e){this.error=b(e)}}async sync(){this.busy=!0,this.error="",this.message="";try{const e=await ql();this.message=`סנכרון הושלם: ${e.channels} ערוצים (${e.created} חדשים, ${e.updated} עודכנו)${e.recorder.model?` · ${e.recorder.model}`:""}`,await this.reload()}catch(e){this.error=b(e)}finally{this.busy=!1}}async register(){this.busy=!0,this.error="";try{await Gl({channel:this.formChannel,alias:this.formAlias.trim()}),this.dialog=!1,await this.reload()}catch(e){this.error=b(e)}finally{this.busy=!1}}async saveAlias(e){this.busy=!0,this.error="";try{await xr(e,{alias:this.alias.trim()||void 0}),await this.reload(),this.message="הכינוי נשמר (שם ה־NVR לא השתנה)"}catch(t){this.error=b(t)}finally{this.busy=!1}}get rows(){return this.cameras?this.cameras.map(e=>({id:e.id,name:e.name,sub:`ערוץ ${e.channel}${e.name_source&&e.alias?` · NVR: ${e.name_source}`:""}`,state:e.status==="online"?"live":e.status==="offline"?"offline":"unknown",fps:e.stream?.fps?String(e.stream.fps):"—",bitrate:e.stream?.bitrate_kbps?`${(e.stream.bitrate_kbps/1024).toFixed(1)} Mbps`:"—",firmware:e.stream?.resolution?`${e.stream.resolution} ${e.stream.codec??""}`.trim():"—",lastEvent:e.last_seen_at?e.last_seen_at.replace("T"," ").replace("Z",""):"לא נבדק",scene:e.status==="online"?Jn[(e.channel-1)%Jn.length]:null,channel:e.channel,api:e})):X.map(e=>({id:e.id,name:e.name,sub:`${e.floor} · ערוץ ${e.id.replace("cam-","")}`,state:e.state,fps:e.fps?String(e.fps):"—",bitrate:e.bitrateKbps?`${(e.bitrateKbps/1024).toFixed(1)} Mbps`:"—",firmware:e.firmware,lastEvent:e.lastEvent,scene:e.state==="offline"||e.state==="forbidden"?null:tt[e.id]??"lobby",channel:Number(e.id.replace("cam-",""))}))}net(e){return m`<svg class="net" viewBox="0 0 22 14" aria-label="רשת">${[0,1,2,3].map(t=>m`<rect x=${t*5.5} y=${11-t*3} width="4" height=${3+t*3} rx="1" fill=${t<e?e>=3?"#22c55e":"#f59e0b":"var(--sw-border-strong)"} />`)}</svg>`}render(){const e=this.rows,t=e.filter(a=>this.filter==="all"?!0:this.filter==="online"?a.state==="live":this.filter==="offline"?a.state==="offline":a.state==="stale"||a.state==="forbidden"||a.state==="unknown"),s=e.find(a=>a.id===this.selected),i=!!this.cameras;return n`
+      <sw-page heading="בריאות מצלמות" subheading=${i?`${this.recorder?.name??"NVR"}${this.recorder?.model?` · ${this.recorder.model}`:""} · ${e.length} מצלמות רשומות · גילוי לקריאה בלבד`:"NVR ראשי · 10 ערוצים · Capability matrix לפי ראיות · נתוני הדגמה"}>
+        ${i&&this.canSync?n`<sw-button slot="actions" icon="refresh" ?disabled=${this.busy} @click=${()=>this.sync()}>${this.busy?"מסנכרן…":"סנכרון מה־NVR (קריאה)"}</sw-button>`:n`<sw-button slot="actions" icon="refresh" ?disabled=${i}>בדיקת יכולות (קריאה)</sw-button>`}
+        ${i&&this.discovery?n`<div style="font-size:var(--sw-fs-xs);color:${this.discovery.cameras_last_error?"var(--sw-danger)":"var(--sw-text-3)"};margin-block-end:8px">גילוי אוטומטי מה־NVR כל ${Math.round(this.discovery.interval_s/60)} דק׳ · ${this.discovery.cameras_last_error?`נכשל: ${this.discovery.cameras_last_error}`:this.discovery.cameras_last_ok?`הצליח ${this.discovery.cameras_last_ok.replace("T"," ").replace("Z"," UTC")}`:"טרם רץ"}${this.discovery.streams_last_error?` · זרמי go2rtc: ${this.discovery.streams_last_error}`:""}</div>`:d}
+        ${i&&this.canSync?n`<sw-button slot="actions" variant="primary" icon="plus" @click=${()=>{this.dialog=!0,this.formAlias="",this.formChannel=(e.length?Math.max(...e.map(a=>a.channel)):0)+1}}>רישום ידני</sw-button>`:d}
+        ${this.message?n`<div class="ok">${this.message}</div>`:d}
+        ${this.error?n`<div class="err">${this.error}</div>`:d}
+        <div class="filters">
+          <sw-chip ?selected=${this.filter==="all"} @click=${()=>this.filter="all"} count=${e.length}>הכל</sw-chip>
+          <sw-chip dot="#22c55e" ?selected=${this.filter==="online"} @click=${()=>this.filter="online"} count=${e.filter(a=>a.state==="live").length}>מחוברות</sw-chip>
+          <sw-chip dot="#ef4444" ?selected=${this.filter==="offline"} @click=${()=>this.filter="offline"} count=${e.filter(a=>a.state==="offline").length}>מנותקות</sw-chip>
+          <sw-chip dot="#f59e0b" ?selected=${this.filter==="issues"} @click=${()=>this.filter="issues"} count=${e.filter(a=>a.state!=="live"&&a.state!=="offline").length}>בעיות / לא נבדק</sw-chip>
+          <span class="grow"></span>
+          <sw-field style="inline-size:200px"><input type="search" placeholder="חיפוש מצלמה…" aria-label="חיפוש" /></sw-field>
+        </div>
+        <div class="stage">
+          ${i&&!e.length?n`<sw-state-panel state="empty" heading="אין מצלמות רשומות" hint="הגדר את פרטי ה־NVR בהגדרות ה־Add-on ולחץ 'סנכרון מה־NVR', או רשום ערוץ ידנית."></sw-state-panel>`:n`<sw-table .columns=${this.columns} .rows=${t} .selected=${this.selected} @row-select=${a=>{this.selected=a.detail.id,this.alias=e.find(r=>r.id===a.detail.id)?.api?.alias??""}}></sw-table>`}
+          ${s?n`<sw-drawer open heading=${s.name} subheading=${s.sub} @close=${()=>this.selected=null}>
+                <sw-field label="כינוי מקומי" hint="שינוי כינוי אינו משנה OSD; שם ה־NVR נשמר בנפרד"><input .value=${i?this.alias:s.name} ?disabled=${!i||!this.canSync} @input=${a=>this.alias=a.target.value} /></sw-field>
+                <dl>
+                  <dt>שם ב־NVR</dt><dd>${i?s.api?.name_source||"—":`Camera ${s.channel}`}</dd>
+                  <dt>Tracks</dt><dd><span class="ltr">${i?`${s.api?.main_track??"?"} / ${s.api?.sub_track??"?"}`:`${s.channel}01 / ${s.channel}02`}</span></dd>
+                  <dt>מצב</dt><dd><sw-badge kind=${s.state}></sw-badge></dd>
+                  <dt>נראתה לאחרונה</dt><dd>${s.lastEvent}</dd>
+                </dl>
+                <div class="hint">ניתוק מקור מוצג כניתוק, לא כאשמת הממשק. פעולות רגישות (אתחול, OSD) דורשות הרשאה ואישור ואינן בפיילוט.</div>
+                <div slot="footer">
+                  ${i&&this.canSync?n`<sw-button variant="primary" size="sm" icon="check" ?disabled=${this.busy} @click=${()=>this.saveAlias(s.id)}>שמור כינוי</sw-button>`:d}
+                  <sw-button variant="danger" size="sm" disabled>אתחול מצלמה</sw-button>
+                </div>
+              </sw-drawer>`:d}
+        </div>
+        ${i?this.recorder?n`<sw-card heading=${this.recorder.name}>
+                <div class="nvr">
+                  <div><span>דגם</span>${this.recorder.model??"לא נבדק"}</div>
+                  <div><span>קושחה</span><span class="ltr">${this.recorder.firmware??"—"}</span></div>
+                  <div><span>סנכרון אחרון</span>${this.recorder.last_seen_at?this.recorder.last_seen_at.replace("T"," ").replace("Z"," UTC"):"—"}</div>
+                  <div><span>גישה</span>קריאה בלבד (ISAPI)</div>
+                </div>
+              </sw-card>`:d:n`<sw-card heading="NVR ראשי">
+              <div class="nvr">
+                <div><span>דגם</span>DS-76xx (הדגמה)</div>
+                <div><span>קושחה</span><span class="ltr">V4.84.x</span></div>
+                <div><span>ערוצים</span>10/16</div>
+                <div><span>דיסק</span>1 · תקין · 30% פנוי</div>
+                <div><span>שעון</span>NTP · סטייה 2 שנ׳</div>
+                <div><span>חיפוש במקביל</span>1 (מגבלת מכשיר)</div>
+              </div>
+            </sw-card>`}
+        ${this.dialog?n`<sw-dialog open heading="רישום מצלמה ידני" subheading="כשה־NVR לא מוגדר עדיין; הסנכרון יעדכן שם ומצב" @close=${()=>this.dialog=!1}>
+              <sw-field label="מספר ערוץ ב־NVR"><input type="number" min="1" max="256" data-ltr .value=${String(this.formChannel)} @input=${a=>this.formChannel=Number(a.target.value)} /></sw-field>
+              <sw-field label="כינוי"><input .value=${this.formAlias} @input=${a=>this.formAlias=a.target.value} placeholder="למשל: כניסה ראשית" /></sw-field>
+              ${this.error?n`<div class="err">${this.error}</div>`:d}
+              <sw-button slot="footer" variant="ghost" @click=${()=>this.dialog=!1}>ביטול</sw-button>
+              <sw-button slot="footer" variant="primary" ?disabled=${!this.formAlias.trim()||this.busy} @click=${()=>this.register()}>רישום</sw-button>
+            </sw-dialog>`:d}
+      </sw-page>
+    `}};we.styles=A`
+    .filters {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .filters .grow {
+      flex: 1;
+    }
+    .stage {
+      position: relative;
+      min-block-size: 420px;
+    }
+    .cam {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .cam img.snap {
+      inline-size: 48px;
+      block-size: 32px;
+      object-fit: cover;
+      border-radius: 5px;
+      flex-shrink: 0;
+      background: var(--sw-surface-3);
+    }
+    .cam sw-scene,
+    .cam .none {
+      inline-size: 48px;
+      block-size: 32px;
+      border-radius: 5px;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+    .cam .none {
+      background: var(--sw-surface-3);
+    }
+    .cam b {
+      display: block;
+      font-weight: var(--sw-fw-semibold);
+    }
+    .cam small {
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+    }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: var(--sw-fs-xs);
+    }
+    .status i {
+      inline-size: 7px;
+      block-size: 7px;
+      border-radius: 50%;
+      background: var(--c);
+    }
+    svg.net {
+      inline-size: 22px;
+      block-size: 14px;
+      direction: ltr;
+    }
+    dl {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 6px 12px;
+      margin: 0;
+      font-size: var(--sw-fs-sm);
+    }
+    dt {
+      color: var(--sw-text-3);
+    }
+    dd {
+      margin: 0;
+    }
+    .hint {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .err {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-danger);
+    }
+    .ok {
+      font-size: var(--sw-fs-xs);
+      color: #15803d;
+    }
+    .nvr {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+    }
+    .nvr div {
+      font-size: var(--sw-fs-sm);
+    }
+    .nvr span {
+      display: block;
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+    }
+  `;Ae([c()],we.prototype,"selected",2);Ae([c()],we.prototype,"filter",2);Ae([c()],we.prototype,"cameras",2);Ae([c()],we.prototype,"recorder",2);Ae([c()],we.prototype,"canSync",2);Ae([c()],we.prototype,"discovery",2);Ae([c()],we.prototype,"busy",2);Ae([c()],we.prototype,"message",2);Ae([c()],we.prototype,"error",2);Ae([c()],we.prototype,"dialog",2);Ae([c()],we.prototype,"formChannel",2);Ae([c()],we.prototype,"formAlias",2);Ae([c()],we.prototype,"alias",2);we=Ae([P("system-devices")],we);const Ha="sw.design.override",Fa="sw.design.last",Is={a:"SW A",b:"SW B"};let Ks="b";const ba=new Set;function yi(e){try{return localStorage.getItem(e)}catch{return null}}function Ur(e,t){try{t===null?localStorage.removeItem(e):localStorage.setItem(e,t)}catch{}}function Vu(){try{const s=new URLSearchParams(window.location.search).get("design");if(s==="a"||s==="b")return s}catch{}const e=yi(Ha);if(e==="a"||e==="b")return e;const t=yi(Fa);return t==="a"||t==="b"?t:"b"}Ks=Vu();function ya(){const e=yi(Ha);return e==="a"||e==="b"?e:null}function Hu(e){Ur(Ha,e),qr()}function Zr(){return Ks}function Fu(e){return ba.add(e),e(Ks),()=>ba.delete(e)}function bt(e){Ks=e,document.documentElement.dataset.design=e,Ur(Fa,e),ba.forEach(t=>t(e))}function ju(e){try{const t=e?JSON.parse(e):{};return{a:(t.a||Is.a).slice(0,24),b:(t.b||Is.b).slice(0,24)}}catch{return{...Is}}}async function qr(){const e=new URLSearchParams(window.location.search).get("design");if(e==="a"||e==="b")return bt(e),e;const t=ya();if(t)return bt(t),t;if(!$())return bt("b"),"b";const s=yi(Fa);(s==="a"||s==="b")&&bt(s);try{const a=(await Ve())["ui.design"]==="b"?"b":"a";return bt(a),a}catch{return bt(s==="b"?"b":"a"),Ks}}const Wu={manual:"ידני",upload:"הועלה","auto-pre-upgrade":"אוטומטי · לפני עדכון","auto-daily":"אוטומטי · יומי"},sa={sites:"אתרים",buildings:"מבנים",floors:"קומות",plan_assets:"קבצי תוכנית",plan_versions:"גרסאות תוכנית",map_anchors:"עוגנים",cameras:"מצלמות",spatial_zones:"אזורים",settings:"הגדרות",users:"משתמשים",bindings:"הרשאות",groups:"קבוצות"},Uu=()=>S("backups"),Zu=(e={})=>E("backups",e),qu=e=>ve(`backups/${encodeURIComponent(e)}`),Gu=(e,t)=>E(`backups/${encodeURIComponent(e)}/restore`,t),Ku=e=>ge(`backups/${encodeURIComponent(e)}/download`);function Yu(e){const t=new FormData;return t.append("file",e,e.name),Ai("backups/upload",t)}function Xn(e){return e<1024?`${e} B`:e<1024*1024?`${(e/1024).toFixed(0)} KB`:`${(e/1024/1024).toFixed(1)} MB`}var Ju=Object.defineProperty,Xu=Object.getOwnPropertyDescriptor,q=(e,t,s,i)=>{for(var a=i>1?void 0:i?Xu(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Ju(t,s,a),a};const Qn=[{id:"general",label:"כללי"},{id:"media",label:"וידאו ומדיה"},{id:"ha",label:"גשר Home Assistant"},{id:"health",label:"בריאות ועבודות"},{id:"backup",label:"גיבוי ושחזור"},{id:"support",label:"תמיכה"}];let j=class extends M{constructor(){super(...arguments),this.tab="general",this.settings=null,this.canEdit=!1,this.draft={},this.streams=null,this.go2rtc=null,this.foreign=0,this.sessions=[],this.busy=!1,this.message="",this.error="",this.version="",this.ha=null,this.pairing=null,this.showCode=!1,this.regenArmed=!1,this.copied=!1,this.report=null,this.reportBusy=!1,this.backups=null,this.backupPolicy={},this.backupBusy=!1,this.backupNote="",this.backupMsg="",this.restoreTarget=null,this.restoreMode="replace",this.restoreAccess=!1,this.restoreConfirm="",this.health=null}connectedCallback(){super.connectedCallback();const e=ls().params.get("tab");e&&Qn.some(t=>t.id===e)&&(this.tab=e,e==="health"&&this.loadReport(),e==="backup"&&this.loadBackups(),e==="media"&&this.loadMedia(),e==="ha"&&this.loadHa()),this.loadSettings()}async loadSettings(){if($())try{const[e,t]=await Promise.all([dr(),S("health").catch(()=>null)]);this.settings=e.settings,this.canEdit=e.can_edit,this.draft={},this.version=t?.version??"",this.health=t??null}catch(e){this.error=b(e)}}async loadMedia(){if(!(!$()||!this.canEdit))try{const[e,t]=await Promise.all([Qo(),el()]);this.streams=e.streams,this.go2rtc=e.go2rtc,this.foreign=e.foreign_streams,this.sessions=t.sessions,this.error=""}catch(e){this.streams=[],this.error=b(e)}}async loadHa(e=!1){if($()){this.error="";try{this.ha=await $d(),this.canEdit&&(this.pairing=await xd(e)),e&&(this.regenArmed=!1,this.showCode=!0,this.message="נוצר קוד צימוד חדש; יש להגדיר מחדש את האינטגרציה ב־Home Assistant.",setTimeout(()=>this.message="",4e3))}catch(t){this.error=b(t)}}}async copyCode(){if(this.pairing)try{await navigator.clipboard.writeText(this.pairing.pairing_code),this.copied=!0,setTimeout(()=>this.copied=!1,2e3)}catch{this.showCode=!0}}async installBridgeNow(){this.busy=!0,this.error="";try{const e=await kd();this.message=e.state==="installed_pending"?"האינטגרציה הועתקה ל־Home Assistant; הפעל מחדש את Home Assistant ואשר את הגשר שהתגלה.":e.state==="active"?"האינטגרציה פעילה.":e.state==="not_available"?"תיקיית ההגדרות של Home Assistant אינה נגישה ל־Add-on.":`מצב: ${e.state}`,await this.loadHa(),setTimeout(()=>this.message="",6e3)}catch(e){this.error=b(e)}finally{this.busy=!1}}integrationText(e){switch(e.state){case"active":return`פעילה ב־Home Assistant (גרסה ${e.active_version??"?"})`;case"installed_pending":return`הועתקה לתיקיית ההגדרות של HA (גרסה ${e.installed_version??"?"}) ב־${je(e.installed_at)} · הפעל מחדש את Home Assistant ואז אשר את "SMPLWISE Bridge" שהתגלה בהגדרות → מכשירים ושירותים`;case"update_pending":return`עודכנה לגרסה ${e.installed_version??"?"} אך Home Assistant עדיין מריץ ${e.active_version??"?"} · נדרש Restart ל־Home Assistant`;case"not_installed":return"טרם הועתקה";case"error":return`ההעתקה נכשלה (${e.last_error??""})`;default:return e.last_error==="ha_config_not_mapped"?"ה־Add-on לא רואה את תיקיית ההגדרות של Home Assistant (המיפוי homeassistant_config לא ניתן) · התקנה ידנית לפי השלבים למטה":e.last_error==="source_missing"?"קבצי האינטגרציה חסרים בתמונת ה־Add-on · התקנה ידנית לפי השלבים למטה":`ההתקנה האוטומטית נכשלה (${e.last_error??"סיבה לא ידועה"}) · התקנה ידנית לפי השלבים למטה`}}renderIntegration(e){const t=e.integration;if(!t)return d;const s=t.state==="active"?"live":t.state==="installed_pending"||t.state==="update_pending"?"stale":t.state==="error"?"error":"unknown",i=t.state==="active"?"פעילה":t.state==="installed_pending"?"ממתינה ל־Restart":t.state==="update_pending"?"עדכון ממתין":t.state==="error"?"שגיאה":t.state==="not_installed"?"לא הותקנה":"לא זמין";return n`<div class="row"><span class="lbl">התקנת האינטגרציה ב־Home Assistant<span class="muted">${this.integrationText(t)}${t.discovery_posted_at?` · הוכרזה ל־Supervisor ${je(t.discovery_posted_at)}`:""}</span></span><span style="display:flex;gap:8px;align-items:center"><sw-badge kind=${s} label=${i}></sw-badge>${this.canEdit&&t.state!=="not_available"?n`<sw-button size="sm" ?disabled=${this.busy} @click=${()=>this.installBridgeNow()}>התקן / עדכן</sw-button>`:d}</span></div>`}renderHa(){if(!$())return n`<div class="sections"><sw-card heading="גשר Home Assistant"><div class="muted">נתוני הדגמה — הסטטוס והצימוד זמינים מול השרת.</div></sw-card></div>`;const e=this.ha,t=e?.sync,s=this.pairing;return n`<div class="sections">
+      <sw-card heading="חיבור ל־Home Assistant" subheading="קריאה בלבד: מצבים, רישום ישויות, אזורים וקומות">
+        ${e?n`
+            <div class="row"><span class="lbl">גישה ל־API של Home Assistant<span class="muted">${e.configured?"דרך ה־Supervisor (homeassistant_api) או HA_URL בפיתוח":"לא מוגדר — ה־Add-on לא קיבל SUPERVISOR_TOKEN"}</span></span><sw-badge kind=${e.configured?"live":"offline"}></sw-badge></div>
+            <div class="row"><span class="lbl">סנכרון מצבים (WebSocket)<span class="muted">${t?.connected?`מחובר · HA ${t.ha_version??"?"} · ${t.entities} ישויות · אירוע אחרון ${je(t.last_event_at)}`:`מנותק${t?.last_error?` · ${t.last_error}`:""} · ${t?.reconnects??0} חיבורים מחדש`}</span></span><sw-badge kind=${t?.connected?"live":"offline"}></sw-badge></div>
+            <div class="row"><span class="lbl">רישום ישויות (registry)<span class="muted">עודכן ${je(t?.last_registry_at)} · תמונת מצב ${je(t?.last_snapshot_at)}</span></span><sw-button size="sm" @click=${()=>x("/explore/entities")}>לקטלוג</sw-button></div>`:n`<div class="muted">טוען…</div>`}
+      </sw-card>
+      <sw-card heading="גשר SMPLWISE (אינטגרציה ב־Home Assistant)" subheading="פעולות על ישויות רצות רק דרך הגשר, בזהות המשתמש, לפי ההרשאות של Home Assistant">
+        ${e?n`${this.renderIntegration(e)}<div class="row"><span class="lbl">צימוד<span class="muted">${e.bridge.paired?`מצומד מאז ${je(e.bridge.paired_at)}`:"לא מצומד — פעולות HA ייחסמו עד להתקנת הגשר"}</span></span><sw-badge kind=${e.bridge.paired?"live":"stale"} label=${e.bridge.paired?"מצומד":"לא מצומד"}></sw-badge></div>
+            <div class="row"><span class="lbl">ספריית משתמשי HA<span class="muted">${e.bridge.directory_users} משתמשים · עודכן ${je(e.bridge.last_directory_at)}</span></span><sw-badge kind=${e.bridge.directory_users?"recorded":"unknown"}></sw-badge></div>`:d}
+        ${s?n`<div class="row"><span class="lbl">כתובת ה־Add-on ברשת של HA<span class="muted">להדביק בשדה "כתובת" של האינטגרציה</span></span><code class="ltr">${s.addon_url}</code></div>
+            <div class="row"><span class="lbl">קוד צימוד<span class="muted">סוד משותף; מוצג רק למנהלי מערכת ונרשם באודיט</span></span><span style="display:flex;gap:8px;align-items:center"><code class="ltr">${this.showCode?s.pairing_code:"••••••••••••"}</code><sw-button size="sm" @click=${()=>this.showCode=!this.showCode}>${this.showCode?"הסתר":"הצג"}</sw-button><sw-button size="sm" @click=${()=>this.copyCode()}>${this.copied?"הועתק":"העתק"}</sw-button></span></div>
+            <div class="row"><span class="lbl">יצירת קוד חדש<span class="muted">מבטל את הצימוד הקיים; יש להגדיר מחדש את האינטגרציה</span></span>${this.regenArmed?n`<span style="display:flex;gap:8px"><sw-button size="sm" variant="danger" @click=${()=>this.loadHa(!0)}>אשר יצירה</sw-button><sw-button size="sm" variant="ghost" @click=${()=>this.regenArmed=!1}>ביטול</sw-button></span>`:n`<sw-button size="sm" @click=${()=>this.regenArmed=!0}>צור קוד חדש</sw-button>`}</div>`:this.canEdit?d:n`<div class="muted">קוד הצימוד מוצג למנהלי מערכת בלבד.</div>`}
+      </sw-card>
+      <sw-card heading="התקנת הגשר (פעם אחת)">
+        <ol class="steps">
+          <li>ה־Add-on מעתיק בעצמו את <code class="ltr">custom_components/smplwise_bridge</code> אל תיקיית ההגדרות של Home Assistant (השורה "התקנת האינטגרציה" למעלה). אם זה לא זמין: העתק את התיקייה מהמאגר אל <code class="ltr">/config/custom_components/</code>, או הוסף את המאגר ב־HACS כ־Custom repository מסוג Integration.</li>
+          <li>הפעל מחדש את Home Assistant (הגדרות → מערכת → הפעלה מחדש) כדי שהרכיב ייטען.</li>
+          <li>הגדרות → מכשירים ושירותים: אשר את <strong>SMPLWISE Bridge</strong> שהתגלה (קוד הצימוד כבר מולא). אם לא הופיע: הוספת אינטגרציה → SMPLWISE Bridge והדבקת הכתובת והקוד מהמסך הזה.</li>
+          <li>הסטטוס למעלה יתעדכן ל"מצומד"; ספריית המשתמשים נשלחת כל דקה ומאפשרת להקצות תפקידים למשתמשי HA.</li>
+        </ol>
+        <div class="muted">הגשר מריץ רק פעולות מרשימת ההיתר (תאורה, מתגים, מאווררים, תריסים, מנעולים, כפתורים, סקריפטים, סצנות) ורק עבור משתמש HA קיים ופעיל. ה־Supervisor token של ה־Add-on אינו משמש לפעולות.</div>
+      </sw-card>
+    </div>`}set(e,t){this.draft={...this.draft,[e]:t}}value(e){return this.draft[e]??this.settings?.[e]}async save(){if(Object.keys(this.draft).length){this.busy=!0,this.error="";try{const e=await Jo(this.draft);this.settings=e.settings,this.draft={},bn(),this.message="ההגדרות נשמרו",setTimeout(()=>this.message="",2500)}catch(e){this.error=b(e)}finally{this.busy=!1}}}async sync(){this.busy=!0,this.error="";try{const e=await Xo();this.message=`זרמים: ${e.created} נוצרו, ${e.updated} עודכנו, ${e.unchanged} ללא שינוי · ${e.foreign_streams_untouched} זרמים זרים לא נגעו`,await this.loadMedia()}catch(e){this.error=b(e)}finally{this.busy=!1}}renderDesign(){if(!$())return d;const e=ju(this.value("ui.design_names")),t=this.value("ui.design")??"a",s=ya(),i="ui.design"in this.draft||"ui.design_names"in this.draft,a=(r,o)=>this.set("ui.design_names",JSON.stringify({...e,[r]:o.slice(0,24)}));return n`<sw-card heading="עיצוב הממשק" subheading=${`פעיל עכשיו בדפדפן הזה: ${e[Zr()]}${s?" (עקיפה מקומית)":""}`}>
+      <div class="row"><span class="lbl">ברירת המחדל של המערכת<span class="muted">חל על כל המשתמשים; כל אחד יכול לעקוף בדפדפן שלו</span></span><sw-field class="ctl"><select ?disabled=${!this.canEdit} @change=${r=>this.set("ui.design",r.target.value)}><option value="a" ?selected=${t==="a"}>${e.a}</option><option value="b" ?selected=${t==="b"}>${e.b}</option></select></sw-field></div>
+      <div class="row"><span class="lbl">שם העיצוב החדש<span class="muted">ברירת מחדל: ${Is.a} · העיצוב מחבילת 50 המסכים</span></span><sw-field class="ctl"><input maxlength="24" ?disabled=${!this.canEdit} .value=${e.a} @change=${r=>a("a",r.target.value)} /></sw-field></div>
+      <div class="row"><span class="lbl">שם העיצוב הקודם<span class="muted">ברירת מחדל: ${Is.b} · הלוחות המקוריים</span></span><sw-field class="ctl"><input maxlength="24" ?disabled=${!this.canEdit} .value=${e.b} @change=${r=>a("b",r.target.value)} /></sw-field></div>
+      <div class="row"><span class="lbl">בדפדפן הזה בלבד<span class="muted">עקיפה אישית שנשמרת במכשיר; לא משנה את ברירת המחדל</span></span><sw-field class="ctl"><select @change=${r=>{const o=r.target.value;Hu(o==="a"||o==="b"?o:null),o!=="a"&&o!=="b"&&bt(t),this.requestUpdate()}}><option value="" ?selected=${!s}>לפי ברירת המחדל</option><option value="a" ?selected=${s==="a"}>${e.a}</option><option value="b" ?selected=${s==="b"}>${e.b}</option></select></sw-field></div>
+      ${this.canEdit?n`<div class="foot"><sw-button variant="primary" size="sm" icon="check" ?disabled=${!i||this.busy} @click=${()=>this.saveDesign()}>שמור עיצוב</sw-button>${this.message&&this.tab==="general"?n`<span class="ok" style="align-self:center">${this.message}</span>`:d}${this.error&&this.tab==="general"?n`<span class="err" style="align-self:center">${this.error}</span>`:d}</div>`:d}
+    </sw-card>`}async saveDesign(){await this.save(),!ya()&&this.settings&&bt(this.settings["ui.design"]==="b"?"b":"a")}renderGeneral(){return n`<div class="sections">
+      ${this.renderDesign()}
+      <sw-card heading="זמן ומיקום">
+        <div class="row"><span class="lbl">אזור זמן לתצוגה<span class="muted">פנימית הכל UTC; שעון קיץ לפי התאריך המבוקש</span></span><sw-field class="ctl"><select><option>(UTC+02:00) Asia/Jerusalem</option></select></sw-field></div>
+        <div class="row"><span class="lbl">פרופיל זמן של ה־NVR<span class="muted">נקבע לפי ראיות לדגם ולקושחה</span></span><sw-field class="ctl"><select><option>hikvision · ds-76xx · שעון מקומי</option></select></sw-field></div>
+        ${$()?d:n`<div class="row"><span class="lbl">NTP במכשיר<span class="muted">pool.ntp.org · סטייה 2 שנ׳</span></span><sw-toggle checked label="פעיל"></sw-toggle></div>`}
+      </sw-card>
+      <sw-card heading="מדיניות אחסון (קריאה מה־NVR)">
+        <div class="row"><span class="lbl">שמירת הקלטות</span><sw-field class="ctl"><select disabled><option>לפי מקום פנוי (overwrite)</option></select></sw-field></div>
+        <div class="row"><span class="lbl">כשהאחסון מתמלא</span><sw-field class="ctl"><select disabled><option>דריסת הישן ביותר</option></select></sw-field></div>
+        <div class="row"><span class="lbl">התראת אחסון נמוך<span class="muted">מתחת ל־10% פנוי</span></span><sw-toggle checked label="פעיל"></sw-toggle></div>
+      </sw-card>
+      <sw-card heading="אינטגרציות">
+        <div class="row"><span class="lbl">go2rtc (חיצוני)<span class="muted">זרמים בשם smplwise_* בלבד · זרמים זרים לא ייגעו</span></span><span style="display:flex;gap:8px;align-items:center"><sw-toggle checked label="מופעל"></sw-toggle><sw-button size="sm" @click=${()=>{this.tab="media",this.loadMedia()}}>הגדרה</sw-button></span></div>
+        <div class="row"><span class="lbl">גשר Home Assistant<span class="muted">קטלוג ישויות, פעולות בשם המשתמש וספריית המשתמשים</span></span><sw-button size="sm" @click=${()=>{this.tab="ha",this.loadHa()}}>הגדרה</sw-button></div>
+      </sw-card>
+      <sw-card heading="בריאות המערכת">
+        <div class="row"><span class="health"><i class="dot"></i><span class="lbl">מצב חלקי<span class="muted">גשר HA טרם חובר · שאר הרכיבים תקינים</span></span></span><sw-button size="sm" icon="activity">הרצת דיאגנוסטיקה</sw-button></div>
+      </sw-card>
+    </div>`}renderMedia(){const e=$(),t=Object.keys(this.draft).length>0;return n`<div class="sections">
+      <sw-card heading="תעבורת וידאו" subheading="ברירת המחדל לכל הנגנים; כל נגן יכול לעקוף אותה לדפדפן הנוכחי">
+        <div class="row"><span class="lbl">תעבורה ברירת מחדל<span class="muted">MSE (ברירת המחדל) עובד דרך Ingress, Cloudflare ומאחורי CGNAT · WebRTC נותן השהיה נמוכה אך דורש UDP ישיר ל־go2rtc (רשת מקומית או ללא CGNAT) · אוטומטי מנסה WebRTC ונופל ל־MSE</span></span>
+          <sw-field class="ctl"><select ?disabled=${!e||!this.canEdit} @change=${s=>this.set("media.transport_default",s.target.value)}>
+            ${["mse","auto","webrtc"].map(s=>n`<option value=${s} ?selected=${(this.value("media.transport_default")??"mse")===s}>${s==="auto"?"אוטומטי (WebRTC → MSE)":s==="webrtc"?"WebRTC בלבד":"MSE (ברירת מחדל)"}</option>`)}
+          </select></sw-field></div>
+        <div class="row"><span class="lbl">פרופיל לקיר המצלמות<span class="muted">משני חוסך CPU ורוחב פס; ראשי לתצוגה בודדת</span></span>
+          <sw-field class="ctl"><select ?disabled=${!e||!this.canEdit} @change=${s=>this.set("media.wall_profile",s.target.value)}>
+            <option value="sub" ?selected=${(this.value("media.wall_profile")??"sub")==="sub"}>משני</option><option value="main" ?selected=${this.value("media.wall_profile")==="main"}>ראשי</option>
+          </select></sw-field></div>
+        <div class="row"><span class="lbl">מצלמות בקיר כברירת מחדל<span class="muted">כל דפדפן זוכר את הבחירה האחרונה שלו; זו נקודת הפתיחה. מעל מכסת הזרמים החיים האריחים מציגים צילום</span></span>
+          <sw-field class="ctl"><select data-set-wall-count ?disabled=${!e||!this.canEdit} @change=${s=>this.set("ui.wall_count",Number(s.target.value))}>
+            ${[1,2,4,6,8,9,12,16,20,25,32].map(s=>n`<option value=${s} ?selected=${Number(this.value("ui.wall_count")??4)===s}>${s}</option>`)}
+          </select></sw-field></div>
+        <div class="row"><span class="lbl">פריסת קיוסק כברירת מחדל<span class="muted">עמודות × שורות בעמוד; קישור קיוסק עם cols/rows גובר</span></span>
+          <sw-field class="ctl"><select data-set-kiosk-layout ?disabled=${!e||!this.canEdit} @change=${s=>{const[i,a]=s.target.value.split("x").map(Number);this.set("ui.kiosk_cols",i),this.set("ui.kiosk_rows",a)}}>
+            ${[[2,2],[3,2],[3,3],[4,3],[4,4],[5,4],[6,4]].map(([s,i])=>n`<option value=${`${s}x${i}`} ?selected=${Number(this.value("ui.kiosk_cols")??3)===s&&Number(this.value("ui.kiosk_rows")??2)===i}>${s}×${i} · ${s*i} מצלמות</option>`)}
+          </select></sw-field></div>
+        <div class="row"><span class="lbl">מסך פתיחה<span class="muted">המסך שהמערכת נפתחת עליו כשהכתובת לא מציינת מסך (ריענון של הכתובת הראשית)</span></span>
+          <sw-field class="ctl"><select data-set-start-route ?disabled=${!e||!this.canEdit} @change=${s=>this.set("ui.start_route",s.target.value)}>
+            ${[["explore","מפת קומה"],["live","סקירה (לייב)"],["wall","כל המצלמות"],["events","מרכז אירועים"],["playback","הקלטות"]].map(([s,i])=>n`<option value=${s} ?selected=${String(this.value("ui.start_route")??"explore")===s}>${i}</option>`)}
+          </select></sw-field></div>
+        <div class="row"><span class="lbl">הסתרת המפה<span class="muted">מסיר את אזור המפה מהניווט לכל המשתמשים; למשתמש בודד: תפקיד בלי ההרשאה map.read</span></span>
+          <sw-field class="ctl"><select data-set-hide-map ?disabled=${!e||!this.canEdit} @change=${s=>this.set("ui.hide_map",s.target.value)}>
+            <option value="false" ?selected=${String(this.value("ui.hide_map")??"false")!=="true"}>מוצגת</option><option value="true" ?selected=${String(this.value("ui.hide_map")??"false")==="true"}>מוסתרת</option>
+          </select></sw-field></div>
+        <div class="row"><span class="lbl">HA recorder כמקור משני להיסטוריה<span class="muted">במפה ההיסטורית: כשההיסטוריה המקומית לא יודעת מצב של ישות, הוא נקרא מה־recorder של Home Assistant ומסומן כמקור משני</span></span>
+          <sw-field class="ctl"><select data-set-ha-secondary ?disabled=${!e||!this.canEdit} @change=${s=>this.set("history.ha_secondary",s.target.value)}>
+            <option value="false" ?selected=${String(this.value("history.ha_secondary")??"false")!=="true"}>כבוי</option><option value="true" ?selected=${String(this.value("history.ha_secondary")??"false")==="true"}>פעיל</option>
+          </select></sw-field></div>
+        <div class="row"><span class="lbl">מידות לפני כיול<span class="muted">בעורך התוכנית, כשגרסת התוכנית עדיין לא כוילה: להציג אורכים ושטחים משוערים עם ≈, או להסתיר מטרים עד הכיול</span></span>
+          <sw-field class="ctl"><select data-set-plan-estimates ?disabled=${!e||!this.canEdit} @change=${s=>this.set("plan.estimates",s.target.value)}>
+            <option value="true" ?selected=${String(this.value("plan.estimates")??"true")!=="false"}>משוערות עם ≈</option><option value="false" ?selected=${String(this.value("plan.estimates")??"true")==="false"}>מוסתרות עד כיול</option>
+          </select></sw-field></div>
+        <div class="row"><span class="lbl">הסתרת חיפוש AI<span class="muted">מסיר את הלשונית מהניווט; המסך עצמו נשאר זמין בכתובת</span></span>
+          <sw-field class="ctl"><select data-set-hide-search ?disabled=${!e||!this.canEdit} @change=${s=>this.set("ui.hide_search",s.target.value)}>
+            <option value="false" ?selected=${String(this.value("ui.hide_search")??"false")!=="true"}>מוצג</option><option value="true" ?selected=${String(this.value("ui.hide_search")??"false")==="true"}>מוסתר</option>
+          </select></sw-field></div>
+        <div class="row"><span class="lbl">מקסימום זרמים חיים במקביל<span class="muted">מגן על ה־NVR; מעבר למכסה מוצג צילום בלבד</span></span><sw-field class="ctl"><input type="number" min="1" max="32" data-ltr ?disabled=${!e||!this.canEdit} .value=${String(this.value("media.max_live_sessions")??8)} @change=${s=>this.set("media.max_live_sessions",Number(s.target.value))} /></sw-field></div>
+        <div class="row"><span class="lbl">רעננות צילום (שניות)<span class="muted">snapshot מה־NVR לאריחים; cache בשרת</span></span><sw-field class="ctl"><input type="number" min="5" max="3600" data-ltr ?disabled=${!e||!this.canEdit} .value=${String(this.value("snapshots.max_age_s")??60)} @change=${s=>this.set("snapshots.max_age_s",Number(s.target.value))} /></sw-field></div>
+        <div class="row"><span class="lbl">סשני ניגון במקביל<span class="muted">כל ניגון = זרם playback אחד מה־NVR דרך go2rtc</span></span><sw-field class="ctl"><input type="number" min="1" max="16" data-ltr ?disabled=${!e||!this.canEdit} .value=${String(this.value("playback.max_sessions")??4)} @change=${s=>this.set("playback.max_sessions",Number(s.target.value))} /></sw-field></div>
+        <div class="row"><span class="lbl">פקיעת סשן ניגון ללא פעילות (שניות)<span class="muted">אחרי הזמן הזה הזרם נמחק מ־go2rtc אוטומטית</span></span><sw-field class="ctl"><input type="number" min="60" max="3600" data-ltr ?disabled=${!e||!this.canEdit} .value=${String(this.value("playback.lease_s")??600)} @change=${s=>this.set("playback.lease_s",Number(s.target.value))} /></sw-field></div>
+        <div class="row"><span class="lbl">גודל ייצוא מקסימלי (MB)<span class="muted">לפי הנפח המשוער של קבצי ה־NVR בטווח</span></span><sw-field class="ctl"><input type="number" min="50" max="20480" data-ltr ?disabled=${!e||!this.canEdit} .value=${String(this.value("exports.max_mb")??2048)} @change=${s=>this.set("exports.max_mb",Number(s.target.value))} /></sw-field></div>
+        <div class="row"><span class="lbl">שמירת קבצי ייצוא (ימים)<span class="muted">אחרי התקופה הקבצים נמחקים מ־/data/exports</span></span><sw-field class="ctl"><input type="number" min="1" max="365" data-ltr ?disabled=${!e||!this.canEdit} .value=${String(this.value("exports.retention_days")??7)} @change=${s=>this.set("exports.retention_days",Number(s.target.value))} /></sw-field></div>
+        <div class="row"><span class="lbl">שמירת אירועים (ימים)<span class="muted">אירועים ישנים יותר נמחקים מהמאגר המקומי</span></span><sw-field class="ctl"><input type="number" min="1" max="3650" data-ltr data-set-events-retention ?disabled=${!e||!this.canEdit} .value=${String(this.value("events.retention_days")??30)} @change=${s=>this.set("events.retention_days",Number(s.target.value))} /></sw-field></div>
+        <div class="row"><span class="lbl">שמירת אודיט (ימים)<span class="muted">מי עשה מה ומתי — כתיבות ל־NVR, שינויי הרשאות, ייצוא; שורות ישנות יותר נמחקות</span></span><sw-field class="ctl"><input type="number" min="30" max="3650" data-ltr data-set-audit-retention ?disabled=${!e||!this.canEdit} .value=${String(this.value("audit.retention_days")??365)} @change=${s=>this.set("audit.retention_days",Number(s.target.value))} /></sw-field></div>
+        <div class="row"><span class="lbl">אזור זמן של האתר וה־NVR<span class="muted">IANA · חיפוש והקלטות מתורגמים לשעון הקיר של ה־NVR לפי הכלל הזה (כולל שעון קיץ)</span></span><sw-field class="ctl"><input type="text" data-ltr ?disabled=${!e||!this.canEdit} .value=${String(this.value("time.zone")??"Asia/Jerusalem")} @change=${s=>this.set("time.zone",s.target.value.trim())} /></sw-field></div>
+        <div class="foot"><sw-button variant="primary" icon="check" ?disabled=${!t||this.busy||!e} @click=${()=>this.save()}>שמור</sw-button>${this.message?n`<span class="ok" style="align-self:center">${this.message}</span>`:d}${this.error?n`<span class="err" style="align-self:center">${this.error}</span>`:d}</div>
+        ${e?d:n`<div class="muted">נתוני הדגמה: ההגדרות נשמרות רק מול השרת.</div>`}
+      </sw-card>
+      <sw-card heading="go2rtc" subheading="זרמים של המוצר בשרת החיצוני (קריאה); זרמים זרים אינם מוצגים ואינם משתנים">
+        ${!e||!this.canEdit?n`<div class="muted">${e?"נדרשת הרשאת מנהל מערכת.":"נתוני הדגמה."}</div>`:n`<div class="row"><span class="lbl">שרת<span class="muted">${this.go2rtc?`גרסה ${String(this.go2rtc.version??"?")}`:"לא נבדק"}</span></span><span style="display:flex;gap:8px"><sw-button size="sm" icon="refresh" ?disabled=${this.busy} @click=${()=>this.loadMedia()}>בדיקה</sw-button><sw-button size="sm" variant="primary" icon="link" ?disabled=${this.busy} @click=${()=>this.sync()}>סנכרון זרמים</sw-button></span></div>
+              ${this.streams===null?d:this.streams.length?this.streams.map(s=>n`<div class="stream"><span>${s.name}</span><span>${s.online?"online":"idle"}</span></div>`):n`<div class="muted">אין עדיין זרמים של המוצר — לחץ "סנכרון זרמים".</div>`}
+              ${this.streams!==null?n`<div class="muted" style="margin-block-start:6px">${this.foreign} זרמים זרים (אינטרקום, מצלמות אחרות) קיימים בשרת ולא נגענו בהם.</div>`:d}`}
+      </sw-card>
+      ${e&&this.canEdit?n`<sw-card heading="זרמים חיים כרגע" subheading="sessions דרך ה־relay של ה־Add-on">
+            ${this.sessions.length?this.sessions.map(s=>n`<div class="row"><span class="lbl">${s.stream}<span class="muted">${s.username} · ${s.seconds} שנ׳ · ${(s.bytes_down/1024/1024).toFixed(1)} MB</span></span></div>`):n`<div class="muted">אין זרמים פתוחים.</div>`}
+          </sw-card>`:d}
+    </div>`}async loadReport(e=!1){if($()){this.reportBusy=!0;try{this.report=await Nr(e)}catch(t){this.error=b(t)}finally{this.reportBusy=!1}}}renderReport(){const e=this.report;if(!e)return n`<div class="sections"><sw-card heading="בריאות המערכת"><div class="muted">${this.reportBusy?"בודק…":"טוען…"}</div></sw-card></div>`;const t=new Intl.DateTimeFormat("he-IL",{hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"}).format(new Date(e.checked_at));return n`<div class="sections">
+      <sw-card heading="בריאות המערכת" subheading="מצב נפרד לכל רכיב, לא נורה אחת">
+        <div class="hsum"><sw-badge kind=${An[e.status]} label=${e.status==="ok"?"הכל תקין":e.status==="warn"?"יש מה לבדוק":"יש תקלה"}></sw-badge><span>גרסה <span class="ltr">${e.version}</span> · פעיל ${ep(e.uptime_s)} · נבדק <span class="ltr" data-health-checked>${t}</span></span><span class="grow"></span><sw-button size="sm" icon="refresh" ?disabled=${this.reportBusy} @click=${()=>this.loadReport(!0)}>${this.reportBusy?"בודק…":"בדוק עכשיו"}</sw-button></div>
+        <div class="hgrid">${e.checks.map(s=>n`<div class="hcard ${s.status}" data-health-card=${s.id}><div class="hh"><span>${s.label}</span><sw-badge kind=${An[s.status]} label=${Ms[s.status]}></sw-badge></div><div class="hd">${s.detail}</div></div>`)}</div>
+        <div class="muted" style="margin-block-start:10px">בדיקות המכשירים (NVR, go2rtc) נשמרות ${e.probe_ttl_s} שניות; "בדוק עכשיו" מריץ אותן מחדש. זרמים זרים ב־go2rtc לעולם אינם נוגעים.</div>
+      </sw-card>
+    </div>`}renderHealth(){return $()?this.renderReport():n`<div class="sections">
+      <sw-card heading="מצבים נפרדים, לא נורה אחת">${vr.map(e=>n`<div class="row"><span class="lbl">${e.name}<span class="muted">${e.detail}</span></span><sw-badge kind=${e.state}></sw-badge></div>`)}
+        <div class="row"><span class="lbl">הקלטה ב־NVR<span class="muted">5/10 ערוצים מקליטים כרגע (לפי תצורה)</span></span><sw-badge kind="live"></sw-badge></div>
+        <div class="row"><span class="lbl">זרמים פעילים<span class="muted">${$()?`${this.sessions.length} דרך ה־relay`:"4 חיים · 1 ניגון · 0 יתומים"}</span></span><sw-badge kind="live"></sw-badge></div>
+        ${$()&&this.health?.events?n`<div class="row"><span class="lbl">קליטת אירועים מה־NVR (alertStream)<span class="muted">${this.health.events.ingest.connected?`מחובר · פעימה אחרונה ${this.health.events.ingest.last_heartbeat_at?.replace("T"," ").replace("Z"," UTC")??"—"}`:`מנותק${this.health.events.ingest.last_error?` · ${this.health.events.ingest.last_error}`:""}`} · ${this.health.events.ingest.events_stored} אירועים נקלטו · ${this.health.events.ingest.reconnects} חיבורים מחדש</span></span><sw-badge kind=${this.health.events.ingest.connected?"live":"offline"}></sw-badge></div>
+        <div class="row"><span class="lbl">אירועים מהקלטות (inferred)<span class="muted">${this.health.events.derive.last_error?`שגיאה: ${this.health.events.derive.last_error}`:this.health.events.derive.last_ok?`עודכן ${this.health.events.derive.last_ok.replace("T"," ").replace("Z"," UTC")}`:"טרם רץ"} · ${this.health.events.stored} אירועים במאגר</span></span><sw-badge kind=${this.health.events.derive.last_error?"stale":"recorded"}></sw-badge></div>`:d}
+      </sw-card>
+      <sw-card heading="תור עבודות">${wr.map(e=>n`<div class="row"><span class="lbl">${e.title}<span class="muted">${e.status}</span></span><span style="display:flex;align-items:center;gap:10px"><span class="bar ${e.status.startsWith("נכשל")?"fail":""}"><i style="--p:${e.progress}%"></i></span><span class="ltr">${e.progress}%</span></span></div>`)}</sw-card>
+    </div>`}async loadBackups(){if($())try{const e=await Uu();this.backups=e.backups,this.backupPolicy=e.policy}catch(e){this.error=b(e),this.backups=[]}}async createBackup(){this.backupBusy=!0,this.backupMsg="";try{const e=await Zu({note:this.backupNote.trim()});this.backupNote="",this.backupMsg=`הגיבוי ${e.name} נוצר (${Xn(e.bytes)})`,await this.loadBackups()}catch(e){this.error=b(e)}finally{this.backupBusy=!1}}async onBackupFile(e){if(e){this.backupBusy=!0,this.backupMsg="";try{const t=await Yu(e);this.backupMsg=`הקובץ הועלה כ־${t.name}; עכשיו אפשר לשחזר ממנו`,await this.loadBackups()}catch(t){this.error=b(t)}finally{this.backupBusy=!1}}}async removeBackup(e){if(window.confirm(`למחוק את הגיבוי ${e.name}?`)){this.backupBusy=!0;try{await qu(e.name),await this.loadBackups()}catch(t){this.error=b(t)}finally{this.backupBusy=!1}}}openRestore(e){this.restoreTarget=e,this.restoreMode="replace",this.restoreAccess=!1,this.restoreConfirm=""}async doRestore(){const e=this.restoreTarget;if(!(!e||this.restoreConfirm!=="RESTORE")){this.backupBusy=!0,this.error="";try{const t=await Gu(e.name,{mode:this.restoreMode,scope:this.restoreAccess?"project+access":"project",confirm:this.restoreConfirm}),s=Object.entries(t.tables).filter(([i])=>sa[i]).map(([i,a])=>`${a} ${sa[i]}`);this.backupMsg=`שוחזר מ־${e.name} (${t.mode==="replace"?"החלפה":"מיזוג"}): ${s.join(", ")} · ${t.files} קבצים`,this.restoreTarget=null,bn(),await this.loadBackups()}catch(t){this.error=b(t)}finally{this.backupBusy=!1}}}fmtWhen(e){return new Intl.DateTimeFormat("he-IL",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(new Date(e))}renderBackupRow(e){const t=["sites","floors","plan_versions","map_anchors","spatial_zones","cameras"].filter(s=>e.tables[s]!==void 0).map(s=>`${e.tables[s]} ${sa[s]}`).join(" · ");return n`<div class="brow" data-backup-row>
+      <div>
+        <div class="name"><span class="ltr">${e.name}</span><sw-badge kind=${e.kind.startsWith("auto")?"neutral":e.kind==="upload"?"stale":"live"} label=${Wu[e.kind]??e.kind}></sw-badge>${e.valid?d:n`<sw-badge kind="error" label="קובץ לא תקין"></sw-badge>`}</div>
+        <div class="sub">${this.fmtWhen(e.created_at)} · ${Xn(e.bytes)} · גרסה ${e.app_version??"?"}${e.note?` · ${e.note}`:""}</div>
+        ${t?n`<div class="sub">${t} · ${e.files} קבצי תוכנית</div>`:d}
+      </div>
+      <div class="acts">
+        <a href=${Ku(e.name)} download=${e.name} data-backup-download><sw-button size="sm" icon="download">הורד</sw-button></a>
+        <sw-button size="sm" icon="history" ?disabled=${!e.valid||this.backupBusy} data-backup-restore @click=${()=>this.openRestore(e)}>שחזר</sw-button>
+        <sw-button size="sm" variant="ghost" icon="trash" ?disabled=${this.backupBusy} @click=${()=>this.removeBackup(e)}>מחק</sw-button>
+      </div>
+    </div>`}renderRestoreDialog(e){return n`<sw-dialog open heading="שחזור גיבוי" subheading=${e.name} @close=${()=>this.restoreTarget=null}>
+      <div class="row"><span class="lbl">אופן השחזור<span class="muted">${this.restoreMode==="replace"?"הנתונים הנוכחיים של הפרויקט מוחלפים במה שבגיבוי":"רק פריטים שחסרים היום מתווספים; הקיימים נשארים"}</span></span>
+        <select data-restore-mode @change=${t=>this.restoreMode=t.target.value}><option value="replace" ?selected=${this.restoreMode==="replace"}>החלפה</option><option value="merge" ?selected=${this.restoreMode==="merge"}>מיזוג</option></select></div>
+      <div class="row"><span class="lbl">כולל משתמשים והרשאות<span class="muted">ברירת המחדל: רק נתוני הפרויקט. ההרשאות שלך נשמרות בכל מקרה.</span></span><sw-toggle ?checked=${this.restoreAccess} label="כולל הרשאות" labelHidden @change=${t=>this.restoreAccess=t.detail.checked}></sw-toggle></div>
+      <div class="muted" style="margin-block-start:8px">הגיבוי מגרסה ${e.app_version??"?"} מ־${this.fmtWhen(e.created_at)}. השחזור נרשם באודיט. לאישור הקלד <code>RESTORE</code>:</div>
+      <input class="confirm-in" data-restore-confirm placeholder="RESTORE" .value=${this.restoreConfirm} @input=${t=>this.restoreConfirm=t.target.value} />
+      <div slot="footer"><sw-button variant="danger" icon="history" ?disabled=${this.restoreConfirm!=="RESTORE"||this.backupBusy} data-restore-go @click=${()=>this.doRestore()}>${this.backupBusy?"משחזר…":"שחזר עכשיו"}</sw-button><sw-button variant="ghost" @click=${()=>this.restoreTarget=null}>ביטול</sw-button></div>
+    </sw-dialog>`}renderBackup(){const e=this.backups??[];return n`<div class="sections">
+      <sw-card heading="גיבויים של הפרויקט" subheading="אתרים, קומות, תוכניות, עוגנים, אזורים, מצלמות והגדרות · בלי סודות ובלי וידאו">
+        <div class="row"><span class="lbl">גיבוי ידני עכשיו<span class="muted">נשמר בתוך התוסף (/data/backups) ואפשר להוריד למחשב</span></span>
+          <span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input class="note-in" placeholder="הערה (אופציונלי)" .value=${this.backupNote} @input=${t=>this.backupNote=t.target.value} /><sw-button variant="primary" size="sm" icon="download" ?disabled=${this.backupBusy||!$()} data-backup-create @click=${()=>this.createBackup()}>${this.backupBusy?"עובד…":"צור גיבוי"}</sw-button></span></div>
+        <div class="row"><span class="lbl">העלאת גיבוי<span class="muted">קובץ zip שהורד מכאן (גם מהתקנה קודמת); אחרי ההעלאה לוחצים "שחזר"</span></span>
+          <span><input type="file" accept=".zip,application/zip" hidden @change=${t=>{const s=t.target;this.onBackupFile(s.files?.[0]),s.value=""}} /><sw-button size="sm" icon="upload" ?disabled=${this.backupBusy||!$()} @click=${()=>this.renderRoot.querySelector("input[type=file]")?.click()}>בחר קובץ…</sw-button></span></div>
+        ${this.backupMsg?n`<div class="muted" style="color:#15803d;padding-block:6px" data-backup-msg>${this.backupMsg}</div>`:d}
+        ${$()?this.backups===null?n`<div class="muted">טוען…</div>`:e.length?n`<div class="blist" data-backups>${e.map(t=>this.renderBackupRow(t))}</div>`:n`<div class="muted" style="padding-block:6px">עדיין אין גיבויים. הראשון ייווצר אוטומטית לפני העדכון הבא, או עכשיו בלחיצה.</div>`:n`<div class="muted">נתוני הדגמה: הגיבויים עובדים מול השרת.</div>`}
+      </sw-card>
+      <sw-card heading="אוטומטי ו־Rollback">
+        <div class="row"><span class="lbl">לפני כל עדכון גרסה<span class="muted">עותק של הנתונים נכתב לפני שהגרסה החדשה נוגעת במסד; נשמרים ${this.backupPolicy["auto-pre-upgrade"]??5} האחרונים</span></span><sw-badge kind="live" label="פעיל"></sw-badge></div>
+        <div class="row"><span class="lbl">יומי<span class="muted">עותק אחד ביום, נשמרים ${this.backupPolicy["auto-daily"]??7} האחרונים</span></span><sw-badge kind="live" label="פעיל"></sw-badge></div>
+        <div class="row"><span class="lbl">Rollback<span class="muted">חוזרים לגרסה קודמת דרך Home Assistant ואז משחזרים את הגיבוי "לפני עדכון" (החלפה)</span></span><span class="ltr">${this.version||"…"}</span></div>
+        <div class="row"><span class="lbl">גיבוי Home Assistant<span class="muted">ה־Add-on מוגדר backup: hot, ולכן /data (כולל הגיבויים האלה) נכלל גם בגיבוי המלא של HA</span></span></div>
+      </sw-card>
+    </div>
+    ${this.restoreTarget?this.renderRestoreDialog(this.restoreTarget):d}`}renderSupport(){return n`<div class="sections"><sw-card heading="חבילת תמיכה מצונזרת">
+      <div class="muted" style="padding-block-end:8px">כוללת logs עם request/session/job id, מדדים, capability matrix, גרסאות. לא כוללת וידאו, תוכניות, סודות או כתובות מלאות ללא הסכמה.</div>
+      <div class="row"><span class="lbl">כלול תוכניות קומה</span><sw-toggle label="לא"></sw-toggle></div>
+      <div class="row"><span class="lbl">כלול תמונות מצלמה</span><sw-toggle label="לא"></sw-toggle></div>
+      <div class="foot"><sw-button variant="primary" icon="download" disabled>יצירת חבילה (בהמשך)</sw-button></div>
+    </sw-card></div>`}render(){return n`
+      <sw-page heading="הגדרות המערכת" subheading=${$()?"תעבורת וידאו, go2rtc, מכסות ובריאות":"אזור זמן, מדיניות אחסון, אינטגרציות ובריאות · נתוני הדגמה"}>
+        <sw-tabs underline .items=${Qn} .active=${this.tab} @change=${e=>{this.tab=e.detail.id,this.tab==="media"&&this.loadMedia(),this.tab==="ha"&&this.loadHa(),this.tab==="backup"&&this.loadBackups(),this.tab==="health"&&this.loadReport()}}></sw-tabs>
+        ${this.message&&this.tab==="ha"?n`<div class="muted" style="color:#15803d">${this.message}</div>`:d}
+        ${this.error&&this.tab==="ha"?n`<div class="muted" style="color:var(--sw-error)">${this.error}</div>`:d}
+        ${this.tab==="general"?this.renderGeneral():this.tab==="media"?this.renderMedia():this.tab==="ha"?this.renderHa():this.tab==="health"?this.renderHealth():this.tab==="backup"?this.renderBackup():this.renderSupport()}
+      </sw-page>
+    `}};j.styles=A`
+    code {
+      font-family: var(--sw-font-mono, ui-monospace, monospace);
+      font-size: var(--sw-fs-xs);
+      background: var(--sw-surface-2, var(--sw-accent-soft));
+      padding: 2px 6px;
+      border-radius: 4px;
+      direction: ltr;
+      unicode-bidi: isolate;
+    }
+    .steps {
+      margin: 0;
+      padding-inline-start: 20px;
+      font-size: var(--sw-fs-sm);
+      line-height: 1.6;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .sections {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      max-inline-size: 760px;
+    }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 9px 0;
+      border-block-end: 1px solid var(--sw-border);
+      font-size: var(--sw-fs-sm);
+    }
+    .row:last-child {
+      border-block-end: 0;
+    }
+    .row .lbl {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+    .row .ctl {
+      inline-size: 220px;
+      flex-shrink: 0;
+    }
+    .muted {
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+    }
+    .ok {
+      color: #15803d;
+      font-size: var(--sw-fs-xs);
+    }
+    .err {
+      color: var(--sw-danger);
+      font-size: var(--sw-fs-xs);
+    }
+    .health {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .health .dot {
+      inline-size: 8px;
+      block-size: 8px;
+      border-radius: 50%;
+      background: var(--sw-stale);
+    }
+    .hgrid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 10px;
+    }
+    .hcard {
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      padding: 10px 12px;
+      background: var(--sw-surface);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .hcard.error {
+      border-color: var(--sw-danger);
+    }
+    .hcard.warn {
+      border-color: var(--sw-stale);
+    }
+    .hcard .hh {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-sm);
+    }
+    .hcard .hd {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      line-height: 1.5;
+    }
+    .hsum {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-block-end: 10px;
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text-2);
+    }
+    .hsum .grow {
+      flex: 1;
+    }
+    .blist {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-block-start: 8px;
+    }
+    .brow {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px 12px;
+      align-items: center;
+      padding: 8px 10px;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+    }
+    .brow .name {
+      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-sm);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .brow .sub {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      margin-block-start: 2px;
+    }
+    .brow .acts {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .brow a {
+      text-decoration: none;
+    }
+    .note-in {
+      inline-size: 200px;
+      border: 1px solid var(--sw-border);
+      border-radius: 8px;
+      padding: 6px 8px;
+      font: inherit;
+      color: var(--sw-text);
+      background: var(--sw-surface);
+    }
+    .confirm-in {
+      inline-size: 100%;
+      border: 1px solid var(--sw-border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font: inherit;
+      font-family: var(--sw-font-mono);
+      direction: ltr;
+      margin-block-start: 8px;
+      color: var(--sw-text);
+      background: var(--sw-surface);
+    }
+    .foot {
+      display: flex;
+      gap: 8px;
+      padding-block-start: 10px;
+    }
+    .bar {
+      block-size: 6px;
+      border-radius: 3px;
+      background: var(--sw-surface-3);
+      inline-size: 140px;
+      overflow: hidden;
+    }
+    .bar i {
+      display: block;
+      block-size: 100%;
+      background: var(--sw-accent);
+      inline-size: var(--p);
+    }
+    .bar.fail i {
+      background: var(--sw-danger);
+    }
+    .stream {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: var(--sw-fs-xs);
+      padding: 5px 0;
+      border-block-end: 1px solid var(--sw-border);
+      font-family: var(--sw-font-mono);
+      direction: ltr;
+    }
+    @media (max-width: 767px) {
+      .row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .row .ctl {
+        inline-size: auto;
+      }
+    }
+  `;q([c()],j.prototype,"tab",2);q([c()],j.prototype,"settings",2);q([c()],j.prototype,"canEdit",2);q([c()],j.prototype,"draft",2);q([c()],j.prototype,"streams",2);q([c()],j.prototype,"go2rtc",2);q([c()],j.prototype,"foreign",2);q([c()],j.prototype,"sessions",2);q([c()],j.prototype,"busy",2);q([c()],j.prototype,"message",2);q([c()],j.prototype,"error",2);q([c()],j.prototype,"version",2);q([c()],j.prototype,"ha",2);q([c()],j.prototype,"pairing",2);q([c()],j.prototype,"showCode",2);q([c()],j.prototype,"regenArmed",2);q([c()],j.prototype,"copied",2);q([c()],j.prototype,"report",2);q([c()],j.prototype,"reportBusy",2);q([c()],j.prototype,"backups",2);q([c()],j.prototype,"backupPolicy",2);q([c()],j.prototype,"backupBusy",2);q([c()],j.prototype,"backupNote",2);q([c()],j.prototype,"backupMsg",2);q([c()],j.prototype,"restoreTarget",2);q([c()],j.prototype,"restoreMode",2);q([c()],j.prototype,"restoreAccess",2);q([c()],j.prototype,"restoreConfirm",2);q([c()],j.prototype,"health",2);j=q([P("system-diagnostics")],j);var Qu=Object.defineProperty,em=Object.getOwnPropertyDescriptor,nt=(e,t,s,i)=>{for(var a=i>1?void 0:i?em(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&Qu(t,s,a),a};const tm=[{name:"כניסה ראשית",gb:320},{name:"אולם",gb:410},{name:"חצר אחורית",gb:380},{name:"לובי",gb:180},{name:"מחסן",gb:96}];let Ne=class extends M{constructor(){super(...arguments),this.range="30D",this.data=null,this.error="",this.loading=!1,this.tz="Asia/Jerusalem",this.signing=null,this.signingError="",this.signingBusy=!1,this.rotateConfirm=!1}connectedCallback(){super.connectedCallback(),$()&&(this.load(),this.loadSigning())}async load(e=!1){this.loading=!0,this.error="";try{const[t,s]=await Promise.all([Ve(),Rr(e)]);this.tz=t["time.zone"]??this.tz,this.data=s}catch(t){this.error=b(t)}finally{this.loading=!1}}fmt(e){return e?new Intl.DateTimeFormat("he-IL",{timeZone:this.tz,dateStyle:"short",timeStyle:"short"}).format(new Date(e)):"—"}async loadSigning(){try{this.signing=await eh(),this.signingError=""}catch(e){this.signingError=b(e)}}async rotateKey(){this.signingBusy=!0;try{this.signing=await th(),this.rotateConfirm=!1}catch(e){this.signingError=b(e)}finally{this.signingBusy=!1}}renderSigning(){const e=this.signing,t=s=>s?s.replace("T"," ").replace("Z"," UTC"):"—";return n`<sw-card heading="חתימת ראיות" subheading="כל חבילת ראיות חתומה ב־Ed25519 במפתח הפעיל של המתקן; החלק הפרטי נשאר ב־/data/keys ואינו נכלל בגיבוי" data-signing>
+      ${this.signingError?n`<div class="note">${this.signingError}</div>`:d}
+      ${e?n`<div class="kv">
+              <div><span>מפתח פעיל</span><strong class="ltr" data-signing-active>${e.active??"—"}</strong></div>
+              <div><span>נוצר</span><strong>${t(e.keys.find(s=>s.kid===e.active)?.created_at??null)}</strong></div>
+              <div><span>מפתחות שהוחלפו</span><strong>${e.keys.filter(s=>s.retired_at).length}</strong></div>
+              <div><span>מפתח ציבורי (base64)</span><strong class="ltr" style="word-break:break-all;font-size:11px">${e.keys.find(s=>s.kid===e.active)?.public_key??"—"}</strong></div>
+            </div>
+            ${e.keys.filter(s=>s.retired_at).length?n`<div class="note">מפתחות שהוחלפו נשמרים לאימות חבילות ישנות: ${e.keys.filter(s=>s.retired_at).map(s=>`${s.kid} (עד ${t(s.retired_at)})`).join(", ")}</div>`:d}
+            <div class="note" style="margin-block-start:6px">${e.trust} אימות מחוץ למערכת: <span class="ltr">scripts/verify_bundle.py bundle.zip --keyring keyring.json</span></div>
+            ${e.can_rotate?this.rotateConfirm?n`<div class="note" style="margin-block-start:6px">החלפת מפתח: חבילות חדשות ייחתמו במפתח חדש; הישן נשאר בטבעת לאימות. הפעולה נרשמת באודיט. <sw-button size="sm" variant="danger" data-signing-rotate-confirm ?disabled=${this.signingBusy} @click=${()=>this.rotateKey()}>החלף עכשיו</sw-button> <sw-button size="sm" variant="ghost" @click=${()=>this.rotateConfirm=!1}>ביטול</sw-button></div>`:n`<div style="margin-block-start:8px"><sw-button size="sm" icon="refresh" data-signing-rotate @click=${()=>this.rotateConfirm=!0}>החלפת מפתח חתימה</sw-button></div>`:d}`:n`<div class="note">טוען…</div>`}
+    </sw-card>`}renderApi(){if(this.error&&!this.data)return n`<sw-page heading="אחסון ותוכנית הקלטה"><sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${()=>this.load()}></sw-state-panel></sw-page>`;const e=this.data;if(!e)return n`<sw-page heading="אחסון ותוכנית הקלטה"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;const t=e.totals,s=e.retention,i=16,a=2*Math.PI*i,r=t?.used_pct??0,o=s.measured_days_min==null?"—":s.measured_days_min===s.measured_days_max?`${s.measured_days_min}`:`${s.measured_days_min}–${s.measured_days_max}`;return n`
+      <sw-page heading="אחסון ותוכנית הקלטה" subheading="קריאה בלבד מה־NVR · נמדד לעומת אומדן, עם הסיבה לכל מספר · אין format, RAID או מחיקה מכאן">
+        <sw-button slot="actions" icon="refresh" data-storage-refresh ?disabled=${this.loading} @click=${()=>this.load(!0)}>${this.loading?"שואל את ה־NVR…":"רענון מול ה־NVR"}</sw-button>
+        ${this.error?n`<div class="err">${this.error}</div>`:d}
+        ${e.nvr.configured?e.nvr.reachable?n`
+                <div class="kpis" data-storage-kpis>
+                  <sw-card flush class="kpi"><div><div class="v">${Tt(t?.used_mb)}</div><div class="l">בשימוש (נמדד מה־NVR)</div></div><div class="ic"><sw-icon name="storage" size=${16}></sw-icon></div></sw-card>
+                  <sw-card flush class="kpi"><div><div class="v">${Tt(t?.capacity_mb)}</div><div class="l">קיבולת · ${t?.disks??0} דיסקים${t?.nas?` · ${t.nas} NAS`:""} · מצב ${e.work_mode??"?"}</div></div><div class="ic"><sw-icon name="cpu" size=${16}></sw-icon></div></sw-card>
+                  <sw-card flush class="kpi"><div><div class="v">${t?.used_pct==null?"—":`${t.used_pct}%`}</div><div class="l">ניצולת · פנוי ${Tt(t?.free_mb)}</div></div><svg viewBox="0 0 40 40" aria-hidden="true">${m`<circle cx="20" cy="20" r=${i} fill="none" stroke="var(--sw-surface-3)" stroke-width="6" /><circle cx="20" cy="20" r=${i} fill="none" stroke="var(--sw-accent)" stroke-width="6" stroke-linecap="round" stroke-dasharray=${`${a*r/100} ${a}`} transform="rotate(-90 20 20)" />`}</svg></sw-card>
+                </div>
+                <sw-card heading="שמירת הקלטות (retention)" subheading="שני מספרים שונים בכוונה: מה שנמדד מול מה שמוערך" data-storage-retention>
+                  <div class="ret">
+                    <div><div class="v">${o}<span style="font-size:var(--sw-fs-sm);font-weight:400"> ימים</span></div><div class="l"><strong>נמדד</strong> · ${s.measured_reason}</div></div>
+                    <div><div class="v">${s.estimated_days==null?"—":`≈ ${s.estimated_days}`}<span style="font-size:var(--sw-fs-sm);font-weight:400"> ימים</span></div><div class="l"><strong>אומדן</strong> · ${s.estimated_reason}</div></div>
+                  </div>
+                </sw-card>
+                <div class="grid">
+                  <sw-card heading="תוכנית הקלטה לפי מצלמה" subheading=${e.schedule_error??"נקרא מ־ISAPI record/tracks · pre/post בשניות · ההקלטה המוקדמת ביותר שנמצאה"}>
+                    <div class="tbl cams" data-storage-cameras>
+                      <div class="r h"><span>מצלמה</span><span>מצב הקלטה</span><span>pre / post</span><span>זרם</span><span>הקלטה מוקדמת ביותר</span><span class="num">ימים</span></div>
+                      ${e.cameras.map(l=>n`<div class="r" data-storage-camera><span>${l.name}<small>ערוץ ${l.channel}${l.track_id?` · track ${l.track_id}`:""}</small></span><span>${l.summary}${l.expiry&&l.expiry!=="P0DT0H"?n`<small>תפוגה ${l.expiry}</small>`:d}</span><span class="num">${l.pre_s??"—"} / ${l.post_s??"—"}</span><span class="num">${l.bitrate_kbps?`${l.bitrate_kbps} kbps`:"—"}${l.resolution?n`<small class="num">${l.resolution}${l.fps?` · ${l.fps} fps`:""}</small>`:d}</span><span>${this.fmt(l.oldest_recording_at)}<small>${l.retention_reason}</small></span><span class="num">${l.retention_days??"—"}</span></div>`)}
+                    </div>
+                  </sw-card>
+                  <div>
+                    <sw-card heading="דיסקים" subheading=${`${t?.disks_ok??0} מתוך ${(t?.disks??0)+(t?.nas??0)} תקינים`}>
+                      <div class="tbl disks" data-storage-disks>
+                        <div class="r h"><span>שם</span><span>סוג</span><span>מצב</span><span class="num">קיבולת</span><span class="num">פנוי</span><span>גישה</span></div>
+                        ${[...e.disks,...e.nas].map(l=>n`<div class="r" data-storage-disk><span>${l.name}${l.path?n`<small>${l.path}</small>`:d}</span><span>${l.kind}</span><span><sw-badge kind=${l.status==="ok"?"recorded":"error"} label=${l.status}></sw-badge></span><span class="num">${Tt(l.capacity_mb)}</span><span class="num">${Tt(l.free_mb)}</span><span>${l.property}</span></div>`)}
+                      </div>
+                    </sw-card>
+                    ${this.renderSigning()}
+                    <sw-card heading="מה המערכת לא עושה ב־NVR" subheading="גבולות הפיילוט" data-storage-limits>
+                      <ul class="limits">${e.limits.notes.map(l=>n`<li>${l}</li>`)}</ul>
+                      <div style="margin-block-start:6px"><sw-button size="sm" disabled icon="edit">עריכת מדיניות הקלטה (לא בפיילוט)</sw-button></div>
+                    </sw-card>
+                  </div>
+                </div>
+                <div class="hint">נקרא ${this.fmt(e.generated_at)}${e.cached?" · מהמטמון (עד 10 דקות)":" · עכשיו"} · חיפוש ההקלטה המוקדמת: ${s.lookback_days} ימים אחורה, שאילתה אחת לכל מצלמה.</div>
+              `:n`<sw-state-panel state="error" heading="אין תשובה מה־NVR" hint=${e.nvr.error??""} actionLabel="נסה שוב" @action=${()=>this.load(!0)}></sw-state-panel>
+                ${this.renderSigning()}`:n`<sw-state-panel state="empty" heading="ה־NVR לא מוגדר" hint="הגדר את פרטי ה־NVR בהגדרות התוסף; המסך קורא ממנו בלבד."></sw-state-panel>`}
+      </sw-page>
+    `}render(){if($())return this.renderApi();const e=[.3,.36,.45,.5,.58,.63,.7],t=600,s=200,i=u=>u/(e.length-1)*420,a=u=>170-u*150,r=e.map((u,f)=>`${f===0?"M":"L"}${i(f)} ${a(u)}`).join(" "),o=`M${i(e.length-1)} ${a(.7)} L520 ${a(.86)} L${t} ${a(1)}`,l=16,p=2*Math.PI*l,h=410;return n`
+      <sw-page heading="אנליטיקת אחסון" subheading="Beta · ניטור שימוש, תכנון קדימה ושליטה · נתון נמדד לעומת אומדן מסומן · אין format או RAID · נתוני הדגמה">
+        <div slot="actions" style="display:flex;gap:4px">${["7D","30D","90D","1Y"].map(u=>n`<sw-chip ?selected=${this.range===u} @click=${()=>this.range=u}>${u}</sw-chip>`)}</div>
+        <div class="kpis">
+          <sw-card flush class="kpi"><div><div class="v">1.3 TB</div><div class="l">אחסון בשימוש (נמדד)</div></div><div class="ic"><sw-icon name="storage" size=${16}></sw-icon></div></sw-card>
+          <sw-card flush class="kpi"><div><div class="v">1.9 TB</div><div class="l">קיבולת כוללת</div></div><div class="ic"><sw-icon name="cpu" size=${16}></sw-icon></div></sw-card>
+          <sw-card flush class="kpi"><div><div class="v">68%</div><div class="l">ניצולת · ≈ 11 ימים נשמרים</div></div><svg viewBox="0 0 40 40" aria-hidden="true">${m`<circle cx="20" cy="20" r=${l} fill="none" stroke="var(--sw-surface-3)" stroke-width="6" /><circle cx="20" cy="20" r=${l} fill="none" stroke="var(--sw-accent)" stroke-width="6" stroke-linecap="round" stroke-dasharray=${`${p*.68} ${p}`} transform="rotate(-90 20 20)" />`}</svg></sw-card>
+        </div>
+        <sw-card heading="תחזית שימוש באחסון" subheading="עד הקו: נתון נמדד · אחרי הקו: אומדן (אינו תחזית פשוטה של דיסק מתמלא)">
+          <svg class="trend" viewBox="0 0 ${t} ${s}" preserveAspectRatio="none" role="img" aria-label="תחזית אחסון">
+            ${m`
+              ${[.25,.5,.75,1].map(u=>m`<line x1="0" x2=${t} y1=${a(u)} y2=${a(u)} stroke="var(--sw-border)" />`)}
+              <path d="${r} L${i(e.length-1)} 170 L0 170 Z" fill="var(--sw-accent-soft)" />
+              <path d="${r}" fill="none" stroke="var(--sw-accent)" stroke-width="2.5" />
+              <path d="${o}" fill="none" stroke="var(--sw-accent)" stroke-width="2" stroke-dasharray="5 5" opacity="0.7" />
+              <line x1=${i(e.length-1)} x2=${i(e.length-1)} y1="10" y2="170" stroke="var(--sw-stale)" stroke-dasharray="4 4" />
+              <rect x="470" y="18" width="110" height="34" rx="6" fill="#fff" stroke="var(--sw-border)" />
+              <text x="525" y="32" font-size="10.5" text-anchor="middle" fill="var(--sw-text-3)" font-family="var(--sw-font)">אומדן מילוי</text>
+              <text x="525" y="46" font-size="11" font-weight="600" text-anchor="middle" fill="var(--sw-text)" font-family="var(--sw-font)">≈ 25.09.2026</text>
+              ${["ינו","פבר","מרץ","אפר","מאי","יונ","יול"].map((u,f)=>m`<text x=${i(f)} y="190" font-size="10" text-anchor="middle" fill="var(--sw-text-3)" font-family="var(--sw-font)">${u}</text>`)}
+              ${["0.5 TB","1 TB","1.5 TB","1.9 TB"].map((u,f)=>m`<text x="4" y=${a(.25*(f+1))-3} font-size="9.5" fill="var(--sw-text-3)" font-family="var(--sw-font)">${u}</text>`)}
+            `}
+          </svg>
+        </sw-card>
+        <div class="grid">
+          <sw-card heading="שימוש באחסון לפי מצלמה" subheading="נמדד · לפני retention">
+            ${tm.map(u=>n`<div class="cam"><span>${u.name}</span><span class="bar"><i style="--p:${u.gb/h*100}%"></i></span><span class="gb ltr">${u.gb} GB</span></div>`)}
+            <div class="hint" style="margin-block-start:6px">מחיקת הקלטות לפי retention מבטלת cache בהתאם.</div>
+          </sw-card>
+          <sw-card heading="מדיניות הקלטה" subheading="קריאה מה־NVR">
+            <div class="policy"><span class="ic"><sw-icon name="history" size=${14}></sw-icon></span><span>רציפה<small>5 מצלמות</small></span></div>
+            <div class="policy"><span class="ic"><sw-icon name="activity" size=${14}></sw-icon></span><span>לפי תנועה<small>4 מצלמות</small></span></div>
+            <div class="policy"><span class="ic"><sw-icon name="calendar" size=${14}></sw-icon></span><span>מתוזמנת<small>0 מצלמות</small></span></div>
+            <div class="policy"><span class="ic"><sw-icon name="bell" size=${14}></sw-icon></span><span>לפי אירוע<small>1 מצלמה · pre/post 5s / 10s</small></span></div>
+            <div style="margin-block-start:10px"><sw-button size="sm" disabled icon="edit">עריכת מדיניות (לא בפיילוט)</sw-button></div>
+          </sw-card>
+        </div>
+      </sw-page>
+    `}};Ne.styles=A`
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .kpi {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+    }
+    .kpi .v {
+      font-size: var(--sw-fs-2xl);
+      font-weight: var(--sw-fw-bold);
+      line-height: 1.1;
+    }
+    .kpi .l {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .kpi .ic {
+      display: grid;
+      place-items: center;
+      inline-size: 30px;
+      block-size: 30px;
+      border-radius: 8px;
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent);
+      margin-inline-start: auto;
+    }
+    .kpi svg {
+      inline-size: 40px;
+      block-size: 40px;
+      margin-inline-start: auto;
+    }
+    .trend {
+      inline-size: 100%;
+      block-size: 200px;
+      direction: ltr;
+      display: block;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr);
+      gap: 12px;
+      align-items: start;
+    }
+    .cam {
+      display: grid;
+      grid-template-columns: 100px minmax(0, 1fr) 60px;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 0;
+      font-size: var(--sw-fs-sm);
+    }
+    .cam .bar {
+      block-size: 8px;
+      border-radius: 4px;
+      background: var(--sw-surface-3);
+      overflow: hidden;
+    }
+    .cam .bar i {
+      display: block;
+      block-size: 100%;
+      inline-size: var(--p);
+      background: var(--sw-accent);
+      border-radius: 4px;
+    }
+    .cam .gb {
+      text-align: end;
+      font-variant-numeric: tabular-nums;
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-xs);
+    }
+    .policy {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 0;
+      border-block-end: 1px solid var(--sw-border);
+      font-size: var(--sw-fs-sm);
+    }
+    .policy:last-child {
+      border-block-end: 0;
+    }
+    .policy .ic {
+      display: grid;
+      place-items: center;
+      inline-size: 28px;
+      block-size: 28px;
+      border-radius: 8px;
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent);
+    }
+    .policy small {
+      display: block;
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+    }
+    .hint {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .tbl {
+      display: flex;
+      flex-direction: column;
+    }
+    .tbl .r {
+      display: grid;
+      gap: 8px;
+      align-items: center;
+      padding: 7px 0;
+      border-block-end: 1px solid var(--sw-border);
+      font-size: var(--sw-fs-sm);
+    }
+    .tbl .r:last-child {
+      border-block-end: 0;
+    }
+    .tbl .h {
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+      border-block-end: 1px solid var(--sw-border-strong);
+    }
+    .tbl.disks .r {
+      grid-template-columns: minmax(0, 1.2fr) 70px 90px 90px 90px 50px;
+    }
+    .tbl.cams .r {
+      grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.6fr) 90px 130px 150px 80px;
+    }
+    .tbl small {
+      display: block;
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+    }
+    .num {
+      font-variant-numeric: tabular-nums;
+      direction: ltr;
+      unicode-bidi: isolate;
+      text-align: end;
+    }
+    .ret {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .ret .v {
+      font-size: var(--sw-fs-2xl);
+      font-weight: var(--sw-fw-bold);
+      line-height: 1.1;
+    }
+    .ret .l {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      margin-block-start: 4px;
+    }
+    .limits li {
+      font-size: var(--sw-fs-sm);
+      margin-block-end: 4px;
+    }
+    .err {
+      color: var(--sw-danger);
+      font-size: var(--sw-fs-sm);
+    }
+    @media (max-width: 767px) {
+      .tbl.disks .r,
+      .tbl.cams .r {
+        grid-template-columns: 1fr 1fr;
+      }
+      .tbl .h {
+        display: none;
+      }
+      .ret {
+        grid-template-columns: 1fr;
+      }
+    }
+    @media (max-width: 1023px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    @media (max-width: 767px) {
+      .kpis {
+        grid-template-columns: 1fr;
+      }
+    }
+  `;nt([c()],Ne.prototype,"range",2);nt([c()],Ne.prototype,"data",2);nt([c()],Ne.prototype,"error",2);nt([c()],Ne.prototype,"loading",2);nt([c()],Ne.prototype,"tz",2);nt([c()],Ne.prototype,"signing",2);nt([c()],Ne.prototype,"signingError",2);nt([c()],Ne.prototype,"signingBusy",2);nt([c()],Ne.prototype,"rotateConfirm",2);Ne=nt([P("system-storage")],Ne);var sm=Object.getOwnPropertyDescriptor,im=(e,t,s,i)=>{for(var a=i>1?void 0:i?sm(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=o(a)||a);return a};const am=[{mode:"סקירה ומצלמות",items:[{sc:"SC01",name:"סקירה (Dashboard)",route:"#/live",phase:"PILOT",board:"1:01 · 2:15"},{sc:"SC07",name:"כל המצלמות (Grid)",route:"#/live/wall",phase:"PILOT",board:"1:06"},{sc:"SC08",name:"מצלמה בודדת",route:"#/live/cameras/cam-4",phase:"PILOT",board:"1:05"},{sc:"SC09",name:"תצוגות שמורות",route:"#/live/views",phase:"PILOT",board:"legacy"},{sc:"SC27",name:"בריאות מצלמות",route:"#/system/devices",phase:"PILOT",board:"2:12"},{sc:"SC31",name:"קיוסק / תצוגת קיר",route:"#/kiosk/all",phase:"BETA",board:"3:24"}]},{mode:"אתרים ומפות",items:[{sc:"SC02",name:"אתרים ומבנים",route:"#/explore/sites",phase:"PILOT",board:"1:02 · 3:17"},{sc:"SC03",name:"דפדפן קומות",route:"#/explore/buildings/bld-a/floors",phase:"PILOT",board:"1:03"},{sc:"SC04",name:"מפת קומה חיה",route:"#/explore/floors/f0",phase:"PILOT",board:"1:04"},{sc:"SC05",name:"ייבוא ותיקון תוכנית",route:"#/explore/floors/f-2/import",phase:"PILOT",board:"2:13"},{sc:"SC06",name:"עורך תוכנית ועוגנים",route:"#/explore/floors/f0/edit",phase:"PILOT",board:"2:13"},{sc:"SC10",name:"קטלוג ישויות HA",route:"#/explore/entities",phase:"PILOT",board:"new"},{sc:"SC23",name:"דלתות ואינטרקום",route:"#/explore/access/d1",phase:"V1",board:"3:18"}]},{mode:"אירועים והקלטות",items:[{sc:"SC14",name:"מרכז אירועים",route:"#/investigate/events",phase:"PILOT",board:"1:08"},{sc:"SC12",name:"הקלטות / ציר זמן",route:"#/investigate/playback",phase:"PILOT",board:"1:07 · 2:16"},{sc:"SC13",name:"מרכז שליטה / ניגון מסונכרן",route:"#/investigate/playback/sync",phase:"BETA",board:"2:14"},{sc:"SC11",name:"מפה היסטורית",route:"#/investigate/floors/f0/history",phase:"PILOT",board:"new"},{sc:"SC15",name:"תור Review",route:"#/investigate/reviews",phase:"BETA",board:"legacy"},{sc:"SC16",name:"תיקים",route:"#/investigate/cases",phase:"BETA",board:"2:10"},{sc:"SC17",name:"סקירת אירוע / תיק",route:"#/investigate/cases/case-1",phase:"BETA",board:"2:10"},{sc:"SC18",name:"ייצוא והורדות",route:"#/investigate/exports",phase:"BETA",board:"2:10"},{sc:"SC19",name:"חיפוש AI",route:"#/investigate/search",phase:"BETA",board:"2:09"},{sc:"SC21",name:"התראות וחוקים",route:"#/investigate/rules",phase:"BETA",board:"3:19"},{sc:"SC22",name:"עורך חוק",route:"#/investigate/rules/r-1",phase:"BETA",board:"3:19"}]},{mode:"הגדרות",items:[{sc:"SC28",name:"הגדרות המערכת",route:"#/system/diagnostics",phase:"PILOT",board:"3:23"},{sc:"SC24",name:"משתמשים והרשאות",route:"#/system/access",phase:"PILOT",board:"3:20"},{sc:"SC25",name:"יומן אודיט",route:"#/system/audit",phase:"PILOT",board:"3:21"},{sc:"SC20",name:"אנליטיקת אחסון",route:"#/system/storage",phase:"BETA",board:"2:11"},{sc:"SC26",name:"אשף התקנה",route:"#/system/setup",phase:"PILOT",board:"3:22"}]}],nm={PILOT:"live",BETA:"recorded",V1:"neutral"};let $a=class extends M{render(){return n`
+      <sw-page heading="כל המסכים (סקירת עיצוב)" subheading="29 מסכים על נתוני הדגמה · SC29/SC30 הם אותם מסכים ברוחב טלפון · SC32 (Lovelace) הוא עטיפה של אותם רכיבים">
+        <div class="note">כל מסך מסומן ״נתוני הדגמה״. שום זרם וידאו, תמונה או מצב מכשיר אינם אמיתיים כאן (הסצנות מאוירות); המטרה היא לאשר את השפה החזותית, הניווט והזרימות לפני החיבור לנתונים.</div>
+        <div class="groups">
+          ${am.map(e=>n`<sw-card heading=${e.mode}>
+              ${e.items.map(t=>n`<a href=${t.route}><span class="sc">${t.sc}</span><span class="name">${t.name}</span><span class="board">${t.board}</span><sw-badge kind=${nm[t.phase]} label=${t.phase}></sw-badge><sw-icon name="chevron" size=${12}></sw-icon></a>`)}
+            </sw-card>`)}
+        </div>
+      </sw-page>
+    `}};$a.styles=A`
+    .groups {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 12px;
+      align-items: start;
+    }
+    a {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 0;
+      border-block-end: 1px solid var(--sw-border);
+      color: var(--sw-text);
+      text-decoration: none;
+      font-size: var(--sw-fs-sm);
+    }
+    a:last-child {
+      border-block-end: 0;
+    }
+    a:hover {
+      color: var(--sw-accent-text);
+    }
+    .sc {
+      font-family: var(--sw-font-mono);
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      inline-size: 40px;
+    }
+    .name {
+      flex: 1;
+    }
+    .board {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      direction: ltr;
+    }
+    .note {
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text-2);
+    }
+  `;$a=im([P("screens-index")],$a);var rm=Object.getOwnPropertyDescriptor,om=(e,t,s,i)=>{for(var a=i>1?void 0:i?rm(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=o(a)||a);return a};const lm=[["--sw-bg","רקע"],["--sw-surface","משטח"],["--sw-surface-3","משטח 3"],["--sw-border","גבול"],["--sw-text","טקסט"],["--sw-text-2","טקסט משני"],["--sw-text-3","טקסט שלישי"],["--sw-accent","כחול"],["--sw-accent-soft","כחול רך"],["--sw-live","חי"],["--sw-offline","מנותק"],["--sw-stale","מיושן"],["--sw-danger","שגיאה"],["--sw-purple","סגול (דלת)"]],dm=["live","recorded","historic","offline","stale","partial","unknown","forbidden","error"],cm=["loading","empty","error","forbidden","stale","partial"],pm=["entrance","lobby","corridor","hall","parking","warehouse","backyard","driveway","night","building","house"],hm=["dashboard","building","camera","bell","history","system","search","user","play","pause","back10","forward10","aperture","volume","mic","expand","close","chevron","chevronDown","warning","info","lock","unlock","offline","refresh","layers","floor","plus","minus","fit","door","light","sensor","check","clock","download","pin","more","map","upload","list","target","filter","users","shield","storage","edit","case","rule","link","grid","home","star","calendar","trash","eye","cpu","activity","image","wifi","signal","move","bookmark","route"];let xa=class extends M{render(){return n`
+      <h2>ספריית רכיבים ו־tokens (v3)</h2>
+      <p class="lead">מקור השפה החזותית: שלושת לוחות ההדמיה ב־docs/design/reference. ממשק קומפקטי (12px), משטחים לבנים על רקע קריר, מחיצות דקות, כחול אחד במשורה, ירוק רק ל"מחובר", צל שקט, סצנות מאוירות עד חיבור זרמים.</p>
+
+      <h3>צבעים</h3>
+      <div class="swatches">
+        ${lm.map(([e,t])=>n`<div class="swatch"><div class="c" style="background:var(${e})"></div><div class="n"><span>${t}</span><span class="ltr">${e}</span></div></div>`)}
+      </div>
+
+      <h3>טיפוגרפיה (Heebo, מארח מקומית)</h3>
+      <div class="type">
+        <p style="font-size:var(--sw-fs-3xl);font-weight:var(--sw-fw-bold)">מספר גדול 24</p>
+        <p style="font-size:var(--sw-fs-2xl);font-weight:var(--sw-fw-semibold)">כותרת מסך 18</p>
+        <p style="font-size:var(--sw-fs-lg);font-weight:var(--sw-fw-semibold)">כותרת אזור 14</p>
+        <p style="font-size:var(--sw-fs-md);font-weight:var(--sw-fw-semibold)">כותרת כרטיס 12.5</p>
+        <p>טקסט גוף 12.5 — מפה של אתר, מבנה וקומה היא משטח העבודה המרכזי.</p>
+        <p style="font-size:var(--sw-fs-sm);color:var(--sw-text-2)">טקסט משני 11.5</p>
+        <p style="font-size:var(--sw-fs-xs);color:var(--sw-text-3)">תווית 10.5 · <span class="ltr">2026-09-14T08:05:38Z</span> נשאר LTR</p>
+      </div>
+
+      <h3>כרטיסי KPI</h3>
+      <div class="kpis">
+        <sw-kpi icon="camera" tone="live" value="24" label="מצלמות" detail="מחוברות"></sw-kpi>
+        <sw-kpi icon="building" value="3" label="אתרים" detail="פעילים" tone="neutral"></sw-kpi>
+        <sw-kpi icon="bell" value="12" label="אירועים" detail="ב־24 השעות" tone="neutral" badge="3 חדשים"></sw-kpi>
+        <sw-kpi icon="shield" tone="stale" value="חלקי" label="מצב מערכת" detail="גשר HA לא רענן"></sw-kpi>
+      </div>
+
+      <h3>סצנות מאוירות (מצייני מקום, לא פריימים)</h3>
+      <div class="scenes">${pm.map(e=>n`<div><sw-scene kind=${e}></sw-scene><span>${e}</span></div>`)}</div>
+
+      <h3>אריחי מצלמה</h3>
+      <div class="grid">
+        <sw-camera-tile name="כניסה ראשית" state="live" scene="entrance"></sw-camera-tile>
+        <sw-camera-tile name="חדר מדרגות" state="stale" scene="corridor"></sw-camera-tile>
+        <sw-camera-tile name="מסדרון מזרחי" state="offline"></sw-camera-tile>
+        <sw-camera-tile name="חניה" state="forbidden"></sw-camera-tile>
+      </div>
+
+      <h3>כפתורים, צ׳יפים, טאבים</h3>
+      <div class="row">
+        <sw-button variant="primary" icon="play">ראשי</sw-button>
+        <sw-button icon="history">משני</sw-button>
+        <sw-button variant="ghost" icon="pin">שקוף</sw-button>
+        <sw-button variant="danger">מסוכן</sw-button>
+        <sw-button variant="primary" disabled>מושבת</sw-button>
+        <sw-button size="sm">קטן</sw-button>
+        <sw-button iconOnly icon="refresh" label="רענון"></sw-button>
+        <sw-chip selected>הכל</sw-chip><sw-chip dot="#ef4444">תנועה</sw-chip><sw-chip dot="#2f6bff">אדם</sw-chip><sw-chip dot="#22c55e">רכב</sw-chip>
+        <sw-tabs .items=${[{id:"a",label:"כל האתרים",count:3},{id:"b",label:"מבנים"},{id:"c",label:"מפה"}]} active="a"></sw-tabs>
+        <sw-toggle checked label="מופעל"></sw-toggle>
+        <sw-avatar name="יוני"></sw-avatar>
+      </div>
+
+      <h3>תגי מצב (צורה + טקסט, לא צבע בלבד)</h3>
+      <div class="row">${dm.map(e=>n`<sw-badge kind=${e}></sw-badge>`)}</div>
+
+      <h3>ציר זמן, שלבים, קומות איזומטריות</h3>
+      <sw-timeline .segments=${ui} .events=${[{minute:614,kind:"person",label:"אדם"},{minute:582,kind:"vehicle",label:"רכב"}]} .cursor=${615}></sw-timeline>
+      <div class="row" style="margin-block-start:10px">
+        <sw-card style="flex:1;min-inline-size:280px"><sw-steps .steps=${["גילוי","הגדרה","בדיקה","סיום"]} .current=${1}></sw-steps></sw-card>
+        <sw-floor-iso .rooms=${na("f0")} selected></sw-floor-iso>
+        <sw-floor-iso .rooms=${na("f-1")}></sw-floor-iso>
+        <sw-floor-iso empty></sw-floor-iso>
+      </div>
+
+      <h3>מצבי מסך</h3>
+      <div class="grid">
+        ${cm.map(e=>n`<div class="panel"><sw-state-panel state=${e} actionLabel=${e==="error"?"נסה שוב":""}></sw-state-panel></div>`)}
+      </div>
+
+      <h3>אייקונים</h3>
+      <div class="icons">${hm.map(e=>n`<div class="icon"><sw-icon .name=${e} size=${18}></sw-icon><span class="ltr">${e}</span></div>`)}</div>
+    `}};xa.styles=A`
+    :host {
+      display: block;
+      padding: 14px 24px 24px;
+      max-inline-size: var(--sw-content-max);
+    }
+    h2 {
+      font-size: var(--sw-fs-2xl);
+      margin: 0 0 4px;
+      font-weight: var(--sw-fw-semibold);
+    }
+    h3 {
+      font-size: var(--sw-fs-md);
+      margin: 22px 0 10px;
+      font-weight: var(--sw-fw-semibold);
+    }
+    .lead {
+      color: var(--sw-text-3);
+      margin: 0 0 12px;
+      font-size: var(--sw-fs-sm);
+    }
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    .swatches {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 8px;
+    }
+    .swatch {
+      border: 1px solid var(--sw-border);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--sw-surface);
+      font-size: var(--sw-fs-xs);
+    }
+    .swatch .c {
+      block-size: 36px;
+    }
+    .swatch .n {
+      padding: 5px 8px;
+      display: flex;
+      justify-content: space-between;
+      gap: 4px;
+    }
+    .type p {
+      margin: 0 0 4px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 12px;
+    }
+    .scenes {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 10px;
+    }
+    .scenes div {
+      aspect-ratio: 16 / 9;
+      border-radius: 8px;
+      overflow: hidden;
+      position: relative;
+      font-size: 10px;
+    }
+    .scenes span {
+      position: absolute;
+      inset-inline-start: 6px;
+      inset-block-end: 5px;
+      color: #fff;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+      direction: ltr;
+    }
+    .icons {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+      gap: 6px;
+    }
+    .icon {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      padding: 8px 4px;
+      border: 1px solid var(--sw-border);
+      border-radius: 8px;
+      background: var(--sw-surface);
+      font-size: 9.5px;
+      color: var(--sw-text-2);
+    }
+    .panel {
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface);
+    }
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap: 10px;
+    }
+  `;xa=om([P("styleguide-screen")],xa);const er=[{id:"overview",icon:"dashboard",label:"סקירה",href:"#/live"},{id:"sites",icon:"building",label:"אתרים",href:"#/explore/sites"},{id:"cameras",icon:"camera",label:"מצלמות",href:"#/live/wall"},{id:"events",icon:"bell",label:"אירועים",href:"#/investigate/events"},{id:"playback",icon:"history",label:"הקלטות",href:"#/investigate/playback"},{id:"settings",icon:"system",label:"הגדרות",href:"#/system/diagnostics"}],um={overview:[],sites:[{id:"sites",label:"אתרים ומבנים",href:"#/explore/sites"},{id:"floors",label:"מפת קומה",href:"#/explore/floors/f0"},{id:"entities",label:"ישויות HA",href:"#/explore/entities"},{id:"access",label:"דלתות ואינטרקום",href:"#/explore/access/d1"}],cameras:[{id:"wall",label:"כל המצלמות",href:"#/live/wall"},{id:"views",label:"תצוגות שמורות",href:"#/live/views"},{id:"devices",label:"בריאות מצלמות",href:"#/system/devices"}],events:[{id:"events",label:"מרכז אירועים",href:"#/investigate/events"},{id:"reviews",label:"Review",href:"#/investigate/reviews"},{id:"search",label:"חיפוש",href:"#/investigate/search"},{id:"cases",label:"תיקים",href:"#/investigate/cases"},{id:"rules",label:"חוקים והתראות",href:"#/investigate/rules"},{id:"exports",label:"ייצוא",href:"#/investigate/exports"}],playback:[{id:"playback",label:"הקלטות",href:"#/investigate/playback"},{id:"sync",label:"ניגון מסונכרן",href:"#/investigate/playback/sync"},{id:"history",label:"מפה היסטורית",href:"#/investigate/floors/f0/history"}],settings:[{id:"general",label:"כללי",href:"#/system/diagnostics"},{id:"access",label:"משתמשים והרשאות",href:"#/system/access"},{id:"audit",label:"אודיט",href:"#/system/audit"},{id:"storage",label:"אחסון",href:"#/system/storage"},{id:"setup",label:"אשף התקנה",href:"#/system/setup"}]};function Gr(e){if(!e?.mode)return null;const t=e.segments;switch(e.mode){case"live":return t.length===1?"overview":"cameras";case"explore":return"sites";case"investigate":return!t[1]||t[1]==="playback"||t[1]==="floors"?"playback":"events";case"system":return t[1]==="devices"?"cameras":"settings";default:return null}}function mm(e){const t=Gr(e);if(!t||!e)return"";const s=e.segments;switch(t){case"sites":return s[1]==="buildings"||s[1]==="floors"?"floors":s[1]==="entities"?"entities":s[1]==="access"?"access":"sites";case"cameras":return e.mode==="system"?"devices":s[1]==="views"?"views":"wall";case"events":return s[1]??"events";case"playback":return s[1]==="floors"?"history":s[2]==="sync"?"sync":"playback";case"settings":return!s[1]||s[1]==="diagnostics"?"general":s[1];default:return""}}const Kr=[{id:"live",icon:"camera",label:"לייב",href:"#/live"},{id:"explore",icon:"map",label:"מפה",href:"#/explore/sites"},{id:"investigate",icon:"search",label:"חקירה",href:"#/investigate/events"},{id:"system",icon:"system",label:"מערכת",href:"#/system/diagnostics"}],ja={live:[{id:"overview",label:"תמונת מצב",href:"#/live"},{id:"wall",label:"כל המצלמות",href:"#/live/wall"},{id:"views",label:"תצוגות שמורות",href:"#/live/views"},{id:"devices",label:"בריאות מצלמות",href:"#/system/devices"}],explore:[{id:"sites",label:"אתרים ומבנים",href:"#/explore/sites"},{id:"floors",label:"מפת קומה",href:"#/explore/floors/f0"},{id:"entities",label:"ישויות HA",href:"#/explore/entities"},{id:"access",label:"דלתות ואינטרקום",href:"#/explore/access/d1"}],investigate:[{id:"events",label:"מרכז אירועים",href:"#/investigate/events"},{id:"playback",label:"הקלטות",href:"#/investigate/playback"},{id:"sync",label:"ניגון מסונכרן",href:"#/investigate/playback/sync"},{id:"history",label:"מפה היסטורית",href:"#/investigate/floors/f0/history"},{id:"reviews",label:"Review",href:"#/investigate/reviews"},{id:"search",label:"חיפוש",href:"#/investigate/search"},{id:"cases",label:"תיקים",href:"#/investigate/cases"},{id:"rules",label:"חוקים והתראות",href:"#/investigate/rules"},{id:"exports",label:"ייצוא",href:"#/investigate/exports"}],system:[{id:"general",label:"כללי",href:"#/system/diagnostics"},{id:"access",label:"משתמשים והרשאות",href:"#/system/access"},{id:"audit",label:"אודיט",href:"#/system/audit"},{id:"storage",label:"אחסון",href:"#/system/storage"},{id:"setup",label:"אשף התקנה",href:"#/system/setup"}]};function Wa(e){return e?.mode?e.mode==="system"&&e.segments[1]==="devices"?"live":e.mode:null}function Yr(e){const t=Wa(e);if(!t||!e)return"";const s=e.segments;switch(t){case"live":return e.mode==="system"?"devices":s[1]==="views"?"views":s[1]==="wall"||s[1]==="cameras"?"wall":"overview";case"explore":return s[1]==="buildings"||s[1]==="floors"?"floors":s[1]==="entities"?"entities":s[1]==="access"?"access":"sites";case"investigate":return s[1]==="floors"?"history":s[1]==="playback"?s[2]==="sync"?"sync":"playback":s[1]??"events";case"system":return!s[1]||s[1]==="diagnostics"?"general":s[1];default:return""}}function fm(e,t=!1){const s=Wa(e);if(!s)return[];const i=Kr.find(o=>o.id===s),a=ja[s].find(o=>o.id===Yr(e)),r=a?t&&$i[a.href??""]?$i[a.href??""]:a.label:"";return[i?.label??"",r].filter(Boolean)}const gm=new Set(["#/explore/access/d1"]),$i={"#/investigate/reviews":"Review · חלונות","#/investigate/playback/sync":"ניגון מסונכרן","#/system/setup":"חיבורים"},Cs=new Set,ia={explore:"/explore/floors/f0",live:"/live",wall:"/live/wall",events:"/investigate/events",playback:"/investigate/playback"},wm=["#/explore/sites","#/explore/floors/f0","#/explore/entities"],vm={"#/live/wall":["video.live"],"#/live/views":["video.live"],"#/system/devices":["video.live"],"#/explore/sites":["map.read"],"#/explore/floors/f0":["map.read"],"#/explore/entities":["entity.state.read"],"#/investigate/events":["events.read"],"#/investigate/playback":["video.playback"],"#/investigate/playback/sync":["video.playback"],"#/investigate/floors/f0/history":["video.playback"],"#/investigate/reviews":["events.read"],"#/investigate/search":["events.read"],"#/investigate/cases":["cases.manage"],"#/investigate/rules":["rules.manage"],"#/investigate/exports":["video.export"],"#/system/diagnostics":["system.configure"],"#/system/access":["rbac.assign","rbac.roles.manage","identity.directory.read"],"#/system/audit":["audit.read"],"#/system/storage":["system.configure"],"#/system/setup":["system.configure","sources.configure"]};function Jr(e,t){const s=vm[e];return!s||!t||s.some(t)}function ka(e,t,s){return t?e.filter(i=>!gm.has(i.href??"")&&!Cs.has(i.href??"")&&Jr(i.href??"",s)).map(i=>$i[i.href??""]?{...i,label:$i[i.href??""]}:i):e}function tr(e,t){return Kr.filter(s=>!Cs.has(s.href)).flatMap(s=>{const i=ka(ja[s.id],e,t);if(e&&s.id!=="live"&&!i.length)return[];const a=i[0]?.href;return[a&&!i.some(r=>r.href===s.href)?{...s,href:a}:s]})}function bm(e,t){return t&&/^\/investigate\/rules\/[^/]+$/.test(e)?"/investigate/rules":null}var ym=Object.defineProperty,$m=Object.getOwnPropertyDescriptor,Ye=(e,t,s,i)=>{for(var a=i>1?void 0:i?$m(t,s):t,r=e.length-1,o;r>=0;r--)(o=e[r])&&(a=(i?o(t,s,a):o(a))||a);return i&&a&&ym(t,s,a),a};let Ie=class extends M{constructor(){super(...arguments),this.route=null,this.session={mode:"loading",me:null,error:null},this.design=Zr(),this.sys=null,this.sysTimer=0,this.searchQ="",this.searchResults=[],this.searchOpen=!1,this.searchIndex=-1,this.searchBusy=!1,this.searchTimer=0,this.searchSeq=0,this.landedDefault=["","#","#/","#/explore/floors/f0"].includes(window.location.hash),this.startResolved=!1,this.onGlobalKey=e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();const t=this.renderRoot.querySelector(".search input");t?.focus(),t?.select(),this.searchQ.trim()&&this.searchResults.length&&(this.searchOpen=!0)}}}connectedCallback(){super.connectedCallback(),this.stopSession=br(e=>{this.session=e,e.mode!=="loading"&&qr(),e.mode==="api"&&this.route&&this.redirectDemo(this.route),e.mode==="api"&&!this.sysTimer&&(Ve().then(t=>{Cs.clear(),String(t["ui.hide_search"]??"false")==="true"&&Cs.add("#/investigate/search");const s=String(t["ui.hide_map"]??"false")==="true";if(s)for(const r of wm)Cs.add(r);const i=ia[String(t["ui.start_route"]??"explore")]??ia.explore,a=s&&i.startsWith("/explore")?"/live/wall":i;this.landedDefault&&a!==ia.explore&&(this.landedDefault=!1,window.location.replace(`#${a}`),this.route=ls(`#${a}`)),this.requestUpdate()}).catch(()=>{}).finally(()=>this.startResolved=!0),this.pollSummary(),this.sysTimer=window.setInterval(()=>void this.pollSummary(),6e4))}),this.stopDesign=Fu(e=>{this.design=e,this.setAttribute("data-design",e)}),Nl(),window.addEventListener("keydown",this.onGlobalKey),this.stopRouter=Rl(e=>{if(this.route=e,!this.redirectDemo(e)){if(this.toggleAttribute("data-kiosk",e.segments[0]==="kiosk"),e.params.get("embed")==="1")try{sessionStorage.setItem("sw-embed","1")}catch{}this.toggleAttribute("data-embed",this.embedded(e))}})}disconnectedCallback(){super.disconnectedCallback(),this.stopRouter?.(),this.stopSession?.(),this.stopDesign?.(),window.removeEventListener("keydown",this.onGlobalKey),window.clearInterval(this.sysTimer),this.sysTimer=0}async pollSummary(){try{this.sys=await Ba()}catch{}}renderSysPill(e){const t=this.sys;if(!t)return e?n`<span class="status-a" data-sys-pill data-status="unknown"><i></i>מערכת מקומית</span>`:d;const s=t.items.find(r=>r.status==="error")??t.items[0],i=t.status==="ok"?"מערכת תקינה":t.status==="warn"?"יש מה לבדוק":`תקלה: ${s?.label.split(" — ")[0]??""}`,a=t.items.length?t.items.map(r=>`• ${r.label}`).join(`
+`):"כל הרכיבים שהתוסף רואה עובדים";return n`<button class="status-a sys ${t.status} ${e?"":"b"}" data-sys-pill data-status=${t.status} title=${a} aria-label=${`מצב המערכת: ${i}`} @click=${()=>window.location.hash="#/system/diagnostics?tab=health"}><i></i>${i}</button>`}renderSysBanner(){const e=this.sys;if(!e||e.status!=="error")return d;const t=e.items.filter(s=>s.status==="error");return n`<div class="sysbanner" role="alert" data-sys-banner><sw-icon name="warning" size=${16}></sw-icon><span>${t.map(s=>s.label).join(" · ")}</span><a href="#/system/diagnostics?tab=health">לבריאות המערכת</a></div>`}onSearchInput(e){const t=e.target.value;if(this.searchQ=t,window.clearTimeout(this.searchTimer),!t.trim()){this.searchResults=[],this.searchOpen=!1;return}this.searchTimer=window.setTimeout(()=>void this.runSearch(t),180)}async runSearch(e){if(!$()){this.searchResults=[],this.searchOpen=!0;return}const t=++this.searchSeq;this.searchBusy=!0;try{const s=await Kh(e,6);if(t!==this.searchSeq)return;this.searchResults=s.results,this.searchIndex=s.results.length?0:-1,this.searchOpen=!0}catch{t===this.searchSeq&&(this.searchResults=[],this.searchOpen=!0)}finally{t===this.searchSeq&&(this.searchBusy=!1)}}onSearchKey(e){if(e.key==="Escape"){this.closeSearch(),e.target.blur();return}if(!this.searchOpen||!this.searchResults.length){e.key==="Enter"&&this.searchQ.trim()&&this.runSearch(this.searchQ);return}if(e.key==="ArrowDown")e.preventDefault(),this.searchIndex=(this.searchIndex+1)%this.searchResults.length;else if(e.key==="ArrowUp")e.preventDefault(),this.searchIndex=(this.searchIndex-1+this.searchResults.length)%this.searchResults.length;else if(e.key==="Enter"){e.preventDefault();const t=this.searchResults[this.searchIndex]??this.searchResults[0];t&&this.openResult(t)}}openResult(e){this.closeSearch();const t=this.renderRoot.querySelector(".search input");t&&(t.value="",t.blur()),this.searchQ="",this.searchResults=[],window.location.hash=`#${e.route}`}closeSearch(){this.searchOpen=!1,this.searchIndex=-1}redirectDemo(e){if(this.enforceKiosk(e))return!0;const t=bm(e.path,this.session.mode==="api");return t?(window.location.replace(`#${t}`),!0):!1}get kioskOnly(){const e=(this.session.me?.bindings??[]).filter(t=>t.effect!=="deny");return this.session.mode==="api"&&e.length>0&&e.every(t=>t.role_id==="kiosk")}enforceKiosk(e){return!this.kioskOnly||e.segments[0]==="kiosk"?!1:(window.location.replace("#/kiosk/all"),!0)}get gated(){return this.session.mode==="no_access"||this.session.mode==="unauthenticated"}renderSearch(e){if(this.gated)return d;const t=this.searchOpen&&!!this.searchQ.trim();return n`<span class="searchwrap ${e?"a":""}">
+      <label class="search ${e?"a":""}"><sw-icon name="search" size=${e?16:14}></sw-icon><input type="search" placeholder=${e?"חיפוש חדרים, מצלמות, קומות וישויות…":_("app.search")} aria-label=${_("app.search")} autocomplete="off" role="combobox" aria-expanded=${t} aria-controls="search-results" .value=${this.searchQ} @input=${this.onSearchInput} @keydown=${this.onSearchKey} @focus=${()=>{this.searchResults.length&&(this.searchOpen=!0)}} @blur=${()=>setTimeout(()=>this.closeSearch(),150)} />${e?n`<kbd>⌘ K</kbd>`:d}</label>
+      ${t?n`<div class="results" id="search-results" role="listbox" aria-label="תוצאות חיפוש">
+            ${$()?this.searchBusy&&!this.searchResults.length?n`<div class="empty">מחפש…</div>`:this.searchResults.length?this.searchResults.map((s,i)=>n`<div class="row ${i===this.searchIndex?"on":""}" role="option" aria-selected=${i===this.searchIndex} @mousedown=${a=>a.preventDefault()} @click=${()=>this.openResult(s)}><sw-icon .name=${Gh[s.kind]} size=${16}></sw-icon><span class="txt"><span class="t">${s.title}</span><span class="s">${s.subtitle}</span></span><span class="kind">${qh[s.kind]}</span></div>`):n`<div class="empty">לא נמצא דבר עבור "${this.searchQ}". חדרים מופיעים רק אם סומנו "הכללה בחיפוש מרחבי"; אירועים מסוננים במרכז האירועים.</div>`:n`<div class="empty">החיפוש עובד מול השרת (במצב הדגמה אין נתונים).</div>`}
+          </div>`:d}
+    </span>`}renderGate(){const e=this.session;return e.mode==="unauthenticated"?n`<div class="gate"><sw-state-panel state="forbidden" heading="הזדהות דרך Home Assistant נדרשת" hint=${e.error??""}></sw-state-panel></div>`:e.mode==="no_access"?n`<div class="gate"><sw-state-panel state="forbidden" heading="אין לך עדיין תפקיד במערכת" hint="המשתמש ${e.me?.user.display_name||e.me?.user.username||""} מזוהה מ־Home Assistant, אך מנהל ה־VMS טרם שייך לו תפקיד והיקף. פנה למנהל המערכת."></sw-state-panel></div>`:null}renderScreen(){const e=this.route;if(!e)return d;if(this.landedDefault&&this.session.mode==="api"&&!this.startResolved)return n`<sw-state-panel state="loading"></sw-state-panel>`;const t=e.segments;if(t[0]==="styleguide")return n`<styleguide-screen></styleguide-screen>`;if(t[0]==="screens")return n`<screens-index></screens-index>`;if(t[0]==="kiosk")return n`<kiosk-wall></kiosk-wall>`;switch(e.mode){case"live":return t[1]==="wall"?n`<live-wall .cameras=${e.params.get("cameras")??""}></live-wall>`:t[1]==="views"?n`<live-views></live-views>`:t[1]==="cameras"?n`<live-camera .cameraId=${t[2]??"cam-1"}></live-camera>`:n`<live-overview></live-overview>`;case"investigate":return t[1]==="playback"&&t[2]==="sync"?n`<investigate-sync></investigate-sync>`:t[1]==="playback"?n`<investigate-playback .cameraId=${e.params.get("camera")??""} .at=${e.params.get("t")??""} .extraParam=${e.params.get("extra")??""}></investigate-playback>`:t[1]==="floors"?n`<investigate-history-map .floorId=${t[2]??"f0"} .at=${e.params.get("t")??""} .camera=${e.params.get("camera")??""}></investigate-history-map>`:t[1]==="events"&&t[2]?n`<investigate-event-detail .eventId=${t[2]}></investigate-event-detail>`:t[1]==="events"?n`<investigate-events .cameraId=${e.params.get("camera")??""} .date=${e.params.get("date")??""}></investigate-events>`:t[1]==="reviews"?this.session.mode==="api"?n`<investigate-events .initialMode=${"windows"} .cameraId=${e.params.get("camera")??""} .date=${e.params.get("date")??""}></investigate-events>`:n`<investigate-reviews></investigate-reviews>`:t[1]==="cases"&&t[2]?n`<investigate-case-detail .caseId=${t[2]}></investigate-case-detail>`:t[1]==="cases"?n`<investigate-cases></investigate-cases>`:t[1]==="exports"?n`<investigate-exports></investigate-exports>`:t[1]==="search"?n`<investigate-search></investigate-search>`:t[1]==="rules"&&t[2]?n`<investigate-rule-editor .ruleId=${t[2]}></investigate-rule-editor>`:t[1]==="rules"?n`<investigate-rules></investigate-rules>`:n`<investigate-playback></investigate-playback>`;case"system":return t[1]==="audit"?n`<system-audit></system-audit>`:t[1]==="setup"?n`<system-setup></system-setup>`:t[1]==="devices"?n`<system-devices></system-devices>`:t[1]==="storage"?n`<system-storage></system-storage>`:t[1]==="access"?n`<system-access></system-access>`:n`<system-diagnostics></system-diagnostics>`;case"explore":default:{if(t[1]==="sites")return n`<explore-sites></explore-sites>`;if(t[1]==="buildings")return n`<explore-floors .buildingId=${t[2]??"bld-a"}></explore-floors>`;if(t[1]==="entities")return n`<explore-entities></explore-entities>`;if(t[1]==="access")return n`<explore-access></explore-access>`;if(t[1]==="floors"&&t[3]==="import")return n`<explore-plan-import .floorId=${t[2]}></explore-plan-import>`;if(t[1]==="floors"&&t[3]==="edit")return n`<explore-plan-editor .floorId=${t[2]} .presetEntity=${e.params.get("entity")??""}></explore-plan-editor>`;const s=t[1]==="floors"&&t[2]?t[2]:"f0",i=e.params.get("state")??"ready";return n`<explore-floor-map .floorId=${s} .screenState=${i} .focusZone=${e.params.get("zone")??""} .focusCamera=${e.params.get("camera")??""} .focusEntity=${e.params.get("entity")??""}></explore-floor-map>`}}}renderA(){const e=Wa(this.route),t=e?ka(ja[e],this.session.mode==="api",ws):[],s=this.route?.segments[3]==="edit"||this.route?.segments[3]==="import",i=fm(this.route,this.session.mode==="api"),a=this.session.me,r=a?.user.display_name||a?.user.username||"יוני";return n`
+      <nav class="rail" aria-label="ניווט ראשי">
+        <a class="brand-tile" href="#/live" title="SmplWise"><span>S</span></a>
+        ${tr(this.session.mode==="api",ws).map(o=>n`<a class=${gt({item:!0,a:!0,active:e===o.id})} href=${o.href} title=${o.label} aria-current=${e===o.id?"page":"false"}>
+            <sw-icon .name=${o.icon} size=${23}></sw-icon><span>${o.label}</span>
+          </a>`)}
+        <div class="grow"></div>
+        ${this.gated?d:n`<a class=${gt({item:!0,a:!0,small:!0,active:this.route?.segments[0]==="screens"})} href="#/screens" title="כל המסכים"><sw-icon name="list" size=${16}></sw-icon><span>מסכים</span></a>`}
+        <div class="secure"><sw-icon name="shield" size=${18}></sw-icon><span>מקומי ומאובטח</span></div>
+      </nav>
+      <header class="topbar">
+        <div class="crumbs-a">${i.map((o,l)=>n`${l?n`<sw-icon name="chevron" size=${12}></sw-icon>`:d}<span class=${l===0?"strong":""}>${Ht(o)}</span>`)}</div>
+        ${this.renderSearch(!0)}
+        <span class="spacer"></span>
+        ${this.session.mode==="api"||this.session.mode==="no_access"?this.renderSysPill(!0):this.session.mode==="demo"?n`<sw-badge kind="neutral" label="נתוני הדגמה"></sw-badge>`:d}
+        <sw-button class="bell" variant="ghost" size="sm" iconOnly icon="bell" label=${_("app.notifications")}></sw-button>
+        <span class="user-a"><sw-avatar name=${r} size=${34} title=${_("app.account")} aria-label=${_("app.account")}></sw-avatar><span class="who-a"><b>${r}</b><span>${a?.bindings[0]?.role_name??(this.session.mode==="demo"?"מנהל VMS":"ללא שיוך")}</span></span></span>
+        <span class="logo-a"><b>smplwise</b><small>VMS</small></span>
+      </header>
+      ${this.renderSysBanner()}
+      <main>
+        ${this.renderGate()||n`
+          <div class="subnav">${t.length>1&&!s?n`<sw-tabs .items=${t} .active=${Yr(this.route)}></sw-tabs>`:d}</div>
+          <div class="screen">${this.session.mode==="loading"?d:this.renderScreen()}</div>`}
+      </main>
+      <nav class="bottom" aria-label="ניווט ראשי">
+        ${tr(this.session.mode==="api",ws).map(o=>n`<a class=${gt({active:e===o.id})} href=${o.href}><sw-icon .name=${o.icon} size=${20}></sw-icon>${o.label}</a>`)}
+      </nav>
+    `}embedded(e=this.route){if(e?.params.get("embed")==="1")return!0;try{return sessionStorage.getItem("sw-embed")==="1"}catch{return!1}}render(){if(this.route?.segments[0]==="kiosk")return n`<main style="block-size:100dvh">${this.renderScreen()}</main>`;if(this.embedded())return n`<main class="embed" style="block-size:100dvh;overflow:auto">${this.renderScreen()}</main>`;if(this.design==="a")return this.renderA();const t=Gr(this.route),s=t?ka(um[t],this.session.mode==="api",ws):[],i=this.route?.segments[3]==="edit"||this.route?.segments[3]==="import";return n`
+      <nav class="rail" aria-label="ניווט ראשי">
+        <div class="brand">
+          <img src="${"./"}brand/smplwise-mark.png" alt="SmplWise" />
+          <span class="name">SmplWise</span>
+        </div>
+        ${er.filter(a=>this.session.mode!=="api"||Jr(a.href,ws)).map(a=>n`<a class=${gt({item:!0,active:t===a.id})} href=${a.href} title=${a.label} aria-current=${t===a.id?"page":"false"}>
+            <sw-icon .name=${a.icon} size=${16}></sw-icon><span>${a.label}</span>
+          </a>`)}
+        <div class="grow"></div>
+        ${this.gated?d:n`<a class=${gt({item:!0,small:!0,active:this.route?.segments[0]==="screens"})} href="#/screens" title="כל המסכים">
+          <sw-icon name="list" size=${14}></sw-icon><span>כל המסכים</span>
+        </a>
+        <a class=${gt({item:!0,small:!0,active:this.route?.segments[0]==="styleguide"})} href="#/styleguide" title=${_("nav.styleguide")}>
+          <sw-icon name="layers" size=${14}></sw-icon><span>${_("nav.styleguide")}</span>
+        </a>`}
+      </nav>
+      <header class="topbar">
+        <span class="brand-mobile"><img src="${"./"}brand/smplwise-mark.png" alt="SmplWise" /></span>
+        ${this.renderSearch(!1)}
+        <span class="spacer"></span>
+        ${this.session.mode==="api"||this.session.mode==="no_access"?n`${this.renderSysPill(!1)}<span class="who"><b>${this.session.me?.user.display_name||this.session.me?.user.username}</b>${this.session.me?.bindings[0]?n`<span>· ${this.session.me.bindings[0].role_name}</span>`:d}</span>`:this.session.mode==="demo"?n`<sw-badge kind="neutral" label="נתוני הדגמה"></sw-badge>`:d}
+        <sw-button class="bell" variant="ghost" size="sm" iconOnly icon="bell" label=${_("app.notifications")}></sw-button>
+        <sw-avatar name=${this.session.me?.user.display_name||this.session.me?.user.username||"יוני"} size=${28} title=${_("app.account")} aria-label=${_("app.account")}></sw-avatar>
+      </header>
+      <main>
+        ${this.renderGate()||n`
+          <div class="subnav">${s.length>1&&!i?n`<sw-tabs .items=${s} .active=${mm(this.route)}></sw-tabs>`:d}</div>
+          <div class="screen">${this.session.mode==="loading"?d:this.renderScreen()}</div>`}
+      </main>
+      <nav class="bottom" aria-label="ניווט ראשי">
+        ${er.slice(0,4).map(a=>n`<a class=${gt({active:t===a.id})} href=${a.href}><sw-icon .name=${a.icon} size=${20}></sw-icon>${a.label}</a>`)}
+        <a class=${gt({active:t==="settings"||t==="playback"})} href="#/system/diagnostics"><sw-icon name="more" size=${20}></sw-icon>עוד</a>
+      </nav>
+    `}};Ie.styles=A`
+    :host {
+      display: grid;
+      grid-template-columns: var(--sw-rail-w-wide) minmax(0, 1fr);
+      grid-template-rows: var(--sw-topbar-h) minmax(0, 1fr);
+      grid-template-areas:
+        'rail topbar'
+        'rail main';
+      block-size: 100dvh;
+      background: var(--sw-bg);
+    }
+    :host([data-kiosk]) {
+      display: block;
+    }
+    nav.rail {
+      grid-area: rail;
+      display: flex;
+      flex-direction: column;
+      background: var(--sw-surface);
+      border-inline-end: 1px solid var(--sw-border);
+      padding: 10px 10px 8px;
+      gap: 2px;
+      overflow: auto;
+      scrollbar-width: none;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 6px 14px;
+      min-block-size: 44px;
+    }
+    .brand img {
+      block-size: 26px;
+      inline-size: auto;
+    }
+    .brand .name {
+      font-weight: var(--sw-fw-bold);
+      font-size: 13px;
+      color: var(--sw-text);
+      white-space: nowrap;
+      letter-spacing: -0.01em;
+    }
+    a.item {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      min-block-size: 32px;
+      padding: 0 10px;
+      border-radius: 8px;
+      color: var(--sw-text-2);
+      text-decoration: none;
+      font-weight: var(--sw-fw-medium);
+      font-size: var(--sw-fs-sm);
+      transition: background var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease);
+    }
+    a.item sw-icon {
+      color: var(--sw-text-3);
+    }
+    a.item:hover {
+      background: var(--sw-surface-3);
+      color: var(--sw-text);
+    }
+    a.item.active {
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent-text);
+      font-weight: var(--sw-fw-semibold);
+    }
+    a.item.active sw-icon {
+      color: var(--sw-accent);
+    }
+    .rail .grow {
+      flex: 1;
+    }
+    a.item.small {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      min-block-size: 26px;
+      font-weight: var(--sw-fw-regular);
+    }
+    header.topbar {
+      grid-area: topbar;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 20px;
+      background: var(--sw-surface);
+      border-block-end: 1px solid var(--sw-border);
+      z-index: var(--sw-z-topbar);
+    }
+    .search {
+      inline-size: 280px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      block-size: 30px;
+      padding: 0 10px;
+      border: 1px solid var(--sw-border);
+      border-radius: 8px;
+      background: var(--sw-surface-2);
+      color: var(--sw-text-3);
+      transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease);
+    }
+    .search:focus-within {
+      border-color: var(--sw-accent);
+      box-shadow: 0 0 0 3px var(--sw-accent-soft);
+      background: var(--sw-surface);
+    }
+    .search input {
+      flex: 1;
+      border: 0;
+      background: transparent;
+      font: inherit;
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text);
+      outline: none;
+      min-inline-size: 0;
+    }
+    .topbar .spacer {
+      flex: 1;
+    }
+    .brand-mobile {
+      display: none;
+      align-items: center;
+    }
+    .brand-mobile img {
+      block-size: 24px;
+      inline-size: auto;
+    }
+    .bell {
+      position: relative;
+    }
+    .bell::after {
+      content: '';
+      position: absolute;
+      inset-inline-end: 6px;
+      inset-block-start: 5px;
+      inline-size: 6px;
+      block-size: 6px;
+      border-radius: 50%;
+      background: var(--sw-danger);
+      border: 1.5px solid var(--sw-surface);
+    }
+    main {
+      grid-area: main;
+      min-block-size: 0;
+      min-inline-size: 0;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+    }
+    .subnav {
+      padding: 12px 24px 0;
+      display: flex;
+    }
+    .subnav:empty {
+      display: none;
+    }
+    main > .screen {
+      flex: 1;
+      min-block-size: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    main > .screen > * {
+      flex: 1;
+      min-block-size: 0;
+    }
+    nav.bottom {
+      display: none;
+    }
+    .gate {
+      flex: 1;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+    .who {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+    }
+    .who b {
+      color: var(--sw-text);
+      font-weight: var(--sw-fw-semibold);
+    }
+    @media (max-width: 1023px) {
+      :host {
+        grid-template-columns: var(--sw-rail-w) minmax(0, 1fr);
+      }
+      .brand .name,
+      a.item span {
+        display: none;
+      }
+      a.item {
+        justify-content: center;
+        padding: 0;
+      }
+      .brand {
+        justify-content: center;
+        padding-inline: 0;
+      }
+      .subnav {
+        padding: 10px 16px 0;
+        overflow-x: auto;
+        scrollbar-width: none;
+      }
+    }
+    @media (max-width: 767px) {
+      :host {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: var(--sw-topbar-h) minmax(0, 1fr) var(--sw-bottomnav-h);
+        grid-template-areas:
+          'topbar'
+          'main'
+          'bottom';
+      }
+      nav.rail {
+        display: none;
+      }
+      header.topbar {
+        padding: 0 12px;
+      }
+      .subnav {
+        padding: 8px 12px 0;
+      }
+      nav.bottom {
+        grid-area: bottom;
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        background: var(--sw-surface);
+        border-block-start: 1px solid var(--sw-border);
+        padding-block-end: env(safe-area-inset-bottom);
+      }
+      nav.bottom a {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
+        font-size: 10px;
+        color: var(--sw-text-3);
+        text-decoration: none;
+        min-block-size: var(--sw-bottomnav-h);
+        font-weight: var(--sw-fw-medium);
+      }
+      nav.bottom a.active {
+        color: var(--sw-accent-text);
+      }
+      .brand-mobile {
+        display: inline-flex;
+      }
+      .search {
+        display: none;
+      }
+    }
+
+    /* ---- design SW A: four-area icon rail on the right, 72px top bar with crumbs, wide search, user chip ---- */
+    :host([data-design='a']) nav.rail {
+      padding: 14px 8px 12px;
+      gap: 6px;
+      align-items: center;
+    }
+    .brand-tile {
+      display: grid;
+      place-items: center;
+      inline-size: 44px;
+      block-size: 44px;
+      border-radius: 12px;
+      background: var(--sw-accent);
+      color: #fff;
+      font-weight: 800;
+      font-size: 22px;
+      text-decoration: none;
+      margin-block-end: 12px;
+      box-shadow: 0 6px 14px rgba(39, 103, 237, 0.25);
+    }
+    a.item.a {
+      flex-direction: column;
+      justify-content: center;
+      gap: 6px;
+      inline-size: 70px;
+      min-block-size: 64px;
+      padding: 8px 0;
+      border-radius: 12px;
+      font-size: 11.5px;
+      position: relative;
+    }
+    a.item.a span {
+      display: inline;
+    }
+    a.item.a.active::after {
+      content: '';
+      position: absolute;
+      inset-inline-end: -8px;
+      inset-block: 16px;
+      inline-size: 3px;
+      border-radius: 3px;
+      background: var(--sw-accent);
+    }
+    a.item.a.small {
+      min-block-size: 44px;
+      font-size: 10.5px;
+    }
+    .secure {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      font-size: 10.5px;
+      color: var(--sw-text-3);
+      padding: 8px 0 4px;
+      text-align: center;
+      line-height: 1.25;
+    }
+    :host([data-design='a']) header.topbar {
+      padding: 0 26px;
+      gap: 14px;
+    }
+    .crumbs-a {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--sw-text-2);
+      white-space: nowrap;
+    }
+    .crumbs-a .strong {
+      color: var(--sw-heading, var(--sw-text));
+      font-weight: 700;
+    }
+    .crumbs-a sw-icon {
+      color: var(--sw-text-3);
+    }
+    .searchwrap {
+      position: relative;
+      display: inline-flex;
+    }
+    .results {
+      position: absolute;
+      inset-inline-start: 0;
+      inset-block-start: calc(100% + 6px);
+      inline-size: min(560px, 90vw);
+      max-block-size: 60vh;
+      overflow: auto;
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: 12px;
+      box-shadow: var(--sw-shadow-3);
+      padding: 6px;
+      z-index: var(--sw-z-drawer);
+    }
+    .searchwrap.a .results {
+      inset-inline-start: 24px;
+    }
+    .results .row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      color: var(--sw-text);
+    }
+    .results .row.on,
+    .results .row:hover {
+      background: var(--sw-accent-soft);
+    }
+    .results .row sw-icon {
+      color: var(--sw-text-3);
+      flex: none;
+    }
+    .results .txt {
+      display: flex;
+      flex-direction: column;
+      min-inline-size: 0;
+      flex: 1;
+    }
+    .results .t {
+      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-sm);
+    }
+    .results .s {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .results .kind {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      flex: none;
+    }
+    .results .empty {
+      padding: 10px 12px;
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text-3);
+    }
+    .search.a {
+      inline-size: min(520px, 38vw);
+      block-size: 46px;
+      border-radius: 12px;
+      margin-inline-start: 24px;
+      padding: 0 14px;
+    }
+    .search.a input {
+      font-size: 14px;
+    }
+    .search.a kbd {
+      font: inherit;
+      font-size: 11px;
+      color: var(--sw-text-3);
+      border: 1px solid var(--sw-border-strong);
+      border-radius: 6px;
+      padding: 1px 6px;
+      background: var(--sw-surface);
+      direction: ltr;
+    }
+    .status-a {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12.5px;
+      color: #15803d;
+      white-space: nowrap;
+    }
+    .status-a i {
+      inline-size: 8px;
+      block-size: 8px;
+      border-radius: 50%;
+      background: var(--sw-live);
+    }
+    button.status-a.sys {
+      border: 0;
+      background: transparent;
+      font: inherit;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: var(--sw-r-pill);
+    }
+    button.status-a.sys:hover {
+      background: var(--sw-surface-3);
+    }
+    .status-a.sys.warn {
+      color: #b45309;
+    }
+    .status-a.sys.warn i {
+      background: var(--sw-stale);
+    }
+    .status-a.sys.error {
+      color: var(--sw-danger);
+    }
+    .status-a.sys.error i {
+      background: var(--sw-danger);
+    }
+    .status-a.sys.b {
+      font-size: var(--sw-fs-xs);
+    }
+    .sysbanner {
+      position: fixed;
+      inset-inline: 0;
+      inset-block-start: var(--sw-topbar-h);
+      /* one level under the topbar: at the topbar's own level the banner (later in the DOM) painted over the
+         search results that drop out of the topbar, and their first rows could not be clicked (0.1.79 sweep) */
+      z-index: calc(var(--sw-z-topbar) - 1);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 20px;
+      background: #fef2f2;
+      color: #991b1b;
+      border-block-end: 1px solid #fecaca;
+      font-size: var(--sw-fs-sm);
+    }
+    .sysbanner a {
+      color: inherit;
+      font-weight: var(--sw-fw-semibold);
+      margin-inline-start: auto;
+    }
+    .user-a {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .who-a {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.2;
+      font-size: 12px;
+      color: var(--sw-text-2);
+      white-space: nowrap;
+    }
+    .who-a b {
+      color: var(--sw-heading, var(--sw-text));
+      font-size: 13px;
+    }
+    .logo-a {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 6px;
+      direction: ltr;
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--sw-heading, var(--sw-text));
+      margin-inline-start: 10px;
+    }
+    .logo-a b {
+      font-size: 24px;
+      letter-spacing: -0.5px;
+      font-weight: 700;
+    }
+    .logo-a small {
+      font-size: 11px;
+      letter-spacing: 2px;
+      color: var(--sw-text-3);
+    }
+    :host([data-design='a']) .subnav {
+      padding: 14px 30px 0;
+    }
+    :host([data-design='a']) nav.bottom {
+      grid-template-columns: repeat(4, 1fr);
+    }
+    @media (max-width: 1279px) {
+      .crumbs-a {
+        display: none;
+      }
+      .search.a {
+        inline-size: 260px;
+        margin-inline-start: 0;
+      }
+      .logo-a {
+        display: none;
+      }
+    }
+    @media (max-width: 1023px) {
+      :host([data-design='a']) {
+        grid-template-columns: var(--sw-rail-w) minmax(0, 1fr);
+      }
+      :host([data-design='a']) a.item.a span {
+        display: inline;
+      }
+      :host([data-design='a']) .subnav {
+        padding: 10px 16px 0;
+      }
+    }
+    @media (max-width: 767px) {
+      /* the tablet rule above (rail + content) is more specific than the base phone rule: repeat the
+         single-column phone grid for SW A, otherwise the hidden rail keeps an empty column */
+      :host([data-design='a']) {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: var(--sw-topbar-h) minmax(0, 1fr) var(--sw-bottomnav-h);
+        grid-template-areas:
+          'topbar'
+          'main'
+          'bottom';
+      }
+      .who-a {
+        display: none;
+      }
+      .status-a {
+        display: none;
+      }
+    }
+  `;Ye([c()],Ie.prototype,"route",2);Ye([c()],Ie.prototype,"session",2);Ye([c()],Ie.prototype,"design",2);Ye([c()],Ie.prototype,"sys",2);Ye([c()],Ie.prototype,"searchQ",2);Ye([c()],Ie.prototype,"searchResults",2);Ye([c()],Ie.prototype,"searchOpen",2);Ye([c()],Ie.prototype,"searchIndex",2);Ye([c()],Ie.prototype,"searchBusy",2);Ye([c()],Ie.prototype,"startResolved",2);Ie=Ye([P("sw-app")],Ie);
+//# sourceMappingURL=index-Pz5nSZmV.js.map

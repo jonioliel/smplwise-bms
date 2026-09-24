@@ -1,5 +1,36 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.83 (pilot) — precise placement of doors, windows and labels in the plan editor
+- Answers an owner report from the 0.1.82 checklist: a door added on a wall could not be moved right or left to
+  fine-tune it. In the structure tool an existing door, window, passage or label can now be dragged in every mode
+  (select, wall, door, window, passage, label): a press on it drags it, or selects it without moving, instead of
+  placing a new one, while a press on a bare wall still places a door. Wall corners stay draggable in select mode
+  only (in wall mode a corner is a snap target for the new wall, and a press that close to a corner draws even on
+  top of a door). The item moves live while it is dragged and keeps the offset it was grabbed at (no jump to the
+  pointer); an opening stays inside its wall, also when it is placed near a wall's end; the drop is one undo step
+  saved like every edit.
+- No stacked doors: a placing click beside an existing opening, or a few pixels off the wall next to it, selects that
+  opening instead of adding a second one on top of it (the hit area of an opening now covers the wall's thickness,
+  at least 28 screen pixels, and a click inside an opening's span plus 6 px takes it); no placing dot shows there.
+- The arrow keys nudge the selected item in the arrow's direction on screen. An opening moves along its wall towards
+  the arrow: Right / Left on a wall that runs across the screen, Up / Down on a wall that runs up it; a key that
+  points across the wall does nothing. A step is 1 cm (Shift: 10 cm) on a calibrated plan, or 0.2 % of the plan's
+  width (Shift: 1 %) before calibration. A label, and in select mode a selected wall corner (a press on its handle
+  selects it; Delete removes that corner, or the whole wall when it would be left without enough corners), move the
+  same way. A burst of presses on one item is one undo step, and a press on an item takes the keyboard focus from a
+  panel field, so the arrows move the item and never step the field.
+- Exact placement: the panel of the selected opening shows "מרחק מתחילת הקיר" (metres from the wall's start to the
+  opening's centre, two decimals) on a calibrated plan, or "מיקום על הקיר (%)" before calibration. A typed value
+  moves the opening, kept inside the wall, and the field follows a drag live. The door, window and passage modes
+  carry a second help line about dragging and the arrow keys.
+- Build: the frontend bundles through @rollup/wasm-node because Windows Smart App Control blocks the native rollup
+  binary; output unchanged.
+- Evidence: a fifth live test in `evidence-plan-studio` - in door mode a door is placed, dragged 40 px (grabbed 4 px
+  off its centre) without switching modes (no second door; the distance field changes before the drop), moved by
+  three ArrowRight presses that one Ctrl+Z undoes together, selected by a click just past its end and off the wall
+  (still one door), placed by a typed distance (t = metres / wall length) and then moved by ArrowRight straight after
+  Enter in the field; four new node unit tests for the opening range and the nudge.
+
 ## 0.1.82 (pilot) — Plan Studio phase 1: walls, doors and windows on the plan, calibrated, on every map
 - The plan editor gains three tools (T084, CR-003): **structure** - walls drawn point by point with snapping to
   corners and to 45 degrees, doors / windows / passages placed on a wall (they cut it), labels, selection, dragging
