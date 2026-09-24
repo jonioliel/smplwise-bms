@@ -3283,11 +3283,14 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "לנעול schema versioned עבור source hash, dimensions, transforms, walls, doors, windows, rooms, connectors ו־uncertainty.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
+    "status": "PASS",
+    "commit": "72ae1a2",
+    "environment": "workstation: dev backend 0.1.82 (SQLite) on 8099 + vite preview 4173, Chrome through Playwright; pytest on Python 3.12 (2026-09-24)",
+    "evidence": [
+      "smplwise_vms/backend/tests/test_plan_geometry_model.py (the v2 schema file matches the validator: schema_version 2.0; source, dimensions, transform, walls, openings, rooms, connectors and uncertainty required; wall and opening kinds (door, window, passage); a new document takes the version's size and calibration and validates)",
+      "contracts/schemas/plan_geometry.v2.schema.json (source.sha256 and page required)"
+    ],
+    "executed_at": "2026-09-24T03:57:15Z",
     "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
   },
   {
@@ -3311,11 +3314,17 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "לבדוק normalized bounds, invalid polygons, missing calibration ו־duplicate IDs; renderer deterministic מצייר אותו JSON באופן עקבי.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
+    "status": "PASS",
+    "commit": "72ae1a2",
+    "environment": "workstation: dev backend 0.1.82 (SQLite) on 8099 + vite preview 4173, Chrome through Playwright; pytest on Python 3.12 (2026-09-24)",
+    "evidence": [
+      "smplwise_vms/backend/tests/test_plan_geometry_model.py (validator: normalized bounds, duplicate ids, unknown references, measured / estimated / missing calibration)",
+      "smplwise_vms/backend/tests/test_plan_schema.py (v1 proposal schema: self-intersecting and degenerate room polygons, a missing calibration needs a reason, duplicate ids)",
+      "smplwise_vms/backend/tests/test_plan_geometry_render.py + contracts/fixtures/plan_geometry (determinism)",
+      "smplwise_vms/backend/tests/test_plan_geometry_export.py (the same document gives the same SVG and PNG bytes)",
+      "frontend/tests/unit-geometry.spec.ts (the browser draws the same primitives)"
+    ],
+    "executed_at": "2026-09-24T03:57:15Z",
     "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
   },
   {
@@ -4699,11 +4708,18 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "כיול קנה מידה בשתי נקודות ומרחק ידוע, ומיחידות השרטוט ב־DXF, עם סטטוס measured/estimated/missing ושארית; שינוי כיול אינו מזיז אף עצם, ומטרים מוצגים רק כשהתוכנית מכוילת.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
+    "status": "PASS",
+    "commit": "72ae1a2",
+    "environment": "workstation: dev backend 0.1.82 (SQLite) on 8099 + vite preview 4173, Chrome through Playwright; pytest on Python 3.12 (2026-09-24)",
+    "evidence": [
+      "smplwise_vms/backend/tests/test_plan_geometry_api.py (calibration with one and with two pairs, residual and the >3% warning, audit plan.calibrate)",
+      "smplwise_vms/backend/tests/test_plan_geometry_model.py (measured / estimated / missing)",
+      "smplwise_vms/backend/tests/test_dxf.py (a version made from a DXF takes the scale its drawing units imply)",
+      "frontend/tests/unit-geometry.spec.ts (metres from the calibration, estimated with '≈' without it, 'לא מכויל' when plan.estimates hides them)",
+      "frontend/tests/evidence-plan-studio.spec.ts ('≈' before calibration; calibrate 16 m on a seeded 640 px wall, then measure 10.0 m without '≈')",
+      "ad-hoc check in the release run, not a committed test: after PATCH calibration a camera pin keeps its position, rotation and plan version, the draft's wall and door are unchanged and the published document is unchanged until the next publish"
+    ],
+    "executed_at": "2026-09-24T03:57:15Z",
     "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
   },
   {
@@ -4730,7 +4746,9 @@
     "status": "NOT_RUN",
     "commit": null,
     "environment": null,
-    "evidence": [],
+    "evidence": [
+      "partial (2026-09-24, 0.1.82, on commit 72ae1a2): verified by the backend tests test_plan_geometry_db, test_plan_geometry_store, test_plan_geometry_api, test_plan_geometry_integration and test_plan_geometry_export (a draft with revisions and 409 on a stale one, publish with diff and the geometry.publish audit, versions, timeline, rollback, copy between versions, carry into a new plan version, restore and delete, backup and restore, the map bundle reference and the structure of an instant) and the node spec unit-studio-controller (draft autosave, conflicts, pendingPublish), and in real Chrome by evidence-plan-studio 4/4 (the live floor map with its layer switch, the history map at an instant after the publish, the editor: draw, publish preview, copy to a new drawing published with the plan); not run: the event page's map and the Lovelace card in a browser (no events in the lab: the NVR times out, so evidence-history-map, which opens the history map from an event, is BLOCKED)"
+    ],
     "executed_at": null,
     "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
   },
