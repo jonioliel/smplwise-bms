@@ -39,11 +39,24 @@ def _visible_floors(conn: sqlite3.Connection, principal: Principal, permission: 
 
 
 def _placements(conn: sqlite3.Connection) -> dict[str, list[dict[str, str]]]:
+    """Where an entity is on the maps: its anchors, and the floors whose published structure has a circuit switched by
+    it (T085) - a floor viewer reads such a switch, a floor operator controls it, the push socket forwards it."""
     out: dict[str, list[dict[str, str]]] = {}
     for r in conn.execute(
         "SELECT a.resource_id, a.floor_id, f.name AS floor_name FROM map_anchors a JOIN floors f ON f.id = a.floor_id WHERE a.resource_type = 'ha_entity' AND a.effective_to IS NULL"
     ).fetchall():
         out.setdefault(r["resource_id"], []).append({"floor_id": r["floor_id"], "floor_name": r["floor_name"]})
+    from ..services import geometry_store
+
+    switches = geometry_store.circuit_switches(conn)
+    if switches:
+        names = {r["id"]: r["name"] for r in conn.execute("SELECT id, name FROM floors WHERE deleted_at IS NULL").fetchall()}
+        for eid, floors in switches.items():
+            have = {p["floor_id"] for p in out.get(eid, [])}
+            for fid in floors:
+                if fid in names and fid not in have:
+                    out.setdefault(eid, []).append({"floor_id": fid, "floor_name": names[fid]})
+                    have.add(fid)
     return out
 
 
@@ -250,6 +263,39 @@ def get_action(action_id: str, request: Request, principal: Principal = Depends(
             conn.execute("UPDATE ha_actions SET status = 'unknown', observed_state = ? WHERE id = ?", (e["state"] if e else None, action_id))
         a = _action_row(conn, action_id)
     return a
+
+
+# ---------------------------------------------------------------- developer identity mode only
+
+class DevStatesIn(BaseModel):
+    states: list[dict[str, Any]] = Field(min_length=1, max_length=50)
+
+
+def _dev_only(settings: Settings) -> None:
+    """The route exists only where SW_DEV_USER runs the backend outside the add-on: inside Home Assistant it is a 404."""
+    if settings.in_addon or not settings.dev_user:
+        raise ApiError(404, "not_found", "לא נמצא.")
+
+
+@router.post("/ha/dev/states")
+def dev_states(body: DevStatesIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Inject entity states as if Home Assistant sent them (the same upsert and the same push the sync uses), for live
+    specs and manual checks without a Home Assistant. Developer identity mode only; system.configure; audited."""
+    _dev_only(settings_of(request))
+    require(conn, principal, "system.configure", INSTALLATION)
+    now = now_iso()
+    rows = []
+    for st in body.states:
+        eid = st.get("entity_id")
+        if not isinstance(eid, str) or "." not in eid:
+            raise ApiError(422, "validation", "לכל מצב צריך entity_id.")
+        row = ha_sync.upsert_state(conn, {"entity_id": eid, "state": str(st.get("state")), "attributes": st.get("attributes") or {}, "last_changed": now, "last_updated": now})
+        ha_sync.STATE.sequence += 1
+        ha_sync.publish({"type": "entity_state_changed", "sequence": ha_sync.STATE.sequence, "entity": row})
+        rows.append(row)
+    audit(conn, actor=principal, action="ha.dev.states", decision="allowed", resource_type="installation", resource_id="*", request_id=getattr(request.state, "correlation_id", None),
+          details={"entities": [r["entity_id"] for r in rows]})
+    return {"entities": rows}
 
 
 # ---------------------------------------------------------------- bridge pairing + directory (integration side)

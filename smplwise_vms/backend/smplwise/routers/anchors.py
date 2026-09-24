@@ -34,6 +34,7 @@ def anchor_row(r: sqlite3.Row) -> dict[str, Any]:
         "effective_from": r["effective_from"], "effective_to": r["effective_to"], "updated_at": r["updated_at"],
         "coverage_radius": r["coverage_radius"], "coverage_polygon": _polygon(r["coverage_polygon"]),
         "label_pos": r["label_pos"] or "auto",
+        "level_id": r["level_id"] if "level_id" in r.keys() else None,
     }
 
 
@@ -123,14 +124,17 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
         anchors = conn.execute("SELECT * FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL ORDER BY layer_id, resource_id", (floor_id,)).fetchall()
     from ..services import geometry_store, plan_catalog
 
-    geometry = None
+    geometry_row = None
     if version is not None:
         if at_iso and history == "exact":
-            geometry = geometry_store.ref(geometry_store.at_row(conn, version["id"], at_iso))
+            geometry_row = geometry_store.at_row(conn, version["id"], at_iso)
         elif draft and can_edit and can_structure and not at_iso:
-            geometry = geometry_store.ref(geometry_store.draft_row(conn, version["id"]) or geometry_store.published_row(conn, version["id"]))
+            geometry_row = geometry_store.draft_row(conn, version["id"]) or geometry_store.published_row(conn, version["id"])
         else:
-            geometry = geometry_store.ref(geometry_store.published_row(conn, version["id"]))
+            geometry_row = geometry_store.published_row(conn, version["id"])
+    geometry = geometry_store.ref(geometry_row)
+    levels = geometry_store.levels_of(geometry_row)
+    circuits = geometry_store.circuits_of(geometry_row)
     cameras = {r["id"]: camera_row(r) for r in conn.execute("SELECT * FROM cameras ORDER BY sort_order, channel").fetchall()}
     from ..services import ha_bridge, ha_history, ha_sync
 
@@ -160,6 +164,24 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
             entities[e["entity_id"]] = e
     if at_iso:
         ha_hist = ha_history.coverage(conn)
+    circuit_states: dict[str, Any] = {}
+    if circuits:
+        # The switch of a circuit is the live state of its lamps (design 2a, rule 2). Reading needs nothing beyond the
+        # floor's map.read; control is the floor's ha.entity.control, exercised through the entity action route.
+        control = authorize(conn, principal, "ha.entity.control", ("floor", floor_id)).allowed and not at_iso
+        switch_ids = sorted({c["switch_entity_id"] for c in circuits})
+        rows = {r["entity_id"]: ha_sync.entity_row(r) for r in conn.execute(f"SELECT * FROM ha_entities WHERE entity_id IN ({','.join('?' * len(switch_ids))})", switch_ids).fetchall()}
+        hist = ha_history.state_at(conn, switch_ids, at_iso) if at_iso else {}
+        for c in circuits:
+            e = rows.get(c["switch_entity_id"])
+            past = hist.get(c["switch_entity_id"], {})
+            state = past.get("state") if at_iso else (e["state"] if e else None)
+            circuit_states[c["id"]] = {
+                "entity_id": c["switch_entity_id"], "name": c.get("name"), "color_token": c.get("color_token"), "member_ids": list(c.get("member_ids") or []), "power_w": c.get("power_w"),
+                "state": state, "known": bool(past.get("known")) if at_iso else e is not None, "fresh": bool(e and e["fresh"]) and not at_iso, "available": bool(e and e["available"]),
+                "can_control": bool(control and e is not None and not e["removed_at"]),
+                "actions": [a for a in ha_bridge.actions_for(e["domain"]) if a["id"].endswith(("turn_on", "turn_off"))] if (control and e is not None and not e["removed_at"]) else [],
+            }
     b = get_building(conn, f["building_id"])
     s = get_site(conn, b["site_id"])
     return {
@@ -169,6 +191,8 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
         "plan": version_row(version) if version else None,
         "geometry": geometry,
         "catalog_revision": plan_catalog.revision(conn),
+        "levels": levels,
+        "circuit_states": circuit_states,
         "anchors": [dict(anchor_row(a), camera=cameras.get(a["resource_id"]) if a["resource_type"] == "camera" else None, entity=entities.get(a["resource_id"]) if a["resource_type"] == "ha_entity" else None) for a in anchors],
         "ha_sync": ha_sync.STATE.as_dict(),
         "zones": _zones_for(conn, floor_id),
@@ -191,6 +215,7 @@ class AnchorIn(BaseModel):
     rotation_degrees: float = Field(default=0, ge=0, lt=360)
     field_of_view_degrees: float | None = Field(default=None, gt=0, le=360)
     layer_id: str = Field(default="cameras", max_length=40)
+    level_id: str | None = Field(default=None, max_length=64)
     label: str | None = Field(default=None, max_length=120)
     coverage_radius: float | None = Field(default=None, gt=0, le=1)  # fraction of the plan width
     coverage_polygon: list[list[float]] | None = None  # [[x, y], ...] normalized
@@ -205,6 +230,7 @@ class AnchorPatch(BaseModel):
     rotation_degrees: float | None = Field(default=None, ge=0, lt=360)
     field_of_view_degrees: float | None = Field(default=None, gt=0, le=360)
     layer_id: str | None = Field(default=None, max_length=40)
+    level_id: str | None = Field(default=None, max_length=64)
     label: str | None = Field(default=None, max_length=120)
     # coverage: an explicit null clears it (back to the default cone); absent = unchanged
     coverage_radius: float | None = Field(default=None, gt=0, le=1)
@@ -241,10 +267,10 @@ def create_anchor(floor_id: str, body: AnchorIn, request: Request, principal: Pr
         raise conflict("already_placed", "הפריט כבר מוצב על הקומה הזו.", anchor_id=dup["id"])
     aid, now = new_id(), now_iso()
     conn.execute(
-        """INSERT INTO map_anchors(id, floor_id, plan_version_id, resource_type, resource_id, x, y, rotation_degrees, field_of_view_degrees, layer_id, label, revision, effective_from, created_by, updated_by, updated_at, coverage_radius, coverage_polygon, label_pos)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)""",
+        """INSERT INTO map_anchors(id, floor_id, plan_version_id, resource_type, resource_id, x, y, rotation_degrees, field_of_view_degrees, layer_id, label, revision, effective_from, created_by, updated_by, updated_at, coverage_radius, coverage_polygon, label_pos, level_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (aid, floor_id, version["id"], body.resource_type, body.resource_id, body.x, body.y, body.rotation_degrees, body.field_of_view_degrees, body.layer_id, body.label, now, principal.user_id, principal.user_id, now,
-         body.coverage_radius, _check_polygon(body.coverage_polygon), body.label_pos),
+         body.coverage_radius, _check_polygon(body.coverage_polygon), body.label_pos, body.level_id or None),
     )
     audit(conn, actor=principal, action="anchor.create", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request),
           details={"anchor_id": aid, "resource": f"{body.resource_type}:{body.resource_id}", "x": body.x, "y": body.y})
@@ -340,6 +366,8 @@ def update_anchor(anchor_id: str, body: AnchorPatch, request: Request, principal
     fields = {k: v for k, v in body.model_dump().items() if k != "revision" and (v is not None or (k in COVERAGE_KEYS and k in body.model_fields_set))}
     if "coverage_polygon" in fields:
         fields["coverage_polygon"] = _check_polygon(fields["coverage_polygon"])
+    if "level_id" in fields:
+        fields["level_id"] = fields["level_id"] or None  # "" clears: back to the floor's default level
     before = {k: a[k] for k in fields}
     if fields:
         sets = ", ".join(f"{k} = ?" for k in fields)

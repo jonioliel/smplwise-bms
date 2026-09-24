@@ -352,3 +352,65 @@ def link_connector(conn: sqlite3.Connection, source: sqlite3.Row, connector_id: 
         tdoc["connectors"] = [*connectors, twin]
         row = save_draft(conn, target_version, tdoc, tdraft["revision"] if tdraft is not None else 0, actor_id, now)
     return {"connector": item, "target": {"floor_id": target_floor_id, "version_id": target_version["id"], "revision": row["revision"] if row is not None else 0}}
+
+
+# ---------------------------------------------------------------- what the bundle, the scope and the search read (phase 2)
+
+_SWITCH_CACHE: dict[str, list[str]] = {}
+_OBJECT_CACHE: dict[str, list[dict[str, Any]]] = {}
+_CACHE_MAX = 256
+
+
+def levels_of(row: sqlite3.Row | None) -> list[dict[str, Any]]:
+    """The levels of the document a bundle reference names (the live map offers the same level filter as the editor)."""
+    if row is None:
+        return []
+    levels = load_doc(row).get("levels")
+    return [lv for lv in levels if isinstance(lv, dict)] if isinstance(levels, list) else []
+
+
+def circuits_of(row: sqlite3.Row | None) -> list[dict[str, Any]]:
+    if row is None:
+        return []
+    circuits = load_doc(row).get("circuits")
+    return [c for c in circuits if isinstance(c, dict) and isinstance(c.get("id"), str) and isinstance(c.get("switch_entity_id"), str)] if isinstance(circuits, list) else []
+
+
+def _cached(cache: dict[str, Any], row: sqlite3.Row, build) -> Any:
+    hit = cache.get(row["doc_hash"])
+    if hit is None:
+        hit = build(load_doc(row))
+        if len(cache) >= _CACHE_MAX:
+            cache.clear()
+        cache[row["doc_hash"]] = hit
+    return hit
+
+
+def _current_published(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """The published structure of every floor's published plan version - the only documents the live map, the scope
+    and the search read."""
+    return conn.execute("SELECT g.floor_id, g.plan_version_id, g.doc_hash, g.doc_json FROM plan_geometry g JOIN plan_versions v ON v.id = g.plan_version_id "
+                        "WHERE g.status = 'published' AND v.status = 'published'").fetchall()
+
+
+def circuit_switches(conn: sqlite3.Connection) -> dict[str, list[str]]:
+    """The switch entity of every circuit in a published document, keyed entity id -> floor ids: for scope purposes such
+    a switch counts as placed on the floor (a floor viewer reads its state, a floor operator toggles it through the
+    entity action route). One parse per document hash, bounded."""
+    out: dict[str, list[str]] = {}
+    for r in _current_published(conn):
+        for eid in _cached(_SWITCH_CACHE, r, lambda doc: sorted({c["switch_entity_id"] for c in doc.get("circuits") or [] if isinstance(c, dict) and isinstance(c.get("switch_entity_id"), str)})):
+            out.setdefault(eid, []).append(r["floor_id"])
+    return out
+
+
+def published_objects(conn: sqlite3.Connection) -> dict[str, list[dict[str, Any]]]:
+    """What the global search scans: the objects of every published document, keyed by floor - id, item, label, level
+    and position. One parse per document hash, bounded."""
+    out: dict[str, list[dict[str, Any]]] = {}
+    for r in _current_published(conn):
+        entries = _cached(_OBJECT_CACHE, r, lambda doc: [{"id": o["id"], "item_id": str(o.get("item_id") or ""), "label": o.get("label") or None, "level_id": o.get("level_id"), "position": o.get("position")}
+                                                         for o in doc.get("objects") or [] if isinstance(o, dict) and isinstance(o.get("id"), str)])
+        if entries:
+            out.setdefault(r["floor_id"], []).extend(entries)
+    return out
