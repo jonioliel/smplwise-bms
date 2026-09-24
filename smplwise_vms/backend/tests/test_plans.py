@@ -107,4 +107,4 @@ def test_viewer_reads_only_published_images(client, settings):
     client.post(f"/api/v1/plan-versions/{draft['id']}/publish")
     assert client.get(draft["image_url"], headers=h).status_code == 200
     m = client.get(f"/api/v1/floors/{ids['floor2']}/map", headers=h).json()
-    assert m["permissions"] == {"edit": False, "publish": False, "import": False}
+    assert m["permissions"] == {"edit": False, "publish": False, "import": False, "structure": False}

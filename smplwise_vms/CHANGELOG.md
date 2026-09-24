@@ -1,5 +1,34 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.82 (pilot) — Plan Studio phase 1: walls, doors and windows on the plan, calibrated, on every map
+- The plan editor gains three tools (T084, CR-003): **structure** - walls drawn point by point with snapping to
+  corners and to 45 degrees, doors / windows / passages placed on a wall (they cut it), labels, selection, dragging
+  of corners, openings and labels, undo / redo and a server-side draft saved two seconds after the last edit;
+  **calibrate** - two points and a known distance: the editor calibrates with one pair of points (the API accepts
+  several pairs; a multi-pair UI is deferred); **measure** - distance, area and perimeter in metres, marked "≈"
+  until the plan is calibrated (the new setting "מידות לפני כיול" / `plan.estimates` hides them until calibration
+  instead - owner decision 2026-09-23).
+- A draft belongs to the editor: viewers keep the published structure until "פרסום המבנה" (a preview of what
+  changes; blocked while the validator reports errors, which are red on the map and listed in the panel).
+  Publishing a draft plan version publishes its structure with it and refuses (422) before anything changes when
+  the structure is invalid.
+- Every map shows the published structure: the live floor map (new layer "מבנה", remembered per floor), the
+  history map at the chosen instant (each structure publish has its own period), the event page and the Lovelace
+  card, which embeds the same floor screen.
+- A new plan version of the same drawing starts from the floor's structure (copied, or mapped through a re-crop,
+  with the calibration carried); another drawing starts empty and offers a copy. Restoring a plan version restores
+  its structure; backups include it.
+- Restoring a backup in replace mode now empties every project table, including tables absent from an older archive
+  (for example, an archive from before saved views existed clears the saved views), so a restore leaves exactly the
+  archive's content; merge mode is unchanged.
+- Exports: SVG and PNG drawn from the same deterministic primitives as the map (a golden fixture pins the Python
+  and TypeScript code to the same shapes), and the JSON document.
+- Storage: migrations 0018 (`plan_geometry`, `plan_versions.calibration_json`) and 0019 (level columns used from
+  phase 2), additive only; 11 new API routes; `/floors/{id}/map` carries a reference to the structure and
+  `permissions.structure`.
+- Evidence: eight new backend test files, two node unit specs, the live spec `evidence-plan-studio` (four tests in
+  real Chrome).
+
 ## 0.1.81 (pilot) — the navigation shows what the user may open; the camera screen stops asking the NVR for what it may not read
 - Owner decision (2026-09-22, 1.א): the shell hides tabs and areas the user has no permission for. `/me` gained
   `permissions_any` - the permissions held at any scope (union of the allow bindings, minus an installation-wide

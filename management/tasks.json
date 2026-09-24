@@ -3199,10 +3199,11 @@
       "Build screenshots matching design reference"
     ],
     "evidence": [
-      "pre-evidence (2026-09-16, 0.1.29): contracts/schemas/plan_geometry.v1.schema.json (schema_version, source hash / page, dimensions + calibration status with reason, transform rotation / crop, walls, doors, windows, rooms, connectors, uncertainty; normalized coordinates); services/plan_schema.py validate() (bounds, polygon area and self-intersection, duplicate ids across collections, calibration consistency, crop inside bounds, enums, confidence, provenance), canonical_json() deterministic serialization, export_version() from a real plan version (asset sha256, transform, zones as rooms with provenance, doors from placed locks / door sensors, walls and windows explicitly empty with notes); docs/architecture/PLAN_GEOMETRY_SCHEMA.md; tests/test_plan_schema.py. Open: GET /plan-versions/{id}/geometry, wall / window vectorization, connectors, the regression plan set compared as geometry, a renderer that draws the document"
+      "pre-evidence (2026-09-16, 0.1.29): contracts/schemas/plan_geometry.v1.schema.json (schema_version, source hash / page, dimensions + calibration status with reason, transform rotation / crop, walls, doors, windows, rooms, connectors, uncertainty; normalized coordinates); services/plan_schema.py validate() (bounds, polygon area and self-intersection, duplicate ids across collections, calibration consistency, crop inside bounds, enums, confidence, provenance), canonical_json() deterministic serialization, export_version() from a real plan version (asset sha256, transform, zones as rooms with provenance, doors from placed locks / door sensors, walls and windows explicitly empty with notes); docs/architecture/PLAN_GEOMETRY_SCHEMA.md; tests/test_plan_schema.py. Open: GET /plan-versions/{id}/geometry, wall / window vectorization, connectors, the regression plan set compared as geometry, a renderer that draws the document",
+      "2026-09-24 (0.1.82): acceptance implemented by T084 (CR-003) on commit 72ae1a2: versioned schema v2 with source hash, dimensions, transforms, walls, openings (doors / windows), rooms, connectors and uncertainty; the validator covers normalized bounds, missing calibration (a reason is required), duplicate ids and references, while polygon simplicity stays with the v1 proposal schema (plan_schema.polygon_simple); the renderer is deterministic (same JSON -> same primitives, SVG and PNG bytes; golden fixture shared with the browser)."
     ],
-    "owner": null,
-    "commit": null,
+    "owner": "Claude Code (tech lead); approver: product owner",
+    "commit": "72ae1a2",
     "actual_cost_usd": null
   },
   {
@@ -4583,9 +4584,11 @@
       "Documentation, known limits and rollback notes",
       "Desktop/mobile/RTL screenshots for UI tasks"
     ],
-    "evidence": [],
-    "owner": null,
-    "commit": null,
+    "evidence": [
+      "2026-09-24 (0.1.82): Plan Studio phase 1 on commit 72ae1a2 - plan_geometry (migration 0018: one draft, at most one published and an archived history per plan version; plan_versions.calibration_json) and level columns (0019); document v2 (contracts/schemas/plan_geometry.v2.schema.json) with structural vs geometric validation; API: draft autosave with revisions (409 stale_revision), publish with diff and audit (geometry.publish), versions, timeline, rollback, copy between versions, two-point calibration with residual (plan.calibrate); the map bundle carries a reference (id + SHA-256, ETag / 304) and permissions.structure; a plan-version publish publishes its structure (422 geometry_invalid before anything changes), a new version of the same drawing carries it (copied, or mapped through the crop, with the calibration), a restore brings it back, deleting a draft version removes it, backups include it; deterministic primitives shared by the map and the SVG / PNG exports (contracts/fixtures/plan_geometry golden). Shown on the live floor map (layer 'מבנה'), the history map at t, the event page and the Lovelace card (same floor screen); drawn in the plan editor (structure, calibrate and measure tools, publish preview). Tests: 239 backend passed (8 new files; 176 before the plan + 63 new - the plan counted 34 in 7 files, the review rounds added 28 and the plan.estimates amendment 1 in its own file), 19 node unit tests (the plan counted 9; dispatch notes and review rounds added 10), evidence-plan-studio 4/4 live in real Chrome, neighbour specs as their baselines (evidence-history-map blocked by the environment as in the Task 11 baseline: no events while the NVR is unreachable, ingest ConnectTimeout; for the same reason the event page's map has not run in a browser; the Lovelace card, which embeds the floor screen, was not opened), fixture chain 129; test_plan_geometry_api.py::test_calibration_leaves_walls_openings_pins_and_the_published_document_unchanged (added by the release review) shows that a calibration moves no wall, opening, label or pin and leaves the published document as it is. R167 note: measured metres only after calibration; before it every value carries '≈' (design section 6)."
+    ],
+    "owner": "Claude Code (tech lead); approver: product owner",
+    "commit": "72ae1a2",
     "actual_cost_usd": null
   },
   {

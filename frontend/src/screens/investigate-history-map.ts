@@ -25,6 +25,8 @@ import { entityName, loadMap, type MapBundle } from '../api/maps';
 import { EVENT_LABEL, listEvents, type EventKind, type VmsEvent } from '../api/events';
 import { dateInZone, frameUrl, instantInZone, minuteInZone, recordingsForDay, type RecordingsResponse } from '../api/recordings';
 import { entityMarkerKind, stateLabel } from '../api/ha';
+import { geometryAt, geometryFor } from '../api/geometry';
+import type { GeometryDoc } from '../map/geometry';
 
 const NEAR_MIN = 10;
 
@@ -59,6 +61,9 @@ export class InvestigateHistoryMap extends LitElement {
   @state() private frameAt = '';
   @state() private frameFailed = false;
   @state() private casePick: NewCaseItem | null = null;
+  /** Plan Studio: the structure published at the instant (one plan version can have several structure publishes). */
+  @state() private geometry: GeometryDoc | null = null;
+  private geomSeq = 0;
   private frameTimer = 0;
 
   static styles = css`
@@ -317,6 +322,8 @@ export class InvestigateHistoryMap extends LitElement {
       this.date = dateInZone(start, this.tz);
       this.minute = minuteInZone(start, this.tz);
       this.bundle = await loadMap(this.floorId, false, this.instant.toISOString().replace(/\.\d{3}Z$/, 'Z'));
+      this.geometry = null; // another floor or instant: no structure until its document arrives
+      void this.updateGeometry();
       this.scheduleFrame();
       if (this.camera) {
         const a = this.bundle.anchors.find((x) => x.resource_type === 'camera' && x.resource_id === this.camera);
@@ -416,17 +423,35 @@ export class InvestigateHistoryMap extends LitElement {
     }, 600);
   }
 
+  /** The structure follows the cursor like the anchors do; the timeline and the documents are cached, so moving is cheap. */
+  private async updateGeometry() {
+    const b = this.bundle;
+    const seq = ++this.geomSeq;
+    if (!b || b.source !== 'api' || !b.planVersionId) {
+      this.geometry = null;
+      return;
+    }
+    const t = this.instant.toISOString().replace(/\.\d{3}Z$/, 'Z');
+    const g = b.history === 'exact' ? await geometryAt(b.planVersionId, t) : await geometryFor(b);
+    if (seq === this.geomSeq) this.geometry = g;
+  }
+
   /** The plan version and the anchors follow the instant (T038): reload the bundle once the cursor leaves the shown version's period. */
   private async ensureVersion() {
     const b = this.bundle;
     if (!b || b.source !== 'api' || !b.at) return;
     const t = this.instant.toISOString().replace(/\.\d{3}Z$/, 'Z');
     const inside = b.history === 'current' ? !b.historyFrom || t < b.historyFrom : (!b.planPublishedAt || b.planPublishedAt <= t) && (!b.planArchivedAt || t < b.planArchivedAt);
-    if (inside) return;
+    if (inside) {
+      void this.updateGeometry();
+      return;
+    }
     try {
       const nb = await loadMap(this.floorId, false, t);
       const before = b.anchors.map((a) => a.resource_id).sort().join(',');
       this.bundle = nb;
+      if (nb.planVersionId !== b.planVersionId) this.geometry = null; // another plan version: its own structure, once fetched
+      void this.updateGeometry();
       if (this.selectedId && !nb.anchors.some((a) => a.id === this.selectedId)) this.selectedId = null;
       if (nb.anchors.map((a) => a.resource_id).sort().join(',') !== before) await this.loadDay();
     } catch {
@@ -521,7 +546,7 @@ export class InvestigateHistoryMap extends LitElement {
         <div class="stage">
           <div class="chip"><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
           <div class="hist">מצב היסטורי · <span class="ltr">${secondLabel(this.minute)}</span></div>
-          <sw-plan-canvas alwaysLabel .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .markers=${this.apiMarkers} .selectedId=${this.selectedId} .zones=${b.zones} dimEntities
+          <sw-plan-canvas alwaysLabel .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .markers=${this.apiMarkers} .selectedId=${this.selectedId} .zones=${b.zones} .geometry=${this.geometry} dimEntities
             @marker-select=${(e: CustomEvent<MarkerSelectDetail>) => { this.selectedId = e.detail.id; this.frameFailed = false; }}></sw-plan-canvas>
           <div class="legend"><span>כחול = יש הקלטה בזמן זה</span><span>מקווקו = אין הקלטה / לא ידוע</span><span>ישויות HA = מצב מההיסטוריה המקומית או לא ידוע</span></div>
         </div>

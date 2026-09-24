@@ -10,7 +10,7 @@ import '../components/sw-state-panel';
 import '../components/sw-toggle';
 import '../components/sw-dialog';
 import '../map/sw-plan-canvas';
-import type { PlanMarker, MarkerSelectDetail, PlanZone, SwPlanCanvas } from '../map/sw-plan-canvas';
+import type { PlanMarker, MarkerSelectDetail, PlanZone, RulerOverlay, SwPlanCanvas } from '../map/sw-plan-canvas';
 import type { IconName } from '../components/sw-icon';
 import { navigate } from '../router';
 import { cameraState, createAnchor, deleteAnchor, listVersions, loadMap, publishVersion, rollbackVersion, updateAnchor, versionDiff, type MapBundle, type VersionDiff, realignAnchors } from '../api/maps';
@@ -19,6 +19,12 @@ import type { Anchor, Camera, PlanVersion } from '../api/types';
 import { domainLabel, entityMarkerKind, listEntities, stateLabel, type HaEntity } from '../api/ha';
 import { ROOM_FILL_LABEL, setRenderMode, stylizeVersion, type RoomFill, type StylizeResult } from '../api/plans';
 import { ZONE_KINDS, acceptZones, createZone, deleteZone, detectZones, pointInPolygon, updateZone, zoneKindLabel, type SpatialZone, type ZoneKind, type ZonePoint } from '../api/zones';
+import { calibrate, copyGeometryFrom, exportUrl, geometryDiff, publishGeometry, type GeometryDiffResponse } from '../api/geometry';
+import { productSettings } from '../api/prefs';
+import { distanceM, effectiveScale, isClosedOutline, nearestWall, pointOnWall, snapPoint, type GeometryDoc, type GeomWall, type Pt } from '../map/geometry';
+import { StudioController } from '../map/studio-controller';
+import { addLabel, addOpening, addWall, moveVertex, patchLabel, patchOpening, patchWall, removeItem, type WallDefaults } from '../map/studio-ops';
+import { COLL_LABEL, countLabel, fmtMetres, fmtScale, renderCalibPanel, renderMeasurePanel, renderStudioPanel, studioPanelStyles, type GeomKind, type GeomSel, type StudioMode } from './plan-studio-panel';
 
 type Strength = 'light' | 'medium' | 'strong';
 interface ZoneCandidate {
@@ -30,7 +36,7 @@ interface ZoneCandidate {
 /** Same palette as the backend assigns on save, so candidates keep their colour once accepted. */
 const PALETTE = ['#2767ED', '#22A06B', '#F59E0B', '#8B5CF6', '#0EA5E9', '#EC4899', '#14B8A6', '#F97316'];
 
-type Tool = 'select' | 'camera' | 'lights' | 'entity' | 'zones' | 'layers';
+type Tool = 'select' | 'camera' | 'lights' | 'entity' | 'zones' | 'structure' | 'calibrate' | 'measure' | 'layers';
 type Layer = 'cameras' | 'doors' | 'lights' | 'sensors';
 
 const TOOLS: { id: Tool; icon: IconName; label: string; ready: boolean }[] = [
@@ -39,8 +45,24 @@ const TOOLS: { id: Tool; icon: IconName; label: string; ready: boolean }[] = [
   { id: 'lights', icon: 'light', label: 'הוספת תאורה (מפסקים)', ready: true },
   { id: 'entity', icon: 'plus', label: 'ישות HA אחרת', ready: true },
   { id: 'zones', icon: 'map', label: 'חדרים ואזורים', ready: true },
+  { id: 'structure', icon: 'wall', label: 'מבנה: קירות, דלתות וחלונות', ready: true },
+  { id: 'calibrate', icon: 'scale', label: 'כיול קנה מידה', ready: true },
+  { id: 'measure', icon: 'ruler', label: 'מדידת מרחק ושטח', ready: true },
   { id: 'layers', icon: 'layers', label: 'שכבות', ready: true },
 ];
+
+/** Tools that work on the Plan Studio structure document (they need map.edit on the floor). */
+const STUDIO_TOOLS: Tool[] = ['structure', 'calibrate', 'measure'];
+interface CalibState {
+  a: Pt | null;
+  b: Pt | null;
+  metres: string;
+  result: string;
+  warning: string;
+}
+const EMPTY_CALIB: CalibState = { a: null, b: null, metres: '', result: '', warning: '' };
+/** The walls and openings of a structure in the publish previews ("קיר אחד, 3 פתחים"). */
+const wallsAndOpenings = (walls: number, openings: number) => `${countLabel(walls, 'קיר אחד', 'קירות')}, ${countLabel(openings, 'פתח אחד', 'פתחים')}`;
 
 const LAYERS: { id: Layer; label: string }[] = [
   { id: 'cameras', label: 'מצלמות' },
@@ -97,10 +119,27 @@ export class ExplorePlanEditor extends LitElement {
   @state() private showZones = true;
   @state() private zoneBusy = false;
   @query('sw-plan-canvas') private canvas?: SwPlanCanvas;
+  /** Plan Studio (T084): the structure draft of the shown plan version, autosaved two seconds after the last edit. */
+  private studio = new StudioController(this);
+  private studioVersion: string | null = null;
+  @state() private studioMode: StudioMode = 'wall';
+  @state() private wallDefaults: WallDefaults = { thickness_m: 0.2, kind: 'interior' };
+  @state() private geomSel: GeomSel | null = null;
+  @state() private wallDraft: Pt[] | null = null;
+  /** Raw plan position of the click that added the draft's last point (a double click there ends the wall). */
+  private lastDrawClick: Pt | null = null;
+  @state() private hover: Pt | null = null;
+  @state() private calib: CalibState = { ...EMPTY_CALIB };
+  @state() private measurePts: Pt[] = [];
+  /** The structure preview of a published plan version: the version it compares, so a late answer or a confirm never
+   * lands on another one. */
+  @state() private geomDiff: { versionId: string; data: GeometryDiffResponse | null; error: string } | null = null;
+  /** Setting `plan.estimates` (default true): estimated metres carry "≈" before calibration; false hides them. */
+  @state() private showEstimates = true;
   private entTimer = 0;
   private onKey = (e: KeyboardEvent) => this.handleKey(e);
 
-  static styles = css`
+  static styles = [css`
     :host {
       display: flex;
       flex-direction: column;
@@ -485,7 +524,7 @@ export class ExplorePlanEditor extends LitElement {
         order: 2;
       }
     }
-  `;
+  `, studioPanelStyles];
 
   connectedCallback() {
     super.connectedCallback();
@@ -501,6 +540,7 @@ export class ExplorePlanEditor extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     window.removeEventListener('keydown', this.onKey);
+    void this.studio.flush(); // an edit younger than the autosave delay is still saved when the editor closes
   }
 
   /** S4: realign items from an earlier plan version (crop maths, or accept after a look). */
@@ -523,6 +563,12 @@ export class ExplorePlanEditor extends LitElement {
     try {
       const b = await loadMap(this.floorId || 'f0', true);
       this.bundle = b;
+      void this.loadStudio(b);
+      void productSettings()
+        .then((s) => {
+          this.showEstimates = s['plan.estimates'] !== 'false'; // undefined until the backend serves the setting (Task 13): estimates shown
+        })
+        .catch(() => {}); // settings unavailable: keep the default (estimates shown)
       this.anchors = b.anchors.map((a) => ({ ...a, position: { ...a.position } }));
       this.zones = b.zones;
       void this.loadVersions();
@@ -754,16 +800,23 @@ export class ExplorePlanEditor extends LitElement {
     const target = e.composedPath()[0] as HTMLElement | undefined;
     const typing = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable);
     if (e.key === 'Escape') {
-      if (this.drawing) this.drawing = null;
+      if (this.wallDraft) {
+        this.wallDraft = null;
+        this.hover = null;
+      } else if (this.tool === 'measure' && this.measurePts.length) this.measurePts = [];
+      else if (this.tool === 'calibrate' && this.calib.a) this.calib = { ...EMPTY_CALIB };
+      else if (this.drawing) this.drawing = null;
       else if (this.placing) this.placing = null;
       else if (this.candidates) this.candidates = null;
       else {
         this.selectedId = null;
         this.selectedZoneId = null;
+        this.geomSel = null;
       }
       return;
     }
     if (typing) return;
+    if (this.studioOn && this.handleStudioKey(e)) return;
     if (e.key === 'Enter' && this.drawing) {
       e.preventDefault();
       void this.finishDrawing();
@@ -913,27 +966,59 @@ export class ExplorePlanEditor extends LitElement {
     }
   }
 
-  /** Publishing always goes through the preview: what changes for viewers and what happens to every placed item (T038). */
+  /** Publishing always goes through a preview. A draft plan version publishes its image, its pins (T038) and its
+   * structure together; on the published version only the structure has something new to publish. */
   private async publish() {
-    if (!this.bundle?.planVersionId) return;
+    const b = this.bundle;
+    if (!b?.planVersionId) return;
     if (this.dirty.size && !(await this.save())) return;
-    const draft = this.versions.find((v) => v.id === this.bundle?.planVersionId);
+    if (!(await this.studio.flush())) {
+      this.error = this.studio.error;
+      return;
+    }
+    this.error = ''; // the draft is saved: a save error from an earlier attempt is over
+    if (b.planStatus === 'published') {
+      await this.openGeomDiff(b.planVersionId);
+      return;
+    }
+    // load() does not wait for the version list: a click before it arrives reads it here. Without the draft's row
+    // there is no preview to show, so nothing is published.
+    let draft = this.versions.find((v) => v.id === b.planVersionId);
     if (!draft) {
-      await this.publishNow(this.bundle.planVersionId);
+      await this.loadVersions();
+      draft = this.versions.find((v) => v.id === b.planVersionId);
+    }
+    if (!draft) {
+      this.error = 'לא נמצאה טיוטה לפרסום — טען מחדש';
       return;
     }
     await this.openDiff('publish', draft);
   }
 
-  private async publishNow(versionId: string) {
-    this.busy = true;
-    this.error = '';
+  private async openGeomDiff(versionId: string) {
+    this.geomDiff = { versionId, data: null, error: '' };
     try {
-      await publishVersion(versionId);
-      this.info = 'הגרסה פורסמה; הצופים רואים אותה עכשיו';
-      await this.load();
+      const data = await geometryDiff(versionId);
+      if (this.geomDiff?.versionId === versionId) this.geomDiff = { versionId, data, error: '' }; // not closed meanwhile
     } catch (err) {
-      this.error = describeError(err);
+      if (this.geomDiff?.versionId === versionId) this.geomDiff = { versionId, data: null, error: describeError(err) };
+    }
+  }
+
+  private async confirmGeomPublish() {
+    const b = this.bundle;
+    const d = this.geomDiff;
+    if (!b || !d?.data) return;
+    this.busy = true;
+    try {
+      const r = await publishGeometry(d.versionId); // the version the preview compared
+      this.geomDiff = null;
+      // The server publishes nothing when the draft already is what viewers see; its answer says so (unchanged).
+      this.info = r.unchanged ? 'אין שינוי לפרסום' : 'המבנה פורסם; הצופים רואים אותו עכשיו';
+      setTimeout(() => (this.info = ''), 4000);
+      await this.loadStudio(b, true); // refresh what viewers see (the published hash)
+    } catch (err) {
+      this.geomDiff = { ...d, error: describeError(err) };
     } finally {
       this.busy = false;
     }
@@ -945,16 +1030,23 @@ export class ExplorePlanEditor extends LitElement {
       const data = await versionDiff(version.id);
       if (this.diff?.version.id === version.id) this.diff = { mode, version, data, error: '' };
     } catch (err) {
-      this.diff = { mode, version, data: null, error: describeError(err) };
+      if (this.diff?.version.id === version.id) this.diff = { mode, version, data: null, error: describeError(err) };
     }
   }
 
   private async confirmDiff() {
     const d = this.diff;
     if (!d?.data || d.mode === 'compare') return;
+    // The editor's own draft publishes the structure the studio holds; another draft from the history publishes its own.
+    const own = d.version.id === this.bundle?.planVersionId;
     this.busy = true;
     this.error = '';
     try {
+      // The history row opens this dialog without publish(): unsaved structure edits are saved before they go out.
+      if (own && !(await this.studio.flush())) {
+        this.diff = { ...d, error: this.studio.error };
+        return;
+      }
       if (d.mode === 'publish') {
         await publishVersion(d.version.id);
         this.info = 'הגרסה פורסמה; הצופים רואים אותה עכשיו';
@@ -964,10 +1056,15 @@ export class ExplorePlanEditor extends LitElement {
       }
       this.diff = null;
       await this.load();
+      if (this.bundle) await this.loadStudio(this.bundle, true); // the structure was published with the plan
       setTimeout(() => (this.info = ''), 4000);
     } catch (err) {
       this.diff = { ...d, error: describeError(err) };
       if (err instanceof ApiError && err.status === 409) void this.loadVersions();
+      if (own && err instanceof ApiError && err.code === 'geometry_invalid') {
+        this.pickTool('structure'); // the issue list is in the structure panel
+        this.studioMode = 'select';
+      }
     } finally {
       this.busy = false;
     }
@@ -1030,10 +1127,406 @@ export class ExplorePlanEditor extends LitElement {
   private pickTool(tool: Tool) {
     this.tool = tool;
     this.placing = null;
+    this.wallDraft = null;
+    this.hover = null;
+    if (tool !== 'structure') this.geomSel = null;
+    if (tool !== 'measure') this.measurePts = [];
+    if (tool !== 'calibrate') this.calib = { ...EMPTY_CALIB };
     if (tool === 'entity' || tool === 'lights') {
       this.entResults = null; // the two tools list different sets
       void this.searchEntities();
     }
+  }
+
+  // ---- Plan Studio: structure (T084) ----
+
+  /** The structure draft follows the plan version the editor shows (a new draft or a restore changes it). True when this
+   * call loaded the version's draft; false when there was nothing to load, the edit in hand could not be saved first or
+   * the load failed (the last two leave no version recorded, so the next call tries again). */
+  private async loadStudio(b: MapBundle, force = false): Promise<boolean> {
+    if (b.source !== 'api' || !b.planVersionId || !b.permissions.structure) return false;
+    if (!force && this.studioVersion === b.planVersionId) return false;
+    this.studioVersion = b.planVersionId;
+    try {
+      // An unsaved edit is never dropped silently: when it cannot be saved the studio keeps its draft and says so (the
+      // next load tries again). A reload after a conflict drops it on purpose: the user chose the stored draft.
+      if (!(await this.studio.flush()) && !(force && this.studio.hasConflict)) {
+        this.studioVersion = null;
+        this.error = this.studio.error;
+        return false;
+      }
+      await this.studio.load(b.planVersionId);
+      this.geomSel = null;
+      this.wallDraft = null;
+      this.calib = { ...EMPTY_CALIB }; // points and measures belong to the document they were taken on
+      this.measurePts = [];
+      return true;
+    } catch (err) {
+      this.studioVersion = null;
+      this.error = describeError(err);
+      return false;
+    }
+  }
+
+  private get studioOn(): boolean {
+    return STUDIO_TOOLS.includes(this.tool) && !!this.studio.doc;
+  }
+
+  /** Clicks on the plan go to the studio tool instead of selecting pins. */
+  private get studioPlacing(): boolean {
+    return this.studioOn && (this.tool !== 'structure' || this.studioMode !== 'select');
+  }
+
+  private get issueIds(): string[] {
+    return this.studio.issues.filter((i) => i.severity === 'error' && i.id).map((i) => i.id as string);
+  }
+
+  /** One undoable edit of the structure draft; an edit that changes nothing adds no undo step and no save. */
+  private edit(fn: (doc: GeometryDoc) => GeometryDoc) {
+    const doc = this.studio.doc;
+    if (!doc) return;
+    const next = fn(doc);
+    if (next === doc || JSON.stringify(next) === JSON.stringify(doc)) return;
+    this.studio.commit(next);
+  }
+
+  private snap(p: Pt, prev: Pt | null, free: boolean): Pt {
+    const b = this.bundle;
+    const doc = this.studio.doc;
+    if (!b || !doc) return p;
+    return snapPoint(p, prev, doc.walls, b.width, b.height, { tolPx: 10 / (this.canvas?.zoom ?? 1), free });
+  }
+
+  /** A point of the wall being drawn: from three points on, the draft's own first point (closing the outline) wins over
+   * every other snap, within a wall corner's tolerance - so the snap dot shows where a click closes. */
+  private snapDraw(p: Pt, draft: Pt[], free: boolean): Pt {
+    const b = this.bundle;
+    const first = draft.length >= 3 ? draft[0] : null;
+    if (b && first && Math.hypot((p[0] - first[0]) * b.width, (p[1] - first[1]) * b.height) * (this.canvas?.zoom ?? 1) <= 10) return first;
+    return this.snap(p, draft.at(-1) ?? null, free);
+  }
+
+  private onPlanHover(x: number, y: number, shift: boolean) {
+    const b = this.bundle;
+    const doc = this.studio.doc;
+    if (!b || !doc || !this.studioPlacing) {
+      this.hover = null;
+      return;
+    }
+    const p: Pt = [x, y];
+    if (this.tool === 'calibrate') this.hover = this.snap(p, null, true);
+    else if (this.tool === 'measure') this.hover = this.snap(p, this.measurePts.at(-1) ?? null, shift);
+    else if (this.studioMode === 'wall') this.hover = this.snapDraw(p, this.wallDraft ?? [], shift);
+    else if (this.studioMode === 'label') this.hover = p;
+    else {
+      const hit = nearestWall(p, doc.walls, b.width, b.height, 14 / (this.canvas?.zoom ?? 1));
+      this.hover = hit ? pointOnWall(hit.wall, hit.t, b.width, b.height) : null;
+    }
+  }
+
+  private studioClick(x: number, y: number, shift: boolean) {
+    const b = this.bundle;
+    const doc = this.studio.doc;
+    if (!b || !doc) return;
+    const p: Pt = [x, y];
+    if (this.tool === 'calibrate') {
+      const q = this.snap(p, null, true); // corners of walls attract; no angle snapping - the distance is what counts
+      const c = this.calib;
+      this.calib = !c.a || c.b ? { ...EMPTY_CALIB, a: q } : { ...c, b: q };
+      return;
+    }
+    if (this.tool === 'measure') {
+      this.measurePts = [...this.measurePts, this.snap(p, this.measurePts.at(-1) ?? null, shift)];
+      return;
+    }
+    const mode = this.studioMode;
+    const zoom = this.canvas?.zoom ?? 1;
+    if (mode === 'wall') {
+      const d = this.wallDraft ?? [];
+      const q = this.snapDraw(p, d, shift);
+      // Tested on the raw click: the angle snap can move a click on a drawn point far from it. The raw position of the
+      // last click counts too - the angle snap keeps the distance to the previous point, so without it a double click
+      // would not end a wall whose last point the snap moved.
+      const near = (a: Pt | null) => !!a && Math.hypot((a[0] - p[0]) * b.width, (a[1] - p[1]) * b.height) * zoom < 8;
+      if (d.length && (near(d[d.length - 1]) || near(this.lastDrawClick))) {
+        this.finishWall(); // a second click on the last point ends the wall (a double click does the same)
+        return;
+      }
+      if (d.length >= 3 && q === d[0]) {
+        this.wallDraft = [...d, d[0]]; // back on the first point (the snap put the click there): a closed outline
+        this.finishWall();
+        return;
+      }
+      this.wallDraft = [...d, q];
+      this.lastDrawClick = p;
+      return;
+    }
+    if (mode === 'label') {
+      const r = addLabel(doc, p, 'תווית');
+      this.studio.commit(r.doc);
+      this.geomSel = { id: r.id, kind: 'label' };
+      return;
+    }
+    if (mode === 'select') return;
+    const hit = nearestWall(p, doc.walls, b.width, b.height, 14 / zoom);
+    if (!hit) {
+      this.info = 'לחץ על קיר כדי להציב פתח';
+      setTimeout(() => (this.info = ''), 2500);
+      return;
+    }
+    const r = addOpening(doc, hit.wall.id, hit.t, mode);
+    this.studio.commit(r.doc);
+    this.geomSel = { id: r.id, kind: 'opening' };
+  }
+
+  private finishWall() {
+    const d = this.wallDraft;
+    this.wallDraft = null;
+    this.hover = null;
+    const doc = this.studio.doc;
+    if (!doc || !d || d.length < 2) return;
+    const r = addWall(doc, d, this.wallDefaults);
+    this.studio.commit(r.doc);
+    this.geomSel = { id: r.id, kind: 'wall' };
+  }
+
+  private onGeomSelect(id: string, kind: GeomKind) {
+    this.geomSel = { id, kind };
+    this.selectedId = null;
+    this.selectedZoneId = null;
+  }
+
+  private onGeomDrag(d: { kind: 'vertex' | 'opening' | 'label'; id: string; index: number; x: number; y: number }) {
+    const b = this.bundle;
+    const doc = this.studio.doc;
+    if (!b || !doc) return;
+    const p: Pt = [d.x, d.y];
+    if (d.kind === 'vertex') {
+      const w = doc.walls.find((v) => v.id === d.id);
+      if (!w) return;
+      const pl = w.polyline;
+      const last = pl.length - 1;
+      const closed = isClosedOutline(pl);
+      const i = closed && d.index === last ? 0 : d.index; // the closing corner of an outline is one corner: both ends move
+      // Snap targets: the other walls and this wall's own corners, except the dragged one and its neighbours.
+      const corners = closed ? last : pl.length;
+      const skip = closed ? [(i + corners - 1) % corners, i, (i + 1) % corners] : [i - 1, i, i + 1];
+      const own: GeomWall = { ...w, polyline: pl.slice(0, corners).filter((_, k) => !skip.includes(k)) };
+      const targets = [...doc.walls.filter((v) => v.id !== d.id), own];
+      const q = snapPoint(p, i > 0 ? pl[i - 1] : null, targets, b.width, b.height, { tolPx: 10 / (this.canvas?.zoom ?? 1), free: true });
+      this.edit((x) => (closed && i === 0 ? moveVertex(moveVertex(x, d.id, 0, q), d.id, last, q) : moveVertex(x, d.id, i, q)));
+      this.geomSel = { id: d.id, kind: 'wall' };
+    } else if (d.kind === 'opening') {
+      const o = doc.openings.find((v) => v.id === d.id);
+      const hit = o ? nearestWall(p, doc.walls, b.width, b.height, Number.POSITIVE_INFINITY, o.wall_id) : null;
+      if (hit) this.edit((x) => patchOpening(x, d.id, { t: hit.t }));
+      this.geomSel = { id: d.id, kind: 'opening' };
+    } else {
+      this.edit((x) => patchLabel(x, d.id, { position: p }));
+      this.geomSel = { id: d.id, kind: 'label' };
+    }
+  }
+
+  /** Keys of the studio tools; true when the key was used. Ctrl+Z / Ctrl+Y undo the structure, not the pins. */
+  private handleStudioKey(e: KeyboardEvent): boolean {
+    const mod = e.ctrlKey || e.metaKey;
+    const key = e.key.toLowerCase();
+    if (e.key === 'Enter' && this.wallDraft) {
+      e.preventDefault();
+      this.finishWall();
+      return true;
+    }
+    if ((e.key === 'Backspace' || e.key === 'Delete') && this.wallDraft) {
+      e.preventDefault(); // while drawing, both remove the last point (never the item selected before)
+      this.wallDraft = this.wallDraft.length > 1 ? this.wallDraft.slice(0, -1) : null;
+      this.lastDrawClick = null;
+      return true;
+    }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && this.geomSel) {
+      e.preventDefault();
+      const id = this.geomSel.id;
+      this.edit((d) => removeItem(d, id));
+      this.geomSel = null;
+      return true;
+    }
+    if (mod && (key === 'z' || key === 'y')) {
+      e.preventDefault();
+      if (key === 'y' || e.shiftKey) this.studio.redo();
+      else this.studio.undo();
+      this.geomSel = null;
+      return true;
+    }
+    if (mod && key === 's') {
+      e.preventDefault();
+      void this.studio.flush();
+      return true;
+    }
+    return false;
+  }
+
+  /** Bring an item into view and select it (the issue list, publish errors). */
+  private focusGeom(id: string) {
+    const b = this.bundle;
+    const doc = this.studio.doc;
+    if (!b || !doc) return;
+    const w = doc.walls.find((x) => x.id === id);
+    const o = doc.openings.find((x) => x.id === id);
+    const l = doc.labels.find((x) => x.id === id);
+    const host = o ? doc.walls.find((x) => x.id === o.wall_id) : undefined;
+    const at: Pt | null = w ? pointOnWall(w, 0.5, b.width, b.height) : o && host ? pointOnWall(host, o.t, b.width, b.height) : l ? l.position : null;
+    this.tool = 'structure';
+    this.studioMode = 'select';
+    this.wallDraft = null;
+    this.geomSel = w ? { id, kind: 'wall' } : o ? { id, kind: 'opening' } : l ? { id, kind: 'label' } : null;
+    if (at) this.canvas?.centerOn(Math.min(1, Math.max(0, at[0])), Math.min(1, Math.max(0, at[1])));
+  }
+
+  private async copyStructure(fromVersionId: string) {
+    const b = this.bundle;
+    if (!b?.planVersionId) return;
+    this.busy = true;
+    this.error = '';
+    try {
+      if (!(await this.studio.flush())) {
+        this.error = this.studio.error;
+        return;
+      }
+      await copyGeometryFrom(b.planVersionId, fromVersionId);
+      if (await this.loadStudio(b, true)) {
+        this.info = 'המבנה הועתק לטיוטה; בדוק מיקומים ופרסם';
+        setTimeout(() => (this.info = ''), 4000);
+      }
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private exportJson() {
+    const doc = this.studio.doc;
+    if (!doc) return;
+    const url = URL.createObjectURL(new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `plan-structure-${doc.plan_version_id}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  private renderStructurePanel(b: MapBundle) {
+    const doc = this.studio.doc;
+    const versionId = b.planVersionId;
+    if (!doc || !versionId) {
+      return html`<sw-card heading="מבנה"><div class="note">${b.source === 'demo' ? 'נתוני הדגמה: ציור המבנה עובד מול השרת.' : this.error || 'טוען את טיוטת המבנה…'}</div></sw-card>`;
+    }
+    return renderStudioPanel(
+      {
+        doc, W: b.width, H: b.height, mode: this.studioMode, wallDefaults: this.wallDefaults, sel: this.geomSel, saveState: this.studio.saveState, saveError: this.studio.error,
+        conflict: this.studio.hasConflict,
+        issues: this.studio.issues, copyCandidates: this.studio.copyCandidates, exportSvg: exportUrl(versionId, 'svg', { draft: true }), exportPng: exportUrl(versionId, 'png', { draft: true }), busy: this.busy,
+        showEstimates: this.showEstimates,
+      },
+      {
+        setMode: (m) => {
+          this.studioMode = m;
+          this.wallDraft = null;
+          this.hover = null;
+        },
+        setWallDefaults: (d) => {
+          this.wallDefaults = d;
+        },
+        patchWall: (id, patch) => this.edit((d) => patchWall(d, id, patch)),
+        patchOpening: (id, patch) => this.edit((d) => patchOpening(d, id, patch)),
+        patchLabel: (id, patch) => this.edit((d) => patchLabel(d, id, patch)),
+        remove: (id) => {
+          this.edit((d) => removeItem(d, id));
+          this.geomSel = null;
+        },
+        focus: (id) => this.focusGeom(id),
+        copyFrom: (id) => void this.copyStructure(id),
+        exportJson: () => this.exportJson(),
+        reload: () => void this.loadStudio(b, true),
+        calibrate: () => this.pickTool('calibrate'),
+        retry: async () => {
+          if (await this.studio.flush()) void this.loadStudio(b); // a version switch held back by the failed save goes ahead
+        },
+      },
+    );
+  }
+
+  /** Calibration and measuring segments with their lengths, drawn by the canvas. */
+  private get rulers(): RulerOverlay[] {
+    const bundle = this.bundle;
+    const doc = this.studio.doc;
+    if (!bundle || !doc) return [];
+    const { scale, estimated } = effectiveScale(doc);
+    const len = (a: Pt, c: Pt) => fmtMetres(distanceM(a, c, bundle.width, bundle.height, scale), estimated, this.showEstimates);
+    if (this.tool === 'calibrate') {
+      const { a, b: end, metres } = this.calib;
+      const tip = end ?? this.hover;
+      if (!a || !tip) return [];
+      return [{ a, b: tip, label: end ? (parseFloat(metres) > 0 ? `${metres} מ׳` : '? מ׳') : '', tone: end ? 'accent' : 'muted' }];
+    }
+    if (this.tool === 'measure') {
+      const fixed = this.measurePts;
+      const pts = this.hover && fixed.length ? [...fixed, this.hover] : fixed;
+      const out: RulerOverlay[] = [];
+      for (let i = 1; i < pts.length; i++) out.push({ a: pts[i - 1], b: pts[i], label: len(pts[i - 1], pts[i]), tone: i > fixed.length - 1 ? 'muted' : 'accent' });
+      if (fixed.length >= 3) out.push({ a: fixed[fixed.length - 1], b: fixed[0], label: '', tone: 'muted' });
+      return out;
+    }
+    return [];
+  }
+
+  private async saveCalibration() {
+    const bundle = this.bundle;
+    const { a, b: end, metres } = this.calib;
+    const m = parseFloat(metres);
+    if (!bundle?.planVersionId || !a || !end || !(m > 0)) return;
+    this.busy = true;
+    this.error = '';
+    try {
+      // The server rewrites the stored draft: an edit that is not saved yet would be lost or refused as stale.
+      if (!(await this.studio.flush())) {
+        this.error = this.studio.error;
+        return;
+      }
+      const r = await calibrate(bundle.planVersionId, [{ a, b: end, metres: m }]);
+      await this.loadStudio(bundle, true); // the server rewrote the draft's dimensions
+      this.calib = { ...EMPTY_CALIB, result: `קנה המידה נשמר: ${fmtScale(r.scale_m_per_px)}`, warning: r.warning ?? '' };
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private renderCalibrate(bundle: MapBundle) {
+    const doc = this.studio.doc;
+    if (!doc) return html`<sw-card heading="כיול קנה מידה"><div class="note">${bundle.source === 'demo' ? 'נתוני הדגמה: הכיול עובד מול השרת.' : 'טוען…'}</div></sw-card>`;
+    const { scale, estimated } = effectiveScale(doc);
+    const c = this.calib;
+    const pixels = c.a && c.b ? Math.hypot((c.b[0] - c.a[0]) * bundle.width, (c.b[1] - c.a[1]) * bundle.height) : null;
+    return renderCalibPanel(
+      { a: c.a, b: c.b, metres: c.metres, pixels, scale, estimated, showEstimates: this.showEstimates, result: c.result, warning: c.warning, busy: this.busy },
+      (value) => {
+        this.calib = { ...this.calib, metres: value };
+      },
+      () => void this.saveCalibration(),
+      () => {
+        this.calib = { ...EMPTY_CALIB };
+      },
+    );
+  }
+
+  private renderMeasure(bundle: MapBundle) {
+    const doc = this.studio.doc;
+    if (!doc) return html`<sw-card heading="מדידה"><div class="note">${bundle.source === 'demo' ? 'נתוני הדגמה: המדידה עובדת מול השרת.' : 'טוען…'}</div></sw-card>`;
+    const { scale, estimated } = effectiveScale(doc);
+    return renderMeasurePanel(this.measurePts, bundle.width, bundle.height, scale, estimated, this.showEstimates, () => {
+      this.measurePts = [];
+    });
   }
 
   // ---- panels ----
@@ -1127,6 +1620,9 @@ export class ExplorePlanEditor extends LitElement {
 
   private renderToolPanel(b: MapBundle) {
     const anchoredIds = new Set(this.anchors.map((a) => a.resource_id));
+    if (this.tool === 'structure') return this.renderStructurePanel(b);
+    if (this.tool === 'calibrate') return this.renderCalibrate(b);
+    if (this.tool === 'measure') return this.renderMeasure(b);
     if (this.tool === 'camera') {
       const available = b.cameras.filter((c) => !anchoredIds.has(c.id));
       return html`<sw-card heading="הוספת מצלמה" subheading="בחר מצלמה ואז לחץ על התוכנית במקום המבוקש">
@@ -1252,6 +1748,12 @@ export class ExplorePlanEditor extends LitElement {
     const d = this.diff;
     if (!d) return nothing;
     const data = d.data;
+    // The structure note: only for the editor's own draft (the studio holds no other version's structure), and whenever
+    // the draft holds anything the server publishes (the collections its is_empty counts, as studio.pendingPublish).
+    const doc = d.mode === 'publish' && d.version.id === this.bundle?.planVersionId ? this.studio.doc : null;
+    const structure = doc && (doc.walls.length || doc.openings.length || doc.labels.length || doc.objects.length || doc.connectors.length) ? doc : null;
+    // Every error blocks, with an item id or not: the confirm stays off until the issue list is clear (no 422 round trip).
+    const blocked = !!structure && this.studio.issues.some((i) => i.severity === 'error');
     const title = d.mode === 'publish' ? 'פרסום גרסה' : d.mode === 'rollback' ? 'שחזור גרסה מהארכיון' : 'השוואת גרסאות';
     const sub = d.mode === 'publish' ? 'מה ישתנה לצופים ומה יקרה לפריטים המוצבים' : d.mode === 'rollback' ? 'הגרסה תפורסם מחדש כעותק חדש; הגרסה הנוכחית תעבור לארכיון' : 'מול הגרסה המפורסמת';
     return html`<sw-dialog open heading=${title} subheading=${sub} data-diff-dialog @close=${() => (this.diff = null)}>
@@ -1270,14 +1772,42 @@ export class ExplorePlanEditor extends LitElement {
                 : html`<sw-badge kind="neutral" label="פרסום ראשון"></sw-badge>`}
               <span>${data.anchors.total} פריטים מוצבים · ${data.anchors.carried} עוברים כמו שהם · ${data.anchors.needs_alignment} ידרשו יישור</span>
             </div>
+            ${structure
+              ? html`<div class="note" data-diff-structure>המבנה של הטיוטה (${wallsAndOpenings(structure.walls.length, structure.openings.length)}) יפורסם יחד עם הגרסה${blocked ? '; יש בו שגיאות שחוסמות את הפרסום עד לתיקון: ראה את הסימון האדום על המפה ואת רשימת הבעיות של המבנה' : ''}.</div>`
+              : nothing}
             ${data.anchors.items.length
               ? html`<div class="ditems" data-diff-items>${data.anchors.items.map((i) => html`<div><span>${i.resource_type === 'camera' ? 'מצלמה' : 'ישות'} · ${i.name}</span><span class=${i.outcome === 'carried' ? '' : 'err'}>${i.outcome === 'carried' ? 'עובר' : 'יישור נדרש'}</span></div>`)}</div>`
               : nothing}
             ${data.anchors.needs_alignment ? html`<div class="note">פריטים שידרשו יישור נשארים במקומם על גרסת התוכנית הקודמת ומסומנים במפה; שום פריט לא מוזז למיקום מומצא.</div>` : nothing}`}
       <sw-button slot="footer" variant="ghost" @click=${() => (this.diff = null)}>${d.mode === 'compare' ? 'סגור' : 'ביטול'}</sw-button>
       ${d.mode !== 'compare' && data
-        ? html`<sw-button slot="footer" variant="primary" icon=${d.mode === 'publish' ? 'check' : 'history'} data-diff-confirm ?disabled=${this.busy} @click=${() => this.confirmDiff()}>${d.mode === 'publish' ? 'פרסם גרסה' : 'שחזר ופרסם'}</sw-button>`
+        ? html`<sw-button slot="footer" variant="primary" icon=${d.mode === 'publish' ? 'check' : 'history'} data-diff-confirm ?disabled=${this.busy || blocked} @click=${() => this.confirmDiff()}>${d.mode === 'publish' ? 'פרסם גרסה' : 'שחזר ופרסם'}</sw-button>`
         : nothing}
+    </sw-dialog>`;
+  }
+
+  private renderGeomDiffDialog() {
+    const d = this.geomDiff;
+    if (!d) return nothing;
+    const data = d.data;
+    const errors = data ? data.issues.filter((i) => i.severity === 'error') : [];
+    const rows = data ? Object.entries(data.diff.collections) : [];
+    return html`<sw-dialog open heading="פרסום המבנה" subheading="מה ישתנה לצופים במפה" data-geom-diff @close=${() => (this.geomDiff = null)}>
+      ${d.error ? html`<div class="err" data-geom-diff-error>${d.error}</div>` : nothing}
+      ${!data
+        ? d.error
+          ? nothing
+          : html`<div class="note">טוען השוואה…</div>`
+        : html`<div class="ditems" data-geom-diff-rows>
+              ${rows.length
+                ? rows.map(([coll, c]) => html`<div><span>${COLL_LABEL[coll] ?? coll}</span><span>${c.added.length} נוספו · ${c.changed.length} שונו · ${c.removed.length} הוסרו</span></div>`)
+                : html`<div><span>אין שינוי בפריטים</span></div>`}
+              ${data.diff.calibration_changed ? html`<div><span>כיול</span><span>קנה המידה השתנה</span></div>` : nothing}
+            </div>
+            <div class="note">${data.published_counts ? `כעת: ${wallsAndOpenings(data.published_counts.walls, data.published_counts.openings)}` : 'פרסום ראשון של מבנה'} · אחרי הפרסום: ${wallsAndOpenings(data.counts.walls, data.counts.openings)}</div>
+            ${errors.length ? html`<div class="err" data-geom-diff-error>${countLabel(errors.length, 'שגיאה חוסמת אחת', 'שגיאות חוסמות')} בטיוטה: הפרסום חסום עד לתיקון. ראה את הסימון האדום על המפה ואת רשימת הבעיות של המבנה.</div>` : nothing}`}
+      <sw-button slot="footer" variant="ghost" data-geom-cancel @click=${() => (this.geomDiff = null)}>ביטול</sw-button>
+      <sw-button slot="footer" variant="primary" icon="check" data-geom-publish ?disabled=${this.busy || !data || errors.length > 0} @click=${() => this.confirmGeomPublish()}>פרסם מבנה</sw-button>
     </sw-dialog>`;
   }
 
@@ -1291,7 +1821,9 @@ export class ExplorePlanEditor extends LitElement {
     const ents = this.anchors.length - cams;
     return html`
       <sw-page heading="עורך תוכנית" subheading=${`${b.buildingName} · ${b.floorName} · ${b.planStatus === 'draft' ? 'טיוטה' : b.planStatus === 'published' ? 'תוכנית מפורסמת' : 'אין תוכנית'} · העוגנים נשמרים בנפרד מתמונת המקור${b.source === 'demo' ? ' · נתוני הדגמה' : ''}`} crumbs=${`אתרים | ${b.siteName} | ${b.buildingName} | ${b.floorName}`} wide>
-        ${b.planStatus === 'draft' && b.permissions.publish ? html`<sw-button slot="actions" variant="primary" icon="check" ?disabled=${this.busy} @click=${() => this.publish()}>פרסום גרסה</sw-button>` : nothing}
+        ${b.permissions.publish && (b.planStatus === 'draft' || this.studio.pendingPublish)
+          ? html`<sw-button slot="actions" variant="primary" icon="check" data-publish ?disabled=${this.busy} @click=${() => this.publish()}>${b.planStatus === 'draft' ? 'פרסום גרסה' : 'פרסום המבנה'}</sw-button>`
+          : nothing}
         <sw-button slot="actions" icon="eye" @click=${() => navigate(`/explore/floors/${b.floorId}`)}>תצוגה מקדימה</sw-button>
         <sw-button slot="actions" ?disabled=${!dirty || this.busy} icon="check" @click=${() => this.save()}>${dirty ? `שמירה (${dirty})` : 'הכל שמור'}</sw-button>
         <sw-button slot="actions" variant="ghost" icon="history" ?disabled=${!this.undo.length} @click=${() => this.doUndo()}>ביטול שינוי</sw-button>
@@ -1311,22 +1843,28 @@ export class ExplorePlanEditor extends LitElement {
                 </div>
                 <div class="floorchip"><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
                 <div class="rail" role="toolbar" aria-label="כלי עריכה">
-                  ${TOOLS.map((tl) => html`<button class=${tl.id === this.tool ? 'on' : ''} data-tool=${tl.id} ?disabled=${!tl.ready} title=${tl.label} aria-label=${tl.label} aria-pressed=${tl.id === this.tool} @click=${() => this.pickTool(tl.id)}><sw-icon .name=${tl.icon} size=${18}></sw-icon></button>`)}
+                  ${TOOLS.map((tl) => html`<button class=${tl.id === this.tool ? 'on' : ''} data-tool=${tl.id} ?disabled=${!tl.ready || (STUDIO_TOOLS.includes(tl.id) && !b.permissions.structure)} title=${tl.label} aria-label=${tl.label} aria-pressed=${tl.id === this.tool} @click=${() => this.pickTool(tl.id)}><sw-icon .name=${tl.icon} size=${18}></sw-icon></button>`)}
                   <hr />
-                  <button title="ביטול (Ctrl+Z)" aria-label="ביטול" ?disabled=${!this.undo.length} @click=${() => this.doUndo()}><sw-icon name="history" size=${18}></sw-icon></button>
-                  <button title="בצע שוב (Ctrl+Y)" aria-label="בצע שוב" ?disabled=${!this.redo.length} @click=${() => this.doRedo()}><sw-icon name="refresh" size=${18}></sw-icon></button>
+                  <button title="ביטול (Ctrl+Z)" aria-label="ביטול" ?disabled=${this.studioOn ? !this.studio.canUndo : !this.undo.length} @click=${() => { if (this.studioOn) { this.studio.undo(); this.geomSel = null; } else this.doUndo(); }}><sw-icon name="history" size=${18}></sw-icon></button>
+                  <button title="בצע שוב (Ctrl+Y)" aria-label="בצע שוב" ?disabled=${this.studioOn ? !this.studio.canRedo : !this.redo.length} @click=${() => { if (this.studioOn) { this.studio.redo(); this.geomSel = null; } else this.doRedo(); }}><sw-icon name="refresh" size=${18}></sw-icon></button>
                 </div>
-                <sw-plan-canvas editable alwaysLabel .placing=${!!this.placing || !!this.drawing} .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .markers=${this.markers} .selectedId=${this.selectedId}
+                <sw-plan-canvas editable alwaysLabel .placing=${!!this.placing || !!this.drawing || this.studioPlacing} .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .markers=${this.markers} .selectedId=${this.selectedId}
                   .zones=${this.planZones} .selectedZoneId=${this.selectedZoneId} .draftPoints=${this.drawing ?? []}
-                  @zone-select=${(e: CustomEvent<{ id: string }>) => { if (this.placing || this.drawing || e.detail.id.startsWith('cand-')) return; this.selectedZoneId = e.detail.id; this.selectedId = null; }}
+                  .geometry=${this.studio.doc} .geomEditable=${this.tool === 'structure' && this.studioMode === 'select'} .selectedGeomId=${this.geomSel?.id ?? null} .issueIds=${this.issueIds}
+                  .wallDraft=${this.wallDraft ?? []} .hoverPoint=${this.studioPlacing ? this.hover : null} .rulers=${this.rulers}
+                  @plan-hover=${(e: CustomEvent<{ x: number; y: number; shift: boolean }>) => this.onPlanHover(e.detail.x, e.detail.y, e.detail.shift)}
+                  @geom-select=${(e: CustomEvent<{ id: string; kind: GeomKind }>) => this.onGeomSelect(e.detail.id, e.detail.kind)}
+                  @geom-drag=${(e: CustomEvent<{ kind: 'vertex' | 'opening' | 'label'; id: string; index: number; x: number; y: number }>) => this.onGeomDrag(e.detail)}
+                  @zone-select=${(e: CustomEvent<{ id: string }>) => { if (this.placing || this.drawing || this.studioPlacing || e.detail.id.startsWith('cand-')) return; if (this.tool === 'structure') { this.geomSel = null; return; } this.selectedZoneId = e.detail.id; this.selectedId = null; }}
                   @zone-edit=${(e: CustomEvent<{ id: string; polygon: ZonePoint[] }>) => { const z = this.zones.find((x) => x.id === e.detail.id); if (z) void this.patchZone(z, { polygon: e.detail.polygon }); }}
-                  @marker-select=${(e: CustomEvent<MarkerSelectDetail>) => { if (this.placing || this.drawing) return; this.selectedId = e.detail.id; this.selectedZoneId = null; }}
+                  @marker-select=${(e: CustomEvent<MarkerSelectDetail>) => { if (this.placing || this.drawing || this.studioPlacing) return; this.selectedId = e.detail.id; this.selectedZoneId = null; this.geomSel = null; }}
                   @marker-move=${(e: CustomEvent<{ id: string; x: number; y: number }>) => { this.apply(e.detail.id, { position: { x: +e.detail.x.toFixed(4), y: +e.detail.y.toFixed(4) } }); this.selectedId = e.detail.id; }}
                   @marker-orient=${(e: CustomEvent<{ id: string; rotation: number; fov: number }>) => this.apply(e.detail.id, { rotation_degrees: e.detail.rotation, field_of_view_degrees: e.detail.fov })}
                   @marker-coverage=${(e: CustomEvent<{ id: string; radius?: number; polygon?: { x: number; y: number }[] }>) => this.apply(e.detail.id, e.detail.polygon ? { coverage_polygon: e.detail.polygon.map((p) => [p.x, p.y] as [number, number]) } : { coverage_radius: e.detail.radius })}
-                  @plan-click=${(e: CustomEvent<{ x: number; y: number }>) => (this.drawing ? this.addDraftPoint(e.detail.x, e.detail.y) : this.place(e.detail.x, e.detail.y))}></sw-plan-canvas>
+                  @plan-click=${(e: CustomEvent<{ x: number; y: number; shift?: boolean }>) => (this.drawing ? this.addDraftPoint(e.detail.x, e.detail.y) : this.studioPlacing ? this.studioClick(e.detail.x, e.detail.y, !!e.detail.shift) : this.place(e.detail.x, e.detail.y))}></sw-plan-canvas>
                 ${this.placing ? html`<div class="placing-hint"><span>לחץ על התוכנית כדי להציב את ${this.placing.kind === 'camera' ? this.placing.camera.name : this.placing.entity.name || this.placing.entity.entity_id} · Esc לביטול</span></div>` : nothing}
                 ${this.drawing ? html`<div class="placing-hint"><span>ציור אזור: לחץ להוספת פינות (${this.drawing.length}) · לחיצה על הפינה הראשונה או Enter מסיימים · Esc לביטול</span></div>` : nothing}
+                ${this.wallDraft ? html`<div class="placing-hint"><span>ציור קיר: ${this.wallDraft.length} נקודות · Enter או לחיצה חוזרת על הנקודה האחרונה מסיימים · לחיצה על הנקודה הראשונה סוגרת מתאר · Esc לביטול</span></div>` : nothing}
                 <div class="legend"><span><i></i>מצלמות · ${cams}</span><span><i class="ent"></i>ישויות HA · ${ents}</span><span><i class="zone"></i>אזורים · ${this.zones.length}</span></div>
               </div>
               <div class="props">
@@ -1336,6 +1874,7 @@ export class ExplorePlanEditor extends LitElement {
               </div>
             </div>`}
         ${this.renderDiffDialog()}
+        ${this.renderGeomDiffDialog()}
       </sw-page>
     `;
   }

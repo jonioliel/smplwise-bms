@@ -5,7 +5,7 @@
 import { svg, type SVGTemplateResult } from 'lit';
 import { del, get, patch, post, put, resourceUrl, upload } from './client';
 import { isApi } from './session';
-import type { Anchor, Camera, FloorMap, PlanAsset, PlanVersion, SpatialZone } from './types';
+import type { Anchor, Camera, FloorMap, GeometryRef, PlanAsset, PlanVersion, SpatialZone } from './types';
 import { demoCameras, demoFloors, demoPlan, demoSite } from '../fixtures/demo';
 import type { StateKind } from '../components/sw-badge';
 
@@ -27,7 +27,7 @@ export interface MapBundle {
   /** Named rooms / areas (M13); empty when none were defined. */
   zones: SpatialZone[];
   cameras: Camera[];
-  permissions: { edit: boolean; publish: boolean; import: boolean };
+  permissions: { edit: boolean; publish: boolean; import: boolean; structure: boolean };
   renderMode: 'source' | 'stylized';
   stylizedAvailable: boolean;
   /** Published period of the shown version and, when loaded at an instant, how the history was resolved (T038). */
@@ -37,6 +37,9 @@ export interface MapBundle {
   history: 'exact' | 'current' | null;
   historyFrom: string | null;
   haHistory: { from: string | null; to: string | null; rows: number; retention_days: number } | null;
+  /** Plan Studio: the structure document of the shown version (fetched by hash) and the version's scale. */
+  geometryRef: GeometryRef | null;
+  scaleMPerPx: number | null;
 }
 
 function demoBundle(floorId: string): MapBundle {
@@ -63,6 +66,8 @@ function demoBundle(floorId: string): MapBundle {
     history: null,
     historyFrom: null,
     haHistory: null,
+    geometryRef: null,
+    scaleMPerPx: null,
     anchors: cams.map((c, i) => ({
       id: `demo-anchor-${c.id}`,
       floor_id: floor.id,
@@ -84,7 +89,7 @@ function demoBundle(floorId: string): MapBundle {
     })),
     zones: [],
     cameras: [],
-    permissions: { edit: true, publish: true, import: true },
+    permissions: { edit: true, publish: true, import: true, structure: false },
   };
 }
 
@@ -120,6 +125,8 @@ export async function loadMap(floorId: string, draft = false, at?: string): Prom
     history: m.history ?? null,
     historyFrom: m.history_from ?? null,
     haHistory: m.ha_history ?? null,
+    geometryRef: m.geometry ?? null,
+    scaleMPerPx: m.plan?.scale_m_per_px ?? null,
   };
 }
 

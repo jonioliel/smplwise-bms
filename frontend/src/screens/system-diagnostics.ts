@@ -547,6 +547,10 @@ export class SystemDiagnostics extends LitElement {
           <sw-field class="ctl"><select data-set-ha-secondary ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('history.ha_secondary', (e.target as HTMLSelectElement).value)}>
             <option value="false" ?selected=${String(this.value('history.ha_secondary') ?? 'false') !== 'true'}>כבוי</option><option value="true" ?selected=${String(this.value('history.ha_secondary') ?? 'false') === 'true'}>פעיל</option>
           </select></sw-field></div>
+        <div class="row"><span class="lbl">מידות לפני כיול<span class="muted">בעורך התוכנית, כשגרסת התוכנית עדיין לא כוילה: להציג אורכים ושטחים משוערים עם ≈, או להסתיר מטרים עד הכיול</span></span>
+          <sw-field class="ctl"><select data-set-plan-estimates ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('plan.estimates', (e.target as HTMLSelectElement).value as 'true' | 'false')}>
+            <option value="true" ?selected=${String(this.value('plan.estimates') ?? 'true') !== 'false'}>משוערות עם ≈</option><option value="false" ?selected=${String(this.value('plan.estimates') ?? 'true') === 'false'}>מוסתרות עד כיול</option>
+          </select></sw-field></div>
         <div class="row"><span class="lbl">הסתרת חיפוש AI<span class="muted">מסיר את הלשונית מהניווט; המסך עצמו נשאר זמין בכתובת</span></span>
           <sw-field class="ctl"><select data-set-hide-search ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.hide_search', (e.target as HTMLSelectElement).value)}>
             <option value="false" ?selected=${String(this.value('ui.hide_search') ?? 'false') !== 'true'}>מוצג</option><option value="true" ?selected=${String(this.value('ui.hide_search') ?? 'false') === 'true'}>מוסתר</option>

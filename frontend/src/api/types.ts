@@ -79,6 +79,8 @@ export interface PlanVersion {
   width_px: number;
   height_px: number;
   scale_m_per_px: number | null;
+  /** Two-point calibration record (Plan Studio): pairs, method, residual. */
+  calibration?: { method: string; pairs: { a: [number, number]; b: [number, number]; metres: number }[]; residual_pct: number | null } | null;
   status: 'draft' | 'published' | 'archived';
   revision: number;
   notes: string;
@@ -94,6 +96,15 @@ export interface PlanVersion {
   render_mode?: 'source' | 'stylized';
   stylized_url?: string | null;
   source_url?: string;
+}
+
+/** Plan Studio (T084): the structure document the map bundle points to - fetched separately and cached by hash. */
+export interface GeometryRef {
+  id: string | null;
+  doc_hash: string;
+  status: 'new' | 'draft' | 'published' | 'archived';
+  revision: number;
+  published_at: string | null;
 }
 
 export interface Camera {
@@ -167,6 +178,9 @@ export interface FloorMap {
   building: Building;
   site: Site;
   plan: PlanVersion | null;
+  /** Reference to the structure document of the shown version: the draft (else the published one) for an editor bundle,
+   * the row in force at the instant for an exact-history bundle, else the published one; null when none. */
+  geometry?: GeometryRef | null;
   anchors: Anchor[];
   zones?: SpatialZone[];
   needs_alignment: boolean;
@@ -176,6 +190,6 @@ export interface FloorMap {
   history_from?: string | null;
   /** Coverage of the local HA state history (present in a historical bundle). */
   ha_history?: { from: string | null; to: string | null; rows: number; retention_days: number; forward_fill_max_s: number } | null;
-  permissions: { edit: boolean; publish: boolean; import: boolean };
+  permissions: { edit: boolean; publish: boolean; import: boolean; structure: boolean };
   cameras: Camera[];
 }

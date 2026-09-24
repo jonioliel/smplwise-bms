@@ -21,14 +21,19 @@ def zone(name: str) -> ZoneInfo:
 
 
 def parse_utc(value: str) -> dt.datetime:
-    """'2026-09-14T07:28:12Z' (or with offset) → aware UTC datetime. Naive input is refused."""
+    """'2026-09-14T07:28:12Z' (or with offset) → aware UTC datetime. Naive input is refused, and so is an instant the
+    conversion cannot represent (9999-12-31T23:59:59-01:00 overflows): both are a ValueError, so a route that answers
+    a ValueError with 422 does so for both instead of a 500 (R-T7b-1)."""
     v = value.strip()
     if v.endswith("Z"):
         v = v[:-1] + "+00:00"
     parsed = dt.datetime.fromisoformat(v)
     if parsed.tzinfo is None:
         raise ValueError("timestamp without timezone")
-    return parsed.astimezone(UTC)
+    try:
+        return parsed.astimezone(UTC)
+    except OverflowError as exc:
+        raise ValueError("timestamp out of range") from exc
 
 
 def iso_utc(value: dt.datetime) -> str:

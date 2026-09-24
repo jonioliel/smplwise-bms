@@ -18,6 +18,7 @@ from ..config import Settings
 from ..db import new_id, now_iso, unlocked
 from ..errors import ApiError, conflict, not_found
 from ..rbac import Principal, require
+from ..services import geometry_store
 from ..services import plan_dxf, plan_render, plan_stylize
 from .catalog import get_floor
 
@@ -42,6 +43,7 @@ def version_row(r: sqlite3.Row) -> dict[str, Any]:
         "id": r["id"], "floor_id": r["floor_id"], "asset_id": r["asset_id"], "page": r["page"], "rotation": r["rotation"],
         "crop": json.loads(r["crop_json"]) if r["crop_json"] else None, "width_px": r["width_px"], "height_px": r["height_px"],
         "scale_m_per_px": r["scale_m_per_px"], "status": r["status"], "revision": r["revision"], "notes": r["notes"],
+        "calibration": json.loads(r["calibration_json"]) if "calibration_json" in r.keys() and r["calibration_json"] else None,
         "created_at": r["created_at"], "published_at": r["published_at"], "archived_at": r["archived_at"],
         "created_by": r["created_by"], "published_by": r["published_by"],
         # the map background follows render_mode; the source picture stays reachable for comparisons
@@ -323,9 +325,12 @@ def create_version(floor_id: str, body: VersionIn, request: Request, principal: 
         (version_id, floor_id, asset["id"], body.page, body.rotation, json.dumps(body.crop.model_dump()) if body.crop else None, w, h,
          str(out.relative_to(settings.data_dir).as_posix()), scale_value, body.notes, principal.user_id, now_iso()),
     )
+    # a new version starts from the floor's structure when it is the same drawing (copied / mapped through a re-crop)
+    carry = geometry_store.carry(conn, get_version(conn, version_id), principal.user_id)
     audit(conn, actor=principal, action="plan.version.create", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request),
-          details={"version_id": version_id, "asset_id": asset["id"], "page": body.page, "rotation": body.rotation, "crop": body.crop.model_dump() if body.crop else None})
-    return version_row(get_version(conn, version_id))
+          details={"version_id": version_id, "asset_id": asset["id"], "page": body.page, "rotation": body.rotation, "crop": body.crop.model_dump() if body.crop else None,
+                   "geometry_carry": carry})
+    return dict(version_row(get_version(conn, version_id)), geometry_carry=carry)
 
 
 @router.get("/floors/{floor_id}/plan-versions")
@@ -356,6 +361,8 @@ def publish_version(version_id: str, request: Request, principal: Principal = De
     if v["status"] != "draft":
         raise conflict("not_draft", "רק טיוטה ניתנת לפרסום.", status=v["status"])
     now = now_iso()
+    # the version's structure is published with it; an invalid one refuses the publish before anything changes (422)
+    structure_pending = geometry_store.pending_doc(conn, v)
     previous = _published(conn, v["floor_id"])
     if previous:
         conn.execute("UPDATE plan_versions SET status = 'archived', archived_at = ?, revision = revision + 1 WHERE id = ?", (now, previous["id"]))
@@ -363,9 +370,11 @@ def publish_version(version_id: str, request: Request, principal: Principal = De
     # Anchors never migrate to an invented location: they follow only between versions with identical geometry;
     # otherwise they keep their old version id and the map reports needs_alignment (T038).
     carried, pending = _carry_anchors(conn, get_version(conn, version_id), now)
+    structure = geometry_store.publish(conn, get_version(conn, version_id), principal.user_id, now) if structure_pending is not None else None
     audit(conn, actor=principal, action="plan.version.publish", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
           details={"version_id": version_id, "previous_version_id": previous["id"] if previous else None, "anchors_carried": carried, "needs_alignment": pending,
-                   "same_geometry": bool(previous) and _geometry(previous) == _geometry(v)})
+                   "same_geometry": bool(previous) and _geometry(previous) == _geometry(v),
+                   "structure_published": bool(structure and not structure["unchanged"])})
     return version_row(get_version(conn, version_id))
 
 
@@ -418,14 +427,15 @@ def rollback_version(version_id: str, body: RollbackIn, request: Request, princi
     conn.execute("UPDATE plan_versions SET revision = revision + 1 WHERE id = ?", (version_id,))
     notes = f"שחזור של גרסה שפורסמה ב־{v['published_at'] or v['created_at']}"
     conn.execute(
-        """INSERT INTO plan_versions(id, floor_id, asset_id, page, rotation, crop_json, width_px, height_px, image_path, scale_m_per_px, status, revision, notes,
+        """INSERT INTO plan_versions(id, floor_id, asset_id, page, rotation, crop_json, width_px, height_px, image_path, scale_m_per_px, calibration_json, status, revision, notes,
                                      created_by, created_at, published_by, published_at, render_mode, stylized_path, stylize_json)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'published', 1, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'published', 1, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (restored_id, v["floor_id"], v["asset_id"], v["page"], v["rotation"], v["crop_json"], v["width_px"], v["height_px"], str(out.relative_to(settings.data_dir).as_posix()),
-         v["scale_m_per_px"], notes, principal.user_id, now, principal.user_id, now, v["render_mode"] if stylized_rel else "source", stylized_rel, v["stylize_json"] if stylized_rel else None),
+         v["scale_m_per_px"], v["calibration_json"], notes, principal.user_id, now, principal.user_id, now, v["render_mode"] if stylized_rel else "source", stylized_rel, v["stylize_json"] if stylized_rel else None),
     )
     restored = get_version(conn, restored_id)
     carried, pending = _carry_anchors(conn, restored, now)
+    geometry_store.copy_published(conn, v, restored, principal.user_id, now)
     audit(conn, actor=principal, action="plan.version.rollback", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
           details={"restored_from": version_id, "version_id": restored_id, "previous_version_id": previous["id"] if previous else None, "anchors_carried": carried, "needs_alignment": pending})
     return version_row(restored)
@@ -440,6 +450,7 @@ def delete_version(version_id: str, request: Request, principal: Principal = Dep
         raise conflict("not_draft", "רק טיוטה ניתנת למחיקה; גרסה שפורסמה נשמרת להיסטוריה.", status=v["status"])
     if conn.execute("SELECT COUNT(*) FROM map_anchors WHERE plan_version_id = ?", (version_id,)).fetchone()[0]:
         raise conflict("has_anchors", "על הטיוטה מוצבים פריטים.")
+    conn.execute("DELETE FROM plan_geometry WHERE plan_version_id = ?", (version_id,))
     conn.execute("DELETE FROM plan_versions WHERE id = ?", (version_id,))
     (settings.data_dir / v["image_path"]).unlink(missing_ok=True)
     audit(conn, actor=principal, action="plan.version.delete", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request), details={"version_id": version_id})

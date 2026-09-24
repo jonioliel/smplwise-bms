@@ -3,6 +3,7 @@ import { customElement, property, state, query } from 'lit/decorators.js';
 import '../components/sw-button';
 import { t } from '../i18n/he';
 import type { StateKind } from '../components/sw-badge';
+import { buildPrimitives, isClosedOutline, type GeometryDoc, type Primitive, type Pt } from './geometry';
 
 export type MarkerKind = 'camera' | 'lock' | 'light' | 'binary_sensor';
 
@@ -95,6 +96,16 @@ export function polygonCentroid(poly: { x: number; y: number }[]) {
   return { x: cx / (3 * a), y: cy / (3 * a) };
 }
 
+const ptsAttr = (ps: Pt[]): string => ps.map((p) => `${p[0]},${p[1]}`).join(' ');
+
+/** A measured segment drawn over the plan (calibration, measuring): normalized end points and a label. */
+export interface RulerOverlay {
+  a: Pt;
+  b: Pt;
+  label: string;
+  tone: 'accent' | 'muted';
+}
+
 @customElement('sw-plan-canvas')
 export class SwPlanCanvas extends LitElement {
   @property({ type: Number }) planWidth = 1000;
@@ -127,6 +138,23 @@ export class SwPlanCanvas extends LitElement {
   /** Selection mode (T043): a primary-button drag on the plan draws a rectangle and emits `box-select` with the ids
    * of the markers inside it. Shift + drag, a second finger and the wheel still pan and zoom. */
   @property({ type: Boolean }) boxSelect = false;
+  /** Plan Studio (T084): the structure document, drawn between the rooms and the pins on every map. */
+  @property({ attribute: false }) geometry: GeometryDoc | null = null;
+  /** Show one level only (null = all levels). */
+  @property() structureLevel: string | null = null;
+  /** Items with a validation error, drawn in red (editor). */
+  @property({ attribute: false }) issueIds: string[] = [];
+  @property() selectedGeomId: string | null = null;
+  private primCache: { doc: GeometryDoc; w: number; h: number; level: string | null; prims: Primitive[] } | null = null;
+  /** Plan Studio editor: walls, openings and labels can be picked and dragged (the structure tool's select mode). */
+  @property({ type: Boolean }) geomEditable = false;
+  /** The wall being drawn (normalized points) and the snapped cursor the editor computed (rubber band, snap dot). */
+  @property({ attribute: false }) wallDraft: Pt[] = [];
+  @property({ attribute: false }) hoverPoint: Pt | null = null;
+  @property({ attribute: false }) rulers: RulerOverlay[] = [];
+  @state() private geomDrag: { x: number; y: number } | null = null;
+  private hoverFrame = 0;
+  private hoverEvent: { x: number; y: number; shift: boolean } | null = null;
   @state() private box: { x0: number; y0: number; x1: number; y1: number } | null = null;
   private boxStart: { x: number; y: number } | null = null;
 
@@ -349,6 +377,116 @@ export class SwPlanCanvas extends LitElement {
       fill: var(--sw-surface);
       stroke: var(--sw-accent);
     }
+    .structure {
+      pointer-events: none;
+    }
+    .structure .wall {
+      fill: none;
+      stroke: var(--sw-map-structure);
+      stroke-linecap: butt;
+      stroke-linejoin: miter;
+    }
+    .structure .leaf,
+    .structure .arc {
+      fill: none;
+      stroke: var(--sw-accent);
+    }
+    .structure .glass {
+      stroke: var(--sw-map-glass);
+    }
+    .structure .gapline {
+      stroke: var(--sw-map-structure);
+    }
+    .structure .glabel {
+      fill: var(--sw-map-label);
+      font-weight: 600;
+      text-anchor: middle;
+      dominant-baseline: middle;
+    }
+    /* Selection, then validation issues: same specificity, so an item that is both shows the issue red. */
+    .structure .sel .wall {
+      stroke: var(--sw-accent);
+    }
+    .structure .opening.sel {
+      filter: drop-shadow(0 0 2px var(--sw-accent));
+    }
+    .structure .opening.sel .leaf,
+    .structure .opening.sel .arc,
+    .structure .opening.sel .glass,
+    .structure .opening.sel .gapline {
+      stroke: var(--sw-accent-hover);
+    }
+    .structure .glabel.sel {
+      fill: var(--sw-accent);
+    }
+    .structure .issue .wall,
+    .structure .opening.issue .leaf,
+    .structure .opening.issue .arc,
+    .structure .opening.issue .glass,
+    .structure .opening.issue .gapline {
+      stroke: var(--sw-danger);
+    }
+    .structure .glabel.issue {
+      fill: var(--sw-danger);
+    }
+    .geom-hits .hit {
+      fill: transparent;
+      stroke: transparent;
+      pointer-events: stroke;
+      cursor: pointer;
+    }
+    .geom-hits circle.hit {
+      pointer-events: all;
+      cursor: grab;
+    }
+    .geom-hits line.hit {
+      cursor: ew-resize;
+    }
+    .gvtx {
+      fill: var(--sw-surface);
+      stroke: var(--sw-accent);
+      cursor: grab;
+    }
+    .gdrag {
+      fill: var(--sw-accent);
+      fill-opacity: 0.35;
+      stroke: var(--sw-accent);
+      pointer-events: none;
+    }
+    .wdraft polyline {
+      fill: none;
+      stroke: var(--sw-accent);
+    }
+    .wdraft circle {
+      fill: var(--sw-surface);
+      stroke: var(--sw-accent);
+    }
+    .wdraft circle.snap {
+      fill: var(--sw-accent);
+    }
+    .ruler line {
+      stroke: var(--sw-accent);
+    }
+    .ruler.muted line {
+      stroke: var(--sw-text-2);
+    }
+    .ruler circle {
+      fill: var(--sw-surface);
+      stroke: var(--sw-accent);
+    }
+    .ruler rect {
+      fill: var(--sw-surface);
+      stroke: var(--sw-border);
+    }
+    .ruler text {
+      fill: var(--sw-text);
+      font-family: var(--sw-font);
+      font-weight: 600;
+      text-anchor: middle;
+      dominant-baseline: middle;
+      direction: rtl;
+      unicode-bidi: plaintext;
+    }
     .fov {
       fill: var(--sw-fov);
       stroke: var(--sw-accent);
@@ -400,6 +538,8 @@ export class SwPlanCanvas extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     this.resizeObserver?.disconnect();
+    cancelAnimationFrame(this.hoverFrame);
+    this.hoverFrame = 0; // a reconnected canvas must not wait for a frame that was cancelled
   }
 
   protected updated(changed: Map<string, unknown>) {
@@ -551,6 +691,7 @@ export class SwPlanCanvas extends LitElement {
   };
 
   private onPointerMove = (e: PointerEvent) => {
+    if (this.placing && e.pointerType !== 'touch') this.queueHover(e);
     if (!this.pointers.has(e.pointerId)) return;
     this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (this.pointers.size === 2) {
@@ -768,7 +909,7 @@ export class SwPlanCanvas extends LitElement {
     if (this.placing) {
       const rect = this.getBoundingClientRect();
       const p = this.toPlan(e.clientX - rect.left, e.clientY - rect.top);
-      this.dispatchEvent(new CustomEvent('plan-click', { detail: { x: +p.x.toFixed(4), y: +p.y.toFixed(4) }, bubbles: true, composed: true }));
+      this.dispatchEvent(new CustomEvent('plan-click', { detail: { x: +p.x.toFixed(4), y: +p.y.toFixed(4), shift: e.shiftKey }, bubbles: true, composed: true }));
       return;
     }
     this.dispatchEvent(new CustomEvent<MarkerSelectDetail>('marker-select', { detail: { id: null }, bubbles: true, composed: true }));
@@ -1019,6 +1160,162 @@ export class SwPlanCanvas extends LitElement {
     `;
   }
 
+  /** Primitives of the shown document, recomputed only when the document, the plan size or the level changes. */
+  private primitives(doc: GeometryDoc): Primitive[] {
+    const c = this.primCache;
+    if (c && c.doc === doc && c.w === this.planWidth && c.h === this.planHeight && c.level === this.structureLevel) return c.prims;
+    const prims = buildPrimitives(doc, this.planWidth, this.planHeight, this.structureLevel);
+    this.primCache = { doc, w: this.planWidth, h: this.planHeight, level: this.structureLevel, prims };
+    return prims;
+  }
+
+  private renderStructure() {
+    const doc = this.geometry;
+    if (!doc) return nothing;
+    const inv = 1 / this.scale;
+    const issues = new Set(this.issueIds);
+    return svg`<g class="structure" data-structure>${this.primitives(doc).map((p) => this.renderPrimitive(p, inv, issues))}</g>`;
+  }
+
+  private renderPrimitive(p: Primitive, inv: number, issues: Set<string>) {
+    const cls = `${p.id === this.selectedGeomId ? 'sel' : ''} ${issues.has(p.id) ? 'issue' : ''}`;
+    switch (p.kind) {
+      case 'wall':
+        return svg`<g class="wall-g ${cls}" data-wall=${p.id}><polyline class="wall" points=${ptsAttr(p.points)} stroke-width=${p.width} /></g>`;
+      case 'door':
+        return svg`<g class="opening ${cls}" data-opening=${p.id} data-kind="door">
+          ${p.leaves.map(([a, b]) => svg`<line class="leaf" x1=${a[0]} y1=${a[1]} x2=${b[0]} y2=${b[1]} stroke-width=${1.6 * inv} />`)}
+          ${p.arcs.map((a) => svg`<path class="arc" d=${`M ${a.from[0]} ${a.from[1]} A ${a.r} ${a.r} 0 0 ${a.sweep} ${a.to[0]} ${a.to[1]}`} stroke-width=${1.1 * inv} stroke-dasharray=${`${4 * inv} ${3 * inv}`} />`)}
+        </g>`;
+      case 'window':
+        return svg`<g class="opening ${cls}" data-opening=${p.id} data-kind="window">${p.lines.map(([a, b]) => svg`<line class="glass" x1=${a[0]} y1=${a[1]} x2=${b[0]} y2=${b[1]} stroke-width=${1.6 * inv} />`)}</g>`;
+      case 'passage':
+        return svg`<g class="opening ${cls}" data-opening=${p.id} data-kind="passage"><line class="gapline" x1=${p.gap[0][0]} y1=${p.gap[0][1]} x2=${p.gap[1][0]} y2=${p.gap[1][1]} stroke-width=${inv} stroke-dasharray=${`${2 * inv} ${3 * inv}`} /></g>`;
+      case 'label':
+        return svg`<text class="glabel ${cls}" data-label=${p.id} x=${p.x} y=${p.y} font-size=${p.size}>${p.text}</text>`;
+    }
+  }
+
+  /** Placing tools get the cursor position once per frame; the editor snaps it and hands it back as hoverPoint. */
+  private queueHover(e: PointerEvent) {
+    const rect = this.getBoundingClientRect();
+    const p = this.toPlan(e.clientX - rect.left, e.clientY - rect.top);
+    this.hoverEvent = { x: p.x, y: p.y, shift: e.shiftKey };
+    if (this.hoverFrame) return;
+    this.hoverFrame = requestAnimationFrame(() => {
+      this.hoverFrame = 0;
+      const h = this.hoverEvent;
+      if (h) this.dispatchEvent(new CustomEvent('plan-hover', { detail: h, bubbles: true, composed: true }));
+    });
+  }
+
+  private pickGeom(id: string, e: Event) {
+    e.stopPropagation();
+    if (this.dragMoved) return;
+    this.dispatchEvent(new CustomEvent('geom-select', { detail: { id, kind: 'wall' }, bubbles: true, composed: true }));
+  }
+
+  /** Drag a corner of the selected wall, an opening along its wall, or a label; a press without movement selects. */
+  private onGeomDragStart(kind: 'vertex' | 'opening' | 'label', id: string, index: number, e: PointerEvent) {
+    if (!this.geomEditable || e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const rect0 = this.getBoundingClientRect();
+    const start = this.toPlan(e.clientX - rect0.left, e.clientY - rect0.top);
+    let moved = false;
+    let last = start;
+    this.viewport.setPointerCapture(e.pointerId);
+    const move = (ev: PointerEvent) => {
+      const p = this.toPlan(ev.clientX - rect0.left, ev.clientY - rect0.top);
+      if (!moved && Math.hypot((p.x - start.x) * this.planWidth, (p.y - start.y) * this.planHeight) * this.scale < 3) return;
+      moved = true;
+      last = p;
+      this.geomDrag = { x: p.x, y: p.y };
+    };
+    const end = () => {
+      this.viewport.removeEventListener('pointermove', move);
+      this.viewport.removeEventListener('pointerup', up);
+      this.viewport.removeEventListener('pointercancel', cancel);
+      this.geomDrag = null;
+      this.dragMoved = true; // pointer capture sends the trailing click to the viewport: swallow it
+      setTimeout(() => (this.dragMoved = false), 0);
+    };
+    const up = () => {
+      end();
+      if (moved) this.dispatchEvent(new CustomEvent('geom-drag', { detail: { kind, id, index, x: +last.x.toFixed(5), y: +last.y.toFixed(5) }, bubbles: true, composed: true }));
+      else if (kind !== 'vertex') this.dispatchEvent(new CustomEvent('geom-select', { detail: { id, kind }, bubbles: true, composed: true }));
+    };
+    const cancel = () => end(); // an interrupted gesture changes nothing
+    this.viewport.addEventListener('pointermove', move);
+    this.viewport.addEventListener('pointerup', up);
+    this.viewport.addEventListener('pointercancel', cancel);
+  }
+
+  /** Invisible wide strokes to pick a wall part, an opening or a label, and the selected wall's corner handles (the
+   * closing corner of an outline is one handle, index 0). Hidden while a placing tool is active, so clicks reach the
+   * plan. Markers stay above them. */
+  private renderGeomHits() {
+    const doc = this.geometry;
+    if (!doc || !this.geomEditable || this.placing) return nothing;
+    const inv = 1 / this.scale;
+    const W = this.planWidth;
+    const H = this.planHeight;
+    const selWall = doc.walls.find((w) => w.id === this.selectedGeomId);
+    const drag = this.geomDrag;
+    return svg`<g class="geom-hits">
+      ${this.primitives(doc).map((p) => {
+        if (p.kind === 'wall') return svg`<polyline class="hit" data-hit-wall=${p.id} points=${ptsAttr(p.points)} stroke-width=${Math.max(p.width, 12 * inv)} @click=${(e: Event) => this.pickGeom(p.id, e)} />`;
+        if (p.kind === 'label') return svg`<circle class="hit" data-hit-label=${p.id} cx=${p.x} cy=${p.y} r=${Math.max(p.size, 10 * inv)} @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('label', p.id, 0, e)} @click=${(e: Event) => e.stopPropagation()} />`;
+        return svg`<line class="hit" data-hit-opening=${p.id} x1=${p.gap[0][0]} y1=${p.gap[0][1]} x2=${p.gap[1][0]} y2=${p.gap[1][1]} stroke-width=${14 * inv} @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('opening', p.id, 0, e)} @click=${(e: Event) => e.stopPropagation()} />`;
+      })}
+      ${selWall ? (isClosedOutline(selWall.polyline) ? selWall.polyline.slice(0, -1) : selWall.polyline).map((v, i) => svg`<circle class="gvtx" data-wall-vertex=${i} cx=${v[0] * W} cy=${v[1] * H} r=${6 * inv} stroke-width=${1.6 * inv} aria-label=${`פינת קיר ${i + 1}`}
+          @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('vertex', selWall.id, i, e)} @click=${(e: Event) => e.stopPropagation()} />`) : nothing}
+      ${drag ? svg`<circle class="gdrag" cx=${drag.x * W} cy=${drag.y * H} r=${5 * inv} stroke-width=${1.5 * inv} />` : nothing}
+    </g>`;
+  }
+
+  /** The wall being drawn, the rubber band to the snapped cursor, and the snap dot. */
+  private renderWallDraft() {
+    const pts = this.wallDraft;
+    const h = this.hoverPoint;
+    if (!pts.length && !h) return nothing;
+    const inv = 1 / this.scale;
+    const W = this.planWidth;
+    const H = this.planHeight;
+    const line = [...pts, ...(h && pts.length ? [h] : [])].map((p) => `${p[0] * W},${p[1] * H}`).join(' ');
+    return svg`<g class="wdraft" pointer-events="none">
+      ${pts.length ? svg`<polyline points=${line} stroke-width=${2 * inv} stroke-dasharray=${`${6 * inv} ${4 * inv}`} />` : nothing}
+      ${pts.map((p) => svg`<circle cx=${p[0] * W} cy=${p[1] * H} r=${3.5 * inv} stroke-width=${1.5 * inv} />`)}
+      ${h ? svg`<circle class="snap" data-hover-point cx=${h[0] * W} cy=${h[1] * H} r=${4.5 * inv} stroke-width=${1.5 * inv} />` : nothing}
+    </g>`;
+  }
+
+  private renderRulers() {
+    if (!this.rulers.length) return nothing;
+    const inv = 1 / this.scale;
+    const W = this.planWidth;
+    const H = this.planHeight;
+    return svg`<g class="rulers" pointer-events="none">
+      ${this.rulers.map((r) => {
+        const ax = r.a[0] * W;
+        const ay = r.a[1] * H;
+        const bx = r.b[0] * W;
+        const by = r.b[1] * H;
+        const mx = (ax + bx) / 2;
+        const my = (ay + by) / 2;
+        const tw = (r.label.length * 7 + 14) * inv;
+        return svg`<g class="ruler ${r.tone}" data-ruler>
+          <line x1=${ax} y1=${ay} x2=${bx} y2=${by} stroke-width=${2 * inv} stroke-dasharray=${r.tone === 'muted' ? `${4 * inv} ${3 * inv}` : nothing} />
+          <circle cx=${ax} cy=${ay} r=${3.5 * inv} stroke-width=${1.5 * inv} />
+          <circle cx=${bx} cy=${by} r=${3.5 * inv} stroke-width=${1.5 * inv} />
+          ${r.label
+            ? svg`<rect x=${mx - tw / 2} y=${my - 11 * inv} width=${tw} height=${22 * inv} rx=${11 * inv} stroke-width=${inv} /><text x=${mx} y=${my} font-size=${12 * inv}>${r.label}</text>`
+            : nothing}
+        </g>`;
+      })}
+    </g>`;
+  }
+
   render() {
     return html`
       <div class="viewport ${this.placing ? 'placing' : ''} ${this.boxSelect ? 'boxing' : ''}" @wheel=${this.onWheel} @pointerdown=${this.onPointerDown} @pointermove=${this.onPointerMove}
@@ -1028,8 +1325,12 @@ export class SwPlanCanvas extends LitElement {
             ${this.imageUrl ? svg`<image href=${this.imageUrl} x="0" y="0" width=${this.planWidth} height=${this.planHeight} preserveAspectRatio="none" />` : nothing}
             ${this.plan ?? nothing}
             ${this.zones.map((z) => this.renderZone(z))}
+            ${this.renderStructure()}
+            ${this.renderGeomHits()}
             ${this.markers.map((m) => this.renderMarker(m))}
             ${this.renderDraft()}
+            ${this.renderWallDraft()}
+            ${this.renderRulers()}
           </g>
           ${this.box ? svg`<rect class="box" data-box x=${this.box.x0.toFixed(1)} y=${this.box.y0.toFixed(1)} width=${(this.box.x1 - this.box.x0).toFixed(1)} height=${(this.box.y1 - this.box.y0).toFixed(1)} />` : nothing}
         </svg>

@@ -101,6 +101,7 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
     f = get_floor(conn, floor_id)
     require(conn, principal, "map.read", ("floor", floor_id))
     can_edit = authorize(conn, principal, "placement.edit", ("floor", floor_id)).allowed
+    can_structure = authorize(conn, principal, "map.edit", ("floor", floor_id)).allowed  # loading a structure draft needs map.edit
     can_publish = authorize(conn, principal, "map.publish", ("floor", floor_id)).allowed
     at_iso: str | None = None
     history: str | None = None
@@ -120,6 +121,16 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
         history = "current" if at_iso else None
         version = _editor_version(conn, floor_id) if (draft and can_edit and not at_iso) else _current_version(conn, floor_id)
         anchors = conn.execute("SELECT * FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL ORDER BY layer_id, resource_id", (floor_id,)).fetchall()
+    from ..services import geometry_store
+
+    geometry = None
+    if version is not None:
+        if at_iso and history == "exact":
+            geometry = geometry_store.ref(geometry_store.at_row(conn, version["id"], at_iso))
+        elif draft and can_edit and can_structure and not at_iso:
+            geometry = geometry_store.ref(geometry_store.draft_row(conn, version["id"]) or geometry_store.published_row(conn, version["id"]))
+        else:
+            geometry = geometry_store.ref(geometry_store.published_row(conn, version["id"]))
     cameras = {r["id"]: camera_row(r) for r in conn.execute("SELECT * FROM cameras ORDER BY sort_order, channel").fetchall()}
     from ..services import ha_bridge, ha_history, ha_sync
 
@@ -156,6 +167,7 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
         "building": building_row(b),
         "site": site_row(s),
         "plan": version_row(version) if version else None,
+        "geometry": geometry,
         "anchors": [dict(anchor_row(a), camera=cameras.get(a["resource_id"]) if a["resource_type"] == "camera" else None, entity=entities.get(a["resource_id"]) if a["resource_type"] == "ha_entity" else None) for a in anchors],
         "ha_sync": ha_sync.STATE.as_dict(),
         "zones": _zones_for(conn, floor_id),
@@ -164,7 +176,8 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
         "history": history,
         "history_from": history_from,
         "ha_history": ha_hist,
-        "permissions": {"edit": can_edit, "publish": can_publish, "import": authorize(conn, principal, "map.import", ("floor", floor_id)).allowed},
+        "permissions": {"edit": can_edit, "publish": can_publish, "import": authorize(conn, principal, "map.import", ("floor", floor_id)).allowed,
+                        "structure": can_structure},
         "cameras": list(cameras.values()) if can_edit else [c for c in cameras.values() if any(a["resource_id"] == c["id"] for a in anchors)],
     }
 

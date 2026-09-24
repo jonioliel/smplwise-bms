@@ -8,6 +8,7 @@ export interface ProductSettings {
   'media.max_live_sessions': number;
   'media.wall_profile': 'sub' | 'main';
   'snapshots.max_age_s': number;
+  'plan.estimates'?: 'true' | 'false';
   'time.zone'?: string;
   'playback.max_sessions'?: number;
   'playback.lease_s'?: number;
