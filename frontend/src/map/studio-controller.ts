@@ -159,7 +159,10 @@ export class StudioController implements ReactiveController {
     const doc = this.doc;
     const id = this.versionId;
     const loaded = this.loaded;
-    if (!doc || !id) return;
+    if (!doc || !id) {
+      this.dirty = false; // nothing loaded, so nothing can be saved: flush() stops here instead of asking again forever
+      return;
+    }
     this.dirty = false;
     this.saveState = 'saving';
     this.host.requestUpdate();

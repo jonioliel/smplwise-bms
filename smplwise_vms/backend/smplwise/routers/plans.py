@@ -325,10 +325,11 @@ def create_version(floor_id: str, body: VersionIn, request: Request, principal: 
         (version_id, floor_id, asset["id"], body.page, body.rotation, json.dumps(body.crop.model_dump()) if body.crop else None, w, h,
          str(out.relative_to(settings.data_dir).as_posix()), scale_value, body.notes, principal.user_id, now_iso()),
     )
-    audit(conn, actor=principal, action="plan.version.create", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request),
-          details={"version_id": version_id, "asset_id": asset["id"], "page": body.page, "rotation": body.rotation, "crop": body.crop.model_dump() if body.crop else None})
     # a new version starts from the floor's structure when it is the same drawing (copied / mapped through a re-crop)
     carry = geometry_store.carry(conn, get_version(conn, version_id), principal.user_id)
+    audit(conn, actor=principal, action="plan.version.create", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request),
+          details={"version_id": version_id, "asset_id": asset["id"], "page": body.page, "rotation": body.rotation, "crop": body.crop.model_dump() if body.crop else None,
+                   "geometry_carry": carry})
     return dict(version_row(get_version(conn, version_id)), geometry_carry=carry)
 
 

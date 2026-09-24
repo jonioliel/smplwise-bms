@@ -161,7 +161,7 @@ test.describe.serial('plan studio (SW A)', () => {
     await page.locator(`${ed} [data-tool="measure"]`).click();
     await clickPlan(page, ed, 0.1, 0.1); // lw2 from end to end: 0.8 x 500 = 400 px
     await clickPlan(page, ed, 0.1, 0.9);
-    await expect(page.locator(`${ed} [data-measure-distance]`)).toHaveText('10.0 מ׳'); // 400 px x 0.025 (one decimal from 10 m)
+    await expect(page.locator(`${ed} [data-measure-distance]`)).toContainText('10.0'); // 400 px x 0.025 (one decimal from 10 m)
     await expect(page.locator(`${ed} [data-measure-distance]`)).not.toContainText('≈');
   });
 

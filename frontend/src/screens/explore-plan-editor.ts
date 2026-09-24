@@ -981,9 +981,15 @@ export class ExplorePlanEditor extends LitElement {
       await this.openGeomDiff(b.planVersionId);
       return;
     }
-    const draft = this.versions.find((v) => v.id === b.planVersionId);
+    // load() does not wait for the version list: a click before it arrives reads it here. Without the draft's row
+    // there is no preview to show, so nothing is published.
+    let draft = this.versions.find((v) => v.id === b.planVersionId);
     if (!draft) {
-      await this.publishNow(b.planVersionId);
+      await this.loadVersions();
+      draft = this.versions.find((v) => v.id === b.planVersionId);
+    }
+    if (!draft) {
+      this.error = 'לא נמצאה טיוטה לפרסום — טען מחדש';
       return;
     }
     await this.openDiff('publish', draft);
@@ -1005,32 +1011,14 @@ export class ExplorePlanEditor extends LitElement {
     if (!b || !d?.data) return;
     this.busy = true;
     try {
-      await publishGeometry(d.versionId); // the version the preview compared
+      const r = await publishGeometry(d.versionId); // the version the preview compared
       this.geomDiff = null;
-      this.info = 'המבנה פורסם; הצופים רואים אותו עכשיו';
+      // The server publishes nothing when the draft already is what viewers see; its answer says so (unchanged).
+      this.info = r.unchanged ? 'אין שינוי לפרסום' : 'המבנה פורסם; הצופים רואים אותו עכשיו';
       setTimeout(() => (this.info = ''), 4000);
       await this.loadStudio(b, true); // refresh what viewers see (the published hash)
     } catch (err) {
       this.geomDiff = { ...d, error: describeError(err) };
-    } finally {
-      this.busy = false;
-    }
-  }
-
-  private async publishNow(versionId: string) {
-    this.busy = true;
-    this.error = '';
-    try {
-      await publishVersion(versionId);
-      this.info = 'הגרסה פורסמה; הצופים רואים אותה עכשיו';
-      await this.load();
-      if (this.bundle) await this.loadStudio(this.bundle, true);
-    } catch (err) {
-      this.error = describeError(err);
-      if (err instanceof ApiError && err.code === 'geometry_invalid') {
-        this.pickTool('structure'); // the issue list is in the structure panel
-        this.studioMode = 'select';
-      }
     } finally {
       this.busy = false;
     }
@@ -1764,7 +1752,8 @@ export class ExplorePlanEditor extends LitElement {
     // the draft holds anything the server publishes (the collections its is_empty counts, as studio.pendingPublish).
     const doc = d.mode === 'publish' && d.version.id === this.bundle?.planVersionId ? this.studio.doc : null;
     const structure = doc && (doc.walls.length || doc.openings.length || doc.labels.length || doc.objects.length || doc.connectors.length) ? doc : null;
-    const blocked = this.studio.issues.some((i) => i.severity === 'error'); // every error blocks, with an item id or not
+    // Every error blocks, with an item id or not: the confirm stays off until the issue list is clear (no 422 round trip).
+    const blocked = !!structure && this.studio.issues.some((i) => i.severity === 'error');
     const title = d.mode === 'publish' ? 'פרסום גרסה' : d.mode === 'rollback' ? 'שחזור גרסה מהארכיון' : 'השוואת גרסאות';
     const sub = d.mode === 'publish' ? 'מה ישתנה לצופים ומה יקרה לפריטים המוצבים' : d.mode === 'rollback' ? 'הגרסה תפורסם מחדש כעותק חדש; הגרסה הנוכחית תעבור לארכיון' : 'מול הגרסה המפורסמת';
     return html`<sw-dialog open heading=${title} subheading=${sub} data-diff-dialog @close=${() => (this.diff = null)}>
@@ -1784,7 +1773,7 @@ export class ExplorePlanEditor extends LitElement {
               <span>${data.anchors.total} פריטים מוצבים · ${data.anchors.carried} עוברים כמו שהם · ${data.anchors.needs_alignment} ידרשו יישור</span>
             </div>
             ${structure
-              ? html`<div class="note" data-diff-structure>המבנה של הטיוטה (${wallsAndOpenings(structure.walls.length, structure.openings.length)}) יפורסם יחד עם הגרסה${blocked ? '; יש בו שגיאות שיחסמו את הפרסום' : ''}.</div>`
+              ? html`<div class="note" data-diff-structure>המבנה של הטיוטה (${wallsAndOpenings(structure.walls.length, structure.openings.length)}) יפורסם יחד עם הגרסה${blocked ? '; יש בו שגיאות שחוסמות את הפרסום עד לתיקון: ראה את הסימון האדום על המפה ואת רשימת הבעיות של המבנה' : ''}.</div>`
               : nothing}
             ${data.anchors.items.length
               ? html`<div class="ditems" data-diff-items>${data.anchors.items.map((i) => html`<div><span>${i.resource_type === 'camera' ? 'מצלמה' : 'ישות'} · ${i.name}</span><span class=${i.outcome === 'carried' ? '' : 'err'}>${i.outcome === 'carried' ? 'עובר' : 'יישור נדרש'}</span></div>`)}</div>`
@@ -1792,7 +1781,7 @@ export class ExplorePlanEditor extends LitElement {
             ${data.anchors.needs_alignment ? html`<div class="note">פריטים שידרשו יישור נשארים במקומם על גרסת התוכנית הקודמת ומסומנים במפה; שום פריט לא מוזז למיקום מומצא.</div>` : nothing}`}
       <sw-button slot="footer" variant="ghost" @click=${() => (this.diff = null)}>${d.mode === 'compare' ? 'סגור' : 'ביטול'}</sw-button>
       ${d.mode !== 'compare' && data
-        ? html`<sw-button slot="footer" variant="primary" icon=${d.mode === 'publish' ? 'check' : 'history'} data-diff-confirm ?disabled=${this.busy} @click=${() => this.confirmDiff()}>${d.mode === 'publish' ? 'פרסם גרסה' : 'שחזר ופרסם'}</sw-button>`
+        ? html`<sw-button slot="footer" variant="primary" icon=${d.mode === 'publish' ? 'check' : 'history'} data-diff-confirm ?disabled=${this.busy || blocked} @click=${() => this.confirmDiff()}>${d.mode === 'publish' ? 'פרסם גרסה' : 'שחזר ופרסם'}</sw-button>`
         : nothing}
     </sw-dialog>`;
   }
@@ -1818,7 +1807,7 @@ export class ExplorePlanEditor extends LitElement {
             <div class="note">${data.published_counts ? `כעת: ${wallsAndOpenings(data.published_counts.walls, data.published_counts.openings)}` : 'פרסום ראשון של מבנה'} · אחרי הפרסום: ${wallsAndOpenings(data.counts.walls, data.counts.openings)}</div>
             ${errors.length ? html`<div class="err" data-geom-diff-error>${countLabel(errors.length, 'שגיאה חוסמת אחת', 'שגיאות חוסמות')} בטיוטה: הפרסום חסום עד לתיקון. ראה את הסימון האדום על המפה ואת רשימת הבעיות של המבנה.</div>` : nothing}`}
       <sw-button slot="footer" variant="ghost" data-geom-cancel @click=${() => (this.geomDiff = null)}>ביטול</sw-button>
-      <sw-button slot="footer" variant="primary" icon="check" data-geom-publish ?disabled=${this.busy || !data || errors.length > 0 || !!data?.diff.same} @click=${() => this.confirmGeomPublish()}>פרסם מבנה</sw-button>
+      <sw-button slot="footer" variant="primary" icon="check" data-geom-publish ?disabled=${this.busy || !data || errors.length > 0} @click=${() => this.confirmGeomPublish()}>פרסם מבנה</sw-button>
     </sw-dialog>`;
   }
 

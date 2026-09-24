@@ -78,7 +78,7 @@ def calibration_of(version: Mapping[str, Any], asset: Mapping[str, Any] | None) 
     if version["scale_m_per_px"]:
         method = "dxf_units" if asset is not None and asset["mime"] == "image/vnd.dxf" else "manual"
         return {"status": "measured", "method": method, "pairs": [], "residual_pct": None, "reason": None}
-    return {"status": "missing", "method": None, "pairs": [], "residual_pct": None, "reason": "לא בוצע כיול; מידות במטרים מוצגות כמשוערות"}
+    return {"status": "missing", "method": None, "pairs": [], "residual_pct": None, "reason": "לא בוצע כיול"}
 
 
 def version_block(version: Mapping[str, Any], asset: Mapping[str, Any] | None) -> dict[str, Any]:

@@ -121,7 +121,7 @@ export function renderStudioPanel(v: StudioView, a: StudioActions): TemplateResu
     <div class="note">${mode.hint}</div>
     ${v.mode === 'wall' ? renderWallDefaults(v.wallDefaults, a) : nothing}
     <div class="row"><span class="lbl">קנה מידה<span class="muted" data-studio-scale>${estimated ? (v.showEstimates ? 'לא מכויל: מידות משוערות (≈)' : 'לא מכויל: מידות מוסתרות עד הכיול') : fmtScale(scale)}</span></span><sw-button size="sm" icon="scale" data-studio-calibrate @click=${() => a.calibrate()}>${estimated ? 'כיול' : 'כיול מחדש'}</sw-button></div>
-    <div class="note" data-studio-counts>${v.doc.walls.length} קירות · ${v.doc.openings.length} פתחים · ${v.doc.labels.length} תוויות</div>
+    <div class="note" data-studio-counts>${countLabel(v.doc.walls.length, 'קיר אחד', 'קירות')} · ${countLabel(v.doc.openings.length, 'פתח אחד', 'פתחים')} · ${countLabel(v.doc.labels.length, 'תווית אחת', 'תוויות')}</div>
     ${v.sel ? renderSelection(v, v.sel, a, scale, estimated) : nothing}
     ${errors.length || warnings.length ? renderIssues(errors, warnings, a) : nothing}
     ${empty && v.copyCandidates.length ? renderCopy(v.copyCandidates, a, v.busy) : nothing}
@@ -166,7 +166,7 @@ function renderWall(w: GeomWall, v: StudioView, a: StudioActions, scale: number,
   const len = lengthPx(w.polyline, v.W, v.H) * scale;
   const openings = v.doc.openings.filter((o) => o.wall_id === w.id).length;
   return html`<div class="sel" data-selected-wall=${w.id}>
-    <div class="selhead"><strong>קיר ${WALL_KIND_LABEL[w.kind]}</strong><span class="muted">${fmtMetres(len, estimated, v.showEstimates)} · ${openings} פתחים</span></div>
+    <div class="selhead"><strong>קיר ${WALL_KIND_LABEL[w.kind]}</strong><span class="muted">${fmtMetres(len, estimated, v.showEstimates)} · ${countLabel(openings, 'פתח אחד', 'פתחים')}</span></div>
     <div class="two">
       <sw-field label="עובי (מ׳)"><input type="number" min="0.01" max="3" step="0.01" data-ltr .value=${String(w.thickness_m)}
         @change=${(e: Event) => { const x = numberOf(e); if (x > 0 && x <= 3) a.patchWall(w.id, { thickness_m: x }); }} /></sw-field>
@@ -233,7 +233,7 @@ function renderCopy(cands: CopyCandidate[], a: StudioActions, busy: boolean) {
   return html`<div class="copy" data-copy-candidates>
     <div class="ilbl">להתחיל ממבנה קיים?</div>
     ${cands.map((c) => html`<button class="issue" data-copy-from=${c.version_id} ?disabled=${busy} @click=${() => a.copyFrom(c.version_id)}>
-      <span>העתק ${c.walls} קירות ו־${c.openings} פתחים מגרסה ${c.status === 'published' ? 'מפורסמת' : c.status === 'draft' ? 'בטיוטה' : 'מהארכיון'}</span>
+      <span>העתק ${countLabel(c.walls, 'קיר אחד', 'קירות')} ו${c.openings === 1 ? '' : '־'}${countLabel(c.openings, 'פתח אחד', 'פתחים')} מגרסה ${c.status === 'published' ? 'מפורסמת' : c.status === 'draft' ? 'בטיוטה' : 'מהארכיון'}</span>
       <span class="muted">${c.same_drawing ? 'אותו שרטוט' : 'שרטוט אחר: המיקומים לא מיושרים, בדוק אותם'}</span>
     </button>`)}
   </div>`;

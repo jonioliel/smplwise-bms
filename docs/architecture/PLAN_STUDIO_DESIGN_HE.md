@@ -155,8 +155,9 @@ DWG ו־BIM כשלבים עתידיים (סעיף 17), וההדגשה שהכול
 | doc_hash | TEXT | SHA-256 של ה־canonical JSON |
 | created_by / created_at, published_by / published_at, archived_at | | כמו `plan_versions` |
 
-כללים: לכל `plan_version_id` יש לכל היותר טיוטה אחת; פרסום מארכב את המפורסמת הקודמת ומעביר את הטיוטה ל־published
-(ויוצר טיוטה חדשה כהעתק); rollback מפרסם מחדש גרסה ארכיונית כגרסה חדשה (ההיסטוריה לעולם לא נמחקת).
+כללים: לכל `plan_version_id` יש לכל היותר טיוטה אחת; פרסום מארכב את המפורסמת הקודמת ומוסיף שורה מפורסמת חדשה עם תוכן
+הטיוטה, ושורת הטיוטה נשארת כפי שהיא (אותו תוכן ואותה `revision`, כך שעורך פתוח ממשיך בלי טעינה מחדש); rollback מפרסם
+מחדש גרסה ארכיונית כגרסה חדשה (ההיסטוריה לעולם לא נמחקת).
 
 **`catalog_items`** (מיגרציה 0020, שלב 2) — פריטים מותאמים של המתקן (הספרייה המובנית היא קובץ, לא טבלה).
 
@@ -252,14 +253,14 @@ item { id, category, names:{he,en}, tags:[…he/en], role: furniture|light|elect
 
 | נתיב | מה | הרשאה |
 |---|---|---|
-| `GET /floors/{id}/map` (קיים) | מקבל שדה `geometry` = הפניה `{id, doc_hash, status, published_at}` ולא המסמך עצמו: המפורסם; `?draft=true` — הטיוטה; `?at=` — מה שהיה מפורסם בזמן t. ובנוסף `catalog_revision` | map.read |
-| `GET /plan-versions/{id}/geometry?draft=true` / `?at=` | המסמך + `revision` + `status` + דוח ולידציה; `ETag` = `doc_hash`, ו־`If-None-Match` מחזיר 304 | map.read |
+| `GET /floors/{id}/map` (קיים) | מקבל שדה `geometry` = הפניה `{id, doc_hash, status, revision, published_at}` ולא המסמך עצמו: המפורסם; `?draft=true` — הטיוטה (רק עם map.edit; בלעדיה — ההפניה המפורסמת); `?at=` — מה שהיה מפורסם בזמן t. ובנוסף `permissions.structure`; `catalog_revision` — שלב 2 | map.read |
+| `GET /plan-versions/{id}/geometry?draft=true` / `?at=` | המסמך + `revision` + `status` + דוח ולידציה; במפורסם וב־`?at=`: `ETag` = `doc_hash`, ו־`If-None-Match` מחזיר 304 | `?draft=true`: map.edit; המפורסם ו־`?at=`: map.read |
 | `GET /search?q=` (קיים) | גם תוצאות מסוג `object` (שלב 2), עם הנתיב לקומה ממוקדת על העצם | map.read |
 | `PUT /plan-versions/{id}/geometry` | שמירת טיוטה (autosave). גוף: `{doc, base_revision}`; 409 `stale_revision` | map.edit |
 | `POST …/geometry/publish` | ולידציה מלאה → published; `{summary}` של ה־diff; אודיט `geometry.publish` | map.publish |
-| `GET …/geometry/diff?from=&to=` | diff מובנה (נוספו/הוסרו/הוזזו לפי אוסף) | map.read |
-| `GET …/geometry/versions` / `POST …/geometry/rollback` | היסטוריה / rollback; אודיט `geometry.rollback` | map.read / map.publish |
-| `PATCH /plan-versions/{id}/calibration` | `{points:[{a,b,metres}], method}` → `scale_m_per_px`, `status`, `residual_pct`; אודיט `plan.calibrate` | map.edit |
+| `GET …/geometry/diff` | הטיוטה מול המבנה המפורסם: diff מובנה (נוספו/הוסרו/שונו לפי אוסף, `calibration_changed`, `same`), דוח ולידציה וספירות לפני ואחרי | map.edit |
+| `GET …/geometry/versions` / `POST …/geometry/rollback` | היסטוריה / rollback; אודיט `geometry.rollback`. הצופים (המפה ההיסטורית) קוראים את `GET …/geometry/timeline` — map.read | map.edit / map.publish |
+| `PATCH /plan-versions/{id}/calibration` | `{pairs:[{a,b,metres}]}` (1–4 זוגות; השרת רושם `method` = `two_point`) → `version`, `scale_m_per_px`, `residual_pct`, `warning` (סטייה מעל 3%); אודיט `plan.calibrate` | map.edit |
 | `POST /plan-versions/{id}/detect` | `{targets:[walls,openings,rooms], strength, level_id}` → מועמדים (סינכרוני, timeout 60 שנ׳) | map.edit |
 | `POST /plan-versions/{id}/detect/accept` | `{accepted:[…ids], edits:{id:{…}}, replace_auto}` → ממזג לטיוטה; אודיט `geometry.detect.accept` | map.edit |
 | `GET /plan-assets/{id}/dxf/entities` | סיכום שכבות/בלוקים עם הצעת מיפוי | map.read |
@@ -267,10 +268,17 @@ item { id, category, names:{he,en}, tags:[…he/en], role: furniture|light|elect
 | `GET /catalog/objects?q=&category=` | מובנים + מותאמים (השרת מחזיר הכול; הסינון בלקוח) | map.read |
 | `POST/PATCH/DELETE /catalog/objects/{id}` | פריטים מותאמים בלבד; אודיט `catalog.item.*` | catalog.manage |
 | `GET /catalog/export` / `POST /catalog/import` | JSON של המותאמים | catalog.manage |
-| `GET /plan-versions/{id}/export.svg` / `.png` | `?layers=&level=&labels=` — רינדור דטרמיניסטי מהשרת | map.read |
+| `GET /plan-versions/{id}/export.svg` / `.png` | SVG: `?level=&labels=&rooms=`, PNG: `?level=&background=`; `?draft=true` — הטיוטה (map.edit); `?layers=` — שלב 2 — רינדור דטרמיניסטי מהשרת | map.read |
 | `GET /plan-versions/{id}/export.dxf` | ezdxf; שכבות A-WALL / A-DOOR / A-GLAZ / A-FURN / A-LITE / A-AREA / SW-ANCHORS | map.edit |
 | `GET /plan-versions/{id}/package.zip` | חבילת תוכנית חתומה (סעיף 11) | map.edit |
 | `POST /floors/{id}/package` | ייבוא חבילה → גרסת תוכנית + גאומטריה כטיוטה + דוח | map.import |
+
+עדכון 2026-09-24 (מימוש שלב 1, 0.1.82): שורות בטבלה תוקנו לחוזה שנמסר, כי סתרו אותו ואת מטריצת ההרשאות בסעיף 12 — טיוטה,
+diff, היסטוריית המבנה, כיול ו־`POST …/geometry/copy-from` (אודיט `geometry.copy`) דורשים map.edit, וצופים קוראים רק את
+המפורסם ואת `…/geometry/timeline` (map.read); גוף הכיול הוא `pairs` (1–4 זוגות `{a, b, metres}`) ולא `points` + `method`,
+והתשובה מחזירה `warning` ולא `status`; ה־diff משווה את הטיוטה למפורסם ואין בו `from`/`to`; `catalog_revision` במפה
+ו־`?layers=` בייצוא נדחו לשלב 2; ההפניה במפה כוללת גם `revision`, והמפה מחזירה `permissions.structure`. בסעיף 4.1 תוקן
+כלל הפרסום: שורת הטיוטה נשארת כפי שהיא ולא נוצרת טיוטה חדשה כהעתק (אותו תוכן, ועורך פתוח לא נדרש לטעון מחדש).
 
 שגיאות במעטפת הקיימת (`code`, `user_message` בעברית, `details`); ולידציה → 422 `validation` עם רשימת הבעיות
 לפי מזהה עצם, כדי שהעורך יסמן אותן על המפה.

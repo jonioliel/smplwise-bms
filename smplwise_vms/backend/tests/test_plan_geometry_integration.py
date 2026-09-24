@@ -121,6 +121,10 @@ def test_plan_versions_carry_publish_restore_and_delete_their_structure(settings
     assert c.get(f"/api/v1/plan-versions/{half['id']}/geometry?draft=true").json()["doc"]["walls"][0]["polyline"] == [[0.2, 0.2], [1.0, 0.2]]
     turned = c.post(f"/api/v1/floors/{ids['floor2']}/plan-versions", json={"asset_id": asset_id, "rotation": 90}).json()
     assert turned["geometry_carry"] == "none"
+    with app.state.db.connection() as conn:
+        audited = dict(conn.execute("SELECT json_extract(details_json, '$.version_id'), json_extract(details_json, '$.geometry_carry') FROM audit_log "
+                                    "WHERE action = 'plan.version.create'").fetchall())
+    assert [audited[x["id"]] for x in (same, half, turned)] == ["copied", "transformed", "none"], "the create audit records the carry the response reported"
     # deleting a draft plan version removes its structure (no dangling rows, no foreign-key error)
     assert c.delete(f"/api/v1/plan-versions/{half['id']}").status_code == 204
     with app.state.db.connection() as conn:

@@ -18,6 +18,9 @@
 - A new plan version of the same drawing starts from the floor's structure (copied, or mapped through a re-crop,
   with the calibration carried); another drawing starts empty and offers a copy. Restoring a plan version restores
   its structure; backups include it.
+- Restoring a backup in replace mode now empties every project table, including tables absent from an older archive
+  (for example, an archive from before saved views existed clears the saved views), so a restore leaves exactly the
+  archive's content; merge mode is unchanged.
 - Exports: SVG and PNG drawn from the same deterministic primitives as the map (a golden fixture pins the Python
   and TypeScript code to the same shapes), and the JSON document.
 - Storage: migrations 0018 (`plan_geometry`, `plan_versions.calibration_json`) and 0019 (level columns used from
