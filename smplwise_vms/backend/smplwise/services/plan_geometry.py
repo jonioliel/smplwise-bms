@@ -9,9 +9,11 @@ from __future__ import annotations
 import copy
 import json
 import math
+import re
 from typing import Any, Mapping
 
 from .plan_schema import canonical_json as canonical_json
+from . import plan_catalog
 
 SCHEMA_VERSION = "2.0"
 TOKENS_VERSION = "map-1"
@@ -28,6 +30,10 @@ SOURCES = ("manual", "auto", "imported")
 CAL_STATUSES = ("measured", "estimated", "missing")
 CAL_METHODS = ("two_point", "dxf_units", "door_width", "manual", "carried")
 ANCHOR_TYPES = ("camera", "ha_entity")
+CONNECTOR_KINDS = ("stairs", "ramp", "tribune", "elevator", "ladder")
+GROUP_KINDS = ("array", "manual")
+SWITCH_RE = re.compile(r"^(switch|light)\.[a-z0-9_]+$")
+DERIVED_PREFIX = "cx-"  # the connector derived from an object that connects levels: cx-<object id>
 COLLECTIONS = ("levels", "walls", "openings", "rooms", "objects", "circuits", "connectors", "labels", "groups", "uncertain_regions")
 LIMITS = {"levels": 20, "walls": 2000, "openings": 4000, "rooms": 500, "objects": 5000, "circuits": 500, "connectors": 200, "labels": 1000,
           "groups": 500, "uncertain_regions": 200}
@@ -119,7 +125,7 @@ def is_empty(doc: Mapping[str, Any]) -> bool:
 
 
 def counts(doc: Mapping[str, Any]) -> dict[str, int]:
-    return {c: len(doc.get(c) or []) for c in ("walls", "openings", "labels", "objects")}
+    return {c: len(doc.get(c) or []) for c in ("walls", "openings", "labels", "objects", "connectors", "circuits", "levels", "groups")}
 
 
 # ---------------------------------------------------------------- measurement
@@ -157,7 +163,9 @@ def two_point_scale(pairs: list[tuple[Any, Any, float]], width_px: int, height_p
 
 # ---------------------------------------------------------------- validation
 
-def validate(doc: Any) -> list[dict[str, Any]]:
+def validate(doc: Any, items: Mapping[str, Mapping[str, Any]] | None = None) -> list[dict[str, Any]]:
+    """`items` is the library index (plan_catalog.item_index(conn): built-in + custom); without it only the built-in
+    items are known, so a custom item reads as missing - the routers always pass the index."""
     issues: list[dict[str, Any]] = []
     if not isinstance(doc, dict):
         _issue(issues, "type", "המסמך חייב להיות אובייקט JSON.", structural=True)
@@ -174,14 +182,14 @@ def validate(doc: Any) -> list[dict[str, Any]]:
         if not isinstance(dims.get("calibration"), dict):
             _issue(issues, "type", "השדה calibration בסוג לא נכון.", path="dimensions.calibration", structural=True)
     for coll in COLLECTIONS:
-        items = doc.get(coll)
-        if not isinstance(items, list):
+        coll_items = doc.get(coll)
+        if not isinstance(coll_items, list):
             _issue(issues, "type", f"{coll} חייב להיות רשימה.", path=coll, structural=True)
             continue
-        if len(items) > LIMITS[coll]:
+        if len(coll_items) > LIMITS[coll]:
             _issue(issues, "limit", f"{coll}: יותר מ־{LIMITS[coll]} פריטים.", path=coll, structural=True)
             continue  # an over-limit collection gets exactly one issue; per-item checks cannot bound their own work
-        for i, item in enumerate(items):
+        for i, item in enumerate(coll_items):
             if not isinstance(item, dict) or not isinstance(item.get("id"), str) or not 1 <= len(item["id"]) <= 64:
                 _issue(issues, "type", f"{coll}[{i}] חייב להיות אובייקט עם id טקסטואלי.", path=f"{coll}[{i}]", structural=True)
                 continue
@@ -208,6 +216,12 @@ def validate(doc: Any) -> list[dict[str, Any]]:
     _check_openings(doc, walls, width, height, issues)
     _check_labels(doc["labels"], levels, issues)
     _check_rooms(doc["rooms"], levels, issues)
+    known = plan_catalog.builtin()["items"] if items is None else items
+    group_ids = {g["id"] for g in doc["groups"]}
+    objects = _check_objects(doc["objects"], levels, group_ids, known, issues)
+    _check_groups(doc["groups"], objects, issues)
+    _check_connectors(doc["connectors"], levels, objects, issues)
+    _check_circuits(doc["circuits"], objects, known, issues)
     unc = doc.get("uncertainty")
     if not isinstance(unc, dict) or not _unit(unc.get("overall")) or not isinstance(unc.get("notes"), list):
         _issue(issues, "uncertainty", "uncertainty צריך overall בין 0 ל־1 ורשימת notes.", path="uncertainty")
@@ -315,7 +329,46 @@ def _check_fields(coll: str, i: int, item: dict[str, Any], issues: list[dict[str
     elif coll == "rooms":
         opt("level_id", lambda v: isinstance(v, str))
         opt("ceiling_height_m", _num)
-    # objects, circuits, connectors, groups, uncertain_regions: no field rules in phase 1
+    elif coll == "objects":
+        req("item_id", isinstance(item.get("item_id"), str))
+        req("level_id", isinstance(item.get("level_id"), str))
+        req("position", _finite_point(item.get("position")))
+        req("rotation_deg", _num(item.get("rotation_deg")))
+        size = item.get("size")
+        req("size", isinstance(size, dict) and all(_num(size.get(k)) for k in ("w_m", "d_m", "h_m")))
+        req("z_m", _num(item.get("z_m")))
+        req("params", isinstance(item.get("params"), dict))
+        opt("label", lambda v: isinstance(v, str))
+        opt("anchor_ref", lambda v: isinstance(v, dict))
+        opt("group_id", lambda v: isinstance(v, str))
+        req("confidence", _num(item.get("confidence")))
+        req("source", isinstance(item.get("source"), str))
+        opt("locked", lambda v: isinstance(v, bool))
+        opt("external_ids", lambda v: isinstance(v, dict))
+    elif coll == "groups":
+        req("kind", isinstance(item.get("kind"), str))
+        req("member_ids", isinstance(item.get("member_ids"), list) and all(isinstance(m, str) for m in item["member_ids"]))
+        opt("params", lambda v: isinstance(v, dict))
+        opt("label", lambda v: isinstance(v, str))
+    elif coll == "connectors":
+        req("kind", isinstance(item.get("kind"), str))
+        req("level_from", isinstance(item.get("level_from"), str))
+        opt("level_to", lambda v: isinstance(v, str))
+        req("floor_ids", isinstance(item.get("floor_ids"), list) and all(isinstance(f, str) for f in item["floor_ids"]))
+        pl = item.get("polyline")
+        req("polyline", isinstance(pl, list) and all(_finite_point(p) for p in pl))
+        req("width_m", _num(item.get("width_m")))
+        opt("label", lambda v: isinstance(v, str))
+        opt("object_id", lambda v: isinstance(v, str))
+        req("source", isinstance(item.get("source"), str))
+        opt("external_ids", lambda v: isinstance(v, dict))
+    elif coll == "circuits":
+        req("name", isinstance(item.get("name"), str))
+        req("switch_entity_id", isinstance(item.get("switch_entity_id"), str))
+        req("member_ids", isinstance(item.get("member_ids"), list) and all(isinstance(m, str) for m in item["member_ids"]))
+        req("color_token", isinstance(item.get("color_token"), str))
+        opt("power_w", _num)
+    # uncertain_regions: no field rules yet (phase 3, detection)
 
 
 def _check_uncertainty_shape(unc: Any, issues: list[dict[str, Any]]) -> None:
@@ -457,6 +510,87 @@ def _check_rooms(rooms: list[dict[str, Any]], levels: set[str], issues: list[dic
         c = r.get("ceiling_height_m")
         if c is not None and not (_num(c) and 0 < c <= 50):
             _issue(issues, "ceiling", "גובה תקרת החדר בין 0 ל־50 מ׳.", item=r["id"], path="rooms")
+
+
+def _check_objects(objects: list[dict[str, Any]], levels: set[str], groups: set[str], items: Mapping[str, Mapping[str, Any]], issues: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Objects: the item must exist (a custom item deleted meanwhile blocks publishing, not the save), the position
+    inside the plan, sizes 0.05..100 m, the level and the group known, an anchor_ref well formed."""
+    ok: dict[str, dict[str, Any]] = {}
+    for o in objects:
+        oid = o["id"]
+        if o["item_id"] not in items:
+            _issue(issues, "unknown_item", f"הפריט {o['item_id']} לא קיים בספרייה.", item=oid, path="objects")
+        if not _pt(o["position"]):
+            _issue(issues, "bounds", "מיקום העצם מחוץ לתוכנית.", item=oid, path="objects")
+        size = o["size"]
+        if not all(plan_catalog.MIN_SIZE_M <= size[k] <= plan_catalog.MAX_SIZE_M for k in ("w_m", "d_m", "h_m")):
+            _issue(issues, "size", f"מידות העצם בין {plan_catalog.MIN_SIZE_M} ל־{plan_catalog.MAX_SIZE_M:g} מ׳.", item=oid, path="objects")
+        if not plan_catalog.MIN_Z_M <= o["z_m"] <= plan_catalog.MAX_Z_M:
+            _issue(issues, "z", "גובה העצם בין מינוס 50 ל־500 מ׳.", item=oid, path="objects")
+        if o["level_id"] not in levels:
+            _issue(issues, "unknown_level", "העצם שייך למפלס שלא קיים.", item=oid, path="objects")
+        if o.get("group_id") is not None and o["group_id"] not in groups:
+            _issue(issues, "unknown_group", "העצם שייך לקבוצה שלא קיימת.", item=oid, path="objects")
+        ref = o.get("anchor_ref")
+        if ref is not None and not (ref.get("resource_type") in ANCHOR_TYPES and isinstance(ref.get("resource_id"), str) and ref["resource_id"]):
+            _issue(issues, "anchor_ref", "anchor_ref צריך resource_type ו־resource_id.", item=oid, path="objects")
+        if o["source"] not in SOURCES:
+            _issue(issues, "enum", "מקור (source) לא מוכר.", item=oid, path="objects")
+        if not _unit(o["confidence"]):
+            _issue(issues, "confidence", "confidence בין 0 ל־1.", item=oid, path="objects")
+        ok[oid] = o
+    return ok
+
+
+def _check_groups(groups: list[dict[str, Any]], objects: dict[str, dict[str, Any]], issues: list[dict[str, Any]]) -> None:
+    seen: dict[str, str] = {}
+    for g in groups:
+        gid = g["id"]
+        if g["kind"] not in GROUP_KINDS:
+            _issue(issues, "enum", "סוג קבוצה לא מוכר.", item=gid, path="groups")
+        for mid in g["member_ids"]:
+            if mid not in objects:
+                _issue(issues, "unknown_member", f"הקבוצה מפנה לעצם {mid} שלא קיים.", item=gid, path="groups")
+            elif mid in seen:
+                _issue(issues, "duplicate_member", f"העצם {mid} שייך לשתי קבוצות ({seen[mid]}, {gid}).", item=gid, path="groups")
+            else:
+                seen[mid] = gid
+
+
+def _check_connectors(connectors: list[dict[str, Any]], levels: set[str], objects: dict[str, dict[str, Any]], issues: list[dict[str, Any]]) -> None:
+    """A connector joins two different levels of this floor, or this floor with another (level_to empty, floor_ids set)."""
+    for c in connectors:
+        cid = c["id"]
+        if c["kind"] not in CONNECTOR_KINDS or c["source"] not in SOURCES:
+            _issue(issues, "enum", "סוג מחבר או מקור לא מוכרים.", item=cid, path="connectors")
+        if c["level_from"] not in levels or (c.get("level_to") is not None and c["level_to"] not in levels):
+            _issue(issues, "unknown_level", "המחבר מפנה למפלס שלא קיים.", item=cid, path="connectors")
+        elif c.get("level_to") == c["level_from"] or (c.get("level_to") is None and not c["floor_ids"]):
+            _issue(issues, "connector_levels", "מחבר חייב לחבר שני מפלסים שונים, או קומה אחרת.", item=cid, path="connectors")
+        if len(c["polyline"]) < 2 or not all(_pt(p) for p in c["polyline"]):
+            _issue(issues, "bounds", "למחבר צריך לפחות שתי נקודות בתוך התוכנית.", item=cid, path="connectors")
+        if not plan_catalog.MIN_SIZE_M <= c["width_m"] <= plan_catalog.MAX_SIZE_M:
+            _issue(issues, "size", "רוחב המחבר בין 0.05 ל־100 מ׳.", item=cid, path="connectors")
+        if c.get("object_id") is not None and c["object_id"] not in objects:
+            _issue(issues, "unknown_object", "המחבר נגזר מעצם שלא קיים.", item=cid, path="connectors")
+
+
+def _check_circuits(circuits: list[dict[str, Any]], objects: dict[str, dict[str, Any]], items: Mapping[str, Mapping[str, Any]], issues: list[dict[str, Any]]) -> None:
+    for k in circuits:
+        kid = k["id"]
+        if not 1 <= len(k["name"].strip()) <= 80:
+            _issue(issues, "name", "למעגל צריך שם (עד 80 תווים).", item=kid, path="circuits")
+        if not SWITCH_RE.match(k["switch_entity_id"]):
+            _issue(issues, "switch_entity", "ישות המפסק חייבת להיות switch.* או light.*.", item=kid, path="circuits")
+        for mid in k["member_ids"]:
+            o = objects.get(mid)
+            if o is None:
+                _issue(issues, "unknown_member", f"המעגל מפנה לעצם {mid} שלא קיים.", item=kid, path="circuits")
+            elif (items.get(o["item_id"]) or {}).get("role", "light") != "light":
+                _issue(issues, "not_a_light", f"העצם {mid} אינו גוף תאורה.", item=kid, path="circuits", severity="warning")
+        p = k.get("power_w")
+        if p is not None and p < 0:
+            _issue(issues, "power", "הספק המעגל אינו יכול להיות שלילי.", item=kid, path="circuits")
 
 
 # ---------------------------------------------------------------- comparison and transforms
@@ -666,3 +800,97 @@ def prune_unfit(doc: Mapping[str, Any]) -> tuple[dict[str, Any], int]:
         unc = out.setdefault("uncertainty", {"overall": 0.5, "notes": []})
         unc["notes"] = [*unc.get("notes", []), _dropped_note(dropped)]
     return out, dropped
+
+
+# ---------------------------------------------------------------- normalization (phase 2)
+
+def object_axis(obj: Mapping[str, Any], width: float, height: float, scale: float) -> list[list[float]]:
+    """The depth axis of an object's footprint in normalized plan space: from its back edge to its front edge through
+    the centre, along its rotation (0 = up, clockwise). A tribune's derived connector runs along it."""
+    cx, cy = float(obj["position"][0]) * width, float(obj["position"][1]) * height
+    theta = math.radians(float(obj.get("rotation_deg") or 0))
+    dx, dy = math.sin(theta), -math.cos(theta)
+    hd = float(obj["size"]["d_m"]) / scale / 2
+    pts = [(cx - dx * hd, cy - dy * hd), (cx + dx * hd, cy + dy * hd)]
+    return [[round(min(1.0, max(0.0, x / width)), 6) + 0.0, round(min(1.0, max(0.0, y / height)), 6) + 0.0] for x, y in pts]
+
+
+def _derived_kind(item: Mapping[str, Any] | None, item_id: Any) -> str:
+    if item is not None and item.get("shape") == "stepped":
+        return "tribune"
+    first = str(item_id or "").split(".", 1)[0]
+    return first if first in CONNECTOR_KINDS else "stairs"
+
+
+def normalize(doc: Mapping[str, Any], items: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
+    """What the server recomputes on every draft save and publish, from the document alone: each circuit's power
+    (the members' params.power_w, else their item's default) and one derived connector per object that connects
+    levels (a tribune, stairs, a ramp...: params.connects_levels names the other level). Derived connectors carry the
+    object id and are regenerated every time, so the result is idempotent; manual connectors are kept. Malformed
+    data passes through untouched (it already failed validation)."""
+    out = copy.deepcopy(dict(doc))
+    objects = out.get("objects")
+    if not isinstance(objects, list):
+        return out
+    by_id = {o["id"]: o for o in objects if isinstance(o, dict) and isinstance(o.get("id"), str)}
+    circuits = out.get("circuits")
+    if isinstance(circuits, list):
+        for c in circuits:
+            if not isinstance(c, dict) or not isinstance(c.get("member_ids"), list):
+                continue
+            total = 0.0
+            for mid in c["member_ids"]:
+                o = by_id.get(mid)
+                if o is None:
+                    continue
+                params = o.get("params") if isinstance(o.get("params"), dict) else {}
+                w = params.get("power_w")
+                if not _num(w):
+                    item = items.get(o.get("item_id"))
+                    w = (item.get("params") or {}).get("power_w") if item else None
+                if _num(w):
+                    total += float(w)
+            c["power_w"] = round(total, 3)
+    dims = out.get("dimensions") if isinstance(out.get("dimensions"), dict) else {}
+    width, height = dims.get("width_px"), dims.get("height_px")
+    derived: dict[str, dict[str, Any]] = {}
+    if _num(width) and width > 0 and _num(height) and height > 0:
+        scale, _ = effective_scale(out)
+        for o in objects:
+            if not isinstance(o, dict) or not isinstance(o.get("id"), str):
+                continue
+            params = o.get("params") if isinstance(o.get("params"), dict) else {}
+            target = params.get("connects_levels")
+            size = o.get("size")
+            if not (isinstance(target, str) and target and target != o.get("level_id") and _finite_point(o.get("position")) and isinstance(size, dict)
+                    and _num(size.get("d_m")) and _num(size.get("w_m")) and _num(o.get("rotation_deg", 0))):
+                continue
+            cid = DERIVED_PREFIX + o["id"]
+            derived[cid] = {"id": cid, "kind": _derived_kind(items.get(o.get("item_id")), o.get("item_id")), "level_from": o.get("level_id"), "level_to": target, "floor_ids": [],
+                            "polyline": object_axis(o, width, height, scale), "width_m": float(size["w_m"]), "label": None, "object_id": o["id"], "source": "auto", "external_ids": {}}
+    connectors = out.get("connectors")
+    if isinstance(connectors, list):
+        kept = [c for c in connectors if not (isinstance(c, dict) and isinstance(c.get("object_id"), str))]
+        out["connectors"] = kept + [derived[k] for k in sorted(derived)]
+    return out
+
+
+def apply_anchor_positions(doc: Mapping[str, Any], anchors: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
+    """The body follows its anchor: an object whose anchor_ref names an anchor in `anchors` ("<type>:<id>" -> {x, y,
+    rotation}) takes the anchor's position and rotation. The store runs it on every save and publish; the maps run
+    it with the live positions they hold. An object whose anchor is missing keeps what it has (deleting an anchor
+    un-binds its body through the anchor route)."""
+    out = copy.deepcopy(dict(doc))
+    objects = out.get("objects")
+    if not isinstance(objects, list):
+        return out
+    for o in objects:
+        ref = o.get("anchor_ref") if isinstance(o, dict) else None
+        if not isinstance(ref, dict):
+            continue
+        a = anchors.get(f"{ref.get('resource_type')}:{ref.get('resource_id')}")
+        if a is None or not (_num(a.get("x")) and _num(a.get("y"))):
+            continue
+        o["position"] = [round(float(a["x"]), 6), round(float(a["y"]), 6)]
+        o["rotation_deg"] = round(float(a.get("rotation") or 0), 3)
+    return out
