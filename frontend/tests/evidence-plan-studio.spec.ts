@@ -5,6 +5,8 @@ import { test, expect, type APIRequestContext, type Page } from '@playwright/tes
 // Runs only with SW_LIVE=1 (backend on 8099 behind the preview proxy).
 const ids = { site: '', building: '', floor: '', version: '', asset: '' };
 let api: APIRequestContext;
+/** The installation's plan.estimates before the run: the spec pins it to "true" (estimates shown) and puts it back. */
+let estimatesBefore: string | null = null;
 
 const WALL = (id: string, polyline: [number, number][]) => ({ id, level_id: 'L0', polyline, thickness_m: 0.2, height_m: null, base_z_m: 0, kind: 'exterior',
   confidence: 1, source: 'manual', locked: false, external_ids: {} });
@@ -22,6 +24,8 @@ test.describe.serial('plan studio (SW A)', () => {
 
   test.beforeAll(async ({ playwright, browser }) => {
     api = await playwright.request.newContext({ baseURL: 'http://127.0.0.1:4173/' });
+    estimatesBefore = (await (await api.get('api/v1/settings')).json()).settings['plan.estimates'];
+    expect((await api.patch('api/v1/settings', { data: { 'plan.estimates': 'true' } })).status(), 'plan.estimates pinned').toBe(200);
     const stamp = new Date().toISOString().slice(0, 19);
     ids.site = (await (await api.post('api/v1/sites', { data: { name: `בדיקת סטודיו ${stamp}`, address: '' } })).json()).id;
     ids.building = (await (await api.post(`api/v1/sites/${ids.site}/buildings`, { data: { name: 'מבנה בדיקה' } })).json()).id;
@@ -39,6 +43,7 @@ test.describe.serial('plan studio (SW A)', () => {
   test.afterAll(async () => {
     if (!api) return;
     try {
+      if (estimatesBefore) expect((await api.patch('api/v1/settings', { data: { 'plan.estimates': estimatesBefore } })).status(), 'plan.estimates restored').toBe(200);
       // every delete is asserted, so a test site left on the developer backend is reported (each route answers 204)
       if (ids.floor) expect((await api.delete(`api/v1/floors/${ids.floor}?force=true`)).status(), 'test floor removed').toBe(204);
       if (ids.building) expect((await api.delete(`api/v1/buildings/${ids.building}`)).status(), 'test building removed').toBe(204);
@@ -130,31 +135,33 @@ test.describe.serial('plan studio (SW A)', () => {
 
   test('calibrate with two points and a known distance, then measure in metres', async ({ page }) => {
     const ed = 'explore-plan-editor';
+    // Every click is on a corner of the seeded walls lw1 / lw2: calibrate and measure snap to corners within 10 screen px,
+    // so the points are the corners themselves and the assertions are exact at any canvas size or zoom.
     await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
     await expect(page.locator(`${ed} sw-plan-canvas [data-wall]`).first()).toBeAttached({ timeout: 20000 });
-    // before calibration: estimates, marked "≈" (the default of plan.estimates)
+    // before calibration: estimates, marked "≈" (plan.estimates is pinned to "true" for the run)
     await page.locator(`${ed} [data-tool="measure"]`).click();
-    await clickPlan(page, ed, 0.3, 0.3);
-    await clickPlan(page, ed, 0.55, 0.3);
+    await clickPlan(page, ed, 0.1, 0.1);
+    await clickPlan(page, ed, 0.1, 0.9);
     await expect(page.locator(`${ed} [data-measure-distance]`)).toContainText('≈');
     await page.locator(`${ed} [data-measure-clear]`).click();
     await page.locator(`${ed} [data-tool="calibrate"]`).click();
     await expect(page.locator(`${ed} [data-calib-panel]`)).toBeVisible();
-    await clickPlan(page, ed, 0.2, 0.5);
-    await clickPlan(page, ed, 0.7, 0.5);
-    await page.locator(`${ed} [data-calib-metres]`).fill('10');
+    await clickPlan(page, ed, 0.1, 0.1); // lw1 from end to end: 0.8 x 800 = 640 px
+    await clickPlan(page, ed, 0.9, 0.1);
+    await page.locator(`${ed} [data-calib-metres]`).fill('16');
     await expect(page.locator(`${ed} [data-calib-save]`)).not.toHaveAttribute('disabled', '');
     const saved = page.waitForResponse((r) => r.url().includes('/calibration') && r.request().method() === 'PATCH');
     await page.locator(`${ed} [data-calib-save]`).click();
     expect((await saved).status()).toBe(200);
     await expect(page.locator(`${ed} [data-calib-result]`)).toContainText('40.0'); // 1 m = 40 px
     const v = await (await api.get(`api/v1/plan-versions/${ids.version}`)).json();
-    expect(v.scale_m_per_px).toBeCloseTo(0.025, 4); // 10 m over 0.5 x 800 px
+    expect(v.scale_m_per_px).toBeCloseTo(0.025, 6); // 16 m over 640 px
     expect(v.calibration.method).toBe('two_point');
     await page.locator(`${ed} [data-tool="measure"]`).click();
-    await clickPlan(page, ed, 0.3, 0.3);
-    await clickPlan(page, ed, 0.55, 0.3);
-    await expect(page.locator(`${ed} [data-measure-distance]`)).toContainText('5.00'); // 0.25 x 800 px x 0.025
+    await clickPlan(page, ed, 0.1, 0.1); // lw2 from end to end: 0.8 x 500 = 400 px
+    await clickPlan(page, ed, 0.1, 0.9);
+    await expect(page.locator(`${ed} [data-measure-distance]`)).toHaveText('10.0 מ׳'); // 400 px x 0.025 (one decimal from 10 m)
     await expect(page.locator(`${ed} [data-measure-distance]`)).not.toContainText('≈');
   });
 });

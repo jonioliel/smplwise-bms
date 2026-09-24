@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildPrimitives, distanceM, effectiveScale, isClosedOutline, nearestWall, perimeterM, pointOnWall, polygonAreaM2, snapPoint, type GeometryDoc, type Primitive, type Pt, type WallPrim } from '../src/map/geometry';
 import { addLabel, addOpening, addWall, moveVertex, patchLabel, patchOpening, removeItem } from '../src/map/studio-ops';
+import { fmtArea, fmtMetres } from '../src/screens/plan-studio-panel';
 
 // Plan Studio (T084): the map's structure primitives equal the backend renderer's (the shared golden file), and the
 // pure editor maths (snapping, the nearest wall, metres) and document operations behave. Runs in node: no page, no backend.
@@ -221,5 +222,13 @@ test.describe('plan studio geometry (unit)', () => {
     expect(mid[1]).toBeCloseTo(0.5, 9);
     doc = removeItem(doc, l.id);
     expect(doc.labels.some((x) => x.id === l.id)).toBe(false);
+  });
+
+  test('metre formatting follows the estimate rule', () => {
+    expect(fmtMetres(5, false)).toBe('5.00 מ׳');
+    expect(fmtMetres(12.34, true)).toBe('≈12.3 מ׳');
+    expect(fmtMetres(5, true, false)).toBe('לא מכויל');
+    expect(fmtArea(42.25, true)).toBe('≈42.3 מ״ר');
+    expect(fmtArea(150, false)).toBe('150 מ״ר');
   });
 });

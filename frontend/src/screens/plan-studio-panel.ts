@@ -237,7 +237,9 @@ export interface CalibView {
 
 export function renderCalibPanel(v: CalibView, onMetres: (value: string) => void, onSave: () => void, onReset: () => void): TemplateResult {
   const metres = parseFloat(v.metres);
-  const ready = !!v.a && !!v.b && metres > 0 && !v.busy;
+  // The server refuses a pair closer than 5 plan pixels and a distance over 1000 m.
+  const tooClose = v.pixels !== null && v.pixels < 5;
+  const ready = !!v.a && !!v.b && v.pixels !== null && v.pixels >= 5 && metres > 0 && metres <= 1000 && !v.busy;
   const notCalibrated = v.showEstimates ? 'התוכנית לא מכוילת: מידות מוצגות כמשוערות (≈)' : 'התוכנית לא מכוילת: מידות מוסתרות עד הכיול (הגדרות)';
   return html`<sw-card heading="כיול קנה מידה" subheading=${v.estimated ? notCalibrated : `מכויל · ${fmtScale(v.scale)}`} data-calib-panel>
     <ol class="steps">
@@ -247,7 +249,9 @@ export function renderCalibPanel(v: CalibView, onMetres: (value: string) => void
     </ol>
     <sw-field label="מרחק (מ׳)"><input type="number" min="0.01" max="1000" step="0.01" data-ltr data-calib-metres .value=${v.metres} ?disabled=${!v.b}
       @input=${(e: Event) => onMetres((e.target as HTMLInputElement).value)} /></sw-field>
-    ${v.pixels !== null ? html`<div class="note">${v.pixels.toFixed(0)} פיקסלים בתוכנית${metres > 0 ? ` · 1 מ׳ = ${(v.pixels / metres).toFixed(1)} פיקסלים` : ''}</div>` : nothing}
+    ${v.pixels !== null
+      ? html`<div class=${tooClose ? 'note err' : 'note'}>${v.pixels.toFixed(0)} פיקסלים בתוכנית${tooClose ? ' · הנקודות קרובות מדי' : metres > 0 ? ` · 1 מ׳ = ${(v.pixels / metres).toFixed(1)} פיקסלים` : ''}</div>`
+      : nothing}
     <div class="btns">
       <sw-button variant="primary" size="sm" icon="check" data-calib-save ?disabled=${!ready} @click=${onSave}>שמור כיול</sw-button>
       <sw-button variant="ghost" size="sm" data-calib-reset @click=${onReset}>נקה נקודות</sw-button>

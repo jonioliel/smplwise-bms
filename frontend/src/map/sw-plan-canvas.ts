@@ -469,7 +469,6 @@ export class SwPlanCanvas extends LitElement {
     }
     .ruler.muted line {
       stroke: var(--sw-text-2);
-      stroke-dasharray: 4 3;
     }
     .ruler circle {
       fill: var(--sw-surface);
@@ -1306,7 +1305,7 @@ export class SwPlanCanvas extends LitElement {
         const my = (ay + by) / 2;
         const tw = (r.label.length * 7 + 14) * inv;
         return svg`<g class="ruler ${r.tone}" data-ruler>
-          <line x1=${ax} y1=${ay} x2=${bx} y2=${by} stroke-width=${2 * inv} />
+          <line x1=${ax} y1=${ay} x2=${bx} y2=${by} stroke-width=${2 * inv} stroke-dasharray=${r.tone === 'muted' ? `${4 * inv} ${3 * inv}` : nothing} />
           <circle cx=${ax} cy=${ay} r=${3.5 * inv} stroke-width=${1.5 * inv} />
           <circle cx=${bx} cy=${by} r=${3.5 * inv} stroke-width=${1.5 * inv} />
           ${r.label

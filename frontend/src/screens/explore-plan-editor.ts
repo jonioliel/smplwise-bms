@@ -1109,6 +1109,8 @@ export class ExplorePlanEditor extends LitElement {
       await this.studio.load(b.planVersionId);
       this.geomSel = null;
       this.wallDraft = null;
+      this.calib = { ...EMPTY_CALIB }; // points and measures belong to the document they were taken on
+      this.measurePts = [];
       return true;
     } catch (err) {
       this.studioVersion = null;
