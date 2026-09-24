@@ -27,7 +27,7 @@ export interface MapBundle {
   /** Named rooms / areas (M13); empty when none were defined. */
   zones: SpatialZone[];
   cameras: Camera[];
-  permissions: { edit: boolean; publish: boolean; import: boolean };
+  permissions: { edit: boolean; publish: boolean; import: boolean; structure: boolean };
   renderMode: 'source' | 'stylized';
   stylizedAvailable: boolean;
   /** Published period of the shown version and, when loaded at an instant, how the history was resolved (T038). */
@@ -89,7 +89,7 @@ function demoBundle(floorId: string): MapBundle {
     })),
     zones: [],
     cameras: [],
-    permissions: { edit: true, publish: true, import: true },
+    permissions: { edit: true, publish: true, import: true, structure: false },
   };
 }
 

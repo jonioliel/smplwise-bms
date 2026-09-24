@@ -1,6 +1,6 @@
 /** Plan Studio (T084): pure edits of a structure document - every function returns a new document, so undo / redo is
  * a stack of documents and nothing is ever mutated in place. */
-import { DEFAULT_LEVEL_ID, OPENING_DEFAULTS, type GeometryDoc, type GeomOpening, type GeomWall, type OpeningKind, type Pt, type Swing, type WallKind } from './geometry';
+import { DEFAULT_LEVEL_ID, OPENING_DEFAULTS, type GeometryDoc, type GeomLabel, type GeomOpening, type GeomWall, type OpeningKind, type Pt, type Swing, type WallKind } from './geometry';
 
 export interface WallDefaults {
   thickness_m: number;
@@ -59,4 +59,13 @@ export function moveVertex(doc: GeometryDoc, id: string, index: number, p: Pt): 
 export function removeItem(doc: GeometryDoc, id: string): GeometryDoc {
   if (doc.walls.some((w) => w.id === id)) return { ...doc, walls: doc.walls.filter((w) => w.id !== id), openings: doc.openings.filter((o) => o.wall_id !== id) };
   return { ...doc, openings: doc.openings.filter((o) => o.id !== id), labels: doc.labels.filter((l) => l.id !== id) };
+}
+
+export function addLabel(doc: GeometryDoc, p: Pt, text: string): { doc: GeometryDoc; id: string } {
+  const label: GeomLabel = { id: newId(), text, position: clampPt(p), level_id: defaultLevelId(doc), size: 14 };
+  return { doc: { ...doc, labels: [...doc.labels, label] }, id: label.id };
+}
+
+export function patchLabel(doc: GeometryDoc, id: string, patch: Partial<GeomLabel>): GeometryDoc {
+  return { ...doc, labels: doc.labels.map((l) => (l.id === id ? { ...l, ...patch, id: l.id, position: patch.position ? clampPt(patch.position) : l.position } : l)) };
 }

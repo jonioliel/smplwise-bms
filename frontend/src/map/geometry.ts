@@ -326,3 +326,11 @@ export function snapPoint(p: Pt, prev: Pt | null, walls: GeomWall[], W: number, 
   const ang = Math.round(Math.atan2(dy, dx) / step) * step;
   return [clamp01(prev[0] + (Math.cos(ang) * len) / W), clamp01(prev[1] + (Math.sin(ang) * len) / H)];
 }
+
+/** The point at relative position t (0..1 of the length) along a wall, in normalized plan space. */
+export function pointOnWall(wall: GeomWall, t: number, W: number, H: number): Pt {
+  const pts: Pt[] = wall.polyline.map((v) => [v[0] * W, v[1] * H]);
+  const cum = cumulative(pts);
+  const { p } = pointAt(pts, cum, Math.min(1, Math.max(0, t)) * cum[cum.length - 1]);
+  return [p[0] / W, p[1] / H];
+}

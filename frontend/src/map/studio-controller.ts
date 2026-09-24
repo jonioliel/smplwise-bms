@@ -34,7 +34,7 @@ export class StudioController implements ReactiveController {
   private dirty = false;
   private inflight: Promise<void> | null = null;
   /** A save was refused as stale: nothing is sent until load() brings the current draft. */
-  private conflict = false;
+  private conflicted = false;
   /** Every load() takes a token; only the answer of the latest one is used. */
   private loadToken = 0;
   /** The token of the load the working state comes from; a save answered after a newer load is ignored. */
@@ -56,6 +56,11 @@ export class StudioController implements ReactiveController {
 
   get canRedo(): boolean {
     return this.redoStack.length > 0;
+  }
+
+  /** A save was refused as stale: the editor offers a reload (a retry would overwrite the other editor's change). */
+  get hasConflict(): boolean {
+    return this.conflicted;
   }
 
   /** The draft differs from what viewers see, and there is something to show. */
@@ -85,7 +90,7 @@ export class StudioController implements ReactiveController {
     this.undoStack = [];
     this.redoStack = [];
     this.dirty = false;
-    this.conflict = false;
+    this.conflicted = false;
     this.saveState = 'idle';
     this.error = '';
     this.host.requestUpdate();
@@ -122,7 +127,7 @@ export class StudioController implements ReactiveController {
         await this.inflight; // a save another caller started; an edit made meanwhile goes out next, so look again
         continue;
       }
-      if (!this.dirty || this.conflict || (attempted && this.saveState === 'error')) break;
+      if (!this.dirty || this.conflicted || (attempted && this.saveState === 'error')) break;
       attempted = true;
       this.inflight = this.saveOnce();
       await this.inflight;
@@ -135,7 +140,7 @@ export class StudioController implements ReactiveController {
     this.doc = next;
     this.dirty = true;
     clearTimeout(this.timer);
-    if (!this.conflict) {
+    if (!this.conflicted) {
       // While a conflict holds, the edit stays local and the error stays up until the editor reloads.
       if (this.saveState !== 'saving') this.saveState = 'pending';
       this.timer = setTimeout(() => void this.flush(), this.delayMs);
@@ -167,9 +172,9 @@ export class StudioController implements ReactiveController {
     } catch (err) {
       if (loaded !== this.loaded) return;
       this.dirty = true;
-      if (err instanceof ApiError && err.code === 'stale_revision') this.conflict = true;
+      if (err instanceof ApiError && err.code === 'stale_revision') this.conflicted = true;
       this.saveState = 'error';
-      this.error = this.conflict ? 'טיוטת המבנה נערכה במקום אחר; טען מחדש את העורך כדי לא לדרוס שינוי.' : describeError(err);
+      this.error = this.conflicted ? 'טיוטת המבנה נערכה במקום אחר; טען מחדש את העורך כדי לא לדרוס שינוי.' : describeError(err);
     } finally {
       this.host.requestUpdate();
     }

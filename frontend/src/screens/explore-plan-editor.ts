@@ -19,6 +19,12 @@ import type { Anchor, Camera, PlanVersion } from '../api/types';
 import { domainLabel, entityMarkerKind, listEntities, stateLabel, type HaEntity } from '../api/ha';
 import { ROOM_FILL_LABEL, setRenderMode, stylizeVersion, type RoomFill, type StylizeResult } from '../api/plans';
 import { ZONE_KINDS, acceptZones, createZone, deleteZone, detectZones, pointInPolygon, updateZone, zoneKindLabel, type SpatialZone, type ZoneKind, type ZonePoint } from '../api/zones';
+import { copyGeometryFrom, exportUrl } from '../api/geometry';
+import { productSettings } from '../api/prefs';
+import { nearestWall, pointOnWall, snapPoint, type GeometryDoc, type Pt } from '../map/geometry';
+import { StudioController } from '../map/studio-controller';
+import { addLabel, addOpening, addWall, moveVertex, patchLabel, patchOpening, patchWall, removeItem, type WallDefaults } from '../map/studio-ops';
+import { renderStudioPanel, studioPanelStyles, type GeomKind, type GeomSel, type StudioMode } from './plan-studio-panel';
 
 type Strength = 'light' | 'medium' | 'strong';
 interface ZoneCandidate {
@@ -30,7 +36,7 @@ interface ZoneCandidate {
 /** Same palette as the backend assigns on save, so candidates keep their colour once accepted. */
 const PALETTE = ['#2767ED', '#22A06B', '#F59E0B', '#8B5CF6', '#0EA5E9', '#EC4899', '#14B8A6', '#F97316'];
 
-type Tool = 'select' | 'camera' | 'lights' | 'entity' | 'zones' | 'layers';
+type Tool = 'select' | 'camera' | 'lights' | 'entity' | 'zones' | 'structure' | 'layers';
 type Layer = 'cameras' | 'doors' | 'lights' | 'sensors';
 
 const TOOLS: { id: Tool; icon: IconName; label: string; ready: boolean }[] = [
@@ -39,8 +45,12 @@ const TOOLS: { id: Tool; icon: IconName; label: string; ready: boolean }[] = [
   { id: 'lights', icon: 'light', label: 'הוספת תאורה (מפסקים)', ready: true },
   { id: 'entity', icon: 'plus', label: 'ישות HA אחרת', ready: true },
   { id: 'zones', icon: 'map', label: 'חדרים ואזורים', ready: true },
+  { id: 'structure', icon: 'wall', label: 'מבנה: קירות, דלתות וחלונות', ready: true },
   { id: 'layers', icon: 'layers', label: 'שכבות', ready: true },
 ];
+
+/** Tools that work on the Plan Studio structure document (they need map.edit on the floor). */
+const STUDIO_TOOLS: Tool[] = ['structure'];
 
 const LAYERS: { id: Layer; label: string }[] = [
   { id: 'cameras', label: 'מצלמות' },
@@ -97,10 +107,20 @@ export class ExplorePlanEditor extends LitElement {
   @state() private showZones = true;
   @state() private zoneBusy = false;
   @query('sw-plan-canvas') private canvas?: SwPlanCanvas;
+  /** Plan Studio (T084): the structure draft of the shown plan version, autosaved two seconds after the last edit. */
+  private studio = new StudioController(this);
+  private studioVersion: string | null = null;
+  @state() private studioMode: StudioMode = 'wall';
+  @state() private wallDefaults: WallDefaults = { thickness_m: 0.2, kind: 'interior' };
+  @state() private geomSel: GeomSel | null = null;
+  @state() private wallDraft: Pt[] | null = null;
+  @state() private hover: Pt | null = null;
+  /** Setting `plan.estimates` (default true): estimated metres carry "≈" before calibration; false hides them. */
+  @state() private showEstimates = true;
   private entTimer = 0;
   private onKey = (e: KeyboardEvent) => this.handleKey(e);
 
-  static styles = css`
+  static styles = [css`
     :host {
       display: flex;
       flex-direction: column;
@@ -485,7 +505,7 @@ export class ExplorePlanEditor extends LitElement {
         order: 2;
       }
     }
-  `;
+  `, studioPanelStyles];
 
   connectedCallback() {
     super.connectedCallback();
@@ -501,6 +521,7 @@ export class ExplorePlanEditor extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     window.removeEventListener('keydown', this.onKey);
+    void this.studio.flush(); // an edit younger than the autosave delay is still saved when the editor closes
   }
 
   /** S4: realign items from an earlier plan version (crop maths, or accept after a look). */
@@ -523,6 +544,10 @@ export class ExplorePlanEditor extends LitElement {
     try {
       const b = await loadMap(this.floorId || 'f0', true);
       this.bundle = b;
+      void this.loadStudio(b);
+      void productSettings().then((s) => {
+        this.showEstimates = s['plan.estimates'] !== 'false'; // the key exists on ProductSettings from Task 13; until then it is simply undefined
+      });
       this.anchors = b.anchors.map((a) => ({ ...a, position: { ...a.position } }));
       this.zones = b.zones;
       void this.loadVersions();
@@ -754,16 +779,21 @@ export class ExplorePlanEditor extends LitElement {
     const target = e.composedPath()[0] as HTMLElement | undefined;
     const typing = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable);
     if (e.key === 'Escape') {
-      if (this.drawing) this.drawing = null;
+      if (this.wallDraft) {
+        this.wallDraft = null;
+        this.hover = null;
+      } else if (this.drawing) this.drawing = null;
       else if (this.placing) this.placing = null;
       else if (this.candidates) this.candidates = null;
       else {
         this.selectedId = null;
         this.selectedZoneId = null;
+        this.geomSel = null;
       }
       return;
     }
     if (typing) return;
+    if (this.studioOn && this.handleStudioKey(e)) return;
     if (e.key === 'Enter' && this.drawing) {
       e.preventDefault();
       void this.finishDrawing();
@@ -1030,10 +1060,281 @@ export class ExplorePlanEditor extends LitElement {
   private pickTool(tool: Tool) {
     this.tool = tool;
     this.placing = null;
+    this.wallDraft = null;
+    this.hover = null;
+    if (tool !== 'structure') this.geomSel = null;
     if (tool === 'entity' || tool === 'lights') {
       this.entResults = null; // the two tools list different sets
       void this.searchEntities();
     }
+  }
+
+  // ---- Plan Studio: structure (T084) ----
+
+  /** The structure draft follows the plan version the editor shows (a new draft or a restore changes it). */
+  private async loadStudio(b: MapBundle, force = false) {
+    if (b.source !== 'api' || !b.planVersionId || !b.permissions.structure) return;
+    if (!force && this.studioVersion === b.planVersionId) return;
+    this.studioVersion = b.planVersionId;
+    try {
+      // An unsaved edit is never dropped silently: when it cannot be saved the studio keeps its draft and says so (the
+      // next load tries again). A reload after a conflict drops it on purpose: the user chose the stored draft.
+      if (!(await this.studio.flush()) && !(force && this.studio.hasConflict)) {
+        this.studioVersion = null;
+        this.error = this.studio.error;
+        return;
+      }
+      await this.studio.load(b.planVersionId);
+      this.geomSel = null;
+      this.wallDraft = null;
+    } catch (err) {
+      this.error = describeError(err);
+    }
+  }
+
+  private get studioOn(): boolean {
+    return STUDIO_TOOLS.includes(this.tool) && !!this.studio.doc;
+  }
+
+  /** Clicks on the plan go to the studio tool instead of selecting pins. */
+  private get studioPlacing(): boolean {
+    return this.studioOn && (this.tool !== 'structure' || this.studioMode !== 'select');
+  }
+
+  private get issueIds(): string[] {
+    return this.studio.issues.filter((i) => i.severity === 'error' && i.id).map((i) => i.id as string);
+  }
+
+  /** One undoable edit of the structure draft. */
+  private edit(fn: (doc: GeometryDoc) => GeometryDoc) {
+    const doc = this.studio.doc;
+    if (doc) this.studio.commit(fn(doc));
+  }
+
+  private snap(p: Pt, prev: Pt | null, free: boolean): Pt {
+    const b = this.bundle;
+    const doc = this.studio.doc;
+    if (!b || !doc) return p;
+    return snapPoint(p, prev, doc.walls, b.width, b.height, { tolPx: 10 / (this.canvas?.zoom ?? 1), free });
+  }
+
+  private onPlanHover(x: number, y: number, shift: boolean) {
+    const b = this.bundle;
+    const doc = this.studio.doc;
+    if (!b || !doc || !this.studioPlacing) {
+      this.hover = null;
+      return;
+    }
+    const p: Pt = [x, y];
+    if (this.studioMode === 'wall') this.hover = this.snap(p, this.wallDraft?.at(-1) ?? null, shift);
+    else if (this.studioMode === 'label') this.hover = p;
+    else {
+      const hit = nearestWall(p, doc.walls, b.width, b.height, 14 / (this.canvas?.zoom ?? 1));
+      this.hover = hit ? pointOnWall(hit.wall, hit.t, b.width, b.height) : null;
+    }
+  }
+
+  private studioClick(x: number, y: number, shift: boolean) {
+    const b = this.bundle;
+    const doc = this.studio.doc;
+    if (!b || !doc) return;
+    const p: Pt = [x, y];
+    const mode = this.studioMode;
+    const zoom = this.canvas?.zoom ?? 1;
+    if (mode === 'wall') {
+      const d = this.wallDraft ?? [];
+      const q = this.snap(p, d.at(-1) ?? null, shift);
+      const near = (a: Pt) => Math.hypot((a[0] - q[0]) * b.width, (a[1] - q[1]) * b.height) * zoom < 8;
+      if (d.length && near(d[d.length - 1])) {
+        this.finishWall(); // a second click on the last point ends the wall (a double click does the same)
+        return;
+      }
+      if (d.length >= 3 && near(d[0])) {
+        this.wallDraft = [...d, d[0]]; // back on the first point: a closed outline
+        this.finishWall();
+        return;
+      }
+      this.wallDraft = [...d, q];
+      return;
+    }
+    if (mode === 'label') {
+      const r = addLabel(doc, p, 'תווית');
+      this.studio.commit(r.doc);
+      this.geomSel = { id: r.id, kind: 'label' };
+      return;
+    }
+    if (mode === 'select') return;
+    const hit = nearestWall(p, doc.walls, b.width, b.height, 14 / zoom);
+    if (!hit) {
+      this.info = 'לחץ על קיר כדי להציב פתח';
+      setTimeout(() => (this.info = ''), 2500);
+      return;
+    }
+    const r = addOpening(doc, hit.wall.id, hit.t, mode);
+    this.studio.commit(r.doc);
+    this.geomSel = { id: r.id, kind: 'opening' };
+  }
+
+  private finishWall() {
+    const d = this.wallDraft;
+    this.wallDraft = null;
+    this.hover = null;
+    const doc = this.studio.doc;
+    if (!doc || !d || d.length < 2) return;
+    const r = addWall(doc, d, this.wallDefaults);
+    this.studio.commit(r.doc);
+    this.geomSel = { id: r.id, kind: 'wall' };
+  }
+
+  private onGeomSelect(id: string, kind: GeomKind) {
+    this.geomSel = { id, kind };
+    this.selectedId = null;
+    this.selectedZoneId = null;
+  }
+
+  private onGeomDrag(d: { kind: 'vertex' | 'opening' | 'label'; id: string; index: number; x: number; y: number }) {
+    const b = this.bundle;
+    const doc = this.studio.doc;
+    if (!b || !doc) return;
+    const p: Pt = [d.x, d.y];
+    if (d.kind === 'vertex') {
+      const w = doc.walls.find((v) => v.id === d.id);
+      const prev = w && d.index > 0 ? w.polyline[d.index - 1] : null;
+      const others = doc.walls.filter((v) => v.id !== d.id);
+      this.studio.commit(moveVertex(doc, d.id, d.index, snapPoint(p, prev, others, b.width, b.height, { tolPx: 10 / (this.canvas?.zoom ?? 1), free: true })));
+      this.geomSel = { id: d.id, kind: 'wall' };
+    } else if (d.kind === 'opening') {
+      const o = doc.openings.find((v) => v.id === d.id);
+      const hit = o ? nearestWall(p, doc.walls, b.width, b.height, Number.POSITIVE_INFINITY, o.wall_id) : null;
+      if (hit) this.studio.commit(patchOpening(doc, d.id, { t: hit.t }));
+      this.geomSel = { id: d.id, kind: 'opening' };
+    } else {
+      this.studio.commit(patchLabel(doc, d.id, { position: p }));
+      this.geomSel = { id: d.id, kind: 'label' };
+    }
+  }
+
+  /** Keys of the studio tools; true when the key was used. Ctrl+Z / Ctrl+Y undo the structure, not the pins. */
+  private handleStudioKey(e: KeyboardEvent): boolean {
+    const mod = e.ctrlKey || e.metaKey;
+    const key = e.key.toLowerCase();
+    if (e.key === 'Enter' && this.wallDraft) {
+      e.preventDefault();
+      this.finishWall();
+      return true;
+    }
+    if (e.key === 'Backspace' && this.wallDraft) {
+      e.preventDefault();
+      this.wallDraft = this.wallDraft.length > 1 ? this.wallDraft.slice(0, -1) : null;
+      return true;
+    }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && this.geomSel) {
+      e.preventDefault();
+      const id = this.geomSel.id;
+      this.edit((d) => removeItem(d, id));
+      this.geomSel = null;
+      return true;
+    }
+    if (mod && (key === 'z' || key === 'y')) {
+      e.preventDefault();
+      if (key === 'y' || e.shiftKey) this.studio.redo();
+      else this.studio.undo();
+      this.geomSel = null;
+      return true;
+    }
+    if (mod && key === 's') {
+      e.preventDefault();
+      void this.studio.flush();
+      return true;
+    }
+    return false;
+  }
+
+  /** Bring an item into view and select it (the issue list, publish errors). */
+  private focusGeom(id: string) {
+    const b = this.bundle;
+    const doc = this.studio.doc;
+    if (!b || !doc) return;
+    const w = doc.walls.find((x) => x.id === id);
+    const o = doc.openings.find((x) => x.id === id);
+    const l = doc.labels.find((x) => x.id === id);
+    const host = o ? doc.walls.find((x) => x.id === o.wall_id) : undefined;
+    const at: Pt | null = w ? pointOnWall(w, 0.5, b.width, b.height) : o && host ? pointOnWall(host, o.t, b.width, b.height) : l ? l.position : null;
+    this.tool = 'structure';
+    this.studioMode = 'select';
+    this.wallDraft = null;
+    this.geomSel = w ? { id, kind: 'wall' } : o ? { id, kind: 'opening' } : l ? { id, kind: 'label' } : null;
+    if (at) this.canvas?.centerOn(Math.min(1, Math.max(0, at[0])), Math.min(1, Math.max(0, at[1])));
+  }
+
+  private async copyStructure(fromVersionId: string) {
+    const b = this.bundle;
+    if (!b?.planVersionId) return;
+    this.busy = true;
+    this.error = '';
+    try {
+      if (!(await this.studio.flush())) {
+        this.error = this.studio.error;
+        return;
+      }
+      await copyGeometryFrom(b.planVersionId, fromVersionId);
+      await this.loadStudio(b, true);
+      this.info = 'המבנה הועתק לטיוטה; בדוק מיקומים ופרסם';
+      setTimeout(() => (this.info = ''), 4000);
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private exportJson() {
+    const doc = this.studio.doc;
+    if (!doc) return;
+    const url = URL.createObjectURL(new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `plan-structure-${doc.plan_version_id}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  private renderStructurePanel(b: MapBundle) {
+    const doc = this.studio.doc;
+    const versionId = b.planVersionId;
+    if (!doc || !versionId) {
+      return html`<sw-card heading="מבנה"><div class="note">${b.source === 'demo' ? 'נתוני הדגמה: ציור המבנה עובד מול השרת.' : this.error || 'טוען את טיוטת המבנה…'}</div></sw-card>`;
+    }
+    return renderStudioPanel(
+      {
+        doc, W: b.width, H: b.height, mode: this.studioMode, wallDefaults: this.wallDefaults, sel: this.geomSel, saveState: this.studio.saveState, saveError: this.studio.error,
+        conflict: this.studio.hasConflict,
+        issues: this.studio.issues, copyCandidates: this.studio.copyCandidates, exportSvg: exportUrl(versionId, 'svg', { draft: true }), exportPng: exportUrl(versionId, 'png', { draft: true }), busy: this.busy,
+        showEstimates: this.showEstimates,
+      },
+      {
+        setMode: (m) => {
+          this.studioMode = m;
+          this.wallDraft = null;
+          this.hover = null;
+        },
+        setWallDefaults: (d) => {
+          this.wallDefaults = d;
+        },
+        patchWall: (id, patch) => this.edit((d) => patchWall(d, id, patch)),
+        patchOpening: (id, patch) => this.edit((d) => patchOpening(d, id, patch)),
+        patchLabel: (id, patch) => this.edit((d) => patchLabel(d, id, patch)),
+        remove: (id) => {
+          this.edit((d) => removeItem(d, id));
+          this.geomSel = null;
+        },
+        focus: (id) => this.focusGeom(id),
+        copyFrom: (id) => void this.copyStructure(id),
+        exportJson: () => this.exportJson(),
+        reload: () => void this.loadStudio(b, true),
+        retry: () => void this.studio.flush(),
+      },
+    );
   }
 
   // ---- panels ----
@@ -1127,6 +1428,7 @@ export class ExplorePlanEditor extends LitElement {
 
   private renderToolPanel(b: MapBundle) {
     const anchoredIds = new Set(this.anchors.map((a) => a.resource_id));
+    if (this.tool === 'structure') return this.renderStructurePanel(b);
     if (this.tool === 'camera') {
       const available = b.cameras.filter((c) => !anchoredIds.has(c.id));
       return html`<sw-card heading="הוספת מצלמה" subheading="בחר מצלמה ואז לחץ על התוכנית במקום המבוקש">
@@ -1311,22 +1613,28 @@ export class ExplorePlanEditor extends LitElement {
                 </div>
                 <div class="floorchip"><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
                 <div class="rail" role="toolbar" aria-label="כלי עריכה">
-                  ${TOOLS.map((tl) => html`<button class=${tl.id === this.tool ? 'on' : ''} data-tool=${tl.id} ?disabled=${!tl.ready} title=${tl.label} aria-label=${tl.label} aria-pressed=${tl.id === this.tool} @click=${() => this.pickTool(tl.id)}><sw-icon .name=${tl.icon} size=${18}></sw-icon></button>`)}
+                  ${TOOLS.map((tl) => html`<button class=${tl.id === this.tool ? 'on' : ''} data-tool=${tl.id} ?disabled=${!tl.ready || (STUDIO_TOOLS.includes(tl.id) && !b.permissions.structure)} title=${tl.label} aria-label=${tl.label} aria-pressed=${tl.id === this.tool} @click=${() => this.pickTool(tl.id)}><sw-icon .name=${tl.icon} size=${18}></sw-icon></button>`)}
                   <hr />
-                  <button title="ביטול (Ctrl+Z)" aria-label="ביטול" ?disabled=${!this.undo.length} @click=${() => this.doUndo()}><sw-icon name="history" size=${18}></sw-icon></button>
-                  <button title="בצע שוב (Ctrl+Y)" aria-label="בצע שוב" ?disabled=${!this.redo.length} @click=${() => this.doRedo()}><sw-icon name="refresh" size=${18}></sw-icon></button>
+                  <button title="ביטול (Ctrl+Z)" aria-label="ביטול" ?disabled=${this.studioOn ? !this.studio.canUndo : !this.undo.length} @click=${() => (this.studioOn ? this.studio.undo() : this.doUndo())}><sw-icon name="history" size=${18}></sw-icon></button>
+                  <button title="בצע שוב (Ctrl+Y)" aria-label="בצע שוב" ?disabled=${this.studioOn ? !this.studio.canRedo : !this.redo.length} @click=${() => (this.studioOn ? this.studio.redo() : this.doRedo())}><sw-icon name="refresh" size=${18}></sw-icon></button>
                 </div>
-                <sw-plan-canvas editable alwaysLabel .placing=${!!this.placing || !!this.drawing} .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .markers=${this.markers} .selectedId=${this.selectedId}
+                <sw-plan-canvas editable alwaysLabel .placing=${!!this.placing || !!this.drawing || this.studioPlacing} .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .markers=${this.markers} .selectedId=${this.selectedId}
                   .zones=${this.planZones} .selectedZoneId=${this.selectedZoneId} .draftPoints=${this.drawing ?? []}
-                  @zone-select=${(e: CustomEvent<{ id: string }>) => { if (this.placing || this.drawing || e.detail.id.startsWith('cand-')) return; this.selectedZoneId = e.detail.id; this.selectedId = null; }}
+                  .geometry=${this.studio.doc} .geomEditable=${this.tool === 'structure' && this.studioMode === 'select'} .selectedGeomId=${this.geomSel?.id ?? null} .issueIds=${this.issueIds}
+                  .wallDraft=${this.wallDraft ?? []} .hoverPoint=${this.studioPlacing ? this.hover : null}
+                  @plan-hover=${(e: CustomEvent<{ x: number; y: number; shift: boolean }>) => this.onPlanHover(e.detail.x, e.detail.y, e.detail.shift)}
+                  @geom-select=${(e: CustomEvent<{ id: string; kind: GeomKind }>) => this.onGeomSelect(e.detail.id, e.detail.kind)}
+                  @geom-drag=${(e: CustomEvent<{ kind: 'vertex' | 'opening' | 'label'; id: string; index: number; x: number; y: number }>) => this.onGeomDrag(e.detail)}
+                  @zone-select=${(e: CustomEvent<{ id: string }>) => { if (this.placing || this.drawing || this.studioPlacing || e.detail.id.startsWith('cand-')) return; if (this.tool === 'structure') { this.geomSel = null; return; } this.selectedZoneId = e.detail.id; this.selectedId = null; }}
                   @zone-edit=${(e: CustomEvent<{ id: string; polygon: ZonePoint[] }>) => { const z = this.zones.find((x) => x.id === e.detail.id); if (z) void this.patchZone(z, { polygon: e.detail.polygon }); }}
-                  @marker-select=${(e: CustomEvent<MarkerSelectDetail>) => { if (this.placing || this.drawing) return; this.selectedId = e.detail.id; this.selectedZoneId = null; }}
+                  @marker-select=${(e: CustomEvent<MarkerSelectDetail>) => { if (this.placing || this.drawing || this.studioPlacing) return; this.selectedId = e.detail.id; this.selectedZoneId = null; this.geomSel = null; }}
                   @marker-move=${(e: CustomEvent<{ id: string; x: number; y: number }>) => { this.apply(e.detail.id, { position: { x: +e.detail.x.toFixed(4), y: +e.detail.y.toFixed(4) } }); this.selectedId = e.detail.id; }}
                   @marker-orient=${(e: CustomEvent<{ id: string; rotation: number; fov: number }>) => this.apply(e.detail.id, { rotation_degrees: e.detail.rotation, field_of_view_degrees: e.detail.fov })}
                   @marker-coverage=${(e: CustomEvent<{ id: string; radius?: number; polygon?: { x: number; y: number }[] }>) => this.apply(e.detail.id, e.detail.polygon ? { coverage_polygon: e.detail.polygon.map((p) => [p.x, p.y] as [number, number]) } : { coverage_radius: e.detail.radius })}
-                  @plan-click=${(e: CustomEvent<{ x: number; y: number }>) => (this.drawing ? this.addDraftPoint(e.detail.x, e.detail.y) : this.place(e.detail.x, e.detail.y))}></sw-plan-canvas>
+                  @plan-click=${(e: CustomEvent<{ x: number; y: number; shift?: boolean }>) => (this.drawing ? this.addDraftPoint(e.detail.x, e.detail.y) : this.studioPlacing ? this.studioClick(e.detail.x, e.detail.y, !!e.detail.shift) : this.place(e.detail.x, e.detail.y))}></sw-plan-canvas>
                 ${this.placing ? html`<div class="placing-hint"><span>לחץ על התוכנית כדי להציב את ${this.placing.kind === 'camera' ? this.placing.camera.name : this.placing.entity.name || this.placing.entity.entity_id} · Esc לביטול</span></div>` : nothing}
                 ${this.drawing ? html`<div class="placing-hint"><span>ציור אזור: לחץ להוספת פינות (${this.drawing.length}) · לחיצה על הפינה הראשונה או Enter מסיימים · Esc לביטול</span></div>` : nothing}
+                ${this.wallDraft ? html`<div class="placing-hint"><span>ציור קיר: ${this.wallDraft.length} נקודות · Enter או לחיצה חוזרת על הנקודה האחרונה מסיימים · Esc לביטול</span></div>` : nothing}
                 <div class="legend"><span><i></i>מצלמות · ${cams}</span><span><i class="ent"></i>ישויות HA · ${ents}</span><span><i class="zone"></i>אזורים · ${this.zones.length}</span></div>
               </div>
               <div class="props">

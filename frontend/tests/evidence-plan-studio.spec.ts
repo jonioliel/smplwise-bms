@@ -10,7 +10,7 @@ const WALL = (id: string, polyline: [number, number][]) => ({ id, level_id: 'L0'
   confidence: 1, source: 'manual', locked: false, external_ids: {} });
 
 /** Click a normalized plan point on the canvas of `screen` (the canvas converts plan to host pixels itself). */
-export async function clickPlan(page: Page, screen: string, x: number, y: number) {
+async function clickPlan(page: Page, screen: string, x: number, y: number) {
   const canvas = page.locator(`${screen} sw-plan-canvas`);
   const box = (await canvas.boundingBox())!;
   const s = await canvas.evaluate((el, p) => (el as unknown as { toScreen: (a: number, b: number) => { x: number; y: number } }).toScreen(p[0], p[1]), [x, y] as [number, number]);
@@ -67,5 +67,39 @@ test.describe.serial('plan studio (SW A)', () => {
     const t = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
     await page.goto(`/?design=a#/investigate/floors/${ids.floor}/history?t=${t}`);
     await expect(page.locator('investigate-history-map sw-plan-canvas [data-wall]')).toHaveCount(3, { timeout: 20000 });
+  });
+
+  test('draw a wall, place a door, select, delete and undo in the editor; the draft autosaves and viewers keep the published one', async ({ page }) => {
+    const ed = 'explore-plan-editor';
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
+    await expect(page.locator(`${ed} sw-plan-canvas [data-wall]`)).toHaveCount(3, { timeout: 20000 });
+    await page.locator(`${ed} [data-tool="structure"]`).click();
+    await expect(page.locator(`${ed} [data-studio-panel]`)).toBeVisible();
+    await page.locator(`${ed} [data-studio-mode="wall"]`).click();
+    await clickPlan(page, ed, 0.3, 0.6);
+    await clickPlan(page, ed, 0.7, 0.6);
+    await page.keyboard.press('Enter');
+    await expect(page.locator(`${ed} sw-plan-canvas [data-wall]`)).toHaveCount(4);
+    await page.locator(`${ed} [data-studio-mode="door"]`).click();
+    await clickPlan(page, ed, 0.5, 0.6);
+    await expect(page.locator(`${ed} sw-plan-canvas [data-opening][data-kind="door"]`)).toHaveCount(2);
+    await expect(page.locator(`${ed} sw-plan-canvas [data-wall]`)).toHaveCount(5); // the door cuts the new wall
+    await expect(page.locator(`${ed} [data-selected-opening]`)).toBeVisible();
+    await expect(page.locator(`${ed} [data-studio-panel][data-studio-save="saved"]`)).toHaveCount(1, { timeout: 10000 });
+    const draft = await (await api.get(`api/v1/plan-versions/${ids.version}/geometry?draft=true`)).json();
+    expect(draft.geometry.status).toBe('draft');
+    expect(draft.doc.walls).toHaveLength(3);
+    expect(draft.doc.openings).toHaveLength(2);
+    const published = await (await api.get(`api/v1/plan-versions/${ids.version}/geometry`)).json();
+    expect(published.doc.walls).toHaveLength(2); // viewers see nothing until it is published
+    await page.locator(`${ed} [data-studio-mode="select"]`).click();
+    await clickPlan(page, ed, 0.35, 0.6);
+    await expect(page.locator(`${ed} [data-selected-wall]`)).toBeVisible();
+    await page.keyboard.press('Delete');
+    await expect(page.locator(`${ed} sw-plan-canvas [data-wall]`)).toHaveCount(3);
+    await expect(page.locator(`${ed} sw-plan-canvas [data-opening]`)).toHaveCount(1); // its door went with it
+    await page.keyboard.press('Control+z');
+    await expect(page.locator(`${ed} sw-plan-canvas [data-wall]`)).toHaveCount(5);
+    await expect(page.locator(`${ed} [data-studio-panel][data-studio-save="saved"]`)).toHaveCount(1, { timeout: 10000 });
   });
 });

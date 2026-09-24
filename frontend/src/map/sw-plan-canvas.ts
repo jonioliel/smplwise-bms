@@ -138,6 +138,14 @@ export class SwPlanCanvas extends LitElement {
   @property({ attribute: false }) issueIds: string[] = [];
   @property() selectedGeomId: string | null = null;
   private primCache: { doc: GeometryDoc; w: number; h: number; level: string | null; prims: Primitive[] } | null = null;
+  /** Plan Studio editor: walls, openings and labels can be picked and dragged (the structure tool's select mode). */
+  @property({ type: Boolean }) geomEditable = false;
+  /** The wall being drawn (normalized points) and the snapped cursor the editor computed (rubber band, snap dot). */
+  @property({ attribute: false }) wallDraft: Pt[] = [];
+  @property({ attribute: false }) hoverPoint: Pt | null = null;
+  @state() private geomDrag: { x: number; y: number } | null = null;
+  private hoverFrame = 0;
+  private hoverEvent: { x: number; y: number; shift: boolean } | null = null;
   @state() private box: { x0: number; y0: number; x1: number; y1: number } | null = null;
   private boxStart: { x: number; y: number } | null = null;
 
@@ -412,6 +420,41 @@ export class SwPlanCanvas extends LitElement {
     .structure .glabel.issue {
       fill: var(--sw-danger);
     }
+    .geom-hits .hit {
+      fill: transparent;
+      stroke: transparent;
+      pointer-events: stroke;
+      cursor: pointer;
+    }
+    .geom-hits circle.hit {
+      pointer-events: all;
+      cursor: grab;
+    }
+    .geom-hits line.hit {
+      cursor: ew-resize;
+    }
+    .gvtx {
+      fill: var(--sw-surface);
+      stroke: var(--sw-accent);
+      cursor: grab;
+    }
+    .gdrag {
+      fill: var(--sw-accent);
+      fill-opacity: 0.35;
+      stroke: var(--sw-accent);
+      pointer-events: none;
+    }
+    .wdraft polyline {
+      fill: none;
+      stroke: var(--sw-accent);
+    }
+    .wdraft circle {
+      fill: var(--sw-surface);
+      stroke: var(--sw-accent);
+    }
+    .wdraft circle.snap {
+      fill: var(--sw-accent);
+    }
     .fov {
       fill: var(--sw-fov);
       stroke: var(--sw-accent);
@@ -463,6 +506,7 @@ export class SwPlanCanvas extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     this.resizeObserver?.disconnect();
+    cancelAnimationFrame(this.hoverFrame);
   }
 
   protected updated(changed: Map<string, unknown>) {
@@ -614,6 +658,7 @@ export class SwPlanCanvas extends LitElement {
   };
 
   private onPointerMove = (e: PointerEvent) => {
+    if (this.placing && e.pointerType !== 'touch') this.queueHover(e);
     if (!this.pointers.has(e.pointerId)) return;
     this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (this.pointers.size === 2) {
@@ -831,7 +876,7 @@ export class SwPlanCanvas extends LitElement {
     if (this.placing) {
       const rect = this.getBoundingClientRect();
       const p = this.toPlan(e.clientX - rect.left, e.clientY - rect.top);
-      this.dispatchEvent(new CustomEvent('plan-click', { detail: { x: +p.x.toFixed(4), y: +p.y.toFixed(4) }, bubbles: true, composed: true }));
+      this.dispatchEvent(new CustomEvent('plan-click', { detail: { x: +p.x.toFixed(4), y: +p.y.toFixed(4), shift: e.shiftKey }, bubbles: true, composed: true }));
       return;
     }
     this.dispatchEvent(new CustomEvent<MarkerSelectDetail>('marker-select', { detail: { id: null }, bubbles: true, composed: true }));
@@ -1118,6 +1163,95 @@ export class SwPlanCanvas extends LitElement {
     }
   }
 
+  /** Placing tools get the cursor position once per frame; the editor snaps it and hands it back as hoverPoint. */
+  private queueHover(e: PointerEvent) {
+    const rect = this.getBoundingClientRect();
+    const p = this.toPlan(e.clientX - rect.left, e.clientY - rect.top);
+    this.hoverEvent = { x: p.x, y: p.y, shift: e.shiftKey };
+    if (this.hoverFrame) return;
+    this.hoverFrame = requestAnimationFrame(() => {
+      this.hoverFrame = 0;
+      const h = this.hoverEvent;
+      if (h) this.dispatchEvent(new CustomEvent('plan-hover', { detail: h, bubbles: true, composed: true }));
+    });
+  }
+
+  private pickGeom(id: string, e: Event) {
+    e.stopPropagation();
+    if (this.dragMoved) return;
+    this.dispatchEvent(new CustomEvent('geom-select', { detail: { id, kind: 'wall' }, bubbles: true, composed: true }));
+  }
+
+  /** Drag a corner of the selected wall, an opening along its wall, or a label; a press without movement selects. */
+  private onGeomDragStart(kind: 'vertex' | 'opening' | 'label', id: string, index: number, e: PointerEvent) {
+    if (!this.geomEditable || e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const rect0 = this.getBoundingClientRect();
+    const start = this.toPlan(e.clientX - rect0.left, e.clientY - rect0.top);
+    let moved = false;
+    let last = start;
+    this.viewport.setPointerCapture(e.pointerId);
+    const move = (ev: PointerEvent) => {
+      const p = this.toPlan(ev.clientX - rect0.left, ev.clientY - rect0.top);
+      if (!moved && Math.hypot((p.x - start.x) * this.planWidth, (p.y - start.y) * this.planHeight) * this.scale < 3) return;
+      moved = true;
+      last = p;
+      this.geomDrag = { x: p.x, y: p.y };
+    };
+    const up = () => {
+      this.viewport.removeEventListener('pointermove', move);
+      this.viewport.removeEventListener('pointerup', up);
+      this.viewport.removeEventListener('pointercancel', up);
+      this.geomDrag = null;
+      this.dragMoved = true; // pointer capture sends the trailing click to the viewport: swallow it
+      setTimeout(() => (this.dragMoved = false), 0);
+      if (moved) this.dispatchEvent(new CustomEvent('geom-drag', { detail: { kind, id, index, x: +last.x.toFixed(5), y: +last.y.toFixed(5) }, bubbles: true, composed: true }));
+      else if (kind !== 'vertex') this.dispatchEvent(new CustomEvent('geom-select', { detail: { id, kind }, bubbles: true, composed: true }));
+    };
+    this.viewport.addEventListener('pointermove', move);
+    this.viewport.addEventListener('pointerup', up);
+    this.viewport.addEventListener('pointercancel', up);
+  }
+
+  /** Invisible wide strokes to pick a wall part, an opening or a label, and the selected wall's corner handles.
+   * Hidden while a placing tool is active, so clicks reach the plan. Markers stay above them. */
+  private renderGeomHits() {
+    const doc = this.geometry;
+    if (!doc || !this.geomEditable || this.placing) return nothing;
+    const inv = 1 / this.scale;
+    const W = this.planWidth;
+    const H = this.planHeight;
+    const selWall = doc.walls.find((w) => w.id === this.selectedGeomId);
+    const drag = this.geomDrag;
+    return svg`<g class="geom-hits">
+      ${this.primitives(doc).map((p) => {
+        if (p.kind === 'wall') return svg`<polyline class="hit" data-hit-wall=${p.id} points=${ptsAttr(p.points)} stroke-width=${Math.max(p.width, 12 * inv)} @click=${(e: Event) => this.pickGeom(p.id, e)} />`;
+        if (p.kind === 'label') return svg`<circle class="hit" data-hit-label=${p.id} cx=${p.x} cy=${p.y} r=${Math.max(p.size, 10 * inv)} @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('label', p.id, 0, e)} @click=${(e: Event) => e.stopPropagation()} />`;
+        return svg`<line class="hit" data-hit-opening=${p.id} x1=${p.gap[0][0]} y1=${p.gap[0][1]} x2=${p.gap[1][0]} y2=${p.gap[1][1]} stroke-width=${14 * inv} @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('opening', p.id, 0, e)} @click=${(e: Event) => e.stopPropagation()} />`;
+      })}
+      ${selWall ? selWall.polyline.map((v, i) => svg`<circle class="gvtx" data-wall-vertex=${i} cx=${v[0] * W} cy=${v[1] * H} r=${6 * inv} stroke-width=${1.6 * inv} role="slider" aria-label=${`פינת קיר ${i + 1}`}
+          @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('vertex', selWall.id, i, e)} @click=${(e: Event) => e.stopPropagation()} />`) : nothing}
+      ${drag ? svg`<circle class="gdrag" cx=${drag.x * W} cy=${drag.y * H} r=${5 * inv} stroke-width=${1.5 * inv} />` : nothing}
+    </g>`;
+  }
+
+  /** The wall being drawn, the rubber band to the snapped cursor, and the snap dot. */
+  private renderWallDraft() {
+    const pts = this.wallDraft;
+    const h = this.hoverPoint;
+    if (!pts.length && !h) return nothing;
+    const inv = 1 / this.scale;
+    const W = this.planWidth;
+    const H = this.planHeight;
+    const line = [...pts, ...(h && pts.length ? [h] : [])].map((p) => `${p[0] * W},${p[1] * H}`).join(' ');
+    return svg`<g class="wdraft" pointer-events="none">
+      ${pts.length ? svg`<polyline points=${line} stroke-width=${2 * inv} stroke-dasharray=${`${6 * inv} ${4 * inv}`} />` : nothing}
+      ${pts.map((p) => svg`<circle cx=${p[0] * W} cy=${p[1] * H} r=${3.5 * inv} stroke-width=${1.5 * inv} />`)}
+      ${h ? svg`<circle class="snap" data-hover-point cx=${h[0] * W} cy=${h[1] * H} r=${4.5 * inv} stroke-width=${1.5 * inv} />` : nothing}
+    </g>`;
+  }
+
   render() {
     return html`
       <div class="viewport ${this.placing ? 'placing' : ''} ${this.boxSelect ? 'boxing' : ''}" @wheel=${this.onWheel} @pointerdown=${this.onPointerDown} @pointermove=${this.onPointerMove}
@@ -1128,8 +1262,10 @@ export class SwPlanCanvas extends LitElement {
             ${this.plan ?? nothing}
             ${this.zones.map((z) => this.renderZone(z))}
             ${this.renderStructure()}
+            ${this.renderGeomHits()}
             ${this.markers.map((m) => this.renderMarker(m))}
             ${this.renderDraft()}
+            ${this.renderWallDraft()}
           </g>
           ${this.box ? svg`<rect class="box" data-box x=${this.box.x0.toFixed(1)} y=${this.box.y0.toFixed(1)} width=${(this.box.x1 - this.box.x0).toFixed(1)} height=${(this.box.y1 - this.box.y0).toFixed(1)} />` : nothing}
         </svg>

@@ -2,8 +2,8 @@ import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildPrimitives, distanceM, effectiveScale, nearestWall, perimeterM, polygonAreaM2, snapPoint, type GeometryDoc, type Primitive, type Pt, type WallPrim } from '../src/map/geometry';
-import { addOpening, addWall, moveVertex, patchOpening, removeItem } from '../src/map/studio-ops';
+import { buildPrimitives, distanceM, effectiveScale, nearestWall, perimeterM, pointOnWall, polygonAreaM2, snapPoint, type GeometryDoc, type Primitive, type Pt, type WallPrim } from '../src/map/geometry';
+import { addLabel, addOpening, addWall, moveVertex, patchLabel, patchOpening, removeItem } from '../src/map/studio-ops';
 
 // Plan Studio (T084): the map's structure primitives equal the backend renderer's (the shared golden file), and the
 // pure editor maths (snapping, the nearest wall, metres) and document operations behave. Runs in node: no page, no backend.
@@ -203,5 +203,18 @@ test.describe('plan studio geometry (unit)', () => {
       [[590, 400], [910, 400]],
     ], 'mergedParts.points');
     close(wallParts.map((p) => p.width), [20, 20], 'mergedParts.width');
+  });
+
+  test('labels, and the point at a position along a wall', () => {
+    let doc = sample();
+    const l = addLabel(doc, [0.5, 0.5], 'מחסן');
+    doc = patchLabel(l.doc, l.id, { text: 'מחסן ראשי', position: [1.2, 0.4] });
+    expect(doc.labels.find((x) => x.id === l.id)).toMatchObject({ text: 'מחסן ראשי', position: [1, 0.4], level_id: 'L0', size: 14 });
+    const wb = doc.walls.find((w) => w.id === 'wb')!;
+    const mid = pointOnWall(wb, 0.5, 1000, 800); // (100,400)-(600,400) px
+    expect(mid[0]).toBeCloseTo(0.35, 9);
+    expect(mid[1]).toBeCloseTo(0.5, 9);
+    doc = removeItem(doc, l.id);
+    expect(doc.labels.some((x) => x.id === l.id)).toBe(false);
   });
 });
