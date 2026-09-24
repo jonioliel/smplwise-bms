@@ -48,8 +48,9 @@ test.describe('floor map viewer (SW A)', () => {
     await viewer.getByRole('button', { name: 'שכבות' }).click();
     const panel = viewer.locator('[data-layers-panel]');
     await expect(panel).toBeVisible();
-    await expect(panel.locator('.prow')).toHaveCount(5);
+    await expect(panel.locator('.prow')).toHaveCount(6); // cameras, doors, lights, sensors, zones and, since 0.1.82, the structure layer
     await expect(panel).toContainText('ממוקמות');
+    await expect(panel).toContainText('מבנה');
     await page.screenshot({ path: path.join(OUT, `viewer-layers-${testInfo.project.name}.png`) });
     await panel.locator('sw-toggle[data-layer="cameras"]').click();
     await expect(canvas.locator('g.marker')).toHaveCount(markersBefore - map.anchors.filter((a: { resource_type: string }) => a.resource_type === 'camera').length);
