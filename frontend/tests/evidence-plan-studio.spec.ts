@@ -164,4 +164,56 @@ test.describe.serial('plan studio (SW A)', () => {
     await expect(page.locator(`${ed} [data-measure-distance]`)).toHaveText('10.0 מ׳'); // 400 px x 0.025 (one decimal from 10 m)
     await expect(page.locator(`${ed} [data-measure-distance]`)).not.toContainText('≈');
   });
+
+  test('publish the structure through its preview; an invalid draft is blocked and fixed from the issue list; a new drawing copies the structure and publishes it with the plan', async ({ page }) => {
+    const ed = 'explore-plan-editor';
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
+    await expect(page.locator(`${ed} [data-publish]`)).toContainText('פרסום המבנה', { timeout: 20000 });
+    await page.locator(`${ed} [data-publish]`).click();
+    await expect(page.locator(`${ed} [data-geom-diff-rows]`)).toContainText('קירות');
+    const published = page.waitForResponse((r) => r.url().includes('/geometry/publish'));
+    await page.locator(`${ed} [data-geom-publish]`).click();
+    expect((await published).status()).toBe(200);
+    await expect(page.locator(`${ed} [data-publish]`)).toHaveCount(0);
+    const pub = await (await api.get(`api/v1/plan-versions/${ids.version}/geometry`)).json();
+    expect(pub.doc.walls).toHaveLength(4); // lw1, lw2, the drawn wall and the closed outline of the second test
+    expect(pub.doc.dimensions.scale_m_per_px).toBeCloseTo(0.025, 4);
+
+    // a wall outside the plan blocks publishing; the issue list selects it and Delete fixes the draft
+    const g = await (await api.get(`api/v1/plan-versions/${ids.version}/geometry?draft=true`)).json();
+    const bad = { ...g.doc, walls: [...g.doc.walls, WALL('bad1', [[0.2, 0.8], [1.4, 0.8]])] };
+    expect((await api.put(`api/v1/plan-versions/${ids.version}/geometry`, { data: { doc: bad, base_revision: g.geometry.revision } })).status()).toBe(200);
+    await page.goto('about:blank');
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
+    await page.locator(`${ed} [data-tool="structure"]`).click();
+    await expect(page.locator(`${ed} [data-issue="bounds"]`)).toBeVisible({ timeout: 20000 });
+    await page.locator(`${ed} [data-publish]`).click();
+    await expect(page.locator(`${ed} [data-geom-diff-error]`)).toBeVisible();
+    await expect(page.locator(`${ed} [data-geom-publish] button`)).toBeDisabled();
+    await page.locator(`${ed} [data-geom-cancel]`).click();
+    await page.locator(`${ed} [data-issue="bounds"]`).click();
+    await expect(page.locator(`${ed} [data-selected-wall="bad1"]`)).toBeVisible();
+    await page.keyboard.press('Delete');
+    await expect(page.locator(`${ed} [data-studio-panel][data-studio-save="saved"]`)).toHaveCount(1, { timeout: 10000 });
+    await expect(page.locator(`${ed} [data-issue]`)).toHaveCount(0);
+
+    // a new plan version of another drawing (rotated) starts empty and offers the published structure
+    const turned = await (await api.post(`api/v1/floors/${ids.floor}/plan-versions`, { data: { asset_id: ids.asset, rotation: 90 } })).json();
+    expect(turned.geometry_carry).toBe('none');
+    await page.goto('about:blank');
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
+    await page.locator(`${ed} [data-tool="structure"]`).click();
+    await page.locator(`${ed} [data-copy-from="${ids.version}"]`).click();
+    await expect(page.locator(`${ed} sw-plan-canvas [data-wall]`)).toHaveCount(6, { timeout: 10000 }); // 4 walls: lw1 and the drawn wall are cut by their doors
+    await page.locator(`${ed} [data-publish]`).click();
+    await expect(page.locator(`${ed} [data-diff-structure]`)).toContainText('4 קירות');
+    const planPublished = page.waitForResponse((r) => r.url().endsWith(`/plan-versions/${turned.id}/publish`));
+    await page.locator(`${ed} [data-diff-confirm]`).click();
+    expect((await planPublished).status()).toBe(200);
+    const after = await (await api.get(`api/v1/plan-versions/${turned.id}/geometry`)).json();
+    expect(after.doc.walls).toHaveLength(4);
+    const svgExport = await api.get(`api/v1/plan-versions/${turned.id}/export.svg`);
+    expect(svgExport.status()).toBe(200);
+    expect(await svgExport.text()).toContain('data-wall=');
+  });
 });

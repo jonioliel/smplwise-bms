@@ -37,6 +37,19 @@ const SAVE_LABEL: Record<SaveState, string> = {
   error: 'השמירה נכשלה',
 };
 
+/** Hebrew names of the document's collections (publish previews). */
+export const COLL_LABEL: Record<string, string> = {
+  walls: 'קירות',
+  openings: 'פתחים',
+  labels: 'תוויות',
+  levels: 'מפלסים',
+  rooms: 'חדרים',
+  objects: 'עצמים',
+  circuits: 'מעגלי תאורה',
+  connectors: 'מחברים',
+  groups: 'קבוצות',
+};
+
 /** Metres for display: "≈" when the plan is not calibrated (design section 6). Owner decision 2026-09-23: the setting
  * `plan.estimates` = false hides metres until the plan is calibrated (`show` = false). */
 export function fmtMetres(m: number, estimated: boolean, show = true): string {
