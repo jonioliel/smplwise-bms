@@ -4,6 +4,7 @@ built-in one and inherits what its row does not carry (z_ref, params_schema, anc
 validator, the renderer, the search and the API need comes through the indexes here; nothing else reads the file."""
 from __future__ import annotations
 
+import copy
 import json
 import re
 import sqlite3
@@ -70,7 +71,7 @@ def check_item(item: Any, ids: set[str], *, builtin: bool) -> list[str]:
     if not _num(item.get("z_m")) or not MIN_Z_M <= item["z_m"] <= MAX_Z_M:
         out.append(f"{tag}: z_m must be {MIN_Z_M}..{MAX_Z_M} m")
     params = item.get("params", {})
-    if not isinstance(params, dict) or len(json.dumps(params, ensure_ascii=False)) > MAX_PARAMS_BYTES:
+    if not isinstance(params, dict) or len(json.dumps(params, ensure_ascii=False).encode("utf-8")) > MAX_PARAMS_BYTES:
         out.append(f"{tag}: params must be an object under {MAX_PARAMS_BYTES} bytes")
     elif item.get("shape") == "stepped" and not (isinstance(params.get("rows"), int) and params["rows"] >= 1 and _num(params.get("step_height_m")) and _num(params.get("step_width_m"))):
         out.append(f"{tag}: a stepped shape needs params rows, step_height_m and step_width_m")
@@ -164,15 +165,22 @@ def revision(conn: sqlite3.Connection) -> str:
     return f"{builtin()['catalog_version']}:{row[0]}:{row[1] or ''}"
 
 
+def _builtin_copies() -> dict[str, dict[str, Any]]:
+    """Fresh deep copies of every built-in item, by id. builtin() is lru_cache'd, so handing out its items
+    directly would let a caller (a normalizer, a validator) mutate the process-wide cache in place; callers of
+    item_index() / library() are free to mutate what they get back."""
+    return {iid: copy.deepcopy(item) for iid, item in builtin()["items"].items()}
+
+
 def library(conn: sqlite3.Connection) -> dict[str, Any]:
     b = builtin()
     return {"catalog_version": b["catalog_version"], "revision": revision(conn), "categories": b["categories"], "icons": b["icons"], "color_tokens": b["color_tokens"],
-            "items": [dict(i, custom=False, based_on=None) for i in b["items"].values()] + custom_items(conn)}
+            "items": [dict(i, custom=False, based_on=None) for i in _builtin_copies().values()] + custom_items(conn)}
 
 
 def item_index(conn: sqlite3.Connection) -> dict[str, dict[str, Any]]:
     """Every item by id (built-in and custom): what the validator, the normalizer and the renderer look up."""
-    return {**builtin()["items"], **{i["id"]: i for i in custom_items(conn)}}
+    return {**_builtin_copies(), **{i["id"]: i for i in custom_items(conn)}}
 
 
 def names_index(conn: sqlite3.Connection) -> dict[str, dict[str, Any]]:

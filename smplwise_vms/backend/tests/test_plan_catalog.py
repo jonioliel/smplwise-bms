@@ -58,6 +58,16 @@ def test_check_catalog_names_every_problem():
     assert cat.check_catalog("nope") == ["catalog: not an object"]
 
 
+def test_params_size_is_measured_in_utf8_bytes_not_characters():
+    item = copy.deepcopy(json.loads(cat.CATALOG_FILE.read_text(encoding="utf-8"))["items"][0])
+    item["params"] = {"note": "א" * 3000}  # 3000 chars, but each Hebrew letter is 2 bytes in UTF-8
+    packed = json.dumps(item["params"], ensure_ascii=False)
+    assert len(packed) <= cat.MAX_PARAMS_BYTES, "under the limit in characters"
+    assert len(packed.encode("utf-8")) > cat.MAX_PARAMS_BYTES, "over the limit in UTF-8 bytes"
+    errors = cat.check_item(item, set(), builtin=True)
+    assert any("params" in e for e in errors)
+
+
 def test_custom_items_merge_with_their_base_and_move_the_revision(settings):
     app = create_app(settings)
     with app.state.db.connection() as conn:
@@ -84,3 +94,18 @@ def test_custom_items_merge_with_their_base_and_move_the_revision(settings):
         c2 = cat.item_index(conn)["c2"]
         assert c2["z_ref"] == "floor" and c2["anchor_kinds"] == [] and c2["params_schema"] == {} and c2["ifc"] == {"class": "IfcFurniture", "predefined_type": "USERDEFINED"}
         assert c2["names"] == {"he": "ארגז", "en": ""}
+
+
+def test_item_index_and_library_hand_out_copies_the_caller_may_mutate(settings):
+    app = create_app(settings)
+    with app.state.db.connection() as conn:
+        idx = cat.item_index(conn)
+        idx["chair.basic"]["size"]["w_m"] = 9
+        assert cat.item_index(conn)["chair.basic"]["size"]["w_m"] == 0.45
+        assert cat.builtin()["items"]["chair.basic"]["size"]["w_m"] == 0.45
+
+        lib = cat.library(conn)
+        first_id = lib["items"][0]["id"]
+        lib["items"][0]["size"]["w_m"] = 9
+        assert cat.library(conn)["items"][0]["size"]["w_m"] != 9
+        assert cat.builtin()["items"][first_id]["size"]["w_m"] != 9
