@@ -18,7 +18,7 @@ export interface GeomSel {
 
 export const STUDIO_MODES: { id: StudioMode; label: string; hint: string }[] = [
   { id: 'select', label: 'בחירה', hint: 'לחץ על קיר, פתח או תווית כדי לערוך. גרור פתח לאורך הקיר, תווית למקומה ופינה של קיר נבחר.' },
-  { id: 'wall', label: 'קיר', hint: 'לחץ נקודה אחר נקודה. Enter או לחיצה חוזרת על הנקודה האחרונה מסיימים, Shift מבטל הצמדה לזוויות, Backspace מוחק נקודה.' },
+  { id: 'wall', label: 'קיר', hint: 'לחץ נקודה אחר נקודה. Enter או לחיצה חוזרת על הנקודה האחרונה מסיימים, לחיצה על הנקודה הראשונה סוגרת מתאר, Shift מבטל הצמדה לזוויות, Backspace מוחק נקודה.' },
   { id: 'door', label: 'דלת', hint: 'לחץ על קיר כדי להציב דלת. כיוון הפתיחה והציר נקבעים כאן בפאנל.' },
   { id: 'window', label: 'חלון', hint: 'לחץ על קיר כדי להציב חלון.' },
   { id: 'passage', label: 'מעבר', hint: 'פתח בלי דלת בקיר.' },
@@ -96,7 +96,7 @@ export function renderStudioPanel(v: StudioView, a: StudioActions): TemplateResu
     </div>
     <div class="note">${mode.hint}</div>
     ${v.mode === 'wall' ? renderWallDefaults(v.wallDefaults, a) : nothing}
-    <div class="row"><span class="lbl">קנה מידה<span class="muted" data-studio-scale>${estimated ? 'לא מכויל: מידות משוערות (≈)' : fmtScale(scale)}</span></span></div>
+    <div class="row"><span class="lbl">קנה מידה<span class="muted" data-studio-scale>${estimated ? (v.showEstimates ? 'לא מכויל: מידות משוערות (≈)' : 'לא מכויל: מידות מוסתרות עד הכיול') : fmtScale(scale)}</span></span></div>
     <div class="note" data-studio-counts>${v.doc.walls.length} קירות · ${v.doc.openings.length} פתחים · ${v.doc.labels.length} תוויות</div>
     ${v.sel ? renderSelection(v, v.sel, a, scale, estimated) : nothing}
     ${errors.length || warnings.length ? renderIssues(errors, warnings, a) : nothing}

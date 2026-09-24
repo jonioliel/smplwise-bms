@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildPrimitives, distanceM, effectiveScale, nearestWall, perimeterM, pointOnWall, polygonAreaM2, snapPoint, type GeometryDoc, type Primitive, type Pt, type WallPrim } from '../src/map/geometry';
+import { buildPrimitives, distanceM, effectiveScale, isClosedOutline, nearestWall, perimeterM, pointOnWall, polygonAreaM2, snapPoint, type GeometryDoc, type Primitive, type Pt, type WallPrim } from '../src/map/geometry';
 import { addLabel, addOpening, addWall, moveVertex, patchLabel, patchOpening, removeItem } from '../src/map/studio-ops';
 
 // Plan Studio (T084): the map's structure primitives equal the backend renderer's (the shared golden file), and the
@@ -86,6 +86,11 @@ test.describe('plan studio geometry (unit)', () => {
     doc = removeItem(doc, w.id);
     expect(doc.walls.some((x) => x.id === w.id)).toBe(false);
     expect(doc.openings.some((x) => x.id === o.id)).toBe(false);
+    // A closed outline keeps its closing point equal to the first after clamping; two corners are not an outline.
+    const ring = addWall(doc, [[0.2, 0.2], [0.4, 0.2], [0.4, 0.4], [0.2, 0.2]], { thickness_m: 0.2, kind: 'interior' });
+    expect(isClosedOutline(ring.doc.walls.find((x) => x.id === ring.id)!.polyline)).toBe(true);
+    expect(isClosedOutline([[0.2, 0.2], [0.4, 0.2], [0.2, 0.2]])).toBe(false);
+    expect(isClosedOutline([[0.2, 0.2], [0.4, 0.2], [0.4, 0.4], [0.2, 0.21]])).toBe(false);
     // Every op above returns a new document rather than mutating its input (addWall's input, captured as
     // `original` before the sequence ran, must still equal its own before-snapshot).
     expect(JSON.stringify(original)).toBe(before);

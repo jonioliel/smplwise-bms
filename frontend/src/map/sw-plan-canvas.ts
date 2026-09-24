@@ -3,7 +3,7 @@ import { customElement, property, state, query } from 'lit/decorators.js';
 import '../components/sw-button';
 import { t } from '../i18n/he';
 import type { StateKind } from '../components/sw-badge';
-import { buildPrimitives, type GeometryDoc, type Primitive, type Pt } from './geometry';
+import { buildPrimitives, isClosedOutline, type GeometryDoc, type Primitive, type Pt } from './geometry';
 
 export type MarkerKind = 'camera' | 'lock' | 'light' | 'binary_sensor';
 
@@ -507,6 +507,7 @@ export class SwPlanCanvas extends LitElement {
     super.disconnectedCallback();
     this.resizeObserver?.disconnect();
     cancelAnimationFrame(this.hoverFrame);
+    this.hoverFrame = 0; // a reconnected canvas must not wait for a frame that was cancelled
   }
 
   protected updated(changed: Map<string, unknown>) {
@@ -1199,23 +1200,28 @@ export class SwPlanCanvas extends LitElement {
       last = p;
       this.geomDrag = { x: p.x, y: p.y };
     };
-    const up = () => {
+    const end = () => {
       this.viewport.removeEventListener('pointermove', move);
       this.viewport.removeEventListener('pointerup', up);
-      this.viewport.removeEventListener('pointercancel', up);
+      this.viewport.removeEventListener('pointercancel', cancel);
       this.geomDrag = null;
       this.dragMoved = true; // pointer capture sends the trailing click to the viewport: swallow it
       setTimeout(() => (this.dragMoved = false), 0);
+    };
+    const up = () => {
+      end();
       if (moved) this.dispatchEvent(new CustomEvent('geom-drag', { detail: { kind, id, index, x: +last.x.toFixed(5), y: +last.y.toFixed(5) }, bubbles: true, composed: true }));
       else if (kind !== 'vertex') this.dispatchEvent(new CustomEvent('geom-select', { detail: { id, kind }, bubbles: true, composed: true }));
     };
+    const cancel = () => end(); // an interrupted gesture changes nothing
     this.viewport.addEventListener('pointermove', move);
     this.viewport.addEventListener('pointerup', up);
-    this.viewport.addEventListener('pointercancel', up);
+    this.viewport.addEventListener('pointercancel', cancel);
   }
 
-  /** Invisible wide strokes to pick a wall part, an opening or a label, and the selected wall's corner handles.
-   * Hidden while a placing tool is active, so clicks reach the plan. Markers stay above them. */
+  /** Invisible wide strokes to pick a wall part, an opening or a label, and the selected wall's corner handles (the
+   * closing corner of an outline is one handle, index 0). Hidden while a placing tool is active, so clicks reach the
+   * plan. Markers stay above them. */
   private renderGeomHits() {
     const doc = this.geometry;
     if (!doc || !this.geomEditable || this.placing) return nothing;
@@ -1230,7 +1236,7 @@ export class SwPlanCanvas extends LitElement {
         if (p.kind === 'label') return svg`<circle class="hit" data-hit-label=${p.id} cx=${p.x} cy=${p.y} r=${Math.max(p.size, 10 * inv)} @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('label', p.id, 0, e)} @click=${(e: Event) => e.stopPropagation()} />`;
         return svg`<line class="hit" data-hit-opening=${p.id} x1=${p.gap[0][0]} y1=${p.gap[0][1]} x2=${p.gap[1][0]} y2=${p.gap[1][1]} stroke-width=${14 * inv} @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('opening', p.id, 0, e)} @click=${(e: Event) => e.stopPropagation()} />`;
       })}
-      ${selWall ? selWall.polyline.map((v, i) => svg`<circle class="gvtx" data-wall-vertex=${i} cx=${v[0] * W} cy=${v[1] * H} r=${6 * inv} stroke-width=${1.6 * inv} role="slider" aria-label=${`פינת קיר ${i + 1}`}
+      ${selWall ? (isClosedOutline(selWall.polyline) ? selWall.polyline.slice(0, -1) : selWall.polyline).map((v, i) => svg`<circle class="gvtx" data-wall-vertex=${i} cx=${v[0] * W} cy=${v[1] * H} r=${6 * inv} stroke-width=${1.6 * inv} role="slider" aria-label=${`פינת קיר ${i + 1}`}
           @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('vertex', selWall.id, i, e)} @click=${(e: Event) => e.stopPropagation()} />`) : nothing}
       ${drag ? svg`<circle class="gdrag" cx=${drag.x * W} cy=${drag.y * H} r=${5 * inv} stroke-width=${1.5 * inv} />` : nothing}
     </g>`;

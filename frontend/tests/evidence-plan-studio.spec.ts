@@ -92,14 +92,39 @@ test.describe.serial('plan studio (SW A)', () => {
     expect(draft.doc.openings).toHaveLength(2);
     const published = await (await api.get(`api/v1/plan-versions/${ids.version}/geometry`)).json();
     expect(published.doc.walls).toHaveLength(2); // viewers see nothing until it is published
+    // a click back on the first point closes the outline into one wall; dragging that corner keeps it closed
+    const draftWall = async (id: string) => (await (await api.get(`api/v1/plan-versions/${ids.version}/geometry?draft=true`)).json()).doc.walls.find((w: { id: string }) => w.id === id);
+    await page.locator(`${ed} [data-studio-mode="wall"]`).click();
+    await clickPlan(page, ed, 0.2, 0.7);
+    await clickPlan(page, ed, 0.4, 0.7);
+    await clickPlan(page, ed, 0.4, 0.85);
+    await clickPlan(page, ed, 0.2, 0.7);
+    await expect(page.locator(`${ed} sw-plan-canvas [data-wall]`)).toHaveCount(6); // one more part: the outline
+    await expect(page.locator(`${ed} [data-selected-wall]`)).toBeVisible();
+    const ringId = (await page.locator(`${ed} [data-selected-wall]`).getAttribute('data-selected-wall'))!;
+    await expect.poll(async () => (await draftWall(ringId))?.polyline.length ?? 0, { timeout: 10000 }).toBe(4);
+    const ring = await draftWall(ringId);
+    expect(ring.polyline[3]).toEqual(ring.polyline[0]);
+    await page.locator(`${ed} [data-studio-mode="select"]`).click();
+    await clickPlan(page, ed, 0.3, 0.7);
+    await expect(page.locator(`${ed} [data-selected-wall="${ringId}"]`)).toBeVisible();
+    await expect(page.locator(`${ed} sw-plan-canvas [data-wall-vertex]`)).toHaveCount(3); // one handle per corner
+    const corner = (await page.locator(`${ed} sw-plan-canvas [data-wall-vertex="0"]`).boundingBox())!;
+    await page.mouse.move(corner.x + corner.width / 2, corner.y + corner.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(corner.x + corner.width / 2 + 30, corner.y + corner.height / 2, { steps: 5 });
+    await page.mouse.up();
+    await expect.poll(async () => (await draftWall(ringId)).polyline[0][0], { timeout: 10000 }).toBeGreaterThan(ring.polyline[0][0] + 0.01);
+    const dragged = await draftWall(ringId);
+    expect(dragged.polyline[0]).toEqual(dragged.polyline[3]); // still closed
     await page.locator(`${ed} [data-studio-mode="select"]`).click();
     await clickPlan(page, ed, 0.35, 0.6);
     await expect(page.locator(`${ed} [data-selected-wall]`)).toBeVisible();
     await page.keyboard.press('Delete');
-    await expect(page.locator(`${ed} sw-plan-canvas [data-wall]`)).toHaveCount(3);
+    await expect(page.locator(`${ed} sw-plan-canvas [data-wall]`)).toHaveCount(4); // 3 before the outline
     await expect(page.locator(`${ed} sw-plan-canvas [data-opening]`)).toHaveCount(1); // its door went with it
     await page.keyboard.press('Control+z');
-    await expect(page.locator(`${ed} sw-plan-canvas [data-wall]`)).toHaveCount(5);
+    await expect(page.locator(`${ed} sw-plan-canvas [data-wall]`)).toHaveCount(6); // 5 before the outline
     await expect(page.locator(`${ed} [data-studio-panel][data-studio-save="saved"]`)).toHaveCount(1, { timeout: 10000 });
   });
 });

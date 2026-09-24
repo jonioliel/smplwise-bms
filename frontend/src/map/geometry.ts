@@ -334,3 +334,9 @@ export function pointOnWall(wall: GeomWall, t: number, W: number, H: number): Pt
   const { p } = pointAt(pts, cum, Math.min(1, Math.max(0, t)) * cum[cum.length - 1]);
   return [p[0] / W, p[1] / H];
 }
+
+/** A closed outline: a wall drawn back onto its first point (at least three corners); its last point is the first one. */
+export function isClosedOutline(polyline: Pt[]): boolean {
+  const n = polyline.length;
+  return n >= 4 && polyline[0][0] === polyline[n - 1][0] && polyline[0][1] === polyline[n - 1][1];
+}
