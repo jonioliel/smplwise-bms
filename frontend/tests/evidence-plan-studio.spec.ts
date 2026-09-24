@@ -218,4 +218,110 @@ test.describe.serial('plan studio (SW A)', () => {
     expect(svgExport.status()).toBe(200);
     expect(await svgExport.text()).toContain('data-wall=');
   });
+
+  test('in door mode an existing door is dragged along its wall (not doubled), nudged with the arrow keys as one undo step and placed exactly by its distance from the wall start', async ({ page }) => {
+    const ed = 'explore-plan-editor';
+    // The version the editor shows (after the previous test: the rotated drawing, not calibrated) gets a draft of one
+    // horizontal wall from (0.2, 0.5) to (0.8, 0.5) with nothing on it.
+    const map = await (await api.get(`api/v1/floors/${ids.floor}/map?draft=true`)).json();
+    const vid: string = map.plan.id;
+    const g = await (await api.get(`api/v1/plan-versions/${vid}/geometry?draft=true`)).json();
+    expect(g.doc.dimensions.calibration.status).not.toBe('measured');
+    const seeded = { ...g.doc, walls: [WALL('pw1', [[0.2, 0.5], [0.8, 0.5]])], openings: [], labels: [] };
+    expect((await api.put(`api/v1/plan-versions/${vid}/geometry`, { data: { doc: seeded, base_revision: g.geometry.revision } })).status()).toBe(200);
+    const draft = async () => (await (await api.get(`api/v1/plan-versions/${vid}/geometry?draft=true`)).json()).doc;
+    const doorT = async () => ((await draft()).openings as { t: number }[]).map((o) => o.t);
+    // the pointer lands on whole screen pixels, so a click at a plan point is exact only to a fraction of a pixel
+    const near = (value: string, want: number, tol: number) => expect(Math.abs(parseFloat(value) - want), `${value} vs ${want}`).toBeLessThan(tol);
+
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
+    await expect(page.locator(`${ed} sw-plan-canvas [data-wall]`)).toHaveCount(1, { timeout: 20000 });
+    await page.locator(`${ed} [data-tool="structure"]`).click();
+    await page.locator(`${ed} [data-studio-mode="door"]`).click();
+    await expect(page.locator(`${ed} [data-studio-drag-hint]`)).toContainText('גרירת פתח קיים');
+    // a door a quarter of the way along the wall; before calibration its place is a percentage of the wall
+    await clickPlan(page, ed, 0.35, 0.5);
+    await expect(page.locator(`${ed} sw-plan-canvas [data-opening][data-kind="door"]`)).toHaveCount(1);
+    const pct = page.locator(`${ed} [data-opening-percent]`);
+    await expect(pct).toBeVisible();
+    near(await pct.inputValue(), 25, 1);
+    await expect(page.locator(`${ed} [data-opening-distance]`)).toHaveCount(0);
+
+    // calibrate on the wall's own ends (calibration snaps to corners): the wall is 12 m long
+    await page.locator(`${ed} [data-tool="calibrate"]`).click();
+    await clickPlan(page, ed, 0.2, 0.5);
+    await clickPlan(page, ed, 0.8, 0.5);
+    await page.locator(`${ed} [data-calib-metres]`).fill('12');
+    await expect(page.locator(`${ed} [data-calib-save]`)).not.toHaveAttribute('disabled', '');
+    const saved = page.waitForResponse((r) => r.url().includes('/calibration') && r.request().method() === 'PATCH');
+    await page.locator(`${ed} [data-calib-save]`).click();
+    expect((await saved).status()).toBe(200);
+    await expect(page.locator(`${ed} [data-calib-result]`)).toBeVisible();
+    const cal = await draft();
+    const L = 0.6 * map.plan.width_px * cal.dimensions.scale_m_per_px; // the wall's length in metres
+    expect(L).toBeCloseTo(12, 3);
+    const placed = await doorT(); // the door was saved before the calibration
+    expect(placed).toHaveLength(1);
+    const t0 = placed[0];
+    expect(Math.abs(t0 - 0.25)).toBeLessThan(0.01);
+
+    // back in the structure tool, still in door mode: a press on the door selects it and places nothing
+    await page.locator(`${ed} [data-tool="structure"]`).click();
+    await expect(page.locator(`${ed} [data-studio-mode="door"]`)).toHaveAttribute('aria-pressed', 'true');
+    await clickPlan(page, ed, 0.35, 0.5);
+    await expect(page.locator(`${ed} [data-selected-opening]`)).toBeVisible();
+    const dist = page.locator(`${ed} [data-opening-distance]`);
+    await expect(dist).toBeVisible();
+    const startValue = await dist.inputValue();
+    near(startValue, t0 * L, 0.006); // metres from the wall's start, two decimals
+    await expect(page.locator(`${ed} sw-plan-canvas [data-opening]`)).toHaveCount(1);
+
+    // drag it 40 px towards the wall's end, without leaving the door mode, grabbed 4 px off its centre: it moves by the
+    // pointer's 40 px (no jump to the pointer), and the distance field follows before the drop
+    const canvas = page.locator(`${ed} sw-plan-canvas`);
+    const box = (await canvas.boundingBox())!;
+    const at = await canvas.evaluate((el) => {
+      const c = el as unknown as { toScreen: (a: number, b: number) => { x: number; y: number }; zoom: number; planWidth: number; planHeight: number };
+      return { ...c.toScreen(0.35, 0.5), zoom: c.zoom, w: c.planWidth, h: c.planHeight };
+    });
+    const tpx = 1 / (at.zoom * 0.6 * at.w); // one screen pixel along the wall, as a fraction of the wall
+    await page.mouse.move(box.x + at.x + 4, box.y + at.y);
+    await page.mouse.down();
+    await page.mouse.move(box.x + at.x + 44, box.y + at.y, { steps: 8 });
+    await expect(dist).not.toHaveValue(startValue); // live, before the drop
+    await page.mouse.up();
+    const expected = t0 + 40 * tpx;
+    await expect.poll(async () => (await doorT())[0], { timeout: 10000 }).toBeGreaterThan(t0 + 20 * tpx);
+    const [t1, ...more] = await doorT();
+    expect(more, 'the press took the existing door: no second door').toHaveLength(0);
+    expect(Math.abs(t1 - expected), `moved ${(t1 - t0) / tpx} px`).toBeLessThan(1.5 * tpx);
+    await expect(page.locator(`${ed} sw-plan-canvas [data-opening]`)).toHaveCount(1);
+
+    // ArrowRight three times on this left-to-right wall: 1 cm each to the right (the arrow's direction) on a calibrated plan
+    const before = await dist.inputValue();
+    for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowRight');
+    await expect(dist).not.toHaveValue(before);
+    await expect.poll(async () => (await doorT())[0], { timeout: 10000 }).toBeCloseTo(t1 + 0.03 / L, 4);
+    // the burst is one undo step: Ctrl+Z puts the door back where the drag left it (and clears the selection)
+    await page.keyboard.press('Control+z');
+    await expect.poll(async () => (await doorT())[0], { timeout: 10000 }).toBeCloseTo(t1, 5);
+
+    // a click just past the door's end and 10 px off the wall - outside the door's own target, inside the band in which a
+    // click finds the wall - takes the door instead of stacking a second one on it
+    await clickPlan(page, ed, 0.2 + 0.6 * (t1 + 0.45 / L + 3 * tpx), 0.5 + 10 / (at.zoom * at.h));
+    await expect(page.locator(`${ed} [data-selected-opening]`)).toBeVisible();
+    await expect(page.locator(`${ed} sw-plan-canvas [data-opening]`)).toHaveCount(1);
+    // type its distance from the wall's start (Enter commits it and leaves the focus in the field)
+    await dist.fill('7.5');
+    await dist.press('Enter');
+    await expect(dist).toHaveValue('7.50');
+    await expect.poll(async () => (await doorT())[0], { timeout: 10000 }).toBeCloseTo(7.5 / L, 3);
+    // a press on the door takes the focus from the field, so the arrow moves the door and does not go to the field
+    const t2 = (await doorT())[0];
+    await clickPlan(page, ed, 0.2 + 0.6 * t2, 0.5);
+    await page.keyboard.press('ArrowRight');
+    await expect.poll(async () => (await doorT())[0], { timeout: 10000 }).toBeCloseTo(t2 + 0.01 / L, 4);
+    expect(await doorT()).toHaveLength(1);
+    await expect(page.locator(`${ed} [data-studio-panel][data-studio-save="saved"]`)).toHaveCount(1, { timeout: 10000 });
+  });
 });

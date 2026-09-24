@@ -7,22 +7,27 @@ import { css, html, nothing, type TemplateResult } from 'lit';
 import type { CopyCandidate, GeometryIssue } from '../api/geometry';
 import { effectiveScale, lengthPx, perimeterM, polygonAreaM2, type GeometryDoc, type GeomLabel, type GeomOpening, type GeomWall, type Hinge, type OpeningKind, type Pt, type Swing, type WallKind } from '../map/geometry';
 import type { SaveState } from '../map/studio-controller';
-import { kindDefaults, type WallDefaults } from '../map/studio-ops';
+import { cornerRemovable, kindDefaults, openingRange, type WallDefaults } from '../map/studio-ops';
 
 export type StudioMode = 'select' | 'wall' | 'door' | 'window' | 'passage' | 'label';
 export type GeomKind = 'wall' | 'opening' | 'label';
 export interface GeomSel {
   id: string;
   kind: GeomKind;
+  /** A selected corner of the selected wall (select mode): the arrow keys move it. */
+  vertex?: number;
 }
 
-export const STUDIO_MODES: { id: StudioMode; label: string; hint: string }[] = [
-  { id: 'select', label: 'בחירה', hint: 'לחץ על קיר, פתח או תווית כדי לערוך. גרור פתח לאורך הקיר, תווית למקומה ופינה של קיר נבחר.' },
+/** The second help line of the opening modes: an existing opening is taken, not doubled (owner report on 0.1.82). */
+const OPENING_DRAG_HINT = 'גרירת פתח קיים מזיזה אותו לאורך הקיר; חצים להזזה עדינה (Shift = צעד גדול)';
+
+export const STUDIO_MODES: { id: StudioMode; label: string; hint: string; drag?: string }[] = [
+  { id: 'select', label: 'בחירה', hint: 'לחץ על קיר, פתח או תווית כדי לערוך. גרור פתח לאורך הקיר, תווית למקומה ופינה של קיר נבחר; החצים מזיזים בעדינות פתח, תווית או פינה שנבחרו (Shift = צעד גדול).' },
   { id: 'wall', label: 'קיר', hint: 'לחץ נקודה אחר נקודה. Enter או לחיצה חוזרת על הנקודה האחרונה מסיימים, לחיצה על הנקודה הראשונה סוגרת מתאר, Shift מבטל הצמדה לזוויות, Backspace מוחק נקודה.' },
-  { id: 'door', label: 'דלת', hint: 'לחץ על קיר כדי להציב דלת. כיוון הפתיחה והציר נקבעים כאן בפאנל.' },
-  { id: 'window', label: 'חלון', hint: 'לחץ על קיר כדי להציב חלון.' },
-  { id: 'passage', label: 'מעבר', hint: 'פתח בלי דלת בקיר.' },
-  { id: 'label', label: 'תווית', hint: 'לחץ במקום התווית ואז הקלד את הטקסט כאן בפאנל.' },
+  { id: 'door', label: 'דלת', hint: 'לחץ על קיר כדי להציב דלת. כיוון הפתיחה והציר נקבעים כאן בפאנל.', drag: OPENING_DRAG_HINT },
+  { id: 'window', label: 'חלון', hint: 'לחץ על קיר כדי להציב חלון.', drag: OPENING_DRAG_HINT },
+  { id: 'passage', label: 'מעבר', hint: 'פתח בלי דלת בקיר.', drag: OPENING_DRAG_HINT },
+  { id: 'label', label: 'תווית', hint: 'לחץ במקום התווית ואז הקלד את הטקסט כאן בפאנל.', drag: 'גרירת תווית קיימת מזיזה אותה; חצים להזזה עדינה (Shift = צעד גדול)' },
 ];
 
 const WALL_KIND_LABEL: Record<WallKind, string> = { exterior: 'חיצוני', interior: 'פנימי', partition: 'מחיצה', railing: 'מעקה', low: 'קיר נמוך' };
@@ -119,6 +124,7 @@ export function renderStudioPanel(v: StudioView, a: StudioActions): TemplateResu
       ${STUDIO_MODES.map((m) => html`<button class=${m.id === v.mode ? 'on' : ''} data-studio-mode=${m.id} aria-pressed=${m.id === v.mode} @click=${() => a.setMode(m.id)}>${m.label}</button>`)}
     </div>
     <div class="note">${mode.hint}</div>
+    ${mode.drag ? html`<div class="note" data-studio-drag-hint>${mode.drag}</div>` : nothing}
     ${v.mode === 'wall' ? renderWallDefaults(v.wallDefaults, a) : nothing}
     <div class="row"><span class="lbl">קנה מידה<span class="muted" data-studio-scale>${estimated ? (v.showEstimates ? 'לא מכויל: מידות משוערות (≈)' : 'לא מכויל: מידות מוסתרות עד הכיול') : fmtScale(scale)}</span></span><sw-button size="sm" icon="scale" data-studio-calibrate @click=${() => a.calibrate()}>${estimated ? 'כיול' : 'כיול מחדש'}</sw-button></div>
     <div class="note" data-studio-counts>${countLabel(v.doc.walls.length, 'קיר אחד', 'קירות')} · ${countLabel(v.doc.openings.length, 'פתח אחד', 'פתחים')} · ${countLabel(v.doc.labels.length, 'תווית אחת', 'תוויות')}</div>
@@ -156,7 +162,7 @@ function renderSelection(v: StudioView, sel: GeomSel, a: StudioActions, scale: n
   }
   if (sel.kind === 'opening') {
     const o = v.doc.openings.find((x) => x.id === sel.id);
-    return o ? renderOpening(o, a) : nothing;
+    return o ? renderOpening(o, v, a, scale, estimated) : nothing;
   }
   const l = v.doc.labels.find((x) => x.id === sel.id);
   return l ? renderLabel(l, a) : nothing;
@@ -176,11 +182,40 @@ function renderWall(w: GeomWall, v: StudioView, a: StudioActions, scale: number,
     </div>
     <sw-field label="גובה (מ׳, ריק = עד התקרה)"><input type="number" min="0.1" max="50" step="0.1" data-ltr .value=${w.height_m === null ? '' : String(w.height_m)}
       @change=${(e: Event) => { const raw = (e.target as HTMLInputElement).value.trim(); const x = parseFloat(raw); if (!raw) a.patchWall(w.id, { height_m: null }); else if (x > 0 && x <= 50) a.patchWall(w.id, { height_m: x }); }} /></sw-field>
+    ${v.mode === 'select' && v.sel?.vertex !== undefined
+      ? html`<div class="note" data-selected-vertex=${v.sel.vertex}>פינה ${v.sel.vertex + 1} נבחרה: החצים מזיזים אותה (Shift = צעד גדול); ${cornerRemovable(w.polyline) ? 'Delete מוחק את הפינה.' : 'Delete מוחק את כל הקיר, כי בלי הפינה לא נשאר קיר.'}</div>`
+      : nothing}
     <div class="btns"><sw-button size="sm" variant="ghost" icon="trash" data-geom-delete @click=${() => a.remove(w.id)}>מחק קיר</sw-button><span class="note">הפתחים שבקיר נמחקים איתו</span></div>
   </div>`;
 }
 
-function renderOpening(o: GeomOpening, a: StudioActions) {
+/** Where the opening sits on its wall, typed exactly: metres from the wall's start to the opening's centre on a calibrated
+ * plan, a percentage of the wall before calibration. Kept inside the wall (the validator's opening_outside_wall). The
+ * value follows every move - a drag (the panel is given the drag's preview), the arrow keys, undo. */
+function renderPlacement(o: GeomOpening, v: StudioView, a: StudioActions, scale: number, estimated: boolean) {
+  const w = v.doc.walls.find((x) => x.id === o.wall_id);
+  const lengthM = w ? lengthPx(w.polyline, v.W, v.H) * scale : 0;
+  if (!(lengthM > 0)) return nothing;
+  const [lo, hi] = openingRange(o.width_m, lengthM);
+  // metres: two decimals; the percentage: one
+  const fmt = (t: number) => (estimated ? (t * 100).toFixed(1) : (t * lengthM).toFixed(2));
+  const set = (e: Event) => {
+    const input = e.target as HTMLInputElement;
+    const x = parseFloat(input.value);
+    const t = Number.isFinite(x) ? Math.min(hi, Math.max(lo, estimated ? x / 100 : x / lengthM)) : o.t;
+    if (t !== o.t) a.patchOpening(o.id, { t });
+    input.value = fmt(t); // shows the kept value also when the clamp left the position as it was
+  };
+  // The arrow keys work in screen directions: the opening follows the arrow along its wall (owner ruling on 0.1.83).
+  const keys = 'חצים מזיזים את הפתח לכיוון החץ לאורך הקיר.';
+  return estimated
+    ? html`<sw-field label="מיקום על הקיר (%)" hint=${`מרכז הפתח: 0 = תחילת הקיר, 100 = סופו. ${keys}`}><input type="number" min="0" max="100" step="0.1" data-ltr data-opening-percent
+        aria-label="מיקום על הקיר (%)" .value=${fmt(o.t)} @change=${set} /></sw-field>`
+    : html`<sw-field label="מרחק מתחילת הקיר (מ׳)" hint=${`עד מרכז הפתח; אורך הקיר ${lengthM.toFixed(2)} מ׳. ${keys}`}><input type="number" min=${(lo * lengthM).toFixed(2)} max=${(hi * lengthM).toFixed(2)} step="0.01"
+        data-ltr data-opening-distance aria-label="מרחק מתחילת הקיר (מ׳)" .value=${fmt(o.t)} @change=${set} /></sw-field>`;
+}
+
+function renderOpening(o: GeomOpening, v: StudioView, a: StudioActions, scale: number, estimated: boolean) {
   return html`<div class="sel" data-selected-opening=${o.id}>
     <div class="selhead"><strong>${OPENING_KIND_LABEL[o.kind]}</strong><span class="muted">${o.width_m.toFixed(2)} מ׳ רוחב${o.anchor_ref ? ' · מקושר לישות' : ''}</span></div>
     <div class="two">
@@ -190,6 +225,7 @@ function renderOpening(o: GeomOpening, a: StudioActions) {
       <sw-field label="רוחב (מ׳)"><input type="number" min="0.1" max="10" step="0.05" data-ltr .value=${String(o.width_m)}
         @change=${(e: Event) => { const x = numberOf(e); if (x > 0 && x <= 10) a.patchOpening(o.id, { width_m: x }); }} /></sw-field>
     </div>
+    ${renderPlacement(o, v, a, scale, estimated)}
     <div class="two">
       <sw-field label="גובה (מ׳)"><input type="number" min="0.1" max="10" step="0.05" data-ltr .value=${String(o.height_m)}
         @change=${(e: Event) => { const x = numberOf(e); if (x > 0 && x <= 10) a.patchOpening(o.id, { height_m: x }); }} /></sw-field>
