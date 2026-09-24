@@ -57,6 +57,11 @@ export function fmtMetres(m: number, estimated: boolean, show = true): string {
   return `${estimated ? '≈' : ''}${m < 10 ? m.toFixed(2) : m.toFixed(1)} מ׳`;
 }
 
+/** A count with its noun: the singular phrase for one ("קיר אחד"), otherwise the number and the plural ("3 קירות"). */
+export function countLabel(n: number, one: string, many: string): string {
+  return n === 1 ? one : `${n} ${many}`;
+}
+
 export function fmtScale(scaleMPerPx: number): string {
   return `1 מ׳ = ${(1 / scaleMPerPx).toFixed(1)} פיקסלים בתוכנית`;
 }

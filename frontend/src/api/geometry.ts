@@ -50,6 +50,21 @@ export interface GeometryDiff {
   calibration_changed: boolean;
   same: boolean;
 }
+/** Items per collection, as the server counts them. */
+export interface GeometryCounts {
+  walls: number;
+  openings: number;
+  labels: number;
+  objects: number;
+}
+/** GET /plan-versions/{id}/geometry/diff: the draft against the published structure, the draft's issues and the counts
+ * before and after (published_counts is null before the first publish). */
+export interface GeometryDiffResponse {
+  diff: GeometryDiff;
+  issues: GeometryIssue[];
+  counts: GeometryCounts;
+  published_counts: GeometryCounts | null;
+}
 export interface CalibrationResult {
   version: PlanVersion;
   scale_m_per_px: number;
@@ -125,8 +140,7 @@ export async function publishGeometry(versionId: string): Promise<{ published: G
   timelines.delete(versionId);
   return r;
 }
-export const geometryDiff = (versionId: string) =>
-  get<{ diff: GeometryDiff; issues: GeometryIssue[]; counts: Record<string, number>; published_counts: Record<string, number> | null }>(`plan-versions/${versionId}/geometry/diff`);
+export const geometryDiff = (versionId: string) => get<GeometryDiffResponse>(`plan-versions/${versionId}/geometry/diff`);
 export const copyGeometryFrom = (versionId: string, fromVersionId: string) =>
   post<GeometryResponse>(`plan-versions/${versionId}/geometry/copy-from`, { from_version_id: fromVersionId });
 export const calibrate = (versionId: string, pairs: { a: Pt; b: Pt; metres: number }[]) =>

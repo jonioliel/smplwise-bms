@@ -19,12 +19,12 @@ import type { Anchor, Camera, PlanVersion } from '../api/types';
 import { domainLabel, entityMarkerKind, listEntities, stateLabel, type HaEntity } from '../api/ha';
 import { ROOM_FILL_LABEL, setRenderMode, stylizeVersion, type RoomFill, type StylizeResult } from '../api/plans';
 import { ZONE_KINDS, acceptZones, createZone, deleteZone, detectZones, pointInPolygon, updateZone, zoneKindLabel, type SpatialZone, type ZoneKind, type ZonePoint } from '../api/zones';
-import { calibrate, copyGeometryFrom, exportUrl, geometryDiff, publishGeometry } from '../api/geometry';
+import { calibrate, copyGeometryFrom, exportUrl, geometryDiff, publishGeometry, type GeometryDiffResponse } from '../api/geometry';
 import { productSettings } from '../api/prefs';
 import { distanceM, effectiveScale, isClosedOutline, nearestWall, pointOnWall, snapPoint, type GeometryDoc, type GeomWall, type Pt } from '../map/geometry';
 import { StudioController } from '../map/studio-controller';
 import { addLabel, addOpening, addWall, moveVertex, patchLabel, patchOpening, patchWall, removeItem, type WallDefaults } from '../map/studio-ops';
-import { COLL_LABEL, fmtMetres, fmtScale, renderCalibPanel, renderMeasurePanel, renderStudioPanel, studioPanelStyles, type GeomKind, type GeomSel, type StudioMode } from './plan-studio-panel';
+import { COLL_LABEL, countLabel, fmtMetres, fmtScale, renderCalibPanel, renderMeasurePanel, renderStudioPanel, studioPanelStyles, type GeomKind, type GeomSel, type StudioMode } from './plan-studio-panel';
 
 type Strength = 'light' | 'medium' | 'strong';
 interface ZoneCandidate {
@@ -61,7 +61,8 @@ interface CalibState {
   warning: string;
 }
 const EMPTY_CALIB: CalibState = { a: null, b: null, metres: '', result: '', warning: '' };
-type GeomDiffData = Awaited<ReturnType<typeof geometryDiff>>;
+/** The walls and openings of a structure in the publish previews ("קיר אחד, 3 פתחים"). */
+const wallsAndOpenings = (walls: number, openings: number) => `${countLabel(walls, 'קיר אחד', 'קירות')}, ${countLabel(openings, 'פתח אחד', 'פתחים')}`;
 
 const LAYERS: { id: Layer; label: string }[] = [
   { id: 'cameras', label: 'מצלמות' },
@@ -130,7 +131,9 @@ export class ExplorePlanEditor extends LitElement {
   @state() private hover: Pt | null = null;
   @state() private calib: CalibState = { ...EMPTY_CALIB };
   @state() private measurePts: Pt[] = [];
-  @state() private geomDiff: { data: GeomDiffData | null; error: string } | null = null;
+  /** The structure preview of a published plan version: the version it compares, so a late answer or a confirm never
+   * lands on another one. */
+  @state() private geomDiff: { versionId: string; data: GeometryDiffResponse | null; error: string } | null = null;
   /** Setting `plan.estimates` (default true): estimated metres carry "≈" before calibration; false hides them. */
   @state() private showEstimates = true;
   private entTimer = 0;
@@ -973,6 +976,7 @@ export class ExplorePlanEditor extends LitElement {
       this.error = this.studio.error;
       return;
     }
+    this.error = ''; // the draft is saved: a save error from an earlier attempt is over
     if (b.planStatus === 'published') {
       await this.openGeomDiff(b.planVersionId);
       return;
@@ -986,21 +990,22 @@ export class ExplorePlanEditor extends LitElement {
   }
 
   private async openGeomDiff(versionId: string) {
-    this.geomDiff = { data: null, error: '' };
+    this.geomDiff = { versionId, data: null, error: '' };
     try {
-      this.geomDiff = { data: await geometryDiff(versionId), error: '' };
+      const data = await geometryDiff(versionId);
+      if (this.geomDiff?.versionId === versionId) this.geomDiff = { versionId, data, error: '' }; // not closed meanwhile
     } catch (err) {
-      this.geomDiff = { data: null, error: describeError(err) };
+      if (this.geomDiff?.versionId === versionId) this.geomDiff = { versionId, data: null, error: describeError(err) };
     }
   }
 
   private async confirmGeomPublish() {
     const b = this.bundle;
     const d = this.geomDiff;
-    if (!b?.planVersionId || !d?.data) return;
+    if (!b || !d?.data) return;
     this.busy = true;
     try {
-      await publishGeometry(b.planVersionId);
+      await publishGeometry(d.versionId); // the version the preview compared
       this.geomDiff = null;
       this.info = 'המבנה פורסם; הצופים רואים אותו עכשיו';
       setTimeout(() => (this.info = ''), 4000);
@@ -1022,6 +1027,10 @@ export class ExplorePlanEditor extends LitElement {
       if (this.bundle) await this.loadStudio(this.bundle, true);
     } catch (err) {
       this.error = describeError(err);
+      if (err instanceof ApiError && err.code === 'geometry_invalid') {
+        this.pickTool('structure'); // the issue list is in the structure panel
+        this.studioMode = 'select';
+      }
     } finally {
       this.busy = false;
     }
@@ -1033,16 +1042,23 @@ export class ExplorePlanEditor extends LitElement {
       const data = await versionDiff(version.id);
       if (this.diff?.version.id === version.id) this.diff = { mode, version, data, error: '' };
     } catch (err) {
-      this.diff = { mode, version, data: null, error: describeError(err) };
+      if (this.diff?.version.id === version.id) this.diff = { mode, version, data: null, error: describeError(err) };
     }
   }
 
   private async confirmDiff() {
     const d = this.diff;
     if (!d?.data || d.mode === 'compare') return;
+    // The editor's own draft publishes the structure the studio holds; another draft from the history publishes its own.
+    const own = d.version.id === this.bundle?.planVersionId;
     this.busy = true;
     this.error = '';
     try {
+      // The history row opens this dialog without publish(): unsaved structure edits are saved before they go out.
+      if (own && !(await this.studio.flush())) {
+        this.diff = { ...d, error: this.studio.error };
+        return;
+      }
       if (d.mode === 'publish') {
         await publishVersion(d.version.id);
         this.info = 'הגרסה פורסמה; הצופים רואים אותה עכשיו';
@@ -1057,8 +1073,8 @@ export class ExplorePlanEditor extends LitElement {
     } catch (err) {
       this.diff = { ...d, error: describeError(err) };
       if (err instanceof ApiError && err.status === 409) void this.loadVersions();
-      if (err instanceof ApiError && err.code === 'geometry_invalid') {
-        this.tool = 'structure'; // the issue list is in the structure panel
+      if (own && err instanceof ApiError && err.code === 'geometry_invalid') {
+        this.pickTool('structure'); // the issue list is in the structure panel
         this.studioMode = 'select';
       }
     } finally {
@@ -1744,6 +1760,11 @@ export class ExplorePlanEditor extends LitElement {
     const d = this.diff;
     if (!d) return nothing;
     const data = d.data;
+    // The structure note: only for the editor's own draft (the studio holds no other version's structure), and whenever
+    // the draft holds anything the server publishes (the collections its is_empty counts, as studio.pendingPublish).
+    const doc = d.mode === 'publish' && d.version.id === this.bundle?.planVersionId ? this.studio.doc : null;
+    const structure = doc && (doc.walls.length || doc.openings.length || doc.labels.length || doc.objects.length || doc.connectors.length) ? doc : null;
+    const blocked = this.studio.issues.some((i) => i.severity === 'error'); // every error blocks, with an item id or not
     const title = d.mode === 'publish' ? 'פרסום גרסה' : d.mode === 'rollback' ? 'שחזור גרסה מהארכיון' : 'השוואת גרסאות';
     const sub = d.mode === 'publish' ? 'מה ישתנה לצופים ומה יקרה לפריטים המוצבים' : d.mode === 'rollback' ? 'הגרסה תפורסם מחדש כעותק חדש; הגרסה הנוכחית תעבור לארכיון' : 'מול הגרסה המפורסמת';
     return html`<sw-dialog open heading=${title} subheading=${sub} data-diff-dialog @close=${() => (this.diff = null)}>
@@ -1762,8 +1783,8 @@ export class ExplorePlanEditor extends LitElement {
                 : html`<sw-badge kind="neutral" label="פרסום ראשון"></sw-badge>`}
               <span>${data.anchors.total} פריטים מוצבים · ${data.anchors.carried} עוברים כמו שהם · ${data.anchors.needs_alignment} ידרשו יישור</span>
             </div>
-            ${d.mode === 'publish' && this.studio.doc && (this.studio.doc.walls.length || this.studio.doc.openings.length)
-              ? html`<div class="note" data-diff-structure>המבנה של הטיוטה (${this.studio.doc.walls.length} קירות, ${this.studio.doc.openings.length} פתחים) יפורסם יחד עם הגרסה${this.issueIds.length ? '; יש בו שגיאות שיחסמו את הפרסום' : ''}.</div>`
+            ${structure
+              ? html`<div class="note" data-diff-structure>המבנה של הטיוטה (${wallsAndOpenings(structure.walls.length, structure.openings.length)}) יפורסם יחד עם הגרסה${blocked ? '; יש בו שגיאות שיחסמו את הפרסום' : ''}.</div>`
               : nothing}
             ${data.anchors.items.length
               ? html`<div class="ditems" data-diff-items>${data.anchors.items.map((i) => html`<div><span>${i.resource_type === 'camera' ? 'מצלמה' : 'ישות'} · ${i.name}</span><span class=${i.outcome === 'carried' ? '' : 'err'}>${i.outcome === 'carried' ? 'עובר' : 'יישור נדרש'}</span></div>`)}</div>`
@@ -1794,8 +1815,8 @@ export class ExplorePlanEditor extends LitElement {
                 : html`<div><span>אין שינוי בפריטים</span></div>`}
               ${data.diff.calibration_changed ? html`<div><span>כיול</span><span>קנה המידה השתנה</span></div>` : nothing}
             </div>
-            <div class="note">${data.published_counts ? `כעת: ${data.published_counts.walls} קירות, ${data.published_counts.openings} פתחים` : 'פרסום ראשון של מבנה'} · אחרי הפרסום: ${data.counts.walls} קירות, ${data.counts.openings} פתחים</div>
-            ${errors.length ? html`<div class="err" data-geom-diff-error>${errors.length} שגיאות חוסמות את הפרסום; הן מסומנות באדום על המפה וברשימת הבעיות של המבנה.</div>` : nothing}`}
+            <div class="note">${data.published_counts ? `כעת: ${wallsAndOpenings(data.published_counts.walls, data.published_counts.openings)}` : 'פרסום ראשון של מבנה'} · אחרי הפרסום: ${wallsAndOpenings(data.counts.walls, data.counts.openings)}</div>
+            ${errors.length ? html`<div class="err" data-geom-diff-error>${countLabel(errors.length, 'שגיאה חוסמת אחת', 'שגיאות חוסמות')} בטיוטה: הפרסום חסום עד לתיקון. ראה את הסימון האדום על המפה ואת רשימת הבעיות של המבנה.</div>` : nothing}`}
       <sw-button slot="footer" variant="ghost" data-geom-cancel @click=${() => (this.geomDiff = null)}>ביטול</sw-button>
       <sw-button slot="footer" variant="primary" icon="check" data-geom-publish ?disabled=${this.busy || !data || errors.length > 0 || !!data?.diff.same} @click=${() => this.confirmGeomPublish()}>פרסם מבנה</sw-button>
     </sw-dialog>`;

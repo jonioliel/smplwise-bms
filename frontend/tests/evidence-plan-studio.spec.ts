@@ -188,7 +188,7 @@ test.describe.serial('plan studio (SW A)', () => {
     await page.locator(`${ed} [data-tool="structure"]`).click();
     await expect(page.locator(`${ed} [data-issue="bounds"]`)).toBeVisible({ timeout: 20000 });
     await page.locator(`${ed} [data-publish]`).click();
-    await expect(page.locator(`${ed} [data-geom-diff-error]`)).toBeVisible();
+    await expect(page.locator(`${ed} [data-geom-diff-error]`)).toContainText('שגיאה חוסמת אחת'); // the blocking line (bad1), not a failed comparison
     await expect(page.locator(`${ed} [data-geom-publish] button`)).toBeDisabled();
     await page.locator(`${ed} [data-geom-cancel]`).click();
     await page.locator(`${ed} [data-issue="bounds"]`).click();
@@ -196,6 +196,7 @@ test.describe.serial('plan studio (SW A)', () => {
     await page.keyboard.press('Delete');
     await expect(page.locator(`${ed} [data-studio-panel][data-studio-save="saved"]`)).toHaveCount(1, { timeout: 10000 });
     await expect(page.locator(`${ed} [data-issue]`)).toHaveCount(0);
+    await expect(page.locator(`${ed} [data-publish]`)).toHaveCount(0); // the fixed draft is the published structure again
 
     // a new plan version of another drawing (rotated) starts empty and offers the published structure
     const turned = await (await api.post(`api/v1/floors/${ids.floor}/plan-versions`, { data: { asset_id: ids.asset, rotation: 90 } })).json();
@@ -210,6 +211,7 @@ test.describe.serial('plan studio (SW A)', () => {
     const planPublished = page.waitForResponse((r) => r.url().endsWith(`/plan-versions/${turned.id}/publish`));
     await page.locator(`${ed} [data-diff-confirm]`).click();
     expect((await planPublished).status()).toBe(200);
+    await expect(page.locator(`${ed} [data-publish]`)).toHaveCount(0); // the studio was reloaded: no structure publish is offered for what went out with the plan
     const after = await (await api.get(`api/v1/plan-versions/${turned.id}/geometry`)).json();
     expect(after.doc.walls).toHaveLength(4);
     const svgExport = await api.get(`api/v1/plan-versions/${turned.id}/export.svg`);
