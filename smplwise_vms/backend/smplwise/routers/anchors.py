@@ -121,7 +121,7 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
         history = "current" if at_iso else None
         version = _editor_version(conn, floor_id) if (draft and can_edit and not at_iso) else _current_version(conn, floor_id)
         anchors = conn.execute("SELECT * FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL ORDER BY layer_id, resource_id", (floor_id,)).fetchall()
-    from ..services import geometry_store
+    from ..services import geometry_store, plan_catalog
 
     geometry = None
     if version is not None:
@@ -168,6 +168,7 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
         "site": site_row(s),
         "plan": version_row(version) if version else None,
         "geometry": geometry,
+        "catalog_revision": plan_catalog.revision(conn),
         "anchors": [dict(anchor_row(a), camera=cameras.get(a["resource_id"]) if a["resource_type"] == "camera" else None, entity=entities.get(a["resource_id"]) if a["resource_type"] == "ha_entity" else None) for a in anchors],
         "ha_sync": ha_sync.STATE.as_dict(),
         "zones": _zones_for(conn, floor_id),

@@ -76,6 +76,8 @@ def test_matrix_by_role_scope_and_deny(settings):
     # map.read: floor scope, site inheritance, explicit deny on floor 2 for the installation-wide operator
     assert [st(u, "get", f"/api/v1/floors/{f2}/map") for u in ("vera", "omer", "eli", "sara", "dan")] == [200, 200, 200, 200, 403]
     assert [st(u, "get", f"/api/v1/floors/{f3}/map") for u in ("vera", "omer", "eli", "sara", "dan")] == [403, 403, 403, 200, 200]
+    # catalog.manage: editors and site admins anywhere manage the shared object library; viewers and operators never
+    assert [st(u, "post", "/api/v1/catalog/objects", json={"names": {"he": "ארגז"}}) for u in ("vera", "omer", "eli", "sara", "dan")] == [403, 403, 201, 201, 403]
     # video.live per camera through its placement
     assert [st(u, "get", f"/api/v1/media/live/{cam2}") for u in ("vera", "omer", "sara", "dan")] == [200, 200, 200, 403]
     assert [st(u, "get", f"/api/v1/media/live/{cam3}") for u in ("vera", "omer", "sara", "dan")] == [403, 403, 200, 200]

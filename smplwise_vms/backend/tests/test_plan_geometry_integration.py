@@ -186,3 +186,9 @@ def test_a_backup_without_structure_restores_over_one(settings):
     assert back["status"] == "published" and back["scale_m_per_px"] is None, "the plan version is the one in the backup"
     with app.state.db.connection() as conn:
         assert conn.execute("SELECT COUNT(*) FROM plan_geometry").fetchone()[0] == 0, "its draft too"
+
+
+def test_the_bundle_says_which_library_the_map_needs(settings):
+    app, c, ids, vid, _ = _setup(settings)
+    m = c.get(f"/api/v1/floors/{ids['floor2']}/map").json()
+    assert m["catalog_revision"] == "2026.09.1:0:"

@@ -21,7 +21,7 @@ from ..db import Database, bump_permission_revision, get_setting, set_setting
 log = logging.getLogger("smplwise.backup")
 
 FORMAT = 1
-PROJECT_TABLES = ["settings", "sites", "buildings", "floors", "plan_assets", "plan_versions", "plan_geometry", "map_anchors", "recorders", "cameras", "spatial_zones", "cases", "case_items", "saved_views"]
+PROJECT_TABLES = ["settings", "sites", "buildings", "floors", "plan_assets", "plan_versions", "plan_geometry", "catalog_items", "map_anchors", "recorders", "cameras", "spatial_zones", "cases", "case_items", "saved_views"]
 ACCESS_TABLES = ["users", "groups", "group_members", "bindings", "custom_roles"]
 OPTIONAL_TABLES = {"audit": ["audit_log"], "events": ["events"]}
 FILE_COLUMNS = {"plan_assets": ["storage_path"], "plan_versions": ["image_path", "stylized_path"]}

@@ -11,7 +11,7 @@ import sqlite3
 from functools import lru_cache
 from math import isfinite
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 CATALOG_FILE = Path(__file__).resolve().parents[1] / "catalog" / "objects.json"
 CATEGORIES = ("structure", "circulation", "seating", "storage", "lighting", "electrical", "safety", "medical", "sport", "facilities", "security", "outdoor")
@@ -186,3 +186,41 @@ def item_index(conn: sqlite3.Connection) -> dict[str, dict[str, Any]]:
 def names_index(conn: sqlite3.Connection) -> dict[str, dict[str, Any]]:
     """The searchable names of every item: he, en and tags."""
     return {iid: {"he": i["names"].get("he", ""), "en": i["names"].get("en", ""), "tags": list(i.get("tags", []))} for iid, i in item_index(conn).items()}
+
+
+# ---------------------------------------------------------------- custom items (API)
+
+DEFAULT_CUSTOM: dict[str, Any] = {"category": "storage", "names": {"he": "", "en": ""}, "tags": [], "role": "furniture", "shape": "box",
+                                  "size": {"w_m": 1.0, "d_m": 1.0, "h_m": 1.0}, "z_m": 0.0, "params": {}, "icon": "box", "color_token": "object"}
+CUSTOM_FIELDS = ("names", "category", "tags", "role", "shape", "size", "z_m", "params", "icon", "color_token")
+
+
+def custom_values(body: Mapping[str, Any], *, existing: sqlite3.Row | Mapping[str, Any] | None = None) -> dict[str, Any]:
+    """The column values of a custom item from an API body: the body's fields over the existing row's (a PATCH), over the
+    base item's (based_on), over the neutral defaults. Raises ValueError(message) when the result breaks a rule of
+    check_item. Unknown keys in the body are ignored (an export carries created_at and updated_at)."""
+    based_on = body["based_on"] if "based_on" in body else (existing["based_on"] if existing is not None else None)
+    if based_on is not None and based_on not in builtin()["items"]:
+        raise ValueError("based_on חייב להיות מזהה של פריט מובנה")
+    base = builtin()["items"].get(based_on) if based_on else None
+    merged: dict[str, Any] = copy.deepcopy(DEFAULT_CUSTOM)
+    if base is not None:
+        merged.update({k: copy.deepcopy(base[k]) for k in CUSTOM_FIELDS})
+    if existing is not None:
+        merged.update({"names": json.loads(existing["names_json"]), "category": existing["category"], "tags": json.loads(existing["tags_json"] or "[]"), "role": existing["role"],
+                       "shape": existing["shape"], "size": json.loads(existing["size_json"]), "z_m": existing["z_m"], "params": json.loads(existing["params_json"] or "{}"),
+                       "icon": existing["icon"], "color_token": existing["color_token"]})
+    for k in CUSTOM_FIELDS:
+        if body.get(k) is not None:
+            merged[k] = copy.deepcopy(body[k])
+    if isinstance(merged.get("names"), dict):
+        merged["names"] = {"he": str(merged["names"].get("he", "")).strip(), "en": str(merged["names"].get("en", "")).strip()}
+    if isinstance(merged.get("size"), dict):
+        merged["size"] = {k: merged["size"].get(k) for k in ("w_m", "d_m", "h_m")}
+    item = {"id": body.get("id") or (existing["id"] if existing is not None else "x"), **merged}
+    problems = check_item(item, set(), builtin=False)
+    if problems:
+        raise ValueError("; ".join(p.split(": ", 1)[1] for p in problems))
+    return {"based_on": based_on, "names_json": json.dumps(merged["names"], ensure_ascii=False), "category": merged["category"], "tags_json": json.dumps(merged["tags"], ensure_ascii=False),
+            "role": merged["role"], "shape": merged["shape"], "size_json": json.dumps(merged["size"]), "z_m": float(merged["z_m"]),
+            "params_json": json.dumps(merged["params"], ensure_ascii=False), "icon": merged["icon"], "color_token": merged["color_token"]}

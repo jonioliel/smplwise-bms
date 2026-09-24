@@ -38,6 +38,7 @@ PERMISSION_LABELS: dict[str, str] = {
     "map.publish": "פרסום תוכנית",
     "placement.edit": "הצבת ציוד על המפה",
     "views.edit": "עריכת תצוגות",
+    "catalog.manage": "ניהול ספריית העצמים",
     "site.content.configure": "הגדרות תוכן מקומיות",
     "system.configure": "הגדרות מערכת",
     "sources.configure": "הגדרת מקורות (NVR / go2rtc)",
