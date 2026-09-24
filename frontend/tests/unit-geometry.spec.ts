@@ -2,16 +2,25 @@ import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildPrimitives, distanceM, effectiveScale, isClosedOutline, nearestWall, perimeterM, pointOnWall, polygonAreaM2, snapPoint, type GeometryDoc, type Primitive, type Pt, type WallPrim } from '../src/map/geometry';
+import { buildPrimitives, distanceM, effectiveScale, isClosedOutline, nearestWall, perimeterM, pointOnWall, polygonAreaM2, snapPoint, type CatalogLookup, type GeometryDoc, type ObjectShape, type Primitive, type Pt, type WallPrim } from '../src/map/geometry';
 import { addLabel, addOpening, addWall, cornerRemovable, moveVertex, nudgeT, openingRange, patchLabel, patchOpening, removeCorner, removeItem, wallDirectionAt } from '../src/map/studio-ops';
 import { fmtArea, fmtMetres } from '../src/screens/plan-studio-panel';
+import type { CatalogItem } from '../src/api/plan-catalog';
 
 // Plan Studio (T084): the map's structure primitives equal the backend renderer's (the shared golden file), and the
 // pure editor maths (snapping, the nearest wall, metres) and document operations behave. Runs in node: no page, no backend.
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIX = path.resolve(HERE, '..', '..', 'contracts', 'fixtures', 'plan_geometry');
+const CATALOG = path.resolve(HERE, '..', '..', 'smplwise_vms', 'backend', 'smplwise', 'catalog', 'objects.json');
 const sample = () => JSON.parse(fs.readFileSync(path.join(FIX, 'sample-v2.json'), 'utf8')) as GeometryDoc;
 const golden = JSON.parse(fs.readFileSync(path.join(FIX, 'sample-v2.primitives.json'), 'utf8')) as { all: Primitive[]; level_L1: Primitive[] };
+// T085: the golden now carries objects and connectors too (the backend's catalog gives their real shape / icon / color);
+// the map needs the same library lookup the backend used to produce this fixture.
+const catalogItems = new Map((JSON.parse(fs.readFileSync(CATALOG, 'utf8')) as { items: CatalogItem[] }).items.map((i) => [i.id, i]));
+const lookup: CatalogLookup = (id) => {
+  const i = catalogItems.get(id);
+  return i ? { shape: i.shape as ObjectShape, icon: i.icon, color_token: i.color_token } : undefined;
+};
 
 /** Deep comparison with a 0.011 px tolerance on numbers (Math.hypot and the C library may differ in the last bit). */
 function close(a: unknown, b: unknown, where = ''): void {
@@ -34,8 +43,8 @@ function close(a: unknown, b: unknown, where = ''): void {
 
 test.describe('plan studio geometry (unit)', () => {
   test('the map draws exactly what the backend exports', () => {
-    close(buildPrimitives(sample(), 1000, 800), golden.all, 'all');
-    close(buildPrimitives(sample(), 1000, 800, 'L1'), golden.level_L1, 'L1');
+    close(buildPrimitives(sample(), 1000, 800, null, lookup), golden.all, 'all');
+    close(buildPrimitives(sample(), 1000, 800, 'L1', lookup), golden.level_L1, 'L1');
   });
 
   test('snapping: a wall vertex first, then 45 degree steps unless free', () => {

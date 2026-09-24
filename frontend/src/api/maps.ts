@@ -5,7 +5,8 @@
 import { svg, type SVGTemplateResult } from 'lit';
 import { del, get, patch, post, put, resourceUrl, upload } from './client';
 import { isApi } from './session';
-import type { Anchor, Camera, FloorMap, GeometryRef, PlanAsset, PlanVersion, SpatialZone } from './types';
+import type { Anchor, Camera, CircuitState, FloorMap, GeometryRef, PlanAsset, PlanVersion, SpatialZone } from './types';
+import type { GeomLevel } from '../map/geometry';
 import { demoCameras, demoFloors, demoPlan, demoSite } from '../fixtures/demo';
 import type { StateKind } from '../components/sw-badge';
 
@@ -40,6 +41,9 @@ export interface MapBundle {
   /** Plan Studio: the structure document of the shown version (fetched by hash) and the version's scale. */
   geometryRef: GeometryRef | null;
   scaleMPerPx: number | null;
+  catalogRevision: string | null;
+  levels: GeomLevel[];
+  circuitStates: Record<string, CircuitState>;
 }
 
 function demoBundle(floorId: string): MapBundle {
@@ -68,6 +72,9 @@ function demoBundle(floorId: string): MapBundle {
     haHistory: null,
     geometryRef: null,
     scaleMPerPx: null,
+    catalogRevision: null,
+    levels: [],
+    circuitStates: {},
     anchors: cams.map((c, i) => ({
       id: `demo-anchor-${c.id}`,
       floor_id: floor.id,
@@ -127,6 +134,9 @@ export async function loadMap(floorId: string, draft = false, at?: string): Prom
     haHistory: m.ha_history ?? null,
     geometryRef: m.geometry ?? null,
     scaleMPerPx: m.plan?.scale_m_per_px ?? null,
+    catalogRevision: m.catalog_revision ?? null,
+    levels: m.levels ?? [],
+    circuitStates: m.circuit_states ?? {},
   };
 }
 
@@ -178,9 +188,9 @@ export function entityName(a: { resource_type: string; label: string | null; cam
 
 // ---- anchors ----
 
-export const createAnchor = (floorId: string, body: { resource_type: 'camera' | 'ha_entity'; resource_id: string; x: number; y: number; rotation_degrees?: number; field_of_view_degrees?: number | null; layer_id?: string; label?: string | null }) =>
+export const createAnchor = (floorId: string, body: { resource_type: 'camera' | 'ha_entity'; resource_id: string; x: number; y: number; rotation_degrees?: number; field_of_view_degrees?: number | null; layer_id?: string; label?: string | null; level_id?: string | null }) =>
   post<Anchor>(`floors/${floorId}/anchors`, body);
-export const updateAnchor = (id: string, body: { revision: number; x?: number; y?: number; rotation_degrees?: number; field_of_view_degrees?: number | null; label?: string | null; coverage_radius?: number | null; coverage_polygon?: [number, number][] | null; label_pos?: string }) =>
+export const updateAnchor = (id: string, body: { revision: number; x?: number; y?: number; rotation_degrees?: number; field_of_view_degrees?: number | null; label?: string | null; coverage_radius?: number | null; coverage_polygon?: [number, number][] | null; label_pos?: string; level_id?: string | null }) =>
   patch<Anchor>(`map-anchors/${id}`, body);
 /** S4: items placed on an earlier plan version - mapped through the crops (`crop`) or re-stamped after a visual check (`accept`). */
 export const realignAnchors = (floorId: string, mode: 'crop' | 'accept') => post<{ mode: string; moved: number; skipped: number; needs_alignment: boolean }>(`floors/${floorId}/anchors/realign`, { mode });

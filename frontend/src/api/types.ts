@@ -139,6 +139,8 @@ export interface Anchor {
   coverage_polygon?: [number, number][] | null;
   /** R4: where the name label sits - auto | top | bottom | left | right. */
   label_pos?: string | null;
+  /** Plan Studio level of the floor (null = the default level). */
+  level_id?: string | null;
   layer_id: string;
   label: string | null;
   revision: number;
@@ -168,9 +170,27 @@ export interface SpatialZone {
   searchable: boolean;
   /** R4: where the name label sits - auto | top | bottom | left | right. */
   label_pos?: string;
+  level_id?: string | null;
+  ceiling_height_m?: number | null;
   revision: number;
   created_at: string;
   updated_at: string;
+}
+
+/** The switch of a lighting circuit as the live map needs it (T085): its state, and the turn on / off actions when the
+ * caller may control entities on the floor. */
+export interface CircuitState {
+  entity_id: string;
+  name: string | null;
+  color_token: string | null;
+  member_ids: string[];
+  power_w: number | null;
+  state: string | null;
+  known: boolean;
+  fresh: boolean;
+  available: boolean;
+  can_control: boolean;
+  actions: import('./ha').HaActionSpec[];
 }
 
 export interface FloorMap {
@@ -181,6 +201,10 @@ export interface FloorMap {
   /** Reference to the structure document of the shown version: the draft (else the published one) for an editor bundle,
    * the row in force at the instant for an exact-history bundle, else the published one; null when none. */
   geometry?: GeometryRef | null;
+  /** T085: the library revision the map needs, the levels of the referenced document and the circuit switch states. */
+  catalog_revision?: string;
+  levels?: import('../map/geometry').GeomLevel[];
+  circuit_states?: Record<string, CircuitState>;
   anchors: Anchor[];
   zones?: SpatialZone[];
   needs_alignment: boolean;

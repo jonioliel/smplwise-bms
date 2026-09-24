@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import type { ReactiveControllerHost } from 'lit';
 import { ApiError } from '../src/api/client';
 import type { GeometryResponse, GeometryRow } from '../src/api/geometry';
-import type { GeometryDoc } from '../src/map/geometry';
+import type { GeometryDoc, GeomConnector, GeomObject } from '../src/map/geometry';
 import { StudioController, type StudioApi } from '../src/map/studio-controller';
 
 // Plan Studio (T084): the editor's autosave - one save after the quiet period with the revision the server gave, undo
@@ -180,8 +180,8 @@ test.describe('studio controller (unit)', () => {
       await c.load('v1');
       return c.pendingPublish;
     };
-    expect(await shows({ ...bare, objects: [{ id: 'o1' }] })).toBe(true);
-    expect(await shows({ ...bare, connectors: [{ id: 'c1' }] })).toBe(true);
+    expect(await shows({ ...bare, objects: [{ id: 'o1' } as unknown as GeomObject] })).toBe(true);
+    expect(await shows({ ...bare, connectors: [{ id: 'c1' } as unknown as GeomConnector] })).toBe(true);
     expect(await shows(bare)).toBe(false);
   });
 
