@@ -155,3 +155,104 @@ def test_schema_file_types_the_new_collections():
     assert set(defs["object"]["required"]) >= {"id", "item_id", "level_id", "position", "rotation_deg", "size", "z_m", "params", "confidence", "source"}
     assert defs["size"]["properties"]["w_m"] == {"type": "number", "minimum": 0.05, "maximum": 100}
     assert defs["circuit"]["properties"]["switch_entity_id"]["pattern"] == pg.SWITCH_RE.pattern
+
+
+# ---------------------------------------------------------------- fix round 1: malformed input, id length, derived-connector identity
+
+
+def test_normalize_tolerates_malformed_nested_values():
+    d = _doc()
+    d["objects"] = [OBJ("o1", item_id=["not", "a", "string"])]
+    d["circuits"] = [{"id": "k1", "name": "x", "switch_entity_id": "switch.a", "member_ids": ["o1", ["bad"], 5, None], "color_token": "circuit-1", "power_w": 0}]
+    items = cat.builtin()["items"]
+    n = pg.normalize(d, items)  # must not raise: TypeError (unhashable list) was the bug
+    assert n["circuits"][0]["power_w"] == 0, "no member resolves to a real object with a usable power_w"
+    assert isinstance(pg.validate(n), list), "validate() itself must not raise on the still-malformed item_id"
+
+
+def test_apply_anchor_positions_tolerates_malformed_anchor_values():
+    d = _doc()
+    d["objects"] = [OBJ("o1", item="light.ceiling", anchor_ref={"resource_type": "ha_entity", "resource_id": "a.not_a_mapping"}, rotation_deg=5),
+                    OBJ("o2", item="light.ceiling", anchor_ref={"resource_type": "ha_entity", "resource_id": "a.str_rotation"}, rotation_deg=10),
+                    OBJ("o3", item="light.ceiling", anchor_ref={"resource_type": "ha_entity", "resource_id": "a.nan_rotation"}, rotation_deg=20)]
+    anchors = {"ha_entity:a.not_a_mapping": ["not", "a", "mapping"], "ha_entity:a.str_rotation": {"x": 0.3, "y": 0.4, "rotation": "north"},
+               "ha_entity:a.nan_rotation": {"x": 0.5, "y": 0.6, "rotation": float("nan")}}
+    moved = pg.apply_anchor_positions(d, anchors)  # must not raise: AttributeError (list has no .get) / ValueError (float("north")) were the bugs
+    assert moved["objects"][0]["position"] == [0.2, 0.2] and moved["objects"][0]["rotation_deg"] == 5, "a non-mapping anchor value is ignored entirely"
+    assert moved["objects"][1]["position"] == [0.3, 0.4] and moved["objects"][1]["rotation_deg"] == 10, "a non-numeric rotation keeps the old value"
+    assert moved["objects"][2]["position"] == [0.5, 0.6] and moved["objects"][2]["rotation_deg"] == 20, "a NaN rotation keeps the old value, never written"
+    assert isinstance(pg.validate(moved), list)
+
+
+def test_derived_connector_id_length_limit():
+    ok_id = "o" * pg.MAX_DERIVED_OBJECT_ID_LEN  # cx- + this fits exactly in 64
+    long_id = "o" * (pg.MAX_DERIVED_OBJECT_ID_LEN + 1)  # one over: cx-<long_id> would be 65 characters
+    d = _doc()
+    d["objects"] = [OBJ(ok_id, item="tribune.stepped", pos=(0.25, 0.6), rotation_deg=180, size={"w_m": 4, "d_m": 3, "h_m": 1.2},
+                        params={"rows": 4, "step_height_m": 0.3, "step_width_m": 1.0, "connects_levels": "L1"}),
+                    OBJ(long_id, item="tribune.stepped", pos=(0.25, 0.6), rotation_deg=180, size={"w_m": 4, "d_m": 3, "h_m": 1.2},
+                        params={"rows": 4, "step_height_m": 0.3, "step_width_m": 1.0, "connects_levels": "L1"})]
+    items = cat.builtin()["items"]
+    n = pg.normalize(d, items)
+    assert [c["id"] for c in n["connectors"]] == ["cx-" + ok_id], "the long id cannot fit cx-<id> within 64 characters, so nothing is derived for it"
+    codes = _codes(d)
+    assert ("id_too_long_for_connector", long_id) in codes and not any(c[0] == "id_too_long_for_connector" and c[1] == ok_id for c in codes)
+    assert not any(i["structural"] for i in pg.validate(d)), "still just geometric: a 64-char id is a valid save, only the derived connector is unavailable"
+
+
+def test_manual_connector_with_object_id_is_not_dropped_as_derived():
+    d = _doc()
+    d["objects"] = [OBJ("o1")]
+    d["connectors"] = [CONN("c1", source="manual", object_id="o1"), CONN("cx-fake", source="manual")]
+    items = cat.builtin()["items"]
+    n = pg.normalize(d, items)
+    assert {c["id"] for c in n["connectors"]} == {"c1", "cx-fake"}, "only source=auto with a cx- id is treated as normalize's own output"
+
+
+def test_unknown_connects_levels_target_reports_on_the_object_not_the_connector():
+    d = _doc()
+    d["objects"] = [OBJ("t1", item="tribune.stepped", pos=(0.25, 0.6), rotation_deg=180, size={"w_m": 4, "d_m": 3, "h_m": 1.2},
+                        params={"rows": 4, "step_height_m": 0.3, "step_width_m": 1.0, "connects_levels": "L9"})]
+    items = cat.builtin()["items"]
+    n = pg.normalize(d, items)
+    assert [c["id"] for c in n["connectors"]] == ["cx-t1"], "normalize does not know which levels are real; it still derives"
+    codes = {(i["code"], i["id"]) for i in pg.validate(n, items) if not i["structural"]}
+    assert ("unknown_level", "t1") in codes and not any(c[1] == "cx-t1" for c in codes), "the object is where the user fixes it, not the derived connector"
+
+
+def test_normalize_requires_integer_dimensions_like_validate():
+    d = _doc()
+    d["dimensions"]["width_px"] = 1000.0  # a float is not a usable pixel count, exactly like validate()'s own dimensions rule
+    d["objects"] = [OBJ("t1", item="tribune.stepped", pos=(0.25, 0.6), rotation_deg=180, size={"w_m": 4, "d_m": 3, "h_m": 1.2},
+                        params={"rows": 4, "step_height_m": 0.3, "step_width_m": 1.0, "connects_levels": "L1"})]
+    items = cat.builtin()["items"]
+    assert pg.normalize(d, items)["connectors"] == [], "float dimensions never derive a connector"
+
+
+def test_derived_connector_disappears_when_its_object_is_deleted():
+    d = _doc()
+    d["objects"] = [OBJ("t1", item="tribune.stepped", pos=(0.25, 0.6), rotation_deg=180, size={"w_m": 4, "d_m": 3, "h_m": 1.2},
+                        params={"rows": 4, "step_height_m": 0.3, "step_width_m": 1.0, "connects_levels": "L1"})]
+    items = cat.builtin()["items"]
+    n = pg.normalize(d, items)
+    assert [c["id"] for c in n["connectors"]] == ["cx-t1"]
+    gone = copy.deepcopy(n)
+    gone["objects"] = []
+    assert pg.normalize(gone, items)["connectors"] == [], "the object is gone; its derived connector goes with it"
+
+
+def test_object_and_connector_size_upper_bound():
+    d = _doc()
+    d["objects"] = [OBJ("o1", size={"w_m": 100, "d_m": 100, "h_m": 100}), OBJ("o2", size={"w_m": 100.01, "d_m": 1, "h_m": 1})]
+    d["connectors"] = [CONN("c1", width_m=100), CONN("c2", width_m=100.01)]
+    codes = _codes(d)
+    assert not any(c[1] == "o1" for c in codes) and ("size", "o2") in codes
+    assert not any(c[1] == "c1" for c in codes) and ("size", "c2") in codes
+
+
+def test_connects_levels_equal_to_own_level_derives_nothing():
+    d = _doc()
+    d["objects"] = [OBJ("t1", item="tribune.stepped", pos=(0.25, 0.6), rotation_deg=180, size={"w_m": 4, "d_m": 3, "h_m": 1.2},
+                        params={"rows": 4, "step_height_m": 0.3, "step_width_m": 1.0, "connects_levels": "L0"})]
+    items = cat.builtin()["items"]
+    assert pg.normalize(d, items)["connectors"] == [], "a level cannot connect to itself"

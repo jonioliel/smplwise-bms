@@ -34,6 +34,7 @@ CONNECTOR_KINDS = ("stairs", "ramp", "tribune", "elevator", "ladder")
 GROUP_KINDS = ("array", "manual")
 SWITCH_RE = re.compile(r"^(switch|light)\.[a-z0-9_]+$")
 DERIVED_PREFIX = "cx-"  # the connector derived from an object that connects levels: cx-<object id>
+MAX_DERIVED_OBJECT_ID_LEN = 64 - len(DERIVED_PREFIX)  # an object id longer than this cannot fit cx-<id> within the 64-char id limit
 COLLECTIONS = ("levels", "walls", "openings", "rooms", "objects", "circuits", "connectors", "labels", "groups", "uncertain_regions")
 LIMITS = {"levels": 20, "walls": 2000, "openings": 4000, "rooms": 500, "objects": 5000, "circuits": 500, "connectors": 200, "labels": 1000,
           "groups": 500, "uncertain_regions": 200}
@@ -64,6 +65,13 @@ def _finite_point(p: Any) -> bool:
     """Like _pt but without the 0..1 bound: for structural checks where the type must be right before a geometric
     check may look at whether the value is also in range."""
     return isinstance(p, (list, tuple)) and len(p) == 2 and _num(p[0]) and _num(p[1])
+
+
+def _is_derived_connector(c: Any) -> bool:
+    """A connector normalize() itself produced (and will regenerate every time): source "auto" and an id of the
+    cx-<object id> shape - not any connector that merely carries an object_id (a manual connector may reference an
+    object too) and not any connector that merely starts with cx- (a manual id could coincidentally do that)."""
+    return isinstance(c, dict) and c.get("source") == "auto" and isinstance(c.get("id"), str) and c["id"].startswith(DERIVED_PREFIX)
 
 
 def _issue(issues: list[dict[str, Any]], code: str, message: str, *, item: str | None = None, path: str = "", severity: str = "error", structural: bool = False) -> None:
@@ -538,6 +546,14 @@ def _check_objects(objects: list[dict[str, Any]], levels: set[str], groups: set[
             _issue(issues, "enum", "מקור (source) לא מוכר.", item=oid, path="objects")
         if not _unit(o["confidence"]):
             _issue(issues, "confidence", "confidence בין 0 ל־1.", item=oid, path="objects")
+        params = o.get("params") if isinstance(o.get("params"), dict) else {}
+        target = params.get("connects_levels")
+        if isinstance(target, str) and target and target != o["level_id"]:
+            if target not in levels:
+                _issue(issues, "unknown_level", "connects_levels מצביע למפלס שלא קיים.", item=oid, path="objects")
+            if len(oid) > MAX_DERIVED_OBJECT_ID_LEN:
+                _issue(issues, "id_too_long_for_connector",
+                       f"מזהה העצם ({len(oid)} תווים) ארוך מדי לגזירת מחבר; המקסימום הוא {MAX_DERIVED_OBJECT_ID_LEN} תווים.", item=oid, path="objects")
         ok[oid] = o
     return ok
 
@@ -558,14 +574,18 @@ def _check_groups(groups: list[dict[str, Any]], objects: dict[str, dict[str, Any
 
 
 def _check_connectors(connectors: list[dict[str, Any]], levels: set[str], objects: dict[str, dict[str, Any]], issues: list[dict[str, Any]]) -> None:
-    """A connector joins two different levels of this floor, or this floor with another (level_to empty, floor_ids set)."""
+    """A connector joins two different levels of this floor, or this floor with another (level_to empty, floor_ids set).
+    A derived connector's level_to is not re-checked here: it is the object's connects_levels, and an unknown target
+    is reported on the object the user actually edited (_check_objects' own unknown_level), not on cx-<id>."""
     for c in connectors:
         cid = c["id"]
+        derived = _is_derived_connector(c)
         if c["kind"] not in CONNECTOR_KINDS or c["source"] not in SOURCES:
             _issue(issues, "enum", "סוג מחבר או מקור לא מוכרים.", item=cid, path="connectors")
-        if c["level_from"] not in levels or (c.get("level_to") is not None and c["level_to"] not in levels):
+        level_to = c.get("level_to")
+        if c["level_from"] not in levels or (level_to is not None and level_to not in levels and not derived):
             _issue(issues, "unknown_level", "המחבר מפנה למפלס שלא קיים.", item=cid, path="connectors")
-        elif c.get("level_to") == c["level_from"] or (c.get("level_to") is None and not c["floor_ids"]):
+        elif level_to == c["level_from"] or (level_to is None and not c["floor_ids"]):
             _issue(issues, "connector_levels", "מחבר חייב לחבר שני מפלסים שונים, או קומה אחרת.", item=cid, path="connectors")
         if len(c["polyline"]) < 2 or not all(_pt(p) for p in c["polyline"]):
             _issue(issues, "bounds", "למחבר צריך לפחות שתי נקודות בתוך התוכנית.", item=cid, path="connectors")
@@ -826,13 +846,22 @@ def normalize(doc: Mapping[str, Any], items: Mapping[str, Mapping[str, Any]]) ->
     """What the server recomputes on every draft save and publish, from the document alone: each circuit's power
     (the members' params.power_w, else their item's default) and one derived connector per object that connects
     levels (a tribune, stairs, a ramp...: params.connects_levels names the other level). Derived connectors carry the
-    object id and are regenerated every time, so the result is idempotent; manual connectors are kept. Malformed
-    data passes through untouched (it already failed validation)."""
+    object id and are regenerated every time, so the result is idempotent; manual connectors (by source, not merely
+    by carrying an object_id or a cx- id) are kept. An object id too long to fit cx-<id> in 64 characters derives
+    nothing (_check_objects flags it, id_too_long_for_connector); dimensions must be usable pixels (integers in
+    1..100000, exactly what validate() requires) or nothing is derived. Malformed nested values (a list where a
+    string id is expected, a non-numeric power_w) are skipped rather than raised: this runs on drafts that may not
+    yet validate."""
     out = copy.deepcopy(dict(doc))
     objects = out.get("objects")
     if not isinstance(objects, list):
         return out
     by_id = {o["id"]: o for o in objects if isinstance(o, dict) and isinstance(o.get("id"), str)}
+
+    def _item_for(o: Mapping[str, Any]) -> Mapping[str, Any] | None:
+        iid = o.get("item_id")
+        return items.get(iid) if isinstance(iid, str) else None
+
     circuits = out.get("circuits")
     if isinstance(circuits, list):
         for c in circuits:
@@ -840,13 +869,15 @@ def normalize(doc: Mapping[str, Any], items: Mapping[str, Mapping[str, Any]]) ->
                 continue
             total = 0.0
             for mid in c["member_ids"]:
+                if not isinstance(mid, str):
+                    continue
                 o = by_id.get(mid)
                 if o is None:
                     continue
                 params = o.get("params") if isinstance(o.get("params"), dict) else {}
                 w = params.get("power_w")
                 if not _num(w):
-                    item = items.get(o.get("item_id"))
+                    item = _item_for(o)
                     w = (item.get("params") or {}).get("power_w") if item else None
                 if _num(w):
                     total += float(w)
@@ -854,7 +885,9 @@ def normalize(doc: Mapping[str, Any], items: Mapping[str, Mapping[str, Any]]) ->
     dims = out.get("dimensions") if isinstance(out.get("dimensions"), dict) else {}
     width, height = dims.get("width_px"), dims.get("height_px")
     derived: dict[str, dict[str, Any]] = {}
-    if _num(width) and width > 0 and _num(height) and height > 0:
+    usable_dims = (isinstance(width, int) and not isinstance(width, bool) and 1 <= width <= 100000
+                   and isinstance(height, int) and not isinstance(height, bool) and 1 <= height <= 100000)
+    if usable_dims:
         scale, _ = effective_scale(out)
         for o in objects:
             if not isinstance(o, dict) or not isinstance(o.get("id"), str):
@@ -863,14 +896,14 @@ def normalize(doc: Mapping[str, Any], items: Mapping[str, Mapping[str, Any]]) ->
             target = params.get("connects_levels")
             size = o.get("size")
             if not (isinstance(target, str) and target and target != o.get("level_id") and _finite_point(o.get("position")) and isinstance(size, dict)
-                    and _num(size.get("d_m")) and _num(size.get("w_m")) and _num(o.get("rotation_deg", 0))):
+                    and _num(size.get("d_m")) and _num(size.get("w_m")) and _num(o.get("rotation_deg", 0)) and len(o["id"]) <= MAX_DERIVED_OBJECT_ID_LEN):
                 continue
             cid = DERIVED_PREFIX + o["id"]
-            derived[cid] = {"id": cid, "kind": _derived_kind(items.get(o.get("item_id")), o.get("item_id")), "level_from": o.get("level_id"), "level_to": target, "floor_ids": [],
+            derived[cid] = {"id": cid, "kind": _derived_kind(_item_for(o), o.get("item_id")), "level_from": o.get("level_id"), "level_to": target, "floor_ids": [],
                             "polyline": object_axis(o, width, height, scale), "width_m": float(size["w_m"]), "label": None, "object_id": o["id"], "source": "auto", "external_ids": {}}
     connectors = out.get("connectors")
     if isinstance(connectors, list):
-        kept = [c for c in connectors if not (isinstance(c, dict) and isinstance(c.get("object_id"), str))]
+        kept = [c for c in connectors if not _is_derived_connector(c)]
         out["connectors"] = kept + [derived[k] for k in sorted(derived)]
     return out
 
@@ -879,7 +912,9 @@ def apply_anchor_positions(doc: Mapping[str, Any], anchors: Mapping[str, Mapping
     """The body follows its anchor: an object whose anchor_ref names an anchor in `anchors` ("<type>:<id>" -> {x, y,
     rotation}) takes the anchor's position and rotation. The store runs it on every save and publish; the maps run
     it with the live positions they hold. An object whose anchor is missing keeps what it has (deleting an anchor
-    un-binds its body through the anchor route)."""
+    un-binds its body through the anchor route). A malformed anchor value (not a mapping, x/y not both finite
+    numbers) is ignored the same way; a malformed rotation (not a number, or NaN) leaves rotation_deg as it was -
+    missing rotation still defaults to 0, same as before."""
     out = copy.deepcopy(dict(doc))
     objects = out.get("objects")
     if not isinstance(objects, list):
@@ -889,8 +924,12 @@ def apply_anchor_positions(doc: Mapping[str, Any], anchors: Mapping[str, Mapping
         if not isinstance(ref, dict):
             continue
         a = anchors.get(f"{ref.get('resource_type')}:{ref.get('resource_id')}")
-        if a is None or not (_num(a.get("x")) and _num(a.get("y"))):
+        if not isinstance(a, Mapping) or not (_num(a.get("x")) and _num(a.get("y"))):
             continue
         o["position"] = [round(float(a["x"]), 6), round(float(a["y"]), 6)]
-        o["rotation_deg"] = round(float(a.get("rotation") or 0), 3)
+        rot = a.get("rotation")
+        if rot is None:
+            o["rotation_deg"] = 0
+        elif _num(rot):
+            o["rotation_deg"] = round(float(rot), 3)
     return out
