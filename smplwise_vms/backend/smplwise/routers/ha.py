@@ -39,11 +39,24 @@ def _visible_floors(conn: sqlite3.Connection, principal: Principal, permission: 
 
 
 def _placements(conn: sqlite3.Connection) -> dict[str, list[dict[str, str]]]:
+    """Where an entity is on the maps: its anchors, and the floors whose published structure has a circuit switched by
+    it (T085) - a floor viewer reads such a switch, a floor operator controls it, the push socket forwards it."""
     out: dict[str, list[dict[str, str]]] = {}
     for r in conn.execute(
         "SELECT a.resource_id, a.floor_id, f.name AS floor_name FROM map_anchors a JOIN floors f ON f.id = a.floor_id WHERE a.resource_type = 'ha_entity' AND a.effective_to IS NULL"
     ).fetchall():
         out.setdefault(r["resource_id"], []).append({"floor_id": r["floor_id"], "floor_name": r["floor_name"]})
+    from ..services import geometry_store
+
+    switches = geometry_store.circuit_switches(conn)
+    if switches:
+        names = {r["id"]: r["name"] for r in conn.execute("SELECT id, name FROM floors WHERE deleted_at IS NULL").fetchall()}
+        for eid, floors in switches.items():
+            have = {p["floor_id"] for p in out.get(eid, [])}
+            for fid in floors:
+                if fid in names and fid not in have:
+                    out.setdefault(eid, []).append({"floor_id": fid, "floor_name": names[fid]})
+                    have.add(fid)
     return out
 
 
@@ -250,6 +263,54 @@ def get_action(action_id: str, request: Request, principal: Principal = Depends(
             conn.execute("UPDATE ha_actions SET status = 'unknown', observed_state = ? WHERE id = ?", (e["state"] if e else None, action_id))
         a = _action_row(conn, action_id)
     return a
+
+
+# ---------------------------------------------------------------- developer identity mode only
+
+dev_router = APIRouter()  # included only when settings.dev_user and not settings.in_addon (main.py): truly absent
+                          # in the add-on, a structural 404 before any auth or body validation runs (review R1, Minor 3)
+
+
+class DevAttributesIn(BaseModel):
+    """Home Assistant attributes are an open bag by nature (icon, unit, device-specific keys); only the one field
+    the sync helpers coerce with int() is typed, so a bad value 422s here instead of 500ing in ha_sync (Minor 2)."""
+    model_config = ConfigDict(extra="allow")
+    supported_features: int | None = None
+
+
+class DevStateIn(BaseModel):
+    entity_id: str = Field(pattern=r"^[a-z_]+\.[a-z0-9_]+$", max_length=255)
+    state: str = Field(max_length=255)
+    attributes: DevAttributesIn = Field(default_factory=DevAttributesIn)
+
+
+class DevStatesIn(BaseModel):
+    states: list[DevStateIn] = Field(min_length=1, max_length=50)
+
+
+def _dev_only(settings: Settings) -> None:
+    """Defense in depth: the route itself is registered only where SW_DEV_USER runs the backend outside the add-on
+    (main.py); this is a second, in-handler check of the same condition, inside Home Assistant it is a 404."""
+    if settings.in_addon or not settings.dev_user:
+        raise ApiError(404, "not_found", "לא נמצא.")
+
+
+@dev_router.post("/ha/dev/states")
+def dev_states(body: DevStatesIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Inject entity states as if Home Assistant sent them (the same upsert and the same push the sync uses), for live
+    specs and manual checks without a Home Assistant. Developer identity mode only; system.configure; audited."""
+    _dev_only(settings_of(request))
+    require(conn, principal, "system.configure", INSTALLATION)
+    now = now_iso()
+    rows = []
+    for st in body.states:
+        row = ha_sync.upsert_state(conn, {"entity_id": st.entity_id, "state": st.state, "attributes": st.attributes.model_dump(), "last_changed": now, "last_updated": now})
+        ha_sync.STATE.sequence += 1
+        ha_sync.publish({"type": "entity_state_changed", "sequence": ha_sync.STATE.sequence, "entity": row})
+        rows.append(row)
+    audit(conn, actor=principal, action="ha.dev.states", decision="allowed", resource_type="installation", resource_id="*", request_id=getattr(request.state, "correlation_id", None),
+          details={"entities": [r["entity_id"] for r in rows]})
+    return {"entities": rows}
 
 
 # ---------------------------------------------------------------- bridge pairing + directory (integration side)

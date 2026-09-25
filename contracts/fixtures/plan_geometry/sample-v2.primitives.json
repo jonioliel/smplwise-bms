@@ -384,6 +384,279 @@
    "y": 600.0,
    "text": "אולם",
    "size": 16.0
+  },
+  {
+   "kind": "connector",
+   "id": "c1",
+   "ckind": "stairs",
+   "points": [
+    [
+     700.0,
+     560.0
+    ],
+    [
+     800.0,
+     560.0
+    ]
+   ],
+   "width": 120.0,
+   "arrow": {
+    "from": [
+     786.0,
+     560.0
+    ],
+    "to": [
+     800.0,
+     560.0
+    ]
+   },
+   "label": "↓ −1.2 מ׳",
+   "lx": 750.0,
+   "ly": 560.0,
+   "level_from": "L0",
+   "level_to": "L1"
+  },
+  {
+   "kind": "connector",
+   "id": "cx-o4",
+   "ckind": "tribune",
+   "points": [
+    [
+     250.0,
+     330.0
+    ],
+    [
+     250.0,
+     630.0
+    ]
+   ],
+   "width": 400.0,
+   "arrow": {
+    "from": [
+     250.0,
+     616.0
+    ],
+    "to": [
+     250.0,
+     630.0
+    ]
+   },
+   "label": "↓ −1.2 מ׳",
+   "lx": 250.0,
+   "ly": 480.0,
+   "level_from": "L0",
+   "level_to": "L1"
+  },
+  {
+   "kind": "object",
+   "id": "o1",
+   "item_id": "chair.basic",
+   "shape": "box",
+   "icon": "chair",
+   "color": "furniture",
+   "level_id": "L0",
+   "cx": 200.0,
+   "cy": 160.0,
+   "w": 45.0,
+   "h": 45.0,
+   "rotation": 0.0,
+   "corners": [
+    [
+     177.5,
+     137.5
+    ],
+    [
+     222.5,
+     137.5
+    ],
+    [
+     222.5,
+     182.5
+    ],
+    [
+     177.5,
+     182.5
+    ]
+   ],
+   "label": null,
+   "circuit_id": null,
+   "anchor": null,
+   "steps": []
+  },
+  {
+   "kind": "object",
+   "id": "o2",
+   "item_id": "table.desk",
+   "shape": "box",
+   "icon": "table",
+   "color": "furniture",
+   "level_id": "L0",
+   "cx": 300.0,
+   "cy": 320.0,
+   "w": 140.0,
+   "h": 70.0,
+   "rotation": 90.0,
+   "corners": [
+    [
+     335.0,
+     250.0
+    ],
+    [
+     335.0,
+     390.0
+    ],
+    [
+     265.0,
+     390.0
+    ],
+    [
+     265.0,
+     250.0
+    ]
+   ],
+   "label": "שולחן",
+   "circuit_id": null,
+   "anchor": null,
+   "steps": []
+  },
+  {
+   "kind": "object",
+   "id": "o3",
+   "item_id": "light.ceiling",
+   "shape": "cylinder",
+   "icon": "lamp",
+   "color": "light",
+   "level_id": "L0",
+   "cx": 500.0,
+   "cy": 240.0,
+   "w": 40.0,
+   "h": 40.0,
+   "rotation": 0.0,
+   "corners": [
+    [
+     480.0,
+     220.0
+    ],
+    [
+     520.0,
+     220.0
+    ],
+    [
+     520.0,
+     260.0
+    ],
+    [
+     480.0,
+     260.0
+    ]
+   ],
+   "label": null,
+   "circuit_id": "k1",
+   "anchor": "ha_entity:light.store",
+   "steps": []
+  },
+  {
+   "kind": "object",
+   "id": "o4",
+   "item_id": "tribune.stepped",
+   "shape": "stepped",
+   "icon": "stairs",
+   "color": "circulation",
+   "level_id": "L0",
+   "cx": 250.0,
+   "cy": 480.0,
+   "w": 400.0,
+   "h": 300.0,
+   "rotation": 180.0,
+   "corners": [
+    [
+     450.0,
+     630.0
+    ],
+    [
+     50.0,
+     630.0
+    ],
+    [
+     50.0,
+     330.0
+    ],
+    [
+     450.0,
+     330.0
+    ]
+   ],
+   "label": null,
+   "circuit_id": null,
+   "anchor": null,
+   "steps": [
+    [
+     [
+      450.0,
+      555.0
+     ],
+     [
+      50.0,
+      555.0
+     ]
+    ],
+    [
+     [
+      450.0,
+      480.0
+     ],
+     [
+      50.0,
+      480.0
+     ]
+    ],
+    [
+     [
+      450.0,
+      405.0
+     ],
+     [
+      50.0,
+      405.0
+     ]
+    ]
+   ]
+  },
+  {
+   "kind": "object",
+   "id": "o5",
+   "item_id": "extinguisher.co2",
+   "shape": "cylinder",
+   "icon": "extinguisher",
+   "color": "safety",
+   "level_id": "L1",
+   "cx": 150.0,
+   "cy": 640.0,
+   "w": 20.0,
+   "h": 20.0,
+   "rotation": 0.0,
+   "corners": [
+    [
+     140.0,
+     630.0
+    ],
+    [
+     160.0,
+     630.0
+    ],
+    [
+     160.0,
+     650.0
+    ],
+    [
+     140.0,
+     650.0
+    ]
+   ],
+   "label": "מטף",
+   "circuit_id": null,
+   "anchor": null,
+   "steps": []
   }
  ],
  "level_L1": [
@@ -453,6 +726,104 @@
    "y": 600.0,
    "text": "אולם",
    "size": 16.0
+  },
+  {
+   "kind": "connector",
+   "id": "c1",
+   "ckind": "stairs",
+   "points": [
+    [
+     700.0,
+     560.0
+    ],
+    [
+     800.0,
+     560.0
+    ]
+   ],
+   "width": 120.0,
+   "arrow": {
+    "from": [
+     786.0,
+     560.0
+    ],
+    "to": [
+     800.0,
+     560.0
+    ]
+   },
+   "label": "↓ −1.2 מ׳",
+   "lx": 750.0,
+   "ly": 560.0,
+   "level_from": "L0",
+   "level_to": "L1"
+  },
+  {
+   "kind": "connector",
+   "id": "cx-o4",
+   "ckind": "tribune",
+   "points": [
+    [
+     250.0,
+     330.0
+    ],
+    [
+     250.0,
+     630.0
+    ]
+   ],
+   "width": 400.0,
+   "arrow": {
+    "from": [
+     250.0,
+     616.0
+    ],
+    "to": [
+     250.0,
+     630.0
+    ]
+   },
+   "label": "↓ −1.2 מ׳",
+   "lx": 250.0,
+   "ly": 480.0,
+   "level_from": "L0",
+   "level_to": "L1"
+  },
+  {
+   "kind": "object",
+   "id": "o5",
+   "item_id": "extinguisher.co2",
+   "shape": "cylinder",
+   "icon": "extinguisher",
+   "color": "safety",
+   "level_id": "L1",
+   "cx": 150.0,
+   "cy": 640.0,
+   "w": 20.0,
+   "h": 20.0,
+   "rotation": 0.0,
+   "corners": [
+    [
+     140.0,
+     630.0
+    ],
+    [
+     160.0,
+     630.0
+    ],
+    [
+     160.0,
+     650.0
+    ],
+    [
+     140.0,
+     650.0
+    ]
+   ],
+   "label": "מטף",
+   "circuit_id": null,
+   "anchor": null,
+   "steps": []
   }
  ]
 }

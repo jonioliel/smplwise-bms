@@ -4,7 +4,7 @@
  * controller.
  */
 import { get, patch, post, put, resourceUrl } from './client';
-import type { GeometryDoc, Pt } from '../map/geometry';
+import type { GeomConnector, GeometryDoc, Pt } from '../map/geometry';
 import type { MapBundle } from './maps';
 import type { PlanVersion } from './types';
 
@@ -56,6 +56,10 @@ export interface GeometryCounts {
   openings: number;
   labels: number;
   objects: number;
+  connectors: number;
+  circuits: number;
+  levels: number;
+  groups: number;
 }
 /** GET /plan-versions/{id}/geometry/diff: the draft against the published structure, the draft's issues and the counts
  * before and after (published_counts is null before the first publish). */
@@ -145,6 +149,13 @@ export const copyGeometryFrom = (versionId: string, fromVersionId: string) =>
   post<GeometryResponse>(`plan-versions/${versionId}/geometry/copy-from`, { from_version_id: fromVersionId });
 export const calibrate = (versionId: string, pairs: { a: Pt; b: Pt; metres: number }[]) =>
   patch<CalibrationResult>(`plan-versions/${versionId}/calibration`, { pairs });
-export function exportUrl(versionId: string, fmt: 'svg' | 'png', opts: { draft?: boolean } = {}): string {
-  return resourceUrl(`api/v1/plan-versions/${versionId}/export.${fmt}${opts.draft ? '?draft=true' : ''}`);
+export function exportUrl(versionId: string, fmt: 'svg' | 'png', opts: { draft?: boolean; layers?: string[] } = {}): string {
+  const q = new URLSearchParams();
+  if (opts.draft) q.set('draft', 'true');
+  if (opts.layers?.length) q.set('layers', opts.layers.join(','));
+  const qs = q.toString();
+  return resourceUrl(`api/v1/plan-versions/${versionId}/export.${fmt}${qs ? `?${qs}` : ''}`);
 }
+/** Stairs / an elevator to another floor: the same connector id lands on the other floor's draft (T085). */
+export const linkConnector = (versionId: string, connectorId: string, floorId: string) =>
+  post<{ connector: GeomConnector; target: { floor_id: string; version_id: string; revision: number } }>(`plan-versions/${versionId}/geometry/link`, { connector_id: connectorId, floor_id: floorId });

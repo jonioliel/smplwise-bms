@@ -218,10 +218,10 @@ def test_deep_nesting_is_refused_not_a_crash():
 
 def test_nan_in_an_untyped_field_is_structural():
     d = _doc()
-    d["objects"] = [{"id": "ob1", "v": float("nan")}]
+    d["uncertain_regions"] = [{"id": "ob1", "v": float("nan")}]
     issues = pg.validate(d)
     assert len(issues) == 1
-    assert issues[0]["structural"] is True and issues[0]["code"] == "type" and issues[0]["path"] == "objects[0].v"
+    assert issues[0]["structural"] is True and issues[0]["code"] == "type" and issues[0]["path"] == "uncertain_regions[0].v"
     d = _doc()
     d["walls"][0]["thickness_m"] = float("nan")
     issues = pg.validate(d)
@@ -251,10 +251,10 @@ def test_dimension_bounds_edges():
 
 def test_the_walk_reports_the_first_problem():
     d = _doc()
-    d["objects"] = [{"id": "ob1", "v": float("nan")}, {"id": "ob2", "w": float("nan")}]
+    d["uncertain_regions"] = [{"id": "ob1", "v": float("nan")}, {"id": "ob2", "w": float("nan")}]
     issues = pg.validate(d)
     assert len(issues) == 1
-    assert issues[0]["path"] == "objects[0].v"
+    assert issues[0]["path"] == "uncertain_regions[0].v"
 
 
 def test_diff_names_added_removed_and_changed_items():
@@ -391,7 +391,7 @@ def test_prune_unfit_passes_malformed_values_through():
 
 
 def test_counts():
-    assert pg.counts(_doc()) == {"walls": 2, "openings": 1, "labels": 1, "objects": 0}
+    assert pg.counts(_doc()) == {"walls": 2, "openings": 1, "labels": 1, "objects": 0, "connectors": 0, "circuits": 0, "levels": 1, "groups": 0}
 
 
 def test_diff_and_transform_crop_tolerate_malformed_data():

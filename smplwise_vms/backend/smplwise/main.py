@@ -17,7 +17,7 @@ from . import __version__
 from .config import Settings, load_settings
 from .db import Database
 from .errors import ApiError, validation_payload
-from .routers import access, anchors, backup, cameras, cases, catalog, events, exports, frames, ha, health, me, media, plan_geometry, plans, playback, playback_groups, recordings, rules, search, settings as settings_router, storage, views, zones, nvr_write
+from .routers import access, anchors, backup, cameras, cases, catalog, events, exports, frames, ha, health, me, media, plan_catalog, plan_geometry, plans, playback, playback_groups, recordings, rules, search, settings as settings_router, storage, views, zones, nvr_write
 
 log = logging.getLogger("smplwise")
 
@@ -109,6 +109,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(catalog.router, prefix=api, tags=["catalog"])
     app.include_router(plans.router, prefix=api, tags=["plans"])
     app.include_router(plan_geometry.router, prefix=api, tags=["plans"])
+    app.include_router(plan_catalog.router, prefix=api, tags=["catalog"])
     app.include_router(anchors.router, prefix=api, tags=["anchors"])
     app.include_router(cameras.router, prefix=api, tags=["cameras"])
     app.include_router(settings_router.router, prefix=api, tags=["settings"])
@@ -119,6 +120,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(exports.router, prefix=api, tags=["exports"])
     app.include_router(events.router, prefix=api, tags=["events"])
     app.include_router(ha.router, prefix=api, tags=["home-assistant"])
+    if settings.dev_user and not settings.in_addon:
+        # developer identity mode only: truly absent otherwise, not merely a 404 raised from inside the handler
+        app.include_router(ha.dev_router, prefix=api, tags=["home-assistant"])
     app.include_router(access.router, prefix=api, tags=["access"])
     app.include_router(zones.router, prefix=api, tags=["zones"])
     app.include_router(search.router, prefix=api, tags=["search"])

@@ -49,6 +49,8 @@ class ZonePatch(BaseModel):
     polygon: list[Point] | None = Field(default=None, min_length=3, max_length=200)
     color: str | None = Field(default=None, pattern="^#[0-9a-fA-F]{6}$")
     searchable: bool | None = None
+    level_id: str | None = Field(default=None, max_length=64)  # free text: not checked against the document's levels
+    ceiling_height_m: float | None = Field(default=None, ge=0, le=50)
     label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
     label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
     label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
@@ -82,6 +84,8 @@ def zone_row(r: sqlite3.Row) -> dict[str, Any]:
         "label_pos": r["label_pos"] or "auto",
         "source": r["source"],
         "searchable": bool(r["searchable"]),
+        "level_id": r["level_id"] if "level_id" in r.keys() else None,
+        "ceiling_height_m": r["ceiling_height_m"] if "ceiling_height_m" in r.keys() else None,
         "revision": r["revision"],
         "created_at": r["created_at"],
         "updated_at": r["updated_at"],
@@ -148,6 +152,10 @@ def update_zone(zone_id: str, body: ZonePatch, request: Request, principal: Prin
         fields["color"] = body.color
     if body.searchable is not None:
         fields["searchable"] = 1 if body.searchable else 0
+    if body.level_id is not None:
+        fields["level_id"] = body.level_id or None  # "" = the floor's default level
+    if body.ceiling_height_m is not None:
+        fields["ceiling_height_m"] = body.ceiling_height_m or None  # 0 = the level's ceiling
     if body.label_pos is not None:
         fields["label_pos"] = body.label_pos
     if body.label_pos is not None:

@@ -5,12 +5,14 @@
  */
 import { css, html, nothing, type TemplateResult } from 'lit';
 import type { CopyCandidate, GeometryIssue } from '../api/geometry';
-import { effectiveScale, lengthPx, perimeterM, polygonAreaM2, type GeometryDoc, type GeomLabel, type GeomOpening, type GeomWall, type Hinge, type OpeningKind, type Pt, type Swing, type WallKind } from '../map/geometry';
+import { effectiveScale, lengthPx, perimeterM, polygonAreaM2, type GeometryDoc, type GeomLabel, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type Hinge, type OpeningKind, type Pt, type Swing, type WallKind } from '../map/geometry';
+import type { CatalogItem, CatalogLibrary, ParamSpec } from '../api/plan-catalog';
+import { searchItems } from '../api/plan-catalog';
 import type { SaveState } from '../map/studio-controller';
 import { cornerRemovable, kindDefaults, openingRange, type WallDefaults } from '../map/studio-ops';
 
 export type StudioMode = 'select' | 'wall' | 'door' | 'window' | 'passage' | 'label';
-export type GeomKind = 'wall' | 'opening' | 'label';
+export type GeomKind = 'wall' | 'opening' | 'label' | 'object' | 'connector' | 'group';
 export interface GeomSel {
   id: string;
   kind: GeomKind;
@@ -329,6 +331,126 @@ export function renderMeasurePanel(pts: Pt[], W: number, H: number, scale: numbe
   </sw-card>`;
 }
 
+// ---------------------------------------------------------------- the library and the object inspector (T085)
+
+export interface LibraryView {
+  lib: CatalogLibrary;
+  q: string;
+  /** null = every category; 'recent' and 'favorites' are the two special shelves. */
+  category: string | null;
+  recent: string[];
+  favorites: string[];
+  placing: CatalogItem | null;
+  saveState: SaveState;
+  phone: boolean;
+  exportHref: string;
+  canManage: boolean;
+}
+
+export interface LibraryActions {
+  setQuery(q: string): void;
+  setCategory(id: string | null): void;
+  pick(item: CatalogItem): void;
+  toggleFavorite(id: string): void;
+  importFile(file: File): void;
+  cancelPlacing(): void;
+}
+
+export function renderLibraryPanel(v: LibraryView, a: LibraryActions): TemplateResult {
+  const special = v.category === 'recent' || v.category === 'favorites';
+  const pool = v.category === 'recent' ? v.recent.map((id) => v.lib.items.find((i) => i.id === id)).filter((i): i is CatalogItem => !!i)
+    : v.category === 'favorites' ? v.lib.items.filter((i) => v.favorites.includes(i.id)) : v.lib.items;
+  const items = searchItems(pool, v.q, special ? null : v.category).slice(0, 60);
+  return html`<sw-card heading="ספריית עצמים" subheading=${v.placing ? `לחץ על התוכנית כדי להציב: ${v.placing.names.he} · Esc לביטול` : `${v.lib.items.length} פריטים · חיפוש בעברית ובאנגלית`} data-library-panel data-studio-save=${v.saveState}>
+    <sw-field><input type="search" data-lib-search placeholder="חיפוש: כיסא, מטף, bleachers…" .value=${v.q} @input=${(e: Event) => a.setQuery((e.target as HTMLInputElement).value)} /></sw-field>
+    <div class="modes" role="group" aria-label="קטגוריות">
+      <button class=${v.category === null ? 'on' : ''} data-lib-cat="all" @click=${() => a.setCategory(null)}>הכול</button>
+      <button class=${v.category === 'recent' ? 'on' : ''} data-lib-cat="recent" @click=${() => a.setCategory('recent')}>לאחרונה</button>
+      <button class=${v.category === 'favorites' ? 'on' : ''} data-lib-cat="favorites" @click=${() => a.setCategory('favorites')}>מועדפים</button>
+      ${v.lib.categories.map((c) => html`<button class=${v.category === c.id ? 'on' : ''} data-lib-cat=${c.id} @click=${() => a.setCategory(c.id)}>${c.he}</button>`)}
+    </div>
+    ${v.placing ? html`<div class="btns"><sw-button size="sm" variant="ghost" data-lib-cancel @click=${() => a.cancelPlacing()}>סיים הצבה</sw-button></div>` : nothing}
+    <div class="list libl">
+      ${items.length ? items.map((i) => html`<div class="libitem ${v.placing?.id === i.id ? 'on' : ''}" data-lib-item=${i.id} role="button" tabindex="0" draggable="true" title=${`${i.names.he} · ${i.size.w_m}×${i.size.d_m}×${i.size.h_m} מ׳`}
+          @dragstart=${(e: DragEvent) => e.dataTransfer?.setData('text/x-sw-item', i.id)} @click=${() => a.pick(i)} @keydown=${(e: KeyboardEvent) => (e.key === 'Enter' || e.key === ' ') && a.pick(i)}>
+          <span class="nm">${i.names.he}${i.custom ? html` <span class="muted">מותאם</span>` : nothing}</span>
+          <span class="muted ltr">${i.size.w_m}×${i.size.d_m} m</span>
+          <button class="fav ${v.favorites.includes(i.id) ? 'on' : ''}" data-lib-fav=${i.id} aria-label="מועדף" @click=${(e: Event) => { e.stopPropagation(); a.toggleFavorite(i.id); }}>★</button>
+        </div>`) : html`<div class="note">${v.category === 'recent' ? 'עדיין לא הוצבו פריטים בדפדפן הזה.' : v.category === 'favorites' ? 'סמן ★ ליד פריט כדי לשמור אותו כאן.' : 'לא נמצאו פריטים.'}</div>`}
+    </div>
+    ${v.phone ? html`<div class="note">בטלפון: הצבה והזזה של עצם בודד; מערכים וציור קירות בדסקטופ.</div>` : nothing}
+    ${v.canManage ? html`<div class="exports" role="group" aria-label="הספרייה המותאמת">
+      <a class="btnlink" data-lib-export href=${v.exportHref} download>ייצוא הספרייה המותאמת</a>
+      <label class="btnlink">ייבוא<input type="file" accept="application/json,.json" data-lib-import hidden @change=${(e: Event) => { const f = (e.target as HTMLInputElement).files?.[0]; if (f) a.importFile(f); (e.target as HTMLInputElement).value = ''; }} /></label>
+    </div>` : nothing}
+  </sw-card>`;
+}
+
+export interface ObjectView {
+  o: GeomObject;
+  item: CatalogItem | undefined;
+  levels: GeomLevel[];
+  doc: GeometryDoc;
+  estimated: boolean;
+  showEstimates: boolean;
+  anchorName: string | null;
+  phone: boolean;
+  canManage: boolean;
+  /** The Hebrew name of an item's category (the editor passes the library's list). */
+  lib_category(item: CatalogItem): string;
+}
+
+export interface ObjectActions {
+  patch(id: string, patch: Partial<GeomObject>): void;
+  unbind(id: string): void;
+  remove(id: string): void;
+  /** Task 10 supplies these three; until then the inspector shows no array / custom item / select group control. */
+  array?: (id: string) => void;
+  custom?: (id: string) => void;
+  selectGroup?: (groupId: string) => void;
+}
+
+function paramField(o: GeomObject, name: string, spec: ParamSpec, levels: GeomLevel[], a: ObjectActions) {
+  const value = o.params[name];
+  if (spec.type === 'level') {
+    return html`<sw-field label=${spec.he}><select data-object-param=${name} @change=${(e: Event) => a.patch(o.id, { params: { ...o.params, [name]: (e.target as HTMLSelectElement).value || null } })}>
+      <option value="" ?selected=${!value}>ללא</option>${levels.filter((l) => l.id !== o.level_id).map((l) => html`<option value=${l.id} ?selected=${value === l.id}>${l.name} (${l.elevation_m} מ׳)</option>`)}</select></sw-field>`;
+  }
+  const step = spec.type === 'int' ? 1 : 0.1;
+  return html`<sw-field label=${spec.he}><input type="number" data-ltr data-object-param=${name} min=${String(spec.min ?? '')} max=${String(spec.max ?? '')} step=${String(step)} .value=${value === null || value === undefined ? '' : String(value)}
+    @change=${(e: Event) => { const x = spec.type === 'int' ? parseInt((e.target as HTMLInputElement).value, 10) : parseFloat((e.target as HTMLInputElement).value); if (Number.isFinite(x) && (spec.min === undefined || x >= spec.min) && (spec.max === undefined || x <= spec.max)) a.patch(o.id, { params: { ...o.params, [name]: x } }); }} /></sw-field>`;
+}
+
+export function renderObjectInspector(v: ObjectView, a: ObjectActions): TemplateResult {
+  const o = v.o;
+  const name = v.item?.names.he ?? o.item_id;
+  const group = o.group_id ? v.doc.groups.find((g) => g.id === o.group_id) : undefined;
+  // one hook per field (data-object-w / -d / -h): lit has no binding for an attribute's name, so each is a boolean attribute
+  const size = (key: 'w_m' | 'd_m' | 'h_m', label: string) => html`<sw-field label=${label}><input type="number" min="0.05" max="100" step="0.05" data-ltr ?data-object-w=${key === 'w_m'} ?data-object-d=${key === 'd_m'} ?data-object-h=${key === 'h_m'} .value=${String(o.size[key])}
+      @change=${(e: Event) => { const x = numberOf(e); if (x >= 0.05 && x <= 100) a.patch(o.id, { size: { ...o.size, [key]: x } }); }} /></sw-field>`;
+  return html`<sw-card heading=${name} subheading=${v.item ? `${v.lib_category(v.item)}${v.item.custom ? ' · פריט מותאם' : ''}` : 'הפריט לא קיים בספרייה: העצם מצויר כתיבה'} data-selected-object=${o.id}>
+    <sw-field label="שם על המפה (אופציונלי)"><input type="text" maxlength="80" data-object-label .value=${o.label ?? ''} @change=${(e: Event) => a.patch(o.id, { label: (e.target as HTMLInputElement).value.trim() || null })} /></sw-field>
+    ${o.anchor_ref
+      ? html`<div class="note" data-object-bound>הגוף של ${v.anchorName ?? o.anchor_ref.resource_id}: המיקום, המצב וההרשאות מהעוגן. <button class="linkbtn" data-object-unbind @click=${() => a.unbind(o.id)}>נתק מהישות</button></div>`
+      : nothing}
+    <div class="two">
+      <sw-field label="מפלס"><select data-item-level @change=${(e: Event) => a.patch(o.id, { level_id: (e.target as HTMLSelectElement).value })}>${v.levels.map((l) => html`<option value=${l.id} ?selected=${l.id === o.level_id}>${l.name}</option>`)}</select></sw-field>
+      <sw-field label="סיבוב (°)"><input type="number" min="0" max="359" step="1" data-ltr data-object-rotation .value=${String(Math.round(o.rotation_deg))} ?disabled=${!!o.anchor_ref}
+        @change=${(e: Event) => { const x = numberOf(e); if (Number.isFinite(x)) a.patch(o.id, { rotation_deg: ((Math.round(x) % 360) + 360) % 360 }); }} /></sw-field>
+    </div>
+    <div class="three">${size('w_m', 'רוחב (מ׳)')}${size('d_m', 'עומק (מ׳)')}${size('h_m', 'גובה (מ׳)')}</div>
+    <sw-field label="גובה מהרצפה (מ׳)"><input type="number" min="-50" max="500" step="0.05" data-ltr data-object-z .value=${String(o.z_m)} @change=${(e: Event) => { const x = numberOf(e); if (x >= -50 && x <= 500) a.patch(o.id, { z_m: x }); }} /></sw-field>
+    ${v.item ? Object.entries(v.item.params_schema).map(([k, spec]) => paramField(o, k, spec, v.levels, a)) : nothing}
+    ${group ? html`<div class="note" data-object-group>חלק ממערך של ${group.member_ids.length}${a.selectGroup ? html` · <button class="linkbtn" data-select-group @click=${() => a.selectGroup?.(group.id)}>בחר את המערך</button>` : nothing}</div>` : nothing}
+    <div class="note">${v.estimated ? (v.showEstimates ? 'המידות במטרים משוערות (≈) עד הכיול' : 'לא מכויל: המידות מוצגות כערכי הפריט') : 'המידות במטרים לפי הכיול'} · חצים = הזזה עדינה (Shift = גדולה) · Alt+גרירה = שכפול · Delete = מחיקה</div>
+    <div class="btns">
+      ${a.array ? html`<sw-button size="sm" icon="grid" data-object-array ?disabled=${v.phone || !!o.anchor_ref} title=${v.phone ? 'מערכים בדסקטופ בלבד' : 'שורות × עמודות מהעצם הזה'} @click=${() => a.array?.(o.id)}>מערך</sw-button>` : nothing}
+      ${v.canManage && a.custom ? html`<sw-button size="sm" icon="plus" data-object-custom @click=${() => a.custom?.(o.id)}>צור פריט מזה</sw-button>` : nothing}
+      <sw-button size="sm" variant="ghost" icon="trash" data-geom-delete @click=${() => a.remove(o.id)}>מחק</sw-button>
+    </div>
+  </sw-card>`;
+}
+
 export const studioPanelStyles = css`
   .modes {
     display: flex;
@@ -441,5 +563,54 @@ export const studioPanelStyles = css`
     font-size: var(--sw-fs-lg);
     font-weight: 600;
     font-variant-numeric: tabular-nums;
+  }
+  .three {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+  }
+  .libl {
+    max-block-size: 320px;
+  }
+  .libitem {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 8px;
+    align-items: center;
+    padding: 6px 8px;
+    border: 1px solid var(--sw-border);
+    border-radius: 8px;
+    background: var(--sw-surface);
+    font-size: var(--sw-fs-sm);
+    cursor: pointer;
+  }
+  .libitem:hover,
+  .libitem.on {
+    background: var(--sw-accent-soft);
+    border-color: var(--sw-accent);
+  }
+  .libitem .nm {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .libitem .muted {
+    color: var(--sw-text-2);
+    font-size: var(--sw-fs-xs);
+  }
+  .libitem .ltr {
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
+  .libitem .fav {
+    border: 0;
+    background: none;
+    color: var(--sw-text-3);
+    font: inherit;
+    cursor: pointer;
+    padding: 0 2px;
+  }
+  .libitem .fav.on {
+    color: var(--sw-warning);
   }
 `;

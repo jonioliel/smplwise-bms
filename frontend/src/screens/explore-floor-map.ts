@@ -30,22 +30,27 @@ import { createView, listViews, wallHref, type SavedView } from '../api/views';
 import '../components/sw-toggle';
 import { ACTION_ERROR_LABEL, ACTION_STATUS_LABEL, awaitAction, domainLabel, entityMarkerKind, entityTone, fmtTime, runAction, stateLabel, subscribeHa, type HaActionArgSpec, type HaActionRecord, type HaActionSpec, type HaEntity } from '../api/ha';
 import { geometryFor } from '../api/geometry';
-import type { GeometryDoc } from '../map/geometry';
+import type { AnchorPosition, CatalogLookup, GeometryDoc } from '../map/geometry';
+import { loadLibrary, lookupOf } from '../api/plan-catalog';
 
 /** Hebrew names for enum choices the adapters offer (T040). */
 const ARG_CHOICE_HE: Record<string, string> = { off: 'כבוי', heat: 'חימום', cool: 'קירור', heat_cool: 'חימום/קירור', auto: 'אוטומטי', dry: 'ייבוש', fan_only: 'מאוורר בלבד' };
 
 type ScreenState = 'ready' | 'loading' | 'empty' | 'error' | 'forbidden' | 'stale' | 'partial';
-type Layer = 'cameras' | 'doors' | 'lights' | 'sensors' | 'zones' | 'structure';
+type Layer = 'cameras' | 'doors' | 'lights' | 'sensors' | 'zones' | 'structure' | 'objects' | 'connectors';
 
-const LAYERS: { id: Layer; icon: 'camera' | 'door' | 'light' | 'sensor' | 'map' | 'wall'; label: () => string }[] = [
+const LAYERS: { id: Layer; icon: 'camera' | 'door' | 'light' | 'sensor' | 'map' | 'wall' | 'grid' | 'stairs'; label: () => string }[] = [
   { id: 'cameras', icon: 'camera', label: () => t('floor.cameras') },
   { id: 'doors', icon: 'door', label: () => t('floor.doors') },
   { id: 'lights', icon: 'light', label: () => t('floor.lights') },
   { id: 'sensors', icon: 'sensor', label: () => t('floor.sensors') },
   { id: 'zones', icon: 'map', label: () => 'חדרים ואזורים' },
   { id: 'structure', icon: 'wall', label: () => 'מבנה' },
+  { id: 'objects', icon: 'grid', label: () => 'עצמים' },
+  { id: 'connectors', icon: 'stairs', label: () => 'מחברים' },
 ];
+/** Layers that came after the first stored layer lists: stored as "-<id>" when switched off, so an old list still shows them. */
+const LATE_LAYERS: Layer[] = ['structure', 'objects', 'connectors'];
 
 const SCENES: SceneKind[] = ['entrance', 'lobby', 'corridor', 'hall', 'parking', 'warehouse', 'backyard', 'driveway', 'night'];
 
@@ -81,7 +86,9 @@ export class ExploreFloorMap extends LitElement {
   @state() private noFloors = false;
   @state() private selectedId: string | null = null;
   @state() private anchor: { x: number; y: number } | null = null;
-  @state() private layers = new Set<Layer>(['cameras', 'doors', 'lights', 'sensors', 'zones', 'structure']);
+  @state() private layers = new Set<Layer>(['cameras', 'doors', 'lights', 'sensors', 'zones', 'structure', 'objects', 'connectors']);
+  /** T085: the library's shapes for the object layer, fetched by the bundle's catalog revision. */
+  @state() private catalogLookup: CatalogLookup | null = null;
   /** Plan Studio: the published structure of the shown version (fetched by hash after the bundle). */
   @state() private geometry: GeometryDoc | null = null;
   private geomSeq = 0;
@@ -711,8 +718,15 @@ export class ExploreFloorMap extends LitElement {
     this.stopWs = subscribeHa((m) => {
       const b = this.bundle;
       if (m.type === 'entity_state_changed' && b) {
-        if (!b.anchors.some((a) => a.resource_type === 'ha_entity' && a.resource_id === m.entity.entity_id)) return;
-        this.bundle = { ...b, anchors: b.anchors.map((a) => (a.resource_type === 'ha_entity' && a.resource_id === m.entity.entity_id ? { ...a, entity: { ...(a.entity ?? ({} as HaEntity)), ...m.entity, actions: a.entity?.actions } } : a)) };
+        const eid = m.entity.entity_id;
+        const switches = Object.values(b.circuitStates).some((s) => s.entity_id === eid);
+        if (!switches && !b.anchors.some((a) => a.resource_type === 'ha_entity' && a.resource_id === eid)) return;
+        this.bundle = {
+          ...b,
+          anchors: b.anchors.map((a) => (a.resource_type === 'ha_entity' && a.resource_id === eid ? { ...a, entity: { ...(a.entity ?? ({} as HaEntity)), ...m.entity, actions: a.entity?.actions } } : a)),
+          // a circuit's switch changed: its lamps follow at once (T085)
+          circuitStates: switches ? Object.fromEntries(Object.entries(b.circuitStates).map(([id, s]) => [id, s.entity_id === eid ? { ...s, state: m.entity.state, fresh: m.entity.fresh, available: m.entity.available } : s])) : b.circuitStates,
+        };
       } else if (m.type === 'ha_sync_state') this.syncConnected = m.connected;
       else if (m.type === 'heartbeat') this.syncConnected = m.sync.connected;
     });
@@ -785,7 +799,12 @@ export class ExploreFloorMap extends LitElement {
       void geometryFor(this.bundle).then((g) => {
         if (seq === this.geomSeq) this.geometry = g; // live HA updates replace the bundle object: compare loads, not objects
       });
-      if (this.bundle.source === 'api') this.startWs();
+      if (this.bundle.source === 'api') {
+        this.startWs();
+        void loadLibrary(this.bundle.catalogRevision).then((lib) => {
+          this.catalogLookup = lookupOf(lib);
+        }).catch(() => {}); // without the library objects draw as plain boxes
+      }
       void this.applyFocus();
     } catch (err) {
       this.loadError = describeError(err);
@@ -845,10 +864,29 @@ export class ExploreFloorMap extends LitElement {
       }));
   }
 
+  /** T085: what the object layer needs from the bundle - bound bodies sit on their live anchors, lamps glow by their
+   * circuit's switch or their own entity. */
+  private get anchorPositions(): Record<string, AnchorPosition> {
+    const out: Record<string, AnchorPosition> = {};
+    for (const a of this.bundle?.anchors ?? []) out[`${a.resource_type}:${a.resource_id}`] = { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees };
+    return out;
+  }
+
+  private get circuitStateMap(): Record<string, string | null> {
+    return Object.fromEntries(Object.entries(this.bundle?.circuitStates ?? {}).map(([id, s]) => [id, s.state]));
+  }
+
+  private get entityStateMap(): Record<string, string | null> {
+    const out: Record<string, string | null> = {};
+    for (const a of this.bundle?.anchors ?? []) if (a.resource_type === 'ha_entity') out[a.resource_id] = a.entity?.state ?? null;
+    return out;
+  }
+
   /** Items per layer for the panel (M07: counts next to every toggle). */
   private layerCounts(): Record<Layer, number> {
     const b = this.bundle;
-    const out: Record<Layer, number> = { cameras: 0, doors: 0, lights: 0, sensors: 0, zones: b?.zones.length ?? 0, structure: this.geometry?.walls.length ?? 0 };
+    const out: Record<Layer, number> = { cameras: 0, doors: 0, lights: 0, sensors: 0, zones: b?.zones.length ?? 0, structure: this.geometry?.walls.length ?? 0,
+      objects: this.geometry?.objects.length ?? 0, connectors: this.geometry?.connectors.length ?? 0 };
     if (!b) return out;
     if (b.source === 'demo') {
       out.cameras = demoCameras.filter((c) => c.floorId === b.floorId).length;
@@ -882,12 +920,13 @@ export class ExploreFloorMap extends LitElement {
   }
 
   /** Layer state is remembered per floor in this browser (M07: "מצב שכבות נשמר עם התצוגה"); never on the server.
-   * '-structure' records an explicit "off": lists stored before the structure layer existed must still show it. */
+   * '-structure' (and, since T085, '-objects' / '-connectors') records an explicit "off": lists stored before those layers
+   * existed must still show them. */
   private setLayers(next: Set<Layer>) {
     this.layers = next;
     try {
       const stored: string[] = [...next];
-      if (!next.has('structure')) stored.push('-structure');
+      for (const id of LATE_LAYERS) if (!next.has(id)) stored.push(`-${id}`);
       localStorage.setItem(`sw.floor.layers.${this.floorId}`, JSON.stringify(stored));
     } catch {
       /* private mode or blocked storage: the choice lives for this page only */
@@ -901,7 +940,7 @@ export class ExploreFloorMap extends LitElement {
       const arr = JSON.parse(raw) as string[];
       if (!Array.isArray(arr)) return;
       const next = new Set<Layer>(arr.filter((l): l is Layer => LAYERS.some((x) => x.id === l)));
-      if (!arr.includes('-structure')) next.add('structure');
+      for (const id of LATE_LAYERS) if (!arr.includes(`-${id}`)) next.add(id);
       this.layers = next;
     } catch {
       /* ignore */
@@ -1431,6 +1470,8 @@ export class ExploreFloorMap extends LitElement {
       { id: 'sensors', label: 'אבטחה וחיישנים', count: `${counts.sensors} ישויות` },
       { id: 'zones', label: 'שמות חדרים', count: counts.zones ? `${counts.zones} אזורים · תוויות לפי רמת זום` : 'אין חדרים מוגדרים' },
       { id: 'structure', label: 'מבנה', count: this.geometry ? `${this.geometry.walls.length} קירות · ${this.geometry.openings.length} פתחים` : 'לא שורטט מבנה' },
+      { id: 'objects', label: 'עצמים', count: this.geometry ? `${this.geometry.objects.length} עצמים מהספרייה` : 'אין עצמים' },
+      { id: 'connectors', label: 'מחברים', count: this.geometry ? `${this.geometry.connectors.length} מדרגות, רמפות ומעליות` : 'אין מחברים' },
     ];
     return html`<div class="panel" role="group" aria-label="שכבות פעילות" data-layers-panel>
       <h3>שכבות פעילות</h3>
@@ -1476,7 +1517,14 @@ export class ExploreFloorMap extends LitElement {
         .planHeight=${b.height}
         .plan=${b.planSvg}
         .imageUrl=${b.imageUrl}
-        .geometry=${this.layers.has('structure') ? this.geometry : null}
+        .geometry=${this.layers.has('structure') || this.layers.has('objects') || this.layers.has('connectors') ? this.geometry : null}
+        .hideStructure=${!this.layers.has('structure')}
+        .hideObjects=${!this.layers.has('objects')}
+        .hideConnectors=${!this.layers.has('connectors')}
+        .catalog=${this.catalogLookup}
+        .anchorPositions=${this.anchorPositions}
+        .circuitStates=${this.circuitStateMap}
+        .entityStates=${this.entityStateMap}
         .markers=${this.markers}
         .selectedId=${this.selectedId}
         .selectedIds=${this.multi ? this.picked : []}

@@ -17,14 +17,28 @@ from ..db import now_iso
 from ..errors import ApiError, conflict, not_found
 from ..rbac import Principal, require
 from ..services import geometry_store as store
+from ..services import plan_catalog
 from ..services import plan_geometry as pg
 from ..services import plan_geometry_render as render
 from ..services.timeutil import parse_utc
+from .catalog import get_floor
 from .plans import get_version, version_row
 from .zones import floor_zones
 
 router = APIRouter()
 NO_CACHE = {"Cache-Control": "private, no-cache"}
+
+
+def _layers(raw: str | None) -> set[str] | None:
+    """?layers=structure,objects,labels,connectors - any subset; an unknown name is a 422. An empty value (?layers=
+    or ?layers=,) means all layers, the same as omitting the parameter - not a blank export."""
+    if raw is None:
+        return None
+    chosen = {x.strip() for x in raw.split(",") if x.strip()}
+    unknown = sorted(chosen - set(render.LAYERS))
+    if unknown:
+        raise ApiError(422, "validation", "שכבות לא מוכרות בייצוא.", details={"unknown": unknown, "layers": list(render.LAYERS)})
+    return chosen or None
 
 
 def _rid(request: Request) -> str | None:
@@ -41,7 +55,8 @@ def _payload(conn: sqlite3.Connection, version: sqlite3.Row, row: sqlite3.Row | 
         "id": None, "plan_version_id": version["id"], "floor_id": version["floor_id"], "status": "new", "revision": 0, "doc_hash": store.doc_hash(doc),
         "created_at": None, "updated_at": None, "published_at": None, "published_by": None, "archived_at": None,
     }
-    return {"geometry": geometry, "doc": doc, "issues": [i for i in pg.validate(doc) if not i["structural"]],
+    return {"geometry": geometry, "doc": doc,
+            "issues": [i for i in pg.validate(doc, plan_catalog.item_index(conn)) if not i["structural"]] + store.anchor_issues(conn, version["floor_id"], doc),
             "published_hash": published["doc_hash"] if published is not None else None}
 
 
@@ -120,8 +135,9 @@ def geometry_diff(version_id: str, principal: Principal = Depends(current_princi
     doc, _ = store.working_doc(conn, v)
     p = store.published_row(conn, v["id"])
     old = store.load_doc(p) if p is not None else None
-    return {"diff": pg.diff(old, doc), "issues": [i for i in pg.validate(doc) if not i["structural"]], "counts": pg.counts(doc),
-            "published_counts": pg.counts(old) if old is not None else None}
+    return {"diff": pg.diff(old, doc),
+            "issues": [i for i in pg.validate(doc, plan_catalog.item_index(conn)) if not i["structural"]] + store.anchor_issues(conn, v["floor_id"], doc),
+            "counts": pg.counts(doc), "published_counts": pg.counts(old) if old is not None else None}
 
 
 @router.get("/plan-versions/{version_id}/geometry/versions")
@@ -174,6 +190,26 @@ def copy_geometry(version_id: str, body: CopyFromIn, request: Request, principal
     return _payload(conn, v, row, store.load_doc(row))
 
 
+class LinkIn(BaseModel):
+    connector_id: str = Field(min_length=1, max_length=64)
+    floor_id: str = Field(min_length=1, max_length=32)
+
+
+@router.post("/plan-versions/{version_id}/geometry/link")
+def link_connector(version_id: str, body: LinkIn, request: Request, principal: Principal = Depends(current_principal),
+                   conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Stairs / an elevator to another floor: the connector keeps one id in both floors' drafts (map.edit on both)."""
+    v = _editable(conn, principal, version_id)
+    if body.floor_id == v["floor_id"]:
+        raise ApiError(422, "validation", "קשר לקומה אחרת, לא לאותה קומה.")
+    get_floor(conn, body.floor_id)
+    require(conn, principal, "map.edit", ("floor", body.floor_id))
+    result = store.link_connector(conn, v, body.connector_id, body.floor_id, principal.user_id)
+    audit(conn, actor=principal, action="geometry.connector.link", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
+          details={"version_id": v["id"], "connector_id": body.connector_id, "to_floor_id": body.floor_id, "target_version_id": result["target"]["version_id"]})
+    return result
+
+
 class CalPair(BaseModel):
     a: list[float] = Field(min_length=2, max_length=2)
     b: list[float] = Field(min_length=2, max_length=2)
@@ -223,19 +259,20 @@ def _export_doc(conn: sqlite3.Connection, principal: Principal, version_id: str,
 
 
 @router.get("/plan-versions/{version_id}/export.svg", response_model=None)
-def export_svg(version_id: str, draft: bool = False, level: str | None = None, labels: bool = True, rooms: bool = True,
+def export_svg(version_id: str, draft: bool = False, level: str | None = None, labels: bool = True, rooms: bool = True, layers: str | None = None,
                principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Response:
     v, doc = _export_doc(conn, principal, version_id, draft)
-    text = render.render_svg(doc, floor_zones(conn, v["floor_id"]), v["width_px"], v["height_px"], level=level, labels=labels, rooms=rooms)
+    text = render.render_svg(doc, floor_zones(conn, v["floor_id"]), v["width_px"], v["height_px"], level=level, labels=labels, rooms=rooms, layers=_layers(layers),
+                             anchors=store.anchor_positions(conn, v["floor_id"]), items=plan_catalog.item_index(conn))
     return Response(content=text.encode("utf-8"), media_type="image/svg+xml; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="plan-{v["id"]}.svg"', **NO_CACHE})
 
 
 @router.get("/plan-versions/{version_id}/export.png", response_model=None)
-def export_png(version_id: str, request: Request, draft: bool = False, level: str | None = None, background: bool = True,
+def export_png(version_id: str, request: Request, draft: bool = False, level: str | None = None, background: bool = True, layers: str | None = None,
                principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Response:
     v, doc = _export_doc(conn, principal, version_id, draft)
     picture = settings_of(request).data_dir / v["image_path"] if background else None
-    data = render.render_png(doc, floor_zones(conn, v["floor_id"]), v["width_px"], v["height_px"],
-                             background=picture if picture is not None and picture.exists() else None, level=level)
+    data = render.render_png(doc, floor_zones(conn, v["floor_id"]), v["width_px"], v["height_px"], background=picture if picture is not None and picture.exists() else None,
+                             level=level, layers=_layers(layers), anchors=store.anchor_positions(conn, v["floor_id"]), items=plan_catalog.item_index(conn))
     return Response(content=data, media_type="image/png", headers={"Content-Disposition": f'attachment; filename="plan-{v["id"]}.png"', **NO_CACHE})

@@ -36,7 +36,8 @@
         "map.edit",
         "map.publish",
         "placement.edit",
-        "views.edit"
+        "views.edit",
+        "catalog.manage"
       ]
     },
     {
@@ -54,6 +55,7 @@
         "map.publish",
         "placement.edit",
         "views.edit",
+        "catalog.manage",
         "site.content.configure",
         "video.export",
         "ha.entity.control"
@@ -74,6 +76,7 @@
         "map.publish",
         "placement.edit",
         "views.edit",
+        "catalog.manage",
         "site.content.configure",
         "system.configure",
         "sources.configure",

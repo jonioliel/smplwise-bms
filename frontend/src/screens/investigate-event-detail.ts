@@ -22,7 +22,8 @@ import { closePlayback, createPlayback, playbackWsUrl, type PlaybackSession } fr
 import { cameraState, loadMap, type MapBundle } from '../api/maps';
 import { entityMarkerKind } from '../api/ha';
 import { geometryFor } from '../api/geometry';
-import type { GeometryDoc } from '../map/geometry';
+import type { AnchorPosition, CatalogLookup, GeometryDoc } from '../map/geometry';
+import { loadLibrary, lookupOf } from '../api/plan-catalog';
 
 const SOURCE_LABEL = { alertstream: 'אירוע NVR', recording: 'נגזר מהקלטה', system: 'מערכת', ha: 'חיישן HA' } as const;
 const NEARBY_MS = 10 * 60 * 1000;
@@ -50,6 +51,7 @@ export class InvestigateEventDetail extends LitElement {
   @state() private thumbVersion = 0;
   @state() private casePick: NewCaseItem | null = null;
   @state() private geometry: GeometryDoc | null = null;
+  @state() private catalogLookup: CatalogLookup | null = null;
   private pollTimer = 0;
 
   static styles = css`
@@ -319,6 +321,11 @@ export class InvestigateEventDetail extends LitElement {
     try {
       const b = await loadMap(floorId);
       this.bundle = b;
+      if (b.source === 'api') {
+        void loadLibrary(b.catalogRevision).then((lib) => {
+          this.catalogLookup = lookupOf(lib);
+        }).catch(() => {}); // without the library objects draw as plain boxes
+      }
       this.geometry = null; // the map renders without its structure until the document arrives
       const g = await geometryFor(b);
       if (this.bundle === b) this.geometry = g; // a later event (another floor) may have replaced the bundle meanwhile
@@ -483,7 +490,7 @@ export class InvestigateEventDetail extends LitElement {
               ${loc && loc.has_plan && this.bundle
                 ? html`<div class="map">
                     <div class="floorchip"><sw-icon name="building" size=${12}></sw-icon>${loc.floor_name}</div>
-                    <sw-plan-canvas .planWidth=${this.bundle.width} .planHeight=${this.bundle.height} .imageUrl=${this.bundle.imageUrl} .plan=${this.bundle.planSvg} .markers=${this.markers} .selectedId=${loc.anchor_id} .zones=${this.bundle.zones} .geometry=${this.geometry} alwaysLabel dimEntities></sw-plan-canvas>
+                    <sw-plan-canvas .planWidth=${this.bundle.width} .planHeight=${this.bundle.height} .imageUrl=${this.bundle.imageUrl} .plan=${this.bundle.planSvg} .markers=${this.markers} .selectedId=${loc.anchor_id} .zones=${this.bundle.zones} .geometry=${this.geometry} .catalog=${this.catalogLookup} .anchorPositions=${Object.fromEntries(this.bundle.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees } as AnchorPosition]))} alwaysLabel dimEntities></sw-plan-canvas>
                   </div>
                   <div style="display:flex;gap:8px;margin-block-start:10px;flex-wrap:wrap">
                     <sw-button size="sm" icon="map" data-history-map @click=${() => navigate(`/investigate/floors/${loc.floor_id}`, { t: ev.occurred_at, camera: ev.camera_id ?? '' })}>המשך חקירה במפה</sw-button>

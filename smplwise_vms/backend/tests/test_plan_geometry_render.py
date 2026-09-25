@@ -39,7 +39,7 @@ def test_openings_cut_their_wall_and_free_ends_are_extended():
 
 def test_level_filter():
     prims = render.structure_primitives(_sample(), 1000, 800, "L1")
-    assert sorted({p["id"] for p in prims}) == ["lb", "of", "wd"]
+    assert sorted({p["id"] for p in prims}) == ["c1", "cx-o4", "lb", "o5", "of", "wd"], "connectors are never filtered by level; o5 is the L1 object"
     assert [p["id"] for p in prims if p["kind"] == "wall"] == ["wd", "wd"]
 
 
@@ -58,11 +58,11 @@ def test_input_order_does_not_matter():
     primitives - id order for walls and openings, along-wall position for the cuts on each wall."""
     golden = json.loads((FIX / "sample-v2.primitives.json").read_text(encoding="utf-8"))
     reversed_doc = _sample()
-    for coll in ("walls", "openings", "labels"):
+    for coll in ("walls", "openings", "labels", "objects", "connectors", "circuits"):
         reversed_doc[coll] = list(reversed(reversed_doc[coll]))
     shuffled_doc = _sample()
     rng = random.Random(7)
-    for coll in ("walls", "openings", "labels"):
+    for coll in ("walls", "openings", "labels", "objects", "connectors", "circuits"):
         rng.shuffle(shuffled_doc[coll])
     for doc in (reversed_doc, shuffled_doc):
         assert render.structure_primitives(doc, 1000, 800) == golden["all"]

@@ -118,6 +118,21 @@ def search(
             "floor_id": fid if f else None,
         })
 
+    # objects of the published structure of each visible floor: by their label or their library name (he / en / tags)
+    from ..services import geometry_store, plan_catalog
+
+    names = plan_catalog.names_index(conn)
+    for fid, entries in geometry_store.published_objects(conn).items():
+        if not floor_ok(fid):
+            continue
+        f = floors[fid]
+        for o in entries:
+            n = names.get(o["item_id"]) or {"he": o["item_id"], "en": "", "tags": []}
+            if not any(_contains(h, needle) for h in (o["label"], n["he"], n["en"], *n["tags"])):
+                continue
+            add("object", {"id": o["id"], "title": o["label"] or n["he"], "subtitle": f"{n['he']} · {f['building_name']} · {f['name']}",
+                           "route": f"/explore/floors/{fid}?focus=object:{o['id']}", "floor_id": fid})
+
     return {"q": q, "results": results, "counts": counts}
 
 
