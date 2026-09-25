@@ -5,7 +5,7 @@
  */
 import { css, html, nothing, type TemplateResult } from 'lit';
 import type { CopyCandidate, GeometryIssue } from '../api/geometry';
-import { COLOR_TOKENS, OBJECT_SHAPES, SYMBOL_IDS, effectiveScale, lengthPx, perimeterM, polygonAreaM2, type GeometryDoc, type GeomGroup, type GeomSize, type ObjectShape, type GeomLabel, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type Hinge, type OpeningKind, type Pt, type Swing, type WallKind } from '../map/geometry';
+import { COLOR_TOKENS, OBJECT_SHAPES, SYMBOL_IDS, connectorLabel, effectiveScale, lengthPx, perimeterM, polygonAreaM2, type ConnectorKind, type GeometryDoc, type GeomConnector,type GeomGroup, type GeomSize, type ObjectShape, type GeomLabel, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type Hinge, type OpeningKind, type Pt, type Swing, type WallKind } from '../map/geometry';
 import type { CatalogItem, CatalogLibrary, ParamSpec } from '../api/plan-catalog';
 import { searchItems } from '../api/plan-catalog';
 import type { SaveState } from '../map/studio-controller';
@@ -613,6 +613,88 @@ export function renderLevelDialog(v: LevelDialogView, onChange: (patch: Partial<
     <sw-button slot="footer" variant="ghost" data-level-cancel @click=${onCancel}>ביטול</sw-button>
     <sw-button slot="footer" variant="primary" icon="check" data-level-create ?disabled=${!ok} @click=${onCreate}>הוסף מפלס</sw-button>
   </sw-dialog>`;
+}
+
+// ---------------------------------------------------------------- connectors (T085)
+
+export const CONNECTOR_LABEL: Record<ConnectorKind, string> = { stairs: 'מדרגות', ramp: 'רמפה', tribune: 'טריבונה', elevator: 'מעלית', ladder: 'סולם' };
+
+export interface ConnectorView {
+  doc: GeometryDoc;
+  mode: ConnectorKind | null;
+  start: Pt | null;
+  sel: GeomConnector | undefined;
+  saveState: SaveState;
+  /** The other floors of the building (the link picker) and the floor chosen in it. */
+  floors: { id: string; name: string }[];
+  linkFloor: string;
+  linkBusy: boolean;
+  phone: boolean;
+}
+
+export interface ConnectorActions {
+  setMode(kind: ConnectorKind | null): void;
+  select(id: string): void;
+  patch(id: string, patch: Partial<GeomConnector>): void;
+  remove(id: string): void;
+  setLinkFloor(floorId: string): void;
+  link(id: string): void;
+}
+
+/** A connector the server derived from an object (a tribune, id `cx-<object>`): it follows its object; nobody edits
+ * or deletes it by hand - the object is edited instead. */
+export function connectorDerived(c: Pick<GeomConnector, 'object_id' | 'source'>): boolean {
+  return !!c.object_id || c.source === 'auto';
+}
+
+export function renderConnectorPanel(v: ConnectorView, a: ConnectorActions): TemplateResult {
+  const levels = v.doc.levels;
+  const levelName = (id: string | null) => (id ? levels.find((l) => l.id === id)?.name ?? id : 'קומה אחרת');
+  const sel = v.sel;
+  const num = (e: Event) => parseFloat((e.target as HTMLInputElement).value);
+  return html`<sw-card heading="מפלסים ומחברים" subheading=${v.mode ? (v.start ? `לחץ על הנקודה השנייה של ${CONNECTOR_LABEL[v.mode]} · Esc לביטול` : `לחץ על הנקודה הראשונה של ${CONNECTOR_LABEL[v.mode]}`) : 'מדרגות, רמפה, מעלית וסולם בין מפלסים ובין קומות'} data-connector-panel data-studio-save=${v.saveState}>
+    <div class="modes" role="group" aria-label="סוג מחבר">
+      ${(['stairs', 'ramp', 'elevator', 'ladder'] as ConnectorKind[]).map((k) => html`<button class=${v.mode === k ? 'on' : ''} data-conn-mode=${k} aria-pressed=${v.mode === k} @click=${() => a.setMode(v.mode === k ? null : k)}>${CONNECTOR_LABEL[k]}</button>`)}
+    </div>
+    <div class="note">שתי לחיצות על התוכנית מציירות מחבר (הצמדה לפינות קירות). טריבונה היא עצם מהספרייה: המחבר שלה נוצר לבד כשמגדירים לאיזה מפלס היא יורדת.</div>
+    ${v.doc.connectors.length
+      ? html`<div class="list">${v.doc.connectors.map((c) => html`<button class=${sel?.id === c.id ? 'on' : ''} data-conn-row=${c.id} @click=${() => a.select(c.id)}>
+          <span>${CONNECTOR_LABEL[c.kind] ?? c.kind}${connectorDerived(c) ? ' (מעצם)' : ''}</span><span class="note" style="margin:0">${levelName(c.level_from)} ← ${c.floor_ids.length ? `${c.floor_ids.length} קומות` : levelName(c.level_to)}</span>
+        </button>`)}</div>`
+      : html`<div class="note">עדיין אין מחברים בקומה.</div>`}
+    ${sel ? renderConnectorInspector(sel, v, a, levelName, num) : nothing}
+  </sw-card>`;
+}
+
+function renderConnectorInspector(c: GeomConnector, v: ConnectorView, a: ConnectorActions, levelName: (id: string | null) => string, num: (e: Event) => number) {
+  const derived = connectorDerived(c);
+  const others = v.doc.levels.filter((l) => l.id !== c.level_from);
+  return html`<div class="sel" data-selected-connector=${c.id}>
+    <div class="selhead"><strong>${CONNECTOR_LABEL[c.kind] ?? c.kind}</strong><span class="muted">${connectorLabelOf(v.doc, c)}</span></div>
+    ${derived ? html`<div class="note" data-conn-derived>נגזר מעצם (${c.object_id ?? ''}): המיקום, הרוחב והמפלסים מגיעים מהעצם; ערוך אותו בספריית העצמים.</div>` : nothing}
+    <div class="two">
+      <sw-field label="סוג"><select data-conn-kind ?disabled=${derived} @change=${(e: Event) => a.patch(c.id, { kind: (e.target as HTMLSelectElement).value as ConnectorKind })}>${(['stairs', 'ramp', 'elevator', 'ladder', 'tribune'] as ConnectorKind[]).map((k) => html`<option value=${k} ?selected=${k === c.kind}>${CONNECTOR_LABEL[k]}</option>`)}</select></sw-field>
+      <sw-field label="רוחב (מ׳)"><input type="number" min="0.05" max="100" step="0.1" data-ltr data-conn-width ?disabled=${derived} .value=${String(c.width_m)} @change=${(e: Event) => { const x = num(e); if (x >= 0.05 && x <= 100) a.patch(c.id, { width_m: x }); }} /></sw-field>
+    </div>
+    <div class="two">
+      <sw-field label="ממפלס"><select data-conn-from ?disabled=${derived} @change=${(e: Event) => a.patch(c.id, { level_from: (e.target as HTMLSelectElement).value })}>${v.doc.levels.map((l) => html`<option value=${l.id} ?selected=${l.id === c.level_from}>${l.name}</option>`)}</select></sw-field>
+      <sw-field label="למפלס"><select data-conn-to ?disabled=${derived || c.floor_ids.length > 0} @change=${(e: Event) => a.patch(c.id, { level_to: (e.target as HTMLSelectElement).value || null })}>
+        <option value="" ?selected=${!c.level_to}>${c.floor_ids.length ? 'קומה אחרת' : 'בחר מפלס'}</option>${others.map((l) => html`<option value=${l.id} ?selected=${l.id === c.level_to}>${l.name}</option>`)}</select></sw-field>
+    </div>
+    <sw-field label="תווית (אופציונלי; ריק = הפרש הגובה)"><input type="text" maxlength="80" data-conn-label ?disabled=${derived} .value=${c.label ?? ''} @change=${(e: Event) => a.patch(c.id, { label: (e.target as HTMLInputElement).value.trim() || null })} /></sw-field>
+    ${!derived
+      ? html`<div class="row"><span class="lbl">קשר לקומה<span class="muted">${c.floor_ids.length ? `מקושר: ${c.floor_ids.length} קומות · אותו מזהה בשתי הקומות` : 'מדרגות או מעלית לקומה אחרת מופיעות בטיוטה של שתי הקומות'}</span></span>
+          <select data-conn-link-floor aria-label="קומה" ?disabled=${!v.floors.length} @change=${(e: Event) => a.setLinkFloor((e.target as HTMLSelectElement).value)}>
+            <option value="" ?selected=${!v.linkFloor}>בחר קומה</option>${v.floors.map((f) => html`<option value=${f.id} ?selected=${f.id === v.linkFloor}>${f.name}</option>`)}</select>
+          <sw-button size="sm" data-conn-link ?disabled=${!v.linkFloor || v.linkBusy} @click=${() => a.link(c.id)}>${v.linkBusy ? 'מקשר…' : 'קשר'}</sw-button></div>`
+      : nothing}
+    <div class="note">${levelName(c.level_from)} ← ${c.floor_ids.length ? 'קומה אחרת' : levelName(c.level_to)}${derived ? '' : ' · גרירת פינה מזיזה את המחבר'}</div>
+    ${!derived ? html`<div class="btns"><sw-button size="sm" variant="ghost" icon="trash" data-geom-delete @click=${() => a.remove(c.id)}>מחק מחבר</sw-button></div>` : nothing}
+  </div>`;
+}
+
+function connectorLabelOf(doc: GeometryDoc, c: GeomConnector): string {
+  return connectorLabel(new Map(doc.levels.map((l) => [l.id, l])), c);
 }
 
 export const studioPanelStyles = css`

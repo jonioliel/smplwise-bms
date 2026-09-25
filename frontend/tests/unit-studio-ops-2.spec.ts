@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { GeometryDoc, GeomObject } from '../src/map/geometry';
 import type { CatalogItem } from '../src/api/plan-catalog';
-import { addArray, addLevel, addObject, arrayDefaults, duplicateObject, levelUsage, moveGroup, moveObject, objectZ, patchLevel, patchObject, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize } from '../src/map/studio-ops';
+import { addArray, addConnector, addLevel, addObject, arrayDefaults, duplicateObject, levelUsage, moveConnectorVertex, moveGroup, moveObject, objectZ, patchConnector, patchLevel, patchObject, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize } from '../src/map/studio-ops';
 
 // Plan Studio phase 2 (T085): the pure document operations of the editor - placing an item (its size, z and params come
 // from the library), moving, rotating, stretching, duplicating, and removing an object out of its group, its circuit
@@ -120,5 +120,17 @@ test.describe('plan studio object operations (unit)', () => {
     expect(removeLevel(doc, 'L0')).toBeNull(); // the default
     expect(removeLevel(doc, 'L1')).toBeNull(); // used
     expect(removeLevel(added.doc, 'L2')!.levels.length).toBe(2);
+  });
+
+  test('connectors: drawn between two points with the kind width, patched and their corners moved inside the plan', () => {
+    const doc = sample();
+    const r = addConnector(doc, 'stairs', [0.7, 0.2], [0.9, 0.2], 'L0', 'L1');
+    const c = r.doc.connectors.find((x) => x.id === r.id)!;
+    expect(c).toEqual({ id: r.id, kind: 'stairs', level_from: 'L0', level_to: 'L1', floor_ids: [], polyline: [[0.7, 0.2], [0.9, 0.2]], width_m: 1.2, label: null, object_id: null, source: 'manual', external_ids: {} });
+    expect(addConnector(doc, 'elevator', [0.1, 0.1], [0.1, 0.15], 'L0', null).doc.connectors.at(-1)!.width_m).toBe(1.6);
+    const wider = patchConnector(r.doc, r.id, { width_m: 2, level_to: null, floor_ids: ['f-other'] });
+    expect(wider.connectors.find((x) => x.id === r.id)).toMatchObject({ width_m: 2, level_to: null, floor_ids: ['f-other'] });
+    expect(moveConnectorVertex(r.doc, r.id, 1, [1.2, 0.3]).connectors.find((x) => x.id === r.id)!.polyline).toEqual([[0.7, 0.2], [1, 0.3]]);
+    expect(moveConnectorVertex(r.doc, 'cx-o4', 0, [0.1, 0.1]).connectors.find((x) => x.id === 'cx-o4')!.polyline).toEqual([[0.25, 0.4125], [0.25, 0.7875]]); // derived: not editable
   });
 });

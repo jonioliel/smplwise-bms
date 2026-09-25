@@ -296,4 +296,31 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
     await page.locator('explore-floor-map [data-level-chip="all"]').click();
     await expect(page.locator(`explore-floor-map sw-plan-canvas [data-object="${tribuneId}"]`)).toHaveCount(1);
   });
+
+  test('stairs are drawn with two clicks, set to reach the lower hall, and linked to the gallery floor under one id', async ({ page }) => {
+    const ed = 'explore-plan-editor';
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
+    await page.locator(`${ed} [data-tool="connectors"]`).click();
+    await expect(page.locator(`${ed} [data-connector-panel]`)).toBeVisible();
+    await page.locator(`${ed} [data-conn-mode="stairs"]`).click();
+    await clickPlan(page, ed, 0.75, 0.9);
+    await clickPlan(page, ed, 0.9, 0.9);
+    await expect(page.locator(`${ed} [data-selected-connector]`)).toBeVisible();
+    const stairsId = (await page.locator(`${ed} [data-selected-connector]`).getAttribute('data-selected-connector'))!;
+    await expect(page.locator(`${ed} sw-plan-canvas [data-connector="${stairsId}"][data-kind="stairs"]`)).toHaveCount(1);
+    await page.locator(`${ed} [data-conn-to]`).selectOption('L1');
+    await expect.poll(async () => (await draft()).doc.connectors.find((c) => c.id === stairsId)?.level_to ?? null, { timeout: 10000 }).toBe('L1');
+    await expect(page.locator(`${ed} sw-plan-canvas [data-connector="${stairsId}"] text`)).toHaveText('↓ −1.2 מ׳');
+    // the link: the gallery floor gets the same connector on its draft; this draft lists both floors
+    await page.locator(`${ed} [data-conn-link-floor]`).selectOption(ids.floor2);
+    await page.locator(`${ed} [data-conn-link]`).click();
+    await expect.poll(async () => (await draft(ids.version2)).doc.connectors.map((c) => c.id), { timeout: 15000 }).toEqual([stairsId]);
+    const theirs = (await draft(ids.version2)).doc.connectors[0];
+    expect(theirs.floor_ids.sort()).toEqual([ids.floor, ids.floor2].sort());
+    expect(theirs.level_to).toBeNull();
+    const mine = (await draft()).doc.connectors.find((c) => c.id === stairsId)!;
+    expect(mine.floor_ids.sort()).toEqual([ids.floor, ids.floor2].sort());
+    await expect(page.locator(`${ed} [data-selected-connector="${stairsId}"]`)).toContainText('2 קומות');
+    await expect(page.locator(`${ed} sw-plan-canvas [data-connector="${stairsId}"] text`)).toHaveText('↕');
+  });
 });

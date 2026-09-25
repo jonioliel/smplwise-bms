@@ -20,13 +20,14 @@ import type { Anchor, Camera, PlanVersion } from '../api/types';
 import { domainLabel, entityMarkerKind, listEntities, stateLabel, type HaEntity } from '../api/ha';
 import { ROOM_FILL_LABEL, setRenderMode, stylizeVersion, type RoomFill, type StylizeResult } from '../api/plans';
 import { ZONE_KINDS, acceptZones, createZone, deleteZone, detectZones, pointInPolygon, updateZone, zoneKindLabel, type SpatialZone, type ZoneKind, type ZonePoint } from '../api/zones';
-import { calibrate, copyGeometryFrom, exportUrl, geometryDiff, publishGeometry, type GeometryDiffResponse } from '../api/geometry';
+import { calibrate, copyGeometryFrom, exportUrl, geometryDiff, linkConnector, publishGeometry, type GeometryDiffResponse } from '../api/geometry';
+import { loadTree, type CatalogTree } from '../api/catalog';
 import { productSettings } from '../api/prefs';
 import { createItem, exportUrl as catalogExportUrl, importItems, itemOf, loadLibrary, lookupOf, type CatalogItem, type CatalogLibrary } from '../api/plan-catalog';
-import { distanceM, effectiveScale, isClosedOutline, lengthPx, nearestWall, pointOnWall, snapPoint, type CatalogLookup, type GeometryDoc, type GeomOpening, type GeomWall, type Pt } from '../map/geometry';
+import { distanceM, effectiveScale, isClosedOutline, lengthPx, nearestWall, pointOnWall, snapPoint, type CatalogLookup, type ConnectorKind, type GeometryDoc, type GeomOpening, type GeomWall, type Pt } from '../map/geometry';
 import { StudioController } from '../map/studio-controller';
-import { ARRAY_MAX, BIND_DISTANCE_M, addArray, addLabel, addLevel, addObject, addOpening, addWall, arrayDefaults, defaultLevelId, duplicateObject, kindDefaults, moveGroup, moveObject, moveVertex, newId, nudgeT, openingRange, patchLabel, patchObject, patchOpening, patchWall, removeCorner, removeGroup, removeItem, rotationTo, stretchedSize, wallDirectionAt, type WallDefaults } from '../map/studio-ops';
-import { COLL_LABEL, countLabel, fmtMetres, fmtScale, renderArrayDialog, renderCalibPanel, renderCustomItemDialog, renderGroupDeleteDialog, renderGroupInspector, renderLevelChips, renderLevelDialog, renderLibraryPanel, renderMeasurePanel, renderObjectInspector, renderStudioPanel, studioPanelStyles, type ArrayDialogView, type CustomItemView, type GeomKind, type GeomSel, type LevelDialogView, type StudioMode } from './plan-studio-panel';
+import { ARRAY_MAX, BIND_DISTANCE_M, addArray, addConnector, addLabel, addLevel, addObject, addOpening, addWall, arrayDefaults, defaultLevelId, duplicateObject, kindDefaults, moveConnectorVertex, moveGroup, moveObject, moveVertex, newId, nudgeT, openingRange, patchConnector, patchLabel, patchObject, patchOpening, patchWall, removeCorner, removeGroup, removeItem, rotationTo, stretchedSize, wallDirectionAt, type WallDefaults } from '../map/studio-ops';
+import { COLL_LABEL, CONNECTOR_LABEL, connectorDerived, countLabel, fmtMetres, fmtScale, renderArrayDialog, renderCalibPanel, renderConnectorPanel, renderCustomItemDialog, renderGroupDeleteDialog, renderGroupInspector, renderLevelChips, renderLevelDialog, renderLibraryPanel, renderMeasurePanel, renderObjectInspector, renderStudioPanel, studioPanelStyles, type ArrayDialogView, type CustomItemView, type GeomKind, type GeomSel, type LevelDialogView, type StudioMode } from './plan-studio-panel';
 
 type Strength = 'light' | 'medium' | 'strong';
 interface ZoneCandidate {
@@ -38,7 +39,7 @@ interface ZoneCandidate {
 /** Same palette as the backend assigns on save, so candidates keep their colour once accepted. */
 const PALETTE = ['#2767ED', '#22A06B', '#F59E0B', '#8B5CF6', '#0EA5E9', '#EC4899', '#14B8A6', '#F97316'];
 
-type Tool = 'select' | 'camera' | 'lights' | 'entity' | 'zones' | 'structure' | 'library' | 'calibrate' | 'measure' | 'layers';
+type Tool = 'select' | 'camera' | 'lights' | 'entity' | 'zones' | 'structure' | 'library' | 'connectors' | 'calibrate' | 'measure' | 'layers';
 type Layer = 'cameras' | 'doors' | 'lights' | 'sensors';
 
 const TOOLS: { id: Tool; icon: IconName; label: string; ready: boolean }[] = [
@@ -49,13 +50,14 @@ const TOOLS: { id: Tool; icon: IconName; label: string; ready: boolean }[] = [
   { id: 'zones', icon: 'map', label: 'חדרים ואזורים', ready: true },
   { id: 'structure', icon: 'wall', label: 'מבנה: קירות, דלתות וחלונות', ready: true },
   { id: 'library', icon: 'grid', label: 'ספריית עצמים', ready: true },
+  { id: 'connectors', icon: 'stairs', label: 'מפלסים ומחברים', ready: true },
   { id: 'calibrate', icon: 'scale', label: 'כיול קנה מידה', ready: true },
   { id: 'measure', icon: 'ruler', label: 'מדידת מרחק ושטח', ready: true },
   { id: 'layers', icon: 'layers', label: 'שכבות', ready: true },
 ];
 
 /** Tools that work on the Plan Studio structure document (they need map.edit on the floor). */
-const STUDIO_TOOLS: Tool[] = ['structure', 'library', 'calibrate', 'measure'];
+const STUDIO_TOOLS: Tool[] = ['structure', 'library', 'connectors', 'calibrate', 'measure'];
 interface CalibState {
   a: Pt | null;
   b: Pt | null;
@@ -171,6 +173,12 @@ export class ExplorePlanEditor extends LitElement {
   /** The level shown in the editor (null = every level): filters walls, labels, objects and pins; new items take it. */
   @state() private levelFilter: string | null = null;
   @state() private levelDialog: LevelDialogView | null = null;
+  // ---- connectors (T085) ----
+  @state() private connMode: ConnectorKind | null = null;
+  @state() private connStart: Pt | null = null;
+  @state() private tree: CatalogTree | null = null;
+  @state() private linkFloor = '';
+  @state() private linkBusy = false;
   @state() private wallDraft: Pt[] | null = null;
   /** Raw plan position of the click that added the draft's last point (a double click there ends the wall). */
   private lastDrawClick: Pt | null = null;
@@ -875,6 +883,7 @@ export class ExplorePlanEditor extends LitElement {
     const typing = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable);
     if (e.key === 'Escape') {
       if (this.arrayDialog || this.groupDelete || this.customDialog) { this.arrayDialog = null; this.groupDelete = null; this.customDialog = null; return; }
+      if (this.connStart) { this.connStart = null; return; }
       if (this.placingItem) this.placingItem = null;
       else if (this.bindOffer) this.bindOffer = null;
       else if (this.wallDraft) {
@@ -1212,6 +1221,9 @@ export class ExplorePlanEditor extends LitElement {
     this.geomPreview = null;
     this.placingItem = null;
     this.bindOffer = null;
+    this.connMode = null;
+    this.connStart = null;
+    if (tool === 'connectors' && !this.tree && this.bundle?.source === 'api') void loadTree().then((t) => (this.tree = t)).catch(() => {});
     if (tool === 'structure' && this.phone.matches && this.studioMode === 'wall') this.studioMode = 'select'; // wall drawing is desktop only: a phone opens the tool in select mode
     if (tool !== 'structure') this.geomSel = null;
     if (tool !== 'measure') this.measurePts = [];
@@ -1284,6 +1296,60 @@ export class ExplorePlanEditor extends LitElement {
     this.levelFilter = r.id;
     this.info = `המפלס "${v.name}" נוסף; פריטים חדשים יוצבו בו`;
     setTimeout(() => (this.info = ''), 4000);
+  }
+
+  /** The other floors of this building, for the link picker. */
+  private get otherFloors(): { id: string; name: string }[] {
+    const b = this.bundle;
+    if (!b || this.tree?.source !== 'api') return [];
+    for (const s of this.tree.sites) for (const bl of s.buildings ?? []) if ((bl.floors ?? []).some((f) => f.id === b.floorId)) return (bl.floors ?? []).filter((f) => f.id !== b.floorId).map((f) => ({ id: f.id, name: f.name }));
+    return [];
+  }
+
+  private async linkTo(connectorId: string) {
+    const b = this.bundle;
+    if (!b?.planVersionId || !this.linkFloor) return;
+    this.linkBusy = true;
+    this.error = '';
+    try {
+      if (!(await this.studio.flush())) {
+        this.error = this.studio.error;
+        return;
+      }
+      const r = await linkConnector(b.planVersionId, connectorId, this.linkFloor);
+      await this.loadStudio(b, true); // the server changed both drafts: this one has a new revision
+      this.geomSel = { id: connectorId, kind: 'connector' };
+      this.info = `המחבר קושר לקומה "${this.otherFloors.find((f) => f.id === r.target.floor_id)?.name ?? ''}"; הוא מופיע בטיוטה שלה באותו מזהה`;
+      setTimeout(() => (this.info = ''), 5000);
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.linkBusy = false;
+    }
+  }
+
+  private renderConnectorTool(b: MapBundle) {
+    const doc = this.studio.doc;
+    if (!doc) return html`<sw-card heading="מפלסים ומחברים"><div class="note">${b.source === 'demo' ? 'נתוני הדגמה: המחברים עובדים מול השרת.' : this.error || 'טוען…'}</div></sw-card>`;
+    return renderConnectorPanel(
+      { doc, mode: this.connMode, start: this.connStart, sel: this.geomSel?.kind === 'connector' ? doc.connectors.find((c) => c.id === this.geomSel!.id) : undefined, saveState: this.studio.saveState,
+        floors: this.otherFloors, linkFloor: this.linkFloor, linkBusy: this.linkBusy, phone: this.phone.matches },
+      {
+        setMode: (k) => {
+          this.connMode = k;
+          this.connStart = null;
+          this.geomSel = null;
+        },
+        select: (id) => (this.geomSel = { id, kind: 'connector' }),
+        patch: (id, patch) => this.edit((d) => patchConnector(d, id, patch)),
+        remove: (id) => {
+          this.edit((d) => removeItem(d, id));
+          this.geomSel = null;
+        },
+        setLinkFloor: (f) => (this.linkFloor = f),
+        link: (id) => void this.linkTo(id),
+      },
+    );
   }
 
   /** Pins on other levels are hidden with the level filter (anchors without a level belong to the default one). */
@@ -1465,6 +1531,7 @@ export class ExplorePlanEditor extends LitElement {
   private get studioPlacing(): boolean {
     if (!this.studioOn) return false;
     if (this.tool === 'library') return !!this.placingItem;
+    if (this.tool === 'connectors') return !!this.connMode;
     return this.tool !== 'structure' || this.studioMode !== 'select';
   }
 
@@ -1476,6 +1543,7 @@ export class ExplorePlanEditor extends LitElement {
   private get geomDragMode(): GeomDragMode {
     if (!this.studio.doc) return 'none';
     if (this.tool === 'library') return this.placingItem ? 'none' : 'objects';
+    if (this.tool === 'connectors') return this.connMode ? 'none' : 'objects';
     if (this.tool !== 'structure') return 'none';
     if (this.studioMode === 'select') return 'all';
     return this.wallDraft ? 'none' : 'items';
@@ -1538,6 +1606,7 @@ export class ExplorePlanEditor extends LitElement {
     }
     const p: Pt = [x, y];
     if (this.tool === 'library') this.hover = p;
+    else if (this.tool === 'connectors') this.hover = this.snap(p, null, true);
     else if (this.tool === 'calibrate') this.hover = this.snap(p, null, true);
     else if (this.tool === 'measure') this.hover = this.snap(p, this.measurePts.at(-1) ?? null, shift);
     else if (this.studioMode === 'wall') this.hover = this.snapDraw(p, this.wallDraft ?? [], shift);
@@ -1556,6 +1625,21 @@ export class ExplorePlanEditor extends LitElement {
     const p: Pt = [x, y];
     if (this.tool === 'library') {
       if (this.placingItem) this.placeItem(p);
+      return;
+    }
+    if (this.tool === 'connectors') {
+      if (!this.connMode) return;
+      const q = this.snap(p, null, true);
+      if (!this.connStart) {
+        this.connStart = q;
+        return;
+      }
+      const from = this.placeOpts(doc).levelId;
+      const others = doc.levels.filter((l) => l.id !== from);
+      const r = addConnector(doc, this.connMode, this.connStart, q, from, others.length === 1 ? others[0].id : null);
+      this.connStart = null;
+      this.studio.commit(r.doc);
+      this.geomSel = { id: r.id, kind: 'connector' };
       return;
     }
     if (this.tool === 'calibrate') {
@@ -1630,6 +1714,7 @@ export class ExplorePlanEditor extends LitElement {
 
   private onGeomSelect(id: string, kind: GeomKind, vertex?: number) {
     if (kind === 'object' && this.tool !== 'library') this.pickTool('library'); // the object inspector lives in the library tool (pickTool clears the selection, so it goes first)
+    if (kind === 'connector' && this.tool !== 'connectors') this.pickTool('connectors');
     this.geomSel = vertex === undefined ? { id, kind } : { id, kind, vertex };
     this.selectedId = null;
     this.selectedZoneId = null;
@@ -1676,7 +1761,11 @@ export class ExplorePlanEditor extends LitElement {
       const size = stretchedSize(o, (d.index % 4) as 0 | 1 | 2 | 3, p, b.width, b.height, effectiveScale(doc).scale, d.shift);
       return { doc: patchObject(doc, d.id, { size }), sel: { id: d.id, kind: 'object' } };
     }
-    if (d.kind === 'connector-vertex') return null; // Task 12
+    if (d.kind === 'connector-vertex') {
+      const c = doc.connectors.find((v) => v.id === d.id);
+      if (!c || connectorDerived(c)) return null;
+      return { doc: moveConnectorVertex(doc, d.id, d.index, this.snap(p, null, true)), sel: { id: d.id, kind: 'connector' } };
+    }
     if (d.kind === 'vertex') {
       const w = doc.walls.find((v) => v.id === d.id);
       if (!w) return null;
@@ -1820,6 +1909,12 @@ export class ExplorePlanEditor extends LitElement {
         this.groupDelete = id; // never confirm(): the dialog asks whether the members go too
         return true;
       }
+      const derivedConn = kind === 'connector' ? this.studio.doc?.connectors.find((c) => c.id === id) : undefined;
+      if (derivedConn && connectorDerived(derivedConn)) {
+        this.info = 'המחבר נגזר מעצם: מוחקים או עורכים את העצם עצמו'; // the server regenerates it on every save
+        setTimeout(() => (this.info = ''), 4000);
+        return true;
+      }
       if (kind === 'wall' && vertex !== undefined && this.studioMode === 'select') {
         // a selected corner goes alone while the wall keeps enough corners (studio-ops removeCorner), else the wall goes
         const doc = this.studio.doc;
@@ -1863,6 +1958,14 @@ export class ExplorePlanEditor extends LitElement {
       this.pickTool('library');
       this.geomSel = { id, kind: 'object' };
       if (at) this.canvas?.centerOn(at[0], at[1]);
+      return;
+    }
+    const cn = doc.connectors.find((x) => x.id === id);
+    if (cn) {
+      this.pickTool('connectors');
+      this.geomSel = { id, kind: 'connector' };
+      const mid = cn.polyline[Math.floor(cn.polyline.length / 2)];
+      if (mid) this.canvas?.centerOn(mid[0], mid[1]);
       return;
     }
     this.tool = 'structure';
@@ -2015,6 +2118,7 @@ export class ExplorePlanEditor extends LitElement {
     if (!bundle || !doc) return [];
     const { scale, estimated } = effectiveScale(doc);
     const len = (a: Pt, c: Pt) => fmtMetres(distanceM(a, c, bundle.width, bundle.height, scale), estimated, this.showEstimates);
+    if (this.tool === 'connectors' && this.connStart && this.hover) return [{ a: this.connStart, b: this.hover, label: this.connMode ? CONNECTOR_LABEL[this.connMode] : '', tone: 'muted' }];
     if (this.tool === 'calibrate') {
       const { a, b: end, metres } = this.calib;
       const tip = end ?? this.hover;
@@ -2177,6 +2281,7 @@ export class ExplorePlanEditor extends LitElement {
     const anchoredIds = new Set(this.anchors.map((a) => a.resource_id));
     if (this.tool === 'structure') return this.renderStructurePanel(b);
     if (this.tool === 'library') return this.renderLibraryTool(b);
+    if (this.tool === 'connectors') return this.renderConnectorTool(b);
     if (this.tool === 'calibrate') return this.renderCalibrate(b);
     if (this.tool === 'measure') return this.renderMeasure(b);
     if (this.tool === 'camera') {
@@ -2426,6 +2531,7 @@ export class ExplorePlanEditor extends LitElement {
                 ${this.placing ? html`<div class="placing-hint"><span>לחץ על התוכנית כדי להציב את ${this.placing.kind === 'camera' ? this.placing.camera.name : this.placing.entity.name || this.placing.entity.entity_id} · Esc לביטול</span></div>` : nothing}
                 ${this.drawing ? html`<div class="placing-hint"><span>ציור אזור: לחץ להוספת פינות (${this.drawing.length}) · לחיצה על הפינה הראשונה או Enter מסיימים · Esc לביטול</span></div>` : nothing}
                 ${this.placingItem && !this.bindOffer ? html`<div class="placing-hint"><span>לחץ על התוכנית כדי להציב ${this.placingItem.names.he} · Esc לביטול</span></div>` : nothing}
+                ${this.connMode ? html`<div class="placing-hint"><span>${this.connStart ? 'לחץ על הנקודה השנייה' : 'לחץ על הנקודה הראשונה'} · Esc לביטול</span></div>` : nothing}
                 ${this.bindOffer ? html`<div class="placing-hint bindbar" data-bind-offer><span>העצם ליד ${this.anchorName(this.bindOffer.anchor)} — להפוך אותו לגוף של הישות?
                     <button data-bind-accept @click=${() => this.bindObject(this.bindOffer!.objectId, this.bindOffer!.anchor)}>הצמד לישות</button><button data-bind-dismiss @click=${() => { this.bindRefused.add(this.bindOffer!.objectId); this.bindOffer = null; }}>לא</button></span></div>` : nothing}
                 ${this.wallDraft ? html`<div class="placing-hint"><span>ציור קיר: ${this.wallDraft.length} נקודות · Enter או לחיצה חוזרת על הנקודה האחרונה מסיימים · לחיצה על הנקודה הראשונה סוגרת מתאר · Esc לביטול</span></div>` : nothing}
