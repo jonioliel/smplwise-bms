@@ -34,6 +34,7 @@ class Settings:
     max_render_px: int = 3000
     preview_px: int = 1200
     render_timeout_s: int = 30
+    detect_timeout_s: float = 60  # the guard on a synchronous structure detection (design 9.6 / decision 6)
     ha_url: str | None = None  # Core API base: http://supervisor/core inside the add-on
     ha_token: str | None = None  # SUPERVISOR_TOKEN inside the add-on; a developer token outside
     extra: dict = field(default_factory=dict)

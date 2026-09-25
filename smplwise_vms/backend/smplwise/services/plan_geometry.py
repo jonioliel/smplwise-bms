@@ -12,6 +12,7 @@ import math
 import re
 from typing import Any, Mapping
 
+from ..db import new_id
 from .plan_schema import canonical_json as canonical_json
 from . import plan_catalog
 
@@ -91,7 +92,7 @@ def calibration_of(version: Mapping[str, Any], asset: Mapping[str, Any] | None) 
     if raw:
         rec = json.loads(raw)
         status = rec.get("status") if rec.get("status") in ("measured", "estimated") else "measured"
-        return {"status": status, "method": rec.get("method", "two_point"), "pairs": rec.get("pairs", []), "residual_pct": rec.get("residual_pct"), "reason": None}
+        return {"status": status, "method": rec.get("method", "two_point"), "pairs": rec.get("pairs", []), "residual_pct": rec.get("residual_pct"), "reason": rec.get("reason")}
     if version["scale_m_per_px"]:
         method = "dxf_units" if asset is not None and asset["mime"] == "image/vnd.dxf" else "manual"
         return {"status": "measured", "method": method, "pairs": [], "residual_pct": None, "reason": None}
@@ -938,3 +939,91 @@ def apply_anchor_positions(doc: Mapping[str, Any], anchors: Mapping[str, Mapping
         elif _num(rot):
             o["rotation_deg"] = round(float(rot), 3)
     return out
+
+
+# ---------------------------------------------------------------- candidates (phase 3, T086)
+
+CANDIDATE_PREFIXES = ("auto-", "imp-")
+CANDIDATE_SOURCES = ("auto", "imported")
+EDITABLE_FIELDS = {
+    "walls": ("polyline", "thickness_m", "kind", "height_m", "base_z_m", "level_id", "locked"),
+    "openings": ("t", "kind", "width_m", "height_m", "sill_m", "swing", "hinge", "wall_id", "anchor_ref"),
+    # the object schema of _check_objects (the brief's pose / name / catalog_id / flip do not exist in it)
+    "objects": ("position", "rotation_deg", "size", "z_m", "label", "item_id", "level_id", "params", "anchor_ref", "locked"),
+}
+CANDIDATE_COLLECTIONS = ("walls", "openings", "objects")
+
+
+class CandidateError(ValueError):
+    """An accept the merge cannot do: the route answers 422 with the code and the ids."""
+
+    def __init__(self, code: str, user_message: str, ids: list[str] | None = None) -> None:
+        super().__init__(code)
+        self.code = code
+        self.user_message = user_message
+        self.ids = ids or []
+
+
+def merge_candidates(doc: Mapping[str, Any], candidates: Mapping[str, Any], accepted: list[str], edits: Mapping[str, Any] | None, replace_auto: bool,
+                     new_id_fn: Any = new_id) -> tuple[dict[str, Any], dict[str, Any]]:
+    """The accepted candidates merged into a copy of the draft (design 9.5): every candidate must carry a candidate id
+    ("auto-" / "imp-") and source; edits touch the editable fields only (never id, source or confidence); with
+    replace_auto the draft's items of the candidates' sources go first (a wall takes its openings with it); an accepted
+    opening needs its wall accepted or already in the draft; an accepted id that already exists in the draft is
+    re-issued and the openings pointing to it follow. Returns the merged document and the counts."""
+    pool: dict[str, tuple[str, dict[str, Any]]] = {}
+    for coll in CANDIDATE_COLLECTIONS:
+        for item in candidates.get(coll) or []:
+            if not isinstance(item, dict) or not isinstance(item.get("id"), str) or not item["id"]:
+                raise CandidateError("candidate_shape", "מועמד ללא מזהה.")
+            if not item["id"].startswith(CANDIDATE_PREFIXES) or item.get("source") not in CANDIDATE_SOURCES:
+                raise CandidateError("candidate_source", "מועמד חייב להיות אוטומטי או מיובא, עם מזהה מועמד.", [item["id"]])
+            if item["id"] in pool:
+                raise CandidateError("duplicate_candidate", "אותו מועמד נשלח פעמיים.", [item["id"]])
+            pool[item["id"]] = (coll, copy.deepcopy(item))
+    unknown = [i for i in accepted if i not in pool]
+    if unknown:
+        raise CandidateError("unknown_candidate", "מועמד שאושר לא נמצא בין המועמדים שנשלחו.", unknown)
+    chosen = {i: pool[i] for i in dict.fromkeys(accepted)}
+    for cid, patch in (edits or {}).items():
+        if cid in chosen and isinstance(patch, dict):
+            coll, item = chosen[cid]
+            for key in EDITABLE_FIELDS[coll]:
+                if key in patch:
+                    item[key] = patch[key]
+    out = copy.deepcopy(dict(doc))
+    for coll in CANDIDATE_COLLECTIONS:
+        if not isinstance(out.get(coll), list):
+            out[coll] = []
+    removed = 0
+    if replace_auto:
+        sources = {item.get("source") for _c, item in chosen.values()} or set(CANDIDATE_SOURCES)
+        gone: set[str] = set()
+        for coll in CANDIDATE_COLLECTIONS:
+            kept = []
+            for item in out[coll]:
+                if isinstance(item, dict) and item.get("source") in sources:
+                    removed += 1
+                    if coll == "walls":
+                        gone.add(item.get("id"))
+                else:
+                    kept.append(item)
+            out[coll] = kept
+        if gone:  # the openings of a removed wall go with it, as the editor's remove does
+            before = len(out["openings"])
+            out["openings"] = [o for o in out["openings"] if not (isinstance(o, dict) and o.get("wall_id") in gone)]
+            removed += before - len(out["openings"])
+    existing = {item["id"] for coll in COLLECTIONS for item in out.get(coll) or [] if isinstance(item, dict) and isinstance(item.get("id"), str)}
+    accepted_walls = {i for i, (coll, _item) in chosen.items() if coll == "walls"}
+    orphans = [i for i, (coll, item) in chosen.items() if coll == "openings" and item.get("wall_id") not in accepted_walls and item.get("wall_id") not in existing]
+    if orphans:
+        raise CandidateError("orphan_opening", "פתח שאושר בלי הקיר שלו.", orphans)
+    remap = {cid: new_id_fn() for cid in chosen if cid in existing}
+    counts = {"walls": 0, "openings": 0, "objects": 0}
+    for cid, (coll, item) in chosen.items():
+        item["id"] = remap.get(cid, cid)
+        if coll == "openings" and item.get("wall_id") in remap:
+            item["wall_id"] = remap[item["wall_id"]]
+        out[coll].append(item)
+        counts[coll] += 1
+    return out, {"accepted": counts, "removed_auto": removed, "reided": len(remap)}

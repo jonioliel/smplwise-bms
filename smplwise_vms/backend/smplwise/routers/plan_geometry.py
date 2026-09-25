@@ -3,21 +3,24 @@ timeline, rollback, copy from another version - and the version's two-point cali
 floor; published documents are readable with map.read, like the plan image itself."""
 from __future__ import annotations
 
+import concurrent.futures
 import json
 import sqlite3
-from typing import Any
+import time
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
-from ..db import now_iso
+from ..db import new_id, now_iso, unlocked
 from ..errors import ApiError, conflict, not_found
 from ..rbac import Principal, require
 from ..services import geometry_store as store
 from ..services import plan_catalog
+from ..services import plan_detect
 from ..services import plan_geometry as pg
 from ..services import plan_geometry_render as render
 from ..services.timeutil import parse_utc
@@ -27,6 +30,7 @@ from .zones import floor_zones
 
 router = APIRouter()
 NO_CACHE = {"Cache-Control": "private, no-cache"}
+DETECT_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="plan-detect")
 
 
 def _layers(raw: str | None) -> set[str] | None:
@@ -216,34 +220,153 @@ class CalPair(BaseModel):
     metres: float = Field(gt=0, le=1000)
 
 
+class EstimateIn(BaseModel):
+    scale_m_per_px: float = Field(gt=0, le=10)
+    method: str = Field(default="door_width", pattern="^(door_width)$")
+    reason: str = Field(default="לפי רוחב דלת אופייני", max_length=200)
+
+
 class CalibrationIn(BaseModel):
-    pairs: list[CalPair] = Field(min_length=1, max_length=4)
+    pairs: list[CalPair] | None = Field(default=None, min_length=1, max_length=4)
+    estimate: EstimateIn | None = None
 
 
 @router.patch("/plan-versions/{version_id}/calibration")
 def calibrate(version_id: str, body: CalibrationIn, request: Request, principal: Principal = Depends(current_principal),
               conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """Two points and a known distance (more pairs average and expose a distorted scan). Nothing moves on the map:
-    positions are 0..1; only the metres change. Viewers see it after the structure is published."""
+    """Two points and a known distance (more pairs average and expose a distorted scan), or - phase 3 - the estimate the
+    detector offers from the door widths, recorded as an estimated calibration (design 6.3: metres then show as
+    approximate). Nothing moves on the map: positions are 0..1; only the metres change. Viewers see it after the
+    structure is published."""
     v = _editable(conn, principal, version_id)
-    if any(not 0 <= c <= 1 for p in body.pairs for c in (*p.a, *p.b)):
-        raise ApiError(422, "validation", "נקודות הכיול חייבות להיות בתוך התוכנית.")
-    try:
-        scale, residual = pg.two_point_scale([(p.a, p.b, p.metres) for p in body.pairs], v["width_px"], v["height_px"])
-    except ValueError:
-        raise ApiError(422, "validation", "שתי הנקודות קרובות מדי זו לזו; בחר נקודות רחוקות יותר.")
+    if (body.pairs is None) == (body.estimate is None):
+        raise ApiError(422, "validation", "שלח pairs (כיול בשתי נקודות) או estimate (הערכה), לא שניהם.")
     now = now_iso()
-    record = {"method": "two_point", "pairs": [{"a": [round(p.a[0], 6), round(p.a[1], 6)], "b": [round(p.b[0], 6), round(p.b[1], 6)], "metres": p.metres} for p in body.pairs],
-              "residual_pct": residual, "at": now, "by": principal.user_id}
+    residual: float | None
+    if body.estimate is not None:
+        scale, residual, status = body.estimate.scale_m_per_px, None, "estimated"
+        record: dict[str, Any] = {"method": body.estimate.method, "status": status, "pairs": [], "residual_pct": None, "reason": body.estimate.reason, "at": now, "by": principal.user_id}
+        details: dict[str, Any] = {"version_id": v["id"], "method": body.estimate.method, "status": status, "scale_m_per_px": scale}
+    else:
+        pairs = body.pairs or []
+        if any(not 0 <= c <= 1 for p in pairs for c in (*p.a, *p.b)):
+            raise ApiError(422, "validation", "נקודות הכיול חייבות להיות בתוך התוכנית.")
+        try:
+            scale, residual = pg.two_point_scale([(p.a, p.b, p.metres) for p in pairs], v["width_px"], v["height_px"])
+        except ValueError:
+            raise ApiError(422, "validation", "שתי הנקודות קרובות מדי זו לזו; בחר נקודות רחוקות יותר.")
+        status = "measured"
+        record = {"method": "two_point", "status": status, "pairs": [{"a": [round(p.a[0], 6), round(p.a[1], 6)], "b": [round(p.b[0], 6), round(p.b[1], 6)], "metres": p.metres} for p in pairs],
+                  "residual_pct": residual, "reason": None, "at": now, "by": principal.user_id}
+        details = {"version_id": v["id"], "method": "two_point", "status": status, "scale_m_per_px": scale, "residual_pct": residual, "pairs": len(pairs)}
     conn.execute("UPDATE plan_versions SET scale_m_per_px = ?, calibration_json = ?, revision = revision + 1 WHERE id = ?",
                  (scale, json.dumps(record, ensure_ascii=False), v["id"]))
     v2 = get_version(conn, v["id"])
     doc, row = store.working_doc(conn, v2)
     store.save_draft(conn, v2, doc, row["revision"] if row is not None else 0, principal.user_id, now)
-    audit(conn, actor=principal, action="plan.calibrate", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
-          details={"version_id": v["id"], "scale_m_per_px": scale, "residual_pct": residual, "pairs": len(body.pairs)})
-    warning = "הזוגות לא מסכימים ביניהם ביותר מ־3%: ייתכן שהסריקה מעוותת. כייל שוב או הוסף זוג." if residual > 3 else None
-    return {"version": version_row(v2), "scale_m_per_px": scale, "residual_pct": residual, "warning": warning}
+    audit(conn, actor=principal, action="plan.calibrate", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request), details=details)
+    warning = "הזוגות לא מסכימים ביניהם ביותר מ־3%: ייתכן שהסריקה מעוותת. כייל שוב או הוסף זוג." if residual is not None and residual > 3 else None
+    return {"version": version_row(v2), "scale_m_per_px": scale, "residual_pct": residual, "warning": warning, "status": status}
+
+
+# ---------------------------------------------------------------- detection (phase 3, T086)
+
+CandidateId = Annotated[str, StringConstraints(min_length=1, max_length=64)]
+
+
+class DetectIn(BaseModel):
+    targets: list[str] = Field(default=["walls", "openings"], min_length=1, max_length=4)
+    strength: float = Field(default=0.6, ge=0.3, le=1.0)
+    level_id: str | None = Field(default=None, max_length=64)
+
+
+class CandidateSet(BaseModel):
+    walls: list[dict[str, Any]] = Field(default=[], max_length=2000)
+    openings: list[dict[str, Any]] = Field(default=[], max_length=4000)
+    objects: list[dict[str, Any]] = Field(default=[], max_length=5000)
+
+
+class AcceptIn(BaseModel):
+    accepted: list[CandidateId] = Field(min_length=1, max_length=11000)
+    edits: dict[CandidateId, dict[str, Any]] = Field(default={}, max_length=11000)
+    replace_auto: bool = False
+    candidates: CandidateSet
+    base_revision: int = Field(ge=0)
+    detector: dict[str, Any] | None = None
+
+
+def _auto_counts(doc: dict[str, Any]) -> dict[str, int]:
+    return {c: sum(1 for i in doc.get(c) or [] if isinstance(i, dict) and i.get("source") == "auto") for c in ("walls", "openings")}
+
+
+@router.post("/plan-versions/{version_id}/detect")
+def detect_structure(version_id: str, body: DetectIn, request: Request, principal: Principal = Depends(current_principal),
+                     conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Candidates (walls, openings) from the version's picture by the local detector (design section 9): synchronous,
+    in a worker thread, at most detect_timeout_s (decision 6); nothing is stored - the client sends back what it
+    accepts to /detect/accept. The calibration, when there is one, sets the metres; otherwise the answer carries a
+    door-width hint."""
+    settings = settings_of(request)
+    v = _editable(conn, principal, version_id)
+    targets = list(dict.fromkeys(body.targets))
+    if "walls" not in targets or any(t not in plan_detect.TARGETS for t in targets):
+        raise ApiError(422, "validation", "targets: walls חובה, openings אופציונלי.")
+    doc, _row = store.working_doc(conn, v)
+    level_ids = {lv["id"] for lv in doc["levels"]}
+    level_id = body.level_id or next((lv["id"] for lv in doc["levels"] if lv.get("is_default")), pg.DEFAULT_LEVEL_ID)
+    if level_id not in level_ids:
+        raise ApiError(422, "unknown_level", "המפלס לא קיים בטיוטת המבנה.")
+    src = settings.data_dir / v["image_path"]
+    if not src.exists():
+        raise not_found("תמונת התוכנית חסרה בדיסק.")
+    cal = pg.calibration_of(v, None)
+    scale = float(v["scale_m_per_px"]) if v["scale_m_per_px"] and cal["status"] in ("measured", "estimated") else None
+    png = src.read_bytes()
+    t0 = time.perf_counter()
+    future = DETECT_POOL.submit(plan_detect.detect, png, targets=targets, strength=body.strength, scale_m_per_px=scale, level_id=level_id, run_id=new_id()[:6])
+    try:
+        with unlocked(conn):  # the write lock is not held while the worker runs
+            result = future.result(timeout=settings.detect_timeout_s)
+    except concurrent.futures.TimeoutError:
+        future.cancel()  # a worker already running finishes on its own; its result is never read
+        audit(conn, actor=principal, action="geometry.detect", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
+              details={"version_id": v["id"], "targets": targets, "strength": body.strength, "timeout_s": settings.detect_timeout_s, "timed_out": True})
+        raise ApiError(504, "detect_timeout", "הזיהוי לא הסתיים בזמן; נסה עוצמה נמוכה יותר או תוכנית קטנה יותר.", retryable=True, details={"timeout_s": settings.detect_timeout_s})
+    except (OSError, ValueError, MemoryError, RuntimeError) as exc:  # RuntimeError: the thinning's iteration bound in plan_detect
+        raise ApiError(500, "detect_failed", "זיהוי המבנה נכשל.", details={"error": type(exc).__name__})
+    elapsed_ms = int((time.perf_counter() - t0) * 1000)
+    audit(conn, actor=principal, action="geometry.detect", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
+          details={"version_id": v["id"], "targets": targets, "strength": body.strength, "walls": len(result["walls"]), "openings": len(result["openings"]), "ms": elapsed_ms,
+                   "calibrated": scale is not None, "tilt_deg": result["detector"]["params"].get("tilt_deg") if isinstance(result.get("detector"), dict) else None})
+    return {**result, "version_id": v["id"], "level_id": level_id, "existing_auto": _auto_counts(doc), "elapsed_ms": elapsed_ms}
+
+
+@router.post("/plan-versions/{version_id}/detect/accept")
+def accept_detection(version_id: str, body: AcceptIn, request: Request, principal: Principal = Depends(current_principal),
+                     conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """The candidates a person kept, merged into the draft under the draft's revision rules (design 9.5). The server
+    remembers no candidates: the client sends them back. Nothing is published."""
+    v = _editable(conn, principal, version_id)
+    doc, row = store.working_doc(conn, v)
+    current = row["revision"] if row is not None else 0
+    if body.base_revision != current:
+        raise conflict("stale_revision", "טיוטת המבנה השתנתה בינתיים; טען מחדש את העורך.", current_revision=current, sent_revision=body.base_revision)
+    try:
+        merged, counts = pg.merge_candidates(doc, body.candidates.model_dump(), body.accepted, body.edits, body.replace_auto)
+    except pg.CandidateError as exc:
+        raise ApiError(422, exc.code, exc.user_message, details={"ids": exc.ids})
+    structural = [i for i in pg.validate(merged) if i["structural"]]
+    if structural:
+        raise ApiError(422, "geometry_structure", "מבנה המועמדים אינו תקין; דבר לא נשמר.", details={"issues": structural[:50]})
+    meta = dict(merged.get("meta") or {})
+    meta["last_detection"] = {"at": now_iso(), "by": principal.user_id, "detector": body.detector, "accepted": counts["accepted"], "replace_auto": body.replace_auto}
+    if isinstance(body.detector, dict) and body.detector.get("name"):
+        meta["detector_version"] = f"{body.detector['name']} {body.detector.get('version', '')}".strip()
+    merged["meta"] = meta
+    saved = store.save_draft(conn, v, merged, body.base_revision, principal.user_id)
+    audit(conn, actor=principal, action="geometry.detect.accept", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
+          details={"version_id": v["id"], **counts, "edits": len(body.edits), "replace_auto": body.replace_auto, "detector": (body.detector or {}).get("name")})
+    return _payload(conn, v, saved, store.load_doc(saved))
 
 
 def _export_doc(conn: sqlite3.Connection, principal: Principal, version_id: str, draft: bool) -> tuple[sqlite3.Row, dict[str, Any]]:
