@@ -21,10 +21,11 @@ import { ROOM_FILL_LABEL, setRenderMode, stylizeVersion, type RoomFill, type Sty
 import { ZONE_KINDS, acceptZones, createZone, deleteZone, detectZones, pointInPolygon, updateZone, zoneKindLabel, type SpatialZone, type ZoneKind, type ZonePoint } from '../api/zones';
 import { calibrate, copyGeometryFrom, exportUrl, geometryDiff, publishGeometry, type GeometryDiffResponse } from '../api/geometry';
 import { productSettings } from '../api/prefs';
-import { distanceM, effectiveScale, isClosedOutline, lengthPx, nearestWall, pointOnWall, snapPoint, type GeometryDoc, type GeomOpening, type GeomWall, type Pt } from '../map/geometry';
+import { itemOf, loadLibrary, lookupOf, type CatalogItem, type CatalogLibrary } from '../api/plan-catalog';
+import { distanceM, effectiveScale, isClosedOutline, lengthPx, nearestWall, pointOnWall, snapPoint, type CatalogLookup, type GeometryDoc, type GeomOpening, type GeomWall, type Pt } from '../map/geometry';
 import { StudioController } from '../map/studio-controller';
-import { addLabel, addOpening, addWall, kindDefaults, moveVertex, nudgeT, openingRange, patchLabel, patchOpening, patchWall, removeCorner, removeItem, wallDirectionAt, type WallDefaults } from '../map/studio-ops';
-import { COLL_LABEL, countLabel, fmtMetres, fmtScale, renderCalibPanel, renderMeasurePanel, renderStudioPanel, studioPanelStyles, type GeomKind, type GeomSel, type StudioMode } from './plan-studio-panel';
+import { BIND_DISTANCE_M, addLabel, addObject, addOpening, addWall, defaultLevelId, duplicateObject, kindDefaults, moveObject, moveVertex, newId, nudgeT, openingRange, patchLabel, patchObject, patchOpening, patchWall, removeCorner, removeItem, rotationTo, stretchedSize, wallDirectionAt, type WallDefaults } from '../map/studio-ops';
+import { COLL_LABEL, countLabel, fmtMetres, fmtScale, renderCalibPanel, renderLibraryPanel, renderMeasurePanel, renderObjectInspector, renderStudioPanel, studioPanelStyles, type GeomKind, type GeomSel, type StudioMode } from './plan-studio-panel';
 
 type Strength = 'light' | 'medium' | 'strong';
 interface ZoneCandidate {
@@ -36,7 +37,7 @@ interface ZoneCandidate {
 /** Same palette as the backend assigns on save, so candidates keep their colour once accepted. */
 const PALETTE = ['#2767ED', '#22A06B', '#F59E0B', '#8B5CF6', '#0EA5E9', '#EC4899', '#14B8A6', '#F97316'];
 
-type Tool = 'select' | 'camera' | 'lights' | 'entity' | 'zones' | 'structure' | 'calibrate' | 'measure' | 'layers';
+type Tool = 'select' | 'camera' | 'lights' | 'entity' | 'zones' | 'structure' | 'library' | 'calibrate' | 'measure' | 'layers';
 type Layer = 'cameras' | 'doors' | 'lights' | 'sensors';
 
 const TOOLS: { id: Tool; icon: IconName; label: string; ready: boolean }[] = [
@@ -46,13 +47,14 @@ const TOOLS: { id: Tool; icon: IconName; label: string; ready: boolean }[] = [
   { id: 'entity', icon: 'plus', label: 'ישות HA אחרת', ready: true },
   { id: 'zones', icon: 'map', label: 'חדרים ואזורים', ready: true },
   { id: 'structure', icon: 'wall', label: 'מבנה: קירות, דלתות וחלונות', ready: true },
+  { id: 'library', icon: 'grid', label: 'ספריית עצמים', ready: true },
   { id: 'calibrate', icon: 'scale', label: 'כיול קנה מידה', ready: true },
   { id: 'measure', icon: 'ruler', label: 'מדידת מרחק ושטח', ready: true },
   { id: 'layers', icon: 'layers', label: 'שכבות', ready: true },
 ];
 
 /** Tools that work on the Plan Studio structure document (they need map.edit on the floor). */
-const STUDIO_TOOLS: Tool[] = ['structure', 'calibrate', 'measure'];
+const STUDIO_TOOLS: Tool[] = ['structure', 'library', 'calibrate', 'measure'];
 interface CalibState {
   a: Pt | null;
   b: Pt | null;
@@ -64,6 +66,9 @@ const EMPTY_CALIB: CalibState = { a: null, b: null, metres: '', result: '', warn
 /** Arrow presses on one structure item less than this far apart (a held key, a quick run of taps) are one undo step. */
 const NUDGE_BURST_MS = 1000;
 const ARROWS = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
+/** Per-browser shelves of the library panel (design 4.3: "recent" and "favourites" per browser). */
+const readList = (key: string): string[] => { try { const v = JSON.parse(localStorage.getItem(key) ?? '[]'); return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []; } catch { return []; } };
+const writeList = (key: string, list: string[]) => { try { localStorage.setItem(key, JSON.stringify(list.slice(0, 40))); } catch { /* private mode */ } };
 /** Screen pixels: a wall corner attracts a drawing / calibrating / measuring point this close (and in wall mode such a
  * press draws even on top of an opening or a label). */
 const CORNER_SNAP_PX = 10;
@@ -141,6 +146,20 @@ export class ExplorePlanEditor extends LitElement {
   /** The last arrow-key nudge: the item, the document it left and when. A press that continues it (same item, within
    * NUDGE_BURST_MS, nothing else edited in between) replaces its undo step instead of adding one. */
   private nudgeBurst: { key: string; doc: GeometryDoc; at: number } | null = null;
+  // ---- Plan Studio phase 2 (T085): the library, placing, binding ----
+  @state() private library: CatalogLibrary | null = null;
+  private libLookup: CatalogLookup | null = null;
+  @state() private libQ = '';
+  @state() private libCategory: string | null = null;
+  @state() private libRecent: string[] = readList('sw.studio.recent');
+  @state() private libFav: string[] = readList('sw.studio.fav');
+  /** The item the next click on the plan places (desktop: stays armed until Esc; phone: one placement). */
+  @state() private placingItem: CatalogItem | null = null;
+  /** An object dropped within BIND_DISTANCE_M of an anchor its item may represent: the offer to make it the anchor's body. */
+  @state() private bindOffer: { objectId: string; anchor: Anchor } | null = null;
+  /** The id a duplicate takes while it is dragged (Alt + drag), so the preview and the drop agree. */
+  private dupId: string | null = null;
+  private readonly phone = window.matchMedia('(max-width: 767px)');
   @state() private wallDraft: Pt[] | null = null;
   /** Raw plan position of the click that added the draft's last point (a double click there ends the wall). */
   private lastDrawClick: Pt | null = null;
@@ -532,6 +551,19 @@ export class ExplorePlanEditor extends LitElement {
       border-radius: 8px;
       background: var(--sw-map-bg);
     }
+    .bindbar {
+      pointer-events: auto;
+    }
+    .bindbar button {
+      margin-inline-start: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.6);
+      background: transparent;
+      color: #fff;
+      border-radius: 999px;
+      padding: 2px 10px;
+      font: inherit;
+      cursor: pointer;
+    }
     @media (max-width: 1023px) {
       .layout {
         grid-template-columns: minmax(0, 1fr);
@@ -580,6 +612,7 @@ export class ExplorePlanEditor extends LitElement {
       const b = await loadMap(this.floorId || 'f0', true);
       this.bundle = b;
       void this.loadStudio(b);
+      void this.loadLibraryFor(b);
       void productSettings()
         .then((s) => {
           this.showEstimates = s['plan.estimates'] !== 'false'; // undefined until the backend serves the setting (Task 13): estimates shown
@@ -816,7 +849,9 @@ export class ExplorePlanEditor extends LitElement {
     const target = e.composedPath()[0] as HTMLElement | undefined;
     const typing = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable);
     if (e.key === 'Escape') {
-      if (this.wallDraft) {
+      if (this.placingItem) this.placingItem = null;
+      else if (this.bindOffer) this.bindOffer = null;
+      else if (this.wallDraft) {
         this.wallDraft = null;
         this.hover = null;
       } else if (this.tool === 'measure' && this.measurePts.length) this.measurePts = [];
@@ -1146,6 +1181,9 @@ export class ExplorePlanEditor extends LitElement {
     this.wallDraft = null;
     this.hover = null;
     this.geomPreview = null;
+    this.placingItem = null;
+    this.bindOffer = null;
+    if (tool === 'structure' && this.phone.matches && this.studioMode === 'wall') this.studioMode = 'select'; // wall drawing is desktop only: a phone opens the tool in select mode
     if (tool !== 'structure') this.geomSel = null;
     if (tool !== 'measure') this.measurePts = [];
     if (tool !== 'calibrate') this.calib = { ...EMPTY_CALIB };
@@ -1186,22 +1224,110 @@ export class ExplorePlanEditor extends LitElement {
     }
   }
 
+  private async loadLibraryFor(b: MapBundle) {
+    if (b.source !== 'api') return;
+    try {
+      const lib = await loadLibrary(b.catalogRevision);
+      this.library = lib;
+      this.libLookup = lookupOf(lib);
+    } catch (err) {
+      this.error = describeError(err);
+    }
+  }
+
+  /** The level new items go to: the level filter (Task 11) when one is on, else the document's default level. */
+  private placeOpts(doc: GeometryDoc): { levelId: string; ceilingM: number } {
+    const levelId = defaultLevelId(doc);
+    return { levelId, ceilingM: doc.levels.find((l) => l.id === levelId)?.ceiling_height_m ?? 2.8 };
+  }
+
+  private remember(itemId: string) {
+    this.libRecent = [itemId, ...this.libRecent.filter((x) => x !== itemId)].slice(0, 12);
+    writeList('sw.studio.recent', this.libRecent);
+  }
+
+  /** Place the armed item at a plan point; on a phone one placement disarms the item. */
+  private placeItem(p: Pt) {
+    const doc = this.studio.doc;
+    const item = this.placingItem;
+    if (!doc || !item) return;
+    const r = addObject(doc, item, p, this.placeOpts(doc));
+    this.studio.commit(r.doc);
+    this.geomSel = { id: r.id, kind: 'object' };
+    this.remember(item.id);
+    this.offerBinding(r.id);
+    if (this.phone.matches) this.placingItem = null;
+  }
+
+  /** An item dragged from the library panel and dropped on the plan. */
+  private onItemDrop(e: DragEvent) {
+    const id = e.dataTransfer?.getData('text/x-sw-item');
+    const canvas = this.canvas;
+    const lib = this.library;
+    if (!id || !canvas || !lib) return;
+    e.preventDefault();
+    const item = itemOf(lib, id);
+    if (!item) return;
+    const rect = canvas.getBoundingClientRect();
+    const p = canvas.toPlan(e.clientX - rect.left, e.clientY - rect.top);
+    this.placingItem = item;
+    this.placeItem([p.x, p.y]);
+    if (!this.phone.matches) this.placingItem = null; // a drop is one placement
+  }
+
+  /** After a placement or a move: an anchor of a kind the item may represent, within BIND_DISTANCE_M, is offered. */
+  private offerBinding(objectId: string) {
+    const b = this.bundle;
+    const doc = this.studio.doc;
+    const lib = this.library;
+    this.bindOffer = null;
+    if (!b || !doc || !lib) return;
+    const o = doc.objects.find((x) => x.id === objectId);
+    const item = o ? itemOf(lib, o.item_id) : undefined;
+    if (!o || !item || !item.anchor_kinds.length || o.anchor_ref) return;
+    const { scale } = effectiveScale(doc);
+    let best: { a: Anchor; d: number } | null = null;
+    for (const a of this.anchors) {
+      const kind = a.resource_type === 'camera' ? 'camera' : (a.entity?.domain ?? a.resource_id.split('.')[0]);
+      if (!item.anchor_kinds.includes(kind)) continue;
+      const d = distanceM(o.position, [a.position.x, a.position.y], b.width, b.height, scale);
+      if (d <= BIND_DISTANCE_M && (!best || d < best.d)) best = { a, d };
+    }
+    if (best) this.bindOffer = { objectId, anchor: best.a };
+  }
+
+  /** The object becomes the anchor's body: it takes the anchor's position and rotation now, and follows it from here on. */
+  private bindObject(objectId: string, a: Anchor) {
+    this.edit((d) => patchObject(d, objectId, { anchor_ref: { resource_type: a.resource_type, resource_id: a.resource_id }, position: [a.position.x, a.position.y], rotation_deg: a.rotation_degrees }));
+    this.bindOffer = null;
+    this.info = `העצם הוא עכשיו הגוף של ${this.anchorName(a)}`;
+    setTimeout(() => (this.info = ''), 3000);
+  }
+
+  private get catalogLookup(): CatalogLookup | null {
+    return this.libLookup;
+  }
+
   private get studioOn(): boolean {
     return STUDIO_TOOLS.includes(this.tool) && !!this.studio.doc;
   }
 
   /** Clicks on the plan go to the studio tool instead of selecting pins. */
   private get studioPlacing(): boolean {
-    return this.studioOn && (this.tool !== 'structure' || this.studioMode !== 'select');
+    if (!this.studioOn) return false;
+    if (this.tool === 'library') return !!this.placingItem;
+    return this.tool !== 'structure' || this.studioMode !== 'select';
   }
 
   /** What the pointer can grab in the structure (owner report on 0.1.82: a door just placed could not be slid along its
    * wall without switching to select mode). Select mode: everything, corners included. Every drawing mode: the existing
    * openings and labels, so a press on one drags it (or selects it) while a press on a bare wall still places a door;
    * in wall mode a corner stays a snap target for the new wall, not a handle. Nothing while a wall is being drawn: its
-   * clicks belong to the drawing. */
+   * clicks belong to the drawing. The library tool: objects and connectors, unless an item is being placed. */
   private get geomDragMode(): GeomDragMode {
-    if (this.tool !== 'structure' || !this.studio.doc) return 'none';
+    if (!this.studio.doc) return 'none';
+    if (this.tool === 'library') return this.placingItem ? 'none' : 'objects';
+    if (this.tool !== 'structure') return 'none';
     if (this.studioMode === 'select') return 'all';
     return this.wallDraft ? 'none' : 'items';
   }
@@ -1262,7 +1388,8 @@ export class ExplorePlanEditor extends LitElement {
       return;
     }
     const p: Pt = [x, y];
-    if (this.tool === 'calibrate') this.hover = this.snap(p, null, true);
+    if (this.tool === 'library') this.hover = p;
+    else if (this.tool === 'calibrate') this.hover = this.snap(p, null, true);
     else if (this.tool === 'measure') this.hover = this.snap(p, this.measurePts.at(-1) ?? null, shift);
     else if (this.studioMode === 'wall') this.hover = this.snapDraw(p, this.wallDraft ?? [], shift);
     else if (this.studioMode === 'label') this.hover = p;
@@ -1278,6 +1405,10 @@ export class ExplorePlanEditor extends LitElement {
     const doc = this.studio.doc;
     if (!b || !doc) return;
     const p: Pt = [x, y];
+    if (this.tool === 'library') {
+      if (this.placingItem) this.placeItem(p);
+      return;
+    }
     if (this.tool === 'calibrate') {
       const q = this.snap(p, null, true); // corners of walls attract; no angle snapping - the distance is what counts
       const c = this.calib;
@@ -1347,9 +1478,11 @@ export class ExplorePlanEditor extends LitElement {
   }
 
   private onGeomSelect(id: string, kind: GeomKind, vertex?: number) {
+    if (kind === 'object' && this.tool !== 'library') this.pickTool('library'); // the object inspector lives in the library tool (pickTool clears the selection, so it goes first)
     this.geomSel = vertex === undefined ? { id, kind } : { id, kind, vertex };
     this.selectedId = null;
     this.selectedZoneId = null;
+    if (kind !== 'object' && kind !== 'group') this.bindOffer = null;
   }
 
   /** A wall's length in metres (estimated before calibration), in the bundle's plan pixels - as the validator measures it. */
@@ -1366,6 +1499,30 @@ export class ExplorePlanEditor extends LitElement {
     const b = this.bundle;
     if (!b) return null;
     const p: Pt = [d.x, d.y];
+    if (d.kind === 'object' || d.kind === 'object-duplicate') {
+      const o = doc.objects.find((v) => v.id === d.id);
+      if (!o) return null;
+      if (o.anchor_ref) return { doc, sel: { id: d.id, kind: 'object' } }; // a body moves with its anchor, never by hand
+      const to: Pt = [o.position[0] + d.x - d.sx, o.position[1] + d.y - d.sy]; // by the pointer's movement: no jump to the pointer
+      if (d.kind === 'object-duplicate') {
+        this.dupId ??= newId();
+        const r = duplicateObject(doc, d.id, to, this.dupId);
+        return { doc: r.doc, sel: { id: r.id, kind: 'object' } };
+      }
+      return { doc: moveObject(doc, d.id, to), sel: { id: d.id, kind: 'object' } };
+    }
+    if (d.kind === 'object-rotate') {
+      const o = doc.objects.find((v) => v.id === d.id);
+      if (!o || o.anchor_ref) return null;
+      return { doc: patchObject(doc, d.id, { rotation_deg: rotationTo(o, p, b.width, b.height, d.shift ? 15 : 1) }), sel: { id: d.id, kind: 'object' } };
+    }
+    if (d.kind === 'object-stretch') {
+      const o = doc.objects.find((v) => v.id === d.id);
+      if (!o) return null;
+      const size = stretchedSize(o, (d.index % 4) as 0 | 1 | 2 | 3, p, b.width, b.height, effectiveScale(doc).scale, d.shift);
+      return { doc: patchObject(doc, d.id, { size }), sel: { id: d.id, kind: 'object' } };
+    }
+    if (d.kind === 'connector-vertex') return null; // Task 12
     if (d.kind === 'vertex') {
       const w = doc.walls.find((v) => v.id === d.id);
       if (!w) return null;
@@ -1412,6 +1569,8 @@ export class ExplorePlanEditor extends LitElement {
     if (!r) return;
     this.edit(() => r.doc);
     this.onGeomSelect(r.sel.id, r.sel.kind, r.sel.vertex);
+    this.dupId = null;
+    if (r.sel.kind === 'object') this.offerBinding(r.sel.id);
   }
 
   /** Arrow keys on the selected structure item (the structure tool, any mode), in screen directions. An opening moves
@@ -1448,7 +1607,11 @@ export class ExplorePlanEditor extends LitElement {
     } else {
       const dx = (e.key === 'ArrowRight' ? stepPx : e.key === 'ArrowLeft' ? -stepPx : 0) / b.width;
       const dy = (e.key === 'ArrowDown' ? stepPx : e.key === 'ArrowUp' ? -stepPx : 0) / b.height;
-      if (sel.kind === 'label') {
+      if (sel.kind === 'object') {
+        const o = doc.objects.find((x) => x.id === sel.id);
+        if (!o || o.anchor_ref) return false;
+        next = moveObject(doc, o.id, [o.position[0] + dx, o.position[1] + dy]);
+      } else if (sel.kind === 'label') {
         const l = doc.labels.find((x) => x.id === sel.id);
         if (!l) return false;
         next = patchLabel(doc, l.id, { position: [l.position[0] + dx, l.position[1] + dy] });
@@ -1463,7 +1626,7 @@ export class ExplorePlanEditor extends LitElement {
       }
     }
     e.preventDefault(); // the key is the item's even at the end of its range (no page scroll)
-    const item = (d: GeometryDoc) => JSON.stringify(sel.kind === 'opening' ? d.openings.find((x) => x.id === sel.id) : sel.kind === 'label' ? d.labels.find((x) => x.id === sel.id) : d.walls.find((x) => x.id === sel.id));
+    const item = (d: GeometryDoc) => JSON.stringify(sel.kind === 'opening' ? d.openings.find((x) => x.id === sel.id) : sel.kind === 'label' ? d.labels.find((x) => x.id === sel.id) : sel.kind === 'object' ? d.objects.find((x) => x.id === sel.id) : d.walls.find((x) => x.id === sel.id));
     if (item(next) !== item(doc)) this.commitNudge(key, next); // at the end of its range nothing moves and nothing is added
     return true;
   }
@@ -1511,7 +1674,7 @@ export class ExplorePlanEditor extends LitElement {
       this.geomSel = null;
       return true;
     }
-    if (ARROWS.includes(e.key) && this.tool === 'structure' && this.nudgeGeom(e)) return true;
+    if (ARROWS.includes(e.key) && (this.tool === 'structure' || this.tool === 'library') && this.nudgeGeom(e)) return true;
     if (mod && (key === 'z' || key === 'y')) {
       e.preventDefault();
       if (key === 'y' || e.shiftKey) this.studio.redo();
@@ -1536,7 +1699,14 @@ export class ExplorePlanEditor extends LitElement {
     const o = doc.openings.find((x) => x.id === id);
     const l = doc.labels.find((x) => x.id === id);
     const host = o ? doc.walls.find((x) => x.id === o.wall_id) : undefined;
-    const at: Pt | null = w ? pointOnWall(w, 0.5, b.width, b.height) : o && host ? pointOnWall(host, o.t, b.width, b.height) : l ? l.position : null;
+    const ob = doc.objects.find((x) => x.id === id);
+    const at: Pt | null = w ? pointOnWall(w, 0.5, b.width, b.height) : o && host ? pointOnWall(host, o.t, b.width, b.height) : l ? l.position : ob ? ob.position : null;
+    if (ob) {
+      this.pickTool('library');
+      this.geomSel = { id, kind: 'object' };
+      if (at) this.canvas?.centerOn(at[0], at[1]);
+      return;
+    }
     this.tool = 'structure';
     this.studioMode = 'select';
     this.wallDraft = null;
@@ -1593,6 +1763,11 @@ export class ExplorePlanEditor extends LitElement {
       },
       {
         setMode: (m) => {
+          if (m === 'wall' && this.phone.matches) {
+            this.info = 'ציור קירות זמין בדסקטופ בלבד; בטלפון אפשר להציב ולהזיז עצמים בודדים';
+            setTimeout(() => (this.info = ''), 4000);
+            return;
+          }
           this.studioMode = m;
           this.wallDraft = null;
           this.hover = null;
@@ -1622,6 +1797,57 @@ export class ExplorePlanEditor extends LitElement {
   }
 
   /** Calibration and measuring segments with their lengths, drawn by the canvas. */
+
+  private renderLibraryTool(b: MapBundle) {
+    const doc = this.studio.doc;
+    const lib = this.library;
+    if (!doc || !lib || !b.planVersionId) {
+      return html`<sw-card heading="ספריית עצמים"><div class="note">${b.source === 'demo' ? 'נתוני הדגמה: הספרייה נטענת מהשרת.' : this.error || 'טוען את הספרייה…'}</div></sw-card>`;
+    }
+    const { estimated } = effectiveScale(doc);
+    const canManage = b.permissions.structure; // catalog.manage rides with the editor roles (editor, site_admin, system_admin); the server refuses otherwise
+    const sel = this.geomSel?.kind === 'object' ? doc.objects.find((o) => o.id === this.geomSel!.id) : undefined;
+    const anchorOf = (o: { anchor_ref: { resource_type: string; resource_id: string } | null }) => {
+      const a = o.anchor_ref && this.anchors.find((x) => x.resource_type === o.anchor_ref!.resource_type && x.resource_id === o.anchor_ref!.resource_id);
+      return a ? this.anchorName(a) : null;
+    };
+    return html`${sel
+      ? renderObjectInspector(
+          { o: sel, item: itemOf(lib, sel.item_id), levels: doc.levels, doc, estimated, showEstimates: this.showEstimates, anchorName: anchorOf(sel), phone: this.phone.matches, canManage,
+            lib_category: (item) => lib.categories.find((c) => c.id === item.category)?.he ?? item.category },
+          {
+            patch: (id, patch) => this.edit((d) => patchObject(d, id, patch)),
+            unbind: (id) => this.edit((d) => patchObject(d, id, { anchor_ref: null })),
+            remove: (id) => {
+              this.edit((d) => removeItem(d, id));
+              this.geomSel = null;
+            },
+            array: () => {}, // Task 10
+            custom: () => {}, // Task 10
+            selectGroup: () => {}, // Task 10
+          },
+        )
+      : nothing}
+    ${renderLibraryPanel(
+      { lib, q: this.libQ, category: this.libCategory, recent: this.libRecent, favorites: this.libFav, placing: this.placingItem, saveState: this.studio.saveState, phone: this.phone.matches,
+        exportHref: '', canManage: false },
+      {
+        setQuery: (q) => (this.libQ = q),
+        setCategory: (id) => (this.libCategory = id),
+        pick: (item) => {
+          this.placingItem = this.placingItem?.id === item.id ? null : item;
+          this.geomSel = null;
+          this.bindOffer = null;
+        },
+        toggleFavorite: (id) => {
+          this.libFav = this.libFav.includes(id) ? this.libFav.filter((x) => x !== id) : [...this.libFav, id];
+          writeList('sw.studio.fav', this.libFav);
+        },
+        importFile: () => {}, // Task 10
+        cancelPlacing: () => (this.placingItem = null),
+      },
+    )}`;
+  }
   private get rulers(): RulerOverlay[] {
     const bundle = this.bundle;
     const doc = this.studio.doc;
@@ -1787,6 +2013,7 @@ export class ExplorePlanEditor extends LitElement {
   private renderToolPanel(b: MapBundle) {
     const anchoredIds = new Set(this.anchors.map((a) => a.resource_id));
     if (this.tool === 'structure') return this.renderStructurePanel(b);
+    if (this.tool === 'library') return this.renderLibraryTool(b);
     if (this.tool === 'calibrate') return this.renderCalibrate(b);
     if (this.tool === 'measure') return this.renderMeasure(b);
     if (this.tool === 'camera') {
@@ -2018,11 +2245,11 @@ export class ExplorePlanEditor extends LitElement {
                   .zones=${this.planZones} .selectedZoneId=${this.selectedZoneId} .draftPoints=${this.drawing ?? []}
                   .geometry=${this.geomPreview ?? this.studio.doc} .geomDrag=${this.geomDragMode} .selectedGeomId=${this.geomSel?.id ?? null} .selectedVertex=${this.geomSel?.vertex ?? null} .issueIds=${this.issueIds}
                   .cornerSnapPx=${this.tool === 'structure' && this.studioMode === 'wall' ? CORNER_SNAP_PX : 0}
-                  .wallDraft=${this.wallDraft ?? []} .hoverPoint=${this.studioPlacing ? this.hover : null} .rulers=${this.rulers}
+                  .wallDraft=${this.wallDraft ?? []} .hoverPoint=${this.studioPlacing ? this.hover : null} .rulers=${this.rulers} .catalog=${this.catalogLookup} .anchorPositions=${Object.fromEntries(this.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees }]))}
                   @plan-hover=${(e: CustomEvent<{ x: number; y: number; shift: boolean; item?: boolean }>) => this.onPlanHover(e.detail.x, e.detail.y, e.detail.shift, !!e.detail.item)}
                   @geom-select=${(e: CustomEvent<{ id: string; kind: GeomKind; vertex?: number }>) => this.onGeomSelect(e.detail.id, e.detail.kind, e.detail.vertex)}
                   @geom-drag-move=${(e: CustomEvent<GeomDragDetail>) => this.onGeomDragMove(e.detail)}
-                  @geom-drag-cancel=${() => (this.geomPreview = null)}
+                  @geom-drag-cancel=${() => { this.geomPreview = null; this.dupId = null; }}
                   @geom-drag=${(e: CustomEvent<GeomDragDetail>) => this.onGeomDrag(e.detail)}
                   @zone-select=${(e: CustomEvent<{ id: string }>) => { if (this.placing || this.drawing || this.studioPlacing || e.detail.id.startsWith('cand-')) return; if (this.tool === 'structure') { this.geomSel = null; return; } this.selectedZoneId = e.detail.id; this.selectedId = null; }}
                   @zone-edit=${(e: CustomEvent<{ id: string; polygon: ZonePoint[] }>) => { const z = this.zones.find((x) => x.id === e.detail.id); if (z) void this.patchZone(z, { polygon: e.detail.polygon }); }}
@@ -2030,9 +2257,12 @@ export class ExplorePlanEditor extends LitElement {
                   @marker-move=${(e: CustomEvent<{ id: string; x: number; y: number }>) => { this.apply(e.detail.id, { position: { x: +e.detail.x.toFixed(4), y: +e.detail.y.toFixed(4) } }); this.selectedId = e.detail.id; }}
                   @marker-orient=${(e: CustomEvent<{ id: string; rotation: number; fov: number }>) => this.apply(e.detail.id, { rotation_degrees: e.detail.rotation, field_of_view_degrees: e.detail.fov })}
                   @marker-coverage=${(e: CustomEvent<{ id: string; radius?: number; polygon?: { x: number; y: number }[] }>) => this.apply(e.detail.id, e.detail.polygon ? { coverage_polygon: e.detail.polygon.map((p) => [p.x, p.y] as [number, number]) } : { coverage_radius: e.detail.radius })}
-                  @plan-click=${(e: CustomEvent<{ x: number; y: number; shift?: boolean }>) => (this.drawing ? this.addDraftPoint(e.detail.x, e.detail.y) : this.studioPlacing ? this.studioClick(e.detail.x, e.detail.y, !!e.detail.shift) : this.place(e.detail.x, e.detail.y))}></sw-plan-canvas>
+                  @plan-click=${(e: CustomEvent<{ x: number; y: number; shift?: boolean }>) => (this.drawing ? this.addDraftPoint(e.detail.x, e.detail.y) : this.studioPlacing ? this.studioClick(e.detail.x, e.detail.y, !!e.detail.shift) : this.place(e.detail.x, e.detail.y))} @dragover=${(e: DragEvent) => { if (e.dataTransfer?.types.includes('text/x-sw-item')) e.preventDefault(); }} @drop=${(e: DragEvent) => this.onItemDrop(e)}></sw-plan-canvas>
                 ${this.placing ? html`<div class="placing-hint"><span>לחץ על התוכנית כדי להציב את ${this.placing.kind === 'camera' ? this.placing.camera.name : this.placing.entity.name || this.placing.entity.entity_id} · Esc לביטול</span></div>` : nothing}
                 ${this.drawing ? html`<div class="placing-hint"><span>ציור אזור: לחץ להוספת פינות (${this.drawing.length}) · לחיצה על הפינה הראשונה או Enter מסיימים · Esc לביטול</span></div>` : nothing}
+                ${this.placingItem && !this.bindOffer ? html`<div class="placing-hint"><span>לחץ על התוכנית כדי להציב ${this.placingItem.names.he} · Esc לביטול</span></div>` : nothing}
+                ${this.bindOffer ? html`<div class="placing-hint bindbar" data-bind-offer><span>העצם ליד ${this.anchorName(this.bindOffer.anchor)} — להפוך אותו לגוף של הישות?
+                    <button data-bind-accept @click=${() => this.bindObject(this.bindOffer!.objectId, this.bindOffer!.anchor)}>הצמד לישות</button><button data-bind-dismiss @click=${() => (this.bindOffer = null)}>לא</button></span></div>` : nothing}
                 ${this.wallDraft ? html`<div class="placing-hint"><span>ציור קיר: ${this.wallDraft.length} נקודות · Enter או לחיצה חוזרת על הנקודה האחרונה מסיימים · לחיצה על הנקודה הראשונה סוגרת מתאר · Esc לביטול</span></div>` : nothing}
                 <div class="legend"><span><i></i>מצלמות · ${cams}</span><span><i class="ent"></i>ישויות HA · ${ents}</span><span><i class="zone"></i>אזורים · ${this.zones.length}</span></div>
               </div>

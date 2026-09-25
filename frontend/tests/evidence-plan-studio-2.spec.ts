@@ -120,4 +120,50 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
     await saveDraft({ circuits: [] });
     await publish();
   });
+
+  test('the library places a chair by click, the handles move, rotate and duplicate it, a lamp dropped on a light anchor is offered as its body', async ({ page }) => {
+    const ed = 'explore-plan-editor';
+    // an HA light with an anchor at (0.6, 0.6): the body offer needs an anchor of a matching kind
+    expect((await api.post('api/v1/ha/dev/states', { data: { states: [{ entity_id: 'light.studio2_lamp', state: 'off', attributes: { friendly_name: 'מנורת אולם' } }] } })).status()).toBe(200);
+    const anchor = await (await api.post(`api/v1/floors/${ids.floor}/anchors`, { data: { resource_type: 'ha_entity', resource_id: 'light.studio2_lamp', x: 0.6, y: 0.6, rotation_degrees: 0, field_of_view_degrees: null } })).json();
+    expect(anchor.id).toBeTruthy();
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
+    await expect(page.locator(`${ed} sw-plan-canvas [data-object]`)).toHaveCount(2, { timeout: 20000 });
+    await page.locator(`${ed} [data-tool="library"]`).click();
+    await expect(page.locator(`${ed} [data-library-panel]`)).toBeVisible();
+    await page.locator(`${ed} [data-lib-search]`).fill('כיסא');
+    await page.locator(`${ed} [data-lib-item="chair.basic"]`).click();
+    await clickPlan(page, ed, 0.3, 0.5);
+    await expect(page.locator(`${ed} sw-plan-canvas [data-object]`)).toHaveCount(3);
+    await expect(page.locator(`${ed} [data-selected-object]`)).toBeVisible();
+    const placedId = (await page.locator(`${ed} [data-selected-object]`).getAttribute('data-selected-object'))!;
+    await page.keyboard.press('Escape'); // disarm the item: presses on objects now grab them
+    await dragPlan(page, ed, [0.3, 0.5], [0.4, 0.5]);
+    await expect.poll(async () => (await draft()).doc.objects.find((o) => o.id === placedId)?.position[0] ?? 0, { timeout: 10000 }).toBeGreaterThan(0.38);
+    const knob = (await page.locator(`${ed} sw-plan-canvas [data-object-rotate]`).boundingBox())!;
+    await page.mouse.move(knob.x + knob.width / 2, knob.y + knob.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(knob.x + 80, knob.y + 60, { steps: 6 });
+    await page.mouse.up();
+    await expect.poll(async () => Math.round(((await draft()).doc.objects.find((o) => o.id === placedId) as unknown as { rotation_deg: number }).rotation_deg), { timeout: 10000 }).toBeGreaterThan(0);
+    await dragPlan(page, ed, [0.4, 0.5], [0.4, 0.7], ['Alt']);
+    await expect(page.locator(`${ed} sw-plan-canvas [data-object]`)).toHaveCount(4);
+    await page.keyboard.press('Delete');
+    await expect(page.locator(`${ed} sw-plan-canvas [data-object]`)).toHaveCount(3);
+    await page.locator(`${ed} [data-lib-cat="recent"]`).click();
+    await expect(page.locator(`${ed} [data-lib-item="chair.basic"]`)).toHaveCount(1);
+    // a ceiling lamp dropped on the light's anchor becomes its body
+    await page.locator(`${ed} [data-lib-cat="all"]`).click();
+    await page.locator(`${ed} [data-lib-search]`).fill('מנורת תקרה');
+    await page.locator(`${ed} [data-lib-item="light.ceiling"]`).click();
+    await clickPlan(page, ed, 0.6, 0.6);
+    await expect(page.locator(`${ed} [data-bind-offer]`)).toBeVisible();
+    await page.locator(`${ed} [data-bind-accept]`).click();
+    await expect(page.locator(`${ed} [data-object-bound]`)).toBeVisible();
+    await expect(page.locator(`${ed} [data-studio-save="saved"]`)).toHaveCount(1, { timeout: 10000 });
+    const bound = (await draft()).doc.objects.find((o) => o.item_id === 'light.ceiling' && o.anchor_ref);
+    expect(bound).toBeTruthy();
+    expect(bound!.position).toEqual([0.6, 0.6]);
+    expect((await draft()).doc.objects.find((o) => o.id === placedId)!.item_id).toBe('chair.basic');
+  });
 });

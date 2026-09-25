@@ -1,6 +1,7 @@
 /** Plan Studio (T084): pure edits of a structure document - every function returns a new document, so undo / redo is
  * a stack of documents and nothing is ever mutated in place. */
-import { DEFAULT_LEVEL_ID, OPENING_DEFAULTS, isClosedOutline, pointAt, type GeometryDoc, type GeomLabel, type GeomOpening, type GeomWall, type OpeningKind, type Pt, type Swing, type WallKind } from './geometry';
+import { DEFAULT_LEVEL_ID, OPENING_DEFAULTS, isClosedOutline, pointAt, rotated, type GeometryDoc, type GeomLabel, type GeomObject, type GeomOpening, type GeomSize, type GeomWall, type OpeningKind, type Pt, type Swing, type WallKind } from './geometry';
+import type { CatalogItem } from '../api/plan-catalog';
 
 export interface WallDefaults {
   thickness_m: number;
@@ -101,9 +102,22 @@ export function removeCorner(doc: GeometryDoc, id: string, index: number): { doc
   return { doc: { ...doc, walls: doc.walls.map((x) => (x.id === id ? { ...x, polyline } : x)) }, wallRemoved: false };
 }
 
-/** A wall takes its openings with it. */
+/** A wall takes its openings with it; an object leaves its group and its circuit and takes the connector derived from it;
+ * a group leaves its members in place, unlinked; a connector and a circuit simply go. */
 export function removeItem(doc: GeometryDoc, id: string): GeometryDoc {
   if (doc.walls.some((w) => w.id === id)) return { ...doc, walls: doc.walls.filter((w) => w.id !== id), openings: doc.openings.filter((o) => o.wall_id !== id) };
+  if (doc.objects.some((o) => o.id === id)) {
+    return {
+      ...doc,
+      objects: doc.objects.filter((o) => o.id !== id),
+      groups: doc.groups.map((g) => (g.member_ids.includes(id) ? { ...g, member_ids: g.member_ids.filter((m) => m !== id) } : g)),
+      circuits: doc.circuits.map((k) => (k.member_ids.includes(id) ? { ...k, member_ids: k.member_ids.filter((m) => m !== id) } : k)),
+      connectors: doc.connectors.filter((c) => c.object_id !== id),
+    };
+  }
+  if (doc.groups.some((g) => g.id === id)) return { ...doc, groups: doc.groups.filter((g) => g.id !== id), objects: doc.objects.map((o) => (o.group_id === id ? { ...o, group_id: null } : o)) };
+  if (doc.connectors.some((c) => c.id === id)) return { ...doc, connectors: doc.connectors.filter((c) => c.id !== id) };
+  if (doc.circuits.some((k) => k.id === id)) return { ...doc, circuits: doc.circuits.filter((k) => k.id !== id) };
   return { ...doc, openings: doc.openings.filter((o) => o.id !== id), labels: doc.labels.filter((l) => l.id !== id) };
 }
 
@@ -114,4 +128,72 @@ export function addLabel(doc: GeometryDoc, p: Pt, text: string): { doc: Geometry
 
 export function patchLabel(doc: GeometryDoc, id: string, patch: Partial<GeomLabel>): GeometryDoc {
   return { ...doc, labels: doc.labels.map((l) => (l.id === id ? { ...l, ...patch, id: l.id, position: patch.position ? clampPt(patch.position) : l.position } : l)) };
+}
+
+// ---------------------------------------------------------------- objects (T085)
+
+export interface PlaceOpts {
+  levelId: string;
+  ceilingM: number;
+}
+/** An object dropped this close (metres) to an anchor of a kind its item may represent is offered as the anchor's body. */
+export const BIND_DISTANCE_M = 0.5;
+const MIN_SIZE_M = 0.05;
+const MAX_SIZE_M = 100;
+const round3 = (v: number): number => Math.round(v * 1000) / 1000;
+
+/** The height an item sits at: ceiling items carry a negative offset from the level's ceiling (a lamp at ceiling - 0.3). */
+export function objectZ(item: Pick<CatalogItem, 'z_ref' | 'z_m'>, ceilingM: number): number {
+  return item.z_ref === 'ceiling' ? round3(ceilingM + item.z_m) : item.z_m;
+}
+
+export function addObject(doc: GeometryDoc, item: CatalogItem, p: Pt, opts: PlaceOpts, rotation = 0): { doc: GeometryDoc; id: string } {
+  const o: GeomObject = { id: newId(), item_id: item.id, level_id: opts.levelId, position: clampPt(p), rotation_deg: rotation, size: { ...item.size }, z_m: objectZ(item, opts.ceilingM),
+    params: JSON.parse(JSON.stringify(item.params)) as Record<string, unknown>, label: null, anchor_ref: null, group_id: null, confidence: 1, source: 'manual', locked: false, external_ids: {} };
+  return { doc: { ...doc, objects: [...doc.objects, o] }, id: o.id };
+}
+
+export function patchObject(doc: GeometryDoc, id: string, patch: Partial<GeomObject>): GeometryDoc {
+  return { ...doc, objects: doc.objects.map((o) => (o.id === id ? { ...o, ...patch, id: o.id, position: patch.position ? clampPt(patch.position) : o.position } : o)) };
+}
+
+export function moveObject(doc: GeometryDoc, id: string, p: Pt): GeometryDoc {
+  return patchObject(doc, id, { position: p });
+}
+
+/** A copy at `p`: same item, size, height, params, label, level and rotation; never bound, never in a group. */
+export function duplicateObject(doc: GeometryDoc, id: string, p: Pt, newIdValue?: string): { doc: GeometryDoc; id: string } {
+  const src = doc.objects.find((o) => o.id === id);
+  if (!src) return { doc, id };
+  const copy: GeomObject = { ...src, id: newIdValue ?? newId(), position: clampPt(p), params: JSON.parse(JSON.stringify(src.params)) as Record<string, unknown>, size: { ...src.size }, anchor_ref: null, group_id: null, external_ids: {} };
+  return { doc: { ...doc, objects: [...doc.objects, copy] }, id: copy.id };
+}
+
+/** The rotation (0 = up, clockwise) that points an object's front at `p`, snapped to `snapDeg` degrees. */
+export function rotationTo(o: Pick<GeomObject, 'position'>, p: Pt, W: number, H: number, snapDeg: number): number {
+  const dx = (p[0] - o.position[0]) * W;
+  const dy = (p[1] - o.position[1]) * H;
+  if (Math.hypot(dx, dy) < 1e-9) return 0;
+  const deg = (Math.atan2(dx, -dy) * 180) / Math.PI;
+  const snapped = Math.round(deg / snapDeg) * snapDeg;
+  return ((snapped % 360) + 360) % 360;
+}
+
+/** The size after dragging an edge midpoint to `p`: edge 0 = front (-d), 1 = right (+w), 2 = back (+d), 3 = left (-w); the
+ * opposite edge stays where it is in the footprint's own frame (the centre moves with it - the editor recentres). Shift
+ * keeps the width / depth ratio. Never below 5 cm, never above 100 m. */
+export function stretchedSize(o: Pick<GeomObject, 'position' | 'rotation_deg' | 'size'>, edge: 0 | 1 | 2 | 3, p: Pt, W: number, H: number, scale: number, keepRatio: boolean): GeomSize {
+  const theta = ((o.rotation_deg || 0) * Math.PI) / 180;
+  const [ax, ay] = rotated(0, 0, edge === 1 ? 1 : edge === 3 ? -1 : 0, edge === 2 ? 1 : edge === 0 ? -1 : 0, theta); // the edge's outward unit vector on screen
+  const dx = (p[0] - o.position[0]) * W;
+  const dy = (p[1] - o.position[1]) * H;
+  const along = Math.max(0, dx * ax + dy * ay); // how far from the centre the pointer is, along the outward direction
+  const clamp = (v: number) => Math.min(MAX_SIZE_M, Math.max(MIN_SIZE_M, round3(v)));
+  const ratio = o.size.d_m / o.size.w_m;
+  if (edge === 1 || edge === 3) {
+    const w = clamp(along * 2 * scale);
+    return { ...o.size, w_m: w, d_m: keepRatio ? clamp(w * ratio) : o.size.d_m };
+  }
+  const d = clamp(along * 2 * scale);
+  return { ...o.size, d_m: d, w_m: keepRatio ? clamp(d / ratio) : o.size.w_m };
 }
