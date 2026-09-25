@@ -134,7 +134,8 @@ def test_global_search_finds_objects_of_published_documents(settings):
     assert [x["title"] for x in c.get("/api/v1/search?q=כיסא").json()["results"] if x["kind"] == "object"] == ["כיסא"], "no label: the library name"
     # a draft-only object is not searchable; a viewer of another floor sees nothing
     g = c.get(f"/api/v1/plan-versions/{vid}/geometry?draft=true").json()
-    c.put(f"/api/v1/plan-versions/{vid}/geometry", json={"doc": dict(g["doc"], objects=[*objects, OBJ("x3", "aed.wall", (0.5, 0.5), label="AED מסדרון", size={"w_m": 0.4, "d_m": 0.2, "h_m": 0.4}, z_m=1.2)]), "base_revision": g["geometry"]["revision"]})
+    rd = c.put(f"/api/v1/plan-versions/{vid}/geometry", json={"doc": dict(g["doc"], objects=[*objects, OBJ("x3", "aed.wall", (0.5, 0.5), label="AED מסדרון", size={"w_m": 0.4, "d_m": 0.2, "h_m": 0.4}, z_m=1.2)]), "base_revision": g["geometry"]["revision"]})
+    assert rd.status_code == 200, rd.text
     assert [x["kind"] for x in c.get("/api/v1/search?q=AED").json()["results"]] == []
     bind(c, settings, "ron", "viewer", "floor", ids["floor3"])
     assert c.get("/api/v1/search?q=מטף", headers=as_user("ron")).json()["results"] == []
@@ -156,3 +157,31 @@ def test_the_dev_state_route_exists_only_in_developer_mode(settings):
     ha_router._dev_only(settings)
     with app.state.db.connection() as conn:
         assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'ha.dev.states'").fetchone()[0] == 1
+    # the add-on never registers the route at all: a structural 404, before any auth or body validation runs
+    addon_c = TestClient(create_app(replace(settings, in_addon=True)))
+    r2 = addon_c.post("/api/v1/ha/dev/states", json={"not": "a valid body"})
+    assert r2.status_code == 404, r2.text
+
+
+def test_a_draft_circuit_never_leaks_a_non_switch_or_unplaced_entitys_state(settings):
+    """A draft is not validated against Home Assistant's catalogue (the switch/light shape rule is error-severity but
+    non-structural, so it blocks publish but not saving the draft), so it could otherwise name any entity id; the
+    bundle must never turn that into a state leak for a floor editor who lacks a placement or entity.state.read on
+    that entity directly (review R1, Important)."""
+    app, c, ids, vid = _setup(settings)
+    _state(app, "camera.foo", "idle")  # not a switch/light: the circuit naming it is dropped from the bundle entirely
+    _state(app, "switch.unplaced", "on")  # a real switch, but placed nowhere (no anchor, no published circuit)
+    g = c.get(f"/api/v1/plan-versions/{vid}/geometry?draft=true").json()
+    circuits = [{"id": "kx", "name": "מצלמה", "switch_entity_id": "camera.foo", "member_ids": [], "color_token": "circuit-1", "power_w": 0},
+                {"id": "ky", "name": "לא ממוקם", "switch_entity_id": "switch.unplaced", "member_ids": [], "color_token": "circuit-2", "power_w": 0}]
+    r = c.put(f"/api/v1/plan-versions/{vid}/geometry", json={"doc": dict(g["doc"], circuits=circuits), "base_revision": g["geometry"]["revision"]})
+    assert r.status_code == 200, r.text
+    bind(c, settings, "eve", "editor", "floor", ids["floor2"])  # map.edit + placement.edit + entity.state.read, floor-scoped only
+    m = c.get(f"/api/v1/floors/{ids['floor2']}/map?draft=true", headers=as_user("eve")).json()
+    assert list(m["circuit_states"].keys()) == ["ky"], "the non-switch circuit is dropped, not merely hidden"
+    ky = m["circuit_states"]["ky"]
+    assert ky["state"] is None and ky["known"] is False and ky["available"] is False and ky["can_control"] is False and ky["actions"] == [], \
+        "not yet placed anywhere and the caller holds no entity.state.read on it directly: no state leak through the draft"
+    # the installation-wide admin (system_admin) still reads the same entity directly, unaffected by placement
+    admin = c.get(f"/api/v1/floors/{ids['floor2']}/map?draft=true").json()
+    assert admin["circuit_states"]["ky"]["state"] == "on" and admin["circuit_states"]["ky"]["known"] is True

@@ -166,21 +166,32 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
         ha_hist = ha_history.coverage(conn)
     circuit_states: dict[str, Any] = {}
     if circuits:
-        # The switch of a circuit is the live state of its lamps (design 2a, rule 2). Reading needs nothing beyond the
-        # floor's map.read; control is the floor's ha.entity.control, exercised through the entity action route.
-        control = authorize(conn, principal, "ha.entity.control", ("floor", floor_id)).allowed and not at_iso
+        # The switch of a circuit is the live state of its lamps (design 2a, rule 2). Control mirrors the entity
+        # action route's own scope check exactly (_entity_allowed - placement or installation-wide), never a bare
+        # floor-scoped permission: a draft circuit is not yet validated against Home Assistant's catalogue (the
+        # switch/light shape check is an error-severity but non-structural issue, so it blocks publish but not saving
+        # the draft) and may name any entity id, so its state is shown only once the switch is placed (an anchor, or a
+        # published circuit) or the caller already holds entity.state.read on it directly - a published document's
+        # circuits are always already placed, so reading one needs nothing beyond the floor's map.read (review R1).
+        from .ha import _entity_allowed
+
+        is_draft_geometry = geometry_row is not None and geometry_row["status"] == "draft"
         switch_ids = sorted({c["switch_entity_id"] for c in circuits})
         rows = {r["entity_id"]: ha_sync.entity_row(r) for r in conn.execute(f"SELECT * FROM ha_entities WHERE entity_id IN ({','.join('?' * len(switch_ids))})", switch_ids).fetchall()}
         hist = ha_history.state_at(conn, switch_ids, at_iso) if at_iso else {}
         for c in circuits:
-            e = rows.get(c["switch_entity_id"])
-            past = hist.get(c["switch_entity_id"], {})
-            state = past.get("state") if at_iso else (e["state"] if e else None)
+            eid = c["switch_entity_id"]
+            e = rows.get(eid)
+            control = bool(not at_iso and e is not None and not e["removed_at"] and _entity_allowed(conn, principal, eid, "ha.entity.control"))
+            readable = (not is_draft_geometry) or control or _entity_allowed(conn, principal, eid, "entity.state.read")
+            past = hist.get(eid, {})
+            state = (past.get("state") if at_iso else (e["state"] if e else None)) if readable else None
+            known = (bool(past.get("known")) if at_iso else e is not None) if readable else False
             circuit_states[c["id"]] = {
-                "entity_id": c["switch_entity_id"], "name": c.get("name"), "color_token": c.get("color_token"), "member_ids": list(c.get("member_ids") or []), "power_w": c.get("power_w"),
-                "state": state, "known": bool(past.get("known")) if at_iso else e is not None, "fresh": bool(e and e["fresh"]) and not at_iso, "available": bool(e and e["available"]),
-                "can_control": bool(control and e is not None and not e["removed_at"]),
-                "actions": [a for a in ha_bridge.actions_for(e["domain"]) if a["id"].endswith(("turn_on", "turn_off"))] if (control and e is not None and not e["removed_at"]) else [],
+                "entity_id": eid, "name": c.get("name"), "color_token": c.get("color_token"), "member_ids": list(c.get("member_ids") or []), "power_w": c.get("power_w"),
+                "state": state, "known": known, "fresh": bool(e and e["fresh"]) and not at_iso and readable, "available": bool(e and e["available"]) and readable,
+                "can_control": control,
+                "actions": [a for a in ha_bridge.actions_for(e["domain"]) if a["id"].endswith(("turn_on", "turn_off"))] if control else [],
             }
     b = get_building(conn, f["building_id"])
     s = get_site(conn, b["site_id"])
@@ -215,7 +226,7 @@ class AnchorIn(BaseModel):
     rotation_degrees: float = Field(default=0, ge=0, lt=360)
     field_of_view_degrees: float | None = Field(default=None, gt=0, le=360)
     layer_id: str = Field(default="cameras", max_length=40)
-    level_id: str | None = Field(default=None, max_length=64)
+    level_id: str | None = Field(default=None, max_length=64)  # free text: not checked against the document's levels
     label: str | None = Field(default=None, max_length=120)
     coverage_radius: float | None = Field(default=None, gt=0, le=1)  # fraction of the plan width
     coverage_polygon: list[list[float]] | None = None  # [[x, y], ...] normalized
@@ -230,7 +241,7 @@ class AnchorPatch(BaseModel):
     rotation_degrees: float | None = Field(default=None, ge=0, lt=360)
     field_of_view_degrees: float | None = Field(default=None, gt=0, le=360)
     layer_id: str | None = Field(default=None, max_length=40)
-    level_id: str | None = Field(default=None, max_length=64)
+    level_id: str | None = Field(default=None, max_length=64)  # free text: not checked against the document's levels
     label: str | None = Field(default=None, max_length=120)
     # coverage: an explicit null clears it (back to the default cone); absent = unchanged
     coverage_radius: float | None = Field(default=None, gt=0, le=1)

@@ -267,17 +267,35 @@ def get_action(action_id: str, request: Request, principal: Principal = Depends(
 
 # ---------------------------------------------------------------- developer identity mode only
 
+dev_router = APIRouter()  # included only when settings.dev_user and not settings.in_addon (main.py): truly absent
+                          # in the add-on, a structural 404 before any auth or body validation runs (review R1, Minor 3)
+
+
+class DevAttributesIn(BaseModel):
+    """Home Assistant attributes are an open bag by nature (icon, unit, device-specific keys); only the one field
+    the sync helpers coerce with int() is typed, so a bad value 422s here instead of 500ing in ha_sync (Minor 2)."""
+    model_config = ConfigDict(extra="allow")
+    supported_features: int | None = None
+
+
+class DevStateIn(BaseModel):
+    entity_id: str = Field(pattern=r"^[a-z_]+\.[a-z0-9_]+$", max_length=255)
+    state: str = Field(max_length=255)
+    attributes: DevAttributesIn = Field(default_factory=DevAttributesIn)
+
+
 class DevStatesIn(BaseModel):
-    states: list[dict[str, Any]] = Field(min_length=1, max_length=50)
+    states: list[DevStateIn] = Field(min_length=1, max_length=50)
 
 
 def _dev_only(settings: Settings) -> None:
-    """The route exists only where SW_DEV_USER runs the backend outside the add-on: inside Home Assistant it is a 404."""
+    """Defense in depth: the route itself is registered only where SW_DEV_USER runs the backend outside the add-on
+    (main.py); this is a second, in-handler check of the same condition, inside Home Assistant it is a 404."""
     if settings.in_addon or not settings.dev_user:
         raise ApiError(404, "not_found", "לא נמצא.")
 
 
-@router.post("/ha/dev/states")
+@dev_router.post("/ha/dev/states")
 def dev_states(body: DevStatesIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Inject entity states as if Home Assistant sent them (the same upsert and the same push the sync uses), for live
     specs and manual checks without a Home Assistant. Developer identity mode only; system.configure; audited."""
@@ -286,10 +304,7 @@ def dev_states(body: DevStatesIn, request: Request, principal: Principal = Depen
     now = now_iso()
     rows = []
     for st in body.states:
-        eid = st.get("entity_id")
-        if not isinstance(eid, str) or "." not in eid:
-            raise ApiError(422, "validation", "לכל מצב צריך entity_id.")
-        row = ha_sync.upsert_state(conn, {"entity_id": eid, "state": str(st.get("state")), "attributes": st.get("attributes") or {}, "last_changed": now, "last_updated": now})
+        row = ha_sync.upsert_state(conn, {"entity_id": st.entity_id, "state": st.state, "attributes": st.attributes.model_dump(), "last_changed": now, "last_updated": now})
         ha_sync.STATE.sequence += 1
         ha_sync.publish({"type": "entity_state_changed", "sequence": ha_sync.STATE.sequence, "entity": row})
         rows.append(row)

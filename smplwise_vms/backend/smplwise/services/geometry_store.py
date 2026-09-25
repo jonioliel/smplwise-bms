@@ -370,16 +370,21 @@ def levels_of(row: sqlite3.Row | None) -> list[dict[str, Any]]:
 
 
 def circuits_of(row: sqlite3.Row | None) -> list[dict[str, Any]]:
+    """A circuit whose switch fails the switch/light entity id shape is dropped, not merely hidden: a draft is never
+    validated against Home Assistant's catalogue (the shape check is an error-severity but non-structural issue, so it
+    blocks publish but not saving the draft), so a draft could otherwise name any entity id and the bundle would carry
+    that entity's state to a floor editor with no placement and no entity.state.read (review R1)."""
     if row is None:
         return []
     circuits = load_doc(row).get("circuits")
-    return [c for c in circuits if isinstance(c, dict) and isinstance(c.get("id"), str) and isinstance(c.get("switch_entity_id"), str)] if isinstance(circuits, list) else []
+    return [c for c in circuits if isinstance(c, dict) and isinstance(c.get("id"), str) and isinstance(c.get("switch_entity_id"), str) and pg.SWITCH_RE.match(c["switch_entity_id"])] if isinstance(circuits, list) else []
 
 
-def _cached(cache: dict[str, Any], row: sqlite3.Row, build) -> Any:
+def _cached(conn: sqlite3.Connection, cache: dict[str, Any], row: sqlite3.Row, build) -> Any:
     hit = cache.get(row["doc_hash"])
     if hit is None:
-        hit = build(load_doc(row))
+        doc_json = conn.execute("SELECT doc_json FROM plan_geometry WHERE doc_hash = ? LIMIT 1", (row["doc_hash"],)).fetchone()[0]
+        hit = build(json.loads(doc_json))
         if len(cache) >= _CACHE_MAX:
             cache.clear()
         cache[row["doc_hash"]] = hit
@@ -388,18 +393,20 @@ def _cached(cache: dict[str, Any], row: sqlite3.Row, build) -> Any:
 
 def _current_published(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     """The published structure of every floor's published plan version - the only documents the live map, the scope
-    and the search read."""
-    return conn.execute("SELECT g.floor_id, g.plan_version_id, g.doc_hash, g.doc_json FROM plan_geometry g JOIN plan_versions v ON v.id = g.plan_version_id "
+    and the search read. Only floor_id and doc_hash: the document itself is loaded lazily, once per hash, on a cache
+    miss (review R1, Minor 4)."""
+    return conn.execute("SELECT g.floor_id, g.doc_hash FROM plan_geometry g JOIN plan_versions v ON v.id = g.plan_version_id "
                         "WHERE g.status = 'published' AND v.status = 'published'").fetchall()
 
 
 def circuit_switches(conn: sqlite3.Connection) -> dict[str, list[str]]:
     """The switch entity of every circuit in a published document, keyed entity id -> floor ids: for scope purposes such
     a switch counts as placed on the floor (a floor viewer reads its state, a floor operator toggles it through the
-    entity action route). One parse per document hash, bounded."""
+    entity action route). One parse per document hash, bounded. The switch/light shape check is redundant here (a
+    published document already passed it) but applied anyway, in depth (review R1, Minor 5)."""
     out: dict[str, list[str]] = {}
     for r in _current_published(conn):
-        for eid in _cached(_SWITCH_CACHE, r, lambda doc: sorted({c["switch_entity_id"] for c in doc.get("circuits") or [] if isinstance(c, dict) and isinstance(c.get("switch_entity_id"), str)})):
+        for eid in _cached(conn, _SWITCH_CACHE, r, lambda doc: sorted({c["switch_entity_id"] for c in doc.get("circuits") or [] if isinstance(c, dict) and isinstance(c.get("switch_entity_id"), str) and pg.SWITCH_RE.match(c["switch_entity_id"])})):
             out.setdefault(eid, []).append(r["floor_id"])
     return out
 
@@ -409,7 +416,7 @@ def published_objects(conn: sqlite3.Connection) -> dict[str, list[dict[str, Any]
     and position. One parse per document hash, bounded."""
     out: dict[str, list[dict[str, Any]]] = {}
     for r in _current_published(conn):
-        entries = _cached(_OBJECT_CACHE, r, lambda doc: [{"id": o["id"], "item_id": str(o.get("item_id") or ""), "label": o.get("label") or None, "level_id": o.get("level_id"), "position": o.get("position")}
+        entries = _cached(conn, _OBJECT_CACHE, r, lambda doc: [{"id": o["id"], "item_id": str(o.get("item_id") or ""), "label": o.get("label") or None, "level_id": o.get("level_id"), "position": o.get("position")}
                                                          for o in doc.get("objects") or [] if isinstance(o, dict) and isinstance(o.get("id"), str)])
         if entries:
             out.setdefault(r["floor_id"], []).extend(entries)

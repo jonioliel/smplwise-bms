@@ -49,7 +49,7 @@ class ZonePatch(BaseModel):
     polygon: list[Point] | None = Field(default=None, min_length=3, max_length=200)
     color: str | None = Field(default=None, pattern="^#[0-9a-fA-F]{6}$")
     searchable: bool | None = None
-    level_id: str | None = Field(default=None, max_length=64)
+    level_id: str | None = Field(default=None, max_length=64)  # free text: not checked against the document's levels
     ceiling_height_m: float | None = Field(default=None, ge=0, le=50)
     label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
     label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")

@@ -120,6 +120,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(exports.router, prefix=api, tags=["exports"])
     app.include_router(events.router, prefix=api, tags=["events"])
     app.include_router(ha.router, prefix=api, tags=["home-assistant"])
+    if settings.dev_user and not settings.in_addon:
+        # developer identity mode only: truly absent otherwise, not merely a 404 raised from inside the handler
+        app.include_router(ha.dev_router, prefix=api, tags=["home-assistant"])
     app.include_router(access.router, prefix=api, tags=["access"])
     app.include_router(zones.router, prefix=api, tags=["zones"])
     app.include_router(search.router, prefix=api, tags=["search"])
