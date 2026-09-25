@@ -68,6 +68,7 @@ def test_library_read_scope_and_the_custom_item_lifecycle(settings):
     assert c.post("/api/v1/catalog/import", json={"format": "smplwise-catalog-1", "items": [{"id": "chair.basic", "names": {"he": "x"}}]}).status_code == 422
     assert c.post("/api/v1/catalog/import", json={"format": "smplwise-catalog-1", "items": [{"id": "BAD ID", "names": {"he": "x"}}]}).status_code == 422
     assert c.post("/api/v1/catalog/import", json={"format": "other", "items": []}).status_code == 422
+    assert c.post("/api/v1/catalog/import", json={"format": "smplwise-catalog-1", "items": [{"id": "custom.badbased", "based_on": ["x"], "names": {"he": "x"}}]}).status_code == 422
     assert c.get("/api/v1/catalog/export", headers=as_user("vera")).status_code == 403
     with app.state.db.connection() as conn:
         acts = [r[0] for r in conn.execute("SELECT action FROM audit_log WHERE decision = 'allowed' AND (action LIKE 'catalog.item.%' OR action = 'catalog.import') ORDER BY rowid").fetchall()]

@@ -5,7 +5,7 @@
  */
 import { css, html, nothing, type TemplateResult } from 'lit';
 import type { CopyCandidate, GeometryIssue } from '../api/geometry';
-import { COLOR_TOKENS, OBJECT_SHAPES, SYMBOL_IDS, circuitToken, connectorLabel, effectiveScale, lengthPx, perimeterM, polygonAreaM2, type ConnectorKind, type GeometryDoc, type GeomCircuit, type GeomConnector,type GeomGroup, type GeomSize, type ObjectShape, type GeomLabel, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type Hinge, type OpeningKind, type Pt, type Swing, type WallKind } from '../map/geometry';
+import { COLOR_TOKENS, OBJECT_SHAPES, SYMBOL_IDS, circuitToken, connectorLabel, effectiveScale, lengthPx, perimeterM, polygonAreaM2, type ConnectorKind, type GeometryDoc, type GeomCircuit, type GeomConnector, type GeomGroup, type GeomSize, type ObjectShape, type GeomLabel, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type Hinge, type OpeningKind, type Pt, type Swing, type WallKind } from '../map/geometry';
 import type { CatalogItem, CatalogLibrary, ParamSpec } from '../api/plan-catalog';
 import type { HaEntity } from '../api/ha';
 import { searchItems } from '../api/plan-catalog';

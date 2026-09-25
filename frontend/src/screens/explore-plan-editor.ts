@@ -26,7 +26,7 @@ import { productSettings } from '../api/prefs';
 import { createItem, exportUrl as catalogExportUrl, importItems, itemOf, loadLibrary, lookupOf, type CatalogItem, type CatalogLibrary } from '../api/plan-catalog';
 import { distanceM, effectiveScale, isClosedOutline, lengthPx, nearestWall, pointOnWall, snapPoint, type CatalogLookup, type ConnectorKind, type GeometryDoc, type GeomOpening, type GeomWall, type Pt } from '../map/geometry';
 import { StudioController } from '../map/studio-controller';
-import { ARRAY_MAX, BIND_DISTANCE_M, CIRCUIT_COLORS, addArray, addCircuit, addConnector, addLabel, addLevel, addObject, addOpening, addWall, arrayDefaults, circuitPower, defaultLevelId, duplicateObject, kindDefaults, moveConnectorVertex, moveGroup, moveObject, moveVertex, newId, nudgeT, openingRange, patchCircuit, patchConnector, patchLabel, patchObject, patchOpening, patchWall, removeCorner, removeGroup, removeItem, rotationTo, stretchedSize, toggleCircuitMember, wallDirectionAt, type WallDefaults } from '../map/studio-ops';
+import { ARRAY_MAX, BIND_DISTANCE_M, CIRCUIT_COLORS, addArray, addCircuit, addConnector, addLabel, addLevel, addObject, addOpening, addWall, arrayDefaults, circuitPower, defaultLevelId, duplicateObject, kindDefaults, moveConnectorVertex, moveGroup, moveObject, moveVertex, newId, nudgeT, openingRange, patchCircuit, patchConnector, patchLabel, patchObject, patchOpening, patchWall, removeCorner, removeGroup, removeItem, rotationTo, stretchedSize, toggleCircuitMember, visibleUnderLevel, wallDirectionAt, type WallDefaults } from '../map/studio-ops';
 import { COLL_LABEL, CONNECTOR_LABEL, connectorDerived, countLabel, fmtMetres, fmtScale, renderArrayDialog, renderCalibPanel, renderCircuitPanel, renderConnectorPanel, renderCustomItemDialog, renderGroupDeleteDialog, renderGroupInspector, renderLevelChips, renderLevelDialog, renderLibraryPanel, renderMeasurePanel, renderObjectInspector, renderStudioPanel, studioPanelStyles, type ArrayDialogView, type CustomItemView, type GeomKind, type GeomSel, type LevelDialogView, type StudioMode } from './plan-studio-panel';
 
 type Strength = 'light' | 'medium' | 'strong';
@@ -648,7 +648,10 @@ export class ExplorePlanEditor extends LitElement {
     this.error = '';
     try {
       const b = await loadMap(this.floorId || 'f0', true);
-      if (this.bundle && this.bundle.floorId !== b.floorId) this.levelFilter = null; // another floor: back to every level
+      if (this.bundle && this.bundle.floorId !== b.floorId) {
+        this.levelFilter = null; // another floor: back to every level
+        this.linkFloor = ''; // and a stale target floor cannot outlive the floor it was picked on (final review item 4)
+      }
       this.bundle = b;
       void this.loadStudio(b);
       void this.loadLibraryFor(b);
@@ -1232,6 +1235,7 @@ export class ExplorePlanEditor extends LitElement {
     this.connStart = null;
     this.membersMode = false;
     this.circuitNew = null;
+    this.linkFloor = ''; // a floor picked for a connector link never survives a tool switch (final review item 4)
     if (tool === 'connectors' && !this.tree && this.bundle?.source === 'api') void loadTree().then((t) => (this.tree = t)).catch(() => {});
     if (tool === 'structure' && this.phone.matches && this.studioMode === 'wall') this.studioMode = 'select'; // wall drawing is desktop only: a phone opens the tool in select mode
     if (tool !== 'structure') this.geomSel = null;
@@ -1303,6 +1307,20 @@ export class ExplorePlanEditor extends LitElement {
     return lv ? doc.walls.filter((w) => w.level_id === lv) : doc.walls;
   }
 
+  /** Picks the level filter (a chip, a new level): a selection the new filter would hide closes, so the inspector never
+   * shows an item the canvas dropped (final review item 1). */
+  private setLevelFilter(id: string | null) {
+    this.levelFilter = id;
+    if (this.geomSel && this.studio.doc && !visibleUnderLevel(this.studio.doc, this.geomSel.id, id)) this.geomSel = null;
+  }
+
+  /** After an item's own level changes (setLevel, the object level patch): a filter that would now hide the item that is
+   * still selected follows it to its new level instead, so the edit does not vanish from under the user (final review
+   * item 1; the alternative, dropping the filter to null, was not chosen so the filter stays useful). */
+  private followLevel(id: string, lv: string) {
+    if (this.geomSel?.id === id && this.activeLevel !== null && this.activeLevel !== lv) this.levelFilter = lv;
+  }
+
   private createLevel() {
     const doc = this.studio.doc;
     const v = this.levelDialog;
@@ -1314,7 +1332,7 @@ export class ExplorePlanEditor extends LitElement {
     const r = addLevel(doc, v.name, v.elevation, v.ceiling);
     this.studio.commit(r.doc);
     this.levelDialog = null;
-    this.levelFilter = r.id;
+    this.setLevelFilter(r.id);
     this.info = `המפלס "${v.name}" נוסף; פריטים חדשים יוצבו בו`;
     setTimeout(() => (this.info = ''), 4000);
   }
@@ -2056,6 +2074,7 @@ export class ExplorePlanEditor extends LitElement {
     const b = this.bundle;
     const doc = this.studio.doc;
     if (!b || !doc) return;
+    if (this.activeLevel !== null && !visibleUnderLevel(doc, id, this.activeLevel)) this.levelFilter = null; // lift a filter that would hide the target (final review item 1)
     const w = doc.walls.find((x) => x.id === id);
     const o = doc.openings.find((x) => x.id === id);
     const l = doc.labels.find((x) => x.id === id);
@@ -2162,7 +2181,10 @@ export class ExplorePlanEditor extends LitElement {
         retry: async () => {
           if (await this.studio.flush()) void this.loadStudio(b); // a version switch held back by the failed save goes ahead
         },
-        setLevel: (id, lv) => this.edit((d) => (d.walls.some((w) => w.id === id) ? patchWall(d, id, { level_id: lv }) : patchLabel(d, id, { level_id: lv }))),
+        setLevel: (id, lv) => {
+          this.edit((d) => (d.walls.some((w) => w.id === id) ? patchWall(d, id, { level_id: lv }) : patchLabel(d, id, { level_id: lv })));
+          this.followLevel(id, lv);
+        },
       },
     );
   }
@@ -2186,7 +2208,10 @@ export class ExplorePlanEditor extends LitElement {
           { o: sel, item: itemOf(lib, sel.item_id), levels: doc.levels, doc, estimated, showEstimates: this.showEstimates, anchorName: anchorOf(sel), phone: this.phone.matches, canManage,
             lib_category: (item) => lib.categories.find((c) => c.id === item.category)?.he ?? item.category },
           {
-            patch: (id, patch) => this.edit((d) => patchObject(d, id, patch)),
+            patch: (id, patch) => {
+              this.edit((d) => patchObject(d, id, patch));
+              if (patch.level_id !== undefined) this.followLevel(id, patch.level_id);
+            },
             unbind: (id) => this.edit((d) => patchObject(d, id, { anchor_ref: null })),
             remove: (id) => {
               this.edit((d) => removeItem(d, id));
@@ -2613,7 +2638,7 @@ export class ExplorePlanEditor extends LitElement {
                   <span>גרירה מזיזה · גלגלת = זום · ידיות = כיוון ושדה ראייה</span>
                 </div>
                 <div class="floorchip"><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
-                ${this.studio.doc && b.permissions.structure ? html`<div class="levelbar">${renderLevelChips(this.studio.doc.levels, this.activeLevel, (id) => (this.levelFilter = id), () => (this.levelDialog = { name: '', elevation: -1.2, ceiling: 3.0, error: '' }))}</div>` : nothing}
+                ${this.studio.doc && b.permissions.structure ? html`<div class="levelbar">${renderLevelChips(this.studio.doc.levels, this.activeLevel, (id) => this.setLevelFilter(id), () => (this.levelDialog = { name: '', elevation: -1.2, ceiling: 3.0, error: '' }))}</div>` : nothing}
                 <div class="rail" role="toolbar" aria-label="כלי עריכה">
                   ${TOOLS.map((tl) => html`<button class=${tl.id === this.tool ? 'on' : ''} data-tool=${tl.id} ?disabled=${!tl.ready || (STUDIO_TOOLS.includes(tl.id) && !b.permissions.structure)} title=${tl.label} aria-label=${tl.label} aria-pressed=${tl.id === this.tool} @click=${() => this.pickTool(tl.id)}><sw-icon .name=${tl.icon} size=${18}></sw-icon></button>`)}
                   <hr />

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { GeometryDoc, GeomObject } from '../src/map/geometry';
 import type { CatalogItem } from '../src/api/plan-catalog';
-import { addArray, addCircuit, addConnector, addLevel, addObject, arrayDefaults, circuitPower, duplicateObject, levelUsage, moveConnectorVertex, moveGroup, moveObject, objectZ, patchCircuit, patchConnector, patchLevel, patchObject, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember } from '../src/map/studio-ops';
+import { addArray, addCircuit, addConnector, addLevel, addObject, arrayDefaults, circuitPower, duplicateObject, levelUsage, moveConnectorVertex, moveGroup, moveObject, objectZ, patchCircuit, patchConnector, patchLevel, patchObject, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember, visibleUnderLevel } from '../src/map/studio-ops';
 
 // Plan Studio phase 2 (T085): the pure document operations of the editor - placing an item (its size, z and params come
 // from the library), moving, rotating, stretching, duplicating, and removing an object out of its group, its circuit
@@ -60,6 +60,8 @@ test.describe('plan studio object operations (unit)', () => {
     expect(noTribune.connectors.map((c) => c.id)).toEqual(['c1']);
     const noChair = removeItem(doc, 'o1');
     expect(noChair.groups[0].member_ids).toEqual(['o2']);
+    const noMembers = removeItem(noChair, 'o2'); // the group's last member goes: the empty group row drops with it
+    expect(noMembers.groups).toEqual([]);
     const noGroup = removeItem(doc, 'g1');
     expect(noGroup.groups).toEqual([]);
     expect(noGroup.objects.filter((o) => o.group_id === null).length).toBe(5);
@@ -120,6 +122,30 @@ test.describe('plan studio object operations (unit)', () => {
     expect(removeLevel(doc, 'L0')).toBeNull(); // the default
     expect(removeLevel(doc, 'L1')).toBeNull(); // used
     expect(removeLevel(added.doc, 'L2')!.levels.length).toBe(2);
+  });
+
+  test('visibleUnderLevel: a wall/opening by its wall, a label/object by its own, a connector by either end, a group by its members', () => {
+    const doc = sample();
+    expect(visibleUnderLevel(doc, 'o1', null)).toBe(true); // no filter: always visible
+    expect(visibleUnderLevel(doc, 'o1', 'L0')).toBe(true); // object o1 is on L0
+    expect(visibleUnderLevel(doc, 'o1', 'L1')).toBe(false);
+    expect(visibleUnderLevel(doc, 'wd', 'L1')).toBe(true); // wall wd is on L1
+    expect(visibleUnderLevel(doc, 'wd', 'L0')).toBe(false);
+    expect(visibleUnderLevel(doc, 'oc', 'L0')).toBe(true); // opening oc's wall wb is on L0
+    expect(visibleUnderLevel(doc, 'of', 'L0')).toBe(false); // opening of's wall wd is on L1
+    expect(visibleUnderLevel(doc, 'of', 'L1')).toBe(true);
+    expect(visibleUnderLevel(doc, 'la', 'L0')).toBe(true); // label la is on L0
+    expect(visibleUnderLevel(doc, 'lb', 'L0')).toBe(false); // label lb is on L1
+    expect(visibleUnderLevel(doc, 'c1', 'L0')).toBe(true); // connector c1: L0 -> L1, either end matches
+    expect(visibleUnderLevel(doc, 'c1', 'L1')).toBe(true);
+    expect(visibleUnderLevel(doc, 'c1', 'L2')).toBe(false);
+    const noLevelTo = addConnector(doc, 'elevator', [0.1, 0.1], [0.1, 0.15], 'L0', null).doc;
+    const cid = noLevelTo.connectors.at(-1)!.id;
+    expect(visibleUnderLevel(noLevelTo, cid, 'L0')).toBe(true);
+    expect(visibleUnderLevel(noLevelTo, cid, 'L1')).toBe(false); // level_to null never matches a level
+    expect(visibleUnderLevel(doc, 'g1', 'L0')).toBe(true); // group g1's members o1, o2 are both on L0
+    expect(visibleUnderLevel(doc, 'g1', 'L1')).toBe(false);
+    expect(visibleUnderLevel(doc, 'nope', 'L0')).toBe(true); // unknown id: never hides a selection it cannot place
   });
 
   test('connectors: drawn between two points with the kind width, patched and their corners moved inside the plan', () => {

@@ -11,8 +11,8 @@
 - **מפלסים ומחברים**: level chips over the canvas ("כל המפלסים" / one level), an add-level dialog (name, floor
   elevation, ceiling height), and a level field on zones and anchors so rooms and entity pins can be assigned to a
   level too. A connector tool draws stairs, a ramp, an elevator and a ladder between two levels with two clicks and
-  draggable corner vertices; "קשר לקומה" links a stairs/elevator connector to the matching id in another floor's
-  draft across the same building.
+  draggable corner vertices; "קשר לקומה" links a drawn connector (stairs, elevator, ramp or ladder) to the matching
+  id in another floor's draft across the same building.
 - **מעגלי תאורה**: an editor panel backed by the synced HA switch catalogue creates a circuit (one switch entity)
   and toggles lamps in and out of its membership, with the live power sum. On the live map the circuit's lamps glow
   while its switch is on, and the circuit button toggles the switch through the existing entity action route (no

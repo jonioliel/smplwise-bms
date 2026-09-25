@@ -110,7 +110,7 @@ export function removeItem(doc: GeometryDoc, id: string): GeometryDoc {
     return {
       ...doc,
       objects: doc.objects.filter((o) => o.id !== id),
-      groups: doc.groups.map((g) => (g.member_ids.includes(id) ? { ...g, member_ids: g.member_ids.filter((m) => m !== id) } : g)),
+      groups: doc.groups.map((g) => (g.member_ids.includes(id) ? { ...g, member_ids: g.member_ids.filter((m) => m !== id) } : g)).filter((g) => g.member_ids.length > 0),
       circuits: doc.circuits.map((k) => (k.member_ids.includes(id) ? { ...k, member_ids: k.member_ids.filter((m) => m !== id) } : k)),
       connectors: doc.connectors.filter((c) => c.object_id !== id),
     };
@@ -297,6 +297,32 @@ export function removeLevel(doc: GeometryDoc, id: string): GeometryDoc | null {
   const level = doc.levels.find((l) => l.id === id);
   if (!level || level.is_default || levelUsage(doc, id) > 0) return null;
   return { ...doc, levels: doc.levels.filter((l) => l.id !== id) };
+}
+
+/** Whether item `id` (any kind) would still show on the map under a level filter (null = every level, always visible):
+ * a wall or an opening by its wall's level_id, a label or an object by its own, a connector if either end matches, a
+ * group if any of its members would show. An item without a level_id belongs to the default level (final review item 1:
+ * the level filter used to hide a selected item it should have followed, or should have dropped the selection for). */
+export function visibleUnderLevel(doc: GeometryDoc, id: string, levelId: string | null): boolean {
+  if (levelId === null) return true;
+  const def = defaultLevelId(doc);
+  const onLevel = (lv: string) => (lv || def) === levelId;
+  const wall = doc.walls.find((w) => w.id === id);
+  if (wall) return onLevel(wall.level_id);
+  const opening = doc.openings.find((o) => o.id === id);
+  if (opening) {
+    const host = doc.walls.find((w) => w.id === opening.wall_id);
+    return host ? onLevel(host.level_id) : true;
+  }
+  const label = doc.labels.find((l) => l.id === id);
+  if (label) return onLevel(label.level_id);
+  const obj = doc.objects.find((o) => o.id === id);
+  if (obj) return onLevel(obj.level_id);
+  const connector = doc.connectors.find((c) => c.id === id);
+  if (connector) return onLevel(connector.level_from) || (connector.level_to !== null && onLevel(connector.level_to));
+  const group = doc.groups.find((g) => g.id === id);
+  if (group) return group.member_ids.some((m) => visibleUnderLevel(doc, m, levelId));
+  return true;
 }
 
 // ---------------------------------------------------------------- connectors (T085)
