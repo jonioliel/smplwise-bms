@@ -1,5 +1,44 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.87 (pilot) — plan editor hotfix: walls move as a whole, the select tool selects and drags the structure, bigger object hits, rooms reshape and move in the select tool
+- Answers an owner report of 2026-09-25 (ruling R-H87-1): a placed wall could not be moved as a whole; selecting and
+  moving items - not only walls - was awkward; and reshaping a room after automatic detection was not discoverable.
+- Whole-wall move: once a wall is selected, pressing on its body (not on a corner handle) and dragging moves the whole
+  wall - both ends by the same amount, its doors and windows riding along at their place on it, the move cursor on
+  its body. Shift keeps the move horizontal or vertical; an end that comes within the corner snap radius of another
+  wall's corner lands on it. A first press on a wall that is not selected only selects it, so nothing ever moves by
+  accident. The drop is one undo step saved like every edit. The arrow keys move a selected wall with no corner picked
+  (1 cm, Shift 10 cm; before calibration 0.2 % / 1 % of the plan's width), a burst of presses being one undo step.
+- The select tool ("בחירה וגרירה", the first tool) now selects and drags the structure for a user who may edit it:
+  walls (then their corners and body), doors, windows, passages, labels, objects and connectors, with the item's own
+  inspector in the side panel - no switch to another tool, no drawing modes. Pins and rooms keep working there as
+  before; Delete and the arrow keys act on the selected structure item (a pin that is pressed or dragged becomes the
+  selection instead), Esc clears the selection. Ctrl+Z / Ctrl+Y and the undo / redo buttons follow the last edit:
+  after a structure edit they undo the structure (a deleted wall comes back, and repeated presses keep going), after
+  a pin edit the pins. A user without the structure permission sees no change.
+- Small objects: an object narrower than 24 screen pixels on either side (a 0.4 m chair on a zoomed-out plan is a few
+  pixels wide) gets a hit area of at least 24 x 24 pixels around its centre, so a press beside the drawing takes it; a
+  big object still never covers a small one inside it, and an object against a wall keeps its whole hit area. On a
+  touch screen a wall's pick band is 20 pixels wide, and every item (wall, object, door, window, label) moves only once
+  it is selected - a tap selects it, a finger drag over an unselected item pans the plan - so panning a furnished plan
+  never moves anything.
+- Rooms and zones in the select tool: a click on a room (also one detected and saved automatically) shows its corner
+  and midpoint handles at once; dragging a corner reshapes it, dragging a midpoint adds a corner, and dragging the
+  room's body now moves the whole polygon (shown live, saved with one request on release, with the room's revision;
+  the room keeps its new shape while the save is answered and takes no second drag until then).
+  A press on a corner without moving selects it and Delete removes that corner (a room keeps three); the room panel
+  says so in one line: "גרור פינה כדי לשנות צורה, גרור נקודת אמצע כדי להוסיף פינה, גרור את הגוף כדי להזיז; Delete על
+  פינה מסיר אותה".
+- On a phone the same presses work by touch for single walls and objects (wall drawing and arrays stay desktop only).
+- Evidence: a new live spec `evidence-editor-move` in real Chrome (select tool: a wall selected by a click, dragged by
+  its body with its door keeping its place, nudged and undone, dragged with Shift along one axis, snapped onto another
+  wall's end, each drag one undo step, deleted and restored with Ctrl+Z; a pin dragged after a wall was selected is
+  the one Delete offers; a 0.4 m object pressed beside its drawn footprint at a zoomed-out view and dragged; a room
+  moved by its body and saved once, then a corner removed with Delete; a phone with touch input selecting a wall 8 px
+  off its line, dragging it and an object, while a finger drag over an unselected object only pans), unit tests for
+  the new document operations, and the phase 1-3 plan studio, zone-corner, editor and viewer live specs unchanged and
+  green.
+
 ## 0.1.86 (pilot) — Plan Studio phase 3: automatic detection of walls, doors and windows; DXF layers and blocks as candidates
 - The plan editor gains a "זיהוי" tool (T086, CR-003): a local detector - Otsu, morphology, Zhang–Suen thinning,
   skeleton tracing, Douglas–Peucker, axis snapping, a chamfer distance transform for the thickness, door arcs and

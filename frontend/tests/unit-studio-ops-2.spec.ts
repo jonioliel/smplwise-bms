@@ -2,9 +2,9 @@ import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { GeometryDoc, GeomObject } from '../src/map/geometry';
+import { objectHitCorners, type GeometryDoc, type GeomObject } from '../src/map/geometry';
 import type { CatalogItem } from '../src/api/plan-catalog';
-import { addArray, addCircuit, addConnector, addLevel, addObject, arrayDefaults, circuitPower, duplicateObject, levelUsage, moveConnectorVertex, moveGroup, moveObject, objectZ, patchCircuit, patchConnector, patchLevel, patchObject, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember, visibleUnderLevel } from '../src/map/studio-ops';
+import { addArray, addCircuit, addConnector, addLevel, addObject, arrayDefaults, circuitPower, duplicateObject, levelUsage, moveConnectorVertex, moveGroup, moveObject, objectZ, patchCircuit, patchConnector, patchLevel, patchObject, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember, translatePolygon, translateWall, visibleUnderLevel } from '../src/map/studio-ops';
 
 // Plan Studio phase 2 (T085): the pure document operations of the editor - placing an item (its size, z and params come
 // from the library), moving, rotating, stretching, duplicating, and removing an object out of its group, its circuit
@@ -177,5 +177,53 @@ test.describe('plan studio object operations (unit)', () => {
     const boosted = patchObject(withLamp, 'o3', { params: { power_w: 60 } });
     expect(circuitPower(boosted, boosted.circuits.find((k) => k.id === r.id)!, lookup)).toBe(60); // the object's own value wins
     expect(patchCircuit(r.doc, r.id, { name: 'צפון', color_token: 'circuit-3' }).circuits.at(-1)).toMatchObject({ name: 'צפון', color_token: 'circuit-3' });
+  });
+});
+
+// Hotfix 0.1.87 (owner report 2026-09-25): a wall moves as a whole, a zone polygon moves as a whole.
+test.describe('whole-wall and whole-zone moves (unit)', () => {
+  test('translateWall moves every corner by the same delta; its openings keep t; groups and connectors stay', () => {
+    const doc = sample();
+    const moved = translateWall(doc, 'wa', 0.05, 0.02);
+    expect(moved.walls.find((w) => w.id === 'wa')!.polyline).toEqual([[0.15, 0.12], [0.95, 0.12], [0.95, 0.62]]);
+    expect(moved.walls.filter((w) => w.id !== 'wa')).toEqual(doc.walls.filter((w) => w.id !== 'wa')); // the other walls stay
+    expect(moved.openings).toEqual(doc.openings); // openings sit at a relative t: they ride along unchanged
+    expect(moved.openings.filter((o) => o.wall_id === 'wa').map((o) => o.t)).toEqual([0.75, 0.2]);
+    expect(moved.groups).toBe(doc.groups);
+    expect(moved.connectors).toBe(doc.connectors);
+    expect(moved.objects).toBe(doc.objects);
+    expect(doc.walls.find((w) => w.id === 'wa')!.polyline[0]).toEqual([0.1, 0.1]); // the input is never mutated
+  });
+
+  test('translateWall is clamped as a whole: no corner leaves the plan and the shape is kept', () => {
+    const doc = sample();
+    const right = translateWall(doc, 'wa', 0.5, 0); // max x is 0.9: only 0.1 of the move fits
+    expect(right.walls.find((w) => w.id === 'wa')!.polyline).toEqual([[0.2, 0.1], [1, 0.1], [1, 0.6]]);
+    const up = translateWall(doc, 'wa', -0.03, -0.4); // min y is 0.1
+    expect(up.walls.find((w) => w.id === 'wa')!.polyline).toEqual([[0.07, 0], [0.87, 0], [0.87, 0.5]]);
+    expect(translateWall(doc, 'nope', 0.1, 0.1)).toEqual(doc); // an unknown wall changes nothing
+    const ring = { ...doc, walls: [...doc.walls, { ...doc.walls[0], id: 'ring', polyline: [[0.2, 0.2], [0.3, 0.2], [0.3, 0.3], [0.2, 0.2]] as [number, number][] }] };
+    const r = translateWall(ring, 'ring', 0.1, 0.1).walls.find((w) => w.id === 'ring')!.polyline;
+    expect(r[0]).toEqual(r[3]); // a closed outline stays closed
+    expect(r).toEqual([[0.3, 0.3], [0.4, 0.3], [0.4, 0.4], [0.3, 0.3]]);
+  });
+
+  test('objectHitCorners widens a small footprint to the minimum side around its centre, turned with it; a big one keeps its footprint', () => {
+    const small = { cx: 100, cy: 50, w: 4, h: 10, rotation: 0, corners: [[98, 45], [102, 45], [102, 55], [98, 55]] as [number, number][] };
+    expect(objectHitCorners(small, 24)).toEqual([[88, 38], [112, 38], [112, 62], [88, 62]]);
+    const turned = objectHitCorners({ ...small, rotation: 90 }, 24).map(([x, y]) => [Math.round(x * 1e6) / 1e6, Math.round(y * 1e6) / 1e6]);
+    expect(turned).toEqual([[112, 38], [112, 62], [88, 62], [88, 38]]); // turned a quarter: the same square, corners in turn
+    const wide = { ...small, w: 30, h: 10 };
+    expect(objectHitCorners(wide, 24)).toEqual([[85, 38], [115, 38], [115, 62], [85, 62]]); // only the narrow side grows
+    const big = { ...small, w: 40, h: 30 };
+    expect(objectHitCorners(big, 24)).toBe(big.corners);
+  });
+
+  test('translatePolygon moves a zone polygon as a whole, clamped inside the plan, rounded to 4 places', () => {
+    const poly = [{ x: 0.03, y: 0.55 }, { x: 0.15, y: 0.55 }, { x: 0.15, y: 0.68 }, { x: 0.03, y: 0.68 }];
+    expect(translatePolygon(poly, 0.1, -0.05)).toEqual([{ x: 0.13, y: 0.5 }, { x: 0.25, y: 0.5 }, { x: 0.25, y: 0.63 }, { x: 0.13, y: 0.63 }]);
+    expect(translatePolygon(poly, -0.2, 0.5)).toEqual([{ x: 0, y: 0.87 }, { x: 0.12, y: 0.87 }, { x: 0.12, y: 1 }, { x: 0, y: 1 }]);
+    expect(translatePolygon(poly, 0.012345, 0)[0]).toEqual({ x: 0.0423, y: 0.55 });
+    expect(poly[0]).toEqual({ x: 0.03, y: 0.55 }); // never mutated
   });
 });

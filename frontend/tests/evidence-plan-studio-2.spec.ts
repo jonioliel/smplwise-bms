@@ -51,7 +51,7 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
   test.skip(process.env.SW_LIVE !== '1', 'set SW_LIVE=1 with the backend running');
 
   test.beforeAll(async ({ playwright, browser }) => {
-    api = await playwright.request.newContext({ baseURL: 'http://127.0.0.1:4173/' });
+    api = await playwright.request.newContext({ baseURL: process.env.SW_BASE_URL || 'http://127.0.0.1:4173/' });
     const stamp = new Date().toISOString().slice(0, 19);
     ids.site = (await (await api.post('api/v1/sites', { data: { name: `בדיקת סטודיו 2 ${stamp}`, address: '' } })).json()).id;
     ids.building = (await (await api.post(`api/v1/sites/${ids.site}/buildings`, { data: { name: 'אולם ספורט' } })).json()).id;

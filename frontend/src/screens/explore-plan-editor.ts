@@ -27,8 +27,8 @@ import { productSettings } from '../api/prefs';
 import { createItem, exportUrl as catalogExportUrl, importItems, itemOf, loadLibrary, lookupOf, type CatalogItem, type CatalogLibrary } from '../api/plan-catalog';
 import { distanceM, effectiveScale, isClosedOutline, lengthPx, nearestWall, pointOnWall, snapPoint, type CatalogLookup, type ConnectorKind, type GeometryDoc, type GeomOpening, type GeomWall, type Pt } from '../map/geometry';
 import { StudioController } from '../map/studio-controller';
-import { ARRAY_MAX, BIND_DISTANCE_M, CIRCUIT_COLORS, addArray, addCircuit, addConnector, addLabel, addLevel, addObject, addOpening, addWall, arrayDefaults, circuitPower, defaultLevelId, duplicateObject, kindDefaults, moveConnectorVertex, moveGroup, moveObject, moveVertex, newId, nudgeT, openingRange, patchCircuit, patchConnector, patchLabel, patchObject, patchOpening, patchWall, removeCorner, removeGroup, removeItem, rotationTo, stretchedSize, toggleCircuitMember, visibleUnderLevel, wallDirectionAt, type WallDefaults } from '../map/studio-ops';
-import { COLL_LABEL, CONNECTOR_LABEL, connectorDerived, countLabel, fmtMetres, fmtScale, renderArrayDialog, renderCalibPanel, renderCircuitPanel, renderConnectorPanel, renderCustomItemDialog, renderGroupDeleteDialog, renderGroupInspector, renderLevelChips, renderLevelDialog, renderDetectPanel, renderLibraryPanel, renderMeasurePanel, renderObjectInspector, renderStudioPanel, studioPanelStyles, lighterStrength, type ArrayDialogView, type CustomItemView, type DetectAcceptError, type DetectOpts, type DetectReplaceAsk, type DetectRunState, type GeomKind, type GeomSel, type LevelDialogView, type StudioMode } from './plan-studio-panel';
+import { ARRAY_MAX, BIND_DISTANCE_M, CIRCUIT_COLORS, addArray, addCircuit, addConnector, addLabel, addLevel, addObject, addOpening, addWall, arrayDefaults, circuitPower, defaultLevelId, duplicateObject, kindDefaults, moveConnectorVertex, moveGroup, moveObject, moveVertex, newId, nudgeT, openingRange, patchCircuit, patchConnector, patchLabel, patchObject, patchOpening, patchWall, removeCorner, removeGroup, removeItem, rotationTo, stretchedSize, toggleCircuitMember, translateWall, visibleUnderLevel, wallDirectionAt, type WallDefaults } from '../map/studio-ops';
+import { COLL_LABEL, CONNECTOR_LABEL, connectorDerived, countLabel, fmtMetres, fmtScale, renderArrayDialog, renderCalibPanel, renderCircuitPanel, renderConnectorPanel, renderCustomItemDialog, renderGroupDeleteDialog, renderGroupInspector, renderLevelChips, renderLevelDialog, renderDetectPanel, renderLibraryPanel, renderMeasurePanel, renderObjectInspector, renderConnectorSelection, renderStudioPanel, SAVE_LABEL, studioPanelStyles, lighterStrength, type ArrayDialogView, type CustomItemView, type DetectAcceptError, type DetectOpts, type DetectReplaceAsk, type DetectRunState, type GeomKind, type GeomSel, type LevelDialogView, type StudioMode } from './plan-studio-panel';
 
 type Strength = 'light' | 'medium' | 'strong';
 interface ZoneCandidate {
@@ -135,6 +135,11 @@ export class ExplorePlanEditor extends LitElement {
   @state() private versions: PlanVersion[] = [];
   @state() private diff: { mode: DiffMode; version: PlanVersion; data: VersionDiff | null; error: string } | null = null;
   @state() private selectedZoneId: string | null = null;
+  /** The corner of the selected zone picked by a press without a move (0.1.87): Delete removes that corner. */
+  @state() private zoneVertexSel: { zoneId: string; index: number } | null = null;
+  /** Which undo stack the last edit went to (0.1.87 fix round 1): in the select tool, which holds both pins and the
+   * structure, Ctrl+Z / Ctrl+Y and the rail follow it, so a deleted wall comes back and repeated undo keeps going. */
+  @state() private lastEdit: 'structure' | 'pins' | null = null;
   @state() private candidates: ZoneCandidate[] | null = null;
   @state() private detecting = false;
   @state() private detectStrength: Strength = 'medium';
@@ -885,6 +890,7 @@ export class ExplorePlanEditor extends LitElement {
 
   private apply(id: string, patch: Partial<Anchor> & { position?: { x: number; y: number } }) {
     this.snapshot();
+    this.lastEdit = 'pins';
     this.anchors = this.anchors.map((a) => (a.id === id ? { ...a, ...patch, position: patch.position ?? a.position } : a));
     this.dirty = new Set(this.dirty).add(id);
   }
@@ -938,13 +944,14 @@ export class ExplorePlanEditor extends LitElement {
       else {
         this.selectedId = null;
         this.selectedZoneId = null;
+        this.zoneVertexSel = null;
         this.geomSel = null;
       }
       return;
     }
     if (typing) return;
     if (this.arrayDialog || this.groupDelete || this.customDialog) return; // an open dialog owns the keys: no Delete or nudge behind it
-    if (this.studioOn && this.handleStudioKey(e)) return;
+    if ((this.studioOn || this.selectGeomOn) && this.handleStudioKey(e)) return;
     if (e.key === 'Enter' && this.drawing) {
       e.preventDefault();
       void this.finishDrawing();
@@ -952,18 +959,31 @@ export class ExplorePlanEditor extends LitElement {
     }
     if ((e.key === 'Delete' || e.key === 'Backspace') && !this.selected && this.selectedZone) {
       e.preventDefault();
-      void this.removeZone(this.selectedZone);
+      const z = this.selectedZone;
+      const v = this.zoneVertexSel;
+      if (v && v.zoneId === z.id && v.index < z.polygon.length) {
+        // a picked corner goes alone (0.1.87); a zone keeps at least three corners
+        if (z.polygon.length <= 3) {
+          this.info = 'לאזור נשארו שלוש פינות: אי אפשר להסיר עוד פינה';
+          setTimeout(() => (this.info = ''), 3000);
+          return;
+        }
+        this.zoneVertexSel = null;
+        void this.patchZone(z, { polygon: z.polygon.filter((_, i) => i !== v.index) });
+        return;
+      }
+      void this.removeZone(z);
       return;
     }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
       e.preventDefault();
-      if (e.shiftKey) this.doRedo();
-      else this.doUndo();
+      if (e.shiftKey) this.redoAny();
+      else this.undoAny();
       return;
     }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
       e.preventDefault();
-      this.doRedo();
+      this.redoAny();
       return;
     }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
@@ -1277,6 +1297,11 @@ export class ExplorePlanEditor extends LitElement {
     if (tool === 'connectors' && !this.tree && this.bundle?.source === 'api') void loadTree().then((t) => (this.tree = t)).catch(() => {});
     if (tool === 'structure' && this.phone.matches && this.studioMode === 'wall') this.studioMode = 'select'; // wall drawing is desktop only: a phone opens the tool in select mode
     if (tool !== 'structure') this.geomSel = null;
+    if (STUDIO_TOOLS.includes(tool)) {
+      // a zone selected in the select or zones tool does not follow into a studio tool, where its body could be dragged
+      this.selectedZoneId = null;
+      this.zoneVertexSel = null;
+    }
     if (tool !== 'measure') this.measurePts = [];
     if (tool !== 'calibrate') this.calib = { ...EMPTY_CALIB };
     if (tool !== 'detect') {
@@ -1375,6 +1400,7 @@ export class ExplorePlanEditor extends LitElement {
     }
     const r = addLevel(doc, v.name, v.elevation, v.ceiling);
     this.studio.commit(r.doc);
+    this.lastEdit = 'structure';
     this.levelDialog = null;
     this.setLevelFilter(r.id);
     this.info = `המפלס "${v.name}" נוסף; פריטים חדשים יוצבו בו`;
@@ -1461,6 +1487,7 @@ export class ExplorePlanEditor extends LitElement {
     if (!doc || !c?.entity) return;
     const r = addCircuit(doc, c.name, c.entity.entity_id, c.color);
     this.studio.commit(r.doc);
+    this.lastEdit = 'structure';
     this.circuitNew = null;
     this.circuitSel = r.id;
     this.membersMode = true;
@@ -1525,6 +1552,7 @@ export class ExplorePlanEditor extends LitElement {
     if (!doc || !item) return;
     const r = addObject(doc, item, p, this.placeOpts(doc));
     this.studio.commit(r.doc);
+    this.lastEdit = 'structure';
     this.geomSel = { id: r.id, kind: 'object' };
     this.remember(item.id);
     this.offerBinding(r.id);
@@ -1608,6 +1636,7 @@ export class ExplorePlanEditor extends LitElement {
     }
     this.arrayDialog = null;
     this.studio.commit(r.doc);
+    this.lastEdit = 'structure';
     this.geomSel = { id: r.groupId, kind: 'group' };
     this.info = `${r.ids.length} עצמים במערך אחד`;
     setTimeout(() => (this.info = ''), 4000);
@@ -1698,12 +1727,63 @@ export class ExplorePlanEditor extends LitElement {
    * clicks belong to the drawing. The library tool: objects and connectors, unless an item is being placed. */
   private get geomDragMode(): GeomDragMode {
     if (!this.studio.doc) return 'none';
+    // hotfix 0.1.87 (owner report 2026-09-25): the select tool ("בחירה וגרירה") selects and drags the structure too
+    if (this.tool === 'select') return this.bundle?.permissions.structure && !this.placing && !this.drawing ? 'all' : 'none';
     if (this.tool === 'library') return this.placingItem ? 'none' : 'objects';
     if (this.tool === 'connectors') return this.connMode ? 'none' : 'objects';
     if (this.tool === 'circuits') return 'objects';
     if (this.tool !== 'structure') return 'none';
     if (this.studioMode === 'select') return 'all';
     return this.wallDraft ? 'none' : 'items';
+  }
+
+  /** Where a selected wall shows its corner handles, moves as a whole and a selected corner takes the keys: the
+   * structure tool's select mode and the select tool (0.1.87). */
+  private get geomSelectMode(): boolean {
+    return (this.tool === 'structure' && this.studioMode === 'select') || this.tool === 'select';
+  }
+
+  /** A structure item is selected in the select tool: Delete, the arrows and Ctrl+Z / Ctrl+Y act on the structure. */
+  private get selectGeomOn(): boolean {
+    return this.tool === 'select' && !!this.geomSel && !!this.studio.doc && !this.selectedId;
+  }
+
+  /** The stack Ctrl+Z / the rail's undo acts on: the studio tools undo the structure; the select tool follows the last
+   * edit's stack (lastEdit) and falls back to the other one when that stack is empty; other tools undo the pins. */
+  private get undoTarget(): 'structure' | 'pins' | null {
+    if (this.studioOn) return this.studio.canUndo ? 'structure' : null;
+    if (this.tool === 'select' && this.studio.doc && this.studio.canUndo && (this.lastEdit === 'structure' || !this.undo.length)) return 'structure';
+    return this.undo.length ? 'pins' : null;
+  }
+
+  private get redoTarget(): 'structure' | 'pins' | null {
+    if (this.studioOn) return this.studio.canRedo ? 'structure' : null;
+    if (this.tool === 'select' && this.studio.doc && this.studio.canRedo && (this.lastEdit === 'structure' || !this.redo.length)) return 'structure';
+    return this.redo.length ? 'pins' : null;
+  }
+
+  private undoAny() {
+    const t = this.undoTarget;
+    if (t === 'structure') {
+      this.studio.undo();
+      this.geomSel = null;
+      this.lastEdit = 'structure';
+    } else if (t === 'pins') {
+      this.doUndo();
+      this.lastEdit = 'pins'; // a fallback undo moves the domain, so the next redo mirrors it
+    }
+  }
+
+  private redoAny() {
+    const t = this.redoTarget;
+    if (t === 'structure') {
+      this.studio.redo();
+      this.geomSel = null;
+      this.lastEdit = 'structure';
+    } else if (t === 'pins') {
+      this.doRedo();
+      this.lastEdit = 'pins';
+    }
   }
 
   private get issueIds(): string[] {
@@ -1717,6 +1797,7 @@ export class ExplorePlanEditor extends LitElement {
     const next = fn(doc);
     if (next === doc || JSON.stringify(next) === JSON.stringify(doc)) return;
     this.studio.commit(next);
+    this.lastEdit = 'structure';
   }
 
   private snap(p: Pt, prev: Pt | null, free: boolean): Pt {
@@ -1796,6 +1877,7 @@ export class ExplorePlanEditor extends LitElement {
       const r = addConnector(doc, this.connMode, this.connStart, q, from, others.length === 1 ? others[0].id : null);
       this.connStart = null;
       this.studio.commit(r.doc);
+      this.lastEdit = 'structure';
       this.geomSel = { id: r.id, kind: 'connector' };
       return;
     }
@@ -1835,6 +1917,7 @@ export class ExplorePlanEditor extends LitElement {
       const r = addLabel(doc, p, 'תווית');
       const level = this.placeOpts(doc).levelId;
       this.studio.commit(level === defaultLevelId(doc) ? r.doc : patchLabel(r.doc, r.id, { level_id: level }));
+      this.lastEdit = 'structure';
       this.geomSel = { id: r.id, kind: 'label' };
       return;
     }
@@ -1854,6 +1937,7 @@ export class ExplorePlanEditor extends LitElement {
     const [lo, hi] = openingRange(kindDefaults(mode).width_m, this.wallLengthM(hit.wall, doc));
     const r = addOpening(doc, hit.wall.id, Math.min(hi, Math.max(lo, hit.t)), mode);
     this.studio.commit(r.doc);
+    this.lastEdit = 'structure';
     this.geomSel = { id: r.id, kind: 'opening' };
   }
 
@@ -1866,6 +1950,7 @@ export class ExplorePlanEditor extends LitElement {
     const r = addWall(doc, d, this.wallDefaults);
     const level = this.placeOpts(doc).levelId;
     this.studio.commit(level === defaultLevelId(doc) ? r.doc : patchWall(r.doc, r.id, { level_id: level }));
+    this.lastEdit = 'structure';
     this.geomSel = { id: r.id, kind: 'wall' };
   }
 
@@ -1884,8 +1969,12 @@ export class ExplorePlanEditor extends LitElement {
       this.edit((d) => toggleCircuitMember(d, cid, id));
       return;
     }
-    if (kind === 'object' && this.tool !== 'library') this.pickTool('library'); // the object inspector lives in the library tool (pickTool clears the selection, so it goes first)
-    if (kind === 'connector' && this.tool !== 'connectors') this.pickTool('connectors');
+    // the object inspector lives in the library tool (pickTool clears the selection, so it goes first); the select tool
+    // shows the inspectors itself (0.1.87), so a click there never changes the tool
+    if (kind === 'object' && this.tool !== 'library' && this.tool !== 'select') this.pickTool('library');
+    if (kind === 'connector' && this.tool !== 'connectors' && this.tool !== 'select') this.pickTool('connectors');
+    if (kind === 'connector' && this.tool === 'select' && !this.tree && this.bundle?.source === 'api') void loadTree().then((t) => (this.tree = t)).catch(() => {});
+    this.zoneVertexSel = null;
     this.geomSel = vertex === undefined ? { id, kind } : { id, kind, vertex };
     this.selectedId = null;
     this.selectedZoneId = null;
@@ -1937,6 +2026,11 @@ export class ExplorePlanEditor extends LitElement {
       if (!c || connectorDerived(c)) return null;
       return { doc: moveConnectorVertex(doc, d.id, d.index, this.snap(p, null, true)), sel: { id: d.id, kind: 'connector' } };
     }
+    if (d.kind === 'wall') {
+      const w = doc.walls.find((v) => v.id === d.id);
+      if (!w) return null;
+      return { doc: translateWall(doc, w.id, ...this.wallDelta(doc, w, d)), sel: { id: w.id, kind: 'wall' } };
+    }
     if (d.kind === 'vertex') {
       const w = doc.walls.find((v) => v.id === d.id);
       if (!w) return null;
@@ -1967,6 +2061,42 @@ export class ExplorePlanEditor extends LitElement {
     return l ? { doc: patchLabel(doc, d.id, { position: [l.position[0] + d.x - d.sx, l.position[1] + d.y - d.sy] }), sel } : { doc, sel };
   }
 
+  /** How far a whole-wall drag moves the wall (0.1.87): by the pointer's movement since the press; Shift keeps only the
+   * larger of the two screen components (a straight horizontal or vertical move); then the corner snap - the first corner
+   * of the wall that comes within the corner snap radius of another shown wall's corner lands on it, and the whole wall
+   * follows by the same correction (with Shift only along the kept axis). */
+  private wallDelta(doc: GeometryDoc, w: GeomWall, d: GeomDragDetail): [number, number] {
+    const b = this.bundle;
+    let dx = d.x - d.sx;
+    let dy = d.y - d.sy;
+    if (!b) return [dx, dy];
+    if (d.shift) {
+      if (Math.abs(dx * b.width) >= Math.abs(dy * b.height)) dy = 0;
+      else dx = 0;
+    }
+    const others = this.shownWalls(doc).filter((v) => v.id !== w.id);
+    const tolPx = CORNER_SNAP_PX / (this.canvas?.zoom ?? 1);
+    let best: [number, number] | null = null;
+    let bestD = Number.POSITIVE_INFINITY;
+    const corners = isClosedOutline(w.polyline) ? w.polyline.slice(0, -1) : w.polyline;
+    for (const v of corners) {
+      const at: Pt = [v[0] + dx, v[1] + dy];
+      const q = snapPoint(at, null, others, b.width, b.height, { tolPx, free: true });
+      const c: [number, number] = [q[0] - at[0], q[1] - at[1]];
+      const dist = Math.hypot(c[0] * b.width, c[1] * b.height);
+      if (dist > 0 && dist < bestD) {
+        best = c;
+        bestD = dist;
+      }
+    }
+    if (best && !d.shift) {
+      dx += best[0];
+      dy += best[1];
+    } else if (best && dy === 0) dx += best[0]; // Shift: the correction only along the kept axis
+    else if (best) dy += best[1];
+    return [dx, dy];
+  }
+
   /** While the pointer moves: the dragged item is the selection and shows where it is going (nothing is saved yet). */
   private onGeomDragMove(d: GeomDragDetail) {
     const doc = this.studio.doc;
@@ -1992,8 +2122,8 @@ export class ExplorePlanEditor extends LitElement {
    * (|dx| >= |dy| at the opening) Right moves it towards the end with the larger x and Left the other way, on a steeper
    * wall Up moves it towards the end with the smaller y and Down the other way; a key across the wall does nothing. It
    * moves 1 cm (Shift: 10 cm) on a calibrated plan, else 0.2 % of the plan's width (Shift: 1 %), whatever the wall's
-   * length, and never out of the wall. A label, and in select mode a selected wall corner, move by the same steps,
-   * inside the plan. */
+   * length, and never out of the wall. A label, and in select mode (the structure tool's, or the select tool) a selected
+   * wall corner - or the whole selected wall when no corner is picked (0.1.87) - move by the same steps, inside the plan. */
   private nudgeGeom(e: KeyboardEvent): boolean {
     const sel = this.geomSel;
     const b = this.bundle;
@@ -2032,11 +2162,17 @@ export class ExplorePlanEditor extends LitElement {
       } else {
         const w = doc.walls.find((x) => x.id === sel.id);
         const i = sel.vertex;
-        if (this.studioMode !== 'select' || !w || i === undefined || !w.polyline[i]) return false;
-        const q: Pt = [w.polyline[i][0] + dx, w.polyline[i][1] + dy];
-        const last = w.polyline.length - 1;
-        next = isClosedOutline(w.polyline) && i === 0 ? moveVertex(moveVertex(doc, w.id, 0, q), w.id, last, q) : moveVertex(doc, w.id, i, q);
-        key = `${w.id}:${i}`;
+        if (!this.geomSelectMode || !w) return false;
+        if (i === undefined) {
+          next = translateWall(doc, w.id, dx, dy); // no corner picked: the whole wall moves (0.1.87)
+          key = `${w.id}:all`;
+        } else {
+          if (!w.polyline[i]) return false;
+          const q: Pt = [w.polyline[i][0] + dx, w.polyline[i][1] + dy];
+          const last = w.polyline.length - 1;
+          next = isClosedOutline(w.polyline) && i === 0 ? moveVertex(moveVertex(doc, w.id, 0, q), w.id, last, q) : moveVertex(doc, w.id, i, q);
+          key = `${w.id}:${i}`;
+        }
       }
     }
     e.preventDefault(); // the key is the item's even at the end of its range (no page scroll)
@@ -2055,6 +2191,7 @@ export class ExplorePlanEditor extends LitElement {
     const burst = this.nudgeBurst;
     if (burst && burst.key === key && burst.doc === doc && now - burst.at < NUDGE_BURST_MS && this.studio.canUndo) this.studio.undo();
     this.studio.commit(next);
+    this.lastEdit = 'structure';
     this.nudgeBurst = { key, doc: next, at: now };
   }
 
@@ -2094,7 +2231,7 @@ export class ExplorePlanEditor extends LitElement {
         setTimeout(() => (this.info = ''), 4000);
         return true;
       }
-      if (kind === 'wall' && vertex !== undefined && this.studioMode === 'select') {
+      if (kind === 'wall' && vertex !== undefined && this.geomSelectMode) {
         // a selected corner goes alone while the wall keeps enough corners (studio-ops removeCorner), else the wall goes
         const doc = this.studio.doc;
         const r = doc ? removeCorner(doc, id, vertex) : null;
@@ -2106,17 +2243,17 @@ export class ExplorePlanEditor extends LitElement {
       this.geomSel = null;
       return true;
     }
-    if (ARROWS.includes(e.key) && (this.tool === 'structure' || this.tool === 'library') && this.nudgeGeom(e)) return true;
+    if (ARROWS.includes(e.key) && (this.tool === 'structure' || this.tool === 'library' || this.tool === 'select') && this.nudgeGeom(e)) return true;
     if (mod && (key === 'z' || key === 'y')) {
       e.preventDefault();
-      if (key === 'y' || e.shiftKey) this.studio.redo();
-      else this.studio.undo();
-      this.geomSel = null;
+      if (key === 'y' || e.shiftKey) this.redoAny();
+      else this.undoAny();
       return true;
     }
     if (mod && key === 's') {
       e.preventDefault();
       void this.studio.flush();
+      if (this.tool === 'select' && this.dirty.size) void this.save(); // the select tool also holds moved pins (0.1.87)
       return true;
     }
     return false;
@@ -2579,7 +2716,7 @@ export class ExplorePlanEditor extends LitElement {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  private renderStructurePanel(b: MapBundle) {
+  private renderStructurePanel(b: MapBundle, compact = false) {
     const doc = this.studio.doc;
     const versionId = b.planVersionId;
     if (!doc || !versionId) {
@@ -2588,7 +2725,8 @@ export class ExplorePlanEditor extends LitElement {
     return renderStudioPanel(
       {
         // during a drag the panel shows where the item is going (the opening's distance field follows the pointer)
-        doc: this.geomPreview ?? doc, W: b.width, H: b.height, mode: this.studioMode, wallDefaults: this.wallDefaults, sel: this.geomSel, saveState: this.studio.saveState, saveError: this.studio.error,
+        doc: this.geomPreview ?? doc, W: b.width, H: b.height, mode: compact ? 'select' : this.studioMode, wallDefaults: this.wallDefaults, sel: this.geomSel, saveState: this.studio.saveState, saveError: this.studio.error,
+        compact,
         conflict: this.studio.hasConflict,
         issues: this.studio.issues, copyCandidates: this.studio.copyCandidates, exportSvg: exportUrl(versionId, 'svg', { draft: true }), exportPng: exportUrl(versionId, 'png', { draft: true }), busy: this.busy,
         showEstimates: this.showEstimates,
@@ -2633,7 +2771,7 @@ export class ExplorePlanEditor extends LitElement {
     );
   }
 
-  private renderLibraryTool(b: MapBundle) {
+  private renderLibraryTool(b: MapBundle, inspectorOnly = false) {
     const doc = this.studio.doc;
     const lib = this.library;
     if (!doc || !lib || !b.planVersionId) {
@@ -2667,7 +2805,7 @@ export class ExplorePlanEditor extends LitElement {
           },
         )
       : nothing}
-    ${renderLibraryPanel(
+    ${inspectorOnly ? html`<div class="note" data-studio-save=${this.studio.saveState}>${SAVE_LABEL[this.studio.saveState]}</div>` : renderLibraryPanel(
       { lib, q: this.libQ, category: this.libCategory, recent: this.libRecent, favorites: this.libFav, placing: this.placingItem, saveState: this.studio.saveState, phone: this.phone.matches,
         exportHref: catalogExportUrl(), canManage },
       {
@@ -2893,7 +3031,39 @@ export class ExplorePlanEditor extends LitElement {
       </sw-card>`;
     }
     if (this.tool === 'zones') return this.renderZonesPanel(b);
-    return html`<sw-card heading="מאפיינים"><div class="note">בחר סיכה במפה כדי לערוך אותה, או הוסף מצלמה / ישות מסרגל הכלים. גרירה מזיזה; הידיות על המצלמה הנבחרת קובעות כיוון ושדה ראייה. הצבה יוצרת Binding בלבד ואינה משנה תצורת מקור.</div></sw-card>`;
+    if (this.tool === 'select' && this.geomSel && this.studio.doc) return this.renderSelectionPanel(b);
+    return html`<sw-card heading="מאפיינים"><div class="note" data-select-hint>${b.permissions.structure && this.studio.doc
+      ? 'לחץ על סיכה, קיר, פתח, תווית, עצם או אזור במפה כדי לבחור ולערוך אותם, או הוסף מצלמה / ישות מסרגל הכלים. גרירה מזיזה: סיכה, פתח, תווית ועצם מיד, קיר ואזור אחרי שנבחרו. הידיות על המצלמה הנבחרת קובעות כיוון ושדה ראייה. הצבה יוצרת Binding בלבד ואינה משנה תצורת מקור.'
+      : 'בחר סיכה במפה כדי לערוך אותה, או הוסף מצלמה / ישות מסרגל הכלים. גרירה מזיזה; הידיות על המצלמה הנבחרת קובעות כיוון ושדה ראייה. הצבה יוצרת Binding בלבד ואינה משנה תצורת מקור.'}</div></sw-card>`;
+  }
+
+  /** The select tool with a structure item selected (0.1.87): the item's own inspector, as its studio tool shows it,
+   * without that tool's drawing modes, library or lists. */
+  private renderSelectionPanel(b: MapBundle) {
+    const sel = this.geomSel;
+    const doc = this.studio.doc;
+    if (!sel || !doc) return nothing;
+    if (sel.kind === 'object' || sel.kind === 'group') return this.renderLibraryTool(b, true);
+    if (sel.kind === 'connector') {
+      const c = doc.connectors.find((x) => x.id === sel.id);
+      return c
+        ? renderConnectorSelection(
+            { doc, mode: null, start: null, sel: c, saveState: this.studio.saveState, floors: this.otherFloors, linkFloor: this.linkFloor, linkBusy: this.linkBusy, phone: this.phone.matches },
+            {
+              setMode: () => {},
+              select: (id) => (this.geomSel = { id, kind: 'connector' }),
+              patch: (id, patch) => this.edit((d) => patchConnector(d, id, patch)),
+              remove: (id) => {
+                this.edit((d) => removeItem(d, id));
+                this.geomSel = null;
+              },
+              setLinkFloor: (f) => (this.linkFloor = f),
+              link: (id) => void this.linkTo(id),
+            },
+          )
+        : nothing;
+    }
+    return this.renderStructurePanel(b, true);
   }
 
   private renderZoneInspector(z: SpatialZone) {
@@ -2911,7 +3081,7 @@ export class ExplorePlanEditor extends LitElement {
       <div class="kv"><span class="k">ישויות HA באזור</span><span>${ents.length ? `${ents.length} ישויות` : 'אין'}</span></div>
       <div class="row"><span class="lbl">הכללה בחיפוש מרחבי<span class="muted">זמין לחוקי התראה ולחיפוש לפי מקום</span></span><sw-toggle ?checked=${z.searchable} label=${z.searchable ? 'כלול' : 'לא כלול'} @click=${() => this.patchZone(z, { searchable: !z.searchable })}></sw-toggle></div>
       <div class="note">${z.polygon.length} פינות · ${z.source === 'auto' ? 'זוהה אוטומטית מהתוכנית' : 'צויר ידנית'} · revision ${z.revision}</div>
-      <div class="note">עריכת הצורה במפה: גרירת פינה מזיזה אותה, גרירת נקודת האמצע שבין פינות מוסיפה פינה, לחיצה כפולה על פינה מוחקת אותה. השינוי נשמר מיד.</div>
+      <div class="note" data-zone-hint>גרור פינה כדי לשנות צורה, גרור נקודת אמצע כדי להוסיף פינה, גרור את הגוף כדי להזיז; Delete על פינה מסיר אותה</div>
       <div class="note">אזור במפה הוא הקשר מרחבי בלבד: אינו אזור זיהוי במצלמה ואינו מסכת פרטיות, ואינו משנה תצורת NVR.</div>
       <div class="btns"><sw-button size="sm" variant="danger" icon="trash" ?disabled=${this.zoneBusy} @click=${() => this.removeZone(z)}>מחק אזור</sw-button><sw-button size="sm" variant="ghost" @click=${() => (this.selectedZoneId = null)}>סגור</sw-button></div>
     </div>`;
@@ -3087,11 +3257,11 @@ export class ExplorePlanEditor extends LitElement {
                 <div class="rail" role="toolbar" aria-label="כלי עריכה">
                   ${TOOLS.map((tl) => html`<button class=${tl.id === this.tool ? 'on' : ''} data-tool=${tl.id} ?disabled=${!tl.ready || (STUDIO_TOOLS.includes(tl.id) && !b.permissions.structure) || (this.detectBusy && tl.id !== this.tool)} title=${tl.label} aria-label=${tl.label} aria-pressed=${tl.id === this.tool} @click=${() => this.pickTool(tl.id)}><sw-icon .name=${tl.icon} size=${18}></sw-icon></button>`)}
                   <hr />
-                  <button title="ביטול (Ctrl+Z)" aria-label="ביטול" ?disabled=${this.detectBusy || (this.studioOn ? !this.studio.canUndo : !this.undo.length)} @click=${() => { if (this.studioOn) { this.studio.undo(); this.geomSel = null; } else this.doUndo(); }}><sw-icon name="history" size=${18}></sw-icon></button>
-                  <button title="בצע שוב (Ctrl+Y)" aria-label="בצע שוב" ?disabled=${this.detectBusy || (this.studioOn ? !this.studio.canRedo : !this.redo.length)} @click=${() => { if (this.studioOn) { this.studio.redo(); this.geomSel = null; } else this.doRedo(); }}><sw-icon name="refresh" size=${18}></sw-icon></button>
+                  <button title="ביטול (Ctrl+Z)" aria-label="ביטול" data-rail-undo ?disabled=${this.detectBusy || !this.undoTarget} @click=${() => this.undoAny()}><sw-icon name="history" size=${18}></sw-icon></button>
+                  <button title="בצע שוב (Ctrl+Y)" aria-label="בצע שוב" data-rail-redo ?disabled=${this.detectBusy || !this.redoTarget} @click=${() => this.redoAny()}><sw-icon name="refresh" size=${18}></sw-icon></button>
                 </div>
                 <sw-plan-canvas editable alwaysLabel .placing=${!!this.placing || !!this.drawing || this.studioPlacing} .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .markers=${this.markers} .selectedId=${this.selectedId}
-                  .zones=${this.planZones} .selectedZoneId=${this.selectedZoneId} .draftPoints=${this.drawing ?? []}
+                  .zones=${this.planZones} .selectedZoneId=${this.selectedZoneId} .selectedZoneVertex=${this.zoneVertexSel && this.zoneVertexSel.zoneId === this.selectedZoneId ? this.zoneVertexSel.index : null} .draftPoints=${this.drawing ?? []}
                   .geometry=${this.geomPreview ?? this.studio.doc} .geomDrag=${this.geomDragMode} .structureLevel=${this.activeLevel} .selectedGeomId=${this.geomSel?.id ?? null} .highlightIds=${this.geomSel?.kind === 'group' ? (this.studio.doc?.groups.find((g) => g.id === this.geomSel!.id)?.member_ids ?? []) : this.tool === 'circuits' && this.circuitSel ? (this.studio.doc?.circuits.find((k) => k.id === this.circuitSel)?.member_ids ?? []) : []} .selectedVertex=${this.geomSel?.vertex ?? null} .issueIds=${this.issueIds}
                   .cornerSnapPx=${this.tool === 'structure' && this.studioMode === 'wall' ? CORNER_SNAP_PX : 0}
                   .wallDraft=${this.wallDraft ?? []} .hoverPoint=${this.studioPlacing ? this.hover : null} .rulers=${this.rulers} .catalog=${this.catalogLookup}
@@ -3103,10 +3273,11 @@ export class ExplorePlanEditor extends LitElement {
                   @geom-drag-move=${(e: CustomEvent<GeomDragDetail>) => this.onGeomDragMove(e.detail)}
                   @geom-drag-cancel=${() => { this.geomPreview = null; this.dupId = null; }}
                   @geom-drag=${(e: CustomEvent<GeomDragDetail>) => this.onGeomDrag(e.detail)}
-                  @zone-select=${(e: CustomEvent<{ id: string }>) => { if (this.placing || this.drawing || this.studioPlacing || this.tool === 'detect' || e.detail.id.startsWith('cand-')) return; if (this.tool === 'structure' || this.tool === 'library') { this.geomSel = null; return; } this.selectedZoneId = e.detail.id; this.selectedId = null; }}
-                  @zone-edit=${(e: CustomEvent<{ id: string; polygon: ZonePoint[] }>) => { const z = this.zones.find((x) => x.id === e.detail.id); if (z) void this.patchZone(z, { polygon: e.detail.polygon }); }}
-                  @marker-select=${(e: CustomEvent<MarkerSelectDetail>) => { if (this.placing || this.drawing || this.studioPlacing || this.tool === 'detect') return; this.selectedId = e.detail.id; this.selectedZoneId = null; this.geomSel = null; }}
-                  @marker-move=${(e: CustomEvent<{ id: string; x: number; y: number }>) => { if (this.tool === 'detect') return; this.apply(e.detail.id, { position: { x: +e.detail.x.toFixed(4), y: +e.detail.y.toFixed(4) } }); this.selectedId = e.detail.id; }}
+                  @zone-select=${(e: CustomEvent<{ id: string }>) => { if (this.placing || this.drawing || this.studioPlacing || this.tool === 'detect' || e.detail.id.startsWith('cand-')) return; if (this.tool === 'structure' || this.tool === 'library') { this.geomSel = null; return; } if (this.selectedZoneId !== e.detail.id) this.zoneVertexSel = null; this.selectedZoneId = e.detail.id; this.selectedId = null; this.geomSel = null; }}
+                  @zone-edit=${(e: CustomEvent<{ id: string; polygon: ZonePoint[] }>) => { const z = this.zones.find((x) => x.id === e.detail.id); this.zoneVertexSel = null; if (z) void this.patchZone(z, { polygon: e.detail.polygon }); }}
+                  @zone-vertex-select=${(e: CustomEvent<{ id: string; index: number }>) => { if (e.detail.id === this.selectedZoneId) this.zoneVertexSel = { zoneId: e.detail.id, index: e.detail.index }; }}
+                  @marker-select=${(e: CustomEvent<MarkerSelectDetail>) => { if (this.placing || this.drawing || this.studioPlacing || this.tool === 'detect') return; this.selectedId = e.detail.id; this.selectedZoneId = null; this.zoneVertexSel = null; this.geomSel = null; }}
+                  @marker-move=${(e: CustomEvent<{ id: string; x: number; y: number }>) => { if (this.tool === 'detect') return; this.apply(e.detail.id, { position: { x: +e.detail.x.toFixed(4), y: +e.detail.y.toFixed(4) } }); this.selectedId = e.detail.id; this.selectedZoneId = null; this.zoneVertexSel = null; this.geomSel = null; }}
                   @marker-orient=${(e: CustomEvent<{ id: string; rotation: number; fov: number }>) => this.apply(e.detail.id, { rotation_degrees: e.detail.rotation, field_of_view_degrees: e.detail.fov })}
                   @marker-coverage=${(e: CustomEvent<{ id: string; radius?: number; polygon?: { x: number; y: number }[] }>) => this.apply(e.detail.id, e.detail.polygon ? { coverage_polygon: e.detail.polygon.map((p) => [p.x, p.y] as [number, number]) } : { coverage_radius: e.detail.radius })}
                   @plan-click=${(e: CustomEvent<{ x: number; y: number; shift?: boolean }>) => (this.tool === 'detect' ? (this.candSel = null) : this.drawing ? this.addDraftPoint(e.detail.x, e.detail.y) : this.studioPlacing ? this.studioClick(e.detail.x, e.detail.y, !!e.detail.shift) : this.place(e.detail.x, e.detail.y))} @dragover=${(e: DragEvent) => { if (e.dataTransfer?.types.includes('text/x-sw-item')) e.preventDefault(); }} @drop=${(e: DragEvent) => this.onItemDrop(e)}></sw-plan-canvas>

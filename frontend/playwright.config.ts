@@ -2,13 +2,16 @@ import { defineConfig, devices } from '@playwright/test';
 
 // Screenshot harness for design review (DESIGN_CONTRACT): reference desktop / tablet / mobile widths,
 // RTL shell, deterministic fixtures. Run `npm run build` first; the preview server serves dist/.
+// SW_BASE_URL: another preview (a second worktree serves on its own port); the default is the usual 4173.
+const BASE = process.env.SW_BASE_URL || 'http://127.0.0.1:4173/';
+
 export default defineConfig({
   testDir: 'tests',
   timeout: 60_000,
   retries: 0,
   reporter: [['list']],
   use: {
-    baseURL: 'http://127.0.0.1:4173/',
+    baseURL: BASE,
     locale: 'he-IL',
     timezoneId: 'Asia/Jerusalem',
     colorScheme: 'light',
@@ -16,8 +19,8 @@ export default defineConfig({
     ...(process.env.SW_CHROME === '1' ? { channel: 'chrome' as const } : {}),
   },
   webServer: {
-    command: 'npm run preview',
-    url: 'http://127.0.0.1:4173/',
+    command: `npm run preview -- --port ${new URL(BASE).port || '4173'}`,
+    url: BASE,
     reuseExistingServer: true,
     timeout: 30_000,
   },
