@@ -95,6 +95,9 @@ export class ExplorePlanImport extends LitElement {
   private importTimer: number | undefined;
   /** The asset the layer / block choices above were made for. */
   private mapAssetId = '';
+  /** The latest summary load and the latest import: an older answer is dropped. */
+  private entToken = 0;
+  private importToken = 0;
 
   static styles = css`
     .layout {
@@ -371,6 +374,7 @@ export class ExplorePlanImport extends LitElement {
   }
 
   private resetDxfMap() {
+    this.importToken++;
     this.imported = null;
     this.dxfMapErr = null;
     this.dxfStale = false;
@@ -389,30 +393,60 @@ export class ExplorePlanImport extends LitElement {
     }
   }
 
-  private async loadDxfEntities(assetId: string) {
-    if (this.dxfEntLoading) return;
+  /** The summary of the drawing; the latest call wins (a token), so a reload after a re-render is never dropped.
+   * `refused` (after an unknown_layer / unknown_item answer): those layers go to "ignore" and the blocks that pointed at
+   * a refused item go back to their suggestion, so the reload never restores the refused mapping. */
+  private async loadDxfEntities(assetId: string, refused: { layers?: string[]; items?: string[] } = {}) {
+    const token = ++this.entToken;
     this.dxfEntLoading = true;
     this.dxfMapErr = null;
     try {
       const ent = await getDxfEntities(assetId);
-      // the generic object is the fallback of an unmatched block: a null suggestion shows as the first choice
-      const fallback = ent.catalog_choices[0]?.id ?? null;
+      if (token !== this.entToken || this.asset?.id !== assetId) return;
       // a reload of the same drawing (after a re-render or a refusal) keeps the choices that still apply
       const same = this.mapAssetId === ent.asset_id;
       const targets = new Set(ent.targets.map((t) => t.id));
-      const items = new Set(ent.catalog_choices.map((c) => c.id));
-      const keptLayer = (name: string) => (same && name in this.layerMap && targets.has(this.layerMap[name]) ? this.layerMap[name] : undefined);
-      const keptBlock = (name: string) => (same && name in this.blockMap && items.has(this.blockMap[name]) ? this.blockMap[name] : undefined);
+      const items = new Set(ent.catalog_choices.map((c) => c.id).filter((id): id is string => id !== null));
+      const badLayers = new Set(refused.layers ?? []);
+      const badItems = new Set(refused.items ?? []);
+      const keptLayer = (name: string): DxfTarget | undefined => {
+        if (badLayers.has(name)) return 'ignore';
+        const t = this.layerMap[name];
+        return same && t !== undefined && targets.has(t) ? t : undefined;
+      };
+      // null ("not an object": a door or window block) is kept only where the server suggests it itself
+      const keptBlock = (name: string, suggested: string | null): string | null | undefined => {
+        if (!same || !(name in this.blockMap)) return undefined;
+        const id = this.blockMap[name];
+        if (id === null) return suggested === null ? null : undefined;
+        return items.has(id) && !badItems.has(id) ? id : undefined;
+      };
       this.dxfEnt = ent;
       this.mapAssetId = ent.asset_id;
       this.layerMap = Object.fromEntries(ent.layers.map((l) => [l.name, l.count ? keptLayer(l.name) ?? l.suggested : 'ignore']));
-      this.blockMap = Object.fromEntries(ent.blocks.map((b) => [b.name, keptBlock(b.name) ?? b.suggested.catalog_id ?? fallback]));
+      this.blockMap = Object.fromEntries(ent.blocks.map((b) => {
+        const kept = keptBlock(b.name, b.suggested.catalog_id);
+        return [b.name, kept === undefined ? b.suggested.catalog_id : kept];
+      }));
       this.imported = null;
     } catch (err) {
-      this.dxfMapErr = { ...dxfMapError(err, 'load'), action: 'load' };
+      if (token === this.entToken) this.dxfMapErr = { ...dxfMapError(err, 'load'), action: 'load' };
     } finally {
-      this.dxfEntLoading = false;
+      if (token === this.entToken) this.dxfEntLoading = false;
     }
+  }
+
+  /** The import body: every mapped (non-ignore) layer - the server maps only the layers it is given - and only the blocks
+   * whose item differs from the server's own suggestion; an omitted block gets that suggestion (a door or window block
+   * none), which also keeps a drawing with thousands of blocks under the request cap. */
+  private importBody(ent: DxfEntities): { layer_map: Record<string, DxfTarget>; block_map: Record<string, string> } {
+    const layer_map = Object.fromEntries(Object.entries(this.layerMap).filter(([, t]) => t !== 'ignore'));
+    const block_map: Record<string, string> = {};
+    for (const b of ent.blocks) {
+      const id = this.blockMap[b.name];
+      if (typeof id === 'string' && id !== b.suggested.catalog_id) block_map[b.name] = id;
+    }
+    return { layer_map, block_map };
   }
 
   private stopImportTimer() {
@@ -424,11 +458,13 @@ export class ExplorePlanImport extends LitElement {
     const v = this.version;
     const ent = this.dxfEnt;
     if (!v || !ent || this.importing) return;
-    const layer_map = Object.fromEntries(Object.entries(this.layerMap).filter(([, t]) => t !== 'ignore'));
-    if (!Object.keys(layer_map).length) {
+    const body = this.importBody(ent);
+    if (!Object.keys(body.layer_map).length) {
       this.dxfMapErr = { code: 'no_layers', text: 'יש למפות לפחות שכבה אחת (יעד שאינו "התעלם").', retry: false, action: 'import' };
       return;
     }
+    // a re-render, a new version or another asset during the request makes its answer stale (resetDxfMap / applyDxf bump it)
+    const token = ++this.importToken;
     this.importing = true;
     this.importSecs = 0;
     this.dxfMapErr = null;
@@ -436,14 +472,17 @@ export class ExplorePlanImport extends LitElement {
     const t0 = Date.now();
     this.importTimer = window.setInterval(() => (this.importSecs = Math.round((Date.now() - t0) / 1000)), 1000);
     try {
-      // only the blocks of the drawing travel; a block left on the fallback choice goes as its id, never as a prefix guess
-      this.imported = await importDxfGeometry(v.id, { layer_map, block_map: { ...this.blockMap } });
+      const r = await importDxfGeometry(v.id, body);
+      if (token === this.importToken && !this.dxfStale && this.version?.id === v.id) this.imported = r;
     } catch (err) {
+      if (token !== this.importToken) return;
       const e = dxfMapError(err, 'import');
       this.dxfMapErr = { ...e, action: 'import' };
       if (e.code === 'unknown_layer' || e.code === 'unknown_item') {
+        const d = err instanceof ApiError ? err.body.details : {};
+        const strs = (x: unknown) => (Array.isArray(x) ? x.filter((s): s is string => typeof s === 'string') : []);
         this.dxfEnt = null;
-        void this.loadDxfEntities(ent.asset_id).then(() => {
+        void this.loadDxfEntities(ent.asset_id, { layers: strs(d?.unknown), items: strs(d?.items) }).then(() => {
           // keep the refusal visible after the reload replaced the table
           if (!this.dxfMapErr) this.dxfMapErr = { ...e, action: 'import' };
         });
@@ -505,6 +544,7 @@ export class ExplorePlanImport extends LitElement {
       // T086: a saved version of this drawing no longer matches the new rendering; the mapping table follows the drawing
       if (this.version && this.version.asset_id === this.dxf.asset_id) {
         this.dxfStale = true;
+        this.importToken++;
         this.imported = null;
         void this.loadDxfEntities(this.dxf.asset_id);
       }
@@ -587,7 +627,7 @@ export class ExplorePlanImport extends LitElement {
         </table>
       </div>
       ${ent.blocks.length
-        ? html`<div class="note" style="margin-block-start:8px">בלוקים (${ent.blocks.length}) - נכנסים כעצמים רק מתוך שכבות שמופו ל"עצמים"${objectsMapped ? '' : ' (כרגע אף שכבה לא ממופה ל"עצמים")'}; בלוק בלי התאמה נכנס כ"עצם כללי":</div>
+        ? html`<div class="note" style="margin-block-start:8px">בלוקים (${ent.blocks.length}) - נכנסים כעצמים רק מתוך שכבות שמופו ל"עצמים"${objectsMapped ? '' : ' (כרגע אף שכבה לא ממופה ל"עצמים")'}; בלוק בלי התאמה נכנס כ"עצם כללי", בלוק של דלת או חלון אינו עצם:</div>
             <div class="mapwrap" data-dxf-map-blocks>
               <table class="map">
                 <thead><tr><th scope="col">בלוק</th><th scope="col">מופעים</th><th scope="col" data-dxf-block-size-unit=${unitless ? 'drawing' : 'm'}>${unitless ? 'מידות (יחידות שרטוט)' : 'מידות (מ׳)'}</th><th scope="col">פריט</th></tr></thead>
@@ -597,7 +637,8 @@ export class ExplorePlanImport extends LitElement {
                     <td class="ltr">${b.count}</td>
                     <td class="ltr nowrap">${b.size_m[0].toFixed(2)} × ${b.size_m[1].toFixed(2)}</td>
                     <td><select id=${`dxf-map-block-${i}`} data-dxf-block-target aria-label=${`פריט לבלוק ${b.name}`} ?disabled=${this.importing} @change=${(e: Event) => this.setBlockItem(b.name, (e.target as HTMLSelectElement).value || null)}>
-                      ${ent.catalog_choices.map((c) => html`<option value=${c.id ?? ''} ?selected=${(this.blockMap[b.name] ?? null) === c.id}>${c.name}</option>`)}
+                      ${b.suggested.catalog_id === null ? html`<option value="" data-dxf-block-none ?selected=${(this.blockMap[b.name] ?? null) === null}>לא עצם (דלת/חלון)</option>` : nothing}
+                      ${ent.catalog_choices.filter((c) => c.id !== null).map((c) => html`<option value=${c.id ?? ''} ?selected=${this.blockMap[b.name] === c.id}>${c.name}</option>`)}
                     </select></td>
                   </tr>`)}
                 </tbody>
@@ -612,8 +653,8 @@ export class ExplorePlanImport extends LitElement {
       ${errLine}
       ${r
         ? html`<div class="ok" data-dxf-imported>נמצאו מועמדים: קירות ${r.walls.length} · פתחים ${r.openings.length} · עצמים ${r.objects?.length ?? 0} · <span data-dxf-imported-rooms>חדרים: ${r.rooms?.length ?? 0} (דרך קבלת האזורים)</span></div>
-            ${r.existing_auto.walls + r.existing_auto.openings
-              ? html`<div class="note" data-dxf-imported-existing>בטיוטת המבנה כבר יש ${r.existing_auto.walls} קירות ו־${r.existing_auto.openings} פתחים מיובאים; בעורך אפשר להחליף אותם.</div>`
+            ${r.existing_auto.walls + r.existing_auto.openings + (r.existing_auto.objects ?? 0)
+              ? html`<div class="note" data-dxf-imported-existing>בטיוטת המבנה כבר יש פריטים מיובאים: קירות ${r.existing_auto.walls} · פתחים ${r.existing_auto.openings} · עצמים ${r.existing_auto.objects ?? 0}; בעורך אפשר להחליף אותם.</div>`
               : nothing}
             ${this.canStructure
               ? html`<div class="row" style="margin-block-start:6px">

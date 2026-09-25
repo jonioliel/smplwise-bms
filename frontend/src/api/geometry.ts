@@ -208,7 +208,8 @@ export interface DetectResult {
   stats: Record<string, number>;
   version_id: string;
   level_id: string;
-  existing_auto: { walls: number; openings: number };
+  /** Items of the candidates' source already in the draft; `objects` comes with the DXF import (and a newer /detect). */
+  existing_auto: { walls: number; openings: number; objects?: number };
   elapsed_ms?: number;
 }
 export interface AcceptRequest {
