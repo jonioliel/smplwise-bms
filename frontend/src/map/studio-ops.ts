@@ -1,6 +1,6 @@
 /** Plan Studio (T084): pure edits of a structure document - every function returns a new document, so undo / redo is
  * a stack of documents and nothing is ever mutated in place. */
-import { DEFAULT_LEVEL_ID, OPENING_DEFAULTS, isClosedOutline, pointAt, rotated, type GeometryDoc, type GeomLabel, type GeomObject, type GeomOpening, type GeomSize, type GeomWall, type OpeningKind, type Pt, type Swing, type WallKind } from './geometry';
+import { DEFAULT_LEVEL_ID, OPENING_DEFAULTS, isClosedOutline, pointAt, rotated, type GeometryDoc, type GeomGroup, type GeomLabel, type GeomObject, type GeomOpening, type GeomSize, type GeomWall, type OpeningKind, type Pt, type Swing, type WallKind } from './geometry';
 import type { CatalogItem } from '../api/plan-catalog';
 
 export interface WallDefaults {
@@ -197,4 +197,76 @@ export function stretchedSize(o: Pick<GeomObject, 'position' | 'rotation_deg' | 
   }
   const d = clamp(along * 2 * scale);
   return { ...o.size, d_m: d, w_m: keepRatio ? clamp(d / ratio) : o.size.w_m };
+}
+
+// ---------------------------------------------------------------- arrays and groups (T085)
+
+export interface ArrayOpts {
+  rows: number;
+  cols: number;
+  spacingX: number;
+  spacingY: number;
+  directionDeg: number;
+}
+/** Members an array may have at once (six rows of twelve chairs is 72). */
+export const ARRAY_MAX = 400;
+const OBJECTS_MAX = 5000;
+
+/** Column pitch = the item's width + 5 cm, row pitch = its depth + 45 cm (a walkable gap behind a chair). */
+export function arrayDefaults(item: Pick<CatalogItem, 'size'>): { spacingX: number; spacingY: number } {
+  return { spacingX: round3(item.size.w_m + 0.05), spacingY: round3(item.size.d_m + 0.45) };
+}
+
+/** Rows x columns of copies of an object, in one group. Columns run along the direction's right, rows along its back
+ * (direction 0 = up: columns go right on screen, rows go down). The origin stays member [0, 0] and keeps its id; every
+ * copy gets a new one. Null when the origin is missing or already grouped, the array is smaller than 2 or larger than
+ * ARRAY_MAX, or the document would pass its object limit. */
+export function addArray(doc: GeometryDoc, originId: string, opts: ArrayOpts, W: number, H: number, scale: number): { doc: GeometryDoc; groupId: string; ids: string[] } | null {
+  const origin = doc.objects.find((o) => o.id === originId);
+  const rows = Math.floor(opts.rows);
+  const cols = Math.floor(opts.cols);
+  const total = rows * cols;
+  if (!origin || origin.group_id || rows < 1 || cols < 1 || total < 2 || total > ARRAY_MAX || doc.objects.length + total - 1 > OBJECTS_MAX) return null;
+  const theta = ((opts.directionDeg || 0) * Math.PI) / 180;
+  const right: Pt = [Math.cos(theta), Math.sin(theta)];
+  const back: Pt = [-Math.sin(theta), Math.cos(theta)];
+  const px = 1 / scale;
+  const groupId = newId();
+  const ids: string[] = [];
+  const added: GeomObject[] = [];
+  const x0 = origin.position[0] * W;
+  const y0 = origin.position[1] * H;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = x0 + c * opts.spacingX * px * right[0] + r * opts.spacingY * px * back[0];
+      const y = y0 + c * opts.spacingX * px * right[1] + r * opts.spacingY * px * back[1];
+      if (r === 0 && c === 0) {
+        ids.push(origin.id);
+        continue;
+      }
+      const copy: GeomObject = { ...origin, id: newId(), position: clampPt([x / W, y / H]), params: JSON.parse(JSON.stringify(origin.params)) as Record<string, unknown>, size: { ...origin.size },
+        anchor_ref: null, group_id: groupId, external_ids: {} };
+      ids.push(copy.id);
+      added.push(copy);
+    }
+  }
+  const group: GeomGroup = { id: groupId, kind: 'array', member_ids: ids, params: { rows, cols, spacing_x_m: opts.spacingX, spacing_y_m: opts.spacingY, direction_deg: opts.directionDeg, item_id: origin.item_id }, label: null };
+  return { doc: { ...doc, objects: [...doc.objects.map((o) => (o.id === origin.id ? { ...o, group_id: groupId } : o)), ...added], groups: [...doc.groups, group] }, groupId, ids };
+}
+
+/** Every member of the group moves by (dx, dy) in normalized plan space; a member that is the body of an anchor stays. */
+export function moveGroup(doc: GeometryDoc, groupId: string, dx: number, dy: number): GeometryDoc {
+  const g = doc.groups.find((x) => x.id === groupId);
+  if (!g) return doc;
+  const members = new Set(g.member_ids);
+  return { ...doc, objects: doc.objects.map((o) => (members.has(o.id) && !o.anchor_ref ? { ...o, position: clampPt([o.position[0] + dx, o.position[1] + dy]) } : o)) };
+}
+
+/** The group goes; its members go with it (`withMembers`) or stay in place, unlinked. */
+export function removeGroup(doc: GeometryDoc, groupId: string, withMembers: boolean): GeometryDoc {
+  const g = doc.groups.find((x) => x.id === groupId);
+  if (!g) return doc;
+  let out = doc;
+  if (withMembers) for (const id of g.member_ids) out = removeItem(out, id);
+  return removeItem(out, groupId);
 }

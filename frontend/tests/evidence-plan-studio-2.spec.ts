@@ -5,6 +5,7 @@ import { test, expect, type APIRequestContext, type Page } from '@playwright/tes
 // search and the custom library. The spec builds its own site / building / two floors with generated plan pictures and
 // removes them at the end. Runs only with SW_LIVE=1 (backend on 8099 behind the preview proxy) in real Chrome.
 const ids = { site: '', building: '', floor: '', floor2: '', version: '', version2: '', asset: '' };
+const customIds: string[] = [];
 let api: APIRequestContext;
 
 const LEVEL = (id: string, name: string, elevation: number, ceiling: number, isDefault = false) => ({ id, name, elevation_m: elevation, ceiling_height_m: ceiling, is_default: isDefault, external_ids: {} });
@@ -72,6 +73,7 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
   test.afterAll(async () => {
     if (!api) return;
     try {
+      for (const id of customIds) expect((await api.delete(`api/v1/catalog/objects/${id}`)).status(), 'custom item removed').toBe(204);
       for (const f of [ids.floor, ids.floor2]) if (f) expect((await api.delete(`api/v1/floors/${f}?force=true`)).status(), 'test floor removed').toBe(204);
       if (ids.building) expect((await api.delete(`api/v1/buildings/${ids.building}`)).status(), 'test building removed').toBe(204);
       if (ids.site) expect((await api.delete(`api/v1/sites/${ids.site}`)).status(), 'test site removed').toBe(204);
@@ -184,5 +186,61 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
     expect(bound).toBeTruthy();
     expect(bound!.position).toEqual([0.6, 0.6]);
     expect((await draft()).doc.objects.find((o) => o.id === placedId)!.item_id).toBe('chair.basic');
+  });
+
+  test('sixty chairs in one array, moved as one; deleting the array asks; a custom item is made from an object and exported', async ({ page }) => {
+    const ed = 'explore-plan-editor';
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
+    await page.locator(`${ed} [data-tool="library"]`).click();
+    await page.locator(`${ed} [data-lib-search]`).fill('כיסא');
+    await page.locator(`${ed} [data-lib-item="chair.basic"]`).click();
+    const before = await page.locator(`${ed} sw-plan-canvas [data-object]`).count();
+    await clickPlan(page, ed, 0.15, 0.15);
+    await page.keyboard.press('Escape');
+    await expect(page.locator(`${ed} [data-selected-object]`)).toBeVisible();
+    const originId = (await page.locator(`${ed} [data-selected-object]`).getAttribute('data-selected-object'))!;
+    await page.locator(`${ed} [data-object-array]`).click();
+    await expect(page.locator(`${ed} [data-array-dialog] [data-array-rows]`)).toBeVisible(); // the sw-dialog host itself has no box of its own
+    await page.locator(`${ed} [data-array-rows]`).fill('6');
+    await page.locator(`${ed} [data-array-cols]`).fill('10');
+    await expect(page.locator(`${ed} [data-array-sx]`)).toHaveValue('0.5');
+    await expect(page.locator(`${ed} [data-array-sy]`)).toHaveValue('0.9');
+    await expect(page.locator(`${ed} [data-array-total]`)).toContainText('60');
+    await page.locator(`${ed} [data-array-create]`).click();
+    await expect(page.locator(`${ed} sw-plan-canvas [data-object]`)).toHaveCount(before + 60);
+    await expect(page.locator(`${ed} [data-selected-group]`)).toContainText('60');
+    await expect.poll(async () => (await draft()).doc.groups.find((g) => g.member_ids.includes(originId))?.member_ids.length ?? 0, { timeout: 10000 }).toBe(60);
+    const group = (await draft()).doc.groups.find((g) => g.member_ids.includes(originId))!;
+    const tenth = (await draft()).doc.objects.find((o) => o.id === group.member_ids[9])!;
+    expect(tenth.position[0]).toBeCloseTo(0.6, 2); // column 9 x 0.5 m at 100 px/m from x = 0.15
+    // the group stays selected: dragging the origin moves the whole array
+    await dragPlan(page, ed, [0.15, 0.15], [0.2, 0.15]);
+    await expect.poll(async () => (await draft()).doc.objects.find((o) => o.id === group.member_ids[9])!.position[0], { timeout: 10000 }).toBeGreaterThan(0.63);
+    // Delete asks; keeping the members leaves 60 objects without a group
+    await page.keyboard.press('Delete');
+    await expect(page.locator(`${ed} [data-group-delete-dialog] [data-group-delete-keep]`)).toBeVisible();
+    await page.locator(`${ed} [data-group-delete-keep]`).click();
+    await expect(page.locator(`${ed} sw-plan-canvas [data-object]`)).toHaveCount(before + 60);
+    await expect.poll(async () => (await draft()).doc.groups.length, { timeout: 10000 }).toBe(0);
+    // a custom item from the origin chair
+    await clickPlan(page, ed, 0.2, 0.15);
+    await expect(page.locator(`${ed} [data-selected-object="${originId}"]`)).toBeVisible();
+    await page.locator(`${ed} [data-object-custom]`).click();
+    await expect(page.locator(`${ed} [data-custom-dialog] [data-custom-name]`)).toBeVisible();
+    await page.locator(`${ed} [data-custom-name]`).fill('כיסא אולם');
+    await page.locator(`${ed} [data-custom-create]`).click();
+    await expect(page.locator(`${ed} [data-custom-dialog]`)).toHaveCount(0);
+    await page.locator(`${ed} [data-lib-cat="all"]`).click();
+    await page.locator(`${ed} [data-lib-search]`).fill('כיסא אולם');
+    await expect(page.locator(`${ed} [data-lib-item]`)).toHaveCount(1);
+    const exported = await (await api.get('api/v1/catalog/export')).json();
+    const mine = exported.items.find((i: { names: { he: string } }) => i.names.he === 'כיסא אולם');
+    expect(mine).toBeTruthy();
+    expect(mine.based_on).toBe('chair.basic');
+    customIds.push(mine.id);
+    // the library's export link is that file; importing it back replaces every custom item in it and adds none
+    await expect(page.locator(`${ed} [data-lib-export]`)).toHaveAttribute('href', /api\/v1\/catalog\/export$/);
+    await page.locator(`${ed} [data-lib-import]`).setInputFiles({ name: 'smplwise-catalog-custom.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(exported)) });
+    await expect(page.locator(`${ed} .bar`)).toContainText(`0 יובאו, ${exported.items.length} הוחלפו`);
   });
 });

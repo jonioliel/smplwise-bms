@@ -21,11 +21,11 @@ import { ROOM_FILL_LABEL, setRenderMode, stylizeVersion, type RoomFill, type Sty
 import { ZONE_KINDS, acceptZones, createZone, deleteZone, detectZones, pointInPolygon, updateZone, zoneKindLabel, type SpatialZone, type ZoneKind, type ZonePoint } from '../api/zones';
 import { calibrate, copyGeometryFrom, exportUrl, geometryDiff, publishGeometry, type GeometryDiffResponse } from '../api/geometry';
 import { productSettings } from '../api/prefs';
-import { itemOf, loadLibrary, lookupOf, type CatalogItem, type CatalogLibrary } from '../api/plan-catalog';
+import { createItem, exportUrl as catalogExportUrl, importItems, itemOf, loadLibrary, lookupOf, type CatalogItem, type CatalogLibrary } from '../api/plan-catalog';
 import { distanceM, effectiveScale, isClosedOutline, lengthPx, nearestWall, pointOnWall, snapPoint, type CatalogLookup, type GeometryDoc, type GeomOpening, type GeomWall, type Pt } from '../map/geometry';
 import { StudioController } from '../map/studio-controller';
-import { BIND_DISTANCE_M, addLabel, addObject, addOpening, addWall, defaultLevelId, duplicateObject, kindDefaults, moveObject, moveVertex, newId, nudgeT, openingRange, patchLabel, patchObject, patchOpening, patchWall, removeCorner, removeItem, rotationTo, stretchedSize, wallDirectionAt, type WallDefaults } from '../map/studio-ops';
-import { COLL_LABEL, countLabel, fmtMetres, fmtScale, renderCalibPanel, renderLibraryPanel, renderMeasurePanel, renderObjectInspector, renderStudioPanel, studioPanelStyles, type GeomKind, type GeomSel, type StudioMode } from './plan-studio-panel';
+import { ARRAY_MAX, BIND_DISTANCE_M, addArray, addLabel, addObject, addOpening, addWall, arrayDefaults, defaultLevelId, duplicateObject, kindDefaults, moveGroup, moveObject, moveVertex, newId, nudgeT, openingRange, patchLabel, patchObject, patchOpening, patchWall, removeCorner, removeGroup, removeItem, rotationTo, stretchedSize, wallDirectionAt, type WallDefaults } from '../map/studio-ops';
+import { COLL_LABEL, countLabel, fmtMetres, fmtScale, renderArrayDialog, renderCalibPanel, renderCustomItemDialog, renderGroupDeleteDialog, renderGroupInspector, renderLibraryPanel, renderMeasurePanel, renderObjectInspector, renderStudioPanel, studioPanelStyles, type ArrayDialogView, type CustomItemView, type GeomKind, type GeomSel, type StudioMode } from './plan-studio-panel';
 
 type Strength = 'light' | 'medium' | 'strong';
 interface ZoneCandidate {
@@ -69,6 +69,7 @@ const ARROWS = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
 /** Per-browser shelves of the library panel (design 4.3: "recent" and "favourites" per browser). */
 const readList = (key: string): string[] => { try { const v = JSON.parse(localStorage.getItem(key) ?? '[]'); return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []; } catch { return []; } };
 const writeList = (key: string, list: string[]) => { try { localStorage.setItem(key, JSON.stringify(list.slice(0, 40))); } catch { /* private mode */ } };
+const round = (v: number): number => Math.round(v * 1000) / 1000;
 /** Screen pixels: a wall corner attracts a drawing / calibrating / measuring point this close (and in wall mode such a
  * press draws even on top of an opening or a label). */
 const CORNER_SNAP_PX = 10;
@@ -162,6 +163,10 @@ export class ExplorePlanEditor extends LitElement {
   /** Objects whose body offer the user answered "לא": they are not offered again (in this editor session). */
   private bindRefused = new Set<string>();
   private readonly phone = window.matchMedia('(max-width: 767px)');
+  @state() private arrayDialog: (ArrayDialogView & { objectId: string }) | null = null;
+  /** The group whose delete waits for the choice (members too, or not). */
+  @state() private groupDelete: string | null = null;
+  @state() private customDialog: (CustomItemView & { objectId: string; params: Record<string, unknown>; z: number }) | null = null;
   @state() private wallDraft: Pt[] | null = null;
   /** Raw plan position of the click that added the draft's last point (a double click there ends the wall). */
   private lastDrawClick: Pt | null = null;
@@ -851,6 +856,7 @@ export class ExplorePlanEditor extends LitElement {
     const target = e.composedPath()[0] as HTMLElement | undefined;
     const typing = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable);
     if (e.key === 'Escape') {
+      if (this.arrayDialog || this.groupDelete || this.customDialog) { this.arrayDialog = null; this.groupDelete = null; this.customDialog = null; return; }
       if (this.placingItem) this.placingItem = null;
       else if (this.bindOffer) this.bindOffer = null;
       else if (this.wallDraft) {
@@ -869,6 +875,7 @@ export class ExplorePlanEditor extends LitElement {
       return;
     }
     if (typing) return;
+    if (this.arrayDialog || this.groupDelete || this.customDialog) return; // an open dialog owns the keys: no Delete or nudge behind it
     if (this.studioOn && this.handleStudioKey(e)) return;
     if (e.key === 'Enter' && this.drawing) {
       e.preventDefault();
@@ -1309,6 +1316,100 @@ export class ExplorePlanEditor extends LitElement {
     setTimeout(() => (this.info = ''), 3000);
   }
 
+  // ---- arrays, groups, custom items (T085) ----
+
+  private openArray(objectId: string) {
+    const doc = this.studio.doc;
+    const lib = this.library;
+    const o = doc?.objects.find((x) => x.id === objectId);
+    const item = o && lib ? itemOf(lib, o.item_id) : undefined;
+    if (!doc || !o) return;
+    if (this.phone.matches) {
+      this.info = 'מערכים זמינים בדסקטופ בלבד';
+      setTimeout(() => (this.info = ''), 3000);
+      return;
+    }
+    const d = item ? arrayDefaults(item) : { spacingX: round(o.size.w_m + 0.05), spacingY: round(o.size.d_m + 0.45) };
+    this.arrayDialog = { objectId, item, rows: 2, cols: 4, spacingX: d.spacingX, spacingY: d.spacingY, directionDeg: o.rotation_deg, max: ARRAY_MAX };
+  }
+
+  private createArray() {
+    const b = this.bundle;
+    const doc = this.studio.doc;
+    const a = this.arrayDialog;
+    if (!b || !doc || !a) return;
+    const r = addArray(doc, a.objectId, a, b.width, b.height, effectiveScale(doc).scale);
+    if (!r) {
+      this.error = 'לא ניתן ליצור את המערך (העצם כבר במערך, או שיש יותר מדי עצמים)';
+      return;
+    }
+    this.arrayDialog = null;
+    this.studio.commit(r.doc);
+    this.geomSel = { id: r.groupId, kind: 'group' };
+    this.info = `${r.ids.length} עצמים במערך אחד`;
+    setTimeout(() => (this.info = ''), 4000);
+  }
+
+  private deleteGroup(withMembers: boolean) {
+    const gid = this.groupDelete;
+    this.groupDelete = null;
+    if (!gid) return;
+    this.edit((d) => removeGroup(d, gid, withMembers));
+    this.geomSel = null;
+  }
+
+  private openCustom(objectId: string) {
+    const doc = this.studio.doc;
+    const lib = this.library;
+    const o = doc?.objects.find((x) => x.id === objectId);
+    if (!doc || !lib || !o) return;
+    const item = itemOf(lib, o.item_id);
+    this.customDialog = {
+      objectId, nameHe: item ? `${item.names.he} (מותאם)` : '', nameEn: item?.names.en ?? '', category: item?.category ?? 'storage', shape: item?.shape ?? 'box', icon: item?.icon ?? 'box',
+      color: item?.color_token ?? 'object', size: { ...o.size }, basedOn: item ? (item.custom ? item.based_on : item.id) : null, busy: false, error: '',
+      params: JSON.parse(JSON.stringify(o.params)) as Record<string, unknown>, z: item && item.z_ref === 'ceiling' ? item.z_m : o.z_m,
+    };
+  }
+
+  private async createCustom() {
+    const c = this.customDialog;
+    const b = this.bundle;
+    if (!c || !b) return;
+    this.customDialog = { ...c, busy: true, error: '' };
+    try {
+      const item = await createItem({ based_on: c.basedOn, names: { he: c.nameHe.trim(), en: c.nameEn.trim() }, category: c.category, shape: c.shape, icon: c.icon, color_token: c.color, size: c.size, z_m: c.z, params: c.params });
+      this.customDialog = null;
+      await this.loadLibraryFor(b);
+      this.remember(item.id);
+      this.libCategory = 'recent';
+      this.libQ = '';
+      this.info = `הפריט "${item.names.he}" נוסף לספרייה`;
+      setTimeout(() => (this.info = ''), 4000);
+    } catch (err) {
+      this.customDialog = { ...c, busy: false, error: describeError(err) };
+    }
+  }
+
+  private async importLibrary(file: File) {
+    const b = this.bundle;
+    if (!b) return;
+    try {
+      let parsed: { format?: string; items?: unknown[] } | null;
+      try {
+        parsed = JSON.parse(await file.text()) as { format?: string; items?: unknown[] } | null;
+      } catch {
+        parsed = null; // not JSON at all
+      }
+      if (parsed?.format !== 'smplwise-catalog-1' || !Array.isArray(parsed.items)) throw new Error('הקובץ אינו ייצוא של ספרייה מותאמת (smplwise-catalog-1)');
+      const r = await importItems(parsed.items);
+      await this.loadLibraryFor(b);
+      this.info = `${r.imported} יובאו, ${r.replaced} הוחלפו`;
+      setTimeout(() => (this.info = ''), 4000);
+    } catch (err) {
+      this.error = err instanceof Error && !(err instanceof ApiError) ? err.message : describeError(err);
+    }
+  }
+
   private get catalogLookup(): CatalogLookup | null {
     return this.libLookup;
   }
@@ -1514,6 +1615,9 @@ export class ExplorePlanEditor extends LitElement {
         const r = duplicateObject(doc, d.id, to, this.dupId);
         return { doc: r.doc, sel: { id: r.id, kind: 'object' } };
       }
+      if (this.geomSel?.kind === 'group' && o.group_id === this.geomSel.id) {
+        return { doc: moveGroup(doc, o.group_id, to[0] - o.position[0], to[1] - o.position[1]), sel: { id: o.group_id, kind: 'group' } }; // the whole array follows the dragged member
+      }
       return { doc: moveObject(doc, d.id, to), sel: { id: d.id, kind: 'object' } };
     }
     if (d.kind === 'object-rotate') {
@@ -1667,6 +1771,10 @@ export class ExplorePlanEditor extends LitElement {
     if ((e.key === 'Delete' || e.key === 'Backspace') && this.geomSel) {
       e.preventDefault();
       const { id, kind, vertex } = this.geomSel;
+      if (kind === 'group') {
+        this.groupDelete = id; // never confirm(): the dialog asks whether the members go too
+        return true;
+      }
       if (kind === 'wall' && vertex !== undefined && this.studioMode === 'select') {
         // a selected corner goes alone while the wall keeps enough corners (studio-ops removeCorner), else the wall goes
         const doc = this.studio.doc;
@@ -1814,7 +1922,8 @@ export class ExplorePlanEditor extends LitElement {
       const a = o.anchor_ref && this.anchors.find((x) => x.resource_type === o.anchor_ref!.resource_type && x.resource_id === o.anchor_ref!.resource_id);
       return a ? this.anchorName(a) : null;
     };
-    return html`${sel
+    const group = this.geomSel?.kind === 'group' ? doc.groups.find((g) => g.id === this.geomSel!.id) : undefined;
+    return html`${group ? renderGroupInspector(group, itemOf(lib, String((group.params as { item_id?: string }).item_id ?? '')), { select: (oid) => (this.geomSel = { id: oid, kind: 'object' }), askDelete: (gid) => (this.groupDelete = gid) }) : nothing}${sel
       ? renderObjectInspector(
           { o: sel, item: itemOf(lib, sel.item_id), levels: doc.levels, doc, estimated, showEstimates: this.showEstimates, anchorName: anchorOf(sel), phone: this.phone.matches, canManage,
             lib_category: (item) => lib.categories.find((c) => c.id === item.category)?.he ?? item.category },
@@ -1825,13 +1934,15 @@ export class ExplorePlanEditor extends LitElement {
               this.edit((d) => removeItem(d, id));
               this.geomSel = null;
             },
-            // array, custom and selectGroup arrive with Task 10: until then the inspector hides those controls
+            array: (id) => this.openArray(id),
+            custom: (id) => this.openCustom(id),
+            selectGroup: (gid) => (this.geomSel = { id: gid, kind: 'group' }),
           },
         )
       : nothing}
     ${renderLibraryPanel(
       { lib, q: this.libQ, category: this.libCategory, recent: this.libRecent, favorites: this.libFav, placing: this.placingItem, saveState: this.studio.saveState, phone: this.phone.matches,
-        exportHref: '', canManage: false },
+        exportHref: catalogExportUrl(), canManage },
       {
         setQuery: (q) => (this.libQ = q),
         setCategory: (id) => (this.libCategory = id),
@@ -1844,7 +1955,7 @@ export class ExplorePlanEditor extends LitElement {
           this.libFav = this.libFav.includes(id) ? this.libFav.filter((x) => x !== id) : [...this.libFav, id];
           writeList('sw.studio.fav', this.libFav);
         },
-        importFile: () => {}, // Task 10
+        importFile: (f) => void this.importLibrary(f),
         cancelPlacing: () => (this.placingItem = null),
       },
     )}`;
@@ -2246,7 +2357,7 @@ export class ExplorePlanEditor extends LitElement {
                 </div>
                 <sw-plan-canvas editable alwaysLabel .placing=${!!this.placing || !!this.drawing || this.studioPlacing} .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .markers=${this.markers} .selectedId=${this.selectedId}
                   .zones=${this.planZones} .selectedZoneId=${this.selectedZoneId} .draftPoints=${this.drawing ?? []}
-                  .geometry=${this.geomPreview ?? this.studio.doc} .geomDrag=${this.geomDragMode} .selectedGeomId=${this.geomSel?.id ?? null} .selectedVertex=${this.geomSel?.vertex ?? null} .issueIds=${this.issueIds}
+                  .geometry=${this.geomPreview ?? this.studio.doc} .geomDrag=${this.geomDragMode} .selectedGeomId=${this.geomSel?.id ?? null} .highlightIds=${this.geomSel?.kind === 'group' ? (this.studio.doc?.groups.find((g) => g.id === this.geomSel!.id)?.member_ids ?? []) : []} .selectedVertex=${this.geomSel?.vertex ?? null} .issueIds=${this.issueIds}
                   .cornerSnapPx=${this.tool === 'structure' && this.studioMode === 'wall' ? CORNER_SNAP_PX : 0}
                   .wallDraft=${this.wallDraft ?? []} .hoverPoint=${this.studioPlacing ? this.hover : null} .rulers=${this.rulers} .catalog=${this.catalogLookup} .anchorPositions=${Object.fromEntries(this.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees }]))}
                   @plan-hover=${(e: CustomEvent<{ x: number; y: number; shift: boolean; item?: boolean }>) => this.onPlanHover(e.detail.x, e.detail.y, e.detail.shift, !!e.detail.item)}
@@ -2277,6 +2388,9 @@ export class ExplorePlanEditor extends LitElement {
             </div>`}
         ${this.renderDiffDialog()}
         ${this.renderGeomDiffDialog()}
+        ${this.arrayDialog ? renderArrayDialog(this.arrayDialog, (patch) => (this.arrayDialog = { ...this.arrayDialog!, ...patch }), () => this.createArray(), () => (this.arrayDialog = null)) : nothing}
+        ${this.groupDelete ? renderGroupDeleteDialog(this.studio.doc?.groups.find((g) => g.id === this.groupDelete)?.member_ids.length ?? 0, () => this.deleteGroup(true), () => this.deleteGroup(false), () => (this.groupDelete = null)) : nothing}
+        ${this.customDialog && this.library ? renderCustomItemDialog(this.customDialog, this.library, (patch) => (this.customDialog = { ...this.customDialog!, ...patch }), () => void this.createCustom(), () => (this.customDialog = null)) : nothing}
       </sw-page>
     `;
   }

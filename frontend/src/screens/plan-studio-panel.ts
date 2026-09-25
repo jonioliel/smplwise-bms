@@ -5,7 +5,7 @@
  */
 import { css, html, nothing, type TemplateResult } from 'lit';
 import type { CopyCandidate, GeometryIssue } from '../api/geometry';
-import { effectiveScale, lengthPx, perimeterM, polygonAreaM2, type GeometryDoc, type GeomLabel, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type Hinge, type OpeningKind, type Pt, type Swing, type WallKind } from '../map/geometry';
+import { COLOR_TOKENS, OBJECT_SHAPES, SYMBOL_IDS, effectiveScale, lengthPx, perimeterM, polygonAreaM2, type GeometryDoc, type GeomGroup, type GeomSize, type ObjectShape, type GeomLabel, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type Hinge, type OpeningKind, type Pt, type Swing, type WallKind } from '../map/geometry';
 import type { CatalogItem, CatalogLibrary, ParamSpec } from '../api/plan-catalog';
 import { searchItems } from '../api/plan-catalog';
 import type { SaveState } from '../map/studio-controller';
@@ -356,11 +356,25 @@ export interface LibraryActions {
   cancelPlacing(): void;
 }
 
+/** The library list shows this many rows; a longer result says so and asks for a search or a category. */
+const LIB_ROWS = 60;
+/** The last search of the whole library or of a category (the pool is then the library's own item list): renders that
+ * change nothing in the library, the query or the category reuse it. The recent and favourite shelves are short. */
+let libMemo: { pool: CatalogItem[]; q: string; category: string | null; found: CatalogItem[] } | null = null;
+
+function libSearch(pool: CatalogItem[], q: string, category: string | null): CatalogItem[] {
+  if (libMemo && libMemo.pool === pool && libMemo.q === q && libMemo.category === category) return libMemo.found;
+  const found = searchItems(pool, q, category);
+  libMemo = { pool, q, category, found };
+  return found;
+}
+
 export function renderLibraryPanel(v: LibraryView, a: LibraryActions): TemplateResult {
   const special = v.category === 'recent' || v.category === 'favorites';
   const pool = v.category === 'recent' ? v.recent.map((id) => v.lib.items.find((i) => i.id === id)).filter((i): i is CatalogItem => !!i)
     : v.category === 'favorites' ? v.lib.items.filter((i) => v.favorites.includes(i.id)) : v.lib.items;
-  const items = searchItems(pool, v.q, special ? null : v.category).slice(0, 60);
+  const found = libSearch(pool, v.q, special ? null : v.category);
+  const items = found.slice(0, LIB_ROWS);
   return html`<sw-card heading="ספריית עצמים" subheading=${v.placing ? `לחץ על התוכנית כדי להציב: ${v.placing.names.he} · Esc לביטול` : `${v.lib.items.length} פריטים · חיפוש בעברית ובאנגלית`} data-library-panel data-studio-save=${v.saveState}>
     <sw-field><input type="search" data-lib-search placeholder="חיפוש: כיסא, מטף, bleachers…" .value=${v.q} @input=${(e: Event) => a.setQuery((e.target as HTMLInputElement).value)} /></sw-field>
     <div class="modes" role="group" aria-label="קטגוריות">
@@ -378,6 +392,7 @@ export function renderLibraryPanel(v: LibraryView, a: LibraryActions): TemplateR
           <button class="fav ${v.favorites.includes(i.id) ? 'on' : ''}" data-lib-fav=${i.id} aria-label="מועדף" @click=${(e: Event) => { e.stopPropagation(); a.toggleFavorite(i.id); }}>★</button>
         </div>`) : html`<div class="note">${v.category === 'recent' ? 'עדיין לא הוצבו פריטים בדפדפן הזה.' : v.category === 'favorites' ? 'סמן ★ ליד פריט כדי לשמור אותו כאן.' : 'לא נמצאו פריטים.'}</div>`}
     </div>
+    ${found.length > LIB_ROWS ? html`<div class="note" data-lib-more>מוצגים ${LIB_ROWS} · חפש או בחר קטגוריה</div>` : nothing}
     ${v.phone ? html`<div class="note">בטלפון: הצבה והזזה של עצם בודד; מערכים וציור קירות בדסקטופ.</div>` : nothing}
     ${v.canManage ? html`<div class="exports" role="group" aria-label="הספרייה המותאמת">
       <a class="btnlink" data-lib-export href=${v.exportHref} download>ייצוא הספרייה המותאמת</a>
@@ -404,7 +419,7 @@ export interface ObjectActions {
   patch(id: string, patch: Partial<GeomObject>): void;
   unbind(id: string): void;
   remove(id: string): void;
-  /** Task 10 supplies these three; until then the inspector shows no array / custom item / select group control. */
+  /** Optional: a caller without them gets no array / custom item / select group control in the inspector. */
   array?: (id: string) => void;
   custom?: (id: string) => void;
   selectGroup?: (groupId: string) => void;
@@ -449,6 +464,103 @@ export function renderObjectInspector(v: ObjectView, a: ObjectActions): Template
       <sw-button size="sm" variant="ghost" icon="trash" data-geom-delete @click=${() => a.remove(o.id)}>מחק</sw-button>
     </div>
   </sw-card>`;
+}
+
+// ---------------------------------------------------------------- groups, arrays and custom items (T085)
+
+export interface GroupActions {
+  select(objectId: string): void;
+  askDelete(groupId: string): void;
+}
+
+export function renderGroupInspector(g: GeomGroup, item: CatalogItem | undefined, a: GroupActions): TemplateResult {
+  const p = g.params as { rows?: number; cols?: number; spacing_x_m?: number; spacing_y_m?: number };
+  return html`<sw-card heading=${g.kind === 'array' ? `מערך של ${g.member_ids.length}` : `קבוצה של ${g.member_ids.length}`} subheading=${item ? item.names.he : ''} data-selected-group=${g.id}>
+    ${g.kind === 'array' && p.rows ? html`<div class="note">${p.rows} שורות × ${p.cols} עמודות · רווח ${p.spacing_x_m} × ${p.spacing_y_m} מ׳</div>` : nothing}
+    <div class="note">גרירת אחד העצמים מזיזה את כל המערך · Delete מוחק (ושואל אם למחוק גם את העצמים)</div>
+    <div class="btns">
+      ${g.member_ids[0] ? html`<sw-button size="sm" variant="ghost" data-group-first @click=${() => a.select(g.member_ids[0])}>בחר עצם אחד</sw-button>` : nothing}
+      <sw-button size="sm" variant="danger" icon="trash" data-group-delete @click=${() => a.askDelete(g.id)}>מחק מערך</sw-button>
+    </div>
+  </sw-card>`;
+}
+
+export interface ArrayDialogView {
+  item: CatalogItem | undefined;
+  rows: number;
+  cols: number;
+  spacingX: number;
+  spacingY: number;
+  directionDeg: number;
+  max: number;
+}
+
+export function renderArrayDialog(v: ArrayDialogView, onChange: (patch: Partial<ArrayDialogView>) => void, onCreate: () => void, onCancel: () => void): TemplateResult {
+  const total = Math.floor(v.rows) * Math.floor(v.cols);
+  const ok = total >= 2 && total <= v.max && v.spacingX > 0 && v.spacingY > 0;
+  const num = (e: Event) => parseFloat((e.target as HTMLInputElement).value);
+  return html`<sw-dialog open heading="מערך" subheading=${`שורות × עמודות של ${v.item?.names.he ?? 'העצם'}; העצם שנבחר הוא הראשון`} data-array-dialog @close=${onCancel}>
+    <div class="two">
+      <sw-field label="שורות"><input type="number" min="1" max="60" step="1" data-ltr data-array-rows .value=${String(v.rows)} @input=${(e: Event) => onChange({ rows: num(e) || 1 })} /></sw-field>
+      <sw-field label="עמודות"><input type="number" min="1" max="60" step="1" data-ltr data-array-cols .value=${String(v.cols)} @input=${(e: Event) => onChange({ cols: num(e) || 1 })} /></sw-field>
+    </div>
+    <div class="two">
+      <sw-field label="רווח בין עמודות (מ׳)"><input type="number" min="0.05" max="50" step="0.05" data-ltr data-array-sx .value=${String(v.spacingX)} @input=${(e: Event) => onChange({ spacingX: num(e) })} /></sw-field>
+      <sw-field label="רווח בין שורות (מ׳)"><input type="number" min="0.05" max="50" step="0.05" data-ltr data-array-sy .value=${String(v.spacingY)} @input=${(e: Event) => onChange({ spacingY: num(e) })} /></sw-field>
+    </div>
+    <sw-field label="כיוון (°)" hint="0 = העמודות ימינה והשורות למטה; 90 = מסובב"><input type="number" min="0" max="359" step="1" data-ltr data-array-dir .value=${String(v.directionDeg)} @input=${(e: Event) => onChange({ directionDeg: num(e) || 0 })} /></sw-field>
+    <div class="note" data-array-total>${total} עצמים${total > v.max ? ` · יותר מ־${v.max} במערך אחד` : ''}</div>
+    <sw-button slot="footer" variant="ghost" data-array-cancel @click=${onCancel}>ביטול</sw-button>
+    <sw-button slot="footer" variant="primary" icon="check" data-array-create ?disabled=${!ok} @click=${onCreate}>צור מערך</sw-button>
+  </sw-dialog>`;
+}
+
+export function renderGroupDeleteDialog(count: number, onAll: () => void, onKeep: () => void, onCancel: () => void): TemplateResult {
+  return html`<sw-dialog open heading="מחיקת מערך" subheading=${`המערך מכיל ${count} עצמים`} data-group-delete-dialog @close=${onCancel}>
+    <div class="note">למחוק גם את העצמים, או להשאיר אותם על המפה כעצמים בודדים?</div>
+    <sw-button slot="footer" variant="ghost" data-group-delete-cancel @click=${onCancel}>ביטול</sw-button>
+    <sw-button slot="footer" data-group-delete-keep @click=${onKeep}>השאר את העצמים</sw-button>
+    <sw-button slot="footer" variant="danger" icon="trash" data-group-delete-all @click=${onAll}>מחק הכול</sw-button>
+  </sw-dialog>`;
+}
+
+export interface CustomItemView {
+  nameHe: string;
+  nameEn: string;
+  category: string;
+  shape: ObjectShape;
+  icon: string;
+  color: string;
+  size: GeomSize;
+  basedOn: string | null;
+  busy: boolean;
+  error: string;
+}
+
+export function renderCustomItemDialog(v: CustomItemView, lib: CatalogLibrary, onChange: (patch: Partial<CustomItemView>) => void, onCreate: () => void, onCancel: () => void): TemplateResult {
+  const num = (e: Event) => parseFloat((e.target as HTMLInputElement).value);
+  // one hook per field (data-custom-w / -d / -h): lit has no binding for an attribute's name, so each is a boolean attribute
+  const sizeField = (key: keyof GeomSize, label: string) => html`<sw-field label=${label}><input type="number" min="0.05" max="100" step="0.05" data-ltr ?data-custom-w=${key === 'w_m'} ?data-custom-d=${key === 'd_m'} ?data-custom-h=${key === 'h_m'} .value=${String(v.size[key])}
+      @input=${(e: Event) => { const x = num(e); if (x >= 0.05 && x <= 100) onChange({ size: { ...v.size, [key]: x } }); }} /></sw-field>`;
+  return html`<sw-dialog open heading="פריט מותאם" subheading=${v.basedOn ? `מבוסס על ${lib.items.find((i) => i.id === v.basedOn)?.names.he ?? v.basedOn}: הפריט החדש נשמר בספרייה של המתקן` : 'פריט חדש בספרייה של המתקן'} data-custom-dialog @close=${onCancel}>
+    ${v.error ? html`<div class="err">${v.error}</div>` : nothing}
+    <div class="two">
+      <sw-field label="שם (עברית)"><input type="text" maxlength="80" data-custom-name .value=${v.nameHe} @input=${(e: Event) => onChange({ nameHe: (e.target as HTMLInputElement).value })} /></sw-field>
+      <sw-field label="שם (אנגלית, לחיפוש)"><input type="text" maxlength="80" data-ltr data-custom-name-en .value=${v.nameEn} @input=${(e: Event) => onChange({ nameEn: (e.target as HTMLInputElement).value })} /></sw-field>
+    </div>
+    <div class="two">
+      <sw-field label="קטגוריה"><select data-custom-category @change=${(e: Event) => onChange({ category: (e.target as HTMLSelectElement).value })}>${lib.categories.map((c) => html`<option value=${c.id} ?selected=${c.id === v.category}>${c.he}</option>`)}</select></sw-field>
+      <sw-field label="צורה"><select data-custom-shape @change=${(e: Event) => onChange({ shape: (e.target as HTMLSelectElement).value as ObjectShape })}>${OBJECT_SHAPES.map((s) => html`<option value=${s} ?selected=${s === v.shape}>${s}</option>`)}</select></sw-field>
+    </div>
+    <div class="two">
+      <sw-field label="סמל"><select data-custom-icon @change=${(e: Event) => onChange({ icon: (e.target as HTMLSelectElement).value })}>${SYMBOL_IDS.map((s) => html`<option value=${s} ?selected=${s === v.icon}>${s}</option>`)}</select></sw-field>
+      <sw-field label="צבע"><select data-custom-color @change=${(e: Event) => onChange({ color: (e.target as HTMLSelectElement).value })}>${COLOR_TOKENS.map((c) => html`<option value=${c} ?selected=${c === v.color}>${c}</option>`)}</select></sw-field>
+    </div>
+    <div class="three">${sizeField('w_m', 'רוחב (מ׳)')}${sizeField('d_m', 'עומק (מ׳)')}${sizeField('h_m', 'גובה (מ׳)')}</div>
+    <div class="note">הגובה מהרצפה, הפרמטרים וסוגי הישויות נלקחים מהפריט שעליו הוא מבוסס.</div>
+    <sw-button slot="footer" variant="ghost" data-custom-cancel @click=${onCancel}>ביטול</sw-button>
+    <sw-button slot="footer" variant="primary" icon="check" data-custom-create ?disabled=${v.busy || !v.nameHe.trim()} @click=${onCreate}>${v.busy ? 'שומר…' : 'צור פריט'}</sw-button>
+  </sw-dialog>`;
 }
 
 export const studioPanelStyles = css`

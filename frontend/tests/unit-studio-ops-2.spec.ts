@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { GeometryDoc, GeomObject } from '../src/map/geometry';
 import type { CatalogItem } from '../src/api/plan-catalog';
-import { addObject, duplicateObject, moveObject, objectZ, patchObject, removeItem, rotationTo, stretchedSize } from '../src/map/studio-ops';
+import { addArray, addObject, arrayDefaults, duplicateObject, moveGroup, moveObject, objectZ, patchObject, removeGroup, removeItem, rotationTo, stretchedSize } from '../src/map/studio-ops';
 
 // Plan Studio phase 2 (T085): the pure document operations of the editor - placing an item (its size, z and params come
 // from the library), moving, rotating, stretching, duplicating, and removing an object out of its group, its circuit
@@ -66,5 +66,46 @@ test.describe('plan studio object operations (unit)', () => {
     expect(removeItem(doc, 'c1').connectors.map((c) => c.id)).toEqual(['cx-o4']);
     expect(removeItem(doc, 'k1').circuits).toEqual([]);
     expect((doc.objects[0] as GeomObject).group_id).toBe('g1'); // the input is untouched
+  });
+
+  test('an array of 6 x 10 chairs is one group; the origin is member [0, 0]; the group moves as one', () => {
+    let doc = sample();
+    const placed = addObject(doc, item('chair.basic'), [0.1, 0.1], PLACE);
+    doc = placed.doc;
+    expect(arrayDefaults(item('chair.basic'))).toEqual({ spacingX: 0.5, spacingY: 0.9 });
+    const arr = addArray(doc, placed.id, { rows: 6, cols: 10, spacingX: 0.5, spacingY: 0.9, directionDeg: 0 }, 1000, 800, 0.01)!;
+    expect(arr).not.toBeNull();
+    expect(arr.ids.length).toBe(60);
+    expect(arr.ids[0]).toBe(placed.id);
+    const g = arr.doc.groups.find((x) => x.id === arr.groupId)!;
+    expect(g).toMatchObject({ kind: 'array', member_ids: arr.ids, params: { rows: 6, cols: 10, spacing_x_m: 0.5, spacing_y_m: 0.9, direction_deg: 0, item_id: 'chair.basic' } });
+    expect(arr.doc.objects.length).toBe(doc.objects.length + 59);
+    const at = (id: string) => arr.doc.objects.find((o) => o.id === id)!;
+    expect(at(arr.ids[9]).position).toEqual([0.55, 0.1]); // column 9: 9 x 0.5 m = 450 px of 1000
+    expect(at(arr.ids[50]).position).toEqual([0.1, 0.6625]); // row 5: 5 x 0.9 m = 450 px of 800
+    expect(at(arr.ids[59]).group_id).toBe(arr.groupId);
+    expect(at(placed.id).group_id).toBe(arr.groupId);
+    const turned = addArray(doc, placed.id, { rows: 1, cols: 2, spacingX: 1, spacingY: 1, directionDeg: 90 }, 1000, 800, 0.01)!;
+    expect(turned.doc.objects.find((o) => o.id === turned.ids[1])!.position).toEqual([0.1, 0.225]); // the right of a 90 degree turn points down: 100 px of 800
+    expect(addArray(doc, 'nope', { rows: 2, cols: 2, spacingX: 1, spacingY: 1, directionDeg: 0 }, 1000, 800, 0.01)).toBeNull();
+    expect(addArray(doc, placed.id, { rows: 30, cols: 30, spacingX: 1, spacingY: 1, directionDeg: 0 }, 1000, 800, 0.01)).toBeNull(); // 900 > ARRAY_MAX
+    expect(addArray(arr.doc, placed.id, { rows: 2, cols: 2, spacingX: 1, spacingY: 1, directionDeg: 0 }, 1000, 800, 0.01)).toBeNull(); // already in a group
+    const moved = moveGroup(arr.doc, arr.groupId, 0.1, 0);
+    expect(moved.objects.find((o) => o.id === arr.ids[9])!.position).toEqual([0.65, 0.1]);
+    expect(moved.objects.find((o) => o.id === 'o1')!.position).toEqual([0.2, 0.2]); // not a member
+  });
+
+  test('deleting a group keeps or takes its members', () => {
+    let doc = sample();
+    const placed = addObject(doc, item('chair.basic'), [0.1, 0.1], PLACE);
+    const arr = addArray(placed.doc, placed.id, { rows: 2, cols: 3, spacingX: 0.5, spacingY: 0.9, directionDeg: 0 }, 1000, 800, 0.01)!;
+    doc = arr.doc;
+    const kept = removeGroup(doc, arr.groupId, false);
+    expect(kept.groups.some((g) => g.id === arr.groupId)).toBe(false);
+    expect(kept.objects.filter((o) => arr.ids.includes(o.id)).every((o) => o.group_id === null)).toBe(true);
+    expect(kept.objects.length).toBe(doc.objects.length);
+    const gone = removeGroup(doc, arr.groupId, true);
+    expect(gone.objects.some((o) => arr.ids.includes(o.id))).toBe(false);
+    expect(gone.objects.length).toBe(doc.objects.length - 6);
   });
 });

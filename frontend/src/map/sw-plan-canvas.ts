@@ -179,6 +179,8 @@ export class SwPlanCanvas extends LitElement {
   /** Items with a validation error, drawn in red (editor). */
   @property({ attribute: false }) issueIds: string[] = [];
   @property() selectedGeomId: string | null = null;
+  /** Items drawn selected besides selectedGeomId (the members of a selected group). */
+  @property({ attribute: false }) highlightIds: string[] = [];
   /** T085: the library shapes (symbol, colour) the object layer draws with; without it every object is a plain box. */
   @property({ attribute: false }) catalog: CatalogLookup | null = null;
   /** T085: the live anchors of the floor ("<type>:<id>" -> position): a bound object draws on its anchor, not where the
@@ -1324,13 +1326,14 @@ export class SwPlanCanvas extends LitElement {
     if (!doc) return nothing;
     const inv = 1 / this.scale;
     const issues = new Set(this.issueIds);
+    const marked = new Set(this.highlightIds);
     const shown = this.primitives(doc).filter((p) => (p.kind === 'object' ? !this.hideObjects : p.kind === 'connector' ? !this.hideConnectors : !this.hideStructure));
     // --inv: the CSS rules keep their outline and glow widths constant on screen, like the attribute widths below
-    return svg`<g class="structure" data-structure style=${`--inv: ${inv}`}>${shown.map((p) => this.renderPrimitive(p, inv, issues))}</g>`;
+    return svg`<g class="structure" data-structure style=${`--inv: ${inv}`}>${shown.map((p) => this.renderPrimitive(p, inv, issues, marked))}</g>`;
   }
 
-  private renderPrimitive(p: Primitive, inv: number, issues: Set<string>) {
-    const cls = `${p.id === this.selectedGeomId ? 'sel' : ''} ${issues.has(p.id) ? 'issue' : ''}`;
+  private renderPrimitive(p: Primitive, inv: number, issues: Set<string>, marked: Set<string> = new Set()) {
+    const cls = `${p.id === this.selectedGeomId || marked.has(p.id) ? 'sel' : ''} ${issues.has(p.id) ? 'issue' : ''}`;
     switch (p.kind) {
       case 'wall':
         return svg`<g class="wall-g ${cls}" data-wall=${p.id}><polyline class="wall" points=${ptsAttr(p.points)} stroke-width=${p.width} /></g>`;
