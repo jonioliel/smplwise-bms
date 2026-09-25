@@ -3,9 +3,10 @@ import { customElement, property, state, query } from 'lit/decorators.js';
 import '../components/sw-button';
 import { t } from '../i18n/he';
 import type { StateKind } from '../components/sw-badge';
-import { applyAnchorPositions, buildPrimitives, circuitToken, isClosedOutline, objectHitOrder, type AnchorPosition, type CatalogLookup, type DoorPrim, type GeometryDoc, type LabelPrim, type ConnectorPrim, type ObjectPrim, type PassagePrim, type Primitive, type Pt, type WallPrim, type WindowPrim } from './geometry';
+import { applyAnchorPositions, buildPrimitives, circuitToken, isClosedOutline, objectHitCorners, objectHitOrder, type AnchorPosition, type CatalogLookup, type DoorPrim, type GeometryDoc, type LabelPrim, type ConnectorPrim, type ObjectPrim, type PassagePrim, type Primitive, type Pt, type WallPrim, type WindowPrim } from './geometry';
 import { candidatesDoc, type CandidateSet, type CandState } from './candidates';
 import { symbolOf } from './plan-symbols';
+import { translatePolygon } from './studio-ops';
 
 export type MarkerKind = 'camera' | 'lock' | 'light' | 'binary_sensor';
 
@@ -34,6 +35,10 @@ export interface MarkerSelectDetail {
 }
 
 const MIN_SCALE = 0.2;
+/** Screen pixels: the smallest side of an object's hit area (a 0.4 m chair zoomed out is a few pixels wide - 0.1.87). */
+const OBJECT_HIT_MIN_PX = 24;
+/** Screen pixels: a wall's pick band on a touch screen (the mouse keeps 12). */
+const WALL_HIT_TOUCH_PX = 20;
 const MAX_SCALE = 6;
 
 // Pin fill per state. Live cameras are the product's blue pin (board 1); everything else keeps a
@@ -112,11 +117,12 @@ const sameAnchors = (a: Record<string, AnchorPosition>, b: Record<string, Anchor
   });
 };
 
-/** A structure drag (Plan Studio): a wall corner (`index`), an opening, a label, an object (moved, rotated, stretched or
- * duplicated with Alt) or a connector corner; the pointer now (x, y) and where the press started (sx, sy), in normalized
- * plan space - so an item keeps its offset from the pointer instead of jumping - and the Shift / Alt keys held now. */
+/** A structure drag (Plan Studio): a wall corner (`index`), a whole wall (its body, once selected - hotfix 0.1.87), an
+ * opening, a label, an object (moved, rotated, stretched or duplicated with Alt) or a connector corner; the pointer now
+ * (x, y) and where the press started (sx, sy), in normalized plan space - so an item keeps its offset from the pointer
+ * instead of jumping - and the Shift / Alt keys held now. */
 export interface GeomDragDetail {
-  kind: 'vertex' | 'opening' | 'label' | 'object' | 'object-rotate' | 'object-stretch' | 'object-duplicate' | 'connector-vertex';
+  kind: 'vertex' | 'wall' | 'opening' | 'label' | 'object' | 'object-rotate' | 'object-stretch' | 'object-duplicate' | 'connector-vertex';
   id: string;
   /** A wall corner, a stretch edge (0 front, 1 right, 2 back, 3 left) or a connector corner. */
   index: number;
@@ -128,8 +134,9 @@ export interface GeomDragDetail {
   alt: boolean;
 }
 
-/** What the pointer can grab in the structure: 'all' (the structure tool's select mode) walls, openings, labels, objects,
- * connectors and the selected item's handles; 'objects' (the library, connectors and circuits tools) objects and
+/** What the pointer can grab in the structure: 'all' (the structure tool's select mode, and the editor's select tool for
+ * a user with the structure permission - hotfix 0.1.87) walls (the selected one by its body too), openings, labels,
+ * objects, connectors and the selected item's handles; 'objects' (the library, connectors and circuits tools) objects and
  * connectors only; 'items' (the structure tool's drawing modes) the existing openings and labels only; 'none' nothing. */
 export type GeomDragMode = 'all' | 'items' | 'objects' | 'none';
 
@@ -166,6 +173,8 @@ export class SwPlanCanvas extends LitElement {
   /** Named rooms / areas (design M13) drawn under the markers; a click emits `zone-select` {id}. */
   @property({ attribute: false }) zones: PlanZone[] = [];
   @property() selectedZoneId: string | null = null;
+  /** The selected corner of the selected zone (Delete removes it), drawn filled among its corner handles (0.1.87). */
+  @property({ attribute: false }) selectedZoneVertex: number | null = null;
   /** Show zone names at their centroids. */
   @property({ type: Boolean }) zoneLabels = true;
   /** Vertices of a polygon being drawn in the editor (normalized); rendered as a dashed outline. */
@@ -225,6 +234,8 @@ export class SwPlanCanvas extends LitElement {
   @state() private geomDragAt: { x: number; y: number } | null = null;
   /** A press on a structure item is in progress: the placing tool gets no hover until it ends. */
   private geomPress = false;
+  /** A touch screen (coarse pointer): the wall pick band is wider. */
+  private readonly coarse = typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches;
   private hoverFrame = 0;
   private hoverEvent: { x: number; y: number; shift: boolean; item: boolean } | null = null;
   @state() private box: { x0: number; y0: number; x1: number; y1: number } | null = null;
@@ -428,6 +439,12 @@ export class SwPlanCanvas extends LitElement {
     .vtx:active {
       cursor: grabbing;
     }
+    .vtx.on {
+      fill: var(--zc);
+    }
+    .zone.selected.movable polygon {
+      cursor: move; /* the selected zone moves as a whole by its body (0.1.87) */
+    }
     .vmid {
       fill: var(--zc);
       fill-opacity: 0.55;
@@ -583,6 +600,9 @@ export class SwPlanCanvas extends LitElement {
     }
     .geom-hits path.hit {
       pointer-events: stroke;
+    }
+    .geom-hits .hit.whit {
+      cursor: move; /* the selected wall moves as a whole by its body (0.1.87) */
     }
     .candidates {
       pointer-events: none;
@@ -1011,10 +1031,49 @@ export class SwPlanCanvas extends LitElement {
       this.dragMoved = true; // swallow the trailing click so the zone stays selected
       setTimeout(() => (this.dragMoved = false), 0);
       if (changed) this.dispatchEvent(new CustomEvent('zone-edit', { detail: { id: z.id, polygon: poly }, bubbles: true, composed: true }));
+      else if (!insert) this.dispatchEvent(new CustomEvent('zone-vertex-select', { detail: { id: z.id, index }, bubbles: true, composed: true })); // a press without a move selects the corner (Delete removes it)
     };
     this.viewport.addEventListener('pointermove', move);
     this.viewport.addEventListener('pointerup', up);
     this.viewport.addEventListener('pointercancel', up);
+  }
+
+  /** Hotfix 0.1.87: a press on the selected zone's body and a drag move the whole polygon (a live `zoneDraft` while the
+   * pointer moves, one `zone-edit` on release - the same save path as a corner edit). A press without a move keeps the
+   * zone selected. */
+  private onZoneBodyPointerDown(z: PlanZone, e: PointerEvent) {
+    if (!this.editable || e.button !== 0 || this.placing || z.candidate || this.selectedZoneId !== z.id || this.pointers.size > 0) return;
+    e.stopPropagation(); // the press is the zone's: no pan
+    e.preventDefault();
+    this.releaseFieldFocus();
+    const rect0 = this.getBoundingClientRect();
+    const start = this.toPlan(e.clientX - rect0.left, e.clientY - rect0.top);
+    let poly = z.polygon;
+    let moved = false;
+    this.viewport.setPointerCapture(e.pointerId);
+    const move = (ev: PointerEvent) => {
+      const p = this.toPlan(ev.clientX - rect0.left, ev.clientY - rect0.top);
+      if (!moved && Math.hypot((p.x - start.x) * this.planWidth, (p.y - start.y) * this.planHeight) * this.scale < 3) return;
+      moved = true;
+      poly = translatePolygon(z.polygon, p.x - start.x, p.y - start.y);
+      this.zoneDraft = { id: z.id, polygon: poly };
+    };
+    const end = () => {
+      this.viewport.removeEventListener('pointermove', move);
+      this.viewport.removeEventListener('pointerup', up);
+      this.viewport.removeEventListener('pointercancel', cancel);
+      this.zoneDraft = null;
+      this.dragMoved = true; // swallow the trailing click so the zone stays selected
+      setTimeout(() => (this.dragMoved = false), 0);
+    };
+    const up = () => {
+      end();
+      if (moved && poly.some((q, i) => q.x !== z.polygon[i].x || q.y !== z.polygon[i].y)) this.dispatchEvent(new CustomEvent('zone-edit', { detail: { id: z.id, polygon: poly }, bubbles: true, composed: true }));
+    };
+    const cancel = () => end(); // an interrupted gesture changes nothing
+    this.viewport.addEventListener('pointermove', move);
+    this.viewport.addEventListener('pointerup', up);
+    this.viewport.addEventListener('pointercancel', cancel);
   }
 
   private removeVertex(z: PlanZone, index: number, e: Event) {
@@ -1034,7 +1093,7 @@ export class SwPlanCanvas extends LitElement {
         return svg`<circle class="vmid" cx=${(((p.x + q.x) / 2) * W).toFixed(1)} cy=${(((p.y + q.y) / 2) * H).toFixed(1)} r=${(4 * inv).toFixed(2)} stroke-width=${(1.2 * inv).toFixed(2)} role="button" aria-label="הוסף פינה"
           @pointerdown=${(e: PointerEvent) => this.onVertexPointerDown(z, i, e, true)} @click=${(e: Event) => e.stopPropagation()} />`;
       })}
-      ${poly.map((p, i) => svg`<circle class="vtx" data-vertex=${i} cx=${(p.x * W).toFixed(1)} cy=${(p.y * H).toFixed(1)} r=${(6 * inv).toFixed(2)} stroke-width=${(1.6 * inv).toFixed(2)} role="slider" aria-label=${`פינה ${i + 1}`}
+      ${poly.map((p, i) => svg`<circle class="vtx ${i === this.selectedZoneVertex ? 'on' : ''}" data-vertex=${i} cx=${(p.x * W).toFixed(1)} cy=${(p.y * H).toFixed(1)} r=${(6 * inv).toFixed(2)} stroke-width=${(1.6 * inv).toFixed(2)} role="slider" aria-label=${`פינה ${i + 1}`}
           @pointerdown=${(e: PointerEvent) => this.onVertexPointerDown(z, i, e)} @click=${(e: Event) => e.stopPropagation()} />`)}
     </g>`;
   }
@@ -1052,11 +1111,12 @@ export class SwPlanCanvas extends LitElement {
     const screenW = (Math.max(...xs) - Math.min(...xs)) * this.planWidth * this.scale;
     const screenH = (Math.max(...ys) - Math.min(...ys)) * this.planHeight * this.scale;
     const labelFits = selected || z.candidate || (screenW >= lw + 12 && screenH >= 30);
+    const movable = this.editable && selected && !z.candidate && !this.placing;
     return svg`
-      <g class="zone ${selected ? 'selected' : ''} ${z.candidate ? 'candidate' : ''}" style="--zc:${z.color}" role="button" tabindex="0" aria-label=${z.name} aria-pressed=${selected}
+      <g class="zone ${selected ? 'selected' : ''} ${z.candidate ? 'candidate' : ''} ${movable ? 'movable' : ''}" style="--zc:${z.color}" role="button" tabindex="0" aria-label=${z.name} aria-pressed=${selected}
          data-zone=${z.id}
          @click=${(e: Event) => this.selectZone(z, e)} @keydown=${(e: KeyboardEvent) => (e.key === 'Enter' || e.key === ' ') && this.selectZone(z, e)}>
-        <polygon points=${pts} stroke-width=${((selected ? 2.2 : 1.4) * inv).toFixed(2)} />
+        <polygon data-zone-body points=${pts} stroke-width=${((selected ? 2.2 : 1.4) * inv).toFixed(2)} @pointerdown=${(e: PointerEvent) => this.onZoneBodyPointerDown(z, e)} />
         ${this.zoneLabels && z.name && labelFits
           ? svg`<g transform="translate(${this.zoneLabelPoint(z, live, c).x.toFixed(1)} ${this.zoneLabelPoint(z, live, c).y.toFixed(1)}) scale(${inv})">
               <rect class="zl-bg" x=${-lw / 2} y="-10" width=${lw} height="20" rx="10" />
@@ -1511,7 +1571,7 @@ export class SwPlanCanvas extends LitElement {
    * gesture a `geom-drag-cancel`. A press without movement selects the item (a corner: that corner of its wall). */
   private onGeomDragStart(kind: GeomDragDetail['kind'], id: string, index: number, e: PointerEvent) {
     const objectKind = kind.startsWith('object') || kind === 'connector-vertex';
-    if (e.button !== 0 || this.geomDrag === 'none' || (kind === 'vertex' && this.geomDrag !== 'all') || (objectKind && this.geomDrag === 'items') || (!objectKind && this.geomDrag === 'objects')) return;
+    if (e.button !== 0 || this.geomDrag === 'none' || ((kind === 'vertex' || kind === 'wall') && this.geomDrag !== 'all') || (objectKind && this.geomDrag === 'items') || (!objectKind && this.geomDrag === 'objects')) return;
     if (kind !== 'vertex' && this.nearCorner(e.clientX, e.clientY)) return; // wall mode: the press draws from that corner
     e.stopPropagation(); // the press is the item's: no pan, and in a drawing mode no new point / opening either
     e.preventDefault();
@@ -1563,7 +1623,10 @@ export class SwPlanCanvas extends LitElement {
    * drawn after every wall part, so their targets sit above the walls': a press on an existing door takes that door.
    * An opening's target is 28 screen px thick, or the wall's drawn thickness when that is more: it covers the band in
    * which a placing click finds the wall (the editor also refuses a second opening inside an existing one's span).
-   * Markers stay above all of them. */
+   * Hotfix 0.1.87: the selected wall's body starts a whole-wall move (an unselected wall is only selected by a press, so
+   * a first press never moves anything), and an object narrower than 24 screen px on either side gets a hit area of at
+   * least 24 x 24 px around its centre; the stacking order still follows the drawn footprints (objectHitOrder), so a big
+   * object never covers a small one inside it. Markers stay above all of them. */
   private renderGeomHits() {
     const doc = this.geometry;
     const mode = this.geomDrag;
@@ -1579,6 +1642,7 @@ export class SwPlanCanvas extends LitElement {
     for (const p of prims) if (p.kind === 'wall') wallPx.set(p.id, Math.max(wallPx.get(p.id) ?? 0, p.width));
     const hostOf = new Map(doc.openings.map((o) => [o.id, o.wall_id]));
     const selWall = mode === 'all' ? doc.walls.find((w) => w.id === this.selectedGeomId) : undefined;
+    const wallHitPx = this.coarse ? WALL_HIT_TOUCH_PX : 12; // a finger needs a wider band than a mouse (0.1.87)
     const drag = this.geomDragAt;
     const objectsOn = mode === 'all' || mode === 'objects';
     const objects = objectsOn ? prims.filter((p): p is ObjectPrim => p.kind === 'object' && !this.hideObjects) : [];
@@ -1587,11 +1651,14 @@ export class SwPlanCanvas extends LitElement {
     const selConnector = objectsOn ? doc.connectors.find((c) => c.id === this.selectedGeomId) : undefined;
     return svg`<g class="geom-hits">
       ${connectors.map((p) => svg`<path class="hit" data-hit-connector=${p.id} d=${`M ${p.points.map((q) => `${q[0]} ${q[1]}`).join(' L ')}`} stroke-width=${Math.max(p.width, 12 * inv)} @click=${(e: Event) => this.pickConnector(p.id, e)} />`)}
-      ${objectHitOrder(objects, this.selectedGeomId).map((p) => svg`<polygon class="hit ohit" data-hit-object=${p.id} points=${ptsAttr(p.corners)} @pointerdown=${(e: PointerEvent) => this.onGeomDragStart(e.altKey ? 'object-duplicate' : 'object', p.id, 0, e)} @click=${(e: Event) => e.stopPropagation()} />`)}
+      ${objectHitOrder(objects, this.selectedGeomId).map((p) => svg`<polygon class="hit ohit" data-hit-object=${p.id} points=${ptsAttr(objectHitCorners(p, OBJECT_HIT_MIN_PX * inv))} @pointerdown=${(e: PointerEvent) => this.onGeomDragStart(e.altKey ? 'object-duplicate' : 'object', p.id, 0, e)} @click=${(e: Event) => e.stopPropagation()} />`)}
       ${selConnector && !selConnector.object_id ? selConnector.polyline.map((v, i) => svg`<circle class="gvtx" data-connector-vertex=${i} cx=${v[0] * W} cy=${v[1] * H} r=${6 * inv} stroke-width=${1.6 * inv} aria-label=${`פינת מחבר ${i + 1}`}
           @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('connector-vertex', selConnector.id, i, e)} @click=${(e: Event) => e.stopPropagation()} />`) : nothing}
       ${selObject ? this.renderObjectHandles(selObject, inv) : nothing}
-      ${walls.map((p) => svg`<polyline class="hit" data-hit-wall=${p.id} points=${ptsAttr(p.points)} stroke-width=${Math.max(p.width, 12 * inv)} @click=${(e: Event) => this.pickGeom(p.id, e)} />`)}
+      ${walls.map((p) => (p.id === this.selectedGeomId
+        ? svg`<polyline class="hit whit" data-hit-wall=${p.id} data-wall-body points=${ptsAttr(p.points)} stroke-width=${Math.max(p.width, wallHitPx * inv)}
+            @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('wall', p.id, 0, e)} @click=${(e: Event) => e.stopPropagation()} />`
+        : svg`<polyline class="hit" data-hit-wall=${p.id} points=${ptsAttr(p.points)} stroke-width=${Math.max(p.width, wallHitPx * inv)} @click=${(e: Event) => this.pickGeom(p.id, e)} />`))}
       ${openings.map((p) => svg`<line class="hit" data-hit-opening=${p.id} x1=${p.gap[0][0]} y1=${p.gap[0][1]} x2=${p.gap[1][0]} y2=${p.gap[1][1]} stroke-width=${Math.max(28 * inv, wallPx.get(hostOf.get(p.id) ?? '') ?? 0)}
           @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('opening', p.id, 0, e)} @click=${this.itemClick} />`)}
       ${labels.map((p) => svg`<circle class="hit" data-hit-label=${p.id} cx=${p.x} cy=${p.y} r=${Math.max(p.size, 10 * inv)}

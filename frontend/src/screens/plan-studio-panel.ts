@@ -25,8 +25,12 @@ export interface GeomSel {
 /** The second help line of the opening modes: an existing opening is taken, not doubled (owner report on 0.1.82). */
 const OPENING_DRAG_HINT = 'גרירת פתח קיים מזיזה אותו לאורך הקיר; חצים להזזה עדינה (Shift = צעד גדול)';
 
+/** The select mode's help (hotfix 0.1.87): a wall moves as a whole by its body, but only once it is selected, so a first
+ * press never moves anything. The select tool shows the same line. */
+export const SELECT_HINT = 'לחץ על קיר, פתח, תווית או עצם כדי לבחור. קיר זז רק אחרי שנבחר: גרירת גוף הקיר הנבחר מזיזה את כולו, גרירת פינה שלו משנה את צורתו. פתח נגרר לאורך הקיר, תווית ועצם למקומם; החצים מזיזים בעדינות את מה שנבחר (Shift = צעד גדול) · Esc מבטל את הבחירה.';
+
 export const STUDIO_MODES: { id: StudioMode; label: string; hint: string; drag?: string }[] = [
-  { id: 'select', label: 'בחירה', hint: 'לחץ על קיר, פתח או תווית כדי לערוך. גרור פתח לאורך הקיר, תווית למקומה ופינה של קיר נבחר; החצים מזיזים בעדינות פתח, תווית או פינה שנבחרו (Shift = צעד גדול).' },
+  { id: 'select', label: 'בחירה', hint: SELECT_HINT },
   { id: 'wall', label: 'קיר', hint: 'לחץ נקודה אחר נקודה. Enter או לחיצה חוזרת על הנקודה האחרונה מסיימים, לחיצה על הנקודה הראשונה סוגרת מתאר, Shift מבטל הצמדה לזוויות, Backspace מוחק נקודה.' },
   { id: 'door', label: 'דלת', hint: 'לחץ על קיר כדי להציב דלת. כיוון הפתיחה והציר נקבעים כאן בפאנל.', drag: OPENING_DRAG_HINT },
   { id: 'window', label: 'חלון', hint: 'לחץ על קיר כדי להציב חלון.', drag: OPENING_DRAG_HINT },
@@ -38,7 +42,7 @@ const WALL_KIND_LABEL: Record<WallKind, string> = { exterior: 'חיצוני', in
 const OPENING_KIND_LABEL: Record<OpeningKind, string> = { door: 'דלת', window: 'חלון', passage: 'מעבר' };
 const SWING_LABEL: Record<Swing, string> = { right: 'לצד ימין של הקיר', left: 'לצד שמאל של הקיר', double: 'כנף כפולה', sliding: 'הזזה', none: 'ללא כנף' };
 const HINGE_LABEL: Record<Hinge, string> = { start: 'בצד תחילת הקיר', end: 'בצד סוף הקיר' };
-const SAVE_LABEL: Record<SaveState, string> = {
+export const SAVE_LABEL: Record<SaveState, string> = {
   idle: 'טיוטת המבנה',
   pending: 'שינויים ממתינים לשמירה…',
   saving: 'שומר…',
@@ -105,6 +109,8 @@ export interface StudioView {
   /** Setting `plan.estimates`: show estimated metres ("≈") before calibration, or hide them. */
   showEstimates: boolean;
   levels: GeomLevel[];
+  /** The select tool (0.1.87): the selected item's inspector only - no drawing modes, lists, copy or exports. */
+  compact?: boolean;
 }
 
 export interface StudioActions {
@@ -131,6 +137,17 @@ export function renderStudioPanel(v: StudioView, a: StudioActions): TemplateResu
   const warnings = v.issues.filter((i) => i.severity === 'warning');
   const mode = STUDIO_MODES.find((m) => m.id === v.mode) ?? STUDIO_MODES[0];
   const empty = !v.doc.walls.length && !v.doc.openings.length && !v.doc.labels.length;
+  if (v.compact) {
+    return html`<sw-card heading="מבנה" subheading=${SAVE_LABEL[v.saveState]} data-studio-panel data-studio-compact data-studio-save=${v.saveState}>
+      <div class="note" data-select-geom-hint>${SELECT_HINT}</div>
+      ${v.sel ? renderSelection(v, v.sel, a, scale, estimated) : nothing}
+      ${v.saveState === 'error'
+        ? html`<div class="err">${v.saveError} ${v.conflict
+            ? html`<button class="linkbtn" data-studio-reload @click=${() => a.reload()}>טען מחדש</button>`
+            : html`<button class="linkbtn" data-studio-retry @click=${() => a.retry()}>נסה שוב</button>`}</div>`
+        : nothing}
+    </sw-card>`;
+  }
   return html`<sw-card heading="מבנה" subheading=${SAVE_LABEL[v.saveState]} data-studio-panel data-studio-save=${v.saveState}>
     <div class="modes" role="group" aria-label="כלי ציור">
       ${STUDIO_MODES.map((m) => html`<button class=${m.id === v.mode ? 'on' : ''} data-studio-mode=${m.id} aria-pressed=${m.id === v.mode} @click=${() => a.setMode(m.id)}>${m.label}</button>`)}
@@ -892,6 +909,13 @@ export function renderConnectorPanel(v: ConnectorView, a: ConnectorActions): Tem
       : html`<div class="note">עדיין אין מחברים בקומה.</div>`}
     ${sel ? renderConnectorInspector(sel, v, a, levelName, num) : nothing}
   </sw-card>`;
+}
+
+/** The select tool (0.1.87): the selected connector's inspector in a card of its own, without the connector modes. */
+export function renderConnectorSelection(v: ConnectorView & { sel: GeomConnector }, a: ConnectorActions): TemplateResult {
+  const levelName = (id: string | null) => (id ? v.doc.levels.find((l) => l.id === id)?.name ?? id : 'קומה אחרת');
+  const num = (e: Event) => parseFloat((e.target as HTMLInputElement).value);
+  return html`<sw-card heading="מחבר" subheading=${SAVE_LABEL[v.saveState]} data-connector-panel data-studio-save=${v.saveState}>${renderConnectorInspector(v.sel, v, a, levelName, num)}</sw-card>`;
 }
 
 function renderConnectorInspector(c: GeomConnector, v: ConnectorView, a: ConnectorActions, levelName: (id: string | null) => string, num: (e: Event) => number) {

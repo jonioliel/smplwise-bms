@@ -82,6 +82,34 @@ export function moveVertex(doc: GeometryDoc, id: string, index: number, p: Pt): 
   return { ...doc, walls: doc.walls.map((w) => (w.id === id ? { ...w, polyline: w.polyline.map((q, i) => (i === index ? clampPt(p) : q)) } : w)) };
 }
 
+/** The part of a move (dx, dy) that keeps every point of `pts` inside the plan (0..1): the shape moves as a whole and
+ * stops at the edge, never squashed against it. */
+function clampDelta(xs: number[], ys: number[], dx: number, dy: number): [number, number] {
+  if (!xs.length) return [0, 0];
+  const cx = Math.min(1 - Math.max(...xs), Math.max(-Math.min(...xs), dx));
+  const cy = Math.min(1 - Math.max(...ys), Math.max(-Math.min(...ys), dy));
+  return [cx, cy];
+}
+
+/** A whole wall moves by (dx, dy) in normalized plan space (hotfix 0.1.87: walls could only be reshaped by their
+ * corners). Clamped as a whole so no corner leaves the plan; a closed outline stays closed. Its openings sit at a
+ * relative position t along it, so they ride along unchanged; groups, objects and connectors are not touched. */
+export function translateWall(doc: GeometryDoc, id: string, dx: number, dy: number): GeometryDoc {
+  const w = doc.walls.find((x) => x.id === id);
+  if (!w) return doc;
+  const [cx, cy] = clampDelta(w.polyline.map((q) => q[0]), w.polyline.map((q) => q[1]), dx, dy);
+  const polyline: Pt[] = w.polyline.map((q) => [round5(Math.min(1, Math.max(0, q[0] + cx))), round5(Math.min(1, Math.max(0, q[1] + cy)))]);
+  return { ...doc, walls: doc.walls.map((x) => (x.id === id ? { ...x, polyline } : x)) };
+}
+
+/** A zone (room) polygon moved as a whole by (dx, dy), clamped inside the plan, rounded like the zone editor's corners
+ * (4 places). A new array: the input is never changed. */
+export function translatePolygon(poly: readonly { x: number; y: number }[], dx: number, dy: number): { x: number; y: number }[] {
+  const [cx, cy] = clampDelta(poly.map((q) => q.x), poly.map((q) => q.y), dx, dy);
+  const r4 = (v: number) => Math.round(Math.min(1, Math.max(0, v)) * 1e4) / 1e4;
+  return poly.map((q) => ({ x: r4(q.x + cx), y: r4(q.y + cy) }));
+}
+
 /** Whether one corner can go without taking the wall with it: an open wall keeps at least two points, a closed outline
  * stays closed with at least three corners (four points, the last repeating the first). */
 export function cornerRemovable(polyline: Pt[]): boolean {

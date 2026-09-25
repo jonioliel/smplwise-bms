@@ -69,7 +69,7 @@ test.describe.serial('plan studio phase 3 (SW A)', () => {
   test.skip(process.env.SW_LIVE !== '1', 'set SW_LIVE=1 with the backend running');
 
   test.beforeAll(async ({ playwright }) => {
-    api = await playwright.request.newContext({ baseURL: 'http://127.0.0.1:4173/' });
+    api = await playwright.request.newContext({ baseURL: process.env.SW_BASE_URL || 'http://127.0.0.1:4173/' });
     estimatesBefore = (await (await api.get('api/v1/settings')).json()).settings['plan.estimates'];
     expect((await api.patch('api/v1/settings', { data: { 'plan.estimates': 'true' } })).status(), 'plan.estimates pinned').toBe(200);
     const stamp = new Date().toISOString().slice(0, 19);
