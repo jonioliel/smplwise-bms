@@ -3,7 +3,7 @@ import { customElement, property, state, query } from 'lit/decorators.js';
 import '../components/sw-button';
 import { t } from '../i18n/he';
 import type { StateKind } from '../components/sw-badge';
-import { applyAnchorPositions, buildPrimitives, circuitToken, isClosedOutline, type AnchorPosition, type CatalogLookup, type DoorPrim, type GeometryDoc, type LabelPrim, type ConnectorPrim, type ObjectPrim, type PassagePrim, type Primitive, type Pt, type WallPrim, type WindowPrim } from './geometry';
+import { applyAnchorPositions, buildPrimitives, circuitToken, isClosedOutline, objectHitOrder, type AnchorPosition, type CatalogLookup, type DoorPrim, type GeometryDoc, type LabelPrim, type ConnectorPrim, type ObjectPrim, type PassagePrim, type Primitive, type Pt, type WallPrim, type WindowPrim } from './geometry';
 import { symbolOf } from './plan-symbols';
 
 export type MarkerKind = 'camera' | 'lock' | 'light' | 'binary_sensor';
@@ -1523,7 +1523,7 @@ export class SwPlanCanvas extends LitElement {
     const selConnector = objectsOn ? doc.connectors.find((c) => c.id === this.selectedGeomId) : undefined;
     return svg`<g class="geom-hits">
       ${connectors.map((p) => svg`<path class="hit" data-hit-connector=${p.id} d=${`M ${p.points.map((q) => `${q[0]} ${q[1]}`).join(' L ')}`} stroke-width=${Math.max(p.width, 12 * inv)} @click=${(e: Event) => this.pickConnector(p.id, e)} />`)}
-      ${objects.map((p) => svg`<polygon class="hit ohit" data-hit-object=${p.id} points=${ptsAttr(p.corners)} @pointerdown=${(e: PointerEvent) => this.onGeomDragStart(e.altKey ? 'object-duplicate' : 'object', p.id, 0, e)} @click=${(e: Event) => e.stopPropagation()} />`)}
+      ${objectHitOrder(objects, this.selectedGeomId).map((p) => svg`<polygon class="hit ohit" data-hit-object=${p.id} points=${ptsAttr(p.corners)} @pointerdown=${(e: PointerEvent) => this.onGeomDragStart(e.altKey ? 'object-duplicate' : 'object', p.id, 0, e)} @click=${(e: Event) => e.stopPropagation()} />`)}
       ${selConnector && !selConnector.object_id ? selConnector.polyline.map((v, i) => svg`<circle class="gvtx" data-connector-vertex=${i} cx=${v[0] * W} cy=${v[1] * H} r=${6 * inv} stroke-width=${1.6 * inv} aria-label=${`פינת מחבר ${i + 1}`}
           @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('connector-vertex', selConnector.id, i, e)} @click=${(e: Event) => e.stopPropagation()} />`) : nothing}
       ${selObject ? this.renderObjectHandles(selObject, inv) : nothing}

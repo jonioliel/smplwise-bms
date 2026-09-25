@@ -482,12 +482,14 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
       await expect(page.locator(`${ed} sw-plan-canvas [data-object]`)).toHaveCount(before + 1);
       await expect.poll(async () => (await draft()).doc.objects.filter((o) => !known.has(o.id)).length, { timeout: 10000 }).toBe(1);
       const placedId = (await draft()).doc.objects.find((o) => !known.has(o.id))!.id;
-      // one placement disarms the item on a phone: a drag on the chair moves it (once the placement is saved and the
-      // editor has settled, so the press lands where the chair is drawn)
+      // one placement disarms the item on a phone: a drag on the chair moves it. The chair stands on the tribune (12 x 4 m
+      // around (0.5, 0.7)): the press takes the chair, never the tribune under it, whichever of the two random ids sorts first
       await expect(page.locator(`${ed} [data-library-panel][data-studio-save="saved"]`)).toHaveCount(1, { timeout: 10000 });
+      const tribune = (await draft()).doc.objects.find((o) => o.item_id === 'tribune.stepped')!;
       await page.locator(`${ed} sw-plan-canvas`).scrollIntoViewIfNeeded();
       await dragPlan(page, ed, [0.85, 0.45], [0.85, 0.3]);
       await expect.poll(async () => (await draft()).doc.objects.find((o) => o.id === placedId)!.position[1], { timeout: 10000 }).toBeLessThan(0.33);
+      expect((await draft()).doc.objects.find((o) => o.id === tribune.id)!.position).toEqual(tribune.position);
       // sw-button carries the disabled attribute on its host (not a native control, so not toBeDisabled)
       await expect(page.locator(`${ed} [data-object-array]`)).toHaveAttribute('disabled', '');
       await expect(page.locator(`${ed} [data-library-panel]`)).toContainText('בטלפון');

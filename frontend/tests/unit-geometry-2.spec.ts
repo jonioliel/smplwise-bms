@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { applyAnchorPositions, buildPrimitives, circuitToken, CIRCUIT_TOKENS, connectorLabel, objectCorners, SYMBOL_IDS, type CatalogLookup, type GeometryDoc, type GeomLevel, type ObjectPrim, type ObjectShape, type Primitive } from '../src/map/geometry';
+import { applyAnchorPositions, buildPrimitives, circuitToken, CIRCUIT_TOKENS, connectorLabel, objectCorners, objectHitOrder, SYMBOL_IDS, type CatalogLookup, type GeometryDoc, type GeomLevel, type ObjectPrim, type ObjectShape, type Primitive } from '../src/map/geometry';
 import { searchItems, type CatalogItem } from '../src/api/plan-catalog';
 
 // Plan Studio phase 2 (T085): the object and connector primitives equal the backend renderer's (the extended golden
@@ -92,5 +92,24 @@ test.describe('plan studio objects and connectors (unit)', () => {
     for (const t of CIRCUIT_TOKENS) expect(circuitToken(t)).toBe(t);
     for (const bad of ['circuit-0', 'circuit-7', 'circuit-1 ', ' circuit-1', 'Circuit-1', 'circuit-1); fill: red; --x: (', 'obj-light', '', null, undefined, 3, {}])
       expect(circuitToken(bad)).toBeNull();
+  });
+
+  test('object press targets: a smaller object lies above a larger one it overlaps, whatever the ids, and the selected one above all', () => {
+    const at = (id: string, x: number, y: number, w: number, d: number) => ({ id, item_id: 'x', level_id: 'L0', position: [x, y] as [number, number], rotation_deg: 0, size: { w_m: w, d_m: d, h_m: 1 },
+      z_m: 0, params: {}, label: null, anchor_ref: null, group_id: null, confidence: 1, source: 'manual' as const, locked: false, external_ids: {} });
+    const doc = { ...sample(), walls: [], openings: [], labels: [], connectors: [], circuits: [], groups: [],
+      objects: [at('zz-chair', 0.85, 0.45, 0.45, 0.45), at('aa-tribune', 0.5, 0.7, 12, 4), at('mm-table', 0.3, 0.3, 1.6, 0.8)] } as GeometryDoc;
+    const objects = buildPrimitives(doc, 1000, 600, null, lookup).filter((p): p is ObjectPrim => p.kind === 'object');
+    expect(objects.map((o) => o.id)).toEqual(['aa-tribune', 'mm-table', 'zz-chair']); // drawn by id
+    // SVG hit-tests the last target first: the tribune (48 m2) first, the chair (0.2 m2) last
+    expect(objectHitOrder(objects, null).map((o) => o.id)).toEqual(['aa-tribune', 'mm-table', 'zz-chair']);
+    // the id that sorts first draws first: without the order the tribune would take a press on the chair
+    const renamed = buildPrimitives({ ...doc, objects: doc.objects.map((o) => (o.id === 'zz-chair' ? { ...o, id: '00-chair' } : o)) }, 1000, 600, null, lookup).filter((p): p is ObjectPrim => p.kind === 'object');
+    expect(renamed.map((o) => o.id)).toEqual(['00-chair', 'aa-tribune', 'mm-table']);
+    expect(objectHitOrder(renamed, null).map((o) => o.id)).toEqual(['aa-tribune', 'mm-table', '00-chair']);
+    // the selected object is pressed before any other, even a smaller one over it
+    expect(objectHitOrder(objects, 'aa-tribune').map((o) => o.id)).toEqual(['mm-table', 'zz-chair', 'aa-tribune']);
+    expect(objectHitOrder(objects, 'gone').map((o) => o.id)).toEqual(['aa-tribune', 'mm-table', 'zz-chair']);
+    expect(objects.map((o) => o.id)).toEqual(['aa-tribune', 'mm-table', 'zz-chair']); // the input list is untouched
   });
 });

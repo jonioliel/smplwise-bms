@@ -474,6 +474,16 @@ export function rotated(cx: number, cy: number, x: number, y: number, theta: num
   return [cx + x * c - y * s, cy + x * s + y * c];
 }
 
+/** The order of the objects' press targets (SVG presses the last one first). Objects draw by id, which is random, so a
+ * chair placed on a tribune could lie under the tribune's target and a press on it would drag the tribune: the targets go
+ * from the largest footprint to the smallest (ties keep the drawing order), and the selected object comes last, so a
+ * press on it always takes it. Returns a new list. */
+export function objectHitOrder(objects: readonly ObjectPrim[], selectedId: string | null): ObjectPrim[] {
+  const ranked = objects.map((o, i) => ({ o, i, area: o.w * o.h, sel: o.id === selectedId ? 1 : 0 }));
+  ranked.sort((a, b) => a.sel - b.sel || b.area - a.area || a.i - b.i);
+  return ranked.map((r) => r.o);
+}
+
 /** The four corners of an object's footprint in plan pixels (not rounded): the hit area and the handles. */
 export function objectCorners(o: Pick<GeomObject, 'position' | 'rotation_deg' | 'size'>, W: number, H: number, scale: number): Pt[] {
   const cx = o.position[0] * W;
