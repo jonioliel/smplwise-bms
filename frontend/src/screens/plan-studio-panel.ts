@@ -459,7 +459,7 @@ export function renderObjectInspector(v: ObjectView, a: ObjectActions): Template
     ${group ? html`<div class="note" data-object-group>חלק ממערך של ${group.member_ids.length}${a.selectGroup ? html` · <button class="linkbtn" data-select-group @click=${() => a.selectGroup?.(group.id)}>בחר את המערך</button>` : nothing}</div>` : nothing}
     <div class="note">${v.estimated ? (v.showEstimates ? 'המידות במטרים משוערות (≈) עד הכיול' : 'לא מכויל: המידות מוצגות כערכי הפריט') : 'המידות במטרים לפי הכיול'} · חצים = הזזה עדינה (Shift = גדולה) · Alt+גרירה = שכפול · Delete = מחיקה</div>
     <div class="btns">
-      ${a.array ? html`<sw-button size="sm" icon="grid" data-object-array ?disabled=${v.phone || !!o.anchor_ref} title=${v.phone ? 'מערכים בדסקטופ בלבד' : 'שורות × עמודות מהעצם הזה'} @click=${() => a.array?.(o.id)}>מערך</sw-button>` : nothing}
+      ${a.array ? html`<sw-button size="sm" icon="grid" data-object-array ?disabled=${v.phone || !!o.anchor_ref || !!o.group_id} title=${v.phone ? 'מערכים בדסקטופ בלבד' : o.group_id ? 'העצם כבר במערך' : 'שורות × עמודות מהעצם הזה'} @click=${() => a.array?.(o.id)}>מערך</sw-button>` : nothing}
       ${v.canManage && a.custom ? html`<sw-button size="sm" icon="plus" data-object-custom @click=${() => a.custom?.(o.id)}>צור פריט מזה</sw-button>` : nothing}
       <sw-button size="sm" variant="ghost" icon="trash" data-geom-delete @click=${() => a.remove(o.id)}>מחק</sw-button>
     </div>
@@ -493,6 +493,8 @@ export interface ArrayDialogView {
   spacingY: number;
   directionDeg: number;
   max: number;
+  /** Why the array could not be made (shown inside the dialog, not in the bar behind it). */
+  error: string;
 }
 
 export function renderArrayDialog(v: ArrayDialogView, onChange: (patch: Partial<ArrayDialogView>) => void, onCreate: () => void, onCancel: () => void): TemplateResult {
@@ -500,9 +502,10 @@ export function renderArrayDialog(v: ArrayDialogView, onChange: (patch: Partial<
   const ok = total >= 2 && total <= v.max && v.spacingX > 0 && v.spacingY > 0;
   const num = (e: Event) => parseFloat((e.target as HTMLInputElement).value);
   return html`<sw-dialog open heading="מערך" subheading=${`שורות × עמודות של ${v.item?.names.he ?? 'העצם'}; העצם שנבחר הוא הראשון`} data-array-dialog @close=${onCancel}>
+    ${v.error ? html`<div class="err" data-array-error>${v.error}</div>` : nothing}
     <div class="two">
-      <sw-field label="שורות"><input type="number" min="1" max="60" step="1" data-ltr data-array-rows .value=${String(v.rows)} @input=${(e: Event) => onChange({ rows: num(e) || 1 })} /></sw-field>
-      <sw-field label="עמודות"><input type="number" min="1" max="60" step="1" data-ltr data-array-cols .value=${String(v.cols)} @input=${(e: Event) => onChange({ cols: num(e) || 1 })} /></sw-field>
+      <sw-field label="שורות"><input type="number" min="1" max="60" step="1" data-ltr data-array-rows .value=${String(v.rows)} @input=${(e: Event) => onChange({ rows: Math.max(1, num(e) || 1) })} /></sw-field>
+      <sw-field label="עמודות"><input type="number" min="1" max="60" step="1" data-ltr data-array-cols .value=${String(v.cols)} @input=${(e: Event) => onChange({ cols: Math.max(1, num(e) || 1) })} /></sw-field>
     </div>
     <div class="two">
       <sw-field label="רווח בין עמודות (מ׳)"><input type="number" min="0.05" max="50" step="0.05" data-ltr data-array-sx .value=${String(v.spacingX)} @input=${(e: Event) => onChange({ spacingX: num(e) })} /></sw-field>
@@ -539,9 +542,13 @@ export interface CustomItemView {
 
 export function renderCustomItemDialog(v: CustomItemView, lib: CatalogLibrary, onChange: (patch: Partial<CustomItemView>) => void, onCreate: () => void, onCancel: () => void): TemplateResult {
   const num = (e: Event) => parseFloat((e.target as HTMLInputElement).value);
-  // one hook per field (data-custom-w / -d / -h): lit has no binding for an attribute's name, so each is a boolean attribute
-  const sizeField = (key: keyof GeomSize, label: string) => html`<sw-field label=${label}><input type="number" min="0.05" max="100" step="0.05" data-ltr ?data-custom-w=${key === 'w_m'} ?data-custom-d=${key === 'd_m'} ?data-custom-h=${key === 'h_m'} .value=${String(v.size[key])}
-      @input=${(e: Event) => { const x = num(e); if (x >= 0.05 && x <= 100) onChange({ size: { ...v.size, [key]: x } }); }} /></sw-field>`;
+  const sizeOk = (x: number) => x >= 0.05 && x <= 100; // NaN (an empty field) fails too
+  const badSize = !(sizeOk(v.size.w_m) && sizeOk(v.size.d_m) && sizeOk(v.size.h_m));
+  // one hook per field (data-custom-w / -d / -h): lit has no binding for an attribute's name, so each is a boolean attribute.
+  // Every value is kept, also out of range: the field is marked and "צור פריט" waits until it is fixed (never dropped silently).
+  const sizeField = (key: keyof GeomSize, label: string) => html`<sw-field label=${label}><input type="number" min="0.05" max="100" step="0.05" data-ltr ?data-custom-w=${key === 'w_m'} ?data-custom-d=${key === 'd_m'} ?data-custom-h=${key === 'h_m'}
+      aria-invalid=${sizeOk(v.size[key]) ? 'false' : 'true'} style=${sizeOk(v.size[key]) ? '' : 'border-color: var(--sw-danger)'} .value=${Number.isFinite(v.size[key]) ? String(v.size[key]) : ''}
+      @input=${(e: Event) => onChange({ size: { ...v.size, [key]: num(e) } })} /></sw-field>`;
   return html`<sw-dialog open heading="פריט מותאם" subheading=${v.basedOn ? `מבוסס על ${lib.items.find((i) => i.id === v.basedOn)?.names.he ?? v.basedOn}: הפריט החדש נשמר בספרייה של המתקן` : 'פריט חדש בספרייה של המתקן'} data-custom-dialog @close=${onCancel}>
     ${v.error ? html`<div class="err">${v.error}</div>` : nothing}
     <div class="two">
@@ -557,9 +564,10 @@ export function renderCustomItemDialog(v: CustomItemView, lib: CatalogLibrary, o
       <sw-field label="צבע"><select data-custom-color @change=${(e: Event) => onChange({ color: (e.target as HTMLSelectElement).value })}>${COLOR_TOKENS.map((c) => html`<option value=${c} ?selected=${c === v.color}>${c}</option>`)}</select></sw-field>
     </div>
     <div class="three">${sizeField('w_m', 'רוחב (מ׳)')}${sizeField('d_m', 'עומק (מ׳)')}${sizeField('h_m', 'גובה (מ׳)')}</div>
+    ${badSize ? html`<div class="err" data-custom-size-error>כל מידה בין 0.05 ל־100 מ׳</div>` : nothing}
     <div class="note">הגובה מהרצפה, הפרמטרים וסוגי הישויות נלקחים מהפריט שעליו הוא מבוסס.</div>
     <sw-button slot="footer" variant="ghost" data-custom-cancel @click=${onCancel}>ביטול</sw-button>
-    <sw-button slot="footer" variant="primary" icon="check" data-custom-create ?disabled=${v.busy || !v.nameHe.trim()} @click=${onCreate}>${v.busy ? 'שומר…' : 'צור פריט'}</sw-button>
+    <sw-button slot="footer" variant="primary" icon="check" data-custom-create ?disabled=${v.busy || !v.nameHe.trim() || badSize} @click=${onCreate}>${v.busy ? 'שומר…' : 'צור פריט'}</sw-button>
   </sw-dialog>`;
 }
 

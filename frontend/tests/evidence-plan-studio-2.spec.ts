@@ -209,6 +209,11 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
     await page.locator(`${ed} [data-array-create]`).click();
     await expect(page.locator(`${ed} sw-plan-canvas [data-object]`)).toHaveCount(before + 60);
     await expect(page.locator(`${ed} [data-selected-group]`)).toContainText('60');
+    // a member of an array cannot start another array; "בחר את המערך" takes the whole array again
+    await clickPlan(page, ed, 0.2, 0.15);
+    await expect(page.locator(`${ed} [data-object-array]`)).toHaveAttribute('disabled', '');
+    await page.locator(`${ed} [data-select-group]`).click();
+    await expect(page.locator(`${ed} [data-selected-group]`)).toContainText('60');
     await expect.poll(async () => (await draft()).doc.groups.find((g) => g.member_ids.includes(originId))?.member_ids.length ?? 0, { timeout: 10000 }).toBe(60);
     const group = (await draft()).doc.groups.find((g) => g.member_ids.includes(originId))!;
     const tenth = (await draft()).doc.objects.find((o) => o.id === group.member_ids[9])!;
@@ -228,16 +233,22 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
     await page.locator(`${ed} [data-object-custom]`).click();
     await expect(page.locator(`${ed} [data-custom-dialog] [data-custom-name]`)).toBeVisible();
     await page.locator(`${ed} [data-custom-name]`).fill('כיסא אולם');
+    await page.locator(`${ed} [data-custom-w]`).fill('200'); // out of range: marked, and the item waits
+    await expect(page.locator(`${ed} [data-custom-size-error]`)).toBeVisible();
+    await expect(page.locator(`${ed} [data-custom-create]`)).toHaveAttribute('disabled', '');
+    await page.locator(`${ed} [data-custom-w]`).fill('0.45');
+    await expect(page.locator(`${ed} [data-custom-size-error]`)).toHaveCount(0);
     await page.locator(`${ed} [data-custom-create]`).click();
     await expect(page.locator(`${ed} [data-custom-dialog]`)).toHaveCount(0);
+    // registered for the cleanup at once: a failing assertion below must not leave the item in the shared library
+    const exported = await (await api.get('api/v1/catalog/export')).json();
+    const mine = exported.items.find((i: { names: { he: string } }) => i.names.he === 'כיסא אולם');
+    if (mine) customIds.push(mine.id);
+    expect(mine).toBeTruthy();
     await page.locator(`${ed} [data-lib-cat="all"]`).click();
     await page.locator(`${ed} [data-lib-search]`).fill('כיסא אולם');
     await expect(page.locator(`${ed} [data-lib-item]`)).toHaveCount(1);
-    const exported = await (await api.get('api/v1/catalog/export')).json();
-    const mine = exported.items.find((i: { names: { he: string } }) => i.names.he === 'כיסא אולם');
-    expect(mine).toBeTruthy();
     expect(mine.based_on).toBe('chair.basic');
-    customIds.push(mine.id);
     // the library's export link is that file; importing it back replaces every custom item in it and adds none
     await expect(page.locator(`${ed} [data-lib-export]`)).toHaveAttribute('href', /api\/v1\/catalog\/export$/);
     await page.locator(`${ed} [data-lib-import]`).setInputFiles({ name: 'smplwise-catalog-custom.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(exported)) });

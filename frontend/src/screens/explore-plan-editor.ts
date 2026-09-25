@@ -1330,7 +1330,7 @@ export class ExplorePlanEditor extends LitElement {
       return;
     }
     const d = item ? arrayDefaults(item) : { spacingX: round(o.size.w_m + 0.05), spacingY: round(o.size.d_m + 0.45) };
-    this.arrayDialog = { objectId, item, rows: 2, cols: 4, spacingX: d.spacingX, spacingY: d.spacingY, directionDeg: o.rotation_deg, max: ARRAY_MAX };
+    this.arrayDialog = { objectId, item, rows: 2, cols: 4, spacingX: d.spacingX, spacingY: d.spacingY, directionDeg: o.rotation_deg, max: ARRAY_MAX, error: '' };
   }
 
   private createArray() {
@@ -1340,7 +1340,7 @@ export class ExplorePlanEditor extends LitElement {
     if (!b || !doc || !a) return;
     const r = addArray(doc, a.objectId, a, b.width, b.height, effectiveScale(doc).scale);
     if (!r) {
-      this.error = 'לא ניתן ליצור את המערך (העצם כבר במערך, או שיש יותר מדי עצמים)';
+      this.arrayDialog = { ...a, error: 'לא ניתן ליצור את המערך (העצם כבר במערך, או שיש יותר מדי עצמים)' }; // inside the dialog: the bar is behind the modal
       return;
     }
     this.arrayDialog = null;
@@ -2388,7 +2388,7 @@ export class ExplorePlanEditor extends LitElement {
             </div>`}
         ${this.renderDiffDialog()}
         ${this.renderGeomDiffDialog()}
-        ${this.arrayDialog ? renderArrayDialog(this.arrayDialog, (patch) => (this.arrayDialog = { ...this.arrayDialog!, ...patch }), () => this.createArray(), () => (this.arrayDialog = null)) : nothing}
+        ${this.arrayDialog ? renderArrayDialog(this.arrayDialog, (patch) => (this.arrayDialog = { ...this.arrayDialog!, error: '', ...patch }), () => this.createArray(), () => (this.arrayDialog = null)) : nothing}
         ${this.groupDelete ? renderGroupDeleteDialog(this.studio.doc?.groups.find((g) => g.id === this.groupDelete)?.member_ids.length ?? 0, () => this.deleteGroup(true), () => this.deleteGroup(false), () => (this.groupDelete = null)) : nothing}
         ${this.customDialog && this.library ? renderCustomItemDialog(this.customDialog, this.library, (patch) => (this.customDialog = { ...this.customDialog!, ...patch }), () => void this.createCustom(), () => (this.customDialog = null)) : nothing}
       </sw-page>
