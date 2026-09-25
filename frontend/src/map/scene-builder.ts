@@ -6,8 +6,10 @@
  * (contracts/fixtures/plan_geometry/sample-v2.scene.json) and sw-floor-iso draws the building page from the same list.
  * Axes (design 17.1): x east = plan x, z south = plan y, y up; metres from the document's effective scale (the estimate
  * when uncalibrated, flagged). Rotation [pitch about x, yaw about y, 0] in degrees, yaw first (Euler order YXZ).
+ * Ruling R-P4-T4-1: one convention for cameras - the forward is -z of the part, the description carries pitch = -tilt,
+ * so applying the Euler as it stands looks DOWN by the tilt; consumers derive the view direction from the same Euler.
  */
-import { buildPrimitives, effectiveScale, MAX_TRIBUNE_ROWS, type CatalogLookup, type ConnectorPrim, type DoorPrim, type GeometryDoc, type GeomLevel, type GeomObject, type ObjectPrim, type ObjectShape, type Pt, type Primitive, type WallPrim, type WindowPrim } from './geometry';
+import { buildPrimitives, DEFAULT_WALL_THICKNESS_M, effectiveScale, MAX_TRIBUNE_ROWS, type CatalogLookup, type ConnectorPrim, type DoorPrim, type GeometryDoc, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type ObjectPrim, type ObjectShape, type Pt, type Primitive, type WallPrim, type WindowPrim } from './geometry';
 import { defaultLevelId } from './studio-ops';
 import { blockingSegments, clipCoverage, isOpenState, type Seg } from './coverage';
 import { anchor3d } from './anchor-3d';
@@ -26,6 +28,9 @@ export interface ScenePart {
   position: Vec3;
   /** box: [w, h, d]; cylinder: [diameter, h, diameter]; prism: [0, h, 0]; sprite: [w, h, 0]; light: [distance, 0, 0]. */
   size: Vec3;
+  /** [pitch about x, yaw about y, 0] in degrees, Euler order YXZ. A box along +x turned by yaw -deg(atan2(dz, dx))
+   * points along (dx, dz). A camera (forward -z) at bearing b with tilt t carries [-t, -b, 0]: a positive pitch would
+   * lift -z up, so the negative one looks down by t (ruling R-P4-T4-1); no consumer applies a second sign. */
   rotation: Vec3;
   /** A token name without the --sw- prefix (map-structure, obj-light, accent, ...): scene-three reads the value. */
   color: string;
@@ -33,6 +38,9 @@ export interface ScenePart {
   /** Parts that share a group become one InstancedMesh (box / cylinder only). */
   group: string | null;
   level_id: string | null;
+  /** A prism's outline in metres [x, z] relative to its position. An extruded_polygon object reads its
+   * params.polygon as local metres (x right, z down the plan) around the footprint centre, turned by its rotation; a
+   * cone's outline is the clipped coverage relative to the camera. */
   polygon?: [number, number][];
   text?: string;
   userData: { id: string; kind: string };
@@ -142,6 +150,16 @@ const rad = (d: number): number => (d * Math.PI) / 180;
 const byId = (a: { id: string }, b: { id: string }): number => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 const groupKey = (shape: PartShape, color: string, opacity: number): string => `${shape}|${color}|${opacity}`;
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+/** A low wall and a railing read lighter than the structure; its lintels, sills and heads take the same token. */
+const wallColor = (w: GeomWall): string => (w.kind === 'railing' || w.kind === 'low' ? 'map-wall' : 'map-structure');
+/** The yaw of a symmetric box lying along the unit direction (dx, dz), folded into (-90, 90] (a box turned by 180 deg is
+ * the same box, so a closed leaf carries its wall's yaw whichever jamb it hangs on). */
+function leafYaw(dx: number, dz: number): number {
+  let y = -deg(Math.atan2(dz, dx));
+  if (y > 90 + 1e-9) y -= 180;
+  else if (y <= -90 + 1e-9) y += 180;
+  return y;
+}
 
 /** A local offset (x right, z down the plan) turned by the yaw the part carries (the same mapping three applies). */
 function turned(x: number, z: number, yawDeg: number): [number, number] {
@@ -207,6 +225,47 @@ class Builder {
   box(id: string, kind: PartKind, userData: ScenePart['userData'], centre: Vec3, size: Vec3, yaw: number, color: string, levelId: string | null, opacity = 1, pitch = 0, instanced = true): void {
     this.add({ id, kind, shape: 'box', position: centre, size, rotation: [pitch, yaw, 0], color, opacity, group: instanced ? groupKey('box', color, opacity) : null, level_id: levelId, userData });
   }
+  /** A wall's height: its own, else up to the ceiling of its level from its base. */
+  wallHeight(w: GeomWall, lv: GeomLevel): number {
+    return isNum(w.height_m) && w.height_m > 0 ? w.height_m : Math.max(MIN_STEP_M, lv.ceiling_height_m - (w.base_z_m || 0));
+  }
+
+  /** The leaves of a door as the 2D draws them (geometry.ts door(), missing swing = right): none - no leaf; sliding -
+   * one leaf on a track 0.12 of the width off the wall on the left-normal side, over the gap when closed and slid one
+   * width toward its hinge jamb when open; double - two half leaves hinged at both jambs ("door:<id>#0" at the start,
+   * "#1" at the end) opening to the left normal; left / right - one leaf at its hinge jamb opening to that normal. An
+   * open leaf stands DOOR_OPEN_DEG off the wall, a closed one lies in the gap. */
+  private leaves(o: GeomOpening, g0: [number, number], g1: [number, number], len: number, open: boolean, base: number, levelId: string, ud: ScenePart['userData']): void {
+    const swing = o.swing || 'right';
+    if (swing === 'none') return;
+    const d: [number, number] = [(g1[0] - g0[0]) / len, (g1[1] - g0[1]) / len];
+    const nl: [number, number] = [d[1], -d[0]];
+    const nr: [number, number] = [-d[1], d[0]];
+    const y = base + o.height_m / 2;
+    const hingeAtStart = (o.hinge || 'start') === 'start';
+    const leaf = (id: string, from: [number, number], dir: [number, number], length: number): void =>
+      this.box(id, 'door', ud, [from[0] + (dir[0] * length) / 2, y, from[1] + (dir[1] * length) / 2], [length, o.height_m, LEAF_THICKNESS_M], leafYaw(dir[0], dir[1]), 'accent', levelId, 0.9, 0, false);
+    const swung = (closed: [number, number], n: [number, number]): [number, number] => {
+      if (!open) return closed;
+      const c = Math.cos(rad(DOOR_OPEN_DEG));
+      const s = Math.sin(rad(DOOR_OPEN_DEG));
+      return [closed[0] * c + n[0] * s, closed[1] * c + n[1] * s];
+    };
+    if (swing === 'sliding') {
+      const k = 0.12 * len;
+      const shift = open ? (hingeAtStart ? -len : len) : 0;
+      leaf(`door:${o.id}`, [g0[0] + nl[0] * k + d[0] * shift, g0[1] + nl[1] * k + d[1] * shift], d, len);
+      return;
+    }
+    if (swing === 'double') {
+      leaf(`door:${o.id}#0`, g0, swung(d, nl), len / 2);
+      leaf(`door:${o.id}#1`, g1, swung([-d[0], -d[1]], nl), len / 2);
+      return;
+    }
+    const n = swing === 'left' ? nl : nr;
+    leaf(`door:${o.id}`, hingeAtStart ? g0 : g1, swung(hingeAtStart ? d : [-d[0], -d[1]], n), len);
+  }
+
   /** The blocking segments of one level, built once per scene (the door states are fixed for one call) and shared by
    * every camera on it; each cone is then one clipCoverage call, never coveragePolygon (which rebuilds the primitives). */
   segments(levelId: string): Seg[] {
@@ -274,24 +333,28 @@ class Builder {
     const { doc } = this.input;
     const walls = new Map(doc.walls.map((w) => [w.id, w]));
     const openings = new Map(doc.openings.map((o) => [o.id, o]));
-    const thicknessOf = new Map<string, number>();
     for (const p of prims) {
       if (p.kind !== 'wall') continue;
       const w = walls.get(p.id);
       if (!w) continue;
       const lv = this.level(w.level_id);
-      const h = w.height_m ?? lv.ceiling_height_m;
+      const h = this.wallHeight(w, lv);
       const base = lv.elevation_m + (w.base_z_m || 0);
       const t = this.m(p.width);
-      thicknessOf.set(w.id, t);
-      const color = w.kind === 'railing' || w.kind === 'low' ? 'map-wall' : 'map-structure';
-      for (let i = 1; i < p.points.length; i++) {
-        const [ax, az] = [this.m(p.points[i - 1][0]), this.m(p.points[i - 1][1])];
-        const [bx, bz] = [this.m(p.points[i][0]), this.m(p.points[i][1])];
+      const color = wallColor(w);
+      const last = p.points.length - 1;
+      for (let i = 1; i <= last; i++) {
+        let [ax, az] = [this.m(p.points[i - 1][0]), this.m(p.points[i - 1][1])];
+        let [bx, bz] = [this.m(p.points[i][0]), this.m(p.points[i][1])];
         const len = Math.hypot(bx - ax, bz - az);
         if (len < 1e-4) continue;
+        // a run meeting another run of the same part at a bend grows by half the thickness there (free ends already
+        // carry their cap from the primitives), so the outer corner of every bend is filled: the runs overlap inside
+        const [ux, uz] = [(bx - ax) / len, (bz - az) / len];
+        if (i > 1) [ax, az] = [ax - (ux * t) / 2, az - (uz * t) / 2];
+        if (i < last) [bx, bz] = [bx + (ux * t) / 2, bz + (uz * t) / 2];
         // one box per straight segment of the cut wall part: "wall:<id>#<part>" and "wall:<id>#<part>.<segment>" for a bend
-        this.box(`wall:${w.id}#${(p as WallPrim).part}${i > 1 ? `.${i - 1}` : ''}`, 'wall', { id: w.id, kind: 'wall' }, [(ax + bx) / 2, base + h / 2, (az + bz) / 2], [len, h, t], -deg(Math.atan2(bz - az, bx - ax)), color, lv.id);
+        this.box(`wall:${w.id}#${(p as WallPrim).part}${i > 1 ? `.${i - 1}` : ''}`, 'wall', { id: w.id, kind: 'wall' }, [(ax + bx) / 2, base + h / 2, (az + bz) / 2], [Math.hypot(bx - ax, bz - az), h, t], -deg(Math.atan2(uz, ux)), color, lv.id);
       }
     }
     for (const p of prims) {
@@ -300,33 +363,29 @@ class Builder {
       const w = o ? walls.get(o.wall_id) : undefined;
       if (!o || !w) continue;
       const lv = this.level(w.level_id);
-      const wallH = w.height_m ?? lv.ceiling_height_m;
+      const wallH = this.wallHeight(w, lv);
       const base = lv.elevation_m + (w.base_z_m || 0);
-      const t = thicknessOf.get(w.id) ?? this.m(1);
+      const t = w.thickness_m || DEFAULT_WALL_THICKNESS_M;
+      const color = wallColor(w);
       const gap = (p as DoorPrim | WindowPrim).gap;
-      const [g0x, g0z] = [this.m(gap[0][0]), this.m(gap[0][1])];
-      const [g1x, g1z] = [this.m(gap[1][0]), this.m(gap[1][1])];
-      const len = Math.hypot(g1x - g0x, g1z - g0z);
+      const g0: [number, number] = [this.m(gap[0][0]), this.m(gap[0][1])];
+      const g1: [number, number] = [this.m(gap[1][0]), this.m(gap[1][1])];
+      const len = Math.hypot(g1[0] - g0[0], g1[1] - g0[1]);
       if (len < 1e-4) continue;
-      const yaw = -deg(Math.atan2(g1z - g0z, g1x - g0x));
-      const cx = (g0x + g1x) / 2;
-      const cz = (g0z + g1z) / 2;
+      const yaw = -deg(Math.atan2(g1[1] - g0[1], g1[0] - g0[0]));
+      const cx = (g0[0] + g1[0]) / 2;
+      const cz = (g0[1] + g1[1]) / 2;
       const ud = { id: o.id, kind: 'opening' };
       if (p.kind === 'door') {
         const lintel = wallH - o.height_m;
-        if (lintel > 0.01) this.box(`lintel:${o.id}`, 'lintel', ud, [cx, base + o.height_m + lintel / 2, cz], [len, lintel, t], yaw, 'map-structure', lv.id);
+        if (lintel > 0.01) this.box(`lintel:${o.id}`, 'lintel', ud, [cx, base + o.height_m + lintel / 2, cz], [len, lintel, t], yaw, color, lv.id);
         const ref = o.anchor_ref;
         const open = !!ref && ref.resource_type === 'ha_entity' && isOpenState(this.input.entityStates[ref.resource_id]);
-        const hingeAtStart = (o.hinge || 'start') === 'start';
-        const [hx, hz] = hingeAtStart ? [g0x, g0z] : [g1x, g1z];
-        const swing = open ? (o.swing === 'right' ? -DOOR_OPEN_DEG : DOOR_OPEN_DEG) : 0;
-        const leafYaw = yaw + (hingeAtStart ? swing : -swing);
-        const [ox, oz] = turned(hingeAtStart ? len / 2 : -len / 2, 0, leafYaw);
-        this.box(`door:${o.id}`, 'door', ud, [hx + ox, base + o.height_m / 2, hz + oz], [len, o.height_m, LEAF_THICKNESS_M], leafYaw, 'accent', lv.id, 0.9, 0, false);
+        this.leaves(o, g0, g1, len, open, base, lv.id, ud);
       } else {
-        if (o.sill_m > 0.01) this.box(`sill:${o.id}`, 'sill', ud, [cx, base + o.sill_m / 2, cz], [len, o.sill_m, t], yaw, 'map-structure', lv.id);
+        if (o.sill_m > 0.01) this.box(`sill:${o.id}`, 'sill', ud, [cx, base + o.sill_m / 2, cz], [len, o.sill_m, t], yaw, color, lv.id);
         const head = wallH - (o.sill_m + o.height_m);
-        if (head > 0.01) this.box(`head:${o.id}`, 'head', ud, [cx, base + o.sill_m + o.height_m + head / 2, cz], [len, head, t], yaw, 'map-structure', lv.id);
+        if (head > 0.01) this.box(`head:${o.id}`, 'head', ud, [cx, base + o.sill_m + o.height_m + head / 2, cz], [len, head, t], yaw, color, lv.id);
         this.box(`window:${o.id}`, 'window', ud, [cx, base + o.sill_m + o.height_m / 2, cz], [len, o.height_m, GLASS_THICKNESS_M], yaw, 'map-glass', lv.id, 0.35, 0, false);
       }
     }
@@ -376,10 +435,15 @@ class Builder {
       const stepRaw = o.params?.step_height_m;
       const stepH = isNum(stepRaw) && stepRaw > 0 ? stepRaw : hM / rows;
       const rowD = d / rows;
+      // a tribune whose connects_levels names a lower level descends into it: the rows stand on that level's floor and
+      // share the height difference evenly, so the top row meets the floor the tribune is placed on
+      const link = o.params?.connects_levels;
+      const lower = typeof link === 'string' ? this.levels.find((l) => l.id === link && l.elevation_m < y0 - 1e-9) : undefined;
+      const floor = lower ? lower.elevation_m : y0;
       for (let i = 0; i < rows; i++) {
         const [ox, oz] = turned(0, -d / 2 + (i + 0.5) * rowD, yaw);
-        const h = Math.min(hM, stepH * (i + 1));
-        this.box(`obj:${o.id}#${i}`, 'object', ud, [cx + ox, y0 + h / 2, cz + oz], [w, h, rowD], yaw, color, levelId, 1, 0, false);
+        const h = lower ? ((y0 - lower.elevation_m) * (i + 1)) / rows : Math.min(hM, stepH * (i + 1));
+        this.box(`obj:${o.id}#${i}`, 'object', ud, [cx + ox, floor + h / 2, cz + oz], [w, h, rowD], yaw, color, levelId, 1, 0, false);
       }
       return;
     }
@@ -452,7 +516,7 @@ class Builder {
         if (!this.layers.cameras) continue;
         const color = a.online === false ? 'offline' : 'accent';
         const ud = { id: a.id, kind: 'camera' };
-        this.box(`cam:${a.id}`, 'camera', ud, [x, lv.elevation_m + mount, z], CAMERA_BODY, -a.rotation, color, lv.id, 1, tilt, false);
+        this.box(`cam:${a.id}`, 'camera', ud, [x, lv.elevation_m + mount, z], CAMERA_BODY, -a.rotation, color, lv.id, 1, -tilt, false); // R-P4-T4-1: pitch = -tilt looks down
         if (a.fov && a.fov > 0) {
           const radiusPx = a.radius ? Math.max(12, a.radius * width) : coneRadiusPx ?? DEFAULT_CONE_RADIUS_PX;
           const pts: Pt[] = a.polygon && a.polygon.length >= 3 ? a.polygon.map(([qx, qy]) => [qx * width, qy * height]) : clipCoverage([px, py], a.rotation, a.fov, radiusPx, this.segments(a.level_id ?? defaultLevelId(doc))); // the level key of the 2D cone

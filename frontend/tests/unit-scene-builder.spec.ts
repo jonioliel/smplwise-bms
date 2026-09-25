@@ -30,9 +30,15 @@ const SAMPLE_ANCHORS: SceneAnchor[] = [
   ANCHOR('a-sensor', 'ha_entity', 'binary_sensor.hall', 0.3, 0.65, { layer_id: 'sensors', state: null }),
 ];
 const SAMPLE_ZONES = [{ id: 'z1', name: 'מחסן', polygon: [{ x: 0.12, y: 0.12 }, { x: 0.58, y: 0.12 }, { x: 0.58, y: 0.48 }, { x: 0.12, y: 0.48 }] }];
-const sampleInput = (): SceneInput => ({ doc: sample(), width: 1000, height: 800, anchors: SAMPLE_ANCHORS, entityStates: { 'light.store': 'on', 'lock.front': 'locked', 'binary_sensor.hall': null }, circuitStates: { k1: 'on' }, catalog, zones: SAMPLE_ZONES });
+const sampleInput = (): SceneInput => ({ doc: sample(), width: 1000, height: 800, anchors: SAMPLE_ANCHORS, entityStates: { 'light.store': 'on', 'lock.front': 'locked', 'binary_sensor.hall': null, 'lock.store': 'open' }, circuitStates: { k1: 'on' }, catalog, zones: SAMPLE_ZONES });
 const byId = (desc: SceneDescription, id: string): ScenePart => { const p = desc.parts.find((x) => x.id === id); expect(p, id).toBeTruthy(); return p!; };
 const ofKind = (desc: SceneDescription, kind: ScenePart['kind']) => desc.parts.filter((p) => p.kind === kind);
+/** The two ends [x, z] of a box along its length (the yaw turns +x toward (cos, -sin)). */
+const ends = (p: ScenePart): [number, number][] => { const t = (p.rotation[1] * Math.PI) / 180; const [dx, dz] = [Math.cos(t) * p.size[0] / 2, -Math.sin(t) * p.size[0] / 2]; return [[p.position[0] - dx, p.position[2] - dz], [p.position[0] + dx, p.position[2] + dz]]; };
+/** Whether the point [x, z] lies in the footprint of a box part. */
+const covers = (p: ScenePart, x: number, z: number): boolean => { const t = (p.rotation[1] * Math.PI) / 180; const [ox, oz] = [x - p.position[0], z - p.position[2]]; const lx = ox * Math.cos(t) - oz * Math.sin(t); const lz = ox * Math.sin(t) + oz * Math.cos(t); return Math.abs(lx) <= p.size[0] / 2 + 1e-6 && Math.abs(lz) <= p.size[2] / 2 + 1e-6; };
+const near = (a: [number, number], b: [number, number], tol = 1e-3): boolean => Math.hypot(a[0] - b[0], a[1] - b[1]) <= tol;
+const stepsOf = (desc: SceneDescription, prefix: string): ScenePart[] => desc.parts.filter((p) => p.id.startsWith(prefix)).sort((a, b) => Number(a.id.slice(prefix.length)) - Number(b.id.slice(prefix.length)));
 
 test('the sample document builds the pinned scene description (SCENE_WRITE=1 regenerates it)', () => {
   const desc = buildScene(sampleInput());
@@ -46,6 +52,9 @@ test('the sample document builds the pinned scene description (SCENE_WRITE=1 reg
   expect(text).toBe(fs.readFileSync(target, 'utf8'));
   expect(JSON.stringify(buildScene(sampleInput()))).toBe(JSON.stringify(desc)); // twice the same
   expect(JSON.stringify(buildScene({ ...sampleInput(), anchors: [...SAMPLE_ANCHORS].reverse() }))).toBe(JSON.stringify(desc)); // whatever the input order
+  const d0 = sample();
+  const reversed: GeometryDoc = { ...d0, levels: [...d0.levels].reverse(), walls: [...d0.walls].reverse(), openings: [...d0.openings].reverse(), objects: [...d0.objects].reverse(), connectors: [...d0.connectors].reverse(), labels: [...d0.labels].reverse(), circuits: [...d0.circuits].reverse() };
+  expect(JSON.stringify(buildScene({ ...sampleInput(), doc: reversed, zones: [...SAMPLE_ZONES].reverse() }))).toBe(JSON.stringify(desc)); // whatever the document order
   expect(desc.version).toBe('scene-1');
   expect(desc.estimated).toBe(false);
   expect(desc.scale_m_per_px).toBe(0.01);
@@ -55,18 +64,19 @@ test('the sample document builds the pinned scene description (SCENE_WRITE=1 reg
   expect(byId(desc, 'floor:L0').size).toEqual([10, 0.05, 8]);
   expect(byId(desc, 'floor:L1').size[0]).toBeLessThan(10); // a secondary level covers what sits on it, not the whole plan
   expect(ofKind(desc, 'wall').length).toBeGreaterThanOrEqual(8); // four walls cut by six openings
-  expect(ofKind(desc, 'lintel').length).toBe(ofKind(desc, 'door').length);
+  expect(ofKind(desc, 'lintel').map((p) => p.id)).toEqual(['lintel:oa', 'lintel:oc', 'lintel:od', 'lintel:of']);
+  expect(ofKind(desc, 'door').map((p) => p.id)).toEqual(['door:oa', 'door:oc', 'door:od#0', 'door:od#1', 'door:of']); // the double door od has two half leaves
   expect(ofKind(desc, 'sill').length).toBe(ofKind(desc, 'window').length);
   expect(ofKind(desc, 'head').length).toBe(ofKind(desc, 'window').length);
   expect(ofKind(desc, 'window').every((p) => p.opacity < 1)).toBe(true);
   expect(byId(desc, 'cam:a-cam').color).toBe('accent');
-  expect(byId(desc, 'cam:a-cam').rotation).toEqual([10, -90, 0]); // the default tilt, the bearing as a yaw
+  expect(byId(desc, 'cam:a-cam').rotation).toEqual([-10, -90, 0]); // R-P4-T4-1: pitch = -tilt (the default 10 deg, looking down), the bearing as a yaw
   expect(byId(desc, 'cam:a-cam').position[1]).toBe(2.5); // the default mount height
   expect(byId(desc, 'cam:a-cam#cone').polygon!.length).toBeGreaterThan(10);
   expect(byId(desc, 'cam:a-cam#cone').size).toEqual([0, 2.5, 0]);
   expect(byId(desc, 'cam:a-cam2').color).toBe('offline');
   expect(byId(desc, 'cam:a-cam2').position).toEqual([7, 1.8, 1.6]); // L1 sits at -1.2 m; a stored mount of 3 m
-  expect(byId(desc, 'cam:a-cam2').rotation).toEqual([20, -180, 0]);
+  expect(byId(desc, 'cam:a-cam2').rotation).toEqual([-20, -180, 0]);
   expect(byId(desc, 'cam:a-cam2#cone').polygon).toEqual([[0, 0], [1, 0.8], [-1, 0.8]]); // the manual polygon, in metres from the camera
   expect(byId(desc, 'obj:o3').color).toBe('map-glow'); // the lamp of circuit k1, which is on
   expect(byId(desc, 'obj:o3#glow').shape).toBe('light');
@@ -81,6 +91,21 @@ test('the sample document builds the pinned scene description (SCENE_WRITE=1 reg
   expect(ofKind(desc, 'connector').length).toBeGreaterThanOrEqual(3); // the stairs c1 as stepped boxes; the tribune connector draws nothing (its object does)
   expect(desc.parts.filter((p) => p.id.startsWith('conn:cx-o4')).length).toBe(0);
   expect(desc.parts.every((p) => p.position.every(Number.isFinite) && p.size.every((v) => Number.isFinite(v) && v >= 0) && p.rotation.every(Number.isFinite))).toBe(true);
+  // every bend keeps its outer corner: the exterior wall wa (0.3 m) turns at (9, 0.8), its outer corner is (9.15, 0.65)
+  expect(ofKind(desc, 'wall').some((p) => p.userData.id === 'wa' && covers(p, 9.15, 0.65))).toBe(true);
+  expect(ofKind(desc, 'wall').some((p) => p.userData.id === 'wa' && covers(p, 8.85, 0.95))).toBe(true);
+  // the open door oc (left swing, hinged at its end jamb (3.9, 4.0) of wall wb) stands 80 deg off the wall toward the north
+  const oc = ends(byId(desc, 'door:oc'));
+  const hinge = oc.find((e) => near(e, [3.9, 4]));
+  expect(hinge, JSON.stringify(oc)).toBeTruthy();
+  const tip = oc.find((e) => e !== hinge)!;
+  expect(tip[0]).toBeCloseTo(3.9 - 0.8 * Math.cos((80 * Math.PI) / 180), 3);
+  expect(tip[1]).toBeCloseTo(4 - 0.8 * Math.sin((80 * Math.PI) / 180), 3);
+  expect(byId(desc, 'lintel:od').color).toBe('map-structure');
+  // the tribune o4 descends into L1 (connects_levels): four rows from -1.2 m, the top one meeting the L0 floor
+  const rows = stepsOf(desc, 'obj:o4#');
+  expect(rows.map((p) => p.size[1])).toEqual([0.3, 0.6, 0.9, 1.2]);
+  expect(rows.every((p) => Math.abs(p.position[1] - p.size[1] / 2 + 1.2) < 1e-9)).toBe(true);
   const ids = desc.parts.map((p) => p.id);
   expect([...ids].sort()).toEqual(ids);
   expect(new Set(ids).size).toBe(ids.length);
@@ -140,7 +165,7 @@ test('a hall with 3,000 chairs: one instance group, a bounded part count, every 
   expect(desc.parts.length).toBeLessThanOrEqual(3000 + 150);
   expect(desc.stats.objects).toBe(3013); // 3,000 chairs + 5 tribune steps + the column + the polygon + 3 desk parts + 3 lamps
   // the tribune: five rising steps on the lower level, turned by its rotation, not instanced
-  const steps = desc.parts.filter((p) => p.id.startsWith('obj:tr#'));
+  const steps = stepsOf(desc, 'obj:tr#');
   expect(steps.length).toBe(5);
   expect(steps.map((p) => p.size[1])).toEqual([0.24, 0.48, 0.72, 0.96, 1.2]);
   expect(steps.every((p) => p.group === null && p.level_id === 'L1' && p.rotation[1] === -90 && p.userData.id === 'tr')).toBe(true);
@@ -153,11 +178,17 @@ test('a hall with 3,000 chairs: one instance group, a bounded part count, every 
   expect(ex.shape).toBe('prism');
   expect(ex.polygon).toEqual([[-1, -1], [1, -1], [0, 1]]);
   expect(ex.size).toEqual([0, 1, 0]);
-  const desk = desc.parts.filter((p) => p.id.startsWith('obj:cp#'));
+  const desk = stepsOf(desc, 'obj:cp#');
   expect(desk.length).toBe(3);
   expect(desk.map((p) => p.shape)).toEqual(['box', 'cylinder', 'cylinder']);
   expect(desk.every((p) => p.rotation[1] === -30 && p.userData.id === 'cp')).toBe(true);
   expect(desk[0].position[1]).toBeCloseTo(0.725, 6);
+  // the legs turn with the desk like its 2D footprint (geometry.rotated, 30 deg clockwise on the plan) around (7, 4)
+  const th = (30 * Math.PI) / 180;
+  for (const [leg, [lx, lz]] of [[desk[1], [-0.6, -0.3]], [desk[2], [0.6, 0.3]]] as [ScenePart, [number, number]][]) {
+    expect(leg.position[0]).toBeCloseTo(7 + lx * Math.cos(th) - lz * Math.sin(th), 3);
+    expect(leg.position[2]).toBeCloseTo(4 + lx * Math.sin(th) + lz * Math.cos(th), 3);
+  }
   // lamps: a body whose entity is on, a member of a circuit that is on, one that is off
   expect(byId(desc, 'obj:l1').color).toBe('map-glow');
   expect(byId(desc, 'obj:l1#glow').shape).toBe('light');
@@ -192,7 +223,7 @@ test('a hall with 3,000 chairs: one instance group, a bounded part count, every 
   expect(low[0].position[1]).toBeCloseTo(-1.2 + 0.5, 6);
   expect(desc.parts.filter((p) => p.id.startsWith('wall:n#')).every((p) => p.size[1] === 3 && p.color === 'map-structure')).toBe(true);
   // connectors: stairs and a ramp as rising steps between the levels, the elevator a translucent prism
-  const stairs = desc.parts.filter((p) => p.id.startsWith('conn:st#'));
+  const stairs = stepsOf(desc, 'conn:st#'); // by the step number in the id, not the part order (#10 sorts before #2)
   expect(stairs.length).toBeGreaterThanOrEqual(3);
   const rises = stairs.map((p) => p.size[1]);
   expect(rises.every((v, i) => i === 0 || (v - rises[i - 1]) * (rises[1] - rises[0]) >= 0)).toBe(true); // monotonic: going down from L0 to L1, the steps shrink toward the end
@@ -222,6 +253,37 @@ test('a hall with 3,000 chairs: one instance group, a bounded part count, every 
   const est = buildScene({ ...input, doc: raw });
   expect(est.estimated).toBe(true);
   expect(est.scale_m_per_px).toBeCloseTo(0.2 / (0.006 * 1000), 9);
+});
+
+test('door leaves follow the 2D rules: none, sliding on its track, two half leaves, a missing swing opens right', () => {
+  // one wall from (1, 4) to (9, 4) m, a 1 m door in the middle: gap (4.5, 4) .. (5.5, 4), the left normal points north
+  const scene = (swing: GeomOpening['swing'], state: string, hinge: GeomOpening['hinge'] = 'start') => buildScene({
+    doc: { ...sample(), walls: [WALL('w', [[0.1, 0.5], [0.9, 0.5]])], openings: [OPENING('o', 'w', 'door', { swing, hinge, width_m: 1, anchor_ref: { resource_type: 'ha_entity', resource_id: 'door.o' } })], objects: [], connectors: [], labels: [], circuits: [], groups: [] },
+    width: 1000, height: 800, anchors: [], entityStates: { 'door.o': state }, circuitStates: {}, catalog,
+  });
+  const doors = (desc: SceneDescription) => desc.parts.filter((p) => p.kind === 'door');
+  expect(doors(scene('none', 'open'))).toEqual([]);
+  expect(byId(scene('none', 'open'), 'lintel:o')).toBeTruthy();
+  const slidingShut = byId(scene('sliding', 'off'), 'door:o');
+  expect([slidingShut.position[0], slidingShut.position[2], slidingShut.rotation[1]]).toEqual([5, 3.88, 0]); // over the gap, 0.12 w off the wall
+  const slidingOpen = byId(scene('sliding', 'open'), 'door:o');
+  expect([slidingOpen.position[0], slidingOpen.position[2]]).toEqual([4, 3.88]); // slid one width toward its hinge jamb
+  const double = scene('double', 'open');
+  expect(doors(double).map((p) => p.size[0])).toEqual([0.5, 0.5]);
+  const [a, b] = [ends(byId(double, 'door:o#0')), ends(byId(double, 'door:o#1'))];
+  const c80 = Math.cos((80 * Math.PI) / 180);
+  const s80 = Math.sin((80 * Math.PI) / 180);
+  expect(a.some((e) => near(e, [4.5, 4])) && a.some((e) => near(e, [4.5 + 0.5 * c80, 4 - 0.5 * s80]))).toBe(true);
+  expect(b.some((e) => near(e, [5.5, 4])) && b.some((e) => near(e, [5.5 - 0.5 * c80, 4 - 0.5 * s80]))).toBe(true);
+  const closedDouble = scene('double', 'closed');
+  expect(doors(closedDouble).every((p) => p.rotation[1] === 0 && p.position[2] === 4)).toBe(true);
+  // no swing stored: right, as geometry.ts draws it - the leaf opens to the south of the wall
+  const dflt = ends(byId(scene('' as unknown as GeomOpening['swing'], 'open'), 'door:o'));
+  expect(dflt.some((e) => near(e, [4.5, 4])) && dflt.some((e) => near(e, [4.5 + c80, 4 + s80]))).toBe(true);
+  // a wall without its own height reaches the ceiling from its base (L0 ceiling 3 m, base 1 m: 2 m tall, top at 3 m)
+  const raised = buildScene({ doc: { ...sample(), walls: [WALL('r', [[0.1, 0.5], [0.9, 0.5]], 'L0', { base_z_m: 1 })], openings: [], objects: [], connectors: [], labels: [] }, width: 1000, height: 800, anchors: [], entityStates: {}, circuitStates: {}, catalog });
+  expect(byId(raised, 'wall:r#0').size[1]).toBe(2);
+  expect(byId(raised, 'wall:r#0').position[1]).toBe(2);
 });
 
 test('the isometric projection of the building page comes from the same description', () => {
