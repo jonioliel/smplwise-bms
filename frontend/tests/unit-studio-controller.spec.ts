@@ -282,4 +282,25 @@ test.describe('studio controller (unit)', () => {
     expect(c.revision).toBe(9);
     expect(c.hash).toBe('v3-h9');
   });
+
+  // Plan Studio phase 3 (T086): the detection accept edits the draft on the server; its answer is taken like a save's.
+  test('adopt takes a server-edited draft as one undo step, and the undo saves on the adopted revision', async () => {
+    const { api, saves, elsewhere } = fakeApi(sample());
+    const c = new StudioController(host(), api, 20);
+    await c.load('v1');
+    const before = c.doc!;
+    elsewhere(); // the accept saved revision 1 on the server
+    const merged = { ...before, walls: [...before.walls, { ...before.walls[0], id: 'auto-w1', source: 'auto' as const }] };
+    c.adopt({ geometry: row(1, 'draft'), doc: merged, issues: [], published_hash: null });
+    expect(c.revision).toBe(1);
+    expect(c.hash).toBe('h1');
+    expect(c.doc).toBe(merged);
+    expect(c.saveState).toBe('saved');
+    expect(c.canUndo).toBe(true);
+    expect(await c.flush()).toBe(true); // nothing left to save
+    expect(saves).toEqual([]);
+    c.undo();
+    await sleep(80);
+    expect(saves).toEqual([{ revision: 2, walls: before.walls.length }]);
+  });
 });

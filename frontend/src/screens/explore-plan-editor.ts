@@ -20,14 +20,15 @@ import type { Anchor, Camera, PlanVersion } from '../api/types';
 import { domainLabel, entityMarkerKind, listEntities, stateLabel, type HaEntity } from '../api/ha';
 import { ROOM_FILL_LABEL, setRenderMode, stylizeVersion, type RoomFill, type StylizeResult } from '../api/plans';
 import { ZONE_KINDS, acceptZones, createZone, deleteZone, detectZones, pointInPolygon, updateZone, zoneKindLabel, type SpatialZone, type ZoneKind, type ZonePoint } from '../api/zones';
-import { calibrate, copyGeometryFrom, exportUrl, geometryDiff, linkConnector, publishGeometry, type GeometryDiffResponse } from '../api/geometry';
+import { acceptDetection, calibrate, calibrateEstimate, copyGeometryFrom, detectStructure, exportUrl, geometryDiff, linkConnector, publishGeometry, type DetectResult, type DetectTarget, type GeometryDiffResponse } from '../api/geometry';
+import { allIds, byConfidence, byKind, defaultStates, fromResult, moveVertex as moveCandidateVertex, rescale, takeDxfCandidates, withParents, type CandidateSet, type CandKind, type CandState } from '../map/candidates';
 import { loadTree, type CatalogTree } from '../api/catalog';
 import { productSettings } from '../api/prefs';
 import { createItem, exportUrl as catalogExportUrl, importItems, itemOf, loadLibrary, lookupOf, type CatalogItem, type CatalogLibrary } from '../api/plan-catalog';
 import { distanceM, effectiveScale, isClosedOutline, lengthPx, nearestWall, pointOnWall, snapPoint, type CatalogLookup, type ConnectorKind, type GeometryDoc, type GeomOpening, type GeomWall, type Pt } from '../map/geometry';
 import { StudioController } from '../map/studio-controller';
 import { ARRAY_MAX, BIND_DISTANCE_M, CIRCUIT_COLORS, addArray, addCircuit, addConnector, addLabel, addLevel, addObject, addOpening, addWall, arrayDefaults, circuitPower, defaultLevelId, duplicateObject, kindDefaults, moveConnectorVertex, moveGroup, moveObject, moveVertex, newId, nudgeT, openingRange, patchCircuit, patchConnector, patchLabel, patchObject, patchOpening, patchWall, removeCorner, removeGroup, removeItem, rotationTo, stretchedSize, toggleCircuitMember, visibleUnderLevel, wallDirectionAt, type WallDefaults } from '../map/studio-ops';
-import { COLL_LABEL, CONNECTOR_LABEL, connectorDerived, countLabel, fmtMetres, fmtScale, renderArrayDialog, renderCalibPanel, renderCircuitPanel, renderConnectorPanel, renderCustomItemDialog, renderGroupDeleteDialog, renderGroupInspector, renderLevelChips, renderLevelDialog, renderLibraryPanel, renderMeasurePanel, renderObjectInspector, renderStudioPanel, studioPanelStyles, type ArrayDialogView, type CustomItemView, type GeomKind, type GeomSel, type LevelDialogView, type StudioMode } from './plan-studio-panel';
+import { COLL_LABEL, CONNECTOR_LABEL, connectorDerived, countLabel, fmtMetres, fmtScale, renderArrayDialog, renderCalibPanel, renderCircuitPanel, renderConnectorPanel, renderCustomItemDialog, renderGroupDeleteDialog, renderGroupInspector, renderLevelChips, renderLevelDialog, renderDetectPanel, renderLibraryPanel, renderMeasurePanel, renderObjectInspector, renderStudioPanel, studioPanelStyles, lighterStrength, type ArrayDialogView, type CustomItemView, type DetectAcceptError, type DetectOpts, type DetectReplaceAsk, type DetectRunState, type GeomKind, type GeomSel, type LevelDialogView, type StudioMode } from './plan-studio-panel';
 
 type Strength = 'light' | 'medium' | 'strong';
 interface ZoneCandidate {
@@ -39,7 +40,7 @@ interface ZoneCandidate {
 /** Same palette as the backend assigns on save, so candidates keep their colour once accepted. */
 const PALETTE = ['#2767ED', '#22A06B', '#F59E0B', '#8B5CF6', '#0EA5E9', '#EC4899', '#14B8A6', '#F97316'];
 
-type Tool = 'select' | 'camera' | 'lights' | 'entity' | 'zones' | 'structure' | 'library' | 'connectors' | 'circuits' | 'calibrate' | 'measure' | 'layers';
+type Tool = 'select' | 'camera' | 'lights' | 'entity' | 'zones' | 'structure' | 'library' | 'connectors' | 'circuits' | 'calibrate' | 'measure' | 'detect' | 'layers';
 type Layer = 'cameras' | 'doors' | 'lights' | 'sensors';
 
 const TOOLS: { id: Tool; icon: IconName; label: string; ready: boolean }[] = [
@@ -54,11 +55,12 @@ const TOOLS: { id: Tool; icon: IconName; label: string; ready: boolean }[] = [
   { id: 'circuits', icon: 'bolt', label: 'מעגלי תאורה', ready: true },
   { id: 'calibrate', icon: 'scale', label: 'כיול קנה מידה', ready: true },
   { id: 'measure', icon: 'ruler', label: 'מדידת מרחק ושטח', ready: true },
+  { id: 'detect', icon: 'sparkle', label: 'זיהוי אוטומטי של קירות ופתחים', ready: true },
   { id: 'layers', icon: 'layers', label: 'שכבות', ready: true },
 ];
 
 /** Tools that work on the Plan Studio structure document (they need map.edit on the floor). */
-const STUDIO_TOOLS: Tool[] = ['structure', 'library', 'connectors', 'circuits', 'calibrate', 'measure'];
+const STUDIO_TOOLS: Tool[] = ['structure', 'library', 'connectors', 'circuits', 'calibrate', 'measure', 'detect'];
 interface CalibState {
   a: Pt | null;
   b: Pt | null;
@@ -106,6 +108,8 @@ export class ExplorePlanEditor extends LitElement {
   @property() floorId = '';
   /** `?entity=<id>` from the catalogue: opens the entity tool with that id pre-searched. */
   @property() presetEntity = '';
+  /** `?candidates=dxf`: the import screen stashed DXF candidates for this version; the detect tool opens on them. */
+  @property() presetCandidates = '';
   @state() private bundle: MapBundle | null = null;
   @state() private anchors: Anchor[] = [];
   @state() private dirty = new Set<string>();
@@ -196,6 +200,22 @@ export class ExplorePlanEditor extends LitElement {
   @state() private geomDiff: { versionId: string; data: GeometryDiffResponse | null; error: string } | null = null;
   /** Setting `plan.estimates` (default true): estimated metres carry "≈" before calibration; false hides them. */
   @state() private showEstimates = true;
+  /** Plan Studio phase 3 (T086): the detect tool - options, the running request, the candidate set and its states. The
+   * set outlives a tool switch (only drawn while the tool is active) until it is confirmed, discarded or replaced. */
+  @state() private detectOpts: DetectOpts = { walls: true, openings: true, strength: 0.6, replaceAuto: true };
+  @state() private detectRun: DetectRunState = { busy: false, startedAt: 0, elapsed: 0, error: '', timedOut: false };
+  @state() private cands: { set: CandidateSet; result: DetectResult; source: 'detect' | 'dxf' } | null = null;
+  @state() private candStates: Record<string, CandState> = {};
+  @state() private candSel: string | null = null;
+  @state() private candEdits: Record<string, Partial<GeomWall>> = {};
+  @state() private candObjectsOn = true;
+  @state() private hintApplied = false;
+  @state() private detectAsk: DetectReplaceAsk | null = null;
+  @state() private detectErr: DetectAcceptError | null = null;
+  /** A phone (the same query as `phone`): candidates are accepted or rejected there, their end points are not dragged. */
+  @state() private narrow = false;
+  private onNarrow = () => (this.narrow = this.phone.matches);
+  private elapsedTimer: ReturnType<typeof setInterval> | undefined;
   private entTimer = 0;
   private onKey = (e: KeyboardEvent) => this.handleKey(e);
 
@@ -616,6 +636,8 @@ export class ExplorePlanEditor extends LitElement {
     super.connectedCallback();
     void this.load();
     window.addEventListener('keydown', this.onKey);
+    this.narrow = this.phone.matches;
+    this.phone.addEventListener('change', this.onNarrow);
     if (this.presetEntity) {
       this.tool = 'entity';
       this.entQ = this.presetEntity;
@@ -626,6 +648,8 @@ export class ExplorePlanEditor extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     window.removeEventListener('keydown', this.onKey);
+    this.phone.removeEventListener('change', this.onNarrow);
+    clearInterval(this.elapsedTimer);
     void this.studio.flush(); // an edit younger than the autosave delay is still saved when the editor closes
   }
 
@@ -894,6 +918,11 @@ export class ExplorePlanEditor extends LitElement {
       if (this.arrayDialog || this.groupDelete || this.customDialog) { this.arrayDialog = null; this.groupDelete = null; this.customDialog = null; return; }
       if (this.connStart) { this.connStart = null; return; }
       if (this.tool === 'circuits' && this.membersMode) { this.membersMode = false; return; }
+      if (this.tool === 'detect') {
+        if (this.detectAsk) this.detectAsk = null;
+        else this.pickTool('select');
+        return;
+      }
       if (this.placingItem) this.placingItem = null;
       else if (this.bindOffer) this.bindOffer = null;
       else if (this.wallDraft) {
@@ -1241,6 +1270,10 @@ export class ExplorePlanEditor extends LitElement {
     if (tool !== 'structure') this.geomSel = null;
     if (tool !== 'measure') this.measurePts = [];
     if (tool !== 'calibrate') this.calib = { ...EMPTY_CALIB };
+    if (tool !== 'detect') {
+      this.candSel = null; // the candidate set stays (not drawn) until the tool returns, a new run, confirm or discard
+      this.detectAsk = null;
+    }
     if (tool === 'entity' || tool === 'lights') {
       this.entResults = null; // the two tools list different sets
       void this.searchEntities();
@@ -1270,6 +1303,8 @@ export class ExplorePlanEditor extends LitElement {
       this.wallDraft = null;
       this.calib = { ...EMPTY_CALIB }; // points and measures belong to the document they were taken on
       this.measurePts = [];
+      if (this.cands && this.cands.result.version_id !== b.planVersionId) this.discardCandidates(); // candidates belong to the version they came from
+      if (this.presetCandidates === 'dxf') this.takeDxf(b.planVersionId);
       return true;
     } catch (err) {
       this.studioVersion = null;
@@ -1640,6 +1675,7 @@ export class ExplorePlanEditor extends LitElement {
   /** Clicks on the plan go to the studio tool instead of selecting pins. */
   private get studioPlacing(): boolean {
     if (!this.studioOn) return false;
+    if (this.tool === 'detect') return false; // its clicks are candidate clicks, handled by the canvas hits
     if (this.tool === 'library') return !!this.placingItem;
     if (this.tool === 'connectors') return !!this.connMode;
     if (this.tool === 'circuits') return false; // a click on a lamp selects it (member mode); a bare click places nothing
@@ -2028,6 +2064,14 @@ export class ExplorePlanEditor extends LitElement {
       this.lastDrawClick = null;
       return true;
     }
+    if (this.tool === 'detect') {
+      if ((e.key === 'Delete' || e.key === 'Backspace') && this.candSel) {
+        e.preventDefault();
+        if ((this.candStates[this.candSel] ?? 'accepted') === 'accepted') this.toggleCandidate(this.candSel);
+        return true;
+      }
+      if (this.busy && mod && (key === 'z' || key === 'y')) return true; // no undo while the accept is in flight
+    }
     if ((e.key === 'Delete' || e.key === 'Backspace') && this.geomSel) {
       e.preventDefault();
       const { id, kind, vertex } = this.geomSel;
@@ -2122,6 +2166,350 @@ export class ExplorePlanEditor extends LitElement {
     } finally {
       this.busy = false;
     }
+  }
+
+  // ---- Plan Studio: detection (T086) ----
+
+  private takeDxf(versionId: string) {
+    const r = takeDxfCandidates(versionId);
+    this.presetCandidates = '';
+    if (!r) return;
+    this.showCandidates(r, 'dxf');
+    this.pickTool('detect');
+  }
+
+  /** A fresh candidate set: detected metres follow the document's effective scale (the server may have assumed another
+   * one); DXF metres come from the drawing's units and stay. Everything starts accepted. */
+  private showCandidates(r: DetectResult, source: 'detect' | 'dxf') {
+    const doc = this.studio.doc;
+    let set = fromResult(r);
+    if (doc && source === 'detect') {
+      const { scale } = effectiveScale(doc);
+      if (set.scaleMPerPx === null || Math.abs(set.scaleMPerPx - scale) > scale * 1e-6) set = rescale(set, scale);
+    }
+    this.cands = { set, result: r, source };
+    this.candStates = defaultStates(set);
+    this.candSel = null;
+    this.candEdits = {};
+    this.candObjectsOn = true;
+    this.hintApplied = false;
+    this.detectAsk = null;
+    this.detectErr = null;
+  }
+
+  private async runDetect() {
+    const b = this.bundle;
+    if (!b?.planVersionId || this.detectRun.busy || this.busy || !this.detectOpts.walls) return;
+    if (!(await this.studio.flush())) {
+      this.error = this.studio.error;
+      return;
+    }
+    const targets: DetectTarget[] = this.detectOpts.openings ? ['walls', 'openings'] : ['walls'];
+    const startedAt = Date.now();
+    this.detectRun = { busy: true, startedAt, elapsed: 0, error: '', timedOut: false };
+    clearInterval(this.elapsedTimer);
+    this.elapsedTimer = setInterval(() => (this.detectRun = { ...this.detectRun, elapsed: Math.round((Date.now() - startedAt) / 1000) }), 500);
+    try {
+      const r = await detectStructure(b.planVersionId, { targets, strength: this.detectOpts.strength });
+      if (this.bundle?.planVersionId !== r.version_id) return; // the editor moved to another version meanwhile
+      this.showCandidates(r, 'detect');
+      this.detectRun = { busy: false, startedAt: 0, elapsed: Math.round((Date.now() - startedAt) / 1000), error: '', timedOut: false };
+    } catch (err) {
+      const timedOut = err instanceof ApiError && err.code === 'detect_timeout';
+      const limit = timedOut && err instanceof ApiError ? Number(err.body.details?.timeout_s) || 60 : 60;
+      this.detectRun = {
+        busy: false, startedAt: 0, elapsed: 0, timedOut,
+        error: timedOut ? `הזיהוי לא הסתיים תוך ${limit} שניות. נסה שוב בעוצמת ניקוי נמוכה יותר (תוכנית גדולה או סריקה רועשת לוקחות זמן).` : describeError(err),
+      };
+    } finally {
+      clearInterval(this.elapsedTimer);
+      if (this.detectRun.busy) this.detectRun = { ...this.detectRun, busy: false };
+    }
+  }
+
+  /** A click toggles; a rejected wall takes its openings along, an accepted opening brings its wall back. */
+  private toggleCandidate(id: string) {
+    const set = this.cands?.set;
+    if (!set || this.busy) return;
+    const next: CandState = (this.candStates[id] ?? 'accepted') === 'accepted' ? 'rejected' : 'accepted';
+    const states = { ...this.candStates, [id]: next };
+    if (next === 'rejected') {
+      for (const o of set.openings) if (o.wall_id === id) states[o.id] = 'rejected';
+    } else {
+      const o = set.openings.find((x) => x.id === id);
+      if (o) states[o.wall_id] = 'accepted';
+    }
+    this.candStates = states;
+    this.candSel = id;
+    this.detectAsk = null;
+  }
+
+  private acceptRule(ids: string[]) {
+    const set = this.cands?.set;
+    if (!set || this.busy) return;
+    const keep = new Set(withParents(set, ids));
+    this.candStates = Object.fromEntries(allIds(set).map((id) => [id, keep.has(id) ? ('accepted' as const) : ('rejected' as const)]));
+    this.detectAsk = null;
+  }
+
+  /** The ids "אשר" sends: accepted walls and openings (an accepted opening always with its wall), then the DXF objects
+   * when they are included. Rooms never: they go to the zones layer. */
+  private get acceptedCandidateIds(): string[] {
+    const set = this.cands?.set;
+    if (!set) return [];
+    const shapes = withParents(set, allIds(set).filter((id) => (this.candStates[id] ?? 'accepted') === 'accepted'));
+    return this.candObjectsOn ? [...shapes, ...set.objects.map((o) => o.id)] : shapes;
+  }
+
+  private focusCandidate(id: string) {
+    const b = this.bundle;
+    const set = this.cands?.set;
+    if (!b || !set) return;
+    this.candSel = id;
+    const w = set.walls.find((x) => x.id === id);
+    const o = set.openings.find((x) => x.id === id);
+    const host = o ? set.walls.find((x) => x.id === o.wall_id) : undefined;
+    const at: Pt | null = w ? pointOnWall(w, 0.5, b.width, b.height) : host && o ? pointOnWall(host, o.t, b.width, b.height) : null;
+    if (at) this.canvas?.centerOn(Math.min(1, Math.max(0, at[0])), Math.min(1, Math.max(0, at[1])));
+  }
+
+  private onCandidateDrag(d: { id: string; index: number; x: number; y: number }) {
+    const c = this.cands;
+    if (!c || this.narrow || this.busy) return;
+    const set = moveCandidateVertex(c.set, d.id, d.index, [d.x, d.y]);
+    if (set === c.set) return;
+    const w = set.walls.find((x) => x.id === d.id);
+    if (!w) return;
+    this.cands = { ...c, set };
+    this.candEdits = { ...this.candEdits, [d.id]: { polyline: w.polyline } };
+    this.candSel = d.id;
+  }
+
+  private discardCandidates() {
+    this.cands = null;
+    this.candStates = {};
+    this.candSel = null;
+    this.candEdits = {};
+    this.candObjectsOn = true;
+    this.hintApplied = false;
+    this.detectAsk = null;
+    this.detectErr = null;
+  }
+
+  /** The sources the accepted candidates carry: the server's replace_auto removes the draft's unlocked items of exactly these. */
+  private acceptedSources(): Set<string> {
+    const c = this.cands;
+    const ids = new Set(this.acceptedCandidateIds);
+    const out = new Set<string>();
+    if (!c) return out;
+    for (const i of [...c.set.walls, ...c.set.openings, ...c.set.objects]) if (ids.has(i.id)) out.add(i.source);
+    return out;
+  }
+
+  /** Openings of another source on the walls a replace removes (merge_candidates' removed_manual_openings, counted ahead). */
+  private manualOnReplaced(doc: GeometryDoc): number {
+    const sources = this.acceptedSources();
+    const replaced = (i: { source: string; locked?: boolean }) => sources.has(i.source) && i.locked !== true;
+    const gone = new Set(doc.walls.filter(replaced).map((w) => w.id));
+    return doc.openings.filter((o) => !replaced(o) && gone.has(o.wall_id)).length;
+  }
+
+  /** "אשר": when the accept replaces earlier automatic items, one more step names what goes; otherwise it is sent. */
+  private confirmCandidates() {
+    const c = this.cands;
+    const doc = this.studio.doc;
+    if (!c || !doc || !this.acceptedCandidateIds.length || this.busy) return;
+    const existing = c.result.existing_auto;
+    if (this.detectOpts.replaceAuto && existing.walls + existing.openings > 0) {
+      this.detectAsk = { existing, manualOnAuto: this.manualOnReplaced(doc) };
+      return;
+    }
+    void this.sendAccept();
+  }
+
+  private async sendAccept() {
+    const b = this.bundle;
+    const c = this.cands;
+    const ids = this.acceptedCandidateIds;
+    if (!b?.planVersionId || !c || !ids.length || this.busy) return;
+    const existing = c.result.existing_auto;
+    const replace = this.detectOpts.replaceAuto && existing.walls + existing.openings > 0;
+    this.busy = true;
+    this.error = '';
+    this.detectErr = null;
+    try {
+      if (!(await this.studio.flush())) {
+        this.error = this.studio.error;
+        return;
+      }
+      const kept = new Set(ids);
+      const edits = Object.fromEntries(Object.entries(this.candEdits).filter(([id]) => kept.has(id)));
+      const r = await acceptDetection(b.planVersionId, {
+        accepted: ids, edits, replace_auto: replace,
+        candidates: { walls: c.set.walls, openings: c.set.openings, objects: c.set.objects },
+        base_revision: this.studio.revision, detector: c.result.detector,
+      });
+      this.studio.adopt(r); // like a save's answer: revision, hash, document, issues - and one undo step
+      const m = r.merge;
+      this.discardCandidates();
+      this.geomSel = null;
+      this.info = `${countLabel(ids.length, 'פריט אחד נוסף', 'פריטים נוספו')} לטיוטת המבנה${m?.removed_auto ? ` · ${m.removed_auto} קודמים הוחלפו` : ''}${m?.removed_manual_openings ? ` · ${countLabel(m.removed_manual_openings, 'פתח ידני אחד הוסר', 'פתחים ידניים הוסרו')} עם הקירות שלהם` : ''}; בדוק ופרסם`;
+      setTimeout(() => (this.info = ''), 6000);
+    } catch (err) {
+      const e = this.acceptErrorOf(err);
+      this.detectErr = e;
+      if (e.ids.length) this.focusCandidate(e.ids[0]);
+    } finally {
+      this.busy = false;
+      this.detectAsk = null;
+    }
+  }
+
+  /** A refused accept in Hebrew, with the candidate ids to mark (the codes of routers/plan_geometry.py detect/accept). */
+  private acceptErrorOf(err: unknown): DetectAcceptError {
+    const set = this.cands?.set;
+    const known = new Set(set ? [...allIds(set), ...set.objects.map((o) => o.id)] : []);
+    if (!(err instanceof ApiError)) return { code: 'network', message: describeError(err), ids: [], issues: [], stale: false };
+    const details = err.body.details ?? {};
+    const rawIds = Array.isArray(details.ids) ? details.ids.filter((x): x is string => typeof x === 'string') : [];
+    const rawIssues = Array.isArray(details.issues) ? (details.issues as unknown[]) : [];
+    const issues = rawIssues
+      .filter((i): i is { id?: unknown; message?: unknown } => typeof i === 'object' && i !== null)
+      .map((i) => ({ id: typeof i.id === 'string' ? i.id : null, message: typeof i.message === 'string' ? i.message : 'בעיה במבנה' }));
+    const ids = [...new Set([...rawIds, ...issues.map((i) => i.id).filter((x): x is string => !!x)])].filter((id) => known.has(id));
+    const copy: Record<string, string> = {
+      stale_revision: 'טיוטת המבנה השתנתה בינתיים (עריכה בחלון אחר). טען את הטיוטה מחדש ואשר שוב; המועמדים נשארים.',
+      unknown_candidate: 'מועמד שסומן לאישור לא נמצא בין המועמדים שנשלחו; הרץ זיהוי מחדש.',
+      orphan_opening: 'פתח סומן לאישור בלי הקיר שלו: קבל גם את הקיר או דחה את הפתח.',
+      candidate_source: 'מועמד בלי מקור אוטומטי או מיובא נשלח לאישור; הרץ זיהוי מחדש.',
+      duplicate_candidate: 'אותו מועמד נשלח פעמיים; הרץ זיהוי מחדש.',
+      candidate_shape: 'צורת מועמד שגויה (למשל פתח בלי מזהה קיר); דחה את המסומנים ברשימה ונסה שוב.',
+      geometry_structure: 'המועמדים שנבחרו יוצרים מבנה לא תקין, ודבר לא נשמר. דחה או תקן את המסומנים ונסה שוב.',
+    };
+    return { code: err.code, message: copy[err.code] ?? describeError(err), ids, issues, stale: err.code === 'stale_revision' };
+  }
+
+  /** After a stale refusal: the stored draft replaces the local one (nothing unsaved is dropped: loadStudio flushes first). */
+  private async reloadForDetect() {
+    const b = this.bundle;
+    if (!b || this.busy) return;
+    this.busy = true;
+    try {
+      if (await this.loadStudio(b, true)) this.detectErr = null;
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  /** The door-width estimate is offered only while the document's calibration is not measured. */
+  private get canEstimate(): boolean {
+    return this.studio.doc?.dimensions.calibration?.status !== 'measured';
+  }
+
+  /** The candidates' metres follow the document's effective scale (after a calibration change or a reload). */
+  private rescaleCandidates() {
+    const doc = this.studio.doc;
+    const c = this.cands;
+    if (doc && c && c.source === 'detect') this.cands = { ...c, set: rescale(c.set, effectiveScale(doc).scale) };
+  }
+
+  private async applyCalibHint() {
+    const b = this.bundle;
+    const c = this.cands;
+    const hint = c?.result.calibration_hint;
+    if (!b?.planVersionId || !c || !hint || this.busy) return;
+    this.busy = true;
+    this.error = '';
+    try {
+      // The server rewrites the stored draft: an edit that is not saved yet would be lost or refused as stale.
+      if (!(await this.studio.flush())) {
+        this.error = this.studio.error;
+        return;
+      }
+      if (!this.canEstimate) {
+        this.error = 'לתוכנית כבר יש כיול מדוד; ההערכה לא הוחלה.';
+        return;
+      }
+      const r = await calibrateEstimate(b.planVersionId, hint.scale_m_per_px, hint.reason);
+      this.bundle = { ...b, scaleMPerPx: r.scale_m_per_px };
+      if (!(await this.loadStudio(this.bundle, true))) return;
+      this.rescaleCandidates();
+      this.hintApplied = true;
+      this.info = `קנה מידה משוער נשמר: ≈ ${fmtScale(r.scale_m_per_px)}`;
+      setTimeout(() => (this.info = ''), 4000);
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'calibration_measured') {
+        this.error = 'לתוכנית כבר יש כיול מדוד (כנראה מחלון אחר); הערכה לא מחליפה אותו. המידות לפי הכיול הקיים.';
+        if (await this.loadStudio(b, true)) this.rescaleCandidates(); // the measured calibration arrives and the hint goes away
+      } else this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private async importDxfRooms() {
+    const b = this.bundle;
+    const rooms = this.cands?.result.rooms ?? [];
+    if (!b || !rooms.length || this.busy) return;
+    this.busy = true;
+    try {
+      const r = await acceptZones(b.floorId, rooms.map((x) => ({ polygon: x.polygon, name: x.name })), false);
+      this.zones = r.zones;
+      this.cands = this.cands ? { ...this.cands, result: { ...this.cands.result, rooms: [] } } : null;
+      this.info = `${countLabel(rooms.length, 'חדר אחד נוסף', 'חדרים נוספו')} כאזורים; תן להם שמות בכלי "חדרים ואזורים"`;
+      setTimeout(() => (this.info = ''), 4000);
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private renderDetectTool(b: MapBundle) {
+    const doc = this.studio.doc;
+    if (!doc || !b.planVersionId) {
+      return html`<sw-card heading="זיהוי אוטומטי" data-detect-panel><div class="note">${b.source === 'demo' ? 'נתוני הדגמה: הזיהוי עובד מול השרת.' : this.error || 'טוען את טיוטת המבנה…'}</div></sw-card>`;
+    }
+    const { scale, estimated } = effectiveScale(doc);
+    const c = this.cands;
+    return renderDetectPanel(
+      {
+        opts: this.detectOpts, run: this.detectRun,
+        cands: c ? { source: c.source, set: c.set, states: this.candStates, sel: this.candSel, hint: c.result.calibration_hint, existingAuto: c.result.existing_auto, elapsedMs: c.result.elapsed_ms ?? null, rooms: c.result.rooms?.length ?? 0 } : null,
+        acceptedCount: this.acceptedCandidateIds.length, objectsOn: this.candObjectsOn, hintApplied: this.hintApplied, canEstimate: this.canEstimate, busy: this.busy, narrow: this.narrow,
+        estimated, showEstimates: this.showEstimates, scale,
+        autoInDraft: doc.walls.filter((w) => w.source === 'auto').length + doc.openings.filter((o) => o.source === 'auto').length,
+        ask: this.detectAsk, acceptError: this.detectErr,
+      },
+      {
+        setOpts: (o) => {
+          this.detectOpts = o;
+          this.detectAsk = null;
+        },
+        run: () => void this.runDetect(),
+        retryLighter: () => {
+          this.detectOpts = { ...this.detectOpts, strength: lighterStrength(this.detectOpts.strength) };
+          void this.runDetect();
+        },
+        acceptAll: () => { if (c) this.acceptRule(allIds(c.set)); },
+        acceptAbove: (min) => { if (c) this.acceptRule(byConfidence(c.set, min)); },
+        acceptKinds: (kinds: CandKind[]) => { if (c) this.acceptRule(byKind(c.set, kinds)); },
+        rejectAll: () => this.acceptRule([]),
+        toggle: (id) => this.toggleCandidate(id),
+        focus: (id) => this.focusCandidate(id),
+        setObjects: (on) => {
+          this.candObjectsOn = on;
+          this.detectAsk = null;
+        },
+        confirm: () => this.confirmCandidates(),
+        confirmReplace: () => void this.sendAccept(),
+        cancelReplace: () => (this.detectAsk = null),
+        reload: () => void this.reloadForDetect(),
+        discard: () => this.discardCandidates(),
+        applyHint: () => void this.applyCalibHint(),
+        importRooms: () => void this.importDxfRooms(),
+      },
+    );
   }
 
   private exportJson() {
@@ -2418,6 +2806,7 @@ export class ExplorePlanEditor extends LitElement {
     if (this.tool === 'circuits') return this.renderCircuitTool(b);
     if (this.tool === 'calibrate') return this.renderCalibrate(b);
     if (this.tool === 'measure') return this.renderMeasure(b);
+    if (this.tool === 'detect') return this.renderDetectTool(b);
     if (this.tool === 'camera') {
       const available = b.cameras.filter((c) => !anchoredIds.has(c.id));
       return html`<sw-card heading="הוספת מצלמה" subheading="בחר מצלמה ואז לחץ על התוכנית במקום המבוקש">
@@ -2649,7 +3038,10 @@ export class ExplorePlanEditor extends LitElement {
                   .zones=${this.planZones} .selectedZoneId=${this.selectedZoneId} .draftPoints=${this.drawing ?? []}
                   .geometry=${this.geomPreview ?? this.studio.doc} .geomDrag=${this.geomDragMode} .structureLevel=${this.activeLevel} .selectedGeomId=${this.geomSel?.id ?? null} .highlightIds=${this.geomSel?.kind === 'group' ? (this.studio.doc?.groups.find((g) => g.id === this.geomSel!.id)?.member_ids ?? []) : this.tool === 'circuits' && this.circuitSel ? (this.studio.doc?.circuits.find((k) => k.id === this.circuitSel)?.member_ids ?? []) : []} .selectedVertex=${this.geomSel?.vertex ?? null} .issueIds=${this.issueIds}
                   .cornerSnapPx=${this.tool === 'structure' && this.studioMode === 'wall' ? CORNER_SNAP_PX : 0}
-                  .wallDraft=${this.wallDraft ?? []} .hoverPoint=${this.studioPlacing ? this.hover : null} .rulers=${this.rulers} .catalog=${this.catalogLookup} .anchorPositions=${Object.fromEntries(this.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees }]))}
+                  .wallDraft=${this.wallDraft ?? []} .hoverPoint=${this.studioPlacing ? this.hover : null} .rulers=${this.rulers} .catalog=${this.catalogLookup}
+                  .candidates=${this.tool === 'detect' && this.cands ? this.cands.set : null} .candidateStates=${this.candStates} .selectedCandidateId=${this.candSel} .candidateEditable=${this.tool === 'detect' && !this.narrow && !this.busy}
+                  @candidate-select=${(e: CustomEvent<{ id: string }>) => this.toggleCandidate(e.detail.id)}
+                  @candidate-drag=${(e: CustomEvent<{ id: string; index: number; x: number; y: number }>) => this.onCandidateDrag(e.detail)} .anchorPositions=${Object.fromEntries(this.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees }]))}
                   @plan-hover=${(e: CustomEvent<{ x: number; y: number; shift: boolean; item?: boolean }>) => this.onPlanHover(e.detail.x, e.detail.y, e.detail.shift, !!e.detail.item)}
                   @geom-select=${(e: CustomEvent<{ id: string; kind: GeomKind; vertex?: number }>) => this.onGeomSelect(e.detail.id, e.detail.kind, e.detail.vertex)}
                   @geom-drag-move=${(e: CustomEvent<GeomDragDetail>) => this.onGeomDragMove(e.detail)}
@@ -2657,11 +3049,11 @@ export class ExplorePlanEditor extends LitElement {
                   @geom-drag=${(e: CustomEvent<GeomDragDetail>) => this.onGeomDrag(e.detail)}
                   @zone-select=${(e: CustomEvent<{ id: string }>) => { if (this.placing || this.drawing || this.studioPlacing || e.detail.id.startsWith('cand-')) return; if (this.tool === 'structure' || this.tool === 'library') { this.geomSel = null; return; } this.selectedZoneId = e.detail.id; this.selectedId = null; }}
                   @zone-edit=${(e: CustomEvent<{ id: string; polygon: ZonePoint[] }>) => { const z = this.zones.find((x) => x.id === e.detail.id); if (z) void this.patchZone(z, { polygon: e.detail.polygon }); }}
-                  @marker-select=${(e: CustomEvent<MarkerSelectDetail>) => { if (this.placing || this.drawing || this.studioPlacing) return; this.selectedId = e.detail.id; this.selectedZoneId = null; this.geomSel = null; }}
+                  @marker-select=${(e: CustomEvent<MarkerSelectDetail>) => { if (this.placing || this.drawing || this.studioPlacing || this.tool === 'detect') return; this.selectedId = e.detail.id; this.selectedZoneId = null; this.geomSel = null; }}
                   @marker-move=${(e: CustomEvent<{ id: string; x: number; y: number }>) => { this.apply(e.detail.id, { position: { x: +e.detail.x.toFixed(4), y: +e.detail.y.toFixed(4) } }); this.selectedId = e.detail.id; }}
                   @marker-orient=${(e: CustomEvent<{ id: string; rotation: number; fov: number }>) => this.apply(e.detail.id, { rotation_degrees: e.detail.rotation, field_of_view_degrees: e.detail.fov })}
                   @marker-coverage=${(e: CustomEvent<{ id: string; radius?: number; polygon?: { x: number; y: number }[] }>) => this.apply(e.detail.id, e.detail.polygon ? { coverage_polygon: e.detail.polygon.map((p) => [p.x, p.y] as [number, number]) } : { coverage_radius: e.detail.radius })}
-                  @plan-click=${(e: CustomEvent<{ x: number; y: number; shift?: boolean }>) => (this.drawing ? this.addDraftPoint(e.detail.x, e.detail.y) : this.studioPlacing ? this.studioClick(e.detail.x, e.detail.y, !!e.detail.shift) : this.place(e.detail.x, e.detail.y))} @dragover=${(e: DragEvent) => { if (e.dataTransfer?.types.includes('text/x-sw-item')) e.preventDefault(); }} @drop=${(e: DragEvent) => this.onItemDrop(e)}></sw-plan-canvas>
+                  @plan-click=${(e: CustomEvent<{ x: number; y: number; shift?: boolean }>) => (this.tool === 'detect' ? (this.candSel = null) : this.drawing ? this.addDraftPoint(e.detail.x, e.detail.y) : this.studioPlacing ? this.studioClick(e.detail.x, e.detail.y, !!e.detail.shift) : this.place(e.detail.x, e.detail.y))} @dragover=${(e: DragEvent) => { if (e.dataTransfer?.types.includes('text/x-sw-item')) e.preventDefault(); }} @drop=${(e: DragEvent) => this.onItemDrop(e)}></sw-plan-canvas>
                 ${this.placing ? html`<div class="placing-hint"><span>לחץ על התוכנית כדי להציב את ${this.placing.kind === 'camera' ? this.placing.camera.name : this.placing.entity.name || this.placing.entity.entity_id} · Esc לביטול</span></div>` : nothing}
                 ${this.drawing ? html`<div class="placing-hint"><span>ציור אזור: לחץ להוספת פינות (${this.drawing.length}) · לחיצה על הפינה הראשונה או Enter מסיימים · Esc לביטול</span></div>` : nothing}
                 ${this.placingItem && !this.bindOffer ? html`<div class="placing-hint"><span>לחץ על התוכנית כדי להציב ${this.placingItem.names.he} · Esc לביטול</span></div>` : nothing}

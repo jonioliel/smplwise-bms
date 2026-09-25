@@ -4,7 +4,8 @@
  * state and passes callbacks; its shadow root provides the shared classes (.row, .two, .note, .btns, .err).
  */
 import { css, html, nothing, type TemplateResult } from 'lit';
-import type { CopyCandidate, GeometryIssue } from '../api/geometry';
+import type { CalibrationHint, CopyCandidate, GeometryIssue } from '../api/geometry';
+import type { CandidateSet, CandKind, CandState } from '../map/candidates';
 import { COLOR_TOKENS, OBJECT_SHAPES, SYMBOL_IDS, circuitToken, connectorLabel, effectiveScale, lengthPx, perimeterM, polygonAreaM2, type ConnectorKind, type GeometryDoc, type GeomCircuit, type GeomConnector, type GeomGroup, type GeomSize, type ObjectShape, type GeomLabel, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type Hinge, type OpeningKind, type Pt, type Swing, type WallKind } from '../map/geometry';
 import type { CatalogItem, CatalogLibrary, ParamSpec } from '../api/plan-catalog';
 import type { HaEntity } from '../api/ha';
@@ -70,6 +71,12 @@ export function countLabel(n: number, one: string, many: string): string {
   return n === 1 ? one : `${n} ${many}`;
 }
 
+/** Walls and openings a detector or an import produced (keyed on `source`, never on the id prefix: an accepted id that
+ * collided with the draft is re-issued as a plain id). */
+function autoCount(doc: GeometryDoc): number {
+  return doc.walls.filter((w) => w.source !== 'manual').length + doc.openings.filter((o) => o.source !== 'manual').length;
+}
+
 export function fmtScale(scaleMPerPx: number): string {
   return `1 מ׳ = ${(1 / scaleMPerPx).toFixed(1)} פיקסלים בתוכנית`;
 }
@@ -131,8 +138,8 @@ export function renderStudioPanel(v: StudioView, a: StudioActions): TemplateResu
     <div class="note">${mode.hint}</div>
     ${mode.drag ? html`<div class="note" data-studio-drag-hint>${mode.drag}</div>` : nothing}
     ${v.mode === 'wall' ? renderWallDefaults(v.wallDefaults, a) : nothing}
-    <div class="row"><span class="lbl">קנה מידה<span class="muted" data-studio-scale>${estimated ? (v.showEstimates ? 'לא מכויל: מידות משוערות (≈)' : 'לא מכויל: מידות מוסתרות עד הכיול') : fmtScale(scale)}</span></span><sw-button size="sm" icon="scale" data-studio-calibrate @click=${() => a.calibrate()}>${estimated ? 'כיול' : 'כיול מחדש'}</sw-button></div>
-    <div class="note" data-studio-counts>${countLabel(v.doc.walls.length, 'קיר אחד', 'קירות')} · ${countLabel(v.doc.openings.length, 'פתח אחד', 'פתחים')} · ${countLabel(v.doc.labels.length, 'תווית אחת', 'תוויות')}</div>
+    <div class="row"><span class="lbl">קנה מידה<span class="muted" data-studio-scale>${v.doc.dimensions.calibration?.status === 'estimated' ? `≈ ${fmtScale(scale)} (הערכה, לא מדוד)` : estimated ? (v.showEstimates ? 'לא מכויל: מידות משוערות (≈)' : 'לא מכויל: מידות מוסתרות עד הכיול') : fmtScale(scale)}</span></span><sw-button size="sm" icon="scale" data-studio-calibrate @click=${() => a.calibrate()}>${estimated ? 'כיול' : 'כיול מחדש'}</sw-button></div>
+    <div class="note" data-studio-counts>${countLabel(v.doc.walls.length, 'קיר אחד', 'קירות')} · ${countLabel(v.doc.openings.length, 'פתח אחד', 'פתחים')} · ${countLabel(v.doc.labels.length, 'תווית אחת', 'תוויות')}${autoCount(v.doc) ? html` · <span data-studio-auto-count>${autoCount(v.doc)} אוטומטיים / מיובאים</span>` : nothing}</div>
     ${v.sel ? renderSelection(v, v.sel, a, scale, estimated) : nothing}
     ${errors.length || warnings.length ? renderIssues(errors, warnings, a) : nothing}
     ${empty && v.copyCandidates.length ? renderCopy(v.copyCandidates, a, v.busy) : nothing}
@@ -184,6 +191,7 @@ function renderWall(w: GeomWall, v: StudioView, a: StudioActions, scale: number,
   const openings = v.doc.openings.filter((o) => o.wall_id === w.id).length;
   return html`<div class="sel" data-selected-wall=${w.id}>
     <div class="selhead"><strong>קיר ${WALL_KIND_LABEL[w.kind]}</strong><span class="muted">${fmtMetres(len, estimated, v.showEstimates)} · ${countLabel(openings, 'פתח אחד', 'פתחים')}</span></div>
+    ${renderSourceBadge(w)}
     <div class="two">
       <sw-field label="עובי (מ׳)"><input type="number" min="0.01" max="3" step="0.01" data-ltr .value=${String(w.thickness_m)}
         @change=${(e: Event) => { const x = numberOf(e); if (x > 0 && x <= 3) a.patchWall(w.id, { thickness_m: x }); }} /></sw-field>
@@ -230,6 +238,7 @@ function renderPlacement(o: GeomOpening, v: StudioView, a: StudioActions, scale:
 function renderOpening(o: GeomOpening, v: StudioView, a: StudioActions, scale: number, estimated: boolean) {
   return html`<div class="sel" data-selected-opening=${o.id}>
     <div class="selhead"><strong>${OPENING_KIND_LABEL[o.kind]}</strong><span class="muted">${o.width_m.toFixed(2)} מ׳ רוחב${o.anchor_ref ? ' · מקושר לישות' : ''}</span></div>
+    ${renderSourceBadge(o)}
     <div class="two">
       <sw-field label="סוג"><select aria-label="סוג פתח" @change=${(e: Event) => a.patchOpening(o.id, kindDefaults((e.target as HTMLSelectElement).value as OpeningKind))}>
         ${(Object.keys(OPENING_KIND_LABEL) as OpeningKind[]).map((k) => html`<option value=${k} ?selected=${o.kind === k}>${OPENING_KIND_LABEL[k]}</option>`)}
@@ -340,6 +349,221 @@ export function renderMeasurePanel(pts: Pt[], W: number, H: number, scale: numbe
       : nothing}
     <div class="btns"><sw-button variant="ghost" size="sm" data-measure-clear ?disabled=${!pts.length} @click=${onClear}>נקה</sw-button></div>
   </sw-card>`;
+}
+
+// ---------------------------------------------------------------- detection (phase 3, T086)
+
+export interface DetectOpts {
+  walls: boolean;
+  openings: boolean;
+  /** 0.3 (light) .. 1.0 (strong) morphology, the server's strength. */
+  strength: number;
+  replaceAuto: boolean;
+}
+export interface DetectRunState {
+  busy: boolean;
+  startedAt: number;
+  /** Seconds since the request went out (the elapsed counter), or of the last run. */
+  elapsed: number;
+  error: string;
+  /** The last run hit the server's time limit (504 detect_timeout): the panel offers a lighter retry. */
+  timedOut: boolean;
+}
+/** A refused accept (T086 API review): the ids the server named are marked in the list, a structural refusal lists its issues. */
+export interface DetectAcceptError {
+  code: string;
+  message: string;
+  ids: string[];
+  issues: { id: string | null; message: string }[];
+  /** 409 stale_revision: the draft changed elsewhere; the candidates stay while the draft reloads. */
+  stale: boolean;
+}
+export interface DetectCandidatesView {
+  source: 'detect' | 'dxf';
+  set: CandidateSet;
+  states: Record<string, CandState>;
+  sel: string | null;
+  hint: CalibrationHint | null;
+  /** Items of the candidates' source already in the draft when the candidates came (the server's existing_auto). */
+  existingAuto: { walls: number; openings: number };
+  elapsedMs: number | null;
+  /** DXF only: room polygons offered to the zones layer (never part of the structure accept). */
+  rooms: number;
+}
+/** The replace step before an accept that removes earlier automatic items. */
+export interface DetectReplaceAsk {
+  existing: { walls: number; openings: number };
+  /** Openings of another source (manual) sitting on unlocked walls of the candidates' source: they go with their wall. */
+  manualOnAuto: number;
+}
+export interface DetectView {
+  opts: DetectOpts;
+  run: DetectRunState;
+  cands: DetectCandidatesView | null;
+  acceptedCount: number;
+  /** DXF object candidates go with the accept (no per-object toggle: the candidates layer does not draw objects). */
+  objectsOn: boolean;
+  hintApplied: boolean;
+  /** The door-width estimate may be offered: the document's calibration is not measured. */
+  canEstimate: boolean;
+  busy: boolean;
+  /** A phone: candidates can be accepted, not edited. */
+  narrow: boolean;
+  /** The document's effective scale is an estimate (no calibration, or the door-width one): metres carry "≈". */
+  estimated: boolean;
+  showEstimates: boolean;
+  scale: number;
+  /** Automatic items already in the draft (the "replace" checkbox names the count before a run). */
+  autoInDraft: number;
+  ask: DetectReplaceAsk | null;
+  acceptError: DetectAcceptError | null;
+}
+export interface DetectActions {
+  setOpts(o: DetectOpts): void;
+  run(): void;
+  retryLighter(): void;
+  acceptAll(): void;
+  acceptAbove(min: number): void;
+  acceptKinds(kinds: CandKind[]): void;
+  rejectAll(): void;
+  toggle(id: string): void;
+  focus(id: string): void;
+  setObjects(on: boolean): void;
+  confirm(): void;
+  confirmReplace(): void;
+  cancelReplace(): void;
+  reload(): void;
+  discard(): void;
+  applyHint(): void;
+  importRooms(): void;
+}
+
+export const CAND_KIND_LABEL: Record<CandKind, string> = { wall: 'קיר', door: 'דלת', window: 'חלון', passage: 'מעבר' };
+const CAND_KIND_ONLY: Record<CandKind, string> = { wall: 'רק קירות', door: 'רק דלתות', window: 'רק חלונות', passage: 'רק מעברים' };
+const SOURCE_BADGE: Record<string, string> = { auto: 'זוהה אוטומטית', imported: 'יובא מ־DXF' };
+/** The candidate list shows this many rows; the map shows them all. */
+const CAND_ROWS = 300;
+/** The lighter strength a timed-out run is offered to retry with. */
+export const lighterStrength = (s: number): number => Math.max(0.3, Math.round((s - 0.2) * 100) / 100);
+
+/** The badge of a wall or opening that a detector or an import produced (phase 3): source and confidence. */
+export function renderSourceBadge(item: { source: string; confidence: number }): TemplateResult | typeof nothing {
+  if (item.source === 'manual') return nothing;
+  return html`<span class="badge" data-auto-badge=${item.source}>${SOURCE_BADGE[item.source] ?? item.source} · ביטחון ${item.confidence.toFixed(2)}</span>`;
+}
+
+function candKind(set: CandidateSet, id: string): CandKind {
+  if (set.walls.some((w) => w.id === id)) return 'wall';
+  return set.openings.find((o) => o.id === id)?.kind ?? 'wall';
+}
+
+function candScore(set: CandidateSet, id: string): number {
+  return set.walls.find((w) => w.id === id)?.confidence ?? set.openings.find((o) => o.id === id)?.confidence ?? 0;
+}
+
+/** The size that matters of a candidate, in metres of the document's effective scale ("≈" while it is an estimate). */
+function candSize(v: DetectView, set: CandidateSet, id: string): string {
+  const w = set.walls.find((x) => x.id === id);
+  if (w) return `עובי ${fmtMetres(w.thickness_m, v.estimated, v.showEstimates)}`;
+  const o = set.openings.find((x) => x.id === id);
+  return o ? `רוחב ${fmtMetres(o.width_m, v.estimated, v.showEstimates)}` : '';
+}
+
+export function renderDetectPanel(v: DetectView, a: DetectActions): TemplateResult {
+  const c = v.cands;
+  const o = v.opts;
+  return html`<sw-card heading="זיהוי אוטומטי" subheading="קירות, דלתות וחלונות מהתוכנית · עיבוד מקומי, ללא AI וללא שליחה החוצה" data-detect-panel data-detect-state=${v.run.busy ? 'running' : c ? 'candidates' : 'idle'}>
+    ${c
+      ? renderCandidates(v, c, a)
+      : html`<div class="note">הזיהוי מציע מועמדים בשכבה נפרדת (כחול מקווקו). דבר לא נשמר עד "אשר", ודבר לא מתפרסם בלי פרסום.</div>
+          <div class="chks">
+            <label class="chk"><input type="checkbox" data-detect-walls .checked=${o.walls} @change=${(e: Event) => { const on = (e.target as HTMLInputElement).checked; a.setOpts({ ...o, walls: on, openings: on && o.openings }); }} /> קירות</label>
+            <label class="chk"><input type="checkbox" data-detect-openings .checked=${o.openings} ?disabled=${!o.walls} @change=${(e: Event) => a.setOpts({ ...o, openings: (e.target as HTMLInputElement).checked })} /> פתחים (דלתות, חלונות, מעברים)</label>
+          </div>
+          <sw-field label=${`עוצמת ניקוי: ${o.strength.toFixed(2)} (קל ← חזק)`}><input type="range" min="0.3" max="1" step="0.05" data-ltr data-detect-strength .value=${String(o.strength)}
+            @input=${(e: Event) => a.setOpts({ ...o, strength: parseFloat((e.target as HTMLInputElement).value) })} /></sw-field>
+          ${v.autoInDraft ? html`<label class="chk"><input type="checkbox" data-detect-replace .checked=${o.replaceAuto} @change=${(e: Event) => a.setOpts({ ...o, replaceAuto: (e.target as HTMLInputElement).checked })} /> החלף אוטומטיים קודמים (${v.autoInDraft} בטיוטה)</label>` : nothing}
+          <div class="btns">
+            <sw-button variant="primary" size="sm" icon="sparkle" data-detect-run ?disabled=${v.run.busy || !o.walls || v.busy} @click=${() => a.run()}>${v.run.busy ? html`מזהה… <span data-detect-elapsed>${v.run.elapsed}</span> שנ׳` : 'זהה אוטומטית'}</sw-button>
+            ${v.run.busy ? html`<span class="note">הזיהוי רץ בשרת (עד 60 שניות); הכפתור ייפתח כשיסיים.</span>` : nothing}
+          </div>
+          ${v.run.error
+            ? html`<div class="err" data-detect-error=${v.run.timedOut ? 'detect_timeout' : 'failed'}>${v.run.error}</div>
+                ${v.run.timedOut && o.strength > 0.3
+                  ? html`<div class="btns"><sw-button size="sm" icon="refresh" data-detect-retry ?disabled=${v.run.busy || v.busy} @click=${() => a.retryLighter()}>נסה שוב בעוצמה ${lighterStrength(o.strength).toFixed(2)}</sw-button></div>`
+                  : nothing}`
+            : nothing}`}
+  </sw-card>`;
+}
+
+function renderCandidates(v: DetectView, c: DetectCandidatesView, a: DetectActions): TemplateResult {
+  const set = c.set;
+  const ids = [...set.walls.map((w) => w.id), ...set.openings.map((x) => x.id)];
+  const kinds: CandKind[] = ['wall', 'door', 'window', 'passage'];
+  const present = kinds.filter((k) => (k === 'wall' ? set.walls.length > 0 : set.openings.some((x) => x.kind === k)));
+  const sel = c.sel && ids.includes(c.sel) ? { id: c.sel, kind: candKind(set, c.sel), score: candScore(set, c.sel) } : null;
+  const err = v.acceptError;
+  const bad = new Set(err?.ids ?? []);
+  const existing = c.existingAuto.walls + c.existingAuto.openings;
+  const earlier = c.source === 'dxf' ? 'מיובאים' : 'אוטומטיים';
+  const origin = c.source === 'dxf' ? ' · מיובאים מ־DXF' : c.elapsedMs !== null ? ` · זוהו ב־${(c.elapsedMs / 1000).toFixed(1)} שנ׳` : '';
+  return html`<div class="note" data-detect-summary>${countLabel(set.walls.length, 'קיר אחד', 'קירות')} · ${countLabel(set.openings.length, 'פתח אחד', 'פתחים')}${set.objects.length ? ` · ${countLabel(set.objects.length, 'עצם אחד', 'עצמים')}` : ''} · <span data-detect-accepted>${v.acceptedCount}</span> מסומנים לאישור${origin}</div>
+    ${!ids.length ? html`<div class="note" data-detect-empty>לא נמצאו קירות. נסה עוצמת ניקוי אחרת, או צייר בכלי "מבנה".</div>` : nothing}
+    ${c.hint && v.estimated && v.canEstimate && !v.hintApplied
+      ? html`<div class="hint" data-calib-hint>
+          <div>התוכנית לא מכוילת. לפי רוחב דלת אופייני (0.9 מ׳, ${countLabel(c.hint.doors, 'דלת אחת', 'דלתות')}): <strong>${fmtScale(c.hint.scale_m_per_px)}</strong> — משוער.</div>
+          <div class="btns"><sw-button size="sm" icon="scale" data-calib-hint-apply ?disabled=${v.busy} @click=${() => a.applyHint()}>השתמש בהערכה</sw-button><span class="note">מומלץ לפני האישור: המידות במטרים של המועמדים יחושבו לפי ההערכה, ויוצגו עם ≈ עד כיול בשתי נקודות</span></div>
+        </div>`
+      : v.hintApplied
+        ? html`<div class="note" data-calib-hint-applied>קנה מידה משוער נשמר (≈ ${fmtScale(v.scale)}); כיול בשתי נקודות יחליף אותו</div>`
+        : nothing}
+    <div class="modes" role="group" aria-label="קבלת מועמדים">
+      <button data-detect-accept-all @click=${() => a.acceptAll()}>קבל הכול</button>
+      <button data-detect-accept-conf @click=${() => a.acceptAbove(0.8)}>קבל מעל 0.8</button>
+      ${present.map((k) => html`<button data-detect-accept-kind=${k} @click=${() => a.acceptKinds([k])}>${CAND_KIND_ONLY[k]}</button>`)}
+      <button data-detect-reject-all @click=${() => a.rejectAll()}>דחה הכול</button>
+    </div>
+    <div class="note">${v.narrow ? html`<span data-detect-phone-note>בטלפון אפשר לקבל או לדחות מועמדים; תיקון קצוות של קיר מועמד זמין במסך רחב.</span>` : 'לחיצה על מועמד במפה או על התיבה ברשימה מקבלת / דוחה אותו; גרירת קצה של הקיר המסומן מתקנת אותו לפני האישור.'}</div>
+    <div class="dlist" data-cand-list>
+      ${ids.slice(0, CAND_ROWS).map((id) => {
+        const k = candKind(set, id);
+        const state = c.states[id] ?? 'accepted';
+        return html`<div class="dcand ${state} ${id === c.sel ? 'on' : ''} ${bad.has(id) ? 'bad' : ''}" data-cand-row=${id} data-cand-state=${state} ?data-cand-bad=${bad.has(id)}>
+          <input type="checkbox" aria-label=${`קבל ${CAND_KIND_LABEL[k]}`} .checked=${state === 'accepted'} @change=${() => a.toggle(id)} />
+          <button class="linkbtn" @click=${() => a.focus(id)}>${CAND_KIND_LABEL[k]}</button>
+          <span class="muted ltr">${candScore(set, id).toFixed(2)}</span>
+        </div>`;
+      })}
+      ${ids.length > CAND_ROWS ? html`<div class="note">מוצגים ${CAND_ROWS} הראשונים ברשימה; במפה מוצגים כולם.</div>` : nothing}
+    </div>
+    ${sel ? html`<div class="note" data-cand-selected=${sel.id}>${CAND_KIND_LABEL[sel.kind]} נבחר · ביטחון ${sel.score.toFixed(2)} · ${candSize(v, set, sel.id)} · ${(c.states[sel.id] ?? 'accepted') === 'accepted' ? 'יאושר' : 'נדחה'}</div>` : nothing}
+    ${set.objects.length ? html`<label class="chk"><input type="checkbox" data-detect-objects .checked=${v.objectsOn} @change=${(e: Event) => a.setObjects((e.target as HTMLInputElement).checked)} /> כולל ${countLabel(set.objects.length, 'עצם אחד', 'עצמים')} מהקובץ</label>` : nothing}
+    ${existing ? html`<label class="chk"><input type="checkbox" data-detect-replace .checked=${v.opts.replaceAuto} @change=${(e: Event) => a.setOpts({ ...v.opts, replaceAuto: (e.target as HTMLInputElement).checked })} /> החלף ${earlier} קודמים (${existing} בטיוטה)</label>` : nothing}
+    ${c.rooms ? html`<div class="btns"><sw-button size="sm" icon="map" data-detect-rooms ?disabled=${v.busy} @click=${() => a.importRooms()}>ייבא ${countLabel(c.rooms, 'חדר אחד', 'חדרים')} כאזורים</sw-button><span class="note">החדרים נשמרים כאזורים, לא כחלק מהמבנה</span></div>` : nothing}
+    ${err
+      ? html`<div class="err" data-detect-accept-error=${err.code}>${err.message}</div>
+          ${err.issues.length
+            ? html`<div class="issues" data-detect-issues>${err.issues.slice(0, 20).map((i) => html`<button class="issue error" ?disabled=${!i.id || !ids.includes(i.id)} @click=${() => { if (i.id) a.focus(i.id); }}>${i.message}</button>`)}</div>`
+            : nothing}
+          ${err.stale ? html`<div class="btns"><sw-button size="sm" icon="refresh" data-detect-reload ?disabled=${v.busy} @click=${() => a.reload()}>טען את הטיוטה מחדש</sw-button><span class="note">המועמדים נשארים; אחרי הטעינה אשר שוב</span></div>` : nothing}`
+      : nothing}
+    ${v.ask
+      ? html`<div class="hint" data-detect-replace-confirm>
+          <div><strong>להחליף את ה${earlier} הקודמים?</strong></div>
+          <div data-detect-replace-counts>יוסרו מהטיוטה ${countLabel(v.ask.existing.walls, 'קיר אחד', 'קירות')} ו־${countLabel(v.ask.existing.openings, 'פתח אחד', 'פתחים')} ${earlier} שנוספו קודם (פריטים נעולים נשארים).</div>
+          ${v.ask.manualOnAuto
+            ? html`<div class="err" data-detect-replace-manual>${countLabel(v.ask.manualOnAuto, 'פתח ידני אחד', 'פתחים ידניים')} על קירות אלה ${v.ask.manualOnAuto === 1 ? 'יוסר' : 'יוסרו'} איתם.</div>`
+            : html`<div class="note">פתח ידני שיושב על קיר שיוסר — יוסר איתו.</div>`}
+          <div class="btns">
+            <sw-button variant="primary" size="sm" icon="check" data-detect-replace-go ?disabled=${v.busy} @click=${() => a.confirmReplace()}>החלף ואשר ${v.acceptedCount}</sw-button>
+            <sw-button variant="ghost" size="sm" data-detect-replace-cancel ?disabled=${v.busy} @click=${() => a.cancelReplace()}>חזור</sw-button>
+          </div>
+        </div>`
+      : html`<div class="btns">
+          <sw-button variant="primary" size="sm" icon="check" data-detect-confirm ?disabled=${v.busy || !v.acceptedCount} @click=${() => a.confirm()}>אשר ${v.acceptedCount}</sw-button>
+          <sw-button variant="ghost" size="sm" data-detect-discard ?disabled=${v.busy} @click=${() => a.discard()}>בטל</sw-button>
+        </div>`}
+    <div class="note">האישור מוסיף לטיוטת המבנה בלבד (Ctrl+Z מבטל); הצופים יראו את התוצאה אחרי פרסום.</div>`;
 }
 
 // ---------------------------------------------------------------- the library and the object inspector (T085)
@@ -929,5 +1153,69 @@ export const studioPanelStyles = css`
     flex-wrap: wrap;
     gap: 6px;
     align-items: center;
+  }
+  .badge {
+    display: inline-block;
+    border: 1px solid var(--sw-map-candidate);
+    color: var(--sw-accent-text);
+    border-radius: var(--sw-r-pill);
+    padding: 1px 8px;
+    font-size: var(--sw-fs-sm);
+    inline-size: fit-content;
+  }
+  .chks {
+    display: grid;
+    gap: 4px;
+    margin-block-end: 6px;
+  }
+  .hint {
+    border: 1px dashed var(--sw-map-candidate);
+    border-radius: 8px;
+    padding: 8px;
+    margin-block: 8px;
+    display: grid;
+    gap: 6px;
+    font-size: var(--sw-fs-sm);
+  }
+  .hint .btns {
+    margin-block-start: 0;
+    align-items: center;
+  }
+  .dlist {
+    display: grid;
+    max-block-size: 240px;
+    overflow: auto;
+    margin-block: 6px;
+  }
+  .dcand {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 6px;
+    align-items: center;
+    padding: 3px 4px;
+    border-block-end: 1px solid var(--sw-border);
+    font-size: var(--sw-fs-sm);
+  }
+  .dcand .linkbtn {
+    text-align: start;
+  }
+  .dcand .muted {
+    color: var(--sw-text-2);
+    font-size: var(--sw-fs-xs);
+  }
+  .dcand .ltr {
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
+  .dcand.rejected {
+    opacity: 0.55;
+  }
+  .dcand.on {
+    outline: 2px solid var(--sw-map-candidate);
+    outline-offset: -2px;
+    border-radius: 6px;
+  }
+  .dcand.bad {
+    background: var(--sw-danger-soft);
   }
 `;

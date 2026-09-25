@@ -1677,6 +1677,7 @@ export class SwPlanCanvas extends LitElement {
     if (!this.candidateEditable || e.button !== 0) return;
     e.stopPropagation();
     e.preventDefault();
+    this.releaseFieldFocus(); // the prevented press would leave a panel field focused: Delete and the keys must reach the candidate
     const rect0 = this.getBoundingClientRect();
     const start = this.toPlan(e.clientX - rect0.left, e.clientY - rect0.top);
     let moved = false;

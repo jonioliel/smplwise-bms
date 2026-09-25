@@ -223,18 +223,34 @@ export interface AcceptRequest {
   detector: DetectorInfo | null;
 }
 export const detectStructure = (versionId: string, body: DetectRequest) => post<DetectResult>(`plan-versions/${versionId}/detect`, body);
-export const acceptDetection = (versionId: string, body: AcceptRequest) => post<GeometryResponse>(`plan-versions/${versionId}/detect/accept`, body);
-/** The door-width hint as an estimated calibration (design 6.3): metres then show with "≈". */
-export const calibrateEstimate = (versionId: string, scaleMPerPx: number, reason: string) =>
-  patch<CalibrationResult>(`plan-versions/${versionId}/calibration`, { estimate: { scale_m_per_px: scaleMPerPx, method: 'door_width', reason } });
+/** What the merge did (services/plan_geometry.py merge_candidates): with replace_auto the draft's earlier items of the
+ * candidates' source went first (`removed_auto`), and the openings of another source that sat on a removed wall went
+ * with it (`removed_manual_openings`); `reided` counts accepted ids that collided with the draft and were re-issued as
+ * plain ids (so nothing may key on the "auto-" / "imp-" prefix). Optional: a server without it answers the bare payload. */
+export interface AcceptMerge {
+  accepted: { walls: number; openings: number; objects: number };
+  removed_auto: number;
+  removed_manual_openings: number;
+  reided: number;
+}
+/** The accept answer is the draft as a save answers it (revision, hash, document, issues), plus the merge counts. */
+export interface AcceptResponse extends GeometryResponse {
+  merge?: AcceptMerge;
+}
+export const acceptDetection = (versionId: string, body: AcceptRequest) => post<AcceptResponse>(`plan-versions/${versionId}/detect/accept`, body);
+/** The door-width hint as an estimated calibration (design 6.3): metres then show with "≈". The server refuses an
+ * estimate over a measured calibration (409 calibration_measured) unless `replaceMeasured` confirms it; the editor
+ * never sends it (it offers the estimate only while the calibration is not measured). */
+export const calibrateEstimate = (versionId: string, scaleMPerPx: number, reason: string, replaceMeasured?: boolean) =>
+  patch<CalibrationResult>(`plan-versions/${versionId}/calibration`, {
+    estimate: { scale_m_per_px: scaleMPerPx, method: 'door_width', reason },
+    ...(replaceMeasured === undefined ? {} : { replace_measured: replaceMeasured }),
+  });
 
 /** Error codes /detect, /detect/accept and /calibration (estimate) can answer with (the API review, backed by
  * routers/plan_geometry.py and tests/test_plan_detect_api.py): the client reads them off ApiError.code. detect_timeout
- * (504) is retryable. calibration_measured (409, "an estimate never replaces a measured calibration silently") is a
- * concurrent backend change (test_plan_detect_api.py::test_an_estimate_never_replaces_a_measured_calibration_silently,
- * not yet in plan_geometry.py at the time of this task): calibrateEstimate above does not yet send the confirming
- * replace_measured flag that route will need - a follow-up task wires the confirmation dialog once that endpoint change
- * lands on this branch. */
+ * (504) is retryable. calibration_measured (409, "an estimate never replaces a measured calibration silently"): the
+ * editor offers the estimate only while the calibration is not measured and never sends replace_measured (Task 9). */
 export type DetectErrorCode = 'detect_timeout' | 'stale_revision' | 'calibration_measured' | 'unknown_candidate' | 'orphan_opening' | 'candidate_source' | 'duplicate_candidate' | 'candidate_shape' | 'geometry_structure';
 
 export type DxfTarget = 'walls' | 'openings' | 'windows' | 'objects' | 'rooms' | 'ignore';
