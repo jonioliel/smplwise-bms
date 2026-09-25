@@ -9,7 +9,7 @@ import pathlib
 import sys
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw
 
 import plan_detect_metrics as pm
 from smplwise.services import plan_detect as pd
@@ -80,12 +80,93 @@ def test_a_plain_gap_is_a_passage_and_the_hint_needs_a_door():
     assert [o["kind"] for o in r0["openings"]] == ["passage"]
 
 
+def _matching_door(gt: dict, r: dict, g: dict, tol: float) -> tuple[dict, bool] | None:
+    """The detected door nearest to the ground-truth door g whose wall runs along g's wall (pm's wall overlap test) and
+    whose centre lies within tol plus half the width, with whether that wall runs the same way as the drawn one."""
+    w_px, h_px = gt["width"], gt["height"]
+    gw = gt["walls"][g["wall"]]
+    ga, gb = np.array(gw["a"], float), np.array(gw["b"], float)
+    by = {w["id"]: w for w in r["walls"]}
+    best = None
+    for o in r["openings"]:
+        if o["kind"] != "door":
+            continue
+        a, b = pm._seg_px(by[o["wall_id"]], w_px, h_px)
+        if pm._overlap_on(ga, gb, a, b, tol) <= 0:
+            continue
+        dist = float(np.hypot(*(a + (b - a) * o["t"] - np.array(g["centre"], float))))
+        if dist <= tol + g["width_px"] / 2 and (best is None or dist < best[0]):
+            best = (dist, o, float(np.dot(b - a, gb - ga)) > 0)
+    return None if best is None else (best[1], best[2])
+
+
+def _hatch(p: gen.Plan, box: tuple[int, int, int, int], spacing: int) -> None:
+    """45-degree hatching of 1 px lines inside box (a filled material or a stair symbol beside an opening)."""
+    x0, y0, x1, y1 = box
+    layer = Image.new("L", p.im.size, 255)
+    dd = ImageDraw.Draw(layer)
+    for k in range(-(y1 - y0), x1 - x0, spacing):
+        dd.line([(x0 + k, y0), (x0 + k + (y1 - y0), y1)], fill=0, width=1)
+    m = Image.new("L", p.im.size, 0)
+    ImageDraw.Draw(m).rectangle(box, fill=255)
+    p.im.paste(layer, (0, 0), m)
+
+
+def test_hatching_beside_a_plain_gap_is_no_door_arc():
+    """A hatch fills every quarter circle with ink, so the arc alone would call it a door: a drawn arc stands clear of
+    the quarter circles at 0.7 r and 1.3 r, a hatch does not."""
+    for spacing in (6, 8, 10, 14):
+        p, wall = _room()
+        p._gap(wall, (400, 250), 90)
+        _hatch(p, (412, 150, 600, 350), spacing)
+        r = pd.detect(_png(p), scale_m_per_px=0.01, run_id="x")
+        assert [o["kind"] for o in r["openings"]] == ["passage"], (spacing, r["openings"])
+    for spacing in (8, 14):  # the door swings to +x; the hatch on the other side fills only the wrong swing's rings
+        p, wall = _room()
+        p.door(wall, (400, 250), 90)
+        _hatch(p, (200, 150, 388, 350), spacing)
+        r = pd.detect(_png(p), scale_m_per_px=0.01, run_id="x")
+        assert [o["kind"] for o in r["openings"]] == ["door"] and _tips_on_ink(p.im, r) == [True], (spacing, r["openings"])
+
+
+def test_uncalibrated_doors_in_thick_walls_and_a_narrow_double_door():
+    """Uncalibrated, 0.3 m exterior walls make the median wall 30 px, so a 0.8 m door (80 px) reads 0.53 m and is
+    under 4 partition thicknesses: the arc test is scale free and runs on a wide gate, the passage gate stays narrow."""
+    for width in (70, 80):
+        p, wall = _room(outer=30, inner=10)
+        p.door(wall, (400, 250), width)
+        r = pd.detect(_png(p), run_id="x")
+        assert [o["kind"] for o in r["openings"]] == ["door"] and _tips_on_ink(p.im, r) == [True], (width, r["openings"])
+        assert r["calibration_hint"] is not None and abs(r["calibration_hint"]["scale_m_per_px"] / (pd.DOOR_TYPICAL_M / width) - 1) <= 0.05
+    p, wall = _room()
+    p.door(wall, (400, 250), 120, double=True)
+    r = pd.detect(_png(p), scale_m_per_px=0.01, run_id="x")
+    assert [(o["kind"], o["swing"]) for o in r["openings"]] == [("door", "double")], r["openings"]
+    assert abs(r["openings"][0]["width_m"] - 1.2) < 0.08 and r["openings"][0]["confidence"] <= 0.99
+
+
 def test_doors_baseline_and_the_double_door():
-    rows = pm.run_set(pd.detect)
-    for row in rows:
-        assert row["doors"]["recall"] >= 0.80 and row["doors"]["kind_recall"] >= 0.80, (row["name"], row["doors"])
-        assert row["doors"]["false"] <= 1, (row["name"], row["doors"])
-    hall = next(r for n, gt, png in pm.load_set() if n == "hall" for r in [pd.detect(png, scale_m_per_px=gt["scale_m_per_px"])])
+    results = {}
+    for name, gt, png in pm.load_set():
+        r = results[name] = pd.detect(png, scale_m_per_px=gt["scale_m_per_px"])
+        tol = pm.TOLERANCE_PX.get(name, 10.0)
+        doors = pm.evaluate(gt, r, tol)["doors"]
+        assert doors["recall"] >= 0.80 and doors["kind_recall"] >= 0.80, (name, doors)
+        assert doors["false"] == 0, (name, doors)
+        # every drawn door: the nearest detected door on the same wall has its hinge and swing (read in the detected
+        # wall's direction, so both are flipped when that wall was traced the other way)
+        for g in gt["doors"]:
+            m = _matching_door(gt, r, g, tol)
+            assert m is not None, (name, g)
+            o, same_way = m
+            if g["double"]:
+                assert o["swing"] == "double", (name, g, o)
+                continue
+            hinge, swing = g["hinge"], g["swing"]
+            if not same_way:
+                hinge, swing = {"start": "end", "end": "start"}[hinge], {"left": "right", "right": "left"}[swing]
+            assert (o["hinge"], o["swing"]) == (hinge, swing), (name, g, o)
+    hall = results["hall"]
     doubles = [o for o in hall["openings"] if o["swing"] == "double"]
     assert len(doubles) == 1 and abs(doubles[0]["width_m"] - 1.92) < 0.12 and doubles[0]["kind"] == "door"
     singles = [o for o in hall["openings"] if o["kind"] == "door" and o["swing"] != "double"]

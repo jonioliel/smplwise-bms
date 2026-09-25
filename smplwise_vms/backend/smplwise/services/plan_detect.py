@@ -34,6 +34,10 @@ WINDOW_LINE_RATIO = 0.6
 DOOR_RANGE_M = (0.6, 1.5)
 DOUBLE_RANGE_M = (1.5, 2.4)
 DOOR_RANGE_T = (1.5, 4.0)  # uncalibrated: a gap of 1.5 to 4 wall thicknesses may be a door too
+ARC_RING_MAX = 0.35  # a door arc: the quarter circles at 0.7 r and 1.3 r hold at most this much ink
+ARC_WIDE_M = (0.3, 3.0)  # uncalibrated: the arc test runs on gaps of 0.3-3 m at the walls' estimated scale ...
+ARC_WIDE_T = (2.0, 15.0)  # ... or 2-15 wall thicknesses (the arc does not depend on the scale)
+DOUBLE_MIN_M = 1.1  # a double door from 1.1 m (two 0.55 m leaves): mirrored half arcs are tested from here
 WINDOW_RANGE_M = (0.5, 3.0)
 MIN_WALL_M = 0.25
 MIN_WALL_FRACTION = 0.005
@@ -639,39 +643,51 @@ def _lines_along(g0: np.ndarray, d: np.ndarray, length: float, nl: np.ndarray, t
     return hits
 
 
+def _arc_clear(mask: np.ndarray, centre: np.ndarray, radius: float, u: np.ndarray, n: np.ndarray) -> bool:
+    """A drawn arc is a line: the same quarter circle at 0.7 r and at 1.3 r is mostly empty (<= ARC_RING_MAX). Hatching,
+    text or any other ink area beside a gap fills every circle; measured on hatches of 1 px lines 8 px apart 0.96 / 1.00,
+    14 px apart 0.71 / 0.67, real door arcs 0.00 / 0.00."""
+    return max(_arc_ratio(mask, centre, radius * 0.7, u, n), _arc_ratio(mask, centre, radius * 1.3, u, n)) <= ARC_RING_MAX
+
+
 def classify_gap(g0: np.ndarray, g1: np.ndarray, d: np.ndarray, t_ref: float, s: float, calibrated: bool, thin_mask: np.ndarray, ink: np.ndarray) -> dict[str, Any] | None:
     """What the gap g0 -> g1 (along d) between two collinear wall segments is (design 9.2 / 9.3): a door (a quarter
-    circle of ink of the gap's radius about one gap end, >= 60 % ink, the best of hinge x swing), a double door (a gap
-    of 1.5-2.4 m with mirrored half arcs), a window (2-3 thin lines along the gap), a passage (a door-sized gap without
-    an arc), or nothing (None). `s` is metres per pixel; when uncalibrated a gap of 1.5-4 thicknesses counts as door
-    sized too."""
+    circle of ink of the gap's radius about one gap end, >= 60 % ink and clear rings inside and outside it, the best of
+    hinge x swing), a double door (a gap of 1.1-2.4 m with mirrored half arcs), a window (2-3 thin lines along the gap),
+    a passage (a door-sized gap without an arc), or nothing (None). `s` is metres per pixel. Uncalibrated, s is only
+    the walls' estimate (the median wall taken as 0.2 m), so the scale-free arc test runs on a wide gate (0.3-3 m at
+    that estimate, or 2-15 thicknesses), while a passage still needs the narrow gate (0.6-1.5 m, or 1.5-4 thicknesses)."""
     gap = float(np.hypot(*(g1 - g0)))
     door = DOOR_RANGE_M[0] / s <= gap <= DOOR_RANGE_M[1] / s or (not calibrated and DOOR_RANGE_T[0] * t_ref <= gap <= DOOR_RANGE_T[1] * t_ref)
-    double = DOUBLE_RANGE_M[0] / s <= gap <= DOUBLE_RANGE_M[1] / s
+    wide = not calibrated and (ARC_WIDE_M[0] / s <= gap <= ARC_WIDE_M[1] / s or ARC_WIDE_T[0] * t_ref <= gap <= ARC_WIDE_T[1] * t_ref)
+    double = DOUBLE_MIN_M / s <= gap <= DOUBLE_RANGE_M[1] / s or wide
+    arcs = door or double or wide
     window = WINDOW_RANGE_M[0] / s <= gap <= WINDOW_RANGE_M[1] / s
-    if not (door or double or window):
+    if not (arcs or window):
         return None
     nl, nr = np.array([d[1], -d[0]]), np.array([-d[1], d[0]])
     best = (0.0, "start", "left")
-    if door or double:
+    if arcs:
         for hinge, centre, other in (("start", g0, g1), ("end", g1, g0)):
             u = _unit(centre, other)
             for swing, n in (("left", nl), ("right", nr)):
                 r = _arc_ratio(thin_mask, centre, gap, u, n)
-                if r > best[0]:
+                if r > best[0] and r >= ARC_INK_RATIO and _arc_clear(thin_mask, centre, gap, u, n):
                     best = (r, hinge, swing)
     double_ratio = 0.0
     if double:
         for n in (nl, nr):
-            double_ratio = max(double_ratio, min(_arc_ratio(thin_mask, g0, gap / 2, d, n), _arc_ratio(thin_mask, g1, gap / 2, -d, n)))
+            r = min(_arc_ratio(thin_mask, g0, gap / 2, d, n), _arc_ratio(thin_mask, g1, gap / 2, -d, n))
+            if r > double_ratio and r >= ARC_INK_RATIO and _arc_clear(thin_mask, g0, gap / 2, d, n) and _arc_clear(thin_mask, g1, gap / 2, -d, n):
+                double_ratio = r
     hits = _lines_along(g0, d, gap, nl, t_ref, ink) if window else 0
 
     def conf_arc(r: float) -> float:
-        return round(0.55 + 0.45 * (r - ARC_INK_RATIO) / (1 - ARC_INK_RATIO), 3)
+        return round(min(0.99, 0.55 + 0.45 * (r - ARC_INK_RATIO) / (1 - ARC_INK_RATIO)), 3)
 
-    if double and double_ratio >= ARC_INK_RATIO:
+    if double_ratio >= ARC_INK_RATIO:
         return {"kind": "door", "swing": "double", "hinge": "start", "confidence": conf_arc(double_ratio), "width_px": gap}
-    if (door or double) and best[0] >= ARC_INK_RATIO:
+    if best[0] >= ARC_INK_RATIO:
         return {"kind": "door", "swing": best[2], "hinge": best[1], "confidence": conf_arc(best[0]), "width_px": gap}
     if window and hits >= 2:
         return {"kind": "window", "swing": "none", "hinge": "start", "confidence": round(0.45 + 0.15 * hits, 3), "width_px": gap}
