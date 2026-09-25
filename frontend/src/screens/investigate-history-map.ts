@@ -85,6 +85,7 @@ export class InvestigateHistoryMap extends LitElement {
     const typing = t instanceof HTMLElement && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
     if (e.key === '3' && !e.ctrlKey && !e.metaKey && !e.altKey && !typing) {
       e.preventDefault();
+      if (e.repeat) return; // a held key flips the view once, as on the live map
       void this.toggle3d();
     }
   };
