@@ -152,13 +152,87 @@ test.describe.serial('editor: select and move walls, objects and zones (0.1.87)'
     await page.keyboard.press('Control+z');
     await expect.poll(async () => wallOf(await draft(), 'mw1').polyline, { timeout: 10000 }).toEqual(w1);
 
+    // Shift keeps a diagonal drag horizontal (the larger screen component)
+    const body1 = await at(page, [0.3 + d0[0], 0.3 + d0[1]]);
+    await page.mouse.click(body1.x, body1.y);
+    await expect(page.locator(`${ED} [data-selected-wall="mw1"]`)).toBeVisible();
+    await page.keyboard.down('Shift');
+    await mouseDrag(page, body1, 50, 18);
+    await page.keyboard.up('Shift');
+    await expect.poll(async () => wallOf(await draft(), 'mw1').polyline[0][0], { timeout: 10000 }).toBeGreaterThan(w1[0][0] + 0.02);
+    const w2 = wallOf(await draft(), 'mw1').polyline;
+    expect(w2[0][1]).toBe(w1[0][1]); // no vertical component
+    expect(w2[1][1]).toBe(w1[1][1]);
+    expect(w2[1][0] - w1[1][0]).toBeCloseTo(w2[0][0] - w1[0][0], 4);
+
+    // corner snap: the start corner dropped 4 px / -5 px off the other wall's end lands exactly on it, the wall follows
+    const start2 = await at(page, w2[0]);
+    const target = await at(page, [0.5, 0.85]);
+    const body2 = await at(page, [(w2[0][0] + w2[1][0]) / 2 - 0.05, w2[0][1]]);
+    await mouseDrag(page, body2, target.x + 4 - start2.x, target.y - 5 - start2.y);
+    await expect.poll(async () => wallOf(await draft(), 'mw1').polyline[0], { timeout: 10000 }).toEqual([0.5, 0.85]);
+    const w3 = wallOf(await draft(), 'mw1').polyline;
+    expect(w3[1][0]).toBeCloseTo(0.5 + (w2[1][0] - w2[0][0]), 4);
+    expect(w3[1][1]).toBe(0.85);
+    await saved(page);
+
+    // one undo step per drag: Ctrl+Z back to before the snap drag, again back to before the Shift drag
+    await page.keyboard.press('Control+z');
+    await expect.poll(async () => wallOf(await draft(), 'mw1').polyline, { timeout: 10000 }).toEqual(w2);
+    await page.keyboard.press('Control+z');
+    await expect.poll(async () => wallOf(await draft(), 'mw1').polyline, { timeout: 10000 }).toEqual(w1);
+
+    // Delete the selected wall (its door goes with it), then Ctrl+Z restores both; a further Ctrl+Z keeps undoing the
+    // structure (the first drag) even though nothing is selected any more
+    const body3 = await at(page, [0.3 + d0[0], 0.3 + d0[1]]);
+    await page.mouse.click(body3.x, body3.y);
+    await expect(page.locator(`${ED} [data-selected-wall="mw1"]`)).toBeVisible();
+    await page.keyboard.press('Delete');
+    await expect.poll(async () => (await draft()).doc.walls.some((w) => w.id === 'mw1'), { timeout: 10000 }).toBe(false);
+    await expect(page.locator(`${ED} [data-rail-undo]`)).not.toHaveAttribute('disabled', '');
+    await page.keyboard.press('Control+z');
+    await expect.poll(async () => wallOf(await draft(), 'mw1')?.polyline, { timeout: 10000 }).toEqual(w1);
+    expect((await draft()).doc.openings.some((o) => o.id === 'md1')).toBe(true);
+    await page.keyboard.press('Control+z');
+    await expect.poll(async () => wallOf(await draft(), 'mw1').polyline, { timeout: 10000 }).toEqual(w0);
+
     // Esc clears the selection
-    const again = await at(page, [0.3 + d0[0], 0.3 + d0[1]]);
+    const again = await at(page, [0.3, 0.3]);
     await page.mouse.click(again.x, again.y);
     await expect(page.locator(`${ED} [data-selected-wall="mw1"]`)).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(page.locator(`${ED} [data-selected-wall]`)).toHaveCount(0);
     await expect(page.locator(`${ED} sw-plan-canvas [data-wall-vertex]`)).toHaveCount(0);
+  });
+
+  test('select tool: after a wall is selected, dragging a pin makes the pin the selection - Delete offers the pin and the wall stays', async ({ page }) => {
+    const cams = (await (await api.get('api/v1/cameras')).json()) as { cameras?: { id: string }[] } | { id: string }[];
+    const list = Array.isArray(cams) ? cams : cams.cameras ?? [];
+    test.skip(!list.length, 'no registered camera to place a pin with');
+    await saveDraft(SEED);
+    const anchor = await api.post(`api/v1/floors/${ids.floor}/anchors`, { data: { resource_type: 'camera', resource_id: list[0].id, x: 0.85, y: 0.2 } });
+    expect(anchor.status()).toBe(201);
+    const pin = (await anchor.json()) as { id: string };
+    const anchors = async () => ((await (await api.get(`api/v1/floors/${ids.floor}/anchors`)).json()) as { anchors: { id: string }[] }).anchors.length;
+    await openEditor(page);
+    const grab = await at(page, [0.3, 0.3]);
+    await page.mouse.click(grab.x, grab.y);
+    await expect(page.locator(`${ED} [data-selected-wall="mw1"]`)).toBeVisible();
+    const m = (await page.locator(`${ED} sw-plan-canvas g.marker[data-id="${pin.id}"] circle.pin`).boundingBox())!;
+    await mouseDrag(page, { x: m.x + m.width / 2, y: m.y + m.height / 2 }, 30, 30);
+    await expect(page.locator(`${ED} [data-selected-wall]`)).toHaveCount(0); // the pin is the selection now
+    await expect(page.locator(`${ED} sw-plan-canvas [data-wall-vertex]`)).toHaveCount(0);
+    let asked = '';
+    page.once('dialog', (d) => {
+      asked = d.message();
+      void d.accept();
+    });
+    const walls = (await draft()).doc.walls.length;
+    await page.keyboard.press('Delete');
+    await expect.poll(() => asked).toContain('להסיר את'); // the pin is offered for removal
+    await expect.poll(anchors, { timeout: 10000 }).toBe(0);
+    expect((await draft()).doc.walls.length).toBe(walls);
+    expect(wallOf(await draft(), 'mw1').polyline).toEqual(SEED.walls[0].polyline);
   });
 
   test('select tool: a 0.4 m object at a zoomed-out view is pressed beside its drawn footprint, selected and dragged', async ({ page }) => {
@@ -234,16 +308,22 @@ test.describe.serial('editor: select and move walls, objects and zones (0.1.87)'
       // the wall: a tap selects, a finger drag on its body moves it
       const w0 = wallOf(await draft(), 'mw1').polyline;
       const grab = await at(page, [0.3, 0.3]);
-      await page.touchscreen.tap(grab.x, grab.y + 4); // a finger lands a little off the centre line
+      await page.touchscreen.tap(grab.x, grab.y + 8); // 8 px off the centre line: inside the 20 px touch band only
       await expect(page.locator(`${ED} [data-selected-wall="mw1"]`)).toBeAttached();
-      await touchDrag(page, { x: grab.x, y: grab.y + 3 }, 30, 40);
+      await touchDrag(page, { x: grab.x, y: grab.y + 7 }, 30, 40);
       await expect.poll(async () => wallOf(await draft(), 'mw1').polyline[0][1], { timeout: 10000 }).toBeGreaterThan(w0[0][1] + 0.02);
       const w1 = wallOf(await draft(), 'mw1').polyline;
       expect(w1[1][1] - w0[1][1]).toBeCloseTo(w1[0][1] - w0[0][1], 4);
       await saved(page);
-      // the chair: a few pixels on a phone; a tap beside it selects it and a finger drag moves it
+      // the chair: a few pixels on a phone. Not selected, a finger drag over it pans the plan and never moves it
       const fp = (await page.locator(`${ED} sw-plan-canvas [data-object="mo1"] .fp`).boundingBox())!;
       expect(fp.width).toBeLessThan(10);
+      const c0 = await at(page, [0.75, 0.55]);
+      await touchDrag(page, { x: c0.x + 3, y: c0.y + 3 }, -30, 20);
+      await expect.poll(async () => (await at(page, [0.75, 0.55])).x, { timeout: 5000 }).toBeLessThan(c0.x - 20); // the plan moved
+      expect((await draft()).doc.objects.find((o) => o.id === 'mo1')!.position).toEqual([0.75, 0.55]);
+      await expect(page.locator(`${ED} [data-selected-object]`)).toHaveCount(0);
+      // a tap beside it selects it, then a finger drag moves it
       const c = await at(page, [0.75, 0.55]);
       await page.touchscreen.tap(c.x + 7, c.y + 6);
       await expect(page.locator(`${ED} [data-selected-object="mo1"]`)).toBeAttached();

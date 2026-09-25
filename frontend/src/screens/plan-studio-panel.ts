@@ -27,7 +27,7 @@ const OPENING_DRAG_HINT = 'גרירת פתח קיים מזיזה אותו לאו
 
 /** The select mode's help (hotfix 0.1.87): a wall moves as a whole by its body, but only once it is selected, so a first
  * press never moves anything. The select tool shows the same line. */
-export const SELECT_HINT = 'לחץ על קיר, פתח, תווית או עצם כדי לבחור. קיר זז רק אחרי שנבחר: גרירת גוף הקיר הנבחר מזיזה את כולו, גרירת פינה שלו משנה את צורתו. פתח נגרר לאורך הקיר, תווית ועצם למקומם; החצים מזיזים בעדינות את מה שנבחר (Shift = צעד גדול) · Esc מבטל את הבחירה.';
+export const SELECT_HINT = 'לחץ על קיר, פתח, תווית או עצם כדי לבחור. קיר זז רק אחרי שנבחר: גרירת גוף הקיר הנבחר מזיזה את כולו, גרירת פינה שלו משנה את צורתו. פתח נגרר לאורך הקיר, תווית ועצם למקומם; החצים מזיזים בעדינות את מה שנבחר (Shift = צעד גדול) · Esc מבטל את הבחירה. במסך מגע כל פריט זז רק אחרי שנבחר, כך שהזזת המפה באצבע לא מזיזה פריטים.';
 
 export const STUDIO_MODES: { id: StudioMode; label: string; hint: string; drag?: string }[] = [
   { id: 'select', label: 'בחירה', hint: SELECT_HINT },
