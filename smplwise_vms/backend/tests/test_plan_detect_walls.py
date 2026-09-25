@@ -1,12 +1,14 @@
 """Plan Studio wall detection (T086, design 9.1): snapping and merging of segments, the tilt estimate, and walls found
-on the synthetic set with the baseline recall and precision - calibrated, and uncalibrated with the estimated scale."""
+on the synthetic set with the baseline recall and precision - calibrated, and uncalibrated with the estimated scale; a
+parallel wall beside a long wall stays its own wall, T-junctions near the corners do not fake a tilt, and room labels
+neither add walls nor slow the detector down."""
 from __future__ import annotations
 
 import io
-import json
+import time
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 import plan_detect_metrics as pm
 from smplwise.services import plan_detect as pd
@@ -89,3 +91,87 @@ def test_tilted_scan_comes_back_on_the_scan_and_a_blank_picture_gives_nothing():
     assert empty["walls"] == [] and empty["openings"] == [] and empty["calibration_hint"] is None
     arr = np.asarray(Image.open(io.BytesIO(pm.load_set()[0][2])).convert("L"))
     assert len(pd.detect(arr, targets=("walls",), scale_m_per_px=0.01)["walls"]) == len(_first_result("apartment", True)[1]["walls"]), "an ndarray input is the same as the PNG"
+
+
+def _png(im: Image.Image) -> bytes:
+    buf = io.BytesIO()
+    im.save(buf, "PNG")
+    return buf.getvalue()
+
+
+def _frame(width: int = 16) -> tuple[Image.Image, ImageDraw.ImageDraw]:
+    im = Image.new("L", (1600, 1200), 255)
+    d = ImageDraw.Draw(im)
+    d.rectangle([50, 50, 1550, 1150], outline=0, width=width)
+    return im, d
+
+
+def test_a_parallel_wall_beside_a_long_wall_stays_its_own_wall():
+    for gap in (30, 40, 60):  # centre lines 0.3 - 0.6 m apart at 0.01 m / px, far along the top wall
+        im, d = _frame()
+        y = 58 + gap
+        d.rectangle([700, y - 8, 1300, y + 7], fill=0)
+        r = pd.detect(_png(im), scale_m_per_px=0.01)
+        assert len(r["walls"]) == 5 and r["openings"] == [], (gap, [w["polyline"] for w in r["walls"]], r["openings"])
+        on = [w for w in r["walls"] if all(abs(p[1] * 1200 - y) < 6 for p in w["polyline"])]
+        top = [w for w in r["walls"] if all(abs(p[1] * 1200 - 58) < 6 for p in w["polyline"])]
+        assert len(on) == 1 and len(top) == 1 and abs(top[0]["polyline"][1][0] - top[0]["polyline"][0][0]) * 1600 > 1400, gap
+
+
+def test_t_junctions_near_the_corners_do_not_tilt_an_axis_aligned_plan():
+    im, d = _frame(12)
+    d.rectangle([900, 120, 1540, 131], fill=0)
+    d.rectangle([900, 120, 911, 1140], fill=0)
+    im2, d2 = _frame(12)
+    for x in (130, 1460):
+        d2.rectangle([x, 50, x + 11, 1150], fill=0)
+    for y in (130, 1060):
+        d2.rectangle([50, y, 1550, y + 11], fill=0)
+    for picture, walls in ((im, 6), (im2, 8)):
+        for scale in (0.01, None):
+            r = pd.detect(_png(picture), targets=("walls",), scale_m_per_px=scale)
+            assert r["detector"]["params"]["tilt_deg"] == 0 and len(r["walls"]) == walls, (scale, r["detector"]["params"], len(r["walls"]))
+
+
+def _labelled(png: bytes, count: int = 200) -> bytes:
+    """The plan with `count` bold room labels in its free space (never on the walls, at least 6 px apart: close enough
+    for the closing to join neighbouring words into one blot)."""
+    im = Image.open(io.BytesIO(png)).convert("L")
+    busy = np.asarray(im) < 128
+    grown = busy.copy()
+    for _ in range(14):
+        grown[1:, :] |= grown[:-1, :]
+        grown[:-1, :] |= grown[1:, :]
+        grown[:, 1:] |= grown[:, :-1]
+        grown[:, :-1] |= grown[:, 1:]
+    d = ImageDraw.Draw(im)
+    font = ImageFont.load_default(size=28)
+    rng = np.random.RandomState(7)
+    words = ["BEDROOM", "12.4 m2", "KITCHEN", "+0.00", "WC", "LIVING", "3.40", "2.85", "DN", "UP"]
+    placed = 0
+    for _ in range(20000):
+        if placed == count:
+            break
+        w = words[rng.randint(len(words))]
+        x, y = int(rng.randint(0, 1560)), int(rng.randint(0, 1180))
+        x0, y0, x1, y1 = d.textbbox((x, y), w, font=font, stroke_width=2)
+        if x1 >= im.width or y1 >= im.height or grown[y0 : y1 + 1, x0 : x1 + 1].any():
+            continue
+        d.text((x, y), w, fill=0, font=font, stroke_width=2, stroke_fill=0)
+        grown[max(0, y0 - 6) : y1 + 7, max(0, x0 - 6) : x1 + 7] = True
+        placed += 1
+    assert placed == count
+    return _png(im)
+
+
+def test_room_labels_add_no_walls_and_do_not_slow_the_detector():
+    _name, gt, png = pm.load_set()[0]
+    noisy = _labelled(png)
+    for scale in (0.01, None):
+        clean = pd.detect(png, targets=("walls",), scale_m_per_px=scale)
+        t0 = time.perf_counter()
+        r = pd.detect(noisy, targets=("walls",), scale_m_per_px=scale)
+        assert time.perf_counter() - t0 < 5.0
+        a, b = pm.wall_scores(gt, clean["walls"], 10.0), pm.wall_scores(gt, r["walls"], 10.0)
+        assert len(r["walls"]) == len(clean["walls"]) and b["precision"] >= 0.98 and abs(a["recall"] - b["recall"]) < 0.01, (scale, len(r["walls"]), b)
+        assert r["scale"] == clean["scale"], "the labels do not move the estimated scale"

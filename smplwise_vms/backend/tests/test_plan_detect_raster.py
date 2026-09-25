@@ -5,6 +5,7 @@ splits a skeleton at its junctions into branches with the right end points."""
 from __future__ import annotations
 
 import time
+from collections import deque
 
 import numpy as np
 import pytest
@@ -149,3 +150,53 @@ def test_thinning_a_plan_with_a_solid_block_is_fast_and_max_iter_is_not_silent()
     assert int(pd.neighbour_count(sk).max()) <= 4 and not sk[450:750, 450:850].all()
     with pytest.raises(RuntimeError):
         pd.thin(np.ones((60, 60), dtype=bool), max_iter=3)
+
+
+def _components(m: np.ndarray, eight: bool) -> int:
+    """Connected components of a mask (8- or 4-neighbourhood), by breadth-first search."""
+    steps = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)] if eight else [(-1, 0), (1, 0), (0, -1), (0, 1)]
+    h, w = m.shape
+    seen = np.zeros_like(m, dtype=bool)
+    count = 0
+    for y, x in zip(*np.nonzero(m)):
+        if seen[y, x]:
+            continue
+        count += 1
+        seen[y, x] = True
+        queue = deque([(y, x)])
+        while queue:
+            cy, cx = queue.popleft()
+            for dy, dx in steps:
+                yy, xx = cy + dy, cx + dx
+                if 0 <= yy < h and 0 <= xx < w and m[yy, xx] and not seen[yy, xx]:
+                    seen[yy, xx] = True
+                    queue.append((yy, xx))
+    return count
+
+
+def test_thinning_keeps_the_topology_of_blobs_with_holes_and_thin_lines():
+    """8-connected components of the shape and 4-connected components of the background (its holes plus the outside)
+    are the same before and after thinning."""
+    rng = np.random.RandomState(1)
+    for _ in range(40):
+        n = 70
+        m = np.zeros((n, n), dtype=bool)
+        for _b in range(rng.randint(1, 4)):
+            y, x = rng.randint(5, n - 15, 2)
+            hh, ww = rng.randint(3, 14, 2)
+            m[y : y + hh, x : x + ww] = True
+        for _l in range(rng.randint(1, 4)):
+            y, x = rng.randint(3, n - 3, 2)
+            length, th = rng.randint(5, 30), rng.randint(1, 3)
+            dy, dx = [(1, 1), (1, -1), (0, 1), (1, 0), (1, 2), (2, 1)][rng.randint(6)]
+            for i in range(length):
+                yy, xx = y + dy * i, x + dx * i
+                if 0 <= yy < n - th and 0 <= xx < n - th:
+                    m[yy : yy + th, xx : xx + th] = True
+        for _h in range(rng.randint(0, 3)):
+            y, x = rng.randint(5, n - 5, 2)
+            m[y : y + rng.randint(1, 3), x : x + rng.randint(1, 3)] = False
+        sk = pd.thin(m)
+        before = (_components(np.pad(m, 1), True), _components(~np.pad(m, 1), False))
+        after = (_components(np.pad(sk, 1), True), _components(~np.pad(sk, 1), False))
+        assert before == after
