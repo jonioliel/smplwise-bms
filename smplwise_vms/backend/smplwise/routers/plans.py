@@ -607,6 +607,9 @@ def dxf_set_options(asset_id: str, body: DxfOptions, request: Request, principal
 # ---------------------------------------------------------------- DXF geometry mapping (phase 3, T086)
 
 DxfName = Annotated[str, StringConstraints(min_length=1, max_length=255)]
+DXF_IMPORT_MESSAGES = {
+    "dxf_extent_too_large": "השכבות שנבחרו משתרעות על יותר מ־2 ק״מ; בדוק את יחידות הציור (מ״מ, ס״מ או מטר) בשלב הייבוא.",
+}
 
 
 def _dxf_units(opts: dict[str, Any]) -> str | None:
@@ -644,6 +647,10 @@ def dxf_entities(asset_id: str, request: Request, principal: Principal = Depends
             summary = _in_pool(request, plan_dxf_map.entities_summary, settings.data_dir / asset["storage_path"], opts.get("layers"), _dxf_units(opts), catalog)
     except plan_dxf.DxfError as exc:
         raise ApiError(422, exc.code, "קובץ ה־DXF לא ניתן לקריאה.", details=exc.details)
+    except ApiError:
+        raise
+    except Exception as exc:  # noqa: BLE001 - a worker failure is a clean error, never a traceback
+        raise ApiError(500, "dxf_read_failed", "קריאת ה־DXF נכשלה.", details={"error": type(exc).__name__})
     return {"asset_id": asset_id, **summary, "targets": [{"id": t, "label": plan_dxf_map.TARGET_LABELS[t]} for t in plan_dxf_map.TARGETS], "catalog_choices": plan_dxf_map.catalog_choices(catalog)}
 
 
@@ -703,14 +710,18 @@ def import_dxf_geometry(version_id: str, body: DxfImportIn, request: Request, pr
             result = _in_pool(request, plan_dxf_map.import_geometry, settings.data_dir / asset["storage_path"], render_layers=opts.get("layers"), layer_map=dict(body.layer_map),
                               block_map=dict(body.block_map), units=units, rotation=int(v["rotation"]), crop=json.loads(v["crop_json"]) if v["crop_json"] else None,
                               level_id=level_id, run_id=new_id()[:6], catalog=catalog, scale_m_per_px=v["scale_m_per_px"], ceiling_m=ceiling_m)
-    except plan_dxf.DxfError as exc:
-        raise ApiError(422, exc.code, "קובץ ה־DXF לא ניתן לקריאה או ריק בשכבות שנבחרו.", details=exc.details)
     except ApiError as exc:
         if exc.code == "dxf_timeout":
             audit(conn, actor=principal, action="geometry.import", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
                   details={"version_id": v["id"], "asset_id": asset["id"], "timed_out": True, "timeout_s": settings.detect_timeout_s})
         raise
-    existing ={c: sum(1 for i in doc.get(c) or [] if isinstance(i, dict) and i.get("source") == "imported") for c in ("walls", "openings", "objects")}
+    except Exception as exc:  # noqa: BLE001 - any worker failure is audited and answered cleanly, as /detect does
+        audit(conn, actor=principal, action="geometry.import", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
+              details={"version_id": v["id"], "asset_id": asset["id"], "failed": type(exc).__name__, **({"code": exc.code} if isinstance(exc, plan_dxf.DxfError) else {})})
+        if isinstance(exc, plan_dxf.DxfError):
+            raise ApiError(422, exc.code, DXF_IMPORT_MESSAGES.get(exc.code, "קובץ ה־DXF לא ניתן לקריאה או ריק בשכבות שנבחרו."), details=exc.details)
+        raise ApiError(500, "dxf_import_failed", "ייבוא הגאומטריה מה־DXF נכשל.", details={"error": type(exc).__name__})
+    existing = {c: sum(1 for i in doc.get(c) or [] if isinstance(i, dict) and i.get("source") == "imported") for c in ("walls", "openings", "objects")}
     audit(conn, actor=principal, action="geometry.import", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
           details={"version_id": v["id"], "asset_id": asset["id"], "walls": len(result["walls"]), "openings": len(result["openings"]), "objects": len(result["objects"]),
                    "rooms": len(result["rooms"]), "layers": len(body.layer_map), "blocks": len(body.block_map)})

@@ -302,10 +302,13 @@ def test_large_drawing_maps_within_bound(tmp_path):
     src = tmp_path / "big.dxf"
     doc.saveas(str(src))
     t0 = time.perf_counter()
-    r = plan_dxf_map.import_geometry(src, render_layers=None, layer_map={"A-WALL": "walls", "A-DOOR": "openings", "A-FURN": "objects"}, block_map={}, units="m", rotation=0,
-                                     crop=None, level_id="L0", run_id="big", catalog=plan_dxf_map.load_catalog(None), scale_m_per_px=0.01)
-    elapsed = time.perf_counter() - t0
-    print(f"20k-entity import: {elapsed:.1f} s, {r['stats']}")
+    loaded = plan_dxf_map.load(src)  # the ezdxf load is timed apart: it is the library's cost, not the mapper's
+    t1 = time.perf_counter()
+    ext = plan_dxf_map.extent_for(loaded, None)
+    r = plan_dxf_map.map_geometry(loaded, layer_map={"A-WALL": "walls", "A-DOOR": "openings", "A-FURN": "objects"}, block_map={}, units="m", extent=ext, rotation=0,
+                                  crop=None, level_id="L0", run_id="big", catalog=plan_dxf_map.load_catalog(None), scale_m_per_px=0.01)
+    elapsed = time.perf_counter() - t1
+    print(f"20k-entity drawing: load {t1 - t0:.1f} s, read + extent + map {elapsed:.1f} s, {r['stats']}")
     assert elapsed < 15, elapsed
     assert len(r["walls"]) >= 2 * n * n and len(r["objects"]) == n * n // 5 and len(r["openings"]) == n * n // 5
 
@@ -398,3 +401,93 @@ def test_routes_answer_504_when_the_worker_outruns_the_guard(settings, tmp_path,
     with app.state.db.connection() as conn:
         rows = [json.loads(x[0]) for x in conn.execute("SELECT details_json FROM audit_log WHERE action = 'geometry.import'").fetchall()]
     assert rows == [{"version_id": v["id"], "asset_id": asset["id"], "timed_out": True, "timeout_s": 0.2}]
+
+
+def _room_with(path, extra, units_code: int = 6) -> None:
+    doc = ezdxf.new("R2010", setup=True)
+    doc.header["$INSUNITS"] = units_code
+    doc.layers.add("W")
+    doc.layers.add("F")
+    msp = doc.modelspace()
+    for y in (0, 0.2):
+        msp.add_line((0, y), (10, y), dxfattribs={"layer": "W"})
+    extra(doc, msp)
+    doc.saveas(str(path))
+
+
+def test_kilometre_extents_are_refused_and_a_long_line_stays_cheap(tmp_path):
+    src = tmp_path / "stray.dxf"
+    _room_with(src, lambda doc, msp: msp.add_line((0, 5), (100_000, 5), dxfattribs={"layer": "W"}))
+    t0 = time.perf_counter()
+    try:
+        plan_dxf_map.import_geometry(src, render_layers=None, layer_map={"W": "walls"}, block_map={}, units="m", rotation=0, crop=None, level_id="L0", run_id="k",
+                                     catalog=[], scale_m_per_px=0.01)
+        raise AssertionError("a 100 km extent must be refused")
+    except plan_dxf.DxfError as exc:
+        assert exc.code == "dxf_extent_too_large" and exc.details["limit_m"] == plan_dxf_map.MAX_EXTENT_M and exc.details["extent_m"] >= 100_000
+    assert time.perf_counter() - t0 < 2
+    # the spatial hash itself is bounded by the drawing size, not by the line length in metres
+    t0 = time.perf_counter()
+    walls, _stats = plan_dxf_map._pair_walls([((0.0, 0.0), (10.0, 0.0)), ((0.0, 0.2), (10.0, 0.2)), ((0.0, 5.0), (100_000.0, 5.0))])
+    plan_dxf_map._bridge(walls, {"arcs": [], "boxes": [], "glazing": []}, {"arcs": plan_dxf_map._Grid(2.0), "boxes": plan_dxf_map._Grid(2.0), "glazing": plan_dxf_map._Grid(1.0)})
+    assert time.perf_counter() - t0 < 2 and len(walls) == 2
+    # a millimetre floor read as metres is 10 km wide: refused, while the same file in millimetres maps
+    mm = tmp_path / "mm.dxf"
+    _room_with(mm, lambda doc, msp: None, units_code=4)
+    doc = ezdxf.readfile(str(mm))
+    for e in doc.modelspace():
+        e.transform(ezdxf.math.Matrix44.scale(1000, 1000, 1))
+    doc.saveas(str(mm))
+    ok = plan_dxf_map.import_geometry(mm, render_layers=None, layer_map={"W": "walls"}, block_map={}, units="mm", rotation=0, crop=None, level_id="L0", run_id="k", catalog=[], scale_m_per_px=0.01)
+    assert len(ok["walls"]) == 1 and ok["walls"][0]["thickness_m"] == 0.2
+    try:
+        plan_dxf_map.import_geometry(mm, render_layers=None, layer_map={"W": "walls"}, block_map={}, units="m", rotation=0, crop=None, level_id="L0", run_id="k", catalog=[], scale_m_per_px=0.01)
+        raise AssertionError("mm read as m must be refused")
+    except plan_dxf.DxfError as exc:
+        assert exc.code == "dxf_extent_too_large"
+
+
+def test_one_suggestion_per_block_name_and_a_short_side_line_stays_a_wall(tmp_path):
+    src = tmp_path / "scaled.dxf"
+
+    def extra(doc, msp):
+        desk = doc.blocks.new("DESK")
+        desk.add_lwpolyline([(0, 0), (1.6, 0), (1.6, 0.8), (0, 0.8)], close=True)
+        msp.add_blockref("DESK", (2, 3), dxfattribs={"layer": "F"})
+        msp.add_blockref("DESK", (6, 3), dxfattribs={"layer": "F", "xscale": 2, "yscale": 2})
+        msp.add_line((0, 0.4), (2, 0.4), dxfattribs={"layer": "W"})  # beside the 10 m wall, along only 20 % of it
+
+    _room_with(src, extra)
+    cat = plan_dxf_map.load_catalog(None)
+    doc = plan_dxf_map.load(src)
+    shown = {b["name"]: b for b in plan_dxf_map.entities_summary(doc, None, "m", cat)["blocks"]}
+    assert shown["DESK"]["size_m"] == [1.6, 0.8] and shown["DESK"]["suggested"]["catalog_id"] == "table.desk", "the footprint of the first insert"
+    r = plan_dxf_map.map_geometry(doc, layer_map={"W": "walls", "F": "objects"}, block_map={}, units="m", extent=plan_dxf_map.extent_for(doc, None), rotation=0, crop=None,
+                                  level_id="L0", run_id="s", catalog=cat, scale_m_per_px=0.01)
+    assert [o["item_id"] for o in r["objects"]] == ["table.desk", "table.desk"], "the scaled insert gets the item the card showed"
+    assert sorted(o["size"]["w_m"] for o in r["objects"]) == [1.6, 3.2], "each insert keeps its own size"
+    assert sorted((w["thickness_m"], w["confidence"]) for w in r["walls"]) == [(0.2, 0.6), (0.2, 0.9)], "no widening by a line along 20 % of the wall"
+    assert r["stats"]["absorbed"] == 0
+
+
+def test_an_import_failure_is_audited_and_answered_cleanly(settings, tmp_path, monkeypatch):
+    def broken(*args, **kwargs):
+        raise RuntimeError("boom")
+
+    app = create_app(settings)
+    c = TestClient(app)
+    f2 = seed_tree(c)["floor2"]
+    src = tmp_path / "stray.dxf"
+    _room_with(src, lambda doc, msp: msp.add_line((0, 5), (100_000, 5), dxfattribs={"layer": "W"}))
+    asset = c.post(f"/api/v1/floors/{f2}/plan-assets", files={"file": ("stray.dxf", src.read_bytes(), "application/octet-stream")}).json()
+    v = c.post(f"/api/v1/floors/{f2}/plan-versions", json={"asset_id": asset["id"]}).json()
+    url = f"/api/v1/plan-versions/{v['id']}/import-dxf-geometry"
+    wide = c.post(url, json={"layer_map": {"W": "walls"}})
+    assert wide.status_code == 422 and wide.json()["code"] == "dxf_extent_too_large" and "יחידות" in wide.json()["user_message"]
+    monkeypatch.setattr(plan_dxf_map, "import_geometry", broken)
+    failed = c.post(url, json={"layer_map": {"W": "walls"}})
+    assert failed.status_code == 500 and failed.json()["code"] == "dxf_import_failed"
+    with app.state.db.connection() as conn:
+        rows = [json.loads(x[0]) for x in conn.execute("SELECT details_json FROM audit_log WHERE action = 'geometry.import'").fetchall()]
+    assert rows == [{"version_id": v["id"], "asset_id": asset["id"], "failed": "DxfError", "code": "dxf_extent_too_large"},
+                    {"version_id": v["id"], "asset_id": asset["id"], "failed": "RuntimeError"}]

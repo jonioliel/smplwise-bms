@@ -51,6 +51,9 @@ DOOR_WIDTH_M = (0.5, 2.5)
 WINDOW_WIDTH_M = (0.3, 4.0)
 MAX_GAP_M = 4.0  # the widest opening a wall may be bridged across
 MIN_SEGMENT_M = 0.05
+MAX_EXTENT_M = 2000.0  # a floor wider than this on the mapped layers is a drawing read in the wrong units (or a stray line)
+GRID_CELLS_PER_SIDE = 1024
+WIDEN_COVER = 0.8  # a line beside a paired wall widens it only when it runs along this share of the wall
 DEFAULT_CEILING_M = 2.8
 _WORD = re.compile(r"[a-z]+|[0-9]+|[֐-׿]+")
 _COS_PAIR = math.cos(math.radians(PAIR_ANGLE_DEG))
@@ -294,6 +297,34 @@ def _block_bbox(doc: Any, name: str, cache: dict[str, Any]) -> tuple[float, floa
     return bb
 
 
+def block_footprints(src: Any, cache: dict[str, Any] | None = None) -> dict[str, tuple[float, float]]:
+    """One footprint per block (effective) name, in drawing units: the first model-space insert's transformed box
+    (width along the block's x, depth along its y, scale and mirror included). The summary shows it and suggests from
+    it, and the mapper suggests from the same numbers, so a scaled insert never gets a different item than the card
+    showed."""
+    doc = _doc(src)
+    cache = {} if cache is None else cache
+    names: dict[str, str] = {}
+    out: dict[str, tuple[float, float]] = {}
+    for e in doc.modelspace().query("INSERT"):
+        try:
+            raw = str(e.dxf.name)
+            if raw not in names:
+                names[raw] = _effective_name(doc, raw)
+            name = names[raw]
+            if name in out:
+                continue
+            bb = _block_bbox(doc, raw, cache)
+            if bb is None:
+                out[name] = (0.0, 0.0)
+                continue
+            mat = e.matrix44()
+            out[name] = (float(mat.transform_direction((bb[2] - bb[0], 0.0, 0.0)).magnitude), float(mat.transform_direction((0.0, bb[3] - bb[1], 0.0)).magnitude))
+        except Exception:  # noqa: BLE001 - an unreadable insert gives no footprint
+            continue
+    return out
+
+
 def extent_for(src: Any, layers: list[str] | None, entities: list[dict[str, Any]] | None = None) -> dict[str, float]:
     """The padded extent plan_dxf.render draws the chosen layers with (2 % of the longer side on each edge): the same
     numbers, so a point maps onto the version picture exactly. `entities` (from read_entities) saves a second read."""
@@ -352,7 +383,7 @@ def entities_summary(src: Any, layers: list[str] | None, units: str | None, cata
             continue
     ents = read_entities(doc, None)
     per: dict[str, dict[str, Any]] = {n: {"name": n, "count": 0, "kinds": {}, "sample": "", "suggested": suggest_layer(n), "in_render": layers is None or n in layers} for n in names}
-    blocks: dict[str, list[Any]] = {}
+    blocks: dict[str, int] = {}
     for ent in ents:
         row = per.setdefault(ent["layer"], {"name": ent["layer"], "count": 0, "kinds": {}, "sample": "", "suggested": suggest_layer(ent["layer"]), "in_render": layers is None or ent["layer"] in layers})
         row["count"] += 1
@@ -360,14 +391,12 @@ def entities_summary(src: Any, layers: list[str] | None, units: str | None, cata
         if not row["sample"]:
             row["sample"] = _sample(ent, mpu)
         if ent["insert"]:
-            slot = blocks.setdefault(ent["insert"]["name"], [0, ent["insert"]["block"]])
-            slot[0] += 1
-    cache: dict[str, Any] = {}
+            blocks[ent["insert"]["name"]] = blocks.get(ent["insert"]["name"], 0) + 1
+    footprints = block_footprints(doc)
     block_rows = []
     for name in sorted(blocks):
-        count, raw = blocks[name]
-        bb = _block_bbox(doc, raw, cache)
-        w, d = (bb[2] - bb[0], bb[3] - bb[1]) if bb else (0.0, 0.0)
+        count = blocks[name]
+        w, d = footprints.get(name, (0.0, 0.0))
         size_m = [w * mpu, d * mpu] if mpu else [w, d]
         block_rows.append({"name": name, "count": count, "size_m": size_m, "suggested": suggest_block(name, (size_m[0], size_m[1]), catalog)})
     rows = sorted(per.values(), key=lambda r: (-r["count"], r["name"]))
@@ -395,9 +424,19 @@ def _lat(d: Pt, a: Pt, p: Pt) -> float:
     return d[0] * (p[1] - a[1]) - d[1] * (p[0] - a[0])
 
 
+def _cell_for(base: float, points: Iterable[Pt]) -> float:
+    """The cell size of a spatial hash over these points: `base` metres, grown so the drawing is at most
+    GRID_CELLS_PER_SIDE cells across - the walk per segment is bounded by the drawing's size, not its length in metres."""
+    bb = _bbox(points)
+    if bb is None:
+        return base
+    return max(base, math.hypot(bb[2] - bb[0], bb[3] - bb[1]) / GRID_CELLS_PER_SIDE)
+
+
 class _Grid:
     """A spatial hash of segments by the cells they pass through (padded): what is near a segment or a point is found
-    without comparing everything with everything."""
+    without comparing everything with everything. Build it with a cell from _cell_for, so a long line costs at most
+    about GRID_CELLS_PER_SIDE steps."""
 
     def __init__(self, cell: float = 1.0) -> None:
         self.cell = cell
@@ -405,7 +444,7 @@ class _Grid:
 
     def _keys(self, a: Pt, b: Pt, pad: float) -> set[tuple[int, int]]:
         c = self.cell
-        steps = max(1, math.ceil(_len(a, b) / c))
+        steps = min(max(1, math.ceil(_len(a, b) / c)), 4 * GRID_CELLS_PER_SIDE)
         keys: set[tuple[int, int]] = set()
         for k in range(steps):
             p = (a[0] + (b[0] - a[0]) * k / steps, a[1] + (b[1] - a[1]) * k / steps)
@@ -452,7 +491,8 @@ def _pair_walls(segments: list[tuple[Pt, Pt]]) -> tuple[list[dict[str, Any]], di
     across a paired wall's end is dropped; a line inside a paired wall's band (or widening it within the band limit)
     is absorbed; the rest become single-line walls at the default thickness."""
     info = []
-    grid = _Grid(1.0)
+    cell = _cell_for(1.0, (p for s in segments for p in s))
+    grid = _Grid(cell)
     for k, (a, b) in enumerate(segments):
         info.append((a, b, _unit(a, b), _len(a, b)))
         grid.add(k, a, b)
@@ -516,8 +556,8 @@ def _pair_walls(segments: list[tuple[Pt, Pt]]) -> tuple[list[dict[str, Any]], di
                 continue
             pieces.append(((a[0] + d[0] * f0, a[1] + d[1] * f0), (a[0] + d[0] * f1, a[1] + d[1] * f1)))
     paired = list(walls)
-    ends = _Grid(1.0)
-    faces = _Grid(1.0)
+    ends = _Grid(cell)
+    faces = _Grid(cell)
     for k, w in enumerate(paired):
         ends.add(k, w["a"], w["a"], 0.0)
         ends.add(k, w["b"], w["b"], 0.0)
@@ -551,14 +591,17 @@ def _pair_walls(segments: list[tuple[Pt, Pt]]) -> tuple[list[dict[str, Any]], di
                 continue
             wl = _len(w["a"], w["b"])
             s0, s1 = sorted((_along(dw, w["a"], p), _along(dw, w["a"], q)))
-            if min(s1, wl) - max(s0, 0.0) < 0.5 * length:
+            cover = min(s1, wl) - max(s0, 0.0)
+            if cover < 0.5 * length:
                 continue
             lat = (lp + lq) / 2
             half = w["thickness"] / 2
             lo, hi = min(-half, lat), max(half, lat)
             if hi - lo > band + 0.005:
                 continue
-            if hi - lo > w["thickness"] + 0.01:  # just outside the band: the wall takes the line in and widens
+            if hi - lo > w["thickness"] + 0.01:  # just outside the band: the wall takes the line in and widens, when the line runs along most of it
+                if cover < WIDEN_COVER * wl:
+                    continue
                 shift = (lo + hi) / 2
                 n = (-dw[1], dw[0])
                 w["a"] = (w["a"][0] + n[0] * shift, w["a"][1] + n[1] * shift)
@@ -653,7 +696,7 @@ def _spanned(g0: Pt, g1: Pt, d: Pt, thickness: float, feats: dict[str, Any], gri
 def _bridge(walls: list[dict[str, Any]], feats: dict[str, Any], grids: dict[str, _Grid]) -> tuple[list[dict[str, Any]], int]:
     """Real CAD breaks the wall lines at an opening: collinear wall pieces of the same thickness whose gap an arc, a
     door block or a glazing run spans are joined again into one wall, so the opening has a host."""
-    grid = _Grid(1.0)
+    grid = _Grid(_cell_for(1.0, (p for w in walls for p in (w["a"], w["b"]))))
     for k, w in enumerate(walls):
         grid.add(k, w["a"], w["b"])
     parent = list(range(len(walls)))
@@ -757,6 +800,12 @@ def map_geometry(src: Any, *, layer_map: dict[str, str], block_map: dict[str, st
         entities = read_entities(doc, sorted(targets)) if targets else []
     ents = [e for e in entities if e["layer"] in targets]
     m = lambda p: (p[0] * mpu, p[1] * mpu)  # noqa: E731 - metres for the geometry
+    # a floor kilometres wide is a drawing in the wrong units (or a stray line): refused before any geometry work
+    span = _bbox((x * mpu, y * mpu) for e in ents for seg in e["segments"] for x, y in seg)
+    if span is not None and max(span[2] - span[0], span[3] - span[1]) > MAX_EXTENT_M:
+        raise plan_dxf.DxfError("dxf_extent_too_large", "the mapped layers span more than the limit",
+                                {"extent_m": round(max(span[2] - span[0], span[3] - span[1]), 1), "limit_m": MAX_EXTENT_M, "units": units})
+    grow = math.hypot(span[2] - span[0], span[3] - span[1]) / GRID_CELLS_PER_SIDE if span is not None else 0.0
 
     def tv(p_m: Pt) -> list[float]:
         return to_version(p_m[0] / mpu, p_m[1] / mpu, extent, rotation, crop)
@@ -771,7 +820,7 @@ def map_geometry(src: Any, *, layer_map: dict[str, str], block_map: dict[str, st
                         wall_segments.append((a_m, b_m))
     walls, wall_stats = _pair_walls(wall_segments)
     feats = _opening_features(ents, targets, mpu)
-    grids = {"arcs": _Grid(2.0), "boxes": _Grid(2.0), "glazing": _Grid(1.0)}
+    grids = {"arcs": _Grid(max(2.0, grow)), "boxes": _Grid(max(2.0, grow)), "glazing": _Grid(max(1.0, grow))}
     for k, arc in enumerate(feats["arcs"]):
         grids["arcs"].add(k, arc["c"], arc["c"])
     for k, box in enumerate(feats["boxes"]):
@@ -784,7 +833,7 @@ def map_geometry(src: Any, *, layer_map: dict[str, str], block_map: dict[str, st
 
     out_walls: list[dict[str, Any]] = []
     wall_index: dict[int, int] = {}
-    host_grid = _Grid(2.0)
+    host_grid = _Grid(max(2.0, grow))
     for i, w in enumerate(walls):
         va, vb = tv(w["a"]), tv(w["b"])
         pa, pb = _clamped(va), _clamped(vb)
@@ -892,7 +941,8 @@ def map_geometry(src: Any, *, layer_map: dict[str, str], block_map: dict[str, st
     out_objects: list[dict[str, Any]] = []
     by_id = {c["id"]: c for c in catalog}
     bbox_cache: dict[str, Any] = {}
-    suggestions: dict[tuple[str, float, float], dict[str, Any]] = {}  # one suggestion per block name and footprint, not per insert
+    suggestions: dict[str, dict[str, Any]] = {}  # one suggestion per block name, from the footprint the summary showed
+    footprints: dict[str, tuple[float, float]] | None = None
     for e in ents:
         if targets[e["layer"]] != "objects" or not e["insert"]:
             continue
@@ -917,10 +967,12 @@ def map_geometry(src: Any, *, layer_map: dict[str, str], block_map: dict[str, st
             item_id = chosen if isinstance(chosen, str) and chosen in by_id else GENERIC_ID
             word_name = suggest_block(name, size_m, [])["name"]
         else:
-            key = (name, round(size_m[0], 3), round(size_m[1], 3))
-            if key not in suggestions:
-                suggestions[key] = suggest_block(name, size_m, catalog)
-            suggestion = suggestions[key]
+            if name not in suggestions:
+                if footprints is None:
+                    footprints = block_footprints(doc, bbox_cache)
+                fw, fd = footprints.get(name, (0.0, 0.0))
+                suggestions[name] = suggest_block(name, (fw * mpu, fd * mpu), catalog)
+            suggestion = suggestions[name]
             if suggestion["catalog_id"] is None:
                 continue  # a door or a window block on an object layer is not an object unless the person maps it
             item_id, word_name = suggestion["catalog_id"], suggestion["name"]
