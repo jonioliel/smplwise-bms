@@ -51,8 +51,9 @@ def _polygon(raw: str | None) -> list[list[float]] | None:
 
 
 COVERAGE_KEYS = ("coverage_radius", "coverage_polygon")
-# Fields an explicit null clears in a PATCH (absent = unchanged): the coverage pair and the 3D pair (T087).
-NULLABLE_KEYS = COVERAGE_KEYS + ("mount_height_m", "tilt_deg")
+# Fields an explicit null clears in a PATCH (absent = unchanged): the coverage pair, the 3D pair (T087), the label and
+# the field of view (null = no cone; ruling R-P4-T3-1).
+NULLABLE_KEYS = COVERAGE_KEYS + ("mount_height_m", "tilt_deg", "label", "field_of_view_degrees")
 
 
 def _check_polygon(pts: list[list[float]] | None) -> str | None:
@@ -387,10 +388,12 @@ def update_anchor(anchor_id: str, body: AnchorPatch, request: Request, principal
         fields["coverage_polygon"] = _check_polygon(fields["coverage_polygon"])
     if "level_id" in fields:
         fields["level_id"] = fields["level_id"] or None  # "" clears: back to the floor's default level
+    fields = {k: v for k, v in fields.items() if a[k] != v}  # an unchanged value is no change
+    if not fields:
+        return anchor_row(a)  # nothing changed: no revision bump, no audit row (ruling R-P4-T3-1)
     before = {k: a[k] for k in fields}
-    if fields:
-        sets = ", ".join(f"{k} = ?" for k in fields)
-        conn.execute(f"UPDATE map_anchors SET {sets}, revision = revision + 1, updated_by = ?, updated_at = ? WHERE id = ?", (*fields.values(), principal.user_id, now_iso(), anchor_id))
+    sets = ", ".join(f"{k} = ?" for k in fields)
+    conn.execute(f"UPDATE map_anchors SET {sets}, revision = revision + 1, updated_by = ?, updated_at = ? WHERE id = ?", (*fields.values(), principal.user_id, now_iso(), anchor_id))
     audit(conn, actor=principal, action="anchor.update", decision="allowed", resource_type="floor", resource_id=a["floor_id"], request_id=_rid(request),
           details={"anchor_id": anchor_id, "before": before, "after": fields})
     return anchor_row(get_anchor(conn, anchor_id))

@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
+import { live } from 'lit/directives/live.js';
 import '../components/sw-page';
 import '../components/sw-card';
 import '../components/sw-button';
@@ -2957,8 +2958,8 @@ export class ExplorePlanEditor extends LitElement {
       return Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : null;
     };
     return html`<div class="two" data-anchor-3d>
-      <sw-field label="גובה התקנה (מ׳)" hint=${`ברירת מחדל ${d.mount_height_m} מ׳ · לתצוגת התלת-ממד`}><input type="number" step="0.1" min="0" max="30" data-ltr data-anchor-mount placeholder=${String(d.mount_height_m)} .value=${a.mount_height_m == null ? '' : String(a.mount_height_m)} @change=${(e: Event) => this.apply(a.id, { mount_height_m: num((e.target as HTMLInputElement).value, 0, 30) })} /></sw-field>
-      ${withTilt ? html`<sw-field label="הטיה (°)" hint=${`ברירת מחדל ${d.tilt_deg}° · חיובי = מטה`}><input type="number" step="1" min="-90" max="90" data-ltr data-anchor-tilt placeholder=${String(d.tilt_deg)} .value=${a.tilt_deg == null ? '' : String(a.tilt_deg)} @change=${(e: Event) => this.apply(a.id, { tilt_deg: num((e.target as HTMLInputElement).value, -90, 90) })} /></sw-field>` : nothing}
+      <sw-field label="גובה התקנה (מ׳)" hint=${`ברירת מחדל ${d.mount_height_m} מ׳ · לתצוגת התלת-ממד`}><input type="number" step="0.1" min="0" max="30" data-ltr data-anchor-mount placeholder=${String(d.mount_height_m)} .value=${live(a.mount_height_m == null ? '' : String(a.mount_height_m))} @change=${(e: Event) => this.apply(a.id, { mount_height_m: num((e.target as HTMLInputElement).value, 0, 30) })} /></sw-field>
+      ${withTilt ? html`<sw-field label="הטיה (°)" hint=${`ברירת מחדל ${d.tilt_deg}° · חיובי = מטה`}><input type="number" step="any" min="-90" max="90" data-ltr data-anchor-tilt placeholder=${String(d.tilt_deg)} .value=${live(a.tilt_deg == null ? '' : String(a.tilt_deg))} @change=${(e: Event) => this.apply(a.id, { tilt_deg: num((e.target as HTMLInputElement).value, -90, 90) })} /></sw-field>` : nothing}
     </div>`;
   }
 
