@@ -39,12 +39,14 @@ ARC_WIDE_M = (0.3, 3.0)  # uncalibrated: the arc test runs on gaps of 0.3-3 m at
 ARC_WIDE_T = (2.0, 15.0)  # ... or 2-15 wall thicknesses (the arc does not depend on the scale)
 DOUBLE_MIN_M = 1.1  # a double door from 1.1 m (two 0.55 m leaves): mirrored half arcs are tested from here
 WINDOW_RANGE_M = (0.5, 3.0)
+PASSAGE_THICK_RATIO = 1.5  # a passage joins two pieces only when the thicker is at most this many times the thinner
 MIN_WALL_M = 0.25
 MIN_WALL_FRACTION = 0.005
 BLOB_RATIO = 3.0  # a wall segment is at least this many thicknesses long
 COMPACT_RATIO = 8.0  # a skeleton component less than this many of its thicknesses across is a blot, not walls
 SOLID_INK = 0.93  # a segment shorter than COMPACT_RATIO thicknesses needs this much ink along its band
 PROFILE_STEP_M = 0.05
+PROFILE_BAND_PX = 2.0  # the profile pass samples each window line at -2, 0 and +2 px about the wall's face
 TARGETS = ("walls", "openings")
 
 
@@ -610,7 +612,7 @@ def _stage(gray: Image.Image, strength: float, analysis_px: int, scale_m_per_px:
     return {"an": an, "dt": dt, "skel": skel, "t_med": t_med, "s": s, "calibrated": calibrated, "pieces": kept, "segs": segs, "aw": aw, "ah": ah, "f": f}
 
 
-# ---------------------------------------------------------------- openings (Tasks 4 and 5 replace the two stubs)
+# ---------------------------------------------------------------- openings
 
 def _ratio(mask: np.ndarray, pts: np.ndarray) -> float:
     """The fraction of the sample points (x, y) that fall on set pixels of the mask."""
@@ -632,13 +634,16 @@ def _arc_ratio(mask: np.ndarray, centre: np.ndarray, radius: float, u: np.ndarra
     return max(_ratio(mask, _arc(centre, radius * k, u, n)) for k in (0.94, 0.97, 1.0, 1.03, 1.06))
 
 
-def _lines_along(g0: np.ndarray, d: np.ndarray, length: float, nl: np.ndarray, t_ref: float, ink: np.ndarray) -> int:
+def _lines_along(g0: np.ndarray, d: np.ndarray, length: float, nl: np.ndarray, t_ref: float, ink: np.ndarray, band: float = 0.0) -> int:
     """How many of the three lines a window symbol may show (both wall faces and the glass line between them) are
-    drawn along the run g0 -> g0 + d * length: ink on at least 60 % of 16 samples per line."""
+    drawn along the run g0 -> g0 + d * length: ink on at least 60 % of 16 samples per line. With `band`, each line is
+    the best of three parallel samplings at -band, 0 and +band pixels (a drawn line a pixel or two off the wall's
+    measured face still counts)."""
     hits = 0
     along = np.linspace(0.1, 0.9, 16)
+    shifts = (0.0,) if band <= 0 else (-band, 0.0, band)
     for off in (-t_ref / 2, 0.0, t_ref / 2):
-        if _ratio(ink, g0 + np.outer(along, d) * length + nl * off) >= WINDOW_LINE_RATIO:
+        if max(_ratio(ink, g0 + np.outer(along, d) * length + nl * (off + sh)) for sh in shifts) >= WINDOW_LINE_RATIO:
             hits += 1
     return hits
 
@@ -748,6 +753,10 @@ def walls_from_gaps(segs: list[Seg], s: float, calibrated: bool, thin_mask: np.n
             if want_openings and wall_mask is not None and lo - segs[i].thick / 2 > cur_hi + t_cur / 2:
                 g0, g1 = _gap_end(wall_mask, g0, d, t_cur), _gap_end(wall_mask, g1, -d, segs[i].thick)
             found = classify_gap(g0, g1, d, t_ref, s, calibrated, thin_mask, ink) if (want_openings and lo - segs[i].thick / 2 > cur_hi + t_cur / 2) else None
+            if found is not None and found["kind"] == "passage" and t_ref > PASSAGE_THICK_RATIO * max(min(t_cur, segs[i].thick), 2.0):
+                # a passage has no symbol to prove it: two pieces of clearly different thickness (a partition ending at
+                # a crossing wall and a stub beyond it) are two walls, not one wall with a gap
+                found = None
             if found is None:
                 walls.append(Seg(base.a + d * cur_lo, base.a + d * cur_hi, cur_samples, cur_axis))
                 for o in pending:
@@ -766,8 +775,49 @@ def walls_from_gaps(segs: list[Seg], s: float, calibrated: bool, thin_mask: np.n
 
 
 def windows_by_profile(walls: list[Seg], openings: list[dict[str, Any]], dt: np.ndarray, ink: np.ndarray, s: float) -> list[dict[str, Any]]:
-    """Task 5: windows the closing hid inside a wall band. Until then: none."""
-    return []
+    """Design 9.3: along every wall, in 5 cm steps, the ink thickness on the wall's centre line (the best of three
+    perpendicular offsets, so a wall a few pixels off its detected line still reads solid); a run of 0.5-3 m under
+    half the wall's median thickness, with two or three lines drawn along it, is a window. `dt` is the distance
+    transform of the raw ink: the closing merges a window's parallel lines into a band as thick as the wall, so the
+    wall mask cannot tell, but the raw ink there is a few thin lines (or nothing on the centre line) and the profile
+    drops. A run already covered by an opening from the gap pass is left alone (an opening's `t` is a fraction of its
+    wall's length). The lines are sampled in a band of +-PROFILE_BAND_PX about each face (_lines_along), the confidence
+    is capped at 0.99 like the gap pass's."""
+    ah, aw = dt.shape
+    found: list[dict[str, Any]] = []
+    step = max(2.0, PROFILE_STEP_M / s)
+    for wi, g in enumerate(walls):
+        n_steps = int(g.length / step)
+        if n_steps < 6:
+            continue
+        d = g.dir
+        nl = np.array([d[1], -d[0]])
+        along = np.arange(n_steps) * step + step / 2
+        prof = np.zeros(n_steps)
+        for off in (-g.thick / 3, 0.0, g.thick / 3):
+            pts = g.a + np.outer(along, d) + nl * off
+            prof = np.maximum(prof, 2.0 * dt[np.clip(np.round(pts[:, 1]).astype(int), 0, ah - 1), np.clip(np.round(pts[:, 0]).astype(int), 0, aw - 1)])
+        low = prof < 0.5 * g.thick
+        k = 0
+        while k < n_steps:
+            if not low[k]:
+                k += 1
+                continue
+            k2 = k
+            while k2 < n_steps and low[k2]:
+                k2 += 1
+            run = (k2 - k) * step
+            if WINDOW_RANGE_M[0] / s <= run <= WINDOW_RANGE_M[1] / s:
+                c_along = (along[k] + along[k2 - 1]) / 2
+                t = c_along / g.length
+                taken = any(o["wall_seg"] == wi and abs(o["t"] - t) * g.length < run for o in openings + found)
+                if not taken:
+                    g0 = g.a + d * (c_along - run / 2)
+                    hits = _lines_along(g0, d, run, nl, g.thick, ink, PROFILE_BAND_PX)
+                    if hits >= 2:
+                        found.append({"kind": "window", "swing": "none", "hinge": "start", "confidence": round(min(0.99, 0.4 + 0.15 * hits), 3), "width_px": run, "wall_seg": wi, "t": t})
+            k = k2
+    return found
 
 
 # ---------------------------------------------------------------- the detector
