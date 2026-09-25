@@ -1,4 +1,6 @@
 import { test, expect } from '@playwright/test';
+import { buildScene, isoProjection } from '../src/map/scene-builder';
+import { demoSceneInput } from '../src/fixtures/demo-3d';
 
 // Plan Studio phase 4 (T087): the 3D element in a browser without a backend. The style guide loads it on demand (the three
 // chunk is fetched only then), it renders the demo floor, the presets change the view, a click on a wall is echoed as the
@@ -136,4 +138,22 @@ test('the demo floor map: the toggle loads the chunk once, the key 3 switches, l
   await page.keyboard.press('3');
   await page.waitForTimeout(300);
   await expect(host.locator('sw-plan-3d[data-floor-3d]')).toHaveCount(1);
+});
+
+test('the isometric thumbnail draws faces from a description and the demo building page still draws rooms', async ({ page }) => {
+  const iso = isoProjection(buildScene(demoSceneInput('f0')!));
+  await page.goto('/#/explore/buildings/bld-a/floors');
+  const isos = page.locator('explore-floors sw-floor-iso');
+  await expect(isos.first()).toBeAttached({ timeout: 20000 });
+  await expect(isos.first()).toHaveAttribute('data-iso', 'demo');
+  const faces = await isos.first().evaluate(async (node, scene) => {
+    const el = node as unknown as { iso: unknown; updateComplete: Promise<boolean>; shadowRoot: ShadowRoot };
+    el.iso = scene;
+    await el.updateComplete;
+    return { real: (node as HTMLElement).getAttribute('data-iso'), sides: el.shadowRoot.querySelectorAll('polygon.side').length, tops: el.shadowRoot.querySelectorAll('polygon.top').length, plates: el.shadowRoot.querySelectorAll('polygon.plate').length };
+  }, iso);
+  expect(faces.real).toBe('real');
+  expect(faces.plates).toBe(1);
+  expect(faces.sides).toBeGreaterThan(8);
+  expect(faces.tops).toBeGreaterThan(2);
 });

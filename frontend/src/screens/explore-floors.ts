@@ -17,6 +17,19 @@ import { navigate } from '../router';
 import { createBuilding, createFloor, deleteFloor, loadTree, updateFloor, type CatalogTree } from '../api/catalog';
 import { ApiError, describeError } from '../api/client';
 import type { Building, Floor, Site } from '../api/types';
+import { getGeometry } from '../api/geometry';
+import { buildScene, isoProjection, type IsoScene, type SceneDescription } from '../map/scene-builder';
+
+/** The isometric of every level stacked bottom to top: isoProjection draws all the plates first (in level id order), so a
+ * level above would be painted over by the walls below it. Each level is projected on its own (same size, same scale) and
+ * the levels are concatenated by elevation - the lower level's plate and walls, then the next plate over them. */
+function stackedIso(desc: SceneDescription): IsoScene {
+  const levels = [...desc.levels].sort((a, b) => a.elevation_m - b.elevation_m || (a.id < b.id ? -1 : 1));
+  const known = new Set(levels.map((l) => l.id));
+  const lowest = levels[0]?.id ?? null;
+  const faces = levels.flatMap((lv) => isoProjection({ ...desc, parts: desc.parts.filter((p) => (p.level_id !== null && known.has(p.level_id) ? p.level_id : lowest) === lv.id) }).faces);
+  return { faces, levels: levels.length };
+}
 
 type Dialog = { kind: 'floor' } | { kind: 'rename'; floor: Floor } | { kind: 'delete'; floor: Floor; force: boolean } | { kind: 'building' } | null;
 
@@ -32,6 +45,28 @@ export class ExploreFloors extends LitElement {
   @state() private error = '';
   @state() private formName = '';
   @state() private formLevel = 0;
+  /** T087: the true isometric of every floor with a published structure, one document read per version (cached here). */
+  @state() private isos = new Map<string, IsoScene | null>();
+  private isoPending = new Set<string>();
+
+  private isoFor(f: Floor): IsoScene | null {
+    const vid = f.published_version_id;
+    if (!vid || this.tree?.source !== 'api') return null;
+    if (this.isos.has(vid)) return this.isos.get(vid) ?? null;
+    if (this.isoPending.has(vid)) return null;
+    this.isoPending.add(vid);
+    void getGeometry(vid)
+      .then((r) => {
+        const desc = buildScene({ doc: r.doc, width: f.plan_width_px || r.doc.dimensions.width_px, height: f.plan_height_px || r.doc.dimensions.height_px, anchors: [], entityStates: {}, circuitStates: {},
+          layers: { objects: false, cameras: false, entities: false, zones: false } });
+        this.isos = new Map(this.isos).set(vid, desc.parts.some((p) => p.kind === 'wall') ? stackedIso(desc) : null);
+      })
+      .catch(() => {
+        this.isos = new Map(this.isos).set(vid, null); // no published structure (404) or no permission: the room outlines stay
+      })
+      .finally(() => this.isoPending.delete(vid));
+    return null;
+  }
 
   static styles = css`
     .pic {
@@ -253,7 +288,7 @@ export class ExploreFloors extends LitElement {
                     <div class="title">${bidi(f.name)}</div>
                     <div class="counts">${f.camera_count} מצלמות · ${f.anchor_count} פריטים במפה · מפלס ${ltrNum(f.level)}${f.has_plan ? '' : ' · אין תוכנית עדיין'}${f.draft_version_id ? ' · טיוטה ממתינה לפרסום' : ''}</div>
                   </div>
-                  <sw-floor-iso .rooms=${tree.source === 'demo' ? demoRooms(f.id) : []} ?selected=${sel?.id === f.id} ?empty=${!f.has_plan} width=${128}></sw-floor-iso>
+                  <sw-floor-iso data-floor-iso=${f.id} .rooms=${tree.source === 'demo' ? demoRooms(f.id) : []} .iso=${this.isoFor(f)} ?selected=${sel?.id === f.id} ?empty=${!f.has_plan} width=${128}></sw-floor-iso>
                   <span class="chev"><sw-icon name="chevron" size=${16}></sw-icon></span>
                 </button>`,
               )}

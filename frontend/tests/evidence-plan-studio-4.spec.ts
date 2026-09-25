@@ -238,7 +238,7 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
     await page.goto(`/?design=a#/investigate/events/${found!.id}`);
     const host = page.locator('investigate-event-detail');
     await expect(host.locator('sw-plan-canvas')).toBeAttached({ timeout: 30000 });
-    const toggle = host.locator('sw-button[data-event-3d]'); // the element carries data-event-3d too
+    const toggle = host.locator('sw-button[data-event-3d-toggle]'); // the element keeps data-event-3d
     await expect(toggle).toBeEnabled({ timeout: 15000 });
     await toggle.click();
     const el = host.locator('sw-plan-3d[data-event-3d]');
@@ -248,5 +248,52 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
     expect(Number(await el.getAttribute('data-parts'))).toBeGreaterThan(0);
     await toggle.click();
     await expect(host.locator('sw-plan-canvas')).toBeAttached();
+  });
+
+  test('building page: the floor list shows a true isometric of the published walls', async ({ page }) => {
+    const reads: string[] = []; // the page reads the PUBLISHED structure, once per version (cached across renders)
+    page.on('request', (r) => { if (r.url().includes('/geometry')) reads.push(r.url()); });
+    await page.goto(`/?design=a#/explore/buildings/${ids.building}/floors`);
+    const iso = page.locator(`explore-floors sw-floor-iso[data-floor-iso="${ids.floor}"]`);
+    await expect(iso).toHaveAttribute('data-iso', 'real', { timeout: 30000 });
+    expect(await iso.locator('polygon.side').count()).toBeGreaterThan(8); // five walls, each a box with four sides (openings cut them further)
+    expect(await iso.locator('polygon.plate').count()).toBe(2); // two levels
+    const tabs = page.locator('explore-floors sw-tabs button');
+    await tabs.filter({ hasText: 'פרטים' }).click(); // away from the list and back: the thumbnail is built again from the cache
+    await expect(iso).toHaveCount(0);
+    await tabs.filter({ hasText: 'קומות' }).click();
+    await expect(iso).toHaveAttribute('data-iso', 'real');
+    expect(reads).toHaveLength(1);
+    expect(reads[0]).toMatch(new RegExp(`/plan-versions/${ids.version}/geometry$`));
+  });
+
+  test('glTF export: the button downloads a glTF JSON with the instanced parts', async ({ page }) => {
+    test.setTimeout(120_000);
+    // the download pattern is an <a download> click on a Blob URL: capture the Blob instead of saving a file
+    await page.addInitScript(() => {
+      const w = window as unknown as { __gltf: { name: string; text: string } | null };
+      w.__gltf = null;
+      const origCreate = URL.createObjectURL.bind(URL);
+      const blobs = new Map<string, Blob>();
+      URL.createObjectURL = (b: Blob | MediaSource) => { const u = origCreate(b); if (b instanceof Blob) blobs.set(u, b); return u; };
+      HTMLAnchorElement.prototype.click = function () { const b = blobs.get(this.href); if (b) void b.text().then((text) => { w.__gltf = { name: this.download, text }; }); };
+    });
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
+    const host = page.locator(HOST);
+    await expect(host.locator('[data-view-3d]')).toBeEnabled({ timeout: 30000 });
+    await host.locator('[data-view-3d]').click();
+    const el = host.locator('sw-plan-3d[data-floor-3d]');
+    await expect(el).toHaveAttribute('data-ready', '', { timeout: 30000 });
+    await el.locator('[data-export-gltf]').click();
+    await expect.poll(() => page.evaluate(() => (window as unknown as { __gltf: unknown }).__gltf !== null), { timeout: 30000 }).toBe(true);
+    const got = await page.evaluate(() => (window as unknown as { __gltf: { name: string; text: string } }).__gltf);
+    expect(got.name).toMatch(/^plan-3d-.+-\d{4}-\d{2}-\d{2}\.gltf$/);
+    const gltf = JSON.parse(got.text) as { asset: { generator: string; version: string }; nodes: unknown[]; meshes: unknown[]; extensionsUsed?: string[] };
+    expect(gltf.asset.generator).toContain('GLTFExporter');
+    expect(gltf.asset.version).toBe('2.0');
+    expect(gltf.nodes.length).toBeGreaterThan(10);
+    expect(gltf.meshes.length).toBeGreaterThan(3);
+    expect(gltf.extensionsUsed ?? []).toContain('EXT_mesh_gpu_instancing'); // the chairs and the wall parts travel as instances
+    console.log(`GLTF ${got.name}: ${gltf.nodes.length} nodes, ${gltf.meshes.length} meshes, ${got.text.length} bytes`);
   });
 });
