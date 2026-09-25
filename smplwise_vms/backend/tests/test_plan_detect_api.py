@@ -176,3 +176,93 @@ def test_detect_failure_answers_500_detect_failed(settings, monkeypatch):
     r = c.post(f"/api/v1/plan-versions/{vid}/detect", json={})
     assert r.status_code == 500 and r.json()["code"] == "detect_failed" and r.json()["details"] == {"error": "RuntimeError"}
     assert _draft(c, vid)["doc"]["walls"] == []
+    with app.state.db.connection() as conn:
+        rows = [json.loads(x[0]) for x in conn.execute("SELECT details_json FROM audit_log WHERE action = 'geometry.detect'").fetchall()]
+    assert len(rows) == 1 and rows[0]["failed"] == "RuntimeError", "a failed run still leaves its audit row"
+
+
+# ---------------------------------------------------------------- fix round 1 (review of ac60773)
+
+def test_accept_refuses_a_non_string_wall_id_from_the_candidate_or_the_edit(settings):
+    app, c, ids, vid = _setup(settings)
+    r = c.post(f"/api/v1/plan-versions/{vid}/detect", json={}).json()
+    o = r["openings"][0]
+    both = [o["wall_id"], o["id"]]
+    listed = dict(r, openings=[dict(o, wall_id=[o["wall_id"]])] + r["openings"][1:])
+    a = c.post(f"/api/v1/plan-versions/{vid}/detect/accept", json=_accept_body(listed, both, 0))
+    assert a.status_code == 422 and a.json()["code"] == "candidate_shape" and a.json()["details"]["ids"] == [o["id"]]
+    e = c.post(f"/api/v1/plan-versions/{vid}/detect/accept", json=_accept_body(r, both, 0, edits={o["id"]: {"wall_id": {"id": o["wall_id"]}}}))
+    assert e.status_code == 422 and e.json()["code"] == "candidate_shape" and e.json()["details"]["ids"] == [o["id"]]
+    assert _draft(c, vid)["geometry"]["revision"] == 0
+
+
+def test_an_estimate_never_replaces_a_measured_calibration_silently(settings):
+    app, c, ids, vid = _setup(settings)
+    assert c.patch(f"/api/v1/plan-versions/{vid}/calibration", json={"pairs": [{"a": [0.075, 0.1], "b": [0.925, 0.1], "metres": 13.6}]}).status_code == 200
+    r = c.patch(f"/api/v1/plan-versions/{vid}/calibration", json={"estimate": {"scale_m_per_px": 0.02}})
+    assert r.status_code == 409 and r.json()["code"] == "calibration_measured"
+    assert _draft(c, vid)["doc"]["dimensions"]["calibration"]["status"] == "measured"
+    ok = c.patch(f"/api/v1/plan-versions/{vid}/calibration", json={"estimate": {"scale_m_per_px": 0.02}, "replace_measured": True})
+    assert ok.status_code == 200 and ok.json()["status"] == "estimated" and ok.json()["scale_m_per_px"] == 0.02
+    # an estimate over an estimate needs no confirmation; the detector then reports the estimated status, not measured
+    assert c.patch(f"/api/v1/plan-versions/{vid}/calibration", json={"estimate": {"scale_m_per_px": 0.011}}).status_code == 200
+    d = c.post(f"/api/v1/plan-versions/{vid}/detect", json={"targets": ["walls"]}).json()
+    assert d["scale"]["status"] == "estimated" and d["scale"]["m_per_px"] > 0
+    bind(c, settings, "dana", "viewer", "floor", ids["floor2"])
+    assert c.patch(f"/api/v1/plan-versions/{vid}/calibration", json={"estimate": {"scale_m_per_px": 0.01}}, headers=as_user("dana")).status_code == 403
+
+
+def test_accept_detector_is_a_bounded_model(settings):
+    app, c, ids, vid = _setup(settings)
+    r = c.post(f"/api/v1/plan-versions/{vid}/detect", json={}).json()
+    wall_ids = [w["id"] for w in r["walls"]]
+    assert c.post(f"/api/v1/plan-versions/{vid}/detect/accept", json=_accept_body(dict(r, detector={"name": "x" * 65}), wall_ids, 0)).status_code == 422
+    assert c.post(f"/api/v1/plan-versions/{vid}/detect/accept", json=_accept_body(dict(r, detector={"name": "plan_detect", "version": "9" * 33}), wall_ids, 0)).status_code == 422
+    many = {f"k{i}": i for i in range(65)}
+    assert c.post(f"/api/v1/plan-versions/{vid}/detect/accept", json=_accept_body(dict(r, detector={"name": "plan_detect", "params": many}), wall_ids, 0)).status_code == 422
+    a = c.post(f"/api/v1/plan-versions/{vid}/detect/accept", json=_accept_body(dict(r, detector=dict(r["detector"], blob="x" * 5000)), wall_ids, 0))
+    assert a.status_code == 200, a.text
+    stored = a.json()["doc"]["meta"]["last_detection"]["detector"]
+    assert set(stored) == {"name", "version", "params"} and stored["name"] == "plan_detect" and stored["params"] == r["detector"]["params"]
+
+
+def test_replace_auto_keeps_locked_walls_counts_manual_openings_and_handles_imported(settings):
+    app, c, ids, vid = _setup(settings)
+    r = c.post(f"/api/v1/plan-versions/{vid}/detect", json={}).json()
+    n_w = len(r["walls"])
+    assert c.post(f"/api/v1/plan-versions/{vid}/detect/accept", json=_accept_body(r, [w["id"] for w in r["walls"]] + [o["id"] for o in r["openings"]], 0)).status_code == 200
+    doc = _draft(c, vid)["doc"]
+    host = r["openings"][0]["wall_id"]  # locked: it stays, with its openings
+    other = next(w["id"] for w in doc["walls"] if w["id"] != host)
+    for w in doc["walls"]:
+        if w["id"] == host:
+            w["locked"] = True
+    doc["openings"].append(dict(r["openings"][0], id="m-o1", source="manual", wall_id=other, t=0.5, width_m=0.1))
+    assert c.put(f"/api/v1/plan-versions/{vid}/geometry", json={"doc": doc, "base_revision": 1}).status_code == 200
+    on_host = [o["id"] for o in doc["openings"] if o["wall_id"] == host]
+    removed_openings = sum(1 for o in doc["openings"] if o["source"] == "auto" and o["wall_id"] != host)
+    # an accepted opening whose wall the replace just removed is an orphan
+    orphan = c.post(f"/api/v1/plan-versions/{vid}/detect/accept", json=_accept_body(r, [o["id"] for o in r["openings"] if o["wall_id"] != host][:1], 2, replace_auto=True))
+    assert orphan.status_code == 422 and orphan.json()["code"] == "orphan_opening"
+    r2 = c.post(f"/api/v1/plan-versions/{vid}/detect", json={"targets": ["walls"]}).json()
+    rep = c.post(f"/api/v1/plan-versions/{vid}/detect/accept", json=_accept_body(r2, [w["id"] for w in r2["walls"]], 2, replace_auto=True))
+    assert rep.status_code == 200, rep.text
+    doc3 = rep.json()["doc"]
+    assert host in {w["id"] for w in doc3["walls"]} and len(doc3["walls"]) == len(r2["walls"]) + 1
+    assert sorted(o["id"] for o in doc3["openings"]) == sorted(on_host) and "m-o1" not in {o["id"] for o in doc3["openings"]}
+    assert rep.json()["merge"] == {"accepted": {"walls": len(r2["walls"]), "openings": 0, "objects": 0}, "removed_auto": (n_w - 1) + removed_openings, "removed_manual_openings": 1, "reided": 0}
+    with app.state.db.connection() as conn:
+        last = json.loads(conn.execute("SELECT details_json FROM audit_log WHERE action = 'geometry.detect.accept' ORDER BY rowid DESC LIMIT 1").fetchone()[0])
+    assert last["removed_manual_openings"] == 1 and last["removed_auto"] == (n_w - 1) + removed_openings
+    # imported candidates replace the earlier imported ones only; the automatic walls stay
+    tpl = {k: v for k, v in r["walls"][0].items()}
+    imp = [dict(tpl, id=f"imp-a-w{i}", source="imported") for i in (1, 2)]
+    a1 = c.post(f"/api/v1/plan-versions/{vid}/detect/accept", json=_accept_body({"walls": imp, "openings": [], "detector": None}, [w["id"] for w in imp], 3))
+    assert a1.status_code == 200, a1.text
+    before = len(a1.json()["doc"]["walls"])
+    imp_b = [dict(tpl, id="imp-b-w1", source="imported")]
+    a2 = c.post(f"/api/v1/plan-versions/{vid}/detect/accept", json=_accept_body({"walls": imp_b, "openings": [], "detector": None}, ["imp-b-w1"], 4, replace_auto=True))
+    assert a2.status_code == 200, a2.text
+    walls = a2.json()["doc"]["walls"]
+    assert len(walls) == before - 1 and "imp-b-w1" in {w["id"] for w in walls} and not {"imp-a-w1", "imp-a-w2"} & {w["id"] for w in walls}
+    assert sum(1 for w in walls if w["source"] == "auto") == len(r2["walls"]) + 1 and a2.json()["merge"]["removed_auto"] == 2

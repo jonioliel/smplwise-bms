@@ -229,6 +229,7 @@ class EstimateIn(BaseModel):
 class CalibrationIn(BaseModel):
     pairs: list[CalPair] | None = Field(default=None, min_length=1, max_length=4)
     estimate: EstimateIn | None = None
+    replace_measured: bool = False  # an estimate over a measured calibration only when the person confirms it
 
 
 @router.patch("/plan-versions/{version_id}/calibration")
@@ -244,9 +245,12 @@ def calibrate(version_id: str, body: CalibrationIn, request: Request, principal:
     now = now_iso()
     residual: float | None
     if body.estimate is not None:
+        was_measured = pg.calibration_of(v, None)["status"] == "measured"
+        if was_measured and not body.replace_measured:
+            raise conflict("calibration_measured", "לתוכנית כבר יש כיול מדוד; הערכה תחליף אותו רק באישור (replace_measured).")
         scale, residual, status = body.estimate.scale_m_per_px, None, "estimated"
         record: dict[str, Any] = {"method": body.estimate.method, "status": status, "pairs": [], "residual_pct": None, "reason": body.estimate.reason, "at": now, "by": principal.user_id}
-        details: dict[str, Any] = {"version_id": v["id"], "method": body.estimate.method, "status": status, "scale_m_per_px": scale}
+        details: dict[str, Any] = {"version_id": v["id"], "method": body.estimate.method, "status": status, "scale_m_per_px": scale, "replaced_measured": was_measured}
     else:
         pairs = body.pairs or []
         if any(not 0 <= c <= 1 for p in pairs for c in (*p.a, *p.b)):
@@ -286,13 +290,20 @@ class CandidateSet(BaseModel):
     objects: list[dict[str, Any]] = Field(default=[], max_length=5000)
 
 
+class DetectorIn(BaseModel):
+    """What the client says produced the candidates; stored in meta.last_detection, so bounded (unknown keys dropped)."""
+    name: str = Field(min_length=1, max_length=64)
+    version: str | None = Field(default=None, max_length=32)
+    params: dict[str, Any] = Field(default={}, max_length=64)
+
+
 class AcceptIn(BaseModel):
     accepted: list[CandidateId] = Field(min_length=1, max_length=11000)
     edits: dict[CandidateId, dict[str, Any]] = Field(default={}, max_length=11000)
     replace_auto: bool = False
     candidates: CandidateSet
     base_revision: int = Field(ge=0)
-    detector: dict[str, Any] | None = None
+    detector: DetectorIn | None = None
 
 
 def _auto_counts(doc: dict[str, Any]) -> dict[str, int]:
@@ -333,7 +344,11 @@ def detect_structure(version_id: str, body: DetectIn, request: Request, principa
               details={"version_id": v["id"], "targets": targets, "strength": body.strength, "timeout_s": settings.detect_timeout_s, "timed_out": True})
         raise ApiError(504, "detect_timeout", "הזיהוי לא הסתיים בזמן; נסה עוצמה נמוכה יותר או תוכנית קטנה יותר.", retryable=True, details={"timeout_s": settings.detect_timeout_s})
     except (OSError, ValueError, MemoryError, RuntimeError) as exc:  # RuntimeError: the thinning's iteration bound in plan_detect
+        audit(conn, actor=principal, action="geometry.detect", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
+              details={"version_id": v["id"], "targets": targets, "strength": body.strength, "failed": type(exc).__name__})
         raise ApiError(500, "detect_failed", "זיהוי המבנה נכשל.", details={"error": type(exc).__name__})
+    if scale is not None and isinstance(result.get("scale"), dict):
+        result["scale"]["status"] = cal["status"]  # the detector calls any given scale measured; an estimate stays an estimate
     elapsed_ms = int((time.perf_counter() - t0) * 1000)
     audit(conn, actor=principal, action="geometry.detect", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
           details={"version_id": v["id"], "targets": targets, "strength": body.strength, "walls": len(result["walls"]), "openings": len(result["openings"]), "ms": elapsed_ms,
@@ -359,14 +374,15 @@ def accept_detection(version_id: str, body: AcceptIn, request: Request, principa
     if structural:
         raise ApiError(422, "geometry_structure", "מבנה המועמדים אינו תקין; דבר לא נשמר.", details={"issues": structural[:50]})
     meta = dict(merged.get("meta") or {})
-    meta["last_detection"] = {"at": now_iso(), "by": principal.user_id, "detector": body.detector, "accepted": counts["accepted"], "replace_auto": body.replace_auto}
-    if isinstance(body.detector, dict) and body.detector.get("name"):
-        meta["detector_version"] = f"{body.detector['name']} {body.detector.get('version', '')}".strip()
+    detector = body.detector.model_dump() if body.detector is not None else None
+    meta["last_detection"] = {"at": now_iso(), "by": principal.user_id, "detector": detector, "accepted": counts["accepted"], "replace_auto": body.replace_auto}
+    if body.detector is not None:
+        meta["detector_version"] = f"{body.detector.name} {body.detector.version or ''}".strip()
     merged["meta"] = meta
     saved = store.save_draft(conn, v, merged, body.base_revision, principal.user_id)
     audit(conn, actor=principal, action="geometry.detect.accept", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
-          details={"version_id": v["id"], **counts, "edits": len(body.edits), "replace_auto": body.replace_auto, "detector": (body.detector or {}).get("name")})
-    return _payload(conn, v, saved, store.load_doc(saved))
+          details={"version_id": v["id"], **counts, "edits": len(body.edits), "replace_auto": body.replace_auto, "detector": body.detector.name if body.detector is not None else None})
+    return {**_payload(conn, v, saved, store.load_doc(saved)), "merge": counts}
 
 
 def _export_doc(conn: sqlite3.Connection, principal: Principal, version_id: str, draft: bool) -> tuple[sqlite3.Row, dict[str, Any]]:
