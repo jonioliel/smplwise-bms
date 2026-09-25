@@ -207,6 +207,9 @@ test.describe('studio controller (unit)', () => {
     await saving;
     expect(c.doc!.connectors.map((x) => x.id)).toContain('cx-o9');
     expect(c.doc!.circuits[0].power_w).toBe(999);
+    expect(c.revision).toBe(1); // revision and hash are the answer's
+    expect(c.hash).toBe('h1');
+    expect(c.saveState).toBe('saved');
     expect(c.doc!.circuits[0].member_ids).toEqual(sample().circuits[0].member_ids); // only the power: the members are the editor's
     expect(c.doc!.walls.length).toBe(sample().walls.length); // walls, openings, labels and objects stay the local ones
     expect(c.doc!.labels).toEqual([]);
@@ -226,8 +229,13 @@ test.describe('studio controller (unit)', () => {
     await sleep(5);
     expect(c.doc!.connectors.map((x) => x.id)).not.toContain('cx-o9');
     expect(c.doc!.walls.length).toBe(1);
-    releases[3]?.();
+    expect(releases.length).toBe(4); // the later edit goes out as its own save
+    releases[3]();
     await second;
+    expect(c.doc!.connectors.map((x) => x.id)).toContain('cx-o9'); // that answer brings the derived connector
+    expect(c.doc!.walls.length).toBe(1);
+    expect(c.revision).toBe(4);
+    expect(c.saveState).toBe('saved');
   });
 
   // Loads and saves answer only when the test says so, to replay the races of switching and reloading versions.

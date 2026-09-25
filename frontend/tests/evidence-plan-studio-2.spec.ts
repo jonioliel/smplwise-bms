@@ -295,6 +295,23 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
     await expect(page.locator(`explore-floor-map sw-plan-canvas [data-connector="cx-${tribuneId}"]`)).toHaveCount(1); // connectors are never filtered
     await page.locator('explore-floor-map [data-level-chip="all"]').click();
     await expect(page.locator(`explore-floor-map sw-plan-canvas [data-object="${tribuneId}"]`)).toHaveCount(1);
+    // with the filter on the lower hall, a door click on a wall of the main level (hidden) places nothing; on all levels it does
+    const g = await draft();
+    await saveDraft({ walls: [...((g.doc.walls as unknown[]) ?? []), { id: 'lv-wall', level_id: 'L0', polyline: [[0.6, 0.1], [0.9, 0.1]], thickness_m: 0.2, height_m: null, base_z_m: 0, kind: 'interior', confidence: 1, source: 'manual', locked: false, external_ids: {} }] });
+    const openings = async () => ((await draft()).doc.openings as unknown[]).length;
+    const before = await openings();
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
+    await expect(page.locator(`${ed} [data-level-chip="L1"]`)).toBeVisible({ timeout: 20000 });
+    await page.locator(`${ed} [data-tool="structure"]`).click();
+    await page.locator(`${ed} [data-studio-mode="door"]`).click();
+    await page.locator(`${ed} [data-level-chip="L1"]`).click();
+    await clickPlan(page, ed, 0.75, 0.1);
+    await expect(page.locator(`${ed} .bar`)).toContainText('לחץ על קיר כדי להציב פתח');
+    await expect(page.locator(`${ed} [data-selected-opening]`)).toHaveCount(0);
+    await page.locator(`${ed} [data-level-chip="all"]`).click();
+    await clickPlan(page, ed, 0.75, 0.1);
+    await expect(page.locator(`${ed} [data-selected-opening]`)).toBeVisible();
+    await expect.poll(openings, { timeout: 10000 }).toBe(before + 1);
   });
 
   test('stairs are drawn with two clicks, set to reach the lower hall, and linked to the gallery floor under one id', async ({ page }) => {

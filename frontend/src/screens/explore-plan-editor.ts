@@ -1002,7 +1002,7 @@ export class ExplorePlanEditor extends LitElement {
     this.busy = true;
     this.error = '';
     // with a level filter on, the pin goes to that level (else it would vanish from the filtered view on placement)
-    const level = this.levelFilter && this.studio.doc?.levels.some((l) => l.id === this.levelFilter) ? { level_id: this.levelFilter } : {};
+    const level = this.activeLevel ? { level_id: this.activeLevel } : {};
     try {
       const a =
         p.kind === 'camera'
@@ -1278,8 +1278,20 @@ export class ExplorePlanEditor extends LitElement {
 
   /** The level new items go to: the level filter when one is on, else the document's default level. */
   private placeOpts(doc: GeometryDoc): { levelId: string; ceilingM: number } {
-    const levelId = this.levelFilter && doc.levels.some((l) => l.id === this.levelFilter) ? this.levelFilter : defaultLevelId(doc);
+    const levelId = this.activeLevel ?? defaultLevelId(doc);
     return { levelId, ceilingM: doc.levels.find((l) => l.id === levelId)?.ceiling_height_m ?? 2.8 };
+  }
+
+  /** The level filter in force: a filter on a level the document no longer has (an undone "add level") is no filter. */
+  private get activeLevel(): string | null {
+    const lv = this.levelFilter;
+    return lv && this.studio.doc?.levels.some((l) => l.id === lv) ? lv : null;
+  }
+
+  /** The walls the user can see: those of the filtered level, or all. Snapping and placing openings use only these. */
+  private shownWalls(doc: GeometryDoc): GeomWall[] {
+    const lv = this.activeLevel;
+    return lv ? doc.walls.filter((w) => w.level_id === lv) : doc.walls;
   }
 
   private createLevel() {
@@ -1355,8 +1367,9 @@ export class ExplorePlanEditor extends LitElement {
   /** Pins on other levels are hidden with the level filter (anchors without a level belong to the default one). */
   private onLevel(a: Anchor): boolean {
     const doc = this.studio.doc;
-    if (!this.levelFilter || !doc) return true;
-    return (a.level_id ?? defaultLevelId(doc)) === this.levelFilter;
+    const lv = this.activeLevel;
+    if (!lv || !doc) return true;
+    return (a.level_id ?? defaultLevelId(doc)) === lv;
   }
 
   private remember(itemId: string) {
@@ -1408,7 +1421,7 @@ export class ExplorePlanEditor extends LitElement {
     const bodied = new Set(doc.objects.filter((x) => x.anchor_ref).map((x) => `${x.anchor_ref!.resource_type}:${x.anchor_ref!.resource_id}`));
     let best: { a: Anchor; d: number } | null = null;
     for (const a of this.anchors) {
-      if (bodied.has(`${a.resource_type}:${a.resource_id}`)) continue;
+      if (bodied.has(`${a.resource_type}:${a.resource_id}`) || !this.onLevel(a)) continue; // a pin hidden by the level filter is not offered
       const kind = a.resource_type === 'camera' ? 'camera' : (a.entity?.domain ?? a.resource_id.split('.')[0]);
       if (!item.anchor_kinds.includes(kind)) continue;
       const d = distanceM(o.position, [a.position.x, a.position.y], b.width, b.height, scale);
@@ -1566,7 +1579,7 @@ export class ExplorePlanEditor extends LitElement {
     const b = this.bundle;
     const doc = this.studio.doc;
     if (!b || !doc) return p;
-    return snapPoint(p, prev, doc.walls, b.width, b.height, { tolPx: CORNER_SNAP_PX / (this.canvas?.zoom ?? 1), free });
+    return snapPoint(p, prev, this.shownWalls(doc), b.width, b.height, { tolPx: CORNER_SNAP_PX / (this.canvas?.zoom ?? 1), free });
   }
 
   /** A point of the wall being drawn: from three points on, the draft's own first point (closing the outline) wins over
@@ -1613,7 +1626,7 @@ export class ExplorePlanEditor extends LitElement {
     else if (this.studioMode === 'label') this.hover = p;
     else {
       // no dot where a click would take an existing opening rather than place a new one
-      const hit = nearestWall(p, doc.walls, b.width, b.height, WALL_PICK_PX / (this.canvas?.zoom ?? 1));
+      const hit = nearestWall(p, this.shownWalls(doc), b.width, b.height, WALL_PICK_PX / (this.canvas?.zoom ?? 1));
       this.hover = hit && !this.openingAt(doc, hit.wall, hit.t) ? pointOnWall(hit.wall, hit.t, b.width, b.height) : null;
     }
   }
@@ -1682,7 +1695,7 @@ export class ExplorePlanEditor extends LitElement {
       return;
     }
     if (mode === 'select') return;
-    const hit = nearestWall(p, doc.walls, b.width, b.height, WALL_PICK_PX / zoom);
+    const hit = nearestWall(p, this.shownWalls(doc), b.width, b.height, WALL_PICK_PX / zoom);
     if (!hit) {
       this.info = 'לחץ על קיר כדי להציב פתח';
       setTimeout(() => (this.info = ''), 2500);
@@ -2504,7 +2517,7 @@ export class ExplorePlanEditor extends LitElement {
                   <span>גרירה מזיזה · גלגלת = זום · ידיות = כיוון ושדה ראייה</span>
                 </div>
                 <div class="floorchip"><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
-                ${this.studio.doc && b.permissions.structure ? html`<div class="levelbar">${renderLevelChips(this.studio.doc.levels, this.levelFilter, (id) => (this.levelFilter = id), () => (this.levelDialog = { name: '', elevation: -1.2, ceiling: 3.0, error: '' }))}</div>` : nothing}
+                ${this.studio.doc && b.permissions.structure ? html`<div class="levelbar">${renderLevelChips(this.studio.doc.levels, this.activeLevel, (id) => (this.levelFilter = id), () => (this.levelDialog = { name: '', elevation: -1.2, ceiling: 3.0, error: '' }))}</div>` : nothing}
                 <div class="rail" role="toolbar" aria-label="כלי עריכה">
                   ${TOOLS.map((tl) => html`<button class=${tl.id === this.tool ? 'on' : ''} data-tool=${tl.id} ?disabled=${!tl.ready || (STUDIO_TOOLS.includes(tl.id) && !b.permissions.structure)} title=${tl.label} aria-label=${tl.label} aria-pressed=${tl.id === this.tool} @click=${() => this.pickTool(tl.id)}><sw-icon .name=${tl.icon} size=${18}></sw-icon></button>`)}
                   <hr />
@@ -2513,7 +2526,7 @@ export class ExplorePlanEditor extends LitElement {
                 </div>
                 <sw-plan-canvas editable alwaysLabel .placing=${!!this.placing || !!this.drawing || this.studioPlacing} .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .markers=${this.markers} .selectedId=${this.selectedId}
                   .zones=${this.planZones} .selectedZoneId=${this.selectedZoneId} .draftPoints=${this.drawing ?? []}
-                  .geometry=${this.geomPreview ?? this.studio.doc} .geomDrag=${this.geomDragMode} .structureLevel=${this.levelFilter} .selectedGeomId=${this.geomSel?.id ?? null} .highlightIds=${this.geomSel?.kind === 'group' ? (this.studio.doc?.groups.find((g) => g.id === this.geomSel!.id)?.member_ids ?? []) : []} .selectedVertex=${this.geomSel?.vertex ?? null} .issueIds=${this.issueIds}
+                  .geometry=${this.geomPreview ?? this.studio.doc} .geomDrag=${this.geomDragMode} .structureLevel=${this.activeLevel} .selectedGeomId=${this.geomSel?.id ?? null} .highlightIds=${this.geomSel?.kind === 'group' ? (this.studio.doc?.groups.find((g) => g.id === this.geomSel!.id)?.member_ids ?? []) : []} .selectedVertex=${this.geomSel?.vertex ?? null} .issueIds=${this.issueIds}
                   .cornerSnapPx=${this.tool === 'structure' && this.studioMode === 'wall' ? CORNER_SNAP_PX : 0}
                   .wallDraft=${this.wallDraft ?? []} .hoverPoint=${this.studioPlacing ? this.hover : null} .rulers=${this.rulers} .catalog=${this.catalogLookup} .anchorPositions=${Object.fromEntries(this.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees }]))}
                   @plan-hover=${(e: CustomEvent<{ x: number; y: number; shift: boolean; item?: boolean }>) => this.onPlanHover(e.detail.x, e.detail.y, e.detail.shift, !!e.detail.item)}

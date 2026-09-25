@@ -21,7 +21,7 @@ function adoptServerParts(local: GeometryDoc, server: GeometryDoc): GeometryDoc 
   };
 }
 
-const DEFAULT_API: StudioApi ={ load: (id) => getGeometry(id, { draft: true }), save: (id, doc, base) => saveGeometryDraft(id, doc, base) };
+const DEFAULT_API: StudioApi = { load: (id) => getGeometry(id, { draft: true }), save: (id, doc, base) => saveGeometryDraft(id, doc, base) };
 
 /**
  * Plan Studio draft state for the editor (T084): the working document, undo / redo, and the autosave that PUTs the
