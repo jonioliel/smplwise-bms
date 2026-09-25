@@ -21,7 +21,7 @@ const ED = 'explore-plan-editor';
 type Wall = { id: string; source: string };
 type Opening = { id: string; kind: string; width_m: number; wall_id: string };
 type Obj = { id: string; item_id: string; external_ids: Record<string, string> };
-type Draft = { geometry: { revision: number }; doc: { walls: Wall[]; openings: Opening[]; objects: Obj[]; meta: { last_detection?: { accepted: Record<string, number> } }; dimensions: { calibration: { status: string } | null } } };
+type Draft = { geometry: { revision: number }; issues?: { severity: string }[]; doc: { walls: Wall[]; openings: Opening[]; objects: Obj[]; meta: { last_detection?: { accepted: Record<string, number> } }; dimensions: { calibration: { status: string } | null } } };
 const draftOf = async (version = ids.version) => (await (await api.get(`api/v1/plan-versions/${version}/geometry?draft=true`)).json()) as Draft;
 
 /** The error body every refused route answers with (smplwise/errors.py). */
@@ -143,6 +143,10 @@ test.describe.serial('plan studio phase 3 (SW A)', () => {
     await expect(first).toHaveAttribute('data-cand-state', 'accepted');
     await expect(rejected).toHaveCount(onFirst);
     await page.locator(`${ED} [data-detect-accept-all]`).click();
+    // desktop: the selected candidate wall shows its two end handles (the phone test expects none)
+    await first.locator('.linkbtn').click();
+    await expect(page.locator(`${ED} [data-cand-selected]`)).toBeAttached();
+    await expect(page.locator(`${ED} sw-plan-canvas [data-cand-vertex]`)).toHaveCount(2);
     const before = (await draftOf()).geometry.revision;
     const accepted = page.waitForResponse((r) => isAccept(new URL(r.url())));
     await page.locator(`${ED} [data-detect-confirm]`).click();
@@ -157,8 +161,8 @@ test.describe.serial('plan studio phase 3 (SW A)', () => {
     expect(d.doc.openings.length).toBe(7);
     expect(d.doc.meta.last_detection?.accepted).toEqual({ walls: 7, openings: 7, objects: 0 });
     expect((await api.get(`api/v1/plan-versions/${ids.version}/geometry`)).status(), 'nothing published').toBe(404);
-    // the accept is one undo step, saved like any edit
-    await page.locator(`${ED} button[aria-label="ביטול"]`).click();
+    // the accept is one undo step, saved like any edit: Ctrl+Z undoes it, the rail button redoes it
+    await page.keyboard.press('Control+z');
     await expect.poll(async () => (await draftOf()).doc.walls.length, { timeout: 15000 }).toBe(0);
     await page.locator(`${ED} button[aria-label="בצע שוב"]`).click();
     await expect.poll(async () => (await draftOf()).doc.walls.length, { timeout: 15000 }).toBe(7);
@@ -300,6 +304,15 @@ test.describe.serial('plan studio phase 3 (SW A)', () => {
     await expect(card.locator('[data-dxf-block-size-unit="m"]')).toBeAttached();
     await card.locator('[data-dxf-block-row="WIDGET"] select[data-dxf-block-target]').selectOption('chair.basic'); // an override
     await expect(card.locator('[data-dxf-map-count]')).toContainText('5 שכבות ממופות');
+    // refusals of the body (stubbed, the real error shape): each is named on the card and the choices stay
+    for (const [status, code, details] of [[422, 'unknown_item', { items: ['no.such.item'] }], [422, 'unknown_layer', { unknown: ['NO-SUCH-LAYER'] }], [409, 'not_dxf', {}]] as const) {
+      await page.route(isImport, refusal(status, code, details));
+      await card.locator('[data-dxf-import]').click();
+      await expect(page.locator(`${im} [data-dxf-map-error="${code}"]`), code).toBeAttached();
+      await page.unroute(isImport);
+      await expect(card.locator('[data-dxf-block-row="WIDGET"] select[data-dxf-block-target]'), `${code}: the override stays`).toHaveValue('chair.basic');
+      await expect(card.locator('[data-dxf-map-row="A-GLAZ"] select[data-dxf-map-target]'), `${code}: the layer choice stays`).toHaveValue('windows');
+    }
     // 504 dxf_timeout (stubbed): the refusal and a retry
     await page.route(isImport, refusal(504, 'dxf_timeout', { timeout_s: 60 }, true));
     await card.locator('[data-dxf-import]').click();
@@ -326,10 +339,13 @@ test.describe.serial('plan studio phase 3 (SW A)', () => {
     await expect(page.locator(`${ED} [data-detect-rooms]`)).toContainText('חדר אחד');
     const accepted = page.waitForResponse((r) => isAccept(new URL(r.url())));
     await page.locator(`${ED} [data-detect-confirm]`).click();
-    expect((await accepted).status()).toBe(200);
+    const accRes = await accepted;
+    expect(accRes.status()).toBe(200);
+    expect(((await accRes.json()).issues as { severity: string }[]).filter((i) => i.severity === 'error'), 'the accepted draft has no error issues').toEqual([]);
     await expect(page.locator(`${ED} [data-detect-accept-error]`)).toHaveCount(0);
     await expect(page.locator(`${ED} sw-plan-canvas [data-candidates]`)).toHaveCount(0);
     const g = await draftOf(dxfVersion);
+    expect((g.issues ?? []).filter((i) => i.severity === 'error'), 'the stored draft has no error issues').toEqual([]);
     expect(g.doc.walls.length).toBe(7);
     expect(g.doc.walls.every((w) => w.source === 'imported')).toBe(true);
     const doors = g.doc.openings.filter((o) => o.kind === 'door');

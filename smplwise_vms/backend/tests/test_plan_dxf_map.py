@@ -507,7 +507,7 @@ def test_the_live_spec_drawing_matches_its_generator_and_maps_as_the_spec_expect
     gen = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(gen)
     for name, (code, k) in gen.FILES.items():
-        assert (root / name).read_bytes() == gen.drawing(code, k).encode("utf-8"), f"{name} differs from its generator: run gen_plan_map_dxf.py"
+        assert (root / name).read_bytes() == gen.drawing(code, k).encode("utf-8"), f"{name} differs from its generator: regenerate with gen_plan_map_dxf.py (also after an ezdxf upgrade)"
     catalog = plan_dxf_map.load_catalog(None)
     for name, units in (("plan-map.dxf", "m"), ("plan-map-mm.dxf", "mm")):
         doc = plan_dxf_map.load(root / name)

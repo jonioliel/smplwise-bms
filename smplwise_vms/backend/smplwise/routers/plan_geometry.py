@@ -34,9 +34,10 @@ DETECT_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_p
 
 
 def shutdown_detect_pool() -> None:
-    """The app's stop hook: queued runs are cancelled and a running one is not waited for (its deadline stops it at
-    the next stage). A fresh pool takes the old one's place (threads start only on the first submit), so an app
-    created again in the same process - the test suite - still detects."""
+    """The app's stop hook: queued runs are cancelled and a running one is not waited for. The stop does not stop a
+    running worker: it goes on until it finishes or its own deadline passes, so at most detect_timeout_s after its
+    request. A fresh pool takes the old one's place (threads start only on the first submit), so an app created again
+    in the same process - the test suite - still detects."""
     global DETECT_POOL
     old, DETECT_POOL = DETECT_POOL, concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="plan-detect")
     old.shutdown(wait=False, cancel_futures=True)
