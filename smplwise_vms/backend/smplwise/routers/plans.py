@@ -19,7 +19,7 @@ from ..db import new_id, now_iso, unlocked
 from ..errors import ApiError, conflict, not_found
 from ..rbac import Principal, require
 from ..services import geometry_store
-from ..services import plan_dxf, plan_render, plan_stylize
+from ..services import plan_dxf, plan_dxf_map, plan_render, plan_stylize
 from .catalog import get_floor
 
 router = APIRouter()
@@ -601,4 +601,72 @@ def dxf_set_options(asset_id: str, body: DxfOptions, request: Request, principal
     audit(conn, actor=principal, action="plan.asset.dxf_options", decision="allowed", resource_type="floor", resource_id=asset["floor_id"], request_id=_rid(request),
           details={"asset_id": asset_id, "layers": layers, "units": units, "rendered": result.rendered, "skipped": result.skipped})
     return _dxf_payload(settings, asset)
+
+
+# ---------------------------------------------------------------- DXF geometry mapping (phase 3, T086)
+
+@router.get("/plan-assets/{asset_id}/dxf/entities")
+def dxf_entities(asset_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """The mapping screen's table: every layer with its drawable count, kinds, a sample and the suggested target, every
+    block with its count, footprint and the suggested catalog item; the targets and the catalog choices to pick from."""
+    settings = settings_of(request)
+    asset = get_asset(conn, asset_id)
+    require(conn, principal, "map.import", ("floor", asset["floor_id"]))
+    if asset["mime"] != "image/vnd.dxf":
+        raise ApiError(409, "not_dxf", "הקובץ אינו DXF.")
+    opts = plan_dxf.load_options(_asset_dir(settings, asset_id))
+    units = opts.get("units") or (opts.get("info") or {}).get("units")
+    catalog = plan_dxf_map.load_catalog(conn)
+    try:
+        with unlocked(conn):
+            summary = plan_dxf_map.entities_summary(settings.data_dir / asset["storage_path"], opts.get("layers"), units, catalog)
+    except plan_dxf.DxfError as exc:
+        raise ApiError(422, exc.code, "קובץ ה־DXF לא ניתן לקריאה.", details=exc.details)
+    return {"asset_id": asset_id, **summary, "targets": [{"id": t, "label": plan_dxf_map.TARGET_LABELS[t]} for t in plan_dxf_map.TARGETS], "catalog_choices": plan_dxf_map.catalog_choices(catalog)}
+
+
+class DxfImportIn(BaseModel):
+    layer_map: dict[str, str] = Field(default={})
+    block_map: dict[str, str | None] = Field(default={})
+    level_id: str | None = Field(default=None, max_length=64)
+
+
+@router.post("/plan-versions/{version_id}/import-dxf-geometry")
+def import_dxf_geometry(version_id: str, body: DxfImportIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Candidates from the DXF the version was made from, by the chosen layer and block mapping (design 9.4), in the
+    shape of /detect: nothing is stored; the editor accepts them through /detect/accept."""
+    settings = settings_of(request)
+    v = get_version(conn, version_id)
+    require(conn, principal, "map.import", ("floor", v["floor_id"]))
+    if v["status"] == "archived":
+        raise conflict("archived_version", "גרסה מהארכיון אינה ניתנת לעריכה; שחזר אותה קודם.")
+    asset = get_asset(conn, v["asset_id"])
+    if asset["mime"] != "image/vnd.dxf":
+        raise ApiError(409, "not_dxf", "גרסת התוכנית לא נוצרה מקובץ DXF.")
+    bad = sorted({t for t in body.layer_map.values() if t not in plan_dxf_map.TARGETS})
+    if bad:
+        raise ApiError(422, "validation", "יעד מיפוי לא מוכר.", details={"targets": bad})
+    opts = plan_dxf.load_options(_asset_dir(settings, asset["id"]))
+    units = opts.get("units") or (opts.get("info") or {}).get("units")
+    if not plan_dxf.METERS.get(units or ""):
+        raise ApiError(422, "dxf_unitless", "בחר יחידות לקובץ ה־DXF (בשלב הייבוא) לפני ייבוא הגאומטריה.")
+    doc, _row = geometry_store.working_doc(conn, v)
+    level_id = body.level_id or next((lv["id"] for lv in doc["levels"] if lv.get("is_default")), "L0")
+    if level_id not in {lv["id"] for lv in doc["levels"]}:
+        raise ApiError(422, "unknown_level", "המפלס לא קיים בטיוטת המבנה.")
+    src = settings.data_dir / asset["storage_path"]
+    catalog = plan_dxf_map.load_catalog(conn)
+    try:
+        with unlocked(conn):
+            extent = plan_dxf_map.extent_for(src, opts.get("layers"))
+            result = plan_dxf_map.map_geometry(src, layer_map=body.layer_map, block_map=body.block_map, units=units, extent=extent, rotation=int(v["rotation"]),
+                                               crop=json.loads(v["crop_json"]) if v["crop_json"] else None, level_id=level_id, run_id=new_id()[:6], catalog=catalog,
+                                               scale_m_per_px=v["scale_m_per_px"])
+    except plan_dxf.DxfError as exc:
+        raise ApiError(422, exc.code, "קובץ ה־DXF לא ניתן לקריאה או ריק בשכבות שנבחרו.", details=exc.details)
+    existing = {c: sum(1 for i in doc.get(c) or [] if isinstance(i, dict) and i.get("source") == "imported") for c in ("walls", "openings")}
+    audit(conn, actor=principal, action="geometry.import", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
+          details={"version_id": v["id"], "asset_id": asset["id"], "walls": len(result["walls"]), "openings": len(result["openings"]), "objects": len(result["objects"]),
+                   "rooms": len(result["rooms"]), "layers": len(body.layer_map), "blocks": len(body.block_map)})
+    return {**result, "version_id": v["id"], "level_id": level_id, "existing_auto": existing}
 
