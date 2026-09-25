@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
+import { ACTION_STATUS_LABEL } from '../src/api/ha';
 
 // Plan Studio phase 2 (T085) against the running developer backend: objects and connectors on the live map, the library
 // in the editor, arrays, levels, connectors, circuits with simulated switch states (the dev-only state route), the global
@@ -366,19 +367,22 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
     await expect(page.locator('explore-floor-map [data-circuit-strip] [data-circuit-toggle]')).toHaveCount(2, { timeout: 20000 });
     await expect(page.locator('explore-floor-map sw-plan-canvas [data-object][data-glow]')).toHaveCount(4);
     await expect(page.locator('explore-floor-map [data-circuit-toggle="k-north"]')).toHaveAttribute('data-state', 'on');
+    await expect(page.locator('explore-floor-map [data-circuit-toggle="k-north"]')).toContainText('4 מנורות');
     // the second switch turns on: the push updates the map without a reload
     await api.post('api/v1/ha/dev/states', { data: { states: [{ entity_id: 'switch.studio2_b', state: 'on' }] } });
     await expect(page.locator('explore-floor-map sw-plan-canvas [data-object][data-glow]')).toHaveCount(8, { timeout: 15000 });
-    // the toggle is the existing action route (switch.turn_off, the switch is on): the developer backend reaches no Home
-    // Assistant - no paired bridge, or a paired one whose Home Assistant is away - so the answer is a 503 the strip shows
-    const action = page.waitForResponse((r) => r.url().includes('/ha/entities/switch.studio2_a/actions') && r.request().method() === 'POST');
+    // the toggle is the existing action route (switch.turn_off, the switch is on). Ruling R-P2-T13-1: no request may reach
+    // Home Assistant, so the route is answered in the browser with a terminal record (no awaitAction polling of the backend)
+    const sent: unknown[] = [];
+    await page.route('**/api/v1/ha/entities/*/actions', async (r) => {
+      sent.push(r.request().postDataJSON());
+      await r.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ id: 't13-fake', entity_id: 'switch.studio2_a', action_id: 'switch.turn_off', status: 'failed', error: 'bridge_error', requested_at: new Date().toISOString(), confirmed_at: null }) });
+    });
     await page.locator('explore-floor-map [data-circuit-toggle="k-north"]').click();
-    const res = await action;
-    expect(res.status()).toBe(503);
-    expect(res.request().postDataJSON()).toMatchObject({ allowed_action_id: 'switch.turn_off' });
-    const answer = (await res.json()) as { code: string; user_message: string };
-    expect(['bridge_not_paired', 'ha_unavailable']).toContain(answer.code);
-    await expect(page.locator('explore-floor-map [data-circuit-error]')).toContainText(answer.code === 'bridge_not_paired' ? 'גשר' : answer.user_message);
+    await expect(page.locator('explore-floor-map [data-circuit-status]')).toContainText(ACTION_STATUS_LABEL.failed);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ allowed_action_id: 'switch.turn_off' });
+    await page.unroute('**/api/v1/ha/entities/*/actions');
     // the editor: a circuit from the switch catalogue, one lamp added by clicking it, the power sum
     const ed = 'explore-plan-editor';
     await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);

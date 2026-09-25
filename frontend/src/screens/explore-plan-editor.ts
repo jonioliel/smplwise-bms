@@ -890,6 +890,7 @@ export class ExplorePlanEditor extends LitElement {
     if (e.key === 'Escape') {
       if (this.arrayDialog || this.groupDelete || this.customDialog) { this.arrayDialog = null; this.groupDelete = null; this.customDialog = null; return; }
       if (this.connStart) { this.connStart = null; return; }
+      if (this.tool === 'circuits' && this.membersMode) { this.membersMode = false; return; }
       if (this.placingItem) this.placingItem = null;
       else if (this.bindOffer) this.bindOffer = null;
       else if (this.wallDraft) {
@@ -1372,13 +1373,23 @@ export class ExplorePlanEditor extends LitElement {
     );
   }
 
+  /** The switch catalogue of a circuit: the synced switch and light entities, asked by domain so no other domain crowds them out. */
   private async searchSwitches(q: string) {
     try {
-      const r = await listEntities({ q: q || undefined, limit: 200 });
-      const results = r.entities.filter((e) => e.domain === 'switch' || e.domain === 'light').slice(0, 40);
+      const [sw, li] = await Promise.all((['switch', 'light'] as const).map((domain) => listEntities({ domain, q: q || undefined, limit: 40 })));
+      const results = [...sw.entities, ...li.entities].filter((e) => e.domain === 'switch' || e.domain === 'light').slice(0, 40);
       if (this.circuitNew && this.circuitNew.q === q) this.circuitNew = { ...this.circuitNew, results }; // a late answer to an older query is dropped
     } catch (err) {
       this.error = describeError(err);
+    }
+  }
+
+  /** An undo (or a newer server document) that removes the selected circuit ends its selection and its member mode. */
+  protected override willUpdate(): void {
+    const doc = this.studio.doc;
+    if (this.circuitSel && doc && !doc.circuits.some((k) => k.id === this.circuitSel)) {
+      this.circuitSel = null;
+      this.membersMode = false;
     }
   }
 
@@ -2630,7 +2641,7 @@ export class ExplorePlanEditor extends LitElement {
                 ${this.drawing ? html`<div class="placing-hint"><span>ציור אזור: לחץ להוספת פינות (${this.drawing.length}) · לחיצה על הפינה הראשונה או Enter מסיימים · Esc לביטול</span></div>` : nothing}
                 ${this.placingItem && !this.bindOffer ? html`<div class="placing-hint"><span>לחץ על התוכנית כדי להציב ${this.placingItem.names.he} · Esc לביטול</span></div>` : nothing}
                 ${this.connMode ? html`<div class="placing-hint"><span>${this.connStart ? 'לחץ על הנקודה השנייה' : 'לחץ על הנקודה הראשונה'} · Esc לביטול</span></div>` : nothing}
-                ${this.tool === 'circuits' && this.membersMode ? html`<div class="placing-hint"><span>לחץ על מנורה כדי להוסיף או להסיר אותה מהמעגל</span></div>` : nothing}
+                ${this.tool === 'circuits' && this.membersMode ? html`<div class="placing-hint"><span>לחץ על מנורה כדי להוסיף או להסיר אותה מהמעגל · Esc לסיום</span></div>` : nothing}
                 ${this.bindOffer ? html`<div class="placing-hint bindbar" data-bind-offer><span>העצם ליד ${this.anchorName(this.bindOffer.anchor)} — להפוך אותו לגוף של הישות?
                     <button data-bind-accept @click=${() => this.bindObject(this.bindOffer!.objectId, this.bindOffer!.anchor)}>הצמד לישות</button><button data-bind-dismiss @click=${() => { this.bindRefused.add(this.bindOffer!.objectId); this.bindOffer = null; }}>לא</button></span></div>` : nothing}
                 ${this.wallDraft ? html`<div class="placing-hint"><span>ציור קיר: ${this.wallDraft.length} נקודות · Enter או לחיצה חוזרת על הנקודה האחרונה מסיימים · לחיצה על הנקודה הראשונה סוגרת מתאר · Esc לביטול</span></div>` : nothing}

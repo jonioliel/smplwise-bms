@@ -32,7 +32,7 @@ import { ACTION_ERROR_LABEL, ACTION_STATUS_LABEL, awaitAction, domainLabel, enti
 import { geometryFor } from '../api/geometry';
 import { circuitToken, type AnchorPosition, type CatalogLookup, type GeometryDoc } from '../map/geometry';
 import { loadLibrary, lookupOf } from '../api/plan-catalog';
-import { renderLevelChips } from './plan-studio-panel';
+import { countLabel, renderLevelChips } from './plan-studio-panel';
 
 /** Hebrew names for enum choices the adapters offer (T040). */
 const ARG_CHOICE_HE: Record<string, string> = { off: 'כבוי', heat: 'חימום', cool: 'קירור', heat_cool: 'חימום/קירור', auto: 'אוטומטי', dry: 'ייבוש', fan_only: 'מאוורר בלבד' };
@@ -368,6 +368,14 @@ export class ExploreFloorMap extends LitElement {
       grid-area: cnt;
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
+    }
+    .circuits .circuit.muted i {
+      border-color: var(--sw-stale);
+      background: transparent;
+      box-shadow: none;
+    }
+    .circuits .circuit .cnote {
+      color: var(--sw-stale);
     }
     .circuits .circuit:disabled {
       cursor: not-allowed;
@@ -1581,9 +1589,14 @@ export class ExploreFloorMap extends LitElement {
         const s = states[id];
         const on = s.state === 'on';
         const spec = s.actions.find((x) => x.id.endsWith(on ? 'turn_off' : 'turn_on'));
-        return html`<button class="circuit ${on ? 'on' : ''}" data-circuit-toggle=${id} data-state=${s.state ?? 'unknown'} style=${`--kc: var(--sw-${circuitToken(s.color_token) ?? 'circuit-1'})`} ?disabled=${!s.can_control || !spec}
-            title=${s.can_control ? (on ? 'כיבוי המעגל' : 'הדלקת המעגל') : 'אין הרשאת שליטה בישויות בקומה'} @click=${() => { if (spec) this.trigger(s.entity_id, spec); }}>
-          <i></i><span>${s.name ?? id}</span><span class="cnt">${s.member_ids.length} מנורות · ${s.state === null ? 'לא ידוע' : on ? 'דולק' : 'כבוי'}${s.power_w ? ` · ${s.power_w} W` : ''}</span>
+        // the entity card's guards: no second send while one for this switch is in flight, none on a stale screen or an unavailable switch
+        const busy = !!act?.busy && act.entityId === s.entity_id;
+        const stale = this.screenState === 'stale' || !s.fresh;
+        const blocked = !s.can_control || !spec || spec.granted === false || busy || this.screenState === 'stale' || !s.available;
+        const note = !s.available ? 'לא זמין' : stale ? 'לא מעודכן' : '';
+        return html`<button class="circuit ${on ? 'on' : ''} ${note ? 'muted' : ''}" data-circuit-toggle=${id} data-state=${s.state ?? 'unknown'} data-available=${s.available ? 'yes' : 'no'} style=${`--kc: var(--sw-${circuitToken(s.color_token) ?? 'circuit-1'})`} ?disabled=${blocked}
+            title=${!s.can_control ? 'אין הרשאת שליטה בישויות בקומה' : !s.available ? 'המפסק אינו זמין ב־Home Assistant' : on ? 'כיבוי המעגל' : 'הדלקת המעגל'} @click=${() => { if (spec && !blocked) this.trigger(s.entity_id, spec); }}>
+          <i></i><span>${s.name ?? id}</span><span class="cnt">${countLabel(s.member_ids.length, 'מנורה אחת', 'מנורות')} · ${s.state === null ? 'לא ידוע' : on ? 'דולק' : 'כבוי'}${s.power_w ? ` · ${s.power_w} W` : ''}${note ? html` · <span class="cnote" data-circuit-note>${note}</span>` : nothing}</span>
         </button>`;
       })}
       ${act && ids.some((id) => states[id].entity_id === act.entityId)
