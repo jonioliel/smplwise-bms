@@ -4,6 +4,10 @@ import '../components/sw-button';
 import '../components/sw-chip';
 import { SceneView, type SceneHit, type ScenePreset } from './scene-three';
 import type { SceneDescription, Vec3 } from './scene-builder';
+import { WEBGL_UNAVAILABLE_HE } from './webgl';
+
+const EXPORT_FAILED_HE = 'ייצוא glTF נכשל';
+const TOAST_MS = 4000;
 
 export interface PartSelectDetail {
   id: string | null;
@@ -33,16 +37,24 @@ export class SwPlan3d extends LitElement {
   @property({ attribute: false }) cameras: { id: string; label: string }[] = [];
   @property({ attribute: false }) labels: Record<string, string> = {};
   @property() exportName = 'plan-3d';
+  /** Render every frame instead of on demand - only for measuring the frame rate (the live spec, Task 10). */
+  @property({ type: Boolean, reflect: true, attribute: 'data-measure' }) continuous = false;
   @state() private hover: PartHoverDetail | null = null;
   @state() private ready = false;
   @state() private exporting = false;
+  /** WebGL could not start: the whole stage says so. */
   @state() private error = '';
+  /** An export failed: a toast that clears itself; the view stays. */
+  @state() private toast = '';
+  private toastTimer = 0;
   @query('.stage') private stage!: HTMLDivElement;
   private view: SceneView | null = null;
   private ro?: ResizeObserver;
   /** The preset is applied once with the first description (the screen's choice), then only when the property changes:
    * a live state push replaces the description and must not snap the camera back. */
   private presetApplied = false;
+  /** The description object last handed to the view (the first mount must not build it twice). */
+  private applied: SceneDescription | null = null;
 
   static styles = css`
     :host {
@@ -123,6 +135,21 @@ export class SwPlan3d extends LitElement {
       color: var(--sw-text-2);
       background: var(--sw-surface);
     }
+    .toast {
+      position: absolute;
+      inset-block-start: 12px;
+      inset-inline-start: 50%;
+      transform: translateX(-50%);
+      z-index: var(--sw-z-map-ui);
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-pill);
+      padding: 4px 12px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-danger);
+      box-shadow: var(--sw-shadow-1);
+      direction: rtl;
+    }
     .err {
       color: var(--sw-danger);
     }
@@ -152,6 +179,8 @@ export class SwPlan3d extends LitElement {
     this.ro?.disconnect();
     this.view?.dispose();
     this.view = null;
+    this.applied = null;
+    window.clearTimeout(this.toastTimer);
   }
 
   private init(): void {
@@ -167,9 +196,11 @@ export class SwPlan3d extends LitElement {
         },
       });
     } catch (err) {
-      this.error = err instanceof Error ? err.message : String(err);
+      console.warn('sw-plan-3d: WebGL failed to start', err);
+      this.error = WEBGL_UNAVAILABLE_HE;
       return;
     }
+    this.view.setContinuous(this.continuous);
     this.ro = new ResizeObserver(() => this.view?.resize());
     this.ro.observe(this);
     this.presetApplied = false;
@@ -187,9 +218,12 @@ export class SwPlan3d extends LitElement {
       this.setAttribute('data-selected', this.selectedId ?? '');
     }
     if (changed.has('preset') && changed.get('preset') !== undefined) this.applyPreset(this.preset);
+    if (changed.has('continuous')) this.view.setContinuous(this.continuous);
   }
 
   private apply(desc: SceneDescription): void {
+    if (desc === this.applied) return;
+    this.applied = desc;
     this.view?.setDescription(desc);
     this.setAttribute('data-parts', String(desc.parts.length));
     this.toggleAttribute('data-estimated', desc.estimated);
@@ -200,9 +234,9 @@ export class SwPlan3d extends LitElement {
     this.view?.setSelected(this.selectedId);
   }
 
+  /** data-preset follows only a preset that took effect (an unknown camera id leaves the view and the attribute). */
   private applyPreset(p: ScenePreset): void {
-    this.view?.setPreset(p);
-    this.setAttribute('data-preset', typeof p === 'string' ? p : 'camera');
+    if (this.view?.setPreset(p)) this.setAttribute('data-preset', typeof p === 'string' ? p : 'camera');
   }
 
   private pickPreset(p: ScenePreset): void {
@@ -246,10 +280,17 @@ export class SwPlan3d extends LitElement {
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (err) {
-      this.error = err instanceof Error ? err.message : String(err);
+      console.warn('sw-plan-3d: glTF export failed', err);
+      this.showToast(EXPORT_FAILED_HE);
     } finally {
       this.exporting = false;
     }
+  }
+
+  private showToast(text: string): void {
+    this.toast = text;
+    window.clearTimeout(this.toastTimer);
+    this.toastTimer = window.setTimeout(() => (this.toast = ''), TOAST_MS);
   }
 
   render() {
@@ -271,6 +312,7 @@ export class SwPlan3d extends LitElement {
         <sw-button size="sm" variant="ghost" icon="download" data-export-gltf ?disabled=${!this.ready || this.exporting} @click=${() => this.download()}>${this.exporting ? 'מייצא…' : 'ייצוא glTF'}</sw-button>
       </div>
       ${this.description?.estimated ? html`<div class="note" data-3d-estimated>≈ מידות משוערות (התוכנית לא כוילה)</div>` : nothing}
+      ${this.toast ? html`<div class="toast" role="status" data-3d-toast>${this.toast}</div>` : nothing}
       ${this.hover ? html`<div class="tip" data-3d-tip data-3d-tip-kind=${this.hover.kind} style=${`left:${this.hover.x}px;top:${this.hover.y}px`}>${this.hover.label}</div>` : nothing}
     `;
   }

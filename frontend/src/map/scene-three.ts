@@ -1,9 +1,10 @@
 /**
  * The three.js realisation of a scene description (T087, design 10.2-10.4, quality level 1: flat materials, an ambient
  * and a directional light, no shadows). One InstancedMesh per instance group (a unit box or a unit cylinder scaled per
- * instance), a Mesh per prism, a Sprite per label, a PointLight per glow (the first MAX_GLOW_LIGHTS); OrbitControls with
- * touch; the presets top / isometric / from a camera; picking by ray; a line outline on the selected item; GLTFExporter.
- * Above 3,000 parts the small objects hide when the camera is far. Colours come from the element's computed design
+ * instance), a Mesh per prism, a Sprite per label, a fixed pool of MAX_GLOW_LIGHTS point lights for the glows;
+ * OrbitControls with touch; the presets top / isometric / from a camera; picking by ray (through translucent plates); a
+ * line outline on the selected item; GLTFExporter (without the outline). Frames render on demand - a change, or damping
+ * still moving - unless continuous mode is on. Above 3,000 parts the small objects hide when the camera is far. Colours come from the element's computed design
  * tokens - the description carries names only. This is the only module that imports the three bundle (the lazy chunk).
  */
 import { AmbientLight, BoxGeometry, BufferGeometry, CanvasTexture, Color, CylinderGeometry, DirectionalLight, DoubleSide, Euler, Float32BufferAttribute, GLTFExporter, Group, InstancedMesh, LineBasicMaterial, LineSegments, Matrix4, Mesh, MeshLambertMaterial, Object3D, OrbitControls, PerspectiveCamera, PointLight, Quaternion, Raycaster, SRGBColorSpace, Scene, ShapeUtils, Sprite, SpriteMaterial, Vector2, Vector3, WebGLRenderer } from './three-bundle';
@@ -32,6 +33,10 @@ export const MAX_GLOW_LIGHTS = 8;
 const MAX_OUTLINE_PARTS = 64;
 const CLICK_SLOP_PX = 6;
 const UPPER_PLATE_OPACITY = 0.35;
+const LABEL_BG_ALPHA = 0.88;
+const GLOW_INTENSITY = 8;
+/** The orbit limit of the overview presets: never under the floor (a camera preset lifts it, a camera may look up). */
+const ORBIT_MAX_POLAR = Math.PI / 2 - 0.02;
 /** Glows are lights; cones are translucent illustrations - a click passes through both to what lies behind. */
 const NOT_PICKABLE = new Set(['glow', 'cone']);
 
@@ -103,6 +108,9 @@ export class SceneView {
   private readonly materials = new Map<string, { token: string; material: MeshLambertMaterial }>();
   private readonly outlineMaterial: LineBasicMaterial;
   private readonly raycaster = new Raycaster();
+  /** A fixed pool of point lights for the glows: a lamp switching on moves a light and sets its intensity, it never
+   * changes the number of lights (which would recompile every lit shader). */
+  private readonly glowPool: PointLight[] = [];
   /** Every pickable object → the parts it carries (index = instanceId for an InstancedMesh, [0] otherwise). */
   private lookup = new Map<Object3D, ScenePart[]>();
   private smallGroups: Object3D[] = [];
@@ -111,12 +119,14 @@ export class SceneView {
   private framed = false;
   private hideSmall = false;
   private disposed = false;
+  private continuous = false;
   private raf = 0;
   private frames = 0;
   private fps = 0;
   private windowStart = 0;
   private windowFrames = 0;
-  private pressed: { x: number; y: number } | null = null;
+  private lastReport = 0;
+  private pressed: { x: number; y: number; id: number } | null = null;
   private lastHover: string | null = null;
 
   constructor(private readonly opts: SceneViewOptions) {
@@ -131,18 +141,23 @@ export class SceneView {
     this.controls = new OrbitControls(this.camera, canvas);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.12;
-    this.controls.maxPolarAngle = Math.PI / 2 - 0.02; // never under the floor
+    this.controls.maxPolarAngle = ORBIT_MAX_POLAR;
+    this.controls.addEventListener('change', this.invalidate);
     this.scene.add(new AmbientLight(0xffffff, 1.6));
     const sun = new DirectionalLight(0xffffff, 1.4);
     sun.position.set(1, 2, 1.2);
     this.scene.add(sun);
+    for (let i = 0; i < MAX_GLOW_LIGHTS; i++) {
+      const light = new PointLight(0xffffff, 0, 1, 2);
+      this.glowPool.push(light);
+      this.scene.add(light);
+    }
     this.scene.add(this.root);
     canvas.addEventListener('pointerdown', this.onDown);
     canvas.addEventListener('pointerup', this.onUp);
     canvas.addEventListener('pointermove', this.onMove);
     canvas.addEventListener('pointerleave', this.onLeave);
     this.resize();
-    this.loop();
   }
 
   // ---- building
@@ -151,7 +166,8 @@ export class SceneView {
     const key = `${token}|${opacity}|${doubleSided ? 2 : 1}`;
     let entry = this.materials.get(key);
     if (!entry) {
-      entry = { token, material: new MeshLambertMaterial({ color: new Color(this.opts.color(token)), transparent: opacity < 1, opacity, depthWrite: opacity >= 1, side: doubleSided ? DoubleSide : undefined }) };
+      // a double-sided translucent surface draws in one pass (three would draw it twice, back then front)
+      entry = { token, material: new MeshLambertMaterial({ color: new Color(this.opts.color(token)), transparent: opacity < 1, opacity, depthWrite: opacity >= 1, ...(doubleSided ? { side: DoubleSide, forceSinglePass: true } : {}) }) };
       this.materials.set(key, entry);
     }
     return entry.material;
@@ -178,6 +194,33 @@ export class SceneView {
     return mine && mine.elevation_m > lowest ? Math.min(p.opacity, UPPER_PLATE_OPACITY) : p.opacity;
   }
 
+  private label(p: ScenePart): Sprite {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.globalAlpha = LABEL_BG_ALPHA;
+      ctx.fillStyle = this.opts.color('surface');
+      ctx.beginPath();
+      ctx.roundRect(8, 16, 496, 96, 48);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = this.opts.color(p.color);
+      ctx.font = 'bold 44px Heebo, "Segoe UI", Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.direction = 'rtl';
+      ctx.fillText(p.text ?? '', 256, 66, 480);
+    }
+    const texture = new CanvasTexture(canvas);
+    texture.colorSpace = SRGBColorSpace;
+    const sprite = new Sprite(new SpriteMaterial({ map: texture, transparent: true, depthTest: true }));
+    sprite.position.set(p.position[0], p.position[1], p.position[2]);
+    sprite.scale.set(Math.max(p.size[0], 0.5), Math.max(p.size[1], 0.2), 1);
+    return sprite;
+  }
+
   private single(p: ScenePart): Object3D | null {
     if (p.shape === 'box' || p.shape === 'cylinder') {
       const mesh = new Mesh(p.shape === 'cylinder' ? this.unitCylinder : this.unitBox, this.material(p.color, this.plateOpacity(p)));
@@ -192,36 +235,8 @@ export class SceneView {
       mesh.position.set(p.position[0], p.position[1], p.position[2]);
       return mesh;
     }
-    if (p.shape === 'sprite') {
-      const canvas = document.createElement('canvas');
-      canvas.width = 512;
-      canvas.height = 128;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.fillStyle = 'rgba(255,255,255,0.88)';
-        ctx.beginPath();
-        ctx.roundRect(8, 16, 496, 96, 48);
-        ctx.fill();
-        ctx.fillStyle = this.opts.color(p.color);
-        ctx.font = 'bold 44px Heebo, "Segoe UI", Arial, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.direction = 'rtl';
-        ctx.fillText(p.text ?? '', 256, 66, 480);
-      }
-      const texture = new CanvasTexture(canvas);
-      texture.colorSpace = SRGBColorSpace;
-      const sprite = new Sprite(new SpriteMaterial({ map: texture, transparent: true, depthTest: true }));
-      sprite.position.set(p.position[0], p.position[1], p.position[2]);
-      sprite.scale.set(Math.max(p.size[0], 0.5), Math.max(p.size[1], 0.2), 1);
-      return sprite;
-    }
-    if (p.shape === 'light') {
-      const light = new PointLight(new Color(this.opts.color(p.color)), 8, Math.max(p.size[0], 1), 2);
-      light.position.set(p.position[0], p.position[1], p.position[2]);
-      return light;
-    }
-    return null;
+    if (p.shape === 'sprite') return this.label(p);
+    return null; // lights come from the pool (setDescription)
   }
 
   private clear(): void {
@@ -235,6 +250,7 @@ export class SceneView {
         child.material.dispose();
       }
     }
+    for (const light of this.glowPool) light.intensity = 0;
     this.lookup.clear();
     this.smallGroups = [];
   }
@@ -277,7 +293,15 @@ export class SceneView {
     }
     let glows = 0;
     for (const p of singles) {
-      if (p.shape === 'light' && glows++ >= MAX_GLOW_LIGHTS) continue;
+      if (p.shape === 'light') {
+        const light = this.glowPool[glows++];
+        if (!light) continue; // past the pool: the lamp keeps its glow colour, without a light of its own
+        light.color.set(this.opts.color(p.color));
+        light.intensity = GLOW_INTENSITY;
+        light.distance = Math.max(p.size[0], 1);
+        light.position.set(p.position[0], p.position[1], p.position[2]);
+        continue;
+      }
       const o = this.single(p);
       if (!o) continue;
       o.name = p.id;
@@ -287,10 +311,8 @@ export class SceneView {
     }
     this.hideSmall = desc.parts.length > HIDE_SMALL_ABOVE_PARTS;
     if (!this.hideSmall) for (const g of this.smallGroups) g.visible = true;
-    if (!this.framed) {
-      this.setPreset('iso');
-      this.framed = true;
-    }
+    if (!this.framed) this.framed = this.setPreset('iso');
+    this.invalidate();
   }
 
   // ---- selection and presets
@@ -300,6 +322,7 @@ export class SceneView {
     if (this.outline) {
       this.root.remove(this.outline);
       this.outline = null;
+      this.invalidate();
     }
     if (!sourceId || !this.desc) return;
     const parts = this.desc.parts.filter((p) => p.userData.id === sourceId && p.kind !== 'cone' && p.kind !== 'floor' && (p.shape === 'box' || p.shape === 'cylinder' || p.shape === 'prism' || p.shape === 'sprite')).slice(0, MAX_OUTLINE_PARTS);
@@ -325,11 +348,13 @@ export class SceneView {
     }
     this.outline = group;
     this.root.add(group);
+    this.invalidate();
   }
 
-  setPreset(preset: ScenePreset): void {
+  /** Move the camera to a preset; false (and nothing moves) when there is no description or no such camera part. */
+  setPreset(preset: ScenePreset): boolean {
     const d = this.desc;
-    if (!d) return;
+    if (!d) return false;
     const [W, D] = d.size;
     const cx = W / 2;
     const cz = D / 2;
@@ -337,9 +362,11 @@ export class SceneView {
     const fit = (w: number, h: number): number => Math.max(h, w / (this.camera.aspect || 1), 4) / (2 * Math.tan(rad(this.camera.fov / 2)));
     const top = Math.max(0, ...d.levels.map((l) => l.elevation_m + l.ceiling_height_m));
     if (preset === 'top') {
+      this.controls.maxPolarAngle = ORBIT_MAX_POLAR;
       this.camera.position.set(cx, top + fit(W, D) * 1.2, cz + 0.001);
       this.controls.target.set(cx, 0, cz);
     } else if (preset === 'iso') {
+      this.controls.maxPolarAngle = ORBIT_MAX_POLAR;
       const diag = Math.hypot(W, D);
       const dist = fit(diag, diag * 0.62) * 1.45;
       const dir = new Vector3(1, 0.85, 1).normalize();
@@ -347,14 +374,18 @@ export class SceneView {
       this.controls.target.set(cx, 0, cz);
     } else {
       const body = d.parts.find((p) => p.id === preset.camera && p.kind === 'camera');
-      if (!body) return;
+      if (!body) return false;
       // the body's own forward: -z turned by the part's Euler (YXZ) - the description carries [-tilt, -bearing, 0], so a
       // positive tilt looks down and bearing 0 looks north (ruling R-P4-T4-1); no separate sign rule here
       const f = new Vector3(0, 0, -1).applyEuler(new Euler(rad(body.rotation[0]), rad(body.rotation[1]), rad(body.rotation[2]), 'YXZ'));
+      // a camera may look up (a negative tilt): the orbit limit that keeps the user above the floor must not clamp it
+      this.controls.maxPolarAngle = Math.PI;
       this.camera.position.set(body.position[0], body.position[1], body.position[2]);
       this.controls.target.set(body.position[0] + f.x * 6, body.position[1] + f.y * 6, body.position[2] + f.z * 6);
     }
     this.controls.update();
+    this.invalidate();
+    return true;
   }
 
   /** Host pixels of a scene point (null behind the camera). */
@@ -378,39 +409,60 @@ export class SceneView {
       const parts = this.lookup.get(hit.object);
       if (!parts) continue;
       const part = parts[hit.instanceId ?? 0];
-      if (!part || part.kind === 'floor') return null; // the floor: an empty click
+      if (!part) continue;
+      if (part.kind === 'floor') {
+        if (this.plateOpacity(part) < 1) continue; // a translucent upper plate: the click goes on to the level below
+        return null; // an opaque plate: an empty click
+      }
       return { id: part.userData.id, kind: part.userData.kind, partId: part.id };
     }
     return null;
   }
 
   private onDown = (e: PointerEvent) => {
-    this.pressed = { x: e.clientX, y: e.clientY };
+    if (!e.isPrimary) return; // a second finger pinches, it never starts a click
+    this.pressed = { x: e.clientX, y: e.clientY, id: e.pointerId };
   };
 
   private onUp = (e: PointerEvent) => {
     const p = this.pressed;
+    if (!p || e.pointerId !== p.id) return;
     this.pressed = null;
-    if (!p || e.button !== 0 || Math.hypot(e.clientX - p.x, e.clientY - p.y) > CLICK_SLOP_PX) return; // a drag orbits, it never selects
+    if (e.button !== 0 || Math.hypot(e.clientX - p.x, e.clientY - p.y) > CLICK_SLOP_PX) return; // a drag orbits, it never selects
     this.opts.onSelect(this.pick(e.clientX, e.clientY));
   };
 
   private onMove = (e: PointerEvent) => {
-    if (this.pressed || e.pointerType === 'touch') return;
+    if (this.pressed || e.pointerType === 'touch' || !e.isPrimary) return;
     const hit = this.pick(e.clientX, e.clientY);
     const key = hit ? hit.partId : null;
-    if (key === this.lastHover && hit) return;
+    if (key === this.lastHover) return; // the same part, or still nothing: no event
     this.lastHover = key;
     const rect = this.renderer.domElement.getBoundingClientRect();
     this.opts.onHover(hit, e.clientX - rect.left, e.clientY - rect.top);
   };
 
   private onLeave = () => {
+    if (this.lastHover === null) return; // the null hover goes out once
     this.lastHover = null;
     this.opts.onHover(null, 0, 0);
   };
 
-  // ---- frames
+  // ---- frames: on demand (a change schedules one frame; damping keeps scheduling until it settles), or continuous
+
+  /** Schedule one frame (several calls before it runs collapse into one). */
+  invalidate = (): void => {
+    if (this.disposed || this.raf) return;
+    this.raf = requestAnimationFrame(this.frame);
+  };
+
+  /** Render every frame (the fps measurement of the live spec) or only on change (the default). */
+  setContinuous(on: boolean): void {
+    this.continuous = on;
+    this.windowStart = 0;
+    this.windowFrames = 0;
+    this.invalidate();
+  }
 
   resize(): void {
     const w = this.opts.mount.clientWidth || 1;
@@ -418,12 +470,13 @@ export class SceneView {
     this.renderer.setSize(w, h);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+    this.invalidate();
   }
 
-  private loop = () => {
+  private frame = () => {
+    this.raf = 0;
     if (this.disposed) return;
-    this.raf = requestAnimationFrame(this.loop);
-    this.controls.update();
+    const moving = this.controls.update(); // true while damping still moves the camera
     if (this.hideSmall) {
       const show = this.camera.position.distanceTo(this.controls.target) < HIDE_SMALL_DISTANCE_M;
       for (const g of this.smallGroups) g.visible = show;
@@ -438,25 +491,41 @@ export class SceneView {
       this.windowStart = now;
       this.windowFrames = 0;
     }
-    this.opts.onFrame(this.frames, this.fps);
+    const more = moving || this.continuous;
+    // the counters go out at most once a second while frames run, and once more when they stop
+    if (!more || now - this.lastReport >= 1000) {
+      this.lastReport = now;
+      this.opts.onFrame(this.frames, this.fps);
+    }
+    if (more) this.invalidate();
+    else {
+      this.windowStart = 0; // the next burst measures afresh
+      this.windowFrames = 0;
+    }
   };
 
+  /** The glTF of the scene as drawn, without the selection outline (exported from a copy of the root). */
   async exportGltf(): Promise<Record<string, unknown>> {
-    const out = await new GLTFExporter().parseAsync(this.root, { binary: false, onlyVisible: false });
+    const copy = new Group();
+    for (const child of this.root.children) if (child !== this.outline) copy.add(child.clone());
+    const out = await new GLTFExporter().parseAsync(copy, { binary: false, onlyVisible: false });
     return out as Record<string, unknown>;
   }
 
   dispose(): void {
     this.disposed = true;
     cancelAnimationFrame(this.raf);
+    this.raf = 0;
     const canvas = this.renderer.domElement;
     canvas.removeEventListener('pointerdown', this.onDown);
     canvas.removeEventListener('pointerup', this.onUp);
     canvas.removeEventListener('pointermove', this.onMove);
     canvas.removeEventListener('pointerleave', this.onLeave);
+    this.controls.removeEventListener('change', this.invalidate);
     this.controls.dispose();
     this.clear();
     for (const { material } of this.materials.values()) material.dispose();
+    for (const light of this.glowPool) light.dispose();
     this.outlineMaterial.dispose();
     this.boxEdges.dispose();
     this.unitBox.dispose();
