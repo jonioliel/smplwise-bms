@@ -296,4 +296,74 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
     expect(gltf.extensionsUsed ?? []).toContain('EXT_mesh_gpu_instancing'); // the chairs and the wall parts travel as instances
     console.log(`GLTF ${got.name}: ${gltf.nodes.length} nodes, ${gltf.meshes.length} meshes, ${got.text.length} bytes`);
   });
+
+  test('embed mode (the Lovelace card path): the floor screen toggles to 3D without its chrome, the chunk fetched from the page own assets folder', async ({ page }) => {
+    test.setTimeout(120_000);
+    const chunkRequests: string[] = [];
+    page.on('request', (r) => {
+      if (/\/assets\/three-[\w-]+\.js$/.test(r.url())) chunkRequests.push(r.url());
+    });
+    await page.goto('about:blank');
+    await page.goto(`/#/explore/floors/${ids.floor}?embed=1`);
+    await page.waitForSelector('sw-app');
+    await expect(page.locator('sw-app')).toHaveAttribute('data-embed', '', { timeout: 30000 });
+    await expect(page.locator('sw-app nav')).toHaveCount(0);
+    const host = page.locator(HOST);
+    await expect(host.locator('[data-view-3d]')).toBeEnabled({ timeout: 30000 });
+    await host.locator('[data-view-3d]').click();
+    await expect(host.locator('sw-plan-3d[data-floor-3d]')).toHaveAttribute('data-ready', '', { timeout: 30000 });
+    expect(chunkRequests).toHaveLength(1);
+    expect(new URL(chunkRequests[0]).pathname).toMatch(/^\/assets\/three-[\w-]+\.js$/); // next to the page that embedded it
+    await page.goto('about:blank'); // leave embed mode for the next tests (it is remembered per session)
+  });
+
+  test('without WebGL the toggle is disabled with a Hebrew note and the 2D map keeps working', async ({ page }) => {
+    await page.addInitScript(() => {
+      const orig = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, type: string, ...rest: unknown[]) {
+        if (type === 'webgl' || type === 'webgl2' || type === 'experimental-webgl') return null;
+        return (orig as (this: HTMLCanvasElement, t: string, ...a: unknown[]) => RenderingContext | null).call(this, type, ...rest);
+      } as typeof HTMLCanvasElement.prototype.getContext;
+    });
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
+    const host = page.locator(HOST);
+    await expect(host.locator('sw-plan-canvas [data-structure] [data-wall]').first()).toBeAttached({ timeout: 30000 });
+    // sw-button carries the disabled attribute on its host (not a native control, so not toBeDisabled - see evidence-plan-studio-2.spec.ts)
+    await expect(host.locator('[data-view-3d]')).toHaveAttribute('disabled', '');
+    await expect(host.locator('[data-3d-unavailable]')).toHaveText('תלת-ממד לא זמין בדפדפן זה');
+    await page.keyboard.press('3');
+    await expect(host.locator('sw-plan-3d')).toHaveCount(0);
+    await host.locator(`sw-plan-canvas g.marker[data-id="${ids.camAnchor}"]`).click();
+    await expect(host.locator('sw-popover, sw-drawer[open]')).toHaveCount(1); // the 2D card still opens
+  });
+
+  test('phone: the toggle sits in the tool row, the 3D fills the stage without sideways scroll, the canvas takes touch', async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 390, height: 844 });
+    const chunkRequests: string[] = [];
+    page.on('request', (r) => {
+      if (/\/assets\/three-[\w-]+\.js$/.test(r.url())) chunkRequests.push(r.url());
+    });
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
+    const host = page.locator(HOST);
+    await expect(host.locator('sw-plan-canvas')).toBeAttached({ timeout: 30000 });
+    const toggle = host.locator('.tools [data-view-3d]');
+    await expect(toggle).toBeVisible();
+    await expect(toggle).toBeEnabled({ timeout: 30000 });
+    expect(chunkRequests).toHaveLength(0);
+    await toggle.click();
+    const el = host.locator('sw-plan-3d[data-floor-3d]');
+    await expect(el).toHaveAttribute('data-ready', '', { timeout: 30000 });
+    expect(chunkRequests).toHaveLength(1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+    const stage = await el.boundingBox();
+    expect(stage!.width).toBeLessThanOrEqual(390);
+    expect(stage!.width).toBeGreaterThan(300);
+    const touch = await el.evaluate((node) => { const c = (node as HTMLElement).shadowRoot!.querySelector('canvas')!; return { action: getComputedStyle(c).touchAction, w: c.clientWidth }; });
+    expect(touch.action).toBe('none'); // OrbitControls owns the gestures: one finger orbits, two zoom and pan
+    expect(touch.w).toBeGreaterThan(300);
+    await expect(el.locator('[data-preset-top]')).toBeVisible();
+    await el.locator('[data-preset-top]').click();
+    await expect(el).toHaveAttribute('data-preset', 'top');
+  });
 });

@@ -311,6 +311,13 @@ export class ExploreFloorMap extends LitElement {
       .tools sw-button[icon='edit'] {
         display: none;
       }
+      /* the 3D toggle stays in the scrolling tool row, never squeezed (ruling R-P4-7) */
+      .tools sw-button[data-view-3d] {
+        flex: none;
+      }
+      .tools .note {
+        white-space: nowrap;
+      }
       .rename {
         flex-wrap: wrap;
       }
