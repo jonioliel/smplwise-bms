@@ -9,6 +9,12 @@ export default defineConfig({
     emptyOutDir: true,
     sourcemap: true,
     target: 'es2022',
+    rollupOptions: {
+      output: {
+        // Plan Studio 3D (T087): three.js in a chunk of its own, fetched only by the dynamic import of sw-plan-3d.
+        manualChunks: (id) => (id.includes('/node_modules/three/') ? 'three' : undefined),
+      },
+    },
   },
   server: {
     // Dev loop: the FastAPI backend runs on 8099 (`python -m smplwise` with SW_DEV_USER); the UI on 5173.
