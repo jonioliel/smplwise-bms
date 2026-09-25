@@ -3,7 +3,8 @@ import { customElement, property, state, query } from 'lit/decorators.js';
 import '../components/sw-button';
 import { t } from '../i18n/he';
 import type { StateKind } from '../components/sw-badge';
-import { buildPrimitives, isClosedOutline, type DoorPrim, type GeometryDoc, type LabelPrim, type PassagePrim, type Primitive, type Pt, type WallPrim, type WindowPrim } from './geometry';
+import { applyAnchorPositions, buildPrimitives, isClosedOutline, type AnchorPosition, type CatalogLookup, type DoorPrim, type GeometryDoc, type LabelPrim, type PassagePrim, type Primitive, type Pt, type WallPrim, type WindowPrim } from './geometry';
+import { symbolOf } from './plan-symbols';
 
 export type MarkerKind = 'camera' | 'lock' | 'light' | 'binary_sensor';
 
@@ -97,6 +98,18 @@ export function polygonCentroid(poly: { x: number; y: number }[]) {
 }
 
 const ptsAttr = (ps: Pt[]): string => ps.map((p) => `${p[0]},${p[1]}`).join(' ');
+/** Same anchors by value: the maps hand a fresh positions object on every render, the primitives are rebuilt only when
+ * an anchor actually moved. */
+const sameAnchors = (a: Record<string, AnchorPosition>, b: Record<string, AnchorPosition>): boolean => {
+  if (a === b) return true;
+  const ka = Object.keys(a);
+  if (ka.length !== Object.keys(b).length) return false;
+  return ka.every((k) => {
+    const p = a[k];
+    const q = b[k];
+    return !!q && p.x === q.x && p.y === q.y && p.rotation === q.rotation;
+  });
+};
 
 /** A structure drag (Plan Studio): a wall corner (`index`), an opening or a label; the pointer now (x, y) and where the
  * press started (sx, sy), in normalized plan space - so an item keeps its offset from the pointer instead of jumping. */
@@ -161,7 +174,21 @@ export class SwPlanCanvas extends LitElement {
   /** Items with a validation error, drawn in red (editor). */
   @property({ attribute: false }) issueIds: string[] = [];
   @property() selectedGeomId: string | null = null;
-  private primCache: { doc: GeometryDoc; w: number; h: number; level: string | null; prims: Primitive[] } | null = null;
+  /** T085: the library shapes (symbol, colour) the object layer draws with; without it every object is a plain box. */
+  @property({ attribute: false }) catalog: CatalogLookup | null = null;
+  /** T085: the live anchors of the floor ("<type>:<id>" -> position): a bound object draws on its anchor, not where the
+   * document last saw it. */
+  @property({ attribute: false }) anchorPositions: Record<string, AnchorPosition> = {};
+  /** T085: circuit id -> the state of its switch ("on" glows every lamp of the circuit). */
+  @property({ attribute: false }) circuitStates: Record<string, string | null> = {};
+  /** T085: entity id -> state, for objects bound to an entity (a lamp that is the body of a light glows on its own). */
+  @property({ attribute: false }) entityStates: Record<string, string | null> = {};
+  /** T085: the layer switches of the live map. `hideStructure` hides walls, openings and labels while objects or
+   * connectors still draw (the phase-1 "מבנה" switch keeps hiding the walls now that the document carries more). */
+  @property({ type: Boolean }) hideStructure = false;
+  @property({ type: Boolean }) hideObjects = false;
+  @property({ type: Boolean }) hideConnectors = false;
+  private primCache: { doc: GeometryDoc; w: number; h: number; level: string | null; catalog: CatalogLookup | null; anchors: Record<string, AnchorPosition>; prims: Primitive[] } | null = null;
   /** Plan Studio editor: what can be picked and dragged. 'all' in the structure tool's select mode; 'items' in its drawing
    * modes, where a press on an existing opening or label drags (or, without moving, selects) it and every other press
    * still goes to the tool as a `plan-click`; 'none' on viewers and in the other tools. */
@@ -454,6 +481,69 @@ export class SwPlanCanvas extends LitElement {
     }
     .structure .glabel.issue {
       fill: var(--sw-danger);
+    }
+    /* T085: connectors (a wide translucent band along the polyline, an arrow, the level delta) and objects (a tinted
+       footprint in the item's colour, a symbol, an optional label); a lamp glows while its circuit's switch is on. */
+    .structure .conn .cbody {
+      fill: none;
+      stroke: var(--sw-map-structure);
+      stroke-opacity: 0.22;
+      stroke-linecap: butt;
+    }
+    .structure .conn .carrow {
+      fill: none;
+      stroke: var(--sw-map-structure);
+    }
+    .carrowhead {
+      fill: var(--sw-map-structure);
+    }
+    .structure .conn .clabel,
+    .structure .obj .olabel {
+      fill: var(--sw-map-label);
+      font-family: var(--sw-font);
+      font-weight: 600;
+      text-anchor: middle;
+      dominant-baseline: middle;
+      direction: rtl;
+      unicode-bidi: plaintext;
+    }
+    .structure .obj .fp {
+      fill: var(--oc);
+      fill-opacity: 0.18;
+      stroke: var(--oc);
+    }
+    .structure .obj .step {
+      stroke: var(--oc);
+    }
+    .structure .obj .sym {
+      fill: none;
+      stroke: var(--oc);
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .structure .obj[data-circuit] .fp {
+      stroke: var(--kc, var(--oc));
+      stroke-width: 2;
+    }
+    .structure .obj.glow .fp {
+      fill: var(--sw-map-glow);
+      fill-opacity: 0.6;
+      stroke: var(--sw-map-glow);
+      filter: drop-shadow(0 0 6px var(--sw-map-glow));
+    }
+    .structure .obj.sel .fp {
+      stroke: var(--sw-accent);
+      stroke-width: 2;
+    }
+    .structure .obj.issue .fp {
+      stroke: var(--sw-danger);
+    }
+    .structure .conn.sel .cbody,
+    .structure .conn.sel .carrow {
+      stroke: var(--sw-accent);
+    }
+    .structure .conn.issue .cbody {
+      stroke: var(--sw-danger);
     }
     .geom-hits .hit {
       fill: transparent;
@@ -1189,12 +1279,14 @@ export class SwPlanCanvas extends LitElement {
     `;
   }
 
-  /** Primitives of the shown document, recomputed only when the document, the plan size or the level changes. */
+  /** Primitives of the shown document, recomputed only when the document, the plan size, the level, the library or an
+   * anchor position changes. */
   private primitives(doc: GeometryDoc): Primitive[] {
     const c = this.primCache;
-    if (c && c.doc === doc && c.w === this.planWidth && c.h === this.planHeight && c.level === this.structureLevel) return c.prims;
-    const prims = buildPrimitives(doc, this.planWidth, this.planHeight, this.structureLevel);
-    this.primCache = { doc, w: this.planWidth, h: this.planHeight, level: this.structureLevel, prims };
+    if (c && c.doc === doc && c.w === this.planWidth && c.h === this.planHeight && c.level === this.structureLevel && c.catalog === this.catalog && sameAnchors(c.anchors, this.anchorPositions)) return c.prims;
+    const shown = Object.keys(this.anchorPositions).length ? applyAnchorPositions(doc, this.anchorPositions) : doc;
+    const prims = buildPrimitives(shown, this.planWidth, this.planHeight, this.structureLevel, this.catalog ?? undefined);
+    this.primCache = { doc, w: this.planWidth, h: this.planHeight, level: this.structureLevel, catalog: this.catalog, anchors: this.anchorPositions, prims };
     return prims;
   }
 
@@ -1203,7 +1295,8 @@ export class SwPlanCanvas extends LitElement {
     if (!doc) return nothing;
     const inv = 1 / this.scale;
     const issues = new Set(this.issueIds);
-    return svg`<g class="structure" data-structure>${this.primitives(doc).map((p) => this.renderPrimitive(p, inv, issues))}</g>`;
+    const shown = this.primitives(doc).filter((p) => (p.kind === 'object' ? !this.hideObjects : p.kind === 'connector' ? !this.hideConnectors : !this.hideStructure));
+    return svg`<g class="structure" data-structure>${shown.map((p) => this.renderPrimitive(p, inv, issues))}</g>`;
   }
 
   private renderPrimitive(p: Primitive, inv: number, issues: Set<string>) {
@@ -1220,6 +1313,27 @@ export class SwPlanCanvas extends LitElement {
         return svg`<g class="opening ${cls}" data-opening=${p.id} data-kind="window">${p.lines.map(([a, b]) => svg`<line class="glass" x1=${a[0]} y1=${a[1]} x2=${b[0]} y2=${b[1]} stroke-width=${1.6 * inv} />`)}</g>`;
       case 'passage':
         return svg`<g class="opening ${cls}" data-opening=${p.id} data-kind="passage"><line class="gapline" x1=${p.gap[0][0]} y1=${p.gap[0][1]} x2=${p.gap[1][0]} y2=${p.gap[1][1]} stroke-width=${inv} stroke-dasharray=${`${2 * inv} ${3 * inv}`} /></g>`;
+      case 'connector':
+        return svg`<g class="conn ${cls}" data-connector=${p.id} data-kind=${p.ckind}>
+          <path class="cbody" d=${`M ${p.points.map((q) => `${q[0]} ${q[1]}`).join(' L ')}`} stroke-width=${p.width} />
+          <path class="carrow" d=${`M ${p.arrow.from[0]} ${p.arrow.from[1]} L ${p.arrow.to[0]} ${p.arrow.to[1]}`} stroke-width=${2 * inv} marker-end="url(#sw-arrow)" />
+          <text class="clabel" x=${p.lx} y=${p.ly} font-size=${12 * inv}>${p.label}</text>
+        </g>`;
+      case 'object': {
+        const entityId = p.anchor ? p.anchor.slice(p.anchor.indexOf(':') + 1) : null;
+        const on = (p.circuit_id !== null && this.circuitStates[p.circuit_id] === 'on') || (entityId !== null && this.entityStates[entityId] === 'on');
+        const circuit = p.circuit_id !== null ? this.geometry?.circuits.find((k) => k.id === p.circuit_id) : undefined;
+        const sym = Math.min(3, Math.max(0.35, (Math.min(p.w, p.h) * 0.6) / 24));
+        return svg`<g class="obj ${cls} ${on ? 'glow' : ''}" data-object=${p.id} data-item=${p.item_id} data-shape=${p.shape} data-circuit=${p.circuit_id ?? nothing} ?data-glow=${on}
+             style=${`--oc: var(--sw-obj-${p.color});${circuit ? ` --kc: var(--sw-${circuit.color_token});` : ''}`}>
+          ${p.shape === 'cylinder'
+            ? svg`<ellipse class="fp" cx=${p.cx} cy=${p.cy} rx=${p.w / 2} ry=${p.h / 2} transform=${`rotate(${p.rotation} ${p.cx} ${p.cy})`} stroke-width=${1.2 * inv} />`
+            : svg`<polygon class="fp" points=${ptsAttr(p.corners)} stroke-width=${1.2 * inv} />`}
+          ${p.steps.map(([a, b]) => svg`<line class="step" x1=${a[0]} y1=${a[1]} x2=${b[0]} y2=${b[1]} stroke-width=${inv} />`)}
+          <g class="sym" transform=${`translate(${p.cx} ${p.cy}) rotate(${p.rotation}) scale(${sym}) translate(-12 -12)`} stroke-width=${1.6 / sym}>${symbolOf(p.icon)}</g>
+          ${p.label && this.scale >= 0.6 ? svg`<text class="olabel" x=${p.cx} y=${p.cy + p.h / 2 + 12 * inv} font-size=${11 * inv}>${p.label}</text>` : nothing}
+        </g>`;
+      }
       case 'label':
         return svg`<text class="glabel ${cls}" data-label=${p.id} x=${p.x} y=${p.y} font-size=${p.size}>${p.text}</text>`;
     }
@@ -1402,6 +1516,7 @@ export class SwPlanCanvas extends LitElement {
       <div class="viewport ${this.placing ? 'placing' : ''} ${this.boxSelect ? 'boxing' : ''}" @wheel=${this.onWheel} @pointerdown=${this.onPointerDown} @pointermove=${this.onPointerMove}
            @pointerup=${this.onPointerUp} @pointercancel=${this.onPointerUp} @click=${this.onBackgroundClick}>
         <svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="תוכנית קומה">
+          <defs><marker id="sw-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path class="carrowhead" d="M0 0L10 5L0 10z" /></marker></defs>
           <g transform="translate(${this.tx} ${this.ty}) scale(${this.scale})">
             ${this.imageUrl ? svg`<image href=${this.imageUrl} x="0" y="0" width=${this.planWidth} height=${this.planHeight} preserveAspectRatio="none" />` : nothing}
             ${this.plan ?? nothing}

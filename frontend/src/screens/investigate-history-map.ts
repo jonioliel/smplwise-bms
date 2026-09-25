@@ -26,7 +26,8 @@ import { EVENT_LABEL, listEvents, type EventKind, type VmsEvent } from '../api/e
 import { dateInZone, frameUrl, instantInZone, minuteInZone, recordingsForDay, type RecordingsResponse } from '../api/recordings';
 import { entityMarkerKind, stateLabel } from '../api/ha';
 import { geometryAt, geometryFor } from '../api/geometry';
-import type { GeometryDoc } from '../map/geometry';
+import type { AnchorPosition, CatalogLookup, GeometryDoc } from '../map/geometry';
+import { loadLibrary, lookupOf } from '../api/plan-catalog';
 
 const NEAR_MIN = 10;
 
@@ -63,6 +64,7 @@ export class InvestigateHistoryMap extends LitElement {
   @state() private casePick: NewCaseItem | null = null;
   /** Plan Studio: the structure published at the instant (one plan version can have several structure publishes). */
   @state() private geometry: GeometryDoc | null = null;
+  @state() private catalogLookup: CatalogLookup | null = null;
   private geomSeq = 0;
   private frameTimer = 0;
 
@@ -323,6 +325,11 @@ export class InvestigateHistoryMap extends LitElement {
       this.minute = minuteInZone(start, this.tz);
       this.bundle = await loadMap(this.floorId, false, this.instant.toISOString().replace(/\.\d{3}Z$/, 'Z'));
       this.geometry = null; // another floor or instant: no structure until its document arrives
+      if (this.bundle.source === 'api') {
+        void loadLibrary(this.bundle.catalogRevision).then((lib) => {
+          this.catalogLookup = lookupOf(lib);
+        }).catch(() => {}); // without the library objects draw as plain boxes
+      }
       void this.updateGeometry();
       this.scheduleFrame();
       if (this.camera) {
@@ -546,7 +553,7 @@ export class InvestigateHistoryMap extends LitElement {
         <div class="stage">
           <div class="chip"><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
           <div class="hist">מצב היסטורי · <span class="ltr">${secondLabel(this.minute)}</span></div>
-          <sw-plan-canvas alwaysLabel .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .markers=${this.apiMarkers} .selectedId=${this.selectedId} .zones=${b.zones} .geometry=${this.geometry} dimEntities
+          <sw-plan-canvas alwaysLabel .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .markers=${this.apiMarkers} .selectedId=${this.selectedId} .zones=${b.zones} .geometry=${this.geometry} .catalog=${this.catalogLookup} .anchorPositions=${Object.fromEntries(b.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees } as AnchorPosition]))} .entityStates=${Object.fromEntries(b.anchors.filter((a) => a.resource_type === 'ha_entity').map((a) => [a.resource_id, a.entity?.state_at?.known ? a.entity.state_at.state : null]))} dimEntities
             @marker-select=${(e: CustomEvent<MarkerSelectDetail>) => { this.selectedId = e.detail.id; this.frameFailed = false; }}></sw-plan-canvas>
           <div class="legend"><span>כחול = יש הקלטה בזמן זה</span><span>מקווקו = אין הקלטה / לא ידוע</span><span>ישויות HA = מצב מההיסטוריה המקומית או לא ידוע</span></div>
         </div>

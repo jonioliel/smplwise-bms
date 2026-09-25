@@ -57,6 +57,26 @@
   --sw-map-structure: #4b5567;
   --sw-map-glass: #7fb2ff;
   --sw-map-label: #8b96a8;
+  /* Plan Studio objects (T085): one colour per library colour token, the circuit colours, the "switch is on" glow */
+  --sw-obj-object: #7b8794;
+  --sw-obj-structure: #4b5567;
+  --sw-obj-circulation: #6b7f99;
+  --sw-obj-furniture: #9aa7b8;
+  --sw-obj-light: #f2b544;
+  --sw-obj-electrical: #e07a2f;
+  --sw-obj-safety: #e0443c;
+  --sw-obj-medical: #2fa7b3;
+  --sw-obj-sport: #3fa25b;
+  --sw-obj-sanitary: #5b9bd5;
+  --sw-obj-security: #7a5cc7;
+  --sw-obj-outdoor: #5c9e4f;
+  --sw-circuit-1: #2f6bff;
+  --sw-circuit-2: #f59e0b;
+  --sw-circuit-3: #22c55e;
+  --sw-circuit-4: #a855f7;
+  --sw-circuit-5: #ef4444;
+  --sw-circuit-6: #14b8a6;
+  --sw-map-glow: #ffd166;
   --sw-fov: rgba(47, 107, 255, 0.14);
 
   /* Typography */
