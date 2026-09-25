@@ -51,8 +51,9 @@ export async function buildProbe(entry: string): Promise<{ dir: string; files: {
 }
 
 /**
- * A synthetic entry exercising the three-bundle exports a minimal Plan Studio 3D scene needs: geometry, a material,
- * lights, the camera/renderer pair, and the two named addons. Written to its own temp folder (separate from the
+ * A synthetic entry exercising the three-bundle exports the Plan Studio 3D scene uses - the same names as the import
+ * line of src/map/scene-three.ts (Task 5 mirrored it here, as the Task 1 review asked; keep the two in step). With the real list the chunk measures
+ * about 153.8 KB gzip (Task 1 measured 146.7 KB with a smaller list). Written to its own temp folder (separate from the
  * build output) so nothing under src/ changes - three-bundle.ts stays the zero-logic re-export Task 5 expects.
  */
 function writeUsageEntry(): { file: string; srcDir: string } {
@@ -62,14 +63,25 @@ function writeUsageEntry(): { file: string; srcDir: string } {
   fs.writeFileSync(
     file,
     [
-      `import { Scene, PerspectiveCamera, WebGLRenderer, Mesh, BoxGeometry, MeshStandardMaterial, AmbientLight, DirectionalLight, Group, Vector3, OrbitControls, GLTFExporter } from '${boundary}';`,
+      `import { AmbientLight, BoxGeometry, BufferGeometry, CanvasTexture, Color, CylinderGeometry, DirectionalLight, DoubleSide, Euler, Float32BufferAttribute, GLTFExporter, Group, InstancedMesh, LineBasicMaterial, LineSegments, Matrix4, Mesh, MeshLambertMaterial, Object3D, OrbitControls, PerspectiveCamera, PointLight, Quaternion, Raycaster, SRGBColorSpace, Scene, ShapeUtils, Sprite, SpriteMaterial, Vector2, Vector3, WebGLRenderer } from '${boundary}';`,
       'const scene = new Scene();',
       'const camera = new PerspectiveCamera(75, 1, 0.1, 1000);',
       'const renderer = new WebGLRenderer();',
-      'scene.add(new Mesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial()), new AmbientLight(), new DirectionalLight(), new Group());',
+      'renderer.outputColorSpace = SRGBColorSpace;',
+      'const box = new BoxGeometry(1, 1, 1);',
+      'const lambert = new MeshLambertMaterial({ color: new Color(0x888888), side: DoubleSide });',
+      'const inst = new InstancedMesh(new CylinderGeometry(0.5, 0.5, 1, 24), lambert, 2);',
+      'inst.setMatrixAt(0, new Matrix4().compose(new Vector3(), new Quaternion().setFromEuler(new Euler(0, 1, 0, "YXZ")), new Vector3(1, 1, 1)));',
+      'const prism = new BufferGeometry();',
+      'prism.setAttribute("position", new Float32BufferAttribute(ShapeUtils.triangulateShape([new Vector2(0, 0), new Vector2(1, 0), new Vector2(0, 1)], []).flat(), 3));',
+      'const sprite = new Sprite(new SpriteMaterial({ map: new CanvasTexture(document.createElement("canvas")) }));',
+      'const root = new Group();',
+      'root.add(new Mesh(box, lambert), new Mesh(prism, lambert), inst, sprite, new LineSegments(box, new LineBasicMaterial()), new PointLight(0xffffff, 8, 6, 2), new Object3D());',
+      'scene.add(root, new AmbientLight(), new DirectionalLight());',
+      'new Raycaster().intersectObjects(root.children, false);',
       'const controls = new OrbitControls(camera, renderer.domElement);',
       'const exporter = new GLTFExporter();',
-      'void new Vector3(); void controls; void exporter;',
+      'void controls; void exporter.parseAsync(root, {});',
       '',
     ].join('\n'),
   );
@@ -93,4 +105,25 @@ test('the three chunk built from a representative scene consumer is separate and
     fs.rmSync(dir, { recursive: true, force: true });
     fs.rmSync(srcDir, { recursive: true, force: true });
   }
+});
+
+test('the app build keeps three out of the entry and in one lazy chunk under 200 KB gzip', () => {
+  const assets = path.join(FRONTEND, 'dist', 'assets');
+  test.skip(!fs.existsSync(assets), 'run npm run build first (frontend/dist is missing)');
+  const files = fs.readdirSync(assets);
+  const three = files.filter((f) => /^three-[\w-]+\.js$/.test(f));
+  expect(three, 'exactly one three chunk in dist').toHaveLength(1);
+  const gz = gzipBytes(path.join(assets, three[0]));
+  console.log(`dist three chunk: ${three[0]} ${gz} bytes gzip`);
+  expect(gz).toBeLessThanOrEqual(LIMIT_GZIP);
+  const entry = files.filter((f) => /^index-[\w-]+\.js$/.test(f));
+  expect(entry).toHaveLength(1);
+  const entrySrc = fs.readFileSync(path.join(assets, entry[0]), 'utf8');
+  expect(entrySrc).not.toContain('WebGLRenderer'); // no three code in the entry
+  expect(entrySrc).not.toMatch(/from"\.\/three-[\w-]+\.js"/); // and no static import of the chunk
+  const view = files.filter((f) => /^sw-plan-3d-[\w-]+\.js$/.test(f));
+  expect(view, 'the 3D view is its own lazy chunk').toHaveLength(1);
+  const viewSrc = fs.readFileSync(path.join(assets, view[0]), 'utf8');
+  expect(viewSrc).toMatch(/from"\.\/three-[\w-]+\.js"/); // the view pulls the library in, relatively (the Ingress rule)
+  expect(viewSrc).not.toContain('"/assets/');
 });
