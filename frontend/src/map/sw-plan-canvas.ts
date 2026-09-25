@@ -6,7 +6,7 @@ import type { StateKind } from '../components/sw-badge';
 import { applyAnchorPositions, buildPrimitives, circuitToken, isClosedOutline, objectHitOrder, type AnchorPosition, type CatalogLookup, type DoorPrim, type GeometryDoc, type LabelPrim, type ConnectorPrim, type ObjectPrim, type PassagePrim, type Primitive, type Pt, type WallPrim, type WindowPrim } from './geometry';
 import { candidatesDoc, type CandidateSet, type CandState } from './candidates';
 import { symbolOf } from './plan-symbols';
-import { coveragePolygon, hasWallsOnLevel } from './coverage';
+import { CoverageCache, hasWallsOnLevel } from './coverage';
 import { defaultLevelId } from './studio-ops';
 
 export type MarkerKind = 'camera' | 'lock' | 'light' | 'binary_sensor';
@@ -204,8 +204,10 @@ export class SwPlanCanvas extends LitElement {
   /** T087 (ruling R-P4-2): a camera cone is cut by the walls of its level when the document has any; off in the
    * candidates overlay of the editor is not needed - the editor keeps it on, so what is drawn is what viewers see. */
   @property({ type: Boolean }) clipCoverage = true;
-  private covCache = new Map<string, { key: string; points: string }>();
-  private covSeq = 0;
+  /** The blocking segments shared by every camera and each camera's polygon, keyed on the document identity (a new
+   * document object is recomputed in the same render that receives it). */
+  private coverage = new CoverageCache();
+  private covPoints = new Map<string, { pts: Pt[]; points: string }>();
   private primCache: { doc: GeometryDoc; w: number; h: number; level: string | null; catalog: CatalogLookup | null; anchors: Record<string, AnchorPosition>; prims: Primitive[] } | null = null;
   /** Circuit id -> its whitelisted colour token, built once per document (the object layer looks it up per lamp). */
   private circuitCache: { doc: GeometryDoc; tokens: Map<string, string> } | null = null;
@@ -756,10 +758,6 @@ export class SwPlanCanvas extends LitElement {
       this.fitted = false;
       this.fit();
     }
-    if (changed.has('geometry') || changed.has('catalog')) {
-      this.covSeq++; // the clipped cones depend on the document: recompute them lazily
-      this.covCache.clear();
-    }
     if (changed.has('scale') || changed.has('tx') || changed.has('ty')) {
       this.dispatchEvent(new CustomEvent('view-change', { bubbles: true, composed: true }));
     }
@@ -1279,20 +1277,17 @@ export class SwPlanCanvas extends LitElement {
 
   /** The camera's coverage cut by the walls of its level, as a points attribute relative to the marker's translate;
    * null when clipping is off, there is no structure on that level or the marker has a manual polygon (which wins).
-   * Cached per marker on the document sequence, the pose, the radius and the states of the door entities. */
+   * Cached by CoverageCache on the document identity, the pose, the radius, the level and the open doors. */
   private clippedCoverage(m: PlanMarker, live: { x: number; y: number }, rotation: number, fov: number): string | null {
     const doc = this.geometry;
     if (!this.clipCoverage || !doc || m.polygon) return null;
     const level = m.level ?? defaultLevelId(doc);
     if (!hasWallsOnLevel(doc, level)) return null;
-    const radiusPx = this.radiusOf(m);
-    const doors = doc.openings.filter((o) => o.kind === 'door' && o.anchor_ref).map((o) => `${o.id}=${this.entityStates[o.anchor_ref!.resource_id] ?? ''}`).join(',');
-    const key = `${this.covSeq}|${live.x}|${live.y}|${rotation}|${fov}|${radiusPx}|${level}|${this.planWidth}|${this.planHeight}|${doors}`;
-    const hit = this.covCache.get(m.id);
-    if (hit && hit.key === key) return hit.points;
-    const pts = coveragePolygon({ x: live.x, y: live.y, rotation, fov, radiusPx, level }, doc, this.planWidth, this.planHeight, this.entityStates, this.catalog ?? undefined);
+    const pts = this.coverage.polygon(m.id, { x: live.x, y: live.y, rotation, fov, radiusPx: this.radiusOf(m), level }, doc, this.planWidth, this.planHeight, this.entityStates, this.catalog ?? undefined);
+    const hit = this.covPoints.get(m.id);
+    if (hit && hit.pts === pts) return hit.points;
     const points = pts.map((p) => `${((p[0] - live.x) * this.planWidth).toFixed(2)},${((p[1] - live.y) * this.planHeight).toFixed(2)}`).join(' ');
-    this.covCache.set(m.id, { key, points });
+    this.covPoints.set(m.id, { pts, points });
     return points;
   }
 

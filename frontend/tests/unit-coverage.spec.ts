@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { GeometryDoc, GeomOpening, GeomWall, Pt } from '../src/map/geometry';
-import { blockingSegments, clipCoverage, coveragePolygon, hasWallsOnLevel, isOpenState, raySegment } from '../src/map/coverage';
+import { blockingSegments, clipCoverage, coveragePolygon, CoverageCache, hasWallsOnLevel, isOpenState, raySegment } from '../src/map/coverage';
 
 // Plan Studio phase 4 (T087, ruling R-P4-2): camera coverage stops at the walls of the camera's level - a passage lets a
 // ray through, a closed door and a window stop it, an open door (its entity in an open state) lets it through. Node only.
@@ -65,11 +65,13 @@ test('a passage lets the ray through, a closed door and a window stop it, an ope
   expect(north(opening('p', 'n', 'passage'))).toEqual([500, 0]); // through the gap to the radius (y = 400 - 400)
   expect(north(opening('d', 'n', 'door'))).toEqual([500, 240]); // a door without an entity is closed
   expect(north(opening('d', 'n', 'door', 'lock.front'), { 'lock.front': 'locked' })).toEqual([500, 240]);
-  expect(north(opening('d', 'n', 'door', 'lock.front'), { 'lock.front': 'unlocked' })).toEqual([500, 0]);
+  // ruling R-P4-T2-1: a lock state says nothing about the leaf - an unlocked door is still closed for a ray
+  expect(north(opening('d', 'n', 'door', 'lock.front'), { 'lock.front': 'unlocked' })).toEqual([500, 240]);
+  expect(north(opening('d', 'n', 'door', 'cover.front'), { 'cover.front': 'open' })).toEqual([500, 0]);
   expect(north(opening('d', 'n', 'door', 'binary_sensor.front'), { 'binary_sensor.front': 'on' })).toEqual([500, 0]);
   expect(north(opening('g', 'n', 'window'))).toEqual([500, 240]);
-  expect(isOpenState('open') && isOpenState('unlocked') && isOpenState('on') && isOpenState('opening')).toBe(true);
-  expect(isOpenState('closed') || isOpenState('locked') || isOpenState('off') || isOpenState(null) || isOpenState(undefined)).toBe(false);
+  expect(isOpenState('open') && isOpenState('on') && isOpenState('opening')).toBe(true);
+  expect(isOpenState('closed') || isOpenState('locked') || isOpenState('unlocked') || isOpenState('off') || isOpenState(null) || isOpenState(undefined)).toBe(false);
 });
 
 test('only the walls of the camera level block; the normalized polygon is rounded and deterministic', () => {
@@ -82,4 +84,35 @@ test('only the walls of the camera level block; the normalized polygon is rounde
   expect(coveragePolygon({ ...m, level: 'L1' }, d, W, H, {})[46]).toEqual([0.5, 0.35]);
   expect(JSON.stringify(coveragePolygon(m, d, W, H, {}))).toBe(JSON.stringify(a));
   expect(a.every((p) => String(p[0]).length <= 7 && String(p[1]).length <= 7)).toBe(true); // 5 decimals at most
+});
+
+test('a camera on a wall or inside its thickness keeps its coverage on the side it faces and does not leak behind it', () => {
+  const segs = blockingSegments(doc([opening('d', 'n', 'door')]), W, H, 'L0', {});
+  expect(segs.every((g) => g.w === 20)).toBe(true); // 0.2 m at 100 px/m: the wall parts and the door gap carry the thickness
+  for (const y of [238, 240, 242]) {
+    const fan = clipCoverage([500, y], 180, 90, 400, segs); // on the north wall (centre y = 240, faces 230..250), facing south
+    expect(fan[46]).toEqual([500, 560]); // the middle ray reaches the south wall
+    expect(clipCoverage([500, y], 180, 360, 400, segs)[0]).toEqual([500, y]); // facing south, index 0 is bearing 0: the ray behind stops in the wall
+  }
+  // a corner camera inside both the north and the west wall, facing into the room
+  const corner = clipCoverage([198, 238], 135, 90, 600, segs);
+  expect(corner[46]).toEqual([520, 560]);
+  expect(Math.min(...corner.slice(1).map((p) => Math.hypot(p[0] - 198, p[1] - 238)))).toBeGreaterThan(300);
+  // a camera away from the walls is unchanged: rays still stop at the wall centre line
+  expect(at(clipCoverage(origin, 0, 360, 400, segs), 180)).toEqual([500, 560]);
+});
+
+test('the coverage cache follows the document identity and the door states, and shares the blocking segments', () => {
+  const cache = new CoverageCache();
+  const m = { x: 0.5, y: 0.5, rotation: 0, fov: 90, radiusPx: 400, level: 'L0' };
+  const d1 = doc([opening('d', 'n', 'door', 'binary_sensor.front')]);
+  const p1 = cache.polygon('c', m, d1, W, H, {});
+  expect(p1[46]).toEqual([0.5, 0.3]);
+  expect(cache.polygon('c', m, d1, W, H, {})).toBe(p1); // same inputs: the cached array
+  expect(cache.segments(d1, W, H, 'L0', {})).toBe(cache.segments(d1, W, H, 'L0', { 'other.entity': 'on' })); // shared across cameras and unrelated states
+  expect(cache.polygon('c', m, d1, W, H, { 'binary_sensor.front': 'on' })[46]).toEqual([0.5, 0]); // the door opened
+  const d2 = doc([], [wall('mid', [[0.3, 0.4], [0.7, 0.4]])]); // a new document object (an edit): recomputed, not the old cone
+  expect(cache.polygon('c', m, d2, W, H, {})[46]).toEqual([0.5, 0.4]);
+  expect(cache.polygon('c', { ...m, rotation: 90 }, d2, W, H, {})[46]).toEqual([0.8, 0.5]);
+  expect(JSON.stringify(cache.polygon('c', m, d1, W, H, {}))).toBe(JSON.stringify(coveragePolygon(m, d1, W, H, {})));
 });
