@@ -9,6 +9,7 @@ import '../components/sw-icon';
 import '../components/sw-state-panel';
 import '../components/sw-toggle';
 import '../components/sw-dialog';
+import '../components/sw-chip';
 import '../map/sw-plan-canvas';
 import type { GeomDragDetail, GeomDragMode, PlanMarker, MarkerSelectDetail, PlanZone, RulerOverlay, SwPlanCanvas } from '../map/sw-plan-canvas';
 import type { IconName } from '../components/sw-icon';
@@ -24,8 +25,8 @@ import { productSettings } from '../api/prefs';
 import { createItem, exportUrl as catalogExportUrl, importItems, itemOf, loadLibrary, lookupOf, type CatalogItem, type CatalogLibrary } from '../api/plan-catalog';
 import { distanceM, effectiveScale, isClosedOutline, lengthPx, nearestWall, pointOnWall, snapPoint, type CatalogLookup, type GeometryDoc, type GeomOpening, type GeomWall, type Pt } from '../map/geometry';
 import { StudioController } from '../map/studio-controller';
-import { ARRAY_MAX, BIND_DISTANCE_M, addArray, addLabel, addObject, addOpening, addWall, arrayDefaults, defaultLevelId, duplicateObject, kindDefaults, moveGroup, moveObject, moveVertex, newId, nudgeT, openingRange, patchLabel, patchObject, patchOpening, patchWall, removeCorner, removeGroup, removeItem, rotationTo, stretchedSize, wallDirectionAt, type WallDefaults } from '../map/studio-ops';
-import { COLL_LABEL, countLabel, fmtMetres, fmtScale, renderArrayDialog, renderCalibPanel, renderCustomItemDialog, renderGroupDeleteDialog, renderGroupInspector, renderLibraryPanel, renderMeasurePanel, renderObjectInspector, renderStudioPanel, studioPanelStyles, type ArrayDialogView, type CustomItemView, type GeomKind, type GeomSel, type StudioMode } from './plan-studio-panel';
+import { ARRAY_MAX, BIND_DISTANCE_M, addArray, addLabel, addLevel, addObject, addOpening, addWall, arrayDefaults, defaultLevelId, duplicateObject, kindDefaults, moveGroup, moveObject, moveVertex, newId, nudgeT, openingRange, patchLabel, patchObject, patchOpening, patchWall, removeCorner, removeGroup, removeItem, rotationTo, stretchedSize, wallDirectionAt, type WallDefaults } from '../map/studio-ops';
+import { COLL_LABEL, countLabel, fmtMetres, fmtScale, renderArrayDialog, renderCalibPanel, renderCustomItemDialog, renderGroupDeleteDialog, renderGroupInspector, renderLevelChips, renderLevelDialog, renderLibraryPanel, renderMeasurePanel, renderObjectInspector, renderStudioPanel, studioPanelStyles, type ArrayDialogView, type CustomItemView, type GeomKind, type GeomSel, type LevelDialogView, type StudioMode } from './plan-studio-panel';
 
 type Strength = 'light' | 'medium' | 'strong';
 interface ZoneCandidate {
@@ -167,6 +168,9 @@ export class ExplorePlanEditor extends LitElement {
   /** The group whose delete waits for the choice (members too, or not). */
   @state() private groupDelete: string | null = null;
   @state() private customDialog: (CustomItemView & { objectId: string; params: Record<string, unknown>; z: number }) | null = null;
+  /** The level shown in the editor (null = every level): filters walls, labels, objects and pins; new items take it. */
+  @state() private levelFilter: string | null = null;
+  @state() private levelDialog: LevelDialogView | null = null;
   @state() private wallDraft: Pt[] | null = null;
   /** Raw plan position of the click that added the draft's last point (a double click there ends the wall). */
   private lastDrawClick: Pt | null = null;
@@ -571,6 +575,19 @@ export class ExplorePlanEditor extends LitElement {
       font: inherit;
       cursor: pointer;
     }
+    .levelbar {
+      position: absolute;
+      inset-inline-start: 50%;
+      transform: translateX(-50%);
+      inset-block-start: 12px;
+      z-index: var(--sw-z-map-ui);
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: 999px;
+      padding: 4px 8px;
+      box-shadow: var(--sw-shadow-1);
+      max-inline-size: 60%;
+    }
     @media (max-width: 1023px) {
       .layout {
         grid-template-columns: minmax(0, 1fr);
@@ -617,6 +634,7 @@ export class ExplorePlanEditor extends LitElement {
     this.error = '';
     try {
       const b = await loadMap(this.floorId || 'f0', true);
+      if (this.bundle && this.bundle.floorId !== b.floorId) this.levelFilter = null; // another floor: back to every level
       this.bundle = b;
       void this.loadStudio(b);
       void this.loadLibraryFor(b);
@@ -651,7 +669,7 @@ export class ExplorePlanEditor extends LitElement {
 
   private get markers(): PlanMarker[] {
     return this.anchors
-      .filter((a) => this.layers.has(this.layerOf(a)))
+      .filter((a) => this.layers.has(this.layerOf(a)) && this.onLevel(a))
       .map((a) => ({
         id: a.id,
         kind: a.resource_type === 'camera' ? 'camera' : entityMarkerKind(a.layer_id, a.entity?.domain),
@@ -782,7 +800,7 @@ export class ExplorePlanEditor extends LitElement {
     }
   }
 
-  private async patchZone(z: SpatialZone, body: { name?: string; kind?: ZoneKind; color?: string; searchable?: boolean; polygon?: ZonePoint[]; label_pos?: string }) {
+  private async patchZone(z: SpatialZone, body: { name?: string; kind?: ZoneKind; color?: string; searchable?: boolean; polygon?: ZonePoint[]; label_pos?: string; level_id?: string; ceiling_height_m?: number }) {
     if (this.bundle?.source === 'demo') return;
     this.zoneBusy = true;
     this.error = '';
@@ -939,7 +957,7 @@ export class ExplorePlanEditor extends LitElement {
         if (!a) continue;
         try {
           const saved = await updateAnchor(id, { revision: a.revision, x: a.position.x, y: a.position.y, rotation_degrees: a.rotation_degrees, field_of_view_degrees: a.field_of_view_degrees, label: a.label,
-            coverage_radius: a.coverage_radius ?? null, coverage_polygon: a.coverage_polygon ?? null, label_pos: a.label_pos ?? 'auto' });
+            coverage_radius: a.coverage_radius ?? null, coverage_polygon: a.coverage_polygon ?? null, label_pos: a.label_pos ?? 'auto', level_id: a.level_id ?? '' });
           this.anchors = this.anchors.map((x) => (x.id === id ? { ...x, revision: saved.revision } : x));
         } catch (err) {
           if (err instanceof ApiError && err.code === 'stale_revision') conflict = true;
@@ -974,11 +992,13 @@ export class ExplorePlanEditor extends LitElement {
     if (this.dirty.size && !(await this.save())) return;
     this.busy = true;
     this.error = '';
+    // with a level filter on, the pin goes to that level (else it would vanish from the filtered view on placement)
+    const level = this.levelFilter && this.studio.doc?.levels.some((l) => l.id === this.levelFilter) ? { level_id: this.levelFilter } : {};
     try {
       const a =
         p.kind === 'camera'
-          ? await createAnchor(this.bundle.floorId, { resource_type: 'camera', resource_id: p.camera.id, x, y, rotation_degrees: 0, field_of_view_degrees: 90 })
-          : await createAnchor(this.bundle.floorId, { resource_type: 'ha_entity', resource_id: p.entity.entity_id, x, y, rotation_degrees: 0, field_of_view_degrees: null });
+          ? await createAnchor(this.bundle.floorId, { resource_type: 'camera', resource_id: p.camera.id, x, y, rotation_degrees: 0, field_of_view_degrees: 90, ...level })
+          : await createAnchor(this.bundle.floorId, { resource_type: 'ha_entity', resource_id: p.entity.entity_id, x, y, rotation_degrees: 0, field_of_view_degrees: null, ...level });
       this.placing = null;
       await this.load();
       this.selectedId = a.id;
@@ -1244,10 +1264,33 @@ export class ExplorePlanEditor extends LitElement {
     }
   }
 
-  /** The level new items go to: the level filter (Task 11) when one is on, else the document's default level. */
+  /** The level new items go to: the level filter when one is on, else the document's default level. */
   private placeOpts(doc: GeometryDoc): { levelId: string; ceilingM: number } {
-    const levelId = defaultLevelId(doc);
+    const levelId = this.levelFilter && doc.levels.some((l) => l.id === this.levelFilter) ? this.levelFilter : defaultLevelId(doc);
     return { levelId, ceilingM: doc.levels.find((l) => l.id === levelId)?.ceiling_height_m ?? 2.8 };
+  }
+
+  private createLevel() {
+    const doc = this.studio.doc;
+    const v = this.levelDialog;
+    if (!doc || !v) return;
+    if (doc.levels.some((l) => l.elevation_m === v.elevation)) {
+      this.levelDialog = { ...v, error: 'כבר יש מפלס בגובה הזה' };
+      return;
+    }
+    const r = addLevel(doc, v.name, v.elevation, v.ceiling);
+    this.studio.commit(r.doc);
+    this.levelDialog = null;
+    this.levelFilter = r.id;
+    this.info = `המפלס "${v.name}" נוסף; פריטים חדשים יוצבו בו`;
+    setTimeout(() => (this.info = ''), 4000);
+  }
+
+  /** Pins on other levels are hidden with the level filter (anchors without a level belong to the default one). */
+  private onLevel(a: Anchor): boolean {
+    const doc = this.studio.doc;
+    if (!this.levelFilter || !doc) return true;
+    return (a.level_id ?? defaultLevelId(doc)) === this.levelFilter;
   }
 
   private remember(itemId: string) {
@@ -1549,7 +1592,8 @@ export class ExplorePlanEditor extends LitElement {
     }
     if (mode === 'label') {
       const r = addLabel(doc, p, 'תווית');
-      this.studio.commit(r.doc);
+      const level = this.placeOpts(doc).levelId;
+      this.studio.commit(level === defaultLevelId(doc) ? r.doc : patchLabel(r.doc, r.id, { level_id: level }));
       this.geomSel = { id: r.id, kind: 'label' };
       return;
     }
@@ -1579,7 +1623,8 @@ export class ExplorePlanEditor extends LitElement {
     const doc = this.studio.doc;
     if (!doc || !d || d.length < 2) return;
     const r = addWall(doc, d, this.wallDefaults);
-    this.studio.commit(r.doc);
+    const level = this.placeOpts(doc).levelId;
+    this.studio.commit(level === defaultLevelId(doc) ? r.doc : patchWall(r.doc, r.id, { level_id: level }));
     this.geomSel = { id: r.id, kind: 'wall' };
   }
 
@@ -1873,6 +1918,7 @@ export class ExplorePlanEditor extends LitElement {
         conflict: this.studio.hasConflict,
         issues: this.studio.issues, copyCandidates: this.studio.copyCandidates, exportSvg: exportUrl(versionId, 'svg', { draft: true }), exportPng: exportUrl(versionId, 'png', { draft: true }), busy: this.busy,
         showEstimates: this.showEstimates,
+        levels: doc.levels,
       },
       {
         setMode: (m) => {
@@ -1905,6 +1951,7 @@ export class ExplorePlanEditor extends LitElement {
         retry: async () => {
           if (await this.studio.flush()) void this.loadStudio(b); // a version switch held back by the failed save goes ahead
         },
+        setLevel: (id, lv) => this.edit((d) => (d.walls.some((w) => w.id === id) ? patchWall(d, id, { level_id: lv }) : patchLabel(d, id, { level_id: lv }))),
       },
     );
   }
@@ -2089,6 +2136,7 @@ export class ExplorePlanEditor extends LitElement {
         <sw-field label="מיקום X (%)"><input type="number" step="0.1" min="0" max="100" data-ltr .value=${(a.position.x * 100).toFixed(1)} @change=${(e: Event) => this.apply(a.id, { position: { x: Math.min(1, Math.max(0, Number((e.target as HTMLInputElement).value) / 100)), y: a.position.y } })} /></sw-field>
         <sw-field label="מיקום Y (%)"><input type="number" step="0.1" min="0" max="100" data-ltr .value=${(a.position.y * 100).toFixed(1)} @change=${(e: Event) => this.apply(a.id, { position: { x: a.position.x, y: Math.min(1, Math.max(0, Number((e.target as HTMLInputElement).value) / 100)) } })} /></sw-field>
       </div>
+      ${(this.studio.doc?.levels.length ?? 0) > 1 ? html`<sw-field label="מפלס"><select data-anchor-level @change=${(ev: Event) => this.apply(a.id, { level_id: (ev.target as HTMLSelectElement).value || null })}>${this.studio.doc!.levels.map((l) => html`<option value=${l.id} ?selected=${(a.level_id ?? defaultLevelId(this.studio.doc!)) === l.id}>${l.name}</option>`)}</select></sw-field>` : nothing}
       <sw-field label="תווית (אופציונלי)"><input .value=${a.label ?? ''} @change=${(e: Event) => this.apply(a.id, { label: (e.target as HTMLInputElement).value || null })} /></sw-field>
       <sw-field label="מיקום התווית"><select data-label-pos @change=${(e: Event) => this.apply(a.id, { label_pos: (e.target as HTMLSelectElement).value })}>${[['auto', 'אוטומטי'], ['top', 'מעל'], ['bottom', 'מתחת'], ['left', 'משמאל'], ['right', 'מימין']].map(([v, l]) => html`<option value=${v} ?selected=${(a.label_pos ?? 'auto') === v}>${l}</option>`)}</select></sw-field>
       ${fov ? this.renderCoverage(a) : nothing}
@@ -2113,6 +2161,7 @@ export class ExplorePlanEditor extends LitElement {
         <sw-field label="מיקום X (%)"><input type="number" step="0.1" min="0" max="100" data-ltr .value=${(a.position.x * 100).toFixed(1)} @change=${(ev: Event) => this.apply(a.id, { position: { x: Math.min(1, Math.max(0, Number((ev.target as HTMLInputElement).value) / 100)), y: a.position.y } })} /></sw-field>
         <sw-field label="מיקום Y (%)"><input type="number" step="0.1" min="0" max="100" data-ltr .value=${(a.position.y * 100).toFixed(1)} @change=${(ev: Event) => this.apply(a.id, { position: { x: a.position.x, y: Math.min(1, Math.max(0, Number((ev.target as HTMLInputElement).value) / 100)) } })} /></sw-field>
       </div>
+      ${(this.studio.doc?.levels.length ?? 0) > 1 ? html`<sw-field label="מפלס"><select data-anchor-level @change=${(ev: Event) => this.apply(a.id, { level_id: (ev.target as HTMLSelectElement).value || null })}>${this.studio.doc!.levels.map((l) => html`<option value=${l.id} ?selected=${(a.level_id ?? defaultLevelId(this.studio.doc!)) === l.id}>${l.name}</option>`)}</select></sw-field>` : nothing}
       <sw-field label="שם במפה (ידני)"><input data-entity-name placeholder=${e?.name ?? a.resource_id} .value=${a.label ?? ''} @change=${(ev: Event) => this.apply(a.id, { label: (ev.target as HTMLInputElement).value.trim() || null })} /></sw-field>
       <sw-field label="מיקום התווית"><select data-label-pos @change=${(ev: Event) => this.apply(a.id, { label_pos: (ev.target as HTMLSelectElement).value })}>${[['auto', 'אוטומטי'], ['top', 'מעל'], ['bottom', 'מתחת'], ['left', 'משמאל'], ['right', 'מימין']].map(([v, l]) => html`<option value=${v} ?selected=${(a.label_pos ?? 'auto') === v}>${l}</option>`)}</select></sw-field>
       <div class="note">ריק = השם מ־Home Assistant${e?.name ? ` („${e.name}“)` : ''}. השם הידני מוצג במפה, ברשימת הצד ובכרטיס.</div>
@@ -2173,6 +2222,7 @@ export class ExplorePlanEditor extends LitElement {
         <sw-field label="צבע"><input type="color" data-ltr .value=${z.color} @change=${(e: Event) => this.patchZone(z, { color: (e.target as HTMLInputElement).value })} /></sw-field>
       </div>
       <sw-field label="מיקום שם החדר"><select data-zone-label-pos @change=${(e: Event) => this.patchZone(z, { label_pos: (e.target as HTMLSelectElement).value })}>${[['auto', 'אוטומטי'], ['top', 'מעל'], ['bottom', 'מתחת'], ['left', 'משמאל'], ['right', 'מימין']].map(([v, l]) => html`<option value=${v} ?selected=${(z.label_pos ?? 'auto') === v}>${l}</option>`)}</select></sw-field>
+      ${(this.studio.doc?.levels.length ?? 0) > 1 ? html`<sw-field label="מפלס"><select data-zone-level @change=${(e: Event) => this.patchZone(z, { level_id: (e.target as HTMLSelectElement).value })}>${this.studio.doc!.levels.map((l) => html`<option value=${l.id} ?selected=${(z.level_id ?? defaultLevelId(this.studio.doc!)) === l.id}>${l.name}</option>`)}</select></sw-field>` : nothing}
       <div class="kv"><span class="k">מצלמות באזור</span><span>${cams.length ? cams.map((a) => this.anchorName(a)).join(', ') : 'אין'}</span></div>
       <div class="kv"><span class="k">ישויות HA באזור</span><span>${ents.length ? `${ents.length} ישויות` : 'אין'}</span></div>
       <div class="row"><span class="lbl">הכללה בחיפוש מרחבי<span class="muted">זמין לחוקי התראה ולחיפוש לפי מקום</span></span><sw-toggle ?checked=${z.searchable} label=${z.searchable ? 'כלול' : 'לא כלול'} @click=${() => this.patchZone(z, { searchable: !z.searchable })}></sw-toggle></div>
@@ -2349,6 +2399,7 @@ export class ExplorePlanEditor extends LitElement {
                   <span>גרירה מזיזה · גלגלת = זום · ידיות = כיוון ושדה ראייה</span>
                 </div>
                 <div class="floorchip"><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
+                ${this.studio.doc && b.permissions.structure ? html`<div class="levelbar">${renderLevelChips(this.studio.doc.levels, this.levelFilter, (id) => (this.levelFilter = id), () => (this.levelDialog = { name: '', elevation: -1.2, ceiling: 3.0, error: '' }))}</div>` : nothing}
                 <div class="rail" role="toolbar" aria-label="כלי עריכה">
                   ${TOOLS.map((tl) => html`<button class=${tl.id === this.tool ? 'on' : ''} data-tool=${tl.id} ?disabled=${!tl.ready || (STUDIO_TOOLS.includes(tl.id) && !b.permissions.structure)} title=${tl.label} aria-label=${tl.label} aria-pressed=${tl.id === this.tool} @click=${() => this.pickTool(tl.id)}><sw-icon .name=${tl.icon} size=${18}></sw-icon></button>`)}
                   <hr />
@@ -2357,7 +2408,7 @@ export class ExplorePlanEditor extends LitElement {
                 </div>
                 <sw-plan-canvas editable alwaysLabel .placing=${!!this.placing || !!this.drawing || this.studioPlacing} .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .markers=${this.markers} .selectedId=${this.selectedId}
                   .zones=${this.planZones} .selectedZoneId=${this.selectedZoneId} .draftPoints=${this.drawing ?? []}
-                  .geometry=${this.geomPreview ?? this.studio.doc} .geomDrag=${this.geomDragMode} .selectedGeomId=${this.geomSel?.id ?? null} .highlightIds=${this.geomSel?.kind === 'group' ? (this.studio.doc?.groups.find((g) => g.id === this.geomSel!.id)?.member_ids ?? []) : []} .selectedVertex=${this.geomSel?.vertex ?? null} .issueIds=${this.issueIds}
+                  .geometry=${this.geomPreview ?? this.studio.doc} .geomDrag=${this.geomDragMode} .structureLevel=${this.levelFilter} .selectedGeomId=${this.geomSel?.id ?? null} .highlightIds=${this.geomSel?.kind === 'group' ? (this.studio.doc?.groups.find((g) => g.id === this.geomSel!.id)?.member_ids ?? []) : []} .selectedVertex=${this.geomSel?.vertex ?? null} .issueIds=${this.issueIds}
                   .cornerSnapPx=${this.tool === 'structure' && this.studioMode === 'wall' ? CORNER_SNAP_PX : 0}
                   .wallDraft=${this.wallDraft ?? []} .hoverPoint=${this.studioPlacing ? this.hover : null} .rulers=${this.rulers} .catalog=${this.catalogLookup} .anchorPositions=${Object.fromEntries(this.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees }]))}
                   @plan-hover=${(e: CustomEvent<{ x: number; y: number; shift: boolean; item?: boolean }>) => this.onPlanHover(e.detail.x, e.detail.y, e.detail.shift, !!e.detail.item)}
@@ -2391,6 +2442,7 @@ export class ExplorePlanEditor extends LitElement {
         ${this.arrayDialog ? renderArrayDialog(this.arrayDialog, (patch) => (this.arrayDialog = { ...this.arrayDialog!, error: '', ...patch }), () => this.createArray(), () => (this.arrayDialog = null)) : nothing}
         ${this.groupDelete ? renderGroupDeleteDialog(this.studio.doc?.groups.find((g) => g.id === this.groupDelete)?.member_ids.length ?? 0, () => this.deleteGroup(true), () => this.deleteGroup(false), () => (this.groupDelete = null)) : nothing}
         ${this.customDialog && this.library ? renderCustomItemDialog(this.customDialog, this.library, (patch) => (this.customDialog = { ...this.customDialog!, ...patch }), () => void this.createCustom(), () => (this.customDialog = null)) : nothing}
+        ${this.levelDialog ? renderLevelDialog(this.levelDialog, (patch) => (this.levelDialog = { ...this.levelDialog!, ...patch }), () => this.createLevel(), () => (this.levelDialog = null)) : nothing}
       </sw-page>
     `;
   }

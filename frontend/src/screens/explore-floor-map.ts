@@ -32,6 +32,7 @@ import { ACTION_ERROR_LABEL, ACTION_STATUS_LABEL, awaitAction, domainLabel, enti
 import { geometryFor } from '../api/geometry';
 import type { AnchorPosition, CatalogLookup, GeometryDoc } from '../map/geometry';
 import { loadLibrary, lookupOf } from '../api/plan-catalog';
+import { renderLevelChips } from './plan-studio-panel';
 
 /** Hebrew names for enum choices the adapters offer (T040). */
 const ARG_CHOICE_HE: Record<string, string> = { off: 'כבוי', heat: 'חימום', cool: 'קירור', heat_cool: 'חימום/קירור', auto: 'אוטומטי', dry: 'ייבוש', fan_only: 'מאוורר בלבד' };
@@ -89,6 +90,7 @@ export class ExploreFloorMap extends LitElement {
   @state() private layers = new Set<Layer>(['cameras', 'doors', 'lights', 'sensors', 'zones', 'structure', 'objects', 'connectors']);
   /** T085: the library's shapes for the object layer, fetched by the bundle's catalog revision. */
   @state() private catalogLookup: CatalogLookup | null = null;
+  @state() private levelFilter: string | null = null;
   /** Plan Studio: the published structure of the shown version (fetched by hash after the bundle). */
   @state() private geometry: GeometryDoc | null = null;
   private geomSeq = 0;
@@ -302,6 +304,22 @@ export class ExploreFloorMap extends LitElement {
     }
     .floorchip sw-icon {
       color: var(--sw-text-3);
+    }
+    .levelbar {
+      position: absolute;
+      inset-inline-start: 50%;
+      transform: translateX(-50%);
+      inset-block-start: 12px;
+      z-index: var(--sw-z-map-ui);
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: 999px;
+      padding: 4px 8px;
+      box-shadow: var(--sw-shadow-1);
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      max-inline-size: 60%;
     }
     .panel {
       position: absolute;
@@ -793,6 +811,7 @@ export class ExploreFloorMap extends LitElement {
       }
       this.noFloors = false;
       this.restoreLayers();
+      this.levelFilter = null;
       this.bundle = await loadMap(this.floorId);
       const seq = ++this.geomSeq;
       this.geometry = null;
@@ -849,6 +868,7 @@ export class ExploreFloorMap extends LitElement {
     }
     return b.anchors
       .filter((a) => (a.resource_type === 'camera' ? this.layers.has('cameras') : this.layers.has(a.layer_id === 'doors' ? 'doors' : a.layer_id === 'lights' ? 'lights' : 'sensors')))
+      .filter((a) => !this.levelFilter || (a.level_id ?? b.levels.find((l) => l.is_default)?.id ?? 'L0') === this.levelFilter)
       .map((a) => ({
         id: a.id,
         kind: a.resource_type === 'camera' ? 'camera' : entityMarkerKind(a.layer_id, a.entity?.domain),
@@ -1521,6 +1541,7 @@ export class ExploreFloorMap extends LitElement {
         .hideStructure=${!this.layers.has('structure')}
         .hideObjects=${!this.layers.has('objects')}
         .hideConnectors=${!this.layers.has('connectors')}
+        .structureLevel=${this.levelFilter}
         .catalog=${this.catalogLookup}
         .anchorPositions=${this.anchorPositions}
         .circuitStates=${this.circuitStateMap}
@@ -1537,6 +1558,7 @@ export class ExploreFloorMap extends LitElement {
         @marker-select=${this.onSelect}
         @view-change=${this.onViewChange}></sw-plan-canvas>
       <div class="floorchip" data-floorchip><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
+      ${b.levels.length > 1 ? html`<div class="levelbar">${renderLevelChips(b.levels, this.levelFilter, (id) => (this.levelFilter = id))}</div>` : nothing}
       ${b.source === 'api' && this.buildingFloors.length > 1
         ? html`<div class="floorbtns" role="group" aria-label="מעבר מהיר בין קומות" data-floor-buttons>
             ${this.buildingFloors.map((f) => html`<button class=${f.id === this.floorId ? 'on' : ''} data-floor-button=${f.id} title=${`${f.name}${f.hasPlan ? '' : ' · אין תוכנית'}`} aria-pressed=${f.id === this.floorId} @click=${() => { if (f.id !== this.floorId) navigate(`/explore/floors/${f.id}`); }}>${f.short}</button>`)}

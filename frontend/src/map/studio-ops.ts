@@ -1,6 +1,6 @@
 /** Plan Studio (T084): pure edits of a structure document - every function returns a new document, so undo / redo is
  * a stack of documents and nothing is ever mutated in place. */
-import { DEFAULT_LEVEL_ID, OPENING_DEFAULTS, isClosedOutline, pointAt, rotated, type GeometryDoc, type GeomGroup, type GeomLabel, type GeomObject, type GeomOpening, type GeomSize, type GeomWall, type OpeningKind, type Pt, type Swing, type WallKind } from './geometry';
+import { DEFAULT_LEVEL_ID, OPENING_DEFAULTS, isClosedOutline, pointAt, rotated, type GeometryDoc, type GeomGroup, type GeomLabel, type GeomLevel, type GeomObject, type GeomOpening, type GeomSize, type GeomWall, type OpeningKind, type Pt, type Swing, type WallKind } from './geometry';
 import type { CatalogItem } from '../api/plan-catalog';
 
 export interface WallDefaults {
@@ -269,4 +269,32 @@ export function removeGroup(doc: GeometryDoc, groupId: string, withMembers: bool
   let out = doc;
   if (withMembers) for (const id of g.member_ids) out = removeItem(out, id);
   return removeItem(out, groupId);
+}
+
+// ---------------------------------------------------------------- levels (T085)
+
+export function addLevel(doc: GeometryDoc, name: string, elevationM: number, ceilingM: number): { doc: GeometryDoc; id: string } {
+  let n = 0;
+  while (doc.levels.some((l) => l.id === `L${n}`)) n++;
+  const level: GeomLevel = { id: `L${n}`, name: name.trim(), elevation_m: round3(elevationM), ceiling_height_m: round3(ceilingM), is_default: doc.levels.length === 0, external_ids: {} };
+  return { doc: { ...doc, levels: [...doc.levels, level] }, id: level.id };
+}
+
+/** Exactly one level is the default: making one the default clears the others. */
+export function patchLevel(doc: GeometryDoc, id: string, patch: Partial<GeomLevel>): GeometryDoc {
+  return { ...doc, levels: doc.levels.map((l) => (l.id === id ? { ...l, ...patch, id: l.id } : patch.is_default ? { ...l, is_default: false } : l)) };
+}
+
+/** How many items sit on a level: walls, labels, objects, and connectors that start or end there. */
+export function levelUsage(doc: GeometryDoc, id: string): number {
+  return doc.walls.filter((w) => w.level_id === id).length + doc.labels.filter((l) => l.level_id === id).length + doc.objects.filter((o) => o.level_id === id).length
+    + doc.connectors.filter((c) => c.level_from === id || c.level_to === id).length;
+}
+
+/** The level goes only when nothing sits on it and it is not the default (rooms and anchors keep their own level id:
+ * the server treats an unknown one as the default). */
+export function removeLevel(doc: GeometryDoc, id: string): GeometryDoc | null {
+  const level = doc.levels.find((l) => l.id === id);
+  if (!level || level.is_default || levelUsage(doc, id) > 0) return null;
+  return { ...doc, levels: doc.levels.filter((l) => l.id !== id) };
 }

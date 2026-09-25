@@ -96,6 +96,7 @@ export interface StudioView {
   busy: boolean;
   /** Setting `plan.estimates`: show estimated metres ("≈") before calibration, or hide them. */
   showEstimates: boolean;
+  levels: GeomLevel[];
 }
 
 export interface StudioActions {
@@ -111,6 +112,7 @@ export interface StudioActions {
   reload(): void;
   calibrate(): void;
   retry(): void;
+  setLevel(id: string, levelId: string): void;
 }
 
 const numberOf = (e: Event): number => parseFloat((e.target as HTMLInputElement).value);
@@ -157,6 +159,12 @@ function renderWallDefaults(d: WallDefaults, a: StudioActions) {
   </div>`;
 }
 
+/** The level an item sits on (only shown when the floor has more than one). */
+function levelSelect(levels: GeomLevel[], current: string, onPick: (levelId: string) => void) {
+  if (levels.length < 2) return nothing;
+  return html`<sw-field label="מפלס"><select data-item-level @change=${(e: Event) => onPick((e.target as HTMLSelectElement).value)}>${levels.map((l) => html`<option value=${l.id} ?selected=${l.id === current}>${l.name} (${l.elevation_m} מ׳)</option>`)}</select></sw-field>`;
+}
+
 function renderSelection(v: StudioView, sel: GeomSel, a: StudioActions, scale: number, estimated: boolean) {
   if (sel.kind === 'wall') {
     const w = v.doc.walls.find((x) => x.id === sel.id);
@@ -167,7 +175,7 @@ function renderSelection(v: StudioView, sel: GeomSel, a: StudioActions, scale: n
     return o ? renderOpening(o, v, a, scale, estimated) : nothing;
   }
   const l = v.doc.labels.find((x) => x.id === sel.id);
-  return l ? renderLabel(l, a) : nothing;
+  return l ? renderLabel(l, v, a) : nothing;
 }
 
 function renderWall(w: GeomWall, v: StudioView, a: StudioActions, scale: number, estimated: boolean) {
@@ -184,6 +192,7 @@ function renderWall(w: GeomWall, v: StudioView, a: StudioActions, scale: number,
     </div>
     <sw-field label="גובה (מ׳, ריק = עד התקרה)"><input type="number" min="0.1" max="50" step="0.1" data-ltr .value=${w.height_m === null ? '' : String(w.height_m)}
       @change=${(e: Event) => { const raw = (e.target as HTMLInputElement).value.trim(); const x = parseFloat(raw); if (!raw) a.patchWall(w.id, { height_m: null }); else if (x > 0 && x <= 50) a.patchWall(w.id, { height_m: x }); }} /></sw-field>
+    ${levelSelect(v.levels, w.level_id, (lv) => a.setLevel(w.id, lv))}
     ${v.mode === 'select' && v.sel?.vertex !== undefined
       ? html`<div class="note" data-selected-vertex=${v.sel.vertex}>פינה ${v.sel.vertex + 1} נבחרה: החצים מזיזים אותה (Shift = צעד גדול); ${cornerRemovable(w.polyline) ? 'Delete מוחק את הפינה.' : 'Delete מוחק את כל הקיר, כי בלי הפינה לא נשאר קיר.'}</div>`
       : nothing}
@@ -250,12 +259,13 @@ function renderOpening(o: GeomOpening, v: StudioView, a: StudioActions, scale: n
   </div>`;
 }
 
-function renderLabel(l: GeomLabel, a: StudioActions) {
+function renderLabel(l: GeomLabel, v: StudioView, a: StudioActions) {
   return html`<div class="sel" data-selected-label=${l.id}>
     <sw-field label="טקסט"><input type="text" maxlength="80" data-label-text .value=${l.text}
       @change=${(e: Event) => { const x = (e.target as HTMLInputElement).value.trim(); if (x) a.patchLabel(l.id, { text: x }); }} /></sw-field>
     <sw-field label="גודל"><input type="number" min="6" max="200" step="1" data-ltr .value=${String(l.size)}
       @change=${(e: Event) => { const x = numberOf(e); if (x >= 6 && x <= 200) a.patchLabel(l.id, { size: x }); }} /></sw-field>
+    ${levelSelect(v.levels, l.level_id, (lv) => a.setLevel(l.id, lv))}
     <div class="btns"><sw-button size="sm" variant="ghost" icon="trash" data-geom-delete @click=${() => a.remove(l.id)}>מחק תווית</sw-button></div>
   </div>`;
 }
@@ -571,6 +581,40 @@ export function renderCustomItemDialog(v: CustomItemView, lib: CatalogLibrary, o
   </sw-dialog>`;
 }
 
+// ---------------------------------------------------------------- levels (T085)
+
+/** The chips over the canvas: all levels, or one. `onAdd` (editors) adds the "+ מפלס" chip. */
+export function renderLevelChips(levels: GeomLevel[], current: string | null, onPick: (id: string | null) => void, onAdd?: () => void): TemplateResult {
+  if (levels.length < 2 && !onAdd) return html``;
+  return html`<div class="levelchips" role="group" aria-label="מפלסים" data-level-chips>
+    <sw-chip data-level-chip="all" ?selected=${current === null} @click=${() => onPick(null)}>כל המפלסים</sw-chip>
+    ${[...levels].sort((a, b) => b.elevation_m - a.elevation_m).map((l) => html`<sw-chip data-level-chip=${l.id} ?selected=${current === l.id} @click=${() => onPick(l.id)}>${l.name} · ${l.elevation_m >= 0 ? '+' : '−'}${Math.abs(l.elevation_m).toFixed(1)} מ׳</sw-chip>`)}
+    ${onAdd ? html`<sw-chip data-level-add icon="plus" @click=${onAdd}>מפלס</sw-chip>` : nothing}
+  </div>`;
+}
+
+export interface LevelDialogView {
+  name: string;
+  elevation: number;
+  ceiling: number;
+  error: string;
+}
+
+export function renderLevelDialog(v: LevelDialogView, onChange: (patch: Partial<LevelDialogView>) => void, onCreate: () => void, onCancel: () => void): TemplateResult {
+  const num = (e: Event) => parseFloat((e.target as HTMLInputElement).value);
+  const ok = v.name.trim().length > 0 && v.elevation >= -50 && v.elevation <= 500 && v.ceiling > 0 && v.ceiling <= 50;
+  return html`<sw-dialog open heading="מפלס חדש" subheading="גובה הרצפה יחסית למפלס הראשי (0), וגובה התקרה מעליה" data-level-dialog @close=${onCancel}>
+    ${v.error ? html`<div class="err">${v.error}</div>` : nothing}
+    <sw-field label="שם"><input type="text" maxlength="60" data-level-name placeholder="למשל: אולם תחתון" .value=${v.name} @input=${(e: Event) => onChange({ name: (e.target as HTMLInputElement).value })} /></sw-field>
+    <div class="two">
+      <sw-field label="גובה רצפה (מ׳)" hint="שלילי = מתחת למפלס הראשי"><input type="number" min="-50" max="500" step="0.1" data-ltr data-level-elevation .value=${String(v.elevation)} @input=${(e: Event) => onChange({ elevation: num(e) })} /></sw-field>
+      <sw-field label="גובה תקרה (מ׳)"><input type="number" min="0.1" max="50" step="0.1" data-ltr data-level-ceiling .value=${String(v.ceiling)} @input=${(e: Event) => onChange({ ceiling: num(e) })} /></sw-field>
+    </div>
+    <sw-button slot="footer" variant="ghost" data-level-cancel @click=${onCancel}>ביטול</sw-button>
+    <sw-button slot="footer" variant="primary" icon="check" data-level-create ?disabled=${!ok} @click=${onCreate}>הוסף מפלס</sw-button>
+  </sw-dialog>`;
+}
+
 export const studioPanelStyles = css`
   .modes {
     display: flex;
@@ -732,5 +776,11 @@ export const studioPanelStyles = css`
   }
   .libitem .fav.on {
     color: var(--sw-warning);
+  }
+  .levelchips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
   }
 `;

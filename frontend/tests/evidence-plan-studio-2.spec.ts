@@ -254,4 +254,46 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
     await page.locator(`${ed} [data-lib-import]`).setInputFiles({ name: 'smplwise-catalog-custom.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(exported)) });
     await expect(page.locator(`${ed} .bar`)).toContainText(`0 יובאו, ${exported.items.length} הוחלפו`);
   });
+
+  test('a third level is added from the chips; the tribune connects the hall to the level at -1.2 m and publishes its connector; the live map filters by level', async ({ page }) => {
+    const ed = 'explore-plan-editor';
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
+    await expect(page.locator(`${ed} [data-level-chips] [data-level-chip]`)).toHaveCount(3, { timeout: 20000 }); // all + the two seeded levels
+    await page.locator(`${ed} [data-level-add]`).click();
+    await page.locator(`${ed} [data-level-name]`).fill('גלריה');
+    await page.locator(`${ed} [data-level-elevation]`).fill('3.5');
+    await page.locator(`${ed} [data-level-ceiling]`).fill('3');
+    await page.locator(`${ed} [data-level-create]`).click();
+    await expect(page.locator(`${ed} [data-level-chips] [data-level-chip]`)).toHaveCount(4);
+    await expect.poll(async () => (await draft()).doc.levels.map((l) => l.id), { timeout: 10000 }).toEqual(['L0', 'L1', 'L2']);
+    // the new level is the filter now: nothing of the hall shows; back to all levels
+    await expect(page.locator(`${ed} sw-plan-canvas [data-object]`)).toHaveCount(0);
+    await page.locator(`${ed} [data-level-chip="all"]`).click();
+    await expect(page.locator(`${ed} sw-plan-canvas [data-object]`).first()).toBeAttached();
+    // a tribune on the hall level that descends to the lower hall
+    await page.locator(`${ed} [data-tool="library"]`).click();
+    await page.locator(`${ed} [data-lib-search]`).fill('טריבונה');
+    await page.locator(`${ed} [data-lib-item="tribune.stepped"]`).click();
+    await clickPlan(page, ed, 0.5, 0.7);
+    await page.keyboard.press('Escape');
+    await expect(page.locator(`${ed} [data-selected-object]`)).toBeVisible();
+    const tribuneId = (await page.locator(`${ed} [data-selected-object]`).getAttribute('data-selected-object'))!;
+    await page.locator(`${ed} [data-object-param="connects_levels"]`).selectOption('L1');
+    await expect.poll(async () => (await draft()).doc.connectors.find((c) => c.id === `cx-${tribuneId}`)?.level_to ?? null, { timeout: 10000 }).toBe('L1');
+    await expect(page.locator(`${ed} sw-plan-canvas [data-connector="cx-${tribuneId}"][data-kind="tribune"]`)).toHaveCount(1);
+    await page.locator(`${ed} [data-publish]`).click();
+    await expect(page.locator(`${ed} [data-geom-diff-rows]`)).toContainText('עצמים');
+    await expect(page.locator(`${ed} [data-geom-diff-rows]`)).toContainText('מפלסים');
+    const published = page.waitForResponse((r) => r.url().includes('/geometry/publish'));
+    await page.locator(`${ed} [data-geom-publish]`).click();
+    expect((await published).status()).toBe(200);
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
+    await expect(page.locator(`explore-floor-map sw-plan-canvas [data-connector="cx-${tribuneId}"] text`)).toHaveText('↓ −1.2 מ׳', { timeout: 20000 });
+    await expect(page.locator('explore-floor-map [data-level-chips] [data-level-chip]')).toHaveCount(4);
+    await page.locator('explore-floor-map [data-level-chip="L1"]').click();
+    await expect(page.locator(`explore-floor-map sw-plan-canvas [data-object="${tribuneId}"]`)).toHaveCount(0);
+    await expect(page.locator(`explore-floor-map sw-plan-canvas [data-connector="cx-${tribuneId}"]`)).toHaveCount(1); // connectors are never filtered
+    await page.locator('explore-floor-map [data-level-chip="all"]').click();
+    await expect(page.locator(`explore-floor-map sw-plan-canvas [data-object="${tribuneId}"]`)).toHaveCount(1);
+  });
 });

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { GeometryDoc, GeomObject } from '../src/map/geometry';
 import type { CatalogItem } from '../src/api/plan-catalog';
-import { addArray, addObject, arrayDefaults, duplicateObject, moveGroup, moveObject, objectZ, patchObject, removeGroup, removeItem, rotationTo, stretchedSize } from '../src/map/studio-ops';
+import { addArray, addLevel, addObject, arrayDefaults, duplicateObject, levelUsage, moveGroup, moveObject, objectZ, patchLevel, patchObject, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize } from '../src/map/studio-ops';
 
 // Plan Studio phase 2 (T085): the pure document operations of the editor - placing an item (its size, z and params come
 // from the library), moving, rotating, stretching, duplicating, and removing an object out of its group, its circuit
@@ -107,5 +107,18 @@ test.describe('plan studio object operations (unit)', () => {
     const gone = removeGroup(doc, arr.groupId, true);
     expect(gone.objects.some((o) => arr.ids.includes(o.id))).toBe(false);
     expect(gone.objects.length).toBe(doc.objects.length - 6);
+  });
+
+  test('levels: added with the next free id, one default at a time, removed only when unused', () => {
+    const doc = sample();
+    const added = addLevel(doc, 'גלריה', 3.5, 3.0);
+    expect(added.id).toBe('L2');
+    expect(added.doc.levels.find((l) => l.id === 'L2')).toEqual({ id: 'L2', name: 'גלריה', elevation_m: 3.5, ceiling_height_m: 3.0, is_default: false, external_ids: {} });
+    const asDefault = patchLevel(added.doc, 'L2', { is_default: true });
+    expect(asDefault.levels.map((l) => l.is_default)).toEqual([false, false, true]);
+    expect(levelUsage(doc, 'L1')).toBe(5); // wall wd, label lb, object o5, connectors c1 and cx-o4 (both end there)
+    expect(removeLevel(doc, 'L0')).toBeNull(); // the default
+    expect(removeLevel(doc, 'L1')).toBeNull(); // used
+    expect(removeLevel(added.doc, 'L2')!.levels.length).toBe(2);
   });
 });
