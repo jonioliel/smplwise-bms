@@ -141,6 +141,9 @@ export interface Anchor {
   label_pos?: string | null;
   /** Plan Studio level of the floor (null = the default level). */
   level_id?: string | null;
+  /** T087: metres above the level's floor and the downward tilt in degrees; null = the kind's default (map/anchor-3d.ts). */
+  mount_height_m?: number | null;
+  tilt_deg?: number | null;
   layer_id: string;
   label: string | null;
   revision: number;
