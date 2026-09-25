@@ -484,6 +484,16 @@ export function objectHitOrder(objects: readonly ObjectPrim[], selectedId: strin
   return ranked.map((r) => r.o);
 }
 
+/** The corners of an object's hit area in plan pixels: its footprint, widened to at least `minSide` along each of its
+ * own axes around its centre (hotfix 0.1.87: a small object zoomed out was a few pixels wide and hard to press). */
+export function objectHitCorners(o: Pick<ObjectPrim, 'cx' | 'cy' | 'w' | 'h' | 'rotation' | 'corners'>, minSide: number): Pt[] {
+  if (o.w >= minSide && o.h >= minSide) return o.corners;
+  const hw = Math.max(o.w, minSide) / 2;
+  const hh = Math.max(o.h, minSide) / 2;
+  const theta = ((o.rotation || 0) * Math.PI) / 180;
+  return ([[-1, -1], [1, -1], [1, 1], [-1, 1]] as const).map(([sx, sy]) => rotated(o.cx, o.cy, sx * hw, sy * hh, theta));
+}
+
 /** The four corners of an object's footprint in plan pixels (not rounded): the hit area and the handles. */
 export function objectCorners(o: Pick<GeomObject, 'position' | 'rotation_deg' | 'size'>, W: number, H: number, scale: number): Pt[] {
   const cx = o.position[0] * W;
