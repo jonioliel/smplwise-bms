@@ -10,6 +10,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import math
+import pathlib
 import time
 
 import ezdxf
@@ -491,3 +492,37 @@ def test_an_import_failure_is_audited_and_answered_cleanly(settings, tmp_path, m
         rows = [json.loads(x[0]) for x in conn.execute("SELECT details_json FROM audit_log WHERE action = 'geometry.import'").fetchall()]
     assert rows == [{"version_id": v["id"], "asset_id": asset["id"], "failed": "DxfError", "code": "dxf_extent_too_large"},
                     {"version_id": v["id"], "asset_id": asset["id"], "failed": "RuntimeError"}]
+
+
+def test_the_live_spec_drawing_matches_its_generator_and_maps_as_the_spec_expects():
+    """frontend/tests/fixtures/plan-map*.dxf (the phase-3 live spec's drawings, T086 Task 11) are exactly what their
+    generator writes, and map to the counts the spec asserts in the browser: 7 walls (6 paired, the single-line
+    partition unpaired), a door from the loose arc and one from the DOOR90 block (0.9 m each), the 1.2 m window, five
+    objects (the DOOR90 insert on the furniture layer is no object), one room; a block override reaches the result;
+    the millimetre copy maps the same."""
+    import importlib.util
+
+    root = pathlib.Path(__file__).resolve().parents[3] / "frontend" / "tests" / "fixtures"
+    spec = importlib.util.spec_from_file_location("gen_plan_map_dxf", root / "gen_plan_map_dxf.py")
+    gen = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(gen)
+    for name, (code, k) in gen.FILES.items():
+        assert (root / name).read_bytes() == gen.drawing(code, k).encode("utf-8"), f"{name} differs from its generator: run gen_plan_map_dxf.py"
+    catalog = plan_dxf_map.load_catalog(None)
+    for name, units in (("plan-map.dxf", "m"), ("plan-map-mm.dxf", "mm")):
+        doc = plan_dxf_map.load(root / name)
+        summary = plan_dxf_map.entities_summary(doc, None, units, catalog)
+        layer_map = {l["name"]: l["suggested"] for l in summary["layers"]}
+        assert {k: v for k, v in layer_map.items() if v != "ignore"} == {"A-WALL": "walls", "A-DOOR": "openings", "A-GLAZ": "windows", "A-FURN": "objects", "A-AREA": "rooms"}, name
+        blocks = {b["name"]: b["suggested"]["catalog_id"] for b in summary["blocks"]}
+        assert blocks == {"CHAIR": "chair.basic", "DESK": "table.desk", "DOOR90": None, "WIDGET": "object.generic"}, (name, blocks)
+        ext = plan_dxf_map.extent_for(doc, None)
+        r = plan_dxf_map.map_geometry(doc, layer_map=layer_map, block_map={"WIDGET": "chair.basic"}, units=units, extent=ext, rotation=0, crop=None, level_id="L0", run_id="s",
+                                      catalog=catalog, scale_m_per_px=0.01)
+        assert len(r["walls"]) == 7 and sum(1 for w in r["walls"] if w["confidence"] >= 0.9) == 6, (name, [(w["thickness_m"], w["confidence"]) for w in r["walls"]])
+        doors = [o for o in r["openings"] if o["kind"] == "door"]
+        assert len(doors) == 2 and all(abs(o["width_m"] - 0.9) < 0.02 for o in doors) and doors[0]["wall_id"] != doors[1]["wall_id"], (name, r["openings"])
+        assert [round(o["width_m"], 1) for o in r["openings"] if o["kind"] == "window"] == [1.2], name
+        objs = sorted((o["external_ids"]["dxf_block"], o["item_id"]) for o in r["objects"])
+        assert objs == [("CHAIR", "chair.basic"), ("DESK", "table.desk"), ("DESK", "table.desk"), ("DESK", "table.desk"), ("WIDGET", "chair.basic")], (name, objs)
+        assert len(r["rooms"]) == 1
