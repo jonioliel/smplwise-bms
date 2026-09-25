@@ -31,7 +31,12 @@ import '../components/sw-toggle';
 import { ACTION_ERROR_LABEL, ACTION_STATUS_LABEL, awaitAction, domainLabel, entityMarkerKind, entityTone, fmtTime, runAction, stateLabel, subscribeHa, type HaActionArgSpec, type HaActionRecord, type HaActionSpec, type HaEntity } from '../api/ha';
 import { geometryFor } from '../api/geometry';
 import { circuitToken, type AnchorPosition, type CatalogLookup, type GeometryDoc } from '../map/geometry';
-import { loadLibrary, lookupOf } from '../api/plan-catalog';
+import { loadLibrary, lookup3dOf, lookupOf } from '../api/plan-catalog';
+import { buildScene, type Catalog3DLookup, type SceneAnchor, type SceneDescription, type SceneInput } from '../map/scene-builder';
+import type { ScenePreset } from '../map/scene-three'; // type only: the three chunk stays out of the entry bundle
+import type { PartSelectDetail } from '../map/sw-plan-3d';
+import { WEBGL_UNAVAILABLE_HE, webglAvailable } from '../map/webgl';
+import { demoSceneInput, demoSceneLabels } from '../fixtures/demo-3d';
 import { countLabel, renderLevelChips } from './plan-studio-panel';
 
 /** Hebrew names for enum choices the adapters offer (T040). */
@@ -96,6 +101,16 @@ export class ExploreFloorMap extends LitElement {
   @state() private levelFilter: string | null = null;
   /** Plan Studio: the published structure of the shown version (fetched by hash after the bundle). */
   @state() private geometry: GeometryDoc | null = null;
+  /** T087: the 2D / 3D toggle. The element's module - and with it the three chunk - is imported on the first switch. */
+  @state() private view3d = false;
+  @state() private threeState: 'idle' | 'loading' | 'ready' | 'error' = 'idle';
+  @state() private threeError = '';
+  @state() private preset3d: ScenePreset = 'iso';
+  @state() private catalog3d: Catalog3DLookup | null = null;
+  private itemNames = new Map<string, string>();
+  private sceneMemo: { keys: unknown[]; desc: SceneDescription | null } | null = null;
+  private sceneTimer = 0;
+  private sceneDue = false;
   private geomSeq = 0;
   @state() private pinned = false;
   @state() private panel = false;
@@ -783,6 +798,11 @@ export class ExploreFloorMap extends LitElement {
   `;
 
   private onKey = (e: KeyboardEvent) => {
+    if (e.key === '3' && !e.ctrlKey && !e.metaKey && !e.altKey && !this.typing(e)) {
+      e.preventDefault();
+      void this.toggle3d();
+      return;
+    }
     if (e.key !== 'Escape') return;
     if (this.confirmSpec) return; // the dialog handles its own Escape
     if (this.selectedId) {
@@ -791,6 +811,12 @@ export class ExploreFloorMap extends LitElement {
       this.canvas?.focusMarker(id);
     } else if (this.panel) this.panel = false;
   };
+
+  /** A key pressed inside a text field, a select or an editable node belongs to it. */
+  private typing(e: KeyboardEvent): boolean {
+    const target = e.composedPath()[0];
+    return target instanceof HTMLElement && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable);
+  }
 
   connectedCallback() {
     super.connectedCallback();
@@ -804,6 +830,8 @@ export class ExploreFloorMap extends LitElement {
     super.disconnectedCallback();
     window.removeEventListener('keydown', this.onKey);
     this.mq.removeEventListener('change', this.onMq);
+    window.clearTimeout(this.sceneTimer);
+    this.sceneTimer = 0;
     this.stopWs?.();
     this.stopWs = null;
   }
@@ -844,14 +872,13 @@ export class ExploreFloorMap extends LitElement {
     const b = this.bundle;
     if (!b || (!this.focusZone && !this.focusCamera && !this.focusEntity && !this.focusObject)) return;
     await this.updateComplete;
-    const canvas = this.canvas;
-    if (!canvas) return;
+    const canvas = this.canvas; // undefined while the 3D is shown: the selection still applies, the zoom does not
     const z = this.focusZone ? b.zones.find((x) => x.id === this.focusZone) : null;
     if (z) {
       const xs = z.polygon.map((p) => p.x);
       const ys = z.polygon.map((p) => p.y);
       this.selectedZoneId = z.id;
-      canvas.zoomToBox(Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys));
+      canvas?.zoomToBox(Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys));
     }
     const a = this.focusCamera
       ? b.anchors.find((x) => x.resource_type === 'camera' && x.resource_id === this.focusCamera)
@@ -859,18 +886,20 @@ export class ExploreFloorMap extends LitElement {
         ? b.anchors.find((x) => x.resource_type === 'ha_entity' && x.resource_id === this.focusEntity)
         : null;
     if (a) {
-      if (this.focusZoom) canvas.zoomToBox(a.position.x - 0.15, a.position.y - 0.15, a.position.x + 0.15, a.position.y + 0.15, 48, 2.2);
-      else canvas.centerOn(a.position.x, a.position.y);
-      await this.updateComplete;
-      const p = canvas.toScreen(a.position.x, a.position.y);
+      if (canvas) {
+        if (this.focusZoom) canvas.zoomToBox(a.position.x - 0.15, a.position.y - 0.15, a.position.x + 0.15, a.position.y + 0.15, 48, 2.2);
+        else canvas.centerOn(a.position.x, a.position.y);
+        await this.updateComplete;
+      }
+      const p = canvas?.toScreen(a.position.x, a.position.y) ?? null;
       this.selectedId = a.id;
-      this.anchor = { x: p.x, y: p.y };
+      this.anchor = p ? { x: p.x, y: p.y } : null;
     }
     if (this.focusObject) {
       const o = this.geometry?.objects.find((x) => x.id === this.focusObject);
       if (!o) return; // the document arrives after the bundle: the geometry load calls applyFocus again
       this.focusedObjectId = o.id;
-      canvas.centerOn(o.position[0], o.position[1]);
+      canvas?.centerOn(o.position[0], o.position[1]);
     }
   }
 
@@ -909,6 +938,8 @@ export class ExploreFloorMap extends LitElement {
         this.startWs();
         void loadLibrary(this.bundle.catalogRevision).then((lib) => {
           this.catalogLookup = lookupOf(lib);
+          this.catalog3d = lookup3dOf(lib);
+          this.itemNames = new Map(lib.items.map((i) => [i.id, i.names.he]));
         }).catch(() => {}); // without the library objects draw as plain boxes
       }
       void this.applyFocus();
@@ -988,6 +1019,173 @@ export class ExploreFloorMap extends LitElement {
     const out: Record<string, string | null> = {};
     for (const a of this.bundle?.anchors ?? []) if (a.resource_type === 'ha_entity') out[a.resource_id] = a.entity?.state ?? null;
     return out;
+  }
+
+  // ---- 3D (T087) ----
+
+  /** The anchor layer switches of the 2D markers, shared by the 3D. */
+  private anchorShown(a: { resource_type: string; layer_id: string }): boolean {
+    return a.resource_type === 'camera' ? this.layers.has('cameras') : this.layers.has(a.layer_id === 'doors' ? 'doors' : a.layer_id === 'lights' ? 'lights' : 'sensors');
+  }
+
+  /** The anchors as the scene builder wants them, filtered by the same layer switches as the 2D markers. A marker the
+   * viewer may not see (state "forbidden") is left out: the builder knows no permissions. */
+  private get sceneAnchors(): SceneAnchor[] {
+    const b = this.bundle;
+    if (!b || b.source !== 'api') return [];
+    const stale = this.screenState === 'stale';
+    return b.anchors
+      .filter((a) => this.anchorShown(a) && (a.resource_type !== 'camera' || cameraState(a) !== 'forbidden'))
+      .map((a) => ({
+        id: a.id, resource_type: a.resource_type, resource_id: a.resource_id, x: a.position.x, y: a.position.y, rotation: a.rotation_degrees, fov: a.field_of_view_degrees ?? null, radius: a.coverage_radius ?? null,
+        polygon: a.coverage_polygon ?? null, level_id: a.level_id ?? null, layer_id: a.layer_id, label: entityName(a), state: stale ? null : a.entity?.state ?? null,
+        online: a.resource_type === 'camera' ? (a.camera ? a.camera.status === 'online' : null) : null, mount_height_m: a.mount_height_m ?? null, tilt_deg: a.tilt_deg ?? null,
+      }));
+  }
+
+  /** The scene of the shown floor, rebuilt only when one of its inputs changed. A live state push replaces the bundle
+   * (and a lamp that switches changes its instance group): pushes are collected for 100 ms and built once, so a burst of
+   * states (one dev / HA call sends several) costs one scene. */
+  private get sceneDescription(): SceneDescription | null {
+    const b = this.bundle;
+    if (!b) return null;
+    const keys: unknown[] = [b, b.floorId, this.geometry, this.layers, this.levelFilter, this.catalog3d, this.screenState]; // [0] alone changes on a push
+    const memo = this.sceneMemo;
+    if (memo && memo.keys.every((k, i) => k === keys[i])) return memo.desc;
+    if (memo?.desc && !this.sceneDue && memo.keys.every((k, i) => i === 0 || k === keys[i])) {
+      // only the bundle changed: keep the last scene and build once when the 100 ms window closes
+      if (!this.sceneTimer) this.sceneTimer = window.setTimeout(() => { this.sceneTimer = 0; this.sceneDue = true; this.requestUpdate(); }, 100);
+      return memo.desc;
+    }
+    let base: SceneInput | null = null;
+    // a stale screen hands the builder explicit nulls: it draws every live state as unknown, like the dimmed 2D pins
+    const stale = this.screenState === 'stale';
+    const unknown = (m: Record<string, string | null>) => (stale ? Object.fromEntries(Object.keys(m).map((k) => [k, null])) : m);
+    if (b.source === 'demo') {
+      const demo = demoSceneInput(b.floorId);
+      const hidden = new Set(demoCameras.filter((c) => c.floorId === b.floorId && c.state === 'forbidden').map((c) => c.id));
+      if (demo) base = { ...demo, entityStates: unknown(demo.entityStates), anchors: demo.anchors.filter((a) => this.anchorShown(a) && !hidden.has(a.id)).map((a) => (stale ? { ...a, state: null } : a)) };
+    } else if (this.geometry) {
+      base = { doc: this.geometry, width: b.width, height: b.height, anchors: this.sceneAnchors, entityStates: unknown(this.entityStateMap), circuitStates: unknown(this.circuitStateMap), catalog: this.catalog3d,
+        zones: b.zones.map((z) => ({ id: z.id, name: z.name, polygon: z.polygon, level_id: z.level_id ?? null })) };
+    }
+    const desc = base ? buildScene({ ...base, level: this.levelFilter, layers: { structure: this.layers.has('structure'), objects: this.layers.has('objects'), connectors: this.layers.has('connectors'), zones: this.layers.has('zones') } }) : null;
+    this.sceneMemo = { keys, desc };
+    this.sceneDue = false;
+    return desc;
+  }
+
+  /** Hover labels: anchors by their map name, objects by label or library name, zones by name. */
+  private get sceneLabels(): Record<string, string> {
+    const b = this.bundle;
+    if (!b) return {};
+    if (b.source === 'demo') return demoSceneLabels(b.floorId);
+    const out: Record<string, string> = {};
+    for (const a of b.anchors) out[a.id] = entityName(a);
+    for (const o of this.geometry?.objects ?? []) out[o.id] = o.label || this.itemNames.get(o.item_id) || o.item_id;
+    for (const z of b.zones) out[z.id] = z.name;
+    return out;
+  }
+
+  /** The 3D is on screen (the element's module loaded and the floor has a scene); the 2D legend of pin colours steps aside. */
+  private get shows3d(): boolean {
+    return this.view3d && this.threeState === 'ready' && this.sceneDescription !== null;
+  }
+
+  private get can3d(): boolean {
+    return webglAvailable() && this.sceneDescription !== null;
+  }
+
+  private async toggle3d(): Promise<void> {
+    if (this.view3d) {
+      this.view3d = false; // the new 2D canvas fits itself and its view-change re-anchors the open card at the pin
+      return;
+    }
+    if (!this.can3d || this.threeState === 'loading') return;
+    if (this.threeState !== 'ready') {
+      this.threeState = 'loading';
+      try {
+        await import('../map/sw-plan-3d');
+        this.threeState = 'ready';
+      } catch (err) {
+        this.threeState = 'error';
+        this.threeError = describeError(err);
+        return;
+      }
+    }
+    this.anchor = null; // the 3D has no pin to hang a popover on: an open card continues as a drawer
+    this.view3d = true;
+  }
+
+  /** The shared selection, as the 3D shows it: the pin, else the focused object, else the room. */
+  private get sel3d(): string | null {
+    return this.selectedId ?? this.focusedObjectId ?? this.selectedZoneId;
+  }
+
+  /** A click in the 3D (ruling R-P4-6): a camera or an entity opens its existing card; a lamp of a circuit runs the
+   * circuit's existing action (the same route, permission and confirmation as the circuit strip); the body of an entity
+   * opens that entity's card; a room selects it; the floor clears. Walls and connectors have nothing to open. */
+  private onPartSelect(e: CustomEvent<PartSelectDetail>) {
+    const { id, kind } = e.detail;
+    const b = this.bundle;
+    if (!id || !kind || !b) {
+      this.close();
+      this.focusedObjectId = null;
+      this.selectedZoneId = null;
+      return;
+    }
+    if (kind === 'camera' || kind === 'entity') {
+      const a = b.anchors.find((x) => x.id === id);
+      if (this.multi) {
+        if (a?.resource_type === 'camera') this.togglePick(a.id);
+        return;
+      }
+      this.selectedZoneId = null;
+      this.focusedObjectId = null;
+      this.selectedId = id;
+      this.anchor = null; // no pin on screen: the card opens as a drawer
+      return;
+    }
+    if (kind === 'object') {
+      const o = this.geometry?.objects.find((x) => x.id === id);
+      const circuit = this.geometry?.circuits.find((k) => k.member_ids.includes(id));
+      const s = circuit ? b.circuitStates[circuit.id] : undefined;
+      if (s) {
+        // the circuit strip's guards: no second send while one is in flight, none on a stale screen or an unavailable switch
+        const on = s.state === 'on';
+        const spec = s.actions.find((x) => x.id.endsWith(on ? 'turn_off' : 'turn_on'));
+        const busy = !!this.action?.busy && this.action.entityId === s.entity_id;
+        const blocked = !s.can_control || !spec || spec.granted === false || busy || this.screenState === 'stale' || !s.available;
+        if (spec && !blocked) this.trigger(s.entity_id, spec);
+      } else if (o?.anchor_ref) {
+        const a = b.anchors.find((x) => x.resource_type === o.anchor_ref!.resource_type && x.resource_id === o.anchor_ref!.resource_id);
+        if (a) {
+          this.selectedZoneId = null;
+          this.focusedObjectId = null;
+          this.selectedId = a.id;
+          this.anchor = null;
+          return;
+        }
+      }
+      this.close();
+      this.selectedZoneId = null;
+      this.focusedObjectId = id;
+      return;
+    }
+    if (kind === 'zone') {
+      this.close();
+      this.focusedObjectId = null;
+      this.selectedZoneId = id;
+    }
+  }
+
+  private render3d(b: MapBundle, desc: SceneDescription) {
+    const cameras = b.source === 'demo'
+      ? demoCameras.filter((c) => c.floorId === b.floorId && c.state !== 'forbidden' && this.layers.has('cameras')).map((c) => ({ id: c.id, label: c.name }))
+      : b.anchors.filter((a) => a.resource_type === 'camera' && this.layers.has('cameras') && cameraState(a) !== 'forbidden').map((a) => ({ id: a.id, label: entityName(a) }));
+    const stamp = new Date().toISOString().slice(0, 10);
+    return html`<sw-plan-3d data-floor-3d .description=${desc} .selectedId=${this.sel3d} .preset=${this.preset3d} .cameras=${cameras} .labels=${this.sceneLabels}
+      exportName=${`plan-3d-${b.floorName}${this.levelFilter ? `-${this.levelFilter}` : ''}-${stamp}`} @part-select=${(e: CustomEvent<PartSelectDetail>) => this.onPartSelect(e)}></sw-plan-3d>`;
   }
 
   /** Items per layer for the panel (M07: counts next to every toggle). */
@@ -1650,7 +1848,9 @@ export class ExploreFloorMap extends LitElement {
         : b.needsAlignment
           ? html`<div class="banner"><sw-state-panel compact state="partial" heading="פריטים הוצבו על גרסת תוכנית קודמת" hint="בדוק שהמיקומים עדיין נכונים על הרקע החדש (עורך התוכנית)."></sw-state-panel></div>`
           : nothing}
-      <sw-plan-canvas
+      ${this.shows3d && this.sceneDescription
+        ? this.render3d(b, this.sceneDescription)
+        : html`<sw-plan-canvas
         .planWidth=${b.width}
         .planHeight=${b.height}
         .plan=${b.planSvg}
@@ -1675,7 +1875,9 @@ export class ExploreFloorMap extends LitElement {
         .dimEntities=${this.screenState === 'stale'}
         @zone-select=${(e: CustomEvent<{ id: string }>) => { if (this.multi) { this.pickZone(e.detail.id); return; } this.selectedZoneId = this.selectedZoneId === e.detail.id ? null : e.detail.id; this.close(); }}
         @marker-select=${this.onSelect}
-        @view-change=${this.onViewChange}></sw-plan-canvas>
+        @view-change=${this.onViewChange}></sw-plan-canvas>`}
+      ${this.threeState === 'loading' ? html`<div class="cover" data-3d-loading><sw-state-panel state="loading" hint="טוען תלת-ממד…"></sw-state-panel></div>` : nothing}
+      ${this.threeState === 'error' ? html`<div class="banner" data-3d-load-error><sw-state-panel compact state="error" heading="תלת-ממד לא נטען" hint=${this.threeError}></sw-state-panel></div>` : nothing}
       <div class="floorchip" data-floorchip><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
       ${b.levels.length > 1 ? html`<div class="levelbar">${renderLevelChips(b.levels, this.levelFilter, (id) => (this.levelFilter = id))}</div>` : nothing}
       ${b.source === 'api' && this.buildingFloors.length > 1
@@ -1688,14 +1890,14 @@ export class ExploreFloorMap extends LitElement {
       ${this.multi ? this.renderPickbar() : nothing}
       ${this.renderSideList()}
       ${this.renderSaveDialog()}
-      <div class="legend" aria-label="מקרא">
+      ${this.shows3d ? nothing : html`<div class="legend" aria-label="מקרא">
         ${b.zones.length && this.layers.has('zones') ? html`<span><i style="--lg: var(--sw-accent); border-radius: 2px; opacity: 0.5"></i>${b.zones.length} אזורים</span>` : nothing}
         <span><i style="--lg: var(--sw-accent)"></i>חי</span>
         <span><i style="--lg: var(--sw-stale)"></i>לא מעודכן</span>
         <span><i style="--lg: var(--sw-offline)"></i>מנותק</span>
         <span><i style="--lg: var(--sw-forbidden)"></i>ללא הרשאה</span>
         <span><i style="--lg: #fff; box-shadow: 0 0 0 1px var(--sw-border-strong)"></i>ישות HA</span>
-      </div>
+      </div>`}
       ${this.renderCard()}
       ${this.renderConfirm()}
     `;
@@ -1726,6 +1928,9 @@ export class ExploreFloorMap extends LitElement {
           <div class="layers" role="group" aria-label=${t('floor.layers')}>
             ${LAYERS.map((l) => html`<button class=${this.layers.has(l.id) ? 'on' : ''} title=${l.label()} aria-label=${l.label()} aria-pressed=${this.layers.has(l.id)} @click=${() => this.toggleLayer(l.id)}><sw-icon name=${l.icon} size=${14}></sw-icon></button>`)}
           </div>
+          <sw-button icon="cube" aria-pressed=${this.view3d} data-view-3d ?disabled=${!this.view3d && (!this.can3d || this.threeState === 'loading')}
+            title=${!webglAvailable() ? WEBGL_UNAVAILABLE_HE : !this.sceneDescription ? 'אין מבנה מפורסם לקומה הזו' : 'מקש 3'} @click=${() => this.toggle3d()}>${this.view3d ? '2D' : '3D'}</sw-button>
+          ${webglAvailable() ? nothing : html`<span class="note" data-3d-unavailable>${WEBGL_UNAVAILABLE_HE}</span>`}
           <sw-button icon="layers" aria-pressed=${this.panel} @click=${() => (this.panel = !this.panel)}>${t('floor.layers')}</sw-button>
           ${b && b.source === 'api' ? html`<sw-button icon="list" aria-pressed=${this.sideList} data-sidelist-toggle @click=${() => this.toggleSideList()}>רשימה</sw-button><sw-button icon="grid" aria-pressed=${this.multi} data-multi-toggle @click=${() => this.setMulti(!this.multi)}>בחירת מצלמות</sw-button>` : nothing}
           <sw-field style="min-inline-size:280px"><select aria-label=${t('floor.switcher')} @change=${(e: Event) => navigate(`/explore/floors/${(e.target as HTMLSelectElement).value}`)}>${floors.map((f) => html`<option value=${f.id} ?selected=${f.id === this.floorId}>${bidi(f.name)} · ${f.cameraCount} מצלמות${f.hasPlan ? '' : ' · אין תוכנית'}</option>`)}</select></sw-field>

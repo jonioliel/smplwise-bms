@@ -25,7 +25,7 @@ test('the 3D element: lazy chunk, parts, presets, selection echo, hover, export'
   await expect(el).toHaveAttribute('data-preset', 'camera');
   await el.locator('[data-preset-top]').click();
   await expect(el).toHaveAttribute('data-preset', 'top');
-  await expect.poll(async () => Number(await el.getAttribute('data-frames'))).toBeGreaterThan(5); // it renders continuously
+  await expect.poll(async () => Number(await el.getAttribute('data-frames'))).toBeGreaterThan(0); // it rendered (on demand since the task 5 review R1: no frame count to wait for)
   // a click on a wall: the element projects the part's centre, the click lands there, the selection is echoed
   const wall = await el.evaluate((node) => {
     const e = node as unknown as { description: { parts: { id: string; kind: string; position: [number, number, number]; userData: { id: string } }[] }; toScreen: (p: [number, number, number]) => { x: number; y: number } | null };
@@ -78,4 +78,62 @@ test('prismGeometry tolerates repeated origins, full circles, concave and degene
   expect(prismGeometry([[0, 0], [0, 0], [0, 0]], 2)).toBeNull(); // a camera deep inside a wall: nothing to draw
   expect(prismGeometry([[0, 0], [1, 0], [2, 0]], 2)).toBeNull(); // collinear, zero area
   expect(prismGeometry([[0, 0], [1, 0], [0, 1]], 0)).toBeNull(); // no height
+});
+
+// T087 task 6: the floor map in demo mode hosts the 3D - the toggle, the key 3, the layers of the 2D and a camera card from a 3D click.
+test('the demo floor map: the toggle loads the chunk once, the key 3 switches, layers and a camera card work in 3D', async ({ page }) => {
+  test.setTimeout(90_000);
+  const chunkRequests: string[] = [];
+  page.on('request', (r) => {
+    if (/\/assets\/three-[\w-]+\.js$/.test(r.url())) chunkRequests.push(r.url());
+  });
+  await page.goto('/#/explore/floors/f0');
+  const host = page.locator('explore-floor-map');
+  await expect(host.locator('sw-plan-canvas')).toBeAttached({ timeout: 20000 });
+  const toggle = host.locator('[data-view-3d]');
+  await expect(toggle).toBeEnabled();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  expect(chunkRequests).toHaveLength(0);
+  await toggle.click();
+  const el = host.locator('sw-plan-3d[data-floor-3d]');
+  await expect(el).toHaveAttribute('data-ready', '', { timeout: 30000 });
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  expect(chunkRequests).toHaveLength(1);
+  const all = Number(await el.getAttribute('data-parts'));
+  expect(all).toBeGreaterThan(20);
+  // the layers of the 2D apply: objects off removes the chairs and lamps
+  await host.locator('.layers button[aria-label="עצמים"]').click();
+  await expect.poll(async () => Number(await el.getAttribute('data-parts'))).toBeLessThan(all);
+  await host.locator('.layers button[aria-label="עצמים"]').click();
+  await expect.poll(async () => Number(await el.getAttribute('data-parts'))).toBe(all);
+  // a click on a camera opens its card (a drawer: the 3D has no pin to anchor a popover to)
+  const cam = await el.evaluate((node) => {
+    const e = node as unknown as { description: { parts: { id: string; position: [number, number, number]; userData: { id: string } }[] }; toScreen: (p: [number, number, number]) => { x: number; y: number } | null };
+    const c = e.description.parts.find((p) => p.id === 'cam:cam-2')!;
+    return { id: c.userData.id, at: e.toScreen(c.position) };
+  });
+  await el.locator('[data-preset-top]').click();
+  const camTop = await el.evaluate((node, id) => {
+    const e = node as unknown as { description: { parts: { id: string; position: [number, number, number] }[] }; toScreen: (p: [number, number, number]) => { x: number; y: number } | null };
+    return e.toScreen(e.description.parts.find((p) => p.id === id)!.position);
+  }, 'cam:cam-2');
+  const box = (await el.boundingBox())!;
+  await page.mouse.click(box.x + camTop!.x, box.y + camTop!.y);
+  await expect(el).toHaveAttribute('data-selected', cam.id);
+  await expect(host.locator('sw-drawer[open]')).toBeAttached();
+  await page.keyboard.press('Escape');
+  await expect(host.locator('sw-drawer[open]')).toHaveCount(0);
+  await expect(el).toHaveAttribute('data-selected', '');
+  // the key 3 goes back to 2D and forth again without a second fetch of the chunk
+  await page.keyboard.press('3');
+  await expect(host.locator('sw-plan-canvas')).toBeAttached();
+  await expect(host.locator('sw-plan-3d')).toHaveCount(0);
+  await page.keyboard.press('3');
+  await expect(host.locator('sw-plan-3d[data-floor-3d]')).toHaveAttribute('data-ready', '', { timeout: 15000 });
+  expect(chunkRequests).toHaveLength(1);
+  // a 3 typed into a field (the floor select of the tool row) is not a toggle: the 3D stays
+  await host.locator('.tools sw-field select').focus();
+  await page.keyboard.press('3');
+  await page.waitForTimeout(300);
+  await expect(host.locator('sw-plan-3d[data-floor-3d]')).toHaveCount(1);
 });
