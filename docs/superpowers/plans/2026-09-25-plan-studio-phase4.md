@@ -8,7 +8,7 @@
 
 **Tech Stack:** FastAPI + SQLite on Python 3.12 (no backend dependency added), Lit 3 + TypeScript 5.9 (strict, `noUnusedLocals`), Vite 6 with `@rollup/wasm-node` (kept - Smart App Control blocks native rollup), Playwright 1.63. **One new runtime dependency:** `three` 0.186.1 (MIT, pure JavaScript) plus `@types/three` 0.186.0 as a dev dependency. Measured on this workstation before the plan was written: a Vite production build of `three` + `OrbitControls` + `GLTFExporter` with `manualChunks` yields a 629.6 KB chunk, **160.2 KB gzip** (limit 200 KB).
 
-**Spec:** `docs/architecture/PLAN_STUDIO_DESIGN_HE.md` (sections 2, 2a, 4.1 - the `map_anchors` migration 0021 line - 4.2, 5, 7, 8, 10 whole, 12, 13, 14 row 4, 15, 16) and `docs/changes/CR-003-PLAN-STUDIO.md`. Task card: `management/tasks/T087.md` (R173 / AT173, R174 / AT174). Foundation: phases 1-3 (`docs/superpowers/plans/2026-09-23-plan-studio-phase1.md`, `2026-09-24-plan-studio-phase2.md`, `2026-09-24-plan-studio-phase3.md`; the tree is at the 0.1.86 merge, commit `0052701`).
+**Spec:** `docs/architecture/PLAN_STUDIO_DESIGN_HE.md` (sections 2, 2a, 4.1 - the `map_anchors` migration 0021 line - 4.2, 5, 7, 8, 10 whole, 12, 13, 14 row 4, 15, 16) and `docs/changes/CR-003-PLAN-STUDIO.md`. Task card: `management/tasks/T087.md` (R173 / AT173, R174 / AT174). Foundation: phases 1-3 (`docs/superpowers/plans/2026-09-23-plan-studio-phase1.md`, `2026-09-24-plan-studio-phase2.md`, `2026-09-24-plan-studio-phase3.md`; the tree is at the 0.1.87 merge, commit `0052701`).
 
 ## Rulings
 
@@ -23,7 +23,7 @@ Binding decisions from the controller (R-P4-1 … R-P4-12), recorded here verbat
 7. **R-P4-7 Phone:** the toggle sits in the phone tool row; `OrbitControls` with touch (one finger rotates, two fingers zoom and pan); the panel rules of phase 2 apply; no sideways scroll at 390 px; the chunk still loads on demand only.
 8. **R-P4-8 Anchor fields:** `mount_height_m` and `tilt_deg` editable in the existing anchor panel (`placement.edit`), validated server-side (mount 0-30 m, tilt -90 … 90), present in the bundle and in every anchor response; defaults when null, applied by the clients and never stored: camera 2.5 m / 10°, door station (an `ha_entity` anchor on the `doors` layer) 1.4 m / 0°, every other entity 1.2 m / 0°; audited as the other anchor fields (`anchor.update` before / after).
 9. **R-P4-9 Lovelace card:** the card (`smplwise_vms/integration/smplwise_bridge/www/smplwise-card.js`) embeds the add-on's own Ingress page in an iframe (`<ingress_url>/#/explore/floors/<id>?embed=1`), so the map view is the same `explore-floor-map` element and the toggle works there with no card change; the chunk resolves relative to the page because the build uses `base: './'` and the dynamic import is relative to the entry module. The plan states this mechanism and tests it: a backend test asserts that the built entry (`smplwise_vms/www/index.html` and `www/assets/index-*.js`) references its assets relatively and that the `three-*.js` chunk is present and never referenced by an absolute `/assets/` path; the live spec opens the map with `embed=1` and toggles 3D (the optional live check).
-10. **R-P4-10 Versions and records:** phase 4 ships as 0.1.87; the release task (last) bumps the three version files, regenerates the API inventory, writes the CHANGELOG (with the known limits), records T087 as an evidence line "on commit <sha>" while it stays BACKLOG (the registry refuses DONE while T084 is BACKLOG), AT173 / AT174 PASS only for what ran, runs `scripts/project_status.py --write`, writes the owner checklist `docs/operations/PLAN_STUDIO_PHASE4_CHECKLIST_HE.md` with as FEW rows as possible - only what an automated test cannot verify (the look on the owner's real screen and phone GPU, their real plan) - and every row names the automated test that already covers the mechanics. The release task stops after the release commit (no merge / push / reload).
+10. **R-P4-10 Versions and records:** phase 4 ships as 0.1.88; the release task (last) bumps the three version files, regenerates the API inventory, writes the CHANGELOG (with the known limits), records T087 as an evidence line "on commit <sha>" while it stays BACKLOG (the registry refuses DONE while T084 is BACKLOG), AT173 / AT174 PASS only for what ran, runs `scripts/project_status.py --write`, writes the owner checklist `docs/operations/PLAN_STUDIO_PHASE4_CHECKLIST_HE.md` with as FEW rows as possible - only what an automated test cannot verify (the look on the owner's real screen and phone GPU, their real plan) - and every row names the automated test that already covers the mechanics. The release task stops after the release commit (no merge / push / reload).
 11. **R-P4-11 Model policy and tooling:** implementers on sonnet where the plan carries the complete code (Tasks 1, 3, 9, 11), opus for the builder, the three realisation, the screens and the live spec (Tasks 2, 4, 5, 6, 7, 8, 10); reviewers opus for the builder / three / screens, sonnet for small diffs; the final whole-branch review on fable. Every commit step: `bash /c/cloude/smplwisebms/secrets/scan_staged.sh` prints `0`; message in a UTF-8 file without BOM, `git commit -F`, English, no apostrophes, trailer `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`. Python is `MSYS_NO_PATHCONV=1 C:/cloude/smplwisebms/.venv/Scripts/python.exe`, pytest `-p no:cacheprovider` never `-q`; Node via `export PATH="/c/Users/jon/AppData/Roaming/fnm/node-versions/v24.21.0/installation:$PATH"`; the dev backend serves `smplwise_vms/www` on 8099 (`$SP/restart_dev.sh`); live specs run against `npm run preview` on 4173 after `npm run build` (each live step says so); one live run at a time.
 12. **R-P4-12 Out of scope:** quality level 2 (PBR, shadows, textures), the eye-level tour, a backend 3D export, clipping the SVG / PNG coverage, editing geometry in 3D. Also out (not asked, not built): a 3D toggle in the plan editor, a `tilt_deg` control for entities (see interpretations), and any change to the HA action route, the map bundle's shape beyond the two anchor fields, or the geometry document.
 
@@ -48,7 +48,7 @@ Binding decisions from the controller (R-P4-1 … R-P4-12), recorded here verbat
 - Migrations are additive only (0021 adds two nullable columns). Backups already include `map_anchors`.
 - UI copy in Hebrew; code, comments and commit messages in English.
 - Commits: message in a temp file (UTF-8, no BOM), `git commit -F`; trailer `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`; before every commit `bash /c/cloude/smplwisebms/secrets/scan_staged.sh` must print `0` (the script is in the gitignored `secrets/`; never copy its pattern into a tracked file). No apostrophes in commit messages.
-- Branch: `pilot/T087-plan-studio-4` (created from `g0/intake` at the 0.1.86 merge; `git status` clean before Task 1). The release task ends at the release commit; the controller merges and pushes.
+- Branch: `pilot/T087-plan-studio-4` (created from `g0/intake` at the 0.1.86 merge (0052701); the 0.1.87 editor hotfix merges into this branch before the release; `git status` clean before Task 1). The release task ends at the release commit; the controller merges and pushes.
 - Commands (Git Bash on Windows):
   - `SP=C:/Users/jon/AppData/Local/Temp/claude/C--cloude-smplwisebms/bd61f90d-850a-444f-9da9-92c50c272bc2/scratchpad` - the session scratchpad; it holds `fixture_chain.sh`, `restart_backend.ps1` and `restart_dev.sh` (the phase-3 plan shows how to recreate `restart_dev.sh` if it is missing).
   - "Restart the developer backend" means `bash "$SP/restart_dev.sh"` (expect `me: 200` and a new listener pid; an old process can survive on 8099 - `powershell -NoProfile -Command "Stop-Process -Id <pid>"` and run it again).
@@ -97,7 +97,7 @@ Binding decisions from the controller (R-P4-1 … R-P4-12), recorded here verbat
 - `frontend/src/components/sw-icon.ts` — `cube`.
 
 **Release**
-- `smplwise_vms/config.yaml`, `smplwise_vms/Dockerfile`, `smplwise_vms/backend/smplwise/__init__.py` (0.1.87), `smplwise_vms/CHANGELOG.md`, `contracts/API_INVENTORY.md` (generated), `smplwise_vms/www/` (generated by `build:addon`), `management/tasks.json`, `management/test_catalog.json` and the generated views, `docs/operations/PLAN_STUDIO_PHASE4_CHECKLIST_HE.md`, `docs/architecture/PLAN_STUDIO_DESIGN_HE.md` (implementation line), `docs/changes/CR-003-PLAN-STUDIO.md` (status line).
+- `smplwise_vms/config.yaml`, `smplwise_vms/Dockerfile`, `smplwise_vms/backend/smplwise/__init__.py` (0.1.88), `smplwise_vms/CHANGELOG.md`, `contracts/API_INVENTORY.md` (generated), `smplwise_vms/www/` (generated by `build:addon`), `management/tasks.json`, `management/test_catalog.json` and the generated views, `docs/operations/PLAN_STUDIO_PHASE4_CHECKLIST_HE.md`, `docs/architecture/PLAN_STUDIO_DESIGN_HE.md` (implementation line), `docs/changes/CR-003-PLAN-STUDIO.md` (status line).
 
 ---
 
@@ -4020,7 +4020,7 @@ def test_built_ui_references_its_assets_relatively_and_ships_the_three_chunk():
 - [ ] **Step 2: Run it to see it fail**
 
 Run: `cd /c/cloude/smplwisebms/smplwise_vms/backend && MSYS_NO_PATHCONV=1 $PY -m pytest tests/test_lovelace_card.py -p no:cacheprovider`
-Expected: the new test FAILS at `one three chunk and one 3D view chunk` (`smplwise_vms/www` is the 0.1.86 build).
+Expected: the new test FAILS at `one three chunk and one 3D view chunk` (`smplwise_vms/www` is the build before this phase).
 
 - [ ] **Step 3: Rebuild the add-on UI and the phone rule**
 
@@ -4270,32 +4270,32 @@ test "$(bash /c/cloude/smplwisebms/secrets/scan_staged.sh)" = 0 && git commit -F
 
 ---
 
-### Task 11: Release 0.1.87 — full verification, version, records, owner checklist (stop after the release commit)
+### Task 11: Release 0.1.88 — full verification, version, records, owner checklist (stop after the release commit)
 
 **Files:**
-- Modify: `smplwise_vms/config.yaml`, `smplwise_vms/Dockerfile`, `smplwise_vms/backend/smplwise/__init__.py` (0.1.87)
+- Modify: `smplwise_vms/config.yaml`, `smplwise_vms/Dockerfile`, `smplwise_vms/backend/smplwise/__init__.py` (0.1.88)
 - Modify: `smplwise_vms/CHANGELOG.md`, `contracts/API_INVENTORY.md` (generated), `smplwise_vms/www/` (generated by `build:addon`)
 - Modify: `management/tasks.json`, `management/test_catalog.json` and the generated views (`scripts/project_status.py --write`)
 - Create: `docs/operations/PLAN_STUDIO_PHASE4_CHECKLIST_HE.md`
 - Modify: `docs/architecture/PLAN_STUDIO_DESIGN_HE.md` (implementation line), `docs/changes/CR-003-PLAN-STUDIO.md` (status line)
 
 **Interfaces:**
-- Consumes: everything above; the tree is at 0.1.86.
-- Produces: the release commit of 0.1.87 on `pilot/T087-plan-studio-4`; T087 evidenced (BACKLOG); AT173 / AT174 recorded. **This task ends at the release commit: no merge, no push, no store reload - the controller does those.**
+- Consumes: everything above; the tree is at 0.1.87.
+- Produces: the release commit of 0.1.88 on `pilot/T087-plan-studio-4`; T087 evidenced (BACKLOG); AT173 / AT174 recorded. **This task ends at the release commit: no merge, no push, no store reload - the controller does those.**
 
 - [ ] **Step 1: Version bump and the generated API inventory**
 
 ```bash
 cd /c/cloude/smplwisebms
-sed -i 's/^version: "0.1.86"/version: "0.1.87"/' smplwise_vms/config.yaml
-sed -i 's/io.hass.version="0.1.86"/io.hass.version="0.1.87"/' smplwise_vms/Dockerfile
-sed -i 's/__version__ = "0.1.86"/__version__ = "0.1.87"/' smplwise_vms/backend/smplwise/__init__.py
+sed -i 's/^version: "0.1.87"/version: "0.1.88"/' smplwise_vms/config.yaml
+sed -i 's/io.hass.version="0.1.87"/io.hass.version="0.1.88"/' smplwise_vms/Dockerfile
+sed -i 's/__version__ = "0.1.87"/__version__ = "0.1.88"/' smplwise_vms/backend/smplwise/__init__.py
 grep -c '0\.1\.87' smplwise_vms/config.yaml smplwise_vms/Dockerfile smplwise_vms/backend/smplwise/__init__.py
 MSYS_NO_PATHCONV=1 $PY C:/cloude/smplwisebms/scripts/api_inventory.py
 git diff --stat contracts/API_INVENTORY.md
 ```
 
-Expected: each file reports `1`; the inventory is rewritten at 0.1.87 (no route was added in this phase: only the version line and, if the generator lists request fields, `mount_height_m` / `tilt_deg` on the anchor bodies change).
+Expected: each file reports `1`; the inventory is rewritten at 0.1.88 (no route was added in this phase: only the version line and, if the generator lists request fields, `mount_height_m` / `tilt_deg` on the anchor bodies change).
 
 - [ ] **Step 2: The whole backend suite and the goldens**
 
@@ -4324,7 +4324,7 @@ In `/c/cloude/smplwisebms/frontend`:
 Insert at the top of `smplwise_vms/CHANGELOG.md`, right after the `# Changelog — SMPLWISE VMS add-on` line and its blank line:
 
 ```markdown
-## 0.1.87 (pilot) — Plan Studio phase 4: schematic 3D inside the map, coverage stopped by walls, a true isometric on the building page
+## 0.1.88 (pilot) — Plan Studio phase 4: schematic 3D inside the map, coverage stopped by walls, a true isometric on the building page
 - Every map surface gains a 2D / 3D toggle (T087, CR-003, design section 10): the live floor map (also the key `3`), the
   historical map at the chosen instant and the event page, where the view opens from the camera of the event
   ("מבט מהמצלמה"). The scene is built deterministically from the published structure: walls with their height and openings
@@ -4395,12 +4395,12 @@ event_note = "" if skipped == "0" else " (the event page test skipped: no event 
 commit = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], text=True, cwd=ROOT.parent).strip()
 today = datetime.date.today().isoformat()
 now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-env = f"workstation: dev backend 0.1.87 (SQLite) on 8099 + vite preview 4173, real Chrome through Playwright; pytest on Python 3.12 ({today})"
+env = f"workstation: dev backend 0.1.88 (SQLite) on 8099 + vite preview 4173, real Chrome through Playwright; pytest on Python 3.12 ({today})"
 tasks = json.loads((ROOT / "tasks.json").read_text(encoding="utf-8"))
 tests = json.loads((ROOT / "test_catalog.json").read_text(encoding="utf-8"))
 by_task = {t["id"]: t for t in tasks}
 by_test = {t["id"]: t for t in tests}
-t087 = (f"{today} (0.1.87): Plan Studio phase 4 on commit {commit} - three 0.186 as an on-demand chunk (vite manualChunks, dynamic import, WebGL gate), "
+t087 = (f"{today} (0.1.88): Plan Studio phase 4 on commit {commit} - three 0.186 as an on-demand chunk (vite manualChunks, dynamic import, WebGL gate), "
         "map/coverage.ts (rays against the wall parts of the camera level; passages and open doors let through, closed doors and windows stop; used by the 2D canvas "
         "and the 3D cone), migration 0021 (map_anchors.mount_height_m, tilt_deg; routes validate 0-30 m / -90..90, explicit null clears, bundle and audit), "
         "map/scene-builder.ts (deterministic description: floors, rooms, walls split at openings with lintel / sill / head, door leaf by state, glass, objects incl. "
@@ -4447,14 +4447,14 @@ If any check in Steps 2-3 is not green, do not run the script: leave T087 BACKLO
 Create `docs/operations/PLAN_STUDIO_PHASE4_CHECKLIST_HE.md` (as few rows as possible: only what no automated test can see - the look on the owner's own screen, phone and plan; every row names the test that already covers the mechanics):
 
 ```markdown
-# סטודיו התוכנית — שלב 4: בדיקה אצל הבעלים (גרסה 0.1.87)
+# סטודיו התוכנית — שלב 4: בדיקה אצל הבעלים (גרסה 0.1.88)
 
 לכל סעיף: עבר / נכשל, והערה קצרה. הרשימה קצרה בכוונה: כל מה שניתן לבדוק אוטומטית כבר נבדק (העמודה האחרונה אומרת איפה),
 ונשאר רק מה שדורש את העיניים שלך, את המסך שלך ואת התוכנית האמיתית שלך. אין צורך ב־NVR; מספיקה קומה עם מבנה מפורסם.
 
 | # | מה עושים | מה אמור לקרות | מה כבר נבדק אוטומטית |
 |---|---|---|---|
-| 1 | "בדוק עדכון" בחנות התוספים ועדכון ל־0.1.87 | הגרסה מותקנת והמערכת עולה | — |
+| 1 | "בדוק עדכון" בחנות התוספים ועדכון ל־0.1.88 | הגרסה מותקנת והמערכת עולה | — |
 | 2 | מפת קומה עם מבנה מפורסם ← "3D" (או המקש 3) במחשב, סיבוב עם העכבר, זום בגלגלת, "מלמעלה" / "איזומטרי" / "מבט מהמצלמה" | הקירות בגובה, דלתות וחלונות במקומם, המנורות זוהרות כשהמפסק דולק, קונוסי המצלמות נעצרים בקירות; התנועה חלקה בעין שלך על הכרטיס הגרפי שלך | evidence-plan-studio-4 (טעינה לפי דרישה, סנכרון בחירה, שכבות, מפלסים, מצבים חיים, פעולת מעגל, קצב פריימים ≥ 20 על אולם של 3,000 כיסאות) |
 | 3 | אותו מסך בטלפון: "3D" בשורת הכלים, אצבע אחת מסובבת, שתי אצבעות מקרבות ומזיזות | חלק מספיק על ה־GPU של הטלפון שלך; אין גלילה הצידה | evidence-plan-studio-4 (390 px: המתג בשורה, בלי גלילה הצידה, touch-action על הקנבס) |
 | 4 | כרטיס ה־Lovelace ב־Home Assistant (`view: map`) ← "3D" בתוך הכרטיס | התלת-ממד נטען בתוך הכרטיס דרך Ingress (הנתיב היחסי של ה־chunk) | test_lovelace_card.py (הבנייה מפנה ל־chunk יחסית) ו־evidence-plan-studio-4 (מצב embed=1) — רק נתיב ה־Ingress האמיתי של ההתקנה שלך אינו נבדק אוטומטית |
@@ -4464,10 +4464,10 @@ Create `docs/operations/PLAN_STUDIO_PHASE4_CHECKLIST_HE.md` (as few rows as poss
 מעוקל מצוירות בקו ישר; רמת האיכות היא סכמטית (חומרים שטוחים, בלי צללים) — ריאליסטי וסיור בגובה עין הם שלב 6; אין עריכה בתלת-ממד.
 ```
 
-In `docs/architecture/PLAN_STUDIO_DESIGN_HE.md`, after the phase-3 implementation paragraph (the one starting `שלב 3 (T086) מומש בגרסה 0.1.86`), add a new paragraph:
+In `docs/architecture/PLAN_STUDIO_DESIGN_HE.md`, after the phase-3 implementation paragraph (the one starting `שלב 3 (T086) מומש בגרסה 0.1.87`), add a new paragraph:
 
 ```markdown
-שלב 4 (T087) מומש בגרסה 0.1.87; רשימת הבדיקה לבעלים: `docs/operations/PLAN_STUDIO_PHASE4_CHECKLIST_HE.md`. הבדלים
+שלב 4 (T087) מומש בגרסה 0.1.88; רשימת הבדיקה לבעלים: `docs/operations/PLAN_STUDIO_PHASE4_CHECKLIST_HE.md`. הבדלים
 שנרשמו במימוש שלב 4: ברירות המחדל של גובה ההתקנה וההטיה (4.1) הן מצלמה 2.5 מ׳ / 10° מטה, עמדת דלת (ישות בשכבת הדלתות)
 1.4 מ׳ / 0°, שאר הישויות 1.2 מ׳ / 0° (במסמך נכתב 2.7 / תקרה−0.1 / 1.0 / 2.2); מנורה שיש לה גוף מהספרייה לוקחת את גובה
 הגוף; קבוצות ה־instancing הן לפי (צורה, צבע, שקיפות) והגודל במטריצת המופע; זכוכית עוצרת כיסוי (מידע לתכנון); ייצוא
@@ -4475,7 +4475,7 @@ SVG / PNG לא נחתך בקירות (אין מראה בשרת בשלב זה); �
 בלבד (הנתיב מקבל אותו לכל עוגן); רמת האיכות הראשונה בלבד (10.4).
 ```
 
-In `docs/changes/CR-003-PLAN-STUDIO.md`, in the `**Status:**` line replace `phase 4 (T087, 3D schematic) pending;` with `phase 4 in 0.1.87 (T087, schematic 3D inside every map, coverage stopped by walls, the true isometric; quality level 1 only);`.
+In `docs/changes/CR-003-PLAN-STUDIO.md`, in the `**Status:**` line replace `phase 4 (T087, 3D schematic) pending;` with `phase 4 in 0.1.88 (T087, schematic 3D inside every map, coverage stopped by walls, the true isometric; quality level 1 only);`.
 
 - [ ] **Step 7: The release commit — and stop**
 
@@ -4484,7 +4484,7 @@ cd /c/cloude/smplwisebms && git add -A
 test "$(bash /c/cloude/smplwisebms/secrets/scan_staged.sh)" = 0 || echo "SECRET SCAN FAILED - do not commit"
 git status --short | head -40
 msg=$(mktemp) && cat > "$msg" <<'EOF'
-release: 0.1.87 - Plan Studio phase 4 (T087, CR-003): schematic 3D inside every map, coverage stopped by walls, true isometric, glTF
+release: 0.1.88 - Plan Studio phase 4 (T087, CR-003): schematic 3D inside every map, coverage stopped by walls, true isometric, glTF
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
 EOF
