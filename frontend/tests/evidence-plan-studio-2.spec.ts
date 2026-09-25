@@ -73,14 +73,25 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
 
   test.afterAll(async () => {
     if (!api) return;
+    // every delete is tried, even after one fails, so a single leftover does not keep the rest in the shared backend
+    const failures: string[] = [];
+    const remove = async (what: string, path: string) => {
+      try {
+        const status = (await api.delete(path)).status();
+        if (status !== 204) failures.push(`${what}: ${status}`);
+      } catch (err) {
+        failures.push(`${what}: ${String(err)}`);
+      }
+    };
     try {
-      for (const id of customIds) expect((await api.delete(`api/v1/catalog/objects/${id}`)).status(), 'custom item removed').toBe(204);
-      for (const f of [ids.floor, ids.floor2]) if (f) expect((await api.delete(`api/v1/floors/${f}?force=true`)).status(), 'test floor removed').toBe(204);
-      if (ids.building) expect((await api.delete(`api/v1/buildings/${ids.building}`)).status(), 'test building removed').toBe(204);
-      if (ids.site) expect((await api.delete(`api/v1/sites/${ids.site}`)).status(), 'test site removed').toBe(204);
+      for (const id of customIds) await remove(`custom item ${id}`, `api/v1/catalog/objects/${id}`);
+      for (const f of [ids.floor, ids.floor2]) if (f) await remove(`test floor ${f}`, `api/v1/floors/${f}?force=true`);
+      if (ids.building) await remove('test building', `api/v1/buildings/${ids.building}`);
+      if (ids.site) await remove('test site', `api/v1/sites/${ids.site}`);
     } finally {
       await api.dispose();
     }
+    expect(failures, 'test data removed').toEqual([]);
   });
 
   test('published objects and connectors show on the live map with their own layer switches and in the exports', async ({ page }) => {
@@ -399,5 +410,91 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
     await expect(page.locator(`${ed} [data-circuit-count]`)).toContainText('מנורה אחת');
     await expect(page.locator(`${ed} [data-circuit-power]`)).toContainText('36');
     await expect.poll(async () => (await draft()).doc.circuits.find((k) => k.id === 'k-south')?.member_ids.length, { timeout: 10000 }).toBe(3);
+  });
+
+  test('acceptance: the sports hall - tribune to -1.2 m, sixty chairs in one array, eight lamps on two circuits, "מטף" found by the global search and focused on the floor, a custom item exported', async ({ page }) => {
+    const ed = 'explore-plan-editor';
+    // sixty chairs in one array, published
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
+    await page.locator(`${ed} [data-tool="library"]`).click();
+    await page.locator(`${ed} [data-lib-search]`).fill('כיסא');
+    await page.locator(`${ed} [data-lib-item="chair.basic"]`).click();
+    await clickPlan(page, ed, 0.2, 0.4);
+    await page.keyboard.press('Escape');
+    await page.locator(`${ed} [data-object-array]`).click();
+    await page.locator(`${ed} [data-array-rows]`).fill('6');
+    await page.locator(`${ed} [data-array-cols]`).fill('10');
+    await page.locator(`${ed} [data-array-sy]`).fill('0.6');
+    await page.locator(`${ed} [data-array-create]`).click();
+    await expect(page.locator(`${ed} [data-selected-group]`)).toContainText('60');
+    // an extinguisher with a searchable label
+    await page.locator(`${ed} [data-lib-search]`).fill('מטף');
+    await page.locator(`${ed} [data-lib-item="extinguisher.co2"]`).click();
+    await clickPlan(page, ed, 0.92, 0.2);
+    await page.keyboard.press('Escape');
+    await page.locator(`${ed} [data-object-label]`).fill('מטף כניסה');
+    await page.locator(`${ed} [data-object-label]`).press('Enter');
+    await page.locator(`${ed} [data-object-label]`).dispatchEvent('change');
+    await expect(page.locator(`${ed} [data-library-panel][data-studio-save="saved"]`)).toHaveCount(1, { timeout: 10000 });
+    const extId = (await draft()).doc.objects.find((o) => o.item_id === 'extinguisher.co2')!.id;
+    await publish();
+    // the published document carries the whole scenario
+    const pub = (await (await api.get(`api/v1/plan-versions/${ids.version}/geometry`)).json()).doc as { levels: { id: string; elevation_m: number }[]; objects: { item_id: string; group_id: string | null }[]; groups: { member_ids: string[] }[]; connectors: { kind: string; level_to: string | null }[]; circuits: { member_ids: string[] }[] };
+    expect(pub.levels.find((l) => l.id === 'L1')!.elevation_m).toBe(-1.2);
+    expect(pub.connectors.some((c) => c.kind === 'tribune' && c.level_to === 'L1')).toBe(true);
+    expect(pub.groups.some((g) => g.member_ids.length === 60)).toBe(true);
+    expect(pub.circuits.filter((k) => k.member_ids.length >= 3).length).toBe(2); // north (4) and south (3); the gallery circuit of the previous test has one lamp
+    expect(pub.objects.filter((o) => o.item_id === 'light.ceiling').length).toBeGreaterThanOrEqual(8);
+    // the global search finds the extinguisher and the floor opens focused on it
+    const hits = (await (await api.get('api/v1/search?q=מטף')).json()).results as { kind: string; id: string; route: string; title: string }[];
+    const hit = hits.find((h) => h.kind === 'object' && h.id === extId)!;
+    expect(hit.title).toBe('מטף כניסה');
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
+    await page.locator('sw-app .search input').fill('מטף');
+    await expect(page.locator('sw-app .results .row', { hasText: 'מטף כניסה' })).toBeVisible();
+    await page.locator('sw-app .results .row', { hasText: 'מטף כניסה' }).click();
+    await expect(page).toHaveURL(new RegExp(`focus=object:${extId}`));
+    await expect(page.locator(`explore-floor-map sw-plan-canvas [data-object="${extId}"].sel`)).toHaveCount(1, { timeout: 20000 });
+    // the eight lamps glow by the switch states the circuit test seeded (both on; lb0 is on the gallery circuit, switch a)
+    await expect(page.locator('explore-floor-map sw-plan-canvas [data-object][data-glow]')).toHaveCount(8);
+    // the custom item made in the array test is in the export
+    const exported = await (await api.get('api/v1/catalog/export')).json();
+    expect(exported.items.some((i: { names: { he: string } }) => i.names.he === 'כיסא אולם')).toBe(true);
+  });
+
+  test.describe('on a phone', () => {
+    test.use({ viewport: { width: 390, height: 844 } });
+
+    test('viewing, placing and moving a single object work; arrays and wall drawing say they are desktop only', async ({ page }) => {
+      const ed = 'explore-plan-editor';
+      await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
+      await expect(page.locator('explore-floor-map sw-plan-canvas [data-object]').first()).toBeAttached({ timeout: 20000 });
+      await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
+      await page.locator(`${ed} [data-tool="library"]`).click();
+      await page.locator(`${ed} [data-lib-search]`).fill('כיסא');
+      await page.locator(`${ed} [data-lib-item="chair.basic"]`).click();
+      const before = await page.locator(`${ed} sw-plan-canvas [data-object]`).count();
+      const known = new Set((await draft()).doc.objects.map((o) => o.id));
+      // the phone stacks the library under the plan: picking an item scrolls the plan out of view, and a mouse click
+      // at a point off the viewport reaches nothing. A free spot: the acceptance array covers (0.5, 0.5)
+      await page.locator(`${ed} sw-plan-canvas`).scrollIntoViewIfNeeded();
+      await clickPlan(page, ed, 0.85, 0.45);
+      await expect(page.locator(`${ed} sw-plan-canvas [data-object]`)).toHaveCount(before + 1);
+      await expect.poll(async () => (await draft()).doc.objects.filter((o) => !known.has(o.id)).length, { timeout: 10000 }).toBe(1);
+      const placedId = (await draft()).doc.objects.find((o) => !known.has(o.id))!.id;
+      // one placement disarms the item on a phone: a drag on the chair moves it (once the placement is saved and the
+      // editor has settled, so the press lands where the chair is drawn)
+      await expect(page.locator(`${ed} [data-library-panel][data-studio-save="saved"]`)).toHaveCount(1, { timeout: 10000 });
+      await page.locator(`${ed} sw-plan-canvas`).scrollIntoViewIfNeeded();
+      await dragPlan(page, ed, [0.85, 0.45], [0.85, 0.3]);
+      await expect.poll(async () => (await draft()).doc.objects.find((o) => o.id === placedId)!.position[1], { timeout: 10000 }).toBeLessThan(0.33);
+      // sw-button carries the disabled attribute on its host (not a native control, so not toBeDisabled)
+      await expect(page.locator(`${ed} [data-object-array]`)).toHaveAttribute('disabled', '');
+      await expect(page.locator(`${ed} [data-library-panel]`)).toContainText('בטלפון');
+      await page.locator(`${ed} [data-tool="structure"]`).click();
+      await page.locator(`${ed} [data-studio-mode="wall"]`).click();
+      await expect(page.locator(`${ed} .bar`)).toContainText('בדסקטופ בלבד');
+      await expect(page.locator(`${ed} [data-studio-mode="wall"]`)).toHaveAttribute('aria-pressed', 'false');
+    });
   });
 });

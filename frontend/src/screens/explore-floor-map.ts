@@ -79,6 +79,9 @@ export class ExploreFloorMap extends LitElement {
   @property() focusZone = '';
   @property() focusCamera = '';
   @property() focusEntity = '';
+  /** A global search hit of kind object (T085): the object to centre on and mark. */
+  @property() focusObject = '';
+  @state() private focusedObjectId: string | null = null;
   @state() private selectedZoneId: string | null = null;
 
   @state() private bundle: MapBundle | null = null;
@@ -831,7 +834,7 @@ export class ExploreFloorMap extends LitElement {
       this.anchor = null;
       this.selectedZoneId = null;
       void this.load();
-    } else if ((changed.has('focusZone') || changed.has('focusCamera') || changed.has('focusEntity')) && this.bundle) {
+    } else if ((changed.has('focusZone') || changed.has('focusCamera') || changed.has('focusEntity') || changed.has('focusObject')) && this.bundle) {
       void this.applyFocus();
     }
   }
@@ -839,7 +842,7 @@ export class ExploreFloorMap extends LitElement {
   /** Bring a search hit into view once the map is on screen. */
   private async applyFocus() {
     const b = this.bundle;
-    if (!b || (!this.focusZone && !this.focusCamera && !this.focusEntity)) return;
+    if (!b || (!this.focusZone && !this.focusCamera && !this.focusEntity && !this.focusObject)) return;
     await this.updateComplete;
     const canvas = this.canvas;
     if (!canvas) return;
@@ -862,6 +865,12 @@ export class ExploreFloorMap extends LitElement {
       const p = canvas.toScreen(a.position.x, a.position.y);
       this.selectedId = a.id;
       this.anchor = { x: p.x, y: p.y };
+    }
+    if (this.focusObject) {
+      const o = this.geometry?.objects.find((x) => x.id === this.focusObject);
+      if (!o) return; // the document arrives after the bundle: the geometry load calls applyFocus again
+      this.focusedObjectId = o.id;
+      canvas.centerOn(o.position[0], o.position[1]);
     }
   }
 
@@ -891,7 +900,10 @@ export class ExploreFloorMap extends LitElement {
       const seq = ++this.geomSeq;
       this.geometry = null;
       void geometryFor(this.bundle).then((g) => {
-        if (seq === this.geomSeq) this.geometry = g; // live HA updates replace the bundle object: compare loads, not objects
+        if (seq === this.geomSeq) {
+          this.geometry = g; // live HA updates replace the bundle object: compare loads, not objects
+          if (this.focusObject) void this.applyFocus();
+        }
       });
       if (this.bundle.source === 'api') {
         this.startWs();
@@ -1276,6 +1288,7 @@ export class ExploreFloorMap extends LitElement {
   }
 
   private onSelect(e: CustomEvent<MarkerSelectDetail>) {
+    this.focusedObjectId = null;
     if (this.multi) {
       const a = e.detail.id ? this.bundle?.anchors.find((x) => x.id === e.detail.id) : null;
       if (a?.resource_type === 'camera') this.togglePick(a.id);
@@ -1645,6 +1658,7 @@ export class ExploreFloorMap extends LitElement {
         .hideStructure=${!this.layers.has('structure')}
         .hideObjects=${!this.layers.has('objects')}
         .hideConnectors=${!this.layers.has('connectors')}
+        .selectedGeomId=${this.focusedObjectId}
         .structureLevel=${this.levelFilter}
         .catalog=${this.catalogLookup}
         .anchorPositions=${this.anchorPositions}
