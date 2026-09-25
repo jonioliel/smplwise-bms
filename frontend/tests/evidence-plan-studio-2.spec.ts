@@ -107,5 +107,17 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
     expect(svg).toContain('data-object="seed-chair"');
     expect(svg).toContain('data-symbol="chair"');
     expect(await (await api.get(`api/v1/plan-versions/${ids.version}/export.svg?layers=structure`)).text()).not.toContain('data-object');
+    // a circuit's colour reaches the lamp's inline style only as one of the six circuit tokens: any other document string is dropped
+    const CIRCUIT = (token: string) => ({ id: 'seed-k', name: 'מעגל בדיקה', switch_entity_id: 'light.t085_seed', member_ids: ['seed-lamp'], color_token: token, power_w: 0 });
+    const lamp = page.locator('explore-floor-map sw-plan-canvas [data-object="seed-lamp"]');
+    for (const [token, kc] of [['circuit-1); fill: red; --x: (', null], ['circuit-2', 'var(--sw-circuit-2)']] as const) {
+      await saveDraft({ circuits: [CIRCUIT(token)] });
+      await publish();
+      await page.reload();
+      await expect(lamp).toHaveAttribute('data-circuit', 'seed-k', { timeout: 20000 });
+      expect(await lamp.evaluate((el) => (el as SVGElement).style.getPropertyValue('--kc').trim() || null)).toBe(kc);
+    }
+    await saveDraft({ circuits: [] });
+    await publish();
   });
 });

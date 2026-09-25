@@ -3,7 +3,7 @@ import { customElement, property, state, query } from 'lit/decorators.js';
 import '../components/sw-button';
 import { t } from '../i18n/he';
 import type { StateKind } from '../components/sw-badge';
-import { applyAnchorPositions, buildPrimitives, isClosedOutline, type AnchorPosition, type CatalogLookup, type DoorPrim, type GeometryDoc, type LabelPrim, type PassagePrim, type Primitive, type Pt, type WallPrim, type WindowPrim } from './geometry';
+import { applyAnchorPositions, buildPrimitives, circuitToken, isClosedOutline, type AnchorPosition, type CatalogLookup, type DoorPrim, type GeometryDoc, type LabelPrim, type PassagePrim, type Primitive, type Pt, type WallPrim, type WindowPrim } from './geometry';
 import { symbolOf } from './plan-symbols';
 
 export type MarkerKind = 'camera' | 'lock' | 'light' | 'binary_sensor';
@@ -189,6 +189,8 @@ export class SwPlanCanvas extends LitElement {
   @property({ type: Boolean }) hideObjects = false;
   @property({ type: Boolean }) hideConnectors = false;
   private primCache: { doc: GeometryDoc; w: number; h: number; level: string | null; catalog: CatalogLookup | null; anchors: Record<string, AnchorPosition>; prims: Primitive[] } | null = null;
+  /** Circuit id -> its whitelisted colour token, built once per document (the object layer looks it up per lamp). */
+  private circuitCache: { doc: GeometryDoc; tokens: Map<string, string> } | null = null;
   /** Plan Studio editor: what can be picked and dragged. 'all' in the structure tool's select mode; 'items' in its drawing
    * modes, where a press on an existing opening or label drags (or, without moving, selects) it and every other press
    * still goes to the tool as a `plan-click`; 'none' on viewers and in the other tools. */
@@ -523,17 +525,17 @@ export class SwPlanCanvas extends LitElement {
     }
     .structure .obj[data-circuit] .fp {
       stroke: var(--kc, var(--oc));
-      stroke-width: 2;
+      stroke-width: calc(2px * var(--inv, 1));
     }
     .structure .obj.glow .fp {
       fill: var(--sw-map-glow);
       fill-opacity: 0.6;
       stroke: var(--sw-map-glow);
-      filter: drop-shadow(0 0 6px var(--sw-map-glow));
+      filter: drop-shadow(0 0 calc(6px * var(--inv, 1)) var(--sw-map-glow));
     }
     .structure .obj.sel .fp {
       stroke: var(--sw-accent);
-      stroke-width: 2;
+      stroke-width: calc(2px * var(--inv, 1));
     }
     .structure .obj.issue .fp {
       stroke: var(--sw-danger);
@@ -1290,13 +1292,28 @@ export class SwPlanCanvas extends LitElement {
     return prims;
   }
 
+  private circuitTokens(): Map<string, string> {
+    const doc = this.geometry;
+    if (!doc) return new Map();
+    if (this.circuitCache?.doc !== doc) {
+      const tokens = new Map<string, string>();
+      for (const k of doc.circuits) {
+        const ok = circuitToken(k.color_token); // a document string never reaches the inline style unchecked
+        if (ok) tokens.set(k.id, ok);
+      }
+      this.circuitCache = { doc, tokens };
+    }
+    return this.circuitCache.tokens;
+  }
+
   private renderStructure() {
     const doc = this.geometry;
     if (!doc) return nothing;
     const inv = 1 / this.scale;
     const issues = new Set(this.issueIds);
     const shown = this.primitives(doc).filter((p) => (p.kind === 'object' ? !this.hideObjects : p.kind === 'connector' ? !this.hideConnectors : !this.hideStructure));
-    return svg`<g class="structure" data-structure>${shown.map((p) => this.renderPrimitive(p, inv, issues))}</g>`;
+    // --inv: the CSS rules keep their outline and glow widths constant on screen, like the attribute widths below
+    return svg`<g class="structure" data-structure style=${`--inv: ${inv}`}>${shown.map((p) => this.renderPrimitive(p, inv, issues))}</g>`;
   }
 
   private renderPrimitive(p: Primitive, inv: number, issues: Set<string>) {
@@ -1320,12 +1337,12 @@ export class SwPlanCanvas extends LitElement {
           <text class="clabel" x=${p.lx} y=${p.ly} font-size=${12 * inv}>${p.label}</text>
         </g>`;
       case 'object': {
-        const entityId = p.anchor ? p.anchor.slice(p.anchor.indexOf(':') + 1) : null;
+        const entityId = p.anchor?.startsWith('ha_entity:') ? p.anchor.slice('ha_entity:'.length) : null; // only an entity anchor has a state
         const on = (p.circuit_id !== null && this.circuitStates[p.circuit_id] === 'on') || (entityId !== null && this.entityStates[entityId] === 'on');
-        const circuit = p.circuit_id !== null ? this.geometry?.circuits.find((k) => k.id === p.circuit_id) : undefined;
+        const token = p.circuit_id !== null ? this.circuitTokens().get(p.circuit_id) : undefined;
         const sym = Math.min(3, Math.max(0.35, (Math.min(p.w, p.h) * 0.6) / 24));
         return svg`<g class="obj ${cls} ${on ? 'glow' : ''}" data-object=${p.id} data-item=${p.item_id} data-shape=${p.shape} data-circuit=${p.circuit_id ?? nothing} ?data-glow=${on}
-             style=${`--oc: var(--sw-obj-${p.color});${circuit ? ` --kc: var(--sw-${circuit.color_token});` : ''}`}>
+             style=${`--oc: var(--sw-obj-${p.color});${token ? ` --kc: var(--sw-${token});` : ''}`}>
           ${p.shape === 'cylinder'
             ? svg`<ellipse class="fp" cx=${p.cx} cy=${p.cy} rx=${p.w / 2} ry=${p.h / 2} transform=${`rotate(${p.rotation} ${p.cx} ${p.cy})`} stroke-width=${1.2 * inv} />`
             : svg`<polygon class="fp" points=${ptsAttr(p.corners)} stroke-width=${1.2 * inv} />`}

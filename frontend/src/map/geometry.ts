@@ -163,6 +163,11 @@ export const SYMBOL_IDS = ['box', 'cylinder', 'chair', 'table', 'sofa', 'bed', '
 export type SymbolId = (typeof SYMBOL_IDS)[number];
 export const OBJECT_SHAPES: readonly ObjectShape[] = ['box', 'cylinder', 'extruded_polygon', 'stepped', 'composite'];
 export const COLOR_TOKENS = ['object', 'structure', 'circulation', 'furniture', 'light', 'electrical', 'safety', 'medical', 'sport', 'sanitary', 'security', 'outdoor'] as const;
+/** The circuit colours (tokens.css --sw-circuit-1..6). A circuit's color_token is a document string: the maps turn it
+ * into a CSS variable name only through circuitToken, so nothing else ever reaches an inline style. */
+export const CIRCUIT_TOKENS = ['circuit-1', 'circuit-2', 'circuit-3', 'circuit-4', 'circuit-5', 'circuit-6'] as const;
+export const circuitToken = (token: unknown): (typeof CIRCUIT_TOKENS)[number] | null =>
+  typeof token === 'string' && (CIRCUIT_TOKENS as readonly string[]).includes(token) ? (token as (typeof CIRCUIT_TOKENS)[number]) : null;
 /** What the renderer needs from the library for one item. */
 export interface CatalogShape {
   shape: ObjectShape;

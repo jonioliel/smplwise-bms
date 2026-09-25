@@ -799,10 +799,9 @@ export class ExploreFloorMap extends LitElement {
       void geometryFor(this.bundle).then((g) => {
         if (seq === this.geomSeq) this.geometry = g; // live HA updates replace the bundle object: compare loads, not objects
       });
-      if (this.bundle.source === 'api') this.startWs();
       if (this.bundle.source === 'api') {
-        const rev = this.bundle.catalogRevision;
-        void loadLibrary(rev).then((lib) => {
+        this.startWs();
+        void loadLibrary(this.bundle.catalogRevision).then((lib) => {
           this.catalogLookup = lookupOf(lib);
         }).catch(() => {}); // without the library objects draw as plain boxes
       }

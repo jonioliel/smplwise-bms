@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { applyAnchorPositions, buildPrimitives, connectorLabel, objectCorners, SYMBOL_IDS, type CatalogLookup, type GeometryDoc, type GeomLevel, type ObjectPrim, type ObjectShape, type Primitive } from '../src/map/geometry';
+import { applyAnchorPositions, buildPrimitives, circuitToken, CIRCUIT_TOKENS, connectorLabel, objectCorners, SYMBOL_IDS, type CatalogLookup, type GeometryDoc, type GeomLevel, type ObjectPrim, type ObjectShape, type Primitive } from '../src/map/geometry';
 import { searchItems, type CatalogItem } from '../src/api/plan-catalog';
 
 // Plan Studio phase 2 (T085): the object and connector primitives equal the backend renderer's (the extended golden
@@ -85,5 +85,12 @@ test.describe('plan studio objects and connectors (unit)', () => {
     expect(searchItems(items, 'מטף', 'safety').length).toBe(2);
     expect(searchItems(items, 'מטף', 'medical')).toEqual([]);
     expect(searchItems(items, '', 'lighting').length).toBe(12);
+  });
+
+  test('only the six circuit tokens become a CSS variable name; any other document string is dropped', () => {
+    expect(CIRCUIT_TOKENS).toEqual(['circuit-1', 'circuit-2', 'circuit-3', 'circuit-4', 'circuit-5', 'circuit-6']);
+    for (const t of CIRCUIT_TOKENS) expect(circuitToken(t)).toBe(t);
+    for (const bad of ['circuit-0', 'circuit-7', 'circuit-1 ', ' circuit-1', 'Circuit-1', 'circuit-1); fill: red; --x: (', 'obj-light', '', null, undefined, 3, {}])
+      expect(circuitToken(bad)).toBeNull();
   });
 });
