@@ -1,10 +1,13 @@
 """Plan Studio wall detection (T086, design 9.1): snapping and merging of segments, the tilt estimate, and walls found
 on the synthetic set with the baseline recall and precision - calibrated, and uncalibrated with the estimated scale; a
-parallel wall beside a long wall stays its own wall, T-junctions near the corners do not fake a tilt, and room labels
-neither add walls nor slow the detector down."""
+parallel wall beside a long wall stays its own wall, T-junctions near the corners do not fake a tilt, room labels
+neither add walls nor slow the detector down, piers between windows and stubs beside doors survive the blob rule,
+free-standing walls stay, a rotated plan keeps its estimated scale, and speckled or flat grey walls are still walls."""
 from __future__ import annotations
 
 import io
+import pathlib
+import sys
 import time
 
 import numpy as np
@@ -12,6 +15,9 @@ from PIL import Image, ImageDraw, ImageFont
 
 import plan_detect_metrics as pm
 from smplwise.services import plan_detect as pd
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent / "fixtures" / "plan_detect"))
+import gen_synthetic as gen  # noqa: E402
 
 
 def _seg(a, b, thick=10.0):
@@ -175,3 +181,71 @@ def test_room_labels_add_no_walls_and_do_not_slow_the_detector():
         a, b = pm.wall_scores(gt, clean["walls"], 10.0), pm.wall_scores(gt, r["walls"], 10.0)
         assert len(r["walls"]) == len(clean["walls"]) and b["precision"] >= 0.98 and abs(a["recall"] - b["recall"]) < 0.01, (scale, len(r["walls"]), b)
         assert r["scale"] == clean["scale"], "the labels do not move the estimated scale"
+
+
+def _box(p: gen.Plan, t: int) -> None:
+    for a, b in (((100, 100), (1500, 100)), ((1500, 100), (1500, 1100)), ((1500, 1100), (100, 1100)), ((100, 1100), (100, 100))):
+        p.wall(a, b, t, "exterior")
+
+
+def test_piers_between_windows_and_stubs_beside_doors_survive_the_blob_rule():
+    """A pier between two windows and a stub between a corner and a door are shorter than BLOB_RATIO thicknesses, but
+    they continue their wall: the openings on both sides stay found."""
+    for t, want in ((16, 7), (20, 7)):
+        p = gen.Plan("piers", 0.01)
+        _box(p, t)
+        x = 150
+        for pier in (40, 60, 80, 100):  # pairs of 1 m windows with piers of 0.4 - 1.0 m between them
+            p.window(0, (x + 50, 100), 100)
+            p.window(0, (x + 100 + pier + 50, 100), 100)
+            x += 200 + pier + 50
+        r = pd.detect(_png(p.im), scale_m_per_px=0.01)
+        found = pm.opening_scores(p.gt, r["walls"], r["openings"], ("window",), "windows", 10.0)["found"]
+        assert found >= want, (t, found)
+    for t, want in ((10, 4), (20, 3)):  # 0.9 m doors 0.4 m from the corners of a partition line
+        p = gen.Plan("doors", 0.01)
+        _box(p, 20)
+        wi = p.wall((100, 600), (1500, 600), t)
+        p.wall((800, 100), (800, 600), t)
+        p.door(wi, (100 + 10 + 40 + 45, 600), 90, "start", "left")
+        p.door(wi, (800 - t // 2 - 40 - 45, 600), 90, "end", "right")
+        p.door(wi, (800 + t // 2 + 40 + 45, 600), 90, "start", "right")
+        p.door(wi, (1500 - 10 - 40 - 45, 600), 90, "end", "left")
+        r = pd.detect(_png(p.im), scale_m_per_px=0.01)
+        found = pm.opening_scores(p.gt, r["walls"], r["openings"], ("door", "passage"), "doors", 10.0)["found"]
+        assert found >= want, (t, found, r["openings"])
+
+
+def test_free_standing_walls_and_a_small_box_stay():
+    im, d = _frame(16)
+    for k, length in enumerate((60, 80, 100, 140)):  # 0.6 - 1.4 m, 0.12 m thick, touching nothing
+        d.rectangle([200 + k * 300, 500, 200 + k * 300 + length - 1, 511], fill=0)
+    d.rectangle([300, 800, 380, 870], outline=0, width=12)  # a closed 0.8 x 0.7 m box
+    r = pd.detect(_png(im), targets=("walls",), scale_m_per_px=0.01)
+    inner = [w for w in r["walls"] if 0.1 < w["polyline"][0][0] < 0.9 and 0.1 < w["polyline"][0][1] < 0.9]
+    assert len(inner) == 8, [w["polyline"] for w in inner]
+
+
+def test_a_rotated_plan_keeps_its_estimated_scale():
+    """Uncalibrated, the scale comes from the median wall thickness: taken from every long wall piece, not only the
+    axis-parallel ones, a plan turned by 45 degrees gives about the same scale as the plan itself."""
+    _name, _gt, png = next(x for x in pm.load_set() if x[0] == "diagonal")
+    im = Image.open(io.BytesIO(png)).convert("L")
+    flat = pd.detect(png, targets=("walls",))["scale"]["m_per_px"]
+    turned = pd.detect(_png(im.rotate(45, resample=Image.BICUBIC, expand=True, fillcolor=255)), targets=("walls",))["scale"]["m_per_px"]
+    assert abs(turned / flat - 1) <= 0.15, (flat, turned)
+
+
+def test_speckled_walls_and_flat_grey_walls_are_walls():
+    _name, gt, png = pm.load_set()[0]
+    arr = np.asarray(Image.open(io.BytesIO(png)).convert("L")).copy()
+    rng = np.random.RandomState(4)
+    arr[(arr < 128) & (rng.rand(*arr.shape) < 0.04)] = 255  # 4 % white speckle inside the ink
+    clean = pd.detect(png, targets=("walls",), scale_m_per_px=0.01)
+    r = pd.detect(_png(Image.fromarray(arr)), targets=("walls",), scale_m_per_px=0.01)
+    assert len(r["walls"]) == len(clean["walls"]) and pm.wall_scores(gt, r["walls"], 10.0)["recall"] >= pm.wall_scores(gt, clean["walls"], 10.0)["recall"] - 0.01
+    grey = Image.new("L", (1600, 1200), 255)  # two levels only: Otsu puts its threshold on the wall grey itself
+    d = ImageDraw.Draw(grey)
+    d.rectangle([50, 50, 1550, 1150], outline=150, width=16)
+    d.rectangle([800, 50, 815, 1150], fill=150)
+    assert len(pd.detect(_png(grey), targets=("walls",), scale_m_per_px=0.01)["walls"]) >= 5

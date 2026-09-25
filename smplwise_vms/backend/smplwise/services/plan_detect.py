@@ -40,11 +40,13 @@ ARC_WIDE_T = (2.0, 15.0)  # ... or 2-15 wall thicknesses (the arc does not depen
 DOUBLE_MIN_M = 1.1  # a double door from 1.1 m (two 0.55 m leaves): mirrored half arcs are tested from here
 WINDOW_RANGE_M = (0.5, 3.0)
 PASSAGE_THICK_RATIO = 1.5  # a passage joins two pieces only when the thicker is at most this many times the thinner
+PIER_THICK_RATIO = 1.25  # a pier or stub continues a wall only as thick as it (thicker / thinner at most this)
 MIN_WALL_M = 0.25
 MIN_WALL_FRACTION = 0.005
 BLOB_RATIO = 3.0  # a wall segment is at least this many thicknesses long
 COMPACT_RATIO = 8.0  # a skeleton component less than this many of its thicknesses across is a blot, not walls
-SOLID_INK = 0.93  # a segment shorter than COMPACT_RATIO thicknesses needs this much ink along its band
+SOLID_INK = 0.93  # a segment shorter than COMPACT_RATIO thicknesses needs this much ink along its band (1-px closed ink)
+COMPACT_SOLID_INK = 0.97  # a compact component off every wall line stays when its band is this solid
 PROFILE_STEP_M = 0.05
 PROFILE_BAND_PX = 2.0  # the profile pass samples each window line at -2, 0 and +2 px about the wall's face
 TARGETS = ("walls", "openings")
@@ -295,11 +297,12 @@ def snap_axis(a: np.ndarray, b: np.ndarray, tol_deg: float = AXIS_TOL_DEG) -> tu
 
 class Seg:
     """A straight wall piece in analysis pixels. `thick`, `length` and `dir` are computed once when the piece is built
-    (a merge builds a new Seg): merging and grouping compare them many times."""
-    __slots__ = ("a", "b", "samples", "axis", "raw", "thick", "length", "dir")
+    (a merge builds a new Seg): merging and grouping compare them many times. `net` says the piece (or one it absorbed)
+    comes from a skeleton component that is not compact - the connected wall network, not a lone shape."""
+    __slots__ = ("a", "b", "samples", "axis", "raw", "thick", "length", "dir", "net")
 
-    def __init__(self, a: np.ndarray, b: np.ndarray, samples: list[float], axis: bool = False, raw: np.ndarray | None = None) -> None:
-        self.a, self.b, self.samples, self.axis = a, b, samples, axis
+    def __init__(self, a: np.ndarray, b: np.ndarray, samples: list[float], axis: bool = False, raw: np.ndarray | None = None, net: bool = False) -> None:
+        self.a, self.b, self.samples, self.axis, self.net = a, b, samples, axis, net
         self.raw = raw if raw is not None else _unit(a, b)  # the direction before any axis snapping (tilt estimate)
         self.thick = float(np.median(samples)) if samples else 2.0
         self.length = float(np.hypot(*(b - a)))
@@ -344,19 +347,21 @@ def _collinear(s: Seg, t: Seg, angle_tol: float = AXIS_TOL_DEG) -> tuple[float, 
 
 def _near_pairs(segs: list[Seg], along_px: float | None) -> list[list[int]]:
     """For every segment, the indices of the segments that may be collinear with it (a superset of _collinear's
-    relation, one vectorised test per segment): near-horizontal pieces pair only with pieces whose y ranges come within
-    the widest lateral tolerance, likewise near-vertical ones in x, the others with everything; with `along_px` the two
-    bounding boxes, grown by that distance, must also meet (merging), without it any distance counts (one line)."""
+    relation, one vectorised test per segment): axis-snapped horizontal pieces pair only with pieces whose y ranges come
+    within the widest lateral tolerance, likewise axis-snapped vertical ones in x, every piece that is not snapped with
+    everything (so nothing depends on whether all near-axis pieces were snapped); with `along_px` the two bounding
+    boxes, grown by that distance, must also meet (merging), without it any distance counts (one line)."""
     n = len(segs)
     if n < 2:
         return [[] for _ in range(n)]
     lateral = 1.5 * max(max(g.thick for g in segs), 2.0) + 2.0
-    lim = math.sin(math.radians(AXIS_TOL_DEG)) + 1e-9
     lo = np.array([np.minimum(g.a, g.b) for g in segs])
     hi = np.array([np.maximum(g.a, g.b) for g in segs])
     dirs = np.abs(np.array([g.dir for g in segs]))
-    horiz, vert = dirs[:, 1] <= lim, dirs[:, 0] <= lim
-    other = ~horiz & ~vert
+    axis = np.array([bool(g.axis) for g in segs])
+    horiz = axis & (dirs[:, 0] >= dirs[:, 1])
+    vert = axis & ~horiz
+    other = ~axis
     reach = None if along_px is None else along_px + lateral
     adj: list[list[int]] = []
     for i in range(n):
@@ -398,7 +403,7 @@ def merge_collinear(segs: list[Seg], join_px: float) -> list[Seg]:
                 if iv is None or iv[0] > cur.length + join_px or iv[1] < -join_px:
                     continue
                 d = cur.dir
-                cur = Seg(cur.a + d * min(0.0, iv[0]), cur.a + d * max(cur.length, iv[1]), cur.samples + segs[j].samples, cur.axis and segs[j].axis, cur.raw)
+                cur = Seg(cur.a + d * min(0.0, iv[0]), cur.a + d * max(cur.length, iv[1]), cur.samples + segs[j].samples, cur.axis and segs[j].axis, cur.raw, cur.net or segs[j].net)
                 used[j] = True
                 changed = True
                 for k in adj[j]:
@@ -459,7 +464,7 @@ def _analysis(gray: Image.Image, strength: float, analysis_px: int = ANALYSIS_PX
     if g.mean() < 100:
         g = 255 - g
     thr = int(min(200, max(90, ps.otsu_threshold(g))))
-    ink = g < thr
+    ink = g <= thr  # Otsu's threshold is the last level of the dark class: a flat two-level plan has its walls at thr
     soft = g < min(235, thr + 50)
     unit = max(1, int(round(aw / 800)))
     close_r = (1 + int(3 * strength + 0.5)) * unit  # 0.3 -> 2, 0.6 -> 3, 1.0 -> 4 units, like plan_stylize's light / medium / strong
@@ -485,8 +490,9 @@ def _even_width(dt: np.ndarray, pts: np.ndarray, horizontal: bool) -> np.ndarray
 
 
 def _pieces(dt: np.ndarray, skel: np.ndarray, t0: float) -> list[tuple[Seg, float, bool]]:
-    """Skeleton branches -> straight pieces, each with the length of its branch and whether its skeleton component is
-    compact. Spurs shorter than 1.5 thicknesses go, Douglas-Peucker splits each branch at its corners, near-axis pieces
+    """Skeleton branches -> straight pieces, each with the length of its branch (for a branch with two free ends, the
+    drawn length: the skeleton plus a thickness) and whether its skeleton component is compact. Spurs (branches that
+    meet a junction) shorter than 1.5 thicknesses go, Douglas-Peucker splits each branch at its corners, near-axis pieces
     snap to the axis. A piece keeps the thickness samples of its own stretch of the branch only; a thickness is
     2 * dt - 1 (the chamfer distance reads 1 on the edge pixel itself), plus one on an axis-parallel piece whose band
     is an even number of pixels wide (_even_width).
@@ -531,13 +537,19 @@ def _pieces(dt: np.ndarray, skel: np.ndarray, t0: float) -> list[tuple[Seg, floa
     for r in comp_lo:
         t = float(np.median(np.concatenate(comp_th[r])))
         compact[r] = float((comp_hi[r] - comp_lo[r]).max()) + t < COMPACT_RATIO * max(t, 1.0)
+    nb = neighbour_count(skel)
     out: list[tuple[Seg, float, bool]] = []
     for i, br in enumerate(branches):
         if len(br) < 2:
             continue
         pts, th = per_branch[i]
         blen = float(np.sum(np.hypot(np.diff(pts[:, 0]), np.diff(pts[:, 1]))))
-        if blen < spur:
+        (x0, y0), (x1, y1) = br[0], br[-1]
+        if nb[y0, x0] == 1 and nb[y1, x1] == 1:
+            # both ends free: not a spur but a whole shape (a pier between two openings, a free-standing wall, a
+            # word); its length is the drawn one, the skeleton stops half a thickness short of each end
+            blen += float(np.median(th))
+        elif blen < spur:
             continue
         poly = rdp([(float(x), float(y)) for x, y in br], max(1.5, 0.35 * t0))
         idx: list[int] = []
@@ -552,7 +564,7 @@ def _pieces(dt: np.ndarray, skel: np.ndarray, t0: float) -> list[tuple[Seg, floa
             samples = th[i0 : i1 + 1]
             if on_axis:
                 samples = samples + _even_width(dt, pts[i0 : i1 + 1], abs(b[0] - a[0]) >= abs(b[1] - a[1]))
-            out.append((Seg(a, b, samples.tolist(), on_axis, _unit(pts[i0], pts[i1])), blen, compact[find(i)]))
+            out.append((Seg(a, b, samples.tolist(), on_axis, _unit(pts[i0], pts[i1]), not compact[find(i)]), blen, compact[find(i)]))
     return out
 
 
@@ -564,22 +576,52 @@ def _band_ink(g: Seg, ink: np.ndarray) -> float:
     return float(np.mean([_ratio(ink, g.a + np.outer(along, g.b - g.a) + nl * off) for off in (-g.thick / 4, 0.0, g.thick / 4)]))
 
 
+def _on_centre_line(g: Seg, ref: Seg) -> bool:
+    """g continues ref: the same direction (within the axis tolerance), both ends of g within half the thinner
+    thickness of ref's centre line, and the two within PIER_THICK_RATIO in thickness. Stricter than _collinear (0.75
+    of the thicker, for merging): a pier sits on its wall's centre line with its wall's thickness, a label beside a
+    wall does neither."""
+    if max(g.thick, ref.thick) > PIER_THICK_RATIO * min(g.thick, ref.thick) or _angle_between(g.dir, ref.dir) > AXIS_TOL_DEG:
+        return False
+    return max(abs(ref.project(g.a)[1]), abs(ref.project(g.b)[1])) <= 0.5 * min(g.thick, ref.thick)
+
+
 def _on_wall_lines(cands: list[Seg], walls: list[Seg]) -> list[bool]:
-    """For every candidate piece: whether it lies on the line of one of the wall pieces (a pier between two openings
-    is a compact component of its own, but it sits on its wall's line)."""
+    """For every candidate piece: whether it lies on the centre line of one of the wall pieces (a pier between two
+    openings is a compact component of its own, but it continues its wall)."""
     if not cands or not walls:
         return [False] * len(cands)
     both = cands + walls
     adj = _near_pairs(both, None)
     n = len(cands)
-    return [any(j >= n and _collinear(both[j], cands[i]) is not None for j in adj[i]) for i in range(n)]
+    return [any(j >= n and _on_centre_line(cands[i], both[j]) for j in adj[i]) for i in range(n)]
 
 
-def _segments(pieces: list[Seg], t_med: float, min_len: float) -> list[Seg]:
+def _segments(pieces: list[Seg], t_med: float, min_len: float, reach_px: float | None = None) -> list[Seg]:
     """Pieces -> wall segments: collinear pieces join, then short leftovers go, and so do blobs - a segment shorter
-    than BLOB_RATIO thicknesses is a filled shape (a word the closing turned into one blot, a legend box), not a wall."""
+    than BLOB_RATIO thicknesses is a filled shape (a word the closing turned into one blot, a legend box), not a wall,
+    unless it continues a wall: the segments whose centre line it lies on (_on_centre_line: its ends within half the
+    thinner thickness, as thick within PIER_THICK_RATIO) include one of the wall network or one that continues it, and add up to at least
+    COMPACT_RATIO of its thicknesses of drawn wall. A pier between two windows or a stub between a corner and a door
+    is short (its skeleton is also a thickness shorter than the drawn wall) but lies on its wall's centre line with its
+    wall's thickness; a label beside a wall is neither on it nor as thick, and a row of labels has no network segment.
+    Only direct neighbours within `reach_px` along the line count (an opening away at most; line_groups would chain a
+    row of words across to a wall). Such a segment needs its drawn length (skeleton plus a thickness), not its
+    skeleton, to reach min_len."""
     segs = merge_collinear(pieces, join_px=max(1.5 * t_med, 6.0))
-    return [g for g in segs if g.length >= min_len and g.length >= BLOB_RATIO * g.thick]
+    short = {i for i, g in enumerate(segs) if g.length < BLOB_RATIO * g.thick}
+    on: dict[int, list[int]] = {i: [j for j in near if _on_centre_line(segs[i], segs[j])] for i, near in enumerate(_near_pairs(segs, reach_px)) if i in short}
+    continues: set[int] = set()
+    changed = True
+    while changed:  # a row of piers links up from the network one opening at a time
+        changed = False
+        for i in short - continues:
+            nb = on[i]
+            # each neighbour at its drawn length: the skeleton stops half a thickness short of each end
+            if any(segs[j].net or j in continues for j in nb) and sum(segs[j].length + segs[j].thick for j in nb) >= COMPACT_RATIO * segs[i].thick:
+                continues.add(i)
+                changed = True
+    return [g for i, g in enumerate(segs) if (g.length >= min_len and g.length >= BLOB_RATIO * g.thick) or (i in continues and g.length + g.thick >= min_len)]
 
 
 def _stage(gray: Image.Image, strength: float, analysis_px: int, scale_m_per_px: float | None) -> dict[str, Any]:
@@ -591,24 +633,30 @@ def _stage(gray: Image.Image, strength: float, analysis_px: int, scale_m_per_px:
     t0 = float(np.median(2.0 * dt[skel] - 1.0)) if skel.any() else 4.0
     pieces = _pieces(dt, skel, t0)
     walls_like = [g for g, _, compact in pieces if not compact]
-    # the typical wall thickness from the long axis-parallel pieces only: text, hatching and filled symbols make many
-    # short or blob-shaped pieces, and every skeleton pixel of them would pull the median up
-    long_axis = [g for g in walls_like if g.axis and g.length >= 4 * g.thick]
-    t_med = float(np.median(np.concatenate([g.samples for g in long_axis]))) if long_axis else t0
+    # the typical wall thickness from the long pieces of non-compact components only (at least 4 thicknesses and
+    # MIN_WALL_FRACTION of the width): text, hatching and filled symbols make many short or blob-shaped pieces, and
+    # every skeleton pixel of them would pull the median up; not only the axis-parallel ones, or a plan drawn at
+    # 30-45 degrees would take its thickness from a few pieces (or fall back to t0)
+    long_pieces = [g for g in walls_like if g.length >= 4 * g.thick and g.length >= MIN_WALL_FRACTION * aw]
+    t_med = float(np.median(np.concatenate([g.samples for g in long_pieces]))) if long_pieces else t0
     calibrated = scale_m_per_px is not None and scale_m_per_px > 0
     # metres per analysis pixel: the calibration, else the walls themselves - the median wall is taken as 0.2 m (the
     # same assumption as phase 1's estimate, measured on this drawing instead of assumed from the width)
     s = (scale_m_per_px / f) if calibrated else DEFAULT_WALL_M / t_med
     min_len = MIN_WALL_M / s if calibrated else max(MIN_WALL_FRACTION * aw, MIN_WALL_M / s)
+    # the ink with one-pixel holes closed: white scan speckle or a label's white halo across a wall must not make a
+    # drawn wall read as broken, while a bold word keeps its letter counters and spacing (<= 0.90)
+    solid = ps.closing(an["ink"], 1)
     # branches shorter than a wall never become one (text strokes, hatching dashes); a compact shape's pieces only
-    # when they lie on a wall's line
+    # when they lie on a wall's line, or when they are solid ink and at least BLOB_RATIO thicknesses long (a
+    # free-standing 0.6-1.4 m wall, a small closed box)
     kept = [g for g, blen, compact in pieces if blen >= min_len and not compact]
     small = [g for g, blen, compact in pieces if blen >= min_len and compact]
-    kept += [g for g, ok in zip(small, _on_wall_lines(small, kept)) if ok]
-    segs = _segments(kept, t_med, min_len)
+    kept += [g for g, ok in zip(small, _on_wall_lines(small, kept)) if ok or (g.length >= BLOB_RATIO * g.thick and _band_ink(g, solid) >= COMPACT_SOLID_INK)]
+    segs = _segments(kept, t_med, min_len, WINDOW_RANGE_M[1] / s)  # a pier's neighbours are an opening away at most
     # a short segment must be solid ink along its band: bold words that the closing joined into one bar read 0.75-0.9
     # (letter counters and spacing), a drawn wall reads 1.0; long segments are not tested
-    segs = [g for g in segs if g.length >= COMPACT_RATIO * g.thick or _band_ink(g, an["ink"]) >= SOLID_INK]
+    segs = [g for g in segs if g.length >= COMPACT_RATIO * g.thick or _band_ink(g, solid) >= SOLID_INK]
     return {"an": an, "dt": dt, "skel": skel, "t_med": t_med, "s": s, "calibrated": calibrated, "pieces": kept, "segs": segs, "aw": aw, "ah": ah, "f": f}
 
 
