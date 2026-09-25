@@ -162,3 +162,342 @@ def trace_branches(skel: np.ndarray) -> list[list[tuple[int, int]]]:
             path.append((x, y))
             branches.append(path)
     return branches
+
+
+# ---------------------------------------------------------------- segments (analysis pixel space)
+
+def _unit(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    v = b - a
+    n = float(np.hypot(v[0], v[1]))
+    return v / n if n > 1e-9 else np.array([1.0, 0.0])
+
+
+def snap_axis(a: np.ndarray, b: np.ndarray, tol_deg: float = AXIS_TOL_DEG) -> tuple[np.ndarray, np.ndarray, bool]:
+    """Rotate a segment about its midpoint onto the nearest axis when it is within tol_deg of one (length kept)."""
+    v = b - a
+    length = float(np.hypot(v[0], v[1]))
+    if length < 1e-9:
+        return a, b, False
+    ang = math.degrees(math.atan2(v[1], v[0]))
+    mid = (a + b) / 2
+    for axis, d in ((0.0, (1.0, 0.0)), (180.0, (-1.0, 0.0)), (-180.0, (-1.0, 0.0)), (90.0, (0.0, 1.0)), (-90.0, (0.0, -1.0))):
+        if abs(ang - axis) <= tol_deg:
+            dv = np.array(d)
+            return mid - dv * length / 2, mid + dv * length / 2, True
+    return a, b, False
+
+
+class Seg:
+    __slots__ = ("a", "b", "samples", "axis", "raw")
+
+    def __init__(self, a: np.ndarray, b: np.ndarray, samples: list[float], axis: bool = False, raw: np.ndarray | None = None) -> None:
+        self.a, self.b, self.samples, self.axis = a, b, samples, axis
+        self.raw = raw if raw is not None else _unit(a, b)  # the direction before any axis snapping (tilt estimate)
+
+    @property
+    def thick(self) -> float:
+        return float(np.median(self.samples)) if self.samples else 2.0
+
+    @property
+    def length(self) -> float:
+        return float(np.hypot(*(self.b - self.a)))
+
+    @property
+    def dir(self) -> np.ndarray:
+        return _unit(self.a, self.b)
+
+    def project(self, p: np.ndarray) -> tuple[float, float]:
+        """(along, lateral): along from a in pixels, lateral signed distance from the line."""
+        d = self.dir
+        v = p - self.a
+        return float(np.dot(v, d)), float(d[0] * v[1] - d[1] * v[0])
+
+
+def _angle_between(u: np.ndarray, v: np.ndarray) -> float:
+    return math.degrees(math.acos(max(-1.0, min(1.0, abs(float(np.dot(u, v)))))))
+
+
+def _collinear(s: Seg, t: Seg, angle_tol: float = AXIS_TOL_DEG) -> tuple[float, float] | None:
+    """The interval (lo, hi) of t along s's line when t lies on it (angle and lateral offset within tolerance)."""
+    if _angle_between(s.dir, t.dir) > angle_tol:
+        return None
+    # the lateral tolerance grows with the distance along the line: two pieces of one slightly rotated wall (a scan
+    # off by up to the axis tolerance) sit on lines that diverge by tan(4 deg) per pixel of separation
+    base_tol = 0.75 * max(s.thick, t.thick, 2.0)
+    slope = math.tan(math.radians(angle_tol))
+    a0, la = s.project(t.a)
+    a1, lb = s.project(t.b)
+    if abs(la) > base_tol + slope * abs(a0) or abs(lb) > base_tol + slope * abs(a1):
+        return None
+    return min(a0, a1), max(a0, a1)
+
+
+def merge_collinear(segs: list[Seg], join_px: float) -> list[Seg]:
+    """Join segments on one line whose intervals touch or overlap (gap <= join_px) into one segment."""
+    segs = [s for s in segs if s.length > 0]
+    changed = True
+    while changed:
+        changed = False
+        out: list[Seg] = []
+        used = [False] * len(segs)
+        for i, s in enumerate(segs):
+            if used[i]:
+                continue
+            cur = s
+            for j in range(i + 1, len(segs)):
+                if used[j]:
+                    continue
+                iv = _collinear(cur, segs[j])
+                if iv is None or iv[0] > cur.length + join_px or iv[1] < -join_px:
+                    continue
+                d = cur.dir
+                cur = Seg(cur.a + d * min(0.0, iv[0]), cur.a + d * max(cur.length, iv[1]), cur.samples + segs[j].samples, cur.axis and segs[j].axis, cur.raw)
+                used[j] = True
+                changed = True
+            out.append(cur)
+            used[i] = True
+        segs = out
+    return segs
+
+
+def line_groups(segs: list[Seg]) -> list[list[int]]:
+    """Indices of the segments that share a line (union-find over the pairwise collinear relation)."""
+    parent = list(range(len(segs)))
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    for i in range(len(segs)):
+        for j in range(i + 1, len(segs)):
+            if _collinear(segs[i], segs[j]) is not None:
+                parent[find(i)] = find(j)
+    groups: dict[int, list[int]] = {}
+    for i in range(len(segs)):
+        groups.setdefault(find(i), []).append(i)
+    return list(groups.values())
+
+
+def estimate_tilt(segs: list[Seg], t_med: float) -> float:
+    """The scan's tilt in degrees (y-down atan2 convention): the length-weighted mean of every long segment's angle to
+    its nearest axis, over the segments within the axis tolerance. 0 when nothing is long enough."""
+    num = den = 0.0
+    for g in segs:
+        if g.length < 4 * t_med:
+            continue
+        d = g.raw
+        r = ((math.degrees(math.atan2(d[1], d[0])) + 45.0) % 90.0) - 45.0
+        if abs(r) <= AXIS_TOL_DEG:
+            num += r * g.length
+            den += g.length
+    return num / den if den else 0.0
+
+
+# ---------------------------------------------------------------- the picture -> masks
+
+def _analysis(gray: Image.Image, strength: float, analysis_px: int = ANALYSIS_PX) -> dict[str, Any]:
+    """The masks at the working resolution: `walls` (the closed / opened ink, as plan_stylize builds it), `ink` (a
+    softer threshold that keeps the light thin lines a scan gives door arcs and window glass), `ink_d` (ink dilated by
+    one pixel, for line sampling), `thin` (ink away from the walls, dilated by two, for the arc test)."""
+    width, height = gray.size
+    scale = min(1.0, analysis_px / max(width, height))
+    aw, ah = max(8, int(round(width * scale))), max(8, int(round(height * scale)))
+    g = np.asarray(gray.resize((aw, ah), Image.LANCZOS), dtype=np.uint8)
+    if g.mean() < 100:
+        g = 255 - g
+    thr = int(min(200, max(90, ps.otsu_threshold(g))))
+    ink = g < thr
+    soft = g < min(235, thr + 50)
+    unit = max(1, int(round(aw / 800)))
+    close_r = (1 + int(3 * strength + 0.5)) * unit  # 0.3 -> 2, 0.6 -> 3, 1.0 -> 4 units, like plan_stylize's light / medium / strong
+    open_r = (1 if strength < 0.8 else 2) * unit
+    # a one-pixel opening first: isolated scan speckles must not be closed into blobs (the raw ink keeps every line)
+    walls = ps.opening(ps.closing(ps.opening(ink, 1), close_r), open_r)
+    thin_ink = soft & ~ps.dilate(walls, 1)
+    return {"aw": aw, "ah": ah, "factor": aw / width, "ink": soft, "ink_d": ps.dilate(soft, 1), "walls": walls, "thin": ps.dilate(thin_ink, 2), "threshold": thr}
+
+
+def _segments(dt: np.ndarray, skel: np.ndarray, t_med: float, min_len: float) -> list[Seg]:
+    """Skeleton branches -> straight segments: spurs shorter than 1.5 thicknesses go, Douglas-Peucker splits each branch
+    at its corners, near-axis segments snap to the axis, collinear pieces join, short leftovers go."""
+    spur = max(1.5 * t_med, 6.0)
+    segs: list[Seg] = []
+    for br in trace_branches(skel):
+        pts = np.array(br, dtype=np.float64)
+        if len(br) < 2 or float(np.sum(np.hypot(np.diff(pts[:, 0]), np.diff(pts[:, 1])))) < spur:
+            continue
+        samples = (2.0 * dt[pts[:, 1].astype(int), pts[:, 0].astype(int)]).tolist()
+        poly = rdp([(float(x), float(y)) for x, y in br], max(1.5, 0.35 * t_med))
+        for p, q in zip(poly, poly[1:]):
+            a, b, on_axis = snap_axis(np.array(p), np.array(q))
+            segs.append(Seg(a, b, samples, on_axis, _unit(np.array(p), np.array(q))))
+    segs = merge_collinear(segs, join_px=max(1.5 * t_med, 6.0))
+    return [g for g in segs if g.length >= min_len]
+
+
+def _stage(gray: Image.Image, strength: float, analysis_px: int, scale_m_per_px: float | None) -> dict[str, Any]:
+    an = _analysis(gray, strength, analysis_px)
+    aw, ah, f = an["aw"], an["ah"], an["factor"]
+    mask = an["walls"]
+    dt = chamfer_dt(mask)
+    skel = thin(mask)
+    t_med = float(np.median(2.0 * dt[skel])) if skel.any() else 4.0
+    calibrated = scale_m_per_px is not None and scale_m_per_px > 0
+    # metres per analysis pixel: the calibration, else the walls themselves - the median wall is taken as 0.2 m (the
+    # same assumption as phase 1's estimate, measured on this drawing instead of assumed from the width)
+    s = (scale_m_per_px / f) if calibrated else DEFAULT_WALL_M / t_med
+    min_len = MIN_WALL_M / s if calibrated else max(MIN_WALL_FRACTION * aw, MIN_WALL_M / s)
+    segs = _segments(dt, skel, t_med, min_len)
+    return {"an": an, "dt": dt, "skel": skel, "t_med": t_med, "s": s, "calibrated": calibrated, "segs": segs, "aw": aw, "ah": ah, "f": f}
+
+
+# ---------------------------------------------------------------- openings (Tasks 4 and 5 replace the two stubs)
+
+def classify_gap(g0: np.ndarray, g1: np.ndarray, d: np.ndarray, t_ref: float, s: float, calibrated: bool, thin_mask: np.ndarray, ink: np.ndarray) -> dict[str, Any] | None:
+    """Task 4: what the gap between two collinear wall segments is. Until then: nothing."""
+    return None
+
+
+def walls_from_gaps(segs: list[Seg], s: float, calibrated: bool, thin_mask: np.ndarray, ink: np.ndarray, want_openings: bool) -> tuple[list[Seg], list[dict[str, Any]]]:
+    """Walk every line of collinear segments in order; a recognised gap joins its two neighbours into one wall with the
+    opening at the gap, an unrecognised gap keeps them apart. The skeleton stops half a thickness short of a wall end
+    (thinning retracts the ends), so a gap is measured between the ends grown by t / 2 - the same growth the
+    primitives apply when they draw a free wall end."""
+    walls: list[Seg] = []
+    openings: list[dict[str, Any]] = []
+    for group in line_groups(segs):
+        ref = max(group, key=lambda i: segs[i].length)
+        base = segs[ref]
+        items = []
+        for i in group:
+            a0, _ = base.project(segs[i].a)
+            a1, _ = base.project(segs[i].b)
+            items.append((min(a0, a1), max(a0, a1), i))
+        items.sort()
+        d = base.dir
+        cur_lo, cur_hi, cur_samples, cur_axis = items[0][0], items[0][1], list(segs[items[0][2]].samples), segs[items[0][2]].axis
+        pending: list[dict[str, Any]] = []
+        for lo, hi, i in items[1:]:
+            t_cur = max(float(np.median(cur_samples)), 2.0)
+            t_ref = max(t_cur, segs[i].thick, 2.0)
+            g0 = base.a + d * (cur_hi + t_cur / 2)
+            g1 = base.a + d * (lo - segs[i].thick / 2)
+            found = classify_gap(g0, g1, d, t_ref, s, calibrated, thin_mask, ink) if (want_openings and lo - segs[i].thick / 2 > cur_hi + t_cur / 2) else None
+            if found is None:
+                walls.append(Seg(base.a + d * cur_lo, base.a + d * cur_hi, cur_samples, cur_axis))
+                for o in pending:
+                    openings.append(dict(o, wall_seg=len(walls) - 1, t=(o["along"] - cur_lo) / max(cur_hi - cur_lo, 1e-9)))
+                pending = []
+                cur_lo, cur_hi, cur_samples, cur_axis = lo, hi, list(segs[i].samples), segs[i].axis
+                continue
+            pending.append(dict(found, along=(cur_hi + lo) / 2))
+            cur_hi = max(cur_hi, hi)
+            cur_samples += segs[i].samples
+            cur_axis = cur_axis and segs[i].axis
+        walls.append(Seg(base.a + d * cur_lo, base.a + d * cur_hi, cur_samples, cur_axis))
+        for o in pending:
+            openings.append(dict(o, wall_seg=len(walls) - 1, t=(o["along"] - cur_lo) / max(cur_hi - cur_lo, 1e-9)))
+    return walls, openings
+
+
+def windows_by_profile(walls: list[Seg], openings: list[dict[str, Any]], dt: np.ndarray, ink: np.ndarray, s: float) -> list[dict[str, Any]]:
+    """Task 5: windows the closing hid inside a wall band. Until then: none."""
+    return []
+
+
+# ---------------------------------------------------------------- the detector
+
+def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TARGETS, strength: float = 0.6, scale_m_per_px: float | None = None, level_id: str = "L0", run_id: str = "0") -> dict[str, Any]:
+    """Candidates (document-v2 walls and openings, source "auto") for a plan picture. `scale_m_per_px` is the version's
+    calibration (None when there is none); `targets` always includes "walls" ("openings" needs them)."""
+    t0 = time.perf_counter()
+    if isinstance(png, (bytes, bytearray)):
+        with Image.open(io.BytesIO(png)) as im:
+            im.load()
+            gray = im.convert("L")
+    else:
+        gray = Image.fromarray(np.asarray(png)).convert("L")
+    # stage 1 (800 px): the scan's tilt; a tilted scan is straightened before the real pass, so snapping and merging see
+    # axis-parallel walls, and every result is turned back onto the scan at the end
+    probe = _stage(gray, strength, TILT_PX, scale_m_per_px)
+    tilt = estimate_tilt(probe["segs"], probe["t_med"])
+    if abs(tilt) < TILT_MIN_DEG:
+        tilt = 0.0
+    src = gray.rotate(tilt, resample=Image.BICUBIC, fillcolor=255) if tilt else gray
+    st = _stage(src, strength, ANALYSIS_PX, scale_m_per_px)
+    an, dt, s, calibrated, segs, aw, ah, f = st["an"], st["dt"], st["s"], st["calibrated"], st["segs"], st["aw"], st["ah"], st["f"]
+    want_openings = "openings" in targets
+    walls, openings = walls_from_gaps(segs, s, calibrated, an["thin"], an["ink_d"], want_openings)
+    if want_openings:
+        openings += windows_by_profile(walls, openings, chamfer_dt(an["ink"]), an["ink_d"], s)
+    mask = an["walls"]
+    ys, xs = np.nonzero(mask)
+    frame = (float(xs.min()), float(ys.min()), float(xs.max()), float(ys.max())) if xs.size else (0.0, 0.0, float(aw), float(ah))
+    t_wall_med = float(np.median([g.thick for g in walls])) if walls else st["t_med"]
+
+    def on_frame(g: Seg) -> bool:
+        """Both ends within 1.5 thicknesses of the same edge of the wall mask's bounding box: the wall runs along the
+        plan's frame (a partition that spans the plan touches two different edges and is not exterior)."""
+        tol = 1.5 * g.thick
+        for axis, edge in ((0, frame[0]), (0, frame[2]), (1, frame[1]), (1, frame[3])):
+            if abs(g.a[axis] - edge) <= tol and abs(g.b[axis] - edge) <= tol:
+                return True
+        return False
+
+    def kind_of(g: Seg) -> str:
+        """Design 9.1 step 4: exterior when at least 1.6 x the median thickness or lying on the plan's frame; partition
+        under 0.6 x; else interior. Known limit: the inner corner of an L-shaped outline is not on the frame and reads
+        interior unless it is thicker than the rest - the kind is a suggestion the editor changes in the panel."""
+        if g.thick >= 1.6 * t_wall_med or on_frame(g):
+            return "exterior"
+        return "partition" if g.thick < 0.6 * t_wall_med else "interior"
+
+    def confidence(g: Seg) -> float:
+        """Design 9.1 step 5 (ruling 4): length (2 m and longer score full), thickness consistency (the interquartile
+        spread of the samples over the median) and straightness (on an axis, or not)."""
+        arr = np.array(g.samples) if g.samples else np.array([g.thick])
+        q1, q3 = np.percentile(arr, 25), np.percentile(arr, 75)
+        consistency = 1.0 - min(1.0, (q3 - q1) / max(g.thick, 1e-6))
+        return round(min(0.99, max(0.05, 0.4 * min(1.0, g.length * s / 2.0) + 0.35 * consistency + 0.25 * (1.0 if g.axis else 0.85))), 3)
+
+    cx, cy = aw / 2.0, ah / 2.0
+    cos_t, sin_t = math.cos(math.radians(tilt)), math.sin(math.radians(tilt))
+
+    def back(p: np.ndarray) -> list[float]:
+        """A straightened-frame point back onto the scan (the inverse of the rotation above), normalised 0..1."""
+        x, y = p[0] - cx, p[1] - cy
+        xo, yo = cx + x * cos_t - y * sin_t, cy + x * sin_t + y * cos_t
+        return [round(min(1.0, max(0.0, xo / aw)), 5), round(min(1.0, max(0.0, yo / ah)), 5)]
+
+    out_walls = [{
+        "id": f"auto-{run_id}-w{i + 1:03d}", "level_id": level_id, "polyline": [back(g.a), back(g.b)],
+        "thickness_m": round(max(0.02, g.thick * s), 3), "height_m": None, "base_z_m": 0, "kind": kind_of(g), "confidence": confidence(g),
+        "source": "auto", "locked": False, "external_ids": {},
+    } for i, g in enumerate(walls)]
+    pixels = {w["id"]: {"thickness_px": round(walls[i].thick / f, 2)} for i, w in enumerate(out_walls)}
+    out_openings = []
+    door_gaps: list[float] = []
+    for k, o in enumerate(openings):
+        oid = f"auto-{run_id}-o{k + 1:03d}"
+        out_openings.append({
+            "id": oid, "wall_id": out_walls[o["wall_seg"]]["id"], "t": round(min(1.0, max(0.0, o["t"])), 5), "kind": o["kind"], "width_m": round(o["width_px"] * s, 3),
+            "height_m": 1.2 if o["kind"] == "window" else 2.1, "sill_m": 0.9 if o["kind"] == "window" else 0, "swing": o["swing"], "hinge": o["hinge"],
+            "anchor_ref": None, "confidence": o["confidence"], "source": "auto", "external_ids": {},
+        })
+        pixels[oid] = {"width_px": round(o["width_px"] / f, 2)}
+        if o["kind"] == "door" and o["swing"] != "double":
+            door_gaps.append(o["width_px"] / f)
+    hint = None
+    if not calibrated and door_gaps:  # design 6.3: the median single door is DOOR_TYPICAL_M
+        hint = {"scale_m_per_px": round(DOOR_TYPICAL_M / float(np.median(door_gaps)), 6), "status": "estimated", "method": "door_width", "reason": "לפי רוחב דלת אופייני", "doors": len(door_gaps)}
+    return {
+        "walls": out_walls if "walls" in targets else [],
+        "openings": out_openings if want_openings else [],
+        "detector": {"name": "plan_detect", "version": VERSION, "params": {"strength": strength, "targets": list(targets), "analysis_px": [aw, ah], "threshold": an["threshold"], "tilt_deg": round(tilt, 2)}},
+        "calibration_hint": hint,
+        "pixels": pixels,
+        "scale": {"m_per_px": round(s * f, 6), "status": "measured" if calibrated else "estimated_walls"},
+        "stats": {"probe_segments": len(probe["segs"]), "segments": len(segs), "ms": int((time.perf_counter() - t0) * 1000)},
+    }
