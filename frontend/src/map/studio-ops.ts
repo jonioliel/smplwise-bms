@@ -301,8 +301,10 @@ export function removeLevel(doc: GeometryDoc, id: string): GeometryDoc | null {
 
 /** Whether item `id` (any kind) would still show on the map under a level filter (null = every level, always visible):
  * a wall or an opening by its wall's level_id, a label or an object by its own, a connector if either end matches, a
- * group if any of its members would show. An item without a level_id belongs to the default level (final review item 1:
- * the level filter used to hide a selected item it should have followed, or should have dropped the selection for). */
+ * group if any of its members would show; a connector always, since buildPrimitives draws every connector on every
+ * level (only the "hide connectors" layer toggle gates them - level_from / level_to are its endpoints, not a filter).
+ * An item without a level_id belongs to the default level (final review item 1: the level filter used to hide a
+ * selected item it should have followed, or should have dropped the selection for). */
 export function visibleUnderLevel(doc: GeometryDoc, id: string, levelId: string | null): boolean {
   if (levelId === null) return true;
   const def = defaultLevelId(doc);
@@ -318,8 +320,7 @@ export function visibleUnderLevel(doc: GeometryDoc, id: string, levelId: string 
   if (label) return onLevel(label.level_id);
   const obj = doc.objects.find((o) => o.id === id);
   if (obj) return onLevel(obj.level_id);
-  const connector = doc.connectors.find((c) => c.id === id);
-  if (connector) return onLevel(connector.level_from) || (connector.level_to !== null && onLevel(connector.level_to));
+  if (doc.connectors.some((c) => c.id === id)) return true; // connectors are drawn on every level (final review R2)
   const group = doc.groups.find((g) => g.id === id);
   if (group) return group.member_ids.some((m) => visibleUnderLevel(doc, m, levelId));
   return true;

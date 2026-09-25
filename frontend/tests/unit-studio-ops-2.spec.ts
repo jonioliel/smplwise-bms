@@ -124,7 +124,7 @@ test.describe('plan studio object operations (unit)', () => {
     expect(removeLevel(added.doc, 'L2')!.levels.length).toBe(2);
   });
 
-  test('visibleUnderLevel: a wall/opening by its wall, a label/object by its own, a connector by either end, a group by its members', () => {
+  test('visibleUnderLevel: a wall/opening by its wall, a label/object by its own, a connector on every level, a group by its members', () => {
     const doc = sample();
     expect(visibleUnderLevel(doc, 'o1', null)).toBe(true); // no filter: always visible
     expect(visibleUnderLevel(doc, 'o1', 'L0')).toBe(true); // object o1 is on L0
@@ -136,13 +136,16 @@ test.describe('plan studio object operations (unit)', () => {
     expect(visibleUnderLevel(doc, 'of', 'L1')).toBe(true);
     expect(visibleUnderLevel(doc, 'la', 'L0')).toBe(true); // label la is on L0
     expect(visibleUnderLevel(doc, 'lb', 'L0')).toBe(false); // label lb is on L1
-    expect(visibleUnderLevel(doc, 'c1', 'L0')).toBe(true); // connector c1: L0 -> L1, either end matches
+    // a connector is drawn on every level (buildPrimitives has no level filter for it, round 2 of the final review):
+    // level_from / level_to are its endpoints, not a visibility test, so it is visible under any filter, including
+    // one matching neither end.
+    expect(visibleUnderLevel(doc, 'c1', 'L0')).toBe(true); // connector c1: L0 -> L1
     expect(visibleUnderLevel(doc, 'c1', 'L1')).toBe(true);
-    expect(visibleUnderLevel(doc, 'c1', 'L2')).toBe(false);
+    expect(visibleUnderLevel(doc, 'c1', 'L2')).toBe(true); // matches neither end
     const noLevelTo = addConnector(doc, 'elevator', [0.1, 0.1], [0.1, 0.15], 'L0', null).doc;
     const cid = noLevelTo.connectors.at(-1)!.id;
     expect(visibleUnderLevel(noLevelTo, cid, 'L0')).toBe(true);
-    expect(visibleUnderLevel(noLevelTo, cid, 'L1')).toBe(false); // level_to null never matches a level
+    expect(visibleUnderLevel(noLevelTo, cid, 'L1')).toBe(true); // level_to null, still visible
     expect(visibleUnderLevel(doc, 'g1', 'L0')).toBe(true); // group g1's members o1, o2 are both on L0
     expect(visibleUnderLevel(doc, 'g1', 'L1')).toBe(false);
     expect(visibleUnderLevel(doc, 'nope', 'L0')).toBe(true); // unknown id: never hides a selection it cannot place
