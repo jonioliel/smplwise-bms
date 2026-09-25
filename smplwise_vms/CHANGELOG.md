@@ -1,5 +1,37 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.84 (pilot) — Plan Studio phase 2, part 1: object library, levels, circuits and connectors on every map
+- Part 1 of 2: this release ships tasks 1-9 of the phase-2 plan (all reviewed). Part 2 (0.1.85) still owes arrays,
+  custom items from the editor with the custom-library export / import, level chips and the add-level dialog, the
+  connector and circuit panels, the global-search focus screen and the phase acceptance scenario.
+- Object library: `catalog/objects.json` ships 153 built-in items across 12 categories with 24 symbols; a custom
+  items table (migration 0020) lets a site add its own, each optionally "based on" a built-in one. New API
+  `GET/POST/PATCH/DELETE /api/v1/catalog/objects`, `GET /api/v1/catalog/export` and `POST /api/v1/catalog/import`
+  for the custom set; all six sit behind a new permission `catalog.manage`, already held by editor, site_admin and
+  system_admin, so no existing user loses anything and no role needs re-granting. Every write is audited
+  (`catalog.item.*`, `catalog.import`); `catalog_items` joins the backup tables and `catalog_revision` rides in the
+  map bundle so a client can tell when its cached library is stale.
+- Document v2: rules for objects, groups, levels, connectors and circuits distinguish structural from geometric
+  state; `normalize` sums circuit power and derives tribune connectors (`cx-<id>`). A bound object follows its
+  anchor's position through save and publish, and un-binds cleanly when the anchor is deleted. A new route
+  (`POST /plan-versions/{id}/geometry/link`) links a stairs / elevator connector across two floors' drafts
+  (`map.edit` required on both). The map bundle carries circuit states and levels, circuit switches sit in the HA
+  scope, zones and anchors gained `level_id`, and objects are in the global search. A search result of type
+  "object" opens its floor map, but does not yet centre the view on the object - the `?focus=object:<id>` handling
+  that centres and highlights it is part 2 (0.1.85). A developer-only route exposes HA state injection for live
+  testing (absent from the add-on build).
+- Deterministic object and connector primitives, in Python and TypeScript alike, extend the golden fixture (24
+  objects / 7 connectors) and the SVG / PNG exporters (`?layers=`); tribune rows are capped at 60; connector labels
+  read the level delta ("↓ −1.2 מ׳", "↕").
+- Every map surface - the live floor map, the editor, the history map at a chosen instant, the event page - draws
+  objects with their category symbol inside the rotated footprint and connectors with their level delta; a lamp
+  glows while its circuit's switch is on. Two new layer rows, "עצמים" and "מחברים", join the existing ones.
+- Editor: a library panel (search in Hebrew and English, categories, recents, favourites) places objects by click
+  or drag; the object inspector; handles for move, rotate and stretch (Shift keeps the ratio); Alt+drag duplicates;
+  arrow keys nudge; and, near an entity anchor with no body yet, the editor offers to bind the placed object as its
+  body ("הצמד לישות"). On a phone only single objects can be placed.
+- Evidence: see the T085 evidence line in `management/tasks.json` for the real test counts run for this build.
+
 ## 0.1.83 (pilot) — precise placement of doors, windows and labels in the plan editor
 - Answers an owner report from the 0.1.82 checklist: a door added on a wall could not be moved right or left to
   fine-tune it. In the structure tool an existing door, window, passage or label can now be dragged in every mode

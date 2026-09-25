@@ -4778,7 +4778,9 @@
     "status": "NOT_RUN",
     "commit": null,
     "environment": null,
-    "evidence": [],
+    "evidence": [
+      "partial (2026-09-25, 0.1.84, on commit 6959805): object library, custom items and the anchor-body offer are implemented and covered by backend tests test_catalog.py, test_catalog_images.py, test_plan_catalog.py, test_plan_catalog_api.py, test_plan_geometry_objects.py and test_plan_geometry_binding.py (part of the 286-passed full suite), and by the live test tests/evidence-plan-studio-2.spec.ts (placing by click/drag, handles, the lamp-on-anchor body offer) in real Chrome. Not covered: custom items authored from the editor itself, the custom-library export/import UI, and arrays - deferred to part 2 (0.1.85). Status stays NOT_RUN: this is not the full phase acceptance scenario."
+    ],
     "executed_at": null,
     "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
   },
@@ -4806,7 +4808,9 @@
     "status": "NOT_RUN",
     "commit": null,
     "environment": null,
-    "evidence": [],
+    "evidence": [
+      "partial (2026-09-25, 0.1.84, on commit 6959805): levels, connectors (including the cross-floor link route) and circuits (glow, HA switch control) are implemented and covered by backend tests test_plan_geometry_model.py, test_plan_geometry_render.py, test_plan_geometry_render2.py, test_plan_geometry_export.py, test_plan_geometry_integration.py and test_plan_circuits_search.py (part of the 286-passed full suite), and by the live test tests/evidence-plan-studio-2.spec.ts (published objects and connectors on the live map with their own layer switches and in the exports) in real Chrome. Not covered: the level chips / add-level dialog, the connector and circuit panels, and the global-search focus screen - a search result of type object opens the floor map but does not yet centre the view on the object (?focus=object:<id> lands in part 2, 0.1.85). Status stays NOT_RUN: this is not the full phase acceptance scenario."
+    ],
     "executed_at": null,
     "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
   },

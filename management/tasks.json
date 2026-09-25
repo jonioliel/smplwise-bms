@@ -4640,9 +4640,11 @@
       "Documentation, known limits and rollback notes",
       "Desktop/mobile/RTL screenshots for UI tasks"
     ],
-    "evidence": [],
+    "evidence": [
+      "2026-09-25 (0.1.84, part 1, on commit 6959805): shipped tasks 1-9 of the phase-2 plan, all reviewed - object library (catalog/objects.json: 153 built-in items, 12 categories, 24 symbols) with a custom items table (migration 0020, \"based on\"), API GET/POST/PATCH/DELETE /catalog/objects, GET /catalog/export, POST /catalog/import behind a new permission catalog.manage (editor, site_admin, system_admin already hold it), audit catalog.item.* / catalog.import, catalog_items in backups, catalog_revision in the map bundle; document v2 rules for objects, groups, levels, connectors and circuits (structural vs geometric), normalize (circuit power sums, derived tribune connectors cx-<id>), bound objects follow their anchor on save and publish and un-bind on anchor delete, the cross-floor connector link route (POST /plan-versions/{id}/geometry/link), circuit states and levels in the bundle, circuit switches in the HA scope, level_id on zones and anchors, objects in the global search, a developer-only HA state route (absent from the add-on); deterministic object and connector primitives in Python and TypeScript (golden fixture extended, 24 objects / 7 connectors), SVG/PNG exports with ?layers=, tribune rows capped at 60, connector labels; every map surface (live floor map, editor, history map at t, event page) draws objects with their category symbol in the rotated footprint and connectors with the level delta, lamps glow when their circuit switch is on, two new layer rows; editor library panel (search in Hebrew/English, categories, recents, favourites), placing by click or drag, the object inspector, handles (move/rotate/stretch, Shift keeps the ratio), Alt+drag duplicate, arrow-key nudges, the bind-to-anchor offer; phone limited to single objects. Tests: backend full suite 286 passed (pytest_0184.txt); golden fixture --check clean, no diff (golden_0184.txt); frontend tsc --noEmit clean (tsc_0184.txt); node unit specs 96 passed across tests/unit-geometry.spec.ts, unit-geometry-2.spec.ts, unit-studio-controller.spec.ts, unit-studio-ops-2.spec.ts (node_specs_0184.txt); frontend build and build:addon both ok (build_0184.txt, build_addon_0184.txt); dev backend restarted clean on 0.1.84 (migration 0020 applied, pre-upgrade backup written); live evidence specs in real Chrome 9 passed - evidence-plan-studio.spec.ts, evidence-plan-studio-2.spec.ts, evidence-viewer.spec.ts, evidence-editor.spec.ts (live_specs_0184.txt); fixture chain 129 passed (screenshots.spec.ts + screens.spec.ts); release_check.py all ok except the git tag, which is created only after the owner approves (release_check_0184.txt). Pending (part 2, 0.1.85): arrays, custom items from the editor and the custom-library export/import, level chips and the add-level dialog, the connector and circuit panels, the global-search focus screen (a search result of type object opens the floor map today but does not yet centre the view on the object - ?focus=object:<id> handling is part 2) and the phase acceptance scenario; AT169/AT170 stay NOT_RUN."
+    ],
     "owner": null,
-    "commit": null,
+    "commit": "6959805",
     "actual_cost_usd": null
   },
   {
@@ -4783,7 +4785,7 @@
     ],
     "status": "BACKLOG",
     "blocker": null,
-    "priority": "P1",
+    "priority": "P2",
     "model_policy": {
       "implementation": "balanced",
       "review": "deep",
