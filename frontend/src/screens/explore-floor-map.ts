@@ -30,7 +30,7 @@ import { createView, listViews, wallHref, type SavedView } from '../api/views';
 import '../components/sw-toggle';
 import { ACTION_ERROR_LABEL, ACTION_STATUS_LABEL, awaitAction, domainLabel, entityMarkerKind, entityTone, fmtTime, runAction, stateLabel, subscribeHa, type HaActionArgSpec, type HaActionRecord, type HaActionSpec, type HaEntity } from '../api/ha';
 import { geometryFor } from '../api/geometry';
-import type { AnchorPosition, CatalogLookup, GeometryDoc } from '../map/geometry';
+import { circuitToken, type AnchorPosition, type CatalogLookup, type GeometryDoc } from '../map/geometry';
 import { loadLibrary, lookupOf } from '../api/plan-catalog';
 import { renderLevelChips } from './plan-studio-panel';
 
@@ -320,6 +320,73 @@ export class ExploreFloorMap extends LitElement {
       gap: 6px;
       flex-wrap: wrap;
       max-inline-size: 60%;
+    }
+    .circuits {
+      position: absolute;
+      inset-inline-end: 12px;
+      inset-block-start: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      z-index: var(--sw-z-map-ui);
+      max-inline-size: 260px;
+    }
+    /* the layers panel and the side list sit in the same corner: the strip steps aside */
+    .circuits.shifted {
+      inset-inline-end: 296px;
+    }
+    .circuits .circuit {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      grid-template-areas: "dot name" "dot cnt";
+      gap: 0 8px;
+      align-items: center;
+      text-align: start;
+      padding: 6px 10px;
+      border: 1px solid var(--sw-border);
+      border-radius: 10px;
+      background: var(--sw-surface);
+      box-shadow: var(--sw-shadow-1);
+      font: inherit;
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text);
+      cursor: pointer;
+    }
+    .circuits .circuit i {
+      grid-area: dot;
+      inline-size: 12px;
+      block-size: 12px;
+      border-radius: 50%;
+      border: 2px solid var(--kc);
+      background: transparent;
+    }
+    .circuits .circuit.on i {
+      background: var(--sw-map-glow);
+      box-shadow: 0 0 6px var(--sw-map-glow);
+    }
+    .circuits .circuit .cnt {
+      grid-area: cnt;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+    }
+    .circuits .circuit:disabled {
+      cursor: not-allowed;
+      opacity: 0.7;
+    }
+    .circuits .cstatus {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      background: var(--sw-surface);
+      border-radius: 8px;
+      padding: 4px 8px;
+    }
+    .circuits .err {
+      color: var(--sw-danger);
+    }
+    @media (max-width: 640px) {
+      .circuits.shifted {
+        display: none;
+      }
     }
     .panel {
       position: absolute;
@@ -1501,6 +1568,30 @@ export class ExploreFloorMap extends LitElement {
     </div>`;
   }
 
+  /** T085: one button per lighting circuit of the published structure - its switch state, and the toggle through the
+   * existing entity action path (the same permission, the same confirmation rules, the same audit). */
+  private renderCircuitStrip() {
+    const b = this.bundle;
+    const states = b?.circuitStates ?? {};
+    const ids = Object.keys(states);
+    if (!b || !ids.length) return nothing;
+    const act = this.action;
+    return html`<div class="circuits ${this.panel || this.sideList ? 'shifted' : ''}" role="group" aria-label="מעגלי תאורה" data-circuit-strip>
+      ${ids.map((id) => {
+        const s = states[id];
+        const on = s.state === 'on';
+        const spec = s.actions.find((x) => x.id.endsWith(on ? 'turn_off' : 'turn_on'));
+        return html`<button class="circuit ${on ? 'on' : ''}" data-circuit-toggle=${id} data-state=${s.state ?? 'unknown'} style=${`--kc: var(--sw-${circuitToken(s.color_token) ?? 'circuit-1'})`} ?disabled=${!s.can_control || !spec}
+            title=${s.can_control ? (on ? 'כיבוי המעגל' : 'הדלקת המעגל') : 'אין הרשאת שליטה בישויות בקומה'} @click=${() => { if (spec) this.trigger(s.entity_id, spec); }}>
+          <i></i><span>${s.name ?? id}</span><span class="cnt">${s.member_ids.length} מנורות · ${s.state === null ? 'לא ידוע' : on ? 'דולק' : 'כבוי'}${s.power_w ? ` · ${s.power_w} W` : ''}</span>
+        </button>`;
+      })}
+      ${act && ids.some((id) => states[id].entity_id === act.entityId)
+        ? html`<span class="cstatus" data-circuit-status>${act.error ? html`<span class="err" data-circuit-error>${act.error}</span>` : act.record ? ACTION_STATUS_LABEL[act.record.status] + (act.record.error ? ` · ${ACTION_ERROR_LABEL[act.record.error] ?? act.record.error}` : '') : act.busy ? 'שולח…' : ''}</span>`
+        : nothing}
+    </div>`;
+  }
+
   private renderStage() {
     const b = this.bundle;
     if (this.loadError) return html`<div class="cover"><sw-state-panel state="error" hint=${this.loadError} actionLabel=${t('states.retry')} @action=${() => this.load()}></sw-state-panel></div>`;
@@ -1565,6 +1656,7 @@ export class ExploreFloorMap extends LitElement {
           </div>`
         : nothing}
       ${this.panel ? this.renderPanel() : nothing}
+      ${this.renderCircuitStrip()}
       ${this.multi ? this.renderPickbar() : nothing}
       ${this.renderSideList()}
       ${this.renderSaveDialog()}

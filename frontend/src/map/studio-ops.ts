@@ -1,6 +1,6 @@
 /** Plan Studio (T084): pure edits of a structure document - every function returns a new document, so undo / redo is
  * a stack of documents and nothing is ever mutated in place. */
-import { DEFAULT_LEVEL_ID, OPENING_DEFAULTS, isClosedOutline, pointAt, rotated, type ConnectorKind, type GeometryDoc, type GeomConnector, type GeomGroup, type GeomLabel, type GeomLevel, type GeomObject, type GeomOpening, type GeomSize, type GeomWall, type OpeningKind, type Pt, type Swing, type WallKind } from './geometry';
+import { DEFAULT_LEVEL_ID, OPENING_DEFAULTS, isClosedOutline, pointAt, rotated, type ConnectorKind, type GeometryDoc, type GeomCircuit, type GeomConnector, type GeomGroup, type GeomLabel, type GeomLevel, type GeomObject, type GeomOpening, type GeomSize, type GeomWall, type OpeningKind, type Pt, type Swing, type WallKind } from './geometry';
 import type { CatalogItem } from '../api/plan-catalog';
 
 export interface WallDefaults {
@@ -317,4 +317,38 @@ export function patchConnector(doc: GeometryDoc, id: string, patch: Partial<Geom
 /** A corner of a drawn connector; a connector derived from an object (a tribune) follows its object, not the pointer. */
 export function moveConnectorVertex(doc: GeometryDoc, id: string, index: number, p: Pt): GeometryDoc {
   return { ...doc, connectors: doc.connectors.map((c) => (c.id === id && !c.object_id ? { ...c, polyline: c.polyline.map((q, i) => (i === index ? clampPt(p) : q)) } : c)) };
+}
+
+// ---------------------------------------------------------------- circuits (T085)
+
+export const CIRCUIT_COLORS = ['circuit-1', 'circuit-2', 'circuit-3', 'circuit-4', 'circuit-5', 'circuit-6'] as const;
+
+export function addCircuit(doc: GeometryDoc, name: string, switchEntityId: string, colorToken: string): { doc: GeometryDoc; id: string } {
+  const k: GeomCircuit = { id: newId(), name: name.trim(), switch_entity_id: switchEntityId, member_ids: [], color_token: colorToken, power_w: 0 };
+  return { doc: { ...doc, circuits: [...doc.circuits, k] }, id: k.id };
+}
+
+export function patchCircuit(doc: GeometryDoc, id: string, patch: Partial<GeomCircuit>): GeometryDoc {
+  return { ...doc, circuits: doc.circuits.map((k) => (k.id === id ? { ...k, ...patch, id: k.id } : k)) };
+}
+
+/** A lamp on the circuit leaves it; a lamp not on it joins (and leaves any other circuit: one switch per lamp). */
+export function toggleCircuitMember(doc: GeometryDoc, circuitId: string, objectId: string): GeometryDoc {
+  const k = doc.circuits.find((x) => x.id === circuitId);
+  if (!k) return doc;
+  const member = k.member_ids.includes(objectId);
+  return { ...doc, circuits: doc.circuits.map((x) => (x.id === circuitId ? { ...x, member_ids: member ? x.member_ids.filter((m) => m !== objectId) : [...x.member_ids, objectId] } : { ...x, member_ids: x.member_ids.filter((m) => m !== objectId) })) };
+}
+
+/** The sum of the members' power: the object's params.power_w, else its item's default (what the server recomputes). */
+export function circuitPower(doc: GeometryDoc, k: GeomCircuit, itemOfId: (id: string) => Pick<CatalogItem, 'params'> | undefined): number {
+  let total = 0;
+  for (const mid of k.member_ids) {
+    const o = doc.objects.find((x) => x.id === mid);
+    if (!o) continue;
+    const own = o.params.power_w;
+    const w = typeof own === 'number' ? own : (itemOfId(o.item_id)?.params.power_w as number | undefined);
+    if (typeof w === 'number' && Number.isFinite(w)) total += w;
+  }
+  return Math.round(total * 1000) / 1000;
 }

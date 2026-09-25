@@ -5,8 +5,9 @@
  */
 import { css, html, nothing, type TemplateResult } from 'lit';
 import type { CopyCandidate, GeometryIssue } from '../api/geometry';
-import { COLOR_TOKENS, OBJECT_SHAPES, SYMBOL_IDS, connectorLabel, effectiveScale, lengthPx, perimeterM, polygonAreaM2, type ConnectorKind, type GeometryDoc, type GeomConnector,type GeomGroup, type GeomSize, type ObjectShape, type GeomLabel, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type Hinge, type OpeningKind, type Pt, type Swing, type WallKind } from '../map/geometry';
+import { COLOR_TOKENS, OBJECT_SHAPES, SYMBOL_IDS, circuitToken, connectorLabel, effectiveScale, lengthPx, perimeterM, polygonAreaM2, type ConnectorKind, type GeometryDoc, type GeomCircuit, type GeomConnector,type GeomGroup, type GeomSize, type ObjectShape, type GeomLabel, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type Hinge, type OpeningKind, type Pt, type Swing, type WallKind } from '../map/geometry';
 import type { CatalogItem, CatalogLibrary, ParamSpec } from '../api/plan-catalog';
+import type { HaEntity } from '../api/ha';
 import { searchItems } from '../api/plan-catalog';
 import type { SaveState } from '../map/studio-controller';
 import { cornerRemovable, kindDefaults, openingRange, type WallDefaults } from '../map/studio-ops';
@@ -695,6 +696,70 @@ function renderConnectorInspector(c: GeomConnector, v: ConnectorView, a: Connect
 
 function connectorLabelOf(doc: GeometryDoc, c: GeomConnector): string {
   return connectorLabel(new Map(doc.levels.map((l) => [l.id, l])), c);
+}
+
+// ---------------------------------------------------------------- circuits (T085)
+
+export interface CircuitView {
+  doc: GeometryDoc;
+  sel: GeomCircuit | undefined;
+  membersMode: boolean;
+  power: (k: GeomCircuit) => number;
+  creating: { name: string; q: string; results: HaEntity[]; entity: HaEntity | null; color: string; busy: boolean } | null;
+  saveState: SaveState;
+  colors: readonly string[];
+}
+
+export interface CircuitActions {
+  select(id: string | null): void;
+  startNew(): void;
+  cancelNew(): void;
+  setNew(patch: Partial<NonNullable<CircuitView['creating']>>): void;
+  create(): void;
+  patch(id: string, patch: Partial<GeomCircuit>): void;
+  toggleMembers(): void;
+  remove(id: string): void;
+}
+
+/** The circuit colour as a CSS variable: a document string reaches the inline style only through the whitelist. */
+const circuitVar = (token: string): string => `var(--sw-${circuitToken(token) ?? 'circuit-1'})`;
+
+export function renderCircuitPanel(v: CircuitView, a: CircuitActions): TemplateResult {
+  const c = v.creating;
+  const sel = v.sel;
+  return html`<sw-card heading="מעגלי תאורה" subheading=${v.membersMode ? 'לחץ על מנורות כדי להוסיף או להסיר מהמעגל' : 'כמה מנורות על ישות מפסק אחת ב־Home Assistant'} data-circuit-panel data-studio-save=${v.saveState}>
+    ${v.doc.circuits.length
+      ? html`<div class="list">${v.doc.circuits.map((k) => html`<button class=${sel?.id === k.id ? 'on' : ''} data-circuit-row=${k.id} style=${`border-inline-start: 4px solid ${circuitVar(k.color_token)}`} @click=${() => a.select(sel?.id === k.id ? null : k.id)}>
+          <span>${k.name}</span><span class="note ltr" style="margin:0">${k.member_ids.length} · ${v.power(k)} W · ${k.switch_entity_id}</span>
+        </button>`)}</div>`
+      : html`<div class="note">עדיין אין מעגלים בקומה.</div>`}
+    ${c
+      ? html`<div class="sel" data-circuit-new-form>
+          <sw-field label="שם המעגל"><input type="text" maxlength="80" data-circuit-name placeholder="למשל: אולם צפון" .value=${c.name} @input=${(e: Event) => a.setNew({ name: (e.target as HTMLInputElement).value })} /></sw-field>
+          <sw-field label="ישות המפסק (switch / light)"><input type="search" data-ltr data-circuit-switch-q placeholder="חיפוש בקטלוג HA" .value=${c.q} @input=${(e: Event) => a.setNew({ q: (e.target as HTMLInputElement).value })} /></sw-field>
+          <div class="list">${c.results.slice(0, 20).map((e) => html`<button class=${c.entity?.entity_id === e.entity_id ? 'on' : ''} data-circuit-switch=${e.entity_id} @click=${() => a.setNew({ entity: e })}><span>${e.name || e.original_name || e.entity_id}</span><span class="ltr">${e.entity_id}</span></button>`)}</div>
+          <sw-field label="צבע"><select data-circuit-color @change=${(e: Event) => a.setNew({ color: (e.target as HTMLSelectElement).value })}>${v.colors.map((col, i) => html`<option value=${col} ?selected=${col === c.color}>מעגל ${i + 1}</option>`)}</select></sw-field>
+          <div class="btns"><sw-button variant="primary" size="sm" icon="check" data-circuit-create ?disabled=${c.busy || !c.name.trim() || !c.entity} @click=${() => a.create()}>צור מעגל</sw-button><sw-button variant="ghost" size="sm" data-circuit-cancel @click=${() => a.cancelNew()}>ביטול</sw-button></div>
+        </div>`
+      : html`<div class="btns"><sw-button size="sm" icon="plus" data-circuit-new @click=${() => a.startNew()}>מעגל חדש</sw-button></div>`}
+    ${sel && !c ? renderCircuitInspector(sel, v, a) : nothing}
+  </sw-card>`;
+}
+
+function renderCircuitInspector(k: GeomCircuit, v: CircuitView, a: CircuitActions) {
+  return html`<div class="sel" data-selected-circuit=${k.id} style=${`--kc: ${circuitVar(k.color_token)}`}>
+    <div class="selhead"><strong>${k.name}</strong><span class="muted ltr">${k.switch_entity_id}</span></div>
+    <div class="note"><span data-circuit-count>${countLabel(k.member_ids.length, 'מנורה אחת', 'מנורות')}</span> · <span data-circuit-power>${v.power(k)} W</span></div>
+    <div class="two">
+      <sw-field label="שם"><input type="text" maxlength="80" data-circuit-rename .value=${k.name} @change=${(e: Event) => { const x = (e.target as HTMLInputElement).value.trim(); if (x) a.patch(k.id, { name: x }); }} /></sw-field>
+      <sw-field label="צבע"><select @change=${(e: Event) => a.patch(k.id, { color_token: (e.target as HTMLSelectElement).value })}>${v.colors.map((col, i) => html`<option value=${col} ?selected=${col === k.color_token}>מעגל ${i + 1}</option>`)}</select></sw-field>
+    </div>
+    <div class="btns">
+      <sw-button size="sm" variant=${v.membersMode ? 'primary' : 'ghost'} icon="light" data-circuit-members aria-pressed=${v.membersMode} @click=${() => a.toggleMembers()}>${v.membersMode ? 'סיים בחירת מנורות' : 'הוסף / הסר מנורות'}</sw-button>
+      <sw-button size="sm" variant="ghost" icon="trash" data-circuit-delete @click=${() => a.remove(k.id)}>מחק מעגל</sw-button>
+    </div>
+    <div class="note">המצב החי של המנורות נגזר מהמפסק; ההפעלה מהמפה החיה היא פעולת HA הקיימת, באותן הרשאות.</div>
+  </div>`;
 }
 
 export const studioPanelStyles = css`

@@ -109,16 +109,25 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
     expect(svg).toContain('data-object="seed-chair"');
     expect(svg).toContain('data-symbol="chair"');
     expect(await (await api.get(`api/v1/plan-versions/${ids.version}/export.svg?layers=structure`)).text()).not.toContain('data-object');
-    // a circuit's colour reaches the lamp's inline style only as one of the six circuit tokens: any other document string is dropped
+    // a circuit's colour reaches the lamp's inline style only as one of the six circuit tokens: the server refuses to
+    // publish any other string (a geometric error kept with the draft), and the editor's canvas drops it from the draft
     const CIRCUIT = (token: string) => ({ id: 'seed-k', name: 'מעגל בדיקה', switch_entity_id: 'light.t085_seed', member_ids: ['seed-lamp'], color_token: token, power_w: 0 });
+    const kcOf = (el: Element) => (el as SVGElement).style.getPropertyValue('--kc').trim() || null;
+    await saveDraft({ circuits: [CIRCUIT('circuit-1); fill: red; --x: (')] });
+    const refused = await api.post(`api/v1/plan-versions/${ids.version}/geometry/publish`);
+    expect(refused.status()).toBe(422);
+    expect(await refused.text()).toContain('seed-k');
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
+    const drafted = page.locator('explore-plan-editor sw-plan-canvas [data-object="seed-lamp"]');
+    await expect(drafted).toHaveAttribute('data-circuit', 'seed-k', { timeout: 20000 });
+    expect(await drafted.evaluate(kcOf)).toBeNull();
+    await saveDraft({ circuits: [CIRCUIT('circuit-2')] });
+    await publish();
+    await page.goto('about:blank');
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
     const lamp = page.locator('explore-floor-map sw-plan-canvas [data-object="seed-lamp"]');
-    for (const [token, kc] of [['circuit-1); fill: red; --x: (', null], ['circuit-2', 'var(--sw-circuit-2)']] as const) {
-      await saveDraft({ circuits: [CIRCUIT(token)] });
-      await publish();
-      await page.reload();
-      await expect(lamp).toHaveAttribute('data-circuit', 'seed-k', { timeout: 20000 });
-      expect(await lamp.evaluate((el) => (el as SVGElement).style.getPropertyValue('--kc').trim() || null)).toBe(kc);
-    }
+    await expect(lamp).toHaveAttribute('data-circuit', 'seed-k', { timeout: 20000 });
+    expect(await lamp.evaluate(kcOf)).toBe('var(--sw-circuit-2)');
     await saveDraft({ circuits: [] });
     await publish();
   });
@@ -339,5 +348,52 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
     expect(mine.floor_ids.sort()).toEqual([ids.floor, ids.floor2].sort());
     await expect(page.locator(`${ed} [data-selected-connector="${stairsId}"]`)).toContainText('2 קומות');
     await expect(page.locator(`${ed} sw-plan-canvas [data-connector="${stairsId}"] text`)).toHaveText('↕');
+  });
+
+  test('eight lamps on two circuits glow on the live map when their switches are on; the toggle goes through the entity action path; the editor builds a circuit from the switch catalogue', async ({ page }) => {
+    const lamp = (id: string, x: number, y: number) => OBJ(id, 'light.ceiling', [x, y], { size: { w_m: 0.4, d_m: 0.4, h_m: 0.1 }, z_m: 2.5 });
+    const lamps = [0, 1, 2, 3].flatMap((i) => [lamp(`la${i}`, 0.15 + i * 0.05, 0.35), lamp(`lb${i}`, 0.15 + i * 0.05, 0.45)]);
+    const g = await draft();
+    await saveDraft({
+      objects: [...g.doc.objects.filter((o) => o.item_id !== 'light.ceiling' || o.anchor_ref), ...lamps],
+      circuits: [{ id: 'k-north', name: 'אולם צפון', switch_entity_id: 'switch.studio2_a', member_ids: ['la0', 'la1', 'la2', 'la3'], color_token: 'circuit-1', power_w: 0 },
+                 { id: 'k-south', name: 'אולם דרום', switch_entity_id: 'switch.studio2_b', member_ids: ['lb0', 'lb1', 'lb2', 'lb3'], color_token: 'circuit-2', power_w: 0 }],
+    });
+    expect((await draft()).doc.circuits.find((k) => k.id === 'k-north')!.power_w).toBe(144); // 4 x 36 W, recomputed by the server
+    await api.post('api/v1/ha/dev/states', { data: { states: [{ entity_id: 'switch.studio2_a', state: 'on', attributes: { friendly_name: 'מפסק צפון' } }, { entity_id: 'switch.studio2_b', state: 'off', attributes: { friendly_name: 'מפסק דרום' } }] } });
+    await publish();
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
+    await expect(page.locator('explore-floor-map [data-circuit-strip] [data-circuit-toggle]')).toHaveCount(2, { timeout: 20000 });
+    await expect(page.locator('explore-floor-map sw-plan-canvas [data-object][data-glow]')).toHaveCount(4);
+    await expect(page.locator('explore-floor-map [data-circuit-toggle="k-north"]')).toHaveAttribute('data-state', 'on');
+    // the second switch turns on: the push updates the map without a reload
+    await api.post('api/v1/ha/dev/states', { data: { states: [{ entity_id: 'switch.studio2_b', state: 'on' }] } });
+    await expect(page.locator('explore-floor-map sw-plan-canvas [data-object][data-glow]')).toHaveCount(8, { timeout: 15000 });
+    // the toggle is the existing action route (switch.turn_off, the switch is on): the developer backend reaches no Home
+    // Assistant - no paired bridge, or a paired one whose Home Assistant is away - so the answer is a 503 the strip shows
+    const action = page.waitForResponse((r) => r.url().includes('/ha/entities/switch.studio2_a/actions') && r.request().method() === 'POST');
+    await page.locator('explore-floor-map [data-circuit-toggle="k-north"]').click();
+    const res = await action;
+    expect(res.status()).toBe(503);
+    expect(res.request().postDataJSON()).toMatchObject({ allowed_action_id: 'switch.turn_off' });
+    const answer = (await res.json()) as { code: string; user_message: string };
+    expect(['bridge_not_paired', 'ha_unavailable']).toContain(answer.code);
+    await expect(page.locator('explore-floor-map [data-circuit-error]')).toContainText(answer.code === 'bridge_not_paired' ? 'גשר' : answer.user_message);
+    // the editor: a circuit from the switch catalogue, one lamp added by clicking it, the power sum
+    const ed = 'explore-plan-editor';
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
+    await page.locator(`${ed} [data-tool="circuits"]`).click();
+    await expect(page.locator(`${ed} [data-circuit-row]`)).toHaveCount(2, { timeout: 20000 });
+    await page.locator(`${ed} [data-circuit-new]`).click();
+    await page.locator(`${ed} [data-circuit-name]`).fill('גלריה');
+    await page.locator(`${ed} [data-circuit-switch-q]`).fill('studio2_a');
+    await page.locator(`${ed} [data-circuit-switch="switch.studio2_a"]`).click();
+    await page.locator(`${ed} [data-circuit-create]`).click();
+    await expect(page.locator(`${ed} [data-selected-circuit]`)).toBeVisible();
+    await expect(page.locator(`${ed} [data-circuit-members]`)).toHaveAttribute('aria-pressed', 'true');
+    await clickPlan(page, ed, 0.15, 0.45); // lb0 moves from the south circuit to the new one
+    await expect(page.locator(`${ed} [data-circuit-count]`)).toContainText('מנורה אחת');
+    await expect(page.locator(`${ed} [data-circuit-power]`)).toContainText('36');
+    await expect.poll(async () => (await draft()).doc.circuits.find((k) => k.id === 'k-south')?.member_ids.length, { timeout: 10000 }).toBe(3);
   });
 });

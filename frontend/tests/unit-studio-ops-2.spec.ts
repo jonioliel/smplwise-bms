@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { GeometryDoc, GeomObject } from '../src/map/geometry';
 import type { CatalogItem } from '../src/api/plan-catalog';
-import { addArray, addConnector, addLevel, addObject, arrayDefaults, duplicateObject, levelUsage, moveConnectorVertex, moveGroup, moveObject, objectZ, patchConnector, patchLevel, patchObject, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize } from '../src/map/studio-ops';
+import { addArray, addCircuit, addConnector, addLevel, addObject, arrayDefaults, circuitPower, duplicateObject, levelUsage, moveConnectorVertex, moveGroup, moveObject, objectZ, patchCircuit, patchConnector, patchLevel, patchObject, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember } from '../src/map/studio-ops';
 
 // Plan Studio phase 2 (T085): the pure document operations of the editor - placing an item (its size, z and params come
 // from the library), moving, rotating, stretching, duplicating, and removing an object out of its group, its circuit
@@ -132,5 +132,21 @@ test.describe('plan studio object operations (unit)', () => {
     expect(wider.connectors.find((x) => x.id === r.id)).toMatchObject({ width_m: 2, level_to: null, floor_ids: ['f-other'] });
     expect(moveConnectorVertex(r.doc, r.id, 1, [1.2, 0.3]).connectors.find((x) => x.id === r.id)!.polyline).toEqual([[0.7, 0.2], [1, 0.3]]);
     expect(moveConnectorVertex(r.doc, 'cx-o4', 0, [0.1, 0.1]).connectors.find((x) => x.id === 'cx-o4')!.polyline).toEqual([[0.25, 0.4125], [0.25, 0.7875]]); // derived: not editable
+  });
+
+  test('circuits: created with a switch entity, lamps toggled in and out (one circuit per lamp), power summed from the items', () => {
+    const doc = sample();
+    const r = addCircuit(doc, 'אולם צפון', 'switch.hall_b', 'circuit-2');
+    expect(r.doc.circuits.find((k) => k.id === r.id)).toEqual({ id: r.id, name: 'אולם צפון', switch_entity_id: 'switch.hall_b', member_ids: [], color_token: 'circuit-2', power_w: 0 });
+    const withLamp = toggleCircuitMember(r.doc, r.id, 'o3'); // o3 belongs to k1: it moves over
+    expect(withLamp.circuits.find((k) => k.id === r.id)!.member_ids).toEqual(['o3']);
+    expect(withLamp.circuits.find((k) => k.id === 'k1')!.member_ids).toEqual([]);
+    expect(toggleCircuitMember(withLamp, r.id, 'o3').circuits.find((k) => k.id === r.id)!.member_ids).toEqual([]);
+    const items = new Map(library.items.map((i) => [i.id, i]));
+    const lookup = (id: string) => items.get(id);
+    expect(circuitPower(withLamp, withLamp.circuits.find((k) => k.id === r.id)!, lookup)).toBe(36); // the item's default
+    const boosted = patchObject(withLamp, 'o3', { params: { power_w: 60 } });
+    expect(circuitPower(boosted, boosted.circuits.find((k) => k.id === r.id)!, lookup)).toBe(60); // the object's own value wins
+    expect(patchCircuit(r.doc, r.id, { name: 'צפון', color_token: 'circuit-3' }).circuits.at(-1)).toMatchObject({ name: 'צפון', color_token: 'circuit-3' });
   });
 });
