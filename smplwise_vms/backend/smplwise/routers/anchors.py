@@ -182,7 +182,7 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
         for c in circuits:
             eid = c["switch_entity_id"]
             e = rows.get(eid)
-            control = bool(not at_iso and e is not None and not e["removed_at"] and _entity_allowed(conn, principal, eid, "ha.entity.control"))
+            control = bool(not at_iso and e is not None and not e["removed_at"] and not e["disabled"] and _entity_allowed(conn, principal, eid, "ha.entity.control"))
             readable = (not is_draft_geometry) or control or _entity_allowed(conn, principal, eid, "entity.state.read")
             past = hist.get(eid, {})
             state = (past.get("state") if at_iso else (e["state"] if e else None)) if readable else None

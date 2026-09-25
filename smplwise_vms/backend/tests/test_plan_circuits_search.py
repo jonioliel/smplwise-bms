@@ -88,6 +88,11 @@ def test_the_bundle_carries_levels_and_circuit_states_and_a_switch_counts_as_pla
     h = c.get(f"/api/v1/floors/{ids['floor2']}/map?at={at}").json()
     assert h["history"] == "exact" and h["circuit_states"]["k1"]["can_control"] is False and h["circuit_states"]["k1"]["actions"] == []
     assert h["circuit_states"]["k1"]["state"] == "on", "the local HA history knows the state recorded a moment ago"
+    # a disabled switch cannot be controlled either, the same refusal the action route itself would give (review R2)
+    with app.state.db.connection() as conn:
+        conn.execute("UPDATE ha_entities SET disabled = 1 WHERE entity_id = 'switch.hall_a'")
+    d = c.get(f"/api/v1/floors/{ids['floor2']}/map", headers=as_user("omer")).json()["circuit_states"]["k1"]
+    assert d["can_control"] is False and d["actions"] == [], "a disabled entity cannot be controlled, same as the action route's own refusal"
 
 
 def test_the_toggle_uses_the_existing_entity_action_route_and_its_permission(settings):
