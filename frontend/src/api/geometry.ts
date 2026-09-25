@@ -204,7 +204,7 @@ export interface DetectResult {
   /** Deviation from the brief (API review, matches services/plan_detect.py): "estimated_walls", not "estimated" -
    * an uncalibrated detect always answers this even when the version's own calibration is an estimate; the "≈" on
    * screen comes from the document's effective scale (map/geometry.ts effectiveScale), never from this field. */
-  scale: { m_per_px: number | null; status: 'measured' | 'estimated_walls' };
+  scale: { m_per_px: number | null; status: 'measured' | 'estimated' | 'estimated_walls' };
   stats: Record<string, number>;
   version_id: string;
   level_id: string;
