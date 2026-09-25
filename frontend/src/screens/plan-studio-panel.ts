@@ -368,6 +368,8 @@ export interface DetectRunState {
   error: string;
   /** The last run hit the server's time limit (504 detect_timeout): the panel offers a lighter retry. */
   timedOut: boolean;
+  /** The server's time limit in seconds, once a timeout told it (details.timeout_s); null until then. */
+  limitS: number | null;
 }
 /** A refused accept (T086 API review): the ids the server named are marked in the list, a structural refusal lists its issues. */
 export interface DetectAcceptError {
@@ -384,7 +386,7 @@ export interface DetectCandidatesView {
   states: Record<string, CandState>;
   sel: string | null;
   hint: CalibrationHint | null;
-  /** Items of the candidates' source already in the draft when the candidates came (the server's existing_auto). */
+  /** Unlocked items of the candidates' source in the live draft (what a replace would remove). */
   existingAuto: { walls: number; openings: number };
   elapsedMs: number | null;
   /** DXF only: room polygons offered to the zones layer (never part of the structure accept). */
@@ -392,7 +394,8 @@ export interface DetectCandidatesView {
 }
 /** The replace step before an accept that removes earlier automatic items. */
 export interface DetectReplaceAsk {
-  existing: { walls: number; openings: number };
+  /** What the replace removes from the live draft (merge_candidates' rule: the accepted sources, unlocked). */
+  existing: { walls: number; openings: number; objects: number };
   /** Openings of another source (manual) sitting on unlocked walls of the candidates' source: they go with their wall. */
   manualOnAuto: number;
 }
@@ -472,7 +475,7 @@ function candSize(v: DetectView, set: CandidateSet, id: string): string {
 export function renderDetectPanel(v: DetectView, a: DetectActions): TemplateResult {
   const c = v.cands;
   const o = v.opts;
-  return html`<sw-card heading="זיהוי אוטומטי" subheading="קירות, דלתות וחלונות מהתוכנית · עיבוד מקומי, ללא AI וללא שליחה החוצה" data-detect-panel data-detect-state=${v.run.busy ? 'running' : c ? 'candidates' : 'idle'}>
+  return html`<sw-card heading="זיהוי אוטומטי" subheading="קירות, דלתות וחלונות מהתוכנית · עיבוד מקומי, ללא AI וללא שליחה החוצה" data-detect-panel data-detect-state=${v.run.busy ? 'running' : c ? 'candidates' : 'idle'} aria-busy=${v.run.busy || v.busy ? 'true' : 'false'}>
     ${c
       ? renderCandidates(v, c, a)
       : html`<div class="note">הזיהוי מציע מועמדים בשכבה נפרדת (כחול מקווקו). דבר לא נשמר עד "אשר", ודבר לא מתפרסם בלי פרסום.</div>
@@ -480,15 +483,15 @@ export function renderDetectPanel(v: DetectView, a: DetectActions): TemplateResu
             <label class="chk"><input type="checkbox" data-detect-walls .checked=${o.walls} @change=${(e: Event) => { const on = (e.target as HTMLInputElement).checked; a.setOpts({ ...o, walls: on, openings: on && o.openings }); }} /> קירות</label>
             <label class="chk"><input type="checkbox" data-detect-openings .checked=${o.openings} ?disabled=${!o.walls} @change=${(e: Event) => a.setOpts({ ...o, openings: (e.target as HTMLInputElement).checked })} /> פתחים (דלתות, חלונות, מעברים)</label>
           </div>
-          <sw-field label=${`עוצמת ניקוי: ${o.strength.toFixed(2)} (קל ← חזק)`}><input type="range" min="0.3" max="1" step="0.05" data-ltr data-detect-strength .value=${String(o.strength)}
+          <sw-field label=${`עוצמת ניקוי: ${o.strength.toFixed(2)} (קל ← חזק)`}><input type="range" min="0.3" max="1" step="0.05" data-detect-strength .value=${String(o.strength)}
             @input=${(e: Event) => a.setOpts({ ...o, strength: parseFloat((e.target as HTMLInputElement).value) })} /></sw-field>
           ${v.autoInDraft ? html`<label class="chk"><input type="checkbox" data-detect-replace .checked=${o.replaceAuto} @change=${(e: Event) => a.setOpts({ ...o, replaceAuto: (e.target as HTMLInputElement).checked })} /> החלף אוטומטיים קודמים (${v.autoInDraft} בטיוטה)</label>` : nothing}
           <div class="btns">
-            <sw-button variant="primary" size="sm" icon="sparkle" data-detect-run ?disabled=${v.run.busy || !o.walls || v.busy} @click=${() => a.run()}>${v.run.busy ? html`מזהה… <span data-detect-elapsed>${v.run.elapsed}</span> שנ׳` : 'זהה אוטומטית'}</sw-button>
-            ${v.run.busy ? html`<span class="note">הזיהוי רץ בשרת (עד 60 שניות); הכפתור ייפתח כשיסיים.</span>` : nothing}
+            <sw-button variant="primary" size="sm" icon="sparkle" data-detect-run aria-busy=${v.run.busy ? 'true' : 'false'} ?disabled=${v.run.busy || !o.walls || v.busy} @click=${() => a.run()}>${v.run.busy ? html`מזהה… <span data-detect-elapsed>${v.run.elapsed}</span> שנ׳` : 'זהה אוטומטית'}</sw-button>
+            ${v.run.busy ? html`<span class="note">הזיהוי רץ בשרת${v.run.limitS ? ` (עד ${v.run.limitS} שניות)` : ''}; הכפתור ייפתח כשיסיים.</span>` : nothing}
           </div>
           ${v.run.error
-            ? html`<div class="err" data-detect-error=${v.run.timedOut ? 'detect_timeout' : 'failed'}>${v.run.error}</div>
+            ? html`<div class="err" role="alert" data-detect-error=${v.run.timedOut ? 'detect_timeout' : 'failed'}>${v.run.error}</div>
                 ${v.run.timedOut && o.strength > 0.3
                   ? html`<div class="btns"><sw-button size="sm" icon="refresh" data-detect-retry ?disabled=${v.run.busy || v.busy} @click=${() => a.retryLighter()}>נסה שוב בעוצמה ${lighterStrength(o.strength).toFixed(2)}</sw-button></div>`
                   : nothing}`
@@ -518,10 +521,10 @@ function renderCandidates(v: DetectView, c: DetectCandidatesView, a: DetectActio
         ? html`<div class="note" data-calib-hint-applied>קנה מידה משוער נשמר (≈ ${fmtScale(v.scale)}); כיול בשתי נקודות יחליף אותו</div>`
         : nothing}
     <div class="modes" role="group" aria-label="קבלת מועמדים">
-      <button data-detect-accept-all @click=${() => a.acceptAll()}>קבל הכול</button>
-      <button data-detect-accept-conf @click=${() => a.acceptAbove(0.8)}>קבל מעל 0.8</button>
-      ${present.map((k) => html`<button data-detect-accept-kind=${k} @click=${() => a.acceptKinds([k])}>${CAND_KIND_ONLY[k]}</button>`)}
-      <button data-detect-reject-all @click=${() => a.rejectAll()}>דחה הכול</button>
+      <button data-detect-accept-all ?disabled=${v.busy} @click=${() => a.acceptAll()}>קבל הכול</button>
+      <button data-detect-accept-conf ?disabled=${v.busy} @click=${() => a.acceptAbove(0.8)}>קבל מעל 0.8</button>
+      ${present.map((k) => html`<button data-detect-accept-kind=${k} ?disabled=${v.busy} @click=${() => a.acceptKinds([k])}>${CAND_KIND_ONLY[k]}</button>`)}
+      <button data-detect-reject-all ?disabled=${v.busy} @click=${() => a.rejectAll()}>דחה הכול</button>
     </div>
     <div class="note">${v.narrow ? html`<span data-detect-phone-note>בטלפון אפשר לקבל או לדחות מועמדים; תיקון קצוות של קיר מועמד זמין במסך רחב.</span>` : 'לחיצה על מועמד במפה או על התיבה ברשימה מקבלת / דוחה אותו; גרירת קצה של הקיר המסומן מתקנת אותו לפני האישור.'}</div>
     <div class="dlist" data-cand-list>
@@ -529,9 +532,9 @@ function renderCandidates(v: DetectView, c: DetectCandidatesView, a: DetectActio
         const k = candKind(set, id);
         const state = c.states[id] ?? 'accepted';
         return html`<div class="dcand ${state} ${id === c.sel ? 'on' : ''} ${bad.has(id) ? 'bad' : ''}" data-cand-row=${id} data-cand-state=${state} ?data-cand-bad=${bad.has(id)}>
-          <input type="checkbox" aria-label=${`קבל ${CAND_KIND_LABEL[k]}`} .checked=${state === 'accepted'} @change=${() => a.toggle(id)} />
-          <button class="linkbtn" @click=${() => a.focus(id)}>${CAND_KIND_LABEL[k]}</button>
-          <span class="muted ltr">${candScore(set, id).toFixed(2)}</span>
+          <input type="checkbox" aria-label=${`קבל ${CAND_KIND_LABEL[k]}`} .checked=${state === 'accepted'} ?disabled=${v.busy} @change=${() => a.toggle(id)} />
+          <button class="linkbtn" aria-label=${`${CAND_KIND_LABEL[k]} ${candScore(set, id).toFixed(2)}`} @click=${() => a.focus(id)}>${CAND_KIND_LABEL[k]}</button>
+          <span class="muted ltr" aria-hidden="true">${candScore(set, id).toFixed(2)}</span>
         </div>`;
       })}
       ${ids.length > CAND_ROWS ? html`<div class="note">מוצגים ${CAND_ROWS} הראשונים ברשימה; במפה מוצגים כולם.</div>` : nothing}
@@ -541,7 +544,7 @@ function renderCandidates(v: DetectView, c: DetectCandidatesView, a: DetectActio
     ${existing ? html`<label class="chk"><input type="checkbox" data-detect-replace .checked=${v.opts.replaceAuto} @change=${(e: Event) => a.setOpts({ ...v.opts, replaceAuto: (e.target as HTMLInputElement).checked })} /> החלף ${earlier} קודמים (${existing} בטיוטה)</label>` : nothing}
     ${c.rooms ? html`<div class="btns"><sw-button size="sm" icon="map" data-detect-rooms ?disabled=${v.busy} @click=${() => a.importRooms()}>ייבא ${countLabel(c.rooms, 'חדר אחד', 'חדרים')} כאזורים</sw-button><span class="note">החדרים נשמרים כאזורים, לא כחלק מהמבנה</span></div>` : nothing}
     ${err
-      ? html`<div class="err" data-detect-accept-error=${err.code}>${err.message}</div>
+      ? html`<div class="err" role="alert" data-detect-accept-error=${err.code}>${err.message}</div>
           ${err.issues.length
             ? html`<div class="issues" data-detect-issues>${err.issues.slice(0, 20).map((i) => html`<button class="issue error" ?disabled=${!i.id || !ids.includes(i.id)} @click=${() => { if (i.id) a.focus(i.id); }}>${i.message}</button>`)}</div>`
             : nothing}
@@ -550,7 +553,7 @@ function renderCandidates(v: DetectView, c: DetectCandidatesView, a: DetectActio
     ${v.ask
       ? html`<div class="hint" data-detect-replace-confirm>
           <div><strong>להחליף את ה${earlier} הקודמים?</strong></div>
-          <div data-detect-replace-counts>יוסרו מהטיוטה ${countLabel(v.ask.existing.walls, 'קיר אחד', 'קירות')} ו־${countLabel(v.ask.existing.openings, 'פתח אחד', 'פתחים')} ${earlier} שנוספו קודם (פריטים נעולים נשארים).</div>
+          <div data-detect-replace-counts>יוסרו מהטיוטה ${countLabel(v.ask.existing.walls, 'קיר אחד', 'קירות')} ו־${countLabel(v.ask.existing.openings, 'פתח אחד', 'פתחים')}${v.ask.existing.objects ? ` ו־${countLabel(v.ask.existing.objects, 'עצם אחד', 'עצמים')}` : ''} ${earlier} שנוספו קודם (פריטים נעולים נשארים).</div>
           ${v.ask.manualOnAuto
             ? html`<div class="err" data-detect-replace-manual>${countLabel(v.ask.manualOnAuto, 'פתח ידני אחד', 'פתחים ידניים')} על קירות אלה ${v.ask.manualOnAuto === 1 ? 'יוסר' : 'יוסרו'} איתם.</div>`
             : html`<div class="note">פתח ידני שיושב על קיר שיוסר — יוסר איתו.</div>`}

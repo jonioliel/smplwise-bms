@@ -290,8 +290,8 @@ test.describe('studio controller (unit)', () => {
     await c.load('v1');
     const before = c.doc!;
     elsewhere(); // the accept saved revision 1 on the server
-    const merged = { ...before, walls: [...before.walls, { ...before.walls[0], id: 'auto-w1', source: 'auto' as const }] };
-    c.adopt({ geometry: row(1, 'draft'), doc: merged, issues: [], published_hash: null });
+    const merged = { ...before, plan_version_id: 'v1', walls: [...before.walls, { ...before.walls[0], id: 'auto-w1', source: 'auto' as const }] };
+    expect(c.adopt({ geometry: row(1, 'draft'), doc: merged, issues: [], published_hash: null })).toBe(true);
     expect(c.revision).toBe(1);
     expect(c.hash).toBe('h1');
     expect(c.doc).toBe(merged);
@@ -302,5 +302,29 @@ test.describe('studio controller (unit)', () => {
     c.undo();
     await sleep(80);
     expect(saves).toEqual([{ revision: 2, walls: before.walls.length }]);
+  });
+
+  test('adopt refuses an answer for another version, and one that would drop a local edit (unsaved or in flight)', async () => {
+    const { api, saves } = fakeApi(sample());
+    const c = new StudioController(host(), api, 20);
+    await c.load('v1');
+    const answer = (doc: GeometryDoc): GeometryResponse => ({ geometry: row(7, 'draft'), doc, issues: [], published_hash: null });
+    // another version's answer: nothing changes
+    expect(c.adopt(answer({ ...c.doc!, plan_version_id: 'v2', walls: [] }))).toBe(false);
+    expect(c.revision).toBe(0);
+    expect(c.canUndo).toBe(false);
+    // an unsaved edit: refused, the edit stays and is still saved
+    c.commit({ ...c.doc!, walls: c.doc!.walls.slice(0, 1) });
+    const edited = c.doc!;
+    expect(c.adopt(answer({ ...c.doc!, plan_version_id: 'v1', walls: [] }))).toBe(false);
+    expect(c.doc).toBe(edited);
+    expect(c.revision).toBe(0);
+    // a save on its way: refused too
+    const saving = c.flush();
+    expect(c.adopt(answer({ ...c.doc!, plan_version_id: 'v1', walls: [] }))).toBe(false);
+    expect(await saving).toBe(true);
+    expect(saves).toEqual([{ revision: 1, walls: 1 }]);
+    expect(c.doc!.walls.length).toBe(1);
+    expect(c.revision).toBe(1);
   });
 });

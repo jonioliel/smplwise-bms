@@ -203,7 +203,9 @@ export class ExplorePlanEditor extends LitElement {
   /** Plan Studio phase 3 (T086): the detect tool - options, the running request, the candidate set and its states. The
    * set outlives a tool switch (only drawn while the tool is active) until it is confirmed, discarded or replaced. */
   @state() private detectOpts: DetectOpts = { walls: true, openings: true, strength: 0.6, replaceAuto: true };
-  @state() private detectRun: DetectRunState = { busy: false, startedAt: 0, elapsed: 0, error: '', timedOut: false };
+  @state() private detectRun: DetectRunState = { busy: false, startedAt: 0, elapsed: 0, error: '', timedOut: false, limitS: null };
+  /** Every run takes a token; only the latest run's answer and counter are used. */
+  private detectToken = 0;
   @state() private cands: { set: CandidateSet; result: DetectResult; source: 'detect' | 'dxf' } | null = null;
   @state() private candStates: Record<string, CandState> = {};
   @state() private candSel: string | null = null;
@@ -1252,7 +1254,14 @@ export class ExplorePlanEditor extends LitElement {
     }
   }
 
+  /** A detection or an accept (or the estimate) of the detect tool is in flight: the draft must not change under it, so
+   * tool switching and undo / redo wait. */
+  private get detectBusy(): boolean {
+    return this.detectRun.busy || (this.tool === 'detect' && this.busy);
+  }
+
   private pickTool(tool: Tool) {
+    if (this.detectBusy && tool !== this.tool) return;
     this.tool = tool;
     this.placing = null;
     this.wallDraft = null;
@@ -2070,8 +2079,8 @@ export class ExplorePlanEditor extends LitElement {
         if ((this.candStates[this.candSel] ?? 'accepted') === 'accepted') this.toggleCandidate(this.candSel);
         return true;
       }
-      if (this.busy && mod && (key === 'z' || key === 'y')) return true; // no undo while the accept is in flight
     }
+    if (this.detectBusy && mod && (key === 'z' || key === 'y')) return true; // no undo while a detection or an accept is in flight
     if ((e.key === 'Delete' || e.key === 'Backspace') && this.geomSel) {
       e.preventDefault();
       const { id, kind, vertex } = this.geomSel;
@@ -2199,31 +2208,44 @@ export class ExplorePlanEditor extends LitElement {
 
   private async runDetect() {
     const b = this.bundle;
-    if (!b?.planVersionId || this.detectRun.busy || this.busy || !this.detectOpts.walls) return;
-    if (!(await this.studio.flush())) {
-      this.error = this.studio.error;
-      return;
-    }
-    const targets: DetectTarget[] = this.detectOpts.openings ? ['walls', 'openings'] : ['walls'];
+    const versionId = b?.planVersionId;
+    if (!versionId || this.detectRun.busy || this.busy || !this.detectOpts.walls) return;
+    const token = ++this.detectToken;
+    const limitS = this.detectRun.limitS;
     const startedAt = Date.now();
-    this.detectRun = { busy: true, startedAt, elapsed: 0, error: '', timedOut: false };
+    // busy before the flush: a second press cannot start another run while the first one saves
+    this.detectRun = { busy: true, startedAt, elapsed: 0, error: '', timedOut: false, limitS };
+    const current = () => token === this.detectToken && this.bundle?.planVersionId === versionId;
     clearInterval(this.elapsedTimer);
-    this.elapsedTimer = setInterval(() => (this.detectRun = { ...this.detectRun, elapsed: Math.round((Date.now() - startedAt) / 1000) }), 500);
+    this.elapsedTimer = setInterval(() => {
+      const s = Math.floor((Date.now() - startedAt) / 1000);
+      if (token === this.detectToken && s !== this.detectRun.elapsed) this.detectRun = { ...this.detectRun, elapsed: s };
+    }, 1000);
     try {
-      const r = await detectStructure(b.planVersionId, { targets, strength: this.detectOpts.strength });
-      if (this.bundle?.planVersionId !== r.version_id) return; // the editor moved to another version meanwhile
+      if (!(await this.studio.flush())) {
+        if (current()) this.error = this.studio.error;
+        return;
+      }
+      if (!current()) return;
+      const targets: DetectTarget[] = this.detectOpts.openings ? ['walls', 'openings'] : ['walls'];
+      const r = await detectStructure(versionId, { targets, strength: this.detectOpts.strength });
+      if (!current() || r.version_id !== versionId) return; // an older run, or the editor moved to another version meanwhile
       this.showCandidates(r, 'detect');
-      this.detectRun = { busy: false, startedAt: 0, elapsed: Math.round((Date.now() - startedAt) / 1000), error: '', timedOut: false };
+      this.detectRun = { busy: false, startedAt: 0, elapsed: Math.round((Date.now() - startedAt) / 1000), error: '', timedOut: false, limitS };
     } catch (err) {
+      if (!current()) return;
       const timedOut = err instanceof ApiError && err.code === 'detect_timeout';
-      const limit = timedOut && err instanceof ApiError ? Number(err.body.details?.timeout_s) || 60 : 60;
+      const told = err instanceof ApiError ? Number(err.body.details?.timeout_s) : NaN;
+      const limit = timedOut && told > 0 ? told : limitS;
       this.detectRun = {
-        busy: false, startedAt: 0, elapsed: 0, timedOut,
-        error: timedOut ? `הזיהוי לא הסתיים תוך ${limit} שניות. נסה שוב בעוצמת ניקוי נמוכה יותר (תוכנית גדולה או סריקה רועשת לוקחות זמן).` : describeError(err),
+        busy: false, startedAt: 0, elapsed: 0, timedOut, limitS: limit,
+        error: timedOut ? `הזיהוי לא הסתיים${limit ? ` תוך ${limit} שניות` : ' בזמן'}. נסה שוב בעוצמת ניקוי נמוכה יותר (תוכנית גדולה או סריקה רועשת לוקחות זמן).` : describeError(err),
       };
     } finally {
-      clearInterval(this.elapsedTimer);
-      if (this.detectRun.busy) this.detectRun = { ...this.detectRun, busy: false };
+      if (token === this.detectToken) {
+        clearInterval(this.elapsedTimer);
+        if (this.detectRun.busy) this.detectRun = { ...this.detectRun, busy: false };
+      }
     }
   }
 
@@ -2296,6 +2318,11 @@ export class ExplorePlanEditor extends LitElement {
     this.detectErr = null;
   }
 
+  /** Every source the set carries ("auto" for a detection, "imported" for DXF). */
+  private setSources(set: CandidateSet): Set<string> {
+    return new Set([...set.walls, ...set.openings, ...set.objects].map((i) => i.source));
+  }
+
   /** The sources the accepted candidates carry: the server's replace_auto removes the draft's unlocked items of exactly these. */
   private acceptedSources(): Set<string> {
     const c = this.cands;
@@ -2306,12 +2333,26 @@ export class ExplorePlanEditor extends LitElement {
     return out;
   }
 
-  /** Openings of another source on the walls a replace removes (merge_candidates' removed_manual_openings, counted ahead). */
-  private manualOnReplaced(doc: GeometryDoc): number {
-    const sources = this.acceptedSources();
+  /** What a replace removes from the live draft, by merge_candidates' rule: items of `sources` that are not locked (walls,
+   * objects; an opening of those sources unless its wall stays), and the openings of another source on a removed wall. */
+  private replacedIn(doc: GeometryDoc, sources: Set<string>): { walls: number; openings: number; objects: number; manual: number } {
     const replaced = (i: { source: string; locked?: boolean }) => sources.has(i.source) && i.locked !== true;
     const gone = new Set(doc.walls.filter(replaced).map((w) => w.id));
-    return doc.openings.filter((o) => !replaced(o) && gone.has(o.wall_id)).length;
+    const kept = new Set(doc.walls.filter((w) => !replaced(w)).map((w) => w.id));
+    let openings = 0;
+    let manual = 0;
+    for (const o of doc.openings) {
+      if (replaced(o) && !kept.has(o.wall_id)) openings += 1;
+      else if (gone.has(o.wall_id)) manual += 1;
+    }
+    return { walls: gone.size, openings, objects: doc.objects.filter(replaced).length, manual };
+  }
+
+  /** The replace in force for an accept now: the option is on and the live draft has something it removes. */
+  private replacePlan(doc: GeometryDoc): { walls: number; openings: number; objects: number; manual: number } | null {
+    if (!this.detectOpts.replaceAuto) return null;
+    const r = this.replacedIn(doc, this.acceptedSources());
+    return r.walls + r.openings + r.objects > 0 ? r : null;
   }
 
   /** "אשר": when the accept replaces earlier automatic items, one more step names what goes; otherwise it is sent. */
@@ -2319,9 +2360,9 @@ export class ExplorePlanEditor extends LitElement {
     const c = this.cands;
     const doc = this.studio.doc;
     if (!c || !doc || !this.acceptedCandidateIds.length || this.busy) return;
-    const existing = c.result.existing_auto;
-    if (this.detectOpts.replaceAuto && existing.walls + existing.openings > 0) {
-      this.detectAsk = { existing, manualOnAuto: this.manualOnReplaced(doc) };
+    const plan = this.replacePlan(doc);
+    if (plan) {
+      this.detectAsk = { existing: { walls: plan.walls, openings: plan.openings, objects: plan.objects }, manualOnAuto: plan.manual };
       return;
     }
     void this.sendAccept();
@@ -2331,31 +2372,38 @@ export class ExplorePlanEditor extends LitElement {
     const b = this.bundle;
     const c = this.cands;
     const ids = this.acceptedCandidateIds;
-    if (!b?.planVersionId || !c || !ids.length || this.busy) return;
-    const existing = c.result.existing_auto;
-    const replace = this.detectOpts.replaceAuto && existing.walls + existing.openings > 0;
+    const versionId = b?.planVersionId;
+    if (!b || !versionId || !c || !ids.length || this.busy) return;
+    const moved = () => this.bundle?.planVersionId !== versionId;
     this.busy = true;
     this.error = '';
     this.detectErr = null;
     try {
       if (!(await this.studio.flush())) {
-        this.error = this.studio.error;
+        if (!moved()) this.error = this.studio.error;
         return;
       }
+      if (moved() || !this.studio.doc) return;
+      const replace = this.replacePlan(this.studio.doc) !== null; // decided on the draft as saved just now
       const kept = new Set(ids);
       const edits = Object.fromEntries(Object.entries(this.candEdits).filter(([id]) => kept.has(id)));
-      const r = await acceptDetection(b.planVersionId, {
+      const r = await acceptDetection(versionId, {
         accepted: ids, edits, replace_auto: replace,
         candidates: { walls: c.set.walls, openings: c.set.openings, objects: c.set.objects },
         base_revision: this.studio.revision, detector: c.result.detector,
       });
-      this.studio.adopt(r); // like a save's answer: revision, hash, document, issues - and one undo step
+      if (moved()) return;
+      // like a save's answer (revision, hash, document, issues - and one undo step); when a local edit or another
+      // version is in the way the stored draft is loaded instead
+      if (!this.studio.adopt(r)) await this.loadStudio(b, true);
+      if (moved()) return;
       const m = r.merge;
       this.discardCandidates();
       this.geomSel = null;
       this.info = `${countLabel(ids.length, 'פריט אחד נוסף', 'פריטים נוספו')} לטיוטת המבנה${m?.removed_auto ? ` · ${m.removed_auto} קודמים הוחלפו` : ''}${m?.removed_manual_openings ? ` · ${countLabel(m.removed_manual_openings, 'פתח ידני אחד הוסר', 'פתחים ידניים הוסרו')} עם הקירות שלהם` : ''}; בדוק ופרסם`;
       setTimeout(() => (this.info = ''), 6000);
     } catch (err) {
+      if (moved()) return;
       const e = this.acceptErrorOf(err);
       this.detectErr = e;
       if (e.ids.length) this.focusCandidate(e.ids[0]);
@@ -2417,30 +2465,35 @@ export class ExplorePlanEditor extends LitElement {
     const b = this.bundle;
     const c = this.cands;
     const hint = c?.result.calibration_hint;
-    if (!b?.planVersionId || !c || !hint || this.busy) return;
+    const versionId = b?.planVersionId;
+    if (!b || !versionId || !c || !hint || this.busy) return;
+    const moved = () => this.bundle?.planVersionId !== versionId;
     this.busy = true;
     this.error = '';
     try {
       // The server rewrites the stored draft: an edit that is not saved yet would be lost or refused as stale.
       if (!(await this.studio.flush())) {
-        this.error = this.studio.error;
+        if (!moved()) this.error = this.studio.error;
         return;
       }
+      if (moved()) return;
       if (!this.canEstimate) {
         this.error = 'לתוכנית כבר יש כיול מדוד; ההערכה לא הוחלה.';
         return;
       }
-      const r = await calibrateEstimate(b.planVersionId, hint.scale_m_per_px, hint.reason);
-      this.bundle = { ...b, scaleMPerPx: r.scale_m_per_px };
-      if (!(await this.loadStudio(this.bundle, true))) return;
+      const r = await calibrateEstimate(versionId, hint.scale_m_per_px, hint.reason);
+      if (moved() || !this.bundle) return;
+      this.bundle = { ...this.bundle, scaleMPerPx: r.scale_m_per_px }; // the bundle as it is now, not the one the press saw
+      if (!(await this.loadStudio(this.bundle, true)) || moved()) return;
       this.rescaleCandidates();
       this.hintApplied = true;
       this.info = `קנה מידה משוער נשמר: ≈ ${fmtScale(r.scale_m_per_px)}`;
       setTimeout(() => (this.info = ''), 4000);
     } catch (err) {
+      if (moved() || !this.bundle) return;
       if (err instanceof ApiError && err.code === 'calibration_measured') {
         this.error = 'לתוכנית כבר יש כיול מדוד (כנראה מחלון אחר); הערכה לא מחליפה אותו. המידות לפי הכיול הקיים.';
-        if (await this.loadStudio(b, true)) this.rescaleCandidates(); // the measured calibration arrives and the hint goes away
+        if ((await this.loadStudio(this.bundle, true)) && !moved()) this.rescaleCandidates(); // the measured calibration arrives and the hint goes away
       } else this.error = describeError(err);
     } finally {
       this.busy = false;
@@ -2475,7 +2528,7 @@ export class ExplorePlanEditor extends LitElement {
     return renderDetectPanel(
       {
         opts: this.detectOpts, run: this.detectRun,
-        cands: c ? { source: c.source, set: c.set, states: this.candStates, sel: this.candSel, hint: c.result.calibration_hint, existingAuto: c.result.existing_auto, elapsedMs: c.result.elapsed_ms ?? null, rooms: c.result.rooms?.length ?? 0 } : null,
+        cands: c ? { source: c.source, set: c.set, states: this.candStates, sel: this.candSel, hint: c.result.calibration_hint, existingAuto: this.replacedIn(doc, this.setSources(c.set)), elapsedMs: c.result.elapsed_ms ?? null, rooms: c.result.rooms?.length ?? 0 } : null,
         acceptedCount: this.acceptedCandidateIds.length, objectsOn: this.candObjectsOn, hintApplied: this.hintApplied, canEstimate: this.canEstimate, busy: this.busy, narrow: this.narrow,
         estimated, showEstimates: this.showEstimates, scale,
         autoInDraft: doc.walls.filter((w) => w.source === 'auto').length + doc.openings.filter((o) => o.source === 'auto').length,
@@ -2494,7 +2547,10 @@ export class ExplorePlanEditor extends LitElement {
         acceptAll: () => { if (c) this.acceptRule(allIds(c.set)); },
         acceptAbove: (min) => { if (c) this.acceptRule(byConfidence(c.set, min)); },
         acceptKinds: (kinds: CandKind[]) => { if (c) this.acceptRule(byKind(c.set, kinds)); },
-        rejectAll: () => this.acceptRule([]),
+        rejectAll: () => {
+          this.acceptRule([]);
+          if (!this.busy) this.candObjectsOn = false;
+        },
         toggle: (id) => this.toggleCandidate(id),
         focus: (id) => this.focusCandidate(id),
         setObjects: (on) => {
@@ -3029,10 +3085,10 @@ export class ExplorePlanEditor extends LitElement {
                 <div class="floorchip"><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
                 ${this.studio.doc && b.permissions.structure ? html`<div class="levelbar">${renderLevelChips(this.studio.doc.levels, this.activeLevel, (id) => this.setLevelFilter(id), () => (this.levelDialog = { name: '', elevation: -1.2, ceiling: 3.0, error: '' }))}</div>` : nothing}
                 <div class="rail" role="toolbar" aria-label="כלי עריכה">
-                  ${TOOLS.map((tl) => html`<button class=${tl.id === this.tool ? 'on' : ''} data-tool=${tl.id} ?disabled=${!tl.ready || (STUDIO_TOOLS.includes(tl.id) && !b.permissions.structure)} title=${tl.label} aria-label=${tl.label} aria-pressed=${tl.id === this.tool} @click=${() => this.pickTool(tl.id)}><sw-icon .name=${tl.icon} size=${18}></sw-icon></button>`)}
+                  ${TOOLS.map((tl) => html`<button class=${tl.id === this.tool ? 'on' : ''} data-tool=${tl.id} ?disabled=${!tl.ready || (STUDIO_TOOLS.includes(tl.id) && !b.permissions.structure) || (this.detectBusy && tl.id !== this.tool)} title=${tl.label} aria-label=${tl.label} aria-pressed=${tl.id === this.tool} @click=${() => this.pickTool(tl.id)}><sw-icon .name=${tl.icon} size=${18}></sw-icon></button>`)}
                   <hr />
-                  <button title="ביטול (Ctrl+Z)" aria-label="ביטול" ?disabled=${this.studioOn ? !this.studio.canUndo : !this.undo.length} @click=${() => { if (this.studioOn) { this.studio.undo(); this.geomSel = null; } else this.doUndo(); }}><sw-icon name="history" size=${18}></sw-icon></button>
-                  <button title="בצע שוב (Ctrl+Y)" aria-label="בצע שוב" ?disabled=${this.studioOn ? !this.studio.canRedo : !this.redo.length} @click=${() => { if (this.studioOn) { this.studio.redo(); this.geomSel = null; } else this.doRedo(); }}><sw-icon name="refresh" size=${18}></sw-icon></button>
+                  <button title="ביטול (Ctrl+Z)" aria-label="ביטול" ?disabled=${this.detectBusy || (this.studioOn ? !this.studio.canUndo : !this.undo.length)} @click=${() => { if (this.studioOn) { this.studio.undo(); this.geomSel = null; } else this.doUndo(); }}><sw-icon name="history" size=${18}></sw-icon></button>
+                  <button title="בצע שוב (Ctrl+Y)" aria-label="בצע שוב" ?disabled=${this.detectBusy || (this.studioOn ? !this.studio.canRedo : !this.redo.length)} @click=${() => { if (this.studioOn) { this.studio.redo(); this.geomSel = null; } else this.doRedo(); }}><sw-icon name="refresh" size=${18}></sw-icon></button>
                 </div>
                 <sw-plan-canvas editable alwaysLabel .placing=${!!this.placing || !!this.drawing || this.studioPlacing} .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .markers=${this.markers} .selectedId=${this.selectedId}
                   .zones=${this.planZones} .selectedZoneId=${this.selectedZoneId} .draftPoints=${this.drawing ?? []}
@@ -3047,10 +3103,10 @@ export class ExplorePlanEditor extends LitElement {
                   @geom-drag-move=${(e: CustomEvent<GeomDragDetail>) => this.onGeomDragMove(e.detail)}
                   @geom-drag-cancel=${() => { this.geomPreview = null; this.dupId = null; }}
                   @geom-drag=${(e: CustomEvent<GeomDragDetail>) => this.onGeomDrag(e.detail)}
-                  @zone-select=${(e: CustomEvent<{ id: string }>) => { if (this.placing || this.drawing || this.studioPlacing || e.detail.id.startsWith('cand-')) return; if (this.tool === 'structure' || this.tool === 'library') { this.geomSel = null; return; } this.selectedZoneId = e.detail.id; this.selectedId = null; }}
+                  @zone-select=${(e: CustomEvent<{ id: string }>) => { if (this.placing || this.drawing || this.studioPlacing || this.tool === 'detect' || e.detail.id.startsWith('cand-')) return; if (this.tool === 'structure' || this.tool === 'library') { this.geomSel = null; return; } this.selectedZoneId = e.detail.id; this.selectedId = null; }}
                   @zone-edit=${(e: CustomEvent<{ id: string; polygon: ZonePoint[] }>) => { const z = this.zones.find((x) => x.id === e.detail.id); if (z) void this.patchZone(z, { polygon: e.detail.polygon }); }}
                   @marker-select=${(e: CustomEvent<MarkerSelectDetail>) => { if (this.placing || this.drawing || this.studioPlacing || this.tool === 'detect') return; this.selectedId = e.detail.id; this.selectedZoneId = null; this.geomSel = null; }}
-                  @marker-move=${(e: CustomEvent<{ id: string; x: number; y: number }>) => { this.apply(e.detail.id, { position: { x: +e.detail.x.toFixed(4), y: +e.detail.y.toFixed(4) } }); this.selectedId = e.detail.id; }}
+                  @marker-move=${(e: CustomEvent<{ id: string; x: number; y: number }>) => { if (this.tool === 'detect') return; this.apply(e.detail.id, { position: { x: +e.detail.x.toFixed(4), y: +e.detail.y.toFixed(4) } }); this.selectedId = e.detail.id; }}
                   @marker-orient=${(e: CustomEvent<{ id: string; rotation: number; fov: number }>) => this.apply(e.detail.id, { rotation_degrees: e.detail.rotation, field_of_view_degrees: e.detail.fov })}
                   @marker-coverage=${(e: CustomEvent<{ id: string; radius?: number; polygon?: { x: number; y: number }[] }>) => this.apply(e.detail.id, e.detail.polygon ? { coverage_polygon: e.detail.polygon.map((p) => [p.x, p.y] as [number, number]) } : { coverage_radius: e.detail.radius })}
                   @plan-click=${(e: CustomEvent<{ x: number; y: number; shift?: boolean }>) => (this.tool === 'detect' ? (this.candSel = null) : this.drawing ? this.addDraftPoint(e.detail.x, e.detail.y) : this.studioPlacing ? this.studioClick(e.detail.x, e.detail.y, !!e.detail.shift) : this.place(e.detail.x, e.detail.y))} @dragover=${(e: DragEvent) => { if (e.dataTransfer?.types.includes('text/x-sw-item')) e.preventDefault(); }} @drop=${(e: DragEvent) => this.onItemDrop(e)}></sw-plan-canvas>
