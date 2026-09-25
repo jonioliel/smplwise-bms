@@ -1,8 +1,9 @@
 """Plan Studio wall detection (T086, design 9.1): snapping and merging of segments, the tilt estimate, and walls found
 on the synthetic set with the baseline recall and precision - calibrated, and uncalibrated with the estimated scale; a
 parallel wall beside a long wall stays its own wall, T-junctions near the corners do not fake a tilt, room labels
-neither add walls nor slow the detector down, piers between windows and stubs beside doors survive the blob rule,
-free-standing walls stay, a rotated plan keeps its estimated scale, and speckled or flat grey walls are still walls."""
+neither add walls nor slow the detector down (a row of smaller bold words seeds no pier chain), piers between windows
+and stubs beside doors survive the blob rule, free-standing walls stay, a rotated plan keeps its estimated scale, and
+speckled walls (short partitions too) or flat grey walls are still walls."""
 from __future__ import annotations
 
 import io
@@ -139,7 +140,7 @@ def test_t_junctions_near_the_corners_do_not_tilt_an_axis_aligned_plan():
             assert r["detector"]["params"]["tilt_deg"] == 0 and len(r["walls"]) == walls, (scale, r["detector"]["params"], len(r["walls"]))
 
 
-def _labelled(png: bytes, count: int = 200) -> bytes:
+def _labelled(png: bytes, count: int = 200, size: int = 28) -> bytes:
     """The plan with `count` bold room labels in its free space (never on the walls, at least 6 px apart: close enough
     for the closing to join neighbouring words into one blot)."""
     im = Image.open(io.BytesIO(png)).convert("L")
@@ -151,7 +152,7 @@ def _labelled(png: bytes, count: int = 200) -> bytes:
         grown[:, 1:] |= grown[:, :-1]
         grown[:, :-1] |= grown[:, 1:]
     d = ImageDraw.Draw(im)
-    font = ImageFont.load_default(size=28)
+    font = ImageFont.load_default(size=size)
     rng = np.random.RandomState(7)
     words = ["BEDROOM", "12.4 m2", "KITCHEN", "+0.00", "WC", "LIVING", "3.40", "2.85", "DN", "UP"]
     placed = 0
@@ -183,6 +184,17 @@ def test_room_labels_add_no_walls_and_do_not_slow_the_detector():
         assert r["scale"] == clean["scale"], "the labels do not move the estimated scale"
 
 
+def test_a_row_of_smaller_bold_labels_does_not_seed_a_pier_chain():
+    """At 22 px (stroke 2) the closing joins a row of words into one chain of the wall network; its band is not solid
+    ink, so it seeds no pier chain and the word bars on its centre line stay out (a10c58e: 14 walls -> 21)."""
+    _name, gt, png = pm.load_set()[0]
+    noisy = _labelled(png, size=22)
+    for scale in (0.01, None):
+        clean = pd.detect(png, targets=("walls",), scale_m_per_px=scale)
+        r = pd.detect(noisy, targets=("walls",), scale_m_per_px=scale)
+        assert len(r["walls"]) <= len(clean["walls"]) + 2 and pm.wall_scores(gt, r["walls"], 10.0)["precision"] >= 0.97, (scale, len(clean["walls"]), len(r["walls"]))
+
+
 def _box(p: gen.Plan, t: int) -> None:
     for a, b in (((100, 100), (1500, 100)), ((1500, 100), (1500, 1100)), ((1500, 1100), (100, 1100)), ((100, 1100), (100, 100))):
         p.wall(a, b, t, "exterior")
@@ -202,7 +214,10 @@ def test_piers_between_windows_and_stubs_beside_doors_survive_the_blob_rule():
         r = pd.detect(_png(p.im), scale_m_per_px=0.01)
         found = pm.opening_scores(p.gt, r["walls"], r["openings"], ("window",), "windows", 10.0)["found"]
         assert found >= want, (t, found)
-    for t, want in ((10, 4), (20, 3)):  # 0.9 m doors 0.4 m from the corners of a partition line
+    # 0.9 m doors 0.4 m from the corners of a partition line. At 20 px the stub east of the crossing wall has a bent
+    # skeleton end (6.6 degrees, off the line), so its door gap reaches the crossing wall's face: a10c58e counted it as
+    # a 1.31 m passage joined across the face; a passage at a crossing face is no longer taken (T086 Task 5 round 1)
+    for t, want in ((10, 4), (20, 2)):
         p = gen.Plan("doors", 0.01)
         _box(p, 20)
         wi = p.wall((100, 600), (1500, 600), t)
@@ -244,6 +259,17 @@ def test_speckled_walls_and_flat_grey_walls_are_walls():
     clean = pd.detect(png, targets=("walls",), scale_m_per_px=0.01)
     r = pd.detect(_png(Image.fromarray(arr)), targets=("walls",), scale_m_per_px=0.01)
     assert len(r["walls"]) == len(clean["walls"]) and pm.wall_scores(gt, r["walls"], 10.0)["recall"] >= pm.wall_scores(gt, clean["walls"], 10.0)["recall"] - 0.01
+    # short partitions attached to the frame (under COMPACT_RATIO thicknesses, so their band ink is tested) speckled at
+    # 8 %: the raw ink reads about 0.92 there, the ink with one-pixel holes closed about 1.0 (1ae70ba lost 2-3 of them)
+    im, d = _frame(24)
+    for box in ((74, 600, 900, 611), (400, 74, 411, 194), (700, 74, 711, 154), (1000, 74, 1011, 224), (1300, 1066, 1311, 1126), (600, 612, 611, 700)):
+        d.rectangle(box, fill=0)
+    arr = np.asarray(im).copy()
+    clean = pd.detect(_png(im), targets=("walls",), scale_m_per_px=0.01)
+    for seed in (4, 5, 6):
+        speckled = arr.copy()
+        speckled[(speckled < 128) & (np.random.RandomState(seed).rand(*arr.shape) < 0.08)] = 255
+        assert len(pd.detect(_png(Image.fromarray(speckled)), targets=("walls",), scale_m_per_px=0.01)["walls"]) == len(clean["walls"]) == 10, seed
     grey = Image.new("L", (1600, 1200), 255)  # two levels only: Otsu puts its threshold on the wall grey itself
     d = ImageDraw.Draw(grey)
     d.rectangle([50, 50, 1550, 1150], outline=150, width=16)

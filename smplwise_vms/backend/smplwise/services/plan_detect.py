@@ -39,7 +39,6 @@ ARC_WIDE_M = (0.3, 3.0)  # uncalibrated: the arc test runs on gaps of 0.3-3 m at
 ARC_WIDE_T = (2.0, 15.0)  # ... or 2-15 wall thicknesses (the arc does not depend on the scale)
 DOUBLE_MIN_M = 1.1  # a double door from 1.1 m (two 0.55 m leaves): mirrored half arcs are tested from here
 WINDOW_RANGE_M = (0.5, 3.0)
-PASSAGE_THICK_RATIO = 1.5  # a passage joins two pieces only when the thicker is at most this many times the thinner
 PIER_THICK_RATIO = 1.25  # a pier or stub continues a wall only as thick as it (thicker / thinner at most this)
 MIN_WALL_M = 0.25
 MIN_WALL_FRACTION = 0.005
@@ -49,6 +48,9 @@ SOLID_INK = 0.93  # a segment shorter than COMPACT_RATIO thicknesses needs this 
 COMPACT_SOLID_INK = 0.97  # a compact component off every wall line stays when its band is this solid
 PROFILE_STEP_M = 0.05
 PROFILE_BAND_PX = 2.0  # the profile pass samples each window line at -2, 0 and +2 px about the wall's face
+PROFILE_SOLID_STEPS = 2  # a profile window has at least this many solid steps of its wall on both sides
+PROFILE_MAX_RUN = 0.8  # ... covers at most this fraction of its wall
+PROFILE_MIN_SOLID = 0.5  # ... and its wall is solid on at least this fraction of its steps
 TARGETS = ("walls", "openings")
 
 
@@ -597,12 +599,15 @@ def _on_wall_lines(cands: list[Seg], walls: list[Seg]) -> list[bool]:
     return [any(j >= n and _on_centre_line(cands[i], both[j]) for j in adj[i]) for i in range(n)]
 
 
-def _segments(pieces: list[Seg], t_med: float, min_len: float, reach_px: float | None = None) -> list[Seg]:
+def _segments(pieces: list[Seg], t_med: float, min_len: float, reach_px: float | None = None, solid: np.ndarray | None = None) -> list[Seg]:
     """Pieces -> wall segments: collinear pieces join, then short leftovers go, and so do blobs - a segment shorter
     than BLOB_RATIO thicknesses is a filled shape (a word the closing turned into one blot, a legend box), not a wall,
     unless it continues a wall: the segments whose centre line it lies on (_on_centre_line: its ends within half the
-    thinner thickness, as thick within PIER_THICK_RATIO) include one of the wall network or one that continues it, and add up to at least
-    COMPACT_RATIO of its thicknesses of drawn wall. A pier between two windows or a stub between a corner and a door
+    thinner thickness, as thick within PIER_THICK_RATIO) include a seed or one that continues it, and add up to at
+    least COMPACT_RATIO of its thicknesses of drawn wall. A seed is a segment of the wall network that is solid ink
+    along its band (_band_ink on `solid`, the ink with one-pixel holes closed, >= SOLID_INK; without `solid` every
+    network segment seeds): the closing joins a row of bold words into one non-compact chain, whose band reads
+    0.75-0.9, and every word bar on that row's centre line would otherwise continue it. A pier between two windows or a stub between a corner and a door
     is short (its skeleton is also a thickness shorter than the drawn wall) but lies on its wall's centre line with its
     wall's thickness; a label beside a wall is neither on it nor as thick, and a row of labels has no network segment.
     Only direct neighbours within `reach_px` along the line count (an opening away at most; line_groups would chain a
@@ -612,13 +617,20 @@ def _segments(pieces: list[Seg], t_med: float, min_len: float, reach_px: float |
     short = {i for i, g in enumerate(segs) if g.length < BLOB_RATIO * g.thick}
     on: dict[int, list[int]] = {i: [j for j in near if _on_centre_line(segs[i], segs[j])] for i, near in enumerate(_near_pairs(segs, reach_px)) if i in short}
     continues: set[int] = set()
+    seeds: dict[int, bool] = {}
+
+    def seed(j: int) -> bool:
+        if j not in seeds:
+            seeds[j] = segs[j].net and (solid is None or _band_ink(segs[j], solid) >= SOLID_INK)
+        return seeds[j]
+
     changed = True
     while changed:  # a row of piers links up from the network one opening at a time
         changed = False
         for i in short - continues:
             nb = on[i]
             # each neighbour at its drawn length: the skeleton stops half a thickness short of each end
-            if any(segs[j].net or j in continues for j in nb) and sum(segs[j].length + segs[j].thick for j in nb) >= COMPACT_RATIO * segs[i].thick:
+            if any(j in continues or seed(j) for j in nb) and sum(segs[j].length + segs[j].thick for j in nb) >= COMPACT_RATIO * segs[i].thick:
                 continues.add(i)
                 changed = True
     return [g for i, g in enumerate(segs) if (g.length >= min_len and g.length >= BLOB_RATIO * g.thick) or (i in continues and g.length + g.thick >= min_len)]
@@ -653,7 +665,7 @@ def _stage(gray: Image.Image, strength: float, analysis_px: int, scale_m_per_px:
     kept = [g for g, blen, compact in pieces if blen >= min_len and not compact]
     small = [g for g, blen, compact in pieces if blen >= min_len and compact]
     kept += [g for g, ok in zip(small, _on_wall_lines(small, kept)) if ok or (g.length >= BLOB_RATIO * g.thick and _band_ink(g, solid) >= COMPACT_SOLID_INK)]
-    segs = _segments(kept, t_med, min_len, WINDOW_RANGE_M[1] / s)  # a pier's neighbours are an opening away at most
+    segs = _segments(kept, t_med, min_len, WINDOW_RANGE_M[1] / s, solid)  # a pier's neighbours are an opening away at most
     # a short segment must be solid ink along its band: bold words that the closing joined into one bar read 0.75-0.9
     # (letter counters and spacing), a drawn wall reads 1.0; long segments are not tested
     segs = [g for g in segs if g.length >= COMPACT_RATIO * g.thick or _band_ink(g, solid) >= SOLID_INK]
@@ -774,11 +786,53 @@ def _gap_end(mask: np.ndarray, p: np.ndarray, into: np.ndarray, t: float) -> np.
     return p if best is None else p + into * best
 
 
+def _crossing_face(mask: np.ndarray, face: np.ndarray, into: np.ndarray, t: float) -> bool:
+    """Whether the gap end `face` is the face of another wall that crosses (or meets) this line there, not a free end
+    of this wall: just behind the face (1.5 px), the wall mask continues sideways past this wall's band, without a
+    break from t / 2 + 1 to t / 2 + max(8, t) px, on either side. A free end's band stops at t / 2 (the fillet a closing
+    leaves between a door leaf and the wall is a few pixels, well inside that reach)."""
+    h, w = mask.shape
+    q = face - into * 1.5
+    side = np.array([-into[1], into[0]])
+    ks = np.arange(t / 2 + 1, t / 2 + max(8.0, t) + 1)
+    for sgn in (1.0, -1.0):
+        pts = q + np.outer(ks * sgn, side)
+        xs = np.clip(np.round(pts[:, 0]).astype(int), 0, w - 1)
+        ys = np.clip(np.round(pts[:, 1]).astype(int), 0, h - 1)
+        if mask[ys, xs].all():
+            return True
+    return False
+
+
+def _gap_status(mask: np.ndarray, g0: np.ndarray, g1: np.ndarray, p0: np.ndarray, p1: np.ndarray, d: np.ndarray, t0: float, t1: float) -> str:
+    """Whether the gap g0 -> g1 between two pieces on one line may be an opening that joins them: "blocked" when
+    _gap_end moved an end more than half a thickness plus 2 px from the grown skeleton end p0 / p1 (it walked through
+    other ink), when the wall mask is set on at least 3 px of the centre line between the faces (a wall lies across
+    the gap) or when both ends are faces of crossing walls; "cross0" / "cross1" when only the near / far end is the face
+    of a crossing wall (_crossing_face: the line runs on past a crossing wall, and the gap beside it belongs to the
+    piece on the other side only); else "free"."""
+    if float(np.hypot(*(g0 - p0))) > t0 / 2 + 2 or float(np.hypot(*(g1 - p1))) > t1 / 2 + 2:
+        return "blocked"
+    gap = float(np.hypot(*(g1 - g0)))
+    if gap > 6:
+        h, w = mask.shape
+        pts = g0 + np.outer(np.arange(2.0, gap - 2.0), d)
+        if int(mask[np.clip(np.round(pts[:, 1]).astype(int), 0, h - 1), np.clip(np.round(pts[:, 0]).astype(int), 0, w - 1)].sum()) >= 3:
+            return "blocked"
+    c0, c1 = _crossing_face(mask, g0, d, t0), _crossing_face(mask, g1, -d, t1)
+    return "blocked" if c0 and c1 else "cross0" if c0 else "cross1" if c1 else "free"
+
+
 def walls_from_gaps(segs: list[Seg], s: float, calibrated: bool, thin_mask: np.ndarray, ink: np.ndarray, want_openings: bool, wall_mask: np.ndarray | None = None) -> tuple[list[Seg], list[dict[str, Any]]]:
     """Walk every line of collinear segments in order; a recognised gap joins its two neighbours into one wall with the
     opening at the gap, an unrecognised gap keeps them apart. The skeleton stops half a thickness short of a wall end
     (thinning retracts the ends), so a gap is measured between the ends grown by t / 2 - the same growth the
-    primitives apply when they draw a free wall end."""
+    primitives apply when they draw a free wall end.
+
+    A gap with the face of a crossing wall at one end (_gap_status) never joins the pieces across that wall: a door or
+    window found there belongs to the piece on its free side, whose wall then ends (or starts) at the crossing face;
+    a passage there (no symbol to prove it) is not taken - a partition that ends at a crossing wall and a stub beyond
+    it are two walls."""
     walls: list[Seg] = []
     openings: list[dict[str, Any]] = []
     for group in line_groups(segs):
@@ -798,13 +852,28 @@ def walls_from_gaps(segs: list[Seg], s: float, calibrated: bool, thin_mask: np.n
             t_ref = max(t_cur, segs[i].thick, 2.0)
             g0 = base.a + d * (cur_hi + t_cur / 2)
             g1 = base.a + d * (lo - segs[i].thick / 2)
-            if want_openings and wall_mask is not None and lo - segs[i].thick / 2 > cur_hi + t_cur / 2:
+            status = "free" if want_openings and lo - segs[i].thick / 2 > cur_hi + t_cur / 2 else "blocked"
+            if status == "free" and wall_mask is not None:
+                p0, p1 = g0, g1
                 g0, g1 = _gap_end(wall_mask, g0, d, t_cur), _gap_end(wall_mask, g1, -d, segs[i].thick)
-            found = classify_gap(g0, g1, d, t_ref, s, calibrated, thin_mask, ink) if (want_openings and lo - segs[i].thick / 2 > cur_hi + t_cur / 2) else None
-            if found is not None and found["kind"] == "passage" and t_ref > PASSAGE_THICK_RATIO * max(min(t_cur, segs[i].thick), 2.0):
-                # a passage has no symbol to prove it: two pieces of clearly different thickness (a partition ending at
-                # a crossing wall and a stub beyond it) are two walls, not one wall with a gap
+                status = _gap_status(wall_mask, g0, g1, p0, p1, d, t_cur, segs[i].thick)
+            found = classify_gap(g0, g1, d, t_ref, s, calibrated, thin_mask, ink) if status != "blocked" else None
+            if found is not None and status != "free" and found["kind"] == "passage":
                 found = None
+            if found is not None and status != "free":
+                # one end is a crossing wall's face: the opening goes to the piece on its free side, and the line is
+                # cut at the crossing wall
+                along0, along1 = base.project(g0)[0], base.project(g1)[0]
+                if status == "cross1":  # the far end: the current wall runs on to the crossing face with the opening
+                    pending.append(dict(found, along=(along0 + along1) / 2))
+                    cur_hi = max(cur_hi, along1)
+                walls.append(Seg(base.a + d * cur_lo, base.a + d * cur_hi, cur_samples, cur_axis))
+                for o in pending:
+                    openings.append(dict(o, wall_seg=len(walls) - 1, t=(o["along"] - cur_lo) / max(cur_hi - cur_lo, 1e-9)))
+                pending = [] if status == "cross1" else [dict(found, along=(along0 + along1) / 2)]
+                cur_lo = lo if status == "cross1" else min(lo, along0)
+                cur_hi, cur_samples, cur_axis = hi, list(segs[i].samples), segs[i].axis
+                continue
             if found is None:
                 walls.append(Seg(base.a + d * cur_lo, base.a + d * cur_hi, cur_samples, cur_axis))
                 for o in pending:
@@ -829,8 +898,14 @@ def windows_by_profile(walls: list[Seg], openings: list[dict[str, Any]], dt: np.
     transform of the raw ink: the closing merges a window's parallel lines into a band as thick as the wall, so the
     wall mask cannot tell, but the raw ink there is a few thin lines (or nothing on the centre line) and the profile
     drops. A run already covered by an opening from the gap pass is left alone (an opening's `t` is a fraction of its
-    wall's length). The lines are sampled in a band of +-PROFILE_BAND_PX about each face (_lines_along), the confidence
-    is capped at 0.99 like the gap pass's."""
+    wall's length; the two overlap when their centres are closer than half their widths added). The lines are sampled
+    in a band of +-PROFILE_BAND_PX about each face, at most a quarter of the wall's thickness (_lines_along), the
+    confidence is capped at 0.99 like the gap pass's.
+
+    A window sits in a wall: its run needs PROFILE_SOLID_STEPS solid steps on both sides and may cover at most
+    PROFILE_MAX_RUN of the wall, and a wall that is low on more than half of its steps is skipped altogether. A wall
+    drawn as its two outlines (CAD style, no fill) reads low along its whole length, like a window, and its outlines
+    make two or three lines along it."""
     ah, aw = dt.shape
     found: list[dict[str, Any]] = []
     step = max(2.0, PROFILE_STEP_M / s)
@@ -846,6 +921,9 @@ def windows_by_profile(walls: list[Seg], openings: list[dict[str, Any]], dt: np.
             pts = g.a + np.outer(along, d) + nl * off
             prof = np.maximum(prof, 2.0 * dt[np.clip(np.round(pts[:, 1]).astype(int), 0, ah - 1), np.clip(np.round(pts[:, 0]).astype(int), 0, aw - 1)])
         low = prof < 0.5 * g.thick
+        if low.mean() > 1.0 - PROFILE_MIN_SOLID:
+            continue
+        band = min(PROFILE_BAND_PX, g.thick / 4)
         k = 0
         while k < n_steps:
             if not low[k]:
@@ -855,13 +933,14 @@ def windows_by_profile(walls: list[Seg], openings: list[dict[str, Any]], dt: np.
             while k2 < n_steps and low[k2]:
                 k2 += 1
             run = (k2 - k) * step
-            if WINDOW_RANGE_M[0] / s <= run <= WINDOW_RANGE_M[1] / s:
+            walled = k >= PROFILE_SOLID_STEPS and k2 + PROFILE_SOLID_STEPS <= n_steps and not low[k - PROFILE_SOLID_STEPS : k].any() and not low[k2 : k2 + PROFILE_SOLID_STEPS].any()
+            if walled and WINDOW_RANGE_M[0] / s <= run <= WINDOW_RANGE_M[1] / s and run <= PROFILE_MAX_RUN * g.length:
                 c_along = (along[k] + along[k2 - 1]) / 2
                 t = c_along / g.length
-                taken = any(o["wall_seg"] == wi and abs(o["t"] - t) * g.length < run for o in openings + found)
+                taken = any(o["wall_seg"] == wi and abs(o["t"] - t) * g.length < (run + o["width_px"]) / 2 for o in openings + found)
                 if not taken:
                     g0 = g.a + d * (c_along - run / 2)
-                    hits = _lines_along(g0, d, run, nl, g.thick, ink, PROFILE_BAND_PX)
+                    hits = _lines_along(g0, d, run, nl, g.thick, ink, band)
                     if hits >= 2:
                         found.append({"kind": "window", "swing": "none", "hinge": "start", "confidence": round(min(0.99, 0.4 + 0.15 * hits), 3), "width_px": run, "wall_seg": wi, "t": t})
             k = k2

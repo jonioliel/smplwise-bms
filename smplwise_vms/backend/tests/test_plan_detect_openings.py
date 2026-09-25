@@ -80,6 +80,30 @@ def test_a_plain_gap_is_a_passage_and_the_hint_needs_a_door():
     assert [o["kind"] for o in r0["openings"]] == ["passage"]
 
 
+def test_no_passage_across_a_crossing_wall():
+    """A partition that ends at a crossing wall and a stub of the same thickness 1.47 m beyond it, on one line: the gap
+    starts at the crossing wall's face, so it is no passage and the partition and the stub stay two walls (a10c58e
+    joined the 12 px pair into one 5.5 m wall with a passage); a plain gap between two free ends stays a passage."""
+    for part_t in (12, 6):
+        p = gen.Plan("t", 0.01, 800, 500)
+        for a, b in (((60, 60), (740, 60)), ((740, 60), (740, 440)), ((740, 440), (60, 440)), ((60, 440), (60, 60))):
+            p.wall(a, b, 16, "exterior")
+        p.wall((400, 60), (400, 440), 12)
+        p.wall((60, 250), (400, 250), part_t)
+        p.wall((560, 250), (610, 250), 12)
+        r = pd.detect(_png(p), scale_m_per_px=0.01)
+        assert r["openings"] == [], (part_t, r["openings"])
+        on_line = sorted(sorted(round(x * 800) for x, _y in w["polyline"]) for w in r["walls"] if all(abs(y * 500 - 250) < 3 for _x, y in w["polyline"]))
+        assert len(on_line) == 2 and on_line[0][1] <= 402 and on_line[1][0] >= 550, (part_t, on_line)
+    p = gen.Plan("t", 0.01, 800, 500)
+    for a, b in (((60, 60), (740, 60)), ((740, 60), (740, 440)), ((740, 440), (60, 440)), ((60, 440), (60, 60))):
+        p.wall(a, b, 16, "exterior")
+    p.wall((60, 250), (300, 250), 12)
+    p.wall((390, 250), (740, 250), 12)
+    r = pd.detect(_png(p), scale_m_per_px=0.01)
+    assert [o["kind"] for o in r["openings"]] == ["passage"], r["openings"]
+
+
 def _matching_door(gt: dict, r: dict, g: dict, tol: float) -> tuple[dict, bool] | None:
     """The detected door nearest to the ground-truth door g whose wall runs along g's wall (pm's wall overlap test) and
     whose centre lies within tol plus half the width, with whether that wall runs the same way as the drawn one."""
