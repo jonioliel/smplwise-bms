@@ -399,7 +399,7 @@ export class InvestigateHistoryMap extends LitElement {
         const cov = this.coverageAt(a.resource_id);
         const near = this.eventsNear(a.resource_id, 5).length;
         const name = a.camera?.name ?? a.label ?? a.resource_id;
-        return { id: a.id, kind: 'camera' as const, label: near ? `${name} · ${near} אירועים` : name, x: a.position.x, y: a.position.y, rotation: a.rotation_degrees, fov: a.field_of_view_degrees ?? undefined, radius: a.coverage_radius ?? undefined, polygon: a.coverage_polygon ? a.coverage_polygon.map(([x, y]) => ({ x, y })) : undefined, labelPos: a.label_pos ?? undefined, state: cov.state };
+        return { id: a.id, kind: 'camera' as const, label: near ? `${name} · ${near} אירועים` : name, x: a.position.x, y: a.position.y, rotation: a.rotation_degrees, fov: a.field_of_view_degrees ?? undefined, radius: a.coverage_radius ?? undefined, polygon: a.coverage_polygon ? a.coverage_polygon.map(([x, y]) => ({ x, y })) : undefined, labelPos: a.label_pos ?? undefined, level: a.level_id ?? null, state: cov.state };
       }
       const sa = a.entity?.state_at;
       const name = entityName(a);

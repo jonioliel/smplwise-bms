@@ -439,6 +439,7 @@ export class InvestigateEventDetail extends LitElement {
       y: a.position.y,
       rotation: a.rotation_degrees,
       fov: a.field_of_view_degrees ?? undefined,
+      level: a.level_id ?? null,
       state: a.resource_type === 'camera' ? cameraState(a) : 'neutral',
     }));
   }
