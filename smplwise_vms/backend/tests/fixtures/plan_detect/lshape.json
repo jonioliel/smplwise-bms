@@ -1,0 +1,192 @@
+{
+ "name": "lshape",
+ "width": 1600,
+ "height": 1200,
+ "scale_m_per_px": 0.01,
+ "walls": [
+  {
+   "a": [
+    120,
+    120
+   ],
+   "b": [
+    1000,
+    120
+   ],
+   "thickness_px": 16,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    1000,
+    120
+   ],
+   "b": [
+    1000,
+    640
+   ],
+   "thickness_px": 16,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    1000,
+    640
+   ],
+   "b": [
+    1480,
+    640
+   ],
+   "thickness_px": 16,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    1480,
+    640
+   ],
+   "b": [
+    1480,
+    1080
+   ],
+   "thickness_px": 16,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    1480,
+    1080
+   ],
+   "b": [
+    120,
+    1080
+   ],
+   "thickness_px": 16,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    120,
+    1080
+   ],
+   "b": [
+    120,
+    120
+   ],
+   "thickness_px": 16,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    560,
+    120
+   ],
+   "b": [
+    560,
+    1080
+   ],
+   "thickness_px": 10,
+   "kind": "interior"
+  },
+  {
+   "a": [
+    120,
+    500
+   ],
+   "b": [
+    560,
+    500
+   ],
+   "thickness_px": 10,
+   "kind": "interior"
+  },
+  {
+   "a": [
+    560,
+    860
+   ],
+   "b": [
+    1480,
+    860
+   ],
+   "thickness_px": 10,
+   "kind": "interior"
+  },
+  {
+   "a": [
+    1000,
+    640
+   ],
+   "b": [
+    1000,
+    860
+   ],
+   "thickness_px": 10,
+   "kind": "interior"
+  }
+ ],
+ "doors": [
+  {
+   "centre": [
+    560,
+    320
+   ],
+   "width_px": 90,
+   "wall": 6,
+   "hinge": "start",
+   "swing": "right",
+   "double": false
+  },
+  {
+   "centre": [
+    340,
+    500
+   ],
+   "width_px": 90,
+   "wall": 7,
+   "hinge": "end",
+   "swing": "left",
+   "double": false
+  },
+  {
+   "centre": [
+    780,
+    860
+   ],
+   "width_px": 90,
+   "wall": 8,
+   "hinge": "start",
+   "swing": "left",
+   "double": false
+  },
+  {
+   "centre": [
+    1240,
+    860
+   ],
+   "width_px": 90,
+   "wall": 8,
+   "hinge": "end",
+   "swing": "right",
+   "double": false
+  }
+ ],
+ "windows": [
+  {
+   "centre": [
+    340,
+    120
+   ],
+   "width_px": 120,
+   "wall": 0
+  },
+  {
+   "centre": [
+    1480,
+    860
+   ],
+   "width_px": 120,
+   "wall": 3
+  }
+ ]
+}

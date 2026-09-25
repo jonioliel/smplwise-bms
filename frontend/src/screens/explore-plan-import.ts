@@ -9,13 +9,46 @@ import '../components/sw-badge';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import { navigate } from '../router';
-import { createVersion, getDxf, listAssets, publishVersion, setDxf, uploadAsset, type DxfDetails } from '../api/maps';
+import { createVersion, getDxf, listAssets, loadMap, publishVersion, setDxf, uploadAsset, type DxfDetails } from '../api/maps';
 import { findFloor, loadTree, type CatalogTree } from '../api/catalog';
-import { describeError, resourceUrl } from '../api/client';
-import { isApi } from '../api/session';
+import { ApiError, describeError, resourceUrl } from '../api/client';
+import { can, isApi } from '../api/session';
+import { getDxfEntities, importDxfGeometry, type DetectResult, type DxfEntities, type DxfTarget } from '../api/geometry';
+import { stashDxfCandidates } from '../map/candidates';
 import type { PlanAsset, PlanVersion } from '../api/types';
 
 const STEPS = ['קובץ', 'עמוד', 'חיתוך וסיבוב', 'שם והערות', 'שמירה ופרסום'];
+
+/** T086: a refused DXF mapping call, in the screen's words (code from ApiError; the server's own Hebrew otherwise). */
+interface DxfMapError {
+  code: string;
+  text: string;
+  retry: boolean;
+}
+
+function dxfMapError(err: unknown, action: 'load' | 'import'): DxfMapError {
+  if (!(err instanceof ApiError)) return { code: 'failed', text: describeError(err), retry: err instanceof TypeError };
+  const d = err.body.details as Record<string, unknown> | undefined;
+  const list = (k: string) => (Array.isArray(d?.[k]) ? (d?.[k] as unknown[]).map(String).join(', ') : '');
+  switch (err.code) {
+    case 'dxf_timeout': {
+      const s = typeof d?.timeout_s === 'number' ? ` (${d.timeout_s} שנ׳)` : '';
+      return { code: err.code, text: action === 'load' ? `קריאת השרטוט לא הסתיימה בזמן${s}. נסה שוב.` : `הייבוא לא הסתיים בזמן${s}. נסה שוב, או מפה פחות שכבות (סמן "התעלם" לשכבות שאינן מבנה).`, retry: true };
+    }
+    case 'unknown_item':
+      return { code: err.code, text: `פריט שנבחר לבלוק לא קיים בספרייה${list('items') ? `: ${list('items')}` : ''}. בחר פריט אחר (או "עצם כללי") ונסה שוב.`, retry: false };
+    case 'unknown_layer':
+      return { code: err.code, text: `שכבה במיפוי לא קיימת בקובץ${list('unknown') ? `: ${list('unknown')}` : ''}. המיפוי נטען מחדש מהשרטוט.`, retry: false };
+    case 'no_layers':
+      return { code: err.code, text: 'יש למפות לפחות שכבה אחת (יעד שאינו "התעלם").', retry: false };
+    case 'not_dxf':
+      return { code: err.code, text: 'הגרסה השמורה לא נוצרה מקובץ DXF, ולכן אין מה למפות.', retry: false };
+    case 'dxf_unitless':
+      return { code: err.code, text: 'לקובץ אין יחידות: בחר יחידות בכרטיס "DXF · שכבות, יחידות וקנה מידה" לפני הייבוא.', retry: false };
+    default:
+      return { code: err.code || 'failed', text: describeError(err), retry: !!err.body.retryable };
+  }
+}
 
 /**
  * SC05 — plan import (board 2 screen 13): file → page → crop/rotate → name → draft → publish.
@@ -46,6 +79,25 @@ export class ExplorePlanImport extends LitElement {
   @state() private dxfUnits: string | null = null;
   @state() private dxfBusy = false;
   @state() private previewBust = 0;
+  /** T086: the DXF entity summary of the saved version's asset, the mapping being edited and the import in flight. */
+  @state() private dxfEnt: DxfEntities | null = null;
+  @state() private dxfEntLoading = false;
+  @state() private layerMap: Record<string, DxfTarget> = {};
+  @state() private blockMap: Record<string, string | null> = {};
+  @state() private importing = false;
+  @state() private importSecs = 0;
+  @state() private imported: DetectResult | null = null;
+  @state() private dxfMapErr: (DxfMapError & { action: 'load' | 'import' }) | null = null;
+  /** The drawing was re-rendered (layers / units) after the version was saved: the version no longer matches it. */
+  @state() private dxfStale = false;
+  /** map.edit on this floor (from the floor bundle's permissions): only then are the candidates handed to the editor. */
+  @state() private canStructure: boolean | null = null;
+  private importTimer: number | undefined;
+  /** The asset the layer / block choices above were made for. */
+  private mapAssetId = '';
+  /** The latest summary load and the latest import: an older answer is dropped. */
+  private entToken = 0;
+  private importToken = 0;
 
   static styles = css`
     .layout {
@@ -222,9 +274,58 @@ export class ExplorePlanImport extends LitElement {
       text-align: start;
       margin-block-end: 4px;
     }
+    /* T086: the DXF mapping tables scroll inside their own box on a narrow screen, never the page */
+    .stage {
+      min-inline-size: 0;
+    }
+    .mapwrap {
+      max-inline-size: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    table.map {
+      inline-size: 100%;
+      border-collapse: collapse;
+      font-size: var(--sw-fs-sm);
+    }
+    table.map th,
+    table.map td {
+      text-align: start;
+      padding: 4px 6px;
+      border-block-end: 1px solid var(--sw-border);
+      vertical-align: middle;
+    }
+    table.map th {
+      font-weight: 600;
+      color: var(--sw-text-2);
+      white-space: nowrap;
+    }
+    table.map td.sample {
+      max-inline-size: 180px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    table.map tr.muted {
+      color: var(--sw-text-2);
+    }
+    table.map select {
+      font: inherit;
+      max-inline-size: 140px;
+    }
+    table.map .nowrap {
+      white-space: nowrap;
+    }
+    /* phone: the sample column and the kind breakdown give way so the target select stays in view */
+    @media (max-width: 767px) {
+      table.map .sample,
+      table.map .kinds {
+        display: none;
+      }
+    }
     @media (max-width: 1023px) {
       .layout {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
       }
     }
   `;
@@ -253,6 +354,164 @@ export class ExplorePlanImport extends LitElement {
       if (a && a.kind === 'dxf' && (!this.dxf || this.dxf.asset_id !== a.id)) void this.loadDxf(a.id);
       else if (!a || a.kind !== 'dxf') this.dxf = null;
     }
+    if ((changed.has('version') || changed.has('asset')) && isApi()) {
+      const a = this.asset;
+      const v = this.version;
+      if (v && a && a.kind === 'dxf' && v.asset_id === a.id) {
+        if (changed.has('version') && (changed.get('version') as PlanVersion | null | undefined)?.id !== v.id) this.resetDxfMap();
+        if (!this.dxfEnt || this.dxfEnt.asset_id !== a.id) void this.loadDxfEntities(a.id);
+        if (this.canStructure === null) void this.loadFloorRights();
+      } else if (!v || !a || a.kind !== 'dxf') {
+        this.dxfEnt = null;
+        this.resetDxfMap();
+      }
+    }
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.stopImportTimer();
+  }
+
+  private resetDxfMap() {
+    this.importToken++;
+    this.imported = null;
+    this.dxfMapErr = null;
+    this.dxfStale = false;
+  }
+
+  /** map.edit on the floor: an installation-wide grant answers at once, a floor-scoped one comes with the floor bundle. */
+  private async loadFloorRights() {
+    if (can('map.edit')) {
+      this.canStructure = true;
+      return;
+    }
+    try {
+      this.canStructure = (await loadMap(this.floorId)).permissions.structure;
+    } catch {
+      this.canStructure = false;
+    }
+  }
+
+  /** The summary of the drawing; the latest call wins (a token), so a reload after a re-render is never dropped.
+   * `refused` (after an unknown_layer / unknown_item answer): those layers go to "ignore" and the blocks that pointed at
+   * a refused item go back to their suggestion, so the reload never restores the refused mapping. */
+  private async loadDxfEntities(assetId: string, refused: { layers?: string[]; items?: string[] } = {}) {
+    const token = ++this.entToken;
+    this.dxfEntLoading = true;
+    this.dxfMapErr = null;
+    try {
+      const ent = await getDxfEntities(assetId);
+      if (token !== this.entToken || this.asset?.id !== assetId) return;
+      // a reload of the same drawing (after a re-render or a refusal) keeps the choices that still apply
+      const same = this.mapAssetId === ent.asset_id;
+      const targets = new Set(ent.targets.map((t) => t.id));
+      const items = new Set(ent.catalog_choices.map((c) => c.id).filter((id): id is string => id !== null));
+      const badLayers = new Set(refused.layers ?? []);
+      const badItems = new Set(refused.items ?? []);
+      const keptLayer = (name: string): DxfTarget | undefined => {
+        if (badLayers.has(name)) return 'ignore';
+        const t = this.layerMap[name];
+        return same && t !== undefined && targets.has(t) ? t : undefined;
+      };
+      // null ("not an object": a door or window block) is kept only where the server suggests it itself
+      const keptBlock = (name: string, suggested: string | null): string | null | undefined => {
+        if (!same || !(name in this.blockMap)) return undefined;
+        const id = this.blockMap[name];
+        if (id === null) return suggested === null ? null : undefined;
+        return items.has(id) && !badItems.has(id) ? id : undefined;
+      };
+      this.dxfEnt = ent;
+      this.mapAssetId = ent.asset_id;
+      this.layerMap = Object.fromEntries(ent.layers.map((l) => [l.name, l.count ? keptLayer(l.name) ?? l.suggested : 'ignore']));
+      this.blockMap = Object.fromEntries(ent.blocks.map((b) => {
+        const kept = keptBlock(b.name, b.suggested.catalog_id);
+        return [b.name, kept === undefined ? b.suggested.catalog_id : kept];
+      }));
+      this.imported = null;
+    } catch (err) {
+      if (token === this.entToken) this.dxfMapErr = { ...dxfMapError(err, 'load'), action: 'load' };
+    } finally {
+      if (token === this.entToken) this.dxfEntLoading = false;
+    }
+  }
+
+  /** The import body: every mapped (non-ignore) layer - the server maps only the layers it is given - and only the blocks
+   * whose item differs from the server's own suggestion; an omitted block gets that suggestion (a door or window block
+   * none), which also keeps a drawing with thousands of blocks under the request cap. */
+  private importBody(ent: DxfEntities): { layer_map: Record<string, DxfTarget>; block_map: Record<string, string> } {
+    const layer_map = Object.fromEntries(Object.entries(this.layerMap).filter(([, t]) => t !== 'ignore'));
+    const block_map: Record<string, string> = {};
+    for (const b of ent.blocks) {
+      const id = this.blockMap[b.name];
+      if (typeof id === 'string' && id !== b.suggested.catalog_id) block_map[b.name] = id;
+    }
+    return { layer_map, block_map };
+  }
+
+  private stopImportTimer() {
+    if (this.importTimer !== undefined) window.clearInterval(this.importTimer);
+    this.importTimer = undefined;
+  }
+
+  private async importDxf() {
+    const v = this.version;
+    const ent = this.dxfEnt;
+    if (!v || !ent || this.importing) return;
+    const body = this.importBody(ent);
+    if (!Object.keys(body.layer_map).length) {
+      this.dxfMapErr = { code: 'no_layers', text: 'יש למפות לפחות שכבה אחת (יעד שאינו "התעלם").', retry: false, action: 'import' };
+      return;
+    }
+    // a re-render, a new version or another asset during the request makes its answer stale (resetDxfMap / applyDxf bump it)
+    const token = ++this.importToken;
+    this.importing = true;
+    this.importSecs = 0;
+    this.dxfMapErr = null;
+    this.imported = null;
+    const t0 = Date.now();
+    this.importTimer = window.setInterval(() => (this.importSecs = Math.round((Date.now() - t0) / 1000)), 1000);
+    try {
+      const r = await importDxfGeometry(v.id, body);
+      if (token === this.importToken && !this.dxfStale && this.version?.id === v.id) this.imported = r;
+    } catch (err) {
+      if (token !== this.importToken) return;
+      const e = dxfMapError(err, 'import');
+      this.dxfMapErr = { ...e, action: 'import' };
+      if (e.code === 'unknown_layer' || e.code === 'unknown_item') {
+        const d = err instanceof ApiError ? err.body.details : {};
+        const strs = (x: unknown) => (Array.isArray(x) ? x.filter((s): s is string => typeof s === 'string') : []);
+        this.dxfEnt = null;
+        void this.loadDxfEntities(ent.asset_id, { layers: strs(d?.unknown), items: strs(d?.items) }).then(() => {
+          // keep the refusal visible after the reload replaced the table
+          if (!this.dxfMapErr) this.dxfMapErr = { ...e, action: 'import' };
+        });
+      }
+    } finally {
+      this.stopImportTimer();
+      this.importing = false;
+    }
+  }
+
+  /** The hand-off: the candidates go to sessionStorage for this version and the editor opens its detect tool on them. */
+  private openEditorWithCandidates() {
+    const v = this.version;
+    const r = this.imported;
+    if (!v || !r || !this.canStructure) return;
+    stashDxfCandidates(v.id, r);
+    navigate(`/explore/floors/${this.floorId}/edit`, { candidates: 'dxf' });
+  }
+
+  private setLayerTarget(name: string, t: DxfTarget) {
+    this.layerMap = { ...this.layerMap, [name]: t };
+    this.imported = null;
+    if (this.dxfMapErr?.action === 'import') this.dxfMapErr = null;
+  }
+
+  private setBlockItem(name: string, id: string | null) {
+    this.blockMap = { ...this.blockMap, [name]: id };
+    this.imported = null;
+    if (this.dxfMapErr?.action === 'import') this.dxfMapErr = null;
   }
 
   private async loadDxf(assetId: string) {
@@ -282,6 +541,13 @@ export class ExplorePlanImport extends LitElement {
       this.dxf = await setDxf(this.dxf.asset_id, { layers, units: this.dxfUnits });
       this.dxfLayers = this.dxf.options.layers;
       this.previewBust = Date.now();
+      // T086: a saved version of this drawing no longer matches the new rendering; the mapping table follows the drawing
+      if (this.version && this.version.asset_id === this.dxf.asset_id) {
+        this.dxfStale = true;
+        this.importToken++;
+        this.imported = null;
+        void this.loadDxfEntities(this.dxf.asset_id);
+      }
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -310,6 +576,93 @@ export class ExplorePlanImport extends LitElement {
       </div>
       ${d.render ? html`<div class="note" style="margin-block-start:6px" data-dxf-render>רונדר: ${d.render.width}×${d.render.height} px · ${d.render.rendered} ישויות מ־${d.render.layers.length} שכבות${m ? ` · ${(m * 100).toFixed(2)} ס״מ לפיקסל (מיחידות ${d.render.units}; ייכנס לגרסה כקנה מידה)` : ' · קנה מידה לא ידוע: הקובץ ללא יחידות, בחר יחידות או כייל מאוחר יותר'}</div>` : nothing}
       <div class="note">DWG אינו נתמך (פורמט סגור) — יש להמיר ל־DXF לפני הייבוא.</div>
+    </sw-card>`;
+  }
+
+  /** T086: layers and blocks of the drawing mapped to structure candidates for the saved version (design 9.4). */
+  private renderDxfMap() {
+    const v = this.version;
+    const a = this.asset;
+    if (!v || !a || a.kind !== 'dxf' || v.asset_id !== a.id) return nothing;
+    const ent = this.dxfEnt;
+    const err = this.dxfMapErr;
+    const busy = this.dxfEntLoading || this.importing;
+    const errLine = err
+      ? html`<div class="err" role="alert" data-dxf-map-error=${err.code}>${err.text}${err.retry
+          ? html` <sw-button size="sm" variant="ghost" icon="refresh" data-dxf-retry ?disabled=${busy} @click=${() => (err.action === 'load' ? void this.loadDxfEntities(a.id) : void this.importDxf())}>נסה שוב</sw-button>`
+          : nothing}</div>`
+      : nothing;
+    const heading = 'DXF · מיפוי שכבות ובלוקים למבנה';
+    const sub = 'שכבות → קירות / דלתות / חלונות / עצמים / חדרים; בלוקים → פריטי ספרייה. התוצאה נכנסת לעורך כמועמדים, לא לטיוטה';
+    if (!ent)
+      return html`<sw-card heading=${heading} subheading=${sub} data-dxf-map aria-busy=${busy ? 'true' : 'false'}>
+        ${this.dxfEntLoading ? html`<div class="note" data-dxf-map-loading>קורא את השכבות והבלוקים של השרטוט…</div>` : nothing}${errLine}
+      </sw-card>`;
+    const unitless = ent.metres_per_unit === null;
+    const mapped = Object.values(this.layerMap).filter((t) => t !== 'ignore').length;
+    const rooms = ent.layers.filter((l) => this.layerMap[l.name] === 'rooms').length;
+    const objectsMapped = ent.layers.some((l) => this.layerMap[l.name] === 'objects');
+    const r = this.imported;
+    return html`<sw-card heading=${heading} subheading=${sub} data-dxf-map aria-busy=${busy ? 'true' : 'false'}>
+      ${unitless
+        ? html`<div class="err" data-dxf-map-units>לקובץ אין יחידות: בחר יחידות בכרטיס "DXF · שכבות, יחידות וקנה מידה", לחץ "החל ורנדר מחדש" ושמור גרסה חדשה - רק אז המידות במטרים אמיתיים.</div>`
+        : html`<div class="note">יחידות: <span class="ltr">${ent.units}</span> · המידות ייכנסו במטרים אמיתיים (מדוד)</div>`}
+      ${this.dxfStale
+        ? html`<div class="err" data-dxf-map-stale>השרטוט רונדר מחדש אחרי שמירת הגרסה, והגרסה השמורה כבר לא תואמת אותו. שמור גרסה חדשה לפני הייבוא.
+            <sw-button size="sm" variant="primary" icon="check" data-dxf-map-resave ?disabled=${this.busy} @click=${() => this.save()}>שמור גרסה חדשה</sw-button></div>`
+        : nothing}
+      <div class="mapwrap" data-dxf-map-layers>
+        <table class="map">
+          <thead><tr><th scope="col">שכבה</th><th scope="col">ישויות</th><th scope="col" class="sample">דוגמה</th><th scope="col">יעד</th></tr></thead>
+          <tbody>
+            ${ent.layers.map((l, i) => html`<tr data-dxf-map-row=${l.name} class=${l.count ? '' : 'muted'}>
+              <td><label for=${`dxf-map-layer-${i}`} class="ltr">${l.name}</label>${l.in_render ? nothing : html` <span class="note">(לא מצוירת)</span>`}</td>
+              <td><span class="ltr">${l.count}</span>${l.count ? html` <span class="note ltr kinds">${Object.entries(l.kinds).map(([k, n]) => `${k} ${n}`).join(', ')}</span>` : nothing}</td>
+              <td class="ltr sample">${l.sample}</td>
+              <td><select id=${`dxf-map-layer-${i}`} data-dxf-map-target aria-label=${`יעד לשכבה ${l.name}`} ?disabled=${!l.count || this.importing} @change=${(e: Event) => this.setLayerTarget(l.name, (e.target as HTMLSelectElement).value as DxfTarget)}>
+                ${ent.targets.map((t) => html`<option value=${t.id} ?selected=${(this.layerMap[l.name] ?? 'ignore') === t.id}>${t.label}</option>`)}
+              </select></td>
+            </tr>`)}
+          </tbody>
+        </table>
+      </div>
+      ${ent.blocks.length
+        ? html`<div class="note" style="margin-block-start:8px">בלוקים (${ent.blocks.length}) - נכנסים כעצמים רק מתוך שכבות שמופו ל"עצמים"${objectsMapped ? '' : ' (כרגע אף שכבה לא ממופה ל"עצמים")'}; בלוק בלי התאמה נכנס כ"עצם כללי", בלוק של דלת או חלון אינו עצם:</div>
+            <div class="mapwrap" data-dxf-map-blocks>
+              <table class="map">
+                <thead><tr><th scope="col">בלוק</th><th scope="col">מופעים</th><th scope="col" data-dxf-block-size-unit=${unitless ? 'drawing' : 'm'}>${unitless ? 'מידות (יחידות שרטוט)' : 'מידות (מ׳)'}</th><th scope="col">פריט</th></tr></thead>
+                <tbody>
+                  ${ent.blocks.map((b, i) => html`<tr data-dxf-block-row=${b.name}>
+                    <td><label for=${`dxf-map-block-${i}`} class="ltr">${b.name}</label></td>
+                    <td class="ltr">${b.count}</td>
+                    <td class="ltr nowrap">${b.size_m[0].toFixed(2)} × ${b.size_m[1].toFixed(2)}</td>
+                    <td><select id=${`dxf-map-block-${i}`} data-dxf-block-target aria-label=${`פריט לבלוק ${b.name}`} ?disabled=${this.importing} @change=${(e: Event) => this.setBlockItem(b.name, (e.target as HTMLSelectElement).value || null)}>
+                      ${b.suggested.catalog_id === null ? html`<option value="" data-dxf-block-none ?selected=${(this.blockMap[b.name] ?? null) === null}>לא עצם (דלת/חלון)</option>` : nothing}
+                      ${ent.catalog_choices.filter((c) => c.id !== null).map((c) => html`<option value=${c.id ?? ''} ?selected=${this.blockMap[b.name] === c.id}>${c.name}</option>`)}
+                    </select></td>
+                  </tr>`)}
+                </tbody>
+              </table>
+            </div>`
+        : nothing}
+      <div class="row" style="margin-block-start:8px">
+        <sw-button variant="primary" size="sm" icon="sparkle" data-dxf-import aria-busy=${this.importing ? 'true' : 'false'} ?disabled=${unitless || this.dxfStale || busy || !mapped} @click=${() => this.importDxf()}>${this.importing ? `מייבא… ${this.importSecs} שנ׳` : 'ייבא כמועמדים'}</sw-button>
+        <span class="note" data-dxf-map-count>${mapped ? `${mapped} שכבות ממופות` : 'אף שכבה לא ממופה - בחר יעד לשכבה אחת לפחות'}${rooms ? ` · חדרים נכנסים דרך קבלת האזורים, לא כמבנה` : ''}</span>
+      </div>
+      ${this.importing ? html`<div class="note" data-dxf-importing>קורא את השרטוט בשרת; שרטוט גדול עשוי לקחת עד דקה.</div>` : nothing}
+      ${errLine}
+      ${r
+        ? html`<div class="ok" data-dxf-imported>נמצאו מועמדים: קירות ${r.walls.length} · פתחים ${r.openings.length} · עצמים ${r.objects?.length ?? 0} · <span data-dxf-imported-rooms>חדרים: ${r.rooms?.length ?? 0} (דרך קבלת האזורים)</span></div>
+            ${r.existing_auto.walls + r.existing_auto.openings + (r.existing_auto.objects ?? 0)
+              ? html`<div class="note" data-dxf-imported-existing>בטיוטת המבנה כבר יש פריטים מיובאים: קירות ${r.existing_auto.walls} · פתחים ${r.existing_auto.openings} · עצמים ${r.existing_auto.objects ?? 0}; בעורך אפשר להחליף אותם.</div>`
+              : nothing}
+            ${this.canStructure
+              ? html`<div class="row" style="margin-block-start:6px">
+                  <sw-button variant="primary" size="sm" icon="edit" data-dxf-open-editor @click=${() => this.openEditorWithCandidates()}>המשך לעורך</sw-button>
+                  <span class="note">העורך ייפתח בכלי "זיהוי" עם המועמדים בשכבה מקווקווה; שם מאשרים או דוחים. שום דבר לא נשמר עד האישור.</span>
+                </div>`
+              : html`<div class="note" data-dxf-no-edit>${this.canStructure === null ? 'בודק הרשאות עריכה…' : 'אין לך הרשאת עריכת מבנה בקומה זו, ולכן אי אפשר לאשר את המועמדים. עורך הקומה יכול לייבא אותם מהמסך הזה.'}</div>`}`
+        : nothing}
     </sw-card>`;
   }
 
@@ -462,7 +815,8 @@ export class ExplorePlanImport extends LitElement {
             ${!this.version ? html`<sw-button variant="primary" icon="check" ?disabled=${this.busy} @click=${() => this.save()}>שמור כטיוטה</sw-button>` : nothing}
             ${this.version && this.version.status === 'draft' ? html`<sw-button variant="primary" icon="check" ?disabled=${this.busy} @click=${() => this.publish()}>פרסום</sw-button>` : nothing}
             ${this.version ? html`<sw-button icon="map" @click=${() => navigate(`/explore/floors/${this.floorId}`)}>פתח במפה</sw-button><sw-button variant="ghost" icon="edit" @click=${() => navigate(`/explore/floors/${this.floorId}/edit`)}>הצב מצלמות</sw-button>` : nothing}
-          </div>`;
+          </div>
+          ${a?.kind === 'dxf' ? this.renderDxfMap() : nothing}`;
     }
   }
 

@@ -1,0 +1,145 @@
+{
+ "name": "hall",
+ "width": 1600,
+ "height": 1200,
+ "scale_m_per_px": 0.012,
+ "walls": [
+  {
+   "a": [
+    100,
+    100
+   ],
+   "b": [
+    1500,
+    100
+   ],
+   "thickness_px": 20,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    1500,
+    100
+   ],
+   "b": [
+    1500,
+    1100
+   ],
+   "thickness_px": 20,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    1500,
+    1100
+   ],
+   "b": [
+    100,
+    1100
+   ],
+   "thickness_px": 20,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    100,
+    1100
+   ],
+   "b": [
+    100,
+    100
+   ],
+   "thickness_px": 20,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    100,
+    900
+   ],
+   "b": [
+    1500,
+    900
+   ],
+   "thickness_px": 12,
+   "kind": "interior"
+  }
+ ],
+ "doors": [
+  {
+   "centre": [
+    800,
+    900
+   ],
+   "width_px": 160,
+   "wall": 4,
+   "hinge": "start",
+   "swing": "double",
+   "double": true
+  },
+  {
+   "centre": [
+    300,
+    1100
+   ],
+   "width_px": 80,
+   "wall": 2,
+   "hinge": "start",
+   "swing": "right",
+   "double": false
+  },
+  {
+   "centre": [
+    1300,
+    1100
+   ],
+   "width_px": 80,
+   "wall": 2,
+   "hinge": "end",
+   "swing": "left",
+   "double": false
+  }
+ ],
+ "windows": [
+  {
+   "centre": [
+    300,
+    100
+   ],
+   "width_px": 100,
+   "wall": 0
+  },
+  {
+   "centre": [
+    550,
+    100
+   ],
+   "width_px": 100,
+   "wall": 0
+  },
+  {
+   "centre": [
+    800,
+    100
+   ],
+   "width_px": 100,
+   "wall": 0
+  },
+  {
+   "centre": [
+    1050,
+    100
+   ],
+   "width_px": 100,
+   "wall": 0
+  },
+  {
+   "centre": [
+    1300,
+    100
+   ],
+   "width_px": 100,
+   "wall": 0
+  }
+ ]
+}

@@ -8,7 +8,7 @@
 
 **Tech Stack:** FastAPI + SQLite on Python 3.12 (Pillow / numpy / ezdxf already present), Lit 3 + TypeScript 5.9 (strict, `noUnusedLocals`), Playwright 1.63. **No new runtime dependency** in this phase.
 
-**Spec:** `docs/architecture/PLAN_STUDIO_DESIGN_HE.md` (sections 2, 2a, 4.2, 5 with the 2026-09-24 amendment, 6.3, 7, 9.1–9.6, 13, 14 phase 3, 15, 16 decision 6). Task card: `management/tasks/T086.md` (R171, R172; AT171, AT172). Phase 1 (`docs/superpowers/plans/2026-09-23-plan-studio-phase1.md`, shipped as 0.1.82) and phase 2 (T085, shipped as 0.1.84 before this plan runs) are the foundation.
+**Spec:** `docs/architecture/PLAN_STUDIO_DESIGN_HE.md` (sections 2, 2a, 4.2, 5 with the 2026-09-24 amendment, 6.3, 7, 9.1–9.6, 13, 14 phase 3, 15, 16 decision 6). Task card: `management/tasks/T086.md` (R171, R172; AT171, AT172). Phase 1 (`docs/superpowers/plans/2026-09-23-plan-studio-phase1.md`, shipped as 0.1.82) and phase 2 (T085, shipped as 0.1.85 before this plan runs) are the foundation.
 
 **Prototype evidence (2026-09-24, this workstation, Python 3.12, numpy 2):** the pipeline written below was run against the six synthetic plans of Task 1 before this document was written: walls recall 0.974–0.999 with precision 0.969–1.000, doors 23 / 23 found and classified as doors (double door included), windows 15 / 15, calibration hints within 2 % of the true scale, 2.1–4.9 s per 1600 px plan (thinning is 55–70 % of it). The thresholds in the Global Constraints are set below those numbers with margin, not at them.
 
@@ -23,7 +23,7 @@ Binding decisions from the controller for this phase (recorded here; where a rul
 5. **Calibration hint.** When the version is uncalibrated and doors were found, the median door gap is taken as 0.9 m → `calibration_hint: {scale_m_per_px, status: "estimated", method: "door_width", reason: "לפי רוחב דלת אופייני"}`; the client offers "השתמש בהערכה", which PATCHes the calibration with status estimated (the route and the record accept an estimate: method `door_width`, status `estimated`); metres then show with "≈" as in phase 1.
 6. **DXF.** `services/plan_dxf_map.py` maps layers by name (WALL, A-WALL, MUR, קיר → walls; DOOR, A-DOOR, דלת → openings; WIND, GLAZ, חלון → windows; FURN, EQPM, ריהוט → objects; ROOM, AREA, חדר → rooms) and blocks by name and bounding box to catalog items (door → דלת, chair → כיסא, bed → מיטה; default "עצם כללי"); two parallel lines 10–40 cm apart become one wall with that thickness; results are in real metres (`measured`). `GET /plan-assets/{id}/dxf/entities` returns per layer the entity count, a sample and the suggested target; `POST /plan-versions/{id}/import-dxf-geometry {layer_map, block_map, level_id}` returns candidates in the detect format (permission `map.import`). The existing ezdxf reader is reused; ezdxf is already a declared dependency (`requirements.txt`), so nothing is added.
 7. **Frontend.** A "זיהוי" tool in the editor rail (sparkle icon added to `sw-icon`); its panel has target checkboxes (קירות, פתחים), a strength slider, "זהה אוטומטית" with a progress indicator (synchronous request; the button disables; an elapsed counter), candidates drawn in a separate dashed blue layer with the score on hover / click, "קבל הכול", "קבל מעל 0.8", "קבל לפי סוג", click to toggle accept / reject, endpoint drag of a candidate wall before accepting, a "החלף אוטומטיים קודמים" checkbox, and "אשר", which sends `detect/accept` and reloads the draft through the controller's `load()`; accepted items appear as normal structure with an "auto" badge in the structure panel. The DXF mapping screen lives in the import flow (`explore-plan-import.ts`) for DXF assets: a table of layers with counts, sample and a target select, a block table, and "ייבא כמועמדים", which opens the same candidates layer in the editor. Phone: detection is available, editing candidates is desktop-only (a message says so).
-8. **Release.** 0.1.85 (phase 2 ships as 0.1.84 first), CHANGELOG, records (T086 receives the evidence line "on commit <sha>"; AT171 / AT172 PASS only for what the tests exercised, with the real-scan numbers in the evidence text), the owner checklist `docs/operations/PLAN_STUDIO_PHASE3_CHECKLIST_HE.md`, the design document's implementation line; the release task **stops after the release commit** (no merge, push or store reload — the controller does those). Every commit step runs `bash /c/cloude/smplwisebms/secrets/scan_staged.sh` and requires the printed `0`; message in a UTF-8 file without BOM, `git commit -F`, English, no apostrophes, trailer `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`.
+8. **Release.** 0.1.86 (phase 2 shipped as 0.1.84 and 0.1.85), CHANGELOG, records (T086 receives the evidence line "on commit <sha>"; AT171 / AT172 PASS only for what the tests exercised, with the real-scan numbers in the evidence text), the owner checklist `docs/operations/PLAN_STUDIO_PHASE3_CHECKLIST_HE.md`, the design document's implementation line; the release task **stops after the release commit** (no merge, push or store reload — the controller does those). Every commit step runs `bash /c/cloude/smplwisebms/secrets/scan_staged.sh` and requires the printed `0`; message in a UTF-8 file without BOM, `git commit -F`, English, no apostrophes, trailer `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`.
 9. **Copy and tooling.** Hebrew product strings, English code and documents; strict TypeScript; no new runtime dependencies; pytest never with `-q`; Playwright live specs with `--workers=1` in real Chrome (`SW_LIVE=1 SW_CHROME=1`), never `toBeVisible()` on horizontal SVG lines; each live test creates and cleans up its own site / building / floor and uploads one of the synthetic fixture PNGs as its plan.
 
 **Interpretations and recorded differences** (each is applied consistently through the plan):
@@ -114,7 +114,7 @@ Expect `me: 200` and a listener pid different from the previous run; an old proc
 - `frontend/src/shell/sw-app.ts` — passes `?candidates=` to the editor.
 
 **Release**
-- `smplwise_vms/config.yaml`, `smplwise_vms/Dockerfile`, `smplwise_vms/backend/smplwise/__init__.py` (0.1.85), `smplwise_vms/CHANGELOG.md`, `contracts/API_INVENTORY.md` (generated), `smplwise_vms/www/` (generated), `management/tasks.json`, `management/test_catalog.json` and the generated views, `docs/operations/PLAN_STUDIO_PHASE3_CHECKLIST_HE.md`, `docs/architecture/PLAN_STUDIO_DESIGN_HE.md` (implementation line).
+- `smplwise_vms/config.yaml`, `smplwise_vms/Dockerfile`, `smplwise_vms/backend/smplwise/__init__.py` (0.1.86), `smplwise_vms/CHANGELOG.md`, `contracts/API_INVENTORY.md` (generated), `smplwise_vms/www/` (generated), `management/tasks.json`, `management/test_catalog.json` and the generated views, `docs/operations/PLAN_STUDIO_PHASE3_CHECKLIST_HE.md`, `docs/architecture/PLAN_STUDIO_DESIGN_HE.md` (implementation line).
 
 ---
 
@@ -4646,32 +4646,32 @@ test "$(bash /c/cloude/smplwisebms/secrets/scan_staged.sh)" = 0 && git commit -F
 
 ---
 
-### Task 12: Release 0.1.85 — full verification, version, records, owner checklist (stop after the release commit)
+### Task 12: Release 0.1.86 — full verification, version, records, owner checklist (stop after the release commit)
 
 **Files:**
-- Modify: `smplwise_vms/config.yaml`, `smplwise_vms/Dockerfile`, `smplwise_vms/backend/smplwise/__init__.py` (0.1.85)
+- Modify: `smplwise_vms/config.yaml`, `smplwise_vms/Dockerfile`, `smplwise_vms/backend/smplwise/__init__.py` (0.1.86)
 - Modify: `smplwise_vms/CHANGELOG.md`, `contracts/API_INVENTORY.md` (generated), `smplwise_vms/www/` (generated by `build:addon`)
 - Modify: `management/tasks.json`, `management/test_catalog.json` and the generated views (`scripts/project_status.py --write`)
 - Create: `docs/operations/PLAN_STUDIO_PHASE3_CHECKLIST_HE.md`
 - Modify: `docs/architecture/PLAN_STUDIO_DESIGN_HE.md` (implementation line)
 
 **Interfaces:**
-- Consumes: everything above; phase 2's release left the tree at 0.1.84.
-- Produces: the release commit of 0.1.85 on `pilot/T086-plan-studio-3`; T086 evidenced; AT171 / AT172 recorded. **This task ends at the release commit: no merge, no push, no store reload - the controller does those.**
+- Consumes: everything above; phase 2 (part 2) left the tree at 0.1.85.
+- Produces: the release commit of 0.1.86 on `pilot/T086-plan-studio-3`; T086 evidenced; AT171 / AT172 recorded. **This task ends at the release commit: no merge, no push, no store reload - the controller does those.**
 
 - [ ] **Step 1: Version bump and the generated API inventory**
 
 ```bash
 cd /c/cloude/smplwisebms
-sed -i 's/^version: "0.1.84"/version: "0.1.85"/' smplwise_vms/config.yaml
-sed -i 's/io.hass.version="0.1.84"/io.hass.version="0.1.85"/' smplwise_vms/Dockerfile
-sed -i 's/__version__ = "0.1.84"/__version__ = "0.1.85"/' smplwise_vms/backend/smplwise/__init__.py
+sed -i 's/^version: "0.1.85"/version: "0.1.86"/' smplwise_vms/config.yaml
+sed -i 's/io.hass.version="0.1.85"/io.hass.version="0.1.86"/' smplwise_vms/Dockerfile
+sed -i 's/__version__ = "0.1.85"/__version__ = "0.1.86"/' smplwise_vms/backend/smplwise/__init__.py
 grep -c '0\.1\.85' smplwise_vms/config.yaml smplwise_vms/Dockerfile smplwise_vms/backend/smplwise/__init__.py
 MSYS_NO_PATHCONV=1 $PY C:/cloude/smplwisebms/scripts/api_inventory.py
 grep -c "detect\|dxf/entities\|import-dxf-geometry" contracts/API_INVENTORY.md
 ```
 
-Expected: each file reports `1`; the inventory is rewritten at 0.1.85 with the four new routes (`POST /plan-versions/{id}/detect`, `POST …/detect/accept`, `GET /plan-assets/{id}/dxf/entities`, `POST /plan-versions/{id}/import-dxf-geometry`); the grep prints at least `4`. (If the tree is not at 0.1.84 when this task starts - phase 2 shipped under another number - use that number in the three `sed` patterns; the target stays 0.1.85.)
+Expected: each file reports `1`; the inventory is rewritten at 0.1.86 with the four new routes (`POST /plan-versions/{id}/detect`, `POST …/detect/accept`, `GET /plan-assets/{id}/dxf/entities`, `POST /plan-versions/{id}/import-dxf-geometry`); the grep prints at least `4`. (If the tree is not at 0.1.85 when this task starts - phase 2 shipped under another number - use that number in the three `sed` patterns; the target stays 0.1.86.)
 
 - [ ] **Step 2: The whole backend suite, the golden file, the private scans**
 
@@ -4700,7 +4700,7 @@ In `frontend/`:
 Insert at the top of `smplwise_vms/CHANGELOG.md`, right after the `# Changelog — SMPLWISE VMS add-on` line and its blank line:
 
 ```markdown
-## 0.1.85 (pilot) — Plan Studio phase 3: automatic detection of walls, doors and windows; DXF layers and blocks as candidates
+## 0.1.86 (pilot) — Plan Studio phase 3: automatic detection of walls, doors and windows; DXF layers and blocks as candidates
 - The plan editor gains a "זיהוי" tool (T086, CR-003): a local detector - Otsu, morphology, Zhang–Suen thinning,
   skeleton tracing, Douglas–Peucker, axis snapping, a chamfer distance transform for the thickness, door arcs and
   window lines sampled in the thin ink - proposes walls, doors, windows and passages as candidates with a confidence
@@ -4757,12 +4757,12 @@ private = "no private scans on this workstation (skipped)" if any("skipped" in l
 commit = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], text=True, cwd=ROOT.parent).strip()
 today = datetime.date.today().isoformat()
 now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-env = f"workstation: dev backend 0.1.85 (SQLite) on 8099 + vite preview 4173, Chrome through Playwright; pytest on Python 3.12 ({today})"
+env = f"workstation: dev backend 0.1.86 (SQLite) on 8099 + vite preview 4173, Chrome through Playwright; pytest on Python 3.12 ({today})"
 tasks = json.loads((ROOT / "tasks.json").read_text(encoding="utf-8"))
 tests = json.loads((ROOT / "test_catalog.json").read_text(encoding="utf-8"))
 by_task = {t["id"]: t for t in tasks}
 by_test = {t["id"]: t for t in tests}
-t086 = (f"{today} (0.1.85): Plan Studio phase 3 on commit {commit} - services/plan_detect.py (numpy only: Otsu, morphology, chamfer distance transform, "
+t086 = (f"{today} (0.1.86): Plan Studio phase 3 on commit {commit} - services/plan_detect.py (numpy only: Otsu, morphology, chamfer distance transform, "
         "Zhang-Suen thinning, skeleton tracing, Douglas-Peucker, axis snapping at 4 degrees, collinear merging, thickness and kind, door arcs, double doors, "
         "passages, windows by the ink-thickness profile, confidence, tilt straightening, the door-width calibration hint), services/plan_dxf_map.py "
         "(layers and blocks to candidates, double lines to walls, arcs to doors, window lines, blocks to objects, room polygons); API: POST detect "
@@ -4805,13 +4805,13 @@ If any check in Steps 2–3 is not green, do not run the script: leave T086 BACK
 Create `docs/operations/PLAN_STUDIO_PHASE3_CHECKLIST_HE.md`:
 
 ```markdown
-# סטודיו התוכנית — שלב 3: בדיקה אצל הבעלים (גרסה 0.1.85)
+# סטודיו התוכנית — שלב 3: בדיקה אצל הבעלים (גרסה 0.1.86)
 
 לכל סעיף: עבר / נכשל, והערה קצרה. אין צורך ב־NVR; מספיקה קומה עם תוכנית סרוקה (PDF או תמונה), ולסעיפים 10–12 קובץ DXF.
 
 | # | מה עושים | מה אמור לקרות |
 |---|---|---|
-| 1 | "בדוק עדכון" בחנות התוספים ועדכון ל־0.1.85 | הגרסה מותקנת והמערכת עולה |
+| 1 | "בדוק עדכון" בחנות התוספים ועדכון ל־0.1.86 | הגרסה מותקנת והמערכת עולה |
 | 2 | קומה עם תוכנית ← עריכה ← הכלי החדש "זיהוי" (ניצוץ) בסרגל | פאנל "זיהוי אוטומטי" עם "קירות", "פתחים", מחוון עוצמה וכפתור "זהה אוטומטית" |
 | 3 | "זהה אוטומטית" | הכפתור ננעל ומראה מונה שניות; תוך שניות (עד דקה) מופיעים מועמדים בכחול מקווקו על המפה, והפאנל מסכם "N קירות · M פתחים" |
 | 4 | ריחוף ולחיצה על מועמד במפה | ריחוף מציג "ביטחון 0.xx"; לחיצה מסמנת/מבטלת (מועמד דחוי מתעמעם); דחיית קיר דוחה גם את הפתחים שלו |
@@ -4834,7 +4834,7 @@ Create `docs/operations/PLAN_STUDIO_PHASE3_CHECKLIST_HE.md`:
 In `docs/architecture/PLAN_STUDIO_DESIGN_HE.md`, extend the `**מימוש:**` line (it names phases 1 and 2 after phase 2's release) by appending, before its final period or as a new sentence:
 
 ```markdown
-שלב 3 (T086) מומש בגרסה 0.1.85; רשימת הבדיקה לבעלים: `docs/operations/PLAN_STUDIO_PHASE3_CHECKLIST_HE.md`. הבדלים שנרשמו במימוש שלב 3: `GET /plan-assets/{id}/dxf/entities` דורש map.import כמו שאר נתיבי הקבצים (בטבלה בסעיף 5 כתוב map.read); פרופיל העובי לחלונות (9.3) נמדד על הדיו הגולמי ולא על מסכת הקירות; תוכנית לא מכוילת נאמדת לפי עובי הקיר החציוני (0.2 מ׳) לצורכי הזיהוי בלבד; יישור הטיה של סריקה (עד 4°) נוסף לפני ההצמדה לצירים; ציון הביטחון של קיר לא כולל את גורם החדר (9.1 שלב 5).
+שלב 3 (T086) מומש בגרסה 0.1.86; רשימת הבדיקה לבעלים: `docs/operations/PLAN_STUDIO_PHASE3_CHECKLIST_HE.md`. הבדלים שנרשמו במימוש שלב 3: `GET /plan-assets/{id}/dxf/entities` דורש map.import כמו שאר נתיבי הקבצים (בטבלה בסעיף 5 כתוב map.read); פרופיל העובי לחלונות (9.3) נמדד על הדיו הגולמי ולא על מסכת הקירות; תוכנית לא מכוילת נאמדת לפי עובי הקיר החציוני (0.2 מ׳) לצורכי הזיהוי בלבד; יישור הטיה של סריקה (עד 4°) נוסף לפני ההצמדה לצירים; ציון הביטחון של קיר לא כולל את גורם החדר (9.1 שלב 5).
 ```
 
 - [ ] **Step 7: The release commit — and stop**
@@ -4844,7 +4844,7 @@ cd /c/cloude/smplwisebms && git add -A
 test "$(bash /c/cloude/smplwisebms/secrets/scan_staged.sh)" = 0 || echo "SECRET SCAN FAILED - do not commit"
 git status --short | head -40
 msg=$(mktemp) && cat > "$msg" <<'EOF'
-release: 0.1.85 - Plan Studio phase 3 (T086, CR-003): local detection of walls, doors and windows, DXF mapping, accept screen
+release: 0.1.86 - Plan Studio phase 3 (T086, CR-003): local detection of walls, doors and windows, DXF mapping, accept screen
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
 EOF

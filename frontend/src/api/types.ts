@@ -79,8 +79,8 @@ export interface PlanVersion {
   width_px: number;
   height_px: number;
   scale_m_per_px: number | null;
-  /** Two-point calibration record (Plan Studio): pairs, method, residual. */
-  calibration?: { method: string; pairs: { a: [number, number]; b: [number, number]; metres: number }[]; residual_pct: number | null } | null;
+  /** Calibration record (Plan Studio): two-point pairs, or a door-width estimate (status "estimated", phase 3). */
+  calibration?: { method: string; status?: 'measured' | 'estimated'; pairs: { a: [number, number]; b: [number, number]; metres: number }[]; residual_pct: number | null; reason?: string | null } | null;
   status: 'draft' | 'published' | 'archived';
   revision: number;
   notes: string;

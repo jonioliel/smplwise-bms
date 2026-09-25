@@ -4842,11 +4842,16 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "זיהוי מקומי, בלי ענן, של קירות, דלתות וחלונות מתוכנית רסטר, ומיפוי שכבות ובלוקים מ־DXF, כמועמדים עם ציון ביטחון ומסך קבל/דחה/ערוך; שום מועמד אינו מתפרסם בלי אדם.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
+    "status": "PASS",
+    "commit": "3e90ef6",
+    "environment": "workstation: dev backend 0.1.86 (SQLite) on 8099 + vite preview 4173, Chrome through Playwright; pytest on Python 3.12 (2026-09-25)",
+    "evidence": [
+      "smplwise_vms/backend/tests/test_plan_detect_walls.py, test_plan_detect_openings.py (local detection of walls, doors, windows, passages; no network, no model)",
+      "smplwise_vms/backend/tests/test_plan_dxf_map.py (DXF layer and block mapping, routes)",
+      "smplwise_vms/backend/tests/test_plan_detect_api.py (candidates returned, not stored; accept merges into the draft; nothing published; audit)",
+      "frontend/tests/evidence-plan-studio-3.spec.ts (5/5: accept / reject / edit screen, confirm, viewers see nothing until publish, DXF import screen)"
+    ],
+    "executed_at": "2026-09-25T15:48:43Z",
     "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
   },
   {
@@ -4870,11 +4875,15 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "סט תוכניות בדיקה (סינתטיות ואמיתיות מצונזרות) עם baseline: לפחות 90% מהקירות ו־80% מהדלתות על סט הייחוס, עד 15 שניות לתוכנית A3; רמז כיול מרוחב דלת מסומן כמשוער.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
+    "status": "PASS",
+    "commit": "3e90ef6",
+    "environment": "workstation: dev backend 0.1.86 (SQLite) on 8099 + vite preview 4173, Chrome through Playwright; pytest on Python 3.12 (2026-09-25)",
+    "evidence": [
+      "smplwise_vms/backend/tests/test_plan_detect_baseline.py on the committed synthetic set: 6 plans: walls recall >= 0.974, precision >= 0.969; doors 21/21; windows 17/17; slowest 1213 ms (thresholds walls >= 0.90, doors >= 0.80, windows >= 0.60, <= 15 s)",
+      "scripts/plan_detect_private.py on this workstation: no private scans on this workstation (skipped). Real-scan door detection is NOT covered by this PASS: see the T086 evidence line for the redacted Task 11 probe aggregates (0 doors on all three scans; no ground truth, no accuracy claim).",
+      "smplwise_vms/backend/tests/test_plan_detect_api.py::test_calibration_estimate_is_an_estimated_calibration and frontend/tests/evidence-plan-studio-3.spec.ts (the door-width hint is recorded as estimated and shown with the approximate sign)"
+    ],
+    "executed_at": "2026-09-25T15:48:43Z",
     "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
   },
   {

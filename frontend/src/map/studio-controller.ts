@@ -128,6 +128,25 @@ export class StudioController implements ReactiveController {
     this.change(next);
   }
 
+  /** A draft the server edited itself (the detection accept, T086), taken like a save's answer: its revision, hash,
+   * issues and document become the working state, as one undo step (an undo then autosaves the draft as it was before).
+   * The caller flushes first. False, and nothing changes, when the answer is for another version or a local edit (unsaved
+   * or on its way) would be lost under it: the caller then reloads the stored draft instead. */
+  adopt(r: GeometryResponse): boolean {
+    if (!this.doc || !this.versionId || r.doc.plan_version_id !== this.versionId || this.dirty || this.inflight) return false;
+    clearTimeout(this.timer);
+    this.undoStack = [...this.undoStack.slice(-59), this.doc];
+    this.redoStack = [];
+    this.apply(r);
+    this.doc = r.doc;
+    this.dirty = false;
+    this.conflicted = false;
+    this.saveState = 'saved';
+    this.error = '';
+    this.host.requestUpdate();
+    return true;
+  }
+
   /** Save now and wait: before publishing, calibrating or leaving the editor. True when nothing is left unsaved. A
    * conflict sends nothing; after any other failure each call tries once more, and a failure of its own ends it. */
   async flush(): Promise<boolean> {
