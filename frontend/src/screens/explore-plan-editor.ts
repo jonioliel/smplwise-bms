@@ -1768,7 +1768,10 @@ export class ExplorePlanEditor extends LitElement {
       this.studio.undo();
       this.geomSel = null;
       this.lastEdit = 'structure';
-    } else if (t === 'pins') this.doUndo();
+    } else if (t === 'pins') {
+      this.doUndo();
+      this.lastEdit = 'pins'; // a fallback undo moves the domain, so the next redo mirrors it
+    }
   }
 
   private redoAny() {
@@ -1777,7 +1780,10 @@ export class ExplorePlanEditor extends LitElement {
       this.studio.redo();
       this.geomSel = null;
       this.lastEdit = 'structure';
-    } else if (t === 'pins') this.doRedo();
+    } else if (t === 'pins') {
+      this.doRedo();
+      this.lastEdit = 'pins';
+    }
   }
 
   private get issueIds(): string[] {
