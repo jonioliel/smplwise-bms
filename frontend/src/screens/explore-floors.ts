@@ -18,18 +18,7 @@ import { createBuilding, createFloor, deleteFloor, loadTree, updateFloor, type C
 import { ApiError, describeError } from '../api/client';
 import type { Building, Floor, Site } from '../api/types';
 import { getGeometry } from '../api/geometry';
-import { buildScene, isoProjection, type IsoScene, type SceneDescription } from '../map/scene-builder';
-
-/** The isometric of every level stacked bottom to top: isoProjection draws all the plates first (in level id order), so a
- * level above would be painted over by the walls below it. Each level is projected on its own (same size, same scale) and
- * the levels are concatenated by elevation - the lower level's plate and walls, then the next plate over them. */
-function stackedIso(desc: SceneDescription): IsoScene {
-  const levels = [...desc.levels].sort((a, b) => a.elevation_m - b.elevation_m || (a.id < b.id ? -1 : 1));
-  const known = new Set(levels.map((l) => l.id));
-  const lowest = levels[0]?.id ?? null;
-  const faces = levels.flatMap((lv) => isoProjection({ ...desc, parts: desc.parts.filter((p) => (p.level_id !== null && known.has(p.level_id) ? p.level_id : lowest) === lv.id) }).faces);
-  return { faces, levels: levels.length };
-}
+import { buildScene, isoProjection, keepIsos, type IsoScene } from '../map/scene-builder';
 
 type Dialog = { kind: 'floor' } | { kind: 'rename'; floor: Floor } | { kind: 'delete'; floor: Floor; force: boolean } | { kind: 'building' } | null;
 
@@ -49,6 +38,12 @@ export class ExploreFloors extends LitElement {
   @state() private isos = new Map<string, IsoScene | null>();
   private isoPending = new Set<string>();
 
+  /** The cache without the versions the tree no longer lists (a republished or deleted floor), at most 64 entries. */
+  private pruned(): Map<string, IsoScene | null> {
+    const listed = (this.tree?.sites ?? []).flatMap((s) => (s.buildings ?? []).flatMap((b) => (b.floors ?? []).map((f) => f.published_version_id))).filter((v): v is string => !!v);
+    return keepIsos(this.isos, listed);
+  }
+
   private isoFor(f: Floor): IsoScene | null {
     const vid = f.published_version_id;
     if (!vid || this.tree?.source !== 'api') return null;
@@ -59,10 +54,10 @@ export class ExploreFloors extends LitElement {
       .then((r) => {
         const desc = buildScene({ doc: r.doc, width: f.plan_width_px || r.doc.dimensions.width_px, height: f.plan_height_px || r.doc.dimensions.height_px, anchors: [], entityStates: {}, circuitStates: {},
           layers: { objects: false, cameras: false, entities: false, zones: false } });
-        this.isos = new Map(this.isos).set(vid, desc.parts.some((p) => p.kind === 'wall') ? stackedIso(desc) : null);
+        this.isos = this.pruned().set(vid, desc.parts.some((p) => p.kind === 'wall') ? isoProjection(desc) : null);
       })
       .catch(() => {
-        this.isos = new Map(this.isos).set(vid, null); // no published structure (404) or no permission: the room outlines stay
+        this.isos = this.pruned().set(vid, null); // no published structure (404) or no permission: the room outlines stay
       })
       .finally(() => this.isoPending.delete(vid));
     return null;

@@ -1,6 +1,6 @@
 import { LitElement, html, css, svg, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import type { IsoScene } from '../map/scene-builder';
+import { isoPoint, type IsoScene } from '../map/scene-builder';
 
 export interface IsoRoom {
   x: number; // normalized 0..1
@@ -86,8 +86,9 @@ export class SwFloorIso extends LitElement {
     }
   `;
 
+  /** The demo slab in the same true isometric as scene-builder.isoProjection (30 deg axes, one scale). */
   private iso2(u: number, v: number) {
-    return { x: 60 + (u - v) * 58, y: 6 + (u + v) * 26 };
+    return isoPoint(u, v);
   }
 
   private poly(pts: { x: number; y: number }[]) {

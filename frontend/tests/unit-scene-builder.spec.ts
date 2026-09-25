@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import type { CatalogItem, CatalogLibrary } from '../src/api/plan-catalog';
 import { lookup3dOf } from '../src/api/plan-catalog';
 import type { GeometryDoc, GeomConnector, GeomObject, GeomOpening, GeomWall, Pt } from '../src/map/geometry';
-import { buildScene, isoProjection, type SceneAnchor, type SceneDescription, type SceneInput, type ScenePart } from '../src/map/scene-builder';
+import { ISO_FACE_CAP, buildScene, isoPoint, isoProjection, keepIsos, type SceneAnchor, type SceneDescription, type SceneInput, type ScenePart } from '../src/map/scene-builder';
 
 // Plan Studio phase 4 (T087, design 10.5, ruling R-P4-4): the scene description is a pure function of the document, the
 // anchors, the states, the library and the zones - pinned on the shared fixture (sample-v2.scene.json, regenerated with
@@ -295,4 +295,69 @@ test('the isometric projection of the building page comes from the same descript
   expect(iso.faces.every((f) => f.points.every((p) => p[0] >= -10 && p[0] <= 130 && p[1] >= -40 && p[1] <= 100))).toBe(true); // around the 120 x 72 thumbnail, walls rising above the plate
   expect(JSON.stringify(isoProjection(desc))).toBe(JSON.stringify(iso));
   expect(isoProjection(buildScene({ ...sampleInput(), layers: { objects: false, cameras: false, entities: false, zones: false } })).faces.length).toBe(iso.faces.length); // objects and anchors are not part of the thumbnail
+  // pinned (regenerated on purpose for the true isometric, Task 10): 52 faces - L1 (-1.2 m) plate and its two wall boxes,
+  // then the L0 plate and its eight boxes; lintels, sills, heads and connectors are no longer drawn
+  expect(iso.faces.map((f) => f.face[0]).join('')).toBe('psssstsssstpsssstsssstsssstsssstsssstsssstsssstsssst');
+  expect(iso.faces.filter((f) => f.face === 'plate').map((f) => f.points)).toEqual([
+    [[43.5, 25.3], [83.5, 48.4], [63, 60.3], [23, 37.2]],
+    [[55, 8.9], [105, 37.8], [65, 60.8], [15, 32]],
+  ]);
+});
+
+test('the thumbnail is a true isometric: 30 deg axes, one metre scale on x, y and z', () => {
+  // the demo slab and the projection share the points: a unit step along u is (50, 28.87), along v (-50, 28.87)
+  const [o, u, v] = [isoPoint(0, 0), isoPoint(1, 0), isoPoint(0, 1)];
+  expect((u.x - o.x) / (u.y - o.y)).toBeCloseTo(Math.sqrt(3), 6);
+  expect((o.x - v.x) / (v.y - o.y)).toBeCloseTo(Math.sqrt(3), 6);
+  expect((Math.atan2(u.y - o.y, u.x - o.x) * 180) / Math.PI).toBeCloseTo(30, 6);
+  // the 10 x 8 m L0 plate: 10 m along x and 8 m along z keep their ratio on screen (no per-axis normalisation)
+  const plate = isoProjection(buildScene(sampleInput())).faces.filter((f) => f.face === 'plate')[1].points;
+  const len = (a: [number, number], b: [number, number]) => Math.hypot(b[0] - a[0], b[1] - a[1]);
+  expect(len(plate[0], plate[1]) / len(plate[1], plate[2])).toBeCloseTo(10 / 8, 2);
+  // a wall's height uses the same scale as its length: an 8.2 m x 3 m side draws 47.3 x 17.3 thumbnail units
+  const iso = isoProjection(buildScene({ doc: twoLevels(), width: 1000, height: 800, anchors: [], entityStates: {}, circuitStates: {}, catalog }));
+  const side = iso.faces[1].points; // the lower level's wall, first side: bottom a, bottom b, top b, top a
+  const metre = Math.hypot(isoPoint(0.1, 0).x - isoPoint(0, 0).x, isoPoint(0.1, 0).y - isoPoint(0, 0).y); // 1 m on a 10 m wide plan
+  expect(len(side[0], side[1]) / metre).toBeCloseTo(8.2, 1);
+  expect(len(side[1], side[2]) / metre).toBeCloseTo(3, 1);
+});
+
+/** Two levels whose ids sort against their elevations: A is 3 m above B. */
+const twoLevels = (): GeometryDoc => {
+  const doc = sample();
+  return { ...doc, levels: [{ ...doc.levels[0], id: 'A', elevation_m: 3, is_default: false }, { ...doc.levels[0], id: 'B', elevation_m: 0, is_default: true }],
+    walls: [WALL('wa', [[0.1, 0.2], [0.9, 0.2]], 'A'), WALL('wb', [[0.1, 0.8], [0.9, 0.8]], 'B')], openings: [], objects: [], connectors: [], labels: [], rooms: [], circuits: [], groups: [] };
+};
+
+test('the isometric paints the levels bottom to top: a higher plate never goes under a lower wall', () => {
+  const iso = isoProjection(buildScene({ doc: twoLevels(), width: 1000, height: 800, anchors: [], entityStates: {}, circuitStates: {}, catalog }));
+  // B (0 m) plate, B's wall, then A (3 m) plate over it, A's wall - not both plates first, not in id order
+  expect(iso.faces.map((f) => f.face[0]).join('')).toBe('psssstpsssst');
+  expect(iso.levels).toBe(2);
+  const upper = iso.faces[6].points;
+  expect(Math.max(...upper.map((p) => p[1]))).toBeLessThan(Math.max(...iso.faces[0].points.map((p) => p[1]))); // the upper plate sits higher on screen
+});
+
+test('the isometric caps a floor at ISO_FACE_CAP faces, the plates always and the largest walls first', () => {
+  const doc = sample();
+  const walls = Array.from({ length: 300 }, (_, i) => WALL(`w${i}`, [[0.05 + (i % 20) * 0.045, 0.05 + Math.floor(i / 20) * 0.06], [0.05 + (i % 20) * 0.045 + (i === 7 ? 0.5 : 0.03), 0.05 + Math.floor(i / 20) * 0.06]]));
+  const desc = buildScene({ doc: { ...doc, levels: [doc.levels[0]], walls, openings: [], objects: [], connectors: [], labels: [], rooms: [], circuits: [], groups: [] }, width: 1000, height: 800, anchors: [], entityStates: {}, circuitStates: {}, catalog });
+  expect(desc.parts.filter((p) => p.kind === 'wall').length).toBe(300);
+  const iso = isoProjection(desc);
+  expect(ISO_FACE_CAP).toBe(600);
+  expect(iso.faces.length).toBeLessThanOrEqual(ISO_FACE_CAP);
+  expect(iso.faces.length).toBe(1 + 119 * 5); // one plate, then 119 whole boxes
+  expect(iso.faces.filter((f) => f.face === 'plate').length).toBe(1);
+  // the one long wall (w7, 5 m) is kept: its top spans more than 25 thumbnail units
+  expect(iso.faces.some((f) => f.face === 'top' && Math.max(...f.points.map((p) => p[0])) - Math.min(...f.points.map((p) => p[0])) > 25)).toBe(true);
+});
+
+test('the building page keeps only the listed versions in its thumbnail cache, at most 64', () => {
+  const cache = new Map<string, number>([['v1', 1], ['v2', 2], ['v3', 3]]);
+  expect([...keepIsos(cache, ['v1', 'v3'])]).toEqual([['v1', 1], ['v3', 3]]);
+  const big = new Map(Array.from({ length: 80 }, (_, i) => [`v${i}`, i] as [string, number]));
+  const kept = keepIsos(big, big.keys());
+  expect(kept.size).toBe(64);
+  expect(kept.has('v79') && !kept.has('v15') && kept.has('v16')).toBe(true);
+  expect(cache.size).toBe(3); // a new map; the state is replaced, not mutated
 });

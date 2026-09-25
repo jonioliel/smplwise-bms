@@ -571,42 +571,67 @@ export function buildScene(input: SceneInput): SceneDescription {
 
 // ---------------------------------------------------------------- the building page (SC03)
 
-const ISO_KINDS: readonly PartKind[] = ['floor', 'wall', 'lintel', 'sill', 'head', 'connector'];
+/** The thumbnail box of the building page (0 0 120 72): a true isometric with the classic 30 deg axes (ground x and z
+ * foreshortened alike, sqrt(3):1 between their horizontal and vertical screen components, the camera's elevation
+ * 35.26 deg) and one scale for every axis. A unit square (u, v in 0..1) spans 100 x 57.7 thumbnail units around the
+ * centre (60, 6 + 28.9); sw-floor-iso's demo slab uses the same points. */
+export const ISO_THUMB = { cx: 60, top: 6, half: 50, rise: 50 / Math.sqrt(3) } as const;
+export function isoPoint(u: number, v: number): { x: number; y: number } {
+  return { x: ISO_THUMB.cx + (u - v) * ISO_THUMB.half, y: ISO_THUMB.top + (u + v) * ISO_THUMB.rise };
+}
+/** The most faces one floor's thumbnail draws; beyond it the smallest wall boxes (by footprint) are skipped. */
+export const ISO_FACE_CAP = 600;
+const ISO_KINDS: readonly PartKind[] = ['floor', 'wall'];
 
-/** The isometric thumbnail of the building page from the same description: floor plates and the box parts of the
- * structure and the connectors (objects and anchors are left out), projected like sw-floor-iso always did
- * (u = x / W, v = z / D → screen (60 + (u − v) · 58, 6 + (u + v) · 26)), heights scaled so a wall as high as the plan
- * is deep spans the plate; faces sorted far to near, each box's sides before its top. */
+/** The isometric thumbnail of the building page from the same description: the floor plates and the wall boxes
+ * (lintels, sills, heads, connectors, objects and anchors are left out), one metre scale for x, y and z (the longer
+ * side of the plan spans the unit square, the plan centred on it), levels painted bottom to top by elevation (a higher
+ * level's plate covers the walls below it), inside a level the plate first and then the boxes far to near, each box's
+ * sides before its top. At most ISO_FACE_CAP faces: the plates always, then the walls by footprint, largest first. */
 export function isoProjection(desc: SceneDescription): IsoScene {
   const [W, D] = desc.size;
-  const kh = 52 / Math.max(W, D, 1e-6);
+  const M = Math.max(W, D, 1e-6);
+  const unit = Math.hypot(ISO_THUMB.half, ISO_THUMB.rise) / M; // thumbnail units per metre along every axis
   const proj = (x: number, y: number, z: number): [number, number] => {
-    const u = x / (W || 1);
-    const v = z / (D || 1);
-    return [Math.round((60 + (u - v) * 58) * 10) / 10, Math.round((6 + (u + v) * 26 - y * kh) * 10) / 10];
+    const p = isoPoint((x - W / 2) / M + 0.5, (z - D / 2) / M + 0.5);
+    return [Math.round(p.x * 10) / 10, Math.round((p.y - y * unit) * 10) / 10];
   };
-  const faces: { depth: number; order: number; face: IsoFace }[] = [];
-  let plates = 0;
-  for (const p of desc.parts) {
-    if (p.shape !== 'box' || !ISO_KINDS.includes(p.kind)) continue;
+  const levels = [...desc.levels].sort((a, b) => a.elevation_m - b.elevation_m || (a.id < b.id ? -1 : 1));
+  const rank = new Map(levels.map((l, i) => [l.id, i]));
+  const levelOf = (p: ScenePart) => (p.level_id !== null && rank.has(p.level_id) ? rank.get(p.level_id)! : 0);
+  const boxes = desc.parts.filter((p) => p.shape === 'box' && ISO_KINDS.includes(p.kind));
+  const plates = boxes.filter((p) => p.kind === 'floor');
+  const walls = boxes.filter((p) => p.kind !== 'floor');
+  const room = Math.max(0, Math.floor((ISO_FACE_CAP - plates.length) / 5)); // a wall box draws four sides and a top
+  const kept = walls.length > room ? [...walls].sort((a, b) => b.size[0] * b.size[2] - a.size[0] * a.size[2] || (a.id < b.id ? -1 : 1)).slice(0, room) : walls;
+  const faces: { level: number; depth: number; order: number; face: IsoFace }[] = [];
+  let n = 0;
+  for (const p of [...plates, ...kept]) {
     const [cx, cy, cz] = p.position;
     const [w, h, d] = p.size;
     const corners = ([[-1, -1], [1, -1], [1, 1], [-1, 1]] as const).map(([sx, sz]) => { const [ox, oz] = turned((sx * w) / 2, (sz * d) / 2, p.rotation[1]); return [cx + ox, cz + oz] as [number, number]; });
-    const depth = (cx / (W || 1)) + (cz / (D || 1));
+    const level = levelOf(p);
     const top = cy + h / 2;
     const bottom = cy - h / 2;
     if (p.kind === 'floor') {
-      plates++;
-      faces.push({ depth: -1e9 + plates, order: 0, face: { points: corners.map(([x, z]) => proj(x, top, z)), face: 'plate', color: p.color, opacity: p.opacity } });
+      faces.push({ level, depth: -1e9 + n++, order: 0, face: { points: corners.map(([x, z]) => proj(x, top, z)), face: 'plate', color: p.color, opacity: p.opacity } });
       continue;
     }
+    const depth = cx + cz;
     for (let i = 0; i < 4; i++) {
       const a = corners[i];
       const b = corners[(i + 1) % 4];
-      faces.push({ depth, order: 1, face: { points: [proj(a[0], bottom, a[1]), proj(b[0], bottom, b[1]), proj(b[0], top, b[1]), proj(a[0], top, a[1])], face: 'side', color: p.color, opacity: p.opacity } });
+      faces.push({ level, depth, order: 1, face: { points: [proj(a[0], bottom, a[1]), proj(b[0], bottom, b[1]), proj(b[0], top, b[1]), proj(a[0], top, a[1])], face: 'side', color: p.color, opacity: p.opacity } });
     }
-    faces.push({ depth, order: 2, face: { points: corners.map(([x, z]) => proj(x, top, z)), face: 'top', color: p.color, opacity: p.opacity } });
+    faces.push({ level, depth, order: 2, face: { points: corners.map(([x, z]) => proj(x, top, z)), face: 'top', color: p.color, opacity: p.opacity } });
   }
-  faces.sort((a, b) => a.depth - b.depth || a.order - b.order);
+  faces.sort((a, b) => a.level - b.level || a.depth - b.depth || a.order - b.order);
   return { faces: faces.map((f) => f.face), levels: desc.levels.length };
+}
+
+/** The building page's thumbnail cache without the versions no longer listed, at most `cap` entries (the newest kept). */
+export function keepIsos<T>(cache: Map<string, T>, listed: Iterable<string>, cap = 64): Map<string, T> {
+  const live = new Set(listed);
+  const entries = [...cache].filter(([k]) => live.has(k));
+  return new Map(entries.slice(Math.max(0, entries.length - cap)));
 }
