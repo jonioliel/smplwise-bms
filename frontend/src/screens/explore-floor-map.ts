@@ -14,7 +14,7 @@ import '../map/sw-plan-canvas';
 import type { PlanMarker, MarkerSelectDetail, SwPlanCanvas } from '../map/sw-plan-canvas';
 import type { StateKind } from '../components/sw-badge';
 import type { SceneKind } from '../components/sw-scene';
-import { demoCameras, demoEntities, demoFloors, type DemoCamera, type DemoEntity } from '../fixtures/demo';
+import { demoCameras, demoEntities, demoFloors, demoRooms, type DemoCamera, type DemoEntity } from '../fixtures/demo';
 import { demoScene } from '../fixtures/catalog';
 import { t } from '../i18n/he';
 import { navigate } from '../router';
@@ -37,6 +37,7 @@ import type { ScenePreset } from '../map/scene-three'; // type only: the three c
 import type { PartSelectDetail } from '../map/sw-plan-3d';
 import { WEBGL_UNAVAILABLE_HE, webglAvailable } from '../map/webgl';
 import { demoSceneInput, demoSceneLabels } from '../fixtures/demo-3d';
+import { circuitAction } from '../map/circuit-action';
 import { countLabel, renderLevelChips } from './plan-studio-panel';
 
 /** Hebrew names for enum choices the adapters offer (T040). */
@@ -57,6 +58,16 @@ const LAYERS: { id: Layer; icon: 'camera' | 'door' | 'light' | 'sensor' | 'map' 
 ];
 /** Layers that came after the first stored layer lists: stored as "-<id>" when switched off, so an old list still shows them. */
 const LATE_LAYERS: Layer[] = ['structure', 'objects', 'connectors'];
+
+/** One build of the 3D scene with what it was built from (T087): the structure keys compare by identity, the live states
+ * by a signature string; the camera list and hover labels are built with it. */
+interface SceneBuild {
+  structure: unknown[];
+  states: string;
+  desc: SceneDescription;
+  cameras: { id: string; label: string }[];
+  labels: Record<string, string>;
+}
 
 const SCENES: SceneKind[] = ['entrance', 'lobby', 'corridor', 'hall', 'parking', 'warehouse', 'backyard', 'driveway', 'night'];
 
@@ -108,7 +119,7 @@ export class ExploreFloorMap extends LitElement {
   @state() private preset3d: ScenePreset = 'iso';
   @state() private catalog3d: Catalog3DLookup | null = null;
   private itemNames = new Map<string, string>();
-  private sceneMemo: { keys: unknown[]; desc: SceneDescription | null } | null = null;
+  private sceneMemo: SceneBuild | null = null;
   private sceneTimer = 0;
   private sceneDue = false;
   private geomSeq = 0;
@@ -799,6 +810,7 @@ export class ExploreFloorMap extends LitElement {
 
   private onKey = (e: KeyboardEvent) => {
     if (e.key === '3' && !e.ctrlKey && !e.metaKey && !e.altKey && !this.typing(e)) {
+      if (this.confirmSpec || this.saveView || e.repeat) return; // a dialog is open, or the key is held down
       e.preventDefault();
       void this.toggle3d();
       return;
@@ -808,7 +820,7 @@ export class ExploreFloorMap extends LitElement {
     if (this.selectedId) {
       const id = this.selectedId;
       this.close();
-      this.canvas?.focusMarker(id);
+      if (!this.shows3d) this.canvas?.focusMarker(id);
     } else if (this.panel) this.panel = false;
   };
 
@@ -872,7 +884,7 @@ export class ExploreFloorMap extends LitElement {
     const b = this.bundle;
     if (!b || (!this.focusZone && !this.focusCamera && !this.focusEntity && !this.focusObject)) return;
     await this.updateComplete;
-    const canvas = this.canvas; // undefined while the 3D is shown: the selection still applies, the zoom does not
+    const canvas = this.shows3d ? undefined : this.canvas; // hidden under the 3D: the selection still applies, the zoom does not
     const z = this.focusZone ? b.zones.find((x) => x.id === this.focusZone) : null;
     if (z) {
       const xs = z.polygon.map((p) => p.x);
@@ -1043,62 +1055,90 @@ export class ExploreFloorMap extends LitElement {
       }));
   }
 
-  /** The scene of the shown floor, rebuilt only when one of its inputs changed. A live state push replaces the bundle
-   * (and a lamp that switches changes its instance group): pushes are collected for 100 ms and built once, so a burst of
-   * states (one dev / HA call sends several) costs one scene. */
-  private get sceneDescription(): SceneDescription | null {
+  /** What the scene reads from the bundle apart from the live states. A state push replaces the bundle and its anchor
+   * list but keeps every value here, so it never counts as a structural change. */
+  private sceneStructureKeys(b: MapBundle): unknown[] {
+    const anchors = b.source === 'api'
+      ? b.anchors.map((a) => [a.id, a.revision, a.position.x, a.position.y, a.rotation_degrees, a.field_of_view_degrees, a.coverage_radius, a.coverage_polygon?.length, a.level_id, a.layer_id, a.mount_height_m, a.tilt_deg, entityName(a)].join('|')).join(';')
+      : '';
+    return [b.floorId, b.width, b.height, anchors, b.zones, this.geometry, this.layers, this.levelFilter, this.catalog3d, this.itemNames, this.screenState];
+  }
+
+  /** The live values the scene reads: entity states (doors, lamps, sprites), circuit switches, camera status. */
+  private sceneStatesKey(b: MapBundle): string {
+    if (b.source === 'demo') return '';
+    const cams = b.anchors.filter((a) => a.resource_type === 'camera').map((a) => `${a.id}:${a.camera?.status ?? ''}`).join(',');
+    return JSON.stringify([this.entityStateMap, this.circuitStateMap, cams]);
+  }
+
+  /** The floor has something to show in 3D - a cheap test for the toggle; the scene itself is built only in 3D. */
+  private get hasScene(): boolean {
     const b = this.bundle;
-    if (!b) return null;
-    const keys: unknown[] = [b, b.floorId, this.geometry, this.layers, this.levelFilter, this.catalog3d, this.screenState]; // [0] alone changes on a push
+    if (!b) return false;
+    if (b.source === 'demo') return !!demoFloors.find((f) => f.id === b.floorId)?.hasPlan && demoRooms(b.floorId).length > 0;
+    return this.geometry !== null;
+  }
+
+  /** The scene of the shown floor with its camera list and hover labels. Called only while the 3D is on screen - the 2D
+   * never builds it. Rebuilt at once when what it reads changed; live state changes (a lamp that switches changes its
+   * instance group) are collected for 100 ms and built once, so a burst of pushes costs one scene. */
+  private scene3d(): SceneBuild | null {
+    const b = this.bundle;
+    if (!b || !this.hasScene) return null;
+    const structure = this.sceneStructureKeys(b);
+    const states = this.sceneStatesKey(b);
     const memo = this.sceneMemo;
-    if (memo && memo.keys.every((k, i) => k === keys[i])) return memo.desc;
-    if (memo?.desc && !this.sceneDue && memo.keys.every((k, i) => i === 0 || k === keys[i])) {
-      // only the bundle changed: keep the last scene and build once when the 100 ms window closes
-      if (!this.sceneTimer) this.sceneTimer = window.setTimeout(() => { this.sceneTimer = 0; this.sceneDue = true; this.requestUpdate(); }, 100);
-      return memo.desc;
+    const same = !!memo && memo.structure.length === structure.length && memo.structure.every((k, i) => k === structure[i]);
+    if (memo && same && memo.states === states) return memo;
+    if (memo && same && !this.sceneDue) {
+      if (!this.sceneTimer) this.sceneTimer = window.setTimeout(() => { this.sceneTimer = 0; this.sceneDue = true; if (this.view3d) this.requestUpdate(); }, 100);
+      return memo;
     }
     let base: SceneInput | null = null;
     // a stale screen hands the builder explicit nulls: it draws every live state as unknown, like the dimmed 2D pins
     const stale = this.screenState === 'stale';
     const unknown = (m: Record<string, string | null>) => (stale ? Object.fromEntries(Object.keys(m).map((k) => [k, null])) : m);
+    let cameras: { id: string; label: string }[] = [];
+    const labels: Record<string, string> = {};
     if (b.source === 'demo') {
       const demo = demoSceneInput(b.floorId);
       const hidden = new Set(demoCameras.filter((c) => c.floorId === b.floorId && c.state === 'forbidden').map((c) => c.id));
       if (demo) base = { ...demo, entityStates: unknown(demo.entityStates), anchors: demo.anchors.filter((a) => this.anchorShown(a) && !hidden.has(a.id)).map((a) => (stale ? { ...a, state: null } : a)) };
+      cameras = this.layers.has('cameras') ? demoCameras.filter((c) => c.floorId === b.floorId && !hidden.has(c.id)).map((c) => ({ id: c.id, label: c.name })) : [];
+      Object.assign(labels, demoSceneLabels(b.floorId));
     } else if (this.geometry) {
       base = { doc: this.geometry, width: b.width, height: b.height, anchors: this.sceneAnchors, entityStates: unknown(this.entityStateMap), circuitStates: unknown(this.circuitStateMap), catalog: this.catalog3d,
         zones: b.zones.map((z) => ({ id: z.id, name: z.name, polygon: z.polygon, level_id: z.level_id ?? null })) };
+      cameras = b.anchors.filter((a) => a.resource_type === 'camera' && this.layers.has('cameras') && cameraState(a) !== 'forbidden').map((a) => ({ id: a.id, label: entityName(a) }));
+      // hover labels: anchors by their map name, objects by label or library name, zones by name
+      for (const a of b.anchors) labels[a.id] = entityName(a);
+      for (const o of this.geometry.objects) labels[o.id] = o.label || this.itemNames.get(o.item_id) || o.item_id;
+      for (const z of b.zones) labels[z.id] = z.name;
     }
-    const desc = base ? buildScene({ ...base, level: this.levelFilter, layers: { structure: this.layers.has('structure'), objects: this.layers.has('objects'), connectors: this.layers.has('connectors'), zones: this.layers.has('zones') } }) : null;
-    this.sceneMemo = { keys, desc };
+    if (!base) return null;
+    const desc = buildScene({ ...base, level: this.levelFilter, layers: { structure: this.layers.has('structure'), objects: this.layers.has('objects'), connectors: this.layers.has('connectors'), zones: this.layers.has('zones') } });
+    this.sceneMemo = { structure, states, desc, cameras, labels };
     this.sceneDue = false;
-    return desc;
+    window.clearTimeout(this.sceneTimer); // a pending state rebuild is part of this one
+    this.sceneTimer = 0;
+    return this.sceneMemo;
   }
 
-  /** Hover labels: anchors by their map name, objects by label or library name, zones by name. */
-  private get sceneLabels(): Record<string, string> {
-    const b = this.bundle;
-    if (!b) return {};
-    if (b.source === 'demo') return demoSceneLabels(b.floorId);
-    const out: Record<string, string> = {};
-    for (const a of b.anchors) out[a.id] = entityName(a);
-    for (const o of this.geometry?.objects ?? []) out[o.id] = o.label || this.itemNames.get(o.item_id) || o.item_id;
-    for (const z of b.zones) out[z.id] = z.name;
-    return out;
-  }
-
-  /** The 3D is on screen (the element's module loaded and the floor has a scene); the 2D legend of pin colours steps aside. */
+  /** The 3D is on screen (the element's module loaded and the floor has a scene): the 2D canvas stays mounted but hidden
+   * underneath (its pan and zoom survive the round trip) and the 2D legend of pin colours steps aside. */
   private get shows3d(): boolean {
-    return this.view3d && this.threeState === 'ready' && this.sceneDescription !== null;
+    return this.view3d && this.threeState === 'ready' && this.hasScene;
   }
 
   private get can3d(): boolean {
-    return webglAvailable() && this.sceneDescription !== null;
+    return webglAvailable() && this.hasScene;
   }
 
   private async toggle3d(): Promise<void> {
-    if (this.view3d) {
-      this.view3d = false; // the new 2D canvas fits itself and its view-change re-anchors the open card at the pin
+    if (this.shows3d) {
+      this.view3d = false;
+      await this.updateComplete;
+      this.onViewChange(); // the canvas is back: an open card re-anchors at its pin
       return;
     }
     if (!this.can3d || this.threeState === 'loading') return;
@@ -1113,7 +1153,9 @@ export class ExploreFloorMap extends LitElement {
         return;
       }
     }
+    if (!this.can3d) return; // the floor changed (or lost its structure) while the chunk loaded
     this.anchor = null; // the 3D has no pin to hang a popover on: an open card continues as a drawer
+    this.sceneDue = true; // states that changed while the 2D was shown are built at once, not after the push window
     this.view3d = true;
   }
 
@@ -1122,13 +1164,17 @@ export class ExploreFloorMap extends LitElement {
     return this.selectedId ?? this.focusedObjectId ?? this.selectedZoneId;
   }
 
-  /** A click in the 3D (ruling R-P4-6): a camera or an entity opens its existing card; a lamp of a circuit runs the
-   * circuit's existing action (the same route, permission and confirmation as the circuit strip); the body of an entity
-   * opens that entity's card; a room selects it; the floor clears. Walls and connectors have nothing to open. */
+  /** A click in the 3D (ruling R-P4-6), mirroring the 2D handlers: a camera or an entity opens its existing card; a lamp
+   * of a circuit runs the circuit's existing action (circuitAction + trigger: the strip's route, permission, guards and
+   * confirmation) and is selected - when the action is blocked only the selection happens and the strip's disabled
+   * button says why; the body of an entity opens that entity's card; a room toggles its selection; the floor clears.
+   * While picking cameras (multi) a camera or a room toggles its picks and a lamp neither switches nor selects.
+   * Walls and connectors have nothing to open. */
   private onPartSelect(e: CustomEvent<PartSelectDetail>) {
     const { id, kind } = e.detail;
     const b = this.bundle;
     if (!id || !kind || !b) {
+      if (this.multi) return; // the 2D keeps the picks on an empty click as well
       this.close();
       this.focusedObjectId = null;
       this.selectedZoneId = null;
@@ -1147,16 +1193,13 @@ export class ExploreFloorMap extends LitElement {
       return;
     }
     if (kind === 'object') {
+      if (this.multi) return;
       const o = this.geometry?.objects.find((x) => x.id === id);
       const circuit = this.geometry?.circuits.find((k) => k.member_ids.includes(id));
       const s = circuit ? b.circuitStates[circuit.id] : undefined;
       if (s) {
-        // the circuit strip's guards: no second send while one is in flight, none on a stale screen or an unavailable switch
-        const on = s.state === 'on';
-        const spec = s.actions.find((x) => x.id.endsWith(on ? 'turn_off' : 'turn_on'));
-        const busy = !!this.action?.busy && this.action.entityId === s.entity_id;
-        const blocked = !s.can_control || !spec || spec.granted === false || busy || this.screenState === 'stale' || !s.available;
-        if (spec && !blocked) this.trigger(s.entity_id, spec);
+        const act = circuitAction(s, { busy: !!this.action?.busy && this.action.entityId === s.entity_id, stale: this.screenState === 'stale' });
+        if (act.spec && !act.blocked) this.trigger(s.entity_id, act.spec);
       } else if (o?.anchor_ref) {
         const a = b.anchors.find((x) => x.resource_type === o.anchor_ref!.resource_type && x.resource_id === o.anchor_ref!.resource_id);
         if (a) {
@@ -1173,18 +1216,21 @@ export class ExploreFloorMap extends LitElement {
       return;
     }
     if (kind === 'zone') {
-      this.close();
+      if (this.multi) {
+        this.pickZone(id);
+        return;
+      }
       this.focusedObjectId = null;
-      this.selectedZoneId = id;
+      this.selectedZoneId = this.selectedZoneId === id ? null : id; // the 2D zone-select toggles the same way
+      this.close();
     }
   }
 
-  private render3d(b: MapBundle, desc: SceneDescription) {
-    const cameras = b.source === 'demo'
-      ? demoCameras.filter((c) => c.floorId === b.floorId && c.state !== 'forbidden' && this.layers.has('cameras')).map((c) => ({ id: c.id, label: c.name }))
-      : b.anchors.filter((a) => a.resource_type === 'camera' && this.layers.has('cameras') && cameraState(a) !== 'forbidden').map((a) => ({ id: a.id, label: entityName(a) }));
+  private render3d(b: MapBundle) {
+    const s = this.scene3d();
+    if (!s) return nothing;
     const stamp = new Date().toISOString().slice(0, 10);
-    return html`<sw-plan-3d data-floor-3d .description=${desc} .selectedId=${this.sel3d} .preset=${this.preset3d} .cameras=${cameras} .labels=${this.sceneLabels}
+    return html`<sw-plan-3d data-floor-3d .description=${s.desc} .selectedId=${this.sel3d} .preset=${this.preset3d} .cameras=${s.cameras} .labels=${s.labels}
       exportName=${`plan-3d-${b.floorName}${this.levelFilter ? `-${this.levelFilter}` : ''}-${stamp}`} @part-select=${(e: CustomEvent<PartSelectDetail>) => this.onPartSelect(e)}></sw-plan-3d>`;
   }
 
@@ -1499,7 +1545,7 @@ export class ExploreFloorMap extends LitElement {
   }
 
   private onViewChange() {
-    if (!this.selectedId || !this.canvas) return;
+    if (!this.selectedId || !this.canvas || this.shows3d) return; // under the 3D the card is a drawer
     const m = this.markers.find((x) => x.id === this.selectedId);
     if (!m) return;
     const p = this.canvas.toScreen(m.x, m.y);
@@ -1800,14 +1846,13 @@ export class ExploreFloorMap extends LitElement {
       ${ids.map((id) => {
         const s = states[id];
         const on = s.state === 'on';
-        const spec = s.actions.find((x) => x.id.endsWith(on ? 'turn_off' : 'turn_on'));
-        // the entity card's guards: no second send while one for this switch is in flight, none on a stale screen or an unavailable switch
-        const busy = !!act?.busy && act.entityId === s.entity_id;
+        // the entity card's guards (circuitAction, shared with a lamp click in the 3D): no second send while one for this
+        // switch is in flight, none on a stale screen or an unavailable switch
+        const { spec, blocked, why } = circuitAction(s, { busy: !!act?.busy && act.entityId === s.entity_id, stale: this.screenState === 'stale' });
         const stale = this.screenState === 'stale' || !s.fresh;
-        const blocked = !s.can_control || !spec || spec.granted === false || busy || this.screenState === 'stale' || !s.available;
         const note = !s.available ? 'לא זמין' : stale ? 'לא מעודכן' : '';
         return html`<button class="circuit ${on ? 'on' : ''} ${note ? 'muted' : ''}" data-circuit-toggle=${id} data-state=${s.state ?? 'unknown'} data-available=${s.available ? 'yes' : 'no'} style=${`--kc: var(--sw-${circuitToken(s.color_token) ?? 'circuit-1'})`} ?disabled=${blocked}
-            title=${!s.can_control ? 'אין הרשאת שליטה בישויות בקומה' : !s.available ? 'המפסק אינו זמין ב־Home Assistant' : on ? 'כיבוי המעגל' : 'הדלקת המעגל'} @click=${() => { if (spec && !blocked) this.trigger(s.entity_id, spec); }}>
+            title=${why ?? (on ? 'כיבוי המעגל' : 'הדלקת המעגל')} @click=${() => { if (spec && !blocked) this.trigger(s.entity_id, spec); }}>
           <i></i><span>${s.name ?? id}</span><span class="cnt">${countLabel(s.member_ids.length, 'מנורה אחת', 'מנורות')} · ${s.state === null ? 'לא ידוע' : on ? 'דולק' : 'כבוי'}${s.power_w ? ` · ${s.power_w} W` : ''}${note ? html` · <span class="cnote" data-circuit-note>${note}</span>` : nothing}</span>
         </button>`;
       })}
@@ -1848,9 +1893,9 @@ export class ExploreFloorMap extends LitElement {
         : b.needsAlignment
           ? html`<div class="banner"><sw-state-panel compact state="partial" heading="פריטים הוצבו על גרסת תוכנית קודמת" hint="בדוק שהמיקומים עדיין נכונים על הרקע החדש (עורך התוכנית)."></sw-state-panel></div>`
           : nothing}
-      ${this.shows3d && this.sceneDescription
-        ? this.render3d(b, this.sceneDescription)
-        : html`<sw-plan-canvas
+      ${this.shows3d ? this.render3d(b) : nothing}
+      <sw-plan-canvas
+        style=${this.shows3d ? 'display:none' : ''}
         .planWidth=${b.width}
         .planHeight=${b.height}
         .plan=${b.planSvg}
@@ -1875,7 +1920,7 @@ export class ExploreFloorMap extends LitElement {
         .dimEntities=${this.screenState === 'stale'}
         @zone-select=${(e: CustomEvent<{ id: string }>) => { if (this.multi) { this.pickZone(e.detail.id); return; } this.selectedZoneId = this.selectedZoneId === e.detail.id ? null : e.detail.id; this.close(); }}
         @marker-select=${this.onSelect}
-        @view-change=${this.onViewChange}></sw-plan-canvas>`}
+        @view-change=${this.onViewChange}></sw-plan-canvas>
       ${this.threeState === 'loading' ? html`<div class="cover" data-3d-loading><sw-state-panel state="loading" hint="טוען תלת-ממד…"></sw-state-panel></div>` : nothing}
       ${this.threeState === 'error' ? html`<div class="banner" data-3d-load-error><sw-state-panel compact state="error" heading="תלת-ממד לא נטען" hint=${this.threeError}></sw-state-panel></div>` : nothing}
       <div class="floorchip" data-floorchip><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
@@ -1928,8 +1973,8 @@ export class ExploreFloorMap extends LitElement {
           <div class="layers" role="group" aria-label=${t('floor.layers')}>
             ${LAYERS.map((l) => html`<button class=${this.layers.has(l.id) ? 'on' : ''} title=${l.label()} aria-label=${l.label()} aria-pressed=${this.layers.has(l.id)} @click=${() => this.toggleLayer(l.id)}><sw-icon name=${l.icon} size=${14}></sw-icon></button>`)}
           </div>
-          <sw-button icon="cube" aria-pressed=${this.view3d} data-view-3d ?disabled=${!this.view3d && (!this.can3d || this.threeState === 'loading')}
-            title=${!webglAvailable() ? WEBGL_UNAVAILABLE_HE : !this.sceneDescription ? 'אין מבנה מפורסם לקומה הזו' : 'מקש 3'} @click=${() => this.toggle3d()}>${this.view3d ? '2D' : '3D'}</sw-button>
+          <sw-button icon="cube" aria-pressed=${this.shows3d} data-view-3d ?disabled=${!this.shows3d && (!this.can3d || this.threeState === 'loading')}
+            title=${!webglAvailable() ? WEBGL_UNAVAILABLE_HE : !this.hasScene ? 'אין מבנה מפורסם לקומה הזו' : 'מקש 3'} @click=${() => this.toggle3d()}>${this.shows3d ? '2D' : '3D'}</sw-button>
           ${webglAvailable() ? nothing : html`<span class="note" data-3d-unavailable>${WEBGL_UNAVAILABLE_HE}</span>`}
           <sw-button icon="layers" aria-pressed=${this.panel} @click=${() => (this.panel = !this.panel)}>${t('floor.layers')}</sw-button>
           ${b && b.source === 'api' ? html`<sw-button icon="list" aria-pressed=${this.sideList} data-sidelist-toggle @click=${() => this.toggleSideList()}>רשימה</sw-button><sw-button icon="grid" aria-pressed=${this.multi} data-multi-toggle @click=${() => this.setMulti(!this.multi)}>בחירת מצלמות</sw-button>` : nothing}
