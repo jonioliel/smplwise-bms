@@ -30,6 +30,7 @@ test('a candidate set draws through the same primitives as the structure', () =>
   expect(set.scaleMPerPx).toBe(0.01);
   const doc = candidatesDoc(sample(), set);
   expect(doc.labels).toEqual([]);
+  expect(doc.connectors).toEqual([]); // live connectors never leak into the candidate overlay (Task 8 review)
   const prims = buildPrimitives(doc, 1000, 800);
   expect(prims.filter((p) => p.kind === 'wall').length).toBe(6); // three walls, each cut once by its opening
   expect(prims.filter((p) => p.kind === 'door').length).toBe(1);
