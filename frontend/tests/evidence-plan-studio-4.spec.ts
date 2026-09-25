@@ -188,4 +188,65 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
     // the states back for the later tests
     expect((await api.post('api/v1/ha/dev/states', { data: { states: [{ entity_id: ENTITIES.lock, state: 'locked' }, { entity_id: ENTITIES.lamp, state: 'off' }] } })).status()).toBe(200);
   });
+
+  test('history map: the 3D shows the structure and the states of the instant, opens from the camera of ?camera=, and the key 3 toggles', async ({ page }) => {
+    test.setTimeout(120_000);
+    const t = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+    await page.goto(`/?design=a#/investigate/floors/${ids.floor}/history?t=${encodeURIComponent(t)}&camera=${ids.camera}`);
+    const host = page.locator('investigate-history-map');
+    await expect(host.locator('sw-plan-canvas [data-structure] [data-wall]').first()).toBeAttached({ timeout: 30000 });
+    await expect(host.locator('[data-history-camera]')).not.toContainText('לחץ על מצלמה');
+    const toggle = host.locator('[data-view-3d]');
+    await expect(toggle).toBeEnabled({ timeout: 10000 });
+    await toggle.click();
+    const el = host.locator('sw-plan-3d[data-history-3d]');
+    await expect(el).toHaveAttribute('data-ready', '', { timeout: 30000 });
+    await expect(el).toHaveAttribute('data-preset', 'camera'); // "מבט מהמצלמה": the camera the page was opened with
+    await expect(el).toHaveAttribute('data-selected', ids.camAnchor);
+    const d = await describe3d(page, 'investigate-history-map');
+    const part = (id: string) => d.parts.find((p) => p.id === id)!;
+    expect(part('door:dr').rotation[1]).toBe(0); // the lock was locked at the instant (the local history knows it)
+    expect(part(`ent:${ids.lockAnchor}`).color).toBe('text-3');
+    expect(part('obj:lb').color).toBe('obj-light');
+    expect(d.parts.filter((p) => p.kind === 'wall').length).toBeGreaterThanOrEqual(5);
+    // a click on the lock symbol selects it in the panel's terms (no action is offered in the history)
+    await el.locator('[data-preset-top]').click();
+    const lockAt = await partScreen(page, 'investigate-history-map', `ent:${ids.lockAnchor}`);
+    await page.mouse.click(lockAt.x, lockAt.y);
+    await expect(el).toHaveAttribute('data-selected', ids.lockAnchor);
+    await expect(host.locator('[data-history-camera]')).toContainText('לחץ על מצלמה');
+    await page.keyboard.press('3');
+    await expect(host.locator('sw-plan-canvas')).toBeAttached();
+    await expect(host.locator('sw-plan-canvas g.marker.selected')).toHaveAttribute('data-id', ids.lockAnchor);
+    await page.keyboard.press('3');
+    await expect(host.locator('sw-plan-3d[data-history-3d]')).toHaveAttribute('data-ready', '', { timeout: 15000 });
+  });
+
+  test('event page: the map card toggles to 3D from the camera of the event', async ({ page }) => {
+    test.setTimeout(120_000);
+    // the developer backend holds events only when the NVR delivered them: find one on a floor with a plan, else NOT_RUN
+    const list = (await (await api.get('api/v1/events?limit=300')).json()).events as { id: string; camera_id: string | null }[];
+    let found: { id: string; anchor: string } | null = null;
+    for (const e of list.filter((x) => x.camera_id)) {
+      const d = (await (await api.get(`api/v1/events/${e.id}`)).json()) as { location: { has_plan: boolean; anchor_id: string } | null };
+      if (d.location?.has_plan) {
+        found = { id: e.id, anchor: d.location.anchor_id };
+        break;
+      }
+    }
+    test.skip(!found, 'no event with a camera on a floor with a plan on this backend (recorded NOT_RUN)');
+    await page.goto(`/?design=a#/investigate/events/${found!.id}`);
+    const host = page.locator('investigate-event-detail');
+    await expect(host.locator('sw-plan-canvas')).toBeAttached({ timeout: 30000 });
+    const toggle = host.locator('sw-button[data-event-3d]'); // the element carries data-event-3d too
+    await expect(toggle).toBeEnabled({ timeout: 15000 });
+    await toggle.click();
+    const el = host.locator('sw-plan-3d[data-event-3d]');
+    await expect(el).toHaveAttribute('data-ready', '', { timeout: 30000 });
+    await expect(el).toHaveAttribute('data-preset', 'camera');
+    await expect(el).toHaveAttribute('data-selected', found!.anchor);
+    expect(Number(await el.getAttribute('data-parts'))).toBeGreaterThan(0);
+    await toggle.click();
+    await expect(host.locator('sw-plan-canvas')).toBeAttached();
+  });
 });

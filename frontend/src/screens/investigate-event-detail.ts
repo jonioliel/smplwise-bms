@@ -19,11 +19,15 @@ import type { StateKind } from '../components/sw-badge';
 
 const CERTAINTY_KIND: Record<Certainty, StateKind> = { measured: 'recorded', inferred: 'unknown', command: 'partial', availability: 'stale' };
 import { closePlayback, createPlayback, playbackWsUrl, type PlaybackSession } from '../api/recordings';
-import { cameraState, loadMap, type MapBundle } from '../api/maps';
+import { cameraState, entityName, loadMap, type MapBundle } from '../api/maps';
 import { entityMarkerKind } from '../api/ha';
 import { geometryFor } from '../api/geometry';
 import type { AnchorPosition, CatalogLookup, GeometryDoc } from '../map/geometry';
-import { loadLibrary, lookupOf } from '../api/plan-catalog';
+import { loadLibrary, lookup3dOf, lookupOf } from '../api/plan-catalog';
+import { buildScene, type Catalog3DLookup, type SceneAnchor, type SceneDescription } from '../map/scene-builder';
+import type { ScenePreset } from '../map/scene-three';
+import type { PartSelectDetail } from '../map/sw-plan-3d';
+import { WEBGL_UNAVAILABLE_HE, webglAvailable } from '../map/webgl';
 
 const SOURCE_LABEL = { alertstream: 'אירוע NVR', recording: 'נגזר מהקלטה', system: 'מערכת', ha: 'חיישן HA' } as const;
 const NEARBY_MS = 10 * 60 * 1000;
@@ -53,6 +57,15 @@ export class InvestigateEventDetail extends LitElement {
   @state() private geometry: GeometryDoc | null = null;
   @state() private catalogLookup: CatalogLookup | null = null;
   private pollTimer = 0;
+  /** T087: the map card's 3D, opened from the event's camera ("מבט מהמצלמה"). Read-only: no actions from the event page. */
+  @state() private view3d = false;
+  @state() private threeState: 'idle' | 'loading' | 'ready' | 'error' = 'idle';
+  @state() private catalog3d: Catalog3DLookup | null = null;
+  @state() private selected3d: string | null = null;
+  /** The "from camera" preset, one object per toggle: the element re-applies a preset only when the property changes. */
+  @state() private eventPreset: ScenePreset = 'iso';
+  private itemNames = new Map<string, string>();
+  private sceneMemo: { keys: unknown[]; desc: SceneDescription; labels: Record<string, string> } | null = null;
 
   static styles = css`
     :host {
@@ -157,6 +170,25 @@ export class InvestigateEventDetail extends LitElement {
     .map sw-plan-canvas {
       block-size: 100%;
       min-block-size: 0;
+    }
+    .map sw-plan-3d {
+      min-block-size: 0;
+    }
+    .tools3d {
+      position: absolute;
+      inset-inline-end: 8px;
+      inset-block-start: 8px;
+      z-index: var(--sw-z-map-ui);
+    }
+    .load3d {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      z-index: var(--sw-z-map-ui);
+      background: var(--sw-surface);
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text-2);
     }
     .floorchip {
       position: absolute;
@@ -268,6 +300,7 @@ export class InvestigateEventDetail extends LitElement {
     try {
       const ev = await getEvent(this.eventId);
       this.ev = ev;
+      this.view3d = false; // another event: its map card opens in 2D, the 3D then starts from its own camera
       this.tz = ev.timezone || this.tz;
       if (ev.location?.has_plan) void this.loadMap(ev.location.floor_id);
       else this.bundle = null;
@@ -324,6 +357,8 @@ export class InvestigateEventDetail extends LitElement {
       if (b.source === 'api') {
         void loadLibrary(b.catalogRevision).then((lib) => {
           this.catalogLookup = lookupOf(lib);
+          this.catalog3d = lookup3dOf(lib);
+          this.itemNames = new Map(lib.items.map((i) => [i.id, i.names.he]));
         }).catch(() => {}); // without the library objects draw as plain boxes
       }
       this.geometry = null; // the map renders without its structure until the document arrives
@@ -444,6 +479,74 @@ export class InvestigateEventDetail extends LitElement {
     }));
   }
 
+  // ---- 3D (T087) ----
+
+  /** Cheap: the event's floor has a published structure (the toggle's gate; the scene is built only while the 3D is on). */
+  private get hasScene(): boolean {
+    return this.bundle?.source === 'api' && this.geometry !== null;
+  }
+
+  /** The scene of the event's floor, built only while the 3D is on and memoised on a signature of what the builder reads.
+   * The map card shows the current plan (not the plan at the event time), so it carries no states of the instant: an HA
+   * state is drawn only when the bundle has it for the instant (state_at), else as unknown with the doors closed, and the
+   * circuits stay off. Never today's live value on an event of the past. */
+  private get sceneDescription(): SceneDescription | null {
+    const b = this.bundle;
+    const g = this.geometry;
+    if (!this.view3d || !b || b.source !== 'api' || !g) return null;
+    const stateAt = (a: MapBundle['anchors'][number]) => (a.entity?.state_at?.known ? a.entity.state_at.state : null);
+    const anchors: SceneAnchor[] = b.anchors.map((a) => ({
+      id: a.id, resource_type: a.resource_type, resource_id: a.resource_id, x: a.position.x, y: a.position.y, rotation: a.rotation_degrees, fov: a.field_of_view_degrees ?? null, radius: a.coverage_radius ?? null,
+      polygon: a.coverage_polygon ?? null, level_id: a.level_id ?? null, layer_id: a.layer_id, label: entityName(a), state: stateAt(a),
+      online: a.resource_type === 'camera' ? (a.camera ? a.camera.status === 'online' : null) : null, mount_height_m: a.mount_height_m ?? null, tilt_deg: a.tilt_deg ?? null,
+    }));
+    const entityStates = Object.fromEntries(b.anchors.filter((a) => a.resource_type === 'ha_entity').map((a) => [a.resource_id, stateAt(a)]));
+    const zones = b.zones.map((z) => ({ id: z.id, name: z.name, polygon: z.polygon, level_id: z.level_id ?? null }));
+    const keys: unknown[] = [JSON.stringify([b.floorId, b.width, b.height, anchors, entityStates, zones]), g, this.catalog3d];
+    if (this.sceneMemo && this.sceneMemo.keys.every((k, i) => k === keys[i])) return this.sceneMemo.desc;
+    const desc = buildScene({ doc: g, width: b.width, height: b.height, anchors, entityStates, circuitStates: {}, catalog: this.catalog3d, zones });
+    const labels: Record<string, string> = {};
+    for (const a of b.anchors) labels[a.id] = entityName(a);
+    for (const o of g.objects) labels[o.id] = o.label || this.itemNames.get(o.item_id) || o.item_id;
+    for (const z of b.zones) labels[z.id] = z.name;
+    this.sceneMemo = { keys, desc, labels };
+    return desc;
+  }
+
+  /** A click in the 3D only selects (no actions from the event page): a camera or an entity, or the entity an object or a
+   * door is bound to; anything else clears. */
+  private onPartSelect(e: CustomEvent<PartSelectDetail>) {
+    const { id, kind } = e.detail;
+    if (id && (kind === 'camera' || kind === 'entity')) {
+      this.selected3d = id;
+      return;
+    }
+    const ref = id && (kind === 'object' || kind === 'opening') ? (kind === 'object' ? this.geometry?.objects : this.geometry?.openings)?.find((o) => o.id === id)?.anchor_ref : null;
+    this.selected3d = ref ? this.bundle?.anchors.find((a) => a.resource_type === ref.resource_type && a.resource_id === ref.resource_id)?.id ?? null : null;
+  }
+
+  private async toggle3d(): Promise<void> {
+    if (this.view3d) {
+      this.view3d = false;
+      return;
+    }
+    if (!webglAvailable() || !this.hasScene || this.threeState === 'loading') return;
+    if (this.threeState !== 'ready') {
+      this.threeState = 'loading';
+      try {
+        await import('../map/sw-plan-3d');
+        this.threeState = 'ready';
+      } catch {
+        this.threeState = 'error';
+        return;
+      }
+    }
+    const anchorId = this.ev?.location?.anchor_id ?? null;
+    this.selected3d = anchorId;
+    this.eventPreset = anchorId ? { camera: `cam:${anchorId}` } : 'iso';
+    this.view3d = true;
+  }
+
   render() {
     if (!isApi()) return html`<sw-page heading="אירוע"><sw-state-panel state="empty" heading="דף האירוע זמין עם השרת" hint="במצב הדגמה אין אירועים אמיתיים."></sw-state-panel></sw-page>`;
     if (this.error && !this.ev) return html`<sw-page heading="אירוע"><sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel></sw-page>`;
@@ -489,10 +592,22 @@ export class InvestigateEventDetail extends LitElement {
                 <dt>מיקום</dt><dd data-where>${where ?? (ev.camera_id ? 'המצלמה עדיין לא מוצבת על תוכנית' : '—')}</dd>
               </dl>
               ${loc && loc.has_plan && this.bundle
-                ? html`<div class="map">
+                ? html`<div class="map" style=${this.view3d ? 'block-size:320px' : ''}>
                     <div class="floorchip"><sw-icon name="building" size=${12}></sw-icon>${loc.floor_name}</div>
-                    <sw-plan-canvas .planWidth=${this.bundle.width} .planHeight=${this.bundle.height} .imageUrl=${this.bundle.imageUrl} .plan=${this.bundle.planSvg} .markers=${this.markers} .selectedId=${loc.anchor_id} .zones=${this.bundle.zones} .geometry=${this.geometry} .catalog=${this.catalogLookup} .anchorPositions=${Object.fromEntries(this.bundle.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees } as AnchorPosition]))} alwaysLabel dimEntities></sw-plan-canvas>
+                    <div class="tools3d">
+                      <sw-button size="sm" icon="cube" aria-pressed=${this.view3d} data-event-3d ?disabled=${!this.view3d && (!webglAvailable() || !this.hasScene || this.threeState === 'loading')}
+                        title=${!webglAvailable() ? WEBGL_UNAVAILABLE_HE : !this.hasScene ? 'אין מבנה מפורסם לקומה הזו' : 'מבט מהמצלמה בתלת-ממד'} @click=${() => this.toggle3d()}>${this.view3d ? '2D' : '3D'}</sw-button>
+                    </div>
+                    ${this.view3d && this.threeState === 'ready' && this.sceneDescription
+                      ? html`<sw-plan-3d data-event-3d .description=${this.sceneDescription} .selectedId=${this.selected3d} .preset=${this.eventPreset} .labels=${this.sceneMemo?.labels ?? {}}
+                          .cameras=${this.bundle.anchors.filter((a) => a.resource_type === 'camera').map((a) => ({ id: a.id, label: entityName(a) }))} exportName=${`plan-3d-${loc.floor_name}-${ev.id}`}
+                          @part-select=${(e: CustomEvent<PartSelectDetail>) => this.onPartSelect(e)}></sw-plan-3d>`
+                      : html`<sw-plan-canvas .planWidth=${this.bundle.width} .planHeight=${this.bundle.height} .imageUrl=${this.bundle.imageUrl} .plan=${this.bundle.planSvg} .markers=${this.markers} .selectedId=${loc.anchor_id} .zones=${this.bundle.zones} .geometry=${this.geometry} .catalog=${this.catalogLookup} .anchorPositions=${Object.fromEntries(this.bundle.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees } as AnchorPosition]))} alwaysLabel dimEntities></sw-plan-canvas>`}
+                    ${this.threeState === 'loading' ? html`<div class="load3d" data-3d-loading>טוען תלת-ממד…</div>` : nothing}
                   </div>
+                  ${webglAvailable() ? nothing : html`<div class="note" data-event-3d-unavailable>${WEBGL_UNAVAILABLE_HE}</div>`}
+                  ${this.threeState === 'error' ? html`<div class="note err" data-3d-load-error>תלת-ממד לא נטען.</div>` : nothing}
+                  ${this.view3d ? html`<div class="note" data-event-3d-note>מבנה התוכנית הנוכחית; מצבי הישויות בזמן האירוע אינם ידועים כאן ומוצגים כלא ידועים.</div>` : nothing}
                   <div style="display:flex;gap:8px;margin-block-start:10px;flex-wrap:wrap">
                     <sw-button size="sm" icon="map" data-history-map @click=${() => navigate(`/investigate/floors/${loc.floor_id}`, { t: ev.occurred_at, camera: ev.camera_id ?? '' })}>המשך חקירה במפה</sw-button>
                     <sw-button size="sm" variant="ghost" icon="live" @click=${() => navigate(`/explore/floors/${loc.floor_id}`)}>מפה חיה</sw-button>
