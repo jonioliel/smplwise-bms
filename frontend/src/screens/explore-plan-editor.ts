@@ -159,6 +159,8 @@ export class ExplorePlanEditor extends LitElement {
   @state() private bindOffer: { objectId: string; anchor: Anchor } | null = null;
   /** The id a duplicate takes while it is dragged (Alt + drag), so the preview and the drop agree. */
   private dupId: string | null = null;
+  /** Objects whose body offer the user answered "לא": they are not offered again (in this editor session). */
+  private bindRefused = new Set<string>();
   private readonly phone = window.matchMedia('(max-width: 767px)');
   @state() private wallDraft: Pt[] | null = null;
   /** Raw plan position of the click that added the draft's last point (a double click there ends the wall). */
@@ -1284,10 +1286,13 @@ export class ExplorePlanEditor extends LitElement {
     if (!b || !doc || !lib) return;
     const o = doc.objects.find((x) => x.id === objectId);
     const item = o ? itemOf(lib, o.item_id) : undefined;
-    if (!o || !item || !item.anchor_kinds.length || o.anchor_ref) return;
+    if (!o || !item || !item.anchor_kinds.length || o.anchor_ref || this.bindRefused.has(objectId)) return;
     const { scale } = effectiveScale(doc);
+    // an anchor that already has a body is not offered a second one
+    const bodied = new Set(doc.objects.filter((x) => x.anchor_ref).map((x) => `${x.anchor_ref!.resource_type}:${x.anchor_ref!.resource_id}`));
     let best: { a: Anchor; d: number } | null = null;
     for (const a of this.anchors) {
+      if (bodied.has(`${a.resource_type}:${a.resource_id}`)) continue;
       const kind = a.resource_type === 'camera' ? 'camera' : (a.entity?.domain ?? a.resource_id.split('.')[0]);
       if (!item.anchor_kinds.includes(kind)) continue;
       const d = distanceM(o.position, [a.position.x, a.position.y], b.width, b.height, scale);
@@ -1796,8 +1801,6 @@ export class ExplorePlanEditor extends LitElement {
     );
   }
 
-  /** Calibration and measuring segments with their lengths, drawn by the canvas. */
-
   private renderLibraryTool(b: MapBundle) {
     const doc = this.studio.doc;
     const lib = this.library;
@@ -1822,9 +1825,7 @@ export class ExplorePlanEditor extends LitElement {
               this.edit((d) => removeItem(d, id));
               this.geomSel = null;
             },
-            array: () => {}, // Task 10
-            custom: () => {}, // Task 10
-            selectGroup: () => {}, // Task 10
+            // array, custom and selectGroup arrive with Task 10: until then the inspector hides those controls
           },
         )
       : nothing}
@@ -1848,6 +1849,8 @@ export class ExplorePlanEditor extends LitElement {
       },
     )}`;
   }
+
+  /** Calibration and measuring segments with their lengths, drawn by the canvas. */
   private get rulers(): RulerOverlay[] {
     const bundle = this.bundle;
     const doc = this.studio.doc;
@@ -2251,7 +2254,7 @@ export class ExplorePlanEditor extends LitElement {
                   @geom-drag-move=${(e: CustomEvent<GeomDragDetail>) => this.onGeomDragMove(e.detail)}
                   @geom-drag-cancel=${() => { this.geomPreview = null; this.dupId = null; }}
                   @geom-drag=${(e: CustomEvent<GeomDragDetail>) => this.onGeomDrag(e.detail)}
-                  @zone-select=${(e: CustomEvent<{ id: string }>) => { if (this.placing || this.drawing || this.studioPlacing || e.detail.id.startsWith('cand-')) return; if (this.tool === 'structure') { this.geomSel = null; return; } this.selectedZoneId = e.detail.id; this.selectedId = null; }}
+                  @zone-select=${(e: CustomEvent<{ id: string }>) => { if (this.placing || this.drawing || this.studioPlacing || e.detail.id.startsWith('cand-')) return; if (this.tool === 'structure' || this.tool === 'library') { this.geomSel = null; return; } this.selectedZoneId = e.detail.id; this.selectedId = null; }}
                   @zone-edit=${(e: CustomEvent<{ id: string; polygon: ZonePoint[] }>) => { const z = this.zones.find((x) => x.id === e.detail.id); if (z) void this.patchZone(z, { polygon: e.detail.polygon }); }}
                   @marker-select=${(e: CustomEvent<MarkerSelectDetail>) => { if (this.placing || this.drawing || this.studioPlacing) return; this.selectedId = e.detail.id; this.selectedZoneId = null; this.geomSel = null; }}
                   @marker-move=${(e: CustomEvent<{ id: string; x: number; y: number }>) => { this.apply(e.detail.id, { position: { x: +e.detail.x.toFixed(4), y: +e.detail.y.toFixed(4) } }); this.selectedId = e.detail.id; }}
@@ -2262,7 +2265,7 @@ export class ExplorePlanEditor extends LitElement {
                 ${this.drawing ? html`<div class="placing-hint"><span>ציור אזור: לחץ להוספת פינות (${this.drawing.length}) · לחיצה על הפינה הראשונה או Enter מסיימים · Esc לביטול</span></div>` : nothing}
                 ${this.placingItem && !this.bindOffer ? html`<div class="placing-hint"><span>לחץ על התוכנית כדי להציב ${this.placingItem.names.he} · Esc לביטול</span></div>` : nothing}
                 ${this.bindOffer ? html`<div class="placing-hint bindbar" data-bind-offer><span>העצם ליד ${this.anchorName(this.bindOffer.anchor)} — להפוך אותו לגוף של הישות?
-                    <button data-bind-accept @click=${() => this.bindObject(this.bindOffer!.objectId, this.bindOffer!.anchor)}>הצמד לישות</button><button data-bind-dismiss @click=${() => (this.bindOffer = null)}>לא</button></span></div>` : nothing}
+                    <button data-bind-accept @click=${() => this.bindObject(this.bindOffer!.objectId, this.bindOffer!.anchor)}>הצמד לישות</button><button data-bind-dismiss @click=${() => { this.bindRefused.add(this.bindOffer!.objectId); this.bindOffer = null; }}>לא</button></span></div>` : nothing}
                 ${this.wallDraft ? html`<div class="placing-hint"><span>ציור קיר: ${this.wallDraft.length} נקודות · Enter או לחיצה חוזרת על הנקודה האחרונה מסיימים · לחיצה על הנקודה הראשונה סוגרת מתאר · Esc לביטול</span></div>` : nothing}
                 <div class="legend"><span><i></i>מצלמות · ${cams}</span><span><i class="ent"></i>ישויות HA · ${ents}</span><span><i class="zone"></i>אזורים · ${this.zones.length}</span></div>
               </div>

@@ -404,9 +404,10 @@ export interface ObjectActions {
   patch(id: string, patch: Partial<GeomObject>): void;
   unbind(id: string): void;
   remove(id: string): void;
-  array(id: string): void;
-  custom(id: string): void;
-  selectGroup(groupId: string): void;
+  /** Task 10 supplies these three; until then the inspector shows no array / custom item / select group control. */
+  array?: (id: string) => void;
+  custom?: (id: string) => void;
+  selectGroup?: (groupId: string) => void;
 }
 
 function paramField(o: GeomObject, name: string, spec: ParamSpec, levels: GeomLevel[], a: ObjectActions) {
@@ -435,16 +436,16 @@ export function renderObjectInspector(v: ObjectView, a: ObjectActions): Template
     <div class="two">
       <sw-field label="מפלס"><select data-item-level @change=${(e: Event) => a.patch(o.id, { level_id: (e.target as HTMLSelectElement).value })}>${v.levels.map((l) => html`<option value=${l.id} ?selected=${l.id === o.level_id}>${l.name}</option>`)}</select></sw-field>
       <sw-field label="סיבוב (°)"><input type="number" min="0" max="359" step="1" data-ltr data-object-rotation .value=${String(Math.round(o.rotation_deg))} ?disabled=${!!o.anchor_ref}
-        @change=${(e: Event) => a.patch(o.id, { rotation_deg: ((Math.round(numberOf(e)) % 360) + 360) % 360 })} /></sw-field>
+        @change=${(e: Event) => { const x = numberOf(e); if (Number.isFinite(x)) a.patch(o.id, { rotation_deg: ((Math.round(x) % 360) + 360) % 360 }); }} /></sw-field>
     </div>
     <div class="three">${size('w_m', 'רוחב (מ׳)')}${size('d_m', 'עומק (מ׳)')}${size('h_m', 'גובה (מ׳)')}</div>
     <sw-field label="גובה מהרצפה (מ׳)"><input type="number" min="-50" max="500" step="0.05" data-ltr data-object-z .value=${String(o.z_m)} @change=${(e: Event) => { const x = numberOf(e); if (x >= -50 && x <= 500) a.patch(o.id, { z_m: x }); }} /></sw-field>
     ${v.item ? Object.entries(v.item.params_schema).map(([k, spec]) => paramField(o, k, spec, v.levels, a)) : nothing}
-    ${group ? html`<div class="note" data-object-group>חלק ממערך של ${group.member_ids.length} · <button class="linkbtn" data-select-group @click=${() => a.selectGroup(group.id)}>בחר את המערך</button></div>` : nothing}
+    ${group ? html`<div class="note" data-object-group>חלק ממערך של ${group.member_ids.length}${a.selectGroup ? html` · <button class="linkbtn" data-select-group @click=${() => a.selectGroup?.(group.id)}>בחר את המערך</button>` : nothing}</div>` : nothing}
     <div class="note">${v.estimated ? (v.showEstimates ? 'המידות במטרים משוערות (≈) עד הכיול' : 'לא מכויל: המידות מוצגות כערכי הפריט') : 'המידות במטרים לפי הכיול'} · חצים = הזזה עדינה (Shift = גדולה) · Alt+גרירה = שכפול · Delete = מחיקה</div>
     <div class="btns">
-      <sw-button size="sm" icon="grid" data-object-array ?disabled=${v.phone || !!o.anchor_ref} title=${v.phone ? 'מערכים בדסקטופ בלבד' : 'שורות × עמודות מהעצם הזה'} @click=${() => a.array(o.id)}>מערך</sw-button>
-      ${v.canManage ? html`<sw-button size="sm" icon="plus" data-object-custom @click=${() => a.custom(o.id)}>צור פריט מזה</sw-button>` : nothing}
+      ${a.array ? html`<sw-button size="sm" icon="grid" data-object-array ?disabled=${v.phone || !!o.anchor_ref} title=${v.phone ? 'מערכים בדסקטופ בלבד' : 'שורות × עמודות מהעצם הזה'} @click=${() => a.array?.(o.id)}>מערך</sw-button>` : nothing}
+      ${v.canManage && a.custom ? html`<sw-button size="sm" icon="plus" data-object-custom @click=${() => a.custom?.(o.id)}>צור פריט מזה</sw-button>` : nothing}
       <sw-button size="sm" variant="ghost" icon="trash" data-geom-delete @click=${() => a.remove(o.id)}>מחק</sw-button>
     </div>
   </sw-card>`;

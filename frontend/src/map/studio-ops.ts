@@ -179,9 +179,10 @@ export function rotationTo(o: Pick<GeomObject, 'position'>, p: Pt, W: number, H:
   return ((snapped % 360) + 360) % 360;
 }
 
-/** The size after dragging an edge midpoint to `p`: edge 0 = front (-d), 1 = right (+w), 2 = back (+d), 3 = left (-w); the
- * opposite edge stays where it is in the footprint's own frame (the centre moves with it - the editor recentres). Shift
- * keeps the width / depth ratio. Never below 5 cm, never above 100 m. */
+/** The size after dragging an edge midpoint to `p`: edge 0 = front (-d), 1 = right (+w), 2 = back (+d), 3 = left (-w). The
+ * stretch is symmetric about the centre: the dragged edge goes to the pointer's distance from the centre and the opposite
+ * edge moves out by as much, so the centre stays where it is. Shift keeps the width / depth ratio. Never below 5 cm,
+ * never above 100 m. */
 export function stretchedSize(o: Pick<GeomObject, 'position' | 'rotation_deg' | 'size'>, edge: 0 | 1 | 2 | 3, p: Pt, W: number, H: number, scale: number, keepRatio: boolean): GeomSize {
   const theta = ((o.rotation_deg || 0) * Math.PI) / 180;
   const [ax, ay] = rotated(0, 0, edge === 1 ? 1 : edge === 3 ? -1 : 0, edge === 2 ? 1 : edge === 0 ? -1 : 0, theta); // the edge's outward unit vector on screen

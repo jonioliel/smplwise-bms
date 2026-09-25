@@ -131,7 +131,11 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
     await expect(page.locator(`${ed} sw-plan-canvas [data-object]`)).toHaveCount(2, { timeout: 20000 });
     await page.locator(`${ed} [data-tool="library"]`).click();
     await expect(page.locator(`${ed} [data-library-panel]`)).toBeVisible();
+    const rows = page.locator(`${ed} [data-lib-item]`);
+    const allRows = await rows.count();
     await page.locator(`${ed} [data-lib-search]`).fill('כיסא');
+    await expect.poll(() => rows.count()).toBeLessThan(allRows); // the search narrows the list
+    expect(await rows.count()).toBeGreaterThan(0);
     await page.locator(`${ed} [data-lib-item="chair.basic"]`).click();
     await clickPlan(page, ed, 0.3, 0.5);
     await expect(page.locator(`${ed} sw-plan-canvas [data-object]`)).toHaveCount(3);
@@ -140,6 +144,21 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
     await page.keyboard.press('Escape'); // disarm the item: presses on objects now grab them
     await dragPlan(page, ed, [0.3, 0.5], [0.4, 0.5]);
     await expect.poll(async () => (await draft()).doc.objects.find((o) => o.id === placedId)?.position[0] ?? 0, { timeout: 10000 }).toBeGreaterThan(0.38);
+    // the whole move is one undo step: one Ctrl+Z puts the chair back where it was placed, one Ctrl+Y moves it again
+    await page.keyboard.press('Control+z');
+    await expect.poll(async () => (await draft()).doc.objects.find((o) => o.id === placedId)?.position[0] ?? 0, { timeout: 10000 }).toBeCloseTo(0.3, 1);
+    await page.keyboard.press('Control+y');
+    await expect.poll(async () => (await draft()).doc.objects.find((o) => o.id === placedId)?.position[0] ?? 0, { timeout: 10000 }).toBeGreaterThan(0.38);
+    await clickPlan(page, ed, 0.4, 0.5); // undo / redo clear the selection: a press on the chair selects it again
+    await expect(page.locator(`${ed} [data-selected-object="${placedId}"]`)).toBeVisible();
+    // the right stretch handle dragged outwards makes the chair wider
+    const sizeOf = async () => ((await draft()).doc.objects.find((o) => o.id === placedId) as unknown as { size: { w_m: number } }).size.w_m;
+    const edge = (await page.locator(`${ed} sw-plan-canvas [data-object-stretch="1"]`).boundingBox())!;
+    await page.mouse.move(edge.x + edge.width / 2, edge.y + edge.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(edge.x + edge.width / 2 + 40, edge.y + edge.height / 2, { steps: 6 });
+    await page.mouse.up();
+    await expect.poll(sizeOf, { timeout: 10000 }).toBeGreaterThan(0.5);
     const knob = (await page.locator(`${ed} sw-plan-canvas [data-object-rotate]`).boundingBox())!;
     await page.mouse.move(knob.x + knob.width / 2, knob.y + knob.height / 2);
     await page.mouse.down();
