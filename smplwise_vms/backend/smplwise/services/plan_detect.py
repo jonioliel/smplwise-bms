@@ -451,12 +451,104 @@ def _stage(gray: Image.Image, strength: float, analysis_px: int, scale_m_per_px:
 
 # ---------------------------------------------------------------- openings (Tasks 4 and 5 replace the two stubs)
 
+def _ratio(mask: np.ndarray, pts: np.ndarray) -> float:
+    """The fraction of the sample points (x, y) that fall on set pixels of the mask."""
+    h, w = mask.shape
+    xs = np.clip(np.round(pts[:, 0]).astype(int), 0, w - 1)
+    ys = np.clip(np.round(pts[:, 1]).astype(int), 0, h - 1)
+    return float(mask[ys, xs].mean())
+
+
+def _arc(centre: np.ndarray, radius: float, u: np.ndarray, n: np.ndarray, count: int = 24) -> np.ndarray:
+    """24 points on the quarter circle about `centre` from direction u (the other gap end) to direction n (the leaf)."""
+    th = np.linspace(0.08, math.pi / 2 - 0.08, count)
+    return centre + np.outer(np.cos(th), u) * radius + np.outer(np.sin(th), n) * radius
+
+
+def _arc_ratio(mask: np.ndarray, centre: np.ndarray, radius: float, u: np.ndarray, n: np.ndarray) -> float:
+    """Ink along the quarter circle from u to n about centre, the best of five radii within 6 %: the gap ends are known
+    to a few pixels, a drawn arc is two or three pixels wide."""
+    return max(_ratio(mask, _arc(centre, radius * k, u, n)) for k in (0.94, 0.97, 1.0, 1.03, 1.06))
+
+
+def _lines_along(g0: np.ndarray, d: np.ndarray, length: float, nl: np.ndarray, t_ref: float, ink: np.ndarray) -> int:
+    """How many of the three lines a window symbol may show (both wall faces and the glass line between them) are
+    drawn along the run g0 -> g0 + d * length: ink on at least 60 % of 16 samples per line."""
+    hits = 0
+    along = np.linspace(0.1, 0.9, 16)
+    for off in (-t_ref / 2, 0.0, t_ref / 2):
+        if _ratio(ink, g0 + np.outer(along, d) * length + nl * off) >= WINDOW_LINE_RATIO:
+            hits += 1
+    return hits
+
+
 def classify_gap(g0: np.ndarray, g1: np.ndarray, d: np.ndarray, t_ref: float, s: float, calibrated: bool, thin_mask: np.ndarray, ink: np.ndarray) -> dict[str, Any] | None:
-    """Task 4: what the gap between two collinear wall segments is. Until then: nothing."""
+    """What the gap g0 -> g1 (along d) between two collinear wall segments is (design 9.2 / 9.3): a door (a quarter
+    circle of ink of the gap's radius about one gap end, >= 60 % ink, the best of hinge x swing), a double door (a gap
+    of 1.5-2.4 m with mirrored half arcs), a window (2-3 thin lines along the gap), a passage (a door-sized gap without
+    an arc), or nothing (None). `s` is metres per pixel; when uncalibrated a gap of 1.5-4 thicknesses counts as door
+    sized too."""
+    gap = float(np.hypot(*(g1 - g0)))
+    door = DOOR_RANGE_M[0] / s <= gap <= DOOR_RANGE_M[1] / s or (not calibrated and DOOR_RANGE_T[0] * t_ref <= gap <= DOOR_RANGE_T[1] * t_ref)
+    double = DOUBLE_RANGE_M[0] / s <= gap <= DOUBLE_RANGE_M[1] / s
+    window = WINDOW_RANGE_M[0] / s <= gap <= WINDOW_RANGE_M[1] / s
+    if not (door or double or window):
+        return None
+    nl, nr = np.array([d[1], -d[0]]), np.array([-d[1], d[0]])
+    best = (0.0, "start", "left")
+    if door or double:
+        for hinge, centre, other in (("start", g0, g1), ("end", g1, g0)):
+            u = _unit(centre, other)
+            for swing, n in (("left", nl), ("right", nr)):
+                r = _arc_ratio(thin_mask, centre, gap, u, n)
+                if r > best[0]:
+                    best = (r, hinge, swing)
+    double_ratio = 0.0
+    if double:
+        for n in (nl, nr):
+            double_ratio = max(double_ratio, min(_arc_ratio(thin_mask, g0, gap / 2, d, n), _arc_ratio(thin_mask, g1, gap / 2, -d, n)))
+    hits = _lines_along(g0, d, gap, nl, t_ref, ink) if window else 0
+
+    def conf_arc(r: float) -> float:
+        return round(0.55 + 0.45 * (r - ARC_INK_RATIO) / (1 - ARC_INK_RATIO), 3)
+
+    if double and double_ratio >= ARC_INK_RATIO:
+        return {"kind": "door", "swing": "double", "hinge": "start", "confidence": conf_arc(double_ratio), "width_px": gap}
+    if (door or double) and best[0] >= ARC_INK_RATIO:
+        return {"kind": "door", "swing": best[2], "hinge": best[1], "confidence": conf_arc(best[0]), "width_px": gap}
+    if window and hits >= 2:
+        return {"kind": "window", "swing": "none", "hinge": "start", "confidence": round(0.45 + 0.15 * hits, 3), "width_px": gap}
+    if door:
+        return {"kind": "passage", "swing": "none", "hinge": "start", "confidence": 0.45, "width_px": gap}
     return None
 
 
-def walls_from_gaps(segs: list[Seg], s: float, calibrated: bool, thin_mask: np.ndarray, ink: np.ndarray, want_openings: bool) -> tuple[list[Seg], list[dict[str, Any]]]:
+def _gap_end(mask: np.ndarray, p: np.ndarray, into: np.ndarray, t: float) -> np.ndarray:
+    """The gap end p (a skeleton end grown by t / 2) moved onto the wall mask's end face: along three lines parallel to
+    the wall (the centre and a quarter thickness either side), walking in the direction `into` the gap from half a
+    thickness plus 4 px behind p, the face is where the mask stops; the line that stops first wins (the side of the
+    wall the door leaf and arc do not touch, where the closing added nothing). The skeleton alone misses by a few
+    pixels when thinning bends its end toward a corner of a stepped face. p stays when no line has a clean face
+    within reach (a window whose lines the closing joined into the wall band)."""
+    reach = int(math.ceil(t / 2 + 4))
+    ks = np.arange(-reach, reach + 1, dtype=np.float64)
+    side = np.array([-into[1], into[0]])
+    h, w = mask.shape
+    best = None
+    for off in (-t / 4, 0.0, t / 4):
+        pts = p + side * off + np.outer(ks, into)
+        xs = np.clip(np.round(pts[:, 0]).astype(int), 0, w - 1)
+        ys = np.clip(np.round(pts[:, 1]).astype(int), 0, h - 1)
+        vals = mask[ys, xs]
+        if not vals[0] or vals.all():
+            continue
+        j = int(np.argmin(vals))  # the first unset sample
+        end = ks[j] - 0.5
+        best = end if best is None else min(best, end)
+    return p if best is None else p + into * best
+
+
+def walls_from_gaps(segs: list[Seg], s: float, calibrated: bool, thin_mask: np.ndarray, ink: np.ndarray, want_openings: bool, wall_mask: np.ndarray | None = None) -> tuple[list[Seg], list[dict[str, Any]]]:
     """Walk every line of collinear segments in order; a recognised gap joins its two neighbours into one wall with the
     opening at the gap, an unrecognised gap keeps them apart. The skeleton stops half a thickness short of a wall end
     (thinning retracts the ends), so a gap is measured between the ends grown by t / 2 - the same growth the
@@ -480,6 +572,8 @@ def walls_from_gaps(segs: list[Seg], s: float, calibrated: bool, thin_mask: np.n
             t_ref = max(t_cur, segs[i].thick, 2.0)
             g0 = base.a + d * (cur_hi + t_cur / 2)
             g1 = base.a + d * (lo - segs[i].thick / 2)
+            if want_openings and wall_mask is not None and lo - segs[i].thick / 2 > cur_hi + t_cur / 2:
+                g0, g1 = _gap_end(wall_mask, g0, d, t_cur), _gap_end(wall_mask, g1, -d, segs[i].thick)
             found = classify_gap(g0, g1, d, t_ref, s, calibrated, thin_mask, ink) if (want_openings and lo - segs[i].thick / 2 > cur_hi + t_cur / 2) else None
             if found is None:
                 walls.append(Seg(base.a + d * cur_lo, base.a + d * cur_hi, cur_samples, cur_axis))
@@ -488,7 +582,7 @@ def walls_from_gaps(segs: list[Seg], s: float, calibrated: bool, thin_mask: np.n
                 pending = []
                 cur_lo, cur_hi, cur_samples, cur_axis = lo, hi, list(segs[i].samples), segs[i].axis
                 continue
-            pending.append(dict(found, along=(cur_hi + lo) / 2))
+            pending.append(dict(found, along=base.project((g0 + g1) / 2)[0]))
             cur_hi = max(cur_hi, hi)
             cur_samples += segs[i].samples
             cur_axis = cur_axis and segs[i].axis
@@ -525,7 +619,7 @@ def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TA
     st = _stage(src, strength, ANALYSIS_PX, scale_m_per_px)
     an, dt, s, calibrated, segs, aw, ah, f = st["an"], st["dt"], st["s"], st["calibrated"], st["segs"], st["aw"], st["ah"], st["f"]
     want_openings = "openings" in targets
-    walls, openings = walls_from_gaps(segs, s, calibrated, an["thin"], an["ink_d"], want_openings)
+    walls, openings = walls_from_gaps(segs, s, calibrated, an["thin"], an["ink_d"], want_openings, an["walls"])
     if want_openings:
         openings += windows_by_profile(walls, openings, chamfer_dt(an["ink"]), an["ink_d"], s)
     mask = an["walls"]
