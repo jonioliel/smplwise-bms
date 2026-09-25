@@ -789,8 +789,9 @@ def _gap_end(mask: np.ndarray, p: np.ndarray, into: np.ndarray, t: float) -> np.
 def _crossing_face(mask: np.ndarray, face: np.ndarray, into: np.ndarray, t: float) -> bool:
     """Whether the gap end `face` is the face of another wall that crosses (or meets) this line there, not a free end
     of this wall: just behind the face (1.5 px), the wall mask continues sideways past this wall's band, without a
-    break from t / 2 + 1 to t / 2 + max(8, t) px, on either side. A free end's band stops at t / 2 (the fillet a closing
-    leaves between a door leaf and the wall is a few pixels, well inside that reach)."""
+    break from t / 2 + 1 to t / 2 + max(8, t) px, on BOTH sides. A free end's band stops at t / 2 (the fillet a closing
+    leaves between a door leaf and the wall is a few pixels, well inside that reach); a T partition, an L corner or a
+    door leaf continues it on one side only, and a door or passage flush with them is still an opening of this wall."""
     h, w = mask.shape
     q = face - into * 1.5
     side = np.array([-into[1], into[0]])
@@ -799,28 +800,36 @@ def _crossing_face(mask: np.ndarray, face: np.ndarray, into: np.ndarray, t: floa
         pts = q + np.outer(ks * sgn, side)
         xs = np.clip(np.round(pts[:, 0]).astype(int), 0, w - 1)
         ys = np.clip(np.round(pts[:, 1]).astype(int), 0, h - 1)
-        if mask[ys, xs].all():
-            return True
-    return False
+        if not mask[ys, xs].all():
+            return False
+    return True
 
 
 def _gap_status(mask: np.ndarray, g0: np.ndarray, g1: np.ndarray, p0: np.ndarray, p1: np.ndarray, d: np.ndarray, t0: float, t1: float) -> str:
     """Whether the gap g0 -> g1 between two pieces on one line may be an opening that joins them: "blocked" when
     _gap_end moved an end more than half a thickness plus 2 px from the grown skeleton end p0 / p1 (it walked through
-    other ink), when the wall mask is set on at least 3 px of the centre line between the faces (a wall lies across
-    the gap) or when both ends are faces of crossing walls; "cross0" / "cross1" when only the near / far end is the face
-    of a crossing wall (_crossing_face: the line runs on past a crossing wall, and the gap beside it belongs to the
-    piece on the other side only); else "free"."""
+    other ink) or when the wall mask covers the whole band (the centre line and a quarter of the thinner thickness
+    either side) on at least 3 px between the faces (a wall lies across the gap; a door leaf drawn filled from the
+    hinge covers only its swing side); "cross0" / "cross1" when the near / far end is the face of a crossing wall
+    (_crossing_face: the line runs on past a crossing wall, and the gap beside it belongs to the piece on the other side
+    only), "cross1" also when both ends are (a door or window proven by its symbol stays with the current wall, a
+    passage is refused); else "free"."""
     if float(np.hypot(*(g0 - p0))) > t0 / 2 + 2 or float(np.hypot(*(g1 - p1))) > t1 / 2 + 2:
         return "blocked"
     gap = float(np.hypot(*(g1 - g0)))
     if gap > 6:
         h, w = mask.shape
-        pts = g0 + np.outer(np.arange(2.0, gap - 2.0), d)
-        if int(mask[np.clip(np.round(pts[:, 1]).astype(int), 0, h - 1), np.clip(np.round(pts[:, 0]).astype(int), 0, w - 1)].sum()) >= 3:
+        side = np.array([-d[1], d[0]])
+        tt = min(t0, t1)
+        across = None
+        for off in (-tt / 4, 0.0, tt / 4):
+            pts = g0 + side * off + np.outer(np.arange(2.0, gap - 2.0), d)
+            on = mask[np.clip(np.round(pts[:, 1]).astype(int), 0, h - 1), np.clip(np.round(pts[:, 0]).astype(int), 0, w - 1)]
+            across = on if across is None else across & on
+        if int(across.sum()) >= 3:
             return "blocked"
     c0, c1 = _crossing_face(mask, g0, d, t0), _crossing_face(mask, g1, -d, t1)
-    return "blocked" if c0 and c1 else "cross0" if c0 else "cross1" if c1 else "free"
+    return "cross0" if c0 and not c1 else "cross1" if c1 else "free"
 
 
 def walls_from_gaps(segs: list[Seg], s: float, calibrated: bool, thin_mask: np.ndarray, ink: np.ndarray, want_openings: bool, wall_mask: np.ndarray | None = None) -> tuple[list[Seg], list[dict[str, Any]]]:
@@ -832,7 +841,7 @@ def walls_from_gaps(segs: list[Seg], s: float, calibrated: bool, thin_mask: np.n
     A gap with the face of a crossing wall at one end (_gap_status) never joins the pieces across that wall: a door or
     window found there belongs to the piece on its free side, whose wall then ends (or starts) at the crossing face;
     a passage there (no symbol to prove it) is not taken - a partition that ends at a crossing wall and a stub beyond
-    it are two walls."""
+    it are two walls. With crossing faces at both ends, a door or window stays with the current wall."""
     walls: list[Seg] = []
     openings: list[dict[str, Any]] = []
     for group in line_groups(segs):

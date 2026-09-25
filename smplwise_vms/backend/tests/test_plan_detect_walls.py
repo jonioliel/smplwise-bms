@@ -192,7 +192,8 @@ def test_a_row_of_smaller_bold_labels_does_not_seed_a_pier_chain():
     for scale in (0.01, None):
         clean = pd.detect(png, targets=("walls",), scale_m_per_px=scale)
         r = pd.detect(noisy, targets=("walls",), scale_m_per_px=scale)
-        assert len(r["walls"]) <= len(clean["walls"]) + 2 and pm.wall_scores(gt, r["walls"], 10.0)["precision"] >= 0.97, (scale, len(clean["walls"]), len(r["walls"]))
+        score = pm.wall_scores(gt, r["walls"], 10.0)
+        assert len(r["walls"]) <= len(clean["walls"]) + 2 and score["precision"] >= 0.97 and score["recall"] >= 0.97, (scale, len(clean["walls"]), len(r["walls"]), score)
 
 
 def _box(p: gen.Plan, t: int) -> None:
@@ -215,8 +216,9 @@ def test_piers_between_windows_and_stubs_beside_doors_survive_the_blob_rule():
         found = pm.opening_scores(p.gt, r["walls"], r["openings"], ("window",), "windows", 10.0)["found"]
         assert found >= want, (t, found)
     # 0.9 m doors 0.4 m from the corners of a partition line. At 20 px the stub east of the crossing wall has a bent
-    # skeleton end (6.6 degrees, off the line), so its door gap reaches the crossing wall's face: a10c58e counted it as
-    # a 1.31 m passage joined across the face; a passage at a crossing face is no longer taken (T086 Task 5 round 1)
+    # skeleton end (6.6 degrees, off the line) and is no segment, so the gap runs from the crossing wall over the stub's
+    # ink to the door: a10c58e counted it as a 1.31 m passage; the stub's ink across the whole band now blocks that gap
+    # (_gap_status, T086 Task 5 rounds 1-2)
     for t, want in ((10, 4), (20, 2)):
         p = gen.Plan("doors", 0.01)
         _box(p, 20)

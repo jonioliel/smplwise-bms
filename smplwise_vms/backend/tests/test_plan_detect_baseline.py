@@ -160,7 +160,9 @@ def test_private_script_reports_unscored_pictures_errors_and_anonymous_names(tmp
         (mixed / f"apartment.{ext}").write_bytes((tmp_path / "set" / f"apartment.{ext}").read_bytes())
     (mixed / "broken.png").write_bytes(b"\x89PNG broken")
     (mixed / "broken.json").write_bytes((tmp_path / "set" / "apartment.json").read_bytes())
+    (mixed / "lonely.png").write_bytes(b"\x89PNG no ground truth")
     out = subprocess.run([sys.executable, script, "--anon", str(mixed)], capture_output=True, text=True, cwd=str(ROOT))
     assert out.returncode == 0, out.stderr
     assert "plan-1: walls recall" in out.stdout and "plan-2: error UnidentifiedImageError" in out.stdout and "1 plans:" in out.stdout, out.stdout
-    assert "apartment" not in out.stdout and "broken" not in out.stdout and str(tmp_path) not in out.stdout, out.stdout
+    assert "unscored: 1 pictures without ground truth" in out.stdout, out.stdout
+    assert "apartment" not in out.stdout and "broken" not in out.stdout and "lonely" not in out.stdout and str(tmp_path) not in out.stdout, out.stdout

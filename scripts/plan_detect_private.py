@@ -8,7 +8,9 @@ numbers only (names of the plan files, no paths, no pictures, no error messages)
 
 A folder without plans (or absent) prints "skipped: no private plans", one whose pictures have no ground truth prints
 "skipped: no scored plans (N pictures without ground truth)"; both exit 0, so the release checklist can run it on any
-workstation. A plan the detector fails on prints "<name>: error <exception type>" and the others still run."""
+workstation. A plan the detector fails on prints "<name>: error <exception type>" and the others still run; a folder
+that cannot be read prints "error <exception type> reading the plans" and exits 1. Pictures without ground truth
+next to scored plans are counted on an "unscored:" line."""
 from __future__ import annotations
 
 import sys
@@ -36,11 +38,15 @@ def main(argv: list[str]) -> int:
     args = [a for a in argv[1:] if a != "--anon"]
     anon = "--anon" in argv[1:]
     folder = Path(args[0]) if args else ROOT / "private-evidence" / "plan_detect"
-    pictures = sorted(folder.glob("*.png")) if folder.is_dir() else []
+    try:  # inside the try: an OSError message would hold the path
+        pictures = sorted(folder.glob("*.png")) if folder.is_dir() else []
+        plans = pm.load_set(folder) if pictures else []
+    except Exception as exc:  # noqa: BLE001 - the type only, never the message
+        print(f"error {type(exc).__name__} reading the plans")
+        return 1
     if not pictures:
         print("skipped: no private plans")
         return 0
-    plans = pm.load_set(folder)
     if not plans:
         print(f"skipped: no scored plans ({len(pictures)} pictures without ground truth)")
         return 0
@@ -58,6 +64,8 @@ def main(argv: list[str]) -> int:
         print(f"{name}: walls recall {r['walls']['recall']:.3f} precision {r['walls']['precision']:.3f}; doors {r['doors']['found']}/{r['doors']['total']} "
               f"(as doors {r['doors']['kind_recall']:.2f}, false {r['doors']['false']}); windows {r['windows']['found']}/{r['windows']['total']} (false {r['windows']['false']}); {r['ms']} ms")
     print(pm.summary_line(rows))
+    if len(pictures) > len(plans):
+        print(f"unscored: {len(pictures) - len(plans)} pictures without ground truth")
     hints = [r for r in uncal if r["hint"]]
     print(f"uncalibrated: {len(hints)}/{len(uncal)} plans offered a door-width hint")
     return 0

@@ -1,10 +1,12 @@
 """Plan Studio opening detection (T086, design 9.2 / 9.3 / 6.3): a drawn door arc gives a door whose hinge and swing
 reproduce the drawing (the leaf tip lands on ink whichever way the wall was traced), a plain gap is a passage, the
 double door of the hall is found as one opening, doors reach the baseline on the synthetic set, and an uncalibrated
-plan gets a door-width calibration hint marked estimated."""
+plan gets a door-width calibration hint marked estimated; no passage joins pieces across a crossing wall, while doors
+and passages flush with a T partition and doors with a filled leaf stay openings of their one wall."""
 from __future__ import annotations
 
 import io
+import math
 import pathlib
 import sys
 
@@ -102,6 +104,57 @@ def test_no_passage_across_a_crossing_wall():
     p.wall((390, 250), (740, 250), 12)
     r = pd.detect(_png(p), scale_m_per_px=0.01)
     assert [o["kind"] for o in r["openings"]] == ["passage"], r["openings"]
+
+
+def _framed() -> gen.Plan:
+    p = gen.Plan("t", 0.01, 800, 500)
+    for a, b in (((60, 60), (740, 60)), ((740, 60), (740, 440)), ((740, 440), (60, 440)), ((60, 440), (60, 60))):
+        p.wall(a, b, 16, "exterior")
+    return p
+
+
+def _on_line(r: dict, y: int = 250) -> list[dict]:
+    return [w for w in r["walls"] if all(abs(q[1] * 500 - y) < 3 for q in w["polyline"])]
+
+
+def test_doors_and_passages_flush_with_t_partitions_stay_openings_of_one_wall():
+    """A T partition (or an L corner, or a door leaf) continues the wall mask on one side of a gap end only: that is no
+    crossing wall, so a door or a passage whose jamb is flush with it stays an opening of the one wall it is in."""
+    cases = (("door at a partition", ((294,),), True), ("door between two partitions", ((294,), (396,)), True), ("passage at a partition", ((294,),), False))
+    for label, partitions, door in cases:
+        p = _framed()
+        wi = p.wall((60, 250), (740, 250), 12)
+        for (x,) in partitions:
+            p.wall((x, 250), (x, 440), 12)
+        if door:
+            p.door(wi, (345, 250), 90, "start", "left")
+        else:
+            p._gap(wi, (345, 250), 90)
+            p.gt["doors"].append({"centre": [345, 250], "width_px": 90, "wall": wi, "hinge": "start", "swing": "none", "double": False})
+        r = pd.detect(_png(p), scale_m_per_px=0.01)
+        score = pm.opening_scores(p.gt, r["walls"], r["openings"], ("door", "passage"), "doors", 10.0)
+        assert score["found"] == 1 and score["false"] == 0 and score["kind_recall"] == (1.0 if door else 0.0), (label, r["openings"])
+        assert len(_on_line(r)) == 1 and [o["kind"] for o in r["openings"]] == ["door" if door else "passage"], (label, _on_line(r), r["openings"])
+
+
+def test_a_door_with_a_filled_leaf_is_kept_where_it_is():
+    """CAD draws the leaf as a filled 4-6 px bar from the hinge: it lies across the gap on the swing side only, so the
+    gap is not blocked (a wall across it covers the whole band), and a leaf set 3 px into the wall is no crossing face."""
+    for t in (12, 20):
+        for leaf in (4, 6):
+            for inset in (0, 3):
+                p = _framed()
+                wi = p.wall((60, 250), (740, 250), t)
+                g0, _g1, _d = p._gap(wi, (400, 250), 90)
+                x0 = int(g0[0]) - inset
+                p.d.rectangle([x0, 250 - 90, x0 + leaf - 1, 250], fill=0)
+                arc = [(g0[0] + 90 * math.cos(-math.pi / 2 * k / 30), 250 + 90 * math.sin(-math.pi / 2 * k / 30)) for k in range(31)]
+                p.d.line(arc, fill=0, width=2)
+                r = pd.detect(_png(p), scale_m_per_px=0.01)
+                doors = [o for o in r["openings"] if o["kind"] == "door"]
+                assert len(doors) == 1 and len(_on_line(r)) == 1, (t, leaf, inset, r["openings"], _on_line(r))
+                (ax, _ay), (bx, _by) = _on_line(r)[0]["polyline"]
+                assert abs((ax + (bx - ax) * doors[0]["t"]) * 800 - 400) <= 5 and abs(doors[0]["width_m"] - 0.9) < 0.05, (t, leaf, inset, doors[0])
 
 
 def _matching_door(gt: dict, r: dict, g: dict, tol: float) -> tuple[dict, bool] | None:
