@@ -4695,9 +4695,11 @@
       "Documentation, known limits and rollback notes",
       "Desktop/mobile/RTL screenshots for UI tasks"
     ],
-    "evidence": [],
-    "owner": null,
-    "commit": null,
+    "evidence": [
+      "2026-09-25 (0.1.86, on commit 3e90ef6): Plan Studio phase 3 - services/plan_detect.py (numpy only: Otsu, morphology, chamfer distance transform, Zhang-Suen thinning, skeleton tracing, Douglas-Peucker, axis snapping at 4 degrees, collinear merging, thickness and kind, door arcs, double doors, passages, windows by the ink-thickness profile, confidence, tilt straightening, the door-width calibration hint), services/plan_dxf_map.py (layers and blocks to candidates, double lines to walls, arcs to doors, window lines, blocks to objects, room polygons); API: POST detect (worker thread, 60 s guard, 504 detect_timeout, audit geometry.detect), POST detect/accept (edits, replace_auto, re-issued ids, 409 stale_revision, meta.last_detection, audit geometry.detect.accept), GET dxf/entities, POST import-dxf-geometry (audit geometry.import), PATCH calibration with an estimate (status estimated, method door_width); the editor's detect tool with the candidates layer, accept by confidence / kind, endpoint drag, confirm into the draft, source badges; the DXF mapping card in the import flow. Candidates are never stored and never published. Synthetic baseline (committed set of six plans, ground truth): 6 plans: walls recall >= 0.974, precision >= 0.969; doors 21/21; windows 17/17; slowest 1213 ms. Private scans: no private scans on this workstation (skipped). Real scans (from Task 11's probe on this branch, redacted aggregates, no ground truth): at upload resolution the detector found 46-168 walls, 6-20 passages and 0-9 windows per scan in 2.3-6.1 s, but 0 doors on all three (real door arcs are thin, grey and hinge-centred on the wall face; not an accuracy claim, a known limit). Tests: 360 backend passed (7 new files: fixtures, primitives, walls, openings, baseline, API, DXF mapping), node unit tests for the detector (unit-plan-detect.spec.ts, 4/4) plus unit-geometry.spec.ts and unit-studio-controller.spec.ts (30/30 across the three), evidence-plan-studio-3 5/5 live in real Chrome (detect/accept/undo-redo, the calibration hint, refusals, the phone, the DXF mapping screen), neighbour live specs (evidence-plan-studio, evidence-editor, evidence-plan-versions, evidence-dxf, evidence-zones) 9/9 as their baselines, fixture chain green (129 passed), tsc clean, golden file check 0."
+    ],
+    "owner": "Claude Code (tech lead); approver: product owner",
+    "commit": "3e90ef6",
     "actual_cost_usd": null
   },
   {
