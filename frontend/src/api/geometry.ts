@@ -4,7 +4,7 @@
  * controller.
  */
 import { get, patch, post, put, resourceUrl } from './client';
-import type { GeomConnector, GeometryDoc, Pt } from '../map/geometry';
+import type { GeomConnector, GeometryDoc, GeomObject, GeomOpening, GeomWall, Pt } from '../map/geometry';
 import type { MapBundle } from './maps';
 import type { PlanVersion } from './types';
 
@@ -72,8 +72,10 @@ export interface GeometryDiffResponse {
 export interface CalibrationResult {
   version: PlanVersion;
   scale_m_per_px: number;
-  residual_pct: number;
+  residual_pct: number | null;
   warning: string | null;
+  /** "measured" (two-point pairs) or "estimated" (the door-width hint, phase 3). */
+  status?: 'measured' | 'estimated';
 }
 export interface GeometryPeriod {
   id: string;
@@ -159,3 +161,106 @@ export function exportUrl(versionId: string, fmt: 'svg' | 'png', opts: { draft?:
 /** Stairs / an elevator to another floor: the same connector id lands on the other floor's draft (T085). */
 export const linkConnector = (versionId: string, connectorId: string, floorId: string) =>
   post<{ connector: GeomConnector; target: { floor_id: string; version_id: string; revision: number } }>(`plan-versions/${versionId}/geometry/link`, { connector_id: connectorId, floor_id: floorId });
+
+// ---------------------------------------------------------------- detection (phase 3, T086)
+
+export type DetectTarget = 'walls' | 'openings';
+export interface DetectRequest {
+  targets?: DetectTarget[];
+  /** 0.3 (light morphology) to 1.0 (strong); the server's default is 0.6. */
+  strength?: number;
+  level_id?: string;
+}
+export interface CalibrationHint {
+  scale_m_per_px: number;
+  status: 'estimated';
+  method: 'door_width';
+  reason: string;
+  doors: number;
+}
+/** Version pixels per candidate: the client recomputes the metres with the document's effective scale before accepting. */
+export type CandidatePixels = Record<string, { thickness_px?: number; width_px?: number }>;
+export interface DetectorInfo {
+  name: string;
+  version: string;
+  params: Record<string, unknown>;
+}
+export interface DxfRoomCandidate {
+  polygon: { x: number; y: number }[];
+  name: string;
+}
+/** POST /plan-versions/{id}/detect and POST …/import-dxf-geometry: candidates in document-v2 shape, never stored.
+ * Deviation from the brief (API review): object candidates are document-v2 objects (GeomObject), not the brief's
+ * pose/catalog_id shape - the backend never produced that shape (services/plan_geometry.py merge_candidates,
+ * CANDIDATE_COLLECTIONS includes "objects" with the same schema _check_objects validates). */
+export interface DetectResult {
+  walls: GeomWall[];
+  openings: GeomOpening[];
+  objects?: GeomObject[];
+  rooms?: DxfRoomCandidate[];
+  detector: DetectorInfo;
+  calibration_hint: CalibrationHint | null;
+  pixels: CandidatePixels;
+  /** Deviation from the brief (API review, matches services/plan_detect.py): "estimated_walls", not "estimated" -
+   * an uncalibrated detect always answers this even when the version's own calibration is an estimate; the "≈" on
+   * screen comes from the document's effective scale (map/geometry.ts effectiveScale), never from this field. */
+  scale: { m_per_px: number | null; status: 'measured' | 'estimated_walls' };
+  stats: Record<string, number>;
+  version_id: string;
+  level_id: string;
+  existing_auto: { walls: number; openings: number };
+  elapsed_ms?: number;
+}
+export interface AcceptRequest {
+  accepted: string[];
+  /** A partial object/wall/opening (document-v2 fields only): the server accepts only the editable fields of each
+   * collection (services/plan_geometry.py EDITABLE_FIELDS) and ignores the rest - id, source and confidence never
+   * travel through an edit. */
+  edits: Record<string, Partial<GeomWall> | Partial<GeomOpening> | Partial<GeomObject>>;
+  replace_auto: boolean;
+  candidates: { walls: GeomWall[]; openings: GeomOpening[]; objects?: GeomObject[] };
+  base_revision: number;
+  detector: DetectorInfo | null;
+}
+export const detectStructure = (versionId: string, body: DetectRequest) => post<DetectResult>(`plan-versions/${versionId}/detect`, body);
+export const acceptDetection = (versionId: string, body: AcceptRequest) => post<GeometryResponse>(`plan-versions/${versionId}/detect/accept`, body);
+/** The door-width hint as an estimated calibration (design 6.3): metres then show with "≈". */
+export const calibrateEstimate = (versionId: string, scaleMPerPx: number, reason: string) =>
+  patch<CalibrationResult>(`plan-versions/${versionId}/calibration`, { estimate: { scale_m_per_px: scaleMPerPx, method: 'door_width', reason } });
+
+/** Error codes /detect, /detect/accept and /calibration (estimate) can answer with (the API review, backed by
+ * routers/plan_geometry.py and tests/test_plan_detect_api.py): the client reads them off ApiError.code. detect_timeout
+ * (504) is retryable. calibration_measured (409, "an estimate never replaces a measured calibration silently") is a
+ * concurrent backend change (test_plan_detect_api.py::test_an_estimate_never_replaces_a_measured_calibration_silently,
+ * not yet in plan_geometry.py at the time of this task): calibrateEstimate above does not yet send the confirming
+ * replace_measured flag that route will need - a follow-up task wires the confirmation dialog once that endpoint change
+ * lands on this branch. */
+export type DetectErrorCode = 'detect_timeout' | 'stale_revision' | 'calibration_measured' | 'unknown_candidate' | 'orphan_opening' | 'candidate_source' | 'duplicate_candidate' | 'candidate_shape' | 'geometry_structure';
+
+export type DxfTarget = 'walls' | 'openings' | 'windows' | 'objects' | 'rooms' | 'ignore';
+export interface DxfEntityLayer {
+  name: string;
+  count: number;
+  kinds: Record<string, number>;
+  sample: string;
+  suggested: DxfTarget;
+  in_render: boolean;
+}
+export interface DxfBlock {
+  name: string;
+  count: number;
+  size_m: [number, number];
+  suggested: { catalog_id: string | null; name: string };
+}
+export interface DxfEntities {
+  asset_id: string;
+  units: string;
+  metres_per_unit: number | null;
+  layers: DxfEntityLayer[];
+  blocks: DxfBlock[];
+  targets: { id: DxfTarget; label: string }[];
+  catalog_choices: { id: string | null; name: string }[];
+}
+export const getDxfEntities = (assetId: string) => get<DxfEntities>(`plan-assets/${assetId}/dxf/entities`);
+export const importDxfGeometry = (versionId: string, body: { layer_map: Record<string, DxfTarget>; block_map: Record<string, string | null>; level_id?: string }) =>
+  post<DetectResult>(`plan-versions/${versionId}/import-dxf-geometry`, body);

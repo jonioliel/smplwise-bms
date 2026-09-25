@@ -4,6 +4,7 @@ import '../components/sw-button';
 import { t } from '../i18n/he';
 import type { StateKind } from '../components/sw-badge';
 import { applyAnchorPositions, buildPrimitives, circuitToken, isClosedOutline, objectHitOrder, type AnchorPosition, type CatalogLookup, type DoorPrim, type GeometryDoc, type LabelPrim, type ConnectorPrim, type ObjectPrim, type PassagePrim, type Primitive, type Pt, type WallPrim, type WindowPrim } from './geometry';
+import { candidatesDoc, type CandidateSet, type CandState } from './candidates';
 import { symbolOf } from './plan-symbols';
 
 export type MarkerKind = 'camera' | 'lock' | 'light' | 'binary_sensor';
@@ -211,6 +212,15 @@ export class SwPlanCanvas extends LitElement {
   @property({ attribute: false }) wallDraft: Pt[] = [];
   @property({ attribute: false }) hoverPoint: Pt | null = null;
   @property({ attribute: false }) rulers: RulerOverlay[] = [];
+  /** Plan Studio phase 3 (T086): detection candidates, drawn dashed in a layer of their own until accepted. */
+  @property({ attribute: false }) candidates: CandidateSet | null = null;
+  @property({ attribute: false }) candidateStates: Record<string, CandState> = {};
+  @property() selectedCandidateId: string | null = null;
+  /** Desktop: the end points of the selected candidate wall can be dragged before accepting. */
+  @property({ type: Boolean }) candidateEditable = false;
+  @state() private candHover: string | null = null;
+  @state() private candDrag: { x: number; y: number } | null = null;
+  private candCache: { set: CandidateSet; doc: GeometryDoc | null; w: number; h: number; prims: Primitive[] } | null = null;
   /** The pointer during a structure drag (a small dot where the item is being taken). */
   @state() private geomDragAt: { x: number; y: number } | null = null;
   /** A press on a structure item is in progress: the placing tool gets no hover until it ends. */
@@ -573,6 +583,60 @@ export class SwPlanCanvas extends LitElement {
     }
     .geom-hits path.hit {
       pointer-events: stroke;
+    }
+    .candidates {
+      pointer-events: none;
+    }
+    .candidates .cwall {
+      fill: none;
+      stroke: var(--sw-map-candidate);
+      stroke-linecap: butt;
+      stroke-dasharray: 8 5;
+      opacity: 0.85;
+    }
+    .candidates .cleaf,
+    .candidates .carc,
+    .candidates .cglass,
+    .candidates .cgap {
+      fill: none;
+      stroke: var(--sw-map-candidate);
+      stroke-dasharray: 5 4;
+    }
+    .candidates .cand.rejected {
+      opacity: 0.28;
+    }
+    .candidates .cand.sel .cwall {
+      opacity: 1;
+      stroke-dasharray: none;
+    }
+    .candidates .cand.sel .cleaf,
+    .candidates .cand.sel .carc,
+    .candidates .cand.sel .cglass,
+    .candidates .cand.sel .cgap {
+      stroke-dasharray: none;
+    }
+    .cand-score rect {
+      fill: var(--sw-surface);
+      stroke: var(--sw-map-candidate);
+    }
+    .cand-score text {
+      fill: var(--sw-text);
+      font-family: var(--sw-font);
+      font-weight: 600;
+      text-anchor: middle;
+      dominant-baseline: middle;
+    }
+    .cand-hits .hit {
+      fill: transparent;
+      stroke: transparent;
+      pointer-events: stroke;
+      cursor: pointer;
+    }
+    .cand-hits .cvtx {
+      fill: var(--sw-surface);
+      stroke: var(--sw-map-candidate);
+      pointer-events: all;
+      cursor: grab;
     }
     .gvtx {
       fill: var(--sw-surface);
@@ -1538,6 +1602,136 @@ export class SwPlanCanvas extends LitElement {
     </g>`;
   }
 
+  /** Primitives of the candidate set on the shown document's dimensions; recomputed when the set, the document size or
+   * the level changes (the level filter is not applied: candidates belong to the level the detect tool asked for). */
+  private candidatePrims(set: CandidateSet): Primitive[] {
+    const doc = this.geometry;
+    if (!doc) return [];
+    const c = this.candCache;
+    if (c && c.set === set && c.doc === doc && c.w === this.planWidth && c.h === this.planHeight) return c.prims;
+    const prims = buildPrimitives(candidatesDoc(doc, set), this.planWidth, this.planHeight);
+    this.candCache = { set, doc, w: this.planWidth, h: this.planHeight, prims };
+    return prims;
+  }
+
+  private candConfidence(set: CandidateSet, id: string): number {
+    return set.walls.find((w) => w.id === id)?.confidence ?? set.openings.find((o) => o.id === id)?.confidence ?? 0;
+  }
+
+  /** Where the score pill sits: the middle of a wall's first part, the gap centre of an opening. Candidate primitives
+   * are only ever wall / door / window / passage (candidatesDoc clears every other collection); the other Primitive
+   * kinds are handled only so this stays exhaustive against the shared union type. */
+  private candAnchor(prims: Primitive[], id: string): Pt | null {
+    const p = prims.find((x) => x.id === id);
+    if (!p) return null;
+    if (p.kind === 'wall') {
+      const a = p.points[0];
+      const b = p.points[p.points.length - 1];
+      return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    }
+    if (p.kind === 'door' || p.kind === 'window' || p.kind === 'passage') return [(p.gap[0][0] + p.gap[1][0]) / 2, (p.gap[0][1] + p.gap[1][1]) / 2];
+    return null;
+  }
+
+  private renderCandidates() {
+    const set = this.candidates;
+    if (!set) return nothing;
+    const prims = this.candidatePrims(set);
+    const inv = 1 / this.scale;
+    const cls = (id: string) => `cand ${this.candidateStates[id] ?? 'accepted'} ${id === this.selectedCandidateId ? 'sel' : ''}`;
+    const attrs = (id: string) => ({ state: this.candidateStates[id] ?? 'accepted', score: this.candConfidence(set, id).toFixed(2) });
+    const shown = this.candHover ?? this.selectedCandidateId;
+    const at = shown ? this.candAnchor(prims, shown) : null;
+    const label = shown ? `ביטחון ${this.candConfidence(set, shown).toFixed(2)}` : '';
+    const tw = (label.length * 7 + 16) * inv;
+    return svg`<g class="candidates" data-candidates>
+      ${prims.map((p) => {
+        const a = attrs(p.id);
+        switch (p.kind) {
+          case 'wall':
+            return svg`<g class=${cls(p.id)} data-candidate=${p.id} data-kind="wall" data-state=${a.state} data-score=${a.score}><polyline class="cwall" points=${ptsAttr(p.points)} stroke-width=${p.width} /></g>`;
+          case 'door':
+            return svg`<g class=${cls(p.id)} data-candidate=${p.id} data-kind="door" data-state=${a.state} data-score=${a.score}>
+              ${p.leaves.map(([x, y]) => svg`<line class="cleaf" x1=${x[0]} y1=${x[1]} x2=${y[0]} y2=${y[1]} stroke-width=${1.6 * inv} />`)}
+              ${p.arcs.map((arc) => svg`<path class="carc" d=${`M ${arc.from[0]} ${arc.from[1]} A ${arc.r} ${arc.r} 0 0 ${arc.sweep} ${arc.to[0]} ${arc.to[1]}`} stroke-width=${1.1 * inv} />`)}
+            </g>`;
+          case 'window':
+            return svg`<g class=${cls(p.id)} data-candidate=${p.id} data-kind="window" data-state=${a.state} data-score=${a.score}>${p.lines.map(([x, y]) => svg`<line class="cglass" x1=${x[0]} y1=${x[1]} x2=${y[0]} y2=${y[1]} stroke-width=${1.6 * inv} />`)}</g>`;
+          case 'passage':
+            return svg`<g class=${cls(p.id)} data-candidate=${p.id} data-kind="passage" data-state=${a.state} data-score=${a.score}><line class="cgap" x1=${p.gap[0][0]} y1=${p.gap[0][1]} x2=${p.gap[1][0]} y2=${p.gap[1][1]} stroke-width=${inv} /></g>`;
+          default:
+            return nothing;
+        }
+      })}
+      ${at ? svg`<g class="cand-score" data-cand-score data-cand-score-for=${shown ?? ''}><rect x=${at[0] - tw / 2} y=${at[1] - 22 * inv} width=${tw} height=${20 * inv} rx=${10 * inv} stroke-width=${inv} /><text x=${at[0]} y=${at[1] - 12 * inv} font-size=${12 * inv}>${label}</text></g>` : nothing}
+    </g>`;
+  }
+
+  private pickCandidate(id: string, e: Event) {
+    e.stopPropagation();
+    if (this.dragMoved) return;
+    this.dispatchEvent(new CustomEvent('candidate-select', { detail: { id }, bubbles: true, composed: true }));
+  }
+
+  private onCandDragStart(id: string, index: number, e: PointerEvent) {
+    if (!this.candidateEditable || e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const rect0 = this.getBoundingClientRect();
+    const start = this.toPlan(e.clientX - rect0.left, e.clientY - rect0.top);
+    let moved = false;
+    let last = start;
+    this.viewport.setPointerCapture(e.pointerId);
+    const move = (ev: PointerEvent) => {
+      const p = this.toPlan(ev.clientX - rect0.left, ev.clientY - rect0.top);
+      if (!moved && Math.hypot((p.x - start.x) * this.planWidth, (p.y - start.y) * this.planHeight) * this.scale < 3) return;
+      moved = true;
+      last = p;
+      this.candDrag = { x: p.x, y: p.y };
+    };
+    const end = () => {
+      this.viewport.removeEventListener('pointermove', move);
+      this.viewport.removeEventListener('pointerup', up);
+      this.viewport.removeEventListener('pointercancel', cancel);
+      this.candDrag = null;
+      this.dragMoved = true;
+      setTimeout(() => (this.dragMoved = false), 0);
+    };
+    const up = () => {
+      end();
+      if (moved) this.dispatchEvent(new CustomEvent('candidate-drag', { detail: { id, index, x: +last.x.toFixed(5), y: +last.y.toFixed(5) }, bubbles: true, composed: true }));
+    };
+    const cancel = () => end();
+    this.viewport.addEventListener('pointermove', move);
+    this.viewport.addEventListener('pointerup', up);
+    this.viewport.addEventListener('pointercancel', cancel);
+  }
+
+  /** Wide invisible strokes over the candidates (a click toggles, hovering shows the score) and, on desktop, the end
+   * handles of the selected candidate wall. Above the structure hits, below the markers. */
+  private renderCandidateHits() {
+    const set = this.candidates;
+    if (!set) return nothing;
+    const prims = this.candidatePrims(set);
+    const inv = 1 / this.scale;
+    const W = this.planWidth;
+    const H = this.planHeight;
+    const sel = set.walls.find((w) => w.id === this.selectedCandidateId);
+    const drag = this.candDrag;
+    return svg`<g class="cand-hits">
+      ${prims.map((p) => {
+        const over = () => (this.candHover = p.id);
+        const out = () => (this.candHover = null);
+        if (p.kind === 'wall') return svg`<polyline class="hit" data-cand-hit=${p.id} points=${ptsAttr(p.points)} stroke-width=${Math.max(p.width, 12 * inv)} @click=${(e: Event) => this.pickCandidate(p.id, e)} @pointerenter=${over} @pointerleave=${out} />`;
+        if (p.kind === 'door' || p.kind === 'window' || p.kind === 'passage') return svg`<line class="hit" data-cand-hit=${p.id} x1=${p.gap[0][0]} y1=${p.gap[0][1]} x2=${p.gap[1][0]} y2=${p.gap[1][1]} stroke-width=${14 * inv} @click=${(e: Event) => this.pickCandidate(p.id, e)} @pointerenter=${over} @pointerleave=${out} />`;
+        return nothing;
+      })}
+      ${sel && this.candidateEditable ? sel.polyline.map((v, i) => svg`<circle class="cvtx" data-cand-vertex=${i} cx=${v[0] * W} cy=${v[1] * H} r=${6 * inv} stroke-width=${1.6 * inv} aria-label=${`קצה מועמד ${i + 1}`}
+          @pointerdown=${(e: PointerEvent) => this.onCandDragStart(sel.id, i, e)} @click=${(e: Event) => e.stopPropagation()} />`) : nothing}
+      ${drag ? svg`<circle class="gdrag" cx=${drag.x * W} cy=${drag.y * H} r=${5 * inv} stroke-width=${1.5 * inv} />` : nothing}
+    </g>`;
+  }
+
   /** The wall being drawn, the rubber band to the snapped cursor, and the snap dot. */
   private renderWallDraft() {
     const pts = this.wallDraft;
@@ -1592,6 +1786,8 @@ export class SwPlanCanvas extends LitElement {
             ${this.zones.map((z) => this.renderZone(z))}
             ${this.renderStructure()}
             ${this.renderGeomHits()}
+            ${this.renderCandidates()}
+            ${this.renderCandidateHits()}
             ${this.markers.map((m) => this.renderMarker(m))}
             ${this.renderDraft()}
             ${this.renderWallDraft()}

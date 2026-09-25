@@ -80,6 +80,7 @@ const PATHS: Record<string, ReturnType<typeof svg>> = {
   bookmark: svg`<path d="M6 3h12v18l-6-4-6 4z"/>`,
   route: svg`<circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8 17c5-1 3-9 8-10"/>`,
   logout: svg`<path d="M10 4H5v16h5M14 8l4 4-4 4M18 12H9"/>`,
+  sparkle: svg`<path d="M12 3l1.9 5.6L19.5 10.5l-5.6 1.9L12 18l-1.9-5.6L4.5 10.5l5.6-1.9z"/><path d="M19 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/>`,
 };
 
 export type IconName = keyof typeof PATHS;
