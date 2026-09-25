@@ -175,10 +175,13 @@ def test_room_labels_add_no_walls_and_do_not_slow_the_detector():
     _name, gt, png = pm.load_set()[0]
     noisy = _labelled(png)
     for scale in (0.01, None):
-        clean = pd.detect(png, targets=("walls",), scale_m_per_px=scale)
         t0 = time.perf_counter()
+        clean = pd.detect(png, targets=("walls",), scale_m_per_px=scale)
+        t1 = time.perf_counter()
         r = pd.detect(noisy, targets=("walls",), scale_m_per_px=scale)
-        assert time.perf_counter() - t0 < 5.0
+        # relative to the clean plan on the same machine at the same moment (an absolute 5 s bound measured 0.9-5.3 s
+        # under load, T086 Task 11); the all-pairs merge this guards against took 31.7 s on 500 bold words (Task 3 review)
+        assert time.perf_counter() - t1 <= 3 * (t1 - t0) + 2.0, (t1 - t0, time.perf_counter() - t1)
         a, b = pm.wall_scores(gt, clean["walls"], 10.0), pm.wall_scores(gt, r["walls"], 10.0)
         assert len(r["walls"]) == len(clean["walls"]) and b["precision"] >= 0.98 and abs(a["recall"] - b["recall"]) < 0.01, (scale, len(r["walls"]), b)
         assert r["scale"] == clean["scale"], "the labels do not move the estimated scale"

@@ -33,6 +33,15 @@ NO_CACHE = {"Cache-Control": "private, no-cache"}
 DETECT_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="plan-detect")
 
 
+def shutdown_detect_pool() -> None:
+    """The app's stop hook: queued runs are cancelled and a running one is not waited for (its deadline stops it at
+    the next stage). A fresh pool takes the old one's place (threads start only on the first submit), so an app
+    created again in the same process - the test suite - still detects."""
+    global DETECT_POOL
+    old, DETECT_POOL = DETECT_POOL, concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="plan-detect")
+    old.shutdown(wait=False, cancel_futures=True)
+
+
 def _layers(raw: str | None) -> set[str] | None:
     """?layers=structure,objects,labels,connectors - any subset; an unknown name is a 422. An empty value (?layers=
     or ?layers=,) means all layers, the same as omitting the parameter - not a blank export."""
@@ -334,12 +343,15 @@ def detect_structure(version_id: str, body: DetectIn, request: Request, principa
     scale = float(v["scale_m_per_px"]) if v["scale_m_per_px"] and cal["status"] in ("measured", "estimated") else None
     png = src.read_bytes()
     t0 = time.perf_counter()
-    future = DETECT_POOL.submit(plan_detect.detect, png, targets=targets, strength=body.strength, scale_m_per_px=scale, level_id=level_id, run_id=new_id()[:6])
+    # the same guard inside the run: a worker past the deadline stops at its next stage (plan_detect.DetectTimeout)
+    # instead of finishing a result nobody reads, so a timed-out run does not hold one of the two workers
+    deadline = time.monotonic() + settings.detect_timeout_s
+    future = DETECT_POOL.submit(plan_detect.detect, png, targets=targets, strength=body.strength, scale_m_per_px=scale, level_id=level_id, run_id=new_id()[:6], deadline=deadline)
     try:
         with unlocked(conn):  # the write lock is not held while the worker runs
             result = future.result(timeout=settings.detect_timeout_s)
-    except concurrent.futures.TimeoutError:
-        future.cancel()  # a worker already running finishes on its own; its result is never read
+    except (concurrent.futures.TimeoutError, plan_detect.DetectTimeout):
+        future.cancel()  # a queued run never starts; a running one stops at its deadline, its result is never read
         audit(conn, actor=principal, action="geometry.detect", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
               details={"version_id": v["id"], "targets": targets, "strength": body.strength, "timeout_s": settings.detect_timeout_s, "timed_out": True})
         raise ApiError(504, "detect_timeout", "הזיהוי לא הסתיים בזמן; נסה עוצמה נמוכה יותר או תוכנית קטנה יותר.", retryable=True, details={"timeout_s": settings.detect_timeout_s})

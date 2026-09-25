@@ -54,6 +54,17 @@ PROFILE_MIN_SOLID = 0.5  # ... and its wall is solid on at least this fraction o
 TARGETS = ("walls", "openings")
 
 
+class DetectTimeout(TimeoutError):
+    """A run passed its deadline (detect(deadline=...)). Raised between the stages and inside thin(), so a run the
+    router has already answered 504 for stops within a stage and frees its pool worker instead of finishing unread."""
+
+
+def _check(deadline: float | None) -> None:
+    """Raise DetectTimeout when `deadline` (a time.monotonic() value) has passed; None never expires."""
+    if deadline is not None and time.monotonic() > deadline:
+        raise DetectTimeout("plan_detect: the deadline passed")
+
+
 # ---------------------------------------------------------------- raster primitives (numpy only)
 
 def chamfer_dt(mask: np.ndarray) -> np.ndarray:
@@ -123,7 +134,7 @@ def _distinct(a: np.ndarray) -> np.ndarray:
     return a[keep]
 
 
-def thin(mask: np.ndarray, max_iter: int | None = None) -> np.ndarray:
+def thin(mask: np.ndarray, max_iter: int | None = None, deadline: float | None = None) -> np.ndarray:
     """Zhang-Suen thinning (Lu-Wang's B >= 3 where the input is already a line, see _zs_tables) followed by a clean-up
     pass, on the bounding box of the mask.
 
@@ -135,7 +146,8 @@ def thin(mask: np.ndarray, max_iter: int | None = None) -> np.ndarray:
     then deletes, one pattern at a time (each pattern is safe in parallel), every bump (a pixel whose only two
     neighbours touch each other) and the corner pixel of every 4-connected step (two perpendicular 4-neighbours set,
     the three opposite pixels empty), so a tilted wall is one 8-connected line without junction pixels. Thinning and
-    clean-up alternate until neither changes anything."""
+    clean-up alternate until neither changes anything. `deadline` (time.monotonic()) is checked on every iteration:
+    DetectTimeout once it has passed."""
     ys, xs = np.nonzero(mask)
     if not ys.size:
         return np.zeros(mask.shape, dtype=bool)
@@ -164,6 +176,7 @@ def thin(mask: np.ndarray, max_iter: int | None = None) -> np.ndarray:
         while cand[0].size or cand[1].size:
             if it >= limit:
                 raise RuntimeError(f"thin: not converged after {limit} iterations")
+            _check(deadline)
             it += 1
             for step in (0, 1):
                 idx = cand[step]
@@ -636,14 +649,17 @@ def _segments(pieces: list[Seg], t_med: float, min_len: float, reach_px: float |
     return [g for i, g in enumerate(segs) if (g.length >= min_len and g.length >= BLOB_RATIO * g.thick) or (i in continues and g.length + g.thick >= min_len)]
 
 
-def _stage(gray: Image.Image, strength: float, analysis_px: int, scale_m_per_px: float | None) -> dict[str, Any]:
+def _stage(gray: Image.Image, strength: float, analysis_px: int, scale_m_per_px: float | None, deadline: float | None = None) -> dict[str, Any]:
     an = _analysis(gray, strength, analysis_px)
     aw, ah, f = an["aw"], an["ah"], an["factor"]
     mask = an["walls"]
+    _check(deadline)
     dt = chamfer_dt(mask)
-    skel = thin(mask)
+    _check(deadline)
+    skel = thin(mask, deadline=deadline)
     t0 = float(np.median(2.0 * dt[skel] - 1.0)) if skel.any() else 4.0
     pieces = _pieces(dt, skel, t0)
+    _check(deadline)
     walls_like = [g for g, _, compact in pieces if not compact]
     # the typical wall thickness from the long pieces of non-compact components only (at least 4 thicknesses and
     # MIN_WALL_FRACTION of the width): text, hatching and filled symbols make many short or blob-shaped pieces, and
@@ -665,6 +681,7 @@ def _stage(gray: Image.Image, strength: float, analysis_px: int, scale_m_per_px:
     kept = [g for g, blen, compact in pieces if blen >= min_len and not compact]
     small = [g for g, blen, compact in pieces if blen >= min_len and compact]
     kept += [g for g, ok in zip(small, _on_wall_lines(small, kept)) if ok or (g.length >= BLOB_RATIO * g.thick and _band_ink(g, solid) >= COMPACT_SOLID_INK)]
+    _check(deadline)
     segs = _segments(kept, t_med, min_len, WINDOW_RANGE_M[1] / s, solid)  # a pier's neighbours are an opening away at most
     # a short segment must be solid ink along its band: bold words that the closing joined into one bar read 0.75-0.9
     # (letter counters and spacing), a drawn wall reads 1.0; long segments are not tested
@@ -958,10 +975,13 @@ def windows_by_profile(walls: list[Seg], openings: list[dict[str, Any]], dt: np.
 
 # ---------------------------------------------------------------- the detector
 
-def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TARGETS, strength: float = 0.6, scale_m_per_px: float | None = None, level_id: str = "L0", run_id: str = "0") -> dict[str, Any]:
+def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TARGETS, strength: float = 0.6, scale_m_per_px: float | None = None, level_id: str = "L0", run_id: str = "0", deadline: float | None = None) -> dict[str, Any]:
     """Candidates (document-v2 walls and openings, source "auto") for a plan picture. `scale_m_per_px` is the version's
-    calibration (None when there is none); `targets` always includes "walls" ("openings" needs them)."""
+    calibration (None when there is none); `targets` always includes "walls" ("openings" needs them). `deadline` (a
+    time.monotonic() value, the router's guard) is checked between the stages and inside the thinning: DetectTimeout
+    once it has passed, so a run nobody waits for any more gives its worker back."""
     t0 = time.perf_counter()
+    _check(deadline)
     if isinstance(png, (bytes, bytearray)):
         with Image.open(io.BytesIO(png)) as im:
             im.load()
@@ -970,19 +990,21 @@ def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TA
         gray = Image.fromarray(np.asarray(png)).convert("L")
     # stage 1 (800 px): the scan's tilt; a tilted scan is straightened before the real pass, so snapping and merging see
     # axis-parallel walls, and every result is turned back onto the scan at the end
-    probe = _stage(gray, strength, TILT_PX, scale_m_per_px)
+    probe = _stage(gray, strength, TILT_PX, scale_m_per_px, deadline)
     # the tilt from the pieces before merging: a merged wall keeps the direction of its first piece, which may be a
     # short skewed piece at a junction, and would weigh it by the whole wall's length
     tilt = estimate_tilt(probe["pieces"], probe["t_med"])
     if abs(tilt) < TILT_MIN_DEG:
         tilt = 0.0
     src = gray.rotate(tilt, resample=Image.BICUBIC, fillcolor=255) if tilt else gray
-    st = _stage(src, strength, ANALYSIS_PX, scale_m_per_px)
+    st = _stage(src, strength, ANALYSIS_PX, scale_m_per_px, deadline)
     an, dt, s, calibrated, segs, aw, ah, f = st["an"], st["dt"], st["s"], st["calibrated"], st["segs"], st["aw"], st["ah"], st["f"]
     want_openings = "openings" in targets
     walls, openings = walls_from_gaps(segs, s, calibrated, an["thin"], an["ink_d"], want_openings, an["walls"])
+    _check(deadline)
     if want_openings:
         openings += windows_by_profile(walls, openings, chamfer_dt(an["ink"]), an["ink_d"], s)
+        _check(deadline)
     mask = an["walls"]
     ys, xs = np.nonzero(mask)
     frame = (float(xs.min()), float(ys.min()), float(xs.max()), float(ys.max())) if xs.size else (0.0, 0.0, float(aw), float(ah))

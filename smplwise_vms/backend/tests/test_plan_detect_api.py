@@ -9,6 +9,8 @@ import dataclasses
 import json
 import time
 
+import pytest
+
 from conftest import as_user, bind, seed_tree
 from fastapi.testclient import TestClient
 
@@ -266,3 +268,77 @@ def test_replace_auto_keeps_locked_walls_counts_manual_openings_and_handles_impo
     walls = a2.json()["doc"]["walls"]
     assert len(walls) == before - 1 and "imp-b-w1" in {w["id"] for w in walls} and not {"imp-a-w1", "imp-a-w2"} & {w["id"] for w in walls}
     assert sum(1 for w in walls if w["source"] == "auto") == len(r2["walls"]) + 1 and a2.json()["merge"]["removed_auto"] == 2
+
+
+# ---------------------------------------------------------------- Task 11: the deadline inside the run, the pool on stop
+
+def test_a_run_past_its_deadline_raises_between_stages_and_inside_the_thinning():
+    import numpy as np
+
+    with pytest.raises(plan_detect.DetectTimeout):
+        plan_detect.detect(APARTMENT, deadline=time.monotonic() - 1)
+    block = np.zeros((400, 400), dtype=bool)
+    block[50:350, 50:350] = True
+    with pytest.raises(plan_detect.DetectTimeout):
+        plan_detect.thin(block, deadline=time.monotonic() - 1)
+    assert plan_detect.thin(block, deadline=time.monotonic() + 60).sum() == plan_detect.thin(block).sum(), "a deadline far away changes nothing"
+    assert issubclass(plan_detect.DetectTimeout, TimeoutError)
+
+
+def test_a_timed_out_run_stops_at_its_deadline_and_frees_its_worker(settings, monkeypatch):
+    """The router answers 504 at detect_timeout_s; the worker, slowed here in its first stage, stops at the next check
+    with DetectTimeout instead of running the rest of the detector for a result nobody reads."""
+    real_detect, real_analysis = plan_detect.detect, plan_detect._analysis
+    outcome: list[str] = []
+    stages: list[str] = []
+
+    def slow_analysis(*args, **kwargs):
+        time.sleep(0.6)
+        return real_analysis(*args, **kwargs)
+
+    def spy(*args, **kwargs):
+        try:
+            r = real_detect(*args, **kwargs)
+        except BaseException as exc:
+            outcome.append(type(exc).__name__)
+            raise
+        outcome.append("finished")
+        return r
+
+    def gaps(*args, **kwargs):
+        stages.append("walls_from_gaps")
+        raise AssertionError("the run went on past its deadline")
+
+    monkeypatch.setattr(plan_detect, "_analysis", slow_analysis)
+    monkeypatch.setattr(plan_detect, "walls_from_gaps", gaps)
+    monkeypatch.setattr(plan_detect, "detect", spy)
+    app, c, ids, vid = _setup(settings, detect_timeout_s=0.2)
+    r = c.post(f"/api/v1/plan-versions/{vid}/detect", json={})
+    assert r.status_code == 504 and r.json()["code"] == "detect_timeout"
+    t0 = time.perf_counter()
+    while not outcome and time.perf_counter() - t0 < 5:
+        time.sleep(0.05)
+    assert outcome == ["DetectTimeout"] and stages == [], (outcome, stages)
+
+
+def test_a_deadline_raised_inside_the_worker_is_a_504_too(settings, monkeypatch):
+    def late(*args, **kwargs):
+        assert kwargs["deadline"] > time.monotonic(), "the router passes its guard as a monotonic deadline"
+        raise plan_detect.DetectTimeout("plan_detect: the deadline passed")
+
+    monkeypatch.setattr(plan_detect, "detect", late)
+    _app, c, _ids, vid = _setup(settings)
+    r = c.post(f"/api/v1/plan-versions/{vid}/detect", json={})
+    assert r.status_code == 504 and r.json()["code"] == "detect_timeout" and r.json()["retryable"] is True
+
+
+def test_the_app_stop_hook_shuts_the_detection_pool_and_leaves_a_fresh_one(settings):
+    from smplwise.routers import plan_geometry as router
+
+    app, c, _ids, vid = _setup(settings)
+    old = router.DETECT_POOL
+    with TestClient(app):
+        pass  # startup, then the stop hook
+    assert router.DETECT_POOL is not old and old._shutdown, "the old pool is shut down (queued runs cancelled)"
+    r = c.post(f"/api/v1/plan-versions/{vid}/detect", json={"targets": ["walls"]})
+    assert r.status_code == 200 and len(r.json()["walls"]) >= 7, "the fresh pool still detects"

@@ -218,6 +218,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import ha_sync
 
         ha_sync.SYNC.shutdown()
+        from .routers import plan_geometry as plan_geometry_router
+
+        plan_geometry_router.shutdown_detect_pool()
 
     @app.get("/healthz", include_in_schema=False)
     async def healthz():
