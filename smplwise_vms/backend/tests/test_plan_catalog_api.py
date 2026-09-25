@@ -25,7 +25,7 @@ def test_library_read_scope_and_the_custom_item_lifecycle(settings):
     c = TestClient(app)
     ids = seed_tree(c)
     lib = c.get("/api/v1/catalog/objects").json()
-    assert len(lib["items"]) == 153 and lib["revision"] == "2026.09.1:0:" and [x["id"] for x in lib["categories"]][:2] == ["structure", "circulation"]
+    assert len(lib["items"]) == 154 and lib["revision"] == "2026.09.2:0:" and [x["id"] for x in lib["categories"]][:2] == ["structure", "circulation"]
     assert lib["items"][0] == dict(lib["items"][0], custom=False, based_on=None)
     # a floor-scoped viewer reads the library, a user without any binding does not, a viewer never manages it
     bind(c, settings, "vera", "viewer", "floor", ids["floor2"])
@@ -40,7 +40,7 @@ def test_library_read_scope_and_the_custom_item_lifecycle(settings):
     assert item["anchor_kinds"] == ["light", "switch"] and item["params"] == {"power_w": 120} and item["role"] == "light" and item["created_by"] == "dev-joni"
     iid = item["id"]
     lib = c.get("/api/v1/catalog/objects").json()
-    assert len(lib["items"]) == 154 and lib["revision"].startswith("2026.09.1:1:")
+    assert len(lib["items"]) == 155 and lib["revision"].startswith("2026.09.2:1:")
     # patch a field; a bad value is refused; built-in items are never touched
     assert c.patch(f"/api/v1/catalog/objects/{iid}", json={"z_m": -0.6, "tags": ["אולם"]}).json()["z_m"] == -0.6
     assert c.patch(f"/api/v1/catalog/objects/{iid}", json={"icon": "spaceship"}).status_code == 422
@@ -58,7 +58,7 @@ def test_library_read_scope_and_the_custom_item_lifecycle(settings):
     assert exp.status_code == 200 and exp.headers["content-disposition"].startswith("attachment") and exp.json()["format"] == "smplwise-catalog-1"
     assert [x["id"] for x in exp.json()["items"]] == [iid, plain["id"]] and exp.json()["items"][0]["names"]["he"] == "מנורת אולם"
     assert c.delete(f"/api/v1/catalog/objects/{iid}").status_code == 204
-    assert c.get("/api/v1/catalog/objects").json()["revision"].startswith("2026.09.1:1:")
+    assert c.get("/api/v1/catalog/objects").json()["revision"].startswith("2026.09.2:1:")
     imp = c.post("/api/v1/catalog/import", json=exp.json())
     assert imp.status_code == 200, imp.text
     assert imp.json() == {"imported": 1, "replaced": 1, "revision": c.get("/api/v1/catalog/objects").json()["revision"]}
@@ -96,7 +96,7 @@ def test_the_bundle_carries_the_catalog_revision_and_backups_carry_custom_items(
     asset = c.post(f"/api/v1/floors/{ids['floor2']}/plan-assets", files={"file": ("plan.png", png_bytes(), "image/png")}).json()
     v = c.post(f"/api/v1/floors/{ids['floor2']}/plan-versions", json={"asset_id": asset["id"]}).json()
     assert c.post(f"/api/v1/plan-versions/{v['id']}/publish").status_code == 200
-    assert c.get(f"/api/v1/floors/{ids['floor2']}/map").json()["catalog_revision"] == "2026.09.1:0:"
+    assert c.get(f"/api/v1/floors/{ids['floor2']}/map").json()["catalog_revision"] == "2026.09.2:0:"
     item = c.post("/api/v1/catalog/objects", json={"based_on": "chair.basic", "names": {"he": "כיסא אולם"}}).json()
     assert c.get(f"/api/v1/floors/{ids['floor2']}/map").json()["catalog_revision"] == c.get("/api/v1/catalog/objects").json()["revision"]
     e = c.post("/api/v1/backups", json={"note": "with a custom item"}).json()

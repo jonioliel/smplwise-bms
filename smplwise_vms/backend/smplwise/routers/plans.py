@@ -2,15 +2,16 @@
 archived). Images are served only through authorized endpoints (ch. 11, 12, 32)."""
 from __future__ import annotations
 
+import concurrent.futures
 import json
 import shutil
 import sqlite3
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, File, Request, UploadFile
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
 
 from ..audit import audit
 from ..auth import current_principal, get_conn, settings_of
@@ -19,7 +20,7 @@ from ..db import new_id, now_iso, unlocked
 from ..errors import ApiError, conflict, not_found
 from ..rbac import Principal, require
 from ..services import geometry_store
-from ..services import plan_dxf, plan_dxf_map, plan_render, plan_stylize
+from ..services import plan_catalog, plan_dxf, plan_dxf_map, plan_render, plan_stylize
 from .catalog import get_floor
 
 router = APIRouter()
@@ -605,6 +606,28 @@ def dxf_set_options(asset_id: str, body: DxfOptions, request: Request, principal
 
 # ---------------------------------------------------------------- DXF geometry mapping (phase 3, T086)
 
+DxfName = Annotated[str, StringConstraints(min_length=1, max_length=255)]
+
+
+def _dxf_units(opts: dict[str, Any]) -> str | None:
+    return opts.get("units") or (opts.get("info") or {}).get("units")
+
+
+def _in_pool(request: Request, fn: Any, *args: Any, **kwargs: Any) -> Any:
+    """Run a DXF read in the detection worker pool (routers.plan_geometry.DETECT_POOL), at most detect_timeout_s; the
+    caller holds no write lock meanwhile. 504 dxf_timeout when it runs out (a worker already running finishes on its
+    own; its result is never read)."""
+    from .plan_geometry import DETECT_POOL  # imported here: plan_geometry imports this module
+
+    settings = settings_of(request)
+    future = DETECT_POOL.submit(fn, *args, **kwargs)
+    try:
+        return future.result(timeout=settings.detect_timeout_s)
+    except concurrent.futures.TimeoutError:
+        future.cancel()
+        raise ApiError(504, "dxf_timeout", "קריאת ה־DXF לא הסתיימה בזמן; נסה שכבות מעטות יותר או קובץ קטן יותר.", retryable=True, details={"timeout_s": settings.detect_timeout_s})
+
+
 @router.get("/plan-assets/{asset_id}/dxf/entities")
 def dxf_entities(asset_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The mapping screen's table: every layer with its drawable count, kinds, a sample and the suggested target, every
@@ -615,26 +638,27 @@ def dxf_entities(asset_id: str, request: Request, principal: Principal = Depends
     if asset["mime"] != "image/vnd.dxf":
         raise ApiError(409, "not_dxf", "הקובץ אינו DXF.")
     opts = plan_dxf.load_options(_asset_dir(settings, asset_id))
-    units = opts.get("units") or (opts.get("info") or {}).get("units")
     catalog = plan_dxf_map.load_catalog(conn)
     try:
         with unlocked(conn):
-            summary = plan_dxf_map.entities_summary(settings.data_dir / asset["storage_path"], opts.get("layers"), units, catalog)
+            summary = _in_pool(request, plan_dxf_map.entities_summary, settings.data_dir / asset["storage_path"], opts.get("layers"), _dxf_units(opts), catalog)
     except plan_dxf.DxfError as exc:
         raise ApiError(422, exc.code, "קובץ ה־DXF לא ניתן לקריאה.", details=exc.details)
     return {"asset_id": asset_id, **summary, "targets": [{"id": t, "label": plan_dxf_map.TARGET_LABELS[t]} for t in plan_dxf_map.TARGETS], "catalog_choices": plan_dxf_map.catalog_choices(catalog)}
 
 
 class DxfImportIn(BaseModel):
-    layer_map: dict[str, str] = Field(default={})
-    block_map: dict[str, str | None] = Field(default={})
+    layer_map: dict[DxfName, DxfName] = Field(default={}, max_length=2000)
+    block_map: dict[DxfName, DxfName | None] = Field(default={}, max_length=2000)
     level_id: str | None = Field(default=None, max_length=64)
 
 
 @router.post("/plan-versions/{version_id}/import-dxf-geometry")
 def import_dxf_geometry(version_id: str, body: DxfImportIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Candidates from the DXF the version was made from, by the chosen layer and block mapping (design 9.4), in the
-    shape of /detect: nothing is stored; the editor accepts them through /detect/accept."""
+    shape of /detect: nothing is stored; the editor accepts them through /detect/accept. The body is checked against
+    the drawing and the library before the file is read: known targets, layers of the drawing, at least one mapped
+    layer, library item ids. The read runs in the detection pool under detect_timeout_s (504 dxf_timeout)."""
     settings = settings_of(request)
     v = get_version(conn, version_id)
     require(conn, principal, "map.import", ("floor", v["floor_id"]))
@@ -645,28 +669,49 @@ def import_dxf_geometry(version_id: str, body: DxfImportIn, request: Request, pr
         raise ApiError(409, "not_dxf", "גרסת התוכנית לא נוצרה מקובץ DXF.")
     bad = sorted({t for t in body.layer_map.values() if t not in plan_dxf_map.TARGETS})
     if bad:
-        raise ApiError(422, "validation", "יעד מיפוי לא מוכר.", details={"targets": bad})
+        raise ApiError(422, "validation", "יעד מיפוי לא מוכר.", details={"targets": bad[:20]})
+    bad_ids = sorted({i for i in body.block_map.values() if i is not None and not plan_catalog.ID_RE.match(i)})
+    if bad_ids:
+        raise ApiError(422, "validation", "מזהה פריט לא תקין.", details={"items": bad_ids[:20]})
+    if not any(t != "ignore" for t in body.layer_map.values()):
+        raise ApiError(422, "no_layers", "יש למפות לפחות שכבה אחת.")
     opts = plan_dxf.load_options(_asset_dir(settings, asset["id"]))
-    units = opts.get("units") or (opts.get("info") or {}).get("units")
+    known = {l["name"] for l in (opts.get("info") or {}).get("layers", [])}
+    unknown = sorted(l for l in body.layer_map if l not in known)
+    if unknown:
+        raise ApiError(422, "unknown_layer", "שכבה לא קיימת בקובץ.", details={"unknown": unknown[:20]})
+    items = plan_catalog.item_index(conn)
+    missing = sorted({i for i in body.block_map.values() if i is not None and i not in items})
+    if missing:
+        raise ApiError(422, "unknown_item", "פריט לא קיים בספרייה.", details={"items": missing[:20]})
+    units = _dxf_units(opts)
     if not plan_dxf.METERS.get(units or ""):
         raise ApiError(422, "dxf_unitless", "בחר יחידות לקובץ ה־DXF (בשלב הייבוא) לפני ייבוא הגאומטריה.")
     doc, _row = geometry_store.working_doc(conn, v)
-    level_id = body.level_id or next((lv["id"] for lv in doc["levels"] if lv.get("is_default")), "L0")
-    if level_id not in {lv["id"] for lv in doc["levels"]}:
-        raise ApiError(422, "unknown_level", "המפלס לא קיים בטיוטת המבנה.")
-    src = settings.data_dir / asset["storage_path"]
+    if body.level_id is not None:
+        level = next((lv for lv in doc["levels"] if lv["id"] == body.level_id), None)
+        if level is None:
+            raise ApiError(422, "unknown_level", "המפלס לא קיים בטיוטת המבנה.")
+    else:
+        level = next((lv for lv in doc["levels"] if lv.get("is_default")), None)
+    level_id = level["id"] if level else "L0"
+    ceiling = level.get("ceiling_height_m") if level else None
+    ceiling_m = float(ceiling) if isinstance(ceiling, (int, float)) and not isinstance(ceiling, bool) and ceiling > 0 else plan_dxf_map.DEFAULT_CEILING_M
     catalog = plan_dxf_map.load_catalog(conn)
     try:
         with unlocked(conn):
-            extent = plan_dxf_map.extent_for(src, opts.get("layers"))
-            result = plan_dxf_map.map_geometry(src, layer_map=body.layer_map, block_map=body.block_map, units=units, extent=extent, rotation=int(v["rotation"]),
-                                               crop=json.loads(v["crop_json"]) if v["crop_json"] else None, level_id=level_id, run_id=new_id()[:6], catalog=catalog,
-                                               scale_m_per_px=v["scale_m_per_px"])
+            result = _in_pool(request, plan_dxf_map.import_geometry, settings.data_dir / asset["storage_path"], render_layers=opts.get("layers"), layer_map=dict(body.layer_map),
+                              block_map=dict(body.block_map), units=units, rotation=int(v["rotation"]), crop=json.loads(v["crop_json"]) if v["crop_json"] else None,
+                              level_id=level_id, run_id=new_id()[:6], catalog=catalog, scale_m_per_px=v["scale_m_per_px"], ceiling_m=ceiling_m)
     except plan_dxf.DxfError as exc:
         raise ApiError(422, exc.code, "קובץ ה־DXF לא ניתן לקריאה או ריק בשכבות שנבחרו.", details=exc.details)
-    existing = {c: sum(1 for i in doc.get(c) or [] if isinstance(i, dict) and i.get("source") == "imported") for c in ("walls", "openings")}
+    except ApiError as exc:
+        if exc.code == "dxf_timeout":
+            audit(conn, actor=principal, action="geometry.import", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
+                  details={"version_id": v["id"], "asset_id": asset["id"], "timed_out": True, "timeout_s": settings.detect_timeout_s})
+        raise
+    existing ={c: sum(1 for i in doc.get(c) or [] if isinstance(i, dict) and i.get("source") == "imported") for c in ("walls", "openings", "objects")}
     audit(conn, actor=principal, action="geometry.import", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
           details={"version_id": v["id"], "asset_id": asset["id"], "walls": len(result["walls"]), "openings": len(result["openings"]), "objects": len(result["objects"]),
                    "rooms": len(result["rooms"]), "layers": len(body.layer_map), "blocks": len(body.block_map)})
     return {**result, "version_id": v["id"], "level_id": level_id, "existing_auto": existing}
-

@@ -191,4 +191,4 @@ def test_a_backup_without_structure_restores_over_one(settings):
 def test_the_bundle_says_which_library_the_map_needs(settings):
     app, c, ids, vid, _ = _setup(settings)
     m = c.get(f"/api/v1/floors/{ids['floor2']}/map").json()
-    assert m["catalog_revision"] == "2026.09.1:0:"
+    assert m["catalog_revision"] == "2026.09.2:0:"
