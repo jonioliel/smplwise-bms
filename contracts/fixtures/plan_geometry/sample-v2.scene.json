@@ -1,0 +1,1824 @@
+{
+ "version": "scene-1",
+ "units": "m",
+ "estimated": false,
+ "scale_m_per_px": 0.01,
+ "size": [
+  10,
+  8
+ ],
+ "centre": [
+  5,
+  0,
+  4
+ ],
+ "levels": [
+  {
+   "id": "L0",
+   "elevation_m": 0,
+   "ceiling_height_m": 3
+  },
+  {
+   "id": "L1",
+   "elevation_m": -1.2,
+   "ceiling_height_m": 6
+  }
+ ],
+ "parts": [
+  {
+   "id": "cam:a-cam",
+   "kind": "camera",
+   "shape": "box",
+   "position": [
+    1.5,
+    2.5,
+    3.2
+   ],
+   "size": [
+    0.12,
+    0.1,
+    0.24
+   ],
+   "rotation": [
+    10,
+    -90,
+    0
+   ],
+   "color": "accent",
+   "opacity": 1,
+   "group": null,
+   "level_id": "L0",
+   "userData": {
+    "id": "a-cam",
+    "kind": "camera"
+   }
+  },
+  {
+   "id": "cam:a-cam#cone",
+   "kind": "cone",
+   "shape": "prism",
+   "position": [
+    1.5,
+    0,
+    3.2
+   ],
+   "size": [
+    0,
+    2.5,
+    0
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": "accent",
+   "opacity": 0.12,
+   "group": null,
+   "level_id": "L0",
+   "polygon": [
+    [
+     0,
+     0
+    ],
+    [
+     2.1213,
+     -2.1213
+    ],
+    [
+     2.158,
+     -2.084
+    ],
+    [
+     2.1941,
+     -2.046
+    ],
+    [
+     2.2294,
+     -2.0074
+    ],
+    [
+     2.2641,
+     -1.9682
+    ],
+    [
+     2.2981,
+     -1.9284
+    ],
+    [
+     2.3314,
+     -1.888
+    ],
+    [
+     2.364,
+     -1.847
+    ],
+    [
+     2.3959,
+     -1.8054
+    ],
+    [
+     2.4271,
+     -1.7634
+    ],
+    [
+     2.4575,
+     -1.7207
+    ],
+    [
+     2.4871,
+     -1.6776
+    ],
+    [
+     2.516,
+     -1.6339
+    ],
+    [
+     2.5441,
+     -1.5898
+    ],
+    [
+     2.5715,
+     -1.5451
+    ],
+    [
+     2.5981,
+     -1.5
+    ],
+    [
+     2.6239,
+     -1.4544
+    ],
+    [
+     2.6488,
+     -1.4084
+    ],
+    [
+     2.673,
+     -1.362
+    ],
+    [
+     2.6964,
+     -1.3151
+    ],
+    [
+     2.7189,
+     -1.2679
+    ],
+    [
+     2.7406,
+     -1.2202
+    ],
+    [
+     2.7615,
+     -1.1722
+    ],
+    [
+     2.7816,
+     -1.1238
+    ],
+    [
+     2.8007,
+     -1.0751
+    ],
+    [
+     2.8191,
+     -1.0261
+    ],
+    [
+     2.8366,
+     -0.9767
+    ],
+    [
+     2.8532,
+     -0.9271
+    ],
+    [
+     2.8689,
+     -0.8771
+    ],
+    [
+     2.8838,
+     -0.8269
+    ],
+    [
+     2.8978,
+     -0.7765
+    ],
+    [
+     2.9109,
+     -0.7258
+    ],
+    [
+     2.9231,
+     -0.6749
+    ],
+    [
+     2.9344,
+     -0.6237
+    ],
+    [
+     2.9449,
+     -0.5724
+    ],
+    [
+     2.9544,
+     -0.5209
+    ],
+    [
+     2.9631,
+     -0.4693
+    ],
+    [
+     2.9708,
+     -0.4175
+    ],
+    [
+     2.9776,
+     -0.3656
+    ],
+    [
+     2.9836,
+     -0.3136
+    ],
+    [
+     2.9886,
+     -0.2615
+    ],
+    [
+     2.9927,
+     -0.2093
+    ],
+    [
+     2.9959,
+     -0.157
+    ],
+    [
+     2.9982,
+     -0.1047
+    ],
+    [
+     2.9995,
+     -0.0524
+    ],
+    [
+     3,
+     0
+    ],
+    [
+     2.9995,
+     0.0524
+    ],
+    [
+     2.9982,
+     0.1047
+    ],
+    [
+     2.9959,
+     0.157
+    ],
+    [
+     2.9927,
+     0.2093
+    ],
+    [
+     2.9886,
+     0.2615
+    ],
+    [
+     2.9836,
+     0.3136
+    ],
+    [
+     2.9776,
+     0.3656
+    ],
+    [
+     2.9708,
+     0.4175
+    ],
+    [
+     2.9631,
+     0.4693
+    ],
+    [
+     2.9544,
+     0.5209
+    ],
+    [
+     2.9449,
+     0.5724
+    ],
+    [
+     2.9344,
+     0.6237
+    ],
+    [
+     2.9231,
+     0.6749
+    ],
+    [
+     2.9109,
+     0.7258
+    ],
+    [
+     2.8978,
+     0.7765
+    ],
+    [
+     2.7899,
+     0.8
+    ],
+    [
+     2.6167,
+     0.8
+    ],
+    [
+     2.4621,
+     0.8
+    ],
+    [
+     2.3234,
+     0.8
+    ],
+    [
+     2.198,
+     0.8
+    ],
+    [
+     2.0841,
+     0.8
+    ],
+    [
+     1.9801,
+     0.8
+    ],
+    [
+     1.8847,
+     0.8
+    ],
+    [
+     1.7968,
+     0.8
+    ],
+    [
+     1.7156,
+     0.8
+    ],
+    [
+     1.6402,
+     0.8
+    ],
+    [
+     1.5701,
+     0.8
+    ],
+    [
+     1.5046,
+     0.8
+    ],
+    [
+     1.4432,
+     0.8
+    ],
+    [
+     1.3856,
+     0.8
+    ],
+    [
+     1.3314,
+     0.8
+    ],
+    [
+     1.2803,
+     0.8
+    ],
+    [
+     1.2319,
+     0.8
+    ],
+    [
+     1.186,
+     0.8
+    ],
+    [
+     1.1425,
+     0.8
+    ],
+    [
+     1.1011,
+     0.8
+    ],
+    [
+     1.0616,
+     0.8
+    ],
+    [
+     1.024,
+     0.8
+    ],
+    [
+     0.9879,
+     0.8
+    ],
+    [
+     0.9534,
+     0.8
+    ],
+    [
+     0.9203,
+     0.8
+    ],
+    [
+     0.8885,
+     0.8
+    ],
+    [
+     0.8579,
+     0.8
+    ],
+    [
+     0.8284,
+     0.8
+    ],
+    [
+     0.8,
+     0.8
+    ]
+   ],
+   "userData": {
+    "id": "a-cam",
+    "kind": "camera"
+   }
+  },
+  {
+   "id": "cam:a-cam2",
+   "kind": "camera",
+   "shape": "box",
+   "position": [
+    7,
+    1.8,
+    1.6
+   ],
+   "size": [
+    0.12,
+    0.1,
+    0.24
+   ],
+   "rotation": [
+    20,
+    -180,
+    0
+   ],
+   "color": "offline",
+   "opacity": 1,
+   "group": null,
+   "level_id": "L1",
+   "userData": {
+    "id": "a-cam2",
+    "kind": "camera"
+   }
+  },
+  {
+   "id": "cam:a-cam2#cone",
+   "kind": "cone",
+   "shape": "prism",
+   "position": [
+    7,
+    -1.2,
+    1.6
+   ],
+   "size": [
+    0,
+    3,
+    0
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": "offline",
+   "opacity": 0.12,
+   "group": null,
+   "level_id": "L1",
+   "polygon": [
+    [
+     0,
+     0
+    ],
+    [
+     1,
+     0.8
+    ],
+    [
+     -1,
+     0.8
+    ]
+   ],
+   "userData": {
+    "id": "a-cam2",
+    "kind": "camera"
+   }
+  },
+  {
+   "id": "conn:c1#0",
+   "kind": "connector",
+   "shape": "box",
+   "position": [
+    7.0714,
+    -0.6,
+    5.6
+   ],
+   "size": [
+    0.1429,
+    1.2,
+    1.2
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": "obj-circulation",
+   "opacity": 1,
+   "group": "box|obj-circulation|1",
+   "level_id": "L0",
+   "userData": {
+    "id": "c1",
+    "kind": "connector"
+   }
+  },
+  {
+   "id": "conn:c1#1",
+   "kind": "connector",
+   "shape": "box",
+   "position": [
+    7.2143,
+    -0.6857,
+    5.6
+   ],
+   "size": [
+    0.1429,
+    1.0286,
+    1.2
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": "obj-circulation",
+   "opacity": 1,
+   "group": "box|obj-circulation|1",
+   "level_id": "L0",
+   "userData": {
+    "id": "c1",
+    "kind": "connector"
+   }
+  },
+  {
+   "id": "conn:c1#2",
+   "kind": "connector",
+   "shape": "box",
+   "position": [
+    7.3571,
+    -0.7714,
+    5.6
+   ],
+   "size": [
+    0.1429,
+    0.8571,
+    1.2
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": "obj-circulation",
+   "opacity": 1,
+   "group": "box|obj-circulation|1",
+   "level_id": "L0",
+   "userData": {
+    "id": "c1",
+    "kind": "connector"
+   }
+  },
+  {
+   "id": "conn:c1#3",
+   "kind": "connector",
+   "shape": "box",
+   "position": [
+    7.5,
+    -0.8571,
+    5.6
+   ],
+   "size": [
+    0.1429,
+    0.6857,
+    1.2
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": "obj-circulation",
+   "opacity": 1,
+   "group": "box|obj-circulation|1",
+   "level_id": "L0",
+   "userData": {
+    "id": "c1",
+    "kind": "connector"
+   }
+  },
+  {
+   "id": "conn:c1#4",
+   "kind": "connector",
+   "shape": "box",
+   "position": [
+    7.6429,
+    -0.9429,
+    5.6
+   ],
+   "size": [
+    0.1429,
+    0.5143,
+    1.2
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": "obj-circulation",
+   "opacity": 1,
+   "group": "box|obj-circulation|1",
+   "level_id": "L0",
+   "userData": {
+    "id": "c1",
+    "kind": "connector"
+   }
+  },
+  {
+   "id": "conn:c1#5",
+   "kind": "connector",
+   "shape": "box",
+   "position": [
+    7.7857,
+    -1.0286,
+    5.6
+   ],
+   "size": [
+    0.1429,
+    0.3429,
+    1.2
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": "obj-circulation",
+   "opacity": 1,
+   "group": "box|obj-circulation|1",
+   "level_id": "L0",
+   "userData": {
+    "id": "c1",
+    "kind": "connector"
+   }
+  },
+  {
+   "id": "conn:c1#6",
+   "kind": "connector",
+   "shape": "box",
+   "position": [
+    7.9286,
+    -1.1143,
+    5.6
+   ],
+   "size": [
+    0.1429,
+    0.1714,
+    1.2
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": "obj-circulation",
+   "opacity": 1,
+   "group": "box|obj-circulation|1",
+   "level_id": "L0",
+   "userData": {
+    "id": "c1",
+    "kind": "connector"
+   }
+  },
+  {
+   "id": "door:oa",
+   "kind": "door",
+   "shape": "box",
+   "position": [
+    3.4,
+    1.05,
+    0.8
+   ],
+   "size": [
+    0.9,
+    2.1,
+    0.04
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": "accent",
+   "opacity": 0.9,
+   "group": null,
+   "level_id": "L0",
+   "userData": {
+    "id": "oa",
+    "kind": "opening"
+   }
+  },
+  {
+   "id": "door:oc",
+   "kind": "door",
+   "shape": "box",
+   "position": [
+    3.5,
+    1.05,
+    4
+   ],
+   "size": [
+    0.8,
+    2.1,
+    0.04
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": "accent",
+   "opacity": 0.9,
+   "group": null,
+   "level_id": "L0",
+   "userData": {
+    "id": "oc",
+    "kind": "opening"
+   }
+  },
+  {
+   "id": "door:od",
+   "kind": "door",
+   "shape": "box",
+   "position": [
+    6,
+    1.05,
+    2.4
+   ],
+   "size": [
+    1.6,
+    2.1,
+    0.04
+   ],
+   "rotation": [
+    0,
+    -90,
+    0
+   ],
+   "color": "accent",
+   "opacity": 0.9,
+   "group": null,
+   "level_id": "L0",
+   "userData": {
+    "id": "od",
+    "kind": "opening"
+   }
+  },
+  {
+   "id": "door:of",
+   "kind": "door",
+   "shape": "box",
+   "position": [
+    2.5,
+    -0.15,
+    5.6
+   ],
+   "size": [
+    1,
+    2.1,
+    0.04
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": "accent",
+   "opacity": 0.9,
+   "group": null,
+   "level_id": "L1",
+   "userData": {
+    "id": "of",
+    "kind": "opening"
+   }
+  },
+  {
+   "id": "ent:a-lock",
+   "kind": "entity",
+   "shape": "sprite",
+   "position": [
+    8.5,
+    1.65,
+    2.8
+   ],
+   "size": [
+    2.34,
+    0.36,
+    0
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": "text-3",
+   "opacity": 1,
+   "group": null,
+   "level_id": "L0",
+   "text": "a-lock · נעול",
+   "userData": {
+    "id": "a-lock",
+    "kind": "entity"
+   }
+  },
+  {
+   "id": "ent:a-sensor",
+   "kind": "entity",
+   "shape": "sprite",
+   "position": [
+    3,
+    1.45,
+    5.2
+   ],
+   "size": [
+    1.44,
+    0.36,
+    0
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": "stale",
+   "opacity": 1,
+   "group": null,
+   "level_id": "L0",
+   "text": "a-sensor",
+   "userData": {
+    "id": "a-sensor",
+    "kind": "entity"
+   }
+  },
+  {
+   "id": "floor:L0",
+   "kind": "floor",
+   "shape": "box",
+   "position": [
+    5,
+    -0.025,
+    4
+   ],
+   "size": [
+    10,
+    0.05,
+    8
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": "map-bg",
+   "opacity": 1,
+   "group": null,
+   "level_id": "L0",
+   "userData": {
+    "id": "L0",
+    "kind": "level"
+   }
+  },
+  {
+   "id": "floor:L1",
+   "kind": "floor",
+   "shape": "box",
+   "position": [
+    4.5,
+    -1.225,
+    4.85
+   ],
+   "size": [
+    8,
+    0.05,
+    4.1
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": "map-bg",
+   "opacity": 1,
+   "group": null,
+   "level_id": "L1",
+   "userData": {
+    "id": "L1",
+    "kind": "level"
+   }
+  },
+  {
+   "id": "head:ob",
+   "kind": "head",
+   "shape": "box",
+   "position": [
+    9,
+    2.55,
+    1.8
+   ],
+   "size": [
+    1.2,
+    0.9,
+    0.3
+   ],
+   "rotation": [
+    0,
+    -90,
+    0
+   ],
+   "color": "map-structure",
+   "opacity": 1,
+   "group": "box|map-structure|1",
+   "level_id": "L0",
+   "userData": {
+    "id": "ob",
+    "kind": "opening"
+   }
+  },
+  {
+   "id": "label:la",
+   "kind": "label",
+   "shape": "sprite",
+   "position": [
+    3,
+    0.1,
+    2.4
+   ],
+   "size": [
+    1,
+    0.4,
+    0
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": "map-label",
+   "opacity": 1,
+   "group": null,
+   "level_id": "L0",
+   "text": "מחסן",
+   "userData": {
+    "id": "la",
+    "kind": "label"
+   }
+  },
+  {
+   "id": "label:lb",
+   "kind": "label",
+   "shape": "sprite",
+   "position": [
+    2.5,
+    -1.1,
+    6
+   ],
+   "size": [
+    1,
+    0.4,
+    0
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": "map-label",
+   "opacity": 1,
+   "group": null,
+   "level_id": "L1",
+   "text": "אולם",
+   "userData": {
+    "id": "lb",
+    "kind": "label"
+   }
+  },
+  {
+   "id": "lintel:oa",
+   "kind": "lintel",
+   "shape": "box",
+   "position": [
+    3.4,
+    2.55,
+    0.8
+   ],
+   "size": [
+    0.9,
+    0.9,
+    0.3
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": "map-structure",
+   "opacity": 1,
+   "group": "box|map-structure|1",
+   "level_id": "L0",
+   "userData": {
+    "id": "oa",
+    "kind": "opening"
+   }
+  },
+  {
+   "id": "lintel:oc",
+   "kind": "lintel",
+   "shape": "box",
+   "position": [
+    3.5,
+    2.55,
+    4
+   ],
+   "size": [
+    0.8,
+    0.9,
+    0.15
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": "map-structure",
+   "opacity": 1,
+   "group": "box|map-structure|1",
+   "level_id": "L0",
+   "userData": {
+    "id": "oc",
+    "kind": "opening"
+   }
+  },
+  {
+   "id": "lintel:od",
+   "kind": "lintel",
+   "shape": "box",
+   "position": [
+    6,
+    2.25,
+    2.4
+   ],
+   "size": [
+    1.6,
+    0.3,
+    0.1
+   ],
+   "rotation": [
+    0,
+    -90,
+    0
+   ],
+   "color": "map-structure",
+   "opacity": 1,
+   "group": "box|map-structure|1",
+   "level_id": "L0",
+   "userData": {
+    "id": "od",
+    "kind": "opening"
+   }
+  },
+  {
+   "id": "lintel:of",
+   "kind": "lintel",
+   "shape": "box",
+   "position": [
+    2.5,
+    2.85,
+    5.6
+   ],
+   "size": [
+    1,
+    3.9,
+    0.2
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": "map-structure",
+   "opacity": 1,
+   "group": "box|map-structure|1",
+   "level_id": "L1",
+   "userData": {
+    "id": "of",
+    "kind": "opening"
+   }
+  },
+  {
+   "id": "obj:o1",
+   "kind": "object",
+   "shape": "box",
+   "position": [
+    2,
+    0.425,
+    1.6
+   ],
+   "size": [
+    0.45,
+    0.85,
+    0.45
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": "obj-furniture",
+   "opacity": 1,
+   "group": "box|obj-furniture|1",
+   "level_id": "L0",
+   "userData": {
+    "id": "o1",
+    "kind": "object"
+   }
+  },
+  {
+   "id": "obj:o2",
+   "kind": "object",
+   "shape": "box",
+   "position": [
+    3,
+    0.375,
+    3.2
+   ],
+   "size": [
+    1.4,
+    0.75,
+    0.7
+   ],
+   "rotation": [
+    0,
+    -90,
+    0
+   ],
+   "color": "obj-furniture",
+   "opacity": 1,
+   "group": "box|obj-furniture|1",
+   "level_id": "L0",
+   "userData": {
+    "id": "o2",
+    "kind": "object"
+   }
+  },
+  {
+   "id": "obj:o3",
+   "kind": "object",
+   "shape": "cylinder",
+   "position": [
+    5,
+    2.75,
+    2.4
+   ],
+   "size": [
+    0.4,
+    0.1,
+    0.4
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": "map-glow",
+   "opacity": 1,
+   "group": "cylinder|map-glow|1",
+   "level_id": "L0",
+   "userData": {
+    "id": "o3",
+    "kind": "object"
+   }
+  },
+  {
+   "id": "obj:o3#glow",
+   "kind": "glow",
+   "shape": "light",
+   "position": [
+    5,
+    2.75,
+    2.4
+   ],
+   "size": [
+    6,
+    0,
+    0
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": "map-glow",
+   "opacity": 1,
+   "group": null,
+   "level_id": "L0",
+   "userData": {
+    "id": "o3",
+    "kind": "object"
+   }
+  },
+  {
+   "id": "obj:o4#0",
+   "kind": "object",
+   "shape": "box",
+   "position": [
+    2.5,
+    0.15,
+    5.925
+   ],
+   "size": [
+    4,
+    0.3,
+    0.75
+   ],
+   "rotation": [
+    0,
+    -180,
+    0
+   ],
+   "color": "obj-circulation",
+   "opacity": 1,
+   "group": null,
+   "level_id": "L0",
+   "userData": {
+    "id": "o4",
+    "kind": "object"
+   }
+  },
+  {
+   "id": "obj:o4#1",
+   "kind": "object",
+   "shape": "box",
+   "position": [
+    2.5,
+    0.3,
+    5.175
+   ],
+   "size": [
+    4,
+    0.6,
+    0.75
+   ],
+   "rotation": [
+    0,
+    -180,
+    0
+   ],
+   "color": "obj-circulation",
+   "opacity": 1,
+   "group": null,
+   "level_id": "L0",
+   "userData": {
+    "id": "o4",
+    "kind": "object"
+   }
+  },
+  {
+   "id": "obj:o4#2",
+   "kind": "object",
+   "shape": "box",
+   "position": [
+    2.5,
+    0.45,
+    4.425
+   ],
+   "size": [
+    4,
+    0.9,
+    0.75
+   ],
+   "rotation": [
+    0,
+    -180,
+    0
+   ],
+   "color": "obj-circulation",
+   "opacity": 1,
+   "group": null,
+   "level_id": "L0",
+   "userData": {
+    "id": "o4",
+    "kind": "object"
+   }
+  },
+  {
+   "id": "obj:o4#3",
+   "kind": "object",
+   "shape": "box",
+   "position": [
+    2.5,
+    0.6,
+    3.675
+   ],
+   "size": [
+    4,
+    1.2,
+    0.75
+   ],
+   "rotation": [
+    0,
+    -180,
+    0
+   ],
+   "color": "obj-circulation",
+   "opacity": 1,
+   "group": null,
+   "level_id": "L0",
+   "userData": {
+    "id": "o4",
+    "kind": "object"
+   }
+  },
+  {
+   "id": "obj:o5",
+   "kind": "object",
+   "shape": "cylinder",
+   "position": [
+    1.5,
+    0,
+    6.4
+   ],
+   "size": [
+    0.2,
+    0.6,
+    0.2
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": "obj-safety",
+   "opacity": 1,
+   "group": "cylinder|obj-safety|1",
+   "level_id": "L1",
+   "userData": {
+    "id": "o5",
+    "kind": "object"
+   }
+  },
+  {
+   "id": "room:z1",
+   "kind": "room",
+   "shape": "prism",
+   "position": [
+    0,
+    0,
+    0
+   ],
+   "size": [
+    0,
+    0.01,
+    0
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": "accent",
+   "opacity": 0.1,
+   "group": null,
+   "level_id": "L0",
+   "polygon": [
+    [
+     1.2,
+     0.96
+    ],
+    [
+     5.8,
+     0.96
+    ],
+    [
+     5.8,
+     3.84
+    ],
+    [
+     1.2,
+     3.84
+    ]
+   ],
+   "userData": {
+    "id": "z1",
+    "kind": "zone"
+   }
+  },
+  {
+   "id": "room:z1#label",
+   "kind": "label",
+   "shape": "sprite",
+   "position": [
+    3.5,
+    0.1,
+    2.4
+   ],
+   "size": [
+    1,
+    0.4,
+    0
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": "text-3",
+   "opacity": 1,
+   "group": null,
+   "level_id": "L0",
+   "text": "מחסן",
+   "userData": {
+    "id": "z1",
+    "kind": "zone"
+   }
+  },
+  {
+   "id": "sill:ob",
+   "kind": "sill",
+   "shape": "box",
+   "position": [
+    9,
+    0.45,
+    1.8
+   ],
+   "size": [
+    1.2,
+    0.9,
+    0.3
+   ],
+   "rotation": [
+    0,
+    -90,
+    0
+   ],
+   "color": "map-structure",
+   "opacity": 1,
+   "group": "box|map-structure|1",
+   "level_id": "L0",
+   "userData": {
+    "id": "ob",
+    "kind": "opening"
+   }
+  },
+  {
+   "id": "wall:wa#0",
+   "kind": "wall",
+   "shape": "box",
+   "position": [
+    1.9,
+    1.5,
+    0.8
+   ],
+   "size": [
+    2.1,
+    3,
+    0.3
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": "map-structure",
+   "opacity": 1,
+   "group": "box|map-structure|1",
+   "level_id": "L0",
+   "userData": {
+    "id": "wa",
+    "kind": "wall"
+   }
+  },
+  {
+   "id": "wall:wa#1",
+   "kind": "wall",
+   "shape": "box",
+   "position": [
+    6.425,
+    1.5,
+    0.8
+   ],
+   "size": [
+    5.15,
+    3,
+    0.3
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": "map-structure",
+   "opacity": 1,
+   "group": "box|map-structure|1",
+   "level_id": "L0",
+   "userData": {
+    "id": "wa",
+    "kind": "wall"
+   }
+  },
+  {
+   "id": "wall:wa#1.1",
+   "kind": "wall",
+   "shape": "box",
+   "position": [
+    9,
+    1.5,
+    1
+   ],
+   "size": [
+    0.4,
+    3,
+    0.3
+   ],
+   "rotation": [
+    0,
+    -90,
+    0
+   ],
+   "color": "map-structure",
+   "opacity": 1,
+   "group": "box|map-structure|1",
+   "level_id": "L0",
+   "userData": {
+    "id": "wa",
+    "kind": "wall"
+   }
+  },
+  {
+   "id": "wall:wa#2",
+   "kind": "wall",
+   "shape": "box",
+   "position": [
+    9,
+    1.5,
+    3.675
+   ],
+   "size": [
+    2.55,
+    3,
+    0.3
+   ],
+   "rotation": [
+    0,
+    -90,
+    0
+   ],
+   "color": "map-structure",
+   "opacity": 1,
+   "group": "box|map-structure|1",
+   "level_id": "L0",
+   "userData": {
+    "id": "wa",
+    "kind": "wall"
+   }
+  },
+  {
+   "id": "wall:wb#0",
+   "kind": "wall",
+   "shape": "box",
+   "position": [
+    2.0125,
+    1.5,
+    4
+   ],
+   "size": [
+    2.175,
+    3,
+    0.15
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": "map-structure",
+   "opacity": 1,
+   "group": "box|map-structure|1",
+   "level_id": "L0",
+   "userData": {
+    "id": "wb",
+    "kind": "wall"
+   }
+  },
+  {
+   "id": "wall:wb#1",
+   "kind": "wall",
+   "shape": "box",
+   "position": [
+    4.45,
+    1.5,
+    4
+   ],
+   "size": [
+    1.1,
+    3,
+    0.15
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": "map-structure",
+   "opacity": 1,
+   "group": "box|map-structure|1",
+   "level_id": "L0",
+   "userData": {
+    "id": "wb",
+    "kind": "wall"
+   }
+  },
+  {
+   "id": "wall:wc#0",
+   "kind": "wall",
+   "shape": "box",
+   "position": [
+    6,
+    1.2,
+    1.175
+   ],
+   "size": [
+    0.85,
+    2.4,
+    0.1
+   ],
+   "rotation": [
+    0,
+    -90,
+    0
+   ],
+   "color": "map-structure",
+   "opacity": 1,
+   "group": "box|map-structure|1",
+   "level_id": "L0",
+   "userData": {
+    "id": "wc",
+    "kind": "wall"
+   }
+  },
+  {
+   "id": "wall:wc#1",
+   "kind": "wall",
+   "shape": "box",
+   "position": [
+    6,
+    1.2,
+    3.625
+   ],
+   "size": [
+    0.85,
+    2.4,
+    0.1
+   ],
+   "rotation": [
+    0,
+    -90,
+    0
+   ],
+   "color": "map-structure",
+   "opacity": 1,
+   "group": "box|map-structure|1",
+   "level_id": "L0",
+   "userData": {
+    "id": "wc",
+    "kind": "wall"
+   }
+  },
+  {
+   "id": "wall:wd#0",
+   "kind": "wall",
+   "shape": "box",
+   "position": [
+    1.45,
+    1.8,
+    5.6
+   ],
+   "size": [
+    1.1,
+    6,
+    0.2
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": "map-structure",
+   "opacity": 1,
+   "group": "box|map-structure|1",
+   "level_id": "L1",
+   "userData": {
+    "id": "wd",
+    "kind": "wall"
+   }
+  },
+  {
+   "id": "wall:wd#1",
+   "kind": "wall",
+   "shape": "box",
+   "position": [
+    3.55,
+    1.8,
+    5.6
+   ],
+   "size": [
+    1.1,
+    6,
+    0.2
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": "map-structure",
+   "opacity": 1,
+   "group": "box|map-structure|1",
+   "level_id": "L1",
+   "userData": {
+    "id": "wd",
+    "kind": "wall"
+   }
+  },
+  {
+   "id": "window:ob",
+   "kind": "window",
+   "shape": "box",
+   "position": [
+    9,
+    1.5,
+    1.8
+   ],
+   "size": [
+    1.2,
+    1.2,
+    0.02
+   ],
+   "rotation": [
+    0,
+    -90,
+    0
+   ],
+   "color": "map-glass",
+   "opacity": 0.35,
+   "group": null,
+   "level_id": "L0",
+   "userData": {
+    "id": "ob",
+    "kind": "opening"
+   }
+  }
+ ],
+ "groups": {
+  "box|obj-circulation|1": 7,
+  "box|map-structure|1": 16,
+  "box|obj-furniture|1": 2,
+  "cylinder|map-glow|1": 1,
+  "cylinder|obj-safety|1": 1
+ },
+ "stats": {
+  "parts": 49,
+  "instanced": 27,
+  "groups": 5,
+  "walls": 10,
+  "objects": 8,
+  "cameras": 2,
+  "entities": 2
+ }
+}
