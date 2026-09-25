@@ -66,34 +66,127 @@ def chamfer_dt(mask: np.ndarray) -> np.ndarray:
     return (d[1:-1, 1:-1] / 3.0).astype(np.float32)
 
 
-def thin(mask: np.ndarray, max_iter: int = 200) -> np.ndarray:
-    """Zhang-Suen thinning, both sub-iterations vectorised over the whole picture; stops when nothing changes. Works
-    on the bounding box of the mask in 0/1 bytes: the neighbour count is a byte sum, a 0 -> 1 transition is `u < v`."""
+def _zs_tables() -> tuple[np.ndarray, np.ndarray]:
+    """The two Zhang-Suen sub-iteration rules as 512-entry tables: the low byte is the neighbour byte (bit k is P(k + 2)
+    in the order N, NE, E, SE, S, SW, W, NW), bit 8 says the pixel lies where the input is thinner than three pixels.
+    There Lu-Wang's 3 <= B <= 6 applies, so a line that is already two pixels thick (a 2-px diagonal) is not eroded
+    from both ends to nothing; everywhere else Zhang-Suen's 2 <= B <= 6, which also trims the end of a thick slanted
+    bar to one end point (B >= 3 there leaves a fork of spurs about half a thickness long)."""
+    tables = []
+    for step in (0, 1):
+        t = np.zeros(512, dtype=bool)
+        for code in range(512):
+            p = [(code >> k) & 1 for k in range(8)]
+            b = sum(p)
+            a = sum(1 for k in range(8) if p[k] == 0 and p[(k + 1) % 8] == 1)
+            p2, _p3, p4, _p5, p6, _p7, p8, _p9 = p
+            m = (p2 * p4 * p6 == 0 and p4 * p6 * p8 == 0) if step == 0 else (p2 * p4 * p8 == 0 and p2 * p6 * p8 == 0)
+            t[code] = (3 if code >> 8 else 2) <= b <= 6 and a == 1 and m
+        tables.append(t)
+    return tables[0], tables[1]
+
+
+_ZS_TABLES = _zs_tables()
+_BIT = {"N": 1, "NE": 2, "E": 4, "SE": 8, "S": 16, "SW": 32, "W": 64, "NW": 128}  # the neighbour byte of thin
+# the clean-up patterns as (bits that must be set, bits that must be empty) of the neighbour byte: first every bump (a
+# pixel whose only two neighbours are a 4-neighbour and the diagonal next to it, the tip of a triangle), then every
+# stair corner (two perpendicular 4-neighbours set, the three opposite pixels empty). Each pattern is safe to apply
+# to all pixels at once: two neighbouring pixels cannot both match the same pattern.
+_CLEANUP = tuple((_BIT[x] | _BIT[y], 255 & ~(_BIT[x] | _BIT[y])) for x, y in (
+    ("N", "NE"), ("N", "NW"), ("E", "NE"), ("E", "SE"), ("S", "SE"), ("S", "SW"), ("W", "SW"), ("W", "NW"))) + tuple(
+    (_BIT[x] | _BIT[y], _BIT[o1] | _BIT[o2] | _BIT[o3]) for x, y, o1, o2, o3 in (
+        ("N", "E", "S", "W", "SW"), ("E", "S", "W", "N", "NW"), ("S", "W", "N", "E", "NE"), ("W", "N", "E", "S", "SE")))
+
+
+def _distinct(a: np.ndarray) -> np.ndarray:
+    """The sorted distinct values of an index array (a sort and a neighbour compare: faster here than np.unique)."""
+    if a.size < 2:
+        return a
+    a = np.sort(a)
+    keep = np.empty(a.size, dtype=bool)
+    keep[0] = True
+    np.not_equal(a[1:], a[:-1], out=keep[1:])
+    return a[keep]
+
+
+def thin(mask: np.ndarray, max_iter: int | None = None) -> np.ndarray:
+    """Zhang-Suen thinning (Lu-Wang's B >= 3 where the input is already a line, see _zs_tables) followed by a clean-up
+    pass, on the bounding box of the mask.
+
+    Each sub-iteration looks up only candidate pixels in a table of their neighbour byte: first every set pixel with a
+    background 4-neighbour, later only the set pixels next to one deleted since that sub-iteration last ran (a pixel
+    whose neighbourhood did not change gives the same answer), so the cost follows the boundary, not the area. A 2 x 2
+    block whose four pixels would all go at once keeps one. `max_iter` (default: the larger side of the bounding box)
+    bounds the iterations; hitting it raises RuntimeError instead of returning a half-thinned mask. The clean-up pass
+    then deletes, one pattern at a time (each pattern is safe in parallel), every bump (a pixel whose only two
+    neighbours touch each other) and the corner pixel of every 4-connected step (two perpendicular 4-neighbours set,
+    the three opposite pixels empty), so a tilted wall is one 8-connected line without junction pixels. Thinning and
+    clean-up alternate until neither changes anything."""
     ys, xs = np.nonzero(mask)
     if not ys.size:
         return np.zeros(mask.shape, dtype=bool)
     y0, y1, x0, x1 = int(ys.min()), int(ys.max()) + 1, int(xs.min()), int(xs.max()) + 1
     img = np.pad(np.asarray(mask[y0:y1, x0:x1], dtype=np.uint8), 1)
-    for _ in range(max_iter):
-        changed = False
-        for step in (0, 1):
-            p2, p3, p4, p5 = img[:-2, 1:-1], img[:-2, 2:], img[1:-1, 2:], img[2:, 2:]
-            p6, p7, p8, p9 = img[2:, 1:-1], img[2:, :-2], img[1:-1, :-2], img[:-2, :-2]
-            c = img[1:-1, 1:-1]
-            nb = (p2, p3, p4, p5, p6, p7, p8, p9)
-            b = p2 + p3
-            for n in nb[2:]:
-                b = b + n
-            a = (p2 < p3).astype(np.uint8)
-            for u, v in zip(nb[1:], nb[2:] + nb[:1]):
-                a += u < v
-            m = ((p2 & p4 & p6) == 0) & ((p4 & p6 & p8) == 0) if step == 0 else ((p2 & p4 & p8) == 0) & ((p2 & p6 & p8) == 0)
-            kill = (c == 1) & (b >= 2) & (b <= 6) & (a == 1) & m
-            if kill.any():
-                changed = True
-                c[kill] = 0
-        if not changed:
+    hh, ww = img.shape
+    flat = img.reshape(-1)
+    offs = np.array([-ww, -ww + 1, 1, ww + 1, ww, ww - 1, -1, -ww - 1], dtype=np.int64)  # N NE E SE S SW W NW
+    c = img[1:-1, 1:-1]
+    edge = (c == 1) & ((img[:-2, 1:-1] == 0) | (img[2:, 1:-1] == 0) | (img[1:-1, :-2] == 0) | (img[1:-1, 2:] == 0))
+    ey, ex = np.nonzero(edge)
+    start = (ey.astype(np.int64) + 1) * ww + ex + 1
+    # 256 where no 3 x 3 square of the input covers the pixel (the input is already a line there): the B >= 3 rule
+    core = img.copy()
+    core[1:-1, 1:-1] &= img[:-2, 1:-1] & img[2:, 1:-1] & img[1:-1, :-2] & img[1:-1, 2:] & img[:-2, :-2] & img[:-2, 2:] & img[2:, :-2] & img[2:, 2:]
+    core[[0, -1], :] = 0
+    core[:, [0, -1]] = 0
+    cover = core.copy()
+    cover[1:-1, 1:-1] |= core[:-2, 1:-1] | core[2:, 1:-1] | core[1:-1, :-2] | core[1:-1, 2:] | core[:-2, :-2] | core[:-2, 2:] | core[2:, :-2] | core[2:, 2:]
+    line_flag = ((img == 1) & (cover == 0)).astype(np.int64).reshape(-1) * 256
+    cand = [start, start.copy()]
+    limit = max_iter if max_iter is not None else max(hh, ww)
+    it = 0
+    dying = np.zeros(flat.size, dtype=bool)
+    while True:
+        while cand[0].size or cand[1].size:
+            if it >= limit:
+                raise RuntimeError(f"thin: not converged after {limit} iterations")
+            it += 1
+            for step in (0, 1):
+                idx = cand[step]
+                cand[step] = idx[:0]
+                idx = idx[flat[idx] == 1]
+                if not idx.size:
+                    continue
+                code = np.packbits(flat[idx[:, None] + offs], axis=1, bitorder="little")[:, 0].astype(np.int64) + line_flag[idx]
+                dead = idx[_ZS_TABLES[step][code]]
+                if not dead.size:
+                    continue
+                # a 2 x 2 block whose four pixels all go in one sub-iteration would vanish: its top-left pixel stays
+                dying[dead] = True
+                whole = dying[dead + 1] & dying[dead + ww] & dying[dead + ww + 1]
+                dying[dead] = False
+                dead = dead[~whole]
+                flat[dead] = 0
+                near = (dead[:, None] + offs).ravel()
+                near = near[flat[near] == 1]
+                cand[0] = _distinct(np.concatenate((cand[0], near)))
+                cand[1] = _distinct(np.concatenate((cand[1], near)))
+        pix = np.flatnonzero(flat)
+        gone = []
+        for must, forbid in _CLEANUP:
+            code = np.packbits(flat[pix[:, None] + offs], axis=1, bitorder="little")[:, 0]
+            hit = (flat[pix] == 1) & ((code & must) == must) & ((code & forbid) == 0)
+            if hit.any():
+                flat[pix[hit]] = 0
+                gone.append(pix[hit])
+        if not gone:
             break
+        gone = np.concatenate(gone)
+        # a clean-up deletion can make a neighbour deletable for Zhang-Suen again: resume from those neighbours, so the
+        # result is a fixed point of both (thin(thin(x)) == thin(x))
+        near = (gone[:, None] + offs).ravel()
+        near = _distinct(near[flat[near] == 1])
+        cand = [near, near.copy()]
     out = np.zeros(mask.shape, dtype=bool)
     out[y0:y1, x0:x1] = img[1:-1, 1:-1].astype(bool)
     return out
@@ -103,6 +196,8 @@ _N8 = ((-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1))
 
 
 def neighbour_count(skel: np.ndarray) -> np.ndarray:
+    """The number of set 8-neighbours of every set pixel (0 on unset pixels): 1 is an end point, 2 a line pixel, 3 and
+    more a junction."""
     p = np.pad(skel.astype(np.int16), 1)
     n = np.zeros(skel.shape, dtype=np.int16)
     for dy, dx in _N8:
@@ -112,7 +207,8 @@ def neighbour_count(skel: np.ndarray) -> np.ndarray:
 
 def trace_branches(skel: np.ndarray) -> list[list[tuple[int, int]]]:
     """Every branch of the skeleton between nodes (end points and junctions) as a list of (x, y) pixels; a closed loop
-    without a node comes back as one branch that starts and ends at its topmost-leftmost pixel."""
+    without a node comes back as one branch that starts and ends at its topmost-leftmost pixel. An isolated pixel
+    (no 8-neighbour) is no branch and is dropped."""
     h, w = skel.shape
     nb = neighbour_count(skel)
     node = skel & ((nb == 1) | (nb >= 3))
