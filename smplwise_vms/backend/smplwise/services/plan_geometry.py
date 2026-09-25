@@ -33,6 +33,9 @@ ANCHOR_TYPES = ("camera", "ha_entity")
 CONNECTOR_KINDS = ("stairs", "ramp", "tribune", "elevator", "ladder")
 GROUP_KINDS = ("array", "manual")
 SWITCH_RE = re.compile(r"^(switch|light)\.[a-z0-9_]+$")
+# The circuit colours (tokens.css --sw-circuit-1..6; the frontend whitelist CIRCUIT_TOKENS in map/geometry.ts): the maps
+# turn color_token into a CSS variable name, so nothing else is accepted.
+CIRCUIT_TOKENS = frozenset(f"circuit-{i}" for i in range(1, 7))
 DERIVED_PREFIX = "cx-"  # the connector derived from an object that connects levels: cx-<object id>
 MAX_DERIVED_OBJECT_ID_LEN = 64 - len(DERIVED_PREFIX)  # an object id longer than this cannot fit cx-<id> within the 64-char id limit
 COLLECTIONS = ("levels", "walls", "openings", "rooms", "objects", "circuits", "connectors", "labels", "groups", "uncertain_regions")
@@ -602,6 +605,8 @@ def _check_circuits(circuits: list[dict[str, Any]], objects: dict[str, dict[str,
             _issue(issues, "name", "למעגל צריך שם (עד 80 תווים).", item=kid, path="circuits")
         if not SWITCH_RE.match(k["switch_entity_id"]):
             _issue(issues, "switch_entity", "ישות המפסק חייבת להיות switch.* או light.*.", item=kid, path="circuits")
+        if k["color_token"] not in CIRCUIT_TOKENS:
+            _issue(issues, "enum", "צבע מעגל לא מוכר (circuit-1 עד circuit-6).", item=kid, path="circuits")
         for mid in k["member_ids"]:
             o = objects.get(mid)
             if o is None:

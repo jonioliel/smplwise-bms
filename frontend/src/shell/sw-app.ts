@@ -915,7 +915,8 @@ export class SwApp extends LitElement {
         if (s[1] === 'floors' && s[3] === 'edit') return html`<explore-plan-editor .floorId=${s[2]} .presetEntity=${r.params.get('entity') ?? ''}></explore-plan-editor>`;
         const floorId = s[1] === 'floors' && s[2] ? s[2] : 'f0';
         const screenState = (r.params.get('state') ?? 'ready') as 'ready';
-        return html`<explore-floor-map .floorId=${floorId} .screenState=${screenState} .focusZone=${r.params.get('zone') ?? ''} .focusCamera=${r.params.get('camera') ?? ''} .focusEntity=${r.params.get('entity') ?? ''}></explore-floor-map>`;
+        const focus = r.params.get('focus') ?? '';
+        return html`<explore-floor-map .floorId=${floorId} .screenState=${screenState} .focusZone=${r.params.get('zone') ?? ''} .focusCamera=${r.params.get('camera') ?? ''} .focusEntity=${r.params.get('entity') ?? ''} .focusObject=${focus.startsWith('object:') ? focus.slice('object:'.length) : ''}></explore-floor-map>`;
       }
     }
   }

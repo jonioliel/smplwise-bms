@@ -1,6 +1,6 @@
 /** Plan Studio (T084): pure edits of a structure document - every function returns a new document, so undo / redo is
  * a stack of documents and nothing is ever mutated in place. */
-import { DEFAULT_LEVEL_ID, OPENING_DEFAULTS, isClosedOutline, pointAt, rotated, type GeometryDoc, type GeomLabel, type GeomObject, type GeomOpening, type GeomSize, type GeomWall, type OpeningKind, type Pt, type Swing, type WallKind } from './geometry';
+import { DEFAULT_LEVEL_ID, OPENING_DEFAULTS, isClosedOutline, pointAt, rotated, type ConnectorKind, type GeometryDoc, type GeomCircuit, type GeomConnector, type GeomGroup, type GeomLabel, type GeomLevel, type GeomObject, type GeomOpening, type GeomSize, type GeomWall, type OpeningKind, type Pt, type Swing, type WallKind } from './geometry';
 import type { CatalogItem } from '../api/plan-catalog';
 
 export interface WallDefaults {
@@ -110,7 +110,7 @@ export function removeItem(doc: GeometryDoc, id: string): GeometryDoc {
     return {
       ...doc,
       objects: doc.objects.filter((o) => o.id !== id),
-      groups: doc.groups.map((g) => (g.member_ids.includes(id) ? { ...g, member_ids: g.member_ids.filter((m) => m !== id) } : g)),
+      groups: doc.groups.map((g) => (g.member_ids.includes(id) ? { ...g, member_ids: g.member_ids.filter((m) => m !== id) } : g)).filter((g) => g.member_ids.length > 0),
       circuits: doc.circuits.map((k) => (k.member_ids.includes(id) ? { ...k, member_ids: k.member_ids.filter((m) => m !== id) } : k)),
       connectors: doc.connectors.filter((c) => c.object_id !== id),
     };
@@ -197,4 +197,185 @@ export function stretchedSize(o: Pick<GeomObject, 'position' | 'rotation_deg' | 
   }
   const d = clamp(along * 2 * scale);
   return { ...o.size, d_m: d, w_m: keepRatio ? clamp(d / ratio) : o.size.w_m };
+}
+
+// ---------------------------------------------------------------- arrays and groups (T085)
+
+export interface ArrayOpts {
+  rows: number;
+  cols: number;
+  spacingX: number;
+  spacingY: number;
+  directionDeg: number;
+}
+/** Members an array may have at once (six rows of twelve chairs is 72). */
+export const ARRAY_MAX = 400;
+const OBJECTS_MAX = 5000;
+
+/** Column pitch = the item's width + 5 cm, row pitch = its depth + 45 cm (a walkable gap behind a chair). */
+export function arrayDefaults(item: Pick<CatalogItem, 'size'>): { spacingX: number; spacingY: number } {
+  return { spacingX: round3(item.size.w_m + 0.05), spacingY: round3(item.size.d_m + 0.45) };
+}
+
+/** Rows x columns of copies of an object, in one group. Columns run along the direction's right, rows along its back
+ * (direction 0 = up: columns go right on screen, rows go down). The origin stays member [0, 0] and keeps its id; every
+ * copy gets a new one. Null when the origin is missing or already grouped, the array is smaller than 2 or larger than
+ * ARRAY_MAX, or the document would pass its object limit. */
+export function addArray(doc: GeometryDoc, originId: string, opts: ArrayOpts, W: number, H: number, scale: number): { doc: GeometryDoc; groupId: string; ids: string[] } | null {
+  const origin = doc.objects.find((o) => o.id === originId);
+  const rows = Math.floor(opts.rows);
+  const cols = Math.floor(opts.cols);
+  const total = rows * cols;
+  if (!origin || origin.group_id || rows < 1 || cols < 1 || total < 2 || total > ARRAY_MAX || doc.objects.length + total - 1 > OBJECTS_MAX) return null;
+  const theta = ((opts.directionDeg || 0) * Math.PI) / 180;
+  const right: Pt = [Math.cos(theta), Math.sin(theta)];
+  const back: Pt = [-Math.sin(theta), Math.cos(theta)];
+  const px = 1 / scale;
+  const groupId = newId();
+  const ids: string[] = [];
+  const added: GeomObject[] = [];
+  const x0 = origin.position[0] * W;
+  const y0 = origin.position[1] * H;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = x0 + c * opts.spacingX * px * right[0] + r * opts.spacingY * px * back[0];
+      const y = y0 + c * opts.spacingX * px * right[1] + r * opts.spacingY * px * back[1];
+      if (r === 0 && c === 0) {
+        ids.push(origin.id);
+        continue;
+      }
+      const copy: GeomObject = { ...origin, id: newId(), position: clampPt([x / W, y / H]), params: JSON.parse(JSON.stringify(origin.params)) as Record<string, unknown>, size: { ...origin.size },
+        anchor_ref: null, group_id: groupId, external_ids: {} };
+      ids.push(copy.id);
+      added.push(copy);
+    }
+  }
+  const group: GeomGroup = { id: groupId, kind: 'array', member_ids: ids, params: { rows, cols, spacing_x_m: opts.spacingX, spacing_y_m: opts.spacingY, direction_deg: opts.directionDeg, item_id: origin.item_id }, label: null };
+  return { doc: { ...doc, objects: [...doc.objects.map((o) => (o.id === origin.id ? { ...o, group_id: groupId } : o)), ...added], groups: [...doc.groups, group] }, groupId, ids };
+}
+
+/** Every member of the group moves by (dx, dy) in normalized plan space; a member that is the body of an anchor stays. */
+export function moveGroup(doc: GeometryDoc, groupId: string, dx: number, dy: number): GeometryDoc {
+  const g = doc.groups.find((x) => x.id === groupId);
+  if (!g) return doc;
+  const members = new Set(g.member_ids);
+  return { ...doc, objects: doc.objects.map((o) => (members.has(o.id) && !o.anchor_ref ? { ...o, position: clampPt([o.position[0] + dx, o.position[1] + dy]) } : o)) };
+}
+
+/** The group goes; its members go with it (`withMembers`) or stay in place, unlinked. */
+export function removeGroup(doc: GeometryDoc, groupId: string, withMembers: boolean): GeometryDoc {
+  const g = doc.groups.find((x) => x.id === groupId);
+  if (!g) return doc;
+  let out = doc;
+  if (withMembers) for (const id of g.member_ids) out = removeItem(out, id);
+  return removeItem(out, groupId);
+}
+
+// ---------------------------------------------------------------- levels (T085)
+
+export function addLevel(doc: GeometryDoc, name: string, elevationM: number, ceilingM: number): { doc: GeometryDoc; id: string } {
+  let n = 0;
+  while (doc.levels.some((l) => l.id === `L${n}`)) n++;
+  const level: GeomLevel = { id: `L${n}`, name: name.trim(), elevation_m: round3(elevationM), ceiling_height_m: round3(ceilingM), is_default: doc.levels.length === 0, external_ids: {} };
+  return { doc: { ...doc, levels: [...doc.levels, level] }, id: level.id };
+}
+
+/** Exactly one level is the default: making one the default clears the others. */
+export function patchLevel(doc: GeometryDoc, id: string, patch: Partial<GeomLevel>): GeometryDoc {
+  return { ...doc, levels: doc.levels.map((l) => (l.id === id ? { ...l, ...patch, id: l.id } : patch.is_default ? { ...l, is_default: false } : l)) };
+}
+
+/** How many items sit on a level: walls, labels, objects, and connectors that start or end there. */
+export function levelUsage(doc: GeometryDoc, id: string): number {
+  return doc.walls.filter((w) => w.level_id === id).length + doc.labels.filter((l) => l.level_id === id).length + doc.objects.filter((o) => o.level_id === id).length
+    + doc.connectors.filter((c) => c.level_from === id || c.level_to === id).length;
+}
+
+/** The level goes only when nothing sits on it and it is not the default (rooms and anchors keep their own level id:
+ * the server treats an unknown one as the default). */
+export function removeLevel(doc: GeometryDoc, id: string): GeometryDoc | null {
+  const level = doc.levels.find((l) => l.id === id);
+  if (!level || level.is_default || levelUsage(doc, id) > 0) return null;
+  return { ...doc, levels: doc.levels.filter((l) => l.id !== id) };
+}
+
+/** Whether item `id` (any kind) would still show on the map under a level filter (null = every level, always visible):
+ * a wall or an opening by its wall's level_id, a label or an object by its own, a connector if either end matches, a
+ * group if any of its members would show; a connector always, since buildPrimitives draws every connector on every
+ * level (only the "hide connectors" layer toggle gates them - level_from / level_to are its endpoints, not a filter).
+ * An item without a level_id belongs to the default level (final review item 1: the level filter used to hide a
+ * selected item it should have followed, or should have dropped the selection for). */
+export function visibleUnderLevel(doc: GeometryDoc, id: string, levelId: string | null): boolean {
+  if (levelId === null) return true;
+  const def = defaultLevelId(doc);
+  const onLevel = (lv: string) => (lv || def) === levelId;
+  const wall = doc.walls.find((w) => w.id === id);
+  if (wall) return onLevel(wall.level_id);
+  const opening = doc.openings.find((o) => o.id === id);
+  if (opening) {
+    const host = doc.walls.find((w) => w.id === opening.wall_id);
+    return host ? onLevel(host.level_id) : true;
+  }
+  const label = doc.labels.find((l) => l.id === id);
+  if (label) return onLevel(label.level_id);
+  const obj = doc.objects.find((o) => o.id === id);
+  if (obj) return onLevel(obj.level_id);
+  if (doc.connectors.some((c) => c.id === id)) return true; // connectors are drawn on every level (final review R2)
+  const group = doc.groups.find((g) => g.id === id);
+  if (group) return group.member_ids.some((m) => visibleUnderLevel(doc, m, levelId));
+  return true;
+}
+
+// ---------------------------------------------------------------- connectors (T085)
+
+export const CONNECTOR_KINDS: readonly ConnectorKind[] = ['stairs', 'ramp', 'tribune', 'elevator', 'ladder'];
+export const CONNECTOR_DEFAULT_WIDTH_M: Record<ConnectorKind, number> = { stairs: 1.2, ramp: 1.5, tribune: 4, elevator: 1.6, ladder: 0.5 };
+
+export function addConnector(doc: GeometryDoc, kind: ConnectorKind, a: Pt, b: Pt, levelFrom: string, levelTo: string | null): { doc: GeometryDoc; id: string } {
+  const c: GeomConnector = { id: newId(), kind, level_from: levelFrom, level_to: levelTo, floor_ids: [], polyline: [clampPt(a), clampPt(b)], width_m: CONNECTOR_DEFAULT_WIDTH_M[kind], label: null,
+    object_id: null, source: 'manual', external_ids: {} };
+  return { doc: { ...doc, connectors: [...doc.connectors, c] }, id: c.id };
+}
+
+export function patchConnector(doc: GeometryDoc, id: string, patch: Partial<GeomConnector>): GeometryDoc {
+  return { ...doc, connectors: doc.connectors.map((c) => (c.id === id ? { ...c, ...patch, id: c.id } : c)) };
+}
+
+/** A corner of a drawn connector; a connector derived from an object (a tribune) follows its object, not the pointer. */
+export function moveConnectorVertex(doc: GeometryDoc, id: string, index: number, p: Pt): GeometryDoc {
+  return { ...doc, connectors: doc.connectors.map((c) => (c.id === id && !c.object_id ? { ...c, polyline: c.polyline.map((q, i) => (i === index ? clampPt(p) : q)) } : c)) };
+}
+
+// ---------------------------------------------------------------- circuits (T085)
+
+export const CIRCUIT_COLORS = ['circuit-1', 'circuit-2', 'circuit-3', 'circuit-4', 'circuit-5', 'circuit-6'] as const;
+
+export function addCircuit(doc: GeometryDoc, name: string, switchEntityId: string, colorToken: string): { doc: GeometryDoc; id: string } {
+  const k: GeomCircuit = { id: newId(), name: name.trim(), switch_entity_id: switchEntityId, member_ids: [], color_token: colorToken, power_w: 0 };
+  return { doc: { ...doc, circuits: [...doc.circuits, k] }, id: k.id };
+}
+
+export function patchCircuit(doc: GeometryDoc, id: string, patch: Partial<GeomCircuit>): GeometryDoc {
+  return { ...doc, circuits: doc.circuits.map((k) => (k.id === id ? { ...k, ...patch, id: k.id } : k)) };
+}
+
+/** A lamp on the circuit leaves it; a lamp not on it joins (and leaves any other circuit: one switch per lamp). */
+export function toggleCircuitMember(doc: GeometryDoc, circuitId: string, objectId: string): GeometryDoc {
+  const k = doc.circuits.find((x) => x.id === circuitId);
+  if (!k) return doc;
+  const member = k.member_ids.includes(objectId);
+  return { ...doc, circuits: doc.circuits.map((x) => (x.id === circuitId ? { ...x, member_ids: member ? x.member_ids.filter((m) => m !== objectId) : [...x.member_ids, objectId] } : { ...x, member_ids: x.member_ids.filter((m) => m !== objectId) })) };
+}
+
+/** The sum of the members' power: the object's params.power_w, else its item's default (what the server recomputes). */
+export function circuitPower(doc: GeometryDoc, k: GeomCircuit, itemOfId: (id: string) => Pick<CatalogItem, 'params'> | undefined): number {
+  let total = 0;
+  for (const mid of k.member_ids) {
+    const o = doc.objects.find((x) => x.id === mid);
+    if (!o) continue;
+    const own = o.params.power_w;
+    const w = typeof own === 'number' ? own : (itemOfId(o.item_id)?.params.power_w as number | undefined);
+    if (typeof w === 'number' && Number.isFinite(w)) total += w;
+  }
+  return Math.round(total * 1000) / 1000;
 }

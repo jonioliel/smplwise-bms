@@ -1,5 +1,33 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.85 (pilot) — Plan Studio phase 2, part 2: arrays and custom items, levels, connectors, lighting circuits, search focus
+- Part 2 of 2: finishes the phase-2 plan (tasks 10-14) on top of part 1 (0.1.84, above), which already shipped the
+  object library, the document model, the renderers and every map surface's object/connector layers. This part adds
+  the editor tools that create and manage that content, and the global-search focus that part 1 deferred.
+- Library panel: an **array** places a selected object in rows x columns as one group (moved together; deleting asks
+  "מחק הכול" / "השאר את העצמים" in an in-page dialog, not a browser confirm); "צור פריט מזה" turns a placed object
+  into a custom library item ("based on" the built-in one); "ייצוא הספרייה המותאמת" downloads the custom set as
+  JSON and "ייבוא" of that file reports how many were added versus replaced by id.
+- **מפלסים ומחברים**: level chips over the canvas ("כל המפלסים" / one level), an add-level dialog (name, floor
+  elevation, ceiling height), and a level field on zones and anchors so rooms and entity pins can be assigned to a
+  level too. A connector tool draws stairs, a ramp, an elevator and a ladder between two levels with two clicks and
+  draggable corner vertices; "קשר לקומה" links a drawn connector (stairs, elevator, ramp or ladder) to the matching
+  id in another floor's draft across the same building.
+- **מעגלי תאורה**: an editor panel backed by the synced HA switch catalogue creates a circuit (one switch entity)
+  and toggles lamps in and out of its membership, with the live power sum. On the live map the circuit's lamps glow
+  while its switch is on, and the circuit button toggles the switch through the existing entity action route (no
+  new HA permission: this is `ha.entity.control` in the floor's scope, as for any other entity), so it shows the
+  same "נשלח · ממתין לעדכון" / "אושר" progression and is disabled for a user without control rights.
+- Global search: an object result (matched by its label or by the library item's Hebrew/English name, e.g. "מטף")
+  now opens the floor map centred on the object with it highlighted, replacing part 1's screen-only jump.
+- Phase-2 acceptance scenario exercised end to end: a tribune connector to a level at -1.2 m, sixty chairs placed as
+  one array, eight lamps lit across two circuits by seeded switch states, the "מטף" search focus, and a custom item
+  round-tripped through export.
+- Known product gap, recorded for a later fix, not blocking this release: on a phone the object library sits below
+  the plan canvas, and picking an item scrolls the plan out of view before it can be placed; single-object placement
+  and movement still work, and arrays and wall drawing already say they need a desktop screen.
+- Evidence: see the T085 evidence line in `management/tasks.json` for the real test counts run for this build.
+
 ## 0.1.84 (pilot) — Plan Studio phase 2, part 1: object library, levels, circuits and connectors on every map
 - Part 1 of 2: this release ships tasks 1-9 of the phase-2 plan (all reviewed). Part 2 (0.1.85) still owes arrays,
   custom items from the editor with the custom-library export / import, level chips and the add-level dialog, the

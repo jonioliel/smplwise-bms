@@ -30,8 +30,9 @@ import { createView, listViews, wallHref, type SavedView } from '../api/views';
 import '../components/sw-toggle';
 import { ACTION_ERROR_LABEL, ACTION_STATUS_LABEL, awaitAction, domainLabel, entityMarkerKind, entityTone, fmtTime, runAction, stateLabel, subscribeHa, type HaActionArgSpec, type HaActionRecord, type HaActionSpec, type HaEntity } from '../api/ha';
 import { geometryFor } from '../api/geometry';
-import type { AnchorPosition, CatalogLookup, GeometryDoc } from '../map/geometry';
+import { circuitToken, type AnchorPosition, type CatalogLookup, type GeometryDoc } from '../map/geometry';
 import { loadLibrary, lookupOf } from '../api/plan-catalog';
+import { countLabel, renderLevelChips } from './plan-studio-panel';
 
 /** Hebrew names for enum choices the adapters offer (T040). */
 const ARG_CHOICE_HE: Record<string, string> = { off: 'כבוי', heat: 'חימום', cool: 'קירור', heat_cool: 'חימום/קירור', auto: 'אוטומטי', dry: 'ייבוש', fan_only: 'מאוורר בלבד' };
@@ -78,6 +79,9 @@ export class ExploreFloorMap extends LitElement {
   @property() focusZone = '';
   @property() focusCamera = '';
   @property() focusEntity = '';
+  /** A global search hit of kind object (T085): the object to centre on and mark. */
+  @property() focusObject = '';
+  @state() private focusedObjectId: string | null = null;
   @state() private selectedZoneId: string | null = null;
 
   @state() private bundle: MapBundle | null = null;
@@ -89,6 +93,7 @@ export class ExploreFloorMap extends LitElement {
   @state() private layers = new Set<Layer>(['cameras', 'doors', 'lights', 'sensors', 'zones', 'structure', 'objects', 'connectors']);
   /** T085: the library's shapes for the object layer, fetched by the bundle's catalog revision. */
   @state() private catalogLookup: CatalogLookup | null = null;
+  @state() private levelFilter: string | null = null;
   /** Plan Studio: the published structure of the shown version (fetched by hash after the bundle). */
   @state() private geometry: GeometryDoc | null = null;
   private geomSeq = 0;
@@ -302,6 +307,97 @@ export class ExploreFloorMap extends LitElement {
     }
     .floorchip sw-icon {
       color: var(--sw-text-3);
+    }
+    .levelbar {
+      position: absolute;
+      inset-inline-start: 50%;
+      transform: translateX(-50%);
+      inset-block-start: 12px;
+      z-index: var(--sw-z-map-ui);
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: 999px;
+      padding: 4px 8px;
+      box-shadow: var(--sw-shadow-1);
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      max-inline-size: 60%;
+    }
+    .circuits {
+      position: absolute;
+      inset-inline-end: 12px;
+      inset-block-start: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      z-index: var(--sw-z-map-ui);
+      max-inline-size: 260px;
+    }
+    /* the layers panel and the side list sit in the same corner: the strip steps aside */
+    .circuits.shifted {
+      inset-inline-end: 296px;
+    }
+    .circuits .circuit {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      grid-template-areas: "dot name" "dot cnt";
+      gap: 0 8px;
+      align-items: center;
+      text-align: start;
+      padding: 6px 10px;
+      border: 1px solid var(--sw-border);
+      border-radius: 10px;
+      background: var(--sw-surface);
+      box-shadow: var(--sw-shadow-1);
+      font: inherit;
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text);
+      cursor: pointer;
+    }
+    .circuits .circuit i {
+      grid-area: dot;
+      inline-size: 12px;
+      block-size: 12px;
+      border-radius: 50%;
+      border: 2px solid var(--kc);
+      background: transparent;
+    }
+    .circuits .circuit.on i {
+      background: var(--sw-map-glow);
+      box-shadow: 0 0 6px var(--sw-map-glow);
+    }
+    .circuits .circuit .cnt {
+      grid-area: cnt;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+    }
+    .circuits .circuit.muted i {
+      border-color: var(--sw-stale);
+      background: transparent;
+      box-shadow: none;
+    }
+    .circuits .circuit .cnote {
+      color: var(--sw-stale);
+    }
+    .circuits .circuit:disabled {
+      cursor: not-allowed;
+      opacity: 0.7;
+    }
+    .circuits .cstatus {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      background: var(--sw-surface);
+      border-radius: 8px;
+      padding: 4px 8px;
+    }
+    .circuits .err {
+      color: var(--sw-danger);
+    }
+    @media (max-width: 640px) {
+      .circuits.shifted {
+        display: none;
+      }
     }
     .panel {
       position: absolute;
@@ -738,7 +834,7 @@ export class ExploreFloorMap extends LitElement {
       this.anchor = null;
       this.selectedZoneId = null;
       void this.load();
-    } else if ((changed.has('focusZone') || changed.has('focusCamera') || changed.has('focusEntity')) && this.bundle) {
+    } else if ((changed.has('focusZone') || changed.has('focusCamera') || changed.has('focusEntity') || changed.has('focusObject')) && this.bundle) {
       void this.applyFocus();
     }
   }
@@ -746,7 +842,7 @@ export class ExploreFloorMap extends LitElement {
   /** Bring a search hit into view once the map is on screen. */
   private async applyFocus() {
     const b = this.bundle;
-    if (!b || (!this.focusZone && !this.focusCamera && !this.focusEntity)) return;
+    if (!b || (!this.focusZone && !this.focusCamera && !this.focusEntity && !this.focusObject)) return;
     await this.updateComplete;
     const canvas = this.canvas;
     if (!canvas) return;
@@ -769,6 +865,12 @@ export class ExploreFloorMap extends LitElement {
       const p = canvas.toScreen(a.position.x, a.position.y);
       this.selectedId = a.id;
       this.anchor = { x: p.x, y: p.y };
+    }
+    if (this.focusObject) {
+      const o = this.geometry?.objects.find((x) => x.id === this.focusObject);
+      if (!o) return; // the document arrives after the bundle: the geometry load calls applyFocus again
+      this.focusedObjectId = o.id;
+      canvas.centerOn(o.position[0], o.position[1]);
     }
   }
 
@@ -793,11 +895,15 @@ export class ExploreFloorMap extends LitElement {
       }
       this.noFloors = false;
       this.restoreLayers();
+      this.levelFilter = null;
       this.bundle = await loadMap(this.floorId);
       const seq = ++this.geomSeq;
       this.geometry = null;
       void geometryFor(this.bundle).then((g) => {
-        if (seq === this.geomSeq) this.geometry = g; // live HA updates replace the bundle object: compare loads, not objects
+        if (seq === this.geomSeq) {
+          this.geometry = g; // live HA updates replace the bundle object: compare loads, not objects
+          if (this.focusObject) void this.applyFocus();
+        }
       });
       if (this.bundle.source === 'api') {
         this.startWs();
@@ -849,6 +955,7 @@ export class ExploreFloorMap extends LitElement {
     }
     return b.anchors
       .filter((a) => (a.resource_type === 'camera' ? this.layers.has('cameras') : this.layers.has(a.layer_id === 'doors' ? 'doors' : a.layer_id === 'lights' ? 'lights' : 'sensors')))
+      .filter((a) => !this.levelFilter || (a.level_id ?? b.levels.find((l) => l.is_default)?.id ?? 'L0') === this.levelFilter)
       .map((a) => ({
         id: a.id,
         kind: a.resource_type === 'camera' ? 'camera' : entityMarkerKind(a.layer_id, a.entity?.domain),
@@ -1181,6 +1288,7 @@ export class ExploreFloorMap extends LitElement {
   }
 
   private onSelect(e: CustomEvent<MarkerSelectDetail>) {
+    this.focusedObjectId = null;
     if (this.multi) {
       const a = e.detail.id ? this.bundle?.anchors.find((x) => x.id === e.detail.id) : null;
       if (a?.resource_type === 'camera') this.togglePick(a.id);
@@ -1481,6 +1589,35 @@ export class ExploreFloorMap extends LitElement {
     </div>`;
   }
 
+  /** T085: one button per lighting circuit of the published structure - its switch state, and the toggle through the
+   * existing entity action path (the same permission, the same confirmation rules, the same audit). */
+  private renderCircuitStrip() {
+    const b = this.bundle;
+    const states = b?.circuitStates ?? {};
+    const ids = Object.keys(states);
+    if (!b || !ids.length) return nothing;
+    const act = this.action;
+    return html`<div class="circuits ${this.panel || this.sideList ? 'shifted' : ''}" role="group" aria-label="מעגלי תאורה" data-circuit-strip>
+      ${ids.map((id) => {
+        const s = states[id];
+        const on = s.state === 'on';
+        const spec = s.actions.find((x) => x.id.endsWith(on ? 'turn_off' : 'turn_on'));
+        // the entity card's guards: no second send while one for this switch is in flight, none on a stale screen or an unavailable switch
+        const busy = !!act?.busy && act.entityId === s.entity_id;
+        const stale = this.screenState === 'stale' || !s.fresh;
+        const blocked = !s.can_control || !spec || spec.granted === false || busy || this.screenState === 'stale' || !s.available;
+        const note = !s.available ? 'לא זמין' : stale ? 'לא מעודכן' : '';
+        return html`<button class="circuit ${on ? 'on' : ''} ${note ? 'muted' : ''}" data-circuit-toggle=${id} data-state=${s.state ?? 'unknown'} data-available=${s.available ? 'yes' : 'no'} style=${`--kc: var(--sw-${circuitToken(s.color_token) ?? 'circuit-1'})`} ?disabled=${blocked}
+            title=${!s.can_control ? 'אין הרשאת שליטה בישויות בקומה' : !s.available ? 'המפסק אינו זמין ב־Home Assistant' : on ? 'כיבוי המעגל' : 'הדלקת המעגל'} @click=${() => { if (spec && !blocked) this.trigger(s.entity_id, spec); }}>
+          <i></i><span>${s.name ?? id}</span><span class="cnt">${countLabel(s.member_ids.length, 'מנורה אחת', 'מנורות')} · ${s.state === null ? 'לא ידוע' : on ? 'דולק' : 'כבוי'}${s.power_w ? ` · ${s.power_w} W` : ''}${note ? html` · <span class="cnote" data-circuit-note>${note}</span>` : nothing}</span>
+        </button>`;
+      })}
+      ${act && ids.some((id) => states[id].entity_id === act.entityId)
+        ? html`<span class="cstatus" data-circuit-status>${act.error ? html`<span class="err" data-circuit-error>${act.error}</span>` : act.record ? ACTION_STATUS_LABEL[act.record.status] + (act.record.error ? ` · ${ACTION_ERROR_LABEL[act.record.error] ?? act.record.error}` : '') : act.busy ? 'שולח…' : ''}</span>`
+        : nothing}
+    </div>`;
+  }
+
   private renderStage() {
     const b = this.bundle;
     if (this.loadError) return html`<div class="cover"><sw-state-panel state="error" hint=${this.loadError} actionLabel=${t('states.retry')} @action=${() => this.load()}></sw-state-panel></div>`;
@@ -1521,6 +1658,8 @@ export class ExploreFloorMap extends LitElement {
         .hideStructure=${!this.layers.has('structure')}
         .hideObjects=${!this.layers.has('objects')}
         .hideConnectors=${!this.layers.has('connectors')}
+        .selectedGeomId=${this.focusedObjectId}
+        .structureLevel=${this.levelFilter}
         .catalog=${this.catalogLookup}
         .anchorPositions=${this.anchorPositions}
         .circuitStates=${this.circuitStateMap}
@@ -1537,12 +1676,14 @@ export class ExploreFloorMap extends LitElement {
         @marker-select=${this.onSelect}
         @view-change=${this.onViewChange}></sw-plan-canvas>
       <div class="floorchip" data-floorchip><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
+      ${b.levels.length > 1 ? html`<div class="levelbar">${renderLevelChips(b.levels, this.levelFilter, (id) => (this.levelFilter = id))}</div>` : nothing}
       ${b.source === 'api' && this.buildingFloors.length > 1
         ? html`<div class="floorbtns" role="group" aria-label="מעבר מהיר בין קומות" data-floor-buttons>
             ${this.buildingFloors.map((f) => html`<button class=${f.id === this.floorId ? 'on' : ''} data-floor-button=${f.id} title=${`${f.name}${f.hasPlan ? '' : ' · אין תוכנית'}`} aria-pressed=${f.id === this.floorId} @click=${() => { if (f.id !== this.floorId) navigate(`/explore/floors/${f.id}`); }}>${f.short}</button>`)}
           </div>`
         : nothing}
       ${this.panel ? this.renderPanel() : nothing}
+      ${this.renderCircuitStrip()}
       ${this.multi ? this.renderPickbar() : nothing}
       ${this.renderSideList()}
       ${this.renderSaveDialog()}

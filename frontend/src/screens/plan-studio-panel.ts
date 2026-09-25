@@ -5,8 +5,9 @@
  */
 import { css, html, nothing, type TemplateResult } from 'lit';
 import type { CopyCandidate, GeometryIssue } from '../api/geometry';
-import { effectiveScale, lengthPx, perimeterM, polygonAreaM2, type GeometryDoc, type GeomLabel, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type Hinge, type OpeningKind, type Pt, type Swing, type WallKind } from '../map/geometry';
+import { COLOR_TOKENS, OBJECT_SHAPES, SYMBOL_IDS, circuitToken, connectorLabel, effectiveScale, lengthPx, perimeterM, polygonAreaM2, type ConnectorKind, type GeometryDoc, type GeomCircuit, type GeomConnector, type GeomGroup, type GeomSize, type ObjectShape, type GeomLabel, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type Hinge, type OpeningKind, type Pt, type Swing, type WallKind } from '../map/geometry';
 import type { CatalogItem, CatalogLibrary, ParamSpec } from '../api/plan-catalog';
+import type { HaEntity } from '../api/ha';
 import { searchItems } from '../api/plan-catalog';
 import type { SaveState } from '../map/studio-controller';
 import { cornerRemovable, kindDefaults, openingRange, type WallDefaults } from '../map/studio-ops';
@@ -96,6 +97,7 @@ export interface StudioView {
   busy: boolean;
   /** Setting `plan.estimates`: show estimated metres ("≈") before calibration, or hide them. */
   showEstimates: boolean;
+  levels: GeomLevel[];
 }
 
 export interface StudioActions {
@@ -111,6 +113,7 @@ export interface StudioActions {
   reload(): void;
   calibrate(): void;
   retry(): void;
+  setLevel(id: string, levelId: string): void;
 }
 
 const numberOf = (e: Event): number => parseFloat((e.target as HTMLInputElement).value);
@@ -157,6 +160,12 @@ function renderWallDefaults(d: WallDefaults, a: StudioActions) {
   </div>`;
 }
 
+/** The level an item sits on (only shown when the floor has more than one). */
+function levelSelect(levels: GeomLevel[], current: string, onPick: (levelId: string) => void) {
+  if (levels.length < 2) return nothing;
+  return html`<sw-field label="מפלס"><select data-item-level @change=${(e: Event) => onPick((e.target as HTMLSelectElement).value)}>${levels.map((l) => html`<option value=${l.id} ?selected=${l.id === current}>${l.name} (${l.elevation_m} מ׳)</option>`)}</select></sw-field>`;
+}
+
 function renderSelection(v: StudioView, sel: GeomSel, a: StudioActions, scale: number, estimated: boolean) {
   if (sel.kind === 'wall') {
     const w = v.doc.walls.find((x) => x.id === sel.id);
@@ -167,7 +176,7 @@ function renderSelection(v: StudioView, sel: GeomSel, a: StudioActions, scale: n
     return o ? renderOpening(o, v, a, scale, estimated) : nothing;
   }
   const l = v.doc.labels.find((x) => x.id === sel.id);
-  return l ? renderLabel(l, a) : nothing;
+  return l ? renderLabel(l, v, a) : nothing;
 }
 
 function renderWall(w: GeomWall, v: StudioView, a: StudioActions, scale: number, estimated: boolean) {
@@ -184,6 +193,7 @@ function renderWall(w: GeomWall, v: StudioView, a: StudioActions, scale: number,
     </div>
     <sw-field label="גובה (מ׳, ריק = עד התקרה)"><input type="number" min="0.1" max="50" step="0.1" data-ltr .value=${w.height_m === null ? '' : String(w.height_m)}
       @change=${(e: Event) => { const raw = (e.target as HTMLInputElement).value.trim(); const x = parseFloat(raw); if (!raw) a.patchWall(w.id, { height_m: null }); else if (x > 0 && x <= 50) a.patchWall(w.id, { height_m: x }); }} /></sw-field>
+    ${levelSelect(v.levels, w.level_id, (lv) => a.setLevel(w.id, lv))}
     ${v.mode === 'select' && v.sel?.vertex !== undefined
       ? html`<div class="note" data-selected-vertex=${v.sel.vertex}>פינה ${v.sel.vertex + 1} נבחרה: החצים מזיזים אותה (Shift = צעד גדול); ${cornerRemovable(w.polyline) ? 'Delete מוחק את הפינה.' : 'Delete מוחק את כל הקיר, כי בלי הפינה לא נשאר קיר.'}</div>`
       : nothing}
@@ -250,12 +260,13 @@ function renderOpening(o: GeomOpening, v: StudioView, a: StudioActions, scale: n
   </div>`;
 }
 
-function renderLabel(l: GeomLabel, a: StudioActions) {
+function renderLabel(l: GeomLabel, v: StudioView, a: StudioActions) {
   return html`<div class="sel" data-selected-label=${l.id}>
     <sw-field label="טקסט"><input type="text" maxlength="80" data-label-text .value=${l.text}
       @change=${(e: Event) => { const x = (e.target as HTMLInputElement).value.trim(); if (x) a.patchLabel(l.id, { text: x }); }} /></sw-field>
     <sw-field label="גודל"><input type="number" min="6" max="200" step="1" data-ltr .value=${String(l.size)}
       @change=${(e: Event) => { const x = numberOf(e); if (x >= 6 && x <= 200) a.patchLabel(l.id, { size: x }); }} /></sw-field>
+    ${levelSelect(v.levels, l.level_id, (lv) => a.setLevel(l.id, lv))}
     <div class="btns"><sw-button size="sm" variant="ghost" icon="trash" data-geom-delete @click=${() => a.remove(l.id)}>מחק תווית</sw-button></div>
   </div>`;
 }
@@ -356,11 +367,25 @@ export interface LibraryActions {
   cancelPlacing(): void;
 }
 
+/** The library list shows this many rows; a longer result says so and asks for a search or a category. */
+const LIB_ROWS = 60;
+/** The last search of the whole library or of a category (the pool is then the library's own item list): renders that
+ * change nothing in the library, the query or the category reuse it. The recent and favourite shelves are short. */
+let libMemo: { pool: CatalogItem[]; q: string; category: string | null; found: CatalogItem[] } | null = null;
+
+function libSearch(pool: CatalogItem[], q: string, category: string | null): CatalogItem[] {
+  if (libMemo && libMemo.pool === pool && libMemo.q === q && libMemo.category === category) return libMemo.found;
+  const found = searchItems(pool, q, category);
+  libMemo = { pool, q, category, found };
+  return found;
+}
+
 export function renderLibraryPanel(v: LibraryView, a: LibraryActions): TemplateResult {
   const special = v.category === 'recent' || v.category === 'favorites';
   const pool = v.category === 'recent' ? v.recent.map((id) => v.lib.items.find((i) => i.id === id)).filter((i): i is CatalogItem => !!i)
     : v.category === 'favorites' ? v.lib.items.filter((i) => v.favorites.includes(i.id)) : v.lib.items;
-  const items = searchItems(pool, v.q, special ? null : v.category).slice(0, 60);
+  const found = libSearch(pool, v.q, special ? null : v.category);
+  const items = found.slice(0, LIB_ROWS);
   return html`<sw-card heading="ספריית עצמים" subheading=${v.placing ? `לחץ על התוכנית כדי להציב: ${v.placing.names.he} · Esc לביטול` : `${v.lib.items.length} פריטים · חיפוש בעברית ובאנגלית`} data-library-panel data-studio-save=${v.saveState}>
     <sw-field><input type="search" data-lib-search placeholder="חיפוש: כיסא, מטף, bleachers…" .value=${v.q} @input=${(e: Event) => a.setQuery((e.target as HTMLInputElement).value)} /></sw-field>
     <div class="modes" role="group" aria-label="קטגוריות">
@@ -378,6 +403,7 @@ export function renderLibraryPanel(v: LibraryView, a: LibraryActions): TemplateR
           <button class="fav ${v.favorites.includes(i.id) ? 'on' : ''}" data-lib-fav=${i.id} aria-label="מועדף" @click=${(e: Event) => { e.stopPropagation(); a.toggleFavorite(i.id); }}>★</button>
         </div>`) : html`<div class="note">${v.category === 'recent' ? 'עדיין לא הוצבו פריטים בדפדפן הזה.' : v.category === 'favorites' ? 'סמן ★ ליד פריט כדי לשמור אותו כאן.' : 'לא נמצאו פריטים.'}</div>`}
     </div>
+    ${found.length > LIB_ROWS ? html`<div class="note" data-lib-more>מוצגים ${LIB_ROWS} · חפש או בחר קטגוריה</div>` : nothing}
     ${v.phone ? html`<div class="note">בטלפון: הצבה והזזה של עצם בודד; מערכים וציור קירות בדסקטופ.</div>` : nothing}
     ${v.canManage ? html`<div class="exports" role="group" aria-label="הספרייה המותאמת">
       <a class="btnlink" data-lib-export href=${v.exportHref} download>ייצוא הספרייה המותאמת</a>
@@ -404,7 +430,7 @@ export interface ObjectActions {
   patch(id: string, patch: Partial<GeomObject>): void;
   unbind(id: string): void;
   remove(id: string): void;
-  /** Task 10 supplies these three; until then the inspector shows no array / custom item / select group control. */
+  /** Optional: a caller without them gets no array / custom item / select group control in the inspector. */
   array?: (id: string) => void;
   custom?: (id: string) => void;
   selectGroup?: (groupId: string) => void;
@@ -444,11 +470,296 @@ export function renderObjectInspector(v: ObjectView, a: ObjectActions): Template
     ${group ? html`<div class="note" data-object-group>חלק ממערך של ${group.member_ids.length}${a.selectGroup ? html` · <button class="linkbtn" data-select-group @click=${() => a.selectGroup?.(group.id)}>בחר את המערך</button>` : nothing}</div>` : nothing}
     <div class="note">${v.estimated ? (v.showEstimates ? 'המידות במטרים משוערות (≈) עד הכיול' : 'לא מכויל: המידות מוצגות כערכי הפריט') : 'המידות במטרים לפי הכיול'} · חצים = הזזה עדינה (Shift = גדולה) · Alt+גרירה = שכפול · Delete = מחיקה</div>
     <div class="btns">
-      ${a.array ? html`<sw-button size="sm" icon="grid" data-object-array ?disabled=${v.phone || !!o.anchor_ref} title=${v.phone ? 'מערכים בדסקטופ בלבד' : 'שורות × עמודות מהעצם הזה'} @click=${() => a.array?.(o.id)}>מערך</sw-button>` : nothing}
+      ${a.array ? html`<sw-button size="sm" icon="grid" data-object-array ?disabled=${v.phone || !!o.anchor_ref || !!o.group_id} title=${v.phone ? 'מערכים בדסקטופ בלבד' : o.group_id ? 'העצם כבר במערך' : 'שורות × עמודות מהעצם הזה'} @click=${() => a.array?.(o.id)}>מערך</sw-button>` : nothing}
       ${v.canManage && a.custom ? html`<sw-button size="sm" icon="plus" data-object-custom @click=${() => a.custom?.(o.id)}>צור פריט מזה</sw-button>` : nothing}
       <sw-button size="sm" variant="ghost" icon="trash" data-geom-delete @click=${() => a.remove(o.id)}>מחק</sw-button>
     </div>
   </sw-card>`;
+}
+
+// ---------------------------------------------------------------- groups, arrays and custom items (T085)
+
+export interface GroupActions {
+  select(objectId: string): void;
+  askDelete(groupId: string): void;
+}
+
+export function renderGroupInspector(g: GeomGroup, item: CatalogItem | undefined, a: GroupActions): TemplateResult {
+  const p = g.params as { rows?: number; cols?: number; spacing_x_m?: number; spacing_y_m?: number };
+  return html`<sw-card heading=${g.kind === 'array' ? `מערך של ${g.member_ids.length}` : `קבוצה של ${g.member_ids.length}`} subheading=${item ? item.names.he : ''} data-selected-group=${g.id}>
+    ${g.kind === 'array' && p.rows ? html`<div class="note">${p.rows} שורות × ${p.cols} עמודות · רווח ${p.spacing_x_m} × ${p.spacing_y_m} מ׳</div>` : nothing}
+    <div class="note">גרירת אחד העצמים מזיזה את כל המערך · Delete מוחק (ושואל אם למחוק גם את העצמים)</div>
+    <div class="btns">
+      ${g.member_ids[0] ? html`<sw-button size="sm" variant="ghost" data-group-first @click=${() => a.select(g.member_ids[0])}>בחר עצם אחד</sw-button>` : nothing}
+      <sw-button size="sm" variant="danger" icon="trash" data-group-delete @click=${() => a.askDelete(g.id)}>מחק מערך</sw-button>
+    </div>
+  </sw-card>`;
+}
+
+export interface ArrayDialogView {
+  item: CatalogItem | undefined;
+  rows: number;
+  cols: number;
+  spacingX: number;
+  spacingY: number;
+  directionDeg: number;
+  max: number;
+  /** Why the array could not be made (shown inside the dialog, not in the bar behind it). */
+  error: string;
+}
+
+export function renderArrayDialog(v: ArrayDialogView, onChange: (patch: Partial<ArrayDialogView>) => void, onCreate: () => void, onCancel: () => void): TemplateResult {
+  const total = Math.floor(v.rows) * Math.floor(v.cols);
+  const ok = total >= 2 && total <= v.max && v.spacingX > 0 && v.spacingY > 0;
+  const num = (e: Event) => parseFloat((e.target as HTMLInputElement).value);
+  return html`<sw-dialog open heading="מערך" subheading=${`שורות × עמודות של ${v.item?.names.he ?? 'העצם'}; העצם שנבחר הוא הראשון`} data-array-dialog @close=${onCancel}>
+    ${v.error ? html`<div class="err" data-array-error>${v.error}</div>` : nothing}
+    <div class="two">
+      <sw-field label="שורות"><input type="number" min="1" max="60" step="1" data-ltr data-array-rows .value=${String(v.rows)} @input=${(e: Event) => onChange({ rows: Math.max(1, num(e) || 1) })} /></sw-field>
+      <sw-field label="עמודות"><input type="number" min="1" max="60" step="1" data-ltr data-array-cols .value=${String(v.cols)} @input=${(e: Event) => onChange({ cols: Math.max(1, num(e) || 1) })} /></sw-field>
+    </div>
+    <div class="two">
+      <sw-field label="רווח בין עמודות (מ׳)"><input type="number" min="0.05" max="50" step="0.05" data-ltr data-array-sx .value=${String(v.spacingX)} @input=${(e: Event) => onChange({ spacingX: num(e) })} /></sw-field>
+      <sw-field label="רווח בין שורות (מ׳)"><input type="number" min="0.05" max="50" step="0.05" data-ltr data-array-sy .value=${String(v.spacingY)} @input=${(e: Event) => onChange({ spacingY: num(e) })} /></sw-field>
+    </div>
+    <sw-field label="כיוון (°)" hint="0 = העמודות ימינה והשורות למטה; 90 = מסובב"><input type="number" min="0" max="359" step="1" data-ltr data-array-dir .value=${String(v.directionDeg)} @input=${(e: Event) => onChange({ directionDeg: num(e) || 0 })} /></sw-field>
+    <div class="note" data-array-total>${total} עצמים${total > v.max ? ` · יותר מ־${v.max} במערך אחד` : ''}</div>
+    <sw-button slot="footer" variant="ghost" data-array-cancel @click=${onCancel}>ביטול</sw-button>
+    <sw-button slot="footer" variant="primary" icon="check" data-array-create ?disabled=${!ok} @click=${onCreate}>צור מערך</sw-button>
+  </sw-dialog>`;
+}
+
+export function renderGroupDeleteDialog(count: number, onAll: () => void, onKeep: () => void, onCancel: () => void): TemplateResult {
+  return html`<sw-dialog open heading="מחיקת מערך" subheading=${`המערך מכיל ${count} עצמים`} data-group-delete-dialog @close=${onCancel}>
+    <div class="note">למחוק גם את העצמים, או להשאיר אותם על המפה כעצמים בודדים?</div>
+    <sw-button slot="footer" variant="ghost" data-group-delete-cancel @click=${onCancel}>ביטול</sw-button>
+    <sw-button slot="footer" data-group-delete-keep @click=${onKeep}>השאר את העצמים</sw-button>
+    <sw-button slot="footer" variant="danger" icon="trash" data-group-delete-all @click=${onAll}>מחק הכול</sw-button>
+  </sw-dialog>`;
+}
+
+export interface CustomItemView {
+  nameHe: string;
+  nameEn: string;
+  category: string;
+  shape: ObjectShape;
+  icon: string;
+  color: string;
+  size: GeomSize;
+  basedOn: string | null;
+  busy: boolean;
+  error: string;
+}
+
+export function renderCustomItemDialog(v: CustomItemView, lib: CatalogLibrary, onChange: (patch: Partial<CustomItemView>) => void, onCreate: () => void, onCancel: () => void): TemplateResult {
+  const num = (e: Event) => parseFloat((e.target as HTMLInputElement).value);
+  const sizeOk = (x: number) => x >= 0.05 && x <= 100; // NaN (an empty field) fails too
+  const badSize = !(sizeOk(v.size.w_m) && sizeOk(v.size.d_m) && sizeOk(v.size.h_m));
+  // one hook per field (data-custom-w / -d / -h): lit has no binding for an attribute's name, so each is a boolean attribute.
+  // Every value is kept, also out of range: the field is marked and "צור פריט" waits until it is fixed (never dropped silently).
+  const sizeField = (key: keyof GeomSize, label: string) => html`<sw-field label=${label}><input type="number" min="0.05" max="100" step="0.05" data-ltr ?data-custom-w=${key === 'w_m'} ?data-custom-d=${key === 'd_m'} ?data-custom-h=${key === 'h_m'}
+      aria-invalid=${sizeOk(v.size[key]) ? 'false' : 'true'} style=${sizeOk(v.size[key]) ? '' : 'border-color: var(--sw-danger)'} .value=${Number.isFinite(v.size[key]) ? String(v.size[key]) : ''}
+      @input=${(e: Event) => onChange({ size: { ...v.size, [key]: num(e) } })} /></sw-field>`;
+  return html`<sw-dialog open heading="פריט מותאם" subheading=${v.basedOn ? `מבוסס על ${lib.items.find((i) => i.id === v.basedOn)?.names.he ?? v.basedOn}: הפריט החדש נשמר בספרייה של המתקן` : 'פריט חדש בספרייה של המתקן'} data-custom-dialog @close=${onCancel}>
+    ${v.error ? html`<div class="err">${v.error}</div>` : nothing}
+    <div class="two">
+      <sw-field label="שם (עברית)"><input type="text" maxlength="80" data-custom-name .value=${v.nameHe} @input=${(e: Event) => onChange({ nameHe: (e.target as HTMLInputElement).value })} /></sw-field>
+      <sw-field label="שם (אנגלית, לחיפוש)"><input type="text" maxlength="80" data-ltr data-custom-name-en .value=${v.nameEn} @input=${(e: Event) => onChange({ nameEn: (e.target as HTMLInputElement).value })} /></sw-field>
+    </div>
+    <div class="two">
+      <sw-field label="קטגוריה"><select data-custom-category @change=${(e: Event) => onChange({ category: (e.target as HTMLSelectElement).value })}>${lib.categories.map((c) => html`<option value=${c.id} ?selected=${c.id === v.category}>${c.he}</option>`)}</select></sw-field>
+      <sw-field label="צורה"><select data-custom-shape @change=${(e: Event) => onChange({ shape: (e.target as HTMLSelectElement).value as ObjectShape })}>${OBJECT_SHAPES.map((s) => html`<option value=${s} ?selected=${s === v.shape}>${s}</option>`)}</select></sw-field>
+    </div>
+    <div class="two">
+      <sw-field label="סמל"><select data-custom-icon @change=${(e: Event) => onChange({ icon: (e.target as HTMLSelectElement).value })}>${SYMBOL_IDS.map((s) => html`<option value=${s} ?selected=${s === v.icon}>${s}</option>`)}</select></sw-field>
+      <sw-field label="צבע"><select data-custom-color @change=${(e: Event) => onChange({ color: (e.target as HTMLSelectElement).value })}>${COLOR_TOKENS.map((c) => html`<option value=${c} ?selected=${c === v.color}>${c}</option>`)}</select></sw-field>
+    </div>
+    <div class="three">${sizeField('w_m', 'רוחב (מ׳)')}${sizeField('d_m', 'עומק (מ׳)')}${sizeField('h_m', 'גובה (מ׳)')}</div>
+    ${badSize ? html`<div class="err" data-custom-size-error>כל מידה בין 0.05 ל־100 מ׳</div>` : nothing}
+    <div class="note">הגובה מהרצפה, הפרמטרים וסוגי הישויות נלקחים מהפריט שעליו הוא מבוסס.</div>
+    <sw-button slot="footer" variant="ghost" data-custom-cancel @click=${onCancel}>ביטול</sw-button>
+    <sw-button slot="footer" variant="primary" icon="check" data-custom-create ?disabled=${v.busy || !v.nameHe.trim() || badSize} @click=${onCreate}>${v.busy ? 'שומר…' : 'צור פריט'}</sw-button>
+  </sw-dialog>`;
+}
+
+// ---------------------------------------------------------------- levels (T085)
+
+/** The chips over the canvas: all levels, or one. `onAdd` (editors) adds the "+ מפלס" chip. */
+export function renderLevelChips(levels: GeomLevel[], current: string | null, onPick: (id: string | null) => void, onAdd?: () => void): TemplateResult {
+  if (levels.length < 2 && !onAdd) return html``;
+  return html`<div class="levelchips" role="group" aria-label="מפלסים" data-level-chips>
+    <sw-chip data-level-chip="all" ?selected=${current === null} @click=${() => onPick(null)}>כל המפלסים</sw-chip>
+    ${[...levels].sort((a, b) => b.elevation_m - a.elevation_m).map((l) => html`<sw-chip data-level-chip=${l.id} ?selected=${current === l.id} @click=${() => onPick(l.id)}>${l.name} · ${l.elevation_m >= 0 ? '+' : '−'}${Math.abs(l.elevation_m).toFixed(1)} מ׳</sw-chip>`)}
+    ${onAdd ? html`<sw-chip data-level-add icon="plus" @click=${onAdd}>מפלס</sw-chip>` : nothing}
+  </div>`;
+}
+
+export interface LevelDialogView {
+  name: string;
+  elevation: number;
+  ceiling: number;
+  error: string;
+}
+
+export function renderLevelDialog(v: LevelDialogView, onChange: (patch: Partial<LevelDialogView>) => void, onCreate: () => void, onCancel: () => void): TemplateResult {
+  const num = (e: Event) => parseFloat((e.target as HTMLInputElement).value);
+  const ok = v.name.trim().length > 0 && v.elevation >= -50 && v.elevation <= 500 && v.ceiling > 0 && v.ceiling <= 50;
+  return html`<sw-dialog open heading="מפלס חדש" subheading="גובה הרצפה יחסית למפלס הראשי (0), וגובה התקרה מעליה" data-level-dialog @close=${onCancel}>
+    ${v.error ? html`<div class="err">${v.error}</div>` : nothing}
+    <sw-field label="שם"><input type="text" maxlength="60" data-level-name placeholder="למשל: אולם תחתון" .value=${v.name} @input=${(e: Event) => onChange({ name: (e.target as HTMLInputElement).value })} /></sw-field>
+    <div class="two">
+      <sw-field label="גובה רצפה (מ׳)" hint="שלילי = מתחת למפלס הראשי"><input type="number" min="-50" max="500" step="0.1" data-ltr data-level-elevation .value=${String(v.elevation)} @input=${(e: Event) => onChange({ elevation: num(e) })} /></sw-field>
+      <sw-field label="גובה תקרה (מ׳)"><input type="number" min="0.1" max="50" step="0.1" data-ltr data-level-ceiling .value=${String(v.ceiling)} @input=${(e: Event) => onChange({ ceiling: num(e) })} /></sw-field>
+    </div>
+    <sw-button slot="footer" variant="ghost" data-level-cancel @click=${onCancel}>ביטול</sw-button>
+    <sw-button slot="footer" variant="primary" icon="check" data-level-create ?disabled=${!ok} @click=${onCreate}>הוסף מפלס</sw-button>
+  </sw-dialog>`;
+}
+
+// ---------------------------------------------------------------- connectors (T085)
+
+export const CONNECTOR_LABEL: Record<ConnectorKind, string> = { stairs: 'מדרגות', ramp: 'רמפה', tribune: 'טריבונה', elevator: 'מעלית', ladder: 'סולם' };
+
+export interface ConnectorView {
+  doc: GeometryDoc;
+  mode: ConnectorKind | null;
+  start: Pt | null;
+  sel: GeomConnector | undefined;
+  saveState: SaveState;
+  /** The other floors of the building (the link picker) and the floor chosen in it. */
+  floors: { id: string; name: string }[];
+  linkFloor: string;
+  linkBusy: boolean;
+  phone: boolean;
+}
+
+export interface ConnectorActions {
+  setMode(kind: ConnectorKind | null): void;
+  select(id: string): void;
+  patch(id: string, patch: Partial<GeomConnector>): void;
+  remove(id: string): void;
+  setLinkFloor(floorId: string): void;
+  link(id: string): void;
+}
+
+/** A connector the server derived from an object (a tribune, id `cx-<object>`): it follows its object; nobody edits
+ * or deletes it by hand - the object is edited instead. */
+export function connectorDerived(c: Pick<GeomConnector, 'object_id' | 'source'>): boolean {
+  return !!c.object_id || c.source === 'auto';
+}
+
+export function renderConnectorPanel(v: ConnectorView, a: ConnectorActions): TemplateResult {
+  const levels = v.doc.levels;
+  const levelName = (id: string | null) => (id ? levels.find((l) => l.id === id)?.name ?? id : 'קומה אחרת');
+  const sel = v.sel;
+  const num = (e: Event) => parseFloat((e.target as HTMLInputElement).value);
+  return html`<sw-card heading="מפלסים ומחברים" subheading=${v.mode ? (v.start ? `לחץ על הנקודה השנייה של ${CONNECTOR_LABEL[v.mode]} · Esc לביטול` : `לחץ על הנקודה הראשונה של ${CONNECTOR_LABEL[v.mode]}`) : 'מדרגות, רמפה, מעלית וסולם בין מפלסים ובין קומות'} data-connector-panel data-studio-save=${v.saveState}>
+    <div class="modes" role="group" aria-label="סוג מחבר">
+      ${(['stairs', 'ramp', 'elevator', 'ladder'] as ConnectorKind[]).map((k) => html`<button class=${v.mode === k ? 'on' : ''} data-conn-mode=${k} aria-pressed=${v.mode === k} @click=${() => a.setMode(v.mode === k ? null : k)}>${CONNECTOR_LABEL[k]}</button>`)}
+    </div>
+    <div class="note">שתי לחיצות על התוכנית מציירות מחבר (הצמדה לפינות קירות). טריבונה היא עצם מהספרייה: המחבר שלה נוצר לבד כשמגדירים לאיזה מפלס היא יורדת.</div>
+    ${v.doc.connectors.length
+      ? html`<div class="list">${v.doc.connectors.map((c) => html`<button class=${sel?.id === c.id ? 'on' : ''} data-conn-row=${c.id} @click=${() => a.select(c.id)}>
+          <span>${CONNECTOR_LABEL[c.kind] ?? c.kind}${connectorDerived(c) ? ' (מעצם)' : ''}</span><span class="note" style="margin:0">${levelName(c.level_from)} ← ${c.floor_ids.length ? `${c.floor_ids.length} קומות` : levelName(c.level_to)}</span>
+        </button>`)}</div>`
+      : html`<div class="note">עדיין אין מחברים בקומה.</div>`}
+    ${sel ? renderConnectorInspector(sel, v, a, levelName, num) : nothing}
+  </sw-card>`;
+}
+
+function renderConnectorInspector(c: GeomConnector, v: ConnectorView, a: ConnectorActions, levelName: (id: string | null) => string, num: (e: Event) => number) {
+  const derived = connectorDerived(c);
+  const others = v.doc.levels.filter((l) => l.id !== c.level_from);
+  return html`<div class="sel" data-selected-connector=${c.id}>
+    <div class="selhead"><strong>${CONNECTOR_LABEL[c.kind] ?? c.kind}</strong><span class="muted">${connectorLabelOf(v.doc, c)}</span></div>
+    ${derived ? html`<div class="note" data-conn-derived>נגזר מעצם (${c.object_id ?? ''}): המיקום, הרוחב והמפלסים מגיעים מהעצם; ערוך אותו בספריית העצמים.</div>` : nothing}
+    <div class="two">
+      <sw-field label="סוג"><select data-conn-kind ?disabled=${derived} @change=${(e: Event) => a.patch(c.id, { kind: (e.target as HTMLSelectElement).value as ConnectorKind })}>${(['stairs', 'ramp', 'elevator', 'ladder', 'tribune'] as ConnectorKind[]).map((k) => html`<option value=${k} ?selected=${k === c.kind}>${CONNECTOR_LABEL[k]}</option>`)}</select></sw-field>
+      <sw-field label="רוחב (מ׳)"><input type="number" min="0.05" max="100" step="0.1" data-ltr data-conn-width ?disabled=${derived} .value=${String(c.width_m)} @change=${(e: Event) => { const x = num(e); if (x >= 0.05 && x <= 100) a.patch(c.id, { width_m: x }); }} /></sw-field>
+    </div>
+    <div class="two">
+      <sw-field label="ממפלס"><select data-conn-from ?disabled=${derived} @change=${(e: Event) => a.patch(c.id, { level_from: (e.target as HTMLSelectElement).value })}>${v.doc.levels.map((l) => html`<option value=${l.id} ?selected=${l.id === c.level_from}>${l.name}</option>`)}</select></sw-field>
+      <sw-field label="למפלס"><select data-conn-to ?disabled=${derived || c.floor_ids.length > 0} @change=${(e: Event) => a.patch(c.id, { level_to: (e.target as HTMLSelectElement).value || null })}>
+        <option value="" ?selected=${!c.level_to}>${c.floor_ids.length ? 'קומה אחרת' : 'בחר מפלס'}</option>${others.map((l) => html`<option value=${l.id} ?selected=${l.id === c.level_to}>${l.name}</option>`)}</select></sw-field>
+    </div>
+    <sw-field label="תווית (אופציונלי; ריק = הפרש הגובה)"><input type="text" maxlength="80" data-conn-label ?disabled=${derived} .value=${c.label ?? ''} @change=${(e: Event) => a.patch(c.id, { label: (e.target as HTMLInputElement).value.trim() || null })} /></sw-field>
+    ${!derived
+      ? html`<div class="row"><span class="lbl">קשר לקומה<span class="muted">${c.floor_ids.length ? `מקושר: ${c.floor_ids.length} קומות · אותו מזהה בשתי הקומות` : 'מדרגות או מעלית לקומה אחרת מופיעות בטיוטה של שתי הקומות'}</span></span>
+          <select data-conn-link-floor aria-label="קומה" ?disabled=${!v.floors.length} @change=${(e: Event) => a.setLinkFloor((e.target as HTMLSelectElement).value)}>
+            <option value="" ?selected=${!v.linkFloor}>בחר קומה</option>${v.floors.map((f) => html`<option value=${f.id} ?selected=${f.id === v.linkFloor}>${f.name}</option>`)}</select>
+          <sw-button size="sm" data-conn-link ?disabled=${!v.linkFloor || v.linkBusy} @click=${() => a.link(c.id)}>${v.linkBusy ? 'מקשר…' : 'קשר'}</sw-button></div>`
+      : nothing}
+    <div class="note">${levelName(c.level_from)} ← ${c.floor_ids.length ? 'קומה אחרת' : levelName(c.level_to)}${derived ? '' : ' · גרירת פינה מזיזה את המחבר'}</div>
+    ${!derived ? html`<div class="btns"><sw-button size="sm" variant="ghost" icon="trash" data-geom-delete @click=${() => a.remove(c.id)}>מחק מחבר</sw-button></div>` : nothing}
+  </div>`;
+}
+
+function connectorLabelOf(doc: GeometryDoc, c: GeomConnector): string {
+  return connectorLabel(new Map(doc.levels.map((l) => [l.id, l])), c);
+}
+
+// ---------------------------------------------------------------- circuits (T085)
+
+export interface CircuitView {
+  doc: GeometryDoc;
+  sel: GeomCircuit | undefined;
+  membersMode: boolean;
+  power: (k: GeomCircuit) => number;
+  creating: { name: string; q: string; results: HaEntity[]; entity: HaEntity | null; color: string; busy: boolean } | null;
+  saveState: SaveState;
+  colors: readonly string[];
+}
+
+export interface CircuitActions {
+  select(id: string | null): void;
+  startNew(): void;
+  cancelNew(): void;
+  setNew(patch: Partial<NonNullable<CircuitView['creating']>>): void;
+  create(): void;
+  patch(id: string, patch: Partial<GeomCircuit>): void;
+  toggleMembers(): void;
+  remove(id: string): void;
+}
+
+/** The circuit colour as a CSS variable: a document string reaches the inline style only through the whitelist. */
+const circuitVar = (token: string): string => `var(--sw-${circuitToken(token) ?? 'circuit-1'})`;
+
+export function renderCircuitPanel(v: CircuitView, a: CircuitActions): TemplateResult {
+  const c = v.creating;
+  const sel = v.sel;
+  return html`<sw-card heading="מעגלי תאורה" subheading=${v.membersMode ? 'לחץ על מנורות כדי להוסיף או להסיר מהמעגל' : 'כמה מנורות על ישות מפסק אחת ב־Home Assistant'} data-circuit-panel data-studio-save=${v.saveState}>
+    ${v.doc.circuits.length
+      ? html`<div class="list">${v.doc.circuits.map((k) => html`<button class=${sel?.id === k.id ? 'on' : ''} data-circuit-row=${k.id} style=${`border-inline-start: 4px solid ${circuitVar(k.color_token)}`} @click=${() => a.select(sel?.id === k.id ? null : k.id)}>
+          <span>${k.name}</span><span class="note ltr" style="margin:0">${k.member_ids.length} · ${v.power(k)} W · ${k.switch_entity_id}</span>
+        </button>`)}</div>`
+      : html`<div class="note">עדיין אין מעגלים בקומה.</div>`}
+    ${c
+      ? html`<div class="sel" data-circuit-new-form>
+          <sw-field label="שם המעגל"><input type="text" maxlength="80" data-circuit-name placeholder="למשל: אולם צפון" .value=${c.name} @input=${(e: Event) => a.setNew({ name: (e.target as HTMLInputElement).value })} /></sw-field>
+          <sw-field label="ישות המפסק (switch / light)"><input type="search" data-ltr data-circuit-switch-q placeholder="חיפוש בקטלוג HA" .value=${c.q} @input=${(e: Event) => a.setNew({ q: (e.target as HTMLInputElement).value })} /></sw-field>
+          <div class="list">${c.results.slice(0, 20).map((e) => html`<button class=${c.entity?.entity_id === e.entity_id ? 'on' : ''} data-circuit-switch=${e.entity_id} @click=${() => a.setNew({ entity: e })}><span>${e.name || e.original_name || e.entity_id}</span><span class="ltr">${e.entity_id}</span></button>`)}</div>
+          <sw-field label="צבע"><select data-circuit-color @change=${(e: Event) => a.setNew({ color: (e.target as HTMLSelectElement).value })}>${v.colors.map((col, i) => html`<option value=${col} ?selected=${col === c.color}>מעגל ${i + 1}</option>`)}</select></sw-field>
+          <div class="btns"><sw-button variant="primary" size="sm" icon="check" data-circuit-create ?disabled=${c.busy || !c.name.trim() || !c.entity} @click=${() => a.create()}>צור מעגל</sw-button><sw-button variant="ghost" size="sm" data-circuit-cancel @click=${() => a.cancelNew()}>ביטול</sw-button></div>
+        </div>`
+      : html`<div class="btns"><sw-button size="sm" icon="plus" data-circuit-new @click=${() => a.startNew()}>מעגל חדש</sw-button></div>`}
+    ${sel && !c ? renderCircuitInspector(sel, v, a) : nothing}
+  </sw-card>`;
+}
+
+function renderCircuitInspector(k: GeomCircuit, v: CircuitView, a: CircuitActions) {
+  return html`<div class="sel" data-selected-circuit=${k.id} style=${`--kc: ${circuitVar(k.color_token)}`}>
+    <div class="selhead"><strong>${k.name}</strong><span class="muted ltr">${k.switch_entity_id}</span></div>
+    <div class="note"><span data-circuit-count>${countLabel(k.member_ids.length, 'מנורה אחת', 'מנורות')}</span> · <span data-circuit-power>${v.power(k)} W</span></div>
+    <div class="two">
+      <sw-field label="שם"><input type="text" maxlength="80" data-circuit-rename .value=${k.name} @change=${(e: Event) => { const x = (e.target as HTMLInputElement).value.trim(); if (x) a.patch(k.id, { name: x }); }} /></sw-field>
+      <sw-field label="צבע"><select @change=${(e: Event) => a.patch(k.id, { color_token: (e.target as HTMLSelectElement).value })}>${v.colors.map((col, i) => html`<option value=${col} ?selected=${col === k.color_token}>מעגל ${i + 1}</option>`)}</select></sw-field>
+    </div>
+    <div class="btns">
+      <sw-button size="sm" variant=${v.membersMode ? 'primary' : 'ghost'} icon="light" data-circuit-members aria-pressed=${v.membersMode} @click=${() => a.toggleMembers()}>${v.membersMode ? 'סיים בחירת מנורות' : 'הוסף / הסר מנורות'}</sw-button>
+      <sw-button size="sm" variant="ghost" icon="trash" data-circuit-delete @click=${() => a.remove(k.id)}>מחק מעגל</sw-button>
+    </div>
+    <div class="note">המצב החי של המנורות נגזר מהמפסק; ההפעלה מהמפה החיה היא פעולת HA הקיימת, באותן הרשאות.</div>
+  </div>`;
 }
 
 export const studioPanelStyles = css`
@@ -612,5 +923,11 @@ export const studioPanelStyles = css`
   }
   .libitem .fav.on {
     color: var(--sw-warning);
+  }
+  .levelchips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
   }
 `;

@@ -62,6 +62,7 @@ const PATHS: Record<string, ReturnType<typeof svg>> = {
   forward10: svg`<path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/><path d="M10.5 15.5V10l-1.5 1"/><rect x="13.5" y="10" width="3.5" height="5.5" rx="1.7"/>`,
   chevronDown: svg`<path d="m6 9 6 6 6-6"/>`,
   stairs: svg`<path d="M3 20h4v-4h4v-4h4V8h5"/>`,
+  bolt: svg`<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>`,
   wall: svg`<path d="M3 5h18v4H3zM3 15h18v4H3zM8 9v6M16 9v6"/>`,
   ruler: svg`<path d="M3 16 16 3l5 5L8 21z"/><path d="m7 12 2 2M10 9l2 2M13 6l2 2"/>`,
   scale: svg`<path d="M4 20h16M4 20V8M20 20V8M4 8l8-4 8 4M8 14h8"/>`,

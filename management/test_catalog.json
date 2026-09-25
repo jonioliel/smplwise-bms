@@ -4775,13 +4775,17 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "ספריית עצמים מובנית (כ־150 פריטים ב־12 קטגוריות, כולל רפואה, ספורט ובטיחות) ופריטים מותאמים, עם חיפוש בעברית ובאנגלית, הצבה, סיבוב, מתיחה ומערך; עצם שמייצג ישות HA הוא הגוף של העוגן הקיים — מיקום אחד, מצב חי אחד, אותן הרשאות.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
+    "status": "PASS",
+    "commit": "6650ccd",
+    "environment": "workstation: dev backend 0.1.85 (SQLite) on 8099 + vite preview 4173, Chrome through Playwright; pytest on Python 3.12 (2026-09-25)",
     "evidence": [
-      "partial (2026-09-25, 0.1.84, on commit 6959805): object library, custom items and the anchor-body offer are implemented and covered by backend tests test_catalog.py, test_catalog_images.py, test_plan_catalog.py, test_plan_catalog_api.py, test_plan_geometry_objects.py and test_plan_geometry_binding.py (part of the 286-passed full suite), and by the live test tests/evidence-plan-studio-2.spec.ts (placing by click/drag, handles, the lamp-on-anchor body offer) in real Chrome. Not covered: custom items authored from the editor itself, the custom-library export/import UI, and arrays - deferred to part 2 (0.1.85). Status stays NOT_RUN: this is not the full phase acceptance scenario."
+      "smplwise_vms/backend/tests/test_plan_catalog.py, test_plan_catalog_api.py (153 items, 12 categories, custom items, export / import, catalog.manage) - part 1, still green",
+      "smplwise_vms/backend/tests/test_plan_geometry_binding.py (the body of an anchor: position from the anchor on save and publish, un-binding) - part 1, still green",
+      "frontend/tests/unit-geometry-2.spec.ts, unit-studio-ops-2.spec.ts (primitives vs the golden, search, placing, rotate, stretch, arrays; addArray, removeGroup - 38/38)",
+      "frontend/tests/evidence-plan-studio-2.spec.ts, 'acceptance: the sports hall' test (line 415): library search, placing, sixty chairs in one array, a custom item exported - PASS in this run on commit 4a09879; the file's separate phone-width test (line 468) failed on a drag-precision issue, out of this expectation's scope (see the T085 evidence line)",
+      "follow-up (2026-09-25, 0.1.85, on commit 6650ccd): the phone-width test (line 468) that failed on commit 4a09879 passes 8/8 (five runs) after 1085079 fixed the object press order; the level-filter and group fixes of 7878e73 are covered by unit-studio-ops-2.spec.ts"
     ],
-    "executed_at": null,
+    "executed_at": "2026-09-25T05:36:51Z",
     "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
   },
   {
@@ -4805,13 +4809,16 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "מפלסים בקומה (גובה רצפה ותקרה, גם לעוגנים ולחדרים) ומחברים (מדרגות, רמפה, טריבונה, מעלית) בין מפלסים וקומות; מעגלי תאורה (כמה מנורות על ישות מפסק ב־HA) במצב חי ובהפעלה מהמפה החיה בהרשאה; עצמים נמצאים בחיפוש הגלובלי.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
+    "status": "PASS",
+    "commit": "6650ccd",
+    "environment": "workstation: dev backend 0.1.85 (SQLite) on 8099 + vite preview 4173, Chrome through Playwright; pytest on Python 3.12 (2026-09-25)",
     "evidence": [
-      "partial (2026-09-25, 0.1.84, on commit 6959805): levels, connectors (including the cross-floor link route) and circuits (glow, HA switch control) are implemented and covered by backend tests test_plan_geometry_model.py, test_plan_geometry_render.py, test_plan_geometry_render2.py, test_plan_geometry_export.py, test_plan_geometry_integration.py and test_plan_circuits_search.py (part of the 286-passed full suite), and by the live test tests/evidence-plan-studio-2.spec.ts (published objects and connectors on the live map with their own layer switches and in the exports) in real Chrome. Not covered: the level chips / add-level dialog, the connector and circuit panels, and the global-search focus screen - a search result of type object opens the floor map but does not yet centre the view on the object (?focus=object:<id> lands in part 2, 0.1.85). Status stays NOT_RUN: this is not the full phase acceptance scenario."
+      "smplwise_vms/backend/tests/test_plan_geometry_objects.py, test_plan_geometry_render2.py (levels, connectors with the level delta, derived tribune connector) - part 1, still green",
+      "smplwise_vms/backend/tests/test_plan_circuits_search.py (circuit states in the bundle, control through the entity action route, zones and anchors on a level, objects in the search) - part 1, still green",
+      "frontend/tests/evidence-plan-studio-2.spec.ts, 'acceptance: the sports hall' test (line 415): a level at -1.2 m with a tribune connector, eight lamps on two circuits glowing by simulated switch states, the toggle through the action route (task 13's test, same file), search focus - PASS in this run on commit 4a09879",
+      "follow-up (2026-09-25, 0.1.85, on commit 6650ccd): the acceptance test re-ran green on 7878e73 (evidence-plan-studio-2.spec.ts 8/8); the circuit toggle still answers the action route in the browser, nothing reaches Home Assistant"
     ],
-    "executed_at": null,
+    "executed_at": "2026-09-25T05:36:51Z",
     "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
   },
   {

@@ -185,6 +185,59 @@ test.describe('studio controller (unit)', () => {
     expect(await shows(bare)).toBe(false);
   });
 
+  // T085 task 11: the server derives the connector of an object that connects levels and recomputes circuit power; the
+  // editor takes both from the save answer, but only while nothing changed since the save went out.
+  test('a save answer brings the server-derived connectors and circuit power, unless a local edit came after the save', async () => {
+    const releases: ((extra?: Partial<GeometryDoc>) => void)[] = [];
+    let rev = 0;
+    const api: StudioApi = {
+      load: async (): Promise<GeometryResponse> => ({ geometry: row(0, 'new'), doc: sample(), issues: [], published_hash: null, copy_candidates: [] }),
+      save: (_id, d) => new Promise<GeometryResponse>((resolve) => releases.push(() => {
+        rev += 1;
+        const derived = { id: 'cx-o9', kind: 'tribune', level_from: 'L0', level_to: 'L1', floor_ids: [], polyline: [[0.1, 0.1], [0.1, 0.2]], width_m: 2, label: null, object_id: 'o9', source: 'auto', external_ids: {} } as unknown as GeomConnector;
+        resolve({ geometry: row(rev, 'draft'), doc: { ...d, walls: [], connectors: [...d.connectors, derived], circuits: d.circuits.map((k) => ({ ...k, power_w: 999, member_ids: [] })) }, issues: [], published_hash: null });
+      })),
+    };
+    const c = new StudioController(host(), api, 20);
+    await c.load('v1');
+    c.commit({ ...c.doc!, labels: [] });
+    const undoSteps = c.canUndo;
+    const saving = c.flush();
+    releases[0]();
+    await saving;
+    expect(c.doc!.connectors.map((x) => x.id)).toContain('cx-o9');
+    expect(c.doc!.circuits[0].power_w).toBe(999);
+    expect(c.revision).toBe(1); // revision and hash are the answer's
+    expect(c.hash).toBe('h1');
+    expect(c.saveState).toBe('saved');
+    expect(c.doc!.circuits[0].member_ids).toEqual(sample().circuits[0].member_ids); // only the power: the members are the editor's
+    expect(c.doc!.walls.length).toBe(sample().walls.length); // walls, openings, labels and objects stay the local ones
+    expect(c.doc!.labels).toEqual([]);
+    expect(c.canUndo).toBe(undoSteps);
+    c.undo();
+    expect(c.canUndo).toBe(false); // the adoption added no undo step
+    const afterUndo = c.flush();
+    releases[1]();
+    await afterUndo;
+    // an edit made while the save is in flight: that answer is not taken over (the next save brings it again)
+    await c.load('v1');
+    c.commit({ ...c.doc!, labels: [] });
+    const second = c.flush();
+    await sleep(5);
+    c.commit({ ...c.doc!, walls: c.doc!.walls.slice(0, 1) });
+    releases[2]();
+    await sleep(5);
+    expect(c.doc!.connectors.map((x) => x.id)).not.toContain('cx-o9');
+    expect(c.doc!.walls.length).toBe(1);
+    expect(releases.length).toBe(4); // the later edit goes out as its own save
+    releases[3]();
+    await second;
+    expect(c.doc!.connectors.map((x) => x.id)).toContain('cx-o9'); // that answer brings the derived connector
+    expect(c.doc!.walls.length).toBe(1);
+    expect(c.revision).toBe(4);
+    expect(c.saveState).toBe('saved');
+  });
+
   // Loads and saves answer only when the test says so, to replay the races of switching and reloading versions.
   test('an overtaken load and a save answered after a newer load change nothing', async () => {
     const answer: Record<string, (r: GeometryResponse) => void> = {};

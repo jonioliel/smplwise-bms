@@ -10,6 +10,17 @@ export interface StudioApi {
   save: (versionId: string, doc: GeometryDoc, baseRevision: number) => Promise<GeometryResponse>;
 }
 
+/** What the server computes on save and the editor cannot (T085): the connectors derived from objects that connect levels
+ * and each circuit's power. Walls, openings, labels, objects and circuit members stay the editor's. */
+function adoptServerParts(local: GeometryDoc, server: GeometryDoc): GeometryDoc {
+  const power = new Map((server.circuits ?? []).map((k) => [k.id, k.power_w]));
+  return {
+    ...local,
+    connectors: server.connectors ?? local.connectors,
+    circuits: local.circuits.map((k) => (power.has(k.id) ? { ...k, power_w: power.get(k.id)! } : k)),
+  };
+}
+
 const DEFAULT_API: StudioApi = { load: (id) => getGeometry(id, { draft: true }), save: (id, doc, base) => saveGeometryDraft(id, doc, base) };
 
 /**
@@ -170,6 +181,7 @@ export class StudioController implements ReactiveController {
       const r = await this.api.save(id, doc, this.revision);
       if (loaded !== this.loaded) return; // a newer load replaced the working state: this answer belongs to the old one
       this.apply(r);
+      if (this.doc === doc && r.doc) this.doc = adoptServerParts(doc, r.doc);
       this.saveState = this.dirty ? 'pending' : 'saved';
       this.error = '';
     } catch (err) {

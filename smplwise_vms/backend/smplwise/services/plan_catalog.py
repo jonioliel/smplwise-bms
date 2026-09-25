@@ -200,7 +200,7 @@ def custom_values(body: Mapping[str, Any], *, existing: sqlite3.Row | Mapping[st
     base item's (based_on), over the neutral defaults. Raises ValueError(message) when the result breaks a rule of
     check_item. Unknown keys in the body are ignored (an export carries created_at and updated_at)."""
     based_on = body["based_on"] if "based_on" in body else (existing["based_on"] if existing is not None else None)
-    if based_on is not None and based_on not in builtin()["items"]:
+    if based_on is not None and (not isinstance(based_on, str) or based_on not in builtin()["items"]):
         raise ValueError("based_on חייב להיות מזהה של פריט מובנה")
     base = builtin()["items"].get(based_on) if based_on else None
     merged: dict[str, Any] = copy.deepcopy(DEFAULT_CUSTOM)

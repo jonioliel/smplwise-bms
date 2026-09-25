@@ -3,7 +3,7 @@ import { customElement, property, state, query } from 'lit/decorators.js';
 import '../components/sw-button';
 import { t } from '../i18n/he';
 import type { StateKind } from '../components/sw-badge';
-import { applyAnchorPositions, buildPrimitives, circuitToken, isClosedOutline, type AnchorPosition, type CatalogLookup, type DoorPrim, type GeometryDoc, type LabelPrim, type ConnectorPrim, type ObjectPrim, type PassagePrim, type Primitive, type Pt, type WallPrim, type WindowPrim } from './geometry';
+import { applyAnchorPositions, buildPrimitives, circuitToken, isClosedOutline, objectHitOrder, type AnchorPosition, type CatalogLookup, type DoorPrim, type GeometryDoc, type LabelPrim, type ConnectorPrim, type ObjectPrim, type PassagePrim, type Primitive, type Pt, type WallPrim, type WindowPrim } from './geometry';
 import { symbolOf } from './plan-symbols';
 
 export type MarkerKind = 'camera' | 'lock' | 'light' | 'binary_sensor';
@@ -179,6 +179,8 @@ export class SwPlanCanvas extends LitElement {
   /** Items with a validation error, drawn in red (editor). */
   @property({ attribute: false }) issueIds: string[] = [];
   @property() selectedGeomId: string | null = null;
+  /** Items drawn selected besides selectedGeomId (the members of a selected group). */
+  @property({ attribute: false }) highlightIds: string[] = [];
   /** T085: the library shapes (symbol, colour) the object layer draws with; without it every object is a plain box. */
   @property({ attribute: false }) catalog: CatalogLookup | null = null;
   /** T085: the live anchors of the floor ("<type>:<id>" -> position): a bound object draws on its anchor, not where the
@@ -1324,13 +1326,14 @@ export class SwPlanCanvas extends LitElement {
     if (!doc) return nothing;
     const inv = 1 / this.scale;
     const issues = new Set(this.issueIds);
+    const marked = new Set(this.highlightIds);
     const shown = this.primitives(doc).filter((p) => (p.kind === 'object' ? !this.hideObjects : p.kind === 'connector' ? !this.hideConnectors : !this.hideStructure));
     // --inv: the CSS rules keep their outline and glow widths constant on screen, like the attribute widths below
-    return svg`<g class="structure" data-structure style=${`--inv: ${inv}`}>${shown.map((p) => this.renderPrimitive(p, inv, issues))}</g>`;
+    return svg`<g class="structure" data-structure style=${`--inv: ${inv}`}>${shown.map((p) => this.renderPrimitive(p, inv, issues, marked))}</g>`;
   }
 
-  private renderPrimitive(p: Primitive, inv: number, issues: Set<string>) {
-    const cls = `${p.id === this.selectedGeomId ? 'sel' : ''} ${issues.has(p.id) ? 'issue' : ''}`;
+  private renderPrimitive(p: Primitive, inv: number, issues: Set<string>, marked: Set<string> = new Set()) {
+    const cls = `${p.id === this.selectedGeomId || marked.has(p.id) ? 'sel' : ''} ${issues.has(p.id) ? 'issue' : ''}`;
     switch (p.kind) {
       case 'wall':
         return svg`<g class="wall-g ${cls}" data-wall=${p.id}><polyline class="wall" points=${ptsAttr(p.points)} stroke-width=${p.width} /></g>`;
@@ -1520,7 +1523,7 @@ export class SwPlanCanvas extends LitElement {
     const selConnector = objectsOn ? doc.connectors.find((c) => c.id === this.selectedGeomId) : undefined;
     return svg`<g class="geom-hits">
       ${connectors.map((p) => svg`<path class="hit" data-hit-connector=${p.id} d=${`M ${p.points.map((q) => `${q[0]} ${q[1]}`).join(' L ')}`} stroke-width=${Math.max(p.width, 12 * inv)} @click=${(e: Event) => this.pickConnector(p.id, e)} />`)}
-      ${objects.map((p) => svg`<polygon class="hit ohit" data-hit-object=${p.id} points=${ptsAttr(p.corners)} @pointerdown=${(e: PointerEvent) => this.onGeomDragStart(e.altKey ? 'object-duplicate' : 'object', p.id, 0, e)} @click=${(e: Event) => e.stopPropagation()} />`)}
+      ${objectHitOrder(objects, this.selectedGeomId).map((p) => svg`<polygon class="hit ohit" data-hit-object=${p.id} points=${ptsAttr(p.corners)} @pointerdown=${(e: PointerEvent) => this.onGeomDragStart(e.altKey ? 'object-duplicate' : 'object', p.id, 0, e)} @click=${(e: Event) => e.stopPropagation()} />`)}
       ${selConnector && !selConnector.object_id ? selConnector.polyline.map((v, i) => svg`<circle class="gvtx" data-connector-vertex=${i} cx=${v[0] * W} cy=${v[1] * H} r=${6 * inv} stroke-width=${1.6 * inv} aria-label=${`פינת מחבר ${i + 1}`}
           @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('connector-vertex', selConnector.id, i, e)} @click=${(e: Event) => e.stopPropagation()} />`) : nothing}
       ${selObject ? this.renderObjectHandles(selObject, inv) : nothing}

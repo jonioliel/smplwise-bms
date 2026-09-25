@@ -95,6 +95,19 @@ def test_group_connector_and_circuit_rules():
     assert any(i["code"] == "limit" and i["structural"] for i in pg.validate(big))
 
 
+def test_a_circuit_colour_outside_the_six_tokens_is_a_geometric_error():
+    """The maps turn color_token into a CSS variable name (the frontend whitelist CIRCUIT_TOKENS in geometry.ts): only
+    circuit-1..circuit-6 are accepted; anything else is kept with the draft and blocks publishing."""
+    d = _doc()
+    d["objects"] = [OBJ("o2", item="light.ceiling", pos=(0.5, 0.3))]
+    d["circuits"] = [{"id": f"k{i}", "name": "אולם", "switch_entity_id": "switch.hall", "member_ids": [], "color_token": f"circuit-{i}", "power_w": 0} for i in range(1, 7)]
+    d["circuits"] += [{"id": f"x{i}", "name": "אולם", "switch_entity_id": "switch.hall", "member_ids": [], "color_token": t, "power_w": 0}
+                      for i, t in enumerate(["circuit-7", "circuit-0", "accent", "red); background: url(x", "Circuit-1", ""])]
+    issues = [i for i in pg.validate(d) if i["code"] == "enum" and i["path"] == "circuits"]
+    assert sorted(i["id"] for i in issues) == [f"x{i}" for i in range(6)], "the six tokens pass; every other string is refused"
+    assert all(not i["structural"] and i["severity"] == "error" for i in issues), "geometric: kept with the draft, blocks publishing"
+
+
 def test_normalize_sums_circuit_power_and_derives_the_tribune_connector():
     d = _doc()
     d["objects"] = [OBJ("l1", item="light.ceiling", pos=(0.5, 0.3), size={"w_m": 0.4, "d_m": 0.4, "h_m": 0.1}, z_m=2.7),

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { GeometryDoc, GeomObject } from '../src/map/geometry';
 import type { CatalogItem } from '../src/api/plan-catalog';
-import { addObject, duplicateObject, moveObject, objectZ, patchObject, removeItem, rotationTo, stretchedSize } from '../src/map/studio-ops';
+import { addArray, addCircuit, addConnector, addLevel, addObject, arrayDefaults, circuitPower, duplicateObject, levelUsage, moveConnectorVertex, moveGroup, moveObject, objectZ, patchCircuit, patchConnector, patchLevel, patchObject, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember, visibleUnderLevel } from '../src/map/studio-ops';
 
 // Plan Studio phase 2 (T085): the pure document operations of the editor - placing an item (its size, z and params come
 // from the library), moving, rotating, stretching, duplicating, and removing an object out of its group, its circuit
@@ -60,11 +60,122 @@ test.describe('plan studio object operations (unit)', () => {
     expect(noTribune.connectors.map((c) => c.id)).toEqual(['c1']);
     const noChair = removeItem(doc, 'o1');
     expect(noChair.groups[0].member_ids).toEqual(['o2']);
+    const noMembers = removeItem(noChair, 'o2'); // the group's last member goes: the empty group row drops with it
+    expect(noMembers.groups).toEqual([]);
     const noGroup = removeItem(doc, 'g1');
     expect(noGroup.groups).toEqual([]);
     expect(noGroup.objects.filter((o) => o.group_id === null).length).toBe(5);
     expect(removeItem(doc, 'c1').connectors.map((c) => c.id)).toEqual(['cx-o4']);
     expect(removeItem(doc, 'k1').circuits).toEqual([]);
     expect((doc.objects[0] as GeomObject).group_id).toBe('g1'); // the input is untouched
+  });
+
+  test('an array of 6 x 10 chairs is one group; the origin is member [0, 0]; the group moves as one', () => {
+    let doc = sample();
+    const placed = addObject(doc, item('chair.basic'), [0.1, 0.1], PLACE);
+    doc = placed.doc;
+    expect(arrayDefaults(item('chair.basic'))).toEqual({ spacingX: 0.5, spacingY: 0.9 });
+    const arr = addArray(doc, placed.id, { rows: 6, cols: 10, spacingX: 0.5, spacingY: 0.9, directionDeg: 0 }, 1000, 800, 0.01)!;
+    expect(arr).not.toBeNull();
+    expect(arr.ids.length).toBe(60);
+    expect(arr.ids[0]).toBe(placed.id);
+    const g = arr.doc.groups.find((x) => x.id === arr.groupId)!;
+    expect(g).toMatchObject({ kind: 'array', member_ids: arr.ids, params: { rows: 6, cols: 10, spacing_x_m: 0.5, spacing_y_m: 0.9, direction_deg: 0, item_id: 'chair.basic' } });
+    expect(arr.doc.objects.length).toBe(doc.objects.length + 59);
+    const at = (id: string) => arr.doc.objects.find((o) => o.id === id)!;
+    expect(at(arr.ids[9]).position).toEqual([0.55, 0.1]); // column 9: 9 x 0.5 m = 450 px of 1000
+    expect(at(arr.ids[50]).position).toEqual([0.1, 0.6625]); // row 5: 5 x 0.9 m = 450 px of 800
+    expect(at(arr.ids[59]).group_id).toBe(arr.groupId);
+    expect(at(placed.id).group_id).toBe(arr.groupId);
+    const turned = addArray(doc, placed.id, { rows: 1, cols: 2, spacingX: 1, spacingY: 1, directionDeg: 90 }, 1000, 800, 0.01)!;
+    expect(turned.doc.objects.find((o) => o.id === turned.ids[1])!.position).toEqual([0.1, 0.225]); // the right of a 90 degree turn points down: 100 px of 800
+    expect(addArray(doc, 'nope', { rows: 2, cols: 2, spacingX: 1, spacingY: 1, directionDeg: 0 }, 1000, 800, 0.01)).toBeNull();
+    expect(addArray(doc, placed.id, { rows: 30, cols: 30, spacingX: 1, spacingY: 1, directionDeg: 0 }, 1000, 800, 0.01)).toBeNull(); // 900 > ARRAY_MAX
+    expect(addArray(arr.doc, placed.id, { rows: 2, cols: 2, spacingX: 1, spacingY: 1, directionDeg: 0 }, 1000, 800, 0.01)).toBeNull(); // already in a group
+    const moved = moveGroup(arr.doc, arr.groupId, 0.1, 0);
+    expect(moved.objects.find((o) => o.id === arr.ids[9])!.position).toEqual([0.65, 0.1]);
+    expect(moved.objects.find((o) => o.id === 'o1')!.position).toEqual([0.2, 0.2]); // not a member
+  });
+
+  test('deleting a group keeps or takes its members', () => {
+    let doc = sample();
+    const placed = addObject(doc, item('chair.basic'), [0.1, 0.1], PLACE);
+    const arr = addArray(placed.doc, placed.id, { rows: 2, cols: 3, spacingX: 0.5, spacingY: 0.9, directionDeg: 0 }, 1000, 800, 0.01)!;
+    doc = arr.doc;
+    const kept = removeGroup(doc, arr.groupId, false);
+    expect(kept.groups.some((g) => g.id === arr.groupId)).toBe(false);
+    expect(kept.objects.filter((o) => arr.ids.includes(o.id)).every((o) => o.group_id === null)).toBe(true);
+    expect(kept.objects.length).toBe(doc.objects.length);
+    const gone = removeGroup(doc, arr.groupId, true);
+    expect(gone.objects.some((o) => arr.ids.includes(o.id))).toBe(false);
+    expect(gone.objects.length).toBe(doc.objects.length - 6);
+  });
+
+  test('levels: added with the next free id, one default at a time, removed only when unused', () => {
+    const doc = sample();
+    const added = addLevel(doc, 'גלריה', 3.5, 3.0);
+    expect(added.id).toBe('L2');
+    expect(added.doc.levels.find((l) => l.id === 'L2')).toEqual({ id: 'L2', name: 'גלריה', elevation_m: 3.5, ceiling_height_m: 3.0, is_default: false, external_ids: {} });
+    const asDefault = patchLevel(added.doc, 'L2', { is_default: true });
+    expect(asDefault.levels.map((l) => l.is_default)).toEqual([false, false, true]);
+    expect(levelUsage(doc, 'L1')).toBe(5); // wall wd, label lb, object o5, connectors c1 and cx-o4 (both end there)
+    expect(removeLevel(doc, 'L0')).toBeNull(); // the default
+    expect(removeLevel(doc, 'L1')).toBeNull(); // used
+    expect(removeLevel(added.doc, 'L2')!.levels.length).toBe(2);
+  });
+
+  test('visibleUnderLevel: a wall/opening by its wall, a label/object by its own, a connector on every level, a group by its members', () => {
+    const doc = sample();
+    expect(visibleUnderLevel(doc, 'o1', null)).toBe(true); // no filter: always visible
+    expect(visibleUnderLevel(doc, 'o1', 'L0')).toBe(true); // object o1 is on L0
+    expect(visibleUnderLevel(doc, 'o1', 'L1')).toBe(false);
+    expect(visibleUnderLevel(doc, 'wd', 'L1')).toBe(true); // wall wd is on L1
+    expect(visibleUnderLevel(doc, 'wd', 'L0')).toBe(false);
+    expect(visibleUnderLevel(doc, 'oc', 'L0')).toBe(true); // opening oc's wall wb is on L0
+    expect(visibleUnderLevel(doc, 'of', 'L0')).toBe(false); // opening of's wall wd is on L1
+    expect(visibleUnderLevel(doc, 'of', 'L1')).toBe(true);
+    expect(visibleUnderLevel(doc, 'la', 'L0')).toBe(true); // label la is on L0
+    expect(visibleUnderLevel(doc, 'lb', 'L0')).toBe(false); // label lb is on L1
+    // a connector is drawn on every level (buildPrimitives has no level filter for it, round 2 of the final review):
+    // level_from / level_to are its endpoints, not a visibility test, so it is visible under any filter, including
+    // one matching neither end.
+    expect(visibleUnderLevel(doc, 'c1', 'L0')).toBe(true); // connector c1: L0 -> L1
+    expect(visibleUnderLevel(doc, 'c1', 'L1')).toBe(true);
+    expect(visibleUnderLevel(doc, 'c1', 'L2')).toBe(true); // matches neither end
+    const noLevelTo = addConnector(doc, 'elevator', [0.1, 0.1], [0.1, 0.15], 'L0', null).doc;
+    const cid = noLevelTo.connectors.at(-1)!.id;
+    expect(visibleUnderLevel(noLevelTo, cid, 'L0')).toBe(true);
+    expect(visibleUnderLevel(noLevelTo, cid, 'L1')).toBe(true); // level_to null, still visible
+    expect(visibleUnderLevel(doc, 'g1', 'L0')).toBe(true); // group g1's members o1, o2 are both on L0
+    expect(visibleUnderLevel(doc, 'g1', 'L1')).toBe(false);
+    expect(visibleUnderLevel(doc, 'nope', 'L0')).toBe(true); // unknown id: never hides a selection it cannot place
+  });
+
+  test('connectors: drawn between two points with the kind width, patched and their corners moved inside the plan', () => {
+    const doc = sample();
+    const r = addConnector(doc, 'stairs', [0.7, 0.2], [0.9, 0.2], 'L0', 'L1');
+    const c = r.doc.connectors.find((x) => x.id === r.id)!;
+    expect(c).toEqual({ id: r.id, kind: 'stairs', level_from: 'L0', level_to: 'L1', floor_ids: [], polyline: [[0.7, 0.2], [0.9, 0.2]], width_m: 1.2, label: null, object_id: null, source: 'manual', external_ids: {} });
+    expect(addConnector(doc, 'elevator', [0.1, 0.1], [0.1, 0.15], 'L0', null).doc.connectors.at(-1)!.width_m).toBe(1.6);
+    const wider = patchConnector(r.doc, r.id, { width_m: 2, level_to: null, floor_ids: ['f-other'] });
+    expect(wider.connectors.find((x) => x.id === r.id)).toMatchObject({ width_m: 2, level_to: null, floor_ids: ['f-other'] });
+    expect(moveConnectorVertex(r.doc, r.id, 1, [1.2, 0.3]).connectors.find((x) => x.id === r.id)!.polyline).toEqual([[0.7, 0.2], [1, 0.3]]);
+    expect(moveConnectorVertex(r.doc, 'cx-o4', 0, [0.1, 0.1]).connectors.find((x) => x.id === 'cx-o4')!.polyline).toEqual([[0.25, 0.4125], [0.25, 0.7875]]); // derived: not editable
+  });
+
+  test('circuits: created with a switch entity, lamps toggled in and out (one circuit per lamp), power summed from the items', () => {
+    const doc = sample();
+    const r = addCircuit(doc, 'אולם צפון', 'switch.hall_b', 'circuit-2');
+    expect(r.doc.circuits.find((k) => k.id === r.id)).toEqual({ id: r.id, name: 'אולם צפון', switch_entity_id: 'switch.hall_b', member_ids: [], color_token: 'circuit-2', power_w: 0 });
+    const withLamp = toggleCircuitMember(r.doc, r.id, 'o3'); // o3 belongs to k1: it moves over
+    expect(withLamp.circuits.find((k) => k.id === r.id)!.member_ids).toEqual(['o3']);
+    expect(withLamp.circuits.find((k) => k.id === 'k1')!.member_ids).toEqual([]);
+    expect(toggleCircuitMember(withLamp, r.id, 'o3').circuits.find((k) => k.id === r.id)!.member_ids).toEqual([]);
+    const items = new Map(library.items.map((i) => [i.id, i]));
+    const lookup = (id: string) => items.get(id);
+    expect(circuitPower(withLamp, withLamp.circuits.find((k) => k.id === r.id)!, lookup)).toBe(36); // the item's default
+    const boosted = patchObject(withLamp, 'o3', { params: { power_w: 60 } });
+    expect(circuitPower(boosted, boosted.circuits.find((k) => k.id === r.id)!, lookup)).toBe(60); // the object's own value wins
+    expect(patchCircuit(r.doc, r.id, { name: 'צפון', color_token: 'circuit-3' }).circuits.at(-1)).toMatchObject({ name: 'צפון', color_token: 'circuit-3' });
   });
 });
