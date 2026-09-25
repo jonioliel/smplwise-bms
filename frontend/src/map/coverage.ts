@@ -8,9 +8,9 @@
  * Ruling R-P4-T2-1: only a state that describes the leaf opens a door for a ray (a door / cover "open" or "opening", a
  * binary door sensor "on"). A lock state says nothing about the leaf, so an "unlocked" door is still closed.
  *
- * A camera mounted on a wall (or anywhere inside a wall thickness) is not blinded by that wall: a segment whose centre
- * line is within half its thickness of the camera lets through every ray on the side the camera faces and stops every
- * ray behind it at the camera itself, so the cone neither vanishes nor leaks through the wall it hangs on.
+ * A camera mounted on a wall (or anywhere inside a wall thickness) is not blinded by that wall: a segment the camera
+ * sits inside lets through every ray on the side the camera faces (the enclosed side when it faces along the wall) and
+ * stops every ray behind it at the camera itself, so the cone neither vanishes nor leaks through the wall it hangs on.
  */
 import { buildPrimitives, r2, type CatalogLookup, type GeometryDoc, type Pt } from './geometry';
 
@@ -93,40 +93,66 @@ const unit = (bearingDeg: number): Pt => {
   return [Math.cos(rad), Math.sin(rad)];
 };
 
-function distanceToSegment(p: Pt, a: Pt, b: Pt): number {
-  const ex = b[0] - a[0];
-  const ey = b[1] - a[1];
-  const len2 = ex * ex + ey * ey;
-  const k = len2 > 0 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * ex + (p[1] - a[1]) * ey) / len2)) : 0;
-  return Math.hypot(p[0] - (a[0] + k * ex), p[1] - (a[1] + k * ey));
+const ptKey = (p: Pt): string => `${p[0]},${p[1]}`;
+
+/** Whether a camera at `o` sits inside the thickness of segment s: within half the thickness of its centre line and
+ * alongside it. Past an end of the segment only where another thick segment continues from that end (a bend of the
+ * same wall polyline, a jamb next to a closed gap); past a free end the camera stands beside the wall, not in it (the
+ * drawn end cap is already part of the segment). */
+function sitsInside(o: Pt, s: Seg, len: number, joints: Map<string, number>): boolean {
+  if (!s.w || len <= EPS) return false;
+  const ex = s.b[0] - s.a[0];
+  const ey = s.b[1] - s.a[1];
+  const k = ((o[0] - s.a[0]) * ex + (o[1] - s.a[1]) * ey) / (len * len);
+  const kc = Math.max(0, Math.min(1, k));
+  if (Math.hypot(o[0] - (s.a[0] + kc * ex), o[1] - (s.a[1] + kc * ey)) > s.w / 2 + EPS) return false;
+  if (k < -EPS) return (joints.get(ptKey(s.a)) ?? 0) > 1;
+  if (k > 1 + EPS) return (joints.get(ptKey(s.b)) ?? 0) > 1;
+  return true;
 }
 
 /** The coverage polygon in plan pixels: the origin first (unless the field is a full circle), then one point per ray
  * from `rotation - fov / 2` to `rotation + fov / 2` (bearing 0 = up, clockwise), each stopped by the nearest segment or
  * by the radius. `rays` defaults to one per degree (at least 24). Rounded half-up to 0.01 px like every primitive. A
- * segment the camera sits inside (within half its thickness) passes the rays on the side the camera faces and stops
- * the rays behind it at the origin; a camera facing exactly along such a segment is not stopped by it at all. */
+ * segment the camera sits inside (see sitsInside) passes the rays on one side of it and stops the rays on the other at
+ * the origin. The open side is the one the camera faces; for a camera facing along the segment (new cameras start at
+ * rotation 0, the handles round to whole degrees) it is the side where a probe along the normal meets another segment
+ * (the enclosed side, the room) when only one side does, else the side of the centre line the camera stands on, else
+ * the side of the segment normal - so one half is always blocked. */
 export function clipCoverage(origin: Pt, rotationDeg: number, fovDeg: number, radiusPx: number, segs: Seg[], rays?: number): Pt[] {
   const fov = Math.max(1, Math.min(360, fovDeg));
   const n = Math.max(1, rays ?? Math.max(24, Math.ceil(fov)));
   const facing = unit(rotationDeg);
+  const joints = new Map<string, number>();
+  for (const s of segs) {
+    if (!s.w) continue;
+    for (const p of [s.a, s.b]) joints.set(ptKey(p), (joints.get(ptKey(p)) ?? 0) + 1);
+  }
   const far: Seg[] = [];
-  const inside: { nx: number; ny: number; side: number }[] = [];
+  const within: { s: Seg; nx: number; ny: number }[] = [];
   for (const s of segs) {
     const len = Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1]);
-    if (s.w && len > EPS && distanceToSegment(origin, s.a, s.b) <= s.w / 2 + EPS) {
-      const nx = -(s.b[1] - s.a[1]) / len;
-      const ny = (s.b[0] - s.a[0]) / len;
-      inside.push({ nx, ny, side: facing[0] * nx + facing[1] * ny });
-    } else far.push(s);
+    if (sitsInside(origin, s, len, joints)) within.push({ s, nx: -(s.b[1] - s.a[1]) / len, ny: (s.b[0] - s.a[0]) / len });
+    else far.push(s);
   }
+  const meets = (d: Pt): boolean => far.some((f) => raySegment(origin, d, f.a, f.b) !== null);
+  const inside = within.map(({ s, nx, ny }) => {
+    let side = facing[0] * nx + facing[1] * ny;
+    if (Math.abs(side) < 1e-6) {
+      const plus = meets([nx, ny]);
+      const minus = meets([-nx, -ny]);
+      const off = (origin[0] - s.a[0]) * nx + (origin[1] - s.a[1]) * ny;
+      side = plus !== minus ? (plus ? 1 : -1) : Math.abs(off) > 1e-9 ? Math.sign(off) : 1;
+    }
+    return { nx, ny, side };
+  });
   const pts: Pt[] = fov < 360 ? [[r2(origin[0]), r2(origin[1])]] : [];
   const last = fov < 360 ? n : n - 1; // a full circle: the last ray would repeat the first
   for (let i = 0; i <= last; i++) {
     const d = unit(rotationDeg - fov / 2 + (fov * i) / n);
     let t = radiusPx;
     for (const s of inside) {
-      if (Math.abs(s.side) > 1e-9 && (d[0] * s.nx + d[1] * s.ny) * s.side < -1e-9) t = 0; // behind the wall it hangs on
+      if ((d[0] * s.nx + d[1] * s.ny) * s.side < -1e-9) t = 0; // behind the wall it hangs on
     }
     for (const s of far) {
       if (t === 0) break;

@@ -116,3 +116,30 @@ test('the coverage cache follows the document identity and the door states, and 
   expect(cache.polygon('c', { ...m, rotation: 90 }, d2, W, H, {})[46]).toEqual([0.8, 0.5]);
   expect(JSON.stringify(cache.polygon('c', m, d1, W, H, {}))).toBe(JSON.stringify(coveragePolygon(m, d1, W, H, {})));
 });
+
+/** Inside the room drawn by doc() (wall centre lines 200..800 x 240..560), with the half thickness (10 px) as tolerance. */
+const inRoom = (p: Pt) => p[0] >= 190 && p[0] <= 810 && p[1] >= 230 && p[1] <= 570;
+
+test('a camera aligned with the wall it sits in never sees through it (review R2)', () => {
+  const segs = blockingSegments(doc(), W, H, 'L0', {});
+  // new cameras start at rotation 0 and the handles round to whole degrees: facing exactly along the wall they hang on
+  for (const [o, rot, fov] of [[[202, 400], 0, 90], [[202, 400], 0, 360], [[500, 240], 90, 90], [[198, 238], 90, 90], [[200, 400], 180, 360]] as [Pt, number, number][]) {
+    const pts = clipCoverage(o, rot, fov, 400, segs);
+    expect(pts.filter((p) => !inRoom(p)), `${o} at ${rot} deg, fov ${fov}`).toEqual([]);
+    expect(Math.max(...pts.map((p) => Math.hypot(p[0] - o[0], p[1] - o[1]))), `${o} at ${rot} deg sees into the room`).toBeGreaterThan(150);
+  }
+});
+
+test('a wall end does not swallow a camera beside it, while a corner of one wall polyline still counts as inside (review R2)', () => {
+  // a partition from the south wall up to y = 310 (drawn to y = 300 with its end cap); the camera 5 px past the drawn end
+  const d = doc([], [wall('part', [[0.5, 0.7], [0.5, 0.3875]])]);
+  const pts = clipCoverage([500, 295], 90, 360, 400, blockingSegments(d, W, H, 'L0', {}));
+  const east = (bearing: number): Pt => pts[(bearing + 90) % 360]; // facing east, 360 rays: index = bearing + 90
+  expect(east(270)).toEqual([200, 295]); // open space to the west reaches the west wall
+  expect(east(90)).toEqual([800, 295]);
+  expect(east(0)).toEqual([500, 240]);
+  expect(pts.every((p) => Math.hypot(p[0] - 500, p[1] - 295) > 1)).toBe(true); // no ray stopped at the camera
+  // the room as one closed polyline: a camera in the outer quadrant of a bend is inside both of its segments
+  const ring = { ...doc(), walls: [wall('ring', [[0.2, 0.3], [0.8, 0.3], [0.8, 0.7], [0.2, 0.7], [0.2, 0.3]])] };
+  expect(clipCoverage([802, 238], 225, 90, 600, blockingSegments(ring, W, H, 'L0', {}))[46]).toEqual([480, 560]);
+});
