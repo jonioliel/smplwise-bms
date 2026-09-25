@@ -513,16 +513,26 @@ export class InvestigateEventDetail extends LitElement {
     return desc;
   }
 
-  /** A click in the 3D only selects (no actions from the event page): a camera or an entity, or the entity an object or a
-   * door is bound to; anything else clears. */
+  /** A click in the 3D only selects (no actions from the event page), with the history map's rule: a camera or an entity,
+   * or the entity an object or a door is bound to, becomes the selection; the floor (an empty click) clears it; any other
+   * part (a room, a wall, a connector, an unbound object) leaves it unchanged. */
   private onPartSelect(e: CustomEvent<PartSelectDetail>) {
     const { id, kind } = e.detail;
-    if (id && (kind === 'camera' || kind === 'entity')) {
-      this.selected3d = id;
+    if (!id) {
+      this.selected3d = null;
       return;
     }
-    const ref = id && (kind === 'object' || kind === 'opening') ? (kind === 'object' ? this.geometry?.objects : this.geometry?.openings)?.find((o) => o.id === id)?.anchor_ref : null;
-    this.selected3d = ref ? this.bundle?.anchors.find((a) => a.resource_type === ref.resource_type && a.resource_id === ref.resource_id)?.id ?? null : null;
+    let pick: string | null = kind === 'camera' || kind === 'entity' ? id : null;
+    if (kind === 'object' || kind === 'opening') {
+      const ref = (kind === 'object' ? this.geometry?.objects : this.geometry?.openings)?.find((o) => o.id === id)?.anchor_ref;
+      pick = ref ? this.bundle?.anchors.find((a) => a.resource_type === ref.resource_type && a.resource_id === ref.resource_id)?.id ?? null : null;
+    }
+    if (pick) this.selected3d = pick;
+  }
+
+  /** The 3D is on screen. The 2D canvas stays mounted underneath (hidden), so its pan and zoom survive a round trip. */
+  private get shows3d(): boolean {
+    return this.view3d && this.threeState === 'ready' && this.sceneDescription !== null;
   }
 
   private async toggle3d(): Promise<void> {
@@ -595,14 +605,15 @@ export class InvestigateEventDetail extends LitElement {
                 ? html`<div class="map" style=${this.view3d ? 'block-size:320px' : ''}>
                     <div class="floorchip"><sw-icon name="building" size=${12}></sw-icon>${loc.floor_name}</div>
                     <div class="tools3d">
-                      <sw-button size="sm" icon="cube" aria-pressed=${this.view3d} data-event-3d ?disabled=${!this.view3d && (!webglAvailable() || !this.hasScene || this.threeState === 'loading')}
+                      <sw-button size="sm" icon="cube" aria-pressed=${this.view3d} data-event-3d-toggle ?disabled=${!this.view3d && (!webglAvailable() || !this.hasScene || this.threeState === 'loading')}
                         title=${!webglAvailable() ? WEBGL_UNAVAILABLE_HE : !this.hasScene ? 'אין מבנה מפורסם לקומה הזו' : 'מבט מהמצלמה בתלת-ממד'} @click=${() => this.toggle3d()}>${this.view3d ? '2D' : '3D'}</sw-button>
                     </div>
-                    ${this.view3d && this.threeState === 'ready' && this.sceneDescription
+                    ${this.shows3d && this.sceneDescription
                       ? html`<sw-plan-3d data-event-3d .description=${this.sceneDescription} .selectedId=${this.selected3d} .preset=${this.eventPreset} .labels=${this.sceneMemo?.labels ?? {}}
                           .cameras=${this.bundle.anchors.filter((a) => a.resource_type === 'camera').map((a) => ({ id: a.id, label: entityName(a) }))} exportName=${`plan-3d-${loc.floor_name}-${ev.id}`}
                           @part-select=${(e: CustomEvent<PartSelectDetail>) => this.onPartSelect(e)}></sw-plan-3d>`
-                      : html`<sw-plan-canvas .planWidth=${this.bundle.width} .planHeight=${this.bundle.height} .imageUrl=${this.bundle.imageUrl} .plan=${this.bundle.planSvg} .markers=${this.markers} .selectedId=${loc.anchor_id} .zones=${this.bundle.zones} .geometry=${this.geometry} .catalog=${this.catalogLookup} .anchorPositions=${Object.fromEntries(this.bundle.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees } as AnchorPosition]))} alwaysLabel dimEntities></sw-plan-canvas>`}
+                      : nothing}
+                    <sw-plan-canvas style=${this.shows3d ? 'display:none' : ''} .planWidth=${this.bundle.width} .planHeight=${this.bundle.height} .imageUrl=${this.bundle.imageUrl} .plan=${this.bundle.planSvg} .markers=${this.markers} .selectedId=${loc.anchor_id} .zones=${this.bundle.zones} .geometry=${this.geometry} .catalog=${this.catalogLookup} .anchorPositions=${Object.fromEntries(this.bundle.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees } as AnchorPosition]))} alwaysLabel dimEntities></sw-plan-canvas>
                     ${this.threeState === 'loading' ? html`<div class="load3d" data-3d-loading>טוען תלת-ממד…</div>` : nothing}
                   </div>
                   ${webglAvailable() ? nothing : html`<div class="note" data-event-3d-unavailable>${WEBGL_UNAVAILABLE_HE}</div>`}
