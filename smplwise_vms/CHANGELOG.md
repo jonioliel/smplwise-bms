@@ -1,5 +1,25 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.91 (pilot) — duplicate from the inspector; a double door picks its side
+- Owner reports on 0.1.90 (2026-09-26): a copy of an object was only reachable by Alt+drag, which is not
+  discoverable, and a double door always opened to the same side of the wall. The object inspector gets a "שכפל"
+  button (also Ctrl+D): the copy lands one object width plus 30 cm to the right of the original (below when that
+  leaves the plan, to the left when below leaves it too), is selected, and the next drag or arrow key moves it
+  (`duplicateBeside` in studio-ops.ts; Alt+drag stays).
+- A double or sliding door has no hinge jamb to choose, so its hinge field now picks the side of the wall the leaves
+  open to: "לצד שמאל של הקיר" (start, the unchanged default) or "לצד ימין של הקיר" (end). The 2D primitives, the 3D
+  leaves (and with them the coverage clipping) and the backend renderer follow the same rule; the panel labels the
+  field "צד הפתיחה" for those swings. No document change: the field already existed on every opening.
+- Not changed, answered in chat: the select tool ("בחירה וגרירה", the first icon of the rail) already selects and
+  moves walls, openings, objects and zones since 0.1.87 - no need to go through the structure tool; a level has no
+  area of its own, its extent on the map (and its floor plate in the 3D) follows the items assigned to it; a tribune
+  or stairs between two floors is a connector from the "מפלסים ומחברים" tool linked to the other floor with
+  "קשר לקומה" (a library tribune object only connects levels within one floor - see the open list).
+- Tests: node unit `duplicateBeside` (right, below, left, unknown id), the side rule in `unit-geometry` (2D) and
+  `unit-scene-builder` (3D, double and sliding), backend `test_a_double_or_sliding_door_opens_to_the_side_its_hinge_names`
+  (golden file unchanged); live `evidence-plan-studio-2` (button, Ctrl+D, the copy selected) and
+  `evidence-plan-studio` (the field relabels, the draft stores double/end).
+
 ## 0.1.90 (pilot) — round 9: the owner form verified by the product itself, one backup fix
 - Owner request (2026-09-26): of the 71 items on the round-8 owner form, 59 can be verified without the owner and
   now are - every one of them maps to a passing test (the table is in
