@@ -156,3 +156,26 @@ def test_backup_roundtrip_keeps_the_structure_objects_custom_items_zones_and_anc
     assert [a["id"] for a in m["anchors"]] == [ids["anchor"]] and [z["id"] for z in m["zones"]] == [ids["zone"]]
     assert m["geometry"] is not None
 
+
+def test_a_merge_restore_counts_only_the_rows_it_added(settings):
+    """Round 9 (owner form item 15): the restore answer - and the "שוחזר ... N קומות" line built from it - counts the rows
+    the restore wrote. A merge over an unchanged project adds nothing and says so; a hard-deleted custom item comes back
+    as one row. A merge cannot bring back a soft-deleted floor (its tombstone row is not missing) and does not claim to."""
+    c = TestClient(create_app(settings))
+    ids = _seed(c)
+    item = c.post("/api/v1/catalog/objects", json={"based_on": "chair.basic", "names": {"he": "כיסא מיזוג"}}).json()
+    e = c.post("/api/v1/backups", json={"note": "merge counts"}).json()
+    res = c.post(f"/api/v1/backups/{e['name']}/restore", json={"mode": "merge", "confirm": "RESTORE"})
+    assert res.status_code == 200, res.text
+    assert all(n == 0 for n in res.json()["tables"].values()), res.json()["tables"]
+    assert c.delete(f"/api/v1/catalog/objects/{item['id']}").status_code == 204
+    assert c.delete(f"/api/v1/floors/{ids['floor2']}?force=true").status_code == 204
+    res = c.post(f"/api/v1/backups/{e['name']}/restore", json={"mode": "merge", "confirm": "RESTORE"}).json()
+    assert res["tables"]["catalog_items"] == 1 and res["tables"]["floors"] == 0
+    assert sum(res["tables"].values()) == 1, res["tables"]
+    assert [x["id"] for x in c.get("/api/v1/catalog/objects").json()["items"] if x["custom"]] == [item["id"]]
+    assert c.get(f"/api/v1/floors/{ids['floor2']}/map").status_code == 404
+    # replace writes every row of the archive
+    res = c.post(f"/api/v1/backups/{e['name']}/restore", json={"mode": "replace", "confirm": "RESTORE"}).json()
+    assert res["tables"]["floors"] == 2 and res["tables"]["catalog_items"] == 1
+    assert c.get(f"/api/v1/floors/{ids['floor2']}/map").status_code == 200
