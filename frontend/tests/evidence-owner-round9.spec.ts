@@ -27,7 +27,19 @@ test.describe('NVR schedules and smart rules (SW A)', () => {
       expect(s0.record).toBeTruthy();
       await page.goto(`/?design=a#/live/cameras/${cam.id}`);
       const screen = page.locator('live-camera');
-      const card = screen.locator('[data-schedules]');
+      // round 4 (2.6) moved schedules and smart rules under the collapsed "הגדרות מצלמה" accordion (schedules in its
+      // own "לוחות זימון והקלטה" row, smart rules inside "אזורי זיהוי ומסכות" alongside the zones overlay) - this
+      // test predates that and looked for a [data-schedules] wrapper that no longer exists (round 10, 2026-09-26)
+      const openSchedules = async () => {
+        await screen.locator('[data-camera-settings] summary').first().click();
+        await screen.locator('[data-acc-schedules] summary').first().click();
+      };
+      const openZones = async () => {
+        await screen.locator('[data-camera-settings] summary').first().click();
+        await screen.locator('[data-acc-zones] summary').first().click();
+      };
+      await openSchedules();
+      const card = screen.locator('[data-acc-schedules]');
       await expect(card.locator('[data-schedules-tabs]')).toBeVisible({ timeout: 60000 });
       if (!(await card.locator('[data-week-grid]').isVisible())) {
         await page.waitForTimeout(3000);
@@ -76,6 +88,7 @@ test.describe('NVR schedules and smart rules (SW A)', () => {
       const sm0 = await (await request.get(`/api/v1/cameras/${cam.id}/smart`)).json();
       expect(sm0.can_write).toBe(true);
       await page.reload();
+      await openZones(); // a reload collapses the accordion again; smart rules live in the same row as the zones overlay
       await expect(screen.locator('[data-smart-edit]')).toBeVisible({ timeout: 60000 });
       await screen.locator('[data-smart-edit]').click();
       await expect(screen.locator('[data-smart-editor]')).toBeVisible();

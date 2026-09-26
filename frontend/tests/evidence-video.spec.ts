@@ -208,7 +208,12 @@ test.describe('live video evidence', () => {
     await page.waitForTimeout(4000);
     const n = await page.evaluate(`(() => { ${DEEP} const s = deep(document, 'investigate-playback'); return s.dayEvents ? s.dayEvents.length : -1; })()`);
     testInfo.annotations.push({ type: 'timeline-markers', description: String(n) });
-    expect(n).toBe(markers.events.length);
+    // events keep arriving live in this lab: the "markers" snapshot above was taken well before this point (two page
+    // loads and several seconds of waiting since), so a real event landing in between makes a stale count disagree
+    // with the client's own, more current one - refetch right before comparing instead (round 10, 2026-09-26: saw
+    // 46 vs 47, one event apart)
+    const freshMarkers = await (await request.get(`/api/v1/cameras/${withEvents.id}/events?date=${today}`)).json();
+    expect(n).toBe(freshMarkers.events.length);
     await page.evaluate(`${DEEP} const t = deep(document, 'sw-timeline'); t && t.scrollIntoView({block: 'center'});`);
     await page.screenshot({ path: path.join(OUT, `timeline-markers-${testInfo.project.name}.png`) });
   });
