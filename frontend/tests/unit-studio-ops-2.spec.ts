@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { objectHitCorners, type GeometryDoc, type GeomObject } from '../src/map/geometry';
 import type { CatalogItem } from '../src/api/plan-catalog';
-import { addArray, addCircuit, addCircuitLamp, addConnector, addLevel, addObject, arrayDefaults, circuitPower, duplicateBeside, duplicateObject, initialLevel, levelUsage, moveConnectorVertex, moveGroup, moveObject, objectZ, patchCircuit, patchConnector, patchLevel, patchObject, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember, translatePolygon, translateWall, visibleUnderLevel } from '../src/map/studio-ops';
+import { addArray, addCircuit, addCircuitLamp, addConnector, addLevel, addObject, arrayDefaults, circuitPower, duplicateBeside, duplicateObject, initialLevel, levelUsage, moveConnectorVertex, moveGroup, moveObject, objectZ, patchCircuit, patchConnector, patchLevel, patchObject, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember, translatePolygon, translateWall, visibleUnderLevel, duplicateSelection, itemsInRect, moveSelection, removeItems, selectableItems, selectionDelta, toggleItem } from '../src/map/studio-ops';
 
 // Plan Studio phase 2 (T085): the pure document operations of the editor - placing an item (its size, z and params come
 // from the library), moving, rotating, stretching, duplicating, and removing an object out of its group, its circuit
@@ -284,5 +284,114 @@ test.describe('whole-wall and whole-zone moves (unit)', () => {
     const noLevels = { ...doc, levels: [] };
     expect(initialLevel('default', noLevels)).toBeNull();
     expect(initialLevel('all', noLevels)).toBeNull();
+  });
+});
+
+// T085 multi-select (owner report 2026-09-26): several walls, objects and zones selected at once move, go and are copied
+// together, each composed from its own single-item operation and returned as one document (one undo step).
+test.describe('plan studio multi-selection (unit)', () => {
+  const ZONES = [
+    { id: 'z-in', polygon: [{ x: 0.1, y: 0.2 }, { x: 0.3, y: 0.2 }, { x: 0.3, y: 0.3 }, { x: 0.1, y: 0.3 }] },
+    { id: 'z-half', polygon: [{ x: 0.5, y: 0.4 }, { x: 0.9, y: 0.4 }, { x: 0.9, y: 0.5 }, { x: 0.5, y: 0.5 }] }, // mostly outside the rectangle below
+  ];
+
+  test('moveSelection moves walls and objects by one delta in one call; an anchored body stays; the input is untouched', () => {
+    const doc = sample();
+    const next = moveSelection(doc, ['wb', 'o1', 'o3'], 0.05, 0.02);
+    expect(next.walls.find((w) => w.id === 'wb')!.polyline).toEqual([[0.15, 0.52], [0.65, 0.52]]);
+    expect(next.objects.find((o) => o.id === 'o1')!.position).toEqual([0.25, 0.22]);
+    expect(next.objects.find((o) => o.id === 'o3')!.position).toEqual([0.5, 0.3]); // a body moves with its anchor, never by hand
+    expect(next.walls.find((w) => w.id === 'wa')).toEqual(doc.walls.find((w) => w.id === 'wa')); // not selected: untouched
+    // the same as composing the single-item moves
+    expect(next).toEqual(moveObject(translateWall(doc, 'wb', 0.05, 0.02), 'o1', [0.25, 0.22]));
+    expect(doc.walls.find((w) => w.id === 'wb')!.polyline).toEqual([[0.1, 0.5], [0.6, 0.5]]);
+  });
+
+  test('the selection stops at the plan edge as a whole: every member moves by the same clamped delta', () => {
+    const doc = sample();
+    // wa reaches x = 0.9: a move of 0.5 to the right is cut to 0.1 for every member, so the layout keeps its shape
+    const [cx, cy] = selectionDelta(doc, ['wa', 'o1'], 0.5, 0);
+    expect(cx).toBeCloseTo(0.1, 9);
+    expect(cy).toBe(0);
+    const next = moveSelection(doc, ['wa', 'o1'], 0.5, 0);
+    expect(next.walls.find((w) => w.id === 'wa')!.polyline).toEqual([[0.2, 0.1], [1, 0.1], [1, 0.6]]);
+    expect(next.objects.find((o) => o.id === 'o1')!.position).toEqual([0.3, 0.2]);
+    // a zone in the selection limits the delta too (zones are not in the document: their polygons come in beside it)
+    const [zx, zy] = selectionDelta(doc, ['o1'], 0, -0.5, [ZONES[0].polygon]);
+    expect(zx).toBe(0);
+    expect(zy).toBeCloseTo(-0.2, 9);
+    expect(selectionDelta(doc, [], 0.3, 0.3)).toEqual([0.3, 0.3]); // nothing to clamp against
+  });
+
+  test('removeItems removes every item in one call, each by its own single-item removal', () => {
+    const doc = sample();
+    const next = removeItems(doc, ['wa', 'o1', 'o4', 'nope']);
+    expect(next).toEqual(removeItem(removeItem(removeItem(doc, 'wa'), 'o1'), 'o4'));
+    expect(next.walls.map((w) => w.id)).toEqual(['wc', 'wd', 'wb']);
+    expect(next.openings.some((o) => o.wall_id === 'wa')).toBe(false); // a wall takes its openings
+    expect(next.groups[0].member_ids).toEqual(['o2']); // an object leaves its group
+    expect(next.connectors.map((c) => c.id)).toEqual(['c1']); // and takes its derived connector
+    expect(removeItems(doc, [])).toBe(doc);
+  });
+
+  test('duplicateSelection copies the selected objects as one block beside the selection and returns the new ids', () => {
+    const doc = sample();
+    const W = 1000, H = 800, scale = 0.01;
+    // o1: 45 x 45 px at (200, 160); o2: 140 x 70 px at (300, 320) turned 90 degrees, so 70 px wide on screen.
+    // The block spans x 177.5 .. 335 px (157.5 px); the copies go 157.5 px + 30 cm (30 px) to the right, all by the same shift.
+    const r = duplicateSelection(doc, ['o1', 'wb', 'o2'], W, H, scale); // a wall in the selection is not copied
+    expect(r.ids.length).toBe(2);
+    expect(r.doc.objects.length).toBe(doc.objects.length + 2);
+    expect(r.doc.walls).toEqual(doc.walls);
+    const [c1, c2] = r.ids.map((id) => r.doc.objects.find((o) => o.id === id)!);
+    expect(c1.item_id).toBe('chair.basic');
+    expect(c2.item_id).toBe('table.desk');
+    expect(c1.position[0]).toBeCloseTo(0.3875, 5);
+    expect(c1.position[1]).toBeCloseTo(0.2, 5);
+    expect(c2.position[0]).toBeCloseTo(0.4875, 5);
+    expect(c2.position[1]).toBeCloseTo(0.4, 5);
+    expect(c1.group_id).toBeNull(); // copies are never grouped or bound, like duplicateObject
+    expect(r.ids).not.toContain('o1');
+    // at the right edge the block goes below instead
+    const atEdge = { ...doc, objects: doc.objects.map((o: GeomObject) => (o.id === 'o2' ? { ...o, position: [0.9, 0.4] as [number, number] } : o)) };
+    const below = duplicateSelection(atEdge, ['o1', 'o2'], W, H, scale);
+    const b1 = below.doc.objects.find((o) => o.id === below.ids[0])!;
+    expect(b1.position[0]).toBeCloseTo(0.2, 5);
+    expect(b1.position[1]).toBeGreaterThan(0.2);
+    // one object alone lands where duplicateBeside puts it
+    const one = duplicateSelection(doc, ['o1'], W, H, scale);
+    expect(one.doc.objects.find((o) => o.id === one.ids[0])!.position).toEqual(duplicateBeside(doc, 'o1', W, H, scale).doc.objects.at(-1)!.position);
+    expect(duplicateSelection(doc, ['wa'], W, H, scale)).toEqual({ doc, ids: [] });
+  });
+
+  test('itemsInRect picks the walls, objects and zones fully inside the rectangle, on the shown level only', () => {
+    const doc = sample();
+    const rect = { x0: 0.05, y0: 0.15, x1: 0.65, y1: 0.55 };
+    const hits = itemsInRect(doc, ZONES, rect, null, 1000, 800, 0.01);
+    // wb lies inside; wc starts at y 0.1 (outside); o1, o2 and the lamp o3 have their whole footprint inside; the tribune
+    // o4 does not; z-in is inside, z-half only partly (a zone mostly outside is not picked)
+    expect(hits).toEqual([{ id: 'wb', kind: 'wall' }, { id: 'o1', kind: 'object' }, { id: 'o2', kind: 'object' }, { id: 'o3', kind: 'object' }, { id: 'z-in', kind: 'zone' }]);
+    // a rectangle that only touches part of an object's footprint does not pick it
+    expect(itemsInRect(doc, [], { x0: 0.19, y0: 0.15, x1: 0.3, y1: 0.25 }, null, 1000, 800, 0.01)).toEqual([]);
+    // under the L1 filter the L0 items are not picked; zones are drawn on every level
+    const all = { x0: 0, y0: 0, x1: 1, y1: 1 };
+    expect(itemsInRect(doc, ZONES, all, 'L1', 1000, 800, 0.01)).toEqual([{ id: 'wd', kind: 'wall' }, { id: 'o5', kind: 'object' }, { id: 'z-in', kind: 'zone' }, { id: 'z-half', kind: 'zone' }]);
+    // the rectangle may be given corner to corner in any order
+    expect(itemsInRect(doc, ZONES, { x0: 0.65, y0: 0.55, x1: 0.05, y1: 0.15 }, null, 1000, 800, 0.01)).toEqual(hits);
+  });
+
+  test('selectableItems is Ctrl+A: every wall, object and zone the level filter shows', () => {
+    const doc = sample();
+    expect(selectableItems(doc, ZONES, null).map((i) => i.id)).toEqual(['wc', 'wa', 'wd', 'wb', 'o1', 'o2', 'o3', 'o4', 'o5', 'z-in', 'z-half']);
+    expect(selectableItems(doc, ZONES, 'L1')).toEqual([{ id: 'wd', kind: 'wall' }, { id: 'o5', kind: 'object' }, { id: 'z-in', kind: 'zone' }, { id: 'z-half', kind: 'zone' }]);
+    expect(selectableItems(doc, [], 'L0').map((i) => i.id)).toEqual(['wc', 'wa', 'wb', 'o1', 'o2', 'o3', 'o4']);
+  });
+
+  test('toggleItem adds an item that is not in the selection and takes out one that is', () => {
+    const a = { id: 'wa', kind: 'wall' as const };
+    const b = { id: 'o1', kind: 'object' as const };
+    expect(toggleItem([a], b)).toEqual([a, b]);
+    expect(toggleItem([a, b], { id: 'wa', kind: 'wall' })).toEqual([b]);
+    expect(toggleItem([], a)).toEqual([a]);
   });
 });
