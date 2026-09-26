@@ -100,6 +100,9 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
       objects: [OBJ('seed-chair', 'chair.basic', [0.2, 0.2]), OBJ('seed-lamp', 'light.ceiling', [0.5, 0.3], { size: { w_m: 0.4, d_m: 0.4, h_m: 0.1 }, z_m: 2.5 })],
       connectors: [{ id: 'seed-stairs', kind: 'stairs', level_from: 'L0', level_to: 'L1', floor_ids: [], polyline: [[0.7, 0.7], [0.8, 0.7]], width_m: 1.2, label: null, object_id: null, source: 'manual', external_ids: {} }],
     });
+    await page.waitForTimeout(1100);
+    const tBefore = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+    await page.waitForTimeout(1100);
     await publish();
     await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
     const objects = page.locator('explore-floor-map sw-plan-canvas [data-structure] [data-object]');
@@ -114,6 +117,18 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
     await page.locator('explore-floor-map .layers button[aria-label="מחברים"]').click();
     await expect(page.locator('explore-floor-map sw-plan-canvas [data-connector]')).toHaveCount(0);
     await page.locator('explore-floor-map .layers button[aria-label="מחברים"]').click();
+    // owner form item 26 (round 9): the history map after the publish has the objects, before it none
+    const tAfter = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+    await page.goto(`/?design=a#/investigate/floors/${ids.floor}/history?t=${tAfter}`);
+    await expect(page.locator('investigate-history-map sw-plan-canvas [data-object]')).toHaveCount(2, { timeout: 20000 });
+    await page.goto('about:blank');
+    await page.goto(`/?design=a#/investigate/floors/${ids.floor}/history?t=${tBefore}`);
+    await expect(page.locator('investigate-history-map sw-plan-canvas')).toBeAttached({ timeout: 20000 });
+    await page.waitForTimeout(2000);
+    await expect(page.locator('investigate-history-map sw-plan-canvas [data-object]')).toHaveCount(0);
+    await page.goto('about:blank');
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
+    await expect(objects).toHaveCount(2, { timeout: 20000 });
     await page.locator('explore-floor-map sw-button[icon="layers"]').click();
     await expect(page.locator('explore-floor-map [data-layers-panel] [data-layer="objects"]')).toHaveCount(1);
     await expect(page.locator('explore-floor-map [data-layers-panel] [data-layer="connectors"]')).toHaveCount(1);
@@ -230,6 +245,11 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
     await page.locator(`${ed} [data-array-create]`).click();
     await expect(page.locator(`${ed} sw-plan-canvas [data-object]`)).toHaveCount(before + 60);
     await expect(page.locator(`${ed} [data-selected-group]`)).toContainText('60');
+    // owner form item 30 (round 9): the whole array is one undo step - Ctrl+Z leaves the origin chair only, Ctrl+Y brings the 60 back
+    await page.keyboard.press('Control+z');
+    await expect(page.locator(`${ed} sw-plan-canvas [data-object]`)).toHaveCount(before + 1);
+    await page.keyboard.press('Control+y');
+    await expect(page.locator(`${ed} sw-plan-canvas [data-object]`)).toHaveCount(before + 60);
     // a member of an array cannot start another array; "בחר את המערך" takes the whole array again
     await clickPlan(page, ed, 0.2, 0.15);
     await expect(page.locator(`${ed} [data-object-array]`)).toHaveAttribute('disabled', '');

@@ -59,6 +59,10 @@ test.describe.serial('plan studio (SW A)', () => {
       openings: [{ id: 'lo1', wall_id: 'lw1', t: 0.5, kind: 'door', width_m: 0.9, height_m: 2.1, sill_m: 0, swing: 'right', hinge: 'start', anchor_ref: null,
         confidence: 1, source: 'manual', external_ids: {} }] };
     expect((await api.put(`api/v1/plan-versions/${ids.version}/geometry`, { data: { doc, base_revision: g.geometry.revision } })).status()).toBe(200);
+    // an instant before the structure's publish (and after the plan's, in beforeAll): the history shows no walls then
+    await page.waitForTimeout(1100);
+    const tBefore = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+    await page.waitForTimeout(1100);
     expect((await api.post(`api/v1/plan-versions/${ids.version}/geometry/publish`)).status()).toBe(200);
     await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
     const walls = page.locator('explore-floor-map sw-plan-canvas [data-structure] [data-wall]');
@@ -72,6 +76,13 @@ test.describe.serial('plan studio (SW A)', () => {
     const t = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
     await page.goto(`/?design=a#/investigate/floors/${ids.floor}/history?t=${t}`);
     await expect(page.locator('investigate-history-map sw-plan-canvas [data-wall]')).toHaveCount(3, { timeout: 20000 });
+    // owner form item 10 (round 9): before the publish, the same floor's history has its plan and no structure
+    await page.goto('about:blank');
+    await page.goto(`/?design=a#/investigate/floors/${ids.floor}/history?t=${tBefore}`);
+    await expect(page.locator('investigate-history-map sw-plan-canvas')).toBeAttached({ timeout: 20000 });
+    await expect.poll(() => page.locator('investigate-history-map sw-plan-canvas').evaluate((el) => (el as unknown as { imageUrl: string | null }).imageUrl ?? ''), { timeout: 20000 }).toContain(ids.version);
+    await page.waitForTimeout(1500);
+    await expect(page.locator('investigate-history-map sw-plan-canvas [data-wall]')).toHaveCount(0);
   });
 
   test('draw a wall, place a door, select, delete and undo in the editor; the draft autosaves and viewers keep the published one', async ({ page }) => {
@@ -321,6 +332,9 @@ test.describe.serial('plan studio (SW A)', () => {
     await clickPlan(page, ed, 0.2 + 0.6 * t2, 0.5);
     await page.keyboard.press('ArrowRight');
     await expect.poll(async () => (await doorT())[0], { timeout: 10000 }).toBeCloseTo(t2 + 0.01 / L, 4);
+    // owner form item 7a (round 9): Shift makes the step 10 cm, and ArrowLeft moves it the other way along the wall
+    await page.keyboard.press('Shift+ArrowLeft');
+    await expect.poll(async () => (await doorT())[0], { timeout: 10000 }).toBeCloseTo(t2 + 0.01 / L - 0.1 / L, 4);
     expect(await doorT()).toHaveLength(1);
     await expect(page.locator(`${ed} [data-studio-panel][data-studio-save="saved"]`)).toHaveCount(1, { timeout: 10000 });
   });
