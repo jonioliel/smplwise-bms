@@ -285,9 +285,16 @@ export class SwPlanCanvas extends LitElement {
       return;
     }
     if (!this.marquee || e.ctrlKey || e.metaKey || e.altKey) return;
-    const t = e.composedPath()[0];
-    if (t instanceof HTMLElement && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return; // a field keeps its spaces
-    e.preventDefault(); // no page scroll, no press of a focused button
+    // Only with the focus on the plan itself (a zone of this canvas, say) or on nothing in particular (the page body):
+    // a focused button, field, chip or link anywhere else keeps its own Space - a keyboard user presses a button with
+    // Space in the select tool as anywhere (review of T085, R3)
+    const path = e.composedPath();
+    const t = path[0];
+    // a control inside the canvas too: a zoom button, or a zone focused with Tab (its own Space selects it)
+    const control = t instanceof Element && !!t.closest('button, input, select, textarea, a[href], [contenteditable="true"], [contenteditable=""], [role="button"], [role="slider"]');
+    const onPlan = (path.includes(this) && !control) || t === document.body || t === document.documentElement || t === window || t === document;
+    if (!onPlan) return;
+    e.preventDefault(); // no page scroll
     this.spacePan = true;
   };
   private onSpaceBlur = () => (this.spacePan = false);

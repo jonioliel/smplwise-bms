@@ -399,11 +399,13 @@ export interface ZoneShape {
 }
 
 /** Whether a zone belongs under a level filter (null = every level) for Ctrl+A, the marquee and the pruning of a
- * multi-selection when the filter changes: a zone on that level, or one with no level set, which stays under every
- * filter. The editor draws every zone under every filter, but a zone of another level is never swept into a bulk action
- * there - "filter to the basement, Ctrl+A, Delete" must not delete the ground floor's rooms (review of T085, S2). */
-export function zoneOnLevel(z: Pick<ZoneShape, 'level_id'>, levelId: string | null): boolean {
-  return levelId === null || !z.level_id || z.level_id === levelId;
+ * multi-selection when the filter changes: a zone on that level. A zone with no level set is on the default level
+ * (`defaultLevel`), as the backend, the zone inspector, the 3D view and the walls and objects all read it - and it is the
+ * usual case, since only a hand edit gives a zone a level. The editor draws every zone under every filter, but a zone of
+ * another level is never swept into a bulk action there: "filter to the basement, Ctrl+A, Delete" must not delete the
+ * ground floor's rooms (review of T085, S2, corrected by R1). */
+export function zoneOnLevel(z: Pick<ZoneShape, 'level_id'>, levelId: string | null, defaultLevel: string): boolean {
+  return levelId === null || (z.level_id || defaultLevel) === levelId;
 }
 
 /** Shift+click: an item not in the selection joins it at the end; one already in it leaves. A new array. */
@@ -494,7 +496,7 @@ export function duplicateSelection(doc: GeometryDoc, ids: readonly string[], W: 
 }
 
 /** Ctrl+A in the select tool: every wall and object the level filter shows (visibleUnderLevel's rule for them: an item
- * without a level belongs to the default level), then every zone on that level or without one (zoneOnLevel). One pass
+ * without a level belongs to the default level), then every zone on that level by the same rule (zoneOnLevel). One pass
  * per list. */
 export function selectableItems(doc: GeometryDoc, zones: readonly Pick<ZoneShape, 'id' | 'level_id'>[], levelId: string | null): MultiItem[] {
   const def = defaultLevelId(doc);
@@ -502,7 +504,7 @@ export function selectableItems(doc: GeometryDoc, zones: readonly Pick<ZoneShape
   return [
     ...doc.walls.filter((w) => shown(w.level_id)).map((w): MultiItem => ({ id: w.id, kind: 'wall' })),
     ...doc.objects.filter((o) => shown(o.level_id)).map((o): MultiItem => ({ id: o.id, kind: 'object' })),
-    ...zones.filter((z) => zoneOnLevel(z, levelId)).map((z): MultiItem => ({ id: z.id, kind: 'zone' })),
+    ...zones.filter((z) => zoneOnLevel(z, levelId, def)).map((z): MultiItem => ({ id: z.id, kind: 'zone' })),
   ];
 }
 

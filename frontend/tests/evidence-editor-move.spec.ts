@@ -409,12 +409,14 @@ test.describe.serial('editor: select and move walls, objects and zones (0.1.87)'
       await page.keyboard.press('Control+y');
       await expect.poll(async () => (await draft()).doc.objects.length, { timeout: 10000 }).toBe(known.size);
 
-      // Ctrl+A under the L1 filter: the two L1 chairs and the zones of L1 or of no level - never an L0 wall, object or
-      // zone, although the editor draws every zone under every filter (review S2: filter, Ctrl+A, Delete must not take
-      // the other level's rooms)
+      // Ctrl+A under the L1 filter: the two L1 chairs and the zones of L1 - never an L0 wall, object or zone, although the
+      // editor draws every zone under every filter; a zone without a level is on the default level L0, as the backend,
+      // the inspector and the 3D view read it (review S2, corrected by R1: filter, Ctrl+A, Delete must not take the other
+      // level's rooms, and most rooms never get a level by hand)
       const myZone = { id: await makeZone('חדר מרתף', [{ x: 0.82, y: 0.6 }, { x: 0.9, y: 0.6 }, { x: 0.9, y: 0.7 }, { x: 0.82, y: 0.7 }], 'L1') };
       const groundZone = await makeZone('חדר קרקע', [{ x: 0.04, y: 0.04 }, { x: 0.12, y: 0.04 }, { x: 0.12, y: 0.12 }, { x: 0.04, y: 0.12 }], 'L0');
-      const zoneCount = (await allZones()).filter((z) => !z.level_id || z.level_id === 'L1').length;
+      const noLevelZone = await makeZone('חדר בלי מפלס', [{ x: 0.04, y: 0.16 }, { x: 0.12, y: 0.16 }, { x: 0.12, y: 0.22 }, { x: 0.04, y: 0.22 }]);
+      const zoneCount = (await allZones()).filter((z) => z.level_id === 'L1').length;
       await page.reload(); // the editor loads the new zones
       await expect(page.locator(`${ED} sw-plan-canvas g.zone[data-zone="${myZone.id}"]`)).toHaveCount(1, { timeout: 20000 });
       await page.locator(`${ED} [data-level-chip="L1"]`).click();
@@ -426,6 +428,8 @@ test.describe.serial('editor: select and move walls, objects and zones (0.1.87)'
       await expect(obj('ms5')).toHaveClass(/\bsel\b/);
       await expect(page.locator(`${ED} sw-plan-canvas g.zone.selected[data-zone="${myZone.id}"]`)).toHaveCount(1);
       await expect(page.locator(`${ED} sw-plan-canvas g.zone.selected[data-zone="${groundZone}"]`)).toHaveCount(0); // ... but not selected
+      await expect(page.locator(`${ED} sw-plan-canvas g.zone[data-zone="${noLevelZone}"]`)).toHaveCount(1);
+      await expect(page.locator(`${ED} sw-plan-canvas g.zone.selected[data-zone="${noLevelZone}"]`)).toHaveCount(0); // the default level's (R1)
       // dragging one chair moves the selected zones with it by the same delta, each zone saved once
       const z0 = await zoneOf(myZone.id);
       const m0 = (await positions(['ms4']))[0];
@@ -504,6 +508,38 @@ test.describe.serial('editor: select and move walls, objects and zones (0.1.87)'
       await expect(panel).toHaveAttribute('data-multi-count', '4');
       await saved(page);
 
+      // R9 / R2: a group move with one zone PATCH failing - the count is said, the zone left behind alone becomes the
+      // selection, and a drag of it by the same distance puts it where the rest went (a group drag would keep its offset)
+      const q0 = await positions(['mb1', 'mb2']);
+      const zaMid = await zoneOf(za);
+      const zbMid = await zoneOf(zb);
+      await page.route(`**/api/v1/zones/${zb}`, (route) => (route.request().method() === 'PATCH' ? route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ detail: 'test failure' }) }) : route.continue()));
+      await mouseDrag(page, await at(page, q0[0]), 40, 0);
+      await expect(page.locator(ED).getByText('1 מתוך 2 אזורים לא הוזזו')).toBeVisible();
+      await expect(panel).toHaveCount(0);
+      await expect(page.locator(`${ED} [data-zone-inspector]`)).toBeVisible(); // the one zone left behind: the single selection
+      await expect(page.locator(`${ED} sw-plan-canvas g.zone.selected[data-zone="${zb}"]`)).toHaveCount(1);
+      await expect(page.locator(`${ED} sw-plan-canvas g.zone.selected[data-zone="${za}"]`)).toHaveCount(0);
+      await expect.poll(async () => (await zoneOf(za)).revision, { timeout: 10000 }).toBe(zaMid.revision + 1);
+      await expect.poll(async () => (await positions(['mb1']))[0][0], { timeout: 10000 }).toBeGreaterThan(q0[0][0] + 0.02);
+      const q1 = await positions(['mb1', 'mb2']);
+      const moved = q1[0][0] - q0[0][0];
+      expect((await zoneDelta(za, zaMid))[0]).toBeCloseTo(moved, 3);
+      expect(await zoneOf(zb)).toMatchObject({ revision: zbMid.revision, polygon: zbMid.polygon }); // not moved
+      await page.unroute(`**/api/v1/zones/${zb}`);
+      const zbc: P = [zbMid.polygon.reduce((t, q) => t + q.x, 0) / zbMid.polygon.length, zbMid.polygon.reduce((t, q) => t + q.y, 0) / zbMid.polygon.length];
+      await mouseDrag(page, await at(page, zbc), 40, 0);
+      await expect.poll(async () => (await zoneOf(zb)).revision, { timeout: 10000 }).toBe(zbMid.revision + 1);
+      expect((await zoneDelta(zb, zbMid))[0]).toBeCloseTo(moved, 3); // in line with the rest again
+      expect((await zoneDelta(zb, zbMid))[1]).toBeCloseTo(0, 3);
+
+      // take the four again: a marquee just around them
+      const zNow = [await zoneOf(za), await zoneOf(zb)];
+      const xs = [...q1.map((p) => p[0]), ...zNow.flatMap((z) => z.polygon.map((q) => q.x))];
+      const ys = [...q1.map((p) => p[1]), ...zNow.flatMap((z) => z.polygon.map((q) => q.y))];
+      await marquee(page, [Math.min(...xs) - 0.015, Math.min(...ys) - 0.025], [Math.max(...xs) + 0.015, Math.max(...ys) + 0.025]);
+      await expect(panel).toHaveAttribute('data-multi-count', '4');
+
       // Delete with one zone DELETE failing: the chairs and the other zone go, the failure is counted, the zone left is
       // the selection again
       await page.route(`**/api/v1/zones/${zb}`, (route) => (route.request().method() === 'DELETE' ? route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ detail: 'test failure' }) }) : route.continue()));
@@ -557,6 +593,14 @@ test.describe.serial('editor: select and move walls, objects and zones (0.1.87)'
     const s3 = await at(page, ref);
     expect(s3.x - s2.x).toBeCloseTo(-30, -1);
     expect(s3.y - s2.y).toBeCloseTo(25, -1);
+    // R3: a focused button keeps its own Space - it is pressed, and nothing pans
+    const layers = page.locator(`${ED} [data-tool="layers"]`);
+    await layers.focus();
+    await page.keyboard.down('Space');
+    await expect(page.locator(`${ED} sw-plan-canvas .viewport[data-space-pan="on"]`)).toHaveCount(0);
+    await page.keyboard.up('Space');
+    await expect(layers).toHaveAttribute('aria-pressed', 'true');
+    expect(await at(page, ref)).toEqual(s3);
   });
 
   // Review of T085, S4: `any-pointer: coarse` is true on a touchscreen laptop even when it is used with a mouse; a

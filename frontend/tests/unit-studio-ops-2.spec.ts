@@ -291,7 +291,7 @@ test.describe('whole-wall and whole-zone moves (unit)', () => {
 // together, each composed from its own single-item operation and returned as one document (one undo step).
 test.describe('plan studio multi-selection (unit)', () => {
   const ZONES = [
-    { id: 'z-in', polygon: [{ x: 0.1, y: 0.2 }, { x: 0.3, y: 0.2 }, { x: 0.3, y: 0.3 }, { x: 0.1, y: 0.3 }] }, // no level: under every filter
+    { id: 'z-in', polygon: [{ x: 0.1, y: 0.2 }, { x: 0.3, y: 0.2 }, { x: 0.3, y: 0.3 }, { x: 0.1, y: 0.3 }] }, // no level: the default level, L0
     { id: 'z-half', level_id: 'L0', polygon: [{ x: 0.5, y: 0.4 }, { x: 0.9, y: 0.4 }, { x: 0.9, y: 0.5 }, { x: 0.5, y: 0.5 }] }, // mostly outside the rectangle below
     { id: 'z-base', level_id: 'L1', polygon: [{ x: 0.7, y: 0.7 }, { x: 0.8, y: 0.7 }, { x: 0.8, y: 0.8 }, { x: 0.7, y: 0.8 }] },
   ];
@@ -380,18 +380,18 @@ test.describe('plan studio multi-selection (unit)', () => {
     expect(hits).toEqual([{ id: 'wb', kind: 'wall' }, { id: 'o1', kind: 'object' }, { id: 'o2', kind: 'object' }, { id: 'o3', kind: 'object' }, { id: 'z-in', kind: 'zone' }]);
     // a rectangle that only touches part of an object's footprint does not pick it
     expect(itemsInRect(doc, [], { x0: 0.19, y0: 0.15, x1: 0.3, y1: 0.25 }, null, 1000, 800, 0.01)).toEqual([]);
-    // under the L1 filter the L0 items are not picked - the L0 zone z-half neither, although the editor draws it; a zone
-    // without a level (z-in) is picked under every filter
+    // under the L1 filter the L0 items are not picked - the L0 zone z-half neither, although the editor draws it, nor the
+    // zone without a level (z-in), which is on the default level L0
     const all = { x0: 0, y0: 0, x1: 1, y1: 1 };
-    expect(itemsInRect(doc, ZONES, all, 'L1', 1000, 800, 0.01)).toEqual([{ id: 'wd', kind: 'wall' }, { id: 'o5', kind: 'object' }, { id: 'z-in', kind: 'zone' }, { id: 'z-base', kind: 'zone' }]);
+    expect(itemsInRect(doc, ZONES, all, 'L1', 1000, 800, 0.01)).toEqual([{ id: 'wd', kind: 'wall' }, { id: 'o5', kind: 'object' }, { id: 'z-base', kind: 'zone' }]);
     // the rectangle may be given corner to corner in any order
     expect(itemsInRect(doc, ZONES, { x0: 0.65, y0: 0.55, x1: 0.05, y1: 0.15 }, null, 1000, 800, 0.01)).toEqual(hits);
   });
 
-  test('selectableItems is Ctrl+A: every wall and object the level filter shows, and the zones of that level or of none', () => {
+  test('selectableItems is Ctrl+A: every wall, object and zone of the filtered level; an item or zone without a level is on the default level', () => {
     const doc = sample();
     expect(selectableItems(doc, ZONES, null).map((i) => i.id)).toEqual(['wc', 'wa', 'wd', 'wb', 'o1', 'o2', 'o3', 'o4', 'o5', 'z-in', 'z-half', 'z-base']);
-    expect(selectableItems(doc, ZONES, 'L1')).toEqual([{ id: 'wd', kind: 'wall' }, { id: 'o5', kind: 'object' }, { id: 'z-in', kind: 'zone' }, { id: 'z-base', kind: 'zone' }]);
+    expect(selectableItems(doc, ZONES, 'L1')).toEqual([{ id: 'wd', kind: 'wall' }, { id: 'o5', kind: 'object' }, { id: 'z-base', kind: 'zone' }]);
     expect(selectableItems(doc, ZONES, 'L0').map((i) => i.id)).toEqual(['wc', 'wa', 'wb', 'o1', 'o2', 'o3', 'o4', 'z-in', 'z-half']);
     // the same answer as visibleUnderLevel item by item (the single pass must not drift from the level filter's rule)
     for (const lv of [null, 'L0', 'L1']) {
@@ -399,13 +399,16 @@ test.describe('plan studio multi-selection (unit)', () => {
     }
   });
 
-  test('zoneOnLevel: a zone of the filtered level or without a level; every zone without a filter', () => {
-    expect(zoneOnLevel({ level_id: 'L1' }, 'L1')).toBe(true);
-    expect(zoneOnLevel({ level_id: 'L0' }, 'L1')).toBe(false);
-    expect(zoneOnLevel({ level_id: null }, 'L1')).toBe(true);
-    expect(zoneOnLevel({}, 'L0')).toBe(true);
-    expect(zoneOnLevel({ level_id: '' }, 'L0')).toBe(true);
-    expect(zoneOnLevel({ level_id: 'L0' }, null)).toBe(true);
+  test('zoneOnLevel: a zone of the filtered level; a zone without a level is on the default level; every zone without a filter', () => {
+    expect(zoneOnLevel({ level_id: 'L1' }, 'L1', 'L0')).toBe(true);
+    expect(zoneOnLevel({ level_id: 'L0' }, 'L1', 'L0')).toBe(false);
+    expect(zoneOnLevel({ level_id: null }, 'L1', 'L0')).toBe(false); // the default level's, not every level's (R1)
+    expect(zoneOnLevel({ level_id: null }, 'L0', 'L0')).toBe(true);
+    expect(zoneOnLevel({}, 'L0', 'L0')).toBe(true);
+    expect(zoneOnLevel({ level_id: '' }, 'L0', 'L0')).toBe(true);
+    expect(zoneOnLevel({ level_id: '' }, 'L1', 'L0')).toBe(false);
+    expect(zoneOnLevel({}, 'L2', 'L2')).toBe(true); // a document whose default level is another one
+    expect(zoneOnLevel({ level_id: 'L0' }, null, 'L0')).toBe(true);
   });
 
   test('toggleItem adds an item that is not in the selection and takes out one that is', () => {

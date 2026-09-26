@@ -33,6 +33,11 @@ import { ANCHOR_3D_DEFAULTS, anchor3dKind } from '../map/anchor-3d';
 import { COLL_LABEL, CONNECTOR_LABEL, circuitPlacingHint, connectorDerived, countLabel, fmtMetres, fmtScale, renderArrayDialog, renderCalibPanel, renderCircuitPanel, renderConnectorPanel, renderCustomItemDialog, renderGroupDeleteDialog, renderGroupInspector, renderLevelChips, renderLevelDialog, renderDetectPanel, renderLibraryPanel, renderMeasurePanel, renderObjectInspector, renderConnectorSelection, renderMultiSelection, renderStudioPanel, MULTI_HINT, SAVE_LABEL, studioPanelStyles, lighterStrength, type ArrayDialogView, type CustomItemView, type DetectAcceptError, type DetectOpts, type DetectReplaceAsk, type DetectRunState, type GeomKind, type GeomSel, type LevelDialogView, type StudioMode } from './plan-studio-panel';
 
 type Strength = 'light' | 'medium' | 'strong';
+/** A zone save or delete that has not answered by then counts as failed (review of T085, R4): the bulk actions it holds
+ * back (zoneSaving) are released instead of waiting for a hung connection until the page reloads. */
+const ZONE_SAVE_TIMEOUT_MS = 15000;
+/** A zone request's failure in words: a timeout says so, anything else as describeError does. */
+const zoneErrorText = (err: unknown): string => (err instanceof DOMException && (err.name === 'TimeoutError' || err.name === 'AbortError') ? 'השרת לא ענה בזמן' : describeError(err));
 type ZoneBody = { name?: string; kind?: ZoneKind; color?: string; searchable?: boolean; polygon?: ZonePoint[]; label_pos?: string; level_id?: string; ceiling_height_m?: number };
 interface ZoneCandidate {
   polygon: ZonePoint[];
@@ -898,11 +903,11 @@ export class ExplorePlanEditor extends LitElement {
    * text. It never touches `error`: patchZone reports one zone's outcome, commitZoneMoves the outcome of several. */
   private async sendZonePatch(z: SpatialZone, body: ZoneBody): Promise<string> {
     try {
-      const nz = await updateZone(z.id, { revision: z.revision, ...body });
+      const nz = await updateZone(z.id, { revision: z.revision, ...body }, AbortSignal.timeout(ZONE_SAVE_TIMEOUT_MS));
       this.zones = this.zones.map((x) => (x.id === nz.id ? nz : x));
       return 'ok';
     } catch (err) {
-      return err instanceof ApiError && err.status === 409 ? 'conflict' : describeError(err);
+      return err instanceof ApiError && err.status === 409 ? 'conflict' : zoneErrorText(err);
     }
   }
 
@@ -923,12 +928,12 @@ export class ExplorePlanEditor extends LitElement {
    * touches `error` (see sendZonePatch). */
   private async sendZoneDelete(z: SpatialZone): Promise<string> {
     try {
-      await deleteZone(z.id);
+      await deleteZone(z.id, AbortSignal.timeout(ZONE_SAVE_TIMEOUT_MS));
       this.zones = this.zones.filter((x) => x.id !== z.id);
       if (this.selectedZoneId === z.id) this.selectedZoneId = null;
       return 'ok';
     } catch (err) {
-      return describeError(err);
+      return zoneErrorText(err);
     }
   }
 
@@ -2297,9 +2302,13 @@ export class ExplorePlanEditor extends LitElement {
   /** The drop of a multi-selection drag: walls and objects are one document edit (one undo step, done by the caller);
    * each moved zone is saved by its own PATCH, as a single zone's drag is - zones live on the server and have no undo.
    * The PATCHes go out together (Promise.allSettled), and until every one has answered `zoneSaving` refuses a new group
-   * drag, Delete and copy (B1). Every outcome is counted: a zone that could not be moved is reported with the count, and
-   * stays in the selection - which is never cleared here - so the next drag or Ctrl+Z can bring the rest in line (S1). */
+   * drag, Delete and copy (B1); every save times out (R4), so the window always ends. Every outcome is counted (S1): when
+   * some zones could not be moved, the message says how many, and those zones alone become the selection (R2) - a group
+   * drag of the whole selection would keep their offset (it moves every member alike) and Ctrl+Z would misalign the
+   * zones that did move (it reverts only walls and objects), while a drag of just the zones left behind puts them where
+   * the rest went. */
   private async commitZoneMoves(polys: Record<string, ZonePoint[]>) {
+    const selectedAtDrop = this.multi;
     const zoneById = new Map(this.zones.map((z) => [z.id, z]));
     const moves = Object.entries(polys)
       .map(([id, polygon]) => ({ z: zoneById.get(id), polygon }))
@@ -2318,12 +2327,16 @@ export class ExplorePlanEditor extends LitElement {
       this.zonePreview = null;
       this.zoneSaving = false;
     }
-    const failed = outcome.filter((o) => o !== 'ok');
+    const failed = moves.map((m, i) => ({ id: m.z.id, why: outcome[i] })).filter((f) => f.why !== 'ok');
     if (!failed.length) return;
-    const conflict = failed.includes('conflict');
+    const conflict = failed.some((f) => f.why === 'conflict');
     if (conflict) await this.load(); // the other editor's version of the zones (load clears the message: it is set after)
-    const why = conflict ? 'אזור השתנה בינתיים על ידי עורך אחר ונטען מחדש' : failed[0];
-    this.error = `${failed.length} מתוך ${moves.length} אזורים לא הוזזו (${why}); הקירות והעצמים כן זזו - גרור שוב את הבחירה או בטל (Ctrl+Z) כדי ליישר אותם`;
+    const why = conflict ? 'אזור השתנה בינתיים על ידי עורך אחר ונטען מחדש' : failed[0].why;
+    this.error = `${failed.length} מתוך ${moves.length} אזורים לא הוזזו (${why}). שאר הבחירה זזה; האזורים שלא זזו נבחרו לבדם - גרור אותם למקומם (ביטול ב-Ctrl+Z מחזיר רק קירות ועצמים, לא אזורים)`;
+    // only when the user has not picked something else meanwhile (a tool switch or a new selection wins)
+    if (this.tool !== 'select' || this.multi !== selectedAtDrop) return;
+    const left = new Set(this.zones.map((z) => z.id));
+    this.setSelection(failed.filter((f) => left.has(f.id)).map((f): MultiItem => ({ id: f.id, kind: 'zone' })));
   }
 
   /** Delete on a multi-selection: its walls and objects in one document edit (one undo step, removeItems - removeItem's
