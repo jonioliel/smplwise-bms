@@ -46,6 +46,29 @@ LIMITS = {"levels": 20, "walls": 2000, "openings": 4000, "rooms": 500, "objects"
 # "יציאת חירום"; beside a wall's fixed kind, not instead of it). Bounded like a collection: past a bound the save is refused.
 MAX_TAGS = 20
 MAX_TAG_LEN = 40
+TAG_PROBLEMS = {"type": "התגיות חייבות להיות רשימה של טקסטים.", "length": f"תגית ריקה או ארוכה מ־{MAX_TAG_LEN} תווים.", "count": f"יותר מ־{MAX_TAGS} תגיות."}
+
+
+def check_tags(raw: Any) -> tuple[list[str], str | None]:
+    """The one server rule for tags, shared by validate(), normalize() and the zone PATCH (routers/zones.py) so the two
+    homes of tags cannot drift apart: every tag trimmed with inner runs of whitespace collapsed to one space, duplicates
+    merged case-insensitively (casefold; the first spelling stays), and the bounds judged on that cleaned list. Returns
+    the cleaned list and the problem: None, "type" (not a list of strings), "length" (a tag blank or longer than
+    MAX_TAG_LEN once cleaned) or "count" (more than MAX_TAGS once merged). The editor cleans the same way before it
+    sends (studio-ops normalizeTag / withTag), so for its lists this changes nothing."""
+    if not isinstance(raw, list) or not all(isinstance(t, str) for t in raw):
+        return [], "type"
+    out: list[str] = []
+    seen: set[str] = set()
+    for t in raw:
+        tag = " ".join(t.split())
+        if not tag or len(tag) > MAX_TAG_LEN:
+            return [], "length"
+        key = tag.casefold()
+        if key not in seen:
+            seen.add(key)
+            out.append(tag)
+    return out, "count" if len(out) > MAX_TAGS else None
 MAX_WARNINGS = 200  # only _check_openings' overlap loop emits warnings; it stops emitting once this many have been
                     # added (an O(1) local counter) - an error or a structural issue is never bounded by this cap
 MAX_DEPTH = 64  # a document this deeply nested is not something any client UI produces; refuse it rather than walk it
@@ -307,19 +330,17 @@ def _check_fields(coll: str, i: int, item: dict[str, Any], issues: list[dict[str
             bad(field)
 
     def tags() -> None:
-        """Optional free-text tags: a list of strings (else a type issue), at most MAX_TAGS of 1..MAX_TAG_LEN characters
-        once trimmed (else a limit issue - structural, as an over-limit collection is)."""
+        """Optional free-text tags, judged by check_tags on the cleaned list (normalize() stores that list): not a list
+        of strings is a type issue; a tag blank or too long, or too many once merged, is a limit issue - structural, as
+        an over-limit collection is."""
         v = item.get("tags")
         if v is None:
             return
-        if not isinstance(v, list):
+        _, problem = check_tags(v)
+        if problem == "type":
             bad("tags")
-        elif len(v) > MAX_TAGS:
-            _issue(issues, "limit", f"יותר מ־{MAX_TAGS} תגיות.", item=iid, path=f"{coll}[{i}].tags", structural=True)
-        elif not all(isinstance(t, str) for t in v):
-            bad("tags")
-        elif not all(t.strip() and len(t) <= MAX_TAG_LEN for t in v):
-            _issue(issues, "limit", f"תגית ריקה או ארוכה מ־{MAX_TAG_LEN} תווים.", item=iid, path=f"{coll}[{i}].tags", structural=True)
+        elif problem is not None:
+            _issue(issues, "limit", TAG_PROBLEMS[problem], item=iid, path=f"{coll}[{i}].tags", structural=True)
 
     if coll == "levels":
         req("name", isinstance(item.get("name"), str))
@@ -879,8 +900,15 @@ def normalize(doc: Mapping[str, Any], items: Mapping[str, Mapping[str, Any]]) ->
     nothing (_check_objects flags it, id_too_long_for_connector); dimensions must be usable pixels (integers in
     1..100000, exactly what validate() requires) or nothing is derived. Malformed nested values (a list where a
     string id is expected, a non-numeric power_w) are skipped rather than raised: this runs on drafts that may not
-    yet validate."""
+    yet validate. Tags on walls, objects and rooms are stored as check_tags cleans them (trimmed, merged
+    case-insensitively); a list check_tags refuses is left as it is for validate() to report."""
     out = copy.deepcopy(dict(doc))
+    for coll in ("walls", "objects", "rooms"):
+        for it in out.get(coll) if isinstance(out.get(coll), list) else []:
+            if isinstance(it, dict) and it.get("tags") is not None:
+                cleaned, problem = check_tags(it["tags"])
+                if problem is None:
+                    it["tags"] = cleaned
     objects = out.get("objects")
     if not isinstance(objects, list):
         return out

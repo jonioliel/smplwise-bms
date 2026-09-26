@@ -638,8 +638,15 @@ export function setLevelOf(doc: GeometryDoc, ids: readonly string[], levelId: st
   return changed ? { ...doc, walls, objects } : doc;
 }
 
-/** The bulk "add to circuit": the objects of `ids` that `eligible` accepts (the editor passes "its library item is a
- * light", as the single toggle refuses any other) join the circuit in one document, each leaving any other circuit (one
+/** Whether an object whose library item is `item` may be a member of a lighting circuit - the one rule of the circuit
+ * tool's click on a lamp and of the bulk "add to circuit": a light, or an item the library does not know (a custom item
+ * deleted meanwhile), which the server's _check_circuits also reads as a light; an item of any other role never. */
+export function circuitEligible(item: Pick<CatalogItem, 'role'> | undefined): boolean {
+  return !item || item.role === 'light';
+}
+
+/** The bulk "add to circuit": the objects of `ids` that `eligible` accepts (the editor passes circuitEligible of the
+ * object's library item) join the circuit in one document, each leaving any other circuit (one
  * switch per lamp, as toggleCircuitMember) - but a lamp already on the circuit stays on it, never toggled out. Walls,
  * zones and unknown ids are never members. `added`: the eligible objects, now on the circuit, in the order of `ids`. */
 export function joinCircuit(doc: GeometryDoc, circuitId: string, ids: readonly string[], eligible: (o: GeomObject) => boolean): { doc: GeometryDoc; added: string[] } {

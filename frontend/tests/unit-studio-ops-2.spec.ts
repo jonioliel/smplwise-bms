@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { objectHitCorners, type GeometryDoc, type GeomObject } from '../src/map/geometry';
 import type { CatalogItem } from '../src/api/plan-catalog';
 import { addArray, addCircuit, addCircuitLamp, addConnector, addLevel, addObject, arrayDefaults, circuitPower, duplicateBeside, duplicateObject, initialLevel, levelUsage, moveConnectorVertex, moveGroup, moveObject, objectZ, patchCircuit, patchConnector, patchLevel, patchObject, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember, translatePolygon, translateWall, visibleUnderLevel, duplicateSelection, itemsInRect, moveSelection, removeItems, selectableItems, selectionDelta, toggleItem, zoneOnLevel,
-  TAG_MAX_COUNT, TAG_MAX_LEN, itemsWithTag, joinCircuit, normalizeTag, patchWall, setLevelOf, tagCounts, tagItems, withTag, withoutTag } from '../src/map/studio-ops';
+  TAG_MAX_COUNT, TAG_MAX_LEN, circuitEligible, itemsWithTag, joinCircuit, normalizeTag, patchWall, setLevelOf, tagCounts, tagItems, withTag, withoutTag } from '../src/map/studio-ops';
 
 // Plan Studio phase 2 (T085): the pure document operations of the editor - placing an item (its size, z and params come
 // from the library), moving, rotating, stretching, duplicating, and removing an object out of its group, its circuit
@@ -428,7 +428,7 @@ test.describe('plan studio tags and bulk reassignment (unit)', () => {
     { id: 'z-half', level_id: 'L0', polygon: [{ x: 0.5, y: 0.4 }, { x: 0.9, y: 0.4 }, { x: 0.9, y: 0.5 }], tags: ['מטבח'] as string[] | undefined },
     { id: 'z-base', level_id: 'L1', polygon: [{ x: 0.7, y: 0.7 }, { x: 0.8, y: 0.7 }, { x: 0.8, y: 0.8 }], tags: ['Emergency', 'חירום'] as string[] | undefined },
   ];
-  const isLight = (o: GeomObject) => library.items.find((i) => i.id === o.item_id)?.role === 'light';
+  const isLight = (o: GeomObject) => circuitEligible(library.items.find((i) => i.id === o.item_id));
 
   test('a tag is trimmed free text of at most TAG_MAX_LEN; one tag in any spelling; a full list takes no more', () => {
     expect([TAG_MAX_COUNT, TAG_MAX_LEN]).toEqual([20, 40]); // plan_geometry.MAX_TAGS / MAX_TAG_LEN and the zone PATCH
@@ -497,12 +497,23 @@ test.describe('plan studio tags and bulk reassignment (unit)', () => {
     expect(setLevelOf(doc, ['wa'], 'nope')).toBe(doc); // not a level of the document: nothing changes
   });
 
+  test('circuitEligible is the one rule for a circuit member: a light, or an item the library does not know (as the server reads it); never another role', () => {
+    expect(circuitEligible(item('light.ceiling'))).toBe(true);
+    expect(circuitEligible(item('light.spot'))).toBe(true);
+    expect(circuitEligible(item('chair.basic'))).toBe(false);
+    expect(circuitEligible(item('extinguisher.co2'))).toBe(false);
+    expect(circuitEligible(undefined)).toBe(true); // a custom item deleted meanwhile: the server's _check_circuits reads it as a light
+  });
+
   test('joinCircuit adds only the eligible objects of a selection to the circuit, each leaving any other circuit (one switch per lamp)', () => {
     const k = addCircuit(sample(), 'צפון', 'switch.north', 'circuit-2');
     const lamp = addObject(k.doc, item('light.spot'), [0.6, 0.6], PLACE);
     const doc = lamp.doc; // o3 (a ceiling lamp) is on k1; the new spot is on no circuit; o1 and o2 are furniture
     const r = joinCircuit(doc, k.id, ['o1', 'o3', 'wa', lamp.id, 'o2', 'z-in'], isLight);
     expect(r.added).toEqual(['o3', lamp.id]);
+    // an object whose library item is unknown joins, as the single toggle and the server allow
+    const ghost = { ...doc, objects: [...doc.objects, { ...doc.objects[0], id: 'ghost', item_id: 'custom.gone' }] };
+    expect(joinCircuit(ghost, k.id, ['o1', 'ghost'], isLight).added).toEqual(['ghost']);
     expect(r.doc.circuits.find((c) => c.id === k.id)!.member_ids).toEqual(['o3', lamp.id]);
     expect(r.doc.circuits.find((c) => c.id === 'k1')!.member_ids).toEqual([]);
     expect(r.doc).toEqual(toggleCircuitMember(toggleCircuitMember(doc, k.id, 'o3'), k.id, lamp.id)); // as the single toggle, for each lamp

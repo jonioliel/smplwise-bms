@@ -5,10 +5,10 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from typing import Annotated, Any
+from typing import Any
 
 from fastapi import APIRouter, Depends, Request
-from pydantic import BaseModel, Field, StringConstraints
+from pydantic import BaseModel, Field, field_validator
 
 from ..audit import audit
 from ..auth import current_principal, get_conn, settings_of
@@ -24,8 +24,6 @@ router = APIRouter()
 
 KINDS = ("room", "zone", "corridor", "outdoor", "service")
 PALETTE = ["#2767ED", "#22A06B", "#F59E0B", "#8B5CF6", "#0EA5E9", "#EC4899", "#14B8A6", "#F97316"]
-# One free-text tag (T085): the structure document's rule for walls and objects (plan_geometry.MAX_TAG_LEN), trimmed.
-Tag = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=pg.MAX_TAG_LEN)]
 
 
 class Point(BaseModel):
@@ -54,11 +52,24 @@ class ZonePatch(BaseModel):
     searchable: bool | None = None
     level_id: str | None = Field(default=None, max_length=64)  # free text: not checked against the document's levels
     ceiling_height_m: float | None = Field(default=None, ge=0, le=50)
-    tags: list[Tag] | None = Field(default=None, max_length=pg.MAX_TAGS)  # replaces the list; [] clears it
+    tags: list[str] | None = None  # replaces the list; [] clears it
     label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
     label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
     label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
     label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
+
+
+    @field_validator("tags")
+    @classmethod
+    def _clean_tags(cls, v: list[str] | None) -> list[str] | None:
+        """Free-text tags (T085) by the structure document's own rule, plan_geometry.check_tags: trimmed, merged
+        case-insensitively, bounded on the cleaned list. A refused list answers 422."""
+        if v is None:
+            return None
+        cleaned, problem = pg.check_tags(v)
+        if problem is not None:
+            raise ValueError(pg.TAG_PROBLEMS[problem])
+        return cleaned
 
 
 class DetectIn(BaseModel):
@@ -162,7 +173,7 @@ def update_zone(zone_id: str, body: ZonePatch, request: Request, principal: Prin
     if body.ceiling_height_m is not None:
         fields["ceiling_height_m"] = body.ceiling_height_m or None  # 0 = the level's ceiling
     if body.tags is not None:
-        fields["tags_json"] = json.dumps(list(dict.fromkeys(body.tags)), ensure_ascii=False) if body.tags else None  # [] = no tags
+        fields["tags_json"] = json.dumps(body.tags, ensure_ascii=False) if body.tags else None  # [] = no tags
     if body.label_pos is not None:
         fields["label_pos"] = body.label_pos
     if body.label_pos is not None:

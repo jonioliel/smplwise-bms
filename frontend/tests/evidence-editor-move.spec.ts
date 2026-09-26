@@ -695,6 +695,29 @@ test.describe.serial('editor: select and move walls, objects and zones (0.1.87)'
       await expect(panel.locator('[data-multi-note]')).toContainText('1 מתוך 2 פריטים שנבחרו נוספו למעגל "צפון"');
       await saved(page);
 
+      // review of the tags round, S3: under the ground-floor filter two chairs and a zone go to the basement while the
+      // zone's save fails - the zone stays on its level, so it leaves the selection before the filter follows the chairs
+      // (the selection never spans two levels); the chairs come back with one undo
+      await page.locator(`${ED} [data-level-chip="L0"]`).click();
+      await click(pts.tg1);
+      await click(pts.tg2, true);
+      await click([0.86, 0.15], true);
+      await expect(panel).toHaveAttribute('data-multi-count', '3');
+      await page.route(`**/api/v1/zones/${zone}`, (route) => (route.request().method() === 'PATCH' ? route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ detail: 'test failure' }) }) : route.continue()));
+      await panel.locator('[data-multi-level]').selectOption('L1');
+      await expect(panel).toHaveAttribute('data-multi-count', '2');
+      await expect(page.locator(`${ED} sw-plan-canvas g.zone.selected[data-zone="${zone}"]`)).toHaveCount(0);
+      await expect(page.locator(`${ED} [data-level-chip="L1"]`)).toHaveAttribute('selected', ''); // the filter followed the chairs
+      await expect(panel.locator('[data-multi-note]')).toContainText('1 מתוך 1 אזורים לא עודכנו');
+      await expect(panel.locator('[data-multi-note]')).toContainText('האזור שלא הועבר הוצא מהבחירה');
+      for (const id of ['tg1', 'tg2']) await expect.poll(() => levelOf(id), { timeout: 10000 }).toBe('L1');
+      expect(((await (await api.get(`api/v1/floors/${ids.floor}/zones`)).json()) as { zones: { id: string; level_id?: string | null }[] }).zones.find((z) => z.id === zone)!.level_id ?? null).toBeNull();
+      await page.unroute(`**/api/v1/zones/${zone}`);
+      await saved(page);
+      await page.locator(`${ED} [data-rail-undo]`).click();
+      for (const id of ['tg1', 'tg2']) await expect.poll(() => levelOf(id), { timeout: 10000 }).toBe('L0');
+      await page.locator(`${ED} [data-level-chip="all"]`).click();
+
       // select by tag, beside the level chips: every level - the two objects, the basement chair and the zone; the ground
       // floor - the zone without a level too (the default level's), not the basement chair; the basement - that chair alone
       await page.keyboard.press('Escape');

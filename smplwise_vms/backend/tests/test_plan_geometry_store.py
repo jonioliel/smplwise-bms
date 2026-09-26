@@ -53,6 +53,17 @@ def _clone(conn, source, *, crop=None, width=None, rotation=None):
     return _version(conn, vid)
 
 
+def test_a_saved_draft_stores_its_tags_cleaned(settings):
+    """T085: whatever client sends the document (the editor, a document PUT, a candidate edit), the stored draft holds
+    the tags as check_tags cleans them - trimmed and merged case-insensitively - never "Kitchen" beside "kitchen"."""
+    app, vid = _setup(settings)
+    with app.state.db.connection() as conn:
+        v = _version(conn, vid)
+        doc, _ = store.working_doc(conn, v)
+        row = store.save_draft(conn, v, _with(doc, dict(WALL, tags=[" Kitchen ", "kitchen", "יציאת  חירום"])), 0, "u")
+        assert store.load_doc(row)["walls"][0]["tags"] == ["Kitchen", "יציאת חירום"]
+
+
 def test_draft_revisions_and_conflicts(settings):
     app, vid = _setup(settings)
     with app.state.db.connection() as conn:

@@ -823,7 +823,7 @@ export interface MultiView {
   levels: GeomLevel[];
   /** The floor's lighting circuits: "add to circuit" shows only when `lights` > 0. */
   circuits: GeomCircuit[];
-  /** How many selected objects are lights (their library item's role): only they can join a circuit. */
+  /** How many selected objects may join a circuit (studio-ops circuitEligible: a light, or an unknown library item). */
   lights: number;
   /** What the last bulk tag / level / circuit action did, until the selection changes. */
   note: string;

@@ -93,3 +93,10 @@ def test_zone_tags_round_trip_bounded_and_cleared(settings):
     assert c.patch(f"/api/v1/zones/{z['id']}", json={"revision": 2, "tags": at_bound}).json()["tags"] == at_bound
     assert c.patch(f"/api/v1/zones/{z['id']}", json={"revision": 3, "name": "מטבח ראשי"}).json()["tags"] == at_bound  # another field's patch leaves them
     assert c.patch(f"/api/v1/zones/{z['id']}", json={"revision": 4, "tags": []}).json()["tags"] == []
+    # the same server rule as the structure document (plan_geometry.check_tags): case-insensitive merge, spaces collapsed,
+    # the count judged once merged
+    r = c.patch(f"/api/v1/zones/{z['id']}", json={"revision": 5, "tags": [" Kitchen ", "kitchen", "KITCHEN", "יציאת   חירום", "יציאת חירום"]})
+    assert r.status_code == 200, r.text
+    assert r.json()["tags"] == ["Kitchen", "יציאת חירום"]
+    merged = c.patch(f"/api/v1/zones/{z['id']}", json={"revision": 6, "tags": at_bound + ["T0"]})
+    assert merged.status_code == 200 and merged.json()["tags"] == at_bound

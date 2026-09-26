@@ -194,6 +194,14 @@ DWG ו־BIM כשלבים עתידיים (סעיף 17), וההדגשה שהכול
 **`map_anchors`** (מיגרציה 0021, שלב 4) — `mount_height_m REAL NULL` ו־`tilt_deg REAL NULL` לתלת־ממד (ברירות מחדל
 לפי סוג: מצלמה 2.7 מ׳ ו־10° מטה, מנורה — תקרה פחות 0.1 מ׳, מנעול 1.0 מ׳, חיישן 2.2 מ׳).
 
+**`spatial_zones`** (מיגרציה 0022, T085) — `tags_json TEXT NULL`: תגיות טקסט חופשי של חדר / אזור (מערך JSON של
+מחרוזות; NULL = אין), לסימון ולבחירה מהירה לפי תגית, כמו התגיות של קירות ועצמים במסמך (סעיף 4.2). **זה המקום
+היחיד שבו נשמרות תגיות של חדר:** העורך כותב אותן רק דרך `PATCH /zones/{id}` (שדה `tags`, מחליף את הרשימה; `[]` מנקה).
+כלל אחד בצד השרת לשני הבתים של תגיות — `plan_geometry.check_tags`, שמשמש גם את ה־PATCH של האזורים וגם את הוולידציה
+והנרמול של המסמך: כל תגית נחתכת ורווחים פנימיים מתכווצים לרווח אחד, כפילויות מתאחדות בלי תלות ברישיות (האיות
+הראשון נשאר), ואז נבדקים הגבולות על הרשימה המנוקה — עד 20 תגיות, כל אחת 1–40 תווים. חריגה נדחית (422 באזור,
+בעיה מבנית `limit` במסמך).
+
 **`plan_versions`** — `scale_m_per_px` הופך לניתן לעדכון דרך endpoint הכיול (סעיף 5); נוסף `calibration_json`
 (נקודות הכיול, השיטה, השארית) כדי שאפשר יהיה לבדוק ולשחזר.
 
@@ -210,14 +218,14 @@ calibration   { status: measured|estimated|missing, scale_m_per_px, method: two_
 levels ★      [{ id, name, elevation_m, ceiling_height_m, is_default, external_ids }] — לפחות אחד; ברירת מחדל 0 / 2.8
 walls         [{ id, level_id★, points: [{x,y}…] (≥2), thickness_m★, height_m★ (ברירת מחדל = תקרת המפלס),
                 base_z_m★ (0), kind★: exterior|interior|partition|railing|low, provenance: manual|auto|imported,
-                confidence (0–1, רק ל־auto), locked★, external_ids★ }]
+                confidence (0–1, רק ל־auto), locked★, external_ids★, tags★ (T085) }]
 openings ★    [{ id, wall_id, t (0–1 לאורך הקיר), kind: door|window|passage, width_m, height_m, sill_m,
                 swing: left|right|double|sliding|none, hinge: start|end, anchor_ref (עוגן lock/door/binary_sensor),
                 provenance, confidence, external_ids }]                            — מחליף את `doors`/`windows` של v1
-rooms         [{ id (= spatial_zones.id), level_id, ceiling_height_m, external_ids★ }] — הפניה; הפוליגון ב־spatial_zones
+rooms         [{ id (= spatial_zones.id), level_id, ceiling_height_m, external_ids★, tags★ }] — הפניה; הפוליגון ב־spatial_zones
 objects ★     [{ id, level_id, catalog_id, custom_item_id, name, pose:{x,y,rotation_deg,z_m}, size:{w_m,d_m,h_m},
                 params:{…לפי הפריט}, anchor_ref, circuit_id, group_id, flip, locked, provenance, confidence,
-                external_ids }]                                   — anchor_ref = {resource_type, resource_id} (סעיף 2א, כלל 1)
+                external_ids, tags★ (T085) }]                                   — anchor_ref = {resource_type, resource_id} (סעיף 2א, כלל 1)
 circuits ★    [{ id, name, switch_ref (העוגן של ישות המפסק), panel_object_id,
                 planning:{rated_w, breaker_a, phase, notes} }]
 connectors    [{ id, kind: stairs|ramp|elevator|tribune|ladder, from_level_id, to_level_id, floor_ids:[…],
@@ -227,7 +235,14 @@ uncertain_regions [{ id, polygon, reason }]
 groups ★      [{ id, name, object_ids:[…] }]                                       — למערכים ולבחירה מהירה
 meta          { generator, tokens_version, detector_version, created_at }
 external_ids ★ = { ifc_guid, dxf_handle, source_ref } — אופציונלי בכל אובייקט; שומר זהות בייצוא וייבוא חוזרים (שלבים 5, 7, 8)
+tags ★ (T085) = ["מטבח", "יציאת חירום", …] — אופציונלי בקירות, בעצמים ובחדרים; טקסט חופשי לסימון ולבחירה לפי תגית,
+                לצד kind הקבוע של קיר ולא במקומו; עד 20 תגיות של 1–40 תווים (plan_geometry.check_tags, סעיף 4.1)
 ```
+
+**איזה עותק של תגיות חדר הוא האמיתי:** `spatial_zones.tags_json` (מיגרציה 0022, סעיף 4.1). השדה `rooms[].tags` במסמך
+קיים רק לסימטריה עם הקירות והעצמים — באותו דפוס שבו `rooms[].level_id` משקף את `spatial_zones.level_id` — והעורך
+אינו כותב אותו היום; אין שני עותקים שנערכים כל אחד בנפרד. מי שכותב `rooms[].tags` ישירות למסמך (לקוח אחר) יקבל אותו
+לפי אותו כלל ניקוי וגבולות, אבל הוא לא יוצג ולא ייבחר בעורך.
 
 **כללי ולידציה (מורחבים מ־v1):** גבולות 0–1; פוליגונים סגורים ללא חיתוך עצמי; מזהים ייחודיים בכל האוספים; קיר
 עם ≥2 נקודות ולא באורך אפס; `opening.t` בטווח והפתח כולו בתוך אורך הקיר (`width_m` ≤ אורך הקיר במטרים כשמכויל);

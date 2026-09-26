@@ -459,6 +459,30 @@ def test_tags_are_bounded_free_text_on_walls_objects_and_rooms():
     refused(lambda doc: doc["objects"][0].__setitem__("tags", [None]), "type")
 
 
+def test_tags_are_cleaned_by_one_server_rule_trimmed_and_merged_case_insensitively():
+    """One server rule (check_tags), used by the validator, normalize() and the zone PATCH: every tag trimmed with inner
+    runs of whitespace collapsed, duplicates merged case-insensitively (the first spelling stays), and the bounds judged
+    on the cleaned list - so a document PUT or a candidate edit cannot store "Kitchen" beside "kitchen"."""
+    raw = [" Kitchen ", "kitchen", "KITCHEN", "יציאת   חירום", "יציאת חירום"]
+    assert pg.check_tags(raw) == (["Kitchen", "יציאת חירום"], None)
+    assert pg.check_tags([f"t{i}" for i in range(pg.MAX_TAGS)] + ["T0", " t1 "]) == ([f"t{i}" for i in range(pg.MAX_TAGS)], None)  # 20 once merged
+    assert pg.check_tags([f"t{i}" for i in range(pg.MAX_TAGS + 1)])[1] == "count"
+    assert pg.check_tags(["  " + "x" * pg.MAX_TAG_LEN + "  "]) == (["x" * pg.MAX_TAG_LEN], None)  # the length once trimmed
+    assert pg.check_tags(["x" * (pg.MAX_TAG_LEN + 1)])[1] == "length" and pg.check_tags([" \t "])[1] == "length"
+    assert pg.check_tags("x")[1] == "type" and pg.check_tags(["x", 1])[1] == "type"
+    d = _doc()
+    d["walls"][0]["tags"] = raw + [f"x{i}" for i in range(pg.MAX_TAGS - 2)]  # 23 entries, 20 once merged
+    d["rooms"].append({"id": "r1", "tags": [" מטבח", "מטבח "]})
+    assert pg.validate(d) == []
+    out = pg.normalize(d, {})
+    assert out["walls"][0]["tags"] == ["Kitchen", "יציאת חירום", *[f"x{i}" for i in range(pg.MAX_TAGS - 2)]]
+    assert out["rooms"][0]["tags"] == ["מטבח"]
+    assert "tags" not in out["walls"][1] and d["walls"][0]["tags"] == raw + [f"x{i}" for i in range(pg.MAX_TAGS - 2)]  # absent stays absent; the input is untouched
+    bad = _doc()
+    bad["walls"][0]["tags"] = ["x" * (pg.MAX_TAG_LEN + 1)]
+    assert pg.normalize(bad, {})["walls"][0]["tags"] == bad["walls"][0]["tags"]  # a refused list is left for the validator to report
+
+
 def test_the_schema_file_bounds_tags_as_the_validator_does():
     defs = json.loads(SCHEMA.read_text(encoding="utf-8"))["$defs"]
     assert defs["tags"] == {"type": "array", "maxItems": pg.MAX_TAGS, "items": {"type": "string", "minLength": 1, "maxLength": pg.MAX_TAG_LEN}}
