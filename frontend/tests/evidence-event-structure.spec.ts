@@ -73,6 +73,8 @@ test.describe.serial('event page: the structure in force at the event (throwaway
     ids.event = randomBytes(8).toString('hex');
     const db = new DatabaseSync(DB);
     try {
+      // the file must be the database of the backend under test: it holds the floor just created through the API
+      expect(db.prepare('SELECT 1 AS ok FROM floors WHERE id = ?').get(ids.floor), 'SW_THROWAWAY_DB is the database of this backend').toBeTruthy();
       db.prepare('INSERT INTO events(id, source, raw_type, type, camera_id, channel, occurred_at, ended_at, received_at, state, count, severity, confidence, details_json, dedup_key, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
         .run(ids.event, 'alertstream', 'VMD', 'motion', ids.camera, 41, iso(at), iso(at), iso(at), 'inactive', 1, 'info', 'measured', '{}', `r9-${ids.event}`, iso(at));
     } finally {

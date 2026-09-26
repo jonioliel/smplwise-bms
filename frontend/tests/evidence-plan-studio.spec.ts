@@ -78,10 +78,13 @@ test.describe.serial('plan studio (SW A)', () => {
     await expect(page.locator('investigate-history-map sw-plan-canvas [data-wall]')).toHaveCount(3, { timeout: 20000 });
     // owner form item 10 (round 9): before the publish, the same floor's history has its plan and no structure
     await page.goto('about:blank');
+    // the history reads the version's publish timeline and draws the period that holds the instant: none yet
+    const timeline = page.waitForResponse((r) => r.url().includes(`/plan-versions/${ids.version}/geometry/timeline`), { timeout: 20000 });
     await page.goto(`/?design=a#/investigate/floors/${ids.floor}/history?t=${tBefore}`);
-    await expect(page.locator('investigate-history-map sw-plan-canvas')).toBeAttached({ timeout: 20000 });
+    const periods = ((await (await timeline).json()) as { timeline: { published_at: string }[] }).timeline;
+    expect(periods.length, 'the version has a published structure').toBeGreaterThan(0);
+    expect(periods.every((p) => p.published_at > tBefore), 'no structure was in force at the instant').toBe(true);
     await expect.poll(() => page.locator('investigate-history-map sw-plan-canvas').evaluate((el) => (el as unknown as { imageUrl: string | null }).imageUrl ?? ''), { timeout: 20000 }).toContain(ids.version);
-    await page.waitForTimeout(1500);
     await expect(page.locator('investigate-history-map sw-plan-canvas [data-wall]')).toHaveCount(0);
   });
 

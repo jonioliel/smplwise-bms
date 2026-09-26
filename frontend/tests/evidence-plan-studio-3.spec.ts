@@ -396,7 +396,7 @@ test.describe.serial('plan studio phase 3 (SW A)', () => {
     await page.locator(`${ED} [data-detect-run]`).click();
     await expect(page.locator(`${ED} [data-detect-run]`)).toHaveAttribute('aria-busy', 'true');
     await expect(page.locator(`${ED} [data-detect-run]`)).toHaveAttribute('disabled', '');
-    await expect(page.locator(`${ED} [data-detect-elapsed]`)).toBeAttached();
+    await expect(page.locator(`${ED} [data-detect-elapsed]`)).toHaveText(/^\d+$/);
     const res = await detected;
     const tookMs = Date.now() - started - 2500;
     await page.unroute(isDetect);

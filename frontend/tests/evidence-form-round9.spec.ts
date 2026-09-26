@@ -271,11 +271,12 @@ test.describe.serial('owner form round 9: the items without an assertion of thei
     await expect(canvas.locator('[data-wall="draft-only"]')).toHaveCount(0);
     await expect(page.locator(`${MAP} sw-button`, { hasText: 'עריכת תוכנית' })).toHaveCount(0);
     await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
-    await page.waitForTimeout(2000);
-    await expect(page.locator(`${ED} [data-library-panel]`)).toHaveCount(0);
-    const lib = page.locator(`${ED} [data-tool="library"]`);
-    if (await lib.count()) await expect(lib).toBeDisabled();
+    // the editor opens for a viewer with the studio tools switched off (native buttons, so toBeDisabled can fail); the
+    // studio never loads a draft for a viewer, so nothing of the draft reaches its canvas
+    await expect(page.locator(`${ED} [data-tool="library"]`)).toBeDisabled({ timeout: 20000 });
+    await expect(page.locator(`${ED} [data-tool="structure"]`)).toBeDisabled();
     await expect(page.locator(`${ED} sw-plan-canvas [data-wall="draft-only"]`)).toHaveCount(0);
+    await expect(page.locator(`${ED} sw-plan-canvas [data-object="draft-chair"]`)).toHaveCount(0);
   });
 
   test('library: Hebrew and English search, a category chip, a favourite kept across a reload, an item dragged onto the plan, Shift keeps the ratio, arrows nudge, the size and the label from the panel, an array deleted whole, the level filter and the level field (items 21-24, 31, 32, 42)', async ({ page }) => {

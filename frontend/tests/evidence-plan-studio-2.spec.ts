@@ -122,9 +122,13 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
     await page.goto(`/?design=a#/investigate/floors/${ids.floor}/history?t=${tAfter}`);
     await expect(page.locator('investigate-history-map sw-plan-canvas [data-object]')).toHaveCount(2, { timeout: 20000 });
     await page.goto('about:blank');
+    // the history reads the version's publish timeline and draws the period that holds the instant: none yet
+    const timeline = page.waitForResponse((r) => r.url().includes(`/plan-versions/${ids.version}/geometry/timeline`), { timeout: 20000 });
     await page.goto(`/?design=a#/investigate/floors/${ids.floor}/history?t=${tBefore}`);
+    const periods = ((await (await timeline).json()) as { timeline: { published_at: string }[] }).timeline;
+    expect(periods.length, 'the version has a published structure').toBeGreaterThan(0);
+    expect(periods.every((p) => p.published_at > tBefore), 'no structure was in force at the instant').toBe(true);
     await expect(page.locator('investigate-history-map sw-plan-canvas')).toBeAttached({ timeout: 20000 });
-    await page.waitForTimeout(2000);
     await expect(page.locator('investigate-history-map sw-plan-canvas [data-object]')).toHaveCount(0);
     await page.goto('about:blank');
     await page.goto(`/?design=a#/explore/floors/${ids.floor}`);

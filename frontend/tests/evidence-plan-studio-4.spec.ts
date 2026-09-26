@@ -510,6 +510,7 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
     console.log(`GLTF validator: ${report.issues.numErrors} errors, ${report.issues.numWarnings} warnings; required ${JSON.stringify(report.info?.extensionsRequired ?? [])}`);
     expect(errors, JSON.stringify(errors.slice(0, 5))).toEqual([]);
     expect(report.issues.numErrors).toBe(0);
+    expect(report.info?.extensionsRequired ?? [], 'the instanced parts need the extension').toContain('EXT_mesh_gpu_instancing');
     console.log(`GLTF ${got.name}: ${gltf.nodes.length} nodes, ${gltf.meshes.length} meshes, ${got.text.length} bytes`);
   });
 
