@@ -98,4 +98,74 @@ test.describe('plan import crop (SW A)', () => {
       await request.delete(`/api/v1/floors/${floorId}?force=true`);
     }
   });
+
+  test('a published drawing imported again in another crop: the new version carries the published structure, cut and mapped to the new bounds, and the map shows the new crop', async ({ page, request }) => {
+    // owner form item 19 (round 9): the re-import goes through the wizard on the drawing the floor already published
+    const stamp = new Date().toISOString().slice(0, 19);
+    const site = (await (await request.post('/api/v1/sites', { data: { name: `בדיקת חיתוך חוזר ${stamp}`, address: '' } })).json()).id as string;
+    const building = (await (await request.post(`/api/v1/sites/${site}/buildings`, { data: { name: 'מבנה בדיקה' } })).json()).id as string;
+    const floorId = (await (await request.post(`/api/v1/buildings/${building}/floors`, { data: { name: 'קומת חיתוך', level: 0 } })).json()).id as string;
+    const WALL = (id: string, polyline: [number, number][]) => ({ id, level_id: 'L0', polyline, thickness_m: 0.2, height_m: null, base_z_m: 0, kind: 'interior',
+      confidence: 1, source: 'manual', locked: false, external_ids: {} });
+    try {
+      const asset = await (await request.post(`/api/v1/floors/${floorId}/plan-assets`, { multipart: { file: { name: 'quadrant.png', mimeType: 'image/png', buffer: fs.readFileSync(FIXTURE) } } })).json();
+      const v1 = (await (await request.post(`/api/v1/floors/${floorId}/plan-versions`, { data: { asset_id: asset.id } })).json()).id as string;
+      expect((await request.post(`/api/v1/plan-versions/${v1}/publish`)).status()).toBe(200);
+      // the published structure: a wall in the left half (kept by the new crop) and one in the right half (cut away)
+      const g = await (await request.get(`/api/v1/plan-versions/${v1}/geometry?draft=true`)).json();
+      const doc = { ...g.doc, walls: [WALL('keep', [[0.1, 0.25], [0.4, 0.25]]), WALL('gone', [[0.6, 0.75], [0.9, 0.75]])] };
+      expect((await request.put(`/api/v1/plan-versions/${v1}/geometry`, { data: { doc, base_revision: g.geometry.revision } })).status()).toBe(200);
+      expect((await request.post(`/api/v1/plan-versions/${v1}/geometry/publish`)).status()).toBe(200);
+
+      // the wizard: the drawing already uploaded to the floor, the left half of it, saved as a draft version
+      await open(page, `/explore/floors/${floorId}/import`);
+      const wiz = page.locator('explore-plan-import');
+      await wiz.locator('.assets button', { hasText: 'quadrant.png' }).click();
+      await expect(wiz.locator('.frame img')).toBeVisible({ timeout: 15000 });
+      const width = wiz.locator('sw-field[label="רוחב %"] input');
+      await width.fill('50');
+      await width.dispatchEvent('change');
+      await expect(wiz.locator('.frame .cropbox')).toHaveAttribute('style', /width:50%/);
+      await wiz.getByRole('button', { name: 'הבא' }).click();
+      await wiz.getByRole('button', { name: 'הבא' }).click();
+      const created = page.waitForResponse((r) => r.url().endsWith('/plan-versions') && r.request().method() === 'POST');
+      await wiz.getByRole('button', { name: 'שמור כטיוטה' }).click();
+      const res = await created;
+      expect(res.status()).toBe(201);
+      const v2 = (await res.json()) as { id: string; geometry_carry: string; width_px: number; height_px: number; crop: { x: number; y: number; w: number; h: number } | null };
+      expect(v2.geometry_carry, 'the published structure is carried through both crops').toBe('transformed');
+      expect(v2.crop).toMatchObject({ x: 0, y: 0, w: 0.5, h: 1 });
+      expect([v2.width_px, v2.height_px]).toEqual([200, 200]); // the left half of the 400 x 200 drawing
+      const carried = (await (await request.get(`/api/v1/plan-versions/${v2.id}/geometry?draft=true`)).json()).doc as { walls: { id: string; polyline: [number, number][] }[] };
+      expect(carried.walls.map((w) => w.id), 'the wall outside the new bounds is cut away').toEqual(['keep']);
+      const [a, b] = carried.walls[0].polyline;
+      for (const [got, want] of [[a, [0.2, 0.25]], [b, [0.8, 0.25]]] as const) {
+        expect(got[0]).toBeCloseTo(want[0], 3); // x doubles: the new plan is the left half
+        expect(got[1]).toBeCloseTo(want[1], 3);
+      }
+
+      // "פרסום" in the wizard publishes the version with its carried structure (no structure preview - decision 5.3)
+      const published = page.waitForResponse((r) => r.url().endsWith(`/plan-versions/${v2.id}/publish`));
+      await wiz.getByRole('button', { name: 'פרסום' }).click();
+      expect((await published).status()).toBe(200);
+      await expect(wiz.locator('.ok')).toContainText('פורסמה');
+      const map = await (await request.get(`/api/v1/floors/${floorId}/map`)).json();
+      expect(map.plan.id).toBe(v2.id);
+      expect([map.plan.width_px, map.plan.height_px]).toEqual([200, 200]);
+      expect((await (await request.get(`/api/v1/plan-versions/${v2.id}/geometry`)).json()).doc.walls.map((w: { id: string }) => w.id)).toEqual(['keep']);
+
+      // the live map draws the new crop (a square plan) with the carried wall only
+      await page.goto('about:blank');
+      await open(page, `/explore/floors/${floorId}`);
+      const canvas = page.locator('explore-floor-map sw-plan-canvas');
+      await expect(canvas.locator('[data-structure] [data-wall]')).toHaveCount(1, { timeout: 20000 });
+      const drawn = await canvas.evaluate((el) => { const c = el as unknown as { planWidth: number; planHeight: number; imageUrl: string | null }; return { w: c.planWidth, h: c.planHeight, url: c.imageUrl ?? '' }; });
+      expect([drawn.w, drawn.h]).toEqual([200, 200]);
+      expect(drawn.url, 'the background is the new version').toContain(v2.id);
+    } finally {
+      await request.delete(`/api/v1/floors/${floorId}?force=true`);
+      await request.delete(`/api/v1/buildings/${building}`);
+      await request.delete(`/api/v1/sites/${site}`);
+    }
+  });
 });
