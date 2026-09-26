@@ -286,6 +286,13 @@ test('door leaves follow the 2D rules: none, sliding on its track, two half leav
   const s80 = Math.sin((80 * Math.PI) / 180);
   expect(a.some((e) => near(e, [4.5, 4])) && a.some((e) => near(e, [4.5 + 0.5 * c80, 4 - 0.5 * s80]))).toBe(true);
   expect(b.some((e) => near(e, [5.5, 4])) && b.some((e) => near(e, [5.5 - 0.5 * c80, 4 - 0.5 * s80]))).toBe(true);
+  // hinge "end" on a double door picks the other side of the wall: both half leaves open to the south (y = 4 + ...)
+  const doubleEnd = scene('double', 'open', 'end');
+  const [ae, be] = [ends(byId(doubleEnd, 'door:o#0')), ends(byId(doubleEnd, 'door:o#1'))];
+  expect(ae.some((e) => near(e, [4.5, 4])) && ae.some((e) => near(e, [4.5 + 0.5 * c80, 4 + 0.5 * s80]))).toBe(true);
+  expect(be.some((e) => near(e, [5.5, 4])) && be.some((e) => near(e, [5.5 - 0.5 * c80, 4 + 0.5 * s80]))).toBe(true);
+  const slidingEnd = byId(scene('sliding', 'off', 'end'), 'door:o');
+  expect([slidingEnd.position[0], slidingEnd.position[2]]).toEqual([5, 4.12]); // the track on the south side of the wall
   const closedDouble = scene('double', 'closed');
   expect(doors(closedDouble).every((p) => p.rotation[1] === 0 && p.position[2] === 4)).toBe(true);
   // no swing stored: right, as geometry.ts draws it - the leaf opens to the south of the wall

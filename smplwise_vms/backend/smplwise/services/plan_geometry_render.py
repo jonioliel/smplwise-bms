@@ -81,15 +81,17 @@ def _door(g0: Point, g1: Point, d: Point, opening: dict[str, Any], w: float) -> 
     swing = opening.get("swing") or "right"
     if swing == "none":
         return {"leaves": [], "arcs": []}
+    # a double or sliding door has no hinge jamb to choose: its hinge picks the side of the wall (start = left, end = right)
+    side = nl if (opening.get("hinge") or "start") == "start" else nr
     if swing == "sliding":
         k = w * 0.12
-        return {"leaves": [[_p(_add(g0, nl, k)), _p(_add(g1, nl, k))]], "arcs": []}
+        return {"leaves": [[_p(_add(g0, side, k)), _p(_add(g1, side, k))]], "arcs": []}
     if swing == "double":
         h = w / 2
         leaves: list[list[list[float]]] = []
         arcs: list[dict[str, Any]] = []
         for hinge, along in ((g0, d), (g1, (-d[0], -d[1]))):
-            tip = _add(hinge, nl, h)
+            tip = _add(hinge, side, h)
             mid = _add(hinge, along, h)
             leaves.append([_p(hinge), _p(tip)])
             arcs.append({"from": _p(tip), "to": _p(mid), "r": r2(h), "sweep": _sweep(hinge, tip, mid)})

@@ -42,6 +42,9 @@ const WALL_KIND_LABEL: Record<WallKind, string> = { exterior: 'חיצוני', in
 const OPENING_KIND_LABEL: Record<OpeningKind, string> = { door: 'דלת', window: 'חלון', passage: 'מעבר' };
 const SWING_LABEL: Record<Swing, string> = { right: 'לצד ימין של הקיר', left: 'לצד שמאל של הקיר', double: 'כנף כפולה', sliding: 'הזזה', none: 'ללא כנף' };
 const HINGE_LABEL: Record<Hinge, string> = { start: 'בצד תחילת הקיר', end: 'בצד סוף הקיר' };
+/** A double or sliding door has no hinge jamb to pick: the same field chooses the side of the wall it opens to. */
+const SIDE_LABEL: Record<Hinge, string> = { start: 'לצד שמאל של הקיר', end: 'לצד ימין של הקיר' };
+const sideSwing = (s: Swing | undefined): boolean => s === 'double' || s === 'sliding';
 export const SAVE_LABEL: Record<SaveState, string> = {
   idle: 'טיוטת המבנה',
   pending: 'שינויים ממתינים לשמירה…',
@@ -277,8 +280,8 @@ function renderOpening(o: GeomOpening, v: StudioView, a: StudioActions, scale: n
           <sw-field label="כיוון פתיחה"><select aria-label="כיוון פתיחה" @change=${(e: Event) => a.patchOpening(o.id, { swing: (e.target as HTMLSelectElement).value as Swing })}>
             ${(Object.keys(SWING_LABEL) as Swing[]).map((k) => html`<option value=${k} ?selected=${o.swing === k}>${SWING_LABEL[k]}</option>`)}
           </select></sw-field>
-          <sw-field label="ציר"><select aria-label="ציר" @change=${(e: Event) => a.patchOpening(o.id, { hinge: (e.target as HTMLSelectElement).value as Hinge })}>
-            ${(Object.keys(HINGE_LABEL) as Hinge[]).map((k) => html`<option value=${k} ?selected=${o.hinge === k}>${HINGE_LABEL[k]}</option>`)}
+          <sw-field label=${sideSwing(o.swing) ? 'צד הפתיחה' : 'ציר'}><select aria-label=${sideSwing(o.swing) ? 'צד הפתיחה' : 'ציר'} data-opening-hinge @change=${(e: Event) => a.patchOpening(o.id, { hinge: (e.target as HTMLSelectElement).value as Hinge })}>
+            ${(Object.keys(HINGE_LABEL) as Hinge[]).map((k) => html`<option value=${k} ?selected=${o.hinge === k}>${(sideSwing(o.swing) ? SIDE_LABEL : HINGE_LABEL)[k]}</option>`)}
           </select></sw-field>
         </div>`
       : nothing}
@@ -677,6 +680,8 @@ export interface ObjectActions {
   /** Optional: a caller without them gets no array / custom item / select group control in the inspector. */
   array?: (id: string) => void;
   custom?: (id: string) => void;
+  /** A copy beside the object, selected and ready to drag (also Ctrl+D and Alt+drag). */
+  duplicate?: (id: string) => void;
   selectGroup?: (groupId: string) => void;
 }
 
@@ -714,6 +719,7 @@ export function renderObjectInspector(v: ObjectView, a: ObjectActions): Template
     ${group ? html`<div class="note" data-object-group>חלק ממערך של ${group.member_ids.length}${a.selectGroup ? html` · <button class="linkbtn" data-select-group @click=${() => a.selectGroup?.(group.id)}>בחר את המערך</button>` : nothing}</div>` : nothing}
     <div class="note">${v.estimated ? (v.showEstimates ? 'המידות במטרים משוערות (≈) עד הכיול' : 'לא מכויל: המידות מוצגות כערכי הפריט') : 'המידות במטרים לפי הכיול'} · חצים = הזזה עדינה (Shift = גדולה) · Alt+גרירה = שכפול · Delete = מחיקה</div>
     <div class="btns">
+      ${a.duplicate ? html`<sw-button size="sm" icon="layers" data-object-duplicate title="עותק ליד העצם, נבחר ומוכן לגרירה (גם Ctrl+D, או Alt+גרירה של העצם)" @click=${() => a.duplicate?.(o.id)}>שכפל</sw-button>` : nothing}
       ${a.array ? html`<sw-button size="sm" icon="grid" data-object-array ?disabled=${v.phone || !!o.anchor_ref || !!o.group_id} title=${v.phone ? 'מערכים בדסקטופ בלבד' : o.group_id ? 'העצם כבר במערך' : 'שורות × עמודות מהעצם הזה'} @click=${() => a.array?.(o.id)}>מערך</sw-button>` : nothing}
       ${v.canManage && a.custom ? html`<sw-button size="sm" icon="plus" data-object-custom @click=${() => a.custom?.(o.id)}>צור פריט מזה</sw-button>` : nothing}
       <sw-button size="sm" variant="ghost" icon="trash" data-geom-delete @click=${() => a.remove(o.id)}>מחק</sw-button>

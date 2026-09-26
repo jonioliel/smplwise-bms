@@ -67,3 +67,19 @@ def test_input_order_does_not_matter():
     for doc in (reversed_doc, shuffled_doc):
         assert render.structure_primitives(doc, 1000, 800) == golden["all"]
         assert render.structure_primitives(doc, 1000, 800, "L1") == golden["level_L1"]
+
+
+def test_a_double_or_sliding_door_opens_to_the_side_its_hinge_names():
+    """Owner request 2026-09-26: a double (or sliding) door has no hinge jamb to choose, so its hinge field picks the
+    side of the wall: start = the left normal (the default, unchanged), end = the right normal. Mirrors geometry.ts."""
+    doc = _sample()
+    doc["walls"] = [dict(doc["walls"][0], id="w", polyline=[[0.1, 0.5], [0.9, 0.5]], thickness_m=0.2)]
+    doc["objects"], doc["connectors"], doc["labels"], doc["circuits"], doc["groups"] = [], [], [], [], []
+    base = {"id": "o", "wall_id": "w", "t": 0.5, "kind": "door", "width_m": 1, "height_m": 2.1, "sill_m": 0, "anchor_ref": None, "confidence": 1, "source": "manual", "external_ids": {}}
+    for swing, hinge, up in (("double", "start", True), ("double", "end", False), ("sliding", "start", True), ("sliding", "end", False)):
+        doc["openings"] = [dict(base, swing=swing, hinge=hinge)]
+        door = next(p for p in render.structure_primitives(doc, 1000, 800) if p["kind"] == "door")
+        tips = [leaf[1][1] for leaf in door["leaves"]] if swing == "double" else [p[1] for p in door["leaves"][0]]
+        assert tips and all((y < 400) == up for y in tips), (swing, hinge, tips)  # the wall runs along y = 400; the left normal points up
+        if swing == "double":
+            assert len(door["leaves"]) == 2 and all((a["from"][1] < 400) == up for a in door["arcs"])

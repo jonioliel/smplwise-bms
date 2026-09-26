@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { objectHitCorners, type GeometryDoc, type GeomObject } from '../src/map/geometry';
 import type { CatalogItem } from '../src/api/plan-catalog';
-import { addArray, addCircuit, addConnector, addLevel, addObject, arrayDefaults, circuitPower, duplicateObject, initialLevel, levelUsage, moveConnectorVertex, moveGroup, moveObject, objectZ, patchCircuit, patchConnector, patchLevel, patchObject, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember, translatePolygon, translateWall, visibleUnderLevel } from '../src/map/studio-ops';
+import { addArray, addCircuit, addConnector, addLevel, addObject, arrayDefaults, circuitPower, duplicateBeside, duplicateObject, initialLevel, levelUsage, moveConnectorVertex, moveGroup, moveObject, objectZ, patchCircuit, patchConnector, patchLevel, patchObject, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember, translatePolygon, translateWall, visibleUnderLevel } from '../src/map/studio-ops';
 
 // Plan Studio phase 2 (T085): the pure document operations of the editor - placing an item (its size, z and params come
 // from the library), moving, rotating, stretching, duplicating, and removing an object out of its group, its circuit
@@ -217,6 +217,30 @@ test.describe('whole-wall and whole-zone moves (unit)', () => {
     expect(objectHitCorners(wide, 24)).toEqual([[85, 38], [115, 38], [115, 62], [85, 62]]); // only the narrow side grows
     const big = { ...small, w: 40, h: 30 };
     expect(objectHitCorners(big, 24)).toBe(big.corners);
+  });
+
+  test('duplicateBeside puts the copy one width plus 30 cm to the right, below when that leaves the plan, left when below leaves it too; unknown id unchanged', () => {
+    const doc = sample();
+    const o = doc.objects.find((x: GeomObject) => x.id === 'o3')!; // (0.5, 0.5), size from the catalog fixture
+    const W = 2000, H = 1000, scale = 0.01; // 20 m by 10 m
+    const r = duplicateBeside(doc, 'o3', W, H, scale);
+    expect(r.id).not.toBe('o3');
+    const copy = r.doc.objects.find((x) => x.id === r.id)!;
+    expect(copy.position[0]).toBeCloseTo(0.535, 5); // 0.5 + (0.4 + 0.3) m / 0.01 m per px / 2000 px
+    expect(copy.position[1]).toBeCloseTo(o.position[1], 5);
+    expect(copy.item_id).toBe(o.item_id);
+    expect(r.doc.objects.length).toBe(doc.objects.length + 1);
+    const atRightEdge = { ...doc, objects: doc.objects.map((x: GeomObject) => (x.id === 'o3' ? { ...x, position: [0.99, 0.5] as [number, number] } : x)) };
+    const below = duplicateBeside(atRightEdge, 'o3', W, H, scale);
+    const b = below.doc.objects.find((x) => x.id === below.id)!;
+    expect(b.position[0]).toBeCloseTo(0.99, 5);
+    expect(b.position[1]).toBeCloseTo(0.57, 5); // 0.5 + (0.4 + 0.3) m / 0.01 / 1000 px
+    const atCorner = { ...doc, objects: doc.objects.map((x: GeomObject) => (x.id === 'o3' ? { ...x, position: [0.99, 0.99] as [number, number] } : x)) };
+    const left = duplicateBeside(atCorner, 'o3', W, H, scale);
+    const l = left.doc.objects.find((x) => x.id === left.id)!;
+    expect(l.position[0]).toBeCloseTo(0.955, 5); // 0.99 - (0.4 + 0.3) m / 0.01 / 2000 px
+    expect(l.position[1]).toBeCloseTo(0.99, 5);
+    expect(duplicateBeside(doc, 'nope', W, H, scale)).toEqual({ doc, id: 'nope' });
   });
 
   test('translatePolygon moves a zone polygon as a whole, clamped inside the plan, rounded to 4 places', () => {

@@ -211,6 +211,20 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
     await expect(page.locator(`${ed} sw-plan-canvas [data-object]`)).toHaveCount(4);
     await page.keyboard.press('Delete');
     await expect(page.locator(`${ed} sw-plan-canvas [data-object]`)).toHaveCount(3);
+    // 0.1.91: the inspector's "שכפל" and Ctrl+D make a copy beside the chair and select it (Alt+drag was not discoverable)
+    await clickPlan(page, ed, 0.4, 0.5);
+    await expect(page.locator(`${ed} [data-selected-object="${placedId}"]`)).toBeVisible();
+    await page.locator(`${ed} [data-object-duplicate]`).click();
+    await expect(page.locator(`${ed} sw-plan-canvas [data-object]`)).toHaveCount(4);
+    const copyId = (await page.locator(`${ed} [data-selected-object]`).getAttribute('data-selected-object'))!;
+    expect(copyId).not.toBe(placedId);
+    await expect.poll(async () => (await draft()).doc.objects.find((o) => o.id === copyId)?.position[0] ?? 0, { timeout: 10000 }).toBeGreaterThan(0.4);
+    expect((await draft()).doc.objects.find((o) => o.id === copyId)!.item_id).toBe('chair.basic');
+    await page.keyboard.press('Control+d');
+    await expect(page.locator(`${ed} sw-plan-canvas [data-object]`)).toHaveCount(5);
+    await expect(page.locator(`${ed} [data-selected-object]`)).not.toHaveAttribute('data-selected-object', copyId); // the newest copy is the selection
+    await page.keyboard.press('Delete');
+    await expect(page.locator(`${ed} sw-plan-canvas [data-object]`)).toHaveCount(4);
     await page.locator(`${ed} [data-lib-cat="recent"]`).click();
     await expect(page.locator(`${ed} [data-lib-item="chair.basic"]`)).toHaveCount(1);
     // a ceiling lamp dropped on the light's anchor becomes its body
