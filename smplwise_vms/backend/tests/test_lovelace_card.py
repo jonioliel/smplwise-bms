@@ -25,10 +25,11 @@ def test_card_is_shipped_and_the_copies_agree():
         assert (SRC / name).read_bytes() == (COPY / name).read_bytes(), name
     manifest = json.loads((SRC / "manifest.json").read_text(encoding="utf-8"))
     const = (SRC / "const.py").read_text(encoding="utf-8")
-    assert manifest["version"] == "0.2.1" and 'VERSION = "0.2.1"' in const
+    assert manifest["version"] == "0.2.2" and 'VERSION = "0.2.2"' in const
     py_compile.compile(str(SRC / "__init__.py"), doraise=True)
     src = card.read_text(encoding="utf-8")
-    assert "customElements.define('smplwise-card'" in src and "hassio/ingress/session" in src and "embed=1" in src
+    assert "customElements.define('smplwise-card'" in src and "'/ingress/session'" in src and "embed=1" in src
+    assert "const VERSION = '0.2.2'" in src, "the card reports the bridge version it ships with"
     code = "\n".join(l for l in src.splitlines() if not l.strip().startswith(("*", "/*", "//")))  # the doc comment may name the ingress token placeholder
     assert "pairing" not in code.lower() and "token" not in code.lower() and "password" not in code.lower(), "the card carries no secret"
     init = (SRC / "__init__.py").read_text(encoding="utf-8")
@@ -50,7 +51,35 @@ def test_installer_carries_the_card(settings, ha_cfg, monkeypatch):
     app = create_app(settings)
     st = bridge_install.install(app.state.db, settings)
     target = ha_cfg / "custom_components" / "smplwise_bridge"
-    assert (target / "www" / "smplwise-card.js").is_file() and st["source_version"] == "0.2.1"
+    assert (target / "www" / "smplwise-card.js").is_file() and st["source_version"] == "0.2.2"
+
+
+def test_card_discovers_the_addon_and_has_a_visual_editor():
+    """T056 fix (0.2.2): the owner saw "[object Object]" because the card called a hardcoded, repository-hashed add-on
+    slug through the REST proxy /api/hassio/, which refuses add-on info and ingress sessions (401). The card now finds
+    the slug (sidebar panel, then the admin-only add-on list), talks to the Supervisor through the websocket command
+    supervisor/api like the Home Assistant frontend, turns any rejection shape into readable text, and ships a visual
+    editor (getConfigElement + config-changed)."""
+    src = (SRC / "www" / "smplwise-card.js").read_text(encoding="utf-8")
+    assert "0b8c26d5_smplwise_vms" not in src, "no repository-hashed slug is assumed"
+    assert "DEFAULT_ADDON" not in src
+    code = "\n".join(l for l in src.splitlines() if not l.strip().startswith(("*", "/*", "//")))
+    assert "callApi(" not in code, "the REST proxy refuses these Supervisor endpoints; use supervisor/api over the websocket"
+    assert "type: 'supervisor/api'" in code and "hass.callWS(" in code
+    assert "hass.panels" in code and "config.addon" in code and "config.ingress" in code, "slug from the sidebar panel (new and old Home Assistant)"
+    assert "'/addons'" in code and "=== 'smplwise_vms'" in code and "endsWith('_smplwise_vms')" in code, "slug from the add-on list, hashed or local"
+    assert "`/addons/${slug}/info`" in code and "ingress_url" in code
+    assert "cfg.addon" in code and "cfg.ingress_url" in code, "manual overrides stay"
+    assert "function reasonOf(" in code and "message: reasonOf(err)" in code
+    for shape in ("err.message", "err.code", "err.error", "err.body", "body.message"):
+        assert shape in code, f"reasonOf reads {shape} (callWS rejects with code/message, callApi with error/status_code/body)"
+    assert "(err && err.message) || String(err)" not in code, "the extraction that printed [object Object] is gone"
+    assert "static getConfigElement()" in code and "customElements.define('smplwise-card-editor'" in code
+    assert "new Event('config-changed', { bubbles: true, composed: true })" in code and "event.detail = { config: next }" in code
+    for key in ('data-key="view"', 'data-key="camera"', 'data-key="floor"', 'data-key="height"', 'data-key="title"'):
+        assert key in code, key
+    assert "const VIEWS = ['camera', 'map', 'events', 'health', 'wall']" in code and "!VIEWS.includes(config.view)" in code
+    assert "esc(st.message)" in code and "esc(cfg.title)" in code, "server text never reaches innerHTML unescaped"
 
 
 WWW = REPO / "smplwise_vms" / "www"
