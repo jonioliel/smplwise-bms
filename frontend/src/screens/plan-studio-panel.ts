@@ -750,7 +750,7 @@ export function renderGroupInspector(g: GeomGroup, item: CatalogItem | undefined
 // ---------------------------------------------------------------- multi-selection (T085)
 
 /** How several items are picked in the editor's select tool (owner report 2026-09-26). */
-export const MULTI_HINT = 'Shift+לחיצה מוסיפה קיר, עצם או אזור לבחירה או מוציאה אותו ממנה; גרירת מלבן מרקע ריק בוחרת את מה שנמצא בתוכו במלואו; Ctrl+A בוחר את כל מה שמוצג במפלס; Esc מנקה. הזזת התוכנית: גלגלת לזום, גרירה בכפתור האמצעי.';
+export const MULTI_HINT = 'Shift+לחיצה מוסיפה קיר, עצם או אזור לבחירה או מוציאה אותו ממנה; גרירת מלבן מרקע ריק בוחרת את מה שנמצא בתוכו במלואו; Ctrl+A בוחר את כל מה שמוצג במפלס; Esc מנקה. הזזת התוכנית: רווח + גרירה, או גרירה בכפתור האמצעי; גלגלת לזום.';
 
 export interface MultiView {
   walls: number;

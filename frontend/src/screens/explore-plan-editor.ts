@@ -33,6 +33,7 @@ import { ANCHOR_3D_DEFAULTS, anchor3dKind } from '../map/anchor-3d';
 import { COLL_LABEL, CONNECTOR_LABEL, circuitPlacingHint, connectorDerived, countLabel, fmtMetres, fmtScale, renderArrayDialog, renderCalibPanel, renderCircuitPanel, renderConnectorPanel, renderCustomItemDialog, renderGroupDeleteDialog, renderGroupInspector, renderLevelChips, renderLevelDialog, renderDetectPanel, renderLibraryPanel, renderMeasurePanel, renderObjectInspector, renderConnectorSelection, renderMultiSelection, renderStudioPanel, MULTI_HINT, SAVE_LABEL, studioPanelStyles, lighterStrength, type ArrayDialogView, type CustomItemView, type DetectAcceptError, type DetectOpts, type DetectReplaceAsk, type DetectRunState, type GeomKind, type GeomSel, type LevelDialogView, type StudioMode } from './plan-studio-panel';
 
 type Strength = 'light' | 'medium' | 'strong';
+type ZoneBody = { name?: string; kind?: ZoneKind; color?: string; searchable?: boolean; polygon?: ZonePoint[]; label_pos?: string; level_id?: string; ceiling_height_m?: number };
 interface ZoneCandidate {
   polygon: ZonePoint[];
   name: string;
@@ -166,6 +167,12 @@ export class ExplorePlanEditor extends LitElement {
   /** A multi-selection drag in progress: where its zones are going (its walls and objects go in geomPreview); kept after
    * the drop until each zone's own save has answered, so the polygons do not jump back meanwhile. */
   @state() private zonePreview: Record<string, ZonePoint[]> | null = null;
+  /** The zone saves of the last multi-selection drop are still in flight: no new group drag, Delete or copy until they
+   * answer - a drag now would start from polygons and revisions the answers are about to replace (review of T085, B1). */
+  @state() private zoneSaving = false;
+  /** multiItems for the last (multi, doc, zones) it was computed for: it is read several times per render, and a group
+   * drag renders on every pointer move. */
+  private multiCache: { multi: MultiItem[]; doc: GeometryDoc; zones: SpatialZone[]; items: MultiItem[] } | null = null;
   /** A structure drag in progress: the draft as it will be after the drop. The canvas and the panel show it; nothing is
    * saved or undoable until the drop commits it. */
   @state() private geomPreview: GeometryDoc | null = null;
@@ -872,41 +879,56 @@ export class ExplorePlanEditor extends LitElement {
     }
   }
 
-  private async patchZone(z: SpatialZone, body: { name?: string; kind?: ZoneKind; color?: string; searchable?: boolean; polygon?: ZonePoint[]; label_pos?: string; level_id?: string; ceiling_height_m?: number }) {
+  private async patchZone(z: SpatialZone, body: ZoneBody) {
     if (this.bundle?.source === 'demo') return;
     this.zoneBusy = true;
     this.error = '';
     try {
-      const nz = await updateZone(z.id, { revision: z.revision, ...body });
-      this.zones = this.zones.map((x) => (x.id === nz.id ? nz : x));
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 409) {
+      const r = await this.sendZonePatch(z, body);
+      if (r === 'conflict') {
         this.error = 'האזור השתנה בינתיים על ידי עורך אחר; נטען מחדש בלי לדרוס.';
         await this.load();
-      } else this.error = describeError(err);
+      } else if (r !== 'ok') this.error = r;
     } finally {
       this.zoneBusy = false;
+    }
+  }
+
+  /** One zone PATCH, its answer taken into the zone list: 'ok', 'conflict' (409, another editor was first) or the error
+   * text. It never touches `error`: patchZone reports one zone's outcome, commitZoneMoves the outcome of several. */
+  private async sendZonePatch(z: SpatialZone, body: ZoneBody): Promise<string> {
+    try {
+      const nz = await updateZone(z.id, { revision: z.revision, ...body });
+      this.zones = this.zones.map((x) => (x.id === nz.id ? nz : x));
+      return 'ok';
+    } catch (err) {
+      return err instanceof ApiError && err.status === 409 ? 'conflict' : describeError(err);
     }
   }
 
   private async removeZone(z: SpatialZone) {
     if (this.bundle?.source === 'demo') return;
     if (!window.confirm(`למחוק את "${z.name}"? המצלמות והישויות בקומה לא מושפעות.`)) return;
-    await this.dropZone(z);
-  }
-
-  /** The zone's delete request itself, once the user confirmed (removeZone for one zone, deleteMulti for several). */
-  private async dropZone(z: SpatialZone) {
     this.zoneBusy = true;
     this.error = '';
+    try {
+      const r = await this.sendZoneDelete(z);
+      if (r !== 'ok') this.error = r;
+    } finally {
+      this.zoneBusy = false;
+    }
+  }
+
+  /** One zone DELETE, the zone taken out of the list (and of the single selection): 'ok' or the error text. It never
+   * touches `error` (see sendZonePatch). */
+  private async sendZoneDelete(z: SpatialZone): Promise<string> {
     try {
       await deleteZone(z.id);
       this.zones = this.zones.filter((x) => x.id !== z.id);
       if (this.selectedZoneId === z.id) this.selectedZoneId = null;
+      return 'ok';
     } catch (err) {
-      this.error = describeError(err);
-    } finally {
-      this.zoneBusy = false;
+      return describeError(err);
     }
   }
 
@@ -1344,7 +1366,7 @@ export class ExplorePlanEditor extends LitElement {
     if (tool === 'structure' && this.phone.matches && this.studioMode === 'wall') this.studioMode = 'select'; // wall drawing is desktop only: a phone opens the tool in select mode
     if (tool !== 'structure') this.geomSel = null;
     this.multi = []; // a multi-selection belongs to the select tool only (T085)
-    this.zonePreview = null;
+    if (!this.zoneSaving) this.zonePreview = null; // zones still being saved keep showing where they go until they answer
     if (STUDIO_TOOLS.includes(tool)) {
       // a zone selected in the select or zones tool does not follow into a studio tool, where its body could be dragged
       this.selectedZoneId = null;
@@ -1431,10 +1453,14 @@ export class ExplorePlanEditor extends LitElement {
     this.levelFilter = id;
     const doc = this.studio.doc;
     if (this.geomSel && doc && !visibleUnderLevel(doc, this.geomSel.id, id)) this.geomSel = null;
-    // T085: the same rule for a multi-selection - its members the new filter hides leave it (the filter never lifts for
-    // a selection, only focusGeom lifts it for a target it brings into view); zones are drawn on every level, so they
-    // stay. What is left may be one item, which becomes the ordinary single selection, or nothing.
-    if (this.multi.length && doc) this.setSelection(this.multiItems.filter((i) => i.kind === 'zone' || visibleUnderLevel(doc, i.id, id)));
+    // T085: the same rule for a multi-selection - its members the new filter leaves out leave it (the filter never lifts
+    // for a selection, only focusGeom lifts it for a target it brings into view). "Left out" is Ctrl+A's rule
+    // (selectableItems): walls and objects of other levels, and zones of other levels (zoneOnLevel - drawn, but never
+    // swept into a bulk action under a filter). What is left may be one item, which becomes the single selection, or none.
+    if (this.multi.length && doc) {
+      const keep = new Set(selectableItems(doc, this.zones, id).map((i) => i.id));
+      this.setSelection(this.multiItems.filter((i) => keep.has(i.id)));
+    }
   }
 
   /** After an item's own level changes (setLevel, the object level patch): a filter that would now hide the item that is
@@ -2166,14 +2192,23 @@ export class ExplorePlanEditor extends LitElement {
   /** Where several items can be selected: the select tool, over a loaded structure draft the user may edit - the same
    * condition under which it drags walls, objects and zones (geomDragMode 'all'). */
   private get multiOn(): boolean {
-    return this.tool === 'select' && this.geomDragMode === 'all';
+    // not on a phone: Shift, Ctrl+A, the marquee (a mouse or pen drag) and the middle button have no finger equivalent
+    return this.tool === 'select' && this.geomDragMode === 'all' && !this.phone.matches;
   }
 
-  /** The multi-selection's members that still exist (an undo, a reload or another editor may have taken one away). */
+  /** The multi-selection's members that still exist (an undo, a reload or another editor may have taken one away), by
+   * id sets and cached per (multi, document, zones): read several times per render, and a drag renders per pointer move. */
   private get multiItems(): MultiItem[] {
     const doc = this.studio.doc;
     if (!this.multi.length || !doc) return [];
-    return this.multi.filter((i) => (i.kind === 'wall' ? doc.walls.some((w) => w.id === i.id) : i.kind === 'object' ? doc.objects.some((o) => o.id === i.id) : this.zones.some((z) => z.id === i.id)));
+    const c = this.multiCache;
+    if (c && c.multi === this.multi && c.doc === doc && c.zones === this.zones) return c.items;
+    const walls = new Set(doc.walls.map((w) => w.id));
+    const objects = new Set(doc.objects.map((o) => o.id));
+    const zones = new Set(this.zones.map((z) => z.id));
+    const items = this.multi.filter((i) => (i.kind === 'wall' ? walls : i.kind === 'object' ? objects : zones).has(i.id));
+    this.multiCache = { multi: this.multi, doc, zones: this.zones, items };
+    return items;
   }
 
   /** The multi-selection the canvas and the panel show: only in the select tool, only with two or more members. */
@@ -2231,7 +2266,8 @@ export class ExplorePlanEditor extends LitElement {
       return;
     }
     const base = this.selectionItems();
-    this.setSelection([...base, ...hits.filter((h) => !base.some((i) => i.id === h.id))]);
+    const had = new Set(base.map((i) => i.id));
+    this.setSelection([...base, ...hits.filter((h) => !had.has(h.id))]);
   }
 
   /** Ctrl+A in the select tool: every wall, object and zone the level filter shows (never one it hides). */
@@ -2244,39 +2280,89 @@ export class ExplorePlanEditor extends LitElement {
    * whole selection (selectionDelta): walls and objects in the document by moveSelection (translateWall / moveObject per
    * member), zones by translatePolygon. Null when the drag is not a member's (it is then an ordinary single drag). */
   private multiDragged(doc: GeometryDoc, d: GeomDragDetail): { doc: GeometryDoc; zones: Record<string, ZonePoint[]> } | null {
+    if (!this.multiMember(d)) return null;
     const items = this.multiShown;
-    if (!(d.kind === 'object' || d.kind === 'wall' || d.kind === 'zone') || !items.some((i) => i.id === d.id)) return null;
     const ids = items.filter((i) => i.kind !== 'zone').map((i) => i.id);
-    const zs = items.filter((i) => i.kind === 'zone').map((i) => this.zones.find((z) => z.id === i.id)).filter((z): z is SpatialZone => !!z);
+    const zoneById = new Map(this.zones.map((z) => [z.id, z]));
+    const zs = items.filter((i) => i.kind === 'zone').map((i) => zoneById.get(i.id)).filter((z): z is SpatialZone => !!z);
     const [dx, dy] = selectionDelta(doc, ids, d.x - d.sx, d.y - d.sy, zs.map((z) => z.polygon));
     return { doc: moveSelection(doc, ids, dx, dy), zones: Object.fromEntries(zs.map((z) => [z.id, translatePolygon(z.polygon, dx, dy)])) };
   }
 
-  /** The drop of a multi-selection drag: walls and objects are one document edit (one undo step); each moved zone is
-   * saved by its own PATCH, as a single zone's drag is - zones live on the server and have no undo. */
-  private async commitZoneMoves(polys: Record<string, ZonePoint[]>) {
-    const entries = Object.entries(polys);
-    this.zonePreview = entries.length ? polys : null;
-    for (const [id, polygon] of entries) {
-      const z = this.zones.find((x) => x.id === id);
-      if (z && JSON.stringify(z.polygon) !== JSON.stringify(polygon)) await this.patchZone(z, { polygon });
-    }
-    this.zonePreview = null;
+  /** The drag is of a member of the multi-selection shown (a wall, an object or a zone of it). */
+  private multiMember(d: GeomDragDetail): boolean {
+    return (d.kind === 'object' || d.kind === 'wall' || d.kind === 'zone') && this.multiShown.some((i) => i.id === d.id);
   }
 
-  /** Delete on a multi-selection: its walls and objects in one document edit (one undo step, removeItems - each by the
-   * same removeItem a single Delete uses); its zones, which have no undo, after one confirmation for all of them, each by
-   * the single zone's delete request. Declining the confirmation deletes nothing. */
+  /** The drop of a multi-selection drag: walls and objects are one document edit (one undo step, done by the caller);
+   * each moved zone is saved by its own PATCH, as a single zone's drag is - zones live on the server and have no undo.
+   * The PATCHes go out together (Promise.allSettled), and until every one has answered `zoneSaving` refuses a new group
+   * drag, Delete and copy (B1). Every outcome is counted: a zone that could not be moved is reported with the count, and
+   * stays in the selection - which is never cleared here - so the next drag or Ctrl+Z can bring the rest in line (S1). */
+  private async commitZoneMoves(polys: Record<string, ZonePoint[]>) {
+    const zoneById = new Map(this.zones.map((z) => [z.id, z]));
+    const moves = Object.entries(polys)
+      .map(([id, polygon]) => ({ z: zoneById.get(id), polygon }))
+      .filter((m): m is { z: SpatialZone; polygon: ZonePoint[] } => !!m.z && JSON.stringify(m.z.polygon) !== JSON.stringify(m.polygon));
+    if (!moves.length || this.bundle?.source === 'demo') {
+      this.zonePreview = null; // demo data: zones are saved only against the server (as a single zone's drag)
+      return;
+    }
+    this.zonePreview = polys;
+    this.zoneSaving = true;
+    let outcome: string[] = [];
+    try {
+      const results = await Promise.allSettled(moves.map((m) => this.sendZonePatch(m.z, { polygon: m.polygon })));
+      outcome = results.map((r) => (r.status === 'fulfilled' ? r.value : describeError(r.reason)));
+    } finally {
+      this.zonePreview = null;
+      this.zoneSaving = false;
+    }
+    const failed = outcome.filter((o) => o !== 'ok');
+    if (!failed.length) return;
+    const conflict = failed.includes('conflict');
+    if (conflict) await this.load(); // the other editor's version of the zones (load clears the message: it is set after)
+    const why = conflict ? 'אזור השתנה בינתיים על ידי עורך אחר ונטען מחדש' : failed[0];
+    this.error = `${failed.length} מתוך ${moves.length} אזורים לא הוזזו (${why}); הקירות והעצמים כן זזו - גרור שוב את הבחירה או בטל (Ctrl+Z) כדי ליישר אותם`;
+  }
+
+  /** Delete on a multi-selection: its walls and objects in one document edit (one undo step, removeItems - removeItem's
+   * rules for each); its zones, which have no undo, after one confirmation for all of them, each by its own delete
+   * request, sent together. Declining the confirmation deletes nothing. Zones whose delete failed are counted in the
+   * message and become the selection again, so the user can retry (S1). */
   private async deleteMulti() {
     const items = this.multiShown;
-    if (!items.length || !this.studio.doc) return;
-    const zs = items.filter((i) => i.kind === 'zone').map((i) => this.zones.find((z) => z.id === i.id)).filter((z): z is SpatialZone => !!z);
+    if (!items.length || !this.studio.doc || this.zoneSaving) return;
+    const zoneById = new Map(this.zones.map((z) => [z.id, z]));
+    const zs = items.filter((i) => i.kind === 'zone').map((i) => zoneById.get(i.id)).filter((z): z is SpatialZone => !!z);
     const demo = this.bundle?.source === 'demo';
-    if (zs.length && !demo && !window.confirm(`למחוק ${zs.length === 1 ? `את "${zs[0].name}"` : `${zs.length} אזורים`} יחד עם שאר הפריטים שנבחרו? מחיקת אזור אינה ניתנת לביטול; המצלמות והישויות בקומה לא מושפעות.`)) return;
+    const others = items.length - zs.length;
+    const zonesText = zs.length === 1 ? `את "${zs[0].name}"` : `${zs.length} אזורים`;
+    const ask = others ? `למחוק ${zonesText} יחד עם ${countLabel(others, 'הפריט האחר שנבחר', 'הפריטים האחרים שנבחרו')}?` : `למחוק ${zonesText}?`;
+    if (zs.length && !demo && !window.confirm(`${ask} מחיקת אזור אינה ניתנת לביטול; המצלמות והישויות בקומה לא מושפעות.`)) return;
     const ids = items.filter((i) => i.kind !== 'zone').map((i) => i.id);
     if (ids.length) this.edit((d) => removeItems(d, ids));
     this.setSelection([]);
-    if (!demo) for (const z of zs) await this.dropZone(z);
+    if (!zs.length) return;
+    if (demo) {
+      this.info = 'נתוני הדגמה: אזורים נמחקים רק מול השרת.';
+      setTimeout(() => (this.info = ''), 3000);
+      return;
+    }
+    this.zoneBusy = true;
+    this.error = '';
+    let failed: { z: SpatialZone; why: string }[] = [];
+    try {
+      const results = await Promise.allSettled(zs.map((z) => this.sendZoneDelete(z)));
+      failed = zs.map((z, i) => ({ z, why: results[i].status === 'fulfilled' ? (results[i] as PromiseFulfilledResult<string>).value : describeError((results[i] as PromiseRejectedResult).reason) })).filter((f) => f.why !== 'ok');
+    } finally {
+      this.zoneBusy = false;
+    }
+    if (!failed.length) return;
+    this.error = `${failed.length} מתוך ${zs.length} אזורים לא נמחקו (${failed[0].why}); הם נבחרו שוב כדי לנסות שוב`;
+    const left = new Set(this.zones.map((z) => z.id));
+    const nothingSelected = !this.multi.length && !this.geomSel && !this.selectedZoneId && !this.selectedId;
+    if (this.tool === 'select' && nothingSelected) this.setSelection(failed.filter((f) => left.has(f.z.id)).map((f): MultiItem => ({ id: f.z.id, kind: 'zone' })));
   }
 
   /** "שכפל" / Ctrl+D on a multi-selection: its objects copied as one block beside it (duplicateSelection), one document
@@ -2285,7 +2371,7 @@ export class ExplorePlanEditor extends LitElement {
     const b = this.bundle;
     const doc = this.studio.doc;
     const ids = this.multiShown.filter((i) => i.kind === 'object').map((i) => i.id);
-    if (!b || !doc || !ids.length) return;
+    if (!b || !doc || !ids.length || this.zoneSaving) return;
     const r = duplicateSelection(doc, ids, b.width, b.height, effectiveScale(doc).scale);
     if (!r.ids.length) return;
     this.edit(() => r.doc);
@@ -2298,12 +2384,12 @@ export class ExplorePlanEditor extends LitElement {
   private handleMultiKey(e: KeyboardEvent): boolean {
     const mod = e.ctrlKey || e.metaKey;
     const key = e.key.toLowerCase();
-    if (mod && !e.shiftKey && !e.altKey && key === 'a') {
+    if (mod && !e.shiftKey && !e.altKey && (e.code === 'KeyA' || key === 'a')) { // the physical A key: also on the Hebrew layout (e.key 'ש')
       e.preventDefault();
       this.selectAll();
       return true;
     }
-    if (this.multiShown.length < 2 || this.geomPreview || this.zonePreview) return false; // not during a drag or its zone saves
+    if (this.multiShown.length < 2 || this.geomPreview || this.zoneSaving) return false; // not during a drag or its zone saves
     if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
       void this.deleteMulti();
@@ -2320,7 +2406,7 @@ export class ExplorePlanEditor extends LitElement {
   private renderMultiPanel() {
     const items = this.multiShown;
     const n = (k: MultiItem['kind']) => items.filter((i) => i.kind === k).length;
-    return renderMultiSelection({ walls: n('wall'), objects: n('object'), zones: n('zone'), busy: this.zoneBusy || !!this.zonePreview, saveState: this.studio.saveState }, {
+    return renderMultiSelection({ walls: n('wall'), objects: n('object'), zones: n('zone'), busy: this.zoneBusy || this.zoneSaving, saveState: this.studio.saveState }, {
       duplicate: () => this.duplicateMulti(),
       remove: () => void this.deleteMulti(),
       clear: () => this.setSelection([]),
@@ -2446,6 +2532,10 @@ export class ExplorePlanEditor extends LitElement {
   /** While the pointer moves: the dragged item is the selection and shows where it is going (nothing is saved yet). */
   private onGeomDragMove(d: GeomDragDetail) {
     const doc = this.studio.doc;
+    if (this.zoneSaving && this.multiMember(d)) {
+      this.geomPreview = null; // the last group drop is still saving its zones: this drag is refused (B1), nothing moves
+      return;
+    }
     const m = doc ? this.multiDragged(doc, d) : null; // a member of the multi-selection: the whole selection follows (T085)
     if (m) {
       this.geomPreview = m.doc;
@@ -2461,6 +2551,13 @@ export class ExplorePlanEditor extends LitElement {
   private onGeomDrag(d: GeomDragDetail) {
     this.geomPreview = null;
     const doc = this.studio.doc;
+    if (this.zoneSaving && this.multiMember(d)) {
+      // B1: a group drag dropped while the previous drop's zones are still being saved would start from polygons and
+      // revisions those answers are about to replace - refused, and said so, instead of losing a delta silently
+      this.info = 'האזורים של ההזזה הקודמת עדיין נשמרים; גרור שוב בעוד רגע';
+      setTimeout(() => (this.info = ''), 3000);
+      return;
+    }
     const m = doc ? this.multiDragged(doc, d) : null;
     if (m) {
       this.edit(() => m.doc); // every wall and object of the selection: one undo step; the selection stays
@@ -3427,7 +3524,7 @@ export class ExplorePlanEditor extends LitElement {
     }
     if (this.tool === 'zones') return this.renderZonesPanel(b);
     if (this.tool === 'select' && this.multiShown.length && this.studio.doc) return this.renderMultiPanel();
-    if (this.tool === 'select' && this.geomSel && this.studio.doc) return this.renderSelectionPanel(b);
+    if (this.tool === 'select' && this.geomSel && this.studio.doc) return html`${this.renderSelectionPanel(b)}${this.multiOn ? html`<div class="note" data-multi-hint>${MULTI_HINT}</div>` : nothing}`;
     return html`<sw-card heading="מאפיינים"><div class="note" data-select-hint>${b.permissions.structure && this.studio.doc
       ? 'לחץ על סיכה, קיר, פתח, תווית, עצם או אזור במפה כדי לבחור ולערוך אותם, או הוסף מצלמה / ישות מסרגל הכלים. גרירה מזיזה: סיכה, פתח, תווית ועצם מיד, קיר ואזור אחרי שנבחרו. הידיות על המצלמה הנבחרת קובעות כיוון ושדה ראייה. הצבה יוצרת Binding בלבד ואינה משנה תצורת מקור.'
       : 'בחר סיכה במפה כדי לערוך אותה, או הוסף מצלמה / ישות מסרגל הכלים. גרירה מזיזה; הידיות על המצלמה הנבחרת קובעות כיוון ושדה ראייה. הצבה יוצרת Binding בלבד ואינה משנה תצורת מקור.'}</div>${this.multiOn ? html`<div class="note" data-multi-hint>${MULTI_HINT}</div>` : nothing}</sw-card>`;
@@ -3669,7 +3766,7 @@ export class ExplorePlanEditor extends LitElement {
                   @geom-box=${(e: CustomEvent<{ x0: number; y0: number; x1: number; y1: number; add: boolean }>) => this.onGeomBox(e.detail)}
                   @geom-select=${(e: CustomEvent<{ id: string; kind: GeomKind; vertex?: number; add?: boolean }>) => this.onGeomSelect(e.detail.id, e.detail.kind, e.detail.vertex, !!e.detail.add)}
                   @geom-drag-move=${(e: CustomEvent<GeomDragDetail>) => this.onGeomDragMove(e.detail)}
-                  @geom-drag-cancel=${() => { this.geomPreview = null; this.zonePreview = null; this.dupId = null; }}
+                  @geom-drag-cancel=${() => { this.geomPreview = null; if (!this.zoneSaving) this.zonePreview = null; this.dupId = null; }}
                   @geom-drag=${(e: CustomEvent<GeomDragDetail>) => this.onGeomDrag(e.detail)}
                   @zone-select=${(e: CustomEvent<{ id: string; add?: boolean }>) => this.onZoneSelect(e.detail.id, !!e.detail.add)}
                   @zone-edit=${(e: CustomEvent<{ id: string; polygon: ZonePoint[] }>) => { const z = this.zones.find((x) => x.id === e.detail.id); this.zoneVertexSel = null; if (z) void this.patchZone(z, { polygon: e.detail.polygon }); }}
@@ -3694,7 +3791,7 @@ export class ExplorePlanEditor extends LitElement {
                 <div class="legend"><span><i></i>מצלמות · ${cams}</span><span><i class="ent"></i>ישויות HA · ${ents}</span><span><i class="zone"></i>אזורים · ${this.zones.length}</span></div>
               </div>
               <div class="props">
-                ${sel ? (sel.resource_type === 'camera' ? this.renderCameraInspector(sel) : this.renderEntityInspector(sel)) : this.selectedZone && this.tool !== 'zones' ? html`<sw-card heading="אזור" subheading=${this.selectedZone.name}>${this.renderZoneInspector(this.selectedZone)}</sw-card>` : this.renderToolPanel(b)}
+                ${sel ? (sel.resource_type === 'camera' ? this.renderCameraInspector(sel) : this.renderEntityInspector(sel)) : this.selectedZone && this.tool !== 'zones' ? html`<sw-card heading="אזור" subheading=${this.selectedZone.name}>${this.renderZoneInspector(this.selectedZone)}</sw-card>${this.multiOn ? html`<div class="note" data-multi-hint>${MULTI_HINT}</div>` : nothing}` : this.renderToolPanel(b)}
                 ${(sel || (this.selectedZone && this.tool !== 'zones')) && this.tool !== 'select' ? this.renderToolPanel(b) : nothing}
                 ${this.renderVersionCard(b)}
               </div>

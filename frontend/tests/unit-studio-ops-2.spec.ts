@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { objectHitCorners, type GeometryDoc, type GeomObject } from '../src/map/geometry';
 import type { CatalogItem } from '../src/api/plan-catalog';
-import { addArray, addCircuit, addCircuitLamp, addConnector, addLevel, addObject, arrayDefaults, circuitPower, duplicateBeside, duplicateObject, initialLevel, levelUsage, moveConnectorVertex, moveGroup, moveObject, objectZ, patchCircuit, patchConnector, patchLevel, patchObject, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember, translatePolygon, translateWall, visibleUnderLevel, duplicateSelection, itemsInRect, moveSelection, removeItems, selectableItems, selectionDelta, toggleItem } from '../src/map/studio-ops';
+import { addArray, addCircuit, addCircuitLamp, addConnector, addLevel, addObject, arrayDefaults, circuitPower, duplicateBeside, duplicateObject, initialLevel, levelUsage, moveConnectorVertex, moveGroup, moveObject, objectZ, patchCircuit, patchConnector, patchLevel, patchObject, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember, translatePolygon, translateWall, visibleUnderLevel, duplicateSelection, itemsInRect, moveSelection, removeItems, selectableItems, selectionDelta, toggleItem, zoneOnLevel } from '../src/map/studio-ops';
 
 // Plan Studio phase 2 (T085): the pure document operations of the editor - placing an item (its size, z and params come
 // from the library), moving, rotating, stretching, duplicating, and removing an object out of its group, its circuit
@@ -291,8 +291,9 @@ test.describe('whole-wall and whole-zone moves (unit)', () => {
 // together, each composed from its own single-item operation and returned as one document (one undo step).
 test.describe('plan studio multi-selection (unit)', () => {
   const ZONES = [
-    { id: 'z-in', polygon: [{ x: 0.1, y: 0.2 }, { x: 0.3, y: 0.2 }, { x: 0.3, y: 0.3 }, { x: 0.1, y: 0.3 }] },
-    { id: 'z-half', polygon: [{ x: 0.5, y: 0.4 }, { x: 0.9, y: 0.4 }, { x: 0.9, y: 0.5 }, { x: 0.5, y: 0.5 }] }, // mostly outside the rectangle below
+    { id: 'z-in', polygon: [{ x: 0.1, y: 0.2 }, { x: 0.3, y: 0.2 }, { x: 0.3, y: 0.3 }, { x: 0.1, y: 0.3 }] }, // no level: under every filter
+    { id: 'z-half', level_id: 'L0', polygon: [{ x: 0.5, y: 0.4 }, { x: 0.9, y: 0.4 }, { x: 0.9, y: 0.5 }, { x: 0.5, y: 0.5 }] }, // mostly outside the rectangle below
+    { id: 'z-base', level_id: 'L1', polygon: [{ x: 0.7, y: 0.7 }, { x: 0.8, y: 0.7 }, { x: 0.8, y: 0.8 }, { x: 0.7, y: 0.8 }] },
   ];
 
   test('moveSelection moves walls and objects by one delta in one call; an anchored body stays; the input is untouched', () => {
@@ -316,6 +317,7 @@ test.describe('plan studio multi-selection (unit)', () => {
     const next = moveSelection(doc, ['wa', 'o1'], 0.5, 0);
     expect(next.walls.find((w) => w.id === 'wa')!.polyline).toEqual([[0.2, 0.1], [1, 0.1], [1, 0.6]]);
     expect(next.objects.find((o) => o.id === 'o1')!.position).toEqual([0.3, 0.2]);
+    expect(next).toEqual(moveObject(translateWall(doc, 'wa', cx, cy), 'o1', [0.2 + cx, 0.2 + cy])); // the single-pass move = the composition
     // a zone in the selection limits the delta too (zones are not in the document: their polygons come in beside it)
     const [zx, zy] = selectionDelta(doc, ['o1'], 0, -0.5, [ZONES[0].polygon]);
     expect(zx).toBe(0);
@@ -332,6 +334,11 @@ test.describe('plan studio multi-selection (unit)', () => {
     expect(next.groups[0].member_ids).toEqual(['o2']); // an object leaves its group
     expect(next.connectors.map((c) => c.id)).toEqual(['c1']); // and takes its derived connector
     expect(removeItems(doc, [])).toBe(doc);
+    // the single pass follows removeItem for every kind at once: a group (members stay, unlinked), a circuit, a connector,
+    // an opening, a label, a lamp on a circuit and a wall
+    const every = ['g1', 'k1', 'c1', 'o3', 'wb', ...doc.openings.slice(0, 1).map((o) => o.id), ...doc.labels.slice(0, 1).map((l) => l.id)];
+    expect(removeItems(doc, every)).toEqual(every.reduce((d, id) => removeItem(d, id), doc));
+    expect(removeItems(doc, ['o1', 'o2'])).toEqual(removeItem(removeItem(doc, 'o1'), 'o2')); // the group left empty goes
   });
 
   test('duplicateSelection copies the selected objects as one block beside the selection and returns the new ids', () => {
@@ -373,18 +380,32 @@ test.describe('plan studio multi-selection (unit)', () => {
     expect(hits).toEqual([{ id: 'wb', kind: 'wall' }, { id: 'o1', kind: 'object' }, { id: 'o2', kind: 'object' }, { id: 'o3', kind: 'object' }, { id: 'z-in', kind: 'zone' }]);
     // a rectangle that only touches part of an object's footprint does not pick it
     expect(itemsInRect(doc, [], { x0: 0.19, y0: 0.15, x1: 0.3, y1: 0.25 }, null, 1000, 800, 0.01)).toEqual([]);
-    // under the L1 filter the L0 items are not picked; zones are drawn on every level
+    // under the L1 filter the L0 items are not picked - the L0 zone z-half neither, although the editor draws it; a zone
+    // without a level (z-in) is picked under every filter
     const all = { x0: 0, y0: 0, x1: 1, y1: 1 };
-    expect(itemsInRect(doc, ZONES, all, 'L1', 1000, 800, 0.01)).toEqual([{ id: 'wd', kind: 'wall' }, { id: 'o5', kind: 'object' }, { id: 'z-in', kind: 'zone' }, { id: 'z-half', kind: 'zone' }]);
+    expect(itemsInRect(doc, ZONES, all, 'L1', 1000, 800, 0.01)).toEqual([{ id: 'wd', kind: 'wall' }, { id: 'o5', kind: 'object' }, { id: 'z-in', kind: 'zone' }, { id: 'z-base', kind: 'zone' }]);
     // the rectangle may be given corner to corner in any order
     expect(itemsInRect(doc, ZONES, { x0: 0.65, y0: 0.55, x1: 0.05, y1: 0.15 }, null, 1000, 800, 0.01)).toEqual(hits);
   });
 
-  test('selectableItems is Ctrl+A: every wall, object and zone the level filter shows', () => {
+  test('selectableItems is Ctrl+A: every wall and object the level filter shows, and the zones of that level or of none', () => {
     const doc = sample();
-    expect(selectableItems(doc, ZONES, null).map((i) => i.id)).toEqual(['wc', 'wa', 'wd', 'wb', 'o1', 'o2', 'o3', 'o4', 'o5', 'z-in', 'z-half']);
-    expect(selectableItems(doc, ZONES, 'L1')).toEqual([{ id: 'wd', kind: 'wall' }, { id: 'o5', kind: 'object' }, { id: 'z-in', kind: 'zone' }, { id: 'z-half', kind: 'zone' }]);
-    expect(selectableItems(doc, [], 'L0').map((i) => i.id)).toEqual(['wc', 'wa', 'wb', 'o1', 'o2', 'o3', 'o4']);
+    expect(selectableItems(doc, ZONES, null).map((i) => i.id)).toEqual(['wc', 'wa', 'wd', 'wb', 'o1', 'o2', 'o3', 'o4', 'o5', 'z-in', 'z-half', 'z-base']);
+    expect(selectableItems(doc, ZONES, 'L1')).toEqual([{ id: 'wd', kind: 'wall' }, { id: 'o5', kind: 'object' }, { id: 'z-in', kind: 'zone' }, { id: 'z-base', kind: 'zone' }]);
+    expect(selectableItems(doc, ZONES, 'L0').map((i) => i.id)).toEqual(['wc', 'wa', 'wb', 'o1', 'o2', 'o3', 'o4', 'z-in', 'z-half']);
+    // the same answer as visibleUnderLevel item by item (the single pass must not drift from the level filter's rule)
+    for (const lv of [null, 'L0', 'L1']) {
+      expect(selectableItems(doc, [], lv).map((i) => i.id)).toEqual([...doc.walls, ...doc.objects].filter((x) => visibleUnderLevel(doc, x.id, lv)).map((x) => x.id));
+    }
+  });
+
+  test('zoneOnLevel: a zone of the filtered level or without a level; every zone without a filter', () => {
+    expect(zoneOnLevel({ level_id: 'L1' }, 'L1')).toBe(true);
+    expect(zoneOnLevel({ level_id: 'L0' }, 'L1')).toBe(false);
+    expect(zoneOnLevel({ level_id: null }, 'L1')).toBe(true);
+    expect(zoneOnLevel({}, 'L0')).toBe(true);
+    expect(zoneOnLevel({ level_id: '' }, 'L0')).toBe(true);
+    expect(zoneOnLevel({ level_id: 'L0' }, null)).toBe(true);
   });
 
   test('toggleItem adds an item that is not in the selection and takes out one that is', () => {
