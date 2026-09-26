@@ -260,6 +260,14 @@ test.describe.serial('plan studio (SW A)', () => {
     await expect(pct).toBeVisible();
     near(await pct.inputValue(), 25, 1);
     await expect(page.locator(`${ed} [data-opening-distance]`)).toHaveCount(0);
+    // 0.1.91: a double door has no hinge jamb to pick, so the same field chooses the side of the wall it opens to
+    await expect(page.locator(`${ed} [data-opening-hinge]`)).toHaveAttribute('aria-label', 'ציר');
+    await page.locator(`${ed} select[aria-label="כיוון פתיחה"]`).selectOption('double');
+    await expect(page.locator(`${ed} [data-opening-hinge]`)).toHaveAttribute('aria-label', 'צד הפתיחה');
+    await expect(page.locator(`${ed} [data-opening-hinge] option[value="end"]`)).toHaveText('לצד ימין של הקיר');
+    await page.locator(`${ed} [data-opening-hinge]`).selectOption('end');
+    await expect.poll(async () => { const o = (await draft()).openings?.[0] as { swing: string; hinge: string } | undefined; return o ? `${o.swing}/${o.hinge}` : "unsaved"; }, { timeout: 10000 }).toBe('double/end');
+    await expect(page.locator(`${ed} sw-plan-canvas [data-opening][data-kind="door"]`)).toHaveCount(1);
 
     // calibrate on the wall's own ends (calibration snaps to corners): the wall is 12 m long
     await page.locator(`${ed} [data-tool="calibrate"]`).click();

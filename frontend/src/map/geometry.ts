@@ -247,9 +247,12 @@ function door(g0: Pt, g1: Pt, d: Pt, o: GeomOpening, w: number): Pick<DoorPrim, 
   const nr: Pt = [-d[1], d[0]];
   const swing = o.swing || 'right';
   if (swing === 'none') return { leaves: [], arcs: [] };
+  // a double or sliding door has no hinge jamb to choose: its hinge field picks the side of the wall instead
+  // (start = the left normal, the default; end = the right normal) - owner request 2026-09-26
+  const side = (o.hinge || 'start') === 'start' ? nl : nr;
   if (swing === 'sliding') {
     const k = w * 0.12;
-    return { leaves: [[rp(add(g0, nl, k)), rp(add(g1, nl, k))]], arcs: [] };
+    return { leaves: [[rp(add(g0, side, k)), rp(add(g1, side, k))]], arcs: [] };
   }
   if (swing === 'double') {
     const h = w / 2;
@@ -257,7 +260,7 @@ function door(g0: Pt, g1: Pt, d: Pt, o: GeomOpening, w: number): Pick<DoorPrim, 
     const arcs: DoorPrim['arcs'] = [];
     const pairs: [Pt, Pt][] = [[g0, d], [g1, [-d[0], -d[1]]]];
     for (const [hinge, along] of pairs) {
-      const tip = add(hinge, nl, h);
+      const tip = add(hinge, side, h);
       const mid = add(hinge, along, h);
       leaves.push([rp(hinge), rp(tip)]);
       arcs.push({ from: rp(tip), to: rp(mid), r: r2(h), sweep: sweep(hinge, tip, mid) });

@@ -47,6 +47,21 @@ test.describe('plan studio geometry (unit)', () => {
     close(buildPrimitives(sample(), 1000, 800, 'L1', lookup), golden.level_L1, 'L1');
   });
 
+  test('a double or sliding door opens to the side its hinge field names: start = left normal (unchanged), end = right normal', () => {
+    // one wall from (100, 400) to (900, 400) px, a door in the middle; the left normal of the wall direction points up (-y)
+    const doc = (swing: 'double' | 'sliding', hinge: 'start' | 'end'): GeometryDoc => ({
+      ...sample(), walls: [{ ...sample().walls[0], id: 'w', polyline: [[0.1, 0.5], [0.9, 0.5]], thickness_m: 0.2 }], objects: [], connectors: [], labels: [], circuits: [], groups: [],
+      openings: [{ id: 'o', wall_id: 'w', t: 0.5, kind: 'door', width_m: 1, height_m: 2.1, sill_m: 0, swing, hinge, anchor_ref: null, confidence: 1, source: 'manual', external_ids: {} }],
+    });
+    const door = (swing: 'double' | 'sliding', hinge: 'start' | 'end') => buildPrimitives(doc(swing, hinge), 1000, 800, null, lookup).find((p) => p.kind === 'door') as { leaves: [number, number][][]; arcs: { from: [number, number] }[] };
+    const tipsY = (d: { leaves: [number, number][][] }) => d.leaves.map((l) => l[1][1]);
+    expect(tipsY(door('double', 'start')).every((y) => y < 400)).toBe(true); // both half leaves up: the left normal
+    expect(tipsY(door('double', 'end')).every((y) => y > 400)).toBe(true); // hinge "end": both down, the right normal
+    expect(door('double', 'end').arcs.every((a) => a.from[1] > 400)).toBe(true);
+    expect(door('sliding', 'start').leaves[0].every((p) => p[1] < 400)).toBe(true); // the track above the wall
+    expect(door('sliding', 'end').leaves[0].every((p) => p[1] > 400)).toBe(true); // hinge "end": the track below
+  });
+
   test('snapping: a wall vertex first, then 45 degree steps unless free', () => {
     const doc = sample();
     expect(snapPoint([0.603, 0.498], null, doc.walls, 1000, 800, { tolPx: 10, free: false })).toEqual([0.6, 0.5]);

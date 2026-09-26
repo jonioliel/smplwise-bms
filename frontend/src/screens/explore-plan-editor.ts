@@ -28,7 +28,7 @@ import { productSettings } from '../api/prefs';
 import { createItem, exportUrl as catalogExportUrl, importItems, itemOf, loadLibrary, lookupOf, type CatalogItem, type CatalogLibrary } from '../api/plan-catalog';
 import { distanceM, effectiveScale, isClosedOutline, lengthPx, nearestWall, pointOnWall, snapPoint, type CatalogLookup, type ConnectorKind, type GeometryDoc, type GeomOpening, type GeomWall, type Pt } from '../map/geometry';
 import { StudioController } from '../map/studio-controller';
-import { ARRAY_MAX, BIND_DISTANCE_M, CIRCUIT_COLORS, addArray, addCircuit, addConnector, addLabel, addLevel, addObject, addOpening, addWall, arrayDefaults, circuitPower, defaultLevelId, duplicateObject, initialLevel, kindDefaults, moveConnectorVertex, moveGroup, moveObject, moveVertex, newId, nudgeT, openingRange, patchCircuit, patchConnector, patchLabel, patchObject, patchOpening, patchWall, removeCorner, removeGroup, removeItem, rotationTo, stretchedSize, toggleCircuitMember, translateWall, visibleUnderLevel, wallDirectionAt, type WallDefaults } from '../map/studio-ops';
+import { ARRAY_MAX, BIND_DISTANCE_M, CIRCUIT_COLORS, addArray, addCircuit, addConnector, addLabel, addLevel, addObject, addOpening, addWall, arrayDefaults, circuitPower, defaultLevelId, duplicateBeside, duplicateObject, initialLevel, kindDefaults, moveConnectorVertex, moveGroup, moveObject, moveVertex, newId, nudgeT, openingRange, patchCircuit, patchConnector, patchLabel, patchObject, patchOpening, patchWall, removeCorner, removeGroup, removeItem, rotationTo, stretchedSize, toggleCircuitMember, translateWall, visibleUnderLevel, wallDirectionAt, type WallDefaults } from '../map/studio-ops';
 import { ANCHOR_3D_DEFAULTS, anchor3dKind } from '../map/anchor-3d';
 import { COLL_LABEL, CONNECTOR_LABEL, connectorDerived, countLabel, fmtMetres, fmtScale, renderArrayDialog, renderCalibPanel, renderCircuitPanel, renderConnectorPanel, renderCustomItemDialog, renderGroupDeleteDialog, renderGroupInspector, renderLevelChips, renderLevelDialog, renderDetectPanel, renderLibraryPanel, renderMeasurePanel, renderObjectInspector, renderConnectorSelection, renderStudioPanel, SAVE_LABEL, studioPanelStyles, lighterStrength, type ArrayDialogView, type CustomItemView, type DetectAcceptError, type DetectOpts, type DetectReplaceAsk, type DetectRunState, type GeomKind, type GeomSel, type LevelDialogView, type StudioMode } from './plan-studio-panel';
 
@@ -2249,6 +2249,11 @@ export class ExplorePlanEditor extends LitElement {
       this.geomSel = null;
       return true;
     }
+    if (mod && key === 'd' && this.geomSel?.kind === 'object' && (this.tool === 'library' || this.tool === 'select') && this.studio.doc && !this.geomPreview) {
+      e.preventDefault(); // the browser's bookmark shortcut
+      this.duplicateSel(this.geomSel.id);
+      return true;
+    }
     if (ARROWS.includes(e.key) && (this.tool === 'structure' || this.tool === 'library' || this.tool === 'select') && this.nudgeGeom(e)) return true;
     if (mod && (key === 'z' || key === 'y')) {
       e.preventDefault();
@@ -2263,6 +2268,18 @@ export class ExplorePlanEditor extends LitElement {
       return true;
     }
     return false;
+  }
+
+  /** A copy of an object beside it (studio-ops duplicateBeside), selected so the next drag or arrow moves the copy; the
+   * inspector's "שכפל" and Ctrl+D (owner request 2026-09-26: Alt+drag alone was not discoverable). */
+  private duplicateSel(id: string) {
+    const b = this.bundle;
+    const doc = this.studio.doc;
+    if (!b || !doc) return;
+    const r = duplicateBeside(doc, id, b.width, b.height, effectiveScale(doc).scale);
+    if (r.id === id) return;
+    this.edit(() => r.doc);
+    this.geomSel = { id: r.id, kind: 'object' };
   }
 
   /** Bring an item into view and select it (the issue list, publish errors). */
@@ -2807,6 +2824,7 @@ export class ExplorePlanEditor extends LitElement {
             },
             array: (id) => this.openArray(id),
             custom: (id) => this.openCustom(id),
+            duplicate: (id) => this.duplicateSel(id),
             selectGroup: (gid) => (this.geomSel = { id: gid, kind: 'group' }),
           },
         )

@@ -205,6 +205,20 @@ export function duplicateObject(doc: GeometryDoc, id: string, p: Pt, newIdValue?
   return { doc: { ...doc, objects: [...doc.objects, copy] }, id: copy.id };
 }
 
+/** A copy beside the original, ready to be dragged into place (the inspector's "שכפל", Ctrl+D): one object width plus
+ * 30 cm to the right; below the original when that leaves the plan; to the left when below leaves it too. `scale` is
+ * metres per plan pixel; W and H the plan's pixel size. An unknown id returns the document unchanged. */
+export function duplicateBeside(doc: GeometryDoc, id: string, W: number, H: number, scale: number): { doc: GeometryDoc; id: string } {
+  const src = doc.objects.find((o) => o.id === id);
+  if (!src || !(scale > 0) || !(W > 0) || !(H > 0)) return { doc, id };
+  const dx = (src.size.w_m + 0.3) / scale / W;
+  const dy = (src.size.d_m + 0.3) / scale / H;
+  let p: Pt = [src.position[0] + dx, src.position[1]];
+  if (p[0] > 1) p = [src.position[0], src.position[1] + dy];
+  if (p[1] > 1) p = [Math.max(0, src.position[0] - dx), src.position[1]];
+  return duplicateObject(doc, id, p);
+}
+
 /** The rotation (0 = up, clockwise) that points an object's front at `p`, snapped to `snapDeg` degrees. */
 export function rotationTo(o: Pick<GeomObject, 'position'>, p: Pt, W: number, H: number, snapDeg: number): number {
   const dx = (p[0] - o.position[0]) * W;

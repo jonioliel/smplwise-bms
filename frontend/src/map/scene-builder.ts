@@ -238,7 +238,8 @@ class Builder {
   /** The leaves of a door as the 2D draws them (geometry.ts door(), missing swing = right): none - no leaf; sliding -
    * one leaf on a track 0.12 of the width off the wall on the left-normal side, over the gap when closed and slid one
    * width toward its hinge jamb when open; double - two half leaves hinged at both jambs ("door:<id>#0" at the start,
-   * "#1" at the end) opening to the left normal; left / right - one leaf at its hinge jamb opening to that normal. An
+   * "#1" at the end) opening to the left normal, or to the right normal when the hinge field says end (the same
+   * field picks the track side of a sliding door); left / right - one leaf at its hinge jamb opening to that normal. An
    * open leaf stands DOOR_OPEN_DEG off the wall, a closed one lies in the gap. */
   private leaves(o: GeomOpening, g0: [number, number], g1: [number, number], len: number, open: boolean, base: number, levelId: string, ud: ScenePart['userData']): void {
     const swing = o.swing || 'right';
@@ -256,15 +257,16 @@ class Builder {
       const s = Math.sin(rad(DOOR_OPEN_DEG));
       return [closed[0] * c + n[0] * s, closed[1] * c + n[1] * s];
     };
+    const side = hingeAtStart ? nl : nr; // double / sliding: the hinge field picks the side of the wall (geometry.ts door())
     if (swing === 'sliding') {
       const k = 0.12 * len;
       const shift = open ? (hingeAtStart ? -len : len) : 0;
-      leaf(`door:${o.id}`, [g0[0] + nl[0] * k + d[0] * shift, g0[1] + nl[1] * k + d[1] * shift], d, len);
+      leaf(`door:${o.id}`, [g0[0] + side[0] * k + d[0] * shift, g0[1] + side[1] * k + d[1] * shift], d, len);
       return;
     }
     if (swing === 'double') {
-      leaf(`door:${o.id}#0`, g0, swung(d, nl), len / 2);
-      leaf(`door:${o.id}#1`, g1, swung([-d[0], -d[1]], nl), len / 2);
+      leaf(`door:${o.id}#0`, g0, swung(d, side), len / 2);
+      leaf(`door:${o.id}#1`, g1, swung([-d[0], -d[1]], side), len / 2);
       return;
     }
     const n = swing === 'left' ? nl : nr;
