@@ -1,4 +1,4 @@
-import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
+import { test, expect, type APIRequestContext, type Locator, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,7 +14,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.resolve(HERE, '..', '..', 'smplwise_vms', 'backend', 'tests', 'fixtures', 'plan_detect', 'apartment.png');
 export const HOST = 'explore-floor-map';
 export const ENTITIES = { lamp: 'light.p4_lamp', lock: 'lock.p4_door', sw: 'switch.p4_k' };
-export const ids = { site: '', building: '', floor: '', version: '', camera: '', camAnchor: '', lockAnchor: '', lampAnchor: '' };
+export const ids = { site: '', building: '', floor: '', version: '', camera: '', camAnchor: '', lockAnchor: '', lampAnchor: '', floor2: '' };
 export let api: APIRequestContext;
 
 type Desc = { estimated: boolean; parts: { id: string; kind: string; color: string; opacity: number; position: [number, number, number]; rotation: [number, number, number]; level_id: string | null; polygon?: [number, number][]; userData: { id: string; kind: string } }[] };
@@ -39,6 +39,13 @@ export const saveDraft = async (patch: Record<string, unknown>) => {
   expect((await api.put(`api/v1/plan-versions/${ids.version}/geometry`, { data: { doc: { ...g.doc, ...patch }, base_revision: g.geometry.revision } })).status()).toBe(200);
 };
 export const publish = async () => expect((await api.post(`api/v1/plan-versions/${ids.version}/geometry/publish`)).status()).toBe(200);
+/** sw-button is not a native control, so toBeEnabled cannot fail on it (Task 9 review): the host's disabled attribute can. */
+export async function expectEnabled(l: Locator, timeout = 30000): Promise<void> {
+  await expect(l).toBeAttached({ timeout });
+  await expect(l).not.toHaveAttribute('disabled', '', { timeout });
+}
+/** The local date the screens stamp on a download (YYYY-MM-DD in the browser's time zone). */
+const localDate = (page: Page) => page.evaluate(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`; });
 const WALL = (id: string, polyline: [number, number][], level = 'L0', extra: Record<string, unknown> = {}) => ({ id, level_id: level, polyline, thickness_m: 0.2, height_m: null, base_z_m: 0, kind: 'interior', confidence: 1, source: 'manual', locked: false, external_ids: {}, ...extra });
 const OBJ = (id: string, item_id: string, position: [number, number], extra: Record<string, unknown> = {}) => ({ id, item_id, level_id: 'L0', position, rotation_deg: 0, size: { w_m: 0.45, d_m: 0.45, h_m: 0.85 }, z_m: 0, params: {}, label: null, anchor_ref: null, group_id: null, confidence: 1, source: 'manual', locked: false, external_ids: {}, ...extra });
 
@@ -93,6 +100,7 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
     if (!api) return;
     try {
       if (ids.floor) expect((await api.delete(`api/v1/floors/${ids.floor}?force=true`)).status(), 'test floor removed').toBe(204);
+      if (ids.floor2) expect((await api.delete(`api/v1/floors/${ids.floor2}?force=true`)).status(), 'second test floor removed').toBe(204);
       if (ids.building) expect((await api.delete(`api/v1/buildings/${ids.building}`)).status(), 'test building removed').toBe(204);
       if (ids.site) expect((await api.delete(`api/v1/sites/${ids.site}`)).status(), 'test site removed').toBe(204);
     } finally {
@@ -112,7 +120,7 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
     // the 2D cone is cut by the walls of the room (Task 2)
     await expect(host.locator('sw-plan-canvas [data-cov-clipped]')).toHaveCount(1);
     const toggle = host.locator('[data-view-3d]');
-    await expect(toggle).toBeEnabled({ timeout: 10000 });
+    await expectEnabled(toggle, 10000);
     expect(chunkRequests).toHaveLength(0);
     await toggle.click();
     const el = host.locator('sw-plan-3d[data-floor-3d]');
@@ -145,9 +153,20 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
     // the layers of the 2D apply, the level chips too (counted from the lit scene: the open lamp added its glow)
     all = Number(await el.getAttribute('data-parts'));
     expect(all).toBe(d.parts.length);
+    // a layer switched off removes exactly its parts: the objects take their glows along, the cameras their cones
+    const objectParts = d.parts.filter((p) => p.kind === 'object' || (p.kind === 'glow' && p.id.startsWith('obj:'))).length;
+    const cameraParts = d.parts.filter((p) => p.kind === 'camera' || p.kind === 'cone').length;
+    expect(objectParts).toBeGreaterThan(8);
+    expect(cameraParts).toBe(2);
     await host.locator('.layers button[aria-label="עצמים"]').click();
-    await expect.poll(async () => Number(await el.getAttribute('data-parts'))).toBeLessThan(all);
+    await expect.poll(async () => Number(await el.getAttribute('data-parts'))).toBe(all - objectParts);
+    expect((await describe3d(page, HOST)).parts.filter((p) => p.kind === 'object' || p.id.startsWith('obj:'))).toHaveLength(0);
     await host.locator('.layers button[aria-label="עצמים"]').click();
+    await expect.poll(async () => Number(await el.getAttribute('data-parts'))).toBe(all);
+    await host.locator('.layers button[aria-label="מצלמות"]').click();
+    await expect.poll(async () => Number(await el.getAttribute('data-parts'))).toBe(all - cameraParts);
+    expect((await describe3d(page, HOST)).parts.filter((p) => p.kind === 'camera' || p.kind === 'cone')).toHaveLength(0);
+    await host.locator('.layers button[aria-label="מצלמות"]').click();
     await expect.poll(async () => Number(await el.getAttribute('data-parts'))).toBe(all);
     await host.locator('[data-level-chip="L1"]').click();
     await expect.poll(async () => { d = await describe3d(page, HOST); return d.parts.every((p) => p.level_id === 'L1' || p.kind === 'connector'); }).toBe(true);
@@ -189,6 +208,128 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
     expect((await api.post('api/v1/ha/dev/states', { data: { states: [{ entity_id: ENTITIES.lock, state: 'locked' }, { entity_id: ENTITIES.lamp, state: 'off' }] } })).status()).toBe(200);
   });
 
+  test('live map: a card never floats over the 3D, the door bound to the lock selects the lock, a stale screen draws every state unknown, a blocked lamp sends nothing and is selected', async ({ page }) => {
+    test.setTimeout(150_000);
+    // the lock open and the lamp on, so the stale screen has something to hide
+    expect((await api.post('api/v1/ha/dev/states', { data: { states: [{ entity_id: ENTITIES.lock, state: 'open' }, { entity_id: ENTITIES.lamp, state: 'on' }] } })).status()).toBe(200);
+    // the circuit arrives without control (as a viewer's bundle would): the lamp click must be blocked
+    const mapRoute = `**/api/v1/floors/${ids.floor}/map*`;
+    await page.route(mapRoute, async (r) => {
+      const res = await r.fetch();
+      const body = (await res.json()) as { circuit_states: Record<string, { can_control: boolean; actions: unknown[] }> };
+      for (const c of Object.values(body.circuit_states)) {
+        c.can_control = false;
+        c.actions = [];
+      }
+      await r.fulfill({ response: res, json: body });
+    });
+    const sent: unknown[] = [];
+    await page.route('**/api/v1/ha/entities/*/actions', async (r) => {
+      sent.push(r.request().postDataJSON());
+      await r.abort();
+    });
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
+    const host = page.locator(HOST);
+    const toggle = host.locator('[data-view-3d]');
+    await expectEnabled(toggle);
+    // a 2D pin opens its card as a popover at the pin; once the 3D is on screen the same card is a drawer
+    await host.locator(`sw-plan-canvas g.marker[data-id="${ids.camAnchor}"]`).click();
+    await expect(host.locator('sw-popover')).toHaveCount(1);
+    await toggle.click();
+    const el = host.locator('sw-plan-3d[data-floor-3d]');
+    await expect(el).toHaveAttribute('data-ready', '', { timeout: 30000 });
+    await expect(host.locator('sw-popover')).toHaveCount(0);
+    await expect(host.locator('sw-drawer[open]')).toBeAttached();
+    await page.keyboard.press('Escape');
+    await expect(el).toHaveAttribute('data-selected', '');
+    let d = await describe3d(page, HOST);
+    const part = (id: string) => d.parts.find((p) => p.id === id)!;
+    await expect.poll(async () => { d = await describe3d(page, HOST); return Math.abs(part('door:dr').rotation[1]); }, { timeout: 15000 }).toBe(80);
+    expect(part('obj:lb').color).toBe('map-glow');
+    // the door (its lintel, the part above the leaf) is bound to the lock: the click selects the lock's anchor - the rule
+    // the history map and the event page share (part-select.boundItemOf)
+    await el.locator('[data-preset-top]').click();
+    await el.evaluate((node) => {
+      const w = window as unknown as { __sel: unknown[] };
+      w.__sel = [];
+      node.addEventListener('part-select', (e) => w.__sel.push((e as CustomEvent).detail));
+    });
+    const doorAt = await partScreen(page, HOST, 'lintel:dr');
+    await page.mouse.click(doorAt.x, doorAt.y);
+    await expect(el).toHaveAttribute('data-selected', ids.lockAnchor);
+    expect(await page.evaluate(() => (window as unknown as { __sel: unknown[] }).__sel)).toEqual([{ id: 'dr', kind: 'opening' }]);
+    await expect(host.locator('sw-drawer[open]')).toBeAttached();
+    await page.keyboard.press('3');
+    await expect(host.locator('sw-plan-canvas g.marker.selected')).toHaveAttribute('data-id', ids.lockAnchor, { timeout: 10000 });
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('3');
+    await expect(el).toHaveAttribute('data-ready', '', { timeout: 15000 });
+    // the blocked lamp of the circuit: nothing is sent, the lamp is selected, the strip says why
+    await el.locator('[data-preset-top]').click();
+    const lampAt = await partScreen(page, HOST, 'obj:lk');
+    await page.mouse.click(lampAt.x, lampAt.y);
+    await expect(el).toHaveAttribute('data-selected', 'lk');
+    await page.waitForTimeout(500);
+    expect(sent).toHaveLength(0);
+    // a stale screen hands the builder explicit nulls: the door closes, the lock turns stale, no lamp glows
+    await host.evaluate((n) => { (n as unknown as { screenState: string }).screenState = 'stale'; });
+    await expect.poll(async () => { d = await describe3d(page, HOST); return part('door:dr').rotation[1]; }, { timeout: 15000 }).toBe(0);
+    expect(part(`ent:${ids.lockAnchor}`).color).toBe('stale');
+    expect(part('obj:lb').color).toBe('obj-light');
+    expect(part('obj:lk').color).not.toBe('map-glow');
+    expect(d.parts.filter((p) => p.kind === 'glow')).toHaveLength(0);
+    await host.evaluate((n) => { (n as unknown as { screenState: string }).screenState = 'ready'; });
+    await expect.poll(async () => { d = await describe3d(page, HOST); return Math.abs(part('door:dr').rotation[1]); }, { timeout: 15000 }).toBe(80);
+    await page.unroute(mapRoute);
+    await page.unroute('**/api/v1/ha/entities/*/actions');
+    expect((await api.post('api/v1/ha/dev/states', { data: { states: [{ entity_id: ENTITIES.lock, state: 'locked' }, { entity_id: ENTITIES.lamp, state: 'off' }] } })).status()).toBe(200);
+  });
+
+  test('2D coverage: an offline camera keeps its wall-clipped cone dimmed, a manual polygon wins over the walls, a floor without walls keeps the plain cone and cannot open the 3D', async ({ page }) => {
+    test.setTimeout(120_000);
+    const host = page.locator(HOST);
+    const cam = `sw-plan-canvas g.marker[data-id="${ids.camAnchor}"]`;
+    // offline, as the recorder would report it (the bundle is answered here)
+    const mapRoute = `**/api/v1/floors/${ids.floor}/map*`;
+    await page.route(mapRoute, async (r) => {
+      const res = await r.fetch();
+      const body = (await res.json()) as { anchors: { camera: { status: string } | null }[] };
+      for (const a of body.anchors) if (a.camera) a.camera.status = 'offline';
+      await r.fulfill({ response: res, json: body });
+    });
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
+    await expect(host.locator(`${cam} polygon.fov.off[data-cov-clipped]`)).toHaveCount(1, { timeout: 30000 });
+    await page.unroute(mapRoute);
+    // a manual polygon is drawn as stored, never clipped by the walls
+    const listed = (await (await api.get(`api/v1/floors/${ids.floor}/anchors`)).json()).anchors as { id: string; revision: number }[];
+    const rev = listed.find((a) => a.id === ids.camAnchor)!.revision;
+    expect((await api.patch(`api/v1/map-anchors/${ids.camAnchor}`, { data: { revision: rev, coverage_polygon: [[0.5, 0.5], [0.3, 0.02], [0.7, 0.02]] } })).status()).toBe(200);
+    try {
+      await page.goto('about:blank');
+      await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
+      await expect(host.locator(`${cam} [data-cov-polygon]`)).toHaveCount(1, { timeout: 30000 });
+      await expect(host.locator(`${cam} [data-cov-clipped]`)).toHaveCount(0);
+    } finally {
+      expect((await api.patch(`api/v1/map-anchors/${ids.camAnchor}`, { data: { revision: rev + 1, coverage_polygon: null } })).status()).toBe(200);
+    }
+    // a second floor with a plan and a camera but no structure: the plain cone, the toggle disabled with its reason
+    ids.floor2 = (await (await api.post(`api/v1/buildings/${ids.building}/floors`, { data: { name: 'קומה ללא מבנה', level: 1 } })).json()).id;
+    const asset = await (await api.post(`api/v1/floors/${ids.floor2}/plan-assets`, { multipart: { file: { name: 'apartment.png', mimeType: 'image/png', buffer: fs.readFileSync(FIXTURE) } } })).json();
+    const v2 = (await (await api.post(`api/v1/floors/${ids.floor2}/plan-versions`, { data: { asset_id: asset.id } })).json()).id;
+    expect((await api.post(`api/v1/plan-versions/${v2}/publish`)).status()).toBe(200);
+    const a2 = (await (await api.post(`api/v1/floors/${ids.floor2}/anchors`, { data: { resource_type: 'camera', resource_id: ids.camera, x: 0.5, y: 0.5, rotation_degrees: 0, field_of_view_degrees: 90, coverage_radius: 0.3 } })).json()).id;
+    await page.goto('about:blank'); // a fresh load: the floor list of the running screen predates the new floor
+    await page.goto(`/?design=a#/explore/floors/${ids.floor2}`);
+    await expect(host.locator(`sw-plan-canvas g.marker[data-id="${a2}"] path.fov`)).toHaveCount(1, { timeout: 30000 });
+    await expect(host.locator('sw-plan-canvas [data-cov-clipped]')).toHaveCount(0);
+    const toggle = host.locator('[data-view-3d]');
+    await expect(toggle).toHaveAttribute('disabled', '');
+    await expect(toggle).toHaveAttribute('title', 'אין מבנה מפורסם לקומה הזו');
+    // gone again before the building page test, which counts the structure reads of the building's floors
+    expect((await api.delete(`api/v1/floors/${ids.floor2}?force=true`)).status()).toBe(204);
+    ids.floor2 = '';
+  });
+
   test('history map: the 3D shows the structure and the states of the instant, opens from the camera of ?camera=, and the key 3 toggles', async ({ page }) => {
     test.setTimeout(120_000);
     const t = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
@@ -197,7 +338,7 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
     await expect(host.locator('sw-plan-canvas [data-structure] [data-wall]').first()).toBeAttached({ timeout: 30000 });
     await expect(host.locator('[data-history-camera]')).not.toContainText('לחץ על מצלמה');
     const toggle = host.locator('[data-view-3d]');
-    await expect(toggle).toBeEnabled({ timeout: 10000 });
+    await expectEnabled(toggle, 10000);
     await toggle.click();
     const el = host.locator('sw-plan-3d[data-history-3d]');
     await expect(el).toHaveAttribute('data-ready', '', { timeout: 30000 });
@@ -239,7 +380,7 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
     const host = page.locator('investigate-event-detail');
     await expect(host.locator('sw-plan-canvas')).toBeAttached({ timeout: 30000 });
     const toggle = host.locator('sw-button[data-event-3d-toggle]'); // the element keeps data-event-3d
-    await expect(toggle).toBeEnabled({ timeout: 15000 });
+    await expectEnabled(toggle, 15000);
     await toggle.click();
     const el = host.locator('sw-plan-3d[data-event-3d]');
     await expect(el).toHaveAttribute('data-ready', '', { timeout: 30000 });
@@ -280,14 +421,14 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
     });
     await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
     const host = page.locator(HOST);
-    await expect(host.locator('[data-view-3d]')).toBeEnabled({ timeout: 30000 });
+    await expectEnabled(host.locator('[data-view-3d]'), 30000);
     await host.locator('[data-view-3d]').click();
     const el = host.locator('sw-plan-3d[data-floor-3d]');
     await expect(el).toHaveAttribute('data-ready', '', { timeout: 30000 });
     await el.locator('[data-export-gltf]').click();
     await expect.poll(() => page.evaluate(() => (window as unknown as { __gltf: unknown }).__gltf !== null), { timeout: 30000 }).toBe(true);
     const got = await page.evaluate(() => (window as unknown as { __gltf: { name: string; text: string } }).__gltf);
-    expect(got.name).toMatch(/^plan-3d-.+-\d{4}-\d{2}-\d{2}\.gltf$/);
+    expect(got.name).toBe(`plan-3d-אולם-3D-${await localDate(page)}.gltf`); // the floor name without its space (the Hebrew stays), the local date
     const gltf = JSON.parse(got.text) as { asset: { generator: string; version: string }; nodes: unknown[]; meshes: unknown[]; extensionsUsed?: string[] };
     expect(gltf.asset.generator).toContain('GLTFExporter');
     expect(gltf.asset.version).toBe('2.0');
@@ -309,7 +450,7 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
     await expect(page.locator('sw-app')).toHaveAttribute('data-embed', '', { timeout: 30000 });
     await expect(page.locator('sw-app nav')).toHaveCount(0);
     const host = page.locator(HOST);
-    await expect(host.locator('[data-view-3d]')).toBeEnabled({ timeout: 30000 });
+    await expectEnabled(host.locator('[data-view-3d]'), 30000);
     await host.locator('[data-view-3d]').click();
     await expect(host.locator('sw-plan-3d[data-floor-3d]')).toHaveAttribute('data-ready', '', { timeout: 30000 });
     expect(chunkRequests).toHaveLength(1);
@@ -349,7 +490,7 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
     await expect(host.locator('sw-plan-canvas')).toBeAttached({ timeout: 30000 });
     const toggle = host.locator('.tools [data-view-3d]');
     await expect(toggle).toBeVisible();
-    await expect(toggle).toBeEnabled({ timeout: 30000 });
+    await expectEnabled(toggle, 30000);
     expect(chunkRequests).toHaveLength(0);
     await toggle.click();
     const el = host.locator('sw-plan-3d[data-floor-3d]');
@@ -365,5 +506,122 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
     await expect(el.locator('[data-preset-top]')).toBeVisible();
     await el.locator('[data-preset-top]').click();
     await expect(el).toHaveAttribute('data-preset', 'top');
+  });
+  test('the anchor panel edits the mount height and the tilt; the bundle and the 3D take them', async ({ page }) => {
+    test.setTimeout(120_000);
+    const ed = 'explore-plan-editor';
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
+    await expect(page.locator(`${ed} sw-plan-canvas g.marker[data-id="${ids.camAnchor}"]`)).toBeAttached({ timeout: 30000 });
+    await page.locator(`${ed} sw-plan-canvas g.marker[data-id="${ids.camAnchor}"]`).click();
+    await expect(page.locator(`${ed} [data-anchor-mount]`)).toHaveValue('3');
+    await expect(page.locator(`${ed} [data-anchor-tilt]`)).toHaveValue('15');
+    // a value beyond the range is clamped and the field shows the clamped value (live binding)
+    await page.locator(`${ed} [data-anchor-mount]`).fill('45');
+    await page.locator(`${ed} [data-anchor-mount]`).press('Tab');
+    await expect(page.locator(`${ed} [data-anchor-mount]`)).toHaveValue('30');
+    await page.locator(`${ed} [data-anchor-mount]`).fill('45');
+    await page.locator(`${ed} [data-anchor-mount]`).press('Tab');
+    await expect(page.locator(`${ed} [data-anchor-mount]`)).toHaveValue('30'); // the same clamped value again: still shown as 30
+    await page.locator(`${ed} [data-anchor-mount]`).fill('2.2');
+    await page.locator(`${ed} [data-anchor-mount]`).press('Tab');
+    await page.locator(`${ed} [data-anchor-tilt]`).fill('');
+    await page.locator(`${ed} [data-anchor-tilt]`).press('Tab'); // emptied: back to the kind's default (10), stored as null
+    await expect(page.locator(`${ed} [data-anchor-tilt]`)).toHaveAttribute('placeholder', '10');
+    const patched = page.waitForResponse((r) => r.url().includes('/map-anchors/') && r.request().method() === 'PATCH');
+    await page.locator(`${ed} sw-button`, { hasText: 'שמירת מיקום' }).first().click();
+    const body = (await patched).request().postDataJSON() as { mount_height_m: number | null; tilt_deg: number | null };
+    expect(body).toMatchObject({ mount_height_m: 2.2, tilt_deg: null });
+    const bundle = (await (await api.get(`api/v1/floors/${ids.floor}/map`)).json()) as { anchors: { id: string; mount_height_m: number | null; tilt_deg: number | null }[] };
+    const cam = bundle.anchors.find((a) => a.id === ids.camAnchor)!;
+    expect(cam.mount_height_m).toBe(2.2);
+    expect(cam.tilt_deg).toBeNull();
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
+    const host = page.locator(HOST);
+    await expectEnabled(host.locator('[data-view-3d]'));
+    await host.locator('[data-view-3d]').click();
+    await expect(host.locator('sw-plan-3d[data-floor-3d]')).toHaveAttribute('data-ready', '', { timeout: 30000 });
+    const d = await describe3d(page, HOST);
+    const camPart = d.parts.find((p) => p.id === `cam:${ids.camAnchor}`)!;
+    expect(camPart.position[1]).toBe(2.2);
+    expect(camPart.rotation[0]).toBe(-10); // the default tilt of 10 deg down (ruling R-P4-T4-1: pitch = -tilt)
+    // an entity anchor gets the mount field only (no tilt), with the door-station default as its placeholder
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
+    await page.locator(`${ed} sw-plan-canvas g.marker[data-id="${ids.lockAnchor}"]`).click({ timeout: 30000 });
+    await expect(page.locator(`${ed} [data-anchor-mount]`)).toHaveAttribute('placeholder', '1.4');
+    await expect(page.locator(`${ed} [data-anchor-tilt]`)).toHaveCount(0);
+  });
+
+  test('performance: frames over four seconds on the floor and on a 3,000-chair floor (>= 20 fps asserted; the numbers are reported)', async ({ page }, testInfo) => {
+    test.setTimeout(300_000);
+    const report = (line: string) => {
+      console.log(line);
+      testInfo.annotations.push({ type: 'perf', description: line });
+    };
+    /** Continuous frames (data-measure) counted between the element's own counter reports: every report is timed in the
+     * page when it lands, so the one-second resolution of the counters does not skew the rate. */
+    const measure = async (label: string) => {
+      const el = page.locator(`${HOST} sw-plan-3d[data-floor-3d]`);
+      await expect(el).toHaveAttribute('data-ready', '', { timeout: 60000 });
+      await el.evaluate((node) => { (node as unknown as { continuous: boolean }).continuous = true; });
+      await expect(el).toHaveAttribute('data-measure', '');
+      await page.waitForTimeout(1000); // the first frames and the chunk settle
+      const r = await el.evaluate(async (node) => {
+        const marks: [number, number][] = [];
+        const mo = new MutationObserver(() => marks.push([performance.now(), Number((node as HTMLElement).getAttribute('data-frames'))]));
+        mo.observe(node, { attributes: true, attributeFilter: ['data-frames'] });
+        await new Promise((res) => setTimeout(res, 4200));
+        mo.disconnect();
+        const last = Number((node as HTMLElement).getAttribute('data-fps'));
+        if (marks.length < 2) return { fps: 0, last, reports: marks.length };
+        const [t0, f0] = marks[0];
+        const [t1, f1] = marks[marks.length - 1];
+        return { fps: Math.round(((f1 - f0) * 1000) / (t1 - t0)), last, reports: marks.length };
+      });
+      await el.evaluate((node) => { (node as unknown as { continuous: boolean }).continuous = false; });
+      await expect(el).not.toHaveAttribute('data-measure', '');
+      const parts = Number(await el.getAttribute('data-parts'));
+      report(`PERF ${label} fps=${r.fps} parts=${parts}`);
+      report(`PERF ${label} detail: data-fps=${r.last} counter-reports=${r.reports}`);
+      return { fps: r.fps, parts };
+    };
+    const open3d = async (label: string) => {
+      const host = page.locator(HOST);
+      await expectEnabled(host.locator('[data-view-3d]'), 60000);
+      const t0 = Date.now();
+      await host.locator('[data-view-3d]').click();
+      await expect(host.locator('sw-plan-3d[data-floor-3d]')).toHaveAttribute('data-ready', '', { timeout: 60000 });
+      report(`PERF ${label} time-to-3d ms=${Date.now() - t0}`); // design: within 3 s on desktop (reported, not asserted)
+    };
+    await page.goto('about:blank');
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
+    await open3d('sample');
+    const small = await measure('sample');
+    expect(small.fps).toBeGreaterThanOrEqual(20);
+    // 3,000 chairs in a 60 x 50 grid inside the room, published. A chair (0.45 x 0.45 x 0.85 m) is never "small" by
+    // SMALL_PART_M (the largest dimension, 0.85 > 0.6), so the far-camera hiding does not apply: this measures raw instancing
+    const chairs = Array.from({ length: 3000 }, (_, i) => OBJ(`big${i}`, 'chair.basic', [0.12 + (i % 60) * (0.76 / 59), 0.12 + Math.floor(i / 60) * (0.46 / 49)]));
+    const g = await draft();
+    const objects = (g.doc.objects as Record<string, unknown>[]).filter((o) => !String(o.id).startsWith('big'));
+    await saveDraft({ objects: [...objects, ...chairs] });
+    await publish();
+    try {
+      await page.goto('about:blank');
+      await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
+      await open3d('chairs');
+      const big = await measure('chairs');
+      expect(big.parts).toBeGreaterThanOrEqual(3000);
+      expect(big.fps).toBeGreaterThanOrEqual(20);
+      const d = await describe3d(page, HOST);
+      expect(d.parts.filter((p) => p.id.startsWith('obj:big')).length).toBe(3000);
+      // the phone width on the same machine (not a phone GPU: the design's 30 fps phone target is reported, never asserted)
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto('about:blank');
+      await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
+      await open3d('chairs-390px');
+      await measure('chairs-390px');
+    } finally {
+      await saveDraft({ objects }); // the small floor again for anyone who reruns a single test
+      await publish();
+    }
   });
 });
