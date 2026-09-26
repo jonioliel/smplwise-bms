@@ -12,6 +12,7 @@ import type { HaEntity } from '../api/ha';
 import { searchItems } from '../api/plan-catalog';
 import type { SaveState } from '../map/studio-controller';
 import { cornerRemovable, kindDefaults, openingRange, type WallDefaults } from '../map/studio-ops';
+import { symbolOf } from '../map/plan-symbols';
 
 export type StudioMode = 'select' | 'wall' | 'door' | 'window' | 'passage' | 'label';
 export type GeomKind = 'wall' | 'opening' | 'label' | 'object' | 'connector' | 'group';
@@ -965,6 +966,10 @@ export interface CircuitView {
   creating: { name: string; q: string; results: HaEntity[]; entity: HaEntity | null; color: string; busy: boolean } | null;
   saveState: SaveState;
   colors: readonly string[];
+  /** The library's light items: the lamp types members mode can drop straight into the circuit (empty until it loads). */
+  lamps: CatalogItem[];
+  /** The lamp type the next click on the plan places into the selected circuit (members mode only). */
+  placing: CatalogItem | null;
 }
 
 export interface CircuitActions {
@@ -976,7 +981,15 @@ export interface CircuitActions {
   patch(id: string, patch: Partial<GeomCircuit>): void;
   toggleMembers(): void;
   remove(id: string): void;
+  /** Arm a lamp type for placement into the selected circuit, or disarm (null). */
+  armLamp(item: CatalogItem | null): void;
 }
+
+/** Members mode (owner report 2026-09-26: "add lamps" placed nothing on a click on the map): both of its interactions. */
+export const CIRCUIT_MEMBERS_HINT = 'לחץ על מנורה קיימת כדי להוסיף או להסיר אותה מהמעגל, או בחר סוג מנורה למטה ולחץ על התוכנית כדי להציב מנורה חדשה שכבר מחוברת למעגל';
+
+/** The hint while a lamp type is armed: the next click on the plan places it, already on the circuit. */
+export const circuitPlacingHint = (item: CatalogItem): string => `לחץ על התוכנית כדי להציב ${item.names.he} ישירות במעגל · Esc לביטול`;
 
 /** The circuit colour as a CSS variable: a document string reaches the inline style only through the whitelist. */
 const circuitVar = (token: string): string => `var(--sw-${circuitToken(token) ?? 'circuit-1'})`;
@@ -984,7 +997,7 @@ const circuitVar = (token: string): string => `var(--sw-${circuitToken(token) ??
 export function renderCircuitPanel(v: CircuitView, a: CircuitActions): TemplateResult {
   const c = v.creating;
   const sel = v.sel;
-  return html`<sw-card heading="מעגלי תאורה" subheading=${v.membersMode ? 'לחץ על מנורות כדי להוסיף או להסיר מהמעגל' : 'כמה מנורות על ישות מפסק אחת ב־Home Assistant'} data-circuit-panel data-studio-save=${v.saveState}>
+  return html`<sw-card heading="מעגלי תאורה" subheading=${v.membersMode ? (v.placing ? circuitPlacingHint(v.placing) : CIRCUIT_MEMBERS_HINT) : 'כמה מנורות על ישות מפסק אחת ב־Home Assistant'} data-circuit-panel data-studio-save=${v.saveState}>
     ${v.doc.circuits.length
       ? html`<div class="list">${v.doc.circuits.map((k) => html`<button class=${sel?.id === k.id ? 'on' : ''} data-circuit-row=${k.id} style=${`border-inline-start: 4px solid ${circuitVar(k.color_token)}`} @click=${() => a.select(sel?.id === k.id ? null : k.id)}>
           <span>${k.name}</span><span class="note ltr" style="margin:0">${k.member_ids.length} · ${v.power(k)} W · ${k.switch_entity_id}</span>
@@ -1015,6 +1028,11 @@ function renderCircuitInspector(k: GeomCircuit, v: CircuitView, a: CircuitAction
       <sw-button size="sm" variant=${v.membersMode ? 'primary' : 'ghost'} icon="light" data-circuit-members aria-pressed=${v.membersMode} @click=${() => a.toggleMembers()}>${v.membersMode ? 'סיים בחירת מנורות' : 'הוסף / הסר מנורות'}</sw-button>
       <sw-button size="sm" variant="ghost" icon="trash" data-circuit-delete @click=${() => a.remove(k.id)}>מחק מעגל</sw-button>
     </div>
+    ${v.membersMode && v.lamps.length ? html`<div class="note">מנורה חדשה: בחר סוג ולחץ על התוכנית (לחיצה נוספת על הסוג מבטלת)</div>
+      <div class="modes lamps" role="group" aria-label="סוג מנורה להצבה במעגל" data-circuit-lamps>${v.lamps.map((i) => {
+        const on = v.placing?.id === i.id;
+        return html`<button class=${on ? 'on' : ''} data-circuit-lamp=${i.id} aria-pressed=${on} title=${`${i.names.he} · ${i.size.w_m}×${i.size.d_m} מ׳`} @click=${() => a.armLamp(on ? null : i)}><svg viewBox="0 0 24 24" aria-hidden="true">${symbolOf(i.icon)}</svg><span>${i.names.he}</span></button>`;
+      })}</div>` : nothing}
     <div class="note">המצב החי של המנורות נגזר מהמפסק; ההפעלה מהמפה החיה היא פעולת HA הקיימת, באותן הרשאות.</div>
   </div>`;
 }
@@ -1042,6 +1060,21 @@ export const studioPanelStyles = css`
     background: var(--sw-accent);
     border-color: var(--sw-accent);
     color: #fff;
+  }
+  .lamps button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .lamps svg {
+    width: 14px;
+    height: 14px;
+    flex: none;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
   .modes button:focus-visible,
   .btnlink:focus-visible,

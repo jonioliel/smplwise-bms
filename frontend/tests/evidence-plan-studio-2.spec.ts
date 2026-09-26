@@ -448,6 +448,44 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
     await expect(page.locator(`${ed} [data-circuit-count]`)).toContainText('מנורה אחת');
     await expect(page.locator(`${ed} [data-circuit-power]`)).toContainText('36');
     await expect.poll(async () => (await draft()).doc.circuits.find((k) => k.id === 'k-south')?.member_ids.length, { timeout: 10000 }).toBe(3);
+    // owner report 2026-09-26: in members mode a lamp type armed in the panel drops a NEW lamp, already on the circuit
+    const gallery = (await page.locator(`${ed} [data-selected-circuit]`).getAttribute('data-selected-circuit'))!;
+    const members = async () => (await draft()).doc.circuits.find((k) => k.id === gallery)?.member_ids;
+    const objects = page.locator(`${ed} sw-plan-canvas [data-object]`);
+    const before = await objects.count();
+    const idsBefore = new Set((await draft()).doc.objects.map((o) => o.id));
+    await expect(page.locator(`${ed} [data-circuit-lamp="chair.basic"]`)).toHaveCount(0); // only light items are offered
+    const spot = page.locator(`${ed} [data-circuit-lamp="light.spot"]`);
+    await spot.click();
+    await expect(spot).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator(`${ed} [data-circuit-placing]`)).toBeVisible();
+    await clickPlan(page, ed, 0.7, 0.25); // a bare spot of the plan
+    await expect(objects).toHaveCount(before + 1);
+    await expect(page.locator(`${ed} [data-circuit-count]`)).toContainText('2 מנורות');
+    await expect.poll(async () => (await draft()).doc.objects.filter((o) => !idsBefore.has(o.id)).map((o) => o.item_id), { timeout: 10000 }).toEqual(['light.spot']);
+    const newLamp = (await draft()).doc.objects.find((o) => !idsBefore.has(o.id))!;
+    expect(newLamp.position[0]).toBeCloseTo(0.7, 2);
+    expect(newLamp.position[1]).toBeCloseTo(0.25, 2);
+    expect(await members()).toEqual(['lb0', newLamp.id]);
+    // one Ctrl+Z takes the lamp and its membership back together (one document, one undo step); the lamp type stays armed
+    await page.keyboard.press('Control+z');
+    await expect(objects).toHaveCount(before);
+    await expect.poll(async () => [(await draft()).doc.objects.some((o) => o.id === newLamp.id), await members()], { timeout: 10000 }).toEqual([false, ['lb0']]);
+    await expect(spot).toHaveAttribute('aria-pressed', 'true');
+    // the first Esc disarms the lamp type and keeps members mode; a click on an existing lamp still toggles it, places nothing
+    await page.keyboard.press('Escape');
+    await expect(spot).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator(`${ed} [data-circuit-placing]`)).toHaveCount(0);
+    await expect(page.locator(`${ed} [data-circuit-members]`)).toHaveAttribute('aria-pressed', 'true');
+    await clickPlan(page, ed, 0.15, 0.45); // lb0 leaves the gallery circuit
+    await expect.poll(members, { timeout: 10000 }).toEqual([]);
+    await clickPlan(page, ed, 0.15, 0.45); // and joins it again
+    await expect.poll(members, { timeout: 10000 }).toEqual(['lb0']);
+    await expect(objects).toHaveCount(before);
+    // the second Esc leaves members mode; the draft is back as the acceptance test below expects it
+    await page.keyboard.press('Escape');
+    await expect(page.locator(`${ed} [data-circuit-members]`)).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator(`${ed} [data-circuit-panel][data-studio-save="saved"]`)).toHaveCount(1, { timeout: 10000 });
   });
 
   test('acceptance: the sports hall - tribune to -1.2 m, sixty chairs in one array, eight lamps on two circuits, "מטף" found by the global search and focused on the floor, a custom item exported', async ({ page }) => {

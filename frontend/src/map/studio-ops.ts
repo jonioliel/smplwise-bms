@@ -417,6 +417,14 @@ export function toggleCircuitMember(doc: GeometryDoc, circuitId: string, objectI
   return { ...doc, circuits: doc.circuits.map((x) => (x.id === circuitId ? { ...x, member_ids: member ? x.member_ids.filter((m) => m !== objectId) : [...x.member_ids, objectId] } : { ...x, member_ids: x.member_ids.filter((m) => m !== objectId) })) };
 }
 
+/** A new lamp placed exactly as addObject places it and wired into the circuit, in one document (one undo step): the
+ * circuit panel's lamp picker (owner report 2026-09-26: "add lamps" placed nothing on a click on the map). An unknown
+ * circuit id still places the object and leaves every circuit as it was. */
+export function addCircuitLamp(doc: GeometryDoc, item: CatalogItem, p: Pt, opts: PlaceOpts, circuitId: string, rotation = 0): { doc: GeometryDoc; id: string } {
+  const r = addObject(doc, item, p, opts, rotation);
+  return { doc: toggleCircuitMember(r.doc, circuitId, r.id), id: r.id };
+}
+
 /** The sum of the members' power: the object's params.power_w, else its item's default (what the server recomputes). */
 export function circuitPower(doc: GeometryDoc, k: GeomCircuit, itemOfId: (id: string) => Pick<CatalogItem, 'params'> | undefined): number {
   let total = 0;
