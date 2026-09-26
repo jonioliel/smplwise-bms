@@ -1,5 +1,19 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.94 (pilot) — hide the plan background image
+- Owner request (2026-09-26): after building the structure on a map, hide the loaded plan image (the scanned PDF
+  or photo) and see just the drawn structure, cleanly. A new toggle on the live floor map's existing "שכבות
+  פעילות" panel and the editor's existing "שכבות" tool (both shown only on a floor that actually has a plan
+  image), remembered per floor and per viewer. Hidden, the canvas shows a plain white sheet with a hairline edge
+  in place of the image; the structure draws on top exactly as before.
+- Not changed: the historical map, the event page and the 3D view keep showing the image as before - this round
+  covers the two screens the request named.
+- Tests: live evidence-plan-studio (hide, show again, survives a reload, the editor's choice does not affect the
+  live map's own).
+- Found, not fixed: three unrelated tests in evidence-plan-studio.spec.ts (calibrate/measure, structure publish,
+  door drag) are flaky on the unmodified base commit too - a timing race between the draft autosave and
+  publishing, unrelated to this change. Recorded for a later look.
+
 ## 0.1.93 (pilot) — levels can be edited and deleted; a connector no longer guesses its level
 - Owner reports on 0.1.92 (2026-09-26): a level, once created, could not be renamed, have its floor or ceiling
   height changed, or be deleted - `patchLevel`/`removeLevel`/`levelUsage` already existed in studio-ops.ts,
