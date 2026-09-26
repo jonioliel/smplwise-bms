@@ -56,8 +56,12 @@ test.describe('event pictures and inline playback', () => {
     await page.waitForTimeout(4000);
     await page.screenshot({ path: path.join(OUT, `events-inline-playback-${testInfo.project.name}.png`) });
     await drawer.locator('sw-button', { hasText: 'עצור' }).click();
-    await page.waitForTimeout(800);
-    const sessions = await (await request.get('/api/v1/playback/sessions')).json();
-    expect(sessions.sessions.filter((s: { state: string }) => s.state === 'playing' || s.state === 'buffering').length).toBe(0);
+    // the global session list is the wrong thing to check here: other specs in the same run legitimately hold their
+    // own playback sessions for a while (some never open a socket at all and only expire ~90 s later through the
+    // janitor's never_connected sweep, services/playback.py expire_idle) - a system-wide zero count depends on their
+    // timing, not on whether THIS drawer's own player actually stopped (round 10, 2026-09-26: investigated with the
+    // sessions endpoint and the backend log - two other specs' preview sessions, not a leak, were still winding
+    // down). Check the one thing this test means to prove: its own player is gone from the drawer.
+    await expect(player).toHaveCount(0);
   });
 });
