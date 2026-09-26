@@ -4,7 +4,10 @@ source holds no secret and no entity — it embeds the add-on's Ingress page (HA
 from __future__ import annotations
 
 import json
+import os
 import py_compile
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -80,6 +83,31 @@ def test_card_discovers_the_addon_and_has_a_visual_editor():
         assert key in code, key
     assert "const VIEWS = ['camera', 'map', 'events', 'health', 'wall']" in code and "!VIEWS.includes(config.view)" in code
     assert "esc(st.message)" in code and "esc(cfg.title)" in code, "server text never reaches innerHTML unescaped"
+
+
+def _node() -> str | None:
+    """Node for the card behaviour test: SW_NODE, then PATH, then the workstation fnm install (CLAUDE.md)."""
+    explicit = os.environ.get("SW_NODE")
+    if explicit and Path(explicit).is_file():
+        return explicit
+    found = shutil.which("node")
+    if found:
+        return found
+    fnm = Path(os.environ.get("APPDATA", "")) / "fnm" / "node-versions"
+    candidates = sorted(fnm.glob("v*/installation/node.exe")) if fnm.is_dir() else []
+    return str(candidates[-1]) if candidates else None
+
+
+def test_card_behaviour_in_node():
+    """Runs the card itself (plain Node, fake DOM and fake hass, no browser): discovery order, every rejection shape,
+    escaping, the visual editor events and the ingress session renewal after a re-attach (tests/lovelace_card_behaviour.cjs)."""
+    node = _node()
+    if node is None:
+        pytest.skip("node is not installed (set SW_NODE to a node executable)")
+    script = Path(__file__).with_name("lovelace_card_behaviour.cjs")
+    for card in (SRC / "www" / "smplwise-card.js", COPY / "www" / "smplwise-card.js"):
+        run = subprocess.run([node, str(script), str(card)], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
+        assert run.returncode == 0 and " 0 failed" in run.stdout, f"{card}:\n{run.stdout}\n{run.stderr}"
 
 
 WWW = REPO / "smplwise_vms" / "www"

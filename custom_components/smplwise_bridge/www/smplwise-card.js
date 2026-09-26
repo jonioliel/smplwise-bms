@@ -29,10 +29,15 @@
  * websocket command supervisor/api, as the Home Assistant frontend does: the REST proxy /api/hassio/ refuses
  * addons, addons/<slug>/info and ingress/session with 401. Non-admin users may call /addons/<slug>/info and
  * /ingress/session and /ingress/validate_session there.
+ *
+ * Ingress session: a Supervisor session lives 15 minutes unless validated. The card validates it every 4 minutes
+ * while attached; a failed keep-alive takes a fresh session and cookie without reloading the iframe, and a card
+ * re-attached after a view switch validates at once and reconnects when its session expired meanwhile.
  */
 (function () {
   const VERSION = '0.2.2';
   const VIEWS = ['camera', 'map', 'events', 'health', 'wall'];
+  const MIN_HEIGHT = 100;
   const VIEW_LABELS = { camera: 'מצלמה', map: 'מפה', events: 'אירועים', health: 'בריאות המערכת', wall: 'קיר מצלמות' };
 
   function routeFor(config) {
@@ -62,6 +67,8 @@
     if (err === undefined || err === null) return 'unknown error';
     if (typeof err === 'string') return err;
     if (typeof err !== 'object') return String(err);
+    // home-assistant-js-websocket rejects a lost connection with the whole result message {type, success, error}
+    if (err.error && typeof err.error === 'object') return reasonOf(err.error);
     const parts = [];
     if (typeof err.message === 'string' && err.message) {
       parts.push(err.code !== undefined && err.code !== null && err.code !== '' ? `${err.code}: ${err.message}` : err.message);
@@ -104,8 +111,9 @@
 
   async function slugFromAddonList(hass) {
     const answer = await supervisor(hass, '/addons', 'get');
-    const list = (answer && (answer.addons || (answer.data && answer.data.addons))) || [];
-    const ours = list.filter((a) => a && isOurSlug(a.slug) && a.installed !== false);
+    // /addons lists installed add-ons only; newer Supervisors also answer {apps: [...]} on /apps, accept either key
+    const list = (answer && (answer.addons || answer.apps || (answer.data && (answer.data.addons || answer.data.apps)))) || [];
+    const ours = list.filter((a) => a && isOurSlug(a.slug));
     return ours.length ? ours[0].slug : null;
   }
 
@@ -141,7 +149,41 @@
     }
 
     connectedCallback() {
-      if (this._session && !this._timer) this._keepSession(this._session);
+      // Lovelace detaches a card on a view switch and re-attaches it later; the iframe reloads with the old cookie.
+      // A Supervisor ingress session lives 15 minutes unless validated, so check it now and open a fresh one if it
+      // expired while the card was away.
+      if (this._session && !this._timer) void this._revalidate(this._session);
+    }
+
+    async _revalidate(session) {
+      const hass = this._hass;
+      if (!hass) return;
+      try {
+        await supervisor(hass, '/ingress/validate_session', 'post', { session });
+        if (this.isConnected && this._session === session) this._keepSession(session);
+      } catch (_err) {
+        if (this._session !== session) return; // a newer attempt already replaced it
+        this._session = null;
+        if (this.isConnected) void this._connect();
+      }
+    }
+
+    async _renewSession(old) {
+      // the keep-alive failed while the card is on screen: take a fresh session and cookie without reloading the
+      // iframe (it sends the cookie on its next request); on failure the next tick tries again
+      const hass = this._hass;
+      if (!hass || this._session !== old) return;
+      try {
+        const created = await supervisor(hass, '/ingress/session', 'post');
+        const session = created && (created.session || (created.data && created.data.session));
+        if (session && this._session === old) {
+          this._ingressCookie(session);
+          this._session = session;
+          if (this.isConnected) this._keepSession(session);
+        }
+      } catch (_err) {
+        /* keep the timer; the next tick retries */
+      }
     }
 
     disconnectedCallback() {
@@ -160,7 +202,7 @@
       if (this._timer) window.clearInterval(this._timer);
       this._timer = window.setInterval(() => {
         const hass = this._hass;
-        if (hass) supervisor(hass, '/ingress/validate_session', 'post', { session }).catch(() => undefined);
+        if (hass) supervisor(hass, '/ingress/validate_session', 'post', { session }).catch(() => this._renewSession(session));
       }, 4 * 60 * 1000);
     }
 
@@ -172,7 +214,7 @@
           slug = await slugFromAddonList(hass);
         } catch (err) {
           // the add-on list is for Home Assistant admins only; say so rather than a bare "Unauthorized"
-          throw new Error(`התוסף SMPLWISE VMS לא נמצא בסרגל הצדדי, ורשימת התוספים לא נגישה למשתמש הזה (${reasonOf(err)})`);
+          throw new Error(`התוסף SMPLWISE VMS לא נמצא בסרגל הצדדי, ורשימת התוספים לא נקראה (היא זמינה למנהלי Home Assistant בלבד): ${reasonOf(err)}`);
         }
       }
       if (!slug) throw new Error('התוסף SMPLWISE VMS לא נמצא בין התוספים המותקנים');
@@ -183,7 +225,7 @@
         throw new Error(`פרטי התוסף ${slug} לא נקראו: ${reasonOf(err)}`);
       }
       const url = info && (info.ingress_url || (info.data && info.data.ingress_url));
-      if (!url) throw new Error(`לתוסף ${slug} אין כתובת Ingress (האם התוסף פועל?)`);
+      if (!url) throw new Error(`לתוסף ${slug} אין כתובת Ingress (האם התוסף מותקן?)`);
       return url;
     }
 
@@ -223,7 +265,7 @@
     _render() {
       const cfg = this._config || {};
       const st = this._state || { phase: 'idle' };
-      const h = Number(cfg.height) || 360;
+      const h = Math.max(MIN_HEIGHT, Number(cfg.height) || 360);
       if (!this._root) {
         this._root = this.attachShadow({ mode: 'open' });
       }
@@ -310,7 +352,7 @@
       if (key === 'height') {
         const n = Number(raw);
         if (raw === '' || !Number.isFinite(n) || n <= 0) delete next.height;
-        else next.height = Math.round(n);
+        else next.height = Math.max(MIN_HEIGHT, Math.round(n));
       } else if (raw === '' || raw === undefined || raw === null) {
         delete next[key];
       } else {
