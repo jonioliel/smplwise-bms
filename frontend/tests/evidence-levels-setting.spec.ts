@@ -74,9 +74,12 @@ test.describe.serial('the plan.levels setting opens every map on the floor defau
 
   test('plan.levels = default: the live map and the editor both open on the floor default level; all shows every wall', async ({ page }) => {
     const waitWalls = (screen: string) => expect(page.locator(`${screen} sw-plan-canvas [data-wall]`)).not.toHaveCount(0, { timeout: 20000 });
+    // A goto to the exact URL already loaded is a same-document no-op (no new floor load, no fresh settings fetch);
+    // a changing query param forces a real navigation each time, as a different link or a manual reload would.
+    const floorUrl = (n: number) => `/?design=a&r=${n}#/explore/floors/${ids.floor}`;
 
     // baseline: plan.levels is "all" (the setting's default) - both levels' walls show, no chip is selected
-    await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
+    await page.goto(floorUrl(1));
     await waitWalls('explore-floor-map');
     await expect(page.locator('explore-floor-map sw-plan-canvas [data-wall]')).toHaveCount(2);
     await expect(page.locator('explore-floor-map [data-level-chip="all"]')).toHaveAttribute('selected', '');
@@ -84,7 +87,7 @@ test.describe.serial('the plan.levels setting opens every map on the floor defau
     await setLevelsSetting('default');
 
     // the live map: a fresh floor load opens on L0 (the default level) - only its wall shows, and its chip is active
-    await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
+    await page.goto(floorUrl(2));
     await waitWalls('explore-floor-map');
     await expect(page.locator('explore-floor-map sw-plan-canvas [data-wall]')).toHaveCount(1);
     await expect(page.locator('explore-floor-map sw-plan-canvas [data-wall="w0"]')).toHaveCount(1);
@@ -103,7 +106,7 @@ test.describe.serial('the plan.levels setting opens every map on the floor defau
 
     await setLevelsSetting('all');
     // back to "all": a fresh load of the same floor shows every level's wall again
-    await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
+    await page.goto(floorUrl(3));
     await waitWalls('explore-floor-map');
     await expect(page.locator('explore-floor-map sw-plan-canvas [data-wall]')).toHaveCount(2);
     await expect(page.locator('explore-floor-map [data-level-chip="all"]')).toHaveAttribute('selected', '');
