@@ -920,6 +920,13 @@ export interface ConnectorActions {
   link(id: string): void;
 }
 
+/** A connector end's level name for the connector list and inspector. Callers show a cross-floor link themselves
+ * (floor_ids set) before asking for level_to, so a null here is a target not chosen yet - never "another floor" (a
+ * freshly drawn connector starts that way, T085 review 2026-09-26). */
+function connectorLevelName(levels: GeomLevel[], id: string | null): string {
+  return id ? levels.find((l) => l.id === id)?.name ?? id : 'לא נבחר';
+}
+
 /** A connector the server derived from an object (a tribune, id `cx-<object>`): it follows its object; nobody edits
  * or deletes it by hand - the object is edited instead. */
 export function connectorDerived(c: Pick<GeomConnector, 'object_id' | 'source'>): boolean {
@@ -928,7 +935,7 @@ export function connectorDerived(c: Pick<GeomConnector, 'object_id' | 'source'>)
 
 export function renderConnectorPanel(v: ConnectorView, a: ConnectorActions): TemplateResult {
   const levels = v.doc.levels;
-  const levelName = (id: string | null) => (id ? levels.find((l) => l.id === id)?.name ?? id : 'קומה אחרת');
+  const levelName = (id: string | null) => connectorLevelName(levels, id);
   const sel = v.sel;
   const num = (e: Event) => parseFloat((e.target as HTMLInputElement).value);
   return html`<sw-card heading="מפלסים ומחברים" subheading=${v.mode ? (v.start ? `לחץ על הנקודה השנייה של ${CONNECTOR_LABEL[v.mode]} · Esc לביטול` : `לחץ על הנקודה הראשונה של ${CONNECTOR_LABEL[v.mode]}`) : 'מדרגות, רמפה, מעלית וסולם בין מפלסים ובין קומות'} data-connector-panel data-studio-save=${v.saveState}>
@@ -947,7 +954,7 @@ export function renderConnectorPanel(v: ConnectorView, a: ConnectorActions): Tem
 
 /** The select tool (0.1.87): the selected connector's inspector in a card of its own, without the connector modes. */
 export function renderConnectorSelection(v: ConnectorView & { sel: GeomConnector }, a: ConnectorActions): TemplateResult {
-  const levelName = (id: string | null) => (id ? v.doc.levels.find((l) => l.id === id)?.name ?? id : 'קומה אחרת');
+  const levelName = (id: string | null) => connectorLevelName(v.doc.levels, id);
   const num = (e: Event) => parseFloat((e.target as HTMLInputElement).value);
   return html`<sw-card heading="מחבר" subheading=${SAVE_LABEL[v.saveState]} data-connector-panel data-studio-save=${v.saveState}>${renderConnectorInspector(v.sel, v, a, levelName, num)}</sw-card>`;
 }
@@ -974,7 +981,7 @@ function renderConnectorInspector(c: GeomConnector, v: ConnectorView, a: Connect
             <option value="" ?selected=${!v.linkFloor}>בחר קומה</option>${v.floors.map((f) => html`<option value=${f.id} ?selected=${f.id === v.linkFloor}>${f.name}</option>`)}</select>
           <sw-button size="sm" data-conn-link ?disabled=${!v.linkFloor || v.linkBusy} @click=${() => a.link(c.id)}>${v.linkBusy ? 'מקשר…' : 'קשר'}</sw-button></div>`
       : nothing}
-    <div class="note">${levelName(c.level_from)} ← ${c.floor_ids.length ? 'קומה אחרת' : levelName(c.level_to)}${derived ? '' : ' · גרירת פינה מזיזה את המחבר'}</div>
+    <div class="note" data-conn-route>${levelName(c.level_from)} ← ${c.floor_ids.length ? 'קומה אחרת' : levelName(c.level_to)}${derived ? '' : ' · גרירת פינה מזיזה את המחבר'}</div>
     ${!derived ? html`<div class="btns"><sw-button size="sm" variant="ghost" icon="trash" data-geom-delete @click=${() => a.remove(c.id)}>מחק מחבר</sw-button></div>` : nothing}
   </div>`;
 }

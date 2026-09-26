@@ -424,6 +424,11 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
     expect((await ramp())!.level_to).toBeNull();
     await expect(page.locator(`${ed} [data-conn-to]`)).toHaveValue('');
     await expect(page.locator(`${ed} sw-plan-canvas [data-connector="${rampId}"] text`)).toHaveText('↕');
+    // the list row and the inspector say the target is not chosen yet, never "another floor" (only a real link says that)
+    for (const where of [`${ed} [data-conn-row="${rampId}"]`, `${ed} [data-conn-route]`]) {
+      await expect(page.locator(where)).toContainText('לא נבחר');
+      await expect(page.locator(where)).not.toContainText('קומה אחרת');
+    }
     // the manual pick still works
     await page.locator(`${ed} [data-conn-to]`).selectOption('L1');
     await expect.poll(async () => (await ramp())?.level_to ?? null, { timeout: 10000 }).toBe('L1');

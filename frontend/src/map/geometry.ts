@@ -508,7 +508,8 @@ export function objectCorners(o: Pick<GeomObject, 'position' | 'rotation_deg' | 
 }
 
 /** "↓ −1.2 מ׳": the arrow and the signed elevation difference from level_from to level_to; the connector's own label
- * wins; a cross-floor connector (no level_to here) shows the two-way arrow. Two levels at the same elevation show
+ * wins; a connector without level_to shows the two-way arrow - a cross-floor one (floor_ids set) and one whose target
+ * is not chosen yet alike (a freshly drawn connector starts that way). Two levels at the same elevation show
  * "↕" too - there is no up or down to point. The magnitude rounds half-up to 0.1 m (the project's r2 rule, scaled),
  * not JavaScript's banker-adjacent rounding quirks: matches the backend's connector_label exactly. */
 export function connectorLabel(levels: Map<string, GeomLevel>, c: Pick<GeomConnector, 'level_from' | 'level_to' | 'label'>): string {
