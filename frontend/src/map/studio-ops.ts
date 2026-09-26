@@ -22,6 +22,14 @@ export function defaultLevelId(doc: GeometryDoc): string {
   return doc.levels.find((l) => l.is_default)?.id ?? DEFAULT_LEVEL_ID;
 }
 
+/** The `plan.levels` setting turned into a level filter for a floor just opened (0.1.89): `all` (or the setting
+ * unavailable) shows every level; `default` opens on the floor's default level. A document without levels or with a
+ * single level behaves the same either way, so it stays null (no filter, and no level bar to filter with). */
+export function initialLevel(setting: 'all' | 'default' | undefined, doc: { levels: GeomLevel[] }): string | null {
+  if (setting !== 'default' || doc.levels.length < 2) return null;
+  return doc.levels.find((l) => l.is_default)?.id ?? DEFAULT_LEVEL_ID;
+}
+
 /** A kind's usual size and swing (a door opens, a window and a passage do not). */
 export function kindDefaults(kind: OpeningKind): Pick<GeomOpening, 'kind' | 'width_m' | 'height_m' | 'sill_m' | 'swing'> {
   const swing: Swing = kind === 'door' ? 'right' : 'none';

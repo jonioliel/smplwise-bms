@@ -9,6 +9,9 @@ export interface ProductSettings {
   'media.wall_profile': 'sub' | 'main';
   'snapshots.max_age_s': number;
   'plan.estimates'?: 'true' | 'false';
+  /** Default levels view on every map (0.1.89): 'all' shows every level together, 'default' opens on the floor's
+   * default level; the level chips still switch levels from there. */
+  'plan.levels'?: 'all' | 'default';
   'time.zone'?: string;
   'playback.max_sessions'?: number;
   'playback.lease_s'?: number;

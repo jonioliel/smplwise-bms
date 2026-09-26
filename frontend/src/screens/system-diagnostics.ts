@@ -551,6 +551,10 @@ export class SystemDiagnostics extends LitElement {
           <sw-field class="ctl"><select data-set-plan-estimates ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('plan.estimates', (e.target as HTMLSelectElement).value as 'true' | 'false')}>
             <option value="true" ?selected=${String(this.value('plan.estimates') ?? 'true') !== 'false'}>משוערות עם ≈</option><option value="false" ?selected=${String(this.value('plan.estimates') ?? 'true') === 'false'}>מוסתרות עד כיול</option>
           </select></sw-field></div>
+        <div class="row"><span class="lbl">מפלסים בפתיחת מפה<span class="muted">המפלס שמוצג כברירת מחדל בכל מפה; שבבי המפלסים ממשיכים לאפשר מעבר בין מפלסים</span></span>
+          <sw-field class="ctl"><select data-set-plan-levels ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('plan.levels', (e.target as HTMLSelectElement).value as 'all' | 'default')}>
+            <option value="all" ?selected=${String(this.value('plan.levels') ?? 'all') !== 'default'}>כל המפלסים יחד</option><option value="default" ?selected=${String(this.value('plan.levels') ?? 'all') === 'default'}>מפלס ברירת המחדל של הקומה</option>
+          </select></sw-field></div>
         <div class="row"><span class="lbl">הסתרת חיפוש AI<span class="muted">מסיר את הלשונית מהניווט; המסך עצמו נשאר זמין בכתובת</span></span>
           <sw-field class="ctl"><select data-set-hide-search ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.hide_search', (e.target as HTMLSelectElement).value)}>
             <option value="false" ?selected=${String(this.value('ui.hide_search') ?? 'false') !== 'true'}>מוצג</option><option value="true" ?selected=${String(this.value('ui.hide_search') ?? 'false') === 'true'}>מוסתר</option>

@@ -20,6 +20,7 @@ import { bidi } from '../i18n/bidi';
 import { navigate } from '../router';
 import { describeError } from '../api/client';
 import { productSettings } from '../api/prefs';
+import { initialLevel } from '../map/studio-ops';
 import { loadTree, type CatalogTree } from '../api/catalog';
 import { entityName, loadMap, type MapBundle } from '../api/maps';
 import { EVENT_LABEL, listEvents, type EventKind, type VmsEvent } from '../api/events';
@@ -69,6 +70,11 @@ export class InvestigateHistoryMap extends LitElement {
   @state() private casePick: NewCaseItem | null = null;
   /** Plan Studio: the structure published at the instant (one plan version can have several structure publishes). */
   @state() private geometry: GeometryDoc | null = null;
+  /** `plan.levels` (0.1.89) applied once per floor load: null (all levels) or the floor's default level id. There is
+   * no level bar on this screen, so it stays fixed for the floor and only culls the 3D structure (walls, objects,
+   * zones) — cameras and entities keep showing on every level (`anchorsEveryLevel`), matching the 2D, which never
+   * hid anchors either. */
+  @state() private level: string | null = null;
   @state() private catalogLookup: CatalogLookup | null = null;
   private geomSeq = 0;
   private frameTimer = 0;
@@ -356,6 +362,7 @@ export class InvestigateHistoryMap extends LitElement {
       this.date = dateInZone(start, this.tz);
       this.minute = minuteInZone(start, this.tz);
       this.bundle = await loadMap(this.floorId, false, this.instant.toISOString().replace(/\.\d{3}Z$/, 'Z'));
+      this.level = initialLevel(settings['plan.levels'], this.bundle); // 0.1.89: fixed for the floor, no level bar here
       this.geometry = null; // another floor or instant: no structure until its document arrives
       if (this.bundle.source === 'api') {
         void loadLibrary(this.bundle.catalogRevision).then((lib) => {
@@ -563,9 +570,9 @@ export class InvestigateHistoryMap extends LitElement {
     const entityStates = Object.fromEntries(b.anchors.filter((a) => a.resource_type === 'ha_entity').map((a) => [a.resource_id, this.stateAt(a)]));
     const circuitStates = Object.fromEntries(Object.entries(b.circuitStates).map(([id, s]) => [id, s.state]));
     const zones = b.zones.map((z) => ({ id: z.id, name: z.name, polygon: z.polygon, level_id: z.level_id ?? null }));
-    const keys: unknown[] = [JSON.stringify([b.floorId, b.width, b.height, anchors, entityStates, circuitStates, zones]), g, this.catalog3d];
+    const keys: unknown[] = [JSON.stringify([b.floorId, b.width, b.height, anchors, entityStates, circuitStates, zones]), g, this.catalog3d, this.level];
     if (this.sceneMemo && this.sceneMemo.keys.every((k, i) => k === keys[i])) return this.sceneMemo.desc;
-    const desc = buildScene({ doc: g, width: b.width, height: b.height, anchors, entityStates, circuitStates, catalog: this.catalog3d, zones });
+    const desc = buildScene({ doc: g, width: b.width, height: b.height, anchors, entityStates, circuitStates, catalog: this.catalog3d, zones, level: this.level, anchorsEveryLevel: true });
     // hover labels: anchors by their map name, objects by label or library name, zones by name
     const labels: Record<string, string> = {};
     for (const a of b.anchors) labels[a.id] = entityName(a);
@@ -679,7 +686,7 @@ export class InvestigateHistoryMap extends LitElement {
                 .cameras=${b.anchors.filter((a) => a.resource_type === 'camera').map((a) => ({ id: a.id, label: entityName(a) }))} exportName=${`plan-3d-${b.floorName}-${this.date}`}
                 @part-select=${(e: CustomEvent<PartSelectDetail>) => this.onPartSelect(e)}></sw-plan-3d>`
             : nothing}
-          <sw-plan-canvas style=${this.shows3d ? 'display:none' : ''} alwaysLabel .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .markers=${this.apiMarkers} .selectedId=${this.selectedId} .zones=${b.zones} .geometry=${this.geometry} .catalog=${this.catalogLookup} .anchorPositions=${Object.fromEntries(b.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees } as AnchorPosition]))} .entityStates=${Object.fromEntries(b.anchors.filter((a) => a.resource_type === 'ha_entity').map((a) => [a.resource_id, this.stateAt(a)]))} dimEntities
+          <sw-plan-canvas style=${this.shows3d ? 'display:none' : ''} alwaysLabel .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .markers=${this.apiMarkers} .selectedId=${this.selectedId} .zones=${b.zones} .geometry=${this.geometry} .structureLevel=${this.level} .catalog=${this.catalogLookup} .anchorPositions=${Object.fromEntries(b.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees } as AnchorPosition]))} .entityStates=${Object.fromEntries(b.anchors.filter((a) => a.resource_type === 'ha_entity').map((a) => [a.resource_id, this.stateAt(a)]))} dimEntities
             @marker-select=${(e: CustomEvent<MarkerSelectDetail>) => { this.selectedId = e.detail.id; this.frameFailed = false; }}></sw-plan-canvas>
           ${this.threeState === 'loading' ? html`<div class="hist below" data-3d-loading>טוען תלת-ממד…</div>` : nothing}
           ${this.threeState === 'error' ? html`<div class="hist below" data-3d-load-error>תלת-ממד לא נטען: ${this.threeError}</div>` : nothing}

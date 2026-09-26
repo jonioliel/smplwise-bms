@@ -98,6 +98,11 @@ export interface SceneInput {
   zones?: SceneZone[];
   /** One level only (null / absent = every level). Connectors always show. */
   level?: string | null;
+  /** True keeps every camera and entity in the scene regardless of `level` (walls, objects and zones still cull to
+   * it). For a screen with no level chips to recover a hidden anchor with (the history map, the event page): 2D
+   * never hides anchors either, and the event's own camera must not disappear from "מבט מהמצלמה" (owner review,
+   * 0.1.89 fix). The live map and the editor leave this unset: their chips make the cull recoverable. */
+  anchorsEveryLevel?: boolean;
   layers?: Partial<SceneLayers>;
   coneRadiusPx?: number;
 }
@@ -505,7 +510,7 @@ class Builder {
     const { anchors, doc, width, height, coneRadiusPx } = this.input;
     const bodies = new Set(doc.objects.filter((o) => o.anchor_ref?.resource_id).map((o) => `${o.anchor_ref!.resource_type}:${o.anchor_ref!.resource_id}`));
     for (const a of [...anchors].sort(byId)) {
-      if (!this.shown(a.level_id)) continue;
+      if (!this.input.anchorsEveryLevel && !this.shown(a.level_id)) continue;
       const lv = this.level(a.level_id);
       const { mount_height_m: mount, tilt_deg: tilt } = anchor3d(a);
       const px = a.x * width;

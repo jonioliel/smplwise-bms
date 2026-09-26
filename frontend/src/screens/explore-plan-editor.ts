@@ -28,7 +28,7 @@ import { productSettings } from '../api/prefs';
 import { createItem, exportUrl as catalogExportUrl, importItems, itemOf, loadLibrary, lookupOf, type CatalogItem, type CatalogLibrary } from '../api/plan-catalog';
 import { distanceM, effectiveScale, isClosedOutline, lengthPx, nearestWall, pointOnWall, snapPoint, type CatalogLookup, type ConnectorKind, type GeometryDoc, type GeomOpening, type GeomWall, type Pt } from '../map/geometry';
 import { StudioController } from '../map/studio-controller';
-import { ARRAY_MAX, BIND_DISTANCE_M, CIRCUIT_COLORS, addArray, addCircuit, addConnector, addLabel, addLevel, addObject, addOpening, addWall, arrayDefaults, circuitPower, defaultLevelId, duplicateObject, kindDefaults, moveConnectorVertex, moveGroup, moveObject, moveVertex, newId, nudgeT, openingRange, patchCircuit, patchConnector, patchLabel, patchObject, patchOpening, patchWall, removeCorner, removeGroup, removeItem, rotationTo, stretchedSize, toggleCircuitMember, translateWall, visibleUnderLevel, wallDirectionAt, type WallDefaults } from '../map/studio-ops';
+import { ARRAY_MAX, BIND_DISTANCE_M, CIRCUIT_COLORS, addArray, addCircuit, addConnector, addLabel, addLevel, addObject, addOpening, addWall, arrayDefaults, circuitPower, defaultLevelId, duplicateObject, initialLevel, kindDefaults, moveConnectorVertex, moveGroup, moveObject, moveVertex, newId, nudgeT, openingRange, patchCircuit, patchConnector, patchLabel, patchObject, patchOpening, patchWall, removeCorner, removeGroup, removeItem, rotationTo, stretchedSize, toggleCircuitMember, translateWall, visibleUnderLevel, wallDirectionAt, type WallDefaults } from '../map/studio-ops';
 import { ANCHOR_3D_DEFAULTS, anchor3dKind } from '../map/anchor-3d';
 import { COLL_LABEL, CONNECTOR_LABEL, connectorDerived, countLabel, fmtMetres, fmtScale, renderArrayDialog, renderCalibPanel, renderCircuitPanel, renderConnectorPanel, renderCustomItemDialog, renderGroupDeleteDialog, renderGroupInspector, renderLevelChips, renderLevelDialog, renderDetectPanel, renderLibraryPanel, renderMeasurePanel, renderObjectInspector, renderConnectorSelection, renderStudioPanel, SAVE_LABEL, studioPanelStyles, lighterStrength, type ArrayDialogView, type CustomItemView, type DetectAcceptError, type DetectOpts, type DetectReplaceAsk, type DetectRunState, type GeomKind, type GeomSel, type LevelDialogView, type StudioMode } from './plan-studio-panel';
 
@@ -681,8 +681,9 @@ export class ExplorePlanEditor extends LitElement {
     this.error = '';
     try {
       const b = await loadMap(this.floorId || 'f0', true);
-      if (this.bundle && this.bundle.floorId !== b.floorId) {
-        this.levelFilter = null; // another floor: back to every level
+      const isNewFloor = !this.bundle || this.bundle.floorId !== b.floorId;
+      if (isNewFloor) {
+        this.levelFilter = null; // another floor: back to every level (the setting below may narrow it once it resolves)
         this.linkFloor = ''; // and a stale target floor cannot outlive the floor it was picked on (final review item 4)
       }
       this.bundle = b;
@@ -691,8 +692,9 @@ export class ExplorePlanEditor extends LitElement {
       void productSettings()
         .then((s) => {
           this.showEstimates = s['plan.estimates'] !== 'false'; // undefined until the backend serves the setting (Task 13): estimates shown
+          if (isNewFloor && this.bundle === b) this.levelFilter = initialLevel(s['plan.levels'], b); // 0.1.89: plan.levels default level, else every level
         })
-        .catch(() => {}); // settings unavailable: keep the default (estimates shown)
+        .catch(() => {}); // settings unavailable: keep the default (estimates shown, every level)
       this.anchors = b.anchors.map((a) => ({ ...a, position: { ...a.position } }));
       this.zones = b.zones;
       void this.loadVersions();

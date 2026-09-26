@@ -29,6 +29,8 @@ import type { ScenePreset } from '../map/scene-three';
 import type { PartSelectDetail } from '../map/sw-plan-3d';
 import { boundItemOf } from '../map/part-select';
 import { WEBGL_UNAVAILABLE_HE, webglAvailable } from '../map/webgl';
+import { initialLevel } from '../map/studio-ops';
+import { productSettings } from '../api/prefs';
 
 const SOURCE_LABEL = { alertstream: 'אירוע NVR', recording: 'נגזר מהקלטה', system: 'מערכת', ha: 'חיישן HA' } as const;
 const NEARBY_MS = 10 * 60 * 1000;
@@ -56,6 +58,11 @@ export class InvestigateEventDetail extends LitElement {
   @state() private thumbVersion = 0;
   @state() private casePick: NewCaseItem | null = null;
   @state() private geometry: GeometryDoc | null = null;
+  /** `plan.levels` (0.1.89) applied once per floor load: null (all levels) or the floor's default level id. There is
+   * no level bar on this screen, so it stays fixed for the event's floor and only culls the 3D structure (walls,
+   * objects, zones) — cameras and entities keep showing on every level (`anchorsEveryLevel`), matching the 2D,
+   * which never hid anchors either; the event's own camera never disappears from "מבט מהמצלמה". */
+  @state() private level: string | null = null;
   @state() private catalogLookup: CatalogLookup | null = null;
   private pollTimer = 0;
   /** T087: the map card's 3D, opened from the event's camera ("מבט מהמצלמה"). Read-only: no actions from the event page. */
@@ -355,6 +362,11 @@ export class InvestigateEventDetail extends LitElement {
     try {
       const b = await loadMap(floorId);
       this.bundle = b;
+      void productSettings()
+        .then((s) => {
+          if (this.bundle === b) this.level = initialLevel(s['plan.levels'], b); // 0.1.89: fixed for the floor, no level bar here
+        })
+        .catch(() => {}); // settings unavailable: keep every level shown
       if (b.source === 'api') {
         void loadLibrary(b.catalogRevision).then((lib) => {
           this.catalogLookup = lookupOf(lib);
@@ -503,9 +515,9 @@ export class InvestigateEventDetail extends LitElement {
     }));
     const entityStates = Object.fromEntries(b.anchors.filter((a) => a.resource_type === 'ha_entity').map((a) => [a.resource_id, stateAt(a)]));
     const zones = b.zones.map((z) => ({ id: z.id, name: z.name, polygon: z.polygon, level_id: z.level_id ?? null }));
-    const keys: unknown[] = [JSON.stringify([b.floorId, b.width, b.height, anchors, entityStates, zones]), g, this.catalog3d];
+    const keys: unknown[] = [JSON.stringify([b.floorId, b.width, b.height, anchors, entityStates, zones]), g, this.catalog3d, this.level];
     if (this.sceneMemo && this.sceneMemo.keys.every((k, i) => k === keys[i])) return this.sceneMemo.desc;
-    const desc = buildScene({ doc: g, width: b.width, height: b.height, anchors, entityStates, circuitStates: {}, catalog: this.catalog3d, zones });
+    const desc = buildScene({ doc: g, width: b.width, height: b.height, anchors, entityStates, circuitStates: {}, catalog: this.catalog3d, zones, level: this.level, anchorsEveryLevel: true });
     const labels: Record<string, string> = {};
     for (const a of b.anchors) labels[a.id] = entityName(a);
     for (const o of g.objects) labels[o.id] = o.label || this.itemNames.get(o.item_id) || o.item_id;
@@ -610,7 +622,7 @@ export class InvestigateEventDetail extends LitElement {
                           .cameras=${this.bundle.anchors.filter((a) => a.resource_type === 'camera').map((a) => ({ id: a.id, label: entityName(a) }))} exportName=${`plan-3d-${loc.floor_name}-${ev.id}`}
                           @part-select=${(e: CustomEvent<PartSelectDetail>) => this.onPartSelect(e)}></sw-plan-3d>`
                       : nothing}
-                    <sw-plan-canvas style=${this.shows3d ? 'display:none' : ''} .planWidth=${this.bundle.width} .planHeight=${this.bundle.height} .imageUrl=${this.bundle.imageUrl} .plan=${this.bundle.planSvg} .markers=${this.markers} .selectedId=${loc.anchor_id} .zones=${this.bundle.zones} .geometry=${this.geometry} .catalog=${this.catalogLookup} .anchorPositions=${Object.fromEntries(this.bundle.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees } as AnchorPosition]))} alwaysLabel dimEntities></sw-plan-canvas>
+                    <sw-plan-canvas style=${this.shows3d ? 'display:none' : ''} .planWidth=${this.bundle.width} .planHeight=${this.bundle.height} .imageUrl=${this.bundle.imageUrl} .plan=${this.bundle.planSvg} .markers=${this.markers} .selectedId=${loc.anchor_id} .zones=${this.bundle.zones} .geometry=${this.geometry} .structureLevel=${this.level} .catalog=${this.catalogLookup} .anchorPositions=${Object.fromEntries(this.bundle.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees } as AnchorPosition]))} alwaysLabel dimEntities></sw-plan-canvas>
                     ${this.threeState === 'loading' ? html`<div class="load3d" data-3d-loading>טוען תלת-ממד…</div>` : nothing}
                   </div>
                   ${webglAvailable() ? nothing : html`<div class="note" data-event-3d-unavailable>${WEBGL_UNAVAILABLE_HE}</div>`}

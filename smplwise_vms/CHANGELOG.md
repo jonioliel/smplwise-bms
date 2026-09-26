@@ -1,5 +1,35 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.89 (pilot) — a setting for the default levels view
+- Answers open owner question (ב) from the phase 4 checklist (2026-09-26): every map defaulted to showing all levels
+  together, with no way to open on one level instead. A new setting `plan.levels` (Settings, mirroring
+  `plan.estimates` end to end) chooses the default: "כל המפלסים יחד" (all levels together, unchanged default) or
+  "מפלס ברירת המחדל של הקומה" (the floor's default level only). The level chips still switch levels from there in
+  every view that has them; a document without levels, or with a single level, behaves the same either way.
+- Applied once per floor load on every map surface: the live floor map and the plan editor (the level-follows-
+  selection rule and the detect tool's level handling are unchanged; their chips make the cull recoverable), and,
+  on the historical map and the event page (neither has a level bar to recover a hidden anchor with), the 3D
+  structure only - walls, objects and zones cull to the level, but cameras and entities keep showing on every
+  level there (`SceneInput.anchorsEveryLevel` in scene-builder.ts), matching what the 2D already did and never
+  hiding, matching the event's own camera from "מבט מהמצלמה". The live map and the editor 3D are unchanged: their
+  chips already cull anchors along with the structure, and stay that way.
+- Fixed during review, before this release shipped: the first pass fed the setting into every level check the 3D
+  builder makes, including anchors, so a history map or event page opened with `plan.levels=default` silently
+  dropped every camera and entity on a non-default level from the 3D (with no chip there to bring it back), while
+  the 2D kept showing them - the two disagreed, and an event on such a camera could open with no camera in
+  "מבט מהמצלמה" at all. `SceneInput.anchorsEveryLevel` above is the fix.
+- Backend: `plan.levels` (default `"all"`, values `all | default`) added to `GET/PATCH /settings` with the same
+  `system.configure` permission and audit trail as the other settings.
+- Still open: owner question (א) from the same checklist - an unlocked lock currently draws its door closed (only
+  open / opening / on opens the leaf and clears camera coverage) - is unchanged in this release.
+- Tests: backend `test_plan_levels_setting_defaults_to_all_patches_to_default_and_audits` (default `all`, PATCH to
+  `default` persists and audits, an invalid value is 422); node unit `initialLevel` (all / unset -> null, default ->
+  the default level id, no or one level -> null, in `tests/unit-studio-ops-2.spec.ts`) and a `unit-scene-builder`
+  assertion (a camera on a non-default level is present with `anchorsEveryLevel` and `level` set to another level,
+  absent without it); live `evidence-levels-setting.spec.ts` (the live map and the editor both open on the floor's
+  default level once the setting is `default`, the chips still switch levels, `all` shows every level's walls
+  again, and the history map 3D keeps the non-default level's camera in its description).
+
 ## 0.1.88 (pilot) — Plan Studio phase 4: schematic 3D inside the map, coverage stopped by walls, a true isometric on the building page
 - Every map surface gains a 2D / 3D toggle (T087, CR-003, design section 10): the live floor map (also the key `3`), the
   historical map at the chosen instant, and the event page, where the view opens from the camera of the event
