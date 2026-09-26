@@ -175,6 +175,8 @@ export interface SpatialZone {
   label_pos?: string;
   level_id?: string | null;
   ceiling_height_m?: number | null;
+  /** Free-text tags (T085), as walls and objects of the structure document carry them; [] when none. */
+  tags?: string[];
   revision: number;
   created_at: string;
   updated_at: string;

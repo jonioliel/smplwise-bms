@@ -396,6 +396,8 @@ export interface ZoneShape {
   id: string;
   polygon: readonly { x: number; y: number }[];
   level_id?: string | null;
+  /** Its free-text tags (T085); unset = none. */
+  tags?: readonly string[] | null;
 }
 
 /** Whether a zone belongs under a level filter (null = every level) for Ctrl+A, the marquee and the pruning of a
@@ -527,6 +529,132 @@ export function itemsInRect(doc: GeometryDoc, zones: readonly ZoneShape[], rect:
     const z = zoneById.get(i.id)!;
     return z.polygon.length > 0 && z.polygon.every((q) => inside(q.x, q.y));
   });
+}
+
+// ---------------------------------------------------------------- tags and bulk reassignment (T085)
+
+/** The bounds of an item's tags: plan_geometry.MAX_TAGS / MAX_TAG_LEN, shared by the zone PATCH. Past them the server
+ * refuses the save, so the editor never produces them. */
+export const TAG_MAX_COUNT = 20;
+export const TAG_MAX_LEN = 40;
+
+/** A tag as typed, cleaned: trimmed, every run of spaces one space. Null when nothing is left or it is longer than
+ * TAG_MAX_LEN (owner request 2026-09-26: free text - "מטבח", "יציאת חירום" - no fixed vocabulary). */
+export function normalizeTag(raw: string): string | null {
+  const t = raw.trim().replace(/\s+/g, ' ');
+  return t && t.length <= TAG_MAX_LEN ? t : null;
+}
+
+/** Two spellings of one tag ("Kitchen", " kitchen") are the same tag: every comparison goes through this key. */
+const tagKey = (t: string): string => t.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+
+/** The list with `tag` (cleaned) at its end. The same list when the tag is blank, already there in any spelling, or the
+ * list is full (TAG_MAX_COUNT). */
+export function withTag(tags: readonly string[] | null | undefined, tag: string): string[] {
+  const t = normalizeTag(tag);
+  const list = (tags ?? []) as string[];
+  if (!t || list.length >= TAG_MAX_COUNT || list.some((x) => tagKey(x) === tagKey(t))) return list;
+  return [...list, t];
+}
+
+/** The list without `tag` in any spelling; the same list when it is not there. */
+export function withoutTag(tags: readonly string[] | null | undefined, tag: string): string[] {
+  const list = (tags ?? []) as string[];
+  const k = tagKey(tag);
+  return list.some((x) => tagKey(x) === k) ? list.filter((x) => tagKey(x) !== k) : list;
+}
+
+/** One tag added to (`add`) or removed from every wall and object of `ids`, in one document - one undo step; the result
+ * is patchWall / patchObject with withTag / withoutTag per member (the unit test keeps that composition as its oracle).
+ * An item the edit does not change (it already has the tag, never had it, or is full) stays the same object, and the
+ * document itself when none changes. Zones (and unknown ids) in `ids` are left to the caller: they live on the server. */
+export function tagItems(doc: GeometryDoc, ids: readonly string[], tag: string, add: boolean): GeometryDoc {
+  if (!normalizeTag(tag)) return doc;
+  const set = new Set(ids);
+  let changed = false;
+  const edit = <T extends { id: string; tags?: string[] }>(x: T): T => {
+    if (!set.has(x.id)) return x;
+    const next = add ? withTag(x.tags, tag) : withoutTag(x.tags, tag);
+    if (next === x.tags || (x.tags === undefined && !next.length)) return x;
+    changed = true;
+    return { ...x, tags: next };
+  };
+  const walls = doc.walls.map(edit);
+  const objects = doc.objects.map(edit);
+  return changed ? { ...doc, walls, objects } : doc;
+}
+
+/** The tags of `items` (walls, objects, zones) with how many of them carry each, in the order and the spelling first
+ * seen: the bulk panel's chips and the select-by-tag list. */
+export function tagCounts(doc: GeometryDoc, zones: readonly Pick<ZoneShape, 'id' | 'tags'>[], items: readonly MultiItem[]): { tag: string; count: number }[] {
+  const walls = new Map(doc.walls.map((w) => [w.id, w]));
+  const objects = new Map(doc.objects.map((o) => [o.id, o]));
+  const zoneById = new Map(zones.map((z) => [z.id, z]));
+  const out = new Map<string, { tag: string; count: number }>();
+  for (const i of items) {
+    const tags = i.kind === 'wall' ? walls.get(i.id)?.tags : i.kind === 'object' ? objects.get(i.id)?.tags : zoneById.get(i.id)?.tags;
+    const seen = new Set<string>();
+    for (const t of tags ?? []) {
+      const k = tagKey(t);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      const e = out.get(k);
+      if (e) e.count += 1;
+      else out.set(k, { tag: t, count: 1 });
+    }
+  }
+  return [...out.values()];
+}
+
+/** Select by tag: every wall, object and zone carrying `tag` (any spelling) among what Ctrl+A would select under the
+ * level filter - selectableItems narrowed to the tag, so the level rule (an item or a zone without a level is on the
+ * default level; zoneOnLevel) is the one the marquee and Ctrl+A use, never a second copy of it. */
+export function itemsWithTag(doc: GeometryDoc, zones: readonly Pick<ZoneShape, 'id' | 'level_id' | 'tags'>[], tag: string, levelId: string | null): MultiItem[] {
+  const t = normalizeTag(tag);
+  if (!t) return [];
+  const k = tagKey(t);
+  const has = (tags: readonly string[] | null | undefined) => !!tags?.some((x) => tagKey(x) === k);
+  const walls = new Map(doc.walls.map((w) => [w.id, w]));
+  const objects = new Map(doc.objects.map((o) => [o.id, o]));
+  const zoneById = new Map(zones.map((z) => [z.id, z]));
+  return selectableItems(doc, zones, levelId).filter((i) => has(i.kind === 'wall' ? walls.get(i.id)?.tags : i.kind === 'object' ? objects.get(i.id)?.tags : zoneById.get(i.id)?.tags));
+}
+
+/** Every wall and object of `ids` put on level `levelId` in one document - one undo step; the result is patchWall /
+ * patchObject with that level_id per member (the unit test's oracle). A wall's openings go with it (they follow their
+ * wall's level). Unchanged members stay the same objects, and the document itself when none changes or `levelId` is not
+ * one of its levels. Zones in `ids` are the caller's (a zone PATCH each). */
+export function setLevelOf(doc: GeometryDoc, ids: readonly string[], levelId: string): GeometryDoc {
+  if (!doc.levels.some((l) => l.id === levelId)) return doc;
+  const set = new Set(ids);
+  let changed = false;
+  const edit = <T extends { id: string; level_id: string }>(x: T): T => {
+    if (!set.has(x.id) || x.level_id === levelId) return x;
+    changed = true;
+    return { ...x, level_id: levelId };
+  };
+  const walls = doc.walls.map(edit);
+  const objects = doc.objects.map(edit);
+  return changed ? { ...doc, walls, objects } : doc;
+}
+
+/** The bulk "add to circuit": the objects of `ids` that `eligible` accepts (the editor passes "its library item is a
+ * light", as the single toggle refuses any other) join the circuit in one document, each leaving any other circuit (one
+ * switch per lamp, as toggleCircuitMember) - but a lamp already on the circuit stays on it, never toggled out. Walls,
+ * zones and unknown ids are never members. `added`: the eligible objects, now on the circuit, in the order of `ids`. */
+export function joinCircuit(doc: GeometryDoc, circuitId: string, ids: readonly string[], eligible: (o: GeomObject) => boolean): { doc: GeometryDoc; added: string[] } {
+  const k = doc.circuits.find((c) => c.id === circuitId);
+  if (!k) return { doc, added: [] };
+  const objects = new Map(doc.objects.map((o) => [o.id, o]));
+  const added = [...new Set(ids)].filter((id) => {
+    const o = objects.get(id);
+    return !!o && eligible(o);
+  });
+  const fresh = added.filter((id) => !k.member_ids.includes(id));
+  if (!fresh.length) return { doc, added };
+  const join = new Set(fresh);
+  const circuits = doc.circuits.map((c) => (c.id === circuitId ? { ...c, member_ids: [...c.member_ids, ...fresh] } : c.member_ids.some((m) => join.has(m)) ? { ...c, member_ids: c.member_ids.filter((m) => !join.has(m)) } : c));
+  return { doc: { ...doc, circuits }, added };
 }
 
 // ---------------------------------------------------------------- connectors (T085)

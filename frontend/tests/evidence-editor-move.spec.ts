@@ -603,6 +603,128 @@ test.describe.serial('editor: select and move walls, objects and zones (0.1.87)'
     expect(await at(page, ref)).toEqual(s3);
   });
 
+  // T085 (owner request 2026-09-26): free-text tags - one item's in its inspector, several at once in the bulk panel - a
+  // multi-selection moved to another level in one undoable step, its lamps (only its lamps) added to a circuit, and a tag
+  // turned back into a selection that keeps to the level filter.
+  test('select tool: tags on one item and on a multi-selection, the selection moved to a level in one undo step, only its lamps join a circuit, select by tag keeps to the level', async ({ page }) => {
+    type Tagged = { id: string; level_id: string; tags?: string[] };
+    type TagDoc = { walls: Tagged[]; objects: Tagged[]; circuits: { id: string; member_ids: string[] }[]; levels?: unknown[] };
+    const doc0 = (await draft()).doc as unknown as TagDoc;
+    const LEVEL = (id: string, name: string, isDefault: boolean) => ({ id, name, elevation_m: isDefault ? 0 : -1.2, ceiling_height_m: 3, is_default: isDefault, external_ids: {} });
+    const LAMP = (id: string, pos: P) => ({ ...CHAIR(id, pos), item_id: 'light.ceiling', size: { w_m: 0.6, d_m: 0.6, h_m: 0.1 }, z_m: 2.5, params: { power_w: 36 } });
+    const tagDoc = async () => (await draft()).doc as unknown as TagDoc;
+    const tagsOf = async (id: string) => {
+      const d = await tagDoc();
+      return JSON.stringify([...d.walls, ...d.objects].find((x) => x.id === id)?.tags ?? []);
+    };
+    const levelOf = async (id: string) => [...(await tagDoc()).walls, ...(await tagDoc()).objects].find((x) => x.id === id)!.level_id;
+    const pts: Record<string, P> = { tg1: [0.3, 0.55], tg2: [0.4, 0.55], tl1: [0.5, 0.55], tg9: [0.6, 0.7], mw2: [0.35, 0.85] };
+    await saveDraft({ ...SEED, levels: [LEVEL('L0', 'קומת כניסה', true), LEVEL('L1', 'מרתף', false)],
+      objects: [...SEED.objects, CHAIR('tg1', pts.tg1), CHAIR('tg2', pts.tg2), LAMP('tl1', pts.tl1), { ...CHAIR('tg9', pts.tg9), level_id: 'L1', tags: ['מטבח'] }],
+      circuits: [{ id: 'tk1', name: 'צפון', switch_entity_id: 'switch.tags_north', member_ids: [], color_token: 'circuit-2', power_w: 0 }] });
+    const zone = await makeZone('מטבח קטן', [{ x: 0.82, y: 0.1 }, { x: 0.9, y: 0.1 }, { x: 0.9, y: 0.2 }, { x: 0.82, y: 0.2 }]); // no level: the default level L0
+    const panel = page.locator(`${ED} [data-multi-panel]`);
+    const obj = (id: string) => objAt(page, id);
+    const click = async (p: P, shift = false) => {
+      const s = await at(page, p);
+      if (shift) await page.keyboard.down('Shift');
+      await page.mouse.click(s.x, s.y);
+      if (shift) await page.keyboard.up('Shift');
+    };
+    try {
+      await openEditor(page);
+
+      // one object: its inspector adds a tag by Enter, the chip shows it, the draft has it
+      await click(pts.tg1);
+      const insp = page.locator(`${ED} [data-selected-object="tg1"]`);
+      await expect(insp).toBeVisible();
+      await insp.locator('[data-tag-input]').fill('  מטבח ');
+      await insp.locator('[data-tag-input]').press('Enter');
+      await expect(insp.locator('sw-chip[data-tag="מטבח"]')).toHaveCount(1);
+      await expect.poll(() => tagsOf('tg1'), { timeout: 10000 }).toBe(JSON.stringify(['מטבח']));
+      // one zone: the same editor in the zone inspector, saved by the zone PATCH
+      await click([0.86, 0.15]);
+      const zinsp = page.locator(`${ED} [data-zone-inspector]`);
+      await expect(zinsp).toBeVisible();
+      await zinsp.locator('[data-tag-input]').fill('מטבח');
+      await zinsp.locator('[data-tag-add]').click();
+      await expect.poll(async () => JSON.stringify(((await (await api.get(`api/v1/floors/${ids.floor}/zones`)).json()) as { zones: { id: string; tags: string[] }[] }).zones.find((z) => z.id === zone)!.tags), { timeout: 10000 })
+        .toBe(JSON.stringify(['מטבח']));
+      await page.keyboard.press('Escape');
+
+      // three objects and a wall: the bulk panel adds a tag to all four, then a click on its chip removes it from all four
+      await click(pts.tg1);
+      for (const id of ['tg2', 'tl1', 'mw2']) await click(pts[id], true);
+      await expect(panel).toHaveAttribute('data-multi-count', '4');
+      await panel.locator('[data-tag-input]').fill('יציאת חירום');
+      await panel.locator('[data-tag-add]').click();
+      for (const [id, tags] of [['tg1', ['מטבח', 'יציאת חירום']], ['tg2', ['יציאת חירום']], ['tl1', ['יציאת חירום']], ['mw2', ['יציאת חירום']]] as const) {
+        await expect.poll(() => tagsOf(id), { timeout: 10000 }).toBe(JSON.stringify(tags));
+      }
+      await expect(panel.locator('[data-multi-note]')).toContainText('נוספה ל־4 מתוך 4');
+      await expect(panel.locator('sw-chip[data-tag="יציאת חירום"]')).toHaveAttribute('data-tag-count', '4');
+      await expect(panel.locator('sw-chip[data-tag="מטבח"]')).toHaveAttribute('data-tag-count', '1');
+      await panel.locator('sw-chip[data-tag="יציאת חירום"]').click();
+      for (const [id, tags] of [['tg1', ['מטבח']], ['tg2', []], ['tl1', []], ['mw2', []]] as const) {
+        await expect.poll(() => tagsOf(id), { timeout: 10000 }).toBe(JSON.stringify(tags));
+      }
+      await expect(panel.locator('[data-multi-note]')).toContainText('הוסרה מ־4');
+      await expect(panel.locator('sw-chip[data-tag="יציאת חירום"]')).toHaveCount(0);
+      await saved(page);
+
+      // the four to the basement level in one action; the rail's undo puts all four back in one step (tags untouched)
+      await panel.locator('[data-multi-level]').selectOption('L1');
+      for (const id of ['tg1', 'tg2', 'tl1', 'mw2']) await expect.poll(() => levelOf(id), { timeout: 10000 }).toBe('L1');
+      await expect(panel.locator('[data-multi-note]')).toContainText('4 פריטים הועברו למפלס "מרתף"');
+      await saved(page);
+      await page.locator(`${ED} [data-rail-undo]`).click();
+      await expect.poll(async () => JSON.stringify(await Promise.all(['tg1', 'tg2', 'tl1', 'mw2'].map(levelOf))), { timeout: 10000 }).toBe(JSON.stringify(['L0', 'L0', 'L0', 'L0']));
+      expect(await tagsOf('tg1')).toBe(JSON.stringify(['מטבח'])); // one step: only the level change was undone (the draft poll above is the save)
+
+      // two chairs: no circuit action at all; a lamp and a chair: only the lamp joins, and the note says 1 of 2
+      await page.keyboard.press('Escape');
+      await click(pts.tg1);
+      await click(pts.tg2, true);
+      await expect(panel).toHaveAttribute('data-multi-count', '2');
+      await expect(panel.locator('[data-multi-circuits]')).toHaveCount(0);
+      await click(pts.tg2, true); // out
+      await click(pts.tl1, true); // in
+      await expect(panel).toHaveAttribute('data-multi-count', '2');
+      await panel.locator('sw-chip[data-multi-circuit="tk1"]').click();
+      await expect.poll(async () => JSON.stringify((await tagDoc()).circuits.find((k) => k.id === 'tk1')!.member_ids), { timeout: 10000 }).toBe(JSON.stringify(['tl1']));
+      await expect(panel.locator('[data-multi-note]')).toContainText('1 מתוך 2 פריטים שנבחרו נוספו למעגל "צפון"');
+      await saved(page);
+
+      // select by tag, beside the level chips: every level - the two objects, the basement chair and the zone; the ground
+      // floor - the zone without a level too (the default level's), not the basement chair; the basement - that chair alone
+      await page.keyboard.press('Escape');
+      const pick = page.locator(`${ED} [data-tag-select]`);
+      await pick.selectOption('מטבח');
+      await expect(panel).toHaveAttribute('data-multi-count', '3');
+      for (const id of ['tg1', 'tg9']) await expect(obj(id)).toHaveClass(/\bsel\b/);
+      await expect(page.locator(`${ED} sw-plan-canvas g.zone.selected[data-zone="${zone}"]`)).toHaveCount(1);
+      await expect(obj('tl1')).not.toHaveClass(/\bsel\b/);
+      await page.locator(`${ED} [data-level-chip="L0"]`).click();
+      await pick.selectOption('מטבח');
+      await expect(panel).toHaveAttribute('data-multi-count', '2');
+      await expect(obj('tg1')).toHaveClass(/\bsel\b/);
+      await expect(page.locator(`${ED} sw-plan-canvas g.zone.selected[data-zone="${zone}"]`)).toHaveCount(1);
+      await page.locator(`${ED} [data-level-chip="L1"]`).click();
+      await pick.selectOption('מטבח');
+      await expect(page.locator(`${ED} [data-selected-object="tg9"]`)).toBeVisible(); // one item: the ordinary single selection
+      await expect(panel).toHaveCount(0);
+      // from another tool the picker switches to the select tool, where a multi-selection lives
+      await page.locator(`${ED} [data-level-chip="all"]`).click();
+      await page.locator(`${ED} [data-tool="layers"]`).click();
+      await pick.selectOption('מטבח');
+      await expect(page.locator(`${ED} [data-tool="select"]`)).toHaveAttribute('aria-pressed', 'true');
+      await expect(panel).toHaveAttribute('data-multi-count', '3');
+    } finally {
+      await saveDraft({ levels: doc0.levels ?? [], walls: SEED.walls, objects: SEED.objects, circuits: doc0.circuits ?? [] }); // the tests below expect the plain seed
+      if ((await api.delete(`api/v1/zones/${zone}`)).status() === 204) zoneIds.splice(zoneIds.indexOf(zone), 1);
+    }
+  });
+
   // Review of T085, S4: `any-pointer: coarse` is true on a touchscreen laptop even when it is used with a mouse; a
   // member of a multi-selection must still drag the group there, not start a marquee.
   test.describe('on a touchscreen laptop used with a mouse', () => {

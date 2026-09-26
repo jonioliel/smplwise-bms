@@ -28,9 +28,9 @@ import { productSettings } from '../api/prefs';
 import { createItem, exportUrl as catalogExportUrl, importItems, itemOf, loadLibrary, lookupOf, type CatalogItem, type CatalogLibrary } from '../api/plan-catalog';
 import { distanceM, effectiveScale, isClosedOutline, lengthPx, nearestWall, pointOnWall, snapPoint, type CatalogLookup, type ConnectorKind, type GeometryDoc, type GeomOpening, type GeomWall, type Pt } from '../map/geometry';
 import { StudioController } from '../map/studio-controller';
-import { ARRAY_MAX, BIND_DISTANCE_M, CIRCUIT_COLORS, addArray, addCircuit, addCircuitLamp, addConnector, addLabel, addLevel, addObject, addOpening, addWall, arrayDefaults, circuitPower, defaultLevelId, duplicateBeside, duplicateObject, initialLevel, kindDefaults, levelUsage, moveConnectorVertex, moveGroup, moveObject, moveVertex, newId, nudgeT, openingRange, patchCircuit, patchConnector, patchLabel, patchLevel, patchObject, patchOpening, patchWall, removeCorner, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember, translateWall, visibleUnderLevel, wallDirectionAt, duplicateSelection, itemsInRect, moveSelection, removeItems, selectableItems, selectionDelta, toggleItem, translatePolygon, type MultiItem, type WallDefaults } from '../map/studio-ops';
+import { ARRAY_MAX, BIND_DISTANCE_M, CIRCUIT_COLORS, addArray, addCircuit, addCircuitLamp, addConnector, addLabel, addLevel, addObject, addOpening, addWall, arrayDefaults, circuitPower, defaultLevelId, duplicateBeside, duplicateObject, initialLevel, kindDefaults, levelUsage, moveConnectorVertex, moveGroup, moveObject, moveVertex, newId, nudgeT, openingRange, patchCircuit, patchConnector, patchLabel, patchLevel, patchObject, patchOpening, patchWall, removeCorner, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember, translateWall, visibleUnderLevel, wallDirectionAt, duplicateSelection, itemsInRect, moveSelection, removeItems, selectableItems, selectionDelta, toggleItem, translatePolygon, TAG_MAX_COUNT, itemsWithTag, joinCircuit, setLevelOf, tagCounts, tagItems, withTag, withoutTag, type MultiItem, type WallDefaults } from '../map/studio-ops';
 import { ANCHOR_3D_DEFAULTS, anchor3dKind } from '../map/anchor-3d';
-import { COLL_LABEL, CONNECTOR_LABEL, circuitPlacingHint, connectorDerived, countLabel, fmtMetres, fmtScale, renderArrayDialog, renderCalibPanel, renderCircuitPanel, renderConnectorPanel, renderCustomItemDialog, renderGroupDeleteDialog, renderGroupInspector, renderLevelChips, renderLevelDialog, renderDetectPanel, renderLibraryPanel, renderMeasurePanel, renderObjectInspector, renderConnectorSelection, renderMultiSelection, renderStudioPanel, MULTI_HINT, SAVE_LABEL, studioPanelStyles, lighterStrength, type ArrayDialogView, type CustomItemView, type DetectAcceptError, type DetectOpts, type DetectReplaceAsk, type DetectRunState, type GeomKind, type GeomSel, type LevelDialogView, type StudioMode } from './plan-studio-panel';
+import { COLL_LABEL, CONNECTOR_LABEL, circuitPlacingHint, connectorDerived, countLabel, fmtMetres, fmtScale, renderArrayDialog, renderCalibPanel, renderCircuitPanel, renderConnectorPanel, renderCustomItemDialog, renderGroupDeleteDialog, renderGroupInspector, renderLevelChips, renderLevelDialog, renderDetectPanel, renderLibraryPanel, renderMeasurePanel, renderObjectInspector, renderConnectorSelection, renderMultiSelection, renderStudioPanel, renderTagPicker, renderTagsField, MULTI_HINT, SAVE_LABEL, studioPanelStyles, lighterStrength, type ArrayDialogView, type CustomItemView, type DetectAcceptError, type DetectOpts, type DetectReplaceAsk, type DetectRunState, type GeomKind, type GeomSel, type LevelDialogView, type StudioMode } from './plan-studio-panel';
 
 type Strength = 'light' | 'medium' | 'strong';
 /** A zone save or delete that has not answered by then counts as failed (review of T085, R4): the bulk actions it holds
@@ -38,7 +38,7 @@ type Strength = 'light' | 'medium' | 'strong';
 const ZONE_SAVE_TIMEOUT_MS = 15000;
 /** A zone request's failure in words: a timeout says so, anything else as describeError does. */
 const zoneErrorText = (err: unknown): string => (err instanceof DOMException && (err.name === 'TimeoutError' || err.name === 'AbortError') ? 'השרת לא ענה בזמן' : describeError(err));
-type ZoneBody = { name?: string; kind?: ZoneKind; color?: string; searchable?: boolean; polygon?: ZonePoint[]; label_pos?: string; level_id?: string; ceiling_height_m?: number };
+type ZoneBody = { name?: string; kind?: ZoneKind; color?: string; searchable?: boolean; polygon?: ZonePoint[]; label_pos?: string; level_id?: string; ceiling_height_m?: number; tags?: string[] };
 interface ZoneCandidate {
   polygon: ZonePoint[];
   name: string;
@@ -175,6 +175,8 @@ export class ExplorePlanEditor extends LitElement {
   /** The zone saves of the last multi-selection drop are still in flight: no new group drag, Delete or copy until they
    * answer - a drag now would start from polygons and revisions the answers are about to replace (review of T085, B1). */
   @state() private zoneSaving = false;
+  /** What the last bulk tag / level / circuit action on the multi-selection did (T085); cleared with the selection. */
+  @state() private multiNote = '';
   /** multiItems for the last (multi, doc, zones) it was computed for: it is read several times per render, and a group
    * drag renders on every pointer move. */
   private multiCache: { multi: MultiItem[]; doc: GeometryDoc; zones: SpatialZone[]; items: MultiItem[] } | null = null;
@@ -644,6 +646,10 @@ export class ExplorePlanEditor extends LitElement {
       cursor: pointer;
     }
     .levelbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
       position: absolute;
       inset-inline-start: 50%;
       transform: translateX(-50%);
@@ -2234,6 +2240,7 @@ export class ExplorePlanEditor extends LitElement {
   /** The selection set from a list: none clears it; one item becomes the ordinary single selection (its inspector,
    * handles and keys exactly as a plain click gives them); two or more are the multi-selection. */
   private setSelection(items: MultiItem[]) {
+    this.multiNote = '';
     this.selectedId = null;
     this.zoneVertexSel = null;
     this.bindOffer = null;
@@ -2418,12 +2425,158 @@ export class ExplorePlanEditor extends LitElement {
 
   private renderMultiPanel() {
     const items = this.multiShown;
+    const doc = this.studio.doc!;
     const n = (k: MultiItem['kind']) => items.filter((i) => i.kind === k).length;
-    return renderMultiSelection({ walls: n('wall'), objects: n('object'), zones: n('zone'), busy: this.zoneBusy || this.zoneSaving, saveState: this.studio.saveState }, {
+    return renderMultiSelection({ walls: n('wall'), objects: n('object'), zones: n('zone'), busy: this.zoneBusy || this.zoneSaving, saveState: this.studio.saveState,
+      tags: tagCounts(doc, this.zones, items), levels: doc.levels, circuits: doc.circuits, lights: this.lightIds(doc, items).length, note: this.multiNote }, {
       duplicate: () => this.duplicateMulti(),
       remove: () => void this.deleteMulti(),
       clear: () => this.setSelection([]),
+      addTag: (t) => void this.bulkTag(t, true),
+      removeTag: (t) => void this.bulkTag(t, false),
+      setLevel: (lv) => void this.bulkLevel(lv),
+      joinCircuit: (cid) => this.bulkCircuit(cid),
     });
+  }
+
+  /** The selected objects that can join a lighting circuit: those whose library item is a light - the rule the circuit
+   * tool's own click applies (onGeomSelect refuses an item of another role). An object whose item the library does not
+   * know is not offered here: nothing says it is a lamp. */
+  private lightIds(doc: GeometryDoc, items: readonly MultiItem[]): string[] {
+    const lib = this.library;
+    if (!lib) return [];
+    const objects = new Map(doc.objects.map((o) => [o.id, o]));
+    return items.filter((i) => i.kind === 'object' && itemOf(lib, objects.get(i.id)?.item_id ?? '')?.role === 'light').map((i) => i.id);
+  }
+
+  /** One ZoneBody for each zone that needs a change (null = leaves it as it is), sent together as the drop of a group drag
+   * sends its moves (commitZoneMoves): every PATCH times out, a conflict reloads the zones, and what failed comes back
+   * counted. Demo data never reaches here (zones are saved only against the server). */
+  private async patchZones(zs: readonly SpatialZone[], bodyOf: (z: SpatialZone) => ZoneBody | null): Promise<{ sent: number; failed: { z: SpatialZone; why: string }[] }> {
+    const jobs = zs.map((z) => ({ z, body: bodyOf(z) })).filter((j): j is { z: SpatialZone; body: ZoneBody } => j.body !== null);
+    if (!jobs.length) return { sent: 0, failed: [] };
+    this.zoneBusy = true;
+    let failed: { z: SpatialZone; why: string }[] = [];
+    try {
+      const results = await Promise.allSettled(jobs.map((j) => this.sendZonePatch(j.z, j.body)));
+      failed = jobs.map((j, i) => ({ z: j.z, why: results[i].status === 'fulfilled' ? (results[i] as PromiseFulfilledResult<string>).value : describeError((results[i] as PromiseRejectedResult).reason) })).filter((f) => f.why !== 'ok');
+    } finally {
+      this.zoneBusy = false;
+    }
+    if (failed.some((f) => f.why === 'conflict')) {
+      const note = this.multiNote;
+      await this.load(); // the other editor's version of the zones
+      this.multiNote = note;
+    }
+    return { sent: jobs.length, failed };
+  }
+
+  /** The zones of the multi-selection, and whether they can be saved (not on demo data). */
+  private multiZones(items: readonly MultiItem[]): { zs: SpatialZone[]; demo: boolean } {
+    const zoneById = new Map(this.zones.map((z) => [z.id, z]));
+    return { zs: items.filter((i) => i.kind === 'zone').map((i) => zoneById.get(i.id)).filter((z): z is SpatialZone => !!z), demo: this.bundle?.source === 'demo' };
+  }
+
+  /** The failed part of a bulk zone update in words: "2 מתוך 3 אזורים לא עודכנו (why)". */
+  private zoneFailText(r: { sent: number; failed: { why: string }[] }): string {
+    if (!r.failed.length) return '';
+    const why = r.failed.some((f) => f.why === 'conflict') ? 'אזור השתנה בינתיים על ידי עורך אחר ונטען מחדש' : r.failed[0].why;
+    return ` · ${r.failed.length} מתוך ${r.sent} אזורים לא עודכנו (${why})`;
+  }
+
+  /** The bulk panel's tags (T085): one tag added to every selected item that lacks it, or removed from every one that has
+   * it. Walls and objects in one document edit (tagItems - one undo step); zones by a PATCH each, counted. An item that
+   * already has TAG_MAX_COUNT tags is skipped and counted, never overfilled. */
+  private async bulkTag(tag: string, add: boolean) {
+    const doc = this.studio.doc;
+    const items = this.multiShown;
+    if (!doc || items.length < 2 || this.zoneBusy || this.zoneSaving) return;
+    const selectedAt = this.multi;
+    const idSet = new Set(items.filter((i) => i.kind !== 'zone').map((i) => i.id));
+    const ids = [...idSet];
+    const { zs, demo } = this.multiZones(items);
+    // full: lacks the tag (withoutTag leaves the list as it is) and has no room for it
+    const isFull = (tags: readonly string[] | null | undefined) => add && (tags?.length ?? 0) >= TAG_MAX_COUNT && withoutTag(tags, tag) === tags;
+    const full = [...doc.walls, ...doc.objects].filter((x) => idSet.has(x.id) && isFull(x.tags)).length + zs.filter((z) => isFull(z.tags)).length;
+    const next = tagItems(doc, ids, tag, add);
+    const prev = new Map([...doc.walls, ...doc.objects].map((x) => [x.id, x]));
+    const inDoc = [...next.walls, ...next.objects].filter((x) => idSet.has(x.id) && prev.get(x.id) !== x).length; // tagItems keeps an unchanged item the same object
+    this.edit(() => next);
+    const zoneBody = (z: SpatialZone): ZoneBody | null => {
+      const tags = add ? withTag(z.tags, tag) : withoutTag(z.tags, tag);
+      return tags === z.tags || (!z.tags && !tags.length) ? null : { tags };
+    };
+    const r = demo ? { sent: 0, failed: [] } : await this.patchZones(zs, zoneBody);
+    if (this.multi !== selectedAt) return; // the user picked something else meanwhile: the note belongs to that
+    const changed = inDoc + r.sent - r.failed.length;
+    this.multiNote = (add ? `התגית "${tag}" נוספה ל־${changed} מתוך ${items.length} פריטים` : `התגית "${tag}" הוסרה מ־${changed} פריטים`)
+      + (full ? ` · ${countLabel(full, 'פריט אחד', 'פריטים')} כבר עם ${TAG_MAX_COUNT} תגיות` : '')
+      + (demo && zs.length ? ' · נתוני הדגמה: אזורים נשמרים רק מול השרת' : '')
+      + this.zoneFailText(r);
+  }
+
+  /** "העבר למפלס" on a multi-selection (T085): every wall and object onto the level in one document edit (setLevelOf - one
+   * undo step, a wall's openings with it); every zone by a PATCH of its level, counted. A level filter that would now
+   * hide the selection follows it to the new level (as followLevel does for one item). */
+  private async bulkLevel(levelId: string) {
+    const doc = this.studio.doc;
+    const items = this.multiShown;
+    const level = doc?.levels.find((l) => l.id === levelId);
+    if (!doc || !level || items.length < 2 || this.zoneBusy || this.zoneSaving) return;
+    const selectedAt = this.multi;
+    const ids = items.filter((i) => i.kind !== 'zone').map((i) => i.id);
+    const def = defaultLevelId(doc);
+    const { zs, demo } = this.multiZones(items);
+    const idSet = new Set(ids);
+    const moved = [...doc.walls, ...doc.objects].filter((x) => idSet.has(x.id) && x.level_id !== levelId).length;
+    this.edit((d) => setLevelOf(d, ids, levelId));
+    if (this.activeLevel !== null && this.activeLevel !== levelId) this.levelFilter = levelId;
+    const r = demo ? { sent: 0, failed: [] } : await this.patchZones(zs, (z) => ((z.level_id || def) === levelId ? null : { level_id: levelId }));
+    if (this.multi !== selectedAt) return;
+    const done = moved + r.sent - r.failed.length;
+    this.multiNote = `${countLabel(done, 'פריט אחד הועבר', 'פריטים הועברו')} למפלס "${level.name}"`
+      + (demo && zs.length ? ' · נתוני הדגמה: אזורים נשמרים רק מול השרת' : '')
+      + this.zoneFailText(r);
+  }
+
+  /** "הוסף למעגל" on a multi-selection (T085): only its lights join the circuit (joinCircuit - one document edit, one undo
+   * step; each leaves any other circuit, one switch per lamp); walls, zones and other objects never do, and the note says
+   * how many of the selection joined. */
+  private bulkCircuit(circuitId: string) {
+    const doc = this.studio.doc;
+    const items = this.multiShown;
+    const k = doc?.circuits.find((c) => c.id === circuitId);
+    if (!doc || !k || items.length < 2) return;
+    const lights = new Set(this.lightIds(doc, items));
+    const r = joinCircuit(doc, circuitId, items.filter((i) => i.kind === 'object').map((i) => i.id), (o) => lights.has(o.id));
+    this.edit(() => r.doc);
+    const rest = items.length - r.added.length;
+    this.multiNote = rest
+      ? `${r.added.length} מתוך ${items.length} פריטים שנבחרו נוספו למעגל "${k.name}"; ${countLabel(rest, 'האחר אינו גוף תאורה', 'האחרים אינם גופי תאורה')}`
+      : `${countLabel(r.added.length, 'גוף תאורה אחד נוסף', 'גופי תאורה נוספו')} למעגל "${k.name}"`;
+  }
+
+  /** The tags of everything the level filter shows (Ctrl+A's set), with how many items carry each: the select-by-tag
+   * picker's options. */
+  private get shownTags(): { tag: string; count: number }[] {
+    const doc = this.studio.doc;
+    return doc ? tagCounts(doc, this.pickableZones, selectableItems(doc, this.pickableZones, this.activeLevel)) : [];
+  }
+
+  /** Select by tag (T085): every wall, object and zone with the tag that Ctrl+A would select under the level filter
+   * (itemsWithTag), as the select tool's selection - the tool is switched to it first, since a multi-selection lives only
+   * there. */
+  private selectByTag(tag: string) {
+    const doc = this.studio.doc;
+    if (!doc) return;
+    if (this.tool !== 'select') this.pickTool('select');
+    if (!this.multiOn) return;
+    const hits = itemsWithTag(doc, this.pickableZones, tag, this.activeLevel);
+    this.setSelection(hits);
+    if (!hits.length) {
+      this.info = `אין פריטים עם התגית "${tag}" במפלס המוצג`;
+      setTimeout(() => (this.info = ''), 3000);
+    }
   }
 
   /** A wall's length in metres (estimated before calibration), in the bundle's plan pixels - as the validator measures it. */
@@ -3583,6 +3736,7 @@ export class ExplorePlanEditor extends LitElement {
       </div>
       <sw-field label="מיקום שם החדר"><select data-zone-label-pos @change=${(e: Event) => this.patchZone(z, { label_pos: (e.target as HTMLSelectElement).value })}>${[['auto', 'אוטומטי'], ['top', 'מעל'], ['bottom', 'מתחת'], ['left', 'משמאל'], ['right', 'מימין']].map(([v, l]) => html`<option value=${v} ?selected=${(z.label_pos ?? 'auto') === v}>${l}</option>`)}</select></sw-field>
       ${(this.studio.doc?.levels.length ?? 0) > 1 ? html`<sw-field label="מפלס"><select data-zone-level @change=${(e: Event) => this.patchZone(z, { level_id: (e.target as HTMLSelectElement).value })}>${this.studio.doc!.levels.map((l) => html`<option value=${l.id} ?selected=${(z.level_id ?? defaultLevelId(this.studio.doc!)) === l.id}>${l.name}</option>`)}</select></sw-field>` : nothing}
+      ${this.renderZoneTags(z)}
       <div class="kv"><span class="k">מצלמות באזור</span><span>${cams.length ? cams.map((a) => this.anchorName(a)).join(', ') : 'אין'}</span></div>
       <div class="kv"><span class="k">ישויות HA באזור</span><span>${ents.length ? `${ents.length} ישויות` : 'אין'}</span></div>
       <div class="row"><span class="lbl">הכללה בחיפוש מרחבי<span class="muted">זמין לחוקי התראה ולחיפוש לפי מקום</span></span><sw-toggle ?checked=${z.searchable} label=${z.searchable ? 'כלול' : 'לא כלול'} @click=${() => this.patchZone(z, { searchable: !z.searchable })}></sw-toggle></div>
@@ -3591,6 +3745,16 @@ export class ExplorePlanEditor extends LitElement {
       <div class="note">אזור במפה הוא הקשר מרחבי בלבד: אינו אזור זיהוי במצלמה ואינו מסכת פרטיות, ואינו משנה תצורת NVR.</div>
       <div class="btns"><sw-button size="sm" variant="danger" icon="trash" ?disabled=${this.zoneBusy} @click=${() => this.removeZone(z)}>מחק אזור</sw-button><sw-button size="sm" variant="ghost" @click=${() => (this.selectedZoneId = null)}>סגור</sw-button></div>
     </div>`;
+  }
+
+  /** A zone's tags (T085), with the same editor as a wall's or an object's; saved at once by the zone PATCH (zones have
+   * no undo), so the box waits while a zone request is in flight. */
+  private renderZoneTags(z: SpatialZone) {
+    const set = (tags: string[]) => {
+      if (tags !== z.tags && !(z.tags === undefined && !tags.length)) void this.patchZone(z, { tags });
+    };
+    return renderTagsField({ chips: (z.tags ?? []).map((tag) => ({ tag })), full: (z.tags?.length ?? 0) >= TAG_MAX_COUNT, disabled: this.zoneBusy || this.bundle?.source === 'demo' },
+      (t) => set(withTag(z.tags, t)), (t) => set(withoutTag(z.tags, t)));
   }
 
   private renderZonesPanel(b: MapBundle) {
@@ -3759,7 +3923,7 @@ export class ExplorePlanEditor extends LitElement {
                   <span>גרירה מזיזה · גלגלת = זום · ידיות = כיוון ושדה ראייה</span>
                 </div>
                 <div class="floorchip"><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
-                ${this.studio.doc && b.permissions.structure ? html`<div class="levelbar">${renderLevelChips(this.studio.doc.levels, this.activeLevel, (id) => this.setLevelFilter(id), () => this.openNewLevel(), (id) => this.openLevelEdit(id))}</div>` : nothing}
+                ${this.studio.doc && b.permissions.structure ? html`<div class="levelbar">${renderLevelChips(this.studio.doc.levels, this.activeLevel, (id) => this.setLevelFilter(id), () => this.openNewLevel(), (id) => this.openLevelEdit(id))}${!this.phone.matches && this.shownTags.length ? renderTagPicker(this.shownTags, (t) => this.selectByTag(t)) : nothing}</div>` : nothing}
                 <div class="rail" role="toolbar" aria-label="כלי עריכה">
                   ${TOOLS.map((tl) => html`<button class=${tl.id === this.tool ? 'on' : ''} data-tool=${tl.id} ?disabled=${!tl.ready || (STUDIO_TOOLS.includes(tl.id) && !b.permissions.structure) || (this.detectBusy && tl.id !== this.tool)} title=${tl.label} aria-label=${tl.label} aria-pressed=${tl.id === this.tool} @click=${() => this.pickTool(tl.id)}><sw-icon .name=${tl.icon} size=${18}></sw-icon></button>`)}
                   <hr />

@@ -11,7 +11,7 @@ import type { CatalogItem, CatalogLibrary, ParamSpec } from '../api/plan-catalog
 import type { HaEntity } from '../api/ha';
 import { searchItems } from '../api/plan-catalog';
 import type { SaveState } from '../map/studio-controller';
-import { cornerRemovable, kindDefaults, openingRange, type WallDefaults } from '../map/studio-ops';
+import { TAG_MAX_COUNT, TAG_MAX_LEN, cornerRemovable, kindDefaults, normalizeTag, openingRange, withTag, withoutTag, type WallDefaults } from '../map/studio-ops';
 import { symbolOf } from '../map/plan-symbols';
 
 export type StudioMode = 'select' | 'wall' | 'door' | 'window' | 'passage' | 'label';
@@ -223,6 +223,7 @@ function renderWall(w: GeomWall, v: StudioView, a: StudioActions, scale: number,
     <sw-field label="גובה (מ׳, ריק = עד התקרה)"><input type="number" min="0.1" max="50" step="0.1" data-ltr .value=${w.height_m === null ? '' : String(w.height_m)}
       @change=${(e: Event) => { const raw = (e.target as HTMLInputElement).value.trim(); const x = parseFloat(raw); if (!raw) a.patchWall(w.id, { height_m: null }); else if (x > 0 && x <= 50) a.patchWall(w.id, { height_m: x }); }} /></sw-field>
     ${levelSelect(v.levels, w.level_id, (lv) => a.setLevel(w.id, lv))}
+    ${renderItemTags(w.tags, (tags) => a.patchWall(w.id, { tags }))}
     ${v.mode === 'select' && v.sel?.vertex !== undefined
       ? html`<div class="note" data-selected-vertex=${v.sel.vertex}>פינה ${v.sel.vertex + 1} נבחרה: החצים מזיזים אותה (Shift = צעד גדול); ${cornerRemovable(w.polyline) ? 'Delete מוחק את הפינה.' : 'Delete מוחק את כל הקיר, כי בלי הפינה לא נשאר קיר.'}</div>`
       : nothing}
@@ -717,6 +718,7 @@ export function renderObjectInspector(v: ObjectView, a: ObjectActions): Template
     <div class="three">${size('w_m', 'רוחב (מ׳)')}${size('d_m', 'עומק (מ׳)')}${size('h_m', 'גובה (מ׳)')}</div>
     <sw-field label="גובה מהרצפה (מ׳)"><input type="number" min="-50" max="500" step="0.05" data-ltr data-object-z .value=${String(o.z_m)} @change=${(e: Event) => { const x = numberOf(e); if (x >= -50 && x <= 500) a.patch(o.id, { z_m: x }); }} /></sw-field>
     ${v.item ? Object.entries(v.item.params_schema).map(([k, spec]) => paramField(o, k, spec, v.levels, a)) : nothing}
+    ${renderItemTags(o.tags, (tags) => a.patch(o.id, { tags }))}
     ${group ? html`<div class="note" data-object-group>חלק ממערך של ${group.member_ids.length}${a.selectGroup ? html` · <button class="linkbtn" data-select-group @click=${() => a.selectGroup?.(group.id)}>בחר את המערך</button>` : nothing}</div>` : nothing}
     <div class="note">${v.estimated ? (v.showEstimates ? 'המידות במטרים משוערות (≈) עד הכיול' : 'לא מכויל: המידות מוצגות כערכי הפריט') : 'המידות במטרים לפי הכיול'} · חצים = הזזה עדינה (Shift = גדולה) · Alt+גרירה = שכפול · Delete = מחיקה</div>
     <div class="btns">
@@ -752,6 +754,61 @@ export function renderGroupInspector(g: GeomGroup, item: CatalogItem | undefined
 /** How several items are picked in the editor's select tool (owner report 2026-09-26). */
 export const MULTI_HINT = 'Shift+לחיצה מוסיפה קיר, עצם או אזור לבחירה או מוציאה אותו ממנה; גרירת מלבן מרקע ריק בוחרת את מה שנמצא בתוכו במלואו; Ctrl+A בוחר את כל מה שמוצג במפלס; Esc מנקה. הזזת התוכנית: רווח + גרירה, או גרירה בכפתור האמצעי; גלגלת לזום.';
 
+// ---------------------------------------------------------------- tags (T085)
+
+/** One chip of a tags editor: the tag, and in the bulk panel how many of the selected items carry it. */
+export interface TagChip {
+  tag: string;
+  count?: number;
+}
+
+/** The tags editor (owner request 2026-09-26: free-text tags for marking and later selection). One pattern everywhere -
+ * the wall, object and zone inspectors and the multi-selection panel: the tags as chips, a click on a chip removes that
+ * tag (in the bulk panel: from every selected item that has it), and a text box whose Enter or "הוסף" button adds one (in
+ * the bulk panel: to every selected item). `full`: the one item already has TAG_MAX_COUNT tags. */
+export function renderTagsField(v: { chips: TagChip[]; bulk?: boolean; full?: boolean; disabled?: boolean }, onAdd: (tag: string) => void, onRemove: (tag: string) => void): TemplateResult {
+  const add = (input: HTMLInputElement | null | undefined) => {
+    const t = input ? normalizeTag(input.value) : null;
+    if (!input || !t) return;
+    onAdd(t);
+    input.value = '';
+  };
+  const off = !!(v.full || v.disabled);
+  const hint = v.bulk
+    ? 'לחיצה על תגית מסירה אותה מכל הנבחרים שיש להם אותה (המספר: כמה מהם); תגית חדשה נוספת לכולם'
+    : v.full
+      ? `הגעת למקסימום של ${TAG_MAX_COUNT} תגיות; לחיצה על תגית מסירה אותה`
+      : `לסימון ולבחירה מהירה (בחירה לפי תגית ליד המפלסים) · לחיצה על תגית מסירה אותה · עד ${TAG_MAX_COUNT} תגיות של ${TAG_MAX_LEN} תווים`;
+  return html`<sw-field label=${v.bulk ? 'תגיות בבחירה' : 'תגיות'} hint=${hint}><div class="tagsfield" data-tags-field>
+    ${v.chips.length
+      ? html`<div class="tagchips" data-tag-chips>${v.chips.map((c) => html`<sw-chip icon="close" data-tag=${c.tag} data-tag-count=${v.bulk && c.count !== undefined ? String(c.count) : nothing} .count=${v.bulk ? c.count : undefined}
+          title=${v.bulk ? `הסר את "${c.tag}" מכל הנבחרים` : `הסר את התגית "${c.tag}"`} @click=${() => { if (!v.disabled) onRemove(c.tag); }}>${c.tag}</sw-chip>`)}</div>`
+      : html`<div class="note" data-tag-none>${v.bulk ? 'לאף פריט בבחירה אין תגיות' : 'אין תגיות'}</div>`}
+    <div class="tagadd">
+      <input type="text" maxlength=${String(TAG_MAX_LEN)} data-tag-input aria-label=${v.bulk ? 'תגית להוספה לכל הנבחרים' : 'תגית חדשה'} placeholder="תגית חדשה, למשל: מטבח" ?disabled=${off}
+        @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); add(e.target as HTMLInputElement); } }} />
+      <sw-button size="sm" icon="plus" data-tag-add ?disabled=${off} @click=${(e: Event) => add((e.currentTarget as HTMLElement).parentElement?.querySelector('input'))}>${v.bulk ? 'הוסף לכולם' : 'הוסף'}</sw-button>
+    </div>
+  </div></sw-field>`;
+}
+
+/** The tags editor of one wall or object: `set` receives the whole new list (withTag / withoutTag), never an unchanged one. */
+function renderItemTags(tags: string[] | undefined, set: (tags: string[]) => void): TemplateResult {
+  const change = (next: string[]) => {
+    if (next !== tags && !(tags === undefined && !next.length)) set(next);
+  };
+  return renderTagsField({ chips: (tags ?? []).map((tag) => ({ tag })), full: (tags?.length ?? 0) >= TAG_MAX_COUNT }, (t) => change(withTag(tags, t)), (t) => change(withoutTag(tags, t)));
+}
+
+/** Select by tag (T085): a small picker beside the level chips over the canvas - the tags of what the level filter shows,
+ * each with how many walls, objects and zones carry it there; picking one selects them all in the select tool. */
+export function renderTagPicker(tags: TagChip[], onPick: (tag: string) => void): TemplateResult {
+  return html`<select class="tagpick" data-tag-select aria-label="בחירה לפי תגית" title="בוחר את כל הקירות, העצמים והאזורים עם התגית, במפלס המוצג"
+    @change=${(e: Event) => { const s = e.target as HTMLSelectElement; const t = s.value; s.value = ''; if (t) onPick(t); }}>
+    <option value="" selected>בחירה לפי תגית…</option>${tags.map((t) => html`<option value=${t.tag}>${t.tag} (${t.count})</option>`)}
+  </select>`;
+}
+
 export interface MultiView {
   walls: number;
   objects: number;
@@ -760,11 +817,25 @@ export interface MultiView {
   busy: boolean;
   /** The structure draft's autosave, as every other selection panel shows it. */
   saveState: SaveState;
+  /** The tags any selected item carries, with how many carry each (T085). */
+  tags: TagChip[];
+  /** The floor's levels: the "move to level" picker shows with two or more. */
+  levels: GeomLevel[];
+  /** The floor's lighting circuits: "add to circuit" shows only when `lights` > 0. */
+  circuits: GeomCircuit[];
+  /** How many selected objects are lights (their library item's role): only they can join a circuit. */
+  lights: number;
+  /** What the last bulk tag / level / circuit action did, until the selection changes. */
+  note: string;
 }
 export interface MultiActions {
   duplicate(): void;
   remove(): void;
   clear(): void;
+  addTag(tag: string): void;
+  removeTag(tag: string): void;
+  setLevel(levelId: string): void;
+  joinCircuit(circuitId: string): void;
 }
 
 /** The select tool with two or more walls, objects and zones selected: what is selected and the actions on all of them. */
@@ -773,7 +844,22 @@ export function renderMultiSelection(v: MultiView, a: MultiActions): TemplateRes
   const parts = [v.walls ? countLabel(v.walls, 'קיר אחד', 'קירות') : '', v.objects ? countLabel(v.objects, 'עצם אחד', 'עצמים') : '', v.zones ? countLabel(v.zones, 'אזור אחד', 'אזורים') : ''].filter(Boolean).join(' · ');
   return html`<sw-card heading=${`${total} פריטים נבחרו`} subheading=${`${parts} · ${SAVE_LABEL[v.saveState]}`} data-multi-panel data-multi-count=${total} data-studio-save=${v.saveState}>
     <div class="note">גרירת אחד מהם מזיזה את כולם יחד · Delete מוחק את כולם · Ctrl+D משכפל את העצמים שבבחירה</div>
-    ${v.zones ? html`<div class="note" data-multi-zones-note>הזזה ומחיקה של אזורים נשמרות מיד ואינן חלק מהביטול (Ctrl+Z); קירות ועצמים חוזרים בצעד ביטול אחד</div>` : nothing}
+    ${v.zones ? html`<div class="note" data-multi-zones-note>הזזה, מחיקה, תגיות ומפלס של אזורים נשמרים מיד ואינם חלק מהביטול (Ctrl+Z); קירות ועצמים חוזרים בצעד ביטול אחד</div>` : nothing}
+    ${v.note ? html`<div class="note multinote" data-multi-note role="status">${v.note}</div>` : nothing}
+    ${renderTagsField({ chips: v.tags, bulk: true, disabled: v.busy }, (t) => a.addTag(t), (t) => a.removeTag(t))}
+    ${v.levels.length > 1
+      ? html`<sw-field label="העבר את כל הבחירה למפלס" hint="קירות ועצמים בצעד ביטול אחד; הפתחים עוברים עם הקיר שלהם">
+          <select data-multi-level ?disabled=${v.busy} @change=${(e: Event) => { const s = e.target as HTMLSelectElement; const lv = s.value; s.value = ''; if (lv) a.setLevel(lv); }}>
+            <option value="" selected>בחר מפלס…</option>${v.levels.map((l) => html`<option value=${l.id}>${l.name} (${l.elevation_m} מ׳)</option>`)}
+          </select></sw-field>`
+      : nothing}
+    ${v.lights
+      ? html`<sw-field label="הוסף למעגל תאורה" hint=${v.lights === total ? 'כל הנבחרים הם גופי תאורה' : `רק ${countLabel(v.lights, 'גוף התאורה שבבחירה מצטרף', 'גופי התאורה שבבחירה מצטרפים')}; קירות, אזורים ועצמים אחרים לא`}>
+          ${v.circuits.length
+            ? html`<div class="tagchips" data-multi-circuits>${v.circuits.map((k) => html`<sw-chip dot=${circuitVar(k.color_token)} data-multi-circuit=${k.id} title=${`הוסף את גופי התאורה שבבחירה למעגל ${k.name}`} @click=${() => { if (!v.busy) a.joinCircuit(k.id); }}>${k.name}</sw-chip>`)}</div>`
+            : html`<div class="note" data-multi-no-circuits>אין עדיין מעגלים בקומה; צור מעגל בכלי "מעגלי תאורה".</div>`}
+        </sw-field>`
+      : nothing}
     <div class="btns">
       ${v.objects ? html`<sw-button size="sm" icon="layers" data-multi-duplicate ?disabled=${v.busy} title="עותק של כל העצמים שנבחרו, כגוש אחד ליד הבחירה (גם Ctrl+D)" @click=${() => a.duplicate()}>${v.objects === 1 ? 'שכפל את העצם' : `שכפל ${v.objects} עצמים`}</sw-button>` : nothing}
       <sw-button size="sm" variant="danger" icon="trash" data-multi-delete ?disabled=${v.busy} @click=${() => a.remove()}>מחק הכל</sw-button>
@@ -1289,6 +1375,36 @@ export const studioPanelStyles = css`
     flex-wrap: wrap;
     gap: 6px;
     align-items: center;
+  }
+  .tagchips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-block-end: 6px;
+  }
+  .tagadd {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .tagadd input {
+    flex: 1;
+    min-inline-size: 0;
+  }
+  .tagpick {
+    font: inherit;
+    font-size: var(--sw-fs-sm);
+    min-block-size: 28px;
+    max-inline-size: 180px;
+    padding-inline: 6px;
+    border: 1px solid var(--sw-border-strong);
+    border-radius: 8px;
+    background: var(--sw-surface);
+    color: var(--sw-text);
+  }
+  .multinote {
+    color: var(--sw-text);
+    font-weight: var(--sw-fw-medium);
   }
   .levelchip {
     display: inline-flex;
