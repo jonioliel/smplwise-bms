@@ -226,7 +226,7 @@ test.describe('whole-wall and whole-zone moves (unit)', () => {
     const r = duplicateBeside(doc, 'o3', W, H, scale);
     expect(r.id).not.toBe('o3');
     const copy = r.doc.objects.find((x) => x.id === r.id)!;
-    expect(copy.position[0]).toBeCloseTo(o.position[0] + (o.size.w_m + 0.3) / scale / W, 5);
+    expect(copy.position[0]).toBeCloseTo(0.535, 5); // 0.5 + (0.4 + 0.3) m / 0.01 m per px / 2000 px
     expect(copy.position[1]).toBeCloseTo(o.position[1], 5);
     expect(copy.item_id).toBe(o.item_id);
     expect(r.doc.objects.length).toBe(doc.objects.length + 1);
@@ -234,11 +234,11 @@ test.describe('whole-wall and whole-zone moves (unit)', () => {
     const below = duplicateBeside(atRightEdge, 'o3', W, H, scale);
     const b = below.doc.objects.find((x) => x.id === below.id)!;
     expect(b.position[0]).toBeCloseTo(0.99, 5);
-    expect(b.position[1]).toBeCloseTo(0.5 + (o.size.d_m + 0.3) / scale / H, 5);
+    expect(b.position[1]).toBeCloseTo(0.57, 5); // 0.5 + (0.4 + 0.3) m / 0.01 / 1000 px
     const atCorner = { ...doc, objects: doc.objects.map((x: GeomObject) => (x.id === 'o3' ? { ...x, position: [0.99, 0.99] as [number, number] } : x)) };
     const left = duplicateBeside(atCorner, 'o3', W, H, scale);
     const l = left.doc.objects.find((x) => x.id === left.id)!;
-    expect(l.position[0]).toBeCloseTo(0.99 - (o.size.w_m + 0.3) / scale / W, 5);
+    expect(l.position[0]).toBeCloseTo(0.955, 5); // 0.99 - (0.4 + 0.3) m / 0.01 / 2000 px
     expect(l.position[1]).toBeCloseTo(0.99, 5);
     expect(duplicateBeside(doc, 'nope', W, H, scale)).toEqual({ doc, id: 'nope' });
   });
