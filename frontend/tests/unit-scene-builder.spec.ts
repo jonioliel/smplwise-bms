@@ -255,6 +255,17 @@ test('a hall with 3,000 chairs: one instance group, a bounded part count, every 
   expect(est.scale_m_per_px).toBeCloseTo(0.2 / (0.006 * 1000), 9);
 });
 
+test('anchorsEveryLevel (0.1.89 fix): a camera on a non-default level is hidden by the level filter like the structure, unless anchorsEveryLevel keeps every anchor regardless', () => {
+  const input = sampleInput();
+  const filtered = buildScene({ ...input, level: 'L0' });
+  expect(filtered.parts.some((p) => p.id === 'cam:a-cam2')).toBe(false); // a-cam2 is level_id L1: hidden like the L1 wall
+  const everyLevel = buildScene({ ...input, level: 'L0', anchorsEveryLevel: true });
+  expect(everyLevel.parts.some((p) => p.id === 'cam:a-cam2')).toBe(true); // kept regardless of the level filter
+  expect(byId(everyLevel, 'cam:a-cam2').level_id).toBe('L1'); // still placed at its own level's elevation
+  // the structure itself still culls to the level exactly as without anchorsEveryLevel
+  expect(everyLevel.parts.filter((p) => p.kind === 'wall').map((p) => p.id)).toEqual(filtered.parts.filter((p) => p.kind === 'wall').map((p) => p.id));
+});
+
 test('door leaves follow the 2D rules: none, sliding on its track, two half leaves, a missing swing opens right', () => {
   // one wall from (1, 4) to (9, 4) m, a 1 m door in the middle: gap (4.5, 4) .. (5.5, 4), the left normal points north
   const scene = (swing: GeomOpening['swing'], state: string, hinge: GeomOpening['hinge'] = 'start') => buildScene({

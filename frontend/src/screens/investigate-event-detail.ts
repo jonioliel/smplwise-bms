@@ -59,7 +59,9 @@ export class InvestigateEventDetail extends LitElement {
   @state() private casePick: NewCaseItem | null = null;
   @state() private geometry: GeometryDoc | null = null;
   /** `plan.levels` (0.1.89) applied once per floor load: null (all levels) or the floor's default level id. There is
-   * no level bar on this screen, so it stays fixed for the event's floor — only the 2D/3D structure it draws changes. */
+   * no level bar on this screen, so it stays fixed for the event's floor and only culls the 3D structure (walls,
+   * objects, zones) — cameras and entities keep showing on every level (`anchorsEveryLevel`), matching the 2D,
+   * which never hid anchors either; the event's own camera never disappears from "מבט מהמצלמה". */
   @state() private level: string | null = null;
   @state() private catalogLookup: CatalogLookup | null = null;
   private pollTimer = 0;
@@ -515,7 +517,7 @@ export class InvestigateEventDetail extends LitElement {
     const zones = b.zones.map((z) => ({ id: z.id, name: z.name, polygon: z.polygon, level_id: z.level_id ?? null }));
     const keys: unknown[] = [JSON.stringify([b.floorId, b.width, b.height, anchors, entityStates, zones]), g, this.catalog3d, this.level];
     if (this.sceneMemo && this.sceneMemo.keys.every((k, i) => k === keys[i])) return this.sceneMemo.desc;
-    const desc = buildScene({ doc: g, width: b.width, height: b.height, anchors, entityStates, circuitStates: {}, catalog: this.catalog3d, zones, level: this.level });
+    const desc = buildScene({ doc: g, width: b.width, height: b.height, anchors, entityStates, circuitStates: {}, catalog: this.catalog3d, zones, level: this.level, anchorsEveryLevel: true });
     const labels: Record<string, string> = {};
     for (const a of b.anchors) labels[a.id] = entityName(a);
     for (const o of g.objects) labels[o.id] = o.label || this.itemNames.get(o.item_id) || o.item_id;
