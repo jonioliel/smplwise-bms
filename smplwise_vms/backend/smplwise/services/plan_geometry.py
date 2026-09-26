@@ -42,6 +42,10 @@ MAX_DERIVED_OBJECT_ID_LEN = 64 - len(DERIVED_PREFIX)  # an object id longer than
 COLLECTIONS = ("levels", "walls", "openings", "rooms", "objects", "circuits", "connectors", "labels", "groups", "uncertain_regions")
 LIMITS = {"levels": 20, "walls": 2000, "openings": 4000, "rooms": 500, "objects": 5000, "circuits": 500, "connectors": 200, "labels": 1000,
           "groups": 500, "uncertain_regions": 200}
+# Free-text tags on walls, objects and rooms (T085, owner request 2026-09-26: marking and later selection, e.g. "מטבח",
+# "יציאת חירום"; beside a wall's fixed kind, not instead of it). Bounded like a collection: past a bound the save is refused.
+MAX_TAGS = 20
+MAX_TAG_LEN = 40
 MAX_WARNINGS = 200  # only _check_openings' overlap loop emits warnings; it stops emitting once this many have been
                     # added (an O(1) local counter) - an error or a structural issue is never bounded by this cap
 MAX_DEPTH = 64  # a document this deeply nested is not something any client UI produces; refuse it rather than walk it
@@ -302,6 +306,21 @@ def _check_fields(coll: str, i: int, item: dict[str, Any], issues: list[dict[str
         if v is not None and not predicate(v):
             bad(field)
 
+    def tags() -> None:
+        """Optional free-text tags: a list of strings (else a type issue), at most MAX_TAGS of 1..MAX_TAG_LEN characters
+        once trimmed (else a limit issue - structural, as an over-limit collection is)."""
+        v = item.get("tags")
+        if v is None:
+            return
+        if not isinstance(v, list):
+            bad("tags")
+        elif len(v) > MAX_TAGS:
+            _issue(issues, "limit", f"יותר מ־{MAX_TAGS} תגיות.", item=iid, path=f"{coll}[{i}].tags", structural=True)
+        elif not all(isinstance(t, str) for t in v):
+            bad("tags")
+        elif not all(t.strip() and len(t) <= MAX_TAG_LEN for t in v):
+            _issue(issues, "limit", f"תגית ריקה או ארוכה מ־{MAX_TAG_LEN} תווים.", item=iid, path=f"{coll}[{i}].tags", structural=True)
+
     if coll == "levels":
         req("name", isinstance(item.get("name"), str))
         req("elevation_m", _num(item.get("elevation_m")))
@@ -320,6 +339,7 @@ def _check_fields(coll: str, i: int, item: dict[str, Any], issues: list[dict[str
         req("confidence", _num(item.get("confidence")))
         opt("locked", lambda v: isinstance(v, bool))
         opt("external_ids", lambda v: isinstance(v, dict))
+        tags()
     elif coll == "openings":
         req("wall_id", isinstance(item.get("wall_id"), str))
         req("t", _num(item.get("t")))
@@ -341,6 +361,7 @@ def _check_fields(coll: str, i: int, item: dict[str, Any], issues: list[dict[str
     elif coll == "rooms":
         opt("level_id", lambda v: isinstance(v, str))
         opt("ceiling_height_m", _num)
+        tags()
     elif coll == "objects":
         req("item_id", isinstance(item.get("item_id"), str))
         req("level_id", isinstance(item.get("level_id"), str))
@@ -357,6 +378,7 @@ def _check_fields(coll: str, i: int, item: dict[str, Any], issues: list[dict[str
         req("source", isinstance(item.get("source"), str))
         opt("locked", lambda v: isinstance(v, bool))
         opt("external_ids", lambda v: isinstance(v, dict))
+        tags()
     elif coll == "groups":
         req("kind", isinstance(item.get("kind"), str))
         req("member_ids", isinstance(item.get("member_ids"), list) and all(isinstance(m, str) for m in item["member_ids"]))
@@ -946,10 +968,10 @@ def apply_anchor_positions(doc: Mapping[str, Any], anchors: Mapping[str, Mapping
 CANDIDATE_PREFIXES = ("auto-", "imp-")
 CANDIDATE_SOURCES = ("auto", "imported")
 EDITABLE_FIELDS = {
-    "walls": ("polyline", "thickness_m", "kind", "height_m", "base_z_m", "level_id", "locked"),
+    "walls": ("polyline", "thickness_m", "kind", "height_m", "base_z_m", "level_id", "locked", "tags"),
     "openings": ("t", "kind", "width_m", "height_m", "sill_m", "swing", "hinge", "wall_id", "anchor_ref"),
     # the object schema of _check_objects (the brief's pose / name / catalog_id / flip do not exist in it)
-    "objects": ("position", "rotation_deg", "size", "z_m", "label", "item_id", "level_id", "params", "anchor_ref", "locked"),
+    "objects": ("position", "rotation_deg", "size", "z_m", "label", "item_id", "level_id", "params", "anchor_ref", "locked", "tags"),
 }
 CANDIDATE_COLLECTIONS = ("walls", "openings", "objects")
 

@@ -427,3 +427,55 @@ def test_malformed_uncertainty_is_structural():
     d = _doc()
     d["uncertainty"] = {"overall": 1.5, "notes": []}
     assert [(i["code"], i["structural"]) for i in pg.validate(d)] == [("uncertainty", False)], "the 0..1 range stays geometric"
+
+
+def test_tags_are_bounded_free_text_on_walls_objects_and_rooms():
+    """Tags (T085, owner request 2026-09-26): free text for marking and later selection ("מטבח", "יציאת חירום"), on
+    walls, objects and rooms, beside a wall's fixed kind. At most MAX_TAGS per item, each 1..MAX_TAG_LEN characters: a
+    bound refuses the save (structural, code "limit") the way an over-limit collection does, and an entry that is not
+    a string, or tags that are not a list, is a structural type issue like any other wrong field type."""
+    assert (pg.MAX_TAGS, pg.MAX_TAG_LEN) == (20, 40)
+    d = _doc()
+    d["walls"][0]["tags"] = ["מטבח", "יציאת חירום"]
+    d["walls"][1]["tags"] = []
+    d["rooms"].append({"id": "r1", "tags": ["x" * pg.MAX_TAG_LEN]})
+    d["objects"].append({"id": "x1", "item_id": "chair.basic", "level_id": "L0", "position": [0.2, 0.2], "rotation_deg": 0, "size": {"w_m": 0.45, "d_m": 0.45, "h_m": 0.85},
+                         "z_m": 0, "params": {}, "label": None, "anchor_ref": None, "group_id": None, "confidence": 1, "source": "manual", "locked": False, "external_ids": {},
+                         "tags": [f"t{i}" for i in range(pg.MAX_TAGS)]})
+    assert pg.validate(d) == []  # at the bounds exactly; an item without tags at all (every older draft) is fine too
+
+    def refused(mutate, code):
+        doc = copy.deepcopy(d)
+        mutate(doc)
+        issues = pg.validate(doc)
+        assert issues and all(i["structural"] for i in issues), issues
+        assert any(i["code"] == code and i["path"].endswith(".tags") for i in issues), issues
+
+    refused(lambda doc: doc["objects"][0].__setitem__("tags", [f"t{i}" for i in range(pg.MAX_TAGS + 1)]), "limit")  # too many
+    refused(lambda doc: doc["walls"][0].__setitem__("tags", ["x" * (pg.MAX_TAG_LEN + 1)]), "limit")  # one too long
+    refused(lambda doc: doc["rooms"][0].__setitem__("tags", ["   "]), "limit")  # blank after trimming
+    refused(lambda doc: doc["walls"][0].__setitem__("tags", ["ok", 7]), "type")  # a non-string entry
+    refused(lambda doc: doc["rooms"][0].__setitem__("tags", "מטבח"), "type")  # not a list
+    refused(lambda doc: doc["objects"][0].__setitem__("tags", [None]), "type")
+
+
+def test_the_schema_file_bounds_tags_as_the_validator_does():
+    defs = json.loads(SCHEMA.read_text(encoding="utf-8"))["$defs"]
+    assert defs["tags"] == {"type": "array", "maxItems": pg.MAX_TAGS, "items": {"type": "string", "minLength": 1, "maxLength": pg.MAX_TAG_LEN}}
+    for coll in ("wall", "object", "room"):
+        assert defs[coll]["properties"]["tags"] == {"$ref": "#/$defs/tags"}
+
+
+def test_tags_survive_a_re_crop_a_prune_and_a_candidate_edit():
+    """A re-crop (transform_crop), the prune after it and a candidate accept keep a wall's tags as they keep its kind:
+    nothing on those paths enumerates an item's fields and leaves tags behind."""
+    d = _doc()
+    d["walls"][0]["tags"] = ["חוץ צפוני"]
+    moved = pg.transform_crop(d, None, HALF)
+    assert moved["walls"][0]["tags"] == ["חוץ צפוני"] and moved["walls"][0]["kind"] == "exterior"
+    pruned, _ = pg.prune_unfit(pg.rebase(moved, HALF_TARGET, ASSET))
+    assert pruned["walls"][0]["tags"] == ["חוץ צפוני"]
+    assert "tags" in pg.EDITABLE_FIELDS["walls"] and "tags" in pg.EDITABLE_FIELDS["objects"]
+    cand = {"walls": [{**d["walls"][1], "id": "auto-w1", "source": "auto", "tags": []}]}
+    merged, _ = pg.merge_candidates(d, cand, ["auto-w1"], {"auto-w1": {"tags": ["מטבח"]}}, False)
+    assert next(w for w in merged["walls"] if w["id"] == "auto-w1")["tags"] == ["מטבח"]
