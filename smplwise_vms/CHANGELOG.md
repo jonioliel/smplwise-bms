@@ -1,5 +1,17 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.92 (pilot) — the circuit panel places new lamps directly
+- Owner report on 0.1.91 (2026-09-26): the circuits tool's "add / remove lamps" mode only toggled membership of a
+  lamp already placed on the map - clicking empty map space did nothing, so a new lamp had to be placed from the
+  library first and only then linked from the circuit panel. The panel now shows a lamp-type picker while that mode
+  is on; arming a type and clicking the map places a new lamp and adds it to the selected circuit in one step (one
+  undo step - `addCircuitLamp` in studio-ops.ts, composed from the existing `addObject` and `toggleCircuitMember`,
+  no document change). Clicking an existing lamp keeps toggling its membership as before.
+- Tests: node unit `addCircuitLamp` (places the object, links it, an unknown circuit id still places the object);
+  live `evidence-plan-studio-2` extended (arm a lamp type, click the map, the new lamp is on the circuit; the
+  existing click-to-toggle path still works; the test undoes its own placement so the suite's later exact-count
+  assertions are unaffected).
+
 ## 0.1.91 (pilot) — duplicate from the inspector; a double door picks its side
 - Owner reports on 0.1.90 (2026-09-26): a copy of an object was only reachable by Alt+drag, which is not
   discoverable, and a double door always opened to the same side of the wall. The object inspector gets a "שכפל"
