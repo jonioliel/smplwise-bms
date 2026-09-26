@@ -35,6 +35,7 @@ import { loadLibrary, lookup3dOf, lookupOf } from '../api/plan-catalog';
 import { buildScene, type Catalog3DLookup, type SceneAnchor, type SceneDescription, type SceneInput } from '../map/scene-builder';
 import type { ScenePreset } from '../map/scene-three'; // type only: the three chunk stays out of the entry bundle
 import type { PartSelectDetail } from '../map/sw-plan-3d';
+import { boundItemOf } from '../map/part-select';
 import { WEBGL_UNAVAILABLE_HE, webglAvailable } from '../map/webgl';
 import { demoSceneInput, demoSceneLabels } from '../fixtures/demo-3d';
 import { circuitAction } from '../map/circuit-action';
@@ -1176,7 +1177,9 @@ export class ExploreFloorMap extends LitElement {
    * confirmation) and is selected - when the action is blocked only the selection happens and the strip's disabled
    * button says why; the body of an entity opens that entity's card; a room toggles its selection; the floor clears.
    * While picking cameras (multi) a camera or a room toggles its picks and a lamp neither switches nor selects.
-   * Walls and connectors have nothing to open. */
+   * Everything else follows the rule shared with the history map and the event page (part-select.boundItemOf): a door or
+   * an object bound to an entity opens that entity's card, an unbound object is focused, walls, connectors and unbound
+   * openings leave the selection as it is. */
   private onPartSelect(e: CustomEvent<PartSelectDetail>) {
     const { id, kind } = e.detail;
     const b = this.bundle;
@@ -1187,39 +1190,35 @@ export class ExploreFloorMap extends LitElement {
       this.selectedZoneId = null;
       return;
     }
-    if (kind === 'camera' || kind === 'entity') {
+    if (this.multi && kind !== 'zone') {
       const a = b.anchors.find((x) => x.id === id);
-      if (this.multi) {
-        if (a?.resource_type === 'camera') this.togglePick(a.id);
-        return;
-      }
-      this.selectedZoneId = null;
-      this.focusedObjectId = null;
-      this.selectedId = id;
-      this.anchor = null; // no pin on screen: the card opens as a drawer
+      if (kind === 'camera' && a?.resource_type === 'camera') this.togglePick(a.id);
       return;
     }
     if (kind === 'object') {
-      if (this.multi) return;
-      const o = this.geometry?.objects.find((x) => x.id === id);
       const circuit = this.geometry?.circuits.find((k) => k.member_ids.includes(id));
       const s = circuit ? b.circuitStates[circuit.id] : undefined;
       if (s) {
         const act = circuitAction(s, { busy: !!this.action?.busy && this.action.entityId === s.entity_id, stale: this.screenState === 'stale' });
         if (act.spec && !act.blocked) this.trigger(s.entity_id, act.spec);
-      } else if (o?.anchor_ref) {
-        const a = b.anchors.find((x) => x.resource_type === o.anchor_ref!.resource_type && x.resource_id === o.anchor_ref!.resource_id);
-        if (a) {
-          this.selectedZoneId = null;
-          this.focusedObjectId = null;
-          this.selectedId = a.id;
-          this.anchor = null;
-          return;
-        }
+        this.close();
+        this.selectedZoneId = null;
+        this.focusedObjectId = id;
+        return;
       }
+    }
+    const t = kind === 'zone' ? null : boundItemOf({ id, kind }, this.geometry, b.anchors);
+    if (t && 'anchor' in t) {
+      this.selectedZoneId = null;
+      this.focusedObjectId = null;
+      this.selectedId = t.anchor;
+      this.anchor = null; // no pin on screen: the card opens as a drawer
+      return;
+    }
+    if (t) {
       this.close();
       this.selectedZoneId = null;
-      this.focusedObjectId = id;
+      this.focusedObjectId = t.object;
       return;
     }
     if (kind === 'zone') {
@@ -1236,7 +1235,8 @@ export class ExploreFloorMap extends LitElement {
   private render3d(b: MapBundle) {
     const s = this.scene3d();
     if (!s) return nothing;
-    const stamp = new Date().toISOString().slice(0, 10);
+    const now = new Date(); // the local date (toISOString is UTC: a day behind in the evening, a day ahead after midnight)
+    const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     return html`<sw-plan-3d data-floor-3d .description=${s.desc} .selectedId=${this.sel3d} .preset=${this.preset3d} .cameras=${s.cameras} .labels=${s.labels}
       exportName=${`plan-3d-${b.floorName}${this.levelFilter ? `-${this.levelFilter}` : ''}-${stamp}`} @part-select=${(e: CustomEvent<PartSelectDetail>) => this.onPartSelect(e)}></sw-plan-3d>`;
   }
@@ -1813,7 +1813,7 @@ export class ExploreFloorMap extends LitElement {
         ${a.resource_type === 'ha_entity' && b.permissions.edit && a.entity ? html`<sw-button variant="ghost" size="sm" icon="edit" data-rename @click=${() => (this.renaming = { id: a.id, value: a.label ?? '' })}>שנה שם</sw-button>` : nothing}
         ${b.permissions.edit ? html`<sw-button variant="ghost" size="sm" icon="edit" @click=${() => navigate(`/explore/floors/${b.floorId}/edit`)}>עריכה</sw-button>` : nothing}`;
     }
-    if (this.narrow || !this.anchor) {
+    if (this.narrow || !this.anchor || this.shows3d) { // over the 3D a 2D pin position means nothing: always the drawer
       return html`<sw-drawer open heading=${heading} subheading=${sub} @close=${this.close}>${body}<div slot="footer">${footer}</div></sw-drawer>`;
     }
     const w = this.stage?.clientWidth ?? 0;

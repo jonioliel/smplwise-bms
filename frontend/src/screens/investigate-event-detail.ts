@@ -27,6 +27,7 @@ import { loadLibrary, lookup3dOf, lookupOf } from '../api/plan-catalog';
 import { buildScene, type Catalog3DLookup, type SceneAnchor, type SceneDescription } from '../map/scene-builder';
 import type { ScenePreset } from '../map/scene-three';
 import type { PartSelectDetail } from '../map/sw-plan-3d';
+import { boundItemOf } from '../map/part-select';
 import { WEBGL_UNAVAILABLE_HE, webglAvailable } from '../map/webgl';
 
 const SOURCE_LABEL = { alertstream: 'אירוע NVR', recording: 'נגזר מהקלטה', system: 'מערכת', ha: 'חיישן HA' } as const;
@@ -513,21 +514,17 @@ export class InvestigateEventDetail extends LitElement {
     return desc;
   }
 
-  /** A click in the 3D only selects (no actions from the event page), with the history map's rule: a camera or an entity,
-   * or the entity an object or a door is bound to, becomes the selection; the floor (an empty click) clears it; any other
-   * part (a room, a wall, a connector, an unbound object) leaves it unchanged. */
+  /** A click in the 3D only selects (no actions from the event page), by the shared rule (part-select.boundItemOf): a
+   * camera or an entity, or the entity an object or a door is bound to, becomes the selection; the floor (an empty click)
+   * clears it; any other part (a room, a wall, a connector, an unbound object) leaves it unchanged. */
   private onPartSelect(e: CustomEvent<PartSelectDetail>) {
     const { id, kind } = e.detail;
     if (!id) {
       this.selected3d = null;
       return;
     }
-    let pick: string | null = kind === 'camera' || kind === 'entity' ? id : null;
-    if (kind === 'object' || kind === 'opening') {
-      const ref = (kind === 'object' ? this.geometry?.objects : this.geometry?.openings)?.find((o) => o.id === id)?.anchor_ref;
-      pick = ref ? this.bundle?.anchors.find((a) => a.resource_type === ref.resource_type && a.resource_id === ref.resource_id)?.id ?? null : null;
-    }
-    if (pick) this.selected3d = pick;
+    const t = kind ? boundItemOf({ id, kind }, this.geometry, this.bundle?.anchors ?? []) : null;
+    if (t && 'anchor' in t) this.selected3d = t.anchor;
   }
 
   /** The 3D is on screen. The 2D canvas stays mounted underneath (hidden), so its pan and zoom survive a round trip. */

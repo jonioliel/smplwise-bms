@@ -21,6 +21,11 @@ export interface PartHoverDetail {
   y: number;
 }
 
+/** A download name without whitespace or path characters (Hebrew letters stay): "plan-3d-אולם 3D" -> "plan-3d-אולם-3D". */
+function safeFileName(name: string): string {
+  return name.replace(/[\s/\\:*?"<>|]+/g, '-').replace(/-{2,}/g, '-').replace(/^-|-$/g, '') || 'plan-3d';
+}
+
 const KIND_HE: Record<string, string> = { wall: 'קיר', opening: 'פתח', object: 'עצם', connector: 'מחבר', camera: 'מצלמה', entity: 'ישות', zone: 'חדר', label: 'תווית', level: 'מפלס' };
 
 /**
@@ -138,7 +143,7 @@ export class SwPlan3d extends LitElement {
     .toast {
       position: absolute;
       inset-block-start: 12px;
-      inset-inline-start: 50%;
+      left: 50%; /* physical: centred whatever the direction */
       transform: translateX(-50%);
       z-index: var(--sw-z-map-ui);
       background: var(--sw-surface);
@@ -276,7 +281,7 @@ export class SwPlan3d extends LitElement {
       const url = URL.createObjectURL(new Blob([JSON.stringify(json)], { type: 'model/gltf+json' }));
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${this.exportName}.gltf`;
+      a.download = `${safeFileName(this.exportName)}.gltf`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (err) {

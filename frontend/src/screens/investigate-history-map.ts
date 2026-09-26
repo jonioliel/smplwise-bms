@@ -31,6 +31,7 @@ import { loadLibrary, lookup3dOf, lookupOf } from '../api/plan-catalog';
 import { buildScene, type Catalog3DLookup, type SceneAnchor, type SceneDescription } from '../map/scene-builder';
 import type { ScenePreset } from '../map/scene-three';
 import type { PartSelectDetail } from '../map/sw-plan-3d';
+import { boundItemOf } from '../map/part-select';
 import { WEBGL_UNAVAILABLE_HE, webglAvailable } from '../map/webgl';
 
 const NEAR_MIN = 10;
@@ -599,22 +600,19 @@ export class InvestigateHistoryMap extends LitElement {
     this.view3d = true;
   }
 
-  /** A click in the 3D of the past: a camera or an entity becomes the selected pin (the panel follows); nothing is actuated,
-   * the history offers no actions. The body of an entity - an object or a door bound to it (a lamp to its light, a door
-   * to its lock) - selects that entity. The floor clears the selection; other parts leave it. */
+  /** A click in the 3D of the past: the shared rule (part-select.boundItemOf) - a camera or an entity, or the entity a
+   * door or an object is bound to (a lamp to its light, a door to its lock), becomes the selected pin (the panel follows);
+   * nothing is actuated, the history offers no actions. The floor clears the selection; an unbound object and every other
+   * part leave it (the history has no object selection). */
   private onPartSelect(e: CustomEvent<PartSelectDetail>) {
     const { id, kind } = e.detail;
     if (!id) {
       this.selectedId = null;
       return;
     }
-    let pick: string | null = kind === 'camera' || kind === 'entity' ? id : null;
-    if (kind === 'object' || kind === 'opening') {
-      const ref = (kind === 'object' ? this.geometry?.objects : this.geometry?.openings)?.find((o) => o.id === id)?.anchor_ref;
-      pick = ref ? this.bundle?.anchors.find((a) => a.resource_type === ref.resource_type && a.resource_id === ref.resource_id)?.id ?? null : null;
-    }
-    if (!pick) return;
-    this.selectedId = pick;
+    const t = kind ? boundItemOf({ id, kind }, this.geometry, this.bundle?.anchors ?? []) : null;
+    if (!t || !('anchor' in t)) return;
+    this.selectedId = t.anchor;
     this.frameFailed = false;
   }
 

@@ -157,6 +157,8 @@ export class SceneView {
     canvas.addEventListener('pointerup', this.onUp);
     canvas.addEventListener('pointermove', this.onMove);
     canvas.addEventListener('pointerleave', this.onLeave);
+    canvas.addEventListener('pointercancel', this.onCancel);
+    canvas.addEventListener('webglcontextrestored', this.invalidate); // three restores its state; one frame redraws it
     this.resize();
   }
 
@@ -432,6 +434,11 @@ export class SceneView {
     this.opts.onSelect(this.pick(e.clientX, e.clientY));
   };
 
+  /** The browser took the pointer (a scroll, a system gesture): no click follows. */
+  private onCancel = (e: PointerEvent) => {
+    if (this.pressed?.id === e.pointerId) this.pressed = null;
+  };
+
   private onMove = (e: PointerEvent) => {
     if (this.pressed || e.pointerType === 'touch' || !e.isPrimary) return;
     const hit = this.pick(e.clientX, e.clientY);
@@ -521,6 +528,8 @@ export class SceneView {
     canvas.removeEventListener('pointerup', this.onUp);
     canvas.removeEventListener('pointermove', this.onMove);
     canvas.removeEventListener('pointerleave', this.onLeave);
+    canvas.removeEventListener('pointercancel', this.onCancel);
+    canvas.removeEventListener('webglcontextrestored', this.invalidate);
     this.controls.removeEventListener('change', this.invalidate);
     this.controls.dispose();
     this.clear();
