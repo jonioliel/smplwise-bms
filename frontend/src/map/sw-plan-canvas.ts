@@ -209,6 +209,9 @@ export class SwPlanCanvas extends LitElement {
   @property({ type: Boolean }) hideStructure = false;
   @property({ type: Boolean }) hideObjects = false;
   @property({ type: Boolean }) hideConnectors = false;
+  /** The viewer's "plan picture" switch (owner request 2026-09-26): the raster of `imageUrl` is not drawn and the
+   * structure sits on a plain sheet of the plan's size instead. Without an `imageUrl` there is nothing to hide. */
+  @property({ type: Boolean }) hideImage = false;
   /** T087 (ruling R-P4-2): a camera cone is cut by the walls of its level when the document has any; off in the
    * candidates overlay of the editor is not needed - the editor keeps it on, so what is drawn is what viewers see. */
   @property({ type: Boolean }) clipCoverage = true;
@@ -302,6 +305,13 @@ export class SwPlanCanvas extends LitElement {
     }
     .viewport.boxing {
       cursor: crosshair;
+    }
+    /* the plan picture hidden: a plain sheet of the plan's size on the map ground, edged by a hairline at every zoom */
+    rect.sheet {
+      fill: var(--sw-surface);
+      stroke: var(--sw-border-strong);
+      stroke-width: 1;
+      vector-effect: non-scaling-stroke;
     }
     rect.box {
       fill: color-mix(in srgb, var(--sw-accent) 14%, transparent);
@@ -1924,7 +1934,11 @@ export class SwPlanCanvas extends LitElement {
         <svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="תוכנית קומה">
           <defs><marker id="sw-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path class="carrowhead" d="M0 0L10 5L0 10z" /></marker></defs>
           <g transform="translate(${this.tx} ${this.ty}) scale(${this.scale})">
-            ${this.imageUrl ? svg`<image href=${this.imageUrl} x="0" y="0" width=${this.planWidth} height=${this.planHeight} preserveAspectRatio="none" />` : nothing}
+            ${this.imageUrl && !this.hideImage
+              ? svg`<image data-plan-image href=${this.imageUrl} x="0" y="0" width=${this.planWidth} height=${this.planHeight} preserveAspectRatio="none" />`
+              : this.imageUrl
+                ? svg`<rect class="sheet" data-plan-sheet x="0" y="0" width=${this.planWidth} height=${this.planHeight} />`
+                : nothing}
             ${this.plan ?? nothing}
             ${this.zones.map((z) => this.renderZone(z))}
             ${this.renderStructure()}
