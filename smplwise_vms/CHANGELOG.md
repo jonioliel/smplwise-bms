@@ -1,5 +1,31 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.96 (pilot) — multi-select of walls, objects and zones
+- Owner request (2026-09-26): select several items at once and act on them together - the first of three planned
+  pieces (tags and bulk reassignment, then grid and alignment tools, follow). Shift+click toggles a wall, object
+  or zone into or out of the selection; a marquee drag on empty canvas selects every fully enclosed item; Ctrl+A
+  selects everything visible under the active level filter. Bulk move, delete and duplicate (objects only) each
+  commit as one document edit (one undo step for walls and objects); the canvas's existing multi-highlight
+  rendering, already used for groups and circuits, is reused rather than a new visual language.
+- Space+drag pans the plan (over the bare canvas, over items, over pins) without disturbing keyboard focus on a
+  button or field; the select tool's left-drag now draws the marquee instead of panning, so this is the way to
+  pan without a middle mouse button.
+- Reviewed twice at Opus tier with two fix rounds given how foundational this is: fixed a real concurrency bug (a
+  second group drag while the previous drop's zone saves were still in flight could silently lose or corrupt the
+  move - refused now, with the zone saves sent together and a 15 s timeout so a hung request cannot block bulk
+  actions indefinitely); a level-filter data-loss risk (Ctrl+A or the marquee under a filter sweeping in zones
+  from other levels, including a correction to the fix itself once review showed an unset zone level had to count
+  as the default level, matching the rest of the codebase, or nearly every zone stayed exposed); a broken drag on
+  hybrid touch+mouse laptops; and quadratic-time hot paths that could matter on a large plan.
+- A partial failure in a bulk zone move or delete is now reported (how many of N did not save) and the affected
+  zones stay selected for a retry, instead of failing silently.
+- Found along the way, confirmed unrelated to this change (no publish or backend code touched here, reproduces on
+  the unmodified prior release too): a large object group present in a draft can go missing from the published
+  document. A real, separate publish-path defect - queued as its own task, not fixed in this release.
+- Tests: node unit (pure multi-selection operations, composed from the existing single-item ones); live coverage
+  across five spec files for shift-click, the marquee, Ctrl+A under a filter, bulk move/delete/duplicate, the
+  concurrency guard, partial-failure reporting, panning and hybrid-touch dragging.
+
 ## 0.1.95 (pilot) — the Lovelace card finds its own add-on
 - Owner report (2026-09-26, with screenshots): adding the SMPLWISE card to a real Home Assistant dashboard failed
   with "[object Object]" and no visual editor. Root cause was worse than a hardcoded add-on slug guess: current
