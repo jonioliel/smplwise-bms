@@ -86,7 +86,9 @@ test.describe('investigation cases (SW A)', () => {
     if (clip.preservation === 'nvr_only') {
       await clipRow.locator('[data-item-preserve]').click();
       await expect(clipRow).toHaveAttribute('data-preservation', /preserving|preserved/, { timeout: 20000 });
-      await expect.poll(async () => (await caseOf()).items.find((i) => i.kind === 'clip')?.preservation, { timeout: 180000, intervals: [5000] }).toMatch(/preserved|unknown|nvr_only/);
+      // real footage export (remux + copy off a live NVR) took about 4:49 in the lab (2026-09-26, round 10) against
+      // this test's original 180 s bound tuned for the demo backend's near-instant fake job; 480 s leaves headroom
+      await expect.poll(async () => (await caseOf()).items.find((i) => i.kind === 'clip')?.preservation, { timeout: 480000, intervals: [5000] }).toMatch(/preserved|unknown|nvr_only/);
       const finalClip = (await caseOf()).items.find((i) => i.kind === 'clip')!;
       testInfo.annotations.push({ type: 'preserve', description: `clip after the export job: ${finalClip.preservation}` });
       expect(finalClip.preservation, 'a finished copy is preserved; a failed job falls back to the NVR-only truth').not.toBe('missing');

@@ -25,7 +25,12 @@ test.describe('detection zones from the NVR (SW A)', () => {
     expect((await (await request.get(`/api/v1/cameras/${cam.id}/zones`)).json()).cached).toBe(true);
     await page.goto(`/#/live/cameras/${cam.id}`);
     await page.waitForSelector('sw-app');
-    const card = page.locator('live-camera [data-zones]');
+    const screen = page.locator('live-camera');
+    // round 4 (2.6) moved detection zones under the collapsed "הגדרות מצלמה" accordion, its own "אזורי זיהוי ומסכות"
+    // row, and dropped the old [data-zones] wrapper this test looked for (round 10, 2026-09-26)
+    await screen.locator('[data-camera-settings] summary').first().click();
+    await screen.locator('[data-acc-zones] summary').first().click();
+    const card = screen.locator('[data-acc-zones]');
     await expect(card.locator('[data-zones-loaded]')).toBeVisible({ timeout: 30_000 });
     await expect(card.locator('[data-zones-note]')).toContainText('קריאה בלבד');
     await expect(card.locator('[data-zone-layer="motion"]')).toContainText('תנועה');

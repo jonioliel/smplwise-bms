@@ -89,6 +89,9 @@ test.describe('NVR system writes (SW A)', () => {
       expect(o0.can_write).toBe(true);
       await page.goto(`/?design=a#/live/cameras/${cam.id}`);
       const screen = page.locator('live-camera');
+      // round 4 (2.6) moved OSD under the collapsed "הגדרות מצלמה" accordion, its own "OSD" row (round 10, 2026-09-26)
+      await screen.locator('[data-camera-settings] summary').first().click();
+      await screen.locator('[data-acc-osd] summary').first().click();
       await expect(screen.locator('[data-osd]')).toBeVisible({ timeout: 60000 });
       await expect(screen.locator('[data-osd-nvr-name]')).toHaveText(o0.nvr_name ?? '—');
       await page.screenshot({ path: path.join(OUT, `osd-${testInfo.project.name}.png`), fullPage: true });

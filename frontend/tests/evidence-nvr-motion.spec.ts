@@ -22,6 +22,13 @@ test.describe('NVR motion grid editor (SW A)', () => {
     // without the permission: no edit button, PUT refused
     await page.goto(`/?design=a#/live/cameras/${cam.id}`);
     const screen = page.locator('live-camera');
+    // round 4 (2.6) collapsed everything below the video into "הגדרות מצלמה", each setting its own collapsed row
+    // (round 10, 2026-09-26: this test predates that and looked for data-zones-loaded still visible on arrival)
+    const openZones = async () => {
+      await screen.locator('[data-camera-settings] summary').first().click();
+      await screen.locator('[data-acc-zones] summary').first().click();
+    };
+    await openZones();
     await expect(screen.locator('[data-zones-loaded]')).toBeVisible({ timeout: 90000 });
     await expect(screen.locator('[data-motion-edit]')).toBeVisible({ timeout: 60000 });
     // (the 403 for users without the permission is covered by the backend tests; the dev identity is the system administrator)
@@ -31,6 +38,7 @@ test.describe('NVR motion grid editor (SW A)', () => {
     const b = await (await request.post('/api/v1/access/bindings', { data: { subject_kind: 'user', subject_id: me.user.id, role_id: role.id, scope_type: 'installation', scope_id: '*' } })).json();
     try {
       await page.reload();
+      await openZones(); // a reload is a fresh page load: the accordion is collapsed again
       await expect(screen.locator('[data-motion-edit]')).toBeVisible({ timeout: 90000 });
       await screen.locator('[data-motion-edit]').click();
       const editor = screen.locator('[data-motion-editor]');

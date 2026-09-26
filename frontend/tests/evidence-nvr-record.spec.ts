@@ -21,7 +21,13 @@ test.describe('NVR manual recording (SW A)', () => {
     expect(st0.track_id, 'main track known from discovery').toBeTruthy();
     await page.goto(`/?design=a#/live/cameras/${cam.id}`);
     const screen = page.locator('live-camera');
+    // round 4 (2.6) collapsed everything below the video into "הגדרות מצלמה", each setting its own collapsed row
+    // (round 10, 2026-09-26: this test predates that and looked for data-caps/data-manual-record still visible on
+    // arrival - data-caps lives in the "פרטים" row, data-manual-record in its own "הקלטה ידנית" row)
+    await screen.locator('[data-camera-settings] summary').first().click();
+    await screen.locator('[data-acc-details] summary').first().click();
     await expect(screen.locator('[data-caps]')).toBeVisible({ timeout: 60000 });
+    await screen.locator('[data-acc-record] summary').first().click();
     await expect(screen.locator('[data-manual-record]')).toBeVisible({ timeout: 60000 });
 
     const me = await (await request.get('/api/v1/me')).json();
@@ -29,6 +35,8 @@ test.describe('NVR manual recording (SW A)', () => {
     const b = await (await request.post('/api/v1/access/bindings', { data: { subject_kind: 'user', subject_id: me.user.id, role_id: role.id, scope_type: 'installation', scope_id: '*' } })).json();
     try {
       await page.reload();
+      await screen.locator('[data-camera-settings] summary').first().click(); // a reload collapses the accordion again
+      await screen.locator('[data-acc-record] summary').first().click();
       const ctl = screen.locator('[data-manual-record]');
       await expect(ctl).toBeVisible({ timeout: 60000 });
       await expect(ctl).toHaveAttribute('data-active', 'no');
