@@ -1,5 +1,25 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.95 (pilot) — the Lovelace card finds its own add-on
+- Owner report (2026-09-26, with screenshots): adding the SMPLWISE card to a real Home Assistant dashboard failed
+  with "[object Object]" and no visual editor. Root cause was worse than a hardcoded add-on slug guess: current
+  Home Assistant refuses the REST API path the card used to reach the Supervisor for every call except admin logs
+  and backups, so the card would have failed on any real installation regardless of the slug.
+- The card now discovers its own add-on - a manual override, the add-on's own sidebar panel, then the Supervisor's
+  add-on list - over the same websocket API Home Assistant's own frontend uses; shows a readable reason for every
+  failure shape instead of an unhelpful object dump; renews an expiring Ingress session when the card is
+  re-attached to the page or its keep-alive fails, instead of getting stuck at a 401 after 15 minutes away; and
+  ships a real visual editor (view, camera, floor, height, title) instead of falling back to a raw YAML box.
+- Bridge integration bumped to 0.2.3 (from 0.2.1). Not fixed here, and lower severity (a config-flow form default
+  a person overrides during setup, not a silent runtime dependency): `const.py`'s `DEFAULT_ADDON_URL` carries the
+  same repository-hash-prefixed placeholder; the add-on's own setup already announces its real hostname, so this
+  default is never actually reached in practice.
+- Tests: the card is now exercised by a Node script that loads and runs it against a fake `hass` (11 cases,
+  wired into `test_lovelace_card.py` via a Node-discovery fallback), not only asserted against by source text.
+  Verified: node syntax check, the card's own test file, the full backend suite (373 passed). Not verified: a real
+  Home Assistant dashboard, Supervisor, and Ingress session - the owner needs to update the integration and try
+  the card again to confirm.
+
 ## 0.1.94 (pilot) — hide the plan background image
 - Owner request (2026-09-26): after building the structure on a map, hide the loaded plan image (the scanned PDF
   or photo) and see just the drawn structure, cleanly. A new toggle on the live floor map's existing "שכבות
