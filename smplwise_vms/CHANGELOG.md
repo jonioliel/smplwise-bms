@@ -1,5 +1,21 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.93 (pilot) — levels can be edited and deleted; a connector no longer guesses its level
+- Owner reports on 0.1.92 (2026-09-26): a level, once created, could not be renamed, have its floor or ceiling
+  height changed, or be deleted - `patchLevel`/`removeLevel`/`levelUsage` already existed in studio-ops.ts,
+  unused by any screen. The level chip bar gets a small edit button per chip, opening a dialog shared with
+  "add level": rename, change elevation/ceiling, make it the default; delete refuses with a readable reason
+  when the level is the default or still holds items (the exact count), and otherwise removes it (undo-able).
+- A freshly drawn connector (stairs, ramp, elevator, ladder) on a floor that already has a second level used to
+  silently pair with that sibling level - confusing when the actual intent was a cross-floor link instead (the
+  cross-floor "קשר לקומה" link already overrides this correctly; the auto-guess only caused confusion before a
+  person got there). A new connector now always starts unlinked, and its own label reads "לא נבחר" (not chosen)
+  rather than the cross-floor wording, until a level or a floor is picked.
+- Tests: node unit (existing coverage for the three ops functions); live evidence-plan-studio-2 extended -
+  rename and re-height a level with the change reflected in the draft, the chip and the 3D after publish;
+  duplicate elevation refused; delete refused with the item count, then allowed once emptied; a fresh connector
+  starts unlinked and its wording says so.
+
 ## 0.1.92 (pilot) — the circuit panel places new lamps directly
 - Owner report on 0.1.91 (2026-09-26): the circuits tool's "add / remove lamps" mode only toggled membership of a
   lamp already placed on the map - clicking empty map space did nothing, so a new lamp had to be placed from the
