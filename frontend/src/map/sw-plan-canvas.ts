@@ -108,6 +108,9 @@ export function polygonCentroid(poly: { x: number; y: number }[]) {
 }
 
 const ptsAttr = (ps: Pt[]): string => ps.map((p) => `${p[0]},${p[1]}`).join(' ');
+/** Shift held on a click, a key or a press: the select events carry it as `add` (T085 multi-select: Shift+click adds an
+ * item to the selection or takes it out). */
+const shiftHeld = (e: Event): boolean => (e as MouseEvent | KeyboardEvent).shiftKey === true;
 /** Same anchors by value: the maps hand a fresh positions object on every render, the primitives are rebuilt only when
  * an anchor actually moved. */
 const sameAnchors = (a: Record<string, AnchorPosition>, b: Record<string, AnchorPosition>): boolean => {
@@ -124,9 +127,10 @@ const sameAnchors = (a: Record<string, AnchorPosition>, b: Record<string, Anchor
 /** A structure drag (Plan Studio): a wall corner (`index`), a whole wall (its body, once selected - hotfix 0.1.87), an
  * opening, a label, an object (moved, rotated, stretched or duplicated with Alt) or a connector corner; the pointer now
  * (x, y) and where the press started (sx, sy), in normalized plan space - so an item keeps its offset from the pointer
- * instead of jumping - and the Shift / Alt keys held now. */
+ * instead of jumping - and the Shift / Alt keys held now. A zone (`zone`) is dragged this way only as a member of a
+ * multi-selection (`multiDrag`); a single selected zone keeps its own body drag and `zone-edit`. */
 export interface GeomDragDetail {
-  kind: 'vertex' | 'wall' | 'opening' | 'label' | 'object' | 'object-rotate' | 'object-stretch' | 'object-duplicate' | 'connector-vertex';
+  kind: 'vertex' | 'wall' | 'opening' | 'label' | 'object' | 'object-rotate' | 'object-stretch' | 'object-duplicate' | 'connector-vertex' | 'zone';
   id: string;
   /** A wall corner, a stretch edge (0 front, 1 right, 2 back, 3 left) or a connector corner. */
   index: number;
@@ -193,8 +197,18 @@ export class SwPlanCanvas extends LitElement {
   /** Items with a validation error, drawn in red (editor). */
   @property({ attribute: false }) issueIds: string[] = [];
   @property() selectedGeomId: string | null = null;
-  /** Items drawn selected besides selectedGeomId (the members of a selected group). */
+  /** Items drawn selected besides selectedGeomId (the members of a selected group, the lamps of a circuit, the members of
+   * the editor's multi-selection - walls, objects and zones). A zone in it is drawn selected, without corner handles. */
   @property({ attribute: false }) highlightIds: string[] = [];
+  /** T085 multi-select: the highlighted items are the editor's multi-selection, so a press on any of them drags - a
+   * highlighted wall by its body, a highlighted zone by its fill (`geom-drag-*` with kind `zone`), an object as always -
+   * and the editor moves the whole selection by that drag. */
+  @property({ type: Boolean }) multiDrag = false;
+  /** T085 multi-select (the editor's select tool): a primary-button mouse or pen drag that starts on the plan itself -
+   * not on a pin, an object, a selected wall or zone, or a handle - draws a rectangle and emits `geom-box` {x0, y0, x1,
+   * y1 (normalized plan space), add (Shift held at the press)}; the editor picks what lies inside. A finger still pans,
+   * as do the middle button and the wheel's zoom; a plain click still reaches the plan as before. */
+  @property({ type: Boolean }) marquee = false;
   /** T085: the library shapes (symbol, colour) the object layer draws with; without it every object is a plain box. */
   @property({ attribute: false }) catalog: CatalogLookup | null = null;
   /** T085: the live anchors of the floor ("<type>:<id>" -> position): a bound object draws on its anchor, not where the
@@ -255,6 +269,41 @@ export class SwPlanCanvas extends LitElement {
   private hoverEvent: { x: number; y: number; shift: boolean; item: boolean } | null = null;
   @state() private box: { x0: number; y0: number; x1: number; y1: number } | null = null;
   private boxStart: { x: number; y: number } | null = null;
+  /** The rectangle in progress is the editor's marquee (`geom-box`), not the pin picker's (`box-select`); `add`: Shift was
+   * held when it started. */
+  private boxGeom: { add: boolean } | null = null;
+  /** Marquee mode with Space held: a drag pans the plan instead - over the bare plan and over items alike - the Figma /
+   * PowerPoint convention, and the only pan a trackpad has there (no middle button; the wheel zooms). */
+  @state() private spacePan = false;
+  private onSpaceKey = (e: KeyboardEvent) => {
+    if (e.code !== 'Space' && e.key !== ' ') return;
+    if (e.type === 'keyup') {
+      if (this.spacePan) {
+        this.spacePan = false;
+        e.preventDefault(); // the Space that panned never presses a focused button on its release
+      }
+      return;
+    }
+    if (!this.marquee || e.ctrlKey || e.metaKey || e.altKey) return;
+    // Only with the focus on the plan itself (a zone of this canvas, say) or on nothing in particular (the page body):
+    // a focused button, field, chip or link anywhere else keeps its own Space - a keyboard user presses a button with
+    // Space in the select tool as anywhere (review of T085, R3)
+    const path = e.composedPath();
+    const t = path[0];
+    // a control inside the canvas too: a zoom button, or a zone focused with Tab (its own Space selects it)
+    const control = t instanceof Element && !!t.closest('button, input, select, textarea, a[href], [contenteditable="true"], [contenteditable=""], [role="button"], [role="slider"]');
+    const onPlan = (path.includes(this) && !control) || t === document.body || t === document.documentElement || t === window || t === document;
+    if (!onPlan) return;
+    e.preventDefault(); // no page scroll
+    this.spacePan = true;
+  };
+  private onSpaceBlur = () => (this.spacePan = false);
+  /** highlightIds as a set, rebuilt only when the array changes (looked up per zone and per wall on every render). */
+  private hlCache: { ids: string[]; set: Set<string> } | null = null;
+  private get highlightSet(): Set<string> {
+    if (this.hlCache?.ids !== this.highlightIds) this.hlCache = { ids: this.highlightIds, set: new Set(this.highlightIds) };
+    return this.hlCache.set;
+  }
 
   @state() private scale = 1;
   @state() private tx = 0;
@@ -305,6 +354,9 @@ export class SwPlanCanvas extends LitElement {
     }
     .viewport.boxing {
       cursor: crosshair;
+    }
+    .viewport.marquee:not(.dragging):not(.spacepan) {
+      cursor: default; /* a drag on the plan draws the selection rectangle here, it does not pan (T085 multi-select) */
     }
     /* the plan picture hidden: a plain sheet of the plan's size on the map ground, edged by a hairline at every zoom */
     rect.sheet {
@@ -778,10 +830,17 @@ export class SwPlanCanvas extends LitElement {
       if (!this.fitted) this.fit();
     });
     this.resizeObserver.observe(this);
+    window.addEventListener('keydown', this.onSpaceKey);
+    window.addEventListener('keyup', this.onSpaceKey);
+    window.addEventListener('blur', this.onSpaceBlur);
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    window.removeEventListener('keydown', this.onSpaceKey);
+    window.removeEventListener('keyup', this.onSpaceKey);
+    window.removeEventListener('blur', this.onSpaceBlur);
+    this.spacePan = false;
     this.resizeObserver?.disconnect();
     cancelAnimationFrame(this.hoverFrame);
     this.hoverFrame = 0; // a reconnected canvas must not wait for a frame that was cancelled
@@ -908,7 +967,7 @@ export class SwPlanCanvas extends LitElement {
 
   private onMarkerPointerDown = (m: PlanMarker, e: PointerEvent) => {
     // while placing / drawing the press belongs to the plan, as on a zone: a library item goes onto an anchor's spot (T085)
-    if (!this.editable || e.button !== 0 || this.placing) return;
+    if (!this.editable || e.button !== 0 || this.placing || this.spacePan) return; // Space + drag pans, over a pin too
     e.stopPropagation();
     e.preventDefault();
     this.dragging = { id: m.id, x: m.x, y: m.y };
@@ -943,10 +1002,14 @@ export class SwPlanCanvas extends LitElement {
     // resulting `click` to the viewport and markers would never receive it.
     this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     this.dragMoved = false;
+    if (e.button === 1) e.preventDefault(); // the middle button pans the plan: no browser autoscroll on top of it
     if (this.pointers.size === 1) {
-      if (this.boxSelect && e.button === 0 && !e.shiftKey && !this.editable && !this.placing) {
+      const pins = this.boxSelect && e.button === 0 && !e.shiftKey && !this.editable && !this.placing;
+      const geom = this.marquee && !this.spacePan && e.button === 0 && e.pointerType !== 'touch' && !this.placing;
+      if (pins || geom) {
         const rect = this.getBoundingClientRect();
         this.boxStart = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+        this.boxGeom = geom ? { add: e.shiftKey } : null;
         this.lastPan = null;
         return;
       }
@@ -956,6 +1019,7 @@ export class SwPlanCanvas extends LitElement {
       this.lastPinchDist = this.pinchDistance();
       this.lastPan = null;
       this.boxStart = null;
+      this.boxGeom = null;
       this.box = null;
     }
   };
@@ -1003,9 +1067,15 @@ export class SwPlanCanvas extends LitElement {
     this.pointers.delete(e.pointerId);
     if (this.boxStart && this.pointers.size === 0) {
       const b = this.box;
+      const geom = this.boxGeom;
       this.boxStart = null;
+      this.boxGeom = null;
       this.box = null;
-      if (b && b.x1 - b.x0 >= 4 && b.y1 - b.y0 >= 4) {
+      if (b && geom && b.x1 - b.x0 >= 4 && b.y1 - b.y0 >= 4) {
+        const p0 = this.toPlan(b.x0, b.y0);
+        const p1 = this.toPlan(b.x1, b.y1);
+        this.dispatchEvent(new CustomEvent('geom-box', { detail: { x0: p0.x, y0: p0.y, x1: p1.x, y1: p1.y, add: geom.add }, bubbles: true, composed: true }));
+      } else if (b && b.x1 - b.x0 >= 4 && b.y1 - b.y0 >= 4) {
         const ids = this.markers.filter((m) => { const p = this.toScreen(m.x, m.y); return p.x >= b.x0 && p.x <= b.x1 && p.y >= b.y0 && p.y <= b.y1; }).map((m) => m.id);
         this.dispatchEvent(new CustomEvent<{ ids: string[] }>('box-select', { detail: { ids }, bubbles: true, composed: true }));
       }
@@ -1036,7 +1106,7 @@ export class SwPlanCanvas extends LitElement {
   private selectZone(z: PlanZone, e: Event) {
     if (this.dragMoved || this.placing) return; // while placing / drawing the click belongs to the plan
     e.stopPropagation();
-    this.dispatchEvent(new CustomEvent('zone-select', { detail: { id: z.id }, bubbles: true, composed: true }));
+    this.dispatchEvent(new CustomEvent('zone-select', { detail: { id: z.id, add: shiftHeld(e) }, bubbles: true, composed: true }));
   }
 
   /** Drag a corner of the selected zone (or, with `insert`, a new corner created at an edge midpoint). */
@@ -1091,8 +1161,14 @@ export class SwPlanCanvas extends LitElement {
 
   /** Hotfix 0.1.87: a press on the selected zone's body and a drag move the whole polygon (a live `zoneDraft` while the
    * pointer moves, one `zone-edit` on release - the same save path as a corner edit). A press without a move keeps the
-   * zone selected. */
+   * zone selected. A zone in a multi-selection (`multiDrag`, in `highlightIds`) is dragged as one of its members: the
+   * editor moves the whole selection (T085). */
   private onZoneBodyPointerDown(z: PlanZone, e: PointerEvent) {
+    if (this.spacePan) return; // Space + drag pans, over a zone too
+    if (this.multiDrag && this.editable && !z.candidate && !this.placing && this.pointers.size === 0 && this.highlightSet.has(z.id)) {
+      this.onGeomDragStart('zone', z.id, 0, e);
+      return;
+    }
     if (!this.editable || e.button !== 0 || this.placing || z.candidate || this.selectedZoneId !== z.id || this.pointers.size > 0) return;
     e.stopPropagation(); // the press is the zone's: no pan
     e.preventDefault();
@@ -1118,9 +1194,13 @@ export class SwPlanCanvas extends LitElement {
       this.dragMoved = true; // swallow the trailing click so the zone stays selected
       setTimeout(() => (this.dragMoved = false), 0);
     };
+    const add = e.shiftKey;
     const up = () => {
       end();
       if (moved && poly.some((q, i) => q.x !== z.polygon[i].x || q.y !== z.polygon[i].y)) this.emitZoneEdit(z, poly);
+      // Shift + a press without a move: the click is swallowed above, so say it here - the select tool takes the zone out
+      // of the selection or adds the next item to it, as Shift+click does on a wall or an object (T085)
+      else if (!moved && add) this.dispatchEvent(new CustomEvent('zone-select', { detail: { id: z.id, add: true }, bubbles: true, composed: true }));
     };
     const cancel = () => end(); // an interrupted gesture changes nothing
     this.viewport.addEventListener('pointermove', move);
@@ -1155,14 +1235,16 @@ export class SwPlanCanvas extends LitElement {
     const live = this.zoneDraft?.id === z.id ? this.zoneDraft.polygon : z.polygon;
     const pts = live.map((p) => `${(p.x * this.planWidth).toFixed(1)},${(p.y * this.planHeight).toFixed(1)}`).join(' ');
     const c = polygonCentroid(live);
-    const selected = this.selectedZoneId === z.id;
+    const own = this.selectedZoneId === z.id; // the one selected zone: its corner handles and its own body drag
+    const inMulti = !own && this.highlightSet.has(z.id); // a member of a multi-selection: drawn selected, no handles
+    const selected = own || inMulti;
     const lw = Math.max(36, z.name.length * 7 + 18);
     const xs = live.map((p) => p.x);
     const ys = live.map((p) => p.y);
     const screenW = (Math.max(...xs) - Math.min(...xs)) * this.planWidth * this.scale;
     const screenH = (Math.max(...ys) - Math.min(...ys)) * this.planHeight * this.scale;
     const labelFits = selected || z.candidate || (screenW >= lw + 12 && screenH >= 30);
-    const movable = this.editable && selected && !z.candidate && !this.placing;
+    const movable = this.editable && (own || (inMulti && this.multiDrag)) && !z.candidate && !this.placing;
     return svg`
       <g class="zone ${selected ? 'selected' : ''} ${z.candidate ? 'candidate' : ''} ${movable ? 'movable' : ''}" style="--zc:${z.color}" role="button" tabindex="0" aria-label=${z.name} aria-pressed=${selected}
          data-zone=${z.id}
@@ -1174,7 +1256,7 @@ export class SwPlanCanvas extends LitElement {
               <text class="zl" y="3.5">${z.name}</text>
             </g>`
           : nothing}
-        ${this.editable && selected && !z.candidate ? this.renderZoneHandles(z, live) : nothing}
+        ${this.editable && own && !z.candidate ? this.renderZoneHandles(z, live) : nothing}
       </g>`;
   }
 
@@ -1519,7 +1601,7 @@ export class SwPlanCanvas extends LitElement {
     if (!doc) return nothing;
     const inv = 1 / this.scale;
     const issues = new Set(this.issueIds);
-    const marked = new Set(this.highlightIds);
+    const marked = this.highlightSet;
     const shown = this.primitives(doc).filter((p) => (p.kind === 'object' ? !this.hideObjects : p.kind === 'connector' ? !this.hideConnectors : !this.hideStructure));
     // --inv: the CSS rules keep their outline and glow widths constant on screen, like the attribute widths below
     return svg`<g class="structure" data-structure style=${`--inv: ${inv}`}>${shown.map((p) => this.renderPrimitive(p, inv, issues, marked))}</g>`;
@@ -1584,7 +1666,7 @@ export class SwPlanCanvas extends LitElement {
   private pickGeom(id: string, e: Event) {
     e.stopPropagation();
     if (this.dragMoved) return;
-    this.dispatchEvent(new CustomEvent('geom-select', { detail: { id, kind: 'wall' }, bubbles: true, composed: true }));
+    this.dispatchEvent(new CustomEvent('geom-select', { detail: { id, kind: 'wall', add: shiftHeld(e) }, bubbles: true, composed: true }));
   }
 
   private pickConnector(id: string, e: Event) {
@@ -1635,12 +1717,14 @@ export class SwPlanCanvas extends LitElement {
   private touchPick(id: string, kind: 'object' | 'opening' | 'label', e: Event) {
     e.stopPropagation();
     if (this.dragMoved) return;
-    this.dispatchEvent(new CustomEvent('geom-select', { detail: { id, kind }, bubbles: true, composed: true }));
+    this.dispatchEvent(new CustomEvent('geom-select', { detail: { id, kind, add: shiftHeld(e) }, bubbles: true, composed: true }));
   }
 
   /** On a touch screen only the selected item drags. */
   private touchLocked(id: string): boolean {
-    return this.coarse && id !== this.selectedGeomId;
+    // a member of a multi-selection counts as selected: on a touchscreen laptop used with a mouse (`coarse` is
+    // any-pointer) its press must move the group, not fall through to the marquee (review of T085, S4)
+    return this.coarse && id !== this.selectedGeomId && !(this.multiDrag && this.highlightSet.has(id));
   }
 
   /** The click after a press on an opening or a label stays with the item, unless the press was left to the drawing tool. */
@@ -1650,10 +1734,12 @@ export class SwPlanCanvas extends LitElement {
 
   /** Drag a corner of the selected wall, an opening along its wall, or a label. While the pointer moves, `geom-drag-move`
    * carries its position (the editor shows the item there; nothing is saved); the drop is one `geom-drag`, an interrupted
-   * gesture a `geom-drag-cancel`. A press without movement selects the item (a corner: that corner of its wall). */
+   * gesture a `geom-drag-cancel`. A press without movement selects the item (a corner: that corner of its wall; a zone of
+   * a multi-selection: `zone-select`), with `add` when Shift was held at the press (T085 multi-select). */
   private onGeomDragStart(kind: GeomDragDetail['kind'], id: string, index: number, e: PointerEvent) {
     const objectKind = kind.startsWith('object') || kind === 'connector-vertex';
-    if (e.button !== 0 || this.geomDrag === 'none' || ((kind === 'vertex' || kind === 'wall') && this.geomDrag !== 'all') || (objectKind && this.geomDrag === 'items') || (!objectKind && this.geomDrag === 'objects')) return;
+    if (this.spacePan) return; // Space + drag pans, over an item too: the press goes on to the viewport
+    if (e.button !== 0 || this.geomDrag === 'none' || ((kind === 'vertex' || kind === 'wall' || kind === 'zone') && this.geomDrag !== 'all') || (objectKind && this.geomDrag === 'items') || (!objectKind && this.geomDrag === 'objects')) return;
     if (kind !== 'vertex' && this.nearCorner(e.clientX, e.clientY)) return; // wall mode: the press draws from that corner
     e.stopPropagation(); // the press is the item's: no pan, and in a drawing mode no new point / opening either
     e.preventDefault();
@@ -1685,10 +1771,12 @@ export class SwPlanCanvas extends LitElement {
       this.dragMoved = true; // pointer capture sends the trailing click to the viewport: swallow it
       setTimeout(() => (this.dragMoved = false), 0);
     };
+    const add = e.shiftKey;
     const up = () => {
       end();
       if (moved) emit('geom-drag', detail(last));
-      else emit('geom-select', kind === 'vertex' ? { id, kind: 'wall', vertex: index } : { id, kind: kind.startsWith('object') ? 'object' : kind === 'connector-vertex' ? 'connector' : kind });
+      else if (kind === 'zone') emit('zone-select', { id, add });
+      else emit('geom-select', kind === 'vertex' ? { id, kind: 'wall', vertex: index, add } : { id, kind: kind.startsWith('object') ? 'object' : kind === 'connector-vertex' ? 'connector' : kind, add });
     };
     const cancel = () => {
       end();
@@ -1733,16 +1821,19 @@ export class SwPlanCanvas extends LitElement {
     const connectors = objectsOn ? prims.filter((p): p is ConnectorPrim => p.kind === 'connector' && !this.hideConnectors) : [];
     const selObject = objectsOn && !drag ? objects.find((p) => p.id === this.selectedGeomId) : undefined;
     const selConnector = objectsOn ? doc.connectors.find((c) => c.id === this.selectedGeomId) : undefined;
+    // T085 multi-select: a wall of the multi-selection takes a press by its body like the selected wall (it drags the lot)
+    const multi = this.multiDrag ? this.highlightSet : new Set<string>();
+    const bodyWall = (id: string) => id === this.selectedGeomId || multi.has(id);
     return svg`<g class="geom-hits">
       ${connectors.map((p) => svg`<path class="hit" data-hit-connector=${p.id} d=${`M ${p.points.map((q) => `${q[0]} ${q[1]}`).join(' L ')}`} stroke-width=${Math.max(p.width, 12 * inv)} @click=${(e: Event) => this.pickConnector(p.id, e)} />`)}
-      ${walls.filter((p) => p.id !== this.selectedGeomId).map((p) => svg`<polyline class="hit" data-hit-wall=${p.id} points=${ptsAttr(p.points)} stroke-width=${Math.max(p.width, wallHitPx * inv)} @click=${(e: Event) => this.pickGeom(p.id, e)} />`)}
+      ${walls.filter((p) => !bodyWall(p.id)).map((p) => svg`<polyline class="hit" data-hit-wall=${p.id} points=${ptsAttr(p.points)} stroke-width=${Math.max(p.width, wallHitPx * inv)} @click=${(e: Event) => this.pickGeom(p.id, e)} />`)}
       ${objectHitOrder(objects, this.selectedGeomId).map((p) => svg`<polygon class="hit ohit" data-hit-object=${p.id} points=${ptsAttr(objectHitCorners(p, OBJECT_HIT_MIN_PX * inv))}
           @pointerdown=${(e: PointerEvent) => (this.touchLocked(p.id) ? undefined : this.onGeomDragStart(e.altKey ? 'object-duplicate' : 'object', p.id, 0, e))}
           @click=${(e: Event) => (this.touchLocked(p.id) ? this.touchPick(p.id, 'object', e) : e.stopPropagation())} />`)}
       ${selConnector && !selConnector.object_id ? selConnector.polyline.map((v, i) => svg`<circle class="gvtx" data-connector-vertex=${i} cx=${v[0] * W} cy=${v[1] * H} r=${6 * inv} stroke-width=${1.6 * inv} aria-label=${`פינת מחבר ${i + 1}`}
           @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('connector-vertex', selConnector.id, i, e)} @click=${(e: Event) => e.stopPropagation()} />`) : nothing}
       ${selObject ? this.renderObjectHandles(selObject, inv) : nothing}
-      ${walls.filter((p) => p.id === this.selectedGeomId).map((p) => svg`<polyline class="hit whit" data-hit-wall=${p.id} data-wall-body points=${ptsAttr(p.points)} stroke-width=${Math.max(p.width, wallHitPx * inv)}
+      ${walls.filter((p) => bodyWall(p.id)).map((p) => svg`<polyline class="hit whit" data-hit-wall=${p.id} data-wall-body points=${ptsAttr(p.points)} stroke-width=${Math.max(p.width, wallHitPx * inv)}
           @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('wall', p.id, 0, e)} @click=${(e: Event) => e.stopPropagation()} />`)}
       ${openings.map((p) => svg`<line class="hit" data-hit-opening=${p.id} x1=${p.gap[0][0]} y1=${p.gap[0][1]} x2=${p.gap[1][0]} y2=${p.gap[1][1]} stroke-width=${Math.max(28 * inv, wallPx.get(hostOf.get(p.id) ?? '') ?? 0)}
           @pointerdown=${(e: PointerEvent) => (this.touchLocked(p.id) ? undefined : this.onGeomDragStart('opening', p.id, 0, e))} @click=${(e: MouseEvent) => (this.touchLocked(p.id) ? this.touchPick(p.id, 'opening', e) : this.itemClick(e))} />`)}
@@ -1929,7 +2020,7 @@ export class SwPlanCanvas extends LitElement {
 
   render() {
     return html`
-      <div class="viewport ${this.placing ? 'placing' : ''} ${this.boxSelect ? 'boxing' : ''}" @wheel=${this.onWheel} @pointerdown=${this.onPointerDown} @pointermove=${this.onPointerMove}
+      <div class="viewport ${this.placing ? 'placing' : ''} ${this.boxSelect ? 'boxing' : ''} ${this.marquee ? 'marquee' : ''} ${this.spacePan ? 'spacepan' : ''}" data-space-pan=${this.spacePan ? 'on' : nothing} @wheel=${this.onWheel} @pointerdown=${this.onPointerDown} @pointermove=${this.onPointerMove}
            @pointerup=${this.onPointerUp} @pointercancel=${this.onPointerUp} @click=${this.onBackgroundClick}>
         <svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="תוכנית קומה">
           <defs><marker id="sw-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path class="carrowhead" d="M0 0L10 5L0 10z" /></marker></defs>

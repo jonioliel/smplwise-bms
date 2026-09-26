@@ -67,6 +67,30 @@ async function openEditor(page: Page) {
 
 const saved = (page: Page) => expect(page.locator(`${ED} [data-studio-save="saved"]`)).toHaveCount(1, { timeout: 10000 });
 
+// ---- T085 multi-select helpers ----
+type ZP = { x: number; y: number };
+/** A zone made through the API (and its level set when given), removed in afterAll unless a test deleted it itself. */
+async function makeZone(name: string, polygon: ZP[], level?: string): Promise<string> {
+  const r = await api.post(`api/v1/floors/${ids.floor}/zones`, { data: { name, kind: 'room', polygon } });
+  expect(r.status()).toBe(201);
+  const z = (await r.json()) as { id: string; revision: number };
+  zoneIds.push(z.id);
+  if (level) expect((await api.patch(`api/v1/zones/${z.id}`, { data: { revision: z.revision, level_id: level } })).status()).toBe(200);
+  return z.id;
+}
+const allZones = async () => ((await (await api.get(`api/v1/floors/${ids.floor}/zones`)).json()) as { zones: { id: string; level_id?: string | null }[] }).zones;
+const positions = async (idList: string[]) => {
+  const d = await draft();
+  return idList.map((id) => d.doc.objects.find((o) => o.id === id)!.position);
+};
+const objAt = (page: Page, id: string) => page.locator(`${ED} sw-plan-canvas [data-structure] [data-object="${id}"]`);
+/** A marquee: a mouse drag from one normalized plan point to another. */
+async function marquee(page: Page, from: P, to: P) {
+  const a = await at(page, from);
+  const b = await at(page, to);
+  await mouseDrag(page, a, b.x - a.x, b.y - a.y);
+}
+
 test.describe.serial('editor: select and move walls, objects and zones (0.1.87)', () => {
   test.skip(process.env.SW_LIVE !== '1', 'set SW_LIVE=1 with the backend running');
 
@@ -296,6 +320,313 @@ test.describe.serial('editor: select and move walls, objects and zones (0.1.87)'
     await page.keyboard.press('Delete');
     await expect.poll(async () => (await zoneOf(zone.id)).polygon.length, { timeout: 10000 }).toBe(3);
     expect((await zoneOf(zone.id)).revision).toBe(rev + 2);
+  });
+
+  // T085 multi-select (owner report 2026-09-26): Shift+click, a marquee and Ctrl+A select several items; the selection
+  // moves, is copied and is deleted together, each as one undo step; Ctrl+A keeps to the level filter.
+  test('select tool: Shift+click and a marquee select several objects; they move, are copied and deleted together; Ctrl+A keeps to the level filter', async ({ page }) => {
+    const levels0 = ((await draft()).doc as { levels?: unknown[] }).levels ?? [];
+    const LEVEL = (id: string, name: string, isDefault: boolean) => ({ id, name, elevation_m: isDefault ? 0 : -1.2, ceiling_height_m: 3, is_default: isDefault, external_ids: {} });
+    const three: P[] = [[0.3, 0.55], [0.4, 0.55], [0.5, 0.55]];
+    const names = ['ms1', 'ms2', 'ms3'];
+    await saveDraft({ ...SEED, levels: [LEVEL('L0', 'קומת כניסה', true), LEVEL('L1', 'מרתף', false)],
+      objects: [...SEED.objects, ...names.map((id, i) => CHAIR(id, three[i])), { ...CHAIR('ms4', [0.6, 0.7]), level_id: 'L1' }, { ...CHAIR('ms5', [0.7, 0.7]), level_id: 'L1' }] });
+    try {
+      await openEditor(page);
+      const obj = (id: string) => objAt(page, id);
+      const panel = page.locator(`${ED} [data-multi-panel]`);
+      const shiftClick = async (p: P) => {
+        const s = await at(page, p);
+        await page.keyboard.down('Shift');
+        await page.mouse.click(s.x, s.y);
+        await page.keyboard.up('Shift');
+      };
+
+      // Shift+click two chairs: one alone is the ordinary selection, the second makes a multi-selection of two
+      await shiftClick(three[0]);
+      await expect(page.locator(`${ED} [data-selected-object="ms1"]`)).toBeVisible();
+      await shiftClick(three[1]);
+      await expect(panel).toHaveAttribute('data-multi-count', '2');
+      await expect(obj('ms1')).toHaveClass(/\bsel\b/);
+      await expect(obj('ms2')).toHaveClass(/\bsel\b/);
+      await expect(obj('ms3')).not.toHaveClass(/\bsel\b/);
+
+      // a marquee from the bare plan around all three picks all three and nothing else
+      await marquee(page, [0.25, 0.47], [0.56, 0.63]);
+      await expect(panel).toHaveAttribute('data-multi-count', '3');
+      for (const id of names) await expect(obj(id)).toHaveClass(/\bsel\b/);
+      await expect(obj('mo1')).not.toHaveClass(/\bsel\b/);
+
+      // dragging one of them moves all three by the same delta; the rest stays; one Ctrl+Z puts all three back
+      const p0 = await positions([...names, 'mo1']);
+      await mouseDrag(page, await at(page, three[1]), 60, 40);
+      await expect.poll(async () => (await positions(['ms2']))[0][0], { timeout: 10000 }).toBeGreaterThan(p0[1][0] + 0.02);
+      const p1 = await positions([...names, 'mo1']);
+      const dx = p1[0][0] - p0[0][0];
+      const dy = p1[0][1] - p0[0][1];
+      expect(dy).toBeGreaterThan(0.02);
+      for (const i of [1, 2]) {
+        expect(p1[i][0] - p0[i][0]).toBeCloseTo(dx, 4);
+        expect(p1[i][1] - p0[i][1]).toBeCloseTo(dy, 4);
+      }
+      expect(p1[3]).toEqual(p0[3]);
+      await expect(panel).toHaveAttribute('data-multi-count', '3'); // the selection stays after the drop
+      await saved(page);
+      await page.keyboard.press('Control+z');
+      await expect.poll(async () => JSON.stringify(await positions(names)), { timeout: 10000 }).toBe(JSON.stringify(p0.slice(0, 3)));
+      await page.keyboard.press('Control+y');
+      await expect.poll(async () => JSON.stringify(await positions(names)), { timeout: 10000 }).toBe(JSON.stringify(p1.slice(0, 3)));
+
+      // undo / redo clear the selection: the marquee takes the three again where they are now
+      const xs = p1.slice(0, 3).map((p) => p[0]);
+      const ys = p1.slice(0, 3).map((p) => p[1]);
+      await marquee(page, [Math.min(...xs) - 0.04, Math.min(...ys) - 0.06], [Math.max(...xs) + 0.04, Math.max(...ys) + 0.06]);
+      await expect(panel).toHaveAttribute('data-multi-count', '3');
+
+      // "שכפל": three copies as one block beside the three, every copy by the same shift, and the copies are the selection
+      const known = new Set((await draft()).doc.objects.map((o) => o.id));
+      await page.locator(`${ED} [data-multi-duplicate]`).click();
+      await expect.poll(async () => (await draft()).doc.objects.length, { timeout: 10000 }).toBe(known.size + 3);
+      const copies = (await draft()).doc.objects.filter((o) => !known.has(o.id));
+      const sx = copies[0].position[0] - p1[0][0];
+      const sy = copies[0].position[1] - p1[0][1];
+      expect(Math.abs(sx) + Math.abs(sy)).toBeGreaterThan(0.05);
+      copies.forEach((c, i) => {
+        expect(c.position[0] - p1[i][0]).toBeCloseTo(sx, 4);
+        expect(c.position[1] - p1[i][1]).toBeCloseTo(sy, 4);
+      });
+      await expect(panel).toHaveAttribute('data-multi-count', '3');
+      for (const c of copies) await expect(obj(c.id)).toHaveClass(/\bsel\b/);
+      for (const id of names) await expect(obj(id)).not.toHaveClass(/\bsel\b/);
+
+      // Delete removes all three copies in one action; one Ctrl+Z brings all three back, Ctrl+Y removes them again
+      await page.keyboard.press('Delete');
+      await expect(panel).toHaveCount(0);
+      await expect.poll(async () => (await draft()).doc.objects.filter((o) => !known.has(o.id)).length, { timeout: 10000 }).toBe(0);
+      expect((await draft()).doc.objects.map((o) => o.id).sort()).toEqual([...known].sort());
+      await page.keyboard.press('Control+z');
+      await expect.poll(async () => (await draft()).doc.objects.length, { timeout: 10000 }).toBe(known.size + 3);
+      await page.keyboard.press('Control+y');
+      await expect.poll(async () => (await draft()).doc.objects.length, { timeout: 10000 }).toBe(known.size);
+
+      // Ctrl+A under the L1 filter: the two L1 chairs and the zones of L1 - never an L0 wall, object or zone, although the
+      // editor draws every zone under every filter; a zone without a level is on the default level L0, as the backend,
+      // the inspector and the 3D view read it (review S2, corrected by R1: filter, Ctrl+A, Delete must not take the other
+      // level's rooms, and most rooms never get a level by hand)
+      const myZone = { id: await makeZone('חדר מרתף', [{ x: 0.82, y: 0.6 }, { x: 0.9, y: 0.6 }, { x: 0.9, y: 0.7 }, { x: 0.82, y: 0.7 }], 'L1') };
+      const groundZone = await makeZone('חדר קרקע', [{ x: 0.04, y: 0.04 }, { x: 0.12, y: 0.04 }, { x: 0.12, y: 0.12 }, { x: 0.04, y: 0.12 }], 'L0');
+      const noLevelZone = await makeZone('חדר בלי מפלס', [{ x: 0.04, y: 0.16 }, { x: 0.12, y: 0.16 }, { x: 0.12, y: 0.22 }, { x: 0.04, y: 0.22 }]);
+      const zoneCount = (await allZones()).filter((z) => z.level_id === 'L1').length;
+      await page.reload(); // the editor loads the new zones
+      await expect(page.locator(`${ED} sw-plan-canvas g.zone[data-zone="${myZone.id}"]`)).toHaveCount(1, { timeout: 20000 });
+      await page.locator(`${ED} [data-level-chip="L1"]`).click();
+      await expect(obj('ms1')).toHaveCount(0); // the L0 chairs are not drawn under the L1 filter
+      await expect(page.locator(`${ED} sw-plan-canvas g.zone[data-zone="${groundZone}"]`)).toHaveCount(1); // the L0 zone is drawn
+      await page.keyboard.press('Control+a');
+      await expect(panel).toHaveAttribute('data-multi-count', String(2 + zoneCount));
+      await expect(obj('ms4')).toHaveClass(/\bsel\b/);
+      await expect(obj('ms5')).toHaveClass(/\bsel\b/);
+      await expect(page.locator(`${ED} sw-plan-canvas g.zone.selected[data-zone="${myZone.id}"]`)).toHaveCount(1);
+      await expect(page.locator(`${ED} sw-plan-canvas g.zone.selected[data-zone="${groundZone}"]`)).toHaveCount(0); // ... but not selected
+      await expect(page.locator(`${ED} sw-plan-canvas g.zone[data-zone="${noLevelZone}"]`)).toHaveCount(1);
+      await expect(page.locator(`${ED} sw-plan-canvas g.zone.selected[data-zone="${noLevelZone}"]`)).toHaveCount(0); // the default level's (R1)
+      // dragging one chair moves the selected zones with it by the same delta, each zone saved once
+      const z0 = await zoneOf(myZone.id);
+      const m0 = (await positions(['ms4']))[0];
+      await mouseDrag(page, await at(page, [0.6, 0.7]), 40, 30);
+      await expect.poll(async () => (await positions(['ms4']))[0][0], { timeout: 10000 }).toBeGreaterThan(m0[0] + 0.01);
+      await expect.poll(async () => (await zoneOf(myZone.id)).revision, { timeout: 10000 }).toBe(z0.revision + 1);
+      const m1 = (await positions(['ms4']))[0];
+      (await zoneOf(myZone.id)).polygon.forEach((q, i) => {
+        expect(q.x - z0.polygon[i].x).toBeCloseTo(m1[0] - m0[0], 3);
+        expect(q.y - z0.polygon[i].y).toBeCloseTo(m1[1] - m0[1], 3);
+      });
+      await expect(panel).toHaveAttribute('data-multi-count', String(2 + zoneCount)); // still selected
+      await page.locator(`${ED} [data-level-chip="all"]`).click();
+      await expect(page.locator(`${ED} sw-plan-canvas [data-structure] [data-object].sel`)).toHaveCount(2); // back on every level: only ms4 and ms5
+      await expect(page.locator(`${ED} sw-plan-canvas [data-structure] [data-wall].sel`)).toHaveCount(0);
+      // Esc clears the multi-selection
+      await page.keyboard.press('Escape');
+      await expect(panel).toHaveCount(0);
+      await expect(page.locator(`${ED} sw-plan-canvas [data-structure] [data-object].sel`)).toHaveCount(0);
+    } finally {
+      await saveDraft({ levels: levels0, objects: SEED.objects }); // the phone test below expects the plain seed
+    }
+  });
+
+  // Review of T085, B1 and S1: zones are saved by a PATCH each after a group drop. A second group drag while those saves
+  // are in flight would start from stale polygons and revisions - it is refused and said, and nothing is lost; a zone
+  // delete that fails in a bulk delete is counted in the message and becomes the selection again.
+  test('select tool: a group drag while the last drop still saves its zones is refused and said; a failed zone delete is counted and stays selected', async ({ page }) => {
+    await saveDraft({ ...SEED, objects: [...SEED.objects, CHAIR('mb1', [0.3, 0.55]), CHAIR('mb2', [0.4, 0.55])] });
+    const za = await makeZone('חדר א', [{ x: 0.45, y: 0.5 }, { x: 0.52, y: 0.5 }, { x: 0.52, y: 0.6 }, { x: 0.45, y: 0.6 }]);
+    const zb = await makeZone('חדר ב', [{ x: 0.55, y: 0.5 }, { x: 0.62, y: 0.5 }, { x: 0.62, y: 0.6 }, { x: 0.55, y: 0.6 }]);
+    try {
+      await openEditor(page);
+      const panel = page.locator(`${ED} [data-multi-panel]`);
+      await marquee(page, [0.25, 0.46], [0.65, 0.64]);
+      await expect(panel).toHaveAttribute('data-multi-count', '4'); // two chairs and two zones
+      const zoneDelta = async (id: string, from: { polygon: ZP[] }) => { const z = await zoneOf(id); return [z.polygon[0].x - from.polygon[0].x, z.polygon[0].y - from.polygon[0].y]; };
+
+      // hold every zone PATCH until released: the first drop's zone saves stay in flight
+      let release: () => void = () => {};
+      const gate = new Promise<void>((r) => (release = r));
+      await page.route('**/api/v1/zones/*', async (route) => {
+        if (route.request().method() === 'PATCH') await gate;
+        await route.continue();
+      });
+      const za0 = await zoneOf(za);
+      const zb0 = await zoneOf(zb);
+      const p0 = await positions(['mb1', 'mb2']);
+      await mouseDrag(page, await at(page, [0.3, 0.55]), 50, 0);
+      await expect.poll(async () => (await positions(['mb1']))[0][0], { timeout: 10000 }).toBeGreaterThan(p0[0][0] + 0.02);
+      const p1 = await positions(['mb1', 'mb2']);
+      const d1 = p1[0][0] - p0[0][0];
+      // the second, corrective drag while the zones are still saving: refused, said, and nothing moves
+      await mouseDrag(page, await at(page, p1[0]), 0, 40);
+      await expect(page.locator(ED).getByText('האזורים של ההזזה הקודמת עדיין נשמרים')).toBeVisible();
+      await page.waitForTimeout(2600); // longer than the draft autosave delay: a refused drag leaves nothing to save
+      expect(await positions(['mb1', 'mb2'])).toEqual(p1);
+      expect((await zoneOf(za)).revision).toBe(za0.revision); // still held
+      release();
+      await expect.poll(async () => (await zoneOf(za)).revision, { timeout: 10000 }).toBe(za0.revision + 1);
+      await expect.poll(async () => (await zoneOf(zb)).revision, { timeout: 10000 }).toBe(zb0.revision + 1);
+      for (const [id, z0] of [[za, za0], [zb, zb0]] as const) {
+        const [dx, dy] = await zoneDelta(id, z0);
+        expect(dx).toBeCloseTo(d1, 3); // the zones moved with the chairs, by the first drag only
+        expect(dy).toBeCloseTo(0, 3);
+      }
+      await page.unroute('**/api/v1/zones/*');
+      // once the saves have answered the group drags again, chairs and zones in step
+      await mouseDrag(page, await at(page, p1[0]), 0, 40);
+      await expect.poll(async () => (await zoneOf(za)).revision, { timeout: 10000 }).toBe(za0.revision + 2);
+      await expect.poll(async () => (await positions(['mb1']))[0][1], { timeout: 10000 }).toBeGreaterThan(p1[0][1] + 0.02);
+      const p2 = await positions(['mb1', 'mb2']);
+      const [tx, ty] = await zoneDelta(za, za0);
+      expect(tx).toBeCloseTo(p2[0][0] - p0[0][0], 3);
+      expect(ty).toBeCloseTo(p2[0][1] - p0[0][1], 3);
+      await expect(panel).toHaveAttribute('data-multi-count', '4');
+      await saved(page);
+
+      // R9 / R2: a group move with one zone PATCH failing - the count is said, the zone left behind alone becomes the
+      // selection, and a drag of it by the same distance puts it where the rest went (a group drag would keep its offset)
+      const q0 = await positions(['mb1', 'mb2']);
+      const zaMid = await zoneOf(za);
+      const zbMid = await zoneOf(zb);
+      await page.route(`**/api/v1/zones/${zb}`, (route) => (route.request().method() === 'PATCH' ? route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ detail: 'test failure' }) }) : route.continue()));
+      await mouseDrag(page, await at(page, q0[0]), 40, 0);
+      await expect(page.locator(ED).getByText('1 מתוך 2 אזורים לא הוזזו')).toBeVisible();
+      await expect(panel).toHaveCount(0);
+      await expect(page.locator(`${ED} [data-zone-inspector]`)).toBeVisible(); // the one zone left behind: the single selection
+      await expect(page.locator(`${ED} sw-plan-canvas g.zone.selected[data-zone="${zb}"]`)).toHaveCount(1);
+      await expect(page.locator(`${ED} sw-plan-canvas g.zone.selected[data-zone="${za}"]`)).toHaveCount(0);
+      await expect.poll(async () => (await zoneOf(za)).revision, { timeout: 10000 }).toBe(zaMid.revision + 1);
+      await expect.poll(async () => (await positions(['mb1']))[0][0], { timeout: 10000 }).toBeGreaterThan(q0[0][0] + 0.02);
+      const q1 = await positions(['mb1', 'mb2']);
+      const moved = q1[0][0] - q0[0][0];
+      expect((await zoneDelta(za, zaMid))[0]).toBeCloseTo(moved, 3);
+      expect(await zoneOf(zb)).toMatchObject({ revision: zbMid.revision, polygon: zbMid.polygon }); // not moved
+      await page.unroute(`**/api/v1/zones/${zb}`);
+      const zbc: P = [zbMid.polygon.reduce((t, q) => t + q.x, 0) / zbMid.polygon.length, zbMid.polygon.reduce((t, q) => t + q.y, 0) / zbMid.polygon.length];
+      await mouseDrag(page, await at(page, zbc), 40, 0);
+      await expect.poll(async () => (await zoneOf(zb)).revision, { timeout: 10000 }).toBe(zbMid.revision + 1);
+      expect((await zoneDelta(zb, zbMid))[0]).toBeCloseTo(moved, 3); // in line with the rest again
+      expect((await zoneDelta(zb, zbMid))[1]).toBeCloseTo(0, 3);
+
+      // take the four again: a marquee just around them
+      const zNow = [await zoneOf(za), await zoneOf(zb)];
+      const xs = [...q1.map((p) => p[0]), ...zNow.flatMap((z) => z.polygon.map((q) => q.x))];
+      const ys = [...q1.map((p) => p[1]), ...zNow.flatMap((z) => z.polygon.map((q) => q.y))];
+      await marquee(page, [Math.min(...xs) - 0.015, Math.min(...ys) - 0.025], [Math.max(...xs) + 0.015, Math.max(...ys) + 0.025]);
+      await expect(panel).toHaveAttribute('data-multi-count', '4');
+
+      // Delete with one zone DELETE failing: the chairs and the other zone go, the failure is counted, the zone left is
+      // the selection again
+      await page.route(`**/api/v1/zones/${zb}`, (route) => (route.request().method() === 'DELETE' ? route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ detail: 'test failure' }) }) : route.continue()));
+      page.once('dialog', (d) => void d.accept());
+      await page.keyboard.press('Delete');
+      await expect(page.locator(ED).getByText('1 מתוך 2 אזורים לא נמחקו')).toBeVisible();
+      await expect(page.locator(`${ED} sw-plan-canvas g.zone.selected[data-zone="${zb}"]`)).toHaveCount(1);
+      await expect(page.locator(`${ED} [data-zone-inspector]`)).toBeVisible(); // one zone left: the ordinary single selection
+      await expect.poll(async () => (await allZones()).some((z) => z.id === za), { timeout: 10000 }).toBe(false);
+      zoneIds.splice(zoneIds.indexOf(za), 1); // deleted by the test itself
+      expect((await allZones()).some((z) => z.id === zb)).toBe(true);
+      await expect.poll(async () => (await draft()).doc.objects.some((o) => o.id === 'mb1' || o.id === 'mb2'), { timeout: 10000 }).toBe(false);
+      await page.unroute(`**/api/v1/zones/${zb}`);
+    } finally {
+      await saveDraft({ objects: SEED.objects });
+    }
+  });
+
+  // Review of T085, S3: the marquee took the left drag on the bare plan, so the select tool pans by Space + drag (a
+  // trackpad has no middle button) and by the middle button.
+  test('select tool: a plain drag on the bare plan draws the marquee and does not pan; Space + drag and the middle button pan', async ({ page }) => {
+    await saveDraft(SEED);
+    await openEditor(page);
+    const ref: P = [0.75, 0.2];
+    const s0 = await at(page, ref);
+    await mouseDrag(page, await at(page, [0.8, 0.12]), 60, 40);
+    expect(await at(page, ref)).toEqual(s0); // the marquee: the plan stays put
+    await page.keyboard.down('Space');
+    await expect(page.locator(`${ED} sw-plan-canvas .viewport[data-space-pan="on"]`)).toHaveCount(1);
+    await mouseDrag(page, await at(page, [0.8, 0.12]), 60, 40);
+    await page.keyboard.up('Space');
+    const s1 = await at(page, ref);
+    expect(s1.x - s0.x).toBeCloseTo(60, -1);
+    expect(s1.y - s0.y).toBeCloseTo(40, -1);
+    await expect(page.locator(`${ED} [data-multi-panel]`)).toHaveCount(0); // a pan selects nothing
+    // Space + drag over an object pans too, the object stays
+    const c = await at(page, [0.75, 0.55]);
+    const before = (await positions(['mo1']))[0];
+    await page.keyboard.down('Space');
+    await mouseDrag(page, c, -40, 0);
+    await page.keyboard.up('Space');
+    expect((await at(page, ref)).x - s1.x).toBeCloseTo(-40, -1);
+    expect((await positions(['mo1']))[0]).toEqual(before);
+    // the middle button
+    const s2 = await at(page, ref);
+    const from = await at(page, [0.8, 0.12]);
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down({ button: 'middle' });
+    await page.mouse.move(from.x - 30, from.y + 25, { steps: 6 });
+    await page.mouse.up({ button: 'middle' });
+    const s3 = await at(page, ref);
+    expect(s3.x - s2.x).toBeCloseTo(-30, -1);
+    expect(s3.y - s2.y).toBeCloseTo(25, -1);
+    // R3: a focused button keeps its own Space - it is pressed, and nothing pans
+    const layers = page.locator(`${ED} [data-tool="layers"]`);
+    await layers.focus();
+    await page.keyboard.down('Space');
+    await expect(page.locator(`${ED} sw-plan-canvas .viewport[data-space-pan="on"]`)).toHaveCount(0);
+    await page.keyboard.up('Space');
+    await expect(layers).toHaveAttribute('aria-pressed', 'true');
+    expect(await at(page, ref)).toEqual(s3);
+  });
+
+  // Review of T085, S4: `any-pointer: coarse` is true on a touchscreen laptop even when it is used with a mouse; a
+  // member of a multi-selection must still drag the group there, not start a marquee.
+  test.describe('on a touchscreen laptop used with a mouse', () => {
+    test.use({ hasTouch: true });
+
+    test('a chair of a multi-selection drags the whole group with the mouse', async ({ page }) => {
+      await saveDraft({ ...SEED, objects: [...SEED.objects, CHAIR('mh1', [0.3, 0.55]), CHAIR('mh2', [0.4, 0.55])] });
+      try {
+        await openEditor(page);
+        expect(await page.evaluate(() => matchMedia('(any-pointer: coarse)').matches), 'the page sees a touch screen').toBe(true);
+        await marquee(page, [0.25, 0.47], [0.45, 0.63]);
+        await expect(page.locator(`${ED} [data-multi-panel]`)).toHaveAttribute('data-multi-count', '2');
+        const p0 = await positions(['mh1', 'mh2']);
+        await mouseDrag(page, await at(page, p0[0]), 50, 30);
+        await expect.poll(async () => (await positions(['mh2']))[0][0], { timeout: 10000 }).toBeGreaterThan(p0[1][0] + 0.02);
+        const p1 = await positions(['mh1', 'mh2']);
+        expect(p1[0][0] - p0[0][0]).toBeCloseTo(p1[1][0] - p0[1][0], 4);
+        expect(p1[0][1] - p0[0][1]).toBeCloseTo(p1[1][1] - p0[1][1], 4);
+        await expect(page.locator(`${ED} [data-multi-panel]`)).toHaveAttribute('data-multi-count', '2');
+        await saved(page);
+      } finally {
+        await saveDraft({ objects: SEED.objects });
+      }
+    });
   });
 
   test.describe('on a phone', () => {

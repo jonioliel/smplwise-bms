@@ -3,7 +3,7 @@
  * to the plan image; candidates come from local room detection on the plan and are saved only once the
  * editor accepts them.
  */
-import { del, get, patch, post } from './client';
+import { api, del, get, patch, post } from './client';
 import type { SpatialZone, ZonePoint } from './types';
 
 export type { SpatialZone, ZonePoint } from './types';
@@ -39,9 +39,10 @@ export interface DetectResult {
 export const listZones = (floorId: string) => get<{ zones: SpatialZone[] }>(`floors/${floorId}/zones`);
 export const createZone = (floorId: string, body: { name: string; kind?: ZoneKind; polygon: ZonePoint[]; color?: string; searchable?: boolean }) =>
   post<SpatialZone>(`floors/${floorId}/zones`, body);
-export const updateZone = (id: string, body: { revision: number; name?: string; kind?: ZoneKind; polygon?: ZonePoint[]; color?: string; searchable?: boolean; label_pos?: string; level_id?: string; ceiling_height_m?: number }) =>
-  patch<SpatialZone>(`zones/${id}`, body);
-export const deleteZone = (id: string) => del(`zones/${id}`);
+/** `signal`: an abort (a timeout) for a caller that must not wait forever - the editor's zone saves (review of T085, R4). */
+export const updateZone = (id: string, body: { revision: number; name?: string; kind?: ZoneKind; polygon?: ZonePoint[]; color?: string; searchable?: boolean; label_pos?: string; level_id?: string; ceiling_height_m?: number }, signal?: AbortSignal) =>
+  signal ? api<SpatialZone>(`zones/${id}`, { method: 'PATCH', body: JSON.stringify(body), signal }) : patch<SpatialZone>(`zones/${id}`, body);
+export const deleteZone = (id: string, signal?: AbortSignal) => (signal ? api<void>(`zones/${id}`, { method: 'DELETE', signal }) : del(`zones/${id}`));
 export const detectZones = (floorId: string, strength: 'light' | 'medium' | 'strong' = 'medium') => post<DetectResult>(`floors/${floorId}/zones/detect`, { strength });
 export const acceptZones = (floorId: string, candidates: { polygon: ZonePoint[]; name?: string; kind?: ZoneKind }[], replaceAuto: boolean) =>
   post<{ zones: SpatialZone[]; created: string[] }>(`floors/${floorId}/zones/accept`, { candidates, replace_auto: replaceAuto });

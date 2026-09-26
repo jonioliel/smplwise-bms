@@ -1,6 +1,6 @@
 /** Plan Studio (T084): pure edits of a structure document - every function returns a new document, so undo / redo is
  * a stack of documents and nothing is ever mutated in place. */
-import { DEFAULT_LEVEL_ID, OPENING_DEFAULTS, isClosedOutline, pointAt, rotated, type ConnectorKind, type GeometryDoc, type GeomCircuit, type GeomConnector, type GeomGroup, type GeomLabel, type GeomLevel, type GeomObject, type GeomOpening, type GeomSize, type GeomWall, type OpeningKind, type Pt, type Swing, type WallKind } from './geometry';
+import { DEFAULT_LEVEL_ID, OPENING_DEFAULTS, isClosedOutline, objectCorners, pointAt, rotated, type ConnectorKind, type GeometryDoc, type GeomCircuit, type GeomConnector, type GeomGroup, type GeomLabel, type GeomLevel, type GeomObject, type GeomOpening, type GeomSize, type GeomWall, type OpeningKind, type Pt, type Swing, type WallKind } from './geometry';
 import type { CatalogItem } from '../api/plan-catalog';
 
 export interface WallDefaults {
@@ -201,8 +201,13 @@ export function moveObject(doc: GeometryDoc, id: string, p: Pt): GeometryDoc {
 export function duplicateObject(doc: GeometryDoc, id: string, p: Pt, newIdValue?: string): { doc: GeometryDoc; id: string } {
   const src = doc.objects.find((o) => o.id === id);
   if (!src) return { doc, id };
-  const copy: GeomObject = { ...src, id: newIdValue ?? newId(), position: clampPt(p), params: JSON.parse(JSON.stringify(src.params)) as Record<string, unknown>, size: { ...src.size }, anchor_ref: null, group_id: null, external_ids: {} };
+  const copy = copyObject(src, p, newIdValue ?? newId());
   return { doc: { ...doc, objects: [...doc.objects, copy] }, id: copy.id };
+}
+
+/** The copy duplicateObject makes (duplicateSelection makes the same, several at once). */
+function copyObject(src: GeomObject, p: Pt, id: string): GeomObject {
+  return { ...src, id, position: clampPt(p), params: JSON.parse(JSON.stringify(src.params)) as Record<string, unknown>, size: { ...src.size }, anchor_ref: null, group_id: null, external_ids: {} };
 }
 
 /** A copy beside the original, ready to be dragged into place (the inspector's "שכפל", Ctrl+D): one object width plus
@@ -374,6 +379,154 @@ export function visibleUnderLevel(doc: GeometryDoc, id: string, levelId: string 
   const group = doc.groups.find((g) => g.id === id);
   if (group) return group.member_ids.some((m) => visibleUnderLevel(doc, m, levelId));
   return true;
+}
+
+// ---------------------------------------------------------------- multi-selection (T085)
+
+/** What the editor's select tool can hold several of at once (owner report 2026-09-26): walls and objects of the
+ * document, and zones (rooms), which live beside it on the server. Openings, labels, connectors, groups and circuits keep
+ * their own single selection. */
+export type MultiKind = 'wall' | 'object' | 'zone';
+export interface MultiItem {
+  id: string;
+  kind: MultiKind;
+}
+/** A zone as the selection sees it: its id, its normalized polygon and its level (unset = no particular level). */
+export interface ZoneShape {
+  id: string;
+  polygon: readonly { x: number; y: number }[];
+  level_id?: string | null;
+}
+
+/** Whether a zone belongs under a level filter (null = every level) for Ctrl+A, the marquee and the pruning of a
+ * multi-selection when the filter changes: a zone on that level. A zone with no level set is on the default level
+ * (`defaultLevel`), as the backend, the zone inspector, the 3D view and the walls and objects all read it - and it is the
+ * usual case, since only a hand edit gives a zone a level. The editor draws every zone under every filter, but a zone of
+ * another level is never swept into a bulk action there: "filter to the basement, Ctrl+A, Delete" must not delete the
+ * ground floor's rooms (review of T085, S2, corrected by R1). */
+export function zoneOnLevel(z: Pick<ZoneShape, 'level_id'>, levelId: string | null, defaultLevel: string): boolean {
+  return levelId === null || (z.level_id || defaultLevel) === levelId;
+}
+
+/** Shift+click: an item not in the selection joins it at the end; one already in it leaves. A new array. */
+export function toggleItem(items: readonly MultiItem[], item: MultiItem): MultiItem[] {
+  return items.some((i) => i.id === item.id) ? items.filter((i) => i.id !== item.id) : [...items, item];
+}
+
+/** The members that move by hand: selected walls, and selected objects that are not the body of an anchor (a body moves
+ * with its anchor, never by hand - as moveGroup and a single drag treat it). */
+function movableMembers(doc: GeometryDoc, ids: readonly string[]): { walls: GeomWall[]; objects: GeomObject[] } {
+  const set = new Set(ids);
+  return { walls: doc.walls.filter((w) => set.has(w.id)), objects: doc.objects.filter((o) => set.has(o.id) && !o.anchor_ref) };
+}
+
+/** The part of a move (dx, dy) that keeps every moving member of the selection inside the plan - the walls' corners, the
+ * objects' centres and the corners of the `zones` polygons moving with them - so the selection stops at the edge as a
+ * whole and keeps its layout, instead of each member being squashed against the edge on its own. */
+export function selectionDelta(doc: GeometryDoc, ids: readonly string[], dx: number, dy: number, zones: readonly (readonly { x: number; y: number }[])[] = []): [number, number] {
+  const { walls, objects } = movableMembers(doc, ids);
+  const xs: number[] = [];
+  const ys: number[] = [];
+  for (const w of walls) for (const q of w.polyline) { xs.push(q[0]); ys.push(q[1]); }
+  for (const o of objects) { xs.push(o.position[0]); ys.push(o.position[1]); }
+  for (const z of zones) for (const q of z) { xs.push(q.x); ys.push(q.y); }
+  return xs.length ? clampDelta(xs, ys, dx, dy) : [dx, dy];
+}
+
+/** Every selected wall and object moved by the same (dx, dy), clamped once for the whole selection (selectionDelta) -
+ * one document, so one undo step. The result is exactly translateWall per wall and moveObject per object (the unit test
+ * keeps that composition as its oracle), computed in one pass over the walls and one over the objects: it runs on every
+ * pointer move of a group drag, and a composition would rebuild both lists once per member. Ids that are neither (a
+ * zone, an unknown id) are left to the caller. */
+export function moveSelection(doc: GeometryDoc, ids: readonly string[], dx: number, dy: number): GeometryDoc {
+  const set = new Set(ids);
+  const [cx, cy] = selectionDelta(doc, ids, dx, dy);
+  const shift = (q: Pt): Pt => [round5(Math.min(1, Math.max(0, q[0] + cx))), round5(Math.min(1, Math.max(0, q[1] + cy)))];
+  // cx, cy already keep every member inside the plan, so translateWall's own clamp would change nothing: the same shift
+  return {
+    ...doc,
+    walls: doc.walls.map((w) => (set.has(w.id) ? { ...w, polyline: w.polyline.map(shift) } : w)),
+    objects: doc.objects.map((o) => (set.has(o.id) && !o.anchor_ref ? { ...o, position: clampPt([o.position[0] + cx, o.position[1] + cy]) } : o)),
+  };
+}
+
+/** Every item of `ids` removed with removeItem's rules - a wall with its openings; an object out of its group (a group
+ * left empty goes), its circuit and its derived connector; a group leaving its members unlinked; a connector, a circuit,
+ * an opening or a label simply going - in one document, one undo step. One pass per collection (a Ctrl+A delete on a big
+ * plan would otherwise rebuild every list once per item); the unit test keeps the composition of removeItem as its
+ * oracle. */
+export function removeItems(doc: GeometryDoc, ids: readonly string[]): GeometryDoc {
+  if (!ids.length) return doc;
+  const set = new Set(ids);
+  const goneWalls = new Set(doc.walls.filter((w) => set.has(w.id)).map((w) => w.id));
+  const goneObjects = new Set(doc.objects.filter((o) => set.has(o.id)).map((o) => o.id));
+  const goneGroups = new Set(doc.groups.filter((g) => set.has(g.id)).map((g) => g.id));
+  const lessMembers = <T extends { member_ids: string[] }>(x: T): T => (x.member_ids.some((m) => goneObjects.has(m)) ? { ...x, member_ids: x.member_ids.filter((m) => !goneObjects.has(m)) } : x);
+  const groups = doc.groups.filter((g) => !goneGroups.has(g.id)).map(lessMembers);
+  return {
+    ...doc,
+    walls: doc.walls.filter((w) => !goneWalls.has(w.id)),
+    openings: doc.openings.filter((o) => !set.has(o.id) && !goneWalls.has(o.wall_id)),
+    objects: doc.objects.filter((o) => !goneObjects.has(o.id)).map((o) => (o.group_id && goneGroups.has(o.group_id) ? { ...o, group_id: null } : o)),
+    groups: goneObjects.size ? groups.filter((g) => g.member_ids.length > 0) : groups, // as removeItem: an object going drops the groups it left empty
+    circuits: doc.circuits.filter((k) => !set.has(k.id)).map(lessMembers),
+    connectors: doc.connectors.filter((c) => !set.has(c.id) && !(c.object_id && goneObjects.has(c.object_id))),
+    labels: doc.labels.filter((l) => !set.has(l.id)),
+  };
+}
+
+/** The selected objects copied as one block beside the selection (the multi-selection's "שכפל", Ctrl+D): duplicateBeside's
+ * rule applied to the block's footprint instead of one object - the block's width plus 30 cm to the right, below when a
+ * copy would leave the plan, to the left when below leaves it too - so every copy moves by the same shift and the copies
+ * never overlap the originals. Walls and zones in `ids` are not copied. Returns the new ids in the order of `ids`. */
+export function duplicateSelection(doc: GeometryDoc, ids: readonly string[], W: number, H: number, scale: number): { doc: GeometryDoc; ids: string[] } {
+  const byId = new Map(doc.objects.map((o) => [o.id, o]));
+  const srcs = ids.map((id) => byId.get(id)).filter((o): o is GeomObject => !!o);
+  if (!srcs.length || !(scale > 0) || !(W > 0) || !(H > 0)) return { doc, ids: [] };
+  const corners = srcs.flatMap((o) => objectCorners(o, W, H, scale));
+  const spanX = Math.max(...corners.map((c) => c[0])) - Math.min(...corners.map((c) => c[0])); // plan pixels
+  const spanY = Math.max(...corners.map((c) => c[1])) - Math.min(...corners.map((c) => c[1]));
+  const dx = (spanX + 0.3 / scale) / W;
+  const dy = (spanY + 0.3 / scale) / H;
+  const maxX = Math.max(...srcs.map((o) => o.position[0]));
+  const maxY = Math.max(...srcs.map((o) => o.position[1]));
+  const [sx, sy] = maxX + dx <= 1 ? [dx, 0] : maxY + dy <= 1 ? [0, dy] : [-dx, 0];
+  const copies = srcs.map((o) => copyObject(o, [o.position[0] + sx, o.position[1] + sy], newId())); // duplicateObject's copy, all at once
+  return { doc: { ...doc, objects: [...doc.objects, ...copies] }, ids: copies.map((c) => c.id) };
+}
+
+/** Ctrl+A in the select tool: every wall and object the level filter shows (visibleUnderLevel's rule for them: an item
+ * without a level belongs to the default level), then every zone on that level by the same rule (zoneOnLevel). One pass
+ * per list. */
+export function selectableItems(doc: GeometryDoc, zones: readonly Pick<ZoneShape, 'id' | 'level_id'>[], levelId: string | null): MultiItem[] {
+  const def = defaultLevelId(doc);
+  const shown = (lv: string) => levelId === null || (lv || def) === levelId;
+  return [
+    ...doc.walls.filter((w) => shown(w.level_id)).map((w): MultiItem => ({ id: w.id, kind: 'wall' })),
+    ...doc.objects.filter((o) => shown(o.level_id)).map((o): MultiItem => ({ id: o.id, kind: 'object' })),
+    ...zones.filter((z) => zoneOnLevel(z, levelId, def)).map((z): MultiItem => ({ id: z.id, kind: 'zone' })),
+  ];
+}
+
+/** The marquee: the shown walls, objects and zones FULLY inside the rectangle (normalized plan space, corners in any
+ * order) - every corner of a wall's polyline, of an object's footprint (objectCorners, turned with it) and of a zone's
+ * polygon. Fully, not mostly: a zone or a long outer wall that the drag merely crosses is not caught, which matters here
+ * because a marquee may start on a room's fill. W, H: the plan's pixel size; scale: metres per plan pixel. */
+export function itemsInRect(doc: GeometryDoc, zones: readonly ZoneShape[], rect: { x0: number; y0: number; x1: number; y1: number }, levelId: string | null, W: number, H: number, scale: number): MultiItem[] {
+  const EPS = 1e-9;
+  const [x0, x1] = [Math.min(rect.x0, rect.x1), Math.max(rect.x0, rect.x1)];
+  const [y0, y1] = [Math.min(rect.y0, rect.y1), Math.max(rect.y0, rect.y1)];
+  const inside = (x: number, y: number) => x >= x0 - EPS && x <= x1 + EPS && y >= y0 - EPS && y <= y1 + EPS;
+  const objectInside = (o: GeomObject) => (scale > 0 && W > 0 && H > 0 ? objectCorners(o, W, H, scale).every((c) => inside(c[0] / W, c[1] / H)) : inside(o.position[0], o.position[1]));
+  const walls = new Map(doc.walls.map((w) => [w.id, w]));
+  const objects = new Map(doc.objects.map((o) => [o.id, o]));
+  const zoneById = new Map(zones.map((z) => [z.id, z]));
+  return selectableItems(doc, zones, levelId).filter((i) => {
+    if (i.kind === 'wall') return walls.get(i.id)!.polyline.every((q) => inside(q[0], q[1]));
+    if (i.kind === 'object') return objectInside(objects.get(i.id)!);
+    const z = zoneById.get(i.id)!;
+    return z.polygon.length > 0 && z.polygon.every((q) => inside(q.x, q.y));
+  });
 }
 
 // ---------------------------------------------------------------- connectors (T085)
