@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { objectHitCorners, type GeometryDoc, type GeomObject } from '../src/map/geometry';
 import type { CatalogItem } from '../src/api/plan-catalog';
-import { addArray, addCircuit, addConnector, addLevel, addObject, arrayDefaults, circuitPower, duplicateObject, levelUsage, moveConnectorVertex, moveGroup, moveObject, objectZ, patchCircuit, patchConnector, patchLevel, patchObject, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember, translatePolygon, translateWall, visibleUnderLevel } from '../src/map/studio-ops';
+import { addArray, addCircuit, addConnector, addLevel, addObject, arrayDefaults, circuitPower, duplicateObject, initialLevel, levelUsage, moveConnectorVertex, moveGroup, moveObject, objectZ, patchCircuit, patchConnector, patchLevel, patchObject, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember, translatePolygon, translateWall, visibleUnderLevel } from '../src/map/studio-ops';
 
 // Plan Studio phase 2 (T085): the pure document operations of the editor - placing an item (its size, z and params come
 // from the library), moving, rotating, stretching, duplicating, and removing an object out of its group, its circuit
@@ -225,5 +225,18 @@ test.describe('whole-wall and whole-zone moves (unit)', () => {
     expect(translatePolygon(poly, -0.2, 0.5)).toEqual([{ x: 0, y: 0.87 }, { x: 0.12, y: 0.87 }, { x: 0.12, y: 1 }, { x: 0, y: 1 }]);
     expect(translatePolygon(poly, 0.012345, 0)[0]).toEqual({ x: 0.0423, y: 0.55 });
     expect(poly[0]).toEqual({ x: 0.03, y: 0.55 }); // never mutated
+  });
+
+  // 0.1.89: the plan.levels setting turned into the level filter a map opens with.
+  test('initialLevel: all levels for "all" or an unset setting, the default level id for "default", null with no or one level', () => {
+    const doc = sample(); // L0 (default), L1
+    expect(initialLevel('all', doc)).toBeNull();
+    expect(initialLevel(undefined, doc)).toBeNull();
+    expect(initialLevel('default', doc)).toBe('L0');
+    const oneLevel = { ...doc, levels: [doc.levels[1]] }; // a single, non-default level: still behaves as today
+    expect(initialLevel('default', oneLevel)).toBeNull();
+    const noLevels = { ...doc, levels: [] };
+    expect(initialLevel('default', noLevels)).toBeNull();
+    expect(initialLevel('all', noLevels)).toBeNull();
   });
 });

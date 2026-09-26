@@ -37,6 +37,8 @@ import type { ScenePreset } from '../map/scene-three'; // type only: the three c
 import type { PartSelectDetail } from '../map/sw-plan-3d';
 import { boundItemOf } from '../map/part-select';
 import { WEBGL_UNAVAILABLE_HE, webglAvailable } from '../map/webgl';
+import { initialLevel } from '../map/studio-ops';
+import { productSettings } from '../api/prefs';
 import { demoSceneInput, demoSceneLabels } from '../fixtures/demo-3d';
 import { circuitAction } from '../map/circuit-action';
 import { countLabel, renderLevelChips } from './plan-studio-panel';
@@ -948,6 +950,12 @@ export class ExploreFloorMap extends LitElement {
       this.restoreLayers();
       this.levelFilter = null;
       this.bundle = await loadMap(this.floorId);
+      const b = this.bundle;
+      void productSettings()
+        .then((s) => {
+          if (this.bundle === b) this.levelFilter = initialLevel(s['plan.levels'], b); // 0.1.89: plan.levels default level, else every level
+        })
+        .catch(() => {}); // settings unavailable: keep every level shown
       const seq = ++this.geomSeq;
       this.geometry = null;
       void geometryFor(this.bundle).then((g) => {
