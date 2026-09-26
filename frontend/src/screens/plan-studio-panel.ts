@@ -835,35 +835,62 @@ export function renderCustomItemDialog(v: CustomItemView, lib: CatalogLibrary, o
 
 // ---------------------------------------------------------------- levels (T085)
 
-/** The chips over the canvas: all levels, or one. `onAdd` (editors) adds the "+ מפלס" chip. */
-export function renderLevelChips(levels: GeomLevel[], current: string | null, onPick: (id: string | null) => void, onAdd?: () => void): TemplateResult {
+/** The chips over the canvas: all levels, or one. `onAdd` (editors) adds the "+ מפלס" chip; `onEdit` (editors) puts
+ * a small pencil beside each level's chip that opens the level's own dialog (rename, heights, default, delete). The
+ * pencil is a sibling of the chip, not inside it: sw-chip is itself a button. */
+export function renderLevelChips(levels: GeomLevel[], current: string | null, onPick: (id: string | null) => void, onAdd?: () => void, onEdit?: (id: string) => void): TemplateResult {
   if (levels.length < 2 && !onAdd) return html``;
+  const chip = (l: GeomLevel) => html`<sw-chip data-level-chip=${l.id} ?selected=${current === l.id} @click=${() => onPick(l.id)}>${l.name} · ${l.elevation_m >= 0 ? '+' : '−'}${Math.abs(l.elevation_m).toFixed(1)} מ׳</sw-chip>`;
   return html`<div class="levelchips" role="group" aria-label="מפלסים" data-level-chips>
     <sw-chip data-level-chip="all" ?selected=${current === null} @click=${() => onPick(null)}>כל המפלסים</sw-chip>
-    ${[...levels].sort((a, b) => b.elevation_m - a.elevation_m).map((l) => html`<sw-chip data-level-chip=${l.id} ?selected=${current === l.id} @click=${() => onPick(l.id)}>${l.name} · ${l.elevation_m >= 0 ? '+' : '−'}${Math.abs(l.elevation_m).toFixed(1)} מ׳</sw-chip>`)}
+    ${[...levels].sort((a, b) => b.elevation_m - a.elevation_m).map((l) => onEdit
+      ? html`<span class="levelchip">${chip(l)}<sw-button variant="ghost" size="sm" iconOnly icon="edit" label=${`עריכת המפלס ${l.name}`} data-level-edit=${l.id} @click=${() => onEdit(l.id)}></sw-button></span>`
+      : chip(l))}
     ${onAdd ? html`<sw-chip data-level-add icon="plus" @click=${onAdd}>מפלס</sw-chip>` : nothing}
   </div>`;
 }
 
+/** The level dialog: a new level (`id` null) or an existing one (`id` set: edit mode, with delete). */
 export interface LevelDialogView {
+  /** null = a new level; otherwise the level being edited. */
+  id: string | null;
   name: string;
   elevation: number;
   ceiling: number;
+  /** Edit mode: the level is the floor's default now (it keeps that; another level is made the default instead). */
+  isDefault: boolean;
+  /** Edit mode, a level that is not the default: make it the default on save (the others lose it). */
+  makeDefault: boolean;
   error: string;
 }
 
-export function renderLevelDialog(v: LevelDialogView, onChange: (patch: Partial<LevelDialogView>) => void, onCreate: () => void, onCancel: () => void): TemplateResult {
+export interface LevelDialogActions {
+  change(patch: Partial<LevelDialogView>): void;
+  /** Create (a new level) or save (edit mode). */
+  submit(): void;
+  cancel(): void;
+  /** Edit mode only. */
+  remove(): void;
+}
+
+export function renderLevelDialog(v: LevelDialogView, a: LevelDialogActions): TemplateResult {
   const num = (e: Event) => parseFloat((e.target as HTMLInputElement).value);
   const ok = v.name.trim().length > 0 && v.elevation >= -50 && v.elevation <= 500 && v.ceiling > 0 && v.ceiling <= 50;
-  return html`<sw-dialog open heading="מפלס חדש" subheading="גובה הרצפה יחסית למפלס הראשי (0), וגובה התקרה מעליה" data-level-dialog @close=${onCancel}>
-    ${v.error ? html`<div class="err">${v.error}</div>` : nothing}
-    <sw-field label="שם"><input type="text" maxlength="60" data-level-name placeholder="למשל: אולם תחתון" .value=${v.name} @input=${(e: Event) => onChange({ name: (e.target as HTMLInputElement).value })} /></sw-field>
+  const editing = v.id !== null;
+  return html`<sw-dialog open heading=${editing ? 'עריכת מפלס' : 'מפלס חדש'} subheading="גובה הרצפה יחסית למפלס הראשי (0), וגובה התקרה מעליה" data-level-dialog data-level-editing=${v.id ?? nothing} @close=${a.cancel}>
+    ${v.error ? html`<div class="err" data-level-error>${v.error}</div>` : nothing}
+    <sw-field label="שם"><input type="text" maxlength="60" data-level-name placeholder="למשל: אולם תחתון" .value=${v.name} @input=${(e: Event) => a.change({ name: (e.target as HTMLInputElement).value })} /></sw-field>
     <div class="two">
-      <sw-field label="גובה רצפה (מ׳)" hint="שלילי = מתחת למפלס הראשי"><input type="number" min="-50" max="500" step="0.1" data-ltr data-level-elevation .value=${String(v.elevation)} @input=${(e: Event) => onChange({ elevation: num(e) })} /></sw-field>
-      <sw-field label="גובה תקרה (מ׳)"><input type="number" min="0.1" max="50" step="0.1" data-ltr data-level-ceiling .value=${String(v.ceiling)} @input=${(e: Event) => onChange({ ceiling: num(e) })} /></sw-field>
+      <sw-field label="גובה רצפה (מ׳)" hint="שלילי = מתחת למפלס הראשי"><input type="number" min="-50" max="500" step="0.1" data-ltr data-level-elevation .value=${String(v.elevation)} @input=${(e: Event) => a.change({ elevation: num(e) })} /></sw-field>
+      <sw-field label="גובה תקרה (מ׳)"><input type="number" min="0.1" max="50" step="0.1" data-ltr data-level-ceiling .value=${String(v.ceiling)} @input=${(e: Event) => a.change({ ceiling: num(e) })} /></sw-field>
     </div>
-    <sw-button slot="footer" variant="ghost" data-level-cancel @click=${onCancel}>ביטול</sw-button>
-    <sw-button slot="footer" variant="primary" icon="check" data-level-create ?disabled=${!ok} @click=${onCreate}>הוסף מפלס</sw-button>
+    ${editing && v.isDefault ? html`<div class="note" data-level-is-default>זה המפלס הראשי: פריטים חדשים מוצבים בו כשאין סינון מפלס.</div>` : nothing}
+    ${editing && !v.isDefault ? html`<label class="chk"><input type="checkbox" data-level-make-default .checked=${v.makeDefault} @change=${(e: Event) => a.change({ makeDefault: (e.target as HTMLInputElement).checked })} /> הפוך למפלס הראשי</label>` : nothing}
+    ${editing ? html`<sw-button slot="footer" variant="danger" icon="trash" data-level-delete @click=${a.remove}>מחק מפלס</sw-button>` : nothing}
+    <sw-button slot="footer" variant="ghost" data-level-cancel @click=${a.cancel}>ביטול</sw-button>
+    ${editing
+      ? html`<sw-button slot="footer" variant="primary" icon="check" data-level-save ?disabled=${!ok} @click=${a.submit}>שמור</sw-button>`
+      : html`<sw-button slot="footer" variant="primary" icon="check" data-level-create ?disabled=${!ok} @click=${a.submit}>הוסף מפלס</sw-button>`}
   </sw-dialog>`;
 }
 
@@ -893,6 +920,13 @@ export interface ConnectorActions {
   link(id: string): void;
 }
 
+/** A connector end's level name for the connector list and inspector. Callers show a cross-floor link themselves
+ * (floor_ids set) before asking for level_to, so a null here is a target not chosen yet - never "another floor" (a
+ * freshly drawn connector starts that way, T085 review 2026-09-26). */
+function connectorLevelName(levels: GeomLevel[], id: string | null): string {
+  return id ? levels.find((l) => l.id === id)?.name ?? id : 'לא נבחר';
+}
+
 /** A connector the server derived from an object (a tribune, id `cx-<object>`): it follows its object; nobody edits
  * or deletes it by hand - the object is edited instead. */
 export function connectorDerived(c: Pick<GeomConnector, 'object_id' | 'source'>): boolean {
@@ -901,7 +935,7 @@ export function connectorDerived(c: Pick<GeomConnector, 'object_id' | 'source'>)
 
 export function renderConnectorPanel(v: ConnectorView, a: ConnectorActions): TemplateResult {
   const levels = v.doc.levels;
-  const levelName = (id: string | null) => (id ? levels.find((l) => l.id === id)?.name ?? id : 'קומה אחרת');
+  const levelName = (id: string | null) => connectorLevelName(levels, id);
   const sel = v.sel;
   const num = (e: Event) => parseFloat((e.target as HTMLInputElement).value);
   return html`<sw-card heading="מפלסים ומחברים" subheading=${v.mode ? (v.start ? `לחץ על הנקודה השנייה של ${CONNECTOR_LABEL[v.mode]} · Esc לביטול` : `לחץ על הנקודה הראשונה של ${CONNECTOR_LABEL[v.mode]}`) : 'מדרגות, רמפה, מעלית וסולם בין מפלסים ובין קומות'} data-connector-panel data-studio-save=${v.saveState}>
@@ -920,7 +954,7 @@ export function renderConnectorPanel(v: ConnectorView, a: ConnectorActions): Tem
 
 /** The select tool (0.1.87): the selected connector's inspector in a card of its own, without the connector modes. */
 export function renderConnectorSelection(v: ConnectorView & { sel: GeomConnector }, a: ConnectorActions): TemplateResult {
-  const levelName = (id: string | null) => (id ? v.doc.levels.find((l) => l.id === id)?.name ?? id : 'קומה אחרת');
+  const levelName = (id: string | null) => connectorLevelName(v.doc.levels, id);
   const num = (e: Event) => parseFloat((e.target as HTMLInputElement).value);
   return html`<sw-card heading="מחבר" subheading=${SAVE_LABEL[v.saveState]} data-connector-panel data-studio-save=${v.saveState}>${renderConnectorInspector(v.sel, v, a, levelName, num)}</sw-card>`;
 }
@@ -947,7 +981,7 @@ function renderConnectorInspector(c: GeomConnector, v: ConnectorView, a: Connect
             <option value="" ?selected=${!v.linkFloor}>בחר קומה</option>${v.floors.map((f) => html`<option value=${f.id} ?selected=${f.id === v.linkFloor}>${f.name}</option>`)}</select>
           <sw-button size="sm" data-conn-link ?disabled=${!v.linkFloor || v.linkBusy} @click=${() => a.link(c.id)}>${v.linkBusy ? 'מקשר…' : 'קשר'}</sw-button></div>`
       : nothing}
-    <div class="note">${levelName(c.level_from)} ← ${c.floor_ids.length ? 'קומה אחרת' : levelName(c.level_to)}${derived ? '' : ' · גרירת פינה מזיזה את המחבר'}</div>
+    <div class="note" data-conn-route>${levelName(c.level_from)} ← ${c.floor_ids.length ? 'קומה אחרת' : levelName(c.level_to)}${derived ? '' : ' · גרירת פינה מזיזה את המחבר'}</div>
     ${!derived ? html`<div class="btns"><sw-button size="sm" variant="ghost" icon="trash" data-geom-delete @click=${() => a.remove(c.id)}>מחק מחבר</sw-button></div>` : nothing}
   </div>`;
 }
@@ -1219,6 +1253,11 @@ export const studioPanelStyles = css`
     flex-wrap: wrap;
     gap: 6px;
     align-items: center;
+  }
+  .levelchip {
+    display: inline-flex;
+    align-items: center;
+    gap: 1px;
   }
   .badge {
     display: inline-block;
