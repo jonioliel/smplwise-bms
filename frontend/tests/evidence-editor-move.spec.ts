@@ -298,6 +298,119 @@ test.describe.serial('editor: select and move walls, objects and zones (0.1.87)'
     expect((await zoneOf(zone.id)).revision).toBe(rev + 2);
   });
 
+  // T085 multi-select (owner report 2026-09-26): Shift+click, a marquee and Ctrl+A select several items; the selection
+  // moves, is copied and is deleted together, each as one undo step; Ctrl+A keeps to the level filter.
+  test('select tool: Shift+click and a marquee select several objects; they move, are copied and deleted together; Ctrl+A keeps to the level filter', async ({ page }) => {
+    const levels0 = ((await draft()).doc as { levels?: unknown[] }).levels ?? [];
+    const LEVEL = (id: string, name: string, isDefault: boolean) => ({ id, name, elevation_m: isDefault ? 0 : -1.2, ceiling_height_m: 3, is_default: isDefault, external_ids: {} });
+    const three: P[] = [[0.3, 0.55], [0.4, 0.55], [0.5, 0.55]];
+    const names = ['ms1', 'ms2', 'ms3'];
+    await saveDraft({ ...SEED, levels: [LEVEL('L0', 'קומת כניסה', true), LEVEL('L1', 'מרתף', false)],
+      objects: [...SEED.objects, ...names.map((id, i) => CHAIR(id, three[i])), { ...CHAIR('ms4', [0.6, 0.7]), level_id: 'L1' }, { ...CHAIR('ms5', [0.7, 0.7]), level_id: 'L1' }] });
+    try {
+      await openEditor(page);
+      const obj = (id: string) => page.locator(`${ED} sw-plan-canvas [data-structure] [data-object="${id}"]`);
+      const panel = page.locator(`${ED} [data-multi-panel]`);
+      const positions = async (idList: string[]) => { const d = await draft(); return idList.map((id) => d.doc.objects.find((o) => o.id === id)!.position); };
+      const shiftClick = async (p: P) => {
+        const s = await at(page, p);
+        await page.keyboard.down('Shift');
+        await page.mouse.click(s.x, s.y);
+        await page.keyboard.up('Shift');
+      };
+      const marquee = async (from: P, to: P) => {
+        const a = await at(page, from);
+        const b = await at(page, to);
+        await mouseDrag(page, a, b.x - a.x, b.y - a.y);
+      };
+
+      // Shift+click two chairs: one alone is the ordinary selection, the second makes a multi-selection of two
+      await shiftClick(three[0]);
+      await expect(page.locator(`${ED} [data-selected-object="ms1"]`)).toBeVisible();
+      await shiftClick(three[1]);
+      await expect(panel).toHaveAttribute('data-multi-count', '2');
+      await expect(obj('ms1')).toHaveClass(/\bsel\b/);
+      await expect(obj('ms2')).toHaveClass(/\bsel\b/);
+      await expect(obj('ms3')).not.toHaveClass(/\bsel\b/);
+
+      // a marquee from the bare plan around all three picks all three and nothing else
+      await marquee([0.25, 0.47], [0.56, 0.63]);
+      await expect(panel).toHaveAttribute('data-multi-count', '3');
+      for (const id of names) await expect(obj(id)).toHaveClass(/\bsel\b/);
+      await expect(obj('mo1')).not.toHaveClass(/\bsel\b/);
+
+      // dragging one of them moves all three by the same delta; the rest stays; one Ctrl+Z puts all three back
+      const p0 = await positions([...names, 'mo1']);
+      await mouseDrag(page, await at(page, three[1]), 60, 40);
+      await expect.poll(async () => (await positions(['ms2']))[0][0], { timeout: 10000 }).toBeGreaterThan(p0[1][0] + 0.02);
+      const p1 = await positions([...names, 'mo1']);
+      const dx = p1[0][0] - p0[0][0];
+      const dy = p1[0][1] - p0[0][1];
+      expect(dy).toBeGreaterThan(0.02);
+      for (const i of [1, 2]) {
+        expect(p1[i][0] - p0[i][0]).toBeCloseTo(dx, 4);
+        expect(p1[i][1] - p0[i][1]).toBeCloseTo(dy, 4);
+      }
+      expect(p1[3]).toEqual(p0[3]);
+      await expect(panel).toHaveAttribute('data-multi-count', '3'); // the selection stays after the drop
+      await saved(page);
+      await page.keyboard.press('Control+z');
+      await expect.poll(async () => JSON.stringify(await positions(names)), { timeout: 10000 }).toBe(JSON.stringify(p0.slice(0, 3)));
+      await page.keyboard.press('Control+y');
+      await expect.poll(async () => JSON.stringify(await positions(names)), { timeout: 10000 }).toBe(JSON.stringify(p1.slice(0, 3)));
+
+      // undo / redo clear the selection: the marquee takes the three again where they are now
+      const xs = p1.slice(0, 3).map((p) => p[0]);
+      const ys = p1.slice(0, 3).map((p) => p[1]);
+      await marquee([Math.min(...xs) - 0.04, Math.min(...ys) - 0.06], [Math.max(...xs) + 0.04, Math.max(...ys) + 0.06]);
+      await expect(panel).toHaveAttribute('data-multi-count', '3');
+
+      // "שכפל": three copies as one block beside the three, every copy by the same shift, and the copies are the selection
+      const known = new Set((await draft()).doc.objects.map((o) => o.id));
+      await page.locator(`${ED} [data-multi-duplicate]`).click();
+      await expect.poll(async () => (await draft()).doc.objects.length, { timeout: 10000 }).toBe(known.size + 3);
+      const copies = (await draft()).doc.objects.filter((o) => !known.has(o.id));
+      const sx = copies[0].position[0] - p1[0][0];
+      const sy = copies[0].position[1] - p1[0][1];
+      expect(Math.abs(sx) + Math.abs(sy)).toBeGreaterThan(0.05);
+      copies.forEach((c, i) => {
+        expect(c.position[0] - p1[i][0]).toBeCloseTo(sx, 4);
+        expect(c.position[1] - p1[i][1]).toBeCloseTo(sy, 4);
+      });
+      await expect(panel).toHaveAttribute('data-multi-count', '3');
+      for (const c of copies) await expect(obj(c.id)).toHaveClass(/\bsel\b/);
+      for (const id of names) await expect(obj(id)).not.toHaveClass(/\bsel\b/);
+
+      // Delete removes all three copies in one action; one Ctrl+Z brings all three back, Ctrl+Y removes them again
+      await page.keyboard.press('Delete');
+      await expect(panel).toHaveCount(0);
+      await expect.poll(async () => (await draft()).doc.objects.filter((o) => !known.has(o.id)).length, { timeout: 10000 }).toBe(0);
+      expect((await draft()).doc.objects.map((o) => o.id).sort()).toEqual([...known].sort());
+      await page.keyboard.press('Control+z');
+      await expect.poll(async () => (await draft()).doc.objects.length, { timeout: 10000 }).toBe(known.size + 3);
+      await page.keyboard.press('Control+y');
+      await expect.poll(async () => (await draft()).doc.objects.length, { timeout: 10000 }).toBe(known.size);
+
+      // Ctrl+A under the L1 filter: the two L1 chairs and the zones (drawn on every level), never an L0 wall or object
+      const zoneCount = ((await (await api.get(`api/v1/floors/${ids.floor}/zones`)).json()) as { zones: unknown[] }).zones.length;
+      await page.locator(`${ED} [data-level-chip="L1"]`).click();
+      await expect(obj('ms1')).toHaveCount(0); // the L0 chairs are not drawn under the L1 filter
+      await page.keyboard.press('Control+a');
+      await expect(panel).toHaveAttribute('data-multi-count', String(2 + zoneCount));
+      await expect(obj('ms4')).toHaveClass(/\bsel\b/);
+      await expect(obj('ms5')).toHaveClass(/\bsel\b/);
+      await page.locator(`${ED} [data-level-chip="all"]`).click();
+      await expect(page.locator(`${ED} sw-plan-canvas [data-structure] [data-object].sel`)).toHaveCount(2); // back on every level: only ms4 and ms5
+      await expect(page.locator(`${ED} sw-plan-canvas [data-structure] [data-wall].sel`)).toHaveCount(0);
+      // Esc clears the multi-selection
+      await page.keyboard.press('Escape');
+      await expect(panel).toHaveCount(0);
+      await expect(page.locator(`${ED} sw-plan-canvas [data-structure] [data-object].sel`)).toHaveCount(0);
+    } finally {
+      await saveDraft({ levels: levels0, objects: SEED.objects }); // the phone test below expects the plain seed
+    }
+  });
+
   test.describe('on a phone', () => {
     test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 

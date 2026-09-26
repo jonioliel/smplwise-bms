@@ -747,6 +747,42 @@ export function renderGroupInspector(g: GeomGroup, item: CatalogItem | undefined
   </sw-card>`;
 }
 
+// ---------------------------------------------------------------- multi-selection (T085)
+
+/** How several items are picked in the editor's select tool (owner report 2026-09-26). */
+export const MULTI_HINT = 'Shift+לחיצה מוסיפה קיר, עצם או אזור לבחירה או מוציאה אותו ממנה; גרירת מלבן מרקע ריק בוחרת את מה שנמצא בתוכו במלואו; Ctrl+A בוחר את כל מה שמוצג במפלס; Esc מנקה. הזזת התוכנית: גלגלת לזום, גרירה בכפתור האמצעי.';
+
+export interface MultiView {
+  walls: number;
+  objects: number;
+  zones: number;
+  /** A zone request is in flight: no second bulk action until it ends. */
+  busy: boolean;
+  /** The structure draft's autosave, as every other selection panel shows it. */
+  saveState: SaveState;
+}
+export interface MultiActions {
+  duplicate(): void;
+  remove(): void;
+  clear(): void;
+}
+
+/** The select tool with two or more walls, objects and zones selected: what is selected and the actions on all of them. */
+export function renderMultiSelection(v: MultiView, a: MultiActions): TemplateResult {
+  const total = v.walls + v.objects + v.zones;
+  const parts = [v.walls ? countLabel(v.walls, 'קיר אחד', 'קירות') : '', v.objects ? countLabel(v.objects, 'עצם אחד', 'עצמים') : '', v.zones ? countLabel(v.zones, 'אזור אחד', 'אזורים') : ''].filter(Boolean).join(' · ');
+  return html`<sw-card heading=${`${total} פריטים נבחרו`} subheading=${`${parts} · ${SAVE_LABEL[v.saveState]}`} data-multi-panel data-multi-count=${total} data-studio-save=${v.saveState}>
+    <div class="note">גרירת אחד מהם מזיזה את כולם יחד · Delete מוחק את כולם · Ctrl+D משכפל את העצמים שבבחירה</div>
+    ${v.zones ? html`<div class="note" data-multi-zones-note>הזזה ומחיקה של אזורים נשמרות מיד ואינן חלק מהביטול (Ctrl+Z); קירות ועצמים חוזרים בצעד ביטול אחד</div>` : nothing}
+    <div class="btns">
+      ${v.objects ? html`<sw-button size="sm" icon="layers" data-multi-duplicate ?disabled=${v.busy} title="עותק של כל העצמים שנבחרו, כגוש אחד ליד הבחירה (גם Ctrl+D)" @click=${() => a.duplicate()}>${v.objects === 1 ? 'שכפל את העצם' : `שכפל ${v.objects} עצמים`}</sw-button>` : nothing}
+      <sw-button size="sm" variant="danger" icon="trash" data-multi-delete ?disabled=${v.busy} @click=${() => a.remove()}>מחק הכל</sw-button>
+      <sw-button size="sm" variant="ghost" data-multi-clear @click=${() => a.clear()}>נקה בחירה</sw-button>
+    </div>
+    <div class="note" data-multi-hint>${MULTI_HINT}</div>
+  </sw-card>`;
+}
+
 export interface ArrayDialogView {
   item: CatalogItem | undefined;
   rows: number;
