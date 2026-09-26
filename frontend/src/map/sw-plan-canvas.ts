@@ -1153,9 +1153,13 @@ export class SwPlanCanvas extends LitElement {
       this.dragMoved = true; // swallow the trailing click so the zone stays selected
       setTimeout(() => (this.dragMoved = false), 0);
     };
+    const add = e.shiftKey;
     const up = () => {
       end();
       if (moved && poly.some((q, i) => q.x !== z.polygon[i].x || q.y !== z.polygon[i].y)) this.emitZoneEdit(z, poly);
+      // Shift + a press without a move: the click is swallowed above, so say it here - the select tool takes the zone out
+      // of the selection or adds the next item to it, as Shift+click does on a wall or an object (T085)
+      else if (!moved && add) this.dispatchEvent(new CustomEvent('zone-select', { detail: { id: z.id, add: true }, bubbles: true, composed: true }));
     };
     const cancel = () => end(); // an interrupted gesture changes nothing
     this.viewport.addEventListener('pointermove', move);

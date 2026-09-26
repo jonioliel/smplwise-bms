@@ -392,13 +392,32 @@ test.describe.serial('editor: select and move walls, objects and zones (0.1.87)'
       await expect.poll(async () => (await draft()).doc.objects.length, { timeout: 10000 }).toBe(known.size);
 
       // Ctrl+A under the L1 filter: the two L1 chairs and the zones (drawn on every level), never an L0 wall or object
+      const created = await api.post(`api/v1/floors/${ids.floor}/zones`, { data: { name: 'חדר בחירה', kind: 'room', polygon: [{ x: 0.82, y: 0.6 }, { x: 0.9, y: 0.6 }, { x: 0.9, y: 0.7 }, { x: 0.82, y: 0.7 }] } });
+      expect(created.status()).toBe(201);
+      const myZone = (await created.json()) as { id: string };
+      zoneIds.push(myZone.id);
       const zoneCount = ((await (await api.get(`api/v1/floors/${ids.floor}/zones`)).json()) as { zones: unknown[] }).zones.length;
+      await page.reload(); // the editor loads the new zone
+      await expect(page.locator(`${ED} sw-plan-canvas g.zone[data-zone="${myZone.id}"]`)).toHaveCount(1, { timeout: 20000 });
       await page.locator(`${ED} [data-level-chip="L1"]`).click();
       await expect(obj('ms1')).toHaveCount(0); // the L0 chairs are not drawn under the L1 filter
       await page.keyboard.press('Control+a');
       await expect(panel).toHaveAttribute('data-multi-count', String(2 + zoneCount));
       await expect(obj('ms4')).toHaveClass(/\bsel\b/);
       await expect(obj('ms5')).toHaveClass(/\bsel\b/);
+      await expect(page.locator(`${ED} sw-plan-canvas g.zone.selected[data-zone="${myZone.id}"]`)).toHaveCount(1);
+      // dragging one chair moves the selected zones with it by the same delta, each zone saved once
+      const z0 = await zoneOf(myZone.id);
+      const m0 = (await positions(['ms4']))[0];
+      await mouseDrag(page, await at(page, [0.6, 0.7]), 40, 30);
+      await expect.poll(async () => (await positions(['ms4']))[0][0], { timeout: 10000 }).toBeGreaterThan(m0[0] + 0.01);
+      await expect.poll(async () => (await zoneOf(myZone.id)).revision, { timeout: 10000 }).toBe(z0.revision + 1);
+      const m1 = (await positions(['ms4']))[0];
+      (await zoneOf(myZone.id)).polygon.forEach((q, i) => {
+        expect(q.x - z0.polygon[i].x).toBeCloseTo(m1[0] - m0[0], 3);
+        expect(q.y - z0.polygon[i].y).toBeCloseTo(m1[1] - m0[1], 3);
+      });
+      await expect(panel).toHaveAttribute('data-multi-count', String(2 + zoneCount)); // still selected
       await page.locator(`${ED} [data-level-chip="all"]`).click();
       await expect(page.locator(`${ED} sw-plan-canvas [data-structure] [data-object].sel`)).toHaveCount(2); // back on every level: only ms4 and ms5
       await expect(page.locator(`${ED} sw-plan-canvas [data-structure] [data-wall].sel`)).toHaveCount(0);

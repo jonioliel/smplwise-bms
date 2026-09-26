@@ -2303,7 +2303,7 @@ export class ExplorePlanEditor extends LitElement {
       this.selectAll();
       return true;
     }
-    if (this.multiShown.length < 2 || this.geomPreview) return false;
+    if (this.multiShown.length < 2 || this.geomPreview || this.zonePreview) return false; // not during a drag or its zone saves
     if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
       void this.deleteMulti();
