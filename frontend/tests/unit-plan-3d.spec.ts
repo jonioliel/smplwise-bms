@@ -93,7 +93,7 @@ test('the demo floor map: the toggle loads the chunk once, the key 3 switches, l
   const host = page.locator('explore-floor-map');
   await expect(host.locator('sw-plan-canvas')).toBeAttached({ timeout: 20000 });
   const toggle = host.locator('[data-view-3d]');
-  await expect(toggle).toBeEnabled();
+  await expect(toggle).not.toHaveAttribute('disabled', ''); // sw-button is a custom element: toBeEnabled cannot fail on it
   await expect(toggle).toHaveAttribute('aria-pressed', 'false');
   expect(chunkRequests).toHaveLength(0);
   await toggle.click();

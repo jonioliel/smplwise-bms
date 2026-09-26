@@ -51,17 +51,15 @@
   exported glTF carries no lights and no sprites (empty nodes) and needs a viewer that supports
   `EXT_mesh_gpu_instancing`; cones are not clickable (a camera is selected by its body); the in-map "isometric" preset
   is a perspective view, not a true isometric; the event-page 3D and the phone frame rate stay NOT_RUN in this release
-  (no NVR event on a floor with a plan on the developer backend; no real phone on this workstation); the
-  context-restore, pointer-cancel and toast fixes carried over from 0.1.87 stayed untested at this commit (unchanged
-  behaviour, no new evidence needed).
+  (no NVR event on a floor with a plan on the developer backend; no real phone on this workstation).
 - Evidence: `test_anchor_3d.py` (6 tests: migration, fields, validation, audit), `test_lovelace_card.py` (3 tests: the
   built UI references its chunks relatively), node specs `unit-coverage` (9), `unit-anchor-3d` (1), `unit-scene-builder`
   (8, incl. the pinned description `contracts/fixtures/plan_geometry/sample-v2.scene.json` and a 3,000-chair hall),
   `unit-three-chunk` (2, the gzip limit against a real build), the browser specs `unit-plan-3d` (4: the element, the
   demo floor without a backend, prism-geometry edge cases, the isometric thumbnail) and `unit-plan-3d-view` (7: counts
   by kind and draw calls against the description, the camera presets, picking inside a shared instance group, frame
-  scheduling, picking through a translucent upper plate, WebGL context release, and the sync-loss / hash-navigation
-  fix itself - a restored context redraws, a cancelled pointer never selects, the toast sits centred), and the live
+  scheduling, picking through a translucent upper plate, WebGL context release, and the three element minors - a
+  restored WebGL context redraws, a cancelled pointer never selects, the toast sits centred), and the live
   spec `evidence-plan-studio-4` (12 tests in real Chrome: 11 passed, 1 skipped - the live map, a card that never
   floats over the 3D plus stale / blocked / sync-loss states, 2D coverage clipped by walls, the history map, the
   event page (skipped: no NVR event on a floor with a plan on the developer backend), the building page reached by a

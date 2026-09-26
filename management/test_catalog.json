@@ -4947,7 +4947,8 @@
       "frontend/tests/evidence-plan-studio-4.spec.ts (the phone at 390 px, embed mode as the Lovelace card embeds it, the WebGL gate, the glTF download with asset.generator and nodes)",
       "smplwise_vms/backend/tests/test_lovelace_card.py (the built UI references its chunks relatively)",
       "frontend/tests/unit-coverage.spec.ts and evidence-plan-studio-4 (coverage stopped by walls in 2D and in the 3D cone)",
-      "frontend/tests/evidence-plan-studio-4.spec.ts (the building page draws a true isometric of the published walls)"
+      "frontend/tests/evidence-plan-studio-4.spec.ts (the building page draws a true isometric of the published walls)",
+      "scope of this PASS (2026-09-26, 0.1.88): the chunk limit, the on-demand load, the glTF file, the wall-clipped coverage and the true isometric ran in real headless Chrome on the workstation (evidence-plan-studio-4 tests 2, 3, 6, 9-12; unit-three-chunk); the frame rate on a real PHONE GPU was NOT measured (the 390 px run is the workstation at phone width, 60 fps = the requestAnimationFrame cap, the gate is >= 20) and the real Lovelace card inside Home Assistant was NOT opened (only embed=1 on the preview plus test_lovelace_card.py's relative-chunk assertion on the built UI) - both remain owner checks (PLAN_STUDIO_PHASE4_CHECKLIST_HE.md rows 2 and 3)"
     ],
     "executed_at": "2026-09-26T01:07:29Z",
     "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
