@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { objectHitCorners, type GeometryDoc, type GeomObject } from '../src/map/geometry';
 import type { CatalogItem } from '../src/api/plan-catalog';
-import { addArray, addCircuit, addConnector, addLevel, addObject, arrayDefaults, circuitPower, duplicateBeside, duplicateObject, initialLevel, levelUsage, moveConnectorVertex, moveGroup, moveObject, objectZ, patchCircuit, patchConnector, patchLevel, patchObject, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember, translatePolygon, translateWall, visibleUnderLevel } from '../src/map/studio-ops';
+import { addArray, addCircuit, addCircuitLamp, addConnector, addLevel, addObject, arrayDefaults, circuitPower, duplicateBeside, duplicateObject, initialLevel, levelUsage, moveConnectorVertex, moveGroup, moveObject, objectZ, patchCircuit, patchConnector, patchLevel, patchObject, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember, translatePolygon, translateWall, visibleUnderLevel } from '../src/map/studio-ops';
 
 // Plan Studio phase 2 (T085): the pure document operations of the editor - placing an item (its size, z and params come
 // from the library), moving, rotating, stretching, duplicating, and removing an object out of its group, its circuit
@@ -177,6 +177,28 @@ test.describe('plan studio object operations (unit)', () => {
     const boosted = patchObject(withLamp, 'o3', { params: { power_w: 60 } });
     expect(circuitPower(boosted, boosted.circuits.find((k) => k.id === r.id)!, lookup)).toBe(60); // the object's own value wins
     expect(patchCircuit(r.doc, r.id, { name: 'צפון', color_token: 'circuit-3' }).circuits.at(-1)).toMatchObject({ name: 'צפון', color_token: 'circuit-3' });
+  });
+
+  // owner report 2026-09-26: "add lamps" on a circuit placed nothing on a click on the map
+  test('addCircuitLamp places a new lamp exactly like addObject and wires it into the circuit in one document; an unknown circuit still places it', () => {
+    const doc = sample();
+    const spot = item('light.spot');
+    const r = addCircuitLamp(doc, spot, [0.7, 0.25], PLACE, 'k1');
+    const o = r.doc.objects.find((x) => x.id === r.id)!;
+    expect(o).toMatchObject({ item_id: 'light.spot', level_id: 'L0', position: [0.7, 0.25], rotation_deg: 0, size: { w_m: 0.12, d_m: 0.12, h_m: 0.1 }, z_m: 2.95, params: { power_w: 8 }, label: null, anchor_ref: null, group_id: null, source: 'manual', locked: false });
+    expect(r.doc.objects.length).toBe(doc.objects.length + 1);
+    expect(r.doc.circuits.find((k) => k.id === 'k1')!.member_ids).toEqual(['o3', r.id]); // o3 stays, the new lamp joins
+    expect(doc.circuits.find((k) => k.id === 'k1')!.member_ids).toEqual(['o3']); // the input document is not mutated
+    const plain = addObject(doc, spot, [0.7, 0.25], PLACE);
+    const { id: _a, ...placed } = o;
+    const { id: _b, ...viaAdd } = plain.doc.objects.find((x) => x.id === plain.id)!;
+    expect(placed).toEqual(viaAdd); // the same object addObject makes, apart from its fresh id
+    const turned = addCircuitLamp(doc, spot, [0.1, 0.1], { levelId: 'L1', ceilingM: 4 }, 'k1', 45);
+    expect(turned.doc.objects.find((x) => x.id === turned.id)).toMatchObject({ level_id: 'L1', z_m: 3.95, rotation_deg: 45 });
+    const lost = addCircuitLamp(doc, spot, [0.2, 0.2], PLACE, 'no-such-circuit');
+    expect(lost.doc.objects.find((x) => x.id === lost.id)).toMatchObject({ item_id: 'light.spot', position: [0.2, 0.2] });
+    expect(lost.doc.circuits).toEqual(doc.circuits); // no circuit gained the id
+    expect(lost.doc.circuits.some((k) => k.member_ids.includes(lost.id))).toBe(false);
   });
 });
 

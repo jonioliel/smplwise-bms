@@ -28,9 +28,9 @@ import { productSettings } from '../api/prefs';
 import { createItem, exportUrl as catalogExportUrl, importItems, itemOf, loadLibrary, lookupOf, type CatalogItem, type CatalogLibrary } from '../api/plan-catalog';
 import { distanceM, effectiveScale, isClosedOutline, lengthPx, nearestWall, pointOnWall, snapPoint, type CatalogLookup, type ConnectorKind, type GeometryDoc, type GeomOpening, type GeomWall, type Pt } from '../map/geometry';
 import { StudioController } from '../map/studio-controller';
-import { ARRAY_MAX, BIND_DISTANCE_M, CIRCUIT_COLORS, addArray, addCircuit, addConnector, addLabel, addLevel, addObject, addOpening, addWall, arrayDefaults, circuitPower, defaultLevelId, duplicateBeside, duplicateObject, initialLevel, kindDefaults, moveConnectorVertex, moveGroup, moveObject, moveVertex, newId, nudgeT, openingRange, patchCircuit, patchConnector, patchLabel, patchObject, patchOpening, patchWall, removeCorner, removeGroup, removeItem, rotationTo, stretchedSize, toggleCircuitMember, translateWall, visibleUnderLevel, wallDirectionAt, type WallDefaults } from '../map/studio-ops';
+import { ARRAY_MAX, BIND_DISTANCE_M, CIRCUIT_COLORS, addArray, addCircuit, addCircuitLamp, addConnector, addLabel, addLevel, addObject, addOpening, addWall, arrayDefaults, circuitPower, defaultLevelId, duplicateBeside, duplicateObject, initialLevel, kindDefaults, moveConnectorVertex, moveGroup, moveObject, moveVertex, newId, nudgeT, openingRange, patchCircuit, patchConnector, patchLabel, patchObject, patchOpening, patchWall, removeCorner, removeGroup, removeItem, rotationTo, stretchedSize, toggleCircuitMember, translateWall, visibleUnderLevel, wallDirectionAt, type WallDefaults } from '../map/studio-ops';
 import { ANCHOR_3D_DEFAULTS, anchor3dKind } from '../map/anchor-3d';
-import { COLL_LABEL, CONNECTOR_LABEL, connectorDerived, countLabel, fmtMetres, fmtScale, renderArrayDialog, renderCalibPanel, renderCircuitPanel, renderConnectorPanel, renderCustomItemDialog, renderGroupDeleteDialog, renderGroupInspector, renderLevelChips, renderLevelDialog, renderDetectPanel, renderLibraryPanel, renderMeasurePanel, renderObjectInspector, renderConnectorSelection, renderStudioPanel, SAVE_LABEL, studioPanelStyles, lighterStrength, type ArrayDialogView, type CustomItemView, type DetectAcceptError, type DetectOpts, type DetectReplaceAsk, type DetectRunState, type GeomKind, type GeomSel, type LevelDialogView, type StudioMode } from './plan-studio-panel';
+import { COLL_LABEL, CONNECTOR_LABEL, circuitPlacingHint, connectorDerived, countLabel, fmtMetres, fmtScale, renderArrayDialog, renderCalibPanel, renderCircuitPanel, renderConnectorPanel, renderCustomItemDialog, renderGroupDeleteDialog, renderGroupInspector, renderLevelChips, renderLevelDialog, renderDetectPanel, renderLibraryPanel, renderMeasurePanel, renderObjectInspector, renderConnectorSelection, renderStudioPanel, SAVE_LABEL, studioPanelStyles, lighterStrength, type ArrayDialogView, type CustomItemView, type DetectAcceptError, type DetectOpts, type DetectReplaceAsk, type DetectRunState, type GeomKind, type GeomSel, type LevelDialogView, type StudioMode } from './plan-studio-panel';
 
 type Strength = 'light' | 'medium' | 'strong';
 interface ZoneCandidate {
@@ -194,6 +194,9 @@ export class ExplorePlanEditor extends LitElement {
   // ---- circuits (T085) ----
   @state() private circuitSel: string | null = null;
   @state() private membersMode = false;
+  /** The lamp type the next click on the plan places straight into the selected circuit (members mode; owner report
+   * 2026-09-26: "add lamps" placed nothing on a click on the map). Stays armed until Esc, like the library's item. */
+  @state() private circuitPlacing: CatalogItem | null = null;
   @state() private circuitNew: { name: string; q: string; results: HaEntity[]; entity: HaEntity | null; color: string; busy: boolean } | null = null;
   private circuitTimer = 0;
   @state() private wallDraft: Pt[] | null = null;
@@ -930,6 +933,7 @@ export class ExplorePlanEditor extends LitElement {
     if (e.key === 'Escape') {
       if (this.arrayDialog || this.groupDelete || this.customDialog) { this.arrayDialog = null; this.groupDelete = null; this.customDialog = null; return; }
       if (this.connStart) { this.connStart = null; return; }
+      if (this.tool === 'circuits' && this.circuitPlacing) { this.circuitPlacing = null; return; } // first Esc: the armed lamp type
       if (this.tool === 'circuits' && this.membersMode) { this.membersMode = false; return; }
       if (this.tool === 'detect') {
         if (this.detectAsk) this.detectAsk = null;
@@ -1298,6 +1302,7 @@ export class ExplorePlanEditor extends LitElement {
     this.connMode = null;
     this.connStart = null;
     this.membersMode = false;
+    this.circuitPlacing = null; // an armed lamp type never survives a tool switch (like linkFloor below)
     this.circuitNew = null;
     this.linkFloor = ''; // a floor picked for a connector link never survives a tool switch (final review item 4)
     if (tool === 'connectors' && !this.tree && this.bundle?.source === 'api') void loadTree().then((t) => (this.tree = t)).catch(() => {});
@@ -1484,6 +1489,7 @@ export class ExplorePlanEditor extends LitElement {
     if (this.circuitSel && doc && !doc.circuits.some((k) => k.id === this.circuitSel)) {
       this.circuitSel = null;
       this.membersMode = false;
+      this.circuitPlacing = null; // a lamp type armed for a circuit that is gone places nothing
     }
   }
 
@@ -1497,6 +1503,7 @@ export class ExplorePlanEditor extends LitElement {
     this.circuitNew = null;
     this.circuitSel = r.id;
     this.membersMode = true;
+    this.circuitPlacing = null; // another circuit: a lamp type armed for the previous one does not carry over
     this.info = 'המעגל נוצר: לחץ על המנורות שלו';
     setTimeout(() => (this.info = ''), 4000);
   }
@@ -1507,11 +1514,12 @@ export class ExplorePlanEditor extends LitElement {
     if (!doc) return html`<sw-card heading="מעגלי תאורה"><div class="note">${b.source === 'demo' ? 'נתוני הדגמה: המעגלים עובדים מול השרת.' : this.error || 'טוען…'}</div></sw-card>`;
     return renderCircuitPanel(
       { doc, sel: doc.circuits.find((k) => k.id === this.circuitSel), membersMode: this.membersMode, power: (k) => circuitPower(doc, k, (id) => (lib ? itemOf(lib, id) : undefined)), creating: this.circuitNew,
-        saveState: this.studio.saveState, colors: CIRCUIT_COLORS },
+        saveState: this.studio.saveState, colors: CIRCUIT_COLORS, lamps: lib ? lib.items.filter((i) => i.role === 'light') : [], placing: this.circuitPlacing },
       {
         select: (id) => {
           this.circuitSel = id;
           this.membersMode = false;
+          this.circuitPlacing = null; // another circuit (or none): the armed lamp type does not carry over
         },
         startNew: () => {
           this.circuitNew = { name: '', q: '', results: [], entity: null, color: CIRCUIT_COLORS[doc.circuits.length % CIRCUIT_COLORS.length], busy: false };
@@ -1528,11 +1536,19 @@ export class ExplorePlanEditor extends LitElement {
         },
         create: () => this.createCircuit(),
         patch: (id, patch) => this.edit((d) => patchCircuit(d, id, patch)),
-        toggleMembers: () => (this.membersMode = !this.membersMode),
+        toggleMembers: () => {
+          this.membersMode = !this.membersMode;
+          if (!this.membersMode) this.circuitPlacing = null; // leaving members mode disarms the lamp type
+        },
         remove: (id) => {
           this.edit((d) => removeItem(d, id));
           this.circuitSel = null;
           this.membersMode = false;
+          this.circuitPlacing = null;
+        },
+        armLamp: (item) => {
+          if (!this.membersMode || !this.circuitSel) return;
+          this.circuitPlacing = item;
         },
       },
     );
@@ -1563,6 +1579,20 @@ export class ExplorePlanEditor extends LitElement {
     this.remember(item.id);
     this.offerBinding(r.id);
     if (this.phone.matches) this.placingItem = null;
+  }
+
+  /** Place the armed lamp type at a plan point, already a member of the selected circuit (one undo step). No body offer:
+   * circuit membership and an HA-entity binding are separate concerns. On a phone one placement disarms, as placeItem. */
+  private placeCircuitLamp(p: Pt) {
+    const doc = this.studio.doc;
+    const item = this.circuitPlacing;
+    const cid = this.circuitSel;
+    if (!doc || !item || !cid) return;
+    const r = addCircuitLamp(doc, item, p, this.placeOpts(doc), cid);
+    this.studio.commit(r.doc);
+    this.lastEdit = 'structure';
+    this.geomSel = { id: r.id, kind: 'object' };
+    if (this.phone.matches) this.circuitPlacing = null;
   }
 
   /** An item dragged from the library panel and dropped on the plan. */
@@ -1722,7 +1752,8 @@ export class ExplorePlanEditor extends LitElement {
     if (this.tool === 'detect') return false; // its clicks are candidate clicks, handled by the canvas hits
     if (this.tool === 'library') return !!this.placingItem;
     if (this.tool === 'connectors') return !!this.connMode;
-    if (this.tool === 'circuits') return false; // a click on a lamp selects it (member mode); a bare click places nothing
+    // a click on a lamp toggles it (members mode); with a lamp type armed, a click places a new lamp into the circuit
+    if (this.tool === 'circuits') return !!this.circuitPlacing && !!this.circuitSel;
     return this.tool !== 'structure' || this.studioMode !== 'select';
   }
 
@@ -1737,7 +1768,7 @@ export class ExplorePlanEditor extends LitElement {
     if (this.tool === 'select') return this.bundle?.permissions.structure && !this.placing && !this.drawing ? 'all' : 'none';
     if (this.tool === 'library') return this.placingItem ? 'none' : 'objects';
     if (this.tool === 'connectors') return this.connMode ? 'none' : 'objects';
-    if (this.tool === 'circuits') return 'objects';
+    if (this.tool === 'circuits') return this.circuitPlacing ? 'none' : 'objects';
     if (this.tool !== 'structure') return 'none';
     if (this.studioMode === 'select') return 'all';
     return this.wallDraft ? 'none' : 'items';
@@ -1869,6 +1900,10 @@ export class ExplorePlanEditor extends LitElement {
     const p: Pt = [x, y];
     if (this.tool === 'library') {
       if (this.placingItem) this.placeItem(p);
+      return;
+    }
+    if (this.tool === 'circuits') {
+      if (this.circuitPlacing && this.circuitSel) this.placeCircuitLamp(p);
       return;
     }
     if (this.tool === 'connectors') {
@@ -3326,7 +3361,11 @@ export class ExplorePlanEditor extends LitElement {
                 ${this.drawing ? html`<div class="placing-hint"><span>ציור אזור: לחץ להוספת פינות (${this.drawing.length}) · לחיצה על הפינה הראשונה או Enter מסיימים · Esc לביטול</span></div>` : nothing}
                 ${this.placingItem && !this.bindOffer ? html`<div class="placing-hint"><span>לחץ על התוכנית כדי להציב ${this.placingItem.names.he} · Esc לביטול</span></div>` : nothing}
                 ${this.connMode ? html`<div class="placing-hint"><span>${this.connStart ? 'לחץ על הנקודה השנייה' : 'לחץ על הנקודה הראשונה'} · Esc לביטול</span></div>` : nothing}
-                ${this.tool === 'circuits' && this.membersMode ? html`<div class="placing-hint"><span>לחץ על מנורה כדי להוסיף או להסיר אותה מהמעגל · Esc לסיום</span></div>` : nothing}
+                ${this.tool === 'circuits' && this.membersMode
+                  ? this.circuitPlacing
+                    ? html`<div class="placing-hint" data-circuit-placing><span>${circuitPlacingHint(this.circuitPlacing)}</span></div>`
+                    : html`<div class="placing-hint"><span>לחץ על מנורה כדי להוסיף או להסיר אותה מהמעגל · Esc לסיום</span></div>`
+                  : nothing}
                 ${this.bindOffer ? html`<div class="placing-hint bindbar" data-bind-offer><span>העצם ליד ${this.anchorName(this.bindOffer.anchor)} — להפוך אותו לגוף של הישות?
                     <button data-bind-accept @click=${() => this.bindObject(this.bindOffer!.objectId, this.bindOffer!.anchor)}>הצמד לישות</button><button data-bind-dismiss @click=${() => { this.bindRefused.add(this.bindOffer!.objectId); this.bindOffer = null; }}>לא</button></span></div>` : nothing}
                 ${this.wallDraft ? html`<div class="placing-hint"><span>ציור קיר: ${this.wallDraft.length} נקודות · Enter או לחיצה חוזרת על הנקודה האחרונה מסיימים · לחיצה על הנקודה הראשונה סוגרת מתאר · Esc לביטול</span></div>` : nothing}
