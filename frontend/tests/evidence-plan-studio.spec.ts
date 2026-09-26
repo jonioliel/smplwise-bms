@@ -1,4 +1,6 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // Plan Studio phase 1 (T084) against the running developer backend. The spec builds its own site / building / floor
 // with a generated plan picture, so the owner's floors are never touched, and removes them at the end.
@@ -7,6 +9,8 @@ const ids = { site: '', building: '', floor: '', version: '', asset: '' };
 let api: APIRequestContext;
 /** The installation's plan.estimates before the run: the spec pins it to "true" (estimates shown) and puts it back. */
 let estimatesBefore: string | null = null;
+/** Screenshots of the hidden plan picture for review (private-evidence is not committed). */
+const OUT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'private-evidence', 'T085-background-toggle');
 
 const WALL = (id: string, polyline: [number, number][]) => ({ id, level_id: 'L0', polyline, thickness_m: 0.2, height_m: null, base_z_m: 0, kind: 'exterior',
   confidence: 1, source: 'manual', locked: false, external_ids: {} });
@@ -86,6 +90,78 @@ test.describe.serial('plan studio (SW A)', () => {
     expect(periods.every((p) => p.published_at > tBefore), 'no structure was in force at the instant').toBe(true);
     await expect.poll(() => page.locator('investigate-history-map sw-plan-canvas').evaluate((el) => (el as unknown as { imageUrl: string | null }).imageUrl ?? ''), { timeout: 20000 }).toContain(ids.version);
     await expect(page.locator('investigate-history-map sw-plan-canvas [data-wall]')).toHaveCount(0);
+  });
+
+  // Owner request 2026-09-26: once the structure is drawn, the loaded plan picture can be hidden - the structure then
+  // sits on a plain sheet - per viewer and per floor, on the live map and (on a switch of its own) in the editor.
+  test('the plan picture can be hidden on the live map: the structure stays on a plain sheet, the choice survives a reload', async ({ page }) => {
+    const map = 'explore-floor-map';
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
+    const canvas = page.locator(`${map} sw-plan-canvas`);
+    const image = canvas.locator('[data-plan-image]');
+    const sheet = canvas.locator('[data-plan-sheet]');
+    const walls = canvas.locator('[data-structure] [data-wall]');
+    await expect(walls).toHaveCount(3, { timeout: 20000 });
+    await expect(image).toHaveCount(1);
+    await expect(sheet).toHaveCount(0);
+    await page.locator(`${map} sw-button[icon="layers"]`).click();
+    const row = page.locator(`${map} [data-layers-panel] sw-toggle[data-plan-background]`);
+    await expect(page.locator(`${map} [data-layers-panel] .prow`)).toHaveCount(9); // the eight layers, then the picture (evidence-viewer counts the same)
+    await expect(row).toHaveAttribute('checked', '');
+    await row.click();
+    await expect(row).not.toHaveAttribute('checked', '');
+    await expect(image).toHaveCount(0);
+    await expect(sheet).toHaveCount(1);
+    await expect(walls).toHaveCount(3);
+    await expect(canvas.locator('[data-structure]')).toBeVisible(); // a single straight wall has a zero-height box
+    // the sheet is drawn under the structure: the first thing in the plan group
+    expect(await sheet.evaluate((el) => el.previousElementSibling === null)).toBe(true);
+    await page.keyboard.press('Escape'); // closes the panel
+    await page.screenshot({ path: path.join(OUT, 'live-map-background-hidden.png') });
+    await page.reload();
+    await expect(walls).toHaveCount(3, { timeout: 20000 });
+    await expect(image).toHaveCount(0);
+    await expect(sheet).toHaveCount(1);
+    await page.locator(`${map} sw-button[icon="layers"]`).click();
+    await expect(row).not.toHaveAttribute('checked', '');
+    await row.click();
+    await expect(image).toHaveCount(1);
+    await expect(sheet).toHaveCount(0);
+    await expect(walls).toHaveCount(3);
+  });
+
+  test('the plan picture can be hidden in the editor, on a switch of its own that leaves the live map alone', async ({ page }) => {
+    const ed = 'explore-plan-editor';
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
+    const canvas = page.locator(`${ed} sw-plan-canvas`);
+    const image = canvas.locator('[data-plan-image]');
+    const sheet = canvas.locator('[data-plan-sheet]');
+    const walls = canvas.locator('[data-wall]');
+    await expect(walls).toHaveCount(3, { timeout: 20000 });
+    await expect(image).toHaveCount(1);
+    await page.locator(`${ed} [data-tool="layers"]`).click();
+    const box = page.locator(`${ed} .layerlist input[data-plan-background]`);
+    await expect(box).toBeChecked();
+    await box.uncheck();
+    await expect(image).toHaveCount(0);
+    await expect(sheet).toHaveCount(1);
+    await expect(walls).toHaveCount(3);
+    await expect(canvas.locator('[data-structure]')).toBeVisible(); // a single straight wall has a zero-height box
+    await page.screenshot({ path: path.join(OUT, 'editor-background-hidden.png') });
+    await page.reload();
+    await expect(walls).toHaveCount(3, { timeout: 20000 });
+    await expect(image).toHaveCount(0);
+    // the live map keeps its own switch: the picture is still shown there
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
+    await expect(page.locator('explore-floor-map sw-plan-canvas [data-structure] [data-wall]')).toHaveCount(3, { timeout: 20000 });
+    await expect(page.locator('explore-floor-map sw-plan-canvas [data-plan-image]')).toHaveCount(1);
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
+    await expect(walls).toHaveCount(3, { timeout: 20000 });
+    await page.locator(`${ed} [data-tool="layers"]`).click();
+    await expect(box).not.toBeChecked();
+    await box.check();
+    await expect(image).toHaveCount(1);
+    await expect(sheet).toHaveCount(0);
   });
 
   test('draw a wall, place a door, select, delete and undo in the editor; the draft autosaves and viewers keep the published one', async ({ page }) => {

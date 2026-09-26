@@ -110,6 +110,9 @@ export class ExploreFloorMap extends LitElement {
   @state() private selectedId: string | null = null;
   @state() private anchor: { x: number; y: number } | null = null;
   @state() private layers = new Set<Layer>(['cameras', 'doors', 'lights', 'sensors', 'zones', 'structure', 'objects', 'connectors']);
+  /** The loaded plan picture under the structure (owner request 2026-09-26). Not an anchor layer: a switch of its own,
+   * remembered per floor in this browser like the layers. */
+  @state() private planImage = true;
   /** T085: the library's shapes for the object layer, fetched by the bundle's catalog revision. */
   @state() private catalogLookup: CatalogLookup | null = null;
   @state() private levelFilter: string | null = null;
@@ -948,6 +951,7 @@ export class ExploreFloorMap extends LitElement {
       }
       this.noFloors = false;
       this.restoreLayers();
+      this.restorePlanImage();
       this.levelFilter = null;
       this.bundle = await loadMap(this.floorId);
       const b = this.bundle;
@@ -1334,6 +1338,25 @@ export class ExploreFloorMap extends LitElement {
       this.layers = next;
     } catch {
       /* ignore */
+    }
+  }
+
+  /** The plan picture switch, per floor in this browser (key apart from the layer list: it is not an anchor layer). */
+  private setPlanImage(on: boolean) {
+    this.planImage = on;
+    try {
+      localStorage.setItem(`sw.floor.background.${this.floorId}`, on ? '1' : '0');
+    } catch {
+      /* private mode or blocked storage: the choice lives for this page only */
+    }
+  }
+
+  /** A floor never switched shows its picture. */
+  private restorePlanImage() {
+    try {
+      this.planImage = localStorage.getItem(`sw.floor.background.${this.floorId}`) !== '0';
+    } catch {
+      this.planImage = true;
     }
   }
 
@@ -1868,6 +1891,9 @@ export class ExploreFloorMap extends LitElement {
       <h3>שכבות פעילות</h3>
       <div class="sub">הצג רק מה שרלוונטי כרגע</div>
       ${rows.map((r) => html`<div class="prow"><span class="lbl">${r.label}<span class="cnt">${r.count}</span></span><sw-toggle ?checked=${this.layers.has(r.id)} label=${r.label} labelHidden data-layer=${r.id} @change=${(e: CustomEvent<{ checked: boolean }>) => { const next = new Set(this.layers); if (e.detail.checked) next.add(r.id); else next.delete(r.id); this.setLayers(next); }}></sw-toggle></div>`)}
+      ${this.bundle?.imageUrl
+        ? html`<div class="prow"><span class="lbl">תמונת התוכנית<span class="cnt">${this.planImage ? 'הקובץ שנטען, מתחת למבנה' : 'מוסתרת · המבנה על רקע נקי'}</span></span><sw-toggle ?checked=${this.planImage} label="תמונת התוכנית" labelHidden data-plan-background @change=${(e: CustomEvent<{ checked: boolean }>) => this.setPlanImage(e.detail.checked)}></sw-toggle></div>`
+        : nothing}
       <div class="pnote"><sw-icon name="shield" size=${14}></sw-icon><span>מתג משנה תצוגה בלבד; ייבוא ישות אינו מעניק הרשאת שליטה בה.</span></div>
     </div>`;
   }
@@ -1938,6 +1964,7 @@ export class ExploreFloorMap extends LitElement {
         .planHeight=${b.height}
         .plan=${b.planSvg}
         .imageUrl=${b.imageUrl}
+        .hideImage=${!this.planImage}
         .geometry=${this.layers.has('structure') || this.layers.has('objects') || this.layers.has('connectors') ? this.geometry : null}
         .hideStructure=${!this.layers.has('structure')}
         .hideObjects=${!this.layers.has('objects')}

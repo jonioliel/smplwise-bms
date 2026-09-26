@@ -120,6 +120,9 @@ export class ExplorePlanEditor extends LitElement {
   @state() private selectedId: string | null = null;
   @state() private tool: Tool = 'select';
   @state() private layers = new Set<Layer>(['cameras', 'doors', 'lights', 'sensors']);
+  /** The loaded plan picture under the drawing (owner request 2026-09-26): a switch of the layers tool, remembered per
+   * floor in this browser apart from the live map's own switch. */
+  @state() private planImage = true;
   @state() private placing: { kind: 'camera'; camera: Camera } | { kind: 'entity'; entity: HaEntity } | null = null;
   @state() private entQ = '';
   @state() private entResults: HaEntity[] | null = null;
@@ -688,6 +691,11 @@ export class ExplorePlanEditor extends LitElement {
       if (isNewFloor) {
         this.levelFilter = null; // another floor: back to every level (the setting below may narrow it once it resolves)
         this.linkFloor = ''; // and a stale target floor cannot outlive the floor it was picked on (final review item 4)
+        try {
+          this.planImage = localStorage.getItem(`sw.editor.background.${b.floorId}`) !== '0'; // a floor never switched shows its picture
+        } catch {
+          this.planImage = true;
+        }
       }
       this.bundle = b;
       void this.loadStudio(b);
@@ -1288,6 +1296,16 @@ export class ExplorePlanEditor extends LitElement {
    * tool switching and undo / redo wait. */
   private get detectBusy(): boolean {
     return this.detectRun.busy || (this.tool === 'detect' && this.busy);
+  }
+
+  /** The plan picture switch of the layers tool, per floor in this browser (its own key: the live map keeps its own). */
+  private setPlanImage(floorId: string, on: boolean) {
+    this.planImage = on;
+    try {
+      localStorage.setItem(`sw.editor.background.${floorId}`, on ? '1' : '0');
+    } catch {
+      /* private mode or blocked storage: the choice lives for this page only */
+    }
   }
 
   private pickTool(tool: Tool) {
@@ -3172,7 +3190,8 @@ export class ExplorePlanEditor extends LitElement {
     if (this.tool === 'layers') {
       return html`<sw-card heading="שכבות" subheading="מה מוצג בעורך (לא משפיע על הצופים)">
         <div class="layerlist">${LAYERS.map((l) => html`<label><input type="checkbox" .checked=${this.layers.has(l.id)} @change=${(e: Event) => { const next = new Set(this.layers); if ((e.target as HTMLInputElement).checked) next.add(l.id); else next.delete(l.id); this.layers = next; }} /> ${l.label} <span class="note">(${this.anchors.filter((a) => this.layerOf(a) === l.id).length})</span></label>`)}
-          <label><input type="checkbox" .checked=${this.showZones} @change=${(e: Event) => (this.showZones = (e.target as HTMLInputElement).checked)} /> חדרים ואזורים <span class="note">(${this.zones.length})</span></label></div>
+          <label><input type="checkbox" .checked=${this.showZones} @change=${(e: Event) => (this.showZones = (e.target as HTMLInputElement).checked)} /> חדרים ואזורים <span class="note">(${this.zones.length})</span></label>
+          ${b.imageUrl ? html`<label><input type="checkbox" data-plan-background .checked=${this.planImage} @change=${(e: Event) => this.setPlanImage(b.floorId, (e.target as HTMLInputElement).checked)} /> תמונת התוכנית <span class="note">(${this.planImage ? 'מתחת לשרטוט' : 'מוסתרת, רקע נקי'})</span></label>` : nothing}</div>
       </sw-card>`;
     }
     if (this.tool === 'zones') return this.renderZonesPanel(b);
@@ -3405,7 +3424,7 @@ export class ExplorePlanEditor extends LitElement {
                   <button title="ביטול (Ctrl+Z)" aria-label="ביטול" data-rail-undo ?disabled=${this.detectBusy || !this.undoTarget} @click=${() => this.undoAny()}><sw-icon name="history" size=${18}></sw-icon></button>
                   <button title="בצע שוב (Ctrl+Y)" aria-label="בצע שוב" data-rail-redo ?disabled=${this.detectBusy || !this.redoTarget} @click=${() => this.redoAny()}><sw-icon name="refresh" size=${18}></sw-icon></button>
                 </div>
-                <sw-plan-canvas editable alwaysLabel .placing=${!!this.placing || !!this.drawing || this.studioPlacing} .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .markers=${this.markers} .selectedId=${this.selectedId}
+                <sw-plan-canvas editable alwaysLabel .placing=${!!this.placing || !!this.drawing || this.studioPlacing} .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .hideImage=${!this.planImage} .markers=${this.markers} .selectedId=${this.selectedId}
                   .zones=${this.planZones} .selectedZoneId=${this.selectedZoneId} .selectedZoneVertex=${this.zoneVertexSel && this.zoneVertexSel.zoneId === this.selectedZoneId ? this.zoneVertexSel.index : null} .draftPoints=${this.drawing ?? []}
                   .geometry=${this.geomPreview ?? this.studio.doc} .geomDrag=${this.geomDragMode} .structureLevel=${this.activeLevel} .selectedGeomId=${this.geomSel?.id ?? null} .highlightIds=${this.geomSel?.kind === 'group' ? (this.studio.doc?.groups.find((g) => g.id === this.geomSel!.id)?.member_ids ?? []) : this.tool === 'circuits' && this.circuitSel ? (this.studio.doc?.circuits.find((k) => k.id === this.circuitSel)?.member_ids ?? []) : []} .selectedVertex=${this.geomSel?.vertex ?? null} .issueIds=${this.issueIds}
                   .cornerSnapPx=${this.tool === 'structure' && this.studioMode === 'wall' ? CORNER_SNAP_PX : 0}
