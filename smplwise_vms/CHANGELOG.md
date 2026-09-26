@@ -1,5 +1,73 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.88 (pilot) — Plan Studio phase 4: schematic 3D inside the map, coverage stopped by walls, a true isometric on the building page
+- Every map surface gains a 2D / 3D toggle (T087, CR-003, design section 10): the live floor map (also the key `3`), the
+  historical map at the chosen instant, and the event page, where the view opens from the camera of the event
+  ("מבט מהמצלמה"). The scene is built deterministically from the published structure: walls with their height and
+  openings (a lintel over a door, a sill and a head around a window, a passage as a gap; the door leaf turns 80° when
+  its entity is open), library objects (boxes, cylinders, extruded polygons, stepped tribunes, composite items - drawn
+  as one box for now, their mesh parts do not reach the client yet), levels as floor plates at their heights, stairs
+  and ramps as steps between the levels, elevators as a translucent prism, room floors tinted with room-name sprites,
+  cameras as a body with a translucent cone, Home Assistant entities as symbols coloured by their live state - lamps
+  glow with a weak point light when on (at most 8 lights glow at once), doors and locks show open / locked. The
+  selection is one with the 2D (a click on a camera opens its card with the live tile, a click on a lamp of a circuit
+  runs the circuit's existing action with the same permission and confirmation), the layer switches and the level
+  chips apply (levels default to all; lower levels stay visible through translucent plates and can still be picked
+  through), the presets are top / isometric / from a camera (the in-map "isometric" is a 31° perspective view; the
+  true isometric is the building page below), and "glTF" downloads the scene (`plan-3d-<floor>[-<level>]-<date>.gltf`).
+- three.js (0.186, MIT) ships as a separate chunk fetched only on the first toggle (measured 153,821 bytes gzip, about
+  154 KB, limit 200 KB); the 2D bundle did not grow; the chunk URL is relative, so the Lovelace card (which embeds the
+  same floor screen through Ingress) gets the toggle for free. Without WebGL the toggle is disabled with "תלת-ממד לא
+  זמין בדפדפן זה" and the 2D map is untouched. Frame rate measured in headless Google Chrome on this workstation (not
+  a phone, and not necessarily what a loaded real session gets): a sample floor `fps=60 parts=37`, a 3,000-chair floor
+  `fps=60 parts=3037` (60 fps is the requestAnimationFrame cap; the evidence asserts >= 20 fps and reports the rest;
+  the 3,000-chair figure measures raw instancing - chairs are never hidden by the far-distance cap, none of their
+  dimensions exceed the 0.6 m threshold). The phone frame rate is not measured here, and frame rate under a live state
+  push was not measured either.
+- Camera coverage now stops at the walls of the camera's level, in 2D on every map and in the 3D cone: rays within the
+  field of view and the radius stop at the wall parts; a passage and an open door let a ray through; a closed door and
+  a window stop it (planning information, not a promise that nothing is hidden). A manual coverage polygon always wins
+  over the walls.
+- Map anchors carry `mount_height_m` and `tilt_deg` (migration 0021; the anchor panel edits them for cameras only;
+  defaults when unset: camera 2.5 m / 10° down, door station 1.4 m / 0°, other entities 1.2 m / 0°); the bundle and
+  every anchor answer return them. The history bundle carries the mount height and tilt of the current anchor row (a
+  PATCH updates the row in place, so a past instant shows today's values, not the values from that time).
+- The building page draws a true isometric of every floor from its published walls (floor plates per level, walls as
+  boxes, upper levels drawn over lower ones) instead of the demo rectangles; its thumbnail cache is bounded by the
+  listed floors themselves, not by an entry count that could evict a floor still on screen and refetch it in a loop;
+  a selected floor's thumbnail tints its wall faces accent; floors without a structure keep the old thumbnail.
+- The 3D dims exactly like the 2D: on a stale screen or while the Home Assistant sync is down, every entity and
+  circuit state it reads is unknown (a door stays drawn closed, a lamp does not glow), matching the dimmed 2D pins; a
+  floor created while the map is already open is reached correctly on a hash-only navigation to it (the cached floor
+  tree is re-read once before deciding the floor is missing, instead of redirecting away).
+- Fixed in passing: `PATCH /map-anchors/{id}` now honours an explicit null for `label` and `field_of_view_degrees`
+  (clearing a label or hiding coverage survives a reload), and no longer bumps the revision or writes an audit row
+  when nothing actually changed; when something did change, the audit row now lists only the changed fields instead
+  of every field the editor sent.
+- Known limits: the SVG / PNG exports keep the unclipped cone (no backend mirror of the clipping in this phase);
+  glass, including windows, is treated as opaque for coverage; a bent stair polyline is drawn straight from its first
+  to its last point; quality level 1 only (flat materials, no shadows or textures) - PBR, the eye-level tour and
+  editing in 3D stay phase 6; a plan without a calibration draws in estimated metres, marked "≈ מידות משוערות"; the
+  exported glTF carries no lights and no sprites (empty nodes) and needs a viewer that supports
+  `EXT_mesh_gpu_instancing`; cones are not clickable (a camera is selected by its body); the in-map "isometric" preset
+  is a perspective view, not a true isometric; the event-page 3D and the phone frame rate stay NOT_RUN in this release
+  (no NVR event on a floor with a plan on the developer backend; no real phone on this workstation); the
+  context-restore, pointer-cancel and toast fixes carried over from 0.1.87 stayed untested at this commit (unchanged
+  behaviour, no new evidence needed).
+- Evidence: `test_anchor_3d.py` (6 tests: migration, fields, validation, audit), `test_lovelace_card.py` (3 tests: the
+  built UI references its chunks relatively), node specs `unit-coverage` (9), `unit-anchor-3d` (1), `unit-scene-builder`
+  (8, incl. the pinned description `contracts/fixtures/plan_geometry/sample-v2.scene.json` and a 3,000-chair hall),
+  `unit-three-chunk` (2, the gzip limit against a real build), the browser specs `unit-plan-3d` (4: the element, the
+  demo floor without a backend, prism-geometry edge cases, the isometric thumbnail) and `unit-plan-3d-view` (7: counts
+  by kind and draw calls against the description, the camera presets, picking inside a shared instance group, frame
+  scheduling, picking through a translucent upper plate, WebGL context release, and the sync-loss / hash-navigation
+  fix itself - a restored context redraws, a cancelled pointer never selects, the toast sits centred), and the live
+  spec `evidence-plan-studio-4` (12 tests in real Chrome: 11 passed, 1 skipped - the live map, a card that never
+  floats over the 3D plus stale / blocked / sync-loss states, 2D coverage clipped by walls, the history map, the
+  event page (skipped: no NVR event on a floor with a plan on the developer backend), the building page reached by a
+  hash navigation to a new floor, the glTF download, embed mode, the WebGL gate, the phone, the anchor fields, and
+  the frame rate).
+
 ## 0.1.87 (pilot) — plan editor hotfix: walls move as a whole, the select tool selects and drags the structure, bigger object hits, rooms reshape and move in the select tool
 - Answers an owner report of 2026-09-25 (ruling R-H87-1): a placed wall could not be moved as a whole; selecting and
   moving items - not only walls - was awkward; and reshaping a room after automatic detection was not discoverable.
