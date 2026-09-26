@@ -5,12 +5,21 @@
  */
 import { del, get, patch, post, resourceUrl } from './client';
 import type { CatalogLookup, GeomSize, ObjectShape } from '../map/geometry';
+import type { Catalog3DLookup } from '../map/scene-builder';
 
 export interface ParamSpec {
   type: 'number' | 'int' | 'level';
   min?: number;
   max?: number;
   he: string;
+}
+/** A relative part of a composite item (T087): a box or a cylinder, its size in metres and its offset from the item's
+ * footprint centre (x right, y up, z down the plan) before the item's rotation. */
+export interface MeshPart {
+  shape: 'box' | 'cylinder';
+  size: [number, number, number];
+  offset: [number, number, number];
+  color_token?: string;
 }
 export interface CatalogItem {
   id: string;
@@ -29,6 +38,8 @@ export interface CatalogItem {
   color_token: string;
   /** HA domains an object of this item may be the body of (light -> light / switch). */
   anchor_kinds: string[];
+  /** Composite items only (T087); null / absent for every other shape. */
+  mesh?: MeshPart[] | null;
   ifc: { class: string; predefined_type: string };
   custom: boolean;
   based_on: string | null;
@@ -88,6 +99,13 @@ export function invalidateLibrary(): void {
 
 export function lookupOf(lib: CatalogLibrary): CatalogLookup {
   const m = new Map(lib.items.map((i) => [i.id, { shape: i.shape, icon: i.icon, color_token: i.color_token }]));
+  return (id) => m.get(id);
+}
+
+/** What the scene builder needs from the library for one item (T087): the shape, the colour, the role and the parts
+ * of a composite. */
+export function lookup3dOf(lib: CatalogLibrary): Catalog3DLookup {
+  const m = new Map(lib.items.map((i) => [i.id, { shape: i.shape, color_token: i.color_token, role: i.role, mesh: i.shape === 'composite' && Array.isArray(i.mesh) ? i.mesh : null }]));
   return (id) => m.get(id);
 }
 

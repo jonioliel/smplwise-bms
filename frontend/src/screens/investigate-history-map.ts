@@ -27,7 +27,12 @@ import { dateInZone, frameUrl, instantInZone, minuteInZone, recordingsForDay, ty
 import { entityMarkerKind, stateLabel } from '../api/ha';
 import { geometryAt, geometryFor } from '../api/geometry';
 import type { AnchorPosition, CatalogLookup, GeometryDoc } from '../map/geometry';
-import { loadLibrary, lookupOf } from '../api/plan-catalog';
+import { loadLibrary, lookup3dOf, lookupOf } from '../api/plan-catalog';
+import { buildScene, type Catalog3DLookup, type SceneAnchor, type SceneDescription } from '../map/scene-builder';
+import type { ScenePreset } from '../map/scene-three';
+import type { PartSelectDetail } from '../map/sw-plan-3d';
+import { boundItemOf } from '../map/part-select';
+import { WEBGL_UNAVAILABLE_HE, webglAvailable } from '../map/webgl';
 
 const NEAR_MIN = 10;
 
@@ -67,6 +72,24 @@ export class InvestigateHistoryMap extends LitElement {
   @state() private catalogLookup: CatalogLookup | null = null;
   private geomSeq = 0;
   private frameTimer = 0;
+  /** T087: the 2D / 3D toggle of the historical map (no actions here, the states are those of the instant). */
+  @state() private view3d = false;
+  @state() private threeState: 'idle' | 'loading' | 'ready' | 'error' = 'idle';
+  @state() private threeError = '';
+  /** Kept in a field: the element re-applies a preset only when the property changes (an inline literal would snap the camera every render). */
+  @state() private preset3d: ScenePreset = 'iso';
+  @state() private catalog3d: Catalog3DLookup | null = null;
+  private itemNames = new Map<string, string>();
+  private sceneMemo: { keys: unknown[]; desc: SceneDescription; labels: Record<string, string> } | null = null;
+  private onKey = (e: KeyboardEvent) => {
+    const t = e.composedPath()[0];
+    const typing = t instanceof HTMLElement && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
+    if (e.key === '3' && !e.ctrlKey && !e.metaKey && !e.altKey && !typing) {
+      e.preventDefault();
+      if (e.repeat) return; // a held key flips the view once, as on the live map
+      void this.toggle3d();
+    }
+  };
 
   static styles = css`
     :host {
@@ -183,6 +206,9 @@ export class InvestigateHistoryMap extends LitElement {
       font-size: var(--sw-fs-xs);
       font-weight: var(--sw-fw-semibold);
     }
+    .hist.below {
+      inset-block-start: 44px;
+    }
     .panel {
       display: flex;
       flex-direction: column;
@@ -297,7 +323,13 @@ export class InvestigateHistoryMap extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    window.addEventListener('keydown', this.onKey);
     if (isApi()) void this.init();
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    window.removeEventListener('keydown', this.onKey);
   }
 
   protected updated(changed: Map<string, unknown>) {
@@ -328,6 +360,8 @@ export class InvestigateHistoryMap extends LitElement {
       if (this.bundle.source === 'api') {
         void loadLibrary(this.bundle.catalogRevision).then((lib) => {
           this.catalogLookup = lookupOf(lib);
+          this.catalog3d = lookup3dOf(lib);
+          this.itemNames = new Map(lib.items.map((i) => [i.id, i.names.he]));
         }).catch(() => {}); // without the library objects draw as plain boxes
       }
       void this.updateGeometry();
@@ -335,6 +369,7 @@ export class InvestigateHistoryMap extends LitElement {
       if (this.camera) {
         const a = this.bundle.anchors.find((x) => x.resource_type === 'camera' && x.resource_id === this.camera);
         this.selectedId = a?.id ?? null;
+        if (a) this.preset3d = { camera: `cam:${a.id}` }; // the event page hands its camera over: the 3D opens from it
       }
       await this.loadDay();
     } catch (err) {
@@ -399,7 +434,7 @@ export class InvestigateHistoryMap extends LitElement {
         const cov = this.coverageAt(a.resource_id);
         const near = this.eventsNear(a.resource_id, 5).length;
         const name = a.camera?.name ?? a.label ?? a.resource_id;
-        return { id: a.id, kind: 'camera' as const, label: near ? `${name} · ${near} אירועים` : name, x: a.position.x, y: a.position.y, rotation: a.rotation_degrees, fov: a.field_of_view_degrees ?? undefined, radius: a.coverage_radius ?? undefined, polygon: a.coverage_polygon ? a.coverage_polygon.map(([x, y]) => ({ x, y })) : undefined, labelPos: a.label_pos ?? undefined, state: cov.state };
+        return { id: a.id, kind: 'camera' as const, label: near ? `${name} · ${near} אירועים` : name, x: a.position.x, y: a.position.y, rotation: a.rotation_degrees, fov: a.field_of_view_degrees ?? undefined, radius: a.coverage_radius ?? undefined, polygon: a.coverage_polygon ? a.coverage_polygon.map(([x, y]) => ({ x, y })) : undefined, labelPos: a.label_pos ?? undefined, level: a.level_id ?? null, state: cov.state };
       }
       const sa = a.entity?.state_at;
       const name = entityName(a);
@@ -498,6 +533,89 @@ export class InvestigateHistoryMap extends LitElement {
     return this.tree.sites.flatMap((s) => (s.buildings ?? []).flatMap((b) => (b.floors ?? []).map((f) => ({ id: f.id, name: `${b.name} · ${f.name}` }))));
   }
 
+  // ---- 3D (T087) ----
+
+  /** The state of an HA entity at the instant, as the 2D shows it: known from the local history, else null (drawn as unknown). */
+  private stateAt(a: MapBundle['anchors'][number]): string | null {
+    return a.entity?.state_at?.known ? a.entity.state_at.state : null;
+  }
+
+  /** Cheap: the floor has a structure at the instant (the toggle's gate; the scene itself is built only while the 3D is on). */
+  private get hasScene(): boolean {
+    return this.bundle?.source === 'api' && this.geometry !== null;
+  }
+
+  /** The scene of the floor at the instant: the structure published then, the entity and circuit states of the instant, the
+   * cameras blue where a recording covers the instant. Built only while the 3D is on, and rebuilt only when its inputs
+   * changed: the memo is keyed on a signature of what the builder reads (anchors, states, coverage at the cursor, zones) plus
+   * the structure document (cached by hash, so the same object while the cursor stays in one publish) and the library.
+   * The anchors carry today's mount height and tilt: the history keeps only the current anchor row. */
+  private get sceneDescription(): SceneDescription | null {
+    const b = this.bundle;
+    const g = this.geometry;
+    if (!this.view3d || !b || b.source !== 'api' || !g) return null;
+    const anchors: SceneAnchor[] = b.anchors.map((a) => ({
+      id: a.id, resource_type: a.resource_type, resource_id: a.resource_id, x: a.position.x, y: a.position.y, rotation: a.rotation_degrees, fov: a.field_of_view_degrees ?? null, radius: a.coverage_radius ?? null,
+      polygon: a.coverage_polygon ?? null, level_id: a.level_id ?? null, layer_id: a.layer_id, label: entityName(a), state: this.stateAt(a),
+      online: a.resource_type === 'camera' ? this.coverageAt(a.resource_id).state === 'historic' : null, mount_height_m: a.mount_height_m ?? null, tilt_deg: a.tilt_deg ?? null,
+    }));
+    // explicit nulls for every entity without a known state at the instant: never the last live value
+    const entityStates = Object.fromEntries(b.anchors.filter((a) => a.resource_type === 'ha_entity').map((a) => [a.resource_id, this.stateAt(a)]));
+    const circuitStates = Object.fromEntries(Object.entries(b.circuitStates).map(([id, s]) => [id, s.state]));
+    const zones = b.zones.map((z) => ({ id: z.id, name: z.name, polygon: z.polygon, level_id: z.level_id ?? null }));
+    const keys: unknown[] = [JSON.stringify([b.floorId, b.width, b.height, anchors, entityStates, circuitStates, zones]), g, this.catalog3d];
+    if (this.sceneMemo && this.sceneMemo.keys.every((k, i) => k === keys[i])) return this.sceneMemo.desc;
+    const desc = buildScene({ doc: g, width: b.width, height: b.height, anchors, entityStates, circuitStates, catalog: this.catalog3d, zones });
+    // hover labels: anchors by their map name, objects by label or library name, zones by name
+    const labels: Record<string, string> = {};
+    for (const a of b.anchors) labels[a.id] = entityName(a);
+    for (const o of g.objects) labels[o.id] = o.label || this.itemNames.get(o.item_id) || o.item_id;
+    for (const z of b.zones) labels[z.id] = z.name;
+    this.sceneMemo = { keys, desc, labels };
+    return desc;
+  }
+
+  /** The 3D is on screen. The 2D canvas stays mounted underneath (hidden), so its pan and zoom survive a round trip. */
+  private get shows3d(): boolean {
+    return this.view3d && this.threeState === 'ready' && this.sceneDescription !== null;
+  }
+
+  private async toggle3d(): Promise<void> {
+    if (this.view3d) {
+      this.view3d = false;
+      return;
+    }
+    if (!webglAvailable() || !this.hasScene || this.threeState === 'loading') return;
+    if (this.threeState !== 'ready') {
+      this.threeState = 'loading';
+      try {
+        await import('../map/sw-plan-3d');
+        this.threeState = 'ready';
+      } catch (err) {
+        this.threeState = 'error';
+        this.threeError = describeError(err);
+        return;
+      }
+    }
+    this.view3d = true;
+  }
+
+  /** A click in the 3D of the past: the shared rule (part-select.boundItemOf) - a camera or an entity, or the entity a
+   * door or an object is bound to (a lamp to its light, a door to its lock), becomes the selected pin (the panel follows);
+   * nothing is actuated, the history offers no actions. The floor clears the selection; an unbound object and every other
+   * part leave it (the history has no object selection). */
+  private onPartSelect(e: CustomEvent<PartSelectDetail>) {
+    const { id, kind } = e.detail;
+    if (!id) {
+      this.selectedId = null;
+      return;
+    }
+    const t = kind ? boundItemOf({ id, kind }, this.geometry, this.bundle?.anchors ?? []) : null;
+    if (!t || !('anchor' in t)) return;
+    this.selectedId = t.anchor;
+    this.frameFailed = false;
+  }
+
   // ---- render ----
 
   private renderPanel(b: MapBundle) {
@@ -546,6 +664,9 @@ export class InvestigateHistoryMap extends LitElement {
         <div><h1>המפה בזמן שנבחר · ${b.floorName}</h1><div class="sub">${b.buildingName} · <span class="ltr">${this.date} ${secondLabel(this.minute)}</span> · ${this.tz}</div></div>
         <span class="grow"></span>
         ${this.floors.length > 1 ? html`<sw-field><select aria-label="קומה" @change=${(e: Event) => navigate(`/investigate/floors/${(e.target as HTMLSelectElement).value}`, { t: this.instant.toISOString() })}>${this.floors.map((f) => html`<option value=${f.id} ?selected=${f.id === this.floorId}>${bidi(f.name)}</option>`)}</select></sw-field>` : nothing}
+        <sw-button icon="cube" aria-pressed=${this.view3d} data-view-3d ?disabled=${!this.view3d && (!webglAvailable() || !this.hasScene || this.threeState === 'loading')}
+          title=${!webglAvailable() ? WEBGL_UNAVAILABLE_HE : !this.hasScene ? 'אין מבנה מפורסם בזמן הזה' : 'מקש 3'} @click=${() => this.toggle3d()}>${this.view3d ? '2D' : '3D'}</sw-button>
+        ${webglAvailable() ? nothing : html`<span class="note" data-3d-unavailable>${WEBGL_UNAVAILABLE_HE}</span>`}
         <sw-button icon="live" data-back-live @click=${() => navigate(`/explore/floors/${b.floorId}`)}>חזרה למצב חי</sw-button>
       </div>
       <div class="bar"><sw-icon name="clock" size=${14}></sw-icon><span>מצב חקירה היסטורי — פעולות פיזיות אינן זמינות. מצב ללא היסטוריה מוצג כלא ידוע, לא כערך החי האחרון.</span>${this.loading ? html`<span class="note">טוען הקלטות ואירועים…</span>` : nothing}</div>
@@ -553,9 +674,16 @@ export class InvestigateHistoryMap extends LitElement {
         <div class="stage">
           <div class="chip"><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
           <div class="hist">מצב היסטורי · <span class="ltr">${secondLabel(this.minute)}</span></div>
-          <sw-plan-canvas alwaysLabel .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .markers=${this.apiMarkers} .selectedId=${this.selectedId} .zones=${b.zones} .geometry=${this.geometry} .catalog=${this.catalogLookup} .anchorPositions=${Object.fromEntries(b.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees } as AnchorPosition]))} .entityStates=${Object.fromEntries(b.anchors.filter((a) => a.resource_type === 'ha_entity').map((a) => [a.resource_id, a.entity?.state_at?.known ? a.entity.state_at.state : null]))} dimEntities
+          ${this.shows3d && this.sceneDescription
+            ? html`<sw-plan-3d data-history-3d .description=${this.sceneDescription} .selectedId=${this.selectedId} .preset=${this.preset3d} .labels=${this.sceneMemo?.labels ?? {}}
+                .cameras=${b.anchors.filter((a) => a.resource_type === 'camera').map((a) => ({ id: a.id, label: entityName(a) }))} exportName=${`plan-3d-${b.floorName}-${this.date}`}
+                @part-select=${(e: CustomEvent<PartSelectDetail>) => this.onPartSelect(e)}></sw-plan-3d>`
+            : nothing}
+          <sw-plan-canvas style=${this.shows3d ? 'display:none' : ''} alwaysLabel .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .markers=${this.apiMarkers} .selectedId=${this.selectedId} .zones=${b.zones} .geometry=${this.geometry} .catalog=${this.catalogLookup} .anchorPositions=${Object.fromEntries(b.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees } as AnchorPosition]))} .entityStates=${Object.fromEntries(b.anchors.filter((a) => a.resource_type === 'ha_entity').map((a) => [a.resource_id, this.stateAt(a)]))} dimEntities
             @marker-select=${(e: CustomEvent<MarkerSelectDetail>) => { this.selectedId = e.detail.id; this.frameFailed = false; }}></sw-plan-canvas>
-          <div class="legend"><span>כחול = יש הקלטה בזמן זה</span><span>מקווקו = אין הקלטה / לא ידוע</span><span>ישויות HA = מצב מההיסטוריה המקומית או לא ידוע</span></div>
+          ${this.threeState === 'loading' ? html`<div class="hist below" data-3d-loading>טוען תלת-ממד…</div>` : nothing}
+          ${this.threeState === 'error' ? html`<div class="hist below" data-3d-load-error>תלת-ממד לא נטען: ${this.threeError}</div>` : nothing}
+          ${this.shows3d ? nothing : html`<div class="legend"><span>כחול = יש הקלטה בזמן זה</span><span>מקווקו = אין הקלטה / לא ידוע</span><span>ישויות HA = מצב מההיסטוריה המקומית או לא ידוע</span></div>`}
         </div>
         ${this.renderPanel(b)}
       </div>

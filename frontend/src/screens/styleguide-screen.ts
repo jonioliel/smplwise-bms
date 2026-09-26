@@ -1,5 +1,5 @@
-import { LitElement, html, css } from 'lit';
-import { customElement } from 'lit/decorators.js';
+import { LitElement, html, css, nothing } from 'lit';
+import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-button';
 import '../components/sw-badge';
 import '../components/sw-card';
@@ -21,6 +21,10 @@ import type { IconName } from '../components/sw-icon';
 import type { SceneKind } from '../components/sw-scene';
 import { demoSegments } from '../fixtures/catalog';
 import { demoRooms } from '../fixtures/demo';
+import { demoSceneInput, demoSceneLabels } from '../fixtures/demo-3d';
+import { buildScene, type SceneDescription } from '../map/scene-builder';
+import { WEBGL_UNAVAILABLE_HE, webglAvailable } from '../map/webgl';
+import type { PartSelectDetail } from '../map/sw-plan-3d';
 
 const COLORS = [
   ['--sw-bg', 'רקע'], ['--sw-surface', 'משטח'], ['--sw-surface-3', 'משטח 3'], ['--sw-border', 'גבול'],
@@ -36,6 +40,21 @@ const ICONS: IconName[] = ['dashboard', 'building', 'camera', 'bell', 'history',
 /** Living style guide — the "Storybook equivalent" required by DESIGN_CONTRACT (tokens v3, boards language). */
 @customElement('styleguide-screen')
 export class StyleguideScreen extends LitElement {
+  /** T087: the 3D element, loaded on demand (the click is what fetches the three chunk), on the demo floor f0. */
+  @state() private demo3d: { loading: boolean; error: string; desc: SceneDescription | null; selected: string | null } = { loading: false, error: '', desc: null, selected: null };
+
+  private async load3d(): Promise<void> {
+    if (this.demo3d.loading || this.demo3d.desc) return;
+    this.demo3d = { ...this.demo3d, loading: true, error: '' };
+    try {
+      await import('../map/sw-plan-3d');
+      const input = demoSceneInput('f0');
+      this.demo3d = { loading: false, error: '', desc: input ? buildScene(input) : null, selected: null };
+    } catch (err) {
+      this.demo3d = { loading: false, error: err instanceof Error ? err.message : String(err), desc: null, selected: null };
+    }
+  }
+
   static styles = css`
     :host {
       display: block;
@@ -211,6 +230,18 @@ export class StyleguideScreen extends LitElement {
       <h3>מצבי מסך</h3>
       <div class="grid">
         ${PANELS.map((p) => html`<div class="panel"><sw-state-panel state=${p} actionLabel=${p === 'error' ? 'נסה שוב' : ''}></sw-state-panel></div>`)}
+      </div>
+
+      <h3>תלת-ממד סכמטי (T087)</h3>
+      <div data-3d-demo style="display:flex;flex-direction:column;gap:8px;max-inline-size:720px">
+        ${this.demo3d.desc
+          ? html`<sw-plan-3d style="block-size:360px;border:1px solid var(--sw-border);border-radius:var(--sw-r-md)" .description=${this.demo3d.desc} .selectedId=${this.demo3d.selected} .labels=${demoSceneLabels('f0')}
+                .cameras=${[{ id: 'cam-1', label: 'כניסה ראשית' }, { id: 'cam-2', label: 'לובי' }]} exportName="demo-floor"
+                @part-select=${(e: CustomEvent<PartSelectDetail>) => (this.demo3d = { ...this.demo3d, selected: e.detail.id })}></sw-plan-3d>
+              <div style="font-size:var(--sw-fs-xs);color:var(--sw-text-2)">נבחר: <span class="ltr" data-3d-demo-selected>${this.demo3d.selected ?? ''}</span></div>`
+          : html`<div><sw-button icon="cube" data-3d-demo-load ?disabled=${!webglAvailable() || this.demo3d.loading} @click=${() => this.load3d()}>${this.demo3d.loading ? 'טוען…' : 'טען תצוגת 3D'}</sw-button>
+              ${webglAvailable() ? nothing : html`<span data-3d-unavailable style="margin-inline-start:8px">${WEBGL_UNAVAILABLE_HE}</span>`}
+              ${this.demo3d.error ? html`<span style="color:var(--sw-danger);margin-inline-start:8px">${this.demo3d.error}</span>` : nothing}</div>`}
       </div>
 
       <h3>אייקונים</h3>

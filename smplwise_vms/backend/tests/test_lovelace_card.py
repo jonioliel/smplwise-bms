@@ -51,3 +51,28 @@ def test_installer_carries_the_card(settings, ha_cfg, monkeypatch):
     st = bridge_install.install(app.state.db, settings)
     target = ha_cfg / "custom_components" / "smplwise_bridge"
     assert (target / "www" / "smplwise-card.js").is_file() and st["source_version"] == "0.2.1"
+
+
+WWW = REPO / "smplwise_vms" / "www"
+
+
+def test_built_ui_references_its_assets_relatively_and_ships_the_three_chunk():
+    """T087 (ruling R-P4-9): the card embeds the Ingress page, so the 3D toggle is the floor screen's own; the chunk must
+    resolve relative to that page. The built entry names ./assets/, the lazy 3D chunk names the three chunk relatively,
+    no file names an absolute /assets/ path, and three never reaches the entry bundle."""
+    index = (WWW / "index.html").read_text(encoding="utf-8")
+    assert 'src="./assets/index-' in index and 'href="./assets/index-' in index
+    assert '"/assets/' not in index
+    assets = WWW / "assets"
+    three = sorted(p for p in assets.glob("three-*.js") if not p.name.endswith(".map"))
+    view = sorted(p for p in assets.glob("sw-plan-3d-*.js") if not p.name.endswith(".map"))
+    assert len(three) == 1 and len(view) == 1, "one three chunk and one 3D view chunk in the built UI (run npm run build:addon)"
+    entry = next(p for p in assets.glob("index-*.js") if not p.name.endswith(".map")).read_text(encoding="utf-8")
+    assert "WebGLRenderer" not in entry
+    assert f'"./{three[0].name}"' not in entry, "the entry never imports the three chunk statically"
+    view_src = view[0].read_text(encoding="utf-8")
+    assert f'from"./{three[0].name}"' in view_src
+    assert '"/assets/' not in view_src and '"/assets/' not in entry
+    assert three[0].stat().st_size < 900_000, "the three chunk stays a single tree-shaken library build (about 630 KB minified, 160 KB gzip)"
+    card = (SRC / "www" / "smplwise-card.js").read_text(encoding="utf-8")
+    assert "/explore/floors/" in card and "embed=1" in card, "the map view of the card is the floor screen itself"

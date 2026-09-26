@@ -17,6 +17,8 @@ import { navigate } from '../router';
 import { createBuilding, createFloor, deleteFloor, loadTree, updateFloor, type CatalogTree } from '../api/catalog';
 import { ApiError, describeError } from '../api/client';
 import type { Building, Floor, Site } from '../api/types';
+import { getGeometry } from '../api/geometry';
+import { buildScene, isoProjection, keepIsos, type IsoScene } from '../map/scene-builder';
 
 type Dialog = { kind: 'floor' } | { kind: 'rename'; floor: Floor } | { kind: 'delete'; floor: Floor; force: boolean } | { kind: 'building' } | null;
 
@@ -32,6 +34,34 @@ export class ExploreFloors extends LitElement {
   @state() private error = '';
   @state() private formName = '';
   @state() private formLevel = 0;
+  /** T087: the true isometric of every floor with a published structure, one document read per version (cached here). */
+  @state() private isos = new Map<string, IsoScene | null>();
+  private isoPending = new Set<string>();
+
+  /** The cache without the versions the tree no longer lists (a republished or deleted floor). */
+  private pruned(): Map<string, IsoScene | null> {
+    const listed = (this.tree?.sites ?? []).flatMap((s) => (s.buildings ?? []).flatMap((b) => (b.floors ?? []).map((f) => f.published_version_id))).filter((v): v is string => !!v);
+    return keepIsos(this.isos, listed);
+  }
+
+  private isoFor(f: Floor): IsoScene | null {
+    const vid = f.published_version_id;
+    if (!vid || this.tree?.source !== 'api') return null;
+    if (this.isos.has(vid)) return this.isos.get(vid) ?? null;
+    if (this.isoPending.has(vid)) return null;
+    this.isoPending.add(vid);
+    void getGeometry(vid)
+      .then((r) => {
+        const desc = buildScene({ doc: r.doc, width: f.plan_width_px || r.doc.dimensions.width_px, height: f.plan_height_px || r.doc.dimensions.height_px, anchors: [], entityStates: {}, circuitStates: {},
+          layers: { objects: false, cameras: false, entities: false, zones: false } });
+        this.isos = this.pruned().set(vid, desc.parts.some((p) => p.kind === 'wall') ? isoProjection(desc) : null);
+      })
+      .catch(() => {
+        this.isos = this.pruned().set(vid, null); // no published structure (404) or no permission: the room outlines stay
+      })
+      .finally(() => this.isoPending.delete(vid));
+    return null;
+  }
 
   static styles = css`
     .pic {
@@ -253,7 +283,7 @@ export class ExploreFloors extends LitElement {
                     <div class="title">${bidi(f.name)}</div>
                     <div class="counts">${f.camera_count} מצלמות · ${f.anchor_count} פריטים במפה · מפלס ${ltrNum(f.level)}${f.has_plan ? '' : ' · אין תוכנית עדיין'}${f.draft_version_id ? ' · טיוטה ממתינה לפרסום' : ''}</div>
                   </div>
-                  <sw-floor-iso .rooms=${tree.source === 'demo' ? demoRooms(f.id) : []} ?selected=${sel?.id === f.id} ?empty=${!f.has_plan} width=${128}></sw-floor-iso>
+                  <sw-floor-iso data-floor-iso=${f.id} .rooms=${tree.source === 'demo' ? demoRooms(f.id) : []} .iso=${this.isoFor(f)} ?selected=${sel?.id === f.id} ?empty=${!f.has_plan} width=${128}></sw-floor-iso>
                   <span class="chev"><sw-icon name="chevron" size=${16}></sw-icon></span>
                 </button>`,
               )}

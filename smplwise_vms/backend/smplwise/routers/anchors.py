@@ -35,6 +35,8 @@ def anchor_row(r: sqlite3.Row) -> dict[str, Any]:
         "coverage_radius": r["coverage_radius"], "coverage_polygon": _polygon(r["coverage_polygon"]),
         "label_pos": r["label_pos"] or "auto",
         "level_id": r["level_id"] if "level_id" in r.keys() else None,
+        "mount_height_m": r["mount_height_m"] if "mount_height_m" in r.keys() else None,
+        "tilt_deg": r["tilt_deg"] if "tilt_deg" in r.keys() else None,
     }
 
 
@@ -49,6 +51,9 @@ def _polygon(raw: str | None) -> list[list[float]] | None:
 
 
 COVERAGE_KEYS = ("coverage_radius", "coverage_polygon")
+# Fields an explicit null clears in a PATCH (absent = unchanged): the coverage pair, the 3D pair (T087), the label and
+# the field of view (null = no cone; ruling R-P4-T3-1).
+NULLABLE_KEYS = COVERAGE_KEYS + ("mount_height_m", "tilt_deg", "label", "field_of_view_degrees")
 
 
 def _check_polygon(pts: list[list[float]] | None) -> str | None:
@@ -230,6 +235,8 @@ class AnchorIn(BaseModel):
     label: str | None = Field(default=None, max_length=120)
     coverage_radius: float | None = Field(default=None, gt=0, le=1)  # fraction of the plan width
     coverage_polygon: list[list[float]] | None = None  # [[x, y], ...] normalized
+    mount_height_m: float | None = Field(default=None, ge=0, le=30)  # metres above the level's floor (T087); null = the kind's default
+    tilt_deg: float | None = Field(default=None, ge=-90, le=90)  # positive = down
     label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
     label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
 
@@ -246,6 +253,8 @@ class AnchorPatch(BaseModel):
     # coverage: an explicit null clears it (back to the default cone); absent = unchanged
     coverage_radius: float | None = Field(default=None, gt=0, le=1)
     coverage_polygon: list[list[float]] | None = None
+    mount_height_m: float | None = Field(default=None, ge=0, le=30)  # metres above the level's floor (T087); null = the kind's default
+    tilt_deg: float | None = Field(default=None, ge=-90, le=90)  # positive = down
     label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
     label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
 
@@ -278,10 +287,10 @@ def create_anchor(floor_id: str, body: AnchorIn, request: Request, principal: Pr
         raise conflict("already_placed", "הפריט כבר מוצב על הקומה הזו.", anchor_id=dup["id"])
     aid, now = new_id(), now_iso()
     conn.execute(
-        """INSERT INTO map_anchors(id, floor_id, plan_version_id, resource_type, resource_id, x, y, rotation_degrees, field_of_view_degrees, layer_id, label, revision, effective_from, created_by, updated_by, updated_at, coverage_radius, coverage_polygon, label_pos, level_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        """INSERT INTO map_anchors(id, floor_id, plan_version_id, resource_type, resource_id, x, y, rotation_degrees, field_of_view_degrees, layer_id, label, revision, effective_from, created_by, updated_by, updated_at, coverage_radius, coverage_polygon, label_pos, level_id, mount_height_m, tilt_deg)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (aid, floor_id, version["id"], body.resource_type, body.resource_id, body.x, body.y, body.rotation_degrees, body.field_of_view_degrees, body.layer_id, body.label, now, principal.user_id, principal.user_id, now,
-         body.coverage_radius, _check_polygon(body.coverage_polygon), body.label_pos, body.level_id or None),
+         body.coverage_radius, _check_polygon(body.coverage_polygon), body.label_pos, body.level_id or None, body.mount_height_m, body.tilt_deg),
     )
     audit(conn, actor=principal, action="anchor.create", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request),
           details={"anchor_id": aid, "resource": f"{body.resource_type}:{body.resource_id}", "x": body.x, "y": body.y})
@@ -374,15 +383,17 @@ def update_anchor(anchor_id: str, body: AnchorPatch, request: Request, principal
     require(conn, principal, "placement.edit", ("floor", a["floor_id"]))
     if body.revision != a["revision"]:
         raise conflict("stale_revision", "העוגן השתנה בינתיים; טען מחדש ובחר איך למזג.", current_revision=a["revision"], sent_revision=body.revision)
-    fields = {k: v for k, v in body.model_dump().items() if k != "revision" and (v is not None or (k in COVERAGE_KEYS and k in body.model_fields_set))}
+    fields = {k: v for k, v in body.model_dump().items() if k != "revision" and (v is not None or (k in NULLABLE_KEYS and k in body.model_fields_set))}
     if "coverage_polygon" in fields:
         fields["coverage_polygon"] = _check_polygon(fields["coverage_polygon"])
     if "level_id" in fields:
         fields["level_id"] = fields["level_id"] or None  # "" clears: back to the floor's default level
+    fields = {k: v for k, v in fields.items() if a[k] != v}  # an unchanged value is no change
+    if not fields:
+        return anchor_row(a)  # nothing changed: no revision bump, no audit row (ruling R-P4-T3-1)
     before = {k: a[k] for k in fields}
-    if fields:
-        sets = ", ".join(f"{k} = ?" for k in fields)
-        conn.execute(f"UPDATE map_anchors SET {sets}, revision = revision + 1, updated_by = ?, updated_at = ? WHERE id = ?", (*fields.values(), principal.user_id, now_iso(), anchor_id))
+    sets = ", ".join(f"{k} = ?" for k in fields)
+    conn.execute(f"UPDATE map_anchors SET {sets}, revision = revision + 1, updated_by = ?, updated_at = ? WHERE id = ?", (*fields.values(), principal.user_id, now_iso(), anchor_id))
     audit(conn, actor=principal, action="anchor.update", decision="allowed", resource_type="floor", resource_id=a["floor_id"], request_id=_rid(request),
           details={"anchor_id": anchor_id, "before": before, "after": fields})
     return anchor_row(get_anchor(conn, anchor_id))

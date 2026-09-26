@@ -12,6 +12,16 @@ export default defineConfig({
     emptyOutDir: true,
     sourcemap: true,
     target: 'es2022',
+    // The 3D chunk's dynamic import must stay a plain relative import() (ruling R-P4-9): Vite's
+    // modulepreload polyfill otherwise inlines every chunk name it can reach, including the three
+    // chunk, into the entry bundle's own dependency map, even though the entry never imports it.
+    modulePreload: false,
+    rollupOptions: {
+      output: {
+        // Plan Studio 3D (T087): three.js in a chunk of its own, fetched only by the dynamic import of sw-plan-3d.
+        manualChunks: (id) => (id.includes('/node_modules/three/') ? 'three' : undefined),
+      },
+    },
   },
   server: {
     // Dev loop: the FastAPI backend runs on 8099 (`python -m smplwise` with SW_DEV_USER); the UI on 5173.

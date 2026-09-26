@@ -188,9 +188,9 @@ export function entityName(a: { resource_type: string; label: string | null; cam
 
 // ---- anchors ----
 
-export const createAnchor = (floorId: string, body: { resource_type: 'camera' | 'ha_entity'; resource_id: string; x: number; y: number; rotation_degrees?: number; field_of_view_degrees?: number | null; layer_id?: string; label?: string | null; level_id?: string | null }) =>
+export const createAnchor = (floorId: string, body: { resource_type: 'camera' | 'ha_entity'; resource_id: string; x: number; y: number; rotation_degrees?: number; field_of_view_degrees?: number | null; layer_id?: string; label?: string | null; level_id?: string | null; mount_height_m?: number | null; tilt_deg?: number | null }) =>
   post<Anchor>(`floors/${floorId}/anchors`, body);
-export const updateAnchor = (id: string, body: { revision: number; x?: number; y?: number; rotation_degrees?: number; field_of_view_degrees?: number | null; label?: string | null; coverage_radius?: number | null; coverage_polygon?: [number, number][] | null; label_pos?: string; level_id?: string | null }) =>
+export const updateAnchor = (id: string, body: { revision: number; x?: number; y?: number; rotation_degrees?: number; field_of_view_degrees?: number | null; label?: string | null; coverage_radius?: number | null; coverage_polygon?: [number, number][] | null; label_pos?: string; level_id?: string | null; mount_height_m?: number | null; tilt_deg?: number | null }) =>
   patch<Anchor>(`map-anchors/${id}`, body);
 /** S4: items placed on an earlier plan version - mapped through the crops (`crop`) or re-stamped after a visual check (`accept`). */
 export const realignAnchors = (floorId: string, mode: 'crop' | 'accept') => post<{ mode: string; moved: number; skipped: number; needs_alignment: boolean }>(`floors/${floorId}/anchors/realign`, { mode });
