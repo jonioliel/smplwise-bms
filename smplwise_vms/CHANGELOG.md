@@ -1,5 +1,32 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.90 (pilot) — round 9: the owner form verified by the product itself, one backup fix
+- Owner request (2026-09-26): of the 71 items on the round-8 owner form, 59 can be verified without the owner and
+  now are - every one of them maps to a passing test (the table is in
+  `docs/operations/TEST_ROUND_RESULTS_2026-09-26_HE.md`). The baseline sweep of all 65 evidence specs in real
+  Chrome: 123 tests, 85 passed, 36 BLOCKED on the same preconditions as the 2026-09-24 round (fresh events, the
+  NVR / go2rtc, a connected HA), none stale, one product defect.
+- Fixed: a backup restore in merge mode reported every row the archive held as "restored", including rows that were
+  already present and skipped (`INSERT OR IGNORE`). The counts in the answer and in the audit trail now come from
+  the cursor's row count, so a merge over an unchanged project reports zeros; replace mode is unchanged
+  (`services/backup.py`, owner form item 15).
+- New coverage written for the items the specs did not assert yet: the Plan Studio rows (structure, catalog items,
+  zones, anchors) survive a backup round trip in both restore modes; a published drawing imported again in another
+  crop carries its structure and the map shows the new crop (item 19); the tilted, noisy scan runs through the
+  editor's detect tool with a rejected candidate and an accepted rest, well under the 60 s guard (item 55); the
+  exported glTF passes the Khronos validator with `EXT_mesh_gpu_instancing` as its only required extension
+  (item 66, `gltf-validator` as a devDependency); the 7א/7ב wording (drag in door mode, arrows, Shift, the distance
+  field and Enter, then a map click and an arrow); the circuit from a seeded switch and the map half of the toggle
+  with the action route answered in the browser (items 37, 38); the event page map card and its history link on a
+  throwaway instance with one synthetic event (items 11, 26); and a spec for the remaining items without an
+  assertion of their own (items 10, 30, 44-48, 54).
+- Two behaviours recorded for the owner's decision, unchanged in this release: a merge restore does not bring back
+  a soft-deleted floor, zone or anchor (replace mode, the dialog's default, restores everything); the event page's
+  map card shows the floor's current structure while "המשך חקירה במפה" shows the structure at the event time.
+- What stays owner-only (9 items on the round-9 form): the store update, the Lovelace card in the real HA, a real
+  NVR event, a switch toggled through HA, the feel on the owner's PC and phone, and the owner's own building
+  (detection on the real scans, the 3D look, a real multi-level floor).
+
 ## 0.1.89 (pilot) — a setting for the default levels view
 - Answers open owner question (ב) from the phase 4 checklist (2026-09-26): every map defaulted to showing all levels
   together, with no way to open on one level instead. A new setting `plan.levels` (Settings, mirroring

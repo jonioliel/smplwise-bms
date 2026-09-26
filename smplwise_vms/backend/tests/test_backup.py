@@ -104,3 +104,78 @@ def test_pre_upgrade_backup_and_prune(settings):
     kinds = [b["kind"] for b in svc.list_backups(settings)]
     assert kinds.count("auto-daily") == svc.KEEP["auto-daily"] and kinds.count("manual") == 1 and kinds.count("auto-pre-upgrade") == 1
     assert len(removed) == 7 - svc.KEEP["auto-daily"]
+
+
+def _wall(wid: str, polyline: list[list[float]]) -> dict:
+    return {"id": wid, "level_id": "L0", "polyline": polyline, "thickness_m": 0.2, "height_m": None, "base_z_m": 0, "kind": "interior",
+            "confidence": 1, "source": "manual", "locked": False, "external_ids": {}}
+
+
+def test_backup_roundtrip_keeps_the_structure_objects_custom_items_zones_and_anchors(settings, tmp_path):
+    """Owner form item 15 (round 9): the Plan Studio rows travel with a project backup. A floor with a published
+    structure (walls, a door, an object) and a newer draft, a custom library item, a zone and an anchor is restored
+    into a fresh installation: the published and the draft documents come back with the same hashes."""
+    c = TestClient(create_app(settings))
+    ids = _seed(c)
+    v = ids["version"]
+    g = c.get(f"/api/v1/plan-versions/{v}/geometry?draft=true").json()
+    doc = {**g["doc"], "walls": [_wall("w1", [[0.1, 0.2], [0.8, 0.2]]), _wall("w2", [[0.1, 0.2], [0.1, 0.8]])],
+           "openings": [{"id": "d1", "wall_id": "w1", "t": 0.5, "kind": "door", "width_m": 0.9, "height_m": 2.1, "sill_m": 0, "swing": "right", "hinge": "start",
+                         "anchor_ref": None, "confidence": 1, "source": "manual", "external_ids": {}}],
+           "objects": [{"id": "o1", "item_id": "chair.basic", "level_id": "L0", "position": [0.5, 0.5], "rotation_deg": 30, "size": {"w_m": 0.45, "d_m": 0.45, "h_m": 0.85},
+                        "z_m": 0, "params": {}, "label": "כיסא", "anchor_ref": None, "group_id": None, "confidence": 1, "source": "manual", "locked": False, "external_ids": {}}]}
+    r = c.put(f"/api/v1/plan-versions/{v}/geometry", json={"doc": doc, "base_revision": g["geometry"]["revision"]})
+    assert r.status_code == 200, r.text
+    assert c.post(f"/api/v1/plan-versions/{v}/geometry/publish").status_code == 200
+    g = c.get(f"/api/v1/plan-versions/{v}/geometry?draft=true").json()
+    r = c.put(f"/api/v1/plan-versions/{v}/geometry", json={"doc": {**g["doc"], "walls": [*g["doc"]["walls"], _wall("w3", [[0.3, 0.6], [0.7, 0.6]])]}, "base_revision": g["geometry"]["revision"]})
+    assert r.status_code == 200, r.text
+    item = c.post("/api/v1/catalog/objects", json={"based_on": "chair.basic", "names": {"he": "כיסא גיבוי", "en": "Backup chair"}})
+    assert item.status_code == 201, item.text
+    published = c.get(f"/api/v1/plan-versions/{v}/geometry").json()
+    draft = c.get(f"/api/v1/plan-versions/{v}/geometry?draft=true").json()
+    assert published["geometry"]["doc_hash"] != draft["geometry"]["doc_hash"]
+    custom = c.get("/api/v1/catalog/export").json()["items"]
+    e = c.post("/api/v1/backups", json={"note": "studio"}).json()
+    assert e["tables"]["plan_geometry"] == 2 and e["tables"]["catalog_items"] == 1
+    zipped = c.get(f"/api/v1/backups/{e['name']}/download").content
+
+    c2 = TestClient(create_app(replace(settings, data_dir=tmp_path / "data3")))
+    up = c2.post("/api/v1/backups/upload", files={"file": ("copy.zip", zipped, "application/zip")}).json()
+    res = c2.post(f"/api/v1/backups/{up['name']}/restore", json={"mode": "replace", "scope": "project", "confirm": "RESTORE"})
+    assert res.status_code == 200, res.text
+    assert res.json()["tables"]["plan_geometry"] == 2 and res.json()["tables"]["catalog_items"] == 1
+    p2 = c2.get(f"/api/v1/plan-versions/{v}/geometry").json()
+    d2 = c2.get(f"/api/v1/plan-versions/{v}/geometry?draft=true").json()
+    assert p2["geometry"]["doc_hash"] == published["geometry"]["doc_hash"] and p2["doc"] == published["doc"]
+    assert d2["geometry"]["doc_hash"] == draft["geometry"]["doc_hash"] and d2["geometry"]["revision"] == draft["geometry"]["revision"]
+    assert [w["id"] for w in p2["doc"]["walls"]] == ["w1", "w2"] and [w["id"] for w in d2["doc"]["walls"]] == ["w1", "w2", "w3"]
+    assert [o["id"] for o in p2["doc"]["objects"]] == ["o1"] and p2["doc"]["openings"][0]["id"] == "d1"
+    assert c2.get("/api/v1/catalog/export").json()["items"] == custom
+    m = c2.get(f"/api/v1/floors/{ids['floor2']}/map").json()
+    assert [a["id"] for a in m["anchors"]] == [ids["anchor"]] and [z["id"] for z in m["zones"]] == [ids["zone"]]
+    assert m["geometry"] is not None
+
+
+def test_a_merge_restore_counts_only_the_rows_it_added(settings):
+    """Round 9 (owner form item 15): the restore answer - and the "שוחזר ... N קומות" line built from it - counts the rows
+    the restore wrote. A merge over an unchanged project adds nothing and says so; a hard-deleted custom item comes back
+    as one row. A merge cannot bring back a soft-deleted floor (its tombstone row is not missing) and does not claim to."""
+    c = TestClient(create_app(settings))
+    ids = _seed(c)
+    item = c.post("/api/v1/catalog/objects", json={"based_on": "chair.basic", "names": {"he": "כיסא מיזוג"}}).json()
+    e = c.post("/api/v1/backups", json={"note": "merge counts"}).json()
+    res = c.post(f"/api/v1/backups/{e['name']}/restore", json={"mode": "merge", "confirm": "RESTORE"})
+    assert res.status_code == 200, res.text
+    assert all(n == 0 for n in res.json()["tables"].values()), res.json()["tables"]
+    assert c.delete(f"/api/v1/catalog/objects/{item['id']}").status_code == 204
+    assert c.delete(f"/api/v1/floors/{ids['floor2']}?force=true").status_code == 204
+    res = c.post(f"/api/v1/backups/{e['name']}/restore", json={"mode": "merge", "confirm": "RESTORE"}).json()
+    assert res["tables"]["catalog_items"] == 1 and res["tables"]["floors"] == 0
+    assert sum(res["tables"].values()) == 1, res["tables"]
+    assert [x["id"] for x in c.get("/api/v1/catalog/objects").json()["items"] if x["custom"]] == [item["id"]]
+    assert c.get(f"/api/v1/floors/{ids['floor2']}/map").status_code == 404
+    # replace writes every row of the archive
+    res = c.post(f"/api/v1/backups/{e['name']}/restore", json={"mode": "replace", "confirm": "RESTORE"}).json()
+    assert res["tables"]["floors"] == 2 and res["tables"]["catalog_items"] == 1
+    assert c.get(f"/api/v1/floors/{ids['floor2']}/map").status_code == 200

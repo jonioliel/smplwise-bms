@@ -1,5 +1,6 @@
 import { test, expect, type APIRequestContext, type Locator, type Page, type WebSocketRoute } from '@playwright/test';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ACTION_STATUS_LABEL } from '../src/api/ha';
@@ -11,6 +12,9 @@ import { ACTION_STATUS_LABEL } from '../src/api/ha';
 // The spec builds its own site / building / floor on the committed apartment fixture and removes them at the end.
 // Runs only with SW_LIVE=1 SW_CHROME=1 (backend on 8099 behind the preview proxy on 4173).
 const HERE = path.dirname(fileURLToPath(import.meta.url));
+/** The Khronos glTF validator (npm gltf-validator: pure JS, no native module). Owner form item 66 (round 9). */
+type GltfReport = { issues: { numErrors: number; numWarnings: number; messages: { code: string; message: string; severity: number; pointer?: string }[] }; info?: { extensionsUsed?: string[]; extensionsRequired?: string[] } };
+const gltfValidator = createRequire(import.meta.url)('gltf-validator') as { validateString: (json: string, opts?: Record<string, unknown>) => Promise<GltfReport> };
 const FIXTURE = path.resolve(HERE, '..', '..', 'smplwise_vms', 'backend', 'tests', 'fixtures', 'plan_detect', 'apartment.png');
 export const HOST = 'explore-floor-map';
 export const ENTITIES = { lamp: 'light.p4_lamp', lock: 'lock.p4_door', sw: 'switch.p4_k' };
@@ -500,6 +504,13 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
     expect(gltf.nodes.length).toBeGreaterThan(10);
     expect(gltf.meshes.length).toBeGreaterThan(3);
     expect(gltf.extensionsUsed ?? []).toContain('EXT_mesh_gpu_instancing'); // the chairs and the wall parts travel as instances
+    // the Khronos validator reads the file as a viewer would: no error (warnings and infos are reported, not failed)
+    const report = await gltfValidator.validateString(got.text, { uri: got.name, maxIssues: 200 });
+    const errors = report.issues.messages.filter((m) => m.severity === 0);
+    console.log(`GLTF validator: ${report.issues.numErrors} errors, ${report.issues.numWarnings} warnings; required ${JSON.stringify(report.info?.extensionsRequired ?? [])}`);
+    expect(errors, JSON.stringify(errors.slice(0, 5))).toEqual([]);
+    expect(report.issues.numErrors).toBe(0);
+    expect(report.info?.extensionsRequired ?? [], 'the instanced parts need the extension').toContain('EXT_mesh_gpu_instancing');
     console.log(`GLTF ${got.name}: ${gltf.nodes.length} nodes, ${gltf.meshes.length} meshes, ${got.text.length} bytes`);
   });
 

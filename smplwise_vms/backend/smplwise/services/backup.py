@@ -203,6 +203,7 @@ def _actor_rows(conn: sqlite3.Connection, user_id: str | None) -> dict[str, list
 
 
 def _insert_rows(conn: sqlite3.Connection, table: str, rows: list[dict[str, Any]], replace: bool) -> int:
+    """Write the archive's rows of one table; returns how many rows were written (what the restore answer reports)."""
     cols_now = set(_columns(conn, table))
     n = 0
     verb = "INSERT OR REPLACE" if replace else "INSERT OR IGNORE"
@@ -212,8 +213,8 @@ def _insert_rows(conn: sqlite3.Connection, table: str, rows: list[dict[str, Any]
         keys = [k for k in row.keys() if k in cols_now]
         if not keys:
             continue
-        conn.execute(f"{verb} INTO {table}({', '.join(keys)}) VALUES ({', '.join('?' * len(keys))})", [row[k] for k in keys])
-        n += 1
+        cur = conn.execute(f"{verb} INTO {table}({', '.join(keys)}) VALUES ({', '.join('?' * len(keys))})", [row[k] for k in keys])
+        n += max(cur.rowcount, 0)  # rows written: a merge's INSERT OR IGNORE of a row that exists writes nothing
     return n
 
 

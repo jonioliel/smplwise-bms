@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 // SW_CHROME=1.
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const APARTMENT = path.resolve(HERE, '..', '..', 'smplwise_vms', 'backend', 'tests', 'fixtures', 'plan_detect', 'apartment.png');
+const NOISY = path.resolve(HERE, '..', '..', 'smplwise_vms', 'backend', 'tests', 'fixtures', 'plan_detect', 'noisy.png');
 const DXF_M = path.resolve(HERE, 'fixtures', 'plan-map.dxf');
 const DXF_MM = path.resolve(HERE, 'fixtures', 'plan-map-mm.dxf');
 const ids = { site: '', building: '', floor: '', version: '', asset: '' };
@@ -337,6 +338,11 @@ test.describe.serial('plan studio phase 3 (SW A)', () => {
     await expect(page.locator(cands('window'))).toHaveCount(1);
     await expect(page.locator(`${ED} [data-detect-objects]`)).toBeChecked();
     await expect(page.locator(`${ED} [data-detect-rooms]`)).toContainText('חדר אחד');
+    // owner form item 54 (round 9): the button imports the room as a zone of the floor
+    const zonesNow = async () => ((await (await api.get(`api/v1/floors/${ids.floor}/zones`)).json()).zones as unknown[]).length;
+    const zones0 = await zonesNow();
+    await page.locator(`${ED} [data-detect-rooms]`).click();
+    await expect.poll(zonesNow, { timeout: 10000 }).toBe(zones0 + 1);
     const accepted = page.waitForResponse((r) => isAccept(new URL(r.url())));
     await page.locator(`${ED} [data-detect-confirm]`).click();
     const accRes = await accepted;
@@ -363,5 +369,117 @@ test.describe.serial('plan studio phase 3 (SW A)', () => {
     const mmSet = (await mmR.json()) as { walls: Wall[]; openings: Opening[]; objects: Obj[] };
     expect([mmSet.walls.length, mmSet.openings.length, mmSet.objects.length]).toEqual([7, 3, 5]);
     for (const o of mmSet.openings.filter((x) => x.kind === 'door')) expect(Math.abs(o.width_m - 0.9)).toBeLessThan(0.02);
+  });
+
+  test('a bad scan (the tilted, noisy fixture): the run locks the button with a seconds counter, still proposes walls well under a minute, the kind buttons and "דחה הכול" drive the list, a click on the map rejects a wall, the rest is accepted (items 44, 45, 47, 48, 55)', async ({ page }) => {
+    test.setTimeout(180_000);
+    // owner form round 9: a new plan version of this floor on the noisy fixture (the editor opens the newest version)
+    const noisy = await (await api.post(`api/v1/floors/${ids.floor}/plan-assets`, { multipart: { file: { name: 'noisy.png', mimeType: 'image/png', buffer: fs.readFileSync(NOISY) } } })).json();
+    const nv = (await (await api.post(`api/v1/floors/${ids.floor}/plan-versions`, { data: { asset_id: noisy.id } })).json()) as { id: string; width_px: number };
+    expect(nv.width_px).toBe(1600);
+    await page.goto('about:blank');
+    await openDetect(page);
+    // item 44: the panel's controls
+    await expect(page.locator(`${ED} [data-detect-walls]`)).toBeChecked();
+    await expect(page.locator(`${ED} [data-detect-openings]`)).toBeChecked();
+    await expect(page.locator(`${ED} [data-detect-strength]`)).toBeAttached();
+    await expect(page.locator(`${ED} [data-detect-run]`)).toContainText('זהה אוטומטית');
+    // item 45: the response is held back 2.5 s in the browser, so the running state can be seen: the button is locked
+    // and counts seconds. The detection itself is the real one on the backend.
+    await page.route(isDetect, async (route) => {
+      const res = await route.fetch({ timeout: 65000 });
+      await new Promise((r) => setTimeout(r, 2500));
+      await route.fulfill({ response: res });
+    });
+    const started = Date.now();
+    const detected = page.waitForResponse((r) => isDetect(new URL(r.url())) && r.request().method() === 'POST', { timeout: 70000 });
+    await page.locator(`${ED} [data-detect-run]`).click();
+    await expect(page.locator(`${ED} [data-detect-run]`)).toHaveAttribute('aria-busy', 'true');
+    await expect(page.locator(`${ED} [data-detect-run]`)).toHaveAttribute('disabled', '');
+    await expect(page.locator(`${ED} [data-detect-elapsed]`)).toHaveText(/^\d+$/);
+    const res = await detected;
+    const tookMs = Date.now() - started - 2500;
+    await page.unroute(isDetect);
+    expect(res.status()).toBe(200);
+    const set = (await res.json()) as { walls: (Wall & { polyline: [number, number][] })[]; openings: Opening[]; elapsed_ms: number };
+    await expect(page.locator(`${ED} [data-detect-panel][data-detect-state="candidates"]`)).toBeAttached();
+    console.log(`NOISY ${set.walls.length} walls, ${set.openings.length} openings, server ${set.elapsed_ms} ms, round trip ${tookMs} ms`);
+    // item 55: walls are still proposed, well under the minute the run is allowed
+    expect(set.walls.length, 'walls proposed on the noisy scan').toBeGreaterThan(0);
+    expect(set.elapsed_ms).toBeLessThan(30000);
+    expect(tookMs).toBeLessThan(30000);
+    await expect.poll(() => distinct(page.locator(cands('wall')))).toBe(set.walls.length);
+    const rows = page.locator(`${ED} [data-cand-row]`);
+    const accepted = page.locator(`${ED} [data-cand-row][data-cand-state="accepted"]`);
+    const total = set.walls.length + set.openings.length;
+    await expect(rows).toHaveCount(total);
+    // item 47: "דחה הכול", "רק קירות", "קבל הכול" - the list and the confirm counter follow
+    await page.locator(`${ED} [data-detect-reject-all]`).click();
+    await expect(accepted).toHaveCount(0);
+    await expect(page.locator(`${ED} [data-detect-accepted]`)).toHaveText('0');
+    await page.locator(`${ED} [data-detect-accept-kind="wall"]`).click();
+    await expect(accepted).toHaveCount(set.walls.length);
+    await expect(page.locator(`${ED} [data-detect-accepted]`)).toHaveText(String(set.walls.length));
+    await page.locator(`${ED} [data-detect-accept-all]`).click();
+    await expect(accepted).toHaveCount(total);
+    // item 55: what is wrong is rejected by a click on it in the map, on the first wall away from its openings
+    const w0 = set.walls[0];
+    const [a, b] = w0.polyline;
+    const onIt = set.openings.filter((o) => o.wall_id === w0.id).map((o) => (o as unknown as { t: number }).t);
+    const gap = (t: number) => Math.min(1, ...onIt.map((x) => Math.abs(x - t)));
+    // a point of w0 whose topmost hit target is w0 itself (a T junction or a crossing wall may lie on top elsewhere)
+    const ownHit = async (t: number) => page.locator(`${ED} sw-plan-canvas`).evaluate((el, q) => {
+      const c = el as unknown as HTMLElement & { toScreen: (x: number, y: number) => { x: number; y: number } };
+      const r = c.getBoundingClientRect();
+      const s = c.toScreen(q[0], q[1]);
+      return c.shadowRoot!.elementFromPoint(r.left + s.x, r.top + s.y)?.getAttribute('data-cand-hit') ?? null;
+    }, [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t] as [number, number]);
+    let tt = -1;
+    for (const t of [0.3, 0.4, 0.6, 0.7, 0.2, 0.8, 0.35, 0.65]) {
+      if (gap(t) > 0.05 && (await ownHit(t)) === w0.id) {
+        tt = t;
+        break;
+      }
+    }
+    expect(tt, 'a free point on the first candidate wall').toBeGreaterThan(0);
+    await clickPlan(page, ED, a[0] + (b[0] - a[0]) * tt, a[1] + (b[1] - a[1]) * tt);
+    await expect(page.locator(`${ED} [data-cand-row="${w0.id}"]`)).toHaveAttribute('data-cand-state', 'rejected');
+    const onW0 = set.openings.filter((o) => o.wall_id === w0.id).length;
+    await expect(accepted).toHaveCount(total - 1 - onW0);
+    // item 48: on a wide screen the selected candidate wall's end is dragged before the accept, and the accepted wall keeps it
+    expect(set.walls.length).toBeGreaterThanOrEqual(2);
+    const w1 = set.walls[1];
+    await page.locator(`${ED} [data-cand-row="${w1.id}"] .linkbtn`).click();
+    await expect(page.locator(`${ED} sw-plan-canvas [data-cand-vertex]`)).toHaveCount(2);
+    const vh = page.viewportSize()!.height;
+    const boxes = [(await page.locator(`${ED} sw-plan-canvas [data-cand-vertex="0"]`).boundingBox())!, (await page.locator(`${ED} sw-plan-canvas [data-cand-vertex="1"]`).boundingBox())!];
+    const vi = boxes.findIndex((bx) => bx.y > 10 && bx.y + bx.height < vh - 40); // an end the viewport shows (the tall plan runs below it)
+    expect(vi, 'an end of the wall on screen').toBeGreaterThanOrEqual(0);
+    const end = boxes[vi];
+    const horizontal = Math.abs(w1.polyline[1][1] - w1.polyline[0][1]) < Math.abs(w1.polyline[1][0] - w1.polyline[0][0]);
+    const [dx, dy] = horizontal ? [0, 25] : [25, 0]; // off the wall's own line
+    await page.mouse.move(end.x + end.width / 2, end.y + end.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(end.x + end.width / 2 + dx, end.y + end.height / 2 + dy, { steps: 6 });
+    await page.mouse.up();
+    const acc = page.waitForResponse((r) => isAccept(new URL(r.url())));
+    await page.locator(`${ED} [data-detect-confirm]`).click();
+    const accRes = await acc;
+    expect(accRes.status()).toBe(200);
+    const sentEdit = (JSON.parse(accRes.request().postData() ?? '{}') as { edits: Record<string, { polyline?: [number, number][] }> }).edits[w1.id];
+    expect(sentEdit?.polyline, 'the dragged end travels as an edit of the candidate').toBeTruthy();
+    const zoom = await page.locator(`${ED} sw-plan-canvas`).evaluate((el) => (el as unknown as { zoom: number }).zoom);
+    const px = (p: [number, number], q: [number, number]) => Math.hypot((p[0] - q[0]) * 1600 * zoom, (p[1] - q[1]) * 1200 * zoom);
+    const edited = sentEdit!.polyline!;
+    expect(px(edited[1 - vi], w1.polyline[1 - vi]), 'the other end stays').toBeLessThan(1);
+    expect(px(edited[vi], w1.polyline[vi]), 'the dragged end moved by the drag (screen px)').toBeGreaterThan(15);
+    await expect(page.locator(`${ED} sw-plan-canvas [data-candidates]`)).toHaveCount(0);
+    const d = await draftOf(nv.id);
+    expect(d.doc.walls.length).toBe(set.walls.length - 1);
+    expect(d.doc.walls.map((w) => w.id)).not.toContain(w0.id);
+    expect(d.doc.walls.every((w) => w.source === 'auto')).toBe(true);
+    const ends = (d.doc.walls as unknown as { polyline: [number, number][] }[]).map((w) => [w.polyline[0], w.polyline[w.polyline.length - 1]] as const);
+    expect(ends.some(([s0, s1]) => (px(s0, edited[0]) < 3 && px(s1, edited[1]) < 3) || (px(s1, edited[0]) < 3 && px(s0, edited[1]) < 3)), 'the draft holds the wall as edited').toBe(true);
+    expect(Date.now() - started, 'the whole run, from the click to the accepted draft').toBeLessThan(60000);
   });
 });
