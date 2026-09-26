@@ -28,7 +28,7 @@ import { productSettings } from '../api/prefs';
 import { createItem, exportUrl as catalogExportUrl, importItems, itemOf, loadLibrary, lookupOf, type CatalogItem, type CatalogLibrary } from '../api/plan-catalog';
 import { distanceM, effectiveScale, isClosedOutline, lengthPx, nearestWall, pointOnWall, snapPoint, type CatalogLookup, type ConnectorKind, type GeometryDoc, type GeomOpening, type GeomWall, type Pt } from '../map/geometry';
 import { StudioController } from '../map/studio-controller';
-import { ARRAY_MAX, BIND_DISTANCE_M, CIRCUIT_COLORS, addArray, addCircuit, addCircuitLamp, addConnector, addLabel, addLevel, addObject, addOpening, addWall, arrayDefaults, circuitPower, defaultLevelId, duplicateBeside, duplicateObject, initialLevel, kindDefaults, moveConnectorVertex, moveGroup, moveObject, moveVertex, newId, nudgeT, openingRange, patchCircuit, patchConnector, patchLabel, patchObject, patchOpening, patchWall, removeCorner, removeGroup, removeItem, rotationTo, stretchedSize, toggleCircuitMember, translateWall, visibleUnderLevel, wallDirectionAt, type WallDefaults } from '../map/studio-ops';
+import { ARRAY_MAX, BIND_DISTANCE_M, CIRCUIT_COLORS, addArray, addCircuit, addCircuitLamp, addConnector, addLabel, addLevel, addObject, addOpening, addWall, arrayDefaults, circuitPower, defaultLevelId, duplicateBeside, duplicateObject, initialLevel, kindDefaults, levelUsage, moveConnectorVertex, moveGroup, moveObject, moveVertex, newId, nudgeT, openingRange, patchCircuit, patchConnector, patchLabel, patchLevel, patchObject, patchOpening, patchWall, removeCorner, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember, translateWall, visibleUnderLevel, wallDirectionAt, type WallDefaults } from '../map/studio-ops';
 import { ANCHOR_3D_DEFAULTS, anchor3dKind } from '../map/anchor-3d';
 import { COLL_LABEL, CONNECTOR_LABEL, circuitPlacingHint, connectorDerived, countLabel, fmtMetres, fmtScale, renderArrayDialog, renderCalibPanel, renderCircuitPanel, renderConnectorPanel, renderCustomItemDialog, renderGroupDeleteDialog, renderGroupInspector, renderLevelChips, renderLevelDialog, renderDetectPanel, renderLibraryPanel, renderMeasurePanel, renderObjectInspector, renderConnectorSelection, renderStudioPanel, SAVE_LABEL, studioPanelStyles, lighterStrength, type ArrayDialogView, type CustomItemView, type DetectAcceptError, type DetectOpts, type DetectReplaceAsk, type DetectRunState, type GeomKind, type GeomSel, type LevelDialogView, type StudioMode } from './plan-studio-panel';
 
@@ -1401,10 +1401,26 @@ export class ExplorePlanEditor extends LitElement {
     if (this.geomSel?.id === id && this.activeLevel !== null && this.activeLevel !== lv) this.levelFilter = lv;
   }
 
-  private createLevel() {
+  private openNewLevel() {
+    this.levelDialog = { id: null, name: '', elevation: -1.2, ceiling: 3.0, isDefault: false, makeDefault: false, error: '' };
+  }
+
+  /** The pencil beside a level chip: the level's own dialog, filled with what it has now. */
+  private openLevelEdit(id: string) {
+    const l = this.studio.doc?.levels.find((x) => x.id === id);
+    if (l) this.levelDialog = { id, name: l.name, elevation: l.elevation_m, ceiling: l.ceiling_height_m, isDefault: l.is_default, makeDefault: false, error: '' };
+  }
+
+  /** The dialog's primary button: a new level, or the edited one saved. */
+  private submitLevel() {
     const doc = this.studio.doc;
     const v = this.levelDialog;
     if (!doc || !v) return;
+    if (v.id === null) this.createLevel(doc, v);
+    else this.saveLevel(doc, v.id, v);
+  }
+
+  private createLevel(doc: GeometryDoc, v: LevelDialogView) {
     if (doc.levels.some((l) => l.elevation_m === v.elevation)) {
       this.levelDialog = { ...v, error: 'כבר יש מפלס בגובה הזה' };
       return;
@@ -1415,6 +1431,58 @@ export class ExplorePlanEditor extends LitElement {
     this.levelDialog = null;
     this.setLevelFilter(r.id);
     this.info = `המפלס "${v.name}" נוסף; פריטים חדשים יוצבו בו`;
+    setTimeout(() => (this.info = ''), 4000);
+  }
+
+  /** Edit mode: name, heights, and - for a level that is not the default - "make it the default" (patchLevel clears the
+   * others). The default level is edited like any other; it only loses its status when another level takes it. The
+   * same elevation rule as a new level (the server refuses two levels at one elevation). */
+  private saveLevel(doc: GeometryDoc, id: string, v: LevelDialogView) {
+    const l = doc.levels.find((x) => x.id === id);
+    if (!l) {
+      this.levelDialog = null; // the level went meanwhile (an undo)
+      return;
+    }
+    const r3 = (x: number) => Math.round(x * 1000) / 1000;
+    const patch = { name: v.name.trim(), elevation_m: r3(v.elevation), ceiling_height_m: r3(v.ceiling), ...(v.makeDefault && !l.is_default ? { is_default: true } : {}) };
+    if (doc.levels.some((x) => x.id !== id && x.elevation_m === patch.elevation_m)) {
+      this.levelDialog = { ...v, error: 'כבר יש מפלס בגובה הזה' };
+      return;
+    }
+    this.levelDialog = null;
+    if (patch.name === l.name && patch.elevation_m === l.elevation_m && patch.ceiling_height_m === l.ceiling_height_m && !patch.is_default) return; // nothing changed: no undo step
+    this.studio.commit(patchLevel(doc, id, patch));
+    this.lastEdit = 'structure';
+    this.info = patch.is_default ? `המפלס "${patch.name}" עודכן והוא המפלס הראשי עכשיו` : `המפלס "${patch.name}" עודכן`;
+    setTimeout(() => (this.info = ''), 4000);
+  }
+
+  /** Edit mode: removeLevel refuses (null) the default level and a level anything still sits on; the dialog then says
+   * which, with the count levelUsage gives, instead of doing nothing. */
+  private deleteLevel() {
+    const doc = this.studio.doc;
+    const v = this.levelDialog;
+    if (!doc || !v?.id) return;
+    const l = doc.levels.find((x) => x.id === v.id);
+    if (!l) {
+      this.levelDialog = null;
+      return;
+    }
+    const next = removeLevel(doc, l.id);
+    if (!next) {
+      const used = levelUsage(doc, l.id);
+      const why = [
+        ...(l.is_default ? ['זה המפלס הראשי - הפוך מפלס אחר לראשי קודם'] : []),
+        ...(used > 0 ? [`יש בו עוד ${countLabel(used, 'פריט אחד', 'פריטים')} (קירות, תוויות, עצמים או מחברים) - העבר או מחק אותם קודם`] : []),
+      ];
+      this.levelDialog = { ...v, error: `אי אפשר למחוק את המפלס: ${why.join('; ')}.` };
+      return;
+    }
+    this.studio.commit(next);
+    this.lastEdit = 'structure';
+    this.levelDialog = null;
+    if (this.levelFilter === l.id) this.setLevelFilter(null);
+    this.info = `המפלס "${l.name}" נמחק (ביטול: Ctrl+Z)`;
     setTimeout(() => (this.info = ''), 4000);
   }
 
@@ -1913,9 +1981,10 @@ export class ExplorePlanEditor extends LitElement {
         this.connStart = q;
         return;
       }
-      const from = this.placeOpts(doc).levelId;
-      const others = doc.levels.filter((l) => l.id !== from);
-      const r = addConnector(doc, this.connMode, this.connStart, q, from, others.length === 1 ? others[0].id : null);
+      // level_to is never guessed (T085 owner report 2026-09-26): with exactly one other level on the floor the new
+      // connector used to reach it at once, although the person may mean another floor ("קשר לקומה"). It stays empty
+      // until the person picks a level or links a floor: the draft saves, the issue list names it and publishing waits.
+      const r = addConnector(doc, this.connMode, this.connStart, q, this.placeOpts(doc).levelId, null);
       this.connStart = null;
       this.studio.commit(r.doc);
       this.lastEdit = 'structure';
@@ -3329,7 +3398,7 @@ export class ExplorePlanEditor extends LitElement {
                   <span>גרירה מזיזה · גלגלת = זום · ידיות = כיוון ושדה ראייה</span>
                 </div>
                 <div class="floorchip"><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
-                ${this.studio.doc && b.permissions.structure ? html`<div class="levelbar">${renderLevelChips(this.studio.doc.levels, this.activeLevel, (id) => this.setLevelFilter(id), () => (this.levelDialog = { name: '', elevation: -1.2, ceiling: 3.0, error: '' }))}</div>` : nothing}
+                ${this.studio.doc && b.permissions.structure ? html`<div class="levelbar">${renderLevelChips(this.studio.doc.levels, this.activeLevel, (id) => this.setLevelFilter(id), () => this.openNewLevel(), (id) => this.openLevelEdit(id))}</div>` : nothing}
                 <div class="rail" role="toolbar" aria-label="כלי עריכה">
                   ${TOOLS.map((tl) => html`<button class=${tl.id === this.tool ? 'on' : ''} data-tool=${tl.id} ?disabled=${!tl.ready || (STUDIO_TOOLS.includes(tl.id) && !b.permissions.structure) || (this.detectBusy && tl.id !== this.tool)} title=${tl.label} aria-label=${tl.label} aria-pressed=${tl.id === this.tool} @click=${() => this.pickTool(tl.id)}><sw-icon .name=${tl.icon} size=${18}></sw-icon></button>`)}
                   <hr />
@@ -3382,7 +3451,7 @@ export class ExplorePlanEditor extends LitElement {
         ${this.arrayDialog ? renderArrayDialog(this.arrayDialog, (patch) => (this.arrayDialog = { ...this.arrayDialog!, error: '', ...patch }), () => this.createArray(), () => (this.arrayDialog = null)) : nothing}
         ${this.groupDelete ? renderGroupDeleteDialog(this.studio.doc?.groups.find((g) => g.id === this.groupDelete)?.member_ids.length ?? 0, () => this.deleteGroup(true), () => this.deleteGroup(false), () => (this.groupDelete = null)) : nothing}
         ${this.customDialog && this.library ? renderCustomItemDialog(this.customDialog, this.library, (patch) => (this.customDialog = { ...this.customDialog!, ...patch }), () => void this.createCustom(), () => (this.customDialog = null)) : nothing}
-        ${this.levelDialog ? renderLevelDialog(this.levelDialog, (patch) => (this.levelDialog = { ...this.levelDialog!, ...patch }), () => this.createLevel(), () => (this.levelDialog = null)) : nothing}
+        ${this.levelDialog ? renderLevelDialog(this.levelDialog, { change: (patch) => (this.levelDialog = { ...this.levelDialog!, ...patch }), submit: () => this.submitLevel(), cancel: () => (this.levelDialog = null), remove: () => this.deleteLevel() }) : nothing}
       </sw-page>
     `;
   }

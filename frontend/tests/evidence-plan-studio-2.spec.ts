@@ -40,7 +40,7 @@ export async function dragPlan(page: Page, screen: string, from: [number, number
   for (const m of modifiers) await page.keyboard.up(m);
 }
 
-const draft = async (version = ids.version) => (await (await api.get(`api/v1/plan-versions/${version}/geometry?draft=true`)).json()) as { geometry: { revision: number }; doc: Record<string, unknown> & { objects: { id: string; item_id: string; position: [number, number]; group_id: string | null; anchor_ref: unknown }[]; groups: { id: string; member_ids: string[] }[]; connectors: { id: string; kind: string; level_to: string | null; floor_ids: string[] }[]; circuits: { id: string; member_ids: string[]; power_w: number }[]; levels: { id: string }[] } };
+const draft = async (version = ids.version) => (await (await api.get(`api/v1/plan-versions/${version}/geometry?draft=true`)).json()) as { geometry: { revision: number }; doc: Record<string, unknown> & { objects: { id: string; item_id: string; position: [number, number]; group_id: string | null; anchor_ref: unknown }[]; groups: { id: string; member_ids: string[] }[]; connectors: { id: string; kind: string; level_to: string | null; floor_ids: string[] }[]; circuits: { id: string; member_ids: string[]; power_w: number }[]; levels: { id: string; name: string; elevation_m: number; ceiling_height_m: number; is_default: boolean; external_ids: Record<string, unknown> }[] } };
 const saveDraft = async (patch: Record<string, unknown>, version = ids.version) => {
   const g = await draft(version);
   expect((await api.put(`api/v1/plan-versions/${version}/geometry`, { data: { doc: { ...g.doc, ...patch }, base_revision: g.geometry.revision } })).status()).toBe(200);
@@ -398,6 +398,113 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
     expect(mine.floor_ids.sort()).toEqual([ids.floor, ids.floor2].sort());
     await expect(page.locator(`${ed} [data-selected-connector="${stairsId}"]`)).toContainText('2 קומות');
     await expect(page.locator(`${ed} sw-plan-canvas [data-connector="${stairsId}"] text`)).toHaveText('↕');
+  });
+
+  test('levels are renamed, re-heighted and deleted from the chip bar, a refused delete says why; a freshly drawn ramp does not guess its target level', async ({ page }) => {
+    const ed = 'explore-plan-editor';
+    const dlg = `${ed} [data-level-dialog]`;
+    // the gallery floor: its default level and one above it, a chair on the upper one (the stairs link left its twin on L0)
+    expect((await api.patch(`api/v1/plan-versions/${ids.version2}/calibration`, { data: { pairs: [{ a: [0, 0.5], b: [1, 0.5], metres: 10 }] } })).status()).toBe(200);
+    await saveDraft({ levels: [LEVEL('L0', 'גלריה', 0, 2.8, true), LEVEL('L1', 'יציע', 2.5, 2.6)], objects: [OBJ('gal-chair', 'chair.basic', [0.3, 0.3], { level_id: 'L1' })] }, ids.version2);
+    const level = async (id: string) => (await draft(ids.version2)).doc.levels.find((l) => l.id === id) ?? null;
+    const defaults = async () => (await draft(ids.version2)).doc.levels.filter((l) => l.is_default).map((l) => l.id);
+    await page.goto(`/?design=a#/explore/floors/${ids.floor2}/edit`);
+    await expect(page.locator(`${ed} [data-level-chips] [data-level-chip]`)).toHaveCount(3, { timeout: 20000 }); // all + L0 + L1
+    await page.locator(`${ed} [data-level-chip="all"]`).click();
+
+    // a ramp drawn while the floor has exactly one other level: level_to stays empty until the person picks one
+    await page.locator(`${ed} [data-tool="connectors"]`).click();
+    await page.locator(`${ed} [data-conn-mode="ramp"]`).click();
+    await clickPlan(page, ed, 0.2, 0.8);
+    await clickPlan(page, ed, 0.35, 0.8);
+    await expect(page.locator(`${ed} [data-selected-connector]`)).toBeVisible();
+    const rampId = (await page.locator(`${ed} [data-selected-connector]`).getAttribute('data-selected-connector'))!;
+    const ramp = async () => (await draft(ids.version2)).doc.connectors.find((c) => c.id === rampId) ?? null;
+    await expect.poll(async () => (await ramp())?.kind ?? null, { timeout: 10000 }).toBe('ramp');
+    expect((await ramp())!.level_to).toBeNull();
+    await expect(page.locator(`${ed} [data-conn-to]`)).toHaveValue('');
+    await expect(page.locator(`${ed} sw-plan-canvas [data-connector="${rampId}"] text`)).toHaveText('↕');
+    // the manual pick still works
+    await page.locator(`${ed} [data-conn-to]`).selectOption('L1');
+    await expect.poll(async () => (await ramp())?.level_to ?? null, { timeout: 10000 }).toBe('L1');
+    await expect(page.locator(`${ed} sw-plan-canvas [data-connector="${rampId}"] text`)).toHaveText('↑ +2.5 מ׳');
+
+    // edit L1 from its chip: the name, the floor elevation and the ceiling
+    await page.locator(`${ed} [data-level-edit="L1"]`).click();
+    await expect(page.locator(dlg)).toHaveAttribute('data-level-editing', 'L1');
+    await expect(page.locator(`${dlg} [data-level-name]`)).toHaveValue('יציע');
+    await page.locator(`${dlg} [data-level-name]`).fill('יציע עליון');
+    await page.locator(`${dlg} [data-level-elevation]`).fill('2.8');
+    await page.locator(`${dlg} [data-level-ceiling]`).fill('3.2');
+    await page.locator(`${dlg} [data-level-save]`).click();
+    await expect(page.locator(dlg)).toHaveCount(0);
+    await expect(page.locator(`${ed} [data-level-chip="L1"]`)).toHaveText('יציע עליון · +2.8 מ׳');
+    await expect.poll(() => level('L1'), { timeout: 10000 }).toEqual({ id: 'L1', name: 'יציע עליון', elevation_m: 2.8, ceiling_height_m: 3.2, is_default: false, external_ids: {} });
+    await expect(page.locator(`${ed} sw-plan-canvas [data-connector="${rampId}"] text`)).toHaveText('↑ +2.8 מ׳'); // the 2D follows the new elevation
+    // an elevation another level already has is refused in the dialog, like on create
+    await page.locator(`${ed} [data-level-edit="L1"]`).click();
+    await page.locator(`${dlg} [data-level-elevation]`).fill('0');
+    await page.locator(`${dlg} [data-level-save]`).click();
+    await expect(page.locator(`${dlg} [data-level-error]`)).toContainText('כבר יש מפלס בגובה הזה');
+    // deleting a level that still holds the chair and the ramp is refused, with the count on screen
+    await page.locator(`${dlg} [data-level-elevation]`).fill('2.8');
+    await page.locator(`${dlg} [data-level-delete]`).click();
+    await expect(page.locator(`${dlg} [data-level-error]`)).toContainText('2 פריטים');
+    await page.locator(`${dlg} [data-level-cancel]`).click();
+    await expect(page.locator(dlg)).toHaveCount(0);
+    expect((await draft(ids.version2)).doc.levels.map((l) => l.id)).toEqual(['L0', 'L1']);
+    await expect(page.locator(`${ed} [data-level-chip="L1"]`)).toHaveText('יציע עליון · +2.8 מ׳');
+
+    // the default level is edited too (it stays the default; it has no "make default" box)
+    await page.locator(`${ed} [data-level-edit="L0"]`).click();
+    await expect(page.locator(`${dlg} [data-level-make-default]`)).toHaveCount(0);
+    await page.locator(`${dlg} [data-level-name]`).fill('גלריה ראשית');
+    await page.locator(`${dlg} [data-level-save]`).click();
+    await expect(page.locator(`${ed} [data-level-chip="L0"]`)).toHaveText('גלריה ראשית · +0.0 מ׳');
+    await expect.poll(async () => (await level('L0'))?.name ?? null, { timeout: 10000 }).toBe('גלריה ראשית');
+    expect((await level('L0'))!.is_default).toBe(true);
+
+    // an empty level: while it is the default it cannot go, and the reason says so; with the default back on L0 it is deleted
+    await page.locator(`${ed} [data-level-add]`).click();
+    await page.locator(`${dlg} [data-level-name]`).fill('מחסן');
+    await page.locator(`${dlg} [data-level-elevation]`).fill('-3');
+    await page.locator(`${dlg} [data-level-ceiling]`).fill('2.5');
+    await page.locator(`${dlg} [data-level-create]`).click();
+    await expect(page.locator(`${ed} [data-level-chips] [data-level-chip]`)).toHaveCount(4);
+    await page.locator(`${ed} [data-level-edit="L2"]`).click();
+    await page.locator(`${dlg} [data-level-make-default]`).check();
+    await page.locator(`${dlg} [data-level-save]`).click();
+    await expect.poll(defaults, { timeout: 10000 }).toEqual(['L2']);
+    await page.locator(`${ed} [data-level-edit="L2"]`).click();
+    await page.locator(`${dlg} [data-level-delete]`).click();
+    await expect(page.locator(`${dlg} [data-level-error]`)).toContainText('המפלס הראשי');
+    await page.locator(`${dlg} [data-level-cancel]`).click();
+    await page.locator(`${ed} [data-level-edit="L0"]`).click();
+    await page.locator(`${dlg} [data-level-make-default]`).check();
+    await page.locator(`${dlg} [data-level-save]`).click();
+    await expect.poll(defaults, { timeout: 10000 }).toEqual(['L0']);
+    await page.locator(`${ed} [data-level-chip="L2"]`).click();
+    await page.locator(`${ed} [data-level-edit="L2"]`).click();
+    await page.locator(`${dlg} [data-level-delete]`).click();
+    await expect(page.locator(dlg)).toHaveCount(0);
+    await expect(page.locator(`${ed} [data-level-chip="L2"]`)).toHaveCount(0);
+    await expect(page.locator(`${ed} [data-level-chips] [data-level-chip]`)).toHaveCount(3);
+    await expect(page.locator(`${ed} [data-level-chip="all"]`)).toHaveAttribute('selected', ''); // the filter on the deleted level went back to all
+    await expect.poll(async () => (await draft(ids.version2)).doc.levels.map((l) => l.id), { timeout: 10000 }).toEqual(['L0', 'L1']);
+
+    // published, the live map's chips and its 3D take the new name and heights
+    await publish(ids.version2);
+    await page.goto(`/?design=a#/explore/floors/${ids.floor2}`);
+    await expect(page.locator('explore-floor-map [data-level-chip="L1"]')).toHaveText('יציע עליון · +2.8 מ׳', { timeout: 20000 });
+    const toggle = page.locator('explore-floor-map [data-view-3d]');
+    await expect(toggle).toBeAttached();
+    await expect(toggle).not.toHaveAttribute('disabled', '', { timeout: 15000 });
+    await toggle.click();
+    const three = page.locator('explore-floor-map sw-plan-3d[data-floor-3d]');
+    await expect(three).toHaveAttribute('data-ready', '', { timeout: 30000 });
+    const levels3d = await three.evaluate((node) => (node as unknown as { description: { levels: { id: string; elevation_m: number; ceiling_height_m: number }[] } }).description.levels);
+    expect(levels3d.find((l) => l.id === 'L1')).toEqual({ id: 'L1', elevation_m: 2.8, ceiling_height_m: 3.2 });
+    expect(levels3d.map((l) => l.id).sort()).toEqual(['L0', 'L1']);
   });
 
   test('eight lamps on two circuits glow on the live map when their switches are on; the toggle goes through the entity action path; the editor builds a circuit from the switch catalogue', async ({ page }) => {
