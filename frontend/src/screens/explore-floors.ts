@@ -38,7 +38,7 @@ export class ExploreFloors extends LitElement {
   @state() private isos = new Map<string, IsoScene | null>();
   private isoPending = new Set<string>();
 
-  /** The cache without the versions the tree no longer lists (a republished or deleted floor), at most 64 entries. */
+  /** The cache without the versions the tree no longer lists (a republished or deleted floor). */
   private pruned(): Map<string, IsoScene | null> {
     const listed = (this.tree?.sites ?? []).flatMap((s) => (s.buildings ?? []).flatMap((b) => (b.floors ?? []).map((f) => f.published_version_id))).filter((v): v is string => !!v);
     return keepIsos(this.isos, listed);

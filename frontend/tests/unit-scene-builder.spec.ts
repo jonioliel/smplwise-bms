@@ -352,12 +352,18 @@ test('the isometric caps a floor at ISO_FACE_CAP faces, the plates always and th
   expect(iso.faces.some((f) => f.face === 'top' && Math.max(...f.points.map((p) => p[0])) - Math.min(...f.points.map((p) => p[0])) > 25)).toBe(true);
 });
 
-test('the building page keeps only the listed versions in its thumbnail cache, at most 64', () => {
+test('the building page keeps exactly the listed versions in its thumbnail cache, however many floors are listed', () => {
   const cache = new Map<string, number>([['v1', 1], ['v2', 2], ['v3', 3]]);
   expect([...keepIsos(cache, ['v1', 'v3'])]).toEqual([['v1', 1], ['v3', 3]]);
-  const big = new Map(Array.from({ length: 80 }, (_, i) => [`v${i}`, i] as [string, number]));
-  const kept = keepIsos(big, big.keys());
-  expect(kept.size).toBe(64);
-  expect(kept.has('v79') && !kept.has('v15') && kept.has('v16')).toBe(true);
   expect(cache.size).toBe(3); // a new map; the state is replaced, not mutated
+  // 70 structured floors on the page (more than any count cap) plus 10 versions no longer listed: every listed floor
+  // stays cached (evicting one would fetch it again and loop), every unlisted one goes
+  const big = new Map(Array.from({ length: 80 }, (_, i) => [`v${i}`, i] as [string, number]));
+  const listed = Array.from({ length: 70 }, (_, i) => `v${i + 10}`);
+  const kept = keepIsos(big, listed);
+  expect(kept.size).toBe(70);
+  expect(listed.every((v) => kept.has(v))).toBe(true);
+  expect([...kept.keys()].some((k) => Number(k.slice(1)) < 10)).toBe(false);
+  // a second pass with one more fetched floor keeps all 71 listed
+  expect(keepIsos(new Map([...kept, ['v99', 99]]), [...listed, 'v99']).size).toBe(71);
 });

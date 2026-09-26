@@ -1,4 +1,4 @@
-import { test, expect, type APIRequestContext, type Locator, type Page } from '@playwright/test';
+import { test, expect, type APIRequestContext, type Locator, type Page, type WebSocketRoute } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -43,6 +43,43 @@ export const publish = async () => expect((await api.post(`api/v1/plan-versions/
 export async function expectEnabled(l: Locator, timeout = 30000): Promise<void> {
   await expect(l).toBeAttached({ timeout });
   await expect(l).not.toHaveAttribute('disabled', '', { timeout });
+}
+type Bundle = { anchors: { entity: { fresh: boolean } | null }[]; circuit_states: Record<string, { fresh: boolean; can_control: boolean; actions: unknown[] }> };
+/** The developer backend runs without Home Assistant: its sync is down and every entity answers fresh=false, which the
+ * live map (2D and 3D) shows as unknown. For the live-state tests the screen sees a connected sync: the floor's bundle
+ * and the WebSocket frames are answered fresh here - the states themselves still come from the dev state route.
+ * `mutate` edits the bundle further; `syncLost` / `syncBack` send the sync message Home Assistant's loss would. */
+export async function connectedHa(page: Page, floorId: string, mutate: (b: Bundle) => void = () => undefined) {
+  let client: WebSocketRoute | null = null;
+  let connected = true;
+  await page.route(`**/api/v1/floors/${floorId}/map*`, async (r) => {
+    const res = await r.fetch();
+    const body = (await res.json()) as Bundle;
+    for (const a of body.anchors) if (a.entity) a.entity.fresh = true;
+    for (const c of Object.values(body.circuit_states)) c.fresh = true;
+    mutate(body);
+    await r.fulfill({ response: res, json: body });
+  });
+  await page.routeWebSocket('**/api/v1/ha/ws', (ws) => {
+    client = ws;
+    const server = ws.connectToServer();
+    server.onMessage((m) => {
+      try {
+        const env = JSON.parse(String(m)) as { type: string; payload: { entity?: { fresh: boolean }; connected?: boolean; sync?: { connected: boolean } } };
+        if (env.payload.entity) env.payload.entity.fresh = connected;
+        if (env.type === 'ha_sync_state') env.payload.connected = connected;
+        if (env.payload.sync) env.payload.sync.connected = connected;
+        ws.send(JSON.stringify(env));
+      } catch {
+        ws.send(m);
+      }
+    });
+  });
+  const say = (on: boolean) => {
+    connected = on;
+    client?.send(JSON.stringify({ type: 'ha_sync_state', payload: { connected: on } }));
+  };
+  return { syncLost: () => say(false), syncBack: () => say(true), unroute: () => page.unroute(`**/api/v1/floors/${floorId}/map*`) };
 }
 /** The local date the screens stamp on a download (YYYY-MM-DD in the browser's time zone). */
 const localDate = (page: Page) => page.evaluate(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`; });
@@ -114,6 +151,7 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
     page.on('request', (r) => {
       if (/\/assets\/three-[\w-]+\.js$/.test(r.url())) chunkRequests.push(r.url());
     });
+    await connectedHa(page, ids.floor);
     await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
     const host = page.locator(HOST);
     await expect(host.locator('sw-plan-canvas [data-structure] [data-wall]').first()).toBeAttached({ timeout: 20000 });
@@ -212,16 +250,14 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
     test.setTimeout(150_000);
     // the lock open and the lamp on, so the stale screen has something to hide
     expect((await api.post('api/v1/ha/dev/states', { data: { states: [{ entity_id: ENTITIES.lock, state: 'open' }, { entity_id: ENTITIES.lamp, state: 'on' }] } })).status()).toBe(200);
-    // the circuit arrives without control (as a viewer's bundle would): the lamp click must be blocked
-    const mapRoute = `**/api/v1/floors/${ids.floor}/map*`;
-    await page.route(mapRoute, async (r) => {
-      const res = await r.fetch();
-      const body = (await res.json()) as { circuit_states: Record<string, { can_control: boolean; actions: unknown[] }> };
+    // a room to click (removed at the end)
+    const zone = (await (await api.post(`api/v1/floors/${ids.floor}/zones`, { data: { name: 'פינת 3D', polygon: [{ x: 0.12, y: 0.46 }, { x: 0.22, y: 0.46 }, { x: 0.22, y: 0.58 }, { x: 0.12, y: 0.58 }] } })).json()).id as string;
+    // a connected sync; the circuit arrives without control (as a viewer's bundle would): the lamp click must be blocked
+    const ha = await connectedHa(page, ids.floor, (body) => {
       for (const c of Object.values(body.circuit_states)) {
         c.can_control = false;
         c.actions = [];
       }
-      await r.fulfill({ response: res, json: body });
     });
     const sent: unknown[] = [];
     await page.route('**/api/v1/ha/entities/*/actions', async (r) => {
@@ -259,6 +295,12 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
     await expect(el).toHaveAttribute('data-selected', ids.lockAnchor);
     expect(await page.evaluate(() => (window as unknown as { __sel: unknown[] }).__sel)).toEqual([{ id: 'dr', kind: 'opening' }]);
     await expect(host.locator('sw-drawer[open]')).toBeAttached();
+    // a wall is a stray click: the lock stays selected
+    const wallAt = await partScreen(page, HOST, 'wall:w#0');
+    await page.mouse.click(wallAt.x, wallAt.y);
+    await expect.poll(() => page.evaluate(() => (window as unknown as { __sel: { kind: string }[] }).__sel.length)).toBe(2);
+    expect(await page.evaluate(() => (window as unknown as { __sel: { kind: string }[] }).__sel[1].kind)).toBe('wall');
+    await expect(el).toHaveAttribute('data-selected', ids.lockAnchor);
     await page.keyboard.press('3');
     await expect(host.locator('sw-plan-canvas g.marker.selected')).toHaveAttribute('data-id', ids.lockAnchor, { timeout: 10000 });
     await page.keyboard.press('Escape');
@@ -271,6 +313,19 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
     await expect(el).toHaveAttribute('data-selected', 'lk');
     await page.waitForTimeout(500);
     expect(sent).toHaveLength(0);
+    // a room toggles its selection on the live map, as in 2D
+    const roomAt = await el.evaluate((node, id) => {
+      const e = node as unknown as { description: Desc; toScreen: (p: [number, number, number]) => { x: number; y: number } | null };
+      const room = e.description.parts.find((p) => p.id === `room:${id}`)!;
+      const n = room.polygon!.length;
+      const [cx, cz] = room.polygon!.reduce(([x, z], q) => [x + q[0] / n, z + q[1] / n], [0, 0]);
+      return e.toScreen([room.position[0] + cx, room.position[1] + 0.01, room.position[2] + cz]);
+    }, zone);
+    const elBox = (await el.boundingBox())!;
+    await page.mouse.click(elBox.x + roomAt!.x, elBox.y + roomAt!.y);
+    await expect(el).toHaveAttribute('data-selected', zone);
+    await page.mouse.click(elBox.x + roomAt!.x, elBox.y + roomAt!.y);
+    await expect(el).toHaveAttribute('data-selected', '');
     // a stale screen hands the builder explicit nulls: the door closes, the lock turns stale, no lamp glows
     await host.evaluate((n) => { (n as unknown as { screenState: string }).screenState = 'stale'; });
     await expect.poll(async () => { d = await describe3d(page, HOST); return part('door:dr').rotation[1]; }, { timeout: 15000 }).toBe(0);
@@ -280,7 +335,17 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
     expect(d.parts.filter((p) => p.kind === 'glow')).toHaveLength(0);
     await host.evaluate((n) => { (n as unknown as { screenState: string }).screenState = 'ready'; });
     await expect.poll(async () => { d = await describe3d(page, HOST); return Math.abs(part('door:dr').rotation[1]); }, { timeout: 15000 }).toBe(80);
-    await page.unroute(mapRoute);
+    // the Home Assistant sync is lost (the message the backend sends): the 3D dims like the 2D - the door closes, no glow
+    ha.syncLost();
+    await expect.poll(async () => { d = await describe3d(page, HOST); return part('door:dr').rotation[1]; }, { timeout: 15000 }).toBe(0);
+    expect(part(`ent:${ids.lockAnchor}`).color).toBe('stale');
+    expect(part('obj:lb').color).toBe('obj-light');
+    expect(d.parts.filter((p) => p.kind === 'glow')).toHaveLength(0);
+    ha.syncBack();
+    await expect.poll(async () => { d = await describe3d(page, HOST); return Math.abs(part('door:dr').rotation[1]); }, { timeout: 15000 }).toBe(80);
+    expect(part('obj:lb').color).toBe('map-glow');
+    await ha.unroute();
+    expect((await api.delete(`api/v1/zones/${zone}`)).status()).toBe(204);
     await page.unroute('**/api/v1/ha/entities/*/actions');
     expect((await api.post('api/v1/ha/dev/states', { data: { states: [{ entity_id: ENTITIES.lock, state: 'locked' }, { entity_id: ENTITIES.lamp, state: 'off' }] } })).status()).toBe(200);
   });
@@ -318,7 +383,7 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
     const v2 = (await (await api.post(`api/v1/floors/${ids.floor2}/plan-versions`, { data: { asset_id: asset.id } })).json()).id;
     expect((await api.post(`api/v1/plan-versions/${v2}/publish`)).status()).toBe(200);
     const a2 = (await (await api.post(`api/v1/floors/${ids.floor2}/anchors`, { data: { resource_type: 'camera', resource_id: ids.camera, x: 0.5, y: 0.5, rotation_degrees: 0, field_of_view_degrees: 90, coverage_radius: 0.3 } })).json()).id;
-    await page.goto('about:blank'); // a fresh load: the floor list of the running screen predates the new floor
+    // a hash navigation only: the running screen's floor list predates the new floor, so it reads the tree again
     await page.goto(`/?design=a#/explore/floors/${ids.floor2}`);
     await expect(host.locator(`sw-plan-canvas g.marker[data-id="${a2}"] path.fov`)).toHaveCount(1, { timeout: 30000 });
     await expect(host.locator('sw-plan-canvas [data-cov-clipped]')).toHaveCount(0);

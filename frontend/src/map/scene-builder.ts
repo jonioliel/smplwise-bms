@@ -629,9 +629,9 @@ export function isoProjection(desc: SceneDescription): IsoScene {
   return { faces: faces.map((f) => f.face), levels: desc.levels.length };
 }
 
-/** The building page's thumbnail cache without the versions no longer listed, at most `cap` entries (the newest kept). */
-export function keepIsos<T>(cache: Map<string, T>, listed: Iterable<string>, cap = 64): Map<string, T> {
+/** The building page's thumbnail cache without the versions no longer listed. The listed versions bound it (one entry
+ * per listed floor at most); no count cap, which would evict a floor still on screen and fetch it again in a loop. */
+export function keepIsos<T>(cache: Map<string, T>, listed: Iterable<string>): Map<string, T> {
   const live = new Set(listed);
-  const entries = [...cache].filter(([k]) => live.has(k));
-  return new Map(entries.slice(Math.max(0, entries.length - cap)));
+  return new Map([...cache].filter(([k]) => live.has(k)));
 }

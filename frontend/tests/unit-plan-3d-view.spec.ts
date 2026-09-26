@@ -209,3 +209,52 @@ test('removing the element releases its WebGL context', async ({ page }) => {
   });
   expect(lost).toEqual({ before: false, after: true });
 });
+
+test('element minors: a restored WebGL context redraws, a cancelled pointer never selects, the toast sits in the middle', async ({ page }) => {
+  test.setTimeout(90_000);
+  const el = await openDemo(page);
+  await el.locator('[data-preset-top]').click();
+  // a lost and restored context: the view draws again on its own
+  const f0 = await settled(el);
+  await el.evaluate(async (n) => {
+    const gl = (n as unknown as { view: { renderer: { getContext: () => WebGLRenderingContext } } }).view.renderer.getContext();
+    const ext = gl.getExtension('WEBGL_lose_context')!;
+    ext.loseContext();
+    await new Promise((r) => setTimeout(r, 300));
+    ext.restoreContext();
+  });
+  await expect.poll(() => el.evaluate((n) => (n as unknown as Probe).view.frames), { timeout: 10000 }).toBeGreaterThan(f0);
+  await settled(el);
+  // pointerdown, pointercancel, pointerup on a chair: no part-select; the same without the cancel selects it (control)
+  const at = await el.evaluate((n) => {
+    const e = n as unknown as { description: SceneDescription; toScreen: (p: [number, number, number]) => { x: number; y: number } | null };
+    return e.toScreen(e.description.parts.find((p) => p.id === 'obj:dc4')!.position)!;
+  });
+  const box = (await el.boundingBox())!;
+  const selects = await el.evaluate((n, p) => {
+    const canvas = (n as HTMLElement).shadowRoot!.querySelector('canvas')!;
+    const out: unknown[] = [];
+    n.addEventListener('part-select', (e) => out.push((e as CustomEvent).detail));
+    const fire = (type: string) => canvas.dispatchEvent(new PointerEvent(type, { clientX: p.x, clientY: p.y, pointerId: 1, pointerType: 'mouse', isPrimary: true, button: 0, bubbles: true, composed: true }));
+    fire('pointerdown');
+    fire('pointercancel');
+    fire('pointerup');
+    const cancelled = out.length;
+    fire('pointerdown');
+    fire('pointerup');
+    return { cancelled, control: out };
+  }, { x: box.x + at.x, y: box.y + at.y });
+  expect(selects.cancelled).toBe(0);
+  expect(selects.control).toEqual([{ id: 'dc4', kind: 'object' }]);
+  // the toast of a failed export: its centre is the stage's centre (the page is RTL)
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).direction)).toBe('rtl');
+  const centres = await el.evaluate(async (n) => {
+    const e = n as unknown as { showToast: (t: string) => void; updateComplete: Promise<boolean> };
+    e.showToast('ייצוא glTF נכשל');
+    await e.updateComplete;
+    const t = (n as HTMLElement).shadowRoot!.querySelector('[data-3d-toast]')!.getBoundingClientRect();
+    const h = (n as HTMLElement).getBoundingClientRect();
+    return { toast: t.left + t.width / 2, host: h.left + h.width / 2 };
+  });
+  expect(Math.abs(centres.toast - centres.host)).toBeLessThan(2);
+});

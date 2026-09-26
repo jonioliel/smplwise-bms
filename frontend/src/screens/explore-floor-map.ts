@@ -926,7 +926,9 @@ export class ExploreFloorMap extends LitElement {
   private async load() {
     this.loadError = '';
     try {
-      const tree = this.tree ?? (await loadTree());
+      let tree = this.tree ?? (await loadTree());
+      // a floor created after the tree was cached (a hash navigation to it): read the tree again before redirecting
+      if (isApi() && this.tree && !findFloor(tree, this.floorId)) tree = await loadTree();
       this.tree = tree;
       // Links such as the nav entry point at the fixture floor "f0"; with a backend, open the first real floor.
       if (isApi() && !findFloor(tree, this.floorId)) {
@@ -1043,6 +1045,26 @@ export class ExploreFloorMap extends LitElement {
 
   // ---- 3D (T087) ----
 
+  /** The 3D shows no live state on a stale screen or while the Home Assistant sync is down - the 2D dims its entity pins
+   * then too (entityTone with fresh && syncConnected). */
+  private get states3dStale(): boolean {
+    return this.screenState === 'stale' || !this.syncConnected;
+  }
+
+  /** The entity states the 3D reads: null (unknown) when stale or when the entity itself is not fresh. */
+  private get entityStates3d(): Record<string, string | null> {
+    const stale = this.states3dStale;
+    const out: Record<string, string | null> = {};
+    for (const a of this.bundle?.anchors ?? []) if (a.resource_type === 'ha_entity') out[a.resource_id] = stale || a.entity?.fresh === false ? null : a.entity?.state ?? null;
+    return out;
+  }
+
+  /** The circuit switches the 3D reads: null when stale or when the switch is not fresh (its lamps do not glow). */
+  private get circuitStates3d(): Record<string, string | null> {
+    const stale = this.states3dStale;
+    return Object.fromEntries(Object.entries(this.bundle?.circuitStates ?? {}).map(([id, c]) => [id, stale || c.fresh === false ? null : c.state]));
+  }
+
   /** The anchor layer switches of the 2D markers, shared by the 3D. */
   private anchorShown(a: { resource_type: string; layer_id: string }): boolean {
     return a.resource_type === 'camera' ? this.layers.has('cameras') : this.layers.has(a.layer_id === 'doors' ? 'doors' : a.layer_id === 'lights' ? 'lights' : 'sensors');
@@ -1053,12 +1075,12 @@ export class ExploreFloorMap extends LitElement {
   private get sceneAnchors(): SceneAnchor[] {
     const b = this.bundle;
     if (!b || b.source !== 'api') return [];
-    const stale = this.screenState === 'stale';
+    const states = this.entityStates3d;
     return b.anchors
       .filter((a) => this.anchorShown(a) && (a.resource_type !== 'camera' || cameraState(a) !== 'forbidden'))
       .map((a) => ({
         id: a.id, resource_type: a.resource_type, resource_id: a.resource_id, x: a.position.x, y: a.position.y, rotation: a.rotation_degrees, fov: a.field_of_view_degrees ?? null, radius: a.coverage_radius ?? null,
-        polygon: a.coverage_polygon ?? null, level_id: a.level_id ?? null, layer_id: a.layer_id, label: entityName(a), state: stale ? null : a.entity?.state ?? null,
+        polygon: a.coverage_polygon ?? null, level_id: a.level_id ?? null, layer_id: a.layer_id, label: entityName(a), state: a.resource_type === 'ha_entity' ? states[a.resource_id] ?? null : null,
         online: a.resource_type === 'camera' ? (a.camera ? a.camera.status === 'online' : null) : null, mount_height_m: a.mount_height_m ?? null, tilt_deg: a.tilt_deg ?? null,
       }));
   }
@@ -1076,7 +1098,7 @@ export class ExploreFloorMap extends LitElement {
   private sceneStatesKey(b: MapBundle): string {
     if (b.source === 'demo') return '';
     const cams = b.anchors.filter((a) => a.resource_type === 'camera').map((a) => `${a.id}:${a.camera?.status ?? ''}`).join(',');
-    return JSON.stringify([this.entityStateMap, this.circuitStateMap, cams]);
+    return JSON.stringify([this.entityStates3d, this.circuitStates3d, cams, this.syncConnected]);
   }
 
   /** The floor has something to show in 3D - a cheap test for the toggle; the scene itself is built only in 3D. */
@@ -1103,19 +1125,20 @@ export class ExploreFloorMap extends LitElement {
       return memo;
     }
     let base: SceneInput | null = null;
-    // a stale screen hands the builder explicit nulls: it draws every live state as unknown, like the dimmed 2D pins
-    const stale = this.screenState === 'stale';
+    // a stale screen or a lost Home Assistant sync hands the builder explicit nulls: it draws every live state as
+    // unknown, like the dimmed 2D pins (the api branch reads entityStates3d / circuitStates3d, which apply the same rule)
+    const stale = this.states3dStale;
     const unknown = (m: Record<string, string | null>) => (stale ? Object.fromEntries(Object.keys(m).map((k) => [k, null])) : m);
     let cameras: { id: string; label: string }[] = [];
     const labels: Record<string, string> = {};
     if (b.source === 'demo') {
       const demo = demoSceneInput(b.floorId);
       const hidden = new Set(demoCameras.filter((c) => c.floorId === b.floorId && c.state === 'forbidden').map((c) => c.id));
-      if (demo) base = { ...demo, entityStates: unknown(demo.entityStates), anchors: demo.anchors.filter((a) => this.anchorShown(a) && !hidden.has(a.id)).map((a) => (stale ? { ...a, state: null } : a)) };
+      if (demo) base = { ...demo, entityStates: unknown(demo.entityStates), circuitStates: unknown(demo.circuitStates), anchors: demo.anchors.filter((a) => this.anchorShown(a) && !hidden.has(a.id)).map((a) => (stale ? { ...a, state: null } : a)) };
       cameras = this.layers.has('cameras') ? demoCameras.filter((c) => c.floorId === b.floorId && !hidden.has(c.id)).map((c) => ({ id: c.id, label: c.name })) : [];
       Object.assign(labels, demoSceneLabels(b.floorId));
     } else if (this.geometry) {
-      base = { doc: this.geometry, width: b.width, height: b.height, anchors: this.sceneAnchors, entityStates: unknown(this.entityStateMap), circuitStates: unknown(this.circuitStateMap), catalog: this.catalog3d,
+      base = { doc: this.geometry, width: b.width, height: b.height, anchors: this.sceneAnchors, entityStates: this.entityStates3d, circuitStates: this.circuitStates3d, catalog: this.catalog3d,
         zones: b.zones.map((z) => ({ id: z.id, name: z.name, polygon: z.polygon, level_id: z.level_id ?? null })) };
       cameras = b.anchors.filter((a) => a.resource_type === 'camera' && this.layers.has('cameras') && cameraState(a) !== 'forbidden').map((a) => ({ id: a.id, label: entityName(a) }));
       // hover labels: anchors by their map name, objects by label or library name, zones by name
