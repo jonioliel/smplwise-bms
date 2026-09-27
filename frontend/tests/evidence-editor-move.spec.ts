@@ -684,30 +684,36 @@ test.describe.serial('editor: select and move walls, objects and zones (0.1.87)'
     expect(created.status()).toBe(201);
     zoneIds.push((await created.json()).id);
     await saveDraft({ ...SEED, connectors: [CONNECTOR('mc1', [[0.45, 0.45], [0.55, 0.5]])] });
-    await openEditor(page);
+    try {
+      await openEditor(page);
 
-    const wallPt = await at(page, [0.3, 0.3]);
-    const zonePt = await at(page, [0.1, 0.52]);
-    const connPt = await at(page, [0.5, 0.475]);
-    const selWall = page.locator(`${ED} [data-selected-wall]`);
-    const selZone = page.locator(`${ED} sw-plan-canvas g.zone.selected`);
-    const selConn = page.locator(`${ED} [data-selected-connector]`);
+      const wallPt = await at(page, [0.3, 0.3]);
+      const zonePt = await at(page, [0.1, 0.52]);
+      const connPt = await at(page, [0.5, 0.475]);
+      const selWall = page.locator(`${ED} [data-selected-wall]`);
+      const selZone = page.locator(`${ED} sw-plan-canvas g.zone.selected`);
+      const selConn = page.locator(`${ED} [data-selected-connector]`);
 
-    await page.locator(`${ED} [data-tool-pan]`).click();
-    await page.mouse.click(wallPt.x, wallPt.y);
-    await expect(selWall).toHaveCount(0);
-    await page.mouse.click(zonePt.x, zonePt.y);
-    await expect(selZone).toHaveCount(0);
-    await page.mouse.click(connPt.x, connPt.y);
-    await expect(selConn).toHaveCount(0);
+      await page.locator(`${ED} [data-tool-pan]`).click();
+      await page.mouse.click(wallPt.x, wallPt.y);
+      await expect(selWall).toHaveCount(0);
+      await page.mouse.click(zonePt.x, zonePt.y);
+      await expect(selZone).toHaveCount(0);
+      await page.mouse.click(connPt.x, connPt.y);
+      await expect(selConn).toHaveCount(0);
 
-    await page.locator(`${ED} [data-tool-pan]`).click(); // hand tool off: the same clicks now select as usual
-    await page.mouse.click(wallPt.x, wallPt.y);
-    await expect(selWall).toHaveCount(1);
-    await page.mouse.click(zonePt.x, zonePt.y);
-    await expect(selZone).toHaveCount(1);
-    await page.mouse.click(connPt.x, connPt.y);
-    await expect(selConn).toHaveCount(1);
+      await page.locator(`${ED} [data-tool-pan]`).click(); // hand tool off: the same clicks now select as usual
+      await page.mouse.click(wallPt.x, wallPt.y);
+      await expect(selWall).toHaveCount(1);
+      await page.mouse.click(zonePt.x, zonePt.y);
+      await expect(selZone).toHaveCount(1);
+      await page.mouse.click(connPt.x, connPt.y);
+      await expect(selConn).toHaveCount(1);
+    } finally {
+      // T085 review follow-up: restore the plain seed so later tests in this file (which never pass their own
+      // `connectors`) do not keep this test's connector merged into the shared draft doc.
+      await saveDraft({ walls: SEED.walls, objects: SEED.objects, connectors: [] });
+    }
   });
 
   // T085 pan/help: the "?" button on the map toolbar opens a panel listing the editor's real keyboard shortcuts,
