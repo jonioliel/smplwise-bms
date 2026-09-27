@@ -966,10 +966,11 @@
       "Build screenshots matching design reference"
     ],
     "evidence": [
-      "pre-evidence (segment 2, 2026-09-14): live-wall.ts 1/2/4/6/8/9/12/16 layouts with real sub streams, snapshot posters, cap-aware (poster beyond media.max_live_sessions), auto/main/sub selector; kiosk-wall.ts 3x3 real streams; saved views, reorder/pin and mobile override still open"
+      "pre-evidence (segment 2, 2026-09-14): live-wall.ts 1/2/4/6/8/9/12/16 layouts with real sub streams, snapshot posters, cap-aware (poster beyond media.max_live_sessions), auto/main/sub selector; kiosk-wall.ts 3x3 real streams; saved views, reorder/pin and mobile override still open",
+      "2026-09-27 (0.1.100, on commit 4bee61e): owner request - a settings mode on the all-cameras wall (SC07) to set camera display order and let a camera (their example: panoramic sports-hall cameras) span more than one grid column. Migration 0023 adds cameras.grid_col_span (1-4), reusing the existing sort_order column and its PATCH route (already gated by sources.configure). New settings dialog (data-wall-settings-open, gated on can_sync): up/down move buttons per camera, a column-span choice; save renumbers the dialog's rows and every other visible camera consistently so disabled/hidden cameras never collide with the new order. Reviewed twice: fixed a spanned-tile double-height/overflow bug (aspect ratio now widens with the span; best-fit sizing weighs by span instead of assuming equal tiles), a phone-width column-clamp bug, a non-atomic save path with no reload on failure, and test-hygiene issues; a scoped re-review closed one residual sparse-grid-gap edge case with grid-auto-flow: dense. Tests: backend 12/12 (test_cameras.py + test_anchor_3d.py), live 2/2. kiosk-wall.ts does not yet honor grid_col_span - flagged as an open question for the owner, not fixed in this pass."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "4bee61e",
     "actual_cost_usd": null
   },
   {

@@ -1,5 +1,22 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.100 (pilot) — flexible column layout and ordering for the all-cameras wall
+- Owner request (2026-09-27): a settings mode on the all-cameras live grid ("כל המצלמות"), gated by permission,
+  to set the display order of cameras and let specific cameras - the owner's example: panoramic cameras covering
+  the sports hall - span more than one grid column so the layout can be as flexible as needed.
+- A new `grid_col_span` (1-4) column on each camera, alongside the existing `sort_order` column that already
+  drove every camera listing; both are editable through a new settings dialog on the wall (gated on the same
+  `sources.configure` permission the devices screen already uses), with up/down move buttons per camera and a
+  column-span choice. Saving renumbers the dialog's rows and every other visible camera consistently.
+- A spanned tile widens its aspect ratio to match its column span, so a panoramic camera renders wide rather than
+  cropped or double-height, and the best-fit sizing algorithm now weighs each camera by its span instead of
+  assuming every tile is the same size.
+- Reviewed twice at Opus tier: fixed a colliding task ID, the double-height/overflow rendering bug above, a
+  phone-width column-clamp bug, a non-atomic save path with no reload on failure, disabled-camera sort-order
+  collisions, and test-hygiene issues (state left dangling for later tests); a second, scoped re-review closed one
+  residual edge case (a sparse grid gap could still add an extra row for some span orderings, fixed with
+  `grid-auto-flow: dense`).
+
 ## 0.1.99 (pilot) — persistent hand-tool pan mode and keyboard-shortcuts help
 - Owner request (2026-09-27): after the select tool took over left-drag for its marquee (0.1.96), there was no way
   back to panning without holding Space the whole time. The owner asked for both the existing Space+drag gesture
