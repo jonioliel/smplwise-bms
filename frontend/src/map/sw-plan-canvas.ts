@@ -1145,14 +1145,14 @@ export class SwPlanCanvas extends LitElement {
   }
 
   private selectZone(z: PlanZone, e: Event) {
-    if (this.dragMoved || this.placing) return; // while placing / drawing the click belongs to the plan
+    if (this.dragMoved || this.placing || this.panActive) return; // while placing / drawing the click belongs to the plan; the hand tool takes every click too
     e.stopPropagation();
     this.dispatchEvent(new CustomEvent('zone-select', { detail: { id: z.id, add: shiftHeld(e) }, bubbles: true, composed: true }));
   }
 
   /** Drag a corner of the selected zone (or, with `insert`, a new corner created at an edge midpoint). */
   private onVertexPointerDown(z: PlanZone, index: number, e: PointerEvent, insert = false) {
-    if (!this.editable || e.button !== 0) return;
+    if (!this.editable || e.button !== 0 || this.panActive) return; // the hand tool: a corner handle pans too, it does not drag or insert
     e.stopPropagation();
     e.preventDefault();
     if (this.zonePending?.id === z.id) return; // the last edit of this zone is still being saved
@@ -1339,7 +1339,7 @@ export class SwPlanCanvas extends LitElement {
   }
 
   private onBackgroundClick = (e: MouseEvent) => {
-    if (this.dragMoved) return;
+    if (this.dragMoved || this.panActive) return; // the hand tool (or Space held): a click is not a placement or a deselect either
     if (this.placing) {
       const rect = this.getBoundingClientRect();
       const p = this.toPlan(e.clientX - rect.left, e.clientY - rect.top);
@@ -1357,7 +1357,7 @@ export class SwPlanCanvas extends LitElement {
   }
 
   private onHandlePointerDown = (m: PlanMarker, kind: 'dir' | 'left' | 'right', e: PointerEvent) => {
-    if (!this.editable || e.button !== 0) return;
+    if (!this.editable || e.button !== 0 || this.panActive) return; // the hand tool: a camera handle pans too, it does not orient
     e.stopPropagation();
     e.preventDefault();
     const rect0 = this.getBoundingClientRect();
@@ -1403,7 +1403,7 @@ export class SwPlanCanvas extends LitElement {
 
   /** Drag the cone's range handle: the radius follows the pointer's distance from the pin; emits `marker-coverage` {id, radius}. */
   private onRangePointerDown = (m: PlanMarker, e: PointerEvent) => {
-    if (!this.editable || e.button !== 0) return;
+    if (!this.editable || e.button !== 0 || this.panActive) return; // the hand tool: the range handle pans too, it does not resize the cone
     e.stopPropagation();
     e.preventDefault();
     const rect0 = this.getBoundingClientRect();
@@ -1705,12 +1705,14 @@ export class SwPlanCanvas extends LitElement {
   }
 
   private pickGeom(id: string, e: Event) {
+    if (this.panActive) return; // the hand tool: a click on an unselected wall does not select it either
     e.stopPropagation();
     if (this.dragMoved) return;
     this.dispatchEvent(new CustomEvent('geom-select', { detail: { id, kind: 'wall', add: shiftHeld(e) }, bubbles: true, composed: true }));
   }
 
   private pickConnector(id: string, e: Event) {
+    if (this.panActive) return; // the hand tool: a click on an unselected connector does not select it either
     e.stopPropagation();
     if (this.dragMoved) return;
     this.dispatchEvent(new CustomEvent('geom-select', { detail: { id, kind: 'connector' }, bubbles: true, composed: true }));

@@ -1075,9 +1075,6 @@ export class ExplorePlanEditor extends LitElement {
     if (e.key === 'Escape') {
       if (this.shortcutsOpen) { this.shortcutsOpen = false; return; }
       if (this.arrayDialog || this.groupDelete || this.customDialog) { this.arrayDialog = null; this.groupDelete = null; this.customDialog = null; return; }
-      // the hand tool goes before anything tool-specific below: it is the topmost mode, and turning it off is meant to
-      // be the easy, one-key way back to normal editing (owner request 2026-09-27)
-      if (this.panMode) { this.panMode = false; return; }
       if (this.connStart) { this.connStart = null; return; }
       if (this.tool === 'circuits' && this.circuitPlacing) { this.circuitPlacing = null; return; } // first Esc: the armed lamp type
       if (this.tool === 'circuits' && this.membersMode) { this.membersMode = false; return; }
@@ -1096,6 +1093,10 @@ export class ExplorePlanEditor extends LitElement {
       else if (this.drawing) this.drawing = null;
       else if (this.placing) this.placing = null;
       else if (this.candidates) this.candidates = null;
+      // the hand tool comes after every in-progress draft or placement above: cancelling a dangling wall/zone draft or
+      // connector start is more surprising to leave behind than a second Esc to also leave the hand tool (owner
+      // decision needed here - T085 review; a first Esc still turns it off on its own once nothing else is open)
+      else if (this.panMode) this.panMode = false;
       else {
         // the selection goes last, whatever it is - one pin, one item or a multi-selection (T085): an Esc first ends
         // whatever is being placed or drawn, exactly as before a multi-selection existed

@@ -16,6 +16,8 @@ const WALL = (id: string, polyline: P[]) => ({ id, level_id: 'L0', polyline, thi
 const DOOR = (id: string, wallId: string, t: number) => ({ id, wall_id: wallId, t, kind: 'door', width_m: 0.9, height_m: 2.1, sill_m: 0, swing: 'right', hinge: 'start', anchor_ref: null, confidence: 1, source: 'manual', external_ids: {} });
 const CHAIR = (id: string, pos: P) => ({ id, item_id: 'chair.basic', level_id: 'L0', position: pos, rotation_deg: 0, size: { w_m: 0.4, d_m: 0.4, h_m: 0.85 }, z_m: 0, params: {}, label: null, anchor_ref: null,
   group_id: null, confidence: 1, source: 'manual', locked: false, external_ids: {} });
+/** A same-floor connector (T085 pan/help review): level_to left null (not chosen yet) is enough to draw and hit-test it. */
+const CONNECTOR = (id: string, polyline: P[]) => ({ id, kind: 'stairs', level_from: 'L0', level_to: null, floor_ids: [], polyline, width_m: 1, label: null, object_id: null, source: 'manual', external_ids: {} });
 
 interface Draft {
   geometry: { revision: number };
@@ -650,6 +652,62 @@ test.describe.serial('editor: select and move walls, objects and zones (0.1.87)'
     await expect(page.locator(`${ED} sw-plan-canvas .viewport[data-space-pan="on"]`)).toHaveCount(1);
     await pan.click();
     await expect(page.locator(`${ED} sw-plan-canvas .viewport[data-space-pan="on"]`)).toHaveCount(0);
+  });
+
+  // T085 pan/help review (blocking finding 1): a click while the hand tool is on must never reach a tool as a
+  // `plan-click` either, not only a drag - `onBackgroundClick` gates on `panActive` now, same as the drag handlers.
+  test('hand tool: toggling it on mid-wall-draft blocks a new corner from a click; toggling it off resumes the draft', async ({ page }) => {
+    await saveDraft(SEED);
+    await openEditor(page);
+    await page.locator(`${ED} [data-tool="structure"]`).click();
+    await page.locator(`${ED} [data-studio-mode="wall"]`).click();
+    const hint = page.locator(`${ED} .placing-hint`);
+    const p0 = await at(page, [0.3, 0.6]);
+    await page.mouse.click(p0.x, p0.y);
+    await expect(hint).toContainText('1 נקודות');
+
+    await page.locator(`${ED} [data-tool-pan]`).click();
+    const p1 = await at(page, [0.5, 0.6]);
+    await page.mouse.click(p1.x, p1.y);
+    await expect(hint).toContainText('1 נקודות'); // unchanged: the click only panned, it added no corner
+
+    await page.locator(`${ED} [data-tool-pan]`).click();
+    await page.mouse.click(p1.x, p1.y);
+    await expect(hint).toContainText('2 נקודות'); // normal drawing resumes once the hand tool is off
+  });
+
+  // T085 pan/help review (blocking finding 2): a plain click (no drag) on an unselected wall, connector or zone must not
+  // select it while the hand tool is on either - `pickGeom`, `pickConnector` and `selectZone` all gate on `panActive` now.
+  test('hand tool: a click (no drag) on an unselected wall, connector or zone selects nothing while it is on; normal click-select returns once it is off', async ({ page }) => {
+    const poly = [{ x: 0.05, y: 0.45 }, { x: 0.15, y: 0.45 }, { x: 0.15, y: 0.6 }, { x: 0.05, y: 0.6 }];
+    const created = await api.post(`api/v1/floors/${ids.floor}/zones`, { data: { name: 'אזור לבדיקת יד', kind: 'room', polygon: poly } });
+    expect(created.status()).toBe(201);
+    zoneIds.push((await created.json()).id);
+    await saveDraft({ ...SEED, connectors: [CONNECTOR('mc1', [[0.45, 0.45], [0.55, 0.5]])] });
+    await openEditor(page);
+
+    const wallPt = await at(page, [0.3, 0.3]);
+    const zonePt = await at(page, [0.1, 0.52]);
+    const connPt = await at(page, [0.5, 0.475]);
+    const selWall = page.locator(`${ED} [data-selected-wall]`);
+    const selZone = page.locator(`${ED} sw-plan-canvas g.zone.selected`);
+    const selConn = page.locator(`${ED} [data-selected-connector]`);
+
+    await page.locator(`${ED} [data-tool-pan]`).click();
+    await page.mouse.click(wallPt.x, wallPt.y);
+    await expect(selWall).toHaveCount(0);
+    await page.mouse.click(zonePt.x, zonePt.y);
+    await expect(selZone).toHaveCount(0);
+    await page.mouse.click(connPt.x, connPt.y);
+    await expect(selConn).toHaveCount(0);
+
+    await page.locator(`${ED} [data-tool-pan]`).click(); // hand tool off: the same clicks now select as usual
+    await page.mouse.click(wallPt.x, wallPt.y);
+    await expect(selWall).toHaveCount(1);
+    await page.mouse.click(zonePt.x, zonePt.y);
+    await expect(selZone).toHaveCount(1);
+    await page.mouse.click(connPt.x, connPt.y);
+    await expect(selConn).toHaveCount(1);
   });
 
   // T085 pan/help: the "?" button on the map toolbar opens a panel listing the editor's real keyboard shortcuts,
