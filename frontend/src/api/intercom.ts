@@ -2,8 +2,9 @@
  * WisKey (hikvision_intercom) through SMPLWISE (CR-005). This is the transport boundary of the port: where WisKey's own
  * panel calls `hass.callWS({ type: 'hikvision_intercom/overview' })`, the SMPLWISE screen calls `getIntercomOverview()`,
  * which asks the SMPLWISE backend; only the backend talks to Home Assistant. Phase 1a: read-only entry center.
+ * Phase 3 (access.release): door release, call answer / reject / hang up, and a spoken announcement.
  */
-import { apiUrl, get } from './client';
+import { apiUrl, get, post } from './client';
 
 /** A display zone as WisKey sends it (time.ts `DisplayZone`): an IANA zone, or a device's own DST rule. */
 export type DisplayZone =
@@ -23,6 +24,11 @@ export interface IntercomLastAccess {
   door: number | null;
 }
 
+export interface IntercomLock {
+  physical_index: number;
+  name: string | null;
+}
+
 /** The part of WisKey's `Station` the entry center shows (the backend drops the rest). */
 export interface IntercomStation {
   id: string;
@@ -32,6 +38,8 @@ export interface IntercomStation {
   sync_state: string;
   lock_enabled: boolean;
   lock_count: number;
+  /** The relays a release may name (WisKey `integrated_locks`, without the device's own api_id). */
+  locks: IntercomLock[];
   has_camera: boolean;
   last_error: string | null;
   last_seen: string | null;
@@ -64,7 +72,67 @@ export interface IntercomFeed {
 
 export const getIntercomOverview = () => get<IntercomFeed>('intercom/overview');
 
-export type IntercomPush = { type: 'intercom_refresh' } | { type: 'intercom_state'; state: IntercomFeedState } | { type: 'heartbeat' };
+// ---------------------------------------------------------------- physical actions (access.release)
+
+/** A one-off action's reply (the read endpoints' shape): `<key>` holds WisKey's projected answer. Anything short of
+ * success is thrown as an ApiError whose `details.outcome` is `not_sent`, `refused` or `unknown`. */
+type ActionReply<K extends string, T> = { state: IntercomFeedState | 'unsupported'; configured: boolean; last_error: string | null; fetched_at: string | null } & { [P in K]: T | null };
+
+/** `accepted` only: WisKey took the command. It is not a confirmation that the door moved. */
+export type IntercomReleaseReply = ActionReply<'release', { accepted: boolean }> & { note: string };
+
+/** WisKey's CallResult (`media/signal`). `acknowledged: null` = the device's answer was lost. */
+export interface IntercomCallResult {
+  command: string;
+  acknowledged: boolean | null;
+  physical_result: string | null;
+  before_state: string | null;
+  observed_state: string | null;
+  observation: 'state_changed' | 'unchanged' | 'unavailable' | string | null;
+  checked_at: string | null;
+}
+
+export type IntercomCallCommand = 'answer' | 'reject' | 'hangUp';
+
+export interface IntercomTtsEngine {
+  engine_id: string;
+  name: string;
+  supported_languages: string[];
+  default_language: string | null;
+}
+
+export interface IntercomTtsEngines {
+  default: string | null;
+  engines: IntercomTtsEngine[];
+}
+
+/** An announcement's progress (the POST reply, then `intercom_tts` notices). `completed` carries physical_result
+ * "unverified": WisKey played the audio, nobody confirmed it was heard. */
+export interface IntercomTtsStatus {
+  station_id: string;
+  state: 'started' | 'generating' | 'speaking' | 'completed' | 'closed';
+  reason: string | null;
+  physical_result: string | null;
+  at: string;
+}
+
+const station = (id: string) => `intercom/stations/${encodeURIComponent(id)}`;
+
+/** Release one relay. `confirmed` is sent only from the confirmation dialog: the backend refuses a release without it. */
+export const releaseIntercomDoor = (stationId: string, lock: number) => post<IntercomReleaseReply>(`${station(stationId)}/release`, { lock, confirmed: true });
+
+export const signalIntercomCall = (stationId: string, command: IntercomCallCommand) => post<ActionReply<'call', IntercomCallResult>>(`${station(stationId)}/call`, { command });
+
+export const getIntercomTtsEngines = () => get<ActionReply<'tts', IntercomTtsEngines>>('intercom/tts/engines');
+
+export const speakAtIntercom = (stationId: string, body: { engine_id: string; language: string | null; message: string }) =>
+  post<ActionReply<'tts', IntercomTtsStatus>>(`${station(stationId)}/tts`, body);
+
+export type IntercomPush =
+  | { type: 'intercom_refresh' }
+  | { type: 'intercom_state'; state: IntercomFeedState }
+  | { type: 'intercom_tts'; status: IntercomTtsStatus }
+  | { type: 'heartbeat' };
 
 /** Change notices for the entry center (data-free, like WisKey's own `subscribe`): refetch on each. Returns a stop
  * function; `onSocket` reports whether the notices are flowing, so the screen can fall back to polling. */
@@ -93,6 +161,7 @@ export function subscribeIntercom(onMessage: (m: IntercomPush) => void, onSocket
         const env = JSON.parse(m.data as string) as { type: string; payload: Record<string, unknown> };
         if (env.type === 'intercom_refresh') onMessage({ type: 'intercom_refresh' });
         else if (env.type === 'intercom_state') onMessage({ type: 'intercom_state', state: env.payload.state as IntercomFeedState });
+        else if (env.type === 'intercom_tts') onMessage({ type: 'intercom_tts', status: env.payload as unknown as IntercomTtsStatus });
         else if (env.type === 'heartbeat') onMessage({ type: 'heartbeat' });
       } catch {
         /* ignore malformed frames */
