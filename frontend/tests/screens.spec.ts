@@ -18,7 +18,7 @@ const SCREENS: { sc: string; route: string; full?: boolean }[] = [
   { sc: 'sc05-plan-import', route: '/explore/floors/f-2/import' },
   { sc: 'sc06-plan-editor', route: '/explore/floors/f0/edit' },
   { sc: 'sc10-entities', route: '/explore/entities' },
-  { sc: 'sc23-access', route: '/explore/access/d1' },
+  { sc: 'sc23-access', route: '/wiskey/overview' },
   { sc: 'sc12-playback', route: '/investigate/playback', full: true },
   { sc: 'sc13-sync', route: '/investigate/playback/sync', full: true },
   { sc: 'sc11-history-map', route: '/investigate/floors/f0/history' },
