@@ -1,5 +1,28 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.97 (pilot) — free-text tags on walls, objects and zones
+- Owner request (2026-09-26): free-text tags for marking and later fast selection (e.g. "kitchen", "emergency
+  exit" - not a replacement for a wall's existing exterior/interior kind), and group assignment to a level or a
+  circuit - the second of three planned multi-select pieces (grid and alignment tools follow).
+- A tag is trimmed, its inner whitespace collapsed, merged with any other spelling that differs only by case (the
+  first spelling kept), and bounded (20 tags per item, 40 characters each) - one shared rule used by the document
+  validator and the zone API alike, so the two places a tag can be edited cannot drift apart. Migration 0022 adds
+  the zones table's tags column.
+- Tag editing (chips plus a text field) is in the object, wall and zone inspectors, and in the multi-select bulk
+  panel added in 0.1.96 for editing several items' tags at once. From the same bulk panel, a selection can be
+  reassigned to a level, or added to a circuit (only light-role objects join, the same rule the existing
+  single-object toggle already used). A small dropdown beside the level chips turns any tag back into a
+  selection, scoped to the active level the same way Ctrl+A already is.
+- Reviewed at Opus tier given the migration and schema involvement, with two fix rounds: a real server-side
+  dedup gap (fixed with the one shared rule above), three different rules for which objects could join a circuit
+  unified into one, a bulk level move that could leave a selection spanning two levels after a partial zone-save
+  failure (the same class of bug 0.1.96 fixed, recurring in this new bulk path), a design-doc update, and a
+  low-severity validation-ordering gap (an oversized raw tag list was fully processed before its count was
+  checked, now rejected up front).
+- Tests: node unit (tag rules, circuit eligibility); backend (the shared tag rule's bounds and dedup, the zone
+  route, the geometry store); live (single and bulk tag editing, bulk level and circuit reassignment, select by
+  tag, the partial-failure path).
+
 ## 0.1.96 (pilot) — multi-select of walls, objects and zones
 - Owner request (2026-09-26): select several items at once and act on them together - the first of three planned
   pieces (tags and bulk reassignment, then grid and alignment tools, follow). Shift+click toggles a wall, object
