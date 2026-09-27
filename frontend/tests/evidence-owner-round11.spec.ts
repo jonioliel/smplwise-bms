@@ -264,16 +264,72 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
       const saved = ((await (await request.get('/api/v1/cameras')).json()).cameras as ApiCamera[]).find((c) => c.id === cam1.id);
       expect(saved?.grid_col_span).toBe(2);
 
-      // B2 review: real rendered geometry, not just the style string - the spanned tile (cam1) is roughly 2x a
-      // normal tile's (cam2's) width plus the 12px gap, and its height matches cam2's (the aspect-ratio widens
-      // with the span so every row keeps a consistent height); the grid itself must not overflow the window.
-      const spannedBox = (await wall.locator(`sw-camera-tile[cameraid="${cam1.id}"]`).boundingBox())!;
-      const normalBox = (await wall.locator(`sw-camera-tile[cameraid="${cam2.id}"]`).boundingBox())!;
+      // T018 re-review (owner report 2026-09-27): real rendered geometry, not just the style string. A spanned
+      // tile no longer widens its OWN aspect ratio to match its neighbors' height (that is what let a real
+      // camera's video get letterboxed - see the fix comment on live-wall.ts's bestFit()). It now keeps the
+      // real 16:9 ratio at its own (roughly 2x-wider) width, so it comes out noticeably TALLER than a normal
+      // tile instead of the same height - the opposite of the old (now-wrong) assertion here. The grid itself
+      // must still not overflow the window (bestFit()/maxTileForHeight() account for the taller spanned row).
+      const spannedTile = wall.locator(`sw-camera-tile[cameraid="${cam1.id}"]`);
+      const normalTile = wall.locator(`sw-camera-tile[cameraid="${cam2.id}"]`);
+      const spannedBox = (await spannedTile.boundingBox())!;
+      const normalBox = (await normalTile.boundingBox())!;
       expect(spannedBox.width).toBeGreaterThan(normalBox.width * 1.7);
       expect(spannedBox.width).toBeLessThan(normalBox.width * 2.3);
-      expect(Math.abs(spannedBox.height - normalBox.height)).toBeLessThan(Math.max(6, normalBox.height * 0.15));
+      expect(spannedBox.height).toBeGreaterThan(normalBox.height * 1.5); // taller now, not equal
+      expect(Math.abs(spannedBox.width / spannedBox.height - 16 / 9)).toBeLessThan(0.15); // its own box stays ~16:9
       const gridBox = (await wall.locator('[data-wall-cols]').boundingBox())!;
       expect(gridBox.height).toBeLessThan(900);
+
+      // T018: the old version of this test never actually exercised the buggy code path - these fixture
+      // cameras (registered manually, channel 101/102, no real NVR behind them) keep status "unknown" forever
+      // (migrations/0001_init.sql's default; nothing here ever marks them "online"), so `sw-camera-tile` always
+      // rendered its grey "off" placeholder, never `sw-live-player`'s `<video>` - the exact element whose
+      // `object-fit: contain` produced the reported letterboxing. A throwaway/no-NVR backend (as used for this
+      // fix's own verification) can never make a fixture camera genuinely "online" either, so the LIVE code path
+      // is forced open directly on the element (bypassing the backend's own status), then fed a synthetic,
+      // KNOWN-16:9 video frame (the same ratio a real, non-panoramic security camera reports) through
+      // `canvas.captureStream()` - no real camera or network stream needed. From the ACTUAL rendered host box
+      // and the ACTUAL decoded video resolution this reproduces the browser's own (spec-defined) `object-fit:
+      // contain` placement and checks the letterbox margin it would paint - this is what the owner's screenshot
+      // showed as a black band down one side, and it is what the old assertion (container box vs. container box
+      // only) could never have caught.
+      await spannedTile.evaluate((el) => {
+        (el as unknown as { live: boolean; state: string }).live = true;
+        (el as unknown as { live: boolean; state: string }).state = 'live';
+      });
+      const player = spannedTile.locator('sw-live-player');
+      await expect(player).toHaveCount(1, { timeout: 10000 });
+      const geometry = await player.evaluate(async (el) => {
+        const live = el as unknown as { disconnect: () => void; status: string };
+        live.disconnect(); // this throwaway backend has no go2rtc/NVR behind it - a real connect attempt can only error
+        const canvas = document.createElement('canvas');
+        canvas.width = 1280;
+        canvas.height = 720; // native 16:9, like a real (non-panoramic) camera sensor - not the tile's widened box
+        const ctx = canvas.getContext('2d')!;
+        ctx.fillStyle = '#39ff14';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        const stream = (canvas as HTMLCanvasElement & { captureStream: (fps?: number) => MediaStream }).captureStream(5);
+        const video = el.shadowRoot!.querySelector('video')!;
+        video.srcObject = stream;
+        live.status = 'playing'; // skip the connect/negotiate machinery - only the rendered geometry matters here
+        await new Promise<void>((resolve) => {
+          if (video.readyState >= 1 && video.videoWidth) return resolve();
+          video.onloadedmetadata = () => resolve();
+        });
+        const hostBox = el.getBoundingClientRect();
+        const vw = video.videoWidth;
+        const vh = video.videoHeight;
+        // The browser's own object-fit: contain algorithm (CSS spec, deterministic): scale the frame to the
+        // largest size that fits inside the host box while keeping its aspect ratio, then center it - any
+        // leftover width or height is the letterbox band actually painted.
+        const scale = Math.min(hostBox.width / vw, hostBox.height / vh);
+        return { hostW: hostBox.width, hostH: hostBox.height, marginX: hostBox.width - vw * scale, marginY: hostBox.height - vh * scale };
+      });
+      // no visible letterbox: the picture fills the tile in both axes (small rounding only) - this would have
+      // FAILED before the fix (a span-2 tile's box was 32:9 against a 16:9 frame: ~50% of the width unfilled).
+      expect(geometry.marginX).toBeLessThan(Math.max(4, geometry.hostW * 0.02));
+      expect(geometry.marginY).toBeLessThan(Math.max(4, geometry.hostH * 0.02));
     } finally {
       for (const c of snapshot) {
         await request.patch(`/api/v1/cameras/${c.id}`, { data: { sort_order: c.sort_order, grid_col_span: c.grid_col_span } }).catch(() => {});
