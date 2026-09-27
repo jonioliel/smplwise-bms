@@ -31,7 +31,13 @@ One-off reads (phase 1b: `events/list`, `users/query`, `users/get`) go through `
 thread schedules the command on this feed's own event loop and it is sent over the SAME live session (`self._call`),
 never over a new Home Assistant connection. It runs only while the feed is `ready`; otherwise the reply carries the
 feed's own state (`ha_not_configured`, `connecting`, `ha_unavailable`, `not_installed`, `forbidden`, `error`) and no
-data. Nothing from these replies is cached, and only their projections below are returned."""
+data. Nothing from these replies is cached, and only their projections below are returned.
+
+Physical actions (CR-005 phase 3: door release, call signal, TTS announcement) take the same road - `IntercomSync.action`
+shares `command`'s session, in-flight slots and rate buckets - but anything short of success is raised as an ApiError
+that says whether the command was not sent, refused, or sent without an answer (`action_error`). They are never queued
+or retried. A TTS announcement is a WisKey subscription: its progress is followed here and relayed to browser clients as
+`intercom_tts` notices."""
 from __future__ import annotations
 
 import asyncio
@@ -84,6 +90,12 @@ RATE_RETRY_S = 2.0  # the feed's own refetch answered `rate_limited`: keep the s
 # the first spending one more rate token
 SCAN_PAGE = 200
 MAX_SCAN_PAGES = 10
+# a physical action (release / call signal / TTS start) waits longer than a read: WisKey's own panel gives
+# `stations/test_unlock` 30 s and `media/signal` 40 s (a 15 s device budget plus up to 5 s of call-state observation)
+ACTION_TIMEOUT_S = 35.0
+# the keys of WisKey's answers that SMPLWISE serves back for the physical actions
+SIGNAL_KEYS = ("command", "acknowledged", "physical_result", "before_state", "observed_state", "observation", "checked_at")
+TTS_TERMINAL = ("completed", "closed")
 # request-level refusals are the caller's to fix, not a degraded feed: (HTTP status, SMPLWISE code, message)
 REQUEST_ERRORS = {
     "user_not_found": (404, "intercom_person_not_found", "האדם לא נמצא ב־WisKey."),
@@ -182,6 +194,12 @@ def _station(raw: dict[str, Any]) -> dict[str, Any]:
         "sync_state": str(raw.get("sync_state") or "unknown"),
         "lock_enabled": bool(raw.get("lock_enabled")),
         "lock_count": len(locks),
+        # the relays a release may name (`stations/test_unlock` `lock` = physical_index); WisKey's `api_id` stays behind
+        "locks": [
+            {"physical_index": lock["physical_index"], "name": lock.get("name") if isinstance(lock.get("name"), str) else None}
+            for lock in locks
+            if isinstance(lock, dict) and _int(lock.get("physical_index")) is not None
+        ],
         "has_camera": bool(entities.get("camera")),
         "last_error": raw.get("last_error") if isinstance(raw.get("last_error"), str) else None,
         "last_seen": raw.get("last_seen") if isinstance(raw.get("last_seen"), str) else None,
@@ -274,6 +292,65 @@ def project_people_page(raw: dict[str, Any]) -> dict[str, Any]:
         "complete": True,
         "incomplete_reason": None,
     }
+
+
+def project_release(raw: dict[str, Any]) -> dict[str, Any]:
+    """`stations/test_unlock`'s answer: only whether WisKey ACCEPTED the command. It never says the door moved."""
+    return {"accepted": raw.get("accepted") is True}
+
+
+def project_signal(raw: dict[str, Any]) -> dict[str, Any]:
+    """`media/signal`'s CallResult as WisKey sends it (acknowledgement, observed call state, `physical_result`)."""
+    return {k: raw.get(k) for k in SIGNAL_KEYS}
+
+
+def project_tts_engines(raw: dict[str, Any]) -> dict[str, Any]:
+    engines = raw.get("engines") if isinstance(raw.get("engines"), list) else []
+    return {
+        "default": _str(raw.get("default")),
+        "engines": [
+            {
+                "engine_id": str(e["engine_id"]),
+                "name": str(e.get("name") or e["engine_id"]),
+                "supported_languages": [lang for lang in e.get("supported_languages") or [] if isinstance(lang, str)],
+                "default_language": _str(e.get("default_language")),
+            }
+            for e in engines
+            if isinstance(e, dict) and isinstance(e.get("engine_id"), str) and e["engine_id"]
+        ],
+    }
+
+
+# why a physical action was not sent, in the feed's own words (the read endpoints show the same states as panels)
+NOT_SENT_REASONS = {
+    "ha_not_configured": "ל־SMPLWISE אין גישה ל־Home Assistant בסביבה הזו",
+    "connecting": "החיבור ל־WisKey עדיין נפתח",
+    "ha_unavailable": "Home Assistant אינו זמין כרגע",
+    "not_installed": "אינטגרציית WisKey אינה מותקנת ב־Home Assistant",
+    "forbidden": "WisKey דחה את הגישה של SMPLWISE",
+    "error": "WisKey החזיר שגיאה",
+}
+
+
+def action_error(reply: dict[str, Any], outcome: str) -> ApiError:
+    """A physical action that did not complete is an HTTP error, never a 200 with a state field: the caller must not be
+    able to read it as done. `details.outcome` says what is known: `not_sent` (nothing reached WisKey - safe to try
+    again), `refused` (WisKey answered with an error code), `unknown` (sent, but no answer arrived - it may or may not
+    have happened, so it must not be retried blindly)."""
+    state, code = reply.get("state"), reply.get("last_error")
+    details = {"outcome": outcome, "state": state, "wiskey_code": code}
+    if outcome == "not_sent":
+        if code == RATE_LIMITED:
+            return ApiError(429, "intercom_rate_limited", "יותר מדי פקודות ל־WisKey בזמן קצר. הפקודה לא נשלחה - נסו שוב בעוד כמה שניות.", retryable=True, details=details)
+        if code == "busy":
+            return ApiError(429, "intercom_busy", "WisKey עסוק בבקשות אחרות. הפקודה לא נשלחה - נסו שוב בעוד רגע.", retryable=True, details=details)
+        reason = NOT_SENT_REASONS.get(str(state), "WisKey אינו זמין")
+        return ApiError(503, "intercom_unavailable", f"הפקודה לא נשלחה: {reason}.", details=details)
+    if outcome == "unknown":
+        return ApiError(504, "intercom_outcome_unknown", "הפקודה נשלחה אך לא התקבלה תשובה מ־WisKey. ייתכן שבוצעה וייתכן שלא - בדקו במצלמה או במקום לפני שמנסים שוב.", details=details)
+    if code == RATE_LIMITED:
+        return ApiError(429, "intercom_rate_limited", "WisKey הגביל את קצב הפקודות ודחה את הפקודה. היא לא בוצעה - נסו שוב בעוד כמה שניות.", retryable=True, details=details)
+    return ApiError(502, "intercom_action_refused", f"WisKey דחה את הפקודה ({code}). לפי WisKey היא לא בוצעה.", details=details)
 
 
 def person_matches(person: dict[str, Any], needle: str) -> bool:
@@ -381,6 +458,7 @@ class IntercomSync:
         self._tasks: set[asyncio.Task[None]] = set()  # refreshes started by pushes (_kick); cancelled with the session
         self._inflight = threading.BoundedSemaphore(MAX_INFLIGHT)  # one-off reads (command) in flight at once
         self._bucket_lock = threading.Lock()
+        self._tts_status: dict[str, dict[str, Any]] = {}  # station id -> its latest announcement's progress
         self._buckets_reset()
         self._session_reset()
 
@@ -411,6 +489,9 @@ class IntercomSync:
         self._watched: set[str] = set()
         self._refreshing = False
         self._again = False
+        # announcements in progress on this session: `tts/start` subscription id -> station id. Kept until WisKey's
+        # terminal event, because unsubscribing earlier would cancel the playback
+        self._tts: dict[int, str] = {}
         self._retry_pending = False  # a refetch after WisKey's `rate_limited` is scheduled (at most one)
         self._rate_logged = False  # that stretch was logged (once, not every retry)
         self._end: asyncio.Event | None = None
@@ -441,6 +522,7 @@ class IntercomSync:
         self._last_view = None
         self._fetched_mono = None
         self._inflight = threading.BoundedSemaphore(MAX_INFLIGHT)
+        self._tts_status = {}
         self._buckets_reset()
         self._session_reset()
         STATE.reset()
@@ -486,6 +568,38 @@ class IntercomSync:
         Never blocks a worker thread on anything but the WisKey call itself: no rate token or no free slot is answered
         at once. The feed's state machine is never changed from here: the session's own overview refetch and reconnect
         loop remain the only judges of the connection."""
+        return self._execute(settings, key, send, project, who, COMMAND_TIMEOUT_S)[0]
+
+    def action(
+        self,
+        settings: Settings,
+        key: str,
+        send: Callable[[intercom_client.Call], Awaitable[Any]],
+        project: Callable[[Any], dict[str, Any]],
+        who: str,
+    ) -> dict[str, Any]:
+        """Run one PHYSICAL WisKey command (release, call signal, TTS start) exactly like `command` - over the feed's own
+        live session, through the same in-flight slots and rate buckets, never retried - but wait up to
+        ACTION_TIMEOUT_S, and turn every result other than success into an ApiError (`action_error`), so that a
+        refused, dropped or unanswered physical command can never be read as done. Returns the `command`-shaped reply
+        on success."""
+        reply, outcome = self._execute(settings, key, send, project, who, ACTION_TIMEOUT_S)
+        if outcome != "ok":
+            raise action_error(reply, outcome)
+        return reply
+
+    def _execute(
+        self,
+        settings: Settings,
+        key: str,
+        send: Callable[[intercom_client.Call], Awaitable[Any]],
+        project: Callable[[Any], dict[str, Any]],
+        who: str,
+        timeout: float,
+    ) -> tuple[dict[str, Any], str]:
+        """`command`'s body. Also returns what is known about the command itself: `not_sent` (nothing reached WisKey),
+        `refused` (WisKey answered with an error), `unknown` (sent, but no usable answer: timeout, the session went
+        away mid-request, or a reply of an unexpected shape) or `ok`."""
         configured = ha_client.configured(settings)
         state = STATE.state if configured else "ha_not_configured"
         if configured and state == "idle":
@@ -494,15 +608,15 @@ class IntercomSync:
         loop = self._event_loop
         if state != "ready" or loop is None or self._call is None:
             reply["sync"] = STATE.as_dict()
-            return reply
+            return reply, "not_sent"
         slot = self._inflight  # the semaphore this request takes (reset() may swap in a new one)
         if not slot.acquire(blocking=False):  # checked first: a `busy` refusal costs the caller no rate token
             reply.update(state="error", last_error="busy", sync=STATE.as_dict())
-            return reply
+            return reply, "not_sent"
         if not self._spend_token(who):
             slot.release()
             reply.update(state="error", last_error=RATE_LIMITED, sync=STATE.as_dict())
-            return reply
+            return reply, "not_sent"
         coro = self._one_off(send)
         try:
             future = asyncio.run_coroutine_threadsafe(coro, loop)
@@ -510,23 +624,28 @@ class IntercomSync:
             coro.close()
             slot.release()
             reply.update(state="ha_unavailable", last_error=type(exc).__name__, sync=STATE.as_dict())
-            return reply
+            return reply, "not_sent"
         # the slot is freed when the call is really over (answer, session end, or ha_client's own 60 s limit): a
         # browser-side timeout does not stop WisKey's handler, so it must not free the slot early either
         future.add_done_callback(lambda _f: slot.release())
-        raw: dict[str, Any] | None = None
+        raw: Any = None
+        answered = False
+        outcome = "unknown"
         try:
-            raw = future.result(timeout=COMMAND_TIMEOUT_S)
+            raw = future.result(timeout=timeout)
+            answered = True
         except TimeoutError:
             reply.update(state="error", last_error="timeout")
         except _NotReady:
             # report what the feed says now; "ready" without a live call is a session that just ended
             now = {"idle": "connecting", "ready": "ha_unavailable"}.get(STATE.state, STATE.state)
             reply.update(state=now, last_error=STATE.last_error if now == STATE.state else "session_ended")
+            outcome = "not_sent"
         except IntercomError as exc:
             if exc.code in REQUEST_ERRORS:
                 status, code, message = REQUEST_ERRORS[exc.code]
-                raise ApiError(status, code, message, details={"wiskey_code": exc.code}) from exc
+                raise ApiError(status, code, message, details={"wiskey_code": exc.code}) from exc  # an action reads it as `refused`
+            outcome = "refused"
             if exc.code == "unauthorized":
                 reply.update(state="forbidden", last_error=exc.code)
             elif exc.not_installed:
@@ -539,15 +658,16 @@ class IntercomSync:
                 reply.update(state="ha_unavailable", last_error=type(exc).__name__)
             else:
                 reply.update(state=now, last_error=STATE.last_error)
-        if raw is not None:
+        if answered:
             try:
                 reply.update(state="ready", last_error=None, fetched_at=now_iso())
                 reply[key] = project(raw)
+                outcome = "ok"
             except Exception:  # noqa: BLE001 - a reply of an unexpected shape is WisKey's error, not a lost connection
                 reply.update(state="error", last_error="invalid_response", fetched_at=None)
                 reply[key] = None
         reply["sync"] = STATE.as_dict()
-        return reply
+        return reply, outcome
 
     def people(self, settings: Settings, who: str, query: str, filters: dict[str, Any], offset: int, limit: int, snapshot: str | None) -> dict[str, Any]:
         """The people directory for `who`: without a text, one WisKey page as it is; with a text, SMPLWISE's own search
@@ -563,6 +683,64 @@ class IntercomSync:
             lambda page: page,  # already projected, person by person, before matching
             who=who,
         )
+
+    def station(self, station_id: str) -> dict[str, Any] | None:
+        """One station from the served copy (None when there is no copy or no such station)."""
+        with self._cache_lock:
+            cached = self._cache
+        for s in (cached or {}).get("stations", []):
+            if s["id"] == station_id:
+                return s
+        return None
+
+    def has_copy(self) -> bool:
+        with self._cache_lock:
+            return self._cache is not None
+
+    def tts_status(self, station_id: str) -> dict[str, Any] | None:
+        return self._tts_status.get(station_id)
+
+    async def tts_start(self, call: intercom_client.Call, station_id: str, engine_id: str, language: str | None, message: str) -> dict[str, Any]:
+        """The `send` of a TTS action, on the feed's loop: start the announcement and follow its subscription. The
+        subscription's first event can reach the socket reader before this coroutine resumes; it is held in `_early`
+        and replayed once the id is known (the same race `subscribe_entities` has)."""
+        sub = await intercom_client.tts_start(call, station_id, engine_id, language, message)
+        if self._call is not call:
+            # WisKey took it, but the session ended before this resumed: HA dropped the subscription (and with it the
+            # playback) together with the connection, and the session's own cleanup has already run
+            self._tts_update(station_id, {"state": "closed", "reason": "connection_lost"})
+            return dict(self._tts_status[station_id])
+        self._tts[sub] = station_id
+        self._tts_update(station_id, {"state": "started"})
+        self._replay_early()
+        return dict(self._tts_status[station_id])
+
+    def _tts_update(self, station_id: str, fields: dict[str, Any]) -> None:
+        status = {"station_id": station_id, "state": fields["state"], "reason": fields.get("reason"), "physical_result": fields.get("physical_result"), "at": now_iso()}
+        self._tts_status[station_id] = status
+        publish({"type": "intercom_tts", **status})
+
+    def _on_tts(self, sub: int, event: dict[str, Any]) -> None:
+        """One `tts/start` event: `generating` -> `speaking` -> `completed` {physical_result: "unverified"} | `closed`
+        {reason}. After a terminal one the subscription is released, as WisKey's own panel does (tts-controls.ts:406-428)."""
+        station_id = self._tts.get(sub)
+        state = event.get("state")
+        if station_id is None or state not in ("generating", "speaking", *TTS_TERMINAL):
+            return
+        self._tts_update(station_id, {"state": state, "reason": _str(event.get("reason")), "physical_result": _str(event.get("physical_result"))})
+        if state in TTS_TERMINAL:
+            del self._tts[sub]
+            call = self._call
+            if call is not None:
+                task = asyncio.get_running_loop().create_task(self._release_subscription(call, sub), name="intercom-tts-unsubscribe")
+                self._tasks.add(task)
+                task.add_done_callback(self._tasks.discard)
+
+    async def _release_subscription(self, call: intercom_client.Call, sub: int) -> None:
+        try:
+            await call("unsubscribe_events", subscription=sub)
+        except Exception:  # noqa: BLE001 - the announcement is over either way; the session end drops it too
+            pass
 
     async def _one_off(self, send: Callable[[intercom_client.Call], Awaitable[dict[str, Any]]]) -> dict[str, Any]:
         """On the feed's loop: send over the session that is live NOW (it may have ended since the request thread
@@ -726,6 +904,10 @@ class IntercomSync:
             if tasks:
                 await asyncio.gather(*tasks, return_exceptions=True)
             self._tasks.clear()
+            # Home Assistant drops a connection's subscriptions with it, which cancels any announcement still playing
+            for station_id in set(self._tts.values()):
+                self._tts_update(station_id, {"state": "closed", "reason": "connection_lost"})
+            self._tts.clear()
         if self._fault is not None:
             raise self._fault
 
@@ -753,6 +935,9 @@ class IntercomSync:
     def _on_message(self, msg: dict[str, Any]) -> None:
         mid = msg.get("id")
         event = msg.get("event") if isinstance(msg.get("event"), dict) else {}
+        if mid is not None and mid in self._tts:
+            self._on_tts(mid, event)
+            return
         if mid is None or mid not in (self._wiskey_sub, self._entities_sub):
             self._early.append(msg)
             return

@@ -9,7 +9,14 @@ This module knows nothing about threads, polling or subscribers (services/interc
 phase adds commands here without touching the connection machinery. Phase 1a: `overview`; phase 1b adds the read-only
 `events/list`, `users/query` and `users/get` (WISKEY_SOURCE_EXTRACTION.md §X.1; WisKey's own areas `events:view` /
 `users:view`). All of them are READ commands, so no `api_contract` field is sent (§0.4). `users/query` is never given
-a search text (see `users_query`)."""
+a search text (see `users_query`).
+
+Physical actions (CR-005 phase 3, owner-approved per capability): `stations/test_unlock` (door release), `media/signal`
+(answer / reject / hang up) and `tts/engines` + `tts/start` (spoken announcement). The first two are panel `COMMANDS`
+outside READ_COMMANDS, so they carry `api_contract: API_CONTRACT` exactly as WisKey's own panel sends it (§0.4); the two
+`tts/*` handlers check their key set exactly and must NOT get it (media part, "0.1 How the panel talks to the backend").
+None of them is ever retried here: a physical command is sent once, and a lost answer is the caller's "outcome
+unknown", never a reason to send it again (AGENTS.md, Security and physical systems)."""
 from __future__ import annotations
 
 from typing import Any, Awaitable, Callable
@@ -18,6 +25,10 @@ DOMAIN = "hikvision_intercom"
 
 # The `call(type, **kw)` helper `ha_client.ws_session` hands to `on_ready`: it resolves with HA's raw result frame.
 Call = Callable[..., Awaitable[dict[str, Any]]]
+
+API_CONTRACT = 1  # WisKey's panel CLIENT_API: sent on non-read panel commands, as WisKey's own panel does
+CALL_COMMANDS = ("answer", "reject", "hangUp")
+TTS_MESSAGE_MAX = 500  # audio_tts.py: the message is whitespace-collapsed and must be 1..500 characters
 
 
 class IntercomError(Exception):
@@ -108,3 +119,63 @@ async def users_get(call: Call, user_id: str) -> dict[str, Any]:
     if not isinstance(result, dict):
         raise IntercomError("invalid_response", "users/get")
     return result
+
+
+# ---------------------------------------------------------------- physical actions (CR-005 phase 3)
+
+async def release_door(call: Call, station_id: str, lock: int) -> dict[str, Any]:  # not `test_unlock`: pytest collects test_*
+    """`hikvision_intercom/stations/test_unlock {station_id, lock, api_contract}` - one momentary release of the
+    station's relay `lock` (an `integrated_locks[].physical_index`; WisKey's backend then sends ISAPI
+    `PUT .../RemoteControl/door/{api_id}` `<cmd>open</cmd>`). WisKey answers `{accepted: true}` once the command was
+    accepted: that is NOT proof the door moved (the open time is the device's own setting; WISKEY_SOURCE_EXTRACTION.md,
+    media part, quirk 6). WisKey itself throttles one release per door per second."""
+    if type(lock) is not int:  # WisKey's strict typing: bool-as-int is `invalid_fields`
+        raise IntercomError("invalid_fields", "stations/test_unlock")
+    frame = await call(command_type("stations/test_unlock"), station_id=station_id, lock=lock, api_contract=API_CONTRACT)
+    result = _result(frame, "stations/test_unlock")
+    if not isinstance(result, dict):
+        raise IntercomError("invalid_response", "stations/test_unlock")
+    return result
+
+
+async def media_signal(call: Call, station_id: str, command: str) -> dict[str, Any]:
+    """`hikvision_intercom/media/signal {station_id, command, api_contract}` - one call signal to the door station
+    (`answer` / `reject` while ringing, `hangUp` while in a call; WisKey refuses a state mismatch as
+    `device_unavailable`). WisKey sends exactly one ISAPI `callSignal` PUT, never retries, and answers `{command,
+    acknowledged: true|null, physical_result: "unverified", before_state, observed_state, observation, checked_at}` -
+    `acknowledged: null` means the device's answer was lost. `reject` / `hangUp` also stop any WisKey audio / TTS
+    session at that station."""
+    if command not in CALL_COMMANDS:
+        raise IntercomError("invalid_fields", "media/signal")
+    frame = await call(command_type("media/signal"), station_id=station_id, command=command, api_contract=API_CONTRACT)
+    result = _result(frame, "media/signal")
+    if not isinstance(result, dict):
+        raise IntercomError("invalid_response", "media/signal")
+    return result
+
+
+async def tts_engines(call: Call) -> dict[str, Any]:
+    """`hikvision_intercom/tts/engines {}` - Home Assistant's TTS engines WisKey can speak through: `{default,
+    engines: [{engine_id, name, supported_languages, default_language}]}`. Exact key set: no `api_contract`."""
+    result = _result(await call(command_type("tts/engines")), "tts/engines")
+    if not isinstance(result, dict):
+        raise IntercomError("invalid_response", "tts/engines")
+    return result
+
+
+def collapse(message: str) -> str:
+    """WisKey's own normalisation of a TTS message (whitespace collapsed, trimmed), so the length SMPLWISE checks and
+    records is the one WisKey checks and speaks."""
+    return " ".join(message.split())
+
+
+async def tts_start(call: Call, station_id: str, engine_id: str, language: str | None, message: str) -> int:
+    """`hikvision_intercom/tts/start {station_id, engine_id, language, message}` - a SUBSCRIPTION: Home Assistant
+    synthesises `message` with `engine_id` (which may be a cloud provider: the text then leaves the premises) and WisKey
+    plays it through the door station speaker. The result is `null`; progress arrives as events on the returned
+    subscription id (`generating` -> `speaking` -> `completed` {physical_result: "unverified"} | `closed` {reason}).
+    Unsubscribing CANCELS the playback, so the caller keeps the subscription until a terminal event. Exact key set: no
+    `api_contract`; `language` is required and may be null."""
+    frame = await call(command_type("tts/start"), station_id=station_id, engine_id=engine_id, language=language, message=message)
+    _result(frame, "tts/start")
+    return int(frame["id"])

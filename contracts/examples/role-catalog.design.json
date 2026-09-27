@@ -49,6 +49,7 @@
       "permissions": [
         "map.read",
         "access.read",
+        "access.release",
         "entity.state.read",
         "video.live",
         "video.playback",
@@ -71,6 +72,7 @@
       "permissions": [
         "map.read",
         "access.read",
+        "access.release",
         "entity.state.read",
         "video.live",
         "video.playback",
@@ -101,6 +103,7 @@
     "camera.ptz",
     "ha.entity.control",
     "door.unlock",
+    "access.release",
     "alarm.disarm",
     "nvr.config.write"
   ],

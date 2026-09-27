@@ -515,7 +515,8 @@ def test_overview_round_trip_and_live_refresh(feed):
         gate, side = ov["stations"]
         assert gate == {
             "id": "entry-a", "name": "Main gate", "online": True, "call_state": "ringing", "sync_state": "synced", "lock_enabled": True,
-            "lock_count": 1, "has_camera": True, "last_error": None, "last_seen": "2026-09-27T08:00:00+00:00", "pending_user_count": 0,
+            "lock_count": 1, "locks": [{"physical_index": 1, "name": "Gate"}],  # WisKey's api_id stays behind
+            "has_camera": True, "last_error": None, "last_seen": "2026-09-27T08:00:00+00:00", "pending_user_count": 0,
             "managed_user_count": 12, "zone": {"kind": "iana", "name": "Asia/Jerusalem"},
             "last_access": {"timestamp": "2026-09-27T07:59:00+03:00", "time_source": "device", "person_name": "Dana", "employee_no": "1001", "authentication": "card", "result": "granted", "event_type": "access_granted", "recovered": False, "door": 1},
         }
@@ -1244,3 +1245,406 @@ def test_events_client_never_sends_current_profile():
 
     asyncio.run(intercom_client.events_list(call, {"station_id": "entry-a", "current_profile": {"id_number": "123456789"}, "person": None, "surprise": 1}))
     assert seen == [{"type": "hikvision_intercom/events/list", "filters": {"station_id": "entry-a"}}]
+
+
+# ---------------------------------------------------------------- phase 3: physical actions (access.release)
+
+from smplwise.db import Database  # noqa: E402
+from smplwise.routers.access import SENSITIVE  # noqa: E402
+
+ACTION_PATHS = (
+    ("post", "/api/v1/intercom/stations/entry-a/release", {"confirmed": True}),
+    ("post", "/api/v1/intercom/stations/entry-a/call", {"command": "answer"}),
+    ("get", "/api/v1/intercom/tts/engines", None),
+    ("post", "/api/v1/intercom/stations/entry-a/tts", {"engine_id": "tts.piper", "language": "he", "message": "שלום"}),
+)
+# WisKey's CallResult (client/media.py:163-171) and tts/engines reply (audio_tts.py:256-269), as WisKey sends them
+SIGNAL_RESULT = {"command": "answer", "acknowledged": True, "physical_result": "unverified", "before_state": "ringing", "observed_state": "in_call", "observation": "state_changed", "checked_at": "2026-09-27T08:01:00+00:00"}
+TTS_ENGINES = {"default": "tts.piper", "engines": [
+    {"engine_id": "tts.piper", "name": "Piper", "supported_languages": ["en", "he"], "default_language": "he"},
+    {"engine_id": "tts.google_translate_en_com", "name": "Google Translate", "supported_languages": ["en", "iw"], "default_language": "en"},
+    {"name": "no id, dropped"},
+]}
+# a station with two relays, online, ringing (the call controls' case) - and a third that is online but has no lock
+TWO_LOCKS = {**copy.deepcopy(STATION), "id": "entry-c", "name": "Loading dock", "call_state": "ringing", "integrated_locks": [{"physical_index": 1, "api_id": 1, "name": "Gate"}, {"physical_index": 2, "api_id": 7, "name": "Barrier"}]}
+ACTIONS_OVERVIEW = {**copy.deepcopy(OVERVIEW), "stations": [STATION, OFFLINE, TWO_LOCKS]}
+
+
+def audit_rows(settings: Any, action: str) -> list[dict[str, Any]]:
+    with Database(settings.db_path).connection() as conn:
+        rows = conn.execute("SELECT actor_user_id, actor_username, action, decision, resource_type, resource_id, reason, details_json FROM audit_log WHERE action = ? ORDER BY rowid", (action,)).fetchall()
+    return [{**dict(r), "details": json.loads(r["details_json"]) if r["details_json"] else None} for r in rows]
+
+
+def actions_feed(feed, answer: Callable[[dict[str, Any]], list[Any] | None], refuse_after: int | None = None) -> tuple[Any, list[FakeHa], TestClient]:
+    """A ready feed over ACTIONS_OVERVIEW, a site_admin `sam` (installation) and a viewer `vera` bound."""
+    app, s, install = feed
+
+    def script(msg: dict[str, Any], fake: FakeHa) -> list[Any]:
+        frames = answer(msg)
+        if frames is not None:
+            return frames
+        return normal(msg, fake, ACTIONS_OVERVIEW)
+
+    fakes = install(script, refuse_after=refuse_after)
+    intercom_sync.SYNC.start(s)
+    wait_for(lambda: intercom_sync.STATE.state == "ready")
+    c = TestClient(app)
+    bind(c, s, "sam", "site_admin", "installation", "*")
+    bind(c, s, "vera", "viewer", "installation", "*")
+    return app, fakes, c
+
+
+def test_access_release_permission_catalogue():
+    """`access.release` is its own, sensitive permission: only site_admin and system_admin hold it by default (the
+    decision recorded at routers/access.py PERMISSION_LABELS), it is never implied, and the design catalogue agrees."""
+    assert {r for r, perms in ROLES.items() if "access.release" in perms} == {"site_admin", "system_admin"}
+    for role in ("viewer", "kiosk", "operator", "editor"):
+        assert "access.release" not in ROLES[role], role
+    assert "access.release" in SENSITIVE and "door.unlock" in SENSITIVE
+    assert PERMISSION_LABELS["access.release"]
+    contract = json.loads((ROOT / "contracts" / "examples" / "role-catalog.design.json").read_text(encoding="utf-8"))
+    assert {r["id"]: "access.release" in r["permissions"] for r in contract["roles"]} == {r["id"]: "access.release" in ROLES[r["id"]] for r in contract["roles"]}
+    assert "access.release" in contract["sensitive_permissions_not_implied"]
+
+
+def test_physical_actions_require_access_release(settings):
+    """`access.read` is not enough: a viewer (and an operator, an editor, a kiosk, a site-scoped site_admin) gets 403
+    on every physical endpoint, before the body is even validated and before anything could be sent."""
+    intercom_sync.SYNC.reset()
+    intercom_sync.SYNC.start(settings)
+    c = TestClient(create_app(settings))
+    for user, role, scope in (("vera", "viewer", ("installation", "*")), ("otto", "operator", ("installation", "*")), ("eddie", "editor", ("installation", "*")), ("wall", "kiosk", ("installation", "*"))):
+        bind(c, settings, user, role, *scope)
+    site = c.post("/api/v1/sites", json={"name": "T054 site"}).json()["id"]
+    bind(c, settings, "sally", "site_admin", "site", site)
+    bind(c, settings, "sam", "site_admin", "installation", "*")
+    assert c.get("/api/v1/intercom/overview", headers=as_user("vera")).status_code == 200, "vera does hold access.read"
+    for user in ("vera", "otto", "eddie", "wall", "sally", "nobody"):
+        for method, path, body in ACTION_PATHS:
+            r = c.request(method, path, json=body, headers=as_user(user))
+            assert r.status_code == 403 and r.json()["code"] == "forbidden", (user, path)
+    r = c.post("/api/v1/intercom/stations/entry-a/call", json={"command": "open sesame"}, headers=as_user("vera"))
+    assert r.status_code == 403, "no permission: refused before the body is looked at"
+    assert c.post("/api/v1/intercom/stations/entry-a/call", json={"command": "open sesame"}, headers=as_user("sam")).status_code == 422
+    with Database(settings.db_path).connection() as conn:
+        denied = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'access.release' AND decision = 'denied' AND actor_username = 'vera'").fetchone()[0]
+    assert denied == len(ACTION_PATHS) + 1, "every refusal is audited under the real caller"
+    me = c.get("/api/v1/me", headers=as_user("sam")).json()
+    assert "access.release" in me["permissions_installation"]
+    assert "access.release" not in c.get("/api/v1/me", headers=as_user("sally")).json()["permissions_installation"]
+    intercom_sync.SYNC.reset()
+
+
+def test_release_round_trip_is_confirmed_single_and_audited(feed):
+    """Door release: refused without the explicit confirmation, then sent once with WisKey's exact shape
+    ({station_id, lock, api_contract: 1}), answered `accepted` - served as accepted, never as "opened" - and audited
+    under the real caller with the station, relay and outcome."""
+    app, fakes, c = actions_feed(feed, lambda msg: [ok(msg, {"accepted": True})] if msg["type"] == "hikvision_intercom/stations/test_unlock" else None)
+    s = feed[1]
+    r = c.post("/api/v1/intercom/stations/entry-a/release", json={}, headers=as_user("sam"))
+    assert r.status_code == 409 and r.json()["code"] == "confirmation_required"
+    assert c.post("/api/v1/intercom/stations/entry-a/release", json={"confirmed": "yes"}, headers=as_user("sam")).status_code == 422, "strict: only true confirms"
+    assert not sent(fakes, "stations/test_unlock"), "nothing reaches WisKey without the confirmation"
+
+    r = c.post("/api/v1/intercom/stations/entry-a/release", json={"confirmed": True}, headers=as_user("sam"))
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["state"] == "ready" and body["release"] == {"accepted": True}
+    assert "אינו אישור שהדלת נפתחה" in body["note"], "accepted is not opened"
+    [msg] = sent(fakes, "stations/test_unlock")
+    assert msg == {"id": msg["id"], "type": "hikvision_intercom/stations/test_unlock", "station_id": "entry-a", "lock": 1, "api_contract": 1}
+    assert len(fakes) == 1, "the action rode the feed's own connection"
+    [row] = audit_rows(s, "intercom.release")
+    assert (row["actor_user_id"], row["actor_username"], row["decision"], row["resource_type"], row["resource_id"], row["reason"]) == ("dev-sam", "sam", "allowed", "intercom_station", "entry-a", None)
+    assert row["details"] == {"lock": 1, "station_name": "Main gate", "command": "release", "outcome": "ok", "result": {"accepted": True}}
+
+    # a two-relay station: the relay must be named, and must be one it has
+    assert c.post("/api/v1/intercom/stations/entry-c/release", json={"confirmed": True}, headers=as_user("sam")).json()["code"] == "intercom_lock_required"
+    assert c.post("/api/v1/intercom/stations/entry-c/release", json={"confirmed": True, "lock": 3}, headers=as_user("sam")).json()["code"] == "intercom_lock_unknown"
+    assert c.post("/api/v1/intercom/stations/entry-c/release", json={"confirmed": True, "lock": True}, headers=as_user("sam")).status_code == 422, "bool is not a relay"
+    assert c.post("/api/v1/intercom/stations/entry-c/release", json={"confirmed": True, "lock": 2}, headers=as_user("sam")).status_code == 200
+    assert sent(fakes, "stations/test_unlock")[-1]["lock"] == 2
+    # no lock / unknown station: refused before sending
+    assert c.post("/api/v1/intercom/stations/entry-b/release", json={"confirmed": True}, headers=as_user("sam")).json()["code"] == "intercom_no_lock"
+    r = c.post("/api/v1/intercom/stations/nope/release", json={"confirmed": True}, headers=as_user("sam"))
+    assert r.status_code == 404 and r.json()["code"] == "intercom_station_not_found"
+    assert len(sent(fakes, "stations/test_unlock")) == 2
+    assert [r["actor_username"] for r in audit_rows(s, "intercom.release")] == ["sam", "sam"], "only attempts that were sent or tried are audited"
+
+
+def test_release_of_an_offline_station_is_refused(feed):
+    offline_lock = {**copy.deepcopy(STATION), "online": False, "call_state": "unavailable"}
+    app, s, install = feed
+    fakes = install(lambda msg, fake: normal(msg, fake, {**copy.deepcopy(OVERVIEW), "stations": [offline_lock]}))
+    intercom_sync.SYNC.start(s)
+    wait_for(lambda: intercom_sync.STATE.state == "ready")
+    r = TestClient(app).post("/api/v1/intercom/stations/entry-a/release", json={"confirmed": True})
+    assert r.status_code == 409 and r.json()["code"] == "intercom_station_offline"
+    assert not sent(fakes, "stations/test_unlock")
+
+
+def test_call_signal_round_trip_and_audit(feed):
+    """Answer / reject / hang up: WisKey's exact shape ({station_id, command, api_contract: 1}), its CallResult served
+    as sent (acknowledgement, observed state, physical_result "unverified"), audited under the real caller."""
+    def answer(msg: dict[str, Any]) -> list[Any] | None:
+        if msg["type"] == "hikvision_intercom/media/signal":
+            return [ok(msg, {**SIGNAL_RESULT, "command": msg["command"], "device_serial": "must not leave"})]
+        return None
+
+    app, fakes, c = actions_feed(feed, answer)
+    s = feed[1]
+    body = c.post("/api/v1/intercom/stations/entry-c/call", json={"command": "answer"}, headers=as_user("sam")).json()
+    assert body["state"] == "ready" and body["call"] == SIGNAL_RESULT
+    [msg] = sent(fakes, "media/signal")
+    assert msg == {"id": msg["id"], "type": "hikvision_intercom/media/signal", "station_id": "entry-c", "command": "answer", "api_contract": 1}
+    assert c.post("/api/v1/intercom/stations/entry-c/call", json={"command": "hangUp"}, headers=as_user("sam")).json()["call"]["command"] == "hangUp"
+    for bad in ({"command": "open"}, {"command": "HANGUP"}, {}):
+        assert c.post("/api/v1/intercom/stations/entry-c/call", json=bad, headers=as_user("sam")).status_code == 422, bad
+    assert c.post("/api/v1/intercom/stations/entry-b/call", json={"command": "reject"}, headers=as_user("sam")).json()["code"] == "intercom_station_offline"
+    assert len(sent(fakes, "media/signal")) == 2
+    rows = audit_rows(s, "intercom.call")
+    assert [(r["actor_username"], r["details"]["signal"], r["details"]["outcome"]) for r in rows] == [("sam", "answer", "ok"), ("sam", "hangUp", "ok")]
+    assert rows[0]["details"]["result"]["acknowledged"] is True and rows[0]["details"]["station_name"] == "Loading dock"
+
+
+def test_tts_engines_and_announcement_lifecycle(feed):
+    """TTS: the engines list (exact key set, no api_contract), then an announcement - sent with WisKey's exact key set
+    and the message collapsed as WisKey collapses it - followed through its subscription events (the first one racing
+    the result frame), relayed as `intercom_tts` notices, released with `unsubscribe_events` only after the terminal
+    event, and audited with the text that was spoken."""
+    def answer(msg: dict[str, Any]) -> list[Any] | None:
+        if msg["type"] == "hikvision_intercom/tts/engines":
+            return [ok(msg, copy.deepcopy(TTS_ENGINES))]
+        if msg["type"] == "hikvision_intercom/tts/start":
+            fmt = {"format": "hikvision_intercom.tts"}
+            return [
+                ok(msg),
+                {"id": msg["id"], "type": "event", "event": {**fmt, "state": "generating"}},
+                {"id": msg["id"], "type": "event", "event": {**fmt, "state": "speaking", "duration_seconds": 2.1, "packet_count": 21}},
+                {"id": msg["id"], "type": "event", "event": {**fmt, "state": "completed", "duration_seconds": 2.1, "bytes_written": 16800, "physical_result": "unverified"}},
+            ]
+        return None
+
+    app, fakes, c = actions_feed(feed, answer)
+    s = feed[1]
+    body = c.get("/api/v1/intercom/tts/engines", headers=as_user("sam")).json()
+    assert body["state"] == "ready" and body["tts"]["default"] == "tts.piper"
+    assert [e["engine_id"] for e in body["tts"]["engines"]] == ["tts.piper", "tts.google_translate_en_com"], "an engine without an id is dropped"
+    [msg] = sent(fakes, "tts/engines")
+    assert set(msg) == {"id", "type"}, "exact key set: no api_contract"
+
+    q = intercom_sync.subscribe()
+    try:
+        r = c.post("/api/v1/intercom/stations/entry-a/tts", json={"engine_id": "tts.piper", "language": "he", "message": "  נא   להמתין\nליד השער  "}, headers=as_user("sam"))
+        assert r.status_code == 200, r.text
+        assert r.json()["tts"]["station_id"] == "entry-a" and r.json()["tts"]["state"] in ("started", "generating", "speaking", "completed")
+        [start] = sent(fakes, "tts/start")
+        assert start == {"id": start["id"], "type": "hikvision_intercom/tts/start", "station_id": "entry-a", "engine_id": "tts.piper", "language": "he", "message": "נא להמתין ליד השער"}
+        wait_for(lambda: (intercom_sync.SYNC.tts_status("entry-a") or {}).get("state") == "completed")
+        wait_for(lambda: any(m.get("type") == "unsubscribe_events" for m in fakes[0].sent))
+        unsub = [m for m in fakes[0].sent if m.get("type") == "unsubscribe_events" and m.get("subscription") == start["id"]]
+        assert len(unsub) == 1, "the subscription is released after the terminal event, and only then"
+        states = []
+        while not q.empty():
+            m = q.get_nowait()
+            if m["type"] == "intercom_tts":
+                states.append(m["state"])
+                last = m
+        assert states == ["started", "generating", "speaking", "completed"], states
+        assert last["physical_result"] == "unverified" and last["station_id"] == "entry-a"
+        assert "message" not in last and "נא" not in json.dumps(last), "the notices carry progress, never the text"
+    finally:
+        intercom_sync.unsubscribe(q)
+    [row] = audit_rows(s, "intercom.tts")
+    assert (row["actor_username"], row["resource_id"]) == ("sam", "entry-a")
+    assert row["details"]["message"] == "נא להמתין ליד השער" and row["details"]["engine_id"] == "tts.piper" and row["details"]["language"] == "he"
+    assert row["details"]["outcome"] == "ok"
+
+    # validation before anything is sent: an empty (after collapsing) or too long message, an offline station
+    for bad in ({"engine_id": "tts.piper", "message": "   "}, {"engine_id": "tts.piper", "message": "x" * 501}, {"engine_id": "", "message": "hi"}):
+        assert c.post("/api/v1/intercom/stations/entry-a/tts", json=bad, headers=as_user("sam")).status_code == 422, bad
+    assert c.post("/api/v1/intercom/stations/entry-b/tts", json={"engine_id": "tts.piper", "message": "hi"}, headers=as_user("sam")).json()["code"] == "intercom_station_offline"
+    assert len(sent(fakes, "tts/start")) == 1
+
+
+def test_tts_cut_by_a_lost_connection_is_reported_closed(feed):
+    """HA drops a connection's subscriptions with it, which cancels the playback: the announcement is reported
+    `closed` / `connection_lost`, never left "speaking"."""
+    def answer(msg: dict[str, Any]) -> list[Any] | None:
+        if msg["type"] == "hikvision_intercom/tts/start":
+            return [ok(msg), {"id": msg["id"], "type": "event", "event": {"state": "speaking"}}, CLOSE]
+        return None
+
+    app, fakes, c = actions_feed(feed, answer, refuse_after=1)
+    r = c.post("/api/v1/intercom/stations/entry-a/tts", json={"engine_id": "tts.piper", "language": None, "message": "hello"}, headers=as_user("sam"))
+    assert r.status_code == 200
+    wait_for(lambda: (intercom_sync.SYNC.tts_status("entry-a") or {}).get("state") == "closed")
+    assert intercom_sync.SYNC.tts_status("entry-a")["reason"] == "connection_lost"
+
+
+def test_physical_actions_without_home_assistant_are_not_sent_and_audited(settings):
+    """The dev backend has no Home Assistant: every action is a 503 `intercom_unavailable` saying it was NOT sent
+    (never a 200 with a state field that could be read as done), audited as an attempt; the engines list is the read
+    shape, with the honest state."""
+    intercom_sync.SYNC.reset()
+    intercom_sync.SYNC.start(settings)
+    c = TestClient(create_app(settings))
+    for method, path, body in ACTION_PATHS:
+        r = c.request(method, path, json=body)
+        if method == "get":
+            assert r.status_code == 200 and r.json()["state"] == "ha_not_configured" and r.json()["tts"] is None
+            continue
+        assert r.status_code == 503, path
+        err = r.json()
+        assert err["code"] == "intercom_unavailable" and err["details"]["outcome"] == "not_sent" and err["details"]["state"] == "ha_not_configured", path
+        assert "לא נשלחה" in err["user_message"]
+    for action in ("intercom.release", "intercom.call", "intercom.tts"):
+        [row] = audit_rows(settings, action)
+        assert row["actor_username"] == "joni" and row["details"]["outcome"] == "not_sent" and row["reason"] == "ha_not_configured", action
+    intercom_sync.SYNC.reset()
+
+
+def test_physical_actions_in_degraded_feed_states(feed):
+    """not installed / HA unavailable: the action is not sent (503, outcome not_sent) and opens no connection."""
+    app, s, install = feed
+
+    def absent(msg: dict[str, Any], _fake: FakeHa) -> list[Any]:
+        return [ha_config(msg)] if msg["type"] == "get_config" else [fail(msg, "unknown_command")]
+
+    fakes = install(absent)
+    intercom_sync.SYNC.start(s)
+    wait_for(lambda: intercom_sync.STATE.state == "not_installed")
+    c = TestClient(app)
+    for method, path, body in ACTION_PATHS:
+        r = c.request(method, path, json=body)
+        if method == "get":
+            assert r.json()["state"] == "not_installed" and r.json()["tts"] is None
+            continue
+        assert r.status_code == 503 and r.json()["details"] == {"outcome": "not_sent", "state": "not_installed", "wiskey_code": "unknown_command"}, path
+    assert fakes[0].types() == ["auth", "hikvision_intercom/overview", "get_config"] and len(fakes) == 1
+
+
+def test_physical_actions_when_ha_is_unavailable(feed):
+    app, s, install = feed
+
+    def script(msg: dict[str, Any], fake: FakeHa) -> list[Any]:
+        frames = normal(msg, fake)
+        return frames + [CLOSE] if msg["type"] == "hikvision_intercom/subscribe" else frames
+
+    fakes = install(script, refuse_after=1)
+    intercom_sync.SYNC.start(s)
+    wait_for(lambda: install.refused["n"] >= 2 and intercom_sync.STATE.state == "ha_unavailable")
+    c = TestClient(app)
+    r = c.post("/api/v1/intercom/stations/entry-a/release", json={"confirmed": True})
+    assert r.status_code == 503 and r.json()["details"]["state"] == "ha_unavailable" and r.json()["details"]["outcome"] == "not_sent"
+    assert "Home Assistant אינו זמין" in r.json()["user_message"]
+    assert not sent(fakes, "stations/test_unlock")
+
+
+def test_wiskey_refusals_are_errors_not_successes(feed):
+    """WisKey refusing the add-on's user (`unauthorized`), the device refusing (`device_unavailable`, e.g. a call-state
+    mismatch), an older WisKey without the command, and WisKey's own limiter: each is an HTTP error with outcome
+    `refused`, audited, and the feed itself stays ready."""
+    answers = {"stations/test_unlock": "unauthorized", "media/signal": "device_unavailable", "tts/start": "rate_limited", "tts/engines": "unknown_command"}
+
+    def answer(msg: dict[str, Any]) -> list[Any] | None:
+        command = msg["type"].removeprefix("hikvision_intercom/")
+        return [fail(msg, answers[command])] if command in answers else None
+
+    app, fakes, c = actions_feed(feed, answer)
+    s = feed[1]
+    r = c.post("/api/v1/intercom/stations/entry-a/release", json={"confirmed": True}, headers=as_user("sam"))
+    assert r.status_code == 502 and r.json()["code"] == "intercom_action_refused"
+    assert r.json()["details"] == {"outcome": "refused", "state": "forbidden", "wiskey_code": "unauthorized"}
+    r = c.post("/api/v1/intercom/stations/entry-c/call", json={"command": "answer"}, headers=as_user("sam"))
+    assert r.status_code == 502 and r.json()["details"]["wiskey_code"] == "device_unavailable"
+    r = c.post("/api/v1/intercom/stations/entry-a/tts", json={"engine_id": "tts.piper", "message": "hi"}, headers=as_user("sam"))
+    assert r.status_code == 429 and r.json()["code"] == "intercom_rate_limited" and r.json()["details"]["outcome"] == "refused"
+    body = c.get("/api/v1/intercom/tts/engines", headers=as_user("sam")).json()
+    assert (body["state"], body["last_error"], body["tts"]) == ("unsupported", "unknown_command", None)
+    assert [(r["reason"], r["details"]["outcome"]) for r in audit_rows(s, "intercom.release")] == [("unauthorized", "refused")]
+    assert audit_rows(s, "intercom.call")[0]["details"]["error"] == "intercom_action_refused"
+    assert intercom_sync.STATE.state == "ready" and len(fakes) == 1
+
+
+def test_rate_limit_and_busy_refuse_physical_actions_loudly(feed, monkeypatch):
+    """The read path's protections apply to the actions too - and a dropped action is a 429 that says it was NOT sent,
+    never a silently swallowed request."""
+    monkeypatch.setattr(intercom_sync, "USER_BURST", 1.0)
+    monkeypatch.setattr(intercom_sync, "USER_RATE", 0.0)
+    app, fakes, c = actions_feed(feed, lambda msg: [ok(msg, {"accepted": True})] if msg["type"] == "hikvision_intercom/stations/test_unlock" else None)
+    intercom_sync.SYNC._buckets_reset()
+    assert c.post("/api/v1/intercom/stations/entry-a/release", json={"confirmed": True}, headers=as_user("sam")).status_code == 200
+    r = c.post("/api/v1/intercom/stations/entry-a/release", json={"confirmed": True}, headers=as_user("sam"))
+    assert r.status_code == 429 and r.json()["code"] == "intercom_rate_limited"
+    assert r.json()["details"]["outcome"] == "not_sent" and r.json()["retryable"] is True and "לא נשלחה" in r.json()["user_message"]
+    assert len(sent(fakes, "stations/test_unlock")) == 1, "the refused one never reached WisKey"
+    assert audit_rows(feed[1], "intercom.release")[-1]["details"]["outcome"] == "not_sent"
+
+    slot = intercom_sync.SYNC._inflight = threading.BoundedSemaphore(1)
+    assert slot.acquire(blocking=False)
+    try:
+        r = c.post("/api/v1/intercom/stations/entry-c/call", json={"command": "answer"}, headers=as_user("sam"))
+        assert r.status_code == 429 and r.json()["code"] == "intercom_busy" and r.json()["details"]["outcome"] == "not_sent"
+    finally:
+        slot.release()
+
+
+def test_unanswered_action_is_outcome_unknown_and_not_retried(feed, monkeypatch):
+    """No answer within ACTION_TIMEOUT_S, or the session lost mid-request: 504 `intercom_outcome_unknown` - it may or
+    may not have happened - and the command was sent exactly once."""
+    monkeypatch.setattr(intercom_sync, "ACTION_TIMEOUT_S", 0.3)
+    app, fakes, c = actions_feed(feed, lambda msg: [] if msg["type"] == "hikvision_intercom/stations/test_unlock" else None)
+    r = c.post("/api/v1/intercom/stations/entry-a/release", json={"confirmed": True}, headers=as_user("sam"))
+    assert r.status_code == 504 and r.json()["code"] == "intercom_outcome_unknown"
+    assert r.json()["details"] == {"outcome": "unknown", "state": "error", "wiskey_code": "timeout"}
+    assert "ייתכן שבוצעה וייתכן שלא" in r.json()["user_message"]
+    assert len(sent(fakes, "stations/test_unlock")) == 1, "never retried"
+    assert audit_rows(feed[1], "intercom.release")[0]["details"]["outcome"] == "unknown"
+
+
+def test_session_lost_mid_action_is_outcome_unknown(feed):
+    app, fakes, c = actions_feed(feed, lambda msg: [CLOSE] if msg["type"] == "hikvision_intercom/media/signal" else None, refuse_after=1)
+    r = c.post("/api/v1/intercom/stations/entry-c/call", json={"command": "reject"}, headers=as_user("sam"))
+    assert r.status_code == 504 and r.json()["details"]["outcome"] == "unknown" and r.json()["details"]["state"] == "ha_unavailable"
+    assert len(sent(fakes, "media/signal")) == 1
+
+
+def test_a_second_release_of_the_same_relay_is_refused_while_the_first_is_out(feed, monkeypatch):
+    """Never queued: while a release of a relay waits for WisKey, another release of that relay is a 409."""
+    monkeypatch.setattr(intercom_sync, "ACTION_TIMEOUT_S", 1.5)
+    app, fakes, c = actions_feed(feed, lambda msg: [] if msg["type"] == "hikvision_intercom/stations/test_unlock" else None)
+    results: list[int] = []
+    first = threading.Thread(target=lambda: results.append(c.post("/api/v1/intercom/stations/entry-a/release", json={"confirmed": True}, headers=as_user("sam")).status_code))
+    first.start()
+    wait_for(lambda: len(sent(fakes, "stations/test_unlock")) == 1)
+    r = TestClient(app).post("/api/v1/intercom/stations/entry-a/release", json={"confirmed": True})
+    assert r.status_code == 409 and r.json()["code"] == "intercom_release_in_progress"
+    first.join(timeout=5)
+    assert results == [504] and len(sent(fakes, "stations/test_unlock")) == 1
+
+
+def test_physical_client_wrappers_send_wiskeys_exact_shapes():
+    """The client layer on its own: api_contract only where WisKey's panel sends it, strict relay typing, no call
+    command outside WisKey's three, and tts/start's `language` key present even when null."""
+    from smplwise.services import intercom_client
+
+    seen: list[dict[str, Any]] = []
+
+    async def call(msg_type: str, **kw: Any) -> dict[str, Any]:
+        seen.append({"type": msg_type, **kw})
+        return {"id": 9, "success": True, "result": {"accepted": True} if msg_type.endswith("test_unlock") else ({} if not msg_type.endswith("tts/start") else None)}
+
+    asyncio.run(intercom_client.release_door(call, "entry-a", 2))
+    assert asyncio.run(intercom_client.tts_start(call, "entry-a", "tts.piper", None, "hi")) == 9
+    assert seen == [
+        {"type": "hikvision_intercom/stations/test_unlock", "station_id": "entry-a", "lock": 2, "api_contract": 1},
+        {"type": "hikvision_intercom/tts/start", "station_id": "entry-a", "engine_id": "tts.piper", "language": None, "message": "hi"},
+    ]
+    for bad in (lambda: intercom_client.release_door(call, "entry-a", True), lambda: intercom_client.media_signal(call, "entry-a", "open")):
+        with pytest.raises(intercom_client.IntercomError) as exc:
+            asyncio.run(bad())
+        assert exc.value.code == "invalid_fields"
+    assert len(seen) == 2, "refused locally, nothing sent"
+    assert intercom_client.collapse("  a \n\t b  ") == "a b"
