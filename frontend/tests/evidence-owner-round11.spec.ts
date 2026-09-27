@@ -155,20 +155,18 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
   type ApiCamera = { id: string; enabled: boolean; channel: number; sort_order: number; grid_col_span: number };
   type Req = import('@playwright/test').APIRequestContext;
 
-  /** At least two enabled cameras to reorder; this repo has no existing fixture/seed for cameras (they are
-   * normally discovered from a real NVR by autosync). Fixed test channels (101/102) are reused across runs
-   * instead of creating fresh rows every time: cameras.py has no DELETE endpoint, so a previous run's cleanup
-   * can only have disabled them (S4 review) - re-enable that same row rather than register a duplicate.
-   * `seededIds` is only non-empty when this function actually touched something, so a real backend that
-   * already had >=2 enabled cameras is never written to. */
-  async function ensureTwoCameras(request: Req): Promise<{ cams: ApiCamera[]; seededIds: string[] }> {
+  /** At least `need` enabled cameras to reorder/span; this repo has no existing fixture/seed for cameras (they
+   * are normally discovered from a real NVR by autosync). Fixed test channels (101/102/103/...) are reused
+   * across runs instead of creating fresh rows every time: cameras.py has no DELETE endpoint, so a previous
+   * run's cleanup can only have disabled them (S4 review) - re-enable that same row rather than register a
+   * duplicate. `seededIds` is only non-empty when this function actually touched something, so a real backend
+   * that already had >= `need` enabled cameras is never written to. */
+  async function ensureCameras(request: Req, need: number): Promise<{ cams: ApiCamera[]; seededIds: string[] }> {
     const all = ((await (await request.get('/api/v1/cameras')).json()).cameras as ApiCamera[]);
     const enabled = all.filter((c) => c.enabled);
-    if (enabled.length >= 2) return { cams: enabled, seededIds: [] };
-    const wanted: [number, string][] = [
-      [101, 'מצלמה בדיקה A · T091'],
-      [102, 'מצלמה בדיקה B · T091'],
-    ];
+    if (enabled.length >= need) return { cams: enabled, seededIds: [] };
+    const letters = ['A', 'B', 'C', 'D', 'E'];
+    const wanted: [number, string][] = Array.from({ length: need }, (_, i) => [101 + i, `מצלמה בדיקה ${letters[i]} · T091`]);
     const seededIds: string[] = [];
     for (const [channel, alias] of wanted) {
       const existing = all.find((c) => c.channel === channel);
@@ -182,9 +180,12 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
     }
     const after = ((await (await request.get('/api/v1/cameras')).json()).cameras as ApiCamera[]);
     const cams = after.filter((c) => c.enabled);
-    expect(cams.length).toBeGreaterThan(1);
+    expect(cams.length).toBeGreaterThanOrEqual(need);
     return { cams, seededIds };
   }
+
+  /** Back-compat name for the (still separate) two-camera reorder test below. */
+  const ensureTwoCameras = (request: Req) => ensureCameras(request, 2);
 
   /** S4 review: no DELETE /cameras endpoint exists in this codebase (checked) - disabling a self-seeded row is
    * the closest available cleanup, and ensureTwoCameras() above knows to re-enable that same row on a later run
@@ -264,16 +265,145 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
       const saved = ((await (await request.get('/api/v1/cameras')).json()).cameras as ApiCamera[]).find((c) => c.id === cam1.id);
       expect(saved?.grid_col_span).toBe(2);
 
-      // B2 review: real rendered geometry, not just the style string - the spanned tile (cam1) is roughly 2x a
-      // normal tile's (cam2's) width plus the 12px gap, and its height matches cam2's (the aspect-ratio widens
-      // with the span so every row keeps a consistent height); the grid itself must not overflow the window.
-      const spannedBox = (await wall.locator(`sw-camera-tile[cameraid="${cam1.id}"]`).boundingBox())!;
-      const normalBox = (await wall.locator(`sw-camera-tile[cameraid="${cam2.id}"]`).boundingBox())!;
+      // T018 re-review (owner report 2026-09-27): real rendered geometry, not just the style string. A spanned
+      // tile no longer widens its OWN aspect ratio to match its neighbors' height (that is what let a real
+      // camera's video get letterboxed - see the fix comment on live-wall.ts's bestFit()). It now keeps the
+      // real 16:9 ratio at its own (roughly 2x-wider) width, so it comes out noticeably TALLER than a normal
+      // tile instead of the same height - the opposite of the old (now-wrong) assertion here. The grid itself
+      // must still not overflow the window (bestFit()/maxTileForHeight() account for the taller spanned row).
+      const spannedTile = wall.locator(`sw-camera-tile[cameraid="${cam1.id}"]`);
+      const normalTile = wall.locator(`sw-camera-tile[cameraid="${cam2.id}"]`);
+      const spannedBox = (await spannedTile.boundingBox())!;
+      const normalBox = (await normalTile.boundingBox())!;
       expect(spannedBox.width).toBeGreaterThan(normalBox.width * 1.7);
       expect(spannedBox.width).toBeLessThan(normalBox.width * 2.3);
-      expect(Math.abs(spannedBox.height - normalBox.height)).toBeLessThan(Math.max(6, normalBox.height * 0.15));
+      expect(spannedBox.height).toBeGreaterThan(normalBox.height * 1.5); // taller now, not equal
+      expect(Math.abs(spannedBox.width / spannedBox.height - 16 / 9)).toBeLessThan(0.15); // its own box stays ~16:9
       const gridBox = (await wall.locator('[data-wall-cols]').boundingBox())!;
       expect(gridBox.height).toBeLessThan(900);
+
+      // T018: the old version of this test never actually exercised the buggy code path - these fixture
+      // cameras (registered manually, channel 101/102, no real NVR behind them) keep status "unknown" forever
+      // (migrations/0001_init.sql's default; nothing here ever marks them "online"), so `sw-camera-tile` always
+      // rendered its grey "off" placeholder, never `sw-live-player`'s `<video>` - the exact element whose
+      // `object-fit: contain` produced the reported letterboxing. A throwaway/no-NVR backend (as used for this
+      // fix's own verification) can never make a fixture camera genuinely "online" either, so the LIVE code path
+      // is forced open directly on the element (bypassing the backend's own status), then fed a synthetic,
+      // KNOWN-16:9 video frame (the same ratio a real, non-panoramic security camera reports) through
+      // `canvas.captureStream()` - no real camera or network stream needed. From the ACTUAL rendered host box
+      // and the ACTUAL decoded video resolution this reproduces the browser's own (spec-defined) `object-fit:
+      // contain` placement and checks the letterbox margin it would paint - this is what the owner's screenshot
+      // showed as a black band down one side, and it is what the old assertion (container box vs. container box
+      // only) could never have caught.
+      await spannedTile.evaluate((el) => {
+        (el as unknown as { live: boolean; state: string }).live = true;
+        (el as unknown as { live: boolean; state: string }).state = 'live';
+      });
+      const player = spannedTile.locator('sw-live-player');
+      await expect(player).toHaveCount(1, { timeout: 10000 });
+      const geometry = await player.evaluate(async (el) => {
+        const live = el as unknown as { disconnect: () => void; status: string };
+        live.disconnect(); // this throwaway backend has no go2rtc/NVR behind it - a real connect attempt can only error
+        const canvas = document.createElement('canvas');
+        canvas.width = 1280;
+        canvas.height = 720; // native 16:9, like a real (non-panoramic) camera sensor - not the tile's widened box
+        const ctx = canvas.getContext('2d')!;
+        ctx.fillStyle = '#39ff14';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        const stream = (canvas as HTMLCanvasElement & { captureStream: (fps?: number) => MediaStream }).captureStream(5);
+        const video = el.shadowRoot!.querySelector('video')!;
+        video.srcObject = stream;
+        live.status = 'playing'; // skip the connect/negotiate machinery - only the rendered geometry matters here
+        await new Promise<void>((resolve) => {
+          if (video.readyState >= 1 && video.videoWidth) return resolve();
+          video.onloadedmetadata = () => resolve();
+        });
+        const hostBox = el.getBoundingClientRect();
+        const vw = video.videoWidth;
+        const vh = video.videoHeight;
+        // The browser's own object-fit: contain algorithm (CSS spec, deterministic): scale the frame to the
+        // largest size that fits inside the host box while keeping its aspect ratio, then center it - any
+        // leftover width or height is the letterbox band actually painted.
+        const scale = Math.min(hostBox.width / vw, hostBox.height / vh);
+        return { hostW: hostBox.width, hostH: hostBox.height, marginX: hostBox.width - vw * scale, marginY: hostBox.height - vh * scale };
+      });
+      // no visible letterbox: the picture fills the tile in both axes (small rounding only) - this would have
+      // FAILED before the fix (a span-2 tile's box was 32:9 against a 16:9 frame: ~50% of the width unfilled).
+      expect(geometry.marginX).toBeLessThan(Math.max(4, geometry.hostW * 0.02));
+      expect(geometry.marginY).toBeLessThan(Math.max(4, geometry.hostH * 0.02));
+    } finally {
+      for (const c of snapshot) {
+        await request.patch(`/api/v1/cameras/${c.id}`, { data: { sort_order: c.sort_order, grid_col_span: c.grid_col_span } }).catch(() => {});
+      }
+      await cleanupSeeded(request, seededIds);
+    }
+  });
+
+  test('a fragmentation-prone span mix (four span-3 tiles at 4 columns, T018 re-review) does not overflow the viewport', async ({ page, request }) => {
+    // T018 re-review (blocking finding): CSS Grid's `grid-auto-flow: dense` is a first-fit, row-major scan,
+    // not ideal bin-packing. Four span-3 cameras at 4 columns is the cleanest reproduction: each one fills 3
+    // of the 4 columns and leaves a 1-column fragment nothing here can ever fill (every item is span-3), so
+    // dense placement forces every one of them onto its OWN row - 4 real rows - while a naive ideal-packing
+    // estimate (`Math.ceil(sum(spans)/cols)` = `Math.ceil(12/4)`) predicts only 3. This is the same class of
+    // discrepancy the reviewer measured in real Chromium for spans [3,3,2] at 4 columns (2 vs. a real 3) -
+    // see wall-grid.ts's simulateDenseRows() and tests/unit-wall-dense-pack.spec.ts for that exact figure and
+    // more (this in-browser test uses an all-span-3 mix instead only so 4 distinctly-seeded cameras exactly
+    // fill 4 columns without live-wall.ts's own `Math.min(colsOverride, shown.length)` clamp kicking in).
+    // Feeding the too-low row estimate into the tile-height budget sizes tiles for 3 rows while the browser
+    // renders 4 - exactly the "wall overflows the screen" failure this feature has already been fixed for
+    // twice (letterboxing, then this row-count gap); bestFit()/maxTileForHeight() must size tiles for the
+    // ACTUAL row count (simulateDenseRows()) or this reproduces that overflow end to end in a real browser.
+    const { cams, seededIds } = await ensureCameras(request, 4);
+    const [c1, c2, c3, c4] = cams;
+    const snapshot = (await (await request.get('/api/v1/cameras')).json()).cameras as ApiCamera[];
+    try {
+      // A tall viewport (a video-wall monitor in portrait, or simply a large screen) - four full-height rows
+      // of span-3 tiles need real vertical room; a short (900px) viewport pushes the CORRECTLY-sized tile
+      // itself under bestFit()/maxTileForHeight()'s own "don't bother constraining a degenerately tiny tile"
+      // floor (80px), which falls back to fully unconstrained natural sizing - a separate, pre-existing edge
+      // case, not the row-count bug this test targets. At this height the discrepancy between the naive
+      // `Math.ceil(sum/cols)` estimate (3 rows) and the real, simulated 4 rows is still very large (several
+      // hundred px) - re-verified by temporarily reverting to the naive estimate: it still overflows clearly.
+      const viewportH = 2000;
+      await page.setViewportSize({ width: 1600, height: viewportH });
+      await open(page, '/live/wall');
+      const wall = page.locator('live-wall');
+      await wall.locator('.layouts button', { hasText: /^32$/ }).click();
+      for (const c of [c1, c2, c3, c4]) await expect(wall.locator(`sw-camera-tile[cameraid="${c.id}"]`)).toBeVisible({ timeout: 30000 });
+      await wall.locator('[data-wall-cols-set="4"]').click();
+      await expect(wall.locator('[data-wall-cols]')).toHaveAttribute('data-wall-cols', '4');
+
+      await wall.locator('[data-wall-settings-open]').click();
+      const dialog = page.locator('[data-wall-settings-dialog]');
+      await expect(dialog.locator('[data-wall-settings-rows]')).toBeVisible();
+      for (const c of [c1, c2, c3, c4]) await dialog.locator(`[data-wall-span="${c.id}"]`).selectOption('3');
+      await dialog.locator('[data-wall-settings-save]').click();
+      await expect(dialog).toHaveCount(0, { timeout: 20000 });
+
+      await page.reload();
+      await wall.locator('.layouts button', { hasText: /^32$/ }).click();
+      await wall.locator('[data-wall-cols-set="4"]').click();
+      await expect(wall.locator(`sw-camera-tile[cameraid="${c1.id}"]`)).toBeVisible({ timeout: 30000 });
+      await expect(wall.locator('[data-wall-cols]')).toHaveAttribute('data-wall-cols', '4');
+
+      // the whole wall must stay inside the viewport - no scrolling wall - which is exactly what an
+      // under-counted row estimate (3 instead of the real 4) blows past: the tile budget above is sized as
+      // if only 3 rows needed to fit, then the browser renders a 4th anyway.
+      // Real overflow of the actual scrolling container, not a coordinate relative to whatever the current
+      // scroll position happens to be (an earlier click can autoscroll an element into view and shift every
+      // boundingBox() by that amount, and this content overflows sw-app's own `<main overflow:auto>` - not
+      // the document body - so document.scrollHeight would not show it either).
+      const scrollOverflow = await page.evaluate(() => {
+        const main = document.querySelector('sw-app')?.shadowRoot?.querySelector('main');
+        return main ? main.scrollHeight - main.clientHeight : 0;
+      });
+      expect(scrollOverflow).toBeLessThan(4); // a few px of rounding slack only - no real scrollable overflow
+
+      // dense placement really does force each span-3 tile onto its own row (none of the 4 fits into any
+      // fragment another one left behind): 4 tiles, 4 distinct row tops.
+      const boxes = await Promise.all([c1.id, c2.id, c3.id, c4.id].map((id) => wall.locator(`sw-camera-tile[cameraid="${id}"]`).boundingBox()));
+      const tops = new Set(boxes.map((b) => Math.round(b!.y)));
+      expect(tops.size).toBe(4);
     } finally {
       for (const c of snapshot) {
         await request.patch(`/api/v1/cameras/${c.id}`, { data: { sort_order: c.sort_order, grid_col_span: c.grid_col_span } }).catch(() => {});
