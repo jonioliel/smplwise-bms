@@ -603,6 +603,76 @@ test.describe.serial('editor: select and move walls, objects and zones (0.1.87)'
     expect(await at(page, ref)).toEqual(s3);
   });
 
+  // T085 pan/help (owner request 2026-09-27): a persistent hand-tool toggle in the rail, beside the tool buttons - unlike
+  // Space (held down, and only in the select tool's marquee mode) it stays on across every tool until clicked again or
+  // Esc, and it overrides every tool's drag, not only the select tool's. It reuses the exact same panning gate the
+  // previous test exercises through Space (`data-space-pan`), so a drag over the bare plan or an object pans and nothing
+  // else fires while it is on.
+  test('hand tool: toggling it on pans every drag (bare plan and an object), draws no marquee; Esc and a second click return to normal editing', async ({ page }) => {
+    await saveDraft(SEED);
+    await openEditor(page);
+    const pan = page.locator(`${ED} [data-tool-pan]`);
+    await expect(pan).toHaveAttribute('aria-pressed', 'false');
+    await pan.click();
+    await expect(pan).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator(`${ED} sw-plan-canvas .viewport[data-space-pan="on"]`)).toHaveCount(1);
+
+    const ref: P = [0.75, 0.2];
+    const s0 = await at(page, ref);
+    // a drag on the bare plan pans; it does not draw the marquee (which would leave the plan in place and select nothing)
+    await mouseDrag(page, await at(page, [0.8, 0.12]), 60, 40);
+    const s1 = await at(page, ref);
+    expect(s1.x - s0.x).toBeCloseTo(60, -1);
+    expect(s1.y - s0.y).toBeCloseTo(40, -1);
+    await expect(page.locator(`${ED} [data-multi-panel]`)).toHaveCount(0);
+
+    // a drag starting on an object pans too: the object itself does not move
+    const before = (await positions(['mo1']))[0];
+    const c = await at(page, [0.75, 0.55]);
+    await mouseDrag(page, c, -40, 0);
+    expect((await positions(['mo1']))[0]).toEqual(before);
+    const s2 = await at(page, ref);
+    expect(s2.x - s1.x).toBeCloseTo(-40, -1);
+
+    // Esc is the quick way out: back to the select tool exactly as it was, hand tool off
+    await page.keyboard.press('Escape');
+    await expect(pan).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator(`${ED} sw-plan-canvas .viewport[data-space-pan="on"]`)).toHaveCount(0);
+    await expect(page.locator(`${ED} [data-tool="select"]`)).toHaveAttribute('aria-pressed', 'true');
+
+    // normal select behaviour is back: a plain drag on the bare plan draws the marquee, the plan itself stays put
+    const s3 = await at(page, ref);
+    await mouseDrag(page, await at(page, [0.8, 0.12]), 60, 40);
+    expect(await at(page, ref)).toEqual(s3);
+
+    // the toggle button re-enters and leaves the hand tool just as well as Esc
+    await pan.click();
+    await expect(page.locator(`${ED} sw-plan-canvas .viewport[data-space-pan="on"]`)).toHaveCount(1);
+    await pan.click();
+    await expect(page.locator(`${ED} sw-plan-canvas .viewport[data-space-pan="on"]`)).toHaveCount(0);
+  });
+
+  // T085 pan/help: the "?" button on the map toolbar opens a panel listing the editor's real keyboard shortcuts,
+  // grouped by topic - a representative sample is asserted (structure and a few known lines), not the exact wording,
+  // so small phrasing tweaks later do not break this test.
+  test('keyboard-shortcuts help: the "?" button lists real shortcuts grouped by topic; Esc closes it', async ({ page }) => {
+    await openEditor(page);
+    const help = page.locator(`${ED} [data-tool-help]`);
+    const dialog = page.locator(`${ED} [data-shortcuts-dialog]`);
+    await expect(dialog).toHaveCount(0);
+    await help.click();
+    await expect(dialog).toHaveCount(1);
+    const rows = dialog.locator('[data-shortcuts-row]');
+    expect(await rows.count()).toBeGreaterThanOrEqual(10);
+    await expect(dialog.locator('[data-shortcuts-group]')).not.toHaveCount(0);
+    await expect(dialog).toContainText('Ctrl+D');
+    await expect(dialog).toContainText('Ctrl+Z');
+    await expect(dialog).toContainText('Delete');
+    await expect(dialog).toContainText('Esc');
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+  });
+
   // T085 (owner request 2026-09-26): free-text tags - one item's in its inspector, several at once in the bulk panel - a
   // multi-selection moved to another level in one undoable step, its lamps (only its lamps) added to a circuit, and a tag
   // turned back into a selection that keeps to the level filter.

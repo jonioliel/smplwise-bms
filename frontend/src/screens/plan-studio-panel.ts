@@ -754,6 +754,76 @@ export function renderGroupInspector(g: GeomGroup, item: CatalogItem | undefined
 /** How several items are picked in the editor's select tool (owner report 2026-09-26). */
 export const MULTI_HINT = 'Shift+לחיצה מוסיפה קיר, עצם או אזור לבחירה או מוציאה אותו ממנה; גרירת מלבן מרקע ריק בוחרת את מה שנמצא בתוכו במלואו; Ctrl+A בוחר את כל מה שמוצג במפלס; Esc מנקה. הזזת התוכנית: רווח + גרירה, או גרירה בכפתור האמצעי; גלגלת לזום.';
 
+// ---------------------------------------------------------------- keyboard shortcuts help (T085, owner request 2026-09-27)
+
+export interface ShortcutEntry {
+  keys: string;
+  desc: string;
+}
+export interface ShortcutGroup {
+  title: string;
+  items: ShortcutEntry[];
+}
+
+/** Every shortcut the plan editor's keyboard handler and canvas actually implement (verified against
+ * `explore-plan-editor.ts`'s `handleKey` / `handleMultiKey` / `handleStudioKey` / `nudgeGeom` and `sw-plan-canvas.ts`'s
+ * pan and drag handlers) - a pure data structure so the help dialog and a future test can both read it. Keep this in
+ * sync by hand: nothing here is generated from the handler. */
+export const SHORTCUT_GROUPS: ShortcutGroup[] = [
+  {
+    title: 'בחירה',
+    items: [
+      { keys: 'Shift+לחיצה', desc: 'מוסיף פריט לבחירה או מוציא אותו ממנה' },
+      { keys: 'גרירת מלבן מרקע ריק', desc: 'בוחרת את כל מה שבתוכה במלואו' },
+      { keys: 'Ctrl+A', desc: 'בוחר את כל מה שמוצג במפלס הנוכחי' },
+      { keys: 'Esc', desc: 'מנקה את הבחירה, או סוגר את הפעולה הפתוחה' },
+    ],
+  },
+  {
+    title: 'עריכה',
+    items: [
+      { keys: 'Delete / Backspace', desc: 'מוחק את מה שנבחר' },
+      { keys: 'Ctrl+D', desc: 'משכפל את מה שנבחר' },
+      { keys: 'Alt+גרירה', desc: 'גורר עותק, במקום להזיז את המקור' },
+      { keys: 'חצים', desc: 'מזיזים את הנבחר צעד קטן; Shift+חץ = צעד גדול פי 10' },
+      { keys: 'Ctrl+Z / Ctrl+Y', desc: 'ביטול וחזרה על הפעולה האחרונה' },
+      { keys: 'Ctrl+S', desc: 'שמירה' },
+    ],
+  },
+  {
+    title: 'תצוגה וניווט',
+    items: [
+      { keys: 'רווח+גרירה, או גרירה בכפתור האמצעי', desc: 'מזיז את התוכנית (פאן)' },
+      { keys: 'כפתור היד בסרגל הכלים', desc: 'מצב הזזה קבוע: כל גרירה מזיזה את התוכנית, עד לחיצה חוזרת עליו או Esc' },
+      { keys: 'גלגלת העכבר', desc: 'זום פנימה והחוצה סביב הסמן' },
+    ],
+  },
+  {
+    title: 'כלים ספציפיים',
+    items: [
+      { keys: 'ציור קיר (מבנה)', desc: 'Enter מסיים את הקיר; Backspace/Delete מוחק את הנקודה האחרונה' },
+      { keys: 'ציור אזור', desc: 'לחיצה מוסיפה פינה; Enter מסיים משלוש פינות; Esc מבטל' },
+      { keys: 'מדידה / כיול', desc: 'Esc מנקה את הנקודות שנבחרו עד כה' },
+      { keys: 'זיהוי אוטומטי', desc: 'Delete/Backspace מסיר מועמד נבחר; Esc סוגר וחוזר לכלי הבחירה' },
+      { keys: 'מעגלי תאורה', desc: 'Esc מבטל את סוג הגוף הממתין להצבה, ואז סוגר את מצב חברי המעגל' },
+    ],
+  },
+];
+
+export function renderShortcutsDialog(onClose: () => void): TemplateResult {
+  return html`<sw-dialog open heading="קיצורי מקלדת" subheading="כל הקיצורים הפעילים כרגע בעורך התוכנית" data-shortcuts-dialog @close=${onClose}>
+    <div class="shortcuts">
+      ${SHORTCUT_GROUPS.map(
+        (g) => html`<div class="shortcuts-group" data-shortcuts-group=${g.title}>
+          <h4>${g.title}</h4>
+          ${g.items.map((it) => html`<div class="shortcuts-row" data-shortcuts-row><kbd>${it.keys}</kbd><span>${it.desc}</span></div>`)}
+        </div>`
+      )}
+    </div>
+    <sw-button slot="footer" variant="primary" data-shortcuts-close @click=${onClose}>סגור</sw-button>
+  </sw-dialog>`;
+}
+
 // ---------------------------------------------------------------- tags (T085)
 
 /** One chip of a tags editor: the tag, and in the bulk panel how many of the selected items carry it. */

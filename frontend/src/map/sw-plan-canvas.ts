@@ -221,6 +221,11 @@ export class SwPlanCanvas extends LitElement {
    * y1 (normalized plan space), add (Shift held at the press)}; the editor picks what lies inside. A finger still pans,
    * as do the middle button and the wheel's zoom; a plain click still reaches the plan as before. */
   @property({ type: Boolean }) marquee = false;
+  /** T085 pan/help: a persistent hand-tool mode toggled from the editor's toolbar (owner request 2026-09-27) - unlike
+   * `spacePan` (momentary, held down) this stays on across drags until the editor turns it off again. It reuses every
+   * gate `spacePan` already has below (`panActive`): a drag pans and nothing else fires, on the bare plan, a pin, a
+   * zone or a structure item alike, exactly as Space + drag already behaves. */
+  @property({ type: Boolean }) panMode = false;
   /** T085: the library shapes (symbol, colour) the object layer draws with; without it every object is a plain box. */
   @property({ attribute: false }) catalog: CatalogLookup | null = null;
   /** T085: the live anchors of the floor ("<type>:<id>" -> position): a bound object draws on its anchor, not where the
@@ -314,6 +319,11 @@ export class SwPlanCanvas extends LitElement {
     this.spacePan = true;
   };
   private onSpaceBlur = () => (this.spacePan = false);
+  /** Either pan gesture (Space held, or the editor's persistent hand-tool toggle) - every gate below reads this, not
+   * `spacePan` directly, so the persistent mode reuses the exact same panning path. */
+  private get panActive(): boolean {
+    return this.spacePan || this.panMode;
+  }
   /** highlightIds as a set, rebuilt only when the array changes (looked up per zone and per wall on every render). */
   private hlCache: { ids: string[]; set: Set<string> } | null = null;
   private get highlightSet(): Set<string> {
@@ -998,7 +1008,7 @@ export class SwPlanCanvas extends LitElement {
 
   private onMarkerPointerDown = (m: PlanMarker, e: PointerEvent) => {
     // while placing / drawing the press belongs to the plan, as on a zone: a library item goes onto an anchor's spot (T085)
-    if (!this.editable || e.button !== 0 || this.placing || this.spacePan) return; // Space + drag pans, over a pin too
+    if (!this.editable || e.button !== 0 || this.placing || this.panActive) return; // Space + drag (or the hand tool) pans, over a pin too
     e.stopPropagation();
     e.preventDefault();
     this.dragging = { id: m.id, x: m.x, y: m.y };
@@ -1036,7 +1046,7 @@ export class SwPlanCanvas extends LitElement {
     if (e.button === 1) e.preventDefault(); // the middle button pans the plan: no browser autoscroll on top of it
     if (this.pointers.size === 1) {
       const pins = this.boxSelect && e.button === 0 && !e.shiftKey && !this.editable && !this.placing;
-      const geom = this.marquee && !this.spacePan && e.button === 0 && e.pointerType !== 'touch' && !this.placing;
+      const geom = this.marquee && !this.panActive && e.button === 0 && e.pointerType !== 'touch' && !this.placing;
       if (pins || geom) {
         const rect = this.getBoundingClientRect();
         this.boxStart = { x: e.clientX - rect.left, y: e.clientY - rect.top };
@@ -1195,7 +1205,7 @@ export class SwPlanCanvas extends LitElement {
    * zone selected. A zone in a multi-selection (`multiDrag`, in `highlightIds`) is dragged as one of its members: the
    * editor moves the whole selection (T085). */
   private onZoneBodyPointerDown(z: PlanZone, e: PointerEvent) {
-    if (this.spacePan) return; // Space + drag pans, over a zone too
+    if (this.panActive) return; // Space + drag (or the hand tool) pans, over a zone too
     if (this.multiDrag && this.editable && !z.candidate && !this.placing && this.pointers.size === 0 && this.highlightSet.has(z.id)) {
       this.onGeomDragStart('zone', z.id, 0, e);
       return;
@@ -1769,7 +1779,7 @@ export class SwPlanCanvas extends LitElement {
    * a multi-selection: `zone-select`), with `add` when Shift was held at the press (T085 multi-select). */
   private onGeomDragStart(kind: GeomDragDetail['kind'], id: string, index: number, e: PointerEvent) {
     const objectKind = kind.startsWith('object') || kind === 'connector-vertex';
-    if (this.spacePan) return; // Space + drag pans, over an item too: the press goes on to the viewport
+    if (this.panActive) return; // Space + drag (or the hand tool) pans, over an item too: the press goes on to the viewport
     if (e.button !== 0 || this.geomDrag === 'none' || ((kind === 'vertex' || kind === 'wall' || kind === 'zone') && this.geomDrag !== 'all') || (objectKind && this.geomDrag === 'items') || (!objectKind && this.geomDrag === 'objects')) return;
     if (kind !== 'vertex' && this.nearCorner(e.clientX, e.clientY)) return; // wall mode: the press draws from that corner
     e.stopPropagation(); // the press is the item's: no pan, and in a drawing mode no new point / opening either
@@ -2083,7 +2093,7 @@ export class SwPlanCanvas extends LitElement {
 
   render() {
     return html`
-      <div class="viewport ${this.placing ? 'placing' : ''} ${this.boxSelect ? 'boxing' : ''} ${this.marquee ? 'marquee' : ''} ${this.spacePan ? 'spacepan' : ''}" data-space-pan=${this.spacePan ? 'on' : nothing} @wheel=${this.onWheel} @pointerdown=${this.onPointerDown} @pointermove=${this.onPointerMove}
+      <div class="viewport ${this.placing ? 'placing' : ''} ${this.boxSelect ? 'boxing' : ''} ${this.marquee ? 'marquee' : ''} ${this.panActive ? 'spacepan' : ''}" data-space-pan=${this.panActive ? 'on' : nothing} @wheel=${this.onWheel} @pointerdown=${this.onPointerDown} @pointermove=${this.onPointerMove}
            @pointerup=${this.onPointerUp} @pointercancel=${this.onPointerUp} @click=${this.onBackgroundClick}>
         <svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="תוכנית קומה">
           <defs><marker id="sw-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path class="carrowhead" d="M0 0L10 5L0 10z" /></marker></defs>
