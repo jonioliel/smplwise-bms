@@ -1,5 +1,21 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.101 (pilot) — fix: spanned camera tiles keep their real shape instead of letterboxing
+- Owner report (2026-09-27, with a screenshot from the live lab): a camera set to span 2 grid columns on the
+  all-cameras wall showed its picture squeezed into about half the tile, with a solid black band filling the rest.
+- Root cause: the 0.1.100 fix widened a spanned tile's own aspect ratio (e.g. 32:9 for a span-2 tile) so it would
+  stay the same height as its neighbors. A real camera stream is genuinely 16:9, and the live player deliberately
+  uses `object-fit: contain` so a security camera's field of view is never cropped - forcing a real 16:9 stream
+  into an artificially wider box just letterboxes it.
+- Every tile, spanned or not, now keeps its true 16:9 shape. A spanned tile is now bigger in both width and height
+  (a hero tile in a photo grid), instead of a same-height wide strip with black space.
+- Reviewed twice: the first pass found the wall's row-count estimate for sizing tiles assumed CSS Grid's dense
+  auto-placement always achieves ideal bin-packing, which is false for some realistic multi-wide-span
+  combinations (two span-3 cameras plus a span-2 camera at 4 columns actually needs 3 rows, not the 2 the old
+  estimate predicted), which could still overflow the screen. Fixed with an exact dense-placement simulation
+  instead of an approximation, verified against real Chromium measurements. A second, separate, pre-existing bug
+  surfaced during that fix (a fixed, slightly-wrong guess for the space below the grid) and was fixed too.
+
 ## 0.1.100 (pilot) — flexible column layout and ordering for the all-cameras wall
 - Owner request (2026-09-27): a settings mode on the all-cameras live grid ("כל המצלמות"), gated by permission,
   to set the display order of cameras and let specific cameras - the owner's example: panoramic cameras covering
