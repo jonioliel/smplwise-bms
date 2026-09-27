@@ -32,12 +32,16 @@ export class SwLivePlayer extends LitElement {
   @property() poster = '';
   @property({ type: Boolean }) active = true;
   @property({ type: Boolean, reflect: true }) compact = false;
-  /** How the live picture sits in a box whose shape differs from the stream's own: `contain` (default - the whole
-   * frame, with bands where the shapes differ) or `cover` (fills the box edge to edge and trims the overflow - the
-   * same framing the snapshot poster below already uses). The all-cameras wall uses `cover` only for a tile that
-   * spans several columns (owner, 2026-09-27: the picture must run across the whole wide tile, not sit in its
-   * middle); every other player keeps `contain`. */
-  @property({ reflect: true }) fit: 'contain' | 'cover' = 'contain';
+  /** How the live picture sits in a box whose shape differs from the stream's own:
+   * - `contain` (default): the whole frame at its true proportions, with bands where the shapes differ;
+   * - `cover`: fills the box edge to edge at true proportions and trims what overflows (the snapshot poster's
+   *   framing);
+   * - `fill`: the whole frame stretched to the box in both directions - nothing trimmed, no bands, proportions
+   *   distorted when the shapes differ.
+   * The all-cameras wall uses `fill` only for a tile that spans several columns (owner decisions 2026-09-27: the
+   * picture must run across the whole wide tile, and the owner prefers seeing the whole field of view stretched
+   * over a cropped one); every other player keeps `contain`. The poster (`img.poster`) is not affected. */
+  @property({ reflect: true }) fit: 'contain' | 'cover' | 'fill' = 'contain';
   /** Playback: relay socket of a session generation instead of the live endpoint (MSE only). */
   @property() wsUrl = '';
   /** Playback streams end when the NVR reaches the requested end time: no automatic reconnect then. */
@@ -84,9 +88,15 @@ export class SwLivePlayer extends LitElement {
       object-fit: contain;
       background: #0f1729;
     }
-    img.poster,
+    img.poster {
+      object-fit: cover;
+    }
+    /* the live picture's own framing (the fit property) - separate rules, so the poster above never changes */
     :host([fit='cover']) video {
       object-fit: cover;
+    }
+    :host([fit='fill']) video {
+      object-fit: fill;
     }
     video.hidden {
       visibility: hidden;

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { simulateDensePlacement } from '../src/screens/wall-grid';
+import { simulateStrictPlacement, simulateStrictRows } from '../src/screens/wall-grid';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -190,10 +190,14 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
   /** Back-compat name for the (still separate) two-camera reorder test below. */
   const ensureTwoCameras = (request: Req) => ensureCameras(request, 2);
 
-  /** Forces a wall tile's LIVE code path open and feeds its `<video>` a synthetic, known-16:9 frame (1280x720, one
-   * solid colour) through `canvas.captureStream()` - no real camera or go2rtc needed. Fixture cameras (no NVR
-   * behind them) never become "online", and a throwaway backend has no go2rtc to connect to, so the player's
-   * own connect attempt is dropped first. Returns once the frame's metadata has loaded. */
+  /** Forces a wall tile's LIVE code path open and feeds its `<video>` a synthetic, known-16:9 frame (1280x720)
+   * through `canvas.captureStream()` - no real camera or go2rtc needed. The frame carries a distinct marker band
+   * on each of its four edges (top red, bottom blue, left magenta, right yellow, green in between), so the
+   * screenshot check below can tell whether the WHOLE frame reached the tile's edges: `contain` leaves dark bands
+   * beside it, `cover` trims the top and bottom markers away, only `fill` (or a same-shape box) shows all four at
+   * the tile's own edges. Fixture cameras (no NVR behind them) never become "online", and a throwaway backend has
+   * no go2rtc to connect to, so the player's own connect attempt is dropped first. Returns the video's computed
+   * object-fit and its box next to the player's box, once a frame has been painted. */
   async function feedSyntheticFrame(tile: import('@playwright/test').Locator) {
     await tile.evaluate((el) => {
       (el as unknown as { live: boolean; state: string }).live = true;
@@ -208,8 +212,18 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
       canvas.width = 1280;
       canvas.height = 720; // native 16:9, like a real (non-panoramic) camera's stream
       const ctx = canvas.getContext('2d')!;
+      const W = canvas.width;
+      const H = canvas.height;
       ctx.fillStyle = '#39ff14';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#ff00ff'; // left edge
+      ctx.fillRect(0, 0, W * 0.06, H);
+      ctx.fillStyle = '#ffff00'; // right edge
+      ctx.fillRect(W * 0.94, 0, W * 0.06, H);
+      ctx.fillStyle = '#ff0000'; // top edge
+      ctx.fillRect(0, 0, W, H * 0.08);
+      ctx.fillStyle = '#0000ff'; // bottom edge
+      ctx.fillRect(0, H * 0.92, W, H * 0.08);
       const video = el.shadowRoot!.querySelector('video')!;
       video.srcObject = (canvas as HTMLCanvasElement & { captureStream: (fps?: number) => MediaStream }).captureStream(5);
       live.status = 'playing';
@@ -218,13 +232,16 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
         video.onloadedmetadata = () => resolve();
       });
       await new Promise((r) => setTimeout(r, 400)); // a painted frame, not only metadata
-      return { objectFit: getComputedStyle(video).objectFit, videoW: video.videoWidth, videoH: video.videoHeight };
+      const vb = video.getBoundingClientRect();
+      const hb = el.getBoundingClientRect();
+      return { objectFit: getComputedStyle(video).objectFit, video: { w: vb.width, h: vb.height }, host: { w: hb.width, h: hb.height } };
     });
   }
 
-  /** What the browser ACTUALLY painted at a tile's left and right edges (mid-height) and top edge (centre): the
-   * tile's real screenshot pixels, decoded in the page (no image library needed). A band beside the picture shows
-   * the player's dark background (#0f1729) there instead of the synthetic frame's green. */
+  /** What the browser ACTUALLY painted just inside a tile's four edges: the tile's real screenshot pixels, decoded
+   * in the page (no image library needed). Left/right are sampled at 40% height, top at the centre, bottom at 20%
+   * of the width from the left - clear of the camera label and status pill (bottom right, the RTL start side) and
+   * the mute button (bottom left corner). */
   async function paintedEdges(page: Page, tile: import('@playwright/test').Locator) {
     const png = (await tile.screenshot()).toString('base64');
     return page.evaluate(async (b64) => {
@@ -239,10 +256,30 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
       const at = (x: number, y: number) => Array.from(ctx.getImageData(Math.round(x), Math.round(y), 1, 1).data.slice(0, 3));
       const w = c.width;
       const h = c.height;
-      return { left: at(3, h * 0.4), right: at(w - 4, h * 0.4), top: at(w / 2, 3) };
+      return { left: at(3, h * 0.4), right: at(w - 4, h * 0.4), top: at(w / 2, 3), bottom: at(w * 0.2, h - 3) };
     }, png);
   }
-  const isFrameGreen = ([r, g, b]: number[]) => g > 170 && r < 150 && b < 120;
+  // colour classes robust to the tile's own light top / darker bottom shade gradient
+  const isMagenta = ([r, g, b]: number[]) => r > 150 && b > 150 && g < 100;
+  const isYellow = ([r, g, b]: number[]) => r > 150 && g > 150 && b < 100;
+  const isRed = ([r, g, b]: number[]) => r > 150 && g < 80 && b < 80;
+  const isBlue = ([r, g, b]: number[]) => b > 100 && r < 60 && g < 60;
+
+  /** The whole synthetic frame reaches all four edges of `tile`: `fit` is the expected object-fit, the video box is
+   * the tile's box in both dimensions, and each edge marker is painted at the matching tile edge (none cropped,
+   * no band beside the picture). */
+  async function expectWholeFrameEdgeToEdge(page: Page, tile: import('@playwright/test').Locator, fit: 'fill' | 'contain') {
+    const fed = await feedSyntheticFrame(tile);
+    expect(fed.objectFit).toBe(fit);
+    expect(Math.abs(fed.video.w - fed.host.w)).toBeLessThan(1);
+    expect(Math.abs(fed.video.h - fed.host.h)).toBeLessThan(1);
+    const e = await paintedEdges(page, tile);
+    const got = JSON.stringify(e);
+    expect(isMagenta(e.left), `left edge (frame's left marker) ${got}`).toBe(true);
+    expect(isYellow(e.right), `right edge (frame's right marker) ${got}`).toBe(true);
+    expect(isRed(e.top), `top edge (frame's top marker) ${got}`).toBe(true);
+    expect(isBlue(e.bottom), `bottom edge (frame's bottom marker) ${got}`).toBe(true);
+  }
 
   /** S4 review: no DELETE /cameras endpoint exists in this codebase (checked) - disabling a self-seeded row is
    * the closest available cleanup, and ensureTwoCameras() above knows to re-enable that same row on a later run
@@ -336,17 +373,12 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
       expect(gridBox.height).toBeLessThan(900);
 
       // The live picture must fill that wide strip edge to edge (owner: "left to right, not only in the
-      // middle"). Fixture cameras never become "online" and this backend has no go2rtc, so the tile's LIVE path is
-      // forced open and fed a synthetic 16:9 frame (feedSyntheticFrame); then the pixels the browser really
-      // painted at the strip's left, right and top edges are read back from a screenshot. With 0.1.100's
-      // `object-fit: contain` a 16:9 frame in a 32:9 strip left dark bands down both sides - this check fails
-      // there; the spanned tile now uses `cover`, like its snapshot poster.
-      const fed = await feedSyntheticFrame(spannedTile);
-      expect(fed.objectFit).toBe('cover');
-      const edges = await paintedEdges(page, spannedTile);
-      expect(isFrameGreen(edges.left), `left edge painted ${edges.left}`).toBe(true);
-      expect(isFrameGreen(edges.right), `right edge painted ${edges.right}`).toBe(true);
-      expect(isFrameGreen(edges.top), `top edge painted ${edges.top}`).toBe(true);
+      // middle") and show the WHOLE frame - stretched, not cropped (owner decision 2026-09-27). Fixture cameras
+      // never become "online" and this backend has no go2rtc, so the tile's LIVE path is forced open and fed a
+      // synthetic 16:9 frame with a marker on each edge; the pixels the browser really painted at the strip's
+      // four edges are then read back from a screenshot. `contain` (0.1.100) fails the left/right check (dark
+      // bands), `cover` fails the top/bottom check (markers trimmed away); `fill` passes all four.
+      await expectWholeFrameEdgeToEdge(page, spannedTile, 'fill');
     } finally {
       for (const c of snapshot) {
         await request.patch(`/api/v1/cameras/${c.id}`, { data: { sort_order: c.sort_order, grid_col_span: c.grid_col_span } }).catch(() => {});
@@ -355,7 +387,7 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
     }
   });
 
-  test('owner layout (0.1.101 report): 11 cameras, "12" layout, automatic columns - span-only save keeps the stored order, on-screen order follows dense placement, rows stay even, the wide picture fills its tile', async ({ page, request }) => {
+  test('owner layout (0.1.101 report): 11 cameras, "12" layout, automatic columns - span-only save keeps the stored order, the wall shows exactly that order, rows stay even, the wide picture shows the whole frame edge to edge', async ({ page, request }) => {
     // Reproduces the owner's real setup of 2026-09-27: 11 cameras, the "12" layout button, the automatic ("אוטו")
     // column fit - not a manual column count like the tests above - and two cameras (the 4th and the 6th, the
     // owner's two sports-hall cameras) set to span 2 columns through the settings dialog by changing ONLY their
@@ -363,14 +395,14 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
     // not filling the wide tile. What this checks, in order:
     // (1) a span-only save does not change the STORED camera order (sort_order is renumbered 0..N-1 in the same
     //     relative order) - verified clean;
-    // (2) the ON-SCREEN order - where each tile really is, read the way a person reads this RTL wall - is NOT the
-    //     stored order in this scenario: `grid-auto-flow: dense` lets a later, narrower camera fill a gap an
-    //     earlier spanned one could not (at 4 columns the 5th camera closes the first row, ahead of the 4th). This
-    //     is current behaviour, asserted as it is (against the exact placement model, simulateDensePlacement), NOT
-    //     a guarantee; whether the wall should keep strict order instead is an open owner decision;
+    // (2) the ON-SCREEN order - where each tile really is, read the way a person reads this RTL wall - IS the
+    //     saved order (owner decision 2026-09-27: strict order, the grid no longer uses `grid-auto-flow: dense`,
+    //     which put the 5th camera ahead of the spanned 4th here); a spanned camera that does not fit at the end
+    //     of a row starts the next row and leaves a gap instead;
     // (3) every row is ONE even height - 0.1.101 made a row holding a spanned camera about twice as tall as its
     //     neighbours, leaving holes under the plain tiles and changing the automatic column count;
-    // (4) the wall still fits the screen; (5) a real (synthetic) 16:9 video frame fills the wide tile edge to edge.
+    // (4) the wall still fits the screen; (5) a real (synthetic) 16:9 video frame reaches all four edges of each
+    //     wide tile, whole - stretched, not cropped (owner decision 2026-09-27).
     const { cams, seededIds } = await ensureCameras(request, 11);
     const snapshot = (await (await request.get('/api/v1/cameras')).json()).cameras as ApiCamera[];
     try {
@@ -406,9 +438,8 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
       await expect(wall.locator('[data-wall-cols-set="0"]')).toHaveClass(/on/);
       await page.waitForTimeout(500); // the fit re-measures once after the first render
 
-      // (2) on-screen order. The DOM keeps the stored order (dense placement never reorders the DOM), but that is
-      // not what the owner sees: the real position of each tile is read row by row from the top, and within a row
-      // from the RIGHT edge (this UI is RTL, so grid column 1 is on the right).
+      // (2) on-screen order: where each tile really is, read row by row from the top and within a row from the
+      // RIGHT edge (this UI is RTL, so grid column 1 is on the right) - not just the DOM order.
       const domIds = await wall.locator('sw-camera-tile').evaluateAll((els) => els.map((el) => el.getAttribute('cameraid')));
       expect(domIds).toEqual(shownBefore);
       const cols = Number(await wall.locator('[data-wall-cols]').getAttribute('data-wall-cols'));
@@ -417,18 +448,21 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
         return { id: el.getAttribute('cameraid')!, top: Math.round(b.top), right: b.right };
       }));
       const onScreen = [...rendered].sort((a, b) => a.top - b.top || b.right - a.right).map((t) => shownBefore.indexOf(t.id));
-      const spans = shownBefore.map((id) => (id === hallA || id === hallB ? 2 : 1));
-      const modelled = simulateDensePlacement(spans.map((s) => Math.min(s, cols)), cols)
-        .map((p, i) => ({ ...p, i }))
-        .sort((a, b) => a.row - b.row || a.col - b.col)
-        .map((p) => p.i);
       test.info().annotations.push({ type: 'on-screen order', description: `${cols} columns: ${onScreen.join(',')}` });
-      expect(onScreen).toEqual(modelled); // the browser places tiles exactly as the dense model predicts
+      expect(onScreen).toEqual(shownBefore.map((_, i) => i)); // exactly the saved order
+      // ...and every tile sits where the strict placement model puts it (same row, same row-reading position)
+      const spans = shownBefore.map((id) => (id === hallA || id === hallB ? 2 : 1));
+      const model = simulateStrictPlacement(spans, cols);
+      const rowTops = [...new Set(rendered.map((t) => t.top))].sort((a, b) => a - b);
+      expect(rowTops.length).toBe(simulateStrictRows(spans, cols));
+      rendered.forEach((t, i) => expect(rowTops.indexOf(t.top), `row of tile #${i}`).toBe(model[i].row));
       if (shownBefore.length === 11) {
-        // the owner's exact case (11 cameras, 1440x900): the automatic fit picks 4 columns, and on screen the 5th
-        // camera sits ahead of the spanned 4th - the stored order is NOT what is displayed (owner decision pending)
+        // the owner's exact case (11 cameras, 1440x900): the automatic fit picks 4 columns; the spanned 4th camera
+        // does not fit after the first three, so the first row ends in a one-column gap and the 4th starts row 2
+        // (under dense placement the 5th camera used to fill that gap, ahead of the 4th)
         expect(cols).toBe(4);
-        expect(onScreen).toEqual([0, 1, 2, 4, 3, 5, 6, 7, 8, 9, 10]);
+        expect(model[3]).toEqual({ row: 1, col: 0 });
+        expect(rendered[3].top).toBeGreaterThan(rendered[2].top);
       }
 
       // (3) one even row height everywhere: no tile taller than any other, so no holes under plain tiles
@@ -448,20 +482,10 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
       });
       expect(scrollOverflow).toBeLessThan(4);
 
-      // (5) a real 16:9 video frame reaches both side edges and the top edge of each wide tile
-      for (const id of [hallA, hallB]) {
-        const tile = wall.locator(`sw-camera-tile[cameraid="${id}"]`);
-        expect((await feedSyntheticFrame(tile)).objectFit).toBe('cover');
-        const edges = await paintedEdges(page, tile);
-        expect(isFrameGreen(edges.left), `left edge painted ${edges.left}`).toBe(true);
-        expect(isFrameGreen(edges.right), `right edge painted ${edges.right}`).toBe(true);
-        expect(isFrameGreen(edges.top), `top edge painted ${edges.top}`).toBe(true);
-      }
-      // a plain (span-1) tile keeps `contain` - a 16:9 frame in its 16:9 box fills it without any trimming
-      const plain = wall.locator(`sw-camera-tile[cameraid="${shownBefore[0]}"]`);
-      expect((await feedSyntheticFrame(plain)).objectFit).toBe('contain');
-      const plainEdges = await paintedEdges(page, plain);
-      expect(isFrameGreen(plainEdges.left) && isFrameGreen(plainEdges.right), `plain tile edges ${JSON.stringify(plainEdges)}`).toBe(true);
+      // (5) the WHOLE 16:9 frame reaches all four edges of each wide tile - stretched (`fill`), not cropped
+      for (const id of [hallA, hallB]) await expectWholeFrameEdgeToEdge(page, wall.locator(`sw-camera-tile[cameraid="${id}"]`), 'fill');
+      // a plain (span-1) tile keeps `contain` - a 16:9 frame in its 16:9 box already shows whole, edge to edge
+      await expectWholeFrameEdgeToEdge(page, wall.locator(`sw-camera-tile[cameraid="${shownBefore[0]}"]`), 'contain');
     } finally {
       for (const c of snapshot) {
         await request.patch(`/api/v1/cameras/${c.id}`, { data: { sort_order: c.sort_order, grid_col_span: c.grid_col_span } }).catch(() => {});
@@ -471,20 +495,18 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
   });
 
   test('a fragmentation-prone span mix (four span-3 tiles at 4 columns, T018 re-review) does not overflow the viewport', async ({ page, request }) => {
-    // T018 re-review (blocking finding): CSS Grid's `grid-auto-flow: dense` is a first-fit, row-major scan,
-    // not ideal bin-packing. Four span-3 cameras at 4 columns is the cleanest reproduction: each one fills 3
-    // of the 4 columns and leaves a 1-column fragment nothing here can ever fill (every item is span-3), so
-    // dense placement forces every one of them onto its OWN row - 4 real rows - while a naive ideal-packing
-    // estimate (`Math.ceil(sum(spans)/cols)` = `Math.ceil(12/4)`) predicts only 3. This is the same class of
-    // discrepancy the reviewer measured in real Chromium for spans [3,3,2] at 4 columns (2 vs. a real 3) -
-    // see wall-grid.ts's simulateDenseRows() and tests/unit-wall-dense-pack.spec.ts for that exact figure and
-    // more (this in-browser test uses an all-span-3 mix instead only so 4 distinctly-seeded cameras exactly
-    // fill 4 columns without live-wall.ts's own `Math.min(colsOverride, shown.length)` clamp kicking in).
-    // Feeding the too-low row estimate into the tile-height budget sizes tiles for 3 rows while the browser
-    // renders 4 - exactly the "wall overflows the screen" failure this feature has already been fixed for
-    // twice (letterboxing, then this row-count gap); the wall's tile sizing (bestFit()/fitTile() in
-    // live-wall.ts) must use the ACTUAL row count (simulateDenseRows()) or this reproduces that overflow end
-    // to end in a real browser.
+    // T018 re-review (blocking finding), now under strict saved-order placement (owner decision 2026-09-27, the
+    // grid's default row auto-placement): a tile whose span does not fit in what is left of a row starts the next
+    // row and leaves a gap. Four span-3 cameras at 4 columns is the cleanest reproduction: each one fills 3 of the
+    // 4 columns, the 4th column of every row stays empty, so each camera gets its OWN row - 4 real rows
+    // (simulateStrictRows([3,3,3,3], 4)) - while a naive ideal-packing estimate (`Math.ceil(sum(spans)/cols)` =
+    // `Math.ceil(12/4)`) predicts only 3. (This in-browser test uses an all-span-3 mix so 4 distinctly-seeded
+    // cameras exactly fill 4 columns without live-wall.ts's own `Math.min(colsOverride, shown.length)` clamp
+    // kicking in; tests/unit-wall-grid.spec.ts has more row-count cases.) Feeding the too-low row estimate into
+    // the tile-height budget sizes tiles for 3 rows while the browser renders 4 - the "wall overflows the screen"
+    // failure this feature has already been fixed for; the wall's tile sizing (bestFit()/fitTile() in
+    // live-wall.ts) must use the ACTUAL row count (simulateStrictRows()) or this reproduces that overflow end to
+    // end in a real browser.
     const { cams, seededIds } = await ensureCameras(request, 4);
     const [c1, c2, c3, c4] = cams;
     const snapshot = (await (await request.get('/api/v1/cameras')).json()).cameras as ApiCamera[];
@@ -534,11 +556,20 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
       const fitInfo = await wall.locator('[data-wall-cols]').evaluate((el) => ({ tile: parseFloat((el as HTMLElement).style.getPropertyValue('--tile')), w: el.clientWidth }));
       expect(fitInfo.tile, `fitted tile ${fitInfo.tile}px, grid ${fitInfo.w}px wide`).toBeLessThan((fitInfo.w - 3 * 12) / 4 - 20);
 
-      // dense placement really does force each span-3 tile onto its own row (none of the 4 fits into any
-      // fragment another one left behind): 4 tiles, 4 distinct row tops.
+      // ...and a naive (ideal-packing, 3-row) estimate would really overflow this height budget: sized for 3
+      // rows, the 4 rows the browser renders would need clearly more height than the wall has (the measured box
+      // live-wall uses, not a guess).
+      const strictRows = simulateStrictRows([3, 3, 3, 3], 4);
+      expect(strictRows).toBe(4);
+      const box = await wall.evaluate((el) => (el as unknown as { box: { w: number; h: number } }).box);
+      const naiveTile = Math.min((box.w - 3 * 12) / 4, ((box.h - 2 * 12) / Math.ceil(12 / 4)) * (16 / 9));
+      const naiveGridH = strictRows * ((naiveTile * 9) / 16) + (strictRows - 1) * 12;
+      expect(naiveGridH, `naive sizing: ${Math.round(naiveGridH)}px of rows in a ${box.h}px budget`).toBeGreaterThan(box.h + 40);
+
+      // strict placement gives each span-3 tile its own row: 4 tiles, simulateStrictRows() distinct row tops
       const boxes = await Promise.all([c1.id, c2.id, c3.id, c4.id].map((id) => wall.locator(`sw-camera-tile[cameraid="${id}"]`).boundingBox()));
       const tops = new Set(boxes.map((b) => Math.round(b!.y)));
-      expect(tops.size).toBe(4);
+      expect(tops.size).toBe(strictRows);
     } finally {
       for (const c of snapshot) {
         await request.patch(`/api/v1/cameras/${c.id}`, { data: { sort_order: c.sort_order, grid_col_span: c.grid_col_span } }).catch(() => {});

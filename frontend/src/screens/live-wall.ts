@@ -15,7 +15,7 @@ import { listCameras, updateCamera } from '../api/maps';
 import { effectiveTransport, productSettings } from '../api/prefs';
 import { describeError } from '../api/client';
 import type { Camera } from '../api/types';
-import { simulateDenseRows } from './wall-grid';
+import { simulateStrictRows } from './wall-grid';
 
 /** T091 (owner request 2026-09-27): one row of the grid-layout settings dialog - the order the rows are kept
  * in IS the new sort_order (recomputed as 0..N-1 on save); `span` is the camera's grid_col_span. */
@@ -96,14 +96,12 @@ export class LiveWall extends LitElement {
       display: grid;
       gap: 12px;
       grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
-      /* T091 review: a spanned tile can leave a gap sparse auto-placement would not backfill (e.g. spans
-         [1,2,1] at 2 columns) - dense placement backfills it instead, so the browser packs as tightly as
-         first-fit dense placement can. T018 re-review: "as tightly as it can" is still not always the ideal
-         packing bestFit() searches for (dense placement can still leave an unfillable 1-column fragment, e.g.
-         spans [3,3,2] at 4 columns render 3 rows, not an ideal 2) - bestFit() now runs the exact same
-         first-fit dense algorithm itself (simulateDenseRows()) to size tiles for the row count this CSS rule
-         will actually produce, rather than assuming ideal packing. */
-      grid-auto-flow: dense;
+      /* Owner decision 2026-09-27: the cameras appear in EXACTLY their saved order, even when a spanned camera
+         does not fit at the end of a row and that row ends in a gap. This is the default row auto-placement,
+         spelled out on purpose: "dense" (used from the T091 review until this decision) filled such gaps by
+         pulling a later, narrower camera up ahead of the wider one, so the wall did not show the saved order.
+         The tile sizing (fitTile()) uses the exact row count of this placement - simulateStrictRows(). */
+      grid-auto-flow: row;
     }
     /* best fit (0.1.68): the tiles fill the screen as a rectangle - as many columns as make the tiles biggest */
     .colbtn {
@@ -238,13 +236,14 @@ export class LiveWall extends LitElement {
    * tall as its neighbours (large holes under the plain tiles), shrank the whole wall into the middle of the
    * screen and changed the column count the fit picks - every camera moved. The owner rejected that: the
    * arrangement should stay as it was, and only the picture inside the wide tile should run edge to edge. That
-   * part is done where the tile is rendered (`fit="cover"` for a spanned tile - see renderApi()), not by
+   * part is done where the tile is rendered (`fit="fill"` for a spanned tile - see renderApi()), not by
    * reshaping the tile.
    *
    * With every row the same height, the height budget is simply `rows` rows of `tile*9/16` plus the gaps; the
-   * row COUNT stays exact (simulateDenseRows(): the real first-fit dense placement, not the ideal-packing
-   * `Math.ceil(sum/cols)` estimate that undercounts spans like [3,3,2] at 4 columns - T018 re-review). The
-   * automatic search and a manual column choice both size tiles through the same fitTile(). */
+   * row COUNT stays exact (simulateStrictRows(): the saved-order row placement the grid really uses, gaps at row
+   * ends included - not the ideal-packing `Math.ceil(sum/cols)` estimate, which undercounts spans like
+   * [3,3,3,3] at 4 columns - T018 re-review). The automatic search and a manual column choice both size tiles
+   * through the same fitTile(). */
   private bestFit(spans: number[]): { cols: number; tile: number } | null {
     const { w, h } = this.box;
     const total = spans.reduce((a, s) => a + s, 0);
@@ -264,7 +263,7 @@ export class LiveWall extends LitElement {
   private fitTile(spans: number[], cols: number, w: number, h: number): number {
     const byWidth = (w - WALL_GAP * (cols - 1)) / cols;
     if (h <= 120) return byWidth;
-    const rows = simulateDenseRows(spans.map((s) => Math.min(s, cols)), cols);
+    const rows = simulateStrictRows(spans.map((s) => Math.min(s, cols)), cols);
     const byHeight = ((h - WALL_GAP * Math.max(0, rows - 1)) / rows) * (16 / 9);
     return Math.min(byWidth, byHeight);
   }
@@ -488,9 +487,11 @@ export class LiveWall extends LitElement {
           // A span-N tile is N columns wide at ONE row's height (see bestFit()): its box is exactly as tall as a
           // plain tile. With the fitted tile width known, the ratio includes the N-1 gaps it also covers, so the
           // row stays one even height; without it (plain 1fr columns) 16N:9 is the close approximation. The live
-          // picture inside such a wide box uses `cover` - it fills the strip edge to edge, the same framing its
-          // snapshot poster already has - instead of `contain`, which left it in the middle of the strip with
-          // dark bands on both sides (owner, 2026-09-27). A plain tile keeps `contain` (16:9 box, 16:9 stream).
+          // picture inside such a wide box uses `fill` - the WHOLE frame stretched across the strip, edge to edge,
+          // nothing cropped - instead of `contain`, which left it in the middle of the strip with dark bands on
+          // both sides. Owner decisions 2026-09-27: edge to edge, and stretched rather than cropped (a normal 16:9
+          // camera looks wider than reality in a span-2 strip; the full field of view stays visible). A plain
+          // tile keeps `contain` (16:9 box, 16:9 stream: nothing to stretch or crop).
           const ratio = span > 1 ? (tilePx ? `${span * tilePx + (span - 1) * gapPx} / ${(tilePx * 9) / 16}` : `${16 * span} / 9`) : '';
           return html`<sw-camera-tile
             name=${c.name}
@@ -501,7 +502,7 @@ export class LiveWall extends LitElement {
             transport=${transport}
             poster=${c.status === 'offline' ? '' : snapshotUrl(c.id, this.posterBust)}
             ?compact=${n >= 9}
-            fit=${span > 1 ? 'cover' : 'contain'}
+            fit=${span > 1 ? 'fill' : 'contain'}
             style=${`grid-column: span ${span}${ratio ? `; aspect-ratio: ${ratio}` : ''}`}
             @click=${() => navigate(`/live/cameras/${c.id}`)}></sw-camera-tile>`;
         })}

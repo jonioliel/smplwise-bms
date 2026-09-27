@@ -32,8 +32,8 @@ export class SwCameraTile extends LitElement {
   @property({ type: Boolean }) live = false;
   @property() profile: 'sub' | 'main' = 'sub';
   @property() transport: 'auto' | 'webrtc' | 'mse' = 'auto';
-  /** Passed through to sw-live-player's `fit` (contain | cover) - see there. */
-  @property() fit: 'contain' | 'cover' = 'contain';
+  /** Passed through to sw-live-player's `fit` (contain | cover | fill) - see there. */
+  @property() fit: 'contain' | 'cover' | 'fill' = 'contain';
 
   static styles = css`
     :host {
