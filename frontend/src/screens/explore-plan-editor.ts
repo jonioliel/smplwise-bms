@@ -31,7 +31,7 @@ import { StudioController } from '../map/studio-controller';
 import { ARRAY_MAX, BIND_DISTANCE_M, CIRCUIT_COLORS, addArray, addCircuit, addCircuitLamp, addConnector, addLabel, addLevel, addObject, addOpening, addWall, arrayDefaults, circuitPower, defaultLevelId, duplicateBeside, duplicateObject, initialLevel, kindDefaults, levelUsage, moveConnectorVertex, moveGroup, moveObject, moveVertex, newId, nudgeT, openingRange, patchCircuit, patchConnector, patchLabel, patchLevel, patchObject, patchOpening, patchWall, removeCorner, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember, translateWall, visibleUnderLevel, wallDirectionAt, duplicateSelection, itemsInRect, moveSelection, removeItems, selectableItems, selectionDelta, toggleItem, translatePolygon, TAG_MAX_COUNT, circuitEligible, itemsWithTag, joinCircuit, setLevelOf, tagCounts, tagItems, withTag, withoutTag, type MultiItem, type WallDefaults,
   GRID_DEFAULT_M, GRID_STEPS_M, GUIDE_SNAP_PX, alignObjects, distributeObjects, gridDelta, gridStepPx, objectBox, snapObjectPosition, snapToGrid, guideTargets, type AlignMode, type Guide, type GuideTargets } from '../map/studio-ops';
 import { ANCHOR_3D_DEFAULTS, anchor3dKind } from '../map/anchor-3d';
-import { COLL_LABEL, CONNECTOR_LABEL, circuitPlacingHint, connectorDerived, countLabel, fmtMetres, fmtScale, renderArrayDialog, renderCalibPanel, renderCircuitPanel, renderConnectorPanel, renderCustomItemDialog, renderGroupDeleteDialog, renderGroupInspector, renderLevelChips, renderLevelDialog, renderDetectPanel, renderLibraryPanel, renderMeasurePanel, renderObjectInspector, renderConnectorSelection, renderMultiSelection, renderGridOptions, renderStudioPanel, renderTagPicker, renderTagsField, MULTI_HINT, SAVE_LABEL, studioPanelStyles, lighterStrength, type ArrayDialogView, type CustomItemView, type DetectAcceptError, type DetectOpts, type DetectReplaceAsk, type DetectRunState, type GeomKind, type GeomSel, type LevelDialogView, type StudioMode } from './plan-studio-panel';
+import { COLL_LABEL, CONNECTOR_LABEL, circuitPlacingHint, connectorDerived, countLabel, fmtMetres, fmtScale, renderArrayDialog, renderCalibPanel, renderCircuitPanel, renderConnectorPanel, renderCustomItemDialog, renderGroupDeleteDialog, renderGroupInspector, renderLevelChips, renderLevelDialog, renderDetectPanel, renderLibraryPanel, renderMeasurePanel, renderObjectInspector, renderConnectorSelection, renderMultiSelection, renderGridOptions, renderShortcutsDialog, renderStudioPanel, renderTagPicker, renderTagsField, MULTI_HINT, SAVE_LABEL, studioPanelStyles, lighterStrength, type ArrayDialogView, type CustomItemView, type DetectAcceptError, type DetectOpts, type DetectReplaceAsk, type DetectRunState, type GeomKind, type GeomSel, type LevelDialogView, type StudioMode } from './plan-studio-panel';
 
 type Strength = 'light' | 'medium' | 'strong';
 /** A zone save or delete that has not answered by then counts as failed (review of T085, R4): the bulk actions it holds
@@ -135,6 +135,15 @@ export class ExplorePlanEditor extends LitElement {
   @state() private redo: Anchor[][] = [];
   @state() private selectedId: string | null = null;
   @state() private tool: Tool = 'select';
+  /** T085 pan/help (owner request 2026-09-27): a persistent hand-tool toggle, independent of `tool` - every drag pans
+   * while it is on, whatever tool is active, and `tool` itself never changes, so turning it off returns to that tool
+   * exactly as it was (including any selection). Modeled as an overlay flag rather than a new `Tool` value: it needs to
+   * combine with every existing tool (not replace one), and reusing `spacePan`'s own gates in sw-plan-canvas - a drag
+   * only pans, nothing else, in every one of them already - was far less code than teaching ~40 tool-specific checks
+   * across this file about a `'pan'` tool that has no panel, no placement and no drawing state of its own. */
+  @state() private panMode = false;
+  /** T085 pan/help: the keyboard-shortcuts dialog, opened from the map toolbar's "?" button. */
+  @state() private shortcutsOpen = false;
   @state() private layers = new Set<Layer>(['cameras', 'doors', 'lights', 'sensors']);
   /** The loaded plan picture under the drawing (owner request 2026-09-26): a switch of the layers tool, remembered per
    * floor in this browser apart from the live map's own switch. */
@@ -369,6 +378,36 @@ export class ExplorePlanEditor extends LitElement {
     .bar .grow {
       flex: 1;
     }
+    /* T085 pan/help: the hand-tool toggle and the shortcuts-help button live in the top bar, not the vertical rail (an
+     * absolute overlay whose height is capped by the legend below it) - a row that grows in normal flow instead. The
+     * hand tool is a modifier over whatever tool is active, not a content tool of its own, so its "on" state gets an
+     * amber tone rather than the rail's blue accent, keeping it visually distinct from a selected tool. */
+    .bar button.icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      inline-size: 26px;
+      block-size: 26px;
+      border: 1px solid var(--sw-border-strong);
+      border-radius: 7px;
+      background: var(--sw-surface);
+      color: var(--sw-text-2);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .bar button.icon:hover {
+      background: var(--sw-surface-2);
+      color: var(--sw-text);
+    }
+    .bar button.icon.on {
+      background: var(--sw-warning-soft);
+      color: var(--sw-warning);
+      border-color: var(--sw-warning);
+    }
+    .bar button.icon:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
     .autosave {
       display: inline-flex;
       align-items: center;
@@ -442,6 +481,39 @@ export class ExplorePlanEditor extends LitElement {
     }
     .err {
       color: var(--sw-danger);
+    }
+    /* T085 pan/help: the keyboard-shortcuts dialog's grouped list */
+    .shortcuts-group h4 {
+      margin: 10px 0 4px;
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-text-2);
+    }
+    .shortcuts-group:first-child h4 {
+      margin-block-start: 0;
+    }
+    .shortcuts-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 4px 0;
+      font-size: var(--sw-fs-xs);
+    }
+    .shortcuts-row kbd {
+      flex: 0 0 auto;
+      min-inline-size: 84px;
+      text-align: center;
+      font: inherit;
+      font-size: 11px;
+      direction: ltr;
+      color: var(--sw-text-2);
+      border: 1px solid var(--sw-border-strong);
+      border-radius: 6px;
+      padding: 2px 6px;
+      background: var(--sw-surface-2);
+    }
+    .shortcuts-row span {
+      color: var(--sw-text-2);
     }
     .list {
       display: flex;
@@ -1001,6 +1073,7 @@ export class ExplorePlanEditor extends LitElement {
     const target = e.composedPath()[0] as HTMLElement | undefined;
     const typing = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable);
     if (e.key === 'Escape') {
+      if (this.shortcutsOpen) { this.shortcutsOpen = false; return; }
       if (this.arrayDialog || this.groupDelete || this.customDialog) { this.arrayDialog = null; this.groupDelete = null; this.customDialog = null; return; }
       if (this.connStart) { this.connStart = null; return; }
       if (this.tool === 'circuits' && this.circuitPlacing) { this.circuitPlacing = null; return; } // first Esc: the armed lamp type
@@ -1020,6 +1093,10 @@ export class ExplorePlanEditor extends LitElement {
       else if (this.drawing) this.drawing = null;
       else if (this.placing) this.placing = null;
       else if (this.candidates) this.candidates = null;
+      // the hand tool comes after every in-progress draft or placement above: cancelling a dangling wall/zone draft or
+      // connector start is more surprising to leave behind than a second Esc to also leave the hand tool (owner
+      // decision needed here - T085 review; a first Esc still turns it off on its own once nothing else is open)
+      else if (this.panMode) this.panMode = false;
       else {
         // the selection goes last, whatever it is - one pin, one item or a multi-selection (T085): an Esc first ends
         // whatever is being placed or drawn, exactly as before a multi-selection existed
@@ -1032,7 +1109,10 @@ export class ExplorePlanEditor extends LitElement {
       return;
     }
     if (typing) return; // a field keeps its own keys: Ctrl+A there selects its text, Delete edits it
-    if (this.arrayDialog || this.groupDelete || this.customDialog) return; // an open dialog owns the keys: no Delete or nudge behind it
+    if (this.arrayDialog || this.groupDelete || this.customDialog || this.shortcutsOpen) return; // an open dialog owns the keys: no Delete or nudge behind it
+    // the hand tool: a drag pans and nothing else, so no tool shortcut fires behind it either - Esc above is the only
+    // key it answers, exactly like the panel and drawing shortcuts it is standing in for
+    if (this.panMode) return;
     if (this.multiOn && this.handleMultiKey(e)) return;
     if ((this.studioOn || this.selectGeomOn) && this.handleStudioKey(e)) return;
     if (e.key === 'Enter' && this.drawing) {
@@ -4057,6 +4137,10 @@ export class ExplorePlanEditor extends LitElement {
                     <sw-button size="sm" data-realign-crop ?disabled=${this.busy} title="כשהגרסה החדשה היא חיתוך אחר של אותו שרטוט, המיקומים מחושבים דרך שני החיתוכים" @click=${() => this.realign('crop')}>יישר לפי החיתוך</sw-button>
                     <sw-button size="sm" variant="ghost" data-realign-accept ?disabled=${this.busy} title="אחרי בדיקה בעין: הפריטים נרשמים על הגרסה הנוכחית כפי שהם" @click=${() => this.realign('accept')}>אשר מיקומים</sw-button>` : nothing}
                   <span>גרירה מזיזה · גלגלת = זום · ידיות = כיוון ושדה ראייה</span>
+                  ${this.phone.matches
+                    ? nothing
+                    : html`<button class="icon ${this.panMode ? 'on' : ''}" data-tool-pan ?disabled=${this.detectBusy} title="יד: הזזת התוכנית קבועה - כל גרירה מזיזה, עד לחיצה חוזרת או Esc" aria-label="מצב הזזה (יד)" aria-pressed=${this.panMode} @click=${() => (this.panMode = !this.panMode)}><sw-icon name="hand" size=${15}></sw-icon></button>
+                        <button class="icon" data-tool-help title="קיצורי מקלדת" aria-label="קיצורי מקלדת" @click=${() => (this.shortcutsOpen = true)}><sw-icon name="help" size=${15}></sw-icon></button>`}
                 </div>
                 <div class="floorchip"><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
                 ${this.studio.doc && b.permissions.structure ? html`<div class="levelbar">${renderLevelChips(this.studio.doc.levels, this.activeLevel, (id) => this.setLevelFilter(id), () => this.openNewLevel(), (id) => this.openLevelEdit(id))}${this.phone.matches ? nothing : html`<sw-chip data-grid-chip icon="grid" ?selected=${this.grid.on} aria-pressed=${this.grid.on ? 'true' : 'false'} title="רשת עזר: גרירה והצבה של עצם נצמדות אליה (המרווח בכלי השכבות)" @click=${() => this.setGrid(b.floorId, { on: !this.grid.on })}>רשת</sw-chip>`}${!this.phone.matches && this.shownTags.length ? renderTagPicker(this.shownTags, (t) => this.selectByTag(t)) : nothing}</div>` : nothing}
@@ -4075,7 +4159,7 @@ export class ExplorePlanEditor extends LitElement {
                   @candidate-select=${(e: CustomEvent<{ id: string }>) => this.toggleCandidate(e.detail.id)}
                   @candidate-drag=${(e: CustomEvent<{ id: string; index: number; x: number; y: number }>) => this.onCandidateDrag(e.detail)} .anchorPositions=${this.anchorPositions}
                   @plan-hover=${(e: CustomEvent<{ x: number; y: number; shift: boolean; item?: boolean }>) => this.onPlanHover(e.detail.x, e.detail.y, e.detail.shift, !!e.detail.item)}
-                  .multiDrag=${this.multiShown.length >= 2 && this.geomDragMode === 'all'} .marquee=${this.multiOn}
+                  .multiDrag=${this.multiShown.length >= 2 && this.geomDragMode === 'all'} .marquee=${this.multiOn} .panMode=${this.panMode}
                   @geom-box=${(e: CustomEvent<{ x0: number; y0: number; x1: number; y1: number; add: boolean }>) => this.onGeomBox(e.detail)}
                   @geom-select=${(e: CustomEvent<{ id: string; kind: GeomKind; vertex?: number; add?: boolean }>) => this.onGeomSelect(e.detail.id, e.detail.kind, e.detail.vertex, !!e.detail.add)}
                   @geom-drag-move=${(e: CustomEvent<GeomDragDetail>) => this.onGeomDragMove(e.detail)}
@@ -4115,6 +4199,7 @@ export class ExplorePlanEditor extends LitElement {
         ${this.groupDelete ? renderGroupDeleteDialog(this.studio.doc?.groups.find((g) => g.id === this.groupDelete)?.member_ids.length ?? 0, () => this.deleteGroup(true), () => this.deleteGroup(false), () => (this.groupDelete = null)) : nothing}
         ${this.customDialog && this.library ? renderCustomItemDialog(this.customDialog, this.library, (patch) => (this.customDialog = { ...this.customDialog!, ...patch }), () => void this.createCustom(), () => (this.customDialog = null)) : nothing}
         ${this.levelDialog ? renderLevelDialog(this.levelDialog, { change: (patch) => (this.levelDialog = { ...this.levelDialog!, ...patch }), submit: () => this.submitLevel(), cancel: () => (this.levelDialog = null), remove: () => this.deleteLevel() }) : nothing}
+        ${this.shortcutsOpen ? renderShortcutsDialog(() => (this.shortcutsOpen = false)) : nothing}
       </sw-page>
     `;
   }

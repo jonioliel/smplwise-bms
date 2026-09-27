@@ -16,6 +16,8 @@ const WALL = (id: string, polyline: P[]) => ({ id, level_id: 'L0', polyline, thi
 const DOOR = (id: string, wallId: string, t: number) => ({ id, wall_id: wallId, t, kind: 'door', width_m: 0.9, height_m: 2.1, sill_m: 0, swing: 'right', hinge: 'start', anchor_ref: null, confidence: 1, source: 'manual', external_ids: {} });
 const CHAIR = (id: string, pos: P) => ({ id, item_id: 'chair.basic', level_id: 'L0', position: pos, rotation_deg: 0, size: { w_m: 0.4, d_m: 0.4, h_m: 0.85 }, z_m: 0, params: {}, label: null, anchor_ref: null,
   group_id: null, confidence: 1, source: 'manual', locked: false, external_ids: {} });
+/** A same-floor connector (T085 pan/help review): level_to left null (not chosen yet) is enough to draw and hit-test it. */
+const CONNECTOR = (id: string, polyline: P[]) => ({ id, kind: 'stairs', level_from: 'L0', level_to: null, floor_ids: [], polyline, width_m: 1, label: null, object_id: null, source: 'manual', external_ids: {} });
 
 interface Draft {
   geometry: { revision: number };
@@ -601,6 +603,138 @@ test.describe.serial('editor: select and move walls, objects and zones (0.1.87)'
     await page.keyboard.up('Space');
     await expect(layers).toHaveAttribute('aria-pressed', 'true');
     expect(await at(page, ref)).toEqual(s3);
+  });
+
+  // T085 pan/help (owner request 2026-09-27): a persistent hand-tool toggle in the rail, beside the tool buttons - unlike
+  // Space (held down, and only in the select tool's marquee mode) it stays on across every tool until clicked again or
+  // Esc, and it overrides every tool's drag, not only the select tool's. It reuses the exact same panning gate the
+  // previous test exercises through Space (`data-space-pan`), so a drag over the bare plan or an object pans and nothing
+  // else fires while it is on.
+  test('hand tool: toggling it on pans every drag (bare plan and an object), draws no marquee; Esc and a second click return to normal editing', async ({ page }) => {
+    await saveDraft(SEED);
+    await openEditor(page);
+    const pan = page.locator(`${ED} [data-tool-pan]`);
+    await expect(pan).toHaveAttribute('aria-pressed', 'false');
+    await pan.click();
+    await expect(pan).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator(`${ED} sw-plan-canvas .viewport[data-space-pan="on"]`)).toHaveCount(1);
+
+    const ref: P = [0.75, 0.2];
+    const s0 = await at(page, ref);
+    // a drag on the bare plan pans; it does not draw the marquee (which would leave the plan in place and select nothing)
+    await mouseDrag(page, await at(page, [0.8, 0.12]), 60, 40);
+    const s1 = await at(page, ref);
+    expect(s1.x - s0.x).toBeCloseTo(60, -1);
+    expect(s1.y - s0.y).toBeCloseTo(40, -1);
+    await expect(page.locator(`${ED} [data-multi-panel]`)).toHaveCount(0);
+
+    // a drag starting on an object pans too: the object itself does not move
+    const before = (await positions(['mo1']))[0];
+    const c = await at(page, [0.75, 0.55]);
+    await mouseDrag(page, c, -40, 0);
+    expect((await positions(['mo1']))[0]).toEqual(before);
+    const s2 = await at(page, ref);
+    expect(s2.x - s1.x).toBeCloseTo(-40, -1);
+
+    // Esc is the quick way out: back to the select tool exactly as it was, hand tool off
+    await page.keyboard.press('Escape');
+    await expect(pan).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator(`${ED} sw-plan-canvas .viewport[data-space-pan="on"]`)).toHaveCount(0);
+    await expect(page.locator(`${ED} [data-tool="select"]`)).toHaveAttribute('aria-pressed', 'true');
+
+    // normal select behaviour is back: a plain drag on the bare plan draws the marquee, the plan itself stays put
+    const s3 = await at(page, ref);
+    await mouseDrag(page, await at(page, [0.8, 0.12]), 60, 40);
+    expect(await at(page, ref)).toEqual(s3);
+
+    // the toggle button re-enters and leaves the hand tool just as well as Esc
+    await pan.click();
+    await expect(page.locator(`${ED} sw-plan-canvas .viewport[data-space-pan="on"]`)).toHaveCount(1);
+    await pan.click();
+    await expect(page.locator(`${ED} sw-plan-canvas .viewport[data-space-pan="on"]`)).toHaveCount(0);
+  });
+
+  // T085 pan/help review (blocking finding 1): a click while the hand tool is on must never reach a tool as a
+  // `plan-click` either, not only a drag - `onBackgroundClick` gates on `panActive` now, same as the drag handlers.
+  test('hand tool: toggling it on mid-wall-draft blocks a new corner from a click; toggling it off resumes the draft', async ({ page }) => {
+    await saveDraft(SEED);
+    await openEditor(page);
+    await page.locator(`${ED} [data-tool="structure"]`).click();
+    await page.locator(`${ED} [data-studio-mode="wall"]`).click();
+    const hint = page.locator(`${ED} .placing-hint`);
+    const p0 = await at(page, [0.3, 0.6]);
+    await page.mouse.click(p0.x, p0.y);
+    await expect(hint).toContainText('1 נקודות');
+
+    await page.locator(`${ED} [data-tool-pan]`).click();
+    const p1 = await at(page, [0.5, 0.6]);
+    await page.mouse.click(p1.x, p1.y);
+    await expect(hint).toContainText('1 נקודות'); // unchanged: the click only panned, it added no corner
+
+    await page.locator(`${ED} [data-tool-pan]`).click();
+    await page.mouse.click(p1.x, p1.y);
+    await expect(hint).toContainText('2 נקודות'); // normal drawing resumes once the hand tool is off
+  });
+
+  // T085 pan/help review (blocking finding 2): a plain click (no drag) on an unselected wall, connector or zone must not
+  // select it while the hand tool is on either - `pickGeom`, `pickConnector` and `selectZone` all gate on `panActive` now.
+  test('hand tool: a click (no drag) on an unselected wall, connector or zone selects nothing while it is on; normal click-select returns once it is off', async ({ page }) => {
+    const poly = [{ x: 0.05, y: 0.45 }, { x: 0.15, y: 0.45 }, { x: 0.15, y: 0.6 }, { x: 0.05, y: 0.6 }];
+    const created = await api.post(`api/v1/floors/${ids.floor}/zones`, { data: { name: 'אזור לבדיקת יד', kind: 'room', polygon: poly } });
+    expect(created.status()).toBe(201);
+    zoneIds.push((await created.json()).id);
+    await saveDraft({ ...SEED, connectors: [CONNECTOR('mc1', [[0.45, 0.45], [0.55, 0.5]])] });
+    try {
+      await openEditor(page);
+
+      const wallPt = await at(page, [0.3, 0.3]);
+      const zonePt = await at(page, [0.1, 0.52]);
+      const connPt = await at(page, [0.5, 0.475]);
+      const selWall = page.locator(`${ED} [data-selected-wall]`);
+      const selZone = page.locator(`${ED} sw-plan-canvas g.zone.selected`);
+      const selConn = page.locator(`${ED} [data-selected-connector]`);
+
+      await page.locator(`${ED} [data-tool-pan]`).click();
+      await page.mouse.click(wallPt.x, wallPt.y);
+      await expect(selWall).toHaveCount(0);
+      await page.mouse.click(zonePt.x, zonePt.y);
+      await expect(selZone).toHaveCount(0);
+      await page.mouse.click(connPt.x, connPt.y);
+      await expect(selConn).toHaveCount(0);
+
+      await page.locator(`${ED} [data-tool-pan]`).click(); // hand tool off: the same clicks now select as usual
+      await page.mouse.click(wallPt.x, wallPt.y);
+      await expect(selWall).toHaveCount(1);
+      await page.mouse.click(zonePt.x, zonePt.y);
+      await expect(selZone).toHaveCount(1);
+      await page.mouse.click(connPt.x, connPt.y);
+      await expect(selConn).toHaveCount(1);
+    } finally {
+      // T085 review follow-up: restore the plain seed so later tests in this file (which never pass their own
+      // `connectors`) do not keep this test's connector merged into the shared draft doc.
+      await saveDraft({ walls: SEED.walls, objects: SEED.objects, connectors: [] });
+    }
+  });
+
+  // T085 pan/help: the "?" button on the map toolbar opens a panel listing the editor's real keyboard shortcuts,
+  // grouped by topic - a representative sample is asserted (structure and a few known lines), not the exact wording,
+  // so small phrasing tweaks later do not break this test.
+  test('keyboard-shortcuts help: the "?" button lists real shortcuts grouped by topic; Esc closes it', async ({ page }) => {
+    await openEditor(page);
+    const help = page.locator(`${ED} [data-tool-help]`);
+    const dialog = page.locator(`${ED} [data-shortcuts-dialog]`);
+    await expect(dialog).toHaveCount(0);
+    await help.click();
+    await expect(dialog).toHaveCount(1);
+    const rows = dialog.locator('[data-shortcuts-row]');
+    expect(await rows.count()).toBeGreaterThanOrEqual(10);
+    await expect(dialog.locator('[data-shortcuts-group]')).not.toHaveCount(0);
+    await expect(dialog).toContainText('Ctrl+D');
+    await expect(dialog).toContainText('Ctrl+Z');
+    await expect(dialog).toContainText('Delete');
+    await expect(dialog).toContainText('Esc');
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
   });
 
   // T085 (owner request 2026-09-26): free-text tags - one item's in its inspector, several at once in the bulk panel - a
