@@ -1,5 +1,23 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.103 (pilot) — fix: strict camera order and stretched-fill wide tiles
+- Owner report (2026-09-27, real lab screenshot, on 0.1.101): the camera arrangement did not come out right -
+  wanted the cameras back in their prior order, and the wide-tile picture running edge to edge rather than
+  centered.
+- Root cause of both symptoms was the same feature area, from two different mechanisms: `grid-auto-flow: dense`
+  (added in 0.1.100) could pull a smaller camera ahead of an earlier, wider one to backfill a gap - this is what
+  actually moved cameras out of order, not any save/data bug (verified clean). The wide-tile picture issue was a
+  genuine remaining gap in 0.1.101's own fix.
+- Two product decisions, made by the owner: cameras now render in exactly their saved order, always (grid
+  placement switched from dense to plain row order, with an exact row-count calculation replacing the previous
+  dense-packing estimate); a wide tile's picture is stretched to fill completely (no cropping, full field of
+  view, proportions distorted when spans differ from the source's own ratio) rather than cropped, via a new
+  isolated `fill` framing option that does not affect any other camera tile, poster, or kiosk view.
+- Reviewed across three rounds: an initial fix was believed complete after restoring 0.1.100's row-height model,
+  but a scoped re-review proved with real browser measurements against the owner's exact camera layout that
+  dense-flow reordering was still present and unmeasured by the first test; the corrected test now proves the
+  strict-order fix by construction, not just by example.
+
 ## 0.1.102 (pilot) — WisKey Entry Center, read-only (CR-005 phase 1a)
 - Owner request (2026-09-27): embed the owner's own WisKey Home Assistant intercom integration as a new tab,
   full parity over several phases, porting the real WisKey frontend rather than redeveloping it from a command
