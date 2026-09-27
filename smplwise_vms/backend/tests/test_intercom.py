@@ -515,7 +515,8 @@ def test_overview_round_trip_and_live_refresh(feed):
         gate, side = ov["stations"]
         assert gate == {
             "id": "entry-a", "name": "Main gate", "online": True, "call_state": "ringing", "sync_state": "synced", "lock_enabled": True,
-            "lock_count": 1, "has_camera": True, "last_error": None, "last_seen": "2026-09-27T08:00:00+00:00", "pending_user_count": 0,
+            "lock_count": 1, "locks": [{"physical_index": 1, "name": "Gate"}],  # WisKey's api_id stays behind
+            "has_camera": True, "last_error": None, "last_seen": "2026-09-27T08:00:00+00:00", "pending_user_count": 0,
             "managed_user_count": 12, "zone": {"kind": "iana", "name": "Asia/Jerusalem"},
             "last_access": {"timestamp": "2026-09-27T07:59:00+03:00", "time_source": "device", "person_name": "Dana", "employee_no": "1001", "authentication": "card", "result": "granted", "event_type": "access_granted", "recovered": False, "door": 1},
         }
@@ -1244,3 +1245,927 @@ def test_events_client_never_sends_current_profile():
 
     asyncio.run(intercom_client.events_list(call, {"station_id": "entry-a", "current_profile": {"id_number": "123456789"}, "person": None, "surprise": 1}))
     assert seen == [{"type": "hikvision_intercom/events/list", "filters": {"station_id": "entry-a"}}]
+
+
+# ---------------------------------------------------------------- phase 3: physical actions (access.release)
+
+import datetime as _dt  # noqa: E402
+import logging  # noqa: E402
+import sqlite3  # noqa: E402
+import uuid  # noqa: E402
+
+from smplwise.db import Database  # noqa: E402
+from smplwise.routers import access_control  # noqa: E402
+from smplwise.routers.access import SENSITIVE  # noqa: E402
+
+
+def env(ttl: float = 15.0, **fields: Any) -> dict[str, Any]:
+    """A physical request body with a fresh command envelope (client_request_id + expires_at, as routers/ha.py)."""
+    expires = (_dt.datetime.now(_dt.timezone.utc) + _dt.timedelta(seconds=ttl)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return {"client_request_id": str(uuid.uuid4()), "expires_at": expires, **fields}
+
+
+def action_paths() -> tuple[tuple[str, str, dict[str, Any] | None], ...]:
+    return (
+        ("post", "/api/v1/intercom/stations/entry-a/release", env(confirmed=True)),
+        ("post", "/api/v1/intercom/stations/entry-a/call", env(command="answer")),
+        ("get", "/api/v1/intercom/tts/engines", None),
+        ("post", "/api/v1/intercom/stations/entry-a/tts", env(engine_id="tts.piper", language="he", message="שלום")),
+    )
+
+
+# WisKey's CallResult (client/media.py:163-171) and tts/engines reply (audio_tts.py:256-269), as WisKey sends them
+SIGNAL_RESULT = {"command": "answer", "acknowledged": True, "physical_result": "unverified", "before_state": "ringing", "observed_state": "in_call", "observation": "state_changed", "checked_at": "2026-09-27T08:01:00+00:00"}
+TTS_ENGINES = {"default": "tts.piper", "engines": [
+    {"engine_id": "tts.piper", "name": "Piper", "supported_languages": ["en", "he"], "default_language": "he"},
+    {"engine_id": "tts.google_translate_en_com", "name": "Google Translate", "supported_languages": ["en", "iw"], "default_language": "en"},
+    {"name": "no id, dropped"},
+]}
+# a station with two relays, online, ringing (the call controls' case)
+TWO_LOCKS = {**copy.deepcopy(STATION), "id": "entry-c", "name": "Loading dock", "call_state": "ringing", "integrated_locks": [{"physical_index": 1, "api_id": 1, "name": "Gate"}, {"physical_index": 2, "api_id": 7, "name": "Barrier"}]}
+ACTIONS_OVERVIEW = {**copy.deepcopy(OVERVIEW), "stations": [STATION, OFFLINE, TWO_LOCKS]}
+UNLOCK = "hikvision_intercom/stations/test_unlock"
+
+
+@pytest.fixture(autouse=True)
+def _fresh_relays():
+    access_control.RELAYS.clear()
+    yield
+    access_control.RELAYS.clear()
+
+
+def audit_rows(settings: Any, action: str, phase: str | None = None) -> list[dict[str, Any]]:
+    with Database(settings.db_path).connection() as conn:
+        rows = conn.execute("SELECT actor_user_id, actor_username, action, decision, resource_type, resource_id, reason, details_json FROM audit_log WHERE action = ? ORDER BY rowid", (action,)).fetchall()
+    out = [{**dict(r), "details": json.loads(r["details_json"]) if r["details_json"] else None} for r in rows]
+    return [r for r in out if phase is None or (r["details"] or {}).get("phase") == phase]
+
+
+def actions_feed(feed, answer: Callable[[dict[str, Any]], list[Any] | None], refuse_after: int | None = None, overview: dict[str, Any] | None = None) -> tuple[Any, list[FakeHa], TestClient]:
+    """A ready feed over ACTIONS_OVERVIEW, a site_admin `sam` (installation) and a viewer `vera` bound."""
+    app, s, install = feed
+
+    def script(msg: dict[str, Any], fake: FakeHa) -> list[Any]:
+        frames = answer(msg)
+        if frames is not None:
+            return frames
+        return normal(msg, fake, overview or ACTIONS_OVERVIEW)
+
+    fakes = install(script, refuse_after=refuse_after)
+    intercom_sync.SYNC.start(s)
+    wait_for(lambda: intercom_sync.STATE.state == "ready")
+    c = TestClient(app)
+    bind(c, s, "sam", "site_admin", "installation", "*")
+    bind(c, s, "vera", "viewer", "installation", "*")
+    return app, fakes, c
+
+
+def accept_unlock(msg: dict[str, Any]) -> list[Any] | None:
+    return [ok(msg, {"accepted": True})] if msg["type"] == UNLOCK else None
+
+
+def release(c: TestClient, station: str = "entry-a", user: str = "sam", **fields: Any) -> Any:
+    body = env(**{"confirmed": True, **fields})
+    return c.post(f"/api/v1/intercom/stations/{station}/release", json=body, headers=as_user(user))
+
+
+def test_access_release_permission_catalogue():
+    """`access.release` is its own, sensitive permission: only site_admin and system_admin hold it by default (the
+    decision recorded at routers/access.py PERMISSION_LABELS), it is never implied, and the design catalogue agrees."""
+    assert {r for r, perms in ROLES.items() if "access.release" in perms} == {"site_admin", "system_admin"}
+    for role in ("viewer", "kiosk", "operator", "editor"):
+        assert "access.release" not in ROLES[role], role
+    assert "access.release" in SENSITIVE and "door.unlock" in SENSITIVE
+    assert PERMISSION_LABELS["access.release"]
+    contract = json.loads((ROOT / "contracts" / "examples" / "role-catalog.design.json").read_text(encoding="utf-8"))
+    assert {r["id"]: "access.release" in r["permissions"] for r in contract["roles"]} == {r["id"]: "access.release" in ROLES[r["id"]] for r in contract["roles"]}
+    assert "access.release" in contract["sensitive_permissions_not_implied"]
+
+
+def test_physical_actions_require_access_release(settings):
+    """`access.read` is not enough: a viewer (and an operator, an editor, a kiosk, a site-scoped site_admin) gets 403
+    on every physical endpoint, before the body is even validated and before anything could be sent."""
+    intercom_sync.SYNC.reset()
+    intercom_sync.SYNC.start(settings)
+    c = TestClient(create_app(settings))
+    for user, role in (("vera", "viewer"), ("otto", "operator"), ("eddie", "editor"), ("wall", "kiosk")):
+        bind(c, settings, user, role, "installation", "*")
+    site = c.post("/api/v1/sites", json={"name": "T054 site"}).json()["id"]
+    bind(c, settings, "sally", "site_admin", "site", site)
+    bind(c, settings, "sam", "site_admin", "installation", "*")
+    assert c.get("/api/v1/intercom/overview", headers=as_user("vera")).status_code == 200, "vera does hold access.read"
+    for user in ("vera", "otto", "eddie", "wall", "sally", "nobody"):
+        for method, path, body in action_paths():
+            r = c.request(method, path, json=body, headers=as_user(user))
+            assert r.status_code == 403 and r.json()["code"] == "forbidden", (user, path)
+    r = c.post("/api/v1/intercom/stations/entry-a/call", json={"command": "open sesame"}, headers=as_user("vera"))
+    assert r.status_code == 403, "no permission: refused before the body is looked at"
+    assert c.post("/api/v1/intercom/stations/entry-a/call", json=env(command="open sesame"), headers=as_user("sam")).status_code == 422
+    with Database(settings.db_path).connection() as conn:
+        denied = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'access.release' AND decision = 'denied' AND actor_username = 'vera'").fetchone()[0]
+        refused = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action LIKE 'intercom.%' AND actor_username = 'vera'").fetchone()[0]
+    assert denied == len(action_paths()) + 1, "every permission refusal is audited under the real caller"
+    assert refused == 0, "a caller without the permission never reaches the action's own audit"
+    assert "access.release" in c.get("/api/v1/me", headers=as_user("sam")).json()["permissions_installation"]
+    assert "access.release" not in c.get("/api/v1/me", headers=as_user("sally")).json()["permissions_installation"]
+    intercom_sync.SYNC.reset()
+
+
+def test_release_round_trip_is_confirmed_single_and_audited(feed):
+    """Door release: refused without the explicit confirmation, then sent once with WisKey's exact shape
+    ({station_id, lock, api_contract: 1}), answered `accepted` - served as accepted, never as "opened" - and audited
+    under the real caller: an attempt row committed before sending and an outcome row after."""
+    app, fakes, c = actions_feed(feed, accept_unlock)
+    s = feed[1]
+    for confirmed in (None, False, "yes", 1):
+        body = env() if confirmed is None else env(confirmed=confirmed)
+        r = c.post("/api/v1/intercom/stations/entry-a/release", json=body, headers=as_user("sam"))
+        assert r.status_code == 409 and r.json()["code"] == "confirmation_required", confirmed
+        assert r.json()["details"]["outcome"] == "not_sent"
+    assert not sent(fakes, "stations/test_unlock"), "nothing reaches WisKey without the confirmation"
+
+    r = release(c)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["state"] == "ready" and body["release"] == {"accepted": True} and body["command_id"]
+    assert "אינו אישור שהדלת נפתחה" in body["note"], "accepted is not opened"
+    [msg] = sent(fakes, "stations/test_unlock")
+    assert msg == {"id": msg["id"], "type": UNLOCK, "station_id": "entry-a", "lock": 1, "api_contract": 1}
+    assert len(fakes) == 1, "the action rode the feed's own connection"
+    [attempt] = audit_rows(s, "intercom.release", "attempt")
+    [outcome] = audit_rows(s, "intercom.release", "outcome")
+    for row in (attempt, outcome):
+        assert (row["actor_user_id"], row["actor_username"], row["decision"], row["resource_type"], row["resource_id"], row["reason"]) == ("dev-sam", "sam", "allowed", "intercom_station", "entry-a", None)
+        assert row["details"]["command_id"] == body["command_id"] and row["details"]["lock"] == 1 and row["details"]["station_name"] == "Main gate"
+    assert outcome["details"]["outcome"] == "ok" and outcome["details"]["result"] == {"accepted": True}
+    assert "outcome" not in attempt["details"]
+
+    # a two-relay station: the relay must be named, and must be one it has
+    assert release(c, "entry-c").json()["code"] == "intercom_lock_required"
+    assert release(c, "entry-c", lock=3).json()["code"] == "intercom_lock_unknown"
+    assert release(c, "entry-c", lock=True).status_code == 422, "bool is not a relay"
+    assert release(c, "entry-c", lock=2).status_code == 200
+    assert sent(fakes, "stations/test_unlock")[-1]["lock"] == 2
+    # no lock / unknown station: refused before sending
+    assert release(c, "entry-b").json()["code"] == "intercom_no_lock"
+    r = release(c, "nope")
+    assert r.status_code == 404 and r.json()["code"] == "intercom_station_not_found"
+    assert len(sent(fakes, "stations/test_unlock")) == 2
+
+
+def test_every_refused_release_is_audited(feed, monkeypatch):
+    """B1: every request that passed the permission check leaves a row, including those refused before anything was
+    sent - missing / false confirmation, a malformed body, an unknown station, no such relay, an offline station, a
+    release of that relay still in flight, an expired or duplicate command."""
+    offline_lock = {**copy.deepcopy(STATION), "id": "entry-d", "name": "Store room", "online": False, "call_state": "unavailable"}
+    held: list[tuple[dict[str, Any], FakeHa]] = []
+
+    def answer(msg: dict[str, Any]) -> list[Any] | None:
+        if msg["type"] == UNLOCK and msg["station_id"] == "entry-c":
+            return []  # WisKey is slow: the entry-c release stays in flight
+        return accept_unlock(msg)
+
+    monkeypatch.setattr(intercom_sync, "ACTION_TIMEOUT_S", 0.3)
+    app, fakes, c = actions_feed(feed, answer, overview={**copy.deepcopy(ACTIONS_OVERVIEW), "stations": [STATION, OFFLINE, TWO_LOCKS, offline_lock]})
+    s = feed[1]
+    dup = env(confirmed=True)
+    assert c.post("/api/v1/intercom/stations/entry-a/release", json=dup, headers=as_user("sam")).status_code == 200
+    assert release(c, "entry-c", lock=1).status_code == 504  # unanswered: the relay stays busy
+    cases = [
+        (env(), "entry-a", 409, "confirmation_required"),
+        (env(confirmed=False), "entry-a", 409, "confirmation_required"),
+        ({"confirmed": True}, "entry-a", 422, "validation"),  # no command envelope
+        (env(confirmed=True, lock="one"), "entry-a", 422, "validation"),
+        (env(confirmed=True), "nope", 404, "intercom_station_not_found"),
+        (env(confirmed=True, lock=9), "entry-c", 422, "intercom_lock_unknown"),
+        (env(confirmed=True), "entry-d", 409, "intercom_station_offline"),
+        (env(confirmed=True), "entry-b", 409, "intercom_no_lock"),
+        (env(confirmed=True, lock=1), "entry-c", 409, "intercom_release_in_progress"),
+        (env(ttl=-5, confirmed=True), "entry-a", 409, "expired"),
+        (env(ttl=3600, confirmed=True), "entry-a", 422, "expires_too_far"),
+        (dup, "entry-a", 409, "intercom_duplicate_command"),
+    ]
+    for body, station, status, code in cases:
+        r = c.post(f"/api/v1/intercom/stations/{station}/release", json=body, headers=as_user("sam"))
+        assert (r.status_code, r.json()["code"]) == (status, code), (station, body, r.text)
+        assert r.json()["details"]["outcome"] == "not_sent", code
+    refused = audit_rows(s, "intercom.release", "refused")
+    assert [(r["reason"], r["resource_id"]) for r in refused] == [(code, station) for _b, station, _s, code in cases]
+    for row in refused:
+        assert (row["actor_username"], row["decision"], row["details"]["outcome"]) == ("sam", "denied", "not_sent")
+    assert refused[-1]["details"]["client_request_id"] == dup["client_request_id"]
+    assert len(sent(fakes, "stations/test_unlock")) == 2, "none of the refused requests reached WisKey"
+    # the two that were sent: attempt + outcome each
+    assert [r["details"]["outcome"] for r in audit_rows(s, "intercom.release", "outcome")] == ["ok", "unknown"]
+
+
+def test_outcome_audit_failure_under_a_locked_database_keeps_the_result_and_the_attempt(feed, monkeypatch, caplog):
+    """B1, the contention case: the attempt row is committed BEFORE the command is sent and the request's own write
+    transaction is not re-taken afterwards. With another writer holding the database while WisKey answers, the outcome
+    row cannot be written: the caller still gets the real result (200 accepted, not a 500), the attempt row stands, and
+    the loss is logged."""
+    real_open = Database._open
+
+    def quick_open(self: Database) -> sqlite3.Connection:
+        conn = real_open(self)
+        conn.execute("PRAGMA busy_timeout=300")  # the production 10 s, shortened for the test
+        return conn
+
+    monkeypatch.setattr(Database, "_open", quick_open)
+    s = feed[1]
+    blockers: list[sqlite3.Connection] = []
+
+    def answer(msg: dict[str, Any]) -> list[Any] | None:
+        if msg["type"] == UNLOCK:
+            blocker = sqlite3.connect(s.db_path, isolation_level=None, check_same_thread=False)
+            blocker.execute("BEGIN IMMEDIATE")  # another writer takes the database right as WisKey answers
+            blockers.append(blocker)
+            return [ok(msg, {"accepted": True})]
+        return None
+
+    app, fakes, c = actions_feed(feed, answer)
+    with caplog.at_level(logging.ERROR, logger="smplwise.intercom"):
+        r = release(c)
+    for b in blockers:
+        b.execute("ROLLBACK")
+        b.close()
+    assert r.status_code == 200 and r.json()["release"] == {"accepted": True}, r.text
+    [attempt] = audit_rows(s, "intercom.release", "attempt")
+    assert attempt["details"]["command_id"] == r.json()["command_id"] and attempt["actor_username"] == "sam"
+    assert audit_rows(s, "intercom.release", "outcome") == [], "the outcome could not be written while the database was held"
+    assert any("could not be recorded" in rec.getMessage() for rec in caplog.records)
+
+
+def test_accepted_but_unexpected_answer_is_unknown_never_refused(feed, monkeypatch):
+    """B2: once WisKey said `success: true` the command was carried out as far as WisKey knows. An answer of a shape
+    SMPLWISE does not expect - or a frame that is neither success nor failure - is "outcome unknown" (504), never
+    "refused, not performed" (502)."""
+    answers = iter([
+        lambda m: [ok(m, None)],
+        lambda m: [ok(m, "accepted")],
+        lambda m: [ok(m, {"accepted": "yes"})],
+        lambda m: [ok(m, {"queued": True})],
+        lambda m: [{"id": m["id"], "type": "result"}],  # no `success` at all
+    ])
+
+    def answer(msg: dict[str, Any]) -> list[Any] | None:
+        if msg["type"] == UNLOCK:
+            return next(answers)(msg)
+        if msg["type"] == "hikvision_intercom/media/signal":
+            return [ok(msg, ["not", "a", "call", "result"])]
+        return None
+
+    monkeypatch.setattr(intercom_sync, "ACTION_USER_BURST", 100.0)
+    monkeypatch.setattr(intercom_sync, "ACTION_GLOBAL_BURST", 100.0)
+    app, fakes, c = actions_feed(feed, answer)
+    intercom_sync.SYNC._buckets_reset()
+    s = feed[1]
+    for n in range(5):
+        access_control.RELAYS.clear()  # each unknown outcome holds the relay (S1); this test is about the classification
+        r = release(c)
+        assert r.status_code == 504 and r.json()["code"] == "intercom_outcome_unknown", (n, r.text)
+        assert r.json()["details"]["outcome"] == "unknown" and r.json()["details"]["wiskey_code"] == "invalid_response", n
+        assert "ייתכן שבוצעה" in r.json()["user_message"]
+    r = c.post("/api/v1/intercom/stations/entry-c/call", json=env(command="answer"), headers=as_user("sam"))
+    assert r.status_code == 504 and r.json()["details"]["outcome"] == "unknown"
+    outcomes = audit_rows(s, "intercom.release", "outcome")
+    assert [row["details"]["outcome"] for row in outcomes] == ["unknown"] * 5 and not any(row["details"]["outcome"] == "refused" for row in outcomes)
+
+
+def test_genuine_refusals_stay_refused(feed):
+    """WisKey refusing the add-on's user (`unauthorized`), a signal already running at the station (`device_busy`), an
+    older WisKey without the command, and WisKey's own limiter: all pre-device, so HTTP errors with outcome `refused`,
+    audited, and the feed itself stays ready."""
+    answers = {"stations/test_unlock": "unauthorized", "media/signal": "device_busy", "tts/start": "rate_limited", "tts/engines": "unknown_command"}
+
+    def answer(msg: dict[str, Any]) -> list[Any] | None:
+        command = msg["type"].removeprefix("hikvision_intercom/")
+        return [fail(msg, answers[command])] if command in answers else None
+
+    app, fakes, c = actions_feed(feed, answer)
+    s = feed[1]
+    r = release(c)
+    assert r.status_code == 502 and r.json()["code"] == "intercom_action_refused"
+    assert r.json()["details"] == {"outcome": "refused", "state": "forbidden", "wiskey_code": "unauthorized"}
+    r = c.post("/api/v1/intercom/stations/entry-c/call", json=env(command="answer"), headers=as_user("sam"))
+    assert r.status_code == 502 and r.json()["details"]["wiskey_code"] == "device_busy" and r.json()["details"]["outcome"] == "refused"
+    r = c.post("/api/v1/intercom/stations/entry-a/tts", json=env(engine_id="tts.piper", message="hi"), headers=as_user("sam"))
+    assert r.status_code == 429 and r.json()["code"] == "intercom_rate_limited" and r.json()["details"]["outcome"] == "refused"
+    body = c.get("/api/v1/intercom/tts/engines", headers=as_user("sam")).json()
+    assert (body["state"], body["last_error"], body["tts"]) == ("unsupported", "unknown_command", None)
+    assert [(r["reason"], r["details"]["outcome"]) for r in audit_rows(s, "intercom.release", "outcome")] == [("unauthorized", "refused")]
+    assert audit_rows(s, "intercom.call", "outcome")[0]["details"]["error"] == "intercom_action_refused"
+    assert intercom_sync.STATE.state == "ready" and len(fakes) == 1
+    # a refused release frees its relay at once: WisKey said no, so nothing is ambiguous
+    assert release(c).status_code == 502, "a second attempt right away is allowed (and refused by WisKey again)"
+
+
+def test_release_of_an_offline_station_is_refused(feed):
+    offline_lock = {**copy.deepcopy(STATION), "online": False, "call_state": "unavailable"}
+    app, fakes, c = actions_feed(feed, lambda msg: None, overview={**copy.deepcopy(OVERVIEW), "stations": [offline_lock]})
+    r = release(c)
+    assert r.status_code == 409 and r.json()["code"] == "intercom_station_offline"
+    assert not sent(fakes, "stations/test_unlock")
+
+
+def test_call_signal_round_trip_and_audit(feed):
+    """Answer / reject / hang up: WisKey's exact shape ({station_id, command, api_contract: 1}), its CallResult served
+    as sent (acknowledgement, observed state, physical_result "unverified"), audited under the real caller."""
+    def answer(msg: dict[str, Any]) -> list[Any] | None:
+        if msg["type"] == "hikvision_intercom/media/signal":
+            return [ok(msg, {**SIGNAL_RESULT, "command": msg["command"], "device_serial": "must not leave"})]
+        return None
+
+    app, fakes, c = actions_feed(feed, answer)
+    s = feed[1]
+    body = c.post("/api/v1/intercom/stations/entry-c/call", json=env(command="answer"), headers=as_user("sam")).json()
+    assert body["state"] == "ready" and body["call"] == SIGNAL_RESULT and body["command_id"]
+    [msg] = sent(fakes, "media/signal")
+    assert msg == {"id": msg["id"], "type": "hikvision_intercom/media/signal", "station_id": "entry-c", "command": "answer", "api_contract": 1}
+    assert c.post("/api/v1/intercom/stations/entry-c/call", json=env(command="hangUp"), headers=as_user("sam")).json()["call"]["command"] == "hangUp"
+    for bad in (env(command="open"), env(command="HANGUP"), env()):
+        r = c.post("/api/v1/intercom/stations/entry-c/call", json=bad, headers=as_user("sam"))
+        assert r.status_code == 422 and r.json()["details"]["outcome"] == "not_sent", bad
+    assert c.post("/api/v1/intercom/stations/entry-b/call", json=env(command="reject"), headers=as_user("sam")).json()["code"] == "intercom_station_offline"
+    assert len(sent(fakes, "media/signal")) == 2
+    outcomes = audit_rows(s, "intercom.call", "outcome")
+    assert [(r["actor_username"], r["details"]["signal"], r["details"]["outcome"]) for r in outcomes] == [("sam", "answer", "ok"), ("sam", "hangUp", "ok")]
+    assert outcomes[0]["details"]["result"]["acknowledged"] is True and outcomes[0]["details"]["station_name"] == "Loading dock"
+    assert [r["reason"] for r in audit_rows(s, "intercom.call", "refused")] == ["validation", "validation", "validation", "intercom_station_offline"]
+
+
+def test_tts_engines_and_announcement_lifecycle(feed):
+    """TTS: the engines list (exact key set, no api_contract), then an announcement - sent with WisKey's exact key set
+    and the message collapsed as WisKey collapses it - followed through its subscription events (the first one racing
+    the result frame), relayed as `intercom_tts` notices, released with `unsubscribe_events` only after the terminal
+    event, and audited with the text that was spoken."""
+    def answer(msg: dict[str, Any]) -> list[Any] | None:
+        if msg["type"] == "hikvision_intercom/tts/engines":
+            return [ok(msg, copy.deepcopy(TTS_ENGINES))]
+        if msg["type"] == "hikvision_intercom/tts/start":
+            fmt = {"format": "hikvision_intercom.tts"}
+            return [
+                ok(msg),
+                {"id": msg["id"], "type": "event", "event": {**fmt, "state": "generating"}},
+                {"id": msg["id"], "type": "event", "event": {**fmt, "state": "speaking", "duration_seconds": 2.1, "packet_count": 21}},
+                {"id": msg["id"], "type": "event", "event": {**fmt, "state": "completed", "duration_seconds": 2.1, "bytes_written": 16800, "physical_result": "unverified"}},
+            ]
+        return None
+
+    app, fakes, c = actions_feed(feed, answer)
+    s = feed[1]
+    body = c.get("/api/v1/intercom/tts/engines", headers=as_user("sam")).json()
+    assert body["state"] == "ready" and body["tts"]["default"] == "tts.piper"
+    assert [e["engine_id"] for e in body["tts"]["engines"]] == ["tts.piper", "tts.google_translate_en_com"], "an engine without an id is dropped"
+    [msg] = sent(fakes, "tts/engines")
+    assert set(msg) == {"id", "type"}, "exact key set: no api_contract"
+
+    q = intercom_sync.subscribe()
+    try:
+        r = c.post("/api/v1/intercom/stations/entry-a/tts", json=env(engine_id="tts.piper", language="he", message="  נא   להמתין\nליד השער  "), headers=as_user("sam"))
+        assert r.status_code == 200, r.text
+        assert r.json()["tts"]["station_id"] == "entry-a" and r.json()["tts"]["state"] in ("started", "generating", "speaking", "completed")
+        [start] = sent(fakes, "tts/start")
+        assert start == {"id": start["id"], "type": "hikvision_intercom/tts/start", "station_id": "entry-a", "engine_id": "tts.piper", "language": "he", "message": "נא להמתין ליד השער"}
+        wait_for(lambda: (intercom_sync.SYNC.tts_status("entry-a") or {}).get("state") == "completed")
+        wait_for(lambda: any(m.get("type") == "unsubscribe_events" for m in fakes[0].sent))
+        unsub = [m for m in fakes[0].sent if m.get("type") == "unsubscribe_events" and m.get("subscription") == start["id"]]
+        assert len(unsub) == 1, "the subscription is released after the terminal event, and only then"
+        states = []
+        while not q.empty():
+            m = q.get_nowait()
+            if m["type"] == "intercom_tts":
+                states.append(m["state"])
+                last = m
+        assert states == ["started", "generating", "speaking", "completed"], states
+        assert last["physical_result"] == "unverified" and last["station_id"] == "entry-a"
+        assert "message" not in last and "נא" not in json.dumps(last), "the notices carry progress, never the text"
+    finally:
+        intercom_sync.unsubscribe(q)
+    for row in audit_rows(s, "intercom.tts", "attempt") + audit_rows(s, "intercom.tts", "outcome"):
+        assert (row["actor_username"], row["resource_id"]) == ("sam", "entry-a")
+        assert row["details"]["message"] == "נא להמתין ליד השער" and row["details"]["engine_id"] == "tts.piper" and row["details"]["language"] == "he"
+    assert audit_rows(s, "intercom.tts", "outcome")[0]["details"]["outcome"] == "ok"
+
+    # validation before anything is sent - and audited, with the text that was NOT spoken
+    for bad in (env(engine_id="tts.piper", message="   "), env(engine_id="tts.piper", message="x" * 501), env(engine_id="", message="hi")):
+        r = c.post("/api/v1/intercom/stations/entry-a/tts", json=bad, headers=as_user("sam"))
+        assert r.status_code == 422 and r.json()["details"]["outcome"] == "not_sent", bad
+    assert c.post("/api/v1/intercom/stations/entry-b/tts", json=env(engine_id="tts.piper", message="hi"), headers=as_user("sam")).json()["code"] == "intercom_station_offline"
+    refused = audit_rows(s, "intercom.tts", "refused")
+    assert len(refused) == 4 and refused[-1]["details"]["message"] == "hi"
+    assert len(sent(fakes, "tts/start")) == 1
+
+
+def test_tts_cut_by_a_lost_connection_is_reported_closed(feed):
+    """HA drops a connection's subscriptions with it, which cancels the playback: the announcement is reported
+    `closed` / `connection_lost`, never left "speaking"."""
+    def answer(msg: dict[str, Any]) -> list[Any] | None:
+        if msg["type"] == "hikvision_intercom/tts/start":
+            return [ok(msg), {"id": msg["id"], "type": "event", "event": {"state": "speaking"}}, CLOSE]
+        return None
+
+    app, fakes, c = actions_feed(feed, answer, refuse_after=1)
+    r = c.post("/api/v1/intercom/stations/entry-a/tts", json=env(engine_id="tts.piper", language=None, message="hello"), headers=as_user("sam"))
+    assert r.status_code == 200
+    wait_for(lambda: (intercom_sync.SYNC.tts_status("entry-a") or {}).get("state") == "closed")
+    assert intercom_sync.SYNC.tts_status("entry-a")["reason"] == "connection_lost"
+
+
+def test_a_refresh_failure_during_an_announcement_does_not_cut_it(feed, monkeypatch):
+    """S6: an overview refetch that WisKey answers with an error while an announcement is playing keeps the session
+    (the copy is served as not fresh) until the announcement ends; after that the same failure ends the session as
+    before."""
+    monkeypatch.setattr(intercom_sync, "DEFER_RETRY_S", 0.2)
+    calls = {"overview": 0}
+    held: dict[str, Any] = {}
+
+    def script(msg: dict[str, Any], fake: FakeHa) -> list[Any]:
+        kind = msg["type"]
+        if kind == "hikvision_intercom/overview":
+            calls["overview"] += 1
+            if calls["overview"] >= 2:
+                return [fail(msg, "home_assistant_error")]
+            return [ok(msg, copy.deepcopy(ACTIONS_OVERVIEW))]
+        if kind == "hikvision_intercom/subscribe":
+            held["wiskey"] = (msg["id"], fake)
+            return [ok(msg)]
+        if kind == "hikvision_intercom/tts/start":
+            held["tts"] = (msg["id"], fake)
+            return [ok(msg), {"id": msg["id"], "type": "event", "event": {"state": "speaking"}}]
+        return normal(msg, fake, ACTIONS_OVERVIEW)
+
+    app, s, install = feed
+    fakes = install(script)
+    intercom_sync.SYNC.start(s)
+    wait_for(lambda: intercom_sync.STATE.state == "ready")
+    c = TestClient(app)
+    bind(c, s, "sam", "site_admin", "installation", "*")
+    assert c.post("/api/v1/intercom/stations/entry-a/tts", json=env(engine_id="tts.piper", message="hello"), headers=as_user("sam")).status_code == 200
+    wait_for(lambda: (intercom_sync.SYNC.tts_status("entry-a") or {}).get("state") == "speaking")
+    loop = intercom_sync.SYNC._event_loop
+    sub, fake = held["wiskey"]
+    loop.call_soon_threadsafe(fake.q.put_nowait, {"id": sub, "type": "event", "event": {"kind": "refresh"}})  # -> a failing refetch
+    wait_for(lambda: calls["overview"] >= 3, timeout=5)  # failed, deferred, retried (and failed again)
+    assert intercom_sync.STATE.state == "ready" and len(fakes) == 1, "the session - and the announcement - survived"
+    assert intercom_sync.SYNC.tts_status("entry-a")["state"] == "speaking"
+    assert c.get("/api/v1/intercom/overview").json()["fresh"] is False, "the copy is not served as current meanwhile"
+    tts_id, _ = held["tts"]
+    loop.call_soon_threadsafe(fake.q.put_nowait, {"id": tts_id, "type": "event", "event": {"state": "completed", "physical_result": "unverified"}})
+    wait_for(lambda: intercom_sync.SYNC.tts_status("entry-a")["state"] == "completed")
+    wait_for(lambda: intercom_sync.STATE.state == "error", timeout=5)  # announcement over: the next failure ends the session
+    assert intercom_sync.STATE.last_error == "home_assistant_error"
+
+
+def test_physical_actions_without_home_assistant_are_not_sent_and_audited(settings):
+    """The dev backend has no Home Assistant: every action is a 503 `intercom_unavailable` saying it was NOT sent
+    (never a 200 with a state field that could be read as done), audited as an attempt with outcome not_sent; the
+    engines list is the read shape, with the honest state."""
+    intercom_sync.SYNC.reset()
+    intercom_sync.SYNC.start(settings)
+    access_control.RELAYS.clear()
+    c = TestClient(create_app(settings))
+    for method, path, body in action_paths():
+        r = c.request(method, path, json=body)
+        if method == "get":
+            assert r.status_code == 200 and r.json()["state"] == "ha_not_configured" and r.json()["tts"] is None
+            continue
+        assert r.status_code == 503, path
+        err = r.json()
+        assert err["code"] == "intercom_unavailable" and err["details"]["outcome"] == "not_sent" and err["details"]["state"] == "ha_not_configured", path
+        assert "לא נשלחה" in err["user_message"]
+    for action in ("intercom.release", "intercom.call", "intercom.tts"):
+        assert len(audit_rows(settings, action, "attempt")) == 1, action
+        [row] = audit_rows(settings, action, "outcome")
+        assert row["actor_username"] == "joni" and row["details"]["outcome"] == "not_sent" and row["reason"] == "ha_not_configured", action
+    intercom_sync.SYNC.reset()
+
+
+def test_physical_actions_in_degraded_feed_states(feed):
+    """not installed / HA unavailable: the action is not sent (503, outcome not_sent) and opens no connection."""
+    app, s, install = feed
+
+    def absent(msg: dict[str, Any], _fake: FakeHa) -> list[Any]:
+        return [ha_config(msg)] if msg["type"] == "get_config" else [fail(msg, "unknown_command")]
+
+    fakes = install(absent)
+    intercom_sync.SYNC.start(s)
+    wait_for(lambda: intercom_sync.STATE.state == "not_installed")
+    c = TestClient(app)
+    for method, path, body in action_paths():
+        r = c.request(method, path, json=body)
+        if method == "get":
+            assert r.json()["state"] == "not_installed" and r.json()["tts"] is None
+            continue
+        assert r.status_code == 503 and r.json()["details"] == {"outcome": "not_sent", "state": "not_installed", "wiskey_code": "unknown_command"}, path
+    assert fakes[0].types() == ["auth", "hikvision_intercom/overview", "get_config"] and len(fakes) == 1
+
+
+def test_physical_actions_when_ha_is_unavailable(feed):
+    app, s, install = feed
+
+    def script(msg: dict[str, Any], fake: FakeHa) -> list[Any]:
+        frames = normal(msg, fake)
+        return frames + [CLOSE] if msg["type"] == "hikvision_intercom/subscribe" else frames
+
+    fakes = install(script, refuse_after=1)
+    intercom_sync.SYNC.start(s)
+    wait_for(lambda: install.refused["n"] >= 2 and intercom_sync.STATE.state == "ha_unavailable")
+    c = TestClient(app)
+    r = c.post("/api/v1/intercom/stations/entry-a/release", json=env(confirmed=True))
+    assert r.status_code == 503 and r.json()["details"]["state"] == "ha_unavailable" and r.json()["details"]["outcome"] == "not_sent"
+    assert "Home Assistant אינו זמין" in r.json()["user_message"]
+    assert not sent(fakes, "stations/test_unlock")
+
+
+def test_rate_limit_and_busy_refuse_physical_actions_loudly(feed, monkeypatch):
+    """The action lane's own protections - and a dropped action is a 429 that says it was NOT sent, never a silently
+    swallowed request. A refusal that was never sent frees the relay at once."""
+    monkeypatch.setattr(intercom_sync, "ACTION_USER_BURST", 1.0)
+    monkeypatch.setattr(intercom_sync, "ACTION_USER_RATE", 0.0)
+    app, fakes, c = actions_feed(feed, accept_unlock)
+    intercom_sync.SYNC._buckets_reset()
+    assert release(c).status_code == 200
+    r = release(c)
+    assert r.status_code == 429 and r.json()["code"] == "intercom_rate_limited"
+    assert r.json()["details"]["outcome"] == "not_sent" and r.json()["retryable"] is True and "לא נשלחה" in r.json()["user_message"]
+    assert len(sent(fakes, "stations/test_unlock")) == 1, "the refused one never reached WisKey"
+    assert audit_rows(feed[1], "intercom.release", "outcome")[-1]["details"]["outcome"] == "not_sent"
+    assert release(c, user="joni").status_code == 200, "another caller's own bucket; and the rate refusal freed the relay"
+
+    slot = intercom_sync.SYNC._action_inflight = threading.BoundedSemaphore(1)
+    assert slot.acquire(blocking=False)
+    try:
+        r = c.post("/api/v1/intercom/stations/entry-c/call", json=env(command="answer"), headers=as_user("joni"))
+        assert r.status_code == 429 and r.json()["code"] == "intercom_busy" and r.json()["details"]["outcome"] == "not_sent"
+    finally:
+        slot.release()
+
+
+def test_read_traffic_cannot_starve_physical_actions(feed, monkeypatch):
+    """S5: with every read slot taken and the read buckets empty - a heavy people search, say - a release still goes
+    through on the action lane."""
+    monkeypatch.setattr(intercom_sync, "GLOBAL_BURST", 1.0)
+    monkeypatch.setattr(intercom_sync, "GLOBAL_RATE", 0.0)
+    app, fakes, c = actions_feed(feed, accept_unlock)
+    intercom_sync.SYNC._buckets_reset()
+    assert c.get("/api/v1/intercom/people/u1").json()["state"] in ("ready", "error")  # spends the only read token
+    assert c.get("/api/v1/intercom/people/u1", headers=as_user("vera")).json()["last_error"] == "rate_limited", "reads are exhausted"
+    reads = intercom_sync.SYNC._inflight = threading.BoundedSemaphore(1)
+    assert reads.acquire(blocking=False)
+    try:
+        assert c.get("/api/v1/intercom/people/u1", headers=as_user("vera")).json()["last_error"] == "busy", "and every read slot is taken"
+        r = release(c)
+        assert r.status_code == 200 and r.json()["release"] == {"accepted": True}
+    finally:
+        reads.release()
+
+
+def test_unanswered_action_is_outcome_unknown_and_not_retried(feed, monkeypatch):
+    """No answer within ACTION_TIMEOUT_S, or the session lost mid-request: 504 `intercom_outcome_unknown` - it may or
+    may not have happened - and the command was sent exactly once."""
+    monkeypatch.setattr(intercom_sync, "ACTION_TIMEOUT_S", 0.3)
+    app, fakes, c = actions_feed(feed, lambda msg: [] if msg["type"] == UNLOCK else None)
+    r = release(c)
+    assert r.status_code == 504 and r.json()["code"] == "intercom_outcome_unknown"
+    details = r.json()["details"]
+    assert {k: details[k] for k in ("outcome", "state", "wiskey_code")} == {"outcome": "unknown", "state": "error", "wiskey_code": "timeout"}
+    # still unanswered: the relay stays held for the rest of ha_client's 60 s limit plus the 10 s hold
+    assert access_control.CALL_LIMIT_S < details["retry_after_s"] <= access_control.CALL_LIMIT_S + access_control.UNKNOWN_HOLD_S
+    assert "ייתכן שבוצעה וייתכן שלא" in r.json()["user_message"]
+    assert len(sent(fakes, "stations/test_unlock")) == 1, "never retried"
+    assert audit_rows(feed[1], "intercom.release", "outcome")[0]["details"]["outcome"] == "unknown"
+
+
+def test_session_lost_mid_action_is_outcome_unknown(feed):
+    app, fakes, c = actions_feed(feed, lambda msg: [CLOSE] if msg["type"] == "hikvision_intercom/media/signal" else None, refuse_after=1)
+    r = c.post("/api/v1/intercom/stations/entry-c/call", json=env(command="reject"), headers=as_user("sam"))
+    assert r.status_code == 504 and r.json()["details"]["outcome"] == "unknown" and r.json()["details"]["state"] == "ha_unavailable"
+    assert len(sent(fakes, "media/signal")) == 1
+
+
+def test_a_second_release_of_the_same_relay_is_refused_while_the_first_is_out(feed, monkeypatch):
+    """Never queued: while a release of a relay waits for WisKey, another release of that relay is a 409."""
+    monkeypatch.setattr(intercom_sync, "ACTION_TIMEOUT_S", 1.5)
+    app, fakes, c = actions_feed(feed, lambda msg: [] if msg["type"] == UNLOCK else None)
+    results: list[int] = []
+    first = threading.Thread(target=lambda: results.append(release(c).status_code))
+    first.start()
+    wait_for(lambda: len(sent(fakes, "stations/test_unlock")) == 1)
+    r = release(c, user="joni")
+    assert r.status_code == 409 and r.json()["code"] == "intercom_release_in_progress"
+    first.join(timeout=5)
+    assert results == [504] and len(sent(fakes, "stations/test_unlock")) == 1
+
+
+def test_after_a_timeout_the_relay_stays_held_until_wiskey_answers_and_a_little_longer(feed, monkeypatch):
+    """S1: the HTTP request gives up at ACTION_TIMEOUT_S with "outcome unknown", but WisKey's handler is still running.
+    The relay stays busy until WisKey's own answer arrives, and UNKNOWN_HOLD_S longer - a guard pressing release again
+    straight after the 504 gets a 409 and no second frame is sent. Then a legitimate next release goes through."""
+    monkeypatch.setattr(intercom_sync, "ACTION_TIMEOUT_S", 0.3)
+    monkeypatch.setattr(access_control, "UNKNOWN_HOLD_S", 0.6)
+    held: list[tuple[dict[str, Any], FakeHa]] = []
+
+    def script_answer(msg: dict[str, Any]) -> list[Any] | None:
+        if msg["type"] == UNLOCK:
+            if not held:
+                held.append((msg, None))
+                return []  # the first release: no answer yet
+            return [ok(msg, {"accepted": True})]
+        return None
+
+    app, fakes, c = actions_feed(feed, script_answer)
+    assert release(c).status_code == 504
+    r = release(c)
+    assert r.status_code == 409 and r.json()["code"] == "intercom_release_in_progress" and r.json()["details"]["outcome"] == "not_sent"
+    assert len(sent(fakes, "stations/test_unlock")) == 1, "no second frame while the first is unresolved"
+    msg = held[0][0]
+    fake = fakes[0]
+    intercom_sync.SYNC._event_loop.call_soon_threadsafe(fake.q.put_nowait, ok(msg, {"accepted": True}))  # WisKey's late answer
+    time.sleep(0.2)
+    assert release(c).status_code == 409, "answered, but the unknown outcome's hold is still running"
+    time.sleep(0.6)
+    r = release(c)
+    assert r.status_code == 200, "the hold is over: a deliberate next release goes through"
+    assert len(sent(fakes, "stations/test_unlock")) == 2
+
+
+def test_after_a_refusal_or_not_sent_the_relay_is_free_at_once(feed):
+    """S1, the other side: when WisKey refused, or nothing was sent, nothing is ambiguous - the next release is not held."""
+    answers = iter(["release_in_progress", None])  # a genuine pre-device refusal for a release
+
+    def answer(msg: dict[str, Any]) -> list[Any] | None:
+        if msg["type"] == UNLOCK:
+            code = next(answers)
+            return [fail(msg, code)] if code else [ok(msg, {"accepted": True})]
+        return None
+
+    app, fakes, c = actions_feed(feed, answer)
+    assert release(c).status_code == 502
+    assert release(c).status_code == 200
+
+
+def test_command_envelope_expiry_and_duplicates(feed, monkeypatch):
+    """S2: a stale request is refused, a request whose expiry is too far ahead is refused, a replay of a command id
+    that was already handed on is refused - and the expiry is checked again right before the frame is written: a
+    command that reaches that point too late is not sent."""
+    app, fakes, c = actions_feed(feed, accept_unlock)
+    s = feed[1]
+    body = env(confirmed=True)
+    assert c.post("/api/v1/intercom/stations/entry-a/release", json=body, headers=as_user("sam")).status_code == 200
+    r = c.post("/api/v1/intercom/stations/entry-a/release", json=body, headers=as_user("sam"))
+    assert r.status_code == 409 and r.json()["code"] == "intercom_duplicate_command"
+    assert c.post("/api/v1/intercom/stations/entry-a/release", json=body, headers=as_user("joni")).status_code == 200, "ids are per caller"
+    assert c.post("/api/v1/intercom/stations/entry-a/release", json=env(ttl=-1, confirmed=True), headers=as_user("sam")).json()["code"] == "expired"
+    assert c.post("/api/v1/intercom/stations/entry-a/release", json=env(ttl=120, confirmed=True), headers=as_user("sam")).json()["code"] == "expires_too_far"
+    for bad in ({"client_request_id": "short", "expires_at": env()["expires_at"]}, {"client_request_id": "a%b_c" * 3, "expires_at": env()["expires_at"]}, {"client_request_id": str(uuid.uuid4()), "expires_at": "2026-09-27T08:00:00"}):
+        assert c.post("/api/v1/intercom/stations/entry-a/release", json={**bad, "confirmed": True}, headers=as_user("sam")).status_code == 422, bad
+    assert len(sent(fakes, "stations/test_unlock")) == 2
+
+    # the send-time check: the command is handed over, but by the time it reaches the feed's loop it is too late
+    monkeypatch.setattr(access_control, "SEND_WITHIN_S", -1.0)  # deterministic: the deadline is already in the past
+    r = release(c, user="joni")
+    assert r.status_code == 409 and r.json()["code"] == "expired" and r.json()["details"]["outcome"] == "not_sent"
+    assert len(sent(fakes, "stations/test_unlock")) == 2, "not sent"
+    assert audit_rows(s, "intercom.release", "outcome")[-1]["details"]["outcome"] == "not_sent"
+    monkeypatch.setattr(access_control, "SEND_WITHIN_S", 15.0)
+    assert release(c, user="joni").status_code == 200, "and it did not hold the relay"
+
+
+def test_physical_client_wrappers_send_wiskeys_exact_shapes():
+    """The client layer on its own: api_contract only where WisKey's panel sends it, strict relay typing, no call
+    command outside WisKey's three, tts/start's `language` key present even when null - and after `success: true` the
+    result is returned as it came (the caller's projection judges it), while only `success: false` raises."""
+    from smplwise.services import intercom_client
+
+    seen: list[dict[str, Any]] = []
+    replies: dict[str, dict[str, Any]] = {}
+
+    async def call(msg_type: str, **kw: Any) -> dict[str, Any]:
+        seen.append({"type": msg_type, **kw})
+        return replies.get(msg_type, {"id": 9, "success": True, "result": None})
+
+    replies[UNLOCK] = {"id": 8, "success": True, "result": "odd"}
+    assert asyncio.run(intercom_client.release_door(call, "entry-a", 2)) == "odd", "no shape judgement after success: true"
+    assert asyncio.run(intercom_client.tts_start(call, "entry-a", "tts.piper", None, "hi")) == 9
+    assert seen == [
+        {"type": UNLOCK, "station_id": "entry-a", "lock": 2, "api_contract": 1},
+        {"type": "hikvision_intercom/tts/start", "station_id": "entry-a", "engine_id": "tts.piper", "language": None, "message": "hi"},
+    ]
+    replies[UNLOCK] = {"id": 8, "success": False, "error": {"code": "release_in_progress"}}  # pre-device: a refusal
+    with pytest.raises(intercom_client.IntercomError) as exc:
+        asyncio.run(intercom_client.release_door(call, "entry-a", 1))
+    assert exc.value.code == "release_in_progress"
+    for code in ("release_unconfirmed", "action_failed", "device_busy"):  # may have reached the device: not a refusal
+        replies[UNLOCK] = {"id": 8, "success": False, "error": {"code": code}}
+        with pytest.raises(intercom_client.UnclearAnswer) as unclear:
+            asyncio.run(intercom_client.release_door(call, "entry-a", 1))
+        assert unclear.value.code == code
+    replies[UNLOCK] = {"id": 8, "type": "result"}
+    with pytest.raises(intercom_client.UnclearAnswer):
+        asyncio.run(intercom_client.release_door(call, "entry-a", 1))
+    n = len(seen)
+    for bad in (lambda: intercom_client.release_door(call, "entry-a", True), lambda: intercom_client.media_signal(call, "entry-a", "open")):
+        with pytest.raises(intercom_client.IntercomError) as exc:
+            asyncio.run(bad())
+        assert exc.value.code == "invalid_fields"
+    assert len(seen) == n, "refused locally, nothing sent"
+    assert intercom_client.collapse("  a \n\t b  ") == "a b"
+
+
+# ---------------------------------------------------------------- final review round (B-1, S-1..S-3, nits)
+
+from smplwise.services import intercom_client  # noqa: E402
+
+COMMON_REFUSED = {"unauthorized": 502, "invalid_fields": 422, "api_incompatible": 502, "request_too_large": 502, "rate_limited": 429, "unknown_command": 502}
+# per command: pre-device codes (refused) and codes that can come after the command reached the device (unknown)
+CLASSIFICATION = {
+    "stations/test_unlock": {
+        "refused": {**COMMON_REFUSED, "station_offline": 502, "connection_closed": 502, "lock_not_managed": 502, "release_in_progress": 502},
+        "unknown": ["release_unconfirmed", "action_failed", "device_unavailable", "device_busy", "home_assistant_error", "unknown_error", "timeout", "a_code_nobody_documented", ""],
+    },
+    "media/signal": {
+        "refused": {**COMMON_REFUSED, "device_busy": 502},
+        # station_unloaded: not provably pre-device for media/signal (final confirmation S-1), so unknown
+        "unknown": ["station_unloaded", "device_unavailable", "action_failed", "home_assistant_error", "unknown_error", "timeout", "release_unconfirmed", "a_code_nobody_documented"],
+    },
+    "tts/start": {
+        "refused": {**COMMON_REFUSED, "tts_invalid_message": 502, "tts_engine_unavailable": 502, "station_unloaded": 502, "audio_busy": 502},
+        "unknown": ["action_failed", "home_assistant_error", "unknown_error", "timeout", "device_unavailable", "a_code_nobody_documented"],
+    },
+}
+ENDPOINTS = {
+    "stations/test_unlock": ("intercom.release", "/api/v1/intercom/stations/entry-a/release", lambda: env(confirmed=True)),
+    "media/signal": ("intercom.call", "/api/v1/intercom/stations/entry-c/call", lambda: env(command="answer")),
+    "tts/start": ("intercom.tts", "/api/v1/intercom/stations/entry-a/tts", lambda: env(engine_id="tts.piper", message="hello")),
+}
+
+
+@pytest.mark.parametrize("command", list(CLASSIFICATION))
+def test_wiskey_failure_codes_are_refused_only_when_pre_device(feed, monkeypatch, command):
+    """Final review B-1: a `success: false` is "refused, not carried out" ONLY for the command's pre-device allow-list
+    (intercom_client.PRE_DISPATCH + PRE_DEVICE). Every other code - `release_unconfirmed` (the device call errored
+    after the open may have reached the device, or the runtime closed AFTER a successful open), `action_failed`,
+    `device_unavailable` for a call, Home Assistant's own errors, and any undocumented code - is "outcome unknown"
+    (504), audited as unknown, and for a release holds the relay. Each code is checked end to end, including the
+    audit's outcome (S-2: an explicit `invalid_fields` refusal is audited `refused`, not `unknown`)."""
+    monkeypatch.setattr(intercom_sync, "ACTION_USER_BURST", 1000.0)
+    monkeypatch.setattr(intercom_sync, "ACTION_GLOBAL_BURST", 1000.0)
+    current = {"code": ""}
+
+    def answer(msg: dict[str, Any]) -> list[Any] | None:
+        if msg["type"] == f"hikvision_intercom/{command}":
+            return [fail(msg, current["code"])]
+        return None
+
+    app, fakes, c = actions_feed(feed, answer)
+    intercom_sync.SYNC._buckets_reset()
+    action, path, body = ENDPOINTS[command]
+    s = feed[1]
+    table = CLASSIFICATION[command]
+    for code, status in table["refused"].items():
+        access_control.RELAYS.clear()
+        current["code"] = code
+        r = c.post(path, json=body(), headers=as_user("sam"))
+        assert r.status_code == status and r.json()["details"]["outcome"] == "refused", (command, code, r.text)
+        assert r.json()["details"]["wiskey_code"] == code
+        assert audit_rows(s, action, "outcome")[-1]["details"]["outcome"] == "refused", (command, code)
+        assert intercom_client.refusal_is_pre_device(command, code)
+    for code in table["unknown"]:
+        access_control.RELAYS.clear()
+        current["code"] = code
+        r = c.post(path, json=body(), headers=as_user("sam"))
+        assert r.status_code == 504 and r.json()["code"] == "intercom_outcome_unknown", (command, code, r.text)
+        assert r.json()["details"]["outcome"] == "unknown" and r.json()["details"]["wiskey_code"] == (code or "action_failed"), (command, code)
+        assert "ייתכן שבוצעה וייתכן שלא" in r.json()["user_message"] and "לא בוצעה." not in r.json()["user_message"]
+        row = audit_rows(s, action, "outcome")[-1]
+        assert row["details"]["outcome"] == "unknown" and row["details"]["outcome"] != "refused", (command, code)
+        if command == "stations/test_unlock":
+            again = c.post(path, json=body(), headers=as_user("sam"))
+            assert again.status_code == 409 and again.json()["code"] == "intercom_release_in_progress", f"{code}: the relay is held"
+            assert again.json()["details"]["retry_after_s"] > 0
+            assert r.json()["details"]["retry_after_s"] > 0, "the caller is told how long the relay stays held"
+    expected = len(table["refused"]) + len(table["unknown"])
+    assert len(sent(fakes, command)) == expected, "each attempt was sent once; no held relay let a second frame through"
+    assert intercom_sync.STATE.state == "ready"
+
+
+def test_release_unconfirmed_twice_can_never_become_three_frames(feed):
+    """The reviewer's probe, pinned: WisKey answers `release_unconfirmed` (the door may have opened). A second press
+    straight away must not send a second frame - the relay is held."""
+    def answer(msg: dict[str, Any]) -> list[Any] | None:
+        return [fail(msg, "release_unconfirmed")] if msg["type"] == UNLOCK else None
+
+    app, fakes, c = actions_feed(feed, answer)
+    first = release(c)
+    assert first.status_code == 504 and first.json()["details"]["outcome"] == "unknown"
+    for _ in range(2):
+        r = release(c)
+        assert r.status_code == 409 and r.json()["code"] == "intercom_release_in_progress"
+    assert len(sent(fakes, "stations/test_unlock")) == 1
+    assert [row["details"]["outcome"] for row in audit_rows(feed[1], "intercom.release", "outcome")] == ["unknown"]
+
+
+def test_send_time_expiry_is_deterministic(feed, monkeypatch):
+    """Final review S-1: the deadline check is `>=` and does not depend on the wall clock's resolution (Windows ticks
+    in ~15.6 ms steps). A deadline equal to "now" is expired; the send-time check is exercised many times in a row."""
+    import datetime as dt
+
+    frozen = dt.datetime(2026, 9, 28, 8, 0, 0, tzinfo=dt.timezone.utc)
+
+    class FrozenClock(dt.datetime):
+        @classmethod
+        def now(cls, tz: Any = None) -> "dt.datetime":
+            return frozen
+
+    app, fakes, c = actions_feed(feed, accept_unlock)
+    # a context of its own: undoing it reverts ONLY the frozen clock, never the `feed` fixture's own patches
+    # (websockets.connect, RETRY_S ...) that share the test's monkeypatch (T054 final confirmation S-2)
+    with monkeypatch.context() as m:
+        m.setattr(intercom_sync.datetime, "datetime", FrozenClock)
+        loop = intercom_sync.SYNC._event_loop
+        for _ in range(20):
+            coro = intercom_sync.SYNC._one_off(lambda call: asyncio.sleep(0, result="sent"), not_after=frozen)
+            with pytest.raises(intercom_sync._Expired):
+                asyncio.run_coroutine_threadsafe(coro, loop).result(timeout=5)
+        coro = intercom_sync.SYNC._one_off(lambda call: asyncio.sleep(0, result="sent"), not_after=frozen + dt.timedelta(microseconds=1))
+        assert asyncio.run_coroutine_threadsafe(coro, loop).result(timeout=5) == "sent"
+    import websockets
+
+    assert websockets.connect is not None and intercom_sync.RETRY_S == 0.05, "the feed fixture's patches are intact"
+    assert intercom_sync.datetime.datetime is dt.datetime, "and the clock is real again"
+    monkeypatch.setattr(access_control, "SEND_WITHIN_S", -1.0)
+    for _ in range(5):
+        r = release(c, user="joni")
+        assert r.status_code == 409 and r.json()["code"] == "expired" and r.json()["details"]["outcome"] == "not_sent"
+    assert not sent(fakes, "stations/test_unlock")
+
+
+def test_overview_carries_the_server_clock(settings):
+    """Final review S-3: the UI derives `expires_at` from the server's clock, so the overview says what it is."""
+    intercom_sync.SYNC.reset()
+    intercom_sync.SYNC.start(settings)
+    body = TestClient(create_app(settings)).get("/api/v1/intercom/overview").json()
+    assert abs(body["server_time_ms"] - time.time() * 1000) < 5000
+    intercom_sync.SYNC.reset()
+
+
+def test_malformed_requests_are_audited_and_permission_comes_first(feed):
+    """Nit: a body that is not JSON, and a station id over 128 characters, are audited refusals for a caller with
+    access.release - and a 403 (never a 422) for a caller without it, whatever they sent."""
+    app, fakes, c = actions_feed(feed, accept_unlock)
+    s = feed[1]
+    long_id = "x" * 200
+    for user, status in (("vera", 403), ("sam", 422)):
+        r = c.post("/api/v1/intercom/stations/entry-a/release", content=b"{not json", headers={**as_user(user), "Content-Type": "application/json"})
+        assert r.status_code == status, (user, r.text)
+        r = c.post(f"/api/v1/intercom/stations/{long_id}/release", json=env(confirmed=True), headers=as_user(user))
+        assert r.status_code == status, (user, r.text)
+        r = c.post("/api/v1/intercom/stations/entry-a/tts", content=b"hello", headers={**as_user(user), "Content-Type": "text/plain"})
+        assert r.status_code == (403 if user == "vera" else 415), (user, r.text)
+    refused = audit_rows(s, "intercom.release", "refused")
+    assert [(row["reason"], row["details"]["outcome"], len(row["resource_id"])) for row in refused] == [("validation", "not_sent", 7), ("validation", "not_sent", 128)]
+    assert audit_rows(s, "intercom.tts", "refused")[0]["reason"] == "unsupported_media_type"
+    assert not sent(fakes, "stations/test_unlock") and not sent(fakes, "tts/start")
+
+
+@pytest.mark.parametrize("content_type", ["text/plain", "text/plain;charset=UTF-8", "application/x-www-form-urlencoded", "multipart/form-data; boundary=x", None])
+def test_only_json_content_types_reach_a_door(feed, content_type):
+    """Final confirmation B-1: a perfectly valid release / call / announcement payload sent as `text/plain` or a form
+    body - CORS "simple requests" a browser sends cross-site without a preflight - or with no Content-Type at all, is a
+    415 audited refusal and never reaches WisKey. `application/json` (with a charset) and `+json` subtypes are read."""
+    app, fakes, c = actions_feed(feed, accept_unlock)
+    s = feed[1]
+    headers = {**as_user("sam"), **({"Content-Type": content_type} if content_type else {})}
+    for path, body, action in (
+        ("/api/v1/intercom/stations/entry-a/release", env(confirmed=True), "intercom.release"),
+        ("/api/v1/intercom/stations/entry-c/call", env(command="answer"), "intercom.call"),
+        ("/api/v1/intercom/stations/entry-a/tts", env(engine_id="tts.piper", message="hello"), "intercom.tts"),
+    ):
+        r = c.post(path, content=json.dumps(body).encode("utf-8"), headers=headers)
+        assert r.status_code == 415 and r.json()["code"] == "unsupported_media_type", (content_type, path, r.text)
+        assert r.json()["details"]["outcome"] == "not_sent"
+        [row] = audit_rows(s, action, "refused")
+        assert (row["reason"], row["actor_username"], row["decision"]) == ("unsupported_media_type", "sam", "denied")
+    assert not sent(fakes, "stations/test_unlock") and not sent(fakes, "media/signal") and not sent(fakes, "tts/start"), "nothing reached WisKey"
+    assert c.post("/api/v1/intercom/stations/entry-a/release", content=json.dumps(env(confirmed=True)), headers={**as_user("vera"), **({"Content-Type": content_type} if content_type else {})}).status_code == 403, "permission first"
+
+
+def test_json_content_types_are_accepted(feed):
+    app, fakes, c = actions_feed(feed, accept_unlock)
+    for content_type in ("application/json", "application/json; charset=utf-8", "Application/JSON", "application/merge-patch+json"):
+        access_control.RELAYS.clear()
+        r = c.post("/api/v1/intercom/stations/entry-a/release", content=json.dumps(env(confirmed=True)), headers={**as_user("sam"), "Content-Type": content_type})
+        assert r.status_code == 200, (content_type, r.text)
+    assert len(sent(fakes, "stations/test_unlock")) == 4
+
+
+def test_a_deeply_nested_body_is_an_audited_refusal_not_a_500(feed):
+    """N-1: json.loads raises RecursionError (not ValueError) on a pathologically nested body."""
+    app, fakes, c = actions_feed(feed, accept_unlock)
+    deep = b"[" * 100_000 + b"]" * 100_000
+    r = c.post("/api/v1/intercom/stations/entry-a/release", content=deep, headers={**as_user("sam"), "Content-Type": "application/json"})
+    assert r.status_code == 422 and r.json()["details"]["outcome"] == "not_sent", r.text
+    [row] = audit_rows(feed[1], "intercom.release", "refused")
+    assert row["reason"] == "validation"
+    assert not sent(fakes, "stations/test_unlock")

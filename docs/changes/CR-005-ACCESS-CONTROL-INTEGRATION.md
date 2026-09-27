@@ -179,6 +179,27 @@ test_unlock`, with a confirmation dialog WisKey itself lacks); door programs (`t
 answer/reject/hangup (`media/signal`); two-way audio/talk (`audio/*`); TTS (`tts/*`); card capture
 (`cards/capture_start`, puts a real reader into physical collection mode).
 
+> Recorded decision 2026-09-27 (T054, phase 3, first slice): the owner approved all eight physical / external
+> capabilities in chat; this slice builds three of them - door release, call answer / reject / hang up, TTS
+> announcement - on the entry center. `access.release` is granted by default only to site_admin and system_admin
+> (installation scope), not to viewer, kiosk, editor or operator, and is listed in `sensitive_permissions_not_implied`;
+> the reasoning is recorded at `routers/access.py` PERMISSION_LABELS. Granting it to operator (the guard-desk role) is
+> left to the owner. Confirmation, per §3 / §5: door release goes through a confirmation dialog and the API refuses a
+> release without `confirmed: true`; call controls take two taps (the first arms the button for 4 s) - lighter than a
+> dialog because the operator is already handling a live call; the announcement is composed and sent from its own
+> dialog, which states that the text goes to the selected Home Assistant TTS engine (possibly a cloud provider). A
+> release reply is shown as "accepted by WisKey", never as "the door opened". Every attempt is audited under the real
+> SMPLWISE actor (§3 accountability). Two-way audio, card capture, door programs, relay reversal and WhatsApp remain
+> for later slices.
+>
+> Review round 1 (2026-09-28), recorded in `routers/access_control.py`'s physical-actions section note: every request
+> past the permission check is audited - a pre-send refusal as one `denied` row, a sent command as an attempt row
+> committed BEFORE sending plus a best-effort outcome row; an answer WisKey gave with `success: true` but in an
+> unexpected shape is "outcome unknown", never "refused"; a relay stays blocked until WisKey's call is really over and
+> 10 s more after an unknown outcome; every physical request carries `client_request_id` + `expires_at` (the HA
+> bridge's envelope; 15 s from the UI, at most 60 s, re-checked immediately before sending); physical actions have their
+> own in-flight slots and rate buckets; a failed overview refetch no longer cuts an announcement that is playing.
+
 **Phase 4 — parity completion (peripheral/admin screens).** Camera wall (S4), media/clock settings (S21/S22),
 operations center (S23), identity lifecycle report (S17), permission directory (S18), appearance picker (S25),
 WhatsApp (S20/S6 send+preview — separately flagged, see §7 decision 4, since it is the one EXTERNAL capability
