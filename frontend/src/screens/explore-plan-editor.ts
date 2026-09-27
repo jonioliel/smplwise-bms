@@ -26,10 +26,10 @@ import { allIds, byConfidence, byKind, defaultStates, fromResult, moveVertex as 
 import { loadTree, type CatalogTree } from '../api/catalog';
 import { productSettings } from '../api/prefs';
 import { createItem, exportUrl as catalogExportUrl, importItems, itemOf, loadLibrary, lookupOf, type CatalogItem, type CatalogLibrary } from '../api/plan-catalog';
-import { distanceM, effectiveScale, isClosedOutline, lengthPx, nearestWall, pointOnWall, snapPoint, type CatalogLookup, type ConnectorKind, type GeometryDoc, type GeomOpening, type GeomWall, type Pt } from '../map/geometry';
+import { applyAnchorPositions, distanceM, effectiveScale, isClosedOutline, lengthPx, nearestWall, pointOnWall, snapPoint, type AnchorPosition, type CatalogLookup, type ConnectorKind, type GeometryDoc, type GeomOpening, type GeomWall, type Pt } from '../map/geometry';
 import { StudioController } from '../map/studio-controller';
 import { ARRAY_MAX, BIND_DISTANCE_M, CIRCUIT_COLORS, addArray, addCircuit, addCircuitLamp, addConnector, addLabel, addLevel, addObject, addOpening, addWall, arrayDefaults, circuitPower, defaultLevelId, duplicateBeside, duplicateObject, initialLevel, kindDefaults, levelUsage, moveConnectorVertex, moveGroup, moveObject, moveVertex, newId, nudgeT, openingRange, patchCircuit, patchConnector, patchLabel, patchLevel, patchObject, patchOpening, patchWall, removeCorner, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember, translateWall, visibleUnderLevel, wallDirectionAt, duplicateSelection, itemsInRect, moveSelection, removeItems, selectableItems, selectionDelta, toggleItem, translatePolygon, TAG_MAX_COUNT, circuitEligible, itemsWithTag, joinCircuit, setLevelOf, tagCounts, tagItems, withTag, withoutTag, type MultiItem, type WallDefaults,
-  GRID_DEFAULT_M, GRID_STEPS_M, GUIDE_SNAP_PX, alignObjects, distributeObjects, gridDelta, gridStepPx, objectBox, snapObjectPosition, snapToGrid, type AlignBox, type AlignMode, type Guide } from '../map/studio-ops';
+  GRID_DEFAULT_M, GRID_STEPS_M, GUIDE_SNAP_PX, alignObjects, distributeObjects, gridDelta, gridStepPx, objectBox, snapObjectPosition, snapToGrid, guideTargets, type AlignMode, type Guide, type GuideTargets } from '../map/studio-ops';
 import { ANCHOR_3D_DEFAULTS, anchor3dKind } from '../map/anchor-3d';
 import { COLL_LABEL, CONNECTOR_LABEL, circuitPlacingHint, connectorDerived, countLabel, fmtMetres, fmtScale, renderArrayDialog, renderCalibPanel, renderCircuitPanel, renderConnectorPanel, renderCustomItemDialog, renderGroupDeleteDialog, renderGroupInspector, renderLevelChips, renderLevelDialog, renderDetectPanel, renderLibraryPanel, renderMeasurePanel, renderObjectInspector, renderConnectorSelection, renderMultiSelection, renderGridOptions, renderStudioPanel, renderTagPicker, renderTagsField, MULTI_HINT, SAVE_LABEL, studioPanelStyles, lighterStrength, type ArrayDialogView, type CustomItemView, type DetectAcceptError, type DetectOpts, type DetectReplaceAsk, type DetectRunState, type GeomKind, type GeomSel, type LevelDialogView, type StudioMode } from './plan-studio-panel';
 
@@ -1397,15 +1397,36 @@ export class ExplorePlanEditor extends LitElement {
     return b && doc ? snapToGrid(p, this.gridPx(doc), b.width, b.height) : p;
   }
 
-  /** The boxes a dragged object lines up with: every other object the level filter shows (an object without a level is on
-   * the default level), in plan pixels. */
-  private alignTargets(doc: GeometryDoc, except: string): AlignBox[] {
+  /** The pins' live positions, keyed as the canvas reads them: an anchor's body is drawn at its pin, not at the position
+   * stored when it was bound. One object per anchors list, so the canvas and the guide cache see the same one. */
+  private anchorPosCache: { anchors: Anchor[]; positions: Record<string, AnchorPosition> } | null = null;
+  private get anchorPositions(): Record<string, AnchorPosition> {
+    const c = this.anchorPosCache;
+    if (c && c.anchors === this.anchors) return c.positions;
+    const positions = Object.fromEntries(this.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees }]));
+    this.anchorPosCache = { anchors: this.anchors, positions };
+    return positions;
+  }
+
+  /** What a dragged object lines up with: every other object the level filter shows (an object without a level is on the
+   * default level), where the canvas draws it - an anchor's body at its pin's live position (review of T085, S2) - as
+   * sorted lines (guideTargets). Built once per drag (S3): the document does not change while the pointer moves, so the
+   * cache holds while the document, the dragged id, the level, the pins and the plan size stay the same, and is dropped at
+   * the drop or the cancel. */
+  private guideCache: { key: unknown[]; targets: GuideTargets } | null = null;
+  private alignTargets(doc: GeometryDoc, except: string): GuideTargets {
     const b = this.bundle;
-    if (!b) return [];
+    const key = [doc, except, this.activeLevel, this.anchorPositions, b?.width, b?.height];
+    const c = this.guideCache;
+    if (c && c.key.length === key.length && c.key.every((k, i) => k === key[i])) return c.targets;
     const lv = this.activeLevel;
     const def = defaultLevelId(doc);
     const { scale } = effectiveScale(doc);
-    return doc.objects.filter((o) => o.id !== except && (lv === null || (o.level_id || def) === lv)).map((o) => objectBox(o, b.width, b.height, scale));
+    const shown = applyAnchorPositions(doc, this.anchorPositions);
+    const boxes = b ? shown.objects.filter((o) => o.id !== except && (lv === null || (o.level_id || def) === lv)).map((o) => objectBox(o, b.width, b.height, scale)) : [];
+    const targets = guideTargets(boxes);
+    this.guideCache = { key, targets };
+    return targets;
   }
 
   private pickTool(tool: Tool) {
@@ -2840,7 +2861,8 @@ export class ExplorePlanEditor extends LitElement {
       void this.commitZoneMoves(m.zones);
       return;
     }
-    const r = doc ? this.dragged(doc, d) : null;
+    const r = doc ? this.dragged(doc, d) : null; // the drop lands where the last move's preview showed (same cached targets)
+    this.guideCache = null; // the drag is over: the next one builds its own targets
     if (!r) return;
     this.edit(() => r.doc);
     this.onGeomSelect(r.sel.id, r.sel.kind, r.sel.vertex);
@@ -4051,13 +4073,13 @@ export class ExplorePlanEditor extends LitElement {
                   .wallDraft=${this.wallDraft ?? []} .hoverPoint=${this.studioPlacing ? this.hover : null} .rulers=${this.rulers} .gridStep=${this.studio.doc ? this.gridPx(this.studio.doc) : 0} .guides=${this.guides} .catalog=${this.catalogLookup}
                   .candidates=${this.tool === 'detect' && this.cands ? this.cands.set : null} .candidateStates=${this.candStates} .selectedCandidateId=${this.candSel} .candidateEditable=${this.tool === 'detect' && !this.narrow && !this.busy}
                   @candidate-select=${(e: CustomEvent<{ id: string }>) => this.toggleCandidate(e.detail.id)}
-                  @candidate-drag=${(e: CustomEvent<{ id: string; index: number; x: number; y: number }>) => this.onCandidateDrag(e.detail)} .anchorPositions=${Object.fromEntries(this.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees }]))}
+                  @candidate-drag=${(e: CustomEvent<{ id: string; index: number; x: number; y: number }>) => this.onCandidateDrag(e.detail)} .anchorPositions=${this.anchorPositions}
                   @plan-hover=${(e: CustomEvent<{ x: number; y: number; shift: boolean; item?: boolean }>) => this.onPlanHover(e.detail.x, e.detail.y, e.detail.shift, !!e.detail.item)}
                   .multiDrag=${this.multiShown.length >= 2 && this.geomDragMode === 'all'} .marquee=${this.multiOn}
                   @geom-box=${(e: CustomEvent<{ x0: number; y0: number; x1: number; y1: number; add: boolean }>) => this.onGeomBox(e.detail)}
                   @geom-select=${(e: CustomEvent<{ id: string; kind: GeomKind; vertex?: number; add?: boolean }>) => this.onGeomSelect(e.detail.id, e.detail.kind, e.detail.vertex, !!e.detail.add)}
                   @geom-drag-move=${(e: CustomEvent<GeomDragDetail>) => this.onGeomDragMove(e.detail)}
-                  @geom-drag-cancel=${() => { this.geomPreview = null; this.guides = []; if (!this.zoneSaving) this.zonePreview = null; this.dupId = null; }}
+                  @geom-drag-cancel=${() => { this.geomPreview = null; this.guides = []; this.guideCache = null; if (!this.zoneSaving) this.zonePreview = null; this.dupId = null; }}
                   @geom-drag=${(e: CustomEvent<GeomDragDetail>) => this.onGeomDrag(e.detail)}
                   @zone-select=${(e: CustomEvent<{ id: string; add?: boolean }>) => this.onZoneSelect(e.detail.id, !!e.detail.add)}
                   @zone-edit=${(e: CustomEvent<{ id: string; polygon: ZonePoint[] }>) => { const z = this.zones.find((x) => x.id === e.detail.id); this.zoneVertexSel = null; if (z) void this.patchZone(z, { polygon: e.detail.polygon }); }}

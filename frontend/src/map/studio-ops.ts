@@ -719,28 +719,62 @@ export function objectBox(o: Pick<GeomObject, 'position' | 'rotation_deg' | 'siz
 const GUIDE_EPS_PX = 0.01;
 const linesOf = (b: AlignBox, axis: 'x' | 'y'): [number, number, number] => (axis === 'x' ? [b.x0, (b.x0 + b.x1) / 2, b.x1] : [b.y0, (b.y0 + b.y1) / 2, b.y1]);
 
+/** The lines a dragged object can line up with, prepared once per drag (review of T085, S3): every box's left edge, centre
+ * and right edge in one sorted array, its top edge, centre and bottom edge in another - so each pointer move is a few
+ * binary searches instead of a pass over every object. */
+export interface GuideTargets {
+  xs: Float64Array;
+  ys: Float64Array;
+}
+export function guideTargets(boxes: readonly AlignBox[]): GuideTargets {
+  const xs = new Float64Array(boxes.length * 3);
+  const ys = new Float64Array(boxes.length * 3);
+  boxes.forEach((b, i) => {
+    xs.set(linesOf(b, 'x'), i * 3);
+    ys.set(linesOf(b, 'y'), i * 3);
+  });
+  return { xs: xs.sort(), ys: ys.sort() };
+}
+
+/** The first index of a sorted array whose value is not below `v`. */
+function lowerBound(a: Float64Array, v: number): number {
+  let lo = 0;
+  let hi = a.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (a[mid] < v) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
 /** The live alignment guides of a dragged object (Figma / PowerPoint style): on each axis on its own, the smallest move
  * that puts one of the moving box's edges or its centre on an edge or the centre of another box, when it is at most
- * `tolPx` plan pixels (null: nothing within reach on that axis). `guides`: every line of the moving box that lies on a
- * line of another box once that move is made, sorted by axis and position. */
-export function alignmentSnap(moving: AlignBox, others: readonly AlignBox[], tolPx: number): { dx: number | null; dy: number | null; guides: Guide[] } {
+ * `tolPx` plan pixels (null: nothing within reach on that axis; of two moves as small, the one to the lower line).
+ * `guides`: every line of another box that a line of the moving box lies on once that move is made, sorted by axis and
+ * position. `others`: the boxes, or the same prepared once by guideTargets. */
+export function alignmentSnap(moving: AlignBox, others: readonly AlignBox[] | GuideTargets, tolPx: number): { dx: number | null; dy: number | null; guides: Guide[] } {
+  const t = Array.isArray(others) ? guideTargets(others as readonly AlignBox[]) : (others as GuideTargets);
   const guides: Guide[] = [];
   const along = (axis: 'x' | 'y'): number | null => {
-    if (!(tolPx > 0)) return null;
+    const lines = axis === 'x' ? t.xs : t.ys;
+    if (!(tolPx > 0) || !lines.length) return null;
     const mine = linesOf(moving, axis);
     let best: number | null = null;
-    for (const b of others) {
-      for (const t of linesOf(b, axis)) {
-        for (const m of mine) {
-          const d = t - m;
-          if (Math.abs(d) <= tolPx && (best === null || Math.abs(d) < Math.abs(best))) best = d;
-        }
+    for (const m of mine) {
+      const i = lowerBound(lines, m);
+      for (const j of [i - 1, i]) { // the nearest line below and the nearest at or above
+        if (j < 0 || j >= lines.length) continue;
+        const d = lines[j] - m;
+        if (Math.abs(d) <= tolPx && (best === null || Math.abs(d) < Math.abs(best))) best = d;
       }
     }
     if (best === null) return null;
-    const shifted = mine.map((m) => m + best!);
     const found = new Set<number>();
-    for (const b of others) for (const t of linesOf(b, axis)) if (shifted.some((m) => Math.abs(m - t) < GUIDE_EPS_PX)) found.add(round5(t));
+    for (const m of mine) {
+      const s = m + best;
+      for (let j = lowerBound(lines, s - GUIDE_EPS_PX); j < lines.length && lines[j] < s + GUIDE_EPS_PX; j++) found.add(round5(lines[j]));
+    }
     for (const at of [...found].sort((p, q) => p - q)) guides.push({ axis, at });
     return best;
   };
@@ -752,8 +786,9 @@ export function alignmentSnap(moving: AlignBox, others: readonly AlignBox[], tol
 /** Where a single dragged object lands: `to` (normalized, the pointer's move applied) snapped on each axis on its own -
  * to an alignment guide with another object's box when one is within `tolPx` plan pixels, else to the grid of `gridPx`
  * plan pixels (0: no grid). A guide wins over the grid on its axis even when a grid line is nearer: the point of a guide
- * is lining up with that object, and the grid still takes the other axis. `tolPx` 0 turns the guides off. */
-export function snapObjectPosition(o: Pick<GeomObject, 'position' | 'rotation_deg' | 'size'>, to: Pt, others: readonly AlignBox[], opts: { gridPx: number; tolPx: number }, W: number, H: number, scale: number): { position: Pt; guides: Guide[] } {
+ * is lining up with that object, and the grid still takes the other axis. `tolPx` 0 turns the guides off. `others`: the
+ * other objects' boxes, or the same prepared once per drag by guideTargets. */
+export function snapObjectPosition(o: Pick<GeomObject, 'position' | 'rotation_deg' | 'size'>, to: Pt, others: readonly AlignBox[] | GuideTargets, opts: { gridPx: number; tolPx: number }, W: number, H: number, scale: number): { position: Pt; guides: Guide[] } {
   const a = opts.tolPx > 0 ? alignmentSnap(objectBox({ ...o, position: to }, W, H, scale), others, opts.tolPx) : { dx: null, dy: null, guides: [] as Guide[] };
   const grid = snapToGrid(to, opts.gridPx, W, H);
   const x = a.dx !== null ? round5(to[0] + a.dx / W) : grid[0];
@@ -780,63 +815,89 @@ function alignable(doc: GeometryDoc, ids: readonly string[], W: number, H: numbe
   return out;
 }
 
-/** Every object moved by its own (dx, dy) plan pixels: moveObject per object, one document (one undo step). The same
- * document when nothing moves. */
-function moveObjectsBy(doc: GeometryDoc, moves: readonly { o: GeomObject; dx: number; dy: number }[], W: number, H: number): GeometryDoc {
-  let out = doc;
-  for (const m of moves) {
-    const to: Pt = [m.o.position[0] + m.dx / W, m.o.position[1] + m.dy / H];
-    const next = moveObject(out, m.o.id, to);
-    const before = out.objects.find((x) => x.id === m.o.id)!.position;
-    const after = next.objects.find((x) => x.id === m.o.id)!.position;
-    if (before[0] !== after[0] || before[1] !== after[1]) out = next;
+/** One object's move of a bulk align or distribute, in plan pixels. */
+export interface ObjectDelta {
+  id: string;
+  dx: number;
+  dy: number;
+}
+
+/** The moves of a bulk align (a mode) or distribute (an axis) on the objects of `ids`, relative to their own box computed
+ * once (alignObjects / distributeObjects document the rules), in plan pixels; empty when there is nothing to do - fewer
+ * than two objects that can move (three to distribute), or an unusable plan size or scale. */
+export function objectDeltas(doc: GeometryDoc, ids: readonly string[], what: AlignMode | 'x' | 'y', W: number, H: number, scale: number): ObjectDelta[] {
+  const items = alignable(doc, ids, W, H, scale);
+  const distribute = what === 'x' || what === 'y';
+  if (items.length < (distribute ? 3 : 2) || !(W > 0) || !(H > 0) || !(scale > 0)) return [];
+  if (!distribute) {
+    let x0 = Infinity;
+    let x1 = -Infinity;
+    let y0 = Infinity;
+    let y1 = -Infinity;
+    for (const { b } of items) {
+      x0 = Math.min(x0, b.x0);
+      x1 = Math.max(x1, b.x1);
+      y0 = Math.min(y0, b.y0);
+      y1 = Math.max(y1, b.y1);
+    }
+    return items.map(({ o, b }) => {
+      const cx = (b.x0 + b.x1) / 2;
+      const cy = (b.y0 + b.y1) / 2;
+      const dx = what === 'left' ? x0 - b.x0 : what === 'right' ? x1 - b.x1 : what === 'center-x' ? (x0 + x1) / 2 - cx : 0;
+      const dy = what === 'top' ? y0 - b.y0 : what === 'bottom' ? y1 - b.y1 : what === 'center-y' ? (y0 + y1) / 2 - cy : 0;
+      return { id: o.id, dx, dy };
+    });
   }
-  return out;
-}
-
-/** Align the objects of `ids` (two or more that can move) on the box of all of them, computed once: their left edges on
- * its left edge, their right edges on its right, top, bottom, their centres on its vertical centre line ('center-x': one
- * above the other) or on its horizontal one ('center-y': side by side, the owner's "five lamps on one line"). Walls,
- * zones and anchor bodies in `ids` neither move nor count towards the box. W, H: the plan's pixel size; scale: metres
- * per plan pixel. The same document when nothing moves. */
-export function alignObjects(doc: GeometryDoc, ids: readonly string[], mode: AlignMode, W: number, H: number, scale: number): GeometryDoc {
-  const items = alignable(doc, ids, W, H, scale);
-  if (items.length < 2 || !(W > 0) || !(H > 0) || !(scale > 0)) return doc;
-  const x0 = Math.min(...items.map((i) => i.b.x0));
-  const x1 = Math.max(...items.map((i) => i.b.x1));
-  const y0 = Math.min(...items.map((i) => i.b.y0));
-  const y1 = Math.max(...items.map((i) => i.b.y1));
-  const moves = items.map(({ o, b }) => {
-    const cx = (b.x0 + b.x1) / 2;
-    const cy = (b.y0 + b.y1) / 2;
-    const dx = mode === 'left' ? x0 - b.x0 : mode === 'right' ? x1 - b.x1 : mode === 'center-x' ? (x0 + x1) / 2 - cx : 0;
-    const dy = mode === 'top' ? y0 - b.y0 : mode === 'bottom' ? y1 - b.y1 : mode === 'center-y' ? (y0 + y1) / 2 - cy : 0;
-    return { o, dx, dy };
-  });
-  return moveObjectsBy(doc, moves, W, H);
-}
-
-/** Distribute the objects of `ids` (three or more that can move) evenly along an axis: ordered by their centres, the
- * first and the last stay and the ones between move so that every gap between neighbouring boxes is the same (the
- * PowerPoint / Figma rule; for objects of one size it is also an even spacing of their centres). Walls, zones and anchor
- * bodies in `ids` neither move nor count. The same document when nothing moves. */
-export function distributeObjects(doc: GeometryDoc, ids: readonly string[], axis: 'x' | 'y', W: number, H: number, scale: number): GeometryDoc {
-  const items = alignable(doc, ids, W, H, scale);
-  if (items.length < 3 || !(W > 0) || !(H > 0) || !(scale > 0)) return doc;
-  const lo = (b: AlignBox) => (axis === 'x' ? b.x0 : b.y0);
-  const hi = (b: AlignBox) => (axis === 'x' ? b.x1 : b.y1);
+  const lo = (b: AlignBox) => (what === 'x' ? b.x0 : b.y0);
+  const hi = (b: AlignBox) => (what === 'x' ? b.x1 : b.y1);
   const sorted = items.map((it, k) => ({ ...it, k })).sort((p, q) => (lo(p.b) + hi(p.b)) / 2 - (lo(q.b) + hi(q.b)) / 2 || p.k - q.k);
   const start = lo(sorted[0].b);
   const end = hi(sorted[sorted.length - 1].b);
   const total = sorted.reduce((t, i) => t + hi(i.b) - lo(i.b), 0);
   const gap = (end - start - total) / (sorted.length - 1);
   let at = start;
-  const moves = sorted.map(({ o, b }, i) => {
+  return sorted.map(({ o, b }, i) => {
     const d = i === 0 || i === sorted.length - 1 ? 0 : at - lo(b);
     at += hi(b) - lo(b) + gap;
-    return { o, dx: axis === 'x' ? d : 0, dy: axis === 'y' ? d : 0 };
+    return { id: o.id, dx: what === 'x' ? d : 0, dy: what === 'y' ? d : 0 };
   });
-  return moveObjectsBy(doc, moves, W, H);
+}
+
+/** Every object of `deltas` moved by its own (dx, dy) plan pixels in one pass over the objects (review of T085, S1: a
+ * moveObject per object rebuilt the whole list once per selected object - seconds on a Ctrl+A of a large plan). The
+ * result is exactly moveObject composed per object (the unit test keeps that composition as its oracle): the position
+ * clamped and rounded as patchObject does; an object that does not move stays the same object, and the document itself
+ * when none moves. */
+function applyObjectDeltas(doc: GeometryDoc, deltas: readonly ObjectDelta[], W: number, H: number): GeometryDoc {
+  if (!deltas.length) return doc;
+  const byId = new Map(deltas.map((m) => [m.id, m]));
+  let changed = false;
+  const objects = doc.objects.map((o) => {
+    const m = byId.get(o.id);
+    if (!m) return o;
+    const p = clampPt([o.position[0] + m.dx / W, o.position[1] + m.dy / H]);
+    if (p[0] === o.position[0] && p[1] === o.position[1]) return o;
+    changed = true;
+    return { ...o, position: p, id: o.id };
+  });
+  return changed ? { ...doc, objects } : doc;
+}
+
+/** Align the objects of `ids` (two or more that can move) on the box of all of them, computed once: their left edges on
+ * its left edge, their right edges on its right, top, bottom, their centres on its vertical centre line ('center-x': one
+ * above the other) or on its horizontal one ('center-y': side by side, the owner's "five lamps on one line"). Walls,
+ * zones and anchor bodies in `ids` neither move nor count towards the box. W, H: the plan's pixel size; scale: metres
+ * per plan pixel. One document (one undo step); the same document when nothing moves. */
+export function alignObjects(doc: GeometryDoc, ids: readonly string[], mode: AlignMode, W: number, H: number, scale: number): GeometryDoc {
+  return applyObjectDeltas(doc, objectDeltas(doc, ids, mode, W, H, scale), W, H);
+}
+
+/** Distribute the objects of `ids` (three or more that can move) evenly along an axis: ordered by their centres, the
+ * first and the last stay and the ones between move so that every gap between neighbouring boxes is the same (the
+ * PowerPoint / Figma rule; for objects of one size it is also an even spacing of their centres). Walls, zones and anchor
+ * bodies in `ids` neither move nor count. One document; the same document when nothing moves. */
+export function distributeObjects(doc: GeometryDoc, ids: readonly string[], axis: 'x' | 'y', W: number, H: number, scale: number): GeometryDoc {
+  return applyObjectDeltas(doc, objectDeltas(doc, ids, axis, W, H, scale), W, H);
 }
 
 // ---------------------------------------------------------------- connectors (T085)

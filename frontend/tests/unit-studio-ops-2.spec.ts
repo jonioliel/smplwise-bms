@@ -6,7 +6,7 @@ import { objectHitCorners, type GeometryDoc, type GeomObject } from '../src/map/
 import type { CatalogItem } from '../src/api/plan-catalog';
 import { addArray, addCircuit, addCircuitLamp, addConnector, addLevel, addObject, arrayDefaults, circuitPower, duplicateBeside, duplicateObject, initialLevel, levelUsage, moveConnectorVertex, moveGroup, moveObject, objectZ, patchCircuit, patchConnector, patchLevel, patchObject, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember, translatePolygon, translateWall, visibleUnderLevel, duplicateSelection, itemsInRect, moveSelection, removeItems, selectableItems, selectionDelta, toggleItem, zoneOnLevel,
   TAG_MAX_COUNT, TAG_MAX_LEN, circuitEligible, itemsWithTag, joinCircuit, normalizeTag, patchWall, setLevelOf, tagCounts, tagItems, withTag, withoutTag,
-  alignObjects, alignmentSnap, distributeObjects, gridDelta, gridStepPx, objectBox, snapObjectPosition, snapToGrid, type AlignBox } from '../src/map/studio-ops';
+  alignObjects, alignmentSnap, distributeObjects, gridDelta, gridStepPx, guideTargets, objectBox, objectDeltas, snapObjectPosition, snapToGrid, type AlignBox, type AlignMode, type ObjectDelta } from '../src/map/studio-ops';
 
 // Plan Studio phase 2 (T085): the pure document operations of the editor - placing an item (its size, z and params come
 // from the library), moving, rotating, stretching, duplicating, and removing an object out of its group, its circuit
@@ -640,5 +640,68 @@ test.describe('plan studio grid, snap and alignment (unit)', () => {
     const lamps = [0.1, 0.18, 0.5, 0.52, 0.9].map((x, i): GeomObject => ({ ...doc.objects[0], id: `l${i}`, position: [x, 0.5], size: { w_m: 0.4, d_m: 0.4, h_m: 0.1 } }));
     const row = distributeObjects({ ...doc, objects: lamps }, lamps.map((l) => l.id), 'x', W, H, S);
     expect(row.objects.map((o) => o.position[0])).toEqual([0.1, 0.3, 0.5, 0.7, 0.9]);
+  });
+
+  // Review of T085, S1 / S3: align and distribute apply their moves in one pass, and the guides search prepared sorted
+  // lines - each checked against the straightforward version it replaced, on the small example and a larger ragged one.
+  let seed = 11;
+  const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
+  const ragged = (): GeometryDoc => {
+    const doc = box3();
+    const base = doc.objects[0];
+    const extra = Array.from({ length: 60 }, (_, i): GeomObject => ({ ...base, id: `r${i}`, position: [0.05 + rnd() * 0.9, 0.05 + rnd() * 0.9], rotation_deg: i % 5 === 0 ? 37 : 0,
+      size: { w_m: 0.1 + rnd(), d_m: 0.1 + rnd(), h_m: 0.5 }, anchor_ref: i % 9 === 0 ? { resource_type: 'camera', resource_id: `c${i}` } : null }));
+    return { ...doc, objects: [...doc.objects, ...extra] };
+  };
+  /** The oracle: moveObject once per object, each by its own delta (the version before the one-pass apply). */
+  const composed = (doc: GeometryDoc, deltas: ObjectDelta[]) => deltas.reduce((d, m) => {
+    const o = doc.objects.find((x) => x.id === m.id)!;
+    return moveObject(d, m.id, [o.position[0] + m.dx / W, o.position[1] + m.dy / H]);
+  }, doc);
+
+  test('alignObjects and distributeObjects equal moveObject composed per object over their deltas, in one pass', () => {
+    const modes: (AlignMode | 'x' | 'y')[] = ['left', 'right', 'top', 'bottom', 'center-x', 'center-y', 'x', 'y'];
+    for (const doc of [box3(), ragged()]) {
+      const ids = [...doc.objects.map((o) => o.id).reverse(), 'wa', 'z-in'];
+      for (const what of modes) {
+        const deltas = objectDeltas(doc, ids, what, W, H, S);
+        expect(deltas.length, what).toBe(doc.objects.filter((o) => !o.anchor_ref).length); // anchor bodies are never moved
+        const got = what === 'x' || what === 'y' ? distributeObjects(doc, ids, what, W, H, S) : alignObjects(doc, ids, what, W, H, S);
+        expect(got, what).toEqual(composed(doc, deltas));
+        const moved = new Set(deltas.map((m) => m.id));
+        got.objects.forEach((o, i) => { if (!moved.has(o.id)) expect(o).toBe(doc.objects[i]); }); // untouched objects are the same objects
+      }
+    }
+    expect(objectDeltas(box3(), ['a', 'c'], 'x', W, H, S)).toEqual([]); // two objects: nothing to distribute
+  });
+
+  test('guideTargets: the sorted lines give the same snap and guides as a scan of every box', () => {
+    /** The oracle: every line of every box against every line of the moving box (the version before the sorted lines). */
+    const scan = (moving: AlignBox, others: AlignBox[], tol: number) => {
+      const lines = (b: AlignBox, axis: 'x' | 'y') => (axis === 'x' ? [b.x0, (b.x0 + b.x1) / 2, b.x1] : [b.y0, (b.y0 + b.y1) / 2, b.y1]);
+      const out: { dx: number | null; dy: number | null; guides: { axis: 'x' | 'y'; at: number }[] } = { dx: null, dy: null, guides: [] };
+      for (const axis of ['x', 'y'] as const) {
+        let best: number | null = null;
+        for (const b of others) for (const t of lines(b, axis)) for (const m of lines(moving, axis)) if (Math.abs(t - m) <= tol && (best === null || Math.abs(t - m) < Math.abs(best))) best = t - m;
+        if (best === null) continue;
+        const found = new Set<number>();
+        for (const b of others) for (const t of lines(b, axis)) if (lines(moving, axis).some((m) => Math.abs(m + best! - t) < 0.01)) found.add(Math.round(t * 1e5) / 1e5);
+        out[axis === 'x' ? 'dx' : 'dy'] = best;
+        out.guides.push(...[...found].sort((p, q) => p - q).map((at) => ({ axis, at })));
+      }
+      return out;
+    };
+    const boxes = ragged().objects.map((o) => objectBox(o, W, H, S));
+    const targets = guideTargets(boxes);
+    let hits = 0;
+    for (let k = 0; k < 400; k++) {
+      const x = rnd() * W;
+      const y = rnd() * H;
+      const moving: AlignBox = { x0: x, x1: x + 10 + rnd() * 60, y0: y, y1: y + 10 + rnd() * 60 };
+      const want = scan(moving, boxes, 6);
+      expect(alignmentSnap(moving, targets, 6)).toEqual(want);
+      if (want.dx !== null || want.dy !== null) hits++;
+    }
+    expect(hits).toBeGreaterThan(100); // most random drops find a line within reach: the comparison is not vacuous
   });
 });
