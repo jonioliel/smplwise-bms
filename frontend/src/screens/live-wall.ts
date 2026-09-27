@@ -6,14 +6,23 @@ import '../components/sw-button';
 import '../components/sw-field';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
+import '../components/sw-dialog';
 import { demoScene, demoWall } from '../fixtures/catalog';
 import { navigate } from '../router';
 import { isApi } from '../api/session';
 import { snapshotUrl, type ProductSettings, type Transport } from '../api/media';
-import { listCameras } from '../api/maps';
+import { listCameras, updateCamera } from '../api/maps';
 import { effectiveTransport, productSettings } from '../api/prefs';
 import { describeError } from '../api/client';
 import type { Camera } from '../api/types';
+
+/** T091 (owner request 2026-09-27): one row of the grid-layout settings dialog - the order the rows are kept
+ * in IS the new sort_order (recomputed as 0..N-1 on save); `span` is the camera's grid_col_span. */
+interface LayoutRow {
+  id: string;
+  name: string;
+  span: number;
+}
 
 const COUNTS = [1, 2, 4, 6, 8, 9, 12, 16, 20, 25, 32];
 const COUNT_KEY = 'sw.wall.count';
@@ -37,6 +46,19 @@ export class LiveWall extends LitElement {
   @state() private error = '';
   @state() private posterBust = Date.now();
   private posterTimer: number | undefined;
+
+  /** Gated on `sources.configure` (the same permission and `can_sync` flag system-devices already uses) - the
+   * owner can reorder the grid and set panoramic cameras to span more than one column (T091). */
+  @state() private canManage = false;
+  @state() private editingRows: LayoutRow[] | null = null;
+  @state() private dialogError = '';
+  @state() private dialogBusy = false;
+  private editingOriginal = new Map<string, { sort_order: number; grid_col_span: number }>();
+  /** Every camera the caller may see, enabled or not (listCameras() already returns both - see cameras.py's
+   * `list_cameras`, which filters only by visibility, not by `enabled`). Only used to keep disabled/hidden
+   * cameras' sort_order out of the way of the dialog's own 0..N-1 renumbering (T091, review S2); the dialog
+   * itself still only lists the enabled ones in `this.cams`, same as the grid. */
+  private allCams: Camera[] = [];
 
   static styles = css`
     .layouts {
@@ -100,6 +122,46 @@ export class LiveWall extends LitElement {
       font-size: var(--sw-fs-xs);
       color: var(--sw-danger);
     }
+    .settings-rows {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-block-size: 50vh;
+      overflow-y: auto;
+    }
+    .settings-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 8px;
+      border: 1px solid var(--sw-border);
+      border-radius: 8px;
+      background: var(--sw-surface);
+    }
+    .settings-move {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .settings-move button {
+      font: inherit;
+      border: 1px solid var(--sw-border);
+      background: var(--sw-surface-3);
+      color: var(--sw-text-2);
+      border-radius: 4px;
+      inline-size: 24px;
+      block-size: 20px;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .settings-move button:disabled {
+      opacity: 0.35;
+      cursor: default;
+    }
+    .settings-name {
+      flex: 1;
+      font-size: var(--sw-fs-sm);
+    }
     @media (max-width: 767px) {
       .grid {
         gap: 8px;
@@ -136,14 +198,23 @@ export class LiveWall extends LitElement {
     if (w !== this.box.w || h !== this.box.h) this.box = { w, h };
   };
 
-  /** Columns and tile width that make the tiles biggest for n tiles (16:9) inside w × h; null when not measured. */
-  private bestFit(n: number): { cols: number; tile: number } | null {
+  /** Columns and tile width that make the tiles biggest (16:9 per column-unit) inside w × h; null when not
+   * measured. `spans` is one grid_col_span per shown camera (plain 1 for every tile before T091).
+   *
+   * B2 review fix: a spanned camera must count as `span` column-units, not one tile, or the grid overflows
+   * the screen (a span-2 tile stayed 16:9 at its doubled width, so it became ~2 rows tall, and disabling
+   * fit-sizing entirely - the first attempt at this - left the whole wall an unconstrained, scrolling mess).
+   * For each candidate column count the occupied-column weight is recomputed by clamping every span to that
+   * candidate (a span cannot exceed the columns actually available), matching how the tiles are rendered. */
+  private bestFit(spans: number[]): { cols: number; tile: number } | null {
     const { w, h } = this.box;
-    if (!w || h < 120 || n < 1) return null;
+    const total = spans.reduce((a, s) => a + s, 0);
+    if (!w || h < 120 || total < 1) return null;
     const gap = 12;
     let best = { cols: 1, tile: 0 };
-    for (let cols = 1; cols <= n; cols++) {
-      const rows = Math.ceil(n / cols);
+    for (let cols = 1; cols <= total; cols++) {
+      const weight = spans.reduce((a, s) => a + Math.min(s, cols), 0);
+      const rows = Math.ceil(weight / cols);
       const tile = Math.min((w - gap * (cols - 1)) / cols, ((h - gap * (rows - 1)) / rows) * (16 / 9));
       if (tile > best.tile) best = { cols, tile };
     }
@@ -187,7 +258,10 @@ export class LiveWall extends LitElement {
     if (!isApi()) return;
     try {
       const [list, settings] = await Promise.all([listCameras(), productSettings()]);
+      this.error = ''; // N6: a stale error panel must not linger once a retry actually succeeds
+      this.allCams = list.cameras;
       this.cams = list.cameras.filter((c) => c.enabled);
+      this.canManage = list.can_sync;
       this.settings = settings;
       let stored = 0;
       try {
@@ -203,6 +277,122 @@ export class LiveWall extends LitElement {
     }
   }
 
+  /** Opens the grid-layout settings dialog: one row per camera, in the current sort_order (the backend already
+   * sorts `this.cams` this way - see cameras.py ORDER BY sort_order, channel), snapshotting the original
+   * sort_order / grid_col_span so save() only PATCHes what actually changed. */
+  private openSettings() {
+    const cams = this.cams ?? [];
+    this.editingOriginal = new Map(cams.map((c) => [c.id, { sort_order: c.sort_order, grid_col_span: c.grid_col_span }]));
+    this.editingRows = cams.map((c) => ({ id: c.id, name: c.name, span: c.grid_col_span }));
+    this.dialogError = '';
+  }
+
+  /** N3: sw-dialog closes itself (Escape, backdrop click, the (X)) before this handler ever runs, so while a
+   * save is in flight we cannot intercept the close - only reopen the very same element right back up, or a
+   * save failure could be silently dropped along with the dialog. */
+  private closeSettings(ev?: Event) {
+    if (this.dialogBusy) {
+      const dlg = ev?.currentTarget as (HTMLElement & { open?: boolean }) | undefined;
+      if (dlg) dlg.open = true;
+      return;
+    }
+    this.editingRows = null;
+    this.dialogError = '';
+  }
+
+  private moveRow(index: number, dir: -1 | 1) {
+    const rows = this.editingRows;
+    if (!rows) return;
+    const j = index + dir;
+    if (j < 0 || j >= rows.length) return;
+    const next = rows.slice();
+    [next[index], next[j]] = [next[j], next[index]];
+    this.editingRows = next;
+  }
+
+  private setSpan(index: number, span: number) {
+    const rows = this.editingRows;
+    if (!rows) return;
+    const next = rows.slice();
+    next[index] = { ...next[index], span };
+    this.editingRows = next;
+  }
+
+  /** Only the cameras that actually changed - new position (0..N-1 from the row order) or column span - are
+   * PATCHed; on failure the dialog stays open with the owner's edits intact (T091).
+   *
+   * S2: the dialog only lists enabled/visible cameras (`this.cams`), so renumbering just those to 0..N-1 would
+   * collide with a disabled or hidden camera that kept its old (often much larger, channel-derived) sort_order -
+   * it would land in an arbitrary middle position everywhere sort_order is read, and jump again on re-enable.
+   * Every OTHER camera the caller can see (`this.allCams`, already fetched by load() - listCameras() returns
+   * disabled ones too, only filtered by visibility) is renumbered right after the dialog's own rows, in its
+   * current relative order, so nothing collides. */
+  private async saveSettings() {
+    const rows = this.editingRows;
+    if (!rows) return;
+    this.dialogBusy = true;
+    this.dialogError = '';
+    try {
+      const rowIds = new Set(rows.map((r) => r.id));
+      const patches: { id: string; body: { sort_order?: number; grid_col_span?: number } }[] = [];
+      rows.forEach((row, i) => {
+        const original = this.editingOriginal.get(row.id);
+        const body: { sort_order?: number; grid_col_span?: number } = {};
+        if (!original || original.sort_order !== i) body.sort_order = i;
+        if (!original || original.grid_col_span !== row.span) body.grid_col_span = row.span;
+        if (Object.keys(body).length) patches.push({ id: row.id, body });
+      });
+      const others = this.allCams
+        .filter((c) => !rowIds.has(c.id))
+        .sort((a, b) => a.sort_order - b.sort_order || a.channel - b.channel);
+      others.forEach((c, j) => {
+        const target = rows.length + j;
+        if (c.sort_order !== target) patches.push({ id: c.id, body: { sort_order: target } });
+      });
+      await Promise.all(patches.map((p) => updateCamera(p.id, p.body)));
+      this.editingRows = null;
+      await this.load();
+    } catch (err) {
+      this.dialogError = describeError(err);
+      // S3: Promise.all does not roll back the PATCHes that DID land before one failed (no bulk transaction
+      // here) - reload in the background so the screen's own data reflects reality even though the dialog
+      // (with the owner's pending edits) stays open; a later Cancel must not show falsely-stale data.
+      await this.load();
+    } finally {
+      this.dialogBusy = false;
+    }
+  }
+
+  private renderSettingsDialog() {
+    const rows = this.editingRows;
+    if (!rows) return nothing;
+    const spanOptions = [
+      { v: 1, label: '1 עמודה' },
+      { v: 2, label: '2 עמודות' },
+      { v: 3, label: '3 עמודות' },
+      { v: 4, label: '4 עמודות' },
+    ];
+    return html`<sw-dialog open heading="סידור הקיר" subheading="סדר הופעה של המצלמות ורוחב אריח בעמודות (למצלמות פנורמיות)" data-wall-settings-dialog @close=${(ev: Event) => this.closeSettings(ev)}>
+      <div class="settings-rows" data-wall-settings-rows>
+        ${rows.map(
+          (row, i) => html`<div class="settings-row" data-wall-settings-row=${row.id}>
+            <div class="settings-move">
+              <button data-wall-move-up=${row.id} ?disabled=${i === 0} @click=${() => this.moveRow(i, -1)} aria-label="הזז למעלה">↑</button>
+              <button data-wall-move-down=${row.id} ?disabled=${i === rows.length - 1} @click=${() => this.moveRow(i, 1)} aria-label="הזז למטה">↓</button>
+            </div>
+            <div class="settings-name">${row.name}</div>
+            <sw-field label="רוחב"><select data-wall-span=${row.id} .value=${String(row.span)} @change=${(ev: Event) => this.setSpan(i, Number((ev.target as HTMLSelectElement).value))}>${spanOptions.map((o) => html`<option value=${o.v} ?selected=${o.v === row.span}>${o.label}</option>`)}</select></sw-field>
+          </div>`,
+        )}
+      </div>
+      ${this.dialogError ? html`<div class="err" data-wall-settings-error>${this.dialogError}</div>` : nothing}
+      <div slot="footer">
+        <sw-button variant="primary" icon="check" data-wall-settings-save ?disabled=${this.dialogBusy} @click=${() => this.saveSettings()}>${this.dialogBusy ? 'שומר…' : 'שמור'}</sw-button>
+        <sw-button variant="ghost" ?disabled=${this.dialogBusy} @click=${() => this.closeSettings()}>ביטול</sw-button>
+      </div>
+    </sw-dialog>`;
+  }
+
   private renderApi() {
     const cams = this.cams;
     if (this.error) return html`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel>`;
@@ -212,24 +402,38 @@ export class LiveWall extends LitElement {
     const pool = wanted.length ? cams.filter((c) => wanted.includes(c.id)) : cams;
     const n = wanted.length ? Math.max(1, pool.length) : this.count;
     const shown = pool.slice(0, n);
+    // A span is capped at 4 columns server-side already (CameraPatch), clamped again here defensively.
+    const spanOf = (c: Camera) => Math.max(1, Math.min(c.grid_col_span, 4));
     // owner round 4 (1.7): "עמודות" only ever adjusted `bestFit`'s own column count, so on any screen narrower
     // than 768px - or before the grid's box was first measured - bestFit never ran and the buttons did nothing.
     // Columns are chosen first (override beats auto-fit beats the static ladder); fit only sizes the tiles after.
-    const autoFit = window.innerWidth >= 768 ? this.bestFit(shown.length) : null;
+    // B2 review fix: bestFit is fed each shown camera's column weight (1 for a plain tile, more for a spanned
+    // one) instead of a flat tile count, and clamps every span against whatever column count it is trying at
+    // that moment - see bestFit()'s own comment for why this cannot be precomputed once outside the search.
+    const autoFit = window.innerWidth >= 768 ? this.bestFit(shown.map(spanOf)) : null;
     const cols = this.colsOverride ? Math.min(this.colsOverride, Math.max(1, shown.length)) : autoFit ? autoFit.cols : n === 1 ? 1 : n === 2 ? 2 : n <= 4 ? 2 : n <= 9 ? 3 : n <= 16 ? 4 : n <= 25 ? 5 : 6;
     let fit: { cols: number; tile: number } | null = autoFit && !this.colsOverride ? autoFit : null;
     if (this.box.w && (this.colsOverride || !fit)) {
-      const rows = Math.ceil(shown.length / cols);
+      const weight = shown.reduce((a, c) => a + Math.min(spanOf(c), cols), 0);
+      const rows = Math.ceil(weight / cols);
       const tile = Math.min((this.box.w - 12 * (cols - 1)) / cols, this.box.h > 120 ? ((this.box.h - 12 * (rows - 1)) / rows) * (16 / 9) : Infinity);
       if (tile > 80 && Number.isFinite(tile)) fit = { cols, tile: Math.floor(tile) };
     }
+    // S1: below 768px without a manual override, the phone media query further caps the RENDERED grid at
+    // min(cols, 2) columns (see `.grid:not([data-wall-cols-manual])` below) - a span must be clamped against
+    // what CSS actually renders, or a span of 3-4 adds extra implicit auto-columns and a zero-width column.
+    const gridCols = !this.colsOverride && window.innerWidth < 768 ? Math.min(cols, 2) : cols;
     const cap = this.settings?.['media.max_live_sessions'] ?? 8;
     const profile: 'sub' | 'main' = this.stream === 'auto' ? (this.settings?.['media.wall_profile'] ?? 'sub') : this.stream;
     const transport: Transport = effectiveTransport(this.settings);
     return html`
       <div class="grid ${fit ? 'fit' : ''}" style="--cols:${cols};--tile:${fit ? `${fit.tile}px` : 'auto'}" data-wall-cols=${cols} ?data-wall-cols-manual=${!!this.colsOverride}>
-        ${shown.map(
-          (c, i) => html`<sw-camera-tile
+        ${shown.map((c, i) => {
+          const span = Math.min(spanOf(c), gridCols);
+          // B2 review fix: a spanned tile keeps a consistent row height only if its aspect ratio widens with
+          // its span (16:9 per occupied column) - otherwise it stays 16:9 AT THE DOUBLED WIDTH (~2 rows
+          // tall for a span-2 tile) and the wall around it overflows the screen.
+          return html`<sw-camera-tile
             name=${c.name}
             state=${c.status === 'online' ? 'live' : c.status === 'offline' ? 'offline' : 'unknown'}
             ?live=${c.status !== 'offline' && c.can_view_live !== false && i < cap}
@@ -238,8 +442,9 @@ export class LiveWall extends LitElement {
             transport=${transport}
             poster=${c.status === 'offline' ? '' : snapshotUrl(c.id, this.posterBust)}
             ?compact=${n >= 9}
-            @click=${() => navigate(`/live/cameras/${c.id}`)}></sw-camera-tile>`,
-        )}
+            style=${`grid-column: span ${span}; aspect-ratio: ${16 * span} / 9`}
+            @click=${() => navigate(`/live/cameras/${c.id}`)}></sw-camera-tile>`;
+        })}
       </div>
       ${wanted.length ? html`<div class="note" data-wall-picked>מפה: ${shown.length} מצלמות שנבחרו${shown.length < wanted.length ? ` (${wanted.length - shown.length} לא זמינות)` : ''} · <a href="#/live/wall">כל המצלמות</a></div>` : nothing}
       <div class="note" data-wall-cols-row style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">עמודות:
@@ -279,8 +484,10 @@ export class LiveWall extends LitElement {
         <div slot="actions" class="layouts" role="group" aria-label="פריסה">
           ${COUNTS.map((n) => html`<button class=${n === this.count && !this.cameras ? 'on' : ''} @click=${() => { this.setCount(n); if (this.cameras) navigate('/live/wall'); }} aria-pressed=${n === this.count && !this.cameras}>${n}</button>`)}
         </div>
+        ${api && this.canManage && this.cams?.length ? html`<sw-button slot="actions" variant="ghost" icon="grid" data-wall-settings-open title="סדר הופעה ורוחב עמודות" @click=${() => this.openSettings()}>סידור הקיר</sw-button>` : nothing}
         <sw-button slot="actions" variant="ghost" icon="expand" data-open-kiosk title="פותח את הקיוסק בלשונית חדשה" @click=${() => this.openKiosk()}>קיוסק</sw-button>
         ${api ? this.renderApi() : this.renderDemo()}
+        ${this.renderSettingsDialog()}
       </sw-page>
     `;
   }
