@@ -32,7 +32,7 @@ export const GROUP_TABS: Record<NavGroup, TabItem[]> = {
     { id: 'sites', label: 'אתרים ומבנים', href: '#/explore/sites' },
     { id: 'floors', label: 'מפת קומה', href: '#/explore/floors/f0' },
     { id: 'entities', label: 'ישויות HA', href: '#/explore/entities' },
-    { id: 'access', label: 'דלתות ואינטרקום', href: '#/explore/access/d1' },
+    { id: 'access', label: 'WisKey', href: '#/explore/access/d1' },
   ],
   cameras: [
     { id: 'wall', label: 'כל המצלמות', href: '#/live/wall' },
@@ -129,7 +129,7 @@ export const AREA_TABS: Record<AreaId, TabItem[]> = {
     { id: 'sites', label: 'אתרים ומבנים', href: '#/explore/sites' },
     { id: 'floors', label: 'מפת קומה', href: '#/explore/floors/f0' },
     { id: 'entities', label: 'ישויות HA', href: '#/explore/entities' },
-    { id: 'access', label: 'דלתות ואינטרקום', href: '#/explore/access/d1' },
+    { id: 'access', label: 'WisKey', href: '#/explore/access/d1' },
   ],
   investigate: [
     { id: 'events', label: 'מרכז אירועים', href: '#/investigate/events' },
@@ -186,8 +186,9 @@ export function crumbsOf(r: RouteState | null, api = false): string[] {
 }
 
 /** Screens that still show demo data only. With a real backend they are hidden from the tab bars until they are
- * built for real (live review 2026-09-17, F1 F3 F4 F5 F6 F7); the shell also redirects their routes. */
-export const DEMO_ONLY_HREFS = new Set(['#/explore/access/d1']);
+ * built for real (live review 2026-09-17, F1 F3 F4 F5 F6 F7); the shell also redirects their routes. Empty since
+ * T054: the access slot became the real WisKey entry center (CR-005). */
+export const DEMO_ONLY_HREFS = new Set<string>();
 
 /** Tabs whose real screen has a different name than the design's demo screen. */
 export const API_LABELS: Record<string, string> = { '#/investigate/reviews': 'Review · חלונות', '#/investigate/playback/sync': 'ניגון מסונכרן', '#/system/setup': 'חיבורים' };
@@ -210,6 +211,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   '#/explore/sites': ['map.read'],
   '#/explore/floors/f0': ['map.read'],
   '#/explore/entities': ['entity.state.read'],
+  '#/explore/access/d1': ['access.read'],
   '#/investigate/events': ['events.read'],
   '#/investigate/playback': ['video.playback'],
   '#/investigate/playback/sync': ['video.playback'],
