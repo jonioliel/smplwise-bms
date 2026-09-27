@@ -149,10 +149,13 @@ online/ringing state, last access — S2), Activity/events (S13), People list + 
 editing), Doors/stations overview (S11, no writes). No release, no calls, no edits of any kind. This alone is a
 complete, independently useful slice.
 
-> Recorded deviation 2026-09-27 (T054, phase 1a): the WisKey tab ships as a sub-tab ("WisKey", `#/explore/access/d1`)
-> under the existing "sites" nav group, not as a new top-level nav entry, to keep the boards' six flat top-level entries
-> (ADR-009 note in docs/architecture/DECISIONS.md). The sub-tab needs `access.read` at installation scope, the only
-> scope that permission is checked at, since WisKey stations are not mapped to sites or floors.
+> Recorded deviation 2026-09-27 (T054, phase 1a, superseded same day): the WisKey tab first shipped as a sub-tab
+> ("WisKey", `#/explore/access/d1`) under the existing "sites" nav group, to keep the boards' six flat top-level
+> entries (ADR-009 note in docs/architecture/DECISIONS.md). The owner corrected this the same day: WisKey is now a
+> genuine top-level nav destination in both nav designs (`#/wiskey/overview`), a peer of Map/Investigation/System,
+> not nested under either - see the follow-up ADR-009 row in docs/architecture/DECISIONS.md recording that
+> deliberate exception. `access.read` is still checked at installation scope only, since WisKey stations are not
+> mapped to sites or floors - that part of the original decision is unchanged.
 
 > Recorded deviation 2026-09-27 (T054, phase 1a): `access.read` is granted by default to the built-in roles viewer,
 > operator, editor, site_admin and system_admin - the same breadth as `map.read` - and not to kiosk, which stays live

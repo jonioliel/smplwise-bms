@@ -1,5 +1,21 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.104 (pilot) — WisKey as a genuine top-level nav tab
+- Owner correction (2026-09-27): "first of all, it put WisKey under the map - I want it as a tab parallel to Map,
+  Investigation and System." A prior release placed the new WisKey screen as a sub-tab under the existing
+  sites/map nav group, to avoid adding a 7th entry to a previously-established six-flat-top-level-entries design
+  constraint. The owner has now explicitly overridden that call.
+- WisKey is now a real top-level destination in both of this codebase's nav designs: a 5th icon-rail area
+  (parallel to Live/Map/Investigation/System) and a 7th flat entry in the boards design - a deliberate,
+  owner-directed exception to the six-entry design constraint, recorded as such. New route namespace
+  `#/wiskey/overview`, structured so future phases can add sibling tabs without restructuring again.
+- Reviewed twice: the first pass found WisKey was completely unreachable from the phone bottom nav in both
+  designs (a hardcoded 4-item slice in one, a hardcoded 4-column grid in the other) - the implementer's own live
+  tests had only checked the desktop-shaped rail, which is hidden on a real phone, so this slipped through
+  unnoticed. Fixed with a real overflow menu and a corrected grid, this time verified against the actual
+  mobile-visible element. A second pass found the new overflow menu could be left open after navigating away
+  through a different control; closed on any route change or Escape.
+
 ## 0.1.103 (pilot) — fix: strict camera order and stretched-fill wide tiles
 - Owner report (2026-09-27, real lab screenshot, on 0.1.101): the camera arrangement did not come out right -
   wanted the cameras back in their prior order, and the wide-tile picture running edge to edge rather than
