@@ -1,5 +1,20 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.99 (pilot) — persistent hand-tool pan mode and keyboard-shortcuts help
+- Owner request (2026-09-27): after the select tool took over left-drag for its marquee (0.1.96), there was no way
+  back to panning without holding Space the whole time. The owner asked for both the existing Space+drag gesture
+  and a persistent toggle button ("אני מעדיף גם וגם"), plus a button on the map that lists every keyboard shortcut.
+- A new hand-tool toggle in the plan editor's toolbar turns every canvas drag into a pan (bare plan or an object)
+  without drawing a marquee or moving anything, on top of the existing Space+drag and middle-button pan gestures;
+  toggling it off (a second click, or Escape once nothing else is in progress) restores whatever tool and
+  selection was active. It reuses the exact 0.1.98 pan math (an overlay flag alongside the active tool, not a new
+  tool of its own) rather than duplicating it.
+- A new "?" button opens a dialog listing every real keyboard shortcut in the editor, grouped by topic (selection,
+  editing, view/navigation, per-tool), cross-checked against the actual key handlers.
+- Reviewed twice: the first pass found two real gaps in the hand tool - a click mid-wall/zone-draft still added a
+  corner, and a plain click on an unselected wall, connector or zone still selected it while panning - both fixed
+  so a drag-only pan mode truly suppresses every click-based side effect, not just drags.
+
 ## 0.1.98 (pilot) — grid, snap and alignment guides
 - Owner request (2026-09-26): line up several placed objects (their example: five lamps) on the same line easily
   - the third and last of the multi-select pieces (0.1.96 multi-select, 0.1.97 tags). A toggleable grid with snap
