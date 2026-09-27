@@ -16,6 +16,12 @@ import { ApiError, describeError } from '../api/client';
 import { getIntercomOverview, subscribeIntercom, type IntercomFeed, type IntercomFeedState, type IntercomOverview, type IntercomStation } from '../api/intercom';
 import { formatTime, t, UTC_ZONE } from './wiskey-format';
 
+/** A timestamp as epoch milliseconds for ordering; unparseable ones sort last. */
+export function instant(ts: string | null | undefined): number {
+  const ms = ts ? Date.parse(ts) : NaN;
+  return Number.isNaN(ms) ? -Infinity : ms;
+}
+
 /** WisKey's door filter (wiskey-v4-overview.ts `WiskeyDoorFilter`). */
 type DoorFilter = 'all' | 'online' | 'attention';
 
@@ -85,7 +91,10 @@ export class WiskeyOverview extends LitElement {
       (m) => {
         if (m.type !== 'heartbeat') void this.load();
       },
-      (connected) => this.setPolling(!connected),
+      (connected) => {
+        this.setPolling(!connected);
+        if (connected) void this.load(); // notices sent while the socket was down are gone: catch up now
+      },
     );
   }
 
@@ -184,7 +193,9 @@ export class WiskeyOverview extends LitElement {
     const visible = matches.slice(page * PAGE, (page + 1) * PAGE);
     const events = all
       .filter((s) => s.last_access)
-      .sort((a, b) => b.last_access!.timestamp.localeCompare(a.last_access!.timestamp))
+      // by instant, not by text: device time carries the station's own offset, received time is +00:00 (a string
+      // sort puts 05:30+00:00 below 07:59+03:00; WisKey's own sort does that, CR-005 fixes it rather than keeps it)
+      .sort((a, b) => instant(b.last_access!.timestamp) - instant(a.last_access!.timestamp))
       .slice(0, 5);
     const pending = all.reduce((sum, s) => sum + s.pending_user_count, 0); // panel.ts pendingCount()
     const zone = o.default_zone ?? UTC_ZONE;

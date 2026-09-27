@@ -9,8 +9,18 @@ Refresh sources, the same ones WisKey's own panel relies on (WISKEY_SOURCE_EXTRA
   `{"kind": "access_revoked"}` -> the add-on's HA user lost WisKey access; the copy is dropped.
 - Home Assistant state pushes for the stations' own `online` / `ringing` / `call_status` entities
   (`subscribe_entities`), which is how WisKey's panel sees ringing without waiting for a poll.
-- a 30 s poll (WisKey's panel polls `overview` every 30 s while visible, panel.ts:492-497).
+- a 30 s poll, only while someone is looking (WisKey's panel polls `overview` every 30 s while its tab is open and
+  visible, panel.ts:492-497): a browser client holds the change-notice socket open, or GET /intercom/overview was asked
+  within the last two poll intervals. Every `overview` reply carries WisKey's whole user directory, so nobody watching
+  means no polling; the two push sources above keep running regardless.
 Refetches are single-flight with coalescing (WisKey's `refresh()` / `_refreshAgain`).
+
+Home Assistant answers WebSocket commands while integrations are still being set up, and WisKey registers its commands
+only after its access and event managers are up (`__init__.py:23-45`, WISKEY_SOURCE_EXTRACTION.md 0.1). So an
+`unknown_command` reply right after an HA restart is not proof WisKey is absent: the feed asks HA's `get_config` and
+concludes `not_installed` only when HA itself is RUNNING (and, after a session that was ready, only after
+`ABSENT_AFTER_READY` consecutive probes); until then it stays `connecting` on the normal short backoff and keeps
+serving the last-known copy as not fresh.
 
 Honest state: without Home Assistant access, without the WisKey integration, or when WisKey refuses the add-on's user,
 the state says so and no station data is served. Only the projection below is ever kept in memory - WisKey's people
@@ -22,6 +32,7 @@ import asyncio
 import logging
 import queue
 import threading
+import time
 from collections import deque
 from typing import Any
 
@@ -34,7 +45,12 @@ from .intercom_client import IntercomError
 log = logging.getLogger("smplwise.intercom")
 
 POLL_S = 30.0
+VIEW_WINDOW_S = 2 * POLL_S  # a GET within this window counts as someone looking (a socket-less client GETs every 30 s)
+RETRY_S = 5.0  # reconnect backoff: 5 s doubling to RETRY_MAX_S
+RETRY_MAX_S = 60.0
 RETRY_ABSENT_S = 300.0  # WisKey missing or refusing us: re-probe every five minutes, not every few seconds
+ABSENT_AFTER_READY = 3  # after a ready session, `unknown_command` with HA RUNNING must repeat this often to mean "removed"
+LOADING = "wiskey_loading"  # IntercomError code: HA does not know WisKey's commands yet, but may still be loading it
 STATION_WATCH_KEYS = ("online", "ringing", "call_status")
 LAST_ACCESS_KEYS = ("timestamp", "time_source", "person_name", "employee_no", "authentication", "result", "event_type", "recovered", "door")
 
@@ -153,6 +169,12 @@ class IntercomSync:
         self._cache: dict[str, Any] | None = None
         self._cache_lock = threading.Lock()
         self._logged_error: str | None = None
+        self._was_ready = False  # a session reached `ready` since the process (or reset()) started
+        self._absent_strikes = 0  # consecutive `unknown_command` probes with HA RUNNING, after a ready session
+        self._last_view: float | None = None  # monotonic time of the last GET /intercom/overview
+        self._fetched_mono: float | None = None
+        self._event_loop: asyncio.AbstractEventLoop | None = None
+        self._tasks: set[asyncio.Task[None]] = set()  # refreshes started by pushes (_kick); cancelled with the session
         self._session_reset()
 
     def _session_reset(self) -> None:
@@ -188,12 +210,17 @@ class IntercomSync:
         """Forget the cached copy and the counters (a fresh process state; used by tests)."""
         self._drop()
         self._logged_error = None
+        self._was_ready = False
+        self._absent_strikes = 0
+        self._last_view = None
+        self._fetched_mono = None
         self._session_reset()
         STATE.reset()
 
     # -- what the router serves
     def snapshot(self, settings: Settings) -> dict[str, Any]:
         configured = ha_client.configured(settings)
+        self._viewed()
         state = STATE.state if configured else "ha_not_configured"
         if configured and state == "idle":
             state = "connecting"
@@ -211,12 +238,33 @@ class IntercomSync:
             "sync": STATE.as_dict(),
         }
 
+    def watched(self) -> bool:
+        """Someone is looking at the entry center: a change-notice socket is open, or a GET arrived recently."""
+        with _sub_lock:
+            if _subscribers:
+                return True
+        seen = self._last_view
+        return seen is not None and time.monotonic() - seen < VIEW_WINDOW_S
+
+    def _viewed(self) -> None:
+        """A GET arrived. After a stretch with nobody watching (no polling), the copy may be older than one poll:
+        refetch now instead of on the next poll tick; the client hears `intercom_refresh` if anything changed."""
+        idle = not self.watched()
+        self._last_view = time.monotonic()
+        loop, fetched = self._event_loop, self._fetched_mono
+        if idle and loop is not None and self._call is not None and (fetched is None or time.monotonic() - fetched > POLL_S):
+            try:
+                loop.call_soon_threadsafe(self._kick)
+            except RuntimeError:  # the session's loop is already closed
+                pass
+
     def _store(self, raw: dict[str, Any]) -> bool:
         projected = project_overview(raw)
         with self._cache_lock:
             changed = projected != self._cache
             self._cache = projected
         STATE.fetched_at = now_iso()
+        self._fetched_mono = time.monotonic()
         STATE.refreshes += 1
         STATE.wiskey_version = projected["version"]
         if changed:
@@ -240,7 +288,7 @@ class IntercomSync:
 
     async def _loop(self) -> None:
         assert self.settings
-        backoff = 5.0
+        backoff = RETRY_S
         stop_evt = asyncio.Event()
 
         async def watch_stop() -> None:
@@ -253,11 +301,15 @@ class IntercomSync:
             delay = backoff
             try:
                 await self._session(stop_evt)
-                backoff = 5.0
+                backoff = RETRY_S
                 if STATE.state == "ready":
                     self._set_state("ha_unavailable", "disconnected")
             except IntercomError as exc:
-                if exc.not_installed or exc.code == "unauthorized":
+                if exc.code == LOADING:
+                    # HA is (re)starting and WisKey is not loaded yet: keep the last-known copy (served as not fresh)
+                    # and retry on the normal short backoff
+                    self._set_state("connecting", LOADING)
+                elif exc.not_installed or exc.code == "unauthorized":
                     self._drop()
                     self._set_state("not_installed" if exc.not_installed else "forbidden", exc.code)
                     delay = RETRY_ABSENT_S
@@ -279,7 +331,7 @@ class IntercomSync:
                 await asyncio.wait_for(stop_evt.wait(), timeout=delay)
             except asyncio.TimeoutError:
                 pass
-            backoff = min(60.0, backoff * 2)
+            backoff = min(RETRY_MAX_S, backoff * 2)
         STATE.connected = False
 
     async def _session(self, stop_evt: asyncio.Event) -> None:
@@ -287,6 +339,7 @@ class IntercomSync:
         self._session_reset()
         end = asyncio.Event()
         self._end = end
+        self._event_loop = asyncio.get_running_loop()
         poller: asyncio.Task[None] | None = None
 
         async def forward_stop() -> None:
@@ -298,31 +351,64 @@ class IntercomSync:
         async def on_ready(call: intercom_client.Call) -> None:
             nonlocal poller
             self._call = call
-            raw = await intercom_client.overview(call)  # the probe: unknown_command = WisKey is not installed
+            try:
+                raw = await intercom_client.overview(call)  # the probe: unknown_command = not loaded (yet?)
+            except IntercomError as exc:
+                if exc.not_installed and await self._maybe_loading(call):
+                    raise IntercomError(LOADING, "overview") from exc
+                raise
+            self._absent_strikes = 0
             self._store(raw)
             await self._watch(call, watched_entities(raw))
             self._wiskey_sub = await intercom_client.subscribe(call)
             self._replay_early()
             STATE.connected = True
+            self._was_ready = True
             self._set_state("ready", None)
+            self._logged_error = None  # a later repeat of an earlier failure is logged again
             log.info("WisKey feed connected: %d stations, WisKey %s", len((self._cache or {}).get("stations", [])), STATE.wiskey_version)
 
             async def poll() -> None:
                 while not end.is_set():
                     await asyncio.sleep(POLL_S)
-                    await self._refresh()
+                    if self.watched():
+                        await self._refresh()
 
             poller = asyncio.create_task(poll(), name="intercom-poll")
 
         try:
             await ha_client.ws_session(self.settings, on_ready, lambda _data: None, end, on_message=self._on_message)
         finally:
-            stopper.cancel()
-            if poller is not None:
-                poller.cancel()
             self._call = None
+            # nothing of this session may outlive it: a stray refresh's own `finally` would otherwise run after the
+            # next session reset and break its one-refresh-at-a-time invariant
+            tasks = [t for t in (stopper, poller, *self._tasks) if t is not None and not t.done()]
+            for t in tasks:
+                t.cancel()
+            if tasks:
+                await asyncio.gather(*tasks, return_exceptions=True)
+            self._tasks.clear()
         if self._fault is not None:
             raise self._fault
+
+    async def _maybe_loading(self, call: intercom_client.Call) -> bool:
+        """`unknown_command` for WisKey's `overview`: True while that may only mean "not loaded yet" (see the module
+        docstring), False once it means "not installed"."""
+        try:
+            frame = await call("get_config")
+            result = frame.get("result") if frame.get("success") else None
+            running = isinstance(result, dict) and result.get("state") == "RUNNING"
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001 - no answer is no proof of absence
+            running = False
+        if not running:
+            return True
+        # HA's bootstrap can reach RUNNING past a slow integration's setup: after a ready session, re-probe a few times
+        if self._was_ready:
+            self._absent_strikes += 1
+            return self._absent_strikes < ABSENT_AFTER_READY
+        return False
 
     def _replay_early(self) -> None:
         early = list(self._early)
@@ -348,7 +434,9 @@ class IntercomSync:
             self._kick()
 
     def _kick(self) -> None:
-        asyncio.get_event_loop().create_task(self._refresh())
+        task = asyncio.get_running_loop().create_task(self._refresh(), name="intercom-refresh")
+        self._tasks.add(task)  # a strong reference (an unreferenced task can be collected mid-run) ...
+        task.add_done_callback(self._tasks.discard)  # ... dropped once it is done
 
     def _fail(self, exc: BaseException) -> None:
         self._fault = exc
@@ -386,12 +474,13 @@ class IntercomSync:
         if self._entities_sub is not None:
             await call("unsubscribe_events", subscription=self._entities_sub)
             self._entities_sub = None
-        self._watched = set(ids)
+        self._watched = set()
         if not ids:
             return
         frame = await call("subscribe_entities", entity_ids=sorted(ids))
         if frame.get("success"):
             self._entities_sub = int(frame["id"])
+            self._watched = set(ids)  # only now: a refused subscription is tried again on the next refresh
             self._replay_early()
 
 

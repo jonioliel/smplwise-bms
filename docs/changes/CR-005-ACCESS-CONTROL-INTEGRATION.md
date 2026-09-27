@@ -149,6 +149,11 @@ online/ringing state, last access — S2), Activity/events (S13), People list + 
 editing), Doors/stations overview (S11, no writes). No release, no calls, no edits of any kind. This alone is a
 complete, independently useful slice.
 
+> Recorded deviation 2026-09-27 (T054, phase 1a): the WisKey tab ships as a sub-tab ("WisKey", `#/explore/access/d1`)
+> under the existing "sites" nav group, not as a new top-level nav entry, to keep the boards' six flat top-level entries
+> (ADR-009 note in docs/architecture/DECISIONS.md). The sub-tab needs `access.read` at installation scope, the only
+> scope that permission is checked at, since WisKey stations are not mapped to sites or floors.
+
 **Phase 2 — config-write, zero physical actuation.** Gated on `access.people.manage` / `access.doors.manage`.
 Person editor full CRUD including cards/PINs/timing (S7), card capture *excluded* here (it is PHYSICAL — reader
 collection mode — moves to Phase 3), CSV import/export (S9), bulk operations (S5), import/adopt existing device

@@ -2,7 +2,8 @@ import { test, expect, type APIRequestContext, type Page } from '@playwright/tes
 
 // Evidence for T054 (CR-005 phase 1a, WisKey entry center) against a running developer backend. The developer backend
 // has no Home Assistant and so no WisKey behind it: the screen must say so plainly and show no station data. The
-// WisKey sub-tab is gated on access.read - hidden for a role without it, shown for a plain viewer and the admin.
+// WisKey sub-tab is gated on access.read at installation scope - hidden for a role without it and for a floor- or site-scoped
+// binding, shown for a plain installation-wide viewer and the admin.
 // Runs only with SW_LIVE=1.
 
 const TAB = 'sw-tabs a[href="#/explore/access/d1"]';
@@ -88,6 +89,48 @@ test.describe('WisKey entry center (T054, SW A)', () => {
     } finally {
       for (const id of bindings) await request.delete(`/api/v1/access/bindings/${id}`).catch(() => {});
       if (roleId) await request.delete(`/api/v1/access/roles/${roleId}`).catch(() => {});
+    }
+  });
+
+  test('a floor-scoped viewer and a site-scoped site_admin do not see the WisKey tab', async ({ browser, request }) => {
+    // access.read counts only at installation scope (WisKey stations are not mapped to sites or floors); the tab must
+    // not appear for someone who holds it only below that, or they would land on "no permission"
+    const bindings: string[] = [];
+    let siteId: string | undefined;
+    try {
+      const site = await request.post('/api/v1/sites', { data: { name: 'T054 scoped site' } });
+      expect(site.status()).toBe(201);
+      siteId = ((await site.json()) as { id: string }).id;
+      const building = await request.post(`/api/v1/sites/${siteId}/buildings`, { data: { name: 'T054 building' } });
+      expect(building.status()).toBe(201);
+      const floor = await request.post(`/api/v1/buildings/${((await building.json()) as { id: string }).id}/floors`, { data: { name: 'T054 floor' } });
+      expect(floor.status()).toBe(201);
+      const floorId = ((await floor.json()) as { id: string }).id;
+
+      for (const [username, roleId, scopeType, scopeId] of [
+        ['wiskeyfloor054', 'viewer', 'floor', floorId],
+        ['wiskeysite054', 'site_admin', 'site', siteId],
+      ] as const) {
+        const headers = { 'X-SW-Dev-User': username };
+        const me0 = await (await request.get('/api/v1/me', { headers })).json();
+        const r = await request.post('/api/v1/access/bindings', { data: { subject_kind: 'user', subject_id: me0.user.id, role_id: roleId, scope_type: scopeType, scope_id: scopeId } });
+        expect(r.status()).toBeLessThan(300);
+        bindings.push(((await r.json()) as { id: string }).id);
+        const me = await (await request.get('/api/v1/me', { headers })).json();
+        expect(me.permissions_any, `${username} holds access.read below installation scope`).toContain('access.read');
+        expect(me.permissions_installation).not.toContain('access.read');
+
+        const ctx = await browser.newContext({ extraHTTPHeaders: headers });
+        const p = await ctx.newPage();
+        await open(p, '/explore/sites');
+        await expect(p.locator('sw-tabs a[href="#/explore/sites"]'), `${username} still sees the map tabs`).toBeVisible({ timeout: 30000 });
+        await expect(p.locator(TAB), `${username} does not see the WisKey tab`).toHaveCount(0);
+        expect((await p.request.get('/api/v1/intercom/overview')).status()).toBe(403);
+        await ctx.close();
+      }
+    } finally {
+      for (const id of bindings) await request.delete(`/api/v1/access/bindings/${id}`).catch(() => {});
+      if (siteId) await request.delete(`/api/v1/sites/${siteId}`).catch(() => {});
     }
   });
 });

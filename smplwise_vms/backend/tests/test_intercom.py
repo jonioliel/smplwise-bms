@@ -125,6 +125,34 @@ def ok(msg: dict[str, Any], result: Any = None) -> dict[str, Any]:
     return {"id": msg["id"], "type": "result", "success": True, "result": result}
 
 
+def fail(msg: dict[str, Any], code: str) -> dict[str, Any]:
+    return {"id": msg["id"], "type": "result", "success": False, "error": {"code": code, "message": code}}
+
+
+def ha_config(msg: dict[str, Any], state: str = "RUNNING") -> dict[str, Any]:
+    """HA's `get_config` reply; `state` is HA's CoreState (NOT_RUNNING, STARTING, RUNNING, STOPPING ...)."""
+    return ok(msg, {"state": state, "version": "2026.9.0", "components": []})
+
+
+def normal(msg: dict[str, Any], _fake: FakeHa, overview: dict[str, Any] | None = None) -> list[Any]:
+    """A healthy HA with WisKey loaded."""
+    kind = msg["type"]
+    if kind == "hikvision_intercom/overview":
+        return [ok(msg, copy.deepcopy(overview or OVERVIEW))]
+    if kind == "get_config":
+        return [ha_config(msg)]
+    return [ok(msg)]
+
+
+def pushed_states(q: Any) -> list[str]:
+    out = []
+    while not q.empty():
+        m = q.get_nowait()
+        if m["type"] == "intercom_state":
+            out.append(m["state"])
+    return out
+
+
 @pytest.fixture()
 def feed(settings, monkeypatch):
     """App with Home Assistant configured; the feed thread is started by the test against a FakeHa."""
@@ -132,11 +160,19 @@ def feed(settings, monkeypatch):
 
     s = replace(settings, ha_url="http://ha.local:8123", ha_token="t")
     intercom_sync.SYNC.reset()
+    # the normal reconnect backoff, shortened so a test sees several attempts; RETRY_ABSENT_S stays five minutes
+    monkeypatch.setattr(intercom_sync, "RETRY_S", 0.05)
+    monkeypatch.setattr(intercom_sync, "RETRY_MAX_S", 0.2)
     fakes: list[FakeHa] = []
+    refused = {"n": 0}
 
-    def install(script: Callable[[dict[str, Any], FakeHa], list[Any]]) -> list[FakeHa]:
+    def install(script: Callable[[dict[str, Any], FakeHa], list[Any]], refuse_after: int | None = None) -> list[FakeHa]:
+        """`refuse_after=N`: after N accepted connections every further connect fails (HA down)."""
         def connect(url: str, **_kw: Any) -> FakeHa:
             assert url == "ws://ha.local:8123/api/websocket"
+            if refuse_after is not None and len(fakes) >= refuse_after:
+                refused["n"] += 1
+                raise OSError("connection refused")
             fake = FakeHa(script)
             fakes.append(fake)
             return fake
@@ -145,6 +181,7 @@ def feed(settings, monkeypatch):
         return fakes
 
     app = create_app(s)
+    install.refused = refused  # type: ignore[attr-defined]
     yield app, s, install
     intercom_sync.SYNC.shutdown()
     if intercom_sync.SYNC.thread is not None:
@@ -181,7 +218,13 @@ def test_overview_requires_access_read(settings):
     assert r.status_code == 403 and r.json()["code"] == "forbidden"
     assert c.get("/api/v1/intercom/overview", headers=as_user("nobody")).status_code == 403, "no binding at all"
     assert c.get("/api/v1/intercom/overview", headers=as_user("vera")).status_code == 200
-    assert "access.read" in c.get("/api/v1/me", headers=as_user("vera")).json()["permissions_installation"]
+    me = c.get("/api/v1/me", headers=as_user("vera")).json()
+    assert "access.read" in me["permissions_installation"]
+    # the viewer is accepted on the notice socket and gets the relayed notices (S5d)
+    with c.websocket_connect("/api/v1/intercom/ws", headers=as_user("vera")) as ws:
+        intercom_sync.publish({"type": "intercom_refresh", "sequence": 7})
+        env = json.loads(ws.receive_text())
+    assert env["type"] == "intercom_refresh" and env["payload"]["sequence"] == 7 and env["subscription_id"] == me["user"]["id"]
     with pytest.raises(WebSocketDisconnect) as exc:
         with c.websocket_connect("/api/v1/intercom/ws", headers=as_user("wall")) as ws:
             ws.receive_text()
@@ -206,19 +249,228 @@ def test_not_configured_without_home_assistant(settings):
 
 
 def test_not_installed_when_wiskey_is_absent(feed):
-    """HA answers `unknown_command` for `hikvision_intercom/overview` when the integration is not loaded."""
+    """HA answers `unknown_command` for `hikvision_intercom/overview` when the integration is not loaded; with HA itself
+    RUNNING (its `get_config` state) that means not installed."""
     app, s, install = feed
 
     def script(msg: dict[str, Any], _fake: FakeHa) -> list[Any]:
-        return [{"id": msg["id"], "type": "result", "success": False, "error": {"code": "unknown_command", "message": "Unknown command."}}]
+        return [ha_config(msg)] if msg["type"] == "get_config" else [fail(msg, "unknown_command")]
 
     fakes = install(script)
     intercom_sync.SYNC.start(s)
     wait_for(lambda: intercom_sync.STATE.state == "not_installed")
-    assert fakes[0].types() == ["auth", "hikvision_intercom/overview"], "nothing else is attempted"
+    assert fakes[0].types() == ["auth", "hikvision_intercom/overview", "get_config"], "nothing else is attempted"
     body = TestClient(app).get("/api/v1/intercom/overview").json()
     assert body["state"] == "not_installed" and body["configured"] is True
     assert body["overview"] is None and body["fresh"] is False and body["last_error"] == "unknown_command"
+    time.sleep(0.4)
+    assert len(fakes) == 1, "an absent integration is re-probed after RETRY_ABSENT_S, not on the short backoff"
+
+
+def test_ha_restart_is_not_read_as_not_installed(feed):
+    """B1: HA answers WebSocket commands while integrations are still loading, and WisKey registers its commands only
+    after its access and event managers are up. A reconnect that lands in that window gets `unknown_command`: the feed
+    must stay `connecting` on the short backoff and keep serving the last-known copy as not fresh - not report "not
+    installed", drop the copy and wait five minutes."""
+    app, s, install = feed
+    loaded = {"yes": False}
+    fakes: list[FakeHa] = []
+
+    def script(msg: dict[str, Any], fake: FakeHa) -> list[Any]:
+        first = fake is fakes[0]
+        if msg["type"] == "hikvision_intercom/overview" and not first and not loaded["yes"]:
+            return [fail(msg, "unknown_command")]
+        if msg["type"] == "get_config":
+            return [ha_config(msg, "STARTING")]
+        frames = normal(msg, fake)
+        if first and msg["type"] == "hikvision_intercom/subscribe":
+            frames.append(CLOSE)  # HA restarts right after the feed was ready
+        return frames
+
+    q = intercom_sync.subscribe()
+    try:
+        fakes = install(script)
+        intercom_sync.SYNC.start(s)
+        wait_for(lambda: len(fakes) >= 4 and intercom_sync.STATE.state == "connecting", timeout=5)
+        assert "get_config" in fakes[1].types(), "HA's own state is asked before concluding anything"
+        body = TestClient(app).get("/api/v1/intercom/overview").json()
+        assert body["state"] == "connecting" and body["last_error"] == "wiskey_loading"
+        assert body["fresh"] is False and body["fetched_at"], "the last-known copy stays, marked not fresh"
+        assert [st["id"] for st in body["overview"]["stations"]] == ["entry-a", "entry-b"]
+
+        loaded["yes"] = True  # WisKey finished loading
+        wait_for(lambda: intercom_sync.STATE.state == "ready", timeout=5)
+        body = TestClient(app).get("/api/v1/intercom/overview").json()
+        assert body["state"] == "ready" and body["fresh"] is True
+        states = pushed_states(q)
+        assert "not_installed" not in states and "connecting" in states and states[-1] == "ready", states
+    finally:
+        intercom_sync.unsubscribe(q)
+
+
+def test_wiskey_gone_after_ready_is_concluded_after_a_few_quick_probes(feed):
+    """HA's bootstrap can reach RUNNING past a slow integration: after a ready session, `unknown_command` with HA
+    RUNNING is re-probed on the short backoff (copy kept) and only the ABSENT_AFTER_READY-th probe concludes it."""
+    app, s, install = feed
+    fakes: list[FakeHa] = []
+
+    def script(msg: dict[str, Any], fake: FakeHa) -> list[Any]:
+        first = fake is fakes[0]
+        if msg["type"] == "hikvision_intercom/overview" and not first:
+            return [fail(msg, "unknown_command")]
+        frames = normal(msg, fake)
+        if first and msg["type"] == "hikvision_intercom/subscribe":
+            frames.append(CLOSE)
+        return frames
+
+    q = intercom_sync.subscribe()
+    try:
+        fakes = install(script)
+        intercom_sync.SYNC.start(s)
+        wait_for(lambda: intercom_sync.STATE.state == "not_installed", timeout=5)
+        assert len(fakes) == 1 + intercom_sync.ABSENT_AFTER_READY
+        states = pushed_states(q)
+        assert states.index("connecting") < states.index("not_installed"), states
+        body = TestClient(app).get("/api/v1/intercom/overview").json()
+        assert body["overview"] is None and body["last_error"] == "unknown_command", "now it is gone: the copy is dropped"
+        time.sleep(0.4)
+        assert len(fakes) == 1 + intercom_sync.ABSENT_AFTER_READY, "and from here on the five-minute re-probe"
+    finally:
+        intercom_sync.unsubscribe(q)
+
+
+def test_disconnect_serves_the_copy_as_not_fresh(feed):
+    """S5a: HA goes away after a ready session: `ha_unavailable`, the last-known copy is still served with
+    `fresh: false` (the stale banner), and reconnects keep being tried."""
+    app, s, install = feed
+
+    def script(msg: dict[str, Any], fake: FakeHa) -> list[Any]:
+        frames = normal(msg, fake)
+        return frames + [CLOSE] if msg["type"] == "hikvision_intercom/subscribe" else frames
+
+    install(script, refuse_after=1)
+    intercom_sync.SYNC.start(s)
+    wait_for(lambda: install.refused["n"] >= 2 and intercom_sync.STATE.state == "ha_unavailable")
+    body = TestClient(app).get("/api/v1/intercom/overview").json()
+    assert body["state"] == "ha_unavailable" and body["configured"] is True and body["last_error"] == "OSError"
+    assert body["fresh"] is False and body["fetched_at"] and body["sync"]["connected"] is False
+    assert [st["name"] for st in body["overview"]["stations"]] == ["Main gate", "Side door"]
+    assert intercom_sync.STATE.reconnects == 1
+
+
+def test_error_state(feed):
+    """S5b: WisKey answers with an error other than "not installed" / "refused": state `error` with the code, retried
+    on the short backoff, and without a copy nothing is shown."""
+    app, s, install = feed
+
+    def script(msg: dict[str, Any], fake: FakeHa) -> list[Any]:
+        if msg["type"] == "hikvision_intercom/overview":
+            return [fail(msg, "home_assistant_error")]
+        return normal(msg, fake)
+
+    fakes = install(script)
+    intercom_sync.SYNC.start(s)
+    wait_for(lambda: intercom_sync.STATE.state == "error" and len(fakes) >= 3)
+    body = TestClient(app).get("/api/v1/intercom/overview").json()
+    assert body["state"] == "error" and body["last_error"] == "home_assistant_error"
+    assert body["overview"] is None and body["fresh"] is False and body["fetched_at"] is None
+    assert not any("get_config" in f.types() for f in fakes), "only unknown_command asks HA's own state"
+
+
+def test_error_after_ready_keeps_the_copy(feed):
+    """S5b: after a ready session, an `error` reply keeps the last-known copy, served as not fresh."""
+    app, s, install = feed
+    fakes: list[FakeHa] = []
+
+    def script(msg: dict[str, Any], fake: FakeHa) -> list[Any]:
+        first = fake is fakes[0]
+        if msg["type"] == "hikvision_intercom/overview" and not first:
+            return [fail(msg, "home_assistant_error")]
+        frames = normal(msg, fake)
+        return frames + [CLOSE] if first and msg["type"] == "hikvision_intercom/subscribe" else frames
+
+    fakes = install(script)
+    intercom_sync.SYNC.start(s)
+    wait_for(lambda: intercom_sync.STATE.state == "error" and len(fakes) >= 3)
+    body = TestClient(app).get("/api/v1/intercom/overview").json()
+    assert body["state"] == "error" and body["fresh"] is False and len(body["overview"]["stations"]) == 2
+
+
+def test_subscribe_race_replays_held_events(feed):
+    """S5c: the real frame order. `subscribe_entities` answers with its result and the initial entity snapshot right
+    behind it, so the socket reader sees the event before the awaiting code knows the subscription id: it is held and
+    replayed (one refetch). WisKey's own `subscribe` coalesces with a 0.25 s timer, so its first `refresh` push comes
+    a quarter second after the confirmation and is a separate refetch."""
+    app, s, install = feed
+    calls: list[float] = []
+    delivered: dict[str, float] = {}
+    ringing = copy.deepcopy(OVERVIEW)
+    ringing["stations"][0]["call_state"] = "ringing"
+
+    def script(msg: dict[str, Any], fake: FakeHa) -> list[Any]:
+        kind = msg["type"]
+        if kind == "hikvision_intercom/overview":
+            calls.append(time.monotonic())
+            return [ok(msg, copy.deepcopy(OVERVIEW if len(calls) == 1 else ringing))]
+        if kind == "subscribe_entities":
+            states = {e: {"s": "ringing" if e.startswith("sensor.") else "on", "a": {}, "c": "01J0", "lc": 1790000000.0} for e in msg["entity_ids"]}
+            return [ok(msg), {"id": msg["id"], "type": "event", "event": {"a": states}}]
+        if kind == "hikvision_intercom/subscribe":
+            def push() -> None:
+                delivered["t"] = time.monotonic()
+                assert fake.q
+                fake.q.put_nowait({"id": msg["id"], "type": "event", "event": {"kind": "refresh"}})
+
+            asyncio.get_running_loop().call_later(0.25, push)
+            return [ok(msg)]
+        return normal(msg, fake)
+
+    install(script)
+    intercom_sync.SYNC.start(s)
+    wait_for(lambda: intercom_sync.STATE.state == "ready" and len(calls) >= 3 and "t" in delivered)
+    assert calls[1] < delivered["t"], "the held entity snapshot was replayed and refetched before WisKey's first push"
+    assert calls[2] >= delivered["t"], "WisKey's delayed refresh is its own refetch"
+    assert not intercom_sync.SYNC._early, "every held frame was replayed"
+    assert intercom_sync.STATE.sequence == 2, "one notice per actual change (idle -> ringing)"
+    body = TestClient(app).get("/api/v1/intercom/overview").json()
+    assert body["overview"]["stations"][0]["call_state"] == "ringing"
+
+
+def test_poll_only_while_someone_is_watching(feed, monkeypatch):
+    """S2: every `overview` reply carries WisKey's whole user directory, so the 30 s poll runs only while a browser
+    holds the notice socket or recently asked for the overview; a GET after an idle stretch refetches at once."""
+    app, s, install = feed
+    calls = {"n": 0}
+
+    def script(msg: dict[str, Any], fake: FakeHa) -> list[Any]:
+        if msg["type"] == "hikvision_intercom/overview":
+            calls["n"] += 1
+        return normal(msg, fake)
+
+    monkeypatch.setattr(intercom_sync, "POLL_S", 0.1)
+    monkeypatch.setattr(intercom_sync, "VIEW_WINDOW_S", 0.3)
+    install(script)
+    intercom_sync.SYNC.start(s)
+    wait_for(lambda: intercom_sync.STATE.state == "ready")
+    time.sleep(0.5)
+    assert calls["n"] == 1, "nobody watching: no polling"
+
+    q = intercom_sync.subscribe()
+    try:
+        wait_for(lambda: calls["n"] >= 3)
+    finally:
+        intercom_sync.unsubscribe(q)
+
+    monkeypatch.setattr(intercom_sync, "POLL_S", 30.0)
+    time.sleep(0.4)  # the poller finishes its short sleep and settles into a long one
+    before = calls["n"]
+    intercom_sync.SYNC._fetched_mono = time.monotonic() - 100  # the copy is older than one poll
+    c = TestClient(app)
+    c.get("/api/v1/intercom/overview")
+    wait_for(lambda: calls["n"] == before + 1)
+    c.get("/api/v1/intercom/overview")
+    time.sleep(0.3)
+    assert calls["n"] == before + 1, "only the first GET after an idle stretch refetches"
 
 
 # ---------------------------------------------------------------- the real round trip

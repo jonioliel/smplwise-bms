@@ -50,6 +50,11 @@ export function canAnywhere(permission: string): boolean {
   return (me?.permissions_any ?? me?.permissions_installation ?? []).includes(permission);
 }
 
+/** The shell's navigation check: at any scope, or only at installation scope for the tabs nav.ts marks so. */
+export function canNav(permission: string, installationOnly = false): boolean {
+  return installationOnly ? can(permission) : canAnywhere(permission);
+}
+
 /** Who may read the NVR configuration (OSD, schedules, smart rules) - mirrors nvr_write._require_read: a system
  * administrator or anyone holding any NVR write permission. The camera screen skips those reads otherwise. */
 export function canReadNvrConfig(): boolean {

@@ -228,11 +228,18 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   '#/system/setup': ['system.configure', 'sources.configure'],
 };
 
-export type Can = (permission: string) => boolean;
+/** Tabs whose permission counts only when held at installation scope, because the screen and its API check it there
+ * and nowhere else: WisKey stations are not mapped to sites or floors, so access.read is installation-wide by design
+ * (CR-005). A floor-scoped viewer or a site-scoped site_admin would otherwise see the tab and land on "no permission". */
+export const INSTALLATION_ONLY_HREFS = new Set<string>(['#/explore/access/d1']);
+
+/** `installationOnly`: the permission must be held at installation scope, not at any scope. */
+export type Can = (permission: string, installationOnly?: boolean) => boolean;
 
 export function tabAllowed(href: string, can?: Can): boolean {
   const need = TAB_PERMISSIONS[href];
-  return !need || !can || need.some(can);
+  const installationOnly = INSTALLATION_ONLY_HREFS.has(href);
+  return !need || !can || need.some((p) => can(p, installationOnly));
 }
 
 export function visibleTabs(items: TabItem[], api: boolean, can?: Can): TabItem[] {

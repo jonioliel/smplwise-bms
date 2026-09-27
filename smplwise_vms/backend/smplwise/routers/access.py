@@ -68,6 +68,8 @@ PERMISSION_LABELS: dict[str, str] = {
     "nvr.storage.test": "NVR: בדיקת דיסק",
     "nvr.system.reboot": "NVR: הפעלה מחדש",
     "rules.ha_notify": "חוקים: התראה דרך Home Assistant (notify)",
+    # access.read is granted broadly in roles.json (viewer and above, not kiosk) on purpose: a product decision (CR-005)
+    # mirroring map.read's own breadth. It is installation-scoped only - WisKey stations are not mapped to sites / floors.
     "access.read": "צפייה בבקרת כניסה (WisKey)",
 }
 SYSTEM_PERMISSIONS = {"system.configure", "sources.configure", "identity.directory.read", "rbac.roles.manage", "audit.read", "backup.manage"}  # rbac.assign is delegable (T082)
