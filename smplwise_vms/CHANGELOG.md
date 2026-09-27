@@ -1,5 +1,25 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.105 (pilot) — WisKey activity log and people directory backend (CR-005 phase 1b)
+- Backend-only extension of the WisKey plumbing, ahead of the next two read-only screens (Activity/Events,
+  People directory): new command wrappers for `events/list` and `users/query`/`users/get`, new endpoints
+  (`intercom/events`, `intercom/people`, `intercom/people/{id}`), all gated by the existing `access.read`
+  permission and reusing the one persistent HA connection the Entry Center feed already holds - no second
+  connection, and a one-off request's failure never affects the feed's own state.
+- Personal data is stripped to only what a read-only list/detail view needs (name, employee number, active/expiry
+  status, groups, station assignments) - phone numbers, card numbers, PINs, free-form profile values and photos
+  never leave the backend.
+- Reviewed across three rounds, the middle one surfacing a real, owner-decided privacy question: WisKey's own
+  text search matches phone and card digits server-side with no way to scope it, so a plain viewer could have
+  reverse-engineered people's phone and card numbers through repeated searches even though the raw values are
+  never returned. Fixed per the owner's decision by moving the search entirely into SMPLWISE's own backend - the
+  search text itself never reaches WisKey; records are paged, stripped, and matched locally against name and
+  employee number only. A final adversarial review attempted several concrete extraction attacks against this
+  fix and found none that succeed. Also added: a local rate limiter in front of the new calls (WisKey's own
+  budget is shared with the feed's periodic refresh, so an unrestricted read path could have starved it for
+  every user), and a non-blocking concurrency slot so a burst of requests fails fast instead of parking backend
+  worker threads.
+
 ## 0.1.104 (pilot) — WisKey as a genuine top-level nav tab
 - Owner correction (2026-09-27): "first of all, it put WisKey under the map - I want it as a tab parallel to Map,
   Investigation and System." A prior release placed the new WisKey screen as a sub-tab under the existing
