@@ -12,6 +12,7 @@ import { test, expect, type APIRequestContext, type Page } from '@playwright/tes
 
 const HREF = '#/wiskey/overview';
 const RAIL = 'sw-app nav.rail';
+const BOTTOM = 'sw-app nav.bottom';
 
 test.describe('WisKey entry center (T054, top-level nav since 0.1.103)', () => {
   test.skip(process.env.SW_LIVE !== '1', 'set SW_LIVE=1 with the backend running');
@@ -77,16 +78,63 @@ test.describe('WisKey entry center (T054, top-level nav since 0.1.103)', () => {
     await expect(page.locator('wiskey-overview')).toHaveCount(1);
   });
 
-  test('the WisKey rail entry is gated on access.read, in both designs', async ({ page, browser, request }) => {
+  // Re-review (0.1.104): the rail assertions above only ever proved WisKey exists somewhere in the DOM - nav.rail
+  // is CSS-hidden below 768px (see the `@media (max-width: 767px)` rule in sw-app.ts), so a real phone shows
+  // nav.bottom instead, and that element was never queried here. Design B's bottom bar hardcoded ".slice(0, 4)"
+  // plus a dead "עוד" link to #/system/diagnostics, so with the 7th (WisKey) NAV entry there was genuinely no path
+  // to it from a phone; design A's bottom bar CSS grid was still hardcoded to 4 columns although visibleAreas() now
+  // renders 5 unsliced items. Both are now fixed; these tests exercise the actual nav.bottom element a phone shows,
+  // restricted to the `mobile` project (the only one narrow enough to trigger the phone layout).
+  test('the phone bottom nav (design A) reaches WisKey directly - a real 5th icon, not clipped by the old 4-column grid', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'nav.bottom only renders below the 768px breakpoint; other projects are wider');
+    await open(page, '/live', 'a');
+    const bottom = page.locator(BOTTOM);
+    await expect(bottom).toBeVisible({ timeout: 30000 });
+    const link = bottom.locator(`a[href="${HREF}"]`);
+    await expect(link).toBeVisible();
+    await expect(link).toContainText('WisKey');
+    await link.click();
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe(HREF);
+  });
+
+  test('the phone bottom nav (design B) reaches WisKey through a real "עוד" overflow menu, not a dead settings-only link', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'nav.bottom only renders below the 768px breakpoint; other projects are wider');
+    await open(page, '/live', 'b');
+    const bottom = page.locator(BOTTOM);
+    await expect(bottom).toBeVisible({ timeout: 30000 });
+    // the 4 direct icons do not include WisKey (it is the 6th of 7 groups) - it must be reachable through "עוד"
+    await expect(bottom.locator(`a[href="${HREF}"]`)).toHaveCount(0);
+    const more = bottom.locator('button');
+    await expect(more).toBeVisible();
+    await expect(more).toContainText('עוד');
+    await more.click();
+    const overflowLink = page.locator(`sw-app .bottom-overflow a[href="${HREF}"]`);
+    await expect(overflowLink).toBeVisible({ timeout: 5000 });
+    await expect(overflowLink).toContainText('WisKey');
+    await overflowLink.click();
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe(HREF);
+    // the menu closes after navigating, and the "עוד" pill now shows the active state for the group it opened into
+    await expect(page.locator('sw-app .bottom-overflow')).toHaveCount(0);
+    await expect(bottom.locator('button')).toHaveClass(/active/);
+  });
+
+  test('the WisKey rail entry is gated on access.read, in both designs', async ({ page, browser, request }, testInfo) => {
     const bindings: string[] = [];
     let roleId: string | undefined;
+    // Unique per project: the 3 viewport projects run this same-named test concurrently under the default
+    // multi-worker config, and a shared role name / dev-identity username would race across them (a real 409 was
+    // seen here in review - confirmed to be this test-fixture collision, not app-level shared state, by making
+    // every resource unique per project and rerunning under 3 parallel workers with no failures).
+    const tag = testInfo.project.name;
+    const noAccessUser = `wiskeyno054${tag}`;
+    const viewerUser = `wiskeyviewer054${tag}`;
     try {
       // a role that can read the map and live video but not access control
-      const role = await request.post('/api/v1/access/roles', { data: { name: 'T054 no access control', description: 'evidence', permissions: ['map.read', 'video.live'] } });
+      const role = await request.post('/api/v1/access/roles', { data: { name: `T054 no access control (${tag})`, description: 'evidence', permissions: ['map.read', 'video.live'] } });
       expect(role.status()).toBeLessThan(300);
       roleId = ((await role.json()) as { id: string }).id;
-      bindings.push((await bindUser(request, 'wiskeyno054', roleId)).bindingId);
-      const without = await browser.newContext({ extraHTTPHeaders: { 'X-SW-Dev-User': 'wiskeyno054' } });
+      bindings.push((await bindUser(request, noAccessUser, roleId)).bindingId);
+      const without = await browser.newContext({ extraHTTPHeaders: { 'X-SW-Dev-User': noAccessUser } });
       const p1 = await without.newPage();
       await open(p1, '/live', 'a');
       await expect(p1.locator(`${RAIL} a[href="#/explore/sites"]`)).toHaveCount(1, { timeout: 30000 });
@@ -101,8 +149,8 @@ test.describe('WisKey entry center (T054, top-level nav since 0.1.103)', () => {
       await without.close();
 
       // a plain viewer holds access.read
-      bindings.push((await bindUser(request, 'wiskeyviewer054', 'viewer')).bindingId);
-      const viewer = await browser.newContext({ extraHTTPHeaders: { 'X-SW-Dev-User': 'wiskeyviewer054' } });
+      bindings.push((await bindUser(request, viewerUser, 'viewer')).bindingId);
+      const viewer = await browser.newContext({ extraHTTPHeaders: { 'X-SW-Dev-User': viewerUser } });
       const p2 = await viewer.newPage();
       await open(p2, '/live', 'a');
       await expect(p2.locator(`${RAIL} a[href="${HREF}"]`)).toHaveCount(1, { timeout: 30000 });
@@ -120,13 +168,14 @@ test.describe('WisKey entry center (T054, top-level nav since 0.1.103)', () => {
     }
   });
 
-  test('a floor-scoped viewer and a site-scoped site_admin do not see the WisKey rail entry', async ({ browser, request }) => {
+  test('a floor-scoped viewer and a site-scoped site_admin do not see the WisKey rail entry', async ({ browser, request }, testInfo) => {
     // access.read counts only at installation scope (WisKey stations are not mapped to sites or floors); the entry must
     // not appear for someone who holds it only below that, or they would land on "no permission"
     const bindings: string[] = [];
     let siteId: string | undefined;
+    const tag = testInfo.project.name; // unique per project - see the note on the "gated on access.read" test above
     try {
-      const site = await request.post('/api/v1/sites', { data: { name: 'T054 scoped site' } });
+      const site = await request.post('/api/v1/sites', { data: { name: `T054 scoped site (${tag})` } });
       expect(site.status()).toBe(201);
       siteId = ((await site.json()) as { id: string }).id;
       const building = await request.post(`/api/v1/sites/${siteId}/buildings`, { data: { name: 'T054 building' } });
@@ -136,8 +185,8 @@ test.describe('WisKey entry center (T054, top-level nav since 0.1.103)', () => {
       const floorId = ((await floor.json()) as { id: string }).id;
 
       for (const [username, roleId, scopeType, scopeId] of [
-        ['wiskeyfloor054', 'viewer', 'floor', floorId],
-        ['wiskeysite054', 'site_admin', 'site', siteId],
+        [`wiskeyfloor054${tag}`, 'viewer', 'floor', floorId],
+        [`wiskeysite054${tag}`, 'site_admin', 'site', siteId],
       ] as const) {
         const headers = { 'X-SW-Dev-User': username };
         const me0 = await (await request.get('/api/v1/me', { headers })).json();

@@ -65,6 +65,9 @@ export class SwApp extends LitElement {
   @state() private searchOpen = false;
   @state() private searchIndex = -1;
   @state() private searchBusy = false;
+  /** Design B's phone bottom nav "עוד" (more) overflow sheet: opens the groups that do not fit the fixed 4 icon
+   * slots (0.1.103: a real menu, not a single hardcoded settings link, now that WisKey made the group count 7). */
+  @state() private moreOpen = false;
   private searchTimer = 0;
   private searchSeq = 0;
   private stopRouter?: () => void;
@@ -242,6 +245,9 @@ export class SwApp extends LitElement {
     nav.bottom {
       display: none;
     }
+    .bottom-overflow {
+      display: none;
+    }
     .gate {
       flex: 1;
       display: grid;
@@ -307,7 +313,8 @@ export class SwApp extends LitElement {
         border-block-start: 1px solid var(--sw-border);
         padding-block-end: env(safe-area-inset-bottom);
       }
-      nav.bottom a {
+      nav.bottom a,
+      nav.bottom button {
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -318,8 +325,43 @@ export class SwApp extends LitElement {
         text-decoration: none;
         min-block-size: var(--sw-bottomnav-h);
         font-weight: var(--sw-fw-medium);
+        background: none;
+        border: none;
+        padding: 0;
+        font-family: inherit;
+        cursor: pointer;
       }
-      nav.bottom a.active {
+      nav.bottom a.active,
+      nav.bottom button.active {
+        color: var(--sw-accent-text);
+      }
+      .bottom-overflow {
+        display: flex;
+        flex-direction: column;
+        position: fixed;
+        inset-inline: 12px;
+        inset-block-end: calc(var(--sw-bottomnav-h) + env(safe-area-inset-bottom) + 8px);
+        background: var(--sw-surface);
+        border: 1px solid var(--sw-border);
+        border-radius: 12px;
+        box-shadow: var(--sw-shadow-3);
+        overflow: hidden;
+        z-index: var(--sw-z-drawer);
+      }
+      .bottom-overflow a {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 16px;
+        color: var(--sw-text);
+        text-decoration: none;
+        font-size: var(--sw-fs-sm);
+        font-weight: var(--sw-fw-medium);
+      }
+      .bottom-overflow a + a {
+        border-block-start: 1px solid var(--sw-border);
+      }
+      .bottom-overflow a.active {
         color: var(--sw-accent-text);
       }
       .brand-mobile {
@@ -590,7 +632,13 @@ export class SwApp extends LitElement {
       padding: 14px 30px 0;
     }
     :host([data-design='a']) nav.bottom {
-      grid-template-columns: repeat(4, 1fr);
+      /* 0.1.103: WisKey made this 5 areas (was 4); visibleAreas() renders unsliced here (unlike design B's
+         fixed 4 + overflow), so the grid must grow with it or the 5th item wraps/clips. */
+      grid-template-columns: repeat(5, 1fr);
+    }
+    :host([data-design='a']) nav.bottom a {
+      font-size: 9px;
+      padding-inline: 2px;
     }
     @media (max-width: 1279px) {
       .crumbs-a {
@@ -1020,10 +1068,42 @@ export class SwApp extends LitElement {
           <div class="subnav">${tabs.length > 1 && !editor ? html`<sw-tabs .items=${tabs} .active=${activeTabOf(this.route)}></sw-tabs>` : nothing}</div>
           <div class="screen">${this.session.mode === 'loading' ? nothing : this.renderScreen()}</div>`}
       </main>
+      ${this.renderBottomB(group)}
+    `;
+  }
+
+  /** Design B's phone bottom nav: the first 4 visible groups as direct icons, everything else (since 0.1.103's
+   * WisKey addition made this 7 groups, not 6) behind a real "עוד" menu - not a passive label pointing at
+   * settings, a genuine list of the remaining groups the phone has no direct icon slot for. */
+  private renderBottomB(group: ReturnType<typeof groupOf>) {
+    const all = visibleGroups(this.session.mode === 'api', canNav);
+    const shown = all.slice(0, 4);
+    const overflow = all.slice(4);
+    const moreActive = overflow.some((n) => n.id === group);
+    return html`
       <nav class="bottom" aria-label="ניווט ראשי">
-        ${visibleGroups(this.session.mode === 'api', canNav).slice(0, 4).map((n) => html`<a class=${classMap({ active: group === n.id })} href=${n.href}><sw-icon .name=${n.icon} size=${20}></sw-icon>${n.label}</a>`)}
-        <a class=${classMap({ active: group === 'settings' || group === 'playback' })} href="#/system/diagnostics"><sw-icon name="more" size=${20}></sw-icon>עוד</a>
+        ${shown.map((n) => html`<a class=${classMap({ active: group === n.id })} href=${n.href}><sw-icon .name=${n.icon} size=${20}></sw-icon>${n.label}</a>`)}
+        ${overflow.length
+          ? html`<button
+              type="button"
+              class=${classMap({ active: moreActive })}
+              aria-haspopup="true"
+              aria-expanded=${this.moreOpen}
+              @click=${() => { this.moreOpen = !this.moreOpen; }}
+            >
+              <sw-icon name="more" size=${20}></sw-icon>עוד
+            </button>`
+          : nothing}
       </nav>
+      ${this.moreOpen && overflow.length
+        ? html`<div class="bottom-overflow" role="menu">
+            ${overflow.map(
+              (n) => html`<a role="menuitem" class=${classMap({ active: group === n.id })} href=${n.href} @click=${() => { this.moreOpen = false; }}>
+                <sw-icon .name=${n.icon} size=${18}></sw-icon>${n.label}
+              </a>`,
+            )}
+          </div>`
+        : nothing}
     `;
   }
 }
