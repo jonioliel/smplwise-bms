@@ -1,5 +1,29 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.98 (pilot) — grid, snap and alignment guides
+- Owner request (2026-09-26): line up several placed objects (their example: five lamps) on the same line easily
+  - the third and last of the multi-select pieces (0.1.96 multi-select, 0.1.97 tags). A toggleable grid with snap
+  while dragging or placing an object, following the measure tool's own estimated-versus-measured convention
+  before and after calibration (0.5 m default, size-named presets when metres are hidden); live smart alignment
+  guides while dragging a single object, snapping per axis independently against the grid; from the multi-select
+  bulk panel, align (left/right/top/bottom edges, center horizontal, center vertical) and distribute (horizontal,
+  vertical) 2 or more (align) or 3 or more (distribute) selected objects relative to the selection's own bounding
+  box, as one document edit. Ctrl/Cmd held during a drag turns both grid and guide snapping off.
+- Reviewed twice at Opus tier matching the other two multi-select pieces, with one fix round: align and
+  distribute's cost had grown with selected × total objects on the plan (a 2.4-3.6 second freeze at the
+  documented 5,000-object limit, the same class of problem 0.1.96 already fixed once) - now one pass, measured at
+  25-80 ms; a guide could point at an anchor-bound object's stale stored position instead of where its anchor
+  actually sits on screen, now resolved from the same live position the canvas itself draws; guide detection was
+  rebuilt from scratch on every pointer move during a drag, now cached and sorted per drag (roughly 0.1 ms a move
+  instead of 20-25 ms).
+- Found along the way, confirmed pre-existing and unrelated (a day before this branch started): a small selected
+  object at low zoom is fully covered by its own stretch handles, so a second press stretches it instead of
+  moving it - exactly the owner's lamp-lineup case. Queued as its own small follow-up, not fixed here.
+- Also fixed in passing: the level chip bar was off-centre under RTL, hiding the "+ מפלס" chip at some widths.
+- Tests: node unit (grid-snap math, align/distribute position math verified against the prior per-object version
+  as an oracle, the grid-versus-guide tie-break, the sorted-array guide search against a full scan); live (grid
+  snap, a guide appearing and snapping a drag, bulk align and distribute as one undo step).
+
 ## 0.1.97 (pilot) — free-text tags on walls, objects and zones
 - Owner request (2026-09-26): free-text tags for marking and later fast selection (e.g. "kitchen", "emergency
   exit" - not a replacement for a wall's existing exterior/interior kind), and group assignment to a level or a
