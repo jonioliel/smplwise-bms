@@ -31,10 +31,12 @@ RECHECK_S = 60
 MAX_PAGE = 200  # WisKey's own cap for events/list and users/query
 
 
-def _reader(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> None:
-    """`access.read` at installation scope, checked as a route dependency so it runs before query validation: a caller
-    without the permission learns nothing about the parameters (WisKey's own handlers authorize first, too)."""
+def _reader(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
+    """`access.read` at installation scope, checked as a dependency: FastAPI resolves dependencies before it validates
+    query parameters, so a caller without the permission learns nothing about them (WisKey's own handlers authorize
+    first, too). Returns the principal, whose id keys the caller's own rate bucket."""
     require(conn, principal, READ, INSTALLATION)
+    return principal
 
 
 def _instant(name: str, value: str | None) -> str | None:
@@ -60,9 +62,10 @@ def overview(request: Request, principal: Principal = Depends(current_principal)
     return intercom_sync.SYNC.snapshot(settings_of(request))
 
 
-@router.get("/intercom/events", dependencies=[Depends(_reader)])
+@router.get("/intercom/events")
 def events(
     request: Request,
+    principal: Principal = Depends(_reader),
     station_id: str | None = Query(None, min_length=1, max_length=128),
     person: str | None = Query(None, min_length=1, max_length=128),
     result: Literal["granted", "denied", "unknown"] | None = Query(None),
@@ -73,29 +76,31 @@ def events(
     limit: int = Query(100, ge=1, le=MAX_PAGE),
     before: str | None = Query(None, min_length=1, max_length=128),
     current_group: str | None = Query(None, min_length=1, max_length=128),
-    current_profile: list[str] | None = Query(None),
 ) -> dict[str, Any]:
     """The activity log: one page of WisKey's `events/list`, newest first (WisKey keeps 5 000 records / 30 days).
-    `before` is the previous page's `events.next`; an expired cursor is a 422 `intercom_invalid_request` (reload from
-    page one). `current_profile` repeats as `field_id=value`. Reply: `{state, configured, last_error, fetched_at,
+    `before` is the previous page's `events.next`; WisKey refusing a request that carried `before` is a 422
+    `intercom_cursor_expired` (reload from page one), any other refusal a 422 `intercom_invalid_request`. WisKey's
+    `current_profile` filter is deliberately not offered: matching events by a profile value (an ID number, say) would
+    let a reader probe values the people endpoints never show. Reply: `{state, configured, last_error, fetched_at,
     events, sync}`, `events` null unless `state` is `ready`. WisKey has no event push: refetch on the
     `intercom_refresh` notice, like WisKey's own panel."""
     start, end = _instant("start", start), _instant("end", end)
     if start and end and datetime.fromisoformat(start.replace("Z", "+00:00")) >= datetime.fromisoformat(end.replace("Z", "+00:00")):
         raise ApiError(422, "validation", "start חייב להיות לפני end.")
-    profile: dict[str, str] | None = None
-    if current_profile:
-        pairs = [item.partition("=") for item in current_profile]
-        if len(pairs) > 32 or any(not field or not sep or len(field) > 128 or len(value) > 100 for field, sep, value in pairs):
-            raise ApiError(422, "validation", "current_profile הוא field_id=value (עד 32 שדות, 128 / 100 תווים).")
-        profile = {field: value for field, _sep, value in pairs}
-    filters = {"station_id": station_id, "person": person, "result": result, "authentication": authentication, "door": door, "start": start, "end": end, "limit": limit, "before": before, "current_group": current_group, "current_profile": profile}
-    return intercom_sync.SYNC.command(settings_of(request), "events", lambda call: intercom_client.events_list(call, filters), intercom_sync.project_event_page)
+    filters = {"station_id": station_id, "person": person, "result": result, "authentication": authentication, "door": door, "start": start, "end": end, "limit": limit, "before": before, "current_group": current_group}
+    try:
+        return intercom_sync.SYNC.command(settings_of(request), "events", lambda call: intercom_client.events_list(call, filters), intercom_sync.project_event_page, who=principal.user_id)
+    except ApiError as exc:
+        if exc.code == "intercom_invalid_request" and before is not None:
+            # every other field was validated above, so a refused paged request is WisKey's pruned cursor
+            raise ApiError(422, "intercom_cursor_expired", "רשימת האירועים התעדכנה והסמן של 'טען עוד' פג - טענו מחדש מההתחלה.", details=exc.details) from exc
+        raise
 
 
-@router.get("/intercom/people", dependencies=[Depends(_reader)])
+@router.get("/intercom/people")
 def people(
     request: Request,
+    principal: Principal = Depends(_reader),
     query: str = Query("", max_length=160),
     offset: int = Query(0, ge=0, le=10_000_000),
     limit: int = Query(50, ge=1, le=MAX_PAGE),
@@ -106,22 +111,23 @@ def people(
     state: Literal["active", "inactive", "expired", "upcoming"] | None = Query(None),
     sort: Literal["name", "name_desc", "employee"] = Query("employee"),
 ) -> dict[str, Any]:
-    """The people directory: one page of WisKey's `users/query`, projected to what a read-only list shows (no phones,
-    cards, PIN flags or profile values). Pass the previous page's `people.snapshot` back; `people.stale` then says the
-    directory changed underneath the paging. The `credential` and `profile` filters are deliberately not offered.
-    Reply: `{state, configured, last_error, fetched_at, people, sync}`."""
+    """The people directory, projected to what a read-only list shows (no phones, cards, PIN flags or profile values).
+    `query` is matched by SMPLWISE against name and employee number only and is never sent to WisKey (whose own search
+    also matches phone digits and card last-4); `total` and the offsets then count matches. `people.complete` is false
+    when the scan stopped early (`incomplete_reason` `scan_limit` / `rate_limited`: narrow the search). Pass the
+    previous page's `people.snapshot` back; `people.stale` then says the directory changed underneath the paging. The
+    `credential` and `profile` filters are deliberately not offered. Reply: `{state, configured, last_error,
+    fetched_at, people, sync}`."""
     filters: dict[str, Any] = {k: v for k, v in {"station": station, "group": group, "rights": rights, "state": state}.items() if v is not None}
     filters["sort"] = sort
-    return intercom_sync.SYNC.command(
-        settings_of(request), "people", lambda call: intercom_client.users_query(call, query, filters, offset, limit, snapshot), intercom_sync.project_people_page
-    )
+    return intercom_sync.SYNC.people(settings_of(request), principal.user_id, query, filters, offset, limit, snapshot)
 
 
-@router.get("/intercom/people/{user_id}", dependencies=[Depends(_reader)])
-def person(request: Request, user_id: str = Path(min_length=1, max_length=128)) -> dict[str, Any]:
+@router.get("/intercom/people/{user_id}")
+def person(request: Request, principal: Principal = Depends(_reader), user_id: str = Path(min_length=1, max_length=128)) -> dict[str, Any]:
     """One person (WisKey `users/get`), same projection as a directory row; an unknown id is a 404
     `intercom_person_not_found`. Reply: `{state, configured, last_error, fetched_at, person, sync}`."""
-    return intercom_sync.SYNC.command(settings_of(request), "person", lambda call: intercom_client.users_get(call, user_id), intercom_sync.project_person)
+    return intercom_sync.SYNC.command(settings_of(request), "person", lambda call: intercom_client.users_get(call, user_id), intercom_sync.project_person, who=principal.user_id)
 
 
 @router.websocket("/intercom/ws")

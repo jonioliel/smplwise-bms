@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import json
+import threading
 import time
 from dataclasses import replace
 from pathlib import Path
@@ -717,7 +718,7 @@ def test_events_list_round_trip_over_the_feed_session(feed):
     body = c.get("/api/v1/intercom/events", params={
         "station_id": "entry-a", "person": "dana", "result": "granted", "authentication": "card", "door": 1,
         "start": "2026-09-26T00:00:00Z", "end": "2026-09-27T00:00:00+03:00", "limit": 20, "before": "ev-9",
-        "current_group": "staff", "current_profile": ["department=Engineering"],
+        "current_group": "staff", "current_profile": ["id_number=123456789"],
     }).json()
     assert len(fakes) == 1, "the one-off read rode the feed's own connection; no second HA socket"
     [msg] = sent(fakes, "events/list")
@@ -725,8 +726,8 @@ def test_events_list_round_trip_over_the_feed_session(feed):
     assert msg["filters"] == {
         "station_id": "entry-a", "person": "dana", "result": "granted", "authentication": "card", "door": 1,
         "start": "2026-09-26T00:00:00Z", "end": "2026-09-27T00:00:00+03:00", "limit": 20, "before": "ev-9",
-        "current_group": "staff", "current_profile": {"department": "Engineering"},
-    }
+        "current_group": "staff",
+    }, "S1: current_profile is never forwarded - it would let a reader probe profile values (an ID number) via matches"
     assert body["state"] == "ready" and body["configured"] is True and body["last_error"] is None and body["fetched_at"]
     page = body["events"]
     assert page["next"] == "ev-1" and page["retention_days"] == 30 and page["capacity"] == 5000
@@ -745,7 +746,7 @@ def test_events_list_round_trip_over_the_feed_session(feed):
     # defaults: only WisKey's page size; and bad parameters never reach WisKey
     c.get("/api/v1/intercom/events")
     assert sent(fakes, "events/list")[-1]["filters"] == {"limit": 100}
-    for bad in ({"limit": 201}, {"door": 3}, {"result": "maybe"}, {"start": "2026-09-26T00:00:00"}, {"start": "2026-09-27T00:00:00Z", "end": "2026-09-26T00:00:00Z"}, {"current_profile": "no-equals"}):
+    for bad in ({"limit": 201}, {"door": 3}, {"result": "maybe"}, {"start": "2026-09-26T00:00:00"}, {"start": "2026-09-27T00:00:00Z", "end": "2026-09-26T00:00:00Z"}):
         assert c.get("/api/v1/intercom/events", params=bad).status_code == 422, bad
     assert len(sent(fakes, "events/list")) == 2
     assert intercom_sync.STATE.state == "ready"
@@ -759,10 +760,14 @@ def test_people_directory_strips_personal_data(feed):
     body = c.get("/api/v1/intercom/people", params={"query": "dana", "state": "active", "sort": "name", "offset": 0, "limit": 50}).json()
     assert len(fakes) == 1
     [msg] = sent(fakes, "users/query")
-    assert msg == {"id": msg["id"], "type": "hikvision_intercom/users/query", "query": "dana", "filters": {"state": "active", "sort": "name"}, "offset": 0, "limit": 50, "snapshot": ""}
+    # D1: the search text never reaches WisKey; SMPLWISE scans the filtered directory and matches it itself
+    assert msg == {"id": msg["id"], "type": "hikvision_intercom/users/query", "query": "", "filters": {"state": "active", "sort": "name"}, "offset": 0, "limit": 200, "snapshot": ""}
     assert body["state"] == "ready" and body["fetched_at"]
     page = body["people"]
-    assert page == {"records": [PROJECTED_PERSON], "total": 1, "total_all": 12, "offset": 0, "limit": 50, "next_offset": None, "previous_offset": None, "snapshot": "abc123", "stale": False}
+    assert page == {
+        "records": [PROJECTED_PERSON], "total": 1, "total_all": 12, "offset": 0, "limit": 50, "next_offset": None, "previous_offset": None,
+        "snapshot": "abc123", "stale": False, "complete": True, "incomplete_reason": None,
+    }
     text = json.dumps(body)
     for private in PRIVATE:
         assert private not in text, f"{private} must not leave the feed"
@@ -866,3 +871,293 @@ def test_session_lost_mid_request_is_ha_unavailable(feed):
     assert body["state"] == "ha_unavailable" and body["events"] is None
     assert len(sent(fakes, "events/list")) == 1
     wait_for(lambda: intercom_sync.STATE.state == "ha_unavailable")
+
+
+# ---------------------------------------------------------------- phase 1b review fixes (S2, S3, N1-N3)
+
+def test_local_rate_buckets_refuse_before_calling_wiskey(feed, monkeypatch):
+    """S2a: WisKey's per-HA-user budget is shared with the feed, so one-off reads spend SMPLWISE's own tokens first -
+    per SMPLWISE user and in total - and an empty bucket is answered without calling WisKey at all."""
+    monkeypatch.setattr(intercom_sync, "USER_BURST", 2.0)
+    monkeypatch.setattr(intercom_sync, "USER_RATE", 0.0)
+    monkeypatch.setattr(intercom_sync, "GLOBAL_BURST", 3.0)
+    monkeypatch.setattr(intercom_sync, "GLOBAL_RATE", 0.0)
+    app, fakes = ready_feed(feed, lambda msg: [ok(msg, copy.deepcopy(EVENTS_PAGE))] if msg["type"] == "hikvision_intercom/events/list" else None)
+    intercom_sync.SYNC._buckets_reset()
+    c = TestClient(app)
+    bind(c, feed[1], "vera", "viewer", "installation", "*")
+
+    def get(headers: dict[str, str] | None = None) -> dict[str, Any]:
+        return c.get("/api/v1/intercom/events", headers=headers or {}).json()
+
+    assert get()["state"] == "ready" and get()["state"] == "ready"
+    mine = get()
+    assert (mine["state"], mine["last_error"], mine["events"]) == ("error", "rate_limited", None), "the caller's own bucket is empty"
+    assert get(as_user("vera"))["state"] == "ready", "another user still has tokens of their own"
+    total = get(as_user("vera"))
+    assert (total["state"], total["last_error"]) == ("error", "rate_limited"), "and the shared bucket is empty now"
+    assert len(sent(fakes, "events/list")) == 3, "a refused request never reaches WisKey"
+    assert intercom_sync.STATE.state == "ready" and len(fakes) == 1
+
+
+def test_rate_limited_refresh_keeps_the_session(feed, monkeypatch):
+    """S2b: WisKey answering the feed's own overview refetch with `rate_limited` is temporary: the session, the copy
+    and the state stay; the refetch is retried after RATE_RETRY_S instead of tearing the feed down and reconnecting."""
+    monkeypatch.setattr(intercom_sync, "RATE_RETRY_S", 0.1)
+    app, s, install = feed
+    calls = {"overview": 0}
+    ringing = copy.deepcopy(OVERVIEW)
+    ringing["stations"][0]["call_state"] = "ringing"
+
+    def script(msg: dict[str, Any], fake: FakeHa) -> list[Any]:
+        if msg["type"] == "hikvision_intercom/overview":
+            calls["overview"] += 1
+            if calls["overview"] == 2:
+                return [fail(msg, "rate_limited")]
+            return [ok(msg, copy.deepcopy(OVERVIEW if calls["overview"] == 1 else ringing))]
+        if msg["type"] == "hikvision_intercom/subscribe":
+            return [ok(msg), {"id": msg["id"], "type": "event", "event": {"kind": "refresh"}}]  # triggers refetch #2
+        return normal(msg, fake)
+
+    q = intercom_sync.subscribe()
+    try:
+        fakes = install(script)
+        intercom_sync.SYNC.start(s)
+        wait_for(lambda: calls["overview"] >= 3 and intercom_sync.STATE.sequence >= 2)
+        assert len(fakes) == 1 and intercom_sync.STATE.reconnects == 0, "no reconnect"
+        assert intercom_sync.STATE.state == "ready" and intercom_sync.STATE.connected
+        assert pushed_states(q) == ["ready"], "the feed never left ready"
+        body = TestClient(app).get("/api/v1/intercom/overview").json()
+        assert body["fresh"] is True and body["overview"]["stations"][0]["call_state"] == "ringing", "the retry refetched"
+        assert not intercom_sync.SYNC._retry_pending
+    finally:
+        intercom_sync.unsubscribe(q)
+
+
+def test_busy_is_answered_at_once(feed):
+    """S3: with every in-flight slot taken, a request is answered `busy` immediately - it never parks a worker thread."""
+    app, fakes = ready_feed(feed, lambda msg: None)
+    slot = intercom_sync.SYNC._inflight = threading.BoundedSemaphore(1)
+    assert slot.acquire(blocking=False)
+    try:
+        t0 = time.monotonic()
+        body = TestClient(app).get("/api/v1/intercom/people/u1").json()
+        assert time.monotonic() - t0 < 1.0, "no blocking wait for a slot"
+        assert (body["state"], body["last_error"], body["person"]) == ("error", "busy", None)
+        assert not sent(fakes, "users/get")
+    finally:
+        slot.release()
+
+
+def test_timeout_keeps_the_slot_until_wiskey_answers(feed, monkeypatch):
+    """N3 + the timeout path: the browser request gives up after COMMAND_TIMEOUT_S, but WisKey's handler is still
+    running, so the in-flight slot stays taken until WisKey's answer arrives."""
+    monkeypatch.setattr(intercom_sync, "COMMAND_TIMEOUT_S", 0.2)
+    held: list[tuple[dict[str, Any], FakeHa]] = []
+
+    def script(msg: dict[str, Any], fake: FakeHa) -> list[Any]:
+        if msg["type"] == "hikvision_intercom/users/get":
+            if not held:
+                held.append((msg, fake))
+                return []  # WisKey is slow: no answer yet
+            return [ok(msg, copy.deepcopy(PERSON))]
+        return normal(msg, fake)
+
+    app, s, install = feed
+    install(script)
+    intercom_sync.SYNC.start(s)
+    wait_for(lambda: intercom_sync.STATE.state == "ready")
+    intercom_sync.SYNC._inflight = threading.BoundedSemaphore(1)
+    c = TestClient(app)
+    body = c.get("/api/v1/intercom/people/u1").json()
+    assert (body["state"], body["last_error"], body["person"]) == ("error", "timeout", None)
+    assert c.get("/api/v1/intercom/people/u1").json()["last_error"] == "busy", "WisKey has not answered: the slot is still taken"
+    msg, fake = held[0]
+    assert intercom_sync.SYNC._event_loop and fake.q
+    intercom_sync.SYNC._event_loop.call_soon_threadsafe(fake.q.put_nowait, ok(msg, copy.deepcopy(PERSON)))  # the late answer
+    wait_for(lambda: intercom_sync.SYNC._inflight._value == 1)
+    body = c.get("/api/v1/intercom/people/u1").json()
+    assert body["state"] == "ready" and body["person"] == PROJECTED_PERSON
+    assert intercom_sync.STATE.state == "ready"
+
+
+def test_malformed_replies_are_invalid_response(feed):
+    """A WisKey reply of an unexpected shape is `error` / `invalid_response` for that request, never a lost connection."""
+    broken = copy.deepcopy(PEOPLE_PAGE)
+    broken["records"][0]["assignments"]["entry-a"]["allowed_locks"] = 5  # not a list
+
+    def answer(msg: dict[str, Any]) -> list[Any] | None:
+        if msg["type"] == "hikvision_intercom/users/get":
+            return [ok(msg, ["not", "a", "person"])]
+        if msg["type"] == "hikvision_intercom/users/query":
+            return [ok(msg, copy.deepcopy(broken))]
+        return None
+
+    app, fakes = ready_feed(feed, answer)
+    c = TestClient(app)
+    for path, key in (("/api/v1/intercom/people/u1", "person"), ("/api/v1/intercom/people", "people")):
+        body = c.get(path).json()
+        assert (body["state"], body["last_error"], body[key], body["fetched_at"]) == ("error", "invalid_response", None, None), path
+    assert intercom_sync.STATE.state == "ready" and len(fakes) == 1
+
+
+def test_session_gone_before_the_command_runs_reports_the_feed_state(feed, monkeypatch):
+    """N1: the request thread saw `ready`, but by the time the command reached the feed's loop the feed had concluded
+    something else (here WisKey revoked access): the reply carries that state, not a generic `ha_unavailable`."""
+    app, fakes = ready_feed(feed, lambda msg: None)
+    real = asyncio.run_coroutine_threadsafe
+
+    def racing(coro: Any, loop: Any) -> Any:
+        if loop is intercom_sync.SYNC._event_loop:  # only the command's hop (TestClient's portal may use this too)
+            intercom_sync.STATE.state, intercom_sync.STATE.last_error = "forbidden", "unauthorized"
+        return real(coro, loop)
+
+    monkeypatch.setattr(asyncio, "run_coroutine_threadsafe", racing)
+    body = TestClient(app).get("/api/v1/intercom/people/u1").json()
+    assert (body["state"], body["last_error"], body["person"]) == ("forbidden", "unauthorized", None)
+    assert not sent(fakes, "users/get"), "nothing was sent over a session that is no longer usable"
+
+
+def test_expired_cursor_has_its_own_code(feed):
+    """N2: WisKey's `invalid_fields` for a paged request (`before` sent) is the pruned cursor; without `before` it is a
+    generic refusal."""
+    app, _fakes = ready_feed(feed, lambda msg: [fail(msg, "invalid_fields")] if msg["type"] == "hikvision_intercom/events/list" else None)
+    c = TestClient(app)
+    r = c.get("/api/v1/intercom/events", params={"before": "ev-gone"})
+    assert r.status_code == 422 and r.json()["code"] == "intercom_cursor_expired"
+    r = c.get("/api/v1/intercom/events", params={"station_id": "entry-a"})
+    assert r.status_code == 422 and r.json()["code"] == "intercom_invalid_request"
+    assert intercom_sync.STATE.state == "ready"
+
+
+# ---------------------------------------------------------------- D1: people search stays in SMPLWISE
+
+def directory(n: int) -> list[dict[str, Any]]:
+    """`n` WisKey people (full public Person, phones and cards included), in WisKey's own order."""
+    out = []
+    for i in range(1, n + 1):
+        person = copy.deepcopy(PERSON)
+        person.update(id=f"u{i}", employee_no=f"E{i:04d}", display_name=f"Person {i}", phone=f"+9725{i:08d}", cards=[{"id": f"c{i}", "masked_number": f"•••• {9000 + i}", "label": "", "card_type": "normalCard", "enabled": True}])
+        out.append(person)
+    return out
+
+
+def wiskey_directory(people: list[dict[str, Any]], snapshot: str = "snap-1") -> Callable[[dict[str, Any]], list[Any] | None]:
+    """A `users/query` that behaves like WisKey's own (user_directory.py): paging by offset / limit with next_offset, and
+    - should SMPLWISE ever send a text - WisKey's real matching, which includes phone digits and card last-4."""
+
+    def answer(msg: dict[str, Any]) -> list[Any] | None:
+        if msg["type"] != "hikvision_intercom/users/query":
+            return None
+        text = msg["query"].casefold()
+        digits = "".join(ch for ch in text if ch.isdigit())
+
+        def hit(p: dict[str, Any]) -> bool:
+            if text in f"{p['display_name']} {p['employee_no']} {p['phone']}".casefold():
+                return True
+            if len(digits) >= 3 and digits in "".join(ch for ch in p["phone"] if ch.isdigit()):
+                return True
+            return len(text) == 4 and text.isdigit() and any(c["masked_number"].endswith(text) for c in p["cards"])
+
+        rows = [p for p in people if hit(p)] if text else people
+        off, lim = msg["offset"], msg["limit"]
+        page = rows[off:off + lim]
+        return [ok(msg, {
+            "records": copy.deepcopy(page), "total": len(rows), "total_all": len(people), "offset": off, "limit": lim,
+            "next_offset": off + lim if off + lim < len(rows) else None, "previous_offset": max(0, off - lim) if off else None,
+            "snapshot": snapshot, "stale": bool(msg["snapshot"]) and msg["snapshot"] != snapshot,
+        })]
+
+    return answer
+
+
+@pytest.fixture()
+def roomy_buckets(monkeypatch):
+    """Rate buckets large enough that a test making many requests measures paging, not throttling."""
+    monkeypatch.setattr(intercom_sync, "USER_BURST", 1000.0)
+    monkeypatch.setattr(intercom_sync, "GLOBAL_BURST", 1000.0)
+    yield lambda: intercom_sync.SYNC._buckets_reset()
+
+
+def test_search_never_matches_or_forwards_phone_and_card(feed, roomy_buckets):
+    """D1: a text that matches a person's phone or card digits - but not their name or employee number - finds nobody,
+    and no users/query ever carries the text. The fake WisKey implements WisKey's own phone / card matching, so
+    forwarding the text would make this test fail."""
+    people = directory(3)
+    app, fakes = ready_feed(feed, wiskey_directory(people))
+    roomy_buckets()
+    c = TestClient(app)
+    probes = ("+97250000000", "500000002", "00000002", "9002", "9725")  # phone (full / partial digits), card last-4
+    for probe in probes:
+        body = c.get("/api/v1/intercom/people", params={"query": probe}).json()
+        assert body["state"] == "ready", probe
+        assert body["people"]["records"] == [] and body["people"]["total"] == 0, f"{probe} must match nobody"
+        assert body["people"]["total_all"] == 3 and body["people"]["complete"] is True
+    for text, ids in (("person 2", ["u2"]), ("e0003", ["u3"]), ("PERSON", ["u1", "u2", "u3"])):
+        body = c.get("/api/v1/intercom/people", params={"query": text}).json()
+        assert [p["id"] for p in body["people"]["records"]] == ids, text
+    queries = sent(fakes, "users/query")
+    assert queries and all(m["query"] == "" for m in queries), "the search text never reaches WisKey"
+    assert not any(probe in json.dumps(m) for m in queries for probe in probes)
+    text = json.dumps(c.get("/api/v1/intercom/people", params={"query": "person"}).json())
+    assert "+9725" not in text and "•" not in text, "and the reply still carries no phone or card"
+
+
+def test_search_paging_counts_local_matches(feed, roomy_buckets):
+    """D1 pagination: SMPLWISE scans WisKey's filtered directory (pages of SCAN_PAGE) and pages over its own match
+    list - `total` counts matches, offsets index matches, past-the-end is clamped to the last page."""
+    people = directory(450)  # three WisKey pages of 200
+    app, fakes = ready_feed(feed, wiskey_directory(people))
+    roomy_buckets()
+    c = TestClient(app)
+    expected = [p["id"] for p in people if "person 1" in p["display_name"].casefold()]  # 1, 10-19, 100-199: 111
+    assert len(expected) == 111
+
+    page = c.get("/api/v1/intercom/people", params={"query": "Person 1", "limit": 50, "state": "active"}).json()["people"]
+    scan = sent(fakes, "users/query")
+    assert [(m["offset"], m["limit"]) for m in scan] == [(0, 200), (200, 200), (400, 200)], "the whole filtered directory, once"
+    assert all(m["filters"] == {"state": "active", "sort": "employee"} for m in scan), "the other filters still go to WisKey"
+    assert [m["snapshot"] for m in scan] == ["", "snap-1", "snap-1"], "later pages pin the first page's snapshot"
+    assert [p["id"] for p in page["records"]] == expected[:50]
+    assert (page["total"], page["total_all"], page["offset"], page["next_offset"], page["previous_offset"]) == (111, 450, 0, 50, None)
+    assert page["complete"] is True and page["incomplete_reason"] is None and page["snapshot"] == "snap-1"
+
+    page = c.get("/api/v1/intercom/people", params={"query": "Person 1", "limit": 50, "offset": 100}).json()["people"]
+    assert [p["id"] for p in page["records"]] == expected[100:]
+    assert (page["total"], page["offset"], page["next_offset"], page["previous_offset"]) == (111, 100, None, 50)
+    page = c.get("/api/v1/intercom/people", params={"query": "Person 1", "limit": 50, "offset": 5000}).json()["people"]
+    assert page["offset"] == 100 and len(page["records"]) == 11, "past the end: clamped to the last page, as WisKey does"
+    page = c.get("/api/v1/intercom/people", params={"query": "nobody here", "offset": 50}).json()["people"]
+    assert (page["records"], page["total"], page["offset"], page["next_offset"], page["previous_offset"]) == ([], 0, 0, None, None)
+    page = c.get("/api/v1/intercom/people", params={"query": "Person 1", "snapshot": "snap-0"}).json()["people"]
+    assert page["stale"] is True, "an out-of-date snapshot from the caller is reported"
+
+    # without a text: WisKey's own paging, one page, unchanged
+    before = len(sent(fakes, "users/query"))
+    page = c.get("/api/v1/intercom/people", params={"limit": 50, "offset": 400}).json()["people"]
+    assert len(sent(fakes, "users/query")) == before + 1
+    assert (page["total"], page["offset"], len(page["records"]), page["next_offset"], page["complete"]) == (450, 400, 50, None, True)
+
+
+def test_search_scan_is_bounded(feed, monkeypatch):
+    """D1 + S2: one browser request never loops over WisKey unbounded - the scan stops at MAX_SCAN_PAGES, or as soon as
+    the caller's rate bucket cannot pay for the next page, and says so (`complete: false`, a lower-bound `total`)."""
+    people = directory(450)
+    app, fakes = ready_feed(feed, wiskey_directory(people))
+    c = TestClient(app)
+    monkeypatch.setattr(intercom_sync, "MAX_SCAN_PAGES", 2)
+    page = c.get("/api/v1/intercom/people", params={"query": "Person 1"}).json()["people"]
+    assert len(sent(fakes, "users/query")) == 2
+    assert page["complete"] is False and page["incomplete_reason"] == "scan_limit"
+    assert page["total"] == len([p for p in people[:400] if "person 1" in p["display_name"].casefold()])
+
+    monkeypatch.setattr(intercom_sync, "MAX_SCAN_PAGES", 10)
+    monkeypatch.setattr(intercom_sync, "USER_BURST", 2.0)
+    monkeypatch.setattr(intercom_sync, "USER_RATE", 0.0)
+    intercom_sync.SYNC._buckets_reset()
+    before = len(sent(fakes, "users/query"))
+    body = c.get("/api/v1/intercom/people", params={"query": "Person 1"}).json()
+    assert body["state"] == "ready" and len(sent(fakes, "users/query")) == before + 2, "one token per WisKey page"
+    assert body["people"]["complete"] is False and body["people"]["incomplete_reason"] == "rate_limited"
+    body = c.get("/api/v1/intercom/people", params={"query": "Person 1"}).json()
+    assert (body["state"], body["last_error"]) == ("error", "rate_limited") and len(sent(fakes, "users/query")) == before + 2

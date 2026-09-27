@@ -69,13 +69,48 @@ PERSON_KEYS = ("id", "employee_no", "display_name")
 PEOPLE_PAGE_KEYS = ("total", "total_all", "offset", "limit", "next_offset", "previous_offset")
 COMMAND_TIMEOUT_S = 25.0  # a one-off read waits this long for WisKey (`ha_client`'s own per-call limit is 60 s)
 # WisKey's AdminLimiter allows 8 concurrent handlers per HA user, and the feed's own overview refetch shares that user:
-# one-off reads from browsers are kept to half of it
+# one-off reads from browsers are kept to half of it. A slot stays taken until WisKey actually answered (or
+# `ha_client` gave up on the call), not merely until the browser request timed out.
 MAX_INFLIGHT = 4
+# WisKey's AdminLimiter is also a token bucket per HA user (burst 30, refill 2/s) shared with the feed's own overview
+# refetch. One-off reads spend local tokens first and are refused here, without calling WisKey, once they run out:
+# per SMPLWISE user (fairness) and in total (kept well under WisKey's own refill, so the feed always has headroom).
+USER_BURST, USER_RATE = 10.0, 1.0
+GLOBAL_BURST, GLOBAL_RATE = 20.0, 1.5
+RATE_LIMITED = "rate_limited"
+RATE_RETRY_S = 2.0  # the feed's own refetch answered `rate_limited`: keep the session and try again after this long
+# people text search runs here, not in WisKey (D1, see search_people): the filtered directory is scanned in pages of
+# SCAN_PAGE, at most MAX_SCAN_PAGES per request (2 000 people; a WisKey station holds a few hundred), every page after
+# the first spending one more rate token
+SCAN_PAGE = 200
+MAX_SCAN_PAGES = 10
 # request-level refusals are the caller's to fix, not a degraded feed: (HTTP status, SMPLWISE code, message)
 REQUEST_ERRORS = {
     "user_not_found": (404, "intercom_person_not_found", "האדם לא נמצא ב־WisKey."),
-    "invalid_fields": (422, "intercom_invalid_request", "WisKey דחה את הבקשה (למשל סמן 'טען עוד' שפג תוקפו) - טענו מחדש מההתחלה."),
+    "invalid_fields": (422, "intercom_invalid_request", "WisKey דחה את פרמטרי הבקשה."),
 }
+
+
+class TokenBucket:
+    """A plain token bucket (`burst` tokens, refilled at `rate` per second); callers hold `_bucket_lock`."""
+
+    def __init__(self, burst: float, rate: float) -> None:
+        self.burst, self.rate = burst, rate
+        self.tokens = burst
+        self.at = time.monotonic()
+
+    def ready(self) -> bool:
+        now = time.monotonic()
+        self.tokens = min(self.burst, self.tokens + (now - self.at) * self.rate)
+        self.at = now
+        return self.tokens >= 1.0
+
+    def take(self) -> None:
+        self.tokens -= 1.0
+
+
+class _NotReady(Exception):
+    """The session the request thread saw had already ended when the command reached the feed's loop."""
 
 # ha_not_configured | idle | connecting | ha_unavailable | not_installed | forbidden | error | ready
 STATES = ("ha_not_configured", "idle", "connecting", "ha_unavailable", "not_installed", "forbidden", "error", "ready")
@@ -229,13 +264,89 @@ def project_person(raw: dict[str, Any]) -> dict[str, Any]:
 
 
 def project_people_page(raw: dict[str, Any]) -> dict[str, Any]:
-    """One `users/query` page: projected people plus WisKey's paging bookkeeping (`snapshot` / `stale` included, so the
-    next page request can pass the snapshot back)."""
+    """One `users/query` page without a search text: projected people plus WisKey's paging bookkeeping (`snapshot` /
+    `stale` included, so the next page request can pass the snapshot back). Always complete."""
     return {
         "records": [project_person(r) for r in raw.get("records") or [] if isinstance(r, dict)],
         **{k: _int(raw.get(k)) for k in PEOPLE_PAGE_KEYS},
         "snapshot": _str(raw.get("snapshot")) or "",
         "stale": bool(raw.get("stale")),
+        "complete": True,
+        "incomplete_reason": None,
+    }
+
+
+def person_matches(person: dict[str, Any], needle: str) -> bool:
+    """SMPLWISE's people text search: a case-insensitive substring of the PROJECTED person's display name and employee
+    number. It is given the projection, so a phone number or card digits can never be what matched."""
+    return needle in f"{person['display_name']} {person['employee_no']}".casefold()
+
+
+async def search_people(
+    call: intercom_client.Call,
+    needle: str,
+    filters: dict[str, Any],
+    offset: int,
+    limit: int,
+    snapshot: str | None,
+    spend: Callable[[], bool],
+) -> dict[str, Any]:
+    """Text search without handing WisKey the text (D1). WisKey's own search also matches phone digits and card last-4,
+    so SMPLWISE asks WisKey for the filtered directory with an EMPTY query, page by page in WisKey's own order (its
+    `sort`), projects every record and keeps those that match `needle` (already casefolded) by name / employee number.
+
+    Paging is over SMPLWISE's match list, not WisKey's: `total` is the number of matches, `offset` / `next_offset` /
+    `previous_offset` index into the matches (an offset past the end is clamped to the last page, as WisKey does), and
+    `total_all` stays WisKey's directory size (it does not depend on the text). The whole filtered directory is scanned
+    so that `total` is exact; a scan stopped by MAX_SCAN_PAGES or by an empty rate bucket (`spend()` refused the next
+    page) is returned as it stands with `complete: false` and `incomplete_reason` `scan_limit` / `rate_limited`, and
+    `total` is then a lower bound ("narrow the search"). `snapshot` is WisKey's value from the first page; `stale` says
+    the caller's snapshot is out of date or the directory changed during the scan."""
+    matches: list[dict[str, Any]] = []
+    wk_offset, pages = 0, 0
+    current = ""
+    total_all: int | None = None
+    stale = False
+    reason: str | None = None
+    while True:
+        if pages >= MAX_SCAN_PAGES:
+            reason = "scan_limit"
+            break
+        if pages and not spend():  # the first page was paid for by command()
+            reason = RATE_LIMITED
+            break
+        raw = await intercom_client.users_query(call, filters, wk_offset, SCAN_PAGE, current)
+        pages += 1
+        if pages == 1:
+            current = _str(raw.get("snapshot")) or ""
+            total_all = _int(raw.get("total_all"))
+        elif raw.get("stale"):
+            stale = True  # someone changed the directory while it was being scanned
+        for record in raw.get("records") or []:
+            if isinstance(record, dict):
+                person = project_person(record)
+                if person_matches(person, needle):
+                    matches.append(person)
+        following = _int(raw.get("next_offset"))
+        if following is None or following <= wk_offset:
+            break
+        wk_offset = following
+    total = len(matches)
+    if offset >= total:
+        offset = ((total - 1) // limit) * limit if total else 0
+    end = offset + limit
+    return {
+        "records": matches[offset:end],
+        "total": total,
+        "total_all": total_all,
+        "offset": offset,
+        "limit": limit,
+        "next_offset": end if end < total else None,
+        "previous_offset": max(0, offset - limit) if offset > 0 else None,
+        "snapshot": current,
+        "stale": stale or bool(snapshot and snapshot != current),
+        "complete": reason is None,
+        "incomplete_reason": reason,
     }
 
 
@@ -256,7 +367,26 @@ class IntercomSync:
         self._event_loop: asyncio.AbstractEventLoop | None = None
         self._tasks: set[asyncio.Task[None]] = set()  # refreshes started by pushes (_kick); cancelled with the session
         self._inflight = threading.BoundedSemaphore(MAX_INFLIGHT)  # one-off reads (command) in flight at once
+        self._bucket_lock = threading.Lock()
+        self._buckets_reset()
         self._session_reset()
+
+    def _buckets_reset(self) -> None:
+        with self._bucket_lock:
+            self._global_bucket = TokenBucket(GLOBAL_BURST, GLOBAL_RATE)
+            self._user_buckets: dict[str, TokenBucket] = {}
+
+    def _spend_token(self, who: str) -> bool:
+        """One token from both the caller's and the shared bucket, or none at all (nothing is spent on a refusal)."""
+        with self._bucket_lock:
+            mine = self._user_buckets.get(who)
+            if mine is None:
+                mine = self._user_buckets[who] = TokenBucket(USER_BURST, USER_RATE)
+            if not (mine.ready() and self._global_bucket.ready()):
+                return False
+            mine.take()
+            self._global_bucket.take()
+            return True
 
     def _session_reset(self) -> None:
         self._call: intercom_client.Call | None = None
@@ -268,6 +398,8 @@ class IntercomSync:
         self._watched: set[str] = set()
         self._refreshing = False
         self._again = False
+        self._retry_pending = False  # a refetch after WisKey's `rate_limited` is scheduled (at most one)
+        self._rate_logged = False  # that stretch was logged (once, not every retry)
         self._end: asyncio.Event | None = None
         self._fault: BaseException | None = None
 
@@ -295,6 +427,8 @@ class IntercomSync:
         self._absent_strikes = 0
         self._last_view = None
         self._fetched_mono = None
+        self._inflight = threading.BoundedSemaphore(MAX_INFLIGHT)
+        self._buckets_reset()
         self._session_reset()
         STATE.reset()
 
@@ -325,14 +459,19 @@ class IntercomSync:
         key: str,
         send: Callable[[intercom_client.Call], Awaitable[dict[str, Any]]],
         project: Callable[[dict[str, Any]], dict[str, Any]],
+        who: str = "",
     ) -> dict[str, Any]:
         """Run one read-only WisKey command over the feed's live session and serve its projection under `key`:
         `{state, configured, last_error, fetched_at, <key>, sync}`. `<key>` is null whenever the command did not run or
         did not succeed; `state` is the feed's own state, or for this request only `forbidden` (WisKey refuses the
-        add-on's user this command), `unsupported` (this WisKey has no such command), `error` (another WisKey error,
-        `rate_limited`, `busy`, `timeout`) or `ha_unavailable` (the session went away mid-request). A request-level
-        refusal (REQUEST_ERRORS) raises an ApiError instead. The feed's state machine is never changed from here: the
-        session's own overview refetch and reconnect loop remain the only judges of the connection."""
+        add-on's user this command), `unsupported` (this WisKey has no such command), `error` (another WisKey error;
+        `rate_limited` from SMPLWISE's own buckets or WisKey's; `busy` when MAX_INFLIGHT reads are already out;
+        `timeout`; `invalid_response`) or `ha_unavailable` (the session went away mid-request). A request-level refusal
+        (REQUEST_ERRORS) raises an ApiError instead. `who` keys the caller's own rate bucket (the SMPLWISE user id).
+
+        Never blocks a worker thread on anything but the WisKey call itself: no rate token or no free slot is answered
+        at once. The feed's state machine is never changed from here: the session's own overview refetch and reconnect
+        loop remain the only judges of the connection."""
         configured = ha_client.configured(settings)
         state = STATE.state if configured else "ha_not_configured"
         if configured and state == "idle":
@@ -342,35 +481,49 @@ class IntercomSync:
         if state != "ready" or loop is None or self._call is None:
             reply["sync"] = STATE.as_dict()
             return reply
-        if not self._inflight.acquire(timeout=5):
+        if not self._spend_token(who):
+            reply.update(state="error", last_error=RATE_LIMITED, sync=STATE.as_dict())
+            return reply
+        slot = self._inflight  # the semaphore this request takes (reset() may swap in a new one)
+        if not slot.acquire(blocking=False):
             reply.update(state="error", last_error="busy", sync=STATE.as_dict())
             return reply
+        coro = self._one_off(send)
+        try:
+            future = asyncio.run_coroutine_threadsafe(coro, loop)
+        except RuntimeError as exc:  # the session's loop closed between the check above and scheduling
+            coro.close()
+            slot.release()
+            reply.update(state="ha_unavailable", last_error=type(exc).__name__, sync=STATE.as_dict())
+            return reply
+        # the slot is freed when the call is really over (answer, session end, or ha_client's own 60 s limit): a
+        # browser-side timeout does not stop WisKey's handler, so it must not free the slot early either
+        future.add_done_callback(lambda _f: slot.release())
         raw: dict[str, Any] | None = None
         try:
-            future = asyncio.run_coroutine_threadsafe(self._one_off(send), loop)
-            try:
-                raw = future.result(timeout=COMMAND_TIMEOUT_S)
-            except TimeoutError:
-                future.cancel()
-                reply.update(state="error", last_error="timeout")
-            except IntercomError as exc:
-                if exc.code in REQUEST_ERRORS:
-                    status, code, message = REQUEST_ERRORS[exc.code]
-                    raise ApiError(status, code, message, details={"wiskey_code": exc.code}) from exc
-                if exc.code == "unauthorized":
-                    reply.update(state="forbidden", last_error=exc.code)
-                elif exc.not_installed:
-                    reply.update(state="unsupported", last_error=exc.code)
-                else:
-                    reply.update(state="error", last_error=exc.code)
-        except RuntimeError as exc:  # the session's loop closed between the check above and scheduling
-            reply.update(state="ha_unavailable", last_error=type(exc).__name__)
-        except ApiError:
-            raise
+            raw = future.result(timeout=COMMAND_TIMEOUT_S)
+        except TimeoutError:
+            reply.update(state="error", last_error="timeout")
+        except _NotReady:
+            # report what the feed says now; "ready" without a live call is a session that just ended
+            now = {"idle": "connecting", "ready": "ha_unavailable"}.get(STATE.state, STATE.state)
+            reply.update(state=now, last_error=STATE.last_error if now == STATE.state else "session_ended")
+        except IntercomError as exc:
+            if exc.code in REQUEST_ERRORS:
+                status, code, message = REQUEST_ERRORS[exc.code]
+                raise ApiError(status, code, message, details={"wiskey_code": exc.code}) from exc
+            if exc.code == "unauthorized":
+                reply.update(state="forbidden", last_error=exc.code)
+            elif exc.not_installed:
+                reply.update(state="unsupported", last_error=exc.code)
+            else:
+                reply.update(state="error", last_error=exc.code)
         except Exception as exc:  # noqa: BLE001 - socket closed / session cancelled mid-request
-            reply.update(state="ha_unavailable", last_error=type(exc).__name__)
-        finally:
-            self._inflight.release()
+            now = STATE.state
+            if now in ("ready", "idle", "connecting"):  # the feed has not concluded anything yet: the socket went away
+                reply.update(state="ha_unavailable", last_error=type(exc).__name__)
+            else:
+                reply.update(state=now, last_error=STATE.last_error)
         if raw is not None:
             try:
                 reply.update(state="ready", last_error=None, fetched_at=now_iso())
@@ -381,12 +534,27 @@ class IntercomSync:
         reply["sync"] = STATE.as_dict()
         return reply
 
+    def people(self, settings: Settings, who: str, query: str, filters: dict[str, Any], offset: int, limit: int, snapshot: str | None) -> dict[str, Any]:
+        """The people directory for `who`: without a text, one WisKey page as it is; with a text, SMPLWISE's own search
+        (search_people), each scanned page after the first paid from the same rate buckets. Either way WisKey's
+        `query` field is empty."""
+        needle = query.strip().casefold()
+        if not needle:
+            return self.command(settings, "people", lambda call: intercom_client.users_query(call, filters, offset, limit, snapshot), project_people_page, who=who)
+        return self.command(
+            settings,
+            "people",
+            lambda call: search_people(call, needle, filters, offset, limit, snapshot, spend=lambda: self._spend_token(who)),
+            lambda page: page,  # already projected, person by person, before matching
+            who=who,
+        )
+
     async def _one_off(self, send: Callable[[intercom_client.Call], Awaitable[dict[str, Any]]]) -> dict[str, Any]:
         """On the feed's loop: send over the session that is live NOW (it may have ended since the request thread
         looked), never a new connection."""
         call = self._call
         if call is None or STATE.state != "ready":
-            raise ConnectionError("session_ended")
+            raise _NotReady()
         return await send(call)
 
     def watched(self) -> bool:
@@ -608,15 +776,43 @@ class IntercomSync:
                 self._again = False
                 raw = await intercom_client.overview(call)
                 self._store(raw)
+                self._rate_logged = False  # a later rate-limited stretch is logged again
                 await self._watch(call, watched_entities(raw))
                 if not self._again:
                     break
         except asyncio.CancelledError:
             raise
+        except IntercomError as exc:
+            if exc.code == RATE_LIMITED:
+                # WisKey's per-user budget is spent for the moment: temporary, not a broken session. Keep the session
+                # and the last copy, and refetch once the bucket has refilled a little.
+                self._retry_refresh()
+            else:
+                self._fail(exc)
         except Exception as exc:  # noqa: BLE001 - end the session; the loop reconnects and re-probes
             self._fail(exc)
         finally:
             self._refreshing = False
+
+    def _retry_refresh(self) -> None:
+        """One delayed refetch after `rate_limited`, tracked with the session's tasks so it never outlives it."""
+        if self._retry_pending:
+            return
+        self._retry_pending = True
+        if not self._rate_logged:
+            log.warning("WisKey feed: overview refetch rate limited; retrying in %.0fs", RATE_RETRY_S)
+            self._rate_logged = True
+
+        async def later() -> None:
+            try:
+                await asyncio.sleep(RATE_RETRY_S)
+            finally:
+                self._retry_pending = False
+            await self._refresh()
+
+        task = asyncio.get_running_loop().create_task(later(), name="intercom-refresh-retry")
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
 
     async def _watch(self, call: intercom_client.Call, ids: set[str]) -> None:
         """Follow the stations' own online / ringing / call-status entities (re-subscribed when that set changes)."""

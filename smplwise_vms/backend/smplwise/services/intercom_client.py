@@ -8,7 +8,8 @@ docs/integrations/wiskey/WISKEY_SOURCE_EXTRACTION.md (§0.3 envelope, types.ts `
 This module knows nothing about threads, polling or subscribers (services/intercom_sync.py owns those), so a later
 phase adds commands here without touching the connection machinery. Phase 1a: `overview`; phase 1b adds the read-only
 `events/list`, `users/query` and `users/get` (WISKEY_SOURCE_EXTRACTION.md §X.1; WisKey's own areas `events:view` /
-`users:view`). All of them are READ commands, so no `api_contract` field is sent (§0.4)."""
+`users:view`). All of them are READ commands, so no `api_contract` field is sent (§0.4). `users/query` is never given
+a search text (see `users_query`)."""
 from __future__ import annotations
 
 from typing import Any, Awaitable, Callable
@@ -76,15 +77,19 @@ async def events_list(call: Call, filters: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-async def users_query(call: Call, query: str, filters: dict[str, Any], offset: int, limit: int, snapshot: str | None) -> dict[str, Any]:
+async def users_query(call: Call, filters: dict[str, Any], offset: int, limit: int, snapshot: str | None) -> dict[str, Any]:
     """`hikvision_intercom/users/query` - one page of WisKey's people directory (capability `user_directory_query`,
-    WisKey 1.6.0+). The command schema requires all five fields: `query` (<=160 chars; WisKey matches it against name,
-    employee number, phone digits and card last-4), `filters` (keys within `group`, `profile`, `station`, `rights`,
-    `state`, `credential`, `sort`), `offset` (0-10 000 000, clamped to the last page), `limit` (1-200) and `snapshot`
-    (the previous page's value, "" for none). Returns `{records: [Person], total, total_all, offset, limit,
-    next_offset, previous_offset, snapshot, stale}`; the records are WisKey's full public `Person`, PII included - the
-    caller projects them."""
-    result = _result(await call(command_type("users/query"), query=query, filters=filters, offset=offset, limit=limit, snapshot=snapshot or ""), "users/query")
+    WisKey 1.6.0+). The command schema requires five fields: `query`, `filters` (keys within `group`, `profile`,
+    `station`, `rights`, `state`, `credential`, `sort`), `offset` (0-10 000 000, clamped to the last page), `limit`
+    (1-200) and `snapshot` (the previous page's value, "" for none). Returns `{records: [Person], total, total_all,
+    offset, limit, next_offset, previous_offset, snapshot, stale}`; the records are WisKey's full public `Person`, PII
+    included - the caller projects them.
+
+    `query` is ALWAYS sent empty, by construction (there is no parameter for it): WisKey matches its search text against
+    phone digits and card last-4 as well as name and employee number, with no way to scope the fields, so forwarding a
+    caller's text would let them test "does anyone have phone / card X" through the match count (owner decision D1,
+    CR-005 phase 1b review). Text search is done by SMPLWISE over its own projection instead (intercom_sync)."""
+    result = _result(await call(command_type("users/query"), query="", filters=filters, offset=offset, limit=limit, snapshot=snapshot or ""), "users/query")
     if not isinstance(result, dict):
         raise IntercomError("invalid_response", "users/query")
     return result
