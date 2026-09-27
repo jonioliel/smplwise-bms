@@ -92,7 +92,7 @@ function demoBundle(floorId: string): MapBundle {
       effective_from: '',
       effective_to: null,
       updated_at: '',
-      camera: { id: c.id, recorder_id: 'demo', channel: i + 1, name: c.name, name_source: c.name, alias: null, enabled: true, sort_order: i, main_track: null, sub_track: null, status: c.state === 'offline' ? 'offline' : 'online', last_seen_at: null },
+      camera: { id: c.id, recorder_id: 'demo', channel: i + 1, name: c.name, name_source: c.name, alias: null, enabled: true, sort_order: i, grid_col_span: 1, main_track: null, sub_track: null, status: c.state === 'offline' ? 'offline' : 'online', last_seen_at: null },
     })),
     zones: [],
     cameras: [],
@@ -201,7 +201,7 @@ export const deleteAnchor = (id: string) => del(`map-anchors/${id}`);
 export const listCameras = () => get<{ cameras: Camera[]; recorder: { id: string; name: string; model: string | null; firmware: string | null; last_seen_at: string | null } | null; can_sync: boolean }>('cameras');
 export const syncCameras = () => post<{ channels: number; created: number; updated: number; recorder: { model: string | null; firmware: string | null } }>('cameras/sync');
 export const registerCamera = (body: { channel: number; alias: string }) => post<Camera>('cameras', body);
-export const updateCamera = (id: string, body: { alias?: string; sort_order?: number; enabled?: boolean }) => patch<Camera>(`cameras/${id}`, body);
+export const updateCamera = (id: string, body: { alias?: string; sort_order?: number; enabled?: boolean; grid_col_span?: number }) => patch<Camera>(`cameras/${id}`, body);
 
 /** Plain white plan area (used only where no raster and no synthetic plan exist). */
 export const blankPlan = (w: number, h: number): SVGTemplateResult => svg`<rect x="0" y="0" width=${w} height=${h} fill="var(--sw-map-bg)" />`;

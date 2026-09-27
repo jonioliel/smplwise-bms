@@ -140,3 +140,145 @@ test.describe('owner round 11: round-3 notes (SW A)', () => {
     }
   });
 });
+
+// T091 (owner request 2026-09-27): grid layout settings on the all-cameras wall - reorder cameras and let a
+// panoramic camera span more than one column. Runs only with SW_LIVE=1.
+test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)', () => {
+  test.skip(process.env.SW_LIVE !== '1', 'set SW_LIVE=1 with the backend running');
+
+  async function open(page: Page, hash: string) {
+    await page.goto(`/?design=a#${hash}`);
+    await page.waitForSelector('sw-app');
+    await page.waitForTimeout(1200);
+  }
+
+  type ApiCamera = { id: string; enabled: boolean; channel: number; sort_order: number; grid_col_span: number };
+  type Req = import('@playwright/test').APIRequestContext;
+
+  /** At least two enabled cameras to reorder; this repo has no existing fixture/seed for cameras (they are
+   * normally discovered from a real NVR by autosync). Fixed test channels (101/102) are reused across runs
+   * instead of creating fresh rows every time: cameras.py has no DELETE endpoint, so a previous run's cleanup
+   * can only have disabled them (S4 review) - re-enable that same row rather than register a duplicate.
+   * `seededIds` is only non-empty when this function actually touched something, so a real backend that
+   * already had >=2 enabled cameras is never written to. */
+  async function ensureTwoCameras(request: Req): Promise<{ cams: ApiCamera[]; seededIds: string[] }> {
+    const all = ((await (await request.get('/api/v1/cameras')).json()).cameras as ApiCamera[]);
+    const enabled = all.filter((c) => c.enabled);
+    if (enabled.length >= 2) return { cams: enabled, seededIds: [] };
+    const wanted: [number, string][] = [
+      [101, 'מצלמה בדיקה A · T091'],
+      [102, 'מצלמה בדיקה B · T091'],
+    ];
+    const seededIds: string[] = [];
+    for (const [channel, alias] of wanted) {
+      const existing = all.find((c) => c.channel === channel);
+      if (existing) {
+        await request.patch(`/api/v1/cameras/${existing.id}`, { data: { enabled: true, grid_col_span: 1 } });
+        seededIds.push(existing.id);
+      } else {
+        const created = (await (await request.post('/api/v1/cameras', { data: { channel, alias } })).json()) as ApiCamera;
+        seededIds.push(created.id);
+      }
+    }
+    const after = ((await (await request.get('/api/v1/cameras')).json()).cameras as ApiCamera[]);
+    const cams = after.filter((c) => c.enabled);
+    expect(cams.length).toBeGreaterThan(1);
+    return { cams, seededIds };
+  }
+
+  /** S4 review: no DELETE /cameras endpoint exists in this codebase (checked) - disabling a self-seeded row is
+   * the closest available cleanup, and ensureTwoCameras() above knows to re-enable that same row on a later run
+   * rather than create a duplicate. */
+  async function cleanupSeeded(request: Req, seededIds: string[]) {
+    for (const id of seededIds) await request.patch(`/api/v1/cameras/${id}`, { data: { enabled: false } }).catch(() => {});
+  }
+
+  test('the settings entry point is gated on sources.configure (can_sync)', async ({ page, browser, request }) => {
+    const { seededIds } = await ensureTwoCameras(request);
+    let bindingId: string | undefined;
+    try {
+      // a plain viewer (map.read only, no sources.configure) bound by the admin - same convention as the
+      // kiosk-only-user evidence above (dev identity header + a direct binding through the access API).
+      const me = await (await request.get('/api/v1/me', { headers: { 'X-SW-Dev-User': 'wallviewer091' } })).json();
+      const existing = (await (await request.get('/api/v1/access/bindings')).json()) as { bindings?: { id: string; role_id: string; subject_id: string }[] };
+      const already = (existing.bindings ?? []).find((b) => b.role_id === 'viewer' && b.subject_id === me.user.id);
+      if (already) {
+        bindingId = already.id; // left over from an earlier interrupted run - clean it up too
+      } else {
+        const r = await request.post('/api/v1/access/bindings', { data: { subject_kind: 'user', subject_id: me.user.id, role_id: 'viewer', scope_type: 'installation', scope_id: '*' } });
+        expect(r.status()).toBeLessThan(300);
+        bindingId = ((await r.json()) as { id: string }).id;
+      }
+      const ctx = await browser.newContext({ extraHTTPHeaders: { 'X-SW-Dev-User': 'wallviewer091' } });
+      const restricted = await ctx.newPage();
+      await open(restricted, '/live/wall');
+      await expect(restricted.locator('live-wall sw-camera-tile').first()).toBeVisible({ timeout: 30000 });
+      await expect(restricted.locator('[data-wall-settings-open]')).toHaveCount(0);
+      await ctx.close();
+
+      // the admin (dev-mode default identity) holds sources.configure and sees the button
+      await open(page, '/live/wall');
+      await expect(page.locator('[data-wall-settings-open]')).toBeVisible({ timeout: 30000 });
+    } finally {
+      if (bindingId) await request.delete(`/api/v1/access/bindings/${bindingId}`).catch(() => {});
+      await cleanupSeeded(request, seededIds);
+    }
+  });
+
+  test('reordering persists and a spanned camera renders correctly (grid-column and real geometry)', async ({ page, request }) => {
+    const { cams, seededIds } = await ensureTwoCameras(request);
+    const cam1 = cams[0];
+    const cam2 = cams[1];
+    // S2 review: saving the dialog renumbers every OTHER camera the caller can see too (not just these two),
+    // so the whole list is snapshotted here and restored in the finally - a real lab backend must come back
+    // exactly as it was, not just the two cameras this test directly touches.
+    const snapshot = (await (await request.get('/api/v1/cameras')).json()).cameras as ApiCamera[];
+    try {
+      await page.setViewportSize({ width: 1600, height: 900 });
+      await open(page, '/live/wall');
+      const wall = page.locator('live-wall');
+      // S4 review: do not assume the default layout count covers every camera on a real backend - cover all of
+      // them explicitly, and locate tiles by their own camera id rather than by position/total count.
+      await wall.locator('.layouts button', { hasText: /^32$/ }).click();
+      await expect(wall.locator(`sw-camera-tile[cameraid="${cam1.id}"]`)).toBeVisible({ timeout: 30000 });
+      await expect(wall.locator(`sw-camera-tile[cameraid="${cam2.id}"]`)).toBeVisible({ timeout: 30000 });
+      // a fixed 2-column layout makes the span geometry check below deterministic
+      await wall.locator('[data-wall-cols-set="2"]').click();
+      await expect(wall.locator('[data-wall-cols]')).toHaveAttribute('data-wall-cols', '2');
+
+      await wall.locator('[data-wall-settings-open]').click();
+      const dialog = page.locator('[data-wall-settings-dialog]');
+      await expect(dialog.locator('[data-wall-settings-rows]')).toBeVisible(); // the sw-dialog host itself has no box of its own
+      // move cam1 down past cam2, and set cam1 to span 2 columns
+      await dialog.locator(`[data-wall-move-down="${cam1.id}"]`).click();
+      await dialog.locator(`[data-wall-span="${cam1.id}"]`).selectOption('2');
+      await dialog.locator('[data-wall-settings-save]').click();
+      await expect(dialog).toHaveCount(0, { timeout: 20000 });
+
+      await page.reload();
+      await wall.locator('.layouts button', { hasText: /^32$/ }).click();
+      await wall.locator('[data-wall-cols-set="2"]').click();
+      const orderedIds = await wall.locator('sw-camera-tile').evaluateAll((els) => els.map((el) => el.getAttribute('cameraid')));
+      expect(orderedIds.indexOf(cam2.id)).toBeLessThan(orderedIds.indexOf(cam1.id));
+
+      const saved = ((await (await request.get('/api/v1/cameras')).json()).cameras as ApiCamera[]).find((c) => c.id === cam1.id);
+      expect(saved?.grid_col_span).toBe(2);
+
+      // B2 review: real rendered geometry, not just the style string - the spanned tile (cam1) is roughly 2x a
+      // normal tile's (cam2's) width plus the 12px gap, and its height matches cam2's (the aspect-ratio widens
+      // with the span so every row keeps a consistent height); the grid itself must not overflow the window.
+      const spannedBox = (await wall.locator(`sw-camera-tile[cameraid="${cam1.id}"]`).boundingBox())!;
+      const normalBox = (await wall.locator(`sw-camera-tile[cameraid="${cam2.id}"]`).boundingBox())!;
+      expect(spannedBox.width).toBeGreaterThan(normalBox.width * 1.7);
+      expect(spannedBox.width).toBeLessThan(normalBox.width * 2.3);
+      expect(Math.abs(spannedBox.height - normalBox.height)).toBeLessThan(Math.max(6, normalBox.height * 0.15));
+      const gridBox = (await wall.locator('[data-wall-cols]').boundingBox())!;
+      expect(gridBox.height).toBeLessThan(900);
+    } finally {
+      for (const c of snapshot) {
+        await request.patch(`/api/v1/cameras/${c.id}`, { data: { sort_order: c.sort_order, grid_col_span: c.grid_col_span } }).catch(() => {});
+      }
+      await cleanupSeeded(request, seededIds);
+    }
+  });
+});

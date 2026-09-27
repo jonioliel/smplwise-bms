@@ -116,6 +116,8 @@ export interface Camera {
   alias: string | null;
   enabled: boolean;
   sort_order: number;
+  /** T091: how many grid columns wide this camera's tile is on the all-cameras grid (1-4, default 1). */
+  grid_col_span: number;
   main_track: number | null;
   sub_track: number | null;
   status: 'online' | 'offline' | 'unknown';
