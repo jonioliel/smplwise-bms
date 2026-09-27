@@ -15,6 +15,7 @@ import { listCameras, updateCamera } from '../api/maps';
 import { effectiveTransport, productSettings } from '../api/prefs';
 import { describeError } from '../api/client';
 import type { Camera } from '../api/types';
+import { simulateDenseRows } from './wall-grid';
 
 /** T091 (owner request 2026-09-27): one row of the grid-layout settings dialog - the order the rows are kept
  * in IS the new sort_order (recomputed as 0..N-1 on save); `span` is the camera's grid_col_span. */
@@ -94,8 +95,12 @@ export class LiveWall extends LitElement {
       gap: 12px;
       grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
       /* T091 review: a spanned tile can leave a gap sparse auto-placement would not backfill (e.g. spans
-         [1,2,1] at 2 columns), producing more real rows than bestFit()'s ideal-packing estimate and
-         overflowing the wall - dense placement keeps the actual row count matching the estimate. */
+         [1,2,1] at 2 columns) - dense placement backfills it instead, so the browser packs as tightly as
+         first-fit dense placement can. T018 re-review: "as tightly as it can" is still not always the ideal
+         packing bestFit() searches for (dense placement can still leave an unfillable 1-column fragment, e.g.
+         spans [3,3,2] at 4 columns render 3 rows, not an ideal 2) - bestFit() now runs the exact same
+         first-fit dense algorithm itself (simulateDenseRows()) to size tiles for the row count this CSS rule
+         will actually produce, rather than assuming ideal packing. */
       grid-auto-flow: dense;
     }
     /* best fit (0.1.68): the tiles fill the screen as a rectangle - as many columns as make the tiles biggest */
@@ -198,7 +203,26 @@ export class LiveWall extends LitElement {
     const g = this.renderRoot.querySelector<HTMLElement>('.grid');
     if (!g) return;
     const w = Math.round(g.clientWidth);
-    const h = Math.round(window.innerHeight - g.getBoundingClientRect().top - 56);
+    const gridBox = g.getBoundingClientRect();
+    // T018 re-review: the space BELOW the grid (the column-count picker row, the camera-count/profile status
+    // line) is measured from the actual DOM instead of guessed as a fixed constant. A fixed guess (the
+    // previous "- 56") does not depend on current grid height, so it is stable across renders - but a real
+    // camera-count line can be one line or wrap to two depending on locale/width, and a fixed guess that is
+    // even a little too small was previously invisible: the tile-height budget normally has width, not
+    // height, as its binding constraint, so unused height slack silently absorbed the gap. T018 made spanned
+    // rows taller and sized tiles to fill the height budget exactly, which can now saturate that budget and
+    // turn a previously-invisible undercount into a real, measurable scrollable overflow (see
+    // tests/evidence-owner-round11.spec.ts's "four span-3 tiles" case). `reserveBelow` is the actual distance
+    // from the grid's own current bottom to the bottom of the last thing rendered after it - independent of
+    // the grid's own height, since siblings and the flex gaps between them do not reflow when the grid resizes.
+    let lastBottom = gridBox.bottom;
+    for (let el = g.nextElementSibling as HTMLElement | null; el; el = el.nextElementSibling as HTMLElement | null) {
+      lastBottom = Math.max(lastBottom, el.getBoundingClientRect().bottom);
+    }
+    const reserveBelow = lastBottom - gridBox.bottom;
+    const hostBottomPad = 24; // sw-page's own static padding-block-end (src/components/sw-page.ts) - a fixed,
+    // known constant, not a guess about content that can vary.
+    const h = Math.round(window.innerHeight - gridBox.top - reserveBelow - hostBottomPad);
     if (w !== this.box.w || h !== this.box.h) this.box = { w, h };
   };
 
@@ -237,17 +261,21 @@ export class LiveWall extends LitElement {
    * column count. Generalizes the original "N uniform rows of `tile*9/16`" estimate to account for a spanned
    * tile's real (taller) own height at native 16:9.
    *
-   * Approximation and its limit: dense auto-flow can in principle pack more than one spanned tile into the same
-   * physical row (e.g. two span-2 tiles at 4 columns) - this function does not model that packing exactly (that
-   * would need a real masonry solver). Instead it assumes as many DISTINCT rows are "spanned rows" as there are
-   * spanned tiles (up to the total row count), and - to stay on the safe, non-overflowing side - charges each
+   * T018 re-review: the row COUNT itself is now exact - `simulateDenseRows()` runs the real dense auto-placement
+   * algorithm instead of assuming ideal packing (`Math.ceil(sum/cols)` undercounts rows for spans like
+   * [3,3,2] at 4 columns - see that function's own comment). What remains an approximation is only WHICH of
+   * those rows get charged as a "spanned row" for height-budgeting purposes: dense auto-flow can in principle
+   * pack more than one spanned tile into the same physical row (e.g. two span-2 tiles at 4 columns) - modeling
+   * that exactly (which row each tile really lands in) would need to reuse the simulation's own placement, not
+   * just its row count. Instead this assumes as many DISTINCT rows are "spanned rows" as there are spanned
+   * tiles (up to the now-exact total row count), and - to stay on the safe, non-overflowing side - charges each
    * such row the height of the largest remaining spanned tile first. When two spanned tiles really do share one
    * row, this over-counts (the estimate asks for a bit more height / a bit smaller tile than strictly necessary)
    * rather than under-counting, which is the direction that cannot overflow the screen. With no span above 1 this
    * reduces to exactly the original formula. */
   private maxTileForHeight(spans: number[], cols: number, h: number, gap: number): number {
     const clamped = spans.map((s) => Math.min(s, cols));
-    const rows = Math.ceil(clamped.reduce((a, s) => a + s, 0) / cols);
+    const rows = simulateDenseRows(clamped, cols);
     const spannedSpans = clamped
       .filter((s) => s > 1)
       .sort((a, b) => b - a);
