@@ -664,6 +664,181 @@ export function joinCircuit(doc: GeometryDoc, circuitId: string, ids: readonly s
   return { doc: { ...doc, circuits }, added };
 }
 
+// ---------------------------------------------------------------- grid, snap and alignment (T085)
+
+/** The grid's spacing when a floor has never set one: half a metre - on the calibrated scale, or before calibration on
+ * the estimated one (effectiveScale), shown with "≈" like every other estimated distance in the editor. */
+export const GRID_DEFAULT_M = 0.5;
+/** The spacings the layers tool offers. */
+export const GRID_STEPS_M: readonly number[] = [0.1, 0.25, 0.5, 1, 2, 5];
+/** How near (screen px) an object's edge or centre must come to another's to snap to it and show a guide. */
+export const GUIDE_SNAP_PX = 6;
+
+/** A grid spacing in metres as plan pixels on `scale` (metres per plan pixel); 0 (no grid) when the scale is unusable. */
+export function gridStepPx(spacingM: number, scale: number): number {
+  return spacingM > 0 && scale > 0 ? spacingM / scale : 0;
+}
+
+/** A normalized point on the nearest intersection of a square grid of `stepPx` plan pixels that starts at the plan's
+ * top-left corner; never past the plan's edge. A step of 0 (no grid) leaves the point as it is. */
+export function snapToGrid(p: Pt, stepPx: number, W: number, H: number): Pt {
+  if (!(stepPx > 0) || !(W > 0) || !(H > 0)) return p;
+  const snap = (v: number, size: number) => round5(Math.min(1, Math.max(0, (Math.round((v * size) / stepPx) * stepPx) / size)));
+  return [snap(p[0], W), snap(p[1], H)];
+}
+
+/** A group move (dx, dy) corrected so that the grabbed point `ref` lands on the grid: every member moves by the same
+ * corrected delta, so the selection keeps its layout. No grid: the delta as it is. */
+export function gridDelta(ref: Pt, dx: number, dy: number, stepPx: number, W: number, H: number): [number, number] {
+  if (!(stepPx > 0)) return [dx, dy];
+  const q = snapToGrid([ref[0] + dx, ref[1] + dy], stepPx, W, H);
+  return [q[0] - ref[0], q[1] - ref[1]];
+}
+
+/** An object's footprint as an axis-aligned box in plan pixels: its left, right, top and bottom edges (a turned object's
+ * box encloses its turned corners, objectCorners). */
+export interface AlignBox {
+  x0: number;
+  x1: number;
+  y0: number;
+  y1: number;
+}
+/** An alignment guide: a vertical line at x = `at` (axis 'x') or a horizontal one at y = `at` (axis 'y'), plan pixels. */
+export interface Guide {
+  axis: 'x' | 'y';
+  at: number;
+}
+
+export function objectBox(o: Pick<GeomObject, 'position' | 'rotation_deg' | 'size'>, W: number, H: number, scale: number): AlignBox {
+  const c = objectCorners(o, W, H, scale);
+  const xs = c.map((q) => q[0]);
+  const ys = c.map((q) => q[1]);
+  return { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
+}
+
+const GUIDE_EPS_PX = 0.01;
+const linesOf = (b: AlignBox, axis: 'x' | 'y'): [number, number, number] => (axis === 'x' ? [b.x0, (b.x0 + b.x1) / 2, b.x1] : [b.y0, (b.y0 + b.y1) / 2, b.y1]);
+
+/** The live alignment guides of a dragged object (Figma / PowerPoint style): on each axis on its own, the smallest move
+ * that puts one of the moving box's edges or its centre on an edge or the centre of another box, when it is at most
+ * `tolPx` plan pixels (null: nothing within reach on that axis). `guides`: every line of the moving box that lies on a
+ * line of another box once that move is made, sorted by axis and position. */
+export function alignmentSnap(moving: AlignBox, others: readonly AlignBox[], tolPx: number): { dx: number | null; dy: number | null; guides: Guide[] } {
+  const guides: Guide[] = [];
+  const along = (axis: 'x' | 'y'): number | null => {
+    if (!(tolPx > 0)) return null;
+    const mine = linesOf(moving, axis);
+    let best: number | null = null;
+    for (const b of others) {
+      for (const t of linesOf(b, axis)) {
+        for (const m of mine) {
+          const d = t - m;
+          if (Math.abs(d) <= tolPx && (best === null || Math.abs(d) < Math.abs(best))) best = d;
+        }
+      }
+    }
+    if (best === null) return null;
+    const shifted = mine.map((m) => m + best!);
+    const found = new Set<number>();
+    for (const b of others) for (const t of linesOf(b, axis)) if (shifted.some((m) => Math.abs(m - t) < GUIDE_EPS_PX)) found.add(round5(t));
+    for (const at of [...found].sort((p, q) => p - q)) guides.push({ axis, at });
+    return best;
+  };
+  const dx = along('x');
+  const dy = along('y');
+  return { dx, dy, guides };
+}
+
+/** Where a single dragged object lands: `to` (normalized, the pointer's move applied) snapped on each axis on its own -
+ * to an alignment guide with another object's box when one is within `tolPx` plan pixels, else to the grid of `gridPx`
+ * plan pixels (0: no grid). A guide wins over the grid on its axis even when a grid line is nearer: the point of a guide
+ * is lining up with that object, and the grid still takes the other axis. `tolPx` 0 turns the guides off. */
+export function snapObjectPosition(o: Pick<GeomObject, 'position' | 'rotation_deg' | 'size'>, to: Pt, others: readonly AlignBox[], opts: { gridPx: number; tolPx: number }, W: number, H: number, scale: number): { position: Pt; guides: Guide[] } {
+  const a = opts.tolPx > 0 ? alignmentSnap(objectBox({ ...o, position: to }, W, H, scale), others, opts.tolPx) : { dx: null, dy: null, guides: [] as Guide[] };
+  const grid = snapToGrid(to, opts.gridPx, W, H);
+  const x = a.dx !== null ? round5(to[0] + a.dx / W) : grid[0];
+  const y = a.dy !== null ? round5(to[1] + a.dy / H) : grid[1];
+  return { position: [x, y], guides: a.guides };
+}
+
+/** The bulk align of a multi-selection (T085): its objects' edges or centres put on one line of the selection's own box. */
+export type AlignMode = 'left' | 'right' | 'top' | 'bottom' | 'center-x' | 'center-y';
+
+/** The objects of `ids` that align and distribute move - never the body of an anchor (it moves with its anchor, as
+ * movableMembers and a single drag treat it) - with their boxes, in the order of `ids`. Walls, zones and unknown ids are
+ * not objects and are left out. */
+function alignable(doc: GeometryDoc, ids: readonly string[], W: number, H: number, scale: number): { o: GeomObject; b: AlignBox }[] {
+  const byId = new Map(doc.objects.map((o) => [o.id, o]));
+  const seen = new Set<string>();
+  const out: { o: GeomObject; b: AlignBox }[] = [];
+  for (const id of ids) {
+    const o = byId.get(id);
+    if (!o || o.anchor_ref || seen.has(id)) continue;
+    seen.add(id);
+    out.push({ o, b: objectBox(o, W, H, scale) });
+  }
+  return out;
+}
+
+/** Every object moved by its own (dx, dy) plan pixels: moveObject per object, one document (one undo step). The same
+ * document when nothing moves. */
+function moveObjectsBy(doc: GeometryDoc, moves: readonly { o: GeomObject; dx: number; dy: number }[], W: number, H: number): GeometryDoc {
+  let out = doc;
+  for (const m of moves) {
+    const to: Pt = [m.o.position[0] + m.dx / W, m.o.position[1] + m.dy / H];
+    const next = moveObject(out, m.o.id, to);
+    const before = out.objects.find((x) => x.id === m.o.id)!.position;
+    const after = next.objects.find((x) => x.id === m.o.id)!.position;
+    if (before[0] !== after[0] || before[1] !== after[1]) out = next;
+  }
+  return out;
+}
+
+/** Align the objects of `ids` (two or more that can move) on the box of all of them, computed once: their left edges on
+ * its left edge, their right edges on its right, top, bottom, their centres on its vertical centre line ('center-x': one
+ * above the other) or on its horizontal one ('center-y': side by side, the owner's "five lamps on one line"). Walls,
+ * zones and anchor bodies in `ids` neither move nor count towards the box. W, H: the plan's pixel size; scale: metres
+ * per plan pixel. The same document when nothing moves. */
+export function alignObjects(doc: GeometryDoc, ids: readonly string[], mode: AlignMode, W: number, H: number, scale: number): GeometryDoc {
+  const items = alignable(doc, ids, W, H, scale);
+  if (items.length < 2 || !(W > 0) || !(H > 0) || !(scale > 0)) return doc;
+  const x0 = Math.min(...items.map((i) => i.b.x0));
+  const x1 = Math.max(...items.map((i) => i.b.x1));
+  const y0 = Math.min(...items.map((i) => i.b.y0));
+  const y1 = Math.max(...items.map((i) => i.b.y1));
+  const moves = items.map(({ o, b }) => {
+    const cx = (b.x0 + b.x1) / 2;
+    const cy = (b.y0 + b.y1) / 2;
+    const dx = mode === 'left' ? x0 - b.x0 : mode === 'right' ? x1 - b.x1 : mode === 'center-x' ? (x0 + x1) / 2 - cx : 0;
+    const dy = mode === 'top' ? y0 - b.y0 : mode === 'bottom' ? y1 - b.y1 : mode === 'center-y' ? (y0 + y1) / 2 - cy : 0;
+    return { o, dx, dy };
+  });
+  return moveObjectsBy(doc, moves, W, H);
+}
+
+/** Distribute the objects of `ids` (three or more that can move) evenly along an axis: ordered by their centres, the
+ * first and the last stay and the ones between move so that every gap between neighbouring boxes is the same (the
+ * PowerPoint / Figma rule; for objects of one size it is also an even spacing of their centres). Walls, zones and anchor
+ * bodies in `ids` neither move nor count. The same document when nothing moves. */
+export function distributeObjects(doc: GeometryDoc, ids: readonly string[], axis: 'x' | 'y', W: number, H: number, scale: number): GeometryDoc {
+  const items = alignable(doc, ids, W, H, scale);
+  if (items.length < 3 || !(W > 0) || !(H > 0) || !(scale > 0)) return doc;
+  const lo = (b: AlignBox) => (axis === 'x' ? b.x0 : b.y0);
+  const hi = (b: AlignBox) => (axis === 'x' ? b.x1 : b.y1);
+  const sorted = items.map((it, k) => ({ ...it, k })).sort((p, q) => (lo(p.b) + hi(p.b)) / 2 - (lo(q.b) + hi(q.b)) / 2 || p.k - q.k);
+  const start = lo(sorted[0].b);
+  const end = hi(sorted[sorted.length - 1].b);
+  const total = sorted.reduce((t, i) => t + hi(i.b) - lo(i.b), 0);
+  const gap = (end - start - total) / (sorted.length - 1);
+  let at = start;
+  const moves = sorted.map(({ o, b }, i) => {
+    const d = i === 0 || i === sorted.length - 1 ? 0 : at - lo(b);
+    at += hi(b) - lo(b) + gap;
+    return { o, dx: axis === 'x' ? d : 0, dy: axis === 'y' ? d : 0 };
+  });
+  return moveObjectsBy(doc, moves, W, H);
+}
+
 // ---------------------------------------------------------------- connectors (T085)
 
 export const CONNECTOR_KINDS: readonly ConnectorKind[] = ['stairs', 'ramp', 'tribune', 'elevator', 'ladder'];

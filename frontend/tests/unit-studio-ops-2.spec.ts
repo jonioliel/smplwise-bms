@@ -5,7 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { objectHitCorners, type GeometryDoc, type GeomObject } from '../src/map/geometry';
 import type { CatalogItem } from '../src/api/plan-catalog';
 import { addArray, addCircuit, addCircuitLamp, addConnector, addLevel, addObject, arrayDefaults, circuitPower, duplicateBeside, duplicateObject, initialLevel, levelUsage, moveConnectorVertex, moveGroup, moveObject, objectZ, patchCircuit, patchConnector, patchLevel, patchObject, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember, translatePolygon, translateWall, visibleUnderLevel, duplicateSelection, itemsInRect, moveSelection, removeItems, selectableItems, selectionDelta, toggleItem, zoneOnLevel,
-  TAG_MAX_COUNT, TAG_MAX_LEN, circuitEligible, itemsWithTag, joinCircuit, normalizeTag, patchWall, setLevelOf, tagCounts, tagItems, withTag, withoutTag } from '../src/map/studio-ops';
+  TAG_MAX_COUNT, TAG_MAX_LEN, circuitEligible, itemsWithTag, joinCircuit, normalizeTag, patchWall, setLevelOf, tagCounts, tagItems, withTag, withoutTag,
+  alignObjects, alignmentSnap, distributeObjects, gridDelta, gridStepPx, objectBox, snapObjectPosition, snapToGrid, type AlignBox } from '../src/map/studio-ops';
 
 // Plan Studio phase 2 (T085): the pure document operations of the editor - placing an item (its size, z and params come
 // from the library), moving, rotating, stretching, duplicating, and removing an object out of its group, its circuit
@@ -523,5 +524,121 @@ test.describe('plan studio tags and bulk reassignment (unit)', () => {
     expect(again.added).toEqual(['o3']);
     expect(joinCircuit(doc, k.id, ['o1', 'wa'], isLight)).toEqual({ doc, added: [] });
     expect(joinCircuit(doc, 'nope', ['o3'], isLight)).toEqual({ doc, added: [] });
+  });
+});
+
+// T085 grid, snap and alignment (owner request 2026-09-26: "five lamps on one line, easily"): the grid snap, the live
+// alignment guides of a single drag, and the bulk align / distribute of a multi-selection's objects - all pure, in plan
+// pixels where a tolerance is on screen, and every bulk result checked against moveObject composed per object.
+test.describe('plan studio grid, snap and alignment (unit)', () => {
+  // 1000 x 800 plan px, 1 m = 100 px (the sample's scale). Axis-aligned footprints (objectCorners, turned with the object):
+  //   a: centre (100, 80), 0.2 x 0.2 m            -> x 90..110,  y 70..90
+  //   b: centre (300, 160), 0.4 x 0.2 m at 90 deg -> x 290..310, y 140..180 (turned: 20 wide, 40 tall)
+  //   c: centre (600, 120), 0.6 x 0.2 m           -> x 570..630, y 110..130
+  //   body: the body of an anchor (it moves with its anchor, never by hand), far away at (900, 720)
+  // the selection's box: x 90..630, y 70..180, centre (360, 125)
+  const W = 1000;
+  const H = 800;
+  const S = 0.01;
+  const box3 = (): GeometryDoc => {
+    const doc = sample();
+    const base = doc.objects[0];
+    const mk = (id: string, position: [number, number], w: number, d: number, rot: number, anchored = false): GeomObject => ({ ...base, id, position, rotation_deg: rot, size: { w_m: w, d_m: d, h_m: 0.5 }, group_id: null,
+      anchor_ref: anchored ? { resource_type: 'ha_entity', resource_id: 'light.x' } : null });
+    return { ...doc, groups: [], circuits: [], connectors: [], objects: [mk('a', [0.1, 0.1], 0.2, 0.2, 0), mk('b', [0.3, 0.2], 0.4, 0.2, 90), mk('c', [0.6, 0.15], 0.6, 0.2, 0), mk('body', [0.9, 0.9], 0.2, 0.2, 0, true)] };
+  };
+  const IDS = ['a', 'wa', 'b', 'z-in', 'c', 'body', 'nope']; // a wall, a zone, an anchor body and an unknown id ride along, untouched
+  const moved = (doc: GeometryDoc, to: Record<string, [number, number]>) => Object.entries(to).reduce((d, [id, p]) => moveObject(d, id, p), doc);
+  const pos = (doc: GeometryDoc) => Object.fromEntries(doc.objects.map((o) => [o.id, o.position]));
+
+  test('snapToGrid puts a point on the nearest grid intersection (the grid step in plan pixels, from the plan origin)', () => {
+    expect(snapToGrid([0.123, 0.456], 50, W, H)).toEqual([0.1, 0.4375]); // (123, 364.8) px -> (100, 350)
+    expect(snapToGrid([0.126, 0.47], 50, W, H)).toEqual([0.15, 0.5]); // (126, 376) px -> (150, 400): 24 px away beats 26
+    expect(snapToGrid([0.99, 0.999], 50, W, H)).toEqual([1, 1]); // never past the plan's edge
+    expect(snapToGrid([0.123, 0.456], 0, W, H)).toEqual([0.123, 0.456]); // no grid: unchanged
+    expect(gridStepPx(0.5, 0.01)).toBe(50); // 0.5 m at 1 cm per px
+    expect(gridStepPx(0.5, 0)).toBe(0);
+  });
+
+  test('alignmentSnap finds the nearest edge or centre line of another object within the tolerance, per axis, or none', () => {
+    const moving: AlignBox = { x0: 195, x1: 235, y0: 300, y1: 320 }; // centre (215, 310)
+    const others: AlignBox[] = [
+      { x0: 100, x1: 120, y0: 50, y1: 70 }, // nothing within reach
+      { x0: 170, x1: 200, y0: 400, y1: 420 }, // its right edge 200 is 5 px from the moving left edge 195 (its centre 185 is 10 px away)
+      { x0: 500, x1: 540, y0: 312, y1: 352 }, // its top edge 312 is 2 px from the moving centre 310
+    ];
+    const r = alignmentSnap(moving, others, 6);
+    expect(r.dx).toBe(5);
+    expect(r.dy).toBe(2);
+    expect(r.guides).toEqual([{ axis: 'x', at: 200 }, { axis: 'y', at: 312 }]);
+    expect(alignmentSnap(moving, others, 1)).toEqual({ dx: null, dy: null, guides: [] }); // nothing within 1 px
+    expect(alignmentSnap(moving, [], 6)).toEqual({ dx: null, dy: null, guides: [] });
+    // the nearest line wins, and every line that coincides after the snap is shown (same size: edges and centre alike)
+    const twin = alignmentSnap({ x0: 0, x1: 20, y0: 103, y1: 123 }, [{ x0: 400, x1: 420, y0: 100, y1: 120 }, { x0: 700, x1: 720, y0: 97, y1: 117 }], 6);
+    expect(twin.dy).toBe(-3);
+    expect(twin.guides).toEqual([{ axis: 'y', at: 100 }, { axis: 'y', at: 110 }, { axis: 'y', at: 120 }]);
+    // objectBox: the axis-aligned footprint of a turned object, in plan px
+    const b = box3().objects.find((o) => o.id === 'b')!;
+    const bb = objectBox(b, W, H, S);
+    expect([bb.x0, bb.x1, bb.y0, bb.y1].map((v) => Math.round(v * 1000) / 1000)).toEqual([290, 310, 140, 180]);
+  });
+
+  test('snapObjectPosition: an alignment guide wins over the grid on its axis; the grid takes the other axis; neither when both are off', () => {
+    const doc = box3();
+    const a = doc.objects.find((o) => o.id === 'a')!;
+    const others = doc.objects.filter((o) => o.id !== 'a').map((o) => objectBox(o, W, H, S));
+    const colB = [{ axis: 'x', at: 290 }, { axis: 'x', at: 300 }, { axis: 'x', at: 310 }]; // a and b are both 20 px wide: all three lines meet
+    // a dragged to centre (296, 413): 4 px from b's column (a guide on x); its y is on no line -> the grid (50 px): 400
+    const r = snapObjectPosition(a, [0.296, 0.51625], others, { gridPx: 50, tolPx: 6 }, W, H, S);
+    expect(r.position).toEqual([0.3, 0.5]);
+    expect(r.guides).toEqual(colB);
+    // the grid alone: 296 -> 300 as well, but no guide
+    expect(snapObjectPosition(a, [0.296, 0.51625], others, { gridPx: 50, tolPx: 0 }, W, H, S)).toEqual({ position: [0.3, 0.5], guides: [] });
+    // the guide alone: x to b's column, y stays where it was dragged
+    expect(snapObjectPosition(a, [0.296, 0.51625], others, { gridPx: 0, tolPx: 6 }, W, H, S)).toEqual({ position: [0.3, 0.51625], guides: colB });
+    // a guide 4 px away beats a grid line 1 px away on the same axis: centre x 324 is 1 px from the grid's 325, and a's
+    // left edge 314 is 4 px from b's right edge 310 - the guide wins (centre 320); y (413) is on no line: the grid's 425
+    const g = snapObjectPosition(a, [0.324, 0.51625], others, { gridPx: 25, tolPx: 6 }, W, H, S);
+    expect(g.position).toEqual([0.32, 0.53125]);
+    expect(g.guides).toEqual([{ axis: 'x', at: 310 }]);
+    // both off: the position as dragged
+    expect(snapObjectPosition(a, [0.296, 0.51625], others, { gridPx: 0, tolPx: 0 }, W, H, S)).toEqual({ position: [0.296, 0.51625], guides: [] });
+  });
+
+  test('gridDelta moves a group so that its grabbed point lands on the grid, keeping the layout', () => {
+    // grabbed point (100, 80) px moved by (0.123, 0.2) -> (223, 240) px -> grid 50 -> (200, 250): delta (0.1, 0.2125)
+    const [dx, dy] = gridDelta([0.1, 0.1], 0.123, 0.2, 50, W, H);
+    expect(dx).toBeCloseTo(0.1, 9);
+    expect(dy).toBeCloseTo(0.2125, 9);
+    expect(gridDelta([0.1, 0.1], 0.123, 0.2, 0, W, H)).toEqual([0.123, 0.2]); // no grid: the pointer's delta
+  });
+
+  test('alignObjects lines the objects up on the selection box, per mode, as moveObject per object in one document', () => {
+    const doc = box3();
+    expect(alignObjects(doc, IDS, 'left', W, H, S)).toEqual(moved(doc, { a: [0.1, 0.1], b: [0.1, 0.2], c: [0.12, 0.15] }));
+    expect(alignObjects(doc, IDS, 'right', W, H, S)).toEqual(moved(doc, { a: [0.62, 0.1], b: [0.62, 0.2], c: [0.6, 0.15] }));
+    expect(alignObjects(doc, IDS, 'top', W, H, S)).toEqual(moved(doc, { a: [0.1, 0.1], b: [0.3, 0.1125], c: [0.6, 0.1] }));
+    expect(alignObjects(doc, IDS, 'bottom', W, H, S)).toEqual(moved(doc, { a: [0.1, 0.2125], b: [0.3, 0.2], c: [0.6, 0.2125] }));
+    expect(alignObjects(doc, IDS, 'center-x', W, H, S)).toEqual(moved(doc, { a: [0.36, 0.1], b: [0.36, 0.2], c: [0.36, 0.15] })); // centres on one vertical line
+    expect(alignObjects(doc, IDS, 'center-y', W, H, S)).toEqual(moved(doc, { a: [0.1, 0.15625], b: [0.3, 0.15625], c: [0.6, 0.15625] })); // centres on one horizontal line
+    const r = alignObjects(doc, IDS, 'left', W, H, S);
+    expect(pos(r).body).toEqual([0.9, 0.9]); // the anchor body neither moves nor stretches the box
+    expect(r.walls).toBe(doc.walls); // walls and zones are not aligned
+    expect(alignObjects(doc, ['a', 'body', 'wa'], 'left', W, H, S)).toBe(doc); // one movable object: nothing to align
+    const lined = moved(doc, { b: [0.1, 0.2], c: [0.12, 0.15] });
+    expect(alignObjects(lined, ['a', 'b', 'c'], 'left', W, H, S)).toBe(lined); // already aligned: the same document
+  });
+
+  test('distributeObjects spaces the objects with equal gaps between their footprints, the outer two staying, as moveObject per object', () => {
+    const doc = box3();
+    // x: a | b | c by centre; widths 20 + 20 + 60 over 90..630 -> two gaps of 220: b's left edge at 330, centre 340
+    expect(distributeObjects(doc, IDS, 'x', W, H, S)).toEqual(moved(doc, { b: [0.34, 0.2] }));
+    // y: a (80) | c (120) | b (160) by centre; heights 20 + 20 + 40 over 70..180 -> two gaps of 15: c's top at 105, centre 115
+    expect(distributeObjects(doc, IDS, 'y', W, H, S)).toEqual(moved(doc, { c: [0.6, 0.14375] }));
+    expect(distributeObjects(doc, ['a', 'c', 'body'], 'x', W, H, S)).toBe(doc); // two movable objects: nothing between them to space
+    // five lamps in a ragged row: evenly spaced after one call, the ends kept
+    const lamps = [0.1, 0.18, 0.5, 0.52, 0.9].map((x, i): GeomObject => ({ ...doc.objects[0], id: `l${i}`, position: [x, 0.5], size: { w_m: 0.4, d_m: 0.4, h_m: 0.1 } }));
+    const row = distributeObjects({ ...doc, objects: lamps }, lamps.map((l) => l.id), 'x', W, H, S);
+    expect(row.objects.map((o) => o.position[0])).toEqual([0.1, 0.3, 0.5, 0.7, 0.9]);
   });
 });
