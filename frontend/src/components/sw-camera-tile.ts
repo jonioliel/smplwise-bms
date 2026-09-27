@@ -32,6 +32,8 @@ export class SwCameraTile extends LitElement {
   @property({ type: Boolean }) live = false;
   @property() profile: 'sub' | 'main' = 'sub';
   @property() transport: 'auto' | 'webrtc' | 'mse' = 'auto';
+  /** Passed through to sw-live-player's `fit` (contain | cover) - see there. */
+  @property() fit: 'contain' | 'cover' = 'contain';
 
   static styles = css`
     :host {
@@ -196,7 +198,7 @@ export class SwCameraTile extends LitElement {
     const real = this.live && this.cameraId ? 'live' : this.poster ? 'poster' : 'scene';
     return html`
       ${real === 'live'
-        ? html`<sw-live-player .cameraId=${this.cameraId} .profile=${this.profile} .mode=${this.transport} .poster=${this.poster} compact></sw-live-player>`
+        ? html`<sw-live-player .cameraId=${this.cameraId} .profile=${this.profile} .mode=${this.transport} .poster=${this.poster} .fit=${this.fit} compact></sw-live-player>`
         : real === 'poster'
           ? html`<img class="poster" src=${this.poster} alt="" />`
           : html`<sw-scene kind=${this.scene}></sw-scene>`}

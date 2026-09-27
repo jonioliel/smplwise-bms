@@ -26,6 +26,8 @@ interface LayoutRow {
 }
 
 const COUNTS = [1, 2, 4, 6, 8, 9, 12, 16, 20, 25, 32];
+/** The wall grid's own CSS gap on desktop (`.grid { gap: 12px }` below); the fit maths uses the same value. */
+const WALL_GAP = 12;
 const COUNT_KEY = 'sw.wall.count';
 const VIEWS = [
   { id: 'all', label: 'כל המצלמות' },
@@ -209,8 +211,8 @@ export class LiveWall extends LitElement {
     // previous "- 56") does not depend on current grid height, so it is stable across renders - but a real
     // camera-count line can be one line or wrap to two depending on locale/width, and a fixed guess that is
     // even a little too small was previously invisible: the tile-height budget normally has width, not
-    // height, as its binding constraint, so unused height slack silently absorbed the gap. T018 made spanned
-    // rows taller and sized tiles to fill the height budget exactly, which can now saturate that budget and
+    // height, as its binding constraint, so unused height slack silently absorbed the gap. Sizing tiles to fill
+    // the height budget exactly (T018; e.g. several rows of wide spanned tiles) can saturate that budget and
     // turn a previously-invisible undercount into a real, measurable scrollable overflow (see
     // tests/evidence-owner-round11.spec.ts's "four span-3 tiles" case). `reserveBelow` is the actual distance
     // from the grid's own current bottom to the bottom of the last thing rendered after it - independent of
@@ -229,63 +231,40 @@ export class LiveWall extends LitElement {
   /** Columns and tile width that make the tiles biggest inside w × h; null when not measured. `spans` is
    * one grid_col_span per shown camera (plain 1 for every tile before T091).
    *
-   * B2 review fix (superseded by T018): the first version of this widened a spanned tile's OWN aspect ratio
-   * (16:9 per occupied column) so every row stayed a uniform height. That kept the grid's own box math simple,
-   * but a real camera's live video is genuinely 16:9 - `sw-live-player`'s `<video>` uses `object-fit: contain`
-   * (never `cover`, so a live feed is never cropped), so forcing its container to a wider-than-16:9 box just
-   * letterboxed the real picture inside a normal-looking sub-rectangle (owner report, 2026-09-27: a span-2 tile
-   * showed the picture squeezed into its right half, the left half solid background).
+   * Layout model (restored from 0.1.100 after the owner's 2026-09-27 report on 0.1.101): every ROW of the wall
+   * is one tile tall. A span-N camera is N columns wide at that same row height - a wide strip, not a taller
+   * "hero" tile. 0.1.101 had instead kept every tile at 16:9 and let a spanned tile grow taller with its width;
+   * that removed the bands beside the picture, but it also made each row holding a spanned camera about twice as
+   * tall as its neighbours (large holes under the plain tiles), shrank the whole wall into the middle of the
+   * screen and changed the column count the fit picks - every camera moved. The owner rejected that: the
+   * arrangement should stay as it was, and only the picture inside the wide tile should run edge to edge. That
+   * part is done where the tile is rendered (`fit="cover"` for a spanned tile - see renderApi()), not by
+   * reshaping the tile.
    *
-   * T018 fix: every tile - spanned or not - keeps the SAME real 16:9 ratio (`sw-camera-tile`'s own `:host`
-   * default; nothing here overrides it per-tile any more). A span-N tile is simply N columns wide, so its own
-   * height (governed by its own width at 16:9) comes out taller than a normal tile's - a real "hero tile", not
-   * a same-height wide strip. That means the row(s) holding a spanned tile are taller than a plain row, so the
-   * old "every row is `tile` pixels tall" estimate below (`rows` uniform rows of `tile*9/16`) would under-count
-   * the box's real height and could overflow the screen again. `maxTileForHeight` generalizes that estimate:
-   * a row containing a spanned tile is assumed to need THAT tile's own real height instead of the uniform row
-   * height (a documented approximation - see its own comment for the exact assumption and its known limit). */
+   * With every row the same height, the height budget is simply `rows` rows of `tile*9/16` plus the gaps; the
+   * row COUNT stays exact (simulateDenseRows(): the real first-fit dense placement, not the ideal-packing
+   * `Math.ceil(sum/cols)` estimate that undercounts spans like [3,3,2] at 4 columns - T018 re-review). The
+   * automatic search and a manual column choice both size tiles through the same fitTile(). */
   private bestFit(spans: number[]): { cols: number; tile: number } | null {
     const { w, h } = this.box;
     const total = spans.reduce((a, s) => a + s, 0);
     if (!w || h < 120 || total < 1) return null;
-    const gap = 12;
     let best = { cols: 1, tile: 0 };
     for (let cols = 1; cols <= total; cols++) {
-      const tile = Math.min((w - gap * (cols - 1)) / cols, this.maxTileForHeight(spans, cols, h, gap));
+      const tile = this.fitTile(spans, cols, w, h);
       if (tile > best.tile) best = { cols, tile };
     }
     return best.tile > 80 ? { cols: best.cols, tile: Math.floor(best.tile) } : null;
   }
 
-  /** T018: the widest a span-1 "column unit" can be while every row still fits inside `h` pixels, for a given
-   * column count. Generalizes the original "N uniform rows of `tile*9/16`" estimate to account for a spanned
-   * tile's real (taller) own height at native 16:9.
-   *
-   * T018 re-review: the row COUNT itself is now exact - `simulateDenseRows()` runs the real dense auto-placement
-   * algorithm instead of assuming ideal packing (`Math.ceil(sum/cols)` undercounts rows for spans like
-   * [3,3,2] at 4 columns - see that function's own comment). What remains an approximation is only WHICH of
-   * those rows get charged as a "spanned row" for height-budgeting purposes: dense auto-flow can in principle
-   * pack more than one spanned tile into the same physical row (e.g. two span-2 tiles at 4 columns) - modeling
-   * that exactly (which row each tile really lands in) would need to reuse the simulation's own placement, not
-   * just its row count. Instead this assumes as many DISTINCT rows are "spanned rows" as there are spanned
-   * tiles (up to the now-exact total row count), and - to stay on the safe, non-overflowing side - charges each
-   * such row the height of the largest remaining spanned tile first. When two spanned tiles really do share one
-   * row, this over-counts (the estimate asks for a bit more height / a bit smaller tile than strictly necessary)
-   * rather than under-counting, which is the direction that cannot overflow the screen. With no span above 1 this
-   * reduces to exactly the original formula. */
-  private maxTileForHeight(spans: number[], cols: number, h: number, gap: number): number {
-    const clamped = spans.map((s) => Math.min(s, cols));
-    const rows = simulateDenseRows(clamped, cols);
-    const spannedSpans = clamped
-      .filter((s) => s > 1)
-      .sort((a, b) => b - a);
-    const spannedRows = Math.min(spannedSpans.length, rows);
-    const used = spannedSpans.slice(0, spannedRows); // the largest spans first: see the comment above
-    const normalRows = rows - spannedRows;
-    // total estimated height = A*tile + B; solve for the largest tile with A*tile + B <= h.
-    const a = (normalRows + used.reduce((sum, s) => sum + s, 0)) * (9 / 16);
-    const b = used.reduce((sum, s) => sum + gap * (s - 1) * (9 / 16), 0) + gap * Math.max(0, rows - 1);
-    return a > 0 ? (h - b) / a : Infinity;
+  /** The widest a span-1 column can be at `cols` columns so the wall fits inside w × h (`h` 0 = no height limit).
+   * Shared by the automatic search (bestFit) and a manual column choice, so both size tiles identically. */
+  private fitTile(spans: number[], cols: number, w: number, h: number): number {
+    const byWidth = (w - WALL_GAP * (cols - 1)) / cols;
+    if (h <= 120) return byWidth;
+    const rows = simulateDenseRows(spans.map((s) => Math.min(s, cols)), cols);
+    const byHeight = ((h - WALL_GAP * Math.max(0, rows - 1)) / rows) * (16 / 9);
+    return Math.min(byWidth, byHeight);
   }
 
   firstUpdated() {
@@ -486,11 +465,16 @@ export class LiveWall extends LitElement {
     const gridCols = !this.colsOverride && window.innerWidth < 768 ? Math.min(cols, 2) : cols;
     let fit: { cols: number; tile: number } | null = autoFit && !this.colsOverride ? autoFit : null;
     if (this.box.w && (this.colsOverride || !fit)) {
-      // T018: same "spanned rows are taller" accounting as bestFit()'s own search - see maxTileForHeight().
-      const spans = shown.map((c) => Math.min(spanOf(c), gridCols));
-      const tile = Math.min((this.box.w - 12 * (cols - 1)) / cols, this.box.h > 120 ? this.maxTileForHeight(spans, cols, this.box.h, 12) : Infinity);
+      // the same sizing as bestFit()'s own search (fitTile), only at the column count chosen above
+      const tile = this.fitTile(shown.map((c) => Math.min(spanOf(c), gridCols)), cols, this.box.w, this.box.h);
       if (tile > 80 && Number.isFinite(tile)) fit = { cols, tile: Math.floor(tile) };
     }
+    // The fitted tile width is what the browser really renders only when `.grid.fit`'s fixed columns apply - on a
+    // phone without a manual column choice the media query below swaps in plain 1fr columns instead (and the
+    // phone gap is 8px, not 12). A spanned tile's exact one-row ratio needs the rendered width, so it falls back
+    // to the 16N:9 approximation when that width is not known.
+    const tilePx = fit && (this.colsOverride || window.innerWidth >= 768) ? fit.tile : 0;
+    const gapPx = window.innerWidth < 768 ? 8 : WALL_GAP;
     const cap = this.settings?.['media.max_live_sessions'] ?? 8;
     const profile: 'sub' | 'main' = this.stream === 'auto' ? (this.settings?.['media.wall_profile'] ?? 'sub') : this.stream;
     const transport: Transport = effectiveTransport(this.settings);
@@ -498,11 +482,13 @@ export class LiveWall extends LitElement {
       <div class="grid ${fit ? 'fit' : ''}" style="--cols:${cols};--tile:${fit ? `${fit.tile}px` : 'auto'}" data-wall-cols=${cols} ?data-wall-cols-manual=${!!this.colsOverride}>
         ${shown.map((c, i) => {
           const span = Math.min(spanOf(c), gridCols);
-          // T018 fix: no per-tile aspect-ratio override any more - every tile (spanned or not) keeps
-          // `sw-camera-tile`'s own native 16:9 `:host` ratio, so a real (non-panoramic) camera's live picture
-          // is never letterboxed by `object-fit: contain` inside a wrongly-widened box (see bestFit()'s own
-          // comment for the full reasoning). A span-N tile is just N columns wide, and 16:9 at that own width
-          // makes it a taller "hero tile" - bestFit()/maxTileForHeight() size the base tile so that still fits.
+          // A span-N tile is N columns wide at ONE row's height (see bestFit()): its box is exactly as tall as a
+          // plain tile. With the fitted tile width known, the ratio includes the N-1 gaps it also covers, so the
+          // row stays one even height; without it (plain 1fr columns) 16N:9 is the close approximation. The live
+          // picture inside such a wide box uses `cover` - it fills the strip edge to edge, the same framing its
+          // snapshot poster already has - instead of `contain`, which left it in the middle of the strip with
+          // dark bands on both sides (owner, 2026-09-27). A plain tile keeps `contain` (16:9 box, 16:9 stream).
+          const ratio = span > 1 ? (tilePx ? `${span * tilePx + (span - 1) * gapPx} / ${(tilePx * 9) / 16}` : `${16 * span} / 9`) : '';
           return html`<sw-camera-tile
             name=${c.name}
             state=${c.status === 'online' ? 'live' : c.status === 'offline' ? 'offline' : 'unknown'}
@@ -512,7 +498,8 @@ export class LiveWall extends LitElement {
             transport=${transport}
             poster=${c.status === 'offline' ? '' : snapshotUrl(c.id, this.posterBust)}
             ?compact=${n >= 9}
-            style=${`grid-column: span ${span}`}
+            fit=${span > 1 ? 'cover' : 'contain'}
+            style=${`grid-column: span ${span}${ratio ? `; aspect-ratio: ${ratio}` : ''}`}
             @click=${() => navigate(`/live/cameras/${c.id}`)}></sw-camera-tile>`;
         })}
       </div>

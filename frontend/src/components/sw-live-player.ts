@@ -32,6 +32,12 @@ export class SwLivePlayer extends LitElement {
   @property() poster = '';
   @property({ type: Boolean }) active = true;
   @property({ type: Boolean, reflect: true }) compact = false;
+  /** How the live picture sits in a box whose shape differs from the stream's own: `contain` (default - the whole
+   * frame, with bands where the shapes differ) or `cover` (fills the box edge to edge and trims the overflow - the
+   * same framing the snapshot poster below already uses). The all-cameras wall uses `cover` only for a tile that
+   * spans several columns (owner, 2026-09-27: the picture must run across the whole wide tile, not sit in its
+   * middle); every other player keeps `contain`. */
+  @property({ reflect: true }) fit: 'contain' | 'cover' = 'contain';
   /** Playback: relay socket of a session generation instead of the live endpoint (MSE only). */
   @property() wsUrl = '';
   /** Playback streams end when the NVR reaches the requested end time: no automatic reconnect then. */
@@ -78,7 +84,8 @@ export class SwLivePlayer extends LitElement {
       object-fit: contain;
       background: #0f1729;
     }
-    img.poster {
+    img.poster,
+    :host([fit='cover']) video {
       object-fit: cover;
     }
     video.hidden {
