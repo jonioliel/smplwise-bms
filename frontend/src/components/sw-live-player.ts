@@ -40,7 +40,9 @@ export class SwLivePlayer extends LitElement {
    *   distorted when the shapes differ.
    * The all-cameras wall uses `fill` only for a tile that spans several columns (owner decisions 2026-09-27: the
    * picture must run across the whole wide tile, and the owner prefers seeing the whole field of view stretched
-   * over a cropped one); every other player keeps `contain`. The poster (`img.poster`) is not affected. */
+   * over a cropped one); every other player keeps `contain`. The poster (`img.poster`) matches `fill` too, so a
+   * connecting wide tile does not crop the snapshot and then jump to a stretched frame once live video starts;
+   * the poster's own `cover` default is otherwise unaffected for every other fit value. */
   @property({ reflect: true }) fit: 'contain' | 'cover' | 'fill' = 'contain';
   /** Playback: relay socket of a session generation instead of the live endpoint (MSE only). */
   @property() wsUrl = '';
@@ -91,11 +93,16 @@ export class SwLivePlayer extends LitElement {
     img.poster {
       object-fit: cover;
     }
-    /* the live picture's own framing (the fit property) - separate rules, so the poster above never changes */
+    /* the live picture's own framing (the fit property) - separate rules from the poster's own default above */
     :host([fit='cover']) video {
       object-fit: cover;
     }
     :host([fit='fill']) video {
+      object-fit: fill;
+    }
+    /* T018 re-review: match the poster to the live framing choice too, so a wide/spanned tile does not crop
+       while connecting and then jump to a stretched frame the moment live video starts. */
+    :host([fit='fill']) img.poster {
       object-fit: fill;
     }
     video.hidden {
