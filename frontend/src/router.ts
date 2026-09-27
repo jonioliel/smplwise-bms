@@ -1,6 +1,6 @@
 // Minimal hash router. Hash routes survive the HA Ingress path prefix and iframe embedding without
 // any server-side rewrite. Route: `#/explore/floors/f0?state=empty`.
-export type Mode = 'live' | 'explore' | 'investigate' | 'system';
+export type Mode = 'live' | 'explore' | 'investigate' | 'system' | 'wiskey';
 
 export interface RouteState {
   path: string;
@@ -9,7 +9,7 @@ export interface RouteState {
   mode: Mode | null;
 }
 
-const MODES: Mode[] = ['live', 'explore', 'investigate', 'system'];
+const MODES: Mode[] = ['live', 'explore', 'investigate', 'system', 'wiskey'];
 
 export function parseRoute(hash: string = window.location.hash): RouteState {
   const raw = hash.replace(/^#/, '') || '/explore/floors/f0';

@@ -3,12 +3,15 @@ import type { TabItem } from '../components/sw-tabs';
 import type { RouteState } from '../router';
 
 /**
- * Primary navigation as drawn on the boards: six flat entries (Overview, Sites, Cameras, Events,
- * Playback, Settings). The kit's four modes (live / explore / investigate / system) remain the route
- * structure; each entry maps onto one of them, and the section's pages appear as pill tabs under the
- * top bar. Recorded as a design-asset-driven deviation pending owner sign-off (see DECISIONS.md).
+ * Primary navigation as drawn on the boards: originally six flat entries (Overview, Sites, Cameras,
+ * Events, Playback, Settings); WisKey became a 7th flat entry 2026-09-27 by explicit owner override, an
+ * intentional exception to that count (see the ADR-009 "Recorded deviation" note in DECISIONS.md, and the
+ * newer note there for this WisKey change specifically). The kit's five modes (live / explore /
+ * investigate / system / wiskey) remain the route structure; each entry maps onto one of them, and the
+ * section's pages appear as pill tabs under the top bar. Recorded as a design-asset-driven deviation
+ * pending owner sign-off (see DECISIONS.md).
  */
-export type NavGroup = 'overview' | 'sites' | 'cameras' | 'events' | 'playback' | 'settings';
+export type NavGroup = 'overview' | 'sites' | 'cameras' | 'events' | 'playback' | 'settings' | 'wiskey';
 
 export interface NavEntry {
   id: NavGroup;
@@ -17,12 +20,16 @@ export interface NavEntry {
   href: string;
 }
 
+/** 7th flat entry (0.1.103): owner override 2026-09-27 - WisKey moved from a "sites" sub-tab to a true
+ * top-level peer, breaking ADR-009's six-flat-entries count for this design on purpose. See the
+ * "Recorded deviation" note on the ADR-009 row in docs/architecture/DECISIONS.md. */
 export const NAV: NavEntry[] = [
   { id: 'overview', icon: 'dashboard', label: 'סקירה', href: '#/live' },
   { id: 'sites', icon: 'building', label: 'אתרים', href: '#/explore/sites' },
   { id: 'cameras', icon: 'camera', label: 'מצלמות', href: '#/live/wall' },
   { id: 'events', icon: 'bell', label: 'אירועים', href: '#/investigate/events' },
   { id: 'playback', icon: 'history', label: 'הקלטות', href: '#/investigate/playback' },
+  { id: 'wiskey', icon: 'door', label: 'WisKey', href: '#/wiskey/overview' },
   { id: 'settings', icon: 'system', label: 'הגדרות', href: '#/system/diagnostics' },
 ];
 
@@ -32,8 +39,10 @@ export const GROUP_TABS: Record<NavGroup, TabItem[]> = {
     { id: 'sites', label: 'אתרים ומבנים', href: '#/explore/sites' },
     { id: 'floors', label: 'מפת קומה', href: '#/explore/floors/f0' },
     { id: 'entities', label: 'ישויות HA', href: '#/explore/entities' },
-    { id: 'access', label: 'WisKey', href: '#/explore/access/d1' },
   ],
+  /** One tab today (Entry Center); structured to grow the same way AREA_TABS.investigate did (people,
+   * doors, schedules in later CR-005 phases) without restructuring. */
+  wiskey: [{ id: 'overview', label: 'WisKey', href: '#/wiskey/overview' }],
   cameras: [
     { id: 'wall', label: 'כל המצלמות', href: '#/live/wall' },
     { id: 'views', label: 'תצוגות שמורות', href: '#/live/views' },
@@ -73,6 +82,8 @@ export function groupOf(r: RouteState | null): NavGroup | null {
       return !s[1] || s[1] === 'playback' || s[1] === 'floors' ? 'playback' : 'events';
     case 'system':
       return s[1] === 'devices' ? 'cameras' : 'settings';
+    case 'wiskey':
+      return 'wiskey';
     default:
       return null;
   }
@@ -84,7 +95,9 @@ export function activeTabOf(r: RouteState | null): string {
   const s = r.segments;
   switch (g) {
     case 'sites':
-      return s[1] === 'buildings' || s[1] === 'floors' ? 'floors' : s[1] === 'entities' ? 'entities' : s[1] === 'access' ? 'access' : 'sites';
+      return s[1] === 'buildings' || s[1] === 'floors' ? 'floors' : s[1] === 'entities' ? 'entities' : 'sites';
+    case 'wiskey':
+      return s[1] ?? 'overview';
     case 'cameras':
       return r.mode === 'system' ? 'devices' : s[1] === 'views' ? 'views' : 'wall';
     case 'events':
@@ -99,10 +112,11 @@ export function activeTabOf(r: RouteState | null): string {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Design "SW A" (mockups v1.3): exactly the kit's four areas as a right icon rail; the section's pages
-// stay reachable as a tab row under the top bar.
+// Design "SW A" (mockups v1.3): originally exactly the kit's four areas as a right icon rail; WisKey
+// became a 5th area 2026-09-27 by explicit owner override (a peer of live/explore/investigate/system, not
+// nested under explore). The section's pages stay reachable as a tab row under the top bar.
 // ---------------------------------------------------------------------------------------------
-export type AreaId = 'live' | 'explore' | 'investigate' | 'system';
+export type AreaId = 'live' | 'explore' | 'investigate' | 'system' | 'wiskey';
 
 export interface AreaEntry {
   id: AreaId;
@@ -111,10 +125,14 @@ export interface AreaEntry {
   href: string;
 }
 
+/** WisKey (0.1.103): owner override 2026-09-27 - a genuine top-level area, a peer of live/explore/
+ * investigate/system, not nested under explore/מפה as phase 1a had it. Own top-level route namespace
+ * (#/wiskey/...), matching how the other three areas each own their prefix. */
 export const NAV_A: AreaEntry[] = [
   { id: 'live', icon: 'camera', label: 'לייב', href: '#/live' },
   { id: 'explore', icon: 'map', label: 'מפה', href: '#/explore/sites' },
   { id: 'investigate', icon: 'search', label: 'חקירה', href: '#/investigate/events' },
+  { id: 'wiskey', icon: 'door', label: 'WisKey', href: '#/wiskey/overview' },
   { id: 'system', icon: 'system', label: 'מערכת', href: '#/system/diagnostics' },
 ];
 
@@ -129,8 +147,10 @@ export const AREA_TABS: Record<AreaId, TabItem[]> = {
     { id: 'sites', label: 'אתרים ומבנים', href: '#/explore/sites' },
     { id: 'floors', label: 'מפת קומה', href: '#/explore/floors/f0' },
     { id: 'entities', label: 'ישויות HA', href: '#/explore/entities' },
-    { id: 'access', label: 'WisKey', href: '#/explore/access/d1' },
   ],
+  /** One tab today (Entry Center/overview); the same precedent as `investigate` below for adding more
+   * tabs later (people, doors, schedules - CR-005 phases 1b+) without restructuring. */
+  wiskey: [{ id: 'overview', label: 'WisKey', href: '#/wiskey/overview' }],
   investigate: [
     { id: 'events', label: 'מרכז אירועים', href: '#/investigate/events' },
     { id: 'playback', label: 'הקלטות', href: '#/investigate/playback' },
@@ -165,11 +185,13 @@ export function activeAreaTab(r: RouteState | null): string {
     case 'live':
       return r.mode === 'system' ? 'devices' : s[1] === 'views' ? 'views' : s[1] === 'wall' || s[1] === 'cameras' ? 'wall' : 'overview';
     case 'explore':
-      return s[1] === 'buildings' || s[1] === 'floors' ? 'floors' : s[1] === 'entities' ? 'entities' : s[1] === 'access' ? 'access' : 'sites';
+      return s[1] === 'buildings' || s[1] === 'floors' ? 'floors' : s[1] === 'entities' ? 'entities' : 'sites';
     case 'investigate':
       return s[1] === 'floors' ? 'history' : s[1] === 'playback' ? (s[2] === 'sync' ? 'sync' : 'playback') : (s[1] ?? 'events');
     case 'system':
       return !s[1] || s[1] === 'diagnostics' ? 'general' : s[1];
+    case 'wiskey':
+      return s[1] ?? 'overview';
     default:
       return '';
   }
@@ -211,7 +233,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   '#/explore/sites': ['map.read'],
   '#/explore/floors/f0': ['map.read'],
   '#/explore/entities': ['entity.state.read'],
-  '#/explore/access/d1': ['access.read'],
+  '#/wiskey/overview': ['access.read'],
   '#/investigate/events': ['events.read'],
   '#/investigate/playback': ['video.playback'],
   '#/investigate/playback/sync': ['video.playback'],
@@ -231,7 +253,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
 /** Tabs whose permission counts only when held at installation scope, because the screen and its API check it there
  * and nowhere else: WisKey stations are not mapped to sites or floors, so access.read is installation-wide by design
  * (CR-005). A floor-scoped viewer or a site-scoped site_admin would otherwise see the tab and land on "no permission". */
-export const INSTALLATION_ONLY_HREFS = new Set<string>(['#/explore/access/d1']);
+export const INSTALLATION_ONLY_HREFS = new Set<string>(['#/wiskey/overview']);
 
 /** `installationOnly`: the permission must be held at installation scope, not at any scope. */
 export type Can = (permission: string, installationOnly?: boolean) => boolean;
@@ -248,7 +270,9 @@ export function visibleTabs(items: TabItem[], api: boolean, can?: Can): TabItem[
 
 /** The rail entries the user gets: an area stays while one of its tabs is visible (the live area always - the
  * overview needs nothing), and it opens on its first visible tab when its default page is not one of them. An area is
- * not dropped because its own default page is hidden: with הסתרת המפה the map area keeps its WisKey tab (T054). */
+ * not dropped because its own default page is hidden: with הסתרת המפה the map area used to keep the WisKey tab
+ * for this reason (T054); since 0.1.103 WisKey is its own top-level area (not an explore tab) and MAP_HREFS does not
+ * name it, so הסתרת המפה has no effect on it at all - moot, confirmed, not stale logic. */
 export function visibleAreas(api: boolean, can?: Can): AreaEntry[] {
   return NAV_A.flatMap((n) => {
     const tabs = visibleTabs(AREA_TABS[n.id], api, can);
@@ -258,9 +282,10 @@ export function visibleAreas(api: boolean, can?: Can): AreaEntry[] {
   });
 }
 
-/** Design B's six flat entries, by the same rule as visibleAreas: a group stays while one of its tabs is visible (the
- * overview always) and opens on its first visible tab - it used to be filtered by its own default page only, so a
- * hidden map left "אתרים" pointing at a hidden page and a user without map.read lost the WisKey tab with it. */
+/** Design B's flat entries (seven since 0.1.103, see the NAV comment), by the same rule as visibleAreas: a group
+ * stays while one of its tabs is visible (the overview always) and opens on its first visible tab - it used to be
+ * filtered by its own default page only, so a hidden map left "אתרים" pointing at a hidden page. WisKey is now its
+ * own group, not a sites sub-tab, so הסתרת המפה no longer interacts with it at all. */
 export function visibleGroups(api: boolean, can?: Can): NavEntry[] {
   return NAV.flatMap((n) => {
     if (n.id === 'overview') return [n];
