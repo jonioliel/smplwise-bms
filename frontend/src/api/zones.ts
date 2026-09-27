@@ -40,7 +40,7 @@ export const listZones = (floorId: string) => get<{ zones: SpatialZone[] }>(`flo
 export const createZone = (floorId: string, body: { name: string; kind?: ZoneKind; polygon: ZonePoint[]; color?: string; searchable?: boolean }) =>
   post<SpatialZone>(`floors/${floorId}/zones`, body);
 /** `signal`: an abort (a timeout) for a caller that must not wait forever - the editor's zone saves (review of T085, R4). */
-export const updateZone = (id: string, body: { revision: number; name?: string; kind?: ZoneKind; polygon?: ZonePoint[]; color?: string; searchable?: boolean; label_pos?: string; level_id?: string; ceiling_height_m?: number }, signal?: AbortSignal) =>
+export const updateZone = (id: string, body: { revision: number; name?: string; kind?: ZoneKind; polygon?: ZonePoint[]; color?: string; searchable?: boolean; label_pos?: string; level_id?: string; ceiling_height_m?: number; tags?: string[] }, signal?: AbortSignal) =>
   signal ? api<SpatialZone>(`zones/${id}`, { method: 'PATCH', body: JSON.stringify(body), signal }) : patch<SpatialZone>(`zones/${id}`, body);
 export const deleteZone = (id: string, signal?: AbortSignal) => (signal ? api<void>(`zones/${id}`, { method: 'DELETE', signal }) : del(`zones/${id}`));
 export const detectZones = (floorId: string, strength: 'light' | 'medium' | 'strong' = 'medium') => post<DetectResult>(`floors/${floorId}/zones/detect`, { strength });

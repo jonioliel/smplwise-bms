@@ -8,13 +8,14 @@ import sqlite3
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from ..audit import audit
 from ..auth import current_principal, get_conn, settings_of
 from ..db import new_id, now_iso, unlocked
 from ..errors import ApiError, conflict, not_found
 from ..rbac import Principal, require
+from ..services import plan_geometry as pg
 from ..services import plan_zones
 from .anchors import _editor_version
 from .catalog import get_floor
@@ -51,10 +52,24 @@ class ZonePatch(BaseModel):
     searchable: bool | None = None
     level_id: str | None = Field(default=None, max_length=64)  # free text: not checked against the document's levels
     ceiling_height_m: float | None = Field(default=None, ge=0, le=50)
+    tags: list[str] | None = None  # replaces the list; [] clears it
     label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
     label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
     label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
     label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
+
+
+    @field_validator("tags")
+    @classmethod
+    def _clean_tags(cls, v: list[str] | None) -> list[str] | None:
+        """Free-text tags (T085) by the structure document's own rule, plan_geometry.check_tags: trimmed, merged
+        case-insensitively, bounded on the cleaned list. A refused list answers 422."""
+        if v is None:
+            return None
+        cleaned, problem = pg.check_tags(v)
+        if problem is not None:
+            raise ValueError(pg.TAG_PROBLEMS[problem])
+        return cleaned
 
 
 class DetectIn(BaseModel):
@@ -86,6 +101,7 @@ def zone_row(r: sqlite3.Row) -> dict[str, Any]:
         "searchable": bool(r["searchable"]),
         "level_id": r["level_id"] if "level_id" in r.keys() else None,
         "ceiling_height_m": r["ceiling_height_m"] if "ceiling_height_m" in r.keys() else None,
+        "tags": json.loads(r["tags_json"]) if "tags_json" in r.keys() and r["tags_json"] else [],
         "revision": r["revision"],
         "created_at": r["created_at"],
         "updated_at": r["updated_at"],
@@ -156,6 +172,8 @@ def update_zone(zone_id: str, body: ZonePatch, request: Request, principal: Prin
         fields["level_id"] = body.level_id or None  # "" = the floor's default level
     if body.ceiling_height_m is not None:
         fields["ceiling_height_m"] = body.ceiling_height_m or None  # 0 = the level's ceiling
+    if body.tags is not None:
+        fields["tags_json"] = json.dumps(body.tags, ensure_ascii=False) if body.tags else None  # [] = no tags
     if body.label_pos is not None:
         fields["label_pos"] = body.label_pos
     if body.label_pos is not None:

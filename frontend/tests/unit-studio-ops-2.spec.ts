@@ -4,7 +4,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { objectHitCorners, type GeometryDoc, type GeomObject } from '../src/map/geometry';
 import type { CatalogItem } from '../src/api/plan-catalog';
-import { addArray, addCircuit, addCircuitLamp, addConnector, addLevel, addObject, arrayDefaults, circuitPower, duplicateBeside, duplicateObject, initialLevel, levelUsage, moveConnectorVertex, moveGroup, moveObject, objectZ, patchCircuit, patchConnector, patchLevel, patchObject, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember, translatePolygon, translateWall, visibleUnderLevel, duplicateSelection, itemsInRect, moveSelection, removeItems, selectableItems, selectionDelta, toggleItem, zoneOnLevel } from '../src/map/studio-ops';
+import { addArray, addCircuit, addCircuitLamp, addConnector, addLevel, addObject, arrayDefaults, circuitPower, duplicateBeside, duplicateObject, initialLevel, levelUsage, moveConnectorVertex, moveGroup, moveObject, objectZ, patchCircuit, patchConnector, patchLevel, patchObject, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember, translatePolygon, translateWall, visibleUnderLevel, duplicateSelection, itemsInRect, moveSelection, removeItems, selectableItems, selectionDelta, toggleItem, zoneOnLevel,
+  TAG_MAX_COUNT, TAG_MAX_LEN, circuitEligible, itemsWithTag, joinCircuit, normalizeTag, patchWall, setLevelOf, tagCounts, tagItems, withTag, withoutTag } from '../src/map/studio-ops';
 
 // Plan Studio phase 2 (T085): the pure document operations of the editor - placing an item (its size, z and params come
 // from the library), moving, rotating, stretching, duplicating, and removing an object out of its group, its circuit
@@ -417,5 +418,110 @@ test.describe('plan studio multi-selection (unit)', () => {
     expect(toggleItem([a], b)).toEqual([a, b]);
     expect(toggleItem([a, b], { id: 'wa', kind: 'wall' })).toEqual([b]);
     expect(toggleItem([], a)).toEqual([a]);
+  });
+});
+
+test.describe('plan studio tags and bulk reassignment (unit)', () => {
+  // the multi-selection block's zones: z-in has no level (so the default level, L0), z-half is on L0, z-base on L1
+  const ZONES = [
+    { id: 'z-in', polygon: [{ x: 0.1, y: 0.2 }, { x: 0.3, y: 0.2 }, { x: 0.3, y: 0.3 }], tags: ['חירום'] as string[] | undefined },
+    { id: 'z-half', level_id: 'L0', polygon: [{ x: 0.5, y: 0.4 }, { x: 0.9, y: 0.4 }, { x: 0.9, y: 0.5 }], tags: ['מטבח'] as string[] | undefined },
+    { id: 'z-base', level_id: 'L1', polygon: [{ x: 0.7, y: 0.7 }, { x: 0.8, y: 0.7 }, { x: 0.8, y: 0.8 }], tags: ['Emergency', 'חירום'] as string[] | undefined },
+  ];
+  const isLight = (o: GeomObject) => circuitEligible(library.items.find((i) => i.id === o.item_id));
+
+  test('a tag is trimmed free text of at most TAG_MAX_LEN; one tag in any spelling; a full list takes no more', () => {
+    expect([TAG_MAX_COUNT, TAG_MAX_LEN]).toEqual([20, 40]); // plan_geometry.MAX_TAGS / MAX_TAG_LEN and the zone PATCH
+    expect(normalizeTag('  יציאת   חירום ')).toBe('יציאת חירום');
+    expect(normalizeTag('   ')).toBeNull();
+    expect(normalizeTag('x'.repeat(TAG_MAX_LEN))).toBe('x'.repeat(TAG_MAX_LEN));
+    expect(normalizeTag('x'.repeat(TAG_MAX_LEN + 1))).toBeNull();
+    expect(withTag(undefined, 'מטבח')).toEqual(['מטבח']);
+    expect(withTag(['a'], 'מטבח')).toEqual(['a', 'מטבח']);
+    const had = ['Kitchen'];
+    expect(withTag(had, ' kitchen')).toBe(had); // already there in another spelling: the same list
+    const full = Array.from({ length: TAG_MAX_COUNT }, (_, i) => `t${i}`);
+    expect(withTag(full, 'new')).toBe(full); // a full list takes no more (the server would refuse the save)
+    expect(withoutTag(['a', 'Kitchen', 'b'], 'kitchen ')).toEqual(['a', 'b']);
+    const none = ['a'];
+    expect(withoutTag(none, 'x')).toBe(none);
+    expect(withoutTag(undefined, 'x')).toEqual([]);
+  });
+
+  test('tagItems adds or removes one tag on every selected wall and object in one document: the composition of the single-item patches', () => {
+    const doc = sample();
+    const added = tagItems(doc, ['wa', 'o1', 'o5', 'z-in', 'nope'], 'מטבח', true); // a zone or an unknown id is the caller's
+    expect(added).toEqual(patchObject(patchObject(patchWall(doc, 'wa', { tags: ['מטבח'] }), 'o1', { tags: ['מטבח'] }), 'o5', { tags: ['מטבח'] }));
+    expect(doc.walls.find((w) => w.id === 'wa')!.tags).toBeUndefined(); // the input is untouched
+    expect(added.walls.find((w) => w.id === 'wb')).toBe(doc.walls.find((w) => w.id === 'wb')); // not selected: the same object
+    expect(tagItems(added, ['wa', 'o1'], 'מטבח', true)).toBe(added); // every one already has it: nothing changes (no undo step)
+    const removed = tagItems(added, ['wa', 'o1', 'o2'], ' מטבח', false);
+    expect(removed.walls.find((w) => w.id === 'wa')!.tags).toEqual([]);
+    expect(removed.objects.find((o) => o.id === 'o1')!.tags).toEqual([]);
+    expect(removed.objects.find((o) => o.id === 'o5')!.tags).toEqual(['מטבח']); // not in this removal
+    expect(removed.objects.find((o) => o.id === 'o2')).toBe(added.objects.find((o) => o.id === 'o2')); // never had it
+    expect(tagItems(doc, ['wa'], '   ', true)).toBe(doc); // a blank tag is no tag
+  });
+
+  test('tagCounts: the tags among the given items with how many carry each, in the spelling first seen', () => {
+    const doc = tagItems(tagItems(sample(), ['wa', 'o1'], 'חירום', true), ['o1'], 'מטבח', true);
+    const items = [{ id: 'wa', kind: 'wall' as const }, { id: 'o1', kind: 'object' as const }, { id: 'o2', kind: 'object' as const }, { id: 'z-base', kind: 'zone' as const }];
+    expect(tagCounts(doc, ZONES, items)).toEqual([{ tag: 'חירום', count: 3 }, { tag: 'מטבח', count: 1 }, { tag: 'Emergency', count: 1 }]);
+    expect(tagCounts(doc, ZONES, [])).toEqual([]);
+  });
+
+  test('itemsWithTag selects every tagged wall, object and zone the level filter shows - Ctrl+A narrowed to the tag', () => {
+    const doc = tagItems(sample(), ['wa', 'wd', 'o1', 'o5'], 'חירום', true);
+    expect(itemsWithTag(doc, ZONES, 'חירום', null)).toEqual([
+      { id: 'wa', kind: 'wall' }, { id: 'wd', kind: 'wall' }, { id: 'o1', kind: 'object' }, { id: 'o5', kind: 'object' }, { id: 'z-in', kind: 'zone' }, { id: 'z-base', kind: 'zone' },
+    ]);
+    // z-in has no level: it is on the default level L0 (zoneOnLevel), never on L1
+    expect(itemsWithTag(doc, ZONES, ' חירום ', 'L0')).toEqual([{ id: 'wa', kind: 'wall' }, { id: 'o1', kind: 'object' }, { id: 'z-in', kind: 'zone' }]);
+    expect(itemsWithTag(doc, ZONES, 'חירום', 'L1')).toEqual([{ id: 'wd', kind: 'wall' }, { id: 'o5', kind: 'object' }, { id: 'z-base', kind: 'zone' }]);
+    expect(itemsWithTag(doc, ZONES, 'emergency', null)).toEqual([{ id: 'z-base', kind: 'zone' }]); // any spelling
+    const tagged = new Set(['wa', 'wd', 'o1', 'o5', 'z-in', 'z-base']);
+    for (const lv of [null, 'L0', 'L1']) expect(itemsWithTag(doc, ZONES, 'חירום', lv)).toEqual(selectableItems(doc, ZONES, lv).filter((i) => tagged.has(i.id)));
+    expect(itemsWithTag(doc, ZONES, 'אין כזו', null)).toEqual([]);
+    expect(itemsWithTag(doc, ZONES, '  ', null)).toEqual([]);
+  });
+
+  test('setLevelOf puts every selected wall and object on one level in one document: the composition of the single-item patches', () => {
+    const doc = sample();
+    const next = setLevelOf(doc, ['wa', 'o1', 'o3', 'o5', 'z-in', 'nope'], 'L1');
+    expect(next).toEqual(patchObject(patchObject(patchObject(patchWall(doc, 'wa', { level_id: 'L1' }), 'o1', { level_id: 'L1' }), 'o3', { level_id: 'L1' }), 'o5', { level_id: 'L1' }));
+    expect(selectableItems(next, [], 'L1').map((i) => i.id)).toEqual(['wa', 'wd', 'o1', 'o3', 'o5']);
+    const opening = doc.openings.find((o) => o.wall_id === 'wa');
+    if (opening) expect(visibleUnderLevel(next, opening.id, 'L1')).toBe(true); // a wall's openings go with it
+    expect(next.walls.find((w) => w.id === 'wb')).toBe(doc.walls.find((w) => w.id === 'wb')); // not selected: the same object
+    expect(setLevelOf(doc, ['wd', 'o5'], 'L1')).toBe(doc); // already there: nothing changes
+    expect(setLevelOf(doc, ['wa'], 'nope')).toBe(doc); // not a level of the document: nothing changes
+  });
+
+  test('circuitEligible is the one rule for a circuit member: a light, or an item the library does not know (as the server reads it); never another role', () => {
+    expect(circuitEligible(item('light.ceiling'))).toBe(true);
+    expect(circuitEligible(item('light.spot'))).toBe(true);
+    expect(circuitEligible(item('chair.basic'))).toBe(false);
+    expect(circuitEligible(item('extinguisher.co2'))).toBe(false);
+    expect(circuitEligible(undefined)).toBe(true); // a custom item deleted meanwhile: the server's _check_circuits reads it as a light
+  });
+
+  test('joinCircuit adds only the eligible objects of a selection to the circuit, each leaving any other circuit (one switch per lamp)', () => {
+    const k = addCircuit(sample(), 'צפון', 'switch.north', 'circuit-2');
+    const lamp = addObject(k.doc, item('light.spot'), [0.6, 0.6], PLACE);
+    const doc = lamp.doc; // o3 (a ceiling lamp) is on k1; the new spot is on no circuit; o1 and o2 are furniture
+    const r = joinCircuit(doc, k.id, ['o1', 'o3', 'wa', lamp.id, 'o2', 'z-in'], isLight);
+    expect(r.added).toEqual(['o3', lamp.id]);
+    // an object whose library item is unknown joins, as the single toggle and the server allow
+    const ghost = { ...doc, objects: [...doc.objects, { ...doc.objects[0], id: 'ghost', item_id: 'custom.gone' }] };
+    expect(joinCircuit(ghost, k.id, ['o1', 'ghost'], isLight).added).toEqual(['ghost']);
+    expect(r.doc.circuits.find((c) => c.id === k.id)!.member_ids).toEqual(['o3', lamp.id]);
+    expect(r.doc.circuits.find((c) => c.id === 'k1')!.member_ids).toEqual([]);
+    expect(r.doc).toEqual(toggleCircuitMember(toggleCircuitMember(doc, k.id, 'o3'), k.id, lamp.id)); // as the single toggle, for each lamp
+    // a lamp already on the circuit stays on it (never toggled out) and counts as on it
+    const again = joinCircuit(r.doc, k.id, ['o3'], isLight);
+    expect(again.doc).toBe(r.doc);
+    expect(again.added).toEqual(['o3']);
+    expect(joinCircuit(doc, k.id, ['o1', 'wa'], isLight)).toEqual({ doc, added: [] });
+    expect(joinCircuit(doc, 'nope', ['o3'], isLight)).toEqual({ doc, added: [] });
   });
 });

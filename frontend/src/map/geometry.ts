@@ -37,6 +37,8 @@ export interface GeomWall {
   source: GeomSource;
   locked: boolean;
   external_ids?: ExternalIds;
+  /** Free-text tags for marking and selection (T085; at most TAG_MAX_COUNT of TAG_MAX_LEN characters). Absent = none. */
+  tags?: string[];
 }
 export interface GeomOpening {
   id: string;
@@ -86,6 +88,8 @@ export interface GeomObject {
   source: GeomSource;
   locked: boolean;
   external_ids?: ExternalIds;
+  /** Free-text tags, as a wall's (T085). */
+  tags?: string[];
 }
 export interface GeomGroup {
   id: string;
@@ -138,7 +142,7 @@ export interface GeometryDoc {
   levels: GeomLevel[];
   walls: GeomWall[];
   openings: GeomOpening[];
-  rooms: { id: string; level_id?: string | null; ceiling_height_m?: number | null }[];
+  rooms: { id: string; level_id?: string | null; ceiling_height_m?: number | null; tags?: string[] }[];
   objects: GeomObject[];
   circuits: GeomCircuit[];
   connectors: GeomConnector[];

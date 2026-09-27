@@ -67,3 +67,36 @@ def test_zones_api_and_bundle(settings):
     with app.state.db.connection() as conn:
         acts = [r[0] for r in conn.execute("SELECT action FROM audit_log WHERE action LIKE 'zone.%' ORDER BY rowid").fetchall()]
     assert acts[:2] == ["zone.create", "zone.update"] and "zone.detect" in acts and "zone.accept" in acts and acts[-1] == "zone.delete"
+
+
+def test_zone_tags_round_trip_bounded_and_cleared(settings):
+    """Tags (T085): a zone carries free-text tags like a wall or an object of the structure document - at most MAX_TAGS,
+    each 1..MAX_TAG_LEN characters after trimming, strings only; a PATCH replaces the list (an empty list clears it), a
+    zone without any reads back as []. Migration 0022 adds the column."""
+    from smplwise.services import plan_geometry as pg
+
+    app = create_app(settings)
+    c = TestClient(app)
+    ids = seed_tree(c)
+    with app.state.db.connection() as conn:
+        assert "tags_json" in {r[1] for r in conn.execute("PRAGMA table_info(spatial_zones)").fetchall()}
+    tri = [{"x": 0.1, "y": 0.1}, {"x": 0.4, "y": 0.1}, {"x": 0.4, "y": 0.3}]
+    z = c.post(f"/api/v1/floors/{ids['floor2']}/zones", json={"name": "מטבח", "polygon": tri}).json()
+    assert z["tags"] == []
+    r = c.patch(f"/api/v1/zones/{z['id']}", json={"revision": 1, "tags": [" מטבח ", "יציאת חירום"]})
+    assert r.status_code == 200, r.text
+    assert r.json()["tags"] == ["מטבח", "יציאת חירום"] and r.json()["revision"] == 2  # trimmed, in order
+    assert c.get(f"/api/v1/floors/{ids['floor2']}/zones").json()["zones"][0]["tags"] == ["מטבח", "יציאת חירום"]
+    for bad in ([f"t{i}" for i in range(pg.MAX_TAGS + 1)], ["x" * (pg.MAX_TAG_LEN + 1)], ["  "], ["ok", 7], "מטבח"):
+        assert c.patch(f"/api/v1/zones/{z['id']}", json={"revision": 2, "tags": bad}).status_code == 422, bad
+    at_bound = [f"t{i}" for i in range(pg.MAX_TAGS)]
+    assert c.patch(f"/api/v1/zones/{z['id']}", json={"revision": 2, "tags": at_bound}).json()["tags"] == at_bound
+    assert c.patch(f"/api/v1/zones/{z['id']}", json={"revision": 3, "name": "מטבח ראשי"}).json()["tags"] == at_bound  # another field's patch leaves them
+    assert c.patch(f"/api/v1/zones/{z['id']}", json={"revision": 4, "tags": []}).json()["tags"] == []
+    # the same server rule as the structure document (plan_geometry.check_tags): case-insensitive merge, spaces collapsed,
+    # the count judged once merged
+    r = c.patch(f"/api/v1/zones/{z['id']}", json={"revision": 5, "tags": [" Kitchen ", "kitchen", "KITCHEN", "יציאת   חירום", "יציאת חירום"]})
+    assert r.status_code == 200, r.text
+    assert r.json()["tags"] == ["Kitchen", "יציאת חירום"]
+    merged = c.patch(f"/api/v1/zones/{z['id']}", json={"revision": 6, "tags": at_bound + ["T0"]})
+    assert merged.status_code == 200 and merged.json()["tags"] == at_bound
