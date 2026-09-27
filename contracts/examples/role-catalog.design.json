@@ -7,6 +7,7 @@
       "name_he": "צופה",
       "permissions": [
         "map.read",
+        "access.read",
         "entity.state.read",
         "video.live"
       ]
@@ -16,6 +17,7 @@
       "name_he": "מפעיל",
       "permissions": [
         "map.read",
+        "access.read",
         "entity.state.read",
         "video.live",
         "video.playback",
@@ -30,6 +32,7 @@
       "name_he": "עורך מפות ותצוגות",
       "permissions": [
         "map.read",
+        "access.read",
         "entity.state.read",
         "video.live",
         "map.import",
@@ -45,6 +48,7 @@
       "name_he": "מנהל אתר / מבנה / קומה",
       "permissions": [
         "map.read",
+        "access.read",
         "entity.state.read",
         "video.live",
         "video.playback",
@@ -66,6 +70,7 @@
       "name_he": "מנהל מערכת VMS",
       "permissions": [
         "map.read",
+        "access.read",
         "entity.state.read",
         "video.live",
         "video.playback",

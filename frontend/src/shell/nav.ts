@@ -32,7 +32,7 @@ export const GROUP_TABS: Record<NavGroup, TabItem[]> = {
     { id: 'sites', label: 'אתרים ומבנים', href: '#/explore/sites' },
     { id: 'floors', label: 'מפת קומה', href: '#/explore/floors/f0' },
     { id: 'entities', label: 'ישויות HA', href: '#/explore/entities' },
-    { id: 'access', label: 'דלתות ואינטרקום', href: '#/explore/access/d1' },
+    { id: 'access', label: 'WisKey', href: '#/explore/access/d1' },
   ],
   cameras: [
     { id: 'wall', label: 'כל המצלמות', href: '#/live/wall' },
@@ -129,7 +129,7 @@ export const AREA_TABS: Record<AreaId, TabItem[]> = {
     { id: 'sites', label: 'אתרים ומבנים', href: '#/explore/sites' },
     { id: 'floors', label: 'מפת קומה', href: '#/explore/floors/f0' },
     { id: 'entities', label: 'ישויות HA', href: '#/explore/entities' },
-    { id: 'access', label: 'דלתות ואינטרקום', href: '#/explore/access/d1' },
+    { id: 'access', label: 'WisKey', href: '#/explore/access/d1' },
   ],
   investigate: [
     { id: 'events', label: 'מרכז אירועים', href: '#/investigate/events' },
@@ -186,8 +186,9 @@ export function crumbsOf(r: RouteState | null, api = false): string[] {
 }
 
 /** Screens that still show demo data only. With a real backend they are hidden from the tab bars until they are
- * built for real (live review 2026-09-17, F1 F3 F4 F5 F6 F7); the shell also redirects their routes. */
-export const DEMO_ONLY_HREFS = new Set(['#/explore/access/d1']);
+ * built for real (live review 2026-09-17, F1 F3 F4 F5 F6 F7); the shell also redirects their routes. Empty since
+ * T054: the access slot became the real WisKey entry center (CR-005). */
+export const DEMO_ONLY_HREFS = new Set<string>();
 
 /** Tabs whose real screen has a different name than the design's demo screen. */
 export const API_LABELS: Record<string, string> = { '#/investigate/reviews': 'Review · חלונות', '#/investigate/playback/sync': 'ניגון מסונכרן', '#/system/setup': 'חיבורים' };
@@ -210,6 +211,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   '#/explore/sites': ['map.read'],
   '#/explore/floors/f0': ['map.read'],
   '#/explore/entities': ['entity.state.read'],
+  '#/explore/access/d1': ['access.read'],
   '#/investigate/events': ['events.read'],
   '#/investigate/playback': ['video.playback'],
   '#/investigate/playback/sync': ['video.playback'],
@@ -226,11 +228,18 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   '#/system/setup': ['system.configure', 'sources.configure'],
 };
 
-export type Can = (permission: string) => boolean;
+/** Tabs whose permission counts only when held at installation scope, because the screen and its API check it there
+ * and nowhere else: WisKey stations are not mapped to sites or floors, so access.read is installation-wide by design
+ * (CR-005). A floor-scoped viewer or a site-scoped site_admin would otherwise see the tab and land on "no permission". */
+export const INSTALLATION_ONLY_HREFS = new Set<string>(['#/explore/access/d1']);
+
+/** `installationOnly`: the permission must be held at installation scope, not at any scope. */
+export type Can = (permission: string, installationOnly?: boolean) => boolean;
 
 export function tabAllowed(href: string, can?: Can): boolean {
   const need = TAB_PERMISSIONS[href];
-  return !need || !can || need.some(can);
+  const installationOnly = INSTALLATION_ONLY_HREFS.has(href);
+  return !need || !can || need.some((p) => can(p, installationOnly));
 }
 
 export function visibleTabs(items: TabItem[], api: boolean, can?: Can): TabItem[] {
@@ -238,11 +247,25 @@ export function visibleTabs(items: TabItem[], api: boolean, can?: Can): TabItem[
 }
 
 /** The rail entries the user gets: an area stays while one of its tabs is visible (the live area always - the
- * overview needs nothing), and it opens on its first visible tab when its default page is not one of them. */
+ * overview needs nothing), and it opens on its first visible tab when its default page is not one of them. An area is
+ * not dropped because its own default page is hidden: with הסתרת המפה the map area keeps its WisKey tab (T054). */
 export function visibleAreas(api: boolean, can?: Can): AreaEntry[] {
-  return NAV_A.filter((n) => !HIDDEN_HREFS.has(n.href)).flatMap((n) => {
+  return NAV_A.flatMap((n) => {
     const tabs = visibleTabs(AREA_TABS[n.id], api, can);
     if (api && n.id !== 'live' && !tabs.length) return [];
+    const first = tabs[0]?.href;
+    return [first && !tabs.some((t) => t.href === n.href) ? { ...n, href: first } : n];
+  });
+}
+
+/** Design B's six flat entries, by the same rule as visibleAreas: a group stays while one of its tabs is visible (the
+ * overview always) and opens on its first visible tab - it used to be filtered by its own default page only, so a
+ * hidden map left "אתרים" pointing at a hidden page and a user without map.read lost the WisKey tab with it. */
+export function visibleGroups(api: boolean, can?: Can): NavEntry[] {
+  return NAV.flatMap((n) => {
+    if (n.id === 'overview') return [n];
+    const tabs = visibleTabs(GROUP_TABS[n.id], api, can);
+    if (api && !tabs.length) return [];
     const first = tabs[0]?.href;
     return [first && !tabs.some((t) => t.href === n.href) ? { ...n, href: first } : n];
   });
