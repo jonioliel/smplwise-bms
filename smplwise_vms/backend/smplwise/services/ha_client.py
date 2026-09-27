@@ -85,9 +85,17 @@ def call_bridge_execute(settings: Settings, payload: dict[str, Any], timeout: fl
     return body.get("service_response") or body
 
 
-async def ws_session(settings: Settings, on_ready: Callable[[Callable[[str, dict[str, Any]], Any]], Any], on_event: Callable[[dict[str, Any]], None], stop: asyncio.Event) -> None:
+async def ws_session(
+    settings: Settings,
+    on_ready: Callable[[Callable[[str, dict[str, Any]], Any]], Any],
+    on_event: Callable[[dict[str, Any]], None],
+    stop: asyncio.Event,
+    on_message: Callable[[dict[str, Any]], None] | None = None,
+) -> None:
     """One authenticated WebSocket session. `on_ready(call)` receives an async `call(type, **kw)` helper;
-    `on_event` gets every `state_changed` event data; returns when the socket closes or `stop` is set."""
+    `on_event` gets every `state_changed` event data; `on_message`, when given, gets every raw `event` frame
+    first (subscriptions whose events carry no `entity_id`, e.g. an integration's own `subscribe` command or
+    `subscribe_entities`); returns when the socket closes or `stop` is set."""
     import websockets
 
     async with websockets.connect(_ws_url(settings), max_size=None, open_timeout=15, ping_interval=25) as ws:
@@ -118,7 +126,10 @@ async def ws_session(settings: Settings, on_ready: Callable[[Callable[[str, dict
                     if not fut.done():
                         fut.set_result(msg)
                 elif msg.get("type") == "event":
-                    data = (msg.get("event") or {}).get("data") or {}
+                    if on_message is not None:
+                        on_message(msg)
+                    event = msg.get("event")
+                    data = (event.get("data") if isinstance(event, dict) else None) or {}
                     if data.get("entity_id"):
                         on_event(data)
 

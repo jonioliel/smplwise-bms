@@ -17,7 +17,7 @@ from . import __version__
 from .config import Settings, load_settings
 from .db import Database
 from .errors import ApiError, validation_payload
-from .routers import access, anchors, backup, cameras, cases, catalog, events, exports, frames, ha, health, me, media, plan_catalog, plan_geometry, plans, playback, playback_groups, recordings, rules, search, settings as settings_router, storage, views, zones, nvr_write
+from .routers import access, access_control, anchors, backup, cameras, cases, catalog, events, exports, frames, ha, health, me, media, plan_catalog, plan_geometry, plans, playback, playback_groups, recordings, rules, search, settings as settings_router, storage, views, zones, nvr_write
 
 log = logging.getLogger("smplwise")
 
@@ -124,6 +124,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # developer identity mode only: truly absent otherwise, not merely a 404 raised from inside the handler
         app.include_router(ha.dev_router, prefix=api, tags=["home-assistant"])
     app.include_router(access.router, prefix=api, tags=["access"])
+    app.include_router(access_control.router, prefix=api, tags=["access-control"])
     app.include_router(zones.router, prefix=api, tags=["zones"])
     app.include_router(search.router, prefix=api, tags=["search"])
     app.include_router(backup.router, prefix=api, tags=["backup"])
@@ -182,6 +183,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import ha_sync
 
         ha_sync.SYNC.start(app.state.db, settings)
+        from .services import intercom_sync
+
+        intercom_sync.SYNC.start(settings)  # CR-005: WisKey entry-center feed (read-only)
         from .services import bridge_install, thumbnails
 
         thumbnails.WORKER.start_with(app.state.db, settings)
@@ -218,6 +222,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import ha_sync
 
         ha_sync.SYNC.shutdown()
+        from .services import intercom_sync
+
+        intercom_sync.SYNC.shutdown()
         from .routers import plan_geometry as plan_geometry_router
 
         plan_geometry_router.shutdown_detect_pool()
