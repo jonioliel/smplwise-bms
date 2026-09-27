@@ -75,6 +75,13 @@ def camera_row(r: sqlite3.Row) -> dict[str, Any]:
         "name_source": r["name_source"], "alias": r["alias"], "enabled": bool(r["enabled"]), "sort_order": r["sort_order"],
         "main_track": r["main_track"], "sub_track": r["sub_track"], "status": r["status"], "last_seen_at": r["last_seen_at"],
         "stream": caps.get("stream"),
+        # N1 review note: `r["grid_col_span"]` alone is NOT safe here even after migration 0023 ships - this
+        # exact defensive fallback pattern already exists for the anchor 3D fields two lines up, precisely
+        # because test_anchor_3d.py's own "populated database from before 0021" test runs this CURRENT router
+        # code against a database deliberately kept at an older migration set (an earlier, unrelated migration
+        # is what that test is about) - camera_row() is called from that same code path. Removing the fallback
+        # broke that pre-existing test; keeping it costs nothing once every row genuinely has the column.
+        "grid_col_span": r["grid_col_span"] if "grid_col_span" in r.keys() else 1,
     }
 
 

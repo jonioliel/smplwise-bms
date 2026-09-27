@@ -115,6 +115,9 @@ class CameraPatch(BaseModel):
     alias: str | None = Field(default=None, max_length=120)
     sort_order: int | None = None
     enabled: bool | None = None
+    # grid_col_span (T091): how many columns wide this camera's tile is on the all-cameras grid; a hard cap
+    # of 4 is a deliberate, sane bound - not configurable.
+    grid_col_span: int | None = Field(default=None, ge=1, le=4)
 
 
 @router.patch("/cameras/{camera_id}")
