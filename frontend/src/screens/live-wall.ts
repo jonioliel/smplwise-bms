@@ -93,6 +93,10 @@ export class LiveWall extends LitElement {
       display: grid;
       gap: 12px;
       grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+      /* T091 review: a spanned tile can leave a gap sparse auto-placement would not backfill (e.g. spans
+         [1,2,1] at 2 columns), producing more real rows than bestFit()'s ideal-packing estimate and
+         overflowing the wall - dense placement keeps the actual row count matching the estimate. */
+      grid-auto-flow: dense;
     }
     /* best fit (0.1.68): the tiles fill the screen as a rectangle - as many columns as make the tiles biggest */
     .colbtn {
@@ -412,17 +416,18 @@ export class LiveWall extends LitElement {
     // that moment - see bestFit()'s own comment for why this cannot be precomputed once outside the search.
     const autoFit = window.innerWidth >= 768 ? this.bestFit(shown.map(spanOf)) : null;
     const cols = this.colsOverride ? Math.min(this.colsOverride, Math.max(1, shown.length)) : autoFit ? autoFit.cols : n === 1 ? 1 : n === 2 ? 2 : n <= 4 ? 2 : n <= 9 ? 3 : n <= 16 ? 4 : n <= 25 ? 5 : 6;
+    // S1: below 768px without a manual override, the phone media query further caps the RENDERED grid at
+    // min(cols, 2) columns (see `.grid:not([data-wall-cols-manual])` below) - a span (and the fit-sizing
+    // math below, T091 re-review nit) must both use what CSS actually renders, or a span of 3-4 adds extra
+    // implicit auto-columns and a zero-width column.
+    const gridCols = !this.colsOverride && window.innerWidth < 768 ? Math.min(cols, 2) : cols;
     let fit: { cols: number; tile: number } | null = autoFit && !this.colsOverride ? autoFit : null;
     if (this.box.w && (this.colsOverride || !fit)) {
-      const weight = shown.reduce((a, c) => a + Math.min(spanOf(c), cols), 0);
+      const weight = shown.reduce((a, c) => a + Math.min(spanOf(c), gridCols), 0);
       const rows = Math.ceil(weight / cols);
       const tile = Math.min((this.box.w - 12 * (cols - 1)) / cols, this.box.h > 120 ? ((this.box.h - 12 * (rows - 1)) / rows) * (16 / 9) : Infinity);
       if (tile > 80 && Number.isFinite(tile)) fit = { cols, tile: Math.floor(tile) };
     }
-    // S1: below 768px without a manual override, the phone media query further caps the RENDERED grid at
-    // min(cols, 2) columns (see `.grid:not([data-wall-cols-manual])` below) - a span must be clamped against
-    // what CSS actually renders, or a span of 3-4 adds extra implicit auto-columns and a zero-width column.
-    const gridCols = !this.colsOverride && window.innerWidth < 768 ? Math.min(cols, 2) : cols;
     const cap = this.settings?.['media.max_live_sessions'] ?? 8;
     const profile: 'sub' | 'main' = this.stream === 'auto' ? (this.settings?.['media.wall_profile'] ?? 'sub') : this.stream;
     const transport: Transport = effectiveTransport(this.settings);
