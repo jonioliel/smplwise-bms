@@ -146,8 +146,39 @@ test.describe('WisKey physical actions (T054 phase 3, access.release)', () => {
       expect(outcome.details.outcome).toBe('unknown');
       // after the hold the button is usable again
       await expect(button).toHaveAttribute('data-held', 'false', { timeout: 15000 });
+
+      // WisKey's own `release_unconfirmed` (its device call errored after the open may have reached the device) is
+      // "outcome unknown" too, never "refused": the relay is held, and a second press sends no second frame
+      expect((await control.post('/mode', { data: { unlock: 'unconfirmed' } })).status()).toBe(200);
+      const office = page.locator('wiskey-overview [data-wiskey-door="office"]');
+      await office.locator('[data-wiskey-release="1"]').click();
+      await page.locator('wiskey-overview sw-dialog[data-wiskey-release-dialog] [data-wiskey-release-confirm]').click();
+      await expect(office.locator('[data-wiskey-result]')).toContainText('לא ידוע אם הפקודה בוצעה', { timeout: 15000 });
+      await expect(office.locator('[data-wiskey-result]')).toContainText('release_unconfirmed');
+      await expect(office.locator('[data-wiskey-release="1"]')).toHaveAttribute('data-held', 'true');
+      const again = await request.post('/api/v1/intercom/stations/office/release', { data: { lock: 1, confirmed: true, client_request_id: `again-${Date.now()}`, expires_at: now } });
+      expect(again.status()).toBe(409);
+      expect((await sent('stations/test_unlock')).filter((m) => m.station_id === 'office')).toHaveLength(1);
+      const [unconfirmed] = await auditRows(request, 'intercom.release', 'outcome');
+      expect(unconfirmed.details.outcome).toBe('unknown');
+      expect(unconfirmed.reason).toBe('release_unconfirmed');
     } finally {
       await control.post('/mode', { data: { unlock: 'accept' } });
+    }
+  });
+
+  test('a device clock minutes off still releases: the expiry is computed on the server clock', async ({ page, request }) => {
+    for (const skewMin of [-5, 3]) {
+      // this device's clock is `skewMin` minutes off; before the fix -5 was always "expired", +3 always "too far ahead"
+      await page.clock.setSystemTime(new Date(Date.now() + skewMin * 60_000));
+      await open(page);
+      const gate = page.locator('wiskey-overview [data-wiskey-door="gate"]');
+      await gate.locator('[data-wiskey-release="1"]').click();
+      await page.locator('wiskey-overview sw-dialog[data-wiskey-release-dialog] [data-wiskey-release-confirm]').click();
+      await expect(gate.locator('[data-wiskey-result]')).toContainText('WisKey קיבל אותה', { timeout: 15000 });
+      const [attempt] = await auditRows(request, 'intercom.release', 'attempt');
+      const expires = Date.parse(String(attempt.details.expires_at));
+      expect(Math.abs(expires - Date.now()), `skew ${skewMin} min: expires_at is on the server's time line`).toBeLessThan(30_000);
     }
   });
 

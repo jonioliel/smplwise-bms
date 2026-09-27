@@ -68,9 +68,27 @@ export interface IntercomFeed {
   last_error: string | null;
   /** Null whenever there is nothing honest to show. */
   overview: IntercomOverview | null;
+  /** The server's clock (epoch ms) when it answered. */
+  server_time_ms?: number;
 }
 
-export const getIntercomOverview = () => get<IntercomFeed>('intercom/overview');
+/** Server clock minus this device's clock (ms), learned from each overview reply. Physical commands' `expires_at` is
+ * computed on the SERVER's time line with it, so a device whose clock is minutes off can still act - and still cannot
+ * act late (T054 final review S-3). 0 until the first overview arrives (no action control renders before that). */
+let serverOffsetMs = 0;
+
+export function serverNow(): number {
+  return Date.now() + serverOffsetMs;
+}
+
+export async function getIntercomOverview(): Promise<IntercomFeed> {
+  const sentAt = Date.now();
+  const feed = await get<IntercomFeed>('intercom/overview');
+  const receivedAt = Date.now();
+  // the server read its clock somewhere during the round trip: assume the middle (error <= half the round trip)
+  if (typeof feed.server_time_ms === 'number') serverOffsetMs = feed.server_time_ms - (sentAt + receivedAt) / 2;
+  return feed;
+}
 
 // ---------------------------------------------------------------- physical actions (access.release)
 
@@ -130,7 +148,7 @@ function commandId(): string {
 
 /** A fresh command id and expiry for one physical command - one per deliberate user action, never reused on a retry. */
 function envelope() {
-  return { client_request_id: commandId(), expires_at: new Date(Date.now() + COMMAND_TTL_MS).toISOString().replace(/\.\d{3}Z$/, 'Z') };
+  return { client_request_id: commandId(), expires_at: new Date(serverNow() + COMMAND_TTL_MS).toISOString().replace(/\.\d{3}Z$/, 'Z') };
 }
 
 type Actioned<T> = T & { command_id: string };

@@ -48,7 +48,15 @@ const PAGE = 12; // WisKey's entry center never shows more than 12 doors a page 
 const POLL_MS = 30000; // WisKey's own panel polls `overview` every 30 s; used here only while the notices are down
 const ARM_MS = 4000; // a call control's second tap must follow the first within this long ...
 const ARM_MIN_MS = 500; // ... and not sooner: a double-click / double-tap is one gesture, not a confirmation
-const UNKNOWN_HOLD_MS = 10_000; // after a release with an unknown outcome, that relay's button waits this long (backend: UNKNOWN_HOLD_S)
+// After a release with an unknown outcome the relay's button waits as long as the backend holds that relay: its answer
+// says how long (`details.retry_after_s`). Without it (the connection itself failed) the longest the backend can hold
+// it: ha_client's 60 s call limit plus the 10 s hold after an unknown outcome.
+const UNKNOWN_HOLD_FALLBACK_MS = 70_000;
+
+function holdMs(err: unknown): number {
+  const s = err instanceof ApiError ? Number(err.body?.details?.retry_after_s) : NaN;
+  return Number.isFinite(s) && s >= 0 ? Math.ceil(s * 1000) : UNKNOWN_HOLD_FALLBACK_MS;
+}
 const TTS_MAX = 500; // WisKey's own limit (audio_tts.py), after collapsing whitespace
 
 const CALL_LABELS: Record<IntercomCallCommand, string> = { answer: 'מענה', reject: 'דחייה', hangUp: 'סיום שיחה' };
@@ -255,10 +263,12 @@ export class WiskeyOverview extends LitElement {
 
   /** After an unknown outcome the relay's button waits (the backend holds the relay too): nobody fires a second release
    * straight into an ambiguous state. */
-  private hold(key: string) {
-    this.held = { ...this.held, [key]: Date.now() + UNKNOWN_HOLD_MS };
+  private hold(key: string, ms: number) {
+    const until = Date.now() + ms;
+    this.held = { ...this.held, [key]: Math.max(this.held[key] ?? 0, until) };
     window.clearTimeout(this.holdTimer);
-    this.holdTimer = window.setTimeout(() => (this.held = { ...this.held }), UNKNOWN_HOLD_MS + 50); // re-render when it ends
+    const next = Math.min(...Object.values(this.held).filter((t) => t > Date.now()));
+    if (Number.isFinite(next)) this.holdTimer = window.setTimeout(() => (this.held = { ...this.held }), next - Date.now() + 50); // re-render when one ends
   }
 
   private askRelease(station: IntercomStation, lock: IntercomLock) {
@@ -282,7 +292,8 @@ export class WiskeyOverview extends LitElement {
     } catch (err) {
       const f = failure(err);
       this.setResult(c.station.id, f.tone, f.text);
-      if (f.unknown) this.hold(key);
+      // an unknown outcome, or the backend saying an earlier release of this relay is still unresolved: wait it out
+      if (f.unknown || (err instanceof ApiError && err.code === 'intercom_release_in_progress')) this.hold(key, holdMs(err));
     } finally {
       const next = new Set(this.releasing);
       next.delete(key);

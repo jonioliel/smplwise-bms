@@ -371,9 +371,15 @@ def action_error(reply: dict[str, Any], outcome: str) -> ApiError:
         reason = NOT_SENT_REASONS.get(str(state), "WisKey אינו זמין")
         return ApiError(503, "intercom_unavailable", f"הפקודה לא נשלחה: {reason}.", details=details)
     if outcome == "unknown":
-        return ApiError(504, "intercom_outcome_unknown", "הפקודה נשלחה אך לא התקבלה תשובה מ־WisKey. ייתכן שבוצעה וייתכן שלא - בדקו במצלמה או במקום לפני שמנסים שוב.", details=details)
+        if code in ("timeout", "invalid_response") or state == "ha_unavailable":
+            said = "הפקודה נשלחה אך לא התקבלה מ־WisKey תשובה ברורה"
+        else:  # WisKey answered with a failure that can come after the command reached the device (release_unconfirmed ...)
+            said = f"WisKey לא אישר שהפקודה בוצעה ({code})"
+        return ApiError(504, "intercom_outcome_unknown", f"{said}. ייתכן שבוצעה וייתכן שלא - בדקו במצלמה או במקום לפני שמנסים שוב.", details=details)
     if code == RATE_LIMITED:
         return ApiError(429, "intercom_rate_limited", "WisKey הגביל את קצב הפקודות ודחה את הפקודה. היא לא בוצעה - נסו שוב בעוד כמה שניות.", retryable=True, details=details)
+    if code == "invalid_fields":
+        return ApiError(422, "intercom_invalid_request", "WisKey דחה את פרמטרי הפקודה, והיא לא בוצעה.", details=details)
     return ApiError(502, "intercom_action_refused", f"WisKey דחה את הפקודה ({code}). לפי WisKey היא לא בוצעה.", details=details)
 
 
@@ -580,6 +586,9 @@ class IntercomSync:
             "last_error": STATE.last_error if configured else "ha_not_configured",
             "overview": overview,
             "sync": STATE.as_dict(),
+            # the server's clock (epoch ms): the UI derives its physical commands' `expires_at` from it, not from the
+            # device's own clock, which may be minutes off (T054 final review S-3)
+            "server_time_ms": int(time.time() * 1000),
         }
 
     def command(
@@ -700,13 +709,13 @@ class IntercomSync:
         except _Expired:
             reply.update(state="error", last_error="expired")
             outcome = "not_sent"
-        except intercom_client.UnclearAnswer:
-            reply.update(state="error", last_error="invalid_response")
+        except intercom_client.UnclearAnswer as exc:
+            reply.update(state="error", last_error=exc.code)  # outcome stays "unknown"
         except IntercomError as exc:
-            if exc.code in REQUEST_ERRORS:
+            if exc.code in REQUEST_ERRORS and lane != "action":
                 status, code, message = REQUEST_ERRORS[exc.code]
-                raise ApiError(status, code, message, details={"wiskey_code": exc.code}) from exc  # an action reads it as `refused`
-            outcome = "refused"
+                raise ApiError(status, code, message, details={"wiskey_code": exc.code}) from exc
+            outcome = "refused"  # for an action, only a pre-device code gets here (intercom_client.PRE_DEVICE)
             if exc.code == "unauthorized":
                 reply.update(state="forbidden", last_error=exc.code)
             elif exc.not_installed:
@@ -809,7 +818,8 @@ class IntercomSync:
         call = self._call
         if call is None or STATE.state != "ready":
             raise _NotReady()
-        if not_after is not None and datetime.datetime.now(datetime.timezone.utc) > not_after:
+        # `>=`: Windows ticks the wall clock in ~15.6 ms steps, so "now" can EQUAL a deadline that has just passed
+        if not_after is not None and datetime.datetime.now(datetime.timezone.utc) >= not_after:
             raise _Expired()
         return await send(call)
 

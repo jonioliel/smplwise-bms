@@ -23,7 +23,8 @@ Control API (SW_WISKEY_CONTROL_PORT, default SW_PORT + 10, 127.0.0.1 only), JSON
     POST /reset                         stations and modes back to the table above; the sent log is cleared
     POST /station {id, call_state}      set a station's call state and push `refresh`
     POST /mode {unlock}                 how stations/test_unlock answers: "accept" ({accepted: true}, the default) or
-                                        "unexpected" (success: true with a result of an unexpected shape)
+                                        "unexpected" (success: true with a result of an unexpected shape) or
+                                        "unconfirmed" (WisKey's `release_unconfirmed`: the door may have opened)
     GET  /sent                          every hikvision_intercom/* frame the fake received, in order
 """
 from __future__ import annotations
@@ -157,7 +158,10 @@ class FakeHa:
                 self.wiskey_sub = msg["id"]
                 self.push(ok(msg))
             elif kind == "hikvision_intercom/stations/test_unlock":
-                self.push(ok(msg, {"accepted": True} if WORLD.unlock_mode == "accept" else {"queued": "maybe"}))
+                if WORLD.unlock_mode == "unconfirmed":
+                    self.push(fail(msg, "release_unconfirmed"))
+                else:
+                    self.push(ok(msg, {"accepted": True} if WORLD.unlock_mode == "accept" else {"queued": "maybe"}))
             elif kind == "hikvision_intercom/media/signal":
                 s = by_id.get(msg.get("station_id"))
                 want = "ringing" if msg.get("command") in ("answer", "reject") else "in_call"
@@ -228,8 +232,8 @@ class Control(BaseHTTPRequestHandler):
             WORLD.push_refresh()
             return self._json(200, {"ok": True})
         if self.path == "/mode":
-            if body.get("unlock") not in ("accept", "unexpected"):
-                return self._json(422, {"error": "unlock must be accept or unexpected"})
+            if body.get("unlock") not in ("accept", "unexpected", "unconfirmed"):
+                return self._json(422, {"error": "unlock must be accept, unexpected or unconfirmed"})
             with WORLD.lock:
                 WORLD.unlock_mode = body["unlock"]
             return self._json(200, {"ok": True})

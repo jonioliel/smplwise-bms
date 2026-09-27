@@ -123,21 +123,59 @@ async def users_get(call: Call, user_id: str) -> dict[str, Any]:
 
 # ---------------------------------------------------------------- physical actions (CR-005 phase 3)
 
+# Error codes that WisKey (or Home Assistant in front of it) returns BEFORE a physical command could reach the device:
+# only these are a refusal ("not carried out"). WISKEY_SOURCE_EXTRACTION.md §0.3 handler pipeline: authorization
+# (`unauthorized`), schema (`invalid_fields`), contract (`api_incompatible`), size (`request_too_large`) and the
+# AdminLimiter (`rate_limited`) all run before dispatch; HA answers `unknown_command` for a command it does not know.
+PRE_DISPATCH = frozenset({"unauthorized", "invalid_fields", "api_incompatible", "request_too_large", "rate_limited", "unknown_command"})
+PRE_DEVICE: dict[str, frozenset[str]] = {
+    # websocket.py:907-934 + runtime.py:72-121: `station_offline` (entry / coordinator check), `connection_closed`
+    # (runtime already closed), `lock_not_managed`, `release_in_progress` (this relay already unlocking) - all before
+    # client.async_unlock. NOT here: `release_unconfirmed` (the device call errored - the door may have opened - or the
+    # runtime closed AFTER a successful open), `action_failed` (any other exception, anywhere), and the client's 1 s
+    # per-door debounce, which has no code of its own (a HikvisionBusyError, reported as `release_unconfirmed`).
+    "stations/test_unlock": frozenset({"station_offline", "connection_closed", "lock_not_managed", "release_in_progress"}),
+    # health_api.py:20-27, 52-81: `station_unloaded` (station / entry lookup) and `device_busy` (a signal already running
+    # for the station) come before any device call. NOT here: `device_unavailable` - ANY HikvisionError, including a
+    # failure of the callSignal PUT itself after it may have reached the device.
+    "media/signal": frozenset({"station_unloaded", "device_busy"}),
+    # audio_tts.py:272-333 start errors, all raised before playback starts: invalid message, engine not listed, station
+    # not loaded, audio channel busy.
+    "tts/start": frozenset({"tts_invalid_message", "tts_engine_unavailable", "station_unloaded", "audio_busy"}),
+}
+
+
+def refusal_is_pre_device(command: str, code: str) -> bool:
+    return code in PRE_DISPATCH or code in PRE_DEVICE.get(command, frozenset())
+
+
 def _action_result(frame: dict[str, Any], command: str) -> Any:
-    """A physical command's answer. Only WisKey's own `success: false` is a refusal (IntercomError). Once WisKey said
-    `success: true` the command WAS carried out as far as WisKey knows, so its result is returned as it came, whatever
-    its shape: judging the shape is the caller's projection, and a shape it does not understand must read as "outcome
-    unknown", never as "refused" (T054 review B2)."""
+    """A physical command's answer (T054 review B2 / final round B-1). Once WisKey said `success: true` the command WAS
+    carried out as far as WisKey knows, so its result is returned as it came, whatever its shape (the caller's
+    projection judges it; a shape it does not understand reads "outcome unknown"). A `success: false` is a refusal
+    (IntercomError) ONLY when its code is on the command's pre-device allow-list above; every other code - including
+    `release_unconfirmed`, `action_failed`, `device_unavailable`, Home Assistant's own errors and any code this list
+    does not know - may have come after the command reached the device, so it is UnclearAnswer: outcome unknown. So is
+    a frame that is neither success nor failure. The allow-list fails toward "unknown", never toward "refused"."""
     if frame.get("success") is True:
         return frame.get("result")
     if frame.get("success") is False:
-        return _result(frame, command)  # raises with WisKey's own error code: a genuine refusal
-    raise UnclearAnswer(command)  # neither an acceptance nor a refusal: the outcome is unknown
+        error = frame.get("error") if isinstance(frame.get("error"), dict) else {}
+        code = str(error.get("code") or "")
+        if code and refusal_is_pre_device(command, code):
+            raise IntercomError(code, command)  # a genuine refusal: nothing reached the device
+        raise UnclearAnswer(command, code or "action_failed")
+    raise UnclearAnswer(command, "invalid_response")  # neither an acceptance nor a refusal
 
 
 class UnclearAnswer(Exception):
-    """A physical command got an answer that is neither `success: true` nor `success: false`: nothing can be said
-    about whether it was carried out."""
+    """A physical command's answer that does not say whether it was carried out: a failure code that can come after the
+    command reached the device, or a frame that is neither success nor failure. `code` is what WisKey / HA sent."""
+
+    def __init__(self, command: str, code: str) -> None:
+        super().__init__(f"{command}: {code}")
+        self.command = command
+        self.code = code
 
 async def release_door(call: Call, station_id: str, lock: int) -> dict[str, Any]:  # not `test_unlock`: pytest collects test_*
     """`hikvision_intercom/stations/test_unlock {station_id, lock, api_contract}` - one momentary release of the

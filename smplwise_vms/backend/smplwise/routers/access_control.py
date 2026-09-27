@@ -25,7 +25,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Literal
 
-from fastapi import APIRouter, Body, Depends, Path, Query, Request, WebSocket
+from fastapi import APIRouter, Depends, Path, Query, Request, WebSocket
 from pydantic import BaseModel, Field, StrictInt, ValidationError
 from starlette.concurrency import run_in_threadpool
 
@@ -45,7 +45,7 @@ READ = "access.read"
 RELEASE = "access.release"  # every PHYSICAL WisKey command; role grants: see the note at routers/access.py PERMISSION_LABELS
 RECHECK_S = 60
 MAX_PAGE = 200  # WisKey's own cap for events/list and users/query
-STATION_ID = Path(min_length=1, max_length=128)
+MAX_STATION_ID = 128
 
 
 def _reader(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
@@ -175,6 +175,7 @@ EXPIRY_MAX_S = 60.0
 SEND_WITHIN_S = 15.0
 DEDUPE_WINDOW_S = 600.0
 UNKNOWN_HOLD_S = 10.0  # a relay stays blocked this long after a release with an unknown outcome settled (S1)
+CALL_LIMIT_S = 60.0  # ha_client's own per-call limit: WisKey's answer to a sent command cannot come later than this
 GUARD_MAX_S = 90.0  # safety net only: a relay entry never settled is free again after this long (ha_client gives up at 60 s)
 
 
@@ -239,6 +240,18 @@ class _RelayGuard:
             if entry.unknown:
                 entry.hold_until = max(entry.hold_until, time.monotonic() + UNKNOWN_HOLD_S)
 
+    def remaining(self, key: tuple[str, int]) -> float:
+        """An upper bound, in seconds, on how long this relay stays blocked: the rest of the hold when the call already
+        settled, else the rest of ha_client's own call limit plus the hold."""
+        now = time.monotonic()
+        with self._lock:
+            held = self._relays.get(key)
+            if held is None or now - held.since >= GUARD_MAX_S:
+                return 0.0
+            if held.settled:
+                return max(0.0, held.hold_until - now)
+            return max(0.0, CALL_LIMIT_S - (now - held.since)) + (UNKNOWN_HOLD_S if held.unknown else 0.0)
+
     def mark_unknown(self, entry: _Relay) -> None:
         with self._lock:
             entry.unknown = True
@@ -293,9 +306,23 @@ class _Action:
             log.exception("audit: the outcome (%s) of %s command %s could not be recorded; its attempt row stands", outcome, self.action, self.details.get("command_id"))
 
 
-def _parse(act: _Action, model: type[BaseModel], raw: Any) -> Any:
+async def _raw_body(request: Request) -> bytes:
+    """The request body, unparsed. Declared AFTER the permission dependency, so a caller without access.release gets
+    403 whatever they sent, and a body that is not JSON is an audited refusal (`_parse`), not FastAPI's bare 422."""
+    return await request.body()
+
+
+def _parse(act: _Action, model: type[BaseModel], raw: bytes) -> Any:
+    """Validate the station id and the body; every failure is an audited refusal (nothing is sent)."""
+    if not 1 <= len(act.station_id) <= MAX_STATION_ID:
+        act.station_id = act.station_id[:MAX_STATION_ID]  # the audit row keeps a bounded id
+        raise act.refuse(ApiError(422, "validation", "מזהה העמדה אינו תקין.", details={"fields": ["station_id"]}))
     try:
-        return model.model_validate(raw if raw is not None else {})
+        data = json.loads(raw) if raw.strip() else {}
+    except ValueError:
+        raise act.refuse(ApiError(422, "validation", "גוף הבקשה אינו JSON תקין.", details={"fields": ["body"]})) from None
+    try:
+        return model.model_validate(data)
     except ValidationError as exc:
         fields = sorted({".".join(str(p) for p in err["loc"]) or "body" for err in exc.errors()})
         raise act.refuse(ApiError(422, "validation", "הבקשה אינה תקינה: " + ", ".join(fields), details={"fields": fields})) from None
@@ -376,7 +403,7 @@ def _perform(
 
 
 @router.post("/intercom/stations/{station_id}/release")
-def release(request: Request, raw: Any = Body(None), principal: Principal = Depends(_releaser), conn: sqlite3.Connection = Depends(get_conn), station_id: str = STATION_ID) -> dict[str, Any]:
+def release(request: Request, station_id: str, principal: Principal = Depends(_releaser), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
     """Release a station's door relay once (WisKey `stations/test_unlock`). Body: `{lock?, confirmed, client_request_id,
     expires_at}`; `confirmed: true` is sent only by the UI's confirmation dialog. The reply's `release.accepted` means
     WisKey ACCEPTED the command; it does not mean the door moved (the device's own relay time applies, and WisKey
@@ -410,15 +437,21 @@ def release(request: Request, raw: Any = Body(None), principal: Principal = Depe
         raise act.refuse(ApiError(409, "confirmation_required", "שחרור דלת דורש אישור מפורש."))
     entry = RELAYS.acquire((station_id, lock))
     if entry is None:
-        raise act.refuse(ApiError(409, "intercom_release_in_progress", "שחרור קודם של הדלת הזו עדיין לא הוכרע (ממתין לתשובה, או שתוצאתו לא ידועה). המתינו כמה שניות ובדקו במצלמה לפני שמנסים שוב."))
-    reply = _perform(act, "release", lambda call: intercom_client.release_door(call, station_id, lock), intercom_sync.project_release, not_after,
-                     on_settled=lambda: RELAYS.settle(entry), on_unknown=lambda: RELAYS.mark_unknown(entry))
+        wait = RELAYS.remaining((station_id, lock))
+        raise act.refuse(ApiError(409, "intercom_release_in_progress", f"שחרור קודם של הדלת הזו עדיין לא הוכרע (ממתין לתשובה, או שתוצאתו לא ידועה). המתינו עד {int(wait) + 1} שניות ובדקו במצלמה לפני שמנסים שוב.", details={"retry_after_s": round(wait, 1)}))
+    try:
+        reply = _perform(act, "release", lambda call: intercom_client.release_door(call, station_id, lock), intercom_sync.project_release, not_after,
+                         on_settled=lambda: RELAYS.settle(entry), on_unknown=lambda: RELAYS.mark_unknown(entry))
+    except ApiError as exc:
+        if exc.details.get("outcome") == "unknown":
+            exc.details["retry_after_s"] = round(RELAYS.remaining((station_id, lock)), 1)  # the UI holds the button this long
+        raise
     reply["note"] = "WisKey קיבל את הפקודה. זה אינו אישור שהדלת נפתחה בפועל."
     return reply
 
 
 @router.post("/intercom/stations/{station_id}/call")
-def call_signal(request: Request, raw: Any = Body(None), principal: Principal = Depends(_releaser), conn: sqlite3.Connection = Depends(get_conn), station_id: str = STATION_ID) -> dict[str, Any]:
+def call_signal(request: Request, station_id: str, principal: Principal = Depends(_releaser), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
     """Answer / reject a ringing call or hang up a call in progress (WisKey `media/signal`). Body: `{command,
     client_request_id, expires_at}`. WisKey checks the call state on the device itself and refuses a mismatch
     (`device_unavailable`), so SMPLWISE does not second-guess it from its own copy, which can lag a ring by a moment.
@@ -443,7 +476,7 @@ def tts_engines(request: Request, principal: Principal = Depends(_releaser), con
 
 
 @router.post("/intercom/stations/{station_id}/tts")
-def tts_speak(request: Request, raw: Any = Body(None), principal: Principal = Depends(_releaser), conn: sqlite3.Connection = Depends(get_conn), station_id: str = STATION_ID) -> dict[str, Any]:
+def tts_speak(request: Request, station_id: str, principal: Principal = Depends(_releaser), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
     """Speak `message` through the station's speaker (WisKey `tts/start`). Body: `{engine_id, language, message,
     client_request_id, expires_at}`. The text goes to the Home Assistant TTS engine `engine_id` - which may be a cloud
     provider, so the text can leave the premises - and is recorded, as spoken, in SMPLWISE's audit log (refused
