@@ -619,3 +619,250 @@ def test_a_socket_failure_during_the_ha_state_probe_is_ha_unavailable(feed):
     wait_for(lambda: intercom_sync.STATE.state == "ha_unavailable")
     body = TestClient(app).get("/api/v1/intercom/overview").json()
     assert body["state"] == "ha_unavailable" and body["last_error"] == "ConnectionError"
+
+
+# ---------------------------------------------------------------- phase 1b: activity log and people directory
+
+# one `events/list` row as event_manager.py builds it (WISKEY_SOURCE_EXTRACTION.md, Module events: row + evidence + portrait)
+EVENT_ROW = {
+    "id": "ev-2", "station_id": "entry-a", "timestamp": "2026-09-27T07:59:00+03:00", "received_at": "2026-09-27T04:59:01+00:00",
+    "time_source": "device", "person_name": "Dana", "employee_no": "1001", "door": 1, "api_door": 1, "authentication": "card",
+    "result": "granted", "event_type": "access_granted", "card": "•••• 1234", "recovered": False, "major": 5, "minor": 1, "source": "stream",
+    "evidence": {"identity_state": "identified", "origin": "live", "arrival_delay_seconds": 1, "time_source": "device", "source": "stream", "live_automation": True},
+    "portrait": {"user_id": "u1", "revision": 1},
+}
+EVENTS_PAGE = {
+    "records": [EVENT_ROW, {**EVENT_ROW, "id": "ev-1", "person_name": None, "employee_no": None, "result": "denied", "event_type": "access_denied", "card": "••••", "portrait": None}],
+    "next": "ev-1", "retention_days": 30, "capacity": 5000, "membership_basis": None, "storage_failed": False,
+    "stations": {"entry-a": {"stream": "connected", "history": "recovered", "reconnects": 0, "last_frame_at": "2026-09-27T05:00:00+00:00", "telemetry": {"seen": 3}, "recovered_until": None}},
+}
+# WisKey's full public Person (ManagedUser.public() + timing_readbacks), PII included
+PERSON = {
+    "id": "u1", "employee_no": "1001", "display_name": "Dana", "phone": "+972500000000", "active": True, "user_type": "normal",
+    "valid_from": None, "valid_until": "2027-01-01T00:00:00+00:00", "revision": 4, "created_at": "2026-01-01T00:00:00+00:00", "updated_at": "2026-09-01T00:00:00+00:00",
+    "identity_locked": False, "profile": {"department": "Engineering", "id_number": "123456789"}, "group_ids": ["staff"],
+    "permission_overrides": {"events": "deny"}, "photo_configured": True, "pin_configured": True,
+    "cards": [{"id": "c1", "masked_number": "•••• 1234", "label": "Main", "card_type": "normalCard", "enabled": True}],
+    "assignments": {
+        "entry-b": {"config_entry_id": "entry-b", "enabled": False, "allowed_locks": [1], "schedule_template": None, "desired_revision": 2, "applied_revision": 1, "sync_state": "error", "last_sync_at": None, "last_error": "device_unavailable"},
+        "entry-a": {"config_entry_id": "entry-a", "enabled": True, "allowed_locks": [2, 1], "schedule_template": None, "desired_revision": 4, "applied_revision": 4, "sync_state": "synced", "last_sync_at": "2026-09-01T00:00:00+00:00", "last_error": None},
+    },
+    "access_timing_draft": None, "access_timing_policy": {"mode": "ha", "schedule": {"mode": "weekly", "timezone": "Asia/Jerusalem", "days": ["sun"], "dates": [], "periods": []}, "bindings": {}},
+    "timing_readbacks": {"entry-a": {"mode": "ha", "valid_from": None, "valid_until": None, "revision": 4, "checked_at": "2026-09-01T00:00:00+00:00"}},
+}
+PEOPLE_PAGE = {"records": [PERSON], "total": 1, "total_all": 12, "offset": 0, "limit": 50, "next_offset": None, "previous_offset": None, "snapshot": "abc123", "stale": False}
+PROJECTED_PERSON = {
+    "id": "u1", "employee_no": "1001", "display_name": "Dana", "active": True, "valid_from": None, "valid_until": "2027-01-01T00:00:00+00:00",
+    "revision": 4, "group_ids": ["staff"],
+    "stations": [
+        {"station_id": "entry-a", "enabled": True, "doors": [1, 2], "sync_state": "synced"},
+        {"station_id": "entry-b", "enabled": False, "doors": [1], "sync_state": "error"},
+    ],
+}
+# must never reach the browser from the people / activity endpoints
+PRIVATE = ("+972500000000", "1234", "Engineering", "123456789", "phone", "cards", "pin_configured", "profile", "photo", "permission_overrides", "timing", "device_unavailable", "portrait", "evidence", "card")
+
+
+def ready_feed(feed, answer: Callable[[dict[str, Any]], list[Any] | None], refuse_after: int | None = None) -> tuple[Any, list[FakeHa]]:
+    """Start the feed against a healthy HA whose one-off WisKey commands are answered by `answer` (None: the default)."""
+    app, s, install = feed
+
+    def script(msg: dict[str, Any], fake: FakeHa) -> list[Any]:
+        frames = answer(msg)
+        return frames if frames is not None else normal(msg, fake)
+
+    fakes = install(script, refuse_after=refuse_after)
+    intercom_sync.SYNC.start(s)
+    wait_for(lambda: intercom_sync.STATE.state == "ready")
+    return app, fakes
+
+
+def sent(fakes: list[FakeHa], kind: str) -> list[dict[str, Any]]:
+    return [m for f in fakes for m in f.sent if m.get("type") == f"hikvision_intercom/{kind}"]
+
+
+def test_activity_and_people_require_access_read(settings):
+    """Same gate as the overview (`access.read` at installation scope), checked before the query is validated."""
+    intercom_sync.SYNC.reset()
+    c = TestClient(create_app(settings))
+    bind(c, settings, "wall", "kiosk", "installation", "*")
+    bind(c, settings, "vera", "viewer", "installation", "*")
+    for path in ("/api/v1/intercom/events", "/api/v1/intercom/people", "/api/v1/intercom/people/u1"):
+        r = c.get(path, headers=as_user("wall"))
+        assert r.status_code == 403 and r.json()["code"] == "forbidden", path
+        assert c.get(path, headers=as_user("nobody")).status_code == 403, f"{path}: no binding at all"
+        assert c.get(path, headers=as_user("vera")).status_code == 200, path
+    r = c.get("/api/v1/intercom/events?limit=999&door=7", headers=as_user("wall"))
+    assert r.status_code == 403, "no permission: refused before the parameters are even looked at"
+    assert c.get("/api/v1/intercom/events?limit=999", headers=as_user("vera")).status_code == 422
+
+
+def test_activity_and_people_without_home_assistant(settings):
+    """The dev / demo backend has no Home Assistant: the new endpoints report the same honest state, never a 5xx."""
+    intercom_sync.SYNC.reset()
+    intercom_sync.SYNC.start(settings)
+    c = TestClient(create_app(settings))
+    for path, key in (("/api/v1/intercom/events", "events"), ("/api/v1/intercom/people?query=dana", "people"), ("/api/v1/intercom/people/u1", "person")):
+        r = c.get(path)
+        assert r.status_code == 200, path
+        body = r.json()
+        assert body["state"] == "ha_not_configured" and body["configured"] is False and body["last_error"] == "ha_not_configured", path
+        assert body[key] is None and body["fetched_at"] is None, path
+    intercom_sync.SYNC.reset()
+
+
+def test_events_list_round_trip_over_the_feed_session(feed):
+    app, fakes = ready_feed(feed, lambda msg: [ok(msg, copy.deepcopy(EVENTS_PAGE))] if msg["type"] == "hikvision_intercom/events/list" else None)
+    c = TestClient(app)
+    body = c.get("/api/v1/intercom/events", params={
+        "station_id": "entry-a", "person": "dana", "result": "granted", "authentication": "card", "door": 1,
+        "start": "2026-09-26T00:00:00Z", "end": "2026-09-27T00:00:00+03:00", "limit": 20, "before": "ev-9",
+        "current_group": "staff", "current_profile": ["department=Engineering"],
+    }).json()
+    assert len(fakes) == 1, "the one-off read rode the feed's own connection; no second HA socket"
+    [msg] = sent(fakes, "events/list")
+    assert set(msg) == {"id", "type", "filters"}
+    assert msg["filters"] == {
+        "station_id": "entry-a", "person": "dana", "result": "granted", "authentication": "card", "door": 1,
+        "start": "2026-09-26T00:00:00Z", "end": "2026-09-27T00:00:00+03:00", "limit": 20, "before": "ev-9",
+        "current_group": "staff", "current_profile": {"department": "Engineering"},
+    }
+    assert body["state"] == "ready" and body["configured"] is True and body["last_error"] is None and body["fetched_at"]
+    page = body["events"]
+    assert page["next"] == "ev-1" and page["retention_days"] == 30 and page["capacity"] == 5000
+    assert page["storage_failed"] is False and page["membership_basis"] is None
+    assert page["stations"] == {"entry-a": {"stream": "connected", "history": "recovered"}}
+    assert page["records"][0] == {
+        "id": "ev-2", "station_id": "entry-a", "timestamp": "2026-09-27T07:59:00+03:00", "received_at": "2026-09-27T04:59:01+00:00",
+        "time_source": "device", "person_name": "Dana", "employee_no": "1001", "authentication": "card", "result": "granted",
+        "event_type": "access_granted", "recovered": False, "door": 1,
+    }
+    assert page["records"][1]["person_name"] is None and page["records"][1]["result"] == "denied"
+    text = json.dumps(page)
+    for private in ("1234", "portrait", "evidence", '"card":', "major", "api_door", "telemetry"):
+        assert private not in text, f"{private} must not leave the feed"
+
+    # defaults: only WisKey's page size; and bad parameters never reach WisKey
+    c.get("/api/v1/intercom/events")
+    assert sent(fakes, "events/list")[-1]["filters"] == {"limit": 100}
+    for bad in ({"limit": 201}, {"door": 3}, {"result": "maybe"}, {"start": "2026-09-26T00:00:00"}, {"start": "2026-09-27T00:00:00Z", "end": "2026-09-26T00:00:00Z"}, {"current_profile": "no-equals"}):
+        assert c.get("/api/v1/intercom/events", params=bad).status_code == 422, bad
+    assert len(sent(fakes, "events/list")) == 2
+    assert intercom_sync.STATE.state == "ready"
+
+
+def test_people_directory_strips_personal_data(feed):
+    """`users/query` records are WisKey's full Person (phone, cards, PIN flag, profile values ...): only the projection a
+    read-only list needs is served."""
+    app, fakes = ready_feed(feed, lambda msg: [ok(msg, copy.deepcopy(PEOPLE_PAGE))] if msg["type"] == "hikvision_intercom/users/query" else None)
+    c = TestClient(app)
+    body = c.get("/api/v1/intercom/people", params={"query": "dana", "state": "active", "sort": "name", "offset": 0, "limit": 50}).json()
+    assert len(fakes) == 1
+    [msg] = sent(fakes, "users/query")
+    assert msg == {"id": msg["id"], "type": "hikvision_intercom/users/query", "query": "dana", "filters": {"state": "active", "sort": "name"}, "offset": 0, "limit": 50, "snapshot": ""}
+    assert body["state"] == "ready" and body["fetched_at"]
+    page = body["people"]
+    assert page == {"records": [PROJECTED_PERSON], "total": 1, "total_all": 12, "offset": 0, "limit": 50, "next_offset": None, "previous_offset": None, "snapshot": "abc123", "stale": False}
+    text = json.dumps(body)
+    for private in PRIVATE:
+        assert private not in text, f"{private} must not leave the feed"
+
+    # the snapshot goes back to WisKey for the next page; the defaults are WisKey's own (employee sort, no filters)
+    c.get("/api/v1/intercom/people", params={"offset": 50, "snapshot": "abc123", "station": "entry-a", "rights": "assigned"})
+    last = sent(fakes, "users/query")[-1]
+    assert (last["query"], last["offset"], last["limit"], last["snapshot"]) == ("", 50, 50, "abc123")
+    assert last["filters"] == {"station": "entry-a", "rights": "assigned", "sort": "employee"}
+    for bad in ({"limit": 201}, {"offset": -1}, {"credential": "pin", "state": "gone"}, {"query": "x" * 161}):
+        assert c.get("/api/v1/intercom/people", params=bad).status_code == 422, bad
+    c.get("/api/v1/intercom/people", params={"credential": "pin"})
+    assert "credential" not in sent(fakes, "users/query")[-1]["filters"], "the PIN / card filter is not offered"
+
+
+def test_person_detail_and_unknown_person(feed):
+    def answer(msg: dict[str, Any]) -> list[Any] | None:
+        if msg["type"] == "hikvision_intercom/users/get":
+            return [ok(msg, copy.deepcopy(PERSON))] if msg["user_id"] == "u1" else [fail(msg, "user_not_found")]
+        return None
+
+    app, fakes = ready_feed(feed, answer)
+    c = TestClient(app)
+    body = c.get("/api/v1/intercom/people/u1").json()
+    assert body["state"] == "ready" and body["person"] == PROJECTED_PERSON
+    for private in PRIVATE:
+        assert private not in json.dumps(body), f"{private} must not leave the feed"
+    assert sent(fakes, "users/get")[0] == {"id": sent(fakes, "users/get")[0]["id"], "type": "hikvision_intercom/users/get", "user_id": "u1"}
+    r = c.get("/api/v1/intercom/people/u404")
+    assert r.status_code == 404 and r.json()["code"] == "intercom_person_not_found"
+    assert intercom_sync.STATE.state == "ready" and len(fakes) == 1, "a request-level refusal leaves the feed alone"
+
+
+def test_one_off_refusals_do_not_change_the_feed_state(feed):
+    """WisKey may refuse the add-on's user a single area (e.g. no `events:view` while `overview` works), an older WisKey
+    has no `users/query`, and its limiter can answer `rate_limited`: each is reported for that request only."""
+    answers = {"events/list": "unauthorized", "users/query": "unknown_command", "users/get": "rate_limited"}
+
+    def answer(msg: dict[str, Any]) -> list[Any] | None:
+        command = msg["type"].removeprefix("hikvision_intercom/")
+        return [fail(msg, answers[command])] if command in answers else None
+
+    app, fakes = ready_feed(feed, answer)
+    c = TestClient(app)
+    for path, key, state, code in (
+        ("/api/v1/intercom/events", "events", "forbidden", "unauthorized"),
+        ("/api/v1/intercom/people", "people", "unsupported", "unknown_command"),
+        ("/api/v1/intercom/people/u1", "person", "error", "rate_limited"),
+    ):
+        body = c.get(path).json()
+        assert (body["state"], body["last_error"], body[key]) == (state, code, None), path
+        assert body["sync"]["state"] == "ready", "the feed itself is still fine"
+    assert intercom_sync.STATE.state == "ready" and len(fakes) == 1
+    assert c.get("/api/v1/intercom/overview").json()["state"] == "ready"
+
+
+def test_degraded_feed_states_apply_to_the_new_endpoints(feed):
+    """The new endpoints reuse the feed's state machine: WisKey absent means `not_installed` and nothing is sent."""
+    app, s, install = feed
+
+    def script(msg: dict[str, Any], _fake: FakeHa) -> list[Any]:
+        return [ha_config(msg)] if msg["type"] == "get_config" else [fail(msg, "unknown_command")]
+
+    fakes = install(script)
+    intercom_sync.SYNC.start(s)
+    wait_for(lambda: intercom_sync.STATE.state == "not_installed")
+    c = TestClient(app)
+    for path, key in (("/api/v1/intercom/events", "events"), ("/api/v1/intercom/people", "people"), ("/api/v1/intercom/people/u1", "person")):
+        body = c.get(path).json()
+        assert body["state"] == "not_installed" and body["configured"] is True and body["last_error"] == "unknown_command", path
+        assert body[key] is None and body["fetched_at"] is None, path
+    assert fakes[0].types() == ["auth", "hikvision_intercom/overview", "get_config"], "no one-off command is attempted"
+    assert len(fakes) == 1, "and no connection is opened for it"
+
+
+def test_ha_unavailable_applies_to_the_new_endpoints(feed):
+    """After a disconnect the new endpoints report `ha_unavailable` from the feed and open no connection of their own."""
+    app, s, install = feed
+
+    def script(msg: dict[str, Any], fake: FakeHa) -> list[Any]:
+        frames = normal(msg, fake)
+        return frames + [CLOSE] if msg["type"] == "hikvision_intercom/subscribe" else frames
+
+    fakes = install(script, refuse_after=1)
+    intercom_sync.SYNC.start(s)
+    wait_for(lambda: install.refused["n"] >= 2 and intercom_sync.STATE.state == "ha_unavailable")
+    intercom_sync.SYNC.shutdown()  # stop the feed's own retries, so any further connect attempt would be the request's
+    intercom_sync.SYNC.thread.join(timeout=5)
+    refused = install.refused["n"]
+    body = TestClient(app).get("/api/v1/intercom/people", params={"query": "dana"}).json()
+    assert body["state"] == "ha_unavailable" and body["people"] is None and body["last_error"] == "OSError"
+    assert len(fakes) == 1 and not sent(fakes, "users/query")
+    assert install.refused["n"] == refused, "the request did not try to open a connection of its own"
+
+
+def test_session_lost_mid_request_is_ha_unavailable(feed):
+    """HA drops the socket while a one-off read is waiting: that request reports `ha_unavailable` (the pending call is
+    cancelled with the session) and the feed's own loop takes it from there."""
+    app, fakes = ready_feed(feed, lambda msg: [CLOSE] if msg["type"] == "hikvision_intercom/events/list" else None, refuse_after=1)
+    body = TestClient(app).get("/api/v1/intercom/events").json()
+    assert body["state"] == "ha_unavailable" and body["events"] is None
+    assert len(sent(fakes, "events/list")) == 1
+    wait_for(lambda: intercom_sync.STATE.state == "ha_unavailable")

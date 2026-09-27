@@ -25,7 +25,13 @@ serving the last-known copy as not fresh.
 Honest state: without Home Assistant access, without the WisKey integration, or when WisKey refuses the add-on's user,
 the state says so and no station data is served. Only the projection below is ever kept in memory - WisKey's people
 list (cards, PIN flags, phones) is dropped the moment the reply arrives; that belongs to a later, separately gated
-screen."""
+screen.
+
+One-off reads (phase 1b: `events/list`, `users/query`, `users/get`) go through `IntercomSync.command`: the request
+thread schedules the command on this feed's own event loop and it is sent over the SAME live session (`self._call`),
+never over a new Home Assistant connection. It runs only while the feed is `ready`; otherwise the reply carries the
+feed's own state (`ha_not_configured`, `connecting`, `ha_unavailable`, `not_installed`, `forbidden`, `error`) and no
+data. Nothing from these replies is cached, and only their projections below are returned."""
 from __future__ import annotations
 
 import asyncio
@@ -34,7 +40,7 @@ import queue
 import threading
 import time
 from collections import deque
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 from ..config import Settings
 from ..db import now_iso
@@ -53,6 +59,23 @@ ABSENT_AFTER_READY = 3  # after a ready session, `unknown_command` with HA RUNNI
 LOADING = "wiskey_loading"  # IntercomError code: HA does not know WisKey's commands yet, but may still be loading it
 STATION_WATCH_KEYS = ("online", "ringing", "call_status")
 LAST_ACCESS_KEYS = ("timestamp", "time_source", "person_name", "employee_no", "authentication", "result", "event_type", "recovered", "door")
+# one events/list row as the activity screen shows it: the overview's last-access fields plus the row's identity and
+# arrival time. Not kept: `card` (masked last-4), `portrait`, `evidence`, `major` / `minor`, `api_door`, `source`.
+EVENT_KEYS = ("id", "station_id", "timestamp", "received_at", *LAST_ACCESS_KEYS[1:])
+# one person as the read-only people screens show them. Not kept: `phone`, `cards`, `pin_configured`, `profile`,
+# `photo_configured`, `permission_overrides`, `access_timing_*`, `timing_readbacks`, `identity_locked`, `user_type`,
+# `sync_reference`, `created_at` / `updated_at`, and each assignment's `last_error` / revisions.
+PERSON_KEYS = ("id", "employee_no", "display_name")
+PEOPLE_PAGE_KEYS = ("total", "total_all", "offset", "limit", "next_offset", "previous_offset")
+COMMAND_TIMEOUT_S = 25.0  # a one-off read waits this long for WisKey (`ha_client`'s own per-call limit is 60 s)
+# WisKey's AdminLimiter allows 8 concurrent handlers per HA user, and the feed's own overview refetch shares that user:
+# one-off reads from browsers are kept to half of it
+MAX_INFLIGHT = 4
+# request-level refusals are the caller's to fix, not a degraded feed: (HTTP status, SMPLWISE code, message)
+REQUEST_ERRORS = {
+    "user_not_found": (404, "intercom_person_not_found", "האדם לא נמצא ב־WisKey."),
+    "invalid_fields": (422, "intercom_invalid_request", "WisKey דחה את הבקשה (למשל סמן 'טען עוד' שפג תוקפו) - טענו מחדש מההתחלה."),
+}
 
 # ha_not_configured | idle | connecting | ha_unavailable | not_installed | forbidden | error | ready
 STATES = ("ha_not_configured", "idle", "connecting", "ha_unavailable", "not_installed", "forbidden", "error", "ready")
@@ -159,6 +182,63 @@ def watched_entities(raw: dict[str, Any]) -> set[str]:
     return out
 
 
+def _str(value: Any) -> str | None:
+    return value if isinstance(value, str) else None
+
+
+def project_event_page(raw: dict[str, Any]) -> dict[str, Any]:
+    """What SMPLWISE serves from one `events/list` page: the rows (EVENT_KEYS only), the cursor, the cache bounds, and
+    each station's stream / history status (so the screen can say "history incomplete")."""
+    records = [{k: r.get(k) for k in EVENT_KEYS} for r in raw.get("records") or [] if isinstance(r, dict)]
+    stations = raw.get("stations") if isinstance(raw.get("stations"), dict) else {}
+    return {
+        "records": records,
+        "next": _str(raw.get("next")),
+        "retention_days": _int(raw.get("retention_days")),
+        "capacity": _int(raw.get("capacity")),
+        "membership_basis": _str(raw.get("membership_basis")),
+        "storage_failed": bool(raw.get("storage_failed")),
+        "stations": {str(sid): {"stream": _str(st.get("stream")), "history": _str(st.get("history"))} for sid, st in stations.items() if isinstance(st, dict)},
+    }
+
+
+def project_person(raw: dict[str, Any]) -> dict[str, Any]:
+    """One WisKey person as the read-only people screens show them: identity, status, validity window, groups, and which
+    stations they are assigned to (with WisKey's sync state and door numbers). Never phones, cards, PIN flags, profile
+    values or photos - the editing phase adds what it needs deliberately."""
+    assignments = raw.get("assignments") if isinstance(raw.get("assignments"), dict) else {}
+    groups = raw.get("group_ids") if isinstance(raw.get("group_ids"), list) else []
+    return {
+        **{k: str(raw.get(k) or "") for k in PERSON_KEYS},
+        "active": bool(raw.get("active")),
+        "valid_from": _str(raw.get("valid_from")),
+        "valid_until": _str(raw.get("valid_until")),
+        "revision": _int(raw.get("revision")),
+        "group_ids": [g for g in groups if isinstance(g, str)],
+        "stations": [
+            {
+                "station_id": str(sid),
+                "enabled": bool(a.get("enabled")),
+                "doors": sorted(d for d in a.get("allowed_locks") or [] if _int(d) is not None),
+                "sync_state": _str(a.get("sync_state")),
+            }
+            for sid, a in sorted(assignments.items())
+            if isinstance(a, dict)
+        ],
+    }
+
+
+def project_people_page(raw: dict[str, Any]) -> dict[str, Any]:
+    """One `users/query` page: projected people plus WisKey's paging bookkeeping (`snapshot` / `stale` included, so the
+    next page request can pass the snapshot back)."""
+    return {
+        "records": [project_person(r) for r in raw.get("records") or [] if isinstance(r, dict)],
+        **{k: _int(raw.get(k)) for k in PEOPLE_PAGE_KEYS},
+        "snapshot": _str(raw.get("snapshot")) or "",
+        "stale": bool(raw.get("stale")),
+    }
+
+
 # ---------------------------------------------------------------- the session
 
 class IntercomSync:
@@ -175,6 +255,7 @@ class IntercomSync:
         self._fetched_mono: float | None = None
         self._event_loop: asyncio.AbstractEventLoop | None = None
         self._tasks: set[asyncio.Task[None]] = set()  # refreshes started by pushes (_kick); cancelled with the session
+        self._inflight = threading.BoundedSemaphore(MAX_INFLIGHT)  # one-off reads (command) in flight at once
         self._session_reset()
 
     def _session_reset(self) -> None:
@@ -237,6 +318,76 @@ class IntercomSync:
             "overview": overview,
             "sync": STATE.as_dict(),
         }
+
+    def command(
+        self,
+        settings: Settings,
+        key: str,
+        send: Callable[[intercom_client.Call], Awaitable[dict[str, Any]]],
+        project: Callable[[dict[str, Any]], dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Run one read-only WisKey command over the feed's live session and serve its projection under `key`:
+        `{state, configured, last_error, fetched_at, <key>, sync}`. `<key>` is null whenever the command did not run or
+        did not succeed; `state` is the feed's own state, or for this request only `forbidden` (WisKey refuses the
+        add-on's user this command), `unsupported` (this WisKey has no such command), `error` (another WisKey error,
+        `rate_limited`, `busy`, `timeout`) or `ha_unavailable` (the session went away mid-request). A request-level
+        refusal (REQUEST_ERRORS) raises an ApiError instead. The feed's state machine is never changed from here: the
+        session's own overview refetch and reconnect loop remain the only judges of the connection."""
+        configured = ha_client.configured(settings)
+        state = STATE.state if configured else "ha_not_configured"
+        if configured and state == "idle":
+            state = "connecting"
+        reply: dict[str, Any] = {"state": state, "configured": configured, "last_error": STATE.last_error if configured else "ha_not_configured", "fetched_at": None, key: None}
+        loop = self._event_loop
+        if state != "ready" or loop is None or self._call is None:
+            reply["sync"] = STATE.as_dict()
+            return reply
+        if not self._inflight.acquire(timeout=5):
+            reply.update(state="error", last_error="busy", sync=STATE.as_dict())
+            return reply
+        raw: dict[str, Any] | None = None
+        try:
+            future = asyncio.run_coroutine_threadsafe(self._one_off(send), loop)
+            try:
+                raw = future.result(timeout=COMMAND_TIMEOUT_S)
+            except TimeoutError:
+                future.cancel()
+                reply.update(state="error", last_error="timeout")
+            except IntercomError as exc:
+                if exc.code in REQUEST_ERRORS:
+                    status, code, message = REQUEST_ERRORS[exc.code]
+                    raise ApiError(status, code, message, details={"wiskey_code": exc.code}) from exc
+                if exc.code == "unauthorized":
+                    reply.update(state="forbidden", last_error=exc.code)
+                elif exc.not_installed:
+                    reply.update(state="unsupported", last_error=exc.code)
+                else:
+                    reply.update(state="error", last_error=exc.code)
+        except RuntimeError as exc:  # the session's loop closed between the check above and scheduling
+            reply.update(state="ha_unavailable", last_error=type(exc).__name__)
+        except ApiError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - socket closed / session cancelled mid-request
+            reply.update(state="ha_unavailable", last_error=type(exc).__name__)
+        finally:
+            self._inflight.release()
+        if raw is not None:
+            try:
+                reply.update(state="ready", last_error=None, fetched_at=now_iso())
+                reply[key] = project(raw)
+            except Exception:  # noqa: BLE001 - a reply of an unexpected shape is WisKey's error, not a lost connection
+                reply.update(state="error", last_error="invalid_response", fetched_at=None)
+                reply[key] = None
+        reply["sync"] = STATE.as_dict()
+        return reply
+
+    async def _one_off(self, send: Callable[[intercom_client.Call], Awaitable[dict[str, Any]]]) -> dict[str, Any]:
+        """On the feed's loop: send over the session that is live NOW (it may have ended since the request thread
+        looked), never a new connection."""
+        call = self._call
+        if call is None or STATE.state != "ready":
+            raise ConnectionError("session_ended")
+        return await send(call)
 
     def watched(self) -> bool:
         """Someone is looking at the entry center: a change-notice socket is open, or a GET arrived recently."""

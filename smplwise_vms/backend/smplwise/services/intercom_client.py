@@ -6,7 +6,9 @@ never reads or writes `.storage/hikvision_intercom.*`. Command shapes and error 
 docs/integrations/wiskey/WISKEY_SOURCE_EXTRACTION.md (§0.3 envelope, types.ts `Overview`).
 
 This module knows nothing about threads, polling or subscribers (services/intercom_sync.py owns those), so a later
-phase adds commands here without touching the connection machinery. Phase 1a: `overview` only, read-only."""
+phase adds commands here without touching the connection machinery. Phase 1a: `overview`; phase 1b adds the read-only
+`events/list`, `users/query` and `users/get` (WISKEY_SOURCE_EXTRACTION.md §X.1; WisKey's own areas `events:view` /
+`users:view`). All of them are READ commands, so no `api_contract` field is sent (§0.4)."""
 from __future__ import annotations
 
 from typing import Any, Awaitable, Callable
@@ -58,3 +60,40 @@ async def subscribe(call: Call) -> int:
     frame = await call(command_type("subscribe"))
     _result(frame, "subscribe")
     return int(frame["id"])
+
+
+async def events_list(call: Call, filters: dict[str, Any]) -> dict[str, Any]:
+    """`hikvision_intercom/events/list {filters}` - one page of WisKey's bounded event cache (5 000 records / 30 days),
+    newest first. Filter keys (EventManager.query, all optional): `station_id`, `person`, `result`, `authentication`,
+    `door` (1|2), `start` / `end` (aware ISO), `limit` (1-200, WisKey's default 100), `before` (the previous page's
+    `next` cursor), `current_group`, `current_profile` ({field_id: value}). Any other key or a bad value is
+    `invalid_fields`; None values are dropped here because WisKey type-checks every key that is present. Returns
+    `{records, next, retention_days, capacity, membership_basis, storage_failed, stations}`."""
+    body = {k: v for k, v in filters.items() if v is not None}
+    result = _result(await call(command_type("events/list"), filters=body), "events/list")
+    if not isinstance(result, dict):
+        raise IntercomError("invalid_response", "events/list")
+    return result
+
+
+async def users_query(call: Call, query: str, filters: dict[str, Any], offset: int, limit: int, snapshot: str | None) -> dict[str, Any]:
+    """`hikvision_intercom/users/query` - one page of WisKey's people directory (capability `user_directory_query`,
+    WisKey 1.6.0+). The command schema requires all five fields: `query` (<=160 chars; WisKey matches it against name,
+    employee number, phone digits and card last-4), `filters` (keys within `group`, `profile`, `station`, `rights`,
+    `state`, `credential`, `sort`), `offset` (0-10 000 000, clamped to the last page), `limit` (1-200) and `snapshot`
+    (the previous page's value, "" for none). Returns `{records: [Person], total, total_all, offset, limit,
+    next_offset, previous_offset, snapshot, stale}`; the records are WisKey's full public `Person`, PII included - the
+    caller projects them."""
+    result = _result(await call(command_type("users/query"), query=query, filters=filters, offset=offset, limit=limit, snapshot=snapshot or ""), "users/query")
+    if not isinstance(result, dict):
+        raise IntercomError("invalid_response", "users/query")
+    return result
+
+
+async def users_get(call: Call, user_id: str) -> dict[str, Any]:
+    """`hikvision_intercom/users/get {user_id}` - one person (`ManagedUser.public()`, PII included - the caller
+    projects it). An unknown id is `user_not_found`."""
+    result = _result(await call(command_type("users/get"), user_id=user_id), "users/get")
+    if not isinstance(result, dict):
+        raise IntercomError("invalid_response", "users/get")
+    return result
