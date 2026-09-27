@@ -39,7 +39,7 @@ import '../screens/styleguide-screen';
 import { onRouteChange, type RouteState, parseRoute } from '../router';
 import { KIND_ICON, KIND_LABEL, search as apiSearch, type SearchResult } from '../api/search';
 import { healthSummary, type HealthSummary } from '../api/health';
-import { NAV, GROUP_TABS, groupOf, activeTabOf, AREA_TABS, areaOf, activeAreaTab, crumbsOf, visibleTabs, visibleAreas, tabAllowed, demoRedirect, HIDDEN_HREFS, START_ROUTES, MAP_HREFS } from './nav';
+import { GROUP_TABS, groupOf, activeTabOf, AREA_TABS, areaOf, activeAreaTab, crumbsOf, visibleTabs, visibleAreas, visibleGroups, demoRedirect, HIDDEN_HREFS, START_ROUTES, MAP_HREFS } from './nav';
 import { bidi } from '../i18n/bidi';
 import { currentDesign, onDesign, resolveDesign, type DesignId } from '../api/design';
 import { t } from '../i18n/he';
@@ -988,7 +988,7 @@ export class SwApp extends LitElement {
           <img src="${base}brand/smplwise-mark.png" alt="SmplWise" />
           <span class="name">SmplWise</span>
         </div>
-        ${NAV.filter((n) => this.session.mode !== 'api' || tabAllowed(n.href, canNav)).map(
+        ${visibleGroups(this.session.mode === 'api', canNav).map(
           (n) => html`<a class=${classMap({ item: true, active: group === n.id })} href=${n.href} title=${n.label} aria-current=${group === n.id ? 'page' : 'false'}>
             <sw-icon .name=${n.icon} size=${16}></sw-icon><span>${n.label}</span>
           </a>`,
@@ -1019,7 +1019,7 @@ export class SwApp extends LitElement {
           <div class="screen">${this.session.mode === 'loading' ? nothing : this.renderScreen()}</div>`}
       </main>
       <nav class="bottom" aria-label="ניווט ראשי">
-        ${NAV.slice(0, 4).map((n) => html`<a class=${classMap({ active: group === n.id })} href=${n.href}><sw-icon .name=${n.icon} size=${20}></sw-icon>${n.label}</a>`)}
+        ${visibleGroups(this.session.mode === 'api', canNav).slice(0, 4).map((n) => html`<a class=${classMap({ active: group === n.id })} href=${n.href}><sw-icon .name=${n.icon} size=${20}></sw-icon>${n.label}</a>`)}
         <a class=${classMap({ active: group === 'settings' || group === 'playback' })} href="#/system/diagnostics"><sw-icon name="more" size=${20}></sw-icon>עוד</a>
       </nav>
     `;

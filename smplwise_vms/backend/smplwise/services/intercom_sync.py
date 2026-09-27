@@ -252,7 +252,9 @@ class IntercomSync:
         idle = not self.watched()
         self._last_view = time.monotonic()
         loop, fetched = self._event_loop, self._fetched_mono
-        if idle and loop is not None and self._call is not None and (fetched is None or time.monotonic() - fetched > POLL_S):
+        # only a ready session: during on_ready's own probe / subscribe a second overview + subscribe_entities would race it
+        ready = STATE.state == "ready" and self._call is not None
+        if idle and ready and loop is not None and (fetched is None or time.monotonic() - fetched > POLL_S):
             try:
                 loop.call_soon_threadsafe(self._kick)
             except RuntimeError:  # the session's loop is already closed
@@ -299,6 +301,7 @@ class IntercomSync:
         asyncio.create_task(watch_stop())
         while not self.stop.is_set():
             delay = backoff
+            short = False  # HA is answering but WisKey is still loading: retry soon, whatever the backoff had reached
             try:
                 await self._session(stop_evt)
                 backoff = RETRY_S
@@ -309,6 +312,7 @@ class IntercomSync:
                     # HA is (re)starting and WisKey is not loaded yet: keep the last-known copy (served as not fresh)
                     # and retry on the normal short backoff
                     self._set_state("connecting", LOADING)
+                    delay, short = RETRY_S, True
                 elif exc.not_installed or exc.code == "unauthorized":
                     self._drop()
                     self._set_state("not_installed" if exc.not_installed else "forbidden", exc.code)
@@ -331,7 +335,7 @@ class IntercomSync:
                 await asyncio.wait_for(stop_evt.wait(), timeout=delay)
             except asyncio.TimeoutError:
                 pass
-            backoff = min(RETRY_MAX_S, backoff * 2)
+            backoff = RETRY_S if short else min(RETRY_MAX_S, backoff * 2)
         STATE.connected = False
 
     async def _session(self, stop_evt: asyncio.Event) -> None:
@@ -394,14 +398,10 @@ class IntercomSync:
     async def _maybe_loading(self, call: intercom_client.Call) -> bool:
         """`unknown_command` for WisKey's `overview`: True while that may only mean "not loaded yet" (see the module
         docstring), False once it means "not installed"."""
-        try:
-            frame = await call("get_config")
-            result = frame.get("result") if frame.get("success") else None
-            running = isinstance(result, dict) and result.get("state") == "RUNNING"
-        except asyncio.CancelledError:
-            raise
-        except Exception:  # noqa: BLE001 - no answer is no proof of absence
-            running = False
+        # a socket failure here propagates: the session ends as ha_unavailable (the connection is gone), not as loading
+        frame = await call("get_config")
+        result = frame.get("result") if frame.get("success") else None
+        running = isinstance(result, dict) and result.get("state") == "RUNNING"
         if not running:
             return True
         # HA's bootstrap can reach RUNNING past a slow integration's setup: after a ready session, re-probe a few times

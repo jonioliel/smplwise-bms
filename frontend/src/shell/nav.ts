@@ -247,11 +247,25 @@ export function visibleTabs(items: TabItem[], api: boolean, can?: Can): TabItem[
 }
 
 /** The rail entries the user gets: an area stays while one of its tabs is visible (the live area always - the
- * overview needs nothing), and it opens on its first visible tab when its default page is not one of them. */
+ * overview needs nothing), and it opens on its first visible tab when its default page is not one of them. An area is
+ * not dropped because its own default page is hidden: with הסתרת המפה the map area keeps its WisKey tab (T054). */
 export function visibleAreas(api: boolean, can?: Can): AreaEntry[] {
-  return NAV_A.filter((n) => !HIDDEN_HREFS.has(n.href)).flatMap((n) => {
+  return NAV_A.flatMap((n) => {
     const tabs = visibleTabs(AREA_TABS[n.id], api, can);
     if (api && n.id !== 'live' && !tabs.length) return [];
+    const first = tabs[0]?.href;
+    return [first && !tabs.some((t) => t.href === n.href) ? { ...n, href: first } : n];
+  });
+}
+
+/** Design B's six flat entries, by the same rule as visibleAreas: a group stays while one of its tabs is visible (the
+ * overview always) and opens on its first visible tab - it used to be filtered by its own default page only, so a
+ * hidden map left "אתרים" pointing at a hidden page and a user without map.read lost the WisKey tab with it. */
+export function visibleGroups(api: boolean, can?: Can): NavEntry[] {
+  return NAV.flatMap((n) => {
+    if (n.id === 'overview') return [n];
+    const tabs = visibleTabs(GROUP_TABS[n.id], api, can);
+    if (api && !tabs.length) return [];
     const first = tabs[0]?.href;
     return [first && !tabs.some((t) => t.href === n.href) ? { ...n, href: first } : n];
   });

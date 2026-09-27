@@ -134,6 +134,7 @@ async def ws_session(
                         on_event(data)
 
         reader_task = asyncio.create_task(reader())
+        stop_task: asyncio.Task | None = None
         try:
             await on_ready(call)
             stop_task = asyncio.create_task(stop.wait())
@@ -142,6 +143,8 @@ async def ws_session(
                 raise reader_task.exception()  # type: ignore[misc]
         finally:
             reader_task.cancel()
+            if stop_task is not None:
+                stop_task.cancel()  # a socket that closed first left it waiting forever ("Task was destroyed but it is pending")
             for fut in pending.values():
                 if not fut.done():
                     fut.cancel()

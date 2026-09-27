@@ -154,6 +154,14 @@ complete, independently useful slice.
 > (ADR-009 note in docs/architecture/DECISIONS.md). The sub-tab needs `access.read` at installation scope, the only
 > scope that permission is checked at, since WisKey stations are not mapped to sites or floors.
 
+> Recorded deviation 2026-09-27 (T054, phase 1a): `access.read` is granted by default to the built-in roles viewer,
+> operator, editor, site_admin and system_admin - the same breadth as `map.read` - and not to kiosk, which stays live
+> video and map only (T057). §3 names the permission but did not decide its role grants; this is that decision, made by
+> the coordinator when reviewing T054, not an implementer default. Consequence to keep in view: every holder sees real
+> person names and employee numbers in the stations' last-access records, and phase 1b's people list is planned under
+> the same permission. Narrowing it later means removing it from those roles in `roles.json` (and the design catalogue)
+> or moving the people screens to a separate permission; custom roles can already leave it out.
+
 **Phase 2 — config-write, zero physical actuation.** Gated on `access.people.manage` / `access.doors.manage`.
 Person editor full CRUD including cards/PINs/timing (S7), card capture *excluded* here (it is PHYSICAL — reader
 collection mode — moves to Phase 3), CSV import/export (S9), bulk operations (S5), import/adopt existing device

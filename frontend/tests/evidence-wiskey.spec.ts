@@ -133,4 +133,28 @@ test.describe('WisKey entry center (T054, SW A)', () => {
       if (siteId) await request.delete(`/api/v1/sites/${siteId}`).catch(() => {});
     }
   });
+
+  test('hiding the map keeps the WisKey tab reachable in both designs', async ({ page, request }) => {
+    // re-review 1: הסתרת המפה hides the map area's own pages; the area (design A) and the sites group (design B) must stay
+    // while WisKey is visible, and open on WisKey instead of the hidden map page
+    const before = (await (await request.get('/api/v1/settings')).json()).settings as Record<string, unknown>;
+    try {
+      expect((await request.patch('/api/v1/settings', { data: { 'ui.hide_map': 'true' } })).status()).toBe(200);
+      await open(page, '/explore/access/d1');
+      await expect(page.locator('wiskey-overview sw-state-panel[data-wiskey-state="ha_not_configured"]')).toBeVisible({ timeout: 30000 });
+      const railA = page.locator('sw-app nav.rail');
+      await expect(railA.locator('a[href="#/explore/access/d1"]')).toHaveCount(1, { timeout: 30000 });
+      await expect(railA.locator('a[href="#/explore/sites"]')).toHaveCount(0);
+
+      await page.goto('/?design=b#/explore/access/d1');
+      await page.waitForSelector('sw-app');
+      const railB = page.locator('sw-app nav.rail');
+      await expect(railB.locator('a[href="#/explore/access/d1"]')).toHaveCount(1, { timeout: 30000 });
+      await expect(railB.locator('a[href="#/explore/sites"]')).toHaveCount(0);
+      await railB.locator('a[href="#/explore/access/d1"]').click();
+      await expect(page.locator('wiskey-overview sw-state-panel[data-wiskey-state="ha_not_configured"]')).toBeVisible({ timeout: 30000 });
+    } finally {
+      await request.patch('/api/v1/settings', { data: { 'ui.hide_map': String(before['ui.hide_map'] ?? 'false') } });
+    }
+  });
 });

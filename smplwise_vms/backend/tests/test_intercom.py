@@ -553,3 +553,69 @@ def test_access_revoked_drops_the_copy(feed):
     wait_for(lambda: intercom_sync.STATE.state == "forbidden")
     body = TestClient(app).get("/api/v1/intercom/overview").json()
     assert body["state"] == "forbidden" and body["overview"] is None and body["last_error"] == "unauthorized"
+
+
+def test_loading_retries_on_the_short_interval(feed, monkeypatch):
+    """Re-review nit a: while HA answers but WisKey is still loading, the feed re-probes every RETRY_S - it does not
+    keep doubling the backoff (after an HA restart that had already climbed towards RETRY_MAX_S)."""
+    app, s, install = feed
+    monkeypatch.setattr(intercom_sync, "RETRY_MAX_S", 5.0)
+
+    def script(msg: dict[str, Any], fake: FakeHa) -> list[Any]:
+        if msg["type"] == "hikvision_intercom/overview":
+            return [fail(msg, "unknown_command")]
+        if msg["type"] == "get_config":
+            return [ha_config(msg, "STARTING")]
+        return normal(msg, fake)
+
+    fakes = install(script)
+    intercom_sync.SYNC.start(s)
+    # doubling from 0.05 s would need about 3.5 s for 8 probes; a fixed 0.05 s interval needs well under one
+    wait_for(lambda: len(fakes) >= 8, timeout=1.5)
+    assert intercom_sync.STATE.state == "connecting" and intercom_sync.STATE.last_error == "wiskey_loading"
+
+
+def test_a_get_during_setup_does_not_start_a_second_refresh(feed):
+    """Re-review nit b: a GET that arrives while the session is still inside its own probe / subscribe must not kick a
+    refresh (it would race on_ready's overview and subscribe_entities); once ready, an idle GET does."""
+
+    class Loop:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def call_soon_threadsafe(self, _fn: Any) -> None:
+            self.calls += 1
+
+    app, s, _install = feed
+    loop = Loop()
+    sync = intercom_sync.SYNC
+    sync._event_loop = loop  # type: ignore[assignment]
+    sync._call = object()  # type: ignore[assignment]  # a connection object exists, mid-setup
+    intercom_sync.STATE.state = "connecting"
+    c = TestClient(app)
+    c.get("/api/v1/intercom/overview")
+    assert loop.calls == 0, "not before the session is ready"
+    sync._last_view = None  # idle again
+    intercom_sync.STATE.state = "ready"
+    c.get("/api/v1/intercom/overview")
+    assert loop.calls == 1, "a ready session refetches for an idle GET"
+    sync._call = None
+    sync._event_loop = None
+
+
+def test_a_socket_failure_during_the_ha_state_probe_is_ha_unavailable(feed):
+    """Re-review nit c: losing the connection while asking HA's own state is `ha_unavailable`, not "still loading"."""
+    app, s, install = feed
+
+    def script(msg: dict[str, Any], fake: FakeHa) -> list[Any]:
+        if msg["type"] == "hikvision_intercom/overview":
+            return [fail(msg, "unknown_command")]
+        if msg["type"] == "get_config":
+            raise ConnectionError("socket closed")
+        return normal(msg, fake)
+
+    install(script)
+    intercom_sync.SYNC.start(s)
+    wait_for(lambda: intercom_sync.STATE.state == "ha_unavailable")
+    body = TestClient(app).get("/api/v1/intercom/overview").json()
+    assert body["state"] == "ha_unavailable" and body["last_error"] == "ConnectionError"
