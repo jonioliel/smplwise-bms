@@ -68,6 +68,41 @@ command SMPLWISE actually surfaces (see the phase lists in §4), plus a long-liv
 `subscribe` and re-broadcasts its data-free "refresh" signal to SMPLWISE's own connected clients (mirroring
 exactly what WisKey's own panel does with the same signal — refetch, don't expect payload).
 
+**Port the owner's own WisKey frontend source, do not re-derive it from the command inventory.** An earlier
+draft of this section under-committed to reuse — corrected here after the owner pointed out that redeveloping
+every screen from scratch, when the actual working implementation already exists in their own repository, is a
+real waste of the very work this extraction was done to inform. The right split, by layer:
+- **Backend Python cannot be reused directly, and should not be** — not because of licensing (it is the owner's
+  own code, no such issue exists) but because WisKey's backend modules are the code that owns
+  `.storage/hikvision_intercom.*` and talks to the physical ISAPI devices; copying that logic into SMPLWISE would
+  create a second writer to the same devices/storage, which is exactly the architecture the owner explicitly
+  asked to avoid ("without removing the installation of the integration... use the integration that already runs
+  inside HA"). SMPLWISE's backend genuinely has nothing to port here — its whole job is to be a thin caller of
+  the same commands, which is why `intercom_client.py` above is small by design, not under-built.
+- **Frontend TypeScript/Lit source is the opposite case, and should be ported, not rewritten.** The screen logic
+  in the owner's `frontend/src/*.ts` — `panel.ts`'s per-screen render functions, `editorBody`'s validation and
+  save-payload construction, every dialog's field mapping and business rules — already correctly encodes years of
+  real-world edge cases against the actual devices (masked card numbers, review-token flows, revision-conflict
+  handling, and the like, all catalogued in the source extraction). Re-deriving this from the command inventory
+  alone would silently drop hard-won correctness. The concrete adaptation needed at the port boundary: every call
+  site that does `hass.callWS({type: "hikvision_intercom/...", ...})` (directly, or through the `protectedHass`
+  proxy) is rewritten to call a new SMPLWISE frontend helper with the same call shape, which posts to a new
+  SMPLWISE backend endpoint that in turn calls `intercom_client.py` — because SMPLWISE's browser client never
+  holds HA credentials or talks to HA directly (ADR-005/ADR-012, a standing rule, not a WisKey-specific one), so
+  the literal `hass.callWS` transport cannot survive the port unchanged even though almost everything around it
+  can. Presentation is also re-skinned onto SMPLWISE's own `sw-*` component library and design tokens rather than
+  WisKey's own `wiskey-v4-styles.ts`/CSS, so the new tab reads as part of this product, not a bolted-on panel —
+  the UNIFI-style design mandate already established for the rest of SMPLWISE applies here too. Each phase-1..4
+  implementation task (§4) should start from the corresponding WisKey source file(s), port the render/validation/
+  event-handling logic with the transport and styling substitution described above, and treat "write it from the
+  command table" as the fallback only for screens with no real WisKey UI to port from (there are a few — see the
+  "backend commands with no screen" list in the extraction, §Y item 1).
+- This changes §4's actual time estimate (already given to the owner in chat as a rough order of magnitude) in
+  the direction of less effort, since a meaningful share of each phase's work is porting/rewiring existing,
+  already-correct logic rather than authoring new logic from a spec — but it is not free either (the transport
+  rewrite and the re-skin both take real work), so the estimate is not revised down here until phase 1 is
+  actually built and the real per-screen porting cost is measured once.
+
 **SMPLWISE gets its own permission scheme, not a 1:1 mirror of WisKey's five areas.** SMPLWISE already has a
 fine-grained, scoped RBAC (permission strings like `map.read`, `sources.configure`, checked per
 INSTALLATION/site/etc. via `rbac.py`'s `require`/`authorize`). Every Access Control action in SMPLWISE checks
@@ -152,11 +187,12 @@ Backend: one new service module (`intercom_client.py`) reusing existing `ha_clie
 (`routers/access_control.py` or similar) exposing SMPLWISE's own REST endpoints per screen, each checking
 SMPLWISE's own new permissions before calling through; the new permission strings need a migration to the RBAC
 permission catalogue and role-editor UI, following the exact pattern already used for every existing permission.
-Frontend: a new top-level nav entry, a new screen module per phase-1/2/3/4 screen list above, all built on this
-codebase's existing screen/dialog/table conventions (matching the level of design work already put into Plan
-Studio and the four existing boards), not a copy of WisKey's own CSS or component structure. Size: comparable to
-or larger than Plan Studio (CR-003) in total, but each phase is independently sized like one Plan Studio phase —
-expect several releases, not one.
+Frontend: a new top-level nav entry, a new screen module per phase-1/2/3/4 screen list above, each PORTED from
+the owner's own WisKey source file(s) per §3 (render/validation/event logic carried over, transport calls
+rewired to SMPLWISE's backend, presentation re-skinned onto this codebase's own `sw-*` components and tokens —
+matching the level of design work already put into Plan Studio and the four existing boards, not a copy of
+WisKey's own CSS or component structure). Size: comparable to or larger than Plan Studio (CR-003) in total, but
+each phase is independently sized like one Plan Studio phase — expect several releases, not one.
 
 ## 7. Open decisions needing owner sign-off before Phase 1 starts
 
