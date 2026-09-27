@@ -41,6 +41,7 @@ or retried. A TTS announcement is a WisKey subscription: its progress is followe
 from __future__ import annotations
 
 import asyncio
+import datetime
 import logging
 import queue
 import threading
@@ -83,8 +84,18 @@ MAX_INFLIGHT = 4
 # per SMPLWISE user (fairness) and in total (kept well under WisKey's own refill, so the feed always has headroom).
 USER_BURST, USER_RATE = 10.0, 1.0
 GLOBAL_BURST, GLOBAL_RATE = 20.0, 1.5
+# physical actions have a lane of their own, so read traffic (a people search spends up to MAX_SCAN_PAGES tokens) can
+# never leave a release or a hang-up `busy` / `rate_limited` (T054 review S5): their own in-flight slots and buckets.
+# Totals stay under WisKey's AdminLimiter (8 handlers, burst 30, refill 2/s per HA user) with room for the feed:
+# slots 4 + 2 (+ the feed's own overview / subscribe calls), bursts 20 + 8, refills 1.5 + 0.5 per second - at the very
+# worst WisKey then answers the feed's own refetch `rate_limited`, which the feed already retries without dropping the
+# session. Per user: a guard desk's answer, announcement, release, hang up and the next call's answer all fit the burst.
+ACTION_INFLIGHT = 2
+ACTION_USER_BURST, ACTION_USER_RATE = 6.0, 0.5
+ACTION_GLOBAL_BURST, ACTION_GLOBAL_RATE = 8.0, 0.5
 RATE_LIMITED = "rate_limited"
 RATE_RETRY_S = 2.0  # the feed's own refetch answered `rate_limited`: keep the session and try again after this long
+DEFER_RETRY_S = 5.0  # a refetch failure deferred during an announcement (S6) is retried this often
 # people text search runs here, not in WisKey (D1, see search_people): the filtered directory is scanned in pages of
 # SCAN_PAGE, at most MAX_SCAN_PAGES per request (2 000 people; a WisKey station holds a few hundred), every page after
 # the first spending one more rate token
@@ -123,6 +134,10 @@ class TokenBucket:
 
 class _NotReady(Exception):
     """The session the request thread saw had already ended when the command reached the feed's loop."""
+
+
+class _Expired(Exception):
+    """A physical action reached the feed's loop after its `not_after`: it is not sent."""
 
 # ha_not_configured | idle | connecting | ha_unavailable | not_installed | forbidden | error | ready
 STATES = ("ha_not_configured", "idle", "connecting", "ha_unavailable", "not_installed", "forbidden", "error", "ready")
@@ -294,13 +309,20 @@ def project_people_page(raw: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def project_release(raw: dict[str, Any]) -> dict[str, Any]:
-    """`stations/test_unlock`'s answer: only whether WisKey ACCEPTED the command. It never says the door moved."""
-    return {"accepted": raw.get("accepted") is True}
+def project_release(raw: Any) -> dict[str, Any]:
+    """`stations/test_unlock`'s answer: WisKey ACCEPTED the command. It never says the door moved. WisKey's documented
+    answer is `{accepted: true}`; anything else after `success: true` raises, which the action path reports as
+    "outcome unknown" (the command may well have been carried out), never as refused."""
+    if not isinstance(raw, dict) or raw.get("accepted") is not True:
+        raise ValueError("unexpected stations/test_unlock answer")
+    return {"accepted": True}
 
 
-def project_signal(raw: dict[str, Any]) -> dict[str, Any]:
-    """`media/signal`'s CallResult as WisKey sends it (acknowledgement, observed call state, `physical_result`)."""
+def project_signal(raw: Any) -> dict[str, Any]:
+    """`media/signal`'s CallResult as WisKey sends it (acknowledgement, observed call state, `physical_result`). A
+    non-object answer raises: "outcome unknown"."""
+    if not isinstance(raw, dict):
+        raise ValueError("unexpected media/signal answer")
     return {k: raw.get(k) for k in SIGNAL_KEYS}
 
 
@@ -340,6 +362,8 @@ def action_error(reply: dict[str, Any], outcome: str) -> ApiError:
     state, code = reply.get("state"), reply.get("last_error")
     details = {"outcome": outcome, "state": state, "wiskey_code": code}
     if outcome == "not_sent":
+        if code == "expired":  # the code routers/ha.py uses for an expired HA action
+            return ApiError(409, "expired", "הבקשה פגה לפני שנשלחה ל־WisKey, ולכן לא נשלחה. אם עדיין צריך - בצעו אותה שוב.", details=details)
         if code == RATE_LIMITED:
             return ApiError(429, "intercom_rate_limited", "יותר מדי פקודות ל־WisKey בזמן קצר. הפקודה לא נשלחה - נסו שוב בעוד כמה שניות.", retryable=True, details=details)
         if code == "busy":
@@ -457,6 +481,7 @@ class IntercomSync:
         self._event_loop: asyncio.AbstractEventLoop | None = None
         self._tasks: set[asyncio.Task[None]] = set()  # refreshes started by pushes (_kick); cancelled with the session
         self._inflight = threading.BoundedSemaphore(MAX_INFLIGHT)  # one-off reads (command) in flight at once
+        self._action_inflight = threading.BoundedSemaphore(ACTION_INFLIGHT)  # physical actions: a lane of their own
         self._bucket_lock = threading.Lock()
         self._tts_status: dict[str, dict[str, Any]] = {}  # station id -> its latest announcement's progress
         self._buckets_reset()
@@ -466,17 +491,24 @@ class IntercomSync:
         with self._bucket_lock:
             self._global_bucket = TokenBucket(GLOBAL_BURST, GLOBAL_RATE)
             self._user_buckets: dict[str, TokenBucket] = {}
+            self._action_global_bucket = TokenBucket(ACTION_GLOBAL_BURST, ACTION_GLOBAL_RATE)
+            self._action_user_buckets: dict[str, TokenBucket] = {}
 
-    def _spend_token(self, who: str) -> bool:
-        """One token from both the caller's and the shared bucket, or none at all (nothing is spent on a refusal)."""
+    def _spend_token(self, who: str, lane: str = "read") -> bool:
+        """One token from both the caller's and the shared bucket of `lane` (`read` or `action`), or none at all
+        (nothing is spent on a refusal)."""
         with self._bucket_lock:
-            mine = self._user_buckets.get(who)
+            if lane == "action":
+                users, shared, burst, rate = self._action_user_buckets, self._action_global_bucket, ACTION_USER_BURST, ACTION_USER_RATE
+            else:
+                users, shared, burst, rate = self._user_buckets, self._global_bucket, USER_BURST, USER_RATE
+            mine = users.get(who)
             if mine is None:
-                mine = self._user_buckets[who] = TokenBucket(USER_BURST, USER_RATE)
-            if not (mine.ready() and self._global_bucket.ready()):
+                mine = users[who] = TokenBucket(burst, rate)
+            if not (mine.ready() and shared.ready()):
                 return False
             mine.take()
-            self._global_bucket.take()
+            shared.take()
             return True
 
     def _session_reset(self) -> None:
@@ -494,6 +526,7 @@ class IntercomSync:
         self._tts: dict[int, str] = {}
         self._retry_pending = False  # a refetch after WisKey's `rate_limited` is scheduled (at most one)
         self._rate_logged = False  # that stretch was logged (once, not every retry)
+        self._deferred: str | None = None  # an overview failure kept pending while an announcement plays (S6)
         self._end: asyncio.Event | None = None
         self._fault: BaseException | None = None
 
@@ -522,6 +555,7 @@ class IntercomSync:
         self._last_view = None
         self._fetched_mono = None
         self._inflight = threading.BoundedSemaphore(MAX_INFLIGHT)
+        self._action_inflight = threading.BoundedSemaphore(ACTION_INFLIGHT)
         self._tts_status = {}
         self._buckets_reset()
         self._session_reset()
@@ -541,7 +575,7 @@ class IntercomSync:
             "state": state,
             "configured": configured,
             # a copy from before a disconnect is served as last-known, never as current
-            "fresh": state == "ready" and overview is not None,
+            "fresh": state == "ready" and overview is not None and self._deferred is None,
             "fetched_at": STATE.fetched_at if overview is not None else None,
             "last_error": STATE.last_error if configured else "ha_not_configured",
             "overview": overview,
@@ -577,13 +611,20 @@ class IntercomSync:
         send: Callable[[intercom_client.Call], Awaitable[Any]],
         project: Callable[[Any], dict[str, Any]],
         who: str,
+        not_after: datetime.datetime | None = None,
+        on_settled: Callable[[], None] | None = None,
     ) -> dict[str, Any]:
-        """Run one PHYSICAL WisKey command (release, call signal, TTS start) exactly like `command` - over the feed's own
-        live session, through the same in-flight slots and rate buckets, never retried - but wait up to
-        ACTION_TIMEOUT_S, and turn every result other than success into an ApiError (`action_error`), so that a
-        refused, dropped or unanswered physical command can never be read as done. Returns the `command`-shaped reply
-        on success."""
-        reply, outcome = self._execute(settings, key, send, project, who, ACTION_TIMEOUT_S)
+        """Run one PHYSICAL WisKey command (release, call signal, TTS start) like `command` - over the feed's own live
+        session, never queued, never retried - but in the action lane (its own in-flight slots and rate buckets, so
+        reads cannot starve it), waiting up to ACTION_TIMEOUT_S, and turning every result other than success into an
+        ApiError (`action_error`), so that a refused, dropped or unanswered physical command can never be read as done.
+
+        `not_after` (aware UTC): checked on the feed's loop immediately before the frame is written; a command that
+        reaches that point later is not sent (`expired`) - a request delayed in transit or in a queue never actuates
+        late. `on_settled` is called exactly once, when the command is really over: at once when it was never
+        scheduled, else when WisKey answered, the session ended, or ha_client's own call limit expired - which can be
+        well after this method gave up waiting (ACTION_TIMEOUT_S). Returns the `command`-shaped reply on success."""
+        reply, outcome = self._execute(settings, key, send, project, who, ACTION_TIMEOUT_S, lane="action", not_after=not_after, on_settled=on_settled)
         if outcome != "ok":
             raise action_error(reply, outcome)
         return reply
@@ -596,10 +637,15 @@ class IntercomSync:
         project: Callable[[Any], dict[str, Any]],
         who: str,
         timeout: float,
+        lane: str = "read",
+        not_after: datetime.datetime | None = None,
+        on_settled: Callable[[], None] | None = None,
     ) -> tuple[dict[str, Any], str]:
         """`command`'s body. Also returns what is known about the command itself: `not_sent` (nothing reached WisKey),
-        `refused` (WisKey answered with an error), `unknown` (sent, but no usable answer: timeout, the session went
-        away mid-request, or a reply of an unexpected shape) or `ok`."""
+        `refused` (WisKey answered with an error: a genuine refusal), `unknown` (sent, but no usable answer: timeout,
+        the session went away mid-request, or an answer after `success: true` of a shape the projection does not
+        accept) or `ok`."""
+        settled = on_settled or (lambda: None)
         configured = ha_client.configured(settings)
         state = STATE.state if configured else "ha_not_configured"
         if configured and state == "idle":
@@ -608,26 +654,36 @@ class IntercomSync:
         loop = self._event_loop
         if state != "ready" or loop is None or self._call is None:
             reply["sync"] = STATE.as_dict()
+            settled()
             return reply, "not_sent"
-        slot = self._inflight  # the semaphore this request takes (reset() may swap in a new one)
+        slot = self._action_inflight if lane == "action" else self._inflight  # (reset() may swap in a new one)
         if not slot.acquire(blocking=False):  # checked first: a `busy` refusal costs the caller no rate token
             reply.update(state="error", last_error="busy", sync=STATE.as_dict())
+            settled()
             return reply, "not_sent"
-        if not self._spend_token(who):
+        if not self._spend_token(who, lane):
             slot.release()
             reply.update(state="error", last_error=RATE_LIMITED, sync=STATE.as_dict())
+            settled()
             return reply, "not_sent"
-        coro = self._one_off(send)
+        coro = self._one_off(send, not_after)
         try:
             future = asyncio.run_coroutine_threadsafe(coro, loop)
         except RuntimeError as exc:  # the session's loop closed between the check above and scheduling
             coro.close()
             slot.release()
             reply.update(state="ha_unavailable", last_error=type(exc).__name__, sync=STATE.as_dict())
+            settled()
             return reply, "not_sent"
-        # the slot is freed when the call is really over (answer, session end, or ha_client's own 60 s limit): a
-        # browser-side timeout does not stop WisKey's handler, so it must not free the slot early either
-        future.add_done_callback(lambda _f: slot.release())
+
+        # the slot is freed - and the caller told the command is over - when the call is really over (answer, session
+        # end, or ha_client's own 60 s limit): a browser-side timeout does not stop WisKey's handler, so it must not
+        # free anything early either
+        def done(_f: Any) -> None:
+            slot.release()
+            settled()
+
+        future.add_done_callback(done)
         raw: Any = None
         answered = False
         outcome = "unknown"
@@ -641,6 +697,11 @@ class IntercomSync:
             now = {"idle": "connecting", "ready": "ha_unavailable"}.get(STATE.state, STATE.state)
             reply.update(state=now, last_error=STATE.last_error if now == STATE.state else "session_ended")
             outcome = "not_sent"
+        except _Expired:
+            reply.update(state="error", last_error="expired")
+            outcome = "not_sent"
+        except intercom_client.UnclearAnswer:
+            reply.update(state="error", last_error="invalid_response")
         except IntercomError as exc:
             if exc.code in REQUEST_ERRORS:
                 status, code, message = REQUEST_ERRORS[exc.code]
@@ -742,12 +803,14 @@ class IntercomSync:
         except Exception:  # noqa: BLE001 - the announcement is over either way; the session end drops it too
             pass
 
-    async def _one_off(self, send: Callable[[intercom_client.Call], Awaitable[dict[str, Any]]]) -> dict[str, Any]:
+    async def _one_off(self, send: Callable[[intercom_client.Call], Awaitable[Any]], not_after: datetime.datetime | None = None) -> Any:
         """On the feed's loop: send over the session that is live NOW (it may have ended since the request thread
-        looked), never a new connection."""
+        looked), never a new connection - and, for a physical action, only while it has not expired."""
         call = self._call
         if call is None or STATE.state != "ready":
             raise _NotReady()
+        if not_after is not None and datetime.datetime.now(datetime.timezone.utc) > not_after:
+            raise _Expired()
         return await send(call)
 
     def watched(self) -> bool:
@@ -976,6 +1039,7 @@ class IntercomSync:
                 self._again = False
                 raw = await intercom_client.overview(call)
                 self._store(raw)
+                self._deferred = None  # a deferred failure (S6) is over: the copy is current again
                 self._rate_logged = False  # a later rate-limited stretch is logged again
                 await self._watch(call, watched_entities(raw))
                 if not self._again:
@@ -987,6 +1051,13 @@ class IntercomSync:
                 # WisKey's per-user budget is spent for the moment: temporary, not a broken session. Keep the session
                 # and the last copy, and refetch once the bucket has refilled a little.
                 self._retry_refresh()
+            elif self._tts and exc.code not in ("unauthorized", "unknown_command"):
+                self._defer_failure(exc.code)  # WisKey answered (the socket is fine): do not cut the announcement
+            else:
+                self._fail(exc)
+        except TimeoutError as exc:
+            if self._tts:
+                self._defer_failure("timeout")
             else:
                 self._fail(exc)
         except Exception as exc:  # noqa: BLE001 - end the session; the loop reconnects and re-probes
@@ -994,18 +1065,32 @@ class IntercomSync:
         finally:
             self._refreshing = False
 
-    def _retry_refresh(self) -> None:
-        """One delayed refetch after `rate_limited`, tracked with the session's tasks so it never outlives it."""
+    def _defer_failure(self, code: str) -> None:
+        """T054 review S6: an overview refetch failed while an announcement is playing on this session. Ending the
+        session would make Home Assistant drop the announcement's subscription and cut it off mid-sentence, although
+        the failure has nothing to do with it (WisKey answered, or one call timed out; the socket itself is up). So the
+        session is kept, the copy is served as NOT fresh (`_deferred`), and the refetch is retried every
+        DEFER_RETRY_S; once no announcement is playing, a failure ends the session exactly as before. A revoked access
+        (`unauthorized`) or a removed WisKey (`unknown_command`) never waits, and neither does a broken socket."""
+        if self._deferred is None:
+            log.warning("WisKey feed: overview refetch failed (%s) during an announcement; keeping the session until it ends", code)
+        self._deferred = code
+        self._retry_refresh(DEFER_RETRY_S)
+
+    def _retry_refresh(self, delay: float | None = None) -> None:
+        """One delayed refetch (after `rate_limited`, or a failure deferred by `_defer_failure`), tracked with the
+        session's tasks so it never outlives it."""
         if self._retry_pending:
             return
         self._retry_pending = True
-        if not self._rate_logged:
+        wait = RATE_RETRY_S if delay is None else delay
+        if delay is None and not self._rate_logged:
             log.warning("WisKey feed: overview refetch rate limited; retrying in %.0fs", RATE_RETRY_S)
             self._rate_logged = True
 
         async def later() -> None:
             try:
-                await asyncio.sleep(RATE_RETRY_S)
+                await asyncio.sleep(wait)
             finally:
                 self._retry_pending = False
             await self._refresh()

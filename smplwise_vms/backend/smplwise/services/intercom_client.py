@@ -123,19 +123,32 @@ async def users_get(call: Call, user_id: str) -> dict[str, Any]:
 
 # ---------------------------------------------------------------- physical actions (CR-005 phase 3)
 
+def _action_result(frame: dict[str, Any], command: str) -> Any:
+    """A physical command's answer. Only WisKey's own `success: false` is a refusal (IntercomError). Once WisKey said
+    `success: true` the command WAS carried out as far as WisKey knows, so its result is returned as it came, whatever
+    its shape: judging the shape is the caller's projection, and a shape it does not understand must read as "outcome
+    unknown", never as "refused" (T054 review B2)."""
+    if frame.get("success") is True:
+        return frame.get("result")
+    if frame.get("success") is False:
+        return _result(frame, command)  # raises with WisKey's own error code: a genuine refusal
+    raise UnclearAnswer(command)  # neither an acceptance nor a refusal: the outcome is unknown
+
+
+class UnclearAnswer(Exception):
+    """A physical command got an answer that is neither `success: true` nor `success: false`: nothing can be said
+    about whether it was carried out."""
+
 async def release_door(call: Call, station_id: str, lock: int) -> dict[str, Any]:  # not `test_unlock`: pytest collects test_*
     """`hikvision_intercom/stations/test_unlock {station_id, lock, api_contract}` - one momentary release of the
     station's relay `lock` (an `integrated_locks[].physical_index`; WisKey's backend then sends ISAPI
     `PUT .../RemoteControl/door/{api_id}` `<cmd>open</cmd>`). WisKey answers `{accepted: true}` once the command was
     accepted: that is NOT proof the door moved (the open time is the device's own setting; WISKEY_SOURCE_EXTRACTION.md,
     media part, quirk 6). WisKey itself throttles one release per door per second."""
-    if type(lock) is not int:  # WisKey's strict typing: bool-as-int is `invalid_fields`
+    if type(lock) is not int:  # WisKey's strict typing: bool-as-int is `invalid_fields` (refused locally, nothing sent)
         raise IntercomError("invalid_fields", "stations/test_unlock")
     frame = await call(command_type("stations/test_unlock"), station_id=station_id, lock=lock, api_contract=API_CONTRACT)
-    result = _result(frame, "stations/test_unlock")
-    if not isinstance(result, dict):
-        raise IntercomError("invalid_response", "stations/test_unlock")
-    return result
+    return _action_result(frame, "stations/test_unlock")
 
 
 async def media_signal(call: Call, station_id: str, command: str) -> dict[str, Any]:
@@ -148,10 +161,7 @@ async def media_signal(call: Call, station_id: str, command: str) -> dict[str, A
     if command not in CALL_COMMANDS:
         raise IntercomError("invalid_fields", "media/signal")
     frame = await call(command_type("media/signal"), station_id=station_id, command=command, api_contract=API_CONTRACT)
-    result = _result(frame, "media/signal")
-    if not isinstance(result, dict):
-        raise IntercomError("invalid_response", "media/signal")
-    return result
+    return _action_result(frame, "media/signal")
 
 
 async def tts_engines(call: Call) -> dict[str, Any]:
@@ -177,5 +187,5 @@ async def tts_start(call: Call, station_id: str, engine_id: str, language: str |
     Unsubscribing CANCELS the playback, so the caller keeps the subscription until a terminal event. Exact key set: no
     `api_contract`; `language` is required and may be null."""
     frame = await call(command_type("tts/start"), station_id=station_id, engine_id=engine_id, language=language, message=message)
-    _result(frame, "tts/start")
-    return int(frame["id"])
+    _action_result(frame, "tts/start")
+    return int(frame["id"])  # ha_client matched the frame by this id, so it is always there

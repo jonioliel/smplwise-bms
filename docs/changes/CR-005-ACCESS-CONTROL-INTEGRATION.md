@@ -191,6 +191,14 @@ answer/reject/hangup (`media/signal`); two-way audio/talk (`audio/*`); TTS (`tts
 > release reply is shown as "accepted by WisKey", never as "the door opened". Every attempt is audited under the real
 > SMPLWISE actor (§3 accountability). Two-way audio, card capture, door programs, relay reversal and WhatsApp remain
 > for later slices.
+>
+> Review round 1 (2026-09-28), recorded in `routers/access_control.py`'s physical-actions section note: every request
+> past the permission check is audited - a pre-send refusal as one `denied` row, a sent command as an attempt row
+> committed BEFORE sending plus a best-effort outcome row; an answer WisKey gave with `success: true` but in an
+> unexpected shape is "outcome unknown", never "refused"; a relay stays blocked until WisKey's call is really over and
+> 10 s more after an unknown outcome; every physical request carries `client_request_id` + `expires_at` (the HA
+> bridge's envelope; 15 s from the UI, at most 60 s, re-checked immediately before sending); physical actions have their
+> own in-flight slots and rate buckets; a failed overview refetch no longer cuts an announcement that is playing.
 
 **Phase 4 — parity completion (peripheral/admin screens).** Camera wall (S4), media/clock settings (S21/S22),
 operations center (S23), identity lifecycle report (S17), permission directory (S18), appearance picker (S25),
