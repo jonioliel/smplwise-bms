@@ -723,6 +723,7 @@ export class SwApp extends LitElement {
     window.addEventListener('keydown', this.onGlobalKey);
     this.stopRouter = onRouteChange((route) => {
       this.route = route;
+      this.moreOpen = false; // T054 review: any navigation closes the bottom-nav overflow sheet, not just its own links
       if (this.redirectDemo(route)) return;
       this.toggleAttribute('data-kiosk', route.segments[0] === 'kiosk');
       // embed=1 (Lovelace card iframe, T056): no chrome for the rest of the session, whatever the in-app navigation does
@@ -783,6 +784,7 @@ export class SwApp extends LitElement {
       input?.select();
       if (this.searchQ.trim() && this.searchResults.length) this.searchOpen = true;
     }
+    if (e.key === 'Escape' && this.moreOpen) this.moreOpen = false; // T054 review: Escape dismisses the bottom-nav overflow sheet
   };
 
   private onSearchInput(e: Event) {
