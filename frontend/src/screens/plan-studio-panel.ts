@@ -11,7 +11,7 @@ import type { CatalogItem, CatalogLibrary, ParamSpec } from '../api/plan-catalog
 import type { HaEntity } from '../api/ha';
 import { searchItems } from '../api/plan-catalog';
 import type { SaveState } from '../map/studio-controller';
-import { TAG_MAX_COUNT, TAG_MAX_LEN, cornerRemovable, kindDefaults, normalizeTag, openingRange, withTag, withoutTag, type WallDefaults } from '../map/studio-ops';
+import { TAG_MAX_COUNT, TAG_MAX_LEN, cornerRemovable, kindDefaults, normalizeTag, openingRange, withTag, withoutTag, type AlignMode, type WallDefaults } from '../map/studio-ops';
 import { symbolOf } from '../map/plan-symbols';
 
 export type StudioMode = 'select' | 'wall' | 'door' | 'window' | 'passage' | 'label';
@@ -825,8 +825,11 @@ export interface MultiView {
   circuits: GeomCircuit[];
   /** How many selected objects may join a circuit (studio-ops circuitEligible: a light, or an unknown library item). */
   lights: number;
-  /** What the last bulk tag / level / circuit action did, until the selection changes. */
+  /** What the last bulk tag / level / circuit / align action did, until the selection changes. */
   note: string;
+  /** How many selected objects align and distribute move (T085): objects that are not the body of an anchor. The actions
+   * show from two (distribute from three); walls and zones of the selection stay where they are. */
+  alignable: number;
 }
 export interface MultiActions {
   duplicate(): void;
@@ -836,6 +839,58 @@ export interface MultiActions {
   removeTag(tag: string): void;
   setLevel(levelId: string): void;
   joinCircuit(circuitId: string): void;
+  align(mode: AlignMode): void;
+  distribute(axis: 'x' | 'y'): void;
+}
+
+/** The six align actions and the two distribute actions of the bulk panel (T085), with their labels. Left and right are
+ * the plan's own directions (map geometry is never mirrored by RTL). */
+const ALIGN_ACTIONS: readonly { mode: AlignMode; label: string; title: string }[] = [
+  { mode: 'left', label: 'יישור לשמאל', title: 'הקצוות השמאליים של העצמים על הקצה השמאלי של הבחירה' },
+  { mode: 'right', label: 'יישור לימין', title: 'הקצוות הימניים של העצמים על הקצה הימני של הבחירה' },
+  { mode: 'top', label: 'יישור למעלה', title: 'הקצוות העליונים של העצמים על הקצה העליון של הבחירה' },
+  { mode: 'bottom', label: 'יישור למטה', title: 'הקצוות התחתונים של העצמים על הקצה התחתון של הבחירה' },
+  { mode: 'center-y', label: 'מרכזים בקו אופקי', title: 'מרכזי העצמים על קו אופקי אחד, באמצע הבחירה (למשל שורת מנורות)' },
+  { mode: 'center-x', label: 'מרכזים בקו אנכי', title: 'מרכזי העצמים על קו אנכי אחד, באמצע הבחירה' },
+];
+
+/** The align / distribute block of the bulk panel: from two objects that can move; distribute from three. */
+function renderAlignActions(v: MultiView, a: MultiActions): TemplateResult {
+  if (v.alignable < 2) return html``;
+  const others = v.walls + v.zones;
+  const hint = `ביחס למסגרת של ${v.alignable} העצמים שנבחרו · צעד ביטול אחד${others ? ' · קירות ואזורים שבבחירה לא זזים' : ''}`;
+  return html`<sw-field label="יישור ופיזור העצמים" hint=${hint}><div class="alignbtns" data-multi-align>
+    ${ALIGN_ACTIONS.map((x) => html`<sw-button size="sm" variant="ghost" data-align=${x.mode} title=${x.title} ?disabled=${v.busy} @click=${() => a.align(x.mode)}>${x.label}</sw-button>`)}
+    <sw-button size="sm" variant="ghost" data-distribute="x" ?disabled=${v.busy || v.alignable < 3} title=${v.alignable < 3 ? 'פיזור צריך לפחות שלושה עצמים' : 'רווחים שווים בין העצמים לרוחב; הקיצוניים נשארים במקומם'} @click=${() => a.distribute('x')}>פיזור שווה לרוחב</sw-button>
+    <sw-button size="sm" variant="ghost" data-distribute="y" ?disabled=${v.busy || v.alignable < 3} title=${v.alignable < 3 ? 'פיזור צריך לפחות שלושה עצמים' : 'רווחים שווים בין העצמים לגובה; הקיצוניים נשארים במקומם'} @click=${() => a.distribute('y')}>פיזור שווה לגובה</sw-button>
+  </div></sw-field>`;
+}
+
+/** The grid options of the layers tool (T085): the switch and the spacing. The spacing is in metres on the plan's scale -
+ * before calibration on the estimated one, marked "≈" as every estimated distance of the editor, or, when the setting
+ * `plan.estimates` hides estimated metres, named by size only. */
+export interface GridOptionsView {
+  on: boolean;
+  stepM: number;
+  steps: readonly number[];
+  estimated: boolean;
+  showEstimates: boolean;
+}
+const GRID_SIZE_WORDS = ['צפוף מאוד', 'צפוף', 'בינוני', 'מרווח', 'רחב', 'רחב מאוד'];
+export function renderGridOptions(v: GridOptionsView, onToggle: (on: boolean) => void, onStep: (m: number) => void): TemplateResult {
+  const words = v.estimated && !v.showEstimates;
+  const label = (m: number, i: number) => (words ? GRID_SIZE_WORDS[i] ?? fmtMetres(m, false) : fmtMetres(m, v.estimated));
+  const hint = v.estimated ? 'לפי קנה מידה משוער עד שהתוכנית תכויל' : 'לפי קנה המידה המכויל של התוכנית';
+  return html`<div class="gridopts" data-grid-options>
+    <label><input type="checkbox" data-grid-toggle .checked=${v.on} @change=${(e: Event) => onToggle((e.target as HTMLInputElement).checked)} /> רשת עזר</label>
+    <div class="note">גרירה והצבה של עצם נצמדות לצמתי הרשת; Ctrl בזמן הגרירה - בלי הצמדה.</div>
+    <sw-field label="מרווח הרשת" hint=${hint}>
+      <select data-grid-step ?disabled=${!v.on} @change=${(e: Event) => onStep(Number((e.target as HTMLSelectElement).value))}>
+        ${v.steps.map((m, i) => html`<option value=${String(m)} ?selected=${m === v.stepM}>${label(m, i)}</option>`)}
+      </select>
+    </sw-field>
+    <div class="note">בזמן גרירה של עצם מופיעים קווי יישור כשקצה או מרכז שלו מתיישר עם עצם אחר, והעצם נצמד אליהם.</div>
+  </div>`;
 }
 
 /** The select tool with two or more walls, objects and zones selected: what is selected and the actions on all of them. */
@@ -846,6 +901,7 @@ export function renderMultiSelection(v: MultiView, a: MultiActions): TemplateRes
     <div class="note">גרירת אחד מהם מזיזה את כולם יחד · Delete מוחק את כולם · Ctrl+D משכפל את העצמים שבבחירה</div>
     ${v.zones ? html`<div class="note" data-multi-zones-note>הזזה, מחיקה, תגיות ומפלס של אזורים נשמרים מיד ואינם חלק מהביטול (Ctrl+Z); קירות ועצמים חוזרים בצעד ביטול אחד</div>` : nothing}
     ${v.note ? html`<div class="note multinote" data-multi-note role="status">${v.note}</div>` : nothing}
+    ${renderAlignActions(v, a)}
     ${renderTagsField({ chips: v.tags, bulk: true, disabled: v.busy }, (t) => a.addTag(t), (t) => a.removeTag(t))}
     ${v.levels.length > 1
       ? html`<sw-field label="העבר את כל הבחירה למפלס" hint="קירות ועצמים בצעד ביטול אחד; הפתחים עוברים עם הקיר שלהם">
@@ -1405,6 +1461,24 @@ export const studioPanelStyles = css`
   .multinote {
     color: var(--sw-text);
     font-weight: var(--sw-fw-medium);
+  }
+  .alignbtns {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .gridopts {
+    display: grid;
+    gap: 6px;
+    margin-block-start: 10px;
+    padding-block-start: 10px;
+    border-block-start: 1px solid var(--sw-border);
+  }
+  .gridopts label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: var(--sw-fs-sm);
   }
   .levelchip {
     display: inline-flex;

@@ -748,6 +748,145 @@ test.describe.serial('editor: select and move walls, objects and zones (0.1.87)'
     }
   });
 
+  // T085 grid, snap and alignment (owner request 2026-09-26: "five lamps on one line, easily"). The plan is 1000 x 600 px
+  // at 25 px per metre, so the default 0.5 m grid is 12.5 plan px and a 0.4 m chair is 10 px.
+  const GRID_PX = 12.5;
+  const onGrid = (p: P) => [p[0] * 1000, p[1] * 600].every((v) => Math.abs(v / GRID_PX - Math.round(v / GRID_PX)) < 1e-3);
+
+  test('grid and guides: the layers tool turns the grid on (remembered per floor), a dragged chair lands on it, a guide shows and wins its axis, Ctrl drags free', async ({ page }) => {
+    await saveDraft({ ...SEED, objects: [...SEED.objects, CHAIR('gd1', [0.3, 0.55]), CHAIR('gd2', [0.5, 0.45])] });
+    try {
+      await openEditor(page);
+      const canvas = page.locator(`${ED} sw-plan-canvas`);
+      await expect(canvas.locator('[data-grid]')).toHaveCount(0); // a floor never switched: no grid
+      await page.locator(`${ED} [data-tool="layers"]`).click();
+      await page.locator(`${ED} [data-grid-toggle]`).check();
+      await expect(page.locator(`${ED} [data-grid-step]`)).toHaveValue('0.5'); // the default spacing, on the calibrated scale
+      await expect(page.locator(`${ED} [data-grid-step] option:checked`)).toHaveText('0.50 מ׳');
+      await expect(canvas.locator('[data-grid]')).toHaveAttribute('data-grid-px', String(GRID_PX));
+      await expect(page.locator(`${ED} [data-grid-chip]`)).toHaveAttribute('selected', '');
+      await page.locator(`${ED} [data-tool="select"]`).click();
+
+      // a plain drag to an arbitrary point: the chair's centre lands on a grid intersection
+      await mouseDrag(page, await at(page, [0.3, 0.55]), 71, 43);
+      await expect.poll(async () => (await positions(['gd1']))[0][0], { timeout: 10000 }).toBeGreaterThan(0.33);
+      const [p1] = await positions(['gd1']);
+      expect(onGrid(p1), `on the grid: ${p1}`).toBe(true);
+
+      // dragged to 2 px below gd2's line (y 272 vs 270), off both grid lines: the guide shows while dragging, and on its
+      // axis it wins over the grid (the drop is on gd2's line, not the grid's 275); the other axis takes the grid. Esc first:
+      // the chair the last drop selected is 9 screen px here, all covered by its own stretch handles
+      await page.keyboard.press('Escape');
+      const from = await at(page, p1);
+      const to = await at(page, [0.4, 272 / 600]);
+      await page.mouse.move(from.x, from.y);
+      await page.mouse.down();
+      await page.mouse.move((from.x + to.x) / 2, (from.y + to.y) / 2, { steps: 5 });
+      await page.mouse.move(to.x, to.y, { steps: 5 });
+      await expect(canvas.locator('[data-guide="y"][data-at="270"]')).toHaveCount(1);
+      await page.mouse.up();
+      await expect(canvas.locator('[data-guide]')).toHaveCount(0); // the guides go with the drop
+      await expect.poll(async () => (await positions(['gd1']))[0][1], { timeout: 10000 }).toBe(0.45);
+      const [p2] = await positions(['gd1']);
+      expect(Math.abs((p2[0] * 1000) / GRID_PX - Math.round((p2[0] * 1000) / GRID_PX))).toBeLessThan(1e-3);
+
+      // Ctrl held while dragging: neither the grid nor a guide - the chair goes exactly where it is dragged
+      await page.keyboard.press('Escape');
+      const p2s = await at(page, p2);
+      await page.keyboard.down('Control');
+      await mouseDrag(page, p2s, 37, 29);
+      await page.keyboard.up('Control');
+      await expect.poll(async () => (await positions(['gd1']))[0][0], { timeout: 10000 }).toBeGreaterThan(p2[0] + 0.02);
+      const [p3] = await positions(['gd1']);
+      expect(onGrid(p3), `off the grid: ${p3}`).toBe(false);
+
+      // a group drag: the grabbed chair (gd2) lands on the grid and gd1 moves by the same corrected delta
+      await page.keyboard.press('Escape');
+      const [q0, g0] = await positions(['gd1', 'gd2']);
+      for (const [p, shift] of [[q0, false], [g0, true]] as const) {
+        const s = await at(page, p);
+        if (shift) await page.keyboard.down('Shift');
+        await page.mouse.click(s.x, s.y);
+        if (shift) await page.keyboard.up('Shift');
+      }
+      await expect(page.locator(`${ED} [data-multi-panel]`)).toHaveAttribute('data-multi-count', '2');
+      await mouseDrag(page, await at(page, g0), 41, 23);
+      await expect.poll(async () => (await positions(['gd2']))[0][0], { timeout: 10000 }).toBeGreaterThan(g0[0] + 0.02);
+      const [q1, g1] = await positions(['gd1', 'gd2']);
+      expect(onGrid(g1), `group member on the grid: ${g1}`).toBe(true);
+      expect(q1[0] - q0[0]).toBeCloseTo(g1[0] - g0[0], 4);
+      expect(q1[1] - q0[1]).toBeCloseTo(g1[1] - g0[1], 4);
+
+      // remembered for this floor in this browser: after a reload the grid is still on
+      await page.reload();
+      await expect(canvas.locator('[data-grid]')).toHaveAttribute('data-grid-px', String(GRID_PX), { timeout: 20000 });
+      await page.locator(`${ED} [data-grid-chip]`).click(); // and the chip turns it off
+      await expect(canvas.locator('[data-grid]')).toHaveCount(0);
+    } finally {
+      await saveDraft({ walls: SEED.walls, objects: SEED.objects }); // the tests below expect the plain seed
+    }
+  });
+
+  test('align and distribute: four ragged chairs and a wall selected - centres on one horizontal line, spaced evenly, left edges lined up, each one undo step; the wall stays', async ({ page }) => {
+    const pts: P[] = [[0.3, 0.5], [0.38, 0.53], [0.5, 0.48], [0.62, 0.51]];
+    const names = ['al1', 'al2', 'al3', 'al4'];
+    await saveDraft({ ...SEED, objects: [...SEED.objects, ...names.map((id, i) => CHAIR(id, pts[i]))] });
+    try {
+      await openEditor(page);
+      const panel = page.locator(`${ED} [data-multi-panel]`);
+      const wall0 = wallOf(await draft(), 'mw2').polyline;
+      const click = async (p: P, shift = false) => {
+        const s = await at(page, p);
+        if (shift) await page.keyboard.down('Shift');
+        await page.mouse.click(s.x, s.y);
+        if (shift) await page.keyboard.up('Shift');
+      };
+      // one object and a wall: nothing to align
+      await click([0.75, 0.55]);
+      await click([0.35, 0.85], true);
+      await expect(panel).toHaveAttribute('data-multi-count', '2');
+      await expect(panel.locator('[data-multi-align]')).toHaveCount(0);
+      await page.keyboard.press('Escape');
+
+      // the four chairs by a marquee, and the wall below them by Shift+click
+      await marquee(page, [0.25, 0.42], [0.66, 0.6]);
+      await expect(panel).toHaveAttribute('data-multi-count', '4');
+      await click([0.35, 0.85], true);
+      await expect(panel).toHaveAttribute('data-multi-count', '5');
+      await expect(panel.locator('[data-multi-align] [data-align]')).toHaveCount(6);
+      await expect(panel.locator('[data-multi-align] [data-distribute]')).toHaveCount(2);
+
+      // centres on one horizontal line: the box of the four is y 283..323 px -> every centre at 303 px (0.505); x stays
+      await panel.locator('[data-align="center-y"]').click();
+      await expect.poll(async () => JSON.stringify((await positions(names)).map((p) => p[1])), { timeout: 10000 }).toBe(JSON.stringify([0.505, 0.505, 0.505, 0.505]));
+      const aligned = await positions(names);
+      expect(aligned.map((p) => p[0])).toEqual(pts.map((p) => p[0]));
+      await expect(panel.locator('[data-multi-note]')).toContainText('4 עצמים זזו');
+      await expect(panel).toHaveAttribute('data-multi-count', '5'); // the selection stays for the next action
+
+      // distributed across: the outer two stay (centres 300 and 620 px), 10 px wide chairs with three equal gaps of 96.67 px
+      await panel.locator('[data-distribute="x"]').click();
+      await expect.poll(async () => (await positions(['al2']))[0][0], { timeout: 10000 }).toBeCloseTo(0.40667, 5);
+      const spread = await positions(names);
+      [0.3, 0.40667, 0.51333, 0.62].forEach((x, i) => expect(spread[i][0]).toBeCloseTo(x, 5));
+      spread.forEach((p) => expect(p[1]).toBe(0.505));
+
+      // left edges on the box's left edge (295 px): every centre at 300 px
+      await panel.locator('[data-align="left"]').click();
+      await expect.poll(async () => JSON.stringify((await positions(names)).map((p) => p[0])), { timeout: 10000 }).toBe(JSON.stringify([0.3, 0.3, 0.3, 0.3]));
+      expect(wallOf(await draft(), 'mw2').polyline).toEqual(wall0); // the wall of the selection never moved
+      await saved(page);
+
+      // one undo step per action: the first undo puts all four back where the distribute left them, the second before it
+      await page.locator(`${ED} [data-rail-undo]`).click();
+      await expect.poll(async () => JSON.stringify(await positions(names)), { timeout: 10000 }).toBe(JSON.stringify(spread));
+      await page.locator(`${ED} [data-rail-undo]`).click();
+      await expect.poll(async () => JSON.stringify(await positions(names)), { timeout: 10000 }).toBe(JSON.stringify(aligned));
+    } finally {
+      await saveDraft({ walls: SEED.walls, objects: SEED.objects }); // the tests below expect the plain seed
+    }
+  });
+
   // Review of T085, S4: `any-pointer: coarse` is true on a touchscreen laptop even when it is used with a mouse; a
   // member of a multi-selection must still drag the group there, not start a marquee.
   test.describe('on a touchscreen laptop used with a mouse', () => {
