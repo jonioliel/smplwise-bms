@@ -16,6 +16,7 @@ import type { StateKind } from '../components/sw-badge';
 import { can, isApi } from '../api/session';
 import { ApiError, describeError } from '../api/client';
 import {
+  actionOutcome,
   getIntercomOverview,
   getIntercomTtsEngines,
   releaseIntercomDoor,
@@ -45,16 +46,28 @@ type DoorFilter = 'all' | 'online' | 'attention';
 
 const PAGE = 12; // WisKey's entry center never shows more than 12 doors a page (fitWall capacity ceiling)
 const POLL_MS = 30000; // WisKey's own panel polls `overview` every 30 s; used here only while the notices are down
-const ARM_MS = 4000; // a call control's second tap must follow the first within this long
+const ARM_MS = 4000; // a call control's second tap must follow the first within this long ...
+const ARM_MIN_MS = 500; // ... and not sooner: a double-click / double-tap is one gesture, not a confirmation
+const UNKNOWN_HOLD_MS = 10_000; // after a release with an unknown outcome, that relay's button waits this long (backend: UNKNOWN_HOLD_S)
 const TTS_MAX = 500; // WisKey's own limit (audio_tts.py), after collapsing whitespace
 
 const CALL_LABELS: Record<IntercomCallCommand, string> = { answer: 'מענה', reject: 'דחייה', hangUp: 'סיום שיחה' };
 
 type Tone = 'ok' | 'warn' | 'err';
 
-/** How a failed physical action reads: an unknown outcome (sent, no answer) is a warning, not a plain failure. */
-function toneOf(err: unknown): Tone {
-  return err instanceof ApiError && err.body.details?.outcome === 'unknown' ? 'warn' : 'err';
+/** A physical action that did not succeed, as the caller must read it. Only a structured "not sent" / "refused" from
+ * the backend is a plain failure; everything else - including a dropped connection or a proxy error, which
+ * describeError would show as a plain "no connection" - is "outcome unknown", in amber, never a reassurance that
+ * nothing happened (T054 review S4). */
+function failure(err: unknown): { tone: Tone; text: string; unknown: boolean } {
+  const outcome = actionOutcome(err);
+  if (outcome !== 'unknown') return { tone: 'err', text: describeError(err), unknown: false };
+  // the backend's own "unknown" message already says what to do; any other failure gets that advice here
+  const text =
+    err instanceof ApiError && err.body?.details?.outcome === 'unknown'
+      ? `לא ידוע אם הפקודה בוצעה: ${err.message}`
+      : `לא ידוע אם הפקודה בוצעה: לא התקבלה תשובה ברורה מהשרת (${describeError(err)}). בדקו במצלמה או במקום לפני שמנסים שוב.`;
+  return { tone: 'warn', text, unknown: true };
 }
 
 /** Only what WisKey's answer says: the device acknowledgement and the call state observed afterwards. */
@@ -147,8 +160,11 @@ export class WiskeyOverview extends LitElement {
   @state() private confirmRelease: { station: IntercomStation; lock: IntercomLock } | null = null;
   @state() private releasing = new Set<string>(); // `${station}/${lock}` releases waiting for WisKey
   @state() private results: Record<string, { tone: Tone; text: string }> = {}; // per station: the last action's outcome
+  @state() private held: Record<string, number> = {}; // `${station}/${lock}` -> until when a release stays blocked (unknown outcome)
   @state() private callBusy = new Set<string>();
-  @state() private armed: { id: string; command: IntercomCallCommand } | null = null;
+  /** The armed call control: which station and command, when (performance.now) and in which call state it was armed. */
+  @state() private armed: { id: string; command: IntercomCallCommand; at: number; callState: string } | null = null;
+  private holdTimer = 0;
   @state() private speakFor: IntercomStation | null = null;
   @state() private engines: IntercomTtsEngines | null = null;
   @state() private enginesNote = '';
@@ -190,6 +206,7 @@ export class WiskeyOverview extends LitElement {
     this.stop = null;
     this.setPolling(false);
     window.clearTimeout(this.armTimer);
+    window.clearTimeout(this.holdTimer);
   }
 
   private setPolling(on: boolean) {
@@ -210,6 +227,7 @@ export class WiskeyOverview extends LitElement {
         try {
           this.feed = await getIntercomOverview();
           this.error = '';
+          this.dropStaleArm();
         } catch (err) {
           if (err instanceof ApiError && err.status === 403) this.forbidden = true;
           else this.error = describeError(err);
@@ -231,8 +249,21 @@ export class WiskeyOverview extends LitElement {
     this.results = { ...this.results, [stationId]: { tone, text } };
   }
 
+  private isHeld(key: string): boolean {
+    return (this.held[key] ?? 0) > Date.now();
+  }
+
+  /** After an unknown outcome the relay's button waits (the backend holds the relay too): nobody fires a second release
+   * straight into an ambiguous state. */
+  private hold(key: string) {
+    this.held = { ...this.held, [key]: Date.now() + UNKNOWN_HOLD_MS };
+    window.clearTimeout(this.holdTimer);
+    this.holdTimer = window.setTimeout(() => (this.held = { ...this.held }), UNKNOWN_HOLD_MS + 50); // re-render when it ends
+  }
+
   private askRelease(station: IntercomStation, lock: IntercomLock) {
-    if (this.releasing.has(`${station.id}/${lock.physical_index}`)) return;
+    const key = `${station.id}/${lock.physical_index}`;
+    if (this.releasing.has(key) || this.isHeld(key)) return;
     this.confirmRelease = { station, lock };
   }
 
@@ -241,20 +272,17 @@ export class WiskeyOverview extends LitElement {
     const c = this.confirmRelease;
     if (!c) return;
     const key = `${c.station.id}/${c.lock.physical_index}`;
-    if (this.releasing.has(key)) return;
+    if (this.releasing.has(key) || this.isHeld(key)) return;
     this.releasing = new Set([...this.releasing, key]);
     try {
-      const r = await releaseIntercomDoor(c.station.id, c.lock.physical_index);
+      // a success reply always means `accepted: true` (anything else is raised as "outcome unknown" by the backend)
+      await releaseIntercomDoor(c.station.id, c.lock.physical_index);
       const at = new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      this.setResult(
-        c.station.id,
-        r.release?.accepted ? 'ok' : 'warn',
-        r.release?.accepted
-          ? `הפקודה נשלחה ו־WisKey קיבל אותה (${at}). אין אישור שהדלת נפתחה בפועל - בדקו במצלמה או במקום.`
-          : `הפקודה נשלחה (${at}), אך WisKey לא אישר שקיבל אותה. אין אישור שהדלת נפתחה.`,
-      );
+      this.setResult(c.station.id, 'ok', `הפקודה נשלחה ו־WisKey קיבל אותה (${at}). אין אישור שהדלת נפתחה בפועל - בדקו במצלמה או במקום.`);
     } catch (err) {
-      this.setResult(c.station.id, toneOf(err), describeError(err));
+      const f = failure(err);
+      this.setResult(c.station.id, f.tone, f.text);
+      if (f.unknown) this.hold(key);
     } finally {
       const next = new Set(this.releasing);
       next.delete(key);
@@ -264,17 +292,35 @@ export class WiskeyOverview extends LitElement {
   }
 
   /** Call controls take two taps: the first arms the button for ARM_MS, the second sends. Lighter than the release
-   * dialog - the operator is already dealing with a ringing call - but never a single stray click. */
-  private onCall(station: IntercomStation, command: IntercomCallCommand) {
-    if (this.callBusy.has(station.id)) return;
-    window.clearTimeout(this.armTimer);
-    if (this.armed?.id === station.id && this.armed.command === command) {
+   * dialog - the operator is already dealing with a ringing call - but never a single stray gesture: the second click
+   * of a double-click (`detail > 1`) and any tap sooner than ARM_MIN_MS after arming are ignored, and an arm is only
+   * good for the call state it was made in (see dropStaleArm). */
+  private onCall(e: MouseEvent, station: IntercomStation, command: IntercomCallCommand) {
+    if (this.callBusy.has(station.id) || this.feed?.state !== 'ready') return;
+    if (e.detail > 1) return; // the 2nd (3rd ...) click of one multi-click: the same gesture as the arming click
+    const a = this.armed;
+    if (a && a.id === station.id && a.command === command && a.callState === station.call_state) {
+      if (performance.now() - a.at < ARM_MIN_MS) return; // too quick to be a deliberate second tap
+      window.clearTimeout(this.armTimer);
       this.armed = null;
       void this.sendCall(station, command);
       return;
     }
-    this.armed = { id: station.id, command };
+    window.clearTimeout(this.armTimer);
+    this.armed = { id: station.id, command, at: performance.now(), callState: station.call_state };
     this.armTimer = window.setTimeout(() => (this.armed = null), ARM_MS);
+  }
+
+  /** An arm belongs to the call it was made for: when that station's call state changed (answered elsewhere, ended,
+   * went offline), the arm is dropped - never left to fire against a call that no longer exists. */
+  private dropStaleArm() {
+    const a = this.armed;
+    if (!a) return;
+    const s = this.feed?.overview?.stations.find((x) => x.id === a.id);
+    if (this.feed?.state !== 'ready' || !s || !s.online || s.call_state !== a.callState) {
+      window.clearTimeout(this.armTimer);
+      this.armed = null;
+    }
   }
 
   private async sendCall(station: IntercomStation, command: IntercomCallCommand) {
@@ -283,7 +329,8 @@ export class WiskeyOverview extends LitElement {
       const r = await signalIntercomCall(station.id, command);
       if (r.call) this.setResult(station.id, r.call.acknowledged === true ? 'ok' : 'warn', callText(r.call));
     } catch (err) {
-      this.setResult(station.id, toneOf(err), describeError(err));
+      const f = failure(err);
+      this.setResult(station.id, f.tone, f.text);
     } finally {
       const next = new Set(this.callBusy);
       next.delete(station.id);
@@ -337,7 +384,14 @@ export class WiskeyOverview extends LitElement {
       if (r.tts && !(seen && seen.at >= r.tts.at && rank(seen) > rank(r.tts))) this.ttsStatus = { ...this.ttsStatus, [station.id]: r.tts };
       this.speakFor = null;
     } catch (err) {
-      this.ttsError = describeError(err);
+      const f = failure(err);
+      if (f.unknown) {
+        // it may be playing right now: close the composer (no one-click resend) and say so on the door's card
+        this.speakFor = null;
+        this.setResult(station.id, f.tone, f.text);
+      } else {
+        this.ttsError = f.text;
+      }
     } finally {
       this.ttsBusy = false;
     }
@@ -551,7 +605,7 @@ export class WiskeyOverview extends LitElement {
       ${ringing || inCall
         ? html`<div class="row call" role="group" aria-label="שליטה בשיחה" data-wiskey-call>
             ${(ringing ? (['answer', 'reject'] as const) : (['hangUp'] as const)).map((command) => {
-              const armed = this.armed?.id === s.id && this.armed.command === command;
+              const armed = this.armed?.id === s.id && this.armed.command === command && this.armed.callState === s.call_state;
               return html`<sw-button
                 size="sm"
                 variant=${command === 'answer' ? 'primary' : 'danger'}
@@ -559,7 +613,7 @@ export class WiskeyOverview extends LitElement {
                 data-wiskey-call-command=${command}
                 data-armed=${armed ? 'true' : 'false'}
                 ?disabled=${!live || this.callBusy.has(s.id)}
-                @click=${() => this.onCall(s, command)}
+                @click=${(e: MouseEvent) => this.onCall(e, s, command)}
                 >${armed ? `לחצו שוב ל${CALL_LABELS[command]}` : CALL_LABELS[command]}</sw-button
               >`;
             })}
@@ -568,13 +622,16 @@ export class WiskeyOverview extends LitElement {
       <div class="row">
         ${locks.map((l) => {
           const name = lockLabel(s, l);
+          const key = `${s.id}/${l.physical_index}`;
+          const held = this.isHeld(key);
           return html`<sw-button
             size="sm"
             icon="unlock"
             data-wiskey-release=${l.physical_index}
-            ?disabled=${!live || !s.online || this.releasing.has(`${s.id}/${l.physical_index}`)}
+            data-held=${held ? 'true' : 'false'}
+            ?disabled=${!live || !s.online || this.releasing.has(key) || held}
             @click=${() => this.askRelease(s, l)}
-            >${name ? `שחרור ${name}` : 'שחרור דלת'}</sw-button
+            >${held ? 'ממתין לבירור…' : name ? `שחרור ${name}` : 'שחרור דלת'}</sw-button
           >`;
         })}
         ${s.online ? html`<sw-button size="sm" variant="ghost" icon="volume" data-wiskey-speak ?disabled=${!live} @click=${() => this.openSpeak(s)}>הכרזה</sw-button>` : nothing}
