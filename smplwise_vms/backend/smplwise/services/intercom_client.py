@@ -135,12 +135,16 @@ PRE_DEVICE: dict[str, frozenset[str]] = {
     # runtime closed AFTER a successful open), `action_failed` (any other exception, anywhere), and the client's 1 s
     # per-door debounce, which has no code of its own (a HikvisionBusyError, reported as `release_unconfirmed`).
     "stations/test_unlock": frozenset({"station_offline", "connection_closed", "lock_not_managed", "release_in_progress"}),
-    # health_api.py:20-27, 52-81: `station_unloaded` (station / entry lookup) and `device_busy` (a signal already running
-    # for the station) come before any device call. NOT here: `device_unavailable` - ANY HikvisionError, including a
-    # failure of the callSignal PUT itself after it may have reached the device.
-    "media/signal": frozenset({"station_unloaded", "device_busy"}),
-    # audio_tts.py:272-333 start errors, all raised before playback starts: invalid message, engine not listed, station
-    # not loaded, audio channel busy.
+    # health_api.py:52-81: `device_busy` (a signal already running for the station, :55-58) comes before any device
+    # call. NOT here: `device_unavailable` - ANY HikvisionError, including a failure of the callSignal PUT itself after
+    # it may have reached the device - and NOT `station_unloaded`: the extraction places it at dispatch_health's early
+    # entry lookup (:20-27), but WisKey raises that same code after device work in other command families, and the
+    # WisKey source itself is not available here to prove media/signal never does (T054 final confirmation S-1). Unproven
+    # means unknown, the safe side, exactly like the release debounce.
+    "media/signal": frozenset({"device_busy"}),
+    # audio_tts.py:272-333 start errors, all raised as the subscription's result error BEFORE playback starts (a failure
+    # during playback arrives as a `closed {reason}` event, never as a result error): invalid message, engine not
+    # listed, station not loaded, audio channel busy.
     "tts/start": frozenset({"tts_invalid_message", "tts_engine_unavailable", "station_unloaded", "audio_busy"}),
 }
 

@@ -1985,8 +1985,9 @@ CLASSIFICATION = {
         "unknown": ["release_unconfirmed", "action_failed", "device_unavailable", "device_busy", "home_assistant_error", "unknown_error", "timeout", "a_code_nobody_documented", ""],
     },
     "media/signal": {
-        "refused": {**COMMON_REFUSED, "station_unloaded": 502, "device_busy": 502},
-        "unknown": ["device_unavailable", "action_failed", "home_assistant_error", "unknown_error", "timeout", "release_unconfirmed", "a_code_nobody_documented"],
+        "refused": {**COMMON_REFUSED, "device_busy": 502},
+        # station_unloaded: not provably pre-device for media/signal (final confirmation S-1), so unknown
+        "unknown": ["station_unloaded", "device_unavailable", "action_failed", "home_assistant_error", "unknown_error", "timeout", "release_unconfirmed", "a_code_nobody_documented"],
     },
     "tts/start": {
         "refused": {**COMMON_REFUSED, "tts_invalid_message": 502, "tts_engine_unavailable": 502, "station_unloaded": 502, "audio_busy": 502},
@@ -2078,8 +2079,10 @@ def test_send_time_expiry_is_deterministic(feed, monkeypatch):
             return frozen
 
     app, fakes, c = actions_feed(feed, accept_unlock)
-    monkeypatch.setattr(intercom_sync.datetime, "datetime", FrozenClock)
-    try:
+    # a context of its own: undoing it reverts ONLY the frozen clock, never the `feed` fixture's own patches
+    # (websockets.connect, RETRY_S ...) that share the test's monkeypatch (T054 final confirmation S-2)
+    with monkeypatch.context() as m:
+        m.setattr(intercom_sync.datetime, "datetime", FrozenClock)
         loop = intercom_sync.SYNC._event_loop
         for _ in range(20):
             coro = intercom_sync.SYNC._one_off(lambda call: asyncio.sleep(0, result="sent"), not_after=frozen)
@@ -2087,8 +2090,10 @@ def test_send_time_expiry_is_deterministic(feed, monkeypatch):
                 asyncio.run_coroutine_threadsafe(coro, loop).result(timeout=5)
         coro = intercom_sync.SYNC._one_off(lambda call: asyncio.sleep(0, result="sent"), not_after=frozen + dt.timedelta(microseconds=1))
         assert asyncio.run_coroutine_threadsafe(coro, loop).result(timeout=5) == "sent"
-    finally:
-        monkeypatch.undo()
+    import websockets
+
+    assert websockets.connect is not None and intercom_sync.RETRY_S == 0.05, "the feed fixture's patches are intact"
+    assert intercom_sync.datetime.datetime is dt.datetime, "and the clock is real again"
     monkeypatch.setattr(access_control, "SEND_WITHIN_S", -1.0)
     for _ in range(5):
         r = release(c, user="joni")
@@ -2117,8 +2122,50 @@ def test_malformed_requests_are_audited_and_permission_comes_first(feed):
         r = c.post(f"/api/v1/intercom/stations/{long_id}/release", json=env(confirmed=True), headers=as_user(user))
         assert r.status_code == status, (user, r.text)
         r = c.post("/api/v1/intercom/stations/entry-a/tts", content=b"hello", headers={**as_user(user), "Content-Type": "text/plain"})
-        assert r.status_code == status, (user, r.text)
+        assert r.status_code == (403 if user == "vera" else 415), (user, r.text)
     refused = audit_rows(s, "intercom.release", "refused")
     assert [(row["reason"], row["details"]["outcome"], len(row["resource_id"])) for row in refused] == [("validation", "not_sent", 7), ("validation", "not_sent", 128)]
-    assert audit_rows(s, "intercom.tts", "refused")[0]["reason"] == "validation"
+    assert audit_rows(s, "intercom.tts", "refused")[0]["reason"] == "unsupported_media_type"
     assert not sent(fakes, "stations/test_unlock") and not sent(fakes, "tts/start")
+
+
+@pytest.mark.parametrize("content_type", ["text/plain", "text/plain;charset=UTF-8", "application/x-www-form-urlencoded", "multipart/form-data; boundary=x", None])
+def test_only_json_content_types_reach_a_door(feed, content_type):
+    """Final confirmation B-1: a perfectly valid release / call / announcement payload sent as `text/plain` or a form
+    body - CORS "simple requests" a browser sends cross-site without a preflight - or with no Content-Type at all, is a
+    415 audited refusal and never reaches WisKey. `application/json` (with a charset) and `+json` subtypes are read."""
+    app, fakes, c = actions_feed(feed, accept_unlock)
+    s = feed[1]
+    headers = {**as_user("sam"), **({"Content-Type": content_type} if content_type else {})}
+    for path, body, action in (
+        ("/api/v1/intercom/stations/entry-a/release", env(confirmed=True), "intercom.release"),
+        ("/api/v1/intercom/stations/entry-c/call", env(command="answer"), "intercom.call"),
+        ("/api/v1/intercom/stations/entry-a/tts", env(engine_id="tts.piper", message="hello"), "intercom.tts"),
+    ):
+        r = c.post(path, content=json.dumps(body).encode("utf-8"), headers=headers)
+        assert r.status_code == 415 and r.json()["code"] == "unsupported_media_type", (content_type, path, r.text)
+        assert r.json()["details"]["outcome"] == "not_sent"
+        [row] = audit_rows(s, action, "refused")
+        assert (row["reason"], row["actor_username"], row["decision"]) == ("unsupported_media_type", "sam", "denied")
+    assert not sent(fakes, "stations/test_unlock") and not sent(fakes, "media/signal") and not sent(fakes, "tts/start"), "nothing reached WisKey"
+    assert c.post("/api/v1/intercom/stations/entry-a/release", content=json.dumps(env(confirmed=True)), headers={**as_user("vera"), **({"Content-Type": content_type} if content_type else {})}).status_code == 403, "permission first"
+
+
+def test_json_content_types_are_accepted(feed):
+    app, fakes, c = actions_feed(feed, accept_unlock)
+    for content_type in ("application/json", "application/json; charset=utf-8", "Application/JSON", "application/merge-patch+json"):
+        access_control.RELAYS.clear()
+        r = c.post("/api/v1/intercom/stations/entry-a/release", content=json.dumps(env(confirmed=True)), headers={**as_user("sam"), "Content-Type": content_type})
+        assert r.status_code == 200, (content_type, r.text)
+    assert len(sent(fakes, "stations/test_unlock")) == 4
+
+
+def test_a_deeply_nested_body_is_an_audited_refusal_not_a_500(feed):
+    """N-1: json.loads raises RecursionError (not ValueError) on a pathologically nested body."""
+    app, fakes, c = actions_feed(feed, accept_unlock)
+    deep = b"[" * 100_000 + b"]" * 100_000
+    r = c.post("/api/v1/intercom/stations/entry-a/release", content=deep, headers={**as_user("sam"), "Content-Type": "application/json"})
+    assert r.status_code == 422 and r.json()["details"]["outcome"] == "not_sent", r.text
+    [row] = audit_rows(feed[1], "intercom.release", "refused")
+    assert row["reason"] == "validation"
+    assert not sent(fakes, "stations/test_unlock")

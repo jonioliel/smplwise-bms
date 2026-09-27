@@ -312,14 +312,28 @@ async def _raw_body(request: Request) -> bytes:
     return await request.body()
 
 
+def _is_json(content_type: str | None) -> bool:
+    """`application/json` or an `application/<x>+json` subtype, parameters (charset) ignored."""
+    media = (content_type or "").split(";", 1)[0].strip().lower()
+    return media == "application/json" or (media.startswith("application/") and media.endswith("+json"))
+
+
 def _parse(act: _Action, model: type[BaseModel], raw: bytes) -> Any:
-    """Validate the station id and the body; every failure is an audited refusal (nothing is sent)."""
+    """Validate the station id, the content type and the body; every failure is an audited refusal (nothing is sent).
+
+    The content type is enforced explicitly (T054 final confirmation B-1): `text/plain` and form-encoded bodies are
+    CORS "simple requests" that a browser sends cross-site WITHOUT a preflight, so a JSON payload smuggled in one of
+    them must never actuate a door. Only `application/json` (or a `+json` subtype) is read; a JSON Content-Type forces
+    the preflight. FastAPI's own body parsing rejected the others implicitly; reading the raw body here, it must be said."""
     if not 1 <= len(act.station_id) <= MAX_STATION_ID:
         act.station_id = act.station_id[:MAX_STATION_ID]  # the audit row keeps a bounded id
         raise act.refuse(ApiError(422, "validation", "מזהה העמדה אינו תקין.", details={"fields": ["station_id"]}))
+    content_type = act.request.headers.get("content-type")
+    if not _is_json(content_type):
+        raise act.refuse(ApiError(415, "unsupported_media_type", "הבקשה חייבת להישלח כ־JSON (Content-Type: application/json).", details={"content_type": (content_type or "")[:100]}))
     try:
         data = json.loads(raw) if raw.strip() else {}
-    except ValueError:
+    except (ValueError, RecursionError):  # RecursionError: a pathologically nested body (N-1) is a refusal, not a 500
         raise act.refuse(ApiError(422, "validation", "גוף הבקשה אינו JSON תקין.", details={"fields": ["body"]})) from None
     try:
         return model.model_validate(data)
