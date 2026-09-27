@@ -58,6 +58,9 @@ def check_tags(raw: Any) -> tuple[list[str], str | None]:
     sends (studio-ops normalizeTag / withTag), so for its lists this changes nothing."""
     if not isinstance(raw, list) or not all(isinstance(t, str) for t in raw):
         return [], "type"
+    if len(raw) > MAX_TAGS * 10:  # a generous multiple of MAX_TAGS: case-insensitive dedup can still legally shrink a
+        return [], "count"        # longer raw list under the limit, but an absurdly large one is rejected before the
+                                   # per-tag trim/casefold work below runs at all (re-review of T085 tags, low severity)
     out: list[str] = []
     seen: set[str] = set()
     for t in raw:
