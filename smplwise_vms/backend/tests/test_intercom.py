@@ -995,9 +995,13 @@ def test_malformed_replies_are_invalid_response(feed):
 
     app, fakes = ready_feed(feed, answer)
     c = TestClient(app)
-    for path, key in (("/api/v1/intercom/people/u1", "person"), ("/api/v1/intercom/people", "people")):
+    # the search path projects inside the scan: a bad record there must read the same, not as "HA unreachable"
+    for path, key in (("/api/v1/intercom/people/u1", "person"), ("/api/v1/intercom/people", "people"), ("/api/v1/intercom/people?query=dana", "people")):
         body = c.get(path).json()
         assert (body["state"], body["last_error"], body[key], body["fetched_at"]) == ("error", "invalid_response", None, None), path
+    broken["records"] = "not a list"
+    body = c.get("/api/v1/intercom/people", params={"query": "dana"}).json()
+    assert (body["state"], body["last_error"], body["people"]) == ("error", "invalid_response", None)
     assert intercom_sync.STATE.state == "ready" and len(fakes) == 1
 
 
@@ -1161,3 +1165,82 @@ def test_search_scan_is_bounded(feed, monkeypatch):
     assert body["people"]["complete"] is False and body["people"]["incomplete_reason"] == "rate_limited"
     body = c.get("/api/v1/intercom/people", params={"query": "Person 1"}).json()
     assert (body["state"], body["last_error"]) == ("error", "rate_limited") and len(sent(fakes, "users/query")) == before + 2
+
+
+def test_search_skips_people_seen_twice_when_the_directory_shifts(feed, roomy_buckets):
+    """A directory change mid-scan can move a person onto the next WisKey page as well: flagged `stale`, and still
+    listed once."""
+    people = directory(250)
+
+    def answer(msg: dict[str, Any]) -> list[Any] | None:
+        if msg["type"] != "hikvision_intercom/users/query":
+            return None
+        if msg["offset"] == 0:
+            rows, stale = people[0:200], False
+        else:  # someone was deleted near the top meanwhile: everything shifted up by one, person 200 appears again
+            rows, stale = people[199:250], True
+        return [ok(msg, {"records": copy.deepcopy(rows), "total": 250, "total_all": 250, "offset": msg["offset"], "limit": msg["limit"],
+                         "next_offset": 200 if msg["offset"] == 0 else None, "previous_offset": None, "snapshot": "snap-2" if stale else "snap-1", "stale": stale})]
+
+    app, _fakes = ready_feed(feed, answer)
+    roomy_buckets()
+    page = TestClient(app).get("/api/v1/intercom/people", params={"query": "person", "limit": 200, "offset": 200}).json()["people"]
+    assert page["total"] == 250 and page["stale"] is True
+    ids = [p["id"] for p in page["records"]]
+    assert ids == [f"u{i}" for i in range(201, 251)], "person 200 is not listed a second time"
+
+
+def test_session_already_gone_is_session_ended(feed, monkeypatch):
+    """The feed still says `ready`, but the session ended between the request's check and the command reaching the
+    feed's loop: `ha_unavailable` with `last_error` `session_ended`, and nothing is sent."""
+    app, fakes = ready_feed(feed, lambda msg: None)
+    sync = intercom_sync.SYNC
+    live = sync._call
+    real = asyncio.run_coroutine_threadsafe
+
+    def racing(coro: Any, loop: Any) -> Any:
+        if loop is sync._event_loop:
+            sync._call = None  # the session's own `finally` got there first
+        return real(coro, loop)
+
+    monkeypatch.setattr(asyncio, "run_coroutine_threadsafe", racing)
+    try:
+        body = TestClient(app).get("/api/v1/intercom/people/u1").json()
+    finally:
+        sync._call = live
+    assert (body["state"], body["last_error"], body["person"]) == ("ha_unavailable", "session_ended", None)
+    assert not sent(fakes, "users/get")
+
+
+def test_busy_costs_no_rate_token(feed, monkeypatch):
+    """A `busy` refusal never reached WisKey, so it must not spend the caller's rate budget."""
+    monkeypatch.setattr(intercom_sync, "USER_BURST", 1.0)
+    monkeypatch.setattr(intercom_sync, "USER_RATE", 0.0)
+    app, fakes = ready_feed(feed, lambda msg: [ok(msg, copy.deepcopy(PERSON))] if msg["type"] == "hikvision_intercom/users/get" else None)
+    intercom_sync.SYNC._buckets_reset()
+    slot = intercom_sync.SYNC._inflight = threading.BoundedSemaphore(1)
+    c = TestClient(app)
+    assert slot.acquire(blocking=False)
+    try:
+        for _ in range(3):
+            assert c.get("/api/v1/intercom/people/u1").json()["last_error"] == "busy"
+    finally:
+        slot.release()
+    body = c.get("/api/v1/intercom/people/u1").json()
+    assert body["state"] == "ready" and body["person"] == PROJECTED_PERSON, "the single token was still there"
+    assert c.get("/api/v1/intercom/people/u1").json()["last_error"] == "rate_limited"
+    assert len(sent(fakes, "users/get")) == 1 and slot._value == 1, "a refused token gives the slot back"
+
+
+def test_events_client_never_sends_current_profile():
+    """S1 at the client layer too: whatever a caller passes, only EVENT_FILTER_KEYS reach WisKey."""
+    from smplwise.services import intercom_client
+
+    seen: list[dict[str, Any]] = []
+
+    async def call(msg_type: str, **kw: Any) -> dict[str, Any]:
+        seen.append({"type": msg_type, **kw})
+        return {"success": True, "result": {"records": []}}
+
+    asyncio.run(intercom_client.events_list(call, {"station_id": "entry-a", "current_profile": {"id_number": "123456789"}, "person": None, "surprise": 1}))
+    assert seen == [{"type": "hikvision_intercom/events/list", "filters": {"station_id": "entry-a"}}]

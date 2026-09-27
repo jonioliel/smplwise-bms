@@ -63,14 +63,20 @@ async def subscribe(call: Call) -> int:
     return int(frame["id"])
 
 
+# the events/list filters SMPLWISE ever sends. WisKey also accepts `current_profile` ({field_id: value}); it is left out
+# on purpose, here and not only in the router: matching events by a profile value (an ID number, say) would let a reader
+# probe values the people endpoints never show (CR-005 phase 1b review, S1).
+EVENT_FILTER_KEYS = ("station_id", "person", "result", "authentication", "door", "start", "end", "limit", "before", "current_group")
+
+
 async def events_list(call: Call, filters: dict[str, Any]) -> dict[str, Any]:
     """`hikvision_intercom/events/list {filters}` - one page of WisKey's bounded event cache (5 000 records / 30 days),
     newest first. Filter keys (EventManager.query, all optional): `station_id`, `person`, `result`, `authentication`,
     `door` (1|2), `start` / `end` (aware ISO), `limit` (1-200, WisKey's default 100), `before` (the previous page's
-    `next` cursor), `current_group`, `current_profile` ({field_id: value}). Any other key or a bad value is
-    `invalid_fields`; None values are dropped here because WisKey type-checks every key that is present. Returns
-    `{records, next, retention_days, capacity, membership_basis, storage_failed, stations}`."""
-    body = {k: v for k, v in filters.items() if v is not None}
+    `next` cursor), `current_group`. Only EVENT_FILTER_KEYS are ever sent - any other key a caller passes (including
+    WisKey's `current_profile`) is dropped here - and None values are dropped because WisKey type-checks every key that
+    is present. Returns `{records, next, retention_days, capacity, membership_basis, storage_failed, stations}`."""
+    body = {k: filters[k] for k in EVENT_FILTER_KEYS if filters.get(k) is not None}
     result = _result(await call(command_type("events/list"), filters=body), "events/list")
     if not isinstance(result, dict):
         raise IntercomError("invalid_response", "events/list")

@@ -303,6 +303,7 @@ async def search_people(
     `total` is then a lower bound ("narrow the search"). `snapshot` is WisKey's value from the first page; `stale` says
     the caller's snapshot is out of date or the directory changed during the scan."""
     matches: list[dict[str, Any]] = []
+    seen: set[str] = set()  # a directory change mid-scan can shift a person onto the next page as well
     wk_offset, pages = 0, 0
     current = ""
     total_all: int | None = None
@@ -322,11 +323,23 @@ async def search_people(
             total_all = _int(raw.get("total_all"))
         elif raw.get("stale"):
             stale = True  # someone changed the directory while it was being scanned
-        for record in raw.get("records") or []:
-            if isinstance(record, dict):
+        records = raw.get("records")
+        if records is None:
+            records = []
+        if not isinstance(records, list):
+            raise IntercomError("invalid_response", "users/query")
+        try:
+            for record in records:
+                if not isinstance(record, dict):
+                    continue
                 person = project_person(record)
+                if person["id"] in seen:
+                    continue
+                seen.add(person["id"])
                 if person_matches(person, needle):
                     matches.append(person)
+        except Exception as exc:  # noqa: BLE001 - a malformed record is WisKey's error, not a lost connection
+            raise IntercomError("invalid_response", "users/query") from exc
         following = _int(raw.get("next_offset"))
         if following is None or following <= wk_offset:
             break
@@ -466,8 +479,9 @@ class IntercomSync:
         did not succeed; `state` is the feed's own state, or for this request only `forbidden` (WisKey refuses the
         add-on's user this command), `unsupported` (this WisKey has no such command), `error` (another WisKey error;
         `rate_limited` from SMPLWISE's own buckets or WisKey's; `busy` when MAX_INFLIGHT reads are already out;
-        `timeout`; `invalid_response`) or `ha_unavailable` (the session went away mid-request). A request-level refusal
-        (REQUEST_ERRORS) raises an ApiError instead. `who` keys the caller's own rate bucket (the SMPLWISE user id).
+        `timeout`; `invalid_response`) or `ha_unavailable` (the session went away mid-request; `last_error` is the
+        exception name, or `session_ended` when the session was already gone before the command could be sent). A
+        request-level refusal (REQUEST_ERRORS) raises an ApiError instead. `who` keys the caller's own rate bucket (the SMPLWISE user id).
 
         Never blocks a worker thread on anything but the WisKey call itself: no rate token or no free slot is answered
         at once. The feed's state machine is never changed from here: the session's own overview refetch and reconnect
@@ -481,12 +495,13 @@ class IntercomSync:
         if state != "ready" or loop is None or self._call is None:
             reply["sync"] = STATE.as_dict()
             return reply
-        if not self._spend_token(who):
-            reply.update(state="error", last_error=RATE_LIMITED, sync=STATE.as_dict())
-            return reply
         slot = self._inflight  # the semaphore this request takes (reset() may swap in a new one)
-        if not slot.acquire(blocking=False):
+        if not slot.acquire(blocking=False):  # checked first: a `busy` refusal costs the caller no rate token
             reply.update(state="error", last_error="busy", sync=STATE.as_dict())
+            return reply
+        if not self._spend_token(who):
+            slot.release()
+            reply.update(state="error", last_error=RATE_LIMITED, sync=STATE.as_dict())
             return reply
         coro = self._one_off(send)
         try:
