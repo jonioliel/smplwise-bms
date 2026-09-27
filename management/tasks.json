@@ -2926,7 +2926,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "2026-09-27 (0.1.102, on commit 1ade8c7): owner request - embed the owner's own WisKey HA intercom integration as a new tab, full parity over several phases, porting the real WisKey frontend rather than redeveloping it from a command inventory (see CR-005, docs/changes/CR-005-ACCESS-CONTROL-INTEGRATION.md, and the full source extraction at docs/integrations/wiskey/WISKEY_SOURCE_EXTRACTION.md). This supersedes the original T054 acceptance criteria and its dependencies (T040/T045/T053), which assumed a from-scratch build; the new architecture reuses WisKey's own backend entirely and never duplicates it. Phase 1a shipped: read-only Entry Center screen (station cards, online/ringing state, last-access), new access.read permission (installation-scoped, viewer and above), a thin backend proxy over HA's WebSocket API plus a background relay modeled on the existing ha_sync pattern, reached via a repurposed sites-group nav sub-tab now labeled WisKey. No door release, no calls, no editing - those are separate, later phases, each needing its own explicit physical-action approval. Reviewed three times across two rounds: fixed an HA-restart-misread-as-not-installed gap, a site/floor-scoped-user-sees-tab-but-gets-403 gap, and the tab disappearing when the map is hidden (both nav designs). Tests: 16 new backend tests, 4 new live tests, full backend suite 399 passed."
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null

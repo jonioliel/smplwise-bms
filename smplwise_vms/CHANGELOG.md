@@ -1,5 +1,29 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.102 (pilot) — WisKey Entry Center, read-only (CR-005 phase 1a)
+- Owner request (2026-09-27): embed the owner's own WisKey Home Assistant intercom integration as a new tab,
+  full parity over several phases, porting the real WisKey frontend rather than redeveloping it from a command
+  inventory - WisKey stays installed and remains the sole authoritative writer, SMPLWISE only talks to it over
+  HA's own WebSocket API. This is the first slice: a read-only Entry Center screen - station cards,
+  online/ringing state, last-access summary - no door release, no calls, no editing. Physical actions are
+  separate, later phases, each needing its own explicit approval.
+- New permission `access.read`, granted viewer and above (installation scope only - WisKey stations are not
+  mapped to sites/floors); the grant is recorded as a deliberate decision in CR-005, since it exposes real names
+  and employee numbers via last-access records.
+- New backend: a thin WisKey `overview` command wrapper plus a background HA WebSocket connection (modeled on
+  the existing HA sync pattern) relaying WisKey's push signal and relevant entity state changes to the browser,
+  polling only while a client is actually watching. Honest degraded states throughout (not configured,
+  connecting, HA unavailable, not installed, forbidden, error) with a stale-cache banner rather than ever
+  inventing data.
+- New screen, ported from the real WisKey source (the "needs attention" rule, ringing rule, search/filter,
+  recent activity ordering, DST-aware time formatting all carried over, not re-derived), re-skinned onto this
+  product's own design system. Reached via the existing "sites" nav sub-tab, relabeled WisKey.
+- Reviewed three times across two review rounds: fixed a real gap where an HA restart was misread as "WisKey
+  not installed" for up to five minutes; fixed scoped (site/floor-bound) users seeing the tab but being refused
+  when they opened it; fixed the WisKey tab disappearing entirely when the map is hidden, in both nav designs
+  including a previously-unfiltered phone bottom bar; plus reliability fixes to the shared HA WebSocket session
+  helper, polling, and recovery timing.
+
 ## 0.1.101 (pilot) — fix: spanned camera tiles keep their real shape instead of letterboxing
 - Owner report (2026-09-27, with a screenshot from the live lab): a camera set to span 2 grid columns on the
   all-cameras wall showed its picture squeezed into about half the tile, with a solid black band filling the rest.
