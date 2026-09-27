@@ -1,6 +1,6 @@
 /**
- * Pure grid-layout maths for the all-cameras wall (T091's grid_col_span, T018's bestFit()/maxTileForHeight()
- * fix) - no DOM and no Lit, so it runs in node (tests/unit-wall-dense-pack.spec.ts). Kept out of live-wall.ts
+ * Pure grid-layout maths for the all-cameras wall (T091's grid_col_span, T018's bestFit()/fitTile() sizing)
+ * - no DOM and no Lit, so it runs in node (tests/unit-wall-dense-pack.spec.ts). Kept out of live-wall.ts
  * itself only so it can be imported without pulling in Lit/custom-element registration.
  */
 
@@ -21,11 +21,23 @@
  * Bounded and cheap: at most ~32 cameras (this product's documented wall-size cap) times `cols` (<=6) columns
  * of inner scan, called at most once per candidate column count `bestFit()` tries. */
 export function simulateDenseRows(spans: number[], cols: number): number {
+  return simulateDensePlacement(spans, cols).reduce((max, p) => Math.max(max, p.row + 1), 0);
+}
+
+/** Where CSS Grid's `grid-auto-flow: dense` auto-placement puts each tile: its row and its starting column
+ * (column 0 = the inline-start edge - the RIGHT edge in this RTL UI), one entry per input span, same order.
+ *
+ * This is also what makes the wall's ON-SCREEN order differ from the stored camera order: dense placement
+ * restarts every search from the first row, so a later, narrower tile can land in a gap an earlier spanned tile
+ * could not fill (the owner's 11 cameras, span 2 on the 4th and 6th, at 4 columns: the 5th camera closes the
+ * first row, ahead of the 4th). Reading this placement row by row, column by column gives the real on-screen
+ * order (tests/evidence-owner-round11.spec.ts compares it with the rendered positions). */
+export function simulateDensePlacement(spans: number[], cols: number): { row: number; col: number }[] {
   const occupied: boolean[][] = [];
   const ensureRow = (r: number) => {
     while (occupied.length <= r) occupied.push(new Array(cols).fill(false));
   };
-  let maxRow = -1;
+  const placement: { row: number; col: number }[] = [];
   for (const raw of spans) {
     const s = Math.min(Math.max(1, raw), cols);
     let placed = false;
@@ -41,12 +53,12 @@ export function simulateDenseRows(spans: number[], cols: number): number {
         }
         if (fits) {
           for (let k = 0; k < s; k++) occupied[r][c + k] = true;
-          maxRow = Math.max(maxRow, r);
+          placement.push({ row: r, col: c });
           placed = true;
           break;
         }
       }
     }
   }
-  return maxRow + 1;
+  return placement;
 }

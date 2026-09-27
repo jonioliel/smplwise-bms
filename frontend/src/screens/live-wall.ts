@@ -257,7 +257,9 @@ export class LiveWall extends LitElement {
     return best.tile > 80 ? { cols: best.cols, tile: Math.floor(best.tile) } : null;
   }
 
-  /** The widest a span-1 column can be at `cols` columns so the wall fits inside w × h (`h` 0 = no height limit).
+  /** The widest a span-1 column can be at `cols` columns so the wall fits inside w × h (any `h` <= 120 px, including
+   * a not-yet-measured 0, means no height limit - width alone decides; bestFit() already returns null for h < 120
+   * before searching, so in practice only the manual-column path reaches this with a tiny or unmeasured `h`).
    * Shared by the automatic search (bestFit) and a manual column choice, so both size tiles identically. */
   private fitTile(spans: number[], cols: number, w: number, h: number): number {
     const byWidth = (w - WALL_GAP * (cols - 1)) / cols;
@@ -453,9 +455,10 @@ export class LiveWall extends LitElement {
     // owner round 4 (1.7): "עמודות" only ever adjusted `bestFit`'s own column count, so on any screen narrower
     // than 768px - or before the grid's box was first measured - bestFit never ran and the buttons did nothing.
     // Columns are chosen first (override beats auto-fit beats the static ladder); fit only sizes the tiles after.
-    // B2 review fix: bestFit is fed each shown camera's column weight (1 for a plain tile, more for a spanned
-    // one) instead of a flat tile count, and clamps every span against whatever column count it is trying at
-    // that moment - see bestFit()'s own comment for why this cannot be precomputed once outside the search.
+    // B2 review fix: bestFit is fed each shown camera's column span (1 for a plain tile, more for a spanned one)
+    // instead of a flat tile count. The spans are passed UNclamped on purpose: fitTile() clamps each one to the
+    // column count being tried at that moment (a span-3 camera occupies 3 columns at 4 columns but only 2 at 2),
+    // so a single pre-clamped list could not serve every candidate column count of the search.
     const autoFit = window.innerWidth >= 768 ? this.bestFit(shown.map(spanOf)) : null;
     const cols = this.colsOverride ? Math.min(this.colsOverride, Math.max(1, shown.length)) : autoFit ? autoFit.cols : n === 1 ? 1 : n === 2 ? 2 : n <= 4 ? 2 : n <= 9 ? 3 : n <= 16 ? 4 : n <= 25 ? 5 : 6;
     // S1: below 768px without a manual override, the phone media query further caps the RENDERED grid at

@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { simulateDensePlacement } from '../src/screens/wall-grid';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -159,8 +160,10 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
    * are normally discovered from a real NVR by autosync). Fixed test channels (101/102/103/...) are reused
    * across runs instead of creating fresh rows every time: cameras.py has no DELETE endpoint, so a previous
    * run's cleanup can only have disabled them (S4 review) - re-enable that same row rather than register a
-   * duplicate. `seededIds` is only non-empty when this function actually touched something, so a real backend
-   * that already had >= `need` enabled cameras is never written to. */
+   * duplicate. `seededIds` is only non-empty when this function actually touched something: on a real backend
+   * that already has >= `need` enabled cameras, THIS function adds or re-enables nothing - but the tests that
+   * call it do edit those real cameras' sort_order / grid_col_span through the dialog and the API, and restore
+   * them from a full snapshot in their own `finally`. */
   async function ensureCameras(request: Req, need: number): Promise<{ cams: ApiCamera[]; seededIds: string[] }> {
     const all = ((await (await request.get('/api/v1/cameras')).json()).cameras as ApiCamera[]);
     const enabled = all.filter((c) => c.enabled);
@@ -352,16 +355,22 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
     }
   });
 
-  test('owner layout (0.1.101 report): 11 cameras, "12" layout, automatic columns - span-only dialog save keeps the order, rows stay even and the wide picture fills its tile', async ({ page, request }) => {
+  test('owner layout (0.1.101 report): 11 cameras, "12" layout, automatic columns - span-only save keeps the stored order, on-screen order follows dense placement, rows stay even, the wide picture fills its tile', async ({ page, request }) => {
     // Reproduces the owner's real setup of 2026-09-27: 11 cameras, the "12" layout button, the automatic ("אוטו")
     // column fit - not a manual column count like the tests above - and two cameras (the 4th and the 6th, the
     // owner's two sports-hall cameras) set to span 2 columns through the settings dialog by changing ONLY their
     // span dropdowns (no move button). The owner reported the cameras came out in the wrong places and the picture
-    // not filling the wide tile. Guards, in order: (1) a span-only save must not change the stored camera order
-    // (it renumbers sort_order to 0..N-1, but in the same relative order); (2) the wall renders the tiles in that
-    // order; (3) every row is ONE even height - 0.1.101 made a row holding a spanned camera about twice as tall as
-    // its neighbours, leaving holes under the plain tiles, which is what moved the cameras around; (4) the wall
-    // still fits the screen; (5) a real (synthetic) 16:9 video frame fills the wide tile edge to edge.
+    // not filling the wide tile. What this checks, in order:
+    // (1) a span-only save does not change the STORED camera order (sort_order is renumbered 0..N-1 in the same
+    //     relative order) - verified clean;
+    // (2) the ON-SCREEN order - where each tile really is, read the way a person reads this RTL wall - is NOT the
+    //     stored order in this scenario: `grid-auto-flow: dense` lets a later, narrower camera fill a gap an
+    //     earlier spanned one could not (at 4 columns the 5th camera closes the first row, ahead of the 4th). This
+    //     is current behaviour, asserted as it is (against the exact placement model, simulateDensePlacement), NOT
+    //     a guarantee; whether the wall should keep strict order instead is an open owner decision;
+    // (3) every row is ONE even height - 0.1.101 made a row holding a spanned camera about twice as tall as its
+    //     neighbours, leaving holes under the plain tiles and changing the automatic column count;
+    // (4) the wall still fits the screen; (5) a real (synthetic) 16:9 video frame fills the wide tile edge to edge.
     const { cams, seededIds } = await ensureCameras(request, 11);
     const snapshot = (await (await request.get('/api/v1/cameras')).json()).cameras as ApiCamera[];
     try {
@@ -397,9 +406,30 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
       await expect(wall.locator('[data-wall-cols-set="0"]')).toHaveClass(/on/);
       await page.waitForTimeout(500); // the fit re-measures once after the first render
 
-      // (2) render order = stored order
+      // (2) on-screen order. The DOM keeps the stored order (dense placement never reorders the DOM), but that is
+      // not what the owner sees: the real position of each tile is read row by row from the top, and within a row
+      // from the RIGHT edge (this UI is RTL, so grid column 1 is on the right).
       const domIds = await wall.locator('sw-camera-tile').evaluateAll((els) => els.map((el) => el.getAttribute('cameraid')));
       expect(domIds).toEqual(shownBefore);
+      const cols = Number(await wall.locator('[data-wall-cols]').getAttribute('data-wall-cols'));
+      const rendered = await wall.locator('sw-camera-tile').evaluateAll((els) => els.map((el) => {
+        const b = el.getBoundingClientRect();
+        return { id: el.getAttribute('cameraid')!, top: Math.round(b.top), right: b.right };
+      }));
+      const onScreen = [...rendered].sort((a, b) => a.top - b.top || b.right - a.right).map((t) => shownBefore.indexOf(t.id));
+      const spans = shownBefore.map((id) => (id === hallA || id === hallB ? 2 : 1));
+      const modelled = simulateDensePlacement(spans.map((s) => Math.min(s, cols)), cols)
+        .map((p, i) => ({ ...p, i }))
+        .sort((a, b) => a.row - b.row || a.col - b.col)
+        .map((p) => p.i);
+      test.info().annotations.push({ type: 'on-screen order', description: `${cols} columns: ${onScreen.join(',')}` });
+      expect(onScreen).toEqual(modelled); // the browser places tiles exactly as the dense model predicts
+      if (shownBefore.length === 11) {
+        // the owner's exact case (11 cameras, 1440x900): the automatic fit picks 4 columns, and on screen the 5th
+        // camera sits ahead of the spanned 4th - the stored order is NOT what is displayed (owner decision pending)
+        expect(cols).toBe(4);
+        expect(onScreen).toEqual([0, 1, 2, 4, 3, 5, 6, 7, 8, 9, 10]);
+      }
 
       // (3) one even row height everywhere: no tile taller than any other, so no holes under plain tiles
       const boxes = await wall.locator('sw-camera-tile').evaluateAll((els) => els.map((el) => {
@@ -452,21 +482,22 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
     // fill 4 columns without live-wall.ts's own `Math.min(colsOverride, shown.length)` clamp kicking in).
     // Feeding the too-low row estimate into the tile-height budget sizes tiles for 3 rows while the browser
     // renders 4 - exactly the "wall overflows the screen" failure this feature has already been fixed for
-    // twice (letterboxing, then this row-count gap); bestFit()/maxTileForHeight() must size tiles for the
-    // ACTUAL row count (simulateDenseRows()) or this reproduces that overflow end to end in a real browser.
+    // twice (letterboxing, then this row-count gap); the wall's tile sizing (bestFit()/fitTile() in
+    // live-wall.ts) must use the ACTUAL row count (simulateDenseRows()) or this reproduces that overflow end
+    // to end in a real browser.
     const { cams, seededIds } = await ensureCameras(request, 4);
     const [c1, c2, c3, c4] = cams;
     const snapshot = (await (await request.get('/api/v1/cameras')).json()).cameras as ApiCamera[];
     try {
-      // A tall viewport (a video-wall monitor in portrait, or simply a large screen) - four full-height rows
-      // of span-3 tiles need real vertical room; a short (900px) viewport pushes the CORRECTLY-sized tile
-      // itself under bestFit()/maxTileForHeight()'s own "don't bother constraining a degenerately tiny tile"
-      // floor (80px), which falls back to fully unconstrained natural sizing - a separate, pre-existing edge
-      // case, not the row-count bug this test targets. At this height the discrepancy between the naive
-      // `Math.ceil(sum/cols)` estimate (3 rows) and the real, simulated 4 rows is still very large (several
-      // hundred px) - re-verified by temporarily reverting to the naive estimate: it still overflows clearly.
-      const viewportH = 2000;
-      await page.setViewportSize({ width: 1600, height: viewportH });
+      // 1600x900: HEIGHT must be the binding dimension here, or this test cannot catch a row undercount at all.
+      // Every tile is one row tall (a span-3 tile is a 3-column-wide strip of that height), so the height budget
+      // is rows x tile*9/16 plus gaps. With roughly 620 px of height for the grid, 4 real rows allow a span-1
+      // column of about 258 px, well below the about 350 px the width would allow - height decides. The naive
+      // 3-row estimate would instead size about 350 px columns, i.e. four strips of about 197 px = about 826 px
+      // of grid in about 620 px: a clear overflow (figures computed from the fit formula, not measured with the
+      // naive estimate restored). A much taller viewport (the 2000 px this test used with 0.1.101's taller-tile
+      // model) makes WIDTH the binding dimension and the test would pass even with the undercount back.
+      await page.setViewportSize({ width: 1600, height: 900 });
       await open(page, '/live/wall');
       const wall = page.locator('live-wall');
       await wall.locator('.layouts button', { hasText: /^32$/ }).click();
@@ -499,6 +530,9 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
         return main ? main.scrollHeight - main.clientHeight : 0;
       });
       expect(scrollOverflow).toBeLessThan(4); // a few px of rounding slack only - no real scrollable overflow
+      // ...and that check only means something while height, not width, sized the tiles (see the viewport note)
+      const fitInfo = await wall.locator('[data-wall-cols]').evaluate((el) => ({ tile: parseFloat((el as HTMLElement).style.getPropertyValue('--tile')), w: el.clientWidth }));
+      expect(fitInfo.tile, `fitted tile ${fitInfo.tile}px, grid ${fitInfo.w}px wide`).toBeLessThan((fitInfo.w - 3 * 12) / 4 - 20);
 
       // dense placement really does force each span-3 tile onto its own row (none of the 4 fits into any
       // fragment another one left behind): 4 tiles, 4 distinct row tops.
