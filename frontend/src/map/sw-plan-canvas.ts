@@ -140,6 +140,8 @@ export interface GeomDragDetail {
   sy: number;
   shift: boolean;
   alt: boolean;
+  /** Ctrl (Cmd on a Mac) held now: the grid snap and the alignment guides are off for this move (T085). */
+  ctrl: boolean;
 }
 
 /** What the pointer can grab in the structure: 'all' (the structure tool's select mode, and the editor's select tool for
@@ -147,6 +149,16 @@ export interface GeomDragDetail {
  * objects, connectors and the selected item's handles; 'objects' (the library, connectors and circuits tools) objects and
  * connectors only; 'items' (the structure tool's drawing modes) the existing openings and labels only; 'none' nothing. */
 export type GeomDragMode = 'all' | 'items' | 'objects' | 'none';
+
+/** An alignment guide over the plan (T085): a vertical line at x = `at` (axis 'x') or a horizontal one at y = `at`, plan
+ * pixels - the shape of studio-ops' Guide. */
+export interface PlanGuide {
+  axis: 'x' | 'y';
+  at: number;
+}
+
+/** Grid lines closer than this on screen are thinned out (every second, fourth... line drawn); the snap keeps the step. */
+const GRID_MIN_SCREEN_PX = 8;
 
 /** A measured segment drawn over the plan (calibration, measuring): normalized end points and a label. */
 export interface RulerOverlay {
@@ -249,6 +261,10 @@ export class SwPlanCanvas extends LitElement {
   @property({ attribute: false }) wallDraft: Pt[] = [];
   @property({ attribute: false }) hoverPoint: Pt | null = null;
   @property({ attribute: false }) rulers: RulerOverlay[] = [];
+  /** T085: the editor's grid, its step in plan pixels (0 = no grid), drawn under the zones and the structure. */
+  @property({ type: Number }) gridStep = 0;
+  /** T085: the live alignment guides of a single object drag, lines across the plan (plan pixels). */
+  @property({ attribute: false }) guides: PlanGuide[] = [];
   /** Plan Studio phase 3 (T086): detection candidates, drawn dashed in a layer of their own until accepted. */
   @property({ attribute: false }) candidates: CandidateSet | null = null;
   @property({ attribute: false }) candidateStates: Record<string, CandState> = {};
@@ -364,6 +380,21 @@ export class SwPlanCanvas extends LitElement {
       stroke: var(--sw-border-strong);
       stroke-width: 1;
       vector-effect: non-scaling-stroke;
+    }
+    /* T085: the grid (a hairline at every zoom, under the drawing) and the alignment guides of a drag (over it) */
+    path.grid {
+      fill: none;
+      stroke: var(--sw-border-strong);
+      stroke-opacity: 0.55;
+      stroke-width: 1;
+      vector-effect: non-scaling-stroke;
+      pointer-events: none;
+    }
+    line.guide {
+      stroke: var(--sw-danger);
+      stroke-width: 1;
+      vector-effect: non-scaling-stroke;
+      pointer-events: none;
     }
     rect.box {
       fill: color-mix(in srgb, var(--sw-accent) 14%, transparent);
@@ -1748,13 +1779,13 @@ export class SwPlanCanvas extends LitElement {
     const start = this.toPlan(e.clientX - rect0.left, e.clientY - rect0.top);
     let moved = false;
     let last = start;
-    let mods = { shift: e.shiftKey, alt: e.altKey };
+    let mods = { shift: e.shiftKey, alt: e.altKey, ctrl: e.ctrlKey || e.metaKey };
     const detail = (p: { x: number; y: number }): GeomDragDetail => ({ kind, id, index, x: +p.x.toFixed(5), y: +p.y.toFixed(5), sx: +start.x.toFixed(5), sy: +start.y.toFixed(5), ...mods });
     const emit = (type: string, d: object) => this.dispatchEvent(new CustomEvent(type, { detail: d, bubbles: true, composed: true }));
     this.geomPress = true;
     this.viewport.setPointerCapture(e.pointerId);
     const move = (ev: PointerEvent) => {
-      mods = { shift: ev.shiftKey, alt: ev.altKey };
+      mods = { shift: ev.shiftKey, alt: ev.altKey, ctrl: ev.ctrlKey || ev.metaKey };
       const p = this.toPlan(ev.clientX - rect0.left, ev.clientY - rect0.top);
       if (!moved && Math.hypot((p.x - start.x) * this.planWidth, (p.y - start.y) * this.planHeight) * this.scale < 3) return;
       moved = true;
@@ -1992,6 +2023,38 @@ export class SwPlanCanvas extends LitElement {
     </g>`;
   }
 
+  /** The grid (T085): one path of hairlines every `gridStep` plan pixels from the plan's top-left corner; when they would
+   * crowd closer than GRID_MIN_SCREEN_PX on screen only every second (fourth...) line is drawn - the snap keeps the full
+   * step. Cached per step, drawn step and plan size: the canvas renders on every pointer move of a drag. */
+  private gridCache: { key: string; d: string; every: number } | null = null;
+  private renderGrid() {
+    const step = this.gridStep;
+    const W = this.planWidth;
+    const H = this.planHeight;
+    if (!(step > 0) || !(W > 0) || !(H > 0)) return nothing;
+    let every = 1;
+    while (step * every * this.scale < GRID_MIN_SCREEN_PX && every < 1024) every *= 2;
+    const key = `${step}:${every}:${W}:${H}`;
+    if (this.gridCache?.key !== key) {
+      const s = step * every;
+      const parts: string[] = [];
+      for (let i = 0; i * s <= W + 1e-6; i++) parts.push(`M${+(i * s).toFixed(2)} 0V${H}`);
+      for (let i = 0; i * s <= H + 1e-6; i++) parts.push(`M0 ${+(i * s).toFixed(2)}H${W}`);
+      this.gridCache = { key, d: parts.join(''), every };
+    }
+    return svg`<path class="grid" data-grid data-grid-px=${String(step)} data-grid-every=${String(this.gridCache.every)} d=${this.gridCache.d} />`;
+  }
+
+  /** The alignment guides of a single object drag (T085): thin lines across the whole plan. */
+  private renderGuides() {
+    if (!this.guides.length) return nothing;
+    const W = this.planWidth;
+    const H = this.planHeight;
+    return svg`<g class="guides" pointer-events="none">${this.guides.map((g) => (g.axis === 'x'
+      ? svg`<line class="guide" data-guide="x" data-at=${String(g.at)} x1=${g.at} y1="0" x2=${g.at} y2=${H} />`
+      : svg`<line class="guide" data-guide="y" data-at=${String(g.at)} x1="0" y1=${g.at} x2=${W} y2=${g.at} />`))}</g>`;
+  }
+
   private renderRulers() {
     if (!this.rulers.length) return nothing;
     const inv = 1 / this.scale;
@@ -2031,6 +2094,7 @@ export class SwPlanCanvas extends LitElement {
                 ? svg`<rect class="sheet" data-plan-sheet x="0" y="0" width=${this.planWidth} height=${this.planHeight} />`
                 : nothing}
             ${this.plan ?? nothing}
+            ${this.renderGrid()}
             ${this.zones.map((z) => this.renderZone(z))}
             ${this.renderStructure()}
             ${this.renderGeomHits()}
@@ -2040,6 +2104,7 @@ export class SwPlanCanvas extends LitElement {
             ${this.renderDraft()}
             ${this.renderWallDraft()}
             ${this.renderRulers()}
+            ${this.renderGuides()}
           </g>
           ${this.box ? svg`<rect class="box" data-box x=${this.box.x0.toFixed(1)} y=${this.box.y0.toFixed(1)} width=${(this.box.x1 - this.box.x0).toFixed(1)} height=${(this.box.y1 - this.box.y0).toFixed(1)} />` : nothing}
         </svg>

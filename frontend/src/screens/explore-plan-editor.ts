@@ -28,9 +28,10 @@ import { productSettings } from '../api/prefs';
 import { createItem, exportUrl as catalogExportUrl, importItems, itemOf, loadLibrary, lookupOf, type CatalogItem, type CatalogLibrary } from '../api/plan-catalog';
 import { distanceM, effectiveScale, isClosedOutline, lengthPx, nearestWall, pointOnWall, snapPoint, type CatalogLookup, type ConnectorKind, type GeometryDoc, type GeomOpening, type GeomWall, type Pt } from '../map/geometry';
 import { StudioController } from '../map/studio-controller';
-import { ARRAY_MAX, BIND_DISTANCE_M, CIRCUIT_COLORS, addArray, addCircuit, addCircuitLamp, addConnector, addLabel, addLevel, addObject, addOpening, addWall, arrayDefaults, circuitPower, defaultLevelId, duplicateBeside, duplicateObject, initialLevel, kindDefaults, levelUsage, moveConnectorVertex, moveGroup, moveObject, moveVertex, newId, nudgeT, openingRange, patchCircuit, patchConnector, patchLabel, patchLevel, patchObject, patchOpening, patchWall, removeCorner, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember, translateWall, visibleUnderLevel, wallDirectionAt, duplicateSelection, itemsInRect, moveSelection, removeItems, selectableItems, selectionDelta, toggleItem, translatePolygon, TAG_MAX_COUNT, circuitEligible, itemsWithTag, joinCircuit, setLevelOf, tagCounts, tagItems, withTag, withoutTag, type MultiItem, type WallDefaults } from '../map/studio-ops';
+import { ARRAY_MAX, BIND_DISTANCE_M, CIRCUIT_COLORS, addArray, addCircuit, addCircuitLamp, addConnector, addLabel, addLevel, addObject, addOpening, addWall, arrayDefaults, circuitPower, defaultLevelId, duplicateBeside, duplicateObject, initialLevel, kindDefaults, levelUsage, moveConnectorVertex, moveGroup, moveObject, moveVertex, newId, nudgeT, openingRange, patchCircuit, patchConnector, patchLabel, patchLevel, patchObject, patchOpening, patchWall, removeCorner, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember, translateWall, visibleUnderLevel, wallDirectionAt, duplicateSelection, itemsInRect, moveSelection, removeItems, selectableItems, selectionDelta, toggleItem, translatePolygon, TAG_MAX_COUNT, circuitEligible, itemsWithTag, joinCircuit, setLevelOf, tagCounts, tagItems, withTag, withoutTag, type MultiItem, type WallDefaults,
+  GRID_DEFAULT_M, GRID_STEPS_M, GUIDE_SNAP_PX, alignObjects, distributeObjects, gridDelta, gridStepPx, objectBox, snapObjectPosition, snapToGrid, type AlignBox, type AlignMode, type Guide } from '../map/studio-ops';
 import { ANCHOR_3D_DEFAULTS, anchor3dKind } from '../map/anchor-3d';
-import { COLL_LABEL, CONNECTOR_LABEL, circuitPlacingHint, connectorDerived, countLabel, fmtMetres, fmtScale, renderArrayDialog, renderCalibPanel, renderCircuitPanel, renderConnectorPanel, renderCustomItemDialog, renderGroupDeleteDialog, renderGroupInspector, renderLevelChips, renderLevelDialog, renderDetectPanel, renderLibraryPanel, renderMeasurePanel, renderObjectInspector, renderConnectorSelection, renderMultiSelection, renderStudioPanel, renderTagPicker, renderTagsField, MULTI_HINT, SAVE_LABEL, studioPanelStyles, lighterStrength, type ArrayDialogView, type CustomItemView, type DetectAcceptError, type DetectOpts, type DetectReplaceAsk, type DetectRunState, type GeomKind, type GeomSel, type LevelDialogView, type StudioMode } from './plan-studio-panel';
+import { COLL_LABEL, CONNECTOR_LABEL, circuitPlacingHint, connectorDerived, countLabel, fmtMetres, fmtScale, renderArrayDialog, renderCalibPanel, renderCircuitPanel, renderConnectorPanel, renderCustomItemDialog, renderGroupDeleteDialog, renderGroupInspector, renderLevelChips, renderLevelDialog, renderDetectPanel, renderLibraryPanel, renderMeasurePanel, renderObjectInspector, renderConnectorSelection, renderMultiSelection, renderGridOptions, renderStudioPanel, renderTagPicker, renderTagsField, MULTI_HINT, SAVE_LABEL, studioPanelStyles, lighterStrength, type ArrayDialogView, type CustomItemView, type DetectAcceptError, type DetectOpts, type DetectReplaceAsk, type DetectRunState, type GeomKind, type GeomSel, type LevelDialogView, type StudioMode } from './plan-studio-panel';
 
 type Strength = 'light' | 'medium' | 'strong';
 /** A zone save or delete that has not answered by then counts as failed (review of T085, R4): the bulk actions it holds
@@ -82,6 +83,15 @@ const NUDGE_BURST_MS = 1000;
 const ARROWS = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
 /** Per-browser shelves of the library panel (design 4.3: "recent" and "favourites" per browser). */
 const readList = (key: string): string[] => { try { const v = JSON.parse(localStorage.getItem(key) ?? '[]'); return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []; } catch { return []; } };
+/** The grid of a floor as this browser last left it (T085): off, at GRID_DEFAULT_M, for a floor never switched. */
+const readGrid = (floorId: string): { on: boolean; stepM: number } => {
+  try {
+    const step = Number(localStorage.getItem(`sw.editor.gridStep.${floorId}`));
+    return { on: localStorage.getItem(`sw.editor.grid.${floorId}`) === '1', stepM: GRID_STEPS_M.includes(step) ? step : GRID_DEFAULT_M };
+  } catch {
+    return { on: false, stepM: GRID_DEFAULT_M };
+  }
+};
 const writeList = (key: string, list: string[]) => { try { localStorage.setItem(key, JSON.stringify(list.slice(0, 40))); } catch { /* private mode */ } };
 const round = (v: number): number => Math.round(v * 1000) / 1000;
 /** Screen pixels: a wall corner attracts a drawing / calibrating / measuring point this close (and in wall mode such a
@@ -129,6 +139,11 @@ export class ExplorePlanEditor extends LitElement {
   /** The loaded plan picture under the drawing (owner request 2026-09-26): a switch of the layers tool, remembered per
    * floor in this browser apart from the live map's own switch. */
   @state() private planImage = true;
+  /** T085 (owner request 2026-09-26, "lamps on one line"): the grid of the layers tool - drawn, and snapping an object's
+   * drag and placement to its intersections - and its spacing in metres, remembered per floor in this browser. */
+  @state() private grid: { on: boolean; stepM: number } = { on: false, stepM: GRID_DEFAULT_M };
+  /** T085: the alignment guides of the single object drag in progress (plan pixels); empty when none lines up. */
+  @state() private guides: Guide[] = [];
   @state() private placing: { kind: 'camera'; camera: Camera } | { kind: 'entity'; entity: HaEntity } | null = null;
   @state() private entQ = '';
   @state() private entResults: HaEntity[] | null = null;
@@ -651,13 +666,13 @@ export class ExplorePlanEditor extends LitElement {
       align-items: center;
       gap: 6px;
       position: absolute;
-      inset-inline-start: 50%;
+      left: 50%; /* physical: in RTL inset-inline-start is the right edge, and the -50% shift pushed the bar off the canvas's left */
       transform: translateX(-50%);
       inset-block-start: 12px;
       z-index: var(--sw-z-map-ui);
       background: var(--sw-surface);
       border: 1px solid var(--sw-border);
-      border-radius: 999px;
+      border-radius: 18px; /* a pill on one row; a rounded card, not a blob, when a narrow canvas wraps it */
       padding: 4px 8px;
       box-shadow: var(--sw-shadow-1);
       max-inline-size: 60%;
@@ -721,6 +736,7 @@ export class ExplorePlanEditor extends LitElement {
         } catch {
           this.planImage = true;
         }
+        this.grid = readGrid(b.floorId);
       }
       this.bundle = b;
       void this.loadStudio(b);
@@ -1358,6 +1374,40 @@ export class ExplorePlanEditor extends LitElement {
     }
   }
 
+  /** The grid switch and spacing of the layers tool (T085), per floor in this browser, beside the plan picture switch. */
+  private setGrid(floorId: string, patch: Partial<{ on: boolean; stepM: number }>) {
+    this.grid = { ...this.grid, ...patch };
+    try {
+      localStorage.setItem(`sw.editor.grid.${floorId}`, this.grid.on ? '1' : '0');
+      localStorage.setItem(`sw.editor.gridStep.${floorId}`, String(this.grid.stepM));
+    } catch {
+      /* private mode or blocked storage: the choice lives for this page only */
+    }
+  }
+
+  /** The grid's step in plan pixels on the draft's scale (calibrated, or estimated before calibration); 0 when it is off. */
+  private gridPx(doc: GeometryDoc): number {
+    return this.grid.on ? gridStepPx(this.grid.stepM, effectiveScale(doc).scale) : 0;
+  }
+
+  /** A placement point on the grid when it is on (the library and the circuit lamp picker, by click or by drop). */
+  private gridPoint(p: Pt): Pt {
+    const b = this.bundle;
+    const doc = this.studio.doc;
+    return b && doc ? snapToGrid(p, this.gridPx(doc), b.width, b.height) : p;
+  }
+
+  /** The boxes a dragged object lines up with: every other object the level filter shows (an object without a level is on
+   * the default level), in plan pixels. */
+  private alignTargets(doc: GeometryDoc, except: string): AlignBox[] {
+    const b = this.bundle;
+    if (!b) return [];
+    const lv = this.activeLevel;
+    const def = defaultLevelId(doc);
+    const { scale } = effectiveScale(doc);
+    return doc.objects.filter((o) => o.id !== except && (lv === null || (o.level_id || def) === lv)).map((o) => objectBox(o, b.width, b.height, scale));
+  }
+
   private pickTool(tool: Tool) {
     if (this.detectBusy && tool !== this.tool) return;
     this.tool = tool;
@@ -1720,7 +1770,7 @@ export class ExplorePlanEditor extends LitElement {
     const doc = this.studio.doc;
     const item = this.placingItem;
     if (!doc || !item) return;
-    const r = addObject(doc, item, p, this.placeOpts(doc));
+    const r = addObject(doc, item, this.gridPoint(p), this.placeOpts(doc)); // on the grid when it is on (T085)
     this.studio.commit(r.doc);
     this.lastEdit = 'structure';
     this.geomSel = { id: r.id, kind: 'object' };
@@ -1736,7 +1786,7 @@ export class ExplorePlanEditor extends LitElement {
     const item = this.circuitPlacing;
     const cid = this.circuitSel;
     if (!doc || !item || !cid) return;
-    const r = addCircuitLamp(doc, item, p, this.placeOpts(doc), cid);
+    const r = addCircuitLamp(doc, item, this.gridPoint(p), this.placeOpts(doc), cid);
     this.studio.commit(r.doc);
     this.lastEdit = 'structure';
     this.geomSel = { id: r.id, kind: 'object' };
@@ -2030,7 +2080,7 @@ export class ExplorePlanEditor extends LitElement {
       return;
     }
     const p: Pt = [x, y];
-    if (this.tool === 'library') this.hover = p;
+    if (this.tool === 'library' || this.tool === 'circuits') this.hover = this.gridPoint(p); // where a click places the item (T085)
     else if (this.tool === 'connectors') this.hover = this.snap(p, null, true);
     else if (this.tool === 'calibrate') this.hover = this.snap(p, null, true);
     else if (this.tool === 'measure') this.hover = this.snap(p, this.measurePts.at(-1) ?? null, shift);
@@ -2297,7 +2347,14 @@ export class ExplorePlanEditor extends LitElement {
     const ids = items.filter((i) => i.kind !== 'zone').map((i) => i.id);
     const zoneById = new Map(this.zones.map((z) => [z.id, z]));
     const zs = items.filter((i) => i.kind === 'zone').map((i) => zoneById.get(i.id)).filter((z): z is SpatialZone => !!z);
-    const [dx, dy] = selectionDelta(doc, ids, d.x - d.sx, d.y - d.sy, zs.map((z) => z.polygon));
+    // T085: with the grid on (and Ctrl / Cmd not held) the grabbed member's own point - an object's centre, a wall's first
+    // corner, a zone's first corner - lands on the grid, and every member moves by that same corrected delta
+    const b = this.bundle;
+    const corner = zoneById.get(d.id)?.polygon[0];
+    const grabbed: Pt | undefined = d.kind === 'object' ? doc.objects.find((o) => o.id === d.id)?.position : d.kind === 'wall' ? doc.walls.find((w) => w.id === d.id)?.polyline[0] : corner && [corner.x, corner.y];
+    const step = d.ctrl ? 0 : this.gridPx(doc);
+    const [gx, gy] = b && grabbed && step ? gridDelta(grabbed, d.x - d.sx, d.y - d.sy, step, b.width, b.height) : [d.x - d.sx, d.y - d.sy];
+    const [dx, dy] = selectionDelta(doc, ids, gx, gy, zs.map((z) => z.polygon));
     return { doc: moveSelection(doc, ids, dx, dy), zones: Object.fromEntries(zs.map((z) => [z.id, translatePolygon(z.polygon, dx, dy)])) };
   }
 
@@ -2428,7 +2485,7 @@ export class ExplorePlanEditor extends LitElement {
     const doc = this.studio.doc!;
     const n = (k: MultiItem['kind']) => items.filter((i) => i.kind === k).length;
     return renderMultiSelection({ walls: n('wall'), objects: n('object'), zones: n('zone'), busy: this.zoneBusy || this.zoneSaving, saveState: this.studio.saveState,
-      tags: tagCounts(doc, this.zones, items), levels: doc.levels, circuits: doc.circuits, lights: this.lightIds(doc, items).length, note: this.multiNote }, {
+      tags: tagCounts(doc, this.zones, items), levels: doc.levels, circuits: doc.circuits, lights: this.lightIds(doc, items).length, note: this.multiNote, alignable: this.alignIds(doc, items).length }, {
       duplicate: () => this.duplicateMulti(),
       remove: () => void this.deleteMulti(),
       clear: () => this.setSelection([]),
@@ -2436,7 +2493,33 @@ export class ExplorePlanEditor extends LitElement {
       removeTag: (t) => void this.bulkTag(t, false),
       setLevel: (lv) => void this.bulkLevel(lv),
       joinCircuit: (cid) => this.bulkCircuit(cid),
+      align: (mode) => this.bulkAlign(mode),
+      distribute: (axis) => this.bulkAlign(axis),
     });
+  }
+
+  /** The selected objects that align and distribute move (T085): not the body of an anchor, which moves with its anchor. */
+  private alignIds(doc: GeometryDoc, items: readonly MultiItem[]): string[] {
+    const objects = new Map(doc.objects.map((o) => [o.id, o]));
+    return items.filter((i) => i.kind === 'object' && objects.has(i.id) && !objects.get(i.id)!.anchor_ref).map((i) => i.id);
+  }
+
+  /** The bulk panel's align (a mode) and distribute (an axis) on the objects of a multi-selection (T085): relative to their
+   * own box, computed once, in one document edit - one undo step; walls and zones of the selection stay. The note says how
+   * many objects moved. */
+  private bulkAlign(what: AlignMode | 'x' | 'y') {
+    const doc = this.studio.doc;
+    const b = this.bundle;
+    const items = this.multiShown;
+    if (!doc || !b || items.length < 2 || this.zoneSaving) return;
+    const ids = this.alignIds(doc, items);
+    const { scale } = effectiveScale(doc);
+    const next = what === 'x' || what === 'y' ? distributeObjects(doc, ids, what, b.width, b.height, scale) : alignObjects(doc, ids, what, b.width, b.height, scale);
+    const before = new Map(doc.objects.map((o) => [o.id, o]));
+    const moved = next.objects.filter((o) => before.get(o.id) !== o).length; // an object that did not move stays the same object
+    this.edit(() => next);
+    const action = what === 'x' ? 'פיזור לרוחב' : what === 'y' ? 'פיזור לגובה' : 'יישור';
+    this.multiNote = moved ? `${action}: ${countLabel(moved, 'עצם אחד זז', 'עצמים זזו')} (ביטול ב-Ctrl+Z)` : `${action}: העצמים כבר במקומם, שום דבר לא זז`;
   }
 
   /** The selected objects that can join a lighting circuit, by circuitEligible - the rule the circuit tool's own click
@@ -2606,7 +2689,7 @@ export class ExplorePlanEditor extends LitElement {
    * other walls' corners; an opening moves along its own wall by as much as the pointer did (it keeps the offset it was
    * grabbed at, no jump to the pointer) and stays inside the wall; a label moves by the pointer's movement. The live
    * preview and the drop use the same answer. */
-  private dragged(doc: GeometryDoc, d: GeomDragDetail): { doc: GeometryDoc; sel: GeomSel } | null {
+  private dragged(doc: GeometryDoc, d: GeomDragDetail): { doc: GeometryDoc; sel: GeomSel; guides?: Guide[] } | null {
     const b = this.bundle;
     if (!b || d.kind === 'zone') return null; // a zone drags here only inside a multi-selection (multiDragged)
     const p: Pt = [d.x, d.y];
@@ -2614,16 +2697,23 @@ export class ExplorePlanEditor extends LitElement {
       const o = doc.objects.find((v) => v.id === d.id);
       if (!o) return null;
       if (o.anchor_ref) return { doc, sel: { id: d.id, kind: 'object' } }; // a body moves with its anchor, never by hand
-      const to: Pt = [o.position[0] + d.x - d.sx, o.position[1] + d.y - d.sy]; // by the pointer's movement: no jump to the pointer
+      const raw: Pt = [o.position[0] + d.x - d.sx, o.position[1] + d.y - d.sy]; // by the pointer's movement: no jump to the pointer
+      // T085: the grid and the alignment guides, both off while Ctrl / Cmd is held. The guides line the object up with
+      // the other objects shown (an Alt copy with its original too); an array member drags its whole array, on the grid only
+      const group = this.geomSel?.kind === 'group' && o.group_id === this.geomSel.id ? o.group_id : null;
+      const zoom = this.canvas?.zoom ?? 1;
+      const opts = d.ctrl ? { gridPx: 0, tolPx: 0 } : { gridPx: this.gridPx(doc), tolPx: group ? 0 : GUIDE_SNAP_PX / zoom };
+      const snap = snapObjectPosition(o, raw, opts.tolPx ? this.alignTargets(doc, d.kind === 'object' ? d.id : '') : [], opts, b.width, b.height, effectiveScale(doc).scale);
+      const to = snap.position;
       if (d.kind === 'object-duplicate') {
         this.dupId ??= newId();
         const r = duplicateObject(doc, d.id, to, this.dupId);
-        return { doc: r.doc, sel: { id: r.id, kind: 'object' } };
+        return { doc: r.doc, sel: { id: r.id, kind: 'object' }, guides: snap.guides };
       }
-      if (this.geomSel?.kind === 'group' && o.group_id === this.geomSel.id) {
-        return { doc: moveGroup(doc, o.group_id, to[0] - o.position[0], to[1] - o.position[1]), sel: { id: o.group_id, kind: 'group' } }; // the whole array follows the dragged member
+      if (group) {
+        return { doc: moveGroup(doc, group, to[0] - o.position[0], to[1] - o.position[1]), sel: { id: group, kind: 'group' } }; // the whole array follows the dragged member
       }
-      return { doc: moveObject(doc, d.id, to), sel: { id: d.id, kind: 'object' } };
+      return { doc: moveObject(doc, d.id, to), sel: { id: d.id, kind: 'object' }, guides: snap.guides };
     }
     if (d.kind === 'object-rotate') {
       const o = doc.objects.find((v) => v.id === d.id);
@@ -2723,16 +2813,19 @@ export class ExplorePlanEditor extends LitElement {
     if (m) {
       this.geomPreview = m.doc;
       this.zonePreview = m.zones;
+      this.guides = [];
       return;
     }
     const r = doc ? this.dragged(doc, d) : null;
     this.geomPreview = r?.doc ?? null;
+    this.guides = r?.guides ?? [];
     if (r) this.onGeomSelect(r.sel.id, r.sel.kind, r.sel.vertex);
   }
 
   /** The drop: one undoable edit (an unchanged position adds none), autosaved like every edit. */
   private onGeomDrag(d: GeomDragDetail) {
     this.geomPreview = null;
+    this.guides = [];
     const doc = this.studio.doc;
     if (this.zoneSaving && this.multiMember(d)) {
       // B1: a group drag dropped while the previous drop's zones are still being saved would start from polygons and
@@ -3703,6 +3796,10 @@ export class ExplorePlanEditor extends LitElement {
         <div class="layerlist">${LAYERS.map((l) => html`<label><input type="checkbox" .checked=${this.layers.has(l.id)} @change=${(e: Event) => { const next = new Set(this.layers); if ((e.target as HTMLInputElement).checked) next.add(l.id); else next.delete(l.id); this.layers = next; }} /> ${l.label} <span class="note">(${this.anchors.filter((a) => this.layerOf(a) === l.id).length})</span></label>`)}
           <label><input type="checkbox" .checked=${this.showZones} @change=${(e: Event) => (this.showZones = (e.target as HTMLInputElement).checked)} /> חדרים ואזורים <span class="note">(${this.zones.length})</span></label>
           ${b.imageUrl ? html`<label><input type="checkbox" data-plan-background .checked=${this.planImage} @change=${(e: Event) => this.setPlanImage(b.floorId, (e.target as HTMLInputElement).checked)} /> תמונת התוכנית <span class="note">(${this.planImage ? 'מתחת לשרטוט' : 'מוסתרת, רקע נקי'})</span></label>` : nothing}</div>
+        ${this.studio.doc
+          ? renderGridOptions({ ...this.grid, steps: GRID_STEPS_M, estimated: effectiveScale(this.studio.doc).estimated, showEstimates: this.showEstimates },
+              (on) => this.setGrid(b.floorId, { on }), (stepM) => this.setGrid(b.floorId, { stepM }))
+          : nothing}
       </sw-card>`;
     }
     if (this.tool === 'zones') return this.renderZonesPanel(b);
@@ -3940,7 +4037,7 @@ export class ExplorePlanEditor extends LitElement {
                   <span>גרירה מזיזה · גלגלת = זום · ידיות = כיוון ושדה ראייה</span>
                 </div>
                 <div class="floorchip"><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
-                ${this.studio.doc && b.permissions.structure ? html`<div class="levelbar">${renderLevelChips(this.studio.doc.levels, this.activeLevel, (id) => this.setLevelFilter(id), () => this.openNewLevel(), (id) => this.openLevelEdit(id))}${!this.phone.matches && this.shownTags.length ? renderTagPicker(this.shownTags, (t) => this.selectByTag(t)) : nothing}</div>` : nothing}
+                ${this.studio.doc && b.permissions.structure ? html`<div class="levelbar">${renderLevelChips(this.studio.doc.levels, this.activeLevel, (id) => this.setLevelFilter(id), () => this.openNewLevel(), (id) => this.openLevelEdit(id))}${this.phone.matches ? nothing : html`<sw-chip data-grid-chip icon="grid" ?selected=${this.grid.on} aria-pressed=${this.grid.on ? 'true' : 'false'} title="רשת עזר: גרירה והצבה של עצם נצמדות אליה (המרווח בכלי השכבות)" @click=${() => this.setGrid(b.floorId, { on: !this.grid.on })}>רשת</sw-chip>`}${!this.phone.matches && this.shownTags.length ? renderTagPicker(this.shownTags, (t) => this.selectByTag(t)) : nothing}</div>` : nothing}
                 <div class="rail" role="toolbar" aria-label="כלי עריכה">
                   ${TOOLS.map((tl) => html`<button class=${tl.id === this.tool ? 'on' : ''} data-tool=${tl.id} ?disabled=${!tl.ready || (STUDIO_TOOLS.includes(tl.id) && !b.permissions.structure) || (this.detectBusy && tl.id !== this.tool)} title=${tl.label} aria-label=${tl.label} aria-pressed=${tl.id === this.tool} @click=${() => this.pickTool(tl.id)}><sw-icon .name=${tl.icon} size=${18}></sw-icon></button>`)}
                   <hr />
@@ -3951,7 +4048,7 @@ export class ExplorePlanEditor extends LitElement {
                   .zones=${this.planZones} .selectedZoneId=${this.selectedZoneId} .selectedZoneVertex=${this.zoneVertexSel && this.zoneVertexSel.zoneId === this.selectedZoneId ? this.zoneVertexSel.index : null} .draftPoints=${this.drawing ?? []}
                   .geometry=${this.geomPreview ?? this.studio.doc} .geomDrag=${this.geomDragMode} .structureLevel=${this.activeLevel} .selectedGeomId=${this.geomSel?.id ?? null} .highlightIds=${this.geomSel?.kind === 'group' ? (this.studio.doc?.groups.find((g) => g.id === this.geomSel!.id)?.member_ids ?? []) : this.tool === 'circuits' && this.circuitSel ? (this.studio.doc?.circuits.find((k) => k.id === this.circuitSel)?.member_ids ?? []) : this.multiShown.map((i) => i.id)} .selectedVertex=${this.geomSel?.vertex ?? null} .issueIds=${this.issueIds}
                   .cornerSnapPx=${this.tool === 'structure' && this.studioMode === 'wall' ? CORNER_SNAP_PX : 0}
-                  .wallDraft=${this.wallDraft ?? []} .hoverPoint=${this.studioPlacing ? this.hover : null} .rulers=${this.rulers} .catalog=${this.catalogLookup}
+                  .wallDraft=${this.wallDraft ?? []} .hoverPoint=${this.studioPlacing ? this.hover : null} .rulers=${this.rulers} .gridStep=${this.studio.doc ? this.gridPx(this.studio.doc) : 0} .guides=${this.guides} .catalog=${this.catalogLookup}
                   .candidates=${this.tool === 'detect' && this.cands ? this.cands.set : null} .candidateStates=${this.candStates} .selectedCandidateId=${this.candSel} .candidateEditable=${this.tool === 'detect' && !this.narrow && !this.busy}
                   @candidate-select=${(e: CustomEvent<{ id: string }>) => this.toggleCandidate(e.detail.id)}
                   @candidate-drag=${(e: CustomEvent<{ id: string; index: number; x: number; y: number }>) => this.onCandidateDrag(e.detail)} .anchorPositions=${Object.fromEntries(this.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees }]))}
@@ -3960,7 +4057,7 @@ export class ExplorePlanEditor extends LitElement {
                   @geom-box=${(e: CustomEvent<{ x0: number; y0: number; x1: number; y1: number; add: boolean }>) => this.onGeomBox(e.detail)}
                   @geom-select=${(e: CustomEvent<{ id: string; kind: GeomKind; vertex?: number; add?: boolean }>) => this.onGeomSelect(e.detail.id, e.detail.kind, e.detail.vertex, !!e.detail.add)}
                   @geom-drag-move=${(e: CustomEvent<GeomDragDetail>) => this.onGeomDragMove(e.detail)}
-                  @geom-drag-cancel=${() => { this.geomPreview = null; if (!this.zoneSaving) this.zonePreview = null; this.dupId = null; }}
+                  @geom-drag-cancel=${() => { this.geomPreview = null; this.guides = []; if (!this.zoneSaving) this.zonePreview = null; this.dupId = null; }}
                   @geom-drag=${(e: CustomEvent<GeomDragDetail>) => this.onGeomDrag(e.detail)}
                   @zone-select=${(e: CustomEvent<{ id: string; add?: boolean }>) => this.onZoneSelect(e.detail.id, !!e.detail.add)}
                   @zone-edit=${(e: CustomEvent<{ id: string; polygon: ZonePoint[] }>) => { const z = this.zones.find((x) => x.id === e.detail.id); this.zoneVertexSel = null; if (z) void this.patchZone(z, { polygon: e.detail.polygon }); }}
