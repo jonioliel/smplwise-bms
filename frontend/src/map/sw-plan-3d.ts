@@ -19,6 +19,9 @@ export const FALLBACK_KEY = 'sw.plan3d.fallback';
 export const PROBE_MS = 2500;
 /** No frame reported this long after level 2 started: the device cannot draw it at all - fall back. */
 export const PROBE_FIRST_FRAME_MS = 10000;
+/** The window opens only after this many frames drew at level 2: the first ones compile the shaders and build the
+ * shadow map (seconds on a software renderer), which is a one-off cost, not the device's rate. */
+export const PROBE_WARM_FRAMES = 3;
 export const DEFAULT_MIN_FPS = 30;
 
 export interface PartSelectDetail {
@@ -118,12 +121,17 @@ export class SwPlan3d extends LitElement {
   /** The description object last handed to the view (the first mount must not build it twice). */
   private applied: SceneDescription | null = null;
   /** The probe of level 2: the first counter report after it started and the deadline. */
-  private probe: { until: number; t0: number; f0: number } | null = null;
+  private probe: { until: number; t0: number; f0: number; start: number } | null = null;
   private probeTimer = 0;
+  /** The probe ran (or is running) for this mount / level switch: a live state push never starts it again. */
+  private probed = false;
+  /** A probe asked for while the tab was hidden (the browser stops frames there: ~0 fps says nothing): runs on return. */
+  private probePending = false;
   /** The thumbnails by level id, for the description they were drawn from (bounded by the listed levels). */
   private thumbs = new Map<string, string>();
   private thumbsFor: SceneDescription | null = null;
   private thumbsQuality: QualityLevel | null = null;
+  private settingsAsked = false;
 
   static styles = css`
     :host {
@@ -322,20 +330,16 @@ export class SwPlan3d extends LitElement {
   connectedCallback(): void {
     super.connectedCallback();
     if (this.hasUpdated && !this.view) this.init(); // moved in the DOM: the canvas was disposed on the way out
-    if (this.qualityDefault === null && this.installDefault === null) {
-      void productSettings()
-        .then((s) => {
-          const q = asLevel(s['plan.quality']);
-          if (q !== null) this.installDefault = q;
-        })
-        .catch(() => {}); // settings unavailable: level 1 until the viewer chooses
-    }
+    document.addEventListener('visibilitychange', this.onVisibility);
   }
 
   disconnectedCallback(): void {
     super.disconnectedCallback();
+    document.removeEventListener('visibilitychange', this.onVisibility);
     this.ro?.disconnect();
     this.endProbe(false);
+    this.probed = false;
+    this.probePending = false;
     this.view?.dispose();
     this.view = null;
     this.applied = null;
@@ -351,6 +355,16 @@ export class SwPlan3d extends LitElement {
   }
 
   private init(): void {
+    // the installation default when neither the viewer nor the host chose: one build at the right level, no rebuild
+    // when the settings land (the cached settings answer at once; a first fetch takes the round trip)
+    if (this.chosen === null && this.qualityDefault === null && this.installDefault === null && !this.settingsAsked) {
+      this.settingsAsked = true;
+      void productSettings()
+        .then((s) => { this.installDefault = asLevel(s['plan.quality']) ?? 1; })
+        .catch(() => { this.installDefault = 1; }) // settings unavailable: level 1 until the viewer chooses
+        .finally(() => { if (this.isConnected && !this.view) this.init(); });
+      return;
+    }
     try {
       this.view = new SceneView({
         mount: this.stage,
@@ -388,7 +402,9 @@ export class SwPlan3d extends LitElement {
       this.setAttribute('data-selected', this.selectedId ?? '');
     }
     if (changed.has('preset') && changed.get('preset') !== undefined) this.applyPreset(this.preset);
-    if (changed.has('continuous')) this.view.setContinuous(this.continuous);
+    // the first update lists every initial property, `continuous` included: it must not stop a probe init() just
+    // started (the probe restores the property's value when it ends)
+    if (changed.has('continuous') && !this.probe) this.view.setContinuous(this.continuous);
     this.applyQuality(); // the choice, the installation default or a fallback changed: a no-op when the view already draws the level
   }
 
@@ -403,7 +419,7 @@ export class SwPlan3d extends LitElement {
       this.presetApplied = true;
     }
     this.view?.setSelected(this.selectedId);
-    if (this.quality === 2) this.startProbe();
+    if (this.quality === 2 && !this.probed) this.startProbe(); // once per mount: a live state push is not a new device
   }
 
   /** The view follows the effective level; a switch to level 2 starts the probe, a switch away ends it. */
@@ -413,6 +429,7 @@ export class SwPlan3d extends LitElement {
     if (!this.view || this.view.getQuality() === q) return;
     this.view.setQuality(q);
     this.thumbs.clear(); // the strip follows the materials of the level
+    this.probed = false;
     if (q === 2 && this.applied) this.startProbe();
     else this.endProbe(false);
     this.requestUpdate();
@@ -432,8 +449,14 @@ export class SwPlan3d extends LitElement {
 
   private startProbe(): void {
     this.endProbe(false);
+    this.probed = true;
     if (!this.view || this.minFps <= 0) return;
-    this.probe = { until: 0, t0: 0, f0: 0 };
+    if (document.hidden) {
+      this.probePending = true; // a background tab draws no frames: measure when it comes back
+      return;
+    }
+    this.probePending = false;
+    this.probe = { until: 0, t0: 0, f0: 0, start: Number(this.getAttribute('data-frames') ?? 0) };
     this.view.setContinuous(true);
     this.probeTimer = window.setTimeout(() => this.endProbe(true), PROBE_FIRST_FRAME_MS);
   }
@@ -441,8 +464,14 @@ export class SwPlan3d extends LitElement {
   private onProbeFrame(frames: number): void {
     const p = this.probe;
     if (!p) return;
+    if (document.hidden) {
+      this.endProbe(false); // the tab went to the background mid-probe: nothing measured, again on return
+      this.probePending = true;
+      return;
+    }
     const now = performance.now();
     if (!p.t0) {
+      if (frames - p.start < PROBE_WARM_FRAMES) return; // still warming up: the first-frame timer keeps watch
       p.t0 = now;
       p.f0 = frames;
       p.until = now + PROBE_MS;
@@ -464,6 +493,10 @@ export class SwPlan3d extends LitElement {
     const p = this.probe;
     this.probe = null;
     this.view?.setContinuous(this.continuous);
+    if (decide && p && document.hidden) {
+      this.probePending = true; // the timer fired in a background tab: no verdict
+      return;
+    }
     if (decide && p) {
       // the timer's path: no report landed in time - the rate over what did draw (nothing at all: 0)
       const frames = Number(this.getAttribute('data-frames') ?? 0);
@@ -472,6 +505,15 @@ export class SwPlan3d extends LitElement {
       if (fps < this.minFps) this.fallBack();
     }
   }
+
+  private onVisibility = (): void => {
+    if (document.hidden) {
+      if (this.probe) {
+        this.endProbe(false);
+        this.probePending = true;
+      }
+    } else if (this.probePending && this.quality === 2 && this.view) this.startProbe();
+  };
 
   private fallBack(): void {
     this.fallback = true;

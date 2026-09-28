@@ -81,6 +81,7 @@
   /* Plan Studio 3D level 2 (CR-006): the sky-gradient backdrop behind the scene, zenith to horizon */
   --sw-map-sky: #dfe9f7;
   --sw-map-sky-horizon: #f7f9fc;
+  --sw-map-wall-3d: #d7dde6; /* the wall albedo of level 2 (map-structure is the 2D's ink; it returns on the cut caps) */
   --sw-fov: rgba(47, 107, 255, 0.14);
 
   /* Typography */
@@ -182,6 +183,7 @@
   --sw-map-label: #8a97ae;
   --sw-map-sky: #dbe7f8;
   --sw-map-sky-horizon: #f5f8fc;
+  --sw-map-wall-3d: #d7dde6;
   --sw-fov: rgba(39, 103, 237, 0.12);
   --sw-fs-xs: 11px;
   --sw-fs-sm: 12.5px;

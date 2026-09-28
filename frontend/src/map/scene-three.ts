@@ -16,7 +16,7 @@
  * camera is far. Colours come from the element's computed design tokens - the description carries names only. This is
  * the only module that imports the three bundle (the lazy chunk).
  */
-import { ACESFilmicToneMapping, AmbientLight, BoxGeometry, BufferGeometry, CanvasTexture, Color, CylinderGeometry, DirectionalLight, DoubleSide, Euler, Float32BufferAttribute, GLTFExporter, Group, HemisphereLight, InstancedMesh, LineBasicMaterial, LineSegments, Matrix4, Mesh, MeshBasicMaterial, MeshLambertMaterial, MeshStandardMaterial, NoToneMapping, Object3D, OrbitControls, OrthographicCamera, PCFSoftShadowMap, PerspectiveCamera, PlaneGeometry, PointLight, Quaternion, Raycaster, SRGBColorSpace, Scene, ShapeUtils, Sprite, SpriteMaterial, Vector2, Vector3, WebGLRenderTarget, WebGLRenderer } from './three-bundle';
+import { ACESFilmicToneMapping, AmbientLight, BoxGeometry, BufferGeometry, CanvasTexture, Color, CylinderGeometry, DirectionalLight, DoubleSide, Euler, Float32BufferAttribute, GLTFExporter, Group, HemisphereLight, InstancedMesh, LineBasicMaterial, LineSegments, Matrix4, Mesh, MeshBasicMaterial, MeshLambertMaterial, MeshStandardMaterial, NoToneMapping, Object3D, OrbitControls, OrthographicCamera, PCFSoftShadowMap, PerspectiveCamera, PlaneGeometry, PointLight, Quaternion, Raycaster, SRGBColorSpace, Scene, ShapeUtils, Sprite, SpriteMaterial, Vector2, Vector3, WebGLRenderer } from './three-bundle';
 import type { SceneDescription, ScenePart, Vec3 } from './scene-builder';
 import { CUTAWAY_HEIGHT_M, ISO_DIR, PERSP_DIR, azimuthDeg, cutBox, cutawayIds, isoFrame, levelExtent, quantiseAzimuth, sceneExtent, type Extent, type IsoFrame } from './scene-frame';
 
@@ -58,19 +58,29 @@ const NOT_PICKABLE = new Set(['glow', 'cone']);
 /** What throws a shadow at level 2 (glass and translucent illustrations do not: the shadow pass ignores opacity). */
 const CASTERS = new Set(['wall', 'lintel', 'sill', 'head', 'door', 'object', 'connector', 'camera']);
 const RECEIVERS = new Set(['floor', 'wall', 'object', 'connector', 'room', 'lintel', 'sill', 'head']);
+/** On a heavy floor (above HIDE_SMALL_ABOVE_PARTS parts) only the structure takes part in the shadows: the objects'
+ * instance groups neither cast (a second draw of every instance) nor receive (the PCF taps on every fragment of
+ * 3,000 chairs covering the view) - the floor under them still shows the structure's shadows. */
+const HEAVY_CASTERS = new Set(['wall', 'lintel', 'sill', 'head', 'door', 'connector']);
 /** What gets a contact occlusion at level 2: the structure and the objects standing on their floor. */
 const AO_KINDS = new Set(['wall', 'object', 'connector']);
 const AO_MAX_BASE_M = 0.5;
-/** The sun of level 2 from the -x +z side: the +z faces the isometric camera sees are lit, the +x faces shaded. */
+/** The sun of level 2 from the -x (a little -z) side: the shadows on the floor run toward +x, which the isometric
+ * camera (at +x +z) sees as toward the viewer and to the right; the faces it sees are lit by the sky. */
 const SUN_DIR: Vec3 = (() => {
-  const n = Math.hypot(-0.45, 1, 0.65);
-  return [-0.45 / n, 1 / n, 0.65 / n];
+  const n = Math.hypot(-0.6, 1.1, -0.25);
+  return [-0.6 / n, 1.1 / n, -0.25 / n];
 })();
+/** Level 2 draws the structure (walls, lintels, sills, heads) in this token instead of map-structure: the 2D's dark
+ * ink is a line colour, a lit wall needs a light albedo; the dark ink returns on the section caps of the cut walls. */
+const WALL_TOKEN_3D = 'map-wall-3d';
+const STRUCTURE_TOKEN = 'map-structure';
+const CAP_HEIGHT_M = 0.025;
 /** Level 2's light: a bright hemisphere (a white sky over a cool ground) and a warm sun, exposed for ACES so a
  * mid-grey wall reads mid-grey - the tokens' colours are the albedo, the picture must not sink into shadow. */
 const HEMI_SKY = 0xffffff;
-const HEMI_GROUND = 0xcdd6e3;
-const HEMI_INTENSITY = 2.3;
+const HEMI_GROUND = 0xe6ebf2;
+const HEMI_INTENSITY = 2.1;
 const SUN_COLOR = 0xfff3dc;
 const SUN_INTENSITY = 3.0;
 const EXPOSURE = 1.12;
@@ -206,9 +216,13 @@ export class SceneView {
   /** The azimuth the cutaway was last applied for (null = nothing cut). */
   private cutAzimuth: number | null = null;
   private cutNow = new Set<string>();
+  /** The dark section caps on the cut walls (level 2): one instanced box, rebuilt with the cut set. */
+  private caps: InstancedMesh | null = null;
   private quality: QualityLevel;
   private framed = false;
   private hideSmall = false;
+  /** The description is heavy (above HIDE_SMALL_ABOVE_PARTS parts): the objects cast no shadows. */
+  private heavy = false;
   private disposed = false;
   private continuous = false;
   private raf = 0;
@@ -347,7 +361,8 @@ export class SceneView {
     if (!entry) {
       // a double-sided translucent surface draws in one pass (three would draw it twice, back then front)
       const sides = doubleSided ? { side: DoubleSide, forceSinglePass: true } : {};
-      const color = new Color(this.opts.color(token));
+      const tok = this.quality === 2 && token === STRUCTURE_TOKEN && role === 'std' ? WALL_TOKEN_3D : token;
+      const color = new Color(this.opts.color(tok));
       let material: MeshLambertMaterial | MeshStandardMaterial;
       if (this.quality === 2 && role === 'glass') {
         material = new MeshStandardMaterial({ color, roughness: 0.12, metalness: 0.25, transparent: true, opacity: Math.max(opacity, 0.35), depthWrite: false, side: DoubleSide, forceSinglePass: true });
@@ -356,7 +371,7 @@ export class SceneView {
       } else {
         material = new MeshLambertMaterial({ color, transparent: opacity < 1, opacity, depthWrite: opacity >= 1, ...sides });
       }
-      entry = { token, material };
+      entry = { token: tok, material };
       this.materials.set(key, entry);
     }
     return entry.material;
@@ -385,8 +400,8 @@ export class SceneView {
 
   private shadows(o: Mesh | InstancedMesh, p: ScenePart): void {
     if (this.quality !== 2) return;
-    o.castShadow = CASTERS.has(p.kind) && p.color !== 'map-glass';
-    o.receiveShadow = RECEIVERS.has(p.kind);
+    o.castShadow = (this.heavy ? HEAVY_CASTERS : CASTERS).has(p.kind) && p.color !== 'map-glass';
+    o.receiveShadow = RECEIVERS.has(p.kind) && !(this.heavy && p.kind === 'object');
   }
 
   private label(p: ScenePart): Sprite {
@@ -542,6 +557,7 @@ export class SceneView {
     this.smallGroups = [];
     this.cutAzimuth = null;
     this.cutNow.clear();
+    this.caps = null; // disposed with the root's children
   }
 
   setDescription(desc: SceneDescription): void {
@@ -549,6 +565,7 @@ export class SceneView {
     this.recolour();
     this.desc = desc;
     this.extent = sceneExtent(desc);
+    this.heavy = desc.parts.length > HIDE_SMALL_ABOVE_PARTS;
     const built = this.realise(desc.parts, desc);
     for (const child of [...built.root.children]) this.root.add(child);
     this.lookup = built.lookup;
@@ -567,6 +584,7 @@ export class SceneView {
     if (!this.hideSmall) for (const g of this.smallGroups) g.visible = true;
     this.fitSun();
     if (!this.framed) this.framed = this.setPreset('iso');
+    this.updateCutaway();
     this.invalidate();
   }
 
@@ -584,8 +602,12 @@ export class SceneView {
     const parts = this.desc.parts.filter((p) => p.userData.id === sourceId && p.kind !== 'cone' && p.kind !== 'floor' && (p.shape === 'box' || p.shape === 'cylinder' || p.shape === 'prism' || p.shape === 'sprite')).slice(0, MAX_OUTLINE_PARTS);
     if (!parts.length) return;
     const group = new Group();
+    const elevation = new Map(this.desc.levels.map((l) => [l.id, l.elevation_m]));
     for (const part of parts) {
       const line = new LineSegments(this.boxEdges, this.outlineMaterial);
+      // a cut part is outlined as drawn: the kept box, or nothing at all when the cut hides it
+      const cut = this.cutNow.has(part.id) ? cutBox(part, elevation.get(part.level_id ?? '') ?? 0, CUTAWAY_HEIGHT_M) : { y: part.position[1], h: part.size[1] };
+      if (!cut) continue;
       if (part.shape === 'prism') {
         const poly = part.polygon ?? [];
         if (!poly.length) continue;
@@ -597,7 +619,8 @@ export class SceneView {
         line.scale.set(w * 1.04 + 0.05, part.size[1] * 1.04 + 0.05, d * 1.04 + 0.05);
       } else {
         this.transform(line, part);
-        line.scale.set(part.size[0] * 1.06 + 0.05, part.size[1] * 1.06 + 0.05, (part.shape === 'sprite' ? 0.1 : part.size[2]) * 1.06 + 0.05);
+        line.position.y = cut.y;
+        line.scale.set(part.size[0] * 1.06 + 0.05, cut.h * 1.06 + 0.05, (part.shape === 'sprite' ? 0.1 : part.size[2]) * 1.06 + 0.05);
       }
       line.renderOrder = 10;
       group.add(line);
@@ -709,11 +732,14 @@ export class SceneView {
     return quantiseAzimuth(azimuthDeg(cam.x, cam.z, cx, cz));
   }
 
+  /** Write a part's box: the kept box of a cut, its own box again, or - hidden (h = 0) - a point parked at `y` (one
+   * metre under its level's floor), so it neither draws, nor shadows, nor takes a click. */
   private writeBox(pl: Placed, y: number, h: number): void {
     const p = pl.part;
     const q = new Quaternion().setFromEuler(new Euler(rad(p.rotation[0]), rad(p.rotation[1]), rad(p.rotation[2]), 'YXZ'));
+    const hidden = h <= 0;
     const pos = new Vector3(p.position[0], y, p.position[2]);
-    const scl = new Vector3(Math.max(p.size[0], 1e-3), Math.max(h, 1e-3), Math.max(p.size[2], 1e-3));
+    const scl = hidden ? new Vector3(1e-4, 1e-4, 1e-4) : new Vector3(Math.max(p.size[0], 1e-3), Math.max(h, 1e-3), Math.max(p.size[2], 1e-3));
     if (pl.obj instanceof InstancedMesh) {
       pl.obj.setMatrixAt(pl.index, new Matrix4().compose(pos, q, scl));
       pl.obj.instanceMatrix.needsUpdate = true;
@@ -744,10 +770,41 @@ export class SceneView {
       if (!pl) continue;
       const box = cutBox(pl.part, elevation.get(pl.part.level_id ?? '') ?? 0, CUTAWAY_HEIGHT_M);
       if (box) this.writeBox(pl, box.y, box.h);
-      else this.writeBox(pl, pl.part.position[1], 0);
+      else this.writeBox(pl, (elevation.get(pl.part.level_id ?? '') ?? 0) - 1, 0);
     }
     this.cutNow = next;
+    this.rebuildCaps(elevation);
     if (this.sun) this.sun.shadow.needsUpdate = true;
+    if (this.selectedId) this.setSelected(this.selectedId); // the outline follows the cut
+  }
+
+  /** The section caps: a thin dark box (map-structure) on top of every cut wall - the architectural convention that a
+   * cut face reads as ink. One instanced box; none when nothing is cut. */
+  private rebuildCaps(elevation: Map<string, number>): void {
+    if (this.caps) {
+      this.root.remove(this.caps);
+      this.caps.dispose();
+      this.caps = null;
+    }
+    const walls = [...this.cutNow].sort().map((id) => this.placed.get(id)).filter((pl): pl is Placed => !!pl && pl.part.kind === 'wall');
+    if (!walls.length || this.quality !== 2) return;
+    const mesh = new InstancedMesh(this.unitBox, this.material(STRUCTURE_TOKEN, 1, false, 'floor'), walls.length);
+    const m = new Matrix4();
+    const q = new Quaternion();
+    const e = new Euler();
+    walls.forEach((pl, i) => {
+      const p = pl.part;
+      const top = (elevation.get(p.level_id ?? '') ?? 0) + CUTAWAY_HEIGHT_M;
+      q.setFromEuler(e.set(rad(p.rotation[0]), rad(p.rotation[1]), rad(p.rotation[2]), 'YXZ'));
+      m.compose(new Vector3(p.position[0], top + CAP_HEIGHT_M / 2 - 0.004, p.position[2]), q, new Vector3(p.size[0] + 0.004, CAP_HEIGHT_M, p.size[2] + 0.004));
+      mesh.setMatrixAt(i, m);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.computeBoundingSphere();
+    mesh.name = 'caps';
+    mesh.castShadow = true;
+    this.caps = mesh;
+    this.root.add(mesh);
   }
 
   /** The ids the cutaway holds now (tests). */
@@ -905,34 +962,38 @@ export class SceneView {
     cam.position.set(f.target[0] + ISO_DIR[0] * f.dist, f.target[1] + ISO_DIR[1] * f.dist, f.target[2] + ISO_DIR[2] * f.dist);
     cam.lookAt(f.target[0], f.target[1], f.target[2]);
     cam.updateProjectionMatrix();
-    const target = new WebGLRenderTarget(width, height, { depthBuffer: true });
-    const pixels = new Uint8Array(width * height * 4);
+    // Drawn into the bottom-left corner of the main canvas (a scissored viewport) and copied out: three applies the
+    // output colour space and the tone mapping only when it draws to the canvas - a render target reads back linear
+    // and comes out far darker than the view. The main frame is redrawn by the rAF that follows, before the browser
+    // paints, so the corner never shows.
+    const canvasEl = this.renderer.domElement;
+    const ratio = this.renderer.getPixelRatio();
+    const w = Math.min(width, Math.floor(canvasEl.width / ratio));
+    const h = Math.min(height, Math.floor(canvasEl.height / ratio));
     let url: string | null = null;
     const shadows = this.renderer.shadowMap.enabled;
     try {
+      if (w < 8 || h < 8) return null; // the canvas is too small to host it
       this.renderer.shadowMap.enabled = false; // the sun here has no shadow camera; the strip is a silhouette
-      this.renderer.setRenderTarget(target);
-      this.renderer.setClearColor(0x000000, 0);
-      this.renderer.clear();
+      this.renderer.setScissorTest(true);
+      this.renderer.setScissor(0, 0, w, h);
+      this.renderer.setViewport(0, 0, w, h);
       this.renderer.render(scene, cam);
-      this.renderer.readRenderTargetPixels(target, 0, 0, width, height, pixels);
       const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
+      canvas.width = w;
+      canvas.height = h;
       const ctx = canvas.getContext('2d');
       if (ctx) {
-        const img = ctx.createImageData(width, height);
-        const row = width * 4;
-        for (let y = 0; y < height; y++) img.data.set(pixels.subarray((height - 1 - y) * row, (height - y) * row), y * row); // GL rows run bottom-up
-        ctx.putImageData(img, 0, 0);
+        // the viewport's origin is the canvas's bottom-left; as an image the canvas is upright
+        ctx.drawImage(canvasEl, 0, canvasEl.height - h * ratio, w * ratio, h * ratio, 0, 0, w, h);
         url = canvas.toDataURL('image/png');
       }
     } catch (err) {
       console.warn('sw-plan-3d: thumbnail failed', err);
     } finally {
-      this.renderer.setRenderTarget(null);
+      this.renderer.setScissorTest(false);
+      this.renderer.setViewport(0, 0, canvasEl.width / ratio, canvasEl.height / ratio);
       this.renderer.shadowMap.enabled = shadows;
-      target.dispose();
       this.disposeGroup(built.root);
       this.invalidate(); // the main view draws its next frame from a clean state
     }

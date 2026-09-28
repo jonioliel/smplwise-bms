@@ -660,19 +660,31 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
       report(`PERF ${label} detail: data-fps=${r.last} counter-reports=${r.reports}`);
       return { fps: r.fps, parts };
     };
-    const open3d = async (label: string) => {
+    const open3d = async (label: string, level: '1' | '2' = '1') => {
       const host = page.locator(HOST);
+      // the >= 20 fps gate is the design's level-1 budget (10.4: 3,000 parts by instancing); level 2 (the installation
+      // default since CR-006 1a) is measured with the same floor and reported - its budget is slice 1c's, and a slow
+      // device falls back to level 1 by itself (the probe is disabled here so the number is level 2's own)
+      await page.evaluate((l) => localStorage.setItem('sw.plan3d.quality', l), level);
+      await page.reload();
       await expectEnabled(host.locator('[data-view-3d]'), 60000);
       const t0 = Date.now();
       await host.locator('[data-view-3d]').click();
-      await expect(host.locator('sw-plan-3d[data-floor-3d]')).toHaveAttribute('data-ready', '', { timeout: 60000 });
+      const el = host.locator('sw-plan-3d[data-floor-3d]');
+      await expect(el).toHaveAttribute('data-ready', '', { timeout: 60000 });
       report(`PERF ${label} time-to-3d ms=${Date.now() - t0}`); // design: within 3 s on desktop (reported, not asserted)
+      await el.evaluate((n) => { (n as unknown as { minFps: number }).minFps = 0; });
+      await expect(el).toHaveAttribute('data-quality', level);
     };
     await page.goto('about:blank');
     await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
     await open3d('sample');
     const small = await measure('sample');
     expect(small.fps).toBeGreaterThanOrEqual(20);
+    await page.goto('about:blank');
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
+    await open3d('sample-level2', '2');
+    await measure('sample-level2'); // reported only
     // 3,000 chairs in a 60 x 50 grid inside the room, published. A chair (0.45 x 0.45 x 0.85 m) is never "small" by
     // SMALL_PART_M (the largest dimension, 0.85 > 0.6), so the far-camera hiding does not apply: this measures raw instancing
     const chairs = Array.from({ length: 3000 }, (_, i) => OBJ(`big${i}`, 'chair.basic', [0.12 + (i % 60) * (0.76 / 59), 0.12 + Math.floor(i / 60) * (0.46 / 49)]));
@@ -687,6 +699,10 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
       const big = await measure('chairs');
       expect(big.parts).toBeGreaterThanOrEqual(3000);
       expect(big.fps).toBeGreaterThanOrEqual(20);
+      await page.goto('about:blank');
+      await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
+      await open3d('chairs-level2', '2');
+      await measure('chairs-level2'); // reported only (CR-006 1a: shadows and the occlusion on the same 3,000 chairs)
       const d = await describe3d(page, HOST);
       expect(d.parts.filter((p) => p.id.startsWith('obj:big')).length).toBe(3000);
       // the phone width on the same machine (not a phone GPU: the design's 30 fps phone target is reported, never asserted)
@@ -698,6 +714,7 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
     } finally {
       await saveDraft({ objects }); // the small floor again for anyone who reruns a single test
       await publish();
+      await page.evaluate(() => localStorage.removeItem('sw.plan3d.quality')); // the next test opens at the installation default
     }
   });
   test('quality level 2 (CR-006 1a): the installation default opens level 2 with shadows and the cutaway, the strip switches the level, the setting and the browser choice override it', async ({ page }, testInfo) => {

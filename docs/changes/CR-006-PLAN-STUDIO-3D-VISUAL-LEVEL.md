@@ -195,6 +195,28 @@ deviations recorded, not silently resolved:
   the level-2 test appended to `evidence-plan-studio-4.spec.ts` (which now honours `SW_BASE_URL` for its API context so
   it runs against a throwaway instance), `test_plan_estimates_setting.py` for the setting.
 
+Review round 1 (same day) - fixed in the second commit: hidden cut parts (lintels, glass above the cut) collapse on
+every axis and park under the floor instead of squashing to a thin bar (they used to float, shadow and take clicks);
+the selection outline follows the cut box; thumbnails are drawn in a scissored corner of the main canvas and copied
+out, because three applies the output colour space and tone mapping only to the canvas (a render target read back
+linear, near-black) - a unit assertion holds a thumbnail's mean luminance within 0.7-1.4 of the view's; the probe
+ignores a hidden tab (`visibilitychange` restarts it), runs once per mount or level switch (not per state push), and
+opens its window after three warm-up frames (shader compile and shadow-map build are one-off); the all-levels
+description is keyed on structure, so the thumbnail cache is not redrawn on state pushes; the floor map hands the
+element the installation default so it builds once; level 2 draws the structure in the new `--sw-map-wall-3d` token
+(both designs) with dark `map-structure` section caps on the cut walls, the sun from -x so shadows fall toward the
+viewer and to the right, and a brighter hemisphere ground. Ruling recorded by the coordinator: `iso` as a true
+orthographic isometric is accepted; `persp` keeps the old view.
+
+Frame rate at level 2 (measured in the round, real Chrome, the workstation at 80-90 % CPU from other applications):
+the 37-part floor ~50-58 fps; the 3,000-chair floor level 1 29-32 fps against level 2 14-18 fps (an A/B on the same
+floor, back to back) - both were vsync-capped at 60 fps on the idle machine earlier the same day. The level-2 cost
+on a heavy floor is the per-fragment standard shading of 3,000 chairs covering the view, not the draw calls (7
+against 3); above HIDE_SMALL_ABOVE_PARTS the objects now neither cast nor receive shadows (the structure still does),
+a modest gain. The live perf gate (>= 20 fps on 3,000 chairs) therefore measures level 1 - the design's instancing
+budget (10.4) - and reports level 2 on the same floor; level 2's own budget is slice 1c's, and a device under it
+falls back by itself.
+
 ## 8. Next step
 
 Owner answers §7; then 1a is dispatched from this document with the same implementer → reviewer → fix-round loop

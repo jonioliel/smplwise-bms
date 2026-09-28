@@ -36,6 +36,27 @@ interface Probe {
   capture: () => string | null;
 }
 
+/** The mean luminance (0..255) of a PNG data URL's opaque pixels, decoded in the page. */
+const luminance = (page: Page, url: string): Promise<number> =>
+  page.evaluate(async (src) => {
+    const img = new Image();
+    await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = () => rej(new Error('bad png')); img.src = src; });
+    const c = document.createElement('canvas');
+    c.width = img.naturalWidth;
+    c.height = img.naturalHeight;
+    const ctx = c.getContext('2d')!;
+    ctx.drawImage(img, 0, 0);
+    const d = ctx.getImageData(0, 0, c.width, c.height).data;
+    let sum = 0;
+    let n = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] < 128) continue;
+      sum += 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+      n++;
+    }
+    return n ? sum / n : 0;
+  }, url);
+
 async function openDemo(page: Page): Promise<Locator> {
   await page.goto('/#/styleguide');
   await page.locator('styleguide-screen [data-3d-demo-load]').click();
@@ -112,9 +133,8 @@ test('the frame-budget probe: level 2 under the minimum drops to level 1 with a 
   test.setTimeout(120_000);
   const el = await openDemo(page);
   await el.evaluate((n) => { (n as unknown as Probe).minFps = 100000; }); // no device keeps this: the fallback must happen
-  await el.locator('[data-quality-2]').click();
-  await expect(el).toHaveAttribute('data-quality', '2'); // level 2 draws while the probe runs
-  await expect(el.locator('[data-3d-fallback]')).toBeAttached({ timeout: 15000 });
+  await el.locator('[data-quality-2]').click(); // level 2 draws while the probe runs (too briefly to assert under a loaded software renderer)
+  await expect(el.locator('[data-3d-fallback]')).toBeAttached({ timeout: 20000 });
   await expect(el).toHaveAttribute('data-quality', '1');
   expect(Number(await el.getAttribute('data-probe-fps'))).toBeGreaterThanOrEqual(0);
   expect(await page.evaluate(() => sessionStorage.getItem('sw.plan3d.fallback'))).toBe('1');
@@ -197,6 +217,38 @@ test('the cutaway at level 2 matches the pure function for the preset azimuth, h
     });
   }, expected.filter((id) => id.startsWith('wall:')));
   for (const h of heights) expect(h).toBeCloseTo(CUTAWAY_HEIGHT_M, 4);
+  // an opening part above the cut (a lintel at 2.1 m) is hidden on every axis and parked under the floor - no thin
+  // bar floats over the wall, no shadow, no click
+  const hidden = await el.evaluate((n, ids) => {
+    const v = (n as unknown as Probe).view;
+    return ids.map((id) => {
+      const pl = v.placed.get(id)!;
+      const a = pl.obj.instanceMatrix.array;
+      const o = pl.index * 16;
+      return { sx: Math.hypot(a[o], a[o + 1], a[o + 2]), sy: Math.hypot(a[o + 4], a[o + 5], a[o + 6]), sz: Math.hypot(a[o + 8], a[o + 9], a[o + 10]), y: a[o + 13] };
+    });
+  }, expected.filter((id) => id.startsWith('lintel:')));
+  expect(hidden.length).toBeGreaterThan(0);
+  for (const h of hidden) {
+    expect(h.sx).toBeLessThan(1e-3);
+    expect(h.sy).toBeLessThan(1e-3);
+    expect(h.sz).toBeLessThan(1e-3);
+    expect(h.y).toBeLessThan(0);
+  }
+  const caps = (await summarise(el)).find((o) => o.name === 'caps');
+  expect(caps, 'the dark section caps on the cut walls').toBeTruthy();
+  expect(caps!.count).toBe(expected.filter((id) => id.startsWith('wall:')).length);
+  expect(caps!.material).toBe('MeshStandardMaterial');
+  // the selection outline of a cut wall is the kept box, not the full wall
+  const cutWall = expected.find((id) => id.startsWith('wall:'))!;
+  const outline = await el.evaluate((n, id) => {
+    const e = n as unknown as Probe & { selectedId: string | null; view: { outline: { children: { scale: { y: number } }[] } | null } };
+    e.selectedId = e.description.parts.find((p) => p.id === id)!.userData.id;
+    return new Promise<number[]>((res) => setTimeout(() => res(e.view.outline!.children.map((c) => c.scale.y)), 50));
+  }, cutWall);
+  expect(outline.length).toBeGreaterThan(0);
+  expect(Math.min(...outline)).toBeLessThan(CUTAWAY_HEIGHT_M * 1.06 + 0.06); // at least the cut segment is outlined short
+  await el.evaluate((n) => { (n as unknown as { selectedId: string | null }).selectedId = null; });
   // applying twice gives the same set (a second frame with the same camera changes nothing)
   await el.locator('[data-preset-iso]').click();
   await expect.poll(() => el.evaluate((n) => (n as unknown as Probe).view.cutawayNow())).toEqual(expected);
@@ -231,6 +283,24 @@ test('the thumbnail strip: one isometric per listed level, cached and bounded by
   expect(srcs.every((s) => s.startsWith('data:image/png;base64,'))).toBe(true);
   expect(srcs[2].length).toBeGreaterThan(srcs[0].length); // L0 holds the demo rooms; L2 is an empty plate-less level
   expect(await el.evaluate((n) => (n as unknown as Probe).thumbnailCount)).toBe(3);
+  // the thumbnail is drawn through the canvas, so the output colour space and the tone mapping apply: its mean
+  // luminance is within a tolerance of the main view's for the same preset (a render target reads back linear and
+  // came out near-black - the review's finding), at both levels
+  for (const level of ['1', '2'] as const) {
+    await disableProbe(el);
+    await el.locator(`[data-quality-${level}]`).click();
+    await expect(el).toHaveAttribute('data-quality', level);
+    await el.locator('[data-preset-iso]').click();
+    await expect.poll(async () => (await thumbs.nth(2).locator('img').getAttribute('src'))?.length ?? 0).toBeGreaterThan(200);
+    const thumb = await luminance(page, (await thumbs.nth(2).locator('img').getAttribute('src'))!);
+    const main = await luminance(page, (await el.evaluate((n) => (n as unknown as Probe).capture()))!);
+    console.log(`thumbnail luminance level ${level}: thumb=${thumb.toFixed(1)} main=${main.toFixed(1)}`);
+    expect(thumb).toBeGreaterThan(60); // not near-black
+    expect(thumb / main).toBeGreaterThan(0.7);
+    expect(thumb / main).toBeLessThan(1.4);
+  }
+  await el.locator('[data-quality-1]').click();
+  await expect(el).toHaveAttribute('data-quality', '1');
   // the same level again from an equal description draws the same picture (deterministic)
   await el.evaluate((n) => { const e = n as unknown as Probe; e.thumbnailScene = { ...e.thumbnailScene! }; });
   await expect.poll(() => thumbs.nth(2).locator('img').getAttribute('src')).toBe(srcs[2]);
