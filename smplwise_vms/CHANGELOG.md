@@ -1,5 +1,33 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.121 (pilot) — WisKey embedded as-is, and a "בקרות כניסה" settings section (CR-005, owner decision)
+- Owner decision (2026-09-28 evening): instead of porting the rest of WisKey screen by screen, embed the owner's
+  own WisKey panel as it is. The WisKey area now shows the real WisKey panel inside SMPLWISE (an iframe on the same
+  origin, using the user's own Home Assistant session - on the LAN and remotely alike), and it is the default. The
+  SMPLWISE screens built earlier (Entry Center, Activity, People with the editor and card capture) stay in the
+  product and can be chosen back per screen.
+- New settings section **"בקרות כניסה"** (system administrators): for each of מרכז הכניסה / פעילות / אנשים choose
+  "WisKey (מוטמע)" or "SMPLWISE"; the other WisKey screens (עמדות, סנכרון, בריאות, יומן שינויים, ניהול) are always
+  embedded and appear as tabs of the WisKey area in both nav designs. The section says plainly what the embed means:
+  inside it WisKey's own permissions and audit apply - a user whose HA account has WisKey "manage" (or an HA
+  administrator) can release doors and edit people there without SMPLWISE's confirmation step or audit.
+- How the embed works, honestly: Home Assistant's sidebar is hidden inside the frame through HA's own kiosk
+  event (HA 2026.1+, in memory only, so the user's normal HA tabs keep their sidebar), with a style fallback and a
+  visible note if neither works; the WisKey panel does not read its tab from the URL, so each SMPLWISE tab opens
+  the matching WisKey tab once through the panel's own navigation and then leaves the panel alone (a two-line change
+  in WisKey would make this permanent - the `?tab=` parameter is already sent). The frame loads a second copy of
+  the HA frontend, which is heavier than the native screens, especially on a phone. Loading, login-required,
+  not-installed, unreachable and blocked states are shown as such; "פתח בחלון מלא" opens the panel in a new tab.
+- The remaining port slices (schedules and photos, station technical settings, door programs, relay reversal,
+  WhatsApp) are not built for now - recorded in CR-005 with the relaxed principle (inside the embed the browser is
+  WisKey's own frontend) and a lab checklist for the owner: LAN over http and remote https, the sidebar hidden,
+  all eight tabs, the Companion app on a phone (a login page inside the frame is the likely failure), the normal
+  HA tab keeping its sidebar, two-way audio through the double frame, "פתח בחלון מלא".
+- Reviewed twice (adversarial): round 1 found the parent re-applying its tab every 2 s, which undid WisKey's own
+  navigation and re-prompted an unsaved schedule - fixed to a once-per-tab deep link; round 2 approved with one nit
+  (the deep-link window now counts from the panel's mount). Tests: 6 settings tests, embed spec 6 passed on desktop
+  and phone against a structural stub of HA, WisKey specs 21 passed; the real nested HA is the owner's lab check.
+
 ## 0.1.120 (pilot) — Plan Studio 3D: determinism as a test, pixel baselines, heavy-floor budget, entity labels (CR-006 slice 1c)
 - Determinism is now proven, not assumed: a spec builds the scene twice from the same plan, tokens, state and
   camera and compares the full scene graph and the exact pixels, at both quality levels and all presets;
