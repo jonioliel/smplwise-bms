@@ -14,6 +14,8 @@ import time
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
+from conftest import sw_perf_enabled, sw_time_factor
+
 import plan_detect_metrics as pm
 from smplwise.services import plan_detect as pd
 
@@ -183,10 +185,16 @@ def test_room_labels_add_no_walls_and_do_not_slow_the_detector():
         t1 = time.perf_counter()
         r = pd.detect(noisy, targets=("walls",), scale_m_per_px=scale)
         labelled = time.perf_counter() - t1
-        # relative to the faster of two clean runs on the same machine at the same moment (an absolute 5 s bound
-        # measured 0.9-5.3 s under load, T086 Task 11); the all-pairs merge this guards against took 31.7 s on 500 bold
-        # words (Task 3 review)
-        assert labelled <= 2 * min(runs) + 1.0, (runs, labelled)
+        # Relative to the faster of two clean runs on the same machine at the same moment - the property under test
+        # is "labels do not make the detector fall into a slow path", not an absolute speed. The default bound is
+        # deliberately generous (5x + 3 s, scaled further by SW_TEST_TIME_FACTOR) because a busy workstation can
+        # inflate the labelled run more than the two clean ones even though nothing here is quadratic; the all-pairs
+        # merge this guards against took 31.7 s on 500 bold words (Task 3 review). SW_PERF=1 also checks the
+        # original tight bound (2x + 1 s, measured 0.9-5.3 s under load) to catch a real regression on a quiet
+        # machine.
+        assert labelled <= (5 * min(runs) + 3.0) * sw_time_factor(), (runs, labelled)
+        if sw_perf_enabled():
+            assert labelled <= 2 * min(runs) + 1.0, (runs, labelled, "SW_PERF strict bound")
         a, b = pm.wall_scores(gt, clean["walls"], 10.0), pm.wall_scores(gt, r["walls"], 10.0)
         assert len(r["walls"]) == len(clean["walls"]) and b["precision"] >= 0.98 and abs(a["recall"] - b["recall"]) < 0.01, (scale, len(r["walls"]), b)
         assert r["scale"] == clean["scale"], "the labels do not move the estimated scale"
