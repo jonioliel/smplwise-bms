@@ -7,7 +7,10 @@ collinear pieces classified by sampling the thin-ink mask (a door arc, mirrored 
 the ink-thickness profile along each wall. The result is a set of document-v2 candidates (source "auto", a confidence
 per item, ids "auto-<run>-w001" / "auto-<run>-o001") in the 0..1 space of the picture, with a calibration hint from
 the door widths when the plan is not calibrated. Nothing here is stored or published: the router returns the
-candidates and a person accepts them (routers/plan_geometry.py)."""
+candidates and a person accepts them (routers/plan_geometry.py).
+
+Tuned on the owner's real scans (T087, detector 1.1-1.2): before the gaps are classified, the sheet's own strokes well
+outside the building, dashed lines and the edges of a tribune (a regular stack of rows) are dropped."""
 from __future__ import annotations
 
 import heapq
@@ -22,7 +25,7 @@ from PIL import Image
 from . import plan_stylize as ps
 from .plan_zones import rdp
 
-VERSION = "1.1"  # 1.1 (T087 tuning): reference strokes and dashed lines are not walls
+VERSION = "1.2"  # 1.1 (T087 tuning): reference strokes and dashed lines are not walls; 1.2: tribune edges
 ANALYSIS_PX = 1600  # the working resolution (design 9.1 / 9.6)
 TILT_PX = 800  # the cheap first pass that measures the tilt of a scan
 TILT_MIN_DEG = 0.15
@@ -54,6 +57,11 @@ PROFILE_MIN_SOLID = 0.5  # ... and its wall is solid on at least this fraction o
 REF_STRUCTURE_SHARE = 0.1  # a connected group of segments that turns is structure from this share of the largest group's length
 REF_MARGIN_M = 1.2  # ... and a group that is not structure goes when it lies this far outside the structure's box (a hollow outline's outer line is closer)
 REF_STRAIGHT_SHARE = 0.3  # ... one that runs one way (a stroke of the sheet, or one line of a fragmented outline) from this share
+LINE_INK = 0.6  # a drawn line beside a segment: ink on this share of the samples along it
+STEPS_SPACING_M = (0.6, 1.2)  # the rows of a tribune are this far apart ...
+STEPS_MIN_ROWS = 3  # ... at least this many beyond the edge ...
+STEPS_REGULAR = 1.35  # ... and evenly (the widest spacing at most this many times the narrowest)
+STEPS_MIN_LEN_M = 1.0  # ... on a straight segment from this length
 DASH_MIN_COUNT = 3  # a dashed line: at least this many short pieces in a row on one line ...
 DASH_MAX_M = 3.0  # ... each at most this long ...
 DASH_GAP_M = 0.6  # ... apart by at most this much (between the skeleton ends) ...
@@ -795,6 +803,72 @@ def drop_dashed_lines(segs: list[Seg], s: float, t_med: float) -> list[Seg]:
     return [g for i, g in enumerate(segs) if i not in drop]
 
 
+def _lines_beside(g: Seg, ink: np.ndarray, reach: float) -> tuple[list[tuple[float, float, float]], np.ndarray, np.ndarray]:
+    """The lines drawn parallel to g within `reach` px on either side: (centre, first, last) offsets (signed, px, along
+    g's left normal) of every run of offsets at which the ink covers at least LINE_INK of 48 samples over 5-95 % of g's
+    length, the run through 0 (g itself, returned as (0, first, last)) first; with the profile (offsets, ink ratios)
+    for the cavity test."""
+    h, w = ink.shape
+    offs = np.arange(-math.floor(reach), math.floor(reach) + 1, dtype=np.float64)
+    along = np.linspace(0.05, 0.95, 48)
+    nl = np.array([g.dir[1], -g.dir[0]])
+    base = g.a + np.outer(along, g.b - g.a)  # 48 x 2
+    pts = base[None, :, :] + offs[:, None, None] * nl[None, None, :]
+    xs = np.clip(np.round(pts[..., 0]).astype(int), 0, w - 1)
+    ys = np.clip(np.round(pts[..., 1]).astype(int), 0, h - 1)
+    ratio = ink[ys, xs].mean(axis=1)
+    on = ratio >= LINE_INK
+    lines: list[tuple[float, float, float]] = []
+    own = (0.0, -g.thick / 2, g.thick / 2)
+    k = 0
+    while k < len(offs):
+        if not on[k]:
+            k += 1
+            continue
+        k2 = k
+        while k2 < len(offs) and on[k2]:
+            k2 += 1
+        lo, hi = offs[k], offs[k2 - 1]
+        if lo <= 0 <= hi:
+            own = (0.0, float(lo), float(hi))
+        else:
+            lines.append((float((lo + hi) / 2), float(lo), float(hi)))
+        k = k2
+    return [own, *lines], offs, ratio
+
+
+def drop_steps_edges(segs: list[Seg], ink: np.ndarray, s: float) -> list[Seg]:
+    """The edges of a tribune are not walls (T087 tuning, the 0.1.91 list, item 4): a straight axis segment of at least
+    STEPS_MIN_LEN_M with at least STEPS_MIN_ROWS more lines drawn parallel to it on one side (read from the soft ink),
+    each STEPS_SPACING_M from the previous and evenly spaced (STEPS_REGULAR), is the edge or a row of a steps region
+    and is dropped. Stair treads are closer than STEPS_SPACING_M[0]; a wall with one parallel line beside it (a hollow
+    wall's other face, a corridor) has no rows. Owner's real scans: both edge lines of the tribune were suggested as
+    walls (its faint rows were not)."""
+    st_lo, st_hi = STEPS_SPACING_M[0] / s, STEPS_SPACING_M[1] / s
+    reach = st_hi * (STEPS_MIN_ROWS + 0.5)
+    out: list[Seg] = []
+    for g in segs:
+        if not g.axis or g.length < STEPS_MIN_LEN_M / s:
+            out.append(g)
+            continue
+        lines = _lines_beside(g, ink, reach)[0][1:]
+        steps = False
+        for sign in (1.0, -1.0):
+            side = sorted(c * sign for c, _, _ in lines if c * sign > 0)
+            gaps = np.diff([0.0] + side[: STEPS_MIN_ROWS + 1])
+            rows = 0
+            for gp in gaps:
+                if st_lo <= gp <= st_hi:
+                    rows += 1
+                else:
+                    break
+            if rows >= STEPS_MIN_ROWS and max(gaps[:rows]) <= STEPS_REGULAR * min(gaps[:rows]):
+                steps = True
+        if not steps:
+            out.append(g)
+    return out
+
+
 # ---------------------------------------------------------------- openings
 
 def _ratio(mask: np.ndarray, pts: np.ndarray) -> float:
@@ -1106,6 +1180,7 @@ def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TA
     st = _stage(src, strength, ANALYSIS_PX, scale_m_per_px, deadline)
     an, dt, s, calibrated, segs, aw, ah, f = st["an"], st["dt"], st["s"], st["calibrated"], st["segs"], st["aw"], st["ah"], st["f"]
     segs = drop_dashed_lines(drop_reference_strokes(segs, st["t_med"], s), s, st["t_med"])
+    segs = drop_steps_edges(segs, an["ink_d"], s)
     want_openings = "openings" in targets
     walls, openings = walls_from_gaps(segs, s, calibrated, an["thin"], an["ink_d"], want_openings, an["walls"])
     _check(deadline)

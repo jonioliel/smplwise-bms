@@ -1,7 +1,8 @@
 """Plan Studio detection tuning (T087, the 0.1.91 list measured on the owner's real scans; synthetic pictures only
 here - the real scans stay private): the sheet's reference strokes well outside the building (section-cut marks, a north
 arrow, the title underline) and dashed lines (an overhead edge drawn in dashes) are not suggested as walls, while the
-building's walls, a wall broken by doors and a free-standing wall inside the building stay."""
+building's walls, a wall broken by doors and a free-standing wall inside the building stay; the rows of a tribune (edges
+included) are no walls."""
 from __future__ import annotations
 
 import io
@@ -70,9 +71,9 @@ def test_reference_strokes_outside_the_building_are_not_walls():
 def test_a_detached_structure_as_big_as_a_building_stays():
     """Only a small group of strokes outside the structure goes: a second building of its own size is structure too."""
     im, d = _building()
-    d.rectangle([1350, 300, 1580, 700], outline=0, width=16)
+    d.rectangle([1400, 300, 1580, 700], outline=0, width=16)  # 1 m beside it
     r = pd.detect(_png(im), targets=("walls",), scale_m_per_px=S)
-    shed = [w for w in r["walls"] if all(x > 1330 for x, _ in _px(w))]
+    shed = [w for w in r["walls"] if all(x > 1380 for x, _ in _px(w))]
     assert len(shed) == 4, [_px(w) for w in shed]
 
 
@@ -106,3 +107,40 @@ def test_drop_dashed_lines_needs_a_run_of_short_thin_pieces_close_together():
     assert len(pd.drop_dashed_lines(thick, s, t_med)) == 3
     long_ = [_seg(0, 400), _seg(420, 820), _seg(840, 1240)]  # 8 m pieces: walls, whatever the gaps
     assert len(pd.drop_dashed_lines(long_, s, t_med)) == 3
+
+
+def test_the_rows_and_edges_of_a_tribune_are_not_walls_while_stair_treads_leave_a_wall_alone():
+    im, d = _building()
+    for k in range(6):  # six rows 0.9 m apart, the two edges drawn heavier
+        y = 250 + 90 * k
+        w = 8 if k in (0, 5) else 4
+        d.rectangle([760, y, 1240, y + w - 1], fill=0)
+    for k in range(5):  # stair treads 0.3 m apart beside the left part of the building's top wall
+        d.rectangle([350 + 60 * k, 190, 351 + 60 * k, 400], fill=0)
+    d.rectangle([330, 400, 650, 415], fill=0)  # a wall with the treads' hairlines ending on it
+    r = pd.detect(_png(im), targets=("walls",), scale_m_per_px=S)
+    rows = [_px(w) for w in r["walls"] if all(760 <= x <= 1240 and 245 <= y <= 710 for x, y in _px(w))]
+    assert rows == [], rows
+    kept = [_px(w) for w in r["walls"] if all(abs(y - 407) < 8 for _, y in _px(w))]
+    assert kept, [_px(w) for w in r["walls"]]
+    top = [_px(w) for w in r["walls"] if all(abs(y - 157) < 8 for _, y in _px(w))]
+    assert sum(abs(p[1][0] - p[0][0]) for p in top) > 900, top
+
+
+def _lines(*ys: int) -> np.ndarray:
+    ink = np.zeros((900, 600), dtype=bool)
+    for y in (100, *ys):  # the edge at y = 100, then the lines beside it, 4 px each, 5 m long
+        ink[y : y + 4, 50:550] = True
+    return ink
+
+
+def test_drop_steps_edges_needs_regular_rows_on_one_side():
+    s = 0.01
+    g = pd.Seg(np.array([50.0, 101.5]), np.array([549.0, 101.5]), [4.0] * 5, axis=True)
+    assert pd.drop_steps_edges([g], _lines(), s) == [g], "a line alone is kept"
+    assert pd.drop_steps_edges([g], _lines(160), s) == [g], "one parallel line (a corridor, a wall's other face): kept"
+    assert pd.drop_steps_edges([g], _lines(190, 280), s) == [g], "two rows are not enough"
+    assert pd.drop_steps_edges([g], _lines(130, 160, 190, 220), s) == [g], "0.3 m apart: stair treads, not rows"
+    assert pd.drop_steps_edges([g], _lines(160, 250, 370), s) == [g], "0.6 / 0.9 / 1.2 m: not evenly spaced"
+    assert pd.drop_steps_edges([g], _lines(190, 280, 370), s) == [], "three even rows 0.9 m apart: a tribune edge"
+    assert pd.drop_steps_edges([g], _lines(10, 40, 70), s) == [g], "treads above, closer than a row"
