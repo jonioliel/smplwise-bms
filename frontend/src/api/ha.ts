@@ -112,6 +112,11 @@ export interface HaSyncState {
   entities: number;
   started_at: string | null;
   ha_version: string | null;
+  /** CR-007 HA refresh: the listing that failed on the last registry refresh (the mirror was kept), or null. */
+  last_registry_error?: string | null;
+  /** The last registry refresh that actually changed floors / areas / entities. */
+  last_structure_at?: string | null;
+  registry_events?: number;
 }
 
 export interface HaStatus {
@@ -330,7 +335,13 @@ export function fmtTime(iso: string | null | undefined): string {
   return d.toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'medium' });
 }
 
-export type HaPush = { type: 'entity_state_changed'; entity: HaEntity } | { type: 'ha_sync_state'; connected: boolean } | { type: 'heartbeat'; sync: HaSyncState };
+/** `structure_changed` (CR-007 HA refresh): a registry refresh moved floors / areas / entities (an entity moved to
+ * another area, an area renamed, a device added or removed in Home Assistant) - screens that show structure refetch. */
+export type HaPush =
+  | { type: 'entity_state_changed'; entity: HaEntity }
+  | { type: 'ha_sync_state'; connected: boolean }
+  | { type: 'heartbeat'; sync: HaSyncState }
+  | { type: 'structure_changed'; reason: string; last_registry_at: string | null };
 
 /** Subscribe to entity state pushes scoped to what the user may see; returns a stop function. */
 export function subscribeHa(onMessage: (m: HaPush) => void, onSocket?: (connected: boolean) => void): () => void {
@@ -359,6 +370,8 @@ export function subscribeHa(onMessage: (m: HaPush) => void, onSocket?: (connecte
         if (env.type === 'entity_state_changed') onMessage({ type: 'entity_state_changed', entity: env.payload.entity as HaEntity });
         else if (env.type === 'ha_sync_state') onMessage({ type: 'ha_sync_state', connected: Boolean(env.payload.connected) });
         else if (env.type === 'heartbeat') onMessage({ type: 'heartbeat', sync: env.payload.sync as HaSyncState });
+        else if (env.type === 'structure_changed')
+          onMessage({ type: 'structure_changed', reason: String(env.payload.reason ?? ''), last_registry_at: (env.payload.last_registry_at as string | null) ?? null });
       } catch {
         /* ignore malformed frames */
       }

@@ -14,7 +14,7 @@ import type { IconName } from '../components/sw-icon';
 import { canAnywhere, isApi } from '../api/session';
 import { ApiError, describeError } from '../api/client';
 import { subscribeHa, type HaSyncState } from '../api/ha';
-import { ALARM_HE, getDevicesTree, HVAC_HE, type ClimateSummary, type DeviceArea, type DeviceCounts, type DeviceFloor, type DeviceTree } from '../api/devices';
+import { ALARM_HE, getDevicesTree, HVAC_HE, refreshDevicesFromHa, type ClimateSummary, type DeviceArea, type DeviceCounts, type DeviceFloor, type DeviceTree } from '../api/devices';
 import { bidi, ltrNum } from '../i18n/bidi';
 import type { BulkKind } from '../api/device-bulk';
 import type { BulkRequest, DevicesBulkDialog } from './devices-bulk';
@@ -24,6 +24,35 @@ import type { BulkRequest, DevicesBulkDialog } from './devices-bulk';
  * several times a second therefore refreshes about every REFRESH_WINDOW_MS instead of never (a resetting debounce
  * would starve - review finding). */
 export const REFRESH_WINDOW_MS = 400;
+/** How long "מבנה עודכן" stays up after a structure change refetched the screen (CR-007 HA refresh). */
+export const STRUCTURE_FLASH_MS = 4000;
+/** How long after a manual refresh's answer its own structure_changed push is still expected. */
+const MANUAL_PUSH_GRACE_MS = 1000;
+
+/** "<what> עכשיו / לפני …": seconds under a minute, then minutes, hours, else the date. '' for no / bad time. */
+export function agoHe(what: string, iso: string | null | undefined, now: number = Date.now()): string {
+  if (!iso) return '';
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return '';
+  const s = Math.max(0, Math.round((now - t) / 1000));
+  if (s < 10) return `${what} עכשיו`;
+  if (s < 60) return `${what} לפני ${s} שניות`;
+  const m = Math.round(s / 60);
+  if (m < 60) return m === 1 ? `${what} לפני דקה` : `${what} לפני ${m} דקות`;
+  const h = Math.round(m / 60);
+  if (h < 24) return h === 1 ? `${what} לפני שעה` : `${what} לפני ${h} שעות`;
+  return `${what} ב־${new Date(t).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })}`;
+}
+
+/** The two timing lines next to the refresh button: when the structure last CHANGED (last_structure_at) and when it
+ * was last CHECKED against Home Assistant (last_registry_at - every refresh, changed or not). */
+export function structureTiming(sync: HaSyncState | null | undefined, now: number = Date.now()): { changed: string; checked: string } {
+  if (!sync?.last_registry_at) return { changed: 'המבנה טרם נטען מ־Home Assistant', checked: '' };
+  return {
+    changed: agoHe('המבנה עודכן', sync.last_structure_at, now) || 'המבנה לא השתנה מאז הפעלת ה־Add-on',
+    checked: agoHe('נבדק מול Home Assistant', sync.last_registry_at, now),
+  };
+}
 
 /** What a tile / floor row shows for each kind that exists there: icon, "on/total", and whether "on" is the warm state. */
 export interface CountPill {
@@ -145,6 +174,17 @@ export class DevicesBuilding extends LitElement {
   @state() private layout: BuildingLayout = readLayout();
   /** The tree's selection in the cards layout: every floor, or one floor id. */
   @state() private selected = 'all';
+  /** CR-007 HA refresh: "מבנה עודכן" shown for a few seconds after a structure_changed push refetched the tree. */
+  @state() private structureFlash = false;
+  /** The manual "רענן מ-Home Assistant" request in flight, and its outcome line (error / "no change"). */
+  @state() private refreshing = false;
+  @state() private refreshNote = '';
+  /** Re-renders the "עודכן לפני …" line while nothing else changes. */
+  @state() private tick = 0;
+  private flashTimer = 0;
+  private tickTimer = 0;
+  /** Until when a structure_changed push is taken as the echo of this user's own manual refresh (no second fetch). */
+  private manualUntil = 0;
 
   private setLayout(l: BuildingLayout) {
     this.layout = l;
@@ -172,6 +212,16 @@ export class DevicesBuilding extends LitElement {
   static styles = css`
     :host {
       display: block;
+    }
+    .ha-refresh {
+      display: inline-flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .ha-refresh .refreshed {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
     }
     .kpis {
       display: grid;
@@ -622,10 +672,16 @@ export class DevicesBuilding extends LitElement {
       return;
     }
     void this.load();
+    this.tickTimer = window.setInterval(() => (this.tick += 1), 15_000);
     this.stop = subscribeHa(
       (m) => {
         if (m.type === 'entity_state_changed') this.scheduleReload();
-        else if (m.type === 'ha_sync_state') {
+        else if (m.type === 'structure_changed') {
+          // an entity moved / an area renamed / a device added or removed in HA: same throttled refetch, plus a note.
+          // The push of this user's own "רענן" is skipped: refreshFromHa refetches once itself.
+          if (Date.now() >= this.manualUntil) this.scheduleReload();
+          this.flashStructure();
+        } else if (m.type === 'ha_sync_state') {
           if (this.sync) this.sync = { ...this.sync, connected: m.connected };
           this.scheduleReload();
         } else if (m.type === 'heartbeat') this.sync = m.sync;
@@ -642,6 +698,44 @@ export class DevicesBuilding extends LitElement {
     this.stop = null;
     window.clearTimeout(this.timer);
     this.timer = 0;
+    window.clearTimeout(this.flashTimer);
+    window.clearInterval(this.tickTimer);
+    this.flashTimer = this.tickTimer = 0;
+  }
+
+  private flashStructure() {
+    this.structureFlash = true;
+    window.clearTimeout(this.flashTimer);
+    this.flashTimer = window.setTimeout(() => (this.structureFlash = false), STRUCTURE_FLASH_MS);
+  }
+
+  /** "רענן מ-Home Assistant": the server re-reads HA's registries; a change also arrives as structure_changed, but the
+   * tree is refetched here anyway so the answer never depends on the push socket being up. */
+  private async refreshFromHa() {
+    if (this.refreshing) return;
+    this.refreshing = true;
+    this.refreshNote = '';
+    this.manualUntil = Number.POSITIVE_INFINITY; // the push this request causes may arrive before its answer
+    try {
+      const r = await refreshDevicesFromHa();
+      this.sync = r.sync;
+      if (r.changed) this.flashStructure();
+      else this.refreshNote = 'אין שינויים במבנה';
+      await this.load();
+    } catch (err) {
+      this.refreshNote = describeError(err);
+      // No answer (429, 502, 503 ...): nothing was refetched here, so a real HA change pushed meanwhile must not be
+      // lost - stop skipping pushes at once and refetch the tree (re-review leftover).
+      this.manualUntil = 0;
+      this.refreshing = false;
+      this.scheduleReload();
+      return;
+    } finally {
+      if (this.refreshing) {
+        this.refreshing = false;
+        this.manualUntil = Date.now() + MANUAL_PUSH_GRACE_MS;
+      }
+    }
   }
 
   private scheduleReload() {
@@ -695,6 +789,7 @@ export class DevicesBuilding extends LitElement {
       <div slot="actions">
         ${t.scoped ? html`<sw-badge kind="partial" label="לפי הקומות שלך"></sw-badge>` : nothing}
         ${isApi() ? html`<sw-badge data-devices-sync kind=${connected ? 'live' : 'stale'} label=${connected ? 'מסונכרן עם Home Assistant' : 'לא מסונכרן עם Home Assistant'}></sw-badge>` : nothing}
+        ${isApi() ? this.renderRefresh() : nothing}
       </div>
       ${this.error ? html`<sw-state-panel compact state="error" heading="הרענון האחרון נכשל" hint=${this.error}></sw-state-panel>` : nothing}
       ${this.renderKpis(t.building)}
@@ -722,6 +817,21 @@ export class DevicesBuilding extends LitElement {
         : 'תצוגה לקריאה בלבד: מצב ההתקנים כפי ש־Home Assistant מדווח אותו. שליטה בהתקן בודד - במסך האזור.'}</div>
       ${this.bulkAllowed ? html`<devices-bulk-dialog @bulk-done=${() => void this.load()}></devices-bulk-dialog>` : nothing}
     </sw-page>`;
+  }
+
+  /** CR-007 HA refresh: the manual refresh, when the structure was last read from HA, and "מבנה עודכן" after a change. */
+  private renderRefresh() {
+    void this.tick; // re-rendered every 15 s so the "לפני …" lines keep up
+    const timing = structureTiming(this.sync);
+    return html`<span class="ha-refresh">
+      ${this.structureFlash ? html`<sw-badge data-structure-changed kind="live" label="מבנה עודכן"></sw-badge>` : nothing}
+      <sw-button size="sm" icon="refresh" data-devices-refresh ?disabled=${this.refreshing} @click=${() => void this.refreshFromHa()}
+        >${this.refreshing ? 'מרענן…' : 'רענן מ־Home Assistant'}</sw-button
+      >
+      <span class="refreshed" data-devices-refreshed>${timing.changed}</span>
+      ${timing.checked ? html`<span class="refreshed" data-devices-checked>· ${timing.checked}</span>` : nothing}
+      ${this.refreshNote ? html`<span class="refreshed" role="status" data-devices-refresh-note>${this.refreshNote}</span>` : nothing}
+    </span>`;
   }
 
   /** The slice-1 presentation: floor sections with area tiles (the "⋯" popover on each tile for a bulk holder). */

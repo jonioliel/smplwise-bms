@@ -17,7 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..config import Settings
 from ..db import unlocked, Database, bump_permission_revision, get_setting, now_iso, set_setting
 from ..errors import ApiError
@@ -285,7 +285,7 @@ class DevRegistryIn(BaseModel):
 
 
 @dev_router.post("/ha/dev/registry")
-def dev_registry(body: DevRegistryIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def dev_registry(body: DevRegistryIn, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Inject entity / device / area / floor registries as if Home Assistant sent them (the same mapping and the same
     writes the sync's registry refresh uses), for the CR-007 devices specs without a Home Assistant. Developer identity
     mode only; system.configure; audited. Entities in STATE_DOMAINS_SKIP are ignored as in the sync."""
@@ -302,15 +302,25 @@ def dev_registry(body: DevRegistryIn, request: Request, principal: Principal = D
             raise ApiError(422, "validation_error", "לכל קומה נדרש floor_id.")
     maps = ha_client.registry_maps(body.entities, body.devices, body.areas, body.floors)
     maps = {k: v for k, v in maps.items() if k.split(".", 1)[0] not in ha_sync.STATE_DOMAINS_SKIP}
-    n = ha_sync.apply_registry(conn, maps)
-    ha_sync.apply_structure(conn, body.areas, body.floors)
     from ..services import device_bulk  # as the sync's own refresh: a mark never outlives its entity
 
-    device_bulk.clear_stale_marks(conn, set(maps))
+    db: Database = request.app.state.db
+    # one write transaction under the sync's mirror lock: a seed never interleaves with a registry refresh (the checks
+    # above ran on the read connection, so no SQLite write lock is held while waiting for the mirror lock)
+    with ha_sync.SYNC.mirror_lock, db.connection() as wconn:
+        before = ha_sync.mirror_fingerprint(wconn)
+        n = ha_sync.apply_registry(wconn, maps)
+        ha_sync.apply_structure(wconn, body.areas, body.floors)
+        device_bulk.clear_stale_marks(wconn, set(maps))
+        changed = ha_sync.mirror_fingerprint(wconn) != before
+        audit(wconn, actor=principal, action="ha.dev.registry", decision="allowed", resource_type="installation", resource_id="*", request_id=getattr(request.state, "correlation_id", None),
+              details={"entities": n, "areas": len(body.areas), "floors": len(body.floors)})
     ha_sync.STATE.last_registry_at = now_iso()
-    audit(conn, actor=principal, action="ha.dev.registry", decision="allowed", resource_type="installation", resource_id="*", request_id=getattr(request.state, "correlation_id", None),
-          details={"entities": n, "areas": len(body.areas), "floors": len(body.floors)})
-    return {"entities": n, "areas": len(body.areas), "floors": len(body.floors)}
+    if changed:
+        ha_sync.STATE.last_structure_at = ha_sync.STATE.last_registry_at
+    if changed:  # the same notice the sync's refresh sends, after the commit
+        ha_sync.publish({"type": "structure_changed", "reason": "dev", "changed": True, "last_registry_at": ha_sync.STATE.last_registry_at})
+    return {"entities": n, "areas": len(body.areas), "floors": len(body.floors), "changed": changed}
 
 
 # ---------------------------------------------------------------- bridge pairing + directory (integration side)

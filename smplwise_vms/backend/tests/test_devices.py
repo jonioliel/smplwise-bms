@@ -269,7 +269,8 @@ def test_failed_registry_listing_keeps_the_previous_mirror(dev_app):
                 return {"success": True, "result": [{"floor_id": "new_floor", "name": "חדשה", "level": 5}]}
             if msg_type == "config/area_registry/list":
                 return {"success": False, "error": {"code": "unauthorized"}} if fail_areas else {"success": True, "result": [{"area_id": "new_area", "name": "חדש", "floor_id": "new_floor"}]}
-            return {"success": True, "result": []}
+            # the entity listing answers as HA does (an EMPTY one is now refused as a bad answer, not applied as a wipe)
+            return {"success": True, "result": ENTITY_REGISTRY if msg_type == "config/entity_registry/list" else []}
         return call
 
     def mirror():
@@ -292,7 +293,7 @@ def test_dev_registry_endpoint_seeds_the_structure(settings):
 
     c = TestClient(create_app(settings))
     r = c.post("/api/v1/ha/dev/registry", json={"entities": [{"entity_id": "light.x", "area_id": "a1"}, {"entity_id": "update.y", "area_id": "a1"}], "areas": [{"area_id": "a1", "name": "A", "floor_id": "f1"}], "floors": [{"floor_id": "f1", "name": "F", "level": 1}]})
-    assert r.status_code == 200 and r.json() == {"entities": 1, "areas": 1, "floors": 1}
+    assert r.status_code == 200 and r.json() == {"entities": 1, "areas": 1, "floors": 1, "changed": True}
     c.post("/api/v1/ha/dev/states", json={"states": [{"entity_id": "light.x", "state": "on", "attributes": {"brightness": 255}}]})
     t = c.get("/api/v1/devices/tree").json()
     assert t["floors"][0]["name"] == "F" and t["floors"][0]["areas"][0]["counts"]["lights_on"] == 1

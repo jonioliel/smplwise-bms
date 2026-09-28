@@ -20,7 +20,7 @@ def test_registry_refresher_is_cancelled_when_the_session_ends(settings, monkeyp
 
     monkeypatch.setattr(ha_sync.HaSync, "_refresh_registry", fake_refresh)
 
-    async def fake_ws_session(settings_, on_ready, on_event, stop):  # noqa: ARG001
+    async def fake_ws_session(settings_, on_ready, on_event, stop, on_message=None):  # noqa: ARG001
         async def call(kind, **kw):  # noqa: ARG001
             if kind == "get_config":
                 return {"result": {"version": "2026.9.2"}}

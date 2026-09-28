@@ -3,10 +3,19 @@
 A background thread keeps one WebSocket session to HA Core: registries (entities, devices, areas,
 floors) and a full state snapshot at connect, then `state_changed` subscription. Rows carry occurred
 (HA `last_changed`/`last_updated`) and received (`state_seen_at`) times; while disconnected the API
-reports `fresh: false` and nothing is invented. Attributes are trimmed to an allow-list."""
+reports `fresh: false` and nothing is invented. Attributes are trimmed to an allow-list.
+
+Structure (CR-007 HA refresh): the session also subscribes to HA's `*_registry_updated` events (entity, device,
+area, floor - all on HA's non-admin subscribe allow-list). Any of them schedules ONE debounced registry refresh
+(REGISTRY_DEBOUNCE_S after the last event, never later than REGISTRY_MAX_WAIT_S after the first of a burst); when the
+refresh changed the mirror, a `structure_changed` notice goes out on /ha/ws so open screens refetch. The periodic
+refresh stays as a safety net, and `HaSync.refresh_now` lets a user force one. A refresh whose entity or device
+listing fails writes nothing (a partial listing would move every device-area entity to "no area" and tombstone
+entities); a failed area / floor listing keeps that mirror table and resolves names from it."""
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import json
 import logging
 import queue
@@ -22,7 +31,12 @@ from . import ha_client
 
 log = logging.getLogger("smplwise.ha")
 
-REGISTRY_REFRESH_S = 600
+REGISTRY_REFRESH_S = 600  # safety net only: registry events trigger a refresh within seconds
+REGISTRY_EVENTS = ("entity_registry_updated", "device_registry_updated", "area_registry_updated", "floor_registry_updated")
+REGISTRY_DEBOUNCE_S = 1.5  # one refresh for a burst (an integration reload fires one event per entity)
+REGISTRY_MAX_WAIT_S = 10.0  # ...but a burst that never pauses still refreshes this often
+MANUAL_REFRESH_TIMEOUT_S = 30.0
+MANUAL_COALESCE_S = 3.0  # a manual refresh right after another refresh returns that one's result (no second listing)
 ATTR_ALLOW = {
     "friendly_name", "unit_of_measurement", "device_class", "state_class", "icon", "supported_features", "brightness", "color_mode",
     "current_position", "current_tilt_position", "temperature", "current_temperature", "target_temp_high", "target_temp_low", "hvac_modes",
@@ -51,9 +65,13 @@ class SyncState:
         self.entities = 0
         self.started_at: str | None = None
         self.ha_version: str | None = None
+        self.last_registry_error: str | None = None  # the listing that failed on the last refresh (mirror kept)
+        self.last_structure_at: str | None = None  # the last refresh that actually changed floors / areas / entities
+        self.registry_events = 0  # registry-updated events seen since start
 
     def as_dict(self) -> dict[str, Any]:
-        return {k: getattr(self, k) for k in ("connected", "last_snapshot_at", "last_event_at", "last_registry_at", "last_error", "reconnects", "sequence", "entities", "started_at", "ha_version")}
+        return {k: getattr(self, k) for k in ("connected", "last_snapshot_at", "last_event_at", "last_registry_at", "last_error", "reconnects", "sequence", "entities", "started_at", "ha_version",
+                                              "last_registry_error", "last_structure_at", "registry_events")}
 
 
 STATE = SyncState()
@@ -192,6 +210,70 @@ def _listing(reply: dict[str, Any] | None) -> list[dict[str, Any]] | None:
     return result if isinstance(result, list) else None
 
 
+def mirror_fingerprint(conn: sqlite3.Connection) -> str:
+    """What the structure screens read from the mirror (live entities with their area / floor / name / visibility,
+    the area and floor tables): equal before and after a refresh means nothing a screen shows moved."""
+    import hashlib
+
+    h = hashlib.sha1()
+    for sql in (
+        "SELECT entity_id, area_id, area_name, ha_floor_id, ha_floor_name, name, device_id, disabled, hidden, entity_category FROM ha_entities WHERE removed_at IS NULL ORDER BY entity_id",
+        "SELECT area_id, name, floor_id, icon, position FROM ha_areas ORDER BY area_id",
+        "SELECT floor_id, name, level, icon, position FROM ha_floors ORDER BY floor_id",
+    ):
+        for r in conn.execute(sql):
+            h.update(json.dumps(list(r), ensure_ascii=False, default=str).encode("utf-8"))
+        h.update(b"|")
+    return h.hexdigest()
+
+
+def state_removed(conn: sqlite3.Connection, entity_id: str) -> bool:
+    """HA removed the entity's state (`state_changed` with no new state: the entity was deleted, or its integration is
+    reloading / unloaded). An entity HA's registry knows is only marked unavailable - the registry refresh this
+    schedules decides whether it is gone (an integration reload keeps it, and must not cost it its bulk-safe mark). An
+    entity without a registry entry has nothing else to tell us, so it is tombstoned now (placement kept; a later
+    state brings it back - upsert_state clears removed_at) instead of lingering in the tree. True when a row changed."""
+    row = conn.execute("SELECT registry_id FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (entity_id,)).fetchone()
+    if not row:
+        return False
+    now = now_iso()
+    if row["registry_id"]:
+        conn.execute("UPDATE ha_entities SET available = 0, updated_at = ? WHERE entity_id = ?", (now, entity_id))
+    else:
+        conn.execute("UPDATE ha_entities SET removed_at = ?, available = 0, updated_at = ? WHERE entity_id = ?", (now, now, entity_id))
+    return True
+
+
+class Debouncer:
+    """Trailing debounce with a ceiling, on one asyncio loop: `poke(reason)` (re)arms the timer for `delay` seconds,
+    but never past `max_wait` after the first poke of the burst; `fire(reasons)` then runs once with every reason seen."""
+
+    def __init__(self, loop: asyncio.AbstractEventLoop, fire, delay: float, max_wait: float) -> None:
+        self.loop, self.fire, self.delay, self.max_wait = loop, fire, delay, max_wait
+        self.handle: asyncio.TimerHandle | None = None
+        self.first: float | None = None
+        self.reasons: set[str] = set()
+
+    def poke(self, reason: str) -> None:
+        now = self.loop.time()
+        if self.first is None:
+            self.first = now
+        self.reasons.add(reason)
+        if self.handle is not None:
+            self.handle.cancel()
+        wait = max(0.0, min(self.delay, self.first + self.max_wait - now))
+        self.handle = self.loop.call_later(wait, self._run)
+
+    def _run(self) -> None:
+        reasons, self.reasons, self.first, self.handle = self.reasons, set(), None, None
+        self.fire(reasons)
+
+    def cancel(self) -> None:
+        if self.handle is not None:
+            self.handle.cancel()
+        self.handle, self.first, self.reasons = None, None, set()
+
+
 def tombstone_missing(conn: sqlite3.Connection, present: set[str]) -> int:
     """Entities that vanished from both the state snapshot and the registry are tombstoned (placement kept)."""
     now = now_iso()
@@ -266,12 +348,37 @@ def snapshot(db: Database, settings: Settings) -> int:
     return len(states)
 
 
+async def subscribe_registry_events(call) -> int:
+    """Subscribe the session to HA's registry-updated events; returns how many HA accepted. A refusal is logged, never
+    fatal: the state feed matters more, and the periodic refresh still catches structure changes."""
+    ok = 0
+    for et in REGISTRY_EVENTS:
+        try:
+            reply = await call("subscribe_events", event_type=et)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("subscribing to %s failed: %s", et, type(exc).__name__)
+            continue
+        if reply.get("success"):
+            ok += 1
+        else:
+            log.warning("HA refused the %s subscription (%s); structure changes wait for the periodic refresh", et, (reply.get("error") or {}).get("code"))
+    return ok
+
+
 class HaSync:
     def __init__(self) -> None:
         self.thread: threading.Thread | None = None
         self.stop = threading.Event()
         self.db: Database | None = None
         self.settings: Settings | None = None
+        # the live session's loop and `call` (None between sessions) and its one-refresh-at-a-time lock
+        self._session_loop: asyncio.AbstractEventLoop | None = None
+        self._session_call: Any = None
+        self._refresh_lock: asyncio.Lock | None = None
+        # every mirror write (the sync's refresh, the dev registry seed) holds this thread lock for its whole duration
+        self.mirror_lock = threading.Lock()
+        # (monotonic time, changed) of the last refresh that completed, for MANUAL_COALESCE_S
+        self._last_done: tuple[float, bool] | None = None
 
     def start(self, db: Database, settings: Settings) -> None:
         self.db, self.settings = db, settings
@@ -325,10 +432,25 @@ class HaSync:
         db, settings = self.db, self.settings
         loop = asyncio.get_event_loop()
 
+        debouncer: Debouncer | None = None
+        tasks: set[asyncio.Task[Any]] = set()
+
         def on_event(data: dict[str, Any]) -> None:
             new = data.get("new_state")
             eid = data.get("entity_id", "")
-            if not new or eid.split(".", 1)[0] in STATE_DOMAINS_SKIP:
+            if eid.split(".", 1)[0] in STATE_DOMAINS_SKIP:
+                return
+            if not new:
+                # a registry_updated frame carries entity_id too, but never the old_state / new_state keys
+                if "new_state" in data and data.get("old_state") is not None:
+                    try:
+                        with db.connection() as conn:
+                            removed = state_removed(conn, eid)
+                    except Exception:
+                        log.exception("state removal failed for %s", eid)
+                        return
+                    if removed and debouncer is not None:
+                        debouncer.poke("state_removed")
                 return
             try:
                 with db.connection() as conn:
@@ -351,13 +473,31 @@ class HaSync:
             STATE.last_event_at = now_iso()
             publish({"type": "entity_state_changed", "sequence": STATE.sequence, "entity": row})
 
+        def on_message(msg: dict[str, Any]) -> None:
+            event = msg.get("event")
+            if not isinstance(event, dict) or event.get("event_type") not in REGISTRY_EVENTS:
+                return
+            STATE.registry_events += 1
+            if debouncer is not None:
+                debouncer.poke(event["event_type"])
+
         refresher_task: asyncio.Task[None] | None = None
 
         async def on_ready(call) -> None:
-            nonlocal refresher_task
+            nonlocal refresher_task, debouncer
             cfg = await call("get_config")
             STATE.ha_version = (cfg.get("result") or {}).get("version")
-            await self._refresh_registry(call)
+
+            def fire(reasons: set[str]) -> None:
+                task = asyncio.create_task(self._refresh_and_notify(call, ",".join(sorted(reasons)), force_notice="state_removed" in reasons))
+                tasks.add(task)
+                task.add_done_callback(tasks.discard)
+
+            debouncer = Debouncer(loop, fire, REGISTRY_DEBOUNCE_S, REGISTRY_MAX_WAIT_S)
+            self._refresh_lock = asyncio.Lock()
+            # subscribed BEFORE the first listing, so a change made while it runs is not lost between the two
+            await subscribe_registry_events(call)
+            await self._refresh_and_notify(call, "connect", notify=False)
             states = await call("get_states")
             seen = now_iso()
             await loop.run_in_executor(None, store_states, db, states.get("result") or [], seen)
@@ -369,29 +509,89 @@ class HaSync:
             STATE.last_error = None
             log.info("HA sync connected: %d entities, HA %s", STATE.entities, STATE.ha_version)
             publish({"type": "ha_sync_state", "connected": True})
-            # periodic registry refresh inside the session
+            self._session_loop, self._session_call = loop, call  # refresh_now (the manual button) runs on this session from here on
+
+            # periodic registry refresh inside the session: the safety net under the registry events
             async def refresher() -> None:
                 while not stop_evt.is_set():
                     await asyncio.sleep(REGISTRY_REFRESH_S)
-                    try:
-                        await self._refresh_registry(call)
-                    except Exception as exc:
-                        log.warning("registry refresh failed: %s", type(exc).__name__)
+                    await self._refresh_and_notify(call, "periodic")
 
             refresher_task = asyncio.create_task(refresher(), name="ha-registry-refresher")
 
         try:
-            await ha_client.ws_session(settings, on_ready, on_event, stop_evt)
+            await ha_client.ws_session(settings, on_ready, on_event, stop_evt, on_message=on_message)
         finally:
+            self._session_loop = self._session_call = None
+            if debouncer is not None:
+                debouncer.cancel()
+            for task in list(tasks):
+                task.cancel()
             # the refresher belongs to this session: without this every reconnect leaked one more task that kept
             # calling the closed socket ("registry refresh failed: ConnectionClosedOK" every 10 minutes, F13)
             if refresher_task is not None:
                 refresher_task.cancel()
 
-    async def _refresh_registry(self, call) -> None:
+    async def _refresh_and_notify(self, call, reason: str, *, notify: bool = True, force_notice: bool = False) -> bool | None:
+        """One registry refresh at a time; a `structure_changed` notice when it moved anything a screen shows (or when
+        `force_notice`: an entity's state was removed). Returns changed, or None when the refresh wrote nothing
+        (a listing failed, or the call itself raised - logged, the mirror kept)."""
+        if self._refresh_lock is None:
+            self._refresh_lock = asyncio.Lock()
+        async with self._refresh_lock:
+            started = time.monotonic()
+            try:
+                changed = await self._refresh_registry(call)
+            except Exception as exc:  # noqa: BLE001 - a dropped socket; the session's own loop reconnects
+                log.warning("registry refresh (%s) failed: %s", reason, type(exc).__name__)
+                STATE.last_registry_error = type(exc).__name__
+                return None
+            if changed is None:
+                return None
+            self._last_done = (time.monotonic(), changed)
+            log.info("registry refresh (%s) in %.0f ms: %s", reason, (time.monotonic() - started) * 1000, "changed" if changed else "no change")
+            if changed:
+                STATE.last_structure_at = STATE.last_registry_at
+            if notify and (changed or force_notice):
+                publish({"type": "structure_changed", "reason": reason, "changed": changed, "last_registry_at": STATE.last_registry_at})
+            return changed
+
+    def refresh_now(self) -> dict[str, Any]:
+        """Force a registry refresh from a request thread (the "רענן מ-Home Assistant" button): runs on the live
+        session's loop, waits for it, and says whether anything changed. 503 while HA is not connected."""
+        loop, call = self._session_loop, self._session_call
+        if not STATE.connected or loop is None or call is None:
+            raise ApiError(503, "ha_unavailable", "אין כרגע חיבור ל־Home Assistant; המבנה יתעדכן מעצמו כשהחיבור יחזור.", retryable=True)
+        done = self._last_done
+        if done is not None and time.monotonic() - done[0] < MANUAL_COALESCE_S:
+            # a refresh finished a moment ago (another user's button, a registry event): its answer is this one's
+            return {"changed": done[1], "last_registry_at": STATE.last_registry_at, "coalesced": True}
+        fut = asyncio.run_coroutine_threadsafe(self._refresh_and_notify(call, "manual"), loop)
+        try:
+            changed = fut.result(timeout=MANUAL_REFRESH_TIMEOUT_S)
+        except concurrent.futures.TimeoutError:
+            # NOT cancelled: the refresh keeps the lock until its mirror write is done, so no other refresh can write
+            # beside it (a cancelled one released the lock while its executor write went on)
+            raise ApiError(504, "ha_timeout", "Home Assistant לא ענה בזמן; הרענון ממשיך ברקע - נסו שוב בעוד רגע.", retryable=True) from None
+        except concurrent.futures.CancelledError:
+            # the HA socket dropped mid-refresh (the session cancels its pending calls): nothing was written
+            raise ApiError(503, "ha_unavailable", "החיבור ל־Home Assistant נותק במהלך הרענון; המבנה יתעדכן מעצמו כשהחיבור יחזור.", retryable=True) from None
+        if changed is None:
+            raise ApiError(502, "ha_registry_incomplete", "Home Assistant לא החזיר את הרישום המלא; המבנה הקודם נשמר. נסו שוב בעוד רגע.", retryable=True,
+                           details={"failed": STATE.last_registry_error})
+        return {"changed": changed, "last_registry_at": STATE.last_registry_at}
+
+    async def _refresh_registry(self, call) -> bool | None:
+        """Fetch the four registries and rewrite the mirror. Returns whether the mirror changed, or None when the entity
+        or device listing failed - then NOTHING is written: an empty device list would move every entity whose area
+        comes from its device to "ללא שיוך", an empty entity list would tombstone entities and clear bulk-safe marks."""
         assert self.db
-        ents = (await call("config/entity_registry/list")).get("result") or []
-        devs = (await call("config/device_registry/list")).get("result") or []
+        ents = _listing(await call("config/entity_registry/list"))
+        devs = _listing(await call("config/device_registry/list"))
+        if ents is None or devs is None:
+            STATE.last_registry_error = "entity_registry" if ents is None else "device_registry"
+            log.warning("%s listing failed; keeping the previous mirror", STATE.last_registry_error)
+            return None
         areas_listing = _listing(await call("config/area_registry/list"))
         try:
             floors_listing = _listing(await call("config/floor_registry/list"))
@@ -402,13 +602,26 @@ class HaSync:
             log.warning("area registry listing failed; keeping the previous area mirror")
         if floors_listing is None:
             log.warning("floor registry listing failed; keeping the previous floor mirror")
-        areas = areas_listing or []
-        floors = floors_listing or []
-        maps = ha_client.registry_maps(ents, devs, areas, floors)
         db = self.db
         loop = asyncio.get_event_loop()
+        result: dict[str, Any] = {}
 
         def _apply() -> None:
+            with self.mirror_lock:
+                _apply_locked()
+
+        def _apply_locked() -> None:
+            with db.connection() as conn:
+                if not ents and conn.execute("SELECT 1 FROM ha_entities WHERE registry_id IS NOT NULL AND removed_at IS NULL LIMIT 1").fetchone():
+                    # an empty entity registry while the mirror knows registry entities is a bad answer, not a wipe
+                    result["incomplete"] = True
+                    return
+                before = mirror_fingerprint(conn)
+                # a listing that failed resolves names from the mirror it keeps, not from nothing (an entity's area
+                # name and floor would otherwise be blanked until the next refresh)
+                areas = areas_listing if areas_listing is not None else [dict(r) for r in conn.execute("SELECT area_id, name, floor_id, icon FROM ha_areas")]
+                floors = floors_listing if floors_listing is not None else [dict(r) for r in conn.execute("SELECT floor_id, name, level, icon FROM ha_floors")]
+            maps = ha_client.registry_maps(ents, devs, areas, floors)
             items = [(k, v) for k, v in maps.items() if k.split(".", 1)[0] not in STATE_DOMAINS_SKIP]
             for chunk in _chunks(items):
                 def _write(chunk=chunk) -> None:
@@ -423,7 +636,9 @@ class HaSync:
 
             def _tombstone() -> None:
                 with db.connection() as conn:
-                    present = set(maps) | {r["entity_id"] for r in conn.execute("SELECT entity_id FROM ha_entities WHERE state_seen_at >= ?", (STATE.last_snapshot_at or "",)).fetchall()}
+                    # an entity that had a registry entry and no longer has one is gone, however recent its last state
+                    # (HA deleted it, or renamed its id); one HA never registered stays while it keeps reporting states
+                    present = set(maps) | {r["entity_id"] for r in conn.execute("SELECT entity_id FROM ha_entities WHERE state_seen_at >= ? AND registry_id IS NULL", (STATE.last_snapshot_at or "",)).fetchall()}
                     if STATE.last_snapshot_at:
                         tombstone_missing(conn, present)
                     from . import device_bulk  # CR-007 s3: a bulk-safe mark never outlives its entity
@@ -431,9 +646,28 @@ class HaSync:
                     device_bulk.clear_stale_marks(conn, set(maps))
                     STATE.entities = count_entities(conn)
             _busy_retry(_tombstone)
+            with db.connection() as conn:
+                result["changed"] = mirror_fingerprint(conn) != before
 
-        await loop.run_in_executor(None, _apply)
+        write = loop.run_in_executor(None, _apply)
+        try:
+            await asyncio.shield(write)
+        except asyncio.CancelledError:
+            # cancelled (the session ended) while the executor still writes: hold the refresh lock until the write is
+            # done - releasing it now would let the next refresh write beside this one
+            while not write.done():
+                try:
+                    await asyncio.wait({write})
+                except asyncio.CancelledError:
+                    continue
+            raise
+        if result.get("incomplete"):
+            STATE.last_registry_error = "entity_registry"
+            log.warning("entity registry listing came back empty; keeping the previous mirror")
+            return None
         STATE.last_registry_at = now_iso()
+        STATE.last_registry_error = None
+        return bool(result.get("changed"))
 
 
 SYNC = HaSync()

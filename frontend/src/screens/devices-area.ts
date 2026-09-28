@@ -19,7 +19,7 @@ import { fmtTime, stateLabel, subscribeHa, type HaSyncState } from '../api/ha';
 import { ALARM_HE, assignEntityArea, CARD_EMPTY, CARD_IDS, HVAC_ACTION_HE, HVAC_HE, getDevicesArea, getDevicesTree, type CardId, type DeviceAreaDetail, type DeviceCard, type DeviceRow, type DeviceTree } from '../api/devices';
 import { debouncedCommand, runCommand, supersede, type CommandState } from '../api/device-commands';
 import type { BulkKind } from '../api/device-bulk';
-import { alarmTone, REFRESH_WINDOW_MS } from './devices-building';
+import { alarmTone, REFRESH_WINDOW_MS, STRUCTURE_FLASH_MS } from './devices-building';
 import './devices-bulk';
 import type { BulkRequest, DevicesBulkDialog } from './devices-bulk';
 import { navigate } from '../router';
@@ -78,6 +78,9 @@ export class DevicesArea extends LitElement {
   @state() private forbidden = false;
   @state() private notFound = false;
   @state() private sync: HaSyncState | null = null;
+  /** CR-007 HA refresh: "מבנה עודכן" for a few seconds after a structure_changed push (an entity moved in or out). */
+  @state() private structureFlash = false;
+  private flashTimer = 0;
   /** One control's command state per key (`entityId:control` - power, brightness, position, temp, mode, fan,
    * mute, playpause; each independent so a slider drag never supersedes a button tap on the same entity). */
   @state() private commands: Record<string, CommandState<unknown>> = {};
@@ -441,6 +444,12 @@ export class DevicesArea extends LitElement {
         // only pushes about this area's own entities refetch it; until the area is loaded every push may be one of them
         if (m.type === 'entity_state_changed') {
           if (!this.detail || this.entityIds.has(m.entity.entity_id)) this.scheduleReload();
+        } else if (m.type === 'structure_changed') {
+          // the entity filter above cannot see an entity moved INTO this area, nor a rename: refetch whole
+          this.scheduleReload();
+          this.structureFlash = true;
+          window.clearTimeout(this.flashTimer);
+          this.flashTimer = window.setTimeout(() => (this.structureFlash = false), STRUCTURE_FLASH_MS);
         } else if (m.type === 'ha_sync_state') {
           if (this.sync) this.sync = { ...this.sync, connected: m.connected };
           this.scheduleReload();
@@ -900,6 +909,7 @@ export class DevicesArea extends LitElement {
         ${bulk ? html`<devices-bulk-menu scope="area" .targetId=${d.area.area_id} .targetName=${d.area.name} .counts=${d.counts} variant="popover" label="פעולות לאזור" data-bulk-area=${d.area.area_id}></devices-bulk-menu>` : nothing}
         ${d.counts.alarm ? html`<sw-badge data-area-alarm kind=${alarmTone(d.counts.alarm)} label=${`אזעקה: ${ALARM_HE[d.counts.alarm] ?? d.counts.alarm}`}></sw-badge>` : nothing}
         <sw-badge data-devices-sync kind=${connected ? 'live' : 'stale'} label=${connected ? 'מסונכרן עם Home Assistant' : 'לא מסונכרן עם Home Assistant'}></sw-badge>
+        ${this.structureFlash ? html`<sw-badge data-structure-changed kind="live" label="מבנה עודכן"></sw-badge>` : nothing}
       </div>
       ${d.floor_areas.length > 1
         ? html`<div class="chips" role="navigation" aria-label="אזורים בקומה">

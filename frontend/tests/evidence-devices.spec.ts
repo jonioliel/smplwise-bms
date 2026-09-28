@@ -162,7 +162,8 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     // nothing on this screen controls one device; the only buttons are the bulk actions (slice 3: the header buttons
     // and the "⋯" triggers, each of which opens the confirmation dialog - the admin holds devices.control_bulk)
     await expect(screen.locator('input, sw-toggle')).toHaveCount(0);
-    await expect(screen.locator('sw-button:visible:not([data-bulk-kind]):not([data-bulk-trigger])')).toHaveCount(0);
+    // (CR-007 HA refresh adds "רענן מ־Home Assistant", which re-reads HA's registries and controls no device)
+    await expect(screen.locator('sw-button:visible:not([data-bulk-kind]):not([data-bulk-trigger]):not([data-devices-refresh])')).toHaveCount(0);
     // a tile opens the area screen
     await lobby.click();
     await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/devices/areas/cr007_lobby');
@@ -299,6 +300,100 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     await setState(request, 'light.cr007_office', 'off', { friendly_name: 'תאורת משרד' });
     await setState(request, 'light.cr007_lobby_2', 'off', { friendly_name: 'ספוט לובי' });
     await setState(request, 'sensor.cr007_temp', '23.5', { friendly_name: 'טמפרטורת לובי', unit_of_measurement: '°C', device_class: 'temperature' });
+  });
+
+  // ---------------------------------------------------------------- CR-007 HA refresh (owner report 2026-09-28)
+  // A structure change made in Home Assistant (an entity moved to another area) used to show only after restarting the
+  // add-on. With the fixture backend (SW_DEVICES_FIXTURE=1) the move goes through the fake HA: its registry changes and
+  // HA's `entity_registry_updated` event reaches the real sync, which refreshes the registry and pushes
+  // `structure_changed`. Against a plain developer backend the dev registry endpoint rewrites the registry and sends
+  // the same push.
+  const CONTROL = `http://127.0.0.1:${process.env.SW_FAKE_HA_CONTROL_PORT ?? String(Number(process.env.SW_API_PORT ?? '8099') + 1)}`;
+  const FIXTURE = process.env.SW_DEVICES_FIXTURE === '1';
+
+  async function moveInHa(request: APIRequestContext, entity_id: string, area_id: string, silent = false) {
+    if (FIXTURE) {
+      const r = await request.post(`${CONTROL}/move`, { data: { entity_id, area_id, silent } });
+      expect(r.status()).toBe(200);
+      if (!silent) expect(((await r.json()) as { delivered: number }).delivered, 'the real sync is subscribed to entity_registry_updated').toBeGreaterThan(0);
+      return;
+    }
+    const entities = ENTITIES.map((e) => (e.entity_id === entity_id ? { ...e, area_id } : e));
+    const r = await request.post('/api/v1/ha/dev/registry', { data: { entities, devices: [], areas: AREAS, floors: FLOORS } });
+    expect(r.status()).toBe(200);
+  }
+
+  test('structure: an entity moved to another area in Home Assistant shows there on the tree and the area screen within seconds, without a reload', async ({ page, request }) => {
+    await seed(request);
+    await open(page, '/devices/building', 'a');
+    const storageTile = page.locator('devices-building a.tile[data-area="cr007_storage"]');
+    const officeTile = page.locator('devices-building a.tile[data-area="cr007_office"]');
+    await expect(officeTile).toHaveAttribute('data-counts', /lights:0\/1/, { timeout: 30000 });
+    await expect(storageTile).not.toHaveAttribute('data-counts', /lights/);
+    const area = await page.context().newPage();
+    await area.goto('/?design=a#/devices/areas/cr007_storage');
+    await area.waitForSelector('sw-app');
+    await expect(area.locator('devices-area')).toBeVisible({ timeout: 30000 });
+    await area.waitForTimeout(800);
+    let loads = 0;
+    page.on('load', () => (loads += 1));
+    area.on('load', () => (loads += 1));
+    const t0 = Date.now();
+    await moveInHa(request, 'light.cr007_office', 'cr007_storage');
+    await expect(storageTile).toHaveAttribute('data-counts', /lights:0\/1/, { timeout: 8000 });
+    await expect(officeTile).not.toHaveAttribute('data-counts', /lights/);
+    // the area screen's own push filter cannot know an entity moved IN: the structure notice refetches it
+    await expect(area.locator('devices-area [data-entity="light.cr007_office"]')).toBeVisible({ timeout: 8000 });
+    const tookMs = Date.now() - t0;
+    await expect(page.locator('devices-building [data-structure-changed]')).toBeVisible();
+    await expect(area.locator('devices-area [data-structure-changed]')).toBeVisible();
+    expect(loads, 'no page reload').toBe(0);
+    expect(tookMs).toBeLessThan(8000);
+    test.info().annotations.push({ type: 'latency', description: `move → both screens updated in ${tookMs} ms (${FIXTURE ? 'fake HA registry event' : 'dev registry'})` });
+    await area.close();
+    await seed(request); // back to the seeded structure (the fake HA's registry follows the seed)
+  });
+
+  test('structure: "רענן מ־Home Assistant" re-reads the registries on demand, says when, and is rate-limited', async ({ page, request }) => {
+    await seed(request);
+    await open(page, '/devices/building', 'a');
+    const button = page.locator('devices-building sw-button[data-devices-refresh]');
+    await expect(button).toBeVisible({ timeout: 30000 });
+    await expect(page.locator('devices-building [data-devices-refreshed]')).toContainText('המבנה');
+    if (!FIXTURE) {
+      // no Home Assistant behind a plain developer backend: an honest refusal, nothing pretended
+      await button.click();
+      await expect(page.locator('devices-building [data-devices-refresh-note]')).toContainText('אין כרגע חיבור ל־Home Assistant', { timeout: 10000 });
+      await expect(button).not.toHaveAttribute('disabled', /.*/);
+      return;
+    }
+    const storageTile = page.locator('devices-building a.tile[data-area="cr007_storage"]');
+    await expect(storageTile).not.toHaveAttribute('data-counts', /lights/, { timeout: 30000 });
+    // HA changes but its event never arrives (a missed event): nothing moves by itself...
+    await moveInHa(request, 'light.cr007_office', 'cr007_storage', true);
+    await page.waitForTimeout(2500);
+    await expect(storageTile).not.toHaveAttribute('data-counts', /lights/);
+    // ...until the button re-reads the registries
+    const treeFetches: number[] = [];
+    page.on('request', (rq) => {
+      if (rq.url().includes('/api/v1/devices/tree')) treeFetches.push(Date.now());
+    });
+    const answer = page.waitForResponse((r) => r.url().endsWith('/api/v1/devices/refresh'));
+    await button.click();
+    expect((await answer).status()).toBe(200);
+    await expect(storageTile).toHaveAttribute('data-counts', /lights:0\/1/, { timeout: 5000 });
+    await expect(page.locator('devices-building [data-structure-changed]')).toBeVisible();
+    await expect(page.locator('devices-building [data-devices-refreshed]')).toContainText('המבנה עודכן עכשיו');
+    await expect(page.locator('devices-building [data-devices-checked]')).toContainText('נבדק מול Home Assistant עכשיו');
+    // one tree fetch for the button, not a second one for its own structure_changed echo
+    await page.waitForTimeout(1500);
+    expect(treeFetches.length).toBe(1);
+    // at once again: one per user per 10 s
+    const again = page.waitForResponse((r) => r.url().endsWith('/api/v1/devices/refresh'));
+    await button.click();
+    expect((await again).status()).toBe(429);
+    await expect(page.locator('devices-building [data-devices-refresh-note]')).toContainText('בעוד');
+    await seed(request);
   });
 
   test('a floor-scoped viewer sees only their floors, a viewer with nothing placed sees the scoped empty state, and no HA structure at all is said plainly', async ({ page, browser, request }, testInfo) => {
