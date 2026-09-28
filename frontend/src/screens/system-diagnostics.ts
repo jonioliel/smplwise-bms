@@ -21,6 +21,7 @@ import '../components/sw-dialog';
 import { STATUS_KIND, STATUS_LABEL, fmtUptime, healthReport, type HealthReport } from '../api/health';
 import { applyWiskeyUi, applyWiskeyHidden, type WiskeyScreen } from '../shell/nav';
 import { getSkinsStatus, runSkinsTest, type SkinsStatus, type SkinsTestResult } from '../api/skins';
+import { devicesPrefsOf, type DevicesStyle } from './devices-style';
 
 /** הגדרות › בקרות כניסה: the SMPLWISE WisKey screens that can show either WisKey's own panel or the screen built here. */
 const ACCESS_SCREENS: { screen: WiskeyScreen; label: string; href: string; detail: string }[] = [
@@ -34,6 +35,7 @@ const TABS = [
   { id: 'media', label: 'וידאו ומדיה' },
   { id: 'ha', label: 'גשר Home Assistant' },
   { id: 'access-control', label: 'בקרות כניסה' },
+  { id: 'devices', label: 'חשמל והתקנים' },
   { id: 'health', label: 'בריאות ועבודות' },
   { id: 'backup', label: 'גיבוי ושחזור' },
   { id: 'support', label: 'תמיכה' },
@@ -267,6 +269,102 @@ export class SystemDiagnostics extends LitElement {
     }
     .bar.fail i {
       background: var(--sw-danger);
+    }
+    /* CR-007 6a: הגדרות › חשמל והתקנים - the two style previews (static swatches, no screen is rendered) */
+    .swatches {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 10px 0;
+      border-block-end: 1px solid var(--sw-border);
+    }
+    .swatch {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 6px;
+      border: 1px solid var(--sw-border-strong);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      font: inherit;
+      font-size: var(--sw-fs-sm);
+      text-align: start;
+      cursor: pointer;
+    }
+    .swatch[aria-pressed='true'] {
+      border-color: var(--sw-accent);
+      box-shadow: 0 0 0 2px var(--sw-accent-soft);
+    }
+    .swatch:disabled {
+      cursor: default;
+    }
+    .swatch .cap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding-inline: 2px;
+      font-weight: var(--sw-fw-medium);
+    }
+    .swatch .cap .muted {
+      font-weight: var(--sw-fw-regular);
+    }
+    .sw-prev {
+      inline-size: 176px;
+      block-size: 104px;
+      border-radius: 8px;
+      padding: 8px;
+      display: grid;
+      grid-template-columns: 44px 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 6px;
+      overflow: hidden;
+    }
+    .sw-prev i {
+      display: block;
+      border-radius: 4px;
+    }
+    .sw-prev .tree {
+      grid-row: 1 / 3;
+    }
+    .sw-prev.smplwise {
+      background: #f6f7fb;
+    }
+    .sw-prev.smplwise i {
+      background: #ffffff;
+      border: 1px solid #e9edf3;
+      box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+    }
+    .sw-prev.smplwise i.on {
+      background: linear-gradient(180deg, #fff4e0, #ffffff 70%);
+      border-color: #f7d49a;
+    }
+    .sw-prev.glass {
+      background: radial-gradient(140px 80px at 85% -10%, rgba(255, 184, 86, 0.45), transparent 60%), radial-gradient(120px 80px at 10% 110%, rgba(10, 132, 255, 0.5), transparent 60%), #0a0a0c;
+    }
+    .sw-prev.glass i {
+      border-radius: 12px;
+      background: rgba(44, 44, 46, 0.62);
+      border: 1px solid rgba(255, 255, 255, 0.13);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+      display: flex;
+      align-items: flex-start;
+      padding: 5px;
+    }
+    .sw-prev.glass i::before {
+      content: '';
+      inline-size: 12px;
+      block-size: 12px;
+      border-radius: 50%;
+      background: rgba(235, 235, 245, 0.3);
+    }
+    .sw-prev.glass i.tree::before {
+      display: none;
+    }
+    .sw-prev.glass i.on {
+      background: linear-gradient(135deg, rgba(61, 90, 254, 0.55), rgba(61, 90, 254, 0.15)), rgba(44, 44, 46, 0.62);
+      border-color: rgba(100, 140, 255, 0.45);
+      box-shadow: 0 0 14px rgba(61, 90, 254, 0.4);
     }
     .stream {
       display: flex;
@@ -709,6 +807,54 @@ export class SystemDiagnostics extends LitElement {
     </div>`;
   }
 
+  /** הגדרות › חשמל והתקנים (CR-007 slice 6a): how the device-control screens look for everyone in the installation -
+   * the style (with a static preview of each), the building screen's first view, the density, the sensors card and
+   * the climate strip. Presentation only; per-area layout editing is slice 6b. */
+  private renderDevices() {
+    const api = isApi();
+    const ro = !api || !this.canEdit;
+    const keys = ['devices.style', 'devices.default_view', 'devices.density', 'devices.show_sensors', 'devices.show_climate_strip'] as const;
+    const dirty = keys.some((k) => k in this.draft);
+    const p = devicesPrefsOf({ ...(this.settings ?? {}), ...this.draft });
+    const pick = (style: DevicesStyle) => this.set('devices.style', style);
+    const swatch = (style: DevicesStyle, name: string, hint: string) => html`<button type="button" class="swatch" data-devices-swatch=${style} aria-pressed=${String(p.style === style)} ?disabled=${ro} @click=${() => pick(style)}>
+      <span class=${`sw-prev ${style}`} aria-hidden="true"><i class="tree"></i><i class="on"></i><i></i><i></i><i class="on"></i></span>
+      <span class="cap">${name}<span class="muted">${hint}</span></span>
+    </button>`;
+    return html`<div class="sections">
+      <sw-card data-devices-settings heading="חשמל והתקנים" subheading="המראה של מסכי החשמל וההתקנים לכל המשתמשים במתקן. תצוגה בלבד: כללי הבטיחות של פעולות מרוכזות (חלון אישור, תוקף, בלי מנעולים, אזעקה ושחרור דלתות) אינם הגדרה.">
+        <div class="row"><span class="lbl">סגנון<span class="muted">SMPLWISE הוא המראה של שאר המערכת; זכוכית היא הסגנון מהמוקאפ שאושר: משטחים שקופים ומטושטשים, אריחים מעוגלים עם אייקון. שניהם מימין לשמאל.</span></span>
+          <sw-field class="ctl"><select data-set-devices-style ?disabled=${ro} @change=${(e: Event) => pick((e.target as HTMLSelectElement).value === 'glass' ? 'glass' : 'smplwise')}>
+            <option value="smplwise" ?selected=${p.style === 'smplwise'}>SMPLWISE</option><option value="glass" ?selected=${p.style === 'glass'}>זכוכית</option>
+          </select></sw-field></div>
+        <div class="swatches" role="group" aria-label="תצוגה מקדימה של הסגנונות" data-devices-style-preview>
+          ${swatch('smplwise', 'SMPLWISE', 'לבן, קווים דקים')}
+          ${swatch('glass', 'זכוכית', 'שקוף, מעוגל, אייקונים')}
+        </div>
+        <div class="row"><span class="lbl">תצוגת הפתיחה של המבנה<span class="muted">מה שמשתמש רואה בפעם הראשונה. מי שבחר בעצמו "כרטיסים" או "אריחים" ממשיך עם הבחירה שלו.</span></span>
+          <sw-field class="ctl"><select data-set-devices-view ?disabled=${ro} @change=${(e: Event) => this.set('devices.default_view', (e.target as HTMLSelectElement).value === 'tiles' ? 'tiles' : 'cards')}>
+            <option value="cards" ?selected=${p.defaultView === 'cards'}>כרטיסים: עץ המבנה וכרטיסי קומה</option><option value="tiles" ?selected=${p.defaultView === 'tiles'}>אריחים: אריח לכל אזור</option>
+          </select></sw-field></div>
+        <div class="row"><span class="lbl">צפיפות<span class="muted">דחוסה: אריחים, שורות ורווחים קטנים יותר, יותר אזורים במסך אחד</span></span>
+          <sw-field class="ctl"><select data-set-devices-density ?disabled=${ro} @change=${(e: Event) => this.set('devices.density', (e.target as HTMLSelectElement).value === 'compact' ? 'compact' : 'comfortable')}>
+            <option value="comfortable" ?selected=${p.density === 'comfortable'}>מרווחת</option><option value="compact" ?selected=${p.density === 'compact'}>דחוסה</option>
+          </select></sw-field></div>
+        <div class="row"><span class="lbl">חיישנים<span class="muted">כרטיס החיישנים במסך האזור ומונה החיישנים במסך המבנה</span></span>
+          <sw-field class="ctl"><select data-set-devices-sensors ?disabled=${ro} @change=${(e: Event) => this.set('devices.show_sensors', (e.target as HTMLSelectElement).value === 'false' ? 'false' : 'true')}>
+            <option value="true" ?selected=${p.showSensors}>מוצג</option><option value="false" ?selected=${!p.showSensors}>מוסתר</option>
+          </select></sw-field></div>
+        <div class="row"><span class="lbl">רצועת המזגנים<span class="muted">מצב המזגנים בראש מסך המבנה ובכל קומה</span></span>
+          <sw-field class="ctl"><select data-set-devices-climate ?disabled=${ro} @change=${(e: Event) => this.set('devices.show_climate_strip', (e.target as HTMLSelectElement).value === 'false' ? 'false' : 'true')}>
+            <option value="true" ?selected=${p.showClimateStrip}>מוצגת</option><option value="false" ?selected=${!p.showClimateStrip}>מוסתרת</option>
+          </select></sw-field></div>
+        <div class="muted" data-devices-layout-next style="margin-block-start:8px">עריכת הפריסה של כל אזור (סדר הכרטיסים, גודל, כותרות, גודל טקסט וצבעים) תגיע בשלב הבא.</div>
+        ${this.canEdit && api
+          ? html`<div class="foot"><sw-button variant="primary" icon="check" data-save-devices ?disabled=${!dirty || this.busy} @click=${() => this.save()}>שמור</sw-button>${this.message && this.tab === 'devices' ? html`<span class="ok" style="align-self:center">${this.message}</span>` : nothing}${this.error && this.tab === 'devices' ? html`<span class="err" style="align-self:center">${this.error}</span>` : nothing}</div>`
+          : html`<div class="muted" data-devices-readonly>${api ? 'שינוי ההגדרות דורש הרשאת מנהל מערכת.' : 'נתוני הדגמה: ההגדרות נשמרות רק מול השרת.'}</div>`}
+      </sw-card>
+    </div>`;
+  }
+
   private async loadReport(fresh = false) {
     if (!isApi()) return;
     this.reportBusy = true;
@@ -901,7 +1047,7 @@ export class SystemDiagnostics extends LitElement {
         <sw-tabs underline .items=${TABS} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => { this.tab = e.detail.id; if (this.tab === 'media') void this.loadMedia(); if (this.tab === 'ha') void this.loadHa(); if (this.tab === 'backup') void this.loadBackups(); if (this.tab === 'health') void this.loadReport(); }}></sw-tabs>
         ${this.message && this.tab === 'ha' ? html`<div class="muted" style="color:#15803d">${this.message}</div>` : nothing}
         ${this.error && this.tab === 'ha' ? html`<div class="muted" style="color:var(--sw-error)">${this.error}</div>` : nothing}
-        ${this.tab === 'general' ? this.renderGeneral() : this.tab === 'media' ? this.renderMedia() : this.tab === 'ha' ? this.renderHa() : this.tab === 'access-control' ? this.renderAccessControl() : this.tab === 'health' ? this.renderHealth() : this.tab === 'backup' ? this.renderBackup() : this.renderSupport()}
+        ${this.tab === 'general' ? this.renderGeneral() : this.tab === 'media' ? this.renderMedia() : this.tab === 'ha' ? this.renderHa() : this.tab === 'access-control' ? this.renderAccessControl() : this.tab === 'devices' ? this.renderDevices() : this.tab === 'health' ? this.renderHealth() : this.tab === 'backup' ? this.renderBackup() : this.renderSupport()}
       </sw-page>
     `;
   }

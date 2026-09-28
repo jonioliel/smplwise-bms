@@ -111,6 +111,9 @@ export class DevicesBulkMenu extends LitElement {
       display: flex;
       flex-direction: column;
       gap: 2px;
+      /* CR-007 6a: the glass style's material (defined on a glass device screen only; none elsewhere) */
+      backdrop-filter: var(--sw-glass-blur, none);
+      -webkit-backdrop-filter: var(--sw-glass-blur, none);
     }
     :host([align='start']) .panel {
       inset-inline-end: auto;

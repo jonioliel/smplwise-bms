@@ -33,6 +33,9 @@ export class SwDialog extends LitElement {
       display: flex;
       flex-direction: column;
       max-block-size: calc(100dvh - 32px);
+      /* set only inside a device screen in the glass style (CR-007 6a, devices-style.ts); none everywhere else */
+      backdrop-filter: var(--sw-glass-blur, none);
+      -webkit-backdrop-filter: var(--sw-glass-blur, none);
     }
     header {
       display: flex;
