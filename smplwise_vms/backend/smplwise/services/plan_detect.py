@@ -22,7 +22,7 @@ from PIL import Image
 from . import plan_stylize as ps
 from .plan_zones import rdp
 
-VERSION = "1.0"
+VERSION = "1.1"  # 1.1 (T087 tuning): reference strokes and dashed lines are not walls
 ANALYSIS_PX = 1600  # the working resolution (design 9.1 / 9.6)
 TILT_PX = 800  # the cheap first pass that measures the tilt of a scan
 TILT_MIN_DEG = 0.15
@@ -51,6 +51,13 @@ PROFILE_BAND_PX = 2.0  # the profile pass samples each window line at -2, 0 and 
 PROFILE_SOLID_STEPS = 2  # a profile window has at least this many solid steps of its wall on both sides
 PROFILE_MAX_RUN = 0.8  # ... covers at most this fraction of its wall
 PROFILE_MIN_SOLID = 0.5  # ... and its wall is solid on at least this fraction of its steps
+REF_STRUCTURE_SHARE = 0.1  # a connected group of segments that turns is structure from this share of the largest group's length
+REF_MARGIN_M = 1.2  # ... and a group that is not structure goes when it lies this far outside the structure's box (a hollow outline's outer line is closer)
+REF_STRAIGHT_SHARE = 0.3  # ... one that runs one way (a stroke of the sheet, or one line of a fragmented outline) from this share
+DASH_MIN_COUNT = 3  # a dashed line: at least this many short pieces in a row on one line ...
+DASH_MAX_M = 3.0  # ... each at most this long ...
+DASH_GAP_M = 0.6  # ... apart by at most this much (between the skeleton ends) ...
+DASH_THICK_RATIO = 1.2  # ... and no thicker than this many median walls
 TARGETS = ("walls", "openings")
 
 
@@ -689,6 +696,105 @@ def _stage(gray: Image.Image, strength: float, analysis_px: int, scale_m_per_px:
     return {"an": an, "dt": dt, "skel": skel, "t_med": t_med, "s": s, "calibrated": calibrated, "pieces": kept, "segs": segs, "aw": aw, "ah": ah, "f": f}
 
 
+# ---------------------------------------------------------------- reference strokes (T087 tuning, the 0.1.91 list)
+
+def _point_seg_dist(p: np.ndarray, a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """Distances from the points p (n x 2) to the segment a-b."""
+    v = b - a
+    ll = float(np.dot(v, v))
+    t = np.clip(((p - a) @ v) / ll, 0.0, 1.0) if ll > 1e-12 else np.zeros(len(p))
+    q = a + np.outer(t, v)
+    return np.hypot(*(p - q).T)
+
+
+def drop_reference_strokes(segs: list[Seg], t_med: float, s: float) -> list[Seg]:
+    """Drop the strokes of the sheet that are not the building: section-cut marks, north arrows, the title underline,
+    a scale bar, a dimension line off to the side. The structure is every connected group of segments (an end within
+    half a thickness plus max(3 px, t_med) of another segment's body) holding at least REF_STRUCTURE_SHARE of the
+    largest group's length when it turns (segments in two directions: a room, an L), REF_STRAIGHT_SHARE when it runs
+    one way (a title underline, a dimension line - or one side of an outline the scan broke into pieces, which is why a
+    straight group can be structure at all); a group that is not structure and lies wholly outside the structure's bounding box (grown by
+    REF_MARGIN_M, at least two median thicknesses) goes. Inside the box nothing is dropped (a free-standing wall, a dash of a section line
+    that crosses the building - the latter stays a known limit). Owner's real scans (0.1.91 list): the section marks,
+    the title underline and the north-arrow bars were suggested as walls."""
+    n = len(segs)
+    if n < 2:
+        return segs
+    ends = np.array([[g.a, g.b] for g in segs])  # n x 2 x 2
+    parent = list(range(n))
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    pts = ends.reshape(-1, 2)
+    half = np.repeat([g.thick / 2 for g in segs], 2) + max(3.0, t_med)
+    for j, g in enumerate(segs):
+        near = np.flatnonzero(_point_seg_dist(pts, g.a, g.b) <= np.maximum(half, g.thick / 2 + max(3.0, t_med)))
+        for k in near:
+            i = int(k) // 2
+            if i != j:
+                parent[find(i)] = find(j)
+    total: dict[int, float] = {}
+    first_dir: dict[int, np.ndarray] = {}
+    turns: set[int] = set()  # groups holding two directions (a room, an L) - a stroke of the sheet runs one way
+    for i, g in enumerate(segs):
+        r = find(i)
+        total[r] = total.get(r, 0.0) + g.length
+        if r not in first_dir:
+            first_dir[r] = g.dir
+        elif _angle_between(first_dir[r], g.dir) > 30.0:
+            turns.add(r)
+    big = max(total.values())
+    structure = {r for r, v in total.items() if v >= (REF_STRUCTURE_SHARE if r in turns else REF_STRAIGHT_SHARE) * big}
+    sp = np.array([ends[i].reshape(-1, 2) for i in range(n) if find(i) in structure]).reshape(-1, 2)
+    grow = max(2.0 * t_med, REF_MARGIN_M / s)
+    lo, hi = sp.min(axis=0) - grow, sp.max(axis=0) + grow
+    comp_lo: dict[int, np.ndarray] = {}
+    comp_hi: dict[int, np.ndarray] = {}
+    for i in range(n):
+        r = find(i)
+        e = ends[i]
+        comp_lo[r] = np.minimum(comp_lo[r], e.min(axis=0)) if r in comp_lo else e.min(axis=0)
+        comp_hi[r] = np.maximum(comp_hi[r], e.max(axis=0)) if r in comp_hi else e.max(axis=0)
+    outside = {r for r in total if r not in structure and ((comp_hi[r] < lo).any() or (comp_lo[r] > hi).any())}
+    return [g for i, g in enumerate(segs) if find(i) not in outside]
+
+
+def drop_dashed_lines(segs: list[Seg], s: float, t_med: float) -> list[Seg]:
+    """Drop dashed lines (an overhead edge, a beam, a hidden outline drawn in dashes): along one line, a run of at least
+    DASH_MIN_COUNT consecutive pieces, each at most DASH_MAX_M long and no thicker than DASH_THICK_RATIO of the median
+    wall, separated by gaps of at most DASH_GAP_M. A wall broken by windows or doors leaves piers apart by an opening's
+    width (0.5 m and more), so its pieces do not chain; a solid wall is one piece. Owner's real scans (0.1.91 list): the
+    dashed outlines around the hall were suggested as dozens of wall fragments."""
+    if len(segs) < DASH_MIN_COUNT:
+        return segs
+    max_len, max_gap = DASH_MAX_M / s, DASH_GAP_M / s
+    drop: set[int] = set()
+    for group in line_groups(segs):
+        if len(group) < DASH_MIN_COUNT:
+            continue
+        base = segs[max(group, key=lambda i: segs[i].length)]
+        items = sorted((min(base.project(segs[i].a)[0], base.project(segs[i].b)[0]), max(base.project(segs[i].a)[0], base.project(segs[i].b)[0]), i) for i in group)
+        run: list[int] = []
+        prev_hi = None
+        for lo, hi, i in items:
+            g = segs[i]
+            dash = g.length <= max_len and g.thick <= DASH_THICK_RATIO * t_med
+            if dash and run and prev_hi is not None and 0 < lo - prev_hi <= max_gap:
+                run.append(i)
+            else:
+                if len(run) >= DASH_MIN_COUNT:
+                    drop.update(run)
+                run = [i] if dash else []
+            prev_hi = hi
+        if len(run) >= DASH_MIN_COUNT:
+            drop.update(run)
+    return [g for i, g in enumerate(segs) if i not in drop]
+
+
 # ---------------------------------------------------------------- openings
 
 def _ratio(mask: np.ndarray, pts: np.ndarray) -> float:
@@ -999,6 +1105,7 @@ def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TA
     src = gray.rotate(tilt, resample=Image.BICUBIC, fillcolor=255) if tilt else gray
     st = _stage(src, strength, ANALYSIS_PX, scale_m_per_px, deadline)
     an, dt, s, calibrated, segs, aw, ah, f = st["an"], st["dt"], st["s"], st["calibrated"], st["segs"], st["aw"], st["ah"], st["f"]
+    segs = drop_dashed_lines(drop_reference_strokes(segs, st["t_med"], s), s, st["t_med"])
     want_openings = "openings" in targets
     walls, openings = walls_from_gaps(segs, s, calibrated, an["thin"], an["ink_d"], want_openings, an["walls"])
     _check(deadline)
