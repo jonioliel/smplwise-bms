@@ -36,6 +36,56 @@ export const NAV: NavEntry[] = [
   { id: 'settings', icon: 'system', label: 'הגדרות', href: '#/system/diagnostics' },
 ];
 
+/** The WisKey area's tabs, shared by both designs. The first three are the screens SMPLWISE built (CR-005 phase 1b and
+ * 2); each renders either that screen or WisKey's own Home Assistant panel embedded as-is, by הגדרות › בקרות כניסה
+ * (CR-005 recorded decision 2026-09-28, embedded panel - the embed is the default). The rest exist only in WisKey's
+ * panel and are always embedded, deep-linked to the panel's own tab (WISKEY_PANEL_TABS). */
+export const WISKEY_TABS: TabItem[] = [
+  { id: 'overview', label: 'מרכז הכניסה', href: '#/wiskey/overview' },
+  { id: 'events', label: 'פעילות', href: '#/wiskey/events' },
+  { id: 'people', label: 'אנשים', href: '#/wiskey/people' },
+  { id: 'devices', label: 'עמדות', href: '#/wiskey/devices' },
+  { id: 'sync', label: 'סנכרון', href: '#/wiskey/sync' },
+  { id: 'health', label: 'בריאות', href: '#/wiskey/health' },
+  { id: 'audit', label: 'יומן שינויים', href: '#/wiskey/audit' },
+  { id: 'tools', label: 'ניהול', href: '#/wiskey/tools' },
+];
+
+/** The SMPLWISE screens with a choice in הגדרות › בקרות כניסה (settings keys `access.ui.<screen>`). */
+export type WiskeyScreen = 'overview' | 'events' | 'people';
+export type WiskeyUi = 'wiskey' | 'smplwise';
+export const WISKEY_SCREENS: WiskeyScreen[] = ['overview', 'events', 'people'];
+
+/** The owner's choice per screen; 'wiskey' (the embedded panel) until the product settings say otherwise. Filled by the
+ * shell once the settings load and by the settings screen after a save. */
+export const WISKEY_UI: Record<WiskeyScreen, WiskeyUi> = { overview: 'wiskey', events: 'wiskey', people: 'wiskey' };
+
+export function applyWiskeyUi(settings: Record<string, unknown> | null | undefined): void {
+  for (const s of WISKEY_SCREENS) WISKEY_UI[s] = String(settings?.[`access.ui.${s}`] ?? 'wiskey') === 'smplwise' ? 'smplwise' : 'wiskey';
+}
+
+/** SMPLWISE route segment (#/wiskey/<segment>) → the WisKey panel's own tab id (panel.ts `_tab`; "people" is the
+ * panel's "users"). Unknown segments fall back to the panel's start tab, overview. */
+export const WISKEY_PANEL_TABS: Record<string, string> = {
+  overview: 'overview',
+  events: 'events',
+  people: 'users',
+  devices: 'devices',
+  sync: 'sync',
+  health: 'health',
+  audit: 'audit',
+  tools: 'tools',
+};
+
+/** What a WisKey route renders: the SMPLWISE screen (only for the three built screens, when chosen) or the embed with
+ * the panel tab to deep-link. Without a backend (the static demo) there is no Home Assistant to embed, so the three
+ * built screens show their demo data. */
+export function wiskeyRoute(segment: string | undefined, api: boolean): { kind: 'smplwise'; screen: WiskeyScreen } | { kind: 'embed'; tab: string } {
+  const seg = segment && WISKEY_PANEL_TABS[segment] ? segment : 'overview';
+  if ((WISKEY_SCREENS as string[]).includes(seg) && (!api || WISKEY_UI[seg as WiskeyScreen] === 'smplwise')) return { kind: 'smplwise', screen: seg as WiskeyScreen };
+  return { kind: 'embed', tab: WISKEY_PANEL_TABS[seg] };
+}
+
 export const GROUP_TABS: Record<NavGroup, TabItem[]> = {
   overview: [],
   /** The building tree (CR-007 slice 1); an area screen is a drill-down of it (#/devices/areas/<id>), not a tab.
@@ -46,13 +96,8 @@ export const GROUP_TABS: Record<NavGroup, TabItem[]> = {
     { id: 'floors', label: 'מפת קומה', href: '#/explore/floors/f0' },
     { id: 'entities', label: 'ישויות HA', href: '#/explore/entities' },
   ],
-  /** Entry Center, Activity and People (CR-005 phase 1b); grows the same way AREA_TABS.investigate did (doors,
-   * schedules in later CR-005 phases) without restructuring. */
-  wiskey: [
-    { id: 'overview', label: 'מרכז הכניסה', href: '#/wiskey/overview' },
-    { id: 'events', label: 'פעילות', href: '#/wiskey/events' },
-    { id: 'people', label: 'אנשים', href: '#/wiskey/people' },
-  ],
+  /** Entry Center, Activity and People (CR-005 phase 1b), plus WisKey's own screens as embedded tabs (2026-09-28). */
+  wiskey: WISKEY_TABS,
   cameras: [
     { id: 'wall', label: 'כל המצלמות', href: '#/live/wall' },
     { id: 'views', label: 'תצוגות שמורות', href: '#/live/views' },
@@ -165,13 +210,9 @@ export const AREA_TABS: Record<AreaId, TabItem[]> = {
     { id: 'floors', label: 'מפת קומה', href: '#/explore/floors/f0' },
     { id: 'entities', label: 'ישויות HA', href: '#/explore/entities' },
   ],
-  /** Entry Center/overview, Activity/events and People/people (CR-005 phase 1b); the same precedent as
-   * `investigate` below for adding more tabs later (doors, schedules) without restructuring. */
-  wiskey: [
-    { id: 'overview', label: 'מרכז הכניסה', href: '#/wiskey/overview' },
-    { id: 'events', label: 'פעילות', href: '#/wiskey/events' },
-    { id: 'people', label: 'אנשים', href: '#/wiskey/people' },
-  ],
+  /** Entry Center/overview, Activity/events and People/people (CR-005 phase 1b), plus WisKey's own screens as embedded
+   * tabs (CR-005 recorded decision 2026-09-28) - the same list as GROUP_TABS.wiskey. */
+  wiskey: WISKEY_TABS,
   investigate: [
     { id: 'events', label: 'מרכז אירועים', href: '#/investigate/events' },
     { id: 'playback', label: 'הקלטות', href: '#/investigate/playback' },
@@ -259,6 +300,13 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   '#/wiskey/overview': ['access.read'],
   '#/wiskey/events': ['access.read'],
   '#/wiskey/people': ['access.read'],
+  // WisKey's own screens, always embedded: SMPLWISE only decides whether to offer the tab; inside the frame WisKey's own
+  // per-area permissions (stations / events / management) decide what the user sees and may do.
+  '#/wiskey/devices': ['access.read'],
+  '#/wiskey/sync': ['access.read'],
+  '#/wiskey/health': ['access.read'],
+  '#/wiskey/audit': ['access.read'],
+  '#/wiskey/tools': ['access.read'],
   // devices.read at any scope: a floor-scoped holder gets the tree narrowed to their floors (routers/devices.py),
   // so unlike WisKey the entry is NOT installation-only.
   '#/devices/building': ['devices.read'],
@@ -281,7 +329,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
 /** Tabs whose permission counts only when held at installation scope, because the screen and its API check it there
  * and nowhere else: WisKey stations are not mapped to sites or floors, so access.read is installation-wide by design
  * (CR-005). A floor-scoped viewer or a site-scoped site_admin would otherwise see the tab and land on "no permission". */
-export const INSTALLATION_ONLY_HREFS = new Set<string>(['#/wiskey/overview', '#/wiskey/events', '#/wiskey/people']);
+export const INSTALLATION_ONLY_HREFS = new Set<string>(WISKEY_TABS.map((t) => t.href ?? ''));
 
 /** `installationOnly`: the permission must be held at installation scope, not at any scope. */
 export type Can = (permission: string, installationOnly?: boolean) => boolean;

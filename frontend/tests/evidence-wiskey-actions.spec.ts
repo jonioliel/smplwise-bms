@@ -1,4 +1,8 @@
 import { test, expect, request as pwRequest, type APIRequestContext, type Page } from '@playwright/test';
+import { useSmplwiseWiskeyScreens } from './wiskey-ui-mode';
+
+// The SMPLWISE WisKey screens, not the embedded WisKey panel (the default since the 2026-09-28 decision).
+useSmplwiseWiskeyScreens();
 
 // Evidence for T054 phase 3 (CR-005, owner-approved physical actions): door release behind a confirmation dialog, call
 // answer / reject / hang up (two deliberate taps, only while ringing / in a call), and a spoken announcement - all gated

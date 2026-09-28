@@ -19,11 +19,20 @@ import { DEFAULT_NAMES, applyDesign, currentDesign, designOverride, parseNames, 
 import { KIND_LABEL, TABLE_LABEL, backupDownloadUrl, createBackup, deleteBackup, fmtBytes, listBackups, restoreBackup, uploadBackup, type BackupEntry } from '../api/backup';
 import '../components/sw-dialog';
 import { STATUS_KIND, STATUS_LABEL, fmtUptime, healthReport, type HealthReport } from '../api/health';
+import { applyWiskeyUi, type WiskeyScreen } from '../shell/nav';
+
+/** הגדרות › בקרות כניסה: the SMPLWISE WisKey screens that can show either WisKey's own panel or the screen built here. */
+const ACCESS_SCREENS: { screen: WiskeyScreen; label: string; href: string; detail: string }[] = [
+  { screen: 'overview', label: 'מרכז הכניסה', href: '#/wiskey/overview', detail: 'עמדות, צלצולים, פתיחת דלת ושיחה' },
+  { screen: 'events', label: 'פעילות', href: '#/wiskey/events', detail: 'יומן הכניסות והאירועים' },
+  { screen: 'people', label: 'אנשים', href: '#/wiskey/people', detail: 'כולל עורך האדם וקליטת כרטיס שנפתחים ממנו' },
+];
 
 const TABS = [
   { id: 'general', label: 'כללי' },
   { id: 'media', label: 'וידאו ומדיה' },
   { id: 'ha', label: 'גשר Home Assistant' },
+  { id: 'access-control', label: 'בקרות כניסה' },
   { id: 'health', label: 'בריאות ועבודות' },
   { id: 'backup', label: 'גיבוי ושחזור' },
   { id: 'support', label: 'תמיכה' },
@@ -447,6 +456,7 @@ export class SystemDiagnostics extends LitElement {
       this.settings = r.settings;
       this.draft = {};
       invalidateSettings();
+      applyWiskeyUi(r.settings as unknown as Record<string, unknown>); // the WisKey tabs follow at once, no reload
       this.message = 'ההגדרות נשמרו';
       setTimeout(() => (this.message = ''), 2500);
     } catch (err) {
@@ -591,6 +601,30 @@ export class SystemDiagnostics extends LitElement {
             ${this.sessions.length ? this.sessions.map((x) => html`<div class="row"><span class="lbl">${x.stream}<span class="muted">${x.username} · ${x.seconds} שנ׳ · ${(x.bytes_down / 1024 / 1024).toFixed(1)} MB</span></span></div>`) : html`<div class="muted">אין זרמים פתוחים.</div>`}
           </sw-card>`
         : nothing}
+    </div>`;
+  }
+
+  /** הגדרות › בקרות כניסה (CR-005 recorded decision 2026-09-28, embedded panel): per screen, WisKey's own Home Assistant
+   * panel embedded as-is (the default) or the SMPLWISE screen; WisKey's other screens are always embedded. */
+  private renderAccessControl() {
+    const api = isApi();
+    const dirty = ACCESS_SCREENS.some((a) => `access.ui.${a.screen}` in this.draft);
+    const choice = (s: WiskeyScreen) => (String(this.value(`access.ui.${s}`) ?? 'wiskey') === 'smplwise' ? 'smplwise' : 'wiskey');
+    return html`<div class="sections">
+      <sw-card heading="בקרות כניסה" subheading="לכל מסך: הממשק המקורי של WisKey מוטמע כמו שהוא, או המסך שנבנה ב־SMPLWISE. הלשונית נשארת באותו מקום ובאותו שם.">
+        ${ACCESS_SCREENS.map(
+          (a) => html`<div class="row"><span class="lbl">${a.label}<span class="muted">${a.detail} · <span class="ltr">${a.href}</span></span></span>
+            <sw-field class="ctl"><select data-set-access-ui=${a.screen} ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set(`access.ui.${a.screen}`, (e.target as HTMLSelectElement).value as 'wiskey' | 'smplwise')}>
+              <option value="wiskey" ?selected=${choice(a.screen) === 'wiskey'}>WisKey (מוטמע)</option>
+              <option value="smplwise" ?selected=${choice(a.screen) === 'smplwise'}>SMPLWISE</option>
+            </select></sw-field></div>`,
+        )}
+        <div class="row" data-access-ui-fixed><span class="lbl">שאר מסכי WisKey (עמדות, סנכרון, בריאות, יומן שינויים, ניהול)<span class="muted">קיימים רק ב־WisKey, ולכן תמיד מוטמעים</span></span><sw-field class="ctl"><select disabled><option selected>WisKey (מוטמע) · קבוע</option></select></sw-field></div>
+        <div class="muted" style="margin-block-start:8px">במסך מוטמע הדפדפן מריץ את הממשק של WisKey עצמו בתוך Home Assistant, עם החיבור של המשתמש ל־Home Assistant: ההרשאות, האישורים והאודיט שם הם של WisKey, לא של SMPLWISE. "פתח בחלון מלא" פותח את אותו לוח בלשונית נפרדת.</div>
+        ${this.canEdit
+          ? html`<div class="foot"><sw-button variant="primary" icon="check" data-save-access-ui ?disabled=${!dirty || this.busy || !api} @click=${() => this.save()}>שמור</sw-button>${this.message && this.tab === 'access-control' ? html`<span class="ok" style="align-self:center">${this.message}</span>` : nothing}${this.error && this.tab === 'access-control' ? html`<span class="err" style="align-self:center">${this.error}</span>` : nothing}</div>`
+          : html`<div class="muted">${api ? 'שינוי הבחירה דורש הרשאת מנהל מערכת.' : 'נתוני הדגמה: ההגדרות נשמרות רק מול השרת.'}</div>`}
+      </sw-card>
     </div>`;
   }
 
@@ -786,7 +820,7 @@ export class SystemDiagnostics extends LitElement {
         <sw-tabs underline .items=${TABS} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => { this.tab = e.detail.id; if (this.tab === 'media') void this.loadMedia(); if (this.tab === 'ha') void this.loadHa(); if (this.tab === 'backup') void this.loadBackups(); if (this.tab === 'health') void this.loadReport(); }}></sw-tabs>
         ${this.message && this.tab === 'ha' ? html`<div class="muted" style="color:#15803d">${this.message}</div>` : nothing}
         ${this.error && this.tab === 'ha' ? html`<div class="muted" style="color:var(--sw-error)">${this.error}</div>` : nothing}
-        ${this.tab === 'general' ? this.renderGeneral() : this.tab === 'media' ? this.renderMedia() : this.tab === 'ha' ? this.renderHa() : this.tab === 'health' ? this.renderHealth() : this.tab === 'backup' ? this.renderBackup() : this.renderSupport()}
+        ${this.tab === 'general' ? this.renderGeneral() : this.tab === 'media' ? this.renderMedia() : this.tab === 'ha' ? this.renderHa() : this.tab === 'access-control' ? this.renderAccessControl() : this.tab === 'health' ? this.renderHealth() : this.tab === 'backup' ? this.renderBackup() : this.renderSupport()}
       </sw-page>
     `;
   }

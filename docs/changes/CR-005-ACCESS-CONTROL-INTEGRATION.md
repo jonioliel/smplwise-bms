@@ -328,6 +328,57 @@ answer/reject/hangup (`media/signal`); two-way audio/talk (`audio/*`); TTS (`tts
 > in DOCS.md). (d) A session the backend cancelled because nobody asked for it (20 s) carries `reason: abandoned`, and
 > the dialog says why.
 
+> Recorded decision 2026-09-28 (embedded panel; owner in chat, translated): "Hybrid, but by default I would not show
+> what we built but WisKey as it is. In Settings create a dedicated section for access control and let me choose which
+> screen to show for each option. My tendency is to set what we built aside and rely on the iframe - it saves a lot and
+> lets me keep developing WisKey without building everything twice."
+> **What it changes.** (1) The WisKey area embeds the owner's real WisKey Home Assistant panel as-is: `wiskey-embed`
+> frames `/hikvision-intercom` (registered by `hikvision_intercom/panel.py` through `panel_custom`,
+> `require_admin=False`, `embed_iframe=False`, webcomponent `hikvision-intercom-panel`). SMPLWISE runs under Supervisor
+> Ingress on Home Assistant's own origin, so the root-relative frame is same-origin with HA; HA's default
+> `X-Frame-Options: SAMEORIGIN` permits it (Ingress itself is such a frame). (2) הגדרות › בקרות כניסה chooses per screen
+> SMPLWISE built - מרכז הכניסה, פעילות, אנשים (with the person editor and card capture that open from it) - between
+> "WisKey (מוטמע)" (default) and "SMPLWISE"; settings `access.ui.overview|events|people` = `wiskey|smplwise` in
+> `routers/settings.py`, readable by every user (the shell routes by them), changed only with `system.configure`,
+> audited as `settings.update` like every product setting. The tab keeps its label and place either way. (3) WisKey's
+> other screens are embedded-only tabs in both navigation designs: עמדות (`devices`), סנכרון (`sync`), בריאות (`health`),
+> יומן שינויים (`audit`), ניהול (`tools`, the hub of schedules, camera wall, media/clock settings, operations center,
+> permission directory, WhatsApp templates, access control). All eight WisKey tabs are offered on `access.read` at
+> installation scope (`INSTALLATION_ONLY_HREFS`), as before. (4) Everything built so far stays intact and reachable when
+> selected; nothing is deleted. The remaining port slices - A3 (schedules/photo), B1-B3, WhatsApp - are **not built for
+> now**; the embedded panel covers them.
+> **A principle deliberately relaxed.** §3's "the browser never talks to WisKey directly" no longer holds for the
+> embedded screens: inside the frame the browser IS WisKey's own frontend, signed in with the user's own Home Assistant
+> session. WisKey's own permissions (its per-area none/view/manage directory), confirmations and audit apply there -
+> not SMPLWISE's RBAC, SMPLWISE's physical-action confirmations or SMPLWISE's audit log. SMPLWISE only decides whether
+> to offer the tab. A user without a Home Assistant login cannot use the embedded screens at all; the SMPLWISE screens
+> (still selectable) keep the old model.
+> **Deep link.** WisKey's panel keeps its tab in memory (`panel.ts` `_tab`, default `overview`; no URL/hash routing), so
+> the tab is applied from the parent through the panel's own `navigate(tab)`, retried until the panel's session loads
+> (navigate refuses tabs the user may not view, exactly as a click does). The frame address carries `?tab=<tab>` for the
+> day the panel reads it - a two-line change in WisKey the owner may want to make. Switching between embedded tabs
+> navigates the loaded frame; it does not load Home Assistant again.
+> **Chrome hiding, levers in order.** (a) Official: the frontend's `hass-kiosk-mode` window event (HA frontend
+> 2026.1+, `state/sidebar-mixin.ts`): sets `hass.kioskMode` in memory only, which makes the drawer modal and closed.
+> Rejected: `hass-dock-sidebar` / `dockedSidebar="always_hidden"` - persisted to localStorage, which is shared with the
+> user's own HA tabs on the same origin, so it would hide their sidebar everywhere. (b) Fallback for older frontends: a
+> style injected into `home-assistant-main`'s shadow root hiding `ha-sidebar` and zeroing `--ha-sidebar-width` /
+> `--mdc-drawer-width`. (c) If neither takes, the panel works with HA's sidebar visible and a one-line note. The panel's
+> own menu button (`hass-toggle-menu`) is swallowed while the chrome is hidden, so it cannot open HA's drawer over it.
+> A custom panel has no HA-level header, so the panel's own toolbar is untouched. On a phone (< 870 px) HA's sidebar is
+> already a closed modal drawer.
+> **Known limits.** (1) Chrome hiding and the deep link are same-origin DOM reach-ins into HA's and WisKey's frontends;
+> an HA or WisKey update can break them - they fail soft (sidebar visible, panel opens on its own tab, a note says so).
+> (2) Cost: the frame is a second complete HA frontend (its JS, a second WebSocket, the full state subscription) inside
+> the Ingress frame - noticeably heavier than a SMPLWISE screen, especially on a phone; the first load takes seconds.
+> (3) WisKey's permissions inside are coarser than SMPLWISE's (area-level, no per-action physical confirmation). (4)
+> Tested here only against a structural stub of HA's frontend (`frontend/tests/evidence-wiskey-embed.spec.ts`); the
+> real nested HA is the owner's lab check: on the LAN over http and remotely - does WisKey load without a login prompt,
+> is HA's sidebar hidden (desktop) and does the panel's menu button do nothing, does each tab (overview / events /
+> users / devices / sync / health / audit / tools) open the matching WisKey screen, does the Companion app on a phone
+> show it (the app injects its auth bridge into the top frame; a login page inside the frame is the likely failure),
+> and does "פתח בחלון מלא" open the panel.
+
 **Phase 4 — parity completion (peripheral/admin screens).** Camera wall (S4), media/clock settings (S21/S22),
 operations center (S23), identity lifecycle report (S17), permission directory (S18), appearance picker (S25),
 WhatsApp (S20/S6 send+preview — separately flagged, see §7 decision 4, since it is the one EXTERNAL capability

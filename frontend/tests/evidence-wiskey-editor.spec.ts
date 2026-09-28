@@ -1,4 +1,8 @@
 import { test, expect, request as pwRequest, type APIRequestContext, type Page } from '@playwright/test';
+import { useSmplwiseWiskeyScreens } from './wiskey-ui-mode';
+
+// The SMPLWISE WisKey screens, not the embedded WisKey panel (the default since the 2026-09-28 decision).
+useSmplwiseWiskeyScreens();
 
 // Evidence for the WisKey person editor (CR-005 phase 2, slice A1, `access.people.manage`): the port of WisKey's own
 // editor dialog (panel.ts editorBody / save / removeUser) opened from the people directory (#/wiskey/people) - "Add

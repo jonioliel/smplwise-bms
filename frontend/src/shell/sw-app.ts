@@ -15,6 +15,7 @@ import '../screens/explore-entities';
 import '../screens/wiskey-overview';
 import '../screens/wiskey-events';
 import '../screens/wiskey-people';
+import '../screens/wiskey-embed';
 import '../screens/devices-building';
 import '../screens/devices-area';
 import '../screens/live-overview';
@@ -43,7 +44,7 @@ import '../screens/styleguide-screen';
 import { onRouteChange, type RouteState, parseRoute } from '../router';
 import { KIND_ICON, KIND_LABEL, search as apiSearch, type SearchResult } from '../api/search';
 import { healthSummary, type HealthSummary } from '../api/health';
-import { GROUP_TABS, groupOf, activeTabOf, AREA_TABS, areaOf, activeAreaTab, crumbsOf, visibleTabs, visibleAreas, visibleGroups, demoRedirect, HIDDEN_HREFS, START_ROUTES, MAP_HREFS } from './nav';
+import { GROUP_TABS, groupOf, activeTabOf, AREA_TABS, areaOf, activeAreaTab, crumbsOf, visibleTabs, visibleAreas, visibleGroups, demoRedirect, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, applyWiskeyUi, wiskeyRoute } from './nav';
 import { bidi } from '../i18n/bidi';
 import { currentDesign, onDesign, resolveDesign, type DesignId } from '../api/design';
 import { t } from '../i18n/he';
@@ -707,6 +708,7 @@ export class SwApp extends LitElement {
           if (String(ps['ui.hide_search'] ?? 'false') === 'true') HIDDEN_HREFS.add('#/investigate/search');
           const hideMap = String(ps['ui.hide_map'] ?? 'false') === 'true';
           if (hideMap) for (const h of MAP_HREFS) HIDDEN_HREFS.add(h);
+          applyWiskeyUi(ps as unknown as Record<string, unknown>); // הגדרות › בקרות כניסה: embed or SMPLWISE per WisKey screen
           // the start screen (0.1.68): only when the address carried no route of its own
           const start = START_ROUTES[String(ps['ui.start_route'] ?? 'explore')] ?? START_ROUTES.explore;
           const target = hideMap && start.startsWith('/explore') ? '/live/wall' : start;
@@ -961,12 +963,19 @@ export class SwApp extends LitElement {
         if (s[1] === 'storage') return html`<system-storage></system-storage>`;
         if (s[1] === 'access') return html`<system-access></system-access>`;
         return html`<system-diagnostics></system-diagnostics>`;
-      case 'wiskey':
+      case 'wiskey': {
         // T054/0.1.103: WisKey entry center (CR-005), now its own top-level area, not an explore sub-tab.
         // CR-005 phase 1b: the read-only activity log at #/wiskey/events and people directory at #/wiskey/people.
-        if (s[1] === 'events') return html`<wiskey-events></wiskey-events>`;
-        if (s[1] === 'people') return html`<wiskey-people></wiskey-people>`;
+        // CR-005 recorded decision 2026-09-28: each of those three renders either the SMPLWISE screen or WisKey's own
+        // panel embedded as-is (הגדרות › בקרות כניסה, the embed by default); WisKey's other tabs are always embedded.
+        // The choice lives in the product settings, so wait for them rather than flash one screen and swap to the other.
+        if (this.session.mode === 'api' && !this.startResolved) return html`<sw-state-panel state="loading"></sw-state-panel>`;
+        const w = wiskeyRoute(s[1], this.session.mode === 'api');
+        if (w.kind === 'embed') return html`<wiskey-embed .tab=${w.tab}></wiskey-embed>`; // one call site: switching embedded tabs keeps the loaded frame
+        if (w.screen === 'events') return html`<wiskey-events></wiskey-events>`;
+        if (w.screen === 'people') return html`<wiskey-people></wiskey-people>`;
         return html`<wiskey-overview></wiskey-overview>`;
+      }
       case 'devices':
         // CR-007 slice 1: the read-only electricity / device control area - the building tree and one area's cards.
         if (s[1] === 'areas' && s[2]) return html`<devices-area .areaId=${decodeURIComponent(s[2])}></devices-area>`;
