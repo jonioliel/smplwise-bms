@@ -38,6 +38,7 @@ options:
   go2rtc_api_password: ""
   wiskey_username: ""
   wiskey_password: ""
+  openai_api_key: ""
   log_level: info
 schema:
   bootstrap_admin_username: str
@@ -51,4 +52,5 @@ schema:
   go2rtc_api_password: password?
   wiskey_username: str?
   wiskey_password: password?
+  openai_api_key: password?
   log_level: list(debug|info|warning|error)

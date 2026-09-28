@@ -3,6 +3,7 @@ schema_migrations). One connection per request; WAL journal; foreign keys enforc
 from __future__ import annotations
 
 import datetime as dt
+import re
 import secrets
 import sqlite3
 from contextlib import contextmanager
@@ -18,6 +19,12 @@ def now_iso() -> str:
 
 def new_id() -> str:
     return secrets.token_hex(8)
+
+
+# The token charset of the product's own row ids (new_id: 16 lowercase hex) widened to a path-safe superset - letters,
+# digits, '_' and '-', no dots, no separators - so an id that reaches a file path (skins/<floor id>/) can never walk out
+# of its folder. Checked where an id from outside (a restored archive) or from the DB builds a path.
+ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 
 
 _MODES: dict[int, tuple[str, "Database"]] = {}

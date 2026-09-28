@@ -45,6 +45,8 @@ import { productSettings } from '../api/prefs';
 import { demoSceneInput, demoSceneLabels } from '../fixtures/demo-3d';
 import { circuitAction } from '../map/circuit-action';
 import { countLabel, renderLevelChips } from './plan-studio-panel';
+import { CONTROL_STATES, controlDescription, controlSceneInput } from '../map/skin-control';
+import { getFloorSkins, uploadControlImage } from '../api/skins';
 
 /** Hebrew names for enum choices the adapters offer (T040). */
 const ARG_CHOICE_HE: Record<string, string> = { off: 'כבוי', heat: 'חימום', cool: 'קירור', heat_cool: 'חימום/קירור', auto: 'אוטומטי', dry: 'ייבוש', fan_only: 'מאוורר בלבד' };
@@ -1186,14 +1188,52 @@ export class ExploreFloorMap extends LitElement {
   private get sceneAnchors(): SceneAnchor[] {
     const b = this.bundle;
     if (!b || b.source !== 'api') return [];
+    return b.anchors.filter((a) => this.anchorShown(a) && (a.resource_type !== 'camera' || cameraState(a) !== 'forbidden')).map((a) => this.sceneAnchor(a));
+  }
+
+  /** One bundle anchor as the builder reads it (the live state from the screen's states). */
+  private sceneAnchor(a: MapBundle['anchors'][number]): SceneAnchor {
     const states = this.entityStates3d;
-    return b.anchors
-      .filter((a) => this.anchorShown(a) && (a.resource_type !== 'camera' || cameraState(a) !== 'forbidden'))
-      .map((a) => ({
-        id: a.id, resource_type: a.resource_type, resource_id: a.resource_id, x: a.position.x, y: a.position.y, rotation: a.rotation_degrees, fov: a.field_of_view_degrees ?? null, radius: a.coverage_radius ?? null,
-        polygon: a.coverage_polygon ?? null, level_id: a.level_id ?? null, layer_id: a.layer_id, label: entityName(a), state: a.resource_type === 'ha_entity' ? states[a.resource_id] ?? null : null,
-        online: a.resource_type === 'camera' ? (a.camera ? a.camera.status === 'online' : null) : null, mount_height_m: a.mount_height_m ?? null, tilt_deg: a.tilt_deg ?? null,
-      }));
+    return {
+      id: a.id, resource_type: a.resource_type, resource_id: a.resource_id, x: a.position.x, y: a.position.y, rotation: a.rotation_degrees, fov: a.field_of_view_degrees ?? null, radius: a.coverage_radius ?? null,
+      polygon: a.coverage_polygon ?? null, level_id: a.level_id ?? null, layer_id: a.layer_id, label: entityName(a), state: a.resource_type === 'ha_entity' ? states[a.resource_id] ?? null : null,
+      online: a.resource_type === 'camera' ? (a.camera ? a.camera.status === 'online' : null) : null, mount_height_m: a.mount_height_m ?? null, tilt_deg: a.tilt_deg ?? null,
+    };
+  }
+
+  /** CR-006 2a: the floor's control images for a future AI skin - both synthetic states (every light off / on) drawn
+   * from the PUBLISHED structure by the 3D element's off-screen level-2 isometric view (skin-control.ts: no labels, no
+   * names, no cameras, no live state) and uploaded to the installation only. Nothing is sent to a provider here. */
+  private async exportControlImages(): Promise<void> {
+    const b = this.bundle;
+    const el = this.renderRoot.querySelector('sw-plan-3d') as (HTMLElement & { captureControl(d: SceneDescription): string | null }) | null;
+    if (!b || b.source !== 'api' || !this.geometry || !el || this.skinBusy) return;
+    this.skinBusy = true;
+    try {
+      const info = await getFloorSkins(b.floorId);
+      if (!info.geometry_key) {
+        this.skinNote = 'לקומה אין מבנה מפורסם — תמונת בקרה נוצרת מהמבנה המפורסם בלבד.';
+        return;
+      }
+      if (b.geometryRef?.doc_hash !== info.doc_hash) {
+        this.skinNote = 'המפה מציגה מבנה שאינו המבנה המפורסם (טיוטה) — תמונת בקרה נוצרת מהמבנה המפורסם בלבד.';
+        return;
+      }
+      // no anchors: they are not part of the geometry key (controlSceneInput drops them anyway)
+      const base: SceneInput = { doc: this.geometry, width: b.width, height: b.height, entityStates: {}, circuitStates: {}, catalog: this.catalog3d, anchors: [],
+        zones: b.zones.map((z) => ({ id: z.id, name: z.name, polygon: z.polygon, level_id: z.level_id ?? null })) };
+      let identical = 0;
+      for (const state of CONTROL_STATES) {
+        const png = el.captureControl(controlDescription(buildScene(controlSceneInput(base, state)), state));
+        if (!png) throw new Error('צילום תמונת הבקרה נכשל (WebGL).');
+        if ((await uploadControlImage(b.floorId, state, info.geometry_key, png)).identical) identical++;
+      }
+      this.skinNote = `תמונות הבקרה (אורות כבויים / דולקים) נשמרו במתקן בלבד${identical === CONTROL_STATES.length ? ' — זהות לשמורות' : ''}; שום דבר לא נשלח לספק.`;
+    } catch (err) {
+      this.skinNote = describeError(err);
+    } finally {
+      this.skinBusy = false;
+    }
   }
 
   /** What the scene reads from the bundle apart from the live states. A state push replaces the bundle and its anchor
@@ -1855,6 +1895,9 @@ export class ExploreFloorMap extends LitElement {
   /** Rename from the card (R3): the manual name lives on the anchor (`label`) and needs placement.edit. */
   @state() private renaming: { id: string; value: string; busy?: boolean } | null = null;
   @state() private notice = '';
+  /** CR-006 2a: the control-image export (the 3D tool row's button) is running / what it reported. */
+  @state() private skinBusy = false;
+  @state() private skinNote = '';
 
   private async saveRename(a: Anchor) {
     const r = this.renaming;
@@ -2155,6 +2198,9 @@ export class ExploreFloorMap extends LitElement {
           <sw-button icon="cube" aria-pressed=${this.shows3d} data-view-3d ?disabled=${!this.shows3d && (!this.can3d || this.threeState === 'loading')}
             title=${!webglAvailable() ? WEBGL_UNAVAILABLE_HE : !this.hasScene ? 'אין מבנה מפורסם לקומה הזו' : 'מקש 3'} @click=${() => this.toggle3d()}>${this.shows3d ? '2D' : '3D'}</sw-button>
           ${webglAvailable() ? nothing : html`<span class="note" data-3d-unavailable>${WEBGL_UNAVAILABLE_HE}</span>`}
+          ${this.shows3d && b?.source === 'api' && b.permissions.edit
+            ? html`<sw-button icon="image" data-skin-controls-export ?disabled=${this.skinBusy} title="תמונות הבקרה של הקומה לסקין עתידי (אורות כבויים / דולקים), מהמבנה המפורסם, בלי תוויות — נשמרות במתקן בלבד" @click=${() => this.exportControlImages()}>${this.skinBusy ? 'מצלם…' : 'תמונות בקרה'}</sw-button>${this.skinNote ? html`<span class="note" data-skin-note>${this.skinNote}</span>` : nothing}`
+            : nothing}
           <sw-button icon="layers" aria-pressed=${this.panel} @click=${() => (this.panel = !this.panel)}>${t('floor.layers')}</sw-button>
           ${b && b.source === 'api' ? html`<sw-button icon="list" aria-pressed=${this.sideList} data-sidelist-toggle @click=${() => this.toggleSideList()}>רשימה</sw-button><sw-button icon="grid" aria-pressed=${this.multi} data-multi-toggle @click=${() => this.setMulti(!this.multi)}>בחירת מצלמות</sw-button>` : nothing}
           <sw-field style="min-inline-size:280px"><select aria-label=${t('floor.switcher')} @change=${(e: Event) => navigate(`/explore/floors/${(e.target as HTMLSelectElement).value}`)}>${floors.map((f) => html`<option value=${f.id} ?selected=${f.id === this.floorId}>${bidi(f.name)} · ${f.cameraCount} מצלמות${f.hasPlan ? '' : ' · אין תוכנית'}</option>`)}</select></sw-field>

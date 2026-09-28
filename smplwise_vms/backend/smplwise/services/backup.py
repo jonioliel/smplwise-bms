@@ -218,6 +218,42 @@ def _insert_rows(conn: sqlite3.Connection, table: str, rows: list[dict[str, Any]
     return n
 
 
+# Never restored from an archive (CR-006 2a): the skins' control images and render records are rebuilt / kept locally;
+# 2c's export of skins will add them here and must pass _unsafe_rows' path rule.
+NEVER_RESTORED = ("plan_skin_controls", "plan_skin_renders")
+
+
+def _unsafe_rows(settings: Settings, data: dict[str, list[dict[str, Any]]]) -> dict[str, int]:
+    """Re-review 2a: drop, in place, archive rows that could steer a file path - a floor whose id is not a plain id
+    (db.ID_RE; the id names `skins/<floor id>/`), every row of another table pointing at such a floor, and a
+    `plan_skin*` row whose `path` does not confine to the skins root. Skipped, counted and logged (count only); the
+    rest of the restore goes on. Returns {table: rows skipped}."""
+    from ..db import ID_RE
+    from .skins import store as skins_store
+
+    skipped: dict[str, int] = {}
+    def plain(v: Any) -> bool:
+        return isinstance(v, str) and ID_RE.fullmatch(v) is not None
+
+    bad_floors = {str(r.get("id")) for r in data.get("floors", []) if isinstance(r, dict) and not plain(r.get("id")) and r.get("id") is not None}
+    for table, rows in data.items():
+        keep: list[dict[str, Any]] = []
+        for r in rows:
+            fid = r.get("floor_id") if isinstance(r, dict) else None
+            unsafe = not isinstance(r, dict) or (table == "floors" and not plain(r.get("id"))) or (fid is not None and (not isinstance(fid, str) or fid in bad_floors))
+            if not unsafe and table.startswith("plan_skin") and r.get("path") is not None:
+                try:
+                    skins_store.confine_stored(settings, r["path"])
+                except skins_store.SkinStoreError:
+                    unsafe = True
+            if unsafe:
+                skipped[table] = skipped.get(table, 0) + 1
+            else:
+                keep.append(r)
+        rows[:] = keep
+    return skipped
+
+
 def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str = "replace", scope: str = "project", actor_user_id: str | None = None) -> dict[str, Any]:
     """Load a backup into the current database inside the caller's transaction. `replace` empties every table of
     the scope first, also one the archive does not have (a backup older than the table): the restored project equals
@@ -247,6 +283,7 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
                     conn.execute(f"DELETE FROM settings WHERE key NOT IN ({', '.join('?' * len(SETTINGS_KEEP))})", list(SETTINGS_KEEP))
                 else:
                     conn.execute(f"DELETE FROM {t}")
+        skipped = _unsafe_rows(settings, data)
         counts: dict[str, int] = {}
         for t in tables:
             if t in data:
@@ -259,16 +296,25 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
             if not member.startswith("files/") or member.endswith("/"):
                 continue
             rel = member[len("files/"):]
-            if rel.startswith("/") or ".." in rel.split("/"):
+            if rel.startswith("/") or ".." in rel.split("/") or "\\" in rel or ":" in rel:
                 continue
             dest = settings.data_dir / rel
+            base = settings.data_dir.resolve()
+            if base not in dest.resolve().parents:  # re-review 2a: never write outside the data dir, whatever the name
+                continue
             dest.parent.mkdir(parents=True, exist_ok=True)
             with z.open(member) as src, open(dest, "wb") as dst:
                 dst.write(src.read())
             files += 1
     if scope == "project+access":
         bump_permission_revision(conn)
-    return {"mode": mode, "scope": scope, "tables": counts, "files": files, "app_version": manifest.get("app_version"), "created_at": manifest.get("created_at")}
+    # CR-006 2a review: a replaced project may no longer have a floor whose skin control images are stored
+    from .skins import store as skins_store
+
+    swept = skins_store.sweep_orphans(settings, conn) if "plan_skin_controls" in existing else 0
+    if skipped:
+        log.warning("restore skipped %s row(s) with an unsafe id or path", sum(skipped.values()))
+    return {"mode": mode, "scope": scope, "tables": counts, "files": files, "skin_controls_swept": swept, "skipped_unsafe": skipped, "app_version": manifest.get("app_version"), "created_at": manifest.get("created_at")}
 
 
 def save_upload(settings: Settings, content: bytes) -> dict[str, Any]:

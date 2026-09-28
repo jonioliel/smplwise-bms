@@ -48,6 +48,13 @@ export interface ProductSettings {
   /** 'true' hides the whole WisKey area from the navigation for everyone, regardless of role (T054 follow-up); the
    * access.ui.* choices above apply only while this is false. */
   'ui.hide_wiskey'?: string;
+  /** CR-006 phase 2 (AI-rendered floor skins, slice 2a): the image provider, its model, the privacy acknowledgement
+   * (nothing is sent while it is 'false') and the render budgets. The API key is an add-on option, never a setting. */
+  'skins.provider'?: 'openai';
+  'skins.model'?: string;
+  'skins.privacy_ack'?: 'true' | 'false';
+  'skins.budget_renders_per_floor'?: number;
+  'skins.budget_monthly'?: number;
 }
 
 export const getSettings = () => get<{ settings: ProductSettings; can_edit: boolean }>('settings');
