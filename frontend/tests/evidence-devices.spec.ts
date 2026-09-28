@@ -6,6 +6,8 @@ import { test, expect, type APIRequestContext, type Page } from '@playwright/tes
 // and the area cards are exercised on a known structure. Every seeded id carries the `cr007_` prefix; the seed is
 // idempotent (registries are rewritten whole) and is re-applied by each test. Run against a throwaway backend
 // (`SW_API_PORT` for the preview proxy) rather than the owner's, since it rewrites the HA area / floor mirror.
+// Slice 2 (single-entity control): most control tests mock the action route; the two "REAL action route" tests need
+// tests/fixtures/devices_fake_ha.py as the backend (the real backend with a fake HA-side bridge) and SW_DEVICES_FIXTURE=1.
 
 const HREF = '#/devices/building';
 const RAIL = 'sw-app nav.rail';
@@ -31,7 +33,7 @@ const STATES = [
   { entity_id: 'light.cr007_lobby', state: 'on', attributes: { friendly_name: 'תאורת לובי', brightness: 128 } },
   { entity_id: 'light.cr007_lobby_2', state: 'off', attributes: { friendly_name: 'ספוט לובי' } },
   { entity_id: 'switch.cr007_sign', state: 'on', attributes: { friendly_name: 'שלט מואר' } },
-  { entity_id: 'climate.cr007_lobby', state: 'cool', attributes: { friendly_name: 'מזגן לובי', current_temperature: 25.5, temperature: 22, hvac_action: 'cooling', fan_mode: 'auto' } },
+  { entity_id: 'climate.cr007_lobby', state: 'cool', attributes: { friendly_name: 'מזגן לובי', current_temperature: 25.5, temperature: 22, hvac_action: 'cooling', fan_mode: 'auto', hvac_modes: ['off', 'cool', 'heat', 'fan_only'], fan_modes: ['auto', 'low', 'high'], min_temp: 16, max_temp: 30 } },
   { entity_id: 'cover.cr007_blind', state: 'open', attributes: { friendly_name: 'תריס לובי', current_position: 70, device_class: 'blind' } },
   { entity_id: 'lock.cr007_front', state: 'locked', attributes: { friendly_name: 'דלת ראשית', device_class: 'lock' } },
   { entity_id: 'binary_sensor.cr007_door', state: 'off', attributes: { friendly_name: 'מגע דלת', device_class: 'door' } },
@@ -44,7 +46,7 @@ const STATES = [
   { entity_id: 'switch.cr007_loose', state: 'off', attributes: { friendly_name: 'מתג ללא אזור' } },
 ];
 
-test.describe('Electricity and devices (CR-007 slice 1, read-only)', () => {
+test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single-entity control)', () => {
   test.skip(process.env.SW_LIVE !== '1', 'set SW_LIVE=1 with the backend running');
 
   async function seed(request: APIRequestContext) {
@@ -423,96 +425,235 @@ test.describe('Electricity and devices (CR-007 slice 1, read-only)', () => {
 
   // ---------------------------------------------------------------- CR-007 slice 2: single-entity control
 
-  test('a toggle goes pending then confirmed, following a simulated state push (the action route is mocked - a real bridge pairing is out of reach here, as evidence-plan-studio-4 does for the same route)', async ({ page, request }) => {
+  // A pending record as the action route answers it (routers/ha.py); `confirmation` says how it can be confirmed.
+  const record = (id: string, entity_id: string, action_id: string, status: string, confirmation: 'state' | 'attribute' | 'none' = 'state') =>
+    JSON.stringify({ id, entity_id, action_id, status, error: null, requested_at: new Date().toISOString(), confirmed_at: status === 'confirmed' ? new Date().toISOString() : null, confirmation });
+
+  test('a toggle shows a visible "awaiting confirmation" line, keeps the reported state as the fact, then confirms (action route mocked)', async ({ page, request }) => {
     await seed(request);
     await open(page, '/devices/areas/cr007_lobby', 'a');
     const screen = page.locator('devices-area');
     const tile = screen.locator('.tile[data-entity="light.cr007_lobby_2"]'); // seeded off
     await expect(tile).toHaveClass(/\boff\b/, { timeout: 30000 });
-    const actionId = 'cr007-toggle-1';
     let confirmed = false;
-    await page.route('**/api/v1/ha/entities/*/actions', async (r) => {
-      await r.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ id: actionId, entity_id: 'light.cr007_lobby_2', action_id: 'light.turn_on', status: 'pending', error: null, requested_at: new Date().toISOString(), confirmed_at: null }) });
-    });
-    await page.route('**/api/v1/ha/actions/*', async (r) => {
-      await r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ id: actionId, entity_id: 'light.cr007_lobby_2', action_id: 'light.turn_on', status: confirmed ? 'confirmed' : 'pending', error: null, requested_at: new Date().toISOString(), confirmed_at: confirmed ? new Date().toISOString() : null }) });
-    });
+    await page.route('**/api/v1/ha/entities/*/actions', (r) => r.fulfill({ status: 202, contentType: 'application/json', body: record('cr007-toggle-1', 'light.cr007_lobby_2', 'light.turn_on', 'pending') }));
+    await page.route('**/api/v1/ha/actions/*', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: record('cr007-toggle-1', 'light.cr007_lobby_2', 'light.turn_on', confirmed ? 'confirmed' : 'pending') }));
     await tile.locator('sw-toggle[data-control="power"]').click();
-    // pending: the optimistic target shows at once, the tile marked pending - never claimed as fact yet
-    await expect(tile).toHaveClass(/\bpending\b/);
-    await expect(tile).toHaveAttribute('data-active', 'true');
-    // the simulated push: Home Assistant's own state changes (a real /ha/dev/states write + /ha/ws push), and the
-    // next action poll (mocked) now answers confirmed - together, what "confirmed by the state change" means
+    // pending: a visible line (not only dimming); the toggle shows the target, the row's text and class stay the fact
+    const status = tile.locator('[data-cmd-status]');
+    await expect(status).toHaveAttribute('data-cmd-status', 'pending');
+    await expect(status).toContainText('ממתין לאישור');
+    await expect(tile.locator('sw-toggle[data-control="power"]')).toHaveAttribute('checked', '');
+    await expect(tile).toHaveAttribute('data-active', 'false');
+    await expect(tile.locator('.s')).toHaveText('כבוי');
+    // Home Assistant's own state changes (a real /ha/dev/states write + /ha/ws push) and the next poll answers confirmed
     confirmed = true;
     await setState(request, 'light.cr007_lobby_2', 'on', { friendly_name: 'ספוט לובי', brightness: 255 });
-    await expect(tile).not.toHaveClass(/\bpending\b/, { timeout: 5000 });
-    await expect(tile).toHaveClass(/\bon\b/);
+    await expect(status).toHaveAttribute('data-cmd-status', 'confirmed', { timeout: 5000 });
+    await expect(tile).toHaveClass(/\bon\b/, { timeout: 5000 });
     await expect(tile.locator('.rollback-note')).toHaveCount(0);
     await page.unroute('**/api/v1/ha/entities/*/actions');
     await page.unroute('**/api/v1/ha/actions/*');
     await setState(request, 'light.cr007_lobby_2', 'off', { friendly_name: 'ספוט לובי' });
   });
 
-  test('a toggle that never confirms rolls back with an inline note once the domain timeout passes', async ({ page, request }) => {
+  test('a toggle that never confirms rolls back with an inline note once the domain timeout passes (action route mocked)', async ({ page, request }) => {
     await seed(request);
     await open(page, '/devices/areas/cr007_lobby', 'a');
     const screen = page.locator('devices-area');
     const tile = screen.locator('.tile[data-entity="light.cr007_lobby_2"]');
     await expect(tile).toHaveClass(/\boff\b/, { timeout: 30000 });
-    const actionId = 'cr007-toggle-2';
-    await page.route('**/api/v1/ha/entities/*/actions', async (r) => {
-      await r.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ id: actionId, entity_id: 'light.cr007_lobby_2', action_id: 'light.turn_on', status: 'pending', error: null, requested_at: new Date().toISOString(), confirmed_at: null }) });
-    });
-    await page.route('**/api/v1/ha/actions/*', async (r) => {
-      // Home Assistant never reports the expected state: the action stays pending forever from the client's view
-      await r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ id: actionId, entity_id: 'light.cr007_lobby_2', action_id: 'light.turn_on', status: 'pending', error: null, requested_at: new Date().toISOString(), confirmed_at: null }) });
-    });
+    await page.route('**/api/v1/ha/entities/*/actions', (r) => r.fulfill({ status: 202, contentType: 'application/json', body: record('cr007-toggle-2', 'light.cr007_lobby_2', 'light.turn_on', 'pending') }));
+    // Home Assistant never reports the expected state: the action stays pending forever from the client's view
+    await page.route('**/api/v1/ha/actions/*', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: record('cr007-toggle-2', 'light.cr007_lobby_2', 'light.turn_on', 'pending') }));
     await tile.locator('sw-toggle[data-control="power"]').click();
-    await expect(tile).toHaveClass(/\bpending\b/);
+    await expect(tile.locator('[data-cmd-status="pending"]')).toBeVisible();
     // light/switch domain timeout is 5s (DomusUI's own number, recorded in api/device-commands.ts): a note appears, never before it
     await expect(tile.locator('.rollback-note')).toHaveCount(0);
     await expect(tile.locator('.rollback-note')).toBeVisible({ timeout: 7000 });
-    await expect(tile).not.toHaveClass(/\bpending\b/);
-    await expect(tile).toHaveClass(/\boff\b/); // reverted to the last known real state - the target was never claimed as fact
+    await expect(tile.locator('[data-cmd-status="pending"]')).toHaveCount(0);
+    await expect(tile).toHaveClass(/\boff\b/); // the last reported state - the target was never claimed as fact
+    await expect(tile.locator('sw-toggle[data-control="power"]')).not.toHaveAttribute('checked', '');
     await page.unroute('**/api/v1/ha/entities/*/actions');
     await page.unroute('**/api/v1/ha/actions/*');
   });
 
-  test('the brightness slider: a later drag supersedes an earlier in-flight command (last value wins)', async ({ page, request }) => {
+  test('the brightness slider: an older command confirming inside the debounce window never overwrites the newer value (action route mocked)', async ({ page, request }) => {
     await seed(request);
     await open(page, '/devices/areas/cr007_lobby', 'a');
     const screen = page.locator('devices-area');
     const tile = screen.locator('.tile[data-entity="light.cr007_lobby"]'); // seeded on, 50%
     await expect(tile).toHaveClass(/\bon\b/, { timeout: 30000 });
-    const sentPct: number[] = [];
-    const ids: string[] = [];
+    // every status line and slider value the tile ever shows, recorded in the page as it happens
+    await page.evaluate(() => {
+      const w = window as unknown as { __cmdLog: string[] };
+      w.__cmdLog = [];
+      const deep = (node: Document | ShadowRoot, sel: string): Element | null => {
+        const hit = node.querySelector(sel);
+        if (hit) return hit;
+        for (const el of Array.from(node.querySelectorAll('*'))) {
+          const found = el.shadowRoot ? deep(el.shadowRoot, sel) : null;
+          if (found) return found;
+        }
+        return null;
+      };
+      const root = deep(document, 'devices-area')?.shadowRoot;
+      const find = () => root?.querySelector('.tile[data-entity="light.cr007_lobby"]');
+      const snap = () => {
+        const t = find();
+        const st = t?.querySelector('[data-cmd-status]');
+        const range = t?.querySelector('input[data-control="brightness"]') as HTMLInputElement | null;
+        w.__cmdLog.push(`${st?.getAttribute('data-cmd-status') ?? '-'}|${st?.textContent?.trim() ?? ''}|${range?.value ?? ''}`);
+      };
+      new MutationObserver(snap).observe(root!, { subtree: true, childList: true, attributes: true, characterData: true });
+      root!.addEventListener('input', snap, true);
+    });
+    const sent: number[] = [];
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
     await page.route('**/api/v1/ha/entities/*/actions', async (r) => {
-      const body = r.request().postDataJSON() as { arguments: { brightness_pct: number } };
-      sentPct.push(body.arguments.brightness_pct);
-      const id = `cr007-bright-${sentPct.length}`;
-      ids.push(id);
-      await r.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ id, entity_id: 'light.cr007_lobby', action_id: 'light.turn_on', status: 'pending', error: null, requested_at: new Date().toISOString(), confirmed_at: null }) });
+      const pct = (r.request().postDataJSON() as { arguments: { brightness_pct: number } }).arguments.brightness_pct;
+      sent.push(pct);
+      const id = `cr007-bright-${sent.length}`;
+      if (sent.length === 1) {
+        await held; // the first request answers only after the slider has moved on - and answers "confirmed" at once
+        await r.fulfill({ status: 202, contentType: 'application/json', body: record(id, 'light.cr007_lobby', 'light.turn_on', 'confirmed') });
+      } else {
+        await r.fulfill({ status: 202, contentType: 'application/json', body: record(id, 'light.cr007_lobby', 'light.turn_on', 'pending') });
+      }
     });
-    await page.route('**/api/v1/ha/actions/*', async (r) => {
-      const id = r.request().url().split('/').pop()!;
-      const isSecond = id === ids[1];
-      // the first request's own poll never confirms (as if superseded on the wire too); the second confirms at once
-      await r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ id, entity_id: 'light.cr007_lobby', action_id: 'light.turn_on', status: isSecond ? 'confirmed' : 'pending', error: null, requested_at: new Date().toISOString(), confirmed_at: isSecond ? new Date().toISOString() : null }) });
-    });
+    await page.route('**/api/v1/ha/actions/*', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: record(r.request().url().split('/').pop()!, 'light.cr007_lobby', 'light.turn_on', 'confirmed') }));
     const range = tile.locator('input[data-control="brightness"]');
     await range.fill('30');
     await range.dispatchEvent('input');
-    await expect.poll(() => sentPct.length, { timeout: 2000 }).toBe(1); // debounce elapsed, first request sent
+    await expect.poll(() => sent.length, { timeout: 2000 }).toBe(1); // debounce elapsed, the first request is on the wire
     await range.fill('80');
     await range.dispatchEvent('input');
-    await expect.poll(() => sentPct.length, { timeout: 2000 }).toBe(2); // second value supersedes before the first ever confirms
-    // the tile shows the LAST value, confirmed - the first request's own (never-arriving) confirmation cannot resurrect 30%
-    await expect(tile).toContainText('80%', { timeout: 5000 });
-    await expect(tile).not.toHaveClass(/\bpending\b/);
-    await expect(tile.locator('.rollback-note')).toHaveCount(0);
+    release(); // the 30% confirmation lands now, inside the 300 ms debounce window of the 80% drag
+    await expect.poll(() => sent, { timeout: 3000 }).toEqual([30, 80]);
+    await expect(tile.locator('[data-cmd-status="confirmed"]')).toContainText('80%', { timeout: 5000 });
+    const log = (await page.evaluate(() => (window as unknown as { __cmdLog: string[] }).__cmdLog)) as string[];
+    // from the moment the screen shows the 80% command (the raw input event itself can be logged a frame earlier)
+    const start = log.findIndex((l) => l.includes('80%'));
+    expect(start).toBeGreaterThanOrEqual(0);
+    const after80 = log.slice(start);
+    expect(after80.filter((l) => l.includes('30%')), `the superseded 30% came back: ${after80.join(' / ')}`).toEqual([]);
+    expect(after80.filter((l) => l.endsWith('|30'))).toEqual([]);
+    expect(log.filter((l) => l.startsWith('confirmed') && l.includes('30%'))).toEqual([]);
     await page.unroute('**/api/v1/ha/entities/*/actions');
     await page.unroute('**/api/v1/ha/actions/*');
-    await setState(request, 'light.cr007_lobby', 'on', { friendly_name: 'תאורת לובי', brightness: 128 });
+  });
+
+  test('cover: open arms then confirms (sending the confirmation), Stop stays enabled while it moves (action route mocked)', async ({ page, request }) => {
+    await seed(request);
+    await open(page, '/devices/areas/cr007_lobby', 'a');
+    const row = page.locator('devices-area .row[data-entity="cover.cr007_blind"]');
+    await expect(row.locator('sw-button[data-control="open"]')).toBeVisible({ timeout: 30000 });
+    const bodies: { allowed_action_id: string; confirmation_grant: string | null }[] = [];
+    await page.route('**/api/v1/ha/entities/*/actions', (r) => {
+      const b = r.request().postDataJSON() as { allowed_action_id: string; confirmation_grant: string | null };
+      bodies.push(b);
+      return r.fulfill({ status: 202, contentType: 'application/json', body: record(`cr007-cover-${bodies.length}`, 'cover.cr007_blind', b.allowed_action_id, 'pending', b.allowed_action_id === 'cover.stop_cover' ? 'none' : 'state') });
+    });
+    await page.route('**/api/v1/ha/actions/*', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: record(r.request().url().split('/').pop()!, 'cover.cr007_blind', 'cover.open_cover', 'pending') }));
+    await row.locator('sw-button[data-control="open"]').click();
+    await expect(row.locator('sw-button[data-control="open"]')).toHaveText('לאשר פתיחה?');
+    expect(bodies).toEqual([]); // the first tap only arms
+    await row.locator('sw-button[data-control="open"]').click();
+    await expect.poll(() => bodies.length).toBe(1);
+    expect(bodies[0]).toMatchObject({ allowed_action_id: 'cover.open_cover', confirmation_grant: 'confirmed' });
+    await expect(row.locator('[data-cmd-status="pending"]')).toContainText('פתיחה');
+    // while the movement is pending: open / close / position are disabled, Stop is not
+    await expect(row.locator('sw-button[data-control="open"]')).toHaveAttribute('disabled', '');
+    await expect(row.locator('sw-button[data-control="close"]')).toHaveAttribute('disabled', '');
+    await expect(row.locator('input[data-control="position"]')).toBeDisabled();
+    await expect(row.locator('sw-button[data-control="stop"]')).not.toHaveAttribute('disabled', '');
+    await row.locator('sw-button[data-control="stop"]').click();
+    await expect.poll(() => bodies.map((b) => b.allowed_action_id)).toEqual(['cover.open_cover', 'cover.stop_cover']);
+    expect(bodies[1].confirmation_grant).toBeNull(); // stop needs no confirmation
+    // the row's text is still the reported fact (open, 70%) - never the target
+    await expect(row.locator('.v')).toContainText('70%');
+    await page.unroute('**/api/v1/ha/entities/*/actions');
+    await page.unroute('**/api/v1/ha/actions/*');
+  });
+
+  test('climate controls offer only what the entity reports: its hvac_modes, its fan_modes, its target range', async ({ page, request }) => {
+    await seed(request);
+    await setState(request, 'climate.cr007_lobby', 'cool', { friendly_name: 'מזגן לובי', current_temperature: 25.5, temperature: 26, hvac_action: 'cooling', fan_mode: 'auto', hvac_modes: ['off', 'cool', 'heat'], fan_modes: ['auto', 'low', 'high'], min_temp: 18, max_temp: 26 });
+    await open(page, '/devices/areas/cr007_lobby', 'a');
+    const clim = page.locator('devices-area .row[data-entity="climate.cr007_lobby"]');
+    await expect(clim.locator('select[data-control="mode"]')).toBeVisible({ timeout: 30000 });
+    expect(await clim.locator('select[data-control="mode"] option').evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value))).toEqual(['off', 'cool', 'heat']);
+    await expect(clim.locator('select[data-control="mode"]')).toHaveValue('cool');
+    // fan mode is a menu of the entity's own fan_modes, not free text
+    await expect(clim.locator('input[data-control="fan-mode"]')).toHaveCount(0);
+    expect(await clim.locator('select[data-control="fan-mode"] option').evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value))).toEqual(['auto', 'low', 'high']);
+    // the target is at the entity's max_temp: "+" is disabled, "-" is not
+    await expect(clim.locator('sw-button[data-control="temp-up"]')).toHaveAttribute('disabled', '');
+    await expect(clim.locator('sw-button[data-control="temp-down"]')).not.toHaveAttribute('disabled', '');
+    await seed(request); // back to the seeded climate state
+  });
+
+  test('through the REAL action route (fixture bridge): a toggle confirmed by the state change, a cover position armed on release then confirmed from its attribute, Stop honestly "sent"', async ({ page, request }) => {
+    test.skip(process.env.SW_DEVICES_FIXTURE !== '1', 'needs tests/fixtures/devices_fake_ha.py as the backend (SW_DEVICES_FIXTURE=1)');
+    await seed(request);
+    await open(page, '/devices/areas/cr007_lobby', 'a');
+    const screen = page.locator('devices-area');
+    const tile = screen.locator('.tile[data-entity="light.cr007_lobby_2"]');
+    await expect(tile).toHaveClass(/\boff\b/, { timeout: 30000 });
+    const posted: number[] = [];
+    page.on('response', (res) => {
+      if (/\/api\/v1\/ha\/entities\/[^/]+\/actions$/.test(res.url())) posted.push(res.status());
+    });
+    await tile.locator('sw-toggle[data-control="power"]').click();
+    await expect(tile.locator('[data-cmd-status="confirmed"]')).toBeVisible({ timeout: 8000 });
+    await expect(tile).toHaveClass(/\bon\b/, { timeout: 5000 });
+    expect(posted).toEqual([202]);
+    // the cover: a drag sends nothing; the release arms; the confirming tap sends set_cover_position with the
+    // confirmation; the fake device reports current_position and the attribute confirms it
+    const row = screen.locator('.row[data-entity="cover.cr007_blind"]');
+    const range = row.locator('input[data-control="position"]');
+    await range.fill('30');
+    await range.dispatchEvent('input');
+    await range.dispatchEvent('change');
+    await expect(row.locator('sw-button[data-control="position-confirm"]')).toHaveText('לאשר מיקום 30%?');
+    expect(posted).toEqual([202]);
+    await row.locator('sw-button[data-control="position-confirm"]').click();
+    await expect(row.locator('[data-cmd-status="confirmed"]')).toContainText('מיקום 30%', { timeout: 8000 });
+    await expect(row.locator('.v')).toContainText('30%', { timeout: 5000 });
+    // stop: accepted, nothing observable - "sent", never "confirmed"
+    await row.locator('sw-button[data-control="stop"]').click();
+    await expect(row.locator('[data-cmd-status="sent"]')).toContainText('נשלח', { timeout: 5000 });
+    expect(posted).toEqual([202, 202, 202]);
+    await seed(request);
+  });
+
+  test('through the REAL action route (fixture bridge): a 4xx answer rolls the control back with the reason, and nothing changes', async ({ browser, request }, testInfo) => {
+    test.skip(process.env.SW_DEVICES_FIXTURE !== '1', 'needs tests/fixtures/devices_fake_ha.py as the backend (SW_DEVICES_FIXTURE=1)');
+    await seed(request);
+    const user = `cr007revoked${testInfo.project.name}`;
+    let binding: string | null = await bindUser(request, user, 'operator');
+    try {
+      const ctx = await browser.newContext({ extraHTTPHeaders: { 'X-SW-Dev-User': user } });
+      const p = await ctx.newPage();
+      await open(p, '/devices/areas/cr007_lobby', 'a');
+      const tile = p.locator('devices-area .tile[data-entity="light.cr007_lobby_2"]');
+      await expect(tile.locator('sw-toggle[data-control="power"]')).toBeVisible({ timeout: 30000 });
+      // the operator's control is withdrawn after the page loaded: the real route answers 403 on the next tap
+      await request.delete(`/api/v1/access/bindings/${binding}`);
+      binding = null;
+      const answer = p.waitForResponse((res) => /\/api\/v1\/ha\/entities\/[^/]+\/actions$/.test(res.url()));
+      await tile.locator('sw-toggle[data-control="power"]').click();
+      expect((await answer).status()).toBe(403);
+      await expect(tile.locator('.rollback-note')).toBeVisible({ timeout: 5000 });
+      await expect(tile.locator('sw-toggle[data-control="power"]')).not.toHaveAttribute('checked', '');
+      await expect(tile).toHaveClass(/\boff\b/);
+      const e = await (await request.get('/api/v1/ha/entities/light.cr007_lobby_2')).json();
+      expect(e.state).toBe('off'); // nothing reached the (fake) device
+      await ctx.close();
+    } finally {
+      if (binding) await request.delete(`/api/v1/access/bindings/${binding}`).catch(() => {});
+    }
   });
 
   test('controls are absent without devices.control: a plain viewer (devices.read only) sees the same cards read-only', async ({ browser, request }, testInfo) => {

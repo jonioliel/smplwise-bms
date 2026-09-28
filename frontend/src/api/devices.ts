@@ -84,6 +84,12 @@ export interface DeviceRow {
   target_temp_high?: number | null;
   fan_mode?: string | null;
   preset_mode?: string | null;
+  /** CR-007 slice 2: what this climate entity itself reports it supports - the controls offer nothing else. */
+  hvac_modes?: string[] | null;
+  fan_modes?: string[] | null;
+  min_temp?: number | null;
+  max_temp?: number | null;
+  target_temp_step?: number | null;
   percentage?: number | null;
   current_humidity?: number | null;
   target_humidity?: number | null;

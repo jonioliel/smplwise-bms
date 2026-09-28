@@ -21,10 +21,12 @@ import { alarmTone, REFRESH_WINDOW_MS } from './devices-building';
 import { navigate } from '../router';
 import { bidi, ltrNum } from '../i18n/bidi';
 
+/** The modes the add-on's allow-list accepts (services/ha_bridge.HVAC_MODES); the menu shows the entity's own
+ * hvac_modes that are among them - never a mode the entity does not report. */
 const HVAC_SELECTABLE = ['off', 'heat', 'cool', 'heat_cool', 'auto', 'dry', 'fan_only'];
-/** How long a "one tap to arm, one more to confirm" button stays armed (cover open / close: attention risk in the
- * allow-list, services/ha_bridge.py - a confirmation is required, but a modal is overkill for a card tap). */
-const ARM_MS = 3000;
+/** How long a "one gesture to arm, one tap to confirm" control stays armed (cover open / close / position: attention
+ * risk in the allow-list, services/ha_bridge.py - a confirmation is required, but a modal is overkill for a card). */
+const ARM_MS = 4000;
 
 const CARD_ICON: Record<CardId, IconName> = { lighting: 'light', switches: 'bolt', climate: 'activity', covers: 'layers', security: 'shield', media: 'play', sensors: 'sensor' };
 
@@ -66,8 +68,10 @@ export class DevicesArea extends LitElement {
   /** One control's command state per key (`entityId:control` - power, brightness, position, temp, mode, fan,
    * mute, playpause; each independent so a slider drag never supersedes a button tap on the same entity). */
   @state() private commands: Record<string, CommandState<unknown>> = {};
-  /** A sensitive button (cover open/close) armed by a first tap, expiring if the second tap never comes. */
+  /** A cover movement control (open / close / position) armed by a first gesture, expiring if no confirming tap comes. */
   @state() private armed: Record<string, number> = {};
+  /** A cover position dragged but not yet confirmed (per `entityId:position`): shown on the slider only, never sent. */
+  @state() private drafts: Record<string, number> = {};
   private stop: (() => void) | null = null;
   private timer = 0;
   private loading = false;
@@ -257,12 +261,58 @@ export class DevicesArea extends LitElement {
       color: var(--sw-text);
       padding: 3px 6px;
     }
-    .rollback-note {
+    .rollback-note,
+    .cmd-status {
       grid-column: 1 / -1;
       font-size: var(--sw-fs-xs);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .rollback-note {
       color: var(--sw-danger);
     }
-    .tile .rollback-note {
+    .cmd-status.pending {
+      color: var(--sw-text);
+      background: var(--sw-warning-soft);
+      border-radius: var(--sw-r-sm);
+      padding: 2px 6px;
+      font-weight: var(--sw-fw-medium);
+    }
+    .cmd-status.pending .dot {
+      flex: none;
+      inline-size: 8px;
+      block-size: 8px;
+      border-radius: 50%;
+      background: var(--sw-warning);
+      animation: sw-cmd-pulse 1s ease-in-out infinite;
+    }
+    .cmd-status.sent {
+      color: var(--sw-text-2);
+    }
+    .cmd-status.confirmed {
+      color: var(--sw-text-2);
+    }
+    .cmd-status.confirmed::before {
+      content: '';
+      flex: none;
+      inline-size: 8px;
+      block-size: 8px;
+      border-radius: 50%;
+      background: var(--sw-success);
+    }
+    @keyframes sw-cmd-pulse {
+      50% {
+        opacity: 0.3;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .cmd-status.pending .dot {
+        animation: none;
+      }
+    }
+    .tile .rollback-note,
+    .tile .cmd-status {
       white-space: normal;
     }
   `;
@@ -354,7 +404,7 @@ export class DevicesArea extends LitElement {
 
   private setCmd = (key: string, s: CommandState<unknown>) => {
     this.commands = { ...this.commands, [key]: s };
-    if (s.phase === 'confirmed') window.setTimeout(() => this.clearCmd(key, s), 1200);
+    if (s.phase === 'confirmed' || s.phase === 'sent') window.setTimeout(() => this.clearCmd(key, s), 2500);
     else if (s.phase === 'rolled_back') window.setTimeout(() => this.clearCmd(key, s), 4000);
   };
 
@@ -368,15 +418,37 @@ export class DevicesArea extends LitElement {
     }
   }
 
-  private rowPending(entityId: string): boolean {
-    return Object.entries(this.commands).some(([k, v]) => (k === entityId || k.startsWith(`${entityId}:`)) && v.phase === 'pending');
+  private entityCommands(entityId: string): CommandState<unknown>[] {
+    return Object.entries(this.commands)
+      .filter(([k]) => k.startsWith(`${entityId}:`))
+      .map(([, v]) => v);
   }
 
-  private rowNote(entityId: string): string | null {
-    for (const [k, v] of Object.entries(this.commands)) {
-      if ((k === entityId || k.startsWith(`${entityId}:`)) && v.phase === 'rolled_back') return v.note;
-    }
-    return null;
+  private rowPending(entityId: string): boolean {
+    return this.entityCommands(entityId).some((v) => v.phase === 'pending');
+  }
+
+  /** The value a control shows: the target while its command is pending (or just confirmed, until the refetch lands),
+   * otherwise the real one. Only controls read this - the row's own text always shows what HA last reported. */
+  private live<T>(entityId: string, control: string): T | undefined {
+    const c = this.commands[`${entityId}:${control}`] as CommandState<T> | undefined;
+    return c && (c.phase === 'pending' || c.phase === 'confirmed') ? c.optimistic : undefined;
+  }
+
+  /** The visible command line under a row: "ממתין לאישור" while pending (never the target as the row's fact), "נשלח"
+   * for an action with nothing observable, "אושר" once HA reported the effect, the rollback reason otherwise. */
+  private renderCmdStatus(entityId: string) {
+    const all = this.entityCommands(entityId);
+    const pick = (p: CommandState<unknown>['phase']) => all.find((c) => c.phase === p);
+    const pending = pick('pending');
+    if (pending) return html`<div class="cmd-status pending" data-cmd-status="pending" role="status"><span class="dot"></span>ממתין לאישור מ־Home Assistant${pending.label ? ` · ${pending.label}` : ''}</div>`;
+    const rolled = pick('rolled_back');
+    if (rolled) return html`<div class="rollback-note" data-rollback data-cmd-status="rolled_back" role="status">${rolled.label ? `${rolled.label}: ` : ''}${rolled.note}</div>`;
+    const sent = pick('sent');
+    if (sent) return html`<div class="cmd-status sent" data-cmd-status="sent" role="status">נשלח ל־Home Assistant${sent.label ? ` · ${sent.label}` : ''} · אין דיווח מצב שמאשר את הביצוע</div>`;
+    const confirmed = pick('confirmed');
+    if (confirmed) return html`<div class="cmd-status confirmed" data-cmd-status="confirmed" role="status">אושר${confirmed.label ? ` · ${confirmed.label}` : ''}</div>`;
+    return nothing;
   }
 
   private isArmed(key: string): boolean {
@@ -384,98 +456,98 @@ export class DevicesArea extends LitElement {
     return !!exp && exp > Date.now();
   }
 
-  /** First tap arms a sensitive button (shows "לאשר?" for ARM_MS); the second tap within the window runs it. */
-  private tapArmed(key: string, run: () => void) {
-    if (this.isArmed(key)) {
-      const next = { ...this.armed };
-      delete next[key];
-      this.armed = next;
-      run();
-      return;
+  private disarm(key: string) {
+    const next = { ...this.armed };
+    delete next[key];
+    this.armed = next;
+    if (key in this.drafts) {
+      const d = { ...this.drafts };
+      delete d[key];
+      this.drafts = d;
     }
+  }
+
+  private arm(key: string) {
     this.armed = { ...this.armed, [key]: Date.now() + ARM_MS };
     window.setTimeout(() => {
-      if (this.armed[key] && this.armed[key] <= Date.now()) {
-        const next = { ...this.armed };
-        delete next[key];
-        this.armed = next;
-      }
+      if (this.armed[key] && this.armed[key] <= Date.now()) this.disarm(key);
     }, ARM_MS + 50);
   }
 
-  /** `r` with any live (pending or already-confirmed-but-not-yet-refetched) command values overlaid, so the row's
-   * own text - not only the control the user is dragging - shows the target, and keeps showing it through the
-   * confirmed phase until the next data refresh catches up. A rolled-back command overlays nothing: the row falls
-   * back to the last real value, which is exactly what "never claim the target as fact" means for plain text. */
-  private overlay(r: DeviceRow): DeviceRow {
-    const live = <T,>(control: string): T | undefined => {
-      const c = this.commands[`${r.entity_id}:${control}`] as CommandState<T> | undefined;
-      return c && c.phase !== 'rolled_back' ? c.optimistic : undefined;
-    };
-    let out = r;
-    const power = live<boolean>('power');
-    if (power !== undefined) out = { ...out, active: power, state: power ? (out.state && out.state !== 'off' ? out.state : 'on') : 'off' };
-    const brightness = live<number>('brightness');
-    if (brightness !== undefined) out = { ...out, brightness_pct: brightness };
-    const position = live<number>('position');
-    if (position !== undefined) out = { ...out, position, moving: false };
-    const temp = live<number>('temp');
-    if (temp !== undefined) out = { ...out, target_temperature: temp };
-    const percentage = live<number>('percentage');
-    if (percentage !== undefined) out = { ...out, percentage, active: true };
-    const mode = live<string>('mode');
-    if (mode !== undefined) out = { ...out, hvac_mode: mode, state: mode, active: mode !== 'off' };
-    const fan = live<string>('fan');
-    if (fan !== undefined) out = { ...out, fan_mode: fan };
-    const mute = live<boolean>('mute');
-    if (mute !== undefined) out = { ...out, muted: mute };
-    const playpause = live<string>('playpause');
-    if (playpause !== undefined) out = { ...out, state: playpause };
-    return out;
+  /** First tap arms a sensitive button (shows "לאשר?" for ARM_MS); the second tap within the window runs it. */
+  private tapArmed(key: string, run: () => void) {
+    if (this.isArmed(key)) {
+      this.disarm(key);
+      run();
+      return;
+    }
+    this.arm(key);
   }
 
   private renderPowerToggle(r: DeviceRow) {
     const key = `${r.entity_id}:power`;
     const pending = this.commands[key]?.phase === 'pending';
-    const onId = r.domain === 'light' ? 'light.turn_on' : r.domain === 'input_boolean' ? 'input_boolean.turn_on' : r.domain === 'media_player' ? 'media_player.turn_on' : r.domain === 'fan' ? 'fan.turn_on' : 'switch.turn_on';
-    const offId = r.domain === 'light' ? 'light.turn_off' : r.domain === 'input_boolean' ? 'input_boolean.turn_off' : r.domain === 'media_player' ? 'media_player.turn_off' : r.domain === 'fan' ? 'fan.turn_off' : 'switch.turn_off';
+    const domain = ['light', 'input_boolean', 'media_player', 'fan'].includes(r.domain) ? r.domain : 'switch';
+    const checked = this.live<boolean>(r.entity_id, 'power') ?? r.active;
     const change = (ev: Event) => {
       ev.stopPropagation();
       if (pending) return;
-      const next = !r.active;
-      void runCommand(key, r.domain, r.entity_id, next ? onId : offId, {}, next, (s) => this.setCmd(key, s));
+      const next = !checked;
+      void runCommand(key, r.domain, r.entity_id, `${domain}.${next ? 'turn_on' : 'turn_off'}`, {}, next, (s) => this.setCmd(key, s), { label: next ? 'הדלקה' : 'כיבוי' });
     };
-    return html`<sw-toggle data-control="power" .checked=${r.active} ?disabled=${pending} label=${bidi(r.name)} labelHidden @click=${(e: Event) => e.stopPropagation()} @change=${change}></sw-toggle>`;
+    return html`<sw-toggle data-control="power" .checked=${checked} ?disabled=${pending} label=${bidi(r.name)} labelHidden @click=${(e: Event) => e.stopPropagation()} @change=${change}></sw-toggle>`;
   }
 
   private renderBrightnessSlider(r: DeviceRow) {
     const key = `${r.entity_id}:brightness`;
+    const value = this.live<number>(r.entity_id, 'brightness') ?? r.brightness_pct ?? 100;
     const onInput = (ev: Event) => {
       const pct = Number((ev.target as HTMLInputElement).value);
-      this.debouncedRange(key, 'light', r.entity_id, 'light.turn_on', { brightness_pct: pct }, pct, (s) => this.setCmd(key, s));
+      this.debouncedRange(key, 'light', r.entity_id, 'light.turn_on', { brightness_pct: pct }, pct, (s) => this.setCmd(key, s), { label: `בהירות ${pct}%` });
     };
-    return html`<input type="range" class="ctl-range" data-control="brightness" min="1" max="100" .value=${String(r.brightness_pct ?? 100)} @input=${onInput} @click=${(e: Event) => e.stopPropagation()} aria-label="בהירות" />`;
+    return html`<input type="range" class="ctl-range" data-control="brightness" min="1" max="100" .value=${String(value)} @input=${onInput} @click=${(e: Event) => e.stopPropagation()} aria-label="בהירות" />`;
   }
 
+  /** Cover movement - open, close or a position - is one physical action whichever control starts it (coordinator
+   * ruling, CR-007 s7): all three are "attention" in the allow-list, so each arms on the first gesture (a tap, or
+   * the slider's release) and runs on the confirming tap, with confirmation_grant sent. Stop is never gated or
+   * disabled: it must work exactly while something moves. */
   private renderCoverControls(r: DeviceRow) {
     const entityId = r.entity_id;
     const openKey = `${entityId}:open`;
     const closeKey = `${entityId}:close`;
     const stopKey = `${entityId}:stop`;
     const posKey = `${entityId}:position`;
-    const busy = this.rowPending(entityId);
-    const doOpen = () => this.tapArmed(openKey, () => void runCommand(openKey, 'cover', entityId, 'cover.open_cover', {}, 'open', (s) => this.setCmd(openKey, s)));
-    const doClose = () => this.tapArmed(closeKey, () => void runCommand(closeKey, 'cover', entityId, 'cover.close_cover', {}, 'closed', (s) => this.setCmd(closeKey, s)));
-    const doStop = () => void runCommand(stopKey, 'cover', entityId, 'cover.stop_cover', {}, 'stopped', (s) => this.setCmd(stopKey, s));
-    const onPos = (ev: Event) => {
-      const pct = Number((ev.target as HTMLInputElement).value);
-      this.debouncedRange(posKey, 'cover', entityId, 'cover.set_cover_position', { position: pct }, pct, (s) => this.setCmd(posKey, s));
+    const moving = [openKey, closeKey, posKey].some((k) => this.commands[k]?.phase === 'pending');
+    const move = (key: string, actionId: string, args: Record<string, unknown>, target: unknown, label: string) =>
+      void runCommand(key, 'cover', entityId, actionId, args, target, (s) => this.setCmd(key, s), { confirmed: true, label });
+    const doOpen = () => this.tapArmed(openKey, () => move(openKey, 'cover.open_cover', {}, 'open', 'פתיחה'));
+    const doClose = () => this.tapArmed(closeKey, () => move(closeKey, 'cover.close_cover', {}, 'closed', 'סגירה'));
+    const doStop = () => void runCommand(stopKey, 'cover', entityId, 'cover.stop_cover', {}, 'stopped', (s) => this.setCmd(stopKey, s), { label: 'עצירה' });
+    const draft = this.drafts[posKey];
+    const armedPos = this.isArmed(posKey) && draft !== undefined;
+    const posValue = draft ?? this.live<number>(entityId, 'position') ?? r.position ?? 0;
+    const onPosInput = (ev: Event) => {
+      this.drafts = { ...this.drafts, [posKey]: Number((ev.target as HTMLInputElement).value) }; // local only: nothing is sent while dragging
+    };
+    const onPosRelease = (ev: Event) => {
+      this.drafts = { ...this.drafts, [posKey]: Number((ev.target as HTMLInputElement).value) };
+      this.arm(posKey);
+    };
+    const confirmPos = () => {
+      const pct = this.drafts[posKey];
+      if (pct === undefined || !this.isArmed(posKey)) return;
+      this.disarm(posKey);
+      move(posKey, 'cover.set_cover_position', { position: pct }, pct, `מיקום ${pct}%`);
     };
     return html`<div class="ctl-row" data-control="cover">
-      <sw-button size="sm" ?disabled=${busy} data-control="open" @click=${doOpen}>${this.isArmed(openKey) ? 'לאשר פתיחה?' : 'פתיחה'}</sw-button>
-      <sw-button size="sm" ?disabled=${busy} data-control="stop" @click=${doStop}>עצירה</sw-button>
-      <sw-button size="sm" ?disabled=${busy} data-control="close" @click=${doClose}>${this.isArmed(closeKey) ? 'לאשר סגירה?' : 'סגירה'}</sw-button>
-      ${r.position !== null && r.position !== undefined ? html`<input type="range" class="ctl-range" data-control="position" min="0" max="100" .value=${String(r.position)} @input=${onPos} aria-label="מיקום התריס" />` : nothing}
+      <sw-button size="sm" ?disabled=${moving} data-control="open" @click=${doOpen}>${this.isArmed(openKey) ? 'לאשר פתיחה?' : 'פתיחה'}</sw-button>
+      <sw-button size="sm" data-control="stop" @click=${doStop}>עצירה</sw-button>
+      <sw-button size="sm" ?disabled=${moving} data-control="close" @click=${doClose}>${this.isArmed(closeKey) ? 'לאשר סגירה?' : 'סגירה'}</sw-button>
+      ${r.position !== null && r.position !== undefined
+        ? html`<input type="range" class="ctl-range" data-control="position" min="0" max="100" ?disabled=${moving} .value=${String(posValue)} @input=${onPosInput} @change=${onPosRelease} aria-label="מיקום התריס" />
+            ${armedPos ? html`<sw-button size="sm" variant="primary" data-control="position-confirm" @click=${confirmPos}>${`לאשר מיקום ${draft}%?`}</sw-button>` : nothing}`
+        : nothing}
     </div>`;
   }
 
@@ -483,39 +555,61 @@ export class DevicesArea extends LitElement {
     const entityId = r.entity_id;
     if (r.domain === 'climate') {
       const tempKey = `${entityId}:temp`;
-      const pending = this.commands[tempKey]?.phase === 'pending';
-      const target = r.target_temperature ?? 22;
-      const setTemp = (next: number) => this.debouncedRange(tempKey, 'climate', entityId, 'climate.set_temperature', { temperature: next }, next, (s) => this.setCmd(tempKey, s));
+      const min = Math.max(5, r.min_temp ?? 5);
+      const max = Math.min(35, r.max_temp ?? 35);
+      const step = r.target_temp_step && r.target_temp_step > 0 ? r.target_temp_step : 0.5;
+      const reported = r.target_temperature;
+      const target = this.live<number>(entityId, 'temp') ?? reported;
+      const clamp = (n: number) => Math.min(max, Math.max(min, Math.round(n * 10) / 10));
+      const setTemp = (next: number) => this.debouncedRange(tempKey, 'climate', entityId, 'climate.set_temperature', { temperature: next }, next, (s) => this.setCmd(tempKey, s), { label: `טמפרטורת יעד ${next}°` });
       const modeKey = `${entityId}:mode`;
+      const modePending = this.commands[modeKey]?.phase === 'pending';
+      const modes = (r.hvac_modes ?? []).filter((m) => HVAC_SELECTABLE.includes(m));
+      const mode = this.live<string>(entityId, 'mode') ?? r.hvac_mode ?? '';
       const changeMode = (ev: Event) => {
         const v = (ev.target as HTMLSelectElement).value;
-        if (v === 'off') void runCommand(modeKey, 'climate', entityId, 'climate.turn_off', {}, 'off', (s) => this.setCmd(modeKey, s));
-        else void runCommand(modeKey, 'climate', entityId, 'climate.set_hvac_mode', { hvac_mode: v }, v, (s) => this.setCmd(modeKey, s));
+        const label = `מצב ${HVAC_HE[v] ?? v}`;
+        if (v === 'off') void runCommand(modeKey, 'climate', entityId, 'climate.turn_off', {}, 'off', (s) => this.setCmd(modeKey, s), { label });
+        else void runCommand(modeKey, 'climate', entityId, 'climate.set_hvac_mode', { hvac_mode: v }, v, (s) => this.setCmd(modeKey, s), { label });
       };
       const fanKey = `${entityId}:fan`;
+      const fanPending = this.commands[fanKey]?.phase === 'pending';
+      const fanModes = r.fan_modes ?? [];
+      const fan = this.live<string>(entityId, 'fan') ?? r.fan_mode ?? '';
       const changeFan = (ev: Event) => {
-        const v = (ev.target as HTMLInputElement).value.trim();
-        if (v) void runCommand(fanKey, 'climate', entityId, 'climate.set_fan_mode', { fan_mode: v }, v, (s) => this.setCmd(fanKey, s));
+        const v = (ev.target as HTMLSelectElement).value;
+        if (v) void runCommand(fanKey, 'climate', entityId, 'climate.set_fan_mode', { fan_mode: v }, v, (s) => this.setCmd(fanKey, s), { label: `מאוורר ${v}` });
       };
       return html`<div class="ctl-row" data-control="climate">
-        <sw-button size="sm" iconOnly icon="minus" label="הורדת טמפרטורה" data-control="temp-down" ?disabled=${pending} @click=${() => setTemp(Math.round((target - 0.5) * 10) / 10)}></sw-button>
-        <span class="ctl-val" data-control="temp-value">${deg(target)}</span>
-        <sw-button size="sm" iconOnly icon="plus" label="העלאת טמפרטורה" data-control="temp-up" ?disabled=${pending} @click=${() => setTemp(Math.round((target + 0.5) * 10) / 10)}></sw-button>
-        <select class="ctl-select" data-control="mode" aria-label="מצב פעולה" .value=${r.hvac_mode ?? 'off'} @change=${changeMode}>
-          ${HVAC_SELECTABLE.map((m) => html`<option value=${m}>${HVAC_HE[m] ?? m}</option>`)}
-        </select>
-        <input class="ctl-select" data-control="fan-mode" type="text" placeholder="מצב מאוורר" .value=${r.fan_mode ?? ''} maxlength="40" @change=${changeFan} aria-label="מצב מאוורר" />
+        ${target !== null && target !== undefined
+          ? html`<sw-button size="sm" iconOnly icon="minus" label="הורדת טמפרטורה" data-control="temp-down" ?disabled=${target <= min} @click=${() => setTemp(clamp(target - step))}></sw-button>
+              <span class="ctl-val" data-control="temp-value">${deg(target)}</span>
+              <sw-button size="sm" iconOnly icon="plus" label="העלאת טמפרטורה" data-control="temp-up" ?disabled=${target >= max} @click=${() => setTemp(clamp(target + step))}></sw-button>`
+          : nothing}
+        ${modes.length
+          ? html`<select class="ctl-select" data-control="mode" aria-label="מצב פעולה" ?disabled=${modePending} @change=${changeMode}>
+              ${modes.includes(mode) ? nothing : html`<option value="" selected disabled>${HVAC_HE[mode] ?? (mode || 'מצב')}</option>`}
+              ${modes.map((m) => html`<option value=${m} ?selected=${m === mode}>${HVAC_HE[m] ?? m}</option>`)}
+            </select>`
+          : nothing}
+        ${fanModes.length
+          ? html`<select class="ctl-select" data-control="fan-mode" aria-label="מצב מאוורר" ?disabled=${fanPending} @change=${changeFan}>
+              ${fanModes.includes(fan) ? nothing : html`<option value="" selected disabled>${fan || 'מאוורר'}</option>`}
+              ${fanModes.map((m) => html`<option value=${m} ?selected=${m === fan}>${m}</option>`)}
+            </select>`
+          : nothing}
       </div>`;
     }
     if (r.domain === 'fan') {
       const pctKey = `${entityId}:percentage`;
+      const value = this.live<number>(entityId, 'percentage') ?? r.percentage ?? 0;
       const setPct = (ev: Event) => {
         const v = Number((ev.target as HTMLInputElement).value);
-        this.debouncedRange(pctKey, 'fan', entityId, 'fan.set_percentage', { percentage: v }, v, (s) => this.setCmd(pctKey, s));
+        this.debouncedRange(pctKey, 'fan', entityId, 'fan.set_percentage', { percentage: v }, v, (s) => this.setCmd(pctKey, s), { label: `עוצמה ${v}%` });
       };
       return html`<div class="ctl-row" data-control="fan">
         ${this.renderPowerToggle(r)}
-        <input type="range" class="ctl-range" data-control="percentage" min="0" max="100" .value=${String(r.percentage ?? 0)} @input=${setPct} aria-label="עוצמת מאוורר" />
+        <input type="range" class="ctl-range" data-control="percentage" min="0" max="100" .value=${String(value)} @input=${setPct} aria-label="עוצמת מאוורר" />
       </div>`;
     }
     return nothing; // humidifier: read-only this slice
@@ -525,14 +619,17 @@ export class DevicesArea extends LitElement {
     const entityId = r.entity_id;
     const muteKey = `${entityId}:mute`;
     const ppKey = `${entityId}:playpause`;
-    const muted = Boolean(r.muted);
-    const toggleMute = () => void runCommand(muteKey, 'media_player', entityId, 'media_player.volume_mute', { is_volume_muted: !muted }, !muted, (s) => this.setCmd(muteKey, s));
-    const playing = r.state === 'playing';
-    const playPause = () => void runCommand(ppKey, 'media_player', entityId, 'media_player.media_play_pause', {}, playing ? 'paused' : 'playing', (s) => this.setCmd(ppKey, s));
+    const muted = this.live<boolean>(entityId, 'mute') ?? Boolean(r.muted);
+    const toggleMute = () =>
+      void runCommand(muteKey, 'media_player', entityId, 'media_player.volume_mute', { is_volume_muted: !muted }, !muted, (s) => this.setCmd(muteKey, s), { label: muted ? 'ביטול השתקה' : 'השתקה' });
+    const playing = (this.live<string>(entityId, 'playpause') ?? r.state) === 'playing';
+    // media_play / media_pause (not play_pause): each has a state Home Assistant reports, so it can be confirmed
+    const playPause = () =>
+      void runCommand(ppKey, 'media_player', entityId, playing ? 'media_player.media_pause' : 'media_player.media_play', {}, playing ? 'paused' : 'playing', (s) => this.setCmd(ppKey, s), { label: playing ? 'השהיה' : 'ניגון' });
     return html`<div class="ctl-row" data-control="media">
       ${this.renderPowerToggle(r)}
-      <sw-button size="sm" icon=${playing ? 'pause' : 'play'} iconOnly label="נגן / השהה" data-control="playpause" @click=${playPause}></sw-button>
-      <sw-button size="sm" icon="volume" iconOnly label=${muted ? 'בטל השתקה' : 'השתקה'} data-control="mute" @click=${toggleMute}></sw-button>
+      <sw-button size="sm" icon=${playing ? 'pause' : 'play'} iconOnly label=${playing ? 'השהה' : 'נגן'} data-control="playpause" ?disabled=${this.commands[ppKey]?.phase === 'pending'} @click=${playPause}></sw-button>
+      <sw-button size="sm" icon="volume" iconOnly label=${muted ? 'בטל השתקה' : 'השתקה'} data-control="mute" ?disabled=${this.commands[muteKey]?.phase === 'pending'} @click=${toggleMute}></sw-button>
     </div>`;
   }
 
@@ -580,7 +677,7 @@ export class DevicesArea extends LitElement {
       </div>
       <div class="note">
         ${anyControllable
-          ? 'הקשה על מתג, כפתור או החלקה לשליטה בהתקן; המצב מוצג באופן זמני עד לאישור בפועל מ־Home Assistant, ומתאפס אם האישור לא מגיע בזמן.'
+          ? 'הקשה על מתג, כפתור או החלקה לשליטה בהתקן. המצב המוצג בשורה הוא תמיד מה ש־Home Assistant דיווח; פקודה שנשלחה מסומנת "ממתין לאישור" עד שהדיווח מגיע, ומתבטלת אם הוא לא מגיע בזמן. תנועת תריס (פתיחה, סגירה או מיקום) דורשת הקשת אישור נוספת.'
           : 'תצוגה לקריאה בלבד: מצב ההתקנים כפי ש־Home Assistant מדווח אותו.'}
       </div>
     </sw-page>`;
@@ -600,7 +697,7 @@ export class DevicesArea extends LitElement {
 
   private renderTile(raw: DeviceRow, card: CardId) {
     const controllable = raw.can_control && raw.available && raw.state !== 'unavailable' && (card === 'lighting' || card === 'switches');
-    const r = controllable ? this.overlay(raw) : raw; // only overlay what the caller may actually have commanded
+    const r = raw; // the row's text is always what HA last reported; only the controls show a pending target
     const unavailable = !r.available || r.state === 'unavailable';
     const icon: IconName = card === 'lighting' ? 'light' : card === 'switches' ? 'bolt' : 'sensor';
     const value =
@@ -612,21 +709,19 @@ export class DevicesArea extends LitElement {
           : rowLabel(r)
         : rowLabel(r);
     const on = r.active && !unavailable;
-    const note = controllable ? this.rowNote(r.entity_id) : null;
     return html`<div class=${classMap({ tile: true, on, off: !on && !unavailable, unavailable, pending: controllable && this.rowPending(r.entity_id) })} data-entity=${r.entity_id} data-active=${String(on)} ?data-can-control=${controllable} title=${r.entity_id}>
       <div class="t"><sw-icon .name=${icon} size=${15}></sw-icon><span>${bidi(r.name)}</span>${controllable ? this.renderPowerToggle(r) : nothing}</div>
       <div class="s">${unavailable ? 'לא זמין' : value}</div>
-      ${controllable && card === 'lighting' && on ? this.renderBrightnessSlider(r) : nothing}
-      ${note ? html`<div class="rollback-note" data-rollback>${note}</div>` : nothing}
+      ${controllable && card === 'lighting' && (on || this.live<boolean>(r.entity_id, 'power') === true) ? this.renderBrightnessSlider(r) : nothing}
+      ${controllable ? this.renderCmdStatus(r.entity_id) : nothing}
     </div>`;
   }
 
   private renderRow(raw: DeviceRow, card: CardId) {
     const controllable = raw.can_control && raw.available && raw.state !== 'unavailable' && (card === 'climate' || card === 'covers' || card === 'media');
-    const r = controllable ? this.overlay(raw) : raw;
+    const r = raw; // the row's text is always what HA last reported; only the controls show a pending target
     const unavailable = !r.available || r.state === 'unavailable';
     const on = r.active && !unavailable;
-    const note = controllable ? this.rowNote(r.entity_id) : null;
     const pendingCls = controllable && this.rowPending(r.entity_id);
     if (card === 'climate') {
       const isClimate = r.domain === 'climate';
@@ -646,7 +741,7 @@ export class DevicesArea extends LitElement {
             ? html`<div class="d">${r.current_humidity !== null && r.current_humidity !== undefined ? html`<span>לחות ${ltrNum(r.current_humidity)}%</span>` : nothing}${r.target_humidity !== null && r.target_humidity !== undefined ? html`<span>יעד ${ltrNum(r.target_humidity)}%</span>` : nothing}</div>`
             : nothing}
         ${controllable ? this.renderClimateControls(r) : nothing}
-        ${note ? html`<div class="rollback-note" data-rollback>${note}</div>` : nothing}
+        ${controllable ? this.renderCmdStatus(r.entity_id) : nothing}
       </div>`;
     }
     if (card === 'covers') {
@@ -656,7 +751,7 @@ export class DevicesArea extends LitElement {
         ${r.position !== null && r.position !== undefined && !unavailable ? html`<div class="bar" role="img" aria-label=${`פתוח ${r.position}%`}><i style=${`inline-size:${r.position}%`}></i></div>` : nothing}
         ${r.tilt !== null && r.tilt !== undefined && !unavailable ? html`<div class="d"><span>הטיה ${ltrNum(r.tilt)}%</span></div>` : nothing}
         ${controllable ? this.renderCoverControls(r) : nothing}
-        ${note ? html`<div class="rollback-note" data-rollback>${note}</div>` : nothing}
+        ${controllable ? this.renderCmdStatus(r.entity_id) : nothing}
       </div>`;
     }
     if (card === 'security') {
@@ -685,7 +780,7 @@ export class DevicesArea extends LitElement {
           </div>`
         : nothing}
       ${controllable ? this.renderMediaControls(r) : nothing}
-      ${note ? html`<div class="rollback-note" data-rollback>${note}</div>` : nothing}
+      ${controllable ? this.renderCmdStatus(r.entity_id) : nothing}
     </div>`;
   }
 }

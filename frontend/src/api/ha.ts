@@ -95,6 +95,9 @@ export interface HaActionRecord {
   observed_state?: string | null;
   principal_username?: string | null;
   note?: string | null;
+  /** How the add-on confirms it (CR-007 slice 2 review): the entity's state, the attribute carrying the effect, or
+   * "none" - nothing observable, so a `confirmed` status only means Home Assistant accepted the call ("sent"). */
+  confirmation?: 'state' | 'attribute' | 'none';
 }
 
 export interface HaSyncState {
@@ -188,7 +191,7 @@ export const ACTION_ERROR_LABEL: Record<string, string> = {
   bridge_not_paired: 'גשר SMPLWISE אינו מצומד',
   bridge_error: 'הגשר החזיר שגיאה',
   ha_unavailable: 'Home Assistant אינו זמין',
-  service_not_allowed: 'הגשר סירב: השירות אינו ברשימת הפעולות המאושרות (גשר ישן? מאז 0.2.1 נוספו climate / media / number / select / alarm — הפעל את Home Assistant מחדש כדי לטעון את הגרסה החדשה)',
+  service_not_allowed: 'הגשר סירב: השירות אינו ברשימת הפעולות המאושרות (גשר ישן? גרסה 0.2.4 הוסיפה את פקדי חשמל והתקנים: מיקום תריס, עוצמת מאוורר, מצב מאוורר במזגן, כיבוי מזגן, הדלקה / כיבוי / השתקה של מסך — הפעל את Home Assistant מחדש כדי לטעון את הגרסה החדשה)',
   unknown_user: 'Home Assistant אינו מכיר את המשתמש',
 };
 
