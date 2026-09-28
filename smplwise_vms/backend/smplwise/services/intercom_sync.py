@@ -66,6 +66,7 @@ RETRY_ABSENT_S = 300.0  # WisKey missing or refusing us: re-probe every five min
 ABSENT_AFTER_READY = 3  # after a ready session, `unknown_command` with HA RUNNING must repeat this often to mean "removed"
 LOADING = "wiskey_loading"  # IntercomError code: HA does not know WisKey's commands yet, but may still be loading it
 STATION_WATCH_KEYS = ("online", "ringing", "call_status")
+SERVED_STATES = ("ready", "ha_unavailable", "connecting", "error")  # the states in which the last-known copy is served
 # a camera entity id as Home Assistant spells it (lower-case, digits, underscores). It comes from WisKey's `overview`,
 # which is untrusted input, and is meant to name a media source later, so anything else is not kept.
 CAMERA_ENTITY = re.compile(r"camera\.[a-z0-9_]{1,200}")
@@ -486,6 +487,9 @@ class IntercomSync:
         self.stop = threading.Event()
         self.settings: Settings | None = None
         self._cache: dict[str, Any] | None = None
+        # station id -> the station's host from the same `overview` reply. NEVER served: it only builds the station's
+        # RTSP source for go2rtc (camera stills), server-side. Kept and dropped together with the copy.
+        self._hosts: dict[str, str] = {}
         self._cache_lock = threading.Lock()
         self._logged_error: str | None = None
         self._was_ready = False  # a session reached `ready` since the process (or reset()) started
@@ -576,15 +580,30 @@ class IntercomSync:
         STATE.reset()
 
     # -- what the router serves
-    def snapshot(self, settings: Settings) -> dict[str, Any]:
+    def served(self, settings: Settings) -> tuple[str, dict[str, Any] | None]:
+        """The feed state and the overview copy exactly as GET /intercom/overview would serve them (None whenever
+        there is nothing honest to show). Unlike `snapshot`, this does not count as someone looking: a camera still
+        refreshing on its own must not keep WisKey's overview polling alive."""
         configured = ha_client.configured(settings)
-        self._viewed()
         state = STATE.state if configured else "ha_not_configured"
         if configured and state == "idle":
             state = "connecting"
         with self._cache_lock:
             cached = self._cache
-        overview = cached if state in ("ready", "ha_unavailable", "connecting", "error") else None
+        return state, cached if state in SERVED_STATES else None
+
+    def station_host(self, settings: Settings, station_id: str) -> str | None:
+        """The station's host as WisKey reported it with the served copy (server-side only), or None: no served copy,
+        or WisKey sent none (it strips `host` for a user without its `stations` area)."""
+        if self.served(settings)[1] is None:
+            return None
+        with self._cache_lock:
+            return self._hosts.get(station_id)
+
+    def snapshot(self, settings: Settings) -> dict[str, Any]:
+        configured = ha_client.configured(settings)
+        self._viewed()
+        state, overview = self.served(settings)
         return {
             "state": state,
             "configured": configured,
@@ -855,9 +874,15 @@ class IntercomSync:
 
     def _store(self, raw: dict[str, Any]) -> bool:
         projected = project_overview(raw)
+        hosts = {
+            str(s.get("id") or ""): s["host"]
+            for s in raw.get("stations") or []
+            if isinstance(s, dict) and isinstance(s.get("host"), str) and s["host"]
+        }
         with self._cache_lock:
             changed = projected != self._cache
             self._cache = projected
+            self._hosts = hosts
         STATE.fetched_at = now_iso()
         self._fetched_mono = time.monotonic()
         STATE.refreshes += 1
@@ -870,6 +895,7 @@ class IntercomSync:
     def _drop(self) -> None:
         with self._cache_lock:
             self._cache = None
+            self._hosts = {}
 
     def _set_state(self, state: str, error: str | None) -> None:
         changed = state != STATE.state

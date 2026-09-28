@@ -40,6 +40,48 @@ def hikvision_rtsp_url(settings: Settings, channel: int, profile: str) -> str:
     return f"rtsp://{quote(settings.nvr_user, safe='')}:{quote(settings.nvr_password, safe='')}@{settings.nvr_host}:{settings.nvr_rtsp_port}/Streaming/Channels/{track}"
 
 
+# WisKey's own station source (WISKEY_SOURCE_EXTRACTION.md 0.4 / ConnectionSettings): rtsp_source() =
+# rtsp://<user>:<pass>@<host>:<rtsp_port>/Streaming/Channels/101. WisKey's overview exposes the host but not the RTSP
+# port, so WisKey's own default port is used.
+WISKEY_RTSP_PORT = 554
+WISKEY_RTSP_PATH = "/Streaming/Channels/101"
+_HOSTNAME_RE = re.compile(r"^(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$")
+FRAME_MAX = 4 * 1024 * 1024  # WisKey's own cap for a station picture
+
+
+def wiskey_stream_name(station_id: str) -> str:
+    """smplwise_wiskey_<station id>: in our namespace, so only ever one of OUR streams; a station id that is not a
+    plain name is replaced by a digest of it."""
+    import hashlib
+
+    safe = station_id if re.fullmatch(r"[A-Za-z0-9_.-]{1,64}", station_id) else "h" + hashlib.sha256(station_id.encode()).hexdigest()[:16]
+    name = f"{STREAM_PREFIX}wiskey_{safe}"
+    if not NAME_RE.match(name):
+        raise ValueError(name)
+    return name
+
+
+def rtsp_host(host: str) -> str | None:
+    """The host as it may stand in an RTSP URL (an IPv6 address bracketed), or None when it is not a plain IP address
+    or host name. The value comes from WisKey's `overview`, which is untrusted input."""
+    import ipaddress
+
+    bare = host[1:-1] if host.startswith("[") and host.endswith("]") else host
+    try:
+        ip = ipaddress.ip_address(bare)
+    except ValueError:
+        return host if _HOSTNAME_RE.match(host) else None
+    return f"[{ip}]" if ip.version == 6 else str(ip)
+
+
+def wiskey_rtsp_url(host: str, username: str, password: str) -> str:
+    """WisKey's station source with the credentials SMPLWISE holds. Server-side only, like hikvision_rtsp_url."""
+    safe_host = rtsp_host(host)
+    if safe_host is None:
+        raise ApiError(503, "intercom_camera_host_unknown", "כתובת העמדה שהתקבלה מ־WisKey אינה תקינה.")
+    return f"rtsp://{quote(username, safe='')}:{quote(password, safe='')}@{safe_host}:{WISKEY_RTSP_PORT}{WISKEY_RTSP_PATH}"
+
+
 def redact_url(url: str) -> str:
     """rtsp://user:pass@host → rtsp://***@host (for logs and audit details)."""
     return re.sub(r"://[^/@\s]+:[^/@\s]+@", "://***@", url)
@@ -123,6 +165,34 @@ class Go2rtc:
                 c.delete("/api/streams", params={"src": name})
             except httpx.HTTPError as exc:
                 raise self._wrap(exc, "delete") from exc
+
+    def frame_jpeg(self, name: str, src: str) -> bytes:
+        """One JPEG frame through go2rtc: GET /api/frame.jpeg?src=<source>&name=<name>. go2rtc's handler resolves it with
+        streams.GetOrPatch: `src` is not a stream name, so Patch(name, src) keeps (or re-points) an IN-MEMORY stream
+        called `name` - nothing is written to go2rtc's config, and `name` keeps the stream in our namespace instead
+        of go2rtc naming it after the raw URL (which would carry the credentials). An H.264/H.265 keyframe is turned
+        into a JPEG by go2rtc's ffmpeg (internal/mjpeg: 404 stream not found, 500 transcode failed)."""
+        if not name.startswith(STREAM_PREFIX):
+            raise ValueError("refusing to name a stream outside the smplwise_ namespace")
+        body = bytearray()
+        too_large = False
+        try:
+            with httpx.Client(base_url=self.base, auth=self.auth, timeout=20.0) as c:
+                with c.stream("GET", "/api/frame.jpeg", params={"src": src, "name": name}) as r:
+                    status = r.status_code
+                    if status == 200:
+                        for chunk in r.iter_bytes():
+                            body += chunk
+                            if len(body) > FRAME_MAX:
+                                too_large = True
+                                break
+        except httpx.HTTPError as exc:
+            raise self._wrap(exc, "frame") from exc
+        if status in (401, 403):
+            raise ApiError(503, "media_error", "go2rtc דחה את פרטי הגישה של ה־Add-on.", details={"op": "frame", "status": status})
+        if status != 200 or too_large or not body.startswith(b"\xff\xd8\xff"):
+            raise ApiError(503, "snapshot_unavailable", "go2rtc לא סיפק תמונה מהעמדה.", retryable=True, details={"op": "frame", "status": status, **({"reason": "too_large"} if too_large else {})})
+        return bytes(body)
 
     def ws_url(self, name: str) -> str:
         parts = urlsplit(self.base)

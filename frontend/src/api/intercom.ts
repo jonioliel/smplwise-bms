@@ -41,7 +41,8 @@ export interface IntercomStation {
   /** The relays a release may name (WisKey `integrated_locks`, without the device's own api_id). */
   locks: IntercomLock[];
   has_camera: boolean;
-  /** The station camera's HA entity id; null when WisKey names none (or a malformed one). */
+  /** The station camera's HA entity id; null when WisKey names none (or a malformed one). A station with one has a
+   * still at `intercomSnapshotUrl(id)` (through go2rtc), when `IntercomFeed.camera_access[id]` is `ready`. */
   camera_entity: string | null;
   last_error: string | null;
   last_seen: string | null;
@@ -59,6 +60,8 @@ export interface IntercomOverview {
   stations: IntercomStation[];
 }
 
+export type IntercomCameraAccess = 'ready' | 'no_media' | 'no_host' | 'no_credentials';
+
 export type IntercomFeedState = 'ha_not_configured' | 'connecting' | 'ha_unavailable' | 'not_installed' | 'forbidden' | 'error' | 'ready';
 
 export interface IntercomFeed {
@@ -72,6 +75,8 @@ export interface IntercomFeed {
   overview: IntercomOverview | null;
   /** The server's clock (epoch ms) when it answered. */
   server_time_ms?: number;
+  /** Per station with a camera: whether its still can be had, or which setting is missing. */
+  camera_access?: Record<string, IntercomCameraAccess>;
 }
 
 /** Server clock minus this device's clock (ms), learned from each overview reply. Physical commands' `expires_at` is
@@ -137,6 +142,12 @@ export interface IntercomTtsStatus {
 }
 
 const station = (id: string) => `intercom/stations/${encodeURIComponent(id)}`;
+
+/** A still of the station's camera, grabbed by the backend through go2rtc (`access.read`), as `snapshotUrl()` in
+ * media.ts does for the NVR cameras: `bust` forces the browser past its cache (the server keeps its own max-age). */
+export function intercomSnapshotUrl(stationId: string, bust?: number): string {
+  return apiUrl(`${station(stationId)}/camera-snapshot.jpg${bust ? `?t=${bust}` : ''}`);
+}
 
 /** How long a physical command stays valid: a request delayed longer than this (a stalled phone connection, say) is
  * refused by the backend instead of actuating a door late (MASTER_SPEC §15, the HA bridge's own envelope). */

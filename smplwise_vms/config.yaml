@@ -36,6 +36,8 @@ options:
   go2rtc_url: ""
   go2rtc_api_username: ""
   go2rtc_api_password: ""
+  wiskey_username: ""
+  wiskey_password: ""
   log_level: info
 schema:
   bootstrap_admin_username: str
@@ -47,4 +49,6 @@ schema:
   go2rtc_url: url?
   go2rtc_api_username: str?
   go2rtc_api_password: password?
+  wiskey_username: str?
+  wiskey_password: password?
   log_level: list(debug|info|warning|error)

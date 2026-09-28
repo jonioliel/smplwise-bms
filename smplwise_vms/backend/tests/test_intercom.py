@@ -2180,3 +2180,241 @@ def test_camera_entity_is_kept_only_as_a_well_formed_camera_id():
     assert [s["camera_entity"] for s in ov["stations"]] == ["camera.main_gate", None, None]
     assert [s["has_camera"] for s in ov["stations"]] == [True, True, False], "has_camera itself is unchanged"
     assert "lock.main_gate" not in json.dumps(ov) and "binary_sensor" not in json.dumps(ov)
+
+
+# ---------------------------------------------------------------- station camera stills through go2rtc (owner rule 2026-09-28)
+
+JPEG = b"\xff\xd8\xff\xe0" + b"\x00" * 60 + b"\xff\xd9"
+SNAP = "/api/v1/intercom/stations/{}/camera-snapshot.jpg"
+CREDS = "/api/v1/intercom/stations/{}/credentials"
+GO2RTC = "http://go2rtc.test:1984"
+# a camera on every kind of station the endpoint must tell apart
+CAM_OVERVIEW = {
+    **OVERVIEW,
+    "stations": [
+        STATION,  # entry-a: online, camera.main_gate, host 192.0.2.10
+        {**copy.deepcopy(OFFLINE), "entities": {"camera": "camera.side_door", "online": "binary_sensor.side_door_online"}},  # entry-b: offline
+        {**copy.deepcopy(STATION), "id": "entry-c", "name": "No host", "host": None},
+        {**copy.deepcopy(STATION), "id": "entry-d", "name": "Bad host", "host": "http://198.51.100.1/x"},
+        {**copy.deepcopy(STATION), "id": "entry-e", "name": "No camera", "entities": {"online": "binary_sensor.e_online"}},
+    ],
+}
+
+
+@pytest.fixture()
+def fake_go2rtc(monkeypatch):
+    """go2rtc's HTTP API as services/go2rtc.py uses it: every httpx.Client there gets a MockTransport, so the real
+    request (path, query, auth) is what the test sees. `answer` is swapped per case. Home Assistant is only the scripted
+    WebSocket (FakeHa): any REST request to it would show up here and fail the test."""
+    import httpx
+
+    from smplwise.services import go2rtc as g2
+
+    seen: list[httpx.Request] = []
+    state: dict[str, Any] = {"answer": lambda req: httpx.Response(200, content=JPEG, headers={"Content-Type": "image/jpeg"})}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen.append(req)
+        return state["answer"](req)
+
+    real = httpx.Client
+    monkeypatch.setattr(g2.httpx, "Client", lambda **kw: real(transport=httpx.MockTransport(handler), **kw))
+    return seen, state
+
+
+def camera_feed(feed, overview: dict[str, Any] | None = None, **settings_over: Any) -> tuple[TestClient, Any]:
+    """A ready feed on CAM_OVERVIEW, and an app whose settings name go2rtc and the shared WisKey account."""
+    app, s, install = feed
+    install(lambda msg, fake: normal(msg, fake, overview or CAM_OVERVIEW))
+    intercom_sync.SYNC.start(s)
+    wait_for(lambda: intercom_sync.STATE.state == "ready")
+    s2 = replace(s, **{"go2rtc_url": GO2RTC, "wiskey_user": "door", "wiskey_password": "p@ss word", **settings_over})
+    return TestClient(create_app(s2)), s2
+
+
+def test_station_host_is_kept_server_side_only(feed):
+    c, s = camera_feed(feed)
+    assert intercom_sync.SYNC.station_host(s, "entry-a") == "192.0.2.10"
+    assert intercom_sync.SYNC.station_host(s, "entry-c") is None
+    body = c.get("/api/v1/intercom/overview").json()
+    assert "192.0.2.10" not in json.dumps(body) and "198.51.100.1" not in json.dumps(body), "the host is never served"
+    assert body["camera_access"] == {"entry-a": "ready", "entry-b": "ready", "entry-c": "no_host", "entry-d": "ready"}
+    intercom_sync.SYNC._drop()
+    assert intercom_sync.SYNC.station_host(s, "entry-a") is None, "dropped with the copy"
+
+
+def test_camera_snapshot_comes_from_go2rtc_with_the_shared_account(feed, fake_go2rtc):
+    seen, _state = fake_go2rtc
+    c, s = camera_feed(feed, go2rtc_user="g", go2rtc_password="gp")
+    intercom_sync.SYNC._last_view = None
+    r = c.get(SNAP.format("entry-a"))
+    assert r.status_code == 200, r.text
+    assert r.headers["content-type"] == "image/jpeg" and r.content == JPEG
+    assert r.headers["x-snapshot-age"] == "0" and r.headers["cache-control"] == "private, max-age=60"
+    [req] = seen
+    assert req.method == "GET" and req.url.host == "go2rtc.test" and req.url.path == "/api/frame.jpeg"
+    assert dict(req.url.params) == {"src": "rtsp://door:p%40ss%20word@192.0.2.10:554/Streaming/Channels/101", "name": "smplwise_wiskey_entry-a"}
+    assert req.headers["authorization"].startswith("Basic "), "go2rtc's own API credentials, as for the NVR streams"
+    assert intercom_sync.SYNC._last_view is None, "a camera still is not someone looking: it keeps no overview polling alive"
+    assert c.get(SNAP.format("entry-a")).content == JPEG and len(seen) == 1, "served from the cache within max_age"
+    # stations the still cannot come from: honest errors, go2rtc never asked
+    for sid, status, code in (("entry-e", 404, "intercom_no_camera"), ("nope", 404, "intercom_station_not_found"),
+                              ("entry-c", 503, "intercom_camera_host_unknown"), ("entry-d", 503, "intercom_camera_host_unknown"),
+                              ("entry-b", 503, "intercom_station_offline")):
+        r = c.get(SNAP.format(sid))
+        assert (r.status_code, r.json()["code"]) == (status, code), (sid, r.text)
+    assert len(seen) == 1
+
+
+def test_camera_snapshot_configuration_gaps_are_named(feed, fake_go2rtc):
+    seen, _state = fake_go2rtc
+    c, s = camera_feed(feed, wiskey_password=None)
+    r = c.get(SNAP.format("entry-a"))
+    assert r.status_code == 503 and r.json()["code"] == "source_not_configured"
+    assert c.get("/api/v1/intercom/overview").json()["camera_access"]["entry-a"] == "no_credentials"
+    c2 = TestClient(create_app(replace(s, go2rtc_url=None, wiskey_password="x")))
+    r = c2.get(SNAP.format("entry-a"))
+    assert r.status_code == 503 and r.json()["code"] == "media_not_configured"
+    assert c2.get("/api/v1/intercom/overview").json()["camera_access"]["entry-a"] == "no_media"
+    assert seen == []
+
+
+def test_camera_snapshot_go2rtc_failures_are_honest(feed, fake_go2rtc, monkeypatch):
+    """Like the NVR snapshot (routers/cameras.py): with a cached copy a failed refresh serves it flagged stale; without
+    one it is a 503 with the reason - never a 200 with an empty or non-JPEG body."""
+    import os
+
+    import httpx
+
+    from smplwise.services import go2rtc as g2
+
+    seen, state = fake_go2rtc
+    c, s = camera_feed(feed)
+    assert c.get(SNAP.format("entry-a")).status_code == 200
+    [path] = list((s.data_dir / "snapshots" / "intercom").glob("*.jpg"))
+    os.utime(path, (time.time() - 100, time.time() - 100))
+    state["answer"] = lambda req: httpx.Response(500, text="exec: ffmpeg failed")
+    r = c.get(SNAP.format("entry-a"))
+    assert r.status_code == 200 and r.content == JPEG
+    assert r.headers["x-snapshot-stale"] == "true" and r.headers["x-snapshot-error"] == "snapshot_unavailable"
+    assert r.headers["cache-control"] == "private, max-age=10"
+
+    def refused(req: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("down", request=req)
+
+    cases = [
+        (lambda req: httpx.Response(500), "snapshot_unavailable"),  # go2rtc: transcode failed
+        (lambda req: httpx.Response(404, text="stream not found"), "snapshot_unavailable"),  # go2rtc: source failed
+        (lambda req: httpx.Response(200, content=b"<html></html>"), "snapshot_unavailable"),
+        (lambda req: httpx.Response(200, content=b""), "snapshot_unavailable"),
+        (lambda req: httpx.Response(401), "media_error"),
+        (refused, "media_unavailable"),
+    ]
+    for answer, code in cases:
+        path.unlink(missing_ok=True)
+        state["answer"] = answer
+        r = c.get(SNAP.format("entry-a"))
+        assert r.status_code == 503 and r.json()["code"] == code, (code, r.status_code, r.text)
+        assert "p@ss" not in r.text and "door:" not in r.text, "no credential in an error body"
+        assert not path.exists()
+    monkeypatch.setattr(g2, "FRAME_MAX", 16)
+    state["answer"] = lambda req: httpx.Response(200, content=JPEG)
+    r = c.get(SNAP.format("entry-a"))
+    assert r.status_code == 503 and r.json()["details"]["reason"] == "too_large"
+
+
+def test_station_credential_override_is_write_only_audited_and_wins(feed, fake_go2rtc):
+    import os
+
+    seen, _state = fake_go2rtc
+    c, s = camera_feed(feed)
+    bind(c, s, "vera", "viewer", "installation", "*")
+    bind(c, s, "sam", "site_admin", "installation", "*")
+    for who in ("vera", "sam", "nobody"):
+        assert c.get(CREDS.format("entry-a"), headers=as_user(who)).status_code == 403, who
+        assert c.put(CREDS.format("entry-a"), json={"username": "u", "password": "p"}, headers=as_user(who)).status_code == 403, who
+        assert c.delete(CREDS.format("entry-a"), headers=as_user(who)).status_code == 403, who
+    assert c.get(CREDS.format("entry-a")).json() == {"station_id": "entry-a", "override": False, "override_updated_at": None, "default_configured": True, "effective": "default"}
+    r = c.put(CREDS.format("entry-a"), json={"username": "gate-admin", "password": "s3cret!"})
+    assert r.status_code == 200 and r.json()["override"] is True and r.json()["effective"] == "override"
+    assert "gate-admin" not in r.text and "s3cret" not in r.text, "never echoed"
+    for bad in ({"username": "", "password": "p"}, {"username": "u"}, {"username": "u", "password": "x" * 257}):
+        assert c.put(CREDS.format("entry-a"), json=bad).status_code == 422, bad
+    # the override is what go2rtc is given for that station; others keep the shared account
+    c.get(SNAP.format("entry-a"))
+    assert dict(seen[-1].url.params)["src"] == "rtsp://gate-admin:s3cret%21@192.0.2.10:554/Streaming/Channels/101"
+    # audited without the secret
+    rows = c.get("/api/v1/audit?prefix=intercom.credentials&limit=50").json()["rows"]
+    assert [row["action"] for row in rows if row["decision"] == "allowed"] == ["intercom.credentials.set"]
+    assert "gate-admin" not in json.dumps(rows) and "s3cret" not in json.dumps(rows)
+    assert any(row["decision"] == "denied" for row in c.get("/api/v1/audit?prefix=system.configure&limit=50").json()["rows"])
+    # cleared: back to the shared account (the cached still is dropped first so a new frame is asked for)
+    r = c.delete(CREDS.format("entry-a"))
+    assert r.json()["override"] is False and r.json()["effective"] == "default"
+    for p in (s.data_dir / "snapshots" / "intercom").glob("*.jpg"):
+        os.utime(p, (time.time() - 100, time.time() - 100))
+    c.get(SNAP.format("entry-a"))
+    assert dict(seen[-1].url.params)["src"].startswith("rtsp://door:")
+    # a station override alone is enough when there is no shared account
+    c2 = TestClient(create_app(replace(s, wiskey_user=None, wiskey_password=None)))
+    c2.put(CREDS.format("entry-a"), json={"username": "only", "password": "one"})
+    body = c2.get("/api/v1/intercom/overview").json()
+    assert body["camera_access"]["entry-a"] == "ready" and body["camera_access"]["entry-d"] == "no_credentials"
+    assert "only" not in json.dumps(body["camera_access"])
+
+
+def test_station_credentials_are_not_in_project_backups(feed):
+    from smplwise.services import backup
+
+    c, s = camera_feed(feed)
+    c.put(CREDS.format("entry-a"), json={"username": "gate-admin", "password": "s3cret!"})
+    with c.app.state.db.connection() as conn:
+        data = backup.snapshot(conn, include_access=True, include_audit=True, include_events=True)
+    assert "wiskey_station_credentials" not in data
+    assert "s3cret" not in json.dumps(data, default=str)
+
+
+def test_camera_snapshot_requires_access_read(settings):
+    """`access.read` first (before the path is even validated); without Home Assistant a clear 503 - no image."""
+    intercom_sync.SYNC.reset()
+    c = TestClient(create_app(settings))
+    bind(c, settings, "wall", "kiosk", "installation", "*")
+    bind(c, settings, "vera", "viewer", "installation", "*")
+    r = c.get(SNAP.format("entry-a"), headers=as_user("wall"))
+    assert r.status_code == 403 and r.json()["code"] == "forbidden"
+    assert c.get(SNAP.format("entry-a"), headers=as_user("nobody")).status_code == 403, "no binding at all"
+    assert c.get(SNAP.format("x" * 200), headers=as_user("wall")).status_code == 403, "refused before the path is validated"
+    r = c.get(SNAP.format("entry-a"), headers=as_user("vera"))
+    assert r.status_code == 503 and r.json()["code"] == "ha_not_configured"
+
+
+def test_camera_snapshot_without_a_served_copy(feed, fake_go2rtc):
+    """WisKey absent (or refusing the add-on): the copy and the hosts are dropped - 503 `intercom_unavailable`."""
+    seen, _state = fake_go2rtc
+    app, s, install = feed
+
+    def script(msg: dict[str, Any], _fake: FakeHa) -> list[Any]:
+        return [ha_config(msg)] if msg["type"] == "get_config" else [fail(msg, "unknown_command")]
+
+    install(script)
+    intercom_sync.SYNC.start(s)
+    wait_for(lambda: intercom_sync.STATE.state == "not_installed")
+    c = TestClient(create_app(replace(s, go2rtc_url=GO2RTC, wiskey_user="door", wiskey_password="x")))
+    r = c.get(SNAP.format("entry-a"))
+    assert r.status_code == 503 and r.json()["code"] == "intercom_unavailable" and r.json()["details"]["state"] == "not_installed"
+    assert seen == []
+
+
+def test_wiskey_account_options(tmp_path, monkeypatch):
+    from smplwise.config import load_settings
+
+    opts = tmp_path / "options.json"
+    opts.write_text(json.dumps({"wiskey_username": "door", "wiskey_password": "pw"}), encoding="utf-8")
+    s = load_settings(opts)
+    assert (s.wiskey_user, s.wiskey_password) == ("door", "pw")
+    monkeypatch.setenv("WISKEY_USER", "env-door")
+    monkeypatch.setenv("WISKEY_PASSWORD", "env-pw")
+    s = load_settings(tmp_path / "missing.json")
+    assert (s.wiskey_user, s.wiskey_password) == ("env-door", "env-pw")
+    cfg = (ROOT / "smplwise_vms" / "config.yaml").read_text(encoding="utf-8")
+    assert 'wiskey_username: ""' in cfg and "wiskey_password: password?" in cfg
