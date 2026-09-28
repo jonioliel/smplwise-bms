@@ -214,6 +214,27 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     expect(await page.evaluate(() => history.length)).toBe(before); // the late answer to the click pushed nothing
   });
 
+  test('v1: a navigation WisKey does not answer (session lock) expires - the same click later is sent again', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'desktop only');
+    await stubPanel(page, { kiosk: true, panels: true, api: 'v1' });
+    await open(page, '/wiskey/overview');
+    const frame = page.locator(FRAME);
+    await expect(frame).toHaveAttribute('data-embed-mode', 'v1', { timeout: 15000 });
+    await expect(frame).toHaveAttribute('data-confirmed-tab', 'overview');
+    const navigates = async () => (await frameState(page)).received.filter((m) => m.type === 'wiskey:navigate');
+    await panelFrame(page).evaluate(() => ((window as unknown as { __ignore: boolean }).__ignore = true)); // locked
+    await page.locator('sw-tabs a[href="#/wiskey/devices"]').click();
+    await expect.poll(navigates).toEqual([{ type: 'wiskey:navigate', tab: 'devices', tool: null }]);
+    await page.waitForTimeout(3500); // no answer: longer than the in-flight window
+    await expect(frame).toHaveAttribute('data-confirmed-tab', 'overview');
+    await expect(activeTab(page)).toHaveAttribute('href', '#/wiskey/overview');
+    expect(await hash(page)).toBe('#/wiskey/overview?wiskey_tab=overview');
+    await panelFrame(page).evaluate(() => ((window as unknown as { __ignore: boolean }).__ignore = false)); // unlocked
+    await page.locator('sw-tabs a[href="#/wiskey/devices"]').click();
+    await expect.poll(async () => (await navigates()).length).toBe(2); // sent again, not matched against the stale request
+    await expect(frame).toHaveAttribute('data-confirmed-tab', 'devices');
+    await expect.poll(() => hash(page)).toBe('#/wiskey/devices?wiskey_tab=devices');
+  });
   test('v1: messages from another window or another origin are ignored', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'desktop only');
     await stubPanel(page, { kiosk: true, panels: true, api: 'v1' });

@@ -66,6 +66,7 @@ const LOAD_TIMEOUT_MS = 20000; // no `load` at all: nothing answers at the addre
 const PANEL_TIMEOUT_MS = 25000; // Home Assistant loaded but never mounted the panel
 const TAB_TIMEOUT_MS = 15000; // legacy: the panel's session (its permissions) loads after it mounts; navigate() refuses until then
 const TICK_MS = 400;
+const IN_FLIGHT_MS = 3000; // v1: a navigation with no wiskey:location by then is taken as not acted on
 const KEEP_MS = 2000; // after everything is settled: re-apply cheaply, Home Assistant may re-render
 
 const TOP_SWITCH_MS = 1000; // "פתח ב-WisKey": Home Assistant's router gets this long before a full page load
@@ -253,8 +254,10 @@ export class WiskeyEmbed extends LitElement {
   private connector: WiskeyConnector | null = null;
   /** v1: the location the frame was opened on (its URL) - asked for, never taken as confirmed. */
   private opened: WiskeyLocation | null = null;
-  /** v1: navigations sent and not answered yet, oldest first; `push` = record a history entry once confirmed. */
-  private sent: { loc: WiskeyLocation; push: boolean }[] = [];
+  /** v1: the newest navigation sent and not answered yet (`push` = record a history entry once confirmed), and the
+   * older ones it superseded (their late answers are recorded, not mirrored). Entries expire after IN_FLIGHT_MS: WisKey
+   * answers nothing to a request during a session lock or to an unavailable screen. */
+  private sent: { loc: WiskeyLocation; push: boolean; at: number }[] = [];
   /** A request made before the handshake: sent once the catalog is known. */
   private wanted: WiskeyLocation | null = null;
   private detached = false;
@@ -542,12 +545,22 @@ export class WiskeyEmbed extends LitElement {
   /** What the panel shows or is about to show: the newest navigation in flight, else the confirmed location, else the
    * place the frame was opened on. A request equal to it is not sent again (no echo). */
   private reference(): WiskeyLocation | null {
+    this.expireSent();
     return this.sent.length ? this.sent[this.sent.length - 1].loc : (this.confirmed ?? this.opened);
+  }
+
+  /** Drop navigations that got no answer within IN_FLIGHT_MS (a locked session, an unavailable screen): a later click
+   * on the same screen must be sent again, not matched against a request WisKey never acted on. */
+  private expireSent() {
+    const now = Date.now();
+    this.sent = this.sent.filter((s) => now - s.at <= IN_FLIGHT_MS);
   }
 
   private send(target: WiskeyLocation, push: boolean): boolean {
     if (!this.connector?.navigate(target)) return false;
-    this.sent.push({ loc: target, push });
+    this.expireSent();
+    // the newest request is the one in flight; older ones only wait for a late answer (never pushed)
+    this.sent = [...this.sent.map((s) => ({ ...s, push: false })), { loc: target, push, at: Date.now() }].slice(-4);
     return true;
   }
 
@@ -558,8 +571,11 @@ export class WiskeyEmbed extends LitElement {
   private onLocation(loc: WiskeyLocation) {
     this.confirmed = loc;
     setWiskeyEmbedNav({ confirmed: loc });
-    if (this.sent.length > 1 && sameLocation(loc, this.sent[0].loc)) {
-      this.sent.shift();
+    this.expireSent();
+    const newest = this.sent[this.sent.length - 1];
+    const older = this.sent.findIndex((s, i) => i < this.sent.length - 1 && sameLocation(loc, s.loc));
+    if (newest && !sameLocation(loc, newest.loc) && older >= 0) {
+      this.sent.splice(older, 1); // the late answer to a superseded request: recorded, not mirrored
       return;
     }
     const last = this.sent[this.sent.length - 1];

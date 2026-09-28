@@ -14,6 +14,7 @@ import type { Page, Route } from '@playwright/test';
 //   v2-ready     a future breaking contract announced by the handshake: `wiskey:ready` with version 2 (marker "2")
 //   v2-marker    a future breaking contract seen only by discovery: marker "2", no messages at all
 // `announce: false` (v1): the handshake is not followed by a location message - ready promises none.
+// In the frame: `__ignore = true` answers nothing to a navigate (session lock); `__defer` / `__flush()` hold them.
 // Every flavour records what SMPLWISE did to it: `__kioskEvents` (hass-kiosk-mode events on the frame's window),
 // `__navigates` (calls of the panel's internal navigate()), `__received` (messages from the parent), `__posted`.
 // It proves the wiring, NOT the behaviour of the real nested Home Assistant / WisKey: that is the owner's lab check.
@@ -68,6 +69,7 @@ window.__received = [];
 window.__posted = [];
 window.__dirty = false;
 window.__defer = false;
+window.__ignore = false;
 window.__deferred = [];
 window.__flush = () => {
   const panel = document.querySelector('home-assistant').shadowRoot.querySelector('home-assistant-main').shadowRoot.querySelector('hikvision-intercom-panel');
@@ -133,6 +135,7 @@ class Panel extends HTMLElement {
   onMessage(e) {
     if (e.origin !== location.origin || e.source !== window.parent) return;
     window.__received.push(e.data);
+    if (window.__ignore) return; // a locked session / an unavailable screen: no navigation, no location
     if (window.__defer) {
       window.__deferred.push(e.data); // held until __flush(): a navigation still in flight
       return;
