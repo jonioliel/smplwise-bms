@@ -42,6 +42,17 @@ PERMISSION_LABELS: dict[str, str] = {
     # operator, site_admin and system_admin - NOT to viewer / kiosk, and NOT to editor (coordinator ruling on the
     # slice-2 review, 2026-09-28, keeping the recorded decision below that editor holds no control permission at all).
     "devices.control": "שליטה בהתקן בודד (חשמל והתקנים)",
+    # devices.control_bulk (CR-007 slice 3): the floor menu, the area popover and the building buttons of the devices
+    # area - "turn off the lights / close the covers / turn off the climate / turn off the screens / turn everything
+    # off" for a building, an HA floor or an HA area, many physical devices from one click, each behind a confirmation
+    # dialog and the server's own `confirmed: true`. It reaches ONLY lights, switches / input_booleans, covers (never
+    # a door / garage / gate cover), climate, fans and media players - never a lock, the alarm panel, a siren, a script,
+    # a scene, a button or a switch placed on the map as a door (services/device_bulk.py). Treated like access.release:
+    # granted by default ONLY to site_admin and system_admin (not operator, whose devices.control stays single-entity),
+    # listed in sensitive_permissions_not_implied, so a custom role grants it to one person only by naming it among its
+    # sensitive permissions. Floor-scoped like devices.control (the entity's own placement): a floor binding runs floor
+    # and area actions over the entities placed on its floors; a building action needs installation scope.
+    "devices.control_bulk": "פעולות מרוכזות בחשמל והתקנים: כיבוי תאורה / מיזוג / מסכים וסגירת תריסים לאזור, קומה או מבנה",
     "video.live": "שידור חי",
     "video.playback": "ניגון הקלטות",
     "events.read": "צפייה באירועים",

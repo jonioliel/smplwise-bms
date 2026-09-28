@@ -33,6 +33,8 @@ export interface DeviceArea {
   floor_id: string | null;
   counts: DeviceCounts;
   has_camera: boolean;
+  /** CR-007 slice 3: the caller may start a bulk action here (devices.control_bulk over something placed on their floors). */
+  can_bulk?: boolean;
 }
 
 export interface DeviceFloor {
@@ -43,6 +45,8 @@ export interface DeviceFloor {
   icon: string | null;
   areas: DeviceArea[];
   counts: DeviceCounts;
+  /** CR-007 slice 3: the caller may start a bulk action on this floor. */
+  can_bulk?: boolean;
 }
 
 export interface DeviceTree {
@@ -51,6 +55,8 @@ export interface DeviceTree {
   building: DeviceCounts;
   /** True when the caller holds devices.read on some floors only: the tree is narrowed to what is placed there. */
   scoped: boolean;
+  /** CR-007 slice 3: the caller may start a bulk action on the whole building (devices.control_bulk installation-wide). */
+  can_bulk?: boolean;
   sync: HaSyncState;
 }
 
@@ -130,6 +136,8 @@ export interface DeviceAreaDetail {
   cards: Record<CardId, DeviceCard>;
   counts: DeviceCounts;
   scoped: boolean;
+  /** CR-007 slice 3: the caller may start a bulk action on this area. */
+  can_bulk?: boolean;
   sync: HaSyncState;
 }
 

@@ -7,6 +7,8 @@ import '../components/sw-badge';
 import '../components/sw-icon';
 import '../components/sw-kpi';
 import '../components/sw-state-panel';
+import '../components/sw-button';
+import './devices-bulk';
 import type { StateKind } from '../components/sw-badge';
 import type { IconName } from '../components/sw-icon';
 import { canAnywhere, isApi } from '../api/session';
@@ -14,6 +16,8 @@ import { ApiError, describeError } from '../api/client';
 import { subscribeHa, type HaSyncState } from '../api/ha';
 import { ALARM_HE, getDevicesTree, type DeviceArea, type DeviceCounts, type DeviceFloor, type DeviceTree } from '../api/devices';
 import { bidi, ltrNum } from '../i18n/bidi';
+import type { BulkKind } from '../api/device-bulk';
+import type { BulkRequest, DevicesBulkDialog } from './devices-bulk';
 
 /** Refetches are throttled, not debounced: the first push starts a window, every push inside it rides the same
  * refetch, and a push during the fetch itself queues exactly one more (loadAgain). A screen full of sensors updating
@@ -74,11 +78,53 @@ const DEMO: DeviceTree = {
   sync: { connected: false, last_snapshot_at: null, last_event_at: null, last_registry_at: null, last_error: null, reconnects: 0, sequence: 0, entities: 20, started_at: null, ha_version: null },
 };
 
+export type BuildingLayout = 'cards' | 'tiles';
+export const LAYOUT_KEY = 'sw.devices.layout';
+
+function readLayout(): BuildingLayout {
+  try {
+    return localStorage.getItem(LAYOUT_KEY) === 'tiles' ? 'tiles' : 'cards';
+  } catch {
+    return 'cards';
+  }
+}
+
+function writeLayout(l: BuildingLayout) {
+  try {
+    localStorage.setItem(LAYOUT_KEY, l);
+  } catch {
+    /* private mode: the choice lasts for this visit only */
+  }
+}
+
+function anythingOn(c: DeviceCounts): boolean {
+  return c.lights_on + c.switches_on + c.covers_open + c.climate_active + c.media_on > 0;
+}
+
+function countsAttr(c: DeviceCounts): string {
+  return pillsOf(c).map((p) => `${p.key}:${p.on === null ? p.total : `${p.on}/${p.total}`}`).join(' ');
+}
+
 /**
  * חשמל והתקנים › המבנה (CR-007 slice 1, read-only): the building's live counts, then Home Assistant's floors in level
  * order, each with its areas as tiles that open the area screen. Everything here is a projection of the synced HA
  * catalogue; a state push on /ha/ws makes the screen refetch (no local mutation, so the counts always say what the
- * backend last computed). No controls of any kind in this slice - a lit light is a warm tile, nothing more.
+ * backend last computed). No single-entity controls here - a lit light is a warm tile; the area screen controls one
+ * device.
+ *
+ * CR-007 slice 3 (owner feedback on 0.1.115: "add the mockup's layout, do not remove the current one") - two
+ * presentations of the same data and the same actions, chosen with "פריסה: כרטיסים | אריחים" and remembered per viewer
+ * (localStorage, LAYOUT_KEY):
+ * - "כרטיסים" (default, the approved mockup's board 1): a tree panel on the inline-start side ("כל המבנה", floors as
+ *   group headers with a "⋯" menu, area rows with a state dot, the lit count and a hover "כבה אזור"), and the main
+ *   column's floor cards (header with the lit count and "כבה קומה ▾", one row per area with its state chips, footer
+ *   "פתח קומה"). Choosing a floor in the tree (or "פתח קומה") narrows the cards to that floor. An area row opens the
+ *   area popover: state chips, the four quick actions, "כבה הכל באזור · אישור" and "פתח אזור ›".
+ * - "אריחים": the slice-1 floor sections with area tiles, each tile with its "⋯" popover.
+ * The bulk actions exist only for a holder of devices.control_bulk and only where the tree says the server would
+ * accept them (`can_bulk`); every one opens the confirmation dialog (devices-bulk-dialog), which alone sends, and the
+ * tree refetches when a bulk action ends. "הצג על המפה" of the mockup waits for the HA area ↔ plan room link (CR-007
+ * §7.1), which does not exist yet: nothing on this screen pretends to know where an area is on a map.
  */
 @customElement('devices-building')
 export class DevicesBuilding extends LitElement {
@@ -90,6 +136,33 @@ export class DevicesBuilding extends LitElement {
   private timer = 0;
   private loading = false;
   private loadAgain = false;
+  /** Owner feedback on 0.1.115: the mockup's tree + floor cards (default) or the slice-1 tiles, per viewer. */
+  @state() private layout: BuildingLayout = readLayout();
+  /** The tree's selection in the cards layout: every floor, or one floor id. */
+  @state() private selected = 'all';
+
+  private setLayout(l: BuildingLayout) {
+    this.layout = l;
+    writeLayout(l);
+  }
+
+  /** CR-007 slice 3: a bulk action may be offered at all (the permission somewhere; the tree's can_bulk says where). */
+  private get bulkAllowed(): boolean {
+    return isApi() && canAnywhere('devices.control_bulk');
+  }
+
+  private get dialog(): DevicesBulkDialog | null {
+    return this.renderRoot.querySelector('devices-bulk-dialog');
+  }
+
+  private onBulkRequest = (e: CustomEvent<BulkRequest>) => {
+    e.stopPropagation();
+    void this.dialog?.show(e.detail);
+  };
+
+  private building(kind: BulkKind) {
+    void this.dialog?.show({ scope: 'building', id: '*', name: 'המבנה', kind });
+  }
 
   static styles = css`
     :host {
@@ -128,7 +201,8 @@ export class DevicesBuilding extends LitElement {
       flex-wrap: wrap;
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
-      margin-inline-start: auto;
+      /* next to the title (owner's 1920 px screenshot: an auto margin pushed the chips to the far edge of the page) */
+      margin-inline-start: 6px;
     }
     .floor-sum span {
       display: inline-flex;
@@ -148,6 +222,272 @@ export class DevicesBuilding extends LitElement {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
       gap: 10px;
+    }
+    .tile-wrap {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+    .tile-wrap > a.tile {
+      flex: 1;
+    }
+    .tile-wrap.bulk > a.tile .tile-head {
+      padding-inline-end: 28px; /* room for the popover trigger in the corner */
+    }
+    .tile-wrap devices-bulk-menu {
+      position: absolute;
+      inset-block-start: 6px;
+      inset-inline-end: 6px;
+    }
+    .floor-head devices-bulk-menu {
+      margin-inline-start: 4px;
+    }
+    .bulk-buttons {
+      display: inline-flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px 16px;
+      flex-wrap: wrap;
+    }
+    .seg {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .seg .opts {
+      display: inline-flex;
+      border: 1px solid var(--sw-border-strong);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .seg button {
+      border: 0;
+      padding: 5px 12px;
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      font: inherit;
+      font-size: var(--sw-fs-sm);
+      cursor: pointer;
+    }
+    .seg button + button {
+      border-inline-start: 1px solid var(--sw-border-strong);
+    }
+    .seg button[aria-pressed='true'] {
+      background: var(--sw-accent);
+      color: var(--sw-on-accent, #fff);
+    }
+    .toolbar .bulk-buttons {
+      margin-inline-start: auto;
+    }
+    /* ---- the mockup's layout: tree panel (inline start) + floor cards */
+    .split {
+      display: grid;
+      grid-template-columns: 250px minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+    }
+    nav.tree {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: 8px;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface);
+      box-shadow: var(--sw-shadow-1);
+      position: sticky;
+      inset-block-start: 8px;
+    }
+    .tree-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      inline-size: 100%;
+      padding: 6px 8px;
+      border: 0;
+      border-radius: var(--sw-r-sm);
+      background: transparent;
+      color: var(--sw-text);
+      font: inherit;
+      font-size: var(--sw-fs-sm);
+      text-align: start;
+      cursor: pointer;
+      min-inline-size: 0;
+    }
+    .tree-row:hover,
+    .tree-row:focus-visible {
+      background: var(--sw-surface-2);
+      outline: none;
+    }
+    .tree-row.selected {
+      background: var(--sw-accent-soft, var(--sw-surface-2));
+      font-weight: var(--sw-fw-semibold);
+    }
+    .tree-row .nm {
+      flex: 1;
+      min-inline-size: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .tree-row .lit {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      font-variant-numeric: tabular-nums;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .tree-row .lit.warm {
+      color: var(--sw-text);
+    }
+    .tree-row .lit.warm sw-icon {
+      color: var(--sw-warning);
+    }
+    .tree-floor {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      margin-block-start: 6px;
+    }
+    .tree-floor .tree-row {
+      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      text-transform: none;
+    }
+    .tree-area {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      padding-inline-start: 10px;
+    }
+    .tree-area devices-bulk-menu {
+      flex: 1;
+      min-inline-size: 0;
+    }
+    .sdot {
+      inline-size: 8px;
+      block-size: 8px;
+      border-radius: 50%;
+      background: var(--sw-border-strong);
+      flex: none;
+    }
+    .sdot.on {
+      background: var(--sw-warning);
+    }
+    .quick {
+      opacity: 0;
+      transition: opacity var(--sw-t-fast) var(--sw-ease);
+    }
+    .tree-area:hover .quick,
+    .tree-area:focus-within .quick {
+      opacity: 1;
+    }
+    @media (hover: none) {
+      .quick {
+        opacity: 1;
+      }
+    }
+    .fcards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+      gap: 12px;
+      align-items: start;
+    }
+    section.fcard {
+      display: flex;
+      flex-direction: column;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface);
+      box-shadow: var(--sw-shadow-1);
+    }
+    .fcard header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 14px 8px;
+      flex-wrap: wrap;
+    }
+    .fcard header h2 {
+      margin: 0;
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .fcard header .lit {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-variant-numeric: tabular-nums;
+    }
+    .fcard header .lit.warm sw-icon {
+      color: var(--sw-warning);
+    }
+    .fcard header devices-bulk-menu {
+      margin-inline-start: auto; /* the card's own header: the floor action closes the row, as in the mockup */
+    }
+    .fcard .rows {
+      display: flex;
+      flex-direction: column;
+      padding: 0 6px 6px;
+    }
+    .arow {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      inline-size: 100%;
+      padding: 8px;
+      border: 0;
+      border-block-start: 1px solid var(--sw-border);
+      background: transparent;
+      color: var(--sw-text);
+      font: inherit;
+      font-size: var(--sw-fs-sm);
+      text-align: start;
+      cursor: pointer;
+      flex-wrap: wrap;
+    }
+    .arow:hover,
+    .arow:focus-visible {
+      background: var(--sw-surface-2);
+      outline: none;
+    }
+    .arow .nm {
+      font-weight: var(--sw-fw-medium);
+      min-inline-size: 90px;
+    }
+    .arow .pills {
+      flex: 1;
+    }
+    .fcard footer {
+      display: flex;
+      gap: 8px;
+      padding: 8px 14px 12px;
+      border-block-start: 1px solid var(--sw-border);
+    }
+    .fcard.loose {
+      border-style: dashed;
+    }
+    @media (max-width: 899px) {
+      /* the floor cards carry every row and action of the tree: on a narrow screen they are the whole screen */
+      .split {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      nav.tree {
+        display: none;
+      }
+      .fcards {
+        grid-template-columns: minmax(0, 1fr);
+      }
     }
     a.tile {
       display: flex;
@@ -318,24 +658,142 @@ export class DevicesBuilding extends LitElement {
     const areas = t.floors.reduce((n, f) => n + f.areas.length, 0);
     const sub = `${floors} קומות · ${areas} אזורים · ${t.building.entities} התקנים${!isApi() ? ' · נתוני הדגמה' : ''}`;
     const connected = this.sync?.connected ?? false;
-    return html`<sw-page heading=${heading} subheading=${sub} wide>
+    const bulkBuilding = this.bulkAllowed && t.can_bulk === true;
+    return html`<sw-page heading=${heading} subheading=${sub} wide @bulk-request=${this.onBulkRequest}>
       <div slot="actions">
         ${t.scoped ? html`<sw-badge kind="partial" label="לפי הקומות שלך"></sw-badge>` : nothing}
         ${isApi() ? html`<sw-badge data-devices-sync kind=${connected ? 'live' : 'stale'} label=${connected ? 'מסונכרן עם Home Assistant' : 'לא מסונכרן עם Home Assistant'}></sw-badge>` : nothing}
       </div>
       ${this.error ? html`<sw-state-panel compact state="error" heading="הרענון האחרון נכשל" hint=${this.error}></sw-state-panel>` : nothing}
       ${this.renderKpis(t.building)}
-      ${t.floors.length
-        ? repeat(t.floors, (f) => f.floor_id, (f) => this.renderFloor(f))
-        : html`<sw-state-panel data-devices-state="empty" state="empty" heading=${t.scoped ? 'אין התקנים בקומות שלך' : 'אין קומות ואזורים מ־Home Assistant'} hint=${t.scoped ? 'רק ישויות שהוצבו על המפה של הקומות שבהרשאתך מופיעות כאן.' : 'צרו קומות ואזורים ב־Home Assistant ושייכו אליהם התקנים; העץ יתעדכן מעצמו אחרי סנכרון הרישום.'}></sw-state-panel>`}
+      <div class="toolbar">
+        <span class="seg" role="group" aria-label="פריסה">פריסה:
+          <span class="opts">
+            <button data-layout="cards" aria-pressed=${String(this.layout === 'cards')} @click=${() => this.setLayout('cards')}>כרטיסים</button>
+            <button data-layout="tiles" aria-pressed=${String(this.layout === 'tiles')} @click=${() => this.setLayout('tiles')}>אריחים</button>
+          </span>
+        </span>
+        ${bulkBuilding
+          ? html`<span class="bulk-buttons" data-bulk-building>
+              <sw-button size="sm" icon="light" data-bulk-kind="lights_off" @click=${() => this.building('lights_off')}>כבה תאורה בלבד</sw-button>
+              <sw-button size="sm" variant="danger" icon="bolt" data-bulk-kind="all_off" @click=${() => this.building('all_off')}>כבה הכל בבניין · דורש אישור</sw-button>
+            </span>`
+          : nothing}
+      </div>
+      ${!t.floors.length
+        ? html`<sw-state-panel data-devices-state="empty" state="empty" heading=${t.scoped ? 'אין התקנים בקומות שלך' : 'אין קומות ואזורים מ־Home Assistant'} hint=${t.scoped ? 'רק ישויות שהוצבו על המפה של הקומות שבהרשאתך מופיעות כאן.' : 'צרו קומות ואזורים ב־Home Assistant ושייכו אליהם התקנים; העץ יתעדכן מעצמו אחרי סנכרון הרישום.'}></sw-state-panel>`
+        : nothing}
+      ${this.layout === 'cards' ? this.renderCards(t) : this.renderTiles(t)}
+      <div class="note">${this.bulkAllowed
+        ? 'מצב ההתקנים כפי ש־Home Assistant מדווח אותו. פעולות מרוכזות (⋯ בקומה או באזור, והכפתורים למעלה) נפתחות תמיד בחלון אישור שמפרט מה יישלח; מנעולים, אזעקה ושחרור דלתות אינם נכללים לעולם. שליטה בהתקן בודד - במסך האזור.'
+        : 'תצוגה לקריאה בלבד: מצב ההתקנים כפי ש־Home Assistant מדווח אותו. שליטה בהתקן בודד - במסך האזור.'}</div>
+      ${this.bulkAllowed ? html`<devices-bulk-dialog @bulk-done=${() => void this.load()}></devices-bulk-dialog>` : nothing}
+    </sw-page>`;
+  }
+
+  /** The slice-1 presentation: floor sections with area tiles (the "⋯" popover on each tile for a bulk holder). */
+  private renderTiles(t: DeviceTree) {
+    return html`${repeat(t.floors, (f) => f.floor_id, (f) => this.renderFloor(f))}
       ${t.unassigned.counts.entities || !t.scoped
         ? html`<section class="floor" data-floor="unassigned">
             <div class="floor-head"><h2>ללא שיוך</h2><span class="level">התקנים שאינם משויכים לאזור ב־Home Assistant</span></div>
             <div class="areas">${this.renderTile({ area_id: 'unassigned', name: t.unassigned.name, icon: null, floor_id: null, counts: t.unassigned.counts, has_camera: false }, true)}</div>
           </section>`
+        : nothing}`;
+  }
+
+  /** The approved mockup's presentation: the tree panel and the floor cards. */
+  private renderCards(t: DeviceTree) {
+    if (!t.floors.length && !t.unassigned.counts.entities) return nothing;
+    const shown = this.selected === 'all' ? t.floors : t.floors.filter((f) => f.floor_id === this.selected);
+    const floors = shown.length ? shown : t.floors; // a floor that vanished from the tree: back to everything
+    return html`<div class="split" data-layout-view="cards">
+      ${this.renderTreePanel(t)}
+      <div class="fcards">
+        ${repeat(floors, (f) => f.floor_id, (f) => this.renderFloorCard(f))}
+        ${(this.selected === 'all' || !shown.length) && (t.unassigned.counts.entities || !t.scoped)
+          ? html`<section class="fcard loose" data-floor-card="unassigned">
+              <header><h2>ללא שיוך</h2><span class="lit">${t.unassigned.counts.entities} התקנים שאינם משויכים לאזור ב־Home Assistant</span></header>
+              <div class="rows">${this.renderAreaRow({ area_id: 'unassigned', name: t.unassigned.name, icon: null, floor_id: null, counts: t.unassigned.counts, has_camera: false }, 'card', true)}</div>
+            </section>`
+          : nothing}
+      </div>
+    </div>`;
+  }
+
+  private renderTreePanel(t: DeviceTree) {
+    const lit = (c: DeviceCounts) => html`<span class=${classMap({ lit: true, warm: c.lights_on > 0 })} title="תאורה דולקת"><sw-icon name="light" size=${12}></sw-icon>${ltrNum(c.lights_on)}</span>`;
+    return html`<nav class="tree" aria-label="עץ המבנה" data-devices-tree>
+      <button class=${classMap({ 'tree-row': true, selected: this.selected === 'all' })} data-tree="all" aria-current=${this.selected === 'all' ? 'true' : 'false'} @click=${() => (this.selected = 'all')}>
+        <sw-icon name="building" size=${15}></sw-icon><span class="nm">כל המבנה</span>${lit(t.building)}
+      </button>
+      ${repeat(
+        t.floors,
+        (f) => f.floor_id,
+        (f) => html`<div class="tree-group" data-tree-floor=${f.floor_id}>
+          <div class="tree-floor">
+            <button class=${classMap({ 'tree-row': true, selected: this.selected === f.floor_id })} data-tree-select=${f.floor_id} aria-current=${this.selected === f.floor_id ? 'true' : 'false'} @click=${() => (this.selected = f.floor_id)}>
+              <sw-icon name="floor" size=${14}></sw-icon><span class="nm">${bidi(f.name)}</span>${lit(f.counts)}
+            </button>
+            ${this.bulkAllowed && f.can_bulk
+              ? html`<devices-bulk-menu scope="floor" .targetId=${f.floor_id} .targetName=${f.name} .counts=${f.counts} variant="menu" label="פעולות לקומה" data-bulk-floor=${f.floor_id}></devices-bulk-menu>`
+              : nothing}
+          </div>
+          ${repeat(f.areas, (a) => a.area_id, (a) => this.renderAreaRow(a, 'tree'))}
+        </div>`,
+      )}
+    </nav>`;
+  }
+
+  private renderFloorCard(f: DeviceFloor) {
+    const c = f.counts;
+    return html`<section class="fcard" data-floor-card=${f.floor_id}>
+      <header>
+        <h2>${bidi(f.name)}</h2>
+        <span class=${classMap({ lit: true, warm: c.lights_on > 0 })} data-lit=${c.lights_on}><sw-icon name="light" size=${13}></sw-icon>${c.lights ? `${ltrNum(c.lights_on)} דולקות מתוך ${ltrNum(c.lights)}` : 'אין תאורה'}</span>
+        ${this.bulkAllowed && f.can_bulk
+          ? html`<devices-bulk-menu scope="floor" .targetId=${f.floor_id} .targetName=${f.name} .counts=${c} variant="menu" triggerLabel="כבה קומה" data-floor-menu=${f.floor_id}></devices-bulk-menu>`
+          : nothing}
+      </header>
+      <div class="rows">
+        ${f.areas.length ? repeat(f.areas, (a) => a.area_id, (a) => this.renderAreaRow(a, 'card')) : html`<div class="arow" style="cursor:default">אין אזורים בקומה</div>`}
+      </div>
+      ${this.selected !== f.floor_id
+        ? html`<footer><sw-button size="sm" icon="floor" data-open-floor=${f.floor_id} @click=${() => (this.selected = f.floor_id)}>פתח קומה</sw-button></footer>`
+        : html`<footer><sw-button size="sm" variant="ghost" data-open-floor="all" @click=${() => (this.selected = 'all')}>כל המבנה</sw-button></footer>`}
+    </section>`;
+  }
+
+  /** One area as a row (tree panel or floor card) that opens the area popover; the tree row also carries a hover
+   * "כבה אזור" for a bulk holder. The unassigned bucket is a plain link to its screen (it is not an area). */
+  private renderAreaRow(a: DeviceArea, where: 'tree' | 'card', unassigned = false) {
+    const c = a.counts;
+    const on = anythingOn(c);
+    const href = `#/devices/areas/${encodeURIComponent(a.area_id)}`;
+    const bulk = !unassigned && this.bulkAllowed && a.can_bulk === true;
+    const pills = pillsOf(c);
+    const body =
+      where === 'tree'
+        ? html`<span class=${classMap({ sdot: true, on })}></span><span class="nm">${bidi(a.name)}</span><span class=${classMap({ lit: true, warm: c.lights_on > 0 })} title="תאורה דולקת"><sw-icon name="light" size=${12}></sw-icon>${ltrNum(c.lights_on)}</span>`
+        : html`<span class=${classMap({ sdot: true, on })}></span><span class="nm">${bidi(a.name)}</span>
+            <span class="pills">${pills.length
+              ? pills.map((p) => html`<span class=${classMap({ warm: p.warm })} title=${p.label}><sw-icon .name=${p.icon} size=${12}></sw-icon>${p.on === null ? p.total : `${p.on}/${p.total}`}</span>`)
+              : html`<span class="none">אין התקנים</span>`}${c.alarm ? html`<span class=${classMap({ warm: c.alarm !== 'disarmed' })} title="אזעקה"><sw-icon name="shield" size=${12}></sw-icon>${ALARM_HE[c.alarm] ?? c.alarm}</span>` : nothing}</span>`;
+    const attrs = { area: a.area_id, on: String(on), counts: countsAttr(c) };
+    if (unassigned) {
+      return html`<a class=${where === 'tree' ? 'tree-row' : 'arow'} href=${href} data-area-row=${attrs.area} data-on=${attrs.on} data-counts=${attrs.counts} style="text-decoration:none">${body}</a>`;
+    }
+    const menu = html`<devices-bulk-menu block scope="area" .targetId=${a.area_id} .targetName=${a.name} .counts=${c} variant="popover" align="start" .actions=${bulk} openHref=${href} label="אזור"
+        data-tree-area=${where === 'tree' ? a.area_id : nothing} data-card-area=${where === 'card' ? a.area_id : nothing}>
+        <button slot="trigger" class=${where === 'tree' ? 'tree-row' : 'arow'} data-area-row=${attrs.area} data-on=${attrs.on} data-counts=${attrs.counts} aria-haspopup="menu" aria-label=${`${a.name} · ${c.entities} התקנים`}>${body}</button>
+      </devices-bulk-menu>`;
+    if (where === 'card') return menu;
+    return html`<div class="tree-area">
+      ${menu}
+      ${bulk
+        ? html`<span class="quick"><sw-button size="sm" variant="ghost" icon="bolt" data-quick-off=${a.area_id} label=${`כבה אזור: ${a.name}`} @click=${() => void this.dialog?.show({ scope: 'area', id: a.area_id, name: a.name, kind: 'all_off' })}>כבה אזור</sw-button></span>`
         : nothing}
-      <div class="note">תצוגה לקריאה בלבד: מצב ההתקנים כפי ש־Home Assistant מדווח אותו. שליטה מגיעה בשלב הבא.</div>
-    </sw-page>`;
+    </div>`;
   }
 
   private renderKpis(c: DeviceCounts) {
@@ -359,6 +817,9 @@ export class DevicesBuilding extends LitElement {
         <h2>${bidi(f.name)}</h2>
         ${f.level !== null && f.floor_id !== 'none' ? html`<span class="level">מפלס ${ltrNum(f.level)}</span>` : nothing}
         <span class="level">${f.areas.length} אזורים</span>
+        ${this.bulkAllowed && f.can_bulk
+          ? html`<devices-bulk-menu scope="floor" .targetId=${f.floor_id} .targetName=${f.name} .counts=${f.counts} variant="menu" align="start" label="פעולות לקומה" data-bulk-floor=${f.floor_id}></devices-bulk-menu>`
+          : nothing}
         <div class="floor-sum">
           ${pills.map((p) => html`<span class=${classMap({ warm: p.warm })} title=${p.label}><sw-icon .name=${p.icon} size=${13}></sw-icon>${p.on === null ? p.total : `${p.on}/${p.total}`}</span>`)}
           ${f.counts.alarm ? html`<span class=${classMap({ warm: f.counts.alarm !== 'disarmed' })} title="אזעקה"><sw-icon name="shield" size=${13}></sw-icon>${ALARM_HE[f.counts.alarm] ?? f.counts.alarm}</span>` : nothing}
@@ -371,19 +832,20 @@ export class DevicesBuilding extends LitElement {
   private renderTile(a: DeviceArea, unassigned = false) {
     const c = a.counts;
     const pills = pillsOf(c);
-    const anythingOn = c.lights_on + c.switches_on + c.covers_open + c.climate_active + c.media_on > 0;
-    return html`<a
-      class=${classMap({ tile: true, on: anythingOn, empty: c.entities === 0, unassigned })}
+    const on = anythingOn(c);
+    const bulk = !unassigned && this.bulkAllowed && a.can_bulk === true;
+    return html`<div class=${classMap({ 'tile-wrap': true, bulk })}><a
+      class=${classMap({ tile: true, on, empty: c.entities === 0, unassigned })}
       href=${`#/devices/areas/${encodeURIComponent(a.area_id)}`}
       data-area=${a.area_id}
-      data-on=${String(anythingOn)}
+      data-on=${String(on)}
       data-counts=${pills.map((p) => `${p.key}:${p.on === null ? p.total : `${p.on}/${p.total}`}`).join(' ')}
       aria-label=${`${a.name} · ${c.entities} התקנים`}
     >
       <div class="tile-head">
         <sw-icon .name=${unassigned ? 'help' : 'home'} size=${16}></sw-icon>
         <span class="name">${bidi(a.name)}</span>
-        ${anythingOn ? html`<span class="dot" title="יש התקן פעיל"></span>` : nothing}
+        ${on ? html`<span class="dot" title="יש התקן פעיל"></span>` : nothing}
       </div>
       <div class="pills">
         ${pills.length
@@ -391,7 +853,9 @@ export class DevicesBuilding extends LitElement {
           : html`<span class="none">אין התקנים</span>`}
         ${c.alarm ? html`<span class=${classMap({ warm: c.alarm !== 'disarmed' })} title="אזעקה"><sw-icon name="shield" size=${12}></sw-icon>${ALARM_HE[c.alarm] ?? c.alarm}</span>` : nothing}
       </div>
-    </a>`;
+    </a>${bulk
+      ? html`<devices-bulk-menu scope="area" .targetId=${a.area_id} .targetName=${a.name} .counts=${c} variant="popover" label="פעולות לאזור" data-bulk-area=${a.area_id}></devices-bulk-menu>`
+      : nothing}</div>`;
   }
 }
 

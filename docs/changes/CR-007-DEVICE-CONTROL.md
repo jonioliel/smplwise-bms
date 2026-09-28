@@ -92,7 +92,7 @@ stored in our database (DomusUI stores its layout in HA `frontend/*_system_data`
 |---|---|---|
 | 1 | Read-only: `devices.read`, tree + area screen with automatic cards, building counts, live updates, nav entry in both designs, phone layout | 1.5-3 h, 1-2 reviews |
 | 2 | Single-entity control: lights/switches/covers/climate one-tap + sliders via the existing action envelope, optimistic UI with confirmation/rollback, `devices.control` | 2-3 h, 2 reviews |
-| 3 | Bulk actions: floor menu, area popover, building buttons, `devices.control_bulk`, confirmation, per-entity outcomes, audit | 3-4 h, 2-3 reviews (safety) |
+| 3 | Bulk actions: floor menu, area popover, building buttons, `devices.control_bulk`, confirmation, per-entity outcomes, audit; plus (owner feedback on 0.1.115) the mockup's building layout - tree panel + floor cards as the default view, the slice-1 tiles kept as a remembered "אריחים" view, floor stats next to the title | 3-4 h, 2-3 reviews (safety) |
 | 4 | Climate and covers in full (modes, fan, tilt, group control), sensors card, "ללא שיוך" assign | 2-3 h, 1-2 reviews |
 | 5 | Screens and projection + remote (after the owner's explanation) | 3-5 h, 2 reviews |
 | 6 | Layout editor + style selector (glass tokens, RTL) | 5-8 h, 2-3 reviews |

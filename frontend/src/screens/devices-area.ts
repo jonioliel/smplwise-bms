@@ -18,6 +18,8 @@ import { stateLabel, subscribeHa, type HaSyncState } from '../api/ha';
 import { ALARM_HE, CARD_EMPTY, CARD_IDS, HVAC_ACTION_HE, HVAC_HE, getDevicesArea, type CardId, type DeviceAreaDetail, type DeviceCard, type DeviceRow } from '../api/devices';
 import { debouncedCommand, runCommand, supersede, type CommandState } from '../api/device-commands';
 import { alarmTone, REFRESH_WINDOW_MS } from './devices-building';
+import './devices-bulk';
+import type { BulkRequest, DevicesBulkDialog } from './devices-bulk';
 import { navigate } from '../router';
 import { bidi, ltrNum } from '../i18n/bidi';
 
@@ -77,6 +79,17 @@ export class DevicesArea extends LitElement {
   private loading = false;
   private loadAgain = false;
   private debouncedRange = debouncedCommand<number>();
+
+  /** CR-007 slice 3: the area's own bulk actions (the same popover as the tree's area tile), for a holder of
+   * devices.control_bulk where the server says it would accept them (`can_bulk`); the dialog alone sends. */
+  private get bulkAllowed(): boolean {
+    return isApi() && canAnywhere('devices.control_bulk') && this.detail?.can_bulk === true;
+  }
+
+  private onBulkRequest = (e: CustomEvent<BulkRequest>) => {
+    e.stopPropagation();
+    void this.renderRoot.querySelector<DevicesBulkDialog>('devices-bulk-dialog')?.show(e.detail);
+  };
 
   static styles = css`
     :host {
@@ -669,8 +682,10 @@ export class DevicesArea extends LitElement {
     const filled = cards.filter((c) => c.count > 0);
     const empty = cards.filter((c) => c.count === 0);
     const anyControllable = cards.some((c) => c.entities.some((r) => r.can_control));
-    return html`<sw-page heading=${bidi(d.area.name)} subheading=${sub} backHref="/devices/building" crumbs=${crumbs} wide>
+    const bulk = this.bulkAllowed;
+    return html`<sw-page heading=${bidi(d.area.name)} subheading=${sub} backHref="/devices/building" crumbs=${crumbs} wide @bulk-request=${this.onBulkRequest}>
       <div slot="actions">
+        ${bulk ? html`<devices-bulk-menu scope="area" .targetId=${d.area.area_id} .targetName=${d.area.name} .counts=${d.counts} variant="popover" label="פעולות לאזור" data-bulk-area=${d.area.area_id}></devices-bulk-menu>` : nothing}
         ${d.counts.alarm ? html`<sw-badge data-area-alarm kind=${alarmTone(d.counts.alarm)} label=${`אזעקה: ${ALARM_HE[d.counts.alarm] ?? d.counts.alarm}`}></sw-badge>` : nothing}
         <sw-badge data-devices-sync kind=${connected ? 'live' : 'stale'} label=${connected ? 'מסונכרן עם Home Assistant' : 'לא מסונכרן עם Home Assistant'}></sw-badge>
       </div>
@@ -691,6 +706,7 @@ export class DevicesArea extends LitElement {
           ? 'הקשה על מתג, כפתור או החלקה לשליטה בהתקן. המצב המוצג בשורה הוא תמיד מה ש־Home Assistant דיווח; פקודה שנשלחה מסומנת "ממתין לאישור" עד שהדיווח מגיע, ומתבטלת אם הוא לא מגיע בזמן. תנועת תריס (פתיחה, סגירה או מיקום) דורשת הקשת אישור נוספת.'
           : 'תצוגה לקריאה בלבד: מצב ההתקנים כפי ש־Home Assistant מדווח אותו.'}
       </div>
+      ${bulk ? html`<devices-bulk-dialog @bulk-done=${() => void this.load()}></devices-bulk-dialog>` : nothing}
     </sw-page>`;
   }
 

@@ -22,7 +22,7 @@ from ..config import Settings
 from ..db import unlocked, Database, bump_permission_revision, get_setting, now_iso, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import bridge_install, ha_bridge, ha_client, ha_scope, ha_sync
+from ..services import bridge_install, ha_actions, ha_bridge, ha_client, ha_scope, ha_sync
 from ..services.timeutil import iso_utc, parse_utc
 from .media import _principal_for_ws
 
@@ -146,16 +146,7 @@ class ActionBody(BaseModel):
 
 
 def _action_row(conn: sqlite3.Connection, action_id: str) -> dict[str, Any]:
-    r = conn.execute("SELECT * FROM ha_actions WHERE id = ?", (action_id,)).fetchone()
-    if not r:
-        raise ApiError(404, "not_found", "הפעולה לא נמצאה.")
-    d = dict(r)
-    d["arguments"] = json.loads(d.pop("arguments_json") or "{}")
-    # CR-007 slice 2 review: how this record can be confirmed - "state", "attribute" or "none". A "none" record's
-    # `confirmed` status only means Home Assistant accepted the call; there is nothing to observe, and the UI says
-    # "sent", never "confirmed".
-    d["confirmation"] = ha_bridge.confirmation_kind(d["action_id"], d.get("expected_state"))
-    return d
+    return ha_actions.action_row(conn, action_id)  # shared with the devices area's bulk actions (CR-007 slice 3)
 
 
 @router.post("/ha/entities/{entity_id}/actions", status_code=202)
@@ -214,11 +205,8 @@ def run_action(entity_id: str, body: ActionBody, request: Request, principal: Pr
         audit(conn, actor=principal, action="ha.action", decision="allowed", resource_type="ha_entity", resource_id=entity_id, reason=exc.code,
               request_id=getattr(request.state, "correlation_id", None), details={"action": body.allowed_action_id, "id": aid, "status": "failed"})
         raise
-    ok = bool(result.get("ok"))
-    error = None if ok else str(result.get("error") or "bridge_error")
-    if error in ("unauthorized", "unknown_user"):
-        error = "ha_" + error  # Home Assistant's own answer about this user: a denial, whatever the bridge token could do
-    status = "pending" if ok else ("denied" if error in ("ha_unauthorized", "ha_unknown_user") else "failed")
+    status, error = ha_actions.bridge_status(result)
+    ok = status == "pending"
     conn.execute("UPDATE ha_actions SET status = ?, error = ?, responded_at = ? WHERE id = ?", (status, error, now_iso(), aid))
     audit(conn, actor=principal, action="ha.action", decision="allowed" if ok else "denied", resource_type="ha_entity", resource_id=entity_id, reason=error,
           request_id=getattr(request.state, "correlation_id", None), details={"action": body.allowed_action_id, "id": aid, "arguments": body.arguments, "sensitive": spec["sensitive"]})
@@ -233,33 +221,7 @@ def get_action(action_id: str, request: Request, principal: Principal = Depends(
     a = _action_row(conn, action_id)
     if a["principal_user_id"] != principal.user_id and not authorize(conn, principal, "system.configure", INSTALLATION).allowed:
         raise ApiError(403, "forbidden", "הפעולה שייכת למשתמש אחר.")
-    if a["status"] == "pending":
-        e = conn.execute("SELECT state, attributes_json, last_changed, last_updated, state_seen_at FROM ha_entities WHERE entity_id = ?", (a["entity_id"],)).fetchone()
-        requested = parse_utc(a["requested_at"])
-
-        def since_request(ts: str | None) -> bool:
-            return bool(ts) and parse_utc(ts.replace("+00:00", "Z")) >= requested - dt.timedelta(seconds=2)
-
-        if e and a["confirmation"] == "attribute":
-            # the attribute that reports the effect (current_position, percentage, temperature, fan_mode, mute),
-            # within its tolerance, reported after the request (last_updated: an attribute change moves it, the state's
-            # last_changed does not) - never the state compared to the argument
-            try:
-                attrs = json.loads(e["attributes_json"] or "{}")
-            except ValueError:
-                attrs = {}
-            spec_attr = (ha_bridge.ACTIONS.get(a["action_id"]) or {}).get("expect_attr") or {}
-            if since_request(e["last_updated"]) and ha_bridge.attribute_reached(a["action_id"], a["arguments"], e["state"], attrs):
-                observed = f"{spec_attr.get('attribute')}={attrs.get(spec_attr.get('attribute'))}"
-                conn.execute("UPDATE ha_actions SET status = 'confirmed', confirmed_at = ?, observed_state = ? WHERE id = ?", (now_iso(), observed, action_id))
-            elif (dt.datetime.now(dt.timezone.utc) - requested).total_seconds() > 20:
-                conn.execute("UPDATE ha_actions SET status = 'unknown', observed_state = ? WHERE id = ?", (e["state"], action_id))
-        elif e and a["expected_state"] and e["state"] == a["expected_state"] and since_request(e["last_changed"]):
-            conn.execute("UPDATE ha_actions SET status = 'confirmed', confirmed_at = ?, observed_state = ? WHERE id = ?", (now_iso(), e["state"], action_id))
-        elif e and not a["expected_state"]:
-            conn.execute("UPDATE ha_actions SET status = 'confirmed', confirmed_at = ?, observed_state = ? WHERE id = ?", (now_iso(), e["state"], action_id))
-        elif (dt.datetime.now(dt.timezone.utc) - requested).total_seconds() > 20:
-            conn.execute("UPDATE ha_actions SET status = 'unknown', observed_state = ? WHERE id = ?", (e["state"] if e else None, action_id))
+    if ha_actions.refresh(conn, a):  # the confirmation rules live in services/ha_actions.py (shared with bulk actions)
         a = _action_row(conn, action_id)
     return a
 
