@@ -1,5 +1,29 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.116 (pilot) — Plan Studio state layer on the 3D scene and the 2D map (CR-006 slice 1b)
+- Rooms now show their live state on both map views, in the language of the reference the owner chose
+  (approved by the owner from the screenshot on 2026-09-28): a lit room gets a warm floor; movement shows as a
+  blue band along the room's edge that fades over `plan.presence_fade` minutes (default 3, or off - a new
+  installation setting; in 3D the band is a ring, in 2D an inset edge band; a full blue fill only when the
+  room is not lit); an open door or window gets a red frame in 3D and a red swing wedge in 2D; each room with a
+  climate or temperature entity gets a readable temperature chip (a DOM label, fixed size, RTL); the level
+  thumbnails carry state dots with the same fade. A per-viewer layer toggle "מצבי חדרים" (default on) in
+  the layers panel. Locks show a door as open only on `open`, not on `unlocked`.
+- Deterministic and cheap: the room state is a pure function of structure, state snapshot and the fade step;
+  a fade step updates tint opacities in place (no rebuild of the instanced structure or the shadow map);
+  thumbnails are built without the layer and never redrawn by state; an unbound door/window sensor may only
+  claim an opening within 0.75 m on a calibrated plan (2 % of the width when uncalibrated) and never one that
+  already has its own sensor.
+- Also in this release, the small items carried from 1a: thumbnails drawn in their own frame pass (no corner
+  flash), a failed thumbnail is not cached, narrow-canvas framing, the all-levels scene keyed without the
+  level filter, a 3 s timeout on the settings wait, a wider fallback timer.
+- Reviewed twice (adversarial): round 1 found a neighbouring door could be marked open by another opening's
+  sensor, every fade step rebuilt the whole scene, unreadable temperature pills and a muddy lit+presence blend
+  - all fixed; round 2 approved with nits carried to slice 1c (ring width at the overview, chip-to-part
+  matching by id, no second Lit update per description, skip the ring in very narrow rooms, entity label pills
+  to DOM). Tests: 30 new unit specs, 100 3D/2D specs green (the two known mobile failures predate this work),
+  live state-layer test in real Chrome. `three` chunk unchanged, the 3D element 15.4 KB gzip.
+
 ## 0.1.115 (pilot) — Device control, slice 2: single-entity control (CR-007)
 - The area screen's cards now act: light and switch toggle with a brightness slider, cover open / stop /
   close and position, climate target ± / mode / fan speed (only the modes and speeds the entity reports),
