@@ -128,6 +128,22 @@ ACTIONS: dict[str, dict[str, Any]] = {
     # CR-007 slice 2: the devices area's climate card (mode/target already covered by set_hvac_mode/set_temperature above)
     "climate.set_fan_mode": _a("climate", "set_fan_mode", "מצב מאוורר", args={"fan_mode": ("str", 1, 40)}, expect_attr=("fan_mode", "fan_mode", None)),
     "climate.turn_off": _a("climate", "turn_off", "כיבוי מיזוג", expect="off"),
+    # CR-007 slice 4: climate/covers in full - preset, swing and target humidity (an entity offers only the modes /
+    # feature it reports; the devices-area card reads hvac_modes / fan_modes / preset_modes / swing_modes / min-max
+    # from the entity itself, never assumes a fixed set)
+    "climate.set_preset_mode": _a("climate", "set_preset_mode", "מצב מוגדר מראש", args={"preset_mode": ("str", 1, 40)}, expect_attr=("preset_mode", "preset_mode", None)),
+    "climate.set_swing_mode": _a("climate", "set_swing_mode", "מצב נדנוד", args={"swing_mode": ("str", 1, 40)}, expect_attr=("swing_mode", "swing_mode", None)),
+    "climate.set_humidity": _a("climate", "set_humidity", "לחות יעד", args={"humidity": ("int", 0, 100)}, expect_attr=("humidity", "humidity", 1)),
+    "humidifier.set_humidity": _a("humidifier", "set_humidity", "לחות יעד", args={"humidity": ("int", 0, 100)}, expect_attr=("humidity", "humidity", 1)),
+    "humidifier.set_mode": _a("humidifier", "set_mode", "מצב לחות", args={"mode": ("str", 1, 40)}, expect_attr=("mode", "mode", None)),
+    # CR-007 slice 4: cover tilt - open/close/stop carry the same "attention" risk as the top movement (coordinator
+    # ruling, CR-007 s7.8: one physical movement whichever control starts it); nothing observable confirms open/close
+    # tilt (the cover's own `state` reflects the position, not the tilt - honestly "sent", never "confirmed", the same
+    # treatment stop_cover already gets); the position slider is confirmed from current_tilt_position, like the top one.
+    "cover.open_cover_tilt": _a("cover", "open_cover_tilt", "פתיחת הטיה", risk="attention"),
+    "cover.close_cover_tilt": _a("cover", "close_cover_tilt", "סגירת הטיה", risk="attention"),
+    "cover.stop_cover_tilt": _a("cover", "stop_cover_tilt", "עצירת הטיה"),
+    "cover.set_cover_tilt_position": _a("cover", "set_cover_tilt_position", "מיקום הטיה", args={"tilt_position": ("int", 0, 100)}, risk="attention", expect_attr=("current_tilt_position", "tilt_position", 2)),
     "media_player.media_play": _a("media_player", "media_play", "נגן", expect="playing"),
     "media_player.media_pause": _a("media_player", "media_pause", "השהה", expect="paused"),
     "media_player.media_stop": _a("media_player", "media_stop", "עצור"),

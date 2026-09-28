@@ -67,6 +67,9 @@ FLUSH_S = 0.3
 KIND_LABELS = {
     "lights_off": "כיבוי תאורה",
     "covers_close": "סגירת תריסים",
+    "covers_open": "פתיחת תריסים",
+    "covers_stop": "עצירת תריסים",
+    "covers_position": "מיקום תריסים",
     "climate_off": "כיבוי מיזוג",
     "screens_off": "כיבוי מסכים",
     "all_off": "כיבוי הכל",
@@ -75,17 +78,28 @@ SCOPE_LABELS = {"building": "המבנה", "floor": "קומה", "area": "אזור
 
 _LIGHTS = (("light", "light.turn_off"),)
 _SWITCHES = (("switch", "switch.turn_off"),)  # only positively safe switches (see switch_policy); never input_boolean
-_COVERS = (("cover", "cover.close_cover"),)
+_COVERS_CLOSE = (("cover", "cover.close_cover"),)
+# CR-007 slice 4: the area's "כל התריסים" group control - open all / stop all / close all / position all, the same
+# resolve/record/run path as every other bulk kind (never a fan-out path of its own); the same exclusions apply
+# (never a door/garage/gate cover, never the map's door layer).
+_COVERS_OPEN = (("cover", "cover.open_cover"),)
+_COVERS_STOP = (("cover", "cover.stop_cover"),)
+_COVERS_POSITION = (("cover", "cover.set_cover_position"),)
 _CLIMATE = (("climate", "climate.turn_off"), ("fan", "fan.turn_off"))  # fans live on the climate card (מיזוג ואקלים)
 _SCREENS = (("media_player", "media_player.turn_off"),)
 # kind -> (domain, allow-listed action) in the order they are sent
 KINDS: dict[str, tuple[tuple[str, str], ...]] = {
     "lights_off": _LIGHTS,
-    "covers_close": _COVERS,
+    "covers_close": _COVERS_CLOSE,
+    "covers_open": _COVERS_OPEN,
+    "covers_stop": _COVERS_STOP,
+    "covers_position": _COVERS_POSITION,
     "climate_off": _CLIMATE,
     "screens_off": _SCREENS,
-    "all_off": _LIGHTS + _SWITCHES + _COVERS + _CLIMATE + _SCREENS,
+    "all_off": _LIGHTS + _SWITCHES + _COVERS_CLOSE + _CLIMATE + _SCREENS,
 }
+# kinds whose targets carry a request argument (validated the same way as the single-entity action, ha_bridge.ACTIONS)
+KINDS_WITH_POSITION = frozenset({"covers_position"})
 # never part of a bulk action, whatever the kind; the ones present in the scope are named in the preview
 NEVER_BULK_DOMAINS = frozenset({"lock", "alarm_control_panel", "siren", "script", "scene", "button"})
 DOOR_COVER_CLASSES = frozenset({"door", "garage", "gate"})  # a cover that is a passage, not a shutter
@@ -133,13 +147,18 @@ _check_kinds()
 UNAVAILABLE_STATES = {"unavailable", "unknown", None, ""}
 
 
-def _needs(domain: str, state: str | None) -> bool:
-    """Whether the kind's action would change this entity (HA's last report): an entity already off / closed is
-    not sent."""
+def _needs(kind: str, domain: str, state: str | None) -> bool:
+    """Whether the kind's action would change this entity (HA's last report): an entity already off / closed /
+    open - or, for covers_stop, not moving at all - is not sent (`covers_position` is decided separately in
+    `resolve()`, against the requested position, not the state)."""
     if domain in ("light", "switch", "input_boolean", "fan"):
         return state == "on"
     if domain == "cover":
-        return state in ("open", "opening", "closing")
+        if kind == "covers_open":
+            return state in ("closed", "closing")
+        if kind == "covers_stop":
+            return state in ("opening", "closing")
+        return state in ("open", "opening", "closing")  # covers_close / all_off
     if domain == "climate":
         return state not in dsvc.OFF_STATES
     if domain == "media_player":
@@ -234,13 +253,16 @@ def scope_flags(conn: Any, principal: Principal, entities: list[dict[str, Any]])
     return {"building": False, "all": False, "areas": areas, "floors": {area_floor.get(a, dsvc.NO_FLOOR) for a in areas}}
 
 
-def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: str) -> dict[str, Any]:
+def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: str, position: int | None = None) -> dict[str, Any]:
     """The exact set a bulk request would send, or an ApiError (404 unknown scope, 403 outside the caller's scope).
-    The same function answers the preview (the confirmation dialog) and the request itself."""
+    The same function answers the preview (the confirmation dialog) and the request itself. `position` (CR-007 slice
+    4): the one argument a bulk kind ever carries (covers_position, 0-100) - required exactly for that kind."""
     if scope not in SCOPES:
         raise ApiError(422, "validation", "היקף לא מוכר.", details={"fields": ["scope"]})
     if kind not in KINDS:
         raise ApiError(422, "validation", "סוג פעולה לא מוכר.", details={"fields": ["kind"]})
+    if kind in KINDS_WITH_POSITION and position is None:
+        raise ApiError(422, "validation", "יש לציין מיקום (0–100) לפעולת מיקום תריסים.", details={"fields": ["position"]})
     entities = dsvc.load_entities(conn)
     floors, areas, area_floor = _structure(conn, entities)
     if scope == "building":
@@ -291,10 +313,17 @@ def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: st
         if state in UNAVAILABLE_STATES or not e.get("available"):
             unavailable += 1
             continue
-        if not _needs(domain, state):
+        args: dict[str, Any] = {}
+        if kind in KINDS_WITH_POSITION:
+            cur = dsvc._num((e.get("attributes") or {}).get("current_position"))
+            if cur is not None and abs(cur - position) < 1:  # already at (near enough) the requested position
+                already += 1
+                continue
+            args = {"position": position}
+        elif not _needs(kind, domain, state):
             already += 1
             continue
-        targets.append({"entity_id": e["entity_id"], "name": _name(e), "domain": domain, "action_id": actions[domain], "state": state, "area_id": e.get("area_id"), "area_name": e.get("area_name")})
+        targets.append({"entity_id": e["entity_id"], "name": _name(e), "domain": domain, "action_id": actions[domain], "state": state, "area_id": e.get("area_id"), "area_name": e.get("area_name"), "args": args})
     order = {d: i for i, (d, _a) in enumerate(KINDS[kind])}
     targets.sort(key=lambda t: (order[t["domain"]], t["area_name"] or "", t["name"], t["entity_id"]))
     by_domain: dict[str, int] = {}
@@ -314,8 +343,9 @@ def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: st
         "skipped": {"already": already, "unavailable": unavailable},
         "excluded": excluded,
         "never_included": never,
-        "digest": digest([t["entity_id"] for t in targets], kind),
+        "digest": digest([t["entity_id"] for t in targets], kind, position),
         "server_time_ms": int(time.time() * 1000),  # the client computes expires_at on the server's time line
+        "position": position,  # covers_position only - echoed back so the confirmation dialog can restate it
         "note": "מנעולים, מערכת האזעקה, צופרים, סקריפטים, סצנות, כפתורים ושחרור דלתות אינם נכללים לעולם בפעולה מרוכזת.",
     }
 
@@ -324,9 +354,11 @@ def _name(e: dict[str, Any]) -> str:
     return e.get("name") or e.get("original_name") or e["entity_id"]
 
 
-def digest(entity_ids: list[str], kind: str) -> str:
-    """A short fingerprint of exactly what the dialog showed: the request is refused when the set changed since."""
-    return hashlib.sha256((kind + "\n" + "\n".join(sorted(entity_ids))).encode()).hexdigest()[:16]
+def digest(entity_ids: list[str], kind: str, position: int | None = None) -> str:
+    """A short fingerprint of exactly what the dialog showed: the request is refused when the set - or, for
+    covers_position, the requested position - changed since."""
+    key = kind if position is None else f"{kind}:{position}"
+    return hashlib.sha256((key + "\n" + "\n".join(sorted(entity_ids))).encode()).hexdigest()[:16]
 
 
 # ---------------------------------------------------------------- in flight
@@ -405,7 +437,7 @@ def record(conn: Any, principal: Principal, bulk_id: str, plan: dict[str, Any], 
     )
     attrs = {r["entity_id"]: r["attributes_json"] for r in conn.execute("SELECT entity_id, attributes_json FROM ha_entities WHERE entity_id IN (%s)" % ",".join("?" * len(plan["targets"])), [t["entity_id"] for t in plan["targets"]]).fetchall()} if plan["targets"] else {}
     for n, t in enumerate(plan["targets"]):
-        spec, data = ha_bridge.validate_action(t["action_id"], t["entity_id"], {})  # the same allow-list and validation as a single action
+        spec, data = ha_bridge.validate_action(t["action_id"], t["entity_id"], t.get("args") or {})  # the same allow-list and validation as a single action
         try:
             a = json.loads(attrs.get(t["entity_id"]) or "{}")
         except ValueError:
@@ -413,9 +445,13 @@ def record(conn: Any, principal: Principal, bulk_id: str, plan: dict[str, Any], 
         t["id"] = f"{bulk_id}{n:04d}"
         t["data"] = data
         t["service"] = spec["service"]
+        # the arguments as validated (cleaned: entity_id dropped) - CR-007 slice 4: an attribute confirmation (e.g.
+        # covers_position) compares the observed attribute to THESE, exactly as the single-entity route does
+        # (routers/ha.py); every earlier bulk kind sends no arguments at all, so this was always "{}" for them.
+        cleaned = {k: v for k, v in data.items() if k != "entity_id"}
         conn.execute(
             "INSERT INTO ha_actions(id, entity_id, action_id, arguments_json, principal_user_id, principal_username, client_request_id, status, requested_at, expected_state, via, bulk_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-            (t["id"], t["entity_id"], t["action_id"], "{}", principal.user_id, principal.username, f"{client_request_id}:{n}", "queued", now, ha_bridge.expectation_for(spec, a), "bulk", bulk_id),
+            (t["id"], t["entity_id"], t["action_id"], json.dumps(cleaned, ensure_ascii=False), principal.user_id, principal.username, f"{client_request_id}:{n}", "queued", now, ha_bridge.expectation_for(spec, a), "bulk", bulk_id),
         )
 
 

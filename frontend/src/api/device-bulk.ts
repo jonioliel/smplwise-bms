@@ -11,15 +11,24 @@
 import { get, post } from './client';
 
 export type BulkScope = 'building' | 'floor' | 'area';
-export type BulkKind = 'lights_off' | 'covers_close' | 'climate_off' | 'screens_off' | 'all_off';
+/** CR-007 slice 4: covers_open / covers_stop / covers_position are the area's own "כל התריסים" group control
+ * (devices-cover-group.ts), never offered in the floor/area/building quick-actions menu (BULK_KINDS below) - the
+ * same bulk path (server resolve/record/run), a different trigger. */
+export type BulkKind = 'lights_off' | 'covers_close' | 'covers_open' | 'covers_stop' | 'covers_position' | 'climate_off' | 'screens_off' | 'all_off';
 export type BulkOutcome = 'queued' | 'accepted' | 'confirmed' | 'not_confirmed' | 'refused' | 'unknown';
 
 export const BULK_KINDS: BulkKind[] = ['lights_off', 'covers_close', 'climate_off', 'screens_off', 'all_off'];
+/** The cover group control's own four actions (devices-cover-group.ts): open all / stop all / close all / position all. */
+export const COVER_GROUP_KINDS: BulkKind[] = ['covers_open', 'covers_stop', 'covers_close', 'covers_position'];
 
-/** The mockup's menu wording (the quick actions of the floor menu, the area popover and the building buttons). */
+/** The mockup's menu wording (the quick actions of the floor menu, the area popover and the building buttons), plus
+ * the cover group control's own four (CR-007 slice 4). */
 export const BULK_KIND_LABEL: Record<BulkKind, string> = {
   lights_off: 'כבה תאורה',
   covers_close: 'סגור תריסים',
+  covers_open: 'פתח תריסים',
+  covers_stop: 'עצור תריסים',
+  covers_position: 'מיקום תריסים',
   climate_off: 'כבה מיזוג',
   screens_off: 'כבה מסכים',
   all_off: 'כבה הכל',
@@ -55,6 +64,8 @@ export interface BulkPreview {
   note: string;
   /** The server's clock (epoch ms) when it answered: the request's expiry is computed on the server's time line. */
   server_time_ms?: number;
+  /** CR-007 slice 4: the requested position (covers_position only) - echoed back for the confirmation dialog. */
+  position?: number | null;
 }
 
 export interface BulkItem {
@@ -113,8 +124,9 @@ function commandId(): string {
   return Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-export async function previewBulk(scope: BulkScope, id: string, kind: BulkKind) {
+export async function previewBulk(scope: BulkScope, id: string, kind: BulkKind, position?: number) {
   const q = new URLSearchParams({ scope, id, kind });
+  if (position !== undefined) q.set('position', String(position));
   const sentAt = Date.now();
   const p = await get<BulkPreview>(`devices/actions/preview?${q.toString()}`);
   const receivedAt = Date.now();
@@ -123,8 +135,9 @@ export async function previewBulk(scope: BulkScope, id: string, kind: BulkKind) 
   return p;
 }
 
-/** The physical request. `confirmed: true` is stated here and nowhere else: only the dialog's confirm button calls it. */
-export function runBulk(scope: BulkScope, id: string, kind: BulkKind, previewDigest: string) {
+/** The physical request. `confirmed: true` is stated here and nowhere else: only the dialog's confirm button calls
+ * it. `position` (CR-007 slice 4): covers_position's own argument, the "כל התריסים" group control. */
+export function runBulk(scope: BulkScope, id: string, kind: BulkKind, previewDigest: string, position?: number) {
   return post<BulkRecord>('devices/actions', {
     scope,
     id,
@@ -133,6 +146,7 @@ export function runBulk(scope: BulkScope, id: string, kind: BulkKind, previewDig
     client_request_id: commandId(),
     expires_at: new Date(serverNow() + BULK_TTL_MS).toISOString().replace(/\.\d{3}Z$/, 'Z'),
     preview_digest: previewDigest,
+    ...(position !== undefined ? { position } : {}),
   });
 }
 

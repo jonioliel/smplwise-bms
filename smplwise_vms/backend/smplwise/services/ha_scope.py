@@ -18,7 +18,9 @@ Placements = dict[str, list[dict[str, str]]]
 # stay behind ha.entity.control, and a sensitive action's extra grant - door.unlock, alarm.disarm - on top).
 # Either grant is checked at the entity's own floor scope.
 CONTROL_PERMISSIONS = ("ha.entity.control", "devices.control")
-DEVICES_CONTROL_DOMAINS = frozenset({"light", "switch", "input_boolean", "cover", "climate", "fan", "media_player"})
+# CR-007 slice 4: humidifier joins fan/climate on the climate card (target humidity, mode) - still never a lock,
+# alarm panel, siren, script, scene or button.
+DEVICES_CONTROL_DOMAINS = frozenset({"light", "switch", "input_boolean", "cover", "climate", "fan", "humidifier", "media_player"})
 
 
 def devices_control_reaches(entity_id: str) -> bool:

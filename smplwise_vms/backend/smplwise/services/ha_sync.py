@@ -32,6 +32,9 @@ ATTR_ALLOW = {
     # CR-007 slice 2: what the devices-area controls offer (the modes an entity really has, its target range) and
     # the step an attribute confirmation must tolerate (a 3-speed fan lands on 33/67/100)
     "fan_modes", "min_temp", "max_temp", "target_temp_step", "percentage_step",
+    # CR-007 slice 4: climate/covers in full - preset, swing, target humidity (climate and humidifier alike) and a
+    # humidifier's own mode list
+    "preset_modes", "swing_mode", "swing_modes", "humidity", "current_humidity", "min_humidity", "max_humidity", "available_modes",
 }
 STATE_DOMAINS_SKIP = {"update", "image", "conversation", "zone", "person", "device_tracker", "notify", "tts", "stt", "wake_word", "assist_satellite"}
 

@@ -24,12 +24,14 @@ import {
 } from '../api/device-bulk';
 import { bidi, ltrNum } from '../i18n/bidi';
 
-/** What a screen asks the dialog to do: the scope, its id and display name, and the kind. */
+/** What a screen asks the dialog to do: the scope, its id and display name, and the kind. `position` (CR-007 slice
+ * 4): covers_position's own argument - the area's "כל התריסים" group control (devices-cover-group.ts). */
 export interface BulkRequest {
   scope: BulkScope;
   id: string;
   name: string;
   kind: BulkKind;
+  position?: number;
 }
 
 /** How many entities a kind would reach according to the tree's counts (a hint for the menu only - the server's
@@ -42,7 +44,7 @@ export function activeFor(kind: BulkKind, c: DeviceCounts): number {
   return c.lights_on + c.switches_on + c.covers_open + c.climate_active + c.media_on;
 }
 
-const KIND_ICON: Record<BulkKind, IconName> = { lights_off: 'light', covers_close: 'layers', climate_off: 'activity', screens_off: 'play', all_off: 'bolt' };
+const KIND_ICON: Record<BulkKind, IconName> = { lights_off: 'light', covers_close: 'layers', covers_open: 'layers', covers_stop: 'layers', covers_position: 'layers', climate_off: 'activity', screens_off: 'play', all_off: 'bolt' };
 
 function requestEvent(req: BulkRequest): CustomEvent<BulkRequest> {
   return new CustomEvent<BulkRequest>('bulk-request', { detail: req, bubbles: true, composed: true });
@@ -395,7 +397,7 @@ export class DevicesBulkDialog extends LitElement {
     this.error = '';
     this.phase = 'loading';
     try {
-      const p = await previewBulk(req.scope, req.id, req.kind);
+      const p = await previewBulk(req.scope, req.id, req.kind, req.position);
       if (this.req !== req) return;
       this.preview = p;
       this.phase = p.count ? 'confirm' : 'nothing';
@@ -421,7 +423,7 @@ export class DevicesBulkDialog extends LitElement {
     if (!req || !p || this.phase !== 'confirm') return;
     this.phase = 'sending';
     try {
-      const first = await runBulk(req.scope, req.id, req.kind, p.digest);
+      const first = await runBulk(req.scope, req.id, req.kind, p.digest, req.position);
       this.phase = 'running';
       this.follow = { stopped: false };
       const done = await followBulk(first, (r) => (this.record = r), this.follow);
@@ -494,8 +496,9 @@ export class DevicesBulkDialog extends LitElement {
 
   private renderConfirm(p: BulkPreview) {
     const never = Object.entries(p.never_included);
+    const posSuffix = p.kind === 'covers_position' && p.position !== null && p.position !== undefined ? ` למיקום ${ltrNum(p.position)}%` : '';
     return html`<div class="what" data-bulk-what>
-        <div class="big" data-bulk-count=${p.count}>יישלח ${p.kind_label} ל־${ltrNum(p.count)} התקנים${p.scope === 'building' ? ' במבנה כולו' : ` ב${BULK_SCOPE_LABEL[p.scope]} ${bidi(p.name)}`}${p.floor_name ? ` (${bidi(p.floor_name)})` : ''}:</div>
+        <div class="big" data-bulk-count=${p.count}>יישלח ${p.kind_label}${posSuffix} ל־${ltrNum(p.count)} התקנים${p.scope === 'building' ? ' במבנה כולו' : ` ב${BULK_SCOPE_LABEL[p.scope]} ${bidi(p.name)}`}${p.floor_name ? ` (${bidi(p.floor_name)})` : ''}:</div>
         <div class="domains" data-bulk-domains>${Object.entries(p.by_domain).map(([d, n]) => html`<span data-domain=${d}>${p.domain_labels[d] ?? d}: ${ltrNum(n)}</span>`)}</div>
         <details><summary>רשימת ההתקנים</summary><ul>${p.targets.map((t) => html`<li>${bidi(t.name)}${t.area_name && p.scope !== 'area' ? html` <span class="muted">· ${bidi(t.area_name)}</span>` : nothing}</li>`)}</ul></details>
         ${this.renderSkipped(p)}

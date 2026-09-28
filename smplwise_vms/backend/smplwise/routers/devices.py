@@ -29,12 +29,12 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
-from ..db import Database, get_setting
+from ..db import Database, get_setting, now_iso
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import device_bulk as bulk
 from ..services import devices as svc
-from ..services import ha_bridge, ha_scope, ha_sync
+from ..services import ha_bridge, ha_client, ha_scope, ha_sync
 from ..services.timeutil import parse_utc
 
 router = APIRouter()
@@ -101,6 +101,9 @@ def area(area_id: str, principal: Principal = Depends(current_principal_ro), con
             if r["domain"] == "switch":
                 ok, reason = policy.switch_reason(r["entity_id"])
                 r["bulk_safe"], r["bulk_reason"] = ok, reason
+    # CR-007 slice 4: an administrator may assign an entity of the "ללא שיוך" bucket to an HA area
+    # (PUT /devices/entities/{id}/area, system.configure)
+    body["can_assign_area"] = area_id == svc.UNASSIGNED and authorize(conn, principal, "system.configure", INSTALLATION).allowed
     body["sync"] = ha_sync.STATE.as_dict()
     return body
 
@@ -129,6 +132,58 @@ def set_bulk_safe(entity_id: str, body: BulkSafeBody, request: Request, principa
     return {"entity_id": entity_id, "bulk_safe": ok, "bulk_reason": reason, "marked": body.bulk_safe}
 
 
+# ---------------------------------------------------------------- slice 4: assign an unassigned entity to an area
+
+
+class AssignAreaBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    area_id: str = Field(min_length=1, max_length=255)
+
+
+@router.put("/devices/entities/{entity_id}/area")
+def assign_area(entity_id: str, body: AssignAreaBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """CR-007 slice 4: assign an entity of the "ללא שיוך" bucket (or move any entity) to an HA area - a Home
+    Assistant CONFIG write, never a domain service call, through the bridge's own registry-write path
+    (services/ha_client.call_bridge_set_area - the bridge accepts exactly this one registry op, nothing else).
+    system.configure (an administrator's statement, the same gate as bulk-safe); audited under the real actor with
+    the honest bridge answer; on success the local registry mirror is updated at once from our own area/floor
+    tables, so the tree and area screens show the move without waiting for the next HA registry refresh."""
+    require(conn, principal, "system.configure", INSTALLATION)
+    erow = conn.execute("SELECT entity_id, area_id FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (entity_id,)).fetchone()
+    if not erow:
+        raise ApiError(404, "not_found", "הישות לא נמצאה בקטלוג.")
+    arow = conn.execute("SELECT area_id, name, floor_id FROM ha_areas WHERE area_id = ?", (body.area_id,)).fetchone()
+    if not arow:
+        raise ApiError(404, "area_not_found", "האזור לא נמצא ב־Home Assistant.")
+    settings = settings_of(request)
+    rid = getattr(request.state, "correlation_id", None)
+    if principal.source != "ingress" and not settings.dev_user:
+        raise ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת HA.")
+    secret = ha_bridge.signing_key(conn)
+    if not secret or not get_setting(conn, "bridge.paired_at"):
+        raise ApiError(503, "bridge_not_paired", "שיוך אזור דורש את גשר SMPLWISE מותקן ומצומד ב־Home Assistant.")
+    payload = ha_bridge.sign(secret, {"user_id": principal.user_id, "entity_id": entity_id, "area_id": body.area_id, "request_id": uuid.uuid4().hex[:12]})
+    try:
+        result = ha_client.call_bridge_set_area(settings, payload)
+    except ApiError as exc:
+        audit(conn, actor=principal, action="devices.assign_area", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason=exc.code, request_id=rid,
+              details={"area_id": body.area_id, "from_area_id": erow["area_id"]})
+        raise
+    ok = bool(result.get("ok"))
+    error = None if ok else str(result.get("error") or "bridge_error")
+    audit(conn, actor=principal, action="devices.assign_area", decision="allowed" if ok else "denied", resource_type="ha_entity", resource_id=entity_id, reason=error, request_id=rid,
+          details={"area_id": body.area_id, "from_area_id": erow["area_id"]})
+    if not ok:
+        status = 404 if error in ("entity_not_found", "area_not_found") else 502
+        raise ApiError(status, "bridge_error", "Home Assistant דחה את שיוך האזור.", details={"error": error})
+    frow = conn.execute("SELECT name FROM ha_floors WHERE floor_id = ?", (arow["floor_id"],)).fetchone() if arow["floor_id"] else None
+    conn.execute(
+        "UPDATE ha_entities SET area_id = ?, area_name = ?, ha_floor_id = ?, ha_floor_name = ?, updated_at = ? WHERE entity_id = ?",
+        (arow["area_id"], arow["name"], arow["floor_id"], frow["name"] if frow else None, now_iso(), entity_id),
+    )
+    return {"entity_id": entity_id, "area_id": arow["area_id"], "area_name": arow["name"]}
+
+
 # ---------------------------------------------------------------- slice 3: bulk actions (devices.control_bulk)
 #
 # Accountability, as the CR-005 physical actions: once the caller holds devices.control_bulk somewhere, every request
@@ -140,7 +195,7 @@ def set_bulk_safe(entity_id: str, body: BulkSafeBody, request: Request, principa
 
 COMMAND_ID = r"^[A-Za-z0-9-]{8,64}$"
 Scope = Literal["building", "floor", "area"]
-Kind = Literal["lights_off", "covers_close", "climate_off", "screens_off", "all_off"]
+Kind = Literal["lights_off", "covers_close", "covers_open", "covers_stop", "covers_position", "climate_off", "screens_off", "all_off"]
 
 
 class BulkBody(BaseModel):
@@ -155,6 +210,9 @@ class BulkBody(BaseModel):
     expires_at: str = Field(min_length=1, max_length=40)
     # the preview's digest: when given, the request is refused if the set changed since the dialog showed it
     preview_digest: str | None = Field(None, min_length=1, max_length=64)
+    # CR-007 slice 4: the one argument a bulk kind ever carries - "כל התריסים" position, required exactly for
+    # covers_position (bulk.resolve refuses a mismatch either way)
+    position: int | None = Field(None, ge=0, le=100)
 
 
 def _bulk_holder(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
@@ -240,11 +298,12 @@ def bulk_preview(
     scope: Scope = Query(...),
     id: str = Query(..., min_length=1, max_length=255),  # noqa: A002 - the scope's id, as in the request body
     kind: Kind = Query(...),
+    position: int | None = Query(None, ge=0, le=100),
 ) -> dict[str, Any]:
     """Exactly what `POST /devices/actions` would send for this scope and kind, per entity - the confirmation dialog
     states it (count by domain, what is skipped as already off / unavailable, what is never included). Sends nothing."""
     try:
-        return bulk.resolve(conn, principal, scope, id, kind)
+        return bulk.resolve(conn, principal, scope, id, kind, position)
     except ApiError as exc:
         if exc.status == 403:
             audit(conn, actor=principal, action=bulk.AUDIT_ACTION, decision="denied", resource_type=f"devices_{scope}", resource_id=id, reason=exc.code,
@@ -272,7 +331,7 @@ def bulk_run(request: Request, principal: Principal = Depends(_bulk_holder), con
     if body.confirmed is not True:
         raise act.refuse(ApiError(409, "confirmation_required", "פעולה מרוכזת דורשת אישור מפורש בחלון האישור."))
     try:
-        plan = bulk.resolve(conn, principal, body.scope, body.id, body.kind)
+        plan = bulk.resolve(conn, principal, body.scope, body.id, body.kind, body.position)
     except ApiError as exc:
         raise act.refuse(exc) from None
     if body.preview_digest is not None and body.preview_digest != plan["digest"]:
