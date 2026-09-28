@@ -270,3 +270,42 @@ test('element minors: a restored WebGL context redraws, a cancelled pointer neve
   });
   expect(Math.abs(centres.toast - centres.host)).toBeLessThan(2);
 });
+
+test('a new frameKey frames the new floor; a state push under the same key keeps the camera (T087 tuning, 0.1.89 list)', async ({ page }) => {
+  test.setTimeout(90_000);
+  const el = await openDemo(page);
+  const f1 = buildScene(demoSceneInput('f-1')!);
+  const f0 = buildScene(demoSceneInput('f0')!);
+  type Framed = { pos: V3; target: V3 };
+  const read = (): Promise<Framed> => el.evaluate((n) => { const e = n as unknown as Probe; return { pos: { ...e.view.camera.position }, target: { ...e.view.controls.target } }; });
+  await el.evaluate((n, d) => { const e = n as unknown as { frameKey: string; description: SceneDescription }; e.frameKey = 'f0'; e.description = d; }, f0);
+  await expect(el).toHaveAttribute('data-preset', 'iso');
+  // the viewer orbits away from the preset
+  await el.evaluate((n) => { const e = n as unknown as { view: { camera: { position: V3 & { set(x: number, y: number, z: number): void } }; controls: { update(): void } } }; const p = e.view.camera.position; p.set(p.x + 7, p.y + 3, p.z - 5); e.view.controls.update(); });
+  const moved = await read();
+  // a live state push: a new description object, the same key - the camera stays where the viewer put it
+  await el.evaluate((n) => { const e = n as unknown as { description: SceneDescription }; e.description = { ...e.description, parts: [...e.description.parts] }; });
+  await page.waitForTimeout(150);
+  const pushed = await read();
+  expect(pushed.pos.x).toBeCloseTo(moved.pos.x, 6);
+  expect(pushed.pos.z).toBeCloseTo(moved.pos.z, 6);
+  // another floor in the same element: framed on the new floor's extent, exactly as a fresh isometric preset frames it
+  await el.evaluate((n, d) => { const e = n as unknown as { frameKey: string; description: SceneDescription }; e.frameKey = 'f-1'; e.description = d; }, f1);
+  await page.waitForTimeout(150);
+  const switched = await read();
+  expect(Math.hypot(switched.pos.x - moved.pos.x, switched.pos.z - moved.pos.z)).toBeGreaterThan(1);
+  await el.locator('[data-preset-iso]').click();
+  const fresh = await read();
+  for (const k of ['x', 'y', 'z'] as const) {
+    expect(switched.pos[k]).toBeCloseTo(fresh.pos[k], 4);
+    expect(switched.target[k]).toBeCloseTo(fresh.target[k], 4);
+  }
+  // a camera preset of the previous floor: the next floor opens on its isometric overview instead of the old view
+  await el.evaluate((n, d) => { const e = n as unknown as { frameKey: string; description: SceneDescription; preset: unknown }; e.preset = { camera: 'cam:cam-1' }; e.description = d; e.frameKey = 'f0'; }, f0);
+  await expect(el).toHaveAttribute('data-preset', 'camera');
+  await el.evaluate((n, d) => { const e = n as unknown as { frameKey: string; description: SceneDescription }; e.frameKey = 'f-1'; e.description = d; }, f1);
+  await expect(el).toHaveAttribute('data-preset', 'iso');
+  const back = await read();
+  expect(back.pos.x).toBeCloseTo(fresh.pos.x, 4);
+  expect(back.pos.z).toBeCloseTo(fresh.pos.z, 4);
+});

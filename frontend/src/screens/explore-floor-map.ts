@@ -1420,7 +1420,7 @@ export class ExploreFloorMap extends LitElement {
     if (!s) return nothing;
     const now = new Date(); // the local date (toISOString is UTC: a day behind in the evening, a day ahead after midnight)
     const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    return html`<sw-plan-3d data-floor-3d .description=${s.desc} .selectedId=${this.sel3d} .preset=${this.preset3d} .cameras=${s.cameras} .labels=${s.labels}
+    return html`<sw-plan-3d data-floor-3d .description=${s.desc} .selectedId=${this.sel3d} .preset=${this.preset3d} .frameKey=${b.floorId} .cameras=${s.cameras} .labels=${s.labels}
       .levels=${b.levels.map((l) => ({ id: l.id, name: l.name, elevation_m: l.elevation_m }))} .activeLevel=${this.levelFilter} .thumbnailScene=${s.all} .qualityDefault=${this.quality3d} .levelDots=${this.roomStateLayer?.levels ?? {}}
       exportName=${`plan-3d-${b.floorName}${this.levelFilter ? `-${this.levelFilter}` : ''}-${stamp}`} @part-select=${(e: CustomEvent<PartSelectDetail>) => this.onPartSelect(e)}
       @level-select=${(e: CustomEvent<LevelSelectDetail>) => (this.levelFilter = e.detail.id)}></sw-plan-3d>`;

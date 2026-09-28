@@ -84,6 +84,10 @@ export class SwPlan3d extends LitElement {
   @property({ attribute: false }) description: SceneDescription | null = null;
   @property() selectedId: string | null = null;
   @property({ attribute: false }) preset: ScenePreset = 'iso';
+  /** What the framing belongs to - the floor the screen shows (T087 tuning, 0.1.89 list). A change re-applies the preset
+   * with the next description, so a floor switched while in 3D is framed on its own extent instead of keeping the previous
+   * floor's camera; a live state push keeps the key and never moves the camera. Unset: framed once per mount. */
+  @property() frameKey: string | null = null;
   @property({ attribute: false }) cameras: { id: string; label: string }[] = [];
   @property({ attribute: false }) labels: Record<string, string> = {};
   @property() exportName = 'plan-3d';
@@ -512,7 +516,10 @@ export class SwPlan3d extends LitElement {
 
   protected updated(changed: PropertyValues<this>): void {
     if (!this.view) return;
+    const reframe = changed.has('frameKey') && changed.get('frameKey') !== undefined;
+    if (reframe) this.presetApplied = false;
     if (changed.has('description') && this.description) this.apply(this.description);
+    if (reframe && !this.presetApplied && this.applied) this.frame(); // the key changed without a new description object
     if (changed.has('selectedId') || changed.has('description')) {
       this.view.setSelected(this.selectedId);
       this.setAttribute('data-selected', this.selectedId ?? '');
@@ -551,10 +558,7 @@ export class SwPlan3d extends LitElement {
     this.view?.setDescription(desc);
     this.setAttribute('data-parts', String(desc.parts.length));
     this.toggleAttribute('data-estimated', desc.estimated);
-    if (!this.presetApplied) {
-      this.applyPreset(this.preset);
-      this.presetApplied = true;
-    }
+    if (!this.presetApplied) this.frame();
     this.view?.setSelected(this.selectedId);
     if (this.quality === 2 && !this.probed) this.startProbe(); // once per mount: a live state push is not a new device
   }
@@ -655,6 +659,14 @@ export class SwPlan3d extends LitElement {
   private fallBack(): void {
     this.fallback = true;
     writeStore('session', FALLBACK_KEY, '1');
+  }
+
+  /** Frame the current description with the screen's preset; a camera preset whose camera is not in this description
+   * (another floor's camera) frames the isometric overview instead of leaving the previous floor's view. */
+  private frame(): void {
+    this.presetApplied = true;
+    if (this.view?.setPreset(this.preset)) this.setAttribute('data-preset', typeof this.preset === 'string' ? this.preset : 'camera');
+    else if (this.view?.setPreset('iso')) this.setAttribute('data-preset', 'iso');
   }
 
   /** data-preset follows only a preset that took effect (an unknown camera id leaves the view and the attribute). */
