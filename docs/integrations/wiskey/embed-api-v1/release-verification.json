@@ -1,0 +1,83 @@
+{
+  "release": {
+    "published": true,
+    "tag": "v2.0.0-rc.19",
+    "sha": "8c70ae348259088dc4f831ee9d8fa19fcff62a65",
+    "url": "https://github.com/jonioliel/home-assistant-hikvision-intercom/releases/tag/v2.0.0-rc.19",
+    "published_at": "2026-09-28T20:27:31Z",
+    "archive_manifest_verified": true,
+    "embed_contract": 1,
+    "handoff_files_verified": true
+  },
+  "ci": {
+    "run": 36478363059,
+    "sha": "8c70ae348259088dc4f831ee9d8fa19fcff62a65",
+    "url": "https://github.com/jonioliel/home-assistant-hikvision-intercom/actions/runs/36478363059",
+    "conclusion": "success",
+    "jobs": [
+      {
+        "id": 109117665591,
+        "name": "hassfest / validate",
+        "conclusion": "success",
+        "test_summaries": []
+      },
+      {
+        "id": 109117665725,
+        "name": "python / tests (3.14)",
+        "conclusion": "success",
+        "test_summaries": [
+          "2026-09-28T20:20:19.5752299Z ============================ 1543 passed in 32.93s =============================",
+          "2026-09-28T20:20:19.8206513Z All checks passed!",
+          "2026-09-28T20:20:19.9033373Z 400 files already formatted",
+          "2026-09-28T20:20:23.5510676Z Success: no issues found in 92 source files"
+        ]
+      },
+      {
+        "id": 109117665861,
+        "name": "python / home-assistant",
+        "conclusion": "success",
+        "test_summaries": [
+          "2026-09-28T20:23:03.9298342Z ======================= 545 passed in 140.35s (0:02:20) ========================"
+        ]
+      },
+      {
+        "id": 109117665874,
+        "name": "python / dependency-security",
+        "conclusion": "success",
+        "test_summaries": []
+      },
+      {
+        "id": 109117665886,
+        "name": "python / frontend",
+        "conclusion": "success",
+        "test_summaries": [
+          "2026-09-28T20:23:39.3670185Z   250 passed (2.9m)",
+          "2026-09-28T20:27:21.3506538Z   653 passed (3.7m)"
+        ]
+      },
+      {
+        "id": 109117665906,
+        "name": "hacs / validate",
+        "conclusion": "success",
+        "test_summaries": []
+      },
+      {
+        "id": 109117665920,
+        "name": "python / tests (3.12)",
+        "conclusion": "success",
+        "test_summaries": [
+          "2026-09-28T20:21:09.2768192Z ======================= 1543 passed in 83.87s (0:01:23) ========================",
+          "2026-09-28T20:21:09.5199705Z All checks passed!",
+          "2026-09-28T20:21:09.6239822Z 400 files already formatted",
+          "2026-09-28T20:21:14.1940496Z Success: no issues found in 92 source files"
+        ]
+      },
+      {
+        "id": 109120758420,
+        "name": "publish",
+        "conclusion": "success",
+        "test_summaries": []
+      }
+    ]
+  }
+}
