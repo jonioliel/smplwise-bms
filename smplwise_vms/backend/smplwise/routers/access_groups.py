@@ -29,12 +29,12 @@ from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import bump_permission_revision, new_id, now_iso
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, all_roles, authorize, effective_permissions, require, scope_name
 from .access import (
-    PERMISSION_LABELS, BindingBody, _active_bindings_sql, _binding_dict, _ensure_user_row, _group_members, _rid, _scope_exists,
+    PERMISSION_LABELS, BindingBody, active_user_ids, keep_an_admin, _active_bindings_sql, _binding_dict, _ensure_user_row, _group_members, _rid, _scope_exists,
     _subject_name, _terminate, affected_users, assigns_anywhere, check_delegation, full_authority,
     delegated_group_problem, insert_binding, revoke_one, touch_group, user_known, validate_binding,
 )
@@ -50,6 +50,15 @@ MAX_MEMBERS = 500
 
 def _assign_holder(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
     """rbac.assign at some scope, checked before the body is looked at; the refusal is audited by require()."""
+    if not assigns_anywhere(conn, principal):
+        require(conn, principal, "rbac.assign", INSTALLATION)
+    return principal
+
+
+def _assign_gate_ro(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Principal:
+    """The same gate on a READ connection, for the raw-body routes: the body is streamed after it and only then is the
+    write transaction (BEGIN IMMEDIATE) opened - a slow upload never holds SQLite's single write lock (security review
+    T082). The refusal is still audited (require() writes aside in read mode)."""
     if not assigns_anywhere(conn, principal):
         require(conn, principal, "rbac.assign", INSTALLATION)
     return principal
@@ -246,48 +255,44 @@ class MembersBody(BaseModel):
     revision: int = Field(ge=1)
 
 
-def _active_admins(conn: sqlite3.Connection) -> set[str]:
-    """Active users holding system_admin installation-wide, directly or through a group."""
-    out: set[str] = set()
-    for b in conn.execute(_active_bindings_sql("AND role_id = 'system_admin' AND scope_type = 'installation' AND effect = 'allow'"), (now_iso(),)).fetchall():
-        ids = [b["subject_id"]] if b["subject_kind"] == "user" else _group_members(conn, b["subject_id"])
-        for uid in ids:
-            u = conn.execute("SELECT active FROM users WHERE id = ?", (uid,)).fetchone()
-            if u is None or u["active"]:
-                out.add(uid)
-    return out
+def _wanted_members(conn: sqlite3.Connection, principal: Principal, before: list[str], user_ids: list[str]) -> tuple[list[str], set[str] | None]:
+    """The membership asked for. A delegated administrator names only people their directory shows: members it does
+    not show (inactive in HA or in the VMS) are kept, never removed by omission. Returns (wanted, visible or None)."""
+    wanted = list(dict.fromkeys(u.strip() for u in user_ids if u.strip()))
+    if full_authority(conn, principal):
+        return wanted, None
+    visible = active_user_ids(conn)
+    return wanted + [u for u in before if u not in visible and u not in wanted], visible
 
 
 @router.put("/access/groups/{group_id}/members")
-def set_members(group_id: str, request: Request, principal: Principal = Depends(_assign_holder), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_capped_body)) -> dict[str, Any]:
+def set_members(group_id: str, request: Request, principal: Principal = Depends(_assign_gate_ro), raw: bytes = Depends(_capped_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Replace the membership - a bulk request: every added or removed user is checked (known person; a delegated
-    administrator never adds or removes themselves) and the first refused one refuses the whole call."""
+    administrator never adds or removes themselves, and names only people their directory shows) and the first refused
+    one refuses the whole call. Dependency order matters: gate (read connection) -> body -> write transaction."""
     body: MembersBody = _parse(request, raw, MembersBody)
     g = _group_row(conn, group_id)
     _reach_or_refuse(conn, principal, group_id, "rbac.group_members")
     _check_revision(g, body.revision)
-    wanted = list(dict.fromkeys(u.strip() for u in body.user_ids if u.strip()))
     before = _group_members(conn, group_id)
+    wanted, visible = _wanted_members(conn, principal, before, body.user_ids)
     added = [u for u in wanted if u not in before]
     removed = [u for u in before if u not in wanted]
-    full = full_authority(conn, principal)
+    full = visible is None
     for i, uid in enumerate(added + removed):
         if not full and uid == principal.user_id:
             audit(conn, actor=principal, action="rbac.group_members", decision="denied", resource_type="group", resource_id=group_id, reason="delegation_self", details={"item_id": uid})
             raise _item_refusal(ApiError(403, "delegation_self", "מנהל מקומי אינו מצרף או מסיר את עצמו מקבוצה."), i, uid, "user")
-        if uid in added and not user_known(conn, uid):
+        if uid in added and (not user_known(conn, uid) or (visible is not None and uid not in visible)):
             raise _item_refusal(ApiError(404, "user_unknown", "המשתמש לא נמצא בספריית Home Assistant."), i, uid, "user")
     if not added and not removed:
         return _group_dict(conn, g, principal)
-    admins_before = _active_admins(conn)
-    with _all_or_nothing(conn):
+    with keep_an_admin(conn):
         for uid in added:
             _ensure_user_row(conn, uid)
             conn.execute("INSERT INTO group_members(group_id, user_id) VALUES (?, ?)", (group_id, uid))
         for uid in removed:
             conn.execute("DELETE FROM group_members WHERE group_id = ? AND user_id = ?", (group_id, uid))
-        if admins_before and not _active_admins(conn):
-            raise ApiError(409, "last_admin_protected", "השינוי מסיר את מנהל המערכת הפעיל האחרון; הקצה מנהל אחר קודם.")
         rev = bump_permission_revision(conn)
         grev = touch_group(conn, group_id, principal)
     audit(conn, actor=principal, action="rbac.group_members", decision="allowed", resource_type="group", resource_id=group_id, request_id=_rid(request),
@@ -309,11 +314,10 @@ class GroupBindingBody(BaseModel):
 
 
 @router.post("/access/groups/{group_id}/bindings", status_code=201)
-def bind_group(group_id: str, body: GroupBindingBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    g = _group_row(conn, group_id)
-    _check_revision(g, body.revision)
+def bind_group(group_id: str, body: GroupBindingBody, request: Request, principal: Principal = Depends(_assign_holder), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     b = BindingBody(subject_kind="group", subject_id=group_id, role_id=body.role_id, scope_type=body.scope_type, scope_id=body.scope_id, effect=body.effect, expires_at=body.expires_at)
-    validate_binding(conn, principal, b)
+    validate_binding(conn, principal, b)  # permission and scope first, then the group (404) and the delegation limits
+    _check_revision(_group_row(conn, group_id), body.revision)
     bid, rev = insert_binding(conn, principal, request, b)
     if b.effect == "deny":
         _terminate(conn, settings_of(request), affected_users(conn, "group", group_id))
@@ -321,12 +325,12 @@ def bind_group(group_id: str, body: GroupBindingBody, request: Request, principa
 
 
 @router.delete("/access/groups/{group_id}/bindings/{binding_id}")
-def unbind_group(group_id: str, binding_id: str, request: Request, revision: int = Query(..., ge=1), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    g = _group_row(conn, group_id)
+def unbind_group(group_id: str, binding_id: str, request: Request, revision: int = Query(..., ge=1), principal: Principal = Depends(_assign_holder), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     b = conn.execute("SELECT * FROM bindings WHERE id = ? AND revoked_at IS NULL AND subject_kind = 'group' AND subject_id = ?", (binding_id, group_id)).fetchone()
     if not b:
         raise ApiError(404, "not_found", "השיוך לא נמצא או כבר בוטל.")
-    _check_revision(g, revision)
+    check_delegation(conn, principal, b["role_id"], (b["scope_type"], b["scope_id"]), "group", group_id, op="unbind", effect=b["effect"])
+    _check_revision(_group_row(conn, group_id), revision)
     rev = revoke_one(conn, principal, request, b)
     _terminate(conn, settings_of(request), affected_users(conn, "group", group_id))
     return {"revoked": binding_id, "revision": rev, "group": _group_dict(conn, _group_row(conn, group_id), principal)}
@@ -369,6 +373,7 @@ def group_impact(group_id: str, body: ImpactBody, principal: Principal = Depends
         if body.role_id not in all_roles(conn):
             raise ApiError(422, "role_unknown", "תפקיד לא מוכר.")
         scope = (body.scope_type, body.scope_id)
+        require(conn, principal, "rbac.assign", scope)
         if not _scope_exists(conn, *scope):
             raise ApiError(422, "scope_unknown", "ההיקף (אתר / מבנה / קומה) לא נמצא.")
         check_delegation(conn, principal, body.role_id, scope, "group", group_id, op="bind", effect=body.effect)
@@ -388,7 +393,9 @@ def group_impact(group_id: str, body: ImpactBody, principal: Principal = Depends
             conn.execute("UPDATE bindings SET revoked_at = ? WHERE id = ?", (now_iso(), b["id"]))
     else:
         _reach_or_refuse(conn, principal, group_id, "rbac.group_members")
-        wanted = list(dict.fromkeys(u.strip() for u in body.user_ids if u.strip()))
+        wanted, visible = _wanted_members(conn, principal, members, body.user_ids)
+        if visible is not None:  # a delegated preview names only people their directory shows
+            wanted = [u for u in wanted if u in visible or u in members]
         added = [u for u in wanted if u not in members]
         removed = [u for u in members if u not in wanted]
         scopes = list(dict.fromkeys((b["scope_type"], b["scope_id"]) for b in _group_bindings(conn, group_id)))
@@ -444,7 +451,7 @@ class BulkBindingsBody(BaseModel):
 
 
 @router.post("/access/bindings/bulk", status_code=201)
-def bulk_bindings(request: Request, principal: Principal = Depends(_assign_holder), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_capped_body)) -> dict[str, Any]:
+def bulk_bindings(request: Request, principal: Principal = Depends(_assign_gate_ro), raw: bytes = Depends(_capped_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Many bindings in one call, all or nothing: each item gets exactly the single route's checks (validate_binding -
     delegation, allow-list, ceiling, self, group reach, existence, duplicates) and so does the whole set against itself
     (no item twice); the first refused item refuses the request with its index and id and nothing is written."""

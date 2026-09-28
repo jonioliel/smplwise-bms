@@ -9,8 +9,9 @@ from __future__ import annotations
 import datetime as dt
 import json
 import sqlite3
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
@@ -312,8 +313,9 @@ def group_reach_problem(conn: sqlite3.Connection, principal: Principal, group_id
     """Whether a DELEGATED administrator may touch this group at all (its membership, its bindings). Every active
     binding of the group must lie where the actor holds rbac.assign, carry an allow-listed role and stay within the
     actor's own permissions there (security spec §6: a group bound on two floors of two sites cannot be managed by
-    someone delegated one floor), and the group needs at least one binding - an unanchored group has no scope a
-    delegated administrator could vouch for. None = in reach."""
+    someone delegated one floor) - deny bindings included, since removing a member lifts the group's deny for them -
+    and the group needs at least one binding - an unanchored group has no scope a delegated administrator could vouch
+    for. None = in reach."""
     rows = conn.execute(_active_bindings_sql("AND subject_kind = 'group' AND subject_id = ?"), (now_iso(), group_id)).fetchall()
     if not rows:
         return {"reason": "group_unanchored"}
@@ -324,7 +326,7 @@ def group_reach_problem(conn: sqlite3.Connection, principal: Principal, group_id
             return {"reason": "scope", "binding_id": b["id"]}
         if b["role_id"] not in delegable:
             return {"reason": "role", "binding_id": b["id"]}
-        if b["effect"] == "allow" and set(role_permissions(conn, b["role_id"])) - set(effective_permissions(conn, principal, scope)):
+        if set(role_permissions(conn, b["role_id"])) - set(effective_permissions(conn, principal, scope)):
             return {"reason": "ceiling", "binding_id": b["id"]}
     return None
 
@@ -346,7 +348,8 @@ def check_delegation(conn: sqlite3.Connection, principal: Principal, role_id: st
     """Pilot rule (§7) plus T082 (R164). Only holders of rbac.assign on the target scope assign or revoke; system_admin
     is installation-wide only. Full authority (full_authority) stops there. A DELEGATED administrator additionally:
     only allow-listed roles (never system_admin / site_admin / a role with a system permission, rbac.assign or - for a
-    custom role - a sensitive grant); only permissions they hold themselves at that scope (bind); never their own
+    custom role - a sensitive grant); never a deny binding; only permissions they hold themselves at that scope (when
+    granting an allow and when revoking a deny - both hand the permissions out); never their own
     bindings, directly or through a group they belong to (no self-escalation); a group only when every binding of it
     is in their reach (group_reach_problem). Every refusal is an audited `denied` row with its reason."""
     action = "rbac.bind" if op == "bind" else "rbac.unbind"
@@ -355,12 +358,17 @@ def check_delegation(conn: sqlite3.Connection, principal: Principal, role_id: st
         raise ApiError(422, "scope_not_allowed_for_role", "מנהל מערכת VMS מוקצה רק ברמת ההתקנה כולה.")
     if full_authority(conn, principal):
         return
+    if op == "bind" and effect == "deny":
+        # security review T082 (M2): a delegated administrator could deny people above them (a system admin, a peer
+        # site admin) inside their scope. Deny bindings stay a full-authority tool.
+        raise _refuse(conn, principal, action, scope, "delegation_deny_forbidden", "מנהל מקומי אינו יוצר חסימות; חסימה היא כלי של מנהל המערכת בלבד.", {"role_id": role_id, "subject_kind": subject_kind, "subject_id": subject_id})
     perms = set(role_permissions(conn, role_id))
     if perms & SYSTEM_PERMISSIONS:
         raise _refuse(conn, principal, action, scope, "delegation_exceeded", "מנהל מקומי אינו מקצה תפקידי ניהול או תפקידים עם הרשאות מערכת.", {"role_id": role_id})
     if role_id not in delegable_roles(conn):
         raise _refuse(conn, principal, action, scope, "role_not_delegable", "מנהל מקומי רשאי להקצות רק תפקידים מרשימת ההאצלה.", {"role_id": role_id, "delegable": delegable_roles(conn)})
-    if op == "bind" and effect == "allow":
+    if op == "bind" or effect == "deny":
+        # granting an allow, or revoking a deny (security review T082, M1): either one hands out these permissions
         missing = sorted(perms - set(effective_permissions(conn, principal, scope)))
         if missing:
             raise _refuse(conn, principal, action, scope, "delegation_escalation", "אי אפשר להאציל הרשאות שאין לך בהיקף הזה.", {"role_id": role_id, "missing": missing})
@@ -414,20 +422,47 @@ def _group_members(conn: sqlite3.Connection, group_id: str) -> list[str]:
     return [r["user_id"] for r in conn.execute("SELECT user_id FROM group_members WHERE group_id = ?", (group_id,)).fetchall()]
 
 
-def _last_admin_guard(conn: sqlite3.Connection, binding: sqlite3.Row) -> None:
-    """The last active VMS system administrator cannot be removed through the product (§10)."""
-    if binding["role_id"] != "system_admin" or (binding["scope_type"], binding["scope_id"]) != INSTALLATION or binding["effect"] != "allow":
-        return
-    now = now_iso()
-    others = 0
-    for b in conn.execute(_active_bindings_sql("AND role_id = 'system_admin' AND scope_type = 'installation' AND effect = 'allow' AND id != ?"), (now, binding["id"])).fetchall():
-        if b["subject_kind"] == "user":
-            u = conn.execute("SELECT active FROM users WHERE id = ?", (b["subject_id"],)).fetchone()
-            others += 1 if (u is None or u["active"]) else 0
-        else:
-            others += conn.execute("SELECT COUNT(*) FROM group_members m JOIN users u ON u.id = m.user_id WHERE m.group_id = ? AND u.active = 1", (b["subject_id"],)).fetchone()[0]
-    if others == 0:
-        raise ApiError(409, "last_admin_protected", "זהו מנהל המערכת הפעיל האחרון; הקצה מנהל אחר לפני הסרה.")
+def admin_count(conn: sqlite3.Connection) -> int:
+    """Active users who hold rbac.roles.manage installation-wide right now - allow and deny bindings, direct and through
+    groups, all counted by authorize() itself (security review T082, M3: counting allow bindings alone missed denies)."""
+    n = 0
+    for u in conn.execute("SELECT id, username, display_name, source FROM users WHERE active = 1").fetchall():
+        if authorize(conn, Principal(u["id"], u["username"], u["display_name"], u["source"]), "rbac.roles.manage", INSTALLATION).allowed:
+            n += 1
+    return n
+
+
+@contextmanager
+def keep_an_admin(conn: sqlite3.Connection) -> Iterator[None]:
+    """Around ANY binding or membership write (allow or deny, user or group): if the installation had an active VMS
+    system administrator before and has none after, every write of the block is rolled back and the call refused (§10)."""
+    before = admin_count(conn)
+    conn.execute("SAVEPOINT t082_keep_admin")
+    try:
+        yield
+        if before and not admin_count(conn):
+            raise ApiError(409, "last_admin", "השינוי משאיר את ההתקנה בלי מנהל מערכת פעיל; הקצה מנהל אחר קודם.")
+    except BaseException:
+        conn.execute("ROLLBACK TO t082_keep_admin")
+        conn.execute("RELEASE t082_keep_admin")
+        raise
+    conn.execute("RELEASE t082_keep_admin")
+
+
+def active_user_ids(conn: sqlite3.Connection) -> set[str]:
+    """The people the delegated directory lists (active in HA and in the VMS) - a delegated administrator may name no
+    one else, in a membership change or in its preview."""
+    ids = {r[0] for r in conn.execute("SELECT id FROM users WHERE active = 1").fetchall()}
+    ids |= {r[0] for r in conn.execute("SELECT id FROM ha_users WHERE is_active = 1").fetchall()}
+    ids -= {r[0] for r in conn.execute("SELECT id FROM users WHERE active = 0").fetchall()}
+    ids -= {r[0] for r in conn.execute("SELECT id FROM ha_users WHERE is_active = 0").fetchall()}
+    return ids
+
+
+def delegated_sees(conn: sqlite3.Connection, principal: Principal, b: dict[str, Any] | sqlite3.Row) -> bool:
+    """A binding a delegated administrator may see: inside their reach and not a system role's (a site_admin bound
+    installation-wide reaches every scope, yet the system administrators' bindings stay out of their view)."""
+    return in_reach(conn, principal, b) and not set(role_permissions(conn, b["role_id"])) & SYSTEM_PERMISSIONS
 
 
 # ---------------------------------------------------------------- directory
@@ -464,12 +499,13 @@ def _delegated_directory(conn: sqlite3.Connection, principal: Principal) -> dict
             continue
         users.append({
             **u,
+            "username": "",
             "is_admin": False,
             "synced_at": None,
             "first_seen_at": None,
             "last_seen_at": None,
             "groups": [g for g in u["groups"] if g["id"] in reach_groups],
-            "bindings": [b for b in u["bindings"] if in_reach(conn, principal, b)],
+            "bindings": [b for b in u["bindings"] if delegated_sees(conn, principal, b)],
         })
     return {
         "users": users,
@@ -539,17 +575,25 @@ class BindingBody(BaseModel):
 
 @router.get("/access/bindings")
 def list_bindings(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    require(conn, principal, "rbac.assign", INSTALLATION)
-    return {"bindings": [_binding_dict(conn, b) for b in conn.execute(_active_bindings_sql(), (now_iso(),)).fetchall()], "revision": permission_revision(conn)}
+    if not assigns_anywhere(conn, principal):
+        require(conn, principal, "rbac.assign", INSTALLATION)
+    rows = conn.execute(_active_bindings_sql(), (now_iso(),)).fetchall()
+    if not full_authority(conn, principal):
+        rows = [b for b in rows if delegated_sees(conn, principal, b)]
+    return {"bindings": [_binding_dict(conn, b) for b in rows], "revision": permission_revision(conn)}
 
 
 def validate_binding(conn: sqlite3.Connection, principal: Principal, body: BindingBody) -> None:
     """Every check of one new binding, without writing anything but the audit row of a refusal: known role and scope,
     a future expiry, the delegation limits (check_delegation), an existing subject, no active duplicate. Shared by the
-    single route, the group route and the all-or-nothing bulk route (routers/access_groups.py)."""
+    single route, the group route and the all-or-nothing bulk route (routers/access_groups.py). The permission comes
+    before any lookup: a caller without rbac.assign learns nothing about scopes or groups (security review T082)."""
+    if not assigns_anywhere(conn, principal):
+        require(conn, principal, "rbac.assign", INSTALLATION)
     if body.role_id not in all_roles(conn):
         raise ApiError(422, "role_unknown", "תפקיד לא מוכר.")
     scope = (body.scope_type, body.scope_id)
+    require(conn, principal, "rbac.assign", scope)
     if not _scope_exists(conn, *scope):
         raise ApiError(422, "scope_unknown", "ההיקף (אתר / מבנה / קומה) לא נמצא.")
     if body.expires_at:
@@ -585,20 +629,21 @@ def touch_group(conn: sqlite3.Connection, group_id: str, principal: Principal) -
 def insert_binding(conn: sqlite3.Connection, principal: Principal, request: Request, body: BindingBody, extra_audit: dict[str, Any] | None = None) -> tuple[str, int]:
     """Write one already-validated binding: bump the permission revision, audit (ids only) with the subject's
     before/after binding summary. Returns (binding id, permission revision). The caller terminates sessions."""
-    if body.subject_kind == "user":
-        _ensure_user_row(conn, body.subject_id)
-    before = _binding_summary(conn, body.subject_kind, body.subject_id)
-    rev = bump_permission_revision(conn)
-    bid = new_id()
-    conn.execute(
-        "INSERT INTO bindings(id, subject_kind, subject_id, role_id, scope_type, scope_id, effect, permission_revision, assigned_by, created_at, expires_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-        (bid, body.subject_kind, body.subject_id, body.role_id, body.scope_type, body.scope_id, body.effect, rev, principal.user_id, now_iso(), body.expires_at),
-    )
-    details: dict[str, Any] = {"binding_id": bid, "role_id": body.role_id, "scope": f"{body.scope_type}:{body.scope_id}", "effect": body.effect, "before": before,
-                               "after": _binding_summary(conn, body.subject_kind, body.subject_id), "revision": rev, **(extra_audit or {})}
-    if body.subject_kind == "group":
-        details["group_revision"] = touch_group(conn, body.subject_id, principal)
-    audit(conn, actor=principal, action="rbac.bind", decision="allowed", resource_type=body.subject_kind, resource_id=body.subject_id, request_id=_rid(request), details=details)
+    with keep_an_admin(conn):
+        if body.subject_kind == "user":
+            _ensure_user_row(conn, body.subject_id)
+        before = _binding_summary(conn, body.subject_kind, body.subject_id)
+        rev = bump_permission_revision(conn)
+        bid = new_id()
+        conn.execute(
+            "INSERT INTO bindings(id, subject_kind, subject_id, role_id, scope_type, scope_id, effect, permission_revision, assigned_by, created_at, expires_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (bid, body.subject_kind, body.subject_id, body.role_id, body.scope_type, body.scope_id, body.effect, rev, principal.user_id, now_iso(), body.expires_at),
+        )
+        details: dict[str, Any] = {"binding_id": bid, "role_id": body.role_id, "scope": f"{body.scope_type}:{body.scope_id}", "effect": body.effect, "before": before,
+                                   "after": _binding_summary(conn, body.subject_kind, body.subject_id), "revision": rev, **(extra_audit or {})}
+        if body.subject_kind == "group":
+            details["group_revision"] = touch_group(conn, body.subject_id, principal)
+        audit(conn, actor=principal, action="rbac.bind", decision="allowed", resource_type=body.subject_kind, resource_id=body.subject_id, request_id=_rid(request), details=details)
     return bid, rev
 
 
@@ -621,20 +666,22 @@ def revoke_one(conn: sqlite3.Connection, principal: Principal, request: Request,
     only allow-listed roles inside their reach, never their own) and the last-administrator guard."""
     scope = (b["scope_type"], b["scope_id"])
     check_delegation(conn, principal, b["role_id"], scope, b["subject_kind"], b["subject_id"], op="unbind", effect=b["effect"])
-    _last_admin_guard(conn, b)
-    before = _binding_summary(conn, b["subject_kind"], b["subject_id"])
-    rev = bump_permission_revision(conn)
-    conn.execute("UPDATE bindings SET revoked_at = ? WHERE id = ?", (now_iso(), b["id"]))
-    details: dict[str, Any] = {"binding_id": b["id"], "role_id": b["role_id"], "scope": f"{b['scope_type']}:{b['scope_id']}", "before": before,
-                               "after": _binding_summary(conn, b["subject_kind"], b["subject_id"]), "revision": rev}
-    if b["subject_kind"] == "group":
-        details["group_revision"] = touch_group(conn, b["subject_id"], principal)
-    audit(conn, actor=principal, action="rbac.unbind", decision="allowed", resource_type=b["subject_kind"], resource_id=b["subject_id"], request_id=_rid(request), details=details)
+    with keep_an_admin(conn):
+        before = _binding_summary(conn, b["subject_kind"], b["subject_id"])
+        rev = bump_permission_revision(conn)
+        conn.execute("UPDATE bindings SET revoked_at = ? WHERE id = ?", (now_iso(), b["id"]))
+        details: dict[str, Any] = {"binding_id": b["id"], "role_id": b["role_id"], "scope": f"{b['scope_type']}:{b['scope_id']}", "before": before,
+                                   "after": _binding_summary(conn, b["subject_kind"], b["subject_id"]), "revision": rev}
+        if b["subject_kind"] == "group":
+            details["group_revision"] = touch_group(conn, b["subject_id"], principal)
+        audit(conn, actor=principal, action="rbac.unbind", decision="allowed", resource_type=b["subject_kind"], resource_id=b["subject_id"], request_id=_rid(request), details=details)
     return rev
 
 
 @router.delete("/access/bindings/{binding_id}")
 def revoke_binding(binding_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    if not assigns_anywhere(conn, principal):
+        require(conn, principal, "rbac.assign", INSTALLATION)
     b = conn.execute("SELECT * FROM bindings WHERE id = ? AND revoked_at IS NULL", (binding_id,)).fetchone()
     if not b:
         raise ApiError(404, "not_found", "השיוך לא נמצא או כבר בוטל.")
@@ -663,6 +710,10 @@ def preview(body: PreviewBody, principal: Principal = Depends(current_principal)
     subject = Principal(user_id=body.user_id, username=(u["username"] if u else ""), display_name=(u["display_name"] if u else ""), source=(u["source"] if u else "ingress"))
     active = bool(u["active"]) if u else True
     allowed = effective_permissions(conn, subject, scope) if active else []
+    limited = body.user_id != principal.user_id and not full_authority(conn, principal)
+    if limited:
+        # security review T082: never more than the actor holds there themselves
+        allowed = sorted(set(allowed) & set(effective_permissions(conn, principal, scope)))
     return {
         "user_id": body.user_id,
         "scope_type": body.scope_type,
@@ -671,9 +722,10 @@ def preview(body: PreviewBody, principal: Principal = Depends(current_principal)
         "active": active,
         "allowed": allowed,
         "denied": [p for p in PERMISSION_LABELS if p not in allowed],
+        "limited_to_own": limited,
         "labels": PERMISSION_LABELS,
         # a delegated administrator previews inside their reach: the bindings listed are the ones there, too
-        "bindings": [b for b in _user_bindings(conn, body.user_id) if body.user_id == principal.user_id or full_authority(conn, principal) or in_reach(conn, principal, b)],
+        "bindings": [b for b in _user_bindings(conn, body.user_id) if not limited or delegated_sees(conn, principal, b)],
         "revision": permission_revision(conn),
     }
 

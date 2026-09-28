@@ -121,7 +121,7 @@ def test_bindings_lifecycle_and_rules(settings, monkeypatch):
     # last admin protection
     admin_b = [x for x in c.get("/api/v1/access/bindings").json()["bindings"] if x["role_id"] == "system_admin"][0]
     r = c.delete(f"/api/v1/access/bindings/{admin_b['id']}")
-    assert r.status_code == 409 and r.json()["code"] == "last_admin_protected"
+    assert r.status_code == 409 and r.json()["code"] == "last_admin"
     # a second admin makes the removal possible
     r = c.post("/api/v1/access/bindings", json={"subject_kind": "user", "subject_id": "ha-yossi", "role_id": "system_admin", "scope_type": "installation", "scope_id": "*"})
     assert r.status_code == 201

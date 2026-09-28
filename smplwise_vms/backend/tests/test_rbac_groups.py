@@ -290,5 +290,165 @@ def test_last_admin_cannot_leave_through_group_membership(settings):
     own = next(b for b in c.get("/api/v1/access/bindings").json()["bindings"] if b["subject_id"] == "dev-joni" and b["subject_kind"] == "user")
     assert c.delete(f"/api/v1/access/bindings/{own['id']}").status_code == 200, "the group still makes joni an admin"
     r = _members(c, g["id"], [])
-    assert r.status_code == 409 and r.json()["code"] == "last_admin_protected"
+    assert r.status_code == 409 and r.json()["code"] == "last_admin"
     assert [m["id"] for m in _get_group(c, g["id"])["members"]] == ["dev-joni"], "nothing written"
+
+
+# ---------------------------------------------------------------- security review (T082): deny bindings and leaks
+
+def _assigner(c: TestClient, ids: dict) -> dict:
+    """mo: a custom role naming rbac.assign plus exactly the viewer permissions, bound on floor 2 - a delegated actor
+    whose ceiling is the viewer role."""
+    role = c.post("/api/v1/access/roles", json={"name": "משייך קומה", "permissions": ["rbac.assign", "map.read", "video.live", "entity.state.read", "devices.read", "access.read"]})
+    assert role.status_code == 201, role.text
+    c.get("/api/v1/me", headers=as_user("mo"))
+    assert c.post("/api/v1/access/bindings", json={"subject_kind": "user", "subject_id": "dev-mo", "role_id": role.json()["id"], "scope_type": "floor", "scope_id": ids["floor2"]}).status_code == 201
+    return as_user("mo")
+
+
+def test_delegated_actor_cannot_lift_a_deny_above_their_own_permissions(settings):
+    app, c, ids = _setup(settings)
+    f2 = ids["floor2"]
+    mo = _assigner(c, ids)
+    c.get("/api/v1/me", headers=as_user("xavi"))
+    for effect in ("allow", "deny"):
+        assert c.post("/api/v1/access/bindings", json={"subject_kind": "user", "subject_id": "dev-xavi", "role_id": "operator", "scope_type": "floor", "scope_id": f2, "effect": effect}).status_code == 201
+    assert "ha.entity.control" not in _preview(c, "xavi", "floor", f2)
+    # granting operator is above mo's ceiling; so is revoking the deny of operator (it would hand operator out)
+    esc = c.post("/api/v1/access/bindings", json={"subject_kind": "user", "subject_id": "dev-vera", "role_id": "operator", "scope_type": "floor", "scope_id": f2}, headers=mo)
+    assert esc.status_code == 403 and esc.json()["code"] == "delegation_escalation"
+    deny = next(b for b in c.get("/api/v1/access/bindings").json()["bindings"] if b["subject_id"] == "dev-xavi" and b["effect"] == "deny")
+    r = c.delete(f"/api/v1/access/bindings/{deny['id']}", headers=mo)
+    assert r.status_code == 403 and r.json()["code"] == "delegation_escalation"
+    assert "ha.entity.control" not in _preview(c, "xavi", "floor", f2)
+    # a group holding a deny of operator: removing a member would lift it - the group is out of mo's reach (ceiling)
+    g = _group(c, "חסומים")
+    assert _bind_group(c, g["id"], "viewer", "floor", f2).status_code == 201
+    assert _bind_group(c, g["id"], "operator", "floor", f2, effect="deny").status_code == 201
+    assert _members(c, g["id"], ["dev-vera"]).status_code == 200
+    r = _members(c, g["id"], [], headers=mo)
+    assert r.status_code == 403 and r.json()["code"] == "delegation_group_scope" and r.json()["details"]["reason"] == "ceiling"
+    assert [m["id"] for m in _get_group(c, g["id"])["members"]] == ["dev-vera"]
+    # control: a group with only a viewer allow is within mo's ceiling and scope; operator on it is not
+    ok = _group(c, "צופים")
+    assert _bind_group(c, ok["id"], "viewer", "floor", f2).status_code == 201
+    assert _members(c, ok["id"], ["dev-tom"], headers=mo).status_code == 200
+    assert _bind_group(c, ok["id"], "operator", "floor", f2, headers=mo).json()["code"] == "delegation_escalation"
+
+
+def test_delegated_admin_never_creates_a_deny(settings):
+    app, c, ids = _setup(settings)
+    f2, site = ids["floor2"], ids["site"]
+    bind(c, settings, "pia", "site_admin", "site", site)
+    g = _group(c, "עם מנהל")
+    assert _bind_group(c, g["id"], "viewer", "floor", f2).status_code == 201
+    assert _members(c, g["id"], ["dev-joni"]).status_code == 200
+    for subject in ({"subject_kind": "user", "subject_id": "dev-joni"}, {"subject_kind": "user", "subject_id": "dev-pia"}, {"subject_kind": "group", "subject_id": g["id"]}):
+        r = c.post("/api/v1/access/bindings", json={**subject, "role_id": "operator", "scope_type": "site", "scope_id": site, "effect": "deny"}, headers=S)
+        assert r.status_code == 403 and r.json()["code"] == "delegation_deny_forbidden", subject
+    assert _bind_group(c, g["id"], "viewer", "floor", f2, headers=S, effect="deny").json()["code"] == "delegation_deny_forbidden"
+    bulk = c.post("/api/v1/access/bindings/bulk", json={"items": [{"subject_kind": "user", "subject_id": "dev-vera", "role_id": "viewer", "scope_type": "floor", "scope_id": f2},
+                                                                  {"subject_kind": "user", "subject_id": "dev-joni", "role_id": "viewer", "scope_type": "floor", "scope_id": f2, "effect": "deny"}]}, headers=S)
+    assert bulk.status_code == 403 and bulk.json()["code"] == "delegation_deny_forbidden" and bulk.json()["details"]["item_index"] == 1
+    assert "video.live" in _preview(c, "joni", "floor", f2) and "video.live" in _preview(c, "pia", "floor", f2)
+    with app.state.db.connection() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM bindings WHERE effect = 'deny'").fetchone()[0] == 0
+
+
+def test_a_deny_never_locks_out_the_last_admin(settings):
+    app, c, ids = _setup(settings)
+    f2 = ids["floor2"]
+    r = c.post("/api/v1/access/bindings", json={"subject_kind": "user", "subject_id": "dev-joni", "role_id": "system_admin", "scope_type": "installation", "scope_id": "*", "effect": "deny"})
+    assert r.status_code == 409 and r.json()["code"] == "last_admin"
+    assert c.get("/api/v1/identity/users").status_code == 200, "still an administrator"
+    # through a group: a deny on a group joni belongs to, and joni joining a group that holds such a deny
+    g = _group(c, "כולם")
+    assert _members(c, g["id"], ["dev-joni", "dev-vera"]).status_code == 200
+    r = _bind_group(c, g["id"], "system_admin", "installation", "*", effect="deny")
+    assert r.status_code == 409 and r.json()["code"] == "last_admin" and _get_group(c, g["id"])["bindings"] == []
+    h = _group(c, "חסימה")
+    assert _bind_group(c, h["id"], "system_admin", "installation", "*", effect="deny").status_code == 201
+    r = _members(c, h["id"], ["dev-joni"])
+    assert r.status_code == 409 and r.json()["code"] == "last_admin" and _get_group(c, h["id"])["members"] == []
+    # a failure in the WRITE phase of a bulk request rolls back the items already written in it
+    n0 = len(c.get("/api/v1/access/bindings").json()["bindings"])
+    r = c.post("/api/v1/access/bindings/bulk", json={"items": [{"subject_kind": "user", "subject_id": "dev-vera", "role_id": "viewer", "scope_type": "floor", "scope_id": f2},
+                                                               {"subject_kind": "user", "subject_id": "dev-joni", "role_id": "system_admin", "scope_type": "installation", "scope_id": "*", "effect": "deny"}]})
+    assert r.status_code == 409 and r.json()["code"] == "last_admin"
+    assert len(c.get("/api/v1/access/bindings").json()["bindings"]) == n0 and c.get(f"/api/v1/floors/{f2}/map", headers=as_user("vera")).status_code == 403
+    with app.state.db.connection() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'rbac.bind' AND decision = 'allowed' AND resource_id = 'dev-vera'").fetchone()[0] == 0
+
+
+def test_no_existence_leaks_before_the_permission(settings):
+    app, c, ids = _setup(settings)
+    bind(c, settings, "ron", "viewer", "installation", "*")
+    R = as_user("ron")
+    g = _group(c, "סודית")
+    assert _bind_group(c, g["id"], "viewer", "floor", ids["floor2"]).status_code == 201
+    bid = _get_group(c, g["id"])["bindings"][0]["id"]
+    for gid in (g["id"], "no-such-group"):
+        calls = [
+            c.patch(f"/api/v1/access/groups/{gid}", json={"name": "x", "revision": 99}, headers=R),
+            c.delete(f"/api/v1/access/groups/{gid}?revision=99", headers=R),
+            c.post(f"/api/v1/access/groups/{gid}/bindings", json={"role_id": "viewer", "scope_type": "floor", "scope_id": "nope", "revision": 99}, headers=R),
+            c.delete(f"/api/v1/access/groups/{gid}/bindings/{bid}?revision=99", headers=R),
+            c.post(f"/api/v1/access/groups/{gid}/impact", json={"op": "bind", "role_id": "viewer", "scope_type": "floor", "scope_id": "nope"}, headers=R),
+            c.put(f"/api/v1/access/groups/{gid}/members", json={"user_ids": [], "revision": 99}, headers=R),
+        ]
+        assert [x.status_code for x in calls] == [403] * 6 and {x.json()["code"] for x in calls} == {"forbidden"}, gid
+    for body in ({"subject_kind": "group", "subject_id": "no-such-group"}, {"subject_kind": "user", "subject_id": "dev-vera"}):
+        r = c.post("/api/v1/access/bindings", json={**body, "role_id": "viewer", "scope_type": "floor", "scope_id": "nope"}, headers=R)
+        assert r.status_code == 403 and r.json()["code"] == "forbidden"
+    assert c.get("/api/v1/access/bindings", headers=R).status_code == 403
+    assert c.delete(f"/api/v1/access/bindings/{bid}", headers=R).status_code == 403
+    # a delegated admin gets 403, not 422, for a scope outside her reach that does not exist either
+    assert c.post("/api/v1/access/bindings", json={"subject_kind": "user", "subject_id": "dev-vera", "role_id": "viewer", "scope_type": "floor", "scope_id": "nope"}, headers=S).status_code == 403
+
+
+def test_old_single_route_with_groups_and_unanchored_groups(settings):
+    app, c, ids = _setup(settings)
+    f2 = ids["floor2"]
+    bare = _group(c, "ריקה")
+    r = c.post("/api/v1/access/bindings", json={"subject_kind": "group", "subject_id": bare["id"], "role_id": "viewer", "scope_type": "floor", "scope_id": f2}, headers=S)
+    assert r.status_code == 403 and r.json()["code"] == "delegation_group_scope" and r.json()["details"]["reason"] == "group_unanchored"
+    local = _group(c, "מקומית")
+    assert _bind_group(c, local["id"], "viewer", "floor", f2).status_code == 201
+    r = c.post("/api/v1/access/bindings", json={"subject_kind": "group", "subject_id": local["id"], "role_id": "operator", "scope_type": "floor", "scope_id": ids["floor3"]}, headers=S)
+    assert r.status_code == 201 and _get_group(c, local["id"])["revision"] == 3, "the old route moves the group revision too"
+    far = _group(c, "רחוקה")
+    assert _bind_group(c, far["id"], "viewer", "floor", ids["other_floor"]).status_code == 201
+    r = c.post("/api/v1/access/bindings", json={"subject_kind": "group", "subject_id": far["id"], "role_id": "viewer", "scope_type": "floor", "scope_id": f2}, headers=S)
+    assert r.status_code == 403 and r.json()["details"]["reason"] == "scope"
+    # a delegated admin never edits a custom role, its delegable flag included
+    role = c.post("/api/v1/access/roles", json={"name": "צופה אירועים", "permissions": ["map.read", "events.read"]}).json()
+    assert c.patch(f"/api/v1/access/roles/{role['id']}", json={"name": role["name"], "permissions": ["map.read", "events.read"], "delegable": True, "revision": 1}, headers=S).status_code == 403
+    assert c.put("/api/v1/access/delegation", json={"delegable_roles": ["viewer", "operator", role["id"]]}, headers=S).status_code == 403
+
+
+def test_delegated_views_stay_inside_their_reach(settings):
+    app, c, ids = _setup(settings)
+    f2 = ids["floor2"]
+    # a site_admin bound installation-wide reaches every scope, still never sees the system administrators' bindings
+    bind(c, settings, "omer", "site_admin", "installation", "*")
+    listed = c.get("/api/v1/access/bindings", headers=as_user("omer")).json()["bindings"]
+    assert listed and all(b["role_id"] != "system_admin" for b in listed) and any(b["subject_id"] == "dev-sara" for b in listed)
+    # preview: never more than she holds herself at that scope (joni's NVR permissions stay invisible to sara)
+    p = c.post("/api/v1/access/preview", json={"user_id": "dev-joni", "scope_type": "floor", "scope_id": f2}, headers=S).json()
+    assert p["limited_to_own"] is True and "map.read" in p["allowed"] and "nvr.config.write" not in p["allowed"] and p["bindings"] == []
+    assert "nvr.config.write" in c.post("/api/v1/access/preview", json={"user_id": "dev-joni", "scope_type": "floor", "scope_id": f2}).json()["allowed"]
+    # the delegated directory shows display names only, active people only
+    with app.state.db.connection() as conn:
+        conn.execute("UPDATE users SET active = 0 WHERE id = 'dev-tom'")
+    d = c.get("/api/v1/identity/users", headers=S).json()
+    assert all(u["username"] == "" for u in d["users"]) and "dev-tom" not in {u["id"] for u in d["users"]}
+    # membership: an inactive (hidden) person is neither previewed nor added by her; hidden members are kept
+    g = _group(c, "משמרת")
+    assert _bind_group(c, g["id"], "viewer", "floor", f2).status_code == 201
+    im = c.post(f"/api/v1/access/groups/{g['id']}/impact", json={"op": "members", "user_ids": ["dev-vera", "dev-tom"]}, headers=S).json()
+    assert [u["id"] for u in im["users"]] == ["dev-vera"]
+    r = _members(c, g["id"], ["dev-vera", "dev-tom"], headers=S)
+    assert r.status_code == 404 and r.json()["details"]["item_id"] == "dev-tom"
+    assert _members(c, g["id"], ["dev-tom", "dev-vera"]).status_code == 200  # the system admin may
+    r = _members(c, g["id"], [], headers=S)
+    assert r.status_code == 200 and [m["id"] for m in r.json()["members"]] == ["dev-tom"], "a member she cannot see is not removed by omission"

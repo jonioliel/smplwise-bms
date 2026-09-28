@@ -625,13 +625,15 @@ export class SystemAccess extends LitElement {
     return html`<div class="wiz">
       <sw-steps .steps=${['תפקיד', 'היקף', 'תצוגה מקדימה', 'שמירה']} .current=${2}></sw-steps>
       <div class="hint">שיוך ל${w.subjectKind === 'group' ? 'קבוצה' : 'משתמש'}: <strong>${w.subjectName}</strong></div>
-      <sw-field label="סוג שיוך"><select data-wizard-effect @change=${(e: Event) => (this.wizard = { ...w, effect: (e.target as HTMLSelectElement).value as 'allow' | 'deny' })}>
-          <option value="allow" ?selected=${!deny}>הרשאה — מוסיף את הרשאות התפקיד בהיקף</option>
-          <option value="deny" ?selected=${deny}>חסימה — מסיר את הרשאות התפקיד בהיקף, גם אם שיוך אחר מרשה</option>
-        </select></sw-field>
+      ${this.directory?.delegated
+        ? nothing /* T082 security review: a deny binding is a system-administrator tool; the server refuses it too */
+        : html`<sw-field label="סוג שיוך"><select data-wizard-effect @change=${(e: Event) => (this.wizard = { ...w, effect: (e.target as HTMLSelectElement).value as 'allow' | 'deny' })}>
+            <option value="allow" ?selected=${!deny}>הרשאה — מוסיף את הרשאות התפקיד בהיקף</option>
+            <option value="deny" ?selected=${deny}>חסימה — מסיר את הרשאות התפקיד בהיקף, גם אם שיוך אחר מרשה</option>
+          </select></sw-field>`}
       <sw-field label="תפקיד"><select data-wizard-role @change=${(e: Event) => (this.wizard = { ...w, roleId: (e.target as HTMLSelectElement).value })}>${this.roles.roles.map((r) => html`<option value=${r.id} ?selected=${r.id === w.roleId}>${r.name}</option>`)}</select></sw-field>
       <sw-field label="היקף"><select data-wizard-scope @change=${(e: Event) => (this.wizard = { ...w, scopeKey: (e.target as HTMLSelectElement).value })}>${this.scopeOptions.map((s) => html`<option value=${`${s.type}:${s.id}`} ?selected=${`${s.type}:${s.id}` === w.scopeKey} ?disabled=${systemRole && s.type !== 'installation'}>${s.name}</option>`)}</select></sw-field>
-      ${this.directory?.delegated ? html`<div class="hint" data-delegated-hint>כמנהל אתר מוצגים רק התפקידים שמותר לך להאציל וההיקפים שבאחריותך. אינך משנה את השיוכים של עצמך.</div>` : nothing}
+      ${this.directory?.delegated ? html`<div class="hint" data-delegated-hint>כמנהל אתר מוצגים רק התפקידים שמותר לך להאציל וההיקפים שבאחריותך. אינך משנה את השיוכים של עצמך ואינך יוצר חסימות.</div>` : nothing}
       ${w.subjectKind === 'group' ? html`<div class="hint">לפני השמירה תוצג ההשפעה על כל אחד מחברי הקבוצה.</div>` : nothing}
       ${role
         ? deny
