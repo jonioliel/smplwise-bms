@@ -45,6 +45,9 @@ export interface ProductSettings {
   'access.ui.overview'?: 'wiskey' | 'smplwise';
   'access.ui.events'?: 'wiskey' | 'smplwise';
   'access.ui.people'?: 'wiskey' | 'smplwise';
+  /** 'true' hides the whole WisKey area from the navigation for everyone, regardless of role (T054 follow-up); the
+   * access.ui.* choices above apply only while this is false. */
+  'ui.hide_wiskey'?: string;
 }
 
 export const getSettings = () => get<{ settings: ProductSettings; can_edit: boolean }>('settings');
