@@ -31,3 +31,21 @@ def test_plan_levels_setting_defaults_to_all_patches_to_default_and_audits(setti
         row = conn.execute("SELECT details_json FROM audit_log WHERE action = 'settings.update' ORDER BY rowid DESC LIMIT 1").fetchone()
         assert row is not None and '"plan.levels": "default"' in row[0]
     assert c.patch("/api/v1/settings", json={"plan.levels": "sometimes"}).status_code == 422
+
+
+def test_plan_quality_setting_defaults_to_2_accepts_1_or_2_and_audits(settings):
+    """CR-006 slice 1a: plan.quality is the 3D quality level a browser opens with (2 = shadows, materials and the
+    cutaway; 1 = the schematic level, also the automatic fallback of a slow device). A browser may override it."""
+    app = create_app(settings)
+    c = TestClient(app)
+    assert c.get("/api/v1/settings").json()["settings"]["plan.quality"] == "2"
+    r = c.patch("/api/v1/settings", json={"plan.quality": "1"})
+    assert r.status_code == 200 and r.json()["settings"]["plan.quality"] == "1"
+    assert c.get("/api/v1/settings").json()["settings"]["plan.quality"] == "1"
+    with app.state.db.connection() as conn:
+        row = conn.execute("SELECT details_json FROM audit_log WHERE action = 'settings.update' ORDER BY rowid DESC LIMIT 1").fetchone()
+        assert row is not None and '"plan.quality": "1"' in row[0]
+    assert c.patch("/api/v1/settings", json={"plan.quality": "3"}).status_code == 422
+    assert c.patch("/api/v1/settings", json={"plan.quality": "high"}).status_code == 422
+    bind(c, settings, "dana", "viewer", "installation", "*")
+    assert c.patch("/api/v1/settings", json={"plan.quality": "2"}, headers=as_user("dana")).status_code == 403

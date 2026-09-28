@@ -154,6 +154,75 @@ adapter next to T063's. No HA writes, no device access, no external calls in pha
 > release while the other session's release commit is not yet pushed; both sessions keep the full backend suite
 > to one run at a time on this workstation (the timing tests fail under concurrent load - see the T054 evidence).
 
+## 7a. Implementation record - slice 1a (2026-09-28, branch `pilot/T087-plan-visual-1a`)
+
+Built as specified in §4.1 items 1, 2 and 4 (the state layer, item 3, and the 2D map are slices 1b/1c). Facts and
+deviations recorded, not silently resolved:
+
+- **Quality level 2** lives in `frontend/src/map/scene-three.ts` next to level 1 (unchanged: the same Lambert
+  materials, lights and instance groups). Level 2: `HemisphereLight` + a shadow-casting `DirectionalLight`
+  (`PCFSoftShadowMap`, 2048² map, shadow camera fitted to the extent of the shown floor plates), `MeshStandardMaterial`
+  per token with a rough floor and a glossy translucent glass (`map-glass`), ACES tone mapping, a CSS sky gradient on
+  the element (`--sw-map-sky`, `--sw-map-sky-horizon`, defined for both designs - the tokens have designs a/b, not a
+  dark theme), and the cutaway. Selection per browser: two chips in the element's bar, stored in
+  `localStorage` `sw.plan3d.quality` (the `sw.wall.cols` pattern); the installation default is the new setting
+  `plan.quality` (`1|2`, default `2`, `settings.py` DEFAULTS, edited on the settings screen next to `plan.levels`).
+- **Ambient occlusion:** neither vertex AO nor SSAO. Vertex AO cannot ride on the shared unit box/cylinder of the
+  instance groups without a per-instance attribute and a custom shader; SSAO needs the post-processing chain
+  (EffectComposer + SSAOPass + depth/normal targets) and a full-screen pass on every frame - the phone budget and the
+  chunk cap argue against both. Level 2 bakes a **contact occlusion** instead: one `InstancedMesh` of gradient planes
+  under every wall, object and connector box standing on its floor (`AO_SPREAD_M` past the footprint), built with the
+  scene, deterministic, one draw call. Recorded as a deviation from §4.1's "vertex AO".
+- **Cutaway:** `scene-frame.cutawayIds` - a wall on the camera's side of the extent centre whose outward normal faces
+  the camera within 65° is lowered to `CUTAWAY_HEIGHT_M` (0.7 m); the opening parts sitting in it follow (hidden
+  above the cut, clipped across it). Decided per camera azimuth quantised to 10° bins centred on the presets' 45°, so
+  an orbit re-cuts in steps and float noise never flips a preset's cut; never from a camera preset or from straight
+  above; level 2 only.
+- **Presets:** `iso` is now a true isometric on an `OrthographicCamera` (the building page's 30° axes: azimuth 45°,
+  elevation 35.26°, `ISO_DIR`), framed per floor by `isoFrame` on the extent of the shown levels' plates; the phase-4
+  31° perspective view stays as the new `persp` preset; `top` and the camera presets as before. Both levels share the
+  presets. The default preset stays `iso` (its meaning changed from the perspective to the true isometric - design
+  §10 phase-4 note superseded for the floor map).
+- **Thumbnail strip:** the element takes the floor's levels and an all-levels description and draws one small
+  isometric per level from the same parts (`SceneView.renderThumbnail`, a render target read back), cached per level
+  and bounded by the listed levels with `keepIsos` (the building page's bound). A click selects the level (the
+  screen's level filter; the chips agree); the shown level again means every level. Floors are not in the strip:
+  another floor's scene is not on the client - the existing floor buttons switch floors.
+- **Fallback:** on level 2 the element renders continuously for 2.5 s from its first reported frame and drops to
+  level 1 under `minFps` (30) with a note in the map's note style (`data-3d-fallback`), remembered for the session;
+  choosing level 2 again measures afresh. Headless Chromium (SwiftShader) falls back by itself; the specs disable the
+  probe where level 2 must stay. The state dots on the thumbnails (§4.1 item 1) belong to the state layer, slice 1b.
+- **Chunk:** `three` 154.36 → 154.61 KB gzip (Vite's figure; the chunk spec measures 154,074 bytes at gzip -9);
+  `sw-plan-3d` 7.41 → 13.23 KB gzip. No post-processing packages.
+- **Tests:** `unit-plan-3d-frame.spec.ts` (node: framing maths, cutaway determinism), `unit-plan-3d-quality.spec.ts`
+  (browser: level switch and graph equality after a round trip, probe fallback, orthographic preset, cutaway against
+  the pure function and the cut height, thumbnail cache bound, visual snapshots per level and preset that must be
+  pixel-identical twice and differ between levels - written to `docs/evidence/T087/visual/`, the T007 harness's way),
+  the level-2 test appended to `evidence-plan-studio-4.spec.ts` (which now honours `SW_BASE_URL` for its API context so
+  it runs against a throwaway instance), `test_plan_estimates_setting.py` for the setting.
+
+Review round 1 (same day) - fixed in the second commit: hidden cut parts (lintels, glass above the cut) collapse on
+every axis and park under the floor instead of squashing to a thin bar (they used to float, shadow and take clicks);
+the selection outline follows the cut box; thumbnails are drawn in a scissored corner of the main canvas and copied
+out, because three applies the output colour space and tone mapping only to the canvas (a render target read back
+linear, near-black) - a unit assertion holds a thumbnail's mean luminance within 0.7-1.4 of the view's; the probe
+ignores a hidden tab (`visibilitychange` restarts it), runs once per mount or level switch (not per state push), and
+opens its window after three warm-up frames (shader compile and shadow-map build are one-off); the all-levels
+description is keyed on structure, so the thumbnail cache is not redrawn on state pushes; the floor map hands the
+element the installation default so it builds once; level 2 draws the structure in the new `--sw-map-wall-3d` token
+(both designs) with dark `map-structure` section caps on the cut walls, the sun from -x so shadows fall toward the
+viewer and to the right, and a brighter hemisphere ground. Ruling recorded by the coordinator: `iso` as a true
+orthographic isometric is accepted; `persp` keeps the old view.
+
+Frame rate at level 2 (measured in the round, real Chrome, the workstation at 80-90 % CPU from other applications):
+the 37-part floor ~50-58 fps; the 3,000-chair floor level 1 29-32 fps against level 2 14-18 fps (an A/B on the same
+floor, back to back) - both were vsync-capped at 60 fps on the idle machine earlier the same day. The level-2 cost
+on a heavy floor is the per-fragment standard shading of 3,000 chairs covering the view, not the draw calls (7
+against 3); above HIDE_SMALL_ABOVE_PARTS the objects now neither cast nor receive shadows (the structure still does),
+a modest gain. The live perf gate (>= 20 fps on 3,000 chairs) therefore measures level 1 - the design's instancing
+budget (10.4) - and reports level 2 on the same floor; level 2's own budget is slice 1c's, and a device under it
+falls back by itself.
+
 ## 8. Next step
 
 Owner answers §7; then 1a is dispatched from this document with the same implementer → reviewer → fix-round loop

@@ -34,7 +34,8 @@ import { circuitToken, type AnchorPosition, type CatalogLookup, type GeometryDoc
 import { loadLibrary, lookup3dOf, lookupOf } from '../api/plan-catalog';
 import { buildScene, type Catalog3DLookup, type SceneAnchor, type SceneDescription, type SceneInput } from '../map/scene-builder';
 import type { ScenePreset } from '../map/scene-three'; // type only: the three chunk stays out of the entry bundle
-import type { PartSelectDetail } from '../map/sw-plan-3d';
+import type { LevelSelectDetail, PartSelectDetail } from '../map/sw-plan-3d';
+import type { QualityLevel } from '../map/scene-three';
 import { boundItemOf } from '../map/part-select';
 import { WEBGL_UNAVAILABLE_HE, webglAvailable } from '../map/webgl';
 import { initialLevel } from '../map/studio-ops';
@@ -68,6 +69,8 @@ interface SceneBuild {
   structure: unknown[];
   states: string;
   desc: SceneDescription;
+  /** Every level of the floor for the thumbnail strip (CR-006): `desc` itself while no level filter is on. */
+  all: SceneDescription;
   cameras: { id: string; label: string }[];
   labels: Record<string, string>;
 }
@@ -123,6 +126,8 @@ export class ExploreFloorMap extends LitElement {
   @state() private threeState: 'idle' | 'loading' | 'ready' | 'error' = 'idle';
   @state() private threeError = '';
   @state() private preset3d: ScenePreset = 'iso';
+  /** The installation's 3D quality default (plan.quality), handed to the element so it builds once at the right level. */
+  @state() private quality3d: QualityLevel | null = null;
   @state() private catalog3d: Catalog3DLookup | null = null;
   private itemNames = new Map<string, string>();
   private sceneMemo: SceneBuild | null = null;
@@ -958,6 +963,7 @@ export class ExploreFloorMap extends LitElement {
       void productSettings()
         .then((s) => {
           if (this.bundle === b) this.levelFilter = initialLevel(s['plan.levels'], b); // 0.1.89: plan.levels default level, else every level
+          this.quality3d = s['plan.quality'] === '1' ? 1 : s['plan.quality'] === '2' ? 2 : null;
         })
         .catch(() => {}); // settings unavailable: keep every level shown
       const seq = ++this.geomSeq;
@@ -1159,8 +1165,12 @@ export class ExploreFloorMap extends LitElement {
       for (const z of b.zones) labels[z.id] = z.name;
     }
     if (!base) return null;
-    const desc = buildScene({ ...base, level: this.levelFilter, layers: { structure: this.layers.has('structure'), objects: this.layers.has('objects'), connectors: this.layers.has('connectors'), zones: this.layers.has('zones') } });
-    this.sceneMemo = { structure, states, desc, cameras, labels };
+    const layers = { structure: this.layers.has('structure'), objects: this.layers.has('objects'), connectors: this.layers.has('connectors'), zones: this.layers.has('zones') };
+    const desc = buildScene({ ...base, level: this.levelFilter, layers });
+    // the strip draws every level from a description keyed on the structure only: a live state push keeps the memo's
+    // object, so the element's thumbnail cache (keyed on it) is not redrawn per push (state dots come with slice 1b)
+    const all = memo && same ? memo.all : b.levels.length > 1 ? buildScene({ ...base, level: null, layers }) : desc;
+    this.sceneMemo = { structure, states, desc, all, cameras, labels };
     this.sceneDue = false;
     window.clearTimeout(this.sceneTimer); // a pending state rebuild is part of this one
     this.sceneTimer = 0;
@@ -1273,7 +1283,9 @@ export class ExploreFloorMap extends LitElement {
     const now = new Date(); // the local date (toISOString is UTC: a day behind in the evening, a day ahead after midnight)
     const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     return html`<sw-plan-3d data-floor-3d .description=${s.desc} .selectedId=${this.sel3d} .preset=${this.preset3d} .cameras=${s.cameras} .labels=${s.labels}
-      exportName=${`plan-3d-${b.floorName}${this.levelFilter ? `-${this.levelFilter}` : ''}-${stamp}`} @part-select=${(e: CustomEvent<PartSelectDetail>) => this.onPartSelect(e)}></sw-plan-3d>`;
+      .levels=${b.levels.map((l) => ({ id: l.id, name: l.name, elevation_m: l.elevation_m }))} .activeLevel=${this.levelFilter} .thumbnailScene=${s.all} .qualityDefault=${this.quality3d}
+      exportName=${`plan-3d-${b.floorName}${this.levelFilter ? `-${this.levelFilter}` : ''}-${stamp}`} @part-select=${(e: CustomEvent<PartSelectDetail>) => this.onPartSelect(e)}
+      @level-select=${(e: CustomEvent<LevelSelectDetail>) => (this.levelFilter = e.detail.id)}></sw-plan-3d>`;
   }
 
   /** Items per layer for the panel (M07: counts next to every toggle). */
