@@ -55,7 +55,9 @@ PROFILE_SOLID_STEPS = 2  # a profile window has at least this many solid steps o
 PROFILE_MAX_RUN = 0.8  # ... covers at most this fraction of its wall
 PROFILE_MIN_SOLID = 0.5  # ... and its wall is solid on at least this fraction of its steps
 REF_STRUCTURE_SHARE = 0.1  # a connected group of segments that turns is structure from this share of the largest group's length
-REF_MARGIN_M = 1.2  # ... and a group that is not structure goes when it lies this far outside the structure's box (a hollow outline's outer line is closer)
+REF_MARGIN_M = 1.2  # ... and a group that is not structure goes when it lies this far outside the structure's box ...
+REF_SIDES = 3  # ... unless it has this many sides of REF_SIDE_M or more in two directions (a small building: kept, flagged)
+REF_SIDE_M = 1.0
 REF_STRAIGHT_SHARE = 0.3  # ... one that runs one way (a stroke of the sheet, or one line of a fragmented outline) from this share
 LINE_INK = 0.6  # a drawn line beside a segment: ink on this share of the samples along it
 STEPS_SPACING_M = (0.6, 1.2)  # the rows of a tribune are this far apart ...
@@ -65,7 +67,8 @@ STEPS_MIN_LEN_M = 1.0  # ... on a straight segment from this length
 DASH_MIN_COUNT = 3  # a dashed line: at least this many short pieces in a row on one line ...
 DASH_MAX_M = 3.0  # ... each at most this long ...
 DASH_GAP_M = 0.6  # ... apart by at most this much (between the skeleton ends) ...
-DASH_THICK_RATIO = 1.2  # ... and no thicker than this many median walls
+DASH_THICK_RATIO = 1.2  # ... no thicker than this many median walls ...
+DASH_LINE_INK = 0.85  # ... with no line drawn across the gaps (a face or the centre inked on this share of the gap's middle)
 TARGETS = ("walls", "openings")
 
 
@@ -715,7 +718,7 @@ def _point_seg_dist(p: np.ndarray, a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return np.hypot(*(p - q).T)
 
 
-def drop_reference_strokes(segs: list[Seg], t_med: float, s: float) -> list[Seg]:
+def drop_reference_strokes(segs: list[Seg], t_med: float, s: float) -> tuple[list[Seg], list[Seg], int]:
     """Drop the strokes of the sheet that are not the building: section-cut marks, north arrows, the title underline,
     a scale bar, a dimension line off to the side. The structure is every connected group of segments (an end within
     half a thickness plus max(3 px, t_med) of another segment's body) holding at least REF_STRUCTURE_SHARE of the
@@ -724,10 +727,15 @@ def drop_reference_strokes(segs: list[Seg], t_med: float, s: float) -> list[Seg]
     straight group can be structure at all); a group that is not structure and lies wholly outside the structure's bounding box (grown by
     REF_MARGIN_M, at least two median thicknesses) goes. Inside the box nothing is dropped (a free-standing wall, a dash of a section line
     that crosses the building - the latter stays a known limit). Owner's real scans (0.1.91 list): the section marks,
-    the title underline and the north-arrow bars were suggested as walls."""
+    the title underline and the north-arrow bars were suggested as walls.
+
+    A group outside the box that has REF_SIDES sides of at least REF_SIDE_M in two directions (a closed outline, a
+    small building beside a large one, three sides of a yard wall) is never dropped: it stays a candidate and is
+    returned in the second list, which the result reports as `flags.outside_main`, so the person reviewing sees it.
+    Returns (kept segments, those of them outside the main structure, the number of segments dropped)."""
     n = len(segs)
     if n < 2:
-        return segs
+        return segs, [], 0
     ends = np.array([[g.a, g.b] for g in segs])  # n x 2 x 2
     parent = list(range(n))
 
@@ -768,17 +776,41 @@ def drop_reference_strokes(segs: list[Seg], t_med: float, s: float) -> list[Seg]
         comp_lo[r] = np.minimum(comp_lo[r], e.min(axis=0)) if r in comp_lo else e.min(axis=0)
         comp_hi[r] = np.maximum(comp_hi[r], e.max(axis=0)) if r in comp_hi else e.max(axis=0)
     outside = {r for r in total if r not in structure and ((comp_hi[r] < lo).any() or (comp_lo[r] > hi).any())}
-    return [g for i, g in enumerate(segs) if find(i) not in outside]
+    side_px = REF_SIDE_M / s
+    sides: dict[int, int] = {}
+    for i, g in enumerate(segs):
+        if g.length >= side_px:
+            sides[find(i)] = sides.get(find(i), 0) + 1
+    shaped = {r for r in outside if r in turns and sides.get(r, 0) >= REF_SIDES}
+    drop = outside - shaped
+    kept = [g for i, g in enumerate(segs) if find(i) not in drop]
+    return kept, [g for i, g in enumerate(segs) if find(i) in shaped], n - len(kept)
 
 
-def drop_dashed_lines(segs: list[Seg], s: float, t_med: float) -> list[Seg]:
+def _blank_between(ink: np.ndarray, a: np.ndarray, b: np.ndarray, t: float) -> bool:
+    """Whether no line is drawn across the gap from a to b (along a line of thickness t): neither the centre line nor a
+    face (+-t/2) holds DASH_LINE_INK of the soft ink over the middle 40 % of the gap. The middle only: on a scan the
+    blur of the two dash ends reaches a few pixels into the gap (0.1-0.7 of the centre line measured on the owner's
+    scans), while a window's glass or face line, or a wall that faded to grey, runs through it (1.0)."""
+    v = b - a
+    if float(np.hypot(*v)) < 1.0:
+        return False
+    d = v / float(np.hypot(*v))
+    nl = np.array([d[1], -d[0]])
+    pts = a + np.outer(np.linspace(0.3, 0.7, 7), v)
+    return all(_ratio(ink, pts + nl * off) < DASH_LINE_INK for off in (-t / 2, 0.0, t / 2))
+
+
+def drop_dashed_lines(segs: list[Seg], s: float, t_med: float, ink: np.ndarray | None = None) -> tuple[list[Seg], int]:
     """Drop dashed lines (an overhead edge, a beam, a hidden outline drawn in dashes): along one line, a run of at least
     DASH_MIN_COUNT consecutive pieces, each at most DASH_MAX_M long and no thicker than DASH_THICK_RATIO of the median
-    wall, separated by gaps of at most DASH_GAP_M. A wall broken by windows or doors leaves piers apart by an opening's
-    width (0.5 m and more), so its pieces do not chain; a solid wall is one piece. Owner's real scans (0.1.91 list): the
-    dashed outlines around the hall were suggested as dozens of wall fragments."""
+    wall, separated by gaps of at most DASH_GAP_M with no line drawn across them in the soft ink `ink` (_blank_between;
+    without `ink` every gap counts as blank). A wall broken by windows or doors leaves piers apart by an opening's width, and a
+    window's glass and face lines (or the grey of a faint scan dropout) leave ink across the gap, so its pieces do not
+    chain; a solid wall is one piece. Owner's real scans (0.1.91 list): the dashed outlines around the hall were
+    suggested as dozens of wall fragments. Returns (kept segments, number dropped)."""
     if len(segs) < DASH_MIN_COUNT:
-        return segs
+        return segs, 0
     max_len, max_gap = DASH_MAX_M / s, DASH_GAP_M / s
     drop: set[int] = set()
     for group in line_groups(segs):
@@ -788,10 +820,13 @@ def drop_dashed_lines(segs: list[Seg], s: float, t_med: float) -> list[Seg]:
         items = sorted((min(base.project(segs[i].a)[0], base.project(segs[i].b)[0]), max(base.project(segs[i].a)[0], base.project(segs[i].b)[0]), i) for i in group)
         run: list[int] = []
         prev_hi = None
+        d = base.dir
         for lo, hi, i in items:
             g = segs[i]
             dash = g.length <= max_len and g.thick <= DASH_THICK_RATIO * t_med
-            if dash and run and prev_hi is not None and 0 < lo - prev_hi <= max_gap:
+            near = prev_hi is not None and 0 < lo - prev_hi <= max_gap
+            blank = near and (ink is None or _blank_between(ink, base.a + d * (prev_hi + g.thick / 2 + 1), base.a + d * (lo - g.thick / 2 - 1), g.thick))
+            if dash and run and blank:
                 run.append(i)
             else:
                 if len(run) >= DASH_MIN_COUNT:
@@ -800,14 +835,13 @@ def drop_dashed_lines(segs: list[Seg], s: float, t_med: float) -> list[Seg]:
             prev_hi = hi
         if len(run) >= DASH_MIN_COUNT:
             drop.update(run)
-    return [g for i, g in enumerate(segs) if i not in drop]
+    return [g for i, g in enumerate(segs) if i not in drop], len(drop)
 
 
-def _lines_beside(g: Seg, ink: np.ndarray, reach: float) -> tuple[list[tuple[float, float, float]], np.ndarray, np.ndarray]:
+def _lines_beside(g: Seg, ink: np.ndarray, reach: float) -> list[tuple[float, float, float]]:
     """The lines drawn parallel to g within `reach` px on either side: (centre, first, last) offsets (signed, px, along
     g's left normal) of every run of offsets at which the ink covers at least LINE_INK of 48 samples over 5-95 % of g's
-    length, the run through 0 (g itself, returned as (0, first, last)) first; with the profile (offsets, ink ratios)
-    for the cavity test."""
+    length, the run through 0 (g itself, returned as (0, first, last)) first."""
     h, w = ink.shape
     offs = np.arange(-math.floor(reach), math.floor(reach) + 1, dtype=np.float64)
     along = np.linspace(0.05, 0.95, 48)
@@ -834,15 +868,15 @@ def _lines_beside(g: Seg, ink: np.ndarray, reach: float) -> tuple[list[tuple[flo
         else:
             lines.append((float((lo + hi) / 2), float(lo), float(hi)))
         k = k2
-    return [own, *lines], offs, ratio
+    return [own, *lines]
 
 
 def drop_steps_edges(segs: list[Seg], ink: np.ndarray, s: float) -> list[Seg]:
     """The edges of a tribune are not walls (T087 tuning, the 0.1.91 list, item 4): a straight axis segment of at least
     STEPS_MIN_LEN_M with at least STEPS_MIN_ROWS more lines drawn parallel to it on one side (read from the soft ink),
     each STEPS_SPACING_M from the previous and evenly spaced (STEPS_REGULAR), is the edge or a row of a steps region
-    and is dropped. Stair treads are closer than STEPS_SPACING_M[0]; a wall with one parallel line beside it (a hollow
-    wall's other face, a corridor) has no rows. Owner's real scans: both edge lines of the tribune were suggested as
+    and is dropped. Stair treads are closer than STEPS_SPACING_M[0]; a wall with one parallel line beside it (a
+    corridor) has no rows. Owner's real scans: both edge lines of the tribune were suggested as
     walls (its faint rows were not)."""
     st_lo, st_hi = STEPS_SPACING_M[0] / s, STEPS_SPACING_M[1] / s
     reach = st_hi * (STEPS_MIN_ROWS + 0.5)
@@ -851,7 +885,7 @@ def drop_steps_edges(segs: list[Seg], ink: np.ndarray, s: float) -> list[Seg]:
         if not g.axis or g.length < STEPS_MIN_LEN_M / s:
             out.append(g)
             continue
-        lines = _lines_beside(g, ink, reach)[0][1:]
+        lines = _lines_beside(g, ink, reach)[1:]
         steps = False
         for sign in (1.0, -1.0):
             side = sorted(c * sign for c, _, _ in lines if c * sign > 0)
@@ -1179,7 +1213,8 @@ def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TA
     src = gray.rotate(tilt, resample=Image.BICUBIC, fillcolor=255) if tilt else gray
     st = _stage(src, strength, ANALYSIS_PX, scale_m_per_px, deadline)
     an, dt, s, calibrated, segs, aw, ah, f = st["an"], st["dt"], st["s"], st["calibrated"], st["segs"], st["aw"], st["ah"], st["f"]
-    segs = drop_dashed_lines(drop_reference_strokes(segs, st["t_med"], s), s, st["t_med"])
+    segs, outside_main, dropped_reference = drop_reference_strokes(segs, st["t_med"], s)
+    segs, dropped_dashed = drop_dashed_lines(segs, s, st["t_med"], an["ink"])
     segs = drop_steps_edges(segs, an["ink_d"], s)
     want_openings = "openings" in targets
     walls, openings = walls_from_gaps(segs, s, calibrated, an["thin"], an["ink_d"], want_openings, an["walls"])
@@ -1232,6 +1267,9 @@ def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TA
         "source": "auto", "locked": False, "external_ids": {},
     } for i, g in enumerate(walls)]
     pixels = {w["id"]: {"thickness_px": round(walls[i].thick / f, 2)} for i, w in enumerate(out_walls)}
+    # a wall of a group outside the main structure that was kept for its shape (drop_reference_strokes): its middle
+    # lies on one of that group's segments
+    flagged = [w["id"] for g, w in zip(walls, out_walls) if any(float(_point_seg_dist(((g.a + g.b) / 2)[None, :], o.a, o.b)[0]) <= o.thick / 2 + 2.0 for o in outside_main)]
     out_openings = []
     door_gaps: list[float] = []
     for k, o in enumerate(openings):
@@ -1254,5 +1292,8 @@ def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TA
         "calibration_hint": hint,
         "pixels": pixels,
         "scale": {"m_per_px": round(s * f, 6), "status": "measured" if calibrated else "estimated_walls"},
-        "stats": {"probe_segments": len(probe["segs"]), "segments": len(segs), "ms": int((time.perf_counter() - t0) * 1000)},
+        # never silent (T087 review): walls kept although outside the main structure are listed for the person reviewing;
+        # the sheet strokes and dashed-line pieces that were dropped are counted
+        "flags": {"outside_main": flagged if "walls" in targets else []},
+        "stats": {"probe_segments": len(probe["segs"]), "segments": len(segs), "dropped_reference": dropped_reference, "dropped_dashed": dropped_dashed, "ms": int((time.perf_counter() - t0) * 1000)},
     }

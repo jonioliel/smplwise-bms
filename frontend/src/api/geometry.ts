@@ -206,6 +206,9 @@ export interface DetectResult {
    * screen comes from the document's effective scale (map/geometry.ts effectiveScale), never from this field. */
   scale: { m_per_px: number | null; status: 'measured' | 'estimated' | 'estimated_walls' };
   stats: Record<string, number>;
+  /** Detector 1.2 (T087 review): wall candidates kept although they lie outside the main structure (a small building
+   * beside a large one) - listed so the person reviewing sees them; absent from older detectors and the DXF import. */
+  flags?: { outside_main: string[] };
   version_id: string;
   level_id: string;
   /** Items of the candidates' source already in the draft; `objects` comes with the DXF import (and a newer /detect). */

@@ -66,6 +66,26 @@ def test_reference_strokes_outside_the_building_are_not_walls():
     outside = [_px(w) for w in r["walls"] if not _inside(w)]
     assert outside == []
     assert len(r["walls"]) == len(base["walls"]), "every wall of the building stays"
+    assert r["stats"]["dropped_reference"] >= 4 and r["flags"]["outside_main"] == [], "dropped, but never silently"
+
+
+def test_a_small_outbuilding_far_from_a_large_building_stays_flagged():
+    """A 5 x 5 m gatehouse 3 m from a 50 x 37.5 m hall with interior walls (well under REF_STRUCTURE_SHARE of its wall
+    length) is a closed outline: its four walls stay, listed in flags.outside_main for the person reviewing."""
+    im = Image.new("L", (1600, 1200), 255)
+    d = ImageDraw.Draw(im)
+    s = 0.05  # 20 px = 1 m; walls 8 px = 0.4 m
+    d.rectangle([100, 100, 1100, 850], outline=0, width=8)
+    for x in (350, 600, 850):
+        d.rectangle([x, 108, x + 7, 842], fill=0)
+    d.rectangle([108, 470, 1092, 477], fill=0)
+    d.rectangle([1160, 400, 1260, 500], outline=0, width=8)  # the gatehouse, 3 m right of the hall
+    r = pd.detect(_png(im), targets=("walls",), scale_m_per_px=s)
+    gate = [w for w in r["walls"] if all(x > 1140 for x, _ in _px(w))]
+    assert len(gate) == 4, [_px(w) for w in gate]
+    assert sorted(r["flags"]["outside_main"]) == sorted(w["id"] for w in gate)
+    hall = [w for w in r["walls"] if w["id"] not in r["flags"]["outside_main"]]
+    assert sum(abs(_px(w)[1][0] - _px(w)[0][0]) + abs(_px(w)[1][1] - _px(w)[0][1]) for w in hall) > 20 * 5 * 20, "the hall is the main structure"
 
 
 def test_a_detached_structure_as_big_as_a_building_stays():
@@ -92,6 +112,37 @@ def test_a_dashed_line_is_not_walls_but_a_wall_with_doors_is():
     assert covered >= 350, [_px(w) for w in doors_wall]
 
 
+def test_a_facade_of_piers_and_narrow_windows_in_one_line_weight_is_a_wall():
+    """Piers 1 m long between 0.4 m windows (the glass and both faces drawn across each window), every wall of the plan
+    one line weight: the pieces look like dashes by length, thickness and spacing, but the windows leave ink across the
+    gaps, so the facade stays. Likewise a partition whose scan faded to a grey the wall mask loses (but the soft ink
+    keeps) in places."""
+    im = Image.new("L", (1600, 1200), 255)
+    d = ImageDraw.Draw(im)
+    d.rectangle([300, 150, 1300, 900], outline=0, width=12)
+    d.rectangle([300, 150, 1300, 161], fill=255)  # the top wall becomes the facade
+    x = 300
+    while x < 1300:
+        d.rectangle([x, 150, min(1299, x + 99), 161], fill=0)  # a 1 m pier
+        w0, w1 = x + 100, min(1299, x + 139)
+        if w0 < 1300:
+            for y in (150, 155, 160):  # a 0.4 m window: both faces and the glass, 2 px lines
+                d.rectangle([w0, y, w1, y + 1], fill=0)
+        x += 140
+    x = 312
+    while x < 1288:  # a partition at y = 520 with grey dropouts every 1.2 m
+        d.rectangle([x, 520, min(1287, x + 119), 531], fill=0)
+        if x + 120 < 1287:
+            d.rectangle([x + 120, 520, min(1287, x + 159), 531], fill=120)  # lighter than the wall threshold, still soft ink
+        x += 160
+    r = pd.detect(_png(im), scale_m_per_px=S)
+    facade = [w for w in r["walls"] if all(abs(y - 155) < 8 for _, y in _px(w))]
+    assert sum(abs(_px(w)[1][0] - _px(w)[0][0]) for w in facade) >= 600, [_px(w) for w in r["walls"]]
+    part = [w for w in r["walls"] if all(abs(y - 525) < 8 for _, y in _px(w))]
+    assert sum(abs(_px(w)[1][0] - _px(w)[0][0]) for w in part) >= 600, [_px(w) for w in r["walls"]]
+    assert r["stats"]["dropped_dashed"] == 0
+
+
 def _seg(x0: float, x1: float, y: float = 0.0, thick: float = 4.0) -> pd.Seg:
     return pd.Seg(np.array([x0, y]), np.array([x1, y]), [thick] * 5, axis=True)
 
@@ -99,14 +150,20 @@ def _seg(x0: float, x1: float, y: float = 0.0, thick: float = 4.0) -> pd.Seg:
 def test_drop_dashed_lines_needs_a_run_of_short_thin_pieces_close_together():
     s, t_med = 0.02, 5.0  # 20 px = 0.4 m
     dashes = [_seg(0, 40), _seg(60, 100), _seg(120, 160)]
-    assert pd.drop_dashed_lines(dashes, s, t_med) == []
-    assert len(pd.drop_dashed_lines(dashes[:2], s, t_med)) == 2, "two pieces are no dashed line"
+    assert pd.drop_dashed_lines(dashes, s, t_med) == ([], 3)
+    assert len(pd.drop_dashed_lines(dashes[:2], s, t_med)[0]) == 2, "two pieces are no dashed line"
     doors = [_seg(0, 40), _seg(90, 130), _seg(180, 220)]  # 50 px = 1 m apart: openings, not dashes
-    assert len(pd.drop_dashed_lines(doors, s, t_med)) == 3
+    assert len(pd.drop_dashed_lines(doors, s, t_med)[0]) == 3
     thick = [_seg(0, 40, thick=9), _seg(60, 100, thick=9), _seg(120, 160, thick=9)]  # piers of a solid wall
-    assert len(pd.drop_dashed_lines(thick, s, t_med)) == 3
+    assert len(pd.drop_dashed_lines(thick, s, t_med)[0]) == 3
     long_ = [_seg(0, 400), _seg(420, 820), _seg(840, 1240)]  # 8 m pieces: walls, whatever the gaps
-    assert len(pd.drop_dashed_lines(long_, s, t_med)) == 3
+    assert len(pd.drop_dashed_lines(long_, s, t_med)[0]) == 3
+    # the same short pieces with ink across the gaps (a window's lines, a faint dropout): no dashed line
+    ink = np.zeros((20, 200), dtype=bool)
+    ink[0, :] = True  # the centre line y = 0 is inked all along, gaps included
+    assert len(pd.drop_dashed_lines(dashes, s, t_med, ink)[0]) == 3
+    blank = np.zeros((20, 200), dtype=bool)
+    assert pd.drop_dashed_lines(dashes, s, t_med, blank)[0] == []
 
 
 def test_the_rows_and_edges_of_a_tribune_are_not_walls_while_stair_treads_leave_a_wall_alone():
