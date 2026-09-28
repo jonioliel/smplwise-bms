@@ -349,7 +349,7 @@ export class WiskeyEmbed extends LitElement {
 
   private resetTab() {
     this.tabApplied = null;
-    this.tabSince = Date.now();
+    this.tabSince = 0; // the clock starts when the panel is first seen, not at frame load (a phone's HA start-up can take longer than the window)
     this.tabAttempts = 0;
     this.lastAttempt = 0;
   }
@@ -365,6 +365,7 @@ export class WiskeyEmbed extends LitElement {
       this.tabApplied = true;
       return;
     }
+    if (this.tabSince === 0) this.tabSince = Date.now(); // counted from the panel's mount (review nit)
     const expired = Date.now() - this.tabSince > TAB_TIMEOUT_MS;
     if (typeof panel.navigate !== 'function') {
       this.tabApplied = false;
