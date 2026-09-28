@@ -28,7 +28,11 @@ const AREAS = [
 ];
 const HALL = ['light.cr007_hall_a', 'light.cr007_hall_b', 'cover.cr007_hall', 'lock.cr007_hall_door', 'media_player.cr007_hall_tv'];
 const DEN = ['light.cr007_den', 'light.cr007_den_stuck', 'climate.cr007_den'];
-const LOBBY = ['light.cr007_lobby', 'light.cr007_lobby_2', 'switch.cr007_sign', 'climate.cr007_lobby', 'cover.cr007_blind', 'lock.cr007_front', 'binary_sensor.cr007_door', 'camera.cr007_lobby', 'media_player.cr007_tv', 'sensor.cr007_temp', 'alarm_control_panel.cr007_house'];
+const LOBBY = [
+  'light.cr007_lobby', 'light.cr007_lobby_2', 'switch.cr007_sign', 'climate.cr007_lobby', 'cover.cr007_blind', 'lock.cr007_front', 'binary_sensor.cr007_door', 'camera.cr007_lobby', 'media_player.cr007_tv', 'sensor.cr007_temp', 'alarm_control_panel.cr007_house',
+  // CR-007 slice 4: a second sensor group and a non-security binary sensor, for the sensors card's own grouping
+  'sensor.cr007_power', 'binary_sensor.cr007_moist',
+];
 const ENTITIES = [
   ...LOBBY.map((entity_id) => ({ entity_id, area_id: 'cr007_lobby' })),
   { entity_id: 'light.cr007_office', area_id: 'cr007_office' },
@@ -41,13 +45,23 @@ const STATES = [
   { entity_id: 'light.cr007_lobby', state: 'on', attributes: { friendly_name: 'תאורת לובי', brightness: 128 } },
   { entity_id: 'light.cr007_lobby_2', state: 'off', attributes: { friendly_name: 'ספוט לובי' } },
   { entity_id: 'switch.cr007_sign', state: 'on', attributes: { friendly_name: 'שלט מואר' } },
-  { entity_id: 'climate.cr007_lobby', state: 'cool', attributes: { friendly_name: 'מזגן לובי', current_temperature: 25.5, temperature: 22, hvac_action: 'cooling', fan_mode: 'auto', hvac_modes: ['off', 'cool', 'heat', 'fan_only'], fan_modes: ['auto', 'low', 'high'], min_temp: 16, max_temp: 30 } },
-  { entity_id: 'cover.cr007_blind', state: 'open', attributes: { friendly_name: 'תריס לובי', current_position: 70, device_class: 'blind' } },
+  {
+    entity_id: 'climate.cr007_lobby',
+    state: 'cool',
+    attributes: {
+      friendly_name: 'מזגן לובי', current_temperature: 25.5, temperature: 22, hvac_action: 'cooling', fan_mode: 'auto', hvac_modes: ['off', 'cool', 'heat', 'fan_only'], fan_modes: ['auto', 'low', 'high'], min_temp: 16, max_temp: 30,
+      // CR-007 slice 4: preset / swing / humidity - only what this entity itself reports
+      preset_mode: 'none', preset_modes: ['none', 'eco', 'boost'], swing_mode: 'off', swing_modes: ['off', 'vertical'], humidity: 50, min_humidity: 30, max_humidity: 80,
+    },
+  },
+  { entity_id: 'cover.cr007_blind', state: 'open', attributes: { friendly_name: 'תריס לובי', current_position: 70, current_tilt_position: 40, device_class: 'blind' } },
   { entity_id: 'lock.cr007_front', state: 'locked', attributes: { friendly_name: 'דלת ראשית', device_class: 'lock' } },
   { entity_id: 'binary_sensor.cr007_door', state: 'off', attributes: { friendly_name: 'מגע דלת', device_class: 'door' } },
   { entity_id: 'camera.cr007_lobby', state: 'idle', attributes: { friendly_name: 'מצלמת לובי' } },
   { entity_id: 'media_player.cr007_tv', state: 'playing', attributes: { friendly_name: 'טלוויזיה לובי', media_title: 'חדשות', source: 'HDMI 1', volume_level: 0.4 } },
   { entity_id: 'sensor.cr007_temp', state: '23.5', attributes: { friendly_name: 'טמפרטורת לובי', unit_of_measurement: '°C', device_class: 'temperature' } },
+  { entity_id: 'sensor.cr007_power', state: '120', attributes: { friendly_name: 'צריכת לובי', unit_of_measurement: 'W', device_class: 'power' } },
+  { entity_id: 'binary_sensor.cr007_moist', state: 'off', attributes: { friendly_name: 'לחות רצפה', device_class: 'moisture' } },
   { entity_id: 'alarm_control_panel.cr007_house', state: 'armed_away', attributes: { friendly_name: 'אזעקה' } },
   { entity_id: 'light.cr007_office', state: 'off', attributes: { friendly_name: 'תאורת משרד' } },
   { entity_id: 'cover.cr007_office', state: 'closed', attributes: { friendly_name: 'תריס משרד', current_position: 0 } },
@@ -1022,5 +1036,123 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     await expect(line).toContainText('נכלל בכיבוי מרוכז (סומן כבטוח)');
     await line.locator('sw-button[data-bulk-safe-toggle]').click();
     await expect(line).toHaveAttribute('data-bulk-safe', 'switch_not_marked', { timeout: 10000 });
+  });
+
+  // ---------------------------------------------------------------- slice 4: climate/covers in full, sensors, assign
+
+  test('through the REAL action route (fixture bridge): climate preset mode and target humidity confirm from their own attribute', async ({ page, request }) => {
+    test.skip(process.env.SW_DEVICES_FIXTURE !== '1', 'needs tests/fixtures/devices_fake_ha.py as the backend (SW_DEVICES_FIXTURE=1)');
+    await seed(request);
+    await open(page, '/devices/areas/cr007_lobby', 'a');
+    const clim = page.locator('devices-area .row[data-entity="climate.cr007_lobby"]');
+    await expect(clim.locator('select[data-control="preset-mode"]')).toBeVisible({ timeout: 30000 });
+    await expect(clim.locator('select[data-control="preset-mode"]')).toHaveValue('none');
+    await clim.locator('select[data-control="preset-mode"]').selectOption('eco');
+    await expect(clim.locator('[data-cmd-status="confirmed"]')).toContainText('eco', { timeout: 8000 });
+    await expect(clim).toContainText('מצב מוגדר: eco', { timeout: 5000 });
+    // target humidity: +/- in steps of 5, confirmed from the humidity attribute (never compared to the state)
+    await expect(clim).toContainText(/לחות יעד ‎?50%/);
+    await clim.locator('sw-button[data-control="humidity-up"]').click();
+    await expect(clim.locator('[data-cmd-status="confirmed"]')).toContainText('55', { timeout: 8000 });
+    await expect(clim).toContainText(/לחות יעד ‎?55%/, { timeout: 5000 });
+    await seed(request);
+  });
+
+  test('through the REAL action route (fixture bridge): cover tilt arms then confirms from current_tilt_position, independent of the top position', async ({ page, request }) => {
+    test.skip(process.env.SW_DEVICES_FIXTURE !== '1', 'needs tests/fixtures/devices_fake_ha.py as the backend (SW_DEVICES_FIXTURE=1)');
+    await seed(request);
+    await open(page, '/devices/areas/cr007_lobby', 'a');
+    const row = page.locator('devices-area .row[data-entity="cover.cr007_blind"]');
+    const tilt = row.locator('input[data-control="tilt-position"]');
+    await expect(tilt).toBeVisible({ timeout: 30000 });
+    await expect(row).toContainText(/הטיה ‎?40%/);
+    await tilt.fill('80');
+    await tilt.dispatchEvent('input');
+    await tilt.dispatchEvent('change');
+    await expect(row.locator('sw-button[data-control="tilt-position-confirm"]')).toHaveText('לאשר הטיה 80%?');
+    await row.locator('sw-button[data-control="tilt-position-confirm"]').click();
+    await expect(row.locator('[data-cmd-status="confirmed"]')).toContainText('הטיה 80%', { timeout: 8000 });
+    await expect(row).toContainText(/הטיה ‎?80%/, { timeout: 5000 });
+    // open tilt: attention risk like the top movement, arm then confirm; nothing observable on the cover's own
+    // state (tilt, not position) - honestly "sent", never "confirmed"
+    await row.locator('sw-button[data-control="open-tilt"]').click();
+    await expect(row.locator('sw-button[data-control="open-tilt"]')).toHaveText('לאשר פתיחת הטיה?');
+    await row.locator('sw-button[data-control="open-tilt"]').click();
+    await expect(row.locator('[data-cmd-status="sent"]')).toContainText('נשלח', { timeout: 8000 });
+    // the top position is untouched by any of this
+    await expect(row).toContainText('70%');
+    await seed(request);
+  });
+
+  test('bulk (REAL route, fixture bridge): the covers card\'s own "כל התריסים" group control - open all and position all - through the same confirmation dialog', async ({ page, request }) => {
+    test.skip(process.env.SW_DEVICES_FIXTURE !== '1', 'needs tests/fixtures/devices_fake_ha.py as the backend (SW_DEVICES_FIXTURE=1)');
+    await seed(request);
+    const posted: Record<string, unknown>[] = [];
+    page.on('request', (req) => {
+      if (req.method() === 'POST' && /\/api\/v1\/devices\/actions$/.test(req.url())) posted.push(req.postDataJSON() as Record<string, unknown>);
+    });
+    await open(page, '/devices/areas/cr007_office', 'a');
+    const screen = page.locator('devices-area');
+    const group = screen.locator('[data-cover-group]');
+    await expect(group).toBeVisible({ timeout: 30000 });
+    const dialog = screen.locator('devices-bulk-dialog sw-dialog[data-bulk-dialog="confirm"]');
+    // open all: the office's one closed cover
+    await group.locator('sw-button[data-cover-group-kind="covers_open"]').click();
+    await expect(dialog.locator('[data-bulk-count]')).toHaveAttribute('data-bulk-count', '1', { timeout: 10000 });
+    await dialog.locator('sw-button[data-bulk-confirm]').click();
+    await expect(screen.locator('devices-bulk-dialog [data-bulk-result="ok"]')).toContainText('בוצע', { timeout: 30000 });
+    expect(posted[0]).toMatchObject({ scope: 'area', id: 'cr007_office', kind: 'covers_open' });
+    // the dialog stays open until closed (as every bulk result does): close it before the group control's next
+    // action, or its fixed backdrop would swallow the click
+    await screen.locator('devices-bulk-dialog sw-button[data-bulk-cancel]').click();
+    await expect(screen.locator('devices-bulk-dialog sw-dialog[open]')).toHaveCount(0);
+    // position all: the range + "קבע מיקום לכולם" sends covers_position with the value on the slider, never a
+    // fan-out path of its own - the same bulk record/run as every other kind
+    const range = group.locator('input[data-cover-group-position-input]');
+    await range.fill('55');
+    await range.dispatchEvent('input');
+    await group.locator('sw-button[data-cover-group-kind="covers_position"]').click();
+    await expect(dialog.locator('[data-bulk-count]')).toHaveAttribute('data-bulk-count', '1', { timeout: 10000 });
+    await dialog.locator('sw-button[data-bulk-confirm]').click();
+    await expect(screen.locator('devices-bulk-dialog [data-bulk-result="ok"]')).toContainText('בוצע', { timeout: 30000 });
+    expect(posted[1]).toMatchObject({ scope: 'area', id: 'cr007_office', kind: 'covers_position', position: 55 });
+    await seed(request);
+  });
+
+  test('assign flow: an admin assigns an unassigned entity to an HA area; the bucket and the target area both refresh', async ({ page, request }) => {
+    await seed(request);
+    await open(page, '/devices/areas/unassigned', 'a');
+    const screen = page.locator('devices-area');
+    const tile = screen.locator('.tile[data-entity="switch.cr007_loose"]');
+    await expect(tile).toBeVisible({ timeout: 30000 });
+    await tile.locator('sw-button[data-assign-entity="switch.cr007_loose"]').click();
+    const dialog = screen.locator('sw-dialog[data-assign-dialog="open"]');
+    await expect(dialog.locator('select[data-assign-select]')).toBeVisible({ timeout: 10000 }); // (the sw-dialog host itself has no box: its backdrop is fixed)
+    await expect(dialog.locator('sw-button[data-assign-confirm]')).toHaveAttribute('disabled', ''); // no area picked yet - custom element: the attribute is the contract
+    await dialog.locator('select[data-assign-select]').selectOption('cr007_storage');
+    await dialog.locator('sw-button[data-assign-confirm]').click();
+    await expect(screen.locator('.tile[data-entity="switch.cr007_loose"]')).toHaveCount(0, { timeout: 10000 });
+    await open(page, '/devices/areas/cr007_storage', 'a');
+    await expect(page.locator('devices-area .tile[data-entity="switch.cr007_loose"]')).toBeVisible({ timeout: 30000 });
+    await seed(request); // restores switch.cr007_loose to "ללא שיוך" for the other tests
+  });
+
+  test('the sensors card groups rows by device class, compact, with unit and last-changed - and never a control', async ({ page, request }) => {
+    await seed(request);
+    await open(page, '/devices/areas/cr007_lobby', 'a');
+    const card = page.locator('devices-area sw-card[data-card="sensors"]');
+    await expect(card).toBeVisible({ timeout: 30000 });
+    const groups = await card.locator('[data-sensor-group]').evaluateAll((els) => els.map((e) => e.getAttribute('data-sensor-group')));
+    expect(groups).toContain('temperature');
+    expect(groups).toContain('power');
+    expect(groups).toContain('moisture'); // a binary sensor outside the security set, grouped by its own device class
+    const temp = card.locator('[data-sensor-group="temperature"] .tile[data-entity="sensor.cr007_temp"]');
+    await expect(temp).toContainText('23.5 °C');
+    await expect(temp.locator('[data-last-changed]')).toBeVisible();
+    await expect(temp.locator('sw-toggle, sw-button, input')).toHaveCount(0);
+    const power = card.locator('[data-sensor-group="power"] .tile[data-entity="sensor.cr007_power"]');
+    await expect(power).toContainText('120 W');
+    const moist = card.locator('[data-sensor-group="moisture"] .tile[data-entity="binary_sensor.cr007_moist"]');
+    await expect(moist).toBeVisible();
   });
 });

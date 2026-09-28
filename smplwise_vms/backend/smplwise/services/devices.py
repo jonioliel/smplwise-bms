@@ -31,6 +31,17 @@ CARD_LABELS = {
     "sensors": "חיישנים",
 }
 SECURITY_BINARY_CLASSES = {"door", "window", "opening", "garage_door", "motion", "occupancy", "presence", "lock", "safety", "smoke", "gas", "carbon_monoxide", "tamper", "vibration", "sound", "moving"}
+# CR-007 slice 4 (review MEDIUM 9: one definition, not two): a door / garage / gate cover is a passage, not a
+# shutter - read-only in the covers card, excluded from every bulk action (services/device_bulk.py) and, since the
+# slice-4 review, refused server-side under devices.control too (services/ha_scope.py devices_control_reaches).
+# `DOOR_LAYER`: a cover or switch placed on this map layer is a door / gate release, whatever its device_class -
+# the same exclusion, by placement rather than by class.
+DOOR_COVER_CLASSES = frozenset({"door", "garage", "gate"})
+DOOR_LAYER = "doors"
+# Sensor card grouping (CR-007 slice 4): a device_class bucket label, compact and predictable regardless of the
+# entity's own wording; anything not named here (an illuminance/CO2/generic numeric sensor, or a binary sensor
+# outside the security set) groups under its own device_class, or "other" with none.
+SENSOR_GROUP_CLASSES = {"temperature": "temperature", "humidity": "humidity", "power": "power", "energy": "power", "illuminance": "illuminance", "carbon_dioxide": "co2", "battery": "battery"}
 OFF_STATES = {"off", "unavailable", "unknown", None, ""}
 MEDIA_OFF_STATES = {"off", "standby", "unavailable", "unknown", None, ""}
 UNASSIGNED = "unassigned"  # the pseudo area id of "ללא שיוך"
@@ -178,17 +189,36 @@ def load_structure(conn: sqlite3.Connection, entities: list[dict[str, Any]]) -> 
     return floors, areas
 
 
+def _climate_summary(e: dict[str, Any]) -> dict[str, Any]:
+    """CR-007 slice 4: the building/floor "מזגני הקומה" strip - mode + target only, never the full card."""
+    a = e.get("attributes") or {}
+    return {
+        "entity_id": e["entity_id"],
+        "name": e.get("name") or e.get("original_name") or e["entity_id"],
+        "area_name": e.get("area_name"),
+        "hvac_mode": e.get("state") if e.get("state") not in ("unavailable", "unknown", None) else None,
+        "hvac_action": a.get("hvac_action") if isinstance(a.get("hvac_action"), str) else None,
+        "current_temperature": _num(a.get("current_temperature")),
+        "target_temperature": _num(a.get("temperature")),
+        "unit": e.get("unit") or "°C",
+        "available": bool(e.get("available")),
+    }
+
+
 def build_tree(conn: sqlite3.Connection, entities: list[dict[str, Any]], *, scoped: bool) -> dict[str, Any]:
     """Floors → areas with counts over `entities` (already filtered to what the caller may see). A scoped caller gets
     only the floors and areas that hold something visible - an empty area would say more than they may know."""
     floors, areas = load_structure(conn, entities)
     area_counts: dict[str, dict[str, Any]] = {}
     area_has_camera: dict[str, bool] = {}
+    climate_by_area: dict[str, list[dict[str, Any]]] = {}
     unassigned = empty_counts()
     building = empty_counts()
     for e in entities:
         count_into(building, e)
         aid = e.get("area_id")
+        if e["domain"] == "climate" and aid:
+            climate_by_area.setdefault(aid, []).append(_climate_summary(e))
         if not aid:
             count_into(unassigned, e)
             continue
@@ -203,21 +233,29 @@ def build_tree(conn: sqlite3.Connection, entities: list[dict[str, Any]], *, scop
         by_floor.setdefault(a.get("floor_id") or None, []).append(
             {"area_id": a["area_id"], "name": a["name"], "icon": a.get("icon"), "floor_id": a.get("floor_id") or None, "counts": counts or empty_counts(), "has_camera": area_has_camera.get(a["area_id"], False)}
         )
+    def _climate_strip(fl_areas: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        out = [cs for a in fl_areas for cs in climate_by_area.get(a["area_id"], [])]
+        out.sort(key=lambda c: (c["area_name"] or "", c["name"]))
+        return out[:60]
+
     out_floors = []
     for f in floors:
         fl_areas = by_floor.pop(f["floor_id"], [])
         if scoped and not fl_areas:
             continue
-        out_floors.append({"floor_id": f["floor_id"], "name": f["name"], "level": f.get("level"), "icon": f.get("icon"), "areas": fl_areas, "counts": _sum_counts([a["counts"] for a in fl_areas])})
+        out_floors.append({"floor_id": f["floor_id"], "name": f["name"], "level": f.get("level"), "icon": f.get("icon"), "areas": fl_areas, "counts": _sum_counts([a["counts"] for a in fl_areas]), "climate": _climate_strip(fl_areas)})
     loose = by_floor.pop(None, [])
     for fid, rest in by_floor.items():  # an area whose floor id names no floor: shown as "ללא קומה" rather than dropped
         loose.extend(rest)
     if loose:
-        out_floors.append({"floor_id": NO_FLOOR, "name": NO_FLOOR_NAME, "level": None, "icon": None, "areas": loose, "counts": _sum_counts([a["counts"] for a in loose])})
+        out_floors.append({"floor_id": NO_FLOOR, "name": NO_FLOOR_NAME, "level": None, "icon": None, "areas": loose, "counts": _sum_counts([a["counts"] for a in loose]), "climate": _climate_strip(loose)})
+    building_climate = [cs for lst in climate_by_area.values() for cs in lst]
+    building_climate.sort(key=lambda c: (c["area_name"] or "", c["name"]))
     return {
         "floors": out_floors,
         "unassigned": {"area_id": UNASSIGNED, "name": UNASSIGNED_NAME, "counts": unassigned},
         "building": building,
+        "building_climate": building_climate[:80],
         "scoped": scoped,
     }
 
@@ -277,14 +315,33 @@ def card_row(e: dict[str, Any], can_control: bool) -> dict[str, Any]:
             row["min_temp"] = _num(a.get("min_temp"))
             row["max_temp"] = _num(a.get("max_temp"))
             row["target_temp_step"] = _num(a.get("target_temp_step"))
+            # CR-007 slice 4: climate in full - preset, swing and (for the climate entities that support it) a target
+            # humidity alongside the temperature one; each offered only when the entity itself reports it
+            row["preset_modes"] = _str_list(a.get("preset_modes"))
+            row["swing_mode"] = a.get("swing_mode") if isinstance(a.get("swing_mode"), str) else None
+            row["swing_modes"] = _str_list(a.get("swing_modes"))
+            row["current_humidity"] = _num(a.get("current_humidity"))
+            row["target_humidity"] = _num(a.get("humidity"))
+            row["min_humidity"] = _num(a.get("min_humidity"))
+            row["max_humidity"] = _num(a.get("max_humidity"))
         else:  # fan / humidifier
             row["percentage"] = _pct(a.get("percentage"))
             row["current_humidity"] = _num(a.get("current_humidity"))
             row["target_humidity"] = _num(a.get("humidity"))
+            if e["domain"] == "humidifier":
+                row["mode"] = a.get("mode") if isinstance(a.get("mode"), str) else None
+                row["available_modes"] = _str_list(a.get("available_modes"))
+                row["min_humidity"] = _num(a.get("min_humidity"))
+                row["max_humidity"] = _num(a.get("max_humidity"))
     elif card == "covers":
         row["position"] = _pct(a.get("current_position"))
         row["tilt"] = _pct(a.get("current_tilt_position"))
         row["moving"] = row["state"] in ("opening", "closing")
+        # CR-007 slice 4: a door / garage / gate cover is a passage, not a shutter - read-only here too (the same
+        # device classes device_bulk.DOOR_COVER_CLASSES excludes from every bulk action), device-class-aware wording
+        row["door_class"] = (row["device_class"] or "") in DOOR_COVER_CLASSES
+        if row["door_class"]:
+            row["can_control"] = False
     elif card == "security":
         kind = {"lock": "lock", "alarm_control_panel": "alarm", "camera": "camera"}.get(e["domain"], "binary_sensor")
         row["kind"] = kind
@@ -306,6 +363,8 @@ def card_row(e: dict[str, Any], can_control: bool) -> dict[str, Any]:
         row["value"] = _num(row["state"]) if e["domain"] == "sensor" else None
         row["on"] = row["state"] == "on" if e["domain"] == "binary_sensor" else None
         row["battery_level"] = _pct(a.get("battery_level"))
+        # CR-007 slice 4: grouped by device class, compact - display only, no controls
+        row["group"] = (row["device_class"] or "other") if e["domain"] == "binary_sensor" else SENSOR_GROUP_CLASSES.get(row["device_class"] or "", "other")
     return row
 
 

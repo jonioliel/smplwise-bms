@@ -18,7 +18,7 @@ from fastapi.testclient import TestClient
 from smplwise.rbac import ROLES
 from smplwise.routers.access import PERMISSION_LABELS
 from smplwise.services import devices as svc
-from smplwise.services import ha_bridge, ha_client, ha_sync
+from smplwise.services import ha_bridge, ha_client, ha_scope, ha_sync
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -452,6 +452,36 @@ def test_devices_control_never_reaches_locks_alarm_sirens_scripts_scenes_buttons
     assert r.status_code == 202 and calls[-1]["domain"] == "script"
 
 
+def test_devices_control_never_reaches_door_class_or_door_layer_covers(dev_app, monkeypatch):
+    """CR-007 slice 4 review (MEDIUM 2): POST /ha/entities/{id}/actions checked only the domain, so a
+    devices.control-only caller could open a gate cover or a door-release switch - exactly what the bulk path
+    already refuses to touch. A door-class cover (device_class door/garage/gate) or anything on the map's door
+    layer is now refused under devices.control too, audited as ha.entity.control's own denial is; ha.entity.control
+    keeps its old, broader rights on the same entities."""
+    app, s = dev_app
+    c = TestClient(app)
+    calls = _pair(c, monkeypatch)
+    assert c.post("/api/v1/ha/dev/states", json={"states": [{"entity_id": "cover.lobby_gate", "state": "closed", "attributes": {"friendly_name": "Gate", "device_class": "gate"}}]}).status_code == 200
+    bind(c, s, "dc", _devices_control_only_role(c), "installation", "*")
+    with app.state.db.connection() as conn:
+        before = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'ha.entity.control' AND decision = 'denied'").fetchone()[0]
+    r = c.post("/api/v1/ha/entities/cover.lobby_gate/actions", json=_body(allowed_action_id="cover.open_cover", confirmation_grant="confirmed", client_request_id="gate1"), headers=as_user("dc"))
+    assert r.status_code == 403, r.text
+    with app.state.db.connection() as conn:
+        after = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'ha.entity.control' AND decision = 'denied'").fetchone()[0]
+    assert after == before + 1, "the refusal must be audited"
+    assert not calls, "nothing reached the bridge"
+    # ha.entity.control (the bootstrap system_admin) keeps its old rights on the same door-class cover
+    ok = c.post("/api/v1/ha/entities/cover.lobby_gate/actions", json=_body(allowed_action_id="cover.open_cover", confirmation_grant="confirmed", client_request_id="gate2"))
+    assert ok.status_code == 202 and calls[-1]["domain"] == "cover"
+    # a switch placed on the map's door layer is refused the same way under devices.control
+    ids = seed_tree(c)
+    _publish_plan(c, ids["floor2"])
+    assert c.post(f"/api/v1/floors/{ids['floor2']}/anchors", json={"resource_type": "ha_entity", "resource_id": "switch.lobby_sign", "x": 0.3, "y": 0.3, "layer_id": "doors"}).status_code == 201
+    r2 = c.post("/api/v1/ha/entities/switch.lobby_sign/actions", json=_body(allowed_action_id="switch.turn_off", client_request_id="relay1"), headers=as_user("dc"))
+    assert r2.status_code == 403, r2.text
+
+
 def test_new_allow_list_actions_validate_and_have_expected_risk(dev_app, monkeypatch):
     """The allow-list entries this slice adds for the devices-area cards: cover.set_cover_position (attention, like
     open/close - coordinator ruling), climate.set_fan_mode / turn_off, fan.set_percentage, media_player.turn_on /
@@ -516,7 +546,7 @@ def test_every_allow_listed_action_is_allowed_by_the_bridge():
         have = _bridge_allowed_services(copy / "__init__.py")
         assert not want - have, f"{copy}: missing in the bridge allow-list: {sorted(want - have)}"
     manifest = json.loads((ROOT / "custom_components" / "smplwise_bridge" / "manifest.json").read_text(encoding="utf-8"))
-    assert manifest["version"] == "0.2.4", "a new bridge allow-list ships as a new bridge version (HA must restart to load it)"
+    assert manifest["version"] == "0.2.5", "a new bridge allow-list ships as a new bridge version (HA must restart to load it)"
 
 
 def test_attribute_confirmation_never_compares_the_state_to_the_argument(dev_app, monkeypatch):
@@ -730,6 +760,13 @@ def test_bulk_kinds_never_reach_locks_alarm_sirens_scripts_scenes_buttons():
     assert {a for _d, a in device_bulk.KINDS["all_off"]} == {"light.turn_off", "switch.turn_off", "cover.close_cover", "climate.turn_off", "fan.turn_off", "media_player.turn_off"}
 
 
+def test_door_cover_constants_are_one_definition_not_two():
+    """CR-007 slice 4 review (NIT 9): device_bulk's DOOR_COVER_CLASSES / DOOR_LAYER are services/devices.py's own
+    (imported, not redefined) - services/ha_scope.py's server-side devices.control refusal reads the same ones."""
+    assert device_bulk.DOOR_COVER_CLASSES is svc.DOOR_COVER_CLASSES
+    assert device_bulk.DOOR_LAYER is svc.DOOR_LAYER == "doors"
+
+
 def test_bulk_requires_devices_control_bulk(bulk_app):
     """403 without the permission - a viewer, and an operator who holds devices.control - checked before the body is
     even read (a non-JSON body still gets the 403), audited, nothing sent; the tree / area carry can_bulk only for a
@@ -869,10 +906,15 @@ def test_bulk_entity_set_never_includes_locks_alarm_or_doors(bulk_app):
     assert all(x["reason_label"] for x in p["excluded"])
     assert p["skipped"] == {"already": 1, "unavailable": 1}  # light.lobby_spot is off; light.lobby_dead is unavailable
     assert "מנעולים" in p["note"]
-    # each kind is its own subset
-    kinds = {k: {t["entity_id"] for t in c.get("/api/v1/devices/actions/preview", params={"scope": "area", "id": "lobby", "kind": k}).json()["targets"]} for k in device_bulk.KINDS}
+    # each kind is its own subset (covers_position also needs its own argument - CR-007 slice 4)
+    def _preview(k: str, **extra) -> set[str]:
+        return {t["entity_id"] for t in c.get("/api/v1/devices/actions/preview", params={"scope": "area", "id": "lobby", "kind": k, **extra}).json()["targets"]}
+
+    kinds = {k: (_preview(k, position=40) if k in device_bulk.KINDS_WITH_POSITION else _preview(k)) for k in device_bulk.KINDS}
     assert kinds["lights_off"] == {"light.lobby"} and kinds["covers_close"] == {"cover.lobby_blind"}
     assert kinds["climate_off"] == {"climate.lobby", "fan.lobby"} and kinds["screens_off"] == {"media_player.lobby_tv"}
+    assert kinds["covers_open"] == set() and kinds["covers_stop"] == set()  # the blind is already open, nothing is moving
+    assert kinds["covers_position"] == {"cover.lobby_blind"}  # away from the requested 40%; the gate stays excluded
     # the request sends exactly that set; nothing else reaches the bridge
     r = c.post("/api/v1/devices/actions", json=_bulk(kind="all_off", preview_digest=p["digest"]))
     assert r.status_code == 202, r.text
@@ -943,7 +985,7 @@ def test_bulk_per_entity_outcomes_counts_and_one_outcome_row(bulk_app):
     out = {i["entity_id"]: i["outcome"] for i in got["items"]}
     assert out == {"light.lobby": "confirmed", "cover.lobby_blind": "confirmed", "climate.lobby": "refused", "media_player.lobby_tv": "not_confirmed"}
     assert got["done"] is True and got["all_confirmed"] is False
-    assert got["counts"] == {"confirmed": 2, "accepted": 0, "queued": 0, "not_confirmed": 1, "refused": 1, "unknown": 0, "total": 4}
+    assert got["counts"] == {"confirmed": 2, "sent": 0, "accepted": 0, "queued": 0, "not_confirmed": 1, "refused": 1, "unknown": 0, "total": 4}
     for _ in range(3):
         assert c.get(f"/api/v1/devices/actions/{bid}").json()["counts"]["confirmed"] == 2
     outcome = _audit_rows(app, phase="outcome")
@@ -1151,3 +1193,269 @@ def test_bulk_safe_mark_cleared_when_the_entity_leaves_home_assistant(bulk_app):
     with app.state.db.connection() as conn:
         conn.execute("UPDATE ha_entities SET removed_at = '2026-09-28T10:00:00Z' WHERE entity_id = 'switch.loose'")
         assert db_.clear_stale_marks(conn, {"switch.loose"}) == ["switch.loose"]
+
+
+# ---------------------------------------------------------------- slice 4: climate/covers in full, sensors, assign
+
+
+def test_slice4_new_allow_list_actions_validate_and_have_expected_risk(dev_app, monkeypatch):
+    """CR-007 slice 4: climate preset/swing/humidity, humidifier set_humidity/set_mode, and cover tilt (open/close/
+    stop/position) - each validated (range/length) and carrying the risk the coordinator ruling calls for (cover
+    tilt movement is "attention" like the top movement - one physical movement whichever control starts it;
+    climate/humidifier target-setting is routine, matching set_temperature/set_fan_mode already in the allow-list).
+    humidifier also joins the devices.control domains (CR-007 s3 left it out; the card now controls it)."""
+    app, s = dev_app
+    c = TestClient(app)
+    _pair(c, monkeypatch)
+    assert c.post(
+        "/api/v1/ha/dev/states",
+        json={
+            "states": [
+                {"entity_id": "humidifier.lobby", "state": "on", "attributes": {"friendly_name": "Lobby humidifier", "humidity": 45, "min_humidity": 30, "max_humidity": 80, "mode": "normal", "available_modes": ["normal", "auto"]}},
+                # the fixture's climate.lobby reports no preset/swing/humidity yet: an entity confirms only what it itself reports
+                {"entity_id": "climate.lobby", "state": "cool", "attributes": {"friendly_name": "Lobby AC", "current_temperature": 25.5, "temperature": 22, "hvac_action": "cooling", "fan_mode": "auto", "preset_mode": "none", "swing_mode": "off", "humidity": 50}},
+            ]
+        },
+    ).status_code == 200
+    body = lambda **kw: {"arguments": {}, "expected_state_version": None, "confirmation_grant": None, "expires_at": "2099-01-01T00:00:00Z", **kw}  # noqa: E731
+    # climate: preset / swing / humidity
+    assert c.post("/api/v1/ha/entities/climate.lobby/actions", json=body(allowed_action_id="climate.set_preset_mode", arguments={"preset_mode": "x" * 41}, client_request_id="q1")).status_code == 422
+    r = c.post("/api/v1/ha/entities/climate.lobby/actions", json=body(allowed_action_id="climate.set_preset_mode", arguments={"preset_mode": "eco"}, client_request_id="q2"))
+    assert r.status_code == 202 and r.json()["expected_state"] == "preset_mode=eco"
+    r = c.post("/api/v1/ha/entities/climate.lobby/actions", json=body(allowed_action_id="climate.set_swing_mode", arguments={"swing_mode": "vertical"}, client_request_id="q3"))
+    assert r.status_code == 202 and r.json()["expected_state"] == "swing_mode=vertical"
+    assert c.post("/api/v1/ha/entities/climate.lobby/actions", json=body(allowed_action_id="climate.set_humidity", arguments={"humidity": 150}, client_request_id="q4")).status_code == 422
+    r = c.post("/api/v1/ha/entities/climate.lobby/actions", json=body(allowed_action_id="climate.set_humidity", arguments={"humidity": 55}, client_request_id="q5"))
+    assert r.status_code == 202 and r.json()["expected_state"] == "humidity=55"
+    # humidifier: set_humidity / set_mode
+    r = c.post("/api/v1/ha/entities/humidifier.lobby/actions", json=body(allowed_action_id="humidifier.set_humidity", arguments={"humidity": 60}, client_request_id="q6"))
+    assert r.status_code == 202 and r.json()["expected_state"] == "humidity=60"
+    assert c.post("/api/v1/ha/entities/humidifier.lobby/actions", json=body(allowed_action_id="humidifier.set_mode", arguments={"mode": ""}, client_request_id="q7")).status_code == 422
+    r = c.post("/api/v1/ha/entities/humidifier.lobby/actions", json=body(allowed_action_id="humidifier.set_mode", arguments={"mode": "auto"}, client_request_id="q8"))
+    assert r.status_code == 202 and r.json()["expected_state"] == "mode=auto"
+    # cover tilt: open/close need the movement confirmation like the top ones; stop is routine; position is 0-100
+    assert c.post("/api/v1/ha/dev/states", json={"states": [{"entity_id": "cover.lobby_blind", "state": "open", "attributes": {"friendly_name": "Blind", "device_class": "blind", "current_position": 70, "current_tilt_position": 50}}]}).status_code == 200
+    for i, aid in enumerate(("cover.open_cover_tilt", "cover.close_cover_tilt")):
+        pending = c.post("/api/v1/ha/entities/cover.lobby_blind/actions", json=body(allowed_action_id=aid, client_request_id=f"t{i}a"))
+        assert pending.status_code == 409 and pending.json()["code"] == "confirmation_required"
+        ok = c.post("/api/v1/ha/entities/cover.lobby_blind/actions", json=body(allowed_action_id=aid, confirmation_grant="confirmed", client_request_id=f"t{i}b"))
+        assert ok.status_code == 202 and ok.json()["confirmation"] == "none", "the cover's own state reflects position, not tilt: honestly sent, never confirmed"
+    r = c.post("/api/v1/ha/entities/cover.lobby_blind/actions", json=body(allowed_action_id="cover.stop_cover_tilt", client_request_id="t-stop"))
+    assert r.status_code == 202, "stop is routine: never gated, even while the cover moves"
+    assert c.post("/api/v1/ha/entities/cover.lobby_blind/actions", json=body(allowed_action_id="cover.set_cover_tilt_position", arguments={"tilt_position": 150}, confirmation_grant="confirmed", client_request_id="t-p1")).status_code == 422
+    r = c.post("/api/v1/ha/entities/cover.lobby_blind/actions", json=body(allowed_action_id="cover.set_cover_tilt_position", arguments={"tilt_position": 30}, confirmation_grant="confirmed", client_request_id="t-p2"))
+    assert r.status_code == 202 and r.json()["confirmation"] == "attribute" and r.json()["expected_state"] == "current_tilt_position=30"
+    new_ids = {
+        "climate.set_preset_mode": ("climate", "set_preset_mode", "routine"),
+        "climate.set_swing_mode": ("climate", "set_swing_mode", "routine"),
+        "climate.set_humidity": ("climate", "set_humidity", "routine"),
+        "humidifier.set_humidity": ("humidifier", "set_humidity", "routine"),
+        "humidifier.set_mode": ("humidifier", "set_mode", "routine"),
+        "cover.open_cover_tilt": ("cover", "open_cover_tilt", "attention"),
+        "cover.close_cover_tilt": ("cover", "close_cover_tilt", "attention"),
+        "cover.stop_cover_tilt": ("cover", "stop_cover_tilt", "routine"),
+        "cover.set_cover_tilt_position": ("cover", "set_cover_tilt_position", "attention"),
+    }
+    for aid, (domain, service, risk) in new_ids.items():
+        spec = ha_bridge.ACTIONS[aid]
+        assert (spec["domain"], spec["service"], spec["risk"]) == (domain, service, risk), aid
+        assert not spec.get("grant"), aid
+    with app.state.db.connection() as conn:
+        assert ha_scope.devices_control_reaches(conn, "humidifier.lobby") and "humidifier" in ha_scope.DEVICES_CONTROL_DOMAINS
+
+
+def test_slice4_card_fields_climate_humidity_cover_door_class_and_sensor_groups(dev_app):
+    """The devices-area card rows carry what the slice-4 controls need: climate preset/swing/humidity, a
+    humidifier's own mode/available_modes/humidity range, a door/garage/gate cover marked read-only (`door_class`,
+    `can_control: false` regardless of the caller's grant), and every sensor row grouped by device class. Also the
+    building/floor "מזגני הקומה" strip: climate.* only, mode + target, never the full card."""
+    app, s = dev_app
+    c = TestClient(app)
+    extra = [
+        {"entity_id": "humidifier.lobby", "state": "on", "attributes": {"friendly_name": "Lobby humidifier", "mode": "auto", "available_modes": ["auto", "boost"], "humidity": 45, "min_humidity": 30, "max_humidity": 80}},
+        {"entity_id": "cover.lobby_gate", "state": "closed", "attributes": {"friendly_name": "Gate", "device_class": "gate"}},
+        {"entity_id": "sensor.lobby_power", "state": "120", "attributes": {"friendly_name": "Lobby power", "unit_of_measurement": "W", "device_class": "power"}},
+    ]
+    assert c.post("/api/v1/ha/dev/states", json={"states": extra}).status_code == 200
+    reg = ENTITY_REGISTRY + [_reg(e["entity_id"], "lobby") for e in extra]
+    assert c.post("/api/v1/ha/dev/registry", json={"entities": reg, "devices": [], "areas": AREAS, "floors": FLOORS}).status_code == 200
+    a = c.get("/api/v1/devices/areas/lobby").json()
+    climate = {r["entity_id"]: r for r in a["cards"]["climate"]["entities"]}
+    assert climate["humidifier.lobby"]["mode"] == "auto" and climate["humidifier.lobby"]["available_modes"] == ["auto", "boost"]
+    assert climate["humidifier.lobby"]["target_humidity"] == 45 and climate["humidifier.lobby"]["min_humidity"] == 30 and climate["humidifier.lobby"]["max_humidity"] == 80
+    assert climate["humidifier.lobby"]["can_control"] is True  # devices.control now reaches humidifier too
+    assert climate["climate.lobby"]["preset_modes"] is None and climate["climate.lobby"]["swing_modes"] is None  # the fixture reports none: never invented
+    covers = {r["entity_id"]: r for r in a["cards"]["covers"]["entities"]}
+    assert covers["cover.lobby_gate"]["door_class"] is True and covers["cover.lobby_gate"]["can_control"] is False
+    assert covers["cover.lobby_blind"]["door_class"] is False and covers["cover.lobby_blind"]["can_control"] is True
+    sensors = {r["entity_id"]: r for r in a["cards"]["sensors"]["entities"]}
+    assert sensors["sensor.lobby_power"]["group"] == "power" and sensors["sensor.lobby_temp"]["group"] == "temperature"
+    assert sensors["binary_sensor.lobby_battery"]["group"] == "battery"
+    t = c.get("/api/v1/devices/tree").json()
+    ground = next(f for f in t["floors"] if f["floor_id"] == "ground")
+    strip = {x["entity_id"]: x for x in ground["climate"]}
+    assert strip["climate.lobby"]["hvac_mode"] == "cool" and strip["climate.lobby"]["target_temperature"] == 22
+    assert "humidifier.lobby" not in strip, "the strip is climate.* only; humidifier stays in the area card"
+    assert {x["entity_id"] for x in t["building_climate"]} == {"climate.lobby"}
+
+
+def test_bulk_cover_group_control_open_stop_position_with_exclusions(bulk_app):
+    """CR-007 slice 4: the area's "כל התריסים" group control (open all / stop all / close all / position all) goes
+    through the same bulk resolve/record/run path as every other kind - never a fan-out path of its own - with the
+    same exclusions (never a door/garage/gate cover, never the map's door layer); position needs an argument, and a
+    change to it since the dialog opened is refused like a changed entity set (the digest covers both)."""
+    app, s, c, fake = bulk_app
+    extra = [
+        {"entity_id": "cover.lobby_gate", "state": "closed", "attributes": {"friendly_name": "Gate", "device_class": "gate", "current_position": 0}},
+        {"entity_id": "cover.lobby_curtain", "state": "closed", "attributes": {"friendly_name": "Curtain", "device_class": "curtain", "current_position": 0}},
+    ]
+    assert c.post("/api/v1/ha/dev/states", json={"states": extra}).status_code == 200
+    reg = ENTITY_REGISTRY + [_reg(e["entity_id"], "lobby") for e in extra]
+    assert c.post("/api/v1/ha/dev/registry", json={"entities": reg, "devices": [], "areas": AREAS, "floors": FLOORS}).status_code == 200
+    # covers_open: cover.lobby_blind is already open (skipped as "already"); the closed curtain is sent; the gate excluded
+    p = c.get("/api/v1/devices/actions/preview", params={"scope": "area", "id": "lobby", "kind": "covers_open"}).json()
+    assert {t["entity_id"]: t["action_id"] for t in p["targets"]} == {"cover.lobby_curtain": "cover.open_cover"}
+    assert p["skipped"]["already"] == 1
+    assert {x["entity_id"]: x["reason"] for x in p["excluded"]} == {"cover.lobby_gate": "door_cover"}
+    # covers_stop: nothing here is moving - nothing to send, the gate is still described as excluded
+    st = c.get("/api/v1/devices/actions/preview", params={"scope": "area", "id": "lobby", "kind": "covers_stop"}).json()
+    assert st["count"] == 0 and {x["entity_id"] for x in st["excluded"]} == {"cover.lobby_gate"}
+    # covers_position with no position: refused (422) before anything is resolved
+    assert c.get("/api/v1/devices/actions/preview", params={"scope": "area", "id": "lobby", "kind": "covers_position"}).status_code == 422
+    pp = c.get("/api/v1/devices/actions/preview", params={"scope": "area", "id": "lobby", "kind": "covers_position", "position": 40}).json()
+    assert {t["entity_id"] for t in pp["targets"]} == {"cover.lobby_blind", "cover.lobby_curtain"}  # both away from 40%
+    r = c.post("/api/v1/devices/actions", json=_bulk(kind="covers_position", position=40, preview_digest=pp["digest"]))
+    assert r.status_code == 202, r.text
+    _finish(c, r.json()["id"])
+    sent = {x["data"]["entity_id"]: x["data"].get("position") for x in fake.calls if x["service"] == "set_cover_position"}
+    assert sent == {"cover.lobby_blind": 40, "cover.lobby_curtain": 40}
+    # a stale digest (the requested position changed since the dialog opened) is refused, nothing sent
+    fake.calls.clear()
+    r2 = c.post("/api/v1/devices/actions", json=_bulk(kind="covers_position", position=90, preview_digest=pp["digest"]))
+    assert r2.status_code == 409 and r2.json()["code"] == "target_changed" and not fake.calls
+
+
+def test_bulk_group_cover_kinds_are_area_only(bulk_app):
+    """CR-007 slice 4 review (MEDIUM 4): covers_open / covers_stop / covers_position are the area's own "כל
+    התריסים" group control (the spec never describes a building-wide open) - refused at floor/building scope,
+    audited like any other refusal; covers_close (a slice-3 kind, part of the classic five-kind menu) is unaffected
+    and stays valid at every scope."""
+    app, s, c, fake = bulk_app
+    for kind in ("covers_open", "covers_stop", "covers_position"):
+        params = {"scope": "building", "id": "*", "kind": kind}
+        if kind == "covers_position":
+            params["position"] = 40
+        r = c.get("/api/v1/devices/actions/preview", params=params)
+        assert r.status_code == 422 and r.json()["details"]["fields"] == ["scope"], (kind, r.text)
+        params["scope"], params["id"] = "floor", "ground"
+        r2 = c.get("/api/v1/devices/actions/preview", params=params)
+        assert r2.status_code == 422, (kind, r2.text)
+        body = _bulk(scope="building", id="*", kind=kind, **({"position": 40} if kind == "covers_position" else {}))
+        r3 = c.post("/api/v1/devices/actions", json=body)
+        assert r3.status_code == 422 and not fake.calls, (kind, r3.text)
+    # covers_close (slice 3): still valid at every scope
+    ok = c.get("/api/v1/devices/actions/preview", params={"scope": "building", "id": "*", "kind": "covers_close"})
+    assert ok.status_code == 200
+
+
+def test_bulk_stop_all_is_reported_sent_not_confirmed(bulk_app):
+    """CR-007 slice 4 review (MEDIUM 3): cover.stop_cover has nothing observable (no expect / expect_attr); the
+    single first poll would otherwise mark it "confirmed" (services/ha_actions.refresh: no expected_state to wait
+    for) and a bulk "stop all" would honestly-dishonestly read "בוצע" for something nobody verified. The outcome is
+    "sent", never counted in counts.confirmed, and all_confirmed is false even though nothing failed."""
+    app, s, c, fake = bulk_app
+    assert c.post("/api/v1/ha/dev/states", json={"states": [{"entity_id": "cover.lobby_blind", "state": "opening", "attributes": {"friendly_name": "Blind", "device_class": "blind", "current_position": 40}}]}).status_code == 200
+    p = c.get("/api/v1/devices/actions/preview", params={"scope": "area", "id": "lobby", "kind": "covers_stop"}).json()
+    assert p["count"] == 1
+    r = c.post("/api/v1/devices/actions", json=_bulk(kind="covers_stop", preview_digest=p["digest"]))
+    assert r.status_code == 202, r.text
+    got = _finish(c, r.json()["id"])
+    assert got["counts"]["confirmed"] == 0 and got["counts"]["sent"] == 1 and got["counts"]["total"] == 1
+    assert got["items"][0]["outcome"] == "sent" and got["items"][0]["status"] == "confirmed"
+    assert got["all_confirmed"] is False
+
+
+def test_bulk_covers_position_skips_covers_without_position_support(bulk_app):
+    """CR-007 slice 4 review (NIT 6): a cover that neither reports current_position nor advertises the SET_POSITION
+    feature cannot be positioned at all - excluded (with a reason the dialog states), never sent, never counted as
+    "already"."""
+    app, s, c, fake = bulk_app
+    extra = [{"entity_id": "cover.lobby_no_pos", "state": "open", "attributes": {"friendly_name": "Dumb blind"}, "supported_features": 0}]
+    assert c.post("/api/v1/ha/dev/states", json={"states": extra}).status_code == 200
+    reg = ENTITY_REGISTRY + [_reg("cover.lobby_no_pos", "lobby")]
+    assert c.post("/api/v1/ha/dev/registry", json={"entities": reg, "devices": [], "areas": AREAS, "floors": FLOORS}).status_code == 200
+    p = c.get("/api/v1/devices/actions/preview", params={"scope": "area", "id": "lobby", "kind": "covers_position", "position": 40}).json()
+    assert "cover.lobby_no_pos" not in {t["entity_id"] for t in p["targets"]}
+    assert {x["entity_id"]: x["reason"] for x in p["excluded"]}.get("cover.lobby_no_pos") == "no_position"
+
+
+def test_assign_unassigned_entity_to_area(dev_app, monkeypatch):
+    """CR-007 slice 4: an administrator assigns an entity with no HA area to one. system.configure gate (403 and
+    audited without it), a Home Assistant CONFIG write through the bridge's own registry path (never a domain
+    service call), audited under the real actor with the honest bridge answer, and the local mirror updated at once
+    so the tree/area screens show the move without waiting for the next HA registry refresh."""
+    app, s = dev_app
+    c = TestClient(app)
+    calls: list[dict] = []
+
+    def fake_set_area(_settings, payload, timeout=15.0):
+        calls.append(payload)
+        return {"ok": True, "context_id": None, "request_id": payload["request_id"]}
+
+    monkeypatch.setattr(ha_client, "call_bridge_set_area", fake_set_area)
+    secret = c.get("/api/v1/ha/bridge/pairing").json()["pairing_code"]
+    c.post("/api/v1/ha/bridge/ping", json=ha_bridge.sign(secret, {"version": "0.2.5"}))
+    # a viewer (no system.configure) is refused before the bridge is ever reached, and the refusal is audited
+    bind(c, s, "vi", "viewer", "installation", "*")
+    r = c.put("/api/v1/devices/entities/switch.loose/area", json={"area_id": "office"}, headers=as_user("vi"))
+    assert r.status_code == 403 and not calls
+    with app.state.db.connection() as conn:
+        row = conn.execute("SELECT decision FROM audit_log WHERE action = 'system.configure' ORDER BY rowid DESC LIMIT 1").fetchone()
+    assert row["decision"] == "denied"
+    # an unknown entity / area is 404
+    assert c.put("/api/v1/devices/entities/switch.nope/area", json={"area_id": "office"}).status_code == 404
+    assert c.put("/api/v1/devices/entities/switch.loose/area", json={"area_id": "nowhere"}).status_code == 404
+    # the bootstrap system_admin: switch.loose (unassigned) moves to the office
+    before = c.get("/api/v1/devices/areas/unassigned").json()
+    assert any(r["entity_id"] == "switch.loose" for card in before["cards"].values() for r in card["entities"])
+    r = c.put("/api/v1/devices/entities/switch.loose/area", json={"area_id": "office"})
+    assert r.status_code == 200 and r.json() == {"entity_id": "switch.loose", "area_id": "office", "area_name": "משרד"}
+    assert calls[-1]["entity_id"] == "switch.loose" and calls[-1]["area_id"] == "office" and calls[-1]["user_id"]
+    after_unassigned = c.get("/api/v1/devices/areas/unassigned").json()
+    assert not any(r["entity_id"] == "switch.loose" for card in after_unassigned["cards"].values() for r in card["entities"])
+    office = c.get("/api/v1/devices/areas/office").json()
+    assert any(r["entity_id"] == "switch.loose" for card in office["cards"].values() for r in card["entities"])
+    with app.state.db.connection() as conn:
+        audit_row = dict(conn.execute("SELECT * FROM audit_log WHERE action = 'devices.assign_area' ORDER BY rowid DESC LIMIT 1").fetchone())
+    assert audit_row["decision"] == "allowed" and json.loads(audit_row["details_json"])["area_id"] == "office"
+    # can_assign_area: only on the unassigned bucket, and only for a system.configure holder
+    assert c.get("/api/v1/devices/areas/unassigned").json()["can_assign_area"] is True
+    assert c.get("/api/v1/devices/areas/lobby").json()["can_assign_area"] is False
+    assert c.get("/api/v1/devices/areas/unassigned", headers=as_user("vi")).json()["can_assign_area"] is False
+    # an honest bridge refusal is reported, not silently swallowed
+    def fake_refuse(_settings, payload, timeout=15.0):
+        return {"ok": False, "error": "entity_not_found"}
+
+    monkeypatch.setattr(ha_client, "call_bridge_set_area", fake_refuse)
+    r2 = c.put("/api/v1/devices/entities/light.garden/area", json={"area_id": "office"})
+    assert r2.status_code == 404 and r2.json()["details"]["error"] == "entity_not_found"
+
+
+def test_assign_area_checks_permission_before_the_body(dev_app):
+    """CR-007 slice 4 review (MEDIUM 5): the permission is checked before the body is even parsed (the _raw_body
+    pattern the bulk route already uses) - an unauthorized caller with a malformed / non-JSON body still gets an
+    audited 403, never a bare 422 for a request it was never entitled to send."""
+    app, s = dev_app
+    c = TestClient(app)
+    bind(c, s, "vi", "viewer", "installation", "*")
+    with app.state.db.connection() as conn:
+        before = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'system.configure' AND decision = 'denied'").fetchone()[0]
+    r = c.put("/api/v1/devices/entities/switch.loose/area", content=b"not json at all", headers={**as_user("vi"), "content-type": "application/json"})
+    assert r.status_code == 403, r.text
+    r2 = c.put("/api/v1/devices/entities/switch.loose/area", content=b"plain text", headers={**as_user("vi"), "content-type": "text/plain"})
+    assert r2.status_code == 403, r2.text
+    r3 = c.put("/api/v1/devices/entities/switch.loose/area", json={"unexpected_field": 1}, headers=as_user("vi"))
+    assert r3.status_code == 403, r3.text
+    with app.state.db.connection() as conn:
+        after = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'system.configure' AND decision = 'denied'").fetchone()[0]
+    assert after == before + 3, "every refusal is audited"

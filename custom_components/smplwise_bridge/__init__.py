@@ -21,11 +21,13 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import Context, HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
 from homeassistant.exceptions import Unauthorized
+from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_track_time_interval
 
-from .const import CONF_ADDON_URL, CONF_PAIRING_CODE, DIRECTORY_INTERVAL_S, DOMAIN, SERVICE_EXECUTE, SERVICE_SYNC, VERSION
+from .const import CONF_ADDON_URL, CONF_PAIRING_CODE, DIRECTORY_INTERVAL_S, DOMAIN, SERVICE_EXECUTE, SERVICE_SET_AREA, SERVICE_SYNC, VERSION
 from .signing import Verifier, sign
 
 _LOGGER = logging.getLogger(__name__)
@@ -36,6 +38,23 @@ EXECUTE_SCHEMA = vol.Schema(
         vol.Required("domain"): cv.string,
         vol.Required("service"): cv.string,
         vol.Required("data"): dict,
+        vol.Required("request_id"): cv.string,
+        vol.Required("ts"): vol.Coerce(int),
+        vol.Required("nonce"): cv.string,
+        vol.Required("sig"): cv.string,
+    },
+    extra=vol.ALLOW_EXTRA,
+)
+
+# 0.2.5 (CR-007 slice 4, tightened on review NIT 8): the one registry write this bridge ever performs - move an
+# entity to a NAMED HA area. area_id is a non-empty string, never null: the product only ever assigns an entity to
+# an area today, and clearing one is not an approved flow, so the schema does not accept it until it is. Never
+# name, icon, aliases, disabled_by or anything else: the allow-list is exactly this one field of this one registry.
+SET_AREA_SCHEMA = vol.Schema(
+    {
+        vol.Required("user_id"): cv.string,
+        vol.Required("entity_id"): cv.string,
+        vol.Required("area_id"): vol.All(cv.string, vol.Length(min=1)),
         vol.Required("request_id"): cv.string,
         vol.Required("ts"): vol.Coerce(int),
         vol.Required("nonce"): cv.string,
@@ -59,6 +78,10 @@ ALLOWED_SERVICES = {
     # 0.2.4 (CR-007 slice 2): the devices area's single-entity controls
     ("fan", "set_percentage"), ("cover", "set_cover_position"), ("climate", "set_fan_mode"), ("climate", "turn_off"),
     ("media_player", "turn_on"), ("media_player", "turn_off"), ("media_player", "volume_mute"),
+    # 0.2.5 (CR-007 slice 4): climate/covers in full
+    ("climate", "set_preset_mode"), ("climate", "set_swing_mode"), ("climate", "set_humidity"),
+    ("humidifier", "set_humidity"), ("humidifier", "set_mode"),
+    ("cover", "open_cover_tilt"), ("cover", "close_cover_tilt"), ("cover", "stop_cover_tilt"), ("cover", "set_cover_tilt_position"),
 }
 
 
@@ -146,6 +169,36 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.services.async_register(DOMAIN, SERVICE_EXECUTE, execute, schema=EXECUTE_SCHEMA, supports_response=SupportsResponse.ONLY)
 
+    async def set_entity_area(call: ServiceCall) -> ServiceResponse:
+        """0.2.5 (CR-007 slice 4): the one registry write this bridge performs - move an entity to an HA area. Not a
+        domain service call (entity_registry.async_update_entity, not hass.services.async_call), so there is no
+        per-user Context to check against; the VMS gates this itself (system.configure) and audits under the real
+        actor before this is ever called - the signature and the fixed schema (area_id, and nothing else writable)
+        are this side's own defence in depth."""
+        msg = dict(call.data)
+        reason = verifier.verify(msg)
+        if reason:
+            _LOGGER.warning("smplwise_bridge.set_entity_area refused: %s", reason)
+            return {"ok": False, "error": reason}
+        user = await hass.auth.async_get_user(msg["user_id"])
+        if user is None or not user.is_active:
+            return {"ok": False, "error": "unknown_user"}
+        entity_id = msg["entity_id"]
+        area_id = msg["area_id"]
+        ent_reg = er.async_get(hass)
+        if ent_reg.async_get(entity_id) is None:
+            return {"ok": False, "error": "entity_not_found"}
+        if ar.async_get(hass).async_get_area(area_id) is None:
+            return {"ok": False, "error": "area_not_found"}
+        try:
+            ent_reg.async_update_entity(entity_id, area_id=area_id)
+        except Exception as exc:  # noqa: BLE001
+            _LOGGER.warning("smplwise_bridge.set_entity_area %s failed: %s", entity_id, type(exc).__name__)
+            return {"ok": False, "error": type(exc).__name__}
+        return {"ok": True, "context_id": None, "request_id": msg["request_id"]}
+
+    hass.services.async_register(DOMAIN, SERVICE_SET_AREA, set_entity_area, schema=SET_AREA_SCHEMA, supports_response=SupportsResponse.ONLY)
+
     async def push_directory(_now: Any = None) -> int:
         users = []
         for u in await hass.auth.async_get_users():
@@ -179,5 +232,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_remove(DOMAIN, SERVICE_EXECUTE)
+    hass.services.async_remove(DOMAIN, SERVICE_SET_AREA)
     hass.services.async_remove(DOMAIN, SERVICE_SYNC)
     return True

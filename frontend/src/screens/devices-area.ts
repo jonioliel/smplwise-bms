@@ -10,18 +10,29 @@ import '../components/sw-icon';
 import '../components/sw-state-panel';
 import '../components/sw-toggle';
 import '../components/sw-button';
+import '../components/sw-dialog';
 import type { StateKind } from '../components/sw-badge';
 import type { IconName } from '../components/sw-icon';
 import { canAnywhere, isApi } from '../api/session';
 import { ApiError, describeError, put } from '../api/client';
-import { stateLabel, subscribeHa, type HaSyncState } from '../api/ha';
-import { ALARM_HE, CARD_EMPTY, CARD_IDS, HVAC_ACTION_HE, HVAC_HE, getDevicesArea, type CardId, type DeviceAreaDetail, type DeviceCard, type DeviceRow } from '../api/devices';
+import { fmtTime, stateLabel, subscribeHa, type HaSyncState } from '../api/ha';
+import { ALARM_HE, assignEntityArea, CARD_EMPTY, CARD_IDS, HVAC_ACTION_HE, HVAC_HE, getDevicesArea, getDevicesTree, type CardId, type DeviceAreaDetail, type DeviceCard, type DeviceRow, type DeviceTree } from '../api/devices';
 import { debouncedCommand, runCommand, supersede, type CommandState } from '../api/device-commands';
+import type { BulkKind } from '../api/device-bulk';
 import { alarmTone, REFRESH_WINDOW_MS } from './devices-building';
 import './devices-bulk';
 import type { BulkRequest, DevicesBulkDialog } from './devices-bulk';
 import { navigate } from '../router';
 import { bidi, ltrNum } from '../i18n/bidi';
+
+/** CR-007 slice 4: a cover of these device classes is a passage, not a shutter - read-only wherever the covers card
+ * renders it (device-class-aware wording/icon, `can_control` already false server-side). */
+const DOOR_COVER_LABELS: Record<string, string> = { door: 'דלת', garage: 'דלת מוסך', gate: 'שער' };
+const COVER_CLASS_LABEL: Record<string, string> = { shutter: 'תריס גלילה', blind: 'תריס', curtain: 'וילון', awning: 'סוכך', window: 'חלון' };
+const COVER_CLASS_ICON: Record<string, IconName> = { door: 'lock', garage: 'lock', gate: 'lock' };
+/** CR-007 slice 4: the sensors card grouped by device class, compact (services/devices.py SENSOR_GROUP_CLASSES). */
+const SENSOR_GROUP_LABELS: Record<string, string> = { temperature: 'טמפרטורה', humidity: 'לחות', power: 'חשמל / אנרגיה', illuminance: 'תאורה סביבתית', co2: 'CO2', battery: 'סוללה', other: 'אחר' };
+const SENSOR_GROUP_ORDER = ['temperature', 'humidity', 'power', 'illuminance', 'co2', 'battery'];
 
 /** The modes the add-on's allow-list accepts (services/ha_bridge.HVAC_MODES); the menu shows the entity's own
  * hvac_modes that are among them - never a mode the entity does not report. */
@@ -74,6 +85,16 @@ export class DevicesArea extends LitElement {
   @state() private armed: Record<string, number> = {};
   /** A cover position dragged but not yet confirmed (per `entityId:position`): shown on the slider only, never sent. */
   @state() private drafts: Record<string, number> = {};
+  /** CR-007 slice 4: the "כל התריסים" group control's own draft position (0-100), local until "קבע מיקום" is pressed. */
+  @state() private coverGroupPosition = 50;
+  /** CR-007 slice 4: the "ללא שיוך" bucket's assign-area dialog - the entity being assigned, and the HA areas to
+   * offer (loaded from the tree on demand: the assign action needs installation-wide names, not this caller's
+   * possibly-scoped area list). */
+  @state() private assigning: DeviceRow | null = null;
+  @state() private assignAreas: { area_id: string; name: string; floor_name: string | null }[] | null = null;
+  @state() private assignTarget = '';
+  @state() private assignBusy = false;
+  @state() private assignError = '';
   private stop: (() => void) | null = null;
   private timer = 0;
   private loading = false;
@@ -124,6 +145,22 @@ export class DevicesArea extends LitElement {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 8px;
+    }
+    .sensor-groups {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .sensor-group-label {
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-medium);
+      color: var(--sw-text-3);
+      margin-block-end: 4px;
+    }
+    .tile .lc {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      font-variant-numeric: tabular-nums;
     }
     .tile {
       display: flex;
@@ -226,6 +263,11 @@ export class DevicesArea extends LitElement {
     }
     .note {
       font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .row .n .muted {
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-regular, normal);
       color: var(--sw-text-3);
     }
     @media (max-width: 767px) {
@@ -332,6 +374,58 @@ export class DevicesArea extends LitElement {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
       white-space: normal;
+    }
+    /* CR-007 slice 4: the covers card's own "כל התריסים" group control */
+    .cover-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 8px 10px;
+      margin-block-end: 6px;
+      border-radius: var(--sw-r-sm);
+      border: 1px solid var(--sw-border);
+      background: var(--sw-surface-2);
+    }
+    .cover-group .lbl {
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-medium);
+      color: var(--sw-text-2);
+    }
+    .cover-group input[type='range'] {
+      flex: 1;
+      min-inline-size: 80px;
+      accent-color: var(--sw-accent);
+    }
+    /* CR-007 slice 4: assign an unassigned entity to an area */
+    .assign-btn {
+      grid-column: 1 / -1;
+    }
+    .assign-select {
+      inline-size: 100%;
+      font: inherit;
+      font-size: var(--sw-fs-sm);
+      border-radius: var(--sw-r-sm);
+      border: 1px solid var(--sw-border);
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      padding: 6px 8px;
+    }
+    .assign-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding-block-start: 10px;
+      margin-block-start: 8px;
+      border-block-start: 1px solid var(--sw-border);
+    }
+    .assign-err {
+      color: var(--sw-danger);
+      font-size: var(--sw-fs-sm);
+    }
+    .assign-muted {
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-sm);
     }
   `;
 
@@ -569,15 +663,61 @@ export class DevicesArea extends LitElement {
       this.disarm(posKey);
       move(posKey, 'cover.set_cover_position', { position: pct }, pct, `מיקום ${pct}%`);
     };
+    // CR-007 slice 4: tilt - open/close/stop/position, the same arm-then-confirm pattern (one physical movement
+    // whichever control starts it), independent of the top position/open/close (a device may decouple the two axes)
+    const openTiltKey = `${entityId}:open-tilt`;
+    const closeTiltKey = `${entityId}:close-tilt`;
+    const stopTiltKey = `${entityId}:stop-tilt`;
+    const tiltPosKey = `${entityId}:tilt-position`;
+    const tiltMoving = [openTiltKey, closeTiltKey, tiltPosKey].some((k) => this.commands[k]?.phase === 'pending');
+    const moveTilt = (key: string, actionId: string, args: Record<string, unknown>, target: unknown, label: string) =>
+      void runCommand(key, 'cover', entityId, actionId, args, target, (s) => this.setCmd(key, s), { confirmed: true, label });
+    const doOpenTilt = () => this.tapArmed(openTiltKey, () => moveTilt(openTiltKey, 'cover.open_cover_tilt', {}, 'open', 'פתיחת הטיה'));
+    const doCloseTilt = () => this.tapArmed(closeTiltKey, () => moveTilt(closeTiltKey, 'cover.close_cover_tilt', {}, 'closed', 'סגירת הטיה'));
+    const doStopTilt = () => {
+      const next = { ...this.commands };
+      for (const k of [openTiltKey, closeTiltKey, tiltPosKey]) {
+        supersede(k);
+        delete next[k];
+        if (k in this.armed || k in this.drafts) this.disarm(k);
+      }
+      this.commands = next;
+      void runCommand(stopTiltKey, 'cover', entityId, 'cover.stop_cover_tilt', {}, 'stopped', (s) => this.setCmd(stopTiltKey, s), { label: 'עצירת הטיה' });
+    };
+    const tiltDraft = this.drafts[tiltPosKey];
+    const armedTiltPos = this.isArmed(tiltPosKey) && tiltDraft !== undefined;
+    const tiltValue = tiltDraft ?? this.live<number>(entityId, 'tilt-position') ?? r.tilt ?? 0;
+    const onTiltInput = (ev: Event) => {
+      this.drafts = { ...this.drafts, [tiltPosKey]: Number((ev.target as HTMLInputElement).value) };
+    };
+    const onTiltRelease = (ev: Event) => {
+      this.drafts = { ...this.drafts, [tiltPosKey]: Number((ev.target as HTMLInputElement).value) };
+      this.arm(tiltPosKey);
+    };
+    const confirmTiltPos = () => {
+      const pct = this.drafts[tiltPosKey];
+      if (pct === undefined || !this.isArmed(tiltPosKey)) return;
+      this.disarm(tiltPosKey);
+      moveTilt(tiltPosKey, 'cover.set_cover_tilt_position', { tilt_position: pct }, pct, `מיקום הטיה ${pct}%`);
+    };
     return html`<div class="ctl-row" data-control="cover">
-      <sw-button size="sm" ?disabled=${moving} data-control="open" @click=${doOpen}>${this.isArmed(openKey) ? 'לאשר פתיחה?' : 'פתיחה'}</sw-button>
-      <sw-button size="sm" data-control="stop" @click=${doStop}>עצירה</sw-button>
-      <sw-button size="sm" ?disabled=${moving} data-control="close" @click=${doClose}>${this.isArmed(closeKey) ? 'לאשר סגירה?' : 'סגירה'}</sw-button>
-      ${r.position !== null && r.position !== undefined
-        ? html`<input type="range" class="ctl-range" data-control="position" min="0" max="100" ?disabled=${moving} .value=${String(posValue)} @input=${onPosInput} @change=${onPosRelease} aria-label="מיקום התריס" />
-            ${armedPos ? html`<sw-button size="sm" variant="primary" data-control="position-confirm" @click=${confirmPos}>${`לאשר מיקום ${draft}%?`}</sw-button>` : nothing}`
-        : nothing}
-    </div>`;
+        <sw-button size="sm" ?disabled=${moving} data-control="open" @click=${doOpen}>${this.isArmed(openKey) ? 'לאשר פתיחה?' : 'פתיחה'}</sw-button>
+        <sw-button size="sm" data-control="stop" @click=${doStop}>עצירה</sw-button>
+        <sw-button size="sm" ?disabled=${moving} data-control="close" @click=${doClose}>${this.isArmed(closeKey) ? 'לאשר סגירה?' : 'סגירה'}</sw-button>
+        ${r.position !== null && r.position !== undefined
+          ? html`<input type="range" class="ctl-range" data-control="position" min="0" max="100" ?disabled=${moving} .value=${String(posValue)} @input=${onPosInput} @change=${onPosRelease} aria-label="מיקום התריס" />
+              ${armedPos ? html`<sw-button size="sm" variant="primary" data-control="position-confirm" @click=${confirmPos}>${`לאשר מיקום ${draft}%?`}</sw-button>` : nothing}`
+          : nothing}
+      </div>
+      ${r.tilt !== null && r.tilt !== undefined
+        ? html`<div class="ctl-row" data-control="cover-tilt">
+            <sw-button size="sm" ?disabled=${tiltMoving} data-control="open-tilt" @click=${doOpenTilt}>${this.isArmed(openTiltKey) ? 'לאשר פתיחת הטיה?' : 'פתיחת הטיה'}</sw-button>
+            <sw-button size="sm" data-control="stop-tilt" @click=${doStopTilt}>עצירת הטיה</sw-button>
+            <sw-button size="sm" ?disabled=${tiltMoving} data-control="close-tilt" @click=${doCloseTilt}>${this.isArmed(closeTiltKey) ? 'לאשר סגירת הטיה?' : 'סגירת הטיה'}</sw-button>
+            <input type="range" class="ctl-range" data-control="tilt-position" min="0" max="100" ?disabled=${tiltMoving} .value=${String(tiltValue)} @input=${onTiltInput} @change=${onTiltRelease} aria-label="מיקום הטיה" />
+            ${armedTiltPos ? html`<sw-button size="sm" variant="primary" data-control="tilt-position-confirm" @click=${confirmTiltPos}>${`לאשר הטיה ${tiltDraft}%?`}</sw-button>` : nothing}
+          </div>`
+        : nothing}`;
   }
 
   private renderClimateControls(r: DeviceRow) {
@@ -609,6 +749,29 @@ export class DevicesArea extends LitElement {
         const v = (ev.target as HTMLSelectElement).value;
         if (v) void runCommand(fanKey, 'climate', entityId, 'climate.set_fan_mode', { fan_mode: v }, v, (s) => this.setCmd(fanKey, s), { label: `מאוורר ${v}` });
       };
+      // CR-007 slice 4: preset / swing - only the modes this entity itself reports
+      const presetKey = `${entityId}:preset`;
+      const presetPending = this.commands[presetKey]?.phase === 'pending';
+      const presetModes = r.preset_modes ?? [];
+      const preset = this.live<string>(entityId, 'preset') ?? r.preset_mode ?? '';
+      const changePreset = (ev: Event) => {
+        const v = (ev.target as HTMLSelectElement).value;
+        if (v) void runCommand(presetKey, 'climate', entityId, 'climate.set_preset_mode', { preset_mode: v }, v, (s) => this.setCmd(presetKey, s), { label: `מצב מוגדר ${v}` });
+      };
+      const swingKey = `${entityId}:swing`;
+      const swingPending = this.commands[swingKey]?.phase === 'pending';
+      const swingModes = r.swing_modes ?? [];
+      const swing = this.live<string>(entityId, 'swing') ?? r.swing_mode ?? '';
+      const changeSwing = (ev: Event) => {
+        const v = (ev.target as HTMLSelectElement).value;
+        if (v) void runCommand(swingKey, 'climate', entityId, 'climate.set_swing_mode', { swing_mode: v }, v, (s) => this.setCmd(swingKey, s), { label: `נדנוד ${v}` });
+      };
+      // CR-007 slice 4: a climate entity's own target humidity (separate from a humidifier's) - only when it reports one
+      const humKey = `${entityId}:humidity`;
+      const humMin = r.min_humidity ?? 0;
+      const humMax = r.max_humidity ?? 100;
+      const humidity = this.live<number>(entityId, 'humidity') ?? r.target_humidity;
+      const setHumidity = (next: number) => void runCommand(humKey, 'climate', entityId, 'climate.set_humidity', { humidity: next }, next, (s) => this.setCmd(humKey, s), { label: `לחות יעד ${next}%` });
       return html`<div class="ctl-row" data-control="climate">
         ${target !== null && target !== undefined
           ? html`<sw-button size="sm" iconOnly icon="minus" label="הורדת טמפרטורה" data-control="temp-down" ?disabled=${target <= min} @click=${() => setTemp(clamp(target - step))}></sw-button>
@@ -627,6 +790,23 @@ export class DevicesArea extends LitElement {
               ${fanModes.map((m) => html`<option value=${m} ?selected=${m === fan}>${m}</option>`)}
             </select>`
           : nothing}
+        ${presetModes.length
+          ? html`<select class="ctl-select" data-control="preset-mode" aria-label="מצב מוגדר מראש" ?disabled=${presetPending} @change=${changePreset}>
+              ${presetModes.includes(preset) ? nothing : html`<option value="" selected disabled>${preset || 'מצב מוגדר'}</option>`}
+              ${presetModes.map((m) => html`<option value=${m} ?selected=${m === preset}>${m}</option>`)}
+            </select>`
+          : nothing}
+        ${swingModes.length
+          ? html`<select class="ctl-select" data-control="swing-mode" aria-label="מצב נדנוד" ?disabled=${swingPending} @change=${changeSwing}>
+              ${swingModes.includes(swing) ? nothing : html`<option value="" selected disabled>${swing || 'נדנוד'}</option>`}
+              ${swingModes.map((m) => html`<option value=${m} ?selected=${m === swing}>${m}</option>`)}
+            </select>`
+          : nothing}
+        ${humidity !== null && humidity !== undefined
+          ? html`<sw-button size="sm" iconOnly icon="minus" label="הפחתת לחות יעד" data-control="humidity-down" ?disabled=${humidity <= humMin} @click=${() => setHumidity(Math.max(humMin, humidity - 5))}></sw-button>
+              <span class="ctl-val" data-control="humidity-value">${ltrNum(humidity)}%</span>
+              <sw-button size="sm" iconOnly icon="plus" label="הגברת לחות יעד" data-control="humidity-up" ?disabled=${humidity >= humMax} @click=${() => setHumidity(Math.min(humMax, humidity + 5))}></sw-button>`
+          : nothing}
       </div>`;
     }
     if (r.domain === 'fan') {
@@ -641,7 +821,34 @@ export class DevicesArea extends LitElement {
         <input type="range" class="ctl-range" data-control="percentage" min="0" max="100" .value=${String(value)} @input=${setPct} aria-label="עוצמת מאוורר" />
       </div>`;
     }
-    return nothing; // humidifier: read-only this slice
+    // CR-007 slice 4: humidifier - its own mode list and target humidity (turn_on/off is not in the allow-list;
+    // the row's own badge already shows on/off from the state HA reports)
+    const modeKeyH = `${entityId}:mode`;
+    const modePendingH = this.commands[modeKeyH]?.phase === 'pending';
+    const modesH = r.available_modes ?? [];
+    const modeH = this.live<string>(entityId, 'mode') ?? r.mode ?? '';
+    const changeModeH = (ev: Event) => {
+      const v = (ev.target as HTMLSelectElement).value;
+      if (v) void runCommand(modeKeyH, 'humidifier', entityId, 'humidifier.set_mode', { mode: v }, v, (s) => this.setCmd(modeKeyH, s), { label: `מצב ${v}` });
+    };
+    const humKeyH = `${entityId}:humidity`;
+    const humMinH = r.min_humidity ?? 0;
+    const humMaxH = r.max_humidity ?? 100;
+    const humidityH = this.live<number>(entityId, 'humidity') ?? r.target_humidity;
+    const setHumidityH = (next: number) => void runCommand(humKeyH, 'humidifier', entityId, 'humidifier.set_humidity', { humidity: next }, next, (s) => this.setCmd(humKeyH, s), { label: `לחות יעד ${next}%` });
+    return html`<div class="ctl-row" data-control="humidifier">
+      ${modesH.length
+        ? html`<select class="ctl-select" data-control="mode" aria-label="מצב לחות" ?disabled=${modePendingH} @change=${changeModeH}>
+            ${modesH.includes(modeH) ? nothing : html`<option value="" selected disabled>${modeH || 'מצב'}</option>`}
+            ${modesH.map((m) => html`<option value=${m} ?selected=${m === modeH}>${m}</option>`)}
+          </select>`
+        : nothing}
+      ${humidityH !== null && humidityH !== undefined
+        ? html`<sw-button size="sm" iconOnly icon="minus" label="הפחתת לחות יעד" data-control="humidity-down" ?disabled=${humidityH <= humMinH} @click=${() => setHumidityH(Math.max(humMinH, humidityH - 5))}></sw-button>
+            <span class="ctl-val" data-control="humidity-value">${ltrNum(humidityH)}%</span>
+            <sw-button size="sm" iconOnly icon="plus" label="הגברת לחות יעד" data-control="humidity-up" ?disabled=${humidityH >= humMaxH} @click=${() => setHumidityH(Math.min(humMaxH, humidityH + 5))}></sw-button>`
+        : nothing}
+    </div>`;
   }
 
   private renderMediaControls(r: DeviceRow) {
@@ -712,6 +919,7 @@ export class DevicesArea extends LitElement {
           : 'תצוגה לקריאה בלבד: מצב ההתקנים כפי ש־Home Assistant מדווח אותו.'}
       </div>
       ${bulk ? html`<devices-bulk-dialog @bulk-done=${() => void this.load()}></devices-bulk-dialog>` : nothing}
+      ${this.canAssignArea ? this.renderAssignDialog() : nothing}
     </sw-page>`;
   }
 
@@ -721,10 +929,36 @@ export class DevicesArea extends LitElement {
       <sw-icon slot="actions" .name=${CARD_ICON[c.id]} size=${18}></sw-icon>
       ${c.count === 0
         ? html`<sw-state-panel compact data-card-empty state="empty" heading=${e.heading} hint=${e.hint}></sw-state-panel>`
-        : c.id === 'lighting' || c.id === 'switches' || c.id === 'sensors'
-          ? html`<div class="tiles">${repeat(c.entities, (r) => r.entity_id, (r) => this.renderTile(r, c.id))}</div>`
-          : html`<div class="rows">${repeat(c.entities, (r) => r.entity_id, (r) => this.renderRow(r, c.id))}</div>`}
+        : c.id === 'sensors'
+          ? this.renderSensorGroups(c.entities)
+          : c.id === 'lighting' || c.id === 'switches'
+            ? html`<div class="tiles">${repeat(c.entities, (r) => r.entity_id, (r) => this.renderTile(r, c.id))}</div>`
+            : html`${c.id === 'covers' ? this.renderCoverGroupControl() : nothing}<div class="rows">${repeat(c.entities, (r) => r.entity_id, (r) => this.renderRow(r, c.id))}</div>`}
     </sw-card>`;
+  }
+
+  /** CR-007 slice 4: the sensors card grouped by device class, compact - temperature, humidity, power/energy,
+   * illuminance, CO2, battery and generic numeric sensors, plus the binary sensors outside the security set. */
+  private renderSensorGroups(entities: DeviceRow[]) {
+    const groups = new Map<string, DeviceRow[]>();
+    for (const r of entities) {
+      const g = r.group ?? 'other';
+      const list = groups.get(g);
+      if (list) list.push(r);
+      else groups.set(g, [r]);
+    }
+    const keys = [...groups.keys()].sort((a, b) => {
+      const ia = SENSOR_GROUP_ORDER.indexOf(a);
+      const ib = SENSOR_GROUP_ORDER.indexOf(b);
+      if (ia === -1 && ib === -1) return a === 'other' ? 1 : b === 'other' ? -1 : a.localeCompare(b);
+      if (ia === -1) return 1;
+      if (ib === -1) return -1;
+      return ia - ib;
+    });
+    return html`<div class="sensor-groups">${keys.map((g) => html`<div class="sensor-group" data-sensor-group=${g}>
+      <div class="sensor-group-label">${SENSOR_GROUP_LABELS[g] ?? g}</div>
+      <div class="tiles">${repeat(groups.get(g)!, (r) => r.entity_id, (r) => this.renderTile(r, 'sensors'))}</div>
+    </div>`)}</div>`;
   }
 
   private renderTile(raw: DeviceRow, card: CardId) {
@@ -744,9 +978,11 @@ export class DevicesArea extends LitElement {
     return html`<div class=${classMap({ tile: true, on, off: !on && !unavailable, unavailable, pending: controllable && this.rowPending(r.entity_id) })} data-entity=${r.entity_id} data-active=${String(on)} ?data-can-control=${controllable} title=${r.entity_id}>
       <div class="t"><sw-icon .name=${icon} size=${15}></sw-icon><span>${bidi(r.name)}</span>${controllable ? this.renderPowerToggle(r) : nothing}</div>
       <div class="s">${unavailable ? 'לא זמין' : value}</div>
+      ${card === 'sensors' && r.last_changed ? html`<div class="lc" data-last-changed>${fmtTime(r.last_changed)}</div>` : nothing}
       ${controllable && card === 'lighting' && (on || this.live<boolean>(r.entity_id, 'power') === true) ? this.renderBrightnessSlider(r) : nothing}
       ${controllable ? this.renderCmdStatus(r.entity_id) : nothing}
       ${card === 'switches' && r.bulk_reason ? this.renderBulkSafe(r) : nothing}
+      ${this.renderAssignButton(r)}
     </div>`;
   }
 
@@ -779,6 +1015,112 @@ export class DevicesArea extends LitElement {
     void this.load();
   }
 
+  // ---------------------------------------------------------------- CR-007 slice 4: covers card - the "כל התריסים"
+  // group control (open all / stop all / close all / position all), the same server-enforced bulk path (never a
+  // fan-out path of its own) as the floor/area/building menus - just started from here, with kind covers_open /
+  // covers_stop / covers_close / covers_position, scoped to this area.
+
+  /** Wording/icon per device class (CR-007 slice 4): shutter/blind/curtain/awning/window get the shutter controls;
+   * door/garage/gate stay read-only (server-side `can_control` is already false for them). */
+  private coverLabel(r: DeviceRow): string {
+    if (r.door_class) return DOOR_COVER_LABELS[r.device_class ?? ''] ?? 'דלת / שער';
+    return COVER_CLASS_LABEL[r.device_class ?? ''] ?? 'תריס';
+  }
+
+  private get coverGroupAllowed(): boolean {
+    return this.bulkAllowed && (this.detail?.counts.covers ?? 0) > 0;
+  }
+
+  private openCoverGroupBulk(kind: BulkKind, position?: number) {
+    const d = this.detail;
+    if (!d) return;
+    void this.renderRoot.querySelector<DevicesBulkDialog>('devices-bulk-dialog')?.show({ scope: 'area', id: d.area.area_id, name: d.area.name, kind, position });
+  }
+
+  private renderCoverGroupControl() {
+    if (!this.coverGroupAllowed) return nothing;
+    const setPos = (ev: Event) => (this.coverGroupPosition = Number((ev.target as HTMLInputElement).value));
+    return html`<div class="cover-group" data-cover-group>
+      <span class="lbl">כל התריסים:</span>
+      <sw-button size="sm" data-cover-group-kind="covers_open" @click=${() => this.openCoverGroupBulk('covers_open')}>פתח הכל</sw-button>
+      <sw-button size="sm" data-cover-group-kind="covers_stop" @click=${() => this.openCoverGroupBulk('covers_stop')}>עצור הכל</sw-button>
+      <sw-button size="sm" data-cover-group-kind="covers_close" @click=${() => this.openCoverGroupBulk('covers_close')}>סגור הכל</sw-button>
+      <input type="range" data-cover-group-position-input min="0" max="100" .value=${String(this.coverGroupPosition)} @input=${setPos} @click=${(e: Event) => e.stopPropagation()} aria-label="מיקום לכל התריסים" />
+      <span class="ctl-val">${ltrNum(this.coverGroupPosition)}%</span>
+      <sw-button size="sm" variant="primary" data-cover-group-kind="covers_position" @click=${() => this.openCoverGroupBulk('covers_position', this.coverGroupPosition)}>קבע מיקום לכולם</sw-button>
+    </div>`;
+  }
+
+  // ---------------------------------------------------------------- CR-007 slice 4: assign an unassigned entity
+
+  private get canAssignArea(): boolean {
+    return this.detail?.area.area_id === 'unassigned' && this.detail?.can_assign_area === true;
+  }
+
+  private renderAssignButton(r: DeviceRow) {
+    if (!this.canAssignArea) return nothing;
+    return html`<sw-button class="assign-btn" size="sm" variant="ghost" data-assign-entity=${r.entity_id} @click=${(e: Event) => { e.stopPropagation(); void this.openAssign(r); }}>שייך לאזור</sw-button>`;
+  }
+
+  private async openAssign(r: DeviceRow) {
+    this.assigning = r;
+    this.assignTarget = '';
+    this.assignError = '';
+    this.assignBusy = false;
+    if (!this.assignAreas) {
+      try {
+        const t = await getDevicesTree();
+        this.assignAreas = this.flattenAreas(t);
+      } catch (err) {
+        this.assignError = describeError(err);
+      }
+    }
+  }
+
+  /** The areas offered by the assign dialog: every HA area this caller's tree carries, floor name alongside. */
+  private flattenAreas(t: DeviceTree): { area_id: string; name: string; floor_name: string | null }[] {
+    return t.floors.flatMap((f) => f.areas.map((a) => ({ area_id: a.area_id, name: a.name, floor_name: f.floor_id === 'none' ? null : f.name })));
+  }
+
+  private closeAssign = () => {
+    if (this.assignBusy) return;
+    this.assigning = null;
+  };
+
+  private async confirmAssign() {
+    const r = this.assigning;
+    if (!r || !this.assignTarget || this.assignBusy) return;
+    this.assignBusy = true;
+    this.assignError = '';
+    try {
+      await assignEntityArea(r.entity_id, this.assignTarget);
+      this.assigning = null;
+      void this.load();
+    } catch (err) {
+      this.assignError = describeError(err);
+    } finally {
+      this.assignBusy = false;
+    }
+  }
+
+  private renderAssignDialog() {
+    const r = this.assigning;
+    if (!r) return html`<sw-dialog data-assign-dialog="closed"></sw-dialog>`;
+    return html`<sw-dialog open data-assign-dialog="open" heading="שיוך לאזור" subheading=${bidi(r.name)} @close=${this.closeAssign}>
+      ${this.assignError ? html`<div class="assign-err" data-assign-error>${this.assignError}</div>` : nothing}
+      ${this.assignAreas === null
+        ? html`<div class="assign-muted">טוען אזורים…</div>`
+        : html`<select class="assign-select" data-assign-select @change=${(e: Event) => (this.assignTarget = (e.target as HTMLSelectElement).value)}>
+            <option value="" ?selected=${!this.assignTarget} disabled>בחרו אזור</option>
+            ${this.assignAreas.map((a) => html`<option value=${a.area_id} ?selected=${a.area_id === this.assignTarget}>${bidi(a.name)}${a.floor_name ? ` · ${bidi(a.floor_name)}` : ''}</option>`)}
+          </select>`}
+      <div class="assign-actions">
+        <sw-button data-assign-cancel autofocus @click=${this.closeAssign}>ביטול</sw-button>
+        <sw-button data-assign-confirm variant="primary" ?disabled=${!this.assignTarget || this.assignBusy} @click=${() => void this.confirmAssign()}>שייך</sw-button>
+      </div>
+    </sw-dialog>`;
+  }
+
   private renderRow(raw: DeviceRow, card: CardId) {
     const controllable = raw.can_control && raw.available && raw.state !== 'unavailable' && (card === 'climate' || card === 'covers' || card === 'media');
     const r = raw; // the row's text is always what HA last reported; only the controls show a pending target
@@ -798,22 +1140,32 @@ export class DevicesArea extends LitElement {
               ${r.target_temp_low !== null && r.target_temp_low !== undefined && r.target_temp_high !== null && r.target_temp_high !== undefined ? html`<span>טווח ${deg(r.target_temp_low)}–${deg(r.target_temp_high)}</span>` : nothing}
               ${r.fan_mode ? html`<span>מאוורר: ${r.fan_mode}</span>` : nothing}
               ${r.preset_mode ? html`<span>מצב מוגדר: ${r.preset_mode}</span>` : nothing}
+              ${r.swing_mode ? html`<span>נדנוד: ${r.swing_mode}</span>` : nothing}
+              ${r.target_humidity !== null && r.target_humidity !== undefined ? html`<span>לחות יעד ${ltrNum(r.target_humidity)}%</span>` : nothing}
             </div>`
           : r.domain === 'humidifier' && !unavailable
-            ? html`<div class="d">${r.current_humidity !== null && r.current_humidity !== undefined ? html`<span>לחות ${ltrNum(r.current_humidity)}%</span>` : nothing}${r.target_humidity !== null && r.target_humidity !== undefined ? html`<span>יעד ${ltrNum(r.target_humidity)}%</span>` : nothing}</div>`
+            ? html`<div class="d">
+                ${r.mode ? html`<span>מצב: ${r.mode}</span>` : nothing}
+                ${r.current_humidity !== null && r.current_humidity !== undefined ? html`<span>לחות ${ltrNum(r.current_humidity)}%</span>` : nothing}
+                ${r.target_humidity !== null && r.target_humidity !== undefined ? html`<span>יעד ${ltrNum(r.target_humidity)}%</span>` : nothing}
+              </div>`
             : nothing}
         ${controllable ? this.renderClimateControls(r) : nothing}
         ${controllable ? this.renderCmdStatus(r.entity_id) : nothing}
+        ${this.renderAssignButton(r)}
       </div>`;
     }
     if (card === 'covers') {
-      return html`<div class=${classMap({ row: true, on, unavailable, pending: pendingCls })} data-entity=${r.entity_id} data-active=${String(r.active)} ?data-can-control=${controllable} title=${r.entity_id}>
-        <span class="n">${bidi(r.name)}</span>
+      const coverIcon: IconName = r.door_class ? (COVER_CLASS_ICON[r.device_class ?? ''] ?? 'lock') : 'layers';
+      return html`<div class=${classMap({ row: true, on, unavailable, pending: pendingCls })} data-entity=${r.entity_id} data-active=${String(r.active)} data-door-class=${String(!!r.door_class)} ?data-can-control=${controllable} title=${r.entity_id}>
+        <span class="n">${r.door_class ? html`<sw-icon .name=${coverIcon} size=${14}></sw-icon> ` : nothing}${bidi(r.name)}<span class="muted"> · ${this.coverLabel(r)}</span></span>
         <span class="v">${rowLabel(r)}</span>
         ${r.position !== null && r.position !== undefined && !unavailable ? html`<div class="bar" role="img" aria-label=${`פתוח ${r.position}%`}><i style=${`inline-size:${r.position}%`}></i></div>` : nothing}
         ${r.tilt !== null && r.tilt !== undefined && !unavailable ? html`<div class="d"><span>הטיה ${ltrNum(r.tilt)}%</span></div>` : nothing}
+        ${r.door_class ? html`<div class="d"><span>דלת / שער - תנועה של מעבר, לקריאה בלבד כאן</span></div>` : nothing}
         ${controllable ? this.renderCoverControls(r) : nothing}
         ${controllable ? this.renderCmdStatus(r.entity_id) : nothing}
+        ${this.renderAssignButton(r)}
       </div>`;
     }
     if (card === 'security') {
@@ -828,6 +1180,7 @@ export class DevicesArea extends LitElement {
         <span class="n"><sw-icon .name=${kindIcon} size=${14}></sw-icon> ${bidi(r.name)}</span>
         <sw-badge kind=${badge.kind} label=${badge.label}></sw-badge>
         ${r.kind === 'camera' ? html`<div class="d"><span>אין תמונה ממצלמת Home Assistant במסך הזה עדיין; מצלמות ה־NVR מוצגות ב"מצלמות".</span></div>` : nothing}
+        ${this.renderAssignButton(r)}
       </div>`;
     }
     // media
@@ -843,6 +1196,7 @@ export class DevicesArea extends LitElement {
         : nothing}
       ${controllable ? this.renderMediaControls(r) : nothing}
       ${controllable ? this.renderCmdStatus(r.entity_id) : nothing}
+      ${this.renderAssignButton(r)}
     </div>`;
   }
 }

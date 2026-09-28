@@ -18,13 +18,59 @@ Placements = dict[str, list[dict[str, str]]]
 # stay behind ha.entity.control, and a sensitive action's extra grant - door.unlock, alarm.disarm - on top).
 # Either grant is checked at the entity's own floor scope.
 CONTROL_PERMISSIONS = ("ha.entity.control", "devices.control")
-DEVICES_CONTROL_DOMAINS = frozenset({"light", "switch", "input_boolean", "cover", "climate", "fan", "media_player"})
+# CR-007 slice 4: humidifier joins fan/climate on the climate card (target humidity, mode) - still never a lock,
+# alarm panel, siren, script, scene or button.
+DEVICES_CONTROL_DOMAINS = frozenset({"light", "switch", "input_boolean", "cover", "climate", "fan", "humidifier", "media_player"})
 
 
-def devices_control_reaches(entity_id: str) -> bool:
-    """Whether devices.control can ever cover `entity_id` (by its domain; validate_action already refuses an action
-    whose domain differs from the entity's, so the entity's domain is the action's domain)."""
-    return entity_id.split(".", 1)[0] in DEVICES_CONTROL_DOMAINS
+def devices_control_reaches(conn: sqlite3.Connection, entity_id: str) -> bool:
+    """Whether devices.control can ever cover `entity_id`: the domain must be one of DEVICES_CONTROL_DOMAINS
+    (validate_action already refuses an action whose domain differs from the entity's, so the entity's domain is the
+    action's domain), and it must not be a door / garage / gate cover or anything placed on the map's door layer -
+    CR-007 slice-4 review MEDIUM 2: `POST /ha/entities/{id}/actions` reached `ha_scope.control_allowed` with only a
+    domain check, so a devices.control-only caller could open a gate cover the bulk path already refuses to touch.
+    ha.entity.control keeps its old, broader rights on these entities - this refusal is devices.control's own."""
+    domain = entity_id.split(".", 1)[0]
+    if domain not in DEVICES_CONTROL_DOMAINS:
+        return False
+    from . import devices as dsvc
+
+    if domain == "cover":
+        row = conn.execute("SELECT device_class FROM ha_entities WHERE entity_id = ?", (entity_id,)).fetchone()
+        if row and (row["device_class"] or "") in dsvc.DOOR_COVER_CLASSES:
+            return False
+    on_door_layer = conn.execute(
+        "SELECT 1 FROM map_anchors WHERE resource_type = 'ha_entity' AND resource_id = ? AND layer_id = ? AND effective_to IS NULL",
+        (entity_id, dsvc.DOOR_LAYER),
+    ).fetchone()
+    return on_door_layer is None
+
+
+def devices_control_reaches_checker(conn: sqlite3.Connection) -> Callable[[str], bool]:
+    """`devices_control_reaches` precomputed as a per-entity predicate (one query for the door layer, one for the
+    door-class covers) instead of up to two queries per entity - for callers that check many entities at once
+    (services/device_bulk.py bulk_scope, control_checker below)."""
+    from . import devices as dsvc
+
+    door_layer = {
+        r[0]
+        for r in conn.execute(
+            "SELECT resource_id FROM map_anchors WHERE resource_type = 'ha_entity' AND layer_id = ? AND effective_to IS NULL", (dsvc.DOOR_LAYER,)
+        ).fetchall()
+    }
+    door_covers = {
+        r[0]
+        for r in conn.execute(
+            f"SELECT entity_id FROM ha_entities WHERE domain = 'cover' AND device_class IN ({','.join('?' * len(dsvc.DOOR_COVER_CLASSES))})",
+            list(dsvc.DOOR_COVER_CLASSES),
+        ).fetchall()
+    }
+
+    def check(entity_id: str) -> bool:
+        domain = entity_id.split(".", 1)[0]
+        return domain in DEVICES_CONTROL_DOMAINS and entity_id not in door_layer and entity_id not in door_covers
+
+    return check
 
 
 def visible_floors(conn: sqlite3.Connection, principal: Principal, permission: str) -> tuple[bool, set[str]]:
@@ -75,7 +121,7 @@ def control_allowed(conn: sqlite3.Connection, principal: Principal, entity_id: s
     the shared /ha/entities/{id}/actions route (routers/ha.py); neither grant implies the other."""
     if entity_allowed(conn, principal, entity_id, "ha.entity.control"):
         return True
-    return devices_control_reaches(entity_id) and entity_allowed(conn, principal, entity_id, "devices.control")
+    return devices_control_reaches(conn, entity_id) and entity_allowed(conn, principal, entity_id, "devices.control")
 
 
 def control_checker(conn: sqlite3.Connection, principal: Principal) -> Callable[[str], bool]:
@@ -84,11 +130,12 @@ def control_checker(conn: sqlite3.Connection, principal: Principal) -> Callable[
     ha_wide, ha_floors = visible_floors(conn, principal, "ha.entity.control")
     dc_wide, dc_floors = visible_floors(conn, principal, "devices.control")
     placed = placements(conn) if (ha_floors or dc_floors) and not ha_wide else {}
+    reaches = devices_control_reaches_checker(conn)
 
     def check(entity_id: str) -> bool:
         if entity_visible(ha_wide, ha_floors, placed, entity_id):
             return True
-        return devices_control_reaches(entity_id) and entity_visible(dc_wide, dc_floors, placed, entity_id)
+        return reaches(entity_id) and entity_visible(dc_wide, dc_floors, placed, entity_id)
 
     return check
 

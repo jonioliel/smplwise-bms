@@ -14,7 +14,7 @@ import type { IconName } from '../components/sw-icon';
 import { canAnywhere, isApi } from '../api/session';
 import { ApiError, describeError } from '../api/client';
 import { subscribeHa, type HaSyncState } from '../api/ha';
-import { ALARM_HE, getDevicesTree, type DeviceArea, type DeviceCounts, type DeviceFloor, type DeviceTree } from '../api/devices';
+import { ALARM_HE, getDevicesTree, HVAC_HE, type ClimateSummary, type DeviceArea, type DeviceCounts, type DeviceFloor, type DeviceTree } from '../api/devices';
 import { bidi, ltrNum } from '../i18n/bidi';
 import type { BulkKind } from '../api/device-bulk';
 import type { BulkRequest, DevicesBulkDialog } from './devices-bulk';
@@ -56,6 +56,8 @@ export function alarmTone(state: string | null): StateKind {
   return 'live';
 }
 
+const DEMO_CLIMATE = [{ entity_id: 'climate.lobby', name: 'מזגן לובי', area_name: 'לובי', hvac_mode: 'cool', hvac_action: 'cooling', current_temperature: 24.5, target_temperature: 22, unit: '°C', available: true }];
+
 const DEMO: DeviceTree = {
   floors: [
     {
@@ -65,15 +67,18 @@ const DEMO: DeviceTree = {
         { area_id: 'lobby', name: 'לובי', icon: null, floor_id: 'ground', has_camera: true, counts: { entities: 8, lights: 4, lights_on: 3, switches: 1, switches_on: 1, covers: 1, covers_open: 1, climate: 1, climate_active: 1, media: 0, media_on: 0, locks: 1, locks_locked: 1, alarm: 'armed_home', cameras: 1, sensors: 1 } },
         { area_id: 'kitchen', name: 'מטבח', icon: null, floor_id: 'ground', has_camera: false, counts: { entities: 6, lights: 2, lights_on: 0, switches: 1, switches_on: 0, covers: 1, covers_open: 0, climate: 0, climate_active: 0, media: 1, media_on: 0, locks: 0, locks_locked: 0, alarm: null, cameras: 0, sensors: 1 } },
       ],
+      climate: DEMO_CLIMATE,
     },
     {
       floor_id: 'first', name: 'קומה 1', level: 1, icon: null,
       counts: { entities: 5, lights: 3, lights_on: 0, switches: 0, switches_on: 0, covers: 2, covers_open: 2, climate: 0, climate_active: 0, media: 0, media_on: 0, locks: 0, locks_locked: 0, alarm: null, cameras: 0, sensors: 0 },
       areas: [{ area_id: 'office', name: 'משרד', icon: null, floor_id: 'first', has_camera: false, counts: { entities: 5, lights: 3, lights_on: 0, switches: 0, switches_on: 0, covers: 2, covers_open: 2, climate: 0, climate_active: 0, media: 0, media_on: 0, locks: 0, locks_locked: 0, alarm: null, cameras: 0, sensors: 0 } }],
+      climate: [],
     },
   ],
   unassigned: { area_id: 'unassigned', name: 'ללא שיוך', counts: { entities: 1, lights: 0, lights_on: 0, switches: 1, switches_on: 0, covers: 0, covers_open: 0, climate: 0, climate_active: 0, media: 0, media_on: 0, locks: 0, locks_locked: 0, alarm: null, cameras: 0, sensors: 0 } },
   building: { entities: 20, lights: 9, lights_on: 3, switches: 3, switches_on: 1, covers: 4, covers_open: 3, climate: 1, climate_active: 1, media: 1, media_on: 0, locks: 1, locks_locked: 1, alarm: 'armed_home', cameras: 1, sensors: 2 },
+  building_climate: DEMO_CLIMATE,
   scoped: false,
   sync: { connected: false, last_snapshot_at: null, last_event_at: null, last_registry_at: null, last_error: null, reconnects: 0, sequence: 0, entities: 20, started_at: null, ha_version: null },
 };
@@ -440,6 +445,33 @@ export class DevicesBuilding extends LitElement {
       flex-direction: column;
       padding: 0 6px 6px;
     }
+    /* CR-007 slice 4: the building/floor "מזגני הקומה" strip */
+    .climate-strip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      padding: 4px 10px 8px;
+      font-size: var(--sw-fs-xs);
+    }
+    .climate-strip .lbl {
+      color: var(--sw-text-3);
+      flex: none;
+    }
+    .climate-strip .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--sw-surface-2);
+      color: var(--sw-text-2);
+      white-space: nowrap;
+    }
+    .climate-strip .chip.warm {
+      background: var(--sw-warning-soft);
+      color: var(--sw-text);
+    }
     .arow {
       display: flex;
       align-items: center;
@@ -666,6 +698,7 @@ export class DevicesBuilding extends LitElement {
       </div>
       ${this.error ? html`<sw-state-panel compact state="error" heading="הרענון האחרון נכשל" hint=${this.error}></sw-state-panel>` : nothing}
       ${this.renderKpis(t.building)}
+      ${this.renderClimateStrip(t.building_climate, 'מזגנים בבניין')}
       <div class="toolbar">
         <span class="seg" role="group" aria-label="פריסה">פריסה:
           <span class="opts">
@@ -745,6 +778,20 @@ export class DevicesBuilding extends LitElement {
     </nav>`;
   }
 
+  /** CR-007 slice 4: "מזגני הקומה" / the building's own strip - mode + target only, never the full climate card
+   * (that lives on the area screen). Compact chips, read-only here. */
+  private renderClimateStrip(list: ClimateSummary[], label: string) {
+    if (!list.length) return nothing;
+    return html`<div class="climate-strip" data-climate-strip>
+      <span class="lbl">${label}:</span>
+      ${list.map(
+        (c) => html`<span class=${classMap({ chip: true, warm: c.hvac_mode !== null && c.hvac_mode !== 'off' })} data-climate=${c.entity_id} title=${c.name}>
+          <sw-icon name="activity" size=${12}></sw-icon>${bidi(c.name)} · ${c.hvac_mode ? (HVAC_HE[c.hvac_mode] ?? c.hvac_mode) : '—'}${c.target_temperature !== null && c.target_temperature !== undefined ? ` · ${ltrNum(c.target_temperature)}°` : ''}
+        </span>`,
+      )}
+    </div>`;
+  }
+
   private renderFloorCard(f: DeviceFloor) {
     const c = f.counts;
     return html`<section class="fcard" data-floor-card=${f.floor_id}>
@@ -755,6 +802,7 @@ export class DevicesBuilding extends LitElement {
           ? html`<devices-bulk-menu scope="floor" .targetId=${f.floor_id} .targetName=${f.name} .counts=${c} variant="menu" triggerLabel="כבה קומה" data-floor-menu=${f.floor_id}></devices-bulk-menu>`
           : nothing}
       </header>
+      ${this.renderClimateStrip(f.climate, 'מזגני הקומה')}
       <div class="rows">
         ${f.areas.length ? repeat(f.areas, (a) => a.area_id, (a) => this.renderAreaRow(a, 'card')) : html`<div class="arow" style="cursor:default">אין אזורים בקומה</div>`}
       </div>
@@ -825,6 +873,7 @@ export class DevicesBuilding extends LitElement {
           ${f.counts.alarm ? html`<span class=${classMap({ warm: f.counts.alarm !== 'disarmed' })} title="אזעקה"><sw-icon name="shield" size=${13}></sw-icon>${ALARM_HE[f.counts.alarm] ?? f.counts.alarm}</span>` : nothing}
         </div>
       </div>
+      ${this.renderClimateStrip(f.climate, 'מזגני הקומה')}
       <div class="areas">${repeat(f.areas, (a) => a.area_id, (a) => this.renderTile(a))}</div>
     </section>`;
   }

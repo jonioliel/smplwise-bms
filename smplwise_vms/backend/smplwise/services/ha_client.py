@@ -85,6 +85,31 @@ def call_bridge_execute(settings: Settings, payload: dict[str, Any], timeout: fl
     return body.get("service_response") or body
 
 
+def call_bridge_set_area(settings: Settings, payload: dict[str, Any], timeout: float = 15.0) -> dict[str, Any]:
+    """POST /api/services/smplwise_bridge/set_entity_area?return_response (CR-007 slice 4) - the one Home Assistant
+    CONFIG write this product makes: move an entity to an area through the bridge's registry-write path, never a
+    domain service call. Same envelope and error handling as call_bridge_execute; a distinct function (not a shared
+    helper) so each write path stays a single, easily audited block of code."""
+    if not configured(settings):
+        raise ApiError(503, "ha_not_configured", "אין גישה ל־Home Assistant.")
+    try:
+        with httpx.Client(timeout=timeout) as c:
+            r = c.post(_rest_base(settings) + "/services/smplwise_bridge/set_entity_area?return_response", headers=_headers(settings), content=json.dumps(payload))
+    except httpx.HTTPError as exc:
+        raise ApiError(503, "ha_unavailable", "Home Assistant אינו זמין כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
+    if r.status_code == 400 and "not found" in r.text.lower():
+        raise ApiError(503, "bridge_not_installed", "גשר SMPLWISE אינו מותקן ב־Home Assistant (או ישן מדי לתמוך בשיוך אזור).", details={"status": r.status_code})
+    if r.status_code in (401, 403):
+        raise ApiError(503, "ha_forbidden", "Home Assistant דחה את הקריאה.", details={"status": r.status_code})
+    if r.status_code >= 400:
+        raise ApiError(503, "bridge_error", "הגשר החזיר שגיאה.", retryable=False, details={"status": r.status_code, "body": r.text[:200]})
+    try:
+        body = r.json()
+    except ValueError:
+        return {}
+    return body.get("service_response") or body
+
+
 async def ws_session(
     settings: Settings,
     on_ready: Callable[[Callable[[str, dict[str, Any]], Any]], Any],

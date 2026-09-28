@@ -3,7 +3,7 @@
  * counts, the building-wide counts and one area's per-domain cards. Projections of the synced HA catalogue; a state
  * change arrives through the existing /ha/ws push (api/ha.ts subscribeHa) and the screens refetch.
  */
-import { get } from './client';
+import { get, put } from './client';
 import type { HaSyncState } from './ha';
 
 export interface DeviceCounts {
@@ -37,6 +37,19 @@ export interface DeviceArea {
   can_bulk?: boolean;
 }
 
+/** CR-007 slice 4: the building/floor "מזגני הקומה" strip - mode + target only, never the full card. */
+export interface ClimateSummary {
+  entity_id: string;
+  name: string;
+  area_name: string | null;
+  hvac_mode: string | null;
+  hvac_action: string | null;
+  current_temperature: number | null;
+  target_temperature: number | null;
+  unit: string;
+  available: boolean;
+}
+
 export interface DeviceFloor {
   /** An HA floor id, or `none` for the "ללא קומה" bucket of areas that belong to no floor. */
   floor_id: string;
@@ -47,12 +60,16 @@ export interface DeviceFloor {
   counts: DeviceCounts;
   /** CR-007 slice 3: the caller may start a bulk action on this floor. */
   can_bulk?: boolean;
+  /** CR-007 slice 4: this floor's climate entities (climate.* only), for the "מזגני הקומה" strip. */
+  climate: ClimateSummary[];
 }
 
 export interface DeviceTree {
   floors: DeviceFloor[];
   unassigned: { area_id: 'unassigned'; name: string; counts: DeviceCounts };
   building: DeviceCounts;
+  /** CR-007 slice 4: every climate.* entity in the building, for the building card's own strip. */
+  building_climate: ClimateSummary[];
   /** True when the caller holds devices.read on some floors only: the tree is narrowed to what is placed there. */
   scoped: boolean;
   /** CR-007 slice 3: the caller may start a bulk action on the whole building (devices.control_bulk installation-wide). */
@@ -105,10 +122,21 @@ export interface DeviceRow {
   current_humidity?: number | null;
   target_humidity?: number | null;
   unit?: string | null;
+  // CR-007 slice 4: climate in full - preset, swing, target humidity; a humidifier's own mode
+  preset_modes?: string[] | null;
+  swing_mode?: string | null;
+  swing_modes?: string[] | null;
+  min_humidity?: number | null;
+  max_humidity?: number | null;
+  mode?: string | null;
+  available_modes?: string[] | null;
   // covers
   position?: number | null;
   tilt?: number | null;
   moving?: boolean;
+  /** CR-007 slice 4: a door / garage / gate cover - a passage, not a shutter. Read-only (`can_control` is already
+   * false here, server-side); shown with door/garage wording and icon instead of the shutter controls. */
+  door_class?: boolean;
   // security
   kind?: 'lock' | 'alarm' | 'camera' | 'binary_sensor';
   has_camera?: boolean;
@@ -124,6 +152,8 @@ export interface DeviceRow {
   value?: number | null;
   on?: boolean | null;
   battery_level?: number | null;
+  /** CR-007 slice 4: the sensors card's own grouping (device class, or "other"). Display only. */
+  group?: string;
 }
 
 export interface DeviceCard {
@@ -145,11 +175,18 @@ export interface DeviceAreaDetail {
   can_bulk?: boolean;
   /** CR-007 slice 3: the caller may mark a switch bulk-safe (system.configure). */
   can_mark_bulk_safe?: boolean;
+  /** CR-007 slice 4: the caller may assign an entity of the "ללא שיוך" bucket to an area (system.configure); true
+   * only when this is the unassigned bucket itself. */
+  can_assign_area?: boolean;
   sync: HaSyncState;
 }
 
 export const getDevicesTree = () => get<DeviceTree>('devices/tree');
 export const getDevicesArea = (areaId: string) => get<DeviceAreaDetail>(`devices/areas/${encodeURIComponent(areaId)}`);
+
+/** CR-007 slice 4: assign an entity to an HA area (the "ללא שיוך" bucket's own action) - a Home Assistant config
+ * write through the bridge, system.configure, audited. */
+export const assignEntityArea = (entityId: string, areaId: string) => put<{ entity_id: string; area_id: string; area_name: string }>(`devices/entities/${encodeURIComponent(entityId)}/area`, { area_id: areaId });
 
 /** Per-card empty state, our own wording following the same idea as DomusUI's empty sections (extraction §3.4):
  * say what is missing and what would fill it. `GET /devices/building` (the same counts as the tree's `building`)

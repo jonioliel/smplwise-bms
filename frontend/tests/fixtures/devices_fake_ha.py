@@ -90,7 +90,17 @@ def _effect(domain: str, service: str, data: dict[str, Any], state: str | None, 
         if service == "set_cover_position":
             a["current_position"] = data["position"]
             return ("open" if data["position"] > 0 else "closed"), a
-        return state, a  # stop: nothing observable changes
+        # CR-007 slice 4: tilt - never changes the cover's own state (position drives it, not tilt)
+        if service == "open_cover_tilt":
+            a["current_tilt_position"] = 100
+            return state, a
+        if service == "close_cover_tilt":
+            a["current_tilt_position"] = 0
+            return state, a
+        if service == "set_cover_tilt_position":
+            a["current_tilt_position"] = data["tilt_position"]
+            return state, a
+        return state, a  # stop / stop_cover_tilt: nothing observable changes
     if domain == "climate":
         if service == "set_hvac_mode":
             return data["hvac_mode"], a
@@ -98,6 +108,19 @@ def _effect(domain: str, service: str, data: dict[str, Any], state: str | None, 
             a["temperature"] = data["temperature"]
         if service == "set_fan_mode":
             a["fan_mode"] = data["fan_mode"]
+        # CR-007 slice 4
+        if service == "set_preset_mode":
+            a["preset_mode"] = data["preset_mode"]
+        if service == "set_swing_mode":
+            a["swing_mode"] = data["swing_mode"]
+        if service == "set_humidity":
+            a["humidity"] = data["humidity"]
+        return state, a
+    if domain == "humidifier":  # CR-007 slice 4
+        if service == "set_humidity":
+            a["humidity"] = data["humidity"]
+        if service == "set_mode":
+            a["mode"] = data["mode"]
         return state, a
     if domain == "fan" and service == "set_percentage":
         a["percentage"] = data["percentage"]
@@ -140,6 +163,15 @@ def _execute(request: httpx.Request) -> httpx.Response:
     return httpx.Response(200, json={"service_response": {"ok": True, "context_id": "fake-context"}}, request=request)
 
 
+def _set_entity_area(request: httpx.Request) -> httpx.Response:
+    """CR-007 slice 4: the bridge's one registry write. The real add-on already checked the entity and the area
+    exist (routers/devices.py assign_area) before it ever calls this, so the fake bridge only has to say yes - the
+    add-on itself updates its own registry mirror from the answer."""
+    body = json.loads(request.content or b"{}")
+    _executed.append({"domain": "smplwise_bridge", "service": "set_entity_area", "data": {"entity_id": body.get("entity_id"), "area_id": body.get("area_id")}})
+    return httpx.Response(200, json={"service_response": {"ok": True, "context_id": None, "request_id": body.get("request_id")}}, request=request)
+
+
 _real_handle = httpx.HTTPTransport.handle_request
 
 
@@ -147,6 +179,8 @@ def handle_request(self: httpx.HTTPTransport, request: httpx.Request) -> httpx.R
     if request.url.host == FAKE_HOST:
         if request.method == "POST" and request.url.path == "/api/services/smplwise_bridge/execute":
             return _execute(request)
+        if request.method == "POST" and request.url.path == "/api/services/smplwise_bridge/set_entity_area":
+            return _set_entity_area(request)
         raise httpx.ConnectError(f"devices_fake_ha: no answer for {request.url.path}", request=request)
     return _real_handle(self, request)
 
@@ -171,7 +205,7 @@ def _pair() -> None:
                 r = c.get(f"{BASE}/ha/bridge/pairing")
                 if r.status_code == 200:
                     code = r.json()["pairing_code"]
-                    p = c.post(f"{BASE}/ha/bridge/ping", json=ha_bridge.sign(code, {"version": "0.2.4"}))
+                    p = c.post(f"{BASE}/ha/bridge/ping", json=ha_bridge.sign(code, {"version": "0.2.5"}))
                     print(f"devices_fake_ha: bridge paired ({p.status_code})", flush=True)
                     return
         except httpx.HTTPError:
