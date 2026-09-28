@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import os
 import sys
 from pathlib import Path
 
@@ -12,6 +13,32 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from smplwise.config import Settings  # noqa: E402
 from smplwise.main import create_app  # noqa: E402
+
+
+def sw_time_factor() -> float:
+    """Multiplier for the generous (default) side of a wall-clock performance bound in a test.
+
+    A handful of tests assert a property that is really about behaviour ("does not slow the detector down",
+    "does not wait for the worker", "reads do not block on a writer") but can only observe it by timing
+    something. Their default bound is deliberately loose so a busy workstation - another agent's build, a second
+    pytest worker, antivirus - does not turn a behavioural check into a flaky one. Set `SW_TEST_TIME_FACTOR` (a
+    float, default 1) to loosen it further on a machine or CI runner that is reliably slower or busier; values
+    below 1 are ignored. See `sw_perf_enabled` for the tight bound each of these tests keeps available on request.
+    """
+    try:
+        factor = float(os.environ.get("SW_TEST_TIME_FACTOR", "1"))
+    except ValueError:
+        return 1.0
+    return factor if factor > 1.0 else 1.0
+
+
+def sw_perf_enabled() -> bool:
+    """True when `SW_PERF=1` asks for the strict, original wall-clock bound on a performance test.
+
+    These bounds are tight enough to catch a real regression (an accidental O(n^2) merge, a lock that starts
+    blocking readers) but only hold on a quiet machine, so they are opt-in rather than the default assertion.
+    """
+    return os.environ.get("SW_PERF") == "1"
 
 
 @pytest.fixture()

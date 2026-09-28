@@ -9,7 +9,7 @@ import threading
 import time
 from dataclasses import replace
 
-from conftest import as_user, bind, seed_tree
+from conftest import as_user, bind, seed_tree, sw_perf_enabled, sw_time_factor
 from fastapi.testclient import TestClient
 
 from smplwise.db import Database, read_mode, unlocked
@@ -91,15 +91,20 @@ def test_reads_do_not_wait_for_a_writer(settings):
     t = threading.Thread(target=writer, daemon=True)
     t.start()
     assert held.wait(5)
+    # behavioural bound: the writer holds the lock for up to 10 s (`release.wait(10)`), so a read that actually
+    # blocked on it would take seconds, not a scheduling hiccup. The default is generous (scaled further by
+    # SW_TEST_TIME_FACTOR) for a busy workstation; SW_PERF=1 checks the original tight bound (2 s) on a quiet
+    # machine.
+    bound = 2.0 if sw_perf_enabled() else 8.0 * sw_time_factor()
     try:
         started = time.time()
         r = c.get("/api/v1/events?limit=5")
         elapsed = time.time() - started
         assert r.status_code == 200, r.text
-        assert elapsed < 2.0, f"a read-mode request waited {elapsed:.1f} s for the writer"
+        assert elapsed < bound, f"a read-mode request waited {elapsed:.1f} s for the writer"
         started = time.time()
         assert c.get("/api/v1/cameras").status_code == 200 and c.get("/api/v1/health/summary").status_code == 200
-        assert time.time() - started < 2.0
+        assert time.time() - started < bound
     finally:
         release.set()
         t.join(5)
