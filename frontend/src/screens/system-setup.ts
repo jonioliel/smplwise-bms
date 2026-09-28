@@ -259,7 +259,7 @@ export class SystemSetup extends LitElement {
       this.wiskey = await getIntercomCredentials();
       this.wiskeyError = '';
     } catch (err) {
-      this.wiskeyError = `רשימת העמדות לא נטענה: ${describeError(err)}`;
+      this.wiskeyError = SystemSetup.wiskeyFailure('רשימת העמדות לא נטענה', err);
     }
   }
 
@@ -270,7 +270,7 @@ export class SystemSetup extends LitElement {
 
   private wiskeyName(stationId: string): string {
     const s = this.wiskey?.stations.find((x) => x.station_id === stationId);
-    return s?.name ?? stationId;
+    return s?.name || stationId;
   }
 
   private async saveWiskey() {
@@ -298,7 +298,7 @@ export class SystemSetup extends LitElement {
     try {
       await clearIntercomCredentials(s.station_id);
       this.wiskeyClear = null;
-      this.wiskeyMsg = s.known ? `החשבון של ${s.name ?? s.station_id} הוסר; העמדה חוזרת לחשבון המשותף.` : `הרשומה של ${s.station_id} הוסרה.`;
+      this.wiskeyMsg = s.known ? `החשבון של ${s.name || s.station_id} הוסר; העמדה חוזרת לחשבון המשותף.` : `הרשומה של ${s.station_id} הוסרה.`;
       await this.loadWiskey();
     } catch (err) {
       this.wiskeyMsg = SystemSetup.wiskeyFailure('לא הוסר', err);
@@ -313,7 +313,7 @@ export class SystemSetup extends LitElement {
     const status = s.override ? `חשבון משלה · מאז ${when(s.override_updated_at)}` : w.default_configured ? 'החשבון המשותף' : 'אין חשבון · אין תמונה מהמצלמה';
     return html`<div data-wiskey-station=${s.station_id} data-wiskey-cred-state=${state}>
       <div class="check">
-        <span>${s.name ?? s.station_id}${!s.known ? html` <span class="hint" data-wiskey-cred-unknown>· לא ברשימת העמדות של WisKey כרגע</span>` : s.has_camera ? nothing : html` <span class="hint">· ללא מצלמה</span>`}</span>
+        <span>${s.name || s.station_id}${!s.known ? html` <span class="hint" data-wiskey-cred-unknown>· לא ברשימת העמדות של WisKey כרגע</span>` : s.has_camera ? nothing : html` <span class="hint">· ללא מצלמה</span>`}</span>
         <span class=${`val ${s.override ? 'ok' : w.default_configured ? '' : 'warn'}`} data-wiskey-cred-status>${status}</span>
       </div>
       ${f
@@ -347,7 +347,7 @@ export class SystemSetup extends LitElement {
           ${w.stations.length ? w.stations.map((s) => this.renderWiskeyStation(s, w)) : html`<div class="hint" data-wiskey-cred-empty>אין עמדות ברשימה.</div>`}
           ${this.wiskeyMsg ? html`<div class="hint" data-wiskey-cred-msg>${this.wiskeyMsg}</div>` : nothing}`}
       ${c
-        ? html`<sw-dialog open heading="הסרת החשבון של העמדה" subheading=${c.name ?? c.station_id} data-wiskey-cred-confirm @close=${() => (this.wiskeyClear = null)}>
+        ? html`<sw-dialog open heading="הסרת החשבון של העמדה" subheading=${c.name || c.station_id} data-wiskey-cred-confirm @close=${() => (this.wiskeyClear = null)}>
             <div style="font-size:var(--sw-fs-sm);line-height:1.5">${!c.known ? 'הרשומה תימחק מבסיס הנתונים של ה־VMS.' : w?.default_configured ? 'העמדה תחזור לחשבון המשותף מה־Add-on options, והתמונה מהמצלמה תילקח מחדש איתו.' : 'לעמדה לא יישאר חשבון, ולא תהיה ממנה תמונה עד שיוגדר אחד.'} ההסרה נרשמת באודיט.</div>
             <div slot="footer"><sw-button variant="danger" ?disabled=${this.wiskeyBusy} data-wiskey-cred-confirm-run @click=${() => this.clearWiskey()}>${this.wiskeyBusy ? 'מסיר…' : 'הסר'}</sw-button><sw-button variant="ghost" @click=${() => (this.wiskeyClear = null)}>ביטול</sw-button></div>
           </sw-dialog>`

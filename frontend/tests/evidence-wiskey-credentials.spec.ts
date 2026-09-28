@@ -82,6 +82,24 @@ test.describe('WisKey station credentials screen (system.configure)', () => {
     await expect.poll(async () => img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth), { timeout: 15000 }).toBe(64);
   }
 
+  /** Whether `needle` is anywhere in the live document: text, any attribute value, or the current `.value` of an
+   * input / textarea, descending into every shadow root (the screens live inside sw-app's; `page.content()` and
+   * `outerHTML` never see them, and a typed value is not in innerHTML at all). */
+  function domHolds(page: Page, needle: string): Promise<boolean> {
+    return page.evaluate((needle) => {
+      const walk = (root: Document | ShadowRoot | Element): boolean => {
+        if ('textContent' in root && root.textContent?.includes(needle)) return true;
+        for (const el of Array.from(root.querySelectorAll('*'))) {
+          if (Array.from(el.attributes).some((a) => a.value.includes(needle))) return true;
+          if ((el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) && el.value.includes(needle)) return true;
+          if (el.shadowRoot && walk(el.shadowRoot)) return true;
+        }
+        return false;
+      };
+      return walk(document);
+    }, needle);
+  }
+
   async function bindUser(request: APIRequestContext, username: string, roleId: string): Promise<string> {
     const me = await (await request.get('/api/v1/me', { headers: { 'X-SW-Dev-User': username } })).json();
     const r = await request.post('/api/v1/access/bindings', { data: { subject_kind: 'user', subject_id: me.user.id, role_id: roleId, scope_type: 'installation', scope_id: '*' } });
@@ -186,6 +204,7 @@ test.describe('WisKey station credentials screen (system.configure)', () => {
       await expect(form.locator('[data-wiskey-cred-save]')).toHaveAttribute('disabled', ''); // custom element: the attribute is the contract
       await form.locator('[data-wiskey-cred-user]').fill('lobby-admin');
       await password.fill(PASSWORD);
+      expect(await domHolds(page, PASSWORD)).toBe(true); // positive control: the walk does see a typed value inside the shadow DOM
       await expect(form.locator('[data-wiskey-cred-save]')).not.toHaveAttribute('disabled', '');
       await page.screenshot({ path: testInfo.outputPath('wiskey-credentials-form.png'), fullPage: true });
       await form.locator('[data-wiskey-cred-save]').click();
@@ -198,9 +217,7 @@ test.describe('WisKey station credentials screen (system.configure)', () => {
       // the password: in no API response body, and nowhere in the document after the save
       await expect.poll(() => bodies.length).toBeGreaterThan(1);
       expect(bodies.some((b) => b.includes(PASSWORD) || b.includes('lobby-admin'))).toBe(false);
-      expect(await page.content()).not.toContain(PASSWORD);
-      expect(await page.evaluate(() => document.documentElement.outerHTML)).not.toContain(PASSWORD);
-      expect(await page.evaluate(() => Array.from(document.querySelectorAll('*')).some((el) => el.shadowRoot?.innerHTML.includes('lobby-pass')))).toBe(false);
+      expect(await domHolds(page, PASSWORD)).toBe(false);
       const status = await (await request.get(creds('lobby'))).text();
       expect(status).not.toContain(PASSWORD);
       expect(status).not.toContain('lobby-admin');

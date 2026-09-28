@@ -50,7 +50,7 @@ def listing(conn: sqlite3.Connection, settings: Settings, overview: dict[str, An
     out: list[dict[str, Any]] = []
     for s in (overview or {}).get("stations", []):
         sid = s["id"]
-        out.append({"station_id": sid, "name": s.get("name"), "has_camera": bool(s.get("camera_entity")), "known": True,
+        out.append({"station_id": sid, "name": s.get("name") or None, "has_camera": bool(s.get("camera_entity")), "known": True,
                     "override": sid in rows, "override_updated_at": rows.get(sid)})
     seen = {s["station_id"] for s in out}
     out.extend({"station_id": sid, "name": None, "has_camera": False, "known": False, "override": True, "override_updated_at": at}
