@@ -21,6 +21,16 @@ Fixture WisKey 4.2.0-fake, four stations:
 answer -> in_call, reject / hangUp -> idle, each followed by WisKey's data-free `refresh` push, as the real one does;
 a signal that does not match the call state is refused `device_unavailable`, as WisKey's device check does.
 
+Station cameras (the entry center's stills, GET /intercom/stations/{id}/camera-snapshot.jpg, grabbed THROUGH go2rtc):
+GO2RTC_URL is forced to a `.test` host whose `/api/frame.jpeg` is answered by an httpx transport hook in this process (no
+real go2rtc or station is reached). Each station has a documentation-range host (192.0.2.x, RFC 5737); gate, lobby and
+store have a camera, office has none. The fake go2rtc keeps streams like go2rtc's GetOrPatch: a raw `rtsp://` src
+with a `name` registers (or re-points) that name, a bare name is looked up, and an unknown bare name is a 404 (as after a
+go2rtc restart, POST /go2rtc/restart). It answers a small synthetic JPEG (no real frame) only for a
+`smplwise_wiskey_<id>` stream whose source is that station's RTSP URL with the account the station accepts: the shared
+fixture account (WISKEY_USER / WISKEY_PASSWORD below) for gate and store, `lobby-admin` / `lobby-pass` for lobby - so
+lobby's still appears only after a per-station override is set (PUT /api/v1/intercom/stations/lobby/credentials).
+
 Control API (SW_WISKEY_CONTROL_PORT, default SW_PORT + 10, 127.0.0.1 only), JSON:
     POST /reset                         stations and modes back to the table above; the sent log is cleared
     POST /station {id, call_state}      set a station's call state and push `refresh`
@@ -28,6 +38,9 @@ Control API (SW_WISKEY_CONTROL_PORT, default SW_PORT + 10, 127.0.0.1 only), JSON
                                         "unexpected" (success: true with a result of an unexpected shape) or
                                         "unconfirmed" (WisKey's `release_unconfirmed`: the door may have opened)
     GET  /sent                          every hikvision_intercom/* frame the fake received, in order
+    GET  /frame-hits                    every /api/frame.jpeg request the fake go2rtc got since the last /reset:
+                                        {name, raw (the query carried an rtsp:// source), host, user, ok}
+    POST /go2rtc/restart                the fake go2rtc forgets its in-memory streams, as a go2rtc restart does
     POST /events/add {count}            add `count` access events newer than any other and push `refresh` (WisKey's
                                         EventManager.changed() does the same on every accepted event)
     POST /events/prune {keep}           keep only the newest `keep` events: an older `before` cursor then expires
@@ -62,6 +75,7 @@ photo flag, revisions), so the SMPLWISE projection is exercised too.
 from __future__ import annotations
 
 import asyncio
+import base64
 import copy
 import datetime
 import hashlib
@@ -82,7 +96,12 @@ sys.path.insert(0, str(BACKEND))
 FAKE_HOST = "fake-wiskey.test"
 os.environ["HA_URL"] = f"http://{FAKE_HOST}:8123"
 os.environ["HA_TOKEN"] = "fake-fixture-token"
+FAKE_GO2RTC = "fake-go2rtc.test"
+os.environ["GO2RTC_URL"] = f"http://{FAKE_GO2RTC}:1984"
+os.environ["WISKEY_USER"] = "fixture-door"
+os.environ["WISKEY_PASSWORD"] = "fixture-pass"
 
+import httpx  # noqa: E402
 import websockets  # noqa: E402
 
 LIMIT_NAMES = ("SCAN_PAGE", "MAX_SCAN_PAGES", "USER_BURST", "USER_RATE")  # intercom_sync constants the /limits control may set
@@ -92,12 +111,21 @@ ZONE = {"kind": "iana", "name": "Asia/Jerusalem"}
 VERSION = "4.2.0-fake"
 
 
-def station(sid: str, name: str, call_state: str, locks: list[dict[str, Any]], online: bool = True) -> dict[str, Any]:
+# a 64x36 synthetic picture (flat colours, no camera frame), the body of every good frame.jpeg answer
+STILL_JPEG = base64.b64decode(
+    "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAoHBwgHBgoICAgLCgoLDhgQDg0NDh0VFhEYIx8lJCIfIiEmKzcvJik0KSEiMEExNDk7Pj4+JS5ESUM8SDc9Pjv/2wBDAQoLCw4NDhwQEBw7KCIoOzs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozv/wAARCAAkAEADASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDiqKKK6jhCitvwd/yNVn/wP/0Bq9Rrz8VjfYTUeW+nc66GG9rHmvY8Tor2yvPPiD/yHYP+vVf/AEJqnD4729Tk5bfP/gDrYX2cea9zlqKKK9I4woq5/ZN9/wA8P/H1/wAaP7Jvv+eH/j6/40Gftaf8y+8v+Dv+Rqs/+B/+gNXqNeZ+GrabT9ftrq6Ty4Y9+5sg4ypA4HPU13v9uab/AM/P/jjf4V4eY0qk6qcYt6dvNnp4TEUY02nNLXui/XnnxB/5DsH/AF6r/wChNXaf25pv/Pz/AOON/hXGeMEbVdWinsh5sawBC33edzHvj1FRgKVSNa8otfIrFYmjKnZTX3o5Wirn9k33/PD/AMfX/Gj+yb7/AJ4f+Pr/AI1755Xtaf8AMvvOjooooPECiiigAooooAKKKKAP/9k="
+)
+HOSTS = {"gate": "192.0.2.21", "lobby": "192.0.2.22", "office": "192.0.2.23", "store": "192.0.2.24"}
+ACCOUNTS = {"gate": ("fixture-door", "fixture-pass"), "lobby": ("lobby-admin", "lobby-pass"), "store": ("fixture-door", "fixture-pass")}
+
+
+def station(sid: str, name: str, call_state: str, locks: list[dict[str, Any]], online: bool = True, camera: bool = True) -> dict[str, Any]:
     return {
         "id": sid, "name": name, "online": online, "call_state": call_state if online else "unavailable", "sync_state": "synced" if online else "offline",
         "lock_enabled": bool(locks), "integrated_locks": locks, "last_error": None, "last_seen": "2026-09-27T08:00:00+03:00",
         "pending_user_count": 0, "managed_user_count": 12, "clock": {"zone": ZONE},
-        "entities": {"online": f"binary_sensor.{sid}_online", "call_status": f"sensor.{sid}_call_status"},
+        "host": HOSTS[sid],
+        "entities": {"online": f"binary_sensor.{sid}_online", "call_status": f"sensor.{sid}_call_status", **({"camera": f"camera.{sid}"} if camera else {})},
         "last_access": {"timestamp": "2026-09-27T07:59:00+03:00", "time_source": "device", "person_name": "Dana", "employee_no": "1001", "authentication": "card", "result": "granted", "event_type": "access_granted", "recovered": False, "door": 1} if online else None,
     }
 
@@ -106,7 +134,7 @@ def initial_stations() -> list[dict[str, Any]]:
     return [
         station("gate", "שער ראשי", "ringing", [{"physical_index": 1, "api_id": 1, "name": "שער"}]),
         station("lobby", "לובי", "idle", [{"physical_index": 1, "api_id": 1, "name": "כניסה"}, {"physical_index": 2, "api_id": 7, "name": "מחסום"}]),
-        station("office", "משרד", "in_call", [{"physical_index": 1, "api_id": 1, "name": None}]),
+        station("office", "משרד", "in_call", [{"physical_index": 1, "api_id": 1, "name": None}], camera=False),
         station("store", "מחסן", "idle", [{"physical_index": 1, "api_id": 1, "name": None}], online=False),
     ]
 
@@ -341,12 +369,16 @@ class World:
         self.reset()
         self.fake: FakeHa | None = None
         self.loop: asyncio.AbstractEventLoop | None = None
+        # the fake go2rtc's in-memory streams (name -> source). Not cleared by /reset: go2rtc does not restart when the
+        # fixture WisKey is reset (POST /go2rtc/restart does that)
+        self.go2rtc_streams: dict[str, str] = {}
 
     def reset(self) -> None:
         with self.lock:
             self.stations = initial_stations()
             self.unlock_mode = "accept"
             self.sent: list[dict[str, Any]] = []
+            self.frame_hits: list[dict[str, Any]] = []
             self.events = initial_events()
             self.added = 0
             self.events_delay = 0.0
@@ -387,10 +419,8 @@ class FakeHa:
     def __init__(self) -> None:
         self.q: asyncio.Queue = asyncio.Queue()
         self.wiskey_sub: int | None = None
-        WORLD.fake = self
 
     async def __aenter__(self) -> "FakeHa":
-        WORLD.loop = asyncio.get_running_loop()
         self.q.put_nowait({"type": "auth_required", "ha_version": "2026.9.0"})
         return self
 
@@ -427,6 +457,9 @@ class FakeHa:
                 self.push(ok(msg, {"version": VERSION, "api": {"version": 1, "min_client": 0}, "default_zone": ZONE, "user_count": len(WORLD.people), "users": [], "stations": copy.deepcopy(WORLD.stations)}))
             elif kind == "hikvision_intercom/subscribe":
                 self.wiskey_sub = msg["id"]
+                # the control API's pushes go to THIS socket, on its own loop: SMPLWISE's HA sync opens a second socket
+                # to the same fake host on another thread, so "the last socket created" was a start-up race
+                WORLD.fake, WORLD.loop = self, asyncio.get_running_loop()
                 self.push(ok(msg))
             elif kind == "hikvision_intercom/stations/test_unlock":
                 if WORLD.unlock_mode == "unconfirmed":
@@ -482,6 +515,53 @@ def connect(url: str, **_kw: Any) -> FakeHa:
 
 websockets.connect = connect  # type: ignore[assignment]
 
+_real_handle = httpx.HTTPTransport.handle_request
+
+
+def fake_frame(request: httpx.Request) -> httpx.Response:
+    """go2rtc's /api/frame.jpeg as SMPLWISE uses it: `src=<rtsp source>&name=smplwise_wiskey_<id>` registers the stream
+    (go2rtc's GetOrPatch -> Patch), `src=smplwise_wiskey_<id>` alone grabs from a registered one."""
+    from urllib.parse import unquote, urlsplit
+
+    src_param = request.url.params.get("src", "")
+    raw = src_param.startswith("rtsp://")
+    with WORLD.lock:
+        if raw:
+            name = request.url.params.get("name") or src_param
+            WORLD.go2rtc_streams[name] = src_param
+            source = src_param
+        else:
+            name = src_param
+            source = WORLD.go2rtc_streams.get(name, "")
+        if not source:
+            WORLD.frame_hits.append({"name": name, "raw": False, "host": None, "user": "", "ok": False})
+            return httpx.Response(404, text="streams: source not supported", request=request)
+    src = urlsplit(source)
+    sid = name.removeprefix("smplwise_wiskey_")
+    user, password = unquote(src.username or ""), unquote(src.password or "")
+    ok = (
+        name.startswith("smplwise_wiskey_") and src.scheme == "rtsp" and src.hostname == HOSTS.get(sid)
+        and src.port == 554 and src.path == "/Streaming/Channels/101" and ACCOUNTS.get(sid) == (user, password)
+    )
+    with WORLD.lock:
+        WORLD.frame_hits.append({"name": name, "raw": raw, "host": src.hostname, "user": user, "ok": ok})
+    if ok:
+        return httpx.Response(200, content=STILL_JPEG, headers={"Content-Type": "image/jpeg"}, request=request)
+    return httpx.Response(500, text="rtsp: 401 Unauthorized", request=request)  # the station refused the account
+
+
+def handle_request(self: httpx.HTTPTransport, request: httpx.Request) -> httpx.Response:
+    """The fake go2rtc answers only /api/frame.jpeg; anything else to it, and every REST call to the fake HA host,
+    fails as an unresolvable `.test` name would."""
+    if request.url.host == FAKE_GO2RTC and request.url.path == "/api/frame.jpeg":
+        return fake_frame(request)
+    if request.url.host in (FAKE_GO2RTC, FAKE_HOST):
+        raise httpx.ConnectError(f"wiskey_fake_ha: no answer for {request.url.host}{request.url.path}", request=request)
+    return _real_handle(self, request)
+
+
+httpx.HTTPTransport.handle_request = handle_request  # type: ignore[method-assign]
+
 
 class Control(BaseHTTPRequestHandler):
     def _json(self, status: int, body: Any) -> None:
@@ -500,10 +580,17 @@ class Control(BaseHTTPRequestHandler):
         if self.path == "/sent":
             with WORLD.lock:
                 return self._json(200, list(WORLD.sent))
+        if self.path == "/frame-hits":
+            with WORLD.lock:
+                return self._json(200, list(WORLD.frame_hits))
         self._json(404, {"error": "not_found"})
 
     def do_POST(self) -> None:  # noqa: N802
         body = self._body()
+        if self.path == "/go2rtc/restart":
+            with WORLD.lock:
+                WORLD.go2rtc_streams.clear()
+            return self._json(200, {"ok": True})
         if self.path == "/reset":
             WORLD.reset()
             set_limits({})  # the SMPLWISE backend's own search / rate constants back to their defaults, buckets full

@@ -1,6 +1,7 @@
 """Settings, snapshots and the go2rtc adapter / live relay authorization (T015/T016 server side)."""
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 
 import pytest
@@ -74,8 +75,17 @@ def test_streams_sync_only_touches_our_namespace(client, settings, monkeypatch):
     r = c.post("/api/v1/media/streams/sync").json()
     assert r["created"] == 4 and r["foreign_streams_untouched"] == 2 and all(n.startswith("smplwise_") for n, _ in FakeGo2rtc.writes)
     assert c.post("/api/v1/media/streams/sync").json()["unchanged"] == 4
-    listing = c.get("/api/v1/media/streams").json()
+    # a WisKey station still stream (registered by /intercom/stations/{id}/camera-snapshot.jpg): its whole address is
+    # hidden - the station host is never served (security review N1)
+    FakeGo2rtc.store["smplwise_wiskey_gate"] = ["rtsp://door:pw@192.0.2.21:554/Streaming/Channels/101"]
+    try:
+        listing = c.get("/api/v1/media/streams").json()
+    finally:
+        FakeGo2rtc.store.pop("smplwise_wiskey_gate")
     assert listing["foreign_streams"] == 2 and all("***" in src or "@" not in src for st in listing["streams"] for src in st["sources"])
+    assert next(st for st in listing["streams"] if st["name"] == "smplwise_wiskey_gate")["sources"] == ["rtsp://***/Streaming/Channels/101"]
+    assert "192.0.2.21" not in json.dumps(listing) and "door" not in json.dumps(listing)
+    assert any("@" in src and "***@" in src for st in listing["streams"] if not st["name"].startswith("smplwise_wiskey_") for src in st["sources"]), "NVR sources keep their host"
 
 
 def test_media_not_configured(client):

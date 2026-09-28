@@ -90,7 +90,7 @@ def list_streams(request: Request, principal: Principal = Depends(current_princi
     client = g2.Go2rtc(settings_of(request))
     with unlocked(conn):
         streams = client.list_streams()
-    ours = [{"name": s.name, "online": s.online, "sources": [g2.redact_url(u) for u in s.sources]} for s in streams.values() if s.name.startswith(g2.STREAM_PREFIX)]
+    ours = [{"name": s.name, "online": s.online, "sources": [g2.redact_source(s.name, u) for u in s.sources]} for s in streams.values() if s.name.startswith(g2.STREAM_PREFIX)]
     return {"go2rtc": client.info(), "streams": ours, "foreign_streams": len(streams) - len(ours)}
 
 

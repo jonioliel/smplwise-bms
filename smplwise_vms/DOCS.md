@@ -20,6 +20,12 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
    - `go2rtc_url` — the external go2rtc API, e.g. `http://<ha-host>:1984` (the AlexxIT add-on). The
      product creates only streams named `smplwise_*` there and never touches other streams. Optional
      `go2rtc_api_username` / `go2rtc_api_password` if the go2rtc API is protected.
+   - `wiskey_username`, `wiskey_password` — the RTSP account of the WisKey door stations, assumed the same on
+     every station; the WisKey tab shows each station camera's still through go2rtc with it. A station with
+     a different account gets its own (system administrator, `PUT /api/v1/intercom/stations/<id>/credentials`).
+     go2rtc versions before 1.9.14 write a stream's source URL, including this account, to the go2rtc log each time
+     SMPLWISE registers a station stream (after an add-on start, a go2rtc restart or a credential change). Use go2rtc
+     1.9.14 or newer.
 4. Start the add-on and open it from the sidebar (**SMPLWISE VMS**). With NVR details set, the cameras
    appear by themselves within a minute (discovery at start-up and every 10 minutes); הגדרות → מצלמות
    → "סנכרון מה־NVR" refreshes immediately. If the list stays empty, check the add-on log and

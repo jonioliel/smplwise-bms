@@ -39,6 +39,8 @@ const OPTIONS: { key: string; label: string }[] = [
   { key: 'go2rtc_url', label: 'כתובת go2rtc' },
   { key: 'go2rtc_api_username', label: 'משתמש go2rtc (אם מוגן)' },
   { key: 'go2rtc_api_password', label: 'סיסמת go2rtc' },
+  { key: 'wiskey_username', label: 'משתמש עמדות WisKey (מצלמות)' },
+  { key: 'wiskey_password', label: 'סיסמת עמדות WisKey' },
   { key: 'bootstrap_admin_username', label: 'שם משתמש HA של המנהל הראשון' },
   { key: 'log_level', label: 'רמת לוג' },
 ];

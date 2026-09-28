@@ -19,12 +19,14 @@ import {
   actionOutcome,
   getIntercomOverview,
   getIntercomTtsEngines,
+  intercomSnapshotUrl,
   releaseIntercomDoor,
   signalIntercomCall,
   speakAtIntercom,
   subscribeIntercom,
   type IntercomCallCommand,
   type IntercomCallResult,
+  type IntercomCameraAccess,
   type IntercomFeed,
   type IntercomFeedState,
   type IntercomLock,
@@ -46,6 +48,18 @@ type DoorFilter = 'all' | 'online' | 'attention';
 
 const PAGE = 12; // WisKey's entry center never shows more than 12 doors a page (fitWall capacity ceiling)
 const POLL_MS = 30000; // WisKey's own panel polls `overview` every 30 s; used here only while the notices are down
+// Camera stills are refreshed on this codebase's own poster cadence: live-wall.ts re-busts its NVR posters every 60 s,
+// which is also the server cache's default (`snapshots.max_age_s`). WisKey's own panel re-reads every 10 s (camera.ts),
+// but a faster tick here would only be answered from the server's 60 s cache.
+const POSTER_MS = 60_000;
+/** Why a station camera's still cannot be had, in words (feed `camera_access`, and the station itself). */
+const STILL_TEXT: Record<Exclude<IntercomCameraAccess, 'ready'> | 'offline' | 'unavailable', string> = {
+  offline: 'העמדה אינה מחוברת - אין תמונה עדכנית',
+  unavailable: 'אין תמונה מהמצלמה כרגע',
+  no_credentials: 'לא הוגדרו פרטי גישה למצלמות העמדות (הגדרות ה־Add-on)',
+  no_host: 'WisKey לא מסר את כתובת העמדה, ולכן אין ממנה תמונה',
+  no_media: 'go2rtc לא הוגדר, ולכן אין תמונות מצלמה',
+};
 const ARM_MS = 4000; // a call control's second tap must follow the first within this long ...
 const ARM_MIN_MS = 500; // ... and not sooner: a double-click / double-tap is one gesture, not a confirmation
 // After a release with an unknown outcome the relay's button waits as long as the backend holds that relay: its answer
@@ -120,10 +134,10 @@ const DEMO: IntercomOverview = {
   default_zone: { kind: 'iana', name: 'Asia/Jerusalem' },
   user_count: 48,
   stations: [
-    { id: 'd1', name: 'שער ראשי', online: true, call_state: 'ringing', sync_state: 'synced', lock_enabled: true, lock_count: 1, locks: [{ physical_index: 1, name: null }], has_camera: true, last_error: null, last_seen: '2026-09-27T08:00:00+03:00', pending_user_count: 0, managed_user_count: 42, zone: { kind: 'iana', name: 'Asia/Jerusalem' }, last_access: { timestamp: '2026-09-27T07:58:12+03:00', time_source: 'device', person_name: 'דנה כהן', employee_no: '1001', authentication: 'card', result: 'granted', event_type: 'access_granted', recovered: false, door: 1 } },
-    { id: 'd2', name: 'לובי', online: true, call_state: 'idle', sync_state: 'synced', lock_enabled: true, lock_count: 2, locks: [{ physical_index: 1, name: 'כניסה' }, { physical_index: 2, name: 'מחסום' }], has_camera: true, last_error: null, last_seen: '2026-09-27T08:00:00+03:00', pending_user_count: 0, managed_user_count: 42, zone: { kind: 'iana', name: 'Asia/Jerusalem' }, last_access: { timestamp: '2026-09-27T07:41:03+03:00', time_source: 'device', person_name: null, employee_no: '2044', authentication: 'pin', result: 'granted', event_type: 'access_granted', recovered: false, door: 2 } },
-    { id: 'd3', name: 'חניון', online: true, call_state: 'idle', sync_state: 'pending', lock_enabled: false, lock_count: 0, locks: [], has_camera: true, last_error: null, last_seen: '2026-09-27T08:00:00+03:00', pending_user_count: 3, managed_user_count: 39, zone: { kind: 'iana', name: 'Asia/Jerusalem' }, last_access: { timestamp: '2026-09-26T22:10:40+03:00', time_source: 'received', person_name: null, employee_no: null, authentication: 'unknown', result: 'denied', event_type: 'access_denied', recovered: true, door: null } },
-    { id: 'd4', name: 'מחסן', online: false, call_state: 'unavailable', sync_state: 'offline', lock_enabled: true, lock_count: 1, locks: [{ physical_index: 1, name: null }], has_camera: false, last_error: null, last_seen: '2026-09-26T19:02:00+03:00', pending_user_count: 1, managed_user_count: null, zone: null, last_access: null },
+    { id: 'd1', name: 'שער ראשי', online: true, call_state: 'ringing', sync_state: 'synced', lock_enabled: true, lock_count: 1, locks: [{ physical_index: 1, name: null }], has_camera: true, camera_entity: null, last_error: null, last_seen: '2026-09-27T08:00:00+03:00', pending_user_count: 0, managed_user_count: 42, zone: { kind: 'iana', name: 'Asia/Jerusalem' }, last_access: { timestamp: '2026-09-27T07:58:12+03:00', time_source: 'device', person_name: 'דנה כהן', employee_no: '1001', authentication: 'card', result: 'granted', event_type: 'access_granted', recovered: false, door: 1 } },
+    { id: 'd2', name: 'לובי', online: true, call_state: 'idle', sync_state: 'synced', lock_enabled: true, lock_count: 2, locks: [{ physical_index: 1, name: 'כניסה' }, { physical_index: 2, name: 'מחסום' }], has_camera: true, camera_entity: null, last_error: null, last_seen: '2026-09-27T08:00:00+03:00', pending_user_count: 0, managed_user_count: 42, zone: { kind: 'iana', name: 'Asia/Jerusalem' }, last_access: { timestamp: '2026-09-27T07:41:03+03:00', time_source: 'device', person_name: null, employee_no: '2044', authentication: 'pin', result: 'granted', event_type: 'access_granted', recovered: false, door: 2 } },
+    { id: 'd3', name: 'חניון', online: true, call_state: 'idle', sync_state: 'pending', lock_enabled: false, lock_count: 0, locks: [], has_camera: true, camera_entity: null, last_error: null, last_seen: '2026-09-27T08:00:00+03:00', pending_user_count: 3, managed_user_count: 39, zone: { kind: 'iana', name: 'Asia/Jerusalem' }, last_access: { timestamp: '2026-09-26T22:10:40+03:00', time_source: 'received', person_name: null, employee_no: null, authentication: 'unknown', result: 'denied', event_type: 'access_denied', recovered: true, door: null } },
+    { id: 'd4', name: 'מחסן', online: false, call_state: 'unavailable', sync_state: 'offline', lock_enabled: true, lock_count: 1, locks: [{ physical_index: 1, name: null }], has_camera: false, camera_entity: null, last_error: null, last_seen: '2026-09-26T19:02:00+03:00', pending_user_count: 1, managed_user_count: null, zone: null, last_access: null },
   ],
 };
 
@@ -161,7 +175,11 @@ export function feedBadge(state: IntercomFeedState, version?: string | null): { 
  * Phase 3 (owner-approved, `access.release` only): per-door physical actions - release (behind a confirmation dialog,
  * which WisKey's own panel does not have), call answer / reject / hang up (two taps: the first arms, the second sends;
  * shown only while the station is ringing or in a call), and a spoken announcement composed in a dialog. Each result is
- * shown as exactly what WisKey said - a release is "accepted", never "the door opened". No camera or edit controls.
+ * shown as exactly what WisKey said - a release is "accepted", never "the door opened". No edit controls.
+ *
+ * Each door card with a camera shows a still of it, as WisKey's own overview does (`hikvision-intercom-camera`,
+ * `.live=${false}`): the backend grabs one frame of the station's stream through go2rtc, re-read every POSTER_MS.
+ * No live video here.
  */
 @customElement('wiskey-overview')
 export class WiskeyOverview extends LitElement {
@@ -190,6 +208,13 @@ export class WiskeyOverview extends LitElement {
   @state() private ttsError = '';
   @state() private ttsStatus: Record<string, IntercomTtsStatus> = {};
   private armTimer = 0;
+  /** Cache-buster of the camera stills (media.ts snapshotUrl convention); bumped every POSTER_MS. */
+  @state() private posterBust = Date.now();
+  /** station id -> the posterBust whose still failed to load: that card says so until the next refresh. */
+  @state() private stillFailed: Record<string, number> = {};
+  private posterTimer = 0;
+  /** The rendered feed's `camera_access` (set by renderPage for its children). */
+  private cameraAccess: Record<string, IntercomCameraAccess> = {};
   private stop: (() => void) | null = null;
   private poll = 0;
   private loading = false;
@@ -203,6 +228,10 @@ export class WiskeyOverview extends LitElement {
       return;
     }
     void this.load();
+    // as live-wall.ts: a new cache-buster on a fixed cadence (skipped while the tab is hidden - nobody sees it)
+    this.posterTimer = window.setInterval(() => {
+      if (!document.hidden) this.posterBust = Date.now();
+    }, POSTER_MS);
     this.stop = subscribeIntercom(
       (m) => {
         if (m.type === 'intercom_tts') this.ttsStatus = { ...this.ttsStatus, [m.status.station_id]: m.status };
@@ -220,6 +249,7 @@ export class WiskeyOverview extends LitElement {
     this.stop?.();
     this.stop = null;
     this.setPolling(false);
+    window.clearInterval(this.posterTimer);
     window.clearTimeout(this.armTimer);
     window.clearTimeout(this.holdTimer);
   }
@@ -432,6 +462,7 @@ export class WiskeyOverview extends LitElement {
 
   private renderPage(feed: IntercomFeed, demo: boolean) {
     const ov = feed.overview;
+    this.cameraAccess = feed.camera_access ?? {};
     const sub = `${t('wk4_entry_intro')}${this.canAct() ? '' : ' · צפייה בלבד'}${demo ? ' · נתוני הדגמה' : ''}`;
     return html`<sw-page heading="WisKey · ${t('wk4_entry_center')}" subheading=${sub} wide>
       ${this.renderFeedBadge(feed, demo)}
@@ -597,6 +628,7 @@ export class WiskeyOverview extends LitElement {
         <sw-badge kind=${kind} label=${t(status)}></sw-badge>
       </div>
       ${status === 'ringing' ? html`<div class="ring" role="status"><sw-icon name="bell" size=${14}></sw-icon>${t('ringing')}</div>` : nothing}
+      ${this.renderStill(s)}
       <div class="facts">
         <span>${s.lock_enabled ? (s.lock_count > 1 ? `${t('lock_enabled')} · ${s.lock_count}` : t('lock_enabled')) : t('camera_only')}</span>
         <span>סנכרון: ${t(s.sync_state)}</span>
@@ -605,6 +637,29 @@ export class WiskeyOverview extends LitElement {
       ${this.canAct() ? this.renderActions(s) : nothing}
       ${this.renderLastAccess(s)}
     </article>`;
+  }
+
+  /** The station camera's still (WisKey's overview `camera(station)`, non-live). No camera entity: nothing - the card
+   * keeps its door icon, as before. An offline station, a missing setting, or a still that did not load says so in
+   * words - never a broken image. The next refresh tries again. */
+  private renderStill(s: IntercomStation) {
+    if (!s.camera_entity) return nothing;
+    const bust = this.posterBust;
+    const access = this.cameraAccess[s.id] ?? 'ready';
+    const state = !s.online ? 'offline' : access !== 'ready' ? access : this.stillFailed[s.id] === bust ? 'unavailable' : 'image';
+    return html`<div class="still" data-wiskey-camera=${s.id} data-camera-state=${state}>
+      ${state === 'image'
+        ? html`<img
+              src=${intercomSnapshotUrl(s.id, bust)}
+              alt=${`מצלמה · ${s.name}`}
+              decoding="async"
+              @error=${() => (this.stillFailed = { ...this.stillFailed, [s.id]: bust })}
+            /><span class="tag">צילום</span>`
+        : html`<div class="none" role="status">
+            <sw-icon name=${state === 'offline' ? 'offline' : 'camera'} size=${20}></sw-icon>
+            <span>${STILL_TEXT[state]}</span>
+          </div>`}
+    </div>`;
   }
 
   /** The door's physical controls, for `access.release` holders only. Everything is disabled unless the feed is live
@@ -818,6 +873,43 @@ export class WiskeyOverview extends LitElement {
       gap: 4px 12px;
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
+    }
+    .still {
+      position: relative;
+      aspect-ratio: 16 / 9;
+      border-radius: var(--sw-r-md);
+      overflow: hidden;
+      background: var(--sw-surface-3);
+    }
+    .still img {
+      display: block;
+      inline-size: 100%;
+      block-size: 100%;
+      object-fit: cover;
+    }
+    .still .tag {
+      /* sw-camera-tile's own "צילום" (still) tag */
+      position: absolute;
+      inset-inline-end: 8px;
+      inset-block-start: 8px;
+      font-size: 9.5px;
+      letter-spacing: 0.04em;
+      background: rgba(17, 24, 39, 0.5);
+      color: #fff;
+      border-radius: 4px;
+      padding: 1px 6px;
+    }
+    .still .none {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      block-size: 100%;
+      padding: 8px;
+      text-align: center;
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
     }
     .last {
       display: flex;

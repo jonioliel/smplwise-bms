@@ -2,7 +2,7 @@
 
 SMPLWISE's browser never talks to Home Assistant: these endpoints check SMPLWISE's own permission first and serve
 what services/intercom_sync.py read from WisKey over HA's WebSocket API. Phase 1a: the read-only entry center
-(`access.read`); phase 1b: the read-only activity log and people directory, same permission (CR-005 §3).
+(`access.read`), with each station camera's still grabbed through go2rtc; phase 1b: the read-only activity log and people directory, same permission (CR-005 §3).
 
 Phase 3 (owner-approved per capability, 2026-09-27): three PHYSICAL actions, each gated on `access.release` at
 installation scope - door release (`stations/test_unlock`), call answer / reject / hang up (`media/signal`) and a spoken
@@ -15,33 +15,40 @@ schedule or device-setting edit lives here."""
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
+import os
 import queue
 import sqlite3
 import threading
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
+from pathlib import Path as FilePath
 from typing import Any, Callable, Literal
 
 from fastapi import APIRouter, Depends, Path, Query, Request, WebSocket
+from fastapi.responses import Response
 from pydantic import BaseModel, Field, StrictInt, ValidationError
 from starlette.concurrency import run_in_threadpool
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import Database, now_iso, unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import intercom_client, intercom_sync
+from ..services import go2rtc as g2
+from ..services import intercom_client, intercom_sync, wiskey_camera
 from ..services.timeutil import parse_utc
 from .media import _principal_for_ws
+from .settings import read_settings
 
 router = APIRouter()
 log = logging.getLogger("smplwise.intercom")
 
 READ = "access.read"
+CREDENTIALS = "system.configure"  # device secrets: the system administrator only
 RELEASE = "access.release"  # every PHYSICAL WisKey command; role grants: see the note at routers/access.py PERMISSION_LABELS
 RECHECK_S = 60
 MAX_PAGE = 200  # WisKey's own cap for events/list and users/query
@@ -53,6 +60,18 @@ def _reader(principal: Principal = Depends(current_principal), conn: sqlite3.Con
     query parameters, so a caller without the permission learns nothing about them (WisKey's own handlers authorize
     first, too). Returns the principal, whose id keys the caller's own rate bucket."""
     require(conn, principal, READ, INSTALLATION)
+    return principal
+
+
+def _reader_ro(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Principal:
+    """`_reader` on the request's read-mode connection, for a path the browser polls (camera stills): no write lock per
+    request; a refusal's audit row is still written (rbac.require -> audit's write-aside)."""
+    require(conn, principal, READ, INSTALLATION)
+    return principal
+
+
+def _credentials_admin(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
+    require(conn, principal, CREDENTIALS, INSTALLATION)
     return principal
 
 
@@ -74,9 +93,14 @@ def _instant(name: str, value: str | None) -> str | None:
 def overview(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The entry center: stations with online / ringing / sync state and the last access record, plus the feed's own
     state (`ha_not_configured`, `connecting`, `ha_unavailable`, `not_installed`, `forbidden`, `error`, `ready`).
-    `overview` is null whenever there is nothing honest to show; `fresh` is false for a copy from before a disconnect."""
+    `overview` is null whenever there is nothing honest to show; `fresh` is false for a copy from before a disconnect.
+    `camera_access` says, per station with a camera, whether its still can be had (`ready`) or why not (`no_media`,
+    `no_host`, `no_credentials`) - see wiskey_camera.camera_access."""
     require(conn, principal, READ, INSTALLATION)
-    return intercom_sync.SYNC.snapshot(settings_of(request))
+    settings = settings_of(request)
+    body = intercom_sync.SYNC.snapshot(settings)
+    body["camera_access"] = wiskey_camera.camera_access(conn, settings, body["overview"])
+    return body
 
 
 @router.get("/intercom/events")
@@ -145,6 +169,164 @@ def person(request: Request, principal: Principal = Depends(_reader), user_id: s
     """One person (WisKey `users/get`), same projection as a directory row; an unknown id is a 404
     `intercom_person_not_found`. Reply: `{state, configured, last_error, fetched_at, person, sync}`."""
     return intercom_sync.SYNC.command(settings_of(request), "person", lambda call: intercom_client.users_get(call, user_id), intercom_sync.project_person, who=principal.user_id)
+
+
+# ---------------------------------------------------------------- station camera stills (access.read), through go2rtc
+
+def _still_path(settings: Any, station_id: str) -> FilePath:
+    folder = settings.data_dir / "snapshots" / "intercom"
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder / f"{hashlib.sha256(station_id.encode()).hexdigest()[:32]}.jpg"
+
+
+@router.get("/intercom/stations/{station_id}/camera-snapshot.jpg")
+def camera_snapshot(
+    request: Request,
+    principal: Principal = Depends(_reader_ro),
+    conn: sqlite3.Connection = Depends(get_read_conn),
+    station_id: str = Path(min_length=1, max_length=MAX_STATION_ID),
+) -> Response:
+    """A still of the station's camera for the entry center's door cards (WisKey's own overview shows one per station,
+    `.live=${false}`). Read-only, `access.read` like the rest of the overview. The owner's rule is that all video goes
+    through go2rtc: the frame comes from go2rtc's /api/frame.jpeg, which pulls the station's own RTSP stream (host from
+    the served WisKey copy, credentials from SMPLWISE - wiskey_camera.credentials). Home Assistant is never asked for
+    the picture. Cached in /data for `snapshots.max_age_s` and served like the NVR snapshot (routers/cameras.py): a
+    stale copy with X-Snapshot-Stale / X-Snapshot-Error when no new frame can be had, else the error itself.
+
+    Errors: 404 `intercom_station_not_found` / `intercom_no_camera`; 503 `ha_not_configured` / `intercom_unavailable`
+    (no served copy), `intercom_camera_host_unknown`, `source_not_configured` (no credentials), `media_not_configured`
+    (no go2rtc) - these configuration gaps are answered before any cached copy is looked at - and, with no cached
+    copy, `intercom_station_offline`, `media_unavailable` / `media_error` / `snapshot_unavailable` from go2rtc."""
+    settings = settings_of(request)
+    state, overview = intercom_sync.SYNC.served(settings)
+    if overview is None:
+        if state == "ha_not_configured":
+            raise ApiError(503, "ha_not_configured", "אין גישה ל־Home Assistant, ולכן אין נתוני WisKey ואין תמונת מצלמה.")
+        raise ApiError(503, "intercom_unavailable", "נתוני WisKey אינם זמינים כרגע, ולכן אין תמונת מצלמה.", retryable=True, details={"state": state})
+    station = next((s for s in overview.get("stations", []) if s["id"] == station_id), None)
+    if station is None:
+        raise ApiError(404, "intercom_station_not_found", "העמדה לא נמצאה ב־WisKey.")
+    if not station.get("camera_entity"):
+        raise ApiError(404, "intercom_no_camera", f"לעמדה {station['name']} אין מצלמה ב־WisKey.")
+    host = intercom_sync.SYNC.station_host(settings, station_id)
+    if not host:
+        raise ApiError(503, "intercom_camera_host_unknown", "WisKey לא מסר את כתובת העמדה, ולכן אין ממנה תמונה.")
+    username, password = wiskey_camera.credentials(conn, settings, station_id)
+    source = g2.wiskey_rtsp_url(host, username, password)
+    client = g2.Go2rtc(settings)
+    max_age = read_settings(conn)["snapshots.max_age_s"]
+    path = _still_path(settings, station_id)
+    cached = _read_still(path)
+    if cached is not None and time.time() - cached[1] < max_age:
+        age = int(time.time() - cached[1])
+        return Response(cached[0], media_type="image/jpeg", headers={"Cache-Control": f"private, max-age={max(1, max_age - age)}", "X-Snapshot-Age": str(age)})
+    try:
+        if not station["online"]:
+            raise ApiError(503, "intercom_station_offline", f"העמדה {station['name']} אינה מחוברת, ולכן אין ממנה תמונה עדכנית.")
+        with unlocked(conn):
+            data = client.frame_jpeg(g2.wiskey_stream_name(station_id), source)
+    except ApiError as exc:
+        if cached is None:
+            raise
+        return Response(cached[0], media_type="image/jpeg", headers={"Cache-Control": "private, max-age=10", "X-Snapshot-Stale": "true", "X-Snapshot-Error": exc.code})
+    _store_still(path, data)
+    return Response(data, media_type="image/jpeg", headers={"Cache-Control": f"private, max-age={max_age}", "X-Snapshot-Age": "0"})
+
+
+def _read_still(path: FilePath) -> tuple[bytes, float] | None:
+    """The cached still and its time, read once; None when there is none (an override change may drop it any time)."""
+    try:
+        mtime = path.stat().st_mtime
+        return path.read_bytes(), mtime
+    except OSError:
+        return None
+
+
+def _store_still(path: FilePath, data: bytes) -> None:
+    """Best effort: a temp file of this request's own (two cache misses for one station never share one - security
+    review S2), then an atomic replace. The frame is served from memory either way; a replace that fails (Windows
+    refuses to replace a file another request is reading at that moment) only skips caching this one."""
+    tmp = path.with_name(f"{path.stem}.{uuid.uuid4().hex}.tmp")
+    try:
+        tmp.write_bytes(data)
+        os.replace(tmp, path)
+    except OSError as exc:
+        log.debug("camera still not cached (%s)", type(exc).__name__)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+# ---------------------------------------------------------------- per-station camera credentials (system.configure)
+# Every station is assumed to share the add-on options' account (owner decision 2026-09-28); these set or clear one
+# station's own. Write-only: no reply ever carries a username or password (like HA's `password` option type).
+
+class StationCredentials(BaseModel):
+    username: str = Field(min_length=1, max_length=256)  # WisKey's own limits (ConnectionSettings)
+    password: str = Field(min_length=1, max_length=256)
+
+
+async def _credentials_body(request: Request) -> bytes:
+    """The body, unparsed; declared AFTER the permission dependency, so a caller without system.configure gets an
+    audited 403 whatever they sent (FastAPI would otherwise parse a declared body model first: 422 before 403)."""
+    return await request.body()
+
+
+def _refuse_credentials(conn: sqlite3.Connection, principal: Principal, request: Request, station_id: str, exc: ApiError) -> ApiError:
+    audit(conn, actor=principal, action="intercom.credentials.set", decision="denied", resource_type="intercom_station", resource_id=station_id,
+          reason=exc.code, request_id=getattr(request.state, "correlation_id", None))
+    return exc
+
+
+def _parse_credentials(conn: sqlite3.Connection, principal: Principal, request: Request, station_id: str, raw: bytes) -> StationCredentials:
+    """The physical endpoints' order (_parse): the content type, then the JSON, then the fields - each an audited refusal."""
+    content_type = request.headers.get("content-type")
+    if not _is_json(content_type):
+        raise _refuse_credentials(conn, principal, request, station_id, ApiError(415, "unsupported_media_type", "הבקשה חייבת להישלח כ־JSON (Content-Type: application/json).", details={"content_type": (content_type or "")[:100]}))
+    try:
+        data = json.loads(raw) if raw.strip() else {}
+    except (ValueError, RecursionError):
+        raise _refuse_credentials(conn, principal, request, station_id, ApiError(422, "validation", "גוף הבקשה אינו JSON תקין.", details={"fields": ["body"]})) from None
+    try:
+        return StationCredentials.model_validate(data)
+    except ValidationError as exc:
+        fields = sorted({".".join(str(p) for p in err["loc"]) or "body" for err in exc.errors()})
+        raise _refuse_credentials(conn, principal, request, station_id, ApiError(422, "validation", "הבקשה אינה תקינה: " + ", ".join(fields), details={"fields": fields})) from None
+
+
+def _drop_still(request: Request, station_id: str) -> None:
+    """Another account may show another picture (or none): the cached still is not served for up to max_age (N4a)."""
+    _still_path(settings_of(request), station_id).unlink(missing_ok=True)
+
+
+@router.get("/intercom/stations/{station_id}/credentials")
+def station_credentials(request: Request, principal: Principal = Depends(_credentials_admin), conn: sqlite3.Connection = Depends(get_conn), station_id: str = Path(min_length=1, max_length=MAX_STATION_ID)) -> dict[str, Any]:
+    """Whether the station has its own credentials, whether the shared default is set, and which one applies."""
+    return wiskey_camera.status(conn, settings_of(request), station_id)
+
+
+@router.put("/intercom/stations/{station_id}/credentials")
+def set_station_credentials(
+    request: Request,
+    principal: Principal = Depends(_credentials_admin),
+    conn: sqlite3.Connection = Depends(get_conn),
+    station_id: str = Path(min_length=1, max_length=MAX_STATION_ID),
+    raw: bytes = Depends(_credentials_body),
+) -> dict[str, Any]:
+    body = _parse_credentials(conn, principal, request, station_id, raw)
+    replaced = wiskey_camera.set_override(conn, station_id, body.username, body.password, principal.user_id)
+    _drop_still(request, station_id)
+    audit(conn, actor=principal, action="intercom.credentials.set", decision="allowed", resource_type="intercom_station", resource_id=station_id,
+          request_id=getattr(request.state, "correlation_id", None), details={"replaced": replaced})
+    return wiskey_camera.status(conn, settings_of(request), station_id)
+
+
+@router.delete("/intercom/stations/{station_id}/credentials")
+def clear_station_credentials(request: Request, principal: Principal = Depends(_credentials_admin), conn: sqlite3.Connection = Depends(get_conn), station_id: str = Path(min_length=1, max_length=MAX_STATION_ID)) -> dict[str, Any]:
+    removed = wiskey_camera.clear_override(conn, station_id)
+    _drop_still(request, station_id)
+    audit(conn, actor=principal, action="intercom.credentials.clear", decision="allowed", resource_type="intercom_station", resource_id=station_id,
+          request_id=getattr(request.state, "correlation_id", None), details={"removed": removed})
+    return wiskey_camera.status(conn, settings_of(request), station_id)
 
 
 # ---------------------------------------------------------------- physical actions (access.release)

@@ -29,6 +29,10 @@ class Settings:
     nvr_rtsp_port: int = 554
     go2rtc_user: str | None = None
     go2rtc_password: str | None = None
+    # WisKey door stations' own RTSP account, shared by every station (owner decision 2026-09-28); a station that needs
+    # another one gets a per-station override (wiskey_station_credentials table). Server-side only, like nvr_password.
+    wiskey_user: str | None = None
+    wiskey_password: str | None = None
     max_upload_bytes: int = 40 * 1024 * 1024
     max_pdf_pages: int = 20
     max_render_px: int = 3000
@@ -95,6 +99,8 @@ def load_settings(options_file: str | os.PathLike | None = None) -> Settings:
         nvr_rtsp_port=int(_opt(options, "nvr_rtsp_port", "NVR_RTSP_PORT", "554") or 554),
         go2rtc_user=_opt(options, "go2rtc_api_username", "GO2RTC_API_USER"),
         go2rtc_password=_opt(options, "go2rtc_api_password", "GO2RTC_API_PASSWORD"),
+        wiskey_user=_opt(options, "wiskey_username", "WISKEY_USER"),
+        wiskey_password=_opt(options, "wiskey_password", "WISKEY_PASSWORD"),
         # Home Assistant Core API: the Supervisor injects SUPERVISOR_TOKEN when config.yaml sets homeassistant_api;
         # never taken from the options file (no user token is stored in options).
         ha_url=("http://supervisor/core" if os.environ.get("SUPERVISOR_TOKEN") else (os.environ.get("HA_URL") or None)),
