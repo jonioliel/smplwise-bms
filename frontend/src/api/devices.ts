@@ -3,7 +3,7 @@
  * counts, the building-wide counts and one area's per-domain cards. Projections of the synced HA catalogue; a state
  * change arrives through the existing /ha/ws push (api/ha.ts subscribeHa) and the screens refetch.
  */
-import { get } from './client';
+import { get, post } from './client';
 import type { HaSyncState } from './ha';
 
 export interface DeviceCounts {
@@ -149,6 +149,16 @@ export interface DeviceAreaDetail {
 }
 
 export const getDevicesTree = () => get<DeviceTree>('devices/tree');
+
+/** "רענן מ-Home Assistant" (CR-007 HA refresh): re-read HA's entity / device / area / floor registries now.
+ * `devices.read`; one per user per 10 s (429 `refresh_rate_limited`, details.retry_after_s); 503 while HA is not
+ * connected. The open screens also receive the `structure_changed` push when something moved. */
+export interface DevicesRefreshResult {
+  changed: boolean;
+  last_registry_at: string | null;
+  sync: HaSyncState;
+}
+export const refreshDevicesFromHa = () => post<DevicesRefreshResult>('devices/refresh');
 export const getDevicesArea = (areaId: string) => get<DeviceAreaDetail>(`devices/areas/${encodeURIComponent(areaId)}`);
 
 /** Per-card empty state, our own wording following the same idea as DomusUI's empty sections (extraction §3.4):

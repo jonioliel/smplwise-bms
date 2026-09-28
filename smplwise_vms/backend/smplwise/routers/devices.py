@@ -20,7 +20,10 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import math
 import sqlite3
+import threading
+import time
 import uuid
 from typing import Any, Literal
 
@@ -103,6 +106,29 @@ def area(area_id: str, principal: Principal = Depends(current_principal_ro), con
                 r["bulk_safe"], r["bulk_reason"] = ok, reason
     body["sync"] = ha_sync.STATE.as_dict()
     return body
+
+
+REFRESH_EVERY_S = 10.0  # per user: the button is a nudge, not a poll
+_refresh_lock = threading.Lock()
+_last_refresh: dict[str, float] = {}
+
+
+@router.post("/devices/refresh")
+def refresh_from_ha(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """"רענן מ-Home Assistant": re-read HA's entity / device / area / floor registries now instead of waiting for the
+    next registry event or the periodic refresh (CR-007 HA refresh). Read-only towards HA - the same listings the sync
+    runs on its own - so `devices.read` anywhere is enough; one per user per REFRESH_EVERY_S (429 with
+    `retry_after_s`). Open screens learn of a change through the `structure_changed` push like any other refresh."""
+    ha_scope.scoped_rows(conn, principal, READ, [])  # 403 without devices.read anywhere
+    now = time.monotonic()
+    with _refresh_lock:
+        last = _last_refresh.get(principal.user_id)
+        if last is not None and now - last < REFRESH_EVERY_S:
+            wait = max(1, math.ceil(REFRESH_EVERY_S - (now - last)))
+            raise ApiError(429, "refresh_rate_limited", f"הרענון האחרון היה לפני רגע; אפשר לרענן שוב בעוד {wait} שניות.", retryable=True, details={"retry_after_s": wait})
+        _last_refresh[principal.user_id] = now
+    result = ha_sync.SYNC.refresh_now()
+    return {**result, "sync": ha_sync.STATE.as_dict()}
 
 
 class BulkSafeBody(BaseModel):

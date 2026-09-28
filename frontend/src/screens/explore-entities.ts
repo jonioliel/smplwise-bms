@@ -150,6 +150,7 @@ export class ExploreEntities extends LitElement {
           }
         } else if (m.type === 'heartbeat') this.sync = m.sync;
         else if (m.type === 'ha_sync_state' && this.sync) this.sync = { ...this.sync, connected: m.connected };
+        else if (m.type === 'structure_changed') void this.load(); // CR-007 HA refresh: area / floor names and new entities
       });
     }
   }

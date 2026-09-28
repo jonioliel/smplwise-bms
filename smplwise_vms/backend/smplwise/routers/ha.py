@@ -302,15 +302,21 @@ def dev_registry(body: DevRegistryIn, request: Request, principal: Principal = D
             raise ApiError(422, "validation_error", "לכל קומה נדרש floor_id.")
     maps = ha_client.registry_maps(body.entities, body.devices, body.areas, body.floors)
     maps = {k: v for k, v in maps.items() if k.split(".", 1)[0] not in ha_sync.STATE_DOMAINS_SKIP}
+    before = ha_sync.mirror_fingerprint(conn)
     n = ha_sync.apply_registry(conn, maps)
     ha_sync.apply_structure(conn, body.areas, body.floors)
     from ..services import device_bulk  # as the sync's own refresh: a mark never outlives its entity
 
     device_bulk.clear_stale_marks(conn, set(maps))
+    changed = ha_sync.mirror_fingerprint(conn) != before
     ha_sync.STATE.last_registry_at = now_iso()
+    if changed:
+        ha_sync.STATE.last_structure_at = ha_sync.STATE.last_registry_at
     audit(conn, actor=principal, action="ha.dev.registry", decision="allowed", resource_type="installation", resource_id="*", request_id=getattr(request.state, "correlation_id", None),
           details={"entities": n, "areas": len(body.areas), "floors": len(body.floors)})
-    return {"entities": n, "areas": len(body.areas), "floors": len(body.floors)}
+    if changed:  # the same notice the sync's refresh sends; as /ha/dev/states, the screens' refetch window covers the commit
+        ha_sync.publish({"type": "structure_changed", "reason": "dev", "changed": True, "last_registry_at": ha_sync.STATE.last_registry_at})
+    return {"entities": n, "areas": len(body.areas), "floors": len(body.floors), "changed": changed}
 
 
 # ---------------------------------------------------------------- bridge pairing + directory (integration side)

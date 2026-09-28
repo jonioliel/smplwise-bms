@@ -2,8 +2,14 @@
 the REAL SMPLWISE backend - the real POST /ha/entities/{id}/actions route with its permission gate, allow-list,
 validation, bridge signing, audit and confirmation poll - whose only fake is Home Assistant's side of the bridge.
 No real Home Assistant can be reached from this process: HA_URL is forced to a `.test` host (a reserved name that never
-resolves), the HA WebSocket refuses to connect (the sync just keeps retrying), and every REST call to that host is
-answered here; it refuses to start inside the add-on.
+resolves), the HA WebSocket is an in-process fake (below), and every REST call to that host is answered here; it
+refuses to start inside the add-on.
+
+The fake HA WebSocket (CR-007 HA refresh): the backend's real HA sync connects to it, lists its registries and
+subscribes to `state_changed` and the registry-updated events. Its registries are whatever the spec last seeded via
+`POST /ha/dev/registry`; a small control server (127.0.0.1, SW_FAKE_HA_CONTROL_PORT, default SW_PORT + 1) moves an
+entity to another area the way HA's UI does and sends HA's `entity_registry_updated` event (or, `silent`, does not -
+the manual refresh case). No states are listed: the spec seeds them through `POST /ha/dev/states` as before.
 
 What the fake bridge does with `POST /api/services/smplwise_bridge/execute` (the add-on's only write path to HA):
 - refuses a (domain, service) that is not in the bridge integration's own ALLOWED_SERVICES (read from
@@ -30,11 +36,13 @@ then, from frontend/ (`npm run build` first):
 from __future__ import annotations
 
 import ast
+import asyncio
 import json
 import os
 import sys
 import threading
 import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
@@ -154,11 +162,165 @@ def handle_request(self: httpx.HTTPTransport, request: httpx.Request) -> httpx.R
 httpx.HTTPTransport.handle_request = handle_request  # type: ignore[method-assign]
 
 
-def _refuse_ws(url: str, **_kw: Any) -> Any:
+class _World:
+    """Home Assistant's registries as far as the fake WebSocket tells them. They follow whatever the spec last seeded
+    through the backend's own `POST /ha/dev/registry` ("HA's registry is now this" - see `_registry_maps`), so the real
+    sync's refreshes never undo a seed; the control server then changes them the way a user does in HA's UI."""
+
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.entities: list[dict[str, Any]] = []
+        self.devices: list[dict[str, Any]] = []
+        self.areas: list[dict[str, Any]] = []
+        self.floors: list[dict[str, Any]] = []
+        self.sockets: list[_FakeSocket] = []
+
+    def listing(self, kind: str) -> list[dict[str, Any]]:
+        with self.lock:
+            return json.loads(json.dumps(getattr(self, kind)))
+
+    def emit(self, event_type: str, data: dict[str, Any]) -> int:
+        with self.lock:
+            sockets = list(self.sockets)
+        n = 0
+        for s in sockets:
+            n += s.deliver(event_type, data)
+        return n
+
+
+WORLD = _World()
+
+
+class _FakeSocket:
+    """The HA WebSocket API as the sync uses it: auth, get_config, get_states, subscribe_events and the four registry
+    listings. Registry-updated events are delivered to the subscriptions that asked for them."""
+
+    def __init__(self) -> None:
+        self.inbox: asyncio.Queue[str] = asyncio.Queue()
+        self.loop = asyncio.get_running_loop()
+        self.subs: dict[int, str] = {}
+
+    async def __aenter__(self) -> "_FakeSocket":
+        self.inbox.put_nowait(json.dumps({"type": "auth_required", "ha_version": "fake"}))
+        with WORLD.lock:
+            WORLD.sockets.append(self)
+        return self
+
+    async def __aexit__(self, *_exc: Any) -> None:
+        with WORLD.lock:
+            if self in WORLD.sockets:
+                WORLD.sockets.remove(self)
+
+    async def send(self, raw: str) -> None:
+        msg = json.loads(raw)
+        if msg.get("type") == "auth":
+            self.inbox.put_nowait(json.dumps({"type": "auth_ok", "ha_version": "fake"}))
+            return
+        mid, kind = msg.get("id"), msg.get("type")
+        listings = {"config/entity_registry/list": "entities", "config/device_registry/list": "devices", "config/area_registry/list": "areas", "config/floor_registry/list": "floors"}
+        if kind == "get_config":
+            result: Any = {"version": "fake-2026.9"}
+        elif kind == "get_states":
+            result = []  # the spec seeds states through /ha/dev/states
+        elif kind == "subscribe_events":
+            self.subs[mid] = msg.get("event_type") or "*"
+            result = None
+        elif kind in listings:
+            result = WORLD.listing(listings[kind])
+        else:
+            self.inbox.put_nowait(json.dumps({"id": mid, "type": "result", "success": False, "error": {"code": "unknown_command"}}))
+            return
+        self.inbox.put_nowait(json.dumps({"id": mid, "type": "result", "success": True, "result": result}))
+
+    def deliver(self, event_type: str, data: dict[str, Any]) -> int:
+        n = 0
+        for sid, et in self.subs.items():
+            if et in (event_type, "*"):
+                frame = json.dumps({"id": sid, "type": "event", "event": {"event_type": event_type, "data": data}})
+                self.loop.call_soon_threadsafe(self.inbox.put_nowait, frame)
+                n += 1
+        return n
+
+    async def recv(self) -> str:
+        return await self.inbox.get()
+
+    def __aiter__(self) -> "_FakeSocket":
+        return self
+
+    async def __anext__(self) -> str:
+        return await self.inbox.get()
+
+
+def _connect(url: str, **_kw: Any) -> Any:
+    # only the HA sync gets the fake Home Assistant; the WisKey (intercom) feed, which rides the same HA socket in
+    # production, keeps finding no Home Assistant here, as before
+    if threading.current_thread().name == "ha-sync":
+        return _FakeSocket()
     raise OSError(f"devices_fake_ha: no Home Assistant WebSocket here ({url})")
 
 
-websockets.connect = _refuse_ws  # type: ignore[assignment]
+websockets.connect = _connect  # type: ignore[assignment]
+
+from smplwise.services import ha_client  # noqa: E402
+
+_real_registry_maps = ha_client.registry_maps
+
+
+def _registry_maps(entities: list[dict[str, Any]], devices: list[dict[str, Any]], areas: list[dict[str, Any]], floors: list[dict[str, Any]]) -> dict[str, Any]:
+    """Every registry the backend maps becomes the fake HA's registry: the dev seed sets it, and the sync's own refresh
+    maps exactly what the fake just listed (so recording it again changes nothing)."""
+    with WORLD.lock:
+        WORLD.entities, WORLD.devices = json.loads(json.dumps(entities)), json.loads(json.dumps(devices))
+        WORLD.areas, WORLD.floors = json.loads(json.dumps(areas)), json.loads(json.dumps(floors))
+    return _real_registry_maps(entities, devices, areas, floors)
+
+
+ha_client.registry_maps = _registry_maps  # type: ignore[assignment]
+
+
+class _Control(BaseHTTPRequestHandler):
+    """The spec's hand on Home Assistant's UI, on 127.0.0.1 only:
+    POST /move {entity_id, area_id, silent?} - the entity is moved to another area in HA's entity registry; unless
+    `silent`, HA's `entity_registry_updated` event goes out on every subscribed socket (silent = the event was missed,
+    which only the manual refresh or the periodic one then catches). GET /status - sockets and subscriptions."""
+
+    def log_message(self, *_args: Any) -> None:
+        return
+
+    def _reply(self, code: int, body: dict[str, Any]) -> None:
+        raw = json.dumps(body).encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
+
+    def do_GET(self) -> None:  # noqa: N802
+        with WORLD.lock:
+            self._reply(200, {"sockets": len(WORLD.sockets), "subscriptions": sorted({et for s in WORLD.sockets for et in s.subs.values()})})
+
+    def do_POST(self) -> None:  # noqa: N802
+        body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+        if self.path != "/move" or not isinstance(body.get("entity_id"), str):
+            self._reply(404, {"error": "unknown"})
+            return
+        eid, area = body["entity_id"], body.get("area_id")
+        with WORLD.lock:
+            entry = next((e for e in WORLD.entities if e.get("entity_id") == eid), None)
+            if entry is None:
+                entry = {"entity_id": eid}
+                WORLD.entities.append(entry)
+            old = entry.get("area_id")
+            entry["area_id"] = area
+        delivered = 0 if body.get("silent") else WORLD.emit("entity_registry_updated", {"action": "update", "entity_id": eid, "changes": {"area_id": old}})
+        self._reply(200, {"ok": True, "delivered": delivered})
+
+
+def _serve_control() -> None:
+    port = int(os.environ.get("SW_FAKE_HA_CONTROL_PORT", str(PORT + 1)))
+    server = ThreadingHTTPServer(("127.0.0.1", port), _Control)
+    print(f"devices_fake_ha: fake Home Assistant control on http://127.0.0.1:{port}", flush=True)
+    server.serve_forever()
 
 
 def _pair() -> None:
@@ -182,6 +344,7 @@ def _pair() -> None:
 
 def main() -> None:
     threading.Thread(target=_pair, name="devices-fixture-pair", daemon=True).start()
+    threading.Thread(target=_serve_control, name="devices-fixture-control", daemon=True).start()
     print(f"devices_fake_ha: fake bridge for {len(ALLOWED)} allow-listed services; backend on {BASE}", flush=True)
     from smplwise.__main__ import main as serve
 

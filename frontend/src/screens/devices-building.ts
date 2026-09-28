@@ -14,7 +14,7 @@ import type { IconName } from '../components/sw-icon';
 import { canAnywhere, isApi } from '../api/session';
 import { ApiError, describeError } from '../api/client';
 import { subscribeHa, type HaSyncState } from '../api/ha';
-import { ALARM_HE, getDevicesTree, type DeviceArea, type DeviceCounts, type DeviceFloor, type DeviceTree } from '../api/devices';
+import { ALARM_HE, getDevicesTree, refreshDevicesFromHa, type DeviceArea, type DeviceCounts, type DeviceFloor, type DeviceTree } from '../api/devices';
 import { bidi, ltrNum } from '../i18n/bidi';
 import type { BulkKind } from '../api/device-bulk';
 import type { BulkRequest, DevicesBulkDialog } from './devices-bulk';
@@ -24,6 +24,23 @@ import type { BulkRequest, DevicesBulkDialog } from './devices-bulk';
  * several times a second therefore refreshes about every REFRESH_WINDOW_MS instead of never (a resetting debounce
  * would starve - review finding). */
 export const REFRESH_WINDOW_MS = 400;
+/** How long "מבנה עודכן" stays up after a structure change refetched the screen (CR-007 HA refresh). */
+export const STRUCTURE_FLASH_MS = 4000;
+
+/** "עודכן לפני …" for the last registry refresh: seconds under a minute, then minutes, hours, else the date. */
+export function registryAgo(iso: string | null | undefined, now: number = Date.now()): string {
+  if (!iso) return 'המבנה טרם נטען מ־Home Assistant';
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return '';
+  const s = Math.max(0, Math.round((now - t) / 1000));
+  if (s < 10) return 'המבנה עודכן עכשיו';
+  if (s < 60) return `המבנה עודכן לפני ${s} שניות`;
+  const m = Math.round(s / 60);
+  if (m < 60) return m === 1 ? 'המבנה עודכן לפני דקה' : `המבנה עודכן לפני ${m} דקות`;
+  const h = Math.round(m / 60);
+  if (h < 24) return h === 1 ? 'המבנה עודכן לפני שעה' : `המבנה עודכן לפני ${h} שעות`;
+  return `המבנה עודכן ב־${new Date(t).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })}`;
+}
 
 /** What a tile / floor row shows for each kind that exists there: icon, "on/total", and whether "on" is the warm state. */
 export interface CountPill {
@@ -140,6 +157,15 @@ export class DevicesBuilding extends LitElement {
   @state() private layout: BuildingLayout = readLayout();
   /** The tree's selection in the cards layout: every floor, or one floor id. */
   @state() private selected = 'all';
+  /** CR-007 HA refresh: "מבנה עודכן" shown for a few seconds after a structure_changed push refetched the tree. */
+  @state() private structureFlash = false;
+  /** The manual "רענן מ-Home Assistant" request in flight, and its outcome line (error / "no change"). */
+  @state() private refreshing = false;
+  @state() private refreshNote = '';
+  /** Re-renders the "עודכן לפני …" line while nothing else changes. */
+  @state() private tick = 0;
+  private flashTimer = 0;
+  private tickTimer = 0;
 
   private setLayout(l: BuildingLayout) {
     this.layout = l;
@@ -167,6 +193,16 @@ export class DevicesBuilding extends LitElement {
   static styles = css`
     :host {
       display: block;
+    }
+    .ha-refresh {
+      display: inline-flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .ha-refresh .refreshed {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
     }
     .kpis {
       display: grid;
@@ -590,10 +626,15 @@ export class DevicesBuilding extends LitElement {
       return;
     }
     void this.load();
+    this.tickTimer = window.setInterval(() => (this.tick += 1), 15_000);
     this.stop = subscribeHa(
       (m) => {
         if (m.type === 'entity_state_changed') this.scheduleReload();
-        else if (m.type === 'ha_sync_state') {
+        else if (m.type === 'structure_changed') {
+          // an entity moved / an area renamed / a device added or removed in HA: same throttled refetch, plus a note
+          this.scheduleReload();
+          this.flashStructure();
+        } else if (m.type === 'ha_sync_state') {
           if (this.sync) this.sync = { ...this.sync, connected: m.connected };
           this.scheduleReload();
         } else if (m.type === 'heartbeat') this.sync = m.sync;
@@ -610,6 +651,34 @@ export class DevicesBuilding extends LitElement {
     this.stop = null;
     window.clearTimeout(this.timer);
     this.timer = 0;
+    window.clearTimeout(this.flashTimer);
+    window.clearInterval(this.tickTimer);
+    this.flashTimer = this.tickTimer = 0;
+  }
+
+  private flashStructure() {
+    this.structureFlash = true;
+    window.clearTimeout(this.flashTimer);
+    this.flashTimer = window.setTimeout(() => (this.structureFlash = false), STRUCTURE_FLASH_MS);
+  }
+
+  /** "רענן מ-Home Assistant": the server re-reads HA's registries; a change also arrives as structure_changed, but the
+   * tree is refetched here anyway so the answer never depends on the push socket being up. */
+  private async refreshFromHa() {
+    if (this.refreshing) return;
+    this.refreshing = true;
+    this.refreshNote = '';
+    try {
+      const r = await refreshDevicesFromHa();
+      this.sync = r.sync;
+      if (r.changed) this.flashStructure();
+      else this.refreshNote = 'אין שינויים במבנה';
+      await this.load();
+    } catch (err) {
+      this.refreshNote = describeError(err);
+    } finally {
+      this.refreshing = false;
+    }
   }
 
   private scheduleReload() {
@@ -663,6 +732,7 @@ export class DevicesBuilding extends LitElement {
       <div slot="actions">
         ${t.scoped ? html`<sw-badge kind="partial" label="לפי הקומות שלך"></sw-badge>` : nothing}
         ${isApi() ? html`<sw-badge data-devices-sync kind=${connected ? 'live' : 'stale'} label=${connected ? 'מסונכרן עם Home Assistant' : 'לא מסונכרן עם Home Assistant'}></sw-badge>` : nothing}
+        ${isApi() ? this.renderRefresh() : nothing}
       </div>
       ${this.error ? html`<sw-state-panel compact state="error" heading="הרענון האחרון נכשל" hint=${this.error}></sw-state-panel>` : nothing}
       ${this.renderKpis(t.building)}
@@ -689,6 +759,19 @@ export class DevicesBuilding extends LitElement {
         : 'תצוגה לקריאה בלבד: מצב ההתקנים כפי ש־Home Assistant מדווח אותו. שליטה בהתקן בודד - במסך האזור.'}</div>
       ${this.bulkAllowed ? html`<devices-bulk-dialog @bulk-done=${() => void this.load()}></devices-bulk-dialog>` : nothing}
     </sw-page>`;
+  }
+
+  /** CR-007 HA refresh: the manual refresh, when the structure was last read from HA, and "מבנה עודכן" after a change. */
+  private renderRefresh() {
+    void this.tick; // re-rendered every 15 s so the "לפני …" line keeps up
+    return html`<span class="ha-refresh">
+      ${this.structureFlash ? html`<sw-badge data-structure-changed kind="live" label="מבנה עודכן"></sw-badge>` : nothing}
+      <sw-button size="sm" icon="refresh" data-devices-refresh ?disabled=${this.refreshing} @click=${() => void this.refreshFromHa()}
+        >${this.refreshing ? 'מרענן…' : 'רענן מ־Home Assistant'}</sw-button
+      >
+      <span class="refreshed" data-devices-refreshed>${registryAgo(this.sync?.last_registry_at)}</span>
+      ${this.refreshNote ? html`<span class="refreshed" role="status" data-devices-refresh-note>${this.refreshNote}</span>` : nothing}
+    </span>`;
   }
 
   /** The slice-1 presentation: floor sections with area tiles (the "⋯" popover on each tile for a bulk holder). */
