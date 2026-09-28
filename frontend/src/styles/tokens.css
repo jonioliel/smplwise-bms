@@ -82,6 +82,10 @@
   --sw-map-sky: #dfe9f7;
   --sw-map-sky-horizon: #f7f9fc;
   --sw-map-wall-3d: #d7dde6; /* the wall albedo of level 2 (map-structure is the 2D's ink; it returns on the cut caps) */
+  /* the state layer of the floor map (CR-006 1b): a lit room's warm tint, the presence blue that fades, the temperature chip's ink */
+  --sw-map-lit: #ffc857;
+  --sw-map-presence: #3b82f6;
+  --sw-map-temp: #1f3a5f;
   --sw-fov: rgba(47, 107, 255, 0.14);
 
   /* Typography */
@@ -184,6 +188,9 @@
   --sw-map-sky: #dbe7f8;
   --sw-map-sky-horizon: #f5f8fc;
   --sw-map-wall-3d: #d7dde6;
+  --sw-map-lit: #ffc857;
+  --sw-map-presence: #2767ed;
+  --sw-map-temp: #1e3a63;
   --sw-fov: rgba(39, 103, 237, 0.12);
   --sw-fs-xs: 11px;
   --sw-fs-sm: 12.5px;

@@ -801,4 +801,120 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
     }
     report(`PERF quality-2 screenshots ${shots}`);
   });
+
+  test('state layer (CR-006 1b): a lit room, presence and an open door tint the 2D and the 3D, the chips and dots follow, the level switch keeps the thumbnails, the toggle and the setting apply', async ({ page }, testInfo) => {
+    test.setTimeout(240_000);
+    const shots = process.env.SW_SHOT_DIR || path.resolve(HERE, '..', '..', 'private-evidence', 'plan-studio-5');
+    fs.mkdirSync(shots, { recursive: true });
+    type Q = { thumbnailScene: object | null; thumbnailCount: number; minFps: number };
+    type Layer = { rooms: Record<string, { lit: boolean; presence: boolean; presenceFade: number; openings: string[]; temperature: number | null }>; openOpenings: string[]; levels: Record<string, { presence: number; open: boolean; lit: boolean }> };
+    // the room around the lamp (0.2, 0.2) and the door dr (the north wall at y = 0.1, x = 0.5): its polygon reaches the wall
+    const zone = (await (await api.post(`api/v1/floors/${ids.floor}/zones`, { data: { name: 'חדר המנורה', kind: 'room', polygon: [{ x: 0.1, y: 0.1 }, { x: 0.55, y: 0.1 }, { x: 0.55, y: 0.5 }, { x: 0.1, y: 0.5 }] } })).json()) as { id: string }; // the circuit lamp lk (0.6, 0.3) stays outside
+    expect(zone.id).toBeTruthy();
+    const MOTION = 'binary_sensor.p4_motion';
+    const TEMP = 'sensor.p4_temp';
+    expect((await api.post('api/v1/ha/dev/states', { data: { states: [
+      { entity_id: MOTION, state: 'on', attributes: { friendly_name: 'תנועה באולם', device_class: 'motion' } },
+      { entity_id: TEMP, state: '21.5', attributes: { friendly_name: 'טמפרטורת האולם', device_class: 'temperature', unit_of_measurement: '°C' } },
+      { entity_id: ENTITIES.lock, state: 'open' }, { entity_id: ENTITIES.lamp, state: 'on' },
+    ] } })).status()).toBe(200);
+    const motionAnchor = (await (await api.post(`api/v1/floors/${ids.floor}/anchors`, { data: { resource_type: 'ha_entity', resource_id: MOTION, x: 0.3, y: 0.3, rotation_degrees: 0, field_of_view_degrees: null } })).json()).id as string;
+    const tempAnchor = (await (await api.post(`api/v1/floors/${ids.floor}/anchors`, { data: { resource_type: 'ha_entity', resource_id: TEMP, x: 0.4, y: 0.4, rotation_degrees: 0, field_of_view_degrees: null } })).json()).id as string;
+    expect(motionAnchor && tempAnchor).toBeTruthy();
+    await connectedHa(page, ids.floor);
+    await page.goto('about:blank');
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
+    const host = page.locator(HOST);
+    const canvas = host.locator('sw-plan-canvas');
+    // 2D: the lit tint on the zone, the presence tint at full weight (the sensor is on), the chip, the open-door marker
+    const lit = canvas.locator(`[data-room-tint="lit"][data-zone-id="${zone.id}"]`);
+    await expect(lit).toHaveCount(1, { timeout: 30000 });
+    await expect(canvas.locator(`[data-room-tint="presence-edge"][data-zone-id="${zone.id}"]`)).toHaveAttribute('data-fade', '1.000'); // lit + present: the edge band, no blue fill
+    await expect(canvas.locator('[data-room-tint="presence"]')).toHaveCount(0);
+    await expect(canvas.locator('[data-open-wedge="dr"]')).toHaveCount(1);
+    await expect(canvas.locator(`[data-room-temp="${zone.id}"] text`)).toHaveText('21.5°');
+    await expect(canvas.locator('[data-structure] [data-opening="dr"] [data-open-mark="dr"]')).toHaveCount(1);
+    await expect(canvas.locator('[data-open-mark]')).toHaveCount(1); // the window and the passage carry none
+    const layer = await host.evaluate((n) => (n as unknown as { roomStateLayer: Layer }).roomStateLayer);
+    expect(layer.rooms[zone.id]).toMatchObject({ lit: true, presence: true, presenceFade: 1, openings: ['dr'], temperature: 21.5 });
+    expect(layer.openOpenings).toEqual(['dr']);
+    expect(layer.levels.L0).toEqual({ presence: 1, open: true, lit: true });
+    await page.waitForTimeout(400);
+    await canvas.screenshot({ path: path.join(shots, 'plan-2d-state-layer.png') });
+    // the motion ends: the tint fades (the first step keeps the full weight of the 3-minute default window)
+    try {
+      expect((await api.post('api/v1/ha/dev/states', { data: { states: [{ entity_id: MOTION, state: 'off' }] } })).status()).toBe(200);
+      await expect.poll(async () => (await host.evaluate((n) => (n as unknown as { roomStateLayer: Layer }).roomStateLayer)).rooms[zone.id].presence, { timeout: 15000 }).toBe(false);
+      const faded = await host.evaluate((n) => (n as unknown as { roomStateLayer: Layer }).roomStateLayer);
+      expect(faded.rooms[zone.id].presenceFade).toBeGreaterThan(0); // the sensor went off a moment ago: still fading
+      expect(faded.rooms[zone.id].lit).toBe(true);
+      // 3D: the same layer as parts of the description (the tints, the frame of dr, the chip) and the dots on the strip
+      await expectEnabled(host.locator('[data-view-3d]'), 30000);
+      await host.locator('[data-view-3d]').click();
+      const el = host.locator('sw-plan-3d[data-floor-3d]');
+      await expect(el).toHaveAttribute('data-ready', '', { timeout: 60000 });
+      await el.evaluate((n) => { (n as unknown as Q).minFps = 0; });
+      let d = await describe3d(page, HOST);
+      const part = (id: string) => d.parts.find((p) => p.id === id);
+      expect(part(`room:${zone.id}#lit`)).toMatchObject({ kind: 'tint', color: 'map-lit' });
+      expect(part(`room:${zone.id}#presence-ring`)).toMatchObject({ kind: 'tint', color: 'map-presence' }); // lit: the ring, not the plate
+      expect(part(`room:${zone.id}#presence-ring`)!.opacity).toBeGreaterThan(0);
+      expect(part(`room:${zone.id}#presence`)).toBeUndefined();
+      expect(part(`room:${zone.id}#temp`)).toMatchObject({ kind: 'chip' });
+      await expect(el.locator(`[data-3d-chip="${zone.id}"]`)).toHaveText('21.5°');
+      expect(d.parts.filter((p) => p.id.startsWith('open:dr#')).map((p) => p.id)).toEqual(['open:dr#head', 'open:dr#j0', 'open:dr#j1']);
+      expect(d.parts.some((p) => p.id.startsWith('open:wn#'))).toBe(false);
+      const thumbs = el.locator('[data-3d-thumb]');
+      await expect(thumbs).toHaveCount(2);
+      await expect.poll(() => el.getAttribute('data-3d-thumbs')).toBe('2');
+      const dots = el.locator('[data-3d-dots="L0"]');
+      await expect(dots.locator('i[data-dot="open"]')).toHaveCount(1);
+      await expect(dots.locator('i[data-dot="lit"]')).toHaveCount(1);
+      await expect(dots.locator('i[data-dot="presence"]')).toHaveCount(1);
+      await expect(el.locator('[data-3d-dots="L1"]')).toHaveCount(0);
+      await page.waitForTimeout(600);
+      await el.screenshot({ path: path.join(shots, 'plan-3d-state-layer.png') });
+      // a level switch keeps the all-levels scene and the thumbnails (the strip is keyed without the level filter)
+      const before = await el.evaluate((n) => { const e = n as unknown as Q; (e.thumbnailScene as { __mark?: string }).__mark = 'kept'; return e.thumbnailCount; });
+      await thumbs.nth(1).click();
+      await expect(host.locator('[data-level-chip="L1"]')).toHaveAttribute('selected', '');
+      await expect.poll(async () => { d = await describe3d(page, HOST); return d.parts.every((p) => p.level_id === 'L1' || p.kind === 'connector'); }).toBe(true);
+      expect(await el.evaluate((n) => { const e = n as unknown as Q; return { mark: (e.thumbnailScene as { __mark?: string }).__mark ?? null, count: e.thumbnailCount }; })).toEqual({ mark: 'kept', count: before });
+      await thumbs.nth(1).click();
+      await expect(host.locator('[data-level-chip="all"]')).toHaveAttribute('selected', '');
+      // the lamp goes off: the lit tint leaves the 3D (the description follows the push), the open frame stays
+      expect((await api.post('api/v1/ha/dev/states', { data: { states: [{ entity_id: ENTITIES.lamp, state: 'off' }] } })).status()).toBe(200);
+      await expect.poll(async () => { d = await describe3d(page, HOST); return d.parts.some((p) => p.id === `room:${zone.id}#lit`); }, { timeout: 15000 }).toBe(false);
+      expect(d.parts.some((p) => p.id === 'open:dr#head')).toBe(true);
+      // the viewer's toggle: off removes the layer from both views and is remembered; on brings it back
+      await host.locator('[data-view-3d]').click();
+      await expect(canvas).toBeVisible();
+      await host.getByRole('button', { name: 'שכבות' }).click();
+      const toggle = host.locator('[data-layers-panel] sw-toggle[data-layer="states"]');
+      await expect(toggle).toHaveAttribute('checked', '');
+      await toggle.click();
+      await expect(canvas.locator('[data-room-tint], [data-room-temp], [data-open-mark]')).toHaveCount(0);
+      expect(await page.evaluate((f) => JSON.parse(localStorage.getItem(`sw.floor.layers.${f}`) ?? '[]') as string[], ids.floor)).toContain('-states');
+      await toggle.click();
+      await expect(canvas.locator('[data-open-mark="dr"]')).toHaveCount(1);
+      // the setting: "off" makes a sensor that went off tint nothing (the page reads it on load)
+      expect((await api.patch('api/v1/settings', { data: { 'plan.presence_fade': 'off' } })).status()).toBe(200);
+      await page.reload();
+      await expect(canvas.locator('[data-open-mark="dr"]')).toHaveCount(1, { timeout: 30000 });
+      await expect(canvas.locator(`[data-room-tint="presence"], [data-room-tint="presence-edge"]`)).toHaveCount(0);
+      expect((await host.evaluate((n) => (n as unknown as { roomStateLayer: Layer }).roomStateLayer)).rooms[zone.id].presenceFade).toBe(0);
+      // the settings screen offers the choice next to the quality level
+      await page.goto('/?design=a#/system/diagnostics');
+      await page.locator('system-diagnostics').getByText('וידאו ומדיה').first().click();
+      await expect(page.locator('system-diagnostics select[data-set-plan-presence-fade]')).toBeEnabled({ timeout: 30000 });
+      await expect(page.locator('system-diagnostics select[data-set-plan-presence-fade]')).toHaveValue('off');
+    } finally {
+      expect((await api.patch('api/v1/settings', { data: { 'plan.presence_fade': '3' } })).status()).toBe(200);
+      expect((await api.post('api/v1/ha/dev/states', { data: { states: [{ entity_id: ENTITIES.lock, state: 'locked' }, { entity_id: ENTITIES.lamp, state: 'off' }, { entity_id: MOTION, state: 'off' }] } })).status()).toBe(200);
+      expect((await api.delete(`api/v1/zones/${zone.id}`)).status()).toBe(204);
+      expect((await api.delete(`api/v1/map-anchors/${motionAnchor}`)).status()).toBe(204);
+      expect((await api.delete(`api/v1/map-anchors/${tempAnchor}`)).status()).toBe(204);
+    }
+    testInfo.annotations.push({ type: 'perf', description: `state-layer screenshots ${shots}` });
+  });
 });

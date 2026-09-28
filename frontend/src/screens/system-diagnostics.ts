@@ -559,6 +559,10 @@ export class SystemDiagnostics extends LitElement {
           <sw-field class="ctl"><select data-set-plan-quality ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('plan.quality', (e.target as HTMLSelectElement).value as '1' | '2')}>
             <option value="2" ?selected=${String(this.value('plan.quality') ?? '2') !== '1'}>מלאה — צללים, חומרים, חיתוך קירות</option><option value="1" ?selected=${String(this.value('plan.quality') ?? '2') === '1'}>סכמטית — שטוחה, בלי צללים</option>
           </select></sw-field></div>
+        <div class="row"><span class="lbl">דעיכת סימון תנועה במפה<span class="muted">חדר שזוהתה בו תנועה נצבע בכחול; הצבע דוהה במשך הזמן הזה אחרי שהתנועה פסקה (כבוי: רק בזמן התנועה)</span></span>
+          <sw-field class="ctl"><select data-set-plan-presence-fade ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('plan.presence_fade', (e.target as HTMLSelectElement).value)}>
+            ${[['off', 'כבוי — רק בזמן תנועה'], ['1', 'דקה'], ['2', '2 דקות'], ['3', '3 דקות'], ['5', '5 דקות'], ['10', '10 דקות'], ['15', '15 דקות'], ['30', '30 דקות'], ['60', 'שעה']].map(([v, l]) => html`<option value=${v} ?selected=${String(this.value('plan.presence_fade') ?? '3') === v}>${l}</option>`)}
+          </select></sw-field></div>
         <div class="row"><span class="lbl">הסתרת חיפוש AI<span class="muted">מסיר את הלשונית מהניווט; המסך עצמו נשאר זמין בכתובת</span></span>
           <sw-field class="ctl"><select data-set-hide-search ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.hide_search', (e.target as HTMLSelectElement).value)}>
             <option value="false" ?selected=${String(this.value('ui.hide_search') ?? 'false') !== 'true'}>מוצג</option><option value="true" ?selected=${String(this.value('ui.hide_search') ?? 'false') === 'true'}>מוסתר</option>
