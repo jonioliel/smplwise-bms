@@ -95,19 +95,26 @@ def test_delegated_site_admin_limits(settings):
     # refused: outside her scope, system roles, roles she does not hold, groups, roles off the allowlist
     assert c.post("/api/v1/access/bindings", json={"subject_kind": "user", "subject_id": "dev-dan", "role_id": "viewer", "scope_type": "floor", "scope_id": other_floor}, headers=s).status_code == 403
     assert c.post("/api/v1/access/bindings", json={"subject_kind": "user", "subject_id": "dev-dan", "role_id": "system_admin", "scope_type": "site", "scope_id": site}, headers=s).status_code in (403, 422)
-    assert c.post("/api/v1/access/bindings", json={"subject_kind": "group", "subject_id": grp, "role_id": "viewer", "scope_type": "floor", "scope_id": f3}, headers=s).json()["code"] == "delegation_groups"
+    assert c.post("/api/v1/access/bindings", json={"subject_kind": "group", "subject_id": grp, "role_id": "viewer", "scope_type": "floor", "scope_id": f3}, headers=s).json()["code"] == "delegation_group_scope", "an unanchored group is the system admin's"
     assert c.post("/api/v1/access/bindings", json={"subject_kind": "user", "subject_id": "dev-dan", "role_id": "site_admin", "scope_type": "floor", "scope_id": f3}, headers=s).json()["code"] == "role_not_delegable"
-    # a custom role above her own permissions cannot be delegated even when allowlisted; a delegable custom role within them can
-    big = c.post("/api/v1/access/roles", json={"name": "מגבה", "permissions": ["map.read"], "sensitive": ["nvr.config.write"], "delegable": True}).json()
-    esc = c.post("/api/v1/access/bindings", json={"subject_kind": "user", "subject_id": "dev-dan", "role_id": big["id"], "scope_type": "floor", "scope_id": f3}, headers=s)
-    assert esc.status_code == 403 and esc.json()["code"] == "delegation_escalation" and esc.json()["details"]["missing"] == ["nvr.config.write"]
+    # a custom role with a sensitive grant is never delegable (T082); one above her own permissions at that scope is
+    # refused even when allow-listed; a delegable custom role within them can be assigned
+    assert c.post("/api/v1/access/roles", json={"name": "מגבה", "permissions": ["map.read"], "sensitive": ["nvr.config.write"], "delegable": True}).json()["code"] == "sensitive_role_not_delegable"
+    big = c.post("/api/v1/access/roles", json={"name": "מגבה", "permissions": ["map.read"], "sensitive": ["nvr.config.write"]}).json()
+    assert c.put("/api/v1/access/delegation", json={"delegable_roles": ["viewer", "operator", big["id"]]}).json()["code"] == "sensitive_role_not_delegable"
+    esc_role = c.post("/api/v1/access/roles", json={"name": "צופה קומה", "permissions": ["map.read", "video.live"], "delegable": True}).json()
+    with app.state.db.connection() as conn:  # a deny of kiosk (map.read + video.live) for her on floor 3
+        conn.execute("INSERT INTO bindings(id, subject_kind, subject_id, role_id, scope_type, scope_id, effect, permission_revision, assigned_by, created_at) VALUES ('deny-sara', 'user', 'dev-sara', 'kiosk', 'floor', ?, 'deny', 1, 'test', '2026-01-01T00:00:00Z')", (f3,))
+    esc = c.post("/api/v1/access/bindings", json={"subject_kind": "user", "subject_id": "dev-dan", "role_id": esc_role["id"], "scope_type": "floor", "scope_id": f3}, headers=s)
+    assert esc.status_code == 403 and esc.json()["code"] == "delegation_escalation" and esc.json()["details"]["missing"] == ["map.read", "video.live"]
     small = c.post("/api/v1/access/roles", json={"name": "צופה אירועים", "permissions": ["map.read", "video.live", "events.read"], "delegable": True}).json()
     assert c.post("/api/v1/access/bindings", json={"subject_kind": "user", "subject_id": "dev-dan", "role_id": small["id"], "scope_type": "floor", "scope_id": f2}, headers=s).status_code == 201
     assert c.get("/api/v1/events", headers=as_user("dan")).status_code == 200, "floor 2 carries the camera, so the delegated role sees its events"
     assert c.get(f"/api/v1/floors/{f2}/map", headers=as_user("dan")).status_code == 200
     # the allowlist is a setting: remove operator → the next delegated assignment of operator is refused; system roles cannot be listed
     d = c.get("/api/v1/access/delegation").json()
-    assert set(d["delegable_roles"]) >= {"viewer", "operator", "editor", "kiosk", big["id"], small["id"]} and len(d["rules"]) == 5
+    assert set(d["delegable_roles"]) == {"viewer", "operator", esc_role["id"], small["id"]} and len(d["rules"]) == 5, "default allow-list: viewer + operator"
+    assert d["blocked"]["system_admin"] == "system_role" and d["blocked"]["site_admin"] == "system_role" and d["blocked"][big["id"]] == "sensitive_custom_role"
     assert c.put("/api/v1/access/delegation", json={"delegable_roles": ["viewer", "system_admin"]}).json()["code"] == "system_role_not_delegable"
     assert c.put("/api/v1/access/delegation", json={"delegable_roles": ["viewer"]}, headers=s).status_code == 403
     assert c.put("/api/v1/access/delegation", json={"delegable_roles": ["viewer"]}).status_code == 200
@@ -115,4 +122,4 @@ def test_delegated_site_admin_limits(settings):
     assert c.post("/api/v1/access/bindings", json={"subject_kind": "user", "subject_id": "dev-dan", "role_id": "viewer", "scope_type": "floor", "scope_id": f2}, headers=s).status_code == 201
     with app.state.db.connection() as conn:
         denied = {r[0] for r in conn.execute("SELECT reason FROM audit_log WHERE decision = 'denied' AND actor_username = 'sara'").fetchall()}
-    assert {"role_not_delegable", "delegation_escalation", "delegation_groups"} <= denied
+    assert {"role_not_delegable", "delegation_escalation", "delegation_group_scope"} <= denied

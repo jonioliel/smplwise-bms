@@ -145,21 +145,27 @@ def test_groups(settings):
     r = c.post("/api/v1/access/bindings", json={"subject_kind": "group", "subject_id": gid, "role_id": "editor", "scope_type": "floor", "scope_id": ids["floor2"]})
     assert r.status_code == 201 and r.json()["subject_name"] == "עורכי קומה 2"
     assert c.get(f"/api/v1/floors/{ids['floor2']}/map", headers=as_user("dana")).status_code == 403
-    r = c.put(f"/api/v1/access/groups/{gid}/members", json={"user_ids": ["dev-dana", "dev-yossi"]})
+    rev = c.get("/api/v1/access/groups").json()["groups"][0]["revision"]
+    r = c.put(f"/api/v1/access/groups/{gid}/members", json={"user_ids": ["dev-dana", "dev-yossi"], "revision": rev})
     assert r.status_code == 200 and {m["id"] for m in r.json()["members"]} == {"dev-dana", "dev-yossi"}
     assert c.get(f"/api/v1/floors/{ids['floor2']}/map", headers=as_user("dana")).status_code == 200
     assert c.get(f"/api/v1/floors/{ids['floor3']}/map", headers=as_user("dana")).status_code == 403
     users = {u["id"]: u for u in c.get("/api/v1/identity/users").json()["users"]}
     assert users["dev-dana"]["bindings"][0]["via_group"] == "עורכי קומה 2" and users["dev-dana"]["groups"][0]["id"] == gid
-    # removing a member takes effect at once; deleting the group revokes its bindings
-    assert c.put(f"/api/v1/access/groups/{gid}/members", json={"user_ids": ["dev-yossi"]}).status_code == 200
+    # removing a member takes effect at once; a group with members or bindings is not deleted (T082)
+    assert c.put(f"/api/v1/access/groups/{gid}/members", json={"user_ids": ["dev-yossi"], "revision": r.json()["revision"]}).status_code == 200
     assert c.get(f"/api/v1/floors/{ids['floor2']}/map", headers=as_user("dana")).status_code == 403
     assert c.get(f"/api/v1/floors/{ids['floor2']}/map", headers=as_user("yossi")).status_code == 200
-    assert c.delete(f"/api/v1/access/groups/{gid}").status_code == 200
+    d = c.delete(f"/api/v1/access/groups/{gid}")
+    assert d.status_code == 409 and d.json()["code"] == "group_in_use" and d.json()["details"] == {"members": 1, "bindings": 1}
+    g = c.get("/api/v1/access/groups").json()["groups"][0]
+    assert c.put(f"/api/v1/access/groups/{gid}/members", json={"user_ids": [], "revision": g["revision"]}).status_code == 200
     assert c.get(f"/api/v1/floors/{ids['floor2']}/map", headers=as_user("yossi")).status_code == 403
+    assert c.delete(f"/api/v1/access/bindings/{g['bindings'][0]['id']}").status_code == 200
+    assert c.delete(f"/api/v1/access/groups/{gid}").status_code == 200
     with app.state.db.connection() as conn:
         actions = [r[0] for r in conn.execute("SELECT action FROM audit_log WHERE action LIKE 'rbac.group%' ORDER BY rowid").fetchall()]
-    assert actions == ["rbac.group_create", "rbac.group_members", "rbac.group_members", "rbac.group_delete"]
+    assert actions == ["rbac.group_create", "rbac.group_members", "rbac.group_members", "rbac.group_members", "rbac.group_delete"]
     # audit listing for the admin
     rows = c.get("/api/v1/audit?prefix=rbac.&limit=10").json()["rows"]
     assert rows and rows[0]["action"] == "rbac.group_delete" and isinstance(rows[0]["details"], dict)
