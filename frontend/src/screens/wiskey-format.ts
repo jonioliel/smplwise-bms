@@ -1,8 +1,9 @@
 /**
  * Ported from the owner's WisKey frontend (home-assistant-hikvision-intercom, frontend/src): the zone-aware time
- * formatting of `time.ts` (`offsetAt`, `offsetLabel`, `formatTime`) and the Hebrew strings of `i18n.ts` that the
- * entry center uses. Kept verbatim in behaviour so SMPLWISE shows a WisKey instant exactly as WisKey does - in the
- * station's own clock zone (a device DST rule included), never with a fixed offset.
+ * formatting of `time.ts` (`offsetAt`, `offsetLabel`, `formatTime`, and the zone-aware `datetime-local` conversion
+ * `localInput` / `fromLocalInput` / `resolveLocalInput` the activity filters use) and the Hebrew strings of `i18n.ts`
+ * that the entry center and the activity log use. Kept verbatim in behaviour so SMPLWISE shows a WisKey instant exactly
+ * as WisKey does - in the station's own clock zone (a device DST rule included), never with a fixed offset.
  */
 import type { DisplayZone } from '../api/intercom';
 
@@ -59,7 +60,35 @@ export function formatTime(value: string | null | undefined, locale = 'he-IL', z
   }
 }
 
-/** WisKey's Hebrew strings for the entry center (i18n.ts `he`), keyed as in WisKey. */
+/** An instant as a `datetime-local` value (YYYY-MM-DDTHH:MM) in `zone` (WisKey time.ts `localInput`). */
+export function localInput(value: string | null | undefined, zone: DisplayZone = UTC_ZONE): string {
+  if (!value) return '';
+  const ms = Date.parse(value);
+  if (!Number.isFinite(ms)) return '';
+  return new Date(ms + offsetAt(ms, zone) * 1000).toISOString().slice(0, 16);
+}
+
+/** A `datetime-local` value typed in `zone` as an absolute ISO instant (WisKey time.ts `fromLocalInput`). Throws
+ * `clock_invalid_local`, `clock_ambiguous` (a wall time repeated at the end of DST) or `clock_nonexistent` (skipped at
+ * its start) - the i18n keys of the message to show; nothing is guessed. */
+export function fromLocalInput(value: string, zone: DisplayZone = UTC_ZONE): string | null {
+  if (!value) return null;
+  if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}$/.test(value)) throw new Error('clock_invalid_local');
+  const naive = Date.parse(value + ':00Z');
+  if (!Number.isFinite(naive) || new Date(naive).toISOString().slice(0, 16) !== value) throw new Error('clock_invalid_local');
+  const offsets = new Set([-172800, -86400, 0, 86400, 172800].map((delta) => offsetAt(naive + delta * 1000, zone)));
+  const candidates = [...offsets].map((offset) => new Date(naive - offset * 1000).toISOString()).filter((candidate) => localInput(candidate, zone) === value);
+  if (candidates.length !== 1) throw new Error(candidates.length ? 'clock_ambiguous' : 'clock_nonexistent');
+  return candidates[0];
+}
+
+/** Keep a known instant (including a DST fold) when its displayed input is unchanged (WisKey `resolveLocalInput`). */
+export function resolveLocalInput(value: string, zone: DisplayZone, known?: unknown): string | null {
+  if (typeof known === 'string' && localInput(known, zone) === value) return known;
+  return fromLocalInput(value, zone);
+}
+
+/** WisKey's Hebrew strings for the entry center and the activity log (i18n.ts `he`), keyed as in WisKey. */
 const HE: Record<string, string> = {
   wk4_entry_center: 'מרכז הכניסה',
   wk4_entry_intro: 'דלתות, אנשים ופעולות שדורשות תשומת לב',
@@ -126,6 +155,42 @@ const HE: Record<string, string> = {
   pin: 'קוד PIN',
   granted: 'אושר',
   denied: 'נדחה',
+  // activity log (events.ts)
+  wk4_nav_events: 'פעילות',
+  events_intro: 'איתור פעילות גישה לפי אדם, תחנה וזמן.',
+  refresh: 'רענון',
+  event_filters: 'סינון אירועים',
+  event_filters_active: 'מסננים שהוחלו',
+  event_filters_all: 'כל האירועים',
+  event_investigation_quick: 'חקירה מהירה',
+  event_quick_denied: 'כניסות שנדחו',
+  station: 'תחנה',
+  person: 'אדם / מזהה עובד',
+  result: 'תוצאה',
+  authentication: 'אמצעי זיהוי',
+  door: 'דלת',
+  all: 'הכול',
+  from_time: 'מתאריך',
+  until_time: 'עד תאריך',
+  filter: 'סינון',
+  clear_user_filters: 'ניקוי חיפוש ומסננים',
+  filters_not_applied: 'המסננים נערכו. יש להחיל אותם לעדכון התוצאות.',
+  clock_filter_basis: 'תאריכי הסינון לפי אזור זה',
+  loaded_records: 'רשומות שנטענו',
+  loading: 'טוען…',
+  load_more: 'טען עוד',
+  report_date: 'תאריך',
+  event_detail: 'פירוט האירוע',
+  event_type: 'סוג אירוע',
+  employee_no: 'מספר עובד',
+  removed_station: 'תחנה שהוסרה',
+  history_incomplete: 'שחזור ההיסטוריה אינו מלא. ייתכן שחסרות רשומות.',
+  audit_save_failed: 'לא ניתן לשמור היסטוריה. הרשומות החדשות נמצאות כרגע בזיכרון בלבד.',
+  events_load_failed: 'רענון האירועים לא הושלם. ייתכן שהרשומות שהוצגו קודם אינן מעודכנות; ניתן לרענן לאחר חידוש החיבור.',
+  clock_invalid_local: 'הזינו תאריך ושעה מקומיים תקינים.',
+  clock_ambiguous: 'השעה המקומית מופיעה פעמיים בסיום שעון הקיץ. בחרו שעה חד־משמעית.',
+  clock_nonexistent: 'השעה המקומית אינה קיימת בתחילת שעון הקיץ. בחרו שעה לפני שינוי השעון או אחריו.',
+  filter_zone_changed_invalid: 'אזור הזמן של הסינון השתנה והזמן בטיוטה אינו חד־משמעי או תקין. יש להזין מחדש את טווח התאריכים.',
 };
 
 /** WisKey's `translate`: a known key, else the key itself with underscores as spaces. */
