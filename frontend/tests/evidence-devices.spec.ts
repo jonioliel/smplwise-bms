@@ -168,8 +168,9 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     // nothing on this screen controls one device; the only buttons are the bulk actions (slice 3: the header buttons
     // and the "⋯" triggers, each of which opens the confirmation dialog - the admin holds devices.control_bulk)
     await expect(screen.locator('input, sw-toggle')).toHaveCount(0);
-    // (CR-007 HA refresh adds "רענן מ־Home Assistant", which re-reads HA's registries and controls no device)
-    await expect(screen.locator('sw-button:visible:not([data-bulk-kind]):not([data-bulk-trigger]):not([data-devices-refresh])')).toHaveCount(0);
+    // (CR-007 HA refresh adds "רענן מ־Home Assistant", which re-reads HA's registries and controls no device; 6b adds
+    // "ערוך פריסה" for a system.configure holder - the layout, not a device)
+    await expect(screen.locator('sw-button:visible:not([data-bulk-kind]):not([data-bulk-trigger]):not([data-devices-refresh]):not([data-layout-edit])')).toHaveCount(0);
     // a tile opens the area screen
     await lobby.click();
     await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/devices/areas/cr007_lobby');
@@ -1259,7 +1260,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
 
   // ------------------------------------------------ CR-007 slice 6a: הגדרות › חשמל והתקנים and the two styles
   // Installation-wide settings: every test restores the defaults (the specs run with one worker, in order).
-  const DEVICES_DEFAULTS = { 'devices.style': 'smplwise', 'devices.theme': 'default', 'devices.default_view': 'cards', 'devices.show_sensors': 'true', 'devices.show_climate_strip': 'true', 'devices.density': 'comfortable' };
+  const DEVICES_DEFAULTS = { 'devices.style': 'smplwise', 'devices.theme': 'default', 'devices.default_view': 'cards', 'devices.show_sensors': 'true', 'devices.show_climate_strip': 'true', 'devices.density': 'comfortable', 'devices.scheme': 'light' };
 
   async function devicesSettings(request: APIRequestContext, body: Record<string, string>) {
     const r = await request.patch('/api/v1/settings', { data: body });
@@ -1311,7 +1312,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await expect(sec).toHaveAttribute('heading', 'חשמל והתקנים');
       await expect(sec.locator('button[data-devices-swatch]')).toHaveCount(2);
       await expect(sec.locator('button[data-devices-swatch="smplwise"]')).toHaveAttribute('aria-pressed', 'true');
-      await expect(sec.locator('[data-devices-layout-next]')).toContainText('בשלב הבא');
+      await expect(sec.locator('[data-devices-layout-next]')).toContainText('ערוך פריסה');
       const navBefore = await navLook(page);
       expect(navBefore).not.toBe('');
       // the glass preview picks the style (the select follows), and "שמור" stores it for the installation
@@ -1517,6 +1518,443 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await ctx.close();
     } finally {
       for (const id of bindings) await request.delete(`/api/v1/access/bindings/${id}`).catch(() => {});
+      await devicesSettings(request, DEVICES_DEFAULTS);
+    }
+  });
+
+  // ------------------------------------------------ CR-007 slice 6b: the layout editor and the colour themes
+  // One layout per installation and screen (routers/device_layouts.py): every test starts from the automatic layout
+  // and resets what it stored in `finally`.
+  const LAYOUT_SCREENS = [['building', 'main'], ...AREAS.map((a) => ['area', a.area_id]), ['area', 'unassigned']] as const;
+
+  async function resetLayouts(request: APIRequestContext) {
+    for (const [scope, id] of LAYOUT_SCREENS) {
+      const r = await request.delete(`/api/v1/devices/layouts/${scope}/${id}`);
+      expect(r.status(), `reset ${scope}/${id}`).toBe(200);
+    }
+  }
+
+  async function layoutShot(page: Page, name: string) {
+    fs.mkdirSync(EVIDENCE, { recursive: true });
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: path.join(EVIDENCE, `devices-layout-${name}.png`), animations: 'disabled' });
+  }
+
+  /** An item's layout in edit mode: "x,y,w,h" in grid units. */
+  async function pos(item: Locator): Promise<{ x: number; y: number; w: number; h: number }> {
+    const [x, y, w, h] = ((await item.getAttribute('data-lay-pos')) ?? '').split(',').map(Number);
+    return { x, y, w, h };
+  }
+
+  /** The grid's column step (px) of a laid-out grid. */
+  async function colStep(grid: Locator, cols: number): Promise<number> {
+    return grid.evaluate((g, n) => (g.getBoundingClientRect().width + (parseFloat(getComputedStyle(g).columnGap) || 0)) / n, cols);
+  }
+
+  async function drag(page: Page, handle: Locator, dx: number, dy: number) {
+    const b = (await handle.boundingBox())!;
+    const x = b.x + b.width / 2;
+    const y = b.y + b.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    for (let i = 1; i <= 8; i++) await page.mouse.move(x + (dx * i) / 8, y + (dy * i) / 8);
+    await page.mouse.up();
+  }
+
+  test('6b: "ערוך פריסה" is offered only with system.configure, and a viewer\'s layout writes are refused by the server', async ({ page, browser, request }, testInfo) => {
+    test.setTimeout(180_000);
+    await seed(request);
+    await resetLayouts(request);
+    const user = `cr007lay${testInfo.project.name}`;
+    const bindings: string[] = [];
+    try {
+      // the administrator (system.configure from the session) sees the button on both screens
+      await open(page, '/devices/areas/cr007_lobby', 'a');
+      await expect(page.locator('devices-area sw-card[data-card="lighting"]')).toBeVisible({ timeout: 30000 });
+      await expect(page.locator('devices-area [data-layout-edit]')).toHaveCount(1);
+      await open(page, '/devices/building', 'a');
+      await expect(page.locator('devices-building a.tile[data-area="cr007_lobby"]')).toBeVisible({ timeout: 30000 });
+      await expect(page.locator('devices-building [data-layout-edit]')).toHaveCount(1);
+
+      bindings.push(await bindUser(request, user, 'viewer'));
+      const ctx = await browser.newContext({ extraHTTPHeaders: { 'X-SW-Dev-User': user } });
+      const p = await ctx.newPage();
+      await open(p, '/devices/areas/cr007_lobby', 'a');
+      await expect(p.locator('devices-area sw-card[data-card="lighting"]')).toBeVisible({ timeout: 30000 });
+      await expect(p.locator('devices-area [data-layout-edit]')).toHaveCount(0);
+      await open(p, '/devices/building', 'a');
+      await expect(p.locator('devices-building section[data-floor-card="cr007_ground"]')).toBeVisible({ timeout: 30000 }); // a fresh viewer: the cards view
+      await expect(p.locator('devices-building [data-layout-edit]')).toHaveCount(0);
+      // the viewer reads the layout (it is shown to everyone) but every write is refused
+      const got = await p.request.get('/api/v1/devices/layouts/area/cr007_lobby');
+      expect(got.status()).toBe(200);
+      expect((await got.json()).can_edit).toBe(false);
+      const layout = { v: 1, cols: 12, items: { 'card:lighting': { x: 0, y: 0, w: 12, h: 10 } } };
+      expect((await p.request.put('/api/v1/devices/layouts/area/cr007_lobby', { data: { variant: 'desktop', revision: 0, layout } })).status()).toBe(403);
+      expect((await p.request.delete('/api/v1/devices/layouts/area/cr007_lobby')).status()).toBe(403);
+      expect((await p.request.post('/api/v1/devices/layouts/area/cr007_lobby/copy-to-all-areas', { data: {} })).status()).toBe(403);
+      expect((await (await request.get('/api/v1/devices/layouts/area/cr007_lobby')).json()).desktop).toBeNull();
+      await ctx.close();
+    } finally {
+      for (const id of bindings) await request.delete(`/api/v1/access/bindings/${id}`).catch(() => {});
+      await resetLayouts(request);
+    }
+  });
+
+  test('6b: the area layout on a desktop - drag and resize on the 8 px grid, the side panel, the keyboard; saved for everyone; RTL start edge; reset', async ({ page, browser, request }, testInfo) => {
+    test.setTimeout(180_000);
+    test.skip(testInfo.project.name !== 'desktop', 'the desktop layout (the phone layout has its own test)');
+    await seed(request);
+    await resetLayouts(request);
+    await devicesSettings(request, DEVICES_DEFAULTS);
+    const user = 'cr007layreader';
+    const bindings: string[] = [];
+    try {
+      await open(page, '/devices/areas/cr007_lobby', 'a');
+      const a = page.locator('devices-area');
+      await expect(a.locator('sw-card[data-card="lighting"]')).toBeVisible({ timeout: 30000 });
+      await expect(a.locator('.lay-grid')).toHaveCount(0); // nothing stored: the automatic grid
+      await a.locator('[data-layout-edit]').click();
+      await expect(a.locator('[data-layout-bar]')).toBeVisible();
+      const grid = a.locator('.lay-grid[data-lay-cols="12"]');
+      await expect(grid).toHaveCount(1);
+      const light = a.locator('.lay-item[data-lay-key="card:lighting"]');
+      const p0 = await pos(light);
+      // the editor starts from what the automatic layout showed: the first card at the start edge, a third wide
+      expect(p0.x).toBe(0);
+      expect([3, 4]).toContain(p0.w); // 12 columns over the 3 or 4 automatic ones
+      // RTL: column 1 is the start edge - on the right
+      let gb = (await grid.boundingBox())!;
+      let lb = (await light.boundingBox())!;
+      expect(Math.abs(lb.x + lb.width - (gb.x + gb.width))).toBeLessThanOrEqual(2);
+      await layoutShot(page, 'edit-desktop');
+
+      // drag the card two columns toward the end (to the LEFT in RTL): x 0 -> 2; whatever it now covers moves down
+      const step = await colStep(grid, 12);
+      await drag(page, light.locator('[data-lay-handle]'), -2 * step, 0);
+      let p1 = await pos(light);
+      expect(p1.x).toBe(2);
+      expect(p1.y).toBe(p0.y);
+      // resize from the end corner: one column wider, 5 rows (40 px) taller - in grid units
+      await drag(page, light.locator('[data-lay-resize]'), -step, 40);
+      p1 = await pos(light);
+      expect(p1.w).toBe(p0.w + 1);
+      expect(p1.h).toBeGreaterThanOrEqual(p0.h + 4);
+      // no two cards overlap after the moves
+      const all = await a.locator('.lay-item').evaluateAll((els) => els.map((e) => e.getAttribute('data-lay-pos')!.split(',').map(Number)));
+      for (let i = 0; i < all.length; i++)
+        for (let j = i + 1; j < all.length; j++) {
+          const [ax, ay, aw, ah] = all[i];
+          const [bx, by, bw, bh] = all[j];
+          expect(ax < bx + bw && bx < ax + aw && ay < by + bh && by < ay + ah, `cards ${i} and ${j} overlap`).toBe(false);
+        }
+      // the keyboard: arrows move (ArrowRight = toward the start in RTL), Shift + arrows resize
+      await light.focus();
+      await page.keyboard.press('ArrowDown');
+      await page.keyboard.press('ArrowDown');
+      await page.keyboard.press('ArrowRight');
+      let p2 = await pos(light);
+      expect(p2).toEqual({ ...p1, x: p1.x - 1, y: p1.y + 2 });
+      await page.keyboard.press('Shift+ArrowLeft');
+      p2 = await pos(light);
+      expect(p2.w).toBe(p1.w + 1);
+      await expect(a.locator('[data-layout-live]')).toContainText(`רוחב ${p1.w + 1}`);
+
+      // the side panel: title, icon, text size, colours by role, hidden
+      const panel = a.locator('[data-layout-panel="card:lighting"]');
+      await expect(panel).toBeVisible();
+      await panel.locator('[data-layout-title]').fill('תאורה ראשית');
+      await panel.locator('[data-layout-icon]').selectOption('star');
+      await panel.locator('[data-layout-text="lg"]').click();
+      await panel.locator('[data-layout-bg="warm"]').click();
+      await panel.locator('[data-layout-border="accent"]').click();
+      await expect(panel.locator('[data-layout-bg="warm"]')).toHaveAttribute('aria-pressed', 'true');
+      await expect(panel.locator('[data-layout-bg]')).toHaveCount(8); // "none" + the seven roles; no free colour
+      await expect(panel.locator('input[type="color"]')).toHaveCount(0);
+      await layoutShot(page, 'panel-desktop');
+      const sensors = a.locator('.lay-item[data-lay-key="card:sensors"]');
+      await sensors.click();
+      await a.locator('[data-layout-panel="card:sensors"] [data-layout-hidden]').check();
+      await expect(sensors).toHaveClass(/lay-hidden/);
+
+      // save: one PUT, the editor closes, the layout is applied (grid units, never pixels)
+      const saved = page.waitForResponse((r) => r.url().includes('/api/v1/devices/layouts/area/cr007_lobby') && r.request().method() === 'PUT');
+      await a.locator('sw-button[data-layout-save]').click();
+      expect((await saved).status()).toBe(200);
+      await expect(a.locator('[data-layout-bar]')).toHaveCount(0);
+      const applied = a.locator('.lay-item[data-lay-key="card:lighting"]');
+      expect(await applied.evaluate((e) => (e as HTMLElement).style.gridColumn)).toBe(`${p2.x + 1} / span ${p2.w}`);
+      await expect(applied.locator('sw-card')).toHaveAttribute('heading', 'תאורה ראשית');
+      await expect(applied).toHaveAttribute('data-lay-bg', 'warm');
+      expect(await applied.locator('sw-card').evaluate((e) => getComputedStyle(e).backgroundImage)).toContain('gradient');
+      const scaled = await applied.locator('sw-card').evaluate((e) => parseFloat(getComputedStyle(e.shadowRoot!.querySelector('h3')!).fontSize));
+      const base = await a.locator('sw-card[data-card="climate"]').evaluate((e) => parseFloat(getComputedStyle(e.shadowRoot!.querySelector('h3')!).fontSize));
+      expect(scaled).toBeGreaterThan(base * 1.1);
+      await expect(a.locator('sw-card[data-card="sensors"]')).toHaveCount(0); // hidden for everyone
+      const rec = await (await request.get('/api/v1/devices/layouts/area/cr007_lobby')).json();
+      expect(rec.desktop.revision).toBe(1);
+      expect(rec.desktop.layout.items['card:lighting']).toMatchObject({ x: p2.x, w: p2.w, text: 'lg', bg: 'warm', border: 'accent', title: 'תאורה ראשית', icon: 'star' });
+
+      // persisted for another user: a viewer sees the same layout after a reload, and no editor
+      bindings.push(await bindUser(request, user, 'viewer'));
+      const ctx = await browser.newContext({ extraHTTPHeaders: { 'X-SW-Dev-User': user } });
+      const p = await ctx.newPage();
+      await open(p, '/devices/areas/cr007_lobby', 'a');
+      const va = p.locator('devices-area');
+      await expect(va.locator('.lay-item[data-lay-key="card:lighting"] sw-card')).toHaveAttribute('heading', 'תאורה ראשית', { timeout: 30000 });
+      await expect(va.locator('sw-card[data-card="sensors"]')).toHaveCount(0);
+      await expect(va.locator('[data-layout-edit]')).toHaveCount(0);
+      // an LTR viewer gets the mirror image of the same record: column 1 on the left
+      await p.evaluate(() => document.documentElement.setAttribute('dir', 'ltr'));
+      await p.waitForTimeout(300);
+      const vg = (await va.locator('.lay-grid').boundingBox())!;
+      const starts = va.locator('.lay-item').filter({ has: p.locator('sw-card') });
+      const atStart = await starts.evaluateAll((els) => els.filter((e) => (e as HTMLElement).style.gridColumn.startsWith('1 /')).map((e) => e.getAttribute('data-lay-key')));
+      expect(atStart.length).toBeGreaterThan(0);
+      const firstBox = (await va.locator(`.lay-item[data-lay-key="${atStart[0]}"]`).boundingBox())!;
+      expect(Math.abs(firstBox.x - vg.x)).toBeLessThanOrEqual(2);
+      await ctx.close();
+
+      // a stale editor is told so (409) and offered a reload, nothing is overwritten
+      await page.reload();
+      await page.waitForSelector('sw-app');
+      await expect(a.locator('.lay-item[data-lay-key="card:lighting"] sw-card')).toHaveAttribute('heading', 'תאורה ראשית', { timeout: 30000 });
+      await a.locator('[data-layout-edit]').click();
+      await a.locator('.lay-item[data-lay-key="card:lighting"]').focus();
+      await page.keyboard.press('ArrowDown');
+      const bump = await request.put('/api/v1/devices/layouts/area/cr007_lobby', { data: { variant: 'desktop', revision: 1, layout: rec.desktop.layout } });
+      expect(bump.status()).toBe(200);
+      await a.locator('sw-button[data-layout-save]').click();
+      await expect(a.locator('[data-layout-error]')).toContainText('מישהו אחר שמר');
+      await a.locator('[data-layout-error] sw-button[data-layout-reload]').click();
+      await expect(a.locator('[data-layout-bar]')).toHaveCount(0);
+
+      // "אפס לברירת מחדל": a confirmation, then the automatic grid again - for everyone
+      await a.locator('[data-layout-edit]').click();
+      await a.locator('sw-button[data-layout-reset]').click();
+      const dlg = a.locator('sw-dialog[data-layout-confirm="reset"]');
+      await expect(dlg).toHaveAttribute('open', '');
+      await dlg.locator('sw-button[data-layout-confirm-ok]').click();
+      await expect(a.locator('.lay-grid')).toHaveCount(0);
+      await expect(a.locator('sw-card[data-card="sensors"]')).toHaveCount(1);
+      const after = await (await request.get('/api/v1/devices/layouts/area/cr007_lobby')).json();
+      expect(after.desktop).toBeNull();
+      expect(after.phone).toBeNull();
+    } finally {
+      for (const id of bindings) await request.delete(`/api/v1/access/bindings/${id}`).catch(() => {});
+      await resetLayouts(request);
+    }
+  });
+
+  test('6b: "העתק לכל האזורים" copies the stored area layout after a confirmation; the building screen has its own layout (floor cards), the tiles view stays automatic', async ({ page, request }, testInfo) => {
+    test.setTimeout(180_000);
+    test.skip(testInfo.project.name !== 'desktop', 'desktop editor flow');
+    await seed(request);
+    await resetLayouts(request);
+    await devicesSettings(request, DEVICES_DEFAULTS);
+    const layout = { v: 1, cols: 12, items: { 'card:climate': { x: 0, y: 0, w: 6, h: 30, bg: 'cool' }, 'card:lighting': { x: 6, y: 0, w: 6, h: 30 } } };
+    try {
+      expect((await request.put('/api/v1/devices/layouts/area/cr007_lobby', { data: { variant: 'desktop', revision: 0, layout } })).status()).toBe(200);
+      await open(page, '/devices/areas/cr007_lobby', 'a');
+      const a = page.locator('devices-area');
+      await expect(a.locator('.lay-item[data-lay-key="card:climate"]')).toHaveAttribute('data-lay-bg', 'cool', { timeout: 30000 });
+      await a.locator('[data-layout-edit]').click();
+      await a.locator('sw-button[data-layout-copy]').click();
+      const dlg = a.locator('sw-dialog[data-layout-confirm="copy"]');
+      await expect(dlg).toHaveAttribute('open', '');
+      await expect(dlg).toContainText('כל שאר האזורים');
+      // cancelling copies nothing
+      await dlg.locator('sw-button[data-layout-confirm-cancel]').click();
+      expect((await (await request.get('/api/v1/devices/layouts/area/cr007_office')).json()).desktop).toBeNull();
+      await a.locator('sw-button[data-layout-copy]').click();
+      const copied = page.waitForResponse((r) => r.url().endsWith('/copy-to-all-areas'));
+      await a.locator('sw-dialog[data-layout-confirm="copy"] sw-button[data-layout-confirm-ok]').click();
+      expect((await copied).status()).toBe(200);
+      await expect(a.locator('[data-layout-bar]')).toContainText('הועתקה');
+      for (const id of ['cr007_office', 'cr007_storage', 'cr007_hall', 'cr007_den', 'unassigned']) {
+        const r = await (await request.get(`/api/v1/devices/layouts/area/${id}`)).json();
+        expect(r.desktop?.layout.items['card:climate'].bg, id).toBe('cool');
+      }
+      await a.locator('sw-button[data-layout-cancel]').click();
+      // another area shows the copied layout
+      await open(page, '/devices/areas/cr007_office', 'a');
+      await expect(page.locator('devices-area .lay-item[data-lay-key="card:climate"]')).toHaveAttribute('data-lay-bg', 'cool', { timeout: 30000 });
+
+      // the building screen: the floor cards are edited on their own grid; the tiles view is untouched (automatic)
+      await open(page, '/devices/building', 'a');
+      const b = page.locator('devices-building');
+      await b.locator('button[data-layout="cards"]').click();
+      await expect(b.locator('section[data-floor-card="cr007_ground"]')).toBeVisible({ timeout: 30000 });
+      await b.locator('[data-layout-edit]').click();
+      await expect(b.locator('button[data-layout="tiles"]')).toBeDisabled(); // one view at a time while editing
+      const ground = b.locator('.lay-item[data-lay-key="floor:cr007_ground"]');
+      const g0 = await pos(ground);
+      await ground.focus();
+      await page.keyboard.press('ArrowDown');
+      await b.locator('[data-layout-panel="floor:cr007_ground"] [data-layout-title]').fill('קומת כניסה');
+      await b.locator('sw-button[data-layout-save]').click();
+      await expect(b.locator('[data-layout-bar]')).toHaveCount(0);
+      await expect(b.locator('section[data-floor-card="cr007_ground"] header h2')).toHaveText('קומת כניסה');
+      const brec = await (await request.get('/api/v1/devices/layouts/building/main')).json();
+      expect(brec.desktop.layout.items['floor:cr007_ground'].y).toBe(g0.y + 1);
+      expect(Object.keys(brec.desktop.layout.items).every((k: string) => k.startsWith('floor:'))).toBe(true);
+      await b.locator('button[data-layout="tiles"]').click();
+      await expect(b.locator('a.tile[data-area="cr007_lobby"]')).toBeVisible();
+      await expect(b.locator('.areas.lay-grid')).toHaveCount(0);
+    } finally {
+      await resetLayouts(request);
+    }
+  });
+
+  test('6b: the phone layout is derived from the desktop order (one column), then edited on its own - long press to pick, arrows to move; "חזור לאוטומטי"', async ({ page, request }, testInfo) => {
+    test.setTimeout(180_000);
+    await seed(request);
+    await resetLayouts(request);
+    await devicesSettings(request, DEVICES_DEFAULTS);
+    const mobile = testInfo.project.name === 'mobile';
+    // desktop order: climate first (top), lighting under it
+    const layout = { v: 1, cols: 12, items: { 'card:climate': { x: 6, y: 0, w: 6, h: 24 }, 'card:lighting': { x: 0, y: 30, w: 12, h: 30 }, 'card:covers': { x: 0, y: 0, w: 6, h: 20 } } };
+    try {
+      expect((await request.put('/api/v1/devices/layouts/area/cr007_lobby', { data: { variant: 'desktop', revision: 0, layout } })).status()).toBe(200);
+      await open(page, '/devices/areas/cr007_lobby', 'a');
+      const a = page.locator('devices-area');
+      await expect(a.locator('.lay-item[data-lay-key="card:lighting"]')).toBeVisible({ timeout: 30000 });
+      if (mobile) {
+        // a viewer's phone: derived automatically - four columns, every card full width, in the desktop reading order
+        const grid = a.locator('.lay-grid[data-lay-cols="4"]');
+        await expect(grid).toHaveCount(1);
+        const order = await a.locator('.lay-item').evaluateAll((els) => els.map((e) => [e.getAttribute('data-lay-key'), e.getBoundingClientRect().top] as [string, number]).sort((x, y) => x[1] - y[1]).map((x) => x[0]));
+        expect(order.slice(0, 3)).toEqual(['card:covers', 'card:climate', 'card:lighting']);
+        const gw = (await grid.boundingBox())!.width;
+        expect((await a.locator('.lay-item[data-lay-key="card:climate"]').boundingBox())!.width).toBeGreaterThan(gw - 2);
+        await a.locator('[data-layout-edit]').click();
+        await expect(a.locator('[data-layout-variant="phone"]')).toHaveAttribute('aria-pressed', 'true');
+        await expect(a.locator('[data-layout-bar]')).toContainText('אוטומטית עד שתישמר');
+        // a long press picks the card (a plain touch scrolls); the panel's arrows then move and resize it
+        const item = a.locator('.lay-item[data-lay-key="card:lighting"]');
+        await item.scrollIntoViewIfNeeded();
+        const box = (await item.boundingBox())!;
+        const cdp = await page.context().newCDPSession(page);
+        const pt = { x: box.x + box.width / 2, y: box.y + Math.min(60, box.height / 2) };
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [pt] });
+        await page.waitForTimeout(700);
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        await expect(a.locator('[data-layout-panel="card:lighting"]')).toBeVisible();
+      } else {
+        await a.locator('[data-layout-edit]').click();
+        await a.locator('[data-layout-variant="phone"]').click();
+        await expect(a.locator('.lay-grid[data-lay-cols="4"][data-lay-phone-preview]')).toHaveCount(1);
+        const order = await a.locator('.lay-item').evaluateAll((els) => els.map((e) => [e.getAttribute('data-lay-key'), e.getBoundingClientRect().top] as [string, number]).sort((x, y) => x[1] - y[1]).map((x) => x[0]));
+        expect(order.slice(0, 3)).toEqual(['card:covers', 'card:climate', 'card:lighting']);
+        await a.locator('.lay-item[data-lay-key="card:lighting"]').click();
+      }
+      const item = a.locator('.lay-item[data-lay-key="card:lighting"]');
+      const before = await pos(item);
+      expect(before).toMatchObject({ x: 0, w: 4 });
+      const panel = a.locator('[data-layout-panel="card:lighting"]');
+      await panel.locator('[data-layout-nudge="narrower"]').click();
+      await panel.locator('[data-layout-nudge="narrower"]').click();
+      await panel.locator('[data-layout-nudge="end"]').click();
+      expect(await pos(item)).toMatchObject({ x: 1, w: 2 });
+      if (mobile) await layoutShot(page, 'phone-edit');
+      const saved = page.waitForResponse((r) => r.url().includes('/api/v1/devices/layouts/area/cr007_lobby') && r.request().method() === 'PUT');
+      await a.locator('sw-button[data-layout-save]').click();
+      const put = await saved;
+      expect(put.status()).toBe(200);
+      expect(JSON.parse(put.request().postData() ?? '{}').variant).toBe('phone');
+      const rec = await (await request.get('/api/v1/devices/layouts/area/cr007_lobby')).json();
+      expect(rec.phone.layout.cols).toBe(4);
+      expect(rec.phone.layout.items['card:lighting']).toMatchObject({ x: 1, w: 2 });
+      expect(rec.desktop.layout.items['card:lighting']).toMatchObject({ x: 0, w: 12 }); // the desktop layout is its own
+      if (mobile) expect(await a.locator('.lay-item[data-lay-key="card:lighting"]').evaluate((e) => (e as HTMLElement).style.gridColumn)).toBe('2 / span 2');
+      // "חזור לאוטומטי": the phone layout goes, derived from the desktop one again
+      await a.locator('[data-layout-edit]').click();
+      if (!mobile) await a.locator('[data-layout-variant="phone"]').click();
+      await a.locator('sw-button[data-layout-phone-auto]').click();
+      await expect.poll(async () => (await (await request.get('/api/v1/devices/layouts/area/cr007_lobby')).json()).phone).toBeNull();
+      expect(await pos(a.locator('.lay-item[data-lay-key="card:lighting"]'))).toMatchObject({ x: 0, w: 4 });
+      await a.locator('sw-button[data-layout-cancel]').click();
+    } finally {
+      await resetLayouts(request);
+    }
+  });
+
+  test('6b: the colour theme swatches set devices.theme and the knobs follow; dark applies only when chosen (devices.scheme light | dark | auto)', async ({ page, request }, testInfo) => {
+    test.setTimeout(180_000);
+    await seed(request);
+    await devicesSettings(request, { ...DEVICES_DEFAULTS, 'devices.style': 'glass' });
+    const project = testInfo.project.name;
+    const knob = (loc: Locator, name: string) => loc.evaluate((e, n) => getComputedStyle(e).getPropertyValue(n).trim(), name);
+    /** A real page load (the installation settings are read once per load). */
+    const fresh = async (hash: string) => {
+      await page.goto('about:blank');
+      await open(page, hash, 'a');
+    };
+    try {
+      await open(page, '/system/diagnostics?tab=devices', 'a');
+      const sec = page.locator('system-diagnostics sw-card[data-devices-settings]');
+      await expect(sec).toBeVisible({ timeout: 30000 });
+      const picker = sec.locator('devices-theme-picker');
+      await expect(picker.locator('button[data-devices-theme-swatch]')).toHaveCount(4);
+      await expect(picker.locator('button[data-devices-theme-swatch="default"]')).toHaveAttribute('aria-pressed', 'true');
+      await picker.locator('button[data-devices-theme-swatch="forest"]').click();
+      await expect(picker.locator('button[data-devices-theme-swatch="forest"]')).toHaveAttribute('aria-pressed', 'true');
+      await expect(picker.locator('select[data-set-devices-scheme]')).toHaveValue('light');
+      await picker.scrollIntoViewIfNeeded();
+      if (project === 'desktop') await layoutShot(page, 'theme-picker');
+      const saved = page.waitForResponse((r) => r.url().endsWith('/api/v1/settings') && r.request().method() === 'PATCH');
+      await sec.locator('sw-button[data-save-devices]').click();
+      expect((await saved).status()).toBe(200);
+      expect((await (await request.get('/api/v1/settings')).json()).settings['devices.theme']).toBe('forest');
+
+      await fresh('/devices/areas/cr007_lobby');
+      const a = page.locator('devices-area');
+      await expect(a.locator('sw-card[data-card="lighting"]')).toBeVisible({ timeout: 30000 });
+      await expect(a).toHaveAttribute('data-devices-theme', 'forest');
+      await expect(a).toHaveAttribute('data-devices-scheme', 'light');
+      expect(await knob(a, '--dv-accent')).toBe('#2e7d4f');
+      expect(await knob(a, '--dv-surface')).toBe('rgba(255, 255, 255, 0.66)');
+      expect(await knob(a, '--dv-radius-md')).toBe('22px'); // the shape knobs are shared by every palette
+      expect(await knob(a, '--dv-role-accent-bg')).toContain('46 125 79');
+      // a dark operating system alone changes nothing: the default scheme is light
+      await page.emulateMedia({ colorScheme: 'dark' });
+      await page.waitForTimeout(200);
+      await expect(a).toHaveAttribute('data-devices-scheme', 'light');
+      expect(await knob(a, '--dv-surface')).toBe('rgba(255, 255, 255, 0.66)');
+      // "לפי המכשיר" (auto): dark on a dark device, and it follows the device live
+      await devicesSettings(request, { 'devices.scheme': 'auto' });
+      await fresh('/devices/areas/cr007_lobby');
+      await expect(a.locator('sw-card[data-card="lighting"]')).toBeVisible({ timeout: 30000 });
+      await expect(a).toHaveAttribute('data-devices-scheme', 'dark');
+      expect(await knob(a, '--dv-surface')).toBe('rgba(22, 32, 26, 0.74)');
+      expect(await knob(a, '--dv-role-accent-bg')).toContain('79 191 127');
+      await page.emulateMedia({ colorScheme: 'light' });
+      await expect(a).toHaveAttribute('data-devices-scheme', 'light');
+      // "כהה": dark whatever the device says
+      await devicesSettings(request, { 'devices.scheme': 'dark' });
+      await fresh('/devices/areas/cr007_lobby');
+      await expect(a.locator('sw-card[data-card="lighting"]')).toBeVisible({ timeout: 30000 });
+      await expect(a).toHaveAttribute('data-devices-scheme', 'dark');
+      expect(await knob(a, '--dv-color-scheme')).toBe('dark');
+      // every palette sets its own colours, light and dark
+      const accents = new Set<string>();
+      for (const theme of ['default', 'sand', 'forest', 'graphite']) {
+        await devicesSettings(request, { 'devices.theme': theme, 'devices.scheme': 'light' });
+        await fresh('/devices/areas/cr007_lobby');
+        await expect(a).toHaveAttribute('data-devices-theme', theme, { timeout: 30000 });
+        await expect(a.locator('sw-card[data-card="lighting"]')).toBeVisible({ timeout: 30000 });
+        accents.add(await knob(a, '--dv-accent'));
+        expect(await knob(a, '--dv-role-warm-bg'), theme).not.toBe('');
+      }
+      expect(accents.size).toBe(4);
+      // the SMPLWISE style: its own tokens stay, the card colour roles still resolve per palette
+      await devicesSettings(request, { 'devices.style': 'smplwise', 'devices.theme': 'sand', 'devices.scheme': 'dark' });
+      await fresh('/devices/areas/cr007_lobby');
+      await expect(a).toHaveAttribute('data-devices-style', 'smplwise', { timeout: 30000 });
+      expect(await knob(a, '--dv-role-accent-bg')).toContain('179 87 42'); // sand's light role (smplwise is light only)
+      expect(await knob(a, '--dv-surface')).toBe('');
+    } finally {
+      await page.emulateMedia({ colorScheme: 'light' });
       await devicesSettings(request, DEVICES_DEFAULTS);
     }
   });

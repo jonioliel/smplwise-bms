@@ -1,16 +1,18 @@
-# Device-control screens: styles, palettes and knobs (CR-007 slice 6a)
+# Device-control screens: styles, palettes, knobs and layouts (CR-007 slices 6a and 6b)
 
 This document covers how the "חשמל והתקנים" screens look, and how a designer adds a new look without touching the
 screens. The screens are the building screen, the area screen, and the bulk popover and dialog. The source of truth is
 **one file**, `frontend/src/styles/devices-themes.ts`. Its `DEVICE_THEME_KNOBS` map repeats the role of every knob
-listed below.
+listed below. Slice 6b adds the colour themes (`frontend/src/styles/devices-palettes.ts`, §6) and the layout editor
+(`frontend/src/screens/devices-layout.ts` and `devices-layout-css.ts`, §7).
 
 ## 1. Settings and attributes
 
 | Setting (הגדרות › חשמל והתקנים) | Values | Attribute on the screen's host | What it selects |
 |---|---|---|---|
 | `devices.style` | `smplwise` (default), `glass` | `data-devices-style` | The **structure**: which element rules apply. |
-| `devices.theme` | `default` (the only one registered) | `data-devices-theme` | The **palette**: the values of the `--dv-*` knobs. There is no picker yet (slice 6b). |
+| `devices.theme` | `default` (blue), `sand`, `forest`, `graphite` | `data-devices-theme` | The **palette**: the colour values of the `--dv-*` knobs and the card-colour roles (§6). Picked with swatches. |
+| `devices.scheme` | `light` (default), `dark`, `auto` | `data-devices-scheme` (resolved: `light` / `dark`) | Light or dark values of the palette, glass style only (§6). |
 | `devices.density` | `comfortable` (default), `compact` | `data-devices-density` | Tighter tiles, rows and gaps, in either style. |
 | `devices.default_view` | `cards` (default), `tiles` | none | The building screen's first view. A viewer's own toggle wins (localStorage `sw.devices.layout`). |
 | `devices.show_sensors` | `true` / `false` | none | The sensors card on the area screen and the sensors count on the building screen. |
@@ -55,9 +57,9 @@ CSS (GPL-3.0) is used.
 **Light and dark.** The dark palette is switched only by the host attribute `data-devices-scheme="dark"`, never by
 the OS colour scheme (`prefers-color-scheme` is deliberately not used yet). The app shell is light only (`tokens.css`
 sets `color-scheme: light`), and a black device area inside a white shell on a dark-mode computer was rejected in the
-6a review. In 6a nothing sets the attribute, so the glass style is always light, like the shell. Slice 6b adds the
-`devices.scheme` setting (`auto | light | dark`) that sets it; `auto` may follow the OS there once the choice is the
-owner's. `--dv-color-scheme` sets native form controls and scrollbars to match.
+6a review. Slice 6b's `devices.scheme` setting sets it (§6): `light` by default, `dark` on request, and `auto` resolved
+in JavaScript from `matchMedia('(prefers-color-scheme: dark)')` - so dark still never applies by itself, only when an
+administrator chose `dark` or `auto`. `--dv-color-scheme` sets native form controls and scrollbars to match.
 
 **Motion.** The only movement is the area tile's hover lift (`--dv-hover-lift`). It applies only under
 `prefers-reduced-motion: no-preference`.
@@ -164,19 +166,19 @@ literal colours. They illustrate a style and do not read the knobs.
 
 ## 4. How to add a theme (palette)
 
-1. **Copy the blocks.** In `frontend/src/styles/devices-themes.ts`, copy the three `default` blocks (light, the dark
-   `[data-devices-scheme='dark']` block, and the phone `@media (max-width: 767px)` block). Change the selectors to
-   `:host([data-devices-style='glass'][data-devices-theme='<id>'])` (and, for the dark block, the same plus
-   `[data-devices-scheme='dark']`). The id must be lower case, for example `ocean`.
-2. **Set every knob** in the light block. Leave none out: a missing knob is empty and the rule using it drops.
-   The dark block only needs the knobs that differ in the dark scheme, and the phone block only the sizes.
+1. **Add an entry** to `DEVICE_PALETTES` in `frontend/src/styles/devices-palettes.ts` (6b): an id (lower case, for
+   example `ocean`), a Hebrew name and hint for the swatch, and for `light` and `dark` each: `knobs` (every colour
+   knob of `COLOUR_KNOBS`, both schemes in full) and `roles` (the seven card-colour roles, §6). The shape knobs (radii,
+   sizes, gaps, fonts, and the phone sizes) come from the `default` blocks of `devices-themes.ts`, which since 6b are
+   the base of every palette; a palette that needs other shapes adds its own block there.
+2. **Set every colour knob**, light and dark. Leave none out: the default's value would show through.
 3. **Register the id** in two places, in the same change:
    - `DEVICE_THEMES` in `devices-themes.ts`;
    - `DEVICE_THEMES` in `smplwise_vms/backend/smplwise/routers/settings.py`, whose validation refuses an unregistered id.
 
    Add the id to the refusal / acceptance cases in `smplwise_vms/backend/tests/test_ui_settings.py`.
-4. **Select it.** Until the 6b picker exists: `PATCH /api/v1/settings {"devices.theme": "<id>", "devices.style": "glass"}`
-   as a `system.configure` holder. An unknown id in the browser falls back to `default`.
+4. **Select it.** Its swatch appears in הגדרות › חשמל והתקנים by itself (the picker lists `DEVICE_PALETTES`). An unknown
+   id in the browser falls back to `default`.
 5. **Screenshot it.** Copy the first 6a test in `frontend/tests/evidence-devices.spec.ts`, set the theme with
    `devicesSettings(request, {'devices.style': 'glass', 'devices.theme': '<id>'})`, and save with
    `evidenceShot(page, '<id>-building', project)` and `evidenceShot(page, '<id>-area', project)`. Run it on the desktop
@@ -199,10 +201,97 @@ least the `default` palette.
 
 - **Backend.** `smplwise_vms/backend/tests/test_ui_settings.py::test_devices_settings_defaults_validation_audit_and_gate`
   covers the defaults, the validation of every key (including the registered palettes), the audit, and viewer
-  read / 403 on write.
+  read / 403 on write; `test_devices_theme_and_scheme_6b` the four palettes (the frontend list must match) and the
+  scheme values. `smplwise_vms/backend/tests/test_device_layouts.py` covers the layout API: read for every
+  `devices.read` holder, write only with `system.configure` checked before the body, the 409 on a stale revision,
+  validation (grid bounds, roles, text sizes, icons, keys per screen, JSON only, size cap), reset, copy to all areas,
+  audit rows without the layout, the table in a project backup, and the icon / role lists matching the frontend.
 - **Playwright.** `frontend/tests/evidence-devices.spec.ts` has three "6a:" tests, run on the desktop and mobile
   projects:
   - the style switch from the settings section: attribute, theme, knobs, glass material or solid fallback, shell
     untouched, RTL and LTR, reduced motion, bulk dialog, dark only by the attribute (a dark OS alone changes nothing), reduced transparency;
   - density, default view, sensors and climate strip;
   - read-only gating for a viewer.
+
+  and five "6b:" tests: the edit button only for `system.configure` and a viewer's writes refused; the desktop area
+  editor (drag and resize on the grid, keyboard, side panel, save, persisted for another user, LTR mirror, 409 on a
+  stale save, reset); copy to all areas and the building screen's own layout; the phone layout derived, then edited
+  (a long press on the phone) and "חזור לאוטומטי"; the theme swatches and the scheme.
+
+## 6. Colour themes and the colour scheme (6b)
+
+`devices.theme` picks one of four palettes, each with a light and a dark variant: `default` (blue, the 6a values),
+`sand` (warm beige and terracotta), `forest` (green) and `graphite` (neutral grey, indigo accent). They are defined in
+`frontend/src/styles/devices-palettes.ts` as data (`DEVICE_PALETTES`) and turned into CSS there, so the settings
+screen's swatches paint the very same values:
+
+- **Colour knobs** (glass style): every knob of `COLOUR_KNOBS` - backdrop, surfaces, borders, overlay, text, accent,
+  focus, success / warning / danger, neutral, offline, shadows, the "on" glows, icon badges, toggle - on
+  `:host([data-devices-style='glass'][data-devices-theme='<id>'])` and, dark, the same plus
+  `[data-devices-scheme='dark']`. `default` keeps its blocks in `devices-themes.ts`.
+- **Role knobs** (both styles): `--dv-role-<role>-bg`, `--dv-role-<role>-border` and `--dv-role-<role>-fg` for the seven
+  roles `accent`, `warm`, `cool`, `success`, `warning`, `danger`, `neutral` - the only colours the layout editor offers
+  a card (§7). A role is an RGB triplet per palette and scheme; the fill is that colour at 14 % (dark 26 %) and the
+  border at 50 % (dark 60 %). The SMPLWISE style resolves them from the palette's light values.
+
+`devices.scheme` (`light`, `dark`, `auto`; default `light`) puts the RESOLVED scheme on the host as
+`data-devices-scheme="light" | "dark"` (`applyDevicesScheme` in `devices-style.ts`). `auto` is resolved in JavaScript
+from `prefers-color-scheme` and re-resolved when the device's scheme changes. There is still no colour-scheme media
+query in the CSS, on purpose: the app shell is light only, so the device area turns dark only when an administrator
+chose `dark`, or chose `auto` for devices set to dark. The scheme applies to the glass style; the SMPLWISE style keeps
+the shell's light tokens (its role colours use the light values).
+
+The picker is `devices-theme-picker` (`frontend/src/screens/devices-theme-picker.ts`) in הגדרות › חשמל והתקנים: a swatch
+per palette (its light and dark preview and its seven roles) and the scheme select, saved with the section's "שמור".
+Screenshot: `docs/evidence/T025/devices-layout-theme-picker.png`.
+
+## 7. The layout editor (6b)
+
+Owner decisions CR-007 §7.11. One layout per installation and screen, stored on the server
+(`routers/device_layouts.py`, table `device_layouts`, migration `0028`), shown to everyone, edited only with
+`system.configure`:
+
+| Screen | Record | Items (keys) |
+|---|---|---|
+| Building | `building / main` | `floor:<id>` - the floor cards ("כרטיסים" view); `area:<id>` - the area tiles, one grid per floor ("אריחים" view) |
+| Area | `area / <HA area id>` (and `unassigned`) | `card:<id>` - the domain cards (lighting, switches, climate, covers, security, media, sensors) |
+
+Each record has a `desktop` variant and, once edited on its own, a `phone` variant. Per item: `x`, `y`, `w`, `h` in
+grid units, `text` (`sm` / `md` / `lg`), `bg` and `border` (a role of §6 or none - never a colour value), `title`,
+`icon` (from `LAYOUT_ICONS`, a subset of the product's `sw-icon` set), `hidden`.
+
+**The grid** (`devices-layout-css.ts`). A grid with a stored layout becomes `.lay-grid`: 12 columns on a desktop, 4 on a
+phone, rows of 8 px (`grid-auto-rows: minmax(8px, auto)`), a column gap of `--dv-gap`. Items are placed with
+`grid-column` / `grid-row` in grid units - never pixels - so a layout scales with the screen. The height is a minimum:
+a row grows with its content, so a card never clips its devices. RTL needs nothing: column 1 is the start edge (the
+right in Hebrew), and an LTR viewer sees the mirror image of the same record. A grid with nothing stored keeps the
+screen's automatic layout pixel for pixel, and `devices.density` still applies inside the cards. Text size scales the
+tokens a card reads (`--sw-fs-*`, `--dv-fs-*`) by 0.88 / 1 / 1.16. Colours set `background-image` / `border-color`
+from the role knobs, so the glass material and the card's own surface stay underneath.
+
+**The editor** (`DevicesLayoutController` in `devices-layout.ts`, shared by both screens).
+- "ערוך פריסה" is rendered only when the session holds `system.configure` at installation scope
+  (`can('system.configure')`); the server checks it again on every write (403, audited).
+- Entering measures the automatic layout as it is drawn and converts it to grid units, so the editor starts from what
+  it sees. The bar: the variant (מחשב / טלפון - switchable while nothing is unsaved), "בטל", "חזור לאוטומטי" (phone),
+  "אפס לברירת מחדל" (confirmation; both variants), "העתק לכל האזורים" (area screen; confirmation; the stored layout
+  replaces every other area's, audited), "שמור" (one PUT with the revision the editor started from; a 409 says someone
+  else saved and offers "טען מחדש").
+- Pointer: drag a card (or its handle) to move it, the corner handle to resize it - by whole columns and 8 px rows. A
+  card that the moved one now covers moves down below it (16 px gap). The card's own controls rest in edit mode.
+- Keyboard: Tab to a card, arrows move it (ArrowRight moves toward the start in RTL), Shift + arrows resize it; the new
+  position is announced.
+- Phone: a finger on a card scrolls; a long press picks it; the bottom sheet's arrows move and resize it; the handles
+  drag directly.
+- The side panel (a bottom sheet on a phone): title, icon, text size, background and border role, width / height,
+  move and resize buttons, "מוסתר לכולם".
+
+**The phone layout** is derived automatically from the desktop one (each grid one column, in the desktop's reading
+order) until it is saved on its own; "חזור לאוטומטי" deletes the stored phone layout. Editing the phone layout on a
+desktop shows a phone-wide preview.
+
+**Backups.** `device_layouts` is one of the project tables of a backup and a restore.
+
+Screenshots (`docs/evidence/T025/`, from the 6b tests): `devices-layout-edit-desktop.png` (edit mode),
+`devices-layout-panel-desktop.png` (a selected card and its panel), `devices-layout-phone-edit.png` (the phone
+editor), `devices-layout-theme-picker.png` (the theme swatches).
