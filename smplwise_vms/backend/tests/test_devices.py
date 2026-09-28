@@ -247,6 +247,42 @@ def test_structure_mirror_and_fallback_from_entity_rows(dev_app):
     assert names == {"lobby": "לובי", "office": "משרד", "garden": "גינה"}
 
 
+def test_failed_registry_listing_keeps_the_previous_mirror(dev_app):
+    """One failed floor / area registry call must not wipe the mirror until the next refresh (review finding)."""
+    import asyncio
+
+    app, s = dev_app
+    sync = ha_sync.HaSync()
+    sync.db, sync.settings = app.state.db, s
+
+    def fake_call(fail_floors: str | None, fail_areas: bool):
+        async def call(msg_type: str, **_kw):
+            if msg_type == "config/floor_registry/list":
+                if fail_floors == "raise":
+                    raise RuntimeError("socket closed")
+                if fail_floors == "refused":
+                    return {"success": False, "error": {"code": "unknown_command"}}
+                return {"success": True, "result": [{"floor_id": "new_floor", "name": "חדשה", "level": 5}]}
+            if msg_type == "config/area_registry/list":
+                return {"success": False, "error": {"code": "unauthorized"}} if fail_areas else {"success": True, "result": [{"area_id": "new_area", "name": "חדש", "floor_id": "new_floor"}]}
+            return {"success": True, "result": []}
+        return call
+
+    def mirror():
+        with app.state.db.connection() as conn:
+            return ({r["floor_id"] for r in conn.execute("SELECT floor_id FROM ha_floors")}, {r["area_id"] for r in conn.execute("SELECT area_id FROM ha_areas")})
+
+    before = mirror()
+    assert before == ({"second", "ground"}, {"office", "lobby", "empty_room", "garden"})
+    asyncio.run(sync._refresh_registry(fake_call("raise", True)))
+    assert mirror() == before  # both listings failed: nothing touched
+    asyncio.run(sync._refresh_registry(fake_call("refused", False)))
+    assert mirror() == ({"second", "ground"}, {"new_area"})  # floors kept, areas rewritten
+    asyncio.run(sync._refresh_registry(fake_call(None, False)))
+    assert mirror() == ({"new_floor"}, {"new_area"})
+    assert ha_sync._listing({"success": True, "result": "nope"}) is None and ha_sync._listing(None) is None
+
+
 def test_dev_registry_endpoint_seeds_the_structure(settings):
     from smplwise.main import create_app
 
@@ -257,6 +293,8 @@ def test_dev_registry_endpoint_seeds_the_structure(settings):
     t = c.get("/api/v1/devices/tree").json()
     assert t["floors"][0]["name"] == "F" and t["floors"][0]["areas"][0]["counts"]["lights_on"] == 1
     assert c.post("/api/v1/ha/dev/registry", json={"entities": [{"entity_id": "bad"}]}).status_code == 422
+    assert c.post("/api/v1/ha/dev/registry", json={"areas": [{"name": "no id"}]}).status_code == 422
+    assert c.post("/api/v1/ha/dev/registry", json={"floors": [{"name": "no id"}]}).status_code == 422
     # absent in the add-on: no dev router at all
     c2 = TestClient(create_app(replace(settings, in_addon=True, dev_user=None)))
     assert c2.post("/api/v1/ha/dev/registry", json={}).status_code in (401, 404)

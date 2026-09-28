@@ -14,11 +14,9 @@ import { canAnywhere, isApi } from '../api/session';
 import { ApiError, describeError } from '../api/client';
 import { stateLabel, subscribeHa, type HaSyncState } from '../api/ha';
 import { ALARM_HE, CARD_EMPTY, CARD_IDS, HVAC_ACTION_HE, HVAC_HE, getDevicesArea, type CardId, type DeviceAreaDetail, type DeviceCard, type DeviceRow } from '../api/devices';
-import { alarmTone } from './devices-building';
+import { alarmTone, REFRESH_WINDOW_MS } from './devices-building';
 import { navigate } from '../router';
 import { bidi, ltrNum } from '../i18n/bidi';
-
-const REFRESH_DEBOUNCE_MS = 400;
 
 const CARD_ICON: Record<CardId, IconName> = { lighting: 'light', switches: 'bolt', climate: 'activity', covers: 'layers', security: 'shield', media: 'play', sensors: 'sensor' };
 
@@ -108,7 +106,7 @@ export class DevicesArea extends LitElement {
     }
     .tile.on {
       background: var(--sw-warning-soft);
-      border-color: #f3d9a4;
+      border-color: color-mix(in srgb, var(--sw-warning) 40%, var(--sw-border));
     }
     .tile.off {
       color: var(--sw-text-2);
@@ -131,7 +129,7 @@ export class DevicesArea extends LitElement {
       white-space: nowrap;
     }
     .tile.on .t sw-icon {
-      color: #b45309;
+      color: var(--sw-warning);
     }
     .tile .s {
       font-size: var(--sw-fs-xs);
@@ -154,7 +152,7 @@ export class DevicesArea extends LitElement {
       background: var(--sw-surface);
     }
     .row.on {
-      border-color: #f3d9a4;
+      border-color: color-mix(in srgb, var(--sw-warning) 40%, var(--sw-border));
       background: var(--sw-warning-soft);
     }
     .row .n {
@@ -215,8 +213,10 @@ export class DevicesArea extends LitElement {
     }
     this.stop = subscribeHa(
       (m) => {
-        if (m.type === 'entity_state_changed') this.scheduleReload();
-        else if (m.type === 'ha_sync_state') {
+        // only pushes about this area's own entities refetch it; until the area is loaded every push may be one of them
+        if (m.type === 'entity_state_changed') {
+          if (!this.detail || this.entityIds.has(m.entity.entity_id)) this.scheduleReload();
+        } else if (m.type === 'ha_sync_state') {
           if (this.sync) this.sync = { ...this.sync, connected: m.connected };
           this.scheduleReload();
         } else if (m.type === 'heartbeat') this.sync = m.sync;
@@ -232,6 +232,13 @@ export class DevicesArea extends LitElement {
     this.stop?.();
     this.stop = null;
     window.clearTimeout(this.timer);
+    this.timer = 0;
+  }
+
+  /** The loaded area's entity ids (all cards), for the push filter. */
+  private get entityIds(): Set<string> {
+    if (!this.detail) return new Set();
+    return new Set(CARD_IDS.flatMap((id) => this.detail!.cards[id].entities.map((r) => r.entity_id)));
   }
 
   protected willUpdate(changed: PropertyValues<this>) {
@@ -243,9 +250,13 @@ export class DevicesArea extends LitElement {
     }
   }
 
+  /** Throttle, as devices-building: one refetch per window while pushes keep coming, one more after they stop. */
   private scheduleReload() {
-    window.clearTimeout(this.timer);
-    this.timer = window.setTimeout(() => void this.load(), REFRESH_DEBOUNCE_MS);
+    if (this.timer) return;
+    this.timer = window.setTimeout(() => {
+      this.timer = 0;
+      void this.load();
+    }, REFRESH_WINDOW_MS);
   }
 
   private async load() {

@@ -54,15 +54,6 @@ export interface DeviceTree {
   sync: HaSyncState;
 }
 
-export interface DeviceBuilding {
-  counts: DeviceCounts;
-  floors: number;
-  areas: number;
-  unassigned: number;
-  scoped: boolean;
-  sync: HaSyncState;
-}
-
 export type CardId = 'lighting' | 'switches' | 'climate' | 'covers' | 'security' | 'media' | 'sensors';
 export const CARD_IDS: CardId[] = ['lighting', 'switches', 'climate', 'covers', 'security', 'media', 'sensors'];
 
@@ -134,20 +125,11 @@ export interface DeviceAreaDetail {
 }
 
 export const getDevicesTree = () => get<DeviceTree>('devices/tree');
-export const getDevicesBuilding = () => get<DeviceBuilding>('devices/building');
 export const getDevicesArea = (areaId: string) => get<DeviceAreaDetail>(`devices/areas/${encodeURIComponent(areaId)}`);
 
-export const CARD_LABELS: Record<CardId, string> = {
-  lighting: 'תאורה',
-  switches: 'מתגים',
-  climate: 'מיזוג ואקלים',
-  covers: 'תריסים',
-  security: 'אבטחה',
-  media: 'מסכים והקרנה',
-  sensors: 'חיישנים',
-};
-
-/** DomusUI's empty-section copy, in Hebrew (extraction §3.4): what is missing and what would fill it. */
+/** Per-card empty state, our own wording following the same idea as DomusUI's empty sections (extraction §3.4):
+ * say what is missing and what would fill it. `GET /devices/building` (the same counts as the tree's `building`)
+ * has no wrapper yet: no screen needs it apart from the tree, which already carries the counts. */
 export const CARD_EMPTY: Record<CardId, { heading: string; hint: string }> = {
   lighting: { heading: 'אין תאורה באזור הזה', hint: 'שייכו גופי תאורה לאזור ב־Home Assistant והם יופיעו כאן אוטומטית.' },
   switches: { heading: 'אין מתגים באזור הזה', hint: 'מתגים ודגלים (input_boolean) המשויכים לאזור יופיעו כאן.' },

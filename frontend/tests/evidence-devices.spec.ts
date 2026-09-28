@@ -199,6 +199,114 @@ test.describe('Electricity and devices (CR-007 slice 1, read-only)', () => {
     await setState(request, 'light.cr007_lobby', 'on', { friendly_name: 'תאורת לובי', brightness: 128 });
   });
 
+  test('a burst of pushes faster than the refresh window still refetches (throttle, not a starving debounce)', async ({ page, request }) => {
+    await seed(request);
+    await open(page, '/devices/areas/cr007_lobby', 'a');
+    const tile = page.locator('devices-area .tile[data-entity="light.cr007_lobby_2"]');
+    await expect(tile).toHaveClass(/\boff\b/, { timeout: 30000 });
+    await page.waitForTimeout(800); // let the initial load and any push from the seed settle
+    const fetches: number[] = [];
+    page.on('request', (r) => {
+      if (r.url().includes('/api/v1/devices/areas/cr007_lobby')) fetches.push(Date.now());
+    });
+    // 24 pushes about this area's own entities, ~60 ms apart (~1.5 s): well inside a 400 ms window every time
+    const t0 = Date.now();
+    for (let i = 0; i < 24; i++) {
+      await setState(request, i % 2 ? 'sensor.cr007_temp' : 'light.cr007_lobby_2', i % 2 ? `${20 + (i % 7)}.5` : 'on', i % 2 ? { friendly_name: 'טמפרטורת לובי', unit_of_measurement: '°C', device_class: 'temperature' } : { friendly_name: 'ספוט לובי', brightness: 255 });
+      await page.waitForTimeout(60);
+    }
+    const burstMs = Date.now() - t0;
+    // a refetch happened WHILE the burst was still running - a resetting debounce would have fired none
+    await expect.poll(() => fetches.filter((t) => t - t0 < burstMs).length, { timeout: 5000 }).toBeGreaterThanOrEqual(1);
+    await expect(tile).toHaveClass(/\bon\b/, { timeout: 10000 });
+    // and it was coalesced: far fewer requests than pushes
+    await page.waitForTimeout(1000);
+    expect(fetches.length).toBeLessThan(12);
+    // a push about another area's entity does not refetch this one
+    const before = fetches.length;
+    await setState(request, 'light.cr007_office', 'on', { friendly_name: 'תאורת משרד' });
+    await page.waitForTimeout(1200);
+    expect(fetches.length).toBe(before);
+    await setState(request, 'light.cr007_office', 'off', { friendly_name: 'תאורת משרד' });
+    await setState(request, 'light.cr007_lobby_2', 'off', { friendly_name: 'ספוט לובי' });
+    await setState(request, 'sensor.cr007_temp', '23.5', { friendly_name: 'טמפרטורת לובי', unit_of_measurement: '°C', device_class: 'temperature' });
+  });
+
+  test('a floor-scoped viewer sees only their floors, a viewer with nothing placed sees the scoped empty state, and no HA structure at all is said plainly', async ({ page, browser, request }, testInfo) => {
+    await seed(request);
+    const tag = testInfo.project.name;
+    const bindings: string[] = [];
+    let siteId: string | undefined;
+    try {
+      // a VMS site → building → two floors; the office light is anchored on floor A (needs a published plan)
+      const site = await request.post('/api/v1/sites', { data: { name: `CR-007 scoped site (${tag})` } });
+      expect(site.status()).toBe(201);
+      siteId = ((await site.json()) as { id: string }).id;
+      const building = await request.post(`/api/v1/sites/${siteId}/buildings`, { data: { name: 'CR-007 building' } });
+      const buildingId = ((await building.json()) as { id: string }).id;
+      const floorA = ((await (await request.post(`/api/v1/buildings/${buildingId}/floors`, { data: { name: 'CR-007 floor A', level: 1 } })).json()) as { id: string }).id;
+      const floorB = ((await (await request.post(`/api/v1/buildings/${buildingId}/floors`, { data: { name: 'CR-007 floor B', level: 2 } })).json()) as { id: string }).id;
+      const png = await (await request.get('/brand/smplwise-mark.png')).body();
+      const asset = await request.post(`/api/v1/floors/${floorA}/plan-assets`, { multipart: { file: { name: 'plan.png', mimeType: 'image/png', buffer: png } } });
+      expect(asset.status()).toBeLessThan(300);
+      const version = await request.post(`/api/v1/floors/${floorA}/plan-versions`, { data: { asset_id: ((await asset.json()) as { id: string }).id } });
+      expect(version.status()).toBeLessThan(300);
+      expect((await request.post(`/api/v1/plan-versions/${((await version.json()) as { id: string }).id}/publish`)).status()).toBeLessThan(300);
+      const anchor = await request.post(`/api/v1/floors/${floorA}/anchors`, { data: { resource_type: 'ha_entity', resource_id: 'light.cr007_office', x: 0.3, y: 0.3 } });
+      expect(anchor.status()).toBe(201);
+
+      for (const [username, floorId] of [[`cr007floorA${tag}`, floorA], [`cr007floorB${tag}`, floorB]] as const) {
+        const headers = { 'X-SW-Dev-User': username };
+        const me = await (await request.get('/api/v1/me', { headers })).json();
+        const r = await request.post('/api/v1/access/bindings', { data: { subject_kind: 'user', subject_id: me.user.id, role_id: 'viewer', scope_type: 'floor', scope_id: floorId } });
+        expect(r.status()).toBeLessThan(300);
+        bindings.push(((await r.json()) as { id: string }).id);
+      }
+      // floor A's viewer: the entry is there (devices.read at floor scope counts), the tree holds only the office
+      const ctxA = await browser.newContext({ extraHTTPHeaders: { 'X-SW-Dev-User': `cr007floorA${tag}` } });
+      const pA = await ctxA.newPage();
+      await open(pA, '/devices/building', 'a');
+      const screenA = pA.locator('devices-building');
+      await expect(screenA.locator('a.tile[data-area="cr007_office"]')).toBeVisible({ timeout: 30000 });
+      await expect(screenA.locator('a.tile[data-area="cr007_lobby"]')).toHaveCount(0);
+      await expect(screenA.locator('section[data-floor="cr007_ground"]')).toHaveCount(0);
+      await expect(screenA.locator('section[data-floor="unassigned"]')).toHaveCount(0);
+      await expect(screenA.locator('sw-badge[label="לפי הקומות שלך"]')).toBeVisible();
+      await expect(screenA.locator('a.tile[data-area="cr007_office"]')).toHaveAttribute('data-counts', /^lights:0\/1$/); // the office cover is not placed: not theirs
+      await expect(pA.locator(`${RAIL} a[href="${HREF}"]`)).toHaveCount(1);
+      await open(pA, '/devices/areas/cr007_lobby', 'a');
+      await expect(pA.locator('devices-area sw-state-panel[data-devices-state="not_found"]')).toBeVisible({ timeout: 30000 });
+      await ctxA.close();
+      // floor B's viewer: nothing placed there - an honest empty tree, not a refusal
+      const ctxB = await browser.newContext({ extraHTTPHeaders: { 'X-SW-Dev-User': `cr007floorB${tag}` } });
+      const pB = await ctxB.newPage();
+      await open(pB, '/devices/building', 'a');
+      const emptyB = pB.locator('devices-building sw-state-panel[data-devices-state="empty"]');
+      await expect(emptyB).toBeVisible({ timeout: 30000 });
+      await expect(emptyB).toHaveAttribute('heading', 'אין התקנים בקומות שלך');
+      await expect(pB.locator('devices-building a.tile')).toHaveCount(0);
+      await ctxB.close();
+    } finally {
+      for (const id of bindings) await request.delete(`/api/v1/access/bindings/${id}`).catch(() => {});
+      if (siteId) await request.delete(`/api/v1/sites/${siteId}`).catch(() => {});
+    }
+
+    // no floors or areas from Home Assistant at all (every entity unassigned): the admin sees the plain empty state
+    const wipe = await request.post('/api/v1/ha/dev/registry', { data: { entities: ENTITIES.map((e) => ({ ...e, area_id: null })), devices: [], areas: [], floors: [] } });
+    expect(wipe.status()).toBe(200);
+    try {
+      const other = await (await request.get('/api/v1/devices/tree')).json();
+      test.skip(other.floors.length > 0, 'this backend holds HA areas beyond the cr007_ seed; the no-structure state cannot be shown here');
+      await open(page, '/devices/building', 'a');
+      const empty = page.locator('devices-building sw-state-panel[data-devices-state="empty"]');
+      await expect(empty).toBeVisible({ timeout: 30000 });
+      await expect(empty).toHaveAttribute('heading', 'אין קומות ואזורים מ־Home Assistant');
+      await expect(page.locator('devices-building a.tile[data-area="unassigned"]')).toHaveAttribute('data-counts', /switches:/);
+    } finally {
+      await seed(request);
+    }
+  });
+
   test('the devices entry is gated on devices.read in both designs; the screen refuses without it', async ({ page, browser, request }, testInfo) => {
     await seed(request);
     const tag = testInfo.project.name;

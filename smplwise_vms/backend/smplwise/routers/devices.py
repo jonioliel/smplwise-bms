@@ -13,10 +13,9 @@ from fastapi import APIRouter, Depends
 
 from ..auth import current_principal_ro, get_read_conn
 from ..errors import ApiError
-from ..rbac import INSTALLATION, Principal, require
+from ..rbac import Principal
 from ..services import devices as svc
-from ..services import ha_sync
-from .ha import _placements, _visible_floors
+from ..services import ha_scope, ha_sync
 
 router = APIRouter()
 READ = "devices.read"
@@ -24,14 +23,7 @@ READ = "devices.read"
 
 def _visible_entities(conn: sqlite3.Connection, principal: Principal) -> tuple[list[dict[str, Any]], bool]:
     """The caller's entity set and whether it is a floor-scoped (narrowed) view. 403 without any grant."""
-    wide, floors = _visible_floors(conn, principal, READ)
-    if not wide and not floors:
-        require(conn, principal, READ, INSTALLATION)
-    entities = svc.load_entities(conn)
-    if wide:
-        return entities, False
-    placements = _placements(conn)
-    return [e for e in entities if any(p["floor_id"] in floors for p in placements.get(e["entity_id"], []))], True
+    return ha_scope.scoped_rows(conn, principal, READ, svc.load_entities(conn))
 
 
 @router.get("/devices/tree")

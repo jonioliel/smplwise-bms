@@ -59,8 +59,11 @@ WisKey does).
   attempt row before sending, per-entity outcome rows, the result reported honestly per entity (accepted / not
   confirmed / unknown), never "everything is off" unless every entity confirmed. Locks, alarm and door release
   are never part of a bulk action.
-- **Permissions** (new, installation-scoped, registered like `access.read`/`access.release`): `devices.read`
-  (viewer and above, like `map.read`), `devices.control` (single-entity one-tap actions; operator and above),
+- **Permissions** (new, registered like `access.read`/`access.release`): `devices.read`
+  (viewer and above, like `map.read`; scoped like `map.read`/`entity.state.read` - held at installation scope it
+  covers everything, held by a floor binding it narrows the tree and the area cards to the entities placed on those
+  floors, exactly as `/ha/entities` does; the nav entry is therefore not installation-only, unlike WisKey's -
+  coordinator ruling on the slice-1 review, 2026-09-28), `devices.control` (single-entity one-tap actions; operator and above),
   `devices.control_bulk` (floor/area/building actions; site_admin + system_admin, in the sensitive list).
   Locks/alarm keep their own gates (`access.release` for WisKey doors; HA lock/alarm entities get `devices.control`
   plus the server confirmation).
@@ -105,6 +108,8 @@ existing HA fixture. No device access beyond HA's own service calls; no WisKey c
 3. "Turn everything off" (building/floor/area) requires a confirmation dialog; a single switch is one tap.
 4. Entities without an area appear under "ללא שיוך" with an assign action (hidden for viewers without `devices.control`).
 5. Permission defaults as in §3 (viewer reads; operator controls single entities; site_admin+ bulk and layout).
+   `devices.read` follows the holder's scope: installation-wide sees the whole building, a floor binding sees only
+   what is placed on those floors (slice 1, recorded 2026-09-28).
 6. Style: SMPLWISE by default; glass selectable per user.
 
 ## 8. Next step

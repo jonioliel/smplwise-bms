@@ -15,8 +15,11 @@ import { subscribeHa, type HaSyncState } from '../api/ha';
 import { ALARM_HE, getDevicesTree, type DeviceArea, type DeviceCounts, type DeviceFloor, type DeviceTree } from '../api/devices';
 import { bidi, ltrNum } from '../i18n/bidi';
 
-/** A refetch is coalesced: a burst of state pushes (a scene, a bulk action from HA) becomes one request. */
-const REFRESH_DEBOUNCE_MS = 400;
+/** Refetches are throttled, not debounced: the first push starts a window, every push inside it rides the same
+ * refetch, and a push during the fetch itself queues exactly one more (loadAgain). A screen full of sensors updating
+ * several times a second therefore refreshes about every REFRESH_WINDOW_MS instead of never (a resetting debounce
+ * would starve - review finding). */
+export const REFRESH_WINDOW_MS = 400;
 
 /** What a tile / floor row shows for each kind that exists there: icon, "on/total", and whether "on" is the warm state. */
 export interface CountPill {
@@ -134,8 +137,12 @@ export class DevicesBuilding extends LitElement {
       font-variant-numeric: tabular-nums;
     }
     .floor-sum .warm {
-      color: #b45309;
-      font-weight: var(--sw-fw-medium);
+      color: var(--sw-text);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .floor-sum .warm sw-icon,
+    .pills .warm sw-icon {
+      color: var(--sw-warning);
     }
     .areas {
       display: grid;
@@ -164,7 +171,7 @@ export class DevicesBuilding extends LitElement {
     }
     a.tile.on {
       background: linear-gradient(180deg, var(--sw-warning-soft), var(--sw-surface) 70%);
-      border-color: #f3d9a4;
+      border-color: color-mix(in srgb, var(--sw-warning) 40%, var(--sw-border));
     }
     a.tile.empty {
       background: var(--sw-surface-2);
@@ -208,8 +215,8 @@ export class DevicesBuilding extends LitElement {
       font-variant-numeric: tabular-nums;
     }
     .pills .warm {
-      color: #b45309;
-      font-weight: var(--sw-fw-medium);
+      color: var(--sw-text);
+      font-weight: var(--sw-fw-semibold);
     }
     .pills .none {
       color: var(--sw-text-3);
@@ -262,11 +269,15 @@ export class DevicesBuilding extends LitElement {
     this.stop?.();
     this.stop = null;
     window.clearTimeout(this.timer);
+    this.timer = 0;
   }
 
   private scheduleReload() {
-    window.clearTimeout(this.timer);
-    this.timer = window.setTimeout(() => void this.load(), REFRESH_DEBOUNCE_MS);
+    if (this.timer) return; // a refetch is already on its way: this push rides it
+    this.timer = window.setTimeout(() => {
+      this.timer = 0;
+      void this.load();
+    }, REFRESH_WINDOW_MS);
   }
 
   private async load() {

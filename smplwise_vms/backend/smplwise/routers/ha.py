@@ -22,7 +22,7 @@ from ..config import Settings
 from ..db import unlocked, Database, bump_permission_revision, get_setting, now_iso, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import bridge_install, ha_bridge, ha_client, ha_sync
+from ..services import bridge_install, ha_bridge, ha_client, ha_scope, ha_sync
 from ..services.timeutil import iso_utc, parse_utc
 from .media import _principal_for_ws
 
@@ -31,41 +31,11 @@ router = APIRouter()
 
 # ---------------------------------------------------------------- scoping
 
-def _visible_floors(conn: sqlite3.Connection, principal: Principal, permission: str) -> tuple[bool, set[str]]:
-    if authorize(conn, principal, permission, INSTALLATION).allowed:
-        return True, set()
-    floors = {f["id"] for f in conn.execute("SELECT id FROM floors WHERE deleted_at IS NULL").fetchall() if authorize(conn, principal, permission, ("floor", f["id"])).allowed}
-    return False, floors
-
-
-def _placements(conn: sqlite3.Connection) -> dict[str, list[dict[str, str]]]:
-    """Where an entity is on the maps: its anchors, and the floors whose published structure has a circuit switched by
-    it (T085) - a floor viewer reads such a switch, a floor operator controls it, the push socket forwards it."""
-    out: dict[str, list[dict[str, str]]] = {}
-    for r in conn.execute(
-        "SELECT a.resource_id, a.floor_id, f.name AS floor_name FROM map_anchors a JOIN floors f ON f.id = a.floor_id WHERE a.resource_type = 'ha_entity' AND a.effective_to IS NULL"
-    ).fetchall():
-        out.setdefault(r["resource_id"], []).append({"floor_id": r["floor_id"], "floor_name": r["floor_name"]})
-    from ..services import geometry_store
-
-    switches = geometry_store.circuit_switches(conn)
-    if switches:
-        names = {r["id"]: r["name"] for r in conn.execute("SELECT id, name FROM floors WHERE deleted_at IS NULL").fetchall()}
-        for eid, floors in switches.items():
-            have = {p["floor_id"] for p in out.get(eid, [])}
-            for fid in floors:
-                if fid in names and fid not in have:
-                    out.setdefault(eid, []).append({"floor_id": fid, "floor_name": names[fid]})
-                    have.add(fid)
-    return out
-
-
-def _entity_allowed(conn: sqlite3.Connection, principal: Principal, entity_id: str, permission: str) -> bool:
-    wide, floors = _visible_floors(conn, principal, permission)
-    if wide:
-        return True
-    placed = _placements(conn).get(entity_id, [])
-    return any(p["floor_id"] in floors for p in placed)
+# The scope rule itself lives in services/ha_scope.py (shared with the devices area, CR-007); these names stay for
+# this router's own handlers and the anchors router.
+_visible_floors = ha_scope.visible_floors
+_placements = ha_scope.placements
+_entity_allowed = ha_scope.entity_allowed
 
 
 def _grant_label(permission: str) -> str:
@@ -132,7 +102,7 @@ def list_entities(
     out = []
     for r in rows:
         pl = placements.get(r["entity_id"], [])
-        if not wide and not any(p["floor_id"] in floors for p in pl):
+        if not ha_scope.entity_visible(wide, floors, placements, r["entity_id"]):
             continue
         if placed is True and not pl:
             continue
@@ -333,6 +303,12 @@ def dev_registry(body: DevRegistryIn, request: Request, principal: Principal = D
     for e in body.entities:
         if not isinstance(e.get("entity_id"), str) or "." not in e["entity_id"]:
             raise ApiError(422, "validation_error", "לכל ישות נדרש entity_id בצורת domain.object_id.")
+    for a in body.areas:
+        if not isinstance(a.get("area_id"), str) or not a["area_id"]:
+            raise ApiError(422, "validation_error", "לכל אזור נדרש area_id.")
+    for f in body.floors:
+        if not isinstance(f.get("floor_id"), str) or not f["floor_id"]:
+            raise ApiError(422, "validation_error", "לכל קומה נדרש floor_id.")
     maps = ha_client.registry_maps(body.entities, body.devices, body.areas, body.floors)
     maps = {k: v for k, v in maps.items() if k.split(".", 1)[0] not in ha_sync.STATE_DOMAINS_SKIP}
     n = ha_sync.apply_registry(conn, maps)
@@ -465,8 +441,7 @@ async def ha_ws(websocket: WebSocket) -> None:
                 wide, floors, placements = await run_in_threadpool(_scope)
                 last_scope = time.time()
             if msg.get("type") == "entity_state_changed":
-                eid = msg["entity"]["entity_id"]
-                if not wide and not any(p["floor_id"] in floors for p in placements.get(eid, [])):
+                if not ha_scope.entity_visible(wide, floors, placements, msg["entity"]["entity_id"]):
                     continue
             seq += 1
             await websocket.send_text(json.dumps({"version": 1, "type": msg.get("type"), "sequence": seq, "subscription_id": principal.user_id, "occurred_at": now_iso(), "received_at": now_iso(), "payload": msg}, ensure_ascii=False, default=str))
