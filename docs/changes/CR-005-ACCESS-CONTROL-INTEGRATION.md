@@ -218,6 +218,24 @@ answer/reject/hangup (`media/signal`); two-way audio/talk (`audio/*`); TTS (`tts
 > screen (API only today), the fixed RTSP port 554 (WisKey does not expose a station's port), and the first check
 > against a real go2rtc and a real door station (only the committed fake has been used).
 
+> Recorded decision 2026-09-28 (T054, phase 2 kick-off; answers to `docs/changes/CR-005-PHASE2-BRIEF.md` §4, owner in chat):
+> (1) people editing is a new installation permission `access.people.manage`, granted by default to site_admin and
+> system_admin only, and the owner must be able to grant it to one specific person or role holder - satisfied by the
+> existing custom-role + binding mechanism (`POST /access/roles`, `POST /access/bindings`), so the permission must be
+> listed in the role catalogue and the sensitive list like `access.release`; (2) card capture is its own permission
+> `access.cards.capture` (in addition to people.manage), same default and the same per-person grant path; (3) door
+> programs and relay reversal share one permission `access.doors.physical`, same defaults; visibility of the programs
+> list follows WisKey's own rule (not decided separately); (4) pausing or removing a door program is also allowed to
+> `access.release` holders, so a guard can end a hold-open; (5) card numbers are shown masked (`•••• 1234`), exactly
+> what WisKey returns; (6) photos exactly as WisKey implements them (stored photo shown, capture/upload included);
+> (7) access timing in full, including station-native schedules, as WisKey; (8) no live PIN-availability check -
+> save-time `pin_conflict` plus "generate unique PIN"; (9) relay mapping and public codes are built with their writes,
+> as WisKey has them; (10) the owner considers the physical flows (capture, relay reversal, program activation)
+> validated by WisKey's own use and asks for a like-for-like port; no separate lab protocol was requested. Recorded
+> as stated; the brief's §6 UNVERIFIED items stay listed (in particular WisKey's own "physical collection still needs
+> commissioning" string), so the first real use of each flow is treated as its live test. Sequencing: A1 editor core
+> first, then A2 capture, then A3 (schedules/photo), then B1-B3.
+
 **Phase 4 — parity completion (peripheral/admin screens).** Camera wall (S4), media/clock settings (S21/S22),
 operations center (S23), identity lifecycle report (S17), permission directory (S18), appearance picker (S25),
 WhatsApp (S20/S6 send+preview — separately flagged, see §7 decision 4, since it is the one EXTERNAL capability
