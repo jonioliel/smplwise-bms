@@ -1,7 +1,4 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { demoSceneInput } from '../src/fixtures/demo-3d';
 import { buildScene, type SceneDescription } from '../src/map/scene-builder';
 import { CUTAWAY_HEIGHT_M, ISO_DIR, cutawayIds, quantiseAzimuth } from '../src/map/scene-frame';
@@ -11,10 +8,9 @@ import { CUTAWAY_HEIGHT_M, ISO_DIR, cutawayIds, quantiseAzimuth } from '../src/m
 // level 1: exactly the phase-4 scene), the choice persists per browser, the frame-budget probe falls back to level 1
 // and says so, the isometric preset is a true isometric on an orthographic camera, the cutaway matches the pure
 // function and holds the cut height, the thumbnail strip is bounded by the listed levels, and the visual snapshots per
-// level and preset are pixel-deterministic (written under docs/evidence/T087/visual like the T007 harness writes its
-// screens). The probe is disabled (minFps = 0) wherever level 2 must stay: SwiftShader has no frame budget to keep.
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const OUT = path.resolve(HERE, '..', '..', 'docs', 'evidence', 'T087', 'visual');
+// level and preset are pixel-deterministic and differ between the levels (the committed baselines under
+// docs/evidence/T087/visual are unit-plan-3d-determinism.spec.ts's, slice 1c). The probe is disabled (minFps = 0)
+// wherever level 2 must stay: SwiftShader has no frame budget to keep.
 
 type Summary = { name: string; type: string; count: number; pos: number[]; shadow: boolean; material: string }[];
 interface Probe {
@@ -181,7 +177,9 @@ test('the isometric preset is a true isometric on an orthographic camera; the pe
   await expect(el).toHaveAttribute('data-preset', 'iso');
   expect(await el.evaluate((n) => !!(n as unknown as Probe).view.camera.isOrthographicCamera)).toBe(true);
   // a click still lands on the right part through the orthographic camera (the ceiling lamp of room 0: at 2.75 m in
-  // the middle of its room, no 3 m wall hides it from the 35 deg isometric)
+  // the middle of its room, no 3 m wall hides it from the 35 deg isometric; the entity pills go first - on the phone
+  // the lock's pill stands over the lamp, as the entity layers switched off would leave the scene)
+  await el.evaluate((n) => { const e = n as unknown as { description: SceneDescription }; e.description = { ...e.description, parts: e.description.parts.filter((p) => p.kind !== 'entity') }; });
   const at = await el.evaluate((n) => {
     const e = n as unknown as Probe & { toScreen: (p: [number, number, number]) => { x: number; y: number } | null };
     const w = e.description.parts.find((p) => p.id === 'obj:dl0')!;
@@ -321,11 +319,10 @@ test('the thumbnail strip: one isometric per listed level, cached and bounded by
   await expect.poll(() => picked).toEqual(['L0', null]);
 });
 
-test('visual snapshots per level and preset: pixel-deterministic, and the levels differ', async ({ page }, testInfo) => {
+test('visual snapshots per level and preset: pixel-deterministic, and the levels differ', async ({ page }) => {
   test.setTimeout(180_000);
   const el = await openDemo(page);
   await disableProbe(el);
-  fs.mkdirSync(OUT, { recursive: true });
   const shots: Record<string, string> = {};
   for (const level of ['1', '2'] as const) {
     await el.locator(`[data-quality-${level}]`).click();
@@ -339,10 +336,8 @@ test('visual snapshots per level and preset: pixel-deterministic, and the levels
       expect(first.startsWith('data:image/png;base64,')).toBe(true);
       expect(second, `${preset} at level ${level} draws the same pixels twice`).toBe(first);
       shots[`${level}-${preset}`] = first;
-      fs.writeFileSync(path.join(OUT, `plan-3d-l${level}-${preset}-${testInfo.project.name}.png`), Buffer.from(first.slice('data:image/png;base64,'.length), 'base64'));
     }
     await el.locator('[data-preset-iso]').click();
-    await el.screenshot({ path: path.join(OUT, `plan-3d-element-l${level}-${testInfo.project.name}.png`) });
   }
   for (const preset of ['iso', 'persp', 'top']) expect(shots[`1-${preset}`], `${preset}: level 2 looks different from level 1`).not.toBe(shots[`2-${preset}`]);
   expect(shots['2-iso']).not.toBe(shots['2-persp']);

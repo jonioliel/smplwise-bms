@@ -8,6 +8,7 @@ import { WEBGL_UNAVAILABLE_HE } from './webgl';
 import { productSettings } from '../api/prefs';
 import type { LevelDots } from './room-state';
 import { PROBE_FALLBACK_MS, PROBE_FIRST_FRAME_MS, PROBE_MS, PROBE_WARM_FRAMES, SETTINGS_WAIT_MS, withTimeout } from './timing';
+import { PILL_CAP } from './scene-frame';
 export { PROBE_FALLBACK_MS, PROBE_FIRST_FRAME_MS, PROBE_MS, PROBE_WARM_FRAMES, SETTINGS_WAIT_MS } from './timing';
 
 const EXPORT_FAILED_HE = 'ייצוא glTF נכשל';
@@ -18,6 +19,9 @@ export const QUALITY_KEY = 'sw.plan3d.quality';
 /** A fallback holds for the session: the device does not get re-measured on every mount (a new explicit choice does). */
 export const FALLBACK_KEY = 'sw.plan3d.fallback';
 export const DEFAULT_MIN_FPS = 30;
+export { PILL_CAP } from './scene-frame';
+/** The pill's bottom edge sits this far above its point, so the object under it stays clickable from straight above. */
+const PILL_GAP_PX = 6;
 
 export interface PartSelectDetail {
   id: string | null;
@@ -97,9 +101,13 @@ export class SwPlan3d extends LitElement {
   /** Render every frame instead of on demand - only for measuring the frame rate (the live spec, Task 10). */
   @property({ type: Boolean, reflect: true, attribute: 'data-measure' }) continuous = false;
   @state() private hover: PartHoverDetail | null = null;
-  /** The chip parts of the description (temperature chips): DOM labels laid out on the projected points after every
-   * drawn frame - readable at any zoom, RTL, in the theme's tokens (three draws no sprite for them). */
-  @state() private chips: ScenePart[] = [];
+  /** The DOM labels of the description - the temperature chips (1b) and the entity pills (1c): laid out on the
+   * projected points after every drawn frame, readable at any zoom, RTL, in the theme's tokens, hidden behind the
+   * camera (three draws no sprite for them). Derived in willUpdate from the description, never a second update. */
+  private overlays: ScenePart[] = [];
+  private overlayById = new Map<string, ScenePart>();
+  /** Pills left out by the cap (the "+N" hint). */
+  private hiddenPills = 0;
   @state() private ready = false;
   @state() private exporting = false;
   /** WebGL could not start: the whole stage says so. */
@@ -265,13 +273,14 @@ export class SwPlan3d extends LitElement {
     .strip button .dots i[data-dot='lit'] {
       background: var(--sw-map-lit);
     }
-    .chips {
+    .overlay {
       position: absolute;
       inset: 0;
       pointer-events: none;
       overflow: hidden;
     }
-    .chip {
+    .chip,
+    .lbl {
       position: absolute;
       left: 0;
       top: 0;
@@ -280,6 +289,7 @@ export class SwPlan3d extends LitElement {
       border: 1px solid var(--sw-border);
       border-radius: var(--sw-r-pill);
       padding: 1px 7px;
+      font: inherit;
       font-size: var(--sw-fs-xs);
       font-weight: 600;
       color: var(--sw-map-temp);
@@ -287,6 +297,31 @@ export class SwPlan3d extends LitElement {
       direction: rtl;
       white-space: nowrap;
       display: none;
+    }
+    /* an entity pill: its state token as the colour (stale / live / text-3), a click selects the entity as its
+       sprite used to; the selected one carries the accent ring the 3D outline gives a box */
+    .lbl {
+      color: var(--lbl, var(--sw-text));
+      pointer-events: auto;
+      cursor: pointer;
+    }
+    .lbl[aria-pressed='true'] {
+      border-color: var(--sw-accent);
+      box-shadow: 0 0 0 1px var(--sw-accent);
+    }
+    /* the "+N" hint of the pill cap: the top start corner (the strip and the bar own the bottom) */
+    .more {
+      position: absolute;
+      inset-inline-start: 12px;
+      inset-block-start: 12px;
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-pill);
+      padding: 1px 8px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      direction: rtl;
+      white-space: nowrap;
     }
     .tip {
       position: absolute;
@@ -435,7 +470,7 @@ export class SwPlan3d extends LitElement {
           this.setAttribute('data-fps', String(fps));
           this.onProbeFrame(frames);
         },
-        onDraw: () => this.layoutChips(),
+        onDraw: () => this.layoutOverlays(),
         quality: this.quality,
       });
     } catch (err) {
@@ -454,6 +489,26 @@ export class SwPlan3d extends LitElement {
     this.setAttribute('data-selected', this.selectedId ?? '');
   }
 
+  /** The DOM labels follow the description in the same update that renders it (no second Lit update per description).
+   * Pills: only those on the shown level when a level filter is set (a lower level's pills would show through the
+   * upper floor); above PILL_CAP of them at the overview only the selected, the hovered and the alerting ones (a state
+   * token other than text-3: open, on, stale), the rest counted in a "+N" hint - hundreds of pills would be hundreds
+   * of elements repositioned every frame. */
+  protected willUpdate(changed: PropertyValues<this>): void {
+    if (!(changed.has('description') || changed.has('activeLevel') || changed.has('selectedId') || (changed as Map<string, unknown>).has('hover'))) return;
+    const parts = this.description?.parts ?? [];
+    const chips = parts.filter((p) => p.kind === 'chip');
+    let pills = parts.filter((p) => p.kind === 'entity' && (!this.activeLevel || p.level_id === this.activeLevel));
+    this.hiddenPills = 0;
+    if (pills.length > PILL_CAP) {
+      const keep = pills.filter((p) => p.userData.id === this.selectedId || p.userData.id === this.hover?.id || p.color !== 'text-3');
+      this.hiddenPills = pills.length - keep.length;
+      pills = keep;
+    }
+    this.overlays = [...chips, ...pills];
+    this.overlayById = new Map(this.overlays.map((p) => [p.id, p]));
+  }
+
   protected updated(changed: PropertyValues<this>): void {
     if (!this.view) return;
     if (changed.has('description') && this.description) this.apply(this.description);
@@ -466,24 +521,26 @@ export class SwPlan3d extends LitElement {
     // started (the probe restores the property's value when it ends)
     if (changed.has('continuous') && !this.probe) this.view.setContinuous(this.continuous);
     this.applyQuality(); // the choice, the installation default or a fallback changed: a no-op when the view already draws the level
-    this.layoutChips(); // the chip elements may be new (a state push): place them at once
+    this.layoutOverlays(); // the label elements may be new (a state push): place them at once
   }
 
-  /** Place every chip element at its part's projected point (hidden behind the camera). Imperative: it runs per drawn
-   * frame while the camera moves, without a Lit render. */
-  private layoutChips(): void {
+  /** Place every DOM label at its part's projected point (hidden behind the camera), matched by the part id it carries
+   * (never by DOM order: Lit may reuse elements across a description change). Imperative: it runs per drawn frame while
+   * the camera moves, without a Lit render. */
+  private layoutOverlays(): void {
     const view = this.view;
-    if (!view || !this.chips.length) return;
-    const els = this.renderRoot.querySelectorAll<HTMLElement>('[data-3d-chip]');
-    els.forEach((el, i) => {
-      const p = this.chips[i];
+    if (!view || !this.overlays.length) return;
+    const els = this.renderRoot.querySelectorAll<HTMLElement>('[data-3d-part]');
+    els.forEach((el) => {
+      const p = this.overlayById.get(el.getAttribute('data-3d-part') ?? '');
       const at = p ? view.projectPoint(p.position) : null;
-      if (!at) {
+      if (!p || !at) {
         el.style.display = 'none';
         return;
       }
       el.style.display = 'block';
-      el.style.transform = `translate(${Math.round(at.x)}px, ${Math.round(at.y)}px) translate(-50%, -50%)`;
+      // a chip is centred on its point (the room's centroid); a pill stands on its point, bottom edge a gap above it
+      el.style.transform = p.kind === 'chip' ? `translate(${Math.round(at.x)}px, ${Math.round(at.y)}px) translate(-50%, -50%)` : `translate(${Math.round(at.x)}px, ${Math.round(at.y) - PILL_GAP_PX}px) translate(-50%, -100%)`;
     });
   }
 
@@ -491,7 +548,6 @@ export class SwPlan3d extends LitElement {
     if (desc === this.applied) return;
     this.applied = desc;
     this.view?.setDescription(desc);
-    this.chips = desc.parts.filter((p) => p.kind === 'chip');
     this.setAttribute('data-parts', String(desc.parts.length));
     this.toggleAttribute('data-estimated', desc.estimated);
     if (!this.presetApplied) {
@@ -739,7 +795,13 @@ export class SwPlan3d extends LitElement {
       <div class="stage"></div>
       ${!this.ready && !this.error ? html`<div class="spinner" data-3d-spinner>טוען תלת-ממד…</div>` : nothing}
       ${this.error ? html`<div class="spinner err" data-3d-error>${this.error}</div>` : nothing}
-      ${this.chips.length ? html`<div class="chips" aria-hidden="true">${this.chips.map((p) => html`<span class="chip" data-3d-chip=${p.userData.id} data-3d-chip-part=${p.id}>${p.text ?? ''}</span>`)}</div>` : nothing}
+      ${this.overlays.length
+        ? html`<div class="overlay">${this.overlays.map((p) => p.kind === 'chip'
+            ? html`<span class="chip" aria-hidden="true" data-3d-chip=${p.userData.id} data-3d-chip-part=${p.id} data-3d-part=${p.id}>${p.text ?? ''}</span>`
+            : html`<button type="button" class="lbl" tabindex="-1" data-3d-label=${p.userData.id} data-3d-part=${p.id} aria-pressed=${this.selectedId === p.userData.id ? 'true' : 'false'} style=${`--lbl: var(--sw-${p.color})`} @click=${() => this.emitSelect({ id: p.userData.id, kind: p.userData.kind, partId: p.id })}>${p.text ?? ''}</button>`)}${this.hiddenPills
+            ? html`<span class="more" data-3d-more=${this.hiddenPills} title="ישויות ללא מצב מיוחד מוסתרות במבט הכללי; בחירה ברשימה או במפלס מציגה אותן">+${this.hiddenPills} ישויות</span>`
+            : nothing}</div>`
+        : nothing}
       ${this.renderStrip()}
       <div class="bar" role="group" aria-label="תצוגות מוכנות" data-3d-bar>
         <sw-chip data-preset-top ?selected=${preset === 'top'} @click=${() => this.pickPreset('top')}>מלמעלה</sw-chip>

@@ -286,15 +286,34 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
     const part = (id: string) => d.parts.find((p) => p.id === id)!;
     await expect.poll(async () => { d = await describe3d(page, HOST); return Math.abs(part('door:dr').rotation[1]); }, { timeout: 15000 }).toBe(80);
     expect(part('obj:lb').color).toBe('map-glow');
-    // the door (its lintel, the part above the leaf) is bound to the lock: the click selects the lock's anchor - the rule
-    // the history map and the event page share (part-select.boundItemOf)
-    await el.locator('[data-preset-top]').click();
+    // the door (its lintel or its open leaf) is bound to the lock: the click selects the lock's anchor - the rule the
+    // history map and the event page share (part-select.boundItemOf). The lock's pill is a DOM label since 1c (the
+    // entity's own click target, like a 2D pin) standing over its point at the door itself, so the door is clicked
+    // where no pill stands: the first of its parts, over the overview presets, whose projected point no pill covers
     await el.evaluate((node) => {
       const w = window as unknown as { __sel: unknown[] };
       w.__sel = [];
       node.addEventListener('part-select', (e) => w.__sel.push((e as CustomEvent).detail));
     });
-    const doorAt = await partScreen(page, HOST, 'lintel:dr');
+    const doorAt = await (async () => {
+      for (const preset of ['top', 'persp', 'iso'] as const) {
+        await el.locator(`[data-preset-${preset}]`).click();
+        await expect(el).toHaveAttribute('data-preset', preset);
+        // the damping settles first (frames stop): the pills and the projected points are measured at rest
+        for (let i = 0; i < 20; i++) {
+          const frames = await el.getAttribute('data-frames');
+          await page.waitForTimeout(250);
+          if ((await el.getAttribute('data-frames')) === frames) break;
+        }
+        const pills = await el.locator('[data-3d-label]').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; }));
+        for (const id of ['lintel:dr', 'door:dr']) {
+          const at = await partScreen(page, HOST, id);
+          const m = 6; // a margin: a point a fraction of a pixel off a pill's edge still lands on it
+          if (!pills.some((r) => at.x >= r.x - m && at.x <= r.x + r.w + m && at.y >= r.y - m && at.y <= r.y + r.h + m)) return at;
+        }
+      }
+      throw new Error('every part of the door sits under a pill from every preset');
+    })();
     await page.mouse.click(doorAt.x, doorAt.y);
     await expect(el).toHaveAttribute('data-selected', ids.lockAnchor);
     expect(await page.evaluate(() => (window as unknown as { __sel: unknown[] }).__sel)).toEqual([{ id: 'dr', kind: 'opening' }]);
@@ -627,7 +646,7 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
     await expect(page.locator(`${ed} [data-anchor-tilt]`)).toHaveCount(0);
   });
 
-  test('performance: frames over four seconds on the floor and on a 3,000-chair floor (>= 20 fps asserted; the numbers are reported)', async ({ page }, testInfo) => {
+  test('performance: frames over four seconds on the floor and on a 3,000-chair floor (level 1 >= 20 fps; level 2 >= 30 fps on the chairs and >= 45 fps at 390 px - CR-006 1c)', async ({ page }, testInfo) => {
     test.setTimeout(300_000);
     const report = (line: string) => {
       console.log(line);
@@ -659,6 +678,36 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
       report(`PERF ${label} fps=${r.fps} parts=${parts}`);
       report(`PERF ${label} detail: data-fps=${r.last} counter-reports=${r.reports}`);
       return { fps: r.fps, parts };
+    };
+    /** The uncapped cost of a level-2 frame per lever configuration (SceneView.benchFrames: back-to-back frames with a
+     * readback each; requestAnimationFrame is vsync-capped, so an idle machine reports 60 fps for every configuration).
+     * Ranks the four levers of CR-006 §4.1.4 on the floor on screen; the floor's own configuration is restored after. */
+    const rank = async (label: string) => {
+      const el = page.locator(`${HOST} sw-plan-3d[data-floor-3d]`);
+      const rows = await el.evaluate(async (node) => {
+        const v = (node as unknown as { view: { setHeavyConfig: (c: Record<string, unknown> | null) => void; benchFrames: (k: number) => number } }).view;
+        const configs: [string, Record<string, unknown>][] = [
+          ['full', { objectShadows: true, lambertObjects: false, shadowMapPx: 2048, occlusion: true }],
+          ['no-object-shadows', { objectShadows: false, lambertObjects: false, shadowMapPx: 2048, occlusion: true }],
+          ['no-object-shadows+lambert', { objectShadows: false, lambertObjects: true, shadowMapPx: 2048, occlusion: true }],
+          ['no-object-shadows+map1024', { objectShadows: false, lambertObjects: false, shadowMapPx: 1024, occlusion: true }],
+          ['no-object-shadows+no-occlusion', { objectShadows: false, lambertObjects: false, shadowMapPx: 2048, occlusion: false }],
+          ['no-object-shadows+lambert+map1024', { objectShadows: false, lambertObjects: true, shadowMapPx: 1024, occlusion: true }],
+          ['all-four', { objectShadows: false, lambertObjects: true, shadowMapPx: 1024, occlusion: false }],
+        ];
+        const out: Record<string, number> = {};
+        for (const [name, cfg] of configs) {
+          v.setHeavyConfig(cfg);
+          await new Promise((res) => setTimeout(res, 150));
+          const a = v.benchFrames(40);
+          const b = v.benchFrames(40);
+          out[name] = Math.round(Math.min(a, b) * 100) / 100;
+        }
+        v.setHeavyConfig(null);
+        return out;
+      });
+      report(`PERF ${label} level-2 ms/frame per configuration: ${JSON.stringify(rows)}`);
+      return rows;
     };
     const open3d = async (label: string, level: '1' | '2' = '1') => {
       const host = page.locator(HOST);
@@ -702,15 +751,30 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
       await page.goto('about:blank');
       await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
       await open3d('chairs-level2', '2');
-      await measure('chairs-level2'); // reported only (CR-006 1a: shadows and the occlusion on the same 3,000 chairs)
+      // CR-006 1c: level 2's own budget on the heavy floor (the heavy configuration of scene-three: no object shadows,
+      // Lambert objects, a 1024 shadow map, the contact occlusion kept - chosen by these measurements, recorded in CR-006 §7c)
+      const big2 = await measure('chairs-level2');
       const d = await describe3d(page, HOST);
       expect(d.parts.filter((p) => p.id.startsWith('obj:big')).length).toBe(3000);
-      // the phone width on the same machine (not a phone GPU: the design's 30 fps phone target is reported, never asserted)
+      const heavy = await page.locator(`${HOST} sw-plan-3d[data-floor-3d]`).evaluate((n) => (n as unknown as { view: { heavyConfig: () => Record<string, unknown> } }).view.heavyConfig());
+      report(`PERF chairs-level2 config=${JSON.stringify(heavy)}`);
+      const { HEAVY_CONFIG } = await import('../src/map/scene-three'); // (imported here: the module pulls the three bundle)
+      expect(heavy).toEqual({ heavy: true, ...HEAVY_CONFIG }); // the floor is above the threshold: the heavy configuration, the one the probe measures
+      expect(big2.fps).toBeGreaterThanOrEqual(30);
+      await rank('chairs-1440px');
+      // the phone width on the same machine (not a phone GPU): level 1 reported, level 2 against the 45 fps line the
+      // slice sets for the 390 px viewport (the design's 30 fps phone floor with headroom for a phone GPU)
       await page.setViewportSize({ width: 390, height: 844 });
       await page.goto('about:blank');
       await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
       await open3d('chairs-390px');
       await measure('chairs-390px');
+      await page.goto('about:blank');
+      await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
+      await open3d('chairs-390px-level2', '2');
+      const phone2 = await measure('chairs-390px-level2');
+      expect(phone2.fps).toBeGreaterThanOrEqual(45);
+      await rank('chairs-390px');
     } finally {
       await saveDraft({ objects }); // the small floor again for anyone who reruns a single test
       await publish();

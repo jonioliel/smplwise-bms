@@ -7,7 +7,8 @@
  * pass would need the post-processing chain and a depth target on every frame), ACES tone mapping, and the cutaway:
  * walls on the camera's side facing it drop to CUTAWAY_HEIGHT_M, decided per quantised azimuth (scene-frame.cutawayIds -
  * deterministic for a camera state) and never from a camera preset. One InstancedMesh per instance group (a unit box or
- * a unit cylinder scaled per instance), a Mesh per prism, a Sprite per label, a fixed pool of MAX_GLOW_LIGHTS point
+ * a unit cylinder scaled per instance), a Mesh per prism, a Sprite per room / plan label (the temperature chips and the
+ * entity pills are DOM labels of the element, laid out on the projected points), a fixed pool of MAX_GLOW_LIGHTS point
  * lights for the glows; OrbitControls with touch; the presets top / iso (a true isometric on an orthographic camera:
  * the building page's 30 deg axes) / persp (the 31 deg perspective of phase 4) / from a camera; picking by ray
  * (through translucent plates); a line outline on the selected item; GLTFExporter (without the outline); small
@@ -39,12 +40,38 @@ export interface SceneViewOptions {
 }
 
 export const SMALL_PART_M = 0.6;
+/** The one heaviness threshold of the view (design 10.4, CR-006 1c): above this many parts the small objects hide when
+ * the camera is far, and level 2 runs HEAVY_CONFIG instead of FULL_CONFIG. The element's frame-budget probe then
+ * measures that configuration, so a device that misses the budget with it falls back to level 1 - never a phone on
+ * the full configuration of a heavy floor. */
 export const HIDE_SMALL_ABOVE_PARTS = 3000;
 export const HIDE_SMALL_DISTANCE_M = 45;
 /** Every point light is a term in every lit shader: past a handful the frame rate (and the uniform budget) suffers. */
 export const MAX_GLOW_LIGHTS = 8;
 /** The shadow map of the level-2 sun (one map for the whole extent: a 20 m hall gets ~1 cm texels). */
 export const SHADOW_MAP_PX = 2048;
+/** What level 2 spends on a floor: the four levers of the heavy-floor budget (CR-006 §4.1.4 / 1c). */
+export interface HeavyConfig {
+  /** The objects' instance groups cast and receive the sun's shadows (a second draw of every instance, PCF taps on
+   * every fragment of 3,000 chairs covering the view). */
+  objectShadows: boolean;
+  /** The objects' instance groups shade with Lambert (diffuse only) instead of the standard PBR material; the
+   * structure and the floor keep the standard one. */
+  lambertObjects: boolean;
+  /** The side of the sun's shadow map in texels. */
+  shadowMapPx: number;
+  /** The baked contact occlusion under walls and objects (one instanced, alpha-blended plane per part). */
+  occlusion: boolean;
+}
+export const FULL_CONFIG: HeavyConfig = { objectShadows: true, lambertObjects: false, shadowMapPx: SHADOW_MAP_PX, occlusion: true };
+/** Above HIDE_SMALL_ABOVE_PARTS parts. Chosen by the uncapped frame-cost measurements of slice 1c on the 3,000-chair
+ * floor in real Chrome, three runs (CR-006 §7c records them): the Lambert objects take 30-35 % off a frame at 1440 px
+ * and 25-35 % at 390 px in every run (the per-fragment standard shading of the chairs covering the view was the cost,
+ * as 1a suspected); the object shadows another ~17 % at 390 px; the 1024 shadow map gains nothing on its own but
+ * 15-25 % more on top of Lambert in two runs of three (once the shading is cheap the shadow pass is a visible share) -
+ * a heavy floor gets 2 cm shadow texels instead of 1 cm under the PCF blur; skipping the occlusion planes stayed
+ * inside the noise, so the chairs keep their contact shadow. */
+export const HEAVY_CONFIG: HeavyConfig = { objectShadows: false, lambertObjects: true, shadowMapPx: 1024, occlusion: true };
 /** The contact occlusion under a part reaches this far past its footprint. */
 export const AO_SPREAD_M = 0.28;
 /** One outline box per part of the selected item, up to this many (a long wall is a few boxes, a tribune a few rows). */
@@ -61,10 +88,12 @@ const NOT_PICKABLE = new Set(['glow', 'cone', 'tint']);
 /** What throws a shadow at level 2 (glass and translucent illustrations do not: the shadow pass ignores opacity). */
 const CASTERS = new Set(['wall', 'lintel', 'sill', 'head', 'door', 'object', 'connector', 'camera']);
 const RECEIVERS = new Set(['floor', 'wall', 'object', 'connector', 'room', 'tint', 'lintel', 'sill', 'head']);
-/** On a heavy floor (above HIDE_SMALL_ABOVE_PARTS parts) only the structure takes part in the shadows: the objects'
- * instance groups neither cast (a second draw of every instance) nor receive (the PCF taps on every fragment of
- * 3,000 chairs covering the view) - the floor under them still shows the structure's shadows. */
+/** Without object shadows (HEAVY_CONFIG) only the structure takes part in the shadows - the floor under the objects
+ * still shows the structure's shadows. */
 const HEAVY_CASTERS = new Set(['wall', 'lintel', 'sill', 'head', 'door', 'connector']);
+/** The parts the element draws as DOM labels at the projected point instead of sprites in the scene (the temperature
+ * chips of 1b, the entity pills since 1c): readable at the overview, RTL, in the theme's tokens. */
+const DOM_LABEL_KINDS = new Set(['chip', 'entity']);
 /** What gets a contact occlusion at level 2: the structure and the objects standing on their floor. */
 const AO_KINDS = new Set(['wall', 'object', 'connector']);
 const AO_MAX_BASE_M = 0.5;
@@ -92,8 +121,8 @@ const THUMB_H = 100;
 
 const rad = (d: number): number => (d * Math.PI) / 180;
 const isSmall = (p: ScenePart): boolean => p.kind === 'object' && Math.max(p.size[0], p.size[1], p.size[2]) < SMALL_PART_M;
-type Role = 'std' | 'floor' | 'glass';
-const roleOf = (p: ScenePart): Role => (p.kind === 'floor' ? 'floor' : p.color === 'map-glass' ? 'glass' : 'std');
+type Role = 'std' | 'floor' | 'glass' | 'object';
+const roleOf = (p: ScenePart): Role => (p.kind === 'floor' ? 'floor' : p.color === 'map-glass' ? 'glass' : p.kind === 'object' ? 'object' : 'std');
 type Placed = { obj: InstancedMesh | Mesh; index: number; part: ScenePart };
 
 const sameVec = (a: readonly number[], b: readonly number[]): boolean => a.length === b.length && a.every((v, i) => v === b[i]);
@@ -259,8 +288,10 @@ export class SceneView {
   private quality: QualityLevel;
   private framed = false;
   private hideSmall = false;
-  /** The description is heavy (above HIDE_SMALL_ABOVE_PARTS parts): the objects cast no shadows. */
+  /** The description is heavy (above HIDE_SMALL_ABOVE_PARTS parts): level 2 runs HEAVY_CONFIG. */
   private heavy = false;
+  /** A configuration forced for measurement (the live perf spec ranks the levers); null = the floor decides. */
+  private heavyOverride: HeavyConfig | null = null;
   private disposed = false;
   private continuous = false;
   private raf = 0;
@@ -312,6 +343,60 @@ export class SceneView {
 
   getQuality(): QualityLevel {
     return this.quality;
+  }
+
+  /** The configuration level 2 draws with now: FULL_CONFIG, or HEAVY_CONFIG above HIDE_SMALL_ABOVE_PARTS parts (or the
+   * override of a measurement). */
+  private config(): HeavyConfig {
+    return this.heavyOverride ?? (this.heavy ? HEAVY_CONFIG : FULL_CONFIG);
+  }
+
+  /** The effective configuration with the heaviness flag (tests, the live perf spec's report). */
+  heavyConfig(): HeavyConfig & { heavy: boolean } {
+    return { heavy: this.heavy, ...this.config() };
+  }
+
+  /** Force a configuration (measurement only; null hands the choice back to the floor): the materials are dropped and
+   * the description realised again with it. */
+  setHeavyConfig(cfg: Partial<HeavyConfig> | null): void {
+    this.heavyOverride = cfg ? { ...(this.heavy ? HEAVY_CONFIG : FULL_CONFIG), ...cfg } : null;
+    for (const { material } of this.materials.values()) material.dispose();
+    this.materials.clear();
+    if (this.desc) {
+      const d = this.desc;
+      const sel = this.selectedId;
+      this.desc = null; // never a tint-only shortcut: the graph must be realised with the new configuration
+      this.setDescription(d);
+      this.setSelected(sel);
+    }
+    this.invalidate();
+  }
+
+  /** The WebGL renderer behind the view (the visual baselines are renderer-specific: the spec records which one made
+   * them and compares only on the same one). */
+  rendererInfo(): { vendor: string; renderer: string } {
+    const gl = this.renderer.getContext();
+    const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+    return { vendor: String(dbg ? gl.getParameter(dbg.UNMASKED_VENDOR_WEBGL) : gl.getParameter(gl.VENDOR)), renderer: String(dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)) };
+  }
+
+  /** The cost of a frame as drawn now, in milliseconds: `n` frames back to back, each followed by a one-pixel readback so
+   * the GPU has finished it before the next starts (the live perf spec's uncapped measure - requestAnimationFrame is
+   * vsync-capped, so an idle machine reports 60 fps for every configuration and cannot rank the levers). One warm-up
+   * frame first: the shaders and the shadow map are one-off costs. */
+  benchFrames(n = 60): number {
+    const gl = this.renderer.getContext();
+    const px = new Uint8Array(4);
+    this.controls.update();
+    this.updateCutaway();
+    const one = () => {
+      this.renderer.render(this.scene, this.active);
+      gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    };
+    one();
+    const t0 = performance.now();
+    for (let i = 0; i < n; i++) one();
+    return (performance.now() - t0) / n;
   }
 
   // ---- quality: lights, renderer state, materials (a switch rebuilds the parts from the kept description)
@@ -380,6 +465,13 @@ export class SceneView {
     sun.position.set(cx + SUN_DIR[0] * r * 2, cy + SUN_DIR[1] * r * 2, cz + SUN_DIR[2] * r * 2);
     sun.target.position.set(cx, cy, cz);
     sun.target.updateMatrixWorld();
+    const px = this.config().shadowMapPx;
+    if (sun.shadow.mapSize.x !== px) {
+      // a new map size takes a new render target: three allocates it on the next shadow pass when the old one is gone
+      sun.shadow.mapSize.set(px, px);
+      sun.shadow.map?.dispose();
+      sun.shadow.map = null;
+    }
     const cam = sun.shadow.camera;
     cam.left = -r;
     cam.right = r;
@@ -394,7 +486,10 @@ export class SceneView {
   // ---- building
 
   private material(token: string, opacity: number, doubleSided = false, role: Role = 'std'): MeshLambertMaterial | MeshStandardMaterial {
-    const key = `${token}|${opacity}|${doubleSided ? 2 : 1}|${this.quality === 2 ? role : 'l1'}`;
+    // an object on a heavy floor shades with Lambert (HEAVY_CONFIG): its own cache entry, so a floor that crosses the
+    // threshold between two descriptions never reuses the other configuration's material
+    const lambert = this.quality === 2 && role === 'object' && this.config().lambertObjects;
+    const key = `${token}|${opacity}|${doubleSided ? 2 : 1}|${this.quality === 2 ? (lambert ? 'object-lambert' : role) : 'l1'}`;
     let entry = this.materials.get(key);
     if (!entry) {
       // a double-sided translucent surface draws in one pass (three would draw it twice, back then front)
@@ -404,7 +499,7 @@ export class SceneView {
       let material: MeshLambertMaterial | MeshStandardMaterial;
       if (this.quality === 2 && role === 'glass') {
         material = new MeshStandardMaterial({ color, roughness: 0.12, metalness: 0.25, transparent: true, opacity: Math.max(opacity, 0.35), depthWrite: false, side: DoubleSide, forceSinglePass: true });
-      } else if (this.quality === 2) {
+      } else if (this.quality === 2 && !lambert) {
         material = new MeshStandardMaterial({ color, roughness: role === 'floor' ? 1 : 0.88, metalness: 0, transparent: opacity < 1, opacity, depthWrite: opacity >= 1, ...sides });
       } else {
         material = new MeshLambertMaterial({ color, transparent: opacity < 1, opacity, depthWrite: opacity >= 1, ...sides });
@@ -438,8 +533,9 @@ export class SceneView {
 
   private shadows(o: Mesh | InstancedMesh, p: ScenePart): void {
     if (this.quality !== 2) return;
-    o.castShadow = (this.heavy ? HEAVY_CASTERS : CASTERS).has(p.kind) && p.color !== 'map-glass';
-    o.receiveShadow = RECEIVERS.has(p.kind) && !(this.heavy && p.kind === 'object');
+    const objects = this.config().objectShadows;
+    o.castShadow = (objects ? CASTERS : HEAVY_CASTERS).has(p.kind) && p.color !== 'map-glass';
+    o.receiveShadow = RECEIVERS.has(p.kind) && (objects || p.kind !== 'object');
   }
 
   private label(p: ScenePart): Sprite {
@@ -489,7 +585,7 @@ export class SceneView {
       this.shadows(mesh, p);
       return mesh;
     }
-    if (p.kind === 'chip') return null; // the element draws chips as DOM at the projected point
+    if (DOM_LABEL_KINDS.has(p.kind)) return null; // the element draws chips and entity pills as DOM at the projected point
     if (p.shape === 'sprite') return this.label(p);
     return null; // lights come from the pool (setDescription)
   }
@@ -497,7 +593,7 @@ export class SceneView {
   /** The contact occlusion of level 2: one instanced plane under every wall, object and connector box standing on its
    * level's floor, a little wider than the footprint. Skipped when nothing qualifies. */
   private occlusion(parts: ScenePart[], desc: SceneDescription): InstancedMesh | null {
-    if (this.quality !== 2) return null;
+    if (this.quality !== 2 || !this.config().occlusion) return null;
     const elevation = new Map(desc.levels.map((l) => [l.id, l.elevation_m]));
     const lowest = desc.levels.length ? Math.min(...desc.levels.map((l) => l.elevation_m)) : 0;
     const under = parts.filter((p) => AO_KINDS.has(p.kind) && (p.shape === 'box' || p.shape === 'cylinder') && p.position[1] - p.size[1] / 2 <= (elevation.get(p.level_id ?? '') ?? lowest) + AO_MAX_BASE_M);
@@ -660,7 +756,7 @@ export class SceneView {
       this.invalidate();
     }
     if (!sourceId || !this.desc) return;
-    const parts = this.desc.parts.filter((p) => p.userData.id === sourceId && p.kind !== 'cone' && p.kind !== 'floor' && p.kind !== 'tint' && p.kind !== 'chip' && (p.shape === 'box' || p.shape === 'cylinder' || p.shape === 'prism' || p.shape === 'sprite')).slice(0, MAX_OUTLINE_PARTS);
+    const parts = this.desc.parts.filter((p) => p.userData.id === sourceId && p.kind !== 'cone' && p.kind !== 'floor' && p.kind !== 'tint' && !DOM_LABEL_KINDS.has(p.kind) && (p.shape === 'box' || p.shape === 'cylinder' || p.shape === 'prism' || p.shape === 'sprite')).slice(0, MAX_OUTLINE_PARTS);
     if (!parts.length) return;
     const group = new Group();
     const elevation = new Map(this.desc.levels.map((l) => [l.id, l.elevation_m]));
