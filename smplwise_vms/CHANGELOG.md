@@ -1,5 +1,29 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.108 (pilot) — WisKey people directory tab (CR-005 phase 4)
+- Third WisKey tab `#/wiskey/people`: a read-only people directory (list + details pane) over the
+  0.1.105 backend, no backend changes, same `access.read` gate, in both nav designs including the phone
+  bottom nav. Ported from the real WisKey people list and person card: search with typing debounce,
+  station/rights/state filters and sort, paging with WisKey's directory snapshot, the person status and
+  validity logic, the details cache, and WisKey's own Hebrew labels.
+- Privacy is the 0.1.105 decision, unchanged: no phones, card numbers, PIN flags or profile values are
+  served, so none are shown, and the screen carries no edit/add affordances at all (a live test asserts
+  that none of those fields appear against fixture data that contains them). The search box says plainly
+  that the text never reaches WisKey (matched by SMPLWISE against name and employee number only).
+- Honest states: not a live feed (reload on a WisKey change notice, manual refresh, or a 30s fallback poll
+  only while notices are down, with the last-loaded time); a directory that changed under the paging shows
+  a banner and a reload-from-page-1 action; a scan that stopped early (scan limit or rate limit) says so and
+  marks the total as a lower bound. Group ids are shown as WisKey ids since no group names are served.
+- Three documented deviations from WisKey: an offline assignment is shown as offline rather than a
+  revision-based synced/pending guess (revisions are not served); "no assignment" instead of WisKey's
+  ambiguous "inactive"; disabled grants listed muted instead of hidden, because the disabled filter exists.
+- Also added to the repository: `docs/changes/CR-005-PHASE2-BRIEF.md`, a build brief for the next two
+  screens (person editor with card capture, door/station technical settings with door programs and
+  relay reversal), researched against the real WisKey source, with the open owner questions.
+- Reviewed once (approved with nits, none blocking). Known v1 limit: every WisKey change notice refetches
+  the page, and a wide text search while a door is busy can exhaust the per-user rate budget - it is
+  shown honestly and retried on the next notice; coalescing notices during a search is a follow-up.
+
 ## 0.1.107 (pilot) — WisKey activity log tab (CR-005 phase 4)
 - Owner request (2026-09-28): give WisKey its own top-level nav tab (not nested under the map), then a
   read-only Activity/Events tab alongside the already-shipped Entry Center overview.
