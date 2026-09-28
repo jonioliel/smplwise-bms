@@ -43,6 +43,21 @@ def status(conn: sqlite3.Connection, settings: Settings, station_id: str) -> dic
     }
 
 
+def listing(conn: sqlite3.Connection, settings: Settings, overview: dict[str, Any] | None) -> dict[str, Any]:
+    """Every station the feed knows (in the feed's order), then any override row whose station the feed no longer
+    lists (`known: false`, so a stale row can still be cleared). Names come from the feed; never a value, never a host."""
+    rows = {r["station_id"]: r["updated_at"] for r in conn.execute("SELECT station_id, updated_at FROM wiskey_station_credentials ORDER BY station_id").fetchall()}
+    out: list[dict[str, Any]] = []
+    for s in (overview or {}).get("stations", []):
+        sid = s["id"]
+        out.append({"station_id": sid, "name": s.get("name"), "has_camera": bool(s.get("camera_entity")), "known": True,
+                    "override": sid in rows, "override_updated_at": rows.get(sid)})
+    seen = {s["station_id"] for s in out}
+    out.extend({"station_id": sid, "name": None, "has_camera": False, "known": False, "override": True, "override_updated_at": at}
+               for sid, at in rows.items() if sid not in seen)
+    return {"default_configured": default_configured(settings), "stations": out}
+
+
 def set_override(conn: sqlite3.Connection, station_id: str, username: str, password: str, actor_id: str | None) -> bool:
     """Store (or replace) the station's override; True when one existed before."""
     existed = conn.execute("SELECT 1 FROM wiskey_station_credentials WHERE station_id = ?", (station_id,)).fetchone() is not None

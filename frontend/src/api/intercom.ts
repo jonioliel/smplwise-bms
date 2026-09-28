@@ -5,7 +5,7 @@
  * the read-only activity log (`getIntercomEvents`) and people directory (`getIntercomPeople` / `getIntercomPerson`).
  * Phase 3 (access.release): door release, call answer / reject / hang up, and a spoken announcement.
  */
-import { ApiError, apiUrl, get, post } from './client';
+import { ApiError, api, apiUrl, get, post, put } from './client';
 
 /** A display zone as WisKey sends it (time.ts `DisplayZone`): an IANA zone, or a device's own DST rule. */
 export type DisplayZone =
@@ -324,6 +324,41 @@ export const getIntercomTtsEngines = () => get<ActionReply<'tts', IntercomTtsEng
 
 export const speakAtIntercom = (stationId: string, body: { engine_id: string; language: string | null; message: string }) =>
   post<Actioned<ActionReply<'tts', IntercomTtsStatus>>>(`${station(stationId)}/tts`, { ...body, ...envelope() });
+
+// ---------------------------------------------------------------- per-station RTSP credentials (system.configure)
+
+/** One station row of GET /intercom/stations/credentials (routers/access_control.py): whether the system administrator
+ * gave it its own RTSP account and since when. `known` is false for a stored override whose station WisKey no longer
+ * lists (it can still be cleared). Never a username, a password or the station's host. */
+export interface IntercomStationCredentials {
+  station_id: string;
+  name: string | null;
+  has_camera: boolean;
+  known: boolean;
+  override: boolean;
+  override_updated_at: string | null;
+}
+
+export interface IntercomCredentialsList {
+  state: IntercomFeedState;
+  /** The shared account from the add-on options (`wiskey_username` / `wiskey_password`) is set. */
+  default_configured: boolean;
+  stations: IntercomStationCredentials[];
+}
+
+/** One station's own status as PUT / DELETE / GET on `.../{id}/credentials` answer it (write-only: no value). */
+export interface IntercomStationCredentialsStatus {
+  station_id: string;
+  override: boolean;
+  override_updated_at: string | null;
+  default_configured: boolean;
+  effective: 'override' | 'default' | 'none';
+}
+
+export const getIntercomCredentials = () => get<IntercomCredentialsList>('intercom/stations/credentials');
+export const setIntercomCredentials = (stationId: string, body: { username: string; password: string }) =>
+  put<IntercomStationCredentialsStatus>(`${station(stationId)}/credentials`, body);
+export const clearIntercomCredentials = (stationId: string) => api<IntercomStationCredentialsStatus>(`${station(stationId)}/credentials`, { method: 'DELETE' });
 
 /** What is known about a physical command that did not come back as a success. Only a structured answer from the
  * SMPLWISE backend saying so (`details.outcome` `not_sent` / `refused`, or the permission check's 403) means nothing

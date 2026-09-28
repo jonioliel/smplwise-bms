@@ -22,7 +22,8 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
      `go2rtc_api_username` / `go2rtc_api_password` if the go2rtc API is protected.
    - `wiskey_username`, `wiskey_password` — the RTSP account of the WisKey door stations, assumed the same on
      every station; the WisKey tab shows each station camera's still through go2rtc with it. A station with
-     a different account gets its own (system administrator, `PUT /api/v1/intercom/stations/<id>/credentials`).
+     a different account gets its own in הגדרות › חיבורים › "מצלמות עמדות WisKey" (system administrator only;
+     the stored account is never shown again, and each set/clear is audited without the password).
      go2rtc versions before 1.9.14 write a stream's source URL, including this account, to the go2rtc log each time
      SMPLWISE registers a station stream (after an add-on start, a go2rtc restart or a credential change). Use go2rtc
      1.9.14 or newer.

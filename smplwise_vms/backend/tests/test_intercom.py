@@ -2385,6 +2385,64 @@ def test_station_credentials_are_not_in_project_backups(feed):
     assert "s3cret" not in json.dumps(data, default=str)
 
 
+CREDS_LIST = "/api/v1/intercom/stations/credentials"
+
+
+def test_station_credentials_listing_names_every_station_and_stale_rows(feed, fake_go2rtc):
+    """The admin screen's list (GET .../stations/credentials): system.configure only; every station the feed knows in
+    the feed's order, then any override row whose station the feed no longer lists (`known: false`) - and that row can
+    still be cleared. No username, password or host is ever in the reply."""
+    c, s = camera_feed(feed)
+    bind(c, s, "vera", "viewer", "installation", "*")
+    bind(c, s, "sam", "site_admin", "installation", "*")
+    for who in ("vera", "sam", "nobody"):
+        r = c.get(CREDS_LIST, headers=as_user(who))
+        assert r.status_code == 403 and r.json()["code"] == "forbidden", who
+    body = c.get(CREDS_LIST).json()
+    assert body["state"] == "ready" and body["default_configured"] is True
+    assert [(x["station_id"], x["name"], x["has_camera"], x["known"], x["override"], x["override_updated_at"]) for x in body["stations"]] == [
+        ("entry-a", "Main gate", True, True, False, None),
+        ("entry-b", "Side door", True, True, False, None),
+        ("entry-c", "No host", True, True, False, None),
+        ("entry-d", "Bad host", True, True, False, None),
+        ("entry-e", "No camera", False, True, False, None),
+    ]
+    assert "192.0.2.10" not in json.dumps(body) and "\"host\"" not in json.dumps(body), "the host is never served"
+    # one override on a known station, one stored for a station the feed does not list (set by id)
+    assert c.put(CREDS.format("entry-a"), json={"username": "gate-admin", "password": "s3cret!"}).status_code == 200
+    assert c.put(CREDS.format("gone-1"), json={"username": "old-admin", "password": "old-pass"}).status_code == 200
+    r = c.get(CREDS_LIST)
+    for secret in ("gate-admin", "s3cret", "old-admin", "old-pass", "p@ss", "rtsp://"):
+        assert secret not in r.text, secret
+    rows = r.json()["stations"]
+    assert [x["station_id"] for x in rows] == ["entry-a", "entry-b", "entry-c", "entry-d", "entry-e", "gone-1"], "stale rows after the feed's stations"
+    assert rows[0]["override"] is True and rows[0]["known"] is True and rows[0]["override_updated_at"]
+    assert rows[-1] == {"station_id": "gone-1", "name": None, "has_camera": False, "known": False, "override": True, "override_updated_at": rows[-1]["override_updated_at"]}
+    # the stale row is clearable (no feed check on DELETE), and clearing what is not there is still a 200
+    d = c.delete(CREDS.format("gone-1"))
+    assert d.status_code == 200 and d.json()["override"] is False
+    assert [x["station_id"] for x in c.get(CREDS_LIST).json()["stations"]] == ["entry-a", "entry-b", "entry-c", "entry-d", "entry-e"]
+    assert c.delete(CREDS.format("gone-1")).status_code == 200
+    rows = c.get("/api/v1/audit?prefix=intercom.credentials&limit=50").json()["rows"]
+    assert [row["resource_id"] for row in rows if row["action"] == "intercom.credentials.clear"] == ["gone-1", "gone-1"]
+    assert "old-admin" not in json.dumps(rows) and "old-pass" not in json.dumps(rows)
+
+
+def test_station_credentials_listing_without_a_feed_shows_only_stored_rows(settings):
+    """No Home Assistant at all: the list still answers (state `ha_not_configured`, nothing from the feed) so a stored
+    row can be seen and cleared."""
+    intercom_sync.SYNC.reset()
+    c = TestClient(create_app(settings))
+    assert c.get(CREDS_LIST).json() == {"state": "ha_not_configured", "default_configured": False, "stations": []}
+    assert c.put(CREDS.format("entry-a"), json={"username": "u", "password": "p"}).status_code == 200
+    body = c.get(CREDS_LIST).json()
+    assert body["state"] == "ha_not_configured" and body["default_configured"] is False
+    [row] = body["stations"]
+    assert row == {"station_id": "entry-a", "name": None, "has_camera": False, "known": False, "override": True, "override_updated_at": row["override_updated_at"]}
+    assert c.delete(CREDS.format("entry-a")).status_code == 200
+    assert c.get(CREDS_LIST).json()["stations"] == []
+
+
 def test_camera_snapshot_requires_access_read(settings):
     """`access.read` first (before the path is even validated); without Home Assistant a clear 503 - no image."""
     intercom_sync.SYNC.reset()
