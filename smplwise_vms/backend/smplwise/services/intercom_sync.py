@@ -44,6 +44,7 @@ import asyncio
 import datetime
 import logging
 import queue
+import re
 import threading
 import time
 from collections import deque
@@ -65,6 +66,9 @@ RETRY_ABSENT_S = 300.0  # WisKey missing or refusing us: re-probe every five min
 ABSENT_AFTER_READY = 3  # after a ready session, `unknown_command` with HA RUNNING must repeat this often to mean "removed"
 LOADING = "wiskey_loading"  # IntercomError code: HA does not know WisKey's commands yet, but may still be loading it
 STATION_WATCH_KEYS = ("online", "ringing", "call_status")
+# a camera entity id as Home Assistant spells it (lower-case, digits, underscores). It comes from WisKey's `overview`,
+# which is untrusted input, and is meant to name a media source later, so anything else is not kept.
+CAMERA_ENTITY = re.compile(r"camera\.[a-z0-9_]{1,200}")
 LAST_ACCESS_KEYS = ("timestamp", "time_source", "person_name", "employee_no", "authentication", "result", "event_type", "recovered", "door")
 # one events/list row as the activity screen shows it: the overview's last-access fields plus the row's identity and
 # arrival time. Not kept: `card` (masked last-4), `portrait`, `evidence`, `major` / `minor`, `api_door`, `source`.
@@ -216,6 +220,10 @@ def _station(raw: dict[str, Any]) -> dict[str, Any]:
             if isinstance(lock, dict) and _int(lock.get("physical_index")) is not None
         ],
         "has_camera": bool(entities.get("camera")),
+        # the station camera's HA entity id (WisKey's panel hands `station.entities.camera` to its camera player). An HA
+        # entity id names a camera; it carries nothing about a person or the device (host, model, firmware stay behind,
+        # as do the station's other entity ids). Kept only when it is a well-formed camera id.
+        "camera_entity": camera if isinstance(camera := entities.get("camera"), str) and CAMERA_ENTITY.fullmatch(camera) else None,
         "last_error": raw.get("last_error") if isinstance(raw.get("last_error"), str) else None,
         "last_seen": raw.get("last_seen") if isinstance(raw.get("last_seen"), str) else None,
         "pending_user_count": _int(raw.get("pending_user_count")) or 0,

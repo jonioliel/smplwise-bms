@@ -516,13 +516,13 @@ def test_overview_round_trip_and_live_refresh(feed):
         assert gate == {
             "id": "entry-a", "name": "Main gate", "online": True, "call_state": "ringing", "sync_state": "synced", "lock_enabled": True,
             "lock_count": 1, "locks": [{"physical_index": 1, "name": "Gate"}],  # WisKey's api_id stays behind
-            "has_camera": True, "last_error": None, "last_seen": "2026-09-27T08:00:00+00:00", "pending_user_count": 0,
-            "managed_user_count": 12, "zone": {"kind": "iana", "name": "Asia/Jerusalem"},
+            "has_camera": True, "camera_entity": "camera.main_gate", "last_error": None, "last_seen": "2026-09-27T08:00:00+00:00",
+            "pending_user_count": 0, "managed_user_count": 12, "zone": {"kind": "iana", "name": "Asia/Jerusalem"},
             "last_access": {"timestamp": "2026-09-27T07:59:00+03:00", "time_source": "device", "person_name": "Dana", "employee_no": "1001", "authentication": "card", "result": "granted", "event_type": "access_granted", "recovered": False, "door": 1},
         }
-        assert side["online"] is False and side["call_state"] == "unavailable" and side["last_access"] is None and side["zone"] is None and side["has_camera"] is False and side["pending_user_count"] == 2
+        assert side["online"] is False and side["call_state"] == "unavailable" and side["last_access"] is None and side["zone"] is None and side["has_camera"] is False and side["camera_entity"] is None and side["pending_user_count"] == 2
         text = json.dumps(body)
-        for private in ("192.0.2.10", "+972500000000", "****1234", "DS-KV6113", "users", "entities", "host"):
+        for private in ("192.0.2.10", "+972500000000", "****1234", "DS-KV6113", "users", "entities", "host", "lock.main_gate", "binary_sensor.", "sensor.main_gate"):
             assert private not in text, f"{private} must not leave the feed"
 
         pushed = []
@@ -2169,3 +2169,14 @@ def test_a_deeply_nested_body_is_an_audited_refusal_not_a_500(feed):
     [row] = audit_rows(feed[1], "intercom.release", "refused")
     assert row["reason"] == "validation"
     assert not sent(fakes, "stations/test_unlock")
+
+
+def test_camera_entity_is_kept_only_as_a_well_formed_camera_id():
+    """The projection keeps the camera's HA entity id next to `has_camera` (owner report 2026-09-28: the entry center
+    must be able to show each station's camera); a malformed id is dropped, and none of the station's other entity ids
+    is kept."""
+    raw = {**copy.deepcopy(STATION), "entities": {"camera": "camera.x/../../api/states", "lock": "lock.main_gate"}}
+    ov = intercom_sync.project_overview({"stations": [STATION, raw, OFFLINE]})
+    assert [s["camera_entity"] for s in ov["stations"]] == ["camera.main_gate", None, None]
+    assert [s["has_camera"] for s in ov["stations"]] == [True, True, False], "has_camera itself is unchanged"
+    assert "lock.main_gate" not in json.dumps(ov) and "binary_sensor" not in json.dumps(ov)

@@ -41,6 +41,8 @@ export interface IntercomStation {
   /** The relays a release may name (WisKey `integrated_locks`, without the device's own api_id). */
   locks: IntercomLock[];
   has_camera: boolean;
+  /** The station camera's HA entity id; null when WisKey names none (or a malformed one). */
+  camera_entity: string | null;
   last_error: string | null;
   last_seen: string | null;
   pending_user_count: number;
