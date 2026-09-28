@@ -1,5 +1,34 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.119 (pilot) — Device control, slice 3: floor / area / building "off" actions and the mockup layout (CR-007)
+- The building screen now opens in the approved mockup's layout: a tree of floors and areas with state dots and
+  hover actions, floor cards with a row per area, a "⋯" / "כבה קומה ▾" menu per floor, an area popover with state
+  chips and quick actions, and building buttons ("כבה תאורה בלבד", "כבה הכל בבניין"). The earlier tiles view stays
+  as a second layout, remembered per viewer (owner request: add, do not replace). The floor summary chips now sit
+  next to the floor title (they were pushed to the far edge on wide screens).
+- Bulk actions: lights off, covers close, climate off, screens off, and "all off" for a building, a floor or an
+  area - each behind a confirmation dialog that lists exactly what will be sent (and what is not included, with
+  the reason), focus on Cancel. New sensitive permission `devices.control_bulk` (site_admin and system_admin;
+  a floor-scoped holder acts only on their floors, building actions need installation scope).
+- What a bulk action may touch, decided server-side at preview, request and fan-out alike: lights, covers,
+  climate and fans, media players - never locks, alarm panels, sirens, scripts, scenes, buttons, door/garage/gate
+  covers, anything on the map's door layer, or HA flags (`input_boolean`); and a switch only after a system
+  administrator marked it "בטוח לכיבוי קבוצתי" (a lighting-circuit link only suggests the mark - map editing must
+  never decide what a single click switches off; a mark is cleared when the entity leaves HA). Entities already
+  off are skipped and counted separately.
+- Honest, durable execution: the attempt is audited and every per-entity record committed before the first
+  call; each record is marked "sending" before its call, so after a restart it reads "תוצאה לא ידועה" (it may have
+  gone out) and never "not sent"; a start-up sweep finalises orphaned bulks with an outcome row; at most 8 calls in
+  flight, one bulk per scope and never two sharing an entity; single-entity actions keep their own capacity. The
+  result says "בוצע" only when every entity confirmed, otherwise "בוצע חלקית: k לא אושרו" with the list; a TV that
+  reports `standby` after turn_off counts as off. Clock skew handled as WisKey's actions do (server clock offset,
+  15 s lifetime).
+- Reviewed three times (adversarial): round 1 found "all off" could reach a door-release relay through an
+  unmarked or unplaced switch, a 2 s-fast tablet locked out of every bulk action, and restart mid-bulk
+  misreporting switched-off devices as "not sent" - fixed; round 2 approved with two nits (circuit-only
+  eligibility, stale marks) - fixed. Tests: 48 backend across five files (12 new bulk tests + the switch policy
+  cases), 61 live on desktop, tablet and phone incl. clock-skew and the admin toggle.
+
 ## 0.1.118 (pilot) — WisKey card capture from the door station, and a readable generated PIN (CR-005 phase 2, slice A2)
 - "קריאת כרטיס מהאינטרקום" in the person editor: choose an online station, confirm (the reader at that door
   enters collection mode - the product's first long-running physical interaction), the person presents the card
