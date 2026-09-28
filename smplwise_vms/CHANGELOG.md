@@ -1,5 +1,30 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.128 (pilot) — Device control: its own settings section and the "glass" style (CR-007 slice 6a)
+- New settings tab **"חשמל והתקנים"** (system administrators; everyone else sees it read-only): style
+  (SMPLWISE / זכוכית), default view of the building screen (cards / tiles - a viewer's own toggle still wins on their
+  browser), density (comfortable / compact), show sensors, show the floor's climate strip. Settings family
+  `devices.*`, audited. A note says the per-area layout editor and the colour themes come next (6b).
+- **Glass style** - the mockup the owner approved (translucent panels with blur, soft shadows, rounded tiles, larger
+  room cards, icon-forward tiles in the DomusUI spirit; ideas only, no code from it): a layer of named `--dv-*`
+  properties over the v2 tokens in ONE file (`frontend/src/styles/devices-themes.ts`), so a designer can add a theme
+  without touching the screens - documented knob by knob in `docs/design/DEVICE_THEMES.md` with "how to add a
+  theme". Logical properties only (RTL exact; an LTR viewer is fine too); solid panels where `backdrop-filter` is not
+  supported or the viewer asks for reduced transparency; no hover lift under reduced motion. The SMPLWISE style is
+  unchanged (every new rule is scoped to the glass attribute).
+- Dark values exist for the palette but apply only on an explicit `data-devices-scheme="dark"` (review finding: on a
+  dark-mode OS the area went black while the light-only shell stayed white). Nothing sets it yet; 6b adds the
+  `devices.scheme` setting (auto / light / dark).
+- Also: the area rows' `data-counts` now matches the visible pills when sensors are hidden.
+- The owner's word on the previews: "starting to look like what I want - not the peak, good enough for a start; make
+  changes convenient and document everything" - recorded, hence the theme layer and the doc.
+- Tests: settings + devices backend 48 passed; `evidence-devices` desktop 30 passed / 2 skipped and the 6a tests 6/6
+  on desktop + mobile (style attribute and computed blur / fallback, RTL start edge, permission gating, dark only by
+  attribute, hidden sensors); tsc and build clean. Screenshots under `docs/evidence/T025/devices-glass-*.png`.
+  Also in this release: the test-suite hardening (7 machine-speed-dependent backend tests now scale with
+  `SW_TEST_TIME_FACTOR`, strict bounds behind `SW_PERF=1`; `tests/README.md`) and the T091 guide-capture
+  infrastructure (`frontend/tests/guide-screenshots.spec.ts`, `scripts/docs_he_check.py`, demo captures).
+
 ## 0.1.127 (pilot) — WisKey embed API v1: the panel is embedded through WisKey's own contract (rc.19)
 - The WisKey developers answered our embed-mode request (`docs/integrations/wiskey/WISKEY_EMBED_MODE_REQUEST.md`) with
   contract v1 in WisKey 2.0.0-rc.19 (`docs/integrations/wiskey/embed-api-v1/`). SMPLWISE now uses it: the frame opens
