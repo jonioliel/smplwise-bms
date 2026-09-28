@@ -604,8 +604,12 @@ class Builder {
 
   connectors(prims: Primitive[]): void {
     if (!this.layers.connectors) return;
+    // a tribune connector derived from a tribune object is drawn by its object (the stepped rows); one drawn by hand
+    // (the kind select offers it) has no object and is drawn as steps like stairs, never left out (T087 tuning: it was
+    // invisible in the 3D)
+    const fromObject = new Set(this.input.doc.connectors.filter((c) => c.object_id).map((c) => c.id));
     for (const p of prims) {
-      if (p.kind !== 'connector' || (p as ConnectorPrim).ckind === 'tribune') continue;
+      if (p.kind !== 'connector' || ((p as ConnectorPrim).ckind === 'tribune' && fromObject.has(p.id))) continue;
       const c = p as ConnectorPrim;
       const from = this.level(c.level_from);
       const to = c.level_to ? this.level(c.level_to) : null;

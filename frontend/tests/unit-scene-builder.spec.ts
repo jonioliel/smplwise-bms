@@ -283,6 +283,15 @@ test('a camera whose level was removed is clipped by the default level walls, in
   expect(levelOrDefault({ levels: [] }, 'X')).toBe('X'); // no level list: nothing to fall back from
 });
 
+test('a tribune connector drawn by hand shows as steps; one derived from a tribune object is drawn by its object only (T087 tuning)', () => {
+  const doc: GeometryDoc = { ...sample(), connectors: [CONN('hand', 'tribune', [[0.3, 0.8], [0.3, 0.9]]), CONN('cx-o4', 'tribune', [[0.25, 0.6], [0.25, 0.7]], { object_id: 'o4', source: 'auto' })] };
+  const desc = buildScene({ ...sampleInput(), doc });
+  const hand = desc.parts.filter((p) => p.id.startsWith('conn:hand#'));
+  expect(hand.length).toBeGreaterThanOrEqual(3); // steps from L0 down to L1, like stairs
+  expect(hand.every((p) => p.kind === 'connector' && p.userData.id === 'hand')).toBe(true);
+  expect(desc.parts.some((p) => p.id.startsWith('conn:cx-o4'))).toBe(false); // the object o4 draws its rows
+});
+
 test('door leaves follow the 2D rules: none, sliding on its track, two half leaves, a missing swing opens right', () => {
   // one wall from (1, 4) to (9, 4) m, a 1 m door in the middle: gap (4.5, 4) .. (5.5, 4), the left normal points north
   const scene = (swing: GeomOpening['swing'], state: string, hinge: GeomOpening['hinge'] = 'start') => buildScene({
