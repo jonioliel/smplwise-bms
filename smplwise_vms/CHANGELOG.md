@@ -1,5 +1,31 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.112 (pilot) — Electricity and device control area, slice 1: read-only tree and area screen (CR-007)
+- Owner request (2026-09-28, approved from a mockup): a new top-level area "חשמל והתקנים" - a tree of floors
+  and areas, and an area screen with automatic cards per device type, "as visual and convenient as possible",
+  for one area or the whole building. This slice is read-only: nothing on it acts on a device yet; single-entity
+  control, floor/area/building "off" actions, screens and remotes, the layout editor and the second style
+  follow as their own releases (CR-007 §5).
+- Backend: HA's floor and area registries are mirrored locally (migration 0025; a table is rewritten only when
+  its own registry call succeeded, so one failed call never wipes the names), and three read endpoints project
+  them: the tree with live counts (lights on, switches on, covers open, climate active, screens on, locks,
+  alarm), the building counts, and one area's entities grouped into cards by domain and device class (lighting,
+  switches, climate, covers, security, media, sensors). Disabled, hidden and diagnostic entities are left out;
+  an area without a floor sits under "ללא קומה", entities without an area under "ללא שיוך".
+- New permission `devices.read` (viewer and above, not kiosk), scoped like `map.read`: a viewer bound to one
+  floor sees only that floor's areas, with a badge saying so - a recorded decision. The scope filter that
+  `/ha/entities` and the live socket already used moved into one shared service and is used unchanged by all
+  three (the review compared it line by line).
+- Frontend: the area in both nav designs (an 8th flat entry / a 6th rail area; the phone bar sizes to the
+  visible areas) and on the phone; building screen with KPI row, floors in level order and warm area tiles;
+  area screen with breadcrumb, sibling chips and seven cards with Hebrew empty states. Live refresh refetches
+  at most once per 400 ms while state pushes keep coming (the first version could starve on a busy installation
+  - found and fixed in review) and ignores pushes about other areas.
+- Reference: DomusUI (`docs/integrations/domusui/DOMUSUI_EXTRACTION.md`, GPL-3.0 - ideas only, no code).
+  Reviewed twice (changes needed → approved with nits). Tests: 10 device tests + 14 related, 8 live tests on the
+  phone and 6 on desktop incl. a floor-scoped viewer. Known gap carried to slice 2: no backend test opens the
+  live socket as a floor-scoped viewer.
+
 ## 0.1.111 (pilot) — Plan image toggle on the history map and the event page
 - Owner request (2026-09-26): hide/show the background plan image per viewer on every map surface. The live
   floor map and the plan editor already had it since 0.1.94 (T085, "תמונת התוכנית", remembered per browser
