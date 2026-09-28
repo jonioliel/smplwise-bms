@@ -54,7 +54,7 @@ const STATIC_WISKEY_TABS: readonly TabItem[] = [
 
 /** The WisKey area's tabs, shared by both designs (GROUP_TABS.wiskey and AREA_TABS.wiskey are this same array, so the
  * phone bottom nav and its overflow follow too). WisKey embed API v1 (rc.19+): once the embedded panel's `wiskey:ready`
- * arrives, `applyWiskeyCatalog` rebuilds it IN PLACE from the catalog - the user's permitted top-level screens with
+ * arrives, `setWiskeyEmbedNav` rebuilds it IN PLACE from the catalog - the user's permitted top-level screens with
  * WisKey's own labels (ids kept apart from labels; WisKey's `users` stays SMPLWISE's `people` segment, so the per-screen
  * choice and old bookmarks keep working). Until then, and for an older WisKey, the static list above. */
 export const WISKEY_TABS: TabItem[] = [...STATIC_WISKEY_TABS];
@@ -97,20 +97,35 @@ export function onWiskeyEmbedNav(listener: () => void): () => void {
 /** Record the embed's state; a `catalog` key rebuilds WISKEY_TABS (null = the static list: an older WisKey). */
 export function setWiskeyEmbedNav(patch: Partial<WiskeyEmbedNav>): void {
   embedNav = { ...embedNav, ...patch };
-  if ('catalog' in patch) {
-    const catalog = patch.catalog ?? null;
-    const labels = new Map(STATIC_WISKEY_TABS.map((t) => [t.id, t.label]));
-    const next: TabItem[] = catalog
-      ? catalog.tabs
-          .filter((t) => t.id)
-          .map((t) => {
-            const seg = wiskeySegmentOf(t.id);
-            return { id: seg, label: t.label.trim() || labels.get(seg) || t.id, href: `#${wiskeyPath({ tab: t.id })}` };
-          })
-      : [...STATIC_WISKEY_TABS];
-    WISKEY_TABS.splice(0, WISKEY_TABS.length, ...next);
-  }
+  if ('catalog' in patch) rebuildWiskeyTabs();
   for (const l of embedNavListeners) l();
+}
+
+/** WISKEY_TABS from the catalog (or the static list). A screen the owner set to SMPLWISE in הגדרות › בקרות כניסה
+ * (מרכז הכניסה / פעילות / אנשים) is SMPLWISE's own screen, governed by SMPLWISE's access.read, not by WisKey: it stays in
+ * the row even when this operator's WisKey catalog does not list it, at its usual place. */
+function rebuildWiskeyTabs(): void {
+  const catalog = embedNav.catalog;
+  const order = STATIC_WISKEY_TABS.map((t) => t.id);
+  const labels = new Map(STATIC_WISKEY_TABS.map((t) => [t.id, t.label]));
+  const next: TabItem[] = catalog
+    ? catalog.tabs
+        .filter((t) => t.id)
+        .map((t) => {
+          const seg = wiskeySegmentOf(t.id);
+          return { id: seg, label: t.label.trim() || labels.get(seg) || t.id, href: `#${wiskeyPath({ tab: t.id })}` };
+        })
+    : [...STATIC_WISKEY_TABS];
+  if (catalog) {
+    for (const s of WISKEY_SCREENS) {
+      if (WISKEY_UI[s] !== 'smplwise' || next.some((t) => t.id === s)) continue;
+      const own = STATIC_WISKEY_TABS.find((t) => t.id === s)!;
+      const rank = (id: string) => (order.includes(id) ? order.indexOf(id) : order.length);
+      const at = next.findIndex((t) => rank(t.id) > rank(s));
+      next.splice(at < 0 ? next.length : at, 0, { ...own });
+    }
+  }
+  WISKEY_TABS.splice(0, WISKEY_TABS.length, ...next);
 }
 
 /** What a WisKey route asks the embed to show. The confirmed-location mirror (`wiskey_tab` / `wiskey_tool` in the
@@ -155,6 +170,7 @@ export const WISKEY_UI: Record<WiskeyScreen, WiskeyUi> = { overview: 'wiskey', e
 
 export function applyWiskeyUi(settings: Record<string, unknown> | null | undefined): void {
   for (const s of WISKEY_SCREENS) WISKEY_UI[s] = String(settings?.[`access.ui.${s}`] ?? 'wiskey') === 'smplwise' ? 'smplwise' : 'wiskey';
+  rebuildWiskeyTabs(); // a screen switched to SMPLWISE stays in the row whatever the WisKey catalog lists
 }
 
 /** הגדרות › בקרות כניסה (T054 follow-up, owner request): hide the whole WisKey area from the navigation for

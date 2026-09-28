@@ -11,12 +11,14 @@ import type { Page, Route } from '@playwright/test';
 //                from its parent with `wiskey:location` (the old location when `window.__dirty` is set - a declined
 //                unsaved-change prompt) and `wiskey:title`, and keeps its URL in step with replaceState
 //   marker-only  the marker "1" but never a handshake (loading / authentication that never completes)
-//   v2           a future breaking contract: marker "2" and `wiskey:ready` with version 2
+//   v2-ready     a future breaking contract announced by the handshake: `wiskey:ready` with version 2 (marker "2")
+//   v2-marker    a future breaking contract seen only by discovery: marker "2", no messages at all
+// `announce: false` (v1): the handshake is not followed by a location message - ready promises none.
 // Every flavour records what SMPLWISE did to it: `__kioskEvents` (hass-kiosk-mode events on the frame's window),
 // `__navigates` (calls of the panel's internal navigate()), `__received` (messages from the parent), `__posted`.
 // It proves the wiring, NOT the behaviour of the real nested Home Assistant / WisKey: that is the owner's lab check.
 
-export type FakeApi = 'legacy' | 'v1' | 'marker-only' | 'v2';
+export type FakeApi = 'legacy' | 'v1' | 'marker-only' | 'v2-ready' | 'v2-marker';
 export interface FakeCatalog {
   tabs: { id: string; label: string }[];
   tools: { id: string; label: string }[];
@@ -26,6 +28,8 @@ export interface FakeHa {
   panels: boolean;
   api?: FakeApi;
   catalog?: FakeCatalog;
+  /** v1: post the location (and title) right after ready (default true). */
+  announce?: boolean;
 }
 
 export const PANEL_URL = /\/hikvision-intercom(\?|$)/;
@@ -52,8 +56,8 @@ export const FAKE_CATALOG: FakeCatalog = {
   ],
 };
 
-export function fakeHaPage({ kiosk, panels, api = 'legacy', catalog = FAKE_CATALOG }: FakeHa): string {
-  const config = JSON.stringify({ api, catalog, marker: api === 'v1' || api === 'marker-only' ? '1' : api === 'v2' ? '2' : null });
+export function fakeHaPage({ kiosk, panels, api = 'legacy', catalog = FAKE_CATALOG, announce = true }: FakeHa): string {
+  const config = JSON.stringify({ api, catalog, announce, marker: api === 'v1' || api === 'marker-only' ? '1' : api.startsWith('v2') ? '2' : null });
   return `<!doctype html><html><body style="margin:0"><home-assistant></home-assistant><script>
 const CONFIG = ${config};
 window.__loads = (window.__loads || 0) + 1;
@@ -63,6 +67,15 @@ window.__kioskEvents = 0;
 window.__received = [];
 window.__posted = [];
 window.__dirty = false;
+window.__defer = false;
+window.__deferred = [];
+window.__flush = () => {
+  const panel = document.querySelector('home-assistant').shadowRoot.querySelector('home-assistant-main').shadowRoot.querySelector('hikvision-intercom-panel');
+  const held = window.__deferred;
+  window.__deferred = [];
+  window.__defer = false;
+  held.forEach((d) => panel.handle(d));
+};
 window.addEventListener('hass-kiosk-mode', () => { window.__kioskEvents++; });
 const TOP = CONFIG.catalog.tabs.map((t) => t.id);
 const TOOLS = CONFIG.catalog.tools.map((t) => t.id);
@@ -100,11 +113,13 @@ class Panel extends HTMLElement {
     this.render();
     setTimeout(() => {
       this._session = { allowed: true };
-      if (CONFIG.api === 'v1' || CONFIG.api === 'v2') {
+      if (CONFIG.api === 'v1' || CONFIG.api === 'v2-ready') {
         this.ready = true;
-        this.post({ type: 'wiskey:ready', version: CONFIG.api === 'v2' ? 2 : 1, tabs: CONFIG.catalog.tabs, tools: CONFIG.catalog.tools });
-        this.post({ type: 'wiskey:location', tab: this.loc.tab, tool: this.loc.tool });
-        this.post({ type: 'wiskey:title', text: label(this.loc) });
+        this.post({ type: 'wiskey:ready', version: CONFIG.api === 'v2-ready' ? 2 : 1, tabs: CONFIG.catalog.tabs, tools: CONFIG.catalog.tools });
+        if (CONFIG.announce) {
+          this.post({ type: 'wiskey:location', tab: this.loc.tab, tool: this.loc.tool });
+          this.post({ type: 'wiskey:title', text: label(this.loc) });
+        }
       }
     }, 600);
   }
@@ -118,8 +133,15 @@ class Panel extends HTMLElement {
   onMessage(e) {
     if (e.origin !== location.origin || e.source !== window.parent) return;
     window.__received.push(e.data);
-    if (!this.ready || !e.data || e.data.type !== 'wiskey:navigate') return;
-    const next = canon(e.data.tab, e.data.tool);
+    if (window.__defer) {
+      window.__deferred.push(e.data); // held until __flush(): a navigation still in flight
+      return;
+    }
+    this.handle(e.data);
+  }
+  handle(data) {
+    if (!this.ready || !data || data.type !== 'wiskey:navigate') return;
+    const next = canon(data.tab, data.tool);
     if (!next) return; // unknown ids are ignored
     if (window.__dirty) {
       this.post({ type: 'wiskey:location', tab: this.loc.tab, tool: this.loc.tool }); // the user kept the unsaved edit

@@ -177,6 +177,7 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     await expect(frame).toHaveAttribute('data-embed-mode', 'v1', { timeout: 15000 });
     await expect(frame).toHaveAttribute('data-confirmed-tool', 'schedules');
     await panelFrame(page).evaluate(() => ((window as unknown as { __dirty: boolean }).__dirty = true));
+    const entries = await page.evaluate(() => history.length);
 
     await page.locator('sw-tabs a[href="#/wiskey/people"]').click();
     await expect.poll(async () => (await frameState(page)).received.some((m) => m.type === 'wiskey:navigate' && m.tab === 'users')).toBe(true);
@@ -184,12 +185,33 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     await expect(activeTab(page)).toHaveAttribute('href', '#/wiskey/tools');
     await expect(frame).toHaveAttribute('data-confirmed-tool', 'schedules');
     expect((await frameState(page)).tab).toBe('tools');
+    expect(await page.evaluate(() => history.length)).toBe(entries); // a declined change leaves no history entry
 
     await panelFrame(page).evaluate(() => ((window as unknown as { __dirty: boolean }).__dirty = false));
     await page.locator('sw-tabs a[href="#/wiskey/people"]').click();
     await expect(frame).toHaveAttribute('data-confirmed-tab', 'users');
     await expect(activeTab(page)).toHaveAttribute('href', '#/wiskey/people');
     await expect.poll(() => hash(page)).toBe('#/wiskey/people?wiskey_tab=users');
+    expect(await page.evaluate(() => history.length)).toBe(entries + 1); // the confirmed change: one entry
+
+    // Back before the answer to a click arrives: the Back is sent (not matched against the stale confirmation), and
+    // the late answer to the click does not overwrite the Back entry
+    await panelFrame(page).evaluate(() => ((window as unknown as { __defer: boolean }).__defer = true));
+    const before = await page.evaluate(() => history.length);
+    await page.locator('sw-tabs a[href="#/wiskey/devices"]').click();
+    expect(await hash(page)).toBe('#/wiskey/people?wiskey_tab=users'); // not moved, no entry until WisKey confirms
+    await page.goBack(); // to tools/schedules
+    await expect.poll(() => panelFrame(page).evaluate(() => (window as unknown as { __deferred: Msg[] }).__deferred)).toEqual([
+      { type: 'wiskey:navigate', tab: 'devices', tool: null },
+      { type: 'wiskey:navigate', tab: 'tools', tool: 'schedules' },
+    ]);
+    await panelFrame(page).evaluate(() => (window as unknown as { __flush(): void }).__flush());
+    await expect(frame).toHaveAttribute('data-confirmed-tool', 'schedules');
+    await expect.poll(() => hash(page)).toBe('#/wiskey/tools/schedules?wiskey_tab=tools&wiskey_tool=schedules');
+    await page.waitForTimeout(800);
+    expect(await hash(page)).toBe('#/wiskey/tools/schedules?wiskey_tab=tools&wiskey_tool=schedules');
+    expect((await frameState(page)).tab).toBe('tools');
+    expect(await page.evaluate(() => history.length)).toBe(before); // the late answer to the click pushed nothing
   });
 
   test('v1: messages from another window or another origin are ignored', async ({ page }, testInfo) => {
@@ -227,22 +249,93 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     expect(await hash(page)).toBe('#/wiskey/devices?wiskey_tab=devices');
   });
 
-  test('v1: a restricted operator\'s catalog decides the tabs; an id outside it is not sent and the address goes back', async ({ page }, testInfo) => {
+  test('v1: a restricted operator - WisKey falls back to its default and the tab row follows the LOCATION, not the request', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'desktop only');
-    const restricted: FakeCatalog = { tabs: [{ id: 'users', label: 'אנשים' }, { id: 'events', label: 'אירועים' }], tools: [] };
+    const restricted: FakeCatalog = { tabs: [{ id: 'events', label: 'אירועים' }, { id: 'devices', label: 'עמדות' }], tools: [] };
     await stubPanel(page, { kiosk: true, panels: true, api: 'v1', catalog: restricted });
-    await open(page, '/wiskey/overview');
+    await open(page, '/wiskey/sync'); // not in this operator's catalog
     const frame = page.locator(FRAME);
     await expect(frame).toHaveAttribute('data-embed-mode', 'v1', { timeout: 15000 });
-    await expect(frame).toHaveAttribute('data-confirmed-tab', 'users'); // WisKey fell back to the first permitted screen
+    await expect(frame).toHaveAttribute('data-confirmed-tab', 'events'); // WisKey's allowed default, as it reported it
+    await expect(activeTab(page)).toHaveAttribute('href', '#/wiskey/events');
+    await expect.poll(() => hash(page)).toBe('#/wiskey/events?wiskey_tab=events');
     await expect(page.locator('sw-tabs a[href^="#/wiskey/"]')).toHaveCount(2);
-    await expect(page.locator('sw-app nav.rail a[href^="#/wiskey/"]')).toHaveAttribute('href', '#/wiskey/people'); // the area opens on a permitted tab
-    await page.evaluate(() => (location.hash = '#/wiskey/devices'));
-    await expect.poll(() => hash(page)).toBe('#/wiskey/people?wiskey_tab=users');
+    await expect(page.locator('sw-app nav.rail a[href^="#/wiskey/"]')).toHaveAttribute('href', '#/wiskey/events'); // the area opens on a permitted tab
+    // a typed id outside the catalog is not sent, and the address goes back to what WisKey confirmed
+    await page.evaluate(() => (location.hash = '#/wiskey/sync'));
+    await expect.poll(() => hash(page)).toBe('#/wiskey/events?wiskey_tab=events');
     await page.waitForTimeout(500);
     expect((await frameState(page)).received.filter((m) => m.type === 'wiskey:navigate')).toEqual([]);
   });
 
+  test('v1: ready without a location confirms nothing - a click on the screen WisKey fell back to is still sent', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'desktop only');
+    const restricted: FakeCatalog = { tabs: [{ id: 'events', label: 'אירועים' }, { id: 'devices', label: 'עמדות' }], tools: [] };
+    await stubPanel(page, { kiosk: true, panels: true, api: 'v1', catalog: restricted, announce: false });
+    await open(page, '/wiskey/sync');
+    const frame = page.locator(FRAME);
+    await expect(frame).toHaveAttribute('data-embed-mode', 'v1', { timeout: 15000 });
+    await page.waitForTimeout(800);
+    await expect(frame).toHaveAttribute('data-confirmed-tab', ''); // the request is not rendered as confirmed
+    await expect(page.locator('wiskey-embed nav[data-wiskey-tools]')).toHaveCount(0);
+    expect(await hash(page)).toBe('#/wiskey/sync'); // nothing mirrored
+    expect((await frameState(page)).tab).toBe('events'); // what WisKey actually shows
+    await page.locator('sw-tabs a[href="#/wiskey/events"]').click();
+    await expect(frame).toHaveAttribute('data-confirmed-tab', 'events');
+    expect((await frameState(page)).received.filter((m) => m.type === 'wiskey:navigate')).toEqual([{ type: 'wiskey:navigate', tab: 'events', tool: null }]);
+    await expect(activeTab(page)).toHaveAttribute('href', '#/wiskey/events');
+  });
+
+  test('v1: a screen set to SMPLWISE stays in the tab row even when the WisKey catalog does not list it', async ({ page, request }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'desktop only');
+    const restricted: FakeCatalog = { tabs: [{ id: 'events', label: 'אירועים' }, { id: 'devices', label: 'עמדות' }], tools: [] };
+    await stubPanel(page, { kiosk: true, panels: true, api: 'v1', catalog: restricted });
+    try {
+      await request.patch('/api/v1/settings', { data: { 'access.ui.people': 'smplwise', 'access.ui.overview': 'smplwise' } });
+      await open(page, '/wiskey/devices');
+      await expect(page.locator(FRAME)).toHaveAttribute('data-embed-mode', 'v1', { timeout: 15000 });
+      const tabs = page.locator('sw-tabs a[href^="#/wiskey/"]');
+      await expect(tabs).toHaveCount(4);
+      expect(await tabs.evaluateAll((as) => as.map((a) => a.getAttribute('href')))).toEqual(['#/wiskey/overview', '#/wiskey/events', '#/wiskey/people', '#/wiskey/devices']);
+      await expect(page.locator('sw-tabs a[href="#/wiskey/people"]')).toHaveText('אנשים');
+      // and it stays after leaving for it (the catalog is kept for the session)
+      await page.locator('sw-tabs a[href="#/wiskey/people"]').click();
+      await expect(page.locator('wiskey-people')).toHaveCount(1, { timeout: 30000 });
+      await expect(tabs).toHaveCount(4);
+    } finally {
+      await request.patch('/api/v1/settings', { data: { 'access.ui.people': 'wiskey', 'access.ui.overview': 'wiskey' } });
+    }
+  });
+
+  test('v1: a reload inside the frame needs a fresh handshake; a sign-in redirect after it is login_required', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'desktop only');
+    const { hits } = await stubPanel(page, { kiosk: true, panels: true, api: 'v1' });
+    let authLoads = 0;
+    await page.route(/\/auth\/authorize/, (route: Route) => {
+      authLoads++;
+      return route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><html><body><ha-authorize>login</ha-authorize></body></html>' });
+    });
+    await open(page, '/wiskey/devices');
+    const frame = page.locator(FRAME);
+    await expect(frame).toHaveAttribute('data-embed-mode', 'v1', { timeout: 15000 });
+    await page.locator('sw-tabs a[href="#/wiskey/sync"]').click();
+    await expect(frame).toHaveAttribute('data-confirmed-tab', 'sync');
+    // Home Assistant reloads its frontend inside the frame: the remounted panel's ready is accepted
+    await panelFrame(page).evaluate(() => location.reload()).catch(() => undefined);
+    await expect.poll(() => hits.length).toBe(2);
+    expect(hits[1]).toMatch(/\/hikvision-intercom\?embed=1&tab=sync$/); // WisKey's own replaced URL
+    await expect.poll(async () => { try { return (await frameState(page)).loads; } catch { return 0; } }).toBe(1);
+    await expect(frame).toHaveAttribute('data-embed-mode', 'v1', { timeout: 15000 });
+    await expect(frame).toHaveAttribute('data-confirmed-tab', 'sync');
+    await page.locator('sw-tabs a[href="#/wiskey/devices"]').click();
+    await expect(frame).toHaveAttribute('data-confirmed-tab', 'devices'); // the new handshake's catalog works
+    // the operator's session ends: HA sends the frame to its sign-in page
+    await panelFrame(page).evaluate(() => location.assign('/auth/authorize?client_id=x&redirect_uri=y')).catch(() => undefined);
+    const embed = page.locator('wiskey-embed');
+    await expect(embed).toHaveAttribute('data-direct', 'login_required', { timeout: 30000 });
+    expect(authLoads).toBe(1);
+    await expect(page.locator(FRAME)).toHaveCount(0);
+  });
   test('v1: leaving the module removes the frame; coming back and "רענן" reopen the last confirmed location', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'desktop only');
     const { hits } = await stubPanel(page, { kiosk: true, panels: true, api: 'v1' });
@@ -288,17 +381,21 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     await expect(page.locator('sw-tabs a[href^="#/wiskey/"]')).toHaveCount(8); // no catalog: nothing new is offered
     await page.screenshot({ path: testInfo.outputPath('wiskey-embed-waiting.png') });
 
-    await page.unrouteAll();
-    await stubPanel(page, { kiosk: true, panels: true, api: 'v2' });
-    await open(page, '/wiskey/devices');
-    await expect(frame).toHaveAttribute('data-phase', 'unsupported', { timeout: 15000 });
-    const err = page.locator('wiskey-embed [data-wiskey-embed-error="unsupported"]');
-    await expect(err).toBeVisible();
-    await expect(err.locator('sw-state-panel')).toHaveAttribute('hint', /גרסת ממשק הטמעה 2/);
-    await expect(err.locator('a[data-wiskey-embed-full]')).toHaveAttribute('href', '/hikvision-intercom?tab=devices');
-    st = await frameState(page);
-    expect(st.kioskEvents).toBe(0);
-    expect(st.navigates).toBe(0);
+    // a future contract announced by the handshake: unsupported at once (well before the 12 s discovery)
+    for (const api of ['v2-ready', 'v2-marker'] as const) {
+      await page.unrouteAll();
+      await stubPanel(page, { kiosk: true, panels: true, api });
+      await open(page, '/wiskey/devices');
+      await expect(frame).toHaveAttribute('data-phase', 'unsupported', { timeout: api === 'v2-ready' ? 8000 : 30000 });
+      const err = page.locator('wiskey-embed [data-wiskey-embed-error="unsupported"]');
+      await expect(err).toBeVisible();
+      await expect(err.locator('sw-state-panel')).toHaveAttribute('hint', /גרסת ממשק הטמעה 2/);
+      await expect(err.locator('a[data-wiskey-embed-full]')).toHaveAttribute('href', '/hikvision-intercom?tab=devices');
+      st = await frameState(page);
+      expect(st.kioskEvents).toBe(0);
+      expect(st.navigates).toBe(0);
+      expect(st.received).toEqual([]);
+    }
   });
 
   // ------------------------------------------------------------------ an older WisKey (no marker): the previous adapter
@@ -565,5 +662,14 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     expect(st.tab).toBe('camera_wall');
     expect(st.kioskEvents).toBe(0);
     await page.screenshot({ path: testInfo.outputPath('wiskey-embed-phone-b.png') });
+    // the "עוד" sheet stays open while WisKey moves by itself (the mirror is not a navigation of the user's)
+    await bottom.locator('button').click();
+    await expect(page.locator('sw-app .bottom-overflow')).toBeVisible();
+    await panelFrame(page).evaluate(() => {
+      const panel = document.querySelector('home-assistant')!.shadowRoot!.querySelector('home-assistant-main')!.shadowRoot!.querySelector('hikvision-intercom-panel') as HTMLElement & { post(m: unknown): void };
+      panel.post({ type: 'wiskey:location', tab: 'devices', tool: null });
+    });
+    await expect.poll(() => hash(page)).toBe('#/wiskey/devices?wiskey_tab=devices');
+    await expect(page.locator('sw-app .bottom-overflow')).toBeVisible();
   });
 });

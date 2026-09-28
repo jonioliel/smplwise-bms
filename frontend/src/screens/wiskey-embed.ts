@@ -6,8 +6,8 @@ import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import { can, isApi } from '../api/session';
-import { parseRoute, replaceRoute } from '../router';
-import { WISKEY_SCREENS, WISKEY_UI, setWiskeyEmbedNav, wiskeyPath, wiskeySegmentOf, type WiskeyScreen } from '../shell/nav';
+import { parseRoute, pushRoute, replaceRoute } from '../router';
+import { WISKEY_SCREENS, WISKEY_UI, isWiskeyHref, setWiskeyEmbedNav, wiskeyPath, wiskeyRequest, wiskeyRoute, wiskeySegmentOf, type WiskeyScreen } from '../shell/nav';
 import { attachWiskey, WISKEY_PANEL_PATH, WISKEY_PANEL_TAG, type WiskeyCatalog, type WiskeyConnector, type WiskeyLocation } from '../wiskey/embed-connector';
 import './wiskey-overview';
 import './wiskey-events';
@@ -251,6 +251,12 @@ export class WiskeyEmbed extends LitElement {
   @property({ reflect: true, attribute: 'data-direct' }) direct: DirectReason = '';
   private forbidden = false;
   private connector: WiskeyConnector | null = null;
+  /** v1: the location the frame was opened on (its URL) - asked for, never taken as confirmed. */
+  private opened: WiskeyLocation | null = null;
+  /** v1: navigations sent and not answered yet, oldest first; `push` = record a history entry once confirmed. */
+  private sent: { loc: WiskeyLocation; push: boolean }[] = [];
+  /** A request made before the handshake: sent once the catalog is known. */
+  private wanted: WiskeyLocation | null = null;
   private detached = false;
   private timer = 0;
   private loadTimer = 0;
@@ -384,6 +390,8 @@ export class WiskeyEmbed extends LitElement {
       this.direct = 'companion';
       return;
     }
+    // v1: a WisKey tab / tool link is sent as a message first; its history entry is written once the panel confirms
+    window.addEventListener('click', this.onClick, true);
     if (this.detached) {
       // back after the module was left: a fresh frame (the old one was removed on exit)
       this.detached = false;
@@ -394,6 +402,7 @@ export class WiskeyEmbed extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    window.removeEventListener('click', this.onClick, true);
     this.dropFrame();
     this.detached = true;
   }
@@ -430,14 +439,16 @@ export class WiskeyEmbed extends LitElement {
     const f = this.frame();
     if (!f) return;
     this.resetFrameState();
+    this.opened = this.request();
     this.connector = attachWiskey(f, {
-      initial: this.request(),
+      initial: this.opened,
       onReady: (c) => this.onReady(c),
       onLocation: (l) => this.onLocation(l),
       onTitle: (t) => (this.panelTitle = t),
       onLegacy: () => this.onLegacy(),
       onWaiting: () => this.onWaiting(),
       onUnsupported: (v) => this.onUnsupported(v),
+      onRemount: () => this.onRemount(),
     });
     this.startLoadTimer();
   }
@@ -450,7 +461,10 @@ export class WiskeyEmbed extends LitElement {
     this.tabApplied = null;
     this.panelTitle = '';
     this.unsupportedVersion = '';
+    this.catalog = null;
     this.confirmed = null;
+    this.sent = [];
+    this.wanted = null;
     this.loadedAt = 0;
     this.panelEl = null;
   }
@@ -478,9 +492,10 @@ export class WiskeyEmbed extends LitElement {
   private reload() {
     this.direct = '';
     if (this.connector && this.mode === 'v1') {
-      const keep = this.confirmed;
+      // the old catalog goes before the deliberate reload (contract §5.2); the panel reopens its last confirmed place
       this.resetFrameState();
-      this.confirmed = keep;
+      setWiskeyEmbedNav({ catalog: null, confirmed: null });
+      this.opened = this.connector.confirmed;
       this.connector.refresh();
       this.startLoadTimer();
       return;
@@ -514,19 +529,46 @@ export class WiskeyEmbed extends LitElement {
     this.mode = 'v1';
     this.phase = 'ready';
     this.catalog = catalog;
-    this.confirmed = this.connector?.confirmed ?? this.request();
-    setWiskeyEmbedNav({ catalog, confirmed: this.confirmed });
+    // ready promises no location: nothing is confirmed until wiskey:location (WisKey may have fallen back to its
+    // default for an id this operator may not open); until then the tab row shows the route's request
+    this.confirmed = null;
+    this.sent = [];
+    setWiskeyEmbedNav({ catalog, confirmed: null });
+    const wanted = this.wanted ? this.resolve(this.wanted) : null;
+    this.wanted = null;
+    if (wanted && !sameLocation(wanted, this.opened)) this.send(wanted, false);
+  }
+
+  /** What the panel shows or is about to show: the newest navigation in flight, else the confirmed location, else the
+   * place the frame was opened on. A request equal to it is not sent again (no echo). */
+  private reference(): WiskeyLocation | null {
+    return this.sent.length ? this.sent[this.sent.length - 1].loc : (this.confirmed ?? this.opened);
+  }
+
+  private send(target: WiskeyLocation, push: boolean): boolean {
+    if (!this.connector?.navigate(target)) return false;
+    this.sent.push({ loc: target, push });
+    return true;
   }
 
   /** The CONFIRMED location (possibly the old one: a declined unsaved-change prompt): the tab row follows it and it is
-   * mirrored into SMPLWISE's address, which the shell re-reads without treating it as a new request (no echo). */
+   * mirrored into SMPLWISE's address, which the shell re-reads without treating it as a new request (no echo). A
+   * location answering an older navigation while a newer one is still in flight (click, then Back) is recorded but not
+   * mirrored - the newer answer decides the address. A tab the user clicked gets its history entry only now. */
   private onLocation(loc: WiskeyLocation) {
     this.confirmed = loc;
     setWiskeyEmbedNav({ confirmed: loc });
-    this.mirror(loc);
+    if (this.sent.length > 1 && sameLocation(loc, this.sent[0].loc)) {
+      this.sent.shift();
+      return;
+    }
+    const last = this.sent[this.sent.length - 1];
+    const push = !!last && last.push && sameLocation(loc, last.loc);
+    this.sent = [];
+    this.mirror(loc, push);
   }
 
-  private mirror(loc: WiskeyLocation) {
+  private mirror(loc: WiskeyLocation, push = false) {
     const r = parseRoute();
     if (r.mode !== 'wiskey') return; // the user already left the area
     const seg = wiskeySegmentOf(loc.tab);
@@ -536,8 +578,24 @@ export class WiskeyEmbed extends LitElement {
     params.set('wiskey_tab', loc.tab);
     if (loc.tool) params.set('wiskey_tool', loc.tool);
     else params.delete('wiskey_tool');
-    replaceRoute(own ? r.path : wiskeyPath(loc), params);
+    (push ? pushRoute : replaceRoute)(own ? r.path : wiskeyPath(loc), params);
   }
+
+  /** v1: a plain click on a WisKey tab / tool link that renders the embed is a message, not a hash change: the address
+   * and its history entry follow the panel's confirmation, so a declined change leaves no entry behind. Links to a
+   * screen the owner set to SMPLWISE, modified clicks and everything else navigate as usual. */
+  private onClick = (e: MouseEvent) => {
+    if (this.mode !== 'v1' || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const a = e.composedPath().find((n): n is HTMLAnchorElement => n instanceof HTMLAnchorElement);
+    const href = a?.getAttribute('href') ?? '';
+    if (!a || !isWiskeyHref(href) || (a.target && a.target !== '_self')) return;
+    const r = parseRoute(href);
+    if (wiskeyRoute(r, isApi()).kind !== 'embed') return;
+    e.preventDefault();
+    const target = this.resolve(wiskeyRequest(r));
+    if (sameLocation(target, this.reference())) return;
+    this.send(target, true); // an id the panel did not list is not sent: nothing moves
+  };
 
   /** The route asked for another place (a SMPLWISE tab click, back / forward, a typed address). */
   private onRequest() {
@@ -553,13 +611,23 @@ export class WiskeyEmbed extends LitElement {
     }
     const target = this.resolve(this.request());
     if (this.mode === 'v1') {
-      if (sameLocation(target, this.confirmed)) return; // what the panel already shows: nothing to send (no echo)
-      // the tab row keeps the confirmed selection until wiskey:location arrives; an id the panel did not list is not
-      // sent, and the address goes back to what the panel shows
-      if (!this.connector?.navigate(target) && this.confirmed) this.mirror(this.confirmed);
+      if (sameLocation(target, this.reference())) return; // what the panel shows or is going to: nothing to send
+      // the tab row keeps its selection until wiskey:location arrives; an id the panel did not list is not sent, and
+      // the address goes back to what the panel confirmed
+      if (!this.send(target, false) && this.confirmed) this.mirror(this.confirmed);
       return;
     }
-    this.connector?.navigate(target); // before the handshake: queued, sent once the catalog is known
+    this.wanted = target; // before the handshake: sent once the catalog is known
+  }
+
+  /** The frame loaded a new document after the handshake (HA reloaded, a sign-in redirect after revocation): back to
+   * pending - a fresh handshake is needed, and the probe watches for a sign-in or a dead frame again. */
+  private onRemount() {
+    if (this.mode !== 'v1') return;
+    const last = this.confirmed ?? this.opened;
+    this.resetFrameState();
+    this.opened = last;
+    setWiskeyEmbedNav({ catalog: null, confirmed: null });
   }
 
   private onLegacy() {
@@ -581,6 +649,7 @@ export class WiskeyEmbed extends LitElement {
   }
 
   private onUnsupported(version: unknown) {
+    if (this.mode === 'v1') return; // a working v1 embed is not torn down (the connector already ignores it too)
     if (this.phase === 'login_required' || this.phase === 'not_installed' || this.phase === 'unreachable' || this.phase === 'blocked') return;
     this.stopTimers();
     this.mode = 'unsupported';
@@ -594,7 +663,13 @@ export class WiskeyEmbed extends LitElement {
 
   private onFrameNav = () => this.tick();
 
+  /** Lit's listener runs before the connector's: judge the load a tick later, once the connector has decided whether
+   * it was a remount (a new document after a handshake). */
   private onLoad() {
+    window.setTimeout(() => this.afterLoad(), 0);
+  }
+
+  private afterLoad() {
     const f = this.frame();
     if (!f || !this.connector) return;
     try {
@@ -618,7 +693,7 @@ export class WiskeyEmbed extends LitElement {
       this.phase = 'blocked';
       return;
     }
-    if (this.mode === 'v1' || this.mode === 'unsupported') return; // WisKey's own document: nothing to watch
+    if (this.mode === 'v1' || this.mode === 'unsupported') return; // the handshake's own document: nothing to watch
     this.frameWin?.removeEventListener('location-changed', this.onFrameNav);
     this.frameWin = f.contentWindow;
     this.frameWin?.addEventListener('location-changed', this.onFrameNav); // Home Assistant's own in-app navigation

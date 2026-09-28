@@ -39,20 +39,34 @@ export const ROUTE_REPLACED = 'sw-route-replaced';
  * and no `hashchange`, so it is never mistaken for the user's intent. The shell re-reads the route on ROUTE_REPLACED.
  * Used by the WisKey embed to mirror the panel's confirmed location (embed API v1). */
 export function replaceRoute(path: string, params?: URLSearchParams): void {
+  writeRoute(path, params, false);
+}
+
+/** Like replaceRoute but as a NEW history entry (history.pushState): the WisKey embed records a tab change the user
+ * asked for only once the panel confirmed it, so a declined change leaves no entry behind. */
+export function pushRoute(path: string, params?: URLSearchParams): void {
+  writeRoute(path, params, true);
+}
+
+function writeRoute(path: string, params: URLSearchParams | undefined, push: boolean): void {
   const query = params && params.toString() ? `?${params.toString()}` : '';
   const hash = `#${path}${query}`;
   if (window.location.hash === hash) return;
-  window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}${hash}`);
+  const url = `${window.location.pathname}${window.location.search}${hash}`;
+  if (push) window.history.pushState(null, '', url);
+  else window.history.replaceState(window.history.state, '', url);
   window.dispatchEvent(new CustomEvent(ROUTE_REPLACED));
 }
 
-export function onRouteChange(handler: (route: RouteState) => void): () => void {
-  const listener = () => handler(parseRoute());
-  window.addEventListener('hashchange', listener);
-  window.addEventListener(ROUTE_REPLACED, listener);
-  handler(parseRoute());
+/** eplaced is true for replaceRoute / pushRoute (the program moved the address), false for a hashchange. */
+export function onRouteChange(handler: (route: RouteState, replaced: boolean) => void): () => void {
+  const onHash = () => handler(parseRoute(), false);
+  const onReplaced = () => handler(parseRoute(), true);
+  window.addEventListener('hashchange', onHash);
+  window.addEventListener(ROUTE_REPLACED, onReplaced);
+  handler(parseRoute(), false);
   return () => {
-    window.removeEventListener('hashchange', listener);
-    window.removeEventListener(ROUTE_REPLACED, listener);
+    window.removeEventListener('hashchange', onHash);
+    window.removeEventListener(ROUTE_REPLACED, onReplaced);
   };
 }

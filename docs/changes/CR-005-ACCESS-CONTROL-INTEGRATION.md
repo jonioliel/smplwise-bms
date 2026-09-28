@@ -448,6 +448,22 @@ answer/reject/hangup (`media/signal`); two-way audio/talk (`audio/*`); TTS (`tts
 > permitted tabs and cannot reach others by typing the address; (e) leave the WisKey area and come back, and "רענן":
 > the frame reloads on the last screen, with no stuck audio/video; (f) an existing camera / two-way media session
 > (camera wall, a station call) inside the nested Ingress frame - microphone prompt, audio both ways, fullscreen.
+> **Review round 1 (2026-09-29).** Nothing is confirmed until the first `wiskey:location` (ready promises none, and WisKey
+> falls back to its allowed default for an id the operator may not open): until then the tab row shows the route's
+> request, and a click on the screen WisKey fell back to is still sent (the echo guard compares with the newest
+> navigation in flight, else the confirmed location, else the address the frame opened). A location answering an older
+> navigation while a newer one is in flight (click, then Back) is recorded but not mirrored. WisKey tab / tool clicks are
+> messages first; their history entry is pushed only when WisKey confirms, so a declined change leaves none; the mirror
+> of WisKey's own moves replaces the entry and no longer closes the phone "עוד" sheet. A screen set to SMPLWISE in
+> בקרות כניסה stays in the tab row whatever the operator's WisKey catalog lists (SMPLWISE's access.read governs it). A new
+> document in the frame after the handshake (HA reload, a sign-in redirect after revocation) is a remount: the catalog
+> is cleared, the probe runs again (`login_required` is reachable) and the next ready is accepted; a deliberate "רענן"
+> clears the catalog first. Discovery is re-armed every 3 s (up to ~2 min) while no panel root exists yet, so a slow older
+> build still reaches the legacy adapter; a ready of another version no longer tears down a working v1 embed. The frame's
+> `allow` is `autoplay; microphone; camera; fullscreen; clipboard-write` - wider than the contract's example
+> (`autoplay; microphone; fullscreen`) on purpose: `camera` keeps a WisKey screen that captures from the operator's
+> camera (e.g. a person photo) working inside the nested frame, and `clipboard-write` keeps WisKey's copy buttons
+> working; both are same-origin grants to HA's own frontend and cannot widen a restrictive ancestor policy.
 
 **Phase 4 — parity completion (peripheral/admin screens).** Camera wall (S4), media/clock settings (S21/S22),
 operations center (S23), identity lifecycle report (S17), permission directory (S18), appearance picker (S25),

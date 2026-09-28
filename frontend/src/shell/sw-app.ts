@@ -736,9 +736,11 @@ export class SwApp extends LitElement {
     window.addEventListener('keydown', this.onGlobalKey);
     // WisKey embed API v1: the tab row follows the panel's catalog and its confirmed location
     this.stopWiskeyNav = onWiskeyEmbedNav(() => this.requestUpdate());
-    this.stopRouter = onRouteChange((route) => {
+    this.stopRouter = onRouteChange((route, replaced) => {
       this.route = route;
-      this.moreOpen = false; // T054 review: any navigation closes the bottom-nav overflow sheet, not just its own links
+      // T054 review: any navigation closes the bottom-nav overflow sheet, not just its own links - but not the WisKey
+      // embed mirroring the panel's own moves into the address (replaced)
+      if (!replaced) this.moreOpen = false;
       if (this.redirectDemo(route)) return;
       this.toggleAttribute('data-kiosk', route.segments[0] === 'kiosk');
       // embed=1 (Lovelace card iframe, T056): no chrome for the rest of the session, whatever the in-app navigation does

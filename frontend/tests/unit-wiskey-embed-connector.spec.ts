@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { attachWiskey, wiskeyPanelUrl, WISKEY_DISCOVERY_MS, type WiskeyConnectorOptions, type WiskeyFrame, type WiskeyHost } from '../src/wiskey/embed-connector';
+import { attachWiskey, wiskeyPanelUrl, WISKEY_DISCOVERY_MS, WISKEY_DISCOVERY_RETRIES, WISKEY_DISCOVERY_RETRY_MS, type WiskeyConnectorOptions, type WiskeyFrame, type WiskeyHost } from '../src/wiskey/embed-connector';
 
 // T054 / WisKey embed API v1 (WisKey 2.0.0-rc.19): the typed connector ported from the WisKey developers' reference
 // adapter (docs/integrations/wiskey/embed-api-v1/examples/wiskey-embed-client.mjs). Node only: a fake window with a
@@ -28,12 +28,15 @@ class FakeHost implements WiskeyHost {
     if (id !== undefined) this.timers.delete(id);
   }
   advance(ms: number) {
-    this.now += ms;
-    for (const [id, t] of [...this.timers].sort((a, b) => a[1].at - b[1].at)) {
-      if (t.at > this.now) continue;
-      this.timers.delete(id);
-      t.fn();
+    const end = this.now + ms;
+    for (;;) {
+      const next = [...this.timers].filter(([, t]) => t.at <= end).sort((a, b) => a[1].at - b[1].at)[0];
+      if (!next) break;
+      this.timers.delete(next[0]);
+      this.now = next[1].at;
+      next[1].fn(); // may schedule another timer, which runs too when it falls due before `end`
     }
+    this.now = end;
   }
   get pending() {
     return this.timers.size;
@@ -139,6 +142,7 @@ function setup(options: WiskeyConnectorOptions = {}) {
     onLegacy: () => calls.push({ kind: 'legacy' }),
     onWaiting: () => calls.push({ kind: 'waiting' }),
     onUnsupported: (v) => calls.push({ kind: 'unsupported', value: v }),
+    onRemount: () => calls.push({ kind: 'remount' }),
     ...options,
   }, host);
   const fromPanel = (data: unknown) => host.deliver(data, { source: frame.win });
@@ -308,9 +312,56 @@ test('discovery: a frame on another origin is waiting (never legacy); a handshak
   b.fromPanel(ready());
   b.host.advance(WISKEY_DISCOVERY_MS);
   expect(b.kinds()).toEqual(['ready']);
-  b.frame.fireLoad(); // a later load with a catalog in hand starts no discovery
   b.host.advance(WISKEY_DISCOVERY_MS);
   expect(b.kinds()).toEqual(['ready']);
+});
+
+test('a new document after the handshake is a remount: the catalog is cleared and the next ready is accepted', () => {
+  const { frame, connector, fromPanel, kinds } = setup();
+  fromPanel(ready()); // the handshake may come before the load event of the same document
+  frame.fireLoad();
+  expect(kinds()).toEqual(['ready']); // the first load after src: not a remount
+  expect(connector.catalog).not.toBeNull();
+  frame.fireLoad(); // Home Assistant reloaded inside the frame (or a sign-in redirect)
+  expect(kinds()).toEqual(['ready', 'remount']);
+  expect(connector.catalog).toBeNull();
+  expect(connector.navigate({ tab: 'users' })).toBe(false);
+  fromPanel(ready());
+  expect(kinds()).toEqual(['ready', 'remount', 'ready']);
+  connector.refresh(); // a deliberate refresh resets the count: its first load is not a remount
+  frame.fireLoad();
+  expect(kinds()).toEqual(['ready', 'remount', 'ready']);
+});
+
+test('discovery is re-armed while no panel root is found, so a slow older build still reaches legacy (bounded)', () => {
+  const a = setup();
+  const root = new FakeRoot([new FakeEl('home-assistant')]);
+  a.frame.contentDocument = root;
+  a.frame.fireLoad();
+  a.host.advance(WISKEY_DISCOVERY_MS);
+  expect(a.kinds()).toEqual(['waiting']);
+  a.host.advance(WISKEY_DISCOVERY_RETRY_MS);
+  expect(a.kinds()).toEqual(['waiting', 'waiting']);
+  root.children.push(new FakeEl('hikvision-intercom-panel')); // mounted at last, without a marker
+  a.host.advance(WISKEY_DISCOVERY_RETRY_MS);
+  expect(a.kinds()).toEqual(['waiting', 'waiting', 'legacy']);
+  expect(a.host.pending).toBe(0);
+
+  const b = setup();
+  b.frame.contentDocument = new FakeRoot([new FakeEl('home-assistant')]);
+  b.frame.fireLoad();
+  b.host.advance(WISKEY_DISCOVERY_MS + WISKEY_DISCOVERY_RETRY_MS * (WISKEY_DISCOVERY_RETRIES + 5));
+  expect(b.kinds().length).toBe(WISKEY_DISCOVERY_RETRIES + 1); // then it stops looking
+  expect(b.kinds().every((k) => k === 'waiting')).toBe(true);
+  expect(b.host.pending).toBe(0);
+});
+
+test('a ready of another version does not tear down a working v1 embed', () => {
+  const { fromPanel, kinds, connector } = setup();
+  fromPanel(ready());
+  fromPanel(ready({ version: 2 }));
+  expect(kinds()).toEqual(['ready']);
+  expect(connector.catalog).not.toBeNull();
 });
 
 test('dispose detaches everything: no callbacks, no navigation, no timers', () => {

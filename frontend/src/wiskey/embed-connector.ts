@@ -6,7 +6,7 @@
  * - the `message` listener is registered BEFORE `iframe.src` is assigned (a fast `wiskey:ready` is not missed);
  * - a message counts only when `event.origin === location.origin` AND `event.source === iframe.contentWindow`;
  * - `wiskey:ready` negotiates the version: only `version === 1` is accepted, anything else is `onUnsupported`; a second
- *   ready is ignored until a deliberate `refresh()` clears the catalog;
+ *   ready of the same document is ignored until a deliberate `refresh()` (or a remount, below) clears the catalog;
  * - the catalog keeps `{id, label}` strings only - nothing else a message carries is kept;
  * - `navigate()` posts only after ready, only for ids in the catalog, to the explicit same-origin target (never `'*'`);
  *   before ready the latest request is queued and sent once the catalog arrives;
@@ -17,6 +17,12 @@
  *   and read its `data-embed-api` marker: marker "1" = waiting (loading / authentication), no marker = an older WisKey
  *   (`onLegacy`), another value = unsupported, no root at all = waiting (never proof of an older, authorised build);
  * - `refresh()` reopens the panel from the last confirmed tab/tool with `embed=1`; `dispose()` detaches everything.
+ *
+ * Three deliberate additions to the reference (SMPLWISE review 2026-09-29): a new document in the frame after a handshake
+ * (any load but the first after `src`) is a remount - the catalog is cleared, `onRemount` fires and the next ready is
+ * accepted, as the contract's "remounting/reloading requires a fresh handshake" says; discovery is re-armed every 3 s
+ * (bounded, ~2 min) while no panel root is found, so a slow older build still reaches `onLegacy`; and a ready of
+ * another version is ignored while a v1 catalog is in hand (a working embed is not torn down).
  *
  * The panel URL is built from the ORIGIN (`new URL('/hikvision-intercom', origin)`), never from the Ingress path. There
  * is deliberately no check here beyond `version === 1` and the message shapes: the contract version changes only for
@@ -31,6 +37,10 @@ export const WISKEY_PANEL_PATH = '/hikvision-intercom';
 export const WISKEY_EMBED_VERSION = 1;
 /** How long after a frame load without a handshake the public marker is looked for (the reference's 12 s). */
 export const WISKEY_DISCOVERY_MS = 12000;
+/** While no panel root is found yet (a slow older build still mounting), discovery looks again this often, up to
+ * WISKEY_DISCOVERY_RETRIES more times (~2 min after the load in all). */
+export const WISKEY_DISCOVERY_RETRY_MS = 3000;
+export const WISKEY_DISCOVERY_RETRIES = 36;
 /** The public panel root WisKey marks with `data-embed-api`. */
 export const WISKEY_PANEL_TAG = 'hikvision-intercom-panel';
 
@@ -67,7 +77,7 @@ export interface WiskeyHost {
 /** The frame's window as far as the connector touches it: post to it, and (discovery only) read its origin. */
 export interface WiskeyFrameWindow {
   postMessage(message: unknown, targetOrigin: string): void;
-  readonly location: { readonly origin: string };
+  readonly location: { readonly origin: string; readonly href?: string };
 }
 
 /** The parts of an `HTMLIFrameElement` the connector uses. */
@@ -91,6 +101,9 @@ export interface WiskeyConnectorOptions {
   onWaiting?(): void;
   /** A handshake or marker of another contract version. */
   onUnsupported?(version: unknown): void;
+  /** The frame loaded a new document after a handshake (Home Assistant reloaded, a sign-in redirect after revocation):
+   * the catalog is gone and a fresh handshake is needed. */
+  onRemount?(): void;
 }
 
 export interface WiskeyConnector {
@@ -149,6 +162,8 @@ export function attachWiskey(iframe: WiskeyFrame, options: WiskeyConnectorOption
   let catalog: WiskeyCatalog | null = null;
   let timer: number | undefined;
   let disposed = false;
+  let loads = 0; // documents loaded since the last src assignment (the frame's initial about:blank not counted)
+  let retries = 0;
 
   const known = ({ tab, tool }: WiskeyTarget): boolean =>
     !!catalog && catalog.tabs.some((item) => item.id === tab) && (!tool || (tab === 'tools' && catalog.tools.some((item) => item.id === tool)));
@@ -170,6 +185,7 @@ export function attachWiskey(iframe: WiskeyFrame, options: WiskeyConnectorOption
     if (!message || typeof message !== 'object') return;
     if (message.type === 'wiskey:ready') {
       if (message.version !== WISKEY_EMBED_VERSION) {
+        if (catalog) return; // a working v1 embed is not torn down by a stray handshake
         host.clearTimeout(timer);
         options.onUnsupported?.(message.version);
         return;
@@ -193,35 +209,61 @@ export function attachWiskey(iframe: WiskeyFrame, options: WiskeyConnectorOption
   }
 
   function loaded() {
-    if (catalog || disposed) return;
+    if (disposed) return;
+    try {
+      if (iframe.contentWindow?.location.href === 'about:blank') return; // the frame's initial empty document
+    } catch {
+      /* another origin: a real load */
+    }
+    loads += 1;
+    if (loads > 1 && catalog) {
+      // a new document after a handshake: a remount, which needs a fresh handshake
+      catalog = null;
+      queued = null;
+      options.onRemount?.();
+    }
+    if (catalog) return; // the handshake came before the load event of the same document
+    retries = 0;
+    schedule(WISKEY_DISCOVERY_MS);
+  }
+
+  function schedule(ms: number) {
     host.clearTimeout(timer);
-    timer = host.setTimeout(() => {
-      if (catalog || disposed) return;
-      // Only after a missing handshake: discover the public root through open infrastructure shadow roots. Never
-      // inspect panel state or call its methods.
-      let root: Element | null;
-      try {
-        if (iframe.contentWindow?.location.origin !== origin) {
-          options.onWaiting?.();
-          return;
-        }
-        root = findPublicRoot(iframe.contentDocument);
-      } catch {
+    timer = host.setTimeout(discover, ms);
+  }
+
+  function discover() {
+    if (catalog || disposed) return;
+    // Only after a missing handshake: discover the public root through open infrastructure shadow roots. Never
+    // inspect panel state or call its methods.
+    let root: Element | null;
+    try {
+      if (iframe.contentWindow?.location.origin !== origin) {
         options.onWaiting?.();
         return;
       }
-      const marker = root?.hasAttribute('data-embed-api') ? root : null;
-      if (!root) options.onWaiting?.();
-      else if (!marker) options.onLegacy?.();
-      else if (marker.getAttribute('data-embed-api') !== '1') options.onUnsupported?.(marker.getAttribute('data-embed-api'));
-      else options.onWaiting?.();
-    }, WISKEY_DISCOVERY_MS);
+      root = findPublicRoot(iframe.contentDocument);
+    } catch {
+      options.onWaiting?.();
+      return;
+    }
+    const marker = root?.hasAttribute('data-embed-api') ? root : null;
+    if (!root) {
+      options.onWaiting?.();
+      if (retries < WISKEY_DISCOVERY_RETRIES) {
+        retries += 1;
+        schedule(WISKEY_DISCOVERY_RETRY_MS); // not mounted yet: look again (bounded)
+      }
+    } else if (!marker) options.onLegacy?.();
+    else if (marker.getAttribute('data-embed-api') !== '1') options.onUnsupported?.(marker.getAttribute('data-embed-api'));
+    else options.onWaiting?.();
   }
 
   function refresh() {
     if (disposed) return;
     host.clearTimeout(timer);
     catalog = null;
+    loads = 0;
     iframe.src = wiskeyPanelUrl(origin, confirmed);
   }
 
