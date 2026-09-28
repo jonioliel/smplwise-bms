@@ -53,6 +53,8 @@ export interface BulkPreview {
   never_included: Record<string, number>;
   digest: string;
   note: string;
+  /** The server's clock (epoch ms) when it answered: the request's expiry is computed on the server's time line. */
+  server_time_ms?: number;
 }
 
 export interface BulkItem {
@@ -93,9 +95,32 @@ export const OUTCOME_LABEL: Record<BulkOutcome, string> = {
   unknown: 'תוצאה לא ידועה',
 };
 
-export function previewBulk(scope: BulkScope, id: string, kind: BulkKind) {
+/** Server clock minus this device's clock (ms), learned from each preview (the CR-005 mechanism, api/intercom.ts): the
+ * request's expiry is computed on the SERVER's time line, so a tablet whose clock is off can still act - and still
+ * cannot act late (review round 1: a device 2 s fast used to get 422 on every bulk). */
+let serverOffsetMs = 0;
+
+export function serverNow(): number {
+  return Date.now() + serverOffsetMs;
+}
+
+/** How long a bulk request stays valid on the server's clock (the CR-005 physical commands' own lifetime). */
+const BULK_TTL_MS = 15_000;
+
+function commandId(): string {
+  // crypto.randomUUID exists only in secure contexts; HA reached over plain http on the LAN is not one
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+export async function previewBulk(scope: BulkScope, id: string, kind: BulkKind) {
   const q = new URLSearchParams({ scope, id, kind });
-  return get<BulkPreview>(`devices/actions/preview?${q.toString()}`);
+  const sentAt = Date.now();
+  const p = await get<BulkPreview>(`devices/actions/preview?${q.toString()}`);
+  const receivedAt = Date.now();
+  // the server read its clock somewhere during the round trip: assume the middle (error <= half the round trip)
+  if (typeof p.server_time_ms === 'number') serverOffsetMs = p.server_time_ms - (sentAt + receivedAt) / 2;
+  return p;
 }
 
 /** The physical request. `confirmed: true` is stated here and nowhere else: only the dialog's confirm button calls it. */
@@ -105,8 +130,8 @@ export function runBulk(scope: BulkScope, id: string, kind: BulkKind, previewDig
     id,
     kind,
     confirmed: true,
-    client_request_id: crypto.randomUUID(),
-    expires_at: new Date(Date.now() + 60_000).toISOString().replace(/\.\d{3}Z$/, 'Z'),
+    client_request_id: commandId(),
+    expires_at: new Date(serverNow() + BULK_TTL_MS).toISOString().replace(/\.\d{3}Z$/, 'Z'),
     preview_digest: previewDigest,
   });
 }

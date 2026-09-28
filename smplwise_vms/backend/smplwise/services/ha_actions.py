@@ -21,6 +21,14 @@ from .timeutil import parse_utc
 
 CONFIRM_WINDOW_S = 20.0  # a pending action is "unknown" after this long without the confirming report
 
+# States that also report an action's effect: a TV / projector turned off often reports "standby" rather than "off"
+# (services/devices.py MEDIA_OFF_STATES already reads standby as off) - review round 1 of CR-007 slice 3.
+EQUIVALENT_STATES: dict[str, frozenset[str]] = {"media_player.turn_off": frozenset({"off", "standby"})}
+
+
+def state_matches(action_id: str, expected: str, state: str | None) -> bool:
+    return state == expected or (state is not None and state in EQUIVALENT_STATES.get(action_id, frozenset()))
+
 
 def action_row(conn: sqlite3.Connection, action_id: str) -> dict[str, Any]:
     r = conn.execute("SELECT * FROM ha_actions WHERE id = ?", (action_id,)).fetchone()
@@ -81,7 +89,7 @@ def refresh(conn: sqlite3.Connection, a: dict[str, Any]) -> bool:
             conn.execute("UPDATE ha_actions SET status = 'unknown', observed_state = ? WHERE id = ?", (e["state"], action_id))
             return True
         return False
-    if e and a["expected_state"] and e["state"] == a["expected_state"] and since_request(e["last_changed"]):
+    if e and a["expected_state"] and state_matches(a["action_id"], a["expected_state"], e["state"]) and since_request(e["last_changed"]):
         conn.execute("UPDATE ha_actions SET status = 'confirmed', confirmed_at = ?, observed_state = ? WHERE id = ?", (now_iso(), e["state"], action_id))
         return True
     if e and not a["expected_state"]:

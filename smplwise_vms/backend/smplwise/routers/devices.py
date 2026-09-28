@@ -91,8 +91,41 @@ def area(area_id: str, principal: Principal = Depends(current_principal_ro), con
         raise ApiError(404, "not_found", "האזור לא נמצא.")
     flags = _bulk_flags(conn, principal)
     body["can_bulk"] = area_id != svc.UNASSIGNED and (flags["all"] or area_id in flags["areas"])
+    # review round 1: whether each switch may enter a bulk action (a lighting circuit's switch, or marked bulk-safe
+    # by an administrator; a switch on the map's door layer never) - shown to bulk holders, editable with
+    # system.configure (PUT /devices/entities/{id}/bulk-safe)
+    if flags["building"] or flags["areas"]:
+        policy = bulk.SwitchPolicy(conn)
+        body["can_mark_bulk_safe"] = authorize(conn, principal, "system.configure", INSTALLATION).allowed
+        for r in body["cards"]["switches"]["entities"]:
+            if r["domain"] == "switch":
+                ok, reason = policy.switch_reason(r["entity_id"])
+                r["bulk_safe"], r["bulk_reason"] = ok, reason
     body["sync"] = ha_sync.STATE.as_dict()
     return body
+
+
+class BulkSafeBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    bulk_safe: bool
+
+
+@router.put("/devices/entities/{entity_id}/bulk-safe")
+def set_bulk_safe(entity_id: str, body: BulkSafeBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Mark a switch as safe (or no longer safe) to be turned off by a bulk action - an administrator's statement that it
+    is not a door / gate release or anything else that must not go off with the lights (system.configure; audited).
+    A lighting circuit's switch needs no mark; a switch on the map's door layer is never included, mark or not."""
+    require(conn, principal, "system.configure", INSTALLATION)
+    row = conn.execute("SELECT domain FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (entity_id,)).fetchone()
+    if not row:
+        raise ApiError(404, "not_found", "הישות לא נמצאה בקטלוג.")
+    if row["domain"] != "switch":
+        raise ApiError(422, "validation", "רק מתג (switch) מסומן כבטוח לכיבוי מרוכז; שאר הסוגים נקבעים לפי הכללים.")
+    bulk.set_bulk_safe(conn, principal, entity_id, body.bulk_safe)
+    audit(conn, actor=principal, action="devices.bulk_safe", decision="allowed", resource_type="ha_entity", resource_id=entity_id,
+          request_id=getattr(request.state, "correlation_id", None), details={"bulk_safe": body.bulk_safe})
+    ok, reason = bulk.SwitchPolicy(conn).switch_reason(entity_id)
+    return {"entity_id": entity_id, "bulk_safe": ok, "bulk_reason": reason, "marked": body.bulk_safe}
 
 
 # ---------------------------------------------------------------- slice 3: bulk actions (devices.control_bulk)

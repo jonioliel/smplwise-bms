@@ -976,4 +976,51 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await ctx.close();
     }
   });
+
+  test('bulk (REAL route, fixture bridge): a device clock minutes fast or slow still sends - the expiry is computed on the server clock learned from the preview', async ({ browser, request }) => {
+    test.skip(process.env.SW_DEVICES_FIXTURE !== '1', 'needs tests/fixtures/devices_fake_ha.py as the backend (SW_DEVICES_FIXTURE=1)');
+    test.setTimeout(120_000);
+    for (const skewMs of [5 * 60_000, -5 * 60_000]) {
+      await seed(request);
+      const ctx = await browser.newContext();
+      const p = await ctx.newPage();
+      await p.addInitScript((skew) => {
+        const realNow = Date.now.bind(Date);
+        Date.now = () => realNow() + skew;
+      }, skewMs);
+      const posted: Record<string, unknown>[] = [];
+      p.on('request', (req) => {
+        if (req.method() === 'POST' && /\/api\/v1\/devices\/actions$/.test(req.url())) posted.push(req.postDataJSON() as Record<string, unknown>);
+      });
+      await open(p, '/devices/areas/cr007_hall', 'a');
+      const menu = p.locator('devices-area devices-bulk-menu[data-bulk-area="cr007_hall"]');
+      await expect(menu).toBeVisible({ timeout: 30000 });
+      await menu.locator('sw-button[data-bulk-trigger]').click();
+      await menu.locator('[data-bulk-panel] button[data-bulk-kind="lights_off"]').click();
+      const dialog = p.locator('devices-area devices-bulk-dialog sw-dialog[data-bulk-dialog="confirm"]');
+      await expect(dialog.locator('[data-bulk-count]')).toHaveAttribute('data-bulk-count', '2', { timeout: 10000 });
+      await dialog.locator('sw-button[data-bulk-confirm]').click();
+      await expect(p.locator('devices-area devices-bulk-dialog [data-bulk-result="ok"]')).toContainText('בוצע', { timeout: 30000 });
+      // the expiry sent lies ~15 s ahead of the SERVER's clock, whatever this device's clock says
+      const lead = Date.parse(String(posted[0].expires_at)) - Date.now();
+      expect(lead, `skew ${skewMs}`).toBeGreaterThan(5_000);
+      expect(lead, `skew ${skewMs}`).toBeLessThan(20_000);
+      await ctx.close();
+    }
+    await seed(request);
+  });
+
+  test('a bulk holder sees whether each switch is included in bulk actions; an administrator marks one safe and back', async ({ page, request }) => {
+    await seed(request);
+    await open(page, '/devices/areas/cr007_lobby', 'a');
+    const sign = page.locator('devices-area .tile[data-entity="switch.cr007_sign"]');
+    const line = sign.locator('[data-bulk-safe]');
+    await expect(line).toHaveAttribute('data-bulk-safe', 'switch_not_marked', { timeout: 30000 });
+    await expect(line).toContainText('לא נכלל בכיבוי מרוכז');
+    await line.locator('sw-button[data-bulk-safe-toggle]').click();
+    await expect(line).toHaveAttribute('data-bulk-safe', 'marked', { timeout: 10000 });
+    await expect(line).toContainText('נכלל בכיבוי מרוכז (סומן כבטוח)');
+    await line.locator('sw-button[data-bulk-safe-toggle]').click();
+    await expect(line).toHaveAttribute('data-bulk-safe', 'switch_not_marked', { timeout: 10000 });
+  });
 });

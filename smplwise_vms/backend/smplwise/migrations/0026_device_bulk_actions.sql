@@ -25,3 +25,12 @@ CREATE UNIQUE INDEX idx_device_bulk_client ON device_bulk_actions (principal_use
 
 ALTER TABLE ha_actions ADD COLUMN bulk_id TEXT;
 CREATE INDEX idx_ha_actions_bulk ON ha_actions (bulk_id);
+
+-- A switch enters a bulk action only when positively safe (review round 1): the switch of a Plan Studio lighting
+-- circuit, or one an administrator marked here (system.configure; PUT /devices/entities/{id}/bulk-safe). Off by default.
+CREATE TABLE device_bulk_safe (
+  entity_id          TEXT PRIMARY KEY,
+  marked_by          TEXT,
+  marked_by_username TEXT,
+  marked_at          TEXT NOT NULL
+);

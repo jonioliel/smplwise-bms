@@ -8,8 +8,11 @@ Many physical devices change from one click, so this module is deliberately narr
   entities the caller holds `devices.control_bulk` for (the entity's own placement, as every devices permission), and
   then to the domains of the requested kind - see KINDS. Only the everyday domains ever appear
   (ha_scope.DEVICES_CONTROL_DOMAINS); NEVER a lock, an alarm panel, a siren, a script, a scene or a button, never a
-  door / garage / gate cover and never a switch placed on the map's door layer (a door or gate release relay). The
-  import-time check below fails the add-on's start if KINDS ever names anything else.
+  door / garage / gate cover, never a cover or switch placed on the map's door layer. A SWITCH enters only when it is
+  positively safe (review round 1, CR-007 s3 forbids door release in bulk: a maglock relay is a switch too): the switch
+  of a Plan Studio lighting circuit, or one an administrator marked bulk-safe (device_bulk_safe, system.configure);
+  every other switch is listed as "not included" with the reason. input_booleans (HA flags, not devices) never enter.
+  The import-time check below fails the add-on's start if KINDS ever names anything else.
 - An entity already in the target state (HA's last report) or unavailable is not sent: an "off" to a light that is
   already off could never be confirmed, and would only turn an honest result into noise. Both are counted.
 - **Each entity is one ordinary ha_actions record** (via 'bulk', linked by bulk_id) - the same allow-list entry,
@@ -20,9 +23,10 @@ Many physical devices change from one click, so this module is deliberately narr
   scope at a time, and never two running bulks that share an entity (409 `bulk_in_progress`).
 - **Honest outcome** per entity: queued (not sent yet), accepted (HA took the call, effect not reported yet),
   confirmed (HA reported the state), not_confirmed (the window passed and HA reports another state), refused (HA / the
-  bridge said no, or it was never sent - the request expired or the add-on restarted), unknown (the call may have
-  reached HA but its answer was lost, or the entity reports nothing usable). "Done" only when nothing is queued or
-  accepted any more.
+  bridge said no, or it was never sent - the request expired, or the add-on restarted before its call), unknown (the call
+  may have reached HA but its answer was lost - including a call in flight when the add-on restarted - or the entity
+  reports nothing usable). A record is marked `sending` (committed) before its bridge call, so a restart can tell the
+  two apart. "Done" only when nothing is queued, sending or accepted any more; unfinished bulks are settled at start-up.
 """
 from __future__ import annotations
 
@@ -30,9 +34,10 @@ import datetime as dt
 import hashlib
 import json
 import logging
+import queue
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 from typing import Any
 
@@ -68,7 +73,7 @@ KIND_LABELS = {
 SCOPE_LABELS = {"building": "המבנה", "floor": "קומה", "area": "אזור"}
 
 _LIGHTS = (("light", "light.turn_off"),)
-_SWITCHES = (("switch", "switch.turn_off"), ("input_boolean", "input_boolean.turn_off"))
+_SWITCHES = (("switch", "switch.turn_off"),)  # only positively safe switches (see switch_policy); never input_boolean
 _COVERS = (("cover", "cover.close_cover"),)
 _CLIMATE = (("climate", "climate.turn_off"), ("fan", "fan.turn_off"))  # fans live on the climate card (מיזוג ואקלים)
 _SCREENS = (("media_player", "media_player.turn_off"),)
@@ -83,7 +88,7 @@ KINDS: dict[str, tuple[tuple[str, str], ...]] = {
 # never part of a bulk action, whatever the kind; the ones present in the scope are named in the preview
 NEVER_BULK_DOMAINS = frozenset({"lock", "alarm_control_panel", "siren", "script", "scene", "button"})
 DOOR_COVER_CLASSES = frozenset({"door", "garage", "gate"})  # a cover that is a passage, not a shutter
-DOOR_LAYER = "doors"  # a switch placed on this map layer is a door / gate release relay
+DOOR_LAYER = "doors"  # a cover or switch placed on this map layer is a door / gate: never in a bulk action
 
 DOMAIN_LABELS = {
     "light": "תאורה",
@@ -148,17 +153,42 @@ def _door_layer_entities(conn: Any) -> set[str]:
     }
 
 
-def _excluded_reason(e: dict[str, Any], door_layer: set[str]) -> str | None:
-    if e["domain"] == "cover" and (e.get("device_class") or "") in DOOR_COVER_CLASSES:
-        return "door_cover"
-    if e["domain"] in ("switch", "input_boolean") and e["entity_id"] in door_layer:
-        return "door_release"
-    return None
+class SwitchPolicy:
+    """Which covers / switches a bulk action may reach: the map's door layer, the Plan Studio circuits' switches and
+    the administrator's bulk-safe marks, read once per request."""
+
+    def __init__(self, conn: Any) -> None:
+        from . import geometry_store
+
+        self.door_layer = _door_layer_entities(conn)
+        self.circuits = set(geometry_store.circuit_switches(conn))
+        self.marked = {r[0] for r in conn.execute("SELECT entity_id FROM device_bulk_safe").fetchall()}
+
+    def switch_reason(self, entity_id: str) -> tuple[bool, str]:
+        """(included, reason) for a switch: doors_layer / circuit / marked / not_marked."""
+        if entity_id in self.door_layer:
+            return False, "doors_layer"
+        if entity_id in self.circuits:
+            return True, "circuit"
+        if entity_id in self.marked:
+            return True, "marked"
+        return False, "switch_not_marked"
+
+    def excluded_reason(self, e: dict[str, Any]) -> str | None:
+        if e["domain"] in ("cover", "switch") and e["entity_id"] in self.door_layer:
+            return "doors_layer"
+        if e["domain"] == "cover" and (e.get("device_class") or "") in DOOR_COVER_CLASSES:
+            return "door_cover"
+        if e["domain"] == "switch":
+            ok, reason = self.switch_reason(e["entity_id"])
+            return None if ok else reason
+        return None
 
 
 EXCLUDED_LABELS = {
     "door_cover": "דלת / שער / חניה - תנועה של מעבר אינה נכללת בפעולה מרוכזת",
-    "door_release": "מתג שהוצב במפה כדלת (שחרור דלת / שער) - לעולם לא בפעולה מרוכזת",
+    "doors_layer": "הוצב במפה בשכבת הדלתות - לעולם לא בפעולה מרוכזת",
+    "switch_not_marked": "מתג שאינו מעגל תאורה בתוכנית ולא סומן כבטוח לכיבוי מרוכז (ייתכן שהוא שחרור דלת)",
 }
 
 
@@ -234,7 +264,7 @@ def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: st
     if not wide and not any(held(e["entity_id"]) for e in in_scope):
         raise ApiError(403, "forbidden", "אין לך הרשאה לפעולות מרוכזות בהיקף הזה: אף התקן בו אינו מוצב בקומות שבהרשאתך.", details={"permission": PERMISSION})
     actions = dict(KINDS[kind])
-    door_layer = _door_layer_entities(conn)
+    policy = SwitchPolicy(conn)
     targets: list[dict[str, Any]] = []
     excluded: list[dict[str, Any]] = []
     never: dict[str, int] = {}
@@ -250,7 +280,7 @@ def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: st
             continue
         if domain not in actions:
             continue
-        reason = _excluded_reason(e, door_layer)
+        reason = policy.excluded_reason(e)
         if reason:
             excluded.append({"entity_id": e["entity_id"], "name": _name(e), "domain": domain, "reason": reason, "reason_label": EXCLUDED_LABELS[reason]})
             continue
@@ -282,6 +312,7 @@ def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: st
         "excluded": excluded,
         "never_included": never,
         "digest": digest([t["entity_id"] for t in targets], kind),
+        "server_time_ms": int(time.time() * 1000),  # the client computes expires_at on the server's time line
         "note": "מנעולים, מערכת האזעקה, צופרים, סקריפטים, סצנות, כפתורים ושחרור דלתות אינם נכללים לעולם בפעולה מרוכזת.",
     }
 
@@ -389,12 +420,10 @@ UNKNOWN_ERRORS = frozenset({"ha_unavailable", "internal_error"})  # the call may
 NOT_SENT_ERRORS = frozenset({"expired", "interrupted", "ha_unreachable"})
 
 
-def _send(settings: Settings, secret: str, principal: Principal, not_after: dt.datetime, t: dict[str, Any]) -> tuple[dict[str, Any], str, str | None, str | None]:
-    """One entity's bridge call, holding one of the global slots. (item, status, error, sent_at)."""
-    with RUNNER.slots:
-        if dt.datetime.now(dt.timezone.utc) > not_after:
-            return t, "failed", "expired", None
-        sent_at = now_iso()
+def _call(settings: Settings, secret: str, principal: Principal, t: dict[str, Any]) -> tuple[dict[str, Any], str, str | None]:
+    """One entity's bridge call (its record is already `sending`, committed). (item, status, error). The caller holds
+    one of the global slots; it is released here, whatever happens."""
+    try:
         payload = ha_bridge.sign(secret, {"user_id": principal.user_id, "domain": t["domain"], "service": t["service"], "data": t["data"], "request_id": t["id"]})
         try:
             result = ha_client.call_bridge_execute(settings, payload)
@@ -402,46 +431,84 @@ def _send(settings: Settings, secret: str, principal: Principal, not_after: dt.d
             code = exc.code
             if code == "ha_unavailable" and (exc.details or {}).get("error") in ("ConnectError", "ConnectTimeout"):
                 code = "ha_unreachable"  # the connection was never made: nothing reached Home Assistant
-            return t, "failed", code, sent_at
+            return t, "failed", code
         except Exception:  # noqa: BLE001 - whatever it was, the call may have gone out
             log.exception("device bulk: bridge call for %s failed", t["entity_id"])
-            return t, "failed", "internal_error", sent_at
+            return t, "failed", "internal_error"
         status, error = ha_actions.bridge_status(result)
-        return t, status, error, sent_at
+        return t, status, error
+    finally:
+        RUNNER.slots.release()
 
 
-def _flush(db: Database, rows: list[tuple[str, str | None, str | None, str]]) -> None:
+def _flush(db: Database, rows: list[tuple[str, str | None, str]]) -> None:
     if not rows:
         return
     with db.write_aside() as w:
         now = now_iso()
-        for status, error, sent_at, aid in rows:
-            # requested_at becomes the instant the call left: the confirmation window and the "reported after the
-            # request" check run from there, not from when the bulk was queued
-            w.execute("UPDATE ha_actions SET status = ?, error = ?, responded_at = ?, requested_at = COALESCE(?, requested_at) WHERE id = ?", (status, error, now, sent_at, aid))
+        for status, error, aid in rows:
+            w.execute("UPDATE ha_actions SET status = ?, error = ?, responded_at = ? WHERE id = ?", (status, error, now, aid))
     rows.clear()
+
+
+def _mark_sending(db: Database, aid: str) -> None:
+    """Committed before the bridge call: after a restart, a `sending` record is a call that may have gone out
+    (unknown), never "not sent". requested_at becomes the instant the call leaves - the confirmation window and the
+    "reported after the request" check run from there, not from when the bulk was queued."""
+    with db.write_aside() as w:
+        w.execute("UPDATE ha_actions SET status = 'sending', requested_at = ? WHERE id = ? AND status = 'queued'", (now_iso(), aid))
 
 
 def refresh_pending(conn: Any, bulk_id: str) -> int:
     """Advance the bulk's pending records (ha_actions.refresh). Returns how many are still pending or queued."""
     for r in conn.execute("SELECT * FROM ha_actions WHERE bulk_id = ? AND status = 'pending'", (bulk_id,)).fetchall():
         ha_actions.refresh(conn, ha_actions.as_dict(r))
-    return conn.execute("SELECT COUNT(*) FROM ha_actions WHERE bulk_id = ? AND status IN ('pending', 'queued')", (bulk_id,)).fetchone()[0]
+    return conn.execute("SELECT COUNT(*) FROM ha_actions WHERE bulk_id = ? AND status IN ('pending', 'queued', 'sending')", (bulk_id,)).fetchone()[0]
 
 
 def run(db: Database, settings: Settings, principal: Principal, bulk_id: str, targets: list[dict[str, Any]], secret: str, not_after: dt.datetime, request_id: str | None) -> None:
     """The worker: fan the calls out (bounded), record each answer, wait for the confirmations, write the outcome."""
     try:
-        buffer: list[tuple[str, str | None, str | None, str]] = []
+        buffer: list[tuple[str, str | None, str]] = []
+        answers: queue.Queue = queue.Queue()
         last = time.monotonic()
+
+        def drain(block: bool = False) -> None:
+            nonlocal last
+            while True:
+                try:
+                    t, status, error = answers.get(block=block, timeout=0.2) if block else answers.get_nowait()
+                except queue.Empty:
+                    break
+                block = False
+                buffer.append((status, error, t["id"]))
+            if buffer and (len(buffer) >= FLUSH_EVERY or time.monotonic() - last > FLUSH_S):
+                _flush(db, buffer)
+                last = time.monotonic()
+
         with ThreadPoolExecutor(max_workers=BULK_MAX_IN_FLIGHT, thread_name_prefix=f"bulk-{bulk_id}") as pool:
-            futures = [pool.submit(_send, settings, secret, principal, not_after, t) for t in targets]
-            for fut in as_completed(futures):
-                t, status, error, sent_at = fut.result()
-                buffer.append((status, error, sent_at, t["id"]))
-                if len(buffer) >= FLUSH_EVERY or time.monotonic() - last > FLUSH_S:
-                    _flush(db, buffer)
-                    last = time.monotonic()
+            futures = []
+            for t in targets:
+                # one slot of the global bound per call in flight, taken HERE: this thread is the only writer, and a
+                # record is `sending` (committed) before its call can start
+                while not RUNNER.slots.acquire(timeout=0.2):
+                    drain()
+                if dt.datetime.now(dt.timezone.utc) > not_after:
+                    RUNNER.slots.release()
+                    buffer.append(("failed", "expired", t["id"]))  # never sent: the request's own deadline passed
+                    continue
+                try:
+                    _mark_sending(db, t["id"])
+                except BaseException:
+                    RUNNER.slots.release()
+                    raise
+                fut = pool.submit(_call, settings, secret, principal, t)
+                fut.add_done_callback(lambda f, t=t: answers.put((t, "failed", "internal_error") if f.exception() else f.result()))
+                futures.append(fut)
+                drain()
+            for fut in futures:
+                fut.exception()  # wait for every call to end
+        drain()
         _flush(db, buffer)
         with db.write_aside() as w:
             w.execute("UPDATE device_bulk_actions SET status = 'waiting', sent_at = ? WHERE id = ?", (now_iso(), bulk_id))
@@ -456,7 +523,7 @@ def run(db: Database, settings: Settings, principal: Principal, bulk_id: str, ta
         log.exception("device bulk %s: the worker failed", bulk_id)
         try:
             with db.write_aside() as w:
-                w.execute("UPDATE ha_actions SET status = 'failed', error = 'interrupted', responded_at = ? WHERE bulk_id = ? AND status = 'queued'", (now_iso(), bulk_id))
+                interrupt(w, bulk_id)
         except Exception:  # noqa: BLE001
             log.exception("device bulk %s: could not record the unsent entities", bulk_id)
     finally:
@@ -472,7 +539,7 @@ def run(db: Database, settings: Settings, principal: Principal, bulk_id: str, ta
 def outcome_of(status: str, error: str | None, observed: str | None) -> str:
     if status == "queued":
         return "queued"
-    if status == "pending":
+    if status in ("pending", "sending"):
         return "accepted"
     if status == "confirmed":
         return "confirmed"
@@ -506,6 +573,7 @@ def load(conn: Any, bulk_id: str) -> dict[str, Any]:
             "action_id": r["action_id"], "outcome": out, "status": r["status"], "error": r["error"], "observed_state": r["observed_state"],
             "expected_state": r["expected_state"],
             "sent": r["status"] != "queued" and not (r["status"] == "failed" and r["error"] in NOT_SENT_ERRORS),
+            "may_have_been_sent": r["status"] == "unknown" and r["error"] == "interrupted",
         })
     counts["total"] = len(rows)
     done = b["status"] == "done"
@@ -538,12 +606,46 @@ def finish(db: Database, bulk_id: str, request_id: str | None = None) -> None:
                        "not_confirmed": ids("not_confirmed"), "unknown": ids("unknown"), "refused": ids("refused")})
 
 
-def settle_orphan(db: Database, bulk_id: str) -> None:
-    """A bulk whose worker is gone (the add-on restarted mid-bulk): what was never sent is recorded so, what was sent
-    gets its confirmation read once more, and the outcome row is written."""
+def interrupt(conn: Any, bulk_id: str) -> None:
+    """The bulk's worker is gone: a record never handed to a call (`queued`) was not sent - refused, "interrupted"; a
+    record whose call had started (`sending`: committed before the call, its answer possibly never written) may have
+    reached Home Assistant - unknown, never "not sent"."""
+    now = now_iso()
+    conn.execute("UPDATE ha_actions SET status = 'failed', error = 'interrupted', responded_at = ? WHERE bulk_id = ? AND status = 'queued'", (now, bulk_id))
+    conn.execute("UPDATE ha_actions SET status = 'unknown', error = 'interrupted', observed_state = NULL, responded_at = ? WHERE bulk_id = ? AND status = 'sending'", (now, bulk_id))
+
+
+def settle_orphan(db: Database, bulk_id: str, final: bool = False) -> None:
+    """A bulk whose worker is gone (the add-on restarted mid-bulk): what was never sent is recorded so, what was in
+    flight is unknown, what was accepted gets its confirmation read once more - and, `final` (the start-up sweep), what
+    is still waiting for it is unknown too - then the outcome row is written."""
     with db.write_aside() as w:
-        w.execute("UPDATE ha_actions SET status = 'failed', error = 'interrupted', responded_at = ? WHERE bulk_id = ? AND status = 'queued'", (now_iso(), bulk_id))
+        interrupt(w, bulk_id)
         refresh_pending(w, bulk_id)
+        if final:
+            w.execute("UPDATE ha_actions SET status = 'unknown', error = 'interrupted', observed_state = NULL WHERE bulk_id = ? AND status = 'pending'", (bulk_id,))
         left = w.execute("SELECT COUNT(*) FROM ha_actions WHERE bulk_id = ? AND status = 'pending'", (bulk_id,)).fetchone()[0]
     if not left:
         finish(db, bulk_id)
+
+
+def sweep_unfinished(db: Database) -> int:
+    """At start-up: every bulk that has no outcome yet (its worker died with the previous process) is settled and gets
+    its outcome audit row now, not only when its requester opens it. Returns how many were settled."""
+    with db.write_aside() as w:
+        ids = [r[0] for r in w.execute("SELECT id FROM device_bulk_actions WHERE outcome_at IS NULL").fetchall()]
+    n = 0
+    for bid in ids:
+        if RUNNER.running(bid):
+            continue  # a worker of this very process (another app instance on the same database, in tests)
+        settle_orphan(db, bid, final=True)
+        n += 1
+    return n
+
+
+def set_bulk_safe(conn: Any, principal: Principal, entity_id: str, safe: bool) -> None:
+    if safe:
+        conn.execute("INSERT INTO device_bulk_safe(entity_id, marked_by, marked_by_username, marked_at) VALUES (?,?,?,?) ON CONFLICT(entity_id) DO UPDATE SET marked_by = excluded.marked_by, marked_by_username = excluded.marked_by_username, marked_at = excluded.marked_at",
+                     (entity_id, principal.user_id, principal.username, now_iso()))
+    else:
+        conn.execute("DELETE FROM device_bulk_safe WHERE entity_id = ?", (entity_id,))

@@ -486,7 +486,9 @@ export class DevicesBulkDialog extends LitElement {
     return html`${p.skipped.already ? html`<div class="muted" data-bulk-skipped="already">${ltrNum(p.skipped.already)} כבר במצב המבוקש לפי Home Assistant - לא יישלח אליהם.</div>` : nothing}
       ${p.skipped.unavailable ? html`<div class="muted" data-bulk-skipped="unavailable">${ltrNum(p.skipped.unavailable)} לא זמינים ב־Home Assistant - לא יישלח אליהם.</div>` : nothing}
       ${p.excluded.length
-        ? html`<details data-bulk-excluded><summary>${ltrNum(p.excluded.length)} לא נכללים בכוונה (דלתות ושערים)</summary><ul>${p.excluded.map((x) => html`<li>${bidi(x.name)} - ${x.reason_label}</li>`)}</ul></details>`
+        ? html`<div class="muted" data-bulk-excluded>לא נכלל (${ltrNum(p.excluded.length)}):
+            <ul class="list">${p.excluded.map((x) => html`<li data-entity=${x.entity_id} data-reason=${x.reason}>${bidi(x.name)} - ${x.reason_label}</li>`)}</ul>
+          </div>`
         : nothing}`;
   }
 
