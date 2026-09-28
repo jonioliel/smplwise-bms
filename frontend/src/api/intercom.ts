@@ -6,6 +6,7 @@
  * Phase 3 (access.release): door release, call answer / reject / hang up, and a spoken announcement.
  */
 import { ApiError, api, apiUrl, get, post, put } from './client';
+import { commandId } from './request-id';
 
 /** A display zone as WisKey sends it (time.ts `DisplayZone`): an IANA zone, or a device's own DST rule. */
 export type DisplayZone =
@@ -300,12 +301,6 @@ export function intercomSnapshotUrl(stationId: string, bust?: number): string {
 /** How long a physical command stays valid: a request delayed longer than this (a stalled phone connection, say) is
  * refused by the backend instead of actuating a door late (MASTER_SPEC §15, the HA bridge's own envelope). */
 const COMMAND_TTL_MS = 15_000;
-
-function commandId(): string {
-  // crypto.randomUUID exists only in secure contexts; HA reached over plain http on the LAN is not one
-  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
-  return Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
-}
 
 /** A fresh command id and expiry for one physical command - one per deliberate user action, never reused on a retry. */
 function envelope() {

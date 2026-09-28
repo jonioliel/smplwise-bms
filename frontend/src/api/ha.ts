@@ -3,6 +3,7 @@
  * the SMPLWISE bridge integration, pairing status and the push socket.
  */
 import { apiUrl, get, post } from './client';
+import { commandId } from './request-id';
 import type { StateKind } from '../components/sw-badge';
 import type { MarkerKind } from '../map/sw-plan-canvas';
 
@@ -166,7 +167,7 @@ export function runAction(entityId: string, actionId: string, args: Record<strin
     arguments: args,
     expected_state_version: null,
     confirmation_grant: confirmed ? 'confirmed' : null,
-    client_request_id: crypto.randomUUID(),
+    client_request_id: commandId(),
     expires_at: new Date(Date.now() + 60_000).toISOString().replace(/\.\d{3}Z$/, 'Z'),
   };
   return post<HaActionRecord>(`ha/entities/${encodeURIComponent(entityId)}/actions`, body);

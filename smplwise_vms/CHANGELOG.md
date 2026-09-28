@@ -1,5 +1,15 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.117 (pilot) — Hotfix: entity actions from the map over plain http
+- Owner report (2026-09-28 evening): turning a lighting circuit on from the floor map showed "אין חיבור לשרת"
+  although Home Assistant and the add-on were up. Root cause: the map's entity-action client built its command id
+  with `crypto.randomUUID()`, which browsers expose only on secure (https) origins; on Home Assistant reached over
+  plain http on the LAN the call throws a TypeError before any request is sent, and the API client reports a
+  TypeError as "no connection". The WisKey client already carried a fallback for exactly this; it is now one shared
+  helper (`getRandomValues`-based id outside secure contexts) used by every command path. Frontend only; a node
+  test covers the no-`randomUUID` case. Not a regression of today's releases - the map path had this since the
+  entity-action envelope was introduced; it surfaced once the map was used over http.
+
 ## 0.1.116 (pilot) — Plan Studio state layer on the 3D scene and the 2D map (CR-006 slice 1b)
 - Rooms now show their live state on both map views, in the language of the reference the owner chose
   (approved by the owner from the screenshot on 2026-09-28): a lit room gets a warm floor; movement shows as a
