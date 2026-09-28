@@ -7,8 +7,10 @@ else. Browser media goes through the add-on's WebSocket relay (see routers/media
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
+import threading
 from dataclasses import dataclass
 from urllib.parse import quote, urlsplit, urlunsplit
 
@@ -45,8 +47,13 @@ def hikvision_rtsp_url(settings: Settings, channel: int, profile: str) -> str:
 # port, so WisKey's own default port is used.
 WISKEY_RTSP_PORT = 554
 WISKEY_RTSP_PATH = "/Streaming/Channels/101"
-_HOSTNAME_RE = re.compile(r"^(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$")
+_HOSTNAME_RE = re.compile(r"(?=.{1,253}\Z)[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*")
 FRAME_MAX = 4 * 1024 * 1024  # WisKey's own cap for a station picture
+# Frame streams this process has registered with go2rtc: name -> sha256 of the source (security review S1). go2rtc up
+# to 1.9.11 logs the whole source URL - credentials included - every time GetOrPatch creates or re-points a stream, so
+# the source is sent once per (name, source); every other grab names the stream only.
+_REGISTERED: dict[str, str] = {}
+_REGISTERED_LOCK = threading.Lock()
 
 
 def wiskey_stream_name(station_id: str) -> str:
@@ -70,7 +77,7 @@ def rtsp_host(host: str) -> str | None:
     try:
         ip = ipaddress.ip_address(bare)
     except ValueError:
-        return host if _HOSTNAME_RE.match(host) else None
+        return host if _HOSTNAME_RE.fullmatch(host) else None
     return f"[{ip}]" if ip.version == 6 else str(ip)
 
 
@@ -80,6 +87,14 @@ def wiskey_rtsp_url(host: str, username: str, password: str) -> str:
     if safe_host is None:
         raise ApiError(503, "intercom_camera_host_unknown", "כתובת העמדה שהתקבלה מ־WisKey אינה תקינה.")
     return f"rtsp://{quote(username, safe='')}:{quote(password, safe='')}@{safe_host}:{WISKEY_RTSP_PORT}{WISKEY_RTSP_PATH}"
+
+
+def redact_source(name: str, url: str) -> str:
+    """A source as `GET /media/streams` may show it: credentials hidden always, and for a WisKey station stream the
+    whole address too (the station host is never served, security review N1): rtsp://***/Streaming/Channels/101."""
+    if name.startswith(f"{STREAM_PREFIX}wiskey_"):
+        return re.sub(r"://[^/\s]*", "://***", url, count=1)
+    return redact_url(url)
 
 
 def redact_url(url: str) -> str:
@@ -166,19 +181,12 @@ class Go2rtc:
             except httpx.HTTPError as exc:
                 raise self._wrap(exc, "delete") from exc
 
-    def frame_jpeg(self, name: str, src: str) -> bytes:
-        """One JPEG frame through go2rtc: GET /api/frame.jpeg?src=<source>&name=<name>. go2rtc's handler resolves it with
-        streams.GetOrPatch: `src` is not a stream name, so Patch(name, src) keeps (or re-points) an IN-MEMORY stream
-        called `name` - nothing is written to go2rtc's config, and `name` keeps the stream in our namespace instead
-        of go2rtc naming it after the raw URL (which would carry the credentials). An H.264/H.265 keyframe is turned
-        into a JPEG by go2rtc's ffmpeg (internal/mjpeg: 404 stream not found, 500 transcode failed)."""
-        if not name.startswith(STREAM_PREFIX):
-            raise ValueError("refusing to name a stream outside the smplwise_ namespace")
+    def _grab(self, params: dict[str, str]) -> tuple[int, bytes, bool]:
         body = bytearray()
         too_large = False
         try:
             with httpx.Client(base_url=self.base, auth=self.auth, timeout=20.0) as c:
-                with c.stream("GET", "/api/frame.jpeg", params={"src": src, "name": name}) as r:
+                with c.stream("GET", "/api/frame.jpeg", params=params) as r:
                     status = r.status_code
                     if status == 200:
                         for chunk in r.iter_bytes():
@@ -188,11 +196,41 @@ class Go2rtc:
                                 break
         except httpx.HTTPError as exc:
             raise self._wrap(exc, "frame") from exc
+        return status, bytes(body), too_large
+
+    def frame_jpeg(self, name: str, src: str) -> bytes:
+        """One JPEG frame through go2rtc's /api/frame.jpeg. go2rtc resolves `src` with streams.GetOrPatch: a raw source
+        with `name` is Patch(name, src) - an IN-MEMORY stream in our namespace (nothing written to go2rtc's config; and
+        without `name` go2rtc would name the stream after the raw URL, credentials included). A plain stream name is
+        looked up. So the raw source is sent only to register the stream (first grab in this process, or the source
+        changed), and every other grab is `src=<name>` alone - no credentials in the query, nothing for go2rtc < 1.9.14
+        to log (S1). A by-name 404 means go2rtc no longer knows the stream (it restarted): registered again once, which
+        is also the retry. H.264/H.265 keyframes become a JPEG via go2rtc's ffmpeg (404 stream not found, 500 failed)."""
+        if not name.startswith(STREAM_PREFIX):
+            raise ValueError("refusing to name a stream outside the smplwise_ namespace")
+        digest = hashlib.sha256(src.encode()).hexdigest()
+        with _REGISTERED_LOCK:
+            known = _REGISTERED.get(name) == digest
+        if known:
+            status, body, too_large = self._grab({"src": name})
+            if status != 404:
+                return self._frame(status, body, too_large)
+            with _REGISTERED_LOCK:
+                _REGISTERED.pop(name, None)
+        status, body, too_large = self._grab({"src": src, "name": name})
+        if status not in (401, 403, 404):
+            # go2rtc accepted the stream (a frame that then failed - a refused account, say - still left it registered)
+            with _REGISTERED_LOCK:
+                _REGISTERED[name] = digest
+        return self._frame(status, body, too_large)
+
+    @staticmethod
+    def _frame(status: int, body: bytes, too_large: bool) -> bytes:
         if status in (401, 403):
             raise ApiError(503, "media_error", "go2rtc דחה את פרטי הגישה של ה־Add-on.", details={"op": "frame", "status": status})
         if status != 200 or too_large or not body.startswith(b"\xff\xd8\xff"):
             raise ApiError(503, "snapshot_unavailable", "go2rtc לא סיפק תמונה מהעמדה.", retryable=True, details={"op": "frame", "status": status, **({"reason": "too_large"} if too_large else {})})
-        return bytes(body)
+        return body
 
     def ws_url(self, name: str) -> str:
         parts = urlsplit(self.base)

@@ -2205,20 +2205,31 @@ CAM_OVERVIEW = {
 def fake_go2rtc(monkeypatch):
     """go2rtc's HTTP API as services/go2rtc.py uses it: every httpx.Client there gets a MockTransport, so the real
     request (path, query, auth) is what the test sees. `answer` is swapped per case. Home Assistant is only the scripted
-    WebSocket (FakeHa): any REST request to it would show up here and fail the test."""
+    WebSocket (FakeHa): any REST request to it would show up here and fail the test.
+
+    Like go2rtc's GetOrPatch, `state["streams"]` holds the in-memory streams: a raw `rtsp://` src with a `name` registers
+    (or re-points) that name; a bare name it does not know is a 404 (clearing it = a go2rtc restart). The process-wide
+    registration map in services/go2rtc.py starts empty for every test."""
     import httpx
 
     from smplwise.services import go2rtc as g2
 
     seen: list[httpx.Request] = []
-    state: dict[str, Any] = {"answer": lambda req: httpx.Response(200, content=JPEG, headers={"Content-Type": "image/jpeg"})}
+    streams: dict[str, str] = {}
+    state: dict[str, Any] = {"answer": lambda req: httpx.Response(200, content=JPEG, headers={"Content-Type": "image/jpeg"}), "streams": streams}
 
     def handler(req: httpx.Request) -> httpx.Response:
         seen.append(req)
+        src = req.url.params.get("src", "")
+        if src.startswith("rtsp://"):
+            streams[req.url.params.get("name") or src] = src
+        elif src not in streams:
+            return httpx.Response(404, text="streams: source not supported")
         return state["answer"](req)
 
     real = httpx.Client
     monkeypatch.setattr(g2.httpx, "Client", lambda **kw: real(transport=httpx.MockTransport(handler), **kw))
+    monkeypatch.setattr(g2, "_REGISTERED", {}, raising=False)
     return seen, state
 
 
@@ -2418,3 +2429,127 @@ def test_wiskey_account_options(tmp_path, monkeypatch):
     assert (s.wiskey_user, s.wiskey_password) == ("env-door", "env-pw")
     cfg = (ROOT / "smplwise_vms" / "config.yaml").read_text(encoding="utf-8")
     assert 'wiskey_username: ""' in cfg and "wiskey_password: password?" in cfg
+
+
+# ---------------------------------------------------------------- security review round (S1-S3, N2, N4a)
+
+def _expire_stills(s: Any) -> None:
+    import os
+
+    for p in (s.data_dir / "snapshots" / "intercom").glob("*.jpg"):
+        os.utime(p, (time.time() - 100, time.time() - 100))
+
+
+def _raw(req: Any) -> bool:
+    return req.url.params.get("src", "").startswith("rtsp://")
+
+
+def test_frame_source_with_credentials_is_sent_once_then_the_name_only(feed, fake_go2rtc):
+    """S1: go2rtc < 1.9.14 logs the whole source URL whenever GetOrPatch creates or re-points a stream. The raw source
+    (credentials included) goes out once per registration; every other grab is `src=<name>` alone. A changed override
+    re-registers exactly once; a go2rtc restart (it forgot the stream: by-name 404) re-registers exactly once."""
+    seen, state = fake_go2rtc
+    c, s = camera_feed(feed)
+    name = "smplwise_wiskey_entry-a"
+    assert c.get(SNAP.format("entry-a")).status_code == 200
+    assert [_raw(r) for r in seen] == [True] and dict(seen[0].url.params)["name"] == name
+    for _ in range(3):
+        _expire_stills(s)
+        assert c.get(SNAP.format("entry-a")).status_code == 200
+    assert [dict(r.url.params) for r in seen[1:]] == [{"src": name}] * 3, "by name only: no credentials in the query"
+
+    # a new override: the cached still is dropped (N4a) and the new source registered exactly once
+    before = len(seen)
+    assert c.put(CREDS.format("entry-a"), json={"username": "gate-admin", "password": "s3cret!"}).status_code == 200
+    assert c.get(SNAP.format("entry-a")).status_code == 200, "no max_age wait: the override dropped the cached still"
+    _expire_stills(s)
+    c.get(SNAP.format("entry-a"))
+    assert [_raw(r) for r in seen[before:]] == [True, False]
+    assert "gate-admin" in dict(seen[before].url.params)["src"]
+
+    # go2rtc restarted: its in-memory streams are gone -> by-name 404, one re-registration (which is the retry)
+    state["streams"].clear()
+    before = len(seen)
+    _expire_stills(s)
+    r = c.get(SNAP.format("entry-a"))
+    assert r.status_code == 200 and r.content == JPEG
+    assert [(_raw(q), dict(q.url.params).get("name")) for q in seen[before:]] == [(False, None), (True, name)]
+    _expire_stills(s)
+    c.get(SNAP.format("entry-a"))
+    assert not _raw(seen[-1])
+    assert sum(_raw(q) for q in seen) == 3, "initial registration, the override, the restart - nothing else"
+
+    # clearing the override drops the still and registers the shared account once
+    before = len(seen)
+    c.delete(CREDS.format("entry-a"))
+    c.get(SNAP.format("entry-a"))
+    assert [_raw(q) for q in seen[before:]] == [True] and "door:" in dict(seen[-1].url.params)["src"]
+
+
+def test_concurrent_cache_misses_never_share_a_temp_file(feed, fake_go2rtc):
+    """S2: two requests missing the cache for one station at once each write their own temp file; none fails."""
+    import httpx
+
+    seen, state = fake_go2rtc
+    n = 6
+    together = threading.Barrier(n, timeout=10)
+
+    def at_once(req: httpx.Request) -> httpx.Response:
+        together.wait()  # every grab answers at the same instant: all requests reach the cache write together
+        return httpx.Response(200, content=JPEG, headers={"Content-Type": "image/jpeg"})
+
+    state["answer"] = at_once
+    c, s = camera_feed(feed)
+    results: list[Any] = []
+    errors: list[BaseException] = []
+
+    def get() -> None:
+        try:
+            results.append(c.get(SNAP.format("entry-a")))
+        except BaseException as exc:  # noqa: BLE001 - an unhandled server error surfaces here in the TestClient
+            errors.append(exc)
+
+    threads = [threading.Thread(target=get) for _ in range(n)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert not errors, errors
+    assert [r.status_code for r in results] == [200] * n, [r.text for r in results if r.status_code != 200]
+    assert all(r.content == JPEG for r in results)
+    assert not list((s.data_dir / "snapshots" / "intercom").glob("*.tmp")), "no temp file left behind"
+
+
+def test_credentials_permission_comes_before_the_body(feed):
+    """S3: a caller without system.configure gets an audited 403 whatever the body is; for the administrator a
+    non-JSON content type is 415 and a malformed body 422, each an audited refusal."""
+    c, s = camera_feed(feed)
+    bind(c, s, "vera", "viewer", "installation", "*")
+    bind(c, s, "sam", "site_admin", "installation", "*")
+    for who in ("vera", "sam", "nobody"):
+        r = c.put(CREDS.format("entry-a"), content=b"{bad", headers={**as_user(who), "Content-Type": "application/json"})
+        assert r.status_code == 403 and r.json()["code"] == "forbidden", (who, r.text)
+        r = c.put(CREDS.format("x" * 300), content=b"{bad", headers={**as_user(who), "Content-Type": "text/plain"})
+        assert r.status_code == 403, who
+    denied = [row for row in c.get("/api/v1/audit?prefix=system.configure&limit=100").json()["rows"] if row["decision"] == "denied"]
+    assert len(denied) >= 6
+    r = c.put(CREDS.format("entry-a"), content=b'{"username": "u", "password": "p"}', headers={"Content-Type": "text/plain"})
+    assert r.status_code == 415 and r.json()["code"] == "unsupported_media_type"
+    r = c.put(CREDS.format("entry-a"), content=b"{bad", headers={"Content-Type": "application/json"})
+    assert r.status_code == 422 and r.json()["details"]["fields"] == ["body"]
+    r = c.put(CREDS.format("entry-a"), content=b'{"username": "u"}', headers={"Content-Type": "application/json"})
+    assert r.status_code == 422 and r.json()["details"]["fields"] == ["password"]
+    refused = [row for row in c.get("/api/v1/audit?prefix=intercom.credentials&limit=50").json()["rows"] if row["decision"] == "denied"]
+    assert sorted(row["reason"] for row in refused) == ["unsupported_media_type", "validation", "validation"]
+    assert c.get(CREDS.format("entry-a")).json()["override"] is False, "nothing was stored"
+    r = c.put(CREDS.format("entry-a"), content=b'{"username": "u", "password": "p"}', headers={"Content-Type": "application/json; charset=utf-8"})
+    assert r.status_code == 200 and r.json()["override"] is True
+
+
+def test_station_host_with_a_trailing_newline_is_refused():
+    """N2: `$` also matches before a trailing newline; the host check is a full match."""
+    from smplwise.services import go2rtc as g2
+
+    assert g2.rtsp_host("door-1.local") == "door-1.local"
+    for bad in ("door-1.local\n", "192.0.2.10\n", "door 1", "a/b", "user@host"):
+        assert g2.rtsp_host(bad) is None, repr(bad)

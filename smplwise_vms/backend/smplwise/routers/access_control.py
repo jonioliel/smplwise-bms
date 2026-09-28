@@ -18,12 +18,14 @@ import asyncio
 import hashlib
 import json
 import logging
+import os
 import queue
 import sqlite3
 import threading
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
+from pathlib import Path as FilePath
 from typing import Any, Callable, Literal
 
 from fastapi import APIRouter, Depends, Path, Query, Request, WebSocket
@@ -171,6 +173,12 @@ def person(request: Request, principal: Principal = Depends(_reader), user_id: s
 
 # ---------------------------------------------------------------- station camera stills (access.read), through go2rtc
 
+def _still_path(settings: Any, station_id: str) -> FilePath:
+    folder = settings.data_dir / "snapshots" / "intercom"
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder / f"{hashlib.sha256(station_id.encode()).hexdigest()[:32]}.jpg"
+
+
 @router.get("/intercom/stations/{station_id}/camera-snapshot.jpg")
 def camera_snapshot(
     request: Request,
@@ -207,26 +215,45 @@ def camera_snapshot(
     source = g2.wiskey_rtsp_url(host, username, password)
     client = g2.Go2rtc(settings)
     max_age = read_settings(conn)["snapshots.max_age_s"]
-    folder = settings.data_dir / "snapshots" / "intercom"
-    folder.mkdir(parents=True, exist_ok=True)
-    path = folder / f"{hashlib.sha256(station_id.encode()).hexdigest()[:32]}.jpg"
-    stale_ok = path.exists()
-    fresh = stale_ok and (time.time() - path.stat().st_mtime) < max_age
-    if not fresh:
-        try:
-            if not station["online"]:
-                raise ApiError(503, "intercom_station_offline", f"העמדה {station['name']} אינה מחוברת, ולכן אין ממנה תמונה עדכנית.")
-            with unlocked(conn):
-                data = client.frame_jpeg(g2.wiskey_stream_name(station_id), source)
-            tmp = path.with_suffix(".tmp")
-            tmp.write_bytes(data)
-            tmp.replace(path)
-        except ApiError as exc:
-            if not stale_ok:
-                raise
-            return Response(path.read_bytes(), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=10", "X-Snapshot-Stale": "true", "X-Snapshot-Error": exc.code})
-    age = int(time.time() - path.stat().st_mtime)
-    return Response(path.read_bytes(), media_type="image/jpeg", headers={"Cache-Control": f"private, max-age={max(1, max_age - age)}", "X-Snapshot-Age": str(age)})
+    path = _still_path(settings, station_id)
+    cached = _read_still(path)
+    if cached is not None and time.time() - cached[1] < max_age:
+        age = int(time.time() - cached[1])
+        return Response(cached[0], media_type="image/jpeg", headers={"Cache-Control": f"private, max-age={max(1, max_age - age)}", "X-Snapshot-Age": str(age)})
+    try:
+        if not station["online"]:
+            raise ApiError(503, "intercom_station_offline", f"העמדה {station['name']} אינה מחוברת, ולכן אין ממנה תמונה עדכנית.")
+        with unlocked(conn):
+            data = client.frame_jpeg(g2.wiskey_stream_name(station_id), source)
+    except ApiError as exc:
+        if cached is None:
+            raise
+        return Response(cached[0], media_type="image/jpeg", headers={"Cache-Control": "private, max-age=10", "X-Snapshot-Stale": "true", "X-Snapshot-Error": exc.code})
+    _store_still(path, data)
+    return Response(data, media_type="image/jpeg", headers={"Cache-Control": f"private, max-age={max_age}", "X-Snapshot-Age": "0"})
+
+
+def _read_still(path: FilePath) -> tuple[bytes, float] | None:
+    """The cached still and its time, read once; None when there is none (an override change may drop it any time)."""
+    try:
+        mtime = path.stat().st_mtime
+        return path.read_bytes(), mtime
+    except OSError:
+        return None
+
+
+def _store_still(path: FilePath, data: bytes) -> None:
+    """Best effort: a temp file of this request's own (two cache misses for one station never share one - security
+    review S2), then an atomic replace. The frame is served from memory either way; a replace that fails (Windows
+    refuses to replace a file another request is reading at that moment) only skips caching this one."""
+    tmp = path.with_name(f"{path.stem}.{uuid.uuid4().hex}.tmp")
+    try:
+        tmp.write_bytes(data)
+        os.replace(tmp, path)
+    except OSError as exc:
+        log.debug("camera still not cached (%s)", type(exc).__name__)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 # ---------------------------------------------------------------- per-station camera credentials (system.configure)
@@ -238,6 +265,39 @@ class StationCredentials(BaseModel):
     password: str = Field(min_length=1, max_length=256)
 
 
+async def _credentials_body(request: Request) -> bytes:
+    """The body, unparsed; declared AFTER the permission dependency, so a caller without system.configure gets an
+    audited 403 whatever they sent (FastAPI would otherwise parse a declared body model first: 422 before 403)."""
+    return await request.body()
+
+
+def _refuse_credentials(conn: sqlite3.Connection, principal: Principal, request: Request, station_id: str, exc: ApiError) -> ApiError:
+    audit(conn, actor=principal, action="intercom.credentials.set", decision="denied", resource_type="intercom_station", resource_id=station_id,
+          reason=exc.code, request_id=getattr(request.state, "correlation_id", None))
+    return exc
+
+
+def _parse_credentials(conn: sqlite3.Connection, principal: Principal, request: Request, station_id: str, raw: bytes) -> StationCredentials:
+    """The physical endpoints' order (_parse): the content type, then the JSON, then the fields - each an audited refusal."""
+    content_type = request.headers.get("content-type")
+    if not _is_json(content_type):
+        raise _refuse_credentials(conn, principal, request, station_id, ApiError(415, "unsupported_media_type", "הבקשה חייבת להישלח כ־JSON (Content-Type: application/json).", details={"content_type": (content_type or "")[:100]}))
+    try:
+        data = json.loads(raw) if raw.strip() else {}
+    except (ValueError, RecursionError):
+        raise _refuse_credentials(conn, principal, request, station_id, ApiError(422, "validation", "גוף הבקשה אינו JSON תקין.", details={"fields": ["body"]})) from None
+    try:
+        return StationCredentials.model_validate(data)
+    except ValidationError as exc:
+        fields = sorted({".".join(str(p) for p in err["loc"]) or "body" for err in exc.errors()})
+        raise _refuse_credentials(conn, principal, request, station_id, ApiError(422, "validation", "הבקשה אינה תקינה: " + ", ".join(fields), details={"fields": fields})) from None
+
+
+def _drop_still(request: Request, station_id: str) -> None:
+    """Another account may show another picture (or none): the cached still is not served for up to max_age (N4a)."""
+    _still_path(settings_of(request), station_id).unlink(missing_ok=True)
+
+
 @router.get("/intercom/stations/{station_id}/credentials")
 def station_credentials(request: Request, principal: Principal = Depends(_credentials_admin), conn: sqlite3.Connection = Depends(get_conn), station_id: str = Path(min_length=1, max_length=MAX_STATION_ID)) -> dict[str, Any]:
     """Whether the station has its own credentials, whether the shared default is set, and which one applies."""
@@ -245,8 +305,16 @@ def station_credentials(request: Request, principal: Principal = Depends(_creden
 
 
 @router.put("/intercom/stations/{station_id}/credentials")
-def set_station_credentials(body: StationCredentials, request: Request, principal: Principal = Depends(_credentials_admin), conn: sqlite3.Connection = Depends(get_conn), station_id: str = Path(min_length=1, max_length=MAX_STATION_ID)) -> dict[str, Any]:
+def set_station_credentials(
+    request: Request,
+    principal: Principal = Depends(_credentials_admin),
+    conn: sqlite3.Connection = Depends(get_conn),
+    station_id: str = Path(min_length=1, max_length=MAX_STATION_ID),
+    raw: bytes = Depends(_credentials_body),
+) -> dict[str, Any]:
+    body = _parse_credentials(conn, principal, request, station_id, raw)
     replaced = wiskey_camera.set_override(conn, station_id, body.username, body.password, principal.user_id)
+    _drop_still(request, station_id)
     audit(conn, actor=principal, action="intercom.credentials.set", decision="allowed", resource_type="intercom_station", resource_id=station_id,
           request_id=getattr(request.state, "correlation_id", None), details={"replaced": replaced})
     return wiskey_camera.status(conn, settings_of(request), station_id)
@@ -255,6 +323,7 @@ def set_station_credentials(body: StationCredentials, request: Request, principa
 @router.delete("/intercom/stations/{station_id}/credentials")
 def clear_station_credentials(request: Request, principal: Principal = Depends(_credentials_admin), conn: sqlite3.Connection = Depends(get_conn), station_id: str = Path(min_length=1, max_length=MAX_STATION_ID)) -> dict[str, Any]:
     removed = wiskey_camera.clear_override(conn, station_id)
+    _drop_still(request, station_id)
     audit(conn, actor=principal, action="intercom.credentials.clear", decision="allowed", resource_type="intercom_station", resource_id=station_id,
           request_id=getattr(request.state, "correlation_id", None), details={"removed": removed})
     return wiskey_camera.status(conn, settings_of(request), station_id)
