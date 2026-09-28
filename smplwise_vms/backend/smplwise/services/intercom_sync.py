@@ -43,7 +43,12 @@ People writes (CR-005 phase 2, slice A1: `users/create` / `users/update` / `user
 third lane, `config` (one in-flight slot, its own buckets): a people save that WisKey holds for a while can never take
 a physical-action slot, so it can never block a door release (brief §0.3). Their editor projections
 (`project_person_editor`, `project_editor_context`) are separate from `project_person` / `project_overview` and are
-served only under `access.people.manage`, never cached, never broadcast (brief A.5)."""
+served only under `access.people.manage`, never cached, never broadcast (brief A.5).
+
+Card capture (CR-005 phase 2, slice A2) has a fourth lane, `capture` (one slot, own buckets): `cards/capture_start`,
+`cards/capture_cancel` and the capture poller's `cards/capture_status` (`capture_read`; services/intercom_capture.py
+owns the sessions). The approval (`cards/capture_confirm`) is a people write in the config lane; the reader read
+(`cards/reader_capabilities`) a one-off read with its own timeout."""
 from __future__ import annotations
 
 import asyncio
@@ -114,6 +119,26 @@ CONFIG_USER_BURST, CONFIG_USER_RATE = 6.0, 0.5
 CONFIG_GLOBAL_BURST, CONFIG_GLOBAL_RATE = 6.0, 0.5
 # a people write is WisKey storage only (no device I/O): well within ha_client's 60 s limit
 CONFIG_TIMEOUT_S = 35.0
+# card capture (CR-005 phase 2 slice A2) has a fourth lane: ONE slot and its own buckets for `cards/capture_start`,
+# `cards/capture_cancel` and the capture poller's `cards/capture_status` (services/intercom_capture.py). WisKey answers
+# all three from memory (start registers a session and returns; the reader is driven by WisKey's own background task),
+# so the slot is held for milliseconds - but on its own lane, a capture in progress, or a stuck start, can never take a
+# door release's slot or a people save's. A user's start / cancel waits up to CAPTURE_SLOT_WAIT_S for the slot (the
+# poller may hold it for one status read); the poller never waits (it skips a tick). Slots 4 + 2 + 1 + 1 = 8 (+ the
+# feed's own) sit at WisKey's AdminLimiter ceiling; a moment over it is WisKey's `rate_limited`, a pre-dispatch refusal.
+# `cards/reader_capabilities` reaches the device (WisKey allows it 35 s) and runs in the READ lane with its own
+# timeout, so a slow reader never holds the capture slot either.
+CAPTURE_INFLIGHT = 1
+CAPTURE_USER_BURST, CAPTURE_USER_RATE = 8.0, 1.0
+CAPTURE_GLOBAL_BURST, CAPTURE_GLOBAL_RATE = 10.0, 1.0
+CAPTURE_TIMEOUT_S = 20.0
+CAPTURE_SLOT_WAIT_S = 3.0
+# review round 1 (M1): the capture poller never spends a user's or the lane's shared tokens - its status reads come
+# from a small bucket of their own, sized for WisKey's maximum of three sessions at the poller's own pace (one read per
+# session every 2 s, every 3 s once more than one is followed: at most 1/s in all). A cancel spends no token at all:
+# a cancel is always cheaper than a reader left collecting, so no amount of polling or starting can refuse one.
+CAPTURE_POLL_BURST, CAPTURE_POLL_RATE = 3.0, 1.0
+READERS_TIMEOUT_S = 40.0  # WisKey's own asyncio.timeout(35) on cards/reader_capabilities, plus the round trip
 RATE_LIMITED = "rate_limited"
 RATE_RETRY_S = 2.0  # the feed's own refetch answered `rate_limited`: keep the session and try again after this long
 DEFER_RETRY_S = 5.0  # a refetch failure deferred during an announcement (S6) is retried this often
@@ -453,6 +478,63 @@ def project_accepted(raw: Any) -> dict[str, Any]:
     return {"accepted": True}
 
 
+# ---------------------------------------------------------------- card capture projections (CR-005 phase 2 slice A2)
+
+CAPTURE_STATES = ("preparing", "waiting", "captured", "error", "applying")  # WisKey CaptureSession.state
+CAPTURE_TECHNOLOGIES = ("TypeA_M1", "TypeA_CPU", "TypeB", "ID_125K", "FelicaCard", "DesfireCard")  # client/capture.py TECHNOLOGIES
+CAPTURE_ERROR = re.compile(r"[a-z0-9_]{1,64}")
+SESSION_ID = re.compile(r"[A-Za-z0-9_-]{1,128}")  # WisKey: uuid4().hex
+
+
+def project_readers(raw: Any) -> dict[str, Any]:
+    """`cards/reader_capabilities`: the reader ids a capture may name (0 = the station's default reader) and WisKey's
+    card-number length bounds. Anything else raises: "invalid_response"."""
+    readers = raw.get("readers") if isinstance(raw, dict) else None
+    if not isinstance(readers, list) or not readers or any(_int(r) is None or not 0 <= r <= 8 for r in readers):
+        raise ValueError("unexpected cards/reader_capabilities answer")
+    return {"readers": sorted(set(readers)), "card_min": _int(raw.get("card_min")), "card_max": _int(raw.get("card_max"))}
+
+
+def project_capture_card(raw: Any) -> dict[str, Any] | None:
+    """A collected card as WisKey's `CapturedCard.public()` gives it - the masked form only (a value that looks like a
+    full number is replaced by the bare mask, as for the editor's saved cards), the technology when it is one WisKey
+    knows, the reader id 1-8."""
+    if not isinstance(raw, dict):
+        return None
+    tech = raw.get("technology")
+    reader = _int(raw.get("reader_id"))
+    return {
+        "masked_number": _masked(raw.get("masked_number")),
+        "technology": tech if tech in CAPTURE_TECHNOLOGIES else None,
+        "reader_id": reader if reader is not None and 1 <= reader <= 8 else None,
+    }
+
+
+def project_capture_session(raw: Any) -> dict[str, Any]:
+    """`cards/capture_start` / `cards/capture_status`: WisKey's session. An answer without a usable `session_id` or
+    state raises - after a start that is "outcome unknown" (the reader may be collecting under a session SMPLWISE cannot
+    see), never "refused"."""
+    if not isinstance(raw, dict) or not isinstance(raw.get("session_id"), str) or not SESSION_ID.fullmatch(raw["session_id"]):
+        raise ValueError("unexpected capture session")
+    state = raw.get("state")
+    if state not in CAPTURE_STATES:
+        raise ValueError("unexpected capture state")
+    error = raw.get("error")
+    return {
+        "session_id": raw["session_id"],
+        "state": state,
+        "error": error if isinstance(error, str) and CAPTURE_ERROR.fullmatch(error) else ("capture_failed" if state == "error" else None),
+        "card": project_capture_card(raw.get("card")) if state in ("captured", "applying") else None,
+    }
+
+
+def project_cancelled(raw: Any) -> dict[str, Any]:
+    """`cards/capture_cancel`: `{cancelled: true}` - WisKey stopped waiting. Anything else raises ("outcome unknown")."""
+    if not isinstance(raw, dict) or raw.get("cancelled") is not True:
+        raise ValueError("unexpected cards/capture_cancel answer")
+    return {"cancelled": True}
+
+
 def project_tts_engines(raw: dict[str, Any]) -> dict[str, Any]:
     engines = raw.get("engines") if isinstance(raw.get("engines"), list) else []
     return {
@@ -496,6 +578,22 @@ WRITE_REFUSALS: dict[str, tuple[int, str, str]] = {
     "unauthorized": (502, "intercom_action_refused", "WisKey דחה את הפקודה: למשתמש ה־Home Assistant של התוסף אין הרשאת ניהול אנשים (users:manage) ב־WisKey. הפקודה לא בוצעה."),
     "storage_stopping": (503, "intercom_unavailable", "Home Assistant נכבה כרגע, ולכן WisKey לא שמר את השינוי. נסו שוב אחרי ההפעלה."),
 }
+# WisKey's refusals of the card-capture commands (lane "capture" for start / cancel; a confirm is a people write in the
+# config lane and gets WRITE_REFUSALS first): (HTTP status, SMPLWISE code, message)
+CAPTURE_REFUSALS: dict[str, tuple[int, str, str]] = {
+    "capture_station_busy": (409, "intercom_capture_station_busy", "בעמדה הזו כבר קיימת ב־WisKey קריאת כרטיס שממתינה לסיום או לאישור (ייתכן שמ־WisKey עצמו). הקורא לא הופעל שוב - המתינו עד שתי דקות ונסו שוב."),
+    "capture_limit": (409, "intercom_capture_limit", "שלוש קריאות כרטיס כבר פעילות ב־WisKey (כולל מחוץ ל־SMPLWISE). הקורא לא הופעל - סיימו או בטלו אחת מהן."),
+    "revision_conflict": (409, "intercom_revision_conflict", "האדם השתנה ב־WisKey מאז שנטען, ולכן WisKey לא הפעיל את הקורא. טענו מחדש את הרשומה ונסו שוב."),
+    "user_not_found": (404, "intercom_person_not_found", "האדם לא נמצא ב־WisKey (ייתכן שנמחק בינתיים)."),
+    "station_not_found": (404, "intercom_station_not_found", "העמדה לא נמצאה ב־WisKey."),
+    "station_offline": (409, "intercom_station_offline", "העמדה אינה מחוברת ל־WisKey, ולכן הקורא לא הופעל."),
+    "station_has_no_managed_lock": (409, "intercom_no_lock", "לעמדה אין מנעול מנוהל ב־WisKey, ולכן אי אפשר לקרוא בה כרטיס."),
+    "manager_closed": (503, "intercom_unavailable", "מנהל הגישה של WisKey נסגר (Home Assistant נטען מחדש?), ולכן הקורא לא הופעל."),
+    "capture_applying": (409, "intercom_capture_applying", "הכרטיס נמצא בשמירה ב־WisKey. יש להמתין לתוצאה לפני פעולה נוספת."),
+    "capture_not_found": (404, "intercom_capture_not_found", "הקריאה פגה או אינה קיימת עוד ב־WisKey. יש להתחיל קריאה חדשה."),
+    "capture_not_ready": (409, "intercom_capture_not_ready", "אין כרטיס שנקרא וממתין לאישור."),
+    "invalid_text": (422, "intercom_invalid_request", "תווית הכרטיס אינה תקינה (עד 64 תווים, ללא תווי בקרה)."),
+}
 # codes of a malformed or over-capacity draft (WisKey's build_user / _validate): the caller's to fix
 WRITE_INVALID_PREFIXES = ("invalid_", "unsupported_", "schedule_", "duplicate_card", "unmanaged_lock", "station_not_found", "station_has_no_managed_lock",
                           "person_exceeds_capabilities", "pin_device_managed", "pin_exceeds_capabilities", "card_capacity", "card_exceeds_capabilities",
@@ -510,6 +608,7 @@ def action_error(reply: dict[str, Any], outcome: str, lane: str = "action") -> A
     state, code = reply.get("state"), reply.get("last_error")
     details = {"outcome": outcome, "state": state, "wiskey_code": code}
     config = lane == "config"
+    capture = lane == "capture"
     if outcome == "not_sent":
         if code == "expired":  # the code routers/ha.py uses for an expired HA action
             return ApiError(409, "expired", "הבקשה פגה לפני שנשלחה ל־WisKey, ולכן לא נשלחה. אם עדיין צריך - בצעו אותה שוב.", details=details)
@@ -526,6 +625,8 @@ def action_error(reply: dict[str, Any], outcome: str, lane: str = "action") -> A
             said = f"WisKey לא אישר שהפקודה בוצעה ({code})"
         if config:
             return ApiError(504, "intercom_outcome_unknown", f"{said}. ייתכן שהשינוי נשמר וייתכן שלא - טענו מחדש את הרשומה ובדקו את הגרסה שלה לפני שמנסים שוב.", details=details)
+        if capture:
+            return ApiError(504, "intercom_outcome_unknown", f"{said}. ייתכן שהקורא בעמדה נכנס למצב קריאת כרטיס וממתין לכרטיס עד שתי דקות (עד שהזמן של WisKey יפוג) - שום כרטיס לא יתווסף לאדם בלי אישורכם.", details=details)
         return ApiError(504, "intercom_outcome_unknown", f"{said}. ייתכן שבוצעה וייתכן שלא - בדקו במצלמה או במקום לפני שמנסים שוב.", details=details)
     if code == RATE_LIMITED:
         return ApiError(429, "intercom_rate_limited", "WisKey הגביל את קצב הפקודות ודחה את הפקודה. היא לא בוצעה - נסו שוב בעוד כמה שניות.", retryable=True, details=details)
@@ -533,6 +634,11 @@ def action_error(reply: dict[str, Any], outcome: str, lane: str = "action") -> A
         return ApiError(422, "intercom_invalid_request", "WisKey דחה את פרמטרי הפקודה, והיא לא בוצעה.", details=details)
     if config and code in WRITE_REFUSALS:
         status, own, message = WRITE_REFUSALS[code]
+        return ApiError(status, own, message, details=details)
+    # the capture lane by every code above; a people write (the capture confirm among them) only by the capture_* ones,
+    # so a draft's own codes (`station_not_found` ...) keep the people writes' meaning below
+    if code in CAPTURE_REFUSALS and (capture or (config and code.startswith("capture_"))):
+        status, own, message = CAPTURE_REFUSALS[code]
         return ApiError(status, own, message, details=details)
     if config and code and code.startswith(WRITE_INVALID_PREFIXES):
         return ApiError(422, "intercom_invalid_request", f"WisKey דחה את פרטי האדם ({code}), ולכן השינוי לא נשמר.", details=details)
@@ -648,6 +754,7 @@ class IntercomSync:
         self._inflight = threading.BoundedSemaphore(MAX_INFLIGHT)  # one-off reads (command) in flight at once
         self._action_inflight = threading.BoundedSemaphore(ACTION_INFLIGHT)  # physical actions: a lane of their own
         self._config_inflight = threading.BoundedSemaphore(CONFIG_INFLIGHT)  # people writes: a third lane (one slot)
+        self._capture_inflight = threading.BoundedSemaphore(CAPTURE_INFLIGHT)  # card capture: a fourth lane (one slot)
         self._bucket_lock = threading.Lock()
         self._tts_status: dict[str, dict[str, Any]] = {}  # station id -> its latest announcement's progress
         self._buckets_reset()
@@ -661,15 +768,26 @@ class IntercomSync:
             self._action_user_buckets: dict[str, TokenBucket] = {}
             self._config_global_bucket = TokenBucket(CONFIG_GLOBAL_BURST, CONFIG_GLOBAL_RATE)
             self._config_user_buckets: dict[str, TokenBucket] = {}
+            self._capture_global_bucket = TokenBucket(CAPTURE_GLOBAL_BURST, CAPTURE_GLOBAL_RATE)
+            self._capture_user_buckets: dict[str, TokenBucket] = {}
+            self._capture_poll_bucket = TokenBucket(CAPTURE_POLL_BURST, CAPTURE_POLL_RATE)
 
     def _spend_token(self, who: str, lane: str = "read") -> bool:
-        """One token from both the caller's and the shared bucket of `lane` (`read`, `action` or `config`), or none at
-        all (nothing is spent on a refusal)."""
+        """One token from both the caller's and the shared bucket of `lane` (`read`, `action`, `config` or `capture`),
+        or none at all (nothing is spent on a refusal). `capture_poll` (the capture poller) has one bucket of its own
+        and no per-user one."""
         with self._bucket_lock:
+            if lane == "capture_poll":
+                if not self._capture_poll_bucket.ready():
+                    return False
+                self._capture_poll_bucket.take()
+                return True
             if lane == "action":
                 users, shared, burst, rate = self._action_user_buckets, self._action_global_bucket, ACTION_USER_BURST, ACTION_USER_RATE
             elif lane == "config":
                 users, shared, burst, rate = self._config_user_buckets, self._config_global_bucket, CONFIG_USER_BURST, CONFIG_USER_RATE
+            elif lane == "capture":
+                users, shared, burst, rate = self._capture_user_buckets, self._capture_global_bucket, CAPTURE_USER_BURST, CAPTURE_USER_RATE
             else:
                 users, shared, burst, rate = self._user_buckets, self._global_bucket, USER_BURST, USER_RATE
             mine = users.get(who)
@@ -727,6 +845,7 @@ class IntercomSync:
         self._inflight = threading.BoundedSemaphore(MAX_INFLIGHT)
         self._action_inflight = threading.BoundedSemaphore(ACTION_INFLIGHT)
         self._config_inflight = threading.BoundedSemaphore(CONFIG_INFLIGHT)
+        self._capture_inflight = threading.BoundedSemaphore(CAPTURE_INFLIGHT)
         self._tts_status = {}
         self._buckets_reset()
         self._session_reset()
@@ -778,6 +897,7 @@ class IntercomSync:
         send: Callable[[intercom_client.Call], Awaitable[dict[str, Any]]],
         project: Callable[[dict[str, Any]], dict[str, Any]],
         who: str = "",
+        timeout: float | None = None,
     ) -> dict[str, Any]:
         """Run one read-only WisKey command over the feed's live session and serve its projection under `key`:
         `{state, configured, last_error, fetched_at, <key>, sync}`. `<key>` is null whenever the command did not run or
@@ -790,8 +910,9 @@ class IntercomSync:
 
         Never blocks a worker thread on anything but the WisKey call itself: no rate token or no free slot is answered
         at once. The feed's state machine is never changed from here: the session's own overview refetch and reconnect
-        loop remain the only judges of the connection."""
-        return self._execute(settings, key, send, project, who, COMMAND_TIMEOUT_S)[0]
+        loop remain the only judges of the connection. `timeout` replaces COMMAND_TIMEOUT_S for a read WisKey itself
+        allows longer (`cards/reader_capabilities` reaches the device: READERS_TIMEOUT_S)."""
+        return self._execute(settings, key, send, project, who, COMMAND_TIMEOUT_S if timeout is None else timeout)[0]
 
     def action(
         self,
@@ -803,20 +924,25 @@ class IntercomSync:
         not_after: datetime.datetime | None = None,
         on_settled: Callable[[], None] | None = None,
         lane: str = "action",
+        slot_wait: float = 0.0,
+        free: bool = False,
     ) -> dict[str, Any]:
         """Run one PHYSICAL WisKey command (release, call signal, TTS start) like `command` - over the feed's own live
         session, never queued, never retried - but in the action lane (its own in-flight slots and rate buckets, so
         reads cannot starve it), waiting up to ACTION_TIMEOUT_S, and turning every result other than success into an
         ApiError (`action_error`), so that a refused, dropped or unanswered physical command can never be read as done.
-        A people write (`lane` "config") runs the same way in the config lane (one slot of its own, CONFIG_TIMEOUT_S).
+        A people write (`lane` "config") runs the same way in the config lane (one slot of its own, CONFIG_TIMEOUT_S), a
+        card-capture command (`lane` "capture") in the capture lane (CAPTURE_TIMEOUT_S); `slot_wait` > 0 lets the caller
+        wait that long for the lane's slot instead of being answered `busy` at once (the capture poller's status read may
+        hold it for a moment). `free`: spend no rate token (a capture cancel - never refused by SMPLWISE's own budget).
 
         `not_after` (aware UTC): checked on the feed's loop immediately before the frame is written; a command that
         reaches that point later is not sent (`expired`) - a request delayed in transit or in a queue never actuates
         late. `on_settled` is called exactly once, when the command is really over: at once when it was never
         scheduled, else when WisKey answered, the session ended, or ha_client's own call limit expired - which can be
         well after this method gave up waiting (ACTION_TIMEOUT_S). Returns the `command`-shaped reply on success."""
-        timeout = CONFIG_TIMEOUT_S if lane == "config" else ACTION_TIMEOUT_S
-        reply, outcome = self._execute(settings, key, send, project, who, timeout, lane=lane, not_after=not_after, on_settled=on_settled)
+        timeout = {"config": CONFIG_TIMEOUT_S, "capture": CAPTURE_TIMEOUT_S}.get(lane, ACTION_TIMEOUT_S)
+        reply, outcome = self._execute(settings, key, send, project, who, timeout, lane=lane, not_after=not_after, on_settled=on_settled, slot_wait=slot_wait, free=free)
         if outcome != "ok":
             raise action_error(reply, outcome, lane)
         return reply
@@ -832,6 +958,9 @@ class IntercomSync:
         lane: str = "read",
         not_after: datetime.datetime | None = None,
         on_settled: Callable[[], None] | None = None,
+        slot_wait: float = 0.0,
+        free: bool = False,
+        bucket: str | None = None,
     ) -> tuple[dict[str, Any], str]:
         """`command`'s body. Also returns what is known about the command itself: `not_sent` (nothing reached WisKey),
         `refused` (WisKey answered with an error: a genuine refusal), `unknown` (sent, but no usable answer: timeout,
@@ -848,12 +977,13 @@ class IntercomSync:
             reply["sync"] = STATE.as_dict()
             settled()
             return reply, "not_sent"
-        slot = {"action": self._action_inflight, "config": self._config_inflight}.get(lane, self._inflight)  # (reset() may swap in a new one)
-        if not slot.acquire(blocking=False):  # checked first: a `busy` refusal costs the caller no rate token
+        slot = {"action": self._action_inflight, "config": self._config_inflight, "capture": self._capture_inflight}.get(lane, self._inflight)  # (reset() may swap in a new one)
+        acquired = slot.acquire(timeout=slot_wait) if slot_wait > 0 else slot.acquire(blocking=False)
+        if not acquired:  # checked first: a `busy` refusal costs the caller no rate token
             reply.update(state="error", last_error="busy", sync=STATE.as_dict())
             settled()
             return reply, "not_sent"
-        if not self._spend_token(who, lane):
+        if not free and not self._spend_token(who, bucket or lane):
             slot.release()
             reply.update(state="error", last_error=RATE_LIMITED, sync=STATE.as_dict())
             settled()
@@ -921,6 +1051,19 @@ class IntercomSync:
                 reply[key] = None
         reply["sync"] = STATE.as_dict()
         return reply, outcome
+
+    def capture_read(
+        self,
+        settings: Settings,
+        send: Callable[[intercom_client.Call], Awaitable[Any]],
+        project: Callable[[Any], dict[str, Any]],
+        who: str,
+    ) -> tuple[dict[str, Any], str]:
+        """The card-capture poller's `cards/capture_status` read (services/intercom_capture.py): the capture lane - so
+        a user's start / cancel, not the read lane, is what it competes with - never waiting for the slot (a busy slot
+        or an empty bucket just skips a tick) and paid from the poller's own bucket (`capture_poll`), never from a
+        user's. Returns `_execute`'s (reply under `capture`, outcome)."""
+        return self._execute(settings, "capture", send, project, who, CAPTURE_TIMEOUT_S, lane="capture", bucket="capture_poll")
 
     def people(self, settings: Settings, who: str, query: str, filters: dict[str, Any], offset: int, limit: int, snapshot: str | None) -> dict[str, Any]:
         """The people directory for `who`: without a text, one WisKey page as it is; with a text, SMPLWISE's own search

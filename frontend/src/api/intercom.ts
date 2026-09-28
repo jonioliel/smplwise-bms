@@ -409,6 +409,74 @@ export const updateIntercomPerson = (userId: string, revision: number, data: Int
 export const deleteIntercomPerson = (userId: string, revision: number) =>
   post<IntercomPersonDeleteReply>(`intercom/people/${encodeURIComponent(userId)}/delete`, { revision, confirmed: true, ...envelope() });
 
+// ---------------------------------------------------------------- card capture (access.cards.capture + access.people.manage, CR-005 phase 2 A2)
+
+/** A station's card readers (WisKey `cards/reader_capabilities`): reader ids (0 = the station's default reader) and the
+ * card-number length bounds. `readers` is null unless `state` is `ready`; `last_error` then carries WisKey's code
+ * (`capture_unsupported`, `station_offline` ...). */
+export type IntercomReadersReply = ReadReply<'readers', { readers: number[]; card_min: number | null; card_max: number | null }>;
+
+/** The collected card as WisKey shows it (`CapturedCard.public()`): masked only - the number never leaves WisKey. */
+export interface IntercomCaptureCard {
+  masked_number: string;
+  technology: string | null;
+  reader_id: number | null;
+}
+
+/** preparing | waiting | captured | applying (active; WisKey's own states) or error | cancelled | cancel_unknown | expired
+ * | lost | confirmed | unconfirmed | closed (over; SMPLWISE's reading of how it ended). */
+export type IntercomCaptureState =
+  | 'preparing'
+  | 'waiting'
+  | 'captured'
+  | 'applying'
+  | 'error'
+  | 'cancelled'
+  | 'cancel_unknown'
+  | 'expired'
+  | 'lost'
+  | 'confirmed'
+  | 'unconfirmed'
+  | 'closed';
+
+/** One capture session as the backend's poller last read it from WisKey (routers/access_control.py
+ * `card_capture_status`); only its owner ever gets it. The countdowns are the server's (WisKey's 70 s collection, its
+ * 120 s session). `reader_may_be_collecting`: WisKey may still drive the reader, or the reader's own firmware timeout
+ * may still run. The collection countdown is the reader's 30 s wait. */
+export interface IntercomCapture {
+  session_id: string;
+  person_id: string;
+  station_id: string;
+  station_name: string | null;
+  reader_id: number;
+  state: IntercomCaptureState;
+  active: boolean;
+  error: string | null;
+  /** Why SMPLWISE itself ended it: `abandoned` = nobody asked for it for 20 s (a frozen tab, a sleeping laptop). */
+  reason: string | null;
+  card: IntercomCaptureCard | null;
+  started_at: string;
+  elapsed_s: number;
+  collect_remaining_s: number | null;
+  session_remaining_s: number;
+  reader_may_be_collecting: boolean;
+}
+
+export type IntercomCaptureStartReply = Actioned<ActionReply<'capture', IntercomCapture> & { note: string }>;
+export type IntercomCaptureCancelReply = Actioned<ActionReply<'cancelled', { cancelled: boolean }> & { note: string; capture: IntercomCapture }>;
+export type IntercomCaptureConfirmReply = IntercomPersonSaveReply & { capture: IntercomCapture };
+
+export const getIntercomCardReaders = (stationId: string) => get<IntercomReadersReply>(`${station(stationId)}/card-readers`);
+/** Start reading a card at `stationId` (PHYSICAL: the reader enters collection mode). `confirmed` is sent only from the
+ * dialog's confirmation step; `revision` is the person's loaded revision (WisKey refuses a stale one). */
+export const startIntercomCardCapture = (userId: string, stationId: string, readerId: number, revision: number) =>
+  post<IntercomCaptureStartReply>(`intercom/people/${encodeURIComponent(userId)}/card-capture`, { station_id: stationId, reader_id: readerId, revision, confirmed: true, ...envelope() });
+export const getIntercomCardCapture = (sessionId: string) => get<{ capture: IntercomCapture }>(`intercom/card-capture/${encodeURIComponent(sessionId)}`);
+export const cancelIntercomCardCapture = (sessionId: string) => post<IntercomCaptureCancelReply>(`intercom/card-capture/${encodeURIComponent(sessionId)}/cancel`, {});
+/** Add the collected card to the person (a people write). `confirmed` is sent only from the confirmation step. */
+export const confirmIntercomCardCapture = (sessionId: string, label: string) =>
+  post<IntercomCaptureConfirmReply>(`intercom/card-capture/${encodeURIComponent(sessionId)}/confirm`, { label, confirmed: true, ...envelope() });
+
 // ---------------------------------------------------------------- per-station RTSP credentials (system.configure)
 
 /** One station row of GET /intercom/stations/credentials (routers/access_control.py): whether the system administrator

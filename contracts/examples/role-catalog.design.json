@@ -57,6 +57,7 @@
         "devices.read",
         "access.people.manage",
         "devices.control",
+        "access.cards.capture",
         "entity.state.read",
         "video.live",
         "video.playback",
@@ -83,6 +84,7 @@
         "devices.read",
         "access.people.manage",
         "devices.control",
+        "access.cards.capture",
         "entity.state.read",
         "video.live",
         "video.playback",
@@ -115,6 +117,7 @@
     "door.unlock",
     "access.release",
     "access.people.manage",
+    "access.cards.capture",
     "alarm.disarm",
     "nvr.config.write"
   ],

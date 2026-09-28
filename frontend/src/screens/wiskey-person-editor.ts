@@ -9,6 +9,7 @@ import '../components/sw-field';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import { ApiError, describeError } from '../api/client';
+import { can, isApi } from '../api/session';
 import {
   actionOutcome,
   createIntercomPerson,
@@ -24,6 +25,7 @@ import {
   type IntercomPersonDraft,
 } from '../api/intercom';
 import { syncBadge } from './wiskey-people';
+import './wiskey-card-capture';
 import { localInput, resolveLocalInput, t, UTC_ZONE } from './wiskey-format';
 
 /** A card row of the draft: a saved card (by `id`, its number masked by WisKey) or a new one typed here. */
@@ -89,10 +91,15 @@ export function mobileDisplay(value: string): string {
  *
  * What this slice deliberately leaves to the next ones, and says so on the form instead of showing disabled stubs:
  * custom profile fields, groups, onboarding templates and photos (A3), weekly / dates schedules and station-native
- * enforcement (A3; a person who has one keeps it - this editor never sends timing keys), reading a card from a station
- * reader and the USB wedge (A2). The live PIN availability check is not offered (owner decision 8): a taken PIN is
- * reported by WisKey at save time and "generate unique PIN" gives a free one. Card numbers are shown exactly as WisKey
- * returns them - masked - and only a number typed here is ever a full one; it leaves the form only inside the save.
+ * enforcement (A3; a person who has one keeps it - this editor never sends timing keys) and the USB wedge. The live
+ * PIN availability check is not offered (owner decision 8): a taken PIN is reported by WisKey at save time and
+ * "generate unique PIN" gives a free one. Card numbers are shown exactly as WisKey returns them - masked - and only a
+ * number typed here is ever a full one; it leaves the form only inside the save.
+ *
+ * Slice A2: "read card from station" (`access.cards.capture` on top of `access.people.manage`) opens the card-capture
+ * dialog (wiskey-card-capture.ts) for a saved person whose draft is unmodified, as WisKey's `editorAction` requires; a
+ * card the administrator approves there is stored by WisKey (`cards/capture_confirm`) and the editor reloads the record
+ * from WisKey's answer - the collected card appears among the saved cards, masked.
  */
 @customElement('wiskey-person-editor')
 export class WiskeyPersonEditor extends LitElement {
@@ -114,8 +121,15 @@ export class WiskeyPersonEditor extends LitElement {
   @state() private errorTone: Tone = 'err';
   @state() private outcome: 'refused' | 'unknown' | 'not_sent' | '' = '';
   @state() private pinStatus: '' | 'generated' | 'failed' = '';
+  /** A PIN WisKey just generated, shown ONCE in clear for the administrator to hand over (owner decision 2026-09-28,
+   * option ב): null as soon as it is copied, hidden, saved or the form closes - Lit then removes it from the DOM, and
+   * it stays only in the two password fields for the save. A stored PIN is never shown: WisKey never returns one. */
+  @state() private pinReveal: string | null = null;
+  @state() private pinCopy: '' | 'copied' | 'manual' = '';
   @state() private confirmDelete = false;
   @state() private confirmClose = false;
+  @state() private capturing = false;
+  @state() private notice = '';
   private baseline = '';
   private generation = 0;
 
@@ -132,7 +146,7 @@ export class WiskeyPersonEditor extends LitElement {
   }
 
   private onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape' && !this.confirmDelete && !this.confirmClose) this.requestClose();
+    if (e.key === 'Escape' && !this.confirmDelete && !this.confirmClose && !this.capturing) this.requestClose();
   };
 
   private get zone(): DisplayZone {
@@ -176,6 +190,8 @@ export class WiskeyPersonEditor extends LitElement {
   private edit(user: IntercomEditorPerson | null) {
     this.original = user;
     this.pinStatus = '';
+    this.hidePin();
+    this.notice = '';
     this.error = '';
     this.errorCode = '';
     this.outcome = '';
@@ -227,12 +243,14 @@ export class WiskeyPersonEditor extends LitElement {
     if (!this.draft || this.busy) return;
     this.busy = 'pin';
     this.pinStatus = '';
+    this.hidePin();
     this.error = '';
     try {
       const r = await generateIntercomPin(this.userId);
       if (r.pin) {
         this.draft = { ...this.draft, pin: r.pin.pin, confirm_pin: r.pin.pin };
         this.pinStatus = 'generated';
+        this.pinReveal = r.pin.pin;
       } else {
         this.pinStatus = 'failed';
         this.setError(r.last_error === 'pin_generation_failed' ? t('pin_generation_failed') : `${t('pin_generation_failed')} (${r.last_error ?? r.state})`, 'err', r.last_error ?? r.state);
@@ -243,6 +261,27 @@ export class WiskeyPersonEditor extends LitElement {
     } finally {
       this.busy = '';
     }
+  }
+
+  /** Copy the revealed PIN (the Clipboard API - only in a secure context, so HA over plain http has none) and hide it.
+   * Without the API, or when the browser refuses, the PIN stays shown with a note to copy it by hand and hide it. */
+  private async copyPin() {
+    const pin = this.pinReveal;
+    if (!pin) return;
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable');
+      await navigator.clipboard.writeText(pin);
+      if (this.pinReveal !== pin) return;
+      this.pinReveal = null;
+      this.pinCopy = 'copied';
+    } catch {
+      if (this.pinReveal === pin) this.pinCopy = 'manual';
+    }
+  }
+
+  private hidePin() {
+    this.pinReveal = null;
+    this.pinCopy = '';
   }
 
   // ------------------------------------------------------------------ validity
@@ -270,6 +309,7 @@ export class WiskeyPersonEditor extends LitElement {
   private async save(syncNow: boolean) {
     const draft = this.draft;
     if (!draft || this.busy) return;
+    this.hidePin(); // saving ends the one-time reveal
     this.error = '';
     this.errorCode = '';
     this.outcome = '';
@@ -398,6 +438,7 @@ export class WiskeyPersonEditor extends LitElement {
 
   private close() {
     this.draft = null; // a typed PIN or card number does not outlive the form
+    this.hidePin();
     this.dispatchEvent(new CustomEvent('editor-close', { bubbles: true, composed: true }));
   }
 
@@ -455,6 +496,15 @@ export class WiskeyPersonEditor extends LitElement {
       </div>
       ${this.confirmDelete ? this.renderDeleteConfirm() : nothing}
       ${this.confirmClose ? this.renderCloseConfirm() : nothing}
+      ${this.capturing && this.original && this.ctx
+        ? html`<wiskey-card-capture
+            .person=${this.original}
+            .stations=${this.ctx.stations}
+            @capture-close=${() => (this.capturing = false)}
+            @capture-saved=${(e: CustomEvent<{ person: IntercomEditorPerson; note: string }>) => this.captured(e.detail.person, e.detail.note)}
+            @capture-reload=${() => { this.capturing = false; void this.reload(); }}
+          ></wiskey-card-capture>`
+        : nothing}
     </div>`;
   }
 
@@ -469,6 +519,7 @@ export class WiskeyPersonEditor extends LitElement {
     const blocked = this.pinBlocked();
     return html`
       ${this.renderContextNotes()}
+      ${this.notice ? html`<div class="note info" role="status" data-wiskey-editor-notice><sw-icon name="check" size=${16}></sw-icon><span>${this.notice}</span></div>` : nothing}
       ${this.error ? this.renderError() : nothing}
       <form @submit=${(e: Event) => e.preventDefault()}>
         <p class="hint">${t('save_hint')}</p>
@@ -515,7 +566,7 @@ export class WiskeyPersonEditor extends LitElement {
       notes.push(html`<div class="note info" role="note" data-wiskey-editor-note="timing">לאדם הזה מוגדר ב־WisKey לוח זמנים שבועי / לפי תאריכים או אכיפת זמנים. העורך הזה עדיין אינו עורך אותם (השלב הבא), ושמירה מכאן משאירה אותם כפי שהם.</div>`);
     }
     if (ctx?.profile_policy && (ctx.profile_policy.fields || ctx.profile_policy.groups)) {
-      notes.push(html`<div class="note info" role="note" data-wiskey-editor-note="profile">ל־WisKey מוגדרים שדות פרופיל וקבוצות (${ctx.profile_policy.fields} שדות, ${ctx.profile_policy.groups} קבוצות). עריכתם, תמונות וקריאת כרטיס מקורא בעמדה יגיעו בשלבים הבאים; עד אז הם נערכים ב־WisKey עצמו. תחנה שההרשאה אליה מגיעה דרך קבוצה מוצגת כאן מסומנת; ביטול הסימון יוצר חריגה אישית (חסימה) שגוברת על הקבוצה, כמו ב־WisKey.</div>`);
+      notes.push(html`<div class="note info" role="note" data-wiskey-editor-note="profile">ל־WisKey מוגדרים שדות פרופיל וקבוצות (${ctx.profile_policy.fields} שדות, ${ctx.profile_policy.groups} קבוצות). עריכתם ותמונות יגיעו בשלבים הבאים; עד אז הם נערכים ב־WisKey עצמו. תחנה שההרשאה אליה מגיעה דרך קבוצה מוצגת כאן מסומנת; ביטול הסימון יוצר חריגה אישית (חסימה) שגוברת על הקבוצה, כמו ב־WisKey.</div>`);
     }
     return notes;
   }
@@ -564,21 +615,31 @@ export class WiskeyPersonEditor extends LitElement {
       ${blocked ? html`<p class="danger" data-wiskey-editor-pin-blocked>${t('pin_mode_blocked')}</p>` : nothing}
       <div class="grid2">
         <sw-field label=${t('new_pin')}>
-          <input type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]*" maxlength="128" data-ltr data-wiskey-editor-pin .value=${live(d.pin ?? '')} ?disabled=${blocked || removing} @input=${(e: Event) => this.patch('pin', (e.target as HTMLInputElement).value || undefined)} />
+          <input type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]*" maxlength="128" data-ltr data-wiskey-editor-pin .value=${live(d.pin ?? '')} ?disabled=${blocked || removing} @input=${(e: Event) => { this.hidePin(); this.patch('pin', (e.target as HTMLInputElement).value || undefined); }} />
         </sw-field>
         <sw-field label=${t('confirm_pin')}>
-          <input type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]*" maxlength="128" data-ltr data-wiskey-editor-pin-confirm .value=${live(d.confirm_pin)} ?disabled=${blocked || removing} @input=${(e: Event) => this.patch('confirm_pin', (e.target as HTMLInputElement).value)} />
+          <input type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]*" maxlength="128" data-ltr data-wiskey-editor-pin-confirm .value=${live(d.confirm_pin)} ?disabled=${blocked || removing} @input=${(e: Event) => { this.hidePin(); this.patch('confirm_pin', (e.target as HTMLInputElement).value); }} />
         </sw-field>
       </div>
       <div aria-live="polite" data-wiskey-editor-pin-status=${this.pinStatus}>
         ${this.pinStatus === 'generated' ? html`<p class="ok">נוצר קוד פנוי ומולא בשני השדות. הוא אינו שמור עדיין - הוא ייבדק שוב בשמירה.</p>` : nothing}
+        ${this.pinReveal
+          ? html`<div class="reveal" data-wiskey-editor-pin-reveal>
+              <span>הקוד שנוצר (מוצג פעם אחת, כדי למסור אותו):</span>
+              <bdi class="pin" data-ltr data-wiskey-editor-pin-reveal-value>${this.pinReveal}</bdi>
+              <sw-button size="sm" icon="check" data-wiskey-editor-pin-copy @click=${() => void this.copyPin()}>העתק</sw-button>
+              <sw-button size="sm" variant="ghost" icon="eye" data-wiskey-editor-pin-hide @click=${() => this.hidePin()}>הסתר</sw-button>
+            </div>`
+          : nothing}
+        ${this.pinCopy === 'copied' ? html`<p class="ok" data-wiskey-editor-pin-copied>הקוד הועתק ללוח והוסתר.</p>` : nothing}
+        ${this.pinCopy === 'manual' ? html`<p class="danger" data-wiskey-editor-pin-copy-failed>העתקה אוטומטית אינה זמינה בדפדפן הזה (למשל בחיבור שאינו מאובטח). סמנו את הקוד והעתיקו ידנית, ואז לחצו "הסתר".</p>` : nothing}
       </div>
       <div class="row">
         <sw-button size="sm" data-wiskey-editor-pin-generate ?disabled=${blocked || removing || !!this.busy} @click=${() => void this.generatePin()}>${this.busy === 'pin' ? t('wait') : t('generate_unique_pin')}</sw-button>
         ${removing
           ? html`<sw-badge kind="stale" label=${t('remove_pin')}></sw-badge>
-              <sw-button size="sm" variant="ghost" data-wiskey-editor-pin-keep @click=${() => { this.draft = { ...d, pin: undefined, confirm_pin: '' }; this.pinStatus = ''; }}>${t('keep_pin')}</sw-button>`
-          : html`<sw-button size="sm" variant="danger" data-wiskey-editor-pin-remove ?disabled=${blocked || !configured} @click=${() => { this.draft = { ...d, pin: null, confirm_pin: '' }; this.pinStatus = ''; }}>${t('remove_pin')}</sw-button>`}
+              <sw-button size="sm" variant="ghost" data-wiskey-editor-pin-keep @click=${() => { this.draft = { ...d, pin: undefined, confirm_pin: '' }; this.pinStatus = ''; this.hidePin(); }}>${t('keep_pin')}</sw-button>`
+          : html`<sw-button size="sm" variant="danger" data-wiskey-editor-pin-remove ?disabled=${blocked || !configured} @click=${() => { this.draft = { ...d, pin: null, confirm_pin: '' }; this.pinStatus = ''; this.hidePin(); }}>${t('remove_pin')}</sw-button>`}
       </div>
       <p class="muted">${t('pin_physical')} אין בדיקת זמינות בזמן ההקלדה: קוד תפוס יידחה על ידי WisKey בשמירה.</p>
     </fieldset>`;
@@ -611,8 +672,43 @@ export class WiskeyPersonEditor extends LitElement {
       <div class="row">
         <sw-button size="sm" icon="plus" data-wiskey-editor-card-add @click=${() => this.patch('cards', [...d.cards, { key: rowKey(), card_no: '', label: '', enabled: true }])}>${t('add_card')}</sw-button>
       </div>
-      <p class="muted">מספר כרטיס שמור מוצג ממוסך, כפי ש־WisKey מחזיר אותו; המספר המלא אינו זמין לאחר השמירה. קריאת כרטיס מקורא בעמדה תגיע בשלב הבא - כאן מקלידים את המספר.</p>
+      ${this.renderCapture()}
+      <p class="muted">מספר כרטיס שמור מוצג ממוסך, כפי ש־WisKey מחזיר אותו; המספר המלא אינו זמין לאחר השמירה.</p>
     </fieldset>`;
+  }
+
+  /** WisKey's "Read card from station" block (panel.ts:4109-4120): for a saved person only, and - WisKey's
+   * `editorAction` - only while the draft is unmodified (the capture is approved against the loaded revision). Needs
+   * `access.cards.capture` in addition to people management; without it the block says so instead of offering it. */
+  private renderCapture() {
+    if (!isApi()) return nothing;
+    if (!can('access.cards.capture')) {
+      return html`<p class="muted" data-wiskey-editor-capture-denied>קריאת כרטיס מקורא בעמדה דורשת הרשאה נפרדת (access.cards.capture), שאינה מוקצית לך.</p>`;
+    }
+    const usable = (this.ctx?.stations ?? []).some((s) => s.lock_enabled && s.online);
+    return html`<div class="capture" data-wiskey-editor-capture>
+      <sw-button size="sm" icon="wifi" data-wiskey-editor-capture-open ?disabled=${!!this.busy || this.isNew || !this.ctx || !usable} @click=${() => this.openCapture()}>${t('capture_card')}</sw-button>
+      <p class="muted">${t(this.isNew ? 'capture_save_user_first' : 'capture_from_editor_hint')}${!this.isNew && this.ctx && !usable ? ' אין כרגע אינטרקום מחובר עם מנעול מנוהל.' : ''}</p>
+    </div>`;
+  }
+
+  private openCapture() {
+    if (this.busy || this.isNew || !this.original) return;
+    if (this.dirty) {
+      this.setError(t('profile_save_first'), 'err', 'profile_save_first');
+      return;
+    }
+    this.notice = '';
+    this.setError('', 'err');
+    this.capturing = true;
+  }
+
+  /** The approved card is in WisKey: the saved record (with the new card, masked) replaces the draft, which was
+   * unmodified when the capture started. */
+  private captured(person: IntercomEditorPerson, note: string) {
+    this.capturing = false;
+    this.edit(person);
+    this.notice = `${t('capture_state_confirmed')} ${note ?? ''}`.trim();
   }
 
   private editCard(key: string, change: Partial<CardRow>) {
@@ -817,6 +913,13 @@ export class WiskeyPersonEditor extends LitElement {
       gap: 6px;
       font-size: var(--sw-fs-sm);
     }
+    .capture {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding-block-start: 6px;
+      border-block-start: 1px solid var(--sw-border);
+    }
     .card-row {
       border: 1px dashed var(--sw-border);
       border-radius: var(--sw-r-sm);
@@ -850,6 +953,25 @@ export class WiskeyPersonEditor extends LitElement {
       margin: 0;
       color: var(--sw-success);
       font-size: var(--sw-fs-xs);
+    }
+    .reveal {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px 10px;
+      padding: 8px 10px;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface-2);
+      font-size: var(--sw-fs-sm);
+    }
+    .reveal .pin {
+      font-family: var(--sw-font-mono, ui-monospace, monospace);
+      font-size: var(--sw-fs-lg);
+      font-weight: var(--sw-fw-semibold);
+      letter-spacing: 0.12em;
+      direction: ltr;
+      unicode-bidi: isolate;
     }
     .danger {
       margin: 0;

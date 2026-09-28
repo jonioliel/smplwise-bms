@@ -33,7 +33,8 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
      permission `access.people.manage`) requires the `users` area at `manage`** (or an HA administrator), otherwise
      WisKey refuses every save as `unauthorized` and nothing is changed. This is a requirement stated from WisKey's
      source; it has not yet been verified against the lab installation. The WisKey tab's editor context shows
-     whether WisKey lists the people commands for the add-on's user.
+     whether WisKey lists the people commands for the add-on's user. Reading a card from a station's reader (card
+     capture, `cards/*`) is in the same WisKey `users` area at `manage`.
 4. Start the add-on and open it from the sidebar (**SMPLWISE VMS**). With NVR details set, the cameras
    appear by themselves within a minute (discovery at start-up and every 10 minutes); הגדרות → מצלמות
    → "סנכרון מה־NVR" refreshes immediately. If the list stays empty, check the add-on log and
@@ -374,6 +375,32 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   custom role that lists `access.people.manage` among its sensitive permissions and bind it to them at the
   installation scope. Every save is audited under the SMPLWISE user (field names and counts, never a PIN, card number
   or phone); WisKey's own log shows the add-on's HA user.
+- Card capture (`access.cards.capture`, site_admin and system_admin only, sensitive; needed IN ADDITION to
+  `access.people.manage`): in the person editor's cards section, "קריאת כרטיס מהאינטרקום" puts the reader of a chosen
+  door station into card-collection mode (WisKey `cards/capture_start` - a physical action at a door, started only
+  after a confirmation step), the person holds ONE card to the reader, WisKey shows it masked (`•••• 1234` - the full
+  number never leaves WisKey), and only the administrator's approval ("הוספת הכרטיס וסנכרון", WisKey
+  `cards/capture_confirm`) adds it to the person and asks WisKey to sync it to their stations - from that moment the
+  card opens their doors. It is offered for a saved person whose form has no unsaved changes, as in WisKey. WisKey's
+  limits apply: one capture per station and three in all (WisKey's own panel counts too), the reader waits up to 30 s
+  for a card, and the session lasts 120 s; SMPLWISE also allows one open capture per user and cancels a capture
+  whose dialog stopped asking for it for 20 s (the dialog then says so - a frozen tab or a sleeping laptop). The
+  sessions SMPLWISE follows live in its memory: if the add-on restarts during a capture, WisKey keeps that session
+  until its 120 s run out, the station stays busy meanwhile and a new capture there is refused
+  (`intercom_capture_station_busy`) - wait two minutes. A capture belongs to the SMPLWISE user who started it - another user cannot see, cancel or
+  approve it. Each start, cancel, approval and result (read / WisKey's timeout / expired) is audited under the real
+  user without the card's number. A start or cancel WisKey does not clearly answer is shown as "unknown": the
+  reader may still be in collection mode until WisKey's timeout, and that station is held meanwhile.
+- A PIN generated in the person editor ("יצירת PIN ייחודי אוטומטית") is shown once in clear, with "העתק", so it can be
+  handed over; it is hidden again once copied, hidden, saved or the form is closed. A copied PIN stays in the
+  operating system's clipboard (and clipboard history, where that is on) until something else is copied - clear it
+  after handing the PIN over.
+  **The first real use is the live test.** Card capture was built against WisKey's source and a fixture only; WisKey's
+  own panel still says "physical collection still needs commissioning". Not verified yet (UNVERIFIED): that a real
+  station collects a card this way at all; whether a card that is ALREADY enrolled, presented during collection, is
+  both read and opens the door (WisKey only says an authorized card "may still operate the lock"); how long the
+  reader itself stays in collection mode after a cancel or timeout (firmware-controlled); that the add-on's HA user
+  holds WisKey's `users:manage`. Do the first capture with someone at the door and check the door and the reader.
 - Custom roles (תפקידים tab): a system administrator composes a role from ordinary permissions plus sensitive
   grants that must be ticked explicitly; a custom role never carries a system permission (configuration,
   role or binding management) and built-in roles cannot be edited. Before saving, the dialog shows the impact
