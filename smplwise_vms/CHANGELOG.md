@@ -1,5 +1,33 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.109 (pilot) — WisKey station camera stills through go2rtc (CR-005 phase 4)
+- Owner report (2026-09-28): the Entry Center cards showed no camera image, unlike the real WisKey panel.
+  Each station card now shows a still of its camera, refreshed every 60 s (the cadence the camera wall
+  already uses for posters), with a plain reason when there is none (no camera, no host, no credentials,
+  go2rtc not configured).
+- Owner decision, recorded as a deviation from real WisKey: the still is fetched through go2rtc, never
+  from Home Assistant's camera proxy (real WisKey fetches its preview from HA/ISAPI and uses go2rtc only for
+  live video). The owner wants one video pipeline for the whole product, NVR and intercom alike. Verified
+  against go2rtc's own source: the station stream is registered in go2rtc's memory only (no config write),
+  under the product's `smplwise_wiskey_<station>` name, and frames are grabbed by name.
+- New add-on options `wiskey_username` / `wiskey_password`: the shared RTSP account for every station,
+  mirroring the NVR options. A station that needs its own account gets an admin-only override
+  (`system.configure`): a new table `wiskey_station_credentials` (migration 0024), write-only endpoints that
+  never return a stored password, every set/clear audited without the secret, excluded from the product's
+  backups. This is the first credential the product stores in its own database; the trade-offs are recorded
+  in CR-005. No admin screen yet - overrides are set through the API; the screen is a follow-up.
+- The station host is read from WisKey's overview (it needs WisKey's `stations` area) and kept server-side
+  only; it never reaches the browser, logs, audit rows or the streams listing.
+- Reviewed twice by an adversarial security review. The first round found that go2rtc (before 1.9.14) logs
+  the RTSP address with credentials each time it is handed a raw source - so the address is now sent only
+  once per registration (first grab, credential change, go2rtc restart) and every other grab is by name;
+  DOCS recommends go2rtc 1.9.14 or newer. Also fixed: a cache-file race between concurrent grabs (and a
+  Windows-only permission error the fix itself uncovered), the permission check now runs before the body is
+  read on the credentials endpoint (403 whatever the body), and station hosts are hidden from the admin
+  streams listing. Each fix has a test that fails against the old code. Second round: approved.
+- Not yet tried against a real go2rtc or a real door station - only the committed fake. The RTSP port is
+  fixed at 554 (WisKey does not expose a station's port). First real-station check is on tomorrow's list.
+
 ## 0.1.108 (pilot) — WisKey people directory tab (CR-005 phase 4)
 - Third WisKey tab `#/wiskey/people`: a read-only people directory (list + details pane) over the
   0.1.105 backend, no backend changes, same `access.read` gate, in both nav designs including the phone

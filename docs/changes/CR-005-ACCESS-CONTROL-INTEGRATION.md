@@ -200,6 +200,24 @@ answer/reject/hangup (`media/signal`); two-way audio/talk (`audio/*`); TTS (`tts
 > bridge's envelope; 15 s from the UI, at most 60 s, re-checked immediately before sending); physical actions have their
 > own in-flight slots and rate buckets; a failed overview refetch no longer cuts an announcement that is playing.
 
+> Recorded deviation 2026-09-28 (T054, 0.1.109, station camera stills): the owner reported that the entry-center
+> cards showed no camera image. Real WisKey renders its per-station still from HA's camera proxy (`entity_picture`,
+> ISAPI `/ISAPI/Streaming/channels/101/picture` behind it) and uses go2rtc only for live video (extraction §0.4-0.5).
+> The owner directed the opposite for SMPLWISE: no camera image or video is ever fetched from Home Assistant; the
+> still goes through go2rtc like every NVR frame, so the product has one video pipeline (MSE/WebRTC settings included).
+> This is a conscious departure from parity, not an oversight. Consequences: (1) the station's RTSP account must be
+> held by SMPLWISE, as it already holds the NVR's - new add-on options `wiskey_username`/`wiskey_password` (the same
+> account for every station, the owner's stated assumption) plus an admin-only per-station override; (2) that
+> override is the first credential the product stores in its own SQLite database rather than in add-on options
+> (`routers/settings.py`'s "secrets stay in the add-on options" rule is still the rule for everything else):
+> table `wiskey_station_credentials`, `system.configure` only, write-only API, audited without the secret, excluded
+> from the product's backups, plaintext at rest exactly like `options.json` under `/data`; (3) the station host comes
+> from WisKey's overview (its `stations` area) and is never served, logged or audited; (4) go2rtc keeps the stream
+> `smplwise_wiskey_<station>` in memory only (no config write), and the RTSP address is handed to go2rtc once per
+> registration because go2rtc before 1.9.14 logs it - every other grab is by name. Still open: the override admin
+> screen (API only today), the fixed RTSP port 554 (WisKey does not expose a station's port), and the first check
+> against a real go2rtc and a real door station (only the committed fake has been used).
+
 **Phase 4 — parity completion (peripheral/admin screens).** Camera wall (S4), media/clock settings (S21/S22),
 operations center (S23), identity lifecycle report (S17), permission directory (S18), appearance picker (S25),
 WhatsApp (S20/S6 send+preview — separately flagged, see §7 decision 4, since it is the one EXTERNAL capability
