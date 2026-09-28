@@ -151,6 +151,41 @@ def apply_registry(conn: sqlite3.Connection, maps: dict[str, dict[str, Any]]) ->
     return n
 
 
+def apply_structure(conn: sqlite3.Connection, areas: list[dict[str, Any]] | None, floors: list[dict[str, Any]] | None) -> None:
+    """Mirror HA's area and floor registries (CR-007): a table is rewritten whole, in the listing's order, so a
+    renamed / moved / deleted area never lingers. `None` for a listing means "that call did not succeed": its table
+    is left exactly as it was rather than emptied (review finding: one failed floor_registry call must not wipe the
+    tree until the next refresh). Only the fields the devices tree shows are kept."""
+    now = now_iso()
+    if floors is not None:
+        conn.execute("DELETE FROM ha_floors")
+        for i, f in enumerate(floors):
+            if not f.get("floor_id"):
+                continue
+            level = f.get("level")
+            conn.execute(
+                "INSERT OR REPLACE INTO ha_floors(floor_id, name, level, icon, position, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (f["floor_id"], f.get("name") or f["floor_id"], int(level) if isinstance(level, (int, float)) and not isinstance(level, bool) else None, f.get("icon"), i, now),
+            )
+    if areas is not None:
+        conn.execute("DELETE FROM ha_areas")
+        for i, a in enumerate(areas):
+            if not a.get("area_id"):
+                continue
+            conn.execute(
+                "INSERT OR REPLACE INTO ha_areas(area_id, name, floor_id, icon, position, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (a["area_id"], a.get("name") or a["area_id"], a.get("floor_id"), a.get("icon"), i, now),
+            )
+
+
+def _listing(reply: dict[str, Any] | None) -> list[dict[str, Any]] | None:
+    """A registry listing out of a WebSocket reply: the list on success, None when HA refused or answered oddly."""
+    if not isinstance(reply, dict) or not reply.get("success", True):
+        return None
+    result = reply.get("result")
+    return result if isinstance(result, list) else None
+
+
 def tombstone_missing(conn: sqlite3.Connection, present: set[str]) -> int:
     """Entities that vanished from both the state snapshot and the registry are tombstoned (placement kept)."""
     now = now_iso()
@@ -351,11 +386,18 @@ class HaSync:
         assert self.db
         ents = (await call("config/entity_registry/list")).get("result") or []
         devs = (await call("config/device_registry/list")).get("result") or []
-        areas = (await call("config/area_registry/list")).get("result") or []
+        areas_listing = _listing(await call("config/area_registry/list"))
         try:
-            floors = (await call("config/floor_registry/list")).get("result") or []
-        except Exception:
-            floors = []
+            floors_listing = _listing(await call("config/floor_registry/list"))
+        except Exception as exc:  # noqa: BLE001 - an HA without floors (old core) or a dropped call: keep what we have
+            log.warning("floor registry unavailable: %s", type(exc).__name__)
+            floors_listing = None
+        if areas_listing is None:
+            log.warning("area registry listing failed; keeping the previous area mirror")
+        if floors_listing is None:
+            log.warning("floor registry listing failed; keeping the previous floor mirror")
+        areas = areas_listing or []
+        floors = floors_listing or []
         maps = ha_client.registry_maps(ents, devs, areas, floors)
         db = self.db
         loop = asyncio.get_event_loop()
@@ -367,6 +409,11 @@ class HaSync:
                     with db.connection() as conn:
                         apply_registry(conn, dict(chunk))
                 _busy_retry(_write)
+
+            def _structure() -> None:
+                with db.connection() as conn:
+                    apply_structure(conn, areas_listing, floors_listing)
+            _busy_retry(_structure)
 
             def _tombstone() -> None:
                 with db.connection() as conn:

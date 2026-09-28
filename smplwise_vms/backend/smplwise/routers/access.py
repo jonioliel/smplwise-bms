@@ -29,6 +29,11 @@ router = APIRouter()
 PERMISSION_LABELS: dict[str, str] = {
     "map.read": "צפייה במפה",
     "entity.state.read": "מצב ישויות HA",
+    # devices.read (CR-007 slice 1): the read-only "חשמל והתקנים" area - HA floors → areas → per-domain cards with live
+    # counts. Granted like map.read (viewer and above, not kiosk); a floor-scoped binding narrows it to the entities
+    # placed on those floors exactly as entity.state.read does in routers/ha.py. Control is a separate permission
+    # (devices.control, slice 2) and is never implied by this one.
+    "devices.read": "צפייה בחשמל והתקנים",
     "video.live": "שידור חי",
     "video.playback": "ניגון הקלטות",
     "events.read": "צפייה באירועים",

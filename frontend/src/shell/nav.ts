@@ -11,7 +11,7 @@ import type { RouteState } from '../router';
  * section's pages appear as pill tabs under the top bar. Recorded as a design-asset-driven deviation
  * pending owner sign-off (see DECISIONS.md).
  */
-export type NavGroup = 'overview' | 'sites' | 'cameras' | 'events' | 'playback' | 'settings' | 'wiskey';
+export type NavGroup = 'overview' | 'sites' | 'cameras' | 'events' | 'playback' | 'settings' | 'wiskey' | 'devices';
 
 export interface NavEntry {
   id: NavGroup;
@@ -22,19 +22,25 @@ export interface NavEntry {
 
 /** 7th flat entry (0.1.103): owner override 2026-09-27 - WisKey moved from a "sites" sub-tab to a true
  * top-level peer, breaking ADR-009's six-flat-entries count for this design on purpose. See the
- * "Recorded deviation" note on the ADR-009 row in docs/architecture/DECISIONS.md. */
+ * "Recorded deviation" note on the ADR-009 row in docs/architecture/DECISIONS.md.
+ * 8th flat entry (CR-007, 2026-09-28): "חשמל והתקנים" (devices), the electricity / device control area the owner
+ * approved from the mockup - the same kind of recorded exception, see the CR-007 note in DECISIONS.md. */
 export const NAV: NavEntry[] = [
   { id: 'overview', icon: 'dashboard', label: 'סקירה', href: '#/live' },
   { id: 'sites', icon: 'building', label: 'אתרים', href: '#/explore/sites' },
   { id: 'cameras', icon: 'camera', label: 'מצלמות', href: '#/live/wall' },
   { id: 'events', icon: 'bell', label: 'אירועים', href: '#/investigate/events' },
   { id: 'playback', icon: 'history', label: 'הקלטות', href: '#/investigate/playback' },
+  { id: 'devices', icon: 'bolt', label: 'חשמל והתקנים', href: '#/devices/building' },
   { id: 'wiskey', icon: 'door', label: 'WisKey', href: '#/wiskey/overview' },
   { id: 'settings', icon: 'system', label: 'הגדרות', href: '#/system/diagnostics' },
 ];
 
 export const GROUP_TABS: Record<NavGroup, TabItem[]> = {
   overview: [],
+  /** The building tree (CR-007 slice 1); an area screen is a drill-down of it (#/devices/areas/<id>), not a tab.
+   * Later slices (screens and remotes, layouts) add tabs here the way `wiskey` grew. */
+  devices: [{ id: 'building', label: 'המבנה', href: '#/devices/building' }],
   sites: [
     { id: 'sites', label: 'אתרים ומבנים', href: '#/explore/sites' },
     { id: 'floors', label: 'מפת קומה', href: '#/explore/floors/f0' },
@@ -88,6 +94,8 @@ export function groupOf(r: RouteState | null): NavGroup | null {
       return s[1] === 'devices' ? 'cameras' : 'settings';
     case 'wiskey':
       return 'wiskey';
+    case 'devices':
+      return 'devices';
     default:
       return null;
   }
@@ -102,6 +110,8 @@ export function activeTabOf(r: RouteState | null): string {
       return s[1] === 'buildings' || s[1] === 'floors' ? 'floors' : s[1] === 'entities' ? 'entities' : 'sites';
     case 'wiskey':
       return s[1] ?? 'overview';
+    case 'devices':
+      return 'building';
     case 'cameras':
       return r.mode === 'system' ? 'devices' : s[1] === 'views' ? 'views' : 'wall';
     case 'events':
@@ -120,7 +130,7 @@ export function activeTabOf(r: RouteState | null): string {
 // became a 5th area 2026-09-27 by explicit owner override (a peer of live/explore/investigate/system, not
 // nested under explore). The section's pages stay reachable as a tab row under the top bar.
 // ---------------------------------------------------------------------------------------------
-export type AreaId = 'live' | 'explore' | 'investigate' | 'system' | 'wiskey';
+export type AreaId = 'live' | 'explore' | 'investigate' | 'system' | 'wiskey' | 'devices';
 
 export interface AreaEntry {
   id: AreaId;
@@ -136,11 +146,14 @@ export const NAV_A: AreaEntry[] = [
   { id: 'live', icon: 'camera', label: 'לייב', href: '#/live' },
   { id: 'explore', icon: 'map', label: 'מפה', href: '#/explore/sites' },
   { id: 'investigate', icon: 'search', label: 'חקירה', href: '#/investigate/events' },
+  /** CR-007 (2026-09-28): "חשמל והתקנים", a 6th area - the short rail label; the page heading carries the full name. */
+  { id: 'devices', icon: 'bolt', label: 'חשמל', href: '#/devices/building' },
   { id: 'wiskey', icon: 'door', label: 'WisKey', href: '#/wiskey/overview' },
   { id: 'system', icon: 'system', label: 'מערכת', href: '#/system/diagnostics' },
 ];
 
 export const AREA_TABS: Record<AreaId, TabItem[]> = {
+  devices: [{ id: 'building', label: 'המבנה', href: '#/devices/building' }],
   live: [
     { id: 'overview', label: 'תמונת מצב', href: '#/live' },
     { id: 'wall', label: 'כל המצלמות', href: '#/live/wall' },
@@ -200,6 +213,8 @@ export function activeAreaTab(r: RouteState | null): string {
       return !s[1] || s[1] === 'diagnostics' ? 'general' : s[1];
     case 'wiskey':
       return s[1] ?? 'overview';
+    case 'devices':
+      return 'building';
     default:
       return '';
   }
@@ -244,6 +259,9 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   '#/wiskey/overview': ['access.read'],
   '#/wiskey/events': ['access.read'],
   '#/wiskey/people': ['access.read'],
+  // devices.read at any scope: a floor-scoped holder gets the tree narrowed to their floors (routers/devices.py),
+  // so unlike WisKey the entry is NOT installation-only.
+  '#/devices/building': ['devices.read'],
   '#/investigate/events': ['events.read'],
   '#/investigate/playback': ['video.playback'],
   '#/investigate/playback/sync': ['video.playback'],
