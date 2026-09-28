@@ -9,6 +9,9 @@ export default defineConfig({
   testDir: 'tests',
   timeout: 60_000,
   retries: 0,
+  // Live specs share one backend and installation-wide settings (e.g. הגדרות › בקרות כניסה, switched by the WisKey
+  // specs for their run): never in parallel. The demo-mode fixture specs keep Playwright's default.
+  ...(process.env.SW_LIVE === '1' ? { workers: 1 } : {}),
   reporter: [['list']],
   use: {
     baseURL: BASE,

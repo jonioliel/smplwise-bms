@@ -351,11 +351,17 @@ answer/reject/hangup (`media/signal`); two-way audio/talk (`audio/*`); TTS (`tts
 > embedded screens: inside the frame the browser IS WisKey's own frontend, signed in with the user's own Home Assistant
 > session. WisKey's own permissions (its per-area none/view/manage directory), confirmations and audit apply there -
 > not SMPLWISE's RBAC, SMPLWISE's physical-action confirmations or SMPLWISE's audit log. SMPLWISE only decides whether
-> to offer the tab. A user without a Home Assistant login cannot use the embedded screens at all; the SMPLWISE screens
+> to offer the tab. Concretely: a user whose HA account holds WisKey `manage` (or is an HA administrator) can release
+> doors and edit people inside the embed with no SMPLWISE confirmation and no SMPLWISE audit row (the settings section
+> and DOCS.md say so). What SMPLWISE reads inside the frame: `hass.kioskMode` and the keys of `hass.panels` on
+> `<home-assistant>`, and the panel's `_tab` and whether its `_session` has loaded - no tokens, no localStorage, no
+> entity state, no WisKey data. A user without a Home Assistant login cannot use the embedded screens at all; the SMPLWISE screens
 > (still selectable) keep the old model.
 > **Deep link.** WisKey's panel keeps its tab in memory (`panel.ts` `_tab`, default `overview`; no URL/hash routing), so
-> the tab is applied from the parent through the panel's own `navigate(tab)`, retried until the panel's session loads
-> (navigate refuses tabs the user may not view, exactly as a click does). The frame address carries `?tab=<tab>` for the
+> the tab is applied from the parent through the panel's own `navigate(tab)` - ONCE per SMPLWISE tab change or frame
+> load, after the panel's `_session` has loaded (navigate refuses tabs the user may not view, exactly as a click does);
+> after that the panel is left alone, so WisKey's own navigation (a tool opened from ניהול, a drill-down) stands, and a
+> schedule with unsaved edits sees WisKey's leave-confirm at most once (review 2026-09-28 fix). The frame address carries `?tab=<tab>` for the
 > day the panel reads it - a two-line change in WisKey the owner may want to make. Switching between embedded tabs
 > navigates the loaded frame; it does not load Home Assistant again.
 > **Chrome hiding, levers in order.** (a) Official: the frontend's `hass-kiosk-mode` window event (HA frontend
@@ -377,7 +383,13 @@ answer/reject/hangup (`media/signal`); two-way audio/talk (`audio/*`); TTS (`tts
 > is HA's sidebar hidden (desktop) and does the panel's menu button do nothing, does each tab (overview / events /
 > users / devices / sync / health / audit / tools) open the matching WisKey screen, does the Companion app on a phone
 > show it (the app injects its auth bridge into the top frame; a login page inside the frame is the likely failure),
-> and does "פתח בחלון מלא" open the panel.
+> and does "פתח בחלון מלא" open the panel. Also: (a) microphone / two-way audio from a station inside the double frame -
+> HA's Ingress frame (`ha-panel-app.ts`) carries no `allow` attribute, so it relies on the Permissions Policy default
+> (`microphone` = `self`, which a same-origin child frame inherits); our frame grants `microphone; camera; autoplay;
+> fullscreen` for its own same-origin source - check the browser actually prompts and the call carries audio both ways;
+> (b) after using the embed, open HA normally in another tab and confirm its sidebar is still there (the kiosk lever is
+> in-memory only; this is the check that nothing persisted); (c) on a phone, what WisKey's own toolbar menu button does
+> (it is swallowed while HA's chrome is hidden - confirm nothing confusing happens).
 
 **Phase 4 — parity completion (peripheral/admin screens).** Camera wall (S4), media/clock settings (S21/S22),
 operations center (S23), identity lifecycle report (S17), permission directory (S18), appearance picker (S25),

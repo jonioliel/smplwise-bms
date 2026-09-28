@@ -372,7 +372,10 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   (עמדות, סנכרון, בריאות, יומן שינויים, ניהול), each tab opening the matching WisKey screen. In הגדרות › בקרות כניסה
   (system administrator) you choose, for מרכז הכניסה, פעילות and אנשים, "WisKey (מוטמע)" or the SMPLWISE screen; the
   other WisKey screens are always embedded. Inside an embedded screen you are using WisKey itself with your own Home
-  Assistant login, so WisKey's permissions, confirmations and log apply there, not SMPLWISE's. SMPLWISE hides Home
+  Assistant login, so WisKey's permissions, confirmations and log apply there, not SMPLWISE's. In particular, a user
+  whose Home Assistant account holds WisKey `manage` (or who is a Home Assistant administrator) can release doors and
+  edit people (PIN, cards, validity) inside the embedded WisKey without SMPLWISE's confirmation step and without an
+  entry in SMPLWISE's audit - only WisKey's own log records it. SMPLWISE hides Home
   Assistant's sidebar around the panel where the Home Assistant version allows it (otherwise it stays visible and a
   note says so); the embedded screen loads a second copy of Home Assistant's interface, so it is slower than a
   SMPLWISE screen, especially on a phone. "פתח בחלון מלא" opens the same panel in its own tab. Nothing is embedded

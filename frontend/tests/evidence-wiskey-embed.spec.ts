@@ -24,10 +24,11 @@ function fakeHa({ kiosk, panels }: Flavour): string {
   return `<!doctype html><html><body style="margin:0"><home-assistant></home-assistant><script>
 window.__loads = (window.__loads || 0) + 1;
 window.__menuToggles = 0;
+window.__navigates = 0;
 class Panel extends HTMLElement {
-  constructor() { super(); this._tab = 'overview'; this.ready = false; setTimeout(() => { this.ready = true; }, 600); }
+  constructor() { super(); this._tab = 'overview'; this._session = undefined; setTimeout(() => { this._session = { allowed: true }; }, 600); }
   connectedCallback() { this.textContent = 'panel:' + this._tab; }
-  navigate(tab) { if (!this.ready) return; this._tab = tab; this.textContent = 'panel:' + tab; }
+  navigate(tab) { window.__navigates++; if (!this._session) return; this._tab = tab; this.textContent = 'panel:' + tab; }
   menu() { this.dispatchEvent(new CustomEvent('hass-toggle-menu', { bubbles: true, composed: true })); }
 }
 customElements.define('hikvision-intercom-panel', Panel);
@@ -88,6 +89,7 @@ async function frameState(page: Page) {
       kiosk: ha?.hass?.kioskMode ?? null,
       loads: (window as unknown as { __loads: number }).__loads,
       menu: (window as unknown as { __menuToggles: number }).__menuToggles,
+      navigates: (window as unknown as { __navigates: number }).__navigates,
     };
   });
 }
@@ -143,10 +145,23 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     expect(await panelFrame(page).evaluate(() => (window as unknown as { __marker?: number }).__marker)).toBe(42); // the same document
     await expect(frame).toHaveAttribute('data-tab-applied', 'true');
 
+    // the deep link is applied once, then WisKey's own navigation is left alone: on ניהול the user opens a tool inside
+    // the panel (camera wall) and stays there - the embed does not pull the panel back to "tools" on a later tick
+    await page.locator('sw-tabs a[href="#/wiskey/tools"]').click();
+    await expect.poll(async () => (await frameState(page)).tab, { timeout: 20000 }).toBe('tools');
+    await expect(frame).toHaveAttribute('data-tab-applied', 'true');
+    const before = (await frameState(page)).navigates;
+    await panelFrame(page).evaluate(() => (document.querySelector('home-assistant')!.shadowRoot!.querySelector('home-assistant-main')!.shadowRoot!.querySelector('hikvision-intercom-panel') as HTMLElement & { navigate(t: string): void }).navigate('camera_wall'));
+    await page.waitForTimeout(5000); // more than two of the settled 2 s ticks
+    st = await frameState(page);
+    expect(st.tab).toBe('camera_wall');
+    expect(st.navigates).toBe(before + 1); // only the user's own navigation - the embed called navigate() no more
+
     // a direct address deep-links too: a fresh load carries the tab in the frame address and applies it once the panel can
     await open(page, '/wiskey/people');
     await expect(page.locator(FRAME)).toHaveAttribute('src', '/hikvision-intercom?tab=users', { timeout: 30000 });
     await expect.poll(async () => (await frameState(page)).tab, { timeout: 20000 }).toBe('users');
+    expect((await frameState(page)).navigates).toBe(1); // one call, after the panel's session loaded - no retry storm
     for (const [seg, tab] of [['events', 'events'], ['devices', 'devices'], ['health', 'health'], ['audit', 'audit'], ['tools', 'tools']]) {
       await open(page, `/wiskey/${seg}`);
       await expect(page.locator(FRAME)).toHaveAttribute('src', `/hikvision-intercom?tab=${tab}`, { timeout: 30000 });
@@ -198,6 +213,9 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
       await expect(page.locator('system-diagnostics select[data-set-access-ui="events"]')).toHaveValue('wiskey');
       await expect(page.locator('system-diagnostics [data-access-ui-fixed]')).toContainText('שאר מסכי WisKey');
       await expect(people.locator('option')).toHaveText(['WisKey (מוטמע)', 'SMPLWISE']);
+      // the section says plainly that inside the embed door release and people edits bypass SMPLWISE's confirmation and audit
+      await expect(page.locator('system-diagnostics [data-access-ui-warning]')).toContainText('לפתוח דלתות');
+      await expect(page.locator('system-diagnostics [data-access-ui-warning]')).toContainText('בלי רישום באודיט של SMPLWISE');
       await page.screenshot({ path: testInfo.outputPath('wiskey-embed-settings.png') });
       await people.selectOption('smplwise');
       const save = page.locator('system-diagnostics sw-button[data-save-access-ui]');

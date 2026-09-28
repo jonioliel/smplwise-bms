@@ -21,8 +21,11 @@ import { can, isApi } from '../api/session';
  *   not honoured, a style injected into `home-assistant-main`'s shadow root hides `ha-sidebar` and zeroes the sidebar
  *   width variables. If neither takes, the panel still works with HA's sidebar visible and a one-line note says so.
  * - the tab: WisKey's panel keeps its tab in memory only (panel.ts `_tab`, no URL routing), so the deep link is applied
- *   by calling the panel's own `navigate(tab)` - it refuses tabs the user may not view, exactly as a click would. The
+ *   by calling the panel's own `navigate(tab)` once per SMPLWISE tab change or frame load, after the panel's session has
+ *   loaded - it refuses tabs the user may not view, exactly as a click would - and the panel is then left alone. The
  *   `?tab=` in the frame address does nothing today; it is there for when the panel learns to read it.
+ * What this screen reads inside the frame: `hass.kioskMode` and the keys of `hass.panels` on `<home-assistant>`, and the
+ * panel's `_tab` / `_session` (whether it is loaded, never its content). No tokens, no localStorage, no entity state.
  */
 
 /** The panel's address on the Home Assistant origin (panel.py `frontend_url_path`). */
@@ -50,7 +53,7 @@ const TAB_LABELS: Record<string, string> = {
 };
 
 type AnyEl = HTMLElement & Record<string, unknown>;
-type PanelEl = AnyEl & { _tab?: unknown; navigate?: (tab: string) => void };
+type PanelEl = AnyEl & { _tab?: unknown; _session?: unknown; navigate?: (tab: string) => void };
 
 /** Depth-first search through open shadow roots (bounded), for elements Home Assistant nests inside several of them. */
 function deepFind(root: Document | ShadowRoot | Element, tag: string, depth = 0): Element | null {
@@ -113,6 +116,10 @@ export class WiskeyEmbed extends LitElement {
   private loadTimer = 0;
   private loadedAt = 0;
   private tabSince = 0;
+  private tabAttempts = 0;
+  private lastAttempt = 0;
+  /** The panel element, found once per frame load (not re-walked through the nested shadow roots every tick). */
+  private panelEl: PanelEl | null = null;
   private guarded = new WeakSet<Element>();
   private frameWin: Window | null = null;
 
@@ -201,8 +208,7 @@ export class WiskeyEmbed extends LitElement {
     if (!changed.has('tab') || changed.get('tab') === undefined || this.forbidden) return;
     if (this.phase === 'ready' || this.phase === 'loading') {
       // same frame, other tab: navigate the loaded panel instead of loading all of Home Assistant again
-      this.tabApplied = null;
-      this.tabSince = Date.now();
+      this.resetTab();
       this.tick();
     } else {
       this.reload();
@@ -255,7 +261,8 @@ export class WiskeyEmbed extends LitElement {
     const f = this.frame();
     if (!f || !this.src) return;
     this.loadedAt = Date.now();
-    this.tabSince = Date.now();
+    this.panelEl = null;
+    this.resetTab(); // a new document (ours or Home Assistant reloading itself): the deep link is owed once more
     window.clearTimeout(this.loadTimer);
     let doc: Document | null = null;
     try {
@@ -309,7 +316,8 @@ export class WiskeyEmbed extends LitElement {
         return this.settle();
       }
       this.chrome = this.chrome === 'kiosk' || this.chrome === 'css' ? this.keepChrome(win, doc) : hideHaChrome(win, doc);
-      const panel = deepFind(doc, PANEL_TAG) as PanelEl | null;
+      if (!this.panelEl?.isConnected || this.panelEl.ownerDocument !== doc) this.panelEl = deepFind(doc, PANEL_TAG) as PanelEl | null;
+      const panel = this.panelEl;
       if (!panel) {
         if (Date.now() - this.loadedAt > PANEL_TIMEOUT_MS) {
           this.phase = path.startsWith(WISKEY_PANEL_PATH) ? 'unreachable' : 'not_installed';
@@ -339,15 +347,47 @@ export class WiskeyEmbed extends LitElement {
     panel.addEventListener('hass-toggle-menu', (e) => e.stopPropagation());
   }
 
+  private resetTab() {
+    this.tabApplied = null;
+    this.tabSince = Date.now();
+    this.tabAttempts = 0;
+    this.lastAttempt = 0;
+  }
+
+  /** The deep link is applied ONCE per SMPLWISE tab change or frame load, then the panel is left alone: WisKey's own
+   * navigation (a tool opened from ניהול, a drill-down) must never be undone by a later tick, and a navigate() into a
+   * schedule with unsaved edits asks WisKey's canLeave() confirm - at most once, as a click would.
+   * WisKey's navigate() refuses every tab until the panel's `_session` (its permissions) has loaded, so it is called
+   * once that is known; without that field (a changed panel) a few spaced attempts, then give up. */
   private applyTab(panel: PanelEl) {
-    if (this.tabApplied === true && panel._tab === this.tab) return;
+    if (this.tabApplied !== null) return; // done for this tab and this document
     if (panel._tab === this.tab) {
       this.tabApplied = true;
       return;
     }
-    if (typeof panel.navigate === 'function') panel.navigate(this.tab);
+    const expired = Date.now() - this.tabSince > TAB_TIMEOUT_MS;
+    if (typeof panel.navigate !== 'function') {
+      this.tabApplied = false;
+      return;
+    }
+    if ('_session' in panel) {
+      if (panel._session === undefined) {
+        if (expired) this.tabApplied = false; // the panel never finished loading its session
+        return;
+      }
+      panel.navigate(this.tab); // exactly once
+      this.tabApplied = panel._tab === this.tab;
+      return;
+    }
+    if (expired || this.tabAttempts >= 5) {
+      this.tabApplied = false;
+      return;
+    }
+    if (Date.now() - this.lastAttempt < 1000) return;
+    this.lastAttempt = Date.now();
+    this.tabAttempts++;
+    panel.navigate(this.tab);
     if (panel._tab === this.tab) this.tabApplied = true;
-    else if (Date.now() - this.tabSince > TAB_TIMEOUT_MS) this.tabApplied = false;
   }
 
   private slowDown() {
