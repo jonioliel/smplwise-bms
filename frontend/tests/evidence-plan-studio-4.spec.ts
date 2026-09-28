@@ -94,7 +94,7 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
   test.skip(process.env.SW_LIVE !== '1', 'set SW_LIVE=1 with the backend running');
 
   test.beforeAll(async ({ playwright }) => {
-    api = await playwright.request.newContext({ baseURL: 'http://127.0.0.1:4173/' });
+    api = await playwright.request.newContext({ baseURL: process.env.SW_BASE_URL || 'http://127.0.0.1:4173/' }); // a throwaway instance behind its own preview (CR-006 runs)
     const stamp = new Date().toISOString().slice(0, 19);
     ids.site = (await (await api.post('api/v1/sites', { data: { name: `בדיקת תלת-ממד ${stamp}`, address: '' } })).json()).id;
     ids.building = (await (await api.post(`api/v1/sites/${ids.site}/buildings`, { data: { name: 'מבנה 3D' } })).json()).id;
@@ -699,5 +699,89 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
       await saveDraft({ objects }); // the small floor again for anyone who reruns a single test
       await publish();
     }
+  });
+  test('quality level 2 (CR-006 1a): the installation default opens level 2 with shadows and the cutaway, the strip switches the level, the setting and the browser choice override it', async ({ page }, testInfo) => {
+    test.setTimeout(240_000);
+    const report = (line: string) => {
+      console.log(line);
+      testInfo.annotations.push({ type: 'perf', description: line });
+    };
+    const shots = process.env.SW_SHOT_DIR || path.resolve(HERE, '..', '..', 'private-evidence', 'plan-studio-5');
+    fs.mkdirSync(shots, { recursive: true });
+    type Q = { view: { camera: { isOrthographicCamera?: boolean }; renderer: { shadowMap: { enabled: boolean } }; cutawayNow: () => string[]; getQuality: () => number }; thumbnailCount: number };
+    await page.goto('about:blank');
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
+    const host = page.locator(HOST);
+    await expectEnabled(host.locator('[data-view-3d]'), 60000);
+    await host.locator('[data-view-3d]').click();
+    const el = host.locator('sw-plan-3d[data-floor-3d]');
+    await expect(el).toHaveAttribute('data-ready', '', { timeout: 60000 });
+    // the installation default is level 2: this Chrome either keeps the budget (level 2 stays) or falls back with the note -
+    // both are reported; on the workstation's GPU level 2 is expected to stay
+    await expect.poll(async () => (await el.getAttribute('data-probe-fps')) !== null || (await el.getAttribute('data-quality')) === '1', { timeout: 20000 }).toBe(true);
+    const quality = await el.getAttribute('data-quality');
+    report(`PERF quality-2 probe fps=${await el.getAttribute('data-probe-fps')} level=${quality} fallback=${await el.locator('[data-3d-fallback]').count()}`);
+    expect(quality).toBe('2');
+    const l2 = await el.evaluate((n) => { const e = n as unknown as Q; return { ortho: !!e.view.camera.isOrthographicCamera, shadows: e.view.renderer.shadowMap.enabled, cut: e.view.cutawayNow(), q: e.view.getQuality() }; });
+    expect(l2).toMatchObject({ ortho: true, shadows: true, q: 2 });
+    expect(l2.cut.length).toBeGreaterThan(0); // the room's walls on the camera's side are cut away
+    expect(l2.cut.filter((id) => id.startsWith('wall:e') || id.startsWith('wall:s')).length).toBeGreaterThan(0); // the east and south walls face the +x +z camera
+    expect(l2.cut.some((id) => id.startsWith('wall:n') || id.startsWith('wall:w'))).toBe(false);
+    // the strip: the two levels of the floor, the lower one switches the level filter (the chips agree), again = all
+    const thumbs = el.locator('[data-3d-thumb]');
+    await expect(thumbs).toHaveCount(2);
+    await expect(thumbs.first()).toHaveAttribute('data-3d-thumb', 'L0');
+    expect(await el.evaluate((n) => (n as unknown as Q).thumbnailCount)).toBe(2);
+    await page.waitForTimeout(600);
+    await el.screenshot({ path: path.join(shots, 'plan-3d-level2-iso.png') });
+    await thumbs.nth(1).click();
+    await expect(host.locator('[data-level-chip="L1"]')).toHaveAttribute('selected', '');
+    await expect(thumbs.nth(1)).toHaveAttribute('aria-pressed', 'true');
+    await expect.poll(async () => { const d = await describe3d(page, HOST); return d.parts.every((p) => p.level_id === 'L1' || p.kind === 'connector'); }).toBe(true); // connectors always show (scene-builder)
+    await expect(thumbs).toHaveCount(2); // the strip keeps every level while one is shown
+    await thumbs.nth(1).click();
+    await expect(host.locator('[data-level-chip="all"]')).toHaveAttribute('selected', '');
+    await expect.poll(async () => { const d = await describe3d(page, HOST); return d.parts.some((p) => p.level_id === 'L0'); }).toBe(true);
+    // the perspective preset is the phase-4 view; the top preset cuts nothing
+    await el.locator('[data-preset-persp]').click();
+    await expect(el).toHaveAttribute('data-preset', 'persp');
+    expect(await el.evaluate((n) => !!(n as unknown as Q).view.camera.isOrthographicCamera)).toBe(false);
+    await page.waitForTimeout(600);
+    await el.screenshot({ path: path.join(shots, 'plan-3d-level2-persp.png') });
+    await el.locator('[data-preset-top]').click();
+    await expect.poll(() => el.evaluate((n) => (n as unknown as Q).view.cutawayNow())).toEqual([]);
+    // the browser's own choice: level 1, remembered across a reload
+    await el.locator('[data-quality-1]').click();
+    await expect(el).toHaveAttribute('data-quality', '1');
+    expect(await el.evaluate((n) => (n as unknown as Q).view.renderer.shadowMap.enabled)).toBe(false);
+    await el.locator('[data-preset-iso]').click();
+    await page.waitForTimeout(600);
+    await el.screenshot({ path: path.join(shots, 'plan-3d-level1-iso.png') });
+    await page.reload();
+    await expectEnabled(host.locator('[data-view-3d]'), 60000);
+    await host.locator('[data-view-3d]').click();
+    await expect(el).toHaveAttribute('data-ready', '', { timeout: 60000 });
+    await expect(el).toHaveAttribute('data-quality', '1');
+    await page.evaluate(() => localStorage.removeItem('sw.plan3d.quality'));
+    // the installation setting: level 1 as the default opens level 1 for a browser without a choice; back to 2
+    const settings = (await (await api.get('api/v1/settings')).json()) as { settings: Record<string, string> };
+    expect(settings.settings['plan.quality']).toBe('2');
+    expect((await api.patch('api/v1/settings', { data: { 'plan.quality': '1' } })).status()).toBe(200);
+    try {
+      await page.reload();
+      await expectEnabled(host.locator('[data-view-3d]'), 60000);
+      await host.locator('[data-view-3d]').click();
+      await expect(el).toHaveAttribute('data-ready', '', { timeout: 60000 });
+      await expect(el).toHaveAttribute('data-quality', '1');
+      await expect(el.locator('[data-3d-fallback]')).toHaveCount(0);
+      // the settings screen offers the choice where the other plan settings live
+      await page.goto('/?design=a#/system/diagnostics');
+      await page.locator('system-diagnostics').getByText('וידאו ומדיה').first().click(); // the tab of the plan settings (plan.estimates, plan.levels)
+      await expect(page.locator('system-diagnostics select[data-set-plan-quality]')).toBeEnabled({ timeout: 30000 });
+      await expect(page.locator('system-diagnostics select[data-set-plan-quality]')).toHaveValue('1');
+    } finally {
+      expect((await api.patch('api/v1/settings', { data: { 'plan.quality': '2' } })).status()).toBe(200);
+    }
+    report(`PERF quality-2 screenshots ${shots}`);
   });
 });

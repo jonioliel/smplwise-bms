@@ -78,6 +78,9 @@
   --sw-circuit-5: #ef4444;
   --sw-circuit-6: #14b8a6;
   --sw-map-glow: #ffd166;
+  /* Plan Studio 3D level 2 (CR-006): the sky-gradient backdrop behind the scene, zenith to horizon */
+  --sw-map-sky: #dfe9f7;
+  --sw-map-sky-horizon: #f7f9fc;
   --sw-fov: rgba(47, 107, 255, 0.14);
 
   /* Typography */
@@ -177,6 +180,8 @@
   --sw-map-glass: #7fb2ff;
   --sw-map-candidate: #2767ed;
   --sw-map-label: #8a97ae;
+  --sw-map-sky: #dbe7f8;
+  --sw-map-sky-horizon: #f5f8fc;
   --sw-fov: rgba(39, 103, 237, 0.12);
   --sw-fs-xs: 11px;
   --sw-fs-sm: 12.5px;

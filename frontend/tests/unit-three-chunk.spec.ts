@@ -63,7 +63,7 @@ function writeUsageEntry(): { file: string; srcDir: string } {
   fs.writeFileSync(
     file,
     [
-      `import { AmbientLight, BoxGeometry, BufferGeometry, CanvasTexture, Color, CylinderGeometry, DirectionalLight, DoubleSide, Euler, Float32BufferAttribute, GLTFExporter, Group, InstancedMesh, LineBasicMaterial, LineSegments, Matrix4, Mesh, MeshLambertMaterial, Object3D, OrbitControls, PerspectiveCamera, PointLight, Quaternion, Raycaster, SRGBColorSpace, Scene, ShapeUtils, Sprite, SpriteMaterial, Vector2, Vector3, WebGLRenderer } from '${boundary}';`,
+      `import { ACESFilmicToneMapping, AmbientLight, BoxGeometry, BufferGeometry, CanvasTexture, Color, CylinderGeometry, DirectionalLight, DoubleSide, Euler, Float32BufferAttribute, GLTFExporter, Group, HemisphereLight, InstancedMesh, LineBasicMaterial, LineSegments, Matrix4, Mesh, MeshBasicMaterial, MeshLambertMaterial, MeshStandardMaterial, NoToneMapping, Object3D, OrbitControls, OrthographicCamera, PCFSoftShadowMap, PerspectiveCamera, PlaneGeometry, PointLight, Quaternion, Raycaster, SRGBColorSpace, Scene, ShapeUtils, Sprite, SpriteMaterial, Vector2, Vector3, WebGLRenderTarget, WebGLRenderer } from '${boundary}';`,
       'const scene = new Scene();',
       'const camera = new PerspectiveCamera(75, 1, 0.1, 1000);',
       'const renderer = new WebGLRenderer();',
@@ -77,7 +77,11 @@ function writeUsageEntry(): { file: string; srcDir: string } {
       'const sprite = new Sprite(new SpriteMaterial({ map: new CanvasTexture(document.createElement("canvas")) }));',
       'const root = new Group();',
       'root.add(new Mesh(box, lambert), new Mesh(prism, lambert), inst, sprite, new LineSegments(box, new LineBasicMaterial()), new PointLight(0xffffff, 8, 6, 2), new Object3D());',
-      'scene.add(root, new AmbientLight(), new DirectionalLight());',
+      'scene.add(root, new AmbientLight(), new DirectionalLight(), new HemisphereLight());',
+      'renderer.shadowMap.type = PCFSoftShadowMap; renderer.toneMapping = ACESFilmicToneMapping; renderer.toneMapping = NoToneMapping;',
+      'const ortho = new OrthographicCamera(-1, 1, 1, -1, 0.1, 100);',
+      'root.add(new Mesh(new PlaneGeometry(1, 1), new MeshBasicMaterial()), new Mesh(box, new MeshStandardMaterial({ roughness: 0.9 })));',
+      'const rt = new WebGLRenderTarget(4, 4); renderer.setRenderTarget(rt); renderer.render(scene, ortho); renderer.readRenderTargetPixels(rt, 0, 0, 4, 4, new Uint8Array(64));',
       'new Raycaster().intersectObjects(root.children, false);',
       'const controls = new OrbitControls(camera, renderer.domElement);',
       'const exporter = new GLTFExporter();',

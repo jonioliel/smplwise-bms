@@ -555,6 +555,10 @@ export class SystemDiagnostics extends LitElement {
           <sw-field class="ctl"><select data-set-plan-levels ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('plan.levels', (e.target as HTMLSelectElement).value as 'all' | 'default')}>
             <option value="all" ?selected=${String(this.value('plan.levels') ?? 'all') !== 'default'}>כל המפלסים יחד</option><option value="default" ?selected=${String(this.value('plan.levels') ?? 'all') === 'default'}>מפלס ברירת המחדל של הקומה</option>
           </select></sw-field></div>
+        <div class="row"><span class="lbl">רמת איכות בתלת-ממד<span class="muted">ברירת המחדל של המערכת לתצוגת התלת-ממד במפה; כל דפדפן יכול לבחור לעצמו, ומכשיר איטי יורד לבד לרמה הסכמטית</span></span>
+          <sw-field class="ctl"><select data-set-plan-quality ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('plan.quality', (e.target as HTMLSelectElement).value as '1' | '2')}>
+            <option value="2" ?selected=${String(this.value('plan.quality') ?? '2') !== '1'}>מלאה — צללים, חומרים, חיתוך קירות</option><option value="1" ?selected=${String(this.value('plan.quality') ?? '2') === '1'}>סכמטית — שטוחה, בלי צללים</option>
+          </select></sw-field></div>
         <div class="row"><span class="lbl">הסתרת חיפוש AI<span class="muted">מסיר את הלשונית מהניווט; המסך עצמו נשאר זמין בכתובת</span></span>
           <sw-field class="ctl"><select data-set-hide-search ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.hide_search', (e.target as HTMLSelectElement).value)}>
             <option value="false" ?selected=${String(this.value('ui.hide_search') ?? 'false') !== 'true'}>מוצג</option><option value="true" ?selected=${String(this.value('ui.hide_search') ?? 'false') === 'true'}>מוסתר</option>
