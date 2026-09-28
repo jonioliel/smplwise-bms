@@ -1,5 +1,25 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.123 (pilot) — WisKey embed on the phone: the Companion app opens WisKey itself
+- Owner report (2026-09-28, Android Companion app): the embedded WisKey showed "לא ניתן לטעון את WisKey מתוך Home
+  Assistant". Cause, verified in Home Assistant's frontend source: in the Companion app HA signs in through the
+  app's native bridge in the top window only (`externalApp` / `externalAppV2` / `getExternalAuth`), and never
+  through stored tokens; a Home Assistant nested in a frame therefore waits for a sign-in that never comes (or
+  redirects to `/auth/`), and our 25 s timeout reported it as "not Home Assistant".
+- Now: the Companion app is recognised before any frame is created (user agent and the bridge on the top window).
+  There, מרכז הכניסה / פעילות / אנשים show the SMPLWISE screens with a note "בטלפון WisKey נפתח באפליקציה עצמה",
+  the embed-only tabs show the note, and every one of them has "פתח ב-WisKey", which moves the app's own Home
+  Assistant to the WisKey panel the way HA navigates (with a full-page fallback after 1 s). A `/auth/` redirect or a
+  page that never connects is reported as "login required" and the frame is removed; the "unreachable" state names
+  the likely cause and offers the same button. Desktop and mobile-browser behaviour unchanged.
+- Not tested on a real device (the throwaway backend cannot run the Companion bridge); the lab checklist in CR-005
+  now says: phone = top-level navigation, not nested. Tests: new phone spec 6/6 (Companion user agent on a SMPLWISE
+  tab and an embed-only tab, the button both ways, the `/auth/` redirect, the never-connecting page); all
+  `evidence-wiskey*` specs 46 passed.
+- Also in the repository: `docs/integrations/wiskey/WISKEY_EMBED_MODE_REQUEST.md`, the request sent to the WisKey
+  developers for a proper embed mode (URL tab/tool, no toolbar or ☰, HA's kiosk event, a message channel) that will
+  remove the double menu row and the DOM-based deep link.
+
 ## 0.1.122 (pilot) — Show or hide the WisKey area (settings › בקרות כניסה)
 - Owner request (2026-09-28): a third control in "בקרות כניסה" - "הצג את WisKey במערכת". Hiding removes the whole
   WisKey area from the navigation for every user regardless of role (both nav designs, the phone bottom nav and
