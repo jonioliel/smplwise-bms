@@ -5120,5 +5120,86 @@
     "evidence": [],
     "executed_at": null,
     "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+  },
+  {
+    "id": "AT181",
+    "requirement_ids": [
+      "R181"
+    ],
+    "task_ids": [
+      "T091"
+    ],
+    "title": "תיעוד בעברית 1 — מדריך למשתמש עם צילומי מסך",
+    "kind": "manual/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Seeded demo data (no lab material)"
+    ],
+    "procedure": [
+      "Run the screenshot spec against the seeded demo backend; every image in the guide is regenerated.",
+      "Open each guide page; each screenshot matches the running screen and every setting on it is explained.",
+      "Run scripts/docs_he_check.py; no Hebrew mirror older than its English source."
+    ],
+    "expected": "docs/user-guide/he/: a complete Hebrew user guide (one page per screen/area: map, cameras, events, Plan Studio 2D/3D, WisKey area, device control, settings incl. every settings section, roles and permissions, backup/restore, add-on options) with real screenshots captured from the running product by a repeatable script (frontend/tests/screenshots-guide.spec.ts against the seeded demo data; a separate lab pass only for hardware-only screens, redacted), regenerated on demand so screenshots never go stale.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Owner request 2026-09-28; scheduled after the current blitz."
+  },
+  {
+    "id": "AT182",
+    "requirement_ids": [
+      "R182"
+    ],
+    "task_ids": [
+      "T091"
+    ],
+    "title": "תיעוד בעברית 2 — מראה עברית לתיעוד התפעולי",
+    "kind": "manual/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Seeded demo data (no lab material)"
+    ],
+    "procedure": [
+      "Run the screenshot spec against the seeded demo backend; every image in the guide is regenerated.",
+      "Open each guide page; each screenshot matches the running screen and every setting on it is explained.",
+      "Run scripts/docs_he_check.py; no Hebrew mirror older than its English source."
+    ],
+    "expected": "Hebrew mirror of the operational documentation (README, DOCS.md/add-on options, docs/operations, docs/release, docs/security summaries, every active CR's decision sections). Archive and legacy audits stay English. Each Hebrew file names the English source and its commit; scripts/docs_he_check.py lists sources newer than their mirror so drift is visible in project_status.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Owner request 2026-09-28; scheduled after the current blitz."
+  },
+  {
+    "id": "AT183",
+    "requirement_ids": [
+      "R183"
+    ],
+    "task_ids": [
+      "T091"
+    ],
+    "title": "תיעוד בעברית 3 — הדרכת עובדים לפי תפקיד",
+    "kind": "manual/visual",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Seeded demo data (no lab material)"
+    ],
+    "procedure": [
+      "Run the screenshot spec against the seeded demo backend; every image in the guide is regenerated.",
+      "Open each guide page; each screenshot matches the running screen and every setting on it is explained.",
+      "Run scripts/docs_he_check.py; no Hebrew mirror older than its English source."
+    ],
+    "expected": "The guide is written for onboarding staff: task-oriented sections ('how do I…') per role (viewer / operator / editor / site admin / system admin), a glossary of product terms in Hebrew and English, and a 'known limits' page taken from the release package.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Owner request 2026-09-28; scheduled after the current blitz."
   }
 ]

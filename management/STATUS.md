@@ -1,13 +1,13 @@
 # Project status — generated view
 
-Generated: 2026-09-28T19:58:33.842691+00:00
+Generated: 2026-09-28T20:47:32.123681+00:00
 
-Tasks: 90 | Requirements: 180 | Tests: 180 | Screens: 32
+Tasks: 91 | Requirements: 183 | Tests: 183 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
 ## Status counts
-- BACKLOG: 84
+- BACKLOG: 85
 - BLOCKED: 2
 - DONE: 2
 - IN_PROGRESS: 1
@@ -17,7 +17,7 @@ No VMS implementation or hardware test is implied by this planning registry.
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 15
+- V1: 16
 - V2: 12
 
 ## Blockers
@@ -117,3 +117,4 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [T088](tasks/T088.md) | V2 | BACKLOG | סטודיו התוכנית 5 — ייצוא, DXF וחבילות תוכנית | T084, T085 |
 | [T089](tasks/T089.md) | V2 | BACKLOG | סטודיו התוכנית 6 — תלת־ממד ריאליסטי וסיור בגובה עין | T087 |
 | [T090](tasks/T090.md) | V2 | BACKLOG | סטודיו התוכנית 8 — BIM / IFC | T085, T088 |
+| [T091](tasks/T091.md) | V1 | BACKLOG | תיעוד בעברית ומדריך למשתמש מלא עם צילומי מסך אמיתיים | T025, T054, T087 |

@@ -1364,7 +1364,8 @@
       "pre-evidence (2026-09-18, 0.1.70, owner test 2.8 / R3): explore-plan-editor tools 'lights' (switch only, optional light.*) and 'entity' (any domain), data-tool buttons, entity inspector 'שם במפה (ידני)'; explore-floor-map entity card (.ecard: state row, actions inside, details folded), rename from the card via PATCH /map-anchors/{id} label; entityName() helper used by map labels, side list, history map - frontend/tests/evidence-owner-round7.spec.ts 2/2 PASS against the dev backend",
       "2026-09-28 (0.1.112, on commit 19689db, CR-007 slice 1): a new top-level area 'חשמל והתקנים' (electricity/device control), read-only - floors/areas tree with live counts, building counts, an area screen with automatic cards per domain/device_class (lighting, switches, climate, covers, security, media, sensors) and Hebrew empty states, both nav designs and the phone. HA floor/area registries mirrored locally (migration 0025, a table rewritten only when its own registry call succeeded). New permission devices.read scoped like map.read (a floor-scoped viewer sees a narrowed tree, recorded decision); the scope filter used by /ha/entities and the live socket moved into services/ha_scope.py unchanged (review compared line by line). Reviewed twice: round 1 found the live refresh could starve under frequent pushes (debounce -> throttle) and a failed registry call could wipe the mirror; round 2 approved with nits. Reference DomusUI extraction (GPL-3.0, ideas only). Tests: 10 device + 14 related backend, 6 desktop + 8 phone live incl. a floor-scoped viewer. Gap carried to slice 2: no backend test opens /ha/ws as a floor-scoped viewer.",
       "2026-09-28 (0.1.115, on commit ba91ba4, CR-007 slice 2): single-entity control on the area cards - light/switch toggle + brightness, cover open/stop/close + position (all cover movements arm-then-confirm), climate target/mode/fan from the entity's own lists, fan on/off/speed, media on/off/play/pause/mute; locks/alarm/camera/sensors stay read-only. New permission devices.control (operator/site_admin/system_admin, not editor - recorded), floor-scoped, limited server-side to the seven device domains (audited 403 on lock/alarm/siren/script/scene/button even though allow-listed); the existing action endpoint, envelope and audit reused; ha.entity.control unchanged. Honest optimistic UI: pending = 'ממתין לאישור', confirmed only from state or the reporting attribute with tolerance (fan on the step HA runs), 'נשלח' when nothing is observable, rollback on timeout/error, sliders supersede, Stop cancels and is never disabled. Bridge integration 0.2.4 (HA restart needed once) with a test that fails if any add-on action is missing from the bridge allow-list. Reviewed three times: round 1 (Sonnet implementer) found the permission reaching locks/scripts, the bridge not updated, covers never confirming, three sliders always failing, Stop disabled, pending not honest - fixed by an escalated Opus agent; re-review approved with two nits, fixed. Tests: 34 backend across five files, 30 live desktop+phone incl. two through the real action route with a fake HA-side bridge. WS scope test now uses a lock on another floor.",
-      "2026-09-28 (0.1.119, on commit 4094ebe, CR-007 slice 3): bulk off actions (lights/covers/climate/screens/all) for building, floor and area behind a confirmation dialog listing what is and is not sent; the building screen defaults to the approved mockup layout (tree + floor cards + floor menu + area popover + building buttons) with the tiles kept as a second per-viewer layout (owner: add, do not replace) and the floor-chip alignment fixed. New sensitive permission devices.control_bulk (site_admin/system_admin, floor-scoped). Server-side entity set excludes locks, alarm, sirens, scripts, scenes, buttons, door/garage/gate covers, the map's door layer and input_boolean; a switch enters only after a system_admin marks it bulk-safe (ruling: a lighting-circuit link only suggests the mark), marks cleared when the entity leaves HA. Attempt + per-entity records committed before the first call, 'sending' marked before each call so a restart reads unknown not 'not sent', start-up sweep, 8 calls in flight, one bulk per scope, honest partial results, standby counts as off, server-clock envelope. Three adversarial reviews: round 1 found all-off reaching a door relay via an unmarked switch, clock skew locking out fast tablets, and restart misreporting - fixed; round 2 approved with two nits (circuit-only eligibility, stale marks) - fixed. Tests: 48 backend, 61 live across desktop/tablet/phone."
+      "2026-09-28 (0.1.119, on commit 4094ebe, CR-007 slice 3): bulk off actions (lights/covers/climate/screens/all) for building, floor and area behind a confirmation dialog listing what is and is not sent; the building screen defaults to the approved mockup layout (tree + floor cards + floor menu + area popover + building buttons) with the tiles kept as a second per-viewer layout (owner: add, do not replace) and the floor-chip alignment fixed. New sensitive permission devices.control_bulk (site_admin/system_admin, floor-scoped). Server-side entity set excludes locks, alarm, sirens, scripts, scenes, buttons, door/garage/gate covers, the map's door layer and input_boolean; a switch enters only after a system_admin marks it bulk-safe (ruling: a lighting-circuit link only suggests the mark), marks cleared when the entity leaves HA. Attempt + per-entity records committed before the first call, 'sending' marked before each call so a restart reads unknown not 'not sent', start-up sweep, 8 calls in flight, one bulk per scope, honest partial results, standby counts as off, server-clock envelope. Three adversarial reviews: round 1 found all-off reaching a door relay via an unmarked switch, clock skew locking out fast tablets, and restart misreporting - fixed; round 2 approved with two nits (circuit-only eligibility, stale marks) - fixed. Tests: 48 backend, 61 live across desktop/tablet/phone.",
+      "2026-09-28 (0.1.125, merge 44cd7f7 of pilot/CR007-devices-4, CR-007 slice 4): climate in full (preset/swing/target humidity; humidifier humidity+mode), covers in full (tilt with arm-then-confirm, device-class wording; door/garage/gate covers read-only for devices.control enforced server-side after a review finding), per-area 'all covers' group control on the existing bulk path (area scope only; stop reported as 'sent', never confirmed/failed), sensors card grouped by class, assign an unassigned entity to an area (PUT /devices/entities/{id}/area, system.configure, permission before body, audited) via bridge 0.2.5 service set_entity_area (registry write allow-listed for this one op). Bug fixed: bulk arguments_json stored as {} so attribute-confirmed bulk actions never confirmed. HA restart required once for bridge 0.2.5. Tests: 64 backend, 76 Playwright (5 skipped by design), 4 unit; tsc/build clean. Opus review, fix round (1 blocker + 4 medium + nits), scoped re-review (1 frontend regression fixed)."
     ],
     "owner": null,
     "commit": null,
@@ -4942,6 +4943,56 @@
       "Documentation, known limits and rollback notes"
     ],
     "evidence": [],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "T091",
+    "title": "תיעוד בעברית ומדריך למשתמש מלא עם צילומי מסך אמיתיים",
+    "epic": "DOCS",
+    "phase": "V1",
+    "dependencies": [
+      "T025",
+      "T054",
+      "T087"
+    ],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "docs",
+    "requires_hardware": false,
+    "acceptance": [
+      "docs/user-guide/he/: a complete Hebrew user guide (one page per screen/area: map, cameras, events, Plan Studio 2D/3D, WisKey area, device control, settings incl. every settings section, roles and permissions, backup/restore, add-on options) with real screenshots captured from the running product by a repeatable script (frontend/tests/screenshots-guide.spec.ts against the seeded demo data; a separate lab pass only for hardware-only screens, redacted), regenerated on demand so screenshots never go stale.",
+      "Hebrew mirror of the operational documentation (README, DOCS.md/add-on options, docs/operations, docs/release, docs/security summaries, every active CR's decision sections). Archive and legacy audits stay English. Each Hebrew file names the English source and its commit; scripts/docs_he_check.py lists sources newer than their mirror so drift is visible in project_status.",
+      "The guide is written for onboarding staff: task-oriented sections ('how do I…') per role (viewer / operator / editor / site admin / system admin), a glossary of product terms in Hebrew and English, and a 'known limits' page taken from the release package."
+    ],
+    "requirement_ids": [
+      "R181",
+      "R182",
+      "R183"
+    ],
+    "test_ids": [
+      "AT181",
+      "AT182",
+      "AT183"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "light",
+      "effort": "large",
+      "escalation": "Screenshots come only from seeded demo data or redacted lab captures; no real names, plans, addresses or lab hosts in the guide."
+    },
+    "deliverables": [
+      "docs/user-guide/he/ with images under docs/user-guide/he/img/ (PNG, captured by the spec)",
+      "Hebrew mirrors under docs/he/ (or *_HE.md beside the source) with source+commit headers",
+      "scripts/docs_he_check.py + project_status drift line"
+    ],
+    "evidence": [
+      "2026-09-28: requested by the owner ('all our documentation is English; I want full Hebrew documentation too, and a complete Hebrew user guide with every setting explained and real screenshots from the system - to think about improvements together and to onboard staff quickly'). Owner ranked it below the running CR-005/006/007 work: recorded here, to be scheduled after the current blitz. Estimate: guide 8-12 h (screenshot spec 2-3 h, writing ~25-35 pages), Hebrew mirrors 6-10 h, drift check 1 h."
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null

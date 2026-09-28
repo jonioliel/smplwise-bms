@@ -1,5 +1,29 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.125 (pilot) — Device control: climate and covers in full, sensors, assign an entity to an area (CR-007 slice 4)
+- **Home Assistant must be restarted once** after this update: the bridge integration moves to 0.2.5 (nine new
+  allow-listed services and one registry write, below).
+- Climate in full: preset mode, swing mode and target humidity for climate entities, target humidity and mode for
+  humidifiers (humidifier now reachable with `devices.control`; nothing else about it is), ±0.5° target already
+  there. Building and floor cards show a compact "מזגני הקומה" strip (mode + target).
+- Covers in full: tilt open / close / stop / position (arm-then-confirm like the movement itself), wording and icons
+  by device class. Door, garage and gate covers are read-only for `devices.control` **on the server**, not only in
+  the card (a review finding: an operator could have opened a gate through the action route); `ha.entity.control`
+  keeps its rights. Per-area "כל התריסים" group control (open / stop / close / position) rides the existing bulk
+  path - `devices.control_bulk`, confirmation, the same door / doors-layer exclusions - and is accepted for an
+  area only (`covers_close` alone stays building-wide as in slice 3). "Stop all" is reported as "נשלח": a stop has
+  nothing to confirm, so it is never counted as done and never as failed.
+- Sensors card per area, grouped by class (temperature, humidity, power, illuminance, CO2, battery, other) with unit
+  and last change; no controls.
+- Assign an unassigned entity to an area from the product: `PUT /devices/entities/{id}/area` (`system.configure`,
+  permission before the body, audited with area ids only) through a new bridge service `set_entity_area` - a
+  registry write allow-listed for exactly this operation, entity and area must exist, `area_id` non-empty.
+- Bug found by the new tests: a bulk action's arguments were stored as `{}`, so any attribute-confirmed bulk action
+  could never confirm (silent "unknown" forever). Fixed: the cleaned, validated arguments are stored as the
+  single-entity route does.
+- Tests: 64 backend in the device set (incl. the card / bridge parity checks), 76 Playwright (5 skipped by design)
+  across desktop / tablet / mobile, 4 unit; tsc and build clean. Opus review + fix round + scoped re-review.
+
 ## 0.1.124 (pilot) — Plan Studio 3D, skins foundation: AI render provider, privacy acknowledgement and budgets (CR-006 slice 2a)
 - Phase 2 of CR-006 starts. This slice ships the foundation only: **no floor picture is sent anywhere yet**; the only
   request that can leave the installation is the system administrator's connection test with a 64x64 synthetic
