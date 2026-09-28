@@ -941,9 +941,12 @@ def test_busy_is_answered_at_once(feed):
     slot = intercom_sync.SYNC._inflight = threading.BoundedSemaphore(1)
     assert slot.acquire(blocking=False)
     try:
+        client = TestClient(app)  # constructed before the clock starts: app start-up is not what is measured
         t0 = time.monotonic()
-        body = TestClient(app).get("/api/v1/intercom/people/u1").json()
-        assert time.monotonic() - t0 < 1.0, "no blocking wait for a slot"
+        body = client.get("/api/v1/intercom/people/u1").json()
+        # A blocking wait would last COMMAND_TIMEOUT_S; an immediate `busy` answer is an order of magnitude faster
+        # even on a loaded workstation (a 1 s bound failed four times on 2026-09-28 under 70-90 % CPU, passing alone).
+        assert time.monotonic() - t0 < intercom_sync.COMMAND_TIMEOUT_S / 2, "no blocking wait for a slot"
         assert (body["state"], body["last_error"], body["person"]) == ("error", "busy", None)
         assert not sent(fakes, "users/get")
     finally:

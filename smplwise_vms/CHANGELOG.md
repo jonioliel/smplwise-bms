@@ -1,5 +1,26 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.120 (pilot) — Plan Studio 3D: determinism as a test, pixel baselines, heavy-floor budget, entity labels (CR-006 slice 1c)
+- Determinism is now proven, not assumed: a spec builds the scene twice from the same plan, tokens, state and
+  camera and compares the full scene graph and the exact pixels, at both quality levels and all presets;
+  per-(level, preset, viewport) pixel baselines live under `docs/evidence/T087/visual/` with a 2/255 channel
+  tolerance, including a baseline with the state layer (tints, red door frame, chip, pills). Regenerate with
+  `SW_UPDATE_VISUAL=1`; `SW_REQUIRE_VISUAL=1` makes a renderer mismatch fail instead of skip.
+- Level-2 budget on heavy floors: above the existing heaviness threshold the scene switches to a measured
+  "heavy" configuration (no object shadows, Lambert objects, 1024² shadow map, occlusion kept) chosen by ranking
+  the levers in real Chrome; the live test asserts ≥ 30 fps on the 3,000-chair floor and ≥ 45 fps at phone width
+  (60/60 measured on a quiet machine; the earlier 14-18 fps was under heavy CPU load from other work).
+- Entity labels are DOM pills (readable at the overview, RTL, hidden behind the camera), capped at 60 on a
+  crowded floor (selected, hovered and alerting ones stay, "+N" for the rest), only the shown level's under a
+  level filter, standing just above their point so the object stays clickable; presence ring 0.3 m and skipped in
+  rooms too narrow for it; the two long-failing mobile unit specs fixed (a clipped pin off the 390 px viewport and a
+  phone-hidden toolbar - test set-up, no product change).
+- Also: the load-sensitive backend timing test `test_busy_is_answered_at_once` now measures against half the real
+  command timeout instead of a 1 s wall-clock bound - it failed four times today under 70-90 % CPU while passing
+  alone, and its intent (an immediate "busy", never a 25 s wait) is an order of magnitude apart from that.
+- Reviewed twice (approved with nits, all applied). Sizes: `three` chunk unchanged, the 3D element 16.4 KB gzip.
+  Tests: 110 3D/2D unit specs green on desktop and phone, live 13 passed.
+
 ## 0.1.119 (pilot) — Device control, slice 3: floor / area / building "off" actions and the mockup layout (CR-007)
 - The building screen now opens in the approved mockup's layout: a tree of floors and areas with state dots and
   hover actions, floor cards with a row per area, a "⋯" / "כבה קומה ▾" menu per floor, an area popover with state
