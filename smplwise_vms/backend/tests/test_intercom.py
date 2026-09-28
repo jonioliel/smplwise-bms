@@ -3277,6 +3277,7 @@ def fast_capture(monkeypatch):
     """The poller at test speed and roomy capture buckets; no session outlives the test."""
     monkeypatch.setattr(intercom_capture, "POLL_S", 0.05)
     monkeypatch.setattr(intercom_capture, "CAPTURED_POLL_S", 0.1)
+    monkeypatch.setattr(intercom_capture, "POLL_BUSY_S", 0.08)
     for name in ("CAPTURE_USER_BURST", "CAPTURE_GLOBAL_BURST", "CAPTURE_USER_RATE", "CAPTURE_GLOBAL_RATE", "CONFIG_USER_BURST", "CONFIG_GLOBAL_BURST"):
         monkeypatch.setattr(intercom_sync, name, 1000.0)
     intercom_capture.CAPTURES.clear()
@@ -3284,13 +3285,13 @@ def fast_capture(monkeypatch):
     intercom_capture.CAPTURES.clear()
 
 
-def capture_feed(feed, fake: FakeEnrollment, extra: Callable[[dict[str, Any]], list[Any] | None] = lambda msg: None) -> tuple[Any, list[FakeHa], TestClient]:
+def capture_feed(feed, fake: FakeEnrollment, extra: Callable[[dict[str, Any]], list[Any] | None] = lambda msg: None, overview: dict[str, Any] | None = None) -> tuple[Any, list[FakeHa], TestClient]:
     """editor_feed with the fake enrollment; sam (site_admin), sid (system_admin) and vera (viewer) bound."""
     def answer(msg: dict[str, Any]) -> list[Any] | None:
         frames = extra(msg)
         return frames if frames is not None else fake.answer(msg)
 
-    app, fakes, c = editor_feed(feed, answer)
+    app, fakes, c = editor_feed(feed, answer, overview=overview)
     bind(c, feed[1], "sid", "system_admin", "installation", "*")
     intercom_sync.SYNC._buckets_reset()
     return app, fakes, c
@@ -3412,7 +3413,8 @@ def test_card_capture_round_trip(feed, fast_capture):
     view = body["capture"]
     sid = view["session_id"]
     assert view["state"] == "preparing" and view["active"] is True and view["card"] is None and view["station_name"] == "Main gate"
-    assert view["collect_remaining_s"] > 60 and view["session_remaining_s"] > 110 and view["reader_may_be_collecting"] is True
+    assert 20 < view["collect_remaining_s"] <= 30, "the reader's own 30 s wait (WisKey's device deadline), not the 70 s bound"
+    assert view["session_remaining_s"] > 110 and view["reader_may_be_collecting"] is True and view["reason"] is None
     assert body["command_id"] and "שום כרטיס לא יתווסף" in body["note"]
     [msg] = sent(fakes, "cards/capture_start")
     assert msg == {"id": msg["id"], "type": CAP + "capture_start", "station_id": "entry-a", "user_id": "u1", "revision": 4, "reader_id": 2, "api_contract": 1}
@@ -3583,6 +3585,8 @@ def test_card_capture_timeout_expiry_and_abandonment(feed, fast_capture, monkeyp
     wait_for(lambda: intercom_capture.CAPTURES._sessions[sid3].state == "cancelled")
     rows = [r for r in capture_rows(s) if r["action"] == "intercom.card_capture.cancel"]
     assert rows[-1]["details"]["trigger"] == "abandoned" and rows[-1]["details"]["outcome"] == "ok" and rows[-1]["actor_username"] == "sam"
+    view = intercom_capture.CAPTURES.view(intercom_capture.CAPTURES._sessions[sid3])
+    assert (view["state"], view["reason"]) == ("cancelled", "abandoned"), "the dialog can say why: it stopped asking"
     outcomes = [r["details"]["outcome"] for r in capture_rows(s) if r["action"] == "intercom.card_capture.result"]
     assert outcomes == ["timeout", "expired"]
 
@@ -3762,3 +3766,40 @@ def test_capture_projections_never_pass_a_full_number():
         intercom_sync.project_readers({"readers": [9]})
     with pytest.raises(ValueError):
         intercom_sync.project_cancelled({"cancelled": "yes"})
+
+
+def test_capture_polling_never_spends_user_tokens_and_a_cancel_is_never_refused_locally(feed, fast_capture, monkeypatch):
+    """Review round 1 (M1): the poller's status reads come from a bucket of their own, so two sessions followed for a
+    long while leave their owners' (and the lane's shared) capture buckets exactly as the starts left them; and a
+    cancel spends no token at all - with the capture buckets empty, a third user's cancel still reaches WisKey."""
+    for name in ("CAPTURE_USER_RATE", "CAPTURE_GLOBAL_RATE"):
+        monkeypatch.setattr(intercom_sync, name, 0.0)  # no refill: any spend would show
+    monkeypatch.setattr(intercom_sync, "CAPTURE_USER_BURST", 3.0)
+    monkeypatch.setattr(intercom_sync, "CAPTURE_GLOBAL_BURST", 3.0)
+    monkeypatch.setattr(intercom_sync, "CAPTURE_POLL_BURST", 1000.0)
+    monkeypatch.setattr(intercom_sync, "CAPTURE_POLL_RATE", 1000.0)
+    fourth = {**copy.deepcopy(STATION), "id": "entry-d", "name": "Back door"}
+    fake = FakeEnrollment()
+    app, fakes, c = capture_feed(feed, fake, overview={**copy.deepcopy(EDITOR_OVERVIEW), "stations": [*EDITOR_OVERVIEW["stations"], fourth]})
+    bind(c, feed[1], "tess", "site_admin", "installation", "*")
+    first = cap_start(c).json()["capture"]["session_id"]
+    second = cap_start(c, user="sid", station="entry-c").json()["capture"]["session_id"]
+    third = cap_start(c, user="tess", station="entry-d").json()["capture"]["session_id"]
+    sync = intercom_sync.SYNC
+    buckets = {who: sync._capture_user_buckets[f"dev-{who}"].tokens for who in ("sam", "sid", "tess")}
+    assert buckets == {"sam": 2.0, "sid": 2.0, "tess": 2.0} and sync._capture_global_bucket.tokens == 0.0, "each start spent one token"
+    wait_for(lambda: len(sent(fakes, "cards/capture_status")) >= 60, 15)  # many polls of three sessions (the owners keep reading)
+    for sid, who in ((first, "sam"), (second, "sid")):
+        assert cap_status(c, sid, who).json()["capture"]["state"] == "waiting"
+    assert {who: sync._capture_user_buckets[f"dev-{who}"].tokens for who in ("sam", "sid", "tess")} == buckets, "polling spent no user token"
+    assert sync._capture_global_bucket.tokens == 0.0, "nor the lane's shared ones"
+    r = cap_cancel(c, third, user="tess")
+    assert r.status_code == 200 and r.json()["capture"]["state"] == "cancelled", r.text
+    assert [m["session_id"] for m in sent(fakes, "cards/capture_cancel")] == [third]
+
+
+def test_capture_poller_backs_off_with_several_sessions():
+    """One read per session every POLL_S (2 s), every POLL_BUSY_S (3 s) while more than one session is followed: three
+    sessions cost WisKey at most one read a second."""
+    assert intercom_capture.POLL_S == 2.0 and intercom_capture.POLL_BUSY_S == 3.0 and intercom_capture.COLLECT_S == 30.0
+    assert 3 / intercom_capture.POLL_BUSY_S <= intercom_sync.CAPTURE_POLL_RATE <= 1.0 and intercom_sync.CAPTURE_POLL_BURST >= 3

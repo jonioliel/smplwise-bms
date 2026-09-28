@@ -598,12 +598,14 @@ def _perform(
     lane: str = "action",
     summary: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
     slot_wait: float = 0.0,
+    free: bool = False,
 ) -> dict[str, Any]:
     """Audit the attempt (committed), send once through IntercomSync.action, audit the outcome. `on_settled` is always
     called exactly once (by IntercomSync once the command was handed over, here when it never got that far);
     `on_unknown` when the outcome is unknown. `summary` turns the projected result into what the outcome row records
     (the physical actions record the result itself; a people write records counts and names only). `slot_wait`: how
-    long the lane's slot may be waited for (the capture lane's; the others answer `busy` at once)."""
+    long the lane's slot may be waited for (the capture lane's; the others answer `busy` at once); `free`: no rate
+    token is spent (a capture cancel)."""
     try:
         act.attempt()
     except BaseException:
@@ -611,7 +613,7 @@ def _perform(
             on_settled()
         raise
     try:
-        reply = intercom_sync.SYNC.action(settings_of(act.request), key, send, project, who=act.principal.user_id, not_after=not_after, on_settled=on_settled, lane=lane, slot_wait=slot_wait)
+        reply = intercom_sync.SYNC.action(settings_of(act.request), key, send, project, who=act.principal.user_id, not_after=not_after, on_settled=on_settled, lane=lane, slot_wait=slot_wait, free=free)
     except ApiError as exc:
         outcome = str(exc.details.get("outcome") or "unknown")
         if outcome == "unknown" and on_unknown:
@@ -1176,7 +1178,8 @@ def card_capture_cancel(request: Request, session_id: str, principal: Principal 
     """Cancel the caller's own capture (WisKey `cards/capture_cancel`): WisKey stops waiting for a card and drops the
     session. Body `{}` (JSON). WisKey's reader timeout is the firmware's own: cancelling is not proof the reader left
     collection mode (WisKey `capture_limits`). A cancel with no clear answer is 504 unknown (the session is then
-    `cancel_unknown`). Reply: `{state, ..., cancelled, capture, sync, note, command_id}`."""
+    `cancel_unknown`). A cancel spends no rate token: polling or other captures can never get it refused locally.
+    Reply: `{state, ..., cancelled, capture, sync, note, command_id}`."""
     act = _Action(request, conn, principal, "intercom.card_capture.cancel", session_id, "intercom_capture")
     _parse(act, CaptureCancelBody, raw)
     capture = _capture_or_refuse(act, session_id)
@@ -1187,7 +1190,7 @@ def card_capture_cancel(request: Request, session_id: str, principal: Principal 
     not_after = datetime.now(timezone.utc) + timedelta(seconds=SEND_WITHIN_S)
     try:
         reply = _perform(act, "cancelled", lambda call: intercom_client.capture_cancel(call, capture.session_id), intercom_sync.project_cancelled, not_after,
-                         lane="capture", slot_wait=intercom_sync.CAPTURE_SLOT_WAIT_S)
+                         lane="capture", slot_wait=intercom_sync.CAPTURE_SLOT_WAIT_S, free=True)  # never refused by SMPLWISE's own rate budget
     except ApiError as exc:
         outcome, code = exc.details.get("outcome"), exc.details.get("wiskey_code")
         if outcome == "unknown":

@@ -382,12 +382,19 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   number never leaves WisKey), and only the administrator's approval ("הוספת הכרטיס וסנכרון", WisKey
   `cards/capture_confirm`) adds it to the person and asks WisKey to sync it to their stations - from that moment the
   card opens their doors. It is offered for a saved person whose form has no unsaved changes, as in WisKey. WisKey's
-  limits apply: one capture per station and three in all (WisKey's own panel counts too), a 70 s collection window
-  and a 120 s session; SMPLWISE also allows one open capture per user and cancels a capture whose dialog stopped
-  asking for it for 20 s. A capture belongs to the SMPLWISE user who started it - another user cannot see, cancel or
+  limits apply: one capture per station and three in all (WisKey's own panel counts too), the reader waits up to 30 s
+  for a card, and the session lasts 120 s; SMPLWISE also allows one open capture per user and cancels a capture
+  whose dialog stopped asking for it for 20 s (the dialog then says so - a frozen tab or a sleeping laptop). The
+  sessions SMPLWISE follows live in its memory: if the add-on restarts during a capture, WisKey keeps that session
+  until its 120 s run out, the station stays busy meanwhile and a new capture there is refused
+  (`intercom_capture_station_busy`) - wait two minutes. A capture belongs to the SMPLWISE user who started it - another user cannot see, cancel or
   approve it. Each start, cancel, approval and result (read / WisKey's timeout / expired) is audited under the real
   user without the card's number. A start or cancel WisKey does not clearly answer is shown as "unknown": the
   reader may still be in collection mode until WisKey's timeout, and that station is held meanwhile.
+- A PIN generated in the person editor ("יצירת PIN ייחודי אוטומטית") is shown once in clear, with "העתק", so it can be
+  handed over; it is hidden again once copied, hidden, saved or the form is closed. A copied PIN stays in the
+  operating system's clipboard (and clipboard history, where that is on) until something else is copied - clear it
+  after handing the PIN over.
   **The first real use is the live test.** Card capture was built against WisKey's source and a fixture only; WisKey's
   own panel still says "physical collection still needs commissioning". Not verified yet (UNVERIFIED): that a real
   station collects a card this way at all; whether a card that is ALREADY enrolled, presented during collection, is

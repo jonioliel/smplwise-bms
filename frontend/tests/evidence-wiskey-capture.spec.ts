@@ -173,8 +173,8 @@ test.describe('WisKey card capture against the fixture WisKey (CR-005 phase 2 A2
     await expect(state(page)).toHaveAttribute('data-wiskey-capture-state', 'waiting', { timeout: 15000 });
     await expect(cap(page, 'status')).toContainText('הצמד כעת כרטיס אחד');
     const left = Number(await cap(page, 'countdown').getAttribute('data-wiskey-capture-countdown'));
-    expect(left).toBeGreaterThan(50);
-    expect(left).toBeLessThanOrEqual(70);
+    expect(left).toBeGreaterThan(20); // the reader's own 30 s wait (WisKey's device deadline), not WisKey's 70 s bound
+    expect(left).toBeLessThanOrEqual(30);
     const person = (await (await page.request.get(`/api/v1/intercom/people/${PERSON}/editor`)).json()).person as { revision: number; cards: { masked_number: string }[] };
     const [start] = await sent('cards/capture_start');
     expect(start).toEqual({ id: start.id, type: 'hikvision_intercom/cards/capture_start', station_id: 'lobby', user_id: PERSON, revision: person.revision, reader_id: 2, api_contract: 1 });

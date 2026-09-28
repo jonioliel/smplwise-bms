@@ -328,6 +328,7 @@ const HE: Record<string, string> = {
   capture_state_applying: 'הכרטיס נשמר ב־WisKey…',
   capture_state_expired: 'זמן הקריאה (שתי דקות) הסתיים ב־WisKey. לא נשמר כרטיס.',
   capture_state_cancelled: 'הקריאה בוטלה. לא נשמר כרטיס.',
+  capture_state_abandoned: 'הקריאה נסגרה כי החלון הפסיק לעקוב אחריה (למשל כרטיסייה מוקפאת או מחשב שנכנס למצב שינה). לא נשמר כרטיס.',
   capture_state_lost: 'WisKey אינו מכיר עוד את הקריאה (למשל אחרי הפעלה מחדש של Home Assistant). לא נשמר כרטיס.',
   capture_state_closed: 'WisKey דחה את הוספת הכרטיס וסגר את הקריאה. לא נשמר כרטיס.',
   capture_state_confirmed: 'הכרטיס נוסף למשתמש ונשלחה בקשה לסנכרון לתחנות.',

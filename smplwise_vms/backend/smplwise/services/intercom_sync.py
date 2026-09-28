@@ -133,6 +133,11 @@ CAPTURE_USER_BURST, CAPTURE_USER_RATE = 8.0, 1.0
 CAPTURE_GLOBAL_BURST, CAPTURE_GLOBAL_RATE = 10.0, 1.0
 CAPTURE_TIMEOUT_S = 20.0
 CAPTURE_SLOT_WAIT_S = 3.0
+# review round 1 (M1): the capture poller never spends a user's or the lane's shared tokens - its status reads come
+# from a small bucket of their own, sized for WisKey's maximum of three sessions at the poller's own pace (one read per
+# session every 2 s, every 3 s once more than one is followed: at most 1/s in all). A cancel spends no token at all:
+# a cancel is always cheaper than a reader left collecting, so no amount of polling or starting can refuse one.
+CAPTURE_POLL_BURST, CAPTURE_POLL_RATE = 3.0, 1.0
 READERS_TIMEOUT_S = 40.0  # WisKey's own asyncio.timeout(35) on cards/reader_capabilities, plus the round trip
 RATE_LIMITED = "rate_limited"
 RATE_RETRY_S = 2.0  # the feed's own refetch answered `rate_limited`: keep the session and try again after this long
@@ -765,11 +770,18 @@ class IntercomSync:
             self._config_user_buckets: dict[str, TokenBucket] = {}
             self._capture_global_bucket = TokenBucket(CAPTURE_GLOBAL_BURST, CAPTURE_GLOBAL_RATE)
             self._capture_user_buckets: dict[str, TokenBucket] = {}
+            self._capture_poll_bucket = TokenBucket(CAPTURE_POLL_BURST, CAPTURE_POLL_RATE)
 
     def _spend_token(self, who: str, lane: str = "read") -> bool:
         """One token from both the caller's and the shared bucket of `lane` (`read`, `action`, `config` or `capture`),
-        or none at all (nothing is spent on a refusal)."""
+        or none at all (nothing is spent on a refusal). `capture_poll` (the capture poller) has one bucket of its own
+        and no per-user one."""
         with self._bucket_lock:
+            if lane == "capture_poll":
+                if not self._capture_poll_bucket.ready():
+                    return False
+                self._capture_poll_bucket.take()
+                return True
             if lane == "action":
                 users, shared, burst, rate = self._action_user_buckets, self._action_global_bucket, ACTION_USER_BURST, ACTION_USER_RATE
             elif lane == "config":
@@ -913,6 +925,7 @@ class IntercomSync:
         on_settled: Callable[[], None] | None = None,
         lane: str = "action",
         slot_wait: float = 0.0,
+        free: bool = False,
     ) -> dict[str, Any]:
         """Run one PHYSICAL WisKey command (release, call signal, TTS start) like `command` - over the feed's own live
         session, never queued, never retried - but in the action lane (its own in-flight slots and rate buckets, so
@@ -921,7 +934,7 @@ class IntercomSync:
         A people write (`lane` "config") runs the same way in the config lane (one slot of its own, CONFIG_TIMEOUT_S), a
         card-capture command (`lane` "capture") in the capture lane (CAPTURE_TIMEOUT_S); `slot_wait` > 0 lets the caller
         wait that long for the lane's slot instead of being answered `busy` at once (the capture poller's status read may
-        hold it for a moment).
+        hold it for a moment). `free`: spend no rate token (a capture cancel - never refused by SMPLWISE's own budget).
 
         `not_after` (aware UTC): checked on the feed's loop immediately before the frame is written; a command that
         reaches that point later is not sent (`expired`) - a request delayed in transit or in a queue never actuates
@@ -929,7 +942,7 @@ class IntercomSync:
         scheduled, else when WisKey answered, the session ended, or ha_client's own call limit expired - which can be
         well after this method gave up waiting (ACTION_TIMEOUT_S). Returns the `command`-shaped reply on success."""
         timeout = {"config": CONFIG_TIMEOUT_S, "capture": CAPTURE_TIMEOUT_S}.get(lane, ACTION_TIMEOUT_S)
-        reply, outcome = self._execute(settings, key, send, project, who, timeout, lane=lane, not_after=not_after, on_settled=on_settled, slot_wait=slot_wait)
+        reply, outcome = self._execute(settings, key, send, project, who, timeout, lane=lane, not_after=not_after, on_settled=on_settled, slot_wait=slot_wait, free=free)
         if outcome != "ok":
             raise action_error(reply, outcome, lane)
         return reply
@@ -946,6 +959,8 @@ class IntercomSync:
         not_after: datetime.datetime | None = None,
         on_settled: Callable[[], None] | None = None,
         slot_wait: float = 0.0,
+        free: bool = False,
+        bucket: str | None = None,
     ) -> tuple[dict[str, Any], str]:
         """`command`'s body. Also returns what is known about the command itself: `not_sent` (nothing reached WisKey),
         `refused` (WisKey answered with an error: a genuine refusal), `unknown` (sent, but no usable answer: timeout,
@@ -968,7 +983,7 @@ class IntercomSync:
             reply.update(state="error", last_error="busy", sync=STATE.as_dict())
             settled()
             return reply, "not_sent"
-        if not self._spend_token(who, lane):
+        if not free and not self._spend_token(who, bucket or lane):
             slot.release()
             reply.update(state="error", last_error=RATE_LIMITED, sync=STATE.as_dict())
             settled()
@@ -1046,8 +1061,9 @@ class IntercomSync:
     ) -> tuple[dict[str, Any], str]:
         """The card-capture poller's `cards/capture_status` read (services/intercom_capture.py): the capture lane - so
         a user's start / cancel, not the read lane, is what it competes with - never waiting for the slot (a busy slot
-        or an empty bucket just skips a tick). Returns `_execute`'s (reply under `capture`, outcome)."""
-        return self._execute(settings, "capture", send, project, who, CAPTURE_TIMEOUT_S, lane="capture")
+        or an empty bucket just skips a tick) and paid from the poller's own bucket (`capture_poll`), never from a
+        user's. Returns `_execute`'s (reply under `capture`, outcome)."""
+        return self._execute(settings, "capture", send, project, who, CAPTURE_TIMEOUT_S, lane="capture", bucket="capture_poll")
 
     def people(self, settings: Settings, who: str, query: str, filters: dict[str, Any], offset: int, limit: int, snapshot: str | None) -> dict[str, Any]:
         """The people directory for `who`: without a text, one WisKey page as it is; with a text, SMPLWISE's own search

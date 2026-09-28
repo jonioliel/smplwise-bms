@@ -10,7 +10,8 @@ across all its users, and it owns every session by the HA user that started it -
 is the add-on's single HA user. So SMPLWISE keeps its own map from WisKey's `session_id` to the SMPLWISE user who
 started it (`owner`), and serves, cancels or confirms a session only for that user: to anyone else it does not exist.
 
-The browser never polls WisKey. One poller thread here reads each active session's status every POLL_S in the feed's
+The browser never polls WisKey. One poller thread here reads each active session's status every POLL_S (POLL_BUSY_S
+while more than one session is followed; paid from a small bucket of its own, never a user's) in the feed's
 capture lane (intercom_sync `capture_read`: its own slot and rate buckets, so neither a capture nor its polling can
 take a door release's or a people save's slot) and keeps the result in memory; the owner's browser reads that copy
 (`GET /intercom/card-capture/{id}`, SMPLWISE-local, no WisKey traffic). The masked number is kept only in this
@@ -44,9 +45,13 @@ from . import intercom_client, intercom_sync
 log = logging.getLogger("smplwise.intercom")
 
 SESSION_S = 120.0  # WisKey enrollment.SESSION_SECONDS: WisKey drops the session (unless applying) after this long
-COLLECT_S = 70.0  # WisKey enrollment._collect: asyncio.timeout(70) around the whole collection
+# the countdown the dialog shows: WisKey's collector waits for ONE card with a 30 s device request deadline
+# (client/capture.py `deadline=30`; WisKey's own copy: "the request waits up to 30 s"). WisKey's overall bound of 70 s
+# (enrollment._collect) also covers re-reading the capabilities; its `capture_timeout` is what ends the wait.
+COLLECT_S = 30.0
 EXPIRE_GRACE_S = 3.0  # a session is called expired this long after WisKey's own TTL (its timer may run a little late)
-POLL_S = 1.5  # the poller's status read per active session (WisKey's own panel polls every 1.0 s per open dialog)
+POLL_S = 2.0  # the poller's status read per active session (WisKey's own panel polls every 1.0 s per open dialog)
+POLL_BUSY_S = 3.0  # ... and while more than one session is followed (at most 3 x 1/3 s = 1 read/s against WisKey)
 CAPTURED_POLL_S = 5.0  # a collected card waits for approval: WisKey's session changes no more, only its TTL runs
 ABANDON_S = 20.0  # no status read from the owner this long -> the backend cancels the session itself
 KEEP_DONE_S = 300.0  # a finished session stays readable by its owner this long (the final state), then it is forgotten
@@ -81,6 +86,7 @@ class Capture:
     last_seen: float = field(default_factory=time.monotonic)
     last_poll: float = 0.0
     ended: float | None = None
+    reason: str | None = None  # why SMPLWISE itself ended it: `abandoned` (nobody asked for it for ABANDON_S)
 
     def elapsed(self, now: float | None = None) -> float:
         return (time.monotonic() if now is None else now) - self.started
@@ -176,6 +182,7 @@ class CaptureRegistry:
                 "state": state,
                 "active": state in ACTIVE,
                 "error": capture.error,
+                "reason": capture.reason,
                 "card": dict(capture.card) if capture.card and state in ("captured", "applying") else None,
                 "started_at": capture.started_at,
                 "elapsed_s": round(elapsed, 1),
@@ -185,7 +192,7 @@ class CaptureRegistry:
                 "reader_may_be_collecting": state in MAYBE_COLLECTING and elapsed < SESSION_S,
             }
 
-    def set_state(self, capture: Capture, state: str, error: str | None = None, *, only_from: tuple[str, ...] | None = None) -> bool:
+    def set_state(self, capture: Capture, state: str, error: str | None = None, *, only_from: tuple[str, ...] | None = None, reason: str | None = None) -> bool:
         """Move the session to `state` (atomically, and only from one of `only_from` when given). A terminal state
         drops the collected card's masked form from memory. Returns whether it moved."""
         with self._lock:
@@ -193,6 +200,7 @@ class CaptureRegistry:
                 return False
             capture.state = state
             capture.error = error
+            capture.reason = reason
             if state in TERMINAL:
                 capture.ended = time.monotonic()
                 capture.card = None
@@ -244,17 +252,18 @@ class CaptureRegistry:
                 for station in [s for s, until in self._holds.items() if until <= now]:
                     del self._holds[station]
                 followed = [c for c in self._sessions.values() if c.state in POLLED]
+                busy = len(followed) > 1
                 if not followed and not self._pending:
                     self._thread = None
                     return
             for capture in followed:
                 try:
-                    self._tick(capture, time.monotonic())
+                    self._tick(capture, time.monotonic(), busy)
                 except Exception:  # noqa: BLE001 - one session's failure must not stop the others being followed
                     log.exception("card capture poller: session follow-up failed")
             stop.wait(POLL_S / 3)
 
-    def _tick(self, capture: Capture, now: float) -> None:
+    def _tick(self, capture: Capture, now: float, busy: bool = False) -> None:
         elapsed = capture.elapsed(now)
         if elapsed >= SESSION_S + EXPIRE_GRACE_S:
             self._finish_polled(capture, "expired", None)
@@ -262,7 +271,7 @@ class CaptureRegistry:
         if now - capture.last_seen > ABANDON_S:
             self._abandon(capture)
             return
-        interval = CAPTURED_POLL_S if capture.state == "captured" else POLL_S
+        interval = CAPTURED_POLL_S if capture.state == "captured" else POLL_BUSY_S if busy else POLL_S
         if now - capture.last_poll < interval:
             return
         capture.last_poll = now
@@ -314,7 +323,7 @@ class CaptureRegistry:
         not_after = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=15)
         try:
             intercom_sync.SYNC.action(capture.settings, "cancelled", lambda call: intercom_client.capture_cancel(call, session_id), intercom_sync.project_cancelled,
-                                      who=capture.owner.user_id, not_after=not_after, lane="capture", slot_wait=intercom_sync.CAPTURE_SLOT_WAIT_S)
+                                      who=capture.owner.user_id, not_after=not_after, lane="capture", slot_wait=intercom_sync.CAPTURE_SLOT_WAIT_S, free=True)
         except ApiError as exc:
             return str(exc.details.get("outcome") or "unknown")
         return "cancelled"
@@ -331,21 +340,21 @@ class CaptureRegistry:
         trigger = {"trigger": "abandoned"}
         try:
             intercom_sync.SYNC.action(capture.settings, "cancelled", lambda call: intercom_client.capture_cancel(call, session_id), intercom_sync.project_cancelled,
-                                      who=capture.owner.user_id, not_after=not_after, lane="capture", slot_wait=intercom_sync.CAPTURE_SLOT_WAIT_S)
+                                      who=capture.owner.user_id, not_after=not_after, lane="capture", slot_wait=intercom_sync.CAPTURE_SLOT_WAIT_S, free=True)
         except ApiError as exc:
             outcome = str(exc.details.get("outcome") or "unknown")
             code = str(exc.details.get("wiskey_code") or exc.code)
             if outcome == "refused" and code == "capture_not_found":
-                if self.set_state(capture, "lost", None, only_from=POLLED):
+                if self.set_state(capture, "lost", None, only_from=POLLED, reason="abandoned"):
                     self._audit(capture, "intercom.card_capture.cancel", "refused", code, trigger)
                 return
             if outcome in ("not_sent", "refused"):
                 capture.last_seen = time.monotonic() - ABANDON_S + 2 * POLL_S  # nothing was cancelled: try again shortly
                 return
-            if self.set_state(capture, "cancel_unknown", None, only_from=POLLED):
+            if self.set_state(capture, "cancel_unknown", None, only_from=POLLED, reason="abandoned"):
                 self._audit(capture, "intercom.card_capture.cancel", "unknown", code, trigger)
             return
-        if self.set_state(capture, "cancelled", None, only_from=POLLED):
+        if self.set_state(capture, "cancelled", None, only_from=POLLED, reason="abandoned"):
             self._audit(capture, "intercom.card_capture.cancel", "ok", None, trigger)
 
     def _audit_result(self, capture: Capture, outcome: str, error: str | None, extra: dict[str, Any]) -> None:

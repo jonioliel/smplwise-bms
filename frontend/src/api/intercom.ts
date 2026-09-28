@@ -447,7 +447,7 @@ export type IntercomCaptureState =
 /** One capture session as the backend's poller last read it from WisKey (routers/access_control.py
  * `card_capture_status`); only its owner ever gets it. The countdowns are the server's (WisKey's 70 s collection, its
  * 120 s session). `reader_may_be_collecting`: WisKey may still drive the reader, or the reader's own firmware timeout
- * may still run. */
+ * may still run. The collection countdown is the reader's 30 s wait. */
 export interface IntercomCapture {
   session_id: string;
   person_id: string;
@@ -457,6 +457,8 @@ export interface IntercomCapture {
   state: IntercomCaptureState;
   active: boolean;
   error: string | null;
+  /** Why SMPLWISE itself ended it: `abandoned` = nobody asked for it for 20 s (a frozen tab, a sleeping laptop). */
+  reason: string | null;
   card: IntercomCaptureCard | null;
   started_at: string;
   elapsed_s: number;

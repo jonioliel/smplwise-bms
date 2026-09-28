@@ -22,14 +22,31 @@ import { t } from './wiskey-format';
 type Step = 'choose' | 'confirm' | 'session' | 'confirm_save' | 'start_unknown';
 type Busy = '' | 'readers' | 'start' | 'cancel' | 'save';
 
-/** WisKey's collection window (enrollment._collect, 70 s) and session TTL (SESSION_SECONDS, 120 s), for the countdown
- * shown before the first status arrives; afterwards the server's own remaining times are used. */
-const COLLECT_S = 70;
+/** How long the reader waits for a card: WisKey's collector request has a 30 s device deadline (client/capture.py;
+ * WisKey's own copy says "up to 30 seconds"). The 120 s session lifetime is separate; the server's own remaining
+ * times drive the countdowns once a status arrived. */
+const COLLECT_S = 30;
+const CANCEL_RETRY_MS = 1000;
 const POLL_ACTIVE_MS = 1000; // WisKey's panel: every 1000 ms while preparing / waiting
 const POLL_CAPTURED_MS = 3000; // a collected card waiting for approval: only its TTL runs (and the backend wants to know the dialog is still open)
 const POLL_RETRY_MS = 2000;
 const ACTIVE = new Set(['preparing', 'waiting', 'captured', 'applying']);
 const CANCELLABLE = new Set(['preparing', 'waiting', 'captured']);
+
+/** WisKey `clearCapture()`'s cancel, but awaited and tried once more (review round 1): a cancel that did not reach
+ * WisKey (a network blip, the capture slot busy) would otherwise leave the reader collecting until the backend's idle
+ * cancel. A session that is already over, or being approved, is not retried. Runs after the dialog is gone too. */
+async function cancelSession(sessionId: string): Promise<void> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      await cancelIntercomCardCapture(sessionId);
+      return;
+    } catch (err) {
+      if (err instanceof ApiError && ['intercom_capture_not_found', 'intercom_capture_over', 'intercom_capture_applying'].includes(err.code)) return;
+      if (attempt === 0) await new Promise((resolve) => window.setTimeout(resolve, CANCEL_RETRY_MS));
+    }
+  }
+}
 
 /** A WisKey error code in WisKey's own words when its i18n has them, else the backend's message. */
 function wiskeyText(err: unknown): string {
@@ -99,7 +116,7 @@ export class WiskeyCardCapture extends LitElement {
     window.clearTimeout(this.pollTimer);
     const c = this.capture;
     this.capture = null;
-    if (c && CANCELLABLE.has(c.state)) void cancelIntercomCardCapture(c.session_id).catch(() => {});
+    if (c && CANCELLABLE.has(c.state)) void cancelSession(c.session_id);
   }
 
   private setError(text: string, code = '', outcome: '' | 'not_sent' | 'refused' | 'unknown' = '') {
@@ -147,7 +164,7 @@ export class WiskeyCardCapture extends LitElement {
     try {
       const r = await startIntercomCardCapture(this.person.id, this.station, this.reader, this.person.revision ?? 0);
       if (epoch !== this.epoch) {
-        if (r.capture) void cancelIntercomCardCapture(r.capture.session_id).catch(() => {}); // the dialog was left meanwhile (WisKey does the same)
+        if (r.capture) void cancelSession(r.capture.session_id); // the dialog was left meanwhile (WisKey does the same)
         return;
       }
       this.show(r.capture);
@@ -372,9 +389,12 @@ export class WiskeyCardCapture extends LitElement {
   private stateText(c: IntercomCapture): string {
     switch (c.state) {
       case 'cancel_unknown':
-        return 'לא ידוע אם הביטול התקבל ב־WisKey.';
+        return c.reason === 'abandoned' ? `${t('capture_state_abandoned')} לא ידוע אם הביטול התקבל ב־WisKey.` : 'לא ידוע אם הביטול התקבל ב־WisKey.';
       case 'unconfirmed':
         return t('capture_state_unconfirmed');
+      case 'cancelled':
+      case 'lost':
+        return c.reason === 'abandoned' ? t('capture_state_abandoned') : t(`capture_state_${c.state}`);
       default:
         return t(`capture_state_${c.state}`);
     }

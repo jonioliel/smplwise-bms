@@ -207,7 +207,9 @@ physical grant even though it is not itself an actuation), sync/conflict resolut
 > context - a note asks to copy it by hand), and hides it again as soon as the administrator copies it, clicks
 > "הסתר", edits either PIN field, saves or closes the form; hidden, it is no longer in the DOM (it stays only in the two
 > password fields for the save). A stored PIN is never shown - WisKey never returns one - and the value is never
-> logged or audited. Evidence: `evidence-wiskey-editor.spec.ts` (a shadow-root walk over clear text).
+> logged or audited. Evidence: `evidence-wiskey-editor.spec.ts` (a shadow-root walk over clear text). A copied PIN
+> stays in the operating system's clipboard (and its clipboard history) until overwritten - outside SMPLWISE's reach;
+> stated in DOCS.md.
 
 **Phase 3 — physical actions, each individually approved before it is built.** Door release (`stations/
 test_unlock`, with a confirmation dialog WisKey itself lacks); door programs (`technical_program_save`/`_action`
@@ -279,7 +281,8 @@ answer/reject/hangup (`media/signal`); two-way audio/talk (`audio/*`); TTS (`tts
 > confirm); card capture no longer rides on `access.release` as §3 first wrote. (2) Like-for-like port of WisKey's flow
 > (access/enrollment.py, panel.ts:1432-1630): `cards/reader_capabilities` -> `cards/capture_start` -> status ->
 > `cards/capture_confirm` or `cards/capture_cancel`, WisKey's own names, payloads (`api_contract: 1` on all five, as
-> WisKey's panel sends them) and limits (70 s collection, 120 s session, one session per station, three in all).
+> WisKey's panel sends them) and limits (the reader's 30 s wait inside WisKey's 70 s collection bound, 120 s session,
+> one session per station, three in all).
 > WisKey never returns the collected number - its status carries `CapturedCard.public()` only (`•••• NNNN`) - so the
 > card cannot be "filled into a new-card row" of the draft and saved with the person: the admin approves the card in
 > the capture dialog (WisKey's `capture_confirm`, which stores it and requests the stations' sync), behind a
@@ -315,6 +318,15 @@ answer/reject/hangup (`media/signal`); two-way audio/talk (`audio/*`); TTS (`tts
 > ("physical collection still needs commissioning"); whether an already-enrolled card presented during collection also
 > opens the door; how long the reader stays in collection mode after a cancel / timeout (firmware); the add-on user's
 > WisKey `users:manage`. The first real use is the live test (owner decision 10) - recorded in DOCS.md.
+> Review round 1 (2026-09-28): (a) the capture poller pays its status reads from a bucket of its own (3 at 1/s; one
+> read per session every 2 s, every 3 s while more than one is followed - at most 1 read/s against WisKey) and never
+> from a user's or the lane's shared tokens, and a cancel spends no token at all, so polling can never get a cancel
+> (or another user's start) refused locally; the dialog's close-time cancel is awaited and retried once. (b) The
+> dialog's countdown is the reader's 30 s wait (WisKey's device request deadline, its own "up to 30 seconds" copy),
+> not the 70 s bound. (c) Disclosed: the session map is in memory - an SMPLWISE restart during a capture orphans
+> WisKey's session, the station stays busy up to 120 s and a new start there is refused `capture_station_busy` (safe;
+> in DOCS.md). (d) A session the backend cancelled because nobody asked for it (20 s) carries `reason: abandoned`, and
+> the dialog says why.
 
 **Phase 4 — parity completion (peripheral/admin screens).** Camera wall (S4), media/clock settings (S21/S22),
 operations center (S23), identity lifecycle report (S17), permission directory (S18), appearance picker (S25),
