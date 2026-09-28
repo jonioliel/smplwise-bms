@@ -2,7 +2,8 @@ import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
 import '../components/sw-button';
 import '../components/sw-chip';
-import { SceneView, type QualityLevel, type SceneHit, type ScenePreset } from './scene-three';
+import { SceneView, renderControlImage, type QualityLevel, type SceneHit, type ScenePreset } from './scene-three';
+import { CONTROL_BACKDROP, CONTROL_H, CONTROL_W } from './skin-control';
 import { keepIsos, type SceneDescription, type ScenePart, type Vec3 } from './scene-builder';
 import { WEBGL_UNAVAILABLE_HE } from './webgl';
 import { productSettings } from '../api/prefs';
@@ -738,6 +739,14 @@ export class SwPlan3d extends LitElement {
   /** The view as a PNG data URL (the visual snapshots; phase 2's control image starts here). */
   capture(): string | null {
     return this.view?.capture() ?? null;
+  }
+
+  /** The control image of a floor skin (CR-006 2a): `desc` is a control description (skin-control.controlDescription)
+   * drawn at level 2, isometric, CONTROL_W x CONTROL_H at pixel ratio 1 by a separate off-screen view in this element's
+   * design tokens - the view on screen, its camera and its quality are untouched. PNG data URL, or null. */
+  captureControl(desc: SceneDescription): string | null {
+    const style = getComputedStyle(this);
+    return renderControlImage(desc, (token) => style.getPropertyValue(`--sw-${token}`).trim() || '#888888', CONTROL_W, CONTROL_H, CONTROL_BACKDROP);
   }
 
   async exportGltf(): Promise<Record<string, unknown>> {

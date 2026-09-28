@@ -364,4 +364,7 @@ def delete_floor(floor_id: str, request: Request, principal: Principal = Depends
         conn.execute("UPDATE map_anchors SET effective_to = ?, updated_at = ?, updated_by = ? WHERE floor_id = ? AND effective_to IS NULL", (now, now, principal.user_id, floor_id))
     conn.execute("UPDATE plan_versions SET status = 'archived', archived_at = ? WHERE floor_id = ? AND status != 'archived'", (now, floor_id))
     conn.execute("UPDATE floors SET deleted_at = ?, updated_at = ? WHERE id = ?", (now, now, floor_id))
-    audit(conn, actor=principal, action="floor.delete", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request), details={"anchors_tombstoned": anchors, "force": force})
+    from ..services.skins import store as skins_store
+
+    controls = skins_store.delete_floor(settings_of(request), conn, floor_id)  # CR-006 2a: the floor's control images go with it
+    audit(conn, actor=principal, action="floor.delete", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request), details={"anchors_tombstoned": anchors, "force": force, "skin_controls_deleted": controls})

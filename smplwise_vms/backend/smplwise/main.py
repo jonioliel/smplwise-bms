@@ -17,7 +17,7 @@ from . import __version__
 from .config import Settings, load_settings
 from .db import Database
 from .errors import ApiError, validation_payload
-from .routers import access, access_control, anchors, backup, cameras, cases, catalog, devices, events, exports, frames, ha, health, me, media, plan_catalog, plan_geometry, plans, playback, playback_groups, recordings, rules, search, settings as settings_router, storage, views, zones, nvr_write
+from .routers import access, access_control, anchors, backup, cameras, cases, catalog, devices, events, exports, frames, ha, health, me, media, plan_catalog, plan_geometry, plans, playback, playback_groups, recordings, rules, search, settings as settings_router, skins, storage, views, zones, nvr_write
 
 log = logging.getLogger("smplwise")
 
@@ -135,6 +135,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(access_control.router, prefix=api, tags=["access-control"])
     app.include_router(devices.router, prefix=api, tags=["devices"])
     app.include_router(zones.router, prefix=api, tags=["zones"])
+    app.include_router(skins.router, prefix=api, tags=["plans"])
     app.include_router(search.router, prefix=api, tags=["search"])
     app.include_router(backup.router, prefix=api, tags=["backup"])
     app.include_router(frames.router, prefix=api, tags=["recordings"])

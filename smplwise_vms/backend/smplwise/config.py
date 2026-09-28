@@ -33,6 +33,9 @@ class Settings:
     # another one gets a per-station override (wiskey_station_credentials table). Server-side only, like nvr_password.
     wiskey_user: str | None = None
     wiskey_password: str | None = None
+    # CR-006 phase 2 (AI-rendered floor skins): the OpenAI API key - an add-on option like the NVR password, server-side
+    # only, never stored in the database, never in logs, audit rows or error payloads (services/skins/provider.redact).
+    openai_api_key: str | None = None
     max_upload_bytes: int = 40 * 1024 * 1024
     max_pdf_pages: int = 20
     max_render_px: int = 3000
@@ -101,6 +104,7 @@ def load_settings(options_file: str | os.PathLike | None = None) -> Settings:
         go2rtc_password=_opt(options, "go2rtc_api_password", "GO2RTC_API_PASSWORD"),
         wiskey_user=_opt(options, "wiskey_username", "WISKEY_USER"),
         wiskey_password=_opt(options, "wiskey_password", "WISKEY_PASSWORD"),
+        openai_api_key=_opt(options, "openai_api_key", "OPENAI_API_KEY"),
         # Home Assistant Core API: the Supervisor injects SUPERVISOR_TOKEN when config.yaml sets homeassistant_api;
         # never taken from the options file (no user token is stored in options).
         ha_url=("http://supervisor/core" if os.environ.get("SUPERVISOR_TOKEN") else (os.environ.get("HA_URL") or None)),

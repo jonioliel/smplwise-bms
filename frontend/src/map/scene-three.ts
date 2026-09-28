@@ -37,6 +37,9 @@ export interface SceneViewOptions {
   /** After every drawn frame (the element lays out its DOM chips on the projected points). */
   onDraw?: () => void;
   quality?: QualityLevel;
+  /** A fixed device pixel ratio (the control image of a skin: exactly its size in pixels on every screen); default
+   * min(2, devicePixelRatio). */
+  pixelRatio?: number;
 }
 
 export const SMALL_PART_M = 0.6;
@@ -306,7 +309,7 @@ export class SceneView {
   constructor(private readonly opts: SceneViewOptions) {
     this.quality = opts.quality ?? 1;
     this.renderer = new WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    this.renderer.setPixelRatio(opts.pixelRatio ?? Math.min(2, window.devicePixelRatio || 1));
     this.renderer.outputColorSpace = SRGBColorSpace;
     this.renderer.shadowMap.type = PCFSoftShadowMap;
     this.outlineMaterial = new LineBasicMaterial({ color: new Color(opts.color('accent')), depthTest: false, transparent: true });
@@ -1211,5 +1214,44 @@ export class SceneView {
     this.renderer.dispose();
     this.renderer.forceContextLoss();
     canvas.remove();
+  }
+}
+
+/**
+ * The control image of a floor skin (CR-006 2a, skin-control.ts): the description drawn by a fresh level-2 view of a
+ * fixed size and pixel ratio 1 on an off-screen mount, the isometric preset framed on the description's own extent
+ * (a fixed camera matrix for a given geometry), the transparent canvas flattened on a fixed backdrop. A new view per
+ * call - nothing of the viewer's orbit, zoom, quality choice or fallback reaches the picture - disposed at once (its
+ * WebGL context released). Null when WebGL or the 2D copy fails.
+ */
+export function renderControlImage(desc: SceneDescription, color: (token: string) => string, width: number, height: number, backdrop: string): string | null {
+  const mount = document.createElement('div');
+  mount.setAttribute('aria-hidden', 'true');
+  mount.dataset.skinControl = '';
+  mount.style.cssText = `position:fixed;left:${-(width + 64)}px;top:0;width:${width}px;height:${height}px;overflow:hidden;pointer-events:none;`;
+  document.body.appendChild(mount);
+  let view: SceneView | null = null;
+  try {
+    view = new SceneView({ mount, color, onSelect: () => undefined, onHover: () => undefined, onFrame: () => undefined, quality: 2, pixelRatio: 1 });
+    view.setDescription(desc);
+    if (!view.setPreset('iso')) return null;
+    view.capture(); // renders the frame; the drawing buffer is read below in the same task
+    const src = view.renderer.domElement;
+    if (src.width !== width || src.height !== height) return null;
+    const out = document.createElement('canvas');
+    out.width = width;
+    out.height = height;
+    const ctx = out.getContext('2d');
+    if (!ctx) return null;
+    ctx.fillStyle = backdrop;
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(src, 0, 0);
+    return out.toDataURL('image/png');
+  } catch (err) {
+    console.warn('sw-plan-3d: control image failed', err);
+    return null;
+  } finally {
+    view?.dispose();
+    mount.remove();
   }
 }

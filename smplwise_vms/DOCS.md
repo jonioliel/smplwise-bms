@@ -27,6 +27,9 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
      go2rtc versions before 1.9.14 write a stream's source URL, including this account, to the go2rtc log each time
      SMPLWISE registers a station stream (after an add-on start, a go2rtc restart or a credential change). Use go2rtc
      1.9.14 or newer.
+   - `openai_api_key` (optional) — the OpenAI API key for AI-rendered floor skins (see "AI-rendered floor skins"
+     below). Stored only in the add-on options: never in the database, the logs, the audit log or an error message;
+     the settings screen shows only whether it is set. Leave it empty and nothing can be sent to OpenAI.
    - WisKey (the `hikvision_intercom` integration) is reached through the add-on's own Home Assistant user (the
      Long-Lived Access Token in `ha_token`). WisKey authorizes that user by its own areas: viewing the WisKey tab
      needs the `overview`, `users` and `events` areas at `view`; **editing people from SMPLWISE (the person editor,
@@ -212,6 +215,29 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   zone the pin sits in), "צפייה מלאה" for the full-screen view and "הקלטות" for playback. Escape closes
   the card and returns keyboard focus to the pin. Entity pins open the same card with the entity's
   state and the actions the user is allowed to run through the bridge.
+
+## AI-rendered floor skins (preview: the foundation only)
+
+A later version will ask an image provider (OpenAI, the owner's choice) to turn the product's own 3D picture of a floor
+into a photoreal one, once per floor, and keep the answer for reuse. This version has the groundwork only; no floor
+picture is sent anywhere yet.
+
+- **Key.** Set the add-on option `openai_api_key`. Without it nothing can be sent.
+- **What may leave the installation** (הגדרות › וידאו ומדיה › "סקינים מרונדרים (AI)" lists it word for word): the
+  product's schematic control image of the floor - an isometric render of walls, openings, floors, furniture and room
+  colour, **without any labels** - and, only when the sender chooses it for a particular send, the original plan image.
+  Never camera stills, people, labels, room or entity names, sensor states or Home Assistant data.
+- **Privacy acknowledgement.** Off by default. While it is off nothing is sent, not even the connection test.
+- **Budget.** "רינדורים לקומה" (default 4, per floor and structure version) and "רינדורים בחודש" (default 20, per
+  installation and calendar month, connection tests included). The card shows how many were used this month and a
+  rough cost estimate per floor render (an estimate, not a price list; the real charge is on the OpenAI account).
+- **"בדיקת חיבור לספק הרינדור"** (system administrators): with the key set and the acknowledgement on, sends ONE
+  synthetic 64x64 test pattern (colour bars and a checkerboard - not a plan) with a fixed prompt, and shows the
+  provider's answer (HTTP status, and the returned picture when there is one). It is recorded, audited and counted in
+  the monthly budget. Without the acknowledgement or the key it refuses with a message and sends nothing.
+- **"תמונות בקרה"** (the floor map's 3D view, map editors): captures the floor's two control images (every light off /
+  every light on) from the published structure, without labels, names, cameras or live states, and stores them in the
+  add-on's data folder only. Nothing is sent. They are deleted with the floor.
 
 ## Plan import: rotation and crop
 

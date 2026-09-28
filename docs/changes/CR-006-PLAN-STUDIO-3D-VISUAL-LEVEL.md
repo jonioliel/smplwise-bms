@@ -375,6 +375,90 @@ Built as specified in §4.1 item 4 (determinism and tests, the phone budget, the
   (the perf test with the new gates and the lever table).
 - Not in this tree: a 0.1.116 changelog entry (the 1b merge carried none; the release step writes it).
 
+## 7d. Implementation record - slice 2a (2026-09-28, branch `pilot/T087-plan-skins-2a`)
+
+The foundation of §4.2 items 1 and 3 plus the privacy / budget part of item 3; the render-set proposal, real sends,
+skin storage, the acceptance overlay (2b) and compositing (2c) are not built. **No floor picture is sent anywhere in
+2a**: the only request that can leave the installation is the owner's connection test with a synthetic pattern.
+
+- **Settings: a `skins.*` family, not the T063 `ai.*` keys** (decision recorded here). `ai.provider` / `ai.privacy_ack` /
+  `ai.budget_daily` belong to the search's analysis provider (event metadata; `external` is refused because none is
+  bundled). A skin sends a floor picture to an image provider - different data, a different consent, a different
+  budget unit - so reusing `ai.privacy_ack` would let one acknowledgement silently cover the other. New keys
+  (`routers/settings.py`): `skins.provider` (`openai` only), `skins.model` (default `gpt-image-1.5`, the official SDK's
+  default for edits), `skins.privacy_ack` (`false`), `skins.budget_renders_per_floor` (4, 0-6), `skins.budget_monthly`
+  (20, 0-500). All edited with `system.configure` and audited through `settings.update`.
+- **Key**: the add-on option `openai_api_key` (`config.yaml` options + schema `password?`, `config.Settings`,
+  env fallback `OPENAI_API_KEY`) - never in the DB, never logged, never in audit rows or error payloads;
+  `services/skins/provider.redact` strips the key, bearer tokens and `sk-…` shapes from every provider message
+  (the `go2rtc.redact_url` rule for free text). `GET /skins/status` says only `key_configured`.
+- **Provider interface** - `services/skins/provider.py`: `SkinProvider` (`render(control_png, prompt, options) ->
+  RenderResult` with bytes, provider, model, cost estimate, HTTP status, usage, request id; `estimate(options)`;
+  `capabilities()`), one implementation `OpenAIImageProvider`, errors as `SkinProviderError` (redacted message, the
+  provider's status and code). A test swaps the factory on `app.state.skin_provider_factory`; no test touches the
+  network (a fake provider and an `httpx.MockTransport`).
+- **The OpenAI request shape - verified** on 2026-09-28 against OpenAI's official material: the image-generation guide's
+  edit example (`POST https://api.openai.com/v1/images/edits`, `multipart/form-data`, `Authorization: Bearer`, fields
+  `model`, `image[]` as a file, `prompt`) and the official Python SDK's types (`image_edit_params.py`: `size`
+  `1024x1024|1536x1024|1024x1536|auto`, `quality`, `output_format`, `n`; `images_response.py`: `data[].b64_json`,
+  `usage.input_tokens / output_tokens / total_tokens`; `response_format` is for the DALL-E models only and is not
+  sent). The platform.openai.com API reference page itself answered 403 to the fetch; the guide and the SDK were
+  read instead. **Not verified**: per-image prices (the pricing page lists token prices only) - `estimate()` is a
+  labelled rough figure (`basis: estimate_unverified`, NEEDS_VERIFICATION in the code); the reply's token usage is
+  recorded as the fact. Sent by 2a: `model`, `prompt`, `size`, `quality`, `output_format=png`, `n=1`, `image[]`.
+- **Exactly what can leave** (shown word for word on the settings card, `routers/skins.LEAVES / NEVER_LEAVES`): our
+  schematic control image (level-2 isometric render: walls, openings, floor plates, furniture, room colour; no labels);
+  the original plan image only when the sender chooses it per send (2b's send dialog, §7.2 decision); the product's
+  fixed prompt. Never camera stills, people, labels / room / entity names, sensor states or HA data, addresses, site
+  names or ids. In 2a concretely: only the 64x64 test pattern and the fixed test prompt.
+- **Records and budget** - migration `0027_plan_skins.sql`: `plan_skin_renders` (floor, level, state key, provider,
+  model, prompt version, control-image hash, geometry key, `sent_plan_raster`, cost estimate, status, HTTP status,
+  error code, usage, image path, `test`, `accepted`, created_by/at - the shape 2b/2c reuse; 2a writes only `test = 1`
+  rows) and `plan_skin_controls`. The budget counts `status = 'ok'` rows: monthly per installation in the site's zone
+  (`time.zone`; tests count - they are paid requests), per floor and geometry key for real renders (a changed structure
+  is a new allowance; the monthly cap bounds the total). A provider error is recorded (when the provider answered) but
+  not counted. `services/skins/store.Budget` holds the arithmetic.
+- **Connection test** - `POST /skins/test` (`system.configure`), the settings button "בדיקת חיבור לספק הרינדור":
+  refused (409, audited `skins.test` denied, nothing sent) without the acknowledgement, then without the key, then
+  when the monthly budget is spent; otherwise the attempt is audited and committed before the send (`unlocked`), ONE
+  deterministic 64x64 pattern (colour bars over a checkerboard, no text chunk) goes with a fixed prompt at
+  `1024x1024` / `low`, a `plan_skin_renders` row flagged `test` is written and the outcome audited; the reply status is
+  shown, and the returned picture when there is one (not stored).
+- **Control image** - `frontend/src/map/skin-control.ts` (pure): `controlSceneInput` replaces every live value by a
+  synthetic state (`all_off`, or `all_on`: every room lit, every circuit and bound lamp on), blanks room and anchor
+  names, turns cameras and entities off; `controlDescription` keeps floor plates, rooms, walls with their parts, doors,
+  windows, objects, connectors (plus the lit plates and glows in `all_on`) and drops every sprite, label, chip, entity,
+  camera, cone, marker and presence tint whatever the input carried. `scene-three.renderControlImage` draws it with a
+  fresh level-2 `SceneView` on an off-screen mount at 1536x1024 (OpenAI's landscape edit size, so the answer shares
+  the pixel grid for 2c's masks), pixel ratio 1 (new `SceneViewOptions.pixelRatio`), the `iso` preset framed on the
+  description's extent (a fixed camera matrix per geometry), flattened on a fixed white backdrop, then disposed -
+  nothing of the viewer's orbit, quality, fallback or theme sky reaches it (the design tokens a/b do). `sw-plan-3d.
+  captureControl(desc)`; the floor map's 3D tool row shows "תמונות בקרה" to `map.edit` holders on an API floor: it
+  refuses unless the map shows the published structure, captures both states and uploads them.
+- **Upload** - `POST /floors/{id}/skins/control-image` (multipart `state`, `geometry_key`, `file`; `map.edit` on the
+  floor): the geometry key = SHA-256 of the published structure's `doc_hash` and the floor's rooms (id, level,
+  outline) - `GET /floors/{id}/skins` hands it out; a stale key is 409 `geometry_changed`, no published structure 409
+  `no_geometry`. PNG validated by bytes: signature, a chunk walk with CRCs, only critical and colour chunks (a
+  `tEXt`/`zTXt`/`iTXt`/`eXIf` chunk is refused - no label rides along as metadata), decodable, exactly 1536x1024,
+  8 MB cap. Stored as `<data>/skins/<floor>/control-<state>-<key16>.png` (one per floor and state; a new key replaces
+  the old image), never served by any route, deleted with the floor (`catalog.delete_floor`, counted in the
+  `floor.delete` audit). The response says whether the bytes equal the stored ones for the same key.
+- **Deviation / limits recorded**: the control image is drawn in the current design's tokens (a/b), so switching the
+  design changes the bytes; the anchors that position bound bodies come from the uploader's bundle (a camera the
+  uploader may not see is absent - an editor normally sees all). Skins in the project export/backup are 2c's.
+- **Tests**: `smplwise_vms/backend/tests/test_plan_skins.py` (16: settings defaults/validation/permission, the key
+  option and env fallback and config.yaml, status without the key, the test refused without ack/key/budget and
+  nothing sent, the test flow with a fake provider (one fixed pattern, the row, the two audit rows), provider errors
+  recorded-not-counted and redacted in the reply / audit / log, budget arithmetic and the month boundary in the site
+  zone, budget counting per month / floor / key, the upload's validation / permission / keying / key change / deletion
+  with the floor, no published structure, the OpenAI multipart shape and reply parsing on a mock transport, redaction,
+  the interface); `frontend/tests/unit-plan-skin-control.spec.ts` (node purity + browser capture: fixed size, opaque, no
+  text chunk, identical bytes on repeated calls and under another viewer quality/preset, different per state, labels
+  visible only without the filter, the view untouched; desktop + mobile); `frontend/tests/evidence-plan-skins.spec.ts`
+  (live, a throwaway backend without a key: the settings card and both refusals through the UI, the floor-map button
+  uploading both states and a second press reported identical). The 1c determinism, chunk and floor-map 3D specs re-run
+  green.
+
 ## 8. Next step
 
 Owner answers §7; then 1a is dispatched from this document with the same implementer → reviewer → fix-round loop

@@ -20,6 +20,7 @@ import { KIND_LABEL, TABLE_LABEL, backupDownloadUrl, createBackup, deleteBackup,
 import '../components/sw-dialog';
 import { STATUS_KIND, STATUS_LABEL, fmtUptime, healthReport, type HealthReport } from '../api/health';
 import { applyWiskeyUi, applyWiskeyHidden, type WiskeyScreen } from '../shell/nav';
+import { getSkinsStatus, runSkinsTest, type SkinsStatus, type SkinsTestResult } from '../api/skins';
 
 /** הגדרות › בקרות כניסה: the SMPLWISE WisKey screens that can show either WisKey's own panel or the screen built here. */
 const ACCESS_SCREENS: { screen: WiskeyScreen; label: string; href: string; detail: string }[] = [
@@ -65,6 +66,10 @@ export class SystemDiagnostics extends LitElement {
   @state() private backupBusy = false;
   @state() private backupNote = '';
   @state() private backupMsg = '';
+  @state() private skins: SkinsStatus | null = null;
+  @state() private skinsTest: SkinsTestResult | null = null;
+  @state() private skinsBusy = false;
+  @state() private skinsError = '';
   @state() private restoreTarget: BackupEntry | null = null;
   @state() private restoreMode: 'replace' | 'merge' = 'replace';
   @state() private restoreAccess = false;
@@ -312,6 +317,7 @@ export class SystemDiagnostics extends LitElement {
   }
 
   private async loadMedia() {
+    void this.loadSkins();
     if (!isApi() || !this.canEdit) return;
     try {
       const [s, sess] = await Promise.all([listStreams(), listSessions()]);
@@ -590,6 +596,7 @@ export class SystemDiagnostics extends LitElement {
         <div class="foot"><sw-button variant="primary" icon="check" ?disabled=${!dirty || this.busy || !api} @click=${() => this.save()}>שמור</sw-button>${this.message ? html`<span class="ok" style="align-self:center">${this.message}</span>` : nothing}${this.error ? html`<span class="err" style="align-self:center">${this.error}</span>` : nothing}</div>
         ${!api ? html`<div class="muted">נתוני הדגמה: ההגדרות נשמרות רק מול השרת.</div>` : nothing}
       </sw-card>
+      ${this.renderSkins()}
       <sw-card heading="go2rtc" subheading="זרמים של המוצר בשרת החיצוני (קריאה); זרמים זרים אינם מוצגים ואינם משתנים">
         ${!api || !this.canEdit
           ? html`<div class="muted">${api ? 'נדרשת הרשאת מנהל מערכת.' : 'נתוני הדגמה.'}</div>`
@@ -603,6 +610,73 @@ export class SystemDiagnostics extends LitElement {
           </sw-card>`
         : nothing}
     </div>`;
+  }
+
+  /** CR-006 phase 2 (slice 2a): AI-rendered floor skins - the provider, exactly what leaves the premises, the privacy
+   * acknowledgement, the budgets and the owner's connection test (one synthetic 64x64 pattern, never a plan). */
+  private renderSkins() {
+    const api = isApi();
+    const st = this.skins;
+    const keys = ['skins.model', 'skins.privacy_ack', 'skins.budget_renders_per_floor', 'skins.budget_monthly'] as const;
+    const dirty = keys.some((k) => k in this.draft);
+    const ack = String(this.value('skins.privacy_ack') ?? 'false') === 'true';
+    const t = this.skinsTest;
+    return html`<sw-card data-skins heading="סקינים מרונדרים (AI)" subheading="תמונה פוטוריאליסטית של קומה מספק רינדור חיצוני — נשלחת רק אחרי אישור, פעם אחת לקומה, ונשמרת לשימוש חוזר">
+      <div class="row"><span class="lbl">ספק ומודל<span class="muted">OpenAI (עריכת תמונה לפי תמונת בקרה). המודל ניתן לשינוי כשיוצא מודל חדש</span></span>
+        <sw-field class="ctl"><input type="text" data-ltr data-set-skins-model ?disabled=${!api || !this.canEdit} .value=${String(this.value('skins.model') ?? 'gpt-image-1.5')} @change=${(e: Event) => this.set('skins.model', (e.target as HTMLInputElement).value.trim())} /></sw-field></div>
+      <div class="row" data-skins-key><span class="lbl">מפתח API<span class="muted">נשמר רק באפשרויות ה־Add-on (openai_api_key), לא במסד הנתונים ולא ביומנים; המסך יודע רק אם הוגדר</span></span>
+        <sw-badge kind=${st?.key_configured ? 'live' : 'unknown'} label=${!st ? '—' : st.key_configured ? 'מוגדר' : 'לא מוגדר'}></sw-badge></div>
+      <div class="row" data-skins-leaves style="flex-direction:column;align-items:stretch"><span class="lbl">מה יוצא מהמתקן לספק כשנשלח רינדור</span>
+        <ul class="steps">${(st?.leaves ?? []).map((x) => html`<li>${x}</li>`)}</ul>
+        <span class="lbl">מה לעולם לא נשלח</span>
+        <ul class="steps">${(st?.never_leaves ?? []).map((x) => html`<li>${x}</li>`)}</ul></div>
+      <div class="row"><span class="lbl">אישור פרטיות<span class="muted">כל עוד לא אושר, שום דבר לא נשלח — גם לא בדיקת החיבור</span></span>
+        <sw-field class="ctl"><select data-set-skins-ack ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('skins.privacy_ack', (e.target as HTMLSelectElement).value as 'true' | 'false')}>
+          <option value="false" ?selected=${!ack}>לא אושר — לא נשלח דבר</option><option value="true" ?selected=${ack}>אושר — מותר לשלוח את המתואר למעלה</option>
+        </select></sw-field></div>
+      <div class="row"><span class="lbl">רינדורים לקומה<span class="muted">לכל קומה ולכל גרסת מבנה (ברירת מחדל 4)</span></span><sw-field class="ctl"><input type="number" min="0" max="6" data-ltr data-set-skins-per-floor ?disabled=${!api || !this.canEdit} .value=${String(this.value('skins.budget_renders_per_floor') ?? 4)} @change=${(e: Event) => this.set('skins.budget_renders_per_floor', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
+      <div class="row"><span class="lbl">רינדורים בחודש<span class="muted">${st ? `נוצלו החודש ${st.budget.used_month} מתוך ${st.budget.monthly_cap} (כולל בדיקות חיבור)` : 'לכל ההתקנה, לחודש קלנדרי'}</span></span><sw-field class="ctl"><input type="number" min="0" max="500" data-ltr data-set-skins-monthly ?disabled=${!api || !this.canEdit} .value=${String(this.value('skins.budget_monthly') ?? 20)} @change=${(e: Event) => this.set('skins.budget_monthly', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
+      ${st ? html`<div class="muted" data-skins-estimate>הערכת עלות לרינדור של קומה (${st.estimate.size}, ${st.estimate.quality}): כ־$${st.estimate.cost_estimate_usd} — הערכה בלבד, לא מחירון מאומת; העלות בפועל מופיעה בחשבון OpenAI.</div>` : nothing}
+      ${this.canEdit && api
+        ? html`<div class="foot">
+            <sw-button variant="primary" icon="check" data-save-skins ?disabled=${!dirty || this.busy} @click=${() => this.save().then(() => this.loadSkins())}>שמור</sw-button>
+            <sw-button icon="send" data-skins-test ?disabled=${this.skinsBusy || dirty} @click=${() => this.runSkinsTest()}>בדיקת חיבור לספק הרינדור</sw-button>
+            ${dirty ? html`<span class="muted" style="align-self:center">שמור קודם — הבדיקה משתמשת בהגדרות השמורות</span>` : nothing}
+          </div>
+          <div class="muted">הבדיקה שולחת תמונת ניסיון סינתטית אחת בגודל 64×64 (פסי צבע ולוח שחמט — לא תוכנית ולא תמונה מהמתקן) עם הנחיה קבועה, נרשמת ביומן, ונספרת בתקציב החודשי.</div>`
+        : nothing}
+      ${this.skinsBusy ? html`<div class="muted" data-skins-test-busy>שולח בקשת בדיקה…</div>` : nothing}
+      ${this.skinsError ? html`<div class="err" data-skins-test-error>${this.skinsError}</div>` : nothing}
+      ${t
+        ? html`<div class="row" data-skins-test-result data-ok=${t.ok ? 'true' : 'false'}><span class="lbl">${t.ok ? `הספק ענה: HTTP ${t.http_status}` : t.http_status ? `הספק סירב: HTTP ${t.http_status}` : 'הספק לא ענה'}<span class="muted">${t.model}${t.message ? ` · ${t.message}` : ''}${t.request_id ? ` · ${t.request_id}` : ''}${t.ok && !t.image ? ' · התשובה לא כללה תמונה' : ''}</span></span>
+            ${t.image ? html`<img data-skins-test-image src=${t.image} alt="תשובת הספק לבדיקה" style="inline-size:96px;block-size:96px;object-fit:cover;border-radius:6px;border:1px solid var(--sw-border)" />` : nothing}</div>`
+        : st?.last_test
+          ? html`<div class="muted" data-skins-last-test>בדיקה אחרונה: ${fmtTime(st.last_test.created_at)} · ${st.last_test.status === 'ok' ? 'הצליחה' : `נכשלה (${st.last_test.error_code ?? st.last_test.http_status ?? ''})`}</div>`
+          : nothing}
+    </sw-card>`;
+  }
+
+  private async loadSkins() {
+    if (!isApi()) return;
+    try {
+      this.skins = await getSkinsStatus();
+    } catch {
+      this.skins = null;
+    }
+  }
+
+  private async runSkinsTest() {
+    this.skinsBusy = true;
+    this.skinsError = '';
+    this.skinsTest = null;
+    try {
+      this.skinsTest = await runSkinsTest();
+    } catch (err) {
+      this.skinsError = describeError(err);
+    } finally {
+      this.skinsBusy = false;
+      void this.loadSkins();
+    }
   }
 
   /** הגדרות › בקרות כניסה (CR-005 recorded decision 2026-09-28, embedded panel): per screen, WisKey's own Home Assistant

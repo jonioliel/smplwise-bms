@@ -50,6 +50,15 @@ DEFAULTS: dict[str, str] = {
     "ai.provider": "local",  # none | local | external
     "ai.privacy_ack": "false",
     "ai.budget_daily": "0",
+    # CR-006 phase 2 (AI-rendered floor skins, slice 2a): a family of its own, not the ai.* keys above - those are the
+    # search's analysis provider (event metadata, none bundled); a skin sends a floor picture to an image provider, a
+    # different piece of data and a different consent. Nothing is sent while skins.privacy_ack is false; the API key is
+    # the add-on option openai_api_key (never a setting). Budgets count successful renders (routers/skins.py).
+    "skins.provider": "openai",  # the one implementation today (owner decision 2026-09-28, CR-006 7.1 a)
+    "skins.model": "gpt-image-1.5",  # the OpenAI image model for edits (the official SDK's default)
+    "skins.privacy_ack": "false",
+    "skins.budget_renders_per_floor": "4",  # per floor and structure (CR-006 7.3: 2 by default, up to 4)
+    "skins.budget_monthly": "20",  # per installation and calendar month; the connection test counts
     # CR-005 recorded decision 2026-09-28 (embedded panel): per SMPLWISE WisKey screen, which one the WisKey area shows -
     # "wiskey" = the owner's real WisKey Home Assistant panel embedded as-is (the default), "smplwise" = the screen built
     # here. The other WisKey screens (stations, sync, health, audit, management) are always embedded.
@@ -62,7 +71,7 @@ DEFAULTS: dict[str, str] = {
     "ui.hide_wiskey": "false",
 }
 
-INT_KEYS = ("media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "ai.budget_daily")
+INT_KEYS = ("media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly")
 
 
 def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
@@ -101,6 +110,11 @@ class SettingsPatch(BaseModel):
     ai_provider: str | None = Field(default=None, pattern="^(none|local|external)$", alias="ai.provider")
     ai_privacy_ack: str | None = Field(default=None, pattern="^(true|false)$", alias="ai.privacy_ack")
     ai_budget_daily: int | None = Field(default=None, ge=0, le=100000, alias="ai.budget_daily")
+    skins_provider: str | None = Field(default=None, pattern="^(openai)$", alias="skins.provider")
+    skins_model: str | None = Field(default=None, pattern=r"^[a-z0-9][a-z0-9.\-]{1,63}$", alias="skins.model")
+    skins_privacy_ack: str | None = Field(default=None, pattern="^(true|false)$", alias="skins.privacy_ack")
+    skins_budget_renders_per_floor: int | None = Field(default=None, ge=0, le=6, alias="skins.budget_renders_per_floor")
+    skins_budget_monthly: int | None = Field(default=None, ge=0, le=500, alias="skins.budget_monthly")
     access_ui_overview: str | None = Field(default=None, pattern="^(wiskey|smplwise)$", alias="access.ui.overview")
     access_ui_events: str | None = Field(default=None, pattern="^(wiskey|smplwise)$", alias="access.ui.events")
     access_ui_people: str | None = Field(default=None, pattern="^(wiskey|smplwise)$", alias="access.ui.people")
