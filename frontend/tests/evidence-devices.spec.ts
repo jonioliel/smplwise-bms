@@ -544,7 +544,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     await page.unroute('**/api/v1/ha/actions/*');
   });
 
-  test('cover: open arms then confirms (sending the confirmation), Stop stays enabled while it moves (action route mocked)', async ({ page, request }) => {
+  test('cover: open arms then confirms (sending the confirmation), Stop stays enabled while it moves and supersedes the open (action route mocked)', async ({ page, request }) => {
     await seed(request);
     await open(page, '/devices/areas/cr007_lobby', 'a');
     const row = page.locator('devices-area .row[data-entity="cover.cr007_blind"]');
@@ -571,6 +571,14 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     await row.locator('sw-button[data-control="stop"]').click();
     await expect.poll(() => bodies.map((b) => b.allowed_action_id)).toEqual(['cover.open_cover', 'cover.stop_cover']);
     expect(bodies[1].confirmation_grant).toBeNull(); // stop needs no confirmation
+    // Stop supersedes the open still awaiting confirmation: the movement controls come back at once, the pending
+    // line is gone, and the open's own timeout (7 s for covers) never turns into a "not confirmed" note
+    await expect(row.locator('sw-button[data-control="open"]')).not.toHaveAttribute('disabled', '', { timeout: 1000 });
+    await expect(row.locator('sw-button[data-control="close"]')).not.toHaveAttribute('disabled', '');
+    await expect(row.locator('input[data-control="position"]')).toBeEnabled();
+    await expect(row.locator('[data-cmd-status="pending"]')).toHaveCount(0);
+    await page.waitForTimeout(8000);
+    await expect(row.locator('.rollback-note')).toHaveCount(0);
     // the row's text is still the reported fact (open, 70%) - never the target
     await expect(row.locator('.v')).toContainText('70%');
     await page.unroute('**/api/v1/ha/entities/*/actions');

@@ -16,7 +16,7 @@ import { canAnywhere, isApi } from '../api/session';
 import { ApiError, describeError } from '../api/client';
 import { stateLabel, subscribeHa, type HaSyncState } from '../api/ha';
 import { ALARM_HE, CARD_EMPTY, CARD_IDS, HVAC_ACTION_HE, HVAC_HE, getDevicesArea, type CardId, type DeviceAreaDetail, type DeviceCard, type DeviceRow } from '../api/devices';
-import { debouncedCommand, runCommand, type CommandState } from '../api/device-commands';
+import { debouncedCommand, runCommand, supersede, type CommandState } from '../api/device-commands';
 import { alarmTone, REFRESH_WINDOW_MS } from './devices-building';
 import { navigate } from '../router';
 import { bidi, ltrNum } from '../i18n/bidi';
@@ -523,7 +523,18 @@ export class DevicesArea extends LitElement {
       void runCommand(key, 'cover', entityId, actionId, args, target, (s) => this.setCmd(key, s), { confirmed: true, label });
     const doOpen = () => this.tapArmed(openKey, () => move(openKey, 'cover.open_cover', {}, 'open', 'פתיחה'));
     const doClose = () => this.tapArmed(closeKey, () => move(closeKey, 'cover.close_cover', {}, 'closed', 'סגירה'));
-    const doStop = () => void runCommand(stopKey, 'cover', entityId, 'cover.stop_cover', {}, 'stopped', (s) => this.setCmd(stopKey, s), { label: 'עצירה' });
+    const doStop = () => {
+      // Stop ends the movement: whatever open / close / position is still awaiting its confirmation is superseded at
+      // once (its late outcome is dropped, no "not confirmed in time" note follows) and the controls come back now
+      const next = { ...this.commands };
+      for (const k of [openKey, closeKey, posKey]) {
+        supersede(k);
+        delete next[k];
+        if (k in this.armed || k in this.drafts) this.disarm(k);
+      }
+      this.commands = next;
+      void runCommand(stopKey, 'cover', entityId, 'cover.stop_cover', {}, 'stopped', (s) => this.setCmd(stopKey, s), { label: 'עצירה' });
+    };
     const draft = this.drafts[posKey];
     const armedPos = this.isArmed(posKey) && draft !== undefined;
     const posValue = draft ?? this.live<number>(entityId, 'position') ?? r.position ?? 0;

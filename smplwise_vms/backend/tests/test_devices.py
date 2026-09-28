@@ -546,7 +546,7 @@ def test_attribute_confirmation_never_compares_the_state_to_the_argument(dev_app
     state("cover.lobby_blind", "open", current_position=39)
     got = poll(a["id"])
     assert got["status"] == "confirmed" and got["confirmation"] == "attribute" and got["observed_state"] == "current_position=39"
-    # fan: a 3-speed fan lands on 67 for 50 - within its own percentage_step; an unrelated state never confirms
+    # fan: a 3-speed fan asked for 50 runs at speed 2 (HA rounds up to the next step): 67 confirms, 100 does not
     state("fan.hall", "on", percentage=33, percentage_step=33.3333)
     f = run("fan.hall", "fan.set_percentage", {"percentage": 50}, "f1")
     state("fan.hall", "on", percentage=100, percentage_step=33.3333)
@@ -576,3 +576,27 @@ def test_attribute_confirmation_never_compares_the_state_to_the_argument(dev_app
     assert not ha_bridge.attribute_reached("media_player.volume_mute", {"is_volume_muted": True}, "on", {"is_volume_muted": 1})
     assert ha_bridge.attribute_reached("fan.set_percentage", {"percentage": 0}, "off", {})
     assert not ha_bridge.attribute_reached("cover.set_cover_position", {"position": 40}, "open", {"current_position": 43})
+
+
+def test_fan_speed_confirms_only_the_step_home_assistant_maps_the_request_to(dev_app, monkeypatch):
+    """Re-review nit: a full-step tolerance let a 3-speed fan (step 33.3) asked for 50 be "confirmed" at 33 as well as
+    at 67. HA maps a percentage UP to the next speed step, so only that step (66 or 67 - HA's own rounding) confirms;
+    a fan that stayed at 33 stays pending and times out honestly."""
+    three = {"percentage_step": 33.333333333333336}
+    reached = lambda pct, got: ha_bridge.attribute_reached("fan.set_percentage", {"percentage": pct}, "on", {**three, "percentage": got})  # noqa: E731
+    assert not reached(50, 33) and reached(50, 67) and reached(50, 66) and not reached(50, 100)
+    assert reached(34, 67) and not reached(34, 33) and reached(33, 33) and reached(100, 100) and reached(66, 67) and reached(67, 100)  # 67 > 66.7: HA runs speed 3
+    assert not reached(10, 0) and reached(10, 33)
+    # no step reported: the request itself, within a point
+    assert ha_bridge.attribute_reached("fan.set_percentage", {"percentage": 50}, "on", {"percentage": 50})
+    assert not ha_bridge.attribute_reached("fan.set_percentage", {"percentage": 50}, "on", {"percentage": 33})
+    # through the route: a fan that stays at 33 after a request for 50 is never confirmed by a later attribute push
+    app, s = dev_app
+    c = TestClient(app)
+    _pair(c, monkeypatch)
+    assert c.post("/api/v1/ha/dev/states", json={"states": [{"entity_id": "fan.hall", "state": "on", "attributes": {"percentage": 33, **three}}]}).status_code == 200
+    a = c.post("/api/v1/ha/entities/fan.hall/actions", json=_body(allowed_action_id="fan.set_percentage", arguments={"percentage": 50}, client_request_id="f33")).json()
+    assert c.post("/api/v1/ha/dev/states", json={"states": [{"entity_id": "fan.hall", "state": "on", "attributes": {"percentage": 33, **three, "friendly_name": "Hall fan"}}]}).status_code == 200
+    assert c.get(f"/api/v1/ha/actions/{a['id']}").json()["status"] == "pending"
+    assert c.post("/api/v1/ha/dev/states", json={"states": [{"entity_id": "fan.hall", "state": "on", "attributes": {"percentage": 66, **three}}]}).status_code == 200
+    assert c.get(f"/api/v1/ha/actions/{a['id']}").json()["status"] == "confirmed"

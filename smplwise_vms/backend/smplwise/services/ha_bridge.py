@@ -15,6 +15,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import math
 import secrets
 import sqlite3
 import time
@@ -269,9 +270,15 @@ def attribute_reached(action_id: str, arguments: dict[str, Any], state: str | No
     except (TypeError, ValueError):
         return False
     tol = ea["tolerance"]
-    if isinstance(tol, str):  # the device's own step (a 3-speed fan lands on 33/67/100, never on 50)
+    if isinstance(tol, str):
+        # the device's own step: Home Assistant maps a requested percentage UP to the next speed step (a 3-speed fan
+        # asked for 50 runs at speed 2 = 66/67, never at 33), so the confirmation expects exactly that step - within
+        # 1 point for HA's own rounding of 66.67 - and a fan that stayed on 33 is never taken for confirmed
         try:
-            tol = max(1.0, float(attrs.get(tol) or 1.0))
+            step = float(attrs.get(tol) or 0.0)
         except (TypeError, ValueError):
-            tol = 1.0
+            step = 0.0
+        if step > 1.0 and want > 0:
+            want = min(100.0, math.ceil(want / step - 1e-6) * step)
+        tol = 1.0
     return abs(got - want) <= float(tol) + 1e-9
