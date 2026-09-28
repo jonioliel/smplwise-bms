@@ -147,7 +147,9 @@ const LABEL_HEIGHT_M = 0.1;
 export const LIT_TINT_OPACITY = 0.45;
 export const PRESENCE_TINT_OPACITY = 0.36;
 export const PRESENCE_RING_OPACITY = 0.75;
-export const PRESENCE_RING_W_M = 0.18;
+/** The presence band inside the room's outline (slice 1c: ~0.3 m, the 1b review's nit); a room narrower than twice
+ * the band anywhere gets no ring at all (insetRing). */
+export const PRESENCE_RING_W_M = 0.3;
 const LIT_TINT_Y_M = 0.014;
 const PRESENCE_TINT_Y_M = 0.02;
 const PRESENCE_RING_Y_M = 0.026;
@@ -192,14 +194,38 @@ function turned(x: number, z: number, yawDeg: number): [number, number] {
   return [x * Math.cos(t) + z * Math.sin(t), -x * Math.sin(t) + z * Math.cos(t)];
 }
 
+/** Whether the closed polygon crosses itself (any two non-adjacent edges intersect). */
+function selfIntersects(poly: [number, number][]): boolean {
+  const n = poly.length;
+  const orient = (a: [number, number], b: [number, number], c: [number, number]): number => (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+  for (let i = 0; i < n; i++) {
+    const a = poly[i];
+    const b = poly[(i + 1) % n];
+    for (let j = i + 2; j < n; j++) {
+      if (i === 0 && j === n - 1) continue; // adjacent through the closing edge
+      const c = poly[j];
+      const d = poly[(j + 1) % n];
+      if (orient(a, b, c) * orient(a, b, d) < 0 && orient(c, d, a) * orient(c, d, b) < 0) return true;
+    }
+  }
+  return false;
+}
+
 /** The ring polygon of a band `w` inside a closed outline: the outline, then the inset outline the other way round,
  * joined at the first vertex (a keyhole: one simple polygon the prism triangulates). The inset moves every vertex
- * along the inward miter of its two edges, capped at 2.5 w on sharp corners. Deterministic; [] for a degenerate ring. */
+ * along the inward miter of its two edges, capped at 2.5 w on sharp corners. Deterministic; [] for a degenerate ring -
+ * and [] wherever the room is narrower than twice the band (a corridor, the arm of a concave room; slice 1c): there
+ * the inset outline would fold over itself (an edge reversed, an edge crossing another, the area gone), and a folded
+ * ring would draw a blue blot instead of an edge. */
 export function insetRing(poly: [number, number][], w: number): [number, number][] {
   const n = poly.length;
   if (n < 3 || !(w > 0)) return [];
-  let area = 0;
-  for (let i = 0; i < n; i++) area += poly[i][0] * poly[(i + 1) % n][1] - poly[(i + 1) % n][0] * poly[i][1];
+  const signedArea = (p: [number, number][]): number => {
+    let a = 0;
+    for (let i = 0; i < p.length; i++) a += p[i][0] * p[(i + 1) % p.length][1] - p[(i + 1) % p.length][0] * p[i][1];
+    return a;
+  };
+  const area = signedArea(poly);
   if (Math.abs(area) < 1e-9) return [];
   const sign = area > 0 ? 1 : -1;
   const normal = (a: [number, number], b: [number, number]): [number, number] => {
@@ -216,6 +242,17 @@ export function insetRing(poly: [number, number][], w: number): [number, number]
     const k = d > 1e-6 ? Math.min(w / d, 2.5 * w) : 2.5 * w;
     inner.push([poly[i][0] + (n1[0] + n2[0]) * k, poly[i][1] + (n1[1] + n2[1]) * k]);
   }
+  // the inset outline must still be a smaller copy of the room: every edge keeps its direction and some length, the
+  // area keeps its sign, and no edge crosses another - else the room is too narrow for the band somewhere
+  for (let i = 0; i < n; i++) {
+    const [ax, az] = poly[i];
+    const [bx, bz] = poly[(i + 1) % n];
+    const [ix, iz] = inner[i];
+    const [jx, jz] = inner[(i + 1) % n];
+    if ((bx - ax) * (jx - ix) + (bz - az) * (jz - iz) <= 1e-9 || Math.hypot(jx - ix, jz - iz) < 1e-6) return [];
+  }
+  const innerArea = signedArea(inner);
+  if (innerArea * sign <= 1e-9 || selfIntersects(inner)) return [];
   const ring: [number, number][] = [...poly, poly[0], inner[0]];
   for (let i = n - 1; i >= 1; i--) ring.push(inner[i]);
   ring.push(inner[0]);

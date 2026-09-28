@@ -103,10 +103,23 @@ test('the demo floor map: the toggle loads the chunk once, the key 3 switches, l
   expect(chunkRequests).toHaveLength(1);
   const all = Number(await el.getAttribute('data-parts'));
   expect(all).toBeGreaterThan(20);
-  // the layers of the 2D apply: objects off removes the chairs and lamps
-  await host.locator('.layers button[aria-label="עצמים"]').click();
+  // the layers of the 2D apply: objects off removes the chairs and lamps. The desktop tool row carries the layer
+  // buttons; the phone hides that row and offers the same layers in the "שכבות" panel (slice 1c: the spec follows the
+  // layout it runs in, the assertion is the same)
+  const toggleObjects = async () => {
+    const button = host.locator('.layers button[aria-label="עצמים"]');
+    if (await button.isVisible()) {
+      await button.click();
+      return;
+    }
+    await host.getByRole('button', { name: 'שכבות' }).click();
+    await host.locator('[data-layers-panel] sw-toggle[data-layer="objects"]').click();
+    await host.getByRole('button', { name: 'שכבות' }).click();
+    await expect(host.locator('[data-layers-panel]')).toHaveCount(0);
+  };
+  await toggleObjects();
   await expect.poll(async () => Number(await el.getAttribute('data-parts'))).toBeLessThan(all);
-  await host.locator('.layers button[aria-label="עצמים"]').click();
+  await toggleObjects();
   await expect.poll(async () => Number(await el.getAttribute('data-parts'))).toBe(all);
   // a click on a camera opens its card (a drawer: the 3D has no pin to anchor a popover to)
   const cam = await el.evaluate((node) => {
@@ -133,8 +146,9 @@ test('the demo floor map: the toggle loads the chunk once, the key 3 switches, l
   await page.keyboard.press('3');
   await expect(host.locator('sw-plan-3d[data-floor-3d]')).toHaveAttribute('data-ready', '', { timeout: 15000 });
   expect(chunkRequests).toHaveLength(1);
-  // a 3 typed into a field (the floor select of the tool row) is not a toggle: the 3D stays
-  await host.locator('.tools sw-field select').focus();
+  // a 3 typed into a field (the camera select of the 3D bar - a select on every layout; the phone has no floor select)
+  // is not a toggle: the 3D stays
+  await host.locator('sw-plan-3d[data-floor-3d] [data-preset-camera]').focus();
   await page.keyboard.press('3');
   await page.waitForTimeout(300);
   await expect(host.locator('sw-plan-3d[data-floor-3d]')).toHaveCount(1);

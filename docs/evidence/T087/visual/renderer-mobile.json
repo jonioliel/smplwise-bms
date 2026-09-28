@@ -1,0 +1,12 @@
+{
+  "vendor": "Google Inc. (Google)",
+  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "tolerance": {
+    "channel": 24,
+    "maxDiffRatio": 0.002
+  }
+}

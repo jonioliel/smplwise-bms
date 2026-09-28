@@ -53,7 +53,7 @@ test('the demo scene: counts by kind, instance groups and draw calls match the d
   const expected = buildScene(demoSceneInput('f0')!);
   const counts = (d: SceneDescription): Record<string, number> => d.parts.reduce<Record<string, number>>((a, p) => ({ ...a, [p.kind]: (a[p.kind] ?? 0) + 1 }), {});
   // 8 rooms: 8 closed walls cut by 8 doors (4 straight boxes each, the cut side in two), 8 lintels, 8 leaves; 8 lamps + 6 chairs;
-  // the demo cameras of f0 with their cones; the entities as sprites, the lobby light on (a glow)
+  // the demo cameras of f0 with their cones; the entities as DOM pills (slice 1c: no sprite in the scene), the lobby light on (a glow)
   expect(counts(expected)).toEqual({ floor: 1, wall: 40, lintel: 8, door: 8, object: 14, camera: 6, cone: 6, entity: 4, glow: 1 });
   const seen = await el.evaluate((n) => {
     const e = n as unknown as { description: SceneDescription; view: { scene: { traverse: (f: (o: Record<string, unknown>) => void) => void }; renderer: { info: { render: { calls: number } } } } };
@@ -78,7 +78,8 @@ test('the demo scene: counts by kind, instance groups and draw calls match the d
   expect(seen.parts).toBe(expected.parts.length);
   expect(seen.instanced).toBe(expected.stats.groups);
   expect(seen.instances).toBe(expected.stats.instanced);
-  expect(seen.sprites).toBe(counts(expected).entity);
+  expect(seen.sprites).toBe(0); // the entity pills are DOM labels, laid out on the projected points
+  await expect(el.locator('[data-3d-label]')).toHaveCount(counts(expected).entity);
   expect(seen.lit).toBe(1);
   expect(seen.calls).toBeGreaterThan(0);
   expect(seen.calls).toBeLessThanOrEqual(seen.instanced + seen.singles); // one call per instance group, never per part

@@ -151,6 +151,47 @@ test('the state layer in 3D: lit and presence prisms in the state tokens, the op
   expect(lines.length).toBe(2); // the room prism and its name - not the lit prism, not the DOM chip
 });
 
+test('entity pills are DOM labels (slice 1c): no sprite in the scene, the state token as the colour, placed by part id, a click selects the entity', async ({ page }) => {
+  test.setTimeout(120_000);
+  const el = await openDemo(page);
+  await setDescription(el, withStates);
+  await expect(el).toHaveAttribute('data-parts', String(withStates.parts.length));
+  const ents = withStates.parts.filter((p) => p.kind === 'entity');
+  expect(ents.length).toBeGreaterThan(2);
+  const mats = await materials(el);
+  expect(mats.some((m) => m.name.startsWith('ent:'))).toBe(false); // no sprite, no pickable object for an entity
+  await expect(el.locator('[data-3d-label]')).toHaveCount(ents.length);
+  for (const p of ents) {
+    const lbl = el.locator(`[data-3d-label="${p.userData.id}"]`);
+    await expect(lbl).toHaveText(p.text!);
+    await expect(lbl).toHaveAttribute('data-3d-part', p.id);
+    expect(await lbl.evaluate((n) => getComputedStyle(n).color)).toBe(await el.evaluate((n, t) => { const s = document.createElement('span'); s.style.color = getComputedStyle(n).getPropertyValue(`--sw-${t}`).trim(); n.shadowRoot!.appendChild(s); const c = getComputedStyle(s).color; s.remove(); return c; }, p.color));
+  }
+  // each pill sits on its own part's projected point (matched by id: reversing the description's part order moves nothing)
+  const first = ents[0];
+  const at = await el.evaluate((n, id) => { const e = n as unknown as { toScreen: (p: number[]) => { x: number; y: number } | null; description: SceneDescription }; return e.toScreen(e.description.parts.find((x) => x.id === id)!.position); }, first.id);
+  const lbl = el.locator(`[data-3d-label="${first.userData.id}"]`);
+  const box = (await lbl.boundingBox())!;
+  const host = (await el.boundingBox())!;
+  expect(Math.abs(box.x + box.width / 2 - host.x - at!.x)).toBeLessThan(3);
+  expect(Math.abs(box.y + box.height / 2 - host.y - at!.y)).toBeLessThan(3);
+  await setDescription(el, { ...withStates, parts: [...withStates.parts].reverse() });
+  await expect(el.locator('[data-3d-label]').first()).toHaveAttribute('data-3d-label', ents[ents.length - 1].userData.id);
+  const again = (await lbl.boundingBox())!;
+  expect(Math.abs(again.x - box.x)).toBeLessThan(2);
+  expect(Math.abs(again.y - box.y)).toBeLessThan(2);
+  // a click on the pill selects the entity as its sprite used to (part-select with the anchor id), and the pill shows it
+  await el.evaluate((n) => { (window as unknown as { __hits: unknown[] }).__hits = []; n.addEventListener('part-select', (e) => (window as unknown as { __hits: unknown[] }).__hits.push((e as CustomEvent).detail)); });
+  await lbl.click();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __hits: unknown[] }).__hits)).toEqual([{ id: first.userData.id, kind: 'entity' }]);
+  await el.evaluate((n, id) => { (n as unknown as { selectedId: string | null }).selectedId = id; }, first.userData.id);
+  await expect(lbl).toHaveAttribute('aria-pressed', 'true');
+  expect((await materials(el)).filter((m) => m.type === 'LineSegments')).toHaveLength(0); // nothing in the scene to outline: the pill carries the ring
+  // the description without its entities: the pills go
+  await setDescription(el, { ...withStates, parts: withStates.parts.filter((p) => p.kind !== 'entity') });
+  await expect(el.locator('[data-3d-label]')).toHaveCount(0);
+});
+
 test('the strip dots: presence (with the fade), open and lit over the cached thumbnail, no thumbnail redrawn; thumbnails come from a pass outside render, a failed one is never cached', async ({ page }) => {
   test.setTimeout(120_000);
   const el = await openDemo(page);

@@ -46,9 +46,16 @@ test('the demo floor map: no 3D scene in 2D, the canvas and its zoom survive a 3
     return { mark: c.__mark ?? null, zoom: c.zoom, tx: c.tx, ty: c.ty };
   });
   expect(after).toEqual({ mark: 'same', ...before });
-  // a pin's card is a popover at the pin in 2D; with the 3D on screen the same card is a drawer (no 2D pin position there)
+  // a pin's card is a popover at the pin in 2D; with the 3D on screen the same card is a drawer (no 2D pin position there).
+  // The pin is panned on screen first: the 1.6 x zoom above zooms about the viewport's centre, and on the 390 px phone
+  // that pushes the first camera (at 9 % of the plan width) past the left edge - a click on the sliver Playwright clips
+  // to the viewport lands beside the pin and its cone, on the room under them (slice 1c's finding, not a z-order bug)
+  await canvas.evaluate((n) => { const c = n as Canvas & { markers: { x: number; y: number }[]; centerOn: (x: number, y: number) => void }; c.centerOn(c.markers[0].x, c.markers[0].y); });
   await canvas.locator('g.marker').first().click();
-  await expect(host.locator('sw-popover')).toHaveCount(1);
+  // the card: a popover at the pin on a wide screen, a drawer on the phone (the screen's 767 px rule) - one card either way
+  const phone = (page.viewportSize()?.width ?? 1440) <= 767;
+  await expect(host.locator(phone ? 'sw-drawer[open]' : 'sw-popover')).toHaveCount(1);
+  await expect(host.locator(phone ? 'sw-popover' : 'sw-drawer[open]')).toHaveCount(0);
   await toggle.click();
   await expect(el).toHaveAttribute('data-ready', '', { timeout: 30000 });
   await expect(host.locator('sw-popover')).toHaveCount(0);

@@ -291,6 +291,83 @@ in 3D and a clipped inset edge band (3.5 px, 0.85 × fade) in 2D, the full blue 
 lit; the 2D open mark is 6 px with the door's swing wedge filled red and the dot at the leaf's tip, off the pin.
 Chunk after the round: `sw-plan-3d` 15.35 KB gzip, `three` unchanged.
 
+## 7c. Implementation record - slice 1c (2026-09-28, branch `pilot/T087-plan-visual-1c`)
+
+Built as specified in §4.1 item 4 (determinism and tests, the phone budget, the fallback) plus the nits carried from
+1a/1b. Facts and deviations recorded:
+
+- **Determinism as tests** - `frontend/tests/unit-plan-3d-determinism.spec.ts`. (1) Node: the builder is a pure
+  function - the same plan JSON, state snapshot and `now` bucket, each a fresh JSON copy, give the same description at
+  every level filter. (2) Browser: for both quality levels and the three overview presets the element realises the
+  live description (a lit room with a chip, a fading presence, an open door), then an equal description that is a
+  different object (a full realisation, never the tint shortcut), and the whole scene graph - object names, instance
+  matrices, transforms, materials with their colours, shadow flags, lights - is `toEqual`, and `capture()` gives the
+  same bytes after the rebuild. (3) Pixel baselines per (level, preset, project) under `docs/evidence/T087/visual/`
+  (the 1a evidence PNGs are now real baselines, desktop and mobile), compared in the page pixel by pixel: a pixel
+  differs when a channel moves by more than 24/255, at most 0.2 % of the pixels may (today: 0 of 259,200 desktop,
+  0 of 492,480 mobile). `renderer-<project>.json` records the WebGL renderer that drew them (headless Chromium:
+  SwiftShader); on another renderer the comparison is skipped and says so - the determinism tests still run. Regen:
+  `SW_UPDATE_VISUAL=1 npx playwright test tests/unit-plan-3d-determinism.spec.ts --project=desktop --project=mobile`
+  from `frontend/` after `npm run build`. The quality spec's visual test keeps its "same pixels twice, levels differ"
+  assertions and writes no files any more.
+- **Level-2 budget** - the live perf test now asserts level 2 ≥ 30 fps on the 3,000-chair floor and ≥ 45 fps at
+  390 px (the design's 30 fps phone floor with headroom, on the workstation's GPU) and ranks the four levers of §4.1.4
+  with `SceneView.benchFrames` (frames back to back with a one-pixel readback each: requestAnimationFrame is
+  vsync-capped, and the idle workstation reports 60 fps for every configuration - the 14-18 fps of the 1a round were
+  measured under 80-90 % CPU from other applications). Real Chrome, 3,000 chairs, level 2, ms per frame, three runs
+  (the absolute numbers move with the machine's load; the 1a configuration is "no object shadows"):
+
+  | configuration | 1440 px (run 1 / 2 / 3) | 390 px (run 1 / 2 / 3) |
+  |---|---|---|
+  | full (object shadows, standard objects, 2048 map, occlusion) | 27.95 / 20.13 / 19.72 | 17.23 / 18.00 / 17.68 |
+  | no object shadows (1a) | 28.75 / 19.39 / 18.25 | 14.21 / 14.16 / 14.52 |
+  | + Lambert objects | 20.00 / 12.47 / 12.83 | 10.58 / 9.35 / 10.53 |
+  | + 1024 shadow map (instead of Lambert) | 27.75 / 17.97 / 19.18 | 14.63 / 14.23 / 14.87 |
+  | + no occlusion (instead of Lambert) | 28.91 / 17.68 / 17.39 | 14.06 / 13.68 / 15.18 |
+  | Lambert + 1024 map | **19.15 / 9.34 / 10.72** | **10.16 / 7.85 / 8.04** |
+  | all four | 19.30 / 9.26 / 10.15 | 10.62 / 8.36 / 9.38 |
+
+  Decision: `HEAVY_CONFIG` = no object shadows + Lambert objects + the 1024 shadow map, the contact occlusion kept.
+  The Lambert objects take 30-35 % off a frame at 1440 px and 25-35 % at 390 px in every run (the per-fragment
+  standard shading of the chairs covering the view was the cost, as 1a suspected); the object shadows ~17 % at
+  390 px; the smaller map gains nothing on its own but 15-25 % more on top of Lambert in two runs of three (once the
+  shading is cheap the shadow pass is a visible share) - a heavy floor gets 2 cm shadow texels instead of 1 cm under
+  the PCF blur; the dropped occlusion stays inside the noise and would leave the chairs floating. Applied above
+  `HIDE_SMALL_ABOVE_PARTS` (3,000 parts) - the one heaviness threshold of the view, shared with the far-camera hiding
+  of small objects - deterministically for every device; the element's probe then measures that configuration
+  against `DEFAULT_MIN_FPS` (30, the design's floor), so a phone under it falls back to level 1 and never runs the
+  full configuration of a heavy floor. `SceneView.setHeavyConfig` exists for measurement only. Vsync-capped fps
+  before/after: 60/60 on every floor and width (the gates hold with the cap); uncapped cost before (1a) → after:
+  1440 px 28.75 → 19.15 ms (run 1), 19.39 → 9.34 (run 2), 18.25 → 10.72 (run 3); 390 px 14.21 → 10.16,
+  14.16 → 7.85, 14.52 → 8.04.
+- **Carried nits** - the presence ring is 0.3 m (`PRESENCE_RING_W_M`), and `insetRing` gives no ring at all where the
+  room is narrower than twice the band anywhere (a corridor, the arm of a concave room: an inset edge reversed or
+  emptied, a crossing, the area gone - the folded ring would draw a blot); the DOM labels of the element are matched
+  to their parts by `data-3d-part` id, never by DOM order, and derived in `willUpdate` from the description (no second
+  Lit update per description); the entity pills are DOM labels like the temperature chips (`data-3d-label`, the state
+  token as the colour, RTL, fixed pixel size, hidden behind the camera), a click on a pill selects the entity as its
+  sprite used to (`part-select`), the selected pill carries the accent ring (nothing in the scene to outline), and
+  `renderThumbnail`, the raycaster and the glTF no longer see a sprite for an entity - the description is unchanged
+  (`ent:` parts keep `shape: 'sprite'`; the element decides how to draw them, as with the chips).
+- **The two pre-existing mobile failures** (`unit-floor-map-3d:10`, `unit-plan-3d:86`) - the brief's hypothesis
+  (pointer-events / z-order of the room rect over the marker) was not the cause; both were the specs assuming the
+  desktop layout. (1) The 1.6 × zoom of the first spec zooms about the viewport's centre, and on the 390 px phone that
+  pushes the first camera (at 9 % of the plan width) past the left edge; Playwright clips the marker's box to the
+  viewport and clicks the visible sliver's centre, which lies beside the pin (off screen) and outside the 70° cone, on
+  the demo room rect under it - measured with a forced click at (12, 463): the pin at x = -42..-16. The spec now pans
+  the pin on screen first (`centerOn`, the user's pan) and expects the phone's card to be a drawer (the screen's 767 px
+  rule) rather than a popover. (2) The phone hides the tool row's layer buttons by design (`.tools .layers` is
+  `display: none` under 640 px) and offers the same layers in the "שכבות" panel; the spec toggles whichever control
+  the layout shows, and types its "3" into the 3D bar's camera select (a select on every layout) instead of the
+  desktop-only floor select. No product code changed for these; the assertions did not weaken.
+- **Chunk:** `three` unchanged (154.60 KB gzip); `sw-plan-3d` 15.35 → 16.06 KB gzip (the pills, the configuration, the
+  two measurement hooks).
+- **Tests:** `unit-plan-3d-determinism.spec.ts` (3 tests × desktop / mobile), the pills test in `unit-plan-3d-state`,
+  the narrow-room cases in `unit-room-state`, the view spec's sprite count moved to the DOM pills; all 3D/2D unit
+  specs green on desktop and mobile (110); the live `evidence-plan-studio-4` on a throwaway backend in real Chrome
+  (the perf test with the new gates and the lever table).
+- Not in this tree: a 0.1.116 changelog entry (the 1b merge carried none; the release step writes it).
+
 ## 8. Next step
 
 Owner answers §7; then 1a is dispatched from this document with the same implementer → reviewer → fix-round loop

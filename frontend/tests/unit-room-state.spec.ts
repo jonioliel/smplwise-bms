@@ -176,6 +176,16 @@ test('the scene builder: a lit room adds its warm prism, presence its blue prism
   expect(ring).toEqual([[0, 0], [4, 0], [4, 3], [0, 3], [0, 0], [0.5, 0.5], [0.5, 2.5], [3.5, 2.5], [3.5, 0.5], [0.5, 0.5]]);
   expect(insetRing([[0, 0], [4, 0], [4, 3], [0, 3]].reverse() as [number, number][], 0.5).map((p) => p.join())).toContain('3.5,2.5'); // the other winding insets inward too
   expect(insetRing([[0, 0], [1, 1]], 0.5)).toEqual([]);
+  // slice 1c: the band is ~0.3 m, and a room narrower than twice the band anywhere gets no ring - a corridor 0.5 m
+  // wide, an L whose arm is 0.4 m wide (the wide part alone would take the band), a room exactly 2 w wide (the inset
+  // edge has no length); the same L with a 1 m arm keeps its ring
+  expect(PRESENCE_RING_W_M).toBe(0.3);
+  expect(insetRing([[0, 0], [6, 0], [6, 0.5], [0, 0.5]], PRESENCE_RING_W_M)).toEqual([]);
+  const narrowArm: [number, number][] = [[0, 0], [4, 0], [4, 4], [3.6, 4], [3.6, 1], [0, 1]];
+  expect(insetRing(narrowArm, PRESENCE_RING_W_M)).toEqual([]);
+  expect(insetRing([[0, 0], [4, 0], [4, 0.6], [0, 0.6]], PRESENCE_RING_W_M)).toEqual([]);
+  const wideArm: [number, number][] = [[0, 0], [4, 0], [4, 4], [3, 4], [3, 1], [0, 1]];
+  expect(insetRing(wideArm, PRESENCE_RING_W_M).length).toBe(wideArm.length * 2 + 2);
   expect(layer.openOpenings).toEqual(['do0']);
   const plain = buildScene({ ...input, zones });
   const withStates = buildScene({ ...input, zones, roomStates: layer });
