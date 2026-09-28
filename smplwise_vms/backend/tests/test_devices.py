@@ -6,6 +6,7 @@ runs through the existing POST /ha/entities/{id}/actions (tests/test_ha.py, test
 route's confirmation/idempotency/audit behaviour - this file only proves devices.control reaches it)."""
 from __future__ import annotations
 
+import ast
 import json
 from dataclasses import replace
 from pathlib import Path
@@ -306,16 +307,52 @@ def test_dev_registry_endpoint_seeds_the_structure(settings):
 # ---------------------------------------------------------------- slice 2: devices.control
 
 
+def _pair(c, monkeypatch):
+    secret = c.get("/api/v1/ha/bridge/pairing").json()["pairing_code"]
+    c.post("/api/v1/ha/bridge/ping", json=ha_bridge.sign(secret, {"version": "0.2.4"}))
+    calls: list[dict] = []
+
+    def fake_execute(_settings, payload, timeout=15.0):
+        calls.append(payload)
+        ha_bridge.verify(secret, payload)
+        return {"ok": True, "context_id": "ctx"}
+
+    monkeypatch.setattr(ha_client, "call_bridge_execute", fake_execute)
+    return calls
+
+
+def _body(**kw):
+    return {"allowed_action_id": "switch.turn_on", "arguments": {}, "expected_state_version": None, "confirmation_grant": None, "client_request_id": "req", "expires_at": "2099-01-01T00:00:00Z", **kw}
+
+
+def _devices_control_only_role(c) -> str:
+    """A custom role holding devices.read + devices.control and nothing else: the "devices.control-only caller"."""
+    r = c.post("/api/v1/access/roles", json={"name": "שליטה בהתקנים בלבד", "permissions": ["devices.read", "devices.control"]})
+    assert r.status_code in (200, 201), r.text
+    return r.json()["id"]
+
+
+def _place(c, floor_id: str, entity_id: str, x: float = 0.2) -> None:
+    assert c.post(f"/api/v1/floors/{floor_id}/anchors", json={"resource_type": "ha_entity", "resource_id": entity_id, "x": x, "y": 0.2}).status_code == 201
+
+
+def _publish_plan(c, floor_id: str) -> None:
+    asset = c.post(f"/api/v1/floors/{floor_id}/plan-assets", files={"file": ("p.png", png_bytes(), "image/png")}).json()
+    v = c.post(f"/api/v1/floors/{floor_id}/plan-versions", json={"asset_id": asset["id"]}).json()
+    c.post(f"/api/v1/plan-versions/{v['id']}/publish")
+
+
 def test_devices_control_permission_registered():
-    """Registered like devices.read (T054/CR-007 s3), but for operator/editor/site_admin/system_admin only - a
-    plain viewer reads the area, never acts on it. Not sensitive: a role binding alone is enough, no extra grant."""
+    """Registered like devices.read (CR-007 s3), granted by default to operator, site_admin and system_admin only
+    (coordinator ruling on the slice-2 review, 2026-09-28: NOT editor - the recorded decision that editor holds no
+    control permission stands; not viewer, not kiosk). Not sensitive: a role binding alone is enough."""
     assert PERMISSION_LABELS["devices.control"]
-    for role in ("operator", "editor", "site_admin", "system_admin"):
-        assert "devices.control" in ROLES[role], role
-    assert "devices.control" not in ROLES["viewer"] and "devices.control" not in ROLES["kiosk"]
+    holders = {"operator", "site_admin", "system_admin"}
+    for role in ("viewer", "kiosk", "operator", "editor", "site_admin", "system_admin"):
+        assert ("devices.control" in ROLES[role]) == (role in holders), role
     contract = json.loads((ROOT / "contracts" / "examples" / "role-catalog.design.json").read_text(encoding="utf-8"))
     for role in contract["roles"]:
-        assert ("devices.control" in role["permissions"]) == (role["id"] != "viewer"), role["id"]
+        assert ("devices.control" in role["permissions"]) == (role["id"] in holders), role["id"]
     assert "devices.control" not in contract["sensitive_permissions_not_implied"]
 
 
@@ -326,118 +363,216 @@ def test_area_cards_carry_can_control(dev_app):
     a = c.get("/api/v1/devices/areas/lobby").json()
     rows = [r for card in a["cards"].values() for r in card["entities"]]
     assert rows and all(r["can_control"] is True for r in rows)
-    # a plain viewer (devices.read only, no devices.control anywhere) reads but never controls
+    # a plain viewer (devices.read only) and an editor (devices.read, no control of any kind) read but never control
     bind(c, s, "vi", "viewer", "installation", "*")
-    av = c.get("/api/v1/devices/areas/lobby", headers=as_user("vi")).json()
-    assert all(r["can_control"] is False for card in av["cards"].values() for r in card["entities"])
+    bind(c, s, "ed", "editor", "installation", "*")
+    for who in ("vi", "ed"):
+        av = c.get("/api/v1/devices/areas/lobby", headers=as_user(who)).json()
+        assert all(r["can_control"] is False for card in av["cards"].values() for r in card["entities"]), who
+    # a devices.control-only caller: the everyday domains yes, the lock / alarm panel never
+    role = _devices_control_only_role(c)
+    bind(c, s, "dc", role, "installation", "*")
+    ad = c.get("/api/v1/devices/areas/lobby", headers=as_user("dc")).json()
+    flags = {r["entity_id"]: r["can_control"] for card in ad["cards"].values() for r in card["entities"]}
+    assert flags["light.lobby"] and flags["switch.lobby_sign"] and flags["cover.lobby_blind"] and flags["climate.lobby"] and flags["media_player.lobby_tv"]
+    assert flags["lock.front"] is False and flags["alarm_control_panel.house"] is False
     # a floor-scoped operator (devices.control on one VMS floor) controls only the entity placed there
     ids = seed_tree(c)
-    asset = c.post(f"/api/v1/floors/{ids['floor2']}/plan-assets", files={"file": ("p.png", png_bytes(), "image/png")}).json()
-    v = c.post(f"/api/v1/floors/{ids['floor2']}/plan-versions", json={"asset_id": asset["id"]}).json()
-    c.post(f"/api/v1/plan-versions/{v['id']}/publish")
-    assert c.post(f"/api/v1/floors/{ids['floor2']}/anchors", json={"resource_type": "ha_entity", "resource_id": "light.office", "x": 0.2, "y": 0.2}).status_code == 201
+    _publish_plan(c, ids["floor2"])
+    _place(c, ids["floor2"], "light.office")
     bind(c, s, "op2", "operator", "floor", ids["floor2"])
     office = c.get("/api/v1/devices/areas/office", headers=as_user("op2")).json()
     light = next(r for r in office["cards"]["lighting"]["entities"] if r["entity_id"] == "light.office")
     assert light["can_control"] is True
-    # the lobby is on no VMS floor this operator holds devices.control on: read (installation-wide devices.read
-    # is not bound here either, so it 404s) - the point is can_control never leaks past the floor scope
-    bind(c, s, "op2", "viewer", "installation", "*")  # add installation-wide devices.read so the area itself loads
+    bind(c, s, "op2", "viewer", "installation", "*")  # add installation-wide devices.read so the lobby itself loads
     lobby = c.get("/api/v1/devices/areas/lobby", headers=as_user("op2")).json()
     assert all(r["can_control"] is False for card in lobby["cards"].values() for r in card["entities"])
 
 
 def test_single_entity_action_requires_devices_control(dev_app, monkeypatch):
-    """The shared POST /ha/entities/{id}/actions route (routers/ha.py) accepts devices.control as well as the
-    older ha.entity.control - either grant, at the entity's own floor scope - and every attempt is audited."""
+    """The shared POST /ha/entities/{id}/actions route (routers/ha.py) accepts devices.control as well as the older
+    ha.entity.control - either grant, at the entity's own floor scope - and every attempt is audited."""
     app, s = dev_app
     c = TestClient(app)
-    secret = c.get("/api/v1/ha/bridge/pairing").json()["pairing_code"]
-    c.post("/api/v1/ha/bridge/ping", json=ha_bridge.sign(secret, {"version": "0.1.0"}))
-    calls: list[dict] = []
-
-    def fake_execute(_settings, payload, timeout=15.0):
-        calls.append(payload)
-        ha_bridge.verify(secret, payload)
-        return {"ok": True, "context_id": "ctx"}
-
-    monkeypatch.setattr(ha_client, "call_bridge_execute", fake_execute)
-    body = lambda **kw: {"allowed_action_id": "switch.turn_on", "arguments": {}, "expected_state_version": None, "confirmation_grant": None, "client_request_id": "req", "expires_at": "2099-01-01T00:00:00Z", **kw}  # noqa: E731
-    # a viewer (devices.read only, no devices.control, no ha.entity.control) cannot act - 403, denied and audited
-    bind(c, s, "vi", "viewer", "installation", "*")
-    r = c.post("/api/v1/ha/entities/switch.lobby_sign/actions", json=body(client_request_id="r1"), headers=as_user("vi"))
-    assert r.status_code == 403 and not calls
-    with app.state.db.connection() as conn:
-        # the permission gate (rbac.require) audits under the permission name it checked, not "ha.action"
-        row = conn.execute("SELECT decision, reason FROM audit_log WHERE action = 'ha.entity.control' ORDER BY rowid DESC LIMIT 1").fetchone()
-    assert row["decision"] == "denied"
-    # editor holds devices.control installation-wide (CR-007 slice 2) though never ha.entity.control - now enough
-    bind(c, s, "ed", "editor", "installation", "*")
-    r = c.post("/api/v1/ha/entities/switch.lobby_sign/actions", json=body(client_request_id="r2"), headers=as_user("ed"))
+    calls = _pair(c, monkeypatch)
+    # a viewer and an editor (neither devices.control nor ha.entity.control) cannot act - 403, denied and audited
+    for i, (who, role) in enumerate((("vi", "viewer"), ("ed", "editor"))):
+        bind(c, s, who, role, "installation", "*")
+        r = c.post("/api/v1/ha/entities/switch.lobby_sign/actions", json=_body(client_request_id=f"d{i}"), headers=as_user(who))
+        assert r.status_code == 403 and not calls, who
+        with app.state.db.connection() as conn:
+            row = conn.execute("SELECT decision FROM audit_log WHERE action = 'ha.entity.control' ORDER BY rowid DESC LIMIT 1").fetchone()
+        assert row["decision"] == "denied", who
+    # a devices.control-only caller reaches the everyday domains
+    bind(c, s, "dc", _devices_control_only_role(c), "installation", "*")
+    r = c.post("/api/v1/ha/entities/switch.lobby_sign/actions", json=_body(client_request_id="r2"), headers=as_user("dc"))
     assert r.status_code == 202 and r.json()["status"] == "pending" and calls
     with app.state.db.connection() as conn:
-        row = conn.execute("SELECT decision, reason FROM audit_log WHERE action = 'ha.action' ORDER BY rowid DESC LIMIT 1").fetchone()
+        row = conn.execute("SELECT decision FROM audit_log WHERE action = 'ha.action' ORDER BY rowid DESC LIMIT 1").fetchone()
     assert row["decision"] == "allowed"
-    # floor-scoped devices.control: reaches only the entity placed on that same VMS floor
+    # floor-scoped devices.control (operator bound to floor2): only the entity placed on that same VMS floor
     ids = seed_tree(c)
-    asset = c.post(f"/api/v1/floors/{ids['floor2']}/plan-assets", files={"file": ("p.png", png_bytes(), "image/png")}).json()
-    v = c.post(f"/api/v1/floors/{ids['floor2']}/plan-versions", json={"asset_id": asset["id"]}).json()
-    c.post(f"/api/v1/plan-versions/{v['id']}/publish")
-    assert c.post(f"/api/v1/floors/{ids['floor2']}/anchors", json={"resource_type": "ha_entity", "resource_id": "light.office", "x": 0.2, "y": 0.2}).status_code == 201
-    bind(c, s, "ed2", "editor", "floor", ids["floor2"])
-    ok = c.post("/api/v1/ha/entities/light.office/actions", json=body(allowed_action_id="light.turn_on", client_request_id="r3"), headers=as_user("ed2"))
-    assert ok.status_code == 202
-    denied = c.post("/api/v1/ha/entities/switch.lobby_sign/actions", json=body(client_request_id="r4"), headers=as_user("ed2"))
-    assert denied.status_code == 403, "switch.lobby_sign is not placed on floor2: floor-scoped devices.control does not reach it"
-    with app.state.db.connection() as conn:
-        row = conn.execute("SELECT decision, reason FROM audit_log WHERE action = 'ha.entity.control' ORDER BY rowid DESC LIMIT 1").fetchone()
-    assert row["decision"] == "denied"
+    _publish_plan(c, ids["floor2"])
+    _place(c, ids["floor2"], "light.office")
+    bind(c, s, "op2", "operator", "floor", ids["floor2"])
+    assert c.post("/api/v1/ha/entities/light.office/actions", json=_body(allowed_action_id="light.turn_on", client_request_id="r3"), headers=as_user("op2")).status_code == 202
+    denied = c.post("/api/v1/ha/entities/switch.lobby_sign/actions", json=_body(client_request_id="r4"), headers=as_user("op2"))
+    assert denied.status_code == 403, "switch.lobby_sign is not placed on floor2: floor-scoped control does not reach it"
+
+
+def test_devices_control_never_reaches_locks_alarm_sirens_scripts_scenes_buttons(dev_app, monkeypatch):
+    """BLOCKER from the slice-2 review: devices.control must not widen into the risky domains. A caller who holds
+    only devices.control gets an audited 403 on lock / alarm / siren / script / scene / button - before the arguments,
+    the confirmation or the bridge are even looked at - while ha.entity.control keeps its old rights on them."""
+    app, s = dev_app
+    c = TestClient(app)
+    calls = _pair(c, monkeypatch)
+    bind(c, s, "dc", _devices_control_only_role(c), "installation", "*")
+    risky = [
+        ("lock.front", "lock.lock"),
+        ("alarm_control_panel.house", "alarm_control_panel.alarm_arm_away"),
+        ("siren.yard", "siren.turn_on"),
+        ("script.night", "script.turn_on"),
+        ("scene.evening", "scene.turn_on"),
+        ("button.doorbell", "button.press"),
+    ]
+    for i, (eid, aid) in enumerate(risky):
+        with app.state.db.connection() as conn:
+            before = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'ha.entity.control' AND decision = 'denied'").fetchone()[0]
+        r = c.post(f"/api/v1/ha/entities/{eid}/actions", json=_body(allowed_action_id=aid, confirmation_grant="confirmed", client_request_id=f"k{i}"), headers=as_user("dc"))
+        assert r.status_code == 403, (aid, r.status_code, r.text)
+        with app.state.db.connection() as conn:
+            after = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'ha.entity.control' AND decision = 'denied'").fetchone()[0]
+        assert after == before + 1, f"{aid}: the denial must be audited"
+    assert not calls, "nothing reached the bridge"
+    # ha.entity.control (the bootstrap system_admin) keeps its old rights on the same entities
+    r = c.post("/api/v1/ha/entities/lock.front/actions", json=_body(allowed_action_id="lock.lock", client_request_id="ok1"))
+    assert r.status_code == 202 and calls[-1]["service"] == "lock"
+    r = c.post("/api/v1/ha/entities/script.night/actions", json=_body(allowed_action_id="script.turn_on", confirmation_grant="confirmed", client_request_id="ok2"))
+    assert r.status_code == 202 and calls[-1]["domain"] == "script"
 
 
 def test_new_allow_list_actions_validate_and_have_expected_risk(dev_app, monkeypatch):
-    """The allow-list entries this slice adds for the devices-area cards: light.toggle, cover.set_cover_position,
-    climate.set_fan_mode / turn_off, fan.set_percentage, media_player.turn_on / turn_off / volume_mute /
-    media_play_pause - each validated (range / length / type) and none of them sensitive (locks and the alarm
-    panel keep their own separate grant, untouched by this slice)."""
+    """The allow-list entries this slice adds for the devices-area cards: cover.set_cover_position (attention, like
+    open/close - coordinator ruling), climate.set_fan_mode / turn_off, fan.set_percentage, media_player.turn_on /
+    turn_off / volume_mute - each validated (range / length / type). light.toggle and media_play_pause were dropped
+    in the review round (the cards use turn_on/turn_off and media_play/media_pause, which the state confirms)."""
     app, s = dev_app
     c = TestClient(app)
-    secret = c.get("/api/v1/ha/bridge/pairing").json()["pairing_code"]
-    c.post("/api/v1/ha/bridge/ping", json=ha_bridge.sign(secret, {"version": "0.1.0"}))
-    monkeypatch.setattr(ha_client, "call_bridge_execute", lambda _s, payload, timeout=15.0: (ha_bridge.verify(secret, payload), {"ok": True, "context_id": "ctx"})[1])
+    _pair(c, monkeypatch)
     body = lambda **kw: {"arguments": {}, "expected_state_version": None, "confirmation_grant": None, "expires_at": "2099-01-01T00:00:00Z", **kw}  # noqa: E731
-    # cover.set_cover_position: 0-100 only
-    assert c.post("/api/v1/ha/entities/cover.lobby_blind/actions", json=body(allowed_action_id="cover.set_cover_position", arguments={"position": 150}, client_request_id="p1")).status_code == 422
-    ok = c.post("/api/v1/ha/entities/cover.lobby_blind/actions", json=body(allowed_action_id="cover.set_cover_position", arguments={"position": 40}, client_request_id="p2"))
-    assert ok.status_code == 202 and ok.json()["status"] == "pending"
-    # climate.set_fan_mode: bounded string
+    # cover.set_cover_position: 0-100 only, and a movement needs the explicit confirmation like open/close
+    assert c.post("/api/v1/ha/entities/cover.lobby_blind/actions", json=body(allowed_action_id="cover.set_cover_position", arguments={"position": 150}, confirmation_grant="confirmed", client_request_id="p1")).status_code == 422
+    r = c.post("/api/v1/ha/entities/cover.lobby_blind/actions", json=body(allowed_action_id="cover.set_cover_position", arguments={"position": 40}, client_request_id="p2a"))
+    assert r.status_code == 409 and r.json()["code"] == "confirmation_required"
+    ok = c.post("/api/v1/ha/entities/cover.lobby_blind/actions", json=body(allowed_action_id="cover.set_cover_position", arguments={"position": 40}, confirmation_grant="confirmed", client_request_id="p2"))
+    assert ok.status_code == 202 and ok.json()["status"] == "pending" and ok.json()["confirmation"] == "attribute" and ok.json()["expected_state"] == "current_position=40"
+    # climate.set_fan_mode: bounded string, confirmed from the fan_mode attribute
     assert c.post("/api/v1/ha/entities/climate.lobby/actions", json=body(allowed_action_id="climate.set_fan_mode", arguments={"fan_mode": "x" * 41}, client_request_id="p3")).status_code == 422
-    assert c.post("/api/v1/ha/entities/climate.lobby/actions", json=body(allowed_action_id="climate.set_fan_mode", arguments={"fan_mode": "auto"}, client_request_id="p4")).status_code == 202
-    # climate.turn_off: no arguments needed
-    assert c.post("/api/v1/ha/entities/climate.lobby/actions", json=body(allowed_action_id="climate.turn_off", client_request_id="p5")).status_code == 202
-    # fan.set_percentage: no fan.* fixture entity here, but the domain check alone refuses a climate entity
+    r = c.post("/api/v1/ha/entities/climate.lobby/actions", json=body(allowed_action_id="climate.set_fan_mode", arguments={"fan_mode": "high"}, client_request_id="p4"))
+    assert r.status_code == 202 and r.json()["expected_state"] == "fan_mode=high"
+    # climate.turn_off: no arguments, the state confirms it
+    r = c.post("/api/v1/ha/entities/climate.lobby/actions", json=body(allowed_action_id="climate.turn_off", client_request_id="p5"))
+    assert r.status_code == 202 and r.json()["confirmation"] == "state"
     assert c.post("/api/v1/ha/entities/climate.lobby/actions", json=body(allowed_action_id="fan.set_percentage", arguments={"percentage": 50}, client_request_id="p6")).status_code == 422
-    # media_player.volume_mute: boolean only, not the string "true"
+    # media_player.volume_mute: boolean only; the TV fixture reports no is_volume_muted, so it is honestly "none"
     assert c.post("/api/v1/ha/entities/media_player.lobby_tv/actions", json=body(allowed_action_id="media_player.volume_mute", arguments={"is_volume_muted": "yes"}, client_request_id="p7")).status_code == 422
-    ok2 = c.post("/api/v1/ha/entities/media_player.lobby_tv/actions", json=body(allowed_action_id="media_player.volume_mute", arguments={"is_volume_muted": True}, client_request_id="p8"))
-    assert ok2.status_code == 202
-    # media_player.media_play_pause and turn_on/turn_off: no arguments
-    assert c.post("/api/v1/ha/entities/media_player.lobby_tv/actions", json=body(allowed_action_id="media_player.media_play_pause", client_request_id="p9")).status_code == 202
+    r = c.post("/api/v1/ha/entities/media_player.lobby_tv/actions", json=body(allowed_action_id="media_player.volume_mute", arguments={"is_volume_muted": True}, client_request_id="p8"))
+    assert r.status_code == 202 and r.json()["confirmation"] == "none" and r.json()["expected_state"] is None
     assert c.post("/api/v1/ha/entities/media_player.lobby_tv/actions", json=body(allowed_action_id="media_player.turn_off", client_request_id="p10")).status_code == 202
-    # light.toggle: domain mismatch on a switch entity is still refused
-    assert c.post("/api/v1/ha/entities/switch.lobby_sign/actions", json=body(allowed_action_id="light.toggle", client_request_id="p11")).status_code == 422
-    # the allow-list entries themselves: domain, service and risk class - none sensitive, none carrying a grant
+    assert "light.toggle" not in ha_bridge.ACTIONS and "media_player.media_play_pause" not in ha_bridge.ACTIONS
     new_ids = {
-        "light.toggle": ("light", "toggle"),
-        "cover.set_cover_position": ("cover", "set_cover_position"),
-        "climate.set_fan_mode": ("climate", "set_fan_mode"),
-        "climate.turn_off": ("climate", "turn_off"),
-        "fan.set_percentage": ("fan", "set_percentage"),
-        "media_player.turn_on": ("media_player", "turn_on"),
-        "media_player.turn_off": ("media_player", "turn_off"),
-        "media_player.volume_mute": ("media_player", "volume_mute"),
-        "media_player.media_play_pause": ("media_player", "media_play_pause"),
+        "cover.set_cover_position": ("cover", "set_cover_position", "attention"),
+        "climate.set_fan_mode": ("climate", "set_fan_mode", "routine"),
+        "climate.turn_off": ("climate", "turn_off", "routine"),
+        "fan.set_percentage": ("fan", "set_percentage", "routine"),
+        "media_player.turn_on": ("media_player", "turn_on", "routine"),
+        "media_player.turn_off": ("media_player", "turn_off", "routine"),
+        "media_player.volume_mute": ("media_player", "volume_mute", "routine"),
     }
-    for aid, (domain, service) in new_ids.items():
+    for aid, (domain, service, risk) in new_ids.items():
         spec = ha_bridge.ACTIONS[aid]
-        assert (spec["domain"], spec["service"]) == (domain, service), aid
-        assert spec["risk"] == "routine" and spec["sensitive"] is False and not spec.get("grant"), aid
+        assert (spec["domain"], spec["service"], spec["risk"]) == (domain, service, risk), aid
+        assert not spec.get("grant"), aid
+    # same risk for every control that moves a cover
+    assert {ha_bridge.ACTIONS[a]["risk"] for a in ("cover.open_cover", "cover.close_cover", "cover.set_cover_position")} == {"attention"}
+
+
+def _bridge_allowed_services(path: Path) -> set[tuple[str, str]]:
+    """ALLOWED_SERVICES from the bridge integration's source, read with ast (Home Assistant is not importable here)."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "ALLOWED_SERVICES" for t in node.targets):
+            return set(ast.literal_eval(node.value))
+    raise AssertionError(f"ALLOWED_SERVICES not found in {path}")
+
+
+def test_every_allow_listed_action_is_allowed_by_the_bridge():
+    """BLOCKER from the slice-2 review: the add-on's allow-list grew and the HA-side bridge's did not, so every new
+    action answered service_not_allowed on a real Home Assistant. This drift is now caught here: each action in
+    services/ha_bridge.ACTIONS has its (domain, service) in the bridge's ALLOWED_SERVICES - in both copies."""
+    want = {(a["domain"], a["service"]) for a in ha_bridge.ACTIONS.values()}
+    for copy in (ROOT / "custom_components" / "smplwise_bridge", ROOT / "smplwise_vms" / "integration" / "smplwise_bridge"):
+        have = _bridge_allowed_services(copy / "__init__.py")
+        assert not want - have, f"{copy}: missing in the bridge allow-list: {sorted(want - have)}"
+    manifest = json.loads((ROOT / "custom_components" / "smplwise_bridge" / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["version"] == "0.2.4", "a new bridge allow-list ships as a new bridge version (HA must restart to load it)"
+
+
+def test_attribute_confirmation_never_compares_the_state_to_the_argument(dev_app, monkeypatch):
+    """BLOCKER from the slice-2 review: a cover's position, a fan's percentage and a climate fan mode were
+    "expected" as the entity's state ("40", "50", "auto") and so always failed. They are confirmed from the attribute
+    that reports them (within a tolerance), only after the request; nothing observable = "none", never confirmed."""
+    app, s = dev_app
+    c = TestClient(app)
+    _pair(c, monkeypatch)
+
+    def run(eid: str, aid: str, args: dict, rid: str) -> dict:
+        r = c.post(f"/api/v1/ha/entities/{eid}/actions", json=_body(allowed_action_id=aid, arguments=args, confirmation_grant="confirmed", client_request_id=rid))
+        assert r.status_code == 202, r.text
+        return r.json()
+
+    def poll(aid: str) -> dict:
+        return c.get(f"/api/v1/ha/actions/{aid}").json()
+
+    def state(eid: str, st: str, **attrs) -> None:
+        assert c.post("/api/v1/ha/dev/states", json={"states": [{"entity_id": eid, "state": st, "attributes": attrs}]}).status_code == 200
+
+    # cover: the state "open" alone (position still 70) is not the position asked for; 39 is within the tolerance
+    a = run("cover.lobby_blind", "cover.set_cover_position", {"position": 40}, "c1")
+    assert poll(a["id"])["status"] == "pending"
+    state("cover.lobby_blind", "open", current_position=70)
+    assert poll(a["id"])["status"] == "pending"
+    state("cover.lobby_blind", "open", current_position=39)
+    got = poll(a["id"])
+    assert got["status"] == "confirmed" and got["confirmation"] == "attribute" and got["observed_state"] == "current_position=39"
+    # fan: a 3-speed fan lands on 67 for 50 - within its own percentage_step; an unrelated state never confirms
+    state("fan.hall", "on", percentage=33, percentage_step=33.3333)
+    f = run("fan.hall", "fan.set_percentage", {"percentage": 50}, "f1")
+    state("fan.hall", "on", percentage=100, percentage_step=33.3333)
+    assert poll(f["id"])["status"] == "pending"
+    state("fan.hall", "on", percentage=67, percentage_step=33.3333)
+    assert poll(f["id"])["status"] == "confirmed"
+    # climate fan mode: the state stays "cool"; the fan_mode attribute is what confirms
+    m = run("climate.lobby", "climate.set_fan_mode", {"fan_mode": "high"}, "m1")
+    state("climate.lobby", "cool", fan_mode="auto", temperature=22)
+    assert poll(m["id"])["status"] == "pending"
+    state("climate.lobby", "cool", fan_mode="high", temperature=22)
+    assert poll(m["id"])["status"] == "confirmed"
+    # target temperature: confirmed from the `temperature` attribute...
+    t = run("climate.lobby", "climate.set_temperature", {"temperature": 23.5}, "t1")
+    assert t["confirmation"] == "attribute"
+    state("climate.lobby", "cool", fan_mode="high", temperature=23.5)
+    assert poll(t["id"])["status"] == "confirmed"
+    # ...and "none" when the entity reports no single target (heat_cool with a low/high range): sent, not confirmed
+    state("climate.lobby", "heat_cool", target_temp_low=20, target_temp_high=24)
+    t2 = run("climate.lobby", "climate.set_temperature", {"temperature": 21}, "t2")
+    assert t2["confirmation"] == "none" and t2["expected_state"] is None
+    # stop has nothing observable either
+    st = run("cover.lobby_blind", "cover.stop_cover", {}, "s1")
+    assert st["confirmation"] == "none"
+    # pure helper: exact matches for strings and booleans, tolerance for numbers, 0 = off/closed without the attribute
+    assert ha_bridge.attribute_reached("media_player.volume_mute", {"is_volume_muted": True}, "on", {"is_volume_muted": True})
+    assert not ha_bridge.attribute_reached("media_player.volume_mute", {"is_volume_muted": True}, "on", {"is_volume_muted": 1})
+    assert ha_bridge.attribute_reached("fan.set_percentage", {"percentage": 0}, "off", {})
+    assert not ha_bridge.attribute_reached("cover.set_cover_position", {"position": 40}, "open", {"current_position": 43})

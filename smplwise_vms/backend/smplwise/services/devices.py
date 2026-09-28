@@ -70,6 +70,14 @@ def _num(v: Any) -> float | None:
         return None
 
 
+def _str_list(v: Any, limit: int = 20) -> list[str] | None:
+    """A short list of short strings (an entity's own hvac_modes / fan_modes), or None when HA reports none."""
+    if not isinstance(v, list):
+        return None
+    out = [x for x in v if isinstance(x, str) and 0 < len(x) <= 40][:limit]
+    return out or None
+
+
 def _pct(v: Any, scale: float = 1.0) -> int | None:
     n = _num(v)
     return None if n is None else max(0, min(100, round(n * scale)))
@@ -263,6 +271,12 @@ def card_row(e: dict[str, Any], can_control: bool) -> dict[str, Any]:
             row["fan_mode"] = a.get("fan_mode") if isinstance(a.get("fan_mode"), str) else None
             row["preset_mode"] = a.get("preset_mode") if isinstance(a.get("preset_mode"), str) else None
             row["unit"] = e.get("unit") or "°C"
+            # CR-007 slice 2: the controls offer only what this entity reports (its own modes, its own target range)
+            row["hvac_modes"] = _str_list(a.get("hvac_modes"))
+            row["fan_modes"] = _str_list(a.get("fan_modes"))
+            row["min_temp"] = _num(a.get("min_temp"))
+            row["max_temp"] = _num(a.get("max_temp"))
+            row["target_temp_step"] = _num(a.get("target_temp_step"))
         else:  # fan / humidifier
             row["percentage"] = _pct(a.get("percentage"))
             row["current_humidity"] = _num(a.get("current_humidity"))

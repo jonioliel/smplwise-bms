@@ -42,7 +42,7 @@ def test_snapshot_registry_and_catalogue(ha_app):
     assert ids == ["light.lobby", "lock.front", "sensor.temp"], ids  # update.* skipped
     light = next(e for e in r["entities"] if e["entity_id"] == "light.lobby")
     assert light["name"] == "Lobby light" and light["state"] == "off" and "secret_token" not in light["attributes"] and light["attributes"]["supported_features"] == 44
-    assert [a["id"] for a in light["actions"]] == ["light.turn_on", "light.turn_off", "light.toggle"] and light["fresh"] is True
+    assert [a["id"] for a in light["actions"]] == ["light.turn_on", "light.turn_off"] and light["fresh"] is True
     assert r["domains"] == {"light": 1, "lock": 1, "sensor": 1}
     # registry names/areas win over friendly names; disabled entities are kept but hidden by default
     maps = ha_client.registry_maps(
@@ -92,25 +92,35 @@ def test_scope_placement_and_map_bundle(ha_app):
 
 def test_ws_scope_hides_entities_on_other_floors(ha_app):
     """The gap carried from slice 1 (CR-007 s5 slice 2 note): /ha/ws must honour the same floor scope as the
-    catalogue and the devices area. A floor-scoped viewer's socket must never forward a push about an entity placed
-    elsewhere (or not placed at all) - only about the one on their own floor."""
+    catalogue and the devices area. lock.front is placed on ANOTHER floor (floor3) than the viewer's (floor2): its push
+    is really broadcast (a wide observer on the same bus receives it) and still never reaches the floor-scoped socket,
+    which receives only the light placed on its own floor."""
     app, s = ha_app
     c = TestClient(app)
     ids = seed_tree(c)
-    asset = c.post(f"/api/v1/floors/{ids['floor2']}/plan-assets", files={"file": ("p.png", png_bytes(), "image/png")}).json()
-    v = c.post(f"/api/v1/floors/{ids['floor2']}/plan-versions", json={"asset_id": asset["id"]}).json()
-    c.post(f"/api/v1/plan-versions/{v['id']}/publish")
+    for fid in (ids["floor2"], ids["floor3"]):
+        asset = c.post(f"/api/v1/floors/{fid}/plan-assets", files={"file": ("p.png", png_bytes(), "image/png")}).json()
+        v = c.post(f"/api/v1/floors/{fid}/plan-versions", json={"asset_id": asset["id"]}).json()
+        c.post(f"/api/v1/plan-versions/{v['id']}/publish")
     assert c.post(f"/api/v1/floors/{ids['floor2']}/anchors", json={"resource_type": "ha_entity", "resource_id": "light.lobby", "x": 0.2, "y": 0.2}).status_code == 201
+    assert c.post(f"/api/v1/floors/{ids['floor3']}/anchors", json={"resource_type": "ha_entity", "resource_id": "lock.front", "x": 0.3, "y": 0.3}).status_code == 201
     bind(c, s, "ron", "viewer", "floor", ids["floor2"])
-    with c.websocket_connect("/api/v1/ha/ws", headers=as_user("ron")) as ws:
-        # lock.front is never placed on any floor: invisible to a floor-scoped viewer
-        r1 = c.post("/api/v1/ha/dev/states", json={"states": [{"entity_id": "lock.front", "state": "unlocked"}]})
-        assert r1.status_code == 200
-        # light.lobby is placed on the viewer's own floor: visible
-        r2 = c.post("/api/v1/ha/dev/states", json={"states": [{"entity_id": "light.lobby", "state": "on"}]})
-        assert r2.status_code == 200
-        msg = json.loads(ws.receive_text())
-        assert msg["type"] == "entity_state_changed" and msg["payload"]["entity"]["entity_id"] == "light.lobby", "the lock.front push (unplaced) must never reach a floor-scoped socket"
+    observer = ha_sync.subscribe()  # a wide listener on the same bus: proves the lock.front push was really published
+    try:
+        with c.websocket_connect("/api/v1/ha/ws", headers=as_user("ron")) as ws:
+            assert c.post("/api/v1/ha/dev/states", json={"states": [{"entity_id": "lock.front", "state": "unlocked"}]}).status_code == 200
+            assert c.post("/api/v1/ha/dev/states", json={"states": [{"entity_id": "light.lobby", "state": "on"}]}).status_code == 200
+            broadcast = [observer.get(timeout=2)["entity"]["entity_id"] for _ in range(2)]
+            assert broadcast == ["lock.front", "light.lobby"], broadcast
+            # the socket's entity pushes, in order: lock.front was published first, so if it leaked it would come first
+            while True:
+                msg = json.loads(ws.receive_text())
+                if msg["type"] != "entity_state_changed":
+                    continue  # a heartbeat
+                assert msg["payload"]["entity"]["entity_id"] == "light.lobby", "lock.front (placed on floor3) reached a floor2-scoped socket"
+                break
+    finally:
+        ha_sync.unsubscribe(observer)
 
 
 def test_bridge_signing_and_directory(ha_app):

@@ -151,6 +151,10 @@ def _action_row(conn: sqlite3.Connection, action_id: str) -> dict[str, Any]:
         raise ApiError(404, "not_found", "הפעולה לא נמצאה.")
     d = dict(r)
     d["arguments"] = json.loads(d.pop("arguments_json") or "{}")
+    # CR-007 slice 2 review: how this record can be confirmed - "state", "attribute" or "none". A "none" record's
+    # `confirmed` status only means Home Assistant accepted the call; there is nothing to observe, and the UI says
+    # "sent", never "confirmed".
+    d["confirmation"] = ha_bridge.confirmation_kind(d["action_id"], d.get("expected_state"))
     return d
 
 
@@ -158,8 +162,10 @@ def _action_row(conn: sqlite3.Connection, action_id: str) -> dict[str, Any]:
 def run_action(entity_id: str, body: ActionBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     settings = settings_of(request)
     if not ha_scope.control_allowed(conn, principal, entity_id):
-        # devices.control (CR-007 slice 2) reaches this same route; ha.entity.control stays the audited reason
-        # when neither grant is held, so every caller that worked before this slice sees the same denial.
+        # devices.control (CR-007 slice 2) reaches this same route, but only for the everyday domains
+        # (ha_scope.DEVICES_CONTROL_DOMAINS: never a lock, the alarm panel, a siren, a script, a scene or a button).
+        # Anything else needs ha.entity.control, which stays the audited reason for the 403 - so a devices.control-only
+        # caller asking for lock.lock is denied and audited exactly like a caller holding no control at all.
         require(conn, principal, "ha.entity.control", INSTALLATION)
     e = _entity(conn, entity_id)
     if e["removed_at"] or e["disabled"]:
@@ -187,9 +193,12 @@ def run_action(entity_id: str, body: ActionBody, request: Request, principal: Pr
     secret = ha_bridge.signing_key(conn)
     paired = bool(secret) and bool(get_setting(conn, "bridge.paired_at"))
     aid, now = uuid.uuid4().hex[:12], now_iso()
+    # the arguments as validated (cleaned: a stripped option, a number) - the attribute confirmation compares to these
+    cleaned = {k: v for k, v in data.items() if k != "entity_id"}
     conn.execute(
         "INSERT INTO ha_actions(id, entity_id, action_id, arguments_json, principal_user_id, principal_username, client_request_id, status, requested_at, expected_state, via) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-        (aid, entity_id, body.allowed_action_id, json.dumps(body.arguments, ensure_ascii=False), principal.user_id, principal.username, body.client_request_id, "pending", now, spec["expect"], "bridge"),
+        (aid, entity_id, body.allowed_action_id, json.dumps(cleaned, ensure_ascii=False), principal.user_id, principal.username, body.client_request_id, "pending", now,
+         ha_bridge.expectation_for(spec, e.get("attributes")), "bridge"),
     )
     if not paired:
         conn.execute("UPDATE ha_actions SET status = 'failed', error = 'bridge_not_paired', responded_at = ? WHERE id = ?", (now_iso(), aid))
@@ -225,9 +234,27 @@ def get_action(action_id: str, request: Request, principal: Principal = Depends(
     if a["principal_user_id"] != principal.user_id and not authorize(conn, principal, "system.configure", INSTALLATION).allowed:
         raise ApiError(403, "forbidden", "הפעולה שייכת למשתמש אחר.")
     if a["status"] == "pending":
-        e = conn.execute("SELECT state, last_changed, state_seen_at FROM ha_entities WHERE entity_id = ?", (a["entity_id"],)).fetchone()
+        e = conn.execute("SELECT state, attributes_json, last_changed, last_updated, state_seen_at FROM ha_entities WHERE entity_id = ?", (a["entity_id"],)).fetchone()
         requested = parse_utc(a["requested_at"])
-        if e and a["expected_state"] and e["state"] == a["expected_state"] and e["last_changed"] and parse_utc(e["last_changed"].replace("+00:00", "Z")) >= requested - dt.timedelta(seconds=2):
+
+        def since_request(ts: str | None) -> bool:
+            return bool(ts) and parse_utc(ts.replace("+00:00", "Z")) >= requested - dt.timedelta(seconds=2)
+
+        if e and a["confirmation"] == "attribute":
+            # the attribute that reports the effect (current_position, percentage, temperature, fan_mode, mute),
+            # within its tolerance, reported after the request (last_updated: an attribute change moves it, the state's
+            # last_changed does not) - never the state compared to the argument
+            try:
+                attrs = json.loads(e["attributes_json"] or "{}")
+            except ValueError:
+                attrs = {}
+            spec_attr = (ha_bridge.ACTIONS.get(a["action_id"]) or {}).get("expect_attr") or {}
+            if since_request(e["last_updated"]) and ha_bridge.attribute_reached(a["action_id"], a["arguments"], e["state"], attrs):
+                observed = f"{spec_attr.get('attribute')}={attrs.get(spec_attr.get('attribute'))}"
+                conn.execute("UPDATE ha_actions SET status = 'confirmed', confirmed_at = ?, observed_state = ? WHERE id = ?", (now_iso(), observed, action_id))
+            elif (dt.datetime.now(dt.timezone.utc) - requested).total_seconds() > 20:
+                conn.execute("UPDATE ha_actions SET status = 'unknown', observed_state = ? WHERE id = ?", (e["state"], action_id))
+        elif e and a["expected_state"] and e["state"] == a["expected_state"] and since_request(e["last_changed"]):
             conn.execute("UPDATE ha_actions SET status = 'confirmed', confirmed_at = ?, observed_state = ? WHERE id = ?", (now_iso(), e["state"], action_id))
         elif e and not a["expected_state"]:
             conn.execute("UPDATE ha_actions SET status = 'confirmed', confirmed_at = ?, observed_state = ? WHERE id = ?", (now_iso(), e["state"], action_id))

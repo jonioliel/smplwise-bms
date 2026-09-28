@@ -46,7 +46,6 @@
         "map.read",
         "access.read",
         "devices.read",
-        "devices.control",
         "entity.state.read",
         "video.live",
         "map.import",

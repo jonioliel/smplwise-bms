@@ -12,11 +12,19 @@ from ..rbac import INSTALLATION, Principal, authorize, require
 Placements = dict[str, list[dict[str, str]]]
 
 # The two permissions that let a caller run a single-entity action (CR-007 slice 2): the older, broader
-# ha.entity.control (every screen that used it before this slice keeps working unchanged) and the new
-# devices.control (the devices area's own grant, held by roles - editor - that never had ha.entity.control).
-# Either one, at the entity's own floor scope, is enough; a sensitive action's extra grant (door.unlock,
-# alarm.disarm) is checked separately and is never implied by either.
+# ha.entity.control (every allow-listed action, every screen that used it before this slice keeps working unchanged)
+# and the new devices.control, which reaches ONLY the everyday domains of the devices area below - never a lock, the
+# alarm panel, a siren, a script, a scene or a button (coordinator ruling on the slice-2 review, 2026-09-28: those
+# stay behind ha.entity.control, and a sensitive action's extra grant - door.unlock, alarm.disarm - on top).
+# Either grant is checked at the entity's own floor scope.
 CONTROL_PERMISSIONS = ("ha.entity.control", "devices.control")
+DEVICES_CONTROL_DOMAINS = frozenset({"light", "switch", "input_boolean", "cover", "climate", "fan", "media_player"})
+
+
+def devices_control_reaches(entity_id: str) -> bool:
+    """Whether devices.control can ever cover `entity_id` (by its domain; validate_action already refuses an action
+    whose domain differs from the entity's, so the entity's domain is the action's domain)."""
+    return entity_id.split(".", 1)[0] in DEVICES_CONTROL_DOMAINS
 
 
 def visible_floors(conn: sqlite3.Connection, principal: Principal, permission: str) -> tuple[bool, set[str]]:
@@ -62,27 +70,27 @@ def entity_allowed(conn: sqlite3.Connection, principal: Principal, entity_id: st
 
 
 def control_allowed(conn: sqlite3.Connection, principal: Principal, entity_id: str) -> bool:
-    """Whether the caller may run a single-entity action on `entity_id`: either CONTROL_PERMISSIONS grant, at that
-    entity's own floor scope. Used by the shared /ha/entities/{id}/actions route (routers/ha.py) so the devices
-    area's devices.control and the older ha.entity.control both reach it, without one implying the other."""
-    return any(entity_allowed(conn, principal, entity_id, p) for p in CONTROL_PERMISSIONS)
+    """Whether the caller may run a single-entity action on `entity_id`: ha.entity.control at that entity's floor
+    scope (any allow-listed domain), or devices.control at that scope for the DEVICES_CONTROL_DOMAINS only. Used by
+    the shared /ha/entities/{id}/actions route (routers/ha.py); neither grant implies the other."""
+    if entity_allowed(conn, principal, entity_id, "ha.entity.control"):
+        return True
+    return devices_control_reaches(entity_id) and entity_allowed(conn, principal, entity_id, "devices.control")
 
 
 def control_checker(conn: sqlite3.Connection, principal: Principal) -> Callable[[str], bool]:
-    """A per-entity control predicate built once per request (the devices area's cards, one call per area instead
-    of one per row): wide when either grant is installation-wide, otherwise the union of both grants' floors."""
-    wide = False
-    floors: set[str] = set()
-    for permission in CONTROL_PERMISSIONS:
-        w, f = visible_floors(conn, principal, permission)
-        wide = wide or w
-        floors |= f
-    if wide:
-        return lambda _entity_id: True
-    if not floors:
-        return lambda _entity_id: False
-    placed = placements(conn)
-    return lambda entity_id: entity_visible(False, floors, placed, entity_id)
+    """control_allowed as a per-entity predicate built once per request (the devices area's cards: one scope lookup
+    per area instead of one per row)."""
+    ha_wide, ha_floors = visible_floors(conn, principal, "ha.entity.control")
+    dc_wide, dc_floors = visible_floors(conn, principal, "devices.control")
+    placed = placements(conn) if (ha_floors or dc_floors) and not ha_wide else {}
+
+    def check(entity_id: str) -> bool:
+        if entity_visible(ha_wide, ha_floors, placed, entity_id):
+            return True
+        return devices_control_reaches(entity_id) and entity_visible(dc_wide, dc_floors, placed, entity_id)
+
+    return check
 
 
 def scoped_rows(conn: sqlite3.Connection, principal: Principal, permission: str, rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], bool]:

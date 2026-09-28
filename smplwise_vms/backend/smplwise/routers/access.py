@@ -34,11 +34,13 @@ PERMISSION_LABELS: dict[str, str] = {
     # placed on those floors exactly as entity.state.read does in routers/ha.py. Control is a separate permission
     # (devices.control, slice 2) and is never implied by this one.
     "devices.read": "צפייה בחשמל והתקנים",
-    # devices.control (CR-007 slice 2): one-tap single-entity actions from the devices area - lights, switches,
-    # covers, climate, fans, media. Floor-scoped exactly like devices.read (the entity's own placement, not HA's
-    # floor). Granted like ha.entity.control's role spread (operator/editor/site_admin/system_admin, not viewer,
-    # not kiosk) but a separate permission: the devices-area action route accepts either grant. Locks and the
-    # alarm panel are never reached through it - those keep their own grants (door.unlock, alarm.disarm).
+    # devices.control (CR-007 slice 2): one-tap single-entity actions from the devices area, for the everyday domains
+    # only - light, switch, input_boolean, cover, climate, fan, media_player (services/ha_scope.DEVICES_CONTROL_DOMAINS).
+    # It never reaches a lock, the alarm panel, a siren, a script, a scene or a button: those stay behind
+    # ha.entity.control (plus door.unlock / alarm.disarm for the sensitive ones), enforced in routers/ha.py and tested.
+    # Floor-scoped exactly like devices.read (the entity's own placement, not HA's floor). Granted by default to
+    # operator, site_admin and system_admin - NOT to viewer / kiosk, and NOT to editor (coordinator ruling on the
+    # slice-2 review, 2026-09-28, keeping the recorded decision below that editor holds no control permission at all).
     "devices.control": "שליטה בהתקן בודד (חשמל והתקנים)",
     "video.live": "שידור חי",
     "video.playback": "ניגון הקלטות",

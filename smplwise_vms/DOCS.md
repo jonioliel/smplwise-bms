@@ -519,10 +519,11 @@ arguments first:
 | Domain | Actions | Risk |
 |---|---|---|
 | light, switch, fan, input_boolean, vacuum | on / off (brightness or speed for light / fan), start / return to base | routine |
-| climate | operating mode (from the entity's modes), target temperature 5–35 ° | routine |
-| media_player | play, pause, stop, volume 0–100 % | routine |
+| climate | operating mode (from the entity's modes), off, target temperature 5–35 ° (confirmed from the `temperature` attribute), fan mode (from the entity's fan modes) | routine |
+| fan | speed 0–100 % (confirmed from `percentage` within the fan's own step) | routine |
+| media_player | on / off, play, pause, stop, volume 0–100 %, mute | routine |
 | number, input_number, select, input_select | set a value / choose an option (the expected state is the value) | routine |
-| cover | open / close (stop is routine) | attention — confirmation |
+| cover | open / close / set position (one physical movement: all three need the confirmation; the position is confirmed from `current_position`; stop is routine and never gated) | attention — confirmation |
 | button, script, scene, siren | press / run / activate / on | attention — confirmation |
 | alarm_control_panel | arm home / arm away | attention — confirmation |
 | lock | unlock | sensitive — confirmation + `door.unlock` grant |
@@ -530,7 +531,18 @@ arguments first:
 
 Sensitive grants are never implied by a built-in role; a custom role that lists them explicitly (הגדרות › משתמשים
 והרשאות › תפקידים) gives them at a scope. Every action, refusal and its reason is audited. The bridge
-integration's allow-list must match (0.2.1 for the domains above): restart Home Assistant once after updating.
+integration's allow-list must match (0.2.4 for the rows above - fan speed, cover position, climate fan mode and
+off, media on / off and mute were added in 0.2.4 for the devices area): after updating the add-on, restart Home
+Assistant once so it loads the new bridge; until then those actions answer `service_not_allowed`. An action whose
+effect Home Assistant does not report (stop, a target temperature on an entity without a single `temperature`, mute
+on a player that does not report it) is shown as "sent", never as confirmed.
+
+### Device control permissions (CR-007 slice 2)
+
+`devices.control` lets the devices area (חשמל והתקנים) run single-entity actions on light, switch, input_boolean,
+cover, climate, fan and media_player entities only, at the entity's own floor scope. It never reaches a lock, the
+alarm panel, a siren, a script, a scene or a button: those stay behind `ha.entity.control` (plus `door.unlock` /
+`alarm.disarm`). Granted by default to operator, site_admin and system_admin - not to viewer, kiosk or editor.
 
 ## Export queue (0.1.54)
 

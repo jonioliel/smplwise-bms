@@ -93,10 +93,7 @@ def test_unlock_needs_its_own_grant(paired):
 
 def test_map_edit_is_not_control_and_no_client_identity(paired):
     app, s, c, calls, answers, ids = paired
-    # a role holding only map.edit (not devices.control, not ha.entity.control - CR-007 slice 2 gave the built-in
-    # "editor" role devices.control, so a bare custom role proves the point map.edit alone never implied control)
-    mapper = c.post("/api/v1/access/roles", json={"name": "עורך מפה בלבד", "permissions": ["map.edit"]}).json()
-    bind(c, s, "noa", mapper["id"], "installation", "*")
+    bind(c, s, "noa", "editor", "installation", "*")  # editor: map.edit everywhere, no ha.entity.control
     assert c.post("/api/v1/ha/entities/light.lobby/actions", json=_body(), headers=as_user("noa")).status_code == 403
     assert not calls
     # the body is closed: no user id, context or raw service call can ride along
