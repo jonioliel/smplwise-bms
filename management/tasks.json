@@ -4994,7 +4994,8 @@
     ],
     "evidence": [
       "2026-09-28: requested by the owner ('all our documentation is English; I want full Hebrew documentation too, and a complete Hebrew user guide with every setting explained and real screenshots from the system - to think about improvements together and to onboard staff quickly'). Owner ranked it below the running CR-005/006/007 work: recorded here, to be scheduled after the current blitz. Estimate: guide 8-12 h (screenshot spec 2-3 h, writing ~25-35 pages), Hebrew mirrors 6-10 h, drift check 1 h.",
-      "2026-09-28 owner answer on screenshot source: option ב - real lab screenshots through Ingress; no need to redact video or pictures ('not a security site'). Still redact lab hosts / IPs / serials / MACs per CLAUDE.md. The owner may provide a second site later (with air-conditioning, music, etc.) to show more guide options."
+      "2026-09-28 owner answer on screenshot source: option ב - real lab screenshots through Ingress; no need to redact video or pictures ('not a security site'). Still redact lab hosts / IPs / serials / MACs per CLAUDE.md. The owner may provide a second site later (with air-conditioning, music, etc.) to show more guide options.",
+      "2026-09-29 (infrastructure only, merge of pilot/T091-guide-infra commit 2c6c818): opt-in Playwright capture frontend/tests/guide-screenshots.spec.ts (SW_GUIDE=1; SW_GUIDE_BASE_URL / SW_GUIDE_SESSION documented for the lab pass, no values) driven by docs/user-guide/he/screens.json (27 screens x desktop/phone x roles = 42 PNG under docs/user-guide/he/img/, demo data for now, 3.4 MB); scripts/docs_he_check.py (Hebrew mirror drift: 0 drifted, 23 mirrors without a source header yet, 20 English docs without a mirror); README_HE.md with schema, naming and the privacy rule. Guide text and Hebrew mirrors NOT written yet."
     ],
     "owner": null,
     "commit": null,
