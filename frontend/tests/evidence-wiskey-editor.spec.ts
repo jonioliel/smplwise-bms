@@ -195,7 +195,10 @@ test.describe('WisKey person editor against the fixture WisKey (CR-005 phase 2 A
       id: frame.id, type: 'hikvision_intercom/users/create', api_contract: 1, sync_now: true,
       data: {
         employee_no: createdEmployee, phone: '050-777-1234', display_name: 'נועה ברק', active: true, valid_from: null, valid_until: null, pin: PIN,
-        assignments: { gate: { enabled: true, allowed_locks: [1] }, lobby: { enabled: true, allowed_locks: [1] } },
+        // WisKey's own editor payload: overrides + the enabled stations' relays (no access_policy_revision: the fixture
+        // WisKey has no profile policy, and WisKey would answer group_policy_changed to one)
+        permission_overrides: { gate: 'allow', lobby: 'allow' },
+        door_permissions: { gate: [1], lobby: [1] },
         cards: [{ card_no: CARD, label: 'תג ראשי', card_type: 'normalCard', enabled: true }],
       },
     });
@@ -271,7 +274,8 @@ test.describe('WisKey person editor against the fixture WisKey (CR-005 phase 2 A
       data: {
         employee_no: createdEmployee, phone: '050-777-1234', display_name: 'נועה ברק-לוי', active: true, pin: null,
         valid_from: '2026-10-01T05:00:00.000Z', valid_until: '2026-12-31T16:00:00.000Z', // typed in Asia/Jerusalem (the HA zone), sent as instants
-        assignments: { gate: { enabled: true, allowed_locks: [1] }, lobby: { enabled: true, allowed_locks: [1] } },
+        permission_overrides: { gate: 'allow', lobby: 'allow' },
+        door_permissions: { gate: [1], lobby: [1] },
         cards: [{ id: cardId, label: 'תג ראשי', card_type: 'normalCard', enabled: true }], // by id only: WisKey keeps the number
       },
     });
@@ -280,6 +284,38 @@ test.describe('WisKey person editor against the fixture WisKey (CR-005 phase 2 A
     expect(after.pin).toBeNull();
     expect(after.cards).toEqual(before.cards);
     await expect(page.locator(`${SCREEN} tr[data-row-id="${createdId}"] [data-wiskey-person-validity]`)).toHaveAttribute('data-wiskey-person-validity', 'validity_future', { timeout: 15000 });
+  });
+
+  test('relays: adding the lobby barrier to an existing assignment and removing it again both reach WisKey and stay (review B1)', async ({ page }) => {
+    const lobbyDoors = async () => ((await (await page.request.get(`/api/v1/intercom/people/${createdId}/editor`)).json()).person.stations as { station_id: string; doors: number[] }[]).find((s) => s.station_id === 'lobby')?.doors;
+    expect(await lobbyDoors()).toEqual([1]);
+    await openCreated(page);
+    const lock2 = editor(page).locator('[data-wiskey-editor-station="lobby"] [data-wiskey-editor-lock="2"]');
+    await expect(lock2).not.toBeChecked();
+    await lock2.check();
+    await field(page, 'save').click();
+    await expect(editor(page)).toHaveCount(0, { timeout: 15000 });
+    expect((await sent('users/update')).at(-1)?.data).toMatchObject({ door_permissions: { gate: [1], lobby: [1, 2] } });
+    expect(await lobbyDoors()).toEqual([1, 2]);
+    // the case the first review caught: a relay REMOVED from an existing assignment must not be kept by WisKey
+    await openCreated(page);
+    await expect(lock2).toBeChecked();
+    await lock2.uncheck();
+    await field(page, 'save').click();
+    await expect(editor(page)).toHaveCount(0, { timeout: 15000 });
+    expect((await sent('users/update')).at(-1)?.data).toMatchObject({ permission_overrides: { gate: 'allow', lobby: 'allow' }, door_permissions: { gate: [1], lobby: [1] } });
+    expect(await lobbyDoors()).toEqual([1]);
+    await openCreated(page);
+    await expect(lock2).not.toBeChecked();
+    // unchecking the last relay denies the station (WisKey), and a denied station carries no relays (the relay row
+    // disappears with the deny, so this is a click, not an `uncheck` that would wait to re-verify a detached box)
+    await editor(page).locator('[data-wiskey-editor-station="lobby"] [data-wiskey-editor-lock="1"]').click();
+    await expect(editor(page).locator('[data-wiskey-editor-station="lobby"]')).toHaveAttribute('data-wiskey-editor-station-enabled', 'false');
+    await field(page, 'save').click();
+    await expect(editor(page)).toHaveCount(0, { timeout: 15000 });
+    expect((await sent('users/update')).at(-1)?.data).toMatchObject({ permission_overrides: { gate: 'allow', lobby: 'deny' }, door_permissions: { gate: [1] } });
+    const stations = ((await (await page.request.get(`/api/v1/intercom/people/${createdId}/editor`)).json()).person.stations as { station_id: string; enabled: boolean }[]);
+    expect(stations.find((s) => s.station_id === 'lobby')?.enabled).toBe(false);
   });
 
   test('pin_conflict: a PIN another person holds is refused by WisKey at save time, by name, and "generate unique PIN" gives a free one', async ({ page }, testInfo) => {

@@ -52,7 +52,11 @@ interface Draft {
   pin?: string | null;
   confirm_pin: string;
   cards: CardRow[];
+  /** The effective state per station as shown (WisKey `refreshDraftPermissions`): the checkbox and its relays. */
   assignments: Record<string, Assignment>;
+  /** WisKey `permission_overrides`: the personal allow / deny per station; a station a group grants and the user
+   * leaves alone has none. Every toggle here sets one (WisKey `setPersonalPermission`). */
+  overrides: Record<string, 'allow' | 'deny'>;
 }
 
 type Busy = '' | 'save' | 'sync' | 'delete' | 'pin';
@@ -184,12 +188,13 @@ export class WiskeyPersonEditor extends LitElement {
         confirm_pin: '',
         cards: user.cards.map((c) => ({ key: c.id, id: c.id, masked_number: c.masked_number, card_no: '', label: c.label, enabled: c.enabled })),
         assignments: Object.fromEntries(user.stations.map((s) => [s.station_id, { enabled: s.enabled, allowed_locks: [...s.doors], sync_state: s.sync_state }])),
+        overrides: { ...user.permission_overrides },
       };
       this.timed = !!user.valid_from;
       this.validityFrom = localInput(user.valid_from, this.zone);
       this.validityUntil = localInput(user.valid_until, this.zone);
     } else {
-      this.draft = { employee_no: randomEmployeeNo(), display_name: '', phone: '', active: true, confirm_pin: '', cards: [], assignments: {} };
+      this.draft = { employee_no: randomEmployeeNo(), display_name: '', phone: '', active: true, confirm_pin: '', cards: [], assignments: {}, overrides: {} };
       this.timed = false;
       this.validityFrom = '';
       this.validityUntil = '';
@@ -297,9 +302,18 @@ export class WiskeyPersonEditor extends LitElement {
       active: draft.active,
       valid_from: validity ? validity.from : null,
       valid_until: validity ? validity.until : null,
-      assignments: Object.fromEntries(Object.entries(draft.assignments).map(([id, a]) => [id, { enabled: a.enabled, allowed_locks: a.allowed_locks }])),
+      // WisKey panel.ts save(): the personal overrides, the relays of the ENABLED stations, and the policy revision the
+      // editor loaded - never the legacy absolute `assignments`, under which WisKey keeps an existing station's previous
+      // relays (review B1)
+      permission_overrides: { ...draft.overrides },
+      door_permissions: Object.fromEntries(
+        Object.entries(draft.assignments)
+          .filter(([, a]) => a.enabled)
+          .map(([id, a]) => [id, [...a.allowed_locks].sort()]),
+      ),
       cards: draft.cards.map<IntercomCardDraft>((c) => (c.id ? { id: c.id, label: c.label, enabled: c.enabled } : { card_no: c.card_no, label: c.label, enabled: c.enabled })),
     };
+    if (typeof this.ctx?.profile_policy?.revision === 'number') data.access_policy_revision = this.ctx.profile_policy.revision;
     if (draft.pin !== undefined) data.pin = draft.pin;
     this.busy = syncNow ? 'sync' : 'save';
     try {
@@ -389,11 +403,16 @@ export class WiskeyPersonEditor extends LitElement {
 
   // ------------------------------------------------------------------ assignments
 
+  /** WisKey `setPersonalPermission`: a toggle is a personal allow / deny override, and the shown state follows. */
   private setStation(id: string, enabled: boolean) {
     if (!this.draft) return;
     const current = this.draft.assignments[id];
     const locks = current?.allowed_locks.length ? current.allowed_locks : [1];
-    this.patch('assignments', { ...this.draft.assignments, [id]: { enabled, allowed_locks: locks, sync_state: current?.sync_state ?? null } });
+    this.draft = {
+      ...this.draft,
+      assignments: { ...this.draft.assignments, [id]: { enabled, allowed_locks: locks, sync_state: current?.sync_state ?? null } },
+      overrides: { ...this.draft.overrides, [id]: enabled ? 'allow' : 'deny' },
+    };
   }
 
   private setLock(id: string, lock: number, on: boolean) {
@@ -408,12 +427,14 @@ export class WiskeyPersonEditor extends LitElement {
   private setAll(enabled: boolean) {
     if (!this.draft || !this.ctx) return;
     const next = { ...this.draft.assignments };
+    const overrides = { ...this.draft.overrides };
     for (const s of this.ctx.stations) {
       if (!s.lock_enabled) continue;
       const current = next[s.id];
       next[s.id] = { enabled, allowed_locks: current?.allowed_locks.length ? current.allowed_locks : [1], sync_state: current?.sync_state ?? null };
+      overrides[s.id] = enabled ? 'allow' : 'deny';
     }
-    this.patch('assignments', next);
+    this.draft = { ...this.draft, assignments: next, overrides };
   }
 
   // ------------------------------------------------------------------ render
@@ -494,7 +515,7 @@ export class WiskeyPersonEditor extends LitElement {
       notes.push(html`<div class="note info" role="note" data-wiskey-editor-note="timing">לאדם הזה מוגדר ב־WisKey לוח זמנים שבועי / לפי תאריכים או אכיפת זמנים. העורך הזה עדיין אינו עורך אותם (השלב הבא), ושמירה מכאן משאירה אותם כפי שהם.</div>`);
     }
     if (ctx?.profile_policy && (ctx.profile_policy.fields || ctx.profile_policy.groups)) {
-      notes.push(html`<div class="note info" role="note" data-wiskey-editor-note="profile">ל־WisKey מוגדרים שדות פרופיל וקבוצות (${ctx.profile_policy.fields} שדות, ${ctx.profile_policy.groups} קבוצות). עריכתם, תמונות וקריאת כרטיס מקורא בעמדה יגיעו בשלבים הבאים; עד אז הם נערכים ב־WisKey עצמו. הרשאות שמגיעות דרך קבוצה נשמרות כאן כפי שהן מוצגות.</div>`);
+      notes.push(html`<div class="note info" role="note" data-wiskey-editor-note="profile">ל־WisKey מוגדרים שדות פרופיל וקבוצות (${ctx.profile_policy.fields} שדות, ${ctx.profile_policy.groups} קבוצות). עריכתם, תמונות וקריאת כרטיס מקורא בעמדה יגיעו בשלבים הבאים; עד אז הם נערכים ב־WisKey עצמו. תחנה שההרשאה אליה מגיעה דרך קבוצה מוצגת כאן מסומנת; ביטול הסימון יוצר חריגה אישית (חסימה) שגוברת על הקבוצה, כמו ב־WisKey.</div>`);
     }
     return notes;
   }

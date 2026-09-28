@@ -771,26 +771,22 @@ class CardData(BaseModel):
         return self
 
 
-class AssignmentData(BaseModel):
-    """One station of the draft (WisKey `assignments` value): enabled, and the relays it may open ({1, 2})."""
-
-    model_config = ConfigDict(extra="forbid")
-    enabled: StrictBool = True
-    allowed_locks: list[StrictInt] = Field(default_factory=lambda: [1], max_length=2)
-
-    @model_validator(mode="after")
-    def _locks(self) -> "AssignmentData":
-        if any(lock not in (1, 2) for lock in self.allowed_locks) or len(set(self.allowed_locks)) != len(self.allowed_locks):
-            raise ValueError("allowed_locks")
-        if self.enabled and not self.allowed_locks:
-            raise ValueError("an enabled assignment needs a relay")
-        return self
+def _station_key(key: str) -> bool:
+    return 1 <= len(key) <= 64 and _no_control(key)
 
 
 class PersonData(BaseModel):
     """The draft, as a patch: only the keys present are sent to WisKey (`users/update` keeps the rest). Mirrors WisKey's
-    USER_FIELDS for what this slice edits; `profile`, `group_ids`, `photo`, `access_timing_*`, `user_type`,
-    `permission_overrides` / `door_permissions` are not accepted (extra keys are refused locally)."""
+    USER_FIELDS for what this slice edits; `profile`, `group_ids`, `photo`, `access_timing_*`, `user_type` are not
+    accepted (extra keys are refused locally).
+
+    Station access travels as WisKey's own editor sends it (panel.ts save(): `permission_overrides` + `door_permissions`
+    + `access_policy_revision`), NEVER as the legacy absolute `assignments`: in WisKey's `group_permissions.prepare` an
+    already-allowed station keeps its previous `allowed_locks` unless `door_permissions` names it, so a relay removed
+    from an existing assignment would be silently kept (review B1). `door_permissions` lists the ENABLED stations with
+    their relays; `permission_overrides` the personal allow / deny per station (a station granted by a group and left
+    alone has none). `access_policy_revision` is the profile policy revision the editor loaded, when WisKey has one, so
+    WisKey's `group_policy_changed` check applies."""
 
     model_config = ConfigDict(extra="forbid")
     employee_no: str | None = Field(None, pattern=IDENTIFIER)
@@ -801,7 +797,9 @@ class PersonData(BaseModel):
     valid_until: str | None = Field(None, max_length=40)
     pin: str | None = Field(None, pattern=PIN_PATTERN)  # present and null = remove the PIN (WisKey: `pin: null`)
     cards: list[CardData] | None = Field(None, max_length=MAX_CARDS)
-    assignments: dict[str, AssignmentData] | None = None
+    permission_overrides: dict[str, Literal["allow", "deny"]] | None = None
+    door_permissions: dict[str, list[StrictInt]] | None = None
+    access_policy_revision: StrictInt | None = Field(None, ge=0)
 
     @model_validator(mode="after")
     def _rules(self) -> "PersonData":
@@ -823,8 +821,18 @@ class PersonData(BaseModel):
             ids = [c.id for c in self.cards if c.id is not None]
             if len(set(new)) != len(new) or len(set(ids)) != len(ids):
                 raise ValueError("duplicate card")
-        if self.assignments is not None and (len(self.assignments) > MAX_ASSIGNMENTS or any(not 1 <= len(k) <= 64 or not _no_control(k) for k in self.assignments)):
-            raise ValueError("assignments")
+        if (self.permission_overrides is None) != (self.door_permissions is None):
+            raise ValueError("permission_overrides and door_permissions go together")
+        if self.permission_overrides is not None and (len(self.permission_overrides) > MAX_ASSIGNMENTS or any(not _station_key(k) for k in self.permission_overrides)):
+            raise ValueError("permission_overrides")
+        if self.door_permissions is not None:
+            if len(self.door_permissions) > MAX_ASSIGNMENTS or any(not _station_key(k) for k in self.door_permissions):
+                raise ValueError("door_permissions")
+            for locks in self.door_permissions.values():  # group_permissions.prepare: non-empty, within {1, 2}, distinct
+                if not locks or any(lock not in (1, 2) for lock in locks) or len(set(locks)) != len(locks):
+                    raise ValueError("door_permissions")
+            if any(self.permission_overrides.get(k) == "deny" for k in self.door_permissions):  # type: ignore[union-attr]
+                raise ValueError("a denied station cannot carry relays")
         return self
 
     def wiskey(self) -> dict[str, Any]:
@@ -838,12 +846,16 @@ class PersonData(BaseModel):
                 {**({"id": c.id} if c.id is not None else {"card_no": c.card_no}), "label": c.label, "card_type": c.card_type, "enabled": c.enabled}
                 for c in self.cards
             ]
-        if self.assignments is not None:
-            out["assignments"] = {sid: {"enabled": a.enabled, "allowed_locks": sorted(a.allowed_locks)} for sid, a in self.assignments.items()}
+        if self.permission_overrides is not None and self.door_permissions is not None:
+            out["permission_overrides"] = dict(self.permission_overrides)
+            out["door_permissions"] = {sid: sorted(locks) for sid, locks in self.door_permissions.items()}
+        if self.access_policy_revision is not None:
+            out["access_policy_revision"] = self.access_policy_revision
         return out
 
 
 class PersonSaveBody(CommandEnvelope):
+    model_config = ConfigDict(extra="forbid")  # a stray top-level key (a `pin` outside `data`, say) is refused, not ignored
     data: PersonData
     # WisKey's own "Save & sync" (queue the stations now) vs "Save" (its periodic reconciliation, ~300 s, carries it)
     sync_now: StrictBool = True
@@ -854,6 +866,7 @@ class PersonUpdateBody(PersonSaveBody):
 
 
 class PersonDeleteBody(CommandEnvelope):
+    model_config = ConfigDict(extra="forbid")
     revision: StrictInt = Field(ge=1)
     confirmed: Any = None  # only `true` (from the confirmation dialog) confirms, as ReleaseBody
 
@@ -879,8 +892,11 @@ def _draft_summary(data: dict[str, Any]) -> dict[str, Any]:
         out["pin_change"] = "removed" if data["pin"] is None else "set"
     if isinstance(cards, list):
         out.update(card_count=len(cards), enabled_cards=sum(1 for c in cards if c.get("enabled")), new_cards=sum(1 for c in cards if "card_no" in c))
-    if isinstance(data.get("assignments"), dict):
-        out["assignments"] = {sid: {"enabled": a["enabled"], "allowed_locks": a["allowed_locks"]} for sid, a in data["assignments"].items()}
+    if isinstance(data.get("door_permissions"), dict):
+        out["door_permissions"] = dict(data["door_permissions"])
+        out["permission_overrides"] = dict(data.get("permission_overrides") or {})
+    if "access_policy_revision" in data:
+        out["access_policy_revision"] = data["access_policy_revision"]
     return out
 
 
@@ -959,11 +975,11 @@ def person_create(request: Request, principal: Principal = Depends(_manager), co
     act = _Action(request, conn, principal, "intercom.person.create", "new", PERSON)
     body: PersonSaveBody = _parse(act, PersonSaveBody, raw)
     data = body.data.wiskey()
+    act.details.update(sync_now=body.sync_now, **_draft_summary(data))
+    not_after = _envelope(act, body)  # before the draft's own checks: every refusal row from here carries the command id
     missing = [k for k in ("display_name", "employee_no") if not data.get(k)]
     if missing:
         raise act.refuse(ApiError(422, "validation", "לאדם חדש נדרשים שם ומזהה עובד.", details={"fields": missing}))
-    act.details.update(sync_now=body.sync_now, **_draft_summary(data))
-    not_after = _envelope(act, body)
     reply = _perform(act, "person", lambda call: intercom_client.users_create(call, data, body.sync_now), intercom_sync.project_person_editor, not_after, lane="config", summary=_person_summary)
     reply["note"] = SAVE_NOTE
     return reply

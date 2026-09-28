@@ -376,7 +376,10 @@ export interface IntercomEditorContext {
 export type IntercomCardDraft = { id: string; label: string; enabled: boolean } | { card_no: string; label: string; enabled: boolean };
 
 /** The draft as a patch (routers/access_control.py `PersonData`, mirroring WisKey's USER_FIELDS for this slice): only
- * the keys present are sent; `pin: null` removes the PIN; `valid_from` / `valid_until` both null = permanent. */
+ * the keys present are sent; `pin: null` removes the PIN; `valid_from` / `valid_until` both null = permanent. Station
+ * access is WisKey's own editor payload - `permission_overrides` (personal allow / deny) + `door_permissions` (the
+ * ENABLED stations' relays; together) + `access_policy_revision` (when WisKey has a profile policy) - never the legacy
+ * absolute `assignments`, under which WisKey keeps an existing station's previous relays. */
 export interface IntercomPersonDraft {
   employee_no?: string;
   display_name?: string;
@@ -386,7 +389,9 @@ export interface IntercomPersonDraft {
   valid_until?: string | null;
   pin?: string | null;
   cards?: IntercomCardDraft[];
-  assignments?: Record<string, { enabled: boolean; allowed_locks: number[] }>;
+  permission_overrides?: Record<string, 'allow' | 'deny'>;
+  door_permissions?: Record<string, number[]>;
+  access_policy_revision?: number;
 }
 
 export type IntercomEditorContextReply = ReadReply<'context', IntercomEditorContext>;

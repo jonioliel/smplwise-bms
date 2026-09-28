@@ -2638,7 +2638,7 @@ SAVED = {**copy.deepcopy(PERSON), "id": "u9", "employee_no": "700112233", "displ
          "assignments": {"entry-a": {"config_entry_id": "entry-a", "enabled": True, "allowed_locks": [1], "schedule_template": None, "desired_revision": 1, "applied_revision": None, "sync_state": "pending", "last_sync_at": None, "last_error": None}},
          "access_timing_policy": None, "pin": "4321", "photo": "data:image/jpeg;base64,AAAA"}
 NEW_PERSON = {"display_name": "Noa", "employee_no": "700112233", "phone": "050-777-1234", "active": True, "valid_from": None, "valid_until": None, "pin": "4321",
-              "cards": [{"card_no": "ABC0042", "label": "Badge", "enabled": True}], "assignments": {"entry-a": {"enabled": True, "allowed_locks": [1]}}}
+              "cards": [{"card_no": "ABC0042", "label": "Badge", "enabled": True}], "permission_overrides": {"entry-a": "allow"}, "door_permissions": {"entry-a": [1]}, "access_policy_revision": 3}
 # values that must never appear in an audit row or in a reply after a save
 DRAFT_SECRETS = ("4321", "ABC0042", "050-777-1234", "0507771234", "base64", "Engineering", "123456789")
 
@@ -2779,7 +2779,8 @@ def test_person_create_round_trip_and_audit(feed):
     assert msg == {
         "id": msg["id"], "type": "hikvision_intercom/users/create", "api_contract": 1, "sync_now": True,
         "data": {"display_name": "Noa", "employee_no": "700112233", "phone": "050-777-1234", "active": True, "valid_from": None, "valid_until": None, "pin": "4321",
-                 "cards": [{"card_no": "ABC0042", "label": "Badge", "card_type": "normalCard", "enabled": True}], "assignments": {"entry-a": {"enabled": True, "allowed_locks": [1]}}},
+                 "cards": [{"card_no": "ABC0042", "label": "Badge", "card_type": "normalCard", "enabled": True}],
+                 "permission_overrides": {"entry-a": "allow"}, "door_permissions": {"entry-a": [1]}, "access_policy_revision": 3},
     }
     [attempt] = audit_rows(s, "intercom.person.create", "attempt")
     [outcome] = audit_rows(s, "intercom.person.create", "outcome")
@@ -2787,18 +2788,20 @@ def test_person_create_round_trip_and_audit(feed):
         assert (row["actor_user_id"], row["actor_username"], row["decision"], row["resource_type"], row["resource_id"], row["reason"]) == ("dev-sam", "sam", "allowed", "intercom_person", "new", None)
         d = row["details"]
         assert d["command_id"] == body["command_id"] and d["sync_now"] is True and d["pin_change"] == "set"
-        assert d["fields"] == ["active", "assignments", "cards", "display_name", "employee_no", "phone", "pin", "valid_from", "valid_until"]
-        assert (d["card_count"], d["enabled_cards"], d["new_cards"], d["assignments"]) == (1, 1, 1, {"entry-a": {"enabled": True, "allowed_locks": [1]}})
+        assert d["fields"] == ["access_policy_revision", "active", "cards", "display_name", "door_permissions", "employee_no", "permission_overrides", "phone", "pin", "valid_from", "valid_until"]
+        assert (d["card_count"], d["enabled_cards"], d["new_cards"]) == (1, 1, 1)
+        assert (d["door_permissions"], d["permission_overrides"], d["access_policy_revision"]) == ({"entry-a": [1]}, {"entry-a": "allow"}, 3)
         assert not holds_secret(json.dumps(d, ensure_ascii=False)), d
     assert outcome["details"]["outcome"] == "ok" and outcome["details"]["result"] == {
         "id": "u9", "employee_no": "700112233", "display_name": "Noa", "revision": 1, "active": True, "pin_configured": True, "card_count": 1, "enabled_cards": 1,
         "assignments": {"entry-a": {"enabled": True, "allowed_locks": [1]}},
     }
-    # a new person needs a name and an employee number: refused locally, audited, nothing sent
-    r = create(c, data={"phone": "050-777-1234"})
+    # a new person needs a name and an employee number: refused locally, audited (with its command id), nothing sent
+    body = env(data={"phone": "050-777-1234"})
+    r = c.post("/api/v1/intercom/people", json=body, headers=as_user("sam"))
     assert r.status_code == 422 and r.json()["details"] == {"outcome": "not_sent", "fields": ["display_name", "employee_no"]}
     [refused] = audit_rows(s, "intercom.person.create", "refused")
-    assert refused["reason"] == "validation" and not holds_secret(json.dumps(refused["details"]))
+    assert refused["reason"] == "validation" and refused["details"]["client_request_id"] == body["client_request_id"] and not holds_secret(json.dumps(refused["details"]))
     assert len(sent(fakes, "users/create")) == 1
     # "Save" without sync: WisKey's periodic reconciliation carries it
     assert create(c, sync_now=False).status_code == 200
@@ -2812,7 +2815,8 @@ def test_person_update_and_delete_round_trip(feed):
     never as removed from the stations."""
     app, fakes, c = editor_feed(feed)
     s = feed[1]
-    patch = {"display_name": "Dana K", "pin": None, "cards": [{"id": CARD_ID, "label": "Main", "enabled": False}, {"card_no": "NEW77", "label": ""}], "assignments": {"entry-a": {"enabled": False, "allowed_locks": [1]}, "entry-c": {"enabled": True, "allowed_locks": [2, 1]}}}
+    patch = {"display_name": "Dana K", "pin": None, "cards": [{"id": CARD_ID, "label": "Main", "enabled": False}, {"card_no": "NEW77", "label": ""}],
+             "permission_overrides": {"entry-a": "deny", "entry-c": "allow", "events": "deny"}, "door_permissions": {"entry-c": [2, 1]}}
     r = update(c, data=patch, sync_now=False)
     assert r.status_code == 200, r.text
     assert r.json()["person"]["id"] == "u9" and r.json()["command_id"]
@@ -2821,12 +2825,12 @@ def test_person_update_and_delete_round_trip(feed):
         "id": msg["id"], "type": "hikvision_intercom/users/update", "user_id": "u1", "revision": 4, "sync_now": False, "api_contract": 1,
         "data": {"display_name": "Dana K", "pin": None,
                  "cards": [{"id": CARD_ID, "label": "Main", "card_type": "normalCard", "enabled": False}, {"card_no": "NEW77", "label": "", "card_type": "normalCard", "enabled": True}],
-                 "assignments": {"entry-a": {"enabled": False, "allowed_locks": [1]}, "entry-c": {"enabled": True, "allowed_locks": [1, 2]}}},
+                 "permission_overrides": {"entry-a": "deny", "entry-c": "allow", "events": "deny"}, "door_permissions": {"entry-c": [1, 2]}},
     }
     [attempt] = audit_rows(s, "intercom.person.update", "attempt")
     assert (attempt["resource_type"], attempt["resource_id"]) == ("intercom_person", "u1")
     d = attempt["details"]
-    assert (d["revision"], d["pin_change"], d["card_count"], d["enabled_cards"], d["new_cards"], d["fields"]) == (4, "removed", 2, 1, 1, ["assignments", "cards", "display_name", "pin"])
+    assert (d["revision"], d["pin_change"], d["card_count"], d["enabled_cards"], d["new_cards"], d["fields"]) == (4, "removed", 2, 1, 1, ["cards", "display_name", "door_permissions", "permission_overrides", "pin"])
     assert "NEW77" not in json.dumps(d) and "Dana K" not in json.dumps(d), "values stay out of the attempt row"
     assert audit_rows(s, "intercom.person.update", "outcome")[0]["details"]["result"]["id"] == "u9"
     # nothing to change: refused locally
@@ -2998,7 +3002,6 @@ def test_people_config_lane_is_separate_from_the_action_lane(feed, monkeypatch):
     ({**NEW_PERSON, "photo": None}, "data.photo"),
     ({**NEW_PERSON, "access_timing_draft": None}, "data.access_timing_draft"),
     ({**NEW_PERSON, "group_ids": ["staff"]}, "data.group_ids"),
-    ({**NEW_PERSON, "permission_overrides": {}}, "data.permission_overrides"),
     ({**NEW_PERSON, "user_type": "normal"}, "data.user_type"),
     ({**NEW_PERSON, "active": 1}, "data.active"),
     ({**NEW_PERSON, "pin": "12a"}, "data.pin"),
@@ -3019,11 +3022,20 @@ def test_people_config_lane_is_separate_from_the_action_lane(feed, monkeypatch):
     ({**NEW_PERSON, "cards": [{"card_no": "A1", "card_type": "cpu"}]}, "data.cards.0.card_type"),
     ({**NEW_PERSON, "cards": [{"card_no": "A1", "enabled": "yes"}]}, "data.cards.0.enabled"),
     ({**NEW_PERSON, "cards": [{"card_no": "A1"}, {"card_no": "A1"}]}, "data"),
-    ({**NEW_PERSON, "assignments": {"entry-a": {"enabled": True, "allowed_locks": [3]}}}, "data.assignments.entry-a"),
-    ({**NEW_PERSON, "assignments": {"entry-a": {"enabled": True, "allowed_locks": []}}}, "data.assignments.entry-a"),
-    ({**NEW_PERSON, "assignments": {"entry-a": {"enabled": True, "allowed_locks": [1, 1]}}}, "data.assignments.entry-a"),
-    ({**NEW_PERSON, "assignments": {"entry-a": {"enabled": True, "doors": [1]}}}, "data.assignments.entry-a.doors"),
-    ({**NEW_PERSON, "assignments": {"": {"enabled": True}}}, "data"),
+    # station access: WisKey's legacy absolute `assignments` is refused (review B1: it cannot remove a relay), and the
+    # overrides / door_permissions pair is checked as group_permissions.prepare checks it
+    ({**NEW_PERSON, "assignments": {"entry-a": {"enabled": True, "allowed_locks": [1]}}}, "data.assignments"),
+    ({k: v for k, v in NEW_PERSON.items() if k != "permission_overrides"}, "data"),
+    ({k: v for k, v in NEW_PERSON.items() if k != "door_permissions"}, "data"),
+    ({**NEW_PERSON, "door_permissions": {"entry-a": [3]}}, "data"),
+    ({**NEW_PERSON, "door_permissions": {"entry-a": []}}, "data"),
+    ({**NEW_PERSON, "door_permissions": {"entry-a": [1, 1]}}, "data"),
+    ({**NEW_PERSON, "door_permissions": {"entry-a": [True]}}, "data.door_permissions.entry-a.0"),
+    ({**NEW_PERSON, "permission_overrides": {"entry-a": "maybe"}}, "data.permission_overrides.entry-a"),
+    ({**NEW_PERSON, "permission_overrides": {"": "allow"}}, "data"),
+    ({**NEW_PERSON, "permission_overrides": {"entry-a": "deny"}, "door_permissions": {"entry-a": [1]}}, "data"),
+    ({**NEW_PERSON, "access_policy_revision": "3"}, "data.access_policy_revision"),
+    ({**NEW_PERSON, "access_policy_revision": True}, "data.access_policy_revision"),
 ])
 def test_person_draft_is_validated_locally_before_anything_is_sent(feed, draft, field):
     """Brief A.6: the draft mirrors WisKey's USER_FIELDS / CARD_FIELDS with strict types and no extra keys, so a
@@ -3038,6 +3050,46 @@ def test_person_draft_is_validated_locally_before_anything_is_sent(feed, draft, 
     assert row["reason"] == "validation" and not holds_secret(json.dumps(row["details"], ensure_ascii=False))
     assert c.put("/api/v1/intercom/people/u1", json=env(data=draft, revision=4), headers=as_user("sam")).status_code == 422
     assert not sent(fakes, "users/update")
+
+
+def test_station_access_is_sent_as_wiskeys_own_editor_payload(feed):
+    """Review B1: WisKey's `group_permissions.prepare` keeps an already-allowed station's PREVIOUS relays unless
+    `door_permissions` names the station, so SMPLWISE sends what WisKey's own editor sends - overrides, the enabled
+    stations' relays, the policy revision - and refuses the legacy `assignments`. The pair goes together, a denied
+    station carries no relays, a station left to its group has no override, and the revision is optional (a WisKey
+    without a profile policy would answer `group_policy_changed` to any revision)."""
+    app, fakes, c = editor_feed(feed)
+    # a relay removed from an existing two-relay assignment (entry-a is [1, 2] on PERSON): named in door_permissions
+    r = update(c, data={"permission_overrides": {"entry-a": "allow", "entry-b": "deny"}, "door_permissions": {"entry-a": [1]}})
+    assert r.status_code == 200, r.text
+    assert sent(fakes, "users/update")[-1]["data"] == {"permission_overrides": {"entry-a": "allow", "entry-b": "deny"}, "door_permissions": {"entry-a": [1]}}
+    # a group-granted station left alone: in door_permissions (it is enabled) but not in the overrides
+    r = update(c, data={"permission_overrides": {}, "door_permissions": {"entry-a": [2]}, "access_policy_revision": 0})
+    assert r.status_code == 200, r.text
+    assert sent(fakes, "users/update")[-1]["data"] == {"permission_overrides": {}, "door_permissions": {"entry-a": [2]}, "access_policy_revision": 0}
+    # everything disabled: empty door_permissions, the denies alone
+    r = update(c, data={"permission_overrides": {"entry-a": "deny"}, "door_permissions": {}})
+    assert r.status_code == 200, r.text
+    assert sent(fakes, "users/update")[-1]["data"] == {"permission_overrides": {"entry-a": "deny"}, "door_permissions": {}}
+    assert "assignments" not in json.dumps([m["data"] for m in sent(fakes, "users/update")])
+    r = update(c, data={"assignments": {"entry-a": {"enabled": True, "allowed_locks": [1]}}})
+    assert r.status_code == 422 and r.json()["details"]["outcome"] == "not_sent" and "data.assignments" in r.json()["details"]["fields"]
+    assert len(sent(fakes, "users/update")) == 3
+
+
+def test_people_write_bodies_forbid_unknown_top_level_keys(feed):
+    """N1: a stray top-level key - a `pin` outside `data`, a `data2`, a `confirmed` on a save - is an audited refusal,
+    never silently ignored."""
+    app, fakes, c = editor_feed(feed)
+    for extra in ({"pin": "4321"}, {"data2": {}}, {"confirmed": True}, {"user_id": "u1"}):
+        r = c.post("/api/v1/intercom/people", json=env(data=NEW_PERSON, **extra), headers=as_user("sam"))
+        assert r.status_code == 422 and r.json()["details"]["outcome"] == "not_sent" and list(extra) == r.json()["details"]["fields"], (extra, r.text)
+        r = c.put("/api/v1/intercom/people/u1", json=env(data={"active": False}, revision=4, **extra), headers=as_user("sam"))
+        assert r.status_code == 422 and list(extra) == r.json()["details"]["fields"], (extra, r.text)
+    r = c.post("/api/v1/intercom/people/u1/delete", json=env(revision=4, confirmed=True, data={"active": False}), headers=as_user("sam"))
+    assert r.status_code == 422 and r.json()["details"]["fields"] == ["data"]
+    assert not sent(fakes, "users/create") and not sent(fakes, "users/update") and not sent(fakes, "users/delete")
+    assert not holds_secret(json.dumps([row["details"] for row in audit_rows(feed[1], "intercom.person.create", "refused")]))
 
 
 def test_people_writes_take_json_only_and_honour_the_envelope(feed):

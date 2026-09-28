@@ -277,7 +277,8 @@ def person(n: int) -> dict[str, Any]:
         "user_type": "normal", "valid_from": validity[0], "valid_until": validity[1], "revision": revision,
         "created_at": "2026-01-01T00:00:00+00:00", "updated_at": "2026-09-01T00:00:00+00:00", "identity_locked": False,
         "profile": {"department": ("Engineering", "Operations", "Security")[n % 3]}, "group_ids": (["staff"], ["staff", "contractors"], [], [], [])[n % 5],
-        "permission_overrides": {}, "photo_configured": False, "pin_configured": n % 2 == 0,
+        # WisKey `overrides()`: without a group grant, an assignment's enabled flag IS a personal allow / deny
+        "permission_overrides": {sid: "allow" if a["enabled"] else "deny" for sid, a in assignments.items()}, "photo_configured": False, "pin_configured": n % 2 == 0,
         "cards": [{"id": f"c{n + 1:03d}", "masked_number": f"•••• {(7000 + n) % 10000:04d}", "label": "Main", "card_type": "normalCard", "enabled": True}] if n % 3 == 0 else [],
         "assignments": assignments, "access_timing_draft": None, "access_timing_policy": None, "timing_readbacks": {},
     }
@@ -353,8 +354,10 @@ def build_user(data: dict[str, Any], previous: dict[str, Any] | None, secret: di
     manager._validate's station checks. Returns the public record and its private side (pin, card numbers)."""
     if set(data) - USER_FIELDS:
         raise _Access("invalid_fields")
-    if any(k in data for k in ("profile", "group_ids", "photo", "access_timing_draft", "access_timing_policy", "permission_overrides", "door_permissions", "access_policy_revision")):
+    if any(k in data for k in ("profile", "group_ids", "photo", "access_timing_draft", "access_timing_policy")):
         raise _Access("invalid_fields")  # the fixture has no profile policy: WisKey answers profile_settings_unavailable / invalid_fields
+    if "access_policy_revision" in data:
+        raise _Access("group_policy_changed")  # repository.permission_data: no policy here, so any revision is stale
     now = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
     employee_no = data.get("employee_no", previous["employee_no"] if previous else None)
     if not isinstance(employee_no, str) or not IDENTIFIER.fullmatch(employee_no):
@@ -394,36 +397,105 @@ def build_user(data: dict[str, Any], previous: dict[str, Any] | None, secret: di
     if len({c["id"] for c in cards}) != len(cards) or len(set(numbers.values())) != len(cards):
         raise _Access("duplicate_card")
     revision = previous["revision"] + 1 if previous else 1
-    raw_assignments = data.get("assignments", {sid: {"enabled": a["enabled"], "allowed_locks": a["allowed_locks"]} for sid, a in (previous["assignments"] if previous else {}).items()})
-    if not isinstance(raw_assignments, dict) or len(raw_assignments) > 100:
-        raise _Access("invalid_assignments")
     assignments = {}
     by_id = {s["id"]: s for s in stations}
-    for sid, raw in raw_assignments.items():
-        sid = _text_field(sid, 64)
-        if not isinstance(raw, dict):
-            raise _Access("invalid_assignments")
-        enabled = _boolean(raw.get("enabled", True))
-        locks = raw.get("allowed_locks", [1])
-        if not isinstance(locks, list) or any(type(lock) is not int or lock not in {1, 2} for lock in locks) or len(locks) != len(set(locks)) or (enabled and not locks):
-            raise _Access("unmanaged_lock")
-        old_a = (previous["assignments"] if previous else {}).get(sid)
+    old_assignments = previous["assignments"] if previous else {}
+    personal, prepared = prepare_assignments(data, previous)
+    for sid, raw in prepared.items():
+        enabled, locks = raw["enabled"], raw["allowed_locks"]
+        old_a = old_assignments.get(sid)
         if enabled and active:
             station = by_id.get(sid)
             if station is None:
                 raise _Access("station_not_found")
             if not station["lock_enabled"]:
                 raise _Access("station_has_no_managed_lock")
-        assignments[sid] = {**assignment(sid, enabled, sorted(locks), "pending", revision), "applied_revision": old_a["applied_revision"] if old_a else None}
+        assignments[sid] = {**assignment(sid, enabled, locks, "pending", revision), "applied_revision": old_a["applied_revision"] if old_a else None}
     public = {
         "id": previous["id"] if previous else f"u{hashlib.sha256(f'{employee_no}/{now}'.encode()).hexdigest()[:6]}", "employee_no": employee_no, "display_name": name,
         "phone": _phone_value(data.get("phone", previous["phone"] if previous else "")), "active": active, "user_type": "normal", "valid_from": start, "valid_until": end,
         "revision": revision, "created_at": previous["created_at"] if previous else now, "updated_at": now, "identity_locked": previous["identity_locked"] if previous else False,
-        "profile": previous["profile"] if previous else {}, "group_ids": previous["group_ids"] if previous else [], "permission_overrides": {sid: "allow" if a["enabled"] else "deny" for sid, a in assignments.items()},
+        "profile": previous["profile"] if previous else {}, "group_ids": previous["group_ids"] if previous else [], "permission_overrides": personal,
         "photo_configured": False, "pin_configured": pin is not None, "cards": cards, "assignments": assignments,
         "access_timing_draft": previous["access_timing_draft"] if previous else None, "access_timing_policy": previous["access_timing_policy"] if previous else None, "timing_readbacks": {},
     }
     return public, {"pin": pin, "cards": numbers}
+
+
+def _overrides(value: Any) -> dict[str, str]:
+    if not isinstance(value, dict) or len(value) > 100:
+        raise _Access("invalid_assignments")
+    out = {}
+    for key, mode in value.items():
+        key = _text_field(key, 64)
+        if mode not in ("allow", "deny"):
+            raise _Access("invalid_assignments")
+        out[key] = mode
+    return out
+
+
+def prepare_assignments(data: dict[str, Any], previous: dict[str, Any] | None) -> tuple[dict[str, str], dict[str, dict[str, Any]]]:
+    """WisKey `access/group_permissions.py prepare()` without groups (the fixture has no profile policy, so nothing is
+    inherited): the personal overrides come from `permission_overrides`, or are derived from a legacy absolute
+    `assignments` payload, or are the previous ones; an allowed station's relays come from `door_permissions` when it
+    names the station, ELSE ITS PREVIOUS RELAYS ARE KEPT (the rule review B1 found: a legacy `assignments` save cannot
+    remove a relay from an existing assignment), else the legacy payload's, else [1]."""
+    old = previous["assignments"] if previous else {}
+    old_overrides = previous["permission_overrides"] if previous else {}
+    if "permission_overrides" in data:
+        personal = _overrides(data["permission_overrides"])
+        if "assignments" in data:
+            raise _Access("invalid_assignments")
+    elif "assignments" in data:
+        raw = data["assignments"]
+        if not isinstance(raw, dict) or len(raw) > 100:
+            raise _Access("invalid_assignments")
+        checked = {}
+        for sid, item in raw.items():
+            sid = _text_field(sid, 64)
+            if not isinstance(item, dict):
+                raise _Access("invalid_assignments")
+            enabled = _boolean(item.get("enabled", True))
+            locks = item.get("allowed_locks", [1])
+            if not isinstance(locks, list) or any(type(lock) is not int or lock not in {1, 2} for lock in locks) or len(locks) != len(set(locks)) or (enabled and not locks):
+                raise _Access("unmanaged_lock")
+            if item.get("schedule_template") is not None:
+                raise _Access("schedule_unverified")
+            checked[sid] = {"enabled": enabled, "allowed_locks": locks}
+        selected = {s for s, a in checked.items() if a["enabled"]}
+        personal = {s: "allow" for s in selected}
+        personal.update({s: "deny" for s, a in checked.items() if not a["enabled"]})
+        if previous:
+            for station, mode in old_overrides.items():
+                before = old.get(station)
+                if bool(before and before["enabled"]) == (station in selected):
+                    personal[station] = mode
+    else:
+        personal = dict(old_overrides)
+    allowed = {s for s, mode in personal.items() if mode == "allow"} - {s for s, mode in personal.items() if mode == "deny"}
+    stations = allowed | set(personal)
+    if len(stations) > 100:
+        raise _Access("invalid_assignments")
+    door_permissions = data.get("door_permissions", {})
+    if not isinstance(door_permissions, dict) or set(door_permissions) - stations:
+        raise _Access("invalid_assignments")
+    for locks in door_permissions.values():
+        if not isinstance(locks, list) or not locks or any(type(i) is not int or i not in {1, 2} for i in locks) or len(locks) != len(set(locks)):
+            raise _Access("unmanaged_lock")
+    legacy = data.get("assignments", {}) if isinstance(data.get("assignments"), dict) else {}
+    result = {}
+    for s in sorted(stations):
+        if s in allowed:
+            if s in door_permissions:
+                locks = door_permissions[s]
+            elif s in old and old[s]["allowed_locks"]:
+                locks = sorted(old[s]["allowed_locks"])
+            else:
+                locks = legacy.get(s, {}).get("allowed_locks", [1])
+        else:
+            locks = sorted(old[s]["allowed_locks"]) if s in old else []
+        result[s] = {"enabled": s in allowed, "allowed_locks": sorted(locks)}
+    return personal, result
 
 
 def validate_collisions(people: list[dict[str, Any]], secrets: dict[str, dict[str, Any]], candidate: dict[str, Any], secret: dict[str, Any]) -> None:
