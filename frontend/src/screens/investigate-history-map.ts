@@ -76,6 +76,9 @@ export class InvestigateHistoryMap extends LitElement {
    * hid anchors either. */
   @state() private level: string | null = null;
   @state() private catalogLookup: CatalogLookup | null = null;
+  /** The loaded plan picture switch (owner request 2026-09-26), a switch of its own like the live map's and the
+   * editor's, remembered per floor in this browser. */
+  @state() private planImage = true;
   private geomSeq = 0;
   private frameTimer = 0;
   /** T087: the 2D / 3D toggle of the historical map (no actions here, the states are those of the instant). */
@@ -362,6 +365,7 @@ export class InvestigateHistoryMap extends LitElement {
       this.date = dateInZone(start, this.tz);
       this.minute = minuteInZone(start, this.tz);
       this.bundle = await loadMap(this.floorId, false, this.instant.toISOString().replace(/\.\d{3}Z$/, 'Z'));
+      this.restorePlanImage();
       this.level = initialLevel(settings['plan.levels'], this.bundle); // 0.1.89: fixed for the floor, no level bar here
       this.geometry = null; // another floor or instant: no structure until its document arrives
       if (this.bundle.source === 'api') {
@@ -383,6 +387,25 @@ export class InvestigateHistoryMap extends LitElement {
       this.error = describeError(err);
     } finally {
       this.loading = false;
+    }
+  }
+
+  /** The plan picture switch, per floor in this browser (its own key: the live map and the editor keep theirs). */
+  private setPlanImage(on: boolean) {
+    this.planImage = on;
+    try {
+      localStorage.setItem(`sw.history.background.${this.floorId}`, on ? '1' : '0');
+    } catch {
+      /* private mode or blocked storage: the choice lives for this page only */
+    }
+  }
+
+  /** A floor never switched shows its picture. */
+  private restorePlanImage() {
+    try {
+      this.planImage = localStorage.getItem(`sw.history.background.${this.floorId}`) !== '0';
+    } catch {
+      this.planImage = true;
     }
   }
 
@@ -671,6 +694,9 @@ export class InvestigateHistoryMap extends LitElement {
         <div><h1>המפה בזמן שנבחר · ${b.floorName}</h1><div class="sub">${b.buildingName} · <span class="ltr">${this.date} ${secondLabel(this.minute)}</span> · ${this.tz}</div></div>
         <span class="grow"></span>
         ${this.floors.length > 1 ? html`<sw-field><select aria-label="קומה" @change=${(e: Event) => navigate(`/investigate/floors/${(e.target as HTMLSelectElement).value}`, { t: this.instant.toISOString() })}>${this.floors.map((f) => html`<option value=${f.id} ?selected=${f.id === this.floorId}>${bidi(f.name)}</option>`)}</select></sw-field>` : nothing}
+        ${b.imageUrl
+          ? html`<sw-button icon="map" aria-pressed=${this.planImage} data-plan-background title=${this.planImage ? 'הסתר את תמונת התוכנית' : 'הצג את תמונת התוכנית'} @click=${() => this.setPlanImage(!this.planImage)}>תמונת התוכנית</sw-button>`
+          : nothing}
         <sw-button icon="cube" aria-pressed=${this.view3d} data-view-3d ?disabled=${!this.view3d && (!webglAvailable() || !this.hasScene || this.threeState === 'loading')}
           title=${!webglAvailable() ? WEBGL_UNAVAILABLE_HE : !this.hasScene ? 'אין מבנה מפורסם בזמן הזה' : 'מקש 3'} @click=${() => this.toggle3d()}>${this.view3d ? '2D' : '3D'}</sw-button>
         ${webglAvailable() ? nothing : html`<span class="note" data-3d-unavailable>${WEBGL_UNAVAILABLE_HE}</span>`}
@@ -686,7 +712,7 @@ export class InvestigateHistoryMap extends LitElement {
                 .cameras=${b.anchors.filter((a) => a.resource_type === 'camera').map((a) => ({ id: a.id, label: entityName(a) }))} exportName=${`plan-3d-${b.floorName}-${this.date}`}
                 @part-select=${(e: CustomEvent<PartSelectDetail>) => this.onPartSelect(e)}></sw-plan-3d>`
             : nothing}
-          <sw-plan-canvas style=${this.shows3d ? 'display:none' : ''} alwaysLabel .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .markers=${this.apiMarkers} .selectedId=${this.selectedId} .zones=${b.zones} .geometry=${this.geometry} .structureLevel=${this.level} .catalog=${this.catalogLookup} .anchorPositions=${Object.fromEntries(b.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees } as AnchorPosition]))} .entityStates=${Object.fromEntries(b.anchors.filter((a) => a.resource_type === 'ha_entity').map((a) => [a.resource_id, this.stateAt(a)]))} dimEntities
+          <sw-plan-canvas style=${this.shows3d ? 'display:none' : ''} alwaysLabel .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .hideImage=${!this.planImage} .markers=${this.apiMarkers} .selectedId=${this.selectedId} .zones=${b.zones} .geometry=${this.geometry} .structureLevel=${this.level} .catalog=${this.catalogLookup} .anchorPositions=${Object.fromEntries(b.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees } as AnchorPosition]))} .entityStates=${Object.fromEntries(b.anchors.filter((a) => a.resource_type === 'ha_entity').map((a) => [a.resource_id, this.stateAt(a)]))} dimEntities
             @marker-select=${(e: CustomEvent<MarkerSelectDetail>) => { this.selectedId = e.detail.id; this.frameFailed = false; }}></sw-plan-canvas>
           ${this.threeState === 'loading' ? html`<div class="hist below" data-3d-loading>טוען תלת-ממד…</div>` : nothing}
           ${this.threeState === 'error' ? html`<div class="hist below" data-3d-load-error>תלת-ממד לא נטען: ${this.threeError}</div>` : nothing}

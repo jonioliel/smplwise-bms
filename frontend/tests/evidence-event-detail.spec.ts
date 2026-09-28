@@ -76,4 +76,42 @@ test.describe('event page (SW A)', () => {
       testInfo.annotations.push({ type: 'centre', description: 'no acknowledged events today; drawer step skipped' });
     }
   });
+
+  // T084: the plan-image viewer toggle, added to the event page's map card alongside the live map, the editor
+  // and the historical map. The developer backend only has a plan picture to hide when a real floor was set up
+  // with one, so this looks for an event on such a floor and records NOT_RUN otherwise, same as the other
+  // fixture-dependent live tests in this suite (see evidence-plan-studio-4.spec.ts).
+  test('the plan picture can be hidden on the event page map card, on a switch of its own, and survives a reload', async ({ page, request }) => {
+    const list = (await (await request.get('/api/v1/events?limit=300')).json()).events as { id: string; camera_id: string | null }[];
+    let found: { id: string } | null = null;
+    for (const e of list.filter((x) => x.camera_id)) {
+      const d = (await (await request.get(`/api/v1/events/${e.id}`)).json()) as { location: { has_plan: boolean } | null };
+      if (d.location?.has_plan) {
+        found = { id: e.id };
+        break;
+      }
+    }
+    test.skip(!found, 'no event with a camera on a floor with a plan on this backend (recorded NOT_RUN)');
+
+    await open(page, `/investigate/events/${found!.id}`);
+    const det = page.locator('investigate-event-detail');
+    const canvas = det.locator('sw-plan-canvas');
+    await expect(canvas).toBeVisible({ timeout: 20000 });
+    const image = canvas.locator('[data-plan-image]');
+    const hasImage = (await image.count()) > 0;
+    test.skip(!hasImage, "the event's floor has no plan picture to hide on this backend (recorded NOT_RUN)");
+
+    const toggle = det.locator('sw-button[data-plan-background]');
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    await expect(image).toHaveCount(0);
+    await expect(canvas.locator('[data-plan-sheet]')).toHaveCount(1);
+    await page.reload();
+    await expect(canvas).toBeVisible({ timeout: 20000 });
+    await expect(image, 'the choice is kept for this floor after a reload').toHaveCount(0);
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    await toggle.click(); // restore, so a later run of this test starts from "shown" again
+    await expect(image).toHaveCount(1);
+  });
 });

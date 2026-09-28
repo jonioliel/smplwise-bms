@@ -64,6 +64,9 @@ export class InvestigateEventDetail extends LitElement {
    * which never hid anchors either; the event's own camera never disappears from "מבט מהמצלמה". */
   @state() private level: string | null = null;
   @state() private catalogLookup: CatalogLookup | null = null;
+  /** The loaded plan picture switch (owner request 2026-09-26), a switch of its own like the live map's, the
+   * editor's and the historical map's, remembered per floor in this browser. */
+  @state() private planImage = true;
   private pollTimer = 0;
   /** T087: the map card's 3D, opened from the event's camera ("מבט מהמצלמה"). Read-only: no actions from the event page. */
   @state() private view3d = false;
@@ -187,6 +190,8 @@ export class InvestigateEventDetail extends LitElement {
       inset-inline-end: 8px;
       inset-block-start: 8px;
       z-index: var(--sw-z-map-ui);
+      display: flex;
+      gap: 6px;
     }
     .load3d {
       position: absolute;
@@ -362,6 +367,7 @@ export class InvestigateEventDetail extends LitElement {
     try {
       const b = await loadMap(floorId);
       this.bundle = b;
+      this.restorePlanImage(floorId);
       void productSettings()
         .then((s) => {
           if (this.bundle === b) this.level = initialLevel(s['plan.levels'], b); // 0.1.89: fixed for the floor, no level bar here
@@ -380,6 +386,28 @@ export class InvestigateEventDetail extends LitElement {
     } catch {
       this.bundle = null;
       this.geometry = null;
+    }
+  }
+
+  /** The plan picture switch, per floor in this browser (its own key: the live map, the editor and the historical
+   * map keep theirs). */
+  private setPlanImage(on: boolean) {
+    this.planImage = on;
+    const floorId = this.bundle?.floorId;
+    if (!floorId) return;
+    try {
+      localStorage.setItem(`sw.event.background.${floorId}`, on ? '1' : '0');
+    } catch {
+      /* private mode or blocked storage: the choice lives for this page only */
+    }
+  }
+
+  /** A floor never switched shows its picture. */
+  private restorePlanImage(floorId: string) {
+    try {
+      this.planImage = localStorage.getItem(`sw.event.background.${floorId}`) !== '0';
+    } catch {
+      this.planImage = true;
     }
   }
 
@@ -614,6 +642,9 @@ export class InvestigateEventDetail extends LitElement {
                 ? html`<div class="map" style=${this.view3d ? 'block-size:320px' : ''}>
                     <div class="floorchip"><sw-icon name="building" size=${12}></sw-icon>${loc.floor_name}</div>
                     <div class="tools3d">
+                      ${this.bundle.imageUrl
+                        ? html`<sw-button size="sm" icon="map" aria-pressed=${this.planImage} data-plan-background title=${this.planImage ? 'הסתר את תמונת התוכנית' : 'הצג את תמונת התוכנית'} @click=${() => this.setPlanImage(!this.planImage)}>תמונת התוכנית</sw-button>`
+                        : nothing}
                       <sw-button size="sm" icon="cube" aria-pressed=${this.view3d} data-event-3d-toggle ?disabled=${!this.view3d && (!webglAvailable() || !this.hasScene || this.threeState === 'loading')}
                         title=${!webglAvailable() ? WEBGL_UNAVAILABLE_HE : !this.hasScene ? 'אין מבנה מפורסם לקומה הזו' : 'מבט מהמצלמה בתלת-ממד'} @click=${() => this.toggle3d()}>${this.view3d ? '2D' : '3D'}</sw-button>
                     </div>
@@ -622,7 +653,7 @@ export class InvestigateEventDetail extends LitElement {
                           .cameras=${this.bundle.anchors.filter((a) => a.resource_type === 'camera').map((a) => ({ id: a.id, label: entityName(a) }))} exportName=${`plan-3d-${loc.floor_name}-${ev.id}`}
                           @part-select=${(e: CustomEvent<PartSelectDetail>) => this.onPartSelect(e)}></sw-plan-3d>`
                       : nothing}
-                    <sw-plan-canvas style=${this.shows3d ? 'display:none' : ''} .planWidth=${this.bundle.width} .planHeight=${this.bundle.height} .imageUrl=${this.bundle.imageUrl} .plan=${this.bundle.planSvg} .markers=${this.markers} .selectedId=${loc.anchor_id} .zones=${this.bundle.zones} .geometry=${this.geometry} .structureLevel=${this.level} .catalog=${this.catalogLookup} .anchorPositions=${Object.fromEntries(this.bundle.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees } as AnchorPosition]))} alwaysLabel dimEntities></sw-plan-canvas>
+                    <sw-plan-canvas style=${this.shows3d ? 'display:none' : ''} .planWidth=${this.bundle.width} .planHeight=${this.bundle.height} .imageUrl=${this.bundle.imageUrl} .hideImage=${!this.planImage} .plan=${this.bundle.planSvg} .markers=${this.markers} .selectedId=${loc.anchor_id} .zones=${this.bundle.zones} .geometry=${this.geometry} .structureLevel=${this.level} .catalog=${this.catalogLookup} .anchorPositions=${Object.fromEntries(this.bundle.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees } as AnchorPosition]))} alwaysLabel dimEntities></sw-plan-canvas>
                     ${this.threeState === 'loading' ? html`<div class="load3d" data-3d-loading>טוען תלת-ממד…</div>` : nothing}
                   </div>
                   ${webglAvailable() ? nothing : html`<div class="note" data-event-3d-unavailable>${WEBGL_UNAVAILABLE_HE}</div>`}
