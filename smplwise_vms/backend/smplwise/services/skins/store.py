@@ -18,6 +18,7 @@ import datetime as dt
 import hashlib
 import io
 import json
+import re
 import shutil
 import sqlite3
 import struct
@@ -27,7 +28,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from ...config import Settings
-from ...db import new_id, now_iso
+from ...db import ID_RE, new_id, now_iso
 
 STATES = ("all_off", "all_on")
 CONTROL_SIZE = (1536, 1024)  # = provider.OPENAI_SIZES[1]: the answer comes back on the same grid
@@ -49,6 +50,40 @@ class ControlImageError(ValueError):
         self.code = code
         self.message = message
         self.details = details or {}
+
+
+class SkinStoreError(ValueError):
+    """A path built from a floor id or a stored `path` would leave `<data>/skins/` (re-review 2a): refused, nothing touched."""
+
+
+# ---------- path confinement ----------
+
+def skins_root(settings: Settings) -> Path:
+    return settings.data_dir / "skins"
+
+
+def check_floor_id(floor_id: str) -> str:
+    """A floor id that may name a folder: the product's id charset (db.ID_RE) - no dots, no separators."""
+    if not isinstance(floor_id, str) or not ID_RE.fullmatch(floor_id):
+        raise SkinStoreError("floor id is not a plain id")
+    return floor_id
+
+
+def _confine(settings: Settings, candidate: Path) -> Path:
+    """The candidate resolved (symlinks and junctions followed, '..' collapsed); SkinStoreError unless it lies strictly
+    under the resolved skins root. Every path this module deletes, writes or reads passes through here."""
+    root = skins_root(settings).resolve()
+    resolved = Path(candidate).resolve()
+    if resolved == root or root not in resolved.parents:
+        raise SkinStoreError("path outside the skins folder")
+    return resolved
+
+
+def confine_stored(settings: Settings, rel: str) -> Path:
+    """A `path` column (relative to the data dir) confined to the skins root."""
+    if not isinstance(rel, str) or not rel or Path(rel).is_absolute() or "\\" in rel:
+        raise SkinStoreError("stored path is not a plain relative path")
+    return _confine(settings, settings.data_dir / rel)
 
 
 # ---------- geometry key ----------
@@ -113,7 +148,17 @@ def validate_png(data: bytes, expected: tuple[int, int] = CONTROL_SIZE) -> tuple
 
 
 def skins_dir(settings: Settings, floor_id: str) -> Path:
-    return settings.data_dir / "skins" / floor_id
+    """`<data>/skins/<floor id>`, the id checked and the result confined (SkinStoreError otherwise)."""
+    return _confine(settings, skins_root(settings) / check_floor_id(floor_id))
+
+
+def _unlink_stored(settings: Settings, rel: str) -> bool:
+    """Delete a stored control file when its `path` confines to the skins root; a poisoned path is never followed."""
+    try:
+        confine_stored(settings, rel).unlink(missing_ok=True)
+        return True
+    except SkinStoreError:
+        return False
 
 
 def control_row(r: sqlite3.Row) -> dict[str, Any]:
@@ -126,21 +171,23 @@ def store_control(settings: Settings, conn: sqlite3.Connection, floor_id: str, s
     row and whether the bytes equal the ones already stored for the same key (the determinism check of the capture)."""
     if state not in STATES:
         raise ControlImageError("bad_state", "מצב לא מוכר.", {"choices": list(STATES)})
+    if not re.fullmatch(r"[0-9a-f]{64}", key or ""):
+        raise ControlImageError("validation", "מפתח הגאומטריה אינו תקין.")
+    folder = skins_dir(settings, floor_id)  # SkinStoreError for an id that is not a plain id
     w, h = validate_png(data)
     sha = hashlib.sha256(data).hexdigest()
-    folder = skins_dir(settings, floor_id)
     folder.mkdir(parents=True, exist_ok=True)
     prev = conn.execute("SELECT * FROM plan_skin_controls WHERE floor_id = ? AND state_key = ?", (floor_id, state)).fetchall()
     identical = any(p["geometry_key"] == key and p["sha256"] == sha for p in prev)
     for p in prev:
-        (settings.data_dir / p["path"]).unlink(missing_ok=True)
+        _unlink_stored(settings, p["path"])
     conn.execute("DELETE FROM plan_skin_controls WHERE floor_id = ? AND state_key = ?", (floor_id, state))
-    dest = folder / f"control-{state}-{key[:16]}.png"
+    dest = _confine(settings, folder / f"control-{state}-{key[:16]}.png")
     dest.write_bytes(data)
     cid = new_id()
     conn.execute(
         "INSERT INTO plan_skin_controls(id, floor_id, state_key, geometry_key, sha256, bytes, width, height, path, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (cid, floor_id, state, key, sha, len(data), w, h, dest.relative_to(settings.data_dir).as_posix(), actor_id, now_iso()),
+        (cid, floor_id, state, key, sha, len(data), w, h, (skins_root(settings) / floor_id / dest.name).relative_to(settings.data_dir).as_posix(), actor_id, now_iso()),
     )
     return control_row(conn.execute("SELECT * FROM plan_skin_controls WHERE id = ?", (cid,)).fetchone()), identical
 
@@ -151,28 +198,47 @@ def controls_of(conn: sqlite3.Connection, floor_id: str) -> list[dict[str, Any]]
 
 def delete_floor(settings: Settings, conn: sqlite3.Connection, floor_id: str) -> int:
     """The floor is deleted: its control images go (files and rows). Render records stay - they count spend."""
+    rows = conn.execute("SELECT path FROM plan_skin_controls WHERE floor_id = ?", (floor_id,)).fetchall()
+    for r in rows:
+        _unlink_stored(settings, r["path"])
     n = conn.execute("DELETE FROM plan_skin_controls WHERE floor_id = ?", (floor_id,)).rowcount
-    shutil.rmtree(skins_dir(settings, floor_id), ignore_errors=True)
+    try:
+        shutil.rmtree(skins_dir(settings, floor_id), ignore_errors=True)
+    except SkinStoreError:
+        pass  # an id that could not have a folder of ours: nothing on disk is touched
     return n
 
 
 def sweep_orphans(settings: Settings, conn: sqlite3.Connection) -> int:
     """Control images of floors that no longer exist (a backup restored in "replace" mode, a floor removed outside the
-    API): rows and files go, and any `skins/<id>` folder without a live floor. Returns the rows removed."""
+    API), and every row whose `path` does not confine to the skins root (its file is never followed): rows go, files
+    go only through _confine, and any `skins/<name>` folder without a live floor goes when it resolves inside the root
+    (a link pointing elsewhere is left alone). Returns the rows removed."""
     live = {r[0] for r in conn.execute("SELECT id FROM floors WHERE deleted_at IS NULL").fetchall()}
     n = 0
     for r in conn.execute("SELECT id, floor_id, path FROM plan_skin_controls").fetchall():
-        if r["floor_id"] not in live:
-            (settings.data_dir / r["path"]).unlink(missing_ok=True)
+        try:
+            target = confine_stored(settings, r["path"])
+        except SkinStoreError:
+            target = None
+        if target is None or r["floor_id"] not in live:
+            if target is not None:
+                target.unlink(missing_ok=True)
             conn.execute("DELETE FROM plan_skin_controls WHERE id = ?", (r["id"],))
             n += 1
-    root = settings.data_dir / "skins"
-    if root.is_dir():
+    root = skins_root(settings)
+    if root.is_dir() and not root.is_symlink():
         for d in root.iterdir():
-            if d.is_dir() and d.name not in live:
-                shutil.rmtree(d, ignore_errors=True)
+            if d.name in live or not d.is_dir():
+                continue
+            try:
+                inside = _confine(settings, d)
+            except SkinStoreError:
+                continue
+            if d.is_symlink():
+                continue
+            shutil.rmtree(inside, ignore_errors=True)
     return n
-
 
 # ---------- budgets ----------
 

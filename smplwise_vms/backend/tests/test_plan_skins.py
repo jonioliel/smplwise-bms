@@ -431,6 +431,103 @@ def test_restore_in_replace_mode_sweeps_control_images_of_floors_that_are_gone(s
     assert not (settings.data_dir / "skins" / fid).exists() and not (settings.data_dir / "skins" / "stray-folder").exists()
 
 
+def test_confine_and_the_floor_id_check(settings):
+    """Re-review 2a: every path the store builds or follows stays strictly under <data>/skins."""
+    from smplwise.db import new_id
+
+    root = (settings.data_dir / "skins").resolve()
+    assert store._confine(settings, settings.data_dir / "skins" / "abc" / "x.png") == root / "abc" / "x.png"
+    for bad in (settings.data_dir / "skins", settings.data_dir / "skins" / ".." / "smplwise.db", settings.data_dir / "skins" / "a" / ".." / ".." / "x", settings.data_dir.parent / "outside.txt"):
+        with pytest.raises(store.SkinStoreError):
+            store._confine(settings, bad)
+    for rel in ("../../../data.db", "skins/../smplwise.db", "/etc/passwd", "C:/Windows/x", "skins\\..\\x", "", None):
+        with pytest.raises(store.SkinStoreError):
+            store.confine_stored(settings, rel)  # type: ignore[arg-type]
+    assert store.confine_stored(settings, "skins/abc/control-all_off-0123.png").parent == root / "abc"
+    assert store.check_floor_id(new_id())
+    for bad_id in ("../x", "a/b", "a\\b", "a.b", "", ".", "..", "x" * 65, None):
+        with pytest.raises(store.SkinStoreError):
+            store.check_floor_id(bad_id)  # type: ignore[arg-type]
+        with pytest.raises(store.SkinStoreError):
+            store.skins_dir(settings, bad_id)  # type: ignore[arg-type]
+
+
+def _canaries(settings) -> list:
+    inside = settings.data_dir / "canary.txt"
+    outside = settings.data_dir.parent / "outside-canary.txt"
+    settings.data_dir.mkdir(parents=True, exist_ok=True)
+    for f in (inside, outside):
+        f.write_text("keep me", encoding="utf-8")
+    return [inside, outside]
+
+
+def test_sweep_orphans_never_follows_a_poisoned_path(settings):
+    app, c = _app(settings)
+    ids, _ = _floor_with_structure(c)
+    fid = ids["floor2"]
+    canaries = _canaries(settings)
+    db_file = settings.db_path
+    with app.state.db.connection() as conn:
+        rows = [("r1", "gone-floor", "../canary.txt"), ("r2", fid, "skins/../canary.txt"), ("r3", "../x", "../../outside-canary.txt"),
+                ("r4", fid, str(canaries[0])), ("r5", "gone-floor", "skins/../smplwise.db")]
+        for rid, floor_id, path in rows:
+            conn.execute("INSERT INTO plan_skin_controls(id, floor_id, state_key, geometry_key, sha256, bytes, width, height, path, created_by, created_at) VALUES (?, ?, ?, ?, 'h', 1, 1, 1, ?, NULL, 'now')",
+                         (rid, floor_id, f"s{rid}", "k", path))
+        assert store.sweep_orphans(settings, conn) == 5
+        assert conn.execute("SELECT COUNT(*) FROM plan_skin_controls").fetchone()[0] == 0
+        # delete_floor with a poisoned id / path touches nothing either
+        conn.execute("INSERT INTO plan_skin_controls(id, floor_id, state_key, geometry_key, sha256, bytes, width, height, path, created_by, created_at) VALUES ('r6', '../x', 'all_off', 'k', 'h', 1, 1, 1, '../canary.txt', NULL, 'now')")
+        assert store.delete_floor(settings, conn, "../x") == 1
+    for f in canaries:
+        assert f.read_text(encoding="utf-8") == "keep me"
+    assert db_file.exists() and c.get("/api/v1/me").status_code == 200
+
+
+def test_restore_skips_unsafe_floor_ids_and_skin_rows_and_touches_nothing_outside(settings, caplog):
+    import zipfile
+
+    from smplwise.services import backup as backup_svc
+
+    app, c = _app(settings)
+    ids = seed_tree(c)
+    with app.state.db.connection() as conn:
+        good = backup_svc.create(settings, conn)
+    src = backup_svc.backups_dir(settings) / good["name"]
+    crafted = backup_svc.backups_dir(settings) / "crafted-unsafe.zip"
+    evil_version = {"id": "pv-evil", "floor_id": "../x", "asset_id": "a", "page": 1, "rotation": 0, "status": "draft", "revision": 1, "created_at": "now"}
+    with zipfile.ZipFile(src) as zin, zipfile.ZipFile(crafted, "w") as zout:
+        names = zin.namelist()
+        for item in zin.infolist():
+            body = zin.read(item.filename)
+            if item.filename == "data/floors.json":
+                floors = json.loads(body)
+                floors.append(dict(floors[0], id="../x", name="evil"))
+                floors.append(dict(floors[0], id="..", name="evil2"))
+                body = json.dumps(floors).encode("utf-8")
+            if item.filename == "data/plan_versions.json":
+                body = json.dumps(json.loads(body) + [evil_version]).encode("utf-8")
+            zout.writestr(item, body)
+        if "data/plan_versions.json" not in names:
+            zout.writestr("data/plan_versions.json", json.dumps([evil_version]))
+        zout.writestr("data/plan_skin_controls.json", json.dumps([{"id": "s1", "floor_id": ids["floor2"], "state_key": "all_off", "geometry_key": "k", "sha256": "h", "bytes": 1, "width": 1, "height": 1, "path": "../../../data.db", "created_at": "now"}]))
+        zout.writestr("files/..\\..\\outside-canary.txt", b"overwritten")
+        zout.writestr("files/skins/../../outside-canary.txt", b"overwritten")
+    canaries = _canaries(settings)
+    with caplog.at_level(logging.WARNING), app.state.db.connection() as conn:
+        res = backup_svc.restore(settings, conn, crafted, mode="replace")
+        assert res["skipped_unsafe"] == {"floors": 2, "plan_versions": 1}
+        assert res["tables"]["floors"] == 2
+        assert conn.execute("SELECT COUNT(*) FROM floors WHERE id IN ('../x', '..')").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM plan_versions WHERE id = 'pv-evil'").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM plan_skin_controls").fetchone()[0] == 0  # never restored from an archive
+    assert "skipped 3 row(s)" in caplog.text and "../x" not in caplog.text
+    for f in canaries:
+        assert f.read_text(encoding="utf-8") == "keep me"
+    assert set(backup_svc.NEVER_RESTORED).isdisjoint(backup_svc.PROJECT_TABLES + backup_svc.ACCESS_TABLES)
+    # the upload route refuses a floor id that could not name a folder (defence in depth: the API never makes one)
+    assert c.get("/api/v1/sites").status_code == 200
+
+
 def test_redact_removes_the_key_bearer_tokens_and_key_shapes():
     text = f"key={FAKE_KEY} header Bearer abc.def-123 other sk-proj-AAAAAAAAAAAA"
     out = prov.redact(text, FAKE_KEY)

@@ -470,6 +470,19 @@ limits recorded above; `Settings` hides `nvr_password`, `go2rtc_password`, `wisk
 `ha_token` from its repr (`field(repr=False)`, tested); a backup restore sweeps control images (rows, files, stray
 folders) of floors that no longer exist (`store.sweep_orphans`, `skin_controls_swept` in the restore result, tested).
 
+Re-review (same day) - path confinement, third commit: `store._confine` resolves every path the skins store writes,
+deletes or follows (symlinks / junctions included) and refuses anything not strictly under `<data>/skins`;
+`check_floor_id` holds a floor id to `db.ID_RE` (the product's id charset, path-safe: letters, digits, `_`, `-`) before
+it names a folder; a stored `path` must be a plain relative path that confines (`confine_stored`). `store_control`,
+`skins_dir`, `delete_floor` and `sweep_orphans` go through them (sweep drops a row with a poisoned path without
+following it; a link out of the root is left alone). Backup restore drops, before inserting, floor rows whose id is
+not a plain id, every row pointing at such a floor, and `plan_skin*` rows whose path does not confine (those tables
+are not restored from archives at all - `NEVER_RESTORED`); counted in `skipped_unsafe` and logged as a count; the
+restore goes on. The archive's `files/` extraction also refuses backslashes and drive colons and any destination that
+does not resolve under the data dir. Tests: `_confine` / `check_floor_id` directly, sweep and delete with poisoned
+rows, and a crafted archive (`../x` floor, a child row, a `../../../data.db` skin path, escaping file members) - canaries
+inside and outside the data dir survive.
+
 Recorded for 2b (not implemented in 2a):
 - **Budget race.** The check runs before the send without a pending row, so two concurrent sends can both pass. 2b
   inserts a `pending` `plan_skin_renders` row inside the check's transaction first, counts `pending` and timeouts as

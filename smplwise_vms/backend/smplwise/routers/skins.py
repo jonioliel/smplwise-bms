@@ -169,6 +169,8 @@ async def upload_control_image(floor_id: str, request: Request, state: str = For
     data = await file.read(store.CONTROL_MAX_BYTES + 1)
     try:
         row, identical = store.store_control(settings, conn, floor_id, state, geometry_key, data, principal.user_id)
+    except store.SkinStoreError:
+        raise ApiError(409, "floor_id_unsafe", "מזהה הקומה אינו מתאים לשמירת קבצים; לא נשמר דבר.")
     except store.ControlImageError as exc:
         raise ApiError(413 if exc.code == "payload_too_large" else 415 if exc.code == "unsupported_format" else 422, exc.code, exc.message, details=exc.details or None)
     audit(conn, actor=principal, action="skins.control.upload", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request),
