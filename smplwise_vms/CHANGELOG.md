@@ -1,5 +1,31 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.115 (pilot) — Device control, slice 2: single-entity control (CR-007)
+- The area screen's cards now act: light and switch toggle with a brightness slider, cover open / stop /
+  close and position, climate target ± / mode / fan speed (only the modes and speeds the entity reports),
+  fan on/off and speed, media on/off, play, pause and mute - one tap for a switch; cover movements
+  (open, close and the position slider alike) arm on the first tap and run on the second, since they move
+  something physical. Locks, alarm panels, cameras and sensors stay read-only here.
+- New permission `devices.control` (operator, site_admin, system_admin; not editor - the recorded decision
+  that editor has no control stands; not viewer, not kiosk), floor-scoped like `devices.read`, and limited
+  server-side to the seven device domains above: a caller who holds only `devices.control` gets an audited
+  403 on lock, alarm, siren, script, scene and button actions, whatever the allow-list says. The existing
+  action endpoint, envelope and audit are reused; `ha.entity.control` keeps exactly its old rights.
+- Honest optimistic UI: a pending command shows "ממתין לאישור" and the row keeps showing what Home Assistant
+  last reported; "אושר" only when the state or the reporting attribute confirms the request (position,
+  speed, mode, target, volume, mute - with a small tolerance, fan speed on the step HA really runs); an action
+  with nothing observable shows "נשלח", never "confirmed"; a timeout or error rolls back with a note; a new
+  slider value supersedes the command in flight; Stop cancels a movement in flight and is never disabled.
+- **Bridge integration 0.2.4** (the HA-side allow-list learned the new services). Home Assistant must be
+  restarted once after this update so the bridge loads; until then the new actions answer
+  `service_not_allowed` cleanly. A new test fails whenever an add-on action is missing from the bridge's
+  allow-list, in either copy, so this drift cannot recur.
+- Reviewed three times: the first review found the permission reaching locks and scripts, the bridge not
+  updated, cover open/close never confirming, three sliders always reporting failure, Stop disabled while
+  moving, and the pending state not honest enough - all fixed by an escalated agent; the re-review approved
+  with two nits (fan-speed tolerance, Stop superseding), fixed. Tests: 34 backend across five files, 30 live
+  on desktop and phone incl. two through the real action route against a fake HA-side bridge.
+
 ## 0.1.114 (pilot) — WisKey person editor (CR-005 phase 2, slice A1)
 - The first write to WisKey's people store from this product: create, edit and delete a person - identity,
   employee number, validity (permanent or a date range), PIN with "generate a unique PIN", cards entered by
