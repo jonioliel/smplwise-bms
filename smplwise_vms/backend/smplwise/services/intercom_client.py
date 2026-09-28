@@ -23,7 +23,12 @@ People writes (CR-005 phase 2, slice A1, owner decision 2026-09-28): `users/crea
 panel command - and the read `users/pin_generate`, which is NOT in WisKey's READ_COMMANDS and so carries `api_contract`
 too (api_contract.py). Their effect is WisKey's storage (`repository._commit`); the devices follow through WisKey's own
 reconciliation. The same rule as for the physical commands applies: sent once, never retried, and a failure code counts
-as a refusal only when the source proves it is raised before the store is written (PRE_STORAGE)."""
+as a refusal only when the source proves it is raised before the store is written (PRE_STORAGE).
+
+Card capture (CR-005 phase 2, slice A2): `cards/reader_capabilities` (a read that reaches the device),
+`cards/capture_start` (PHYSICAL: the station's reader enters card-collection mode), `cards/capture_status`,
+`cards/capture_cancel` and `cards/capture_confirm` (a people write) - WisKey's own names and payloads, refused only for
+the codes PRE_CAPTURE proves come before the effect."""
 from __future__ import annotations
 
 from typing import Any, Awaitable, Callable
@@ -200,7 +205,37 @@ PRE_STORAGE: dict[str, frozenset[str]] = {
     # `storage_stopping`. `manager_closed` comes from `request()` after the tombstone commit: unknown.
     "users/delete": frozenset({"user_not_found", "revision_conflict", "storage_stopping"}),
 }
-PRE_EFFECT: dict[str, frozenset[str]] = {**PRE_DEVICE, **PRE_STORAGE}
+# Card capture (CR-005 phase 2 slice A2), verified against the WisKey source (access/enrollment.py CardEnrollment,
+# websocket.py:524-539 dispatch, access/manager.py _station / _driver, access/repository.py get):
+# - `cards/capture_start`: the handler raises `unauthorized` for an empty actor, then `start()` runs synchronously and
+#   ALL its checks come before the collector task (the only thing that talks to the reader) is created -
+#   `_client()`: `manager_closed`, `station_not_found` (manager._station), `station_offline` / `station_has_no_managed_lock`
+#   (manager._driver); `repository.get`: `user_not_found`; then `revision_conflict`, `invalid_fields`,
+#   `capture_station_busy` (one session per station), `capture_limit` (three sessions across every WisKey user). After
+#   the session is registered and the task created nothing can raise but `public()`. So every one of those is a proven
+#   pre-device refusal. NOT here, so "unknown": `action_failed` (any other exception - e.g. the task factory failing
+#   AFTER the session was registered), `device_unavailable` (a HikvisionError; `start()` does no device I/O, so it is
+#   unproven), every code this list does not know, and a `success: true` answer without a string `session_id`
+#   (intercom_sync.project_capture_session): the reader may then be in collection mode for up to SESSION_SECONDS.
+# - `cards/capture_cancel`: `unauthorized` (empty actor) and, in `cancel()`, `capture_not_found` (the session belongs to
+#   another actor - never us, WisKey sees one actor for all of SMPLWISE) and `capture_applying` (a confirm is running)
+#   are raised before `_drop()`: refused, nothing cancelled. An unknown id is a no-op answered `{cancelled: true}`.
+# - `cards/capture_confirm` (effect = WisKey's store, `manager.async_update`): `capture_not_found`, `capture_not_ready`,
+#   `invalid_text` (the label, models.text_field), then `user_not_found` / `revision_conflict` / `card_conflict` (each
+#   also drops the session) are raised before the update; inside it, the users/update pre-storage codes above. Unknown:
+#   `storage_write_failed`, `manager_closed` (request() after the commit), `action_failed`, everything else.
+CAPTURE_START_REFUSED = frozenset({
+    "manager_closed", "station_not_found", "station_offline", "station_has_no_managed_lock", "user_not_found",
+    "revision_conflict", "capture_station_busy", "capture_limit",
+})
+CAPTURE_CANCEL_REFUSED = frozenset({"capture_not_found", "capture_applying"})
+CAPTURE_CONFIRM_REFUSED = frozenset({"capture_not_found", "capture_not_ready", "invalid_text", "user_not_found", "revision_conflict", "card_conflict"}) | _USER_WRITE_REFUSED
+PRE_CAPTURE: dict[str, frozenset[str]] = {
+    "cards/capture_start": CAPTURE_START_REFUSED,
+    "cards/capture_cancel": CAPTURE_CANCEL_REFUSED,
+    "cards/capture_confirm": CAPTURE_CONFIRM_REFUSED,
+}
+PRE_EFFECT: dict[str, frozenset[str]] = {**PRE_DEVICE, **PRE_STORAGE, **PRE_CAPTURE}
 
 
 def refusal_is_pre_device(command: str, code: str) -> bool:
@@ -331,3 +366,68 @@ async def users_delete(call: Call, user_id: str, revision: int) -> Any:
         raise IntercomError("invalid_fields", "users/delete")
     frame = await call(command_type("users/delete"), user_id=user_id, revision=revision, api_contract=API_CONTRACT)
     return _action_result(frame, "users/delete")
+
+
+# ---------------------------------------------------------------- card capture (CR-005 phase 2, slice A2)
+# WisKey's own commands and payloads (websocket.py:197-201 COMMANDS, access/enrollment.py, client/capture.py), sent as
+# WisKey's own panel sends them (panel.ts:1447-1559 through api-contract.ts `contractHass`: `api_contract` on every
+# command the add-on's user is listed for - `cards/capture_status` / `_cancel` are in READ_COMMANDS, where WisKey's schema
+# still accepts the optional int). The number of a collected card never leaves WisKey: `capture_status` carries only
+# `CapturedCard.public()` - `{masked_number: "•••• 1234", technology, reader_id}` - and `capture_confirm` adds the card
+# WisKey holds in memory to the person.
+
+CAPTURE_READERS = range(0, 9)  # enrollment.start: `reader_id` 0..8, 0 = "omit readerID" (the station's default reader)
+
+
+async def reader_capabilities(call: Call, station_id: str) -> dict[str, Any]:
+    """`hikvision_intercom/cards/reader_capabilities {station_id, api_contract}` - a READ that reaches the device (identity,
+    `GET /ISAPI/AccessControl/capabilities`, `GET .../CaptureCardInfo/capabilities?format=json`; WisKey's own limit 35 s):
+    `{readers: [int], card_min, card_max}` (`[0]` when the station names no reader ids). Not in READ_COMMANDS, so it
+    carries `api_contract`. Errors: `manager_closed`, `station_not_found`, `station_offline`,
+    `station_has_no_managed_lock`, `capture_unsupported`, `device_unavailable`, `action_failed`."""
+    result = _result(await call(command_type("cards/reader_capabilities"), station_id=station_id, api_contract=API_CONTRACT), "cards/reader_capabilities")
+    if not isinstance(result, dict):
+        raise IntercomError("invalid_response", "cards/reader_capabilities")
+    return result
+
+
+async def capture_start(call: Call, station_id: str, user_id: str, revision: int, reader_id: int) -> Any:
+    """`hikvision_intercom/cards/capture_start {station_id, user_id, revision, reader_id, api_contract}` - PHYSICAL: WisKey
+    registers a session (TTL 120 s) and starts a collector that puts the station's reader into card-collection mode
+    (`GET /ISAPI/AccessControl/CaptureCardInfo`, 30 s device deadline, 70 s overall). The answer is the session:
+    `{session_id, station_id, user_id, revision, state: "preparing", error: null, card: null}`. Sent once, never retried."""
+    if type(revision) is not int or type(reader_id) is not int or reader_id not in CAPTURE_READERS:
+        raise IntercomError("invalid_fields", "cards/capture_start")  # WisKey's strict typing: refused locally, nothing sent
+    frame = await call(command_type("cards/capture_start"), station_id=station_id, user_id=user_id, revision=revision, reader_id=reader_id, api_contract=API_CONTRACT)
+    return _action_result(frame, "cards/capture_start")
+
+
+async def capture_status(call: Call, session_id: str) -> dict[str, Any]:
+    """`hikvision_intercom/cards/capture_status {session_id, api_contract}` - a READ of WisKey's in-memory session:
+    `{session_id, station_id, user_id, revision, state: preparing | waiting | captured | error | applying, error, card:
+    null | {masked_number, technology, reader_id}}`. An unknown, expired or foreign id is `capture_not_found`."""
+    result = _result(await call(command_type("cards/capture_status"), session_id=session_id, api_contract=API_CONTRACT), "cards/capture_status")
+    if not isinstance(result, dict):
+        raise IntercomError("invalid_response", "cards/capture_status")
+    return result
+
+
+async def capture_cancel(call: Call, session_id: str) -> Any:
+    """`hikvision_intercom/cards/capture_cancel {session_id, api_contract}` - drops the session and cancels the collector
+    (aborting WisKey's pending reader request); `{cancelled: true}`, also for an id WisKey no longer has. The reader's
+    own collection timeout is firmware-controlled (WisKey `capture_limits`): cancelling stops WisKey waiting, it is not
+    proof the reader left collection mode."""
+    frame = await call(command_type("cards/capture_cancel"), session_id=session_id, api_contract=API_CONTRACT)
+    return _action_result(frame, "cards/capture_cancel")
+
+
+async def capture_confirm(call: Call, session_id: str, label: str) -> Any:
+    """`hikvision_intercom/cards/capture_confirm {session_id, label, api_contract}` - CONFIG-WRITE: WisKey adds the card
+    it collected (`card_type: normalCard`, enabled) to the session's person at the session's revision, with
+    `sync_now` (its default) - the card then reaches the person's assigned stations and opens their doors. Answers the
+    person's public record (cards masked). WisKey drops the session afterwards, whatever the result, except when it
+    refuses at once (`capture_not_found`, `capture_not_ready`, `invalid_text`)."""
+    if not isinstance(label, str):
+        raise IntercomError("invalid_fields", "cards/capture_confirm")
+    frame = await call(command_type("cards/capture_confirm"), session_id=session_id, label=label, api_contract=API_CONTRACT)
+    return _action_result(frame, "cards/capture_confirm")

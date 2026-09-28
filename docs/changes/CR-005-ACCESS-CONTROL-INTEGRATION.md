@@ -266,6 +266,50 @@ answer/reject/hangup (`media/signal`); two-way audio/talk (`audio/*`); TTS (`tts
 > commissioning" string), so the first real use of each flow is treated as its live test. Sequencing: A1 editor core
 > first, then A2 capture, then A3 (schedules/photo), then B1-B3.
 
+> Recorded deviation 2026-09-28 (T054, phase 2 slice A2, card capture; implements kick-off decisions 2 and 10):
+> (1) `access.cards.capture` is registered exactly like `access.release` / `access.people.manage` (site_admin +
+> system_admin, sensitive, installation scope, role catalogue + design contract, per-person grant through a custom role)
+> and is required IN ADDITION to `access.people.manage` on every capture endpoint (readers, start, status, cancel,
+> confirm); card capture no longer rides on `access.release` as §3 first wrote. (2) Like-for-like port of WisKey's flow
+> (access/enrollment.py, panel.ts:1432-1630): `cards/reader_capabilities` -> `cards/capture_start` -> status ->
+> `cards/capture_confirm` or `cards/capture_cancel`, WisKey's own names, payloads (`api_contract: 1` on all five, as
+> WisKey's panel sends them) and limits (70 s collection, 120 s session, one session per station, three in all).
+> WisKey never returns the collected number - its status carries `CapturedCard.public()` only (`•••• NNNN`) - so the
+> card cannot be "filled into a new-card row" of the draft and saved with the person: the admin approves the card in
+> the capture dialog (WisKey's `capture_confirm`, which stores it and requests the stations' sync), behind a
+> confirmation naming the person, and the editor then reloads the record with the card among the saved ones (masked).
+> Nothing is stored without that approval; capture is offered only for a saved, unmodified person (WisKey
+> `editorAction`). (3) Differences from WisKey's panel, as this CR's §5 asks for physical actions: a confirmation step
+> before the reader is started (the API refuses a start without `confirmed: true` and the command envelope), a live
+> countdown, honest end states WisKey's panel has no text for (cancelled, expired, WisKey no longer knows the session,
+> a start / cancel / approval with an unknown outcome - "the reader may still be collecting until WisKey's timeout").
+> (4) Sessions are SMPLWISE-owned: WisKey owns sessions by HA user, which is the add-on's one user for every SMPLWISE
+> user, so `services/intercom_capture.py` maps each WisKey `session_id` to the SMPLWISE user who started it and serves,
+> cancels or confirms it for that user only (404 for anyone else); at most one open capture per SMPLWISE user and per
+> station. (5) The browser never polls WisKey: a backend poller reads each session's `cards/capture_status` every
+> 1.5 s (WisKey's panel: 1 s per open dialog) and the dialog reads SMPLWISE's copy; the brief's `intercom_capture`
+> notices on `/intercom/ws` were NOT used, because that socket is broadcast to every `access.read` holder and would
+> carry another user's masked card. A session nobody asked about for 20 s is cancelled by the backend; a session that
+> WisKey failed (`error`, e.g. `capture_timeout`) is cancelled on WisKey too (WisKey keeps it, and the station's one
+> capture slot, until its TTL; its panel cancels on close / collect again). (6) Lanes: start / cancel / status ride a
+> fourth feed lane `capture` (one slot, own buckets; 4 + 2 + 1 + 1 slots against WisKey's 8), the approval rides the
+> config lane (a people write), `reader_capabilities` the read lane with a 40 s timeout - a capture can never take a
+> door release's slot. (7) Refused vs unknown per command from the source (`intercom_client.PRE_CAPTURE`): start
+> refused = PRE_DISPATCH + `manager_closed`, `station_not_found`, `station_offline`, `station_has_no_managed_lock`,
+> `user_not_found`, `revision_conflict`, `capture_station_busy`, `capture_limit` (all raised in `start()` before the
+> collector exists); unknown = `action_failed`, `device_unavailable`, any other code, a reply without a session id, no
+> reply - and the station is then held for the rest of WisKey's 120 s. Cancel refused = PRE_DISPATCH +
+> `capture_not_found`, `capture_applying`. Confirm refused = PRE_DISPATCH + `capture_not_found`, `capture_not_ready`,
+> `invalid_text`, `user_not_found`, `revision_conflict`, `card_conflict` + the users/update pre-storage codes; unknown =
+> `storage_write_failed`, `manager_closed`, `action_failed`, anything else. (8) Audit: start / cancel / confirm rows under
+> the real actor (attempt + outcome), the poller's result rows (`captured`, `timeout`, `error`, `expired`, `lost`) and
+> the backend's own cancel of an abandoned session under the session's owner - ids, station, reader, states, WisKey's
+> codes, `cards_added: 1`; never the number, not even masked. (9) The UI button and dialog use WisKey's Hebrew copy
+> ("קריאת כרטיס מהאינטרקום" ...), not a new wording. UNVERIFIED (brief §6, unchanged): capture on a real station
+> ("physical collection still needs commissioning"); whether an already-enrolled card presented during collection also
+> opens the door; how long the reader stays in collection mode after a cancel / timeout (firmware); the add-on user's
+> WisKey `users:manage`. The first real use is the live test (owner decision 10) - recorded in DOCS.md.
+
 **Phase 4 — parity completion (peripheral/admin screens).** Camera wall (S4), media/clock settings (S21/S22),
 operations center (S23), identity lifecycle report (S17), permission directory (S18), appearance picker (S25),
 WhatsApp (S20/S6 send+preview — separately flagged, see §7 decision 4, since it is the one EXTERNAL capability

@@ -32,7 +32,8 @@ fixture account (WISKEY_USER / WISKEY_PASSWORD below) for gate and store, `lobby
 lobby's still appears only after a per-station override is set (PUT /api/v1/intercom/stations/lobby/credentials).
 
 Control API (SW_WISKEY_CONTROL_PORT, default SW_PORT + 10, 127.0.0.1 only), JSON:
-    POST /reset                         stations and modes back to the table above; the sent log is cleared
+    POST /reset                         stations and modes back to the table above; the sent log is cleared; the
+                                        SMPLWISE backend forgets its card-capture sessions and station holds
     POST /station {id, call_state}      set a station's call state and push `refresh`
     POST /mode {unlock}                 how stations/test_unlock answers: "accept" ({accepted: true}, the default) or
                                         "unexpected" (success: true with a result of an unexpected shape) or
@@ -51,11 +52,11 @@ Control API (SW_WISKEY_CONTROL_PORT, default SW_PORT + 10, 127.0.0.1 only), JSON
                                         what changes SMPLWISE's overview projection) and push `refresh`
     POST /people/remove {id, notify?}   delete a person (the stations' managed_user_count falls); pushes `refresh`
                                         unless `notify` is false
-    POST /limits {scan_page?, max_scan_pages?, user_burst?, user_rate?, config_user_burst?, config_user_rate?}
+    POST /limits {scan_page?, max_scan_pages?, user_burst?, user_rate?, global_burst?, global_rate?, config_user_burst?, config_user_rate?}
                                         set the SMPLWISE backend's own people-search scan and read / config
                                         rate-bucket constants IN THIS PROCESS (intercom_sync SCAN_PAGE /
-                                        MAX_SCAN_PAGES / USER_BURST / USER_RATE / CONFIG_USER_BURST /
-                                        CONFIG_USER_RATE) and reset the buckets, so a test can reach the
+                                        MAX_SCAN_PAGES / USER_BURST / USER_RATE / GLOBAL_BURST / GLOBAL_RATE /
+                                        CONFIG_USER_BURST / CONFIG_USER_RATE) and reset the buckets, so a test can reach the
                                         `complete: false` outcomes deterministically or click through the editor
                                         faster than a person; /reset restores the defaults
     POST /mode {people}                 how users/create | users/update | users/delete answer (tests/evidence-wiskey-
@@ -64,6 +65,25 @@ Control API (SW_WISKEY_CONTROL_PORT, default SW_PORT + 10, 127.0.0.1 only), JSON
                                         "unexpected" (success: true with a result of an unexpected shape)
     GET  /people/{id}/secret            the fixture's stored PIN and card numbers of one person, for a test to assert
                                         what WisKey stored (never served by SMPLWISE)
+    POST /capture/present {number?, technology?, station?}
+                                        a person holds a card to a reader: the session waiting there (or the only
+                                        waiting one) collects `number` (default C0FFEE42); 409 when no reader waits
+    POST /capture/mode {start?, cancel?, collect_s?, ttl_s?}
+                                        how cards/capture_start answers ("accept"; "unknown" = WisKey's action_failed;
+                                        "unexpected" = success: true without a session), how cards/capture_cancel
+                                        answers ("accept" / "unknown"), and WisKey's collection window (70 s) and
+                                        session TTL (120 s), shortened for a test; /reset restores all four
+    GET  /captures                      WisKey's capture sessions (id, station, person, state, error - not the number)
+
+Card capture (CR-005 phase 2 slice A2) follows WisKey's access/enrollment.py: `cards/reader_capabilities {station_id,
+api_contract}` answers per station (gate: [0] = the default reader, lobby: readers 1-2, office: `capture_unsupported`,
+store: `station_offline`); `cards/capture_start {station_id, user_id, revision, reader_id, api_contract}` checks the
+station, the person and revision, the reader id, one session per station and three in all, and answers the session in
+`preparing` (`waiting` 0.4 s later; `error: capture_timeout` after the collection window; gone after the TTL);
+`cards/capture_status` / `cards/capture_cancel {session_id}` and `cards/capture_confirm {session_id, label, api_contract}`
+(`capture_not_ready`, `invalid_text`, then the session is dropped: `user_not_found`, `revision_conflict`, `card_conflict`,
+else the card is added to the person - revision + 1, assignments pending, a `refresh` push). The collected number is
+kept only in the fixture (`/people/{id}/secret` shows it after the confirm); every status carries it masked.
 
 People writes (CR-005 phase 2 slice A1) follow WisKey's own handlers (websocket.py users/*, access/models.py build_user,
 access/repository.py collisions): `users/create {data, sync_now, api_contract}` / `users/update {user_id, revision, data,
@@ -123,7 +143,7 @@ os.environ["WISKEY_PASSWORD"] = "fixture-pass"
 import httpx  # noqa: E402
 import websockets  # noqa: E402
 
-LIMIT_NAMES = ("SCAN_PAGE", "MAX_SCAN_PAGES", "USER_BURST", "USER_RATE", "CONFIG_USER_BURST", "CONFIG_USER_RATE")  # intercom_sync constants the /limits control may set
+LIMIT_NAMES = ("SCAN_PAGE", "MAX_SCAN_PAGES", "USER_BURST", "USER_RATE", "GLOBAL_BURST", "GLOBAL_RATE", "CONFIG_USER_BURST", "CONFIG_USER_RATE")  # intercom_sync constants the /limits control may set
 LIMIT_DEFAULTS: dict[str, Any] = {}  # filled on first use (the backend is imported only after `websockets.connect` is replaced)
 
 ZONE = {"kind": "iana", "name": "Asia/Jerusalem"}
@@ -605,6 +625,18 @@ def query_users(people: list[dict[str, Any]], msg: dict[str, Any]) -> dict[str, 
     }
 
 
+# ---------------------------------------------------------------- card capture (WisKey access/enrollment.py, client/capture.py)
+
+CAPTURE_TTL_S = 120.0  # enrollment.SESSION_SECONDS
+CAPTURE_COLLECT_S = 70.0  # enrollment._collect asyncio.timeout(70)
+# per station, what `cards/reader_capabilities` answers (CaptureCapabilities.public()) or the code it fails with
+CAPTURE_READERS: dict[str, Any] = {
+    "gate": {"readers": [0], "card_min": 1, "card_max": 32},  # no readerID bounds advertised: 0 = the default reader
+    "lobby": {"readers": [1, 2], "card_min": 4, "card_max": 32},  # CardInfoCap.readerID 1..2
+    "office": "capture_unsupported",  # isSupportCaptureCardInfo not advertised
+}
+
+
 class World:
     """The fake WisKey's state, shared by the fake socket (feed loop thread) and the control server (its own thread)."""
 
@@ -629,6 +661,13 @@ class World:
             self.people = initial_people()
             self.secrets = initial_secrets()
             self.people_mode = "accept"
+            # card capture: WisKey's in-memory sessions (the collected number lives only here, as in WisKey) and how
+            # the next commands answer
+            self.captures: dict[str, dict[str, Any]] = {}
+            self.capture_start_mode = "accept"
+            self.capture_cancel_mode = "accept"
+            self.capture_collect_s = CAPTURE_COLLECT_S
+            self.capture_ttl_s = CAPTURE_TTL_S
 
     def people_write(self, msg: dict[str, Any]) -> dict[str, Any]:
         """One `users/create` / `users/update` / `users/delete` frame under WORLD.lock: WisKey's answer frame."""
@@ -686,6 +725,126 @@ class World:
             if pin not in taken:
                 return ok(msg, {"pin": pin})
         return fail(msg, "pin_generation_failed")
+
+    # -- card capture (under WORLD.lock), WisKey's websocket.py:524-539 + access/enrollment.py
+    @staticmethod
+    def capture_public(sid: str, s: dict[str, Any]) -> dict[str, Any]:
+        """CaptureSession.public(): the card is CapturedCard.public() - masked; the number stays in `s["number"]`."""
+        card = None
+        if s.get("number") is not None:
+            number = s["number"]
+            card = {"masked_number": "•••• " + number[-4:] if len(number) > 4 else "••••", "technology": s.get("technology"), "reader_id": s.get("source_reader")}
+        return {"session_id": sid, "station_id": s["station_id"], "user_id": s["user_id"], "revision": s["revision"], "state": s["state"], "error": s.get("error"), "card": card}
+
+    def capture_station(self, station_id: Any) -> dict[str, Any]:
+        """enrollment._client(): manager._station + manager._driver."""
+        s = next((x for x in self.stations if x["id"] == station_id), None)
+        if s is None:
+            raise _Access("station_not_found")
+        if not s["online"]:
+            raise _Access("station_offline")
+        if not s["lock_enabled"]:
+            raise _Access("station_has_no_managed_lock")
+        return s
+
+    def capture_command(self, msg: dict[str, Any], loop: asyncio.AbstractEventLoop) -> dict[str, Any]:
+        command = msg["type"].removeprefix("hikvision_intercom/")
+        fields = {"cards/reader_capabilities": {"station_id"}, "cards/capture_start": {"station_id", "user_id", "revision", "reader_id"},
+                  "cards/capture_status": {"session_id"}, "cards/capture_cancel": {"session_id"}, "cards/capture_confirm": {"session_id", "label"}}[command]
+        try:
+            if set(msg) - {"id", "type", "api_contract"} != fields or msg.get("api_contract", 0) not in (0, 1):
+                raise _Access("invalid_fields")
+            if command in ("cards/reader_capabilities", "cards/capture_start", "cards/capture_confirm") and msg.get("api_contract") != 1:
+                raise _Access("api_incompatible")  # not in READ_COMMANDS: the contract envelope is required
+            if command == "cards/reader_capabilities":
+                station = self.capture_station(msg["station_id"])
+                caps = CAPTURE_READERS.get(station["id"], "capture_unsupported")
+                if isinstance(caps, str):
+                    raise _Access(caps)
+                return ok(msg, copy.deepcopy(caps))
+            if command == "cards/capture_start":
+                if self.capture_start_mode == "unknown":
+                    return fail(msg, "action_failed")  # e.g. the task factory failing after the session was registered
+                station = self.capture_station(msg["station_id"])
+                user = next((p for p in self.people if p["id"] == msg["user_id"]), None)
+                if user is None:
+                    raise _Access("user_not_found")
+                if type(msg["revision"]) is not int or msg["revision"] != user["revision"]:
+                    raise _Access("revision_conflict")
+                if type(msg["reader_id"]) is not int or not 0 <= msg["reader_id"] <= 8:
+                    raise _Access("invalid_fields")
+                if any(s["station_id"] == station["id"] for s in self.captures.values()):
+                    raise _Access("capture_station_busy")
+                if len(self.captures) >= 3:
+                    raise _Access("capture_limit")
+                sid = hashlib.sha256(f"{station['id']}/{datetime.datetime.now().isoformat()}/{len(self.sent)}".encode()).hexdigest()[:32]
+                self.captures[sid] = {"station_id": station["id"], "user_id": user["id"], "revision": user["revision"], "reader_id": msg["reader_id"], "state": "preparing"}
+                loop.call_later(0.4, self._capture_timer, sid, "waiting")  # the collector re-read the capabilities: the reader waits
+                loop.call_later(self.capture_collect_s, self._capture_timer, sid, "timeout")
+                loop.call_later(self.capture_ttl_s, self._capture_timer, sid, "expire")
+                if self.capture_start_mode == "unexpected":
+                    return ok(msg, {"queued": "maybe"})
+                return ok(msg, self.capture_public(sid, self.captures[sid]))
+            s = self.captures.get(msg["session_id"])
+            if command == "cards/capture_status":
+                if s is None:
+                    raise _Access("capture_not_found")
+                return ok(msg, self.capture_public(msg["session_id"], s))
+            if command == "cards/capture_cancel":
+                if self.capture_cancel_mode == "unknown":
+                    return fail(msg, "action_failed")
+                if s is not None and s["state"] == "applying":
+                    raise _Access("capture_applying")
+                self.captures.pop(msg["session_id"], None)
+                return ok(msg, {"cancelled": True})
+            # cards/capture_confirm (enrollment.confirm)
+            if s is None:
+                raise _Access("capture_not_found")
+            if s["state"] != "captured":
+                raise _Access("capture_not_ready")
+            label = _text_field(msg["label"], 64, empty=True)
+            del self.captures[msg["session_id"]]  # dropped whatever happens next (enrollment.confirm's finally / early drops)
+            user = next((p for p in self.people if p["id"] == s["user_id"]), None)
+            if user is None:
+                raise _Access("user_not_found")
+            if user["revision"] != s["revision"]:
+                raise _Access("revision_conflict")
+            number = s["number"]
+            if any(v == number for secret in self.secrets.values() for v in secret.get("cards", {}).values()):
+                raise _Access("card_conflict")
+            revision = user["revision"] + 1
+            card_id = f"{hashlib.sha256(number.encode()).hexdigest()[:8]}-0000-4000-8000-{len(user['cards']):012d}"
+            user["cards"].append({"id": card_id, "masked_number": masked(number), "label": label, "card_type": "normalCard", "enabled": True})
+            user["revision"] = revision
+            user["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            for sid_, a in user["assignments"].items():
+                a.update(desired_revision=revision, sync_state="pending")  # sync_now: the stations are queued
+            self.secrets.setdefault(user["id"], {"pin": None, "cards": {}})["cards"][card_id] = number
+            loop.call_later(0.2, self.fake.refresh if self.fake else (lambda: None))
+            return ok(msg, copy.deepcopy(user))
+        except _Access as exc:
+            return fail(msg, exc.code)
+
+    def _capture_timer(self, sid: str, what: str) -> None:
+        with self.lock:
+            s = self.captures.get(sid)
+            if s is None:
+                return
+            if what == "waiting" and s["state"] == "preparing":
+                s["state"] = "waiting"
+            elif what == "timeout" and s["state"] in ("preparing", "waiting"):
+                s.update(state="error", error="capture_timeout")  # the collector gave up; the session stays until its TTL
+            elif what == "expire" and s["state"] != "applying":
+                del self.captures[sid]
+
+    def present_card(self, number: str, technology: str, station_id: str | None) -> dict[str, Any] | None:
+        """Someone holds a card to the reader: the waiting session (at `station_id`, or the only one) collects it."""
+        with self.lock:
+            for sid, s in self.captures.items():
+                if s["state"] == "waiting" and station_id in (None, s["station_id"]):
+                    s.update(state="captured", number=number, technology=technology, source_reader=s["reader_id"] or 1)
+                    return {"session_id": sid, "station_id": s["station_id"]}
+        return None
 
     def push_refresh(self) -> None:
         if self.fake is not None and self.loop is not None:
@@ -800,6 +959,9 @@ class FakeHa:
                     asyncio.get_running_loop().call_later(0.2, self.refresh)  # WisKey's `_changed()`: a data-free refresh push
             elif kind == "hikvision_intercom/users/pin_generate":
                 self.push(WORLD.pin_generate(msg))
+            elif kind in ("hikvision_intercom/cards/reader_capabilities", "hikvision_intercom/cards/capture_start", "hikvision_intercom/cards/capture_status",
+                          "hikvision_intercom/cards/capture_cancel", "hikvision_intercom/cards/capture_confirm"):
+                self.push(WORLD.capture_command(msg, asyncio.get_running_loop()))
             elif kind == "hikvision_intercom/tts/engines":
                 self.push(ok(msg, copy.deepcopy(TTS_ENGINES)))
             elif kind == "hikvision_intercom/tts/start":
@@ -893,6 +1055,9 @@ class Control(BaseHTTPRequestHandler):
         if self.path == "/frame-hits":
             with WORLD.lock:
                 return self._json(200, list(WORLD.frame_hits))
+        if self.path == "/captures":
+            with WORLD.lock:  # WisKey's sessions as a test sees them (no collected number: that stays in the fixture)
+                return self._json(200, [{"session_id": sid, "station_id": s["station_id"], "user_id": s["user_id"], "state": s["state"], "error": s.get("error")} for sid, s in WORLD.captures.items()])
         if self.path.startswith("/people/") and self.path.endswith("/secret"):
             pid = self.path[len("/people/"):-len("/secret")]
             with WORLD.lock:
@@ -911,6 +1076,9 @@ class Control(BaseHTTPRequestHandler):
         if self.path == "/reset":
             WORLD.reset()
             set_limits({})  # the SMPLWISE backend's own search / rate constants back to their defaults, buckets full
+            from smplwise.services import intercom_capture  # noqa: PLC0415 - loaded after websockets.connect is replaced
+
+            intercom_capture.CAPTURES.clear()  # the backend forgets its capture sessions and station holds with the fixture's
             WORLD.push_refresh()
             return self._json(200, {"ok": True})
         if self.path == "/station":
@@ -983,9 +1151,29 @@ class Control(BaseHTTPRequestHandler):
             if body.get("notify", True):
                 WORLD.push_refresh()
             return self._json(200, {"ok": True})
+        if self.path == "/capture/present":
+            number = body.get("number", "C0FFEE42")
+            technology = body.get("technology", "TypeA_M1")
+            if not isinstance(number, str) or not IDENTIFIER.fullmatch(number) or technology not in ("TypeA_M1", "TypeA_CPU", "TypeB", "ID_125K", "FelicaCard", "DesfireCard"):
+                return self._json(422, {"error": "number: [A-Za-z0-9_-]{1,32}; technology: one WisKey knows"})
+            presented = WORLD.present_card(number, technology, body.get("station"))
+            if presented is None:
+                return self._json(409, {"error": "no reader is waiting for a card"})
+            return self._json(200, {"ok": True, **presented})
+        if self.path == "/capture/mode":
+            allowed = {"start": ("accept", "unknown", "unexpected"), "cancel": ("accept", "unknown")}
+            if not body or set(body) - {"start", "cancel", "collect_s", "ttl_s"} or any(k in allowed and body[k] not in allowed[k] for k in body) \
+                    or any(k in ("collect_s", "ttl_s") and (isinstance(body[k], bool) or not isinstance(body[k], (int, float)) or not 0.5 <= body[k] <= 300) for k in body):
+                return self._json(422, {"error": "start: accept|unknown|unexpected, cancel: accept|unknown, collect_s / ttl_s: 0.5..300"})
+            with WORLD.lock:
+                WORLD.capture_start_mode = body.get("start", WORLD.capture_start_mode)
+                WORLD.capture_cancel_mode = body.get("cancel", WORLD.capture_cancel_mode)
+                WORLD.capture_collect_s = float(body.get("collect_s", WORLD.capture_collect_s))
+                WORLD.capture_ttl_s = float(body.get("ttl_s", WORLD.capture_ttl_s))
+            return self._json(200, {"ok": True})
         if self.path == "/limits":
             if set(body) - {n.lower() for n in LIMIT_NAMES} or any(isinstance(v, bool) or not isinstance(v, (int, float)) or v < 0 for v in body.values()):
-                return self._json(422, {"error": "scan_page, max_scan_pages, user_burst, user_rate, config_user_burst, config_user_rate: non-negative numbers"})
+                return self._json(422, {"error": "scan_page, max_scan_pages, user_burst, user_rate, global_burst, global_rate, config_user_burst, config_user_rate: non-negative numbers"})
             return self._json(200, {"ok": True, "limits": set_limits(body)})
         if self.path == "/mode":
             if "unlock" in body and body["unlock"] not in ("accept", "unexpected", "unconfirmed"):

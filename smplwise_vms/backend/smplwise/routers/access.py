@@ -95,9 +95,17 @@ PERMISSION_LABELS: dict[str, str] = {
     # access.release's treatment: granted by default ONLY to site_admin and system_admin, never to viewer / kiosk /
     # editor / operator, listed in sensitive_permissions_not_implied (a custom role must name it explicitly among its
     # sensitive permissions - that is how the owner grants it to one specific person: a custom role plus a binding),
-    # installation scope only. Card capture (access.cards.capture) and door settings (access.doors.*) are separate,
-    # later permissions; access.read still never implies any of them.
+    # installation scope only. Card capture (access.cards.capture, below) and door settings (access.doors.*) are separate
+    # permissions; access.read still never implies any of them.
     "access.people.manage": "ניהול אנשים בבקרת כניסה (WisKey): יצירה, עריכה ומחיקה של אנשים, קודי PIN וכרטיסים",
+    # access.cards.capture (CR-005 phase 2 slice A2; owner decision 2026-09-28, answer 2 to the phase-2 brief): reading a
+    # presented card from a WisKey station's reader into the person editor - it puts a real reader at a door into
+    # card-collection mode (PHYSICAL) and ends in a people write (the approved card opens the person's doors once WisKey
+    # syncs it). Its own permission, required IN ADDITION to access.people.manage on every capture endpoint, so card
+    # enrolment never rides along with the guard-desk access.release nor with people editing alone. Same treatment as
+    # access.release / access.people.manage: default ONLY site_admin and system_admin, sensitive (never implied; a custom
+    # role naming it among its sensitive permissions plus a binding is the per-person grant path), installation scope.
+    "access.cards.capture": "קריאת כרטיס מקורא בעמדת WisKey (מפעיל את הקורא בדלת; דורש גם ניהול אנשים)",
 }
 SYSTEM_PERMISSIONS = {"system.configure", "sources.configure", "identity.directory.read", "rbac.roles.manage", "audit.read", "backup.manage"}  # rbac.assign is delegable (T082)
 DEFAULT_DELEGABLE = ["viewer", "operator", "editor", "kiosk"]

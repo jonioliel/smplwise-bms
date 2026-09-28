@@ -41,8 +41,10 @@ test.describe('WisKey person editor against the fixture WisKey (CR-005 phase 2 A
     expect((await control.post('/reset')).status()).toBe(200);
     // the whole run is one SMPLWISE user clicking far faster than a person: widen its own read bucket (the backend's
     // fairness limit, USER_BURST 10 at 1/s) so the editor's context + record reads are never refused `rate_limited`
-    // between tests; /reset in afterAll restores the defaults
-    expect((await control.post('/limits', { data: { user_burst: 100, user_rate: 10, config_user_burst: 50, config_user_rate: 5 } })).status()).toBe(200);
+    // between tests - and the shared read bucket too (GLOBAL_BURST 20 at 1.5/s: the directory refetches on every
+    // `refresh` push after a save, and a run this fast drained it: `rate_limited` on a record read, 0.1.114 and before);
+    // /reset in afterAll restores the defaults
+    expect((await control.post('/limits', { data: { user_burst: 100, user_rate: 10, global_burst: 200, global_rate: 20, config_user_burst: 50, config_user_rate: 5 } })).status()).toBe(200);
   });
 
   test.afterAll(async () => {

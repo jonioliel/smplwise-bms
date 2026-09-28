@@ -3181,3 +3181,584 @@ def test_people_writes_without_home_assistant_are_not_sent(settings):
     [row] = audit_rows(settings, "intercom.person.create", "outcome")
     assert row["details"]["outcome"] == "not_sent"
     intercom_sync.SYNC.reset()
+
+
+# ---------------------------------------------------------------- phase 2 slice A2: card capture (access.cards.capture)
+
+from smplwise.services import intercom_capture  # noqa: E402
+
+CAPTURE_PERM = "access.cards.capture"
+CAP = "hikvision_intercom/cards/"
+CAPTURED_NUMBER = "QRSTWXYZ"  # the number the fake reader "reads": it must never leave the fake WisKey
+CAPTURED_MASK = "•••• WXYZ"
+
+
+class FakeEnrollment:
+    """WisKey's CardEnrollment (access/enrollment.py) as a script: sessions in memory, one per station, three in all;
+    `preparing` -> `waiting` on the first status read; `present()` is the person holding a card to the reader. The
+    collected number stays here - status answers only `CapturedCard.public()` (masked)."""
+
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.sessions: dict[str, dict[str, Any]] = {}
+        self.fail: dict[str, str] = {}  # command -> the code it answers with
+        self.hold: set[str] = set()  # commands that get no answer at all (WisKey slow / the answer lost)
+        self.raw: dict[str, Any] = {}  # command -> a success result of this exact value
+        self.readers: dict[str, Any] = {"readers": [0], "card_min": 1, "card_max": 32}
+
+    def present(self, number: str = CAPTURED_NUMBER, technology: str = "TypeA_M1", sid: str | None = None) -> None:
+        with self.lock:
+            for key, s in self.sessions.items():
+                if sid in (None, key) and s["state"] in ("preparing", "waiting"):
+                    s.update(state="captured", number=number, card={"masked_number": "•••• " + number[-4:], "technology": technology, "reader_id": 1})
+
+    def expire(self, sid: str | None = None, error: str = "capture_timeout") -> None:
+        with self.lock:
+            for key, s in self.sessions.items():
+                if sid in (None, key):
+                    s.update(state="error", error=error, card=None)
+
+    @staticmethod
+    def public(sid: str, s: dict[str, Any]) -> dict[str, Any]:
+        return {"session_id": sid, "station_id": s["station_id"], "user_id": s["user_id"], "revision": s["revision"], "state": s["state"], "error": s.get("error"), "card": s.get("card")}
+
+    def answer(self, msg: dict[str, Any]) -> list[Any] | None:
+        kind = msg["type"]
+        if not kind.startswith(CAP):
+            return None
+        command = kind.removeprefix("hikvision_intercom/")
+        if command in self.hold:
+            return []
+        if command in self.fail:
+            return [fail(msg, self.fail[command])]
+        if command in self.raw:
+            return [ok(msg, copy.deepcopy(self.raw[command]))]
+        with self.lock:
+            if command == "cards/reader_capabilities":
+                return [ok(msg, copy.deepcopy(self.readers))]
+            if command == "cards/capture_start":
+                if any(s["station_id"] == msg["station_id"] for s in self.sessions.values()):
+                    return [fail(msg, "capture_station_busy")]
+                if len(self.sessions) >= 3:
+                    return [fail(msg, "capture_limit")]
+                sid = uuid.uuid4().hex
+                self.sessions[sid] = {"station_id": msg["station_id"], "user_id": msg["user_id"], "revision": msg["revision"], "state": "preparing"}
+                return [ok(msg, self.public(sid, self.sessions[sid]))]
+            if command == "cards/capture_status":
+                s = self.sessions.get(msg["session_id"])
+                if s is None:
+                    return [fail(msg, "capture_not_found")]
+                frame = ok(msg, self.public(msg["session_id"], s))
+                if s["state"] == "preparing":
+                    s["state"] = "waiting"
+                return [frame]
+            if command == "cards/capture_cancel":
+                s = self.sessions.get(msg["session_id"])
+                if s is not None and s["state"] == "applying":
+                    return [fail(msg, "capture_applying")]
+                self.sessions.pop(msg["session_id"], None)
+                return [ok(msg, {"cancelled": True})]
+            if command == "cards/capture_confirm":
+                s = self.sessions.get(msg["session_id"])
+                if s is None:
+                    return [fail(msg, "capture_not_found")]
+                if s["state"] != "captured":
+                    return [fail(msg, "capture_not_ready")]
+                del self.sessions[msg["session_id"]]
+                person = copy.deepcopy(PERSON)
+                person["revision"] += 1
+                person["cards"].append({"id": CARD_ID, "masked_number": s["card"]["masked_number"], "label": msg["label"].strip(), "card_type": "normalCard", "enabled": True})
+                return [ok(msg, person)]
+        return None
+
+
+@pytest.fixture()
+def fast_capture(monkeypatch):
+    """The poller at test speed and roomy capture buckets; no session outlives the test."""
+    monkeypatch.setattr(intercom_capture, "POLL_S", 0.05)
+    monkeypatch.setattr(intercom_capture, "CAPTURED_POLL_S", 0.1)
+    for name in ("CAPTURE_USER_BURST", "CAPTURE_GLOBAL_BURST", "CAPTURE_USER_RATE", "CAPTURE_GLOBAL_RATE", "CONFIG_USER_BURST", "CONFIG_GLOBAL_BURST"):
+        monkeypatch.setattr(intercom_sync, name, 1000.0)
+    intercom_capture.CAPTURES.clear()
+    yield
+    intercom_capture.CAPTURES.clear()
+
+
+def capture_feed(feed, fake: FakeEnrollment, extra: Callable[[dict[str, Any]], list[Any] | None] = lambda msg: None) -> tuple[Any, list[FakeHa], TestClient]:
+    """editor_feed with the fake enrollment; sam (site_admin), sid (system_admin) and vera (viewer) bound."""
+    def answer(msg: dict[str, Any]) -> list[Any] | None:
+        frames = extra(msg)
+        return frames if frames is not None else fake.answer(msg)
+
+    app, fakes, c = editor_feed(feed, answer)
+    bind(c, feed[1], "sid", "system_admin", "installation", "*")
+    intercom_sync.SYNC._buckets_reset()
+    return app, fakes, c
+
+
+def cap_start(c: TestClient, user: str = "sam", station: str = "entry-a", person: str = "u1", revision: int = 4, reader: int = 0, **fields: Any) -> Any:
+    body = env(**{"station_id": station, "reader_id": reader, "revision": revision, "confirmed": True, **fields})
+    return c.post(f"/api/v1/intercom/people/{person}/card-capture", json=body, headers=as_user(user))
+
+
+def cap_status(c: TestClient, sid: str, user: str = "sam") -> Any:
+    return c.get(f"/api/v1/intercom/card-capture/{sid}", headers=as_user(user))
+
+
+def cap_cancel(c: TestClient, sid: str, user: str = "sam") -> Any:
+    return c.post(f"/api/v1/intercom/card-capture/{sid}/cancel", json={}, headers=as_user(user))
+
+
+def cap_confirm(c: TestClient, sid: str, user: str = "sam", label: str = "תג ראשי", **fields: Any) -> Any:
+    return c.post(f"/api/v1/intercom/card-capture/{sid}/confirm", json=env(**{"label": label, "confirmed": True, **fields}), headers=as_user(user))
+
+
+def wait_state(c: TestClient, sid: str, state: str, user: str = "sam", timeout: float = 5.0) -> dict[str, Any]:
+    seen: dict[str, Any] = {}
+
+    def reached() -> bool:
+        seen.update(cap_status(c, sid, user).json().get("capture") or {})
+        return seen.get("state") == state
+
+    wait_for(reached, timeout)
+    return seen
+
+
+def capture_rows(settings: Any) -> list[dict[str, Any]]:
+    with Database(settings.db_path).connection() as conn:
+        rows = conn.execute("SELECT action, decision, resource_type, resource_id, reason, details_json, actor_username FROM audit_log WHERE action LIKE 'intercom.card_capture.%' ORDER BY rowid").fetchall()
+    return [{**dict(r), "details": json.loads(r["details_json"]) if r["details_json"] else None} for r in rows]
+
+
+def no_card_digits_in_audit(settings: Any) -> None:
+    with Database(settings.db_path).connection() as conn:
+        hits = conn.execute("SELECT COUNT(*) FROM audit_log WHERE details_json LIKE '%WXYZ%' OR reason LIKE '%WXYZ%' OR details_json LIKE '%QRST%'").fetchone()[0]
+    assert hits == 0, "the collected card's number - not even its masked last four - is never in the audit log"
+
+
+CAPTURE_PATHS = (
+    ("get", "/api/v1/intercom/stations/entry-a/card-readers", None),
+    ("post", "/api/v1/intercom/people/u1/card-capture", "start"),
+    ("get", "/api/v1/intercom/card-capture/0123456789abcdef", None),
+    ("post", "/api/v1/intercom/card-capture/0123456789abcdef/cancel", {}),
+    ("post", "/api/v1/intercom/card-capture/0123456789abcdef/confirm", "confirm"),
+)
+
+
+def test_access_cards_capture_permission_catalogue(settings):
+    """`access.cards.capture` follows `access.release` / `access.people.manage` (owner decision 2026-09-28, answer 2):
+    site_admin and system_admin only, sensitive, labelled, in the design catalogue, grantable per person."""
+    assert {r for r, perms in ROLES.items() if CAPTURE_PERM in perms} == {"site_admin", "system_admin"}
+    for role in ("viewer", "kiosk", "operator", "editor"):
+        assert CAPTURE_PERM not in ROLES[role], role
+    assert CAPTURE_PERM in SENSITIVE and PERMISSION_LABELS[CAPTURE_PERM]
+    contract = json.loads((ROOT / "contracts" / "examples" / "role-catalog.design.json").read_text(encoding="utf-8"))
+    assert {r["id"]: CAPTURE_PERM in r["permissions"] for r in contract["roles"]} == {r["id"]: CAPTURE_PERM in ROLES[r["id"]] for r in contract["roles"]}
+    assert CAPTURE_PERM in contract["sensitive_permissions_not_implied"]
+
+
+def test_card_capture_needs_its_own_permission_on_top_of_people_manage(settings):
+    """Every capture endpoint is 403 for a viewer / operator / editor / kiosk, for a custom role holding
+    `access.people.manage` WITHOUT `access.cards.capture` and for one holding the capture permission without people
+    management - before the body is read, audited, and no `intercom.card_capture.*` row is written for them."""
+    intercom_sync.SYNC.reset()
+    intercom_capture.CAPTURES.clear()
+    intercom_sync.SYNC.start(settings)
+    c = TestClient(create_app(settings))
+    for user, role in (("vera", "viewer"), ("otto", "operator"), ("eddie", "editor"), ("wall", "kiosk")):
+        bind(c, settings, user, role, "installation", "*")
+    people_only = c.post("/api/v1/access/roles", json={"name": "people only", "description": "A1 without A2", "permissions": ["access.read"], "sensitive": [MANAGE]}).json()["id"]
+    capture_only = c.post("/api/v1/access/roles", json={"name": "capture only", "description": "A2 without A1", "permissions": ["access.read"], "sensitive": [CAPTURE_PERM]}).json()["id"]
+    both = c.post("/api/v1/access/roles", json={"name": "people + capture", "description": "one person's grant", "permissions": ["access.read"], "sensitive": [MANAGE, CAPTURE_PERM]}).json()["id"]
+    bind(c, settings, "polly", people_only, "installation", "*")
+    bind(c, settings, "cora", capture_only, "installation", "*")
+    bind(c, settings, "bea", both, "installation", "*")
+    assert c.get("/api/v1/intercom/people-editor/context", headers=as_user("polly")).status_code == 200, "polly does edit people"
+    for user in ("vera", "otto", "eddie", "wall", "polly", "cora", "nobody"):
+        for method, path, body in CAPTURE_PATHS:
+            payload = env(station_id="entry-a", reader_id=0, revision=4, confirmed=True) if body == "start" else env(label="x", confirmed=True) if body == "confirm" else body
+            r = c.request(method, path, json=payload, headers=as_user(user))
+            assert r.status_code == 403 and r.json()["code"] == "forbidden", (user, path, r.text)
+        r = c.post("/api/v1/intercom/people/u1/card-capture", content=b"{not json", headers={**as_user(user), "Content-Type": "application/json"})
+        assert r.status_code == 403, "permission before the body"
+    with Database(settings.db_path).connection() as conn:
+        polly = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = ? AND decision = 'denied' AND actor_username = 'polly'", (CAPTURE_PERM,)).fetchone()[0]
+        cora = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = ? AND decision = 'denied' AND actor_username = 'cora'", (MANAGE,)).fetchone()[0]
+        own = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action LIKE 'intercom.card_capture.%'").fetchone()[0]
+    assert polly == len(CAPTURE_PATHS) + 1 and cora == len(CAPTURE_PATHS) + 1, "the missing permission is named in each refusal"
+    assert own == 0
+    # both permissions (a custom role, the per-person grant path): through to the feed (not configured here)
+    r = c.get("/api/v1/intercom/stations/entry-a/card-readers", headers=as_user("bea"))
+    assert r.status_code == 200 and r.json()["state"] == "ha_not_configured" and r.json()["readers"] is None
+    intercom_sync.SYNC.reset()
+
+
+def test_card_capture_round_trip(feed, fast_capture):
+    """Readers -> start (WisKey's exact frame, confirmed, audited attempt + outcome) -> the backend's poller follows the
+    session (preparing -> waiting) -> a card is presented -> the owner sees it masked -> confirm (WisKey's exact frame,
+    config lane) -> the person comes back with the new card masked. The number is never in a reply beyond WisKey's
+    masked form, never in the audit log."""
+    fake = FakeEnrollment()
+    fake.readers = {"readers": [1, 2], "card_min": 4, "card_max": 32}
+    app, fakes, c = capture_feed(feed, fake)
+    s = feed[1]
+    r = c.get("/api/v1/intercom/stations/entry-a/card-readers", headers=as_user("sam"))
+    assert r.status_code == 200 and r.json()["readers"] == {"readers": [1, 2], "card_min": 4, "card_max": 32}, r.text
+    [msg] = sent(fakes, "cards/reader_capabilities")
+    assert msg == {"id": msg["id"], "type": CAP + "reader_capabilities", "station_id": "entry-a", "api_contract": 1}
+    r = cap_start(c, reader=2)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    view = body["capture"]
+    sid = view["session_id"]
+    assert view["state"] == "preparing" and view["active"] is True and view["card"] is None and view["station_name"] == "Main gate"
+    assert view["collect_remaining_s"] > 60 and view["session_remaining_s"] > 110 and view["reader_may_be_collecting"] is True
+    assert body["command_id"] and "שום כרטיס לא יתווסף" in body["note"]
+    [msg] = sent(fakes, "cards/capture_start")
+    assert msg == {"id": msg["id"], "type": CAP + "capture_start", "station_id": "entry-a", "user_id": "u1", "revision": 4, "reader_id": 2, "api_contract": 1}
+    [attempt] = audit_rows(s, "intercom.card_capture.start", "attempt")
+    [outcome] = audit_rows(s, "intercom.card_capture.start", "outcome")
+    assert (attempt["actor_username"], attempt["resource_type"], attempt["resource_id"]) == ("sam", "intercom_person", "u1")
+    assert (attempt["details"]["station_id"], attempt["details"]["reader_id"], attempt["details"]["revision"], attempt["details"]["station_name"]) == ("entry-a", 2, 4, "Main gate")
+    assert outcome["details"]["outcome"] == "ok" and outcome["details"]["result"] == {"session_id": sid, "state": "preparing"}
+    wait_state(c, sid, "waiting")
+    status = sent(fakes, "cards/capture_status")
+    assert status and status[0] == {"id": status[0]["id"], "type": CAP + "capture_status", "session_id": sid, "api_contract": 1}
+    fake.present()
+    view = wait_state(c, sid, "captured")
+    assert view["card"] == {"masked_number": CAPTURED_MASK, "technology": "TypeA_M1", "reader_id": 1}
+    assert view["collect_remaining_s"] is None and view["reader_may_be_collecting"] is False
+    wait_for(lambda: len(audit_rows(s, "intercom.card_capture.result")) == 1)
+    [result] = audit_rows(s, "intercom.card_capture.result")
+    assert result["actor_username"] == "sam" and result["details"]["outcome"] == "captured" and result["details"]["technology"] == "TypeA_M1"
+    # approval: only with the explicit confirmation, then WisKey's exact frame
+    r = cap_confirm(c, sid, confirmed=None)
+    assert r.status_code == 409 and r.json()["code"] == "confirmation_required" and r.json()["details"]["outcome"] == "not_sent"
+    assert not sent(fakes, "cards/capture_confirm")
+    r = cap_confirm(c, sid, label="  תג ראשי ")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["person"]["revision"] == 5 and body["person"]["cards"][-1] == {"id": CARD_ID, "masked_number": CAPTURED_MASK, "label": "תג ראשי", "card_type": "normalCard", "enabled": True}
+    assert body["capture"]["state"] == "confirmed" and body["capture"]["card"] is None and body["capture"]["active"] is False
+    [msg] = sent(fakes, "cards/capture_confirm")
+    assert msg == {"id": msg["id"], "type": CAP + "capture_confirm", "session_id": sid, "label": "  תג ראשי ", "api_contract": 1}
+    [attempt] = audit_rows(s, "intercom.card_capture.confirm", "attempt")
+    [outcome] = audit_rows(s, "intercom.card_capture.confirm", "outcome")
+    assert attempt["details"]["cards_added"] == 1 and attempt["details"]["label_set"] is True and attempt["details"]["session_id"] == sid
+    assert outcome["details"]["result"]["card_count"] == 2 and "cards" not in outcome["details"]["result"]
+    assert CAPTURED_NUMBER not in r.text and "WXYZ" not in json.dumps(capture_rows(s), ensure_ascii=False)
+    no_card_digits_in_audit(s)
+    # the session is over: nothing left to cancel or confirm
+    assert cap_cancel(c, sid).json()["code"] == "intercom_capture_over"
+    assert cap_confirm(c, sid).json()["code"] == "intercom_capture_not_ready"
+    assert len(sent(fakes, "cards/capture_confirm")) == 1 and not sent(fakes, "cards/capture_cancel")
+
+
+def test_card_capture_start_requires_confirmation_and_the_envelope(feed, fast_capture):
+    """A physical action on a reader at a door: no `confirmed: true`, an expired / too-far / duplicate command, a
+    non-JSON body, a reader outside 0..8 or a bool, an unknown / offline / lockless station - each an audited `not_sent`
+    refusal, nothing sent to WisKey."""
+    fake = FakeEnrollment()
+    app, fakes, c = capture_feed(feed, fake)
+    s = feed[1]
+    for confirmed in (None, False, "yes", 1):
+        body = env(station_id="entry-a", reader_id=0, revision=4) if confirmed is None else env(station_id="entry-a", reader_id=0, revision=4, confirmed=confirmed)
+        r = c.post("/api/v1/intercom/people/u1/card-capture", json=body, headers=as_user("sam"))
+        assert r.status_code == 409 and r.json()["code"] == "confirmation_required" and r.json()["details"]["outcome"] == "not_sent", confirmed
+    assert cap_start(c, ttl=-1).json()["code"] == "expired"
+    assert cap_start(c, ttl=120).json()["code"] == "expires_too_far"
+    for reader in (9, -1, True, "0"):
+        r = cap_start(c, reader=reader)
+        assert r.status_code == 422 and "reader_id" in r.json()["details"]["fields"], reader
+    assert cap_start(c, revision=True).status_code == 422
+    assert cap_start(c, extra="x").status_code == 422, "no extra keys"
+    r = c.post("/api/v1/intercom/people/u1/card-capture", content=json.dumps(env(station_id="entry-a", reader_id=0, revision=4, confirmed=True)), headers={**as_user("sam"), "Content-Type": "text/plain"})
+    assert r.status_code == 415
+    assert cap_start(c, station="nowhere").json()["code"] == "intercom_station_not_found"
+    assert cap_start(c, station="entry-b").json()["code"] == "intercom_no_lock", "entry-b has no managed lock (and is offline)"
+    assert not sent(fakes, "cards/capture_start")
+    refused = audit_rows(s, "intercom.card_capture.start", "refused")
+    assert len(refused) == 4 + 2 + 4 + 2 + 1 + 2 and all(r["details"]["outcome"] == "not_sent" for r in refused)
+    body = env(station_id="entry-a", reader_id=0, revision=4, confirmed=True)
+    assert c.post("/api/v1/intercom/people/u1/card-capture", json=body, headers=as_user("sam")).status_code == 200
+    sid = [x for x in intercom_capture.CAPTURES._sessions][0]
+    assert cap_cancel(c, sid).status_code == 200
+    r = c.post("/api/v1/intercom/people/u1/card-capture", json=body, headers=as_user("sam"))
+    assert r.status_code == 409 and r.json()["code"] == "intercom_duplicate_command"
+    assert len(sent(fakes, "cards/capture_start")) == 1
+
+
+def test_card_capture_sessions_belong_to_the_user_who_started_them(feed, fast_capture):
+    """WisKey sees every SMPLWISE user as the add-on's one HA user, so SMPLWISE keeps the owner: another administrator
+    (with both permissions) gets a 404 for the status, the cancel and the confirm of someone else's session - audited
+    for the writes - and WisKey is never asked on their behalf."""
+    fake = FakeEnrollment()
+    app, fakes, c = capture_feed(feed, fake)
+    s = feed[1]
+    sid = cap_start(c).json()["capture"]["session_id"]
+    fake.present()
+    wait_state(c, sid, "captured")
+    r = cap_status(c, sid, user="sid")
+    assert r.status_code == 404 and r.json()["code"] == "intercom_capture_not_found"
+    assert CAPTURED_MASK not in r.text
+    r = cap_cancel(c, sid, user="sid")
+    assert r.status_code == 404 and r.json()["details"]["outcome"] == "not_sent"
+    r = cap_confirm(c, sid, user="sid")
+    assert r.status_code == 404
+    assert not sent(fakes, "cards/capture_cancel") and not sent(fakes, "cards/capture_confirm")
+    denied = [row for row in capture_rows(s) if row["actor_username"] == "sid"]
+    assert [(row["action"], row["decision"], row["reason"]) for row in denied] == [
+        ("intercom.card_capture.cancel", "denied", "intercom_capture_not_found"), ("intercom.card_capture.confirm", "denied", "intercom_capture_not_found")]
+    assert cap_status(c, sid).json()["capture"]["state"] == "captured", "still sam's, untouched"
+    assert cap_status(c, "not-a-session").status_code == 404
+    r = cap_cancel(c, sid)
+    assert r.status_code == 200 and r.json()["capture"]["state"] == "cancelled" and r.json()["cancelled"] == {"cancelled": True}
+    [msg] = sent(fakes, "cards/capture_cancel")
+    assert msg == {"id": msg["id"], "type": CAP + "capture_cancel", "session_id": sid, "api_contract": 1}
+    [outcome] = audit_rows(s, "intercom.card_capture.cancel", "outcome")
+    assert outcome["actor_username"] == "sam" and outcome["details"]["outcome"] == "ok" and outcome["details"]["person_id"] == "u1"
+    no_card_digits_in_audit(s)
+
+
+def test_one_active_capture_per_station_and_per_user(feed, fast_capture):
+    """SMPLWISE's own limits, refused before anything is sent: a second capture of the same user anywhere, a second
+    capture at the same station by anyone. WisKey's own (`capture_station_busy` for a session opened outside SMPLWISE,
+    `capture_limit`) come back as clean refusals."""
+    fake = FakeEnrollment()
+    app, fakes, c = capture_feed(feed, fake)
+    first = cap_start(c).json()["capture"]["session_id"]
+    r = cap_start(c, station="entry-c")
+    assert r.status_code == 409 and r.json()["code"] == "intercom_capture_user_busy" and r.json()["details"]["outcome"] == "not_sent"
+    r = cap_start(c, user="sid")
+    assert r.status_code == 409 and r.json()["code"] == "intercom_capture_station_busy"
+    assert len(sent(fakes, "cards/capture_start")) == 1
+    other = cap_start(c, user="sid", station="entry-c")
+    assert other.status_code == 200, "another user at another station"
+    assert cap_cancel(c, first).status_code == 200
+    # a session WisKey holds for someone else (WisKey's own panel): WisKey refuses, nothing is followed, the slot is free
+    with fake.lock:
+        fake.sessions["foreign"] = {"station_id": "entry-a", "user_id": "u9", "revision": 1, "state": "waiting"}
+    r = cap_start(c)
+    assert r.status_code == 409 and r.json()["code"] == "intercom_capture_station_busy" and r.json()["details"]["outcome"] == "refused"
+    fake.fail["cards/capture_start"] = "capture_limit"
+    r = cap_start(c)
+    assert r.status_code == 409 and r.json()["code"] == "intercom_capture_limit" and r.json()["details"]["outcome"] == "refused", r.text
+    del fake.fail["cards/capture_start"]
+
+
+def test_card_capture_timeout_expiry_and_abandonment(feed, fast_capture, monkeypatch):
+    """WisKey's collector gives up (`error: capture_timeout`) -> the session is over, audited `timeout`; WisKey's 120 s
+    session TTL passed -> `expired`; the owner's browser stopped asking -> the backend cancels the session itself,
+    audited with `trigger: abandoned`."""
+    fake = FakeEnrollment()
+    app, fakes, c = capture_feed(feed, fake)
+    s = feed[1]
+    sid = cap_start(c).json()["capture"]["session_id"]
+    wait_state(c, sid, "waiting")
+    fake.expire(sid, "capture_timeout")
+    view = wait_state(c, sid, "error")
+    assert view["error"] == "capture_timeout" and view["active"] is False and view["card"] is None
+    wait_for(lambda: any(r["details"]["outcome"] == "timeout" for r in audit_rows(s, "intercom.card_capture.result")))
+    [timeout] = audit_rows(s, "intercom.card_capture.result")
+    assert timeout["reason"] == "capture_timeout" and timeout["details"]["cleanup"] == "cancelled", "WisKey's failed session is let go, freeing its station slot"
+    [cleanup] = sent(fakes, "cards/capture_cancel")
+    assert cleanup["session_id"] == sid
+    assert cap_start(c).status_code == 200, "the owner's slot and WisKey's station slot are free again"
+    assert cap_cancel(c, [k for k, v in intercom_capture.CAPTURES._sessions.items() if v.state in intercom_capture.ACTIVE][0]).status_code == 200
+    assert cap_start(c, station="entry-c").status_code == 200
+    sid2 = [k for k, v in intercom_capture.CAPTURES._sessions.items() if v.state in intercom_capture.ACTIVE][0]
+    # the session outlives WisKey's own TTL (here shortened): expired, without WisKey being asked to cancel it
+    monkeypatch.setattr(intercom_capture, "SESSION_S", 0.5)
+    monkeypatch.setattr(intercom_capture, "EXPIRE_GRACE_S", 0.1)
+    view = wait_state(c, sid2, "expired")
+    assert view["session_remaining_s"] == 0 and view["reader_may_be_collecting"] is False
+    monkeypatch.setattr(intercom_capture, "SESSION_S", 120.0)
+    assert len(sent(fakes, "cards/capture_cancel")) == 2, "an expired session is not cancelled (WisKey dropped it itself)"
+    # abandoned: nobody asks for the session any more
+    monkeypatch.setattr(intercom_capture, "ABANDON_S", 0.4)
+    sid3 = cap_start(c).json()["capture"]["session_id"]
+    wait_for(lambda: len(sent(fakes, "cards/capture_cancel")) == 3, 5)
+    msg = sent(fakes, "cards/capture_cancel")[-1]
+    assert msg["session_id"] == sid3
+    wait_for(lambda: intercom_capture.CAPTURES._sessions[sid3].state == "cancelled")
+    rows = [r for r in capture_rows(s) if r["action"] == "intercom.card_capture.cancel"]
+    assert rows[-1]["details"]["trigger"] == "abandoned" and rows[-1]["details"]["outcome"] == "ok" and rows[-1]["actor_username"] == "sam"
+    outcomes = [r["details"]["outcome"] for r in capture_rows(s) if r["action"] == "intercom.card_capture.result"]
+    assert outcomes == ["timeout", "expired"]
+
+
+# refused vs unknown per capture command (intercom_client.PRE_CAPTURE, verified against WisKey's enrollment.py)
+START_REFUSED = {
+    **{code: WRITE_REFUSED[code] for code in ("unauthorized", "api_incompatible", "request_too_large", "unknown_command", "invalid_fields", "rate_limited")},
+    "manager_closed": 503, "station_not_found": 404, "station_offline": 409, "station_has_no_managed_lock": 409, "user_not_found": 404,
+    "revision_conflict": 409, "capture_station_busy": 409, "capture_limit": 409,
+}
+START_UNKNOWN = ["action_failed", "device_unavailable", "capture_unsupported", "storage_write_failed", "a_code_nobody_documented", ""]
+
+
+@pytest.mark.parametrize("code", list(START_REFUSED))
+def test_capture_start_refusals_are_proven_pre_device(feed, fast_capture, code):
+    """A start WisKey refuses with a code raised before its collector exists: `refused` (nothing reached the reader),
+    by name, the owner's and the station's slots free again at once."""
+    fake = FakeEnrollment()
+    fake.fail["cards/capture_start"] = code
+    app, fakes, c = capture_feed(feed, fake)
+    r = cap_start(c)
+    assert r.status_code == START_REFUSED[code] and r.json()["details"]["outcome"] == "refused" and r.json()["details"]["wiskey_code"] == code, r.text
+    assert intercom_client.refusal_is_pre_device("cards/capture_start", code)
+    assert audit_rows(feed[1], "intercom.card_capture.start", "outcome")[-1]["details"]["outcome"] == "refused"
+    del fake.fail["cards/capture_start"]
+    assert cap_start(c).status_code == 200, "nothing held after a refusal"
+
+
+@pytest.mark.parametrize("code", START_UNKNOWN)
+def test_capture_start_without_a_clear_answer_is_unknown_and_holds_the_station(feed, fast_capture, code):
+    """Anything else - `action_failed`, `device_unavailable` (unproven), an unknown code, no code - is "outcome
+    unknown": the reader may be collecting under a session SMPLWISE cannot see, so the station is held for the rest of
+    WisKey's 120 s (a start there is refused locally, with the wait), the owner may start elsewhere, and nothing is
+    ever added without the confirm."""
+    fake = FakeEnrollment()
+    fake.fail["cards/capture_start"] = code
+    app, fakes, c = capture_feed(feed, fake)
+    r = cap_start(c)
+    assert r.status_code == 504 and r.json()["code"] == "intercom_outcome_unknown" and r.json()["details"]["outcome"] == "unknown", r.text
+    assert "עד שתי דקות" in r.json()["user_message"] and "בלי אישורכם" in r.json()["user_message"]
+    assert 100 < r.json()["details"]["retry_after_s"] <= 120
+    assert not intercom_client.refusal_is_pre_device("cards/capture_start", code)
+    assert audit_rows(feed[1], "intercom.card_capture.start", "outcome")[-1]["details"]["outcome"] == "unknown"
+    del fake.fail["cards/capture_start"]
+    r = cap_start(c)
+    assert r.status_code == 409 and r.json()["code"] == "intercom_capture_station_busy" and r.json()["details"]["retry_after_s"] > 100
+    assert cap_start(c, station="entry-c").status_code == 200, "the owner is free to start elsewhere"
+    assert len(sent(fakes, "cards/capture_start")) == 2, "the held station was refused locally"
+
+
+def test_capture_start_answers_of_an_unexpected_shape_or_none_are_unknown(feed, fast_capture, monkeypatch):
+    """`success: true` without a usable session id, and no answer at all within CAPTURE_TIMEOUT_S: unknown, never
+    refused - and never retried."""
+    fake = FakeEnrollment()
+    fake.raw["cards/capture_start"] = {"session_id": 7, "state": "preparing"}
+    app, fakes, c = capture_feed(feed, fake)
+    r = cap_start(c)
+    assert r.status_code == 504 and r.json()["details"] == {"outcome": "unknown", "state": "error", "wiskey_code": "invalid_response", "retry_after_s": r.json()["details"]["retry_after_s"]}
+    monkeypatch.setattr(intercom_sync, "CAPTURE_TIMEOUT_S", 0.3)
+    del fake.raw["cards/capture_start"]
+    fake.hold.add("cards/capture_start")
+    r = cap_start(c, station="entry-c")
+    assert r.status_code == 504 and r.json()["details"]["wiskey_code"] == "timeout"
+    assert len(sent(fakes, "cards/capture_start")) == 2
+
+
+def test_capture_cancel_and_confirm_refused_vs_unknown(feed, fast_capture, monkeypatch):
+    """Cancel: `capture_applying` is refused (nothing cancelled, the session unchanged); no clear answer is unknown ->
+    `cancel_unknown`, the station held (WisKey may still have the session). Confirm: refused before WisKey touched its
+    session (`capture_not_ready`, `invalid_text`, a pre-dispatch code) -> the card still waits for approval; refused
+    after (revision / card conflict, a pre-storage code) -> `closed`; `storage_write_failed` / `manager_closed` / no
+    answer -> `unconfirmed` (reload the person and look for the card)."""
+    fake = FakeEnrollment()
+    app, fakes, c = capture_feed(feed, fake)
+    s = feed[1]
+    for code in intercom_client.CAPTURE_CANCEL_REFUSED | intercom_client.PRE_DISPATCH:
+        assert intercom_client.refusal_is_pre_device("cards/capture_cancel", code)
+    for code in ("action_failed", "device_unavailable", "manager_closed", ""):
+        assert not intercom_client.refusal_is_pre_device("cards/capture_cancel", code)
+    sid = cap_start(c).json()["capture"]["session_id"]
+    wait_state(c, sid, "waiting")
+    fake.fail["cards/capture_cancel"] = "capture_applying"
+    r = cap_cancel(c, sid)
+    assert r.status_code == 409 and r.json()["code"] == "intercom_capture_applying" and r.json()["details"]["outcome"] == "refused"
+    assert r.json()["details"]["capture"]["state"] == "waiting"
+    fake.fail["cards/capture_cancel"] = "action_failed"
+    r = cap_cancel(c, sid)
+    assert r.status_code == 504 and r.json()["details"]["outcome"] == "unknown" and "עד שתי דקות" in r.json()["user_message"]
+    assert r.json()["details"]["capture"]["state"] == "cancel_unknown" and r.json()["details"]["capture"]["reader_may_be_collecting"] is True
+    assert cap_start(c, user="sid").json()["code"] == "intercom_capture_station_busy", "held after an unknown cancel"
+    del fake.fail["cards/capture_cancel"]
+    assert [r["details"]["outcome"] for r in audit_rows(s, "intercom.card_capture.cancel", "outcome")] == ["refused", "unknown"]
+    # confirm: the table
+    for code in intercom_client.CAPTURE_CONFIRM_REFUSED:
+        assert intercom_client.refusal_is_pre_device("cards/capture_confirm", code)
+    for code in ("storage_write_failed", "manager_closed", "action_failed", "device_unavailable", ""):
+        assert not intercom_client.refusal_is_pre_device("cards/capture_confirm", code)
+    cases = [("capture_not_ready", 409, "refused", "captured"), ("invalid_text", 422, "refused", "captured"), ("rate_limited", 429, "refused", "captured"),
+             ("card_conflict", 409, "refused", "closed"), ("revision_conflict", 409, "refused", "closed"), ("card_capacity", 422, "refused", "closed"),
+             ("capture_not_found", 404, "refused", "lost"), ("storage_write_failed", 504, "unknown", "unconfirmed"), ("manager_closed", 504, "unknown", "unconfirmed")]
+    station = iter(["entry-c", "entry-a", "entry-c", "entry-a", "entry-c", "entry-a", "entry-c", "entry-a"])
+    intercom_capture.CAPTURES._holds.clear()
+    with fake.lock:
+        fake.sessions.clear()  # the session whose cancel went unanswered: WisKey let it go meanwhile
+    current = None
+    for code, status, outcome, after in cases:
+        if current is None:
+            current = cap_start(c, station=next(station)).json()["capture"]["session_id"]
+            fake.present(sid=current)
+            wait_state(c, current, "captured")
+        fake.fail["cards/capture_confirm"] = code
+        r = cap_confirm(c, current)
+        assert r.status_code == status and r.json()["details"]["outcome"] == outcome, (code, r.text)
+        assert r.json()["details"]["capture"]["state"] == after, code
+        if outcome == "unknown":
+            assert "טענו מחדש" in r.json()["user_message"]
+        if after != "captured":
+            with fake.lock:
+                fake.sessions.pop(current, None)  # WisKey dropped it
+            intercom_capture.CAPTURES._holds.clear()
+            current = None
+    del fake.fail["cards/capture_confirm"]
+    confirm_outcomes = [r["details"]["outcome"] for r in audit_rows(s, "intercom.card_capture.confirm", "outcome")]
+    assert confirm_outcomes == [o for _c, _s, o, _a in cases]
+    no_card_digits_in_audit(s)
+
+
+def test_a_capture_never_blocks_a_door_release(feed, fast_capture, monkeypatch):
+    """Lane isolation (brief §0.3): a capture start WisKey holds occupies the capture lane's single slot - a second
+    capture is `busy` - while a door release still goes through on the action lane and a people save on the config
+    lane; a capture being followed by the poller does not take an action slot either."""
+    monkeypatch.setattr(intercom_sync, "CAPTURE_TIMEOUT_S", 0.3)
+    monkeypatch.setattr(intercom_sync, "CAPTURE_SLOT_WAIT_S", 0.1)
+    fake = FakeEnrollment()
+    app, fakes, c = capture_feed(feed, fake, lambda msg: [ok(msg, {"accepted": True})] if msg["type"] == UNLOCK else None)
+    sid = cap_start(c).json()["capture"]["session_id"]
+    wait_state(c, sid, "waiting")
+    assert release(c).status_code == 200, "a capture being followed does not block a release"
+    fake.hold.add("cards/capture_start")
+    r = cap_start(c, user="sid", station="entry-c")
+    assert r.status_code == 504 and r.json()["details"]["wiskey_code"] == "timeout"
+    assert intercom_sync.SYNC._capture_inflight._value == 0, "the unanswered start still holds the capture slot"
+    r = cap_start(c, user="sid", station="entry-c")
+    assert r.json()["code"] in ("intercom_capture_station_busy", "intercom_busy") and r.json()["details"]["outcome"] == "not_sent"
+    assert release(c, station="entry-a").status_code in (200, 409), "the action lane is untouched"
+    assert release(c, station="entry-c", lock=1).status_code == 200
+    assert update(c).status_code == 200, "and so is the config lane"
+    assert intercom_sync.SYNC._action_inflight._value == intercom_sync.ACTION_INFLIGHT
+
+
+def test_card_readers_errors_are_honest(feed, fast_capture):
+    """A station that advertises no card collection, an offline one: the read's state says WisKey's code; an answer
+    that is not a reader list is `invalid_response`."""
+    fake = FakeEnrollment()
+    app, fakes, c = capture_feed(feed, fake)
+    for code in ("capture_unsupported", "station_offline", "device_unavailable"):
+        fake.fail["cards/reader_capabilities"] = code
+        r = c.get("/api/v1/intercom/stations/entry-a/card-readers", headers=as_user("sam"))
+        assert r.status_code == 200 and r.json()["state"] == "error" and r.json()["last_error"] == code and r.json()["readers"] is None
+    del fake.fail["cards/reader_capabilities"]
+    fake.readers = {"readers": [], "card_min": 1, "card_max": 32}
+    assert c.get("/api/v1/intercom/stations/entry-a/card-readers", headers=as_user("sam")).json()["last_error"] == "invalid_response"
+    assert c.get(f"/api/v1/intercom/stations/{'x' * 200}/card-readers", headers=as_user("sam")).status_code == 422
+
+
+def test_capture_projections_never_pass_a_full_number():
+    """The masked form only: a status whose card carries a full-looking number is served as the bare mask; an unknown
+    technology or reader id is dropped; an answer without a string session id or a known state raises (unknown)."""
+    view = intercom_sync.project_capture_session({"session_id": "a" * 32, "state": "captured", "error": None, "card": {"masked_number": "ABCD5678", "technology": "Magic", "reader_id": 12, "card_no": "ABCD5678"}})
+    assert view["card"] == {"masked_number": "••••", "technology": None, "reader_id": None}
+    assert "ABCD" not in json.dumps(view)
+    for bad in (None, {}, {"session_id": 5, "state": "preparing"}, {"session_id": "x y", "state": "preparing"}, {"session_id": "abc", "state": "done"}):
+        with pytest.raises(ValueError):
+            intercom_sync.project_capture_session(bad)
+    assert intercom_sync.project_capture_session({"session_id": "abc", "state": "error", "error": "Device said: <xml>"})["error"] == "capture_failed"
+    with pytest.raises(ValueError):
+        intercom_sync.project_readers({"readers": [9]})
+    with pytest.raises(ValueError):
+        intercom_sync.project_cancelled({"cancelled": "yes"})

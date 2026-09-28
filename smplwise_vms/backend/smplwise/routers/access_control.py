@@ -16,7 +16,11 @@ Phase 2, slice A1 (owner decision 2026-09-28): the person editor - the first WRI
 product makes - gated on `access.people.manage` (site_admin + system_admin by default, sensitive, grantable per person
 through a custom role). Its endpoints reuse the physical actions' write path unchanged (permission before body, JSON
 only, envelope, attempt / outcome audit) in the feed's config lane, and serve an editor projection of their own that
-is never served under `access.read`. Door technical settings, schedules, photos and card capture do not live here."""
+is never served under `access.read`. Door technical settings, schedules and photos do not live here yet.
+
+Phase 2, slice A2 (owner decision 2026-09-28): card capture from a station's reader - `access.cards.capture` on top of
+`access.people.manage`, WisKey's own capture commands, sessions owned by the SMPLWISE user who started them
+(services/intercom_capture.py); see the card-capture section note below."""
 from __future__ import annotations
 
 import asyncio
@@ -46,6 +50,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import go2rtc as g2
 from ..services import intercom_client, intercom_sync, wiskey_camera
+from ..services.intercom_capture import CAPTURES, POLLED
 from ..services.timeutil import parse_utc
 from .media import _principal_for_ws
 from .settings import read_settings
@@ -57,6 +62,7 @@ READ = "access.read"
 CREDENTIALS = "system.configure"  # device secrets: the system administrator only
 RELEASE = "access.release"  # every PHYSICAL WisKey command; role grants: see the note at routers/access.py PERMISSION_LABELS
 MANAGE = "access.people.manage"  # the person editor (CR-005 phase 2); same default grants and sensitivity as access.release
+CAPTURE = "access.cards.capture"  # card capture from a station reader (CR-005 phase 2 A2); required IN ADDITION to MANAGE
 RECHECK_S = 60
 MAX_PAGE = 200  # WisKey's own cap for events/list and users/query
 MAX_STATION_ID = 128
@@ -591,11 +597,13 @@ def _perform(
     on_unknown: Callable[[], None] | None = None,
     lane: str = "action",
     summary: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
+    slot_wait: float = 0.0,
 ) -> dict[str, Any]:
     """Audit the attempt (committed), send once through IntercomSync.action, audit the outcome. `on_settled` is always
     called exactly once (by IntercomSync once the command was handed over, here when it never got that far);
     `on_unknown` when the outcome is unknown. `summary` turns the projected result into what the outcome row records
-    (the physical actions record the result itself; a people write records counts and names only)."""
+    (the physical actions record the result itself; a people write records counts and names only). `slot_wait`: how
+    long the lane's slot may be waited for (the capture lane's; the others answer `busy` at once)."""
     try:
         act.attempt()
     except BaseException:
@@ -603,7 +611,7 @@ def _perform(
             on_settled()
         raise
     try:
-        reply = intercom_sync.SYNC.action(settings_of(act.request), key, send, project, who=act.principal.user_id, not_after=not_after, on_settled=on_settled, lane=lane)
+        reply = intercom_sync.SYNC.action(settings_of(act.request), key, send, project, who=act.principal.user_id, not_after=not_after, on_settled=on_settled, lane=lane, slot_wait=slot_wait)
     except ApiError as exc:
         outcome = str(exc.details.get("outcome") or "unknown")
         if outcome == "unknown" and on_unknown:
@@ -1016,6 +1024,224 @@ def person_delete(request: Request, user_id: str, principal: Principal = Depends
         raise act.refuse(ApiError(409, "confirmation_required", "מחיקת אדם דורשת אישור מפורש."))
     reply = _perform(act, "deleted", lambda call: intercom_client.users_delete(call, user_id, body.revision), intercom_sync.project_accepted, not_after, lane="config")
     reply["note"] = "WisKey קיבל את המחיקה. ההסרה מכל תחנה (גם מנותקת) מתוזמנת על ידי WisKey ואינה מיידית."
+    return reply
+
+
+# ---------------------------------------------------------------- card capture (access.cards.capture + access.people.manage), CR-005 phase 2 A2
+#
+# The product's first long-running physical interaction: a station's card reader is put into collection mode, the
+# person presents one card, WisKey reads it and shows it masked, and only the administrator's explicit approval adds it
+# to the person (brief A.7; WisKey's own flow, access/enrollment.py + panel.ts:1432-1630, ported like for like - owner
+# decision 2026-09-28, answers 2 and 10). Permissions: `access.cards.capture` is its own sensitive permission, required
+# IN ADDITION to `access.people.manage` on every endpoint here (a capture ends in a people write), both checked as
+# dependencies before the body is read. The write path is the physical actions' one (JSON only, envelope on start and
+# confirm, attempt row committed before sending, outcome row after); the start needs `confirmed: true` (the dialog's
+# confirmation step - it is a physical action on a reader at a door). Start and cancel ride the feed's capture lane (one
+# slot, own buckets), the confirm the config lane (it is a people write), so none of them can take a door release's
+# slot. Sessions are SMPLWISE-owned (services/intercom_capture.py): WisKey sees every SMPLWISE user as the add-on's one
+# HA user, so a session is served, cancelled or confirmed only for the SMPLWISE user who started it - for anyone else
+# it is a 404. The collected card is WisKey's masked form (`•••• 1234`) and appears only in its owner's replies: never
+# in an audit row (the rows carry ids, station, reader, states, WisKey's codes, `cards_added: 1`) or a log line.
+#
+# Refused vs unknown per command: intercom_client.PRE_CAPTURE (verified against the WisKey source). A start whose
+# outcome is unknown may have put the reader into collection mode under a session SMPLWISE cannot see: the station is
+# held for the rest of WisKey's 120 s and the reply says so; nothing is ever added to a person without the confirm.
+
+CAPTURE_NOTE = "הקורא בעמדה במצב קריאת כרטיס. הצמידו כרטיס אחד לקורא; שום כרטיס לא יתווסף לאדם עד שתאשרו אותו."
+
+
+def _capturer(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
+    """`access.cards.capture` AND `access.people.manage` at installation scope, as a dependency (before the body; each
+    refusal audited by `require`)."""
+    require(conn, principal, CAPTURE, INSTALLATION)
+    require(conn, principal, MANAGE, INSTALLATION)
+    return principal
+
+
+def _capturer_ro(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Principal:
+    """`_capturer` on a read-mode connection, for the status the capture dialog polls every second."""
+    require(conn, principal, CAPTURE, INSTALLATION)
+    require(conn, principal, MANAGE, INSTALLATION)
+    return principal
+
+
+class CaptureStartBody(CommandEnvelope):
+    model_config = ConfigDict(extra="forbid")
+    station_id: str = Field(min_length=1, max_length=MAX_STATION_ID)
+    reader_id: StrictInt = Field(ge=0, le=8)  # WisKey enrollment.start: 0..8, 0 = the station's default reader
+    revision: StrictInt = Field(ge=1)  # the person's revision the editor loaded (WisKey checks it: revision_conflict)
+    confirmed: Any = None  # only `true` (from the dialog's confirmation step) confirms, as ReleaseBody
+
+
+class CaptureCancelBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class CaptureConfirmBody(CommandEnvelope):
+    model_config = ConfigDict(extra="forbid")
+    label: str = Field("", max_length=64)  # WisKey text_field(label, 64, empty=True)
+    confirmed: Any = None
+
+
+def _capture_or_refuse(act: _Action, session_id: str) -> Any:
+    capture = CAPTURES.owned(session_id, act.principal.user_id)
+    if capture is None:
+        raise act.refuse(ApiError(404, "intercom_capture_not_found", "קריאת הכרטיס הזו אינה קיימת (או שאינה שלכם)."))
+    act.details.update(session_id=capture.session_id, person_id=capture.person_id, station_id=capture.station_id, station_name=capture.station_name, reader_id=capture.reader_id)
+    return capture
+
+
+@router.get("/intercom/stations/{station_id}/card-readers")
+def card_readers(request: Request, station_id: str, principal: Principal = Depends(_capturer), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """The station's card readers (WisKey `cards/reader_capabilities`, a read that reaches the device - WisKey allows it
+    35 s): `readers` (0 = the station's default reader) and the card-number length bounds. A station that advertises
+    no card collection is `state: error`, `last_error: capture_unsupported`; offline / no managed lock likewise by
+    WisKey's code. Reply: `{state, configured, last_error, fetched_at, readers, sync}`."""
+    if not 1 <= len(station_id) <= MAX_STATION_ID:
+        raise ApiError(422, "validation", "מזהה העמדה אינו תקין.", details={"fields": ["station_id"]})
+    with unlocked(conn):
+        return intercom_sync.SYNC.command(settings_of(request), "readers", lambda call: intercom_client.reader_capabilities(call, station_id), intercom_sync.project_readers,
+                                          who=principal.user_id, timeout=intercom_sync.READERS_TIMEOUT_S)
+
+
+@router.post("/intercom/people/{user_id}/card-capture")
+def card_capture_start(request: Request, user_id: str, principal: Principal = Depends(_capturer), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+    """Start reading a card at a station (WisKey `cards/capture_start`, PHYSICAL: the station's reader enters card-
+    collection mode). Body: `{station_id, reader_id, revision, confirmed, client_request_id, expires_at}`; `confirmed:
+    true` comes only from the dialog's confirmation step. Refused before sending (each audited, `not_sent`): a malformed
+    body, an expired or duplicate command, an unknown station, a station without a managed lock or offline, a missing
+    confirmation, a capture of the caller's own still open (`intercom_capture_user_busy`) or one at that station
+    (`intercom_capture_station_busy`, also for the rest of WisKey's 120 s after a start with an unknown outcome there).
+    WisKey's refusals by name (`intercom_capture_station_busy`, `intercom_capture_limit`, `intercom_revision_conflict`
+    ...); an unclear answer is a 504 `intercom_outcome_unknown` - the reader may be collecting. Reply: `{state, ...,
+    capture: <the session as GET /intercom/card-capture/{id} serves it>, sync, note, command_id}`."""
+    act = _Action(request, conn, principal, "intercom.card_capture.start", user_id, PERSON)
+    body: CaptureStartBody = _parse(act, CaptureStartBody, raw)
+    act.details.update(station_id=body.station_id, reader_id=body.reader_id, revision=body.revision)
+    not_after = _envelope(act, body)
+    station = intercom_sync.SYNC.station(body.station_id)
+    if station is None and intercom_sync.SYNC.has_copy():
+        raise act.refuse(ApiError(404, "intercom_station_not_found", "העמדה לא נמצאה ב־WisKey."))
+    if station is not None:
+        act.details["station_name"] = station["name"]
+        if not station["lock_enabled"] or not station["locks"]:
+            raise act.refuse(ApiError(409, "intercom_no_lock", f"לעמדה {station['name']} אין מנעול מנוהל ב־WisKey, ולכן אי אפשר לקרוא בה כרטיס."))
+        if not station["online"]:
+            raise act.refuse(ApiError(409, "intercom_station_offline", f"העמדה {station['name']} אינה מחוברת כרגע, ולכן הקורא לא הופעל."))
+    if body.confirmed is not True:
+        raise act.refuse(ApiError(409, "confirmation_required", "הפעלת קורא הכרטיסים בעמדה דורשת אישור מפורש."))
+    try:
+        token = CAPTURES.reserve(principal.user_id, body.station_id)
+    except ApiError as exc:
+        raise act.refuse(exc) from None
+    held = {"s": 0.0}
+
+    def unknown() -> None:
+        held["s"] = CAPTURES.hold_unknown(token)
+
+    station_id, reader_id, revision = body.station_id, body.reader_id, body.revision
+    try:
+        reply = _perform(act, "capture", lambda call: intercom_client.capture_start(call, station_id, user_id, revision, reader_id), intercom_sync.project_capture_session, not_after,
+                         on_unknown=unknown, lane="capture", summary=lambda s: {"session_id": s["session_id"], "state": s["state"]}, slot_wait=intercom_sync.CAPTURE_SLOT_WAIT_S)
+    except ApiError as exc:
+        if exc.details.get("outcome") == "unknown":
+            exc.details["retry_after_s"] = round(held["s"], 1)
+        CAPTURES.release(token)  # a no-op after hold_unknown
+        raise
+    except BaseException:
+        CAPTURES.release(token)
+        raise
+    capture = CAPTURES.register(token, reply["capture"], principal, user_id, station_id, act.details.get("station_name"), reader_id, revision, settings_of(request), request.app.state.db)
+    reply["capture"] = CAPTURES.view(capture)
+    reply["note"] = CAPTURE_NOTE
+    return reply
+
+
+@router.get("/intercom/card-capture/{session_id}")
+def card_capture_status(session_id: str, principal: Principal = Depends(_capturer_ro)) -> dict[str, Any]:
+    """The caller's own capture session as SMPLWISE's poller last read it from WisKey (no WisKey traffic per request):
+    `state` preparing | waiting | captured | applying (active) or error | cancelled | cancel_unknown | expired | lost |
+    confirmed | unconfirmed | closed; `error` (WisKey's code, e.g. `capture_timeout`); `card` (`{masked_number,
+    technology, reader_id}` while captured - the masked form only); the countdowns (`collect_remaining_s` of WisKey's
+    70 s collection, `session_remaining_s` of its 120 s session); `reader_may_be_collecting`. Reading it keeps the session
+    alive: one nobody asked about for 20 s is cancelled by the backend. Another user's session is a 404."""
+    capture = CAPTURES.owned(session_id, principal.user_id)
+    if capture is None:
+        raise ApiError(404, "intercom_capture_not_found", "קריאת הכרטיס הזו אינה קיימת (או שאינה שלכם).")
+    return {"capture": CAPTURES.view(capture)}
+
+
+@router.post("/intercom/card-capture/{session_id}/cancel")
+def card_capture_cancel(request: Request, session_id: str, principal: Principal = Depends(_capturer), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+    """Cancel the caller's own capture (WisKey `cards/capture_cancel`): WisKey stops waiting for a card and drops the
+    session. Body `{}` (JSON). WisKey's reader timeout is the firmware's own: cancelling is not proof the reader left
+    collection mode (WisKey `capture_limits`). A cancel with no clear answer is 504 unknown (the session is then
+    `cancel_unknown`). Reply: `{state, ..., cancelled, capture, sync, note, command_id}`."""
+    act = _Action(request, conn, principal, "intercom.card_capture.cancel", session_id, "intercom_capture")
+    _parse(act, CaptureCancelBody, raw)
+    capture = _capture_or_refuse(act, session_id)
+    if capture.state == "applying":
+        raise act.refuse(ApiError(409, "intercom_capture_applying", "הכרטיס נמצא בשמירה. יש להמתין לתוצאה לפני פעולה נוספת."))
+    if capture.state not in POLLED:
+        raise act.refuse(ApiError(409, "intercom_capture_over", "קריאת הכרטיס הזו כבר הסתיימה; אין מה לבטל.", details={"capture": CAPTURES.view(capture)}))
+    not_after = datetime.now(timezone.utc) + timedelta(seconds=SEND_WITHIN_S)
+    try:
+        reply = _perform(act, "cancelled", lambda call: intercom_client.capture_cancel(call, capture.session_id), intercom_sync.project_cancelled, not_after,
+                         lane="capture", slot_wait=intercom_sync.CAPTURE_SLOT_WAIT_S)
+    except ApiError as exc:
+        outcome, code = exc.details.get("outcome"), exc.details.get("wiskey_code")
+        if outcome == "unknown":
+            CAPTURES.set_state(capture, "cancel_unknown", only_from=POLLED)
+        elif outcome == "refused" and code == "capture_not_found":
+            CAPTURES.set_state(capture, "lost", only_from=POLLED)
+        exc.details["capture"] = CAPTURES.view(capture)
+        raise
+    CAPTURES.set_state(capture, "cancelled", only_from=POLLED)
+    reply["capture"] = CAPTURES.view(capture)
+    reply["note"] = "WisKey הפסיק להמתין לכרטיס ושום כרטיס לא נוסף. זמן ההמתנה של הקורא עצמו נקבע בקושחה שלו."
+    return reply
+
+
+@router.post("/intercom/card-capture/{session_id}/confirm")
+def card_capture_confirm(request: Request, session_id: str, principal: Principal = Depends(_capturer), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+    """Add the collected card to the person (WisKey `cards/capture_confirm`, a people write: the card, enabled, goes to
+    the person's existing station assignments with WisKey's immediate sync - it opens their doors). Body: `{label,
+    confirmed, client_request_id, expires_at}`; `confirmed: true` comes only from the confirmation step naming the
+    person. Only from `captured`. WisKey's refusals by name (`intercom_revision_conflict`, `intercom_card_conflict`,
+    `intercom_capture_not_found` ...); an unclear answer is a 504 `intercom_outcome_unknown` (reload the person and look
+    for the new card before anything else). The audit rows record `cards_added: 1` - never the number, not even masked.
+    Reply: `{state, ..., person (the editor projection), capture, sync, note, command_id}`."""
+    act = _Action(request, conn, principal, "intercom.card_capture.confirm", session_id, "intercom_capture")
+    body: CaptureConfirmBody = _parse(act, CaptureConfirmBody, raw)
+    capture = _capture_or_refuse(act, session_id)
+    act.details.update(cards_added=1, label_set=bool(body.label.strip()))
+    not_after = _envelope(act, body)
+    if not _no_control(body.label):
+        raise act.refuse(ApiError(422, "validation", "תווית הכרטיס אינה תקינה (ללא תווי בקרה).", details={"fields": ["label"]}))
+    if body.confirmed is not True:
+        raise act.refuse(ApiError(409, "confirmation_required", "הוספת הכרטיס לאדם דורשת אישור מפורש."))
+    if not CAPTURES.begin_applying(capture):
+        raise act.refuse(ApiError(409, "intercom_capture_not_ready", "אין כרטיס שנקרא וממתין לאישור.", details={"capture": CAPTURES.view(capture)}))
+    label = body.label
+    try:
+        reply = _perform(act, "person", lambda call: intercom_client.capture_confirm(call, capture.session_id, label), intercom_sync.project_person_editor, not_after,
+                         lane="config", summary=_person_summary)
+    except ApiError as exc:
+        outcome, code = exc.details.get("outcome"), str(exc.details.get("wiskey_code") or "")
+        if outcome == "not_sent" or (outcome == "refused" and (code in intercom_client.PRE_DISPATCH or code in ("capture_not_ready", "invalid_text"))):
+            CAPTURES.back_to_captured(capture)  # WisKey's session is untouched: the card still waits for approval
+        elif outcome == "refused":
+            CAPTURES.set_state(capture, "lost" if code == "capture_not_found" else "closed", code, only_from=("applying",))
+        else:
+            CAPTURES.set_state(capture, "unconfirmed", code or None, only_from=("applying",))
+        exc.details["capture"] = CAPTURES.view(capture)
+        raise
+    except BaseException:
+        CAPTURES.set_state(capture, "unconfirmed", None, only_from=("applying",))
+        raise
+    CAPTURES.set_state(capture, "confirmed", only_from=("applying",))
+    reply["capture"] = CAPTURES.view(capture)
+    reply["note"] = "WisKey הוסיף את הכרטיס לאדם וביקש לסנכרן את התחנות שלו. מצב הסנכרון של כל תחנה מוצג ברשומה."
     return reply
 
 
