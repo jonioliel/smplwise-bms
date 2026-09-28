@@ -8,9 +8,11 @@ subscription, the debounced refresh, the mirror writes, the `structure_changed` 
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import copy
 import queue
 import threading
+import time
 from dataclasses import replace
 from typing import Any
 
@@ -18,6 +20,7 @@ import pytest
 from conftest import as_user, bind
 from fastapi.testclient import TestClient
 
+from smplwise.errors import ApiError
 from smplwise.routers import devices as devices_router
 from smplwise.services import ha_client, ha_sync
 from test_devices import AREAS, ENTITY_REGISTRY, FLOORS, STATES
@@ -191,9 +194,9 @@ def test_a_burst_of_registry_events_is_one_refresh_and_one_notice(app_s, monkeyp
 
 
 def test_the_session_handles_never_shadow_the_sync_loop():
-    """Found in the live fixture run: an attribute named `_loop` replaced the `_loop` coroutine method, and the sync
-    thread died at start (`'NoneType' object is not callable`) - no HA sync at all. The tests above call `_session`
-    directly, so they could not see it."""
+    """Regression guard for a mistake made (and caught in the fixture run) while writing this change, never released:
+    a session-handle attribute named `_loop` would replace the `_loop` coroutine method and stop the sync thread at
+    start. The tests above call `_session` directly, so they could not see it."""
     sync = ha_sync.HaSync()
     assert callable(sync._loop) and asyncio.iscoroutinefunction(sync._loop)
     assert sync._session_loop is None and sync._session_call is None
@@ -352,6 +355,7 @@ def test_manual_refresh_needs_devices_read_is_rate_limited_and_refuses_without_h
         monkeypatch.setattr(ha_sync.SYNC, "_session_loop", loop)
         monkeypatch.setattr(ha_sync.SYNC, "_session_call", fake.call)
         monkeypatch.setattr(ha_sync.SYNC, "_refresh_lock", None)
+        monkeypatch.setattr(ha_sync.SYNC, "_last_done", None)
         ha_sync.STATE.connected = True
         next(e for e in fake.entities if e["entity_id"] == "light.lobby_spot")["area_id"] = "garden"
         r = c.post("/api/v1/devices/refresh")
@@ -362,8 +366,16 @@ def test_manual_refresh_needs_devices_read_is_rate_limited_and_refuses_without_h
         r2 = c.post("/api/v1/devices/refresh")
         assert r2.status_code == 429 and r2.json()["code"] == "refresh_rate_limited" and 1 <= r2.json()["details"]["retry_after_s"] <= 10
         bind(c, s, "viewer1", "viewer", "installation", "*")
+        # another user a moment later: the refresh that just finished answers for it (no second listing)
+        listed = fake.listings()
         r3 = c.post("/api/v1/devices/refresh", headers=as_user("viewer1"))
-        assert r3.status_code == 200 and r3.json()["changed"] is False
+        assert r3.status_code == 200 and r3.json()["changed"] is True and r3.json()["coalesced"] is True
+        assert fake.listings() == listed
+        # past the coalescing window it lists again
+        monkeypatch.setattr(ha_sync, "MANUAL_COALESCE_S", 0.0)
+        monkeypatch.setattr(devices_router, "_last_refresh", {})
+        r5 = c.post("/api/v1/devices/refresh", headers=as_user("viewer1"))
+        assert r5.status_code == 200 and r5.json()["changed"] is False and fake.listings() == listed + 1
         # a listing HA refuses: 502, the mirror kept
         monkeypatch.setattr(devices_router, "_last_refresh", {})
         fake.fail = {"config/device_registry/list"}
@@ -373,3 +385,143 @@ def test_manual_refresh_needs_devices_read_is_rate_limited_and_refuses_without_h
     for text in (r.text, r3.text):
         for needle in ("secret", "ha.local", "8123", "token-value"):
             assert needle not in text
+
+
+def _live_sync(monkeypatch, app, loop, call) -> None:
+    monkeypatch.setattr(ha_sync.SYNC, "db", app.state.db)
+    monkeypatch.setattr(ha_sync.SYNC, "_session_loop", loop)
+    monkeypatch.setattr(ha_sync.SYNC, "_session_call", call)
+    monkeypatch.setattr(ha_sync.SYNC, "_refresh_lock", None)
+    monkeypatch.setattr(ha_sync.SYNC, "_last_done", None)
+    ha_sync.STATE.connected = True
+
+
+def test_a_timed_out_manual_refresh_keeps_the_lock_until_its_write_is_done(app_s, monkeypatch):
+    """Review finding: cancelling a timed-out manual refresh released the refresh lock while its executor write went
+    on, so the next refresh could write beside it (and its tombstone step undo the newer one). One writer at a time."""
+    app, _ = app_s
+    fake = FakeHa()
+    active = {"now": 0, "max": 0, "writes": 0}
+    guard = threading.Lock()
+    real_structure = ha_sync.apply_structure
+
+    def slow_structure(conn, areas, floors):
+        with guard:
+            active["now"] += 1
+            active["max"] = max(active["max"], active["now"])
+            active["writes"] += 1
+        try:
+            time.sleep(0.6)
+            real_structure(conn, areas, floors)
+        finally:
+            with guard:
+                active["now"] -= 1
+
+    monkeypatch.setattr(ha_sync, "apply_structure", slow_structure)
+    monkeypatch.setattr(ha_sync, "MANUAL_REFRESH_TIMEOUT_S", 0.2)
+    with LiveLoop() as loop:
+        _live_sync(monkeypatch, app, loop, fake.call)
+        with pytest.raises(ApiError) as exc:
+            ha_sync.SYNC.refresh_now()
+        assert exc.value.status == 504 and exc.value.code == "ha_timeout"
+        # a registry event's refresh queued right behind it
+        second = asyncio.run_coroutine_threadsafe(ha_sync.SYNC._refresh_and_notify(fake.call, "entity_registry_updated"), loop)
+        assert second.result(timeout=10) is not None
+    assert active["writes"] == 2
+    assert active["max"] == 1  # never two mirror writes at once
+
+
+def test_ha_dropping_mid_refresh_is_a_503_not_a_500(app_s, monkeypatch):
+    app, _ = app_s
+    c = TestClient(app)
+    monkeypatch.setattr(devices_router, "_last_refresh", {})
+    hang: dict[str, Any] = {}
+
+    async def call(msg_type: str, **_kw: Any) -> dict[str, Any]:
+        # the session's pending call, cancelled when the socket drops (ha_client.ws_session's finally)
+        hang["fut"] = asyncio.get_running_loop().create_future()
+        return await hang["fut"]
+
+    with LiveLoop() as loop:
+        _live_sync(monkeypatch, app, loop, call)
+        with concurrent.futures.ThreadPoolExecutor(1) as pool:
+            pending = pool.submit(c.post, "/api/v1/devices/refresh")
+            deadline = time.monotonic() + 10
+            while "fut" not in hang and time.monotonic() < deadline:
+                time.sleep(0.01)
+            loop.call_soon_threadsafe(hang["fut"].cancel)
+            r = pending.result(timeout=10)
+    assert r.status_code == 503 and r.json()["code"] == "ha_unavailable"
+
+
+def test_an_ha_that_refuses_one_registry_subscription_keeps_the_session(app_s, monkeypatch):
+    """An older HA without floors refuses `floor_registry_updated`: logged, the session and the other events go on."""
+    app, s = app_s
+    fake = FakeHa()
+    real_call = fake.call
+
+    async def call(msg_type: str, **kw: Any) -> dict[str, Any]:
+        if msg_type == "subscribe_events" and kw.get("event_type") == "floor_registry_updated":
+            return REFUSED
+        return await real_call(msg_type, **kw)
+
+    fake.call = call  # type: ignore[method-assign]
+    seen: dict[str, Any] = {}
+
+    async def script(_on_event, on_message, settle):
+        seen["connected"] = ha_sync.STATE.connected
+        next(e for e in fake.entities if e["entity_id"] == "light.office")["area_id"] = "garden"
+        on_message(registry_event("entity_registry_updated", action="update", entity_id="light.office"))
+        await settle(2)
+
+    _, msgs = run_session(app, s, fake, script, monkeypatch)
+    assert seen["connected"] is True
+    assert area_of(app, "light.office") == ("garden", "גינה")
+    assert len(notices(msgs)) == 1
+
+
+def test_an_integration_reload_keeps_the_entity_and_its_bulk_safe_mark(app_s, monkeypatch):
+    """Reloading an integration removes its states and adds them back; the registry keeps the entities. The removed
+    state only marks the entity unavailable - no tombstone, and the bulk-safe mark survives the refresh it schedules."""
+    app, s = app_s
+    fake = FakeHa()
+    seen: dict[str, Any] = {}
+
+    async def script(on_event, _on_message, settle):
+        with app.state.db.connection() as conn:
+            conn.execute("INSERT INTO device_bulk_safe(entity_id, marked_by, marked_by_username, marked_at) VALUES ('switch.lobby_sign', 'u', 'admin', '2026-09-28T10:00:00Z')")
+        on_event({"entity_id": "switch.lobby_sign", "old_state": {"state": "on"}, "new_state": None})
+        await settle(2)
+        with app.state.db.connection() as conn:
+            r = conn.execute("SELECT removed_at, available FROM ha_entities WHERE entity_id = 'switch.lobby_sign'").fetchone()
+            seen["during"] = (r["removed_at"], r["available"])
+            seen["marks"] = _marks(conn)
+        on_event({"entity_id": "switch.lobby_sign", "old_state": None, "new_state": {"entity_id": "switch.lobby_sign", "state": "on", "attributes": {"friendly_name": "Sign"}, "last_changed": "2026-09-28T11:00:00+00:00", "last_updated": "2026-09-28T11:00:00+00:00"}})
+
+    run_session(app, s, fake, script, monkeypatch)
+    assert seen["during"] == (None, 0)
+    assert seen["marks"] == ["switch.lobby_sign"]
+    with app.state.db.connection() as conn:
+        assert _marks(conn) == ["switch.lobby_sign"]
+        r = conn.execute("SELECT removed_at, available FROM ha_entities WHERE entity_id = 'switch.lobby_sign'").fetchone()
+        assert (r["removed_at"], r["available"]) == (None, 1)
+
+
+def test_dev_registry_waits_for_the_mirror_lock(app_s):
+    """The fixture's seed never interleaves with a sync refresh: it writes under the same mirror lock, and waits for
+    it without holding a SQLite write lock."""
+    app, _ = app_s
+    c = TestClient(app)
+    body = {"entities": [{"entity_id": "light.x", "area_id": "a1"}], "areas": [{"area_id": "a1", "name": "A"}], "floors": []}
+    pool = concurrent.futures.ThreadPoolExecutor(1)
+    ha_sync.SYNC.mirror_lock.acquire()
+    try:
+        pending = pool.submit(c.post, "/api/v1/ha/dev/registry", json=body)
+        time.sleep(0.5)
+        assert not pending.done()
+        with app.state.db.connection() as conn:  # a writer elsewhere is not blocked meanwhile
+            conn.execute("UPDATE ha_entities SET updated_at = updated_at")
+    finally:
+        ha_sync.SYNC.mirror_lock.release()
+    assert pending.result(timeout=10).status_code == 200
+    pool.shutdown()

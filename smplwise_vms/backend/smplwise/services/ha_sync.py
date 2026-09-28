@@ -36,6 +36,7 @@ REGISTRY_EVENTS = ("entity_registry_updated", "device_registry_updated", "area_r
 REGISTRY_DEBOUNCE_S = 1.5  # one refresh for a burst (an integration reload fires one event per entity)
 REGISTRY_MAX_WAIT_S = 10.0  # ...but a burst that never pauses still refreshes this often
 MANUAL_REFRESH_TIMEOUT_S = 30.0
+MANUAL_COALESCE_S = 3.0  # a manual refresh right after another refresh returns that one's result (no second listing)
 ATTR_ALLOW = {
     "friendly_name", "unit_of_measurement", "device_class", "state_class", "icon", "supported_features", "brightness", "color_mode",
     "current_position", "current_tilt_position", "temperature", "current_temperature", "target_temp_high", "target_temp_low", "hvac_modes",
@@ -371,6 +372,10 @@ class HaSync:
         self._session_loop: asyncio.AbstractEventLoop | None = None
         self._session_call: Any = None
         self._refresh_lock: asyncio.Lock | None = None
+        # every mirror write (the sync's refresh, the dev registry seed) holds this thread lock for its whole duration
+        self.mirror_lock = threading.Lock()
+        # (monotonic time, changed) of the last refresh that completed, for MANUAL_COALESCE_S
+        self._last_done: tuple[float, bool] | None = None
 
     def start(self, db: Database, settings: Settings) -> None:
         self.db, self.settings = db, settings
@@ -540,6 +545,7 @@ class HaSync:
                 return None
             if changed is None:
                 return None
+            self._last_done = (time.monotonic(), changed)
             log.info("registry refresh (%s) in %.0f ms: %s", reason, (time.monotonic() - started) * 1000, "changed" if changed else "no change")
             if changed:
                 STATE.last_structure_at = STATE.last_registry_at
@@ -553,12 +559,20 @@ class HaSync:
         loop, call = self._session_loop, self._session_call
         if not STATE.connected or loop is None or call is None:
             raise ApiError(503, "ha_unavailable", "אין כרגע חיבור ל־Home Assistant; המבנה יתעדכן מעצמו כשהחיבור יחזור.", retryable=True)
+        done = self._last_done
+        if done is not None and time.monotonic() - done[0] < MANUAL_COALESCE_S:
+            # a refresh finished a moment ago (another user's button, a registry event): its answer is this one's
+            return {"changed": done[1], "last_registry_at": STATE.last_registry_at, "coalesced": True}
         fut = asyncio.run_coroutine_threadsafe(self._refresh_and_notify(call, "manual"), loop)
         try:
             changed = fut.result(timeout=MANUAL_REFRESH_TIMEOUT_S)
         except concurrent.futures.TimeoutError:
-            fut.cancel()
-            raise ApiError(504, "ha_timeout", "Home Assistant לא ענה בזמן; נסו שוב בעוד רגע.", retryable=True) from None
+            # NOT cancelled: the refresh keeps the lock until its mirror write is done, so no other refresh can write
+            # beside it (a cancelled one released the lock while its executor write went on)
+            raise ApiError(504, "ha_timeout", "Home Assistant לא ענה בזמן; הרענון ממשיך ברקע - נסו שוב בעוד רגע.", retryable=True) from None
+        except concurrent.futures.CancelledError:
+            # the HA socket dropped mid-refresh (the session cancels its pending calls): nothing was written
+            raise ApiError(503, "ha_unavailable", "החיבור ל־Home Assistant נותק במהלך הרענון; המבנה יתעדכן מעצמו כשהחיבור יחזור.", retryable=True) from None
         if changed is None:
             raise ApiError(502, "ha_registry_incomplete", "Home Assistant לא החזיר את הרישום המלא; המבנה הקודם נשמר. נסו שוב בעוד רגע.", retryable=True,
                            details={"failed": STATE.last_registry_error})
@@ -590,6 +604,10 @@ class HaSync:
         result: dict[str, Any] = {}
 
         def _apply() -> None:
+            with self.mirror_lock:
+                _apply_locked()
+
+        def _apply_locked() -> None:
             with db.connection() as conn:
                 if not ents and conn.execute("SELECT 1 FROM ha_entities WHERE registry_id IS NOT NULL AND removed_at IS NULL LIMIT 1").fetchone():
                     # an empty entity registry while the mirror knows registry entities is a bad answer, not a wipe
@@ -628,7 +646,18 @@ class HaSync:
             with db.connection() as conn:
                 result["changed"] = mirror_fingerprint(conn) != before
 
-        await loop.run_in_executor(None, _apply)
+        write = loop.run_in_executor(None, _apply)
+        try:
+            await asyncio.shield(write)
+        except asyncio.CancelledError:
+            # cancelled (the session ended) while the executor still writes: hold the refresh lock until the write is
+            # done - releasing it now would let the next refresh write beside this one
+            while not write.done():
+                try:
+                    await asyncio.wait({write})
+                except asyncio.CancelledError:
+                    continue
+            raise
         if result.get("incomplete"):
             STATE.last_registry_error = "entity_registry"
             log.warning("entity registry listing came back empty; keeping the previous mirror")

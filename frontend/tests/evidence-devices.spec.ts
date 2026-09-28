@@ -360,12 +360,20 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     await page.waitForTimeout(2500);
     await expect(storageTile).not.toHaveAttribute('data-counts', /lights/);
     // ...until the button re-reads the registries
+    const treeFetches: number[] = [];
+    page.on('request', (rq) => {
+      if (rq.url().includes('/api/v1/devices/tree')) treeFetches.push(Date.now());
+    });
     const answer = page.waitForResponse((r) => r.url().endsWith('/api/v1/devices/refresh'));
     await button.click();
     expect((await answer).status()).toBe(200);
     await expect(storageTile).toHaveAttribute('data-counts', /lights:0\/1/, { timeout: 5000 });
     await expect(page.locator('devices-building [data-structure-changed]')).toBeVisible();
-    await expect(page.locator('devices-building [data-devices-refreshed]')).toContainText('עודכן עכשיו');
+    await expect(page.locator('devices-building [data-devices-refreshed]')).toContainText('המבנה עודכן עכשיו');
+    await expect(page.locator('devices-building [data-devices-checked]')).toContainText('נבדק מול Home Assistant עכשיו');
+    // one tree fetch for the button, not a second one for its own structure_changed echo
+    await page.waitForTimeout(1500);
+    expect(treeFetches.length).toBe(1);
     // at once again: one per user per 10 s
     const again = page.waitForResponse((r) => r.url().endsWith('/api/v1/devices/refresh'));
     await button.click();

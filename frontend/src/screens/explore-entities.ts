@@ -150,7 +150,7 @@ export class ExploreEntities extends LitElement {
           }
         } else if (m.type === 'heartbeat') this.sync = m.sync;
         else if (m.type === 'ha_sync_state' && this.sync) this.sync = { ...this.sync, connected: m.connected };
-        else if (m.type === 'structure_changed') void this.load(); // CR-007 HA refresh: area / floor names and new entities
+        else if (m.type === 'structure_changed') this.reloadForStructure(); // CR-007 HA refresh: area names, new entities
       });
     }
   }
@@ -159,6 +159,13 @@ export class ExploreEntities extends LitElement {
     super.disconnectedCallback();
     this.stopWs?.();
     this.stopWs = null;
+  }
+
+  /** A structure push while a load is in flight is remembered and served by ONE more load after it, never overlapped. */
+  private structureAgain = false;
+  private reloadForStructure() {
+    if (this.loading) this.structureAgain = true; // load()'s finally runs it
+    else void this.load();
   }
 
   private async load() {
@@ -171,6 +178,10 @@ export class ExploreEntities extends LitElement {
       this.error = describeError(err);
     } finally {
       this.loading = false;
+      if (this.structureAgain) {
+        this.structureAgain = false;
+        void this.load();
+      }
     }
   }
 
