@@ -8,6 +8,7 @@ import { candidatesDoc, type CandidateSet, type CandState } from './candidates';
 import { symbolOf } from './plan-symbols';
 import { CoverageCache, hasWallsOnLevel } from './coverage';
 import { defaultLevelId, translatePolygon } from './studio-ops';
+import { temperatureText, type RoomStateLayer } from './room-state';
 
 export type MarkerKind = 'camera' | 'lock' | 'light' | 'binary_sensor';
 
@@ -197,6 +198,10 @@ export class SwPlanCanvas extends LitElement {
   @property({ attribute: false }) selectedZoneVertex: number | null = null;
   /** Show zone names at their centroids. */
   @property({ type: Boolean }) zoneLabels = true;
+  /** The state layer (CR-006 1b, room-state.ts): a lit room's warm fill, the presence blue weighted by its fade, the
+   * temperature chip under the room's name, a red marker on every open opening. null = no state layer (the toggle is
+   * off, a history instant, the editor). The same layer and the same zones draw the same SVG. */
+  @property({ attribute: false }) roomStates: RoomStateLayer | null = null;
   /** Vertices of a polygon being drawn in the editor (normalized); rendered as a dashed outline. */
   @property({ attribute: false }) draftPoints: { x: number; y: number }[] = [];
   /** Selection mode (T043): a primary-button drag on the plan draws a rectangle and emits `box-select` with the ids
@@ -532,6 +537,48 @@ export class SwPlanCanvas extends LitElement {
     .zone.candidate polygon {
       stroke-dasharray: 6 4;
       fill-opacity: 0.14;
+    }
+    /* the state layer (CR-006 1b): tints over the zone's own fill, no pointer events of their own */
+    .zone .tint {
+      pointer-events: none;
+      stroke: none;
+    }
+    .zone .tint[data-room-tint='lit'] {
+      fill: var(--sw-map-lit);
+      fill-opacity: 0.34;
+    }
+    .zone .tint[data-room-tint='presence'] {
+      fill: var(--sw-map-presence);
+      fill-opacity: calc(0.3 * var(--fade, 1)); /* lighter than the lit tint under it: both read together */
+    }
+    .zone .tchip {
+      pointer-events: none;
+    }
+    .zone .tchip rect {
+      fill: rgba(255, 255, 255, 0.94);
+      stroke: var(--sw-map-temp);
+      stroke-opacity: 0.35;
+      stroke-width: 1;
+    }
+    .zone .tchip text {
+      font-family: var(--sw-font);
+      font-size: 11px;
+      font-weight: 600;
+      fill: var(--sw-map-temp);
+      text-anchor: middle;
+      direction: ltr;
+    }
+    .opening .open-mark {
+      stroke: var(--sw-danger);
+      stroke-linecap: round;
+      fill: none;
+      pointer-events: none;
+      filter: drop-shadow(0 0 calc(3px * var(--inv, 1)) var(--sw-danger));
+    }
+    .opening .open-dot {
+      fill: var(--sw-danger);
+      stroke: var(--sw-surface);
+      pointer-events: none;
     }
     .zone .zl-bg {
       fill: rgba(255, 255, 255, 0.92);
@@ -1291,6 +1338,7 @@ export class SwPlanCanvas extends LitElement {
          data-zone=${z.id}
          @click=${(e: Event) => this.selectZone(z, e)} @keydown=${(e: KeyboardEvent) => (e.key === 'Enter' || e.key === ' ') && this.selectZone(z, e)}>
         <polygon data-zone-body points=${pts} stroke-width=${((selected ? 2.2 : 1.4) * inv).toFixed(2)} @pointerdown=${(e: PointerEvent) => this.onZoneBodyPointerDown(z, e)} />
+        ${this.renderZoneState(z, pts, live, c)}
         ${this.zoneLabels && z.name && labelFits
           ? svg`<g transform="translate(${this.zoneLabelPoint(z, live, c).x.toFixed(1)} ${this.zoneLabelPoint(z, live, c).y.toFixed(1)}) scale(${inv})">
               <rect class="zl-bg" x=${-lw / 2} y="-10" width=${lw} height="20" rx="10" />
@@ -1299,6 +1347,33 @@ export class SwPlanCanvas extends LitElement {
           : nothing}
         ${this.editable && own && !z.candidate ? this.renderZoneHandles(z, live) : nothing}
       </g>`;
+  }
+
+  /** The state layer of one zone (CR-006 1b): the lit tint, the presence tint with its fade, the temperature chip under
+   * the name (at the centroid when the zone has no name). Nothing without a layer or a state for the zone. */
+  private renderZoneState(z: PlanZone, pts: string, live: { x: number; y: number }[], c: { x: number; y: number }) {
+    const st = this.roomStates?.rooms[z.id];
+    if (!st) return nothing;
+    const inv = 1 / this.scale;
+    const chip = st.temperature !== null ? temperatureText(st.temperature) : null;
+    const at = this.zoneLabelPoint(z, live, c);
+    const cw = chip ? Math.max(30, chip.length * 7 + 14) : 0;
+    return svg`
+      ${st.lit ? svg`<polygon class="tint" data-room-tint="lit" data-zone-id=${z.id} points=${pts} />` : nothing}
+      ${st.presenceFade > 0 ? svg`<polygon class="tint" data-room-tint="presence" data-zone-id=${z.id} data-fade=${st.presenceFade.toFixed(3)} points=${pts} style=${`--fade:${st.presenceFade.toFixed(3)}`} />` : nothing}
+      ${chip
+        ? svg`<g class="tchip" data-room-temp=${z.id} transform="translate(${at.x.toFixed(1)} ${(at.y + (z.name && this.zoneLabels ? 24 : 0) * inv).toFixed(1)}) scale(${inv})">
+            <rect x=${-cw / 2} y="-9" width=${cw} height="18" rx="9" /><text y="3.5">${chip}</text>
+          </g>`
+        : nothing}`;
+  }
+
+  /** The red marker of an open opening (CR-006 1b): a thick rounded line along the gap with a dot at its middle. */
+  private renderOpenMark(id: string, gap: [Pt, Pt], inv: number) {
+    if (!this.roomStates?.openOpenings.includes(id)) return nothing;
+    const mx = (gap[0][0] + gap[1][0]) / 2;
+    const my = (gap[0][1] + gap[1][1]) / 2;
+    return svg`<line class="open-mark" data-open-mark=${id} x1=${gap[0][0]} y1=${gap[0][1]} x2=${gap[1][0]} y2=${gap[1][1]} stroke-width=${4 * inv} /><circle class="open-dot" cx=${mx} cy=${my} r=${4 * inv} stroke-width=${1.5 * inv} />`;
   }
 
   /** R4: the label anchor for a zone - the centroid, or just outside the polygon's bounding box on the chosen side. */
@@ -1657,9 +1732,10 @@ export class SwPlanCanvas extends LitElement {
         return svg`<g class="opening ${cls}" data-opening=${p.id} data-kind="door">
           ${p.leaves.map(([a, b]) => svg`<line class="leaf" x1=${a[0]} y1=${a[1]} x2=${b[0]} y2=${b[1]} stroke-width=${1.6 * inv} />`)}
           ${p.arcs.map((a) => svg`<path class="arc" d=${`M ${a.from[0]} ${a.from[1]} A ${a.r} ${a.r} 0 0 ${a.sweep} ${a.to[0]} ${a.to[1]}`} stroke-width=${1.1 * inv} stroke-dasharray=${`${4 * inv} ${3 * inv}`} />`)}
+          ${this.renderOpenMark(p.id, p.gap, inv)}
         </g>`;
       case 'window':
-        return svg`<g class="opening ${cls}" data-opening=${p.id} data-kind="window">${p.lines.map(([a, b]) => svg`<line class="glass" x1=${a[0]} y1=${a[1]} x2=${b[0]} y2=${b[1]} stroke-width=${1.6 * inv} />`)}</g>`;
+        return svg`<g class="opening ${cls}" data-opening=${p.id} data-kind="window">${p.lines.map(([a, b]) => svg`<line class="glass" x1=${a[0]} y1=${a[1]} x2=${b[0]} y2=${b[1]} stroke-width=${1.6 * inv} />`)}${this.renderOpenMark(p.id, p.gap, inv)}</g>`;
       case 'passage':
         return svg`<g class="opening ${cls}" data-opening=${p.id} data-kind="passage"><line class="gapline" x1=${p.gap[0][0]} y1=${p.gap[0][1]} x2=${p.gap[1][0]} y2=${p.gap[1][1]} stroke-width=${inv} stroke-dasharray=${`${2 * inv} ${3 * inv}`} /></g>`;
       case 'connector':

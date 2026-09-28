@@ -30,7 +30,9 @@ import { createView, listViews, wallHref, type SavedView } from '../api/views';
 import '../components/sw-toggle';
 import { ACTION_ERROR_LABEL, ACTION_STATUS_LABEL, awaitAction, domainLabel, entityMarkerKind, entityTone, fmtTime, runAction, stateLabel, subscribeHa, type HaActionArgSpec, type HaActionRecord, type HaActionSpec, type HaEntity } from '../api/ha';
 import { geometryFor } from '../api/geometry';
-import { circuitToken, type AnchorPosition, type CatalogLookup, type GeometryDoc } from '../map/geometry';
+import { buildPrimitives, circuitToken, type AnchorPosition, type CatalogLookup, type GeometryDoc } from '../map/geometry';
+import { defaultLevelId } from '../map/studio-ops';
+import { DEFAULT_PRESENCE_FADE_MIN, parsePresenceFade, presenceStepMs, roomStates, type PresenceFade, type RoomStateLayer, type StateEntity, type StateOpening } from '../map/room-state';
 import { loadLibrary, lookup3dOf, lookupOf } from '../api/plan-catalog';
 import { buildScene, type Catalog3DLookup, type SceneAnchor, type SceneDescription, type SceneInput } from '../map/scene-builder';
 import type { ScenePreset } from '../map/scene-three'; // type only: the three chunk stays out of the entry bundle
@@ -48,9 +50,9 @@ import { countLabel, renderLevelChips } from './plan-studio-panel';
 const ARG_CHOICE_HE: Record<string, string> = { off: 'כבוי', heat: 'חימום', cool: 'קירור', heat_cool: 'חימום/קירור', auto: 'אוטומטי', dry: 'ייבוש', fan_only: 'מאוורר בלבד' };
 
 type ScreenState = 'ready' | 'loading' | 'empty' | 'error' | 'forbidden' | 'stale' | 'partial';
-type Layer = 'cameras' | 'doors' | 'lights' | 'sensors' | 'zones' | 'structure' | 'objects' | 'connectors';
+type Layer = 'cameras' | 'doors' | 'lights' | 'sensors' | 'zones' | 'structure' | 'objects' | 'connectors' | 'states';
 
-const LAYERS: { id: Layer; icon: 'camera' | 'door' | 'light' | 'sensor' | 'map' | 'wall' | 'grid' | 'stairs'; label: () => string }[] = [
+const LAYERS: { id: Layer; icon: 'camera' | 'door' | 'light' | 'sensor' | 'map' | 'wall' | 'grid' | 'stairs' | 'activity'; label: () => string }[] = [
   { id: 'cameras', icon: 'camera', label: () => t('floor.cameras') },
   { id: 'doors', icon: 'door', label: () => t('floor.doors') },
   { id: 'lights', icon: 'light', label: () => t('floor.lights') },
@@ -59,14 +61,18 @@ const LAYERS: { id: Layer; icon: 'camera' | 'door' | 'light' | 'sensor' | 'map' 
   { id: 'structure', icon: 'wall', label: () => 'מבנה' },
   { id: 'objects', icon: 'grid', label: () => 'עצמים' },
   { id: 'connectors', icon: 'stairs', label: () => 'מחברים' },
+  { id: 'states', icon: 'activity', label: () => 'מצבי חדרים' },
 ];
 /** Layers that came after the first stored layer lists: stored as "-<id>" when switched off, so an old list still shows them. */
-const LATE_LAYERS: Layer[] = ['structure', 'objects', 'connectors'];
+const LATE_LAYERS: Layer[] = ['structure', 'objects', 'connectors', 'states'];
 
 /** One build of the 3D scene with what it was built from (T087): the structure keys compare by identity, the live states
  * by a signature string; the camera list and hover labels are built with it. */
 interface SceneBuild {
   structure: unknown[];
+  /** The structure keys without the level filter: the all-levels scene of the strip is keyed on these alone (CR-006
+   * 1a review nit: a level switch must not redraw the thumbnails). */
+  structureAll: unknown[];
   states: string;
   desc: SceneDescription;
   /** Every level of the floor for the thumbnail strip (CR-006): `desc` itself while no level filter is on. */
@@ -112,7 +118,7 @@ export class ExploreFloorMap extends LitElement {
   @state() private noFloors = false;
   @state() private selectedId: string | null = null;
   @state() private anchor: { x: number; y: number } | null = null;
-  @state() private layers = new Set<Layer>(['cameras', 'doors', 'lights', 'sensors', 'zones', 'structure', 'objects', 'connectors']);
+  @state() private layers = new Set<Layer>(['cameras', 'doors', 'lights', 'sensors', 'zones', 'structure', 'objects', 'connectors', 'states']);
   /** The loaded plan picture under the structure (owner request 2026-09-26). Not an anchor layer: a switch of its own,
    * remembered per floor in this browser like the layers. */
   @state() private planImage = true;
@@ -134,6 +140,15 @@ export class ExploreFloorMap extends LitElement {
   private sceneTimer = 0;
   private sceneDue = false;
   private geomSeq = 0;
+  /** CR-006 1b: the installation's presence fade (plan.presence_fade) and the instant the state layer is derived for;
+   * while a tint is fading the instant steps at the fade's cadence (presenceStepMs), so the layer - and the scene built
+   * from it - changes only at those steps and the same instant gives the same layer. */
+  @state() private presenceFade: PresenceFade = DEFAULT_PRESENCE_FADE_MIN;
+  @state() private stateNow = Date.now();
+  private fadeTimer = 0;
+  /** What the state layer reads from the structure (the openings' gap midpoints, the lamp objects), per document. */
+  private stateFacts: { geometry: GeometryDoc; w: number; h: number; openings: StateOpening[]; lamps: { x: number; y: number; level_id: string; circuit: string | null; entity: string | null }[] } | null = null;
+  private roomStateMemo: { key: string; layer: RoomStateLayer | null } | null = null;
   @state() private pinned = false;
   @state() private panel = false;
   /** Multi-camera selection (T043): anchor ids of the picked cameras while the mode is on. */
@@ -862,6 +877,8 @@ export class ExploreFloorMap extends LitElement {
     this.mq.removeEventListener('change', this.onMq);
     window.clearTimeout(this.sceneTimer);
     this.sceneTimer = 0;
+    window.clearTimeout(this.fadeTimer);
+    this.fadeTimer = 0;
     this.stopWs?.();
     this.stopWs = null;
   }
@@ -875,6 +892,7 @@ export class ExploreFloorMap extends LitElement {
         const eid = m.entity.entity_id;
         const switches = Object.values(b.circuitStates).some((s) => s.entity_id === eid);
         if (!switches && !b.anchors.some((a) => a.resource_type === 'ha_entity' && a.resource_id === eid)) return;
+        this.stateNow = Date.now(); // the state layer's instant follows the push (a fade counts from a fresh now)
         this.bundle = {
           ...b,
           anchors: b.anchors.map((a) => (a.resource_type === 'ha_entity' && a.resource_id === eid ? { ...a, entity: { ...(a.entity ?? ({} as HaEntity)), ...m.entity, actions: a.entity?.actions } } : a)),
@@ -887,6 +905,7 @@ export class ExploreFloorMap extends LitElement {
   }
 
   protected updated(changed: Map<string, unknown>) {
+    this.scheduleFadeTick(this.bundle && this.layers.has('states') ? this.roomStateLayer : null);
     if (changed.has('floorId') && changed.get('floorId') !== undefined) {
       this.selectedId = null;
       this.anchor = null;
@@ -964,6 +983,7 @@ export class ExploreFloorMap extends LitElement {
         .then((s) => {
           if (this.bundle === b) this.levelFilter = initialLevel(s['plan.levels'], b); // 0.1.89: plan.levels default level, else every level
           this.quality3d = s['plan.quality'] === '1' ? 1 : s['plan.quality'] === '2' ? 2 : null;
+          this.presenceFade = parsePresenceFade(s['plan.presence_fade']); // CR-006 1b: off, or the fade window in minutes
         })
         .catch(() => {}); // settings unavailable: keep every level shown
       const seq = ++this.geomSeq;
@@ -1061,6 +1081,73 @@ export class ExploreFloorMap extends LitElement {
     return out;
   }
 
+  // ---- the state layer (CR-006 1b) ----
+
+  /** The openings (gap midpoints) and lamp objects of the published structure, built once per document and plan size. */
+  private stateFactsFor(b: MapBundle): NonNullable<typeof this.stateFacts> | null {
+    const doc = this.geometry;
+    if (!doc) return null;
+    const f = this.stateFacts;
+    if (f && f.geometry === doc && f.w === b.width && f.h === b.height) return f;
+    const walls = new Map(doc.walls.map((w) => [w.id, w]));
+    const byId = new Map(doc.openings.map((o) => [o.id, o]));
+    const openings: StateOpening[] = [];
+    const lamps: NonNullable<typeof this.stateFacts>['lamps'] = [];
+    for (const p of buildPrimitives(doc, b.width, b.height, null, this.catalogLookup ?? undefined)) {
+      if (p.kind === 'door' || p.kind === 'window' || p.kind === 'passage') {
+        const o = byId.get(p.id);
+        const w = o ? walls.get(o.wall_id) : undefined;
+        if (!o || !w) continue;
+        openings.push({ id: o.id, kind: p.kind, x: (p.gap[0][0] + p.gap[1][0]) / 2 / b.width, y: (p.gap[0][1] + p.gap[1][1]) / 2 / b.height, level_id: w.level_id, entity_id: o.anchor_ref?.resource_type === 'ha_entity' ? o.anchor_ref.resource_id : null });
+      } else if (p.kind === 'object' && (p.color === 'light' || p.circuit_id !== null)) {
+        lamps.push({ x: p.cx / b.width, y: p.cy / b.height, level_id: p.level_id, circuit: p.circuit_id, entity: p.anchor?.startsWith('ha_entity:') ? p.anchor.slice('ha_entity:'.length) : null });
+      }
+    }
+    this.stateFacts = { geometry: doc, w: b.width, h: b.height, openings, lamps };
+    return this.stateFacts;
+  }
+
+  /** The room state layer of the shown floor for `stateNow` (room-state.ts): the entities of the anchors, the lamp
+   * objects and the openings of the structure, the zones as rooms. null when the toggle is off, on a stale screen or
+   * without the sync (the pins are dimmed then too), in demo mode, and when the floor has neither zones nor openings.
+   * Memoised on what it reads: a render that changed nothing hands the canvas and the scene the same object. */
+  private get roomStateLayer(): RoomStateLayer | null {
+    const b = this.bundle;
+    if (!b || b.source !== 'api' || !this.layers.has('states') || this.states3dStale) return null;
+    const facts = this.stateFactsFor(b);
+    if (!b.zones.length && !facts?.openings.length) return null;
+    const circuits = this.circuitStates3d;
+    const states = this.entityStates3d;
+    const entities: StateEntity[] = [];
+    for (const a of b.anchors) {
+      if (a.resource_type !== 'ha_entity') continue;
+      const e = a.entity;
+      entities.push({ id: a.resource_id, domain: e?.domain ?? a.resource_id.split('.')[0] ?? '', device_class: e?.device_class ?? null, state: states[a.resource_id] ?? null, last_changed: e?.last_changed ?? null, attributes: e?.attributes ?? null, x: a.position.x, y: a.position.y, level_id: a.level_id ?? null, layer_id: a.layer_id });
+    }
+    const lamps = (facts?.lamps ?? []).map((l) => ({ x: l.x, y: l.y, level_id: l.level_id, on: (l.circuit !== null && circuits[l.circuit] === 'on') || (l.entity !== null && states[l.entity] === 'on') }));
+    const rooms = b.zones.map((z) => ({ id: z.id, polygon: z.polygon, level_id: z.level_id ?? null }));
+    const key = JSON.stringify([entities, lamps, rooms.map((r) => [r.id, r.level_id, r.polygon]), facts?.openings ?? [], this.stateNow, this.presenceFade, b.width, b.height]);
+    if (this.roomStateMemo?.key === key) return this.roomStateMemo.layer;
+    const fallback = this.geometry ? defaultLevelId(this.geometry) : (b.levels.find((l) => l.is_default)?.id ?? 'L0');
+    const layer = roomStates({ rooms, entities, openings: facts?.openings ?? [], lamps, size: [b.width, b.height], now: this.stateNow, fade: this.presenceFade, levelOf: (id) => id ?? fallback });
+    this.roomStateMemo = { key, layer };
+    return layer;
+  }
+
+  /** While a presence tint is fading, step `stateNow` at the fade's cadence so the tint steps down (and stops when it
+   * reached zero: no timer while nothing fades). */
+  private scheduleFadeTick(layer: RoomStateLayer | null): void {
+    const fading = !!layer && Object.values(layer.rooms).some((r) => r.presenceFade > 0 && !r.presence) || !!layer && Object.values(layer.levels).some((l) => l.presence > 0 && l.presence < 1);
+    const step = presenceStepMs(this.presenceFade);
+    if (!fading || !step) {
+      window.clearTimeout(this.fadeTimer);
+      this.fadeTimer = 0;
+      return;
+    }
+    if (this.fadeTimer) return;
+    this.fadeTimer = window.setTimeout(() => { this.fadeTimer = 0; this.stateNow = Date.now(); }, step);
+  }
+
   // ---- 3D (T087) ----
 
   /** The 3D shows no live state on a stale screen or while the Home Assistant sync is down - the 2D dims its entity pins
@@ -1109,14 +1196,15 @@ export class ExploreFloorMap extends LitElement {
     const anchors = b.source === 'api'
       ? b.anchors.map((a) => [a.id, a.revision, a.position.x, a.position.y, a.rotation_degrees, a.field_of_view_degrees, a.coverage_radius, a.coverage_polygon?.length, a.level_id, a.layer_id, a.mount_height_m, a.tilt_deg, entityName(a)].join('|')).join(';')
       : '';
-    return [b.floorId, b.width, b.height, anchors, b.zones, this.geometry, this.layers, this.levelFilter, this.catalog3d, this.itemNames, this.screenState];
+    return [b.floorId, b.width, b.height, anchors, b.zones, this.geometry, this.layers, this.catalog3d, this.itemNames, this.screenState];
   }
 
-  /** The live values the scene reads: entity states (doors, lamps, sprites), circuit switches, camera status. */
-  private sceneStatesKey(b: MapBundle): string {
+  /** The live values the scene reads: entity states (doors, lamps, sprites), circuit switches, camera status, and the
+   * room state layer (tints, markers, chips - it steps with the presence fade). */
+  private sceneStatesKey(b: MapBundle, layer: RoomStateLayer | null): string {
     if (b.source === 'demo') return '';
     const cams = b.anchors.filter((a) => a.resource_type === 'camera').map((a) => `${a.id}:${a.camera?.status ?? ''}`).join(',');
-    return JSON.stringify([this.entityStates3d, this.circuitStates3d, cams, this.syncConnected]);
+    return JSON.stringify([this.entityStates3d, this.circuitStates3d, cams, this.syncConnected, layer]);
   }
 
   /** The floor has something to show in 3D - a cheap test for the toggle; the scene itself is built only in 3D. */
@@ -1133,10 +1221,13 @@ export class ExploreFloorMap extends LitElement {
   private scene3d(): SceneBuild | null {
     const b = this.bundle;
     if (!b || !this.hasScene) return null;
-    const structure = this.sceneStructureKeys(b);
-    const states = this.sceneStatesKey(b);
+    const structureAll = this.sceneStructureKeys(b);
+    const structure = [...structureAll, this.levelFilter];
+    const layer = this.roomStateLayer;
+    const states = this.sceneStatesKey(b, layer);
     const memo = this.sceneMemo;
     const same = !!memo && memo.structure.length === structure.length && memo.structure.every((k, i) => k === structure[i]);
+    const sameAll = !!memo && memo.structureAll.length === structureAll.length && memo.structureAll.every((k, i) => k === structureAll[i]);
     if (memo && same && memo.states === states) return memo;
     if (memo && same && !this.sceneDue) {
       if (!this.sceneTimer) this.sceneTimer = window.setTimeout(() => { this.sceneTimer = 0; this.sceneDue = true; if (this.view3d) this.requestUpdate(); }, 100);
@@ -1166,11 +1257,12 @@ export class ExploreFloorMap extends LitElement {
     }
     if (!base) return null;
     const layers = { structure: this.layers.has('structure'), objects: this.layers.has('objects'), connectors: this.layers.has('connectors'), zones: this.layers.has('zones') };
-    const desc = buildScene({ ...base, level: this.levelFilter, layers });
-    // the strip draws every level from a description keyed on the structure only: a live state push keeps the memo's
-    // object, so the element's thumbnail cache (keyed on it) is not redrawn per push (state dots come with slice 1b)
-    const all = memo && same ? memo.all : b.levels.length > 1 ? buildScene({ ...base, level: null, layers }) : desc;
-    this.sceneMemo = { structure, states, desc, all, cameras, labels };
+    const desc = buildScene({ ...base, level: this.levelFilter, layers, roomStates: layer });
+    // the strip draws every level from a description keyed on the structure only (without the level filter and without
+    // the state layer): a live state push or a level switch keeps the memo's object, so the element's thumbnail cache
+    // (keyed on it) is not redrawn - the state dots are drawn over the cached pictures (CR-006 1b)
+    const all = memo && sameAll ? memo.all : buildScene({ ...base, level: null, layers, roomStates: null });
+    this.sceneMemo = { structure, structureAll, states, desc, all, cameras, labels };
     this.sceneDue = false;
     window.clearTimeout(this.sceneTimer); // a pending state rebuild is part of this one
     this.sceneTimer = 0;
@@ -1283,7 +1375,7 @@ export class ExploreFloorMap extends LitElement {
     const now = new Date(); // the local date (toISOString is UTC: a day behind in the evening, a day ahead after midnight)
     const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     return html`<sw-plan-3d data-floor-3d .description=${s.desc} .selectedId=${this.sel3d} .preset=${this.preset3d} .cameras=${s.cameras} .labels=${s.labels}
-      .levels=${b.levels.map((l) => ({ id: l.id, name: l.name, elevation_m: l.elevation_m }))} .activeLevel=${this.levelFilter} .thumbnailScene=${s.all} .qualityDefault=${this.quality3d}
+      .levels=${b.levels.map((l) => ({ id: l.id, name: l.name, elevation_m: l.elevation_m }))} .activeLevel=${this.levelFilter} .thumbnailScene=${s.all} .qualityDefault=${this.quality3d} .levelDots=${this.roomStateLayer?.levels ?? {}}
       exportName=${`plan-3d-${b.floorName}${this.levelFilter ? `-${this.levelFilter}` : ''}-${stamp}`} @part-select=${(e: CustomEvent<PartSelectDetail>) => this.onPartSelect(e)}
       @level-select=${(e: CustomEvent<LevelSelectDetail>) => (this.levelFilter = e.detail.id)}></sw-plan-3d>`;
   }
@@ -1291,8 +1383,10 @@ export class ExploreFloorMap extends LitElement {
   /** Items per layer for the panel (M07: counts next to every toggle). */
   private layerCounts(): Record<Layer, number> {
     const b = this.bundle;
+    const layer = this.roomStateLayer;
     const out: Record<Layer, number> = { cameras: 0, doors: 0, lights: 0, sensors: 0, zones: b?.zones.length ?? 0, structure: this.geometry?.walls.length ?? 0,
-      objects: this.geometry?.objects.length ?? 0, connectors: this.geometry?.connectors.length ?? 0 };
+      objects: this.geometry?.objects.length ?? 0, connectors: this.geometry?.connectors.length ?? 0,
+      states: layer ? Object.values(layer.rooms).filter((r) => r.lit || r.presenceFade > 0 || r.openings.length || r.temperature !== null).length + (layer.openOpenings.length ? 1 : 0) : 0 };
     if (!b) return out;
     if (b.source === 'demo') {
       out.cameras = demoCameras.filter((c) => c.floorId === b.floorId).length;
@@ -1898,6 +1992,7 @@ export class ExploreFloorMap extends LitElement {
       { id: 'structure', label: 'מבנה', count: this.geometry ? `${this.geometry.walls.length} קירות · ${this.geometry.openings.length} פתחים` : 'לא שורטט מבנה' },
       { id: 'objects', label: 'עצמים', count: this.geometry ? `${this.geometry.objects.length} עצמים מהספרייה` : 'אין עצמים' },
       { id: 'connectors', label: 'מחברים', count: this.geometry ? `${this.geometry.connectors.length} מדרגות, רמפות ומעליות` : 'אין מחברים' },
+      { id: 'states', label: 'מצבי חדרים', count: this.layers.has('states') ? (counts.states ? `${counts.states} עם מצב · תאורה, תנועה, פתחים פתוחים, טמפרטורה` : 'תאורה, תנועה, פתחים פתוחים, טמפרטורה') : 'מוסתר' },
     ];
     return html`<div class="panel" role="group" aria-label="שכבות פעילות" data-layers-panel>
       <h3>שכבות פעילות</h3>
@@ -1993,6 +2088,7 @@ export class ExploreFloorMap extends LitElement {
         .boxSelect=${this.multi}
         @box-select=${(e: CustomEvent<{ ids: string[] }>) => this.addPicks(e.detail.ids)}
         .zones=${this.layers.has('zones') ? b.zones.map((z) => ({ ...z, labelPos: z.label_pos })) : []}
+        .roomStates=${this.roomStateLayer}
         .selectedZoneId=${this.selectedZoneId}
         .dimEntities=${this.screenState === 'stale'}
         @zone-select=${(e: CustomEvent<{ id: string }>) => { if (this.multi) { this.pickZone(e.detail.id); return; } this.selectedZoneId = this.selectedZoneId === e.detail.id ? null : e.detail.id; this.close(); }}

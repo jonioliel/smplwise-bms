@@ -14,9 +14,10 @@ import { defaultLevelId } from './studio-ops';
 import { blockingSegments, clipCoverage, isOpenState, type Seg } from './coverage';
 import { anchor3d } from './anchor-3d';
 import type { MeshPart } from '../api/plan-catalog';
+import { temperatureText, type RoomStateLayer } from './room-state';
 
 export type { MeshPart };
-export type PartKind = 'floor' | 'room' | 'label' | 'wall' | 'lintel' | 'sill' | 'head' | 'door' | 'window' | 'object' | 'connector' | 'camera' | 'cone' | 'entity' | 'glow';
+export type PartKind = 'floor' | 'room' | 'tint' | 'marker' | 'label' | 'wall' | 'lintel' | 'sill' | 'head' | 'door' | 'window' | 'object' | 'connector' | 'camera' | 'cone' | 'entity' | 'glow';
 export type PartShape = 'box' | 'cylinder' | 'prism' | 'sprite' | 'light';
 export type Vec3 = [number, number, number];
 
@@ -105,6 +106,10 @@ export interface SceneInput {
   anchorsEveryLevel?: boolean;
   layers?: Partial<SceneLayers>;
   coneRadiusPx?: number;
+  /** The state layer (CR-006 slice 1b, room-state.ts): room tints, open-opening frames and temperature chips are
+   * parts of the description like the door leaves and the glows - the same layer gives the same parts. Absent / null:
+   * no state parts (the thumbnails' all-levels scene, the history map). */
+  roomStates?: RoomStateLayer | null;
 }
 export interface SceneDescription {
   version: 'scene-1';
@@ -137,6 +142,17 @@ export const STATE_HE: Record<string, string> = { on: 'דולק', off: 'כבוי
 const FLOOR_PLATE_M = 0.05;
 const ROOM_TINT_M = 0.01;
 const LABEL_HEIGHT_M = 0.1;
+/** The state tints (CR-006 1b): a lit room's warm plate and the presence plate above it, thin prisms over the room. */
+export const LIT_TINT_OPACITY = 0.42;
+export const PRESENCE_TINT_OPACITY = 0.36; // lighter than the lit plate under it, so a lit room with presence still reads warm through the blue
+const LIT_TINT_Y_M = 0.014;
+const PRESENCE_TINT_Y_M = 0.02;
+/** The open-opening frame: two jambs and a head bar (a sill bar too on a window) in the danger token, a little wider
+ * than the wall so it reads from every side. */
+export const MARKER_T_M = 0.06;
+const MARKER_OUT_M = 0.04;
+const TEMP_CHIP_Y_M = 0.12;
+const TEMP_CHIP_OFFSET_M = 0.55;
 const LEAF_THICKNESS_M = 0.04;
 const GLASS_THICKNESS_M = 0.02;
 const DOOR_OPEN_DEG = 80;
@@ -332,7 +348,40 @@ class Builder {
         this.add({ id: `room:${z.id}#label`, kind: 'label', shape: 'sprite', position: [this.m(c.x * width), lv.elevation_m + LABEL_HEIGHT_M, this.m(c.y * height)], size: [Math.max(1, 0.2 * z.name.length), 0.4, 0], rotation: [0, 0, 0],
           color: 'text-3', opacity: 1, group: null, level_id: lv.id, text: z.name, userData: { id: z.id, kind: 'zone' } });
       }
+      this.roomState(z, lv);
     }
+  }
+
+  /** The state parts of a room (CR-006 1b): the warm plate when lit, the blue plate weighted by the presence fade, and
+   * the temperature chip below the name - all from the layer, none when the room has no state. */
+  private roomState(z: SceneZone, lv: GeomLevel): void {
+    const st = this.input.roomStates?.rooms[z.id];
+    if (!st) return;
+    const { width, height } = this.input;
+    const polygon = z.polygon.map((p): [number, number] => [this.m(p.x * width), this.m(p.y * height)]);
+    const ud = { id: z.id, kind: 'zone' };
+    if (st.lit) this.add({ id: `room:${z.id}#lit`, kind: 'tint', shape: 'prism', position: [0, lv.elevation_m + LIT_TINT_Y_M, 0], size: [0, ROOM_TINT_M, 0], rotation: [0, 0, 0], color: 'map-lit', opacity: LIT_TINT_OPACITY, group: null, level_id: lv.id, polygon, userData: ud });
+    if (st.presenceFade > 0) this.add({ id: `room:${z.id}#presence`, kind: 'tint', shape: 'prism', position: [0, lv.elevation_m + PRESENCE_TINT_Y_M, 0], size: [0, ROOM_TINT_M, 0], rotation: [0, 0, 0], color: 'map-presence', opacity: r4(PRESENCE_TINT_OPACITY * st.presenceFade), group: null, level_id: lv.id, polygon, userData: ud });
+    if (st.temperature !== null) {
+      const c = centroid(z.polygon);
+      const text = temperatureText(st.temperature);
+      this.add({ id: `room:${z.id}#temp`, kind: 'label', shape: 'sprite', position: [this.m(c.x * width), lv.elevation_m + TEMP_CHIP_Y_M, this.m(c.y * height) + (z.name ? TEMP_CHIP_OFFSET_M : 0)], size: [Math.max(0.9, 0.22 * text.length), 0.36, 0], rotation: [0, 0, 0],
+        color: 'map-temp', opacity: 1, group: null, level_id: lv.id, text, userData: ud });
+    }
+  }
+
+  /** The red frame of an open opening (CR-006 1b): jambs at both ends of the gap, a head bar over it, a sill bar under a
+   * window - thin instanced boxes in the danger token, following the wall's yaw. */
+  private openingMarker(o: GeomOpening, g0: [number, number], g1: [number, number], len: number, yaw: number, t: number, base: number, levelId: string, ud: ScenePart['userData']): void {
+    const y0 = o.kind === 'window' ? base + o.sill_m : base;
+    const y1 = y0 + o.height_m;
+    const depth = t + 2 * MARKER_OUT_M;
+    const cx = (g0[0] + g1[0]) / 2;
+    const cz = (g0[1] + g1[1]) / 2;
+    this.box(`open:${o.id}#j0`, 'marker', ud, [g0[0], (y0 + y1) / 2, g0[1]], [MARKER_T_M, y1 - y0, depth], yaw, 'danger', levelId);
+    this.box(`open:${o.id}#j1`, 'marker', ud, [g1[0], (y0 + y1) / 2, g1[1]], [MARKER_T_M, y1 - y0, depth], yaw, 'danger', levelId);
+    this.box(`open:${o.id}#head`, 'marker', ud, [cx, y1 + MARKER_T_M / 2, cz], [len + MARKER_T_M, MARKER_T_M, depth], yaw, 'danger', levelId);
+    if (o.kind === 'window') this.box(`open:${o.id}#sill`, 'marker', ud, [cx, y0 - MARKER_T_M / 2, cz], [len + MARKER_T_M, MARKER_T_M, depth], yaw, 'danger', levelId);
   }
 
   structure(prims: Primitive[]): void {
@@ -364,6 +413,7 @@ class Builder {
         this.box(`wall:${w.id}#${(p as WallPrim).part}${i > 1 ? `.${i - 1}` : ''}`, 'wall', { id: w.id, kind: 'wall' }, [(ax + bx) / 2, base + h / 2, (az + bz) / 2], [Math.hypot(bx - ax, bz - az), h, t], -deg(Math.atan2(uz, ux)), color, lv.id);
       }
     }
+    const open = new Set(this.input.roomStates?.openOpenings ?? []);
     for (const p of prims) {
       if (p.kind !== 'door' && p.kind !== 'window') continue;
       const o = openings.get(p.id);
@@ -383,6 +433,7 @@ class Builder {
       const cx = (g0[0] + g1[0]) / 2;
       const cz = (g0[1] + g1[1]) / 2;
       const ud = { id: o.id, kind: 'opening' };
+      if (open.has(o.id)) this.openingMarker(o, g0, g1, len, yaw, t, base, lv.id, ud);
       if (p.kind === 'door') {
         const lintel = wallH - o.height_m;
         if (lintel > 0.01) this.box(`lintel:${o.id}`, 'lintel', ud, [cx, base + o.height_m + lintel / 2, cz], [len, lintel, t], yaw, color, lv.id);

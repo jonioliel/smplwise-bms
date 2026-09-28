@@ -48,7 +48,7 @@ export const CUTAWAY_STEP_DEG = 10;
 const CUTAWAY_FACING = Math.cos((65 * Math.PI) / 180);
 const CUT_KINDS: ReadonlySet<ScenePart['kind']> = new Set(['wall']);
 /** The parts of an opening that follow the wall they sit in. */
-export const OPENING_KINDS: ReadonlySet<ScenePart['kind']> = new Set(['lintel', 'sill', 'head', 'window', 'door']);
+export const OPENING_KINDS: ReadonlySet<ScenePart['kind']> = new Set(['lintel', 'sill', 'head', 'window', 'door', 'marker']);
 /** How far off a wall's footprint an opening part may sit and still belong to it (an open leaf swings out ~0.9 m). */
 const OPENING_REACH_M = 1.0;
 
@@ -189,6 +189,12 @@ export function cutawayIds(desc: SceneDescription, azimuth: number, extent: Exte
     if (walls.some((w) => w.level_id === p.level_id && withinFootprint(w, p.position[0], p.position[2], OPENING_REACH_M))) ids.add(p.id);
   }
   return [...ids].sort();
+}
+
+/** The size a thumbnail is drawn at: the wanted size clamped to the canvas it is drawn into (a narrow canvas hosts a
+ * smaller picture) - the frame is computed for the clamped aspect, never for the wanted one (review nit of slice 1a). */
+export function clampThumb(width: number, height: number, canvasW: number, canvasH: number): { w: number; h: number } {
+  return { w: Math.max(0, Math.min(width, Math.floor(canvasW))), h: Math.max(0, Math.min(height, Math.floor(canvasH))) };
 }
 
 /** The box a cut part keeps: from its base up to the cut height above its level's floor (null = hidden entirely - the

@@ -223,6 +223,60 @@ a modest gain. The live perf gate (>= 20 fps on 3,000 chairs) therefore measures
 budget (10.4) - and reports level 2 on the same floor; level 2's own budget is slice 1c's, and a device under it
 falls back by itself.
 
+## 7b. Implementation record - slice 1b (2026-09-28, branch `pilot/T087-plan-visual-1b`)
+
+Built as specified in §4.1 item 3 and the owner's scope clarification (the 2D map gets the same layer). Facts and
+deviations recorded:
+
+- **Room state model** - `frontend/src/map/room-state.ts`, one pure function `roomStates(structure, snapshot, now,
+  fade)` shared by the 3D builder, the 2D canvas and the strip. Per room polygon, from the entities anchored inside it:
+  `lit` (a light on, a switch on the lights layer on, or a lamp object of the structure glowing by its circuit or its
+  own entity), `presence` (a motion / occupancy / presence binary sensor on) with `presenceAge` and `presenceFade`
+  (1 while on, then stepping down over the window from the entity's `last_changed`, in 12 quantised steps so the
+  scene is rebuilt per step and the same instant gives the same layer), `openings` (door / window sensors, covers with
+  an opening class, locks reporting `open` - a bound opening follows its entity, an unbound sensor claims the nearest
+  opening within 2 % of the plan width on its level; a room lists the open openings on its boundary), `temperature`
+  (the climate's `current_temperature`, else a temperature sensor, the lowest id among equals), `lock` and `alarm`
+  states (carried in the model, not drawn yet). Per level: the strongest presence fade, an open opening, a lit room -
+  the strip's dots; a sensor in no room still counts for its level.
+- **3D** - the layer is part of the scene description (`SceneInput.roomStates`, design rule 4 unchanged: the same
+  JSON + tokens + state snapshot give the same description): `room:<id>#lit` (a `tint` prism in `map-lit`, opacity
+  0.42), `room:<id>#presence` (`map-presence`, opacity 0.5 × the fade), `open:<id>#j0/#j1/#head(/#sill)` (a `marker`
+  frame of instanced boxes in `danger`, following the wall's yaw and the cutaway like the door leaf), `room:<id>#temp`
+  (a label sprite - the existing label mechanism, RTL canvas text). Tints are not pickable and never outlined; they
+  receive shadows at level 2; level 1 draws the same parts with its Lambert materials - no extra cost. The all-levels
+  scene of the strip is built without the layer, so the thumbnail cache is untouched by state; the dots are DOM over
+  the cached `<img>` (`data-3d-dots`), the presence dot with the fade as its opacity.
+- **2D** - `sw-plan-canvas.roomStates`: tint polygons over the zone's own outline (`data-room-tint`, the presence
+  one with `--fade`), the temperature chip under the room's name (`data-room-temp`), a thick red rounded line with a
+  dot on an open opening's gap (`data-open-mark`), same tokens (`--sw-map-lit`, `--sw-map-presence`, `--sw-map-temp`,
+  `--sw-danger`; both designs).
+- **Screen** - `explore-floor-map` derives the layer from the bundle's anchors (their `entity` rows: domain, device
+  class, state, `last_changed`, attributes), the structure's openings and lamp objects (once per document) and the
+  zones; null on a stale screen or without the sync (like the dimmed pins), and in demo mode. `stateNow` steps at the
+  fade's cadence while a tint fades (no timer otherwise). The layer toggle "מצבי חדרים" sits in the layers panel
+  (default on, stored per floor like the other late layers as `-states`). The history map and the event page pass no
+  layer (a past instant has no live `last_changed` on the client) - a candidate for T041's history.
+- **Setting** - `plan.presence_fade` (`off` | 1-120 minutes, default `3`) in `settings.py` DEFAULTS, edited on the
+  settings screen under the quality level; read once per floor load.
+- **Carried 1a nits** - thumbnails are drawn in a scheduled animation frame outside `render()` and the main frame is
+  redrawn at once (`SceneView.redrawNow`); a failed thumbnail is not cached (`data-3d-thumbs` counts the drawn
+  ones); a narrow canvas frames the thumbnail on the clamped size (`scene-frame.clampThumb`); the all-levels scene is
+  keyed without the level filter (`SceneBuild.structureAll`); the settings wait has a 3 s timeout
+  (`timing.withTimeout`, `SETTINGS_WAIT_MS`); the probe's fallback timer is `PROBE_MS + 1500` (`PROBE_FALLBACK_MS`).
+- **Chunk:** `three` unchanged (154.60 KB gzip); `sw-plan-3d` 13.9 → 14.61 KB gzip; the entry bundle +~2 KB gzip
+  (the model and the canvas layer).
+- **Tests:** `unit-room-state.spec.ts` (node: lit / presence fade maths / opening mapping / temperature choice / an
+  entity in no room / a room with no entities / determinism / the builder's state parts and the cutaway following /
+  the nits' pure pieces), `unit-plan-3d-state.spec.ts` (browser: tints, frame and chip in the scene graph at both
+  levels and their absence on a quiet scene, the tint not outlined, the strip dots over an unchanged thumbnail, the
+  failed thumbnail not cached, the narrow-canvas thumbnail identical to an explicit request of the clamped size),
+  `unit-plan-canvas-state.spec.ts` (browser: the 2D tints / chip / marker, their absence without the layer, the same
+  SVG twice, the panel toggle and its storage), the state-layer test appended to `evidence-plan-studio-4.spec.ts`
+  (a zone around the lamp, a motion and a temperature sensor through the dev state route: 2D and 3D tints, the
+  fade after the motion, the frame, the dots, the level switch keeping the thumbnails, the toggle, the setting),
+  `test_plan_estimates_setting.py` for the setting.
+
 ## 8. Next step
 
 Owner answers §7; then 1a is dispatched from this document with the same implementer → reviewer → fix-round loop

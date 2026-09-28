@@ -6,6 +6,9 @@ import { SceneView, type QualityLevel, type SceneHit, type ScenePreset } from '.
 import { keepIsos, type SceneDescription, type Vec3 } from './scene-builder';
 import { WEBGL_UNAVAILABLE_HE } from './webgl';
 import { productSettings } from '../api/prefs';
+import type { LevelDots } from './room-state';
+import { PROBE_FALLBACK_MS, PROBE_FIRST_FRAME_MS, PROBE_MS, PROBE_WARM_FRAMES, SETTINGS_WAIT_MS, withTimeout } from './timing';
+export { PROBE_FALLBACK_MS, PROBE_FIRST_FRAME_MS, PROBE_MS, PROBE_WARM_FRAMES, SETTINGS_WAIT_MS } from './timing';
 
 const EXPORT_FAILED_HE = 'ייצוא glTF נכשל';
 const FALLBACK_HE = 'עבר לרמה סכמטית — קצב הפריימים היה נמוך';
@@ -14,14 +17,6 @@ const TOAST_MS = 4000;
 export const QUALITY_KEY = 'sw.plan3d.quality';
 /** A fallback holds for the session: the device does not get re-measured on every mount (a new explicit choice does). */
 export const FALLBACK_KEY = 'sw.plan3d.fallback';
-/** Level 2 is measured over this window from its first reported frame (continuous frames); under `minFps` it falls
- * back. The first frame itself is not timed: shader compilation and the shadow map build are one-off costs. */
-export const PROBE_MS = 2500;
-/** No frame reported this long after level 2 started: the device cannot draw it at all - fall back. */
-export const PROBE_FIRST_FRAME_MS = 10000;
-/** The window opens only after this many frames drew at level 2: the first ones compile the shaders and build the
- * shadow map (seconds on a software renderer), which is a one-off cost, not the device's rate. */
-export const PROBE_WARM_FRAMES = 3;
 export const DEFAULT_MIN_FPS = 30;
 
 export interface PartSelectDetail {
@@ -92,6 +87,9 @@ export class SwPlan3d extends LitElement {
   @property() activeLevel: string | null = null;
   /** The description the thumbnails draw from: every level of the floor (the screen's filtered one when it shows all). */
   @property({ attribute: false }) thumbnailScene: SceneDescription | null = null;
+  /** The state dots of the strip (CR-006 1b, room-state.ts): per level, the presence fade, an open opening, a lit room -
+   * drawn over the cached thumbnail, never into it (a state push redraws no thumbnail). */
+  @property({ attribute: false }) levelDots: Record<string, LevelDots> = {};
   /** The installation default when the viewer has not chosen (the host may pass it; else the element asks the settings). */
   @property({ attribute: false }) qualityDefault: QualityLevel | null = null;
   /** Level 2 falls back to level 1 under this rate during the probe window; 0 disables the probe (tests, measurements). */
@@ -131,6 +129,9 @@ export class SwPlan3d extends LitElement {
   private thumbs = new Map<string, string>();
   private thumbsFor: SceneDescription | null = null;
   private thumbsQuality: QualityLevel | null = null;
+  /** The thumbnail pass scheduled for the levels the strip lists without a picture (drawn outside render(), then the
+   * main frame is redrawn at once: the pass borrows the canvas corner). */
+  private thumbPass = 0;
   private settingsAsked = false;
 
   static styles = css`
@@ -230,6 +231,36 @@ export class SwPlan3d extends LitElement {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+    .strip button .pic {
+      position: relative;
+    }
+    /* the state dots (CR-006 1b): presence blue with the fade's opacity, an open opening red, a lit room warm - over the
+       thumbnail's top-right corner (the strip is RTL: the inline start), never drawn into the cached picture */
+    .strip button .dots {
+      position: absolute;
+      inset-block-start: 3px;
+      inset-inline-start: 3px;
+      display: flex;
+      gap: 3px;
+      pointer-events: none;
+    }
+    .strip button .dots i {
+      display: block;
+      inline-size: 8px;
+      block-size: 8px;
+      border-radius: 50%;
+      box-shadow: 0 0 0 1.5px var(--sw-surface);
+    }
+    .strip button .dots i[data-dot='presence'] {
+      background: var(--sw-map-presence);
+      opacity: var(--fade, 1);
+    }
+    .strip button .dots i[data-dot='open'] {
+      background: var(--sw-danger);
+    }
+    .strip button .dots i[data-dot='lit'] {
+      background: var(--sw-map-lit);
     }
     .tip {
       position: absolute;
@@ -337,6 +368,8 @@ export class SwPlan3d extends LitElement {
     super.disconnectedCallback();
     document.removeEventListener('visibilitychange', this.onVisibility);
     this.ro?.disconnect();
+    cancelAnimationFrame(this.thumbPass);
+    this.thumbPass = 0;
     this.endProbe(false);
     this.probed = false;
     this.probePending = false;
@@ -359,9 +392,9 @@ export class SwPlan3d extends LitElement {
     // when the settings land (the cached settings answer at once; a first fetch takes the round trip)
     if (this.chosen === null && this.qualityDefault === null && this.installDefault === null && !this.settingsAsked) {
       this.settingsAsked = true;
-      void productSettings()
-        .then((s) => { this.installDefault = asLevel(s['plan.quality']) ?? 1; })
-        .catch(() => { this.installDefault = 1; }) // settings unavailable: level 1 until the viewer chooses
+      // settings unavailable, or not answered within SETTINGS_WAIT_MS: level 1 until the viewer chooses
+      void withTimeout(productSettings().then((s) => asLevel(s['plan.quality']) ?? 1), SETTINGS_WAIT_MS, 1 as QualityLevel)
+        .then((q) => { this.installDefault = q; })
         .finally(() => { if (this.isConnected && !this.view) this.init(); });
       return;
     }
@@ -476,7 +509,7 @@ export class SwPlan3d extends LitElement {
       p.f0 = frames;
       p.until = now + PROBE_MS;
       window.clearTimeout(this.probeTimer);
-      this.probeTimer = window.setTimeout(() => this.endProbe(true), PROBE_MS + 600);
+      this.probeTimer = window.setTimeout(() => this.endProbe(true), PROBE_FALLBACK_MS);
       return;
     }
     if (now < p.until) return;
@@ -550,7 +583,8 @@ export class SwPlan3d extends LitElement {
 
   // ---- the thumbnail strip: one small isometric per listed level, cached for the description it came from
 
-  /** The thumbnail of a level: drawn once per description and quality, kept while the level stays listed. */
+  /** The thumbnail of a level from the cache ('' until the pass drew it); a new description or quality empties the
+   * cache. render() only reads here - drawing happens in the scheduled pass (review nit of slice 1a). */
   private thumbFor(id: string): string {
     const src = this.thumbnailScene;
     if (!src || !this.view) return '';
@@ -560,10 +594,32 @@ export class SwPlan3d extends LitElement {
       this.thumbsQuality = this.quality;
     }
     const have = this.thumbs.get(id);
-    if (have !== undefined) return have;
-    const url = this.view.renderThumbnail(src, id) ?? '';
-    this.thumbs.set(id, url);
-    return url;
+    if (have === undefined) this.scheduleThumbs();
+    return have ?? '';
+  }
+
+  /** One animation frame: draw every listed level without a picture, then redraw the main frame at once (the pass used
+   * the canvas corner) and re-render the strip. A failed thumbnail is not cached: the next pass tries again. */
+  private scheduleThumbs(): void {
+    if (this.thumbPass) return;
+    this.thumbPass = requestAnimationFrame(() => {
+      this.thumbPass = 0;
+      const src = this.thumbnailScene;
+      const view = this.view;
+      if (!src || !view || this.thumbsFor !== src) return;
+      let drew = false;
+      for (const l of this.levels) {
+        if (this.thumbs.has(l.id)) continue;
+        const url = view.renderThumbnail(src, l.id);
+        if (url) {
+          this.thumbs.set(l.id, url);
+          drew = true;
+        }
+      }
+      if (drew) view.redrawNow();
+      this.setAttribute('data-3d-thumbs', String(this.thumbs.size));
+      if (drew) this.requestUpdate();
+    });
   }
 
   /** How many thumbnails the cache holds (tests: bounded by the listed levels). */
@@ -617,9 +673,14 @@ export class SwPlan3d extends LitElement {
     const listed = [...this.levels].sort((a, b) => b.elevation_m - a.elevation_m || (a.id < b.id ? -1 : 1));
     this.thumbs = keepIsos(this.thumbs, listed.map((l) => l.id));
     return html`<div class="strip" role="group" aria-label="מפלסים" data-3d-strip>
-      ${listed.map((l) => html`<button type="button" data-3d-thumb=${l.id} aria-pressed=${this.activeLevel === l.id ? 'true' : 'false'} title=${`${l.name} · ${l.elevation_m >= 0 ? '+' : '−'}${Math.abs(l.elevation_m).toFixed(1)} מ׳`} @click=${() => this.pickLevel(l.id)}>
-          <img alt="" src=${this.thumbFor(l.id)} /><span>${l.name}</span>
-        </button>`)}
+      ${listed.map((l) => {
+        const d = this.levelDots[l.id];
+        return html`<button type="button" data-3d-thumb=${l.id} aria-pressed=${this.activeLevel === l.id ? 'true' : 'false'} title=${`${l.name} · ${l.elevation_m >= 0 ? '+' : '−'}${Math.abs(l.elevation_m).toFixed(1)} מ׳`} @click=${() => this.pickLevel(l.id)}>
+          <span class="pic"><img alt="" src=${this.thumbFor(l.id)} />${d && (d.presence > 0 || d.open || d.lit)
+            ? html`<span class="dots" data-3d-dots=${l.id}>${d.presence > 0 ? html`<i data-dot="presence" title="תנועה" style=${`--fade:${Math.max(0.35, d.presence).toFixed(2)}`}></i>` : nothing}${d.open ? html`<i data-dot="open" title="פתח פתוח"></i>` : nothing}${d.lit ? html`<i data-dot="lit" title="תאורה דולקת"></i>` : nothing}</span>`
+            : nothing}</span><span>${l.name}</span>
+        </button>`;
+      })}
     </div>`;
   }
 

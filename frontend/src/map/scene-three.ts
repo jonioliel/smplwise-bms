@@ -18,7 +18,7 @@
  */
 import { ACESFilmicToneMapping, AmbientLight, BoxGeometry, BufferGeometry, CanvasTexture, Color, CylinderGeometry, DirectionalLight, DoubleSide, Euler, Float32BufferAttribute, GLTFExporter, Group, HemisphereLight, InstancedMesh, LineBasicMaterial, LineSegments, Matrix4, Mesh, MeshBasicMaterial, MeshLambertMaterial, MeshStandardMaterial, NoToneMapping, Object3D, OrbitControls, OrthographicCamera, PCFSoftShadowMap, PerspectiveCamera, PlaneGeometry, PointLight, Quaternion, Raycaster, SRGBColorSpace, Scene, ShapeUtils, Sprite, SpriteMaterial, Vector2, Vector3, WebGLRenderer } from './three-bundle';
 import type { SceneDescription, ScenePart, Vec3 } from './scene-builder';
-import { CUTAWAY_HEIGHT_M, ISO_DIR, PERSP_DIR, azimuthDeg, cutBox, cutawayIds, isoFrame, levelExtent, quantiseAzimuth, sceneExtent, type Extent, type IsoFrame } from './scene-frame';
+import { CUTAWAY_HEIGHT_M, ISO_DIR, PERSP_DIR, azimuthDeg, clampThumb, cutBox, cutawayIds, isoFrame, levelExtent, quantiseAzimuth, sceneExtent, type Extent, type IsoFrame } from './scene-frame';
 
 export type ScenePreset = 'top' | 'iso' | 'persp' | { camera: string };
 export type QualityLevel = 1 | 2;
@@ -53,11 +53,12 @@ const LABEL_BG_ALPHA = 0.88;
 const GLOW_INTENSITY = 8;
 /** The orbit limit of the overview presets: never under the floor (a camera preset lifts it, a camera may look up). */
 const ORBIT_MAX_POLAR = Math.PI / 2 - 0.02;
-/** Glows are lights; cones are translucent illustrations - a click passes through both to what lies behind. */
-const NOT_PICKABLE = new Set(['glow', 'cone']);
+/** Glows are lights; cones and the state tints are translucent illustrations - a click passes through them to what
+ * lies behind (a tint's room, an opening under its marker is the marker's own item). */
+const NOT_PICKABLE = new Set(['glow', 'cone', 'tint']);
 /** What throws a shadow at level 2 (glass and translucent illustrations do not: the shadow pass ignores opacity). */
 const CASTERS = new Set(['wall', 'lintel', 'sill', 'head', 'door', 'object', 'connector', 'camera']);
-const RECEIVERS = new Set(['floor', 'wall', 'object', 'connector', 'room', 'lintel', 'sill', 'head']);
+const RECEIVERS = new Set(['floor', 'wall', 'object', 'connector', 'room', 'tint', 'lintel', 'sill', 'head']);
 /** On a heavy floor (above HIDE_SMALL_ABOVE_PARTS parts) only the structure takes part in the shadows: the objects'
  * instance groups neither cast (a second draw of every instance) nor receive (the PCF taps on every fragment of
  * 3,000 chairs covering the view) - the floor under them still shows the structure's shadows. */
@@ -599,7 +600,7 @@ export class SceneView {
       this.invalidate();
     }
     if (!sourceId || !this.desc) return;
-    const parts = this.desc.parts.filter((p) => p.userData.id === sourceId && p.kind !== 'cone' && p.kind !== 'floor' && (p.shape === 'box' || p.shape === 'cylinder' || p.shape === 'prism' || p.shape === 'sprite')).slice(0, MAX_OUTLINE_PARTS);
+    const parts = this.desc.parts.filter((p) => p.userData.id === sourceId && p.kind !== 'cone' && p.kind !== 'floor' && p.kind !== 'tint' && (p.shape === 'box' || p.shape === 'cylinder' || p.shape === 'prism' || p.shape === 'sprite')).slice(0, MAX_OUTLINE_PARTS);
     if (!parts.length) return;
     const group = new Group();
     const elevation = new Map(this.desc.levels.map((l) => [l.id, l.elevation_m]));
@@ -925,6 +926,15 @@ export class SceneView {
     }
   };
 
+  /** Draw the main frame now instead of at the next animation frame (after a thumbnail pass used the canvas corner:
+   * the picture on screen is whole again before the browser paints). A pending frame is folded into this one. */
+  redrawNow(): void {
+    if (this.disposed) return;
+    cancelAnimationFrame(this.raf);
+    this.raf = 0;
+    this.frame();
+  }
+
   /** The view as drawn now, as a PNG data URL (a frame is rendered first, so the buffer is current). */
   capture(): string {
     this.controls.update();
@@ -957,23 +967,26 @@ export class SceneView {
       sun.position.set(1, 2, 1.2);
       scene.add(sun);
     }
-    const f = isoFrame(levelExtent(desc, levelId), width / height);
+    // Drawn into the bottom-left corner of the main canvas (a scissored viewport) and copied out: three applies the
+    // output colour space and the tone mapping only when it draws to the canvas - a render target reads back linear
+    // and comes out far darker than the view. The element redraws the main frame right after its thumbnail pass
+    // (redrawNow), before the browser paints, so the corner never shows. A narrow canvas hosts a smaller picture: the
+    // frame is fitted to the clamped size, so the level is never squashed.
+    const canvasEl = this.renderer.domElement;
+    const ratio = this.renderer.getPixelRatio();
+    const { w, h } = clampThumb(width, height, canvasEl.width / ratio, canvasEl.height / ratio);
+    if (w < 8 || h < 8) {
+      this.disposeGroup(built.root);
+      return null; // the canvas is too small to host it
+    }
+    const f = isoFrame(levelExtent(desc, levelId), w / h);
     const cam = new OrthographicCamera(-f.halfW, f.halfW, f.halfH, -f.halfH, 0.05, 4000);
     cam.position.set(f.target[0] + ISO_DIR[0] * f.dist, f.target[1] + ISO_DIR[1] * f.dist, f.target[2] + ISO_DIR[2] * f.dist);
     cam.lookAt(f.target[0], f.target[1], f.target[2]);
     cam.updateProjectionMatrix();
-    // Drawn into the bottom-left corner of the main canvas (a scissored viewport) and copied out: three applies the
-    // output colour space and the tone mapping only when it draws to the canvas - a render target reads back linear
-    // and comes out far darker than the view. The main frame is redrawn by the rAF that follows, before the browser
-    // paints, so the corner never shows.
-    const canvasEl = this.renderer.domElement;
-    const ratio = this.renderer.getPixelRatio();
-    const w = Math.min(width, Math.floor(canvasEl.width / ratio));
-    const h = Math.min(height, Math.floor(canvasEl.height / ratio));
     let url: string | null = null;
     const shadows = this.renderer.shadowMap.enabled;
     try {
-      if (w < 8 || h < 8) return null; // the canvas is too small to host it
       this.renderer.shadowMap.enabled = false; // the sun here has no shadow camera; the strip is a silhouette
       this.renderer.setScissorTest(true);
       this.renderer.setScissor(0, 0, w, h);

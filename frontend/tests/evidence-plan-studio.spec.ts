@@ -106,7 +106,7 @@ test.describe.serial('plan studio (SW A)', () => {
     await expect(sheet).toHaveCount(0);
     await page.locator(`${map} sw-button[icon="layers"]`).click();
     const row = page.locator(`${map} [data-layers-panel] sw-toggle[data-plan-background]`);
-    await expect(page.locator(`${map} [data-layers-panel] .prow`)).toHaveCount(9); // the eight layers, then the picture (evidence-viewer counts the same)
+    await expect(page.locator(`${map} [data-layers-panel] .prow`)).toHaveCount(10); // the nine layers (the room states since CR-006 1b), then the picture (evidence-viewer counts the same)
     await expect(row).toHaveAttribute('checked', '');
     await row.click();
     await expect(row).not.toHaveAttribute('checked', '');
