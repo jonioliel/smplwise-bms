@@ -692,9 +692,17 @@ export class DevicesBuilding extends LitElement {
       await this.load();
     } catch (err) {
       this.refreshNote = describeError(err);
-    } finally {
+      // No answer (429, 502, 503 ...): nothing was refetched here, so a real HA change pushed meanwhile must not be
+      // lost - stop skipping pushes at once and refetch the tree (re-review leftover).
+      this.manualUntil = 0;
       this.refreshing = false;
-      this.manualUntil = Date.now() + MANUAL_PUSH_GRACE_MS;
+      this.scheduleReload();
+      return;
+    } finally {
+      if (this.refreshing) {
+        this.refreshing = false;
+        this.manualUntil = Date.now() + MANUAL_PUSH_GRACE_MS;
+      }
     }
   }
 
