@@ -1,5 +1,19 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.110 (pilot) — WisKey station credential override screen (CR-005 phase 4)
+- The per-station RTSP credential override that 0.1.109 shipped API-only now has its admin screen: a card
+  "מצלמות עמדות WisKey" on Settings › Connections, shown only to holders of `system.configure`. Per station:
+  whether the shared `wiskey_username`/`wiskey_password` account is configured, whether the station has its own
+  override and since when, a form to set one (password never pre-filled, cleared after save), and a confirmed
+  Clear. Rows left behind by a station WisKey no longer lists are shown as such and can be removed.
+- One new read endpoint `GET /api/v1/intercom/stations/credentials` (same permission) listing stations and
+  their override state; like the rest of the credential API it never returns a username, password or host.
+  DOCS.md now points at the screen instead of a raw PUT.
+- Reviewed once. The review found that the live test meant to prove the password is gone from the page after
+  saving could not fail (it never looked inside shadow DOM, where every screen lives) - replaced with a walk over
+  all shadow roots checking text, attributes and live input values, with a positive control before save so the
+  check proves itself on every run. Tests: 93 intercom backend tests, 4 live tests.
+
 ## 0.1.109 (pilot) — WisKey station camera stills through go2rtc (CR-005 phase 4)
 - Owner report (2026-09-28): the Entry Center cards showed no camera image, unlike the real WisKey panel.
   Each station card now shows a still of its camera, refreshed every 60 s (the cadence the camera wall
