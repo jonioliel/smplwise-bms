@@ -304,6 +304,9 @@ def dev_registry(body: DevRegistryIn, request: Request, principal: Principal = D
     maps = {k: v for k, v in maps.items() if k.split(".", 1)[0] not in ha_sync.STATE_DOMAINS_SKIP}
     n = ha_sync.apply_registry(conn, maps)
     ha_sync.apply_structure(conn, body.areas, body.floors)
+    from ..services import device_bulk  # as the sync's own refresh: a mark never outlives its entity
+
+    device_bulk.clear_stale_marks(conn, set(maps))
     ha_sync.STATE.last_registry_at = now_iso()
     audit(conn, actor=principal, action="ha.dev.registry", decision="allowed", resource_type="installation", resource_id="*", request_id=getattr(request.state, "correlation_id", None),
           details={"entities": n, "areas": len(body.areas), "floors": len(body.floors)})

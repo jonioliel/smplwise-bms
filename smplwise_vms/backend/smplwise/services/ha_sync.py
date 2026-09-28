@@ -423,6 +423,9 @@ class HaSync:
                     present = set(maps) | {r["entity_id"] for r in conn.execute("SELECT entity_id FROM ha_entities WHERE state_seen_at >= ?", (STATE.last_snapshot_at or "",)).fetchall()}
                     if STATE.last_snapshot_at:
                         tombstone_missing(conn, present)
+                    from . import device_bulk  # CR-007 s3: a bulk-safe mark never outlives its entity
+
+                    device_bulk.clear_stale_marks(conn, set(maps))
                     STATE.entities = count_entities(conn)
             _busy_retry(_tombstone)
 

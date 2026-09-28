@@ -78,11 +78,11 @@ export interface DeviceRow {
   /** CR-007 slice 2: devices.control or ha.entity.control at this entity's own floor scope. Controls render only
    * when this is true - the read-only rendering from slice 1 stays for everyone else. */
   can_control: boolean;
-  /** CR-007 slice 3 (switch rows, for a bulk holder): whether this switch may enter a bulk action and why - "circuit"
-   * (a Plan Studio lighting circuit's switch), "marked" (an administrator marked it), "doors_layer" or
-   * "switch_not_marked" (not included). */
+  /** CR-007 slice 3 (switch rows, for a bulk holder): whether this switch may enter a bulk action and why - "marked"
+   * (an administrator marked it: the only way in), "circuit_not_marked" (a lighting circuit's switch: the mark is
+   * suggested), "switch_not_marked" or "doors_layer" (never). */
   bulk_safe?: boolean;
-  bulk_reason?: 'circuit' | 'marked' | 'doors_layer' | 'switch_not_marked';
+  bulk_reason?: 'marked' | 'circuit_not_marked' | 'doors_layer' | 'switch_not_marked';
   // lighting
   brightness_pct?: number | null;
   color_mode?: string | null;

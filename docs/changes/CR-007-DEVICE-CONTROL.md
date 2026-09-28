@@ -131,6 +131,11 @@ existing HA fixture. No device access beyond HA's own service calls; no WisKey c
    observable (stop, a target temperature on an entity without a single `temperature`, mute on a player that does
    not report it) is shown as "נשלח" (sent), never as confirmed. The HA-side bridge allow-list is 0.2.4 (the new
    services), and a backend test now fails whenever the add-on's allow-list holds an action the bridge's does not.
+10. Switches in bulk actions (coordinator rulings on the slice-3 reviews, 2026-09-28): a door / gate release relay is a
+   switch too, so a switch enters a bulk action only when an administrator marked it bulk-safe (system.configure,
+   audited, off by default; cleared when the entity leaves Home Assistant). A Plan Studio lighting circuit never grants
+   eligibility by itself - drawing one needs only map editing - it only makes the UI suggest the mark. input_booleans
+   never enter; covers and switches on the map's door layer never enter, mark or not.
 
 ## 8. Next step
 

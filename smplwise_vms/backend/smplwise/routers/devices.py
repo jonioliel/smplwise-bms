@@ -114,7 +114,8 @@ class BulkSafeBody(BaseModel):
 def set_bulk_safe(entity_id: str, body: BulkSafeBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Mark a switch as safe (or no longer safe) to be turned off by a bulk action - an administrator's statement that it
     is not a door / gate release or anything else that must not go off with the lights (system.configure; audited).
-    A lighting circuit's switch needs no mark; a switch on the map's door layer is never included, mark or not."""
+    The mark is the only way a switch enters a bulk action (a lighting circuit only suggests it); a switch on the map's
+    door layer is never included, mark or not."""
     require(conn, principal, "system.configure", INSTALLATION)
     row = conn.execute("SELECT domain FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (entity_id,)).fetchone()
     if not row:

@@ -750,19 +750,19 @@ export class DevicesArea extends LitElement {
     </div>`;
   }
 
-  /** CR-007 slice 3, review round 1: a switch enters a bulk action only when positively safe - the switch of a
-   * lighting circuit, or marked so by an administrator (a door / gate release relay is a switch too). Shown to a bulk
+  /** CR-007 slice 3, review rounds 1-2: a switch enters a bulk action only when an administrator marked it safe (a
+   * door / gate release relay is a switch too); a lighting circuit's switch only gets the suggestion. Shown to a bulk
    * holder; the mark is set here with system.configure. */
   private renderBulkSafe(r: DeviceRow) {
     const label =
-      r.bulk_reason === 'circuit'
-        ? 'נכלל בכיבוי מרוכז (מעגל תאורה)'
-        : r.bulk_reason === 'marked'
-          ? 'נכלל בכיבוי מרוכז (סומן כבטוח)'
+      r.bulk_reason === 'marked'
+        ? 'נכלל בכיבוי מרוכז (סומן כבטוח)'
+        : r.bulk_reason === 'circuit_not_marked'
+          ? 'לא נכלל בכיבוי מרוכז · מפסק של מעגל תאורה - מומלץ לסמן כבטוח'
           : r.bulk_reason === 'doors_layer'
             ? 'לא נכלל בכיבוי מרוכז (שכבת הדלתות)'
-            : 'לא נכלל בכיבוי מרוכז';
-    const canToggle = this.detail?.can_mark_bulk_safe === true && (r.bulk_reason === 'marked' || r.bulk_reason === 'switch_not_marked');
+            : 'לא נכלל בכיבוי מרוכז (לא סומן כבטוח לכיבוי קבוצתי)';
+    const canToggle = this.detail?.can_mark_bulk_safe === true && r.bulk_reason !== 'doors_layer';
     return html`<div class="bulk-safe" data-bulk-safe=${r.bulk_reason ?? ''}>
       ${label}${canToggle
         ? html` <sw-button size="sm" variant="ghost" data-bulk-safe-toggle title="סמנו רק מתג שאינו שחרור דלת / שער ושבטוח לכבות יחד עם התאורה" @click=${() => void this.toggleBulkSafe(r)}>${r.bulk_reason === 'marked' ? 'בטל סימון' : 'סמן כבטוח לכיבוי מרוכז'}</sw-button>`

@@ -1027,9 +1027,10 @@ def test_bulk_not_sent_after_its_deadline_and_orphans_settled(bulk_app, monkeypa
 
 
 def test_bulk_switches_only_when_positively_safe(bulk_app, monkeypatch):
-    """Review round 1 (MAJOR): a door / gate release relay is a switch too. A switch enters a bulk action only as the
-    switch of a Plan Studio lighting circuit or when an administrator marked it bulk-safe: a switch placed with the
-    default layer, or not placed at all, is listed as not included. A cover on the map's door layer is never closed."""
+    """Review rounds 1-2: a door / gate release relay is a switch too. A switch enters a bulk action only when an
+    administrator marked it bulk-safe - a Plan Studio lighting circuit never grants that by itself (it only suggests the
+    mark); a switch placed with the default layer, or not placed at all, is listed as not included. A cover on the map's
+    door layer is never closed."""
     app, s, c, fake = bulk_app
     extra = [
         {"entity_id": "switch.lobby_placed", "state": "on", "attributes": {"friendly_name": "Placed relay"}},
@@ -1057,14 +1058,14 @@ def test_bulk_switches_only_when_positively_safe(bulk_app, monkeypatch):
     p = preview()
     sent = {t["entity_id"] for t in p["targets"]}
     excluded = {x["entity_id"]: x["reason"] for x in p["excluded"]}
-    assert "switch.lobby_circuit" in sent, "the switch of a lighting circuit is positively safe"
+    assert "switch.lobby_circuit" not in sent and excluded["switch.lobby_circuit"] == "circuit_not_marked", "a circuit alone never makes a switch eligible"
     assert excluded["switch.lobby_placed"] == "switch_not_marked", "placed with the default layer: not included"
     assert excluded["switch.lobby_sign"] == "switch_not_marked", "not placed at all: not included"
     assert excluded["cover.lobby_hatch"] == "doors_layer", "a cover on the door layer is never closed, device class or not"
     assert "cover.lobby_hatch" not in {t["entity_id"] for t in c.get("/api/v1/devices/actions/preview", params={"scope": "area", "id": "lobby", "kind": "covers_close"}).json()["targets"]}
     # the area screen tells a bulk holder which switches are in, and why
     rows = {r["entity_id"]: r for r in c.get("/api/v1/devices/areas/lobby").json()["cards"]["switches"]["entities"]}
-    assert (rows["switch.lobby_circuit"]["bulk_safe"], rows["switch.lobby_circuit"]["bulk_reason"]) == (True, "circuit")
+    assert (rows["switch.lobby_circuit"]["bulk_safe"], rows["switch.lobby_circuit"]["bulk_reason"]) == (False, "circuit_not_marked")
     assert (rows["switch.lobby_sign"]["bulk_safe"], rows["switch.lobby_sign"]["bulk_reason"]) == (False, "switch_not_marked")
     # marking is an administrator's statement: system.configure only, audited; a site_admin cannot
     bind(c, s, "sa", "site_admin", "installation", "*")
@@ -1073,13 +1074,15 @@ def test_bulk_switches_only_when_positively_safe(bulk_app, monkeypatch):
     r = c.put("/api/v1/devices/entities/switch.lobby_sign/bulk-safe", json={"bulk_safe": True})
     assert r.status_code == 200 and r.json()["bulk_safe"] is True and r.json()["bulk_reason"] == "marked"
     assert "switch.lobby_sign" in {t["entity_id"] for t in preview()["targets"]}
+    assert c.put("/api/v1/devices/entities/switch.lobby_circuit/bulk-safe", json={"bulk_safe": True}).json()["bulk_reason"] == "marked"
+    assert "switch.lobby_circuit" in {t["entity_id"] for t in preview()["targets"]}, "a circuit switch with the mark is included"
     # a mark never overrides the door layer
     assert c.put("/api/v1/devices/entities/switch.lobby_placed/bulk-safe", json={"bulk_safe": True}).status_code == 200
     assert "switch.lobby_placed" in {t["entity_id"] for t in preview()["targets"]}
     assert c.put("/api/v1/devices/entities/switch.lobby_sign/bulk-safe", json={"bulk_safe": False}).json()["bulk_safe"] is False
     assert preview()["excluded"] and "switch.lobby_sign" in {x["entity_id"] for x in preview()["excluded"]}
     with app.state.db.connection() as conn:
-        assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'devices.bulk_safe' AND decision = 'allowed'").fetchone()[0] == 3
+        assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'devices.bulk_safe' AND decision = 'allowed'").fetchone()[0] == 4
     # input_booleans are HA flags, not devices: never in a bulk action
     assert c.post("/api/v1/ha/dev/states", json={"states": [{"entity_id": "input_boolean.lobby_flag", "state": "on", "attributes": {}}]}).status_code == 200
     reg2 = reg + [_reg("input_boolean.lobby_flag", "lobby")]
@@ -1119,3 +1122,32 @@ def test_media_player_standby_confirms_turn_off(bulk_app):
     assert c.post("/api/v1/ha/dev/states", json={"states": [{"entity_id": "media_player.lobby_tv", "state": "standby", "attributes": {}}]}).status_code == 200
     assert c.get(f"/api/v1/ha/actions/{r.json()['id']}").json()["status"] == "confirmed"
     assert ha_actions.state_matches("media_player.turn_off", "off", "standby") and not ha_actions.state_matches("light.turn_off", "off", "standby")
+
+
+def test_bulk_safe_mark_cleared_when_the_entity_leaves_home_assistant(bulk_app):
+    """Review round 2: a mark never outlives its entity. When a registry refresh no longer lists the switch (removed,
+    or renamed to another id), its mark is deleted and audited, so a returning id is never pre-marked."""
+    app, s, c, fake = bulk_app
+    assert c.put("/api/v1/devices/entities/switch.lobby_sign/bulk-safe", json={"bulk_safe": True}).status_code == 200
+    assert c.put("/api/v1/devices/entities/switch.loose/bulk-safe", json={"bulk_safe": True}).status_code == 200
+    # a refresh that still lists both keeps both marks
+    assert c.post("/api/v1/ha/dev/registry", json={"entities": ENTITY_REGISTRY, "devices": [], "areas": AREAS, "floors": FLOORS}).status_code == 200
+    with app.state.db.connection() as conn:
+        assert {r[0] for r in conn.execute("SELECT entity_id FROM device_bulk_safe").fetchall()} == {"switch.lobby_sign", "switch.loose"}
+    # the sign is renamed in HA: its old id is gone from the registry
+    reg = [r for r in ENTITY_REGISTRY if r["entity_id"] != "switch.lobby_sign"] + [_reg("switch.lobby_sign_2", "lobby")]
+    assert c.post("/api/v1/ha/dev/registry", json={"entities": reg, "devices": [], "areas": AREAS, "floors": FLOORS}).status_code == 200
+    with app.state.db.connection() as conn:
+        assert {r[0] for r in conn.execute("SELECT entity_id FROM device_bulk_safe").fetchall()} == {"switch.loose"}
+        cleared = conn.execute("SELECT resource_id, reason FROM audit_log WHERE action = 'devices.bulk_safe.cleared'").fetchall()
+    assert [(r["resource_id"], r["reason"]) for r in cleared] == [("switch.lobby_sign", "entity_gone")]
+    # the id comes back: not pre-marked
+    assert c.post("/api/v1/ha/dev/registry", json={"entities": ENTITY_REGISTRY, "devices": [], "areas": AREAS, "floors": FLOORS}).status_code == 200
+    rows = {r["entity_id"]: r for r in c.get("/api/v1/devices/areas/lobby").json()["cards"]["switches"]["entities"]}
+    assert rows["switch.lobby_sign"]["bulk_reason"] == "switch_not_marked"
+    # the sync's own refresh applies the same rule (a tombstoned entity loses its mark too)
+    from smplwise.services import device_bulk as db_
+
+    with app.state.db.connection() as conn:
+        conn.execute("UPDATE ha_entities SET removed_at = '2026-09-28T10:00:00Z' WHERE entity_id = 'switch.loose'")
+        assert db_.clear_stale_marks(conn, {"switch.loose"}) == ["switch.loose"]

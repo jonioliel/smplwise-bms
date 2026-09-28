@@ -8,10 +8,11 @@ Many physical devices change from one click, so this module is deliberately narr
   entities the caller holds `devices.control_bulk` for (the entity's own placement, as every devices permission), and
   then to the domains of the requested kind - see KINDS. Only the everyday domains ever appear
   (ha_scope.DEVICES_CONTROL_DOMAINS); NEVER a lock, an alarm panel, a siren, a script, a scene or a button, never a
-  door / garage / gate cover, never a cover or switch placed on the map's door layer. A SWITCH enters only when it is
-  positively safe (review round 1, CR-007 s3 forbids door release in bulk: a maglock relay is a switch too): the switch
-  of a Plan Studio lighting circuit, or one an administrator marked bulk-safe (device_bulk_safe, system.configure);
-  every other switch is listed as "not included" with the reason. input_booleans (HA flags, not devices) never enter.
+  door / garage / gate cover, never a cover or switch placed on the map's door layer. A SWITCH enters only when an
+  administrator marked it bulk-safe (device_bulk_safe, system.configure) - CR-007 s3 forbids door release in bulk and a
+  maglock relay is a switch too. A Plan Studio lighting circuit never grants that by itself (drawing one needs only
+  map editing); it only makes the screens suggest the mark (review round 2). Every other switch is listed as "not
+  included" with the reason; a mark is cleared when its entity leaves Home Assistant (clear_stale_marks). input_booleans (HA flags, not devices) never enter.
   The import-time check below fails the add-on's start if KINDS ever names anything else.
 - An entity already in the target state (HA's last report) or unavailable is not sent: an "off" to a light that is
   already off could never be confirmed, and would only turn an honest result into noise. Both are counted.
@@ -165,13 +166,14 @@ class SwitchPolicy:
         self.marked = {r[0] for r in conn.execute("SELECT entity_id FROM device_bulk_safe").fetchall()}
 
     def switch_reason(self, entity_id: str) -> tuple[bool, str]:
-        """(included, reason) for a switch: doors_layer / circuit / marked / not_marked."""
+        """(included, reason) for a switch: doors_layer (never), marked (the only way in), circuit_not_marked (a
+        lighting circuit's switch - the mark is suggested, never implied) or switch_not_marked."""
         if entity_id in self.door_layer:
             return False, "doors_layer"
-        if entity_id in self.circuits:
-            return True, "circuit"
         if entity_id in self.marked:
             return True, "marked"
+        if entity_id in self.circuits:
+            return False, "circuit_not_marked"
         return False, "switch_not_marked"
 
     def excluded_reason(self, e: dict[str, Any]) -> str | None:
@@ -188,7 +190,8 @@ class SwitchPolicy:
 EXCLUDED_LABELS = {
     "door_cover": "דלת / שער / חניה - תנועה של מעבר אינה נכללת בפעולה מרוכזת",
     "doors_layer": "הוצב במפה בשכבת הדלתות - לעולם לא בפעולה מרוכזת",
-    "switch_not_marked": "מתג שאינו מעגל תאורה בתוכנית ולא סומן כבטוח לכיבוי מרוכז (ייתכן שהוא שחרור דלת)",
+    "switch_not_marked": "לא סומן כבטוח לכיבוי קבוצתי",
+    "circuit_not_marked": "לא סומן כבטוח לכיבוי קבוצתי (מפסק של מעגל תאורה - מומלץ לסמן כבטוח)",
 }
 
 
@@ -641,6 +644,19 @@ def sweep_unfinished(db: Database) -> int:
         settle_orphan(db, bid, final=True)
         n += 1
     return n
+
+
+def clear_stale_marks(conn: Any, present: set[str]) -> list[str]:
+    """On a registry refresh: a bulk-safe mark whose entity is gone from Home Assistant (removed, or renamed to another
+    id) is deleted and audited, so an id that comes back later - maybe another device - is never pre-marked."""
+    gone = []
+    for r in conn.execute("SELECT b.entity_id, e.removed_at FROM device_bulk_safe b LEFT JOIN ha_entities e ON e.entity_id = b.entity_id").fetchall():
+        if r["entity_id"] not in present or r["removed_at"]:
+            gone.append(r["entity_id"])
+    for eid in gone:
+        conn.execute("DELETE FROM device_bulk_safe WHERE entity_id = ?", (eid,))
+        audit(conn, actor=None, action="devices.bulk_safe.cleared", decision="allowed", resource_type="ha_entity", resource_id=eid, reason="entity_gone")
+    return gone
 
 
 def set_bulk_safe(conn: Any, principal: Principal, entity_id: str, safe: bool) -> None:
