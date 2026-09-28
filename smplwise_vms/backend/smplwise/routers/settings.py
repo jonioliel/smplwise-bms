@@ -69,7 +69,20 @@ DEFAULTS: dict[str, str] = {
     # the same "hidden for everyone" shape as ui.hide_map, but for the WisKey top-level area. The access.ui.* choices
     # above apply only while this is false.
     "ui.hide_wiskey": "false",
+    # CR-007 slice 6a: הגדרות › חשמל והתקנים - how the device-control screens look, per installation (read by every user
+    # through GET /settings; changed with system.configure, audited like every product setting). Presentation only: the
+    # safety rules of the bulk actions (confirmation, expiry, never locks / alarm / door release) are not settings.
+    "devices.style": "smplwise",  # smplwise (the product's own look) | glass (the approved mockup's translucent style)
+    "devices.theme": "default",  # the style's palette (frontend/src/styles/devices-themes.ts); one built in, no picker until 6b
+    "devices.default_view": "cards",  # the building screen's first view: cards (tree panel + floor cards) | tiles; a viewer's own toggle wins
+    "devices.show_sensors": "true",  # the sensors card on the area screen and the sensors count on the building screen
+    "devices.show_climate_strip": "true",  # the building / floor "מזגנים" strip
+    "devices.density": "comfortable",  # comfortable | compact (tighter tiles, rows and gaps)
 }
+
+# CR-007 6a: the registered device-screen palettes - keep in step with DEVICE_THEMES in
+# frontend/src/styles/devices-themes.ts (docs/design/DEVICE_THEMES.md, "How to add a theme").
+DEVICE_THEMES = ("default",)
 
 INT_KEYS = ("media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly")
 
@@ -119,6 +132,12 @@ class SettingsPatch(BaseModel):
     access_ui_events: str | None = Field(default=None, pattern="^(wiskey|smplwise)$", alias="access.ui.events")
     access_ui_people: str | None = Field(default=None, pattern="^(wiskey|smplwise)$", alias="access.ui.people")
     ui_hide_wiskey: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.hide_wiskey")
+    devices_style: str | None = Field(default=None, pattern="^(smplwise|glass)$", alias="devices.style")
+    devices_theme: str | None = Field(default=None, pattern="^(" + "|".join(DEVICE_THEMES) + ")$", alias="devices.theme")
+    devices_default_view: str | None = Field(default=None, pattern="^(cards|tiles)$", alias="devices.default_view")
+    devices_show_sensors: str | None = Field(default=None, pattern="^(true|false)$", alias="devices.show_sensors")
+    devices_show_climate_strip: str | None = Field(default=None, pattern="^(true|false)$", alias="devices.show_climate_strip")
+    devices_density: str | None = Field(default=None, pattern="^(comfortable|compact)$", alias="devices.density")
 
     model_config = {"populate_by_name": True}
 

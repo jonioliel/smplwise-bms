@@ -55,6 +55,16 @@ export interface ProductSettings {
   'skins.privacy_ack'?: 'true' | 'false';
   'skins.budget_renders_per_floor'?: number;
   'skins.budget_monthly'?: number;
+  /** CR-007 slice 6a (הגדרות › חשמל והתקנים): the device-control screens' look, per installation - the style
+   * ('smplwise' today's look, 'glass' the approved mockup's), the building screen's first view (a viewer's own toggle
+   * wins), the sensors card / count, the climate strip, and the density. */
+  'devices.style'?: 'smplwise' | 'glass';
+  /** The palette of the style (styles/devices-themes.ts DEVICE_THEMES; 'default' today, no picker until 6b). */
+  'devices.theme'?: string;
+  'devices.default_view'?: 'cards' | 'tiles';
+  'devices.show_sensors'?: 'true' | 'false';
+  'devices.show_climate_strip'?: 'true' | 'false';
+  'devices.density'?: 'comfortable' | 'compact';
 }
 
 export const getSettings = () => get<{ settings: ProductSettings; can_edit: boolean }>('settings');

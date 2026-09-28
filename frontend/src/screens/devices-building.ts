@@ -18,6 +18,7 @@ import { ALARM_HE, getDevicesTree, HVAC_HE, refreshDevicesFromHa, type ClimateSu
 import { bidi, ltrNum } from '../i18n/bidi';
 import type { BulkKind } from '../api/device-bulk';
 import type { BulkRequest, DevicesBulkDialog } from './devices-bulk';
+import { applyDevicesPrefs, DEVICES_PREFS_DEFAULT, devicesStyleTokens, loadDevicesPrefs, type DevicesPrefs } from './devices-style';
 
 /** Refetches are throttled, not debounced: the first push starts a window, every push inside it rides the same
  * refetch, and a push during the fetch itself queues exactly one more (loadAgain). A screen full of sensors updating
@@ -115,11 +116,13 @@ const DEMO: DeviceTree = {
 export type BuildingLayout = 'cards' | 'tiles';
 export const LAYOUT_KEY = 'sw.devices.layout';
 
-function readLayout(): BuildingLayout {
+/** The viewer's own choice, or null when they never toggled (then הגדרות › חשמל והתקנים › devices.default_view decides). */
+function readLayout(): BuildingLayout | null {
   try {
-    return localStorage.getItem(LAYOUT_KEY) === 'tiles' ? 'tiles' : 'cards';
+    const v = localStorage.getItem(LAYOUT_KEY);
+    return v === 'tiles' || v === 'cards' ? v : null;
   } catch {
-    return 'cards';
+    return null;
   }
 }
 
@@ -130,6 +133,207 @@ function writeLayout(l: BuildingLayout) {
     /* private mode: the choice lasts for this visit only */
   }
 }
+
+/** CR-007 6a: the building screen's own element rules for the "glass" style (tokens: devices-style.ts) and for the
+ * compact density. Logical properties only; smplwise + comfortable match none of them. */
+const BUILDING_GLASS = css`
+  :host([data-devices-style='glass']) sw-kpi,
+  :host([data-devices-style='glass']) nav.tree,
+  :host([data-devices-style='glass']) section.fcard,
+  :host([data-devices-style='glass']) a.tile {
+    backdrop-filter: var(--sw-glass-blur);
+    -webkit-backdrop-filter: var(--sw-glass-blur);
+  }
+  :host([data-devices-style='glass']) .kpis {
+    gap: var(--dv-gap);
+  }
+  :host([data-devices-style='glass']) sw-kpi {
+    padding-block: var(--dv-item-pad-block);
+    padding-inline: var(--dv-item-pad-inline);
+  }
+  /* iOS-like segmented control for "פריסה" */
+  :host([data-devices-style='glass']) .seg .opts {
+    border: 0;
+    border-radius: var(--dv-radius-control);
+    background: var(--dv-surface-3);
+    padding: 3px;
+    gap: 2px;
+  }
+  :host([data-devices-style='glass']) .seg button {
+    border-radius: var(--dv-radius-control);
+    background: transparent;
+    padding-block: 6px;
+    padding-inline: var(--dv-item-pad-inline);
+    font-weight: var(--sw-fw-semibold);
+  }
+  :host([data-devices-style='glass']) .seg button + button {
+    border-inline-start: 0;
+  }
+  :host([data-devices-style='glass']) .seg button[aria-pressed='true'] {
+    background: var(--sw-surface);
+    color: var(--dv-text);
+    box-shadow: var(--dv-shadow-control);
+  }
+  /* the tree panel: pill rows */
+  :host([data-devices-style='glass']) .split {
+    grid-template-columns: var(--dv-tree-inline) minmax(0, 1fr);
+    gap: var(--dv-gap-lg);
+  }
+  :host([data-devices-style='glass']) nav.tree {
+    padding: var(--dv-gap-sm);
+    gap: 3px;
+  }
+  :host([data-devices-style='glass']) .tree-row {
+    border-radius: var(--dv-radius-control);
+    padding-block: 8px;
+    padding-inline: var(--dv-item-pad-inline);
+  }
+  :host([data-devices-style='glass']) .tree-row.selected {
+    background: var(--dv-accent-soft);
+    color: var(--dv-accent-text);
+  }
+  /* larger floor ("room") cards */
+  :host([data-devices-style='glass']) .fcards {
+    grid-template-columns: repeat(auto-fill, minmax(var(--dv-floor-card-min), 1fr));
+    gap: var(--dv-gap-lg);
+  }
+  :host([data-devices-style='glass']) .fcard header {
+    padding-block: var(--dv-card-pad-block) var(--dv-gap-sm);
+    padding-inline: var(--dv-card-pad-inline);
+  }
+  :host([data-devices-style='glass']) .fcard header h2,
+  :host([data-devices-style='glass']) .floor-head h2 {
+    font-size: var(--dv-fs-title);
+    font-weight: var(--dv-fw-title);
+    letter-spacing: -0.01em;
+  }
+  :host([data-devices-style='glass']) .fcard .rows {
+    padding-block: 0 var(--dv-gap-sm);
+    padding-inline: var(--dv-gap-sm);
+    gap: 4px;
+  }
+  :host([data-devices-style='glass']) .arow {
+    box-sizing: border-box;
+    border-block-start: 0;
+    border-radius: var(--dv-radius-sm);
+    background: var(--sw-surface-2);
+    padding-block: var(--dv-item-pad-block);
+    padding-inline: var(--dv-item-pad-inline);
+  }
+  :host([data-devices-style='glass']) .arow:hover,
+  :host([data-devices-style='glass']) .arow:focus-visible {
+    background: var(--sw-surface);
+  }
+  :host([data-devices-style='glass']) .fcard footer {
+    border-block-start: 0;
+    padding-block: 4px var(--dv-card-pad-block);
+    padding-inline: var(--dv-card-pad-inline);
+  }
+  :host([data-devices-style='glass']) .climate-strip {
+    padding-block: 2px var(--dv-gap-sm);
+    padding-inline: var(--dv-card-pad-inline);
+  }
+  /* icon-forward area tiles */
+  :host([data-devices-style='glass']) .areas {
+    grid-template-columns: repeat(auto-fill, minmax(var(--dv-area-tile-min), 1fr));
+    gap: var(--dv-gap);
+  }
+  :host([data-devices-style='glass']) a.tile {
+    min-block-size: var(--dv-tile-min-block);
+    padding-block: var(--dv-tile-pad-block);
+    padding-inline: var(--dv-tile-pad-inline);
+    gap: var(--dv-item-pad-block);
+  }
+  :host([data-devices-style='glass']) .tile-head {
+    gap: var(--dv-item-pad-block);
+  }
+  :host([data-devices-style='glass']) .tile-head > sw-icon {
+    box-sizing: border-box;
+    inline-size: var(--dv-icon-ring-size-lg);
+    block-size: var(--dv-icon-ring-size-lg);
+    padding: var(--dv-icon-ring-pad);
+    border-radius: 50%;
+    background: var(--dv-icon-ring-bg);
+    color: var(--dv-icon-ring-fg);
+  }
+  :host([data-devices-style='glass']) .tile-head .name {
+    font-size: var(--dv-fs-tile-name);
+  }
+  :host([data-devices-style='glass']) a.tile.on {
+    background: linear-gradient(135deg, rgb(var(--dv-tile-on-warm) / var(--dv-glow-fill-start)), rgb(var(--dv-tile-on-warm) / var(--dv-glow-fill-end))), var(--sw-surface);
+    border-color: rgb(var(--dv-tile-on-warm) / var(--dv-glow-border));
+    box-shadow: 0 0 28px rgb(var(--dv-tile-on-warm) / var(--dv-glow-halo)), var(--dv-shadow-1);
+  }
+  :host([data-devices-style='glass']) a.tile.on .tile-head > sw-icon {
+    background: rgb(var(--dv-tile-on-warm) / var(--dv-glow-fill-start));
+  }
+  :host([data-devices-style='glass']) a.tile.empty {
+    background: var(--sw-surface-2);
+  }
+  :host([data-devices-style='glass']) .tile-wrap devices-bulk-menu {
+    inset-block-start: var(--dv-gap-sm);
+    inset-inline-end: var(--dv-gap-sm);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    :host([data-devices-style='glass']) a.tile {
+      transition: transform var(--sw-t-med) var(--sw-ease), box-shadow var(--sw-t-med) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease);
+    }
+    :host([data-devices-style='glass']) a.tile:hover {
+      transform: translateY(var(--dv-hover-lift));
+    }
+  }
+  @media (max-width: 899px) {
+    :host([data-devices-style='glass']) .split,
+    :host([data-devices-style='glass']) .fcards {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  /* compact density (either style): tighter tiles, rows and gaps */
+  :host([data-devices-density='compact']) .kpis {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 8px;
+  }
+  :host([data-devices-density='compact']) sw-kpi {
+    padding-block: 8px;
+    padding-inline: 10px;
+    gap: 4px;
+  }
+  :host([data-devices-density='compact']) .areas {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 8px;
+  }
+  :host([data-devices-density='compact']) a.tile {
+    min-block-size: 68px;
+    padding-block: 8px;
+    padding-inline: 10px;
+    gap: 6px;
+  }
+  :host([data-devices-density='compact']) .fcards {
+    gap: 8px;
+  }
+  :host([data-devices-density='compact']) .fcard header {
+    padding-block: 8px 6px;
+    padding-inline: 10px;
+  }
+  :host([data-devices-density='compact']) .arow {
+    padding-block: 5px;
+    padding-inline: 8px;
+  }
+  :host([data-devices-density='compact']) .fcard footer {
+    padding-block: 6px 8px;
+    padding-inline: 10px;
+  }
+  :host([data-devices-density='compact']) .tree-row {
+    padding-block: 4px;
+    padding-inline: 8px;
+  }
+  :host([data-devices-style='glass'][data-devices-density='compact']) .tile-head > sw-icon {
+    inline-size: calc(var(--dv-icon-ring-size-lg) - 10px);
+    block-size: calc(var(--dv-icon-ring-size-lg) - 10px);
+    padding: calc(var(--dv-icon-ring-pad) - 3px);
+  }
+`;
 
 function anythingOn(c: DeviceCounts): boolean {
   return c.lights_on + c.switches_on + c.covers_open + c.climate_active + c.media_on > 0;
@@ -170,8 +374,13 @@ export class DevicesBuilding extends LitElement {
   private timer = 0;
   private loading = false;
   private loadAgain = false;
-  /** Owner feedback on 0.1.115: the mockup's tree + floor cards (default) or the slice-1 tiles, per viewer. */
-  @state() private layout: BuildingLayout = readLayout();
+  /** Owner feedback on 0.1.115: the mockup's tree + floor cards (default) or the slice-1 tiles, per viewer. CR-007 6a:
+   * a viewer who never toggled opens on the installation's devices.default_view; their own toggle wins from then on. */
+  @state() private layout: BuildingLayout = readLayout() ?? DEVICES_PREFS_DEFAULT.defaultView;
+  private layoutChosen = readLayout() !== null;
+  /** CR-007 6a: style, density, sensors count, climate strip (הגדרות › חשמל והתקנים). */
+  @state() private prefs: DevicesPrefs = DEVICES_PREFS_DEFAULT;
+  private prefsReady: Promise<void> = Promise.resolve();
   /** The tree's selection in the cards layout: every floor, or one floor id. */
   @state() private selected = 'all';
   /** CR-007 HA refresh: "מבנה עודכן" shown for a few seconds after a structure_changed push refetched the tree. */
@@ -188,7 +397,14 @@ export class DevicesBuilding extends LitElement {
 
   private setLayout(l: BuildingLayout) {
     this.layout = l;
+    this.layoutChosen = true;
     writeLayout(l);
+  }
+
+  /** The count pills a tile / row / floor shows (the sensors count hides with devices.show_sensors = false). */
+  private pillsShown(c: DeviceCounts): CountPill[] {
+    const all = pillsOf(c);
+    return this.prefs.showSensors ? all : all.filter((p) => p.key !== 'sensors');
   }
 
   /** CR-007 slice 3: a bulk action may be offered at all (the permission somewhere; the tree's can_bulk says where). */
@@ -209,7 +425,7 @@ export class DevicesBuilding extends LitElement {
     void this.dialog?.show({ scope: 'building', id: '*', name: 'המבנה', kind });
   }
 
-  static styles = css`
+  static styles = [devicesStyleTokens, css`
     :host {
       display: block;
     }
@@ -658,10 +874,15 @@ export class DevicesBuilding extends LitElement {
         margin-inline-start: 0;
       }
     }
-  `;
+  `, BUILDING_GLASS];
 
   connectedCallback() {
     super.connectedCallback();
+    this.prefsReady = loadDevicesPrefs().then((p) => {
+      this.prefs = p;
+      applyDevicesPrefs(this, p);
+      if (!this.layoutChosen) this.layout = p.defaultView;
+    });
     if (!isApi()) {
       this.tree = DEMO;
       this.sync = DEMO.sync;
@@ -753,7 +974,8 @@ export class DevicesBuilding extends LitElement {
     }
     this.loading = true;
     try {
-      const t = await getDevicesTree();
+      // the first paint already carries the installation's style and first view (no smplwise -> glass flash)
+      const [t] = await Promise.all([getDevicesTree(), this.prefsReady]);
       this.tree = t;
       this.sync = t.sync;
       this.error = '';
@@ -891,7 +1113,7 @@ export class DevicesBuilding extends LitElement {
   /** CR-007 slice 4: "מזגני הקומה" / the building's own strip - mode + target only, never the full climate card
    * (that lives on the area screen). Compact chips, read-only here. */
   private renderClimateStrip(list: ClimateSummary[], label: string) {
-    if (!list.length) return nothing;
+    if (!list.length || !this.prefs.showClimateStrip) return nothing;
     return html`<div class="climate-strip" data-climate-strip>
       <span class="lbl">${label}:</span>
       ${list.map(
@@ -929,7 +1151,7 @@ export class DevicesBuilding extends LitElement {
     const on = anythingOn(c);
     const href = `#/devices/areas/${encodeURIComponent(a.area_id)}`;
     const bulk = !unassigned && this.bulkAllowed && a.can_bulk === true;
-    const pills = pillsOf(c);
+    const pills = this.pillsShown(c);
     const body =
       where === 'tree'
         ? html`<span class=${classMap({ sdot: true, on })}></span><span class="nm">${bidi(a.name)}</span><span class=${classMap({ lit: true, warm: c.lights_on > 0 })} title="תאורה דולקת"><sw-icon name="light" size=${12}></sw-icon>${ltrNum(c.lights_on)}</span>`
@@ -969,7 +1191,7 @@ export class DevicesBuilding extends LitElement {
   }
 
   private renderFloor(f: DeviceFloor) {
-    const pills = pillsOf(f.counts);
+    const pills = this.pillsShown(f.counts);
     return html`<section class="floor" data-floor=${f.floor_id}>
       <div class="floor-head">
         <h2>${bidi(f.name)}</h2>
@@ -990,7 +1212,7 @@ export class DevicesBuilding extends LitElement {
 
   private renderTile(a: DeviceArea, unassigned = false) {
     const c = a.counts;
-    const pills = pillsOf(c);
+    const pills = this.pillsShown(c);
     const on = anythingOn(c);
     const bulk = !unassigned && this.bulkAllowed && a.can_bulk === true;
     return html`<div class=${classMap({ 'tile-wrap': true, bulk })}><a

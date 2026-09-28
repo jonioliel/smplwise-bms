@@ -24,6 +24,7 @@ import './devices-bulk';
 import type { BulkRequest, DevicesBulkDialog } from './devices-bulk';
 import { navigate } from '../router';
 import { bidi, ltrNum } from '../i18n/bidi';
+import { applyDevicesPrefs, DEVICES_PREFS_DEFAULT, devicesStyleTokens, loadDevicesPrefs, type DevicesPrefs } from './devices-style';
 
 /** CR-007 slice 4: a cover of these device classes is a passage, not a shutter - read-only wherever the covers card
  * renders it (device-class-aware wording/icon, `can_control` already false server-side). */
@@ -42,6 +43,141 @@ const HVAC_SELECTABLE = ['off', 'heat', 'cool', 'heat_cool', 'auto', 'dry', 'fan
 const ARM_MS = 4000;
 
 const CARD_ICON: Record<CardId, IconName> = { lighting: 'light', switches: 'bolt', climate: 'activity', covers: 'layers', security: 'shield', media: 'play', sensors: 'sensor' };
+
+/** CR-007 6a: the area screen's own element rules for the "glass" style (tokens: devices-style.ts) and the compact
+ * density - the approved mockup's board 6: glass cards, icon-forward tiles, a blue glow for a lit light and a green
+ * one for a running switch, iOS-green toggles. Logical properties only; smplwise + comfortable match none of them. */
+const AREA_GLASS = css`
+  :host([data-devices-style='glass']) sw-card {
+    backdrop-filter: var(--sw-glass-blur);
+    -webkit-backdrop-filter: var(--sw-glass-blur);
+    padding-block: var(--dv-card-pad-block);
+    padding-inline: var(--dv-card-pad-inline);
+  }
+  :host([data-devices-style='glass']) sw-card[data-empty] {
+    background: var(--sw-surface-2);
+  }
+  :host([data-devices-style='glass']) sw-card > sw-icon[slot='actions'] {
+    box-sizing: border-box;
+    inline-size: var(--dv-card-badge-size);
+    block-size: var(--dv-card-badge-size);
+    padding: var(--dv-icon-ring-pad);
+    border-radius: 50%;
+    background: var(--dv-accent-soft);
+    color: var(--dv-accent);
+  }
+  :host([data-devices-style='glass']) .grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(var(--dv-area-card-min), 100%), 1fr));
+    gap: var(--dv-gap);
+  }
+  :host([data-devices-style='glass']) .tiles {
+    /* icon + name + switch need room: one column in a narrow card or on a phone, two in a wide one */
+    grid-template-columns: repeat(auto-fill, minmax(min(var(--dv-entity-tile-min), 100%), 1fr));
+    gap: var(--dv-gap-sm);
+  }
+  :host([data-devices-style='glass']) .rows {
+    gap: var(--dv-gap-sm);
+  }
+  :host([data-devices-style='glass']) .tile {
+    min-block-size: var(--dv-item-min-block);
+    padding-block: var(--dv-item-pad-block);
+    padding-inline: var(--dv-item-pad-inline);
+    gap: 6px;
+    background: var(--sw-surface-2);
+  }
+  :host([data-devices-style='glass']) .tile .t {
+    gap: var(--dv-gap-sm);
+    font-size: var(--dv-fs-item-name);
+    font-weight: var(--sw-fw-semibold);
+  }
+  :host([data-devices-style='glass']) .tile .t > sw-icon {
+    box-sizing: border-box;
+    inline-size: var(--dv-icon-ring-size);
+    block-size: var(--dv-icon-ring-size);
+    padding: var(--dv-icon-ring-pad);
+    border-radius: 50%;
+    background: var(--dv-icon-ring-bg);
+    color: var(--dv-icon-ring-fg);
+  }
+  :host([data-devices-style='glass']) .tile .s,
+  :host([data-devices-style='glass']) .tile .lc {
+    padding-inline-start: calc(var(--dv-icon-ring-size) + var(--dv-gap-sm));
+  }
+  :host([data-devices-style='glass']) sw-card[data-card='lighting'] .tile.on {
+    background: linear-gradient(135deg, rgb(var(--dv-tile-on-cool) / var(--dv-glow-fill-start)), rgb(var(--dv-tile-on-cool) / var(--dv-glow-fill-end))), var(--sw-surface-2);
+    border-color: rgb(var(--dv-tile-on-cool) / var(--dv-glow-border));
+    box-shadow: 0 0 24px rgb(var(--dv-tile-on-cool) / var(--dv-glow-halo));
+  }
+  :host([data-devices-style='glass']) sw-card[data-card='switches'] .tile.on {
+    background: linear-gradient(135deg, rgb(var(--dv-tile-on-switch) / var(--dv-glow-fill-start)), rgb(var(--dv-tile-on-switch) / var(--dv-glow-fill-end))), var(--sw-surface-2);
+    border-color: rgb(var(--dv-tile-on-switch) / var(--dv-glow-border));
+    box-shadow: 0 0 24px rgb(var(--dv-tile-on-switch) / var(--dv-glow-halo));
+  }
+  :host([data-devices-style='glass']) sw-card[data-card='lighting'] .tile.on .t > sw-icon,
+  :host([data-devices-style='glass']) sw-card[data-card='switches'] .tile.on .t > sw-icon {
+    background: var(--dv-icon-ring-on-bg);
+    color: var(--dv-icon-ring-fg);
+  }
+  :host([data-devices-style='glass']) sw-toggle {
+    --sw-accent: var(--dv-toggle-on);
+  }
+  :host([data-devices-style='glass']) .row {
+    padding-block: var(--dv-item-pad-block);
+    padding-inline: var(--dv-item-pad-inline);
+    background: var(--sw-surface-2);
+  }
+  :host([data-devices-style='glass']) .row .v.big {
+    font-size: var(--dv-fs-value-big);
+    font-weight: var(--dv-fw-title);
+  }
+  :host([data-devices-style='glass']) .cover-group {
+    border-radius: var(--dv-radius-sm);
+    padding-block: var(--dv-gap-sm);
+    padding-inline: var(--dv-item-pad-inline);
+  }
+  :host([data-devices-style='glass']) .bar {
+    block-size: 8px;
+    border-radius: var(--dv-radius-control);
+  }
+  :host([data-devices-style='glass']) .bar i {
+    border-radius: var(--dv-radius-control);
+  }
+
+  /* compact density (either style) */
+  :host([data-devices-density='compact']) .grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
+    gap: 8px;
+  }
+  :host([data-devices-density='compact']) sw-card {
+    padding-block: 10px;
+    padding-inline: 10px;
+  }
+  :host([data-devices-density='compact']) .tiles {
+    gap: 6px;
+  }
+  :host([data-devices-density='compact']) .rows {
+    gap: 4px;
+  }
+  :host([data-devices-density='compact']) .tile {
+    min-block-size: 0;
+    padding-block: 6px;
+    padding-inline: 8px;
+    gap: 2px;
+  }
+  :host([data-devices-density='compact']) .row {
+    padding-block: 5px;
+    padding-inline: 8px;
+  }
+  :host([data-devices-style='glass'][data-devices-density='compact']) .tile .t > sw-icon {
+    inline-size: calc(var(--dv-icon-ring-size) - 8px);
+    block-size: calc(var(--dv-icon-ring-size) - 8px);
+    padding: calc(var(--dv-icon-ring-pad) - 3px);
+  }
+  :host([data-devices-style='glass'][data-devices-density='compact']) .tile .s,
+  :host([data-devices-style='glass'][data-devices-density='compact']) .tile .lc {
+    padding-inline-start: calc(var(--dv-icon-ring-size) - 8px + var(--dv-gap-sm));
+  }
+`;
 
 function deg(n: number | null | undefined, unit = '°'): string {
   return n === null || n === undefined ? '—' : `${ltrNum(Number.isInteger(n) ? n : n.toFixed(1))}${unit}`;
@@ -103,6 +239,9 @@ export class DevicesArea extends LitElement {
   private loading = false;
   private loadAgain = false;
   private debouncedRange = debouncedCommand<number>();
+  /** CR-007 6a: style, density and the sensors card (הגדרות › חשמל והתקנים). */
+  @state() private prefs: DevicesPrefs = DEVICES_PREFS_DEFAULT;
+  private prefsReady: Promise<void> = Promise.resolve();
 
   /** CR-007 slice 3: the area's own bulk actions (the same popover as the tree's area tile), for a holder of
    * devices.control_bulk where the server says it would accept them (`can_bulk`); the dialog alone sends. */
@@ -115,7 +254,7 @@ export class DevicesArea extends LitElement {
     void this.renderRoot.querySelector<DevicesBulkDialog>('devices-bulk-dialog')?.show(e.detail);
   };
 
-  static styles = css`
+  static styles = [devicesStyleTokens, css`
     :host {
       display: block;
     }
@@ -430,10 +569,14 @@ export class DevicesArea extends LitElement {
       color: var(--sw-text-2);
       font-size: var(--sw-fs-sm);
     }
-  `;
+  `, AREA_GLASS];
 
   connectedCallback() {
     super.connectedCallback();
+    this.prefsReady = loadDevicesPrefs().then((p) => {
+      this.prefs = p;
+      applyDevicesPrefs(this, p);
+    });
     if (!isApi()) return;
     if (!canAnywhere('devices.read')) {
       this.forbidden = true;
@@ -502,7 +645,7 @@ export class DevicesArea extends LitElement {
     this.loading = true;
     const id = this.areaId;
     try {
-      const d = await getDevicesArea(id);
+      const [d] = await Promise.all([getDevicesArea(id), this.prefsReady]); // first paint already in the installation's style
       if (id !== this.areaId) return; // the route moved on while this was in flight
       this.detail = d;
       this.sync = d.sync;
@@ -899,7 +1042,7 @@ export class DevicesArea extends LitElement {
     const crumbs = [heading, floorName, d.area.name].filter(Boolean).join(' | ');
     const sub = `${floorName ? `${bidi(floorName)} · ` : ''}${d.counts.entities} התקנים${d.scoped ? ' · לפי הקומות שלך' : ''}`;
     const connected = this.sync?.connected ?? false;
-    const cards = CARD_IDS.map((id) => d.cards[id]);
+    const cards = CARD_IDS.filter((id) => this.prefs.showSensors || id !== 'sensors').map((id) => d.cards[id]);
     const filled = cards.filter((c) => c.count > 0);
     const empty = cards.filter((c) => c.count === 0);
     const anyControllable = cards.some((c) => c.entities.some((r) => r.can_control));

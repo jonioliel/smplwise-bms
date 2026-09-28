@@ -1,4 +1,10 @@
-import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
+import { test, expect, type APIRequestContext, type Locator, type Page } from '@playwright/test';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+/** CR-007 slice 6a: the glass style's evidence screenshots (desktop + phone), committed with the task. */
+const EVIDENCE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/evidence/T025');
 
 // Evidence for CR-007 slice 1 (חשמל והתקנים, read-only) against a running developer backend (SW_LIVE=1). The backend
 // needs no Home Assistant: the HA floors, areas and entities are seeded through the dev-only registry / states
@@ -1249,5 +1255,259 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     await expect(power).toContainText('120 W');
     const moist = card.locator('[data-sensor-group="moisture"] .tile[data-entity="binary_sensor.cr007_moist"]');
     await expect(moist).toBeVisible();
+  });
+
+  // ------------------------------------------------ CR-007 slice 6a: הגדרות › חשמל והתקנים and the two styles
+  // Installation-wide settings: every test restores the defaults (the specs run with one worker, in order).
+  const DEVICES_DEFAULTS = { 'devices.style': 'smplwise', 'devices.theme': 'default', 'devices.default_view': 'cards', 'devices.show_sensors': 'true', 'devices.show_climate_strip': 'true', 'devices.density': 'comfortable' };
+
+  async function devicesSettings(request: APIRequestContext, body: Record<string, string>) {
+    const r = await request.patch('/api/v1/settings', { data: body });
+    expect(r.status(), 'settings PATCH (the dev default identity holds system.configure)').toBe(200);
+  }
+
+  /** An element's glass material: its computed backdrop-filter and its background's alpha (1 = the solid fallback). */
+  async function material(loc: Locator): Promise<{ filter: string; alpha: number }> {
+    return loc.evaluate((e) => {
+      const cs = getComputedStyle(e);
+      const m = /rgba?\(([^)]+)\)/.exec(cs.backgroundColor);
+      const parts = m ? m[1].split(/[\s,/]+/).filter(Boolean) : [];
+      return { filter: cs.backdropFilter || 'none', alpha: parts.length === 4 ? Number(parts[3]) : 1 };
+    });
+  }
+
+  const glassOrSolid = (m: { filter: string; alpha: number }) => m.filter.includes('blur(') || (m.filter === 'none' && m.alpha === 1);
+
+  /** The shell's own navigation (rail on a desktop, bottom bar on a phone): its look must not change with the style. */
+  const navLook = (page: Page) =>
+    page.evaluate(() => {
+      const root = document.querySelector('sw-app')?.shadowRoot;
+      const nav = root ? [...root.querySelectorAll('nav')].find((n) => getComputedStyle(n).display !== 'none') : null;
+      if (!nav) return '';
+      const cs = getComputedStyle(nav);
+      return `${cs.backgroundColor}|${cs.backdropFilter}|${cs.color}|${cs.fontFamily}`;
+    });
+
+  async function evidenceShot(page: Page, name: string, project: string) {
+    if (project !== 'desktop' && project !== 'mobile') return;
+    fs.mkdirSync(EVIDENCE, { recursive: true });
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: path.join(EVIDENCE, `devices-glass-${name}-${project}.png`), animations: 'disabled' });
+  }
+
+  test('6a: הגדרות › חשמל והתקנים switches the device screens to the glass style - the attribute and the glass material on the building, the area and the bulk dialog, the shell untouched; RTL first, mirrored for an LTR viewer', async ({ page, request }, testInfo) => {
+    await seed(request);
+    await devicesSettings(request, DEVICES_DEFAULTS);
+    const project = testInfo.project.name;
+    const posted: string[] = [];
+    page.on('request', (req) => {
+      if (req.method() === 'POST' && /\/api\/v1\/devices\/actions$/.test(req.url())) posted.push(req.url());
+    });
+    try {
+      // the section, in the settings screen's own language: plain rows, two previews, the 6b note
+      await open(page, '/system/diagnostics?tab=devices', 'a');
+      const sec = page.locator('system-diagnostics sw-card[data-devices-settings]');
+      await expect(sec).toBeVisible({ timeout: 30000 });
+      await expect(sec).toHaveAttribute('heading', 'חשמל והתקנים');
+      await expect(sec.locator('button[data-devices-swatch]')).toHaveCount(2);
+      await expect(sec.locator('button[data-devices-swatch="smplwise"]')).toHaveAttribute('aria-pressed', 'true');
+      await expect(sec.locator('[data-devices-layout-next]')).toContainText('בשלב הבא');
+      const navBefore = await navLook(page);
+      expect(navBefore).not.toBe('');
+      // the glass preview picks the style (the select follows), and "שמור" stores it for the installation
+      await sec.locator('button[data-devices-swatch="glass"]').click();
+      await expect(sec.locator('button[data-devices-swatch="glass"]')).toHaveAttribute('aria-pressed', 'true');
+      await expect(sec.locator('select[data-set-devices-style]')).toHaveValue('glass');
+      const saved = page.waitForResponse((r) => r.url().endsWith('/api/v1/settings') && r.request().method() === 'PATCH');
+      await sec.locator('sw-button[data-save-devices]').click();
+      expect((await saved).status()).toBe(200);
+      expect((await (await request.get('/api/v1/settings')).json()).settings['devices.style']).toBe('glass');
+
+      // the building screen carries the style; the glass material is on its surfaces (or the solid fallback)
+      await open(page, '/devices/building', 'a');
+      const b = page.locator('devices-building');
+      const grid = b.locator('section[data-floor="cr007_ground"] .areas');
+      const first = grid.locator('a.tile').first();
+      await expect(first).toBeVisible({ timeout: 30000 });
+      await expect(b).toHaveAttribute('data-devices-style', 'glass');
+      await expect(b).toHaveAttribute('data-devices-theme', 'default'); // the one built-in palette (styles/devices-themes.ts)
+      expect(await b.evaluate((e) => getComputedStyle(e).getPropertyValue('--sw-glass-blur').trim())).toContain('blur(');
+      // the style reads named knobs (docs/design/DEVICE_THEMES.md); a knob drives what the tiles show
+      expect(await b.evaluate((e) => getComputedStyle(e).getPropertyValue('--dv-radius-md').trim())).toBe('22px');
+      expect(glassOrSolid(await material(b.locator('sw-kpi').first()))).toBe(true);
+      expect(glassOrSolid(await material(first))).toBe(true);
+      expect(await first.evaluate((e) => getComputedStyle(e).borderTopLeftRadius)).toBe('22px'); // rounded tiles
+      // the rest of the app is untouched: the shell's navigation looks exactly as before, and carries no style
+      expect(await navLook(page)).toBe(navBefore);
+      expect(await page.evaluate(() => document.querySelector('sw-app')!.hasAttribute('data-devices-style'))).toBe(false);
+
+      // RTL (the product default): the first area tile starts on the right edge of its grid
+      expect(await page.evaluate(() => document.documentElement.dir)).toBe('rtl');
+      let gb = (await grid.boundingBox())!;
+      let tb = (await first.boundingBox())!;
+      expect(Math.abs(tb.x + tb.width - (gb.x + gb.width))).toBeLessThanOrEqual(2);
+      expect(tb.x - gb.x).toBeGreaterThan(20); // more than one column: the tile is not simply full width
+      expect(await b.evaluate((e) => e.scrollWidth <= e.clientWidth + 1)).toBe(true);
+      // an LTR viewer gets the mirror image, nothing overflows
+      await page.evaluate(() => document.documentElement.setAttribute('dir', 'ltr'));
+      await page.waitForTimeout(300);
+      gb = (await grid.boundingBox())!;
+      tb = (await first.boundingBox())!;
+      expect(Math.abs(tb.x - gb.x)).toBeLessThanOrEqual(2);
+      expect(await b.evaluate((e) => e.scrollWidth <= e.clientWidth + 1)).toBe(true);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+      await page.evaluate(() => document.documentElement.setAttribute('dir', 'rtl'));
+
+      // prefers-reduced-motion: no hover lift; otherwise the tile lifts
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      expect(await first.evaluate((e) => getComputedStyle(e).transitionProperty)).not.toContain('transform');
+      await page.emulateMedia({ reducedMotion: 'no-preference' });
+      expect(await first.evaluate((e) => getComputedStyle(e).transitionProperty)).toContain('transform');
+
+      // the bulk dialog is in the style too; Escape closes it and nothing is sent
+      await b.locator('sw-button[data-bulk-kind="lights_off"]').click();
+      const dlg = b.locator('devices-bulk-dialog sw-dialog[data-bulk-dialog="confirm"]');
+      await expect(dlg).toHaveCount(1);
+      const box = await dlg.evaluate((d) => {
+        const x = d.shadowRoot!.querySelector('.box')!;
+        const cs = getComputedStyle(x);
+        return { filter: cs.backdropFilter || 'none', bg: cs.backgroundColor };
+      });
+      expect(box.filter.includes('blur(') || /^rgb\(/.test(box.bg)).toBe(true);
+      await page.keyboard.press('Escape');
+      await expect(b.locator('devices-bulk-dialog sw-dialog[open]')).toHaveCount(0);
+      expect(posted).toEqual([]);
+
+      // evidence: the mockup's own view (tree panel + floor cards) in the glass style
+      await b.locator('button[data-layout="cards"]').click();
+      await expect(b.locator('section[data-floor-card="cr007_ground"]')).toBeVisible();
+      expect(glassOrSolid(await material(b.locator('section[data-floor-card="cr007_ground"]')))).toBe(true);
+      await evidenceShot(page, 'building', project);
+
+      // the area screen: glass cards, icon-forward tiles with the icon at the tile's start (right) edge
+      await open(page, '/devices/areas/cr007_lobby', 'a');
+      const a = page.locator('devices-area');
+      const lighting = a.locator('sw-card[data-card="lighting"]');
+      await expect(lighting).toBeVisible({ timeout: 30000 });
+      await expect(a).toHaveAttribute('data-devices-style', 'glass');
+      expect(glassOrSolid(await material(lighting))).toBe(true);
+      const tile = lighting.locator('.tile[data-entity="light.cr007_lobby"]');
+      const icon = tile.locator('.t > sw-icon');
+      expect(await icon.evaluate((e) => getComputedStyle(e).borderTopLeftRadius)).toBe('50%');
+      const tileBox = (await tile.boundingBox())!;
+      const iconBox = (await icon.boundingBox())!;
+      expect(tileBox.x + tileBox.width - (iconBox.x + iconBox.width)).toBeLessThan(24);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+      await evidenceShot(page, 'area', project);
+
+      // the viewer's colour scheme: dark → the mockup's dark glass
+      await page.emulateMedia({ colorScheme: 'dark' });
+      expect(await a.evaluate((e) => getComputedStyle(e).getPropertyValue('--dv-surface').trim())).toBe('rgba(28, 28, 30, 0.72)');
+      if (project === 'desktop') await evidenceShot(page, 'area-dark', project);
+      await page.emulateMedia({ colorScheme: 'light' });
+      expect(await a.evaluate((e) => getComputedStyle(e).getPropertyValue('--dv-surface').trim())).toBe('rgba(255, 255, 255, 0.64)');
+      expect(glassOrSolid(await material(lighting))).toBe(true);
+      // less transparency asked for → the solid fallback (the same one an engine without backdrop-filter gets)
+      const cdp = await page.context().newCDPSession(page);
+      await cdp.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-transparency', value: 'reduce' }] });
+      if (await page.evaluate(() => matchMedia('(prefers-reduced-transparency: reduce)').matches)) {
+        const solid = await material(lighting);
+        expect(solid.filter).toBe('none');
+        expect(solid.alpha).toBe(1);
+      } else {
+        testInfo.annotations.push({ type: 'note', description: 'this engine cannot emulate prefers-reduced-transparency; the solid fallback was not exercised' });
+      }
+      await cdp.send('Emulation.setEmulatedMedia', { features: [] });
+    } finally {
+      await devicesSettings(request, DEVICES_DEFAULTS);
+    }
+  });
+
+  test('6a: devices.default_view opens a new viewer on that view (their own toggle wins after), devices.density tightens the screens, and the sensors card / climate strip can be hidden', async ({ browser, request }) => {
+    await seed(request);
+    await devicesSettings(request, DEVICES_DEFAULTS);
+    let ctx = await browser.newContext(); // a fresh viewer (the dev default identity): no stored layout
+    try {
+      let p = await ctx.newPage();
+      await open(p, '/devices/building', 'a');
+      const b1 = p.locator('devices-building');
+      await expect(b1.locator('section[data-floor-card="cr007_ground"]')).toBeVisible({ timeout: 30000 });
+      await expect(b1.locator('button[data-layout="cards"]')).toHaveAttribute('aria-pressed', 'true');
+      await expect(b1).toHaveAttribute('data-devices-style', 'smplwise');
+      await expect(b1).toHaveAttribute('data-devices-density', 'comfortable');
+      await expect(b1.locator('[data-climate-strip]').first()).toBeVisible();
+      await b1.locator('button[data-layout="tiles"]').click();
+      const lobby1 = b1.locator('a.tile[data-area="cr007_lobby"]');
+      await expect(lobby1.locator('.pills span[title="חיישנים"]')).toHaveCount(1);
+      const padComfortable = await lobby1.evaluate((e) => parseFloat(getComputedStyle(e).paddingTop));
+      await ctx.close();
+
+      await devicesSettings(request, { 'devices.default_view': 'tiles', 'devices.density': 'compact', 'devices.show_sensors': 'false', 'devices.show_climate_strip': 'false' });
+      ctx = await browser.newContext();
+      p = await ctx.newPage();
+      await open(p, '/devices/building', 'a');
+      const b2 = p.locator('devices-building');
+      const lobby = b2.locator('a.tile[data-area="cr007_lobby"]');
+      await expect(lobby).toBeVisible({ timeout: 30000 }); // a viewer who never chose opens on the installation's view
+      await expect(b2.locator('button[data-layout="tiles"]')).toHaveAttribute('aria-pressed', 'true');
+      await expect(b2).toHaveAttribute('data-devices-density', 'compact');
+      expect(await lobby.evaluate((e) => parseFloat(getComputedStyle(e).paddingTop))).toBeLessThan(padComfortable);
+      await expect(b2.locator('[data-climate-strip]')).toHaveCount(0);
+      await expect(lobby.locator('.pills span[title="חיישנים"]')).toHaveCount(0);
+      await expect(lobby.locator('.pills span[title="תאורה"]')).toHaveCount(1); // only the sensors count goes
+      // the viewer's own toggle wins from then on (remembered in this browser)
+      await b2.locator('button[data-layout="cards"]').click();
+      await p.reload();
+      await expect(p.locator('devices-building section[data-floor-card="cr007_ground"]')).toBeVisible({ timeout: 30000 });
+      await expect(p.locator('devices-building button[data-layout="cards"]')).toHaveAttribute('aria-pressed', 'true');
+      // the area screen: no sensors card, every other card as before, compact
+      await open(p, '/devices/areas/cr007_lobby', 'a');
+      const area = p.locator('devices-area');
+      await expect(area.locator('sw-card[data-card="lighting"]')).toBeVisible({ timeout: 30000 });
+      await expect(area.locator('sw-card[data-card="sensors"]')).toHaveCount(0);
+      await expect(area.locator('sw-card[data-card="security"]')).toHaveCount(1);
+      await expect(area).toHaveAttribute('data-devices-density', 'compact');
+      expect(await area.locator('sw-card[data-card="lighting"]').evaluate((e) => parseFloat(getComputedStyle(e).paddingTop))).toBe(10);
+    } finally {
+      await ctx.close().catch(() => {});
+      await devicesSettings(request, DEVICES_DEFAULTS);
+    }
+  });
+
+  test('6a: a viewer sees the section read-only (nothing to edit, no save) and is not offered the settings entry, while their device screens follow the installation style', async ({ browser, request }, testInfo) => {
+    await seed(request);
+    const user = `cr007six${testInfo.project.name}`;
+    const bindings: string[] = [];
+    await devicesSettings(request, { ...DEVICES_DEFAULTS, 'devices.style': 'glass' });
+    try {
+      bindings.push(await bindUser(request, user, 'viewer'));
+      const ctx = await browser.newContext({ extraHTTPHeaders: { 'X-SW-Dev-User': user } });
+      const p = await ctx.newPage();
+      await open(p, '/live', 'a');
+      await expect(p.locator(`sw-app a[href="${HREF}"]`).first()).toBeAttached({ timeout: 30000 });
+      await expect(p.locator('sw-app nav a[href="#/system/diagnostics"]')).toHaveCount(0); // the settings entry needs system.configure
+      // reached directly: the section shows the installation's choices, every control disabled, no save
+      await open(p, '/system/diagnostics?tab=devices', 'a');
+      const sec = p.locator('system-diagnostics sw-card[data-devices-settings]');
+      await expect(sec).toBeVisible({ timeout: 30000 });
+      await expect(sec.locator('[data-devices-readonly]')).toContainText('הרשאת מנהל מערכת');
+      await expect(sec.locator('sw-button[data-save-devices]')).toHaveCount(0);
+      for (const sel of ['select[data-set-devices-style]', 'select[data-set-devices-view]', 'select[data-set-devices-density]', 'select[data-set-devices-sensors]', 'select[data-set-devices-climate]']) {
+        await expect(sec.locator(sel)).toBeDisabled();
+      }
+      await expect(sec.locator('button[data-devices-swatch="smplwise"]')).toBeDisabled();
+      await expect(sec.locator('button[data-devices-swatch="glass"]')).toBeDisabled();
+      await expect(sec.locator('button[data-devices-swatch="glass"]')).toHaveAttribute('aria-pressed', 'true');
+      await expect(sec.locator('select[data-set-devices-style]')).toHaveValue('glass');
+      expect((await p.request.patch('/api/v1/settings', { data: { 'devices.style': 'smplwise' } })).status()).toBe(403);
+      expect((await (await request.get('/api/v1/settings')).json()).settings['devices.style']).toBe('glass');
+      // the viewer's own device screens follow the installation's style
+      await open(p, '/devices/building', 'a');
+      await expect(p.locator('devices-building')).toHaveAttribute('data-devices-style', 'glass', { timeout: 30000 });
+      await ctx.close();
+    } finally {
+      for (const id of bindings) await request.delete(`/api/v1/access/bindings/${id}`).catch(() => {});
+      await devicesSettings(request, DEVICES_DEFAULTS);
+    }
   });
 });
