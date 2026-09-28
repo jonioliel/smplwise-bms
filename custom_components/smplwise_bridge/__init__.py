@@ -46,14 +46,15 @@ EXECUTE_SCHEMA = vol.Schema(
     extra=vol.ALLOW_EXTRA,
 )
 
-# 0.2.5 (CR-007 slice 4): the one registry write this bridge ever performs - move an entity to an HA area
-# (area_id may be null to clear it, though the product only ever assigns one today). Never name, icon, aliases,
-# disabled_by or anything else: the allow-list is exactly this one field of this one registry.
+# 0.2.5 (CR-007 slice 4, tightened on review NIT 8): the one registry write this bridge ever performs - move an
+# entity to a NAMED HA area. area_id is a non-empty string, never null: the product only ever assigns an entity to
+# an area today, and clearing one is not an approved flow, so the schema does not accept it until it is. Never
+# name, icon, aliases, disabled_by or anything else: the allow-list is exactly this one field of this one registry.
 SET_AREA_SCHEMA = vol.Schema(
     {
         vol.Required("user_id"): cv.string,
         vol.Required("entity_id"): cv.string,
-        vol.Required("area_id"): vol.Any(cv.string, None),
+        vol.Required("area_id"): vol.All(cv.string, vol.Length(min=1)),
         vol.Required("request_id"): cv.string,
         vol.Required("ts"): vol.Coerce(int),
         vol.Required("nonce"): cv.string,
@@ -183,11 +184,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if user is None or not user.is_active:
             return {"ok": False, "error": "unknown_user"}
         entity_id = msg["entity_id"]
-        area_id = msg.get("area_id") or None
+        area_id = msg["area_id"]
         ent_reg = er.async_get(hass)
         if ent_reg.async_get(entity_id) is None:
             return {"ok": False, "error": "entity_not_found"}
-        if area_id is not None and ar.async_get(hass).async_get_area(area_id) is None:
+        if ar.async_get(hass).async_get_area(area_id) is None:
             return {"ok": False, "error": "area_not_found"}
         try:
             ent_reg.async_update_entity(entity_id, area_id=area_id)

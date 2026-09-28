@@ -50,6 +50,17 @@ def _bulk_flags(conn: sqlite3.Connection, principal: Principal) -> dict[str, Any
     return bulk.scope_flags(conn, principal, svc.load_entities(conn))
 
 
+async def _raw_body(request: Request) -> bytes:
+    """The body, unparsed; declared after the permission dependency (403 whatever was sent) - the same JSON-only,
+    permission-before-body pattern for every write route in this module (bulk actions, and slice 4's assign_area)."""
+    return await request.body()
+
+
+def _is_json(content_type: str | None) -> bool:
+    media = (content_type or "").split(";", 1)[0].strip().lower()
+    return media == "application/json" or (media.startswith("application/") and media.endswith("+json"))
+
+
 @router.get("/devices/tree")
 def tree(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     entities, scoped = _visible_entities(conn, principal)
@@ -140,15 +151,34 @@ class AssignAreaBody(BaseModel):
     area_id: str = Field(min_length=1, max_length=255)
 
 
+def _configure_holder(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
+    """system.configure, checked before the body is looked at (review MEDIUM 5: an unauthorized caller must get an
+    audited 403, never a bare 422 for a malformed body it was never entitled to send) - require() itself audits the
+    refusal."""
+    require(conn, principal, "system.configure", INSTALLATION)
+    return principal
+
+
 @router.put("/devices/entities/{entity_id}/area")
-def assign_area(entity_id: str, body: AssignAreaBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def assign_area(entity_id: str, request: Request, principal: Principal = Depends(_configure_holder), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
     """CR-007 slice 4: assign an entity of the "ללא שיוך" bucket (or move any entity) to an HA area - a Home
     Assistant CONFIG write, never a domain service call, through the bridge's own registry-write path
     (services/ha_client.call_bridge_set_area - the bridge accepts exactly this one registry op, nothing else).
-    system.configure (an administrator's statement, the same gate as bulk-safe); audited under the real actor with
-    the honest bridge answer; on success the local registry mirror is updated at once from our own area/floor
-    tables, so the tree and area screens show the move without waiting for the next HA registry refresh."""
-    require(conn, principal, "system.configure", INSTALLATION)
+    system.configure (an administrator's statement, the same gate as bulk-safe) checked before the body is even
+    read (_configure_holder, the same JSON-only / permission-first envelope the bulk route uses); audited under the
+    real actor with the honest bridge answer; on success the local registry mirror is updated at once from our own
+    area/floor tables, so the tree and area screens show the move without waiting for the next HA registry refresh."""
+    if not _is_json(request.headers.get("content-type")):
+        raise ApiError(415, "unsupported_media_type", "הבקשה חייבת להישלח כ־JSON (Content-Type: application/json).", details={"content_type": (request.headers.get("content-type") or "")[:100]})
+    try:
+        data = json.loads(raw) if raw.strip() else {}
+    except (ValueError, RecursionError):
+        raise ApiError(422, "validation", "גוף הבקשה אינו JSON תקין.", details={"fields": ["body"]}) from None
+    try:
+        body = AssignAreaBody.model_validate(data)
+    except ValidationError as exc:
+        fields = sorted({".".join(str(p) for p in err["loc"]) or "body" for err in exc.errors()})
+        raise ApiError(422, "validation", "הבקשה אינה תקינה: " + ", ".join(fields), details={"fields": fields}) from None
     erow = conn.execute("SELECT entity_id, area_id FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (entity_id,)).fetchone()
     if not erow:
         raise ApiError(404, "not_found", "הישות לא נמצאה בקטלוג.")
@@ -229,16 +259,6 @@ def _bulk_reader(principal: Principal = Depends(current_principal_ro), conn: sql
     if not wide and not floors:
         require(conn, principal, bulk.PERMISSION, INSTALLATION)
     return principal
-
-
-async def _raw_body(request: Request) -> bytes:
-    """The body, unparsed; declared after the permission dependency (403 whatever was sent)."""
-    return await request.body()
-
-
-def _is_json(content_type: str | None) -> bool:
-    media = (content_type or "").split(";", 1)[0].strip().lower()
-    return media == "application/json" or (media.startswith("application/") and media.endswith("+json"))
 
 
 class _Refusals:

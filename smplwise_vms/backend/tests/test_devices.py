@@ -452,6 +452,36 @@ def test_devices_control_never_reaches_locks_alarm_sirens_scripts_scenes_buttons
     assert r.status_code == 202 and calls[-1]["domain"] == "script"
 
 
+def test_devices_control_never_reaches_door_class_or_door_layer_covers(dev_app, monkeypatch):
+    """CR-007 slice 4 review (MEDIUM 2): POST /ha/entities/{id}/actions checked only the domain, so a
+    devices.control-only caller could open a gate cover or a door-release switch - exactly what the bulk path
+    already refuses to touch. A door-class cover (device_class door/garage/gate) or anything on the map's door
+    layer is now refused under devices.control too, audited as ha.entity.control's own denial is; ha.entity.control
+    keeps its old, broader rights on the same entities."""
+    app, s = dev_app
+    c = TestClient(app)
+    calls = _pair(c, monkeypatch)
+    assert c.post("/api/v1/ha/dev/states", json={"states": [{"entity_id": "cover.lobby_gate", "state": "closed", "attributes": {"friendly_name": "Gate", "device_class": "gate"}}]}).status_code == 200
+    bind(c, s, "dc", _devices_control_only_role(c), "installation", "*")
+    with app.state.db.connection() as conn:
+        before = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'ha.entity.control' AND decision = 'denied'").fetchone()[0]
+    r = c.post("/api/v1/ha/entities/cover.lobby_gate/actions", json=_body(allowed_action_id="cover.open_cover", confirmation_grant="confirmed", client_request_id="gate1"), headers=as_user("dc"))
+    assert r.status_code == 403, r.text
+    with app.state.db.connection() as conn:
+        after = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'ha.entity.control' AND decision = 'denied'").fetchone()[0]
+    assert after == before + 1, "the refusal must be audited"
+    assert not calls, "nothing reached the bridge"
+    # ha.entity.control (the bootstrap system_admin) keeps its old rights on the same door-class cover
+    ok = c.post("/api/v1/ha/entities/cover.lobby_gate/actions", json=_body(allowed_action_id="cover.open_cover", confirmation_grant="confirmed", client_request_id="gate2"))
+    assert ok.status_code == 202 and calls[-1]["domain"] == "cover"
+    # a switch placed on the map's door layer is refused the same way under devices.control
+    ids = seed_tree(c)
+    _publish_plan(c, ids["floor2"])
+    assert c.post(f"/api/v1/floors/{ids['floor2']}/anchors", json={"resource_type": "ha_entity", "resource_id": "switch.lobby_sign", "x": 0.3, "y": 0.3, "layer_id": "doors"}).status_code == 201
+    r2 = c.post("/api/v1/ha/entities/switch.lobby_sign/actions", json=_body(allowed_action_id="switch.turn_off", client_request_id="relay1"), headers=as_user("dc"))
+    assert r2.status_code == 403, r2.text
+
+
 def test_new_allow_list_actions_validate_and_have_expected_risk(dev_app, monkeypatch):
     """The allow-list entries this slice adds for the devices-area cards: cover.set_cover_position (attention, like
     open/close - coordinator ruling), climate.set_fan_mode / turn_off, fan.set_percentage, media_player.turn_on /
@@ -730,6 +760,13 @@ def test_bulk_kinds_never_reach_locks_alarm_sirens_scripts_scenes_buttons():
     assert {a for _d, a in device_bulk.KINDS["all_off"]} == {"light.turn_off", "switch.turn_off", "cover.close_cover", "climate.turn_off", "fan.turn_off", "media_player.turn_off"}
 
 
+def test_door_cover_constants_are_one_definition_not_two():
+    """CR-007 slice 4 review (NIT 9): device_bulk's DOOR_COVER_CLASSES / DOOR_LAYER are services/devices.py's own
+    (imported, not redefined) - services/ha_scope.py's server-side devices.control refusal reads the same ones."""
+    assert device_bulk.DOOR_COVER_CLASSES is svc.DOOR_COVER_CLASSES
+    assert device_bulk.DOOR_LAYER is svc.DOOR_LAYER == "doors"
+
+
 def test_bulk_requires_devices_control_bulk(bulk_app):
     """403 without the permission - a viewer, and an operator who holds devices.control - checked before the body is
     even read (a non-JSON body still gets the 403), audited, nothing sent; the tree / area carry can_bulk only for a
@@ -948,7 +985,7 @@ def test_bulk_per_entity_outcomes_counts_and_one_outcome_row(bulk_app):
     out = {i["entity_id"]: i["outcome"] for i in got["items"]}
     assert out == {"light.lobby": "confirmed", "cover.lobby_blind": "confirmed", "climate.lobby": "refused", "media_player.lobby_tv": "not_confirmed"}
     assert got["done"] is True and got["all_confirmed"] is False
-    assert got["counts"] == {"confirmed": 2, "accepted": 0, "queued": 0, "not_confirmed": 1, "refused": 1, "unknown": 0, "total": 4}
+    assert got["counts"] == {"confirmed": 2, "sent": 0, "accepted": 0, "queued": 0, "not_confirmed": 1, "refused": 1, "unknown": 0, "total": 4}
     for _ in range(3):
         assert c.get(f"/api/v1/devices/actions/{bid}").json()["counts"]["confirmed"] == 2
     outcome = _audit_rows(app, phase="outcome")
@@ -1223,7 +1260,8 @@ def test_slice4_new_allow_list_actions_validate_and_have_expected_risk(dev_app, 
         spec = ha_bridge.ACTIONS[aid]
         assert (spec["domain"], spec["service"], spec["risk"]) == (domain, service, risk), aid
         assert not spec.get("grant"), aid
-    assert ha_scope.devices_control_reaches("humidifier.lobby") and "humidifier" in ha_scope.DEVICES_CONTROL_DOMAINS
+    with app.state.db.connection() as conn:
+        assert ha_scope.devices_control_reaches(conn, "humidifier.lobby") and "humidifier" in ha_scope.DEVICES_CONTROL_DOMAINS
 
 
 def test_slice4_card_fields_climate_humidity_cover_door_class_and_sensor_groups(dev_app):
@@ -1297,6 +1335,60 @@ def test_bulk_cover_group_control_open_stop_position_with_exclusions(bulk_app):
     assert r2.status_code == 409 and r2.json()["code"] == "target_changed" and not fake.calls
 
 
+def test_bulk_group_cover_kinds_are_area_only(bulk_app):
+    """CR-007 slice 4 review (MEDIUM 4): covers_open / covers_stop / covers_position are the area's own "כל
+    התריסים" group control (the spec never describes a building-wide open) - refused at floor/building scope,
+    audited like any other refusal; covers_close (a slice-3 kind, part of the classic five-kind menu) is unaffected
+    and stays valid at every scope."""
+    app, s, c, fake = bulk_app
+    for kind in ("covers_open", "covers_stop", "covers_position"):
+        params = {"scope": "building", "id": "*", "kind": kind}
+        if kind == "covers_position":
+            params["position"] = 40
+        r = c.get("/api/v1/devices/actions/preview", params=params)
+        assert r.status_code == 422 and r.json()["details"]["fields"] == ["scope"], (kind, r.text)
+        params["scope"], params["id"] = "floor", "ground"
+        r2 = c.get("/api/v1/devices/actions/preview", params=params)
+        assert r2.status_code == 422, (kind, r2.text)
+        body = _bulk(scope="building", id="*", kind=kind, **({"position": 40} if kind == "covers_position" else {}))
+        r3 = c.post("/api/v1/devices/actions", json=body)
+        assert r3.status_code == 422 and not fake.calls, (kind, r3.text)
+    # covers_close (slice 3): still valid at every scope
+    ok = c.get("/api/v1/devices/actions/preview", params={"scope": "building", "id": "*", "kind": "covers_close"})
+    assert ok.status_code == 200
+
+
+def test_bulk_stop_all_is_reported_sent_not_confirmed(bulk_app):
+    """CR-007 slice 4 review (MEDIUM 3): cover.stop_cover has nothing observable (no expect / expect_attr); the
+    single first poll would otherwise mark it "confirmed" (services/ha_actions.refresh: no expected_state to wait
+    for) and a bulk "stop all" would honestly-dishonestly read "בוצע" for something nobody verified. The outcome is
+    "sent", never counted in counts.confirmed, and all_confirmed is false even though nothing failed."""
+    app, s, c, fake = bulk_app
+    assert c.post("/api/v1/ha/dev/states", json={"states": [{"entity_id": "cover.lobby_blind", "state": "opening", "attributes": {"friendly_name": "Blind", "device_class": "blind", "current_position": 40}}]}).status_code == 200
+    p = c.get("/api/v1/devices/actions/preview", params={"scope": "area", "id": "lobby", "kind": "covers_stop"}).json()
+    assert p["count"] == 1
+    r = c.post("/api/v1/devices/actions", json=_bulk(kind="covers_stop", preview_digest=p["digest"]))
+    assert r.status_code == 202, r.text
+    got = _finish(c, r.json()["id"])
+    assert got["counts"]["confirmed"] == 0 and got["counts"]["sent"] == 1 and got["counts"]["total"] == 1
+    assert got["items"][0]["outcome"] == "sent" and got["items"][0]["status"] == "confirmed"
+    assert got["all_confirmed"] is False
+
+
+def test_bulk_covers_position_skips_covers_without_position_support(bulk_app):
+    """CR-007 slice 4 review (NIT 6): a cover that neither reports current_position nor advertises the SET_POSITION
+    feature cannot be positioned at all - excluded (with a reason the dialog states), never sent, never counted as
+    "already"."""
+    app, s, c, fake = bulk_app
+    extra = [{"entity_id": "cover.lobby_no_pos", "state": "open", "attributes": {"friendly_name": "Dumb blind"}, "supported_features": 0}]
+    assert c.post("/api/v1/ha/dev/states", json={"states": extra}).status_code == 200
+    reg = ENTITY_REGISTRY + [_reg("cover.lobby_no_pos", "lobby")]
+    assert c.post("/api/v1/ha/dev/registry", json={"entities": reg, "devices": [], "areas": AREAS, "floors": FLOORS}).status_code == 200
+    p = c.get("/api/v1/devices/actions/preview", params={"scope": "area", "id": "lobby", "kind": "covers_position", "position": 40}).json()
+    assert "cover.lobby_no_pos" not in {t["entity_id"] for t in p["targets"]}
+    assert {x["entity_id"]: x["reason"] for x in p["excluded"]}.get("cover.lobby_no_pos") == "no_position"
+
+
 def test_assign_unassigned_entity_to_area(dev_app, monkeypatch):
     """CR-007 slice 4: an administrator assigns an entity with no HA area to one. system.configure gate (403 and
     audited without it), a Home Assistant CONFIG write through the bridge's own registry path (never a domain
@@ -1347,3 +1439,23 @@ def test_assign_unassigned_entity_to_area(dev_app, monkeypatch):
     monkeypatch.setattr(ha_client, "call_bridge_set_area", fake_refuse)
     r2 = c.put("/api/v1/devices/entities/light.garden/area", json={"area_id": "office"})
     assert r2.status_code == 404 and r2.json()["details"]["error"] == "entity_not_found"
+
+
+def test_assign_area_checks_permission_before_the_body(dev_app):
+    """CR-007 slice 4 review (MEDIUM 5): the permission is checked before the body is even parsed (the _raw_body
+    pattern the bulk route already uses) - an unauthorized caller with a malformed / non-JSON body still gets an
+    audited 403, never a bare 422 for a request it was never entitled to send."""
+    app, s = dev_app
+    c = TestClient(app)
+    bind(c, s, "vi", "viewer", "installation", "*")
+    with app.state.db.connection() as conn:
+        before = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'system.configure' AND decision = 'denied'").fetchone()[0]
+    r = c.put("/api/v1/devices/entities/switch.loose/area", content=b"not json at all", headers={**as_user("vi"), "content-type": "application/json"})
+    assert r.status_code == 403, r.text
+    r2 = c.put("/api/v1/devices/entities/switch.loose/area", content=b"plain text", headers={**as_user("vi"), "content-type": "text/plain"})
+    assert r2.status_code == 403, r2.text
+    r3 = c.put("/api/v1/devices/entities/switch.loose/area", json={"unexpected_field": 1}, headers=as_user("vi"))
+    assert r3.status_code == 403, r3.text
+    with app.state.db.connection() as conn:
+        after = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'system.configure' AND decision = 'denied'").fetchone()[0]
+    assert after == before + 3, "every refusal is audited"

@@ -25,7 +25,7 @@ import {
 import { bidi, ltrNum } from '../i18n/bidi';
 
 /** What a screen asks the dialog to do: the scope, its id and display name, and the kind. `position` (CR-007 slice
- * 4): covers_position's own argument - the area's "כל התריסים" group control (devices-cover-group.ts). */
+ * 4): covers_position's own argument - the area's "כל התריסים" group control (devices-area.ts). */
 export interface BulkRequest {
   scope: BulkScope;
   id: string;

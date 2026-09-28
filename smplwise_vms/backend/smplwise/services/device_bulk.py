@@ -100,10 +100,17 @@ KINDS: dict[str, tuple[tuple[str, str], ...]] = {
 }
 # kinds whose targets carry a request argument (validated the same way as the single-entity action, ha_bridge.ACTIONS)
 KINDS_WITH_POSITION = frozenset({"covers_position"})
+# CR-007 slice 4 review (MEDIUM 4): the area's own "כל התריסים" group control - open all / stop all / position all -
+# is the area's control, not the building's or a floor's (the spec never describes building-wide opening); unlike
+# covers_close (a slice-3 kind, approved at every scope as part of the classic five-kind menu), these three are new
+# in slice 4 and exist only for that one control, so they are refused outside scope "area".
+AREA_ONLY_KINDS = frozenset({"covers_open", "covers_stop", "covers_position"})
 # never part of a bulk action, whatever the kind; the ones present in the scope are named in the preview
 NEVER_BULK_DOMAINS = frozenset({"lock", "alarm_control_panel", "siren", "script", "scene", "button"})
-DOOR_COVER_CLASSES = frozenset({"door", "garage", "gate"})  # a cover that is a passage, not a shutter
-DOOR_LAYER = "doors"  # a cover or switch placed on this map layer is a door / gate: never in a bulk action
+# review MEDIUM 9: one definition of each, in services/devices.py (also used server-side under devices.control,
+# services/ha_scope.py) - not a second copy here.
+DOOR_COVER_CLASSES = dsvc.DOOR_COVER_CLASSES  # a cover that is a passage, not a shutter
+DOOR_LAYER = dsvc.DOOR_LAYER  # a cover or switch placed on this map layer is a door / gate: never in a bulk action
 
 DOMAIN_LABELS = {
     "light": "תאורה",
@@ -211,7 +218,9 @@ EXCLUDED_LABELS = {
     "doors_layer": "הוצב במפה בשכבת הדלתות - לעולם לא בפעולה מרוכזת",
     "switch_not_marked": "לא סומן כבטוח לכיבוי קבוצתי",
     "circuit_not_marked": "לא סומן כבטוח לכיבוי קבוצתי (מפסק של מעגל תאורה - מומלץ לסמן כבטוח)",
+    "no_position": "התריס אינו מדווח מיקום ואינו תומך בקביעת מיקום",
 }
+COVER_SUPPORT_SET_POSITION = 4  # HA cover.CoverEntityFeature.SET_POSITION
 
 
 def bulk_scope(conn: Any, principal: Principal) -> tuple[bool, Any, Any]:
@@ -225,7 +234,11 @@ def bulk_scope(conn: Any, principal: Principal) -> tuple[bool, Any, Any]:
         return ha_scope.entity_visible(wide, floors, placed, entity_id)
 
     def permitted(entity_id: str) -> bool:
-        return ha_scope.devices_control_reaches(entity_id) and in_scope(entity_id)
+        # domain only here (not ha_scope.devices_control_reaches's door-class/door-layer refusal, added for the
+        # single-entity route in the slice-4 review): a bulk request's own SwitchPolicy.excluded_reason already
+        # excludes those, honestly, with a reason the dialog states - a second, silent exclusion here would hide them
+        # from "excluded" instead.
+        return entity_id.split(".", 1)[0] in ha_scope.DEVICES_CONTROL_DOMAINS and in_scope(entity_id)
 
     return wide, in_scope, permitted
 
@@ -263,6 +276,8 @@ def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: st
         raise ApiError(422, "validation", "סוג פעולה לא מוכר.", details={"fields": ["kind"]})
     if kind in KINDS_WITH_POSITION and position is None:
         raise ApiError(422, "validation", "יש לציין מיקום (0–100) לפעולת מיקום תריסים.", details={"fields": ["position"]})
+    if kind in AREA_ONLY_KINDS and scope != "area":
+        raise ApiError(422, "validation", "פעולה זו זמינה רק ברמת האזור (השליטה בקבוצת התריסים של האזור).", details={"fields": ["scope"]})
     entities = dsvc.load_entities(conn)
     floors, areas, area_floor = _structure(conn, entities)
     if scope == "building":
@@ -315,7 +330,13 @@ def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: st
             continue
         args: dict[str, Any] = {}
         if kind in KINDS_WITH_POSITION:
+            # review NIT 6: a cover that neither reports current_position nor advertises SET_POSITION cannot be
+            # positioned at all - excluded (with the reason), not sent and never counted as "already"
             cur = dsvc._num((e.get("attributes") or {}).get("current_position"))
+            supports_position = bool((e.get("supported_features") or 0) & COVER_SUPPORT_SET_POSITION)
+            if cur is None and not supports_position:
+                excluded.append({"entity_id": e["entity_id"], "name": _name(e), "domain": domain, "reason": "no_position", "reason_label": EXCLUDED_LABELS["no_position"]})
+                continue
             if cur is not None and abs(cur - position) < 1:  # already at (near enough) the requested position
                 already += 1
                 continue
@@ -575,13 +596,18 @@ def run(db: Database, settings: Settings, principal: Principal, bulk_id: str, ta
 
 # ---------------------------------------------------------------- reading back
 
-def outcome_of(status: str, error: str | None, observed: str | None) -> str:
+def outcome_of(status: str, error: str | None, observed: str | None, confirmation: str = "state") -> str:
+    """`confirmation` (ha_bridge.confirmation_kind: "state" / "attribute" / "none") - review MEDIUM 3: a record with
+    nothing observable (cover.stop_cover and the like) is marked "confirmed" in the DB the moment HA is known to have
+    accepted it (services/ha_actions.refresh: no expected_state to wait for), but that is honestly "sent", never
+    "confirmed" - the same rule the single-entity route already applies (api/device-commands.ts settle()); a bulk
+    "stop all" must never read "בוצע" for something nobody actually verified."""
     if status == "queued":
         return "queued"
     if status in ("pending", "sending"):
         return "accepted"
     if status == "confirmed":
-        return "confirmed"
+        return "sent" if confirmation == "none" else "confirmed"
     if status == "unknown":
         # the window passed: HA reports the device in another state (we know it did not happen), or nothing usable
         return "not_confirmed" if observed not in UNAVAILABLE_STATES else "unknown"
@@ -590,7 +616,7 @@ def outcome_of(status: str, error: str | None, observed: str | None) -> str:
     return "refused"  # denied by HA, refused by the bridge, or never sent
 
 
-OUTCOMES = ("confirmed", "accepted", "queued", "not_confirmed", "refused", "unknown")
+OUTCOMES = ("confirmed", "sent", "accepted", "queued", "not_confirmed", "refused", "unknown")
 
 
 def load(conn: Any, bulk_id: str) -> dict[str, Any]:
@@ -605,7 +631,8 @@ def load(conn: Any, bulk_id: str) -> dict[str, Any]:
     items = []
     counts = {k: 0 for k in OUTCOMES}
     for r in rows:
-        out = outcome_of(r["status"], r["error"], r["observed_state"])
+        confirmation = ha_bridge.confirmation_kind(r["action_id"], r["expected_state"])
+        out = outcome_of(r["status"], r["error"], r["observed_state"], confirmation)
         counts[out] += 1
         items.append({
             "entity_id": r["entity_id"], "name": r["name"] or r["entity_id"], "domain": r["domain"] or r["entity_id"].split(".", 1)[0], "area_name": r["area_name"],

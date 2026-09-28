@@ -12,13 +12,15 @@ import { get, post } from './client';
 
 export type BulkScope = 'building' | 'floor' | 'area';
 /** CR-007 slice 4: covers_open / covers_stop / covers_position are the area's own "כל התריסים" group control
- * (devices-cover-group.ts), never offered in the floor/area/building quick-actions menu (BULK_KINDS below) - the
+ * (devices-area.ts), never offered in the floor/area/building quick-actions menu (BULK_KINDS below) - the
  * same bulk path (server resolve/record/run), a different trigger. */
 export type BulkKind = 'lights_off' | 'covers_close' | 'covers_open' | 'covers_stop' | 'covers_position' | 'climate_off' | 'screens_off' | 'all_off';
-export type BulkOutcome = 'queued' | 'accepted' | 'confirmed' | 'not_confirmed' | 'refused' | 'unknown';
+/** "sent" (review MEDIUM 3): a record with nothing observable (cover.stop_cover and the like) is never "confirmed" -
+ * accepted, and honestly reported as sent, matching the single-entity route's own "נשלח" (api/device-commands.ts). */
+export type BulkOutcome = 'queued' | 'accepted' | 'confirmed' | 'sent' | 'not_confirmed' | 'refused' | 'unknown';
 
 export const BULK_KINDS: BulkKind[] = ['lights_off', 'covers_close', 'climate_off', 'screens_off', 'all_off'];
-/** The cover group control's own four actions (devices-cover-group.ts): open all / stop all / close all / position all. */
+/** The cover group control's own four actions (devices-area.ts): open all / stop all / close all / position all. */
 export const COVER_GROUP_KINDS: BulkKind[] = ['covers_open', 'covers_stop', 'covers_close', 'covers_position'];
 
 /** The mockup's menu wording (the quick actions of the floor menu, the area popover and the building buttons), plus
@@ -101,6 +103,7 @@ export const OUTCOME_LABEL: Record<BulkOutcome, string> = {
   queued: 'ממתין לשליחה',
   accepted: 'נשלח · ממתין לדיווח',
   confirmed: 'אושר',
+  sent: 'נשלח',
   not_confirmed: 'לא אושר',
   refused: 'נדחה / לא נשלח',
   unknown: 'תוצאה לא ידועה',

@@ -31,10 +31,13 @@ CARD_LABELS = {
     "sensors": "חיישנים",
 }
 SECURITY_BINARY_CLASSES = {"door", "window", "opening", "garage_door", "motion", "occupancy", "presence", "lock", "safety", "smoke", "gas", "carbon_monoxide", "tamper", "vibration", "sound", "moving"}
-# CR-007 slice 4: a door / garage / gate cover is a passage, not a shutter - read-only in the covers card (the same
-# classes services/device_bulk.py's DOOR_COVER_CLASSES excludes from every bulk action; kept as a second constant
-# here rather than importing device_bulk, which itself imports this module).
+# CR-007 slice 4 (review MEDIUM 9: one definition, not two): a door / garage / gate cover is a passage, not a
+# shutter - read-only in the covers card, excluded from every bulk action (services/device_bulk.py) and, since the
+# slice-4 review, refused server-side under devices.control too (services/ha_scope.py devices_control_reaches).
+# `DOOR_LAYER`: a cover or switch placed on this map layer is a door / gate release, whatever its device_class -
+# the same exclusion, by placement rather than by class.
 DOOR_COVER_CLASSES = frozenset({"door", "garage", "gate"})
+DOOR_LAYER = "doors"
 # Sensor card grouping (CR-007 slice 4): a device_class bucket label, compact and predictable regardless of the
 # entity's own wording; anything not named here (an illuminance/CO2/generic numeric sensor, or a binary sensor
 # outside the security set) groups under its own device_class, or "other" with none.
