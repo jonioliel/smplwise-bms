@@ -116,10 +116,8 @@ class FakeHa:
     def __init__(self) -> None:
         self.q: asyncio.Queue = asyncio.Queue()
         self.wiskey_sub: int | None = None
-        WORLD.fake = self
 
     async def __aenter__(self) -> "FakeHa":
-        WORLD.loop = asyncio.get_running_loop()
         self.q.put_nowait({"type": "auth_required", "ha_version": "2026.9.0"})
         return self
 
@@ -156,6 +154,9 @@ class FakeHa:
                 self.push(ok(msg, {"version": VERSION, "api": {"version": 1, "min_client": 0}, "default_zone": ZONE, "user_count": 12, "users": [], "stations": copy.deepcopy(WORLD.stations)}))
             elif kind == "hikvision_intercom/subscribe":
                 self.wiskey_sub = msg["id"]
+                # the control API's pushes go to THIS socket, on its own loop: SMPLWISE's HA sync opens a second socket
+                # to the same fake host on another thread, so "the last socket created" was a start-up race
+                WORLD.fake, WORLD.loop = self, asyncio.get_running_loop()
                 self.push(ok(msg))
             elif kind == "hikvision_intercom/stations/test_unlock":
                 if WORLD.unlock_mode == "unconfirmed":
