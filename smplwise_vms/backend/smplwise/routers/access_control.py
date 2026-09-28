@@ -992,11 +992,11 @@ def person_update(request: Request, user_id: str, principal: Principal = Depends
     (reload the person, then retry); the other refusals and the unknown outcome as for create. Reply as create."""
     act = _Action(request, conn, principal, "intercom.person.update", user_id, PERSON)
     body: PersonUpdateBody = _parse(act, PersonUpdateBody, raw)
+    not_after = _envelope(act, body)
     data = body.data.wiskey()
     if not data:
         raise act.refuse(ApiError(422, "validation", "אין שינוי לשמור.", details={"fields": ["data"]}))
     act.details.update(revision=body.revision, sync_now=body.sync_now, **_draft_summary(data))
-    not_after = _envelope(act, body)
     reply = _perform(act, "person", lambda call: intercom_client.users_update(call, user_id, body.revision, data, body.sync_now), intercom_sync.project_person_editor, not_after, lane="config", summary=_person_summary)
     reply["note"] = SAVE_NOTE
     return reply
