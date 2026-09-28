@@ -1,4 +1,8 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
+import { useSmplwiseWiskeyScreens } from './wiskey-ui-mode';
+
+// The SMPLWISE WisKey screens, not the embedded WisKey panel (the default since the 2026-09-28 decision).
+useSmplwiseWiskeyScreens();
 
 // Evidence for T054 (CR-005 phase 1a, WisKey entry center) against a running developer backend. The developer backend
 // has no Home Assistant and so no WisKey behind it: the screen must say so plainly and show no station data. The

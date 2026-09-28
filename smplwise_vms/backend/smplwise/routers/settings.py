@@ -50,6 +50,12 @@ DEFAULTS: dict[str, str] = {
     "ai.provider": "local",  # none | local | external
     "ai.privacy_ack": "false",
     "ai.budget_daily": "0",
+    # CR-005 recorded decision 2026-09-28 (embedded panel): per SMPLWISE WisKey screen, which one the WisKey area shows -
+    # "wiskey" = the owner's real WisKey Home Assistant panel embedded as-is (the default), "smplwise" = the screen built
+    # here. The other WisKey screens (stations, sync, health, audit, management) are always embedded.
+    "access.ui.overview": "wiskey",
+    "access.ui.events": "wiskey",
+    "access.ui.people": "wiskey",
 }
 
 INT_KEYS = ("media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "ai.budget_daily")
@@ -91,6 +97,9 @@ class SettingsPatch(BaseModel):
     ai_provider: str | None = Field(default=None, pattern="^(none|local|external)$", alias="ai.provider")
     ai_privacy_ack: str | None = Field(default=None, pattern="^(true|false)$", alias="ai.privacy_ack")
     ai_budget_daily: int | None = Field(default=None, ge=0, le=100000, alias="ai.budget_daily")
+    access_ui_overview: str | None = Field(default=None, pattern="^(wiskey|smplwise)$", alias="access.ui.overview")
+    access_ui_events: str | None = Field(default=None, pattern="^(wiskey|smplwise)$", alias="access.ui.events")
+    access_ui_people: str | None = Field(default=None, pattern="^(wiskey|smplwise)$", alias="access.ui.people")
 
     model_config = {"populate_by_name": True}
 

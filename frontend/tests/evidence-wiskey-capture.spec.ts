@@ -1,4 +1,8 @@
 import { test, expect, request as pwRequest, type APIRequestContext, type Page } from '@playwright/test';
+import { useSmplwiseWiskeyScreens } from './wiskey-ui-mode';
+
+// The SMPLWISE WisKey screens, not the embedded WisKey panel (the default since the 2026-09-28 decision).
+useSmplwiseWiskeyScreens();
 
 // Evidence for WisKey card capture (CR-005 phase 2, slice A2, `access.cards.capture` + `access.people.manage`): the port
 // of WisKey's own capture dialog (panel.ts:1432-1630) opened from the person editor's cards section. Runs against the

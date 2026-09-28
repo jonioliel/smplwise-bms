@@ -1,4 +1,8 @@
 import { test, expect, request as pwRequest, type APIRequestContext, type Page } from '@playwright/test';
+import { useSmplwiseWiskeyScreens } from './wiskey-ui-mode';
+
+// The SMPLWISE WisKey screens, not the embedded WisKey panel (the default since the 2026-09-28 decision).
+useSmplwiseWiskeyScreens();
 
 // Evidence for the WisKey people directory (CR-005 phase 1b, read-only, access.read): the "אנשים" tab at #/wiskey/people.
 //
@@ -34,9 +38,10 @@ test.describe('WisKey people directory without WisKey (CR-005 phase 1b)', () => 
 
     for (const design of ['a', 'b'] as const) {
       await open(page, '/wiskey/overview', design);
-      // the WisKey area's own tab row: entry center, activity, people - in that order, nothing from other areas
+      // the WisKey area's own tab row: entry center, activity, people - in that order, nothing from other areas - then
+      // WisKey's own embedded-only screens (CR-005 recorded decision 2026-09-28; evidence-wiskey-embed.spec.ts)
       const tabs = page.locator('sw-tabs a[href^="#/wiskey/"]');
-      await expect(tabs).toHaveCount(3, { timeout: 30000 });
+      await expect(tabs).toHaveCount(8, { timeout: 30000 });
       await expect(tabs.nth(0)).toHaveAttribute('href', '#/wiskey/overview');
       await expect(tabs.nth(1)).toHaveAttribute('href', '#/wiskey/events');
       await expect(tabs.nth(2)).toHaveAttribute('href', HREF);

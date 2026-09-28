@@ -1,4 +1,8 @@
 import { test, expect, request as pwRequest, type APIRequestContext, type Page } from '@playwright/test';
+import { useSmplwiseWiskeyScreens } from './wiskey-ui-mode';
+
+// The SMPLWISE WisKey screens, not the embedded WisKey panel (the default since the 2026-09-28 decision).
+useSmplwiseWiskeyScreens();
 
 // Evidence for the WisKey station credentials screen (T054 follow-up to 0.1.109): the per-station RTSP account override
 // that shipped API-only now has a card on הגדרות › חיבורים (system-setup.ts), for the system administrator only. The

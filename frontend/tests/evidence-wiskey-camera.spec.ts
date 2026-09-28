@@ -1,4 +1,8 @@
 import { test, expect, request as pwRequest, type APIRequestContext, type Page } from '@playwright/test';
+import { useSmplwiseWiskeyScreens } from './wiskey-ui-mode';
+
+// The SMPLWISE WisKey screens, not the embedded WisKey panel (the default since the 2026-09-28 decision).
+useSmplwiseWiskeyScreens();
 
 // Evidence for the WisKey entry center's camera stills (T054, owner report 2026-09-28: "you can't see the cameras";
 // owner rule the same day: all video goes through go2rtc). Every door card whose station has a camera shows a still of

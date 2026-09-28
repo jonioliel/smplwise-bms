@@ -40,6 +40,11 @@ export interface ProductSettings {
   'ui.hide_map'?: string;
   /** S2: 'true' lets the Home Assistant recorder fill entity states the local history does not know (marked as secondary). */
   'history.ha_secondary'?: string;
+  /** הגדרות › בקרות כניסה (CR-005 recorded decision 2026-09-28): per SMPLWISE WisKey screen, 'wiskey' = WisKey's own
+   * Home Assistant panel embedded as-is (the default), 'smplwise' = the screen built here. */
+  'access.ui.overview'?: 'wiskey' | 'smplwise';
+  'access.ui.events'?: 'wiskey' | 'smplwise';
+  'access.ui.people'?: 'wiskey' | 'smplwise';
 }
 
 export const getSettings = () => get<{ settings: ProductSettings; can_edit: boolean }>('settings');

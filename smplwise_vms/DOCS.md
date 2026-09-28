@@ -367,6 +367,19 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   group. System_admin and other system permissions can only be bound installation-wide, and the last active
   administrator cannot be removed. Each change bumps the permission revision, is audited with a before/after
   diff of the subject's bindings and takes effect immediately.
+- WisKey embedded (owner decision 2026-09-28): by default the WisKey area shows your real WisKey panel from Home
+  Assistant (`/hikvision-intercom`) inside SMPLWISE, as it is - including WisKey's own screens SMPLWISE never built
+  (עמדות, סנכרון, בריאות, יומן שינויים, ניהול), each tab opening the matching WisKey screen. In הגדרות › בקרות כניסה
+  (system administrator) you choose, for מרכז הכניסה, פעילות and אנשים, "WisKey (מוטמע)" or the SMPLWISE screen; the
+  other WisKey screens are always embedded. Inside an embedded screen you are using WisKey itself with your own Home
+  Assistant login, so WisKey's permissions, confirmations and log apply there, not SMPLWISE's. In particular, a user
+  whose Home Assistant account holds WisKey `manage` (or who is a Home Assistant administrator) can release doors and
+  edit people (PIN, cards, validity) inside the embedded WisKey without SMPLWISE's confirmation step and without an
+  entry in SMPLWISE's audit - only WisKey's own log records it. SMPLWISE hides Home
+  Assistant's sidebar around the panel where the Home Assistant version allows it (otherwise it stays visible and a
+  note says so); the embedded screen loads a second copy of Home Assistant's interface, so it is slower than a
+  SMPLWISE screen, especially on a phone. "פתח בחלון מלא" opens the same panel in its own tab. Nothing is embedded
+  when the UI is opened outside Home Assistant; the screen then says so and offers the SMPLWISE screens.
 - WisKey (access control) permissions: `access.read` (viewer and above) shows the entry center, the activity log and
   the people directory; `access.release` (site_admin and system_admin only, sensitive) covers the physical actions -
   door release, call answer / reject / hang up, announcements; `access.people.manage` (site_admin and system_admin
