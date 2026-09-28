@@ -10,7 +10,7 @@
  * so applying the Euler as it stands looks DOWN by the tilt; consumers derive the view direction from the same Euler.
  */
 import { buildPrimitives, DEFAULT_WALL_THICKNESS_M, effectiveScale, MAX_TRIBUNE_ROWS, type CatalogLookup, type ConnectorPrim, type DoorPrim, type GeometryDoc, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type ObjectPrim, type ObjectShape, type Pt, type Primitive, type WallPrim, type WindowPrim } from './geometry';
-import { defaultLevelId } from './studio-ops';
+import { defaultLevelId, levelOrDefault } from './studio-ops';
 import { blockingSegments, clipCoverage, isOpenState, type Seg } from './coverage';
 import { anchor3d } from './anchor-3d';
 import type { MeshPart } from '../api/plan-catalog';
@@ -654,7 +654,7 @@ class Builder {
         this.box(`cam:${a.id}`, 'camera', ud, [x, lv.elevation_m + mount, z], CAMERA_BODY, -a.rotation, color, lv.id, 1, -tilt, false); // R-P4-T4-1: pitch = -tilt looks down
         if (a.fov && a.fov > 0) {
           const radiusPx = a.radius ? Math.max(12, a.radius * width) : coneRadiusPx ?? DEFAULT_CONE_RADIUS_PX;
-          const pts: Pt[] = a.polygon && a.polygon.length >= 3 ? a.polygon.map(([qx, qy]) => [qx * width, qy * height]) : clipCoverage([px, py], a.rotation, a.fov, radiusPx, this.segments(a.level_id ?? defaultLevelId(doc))); // the level key of the 2D cone
+          const pts: Pt[] = a.polygon && a.polygon.length >= 3 ? a.polygon.map(([qx, qy]) => [qx * width, qy * height]) : clipCoverage([px, py], a.rotation, a.fov, radiusPx, this.segments(levelOrDefault(doc, a.level_id))); // the level key of the 2D cone (a removed level: the default's walls)
           this.add({ id: `cam:${a.id}#cone`, kind: 'cone', shape: 'prism', position: [x, lv.elevation_m, z], size: [0, mount, 0], rotation: [0, 0, 0], color, opacity: 0.12, group: null, level_id: lv.id, polygon: pts.map((q): [number, number] => [this.m(q[0] - px), this.m(q[1] - py)]), userData: ud });
         }
         continue;

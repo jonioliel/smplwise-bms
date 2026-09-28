@@ -7,7 +7,7 @@ import { applyAnchorPositions, buildPrimitives, circuitToken, isClosedOutline, o
 import { candidatesDoc, type CandidateSet, type CandState } from './candidates';
 import { symbolOf } from './plan-symbols';
 import { CoverageCache, hasWallsOnLevel } from './coverage';
-import { defaultLevelId, translatePolygon } from './studio-ops';
+import { levelOrDefault, translatePolygon } from './studio-ops';
 import { temperatureText, type RoomStateLayer } from './room-state';
 
 export type MarkerKind = 'camera' | 'lock' | 'light' | 'binary_sensor';
@@ -1603,7 +1603,7 @@ export class SwPlanCanvas extends LitElement {
   private clippedCoverage(m: PlanMarker, live: { x: number; y: number }, rotation: number, fov: number): string | null {
     const doc = this.geometry;
     if (!this.clipCoverage || !doc || m.polygon) return null;
-    const level = m.level ?? defaultLevelId(doc);
+    const level = levelOrDefault(doc, m.level); // a removed level: the default level's walls (the 3D agrees)
     if (!hasWallsOnLevel(doc, level)) return null;
     const pts = this.coverage.polygon(m.id, { x: live.x, y: live.y, rotation, fov, radiusPx: this.radiusOf(m), level }, doc, this.planWidth, this.planHeight, this.entityStates, this.catalog ?? undefined);
     const hit = this.covPoints.get(m.id);
