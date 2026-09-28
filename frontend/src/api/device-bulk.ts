@@ -168,12 +168,16 @@ export async function followBulk(first: BulkRecord, onUpdate: (r: BulkRecord) =>
   return r;
 }
 
-/** What the bulk result says, honestly: "בוצע" only when every entity confirmed, never "everything is off". */
+/** What the bulk result says, honestly: "בוצע" only when every entity confirmed, never "everything is off".
+ * "sent" entities (nothing observable, e.g. stop) are neither confirmed nor failed: a set that is all confirmed or
+ * sent with at least one sent reads "נשלח", and they are never counted as missing. */
 export function bulkHeadline(r: BulkRecord): { tone: 'ok' | 'partial' | 'none' | 'running'; text: string } {
   const c = r.counts;
+  const sent = c.sent ?? 0;
   if (!r.done) return { tone: 'running', text: `${c.confirmed} מתוך ${c.total} אושרו` };
   if (c.total > 0 && c.confirmed === c.total) return { tone: 'ok', text: 'בוצע' };
-  const missing = c.total - c.confirmed;
-  if (c.confirmed === 0) return { tone: 'none', text: `לא בוצע: אף אחד מ־${c.total} ההתקנים לא אישר` };
+  if (c.total > 0 && c.confirmed + sent === c.total) return { tone: 'ok', text: sent === c.total ? 'נשלח' : 'בוצע (חלק נשלחו ללא אישור)' };
+  const missing = c.total - c.confirmed - sent;
+  if (c.confirmed + sent === 0) return { tone: 'none', text: `לא בוצע: אף אחד מ־${c.total} ההתקנים לא אישר` };
   return { tone: 'partial', text: `בוצע חלקית: ${missing} לא אושרו` };
 }
