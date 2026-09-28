@@ -1,5 +1,36 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.127 (pilot) — WisKey embed API v1: the panel is embedded through WisKey's own contract (rc.19)
+- The WisKey developers answered our embed-mode request (`docs/integrations/wiskey/WISKEY_EMBED_MODE_REQUEST.md`) with
+  contract v1 in WisKey 2.0.0-rc.19 (`docs/integrations/wiskey/embed-api-v1/`). SMPLWISE now uses it: the frame opens
+  `/hikvision-intercom?embed=1&tab=…&tool=…` (built from the origin, never the ingress path); WisKey hides its own
+  toolbar and Home Assistant's sidebar; the WisKey tabs and management tools in SMPLWISE's navigation (both designs,
+  the phone bar and its overflow) come from the panel's `wiskey:ready` catalogue - only what that user is allowed to
+  see; a tab click sends `wiskey:navigate` and the selection moves only when `wiskey:location` confirms it (a
+  declined unsaved-change dialog keeps the old screen; a locked session answers nothing and the request expires
+  after 3 s); the confirmed location is mirrored into the address as `wiskey_tab` / `wiskey_tool`, so bookmarks and
+  back / forward work; the WisKey page title is shown as text.
+- **Install WisKey 2.0.0-rc.19 and restart Home Assistant** to get this. Older WisKey builds keep working: when the
+  panel has no `data-embed-api` marker after the handshake window, the previous method (the DOM deep link and our
+  own sidebar hiding) is used; a marker without a handshake shows "מתחבר…" instead, never the old adapter; a newer
+  contract version shows "גרסה לא נתמכת". A reload inside the frame (HA reload, session revoked) is a fresh
+  handshake, so "נדרשת כניסה" still appears. Leaving the WisKey area removes the frame; "רענן" reopens the last
+  confirmed screen.
+- Screens set to SMPLWISE in "בקרות כניסה" stay in the tab row even when the operator's WisKey catalogue lacks them
+  (they are governed by SMPLWISE permissions). Phone / Companion app behaviour unchanged (0.1.123), except that
+  "פתח ב-WisKey" now deep-links to the tab (`?tab=…&tool=…`), which rc.19 also honours in normal mode.
+- Security, verified in review: every message is accepted only from the frame's own window on the same origin and
+  sent only to that origin; only tab / tool ids and labels are taken from the catalogue (strings, ids kept apart from
+  labels); nothing from WisKey is rendered as HTML; no token or SMPLWISE data reaches the frame. The `allow`
+  attribute carries `camera` and `clipboard-write` beyond the contract (recorded in CR-005 with the reason).
+- Tests: connector unit spec 14; embed specs desktop + mobile + phone 22 passed / 22 viewport-skipped; the new fake
+  WisKey panel implements the contract with modes v1 / legacy / marker-only / unsupported-by-ready /
+  unsupported-by-marker / ready-without-location / ignoring; tsc and build clean. Opus review against the contract
+  (2 blockers, 3 medium fixed), scoped re-review (1 medium fixed).
+- Lab checks left for the owner (rc.19 installed): one toolbar; HA's sidebar hidden inside the frame and present in a
+  normal HA tab; tabs = WisKey's own list; a restricted operator; leave / return / "רענן"; camera and two-way audio
+  inside the nested frame; back / forward and bookmarks. See `docs/operations/LAB_CHECKLIST_2026-09-29_HE.md` §2.
+
 ## 0.1.126 (pilot) — Home Assistant structure changes reach the device screens within seconds (owner report)
 - Owner report (2026-09-28): an entity moved to another area in Home Assistant did not move in "חשמל והתקנים" until
   the add-on was restarted. Root causes, from the code: the HA sync subscribed to `state_changed` only and read the
