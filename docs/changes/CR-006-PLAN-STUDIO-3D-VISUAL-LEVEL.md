@@ -303,10 +303,13 @@ Built as specified in §4.1 item 4 (determinism and tests, the phone budget, the
   different object (a full realisation, never the tint shortcut), and the whole scene graph - object names, instance
   matrices, transforms, materials with their colours, shadow flags, lights - is `toEqual`, and `capture()` gives the
   same bytes after the rebuild. (3) Pixel baselines per (level, preset, project) under `docs/evidence/T087/visual/`
-  (the 1a evidence PNGs are now real baselines, desktop and mobile), compared in the page pixel by pixel: a pixel
-  differs when a channel moves by more than 24/255, at most 0.2 % of the pixels may (today: 0 of 259,200 desktop,
-  0 of 492,480 mobile). `renderer-<project>.json` records the WebGL renderer that drew them (headless Chromium:
-  SwiftShader); on another renderer the comparison is skipped and says so - the determinism tests still run. Regen:
+  (the 1a evidence PNGs are now real baselines, desktop and mobile, the quiet sample floor and - `-state` - the same
+  floor with the state snapshot: tints, the red door frame, the chip and the pills), compared in the page pixel by
+  pixel: a pixel differs when a channel moves by more than 2/255 (tight on purpose: the same renderer draws the same
+  bytes, and a wall token nudged by a few /255 must not pass), at most 0.2 % of the pixels may (today: 0 differing).
+  `renderer-<project>.json` records the WebGL renderer that drew them (headless Chromium: SwiftShader); on another
+  renderer the comparison is skipped and says so - the determinism tests still run - and `SW_REQUIRE_VISUAL=1` turns
+  that skip into a failure for a lane that must compare. Regen:
   `SW_UPDATE_VISUAL=1 npx playwright test tests/unit-plan-3d-determinism.spec.ts --project=desktop --project=mobile`
   from `frontend/` after `npm run build`. The quality spec's visual test keeps its "same pixels twice, levels differ"
   assertions and writes no files any more.
@@ -345,8 +348,12 @@ Built as specified in §4.1 item 4 (determinism and tests, the phone budget, the
   emptied, a crossing, the area gone - the folded ring would draw a blot); the DOM labels of the element are matched
   to their parts by `data-3d-part` id, never by DOM order, and derived in `willUpdate` from the description (no second
   Lit update per description); the entity pills are DOM labels like the temperature chips (`data-3d-label`, the state
-  token as the colour, RTL, fixed pixel size, hidden behind the camera), a click on a pill selects the entity as its
-  sprite used to (`part-select`), the selected pill carries the accent ring (nothing in the scene to outline), and
+  token as the colour, RTL, fixed pixel size, hidden behind the camera, standing on the point with the bottom edge a
+  6 px gap above it so the object under it stays clickable from straight above; no Tab stops - the list and the
+  inspector select by keyboard; only the shown level's pills under a level filter; above `PILL_CAP` = 60 pills at the
+  overview only the selected, the hovered and the alerting ones - a token other than text-3 - with a "+N" hint,
+  `data-3d-more`; review nits of 1c), a click on a pill selects the entity as its sprite used to (`part-select`), the
+  selected pill carries the accent ring (nothing in the scene to outline), and
   `renderThumbnail`, the raycaster and the glTF no longer see a sprite for an entity - the description is unchanged
   (`ent:` parts keep `shape: 'sprite'`; the element decides how to draw them, as with the chips).
 - **The two pre-existing mobile failures** (`unit-floor-map-3d:10`, `unit-plan-3d:86`) - the brief's hypothesis

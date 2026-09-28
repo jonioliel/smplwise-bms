@@ -8,6 +8,7 @@ import { WEBGL_UNAVAILABLE_HE } from './webgl';
 import { productSettings } from '../api/prefs';
 import type { LevelDots } from './room-state';
 import { PROBE_FALLBACK_MS, PROBE_FIRST_FRAME_MS, PROBE_MS, PROBE_WARM_FRAMES, SETTINGS_WAIT_MS, withTimeout } from './timing';
+import { PILL_CAP } from './scene-frame';
 export { PROBE_FALLBACK_MS, PROBE_FIRST_FRAME_MS, PROBE_MS, PROBE_WARM_FRAMES, SETTINGS_WAIT_MS } from './timing';
 
 const EXPORT_FAILED_HE = 'ייצוא glTF נכשל';
@@ -18,6 +19,9 @@ export const QUALITY_KEY = 'sw.plan3d.quality';
 /** A fallback holds for the session: the device does not get re-measured on every mount (a new explicit choice does). */
 export const FALLBACK_KEY = 'sw.plan3d.fallback';
 export const DEFAULT_MIN_FPS = 30;
+export { PILL_CAP } from './scene-frame';
+/** The pill's bottom edge sits this far above its point, so the object under it stays clickable from straight above. */
+const PILL_GAP_PX = 6;
 
 export interface PartSelectDetail {
   id: string | null;
@@ -102,6 +106,8 @@ export class SwPlan3d extends LitElement {
    * camera (three draws no sprite for them). Derived in willUpdate from the description, never a second update. */
   private overlays: ScenePart[] = [];
   private overlayById = new Map<string, ScenePart>();
+  /** Pills left out by the cap (the "+N" hint). */
+  private hiddenPills = 0;
   @state() private ready = false;
   @state() private exporting = false;
   /** WebGL could not start: the whole stage says so. */
@@ -303,6 +309,20 @@ export class SwPlan3d extends LitElement {
       border-color: var(--sw-accent);
       box-shadow: 0 0 0 1px var(--sw-accent);
     }
+    /* the "+N" hint of the pill cap: the top start corner (the strip and the bar own the bottom) */
+    .more {
+      position: absolute;
+      inset-inline-start: 12px;
+      inset-block-start: 12px;
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-pill);
+      padding: 1px 8px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      direction: rtl;
+      white-space: nowrap;
+    }
     .tip {
       position: absolute;
       z-index: var(--sw-z-map-ui);
@@ -469,12 +489,24 @@ export class SwPlan3d extends LitElement {
     this.setAttribute('data-selected', this.selectedId ?? '');
   }
 
-  /** The DOM labels follow the description in the same update that renders it (no second Lit update per description). */
+  /** The DOM labels follow the description in the same update that renders it (no second Lit update per description).
+   * Pills: only those on the shown level when a level filter is set (a lower level's pills would show through the
+   * upper floor); above PILL_CAP of them at the overview only the selected, the hovered and the alerting ones (a state
+   * token other than text-3: open, on, stale), the rest counted in a "+N" hint - hundreds of pills would be hundreds
+   * of elements repositioned every frame. */
   protected willUpdate(changed: PropertyValues<this>): void {
-    if (changed.has('description')) {
-      this.overlays = this.description ? this.description.parts.filter((p) => p.kind === 'chip' || p.kind === 'entity') : [];
-      this.overlayById = new Map(this.overlays.map((p) => [p.id, p]));
+    if (!(changed.has('description') || changed.has('activeLevel') || changed.has('selectedId') || (changed as Map<string, unknown>).has('hover'))) return;
+    const parts = this.description?.parts ?? [];
+    const chips = parts.filter((p) => p.kind === 'chip');
+    let pills = parts.filter((p) => p.kind === 'entity' && (!this.activeLevel || p.level_id === this.activeLevel));
+    this.hiddenPills = 0;
+    if (pills.length > PILL_CAP) {
+      const keep = pills.filter((p) => p.userData.id === this.selectedId || p.userData.id === this.hover?.id || p.color !== 'text-3');
+      this.hiddenPills = pills.length - keep.length;
+      pills = keep;
     }
+    this.overlays = [...chips, ...pills];
+    this.overlayById = new Map(this.overlays.map((p) => [p.id, p]));
   }
 
   protected updated(changed: PropertyValues<this>): void {
@@ -502,12 +534,13 @@ export class SwPlan3d extends LitElement {
     els.forEach((el) => {
       const p = this.overlayById.get(el.getAttribute('data-3d-part') ?? '');
       const at = p ? view.projectPoint(p.position) : null;
-      if (!at) {
+      if (!p || !at) {
         el.style.display = 'none';
         return;
       }
       el.style.display = 'block';
-      el.style.transform = `translate(${Math.round(at.x)}px, ${Math.round(at.y)}px) translate(-50%, -50%)`;
+      // a chip is centred on its point (the room's centroid); a pill stands on its point, bottom edge a gap above it
+      el.style.transform = p.kind === 'chip' ? `translate(${Math.round(at.x)}px, ${Math.round(at.y)}px) translate(-50%, -50%)` : `translate(${Math.round(at.x)}px, ${Math.round(at.y) - PILL_GAP_PX}px) translate(-50%, -100%)`;
     });
   }
 
@@ -765,7 +798,9 @@ export class SwPlan3d extends LitElement {
       ${this.overlays.length
         ? html`<div class="overlay">${this.overlays.map((p) => p.kind === 'chip'
             ? html`<span class="chip" aria-hidden="true" data-3d-chip=${p.userData.id} data-3d-chip-part=${p.id} data-3d-part=${p.id}>${p.text ?? ''}</span>`
-            : html`<button type="button" class="lbl" data-3d-label=${p.userData.id} data-3d-part=${p.id} aria-pressed=${this.selectedId === p.userData.id ? 'true' : 'false'} style=${`--lbl: var(--sw-${p.color})`} @click=${() => this.emitSelect({ id: p.userData.id, kind: p.userData.kind, partId: p.id })}>${p.text ?? ''}</button>`)}</div>`
+            : html`<button type="button" class="lbl" tabindex="-1" data-3d-label=${p.userData.id} data-3d-part=${p.id} aria-pressed=${this.selectedId === p.userData.id ? 'true' : 'false'} style=${`--lbl: var(--sw-${p.color})`} @click=${() => this.emitSelect({ id: p.userData.id, kind: p.userData.kind, partId: p.id })}>${p.text ?? ''}</button>`)}${this.hiddenPills
+            ? html`<span class="more" data-3d-more=${this.hiddenPills} title="ישויות ללא מצב מיוחד מוסתרות במבט הכללי; בחירה ברשימה או במפלס מציגה אותן">+${this.hiddenPills} ישויות</span>`
+            : nothing}</div>`
         : nothing}
       ${this.renderStrip()}
       <div class="bar" role="group" aria-label="תצוגות מוכנות" data-3d-bar>

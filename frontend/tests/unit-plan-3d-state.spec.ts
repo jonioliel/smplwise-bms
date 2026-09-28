@@ -3,6 +3,7 @@ import { demoRooms } from '../src/fixtures/demo';
 import { demoSceneInput } from '../src/fixtures/demo-3d';
 import { buildScene, type SceneDescription, type SceneZone } from '../src/map/scene-builder';
 import { tintOnlyChange } from '../src/map/scene-three';
+import { PILL_CAP } from '../src/map/scene-frame';
 import { roomStates, type RoomStateLayer, type StateEntity } from '../src/map/room-state';
 
 // CR-006 slice 1b, the 3D element in headless Chromium on the style guide's demo floor with descriptions built here
@@ -167,14 +168,18 @@ test('entity pills are DOM labels (slice 1c): no sprite in the scene, the state 
     await expect(lbl).toHaveAttribute('data-3d-part', p.id);
     expect(await lbl.evaluate((n) => getComputedStyle(n).color)).toBe(await el.evaluate((n, t) => { const s = document.createElement('span'); s.style.color = getComputedStyle(n).getPropertyValue(`--sw-${t}`).trim(); n.shadowRoot!.appendChild(s); const c = getComputedStyle(s).color; s.remove(); return c; }, p.color));
   }
-  // each pill sits on its own part's projected point (matched by id: reversing the description's part order moves nothing)
+  // each pill stands on its own part's projected point - bottom edge a small gap above it, so the object under it stays
+  // clickable from straight above (matched by id: reversing the description's part order moves nothing); pills are no
+  // Tab stops (the list and the inspector select by keyboard)
   const first = ents[0];
   const at = await el.evaluate((n, id) => { const e = n as unknown as { toScreen: (p: number[]) => { x: number; y: number } | null; description: SceneDescription }; return e.toScreen(e.description.parts.find((x) => x.id === id)!.position); }, first.id);
   const lbl = el.locator(`[data-3d-label="${first.userData.id}"]`);
+  await expect(lbl).toHaveAttribute('tabindex', '-1');
   const box = (await lbl.boundingBox())!;
   const host = (await el.boundingBox())!;
   expect(Math.abs(box.x + box.width / 2 - host.x - at!.x)).toBeLessThan(3);
-  expect(Math.abs(box.y + box.height / 2 - host.y - at!.y)).toBeLessThan(3);
+  expect(at!.y - (box.y + box.height - host.y)).toBeGreaterThan(3);
+  expect(at!.y - (box.y + box.height - host.y)).toBeLessThan(10);
   await setDescription(el, { ...withStates, parts: [...withStates.parts].reverse() });
   await expect(el.locator('[data-3d-label]').first()).toHaveAttribute('data-3d-label', ents[ents.length - 1].userData.id);
   const again = (await lbl.boundingBox())!;
@@ -190,6 +195,32 @@ test('entity pills are DOM labels (slice 1c): no sprite in the scene, the state 
   // the description without its entities: the pills go
   await setDescription(el, { ...withStates, parts: withStates.parts.filter((p) => p.kind !== 'entity') });
   await expect(el.locator('[data-3d-label]')).toHaveCount(0);
+  // a level filter hides the pills of the other levels (a lower level's pills would show through the upper floor)
+  const l1 = ents.slice(0, 2).map((p) => ({ ...p, id: `${p.id}~L1`, level_id: 'L1', userData: { ...p.userData, id: `${p.userData.id}~L1` } }));
+  await setDescription(el, { ...withStates, parts: [...withStates.parts, ...l1] });
+  await expect(el.locator('[data-3d-label]')).toHaveCount(ents.length + 2);
+  await el.evaluate((n) => { (n as unknown as { activeLevel: string | null }).activeLevel = 'L1'; });
+  await expect(el.locator('[data-3d-label]')).toHaveCount(2);
+  await expect(el.locator('[data-3d-label]').first()).toHaveAttribute('data-3d-label', /~L1$/);
+  await el.evaluate((n) => { (n as unknown as { activeLevel: string | null }).activeLevel = null; });
+  await expect(el.locator('[data-3d-label]')).toHaveCount(ents.length + 2);
+  // the cap: above PILL_CAP pills at the overview only the selected, the hovered and the alerting ones (a token other
+  // than text-3) are drawn, the rest counted in the "+N" hint
+  await el.evaluate((n) => { (n as unknown as { selectedId: string | null }).selectedId = null; }); // (the pill clicked above is still selected: it would stay)
+  const quietPill = ents.find((p) => p.color === 'text-3')!;
+  const many = Array.from({ length: PILL_CAP + 10 }, (_, i) => ({ ...quietPill, id: `${quietPill.id}~m${i}`, userData: { ...quietPill.userData, id: `${quietPill.userData.id}~m${i}` }, position: [quietPill.position[0] + (i % 10) * 0.3, quietPill.position[1], quietPill.position[2] + Math.floor(i / 10) * 0.3] as [number, number, number] }));
+  await setDescription(el, { ...withStates, parts: [...withStates.parts, ...many] });
+  const alerting = ents.filter((p) => p.color !== 'text-3').length;
+  expect(alerting).toBeGreaterThan(0);
+  await expect(el.locator('[data-3d-label]')).toHaveCount(alerting);
+  await expect(el.locator('[data-3d-more]')).toHaveAttribute('data-3d-more', String(ents.length + many.length - alerting));
+  await el.evaluate((n, id) => { (n as unknown as { selectedId: string | null }).selectedId = id; }, many[3].userData.id);
+  await expect(el.locator('[data-3d-label]')).toHaveCount(alerting + 1);
+  await expect(el.locator(`[data-3d-label="${many[3].userData.id}"]`)).toHaveAttribute('aria-pressed', 'true');
+  await expect(el.locator('[data-3d-more]')).toHaveAttribute('data-3d-more', String(ents.length + many.length - alerting - 1));
+  await setDescription(el, withStates);
+  await expect(el.locator('[data-3d-more]')).toHaveCount(0);
+  await expect(el.locator('[data-3d-label]')).toHaveCount(ents.length);
 });
 
 test('the strip dots: presence (with the fade), open and lit over the cached thumbnail, no thumbnail redrawn; thumbnails come from a pass outside render, a failed one is never cached', async ({ page }) => {

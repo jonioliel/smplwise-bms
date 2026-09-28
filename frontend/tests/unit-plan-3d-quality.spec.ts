@@ -177,7 +177,9 @@ test('the isometric preset is a true isometric on an orthographic camera; the pe
   await expect(el).toHaveAttribute('data-preset', 'iso');
   expect(await el.evaluate((n) => !!(n as unknown as Probe).view.camera.isOrthographicCamera)).toBe(true);
   // a click still lands on the right part through the orthographic camera (the ceiling lamp of room 0: at 2.75 m in
-  // the middle of its room, no 3 m wall hides it from the 35 deg isometric)
+  // the middle of its room, no 3 m wall hides it from the 35 deg isometric; the entity pills go first - on the phone
+  // the lock's pill stands over the lamp, as the entity layers switched off would leave the scene)
+  await el.evaluate((n) => { const e = n as unknown as { description: SceneDescription }; e.description = { ...e.description, parts: e.description.parts.filter((p) => p.kind !== 'entity') }; });
   const at = await el.evaluate((n) => {
     const e = n as unknown as Probe & { toScreen: (p: [number, number, number]) => { x: number; y: number } | null };
     const w = e.description.parts.find((p) => p.id === 'obj:dl0')!;

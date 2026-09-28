@@ -15,16 +15,21 @@ import { roomStates, type RoomStateLayer, type StateEntity } from '../src/map/ro
 // project), on the sample floor of the style guide.
 //
 // Baselines: `SW_UPDATE_VISUAL=1 npx playwright test tests/unit-plan-3d-determinism.spec.ts --project=desktop --project=mobile`
-// (from frontend/, after `npm run build`) rewrites the PNGs, the element screenshots and renderer-<project>.json, which
-// records the WebGL renderer that drew them. Pixels are renderer-specific (headless Chromium's SwiftShader against a
-// real GPU): the comparison runs only when this run's renderer string equals the baseline's, and is skipped - saying
-// so - otherwise. Whatever the renderer, the determinism tests above always run.
+// (from frontend/, after `npm run build`) rewrites the PNGs (the quiet sample floor and, as `-state`, the same floor
+// with the state snapshot: tints, the red door frame, the chip and the pills), the element screenshots and
+// renderer-<project>.json, which records the WebGL renderer that drew them. Pixels are renderer-specific (headless
+// Chromium's SwiftShader against a real GPU): the comparison runs only when this run's renderer string equals the
+// baseline's, and is skipped - saying so - otherwise; `SW_REQUIRE_VISUAL=1` turns that skip into a failure (a CI
+// lane that must compare). Whatever the renderer, the determinism tests above always run.
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.resolve(HERE, '..', '..', 'docs', 'evidence', 'T087', 'visual');
 const UPDATE = process.env.SW_UPDATE_VISUAL === '1';
-/** A pixel differs when any channel moves by more than this (0..255); this share of the pixels may differ. */
-const CHANNEL_TOLERANCE = 24;
+const REQUIRE = process.env.SW_REQUIRE_VISUAL === '1';
+/** A pixel differs when any channel moves by more than this (0..255) - tight, since the same renderer draws the same
+ * bytes (a wall token nudged by a few /255 or an exposure change must not pass); this share of the pixels may differ. */
+const CHANNEL_TOLERANCE = 2;
 const MAX_DIFF_RATIO = 0.002;
+const SCENES = ['quiet', 'state'] as const;
 const LEVELS = ['1', '2'] as const;
 const PRESETS = ['iso', 'persp', 'top'] as const;
 const NOW = Date.parse('2026-09-28T12:00:00Z');
@@ -89,7 +94,7 @@ const graph = (el: Locator): Promise<Node[]> =>
   });
 const capture = async (el: Locator): Promise<string> => (await el.evaluate((n) => (n as unknown as Probe).capture()))!;
 const pngBytes = (dataUrl: string): Buffer => Buffer.from(dataUrl.slice('data:image/png;base64,'.length), 'base64');
-const baselineFile = (level: string, preset: string, project: string) => path.join(OUT, `plan-3d-l${level}-${preset}-${project}.png`);
+const baselineFile = (level: string, preset: string, scene: (typeof SCENES)[number], project: string) => path.join(OUT, `plan-3d-l${level}-${preset}${scene === 'state' ? '-state' : ''}-${project}.png`);
 
 /** The share of differing pixels between two PNG data URLs (decoded in the page), or the size mismatch. */
 const compare = (page: Page, actual: string, baseline: string) =>
@@ -177,37 +182,46 @@ test('rendered pixels per level and preset match the committed baselines within 
   } else {
     expect(fs.existsSync(rendererFile), `no baseline for the ${project} project: regenerate with SW_UPDATE_VISUAL=1`).toBe(true);
     const made = JSON.parse(fs.readFileSync(rendererFile, 'utf8')) as { renderer: string; vendor: string };
-    test.skip(made.renderer !== current.renderer, `the baselines were drawn by "${made.renderer}", this run draws with "${current.renderer}": pixels are renderer-specific, the comparison is skipped (the determinism tests still ran)`);
+    const mismatch = `the baselines were drawn by "${made.renderer}", this run draws with "${current.renderer}": pixels are renderer-specific`;
+    if (REQUIRE) expect(current.renderer, `${mismatch} (SW_REQUIRE_VISUAL=1: a mismatch fails)`).toBe(made.renderer);
+    test.skip(made.renderer !== current.renderer, `${mismatch}, the comparison is skipped (the determinism tests still ran; SW_REQUIRE_VISUAL=1 fails instead)`);
   }
   console.log(`visual baselines ${project}: renderer "${current.renderer}" (${current.vendor}), ${UPDATE ? 'writing' : 'comparing'}`);
+  const quiet = await el.evaluate((n) => (n as unknown as Probe).description);
   for (const level of LEVELS) {
     await el.locator(`[data-quality-${level}]`).click();
     await expect(el).toHaveAttribute('data-quality', level);
     for (const preset of PRESETS) {
       await el.locator(`[data-preset-${preset}]`).click();
       await expect(el).toHaveAttribute('data-preset', preset);
-      await page.waitForTimeout(300); // the presets set the camera directly; this is for the outline pass and the damping
-      const actual = await capture(el);
-      expect(actual.startsWith('data:image/png;base64,')).toBe(true);
-      const file = baselineFile(level, preset, project);
-      if (UPDATE) {
-        fs.writeFileSync(file, pngBytes(actual));
-        continue;
+      for (const scene of SCENES) {
+        await setDescription(el, scene === 'state' ? withStates : quiet);
+        await expect(el).toHaveAttribute('data-parts', String((scene === 'state' ? withStates : quiet).parts.length));
+        await page.waitForTimeout(300); // the presets set the camera directly; this is for the outline pass and the damping
+        const actual = await capture(el);
+        expect(actual.startsWith('data:image/png;base64,')).toBe(true);
+        const file = baselineFile(level, preset, scene, project);
+        const tag = `${preset} at level ${level} (${scene})`;
+        if (UPDATE) {
+          fs.writeFileSync(file, pngBytes(actual));
+          continue;
+        }
+        expect(fs.existsSync(file), `missing baseline ${file}: regenerate with SW_UPDATE_VISUAL=1`).toBe(true);
+        const baseline = `data:image/png;base64,${fs.readFileSync(file).toString('base64')}`;
+        const r = await compare(page, actual, baseline);
+        if (r.size || r.ratio > MAX_DIFF_RATIO) {
+          // the actual picture and the difference next to the report, for the eye
+          fs.writeFileSync(testInfo.outputPath(path.basename(file).replace(/\.png$/, '-actual.png')), pngBytes(actual));
+          if (r.diff) fs.writeFileSync(testInfo.outputPath(path.basename(file).replace(/\.png$/, '-diff.png')), pngBytes(r.diff));
+        }
+        expect(r.size, `${tag}: the baseline has another size (actual w,h, baseline w,h)`).toBeNull();
+        console.log(`visual ${project} l${level} ${preset} ${scene}: ${r.differing} of ${r.total} pixels differ (${(r.ratio * 100).toFixed(3)} %)`);
+        expect(r.ratio, `${tag}: ${r.differing} of ${r.total} pixels differ from ${path.basename(file)}`).toBeLessThanOrEqual(MAX_DIFF_RATIO);
       }
-      expect(fs.existsSync(file), `missing baseline ${file}: regenerate with SW_UPDATE_VISUAL=1`).toBe(true);
-      const baseline = `data:image/png;base64,${fs.readFileSync(file).toString('base64')}`;
-      const r = await compare(page, actual, baseline);
-      if (r.size || r.ratio > MAX_DIFF_RATIO) {
-        // the actual picture and the difference next to the report, for the eye
-        fs.writeFileSync(testInfo.outputPath(`plan-3d-l${level}-${preset}-${project}-actual.png`), pngBytes(actual));
-        if (r.diff) fs.writeFileSync(testInfo.outputPath(`plan-3d-l${level}-${preset}-${project}-diff.png`), pngBytes(r.diff));
-      }
-      expect(r.size, `${preset} at level ${level}: the baseline has another size (actual w,h, baseline w,h)`).toBeNull();
-      console.log(`visual ${project} l${level} ${preset}: ${r.differing} of ${r.total} pixels differ (${(r.ratio * 100).toFixed(3)} %)`);
-      expect(r.ratio, `${preset} at level ${level}: ${r.differing} of ${r.total} pixels differ from ${path.basename(file)}`).toBeLessThanOrEqual(MAX_DIFF_RATIO);
     }
     if (UPDATE) {
       await el.locator('[data-preset-iso]').click();
+      await setDescription(el, withStates);
       await page.waitForTimeout(300);
       await el.screenshot({ path: path.join(OUT, `plan-3d-element-l${level}-${project}.png`) });
     }

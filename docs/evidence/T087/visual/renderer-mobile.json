@@ -6,7 +6,7 @@
     "height": 844
   },
   "tolerance": {
-    "channel": 24,
+    "channel": 2,
     "maxDiffRatio": 0.002
   }
 }

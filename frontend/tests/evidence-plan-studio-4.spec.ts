@@ -286,18 +286,34 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
     const part = (id: string) => d.parts.find((p) => p.id === id)!;
     await expect.poll(async () => { d = await describe3d(page, HOST); return Math.abs(part('door:dr').rotation[1]); }, { timeout: 15000 }).toBe(80);
     expect(part('obj:lb').color).toBe('map-glow');
-    // the door (its lintel, the part above the leaf) is bound to the lock: the click selects the lock's anchor - the rule
-    // the history map and the event page share (part-select.boundItemOf). From the isometric: the lock's pill is a DOM
-    // label since 1c (the entity's own click target, like a 2D pin) and from straight above it covers the lintel of the
-    // door it sits in; the 35 deg view shows the lintel above the pill
-    await el.locator('[data-preset-iso]').click();
-    await expect(el).toHaveAttribute('data-preset', 'iso');
+    // the door (its lintel or its open leaf) is bound to the lock: the click selects the lock's anchor - the rule the
+    // history map and the event page share (part-select.boundItemOf). The lock's pill is a DOM label since 1c (the
+    // entity's own click target, like a 2D pin) standing over its point at the door itself, so the door is clicked
+    // where no pill stands: the first of its parts, over the overview presets, whose projected point no pill covers
     await el.evaluate((node) => {
       const w = window as unknown as { __sel: unknown[] };
       w.__sel = [];
       node.addEventListener('part-select', (e) => w.__sel.push((e as CustomEvent).detail));
     });
-    const doorAt = await partScreen(page, HOST, 'lintel:dr');
+    const doorAt = await (async () => {
+      for (const preset of ['top', 'persp', 'iso'] as const) {
+        await el.locator(`[data-preset-${preset}]`).click();
+        await expect(el).toHaveAttribute('data-preset', preset);
+        // the damping settles first (frames stop): the pills and the projected points are measured at rest
+        for (let i = 0; i < 20; i++) {
+          const frames = await el.getAttribute('data-frames');
+          await page.waitForTimeout(250);
+          if ((await el.getAttribute('data-frames')) === frames) break;
+        }
+        const pills = await el.locator('[data-3d-label]').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; }));
+        for (const id of ['lintel:dr', 'door:dr']) {
+          const at = await partScreen(page, HOST, id);
+          const m = 6; // a margin: a point a fraction of a pixel off a pill's edge still lands on it
+          if (!pills.some((r) => at.x >= r.x - m && at.x <= r.x + r.w + m && at.y >= r.y - m && at.y <= r.y + r.h + m)) return at;
+        }
+      }
+      throw new Error('every part of the door sits under a pill from every preset');
+    })();
     await page.mouse.click(doorAt.x, doorAt.y);
     await expect(el).toHaveAttribute('data-selected', ids.lockAnchor);
     expect(await page.evaluate(() => (window as unknown as { __sel: unknown[] }).__sel)).toEqual([{ id: 'dr', kind: 'opening' }]);
@@ -736,7 +752,7 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
       await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
       await open3d('chairs-level2', '2');
       // CR-006 1c: level 2's own budget on the heavy floor (the heavy configuration of scene-three: no object shadows,
-      // Lambert objects, a 1024 shadow map, no contact occlusion - chosen by these measurements, recorded in CR-006 §7c)
+      // Lambert objects, a 1024 shadow map, the contact occlusion kept - chosen by these measurements, recorded in CR-006 §7c)
       const big2 = await measure('chairs-level2');
       const d = await describe3d(page, HOST);
       expect(d.parts.filter((p) => p.id.startsWith('obj:big')).length).toBe(3000);

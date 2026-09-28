@@ -37,6 +37,11 @@ async function settled(el: Locator): Promise<number> {
   return last;
 }
 
+/** The demo without its entity pills (slice 1c: a pill is a DOM label standing over the point north of its entity; on
+ * the small demo stage one may stand over the part a picking test clicks, and it would take the click - as the
+ * floor map's entity layers switched off would leave the scene). The parts count changes with it. */
+export const pillsOff = (el: Locator) => el.evaluate((n) => { const e = n as unknown as { description: SceneDescription }; e.description = { ...e.description, parts: e.description.parts.filter((p) => p.kind !== 'entity') }; });
+
 async function clickPart(page: Page, el: Locator, partId: string): Promise<void> {
   const at = await el.evaluate((n, id) => {
     const e = n as unknown as { description: SceneDescription; toScreen: (p: [number, number, number]) => { x: number; y: number } | null };
@@ -124,6 +129,7 @@ test('a chair inside a shared instance group is picked by its own id; the export
     return new Set(d.parts.filter((p) => p.group === g).map((p) => p.userData.id)).size;
   });
   expect(group).toBeGreaterThan(1); // dc4 shares its InstancedMesh with other ids
+  await pillsOff(el);
   await clickPart(page, el, 'obj:dc4');
   await expect(el).toHaveAttribute('data-selected', 'dc4');
   await expect(page.locator('styleguide-screen [data-3d-demo-selected]')).toHaveText('dc4');
@@ -179,7 +185,8 @@ test('a click goes through a translucent upper plate to the level below; the low
   const input = demoSceneInput('f0')!;
   input.doc.levels.push({ id: 'L1', name: 'קומה 1', elevation_m: 3, ceiling_height_m: 3, is_default: false });
   input.doc.walls.push({ id: 'up', level_id: 'L1', polyline: [[0.02, 0.02], [0.98, 0.02], [0.98, 0.98], [0.02, 0.98], [0.02, 0.02]], thickness_m: 0.15, height_m: null, base_z_m: 0, kind: 'exterior', confidence: 1, source: 'manual', locked: false, external_ids: {} });
-  const two = buildScene(input);
+  const built = buildScene(input);
+  const two = { ...built, parts: built.parts.filter((p) => p.kind !== 'entity') }; // no pills over the clicked points (see pillsOff)
   expect(two.levels.map((l) => l.id)).toEqual(['L0', 'L1']);
   await el.evaluate((n, d) => { (n as unknown as { description: unknown }).description = d; }, JSON.parse(JSON.stringify(two)));
   await expect(el).toHaveAttribute('data-parts', String(two.parts.length));
@@ -193,6 +200,10 @@ test('a click goes through a translucent upper plate to the level below; the low
   const wall = two.parts.find((p) => p.kind === 'wall' && p.level_id === 'L0')!;
   await clickPart(page, el, wall.id);
   await expect(el).toHaveAttribute('data-selected', wall.userData.id);
+  // the selection re-rendered the style guide, which hands the element its own demo description again (pills and all):
+  // the two-level one once more before the floor click
+  await el.evaluate((n, d) => { (n as unknown as { description: unknown }).description = d; }, JSON.parse(JSON.stringify(two)));
+  await expect(el).toHaveAttribute('data-parts', String(two.parts.length));
   const floorAt = await el.evaluate((n) => (n as unknown as { toScreen: (p: [number, number, number]) => { x: number; y: number } | null }).toScreen([1.2, 0, 4.4]));
   const box = (await el.boundingBox())!;
   await page.mouse.click(box.x + floorAt!.x, box.y + floorAt!.y);

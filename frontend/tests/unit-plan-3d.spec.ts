@@ -44,7 +44,10 @@ test('the 3D element: lazy chunk, parts, presets, selection echo, hover, export'
   await expect(el.locator('[data-3d-tip]')).toContainText('קיר');
   // a click on the empty floor clears the selection. Deviation from task-5-brief.md's draft ([0.6, 0, 0.6]): the demo
   // room 0 starts at 40 px = 0.667 m with 0.15 m walls, so that point lies under the wall's corner and the ray hits
-  // the wall; [1.2, 0, 4.4] is bare floor inside room 0 (clear of the chairs, the lamp and the walls from the top preset)
+  // the wall; [1.2, 0, 4.4] is bare floor inside room 0 (clear of the chairs, the lamp and the walls from the top
+  // preset - and, since 1c, of the entity pills: the lock's pill stands over it, so the pills go first as the entity
+  // layers switched off would take them)
+  await el.evaluate((node) => { const e = node as unknown as { description: { parts: { kind: string }[] } }; e.description = { ...e.description, parts: e.description.parts.filter((p) => p.kind !== 'entity') }; });
   const floorAt = await el.evaluate((node) => (node as unknown as { toScreen: (p: [number, number, number]) => { x: number; y: number } | null }).toScreen([1.2, 0, 4.4]));
   await page.mouse.click(box.x + floorAt!.x, box.y + floorAt!.y);
   await expect(el).toHaveAttribute('data-selected', '');
@@ -121,7 +124,13 @@ test('the demo floor map: the toggle loads the chunk once, the key 3 switches, l
   await expect.poll(async () => Number(await el.getAttribute('data-parts'))).toBeLessThan(all);
   await toggleObjects();
   await expect.poll(async () => Number(await el.getAttribute('data-parts'))).toBe(all);
-  // a click on a camera opens its card (a drawer: the 3D has no pin to anchor a popover to)
+  // a click on a camera opens its card (a drawer: the 3D has no pin to anchor a popover to). The entity layers go
+  // first through the layers panel (both layouts have it): on the phone the lock's pill stands over the camera
+  await host.getByRole('button', { name: 'שכבות' }).click();
+  for (const layer of ['doors', 'lights', 'sensors']) await host.locator(`[data-layers-panel] sw-toggle[data-layer="${layer}"]`).click();
+  await host.getByRole('button', { name: 'שכבות' }).click();
+  await expect(host.locator('[data-layers-panel]')).toHaveCount(0);
+  await expect(el.locator('[data-3d-label]')).toHaveCount(0);
   const cam = await el.evaluate((node) => {
     const e = node as unknown as { description: { parts: { id: string; position: [number, number, number]; userData: { id: string } }[] }; toScreen: (p: [number, number, number]) => { x: number; y: number } | null };
     const c = e.description.parts.find((p) => p.id === 'cam:cam-2')!;

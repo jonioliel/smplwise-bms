@@ -42,6 +42,9 @@ export const ISO_UP: [number, number, number] = [-1 / SQ6, 2 / SQ6, -1 / SQ6];
 export const ISO_PAD = 1.08;
 /** The height a cutaway wall keeps above its level's floor. */
 export const CUTAWAY_HEIGHT_M = 0.7;
+/** Above this many entity pills at the overview the element draws only the selected, hovered and alerting ones
+ * (slice 1c; here rather than in the element so a node spec can read it without Lit's decorators). */
+export const PILL_CAP = 60;
 /** The cutaway follows the camera azimuth in steps of this many degrees (a small orbit does not re-cut every frame). */
 export const CUTAWAY_STEP_DEG = 10;
 /** A wall is cut when its outward normal faces the camera at least this closely (cos 65 deg). */
