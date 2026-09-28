@@ -2,7 +2,8 @@
  * WisKey (hikvision_intercom) through SMPLWISE (CR-005). This is the transport boundary of the port: where WisKey's own
  * panel calls `hass.callWS({ type: 'hikvision_intercom/overview' })`, the SMPLWISE screen calls `getIntercomOverview()`,
  * which asks the SMPLWISE backend; only the backend talks to Home Assistant. Phase 1a: read-only entry center; phase 1b:
- * the read-only activity log (`getIntercomEvents`). Phase 3 (access.release): door release, call answer / reject / hang up, and a spoken announcement.
+ * the read-only activity log (`getIntercomEvents`) and people directory (`getIntercomPeople` / `getIntercomPerson`).
+ * Phase 3 (access.release): door release, call answer / reject / hang up, and a spoken announcement.
  */
 import { ApiError, apiUrl, get, post } from './client';
 
@@ -158,6 +159,91 @@ export function getIntercomEvents(filters: IntercomEventFilters, before?: string
   if (before) qs.set('before', before);
   return get<IntercomEventsReply>(`intercom/events?${qs.toString()}`);
 }
+
+// ---------------------------------------------------------------- people directory (access.read, read-only)
+
+/** One of a person's station assignments as the backend projects it (intercom_sync project_person): WisKey's
+ * `Assignment` without `last_error` and the desired / applied revisions. */
+export interface IntercomPersonStation {
+  station_id: string;
+  enabled: boolean;
+  /** WisKey `allowed_locks`: the door numbers the grant covers. */
+  doors: number[];
+  /** WisKey SYNC_STATES: pending | syncing | synced | conflict | error | delete_pending | offline; null when unknown. */
+  sync_state: string | null;
+}
+
+/** One person as the backend projects it (intercom_sync PERSON_KEYS + project_person): identity, active flag, validity
+ * window, group ids and station assignments. Never phones, cards, PIN flags, profile values or photos - deliberately
+ * (0.1.105 review), so nothing here can imply they exist. */
+export interface IntercomPerson {
+  id: string;
+  employee_no: string;
+  display_name: string;
+  active: boolean;
+  valid_from: string | null;
+  valid_until: string | null;
+  revision: number | null;
+  group_ids: string[];
+  stations: IntercomPersonStation[];
+}
+
+export type IntercomPeopleRights = 'assigned' | 'unassigned' | 'disabled';
+export type IntercomPeopleState = 'active' | 'inactive' | 'expired' | 'upcoming';
+export type IntercomPeopleSort = 'name' | 'name_desc' | 'employee';
+
+/** The filters GET /intercom/people accepts (routers/access_control.py). WisKey's `credential` (PIN / card) and
+ * `profile` filters are deliberately not offered. */
+export interface IntercomPeopleFilters {
+  station?: string;
+  group?: string;
+  rights?: IntercomPeopleRights;
+  state?: IntercomPeopleState;
+  sort?: IntercomPeopleSort;
+}
+
+/** One page of the directory (WisKey `UserDirectoryPage` plus SMPLWISE's own search bookkeeping). With a search text
+ * the page is over SMPLWISE's match list (`total` counts matches, `total_all` stays the directory size); `complete`
+ * false means the scan stopped early (`incomplete_reason` scan_limit | rate_limited) and `total` is a lower bound;
+ * `stale` means the directory changed under the paging (the caller's `snapshot` is out of date). */
+export interface IntercomPeoplePage {
+  records: IntercomPerson[];
+  total: number | null;
+  total_all: number | null;
+  offset: number | null;
+  limit: number | null;
+  next_offset: number | null;
+  previous_offset: number | null;
+  snapshot: string;
+  stale: boolean;
+  complete: boolean;
+  incomplete_reason: 'scan_limit' | 'rate_limited' | string | null;
+}
+
+type ReadReply<K extends string, T> = { state: IntercomFeedState | 'unsupported'; configured: boolean; last_error: string | null; fetched_at: string | null } & { [P in K]: T | null };
+
+/** `people` is null unless `state` is `ready`; `state` can also be `unsupported` (this WisKey has no `users/query`). */
+export type IntercomPeopleReply = ReadReply<'people', IntercomPeoplePage>;
+/** `person` is null unless `state` is `ready`; an unknown id is a 404 `intercom_person_not_found` (thrown as ApiError). */
+export type IntercomPersonReply = ReadReply<'person', IntercomPerson>;
+
+/** WisKey's own page sizes and default for the people list (panel.ts `_userPageSize`, the `[25, 50, 100, 200]` select). */
+export const PEOPLE_PAGE_SIZES = [25, 50, 100, 200] as const;
+export const PEOPLE_PAGE = 50;
+
+/** One page of the people directory. `query` is matched by the SMPLWISE backend against name and employee number
+ * only (never sent to WisKey); `snapshot` is the previous page's `people.snapshot`, so the reply can say `stale`. */
+export function getIntercomPeople(query: string, filters: IntercomPeopleFilters, offset = 0, limit = PEOPLE_PAGE, snapshot = ''): Promise<IntercomPeopleReply> {
+  const qs = new URLSearchParams();
+  if (query) qs.set('query', query);
+  for (const [k, v] of Object.entries(filters)) if (v !== undefined && v !== null && v !== '') qs.set(k, String(v));
+  qs.set('offset', String(offset));
+  qs.set('limit', String(limit));
+  if (snapshot) qs.set('snapshot', snapshot);
+  return get<IntercomPeopleReply>(`intercom/people?${qs.toString()}`);
+}
+
+export const getIntercomPerson = (userId: string) => get<IntercomPersonReply>(`intercom/people/${encodeURIComponent(userId)}`);
 
 // ---------------------------------------------------------------- physical actions (access.release)
 

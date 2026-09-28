@@ -1,5 +1,6 @@
-"""Fixture backend for tests/evidence-wiskey-actions.spec.ts (T054, CR-005 phase 3) and the fixture part of
-tests/evidence-wiskey-events.spec.ts (CR-005 phase 1b activity log): the REAL SMPLWISE backend, whose
+"""Fixture backend for tests/evidence-wiskey-actions.spec.ts (T054, CR-005 phase 3) and the fixture parts of
+tests/evidence-wiskey-events.spec.ts (CR-005 phase 1b activity log) and tests/evidence-wiskey-people.spec.ts (phase 1b
+people directory): the REAL SMPLWISE backend, whose
 Home Assistant WebSocket is an in-process fake that answers like WisKey (`hikvision_intercom/*`). No real Home
 Assistant, WisKey or door station can be reached from this process: HA_URL is forced to a `.test` host (a reserved
 name that never resolves) and every `websockets.connect` goes to the fake; it refuses to start inside the add-on.
@@ -45,6 +46,16 @@ Control API (SW_WISKEY_CONTROL_PORT, default SW_PORT + 10, 127.0.0.1 only), JSON
     POST /events/prune {keep}           keep only the newest `keep` events: an older `before` cursor then expires
     POST /events/delay {seconds}        answer every events/list that much later (0-10 s; 0 after /reset), so a test
                                         can hold a request in flight
+    POST /people/touch {id}             edit a person: revision + 1 (WisKey's directory snapshot changes), their
+                                        assignments back to `pending` (the stations' pending_user_count rises, which is
+                                        what changes SMPLWISE's overview projection) and push `refresh`
+    POST /people/remove {id, notify?}   delete a person (the stations' managed_user_count falls); pushes `refresh`
+                                        unless `notify` is false
+    POST /limits {scan_page?, max_scan_pages?, user_burst?, user_rate?}
+                                        set the SMPLWISE backend's own people-search scan and read rate-bucket
+                                        constants IN THIS PROCESS (intercom_sync SCAN_PAGE / MAX_SCAN_PAGES /
+                                        USER_BURST / USER_RATE) and reset the buckets, so a test can reach the
+                                        `complete: false` outcomes deterministically; /reset restores the defaults
 
 The event cache starts with EVENT_COUNT deterministic access events (newest first: 08:00 Asia/Jerusalem on 2026-09-27,
 then every 7 minutes back), answered by `events/list` with WisKey's own EventCache.query semantics (events.py): exact
@@ -52,6 +63,14 @@ station / result / authentication / door, casefolded `person` substring over "<e
 end bounds, `limit` 1-200, `before` = the previous page's last id (an unknown id is `invalid_fields`, "Event cursor
 expired"), and `next` = the page's last id only while more rows match. Rows carry WisKey's full row (masked card,
 portrait, evidence, major / minor), so the SMPLWISE projection is exercised too.
+
+The people directory starts with PEOPLE_COUNT deterministic people (see `person()`), answered by `users/query` with
+WisKey's own `access/user_directory.py` semantics (`query_users`): the station / rights / state / credential / group /
+profile filters, the three sorts (employee = natural order), offset clamped to the last page, `snapshot` = a token
+over (id, revision) pairs and `stale` = the caller's snapshot differs from it - and WisKey's real text matching (name,
+employee number, phone digits, card last-4) should SMPLWISE ever send a text, which it must not. `users/get` answers
+one full Person or `user_not_found`. Records carry WisKey's full public Person (phone, cards, PIN flag, profile values,
+photo flag, revisions), so the SMPLWISE projection is exercised too.
 """
 from __future__ import annotations
 
@@ -59,8 +78,10 @@ import asyncio
 import base64
 import copy
 import datetime
+import hashlib
 import json
 import os
+import re
 import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -82,6 +103,9 @@ os.environ["WISKEY_PASSWORD"] = "fixture-pass"
 
 import httpx  # noqa: E402
 import websockets  # noqa: E402
+
+LIMIT_NAMES = ("SCAN_PAGE", "MAX_SCAN_PAGES", "USER_BURST", "USER_RATE")  # intercom_sync constants the /limits control may set
+LIMIT_DEFAULTS: dict[str, Any] = {}  # filled on first use (the backend is imported only after `websockets.connect` is replaced)
 
 ZONE = {"kind": "iana", "name": "Asia/Jerusalem"}
 VERSION = "4.2.0-fake"
@@ -193,6 +217,150 @@ def query_events(rows: list[dict[str, Any]], filters: dict[str, Any]) -> dict[st
     }
 
 
+# ---------------------------------------------------------------- people directory (WisKey access/user_directory.py)
+
+PEOPLE_COUNT = 130  # more than two pages of WisKey's default 50, so paging has a middle page
+FIRST_NAMES = ("Dana", "Yossi", "Maya", "Oren", "Noa", "Avi", "Tamar", "Eli", "Shira", "Amit")
+LAST_NAMES = ("Cohen", "Levi", "Katz", "Barak", "Shalev", "Mizrahi", "Peretz", "Friedman", "Azulay", "Golan", "Segal", "Dahan", "Rosen")
+HEBREW_NAMES = {0: "דנה כהן", 7: "יוסי לוי", 21: "מאיה כץ"}  # a few RTL names among the ASCII ones
+PEOPLE_STATIONS = ("gate", "lobby", "office", "store")
+
+
+def assignment(sid: str, enabled: bool, locks: list[int], sync_state: str, revision: int) -> dict[str, Any]:
+    return {
+        "config_entry_id": sid, "enabled": enabled, "allowed_locks": locks, "schedule_template": None,
+        "desired_revision": revision, "applied_revision": revision if sync_state == "synced" else revision - 1,
+        "sync_state": sync_state, "last_sync_at": "2026-09-01T00:00:00+00:00" if sync_state == "synced" else None,
+        "last_error": "device_unavailable" if sync_state == "error" else None,
+    }
+
+
+def person(n: int) -> dict[str, Any]:
+    """Person number `n` (0-based): id u001..., employee number 1000 + n, a name from the two lists (10 x 13 are
+    coprime, so 130 distinct names; a few Hebrew), a phone (+97250 + 7 digits), a card on every 3rd, a PIN on every
+    2nd; every 9th inactive; validity expired / upcoming / current on n % 10 == 3 / 6 / 9, else permanent;
+    assignments by n % 4: gate + lobby synced / gate pending / lobby synced + store offline / none (and every 8th of
+    the "none" group an office assignment that is disabled and in error); groups on n % 5 == 0 / 1."""
+    name = HEBREW_NAMES.get(n, f"{FIRST_NAMES[n % len(FIRST_NAMES)]} {LAST_NAMES[n % len(LAST_NAMES)]}")
+    validity = {3: ("2025-01-01T00:00:00+00:00", "2026-01-01T00:00:00+00:00"), 6: ("2027-01-01T00:00:00+00:00", "2028-01-01T00:00:00+00:00"), 9: ("2026-01-01T00:00:00+00:00", "2027-12-31T00:00:00+00:00")}.get(n % 10, (None, None))
+    revision = 1
+    kind = n % 4
+    if kind == 0:
+        assignments = {"gate": assignment("gate", True, [1], "synced", revision), "lobby": assignment("lobby", True, [1, 2], "synced", revision)}
+    elif kind == 1:
+        assignments = {"gate": assignment("gate", True, [1], "pending", revision)}
+    elif kind == 2:
+        assignments = {"lobby": assignment("lobby", True, [1], "synced", revision), "store": assignment("store", True, [1], "offline", revision)}
+    else:
+        assignments = {"office": assignment("office", False, [1], "error", revision)} if n % 8 == 7 else {}
+    return {
+        "id": f"u{n + 1:03d}", "employee_no": str(1000 + n), "display_name": name, "phone": f"+97250{n:07d}", "active": n % 9 != 8,
+        "user_type": "normal", "valid_from": validity[0], "valid_until": validity[1], "revision": revision,
+        "created_at": "2026-01-01T00:00:00+00:00", "updated_at": "2026-09-01T00:00:00+00:00", "identity_locked": False,
+        "profile": {"department": ("Engineering", "Operations", "Security")[n % 3]}, "group_ids": (["staff"], ["staff", "contractors"], [], [], [])[n % 5],
+        "permission_overrides": {}, "photo_configured": False, "pin_configured": n % 2 == 0,
+        "cards": [{"id": f"c{n + 1:03d}", "masked_number": f"•••• {(7000 + n) % 10000:04d}", "label": "Main", "card_type": "normalCard", "enabled": True}] if n % 3 == 0 else [],
+        "assignments": assignments, "access_timing_draft": None, "access_timing_policy": None, "timing_readbacks": {},
+    }
+
+
+def initial_people() -> list[dict[str, Any]]:
+    return [person(i) for i in range(PEOPLE_COUNT)]
+
+
+class _Invalid(Exception):
+    pass
+
+
+def _text(value: Any, maximum: int = 160) -> str:
+    if not isinstance(value, str) or len(value) > maximum or any(ord(c) < 32 for c in value):
+        raise _Invalid
+    return value.strip()
+
+
+def _natural(value: str) -> tuple[tuple[int, Any], ...]:
+    return tuple((0, int(part)) if part.isdigit() else (1, part.casefold()) for part in re.split(r"(\d+)", value) if part)
+
+
+def snapshot_token(people: list[dict[str, Any]]) -> str:
+    """WisKey `snapshot_token`: changes whenever a public record's revision changes (or one comes / goes)."""
+    payload = sorted((p["id"], p["revision"]) for p in people)
+    return hashlib.sha256(json.dumps(payload, ensure_ascii=True, separators=(",", ":")).encode()).hexdigest()[:24]
+
+
+def query_users(people: list[dict[str, Any]], msg: dict[str, Any]) -> dict[str, Any] | None:
+    """WisKey's `query_users` (access/user_directory.py) for a `users/query` frame; None = `invalid_fields`."""
+    try:
+        if set(msg) - {"id", "type", "query", "filters", "offset", "limit", "snapshot"}:
+            raise _Invalid
+        text = _text(msg.get("query", "")).casefold()
+        raw = msg.get("filters")
+        if not isinstance(raw, dict) or set(raw) - {"group", "profile", "station", "rights", "state", "credential", "sort"}:
+            raise _Invalid
+        f = {"group": _text(raw.get("group", ""), 128), "station": _text(raw.get("station", ""), 128), "rights": _text(raw.get("rights", ""), 32),
+             "state": _text(raw.get("state", ""), 32), "credential": _text(raw.get("credential", ""), 32), "sort": _text(raw.get("sort", "employee"), 32)}
+        profile = raw.get("profile", {})
+        if not isinstance(profile, dict) or len(profile) > 32:
+            raise _Invalid
+        f["profile"] = {_text(k, 64): _text(v, 256) for k, v in profile.items() if _text(v, 256)}
+        if f["rights"] not in {"", "assigned", "unassigned", "disabled"} or f["state"] not in {"", "active", "inactive", "expired", "upcoming"} \
+                or f["credential"] not in {"", "pin", "no_pin", "card", "no_card"} or f["sort"] not in {"name", "name_desc", "employee"}:
+            raise _Invalid
+        offset, limit = msg.get("offset"), msg.get("limit")
+        if type(offset) is not int or not 0 <= offset <= 10_000_000 or type(limit) is not int or not 1 <= limit <= 200:
+            raise _Invalid
+        requested = _text(msg.get("snapshot", ""), 64)
+    except _Invalid:
+        return None
+    now = datetime.datetime.now(datetime.timezone.utc)
+    digits = re.sub(r"\D", "", text)
+
+    def matches(u: dict[str, Any]) -> bool:
+        if f["group"] and f["group"] not in u["group_ids"]:
+            return False
+        if any(v and u["profile"].get(k) != v for k, v in f["profile"].items()):
+            return False
+        if text and text not in f"{u['display_name']} {u['employee_no']} {u['phone']}".casefold():
+            phone = bool(re.fullmatch(r"[+0-9 ()-]+", text)) and len(digits) >= 3 and digits in re.sub(r"\D", "", u["phone"])
+            card = len(text) == 4 and text.isdigit() and any(c["masked_number"].endswith(text) for c in u["cards"])
+            if not phone and not card:
+                return False
+        assignments = u["assignments"]
+        selected = [assignments[f["station"]]] if f["station"] and f["station"] in assignments else [] if f["station"] else list(assignments.values())
+        if f["station"] and not f["rights"] and not selected:
+            return False
+        if f["rights"] == "assigned" and not any(a["enabled"] for a in selected):
+            return False
+        if f["rights"] == "unassigned" and selected:
+            return False
+        if f["rights"] == "disabled" and not any(not a["enabled"] for a in selected):
+            return False
+        if f["state"] == "active" and not u["active"] or f["state"] == "inactive" and u["active"]:
+            return False
+        if f["state"] == "expired" and (_instant(u["valid_until"]) is None or _instant(u["valid_until"]) > now):
+            return False
+        if f["state"] == "upcoming" and (_instant(u["valid_from"]) is None or _instant(u["valid_from"]) <= now):
+            return False
+        has_card = any(c["enabled"] for c in u["cards"])
+        c = f["credential"]
+        return not (c == "pin" and not u["pin_configured"] or c == "no_pin" and u["pin_configured"] or c == "card" and not has_card or c == "no_card" and has_card)
+
+    rows = [u for u in people if matches(u)]
+    if f["sort"] == "employee":
+        rows.sort(key=lambda u: (_natural(u["employee_no"]), u["id"]))
+    else:
+        rows.sort(key=lambda u: u["id"])
+        rows.sort(key=lambda u: u["display_name"].casefold(), reverse=f["sort"] == "name_desc")
+    total = len(rows)
+    effective = min(offset, ((total - 1) // limit) * limit) if total else 0
+    current = snapshot_token(people)
+    return {
+        "records": copy.deepcopy(rows[effective:effective + limit]), "total": total, "total_all": len(people), "offset": effective, "limit": limit,
+        "next_offset": effective + limit if effective + limit < total else None, "previous_offset": max(0, effective - limit) if effective else None,
+        "snapshot": current, "stale": bool(requested and requested != current),
+    }
+
+
 class World:
     """The fake WisKey's state, shared by the fake socket (feed loop thread) and the control server (its own thread)."""
 
@@ -214,10 +382,24 @@ class World:
             self.events = initial_events()
             self.added = 0
             self.events_delay = 0.0
+            self.people = initial_people()
 
     def push_refresh(self) -> None:
         if self.fake is not None and self.loop is not None:
             self.loop.call_soon_threadsafe(self.fake.refresh)
+
+
+def set_limits(values: dict[str, Any]) -> dict[str, Any]:
+    """The /limits control (and /reset with no values): the given intercom_sync constants - the rest back to their
+    defaults - and the read buckets reset, in the SMPLWISE backend running in this process."""
+    from smplwise.services import intercom_sync  # imported here: the backend must not load before websockets.connect is replaced
+
+    if not LIMIT_DEFAULTS:
+        LIMIT_DEFAULTS.update({name: getattr(intercom_sync, name) for name in LIMIT_NAMES})
+    for name, default in LIMIT_DEFAULTS.items():
+        setattr(intercom_sync, name, type(default)(values.get(name.lower(), default)))
+    intercom_sync.SYNC._buckets_reset()  # noqa: SLF001 - a test control over the in-process backend
+    return {name: getattr(intercom_sync, name) for name in LIMIT_NAMES}
 
 
 WORLD = World()
@@ -272,7 +454,7 @@ class FakeHa:
                 WORLD.sent.append(msg)
             by_id = {s["id"]: s for s in WORLD.stations}
             if kind == "hikvision_intercom/overview":
-                self.push(ok(msg, {"version": VERSION, "api": {"version": 1, "min_client": 0}, "default_zone": ZONE, "user_count": 12, "users": [], "stations": copy.deepcopy(WORLD.stations)}))
+                self.push(ok(msg, {"version": VERSION, "api": {"version": 1, "min_client": 0}, "default_zone": ZONE, "user_count": len(WORLD.people), "users": [], "stations": copy.deepcopy(WORLD.stations)}))
             elif kind == "hikvision_intercom/subscribe":
                 self.wiskey_sub = msg["id"]
                 # the control API's pushes go to THIS socket, on its own loop: SMPLWISE's HA sync opens a second socket
@@ -302,6 +484,12 @@ class FakeHa:
                     asyncio.get_running_loop().call_later(WORLD.events_delay, self.push, frame)
                 else:
                     self.push(frame)
+            elif kind == "hikvision_intercom/users/query":
+                page = query_users(WORLD.people, msg)
+                self.push(ok(msg, page) if page is not None else fail(msg, "invalid_fields"))
+            elif kind == "hikvision_intercom/users/get":
+                match = next((p for p in WORLD.people if p["id"] == msg.get("user_id")), None) if set(msg) == {"id", "type", "user_id"} else None
+                self.push(ok(msg, copy.deepcopy(match)) if match is not None else fail(msg, "user_not_found"))
             elif kind == "hikvision_intercom/tts/engines":
                 self.push(ok(msg, copy.deepcopy(TTS_ENGINES)))
             elif kind == "hikvision_intercom/tts/start":
@@ -405,6 +593,7 @@ class Control(BaseHTTPRequestHandler):
             return self._json(200, {"ok": True})
         if self.path == "/reset":
             WORLD.reset()
+            set_limits({})  # the SMPLWISE backend's own search / rate constants back to their defaults, buckets full
             WORLD.push_refresh()
             return self._json(200, {"ok": True})
         if self.path == "/station":
@@ -446,6 +635,41 @@ class Control(BaseHTTPRequestHandler):
             with WORLD.lock:
                 WORLD.events = sorted(WORLD.events, key=lambda r: (_instant(r["timestamp"]), r["id"]), reverse=True)[:keep]
             return self._json(200, {"ok": True})
+        if self.path == "/people/touch":
+            with WORLD.lock:
+                p = next((x for x in WORLD.people if x["id"] == body.get("id")), None)
+                if p is None:
+                    return self._json(404, {"error": "no_such_person"})
+                p["revision"] += 1
+                p["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                # as in WisKey, an edited person's assignments go back to `pending` until the stations are reconciled,
+                # and each such station's pending_user_count rises: that is what changes SMPLWISE's overview projection
+                # and makes its feed relay `intercom_refresh` to browsers (it relays only real changes)
+                for sid, a in p["assignments"].items():
+                    a["desired_revision"] = p["revision"]
+                    a["sync_state"] = "pending"
+                    for s in WORLD.stations:
+                        if s["id"] == sid:
+                            s["pending_user_count"] += 1
+            WORLD.push_refresh()
+            return self._json(200, {"ok": True, "revision": p["revision"]})
+        if self.path == "/people/remove":
+            with WORLD.lock:
+                p = next((x for x in WORLD.people if x["id"] == body.get("id")), None)
+                if p is None:
+                    return self._json(404, {"error": "no_such_person"})
+                WORLD.people = [x for x in WORLD.people if x is not p]
+                for sid in p["assignments"]:
+                    for s in WORLD.stations:
+                        if s["id"] == sid and s["managed_user_count"]:
+                            s["managed_user_count"] -= 1
+            if body.get("notify", True):
+                WORLD.push_refresh()
+            return self._json(200, {"ok": True})
+        if self.path == "/limits":
+            if set(body) - {"scan_page", "max_scan_pages", "user_burst", "user_rate"} or any(isinstance(v, bool) or not isinstance(v, (int, float)) or v < 0 for v in body.values()):
+                return self._json(422, {"error": "scan_page, max_scan_pages, user_burst, user_rate: non-negative numbers"})
+            return self._json(200, {"ok": True, "limits": set_limits(body)})
         if self.path == "/mode":
             if body.get("unlock") not in ("accept", "unexpected", "unconfirmed"):
                 return self._json(422, {"error": "unlock must be accept, unexpected or unconfirmed"})
