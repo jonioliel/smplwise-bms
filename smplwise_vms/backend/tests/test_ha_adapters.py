@@ -62,7 +62,7 @@ def test_catalogue_carries_risk_and_argument_specs(paired):
     app, s, c, calls, ids = paired
     d = c.get("/api/v1/ha/entities/climate.hall", headers=as_user("omer")).json()
     by = {a["id"]: a for a in d["actions"]}
-    assert set(by) == {"climate.set_hvac_mode", "climate.set_temperature"}
+    assert set(by) == {"climate.set_hvac_mode", "climate.set_temperature", "climate.set_fan_mode", "climate.turn_off"}  # the last two: CR-007 slice 2
     assert by["climate.set_hvac_mode"]["risk"] == "routine" and by["climate.set_hvac_mode"]["argument_specs"][0]["choices"][:3] == ["off", "heat", "cool"]
     assert by["climate.set_temperature"]["argument_specs"] == [{"name": "temperature", "type": "float", "min": 5, "max": 35}]
     al = {a["id"]: a for a in c.get("/api/v1/ha/entities/alarm_control_panel.home", headers=as_user("omer")).json()["actions"]}

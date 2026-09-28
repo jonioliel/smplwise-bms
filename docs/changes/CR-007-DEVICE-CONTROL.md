@@ -63,10 +63,12 @@ WisKey does).
   (viewer and above, like `map.read`; scoped like `map.read`/`entity.state.read` - held at installation scope it
   covers everything, held by a floor binding it narrows the tree and the area cards to the entities placed on those
   floors, exactly as `/ha/entities` does; the nav entry is therefore not installation-only, unlike WisKey's -
-  coordinator ruling on the slice-1 review, 2026-09-28), `devices.control` (single-entity one-tap actions; operator and above),
+  coordinator ruling on the slice-1 review, 2026-09-28), `devices.control` (single-entity one-tap actions on light,
+  switch, input_boolean, cover, climate, fan and media_player only; operator, site_admin, system_admin - see §7.7),
   `devices.control_bulk` (floor/area/building actions; site_admin + system_admin, in the sensitive list).
-  Locks/alarm keep their own gates (`access.release` for WisKey doors; HA lock/alarm entities get `devices.control`
-  plus the server confirmation).
+  Locks/alarm keep their own gates (`access.release` for WisKey doors; HA lock, alarm panel, siren, script, scene
+  and button entities stay behind `ha.entity.control` - `devices.control` never reaches them, §7.7 - plus the server
+  confirmation and, for unlock / disarm, `door.unlock` / `alarm.disarm`).
 - **Layout editor** (§5 slice 6): per-area card layout (order, span, title, title size, colours, text size,
   visible entities, visibility) stored per installation with per-device variants (desktop/tablet/phone), a
   "default" that returns to the automatic layout, undo/redo in the session, `map.edit`-tier permission
@@ -111,6 +113,24 @@ existing HA fixture. No device access beyond HA's own service calls; no WisKey c
    `devices.read` follows the holder's scope: installation-wide sees the whole building, a floor binding sees only
    what is placed on those floors (slice 1, recorded 2026-09-28).
 6. Style: SMPLWISE by default; glass selectable per user.
+7. `devices.control` (coordinator ruling on the slice-2 review, 2026-09-28): granted by default to operator,
+   site_admin and system_admin - NOT editor, keeping the recorded decision (routers/access.py, access.release) that
+   editor's permissions are content authoring and it holds no control permission at all; not viewer, not kiosk. A
+   caller who passes the action route only through `devices.control` reaches the domains light, switch,
+   input_boolean, cover, climate, fan and media_player - never lock, alarm_control_panel, siren, script, scene or
+   button, which stay behind `ha.entity.control` (an audited 403 otherwise; `ha.entity.control` keeps every right it
+   had before this slice).
+8. Cover movement is one physical action whichever control starts it (coordinator ruling on the slice-2 review,
+   2026-09-28): `cover.set_cover_position` has the same "attention" risk as open / close, so the position slider arms
+   on release and runs on a confirming tap (the server insists on the confirmation), rather than open / close being
+   loosened. Stop stays routine and is never disabled, least of all while the cover moves.
+9. Honesty of the optimistic UI (slice-2 review): the row's text is always what Home Assistant last reported; a
+   pending command shows a visible "ממתין לאישור" line and its target only on the control itself. An action is
+   "confirmed" only when HA reported the effect - the state, or the attribute that carries it (`current_position`,
+   `percentage` within the fan's step, `temperature`, `fan_mode`, `is_volume_muted`); an action with nothing
+   observable (stop, a target temperature on an entity without a single `temperature`, mute on a player that does
+   not report it) is shown as "נשלח" (sent), never as confirmed. The HA-side bridge allow-list is 0.2.4 (the new
+   services), and a backend test now fails whenever the add-on's allow-list holds an action the bridge's does not.
 
 ## 8. Next step
 

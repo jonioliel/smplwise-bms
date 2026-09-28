@@ -29,6 +29,9 @@ ATTR_ALLOW = {
     "hvac_action", "fan_mode", "preset_mode", "percentage", "battery_level", "battery", "occupancy", "motion", "contact", "door", "window",
     "locked", "code_format", "options", "min", "max", "step", "mode", "media_title", "volume_level", "is_volume_muted", "source", "last_triggered",
     "restored", "assumed_state", "entity_picture_local", "editable", "power", "voltage", "current", "energy",
+    # CR-007 slice 2: what the devices-area controls offer (the modes an entity really has, its target range) and
+    # the step an attribute confirmation must tolerate (a 3-speed fan lands on 33/67/100)
+    "fan_modes", "min_temp", "max_temp", "target_temp_step", "percentage_step",
 }
 STATE_DOMAINS_SKIP = {"update", "image", "conversation", "zone", "person", "device_tracker", "notify", "tts", "stt", "wake_word", "assist_satellite"}
 

@@ -56,6 +56,9 @@ ALLOWED_SERVICES = {
     ("input_boolean", "turn_on"), ("input_boolean", "turn_off"), ("vacuum", "start"), ("vacuum", "return_to_base"),
     ("siren", "turn_on"), ("siren", "turn_off"),
     ("alarm_control_panel", "alarm_arm_home"), ("alarm_control_panel", "alarm_arm_away"), ("alarm_control_panel", "alarm_disarm"),
+    # 0.2.4 (CR-007 slice 2): the devices area's single-entity controls
+    ("fan", "set_percentage"), ("cover", "set_cover_position"), ("climate", "set_fan_mode"), ("climate", "turn_off"),
+    ("media_player", "turn_on"), ("media_player", "turn_off"), ("media_player", "volume_mute"),
 }
 
 

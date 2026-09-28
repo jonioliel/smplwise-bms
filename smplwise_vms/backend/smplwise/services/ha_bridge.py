@@ -15,6 +15,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import math
 import secrets
 import sqlite3
 import time
@@ -84,12 +85,19 @@ RISK_LABEL = {"routine": "שגרתית", "attention": "דורשת אישור", "
 HVAC_MODES = ["off", "heat", "cool", "heat_cool", "auto", "dry", "fan_only"]
 
 
-def _a(domain: str, service: str, label: str, *, args: dict[str, Any] | None = None, expect: str | None = None, risk: str = "routine", grant: str | None = None, expect_from: str | None = None) -> dict[str, Any]:
+def _a(domain: str, service: str, label: str, *, args: dict[str, Any] | None = None, expect: str | None = None, risk: str = "routine", grant: str | None = None, expect_from: str | None = None,
+       expect_attr: tuple[str, str, float | str | None] | None = None) -> dict[str, Any]:
     d: dict[str, Any] = {"domain": domain, "service": service, "args": args or {}, "expect": expect, "sensitive": risk != "routine", "risk": risk, "label": label}
     if grant:
         d["grant"] = grant
     if expect_from:
         d["expect_from"] = expect_from
+    if expect_attr:
+        # CR-007 slice 2 review: an action whose effect is not the entity's state (a cover's position, a fan's
+        # percentage, a climate target/fan mode, a player's mute) is confirmed from the attribute that reports it,
+        # never by comparing the state to the argument ("40" is never a cover's state). (attribute, argument,
+        # tolerance): a number, None for an exact match, or the name of an attribute holding the device's own step.
+        d["expect_attr"] = {"attribute": expect_attr[0], "argument": expect_attr[1], "tolerance": expect_attr[2]}
     return d
 
 
@@ -102,9 +110,13 @@ ACTIONS: dict[str, dict[str, Any]] = {
     "switch.turn_off": _a("switch", "turn_off", "כיבוי", expect="off"),
     "fan.turn_on": _a("fan", "turn_on", "הפעלה", args={"percentage": ("int", 1, 100)}, expect="on"),
     "fan.turn_off": _a("fan", "turn_off", "כיבוי", expect="off"),
+    "fan.set_percentage": _a("fan", "set_percentage", "עוצמת מאוורר", args={"percentage": ("int", 0, 100)}, expect_attr=("percentage", "percentage", "percentage_step")),
     "cover.open_cover": _a("cover", "open_cover", "פתיחה", expect="open", risk="attention"),
     "cover.close_cover": _a("cover", "close_cover", "סגירה", expect="closed", risk="attention"),
     "cover.stop_cover": _a("cover", "stop_cover", "עצירה"),
+    # one physical movement whichever control starts it: the same "attention" risk as open/close (coordinator ruling,
+    # CR-007 s7), so the UI arms-then-confirms on the slider release and the server insists on the confirmation
+    "cover.set_cover_position": _a("cover", "set_cover_position", "מיקום", args={"position": ("int", 0, 100)}, risk="attention", expect_attr=("current_position", "position", 2)),
     "lock.lock": _a("lock", "lock", "נעילה", expect="locked"),
     "lock.unlock": _a("lock", "unlock", "פתיחה", expect="unlocked", risk="sensitive", grant="door.unlock"),
     "button.press": _a("button", "press", "לחיצה", risk="attention"),
@@ -112,11 +124,17 @@ ACTIONS: dict[str, dict[str, Any]] = {
     "scene.turn_on": _a("scene", "turn_on", "הפעלת סצנה", risk="attention"),
     # T040: more adapters
     "climate.set_hvac_mode": _a("climate", "set_hvac_mode", "מצב פעולה", args={"hvac_mode": ("enum", HVAC_MODES)}, expect_from="hvac_mode"),
-    "climate.set_temperature": _a("climate", "set_temperature", "טמפרטורת יעד", args={"temperature": ("float", 5, 35)}),
+    "climate.set_temperature": _a("climate", "set_temperature", "טמפרטורת יעד", args={"temperature": ("float", 5, 35)}, expect_attr=("temperature", "temperature", 0.05)),
+    # CR-007 slice 2: the devices area's climate card (mode/target already covered by set_hvac_mode/set_temperature above)
+    "climate.set_fan_mode": _a("climate", "set_fan_mode", "מצב מאוורר", args={"fan_mode": ("str", 1, 40)}, expect_attr=("fan_mode", "fan_mode", None)),
+    "climate.turn_off": _a("climate", "turn_off", "כיבוי מיזוג", expect="off"),
     "media_player.media_play": _a("media_player", "media_play", "נגן", expect="playing"),
     "media_player.media_pause": _a("media_player", "media_pause", "השהה", expect="paused"),
     "media_player.media_stop": _a("media_player", "media_stop", "עצור"),
-    "media_player.volume_set": _a("media_player", "volume_set", "עוצמת שמע", args={"volume_level": ("float", 0, 1)}),
+    "media_player.volume_set": _a("media_player", "volume_set", "עוצמת שמע", args={"volume_level": ("float", 0, 1)}, expect_attr=("volume_level", "volume_level", 0.01)),
+    "media_player.volume_mute": _a("media_player", "volume_mute", "השתקה", args={"is_volume_muted": ("bool",)}, expect_attr=("is_volume_muted", "is_volume_muted", None)),
+    "media_player.turn_on": _a("media_player", "turn_on", "הדלקה", expect="on"),
+    "media_player.turn_off": _a("media_player", "turn_off", "כיבוי", expect="off"),
     "number.set_value": _a("number", "set_value", "קביעת ערך", args={"value": ("float", -1e9, 1e9)}, expect_from="value"),
     "input_number.set_value": _a("input_number", "set_value", "קביעת ערך", args={"value": ("float", -1e9, 1e9)}, expect_from="value"),
     "select.select_option": _a("select", "select_option", "בחירה", args={"option": ("str", 1, 80)}, expect_from="option"),
@@ -139,6 +157,8 @@ def _arg_spec(name: str, schema: tuple[Any, ...]) -> dict[str, Any]:
         return {"name": name, "type": "enum", "choices": list(schema[1])}
     if typ == "str":
         return {"name": name, "type": "str", "min_len": schema[1], "max_len": schema[2]}
+    if typ == "bool":
+        return {"name": name, "type": "bool"}
     return {"name": name, "type": typ, "min": schema[1], "max": schema[2]}
 
 
@@ -182,11 +202,83 @@ def validate_action(action_id: str, entity_id: str, arguments: dict[str, Any]) -
             if not isinstance(value, str) or not schema[1] <= len(value.strip()) <= schema[2]:
                 raise ApiError(422, "validation", f"{name}: טקסט באורך {schema[1]}–{schema[2]} תווים.")
             data[name] = value.strip()
-    missing = [n for n in spec["args"] if n not in data and spec.get("expect_from") == n]
+        elif typ == "bool":
+            if not isinstance(value, bool):
+                raise ApiError(422, "validation", f"{name} חייב להיות אמת/שקר.")
+            data[name] = value
+    ea = spec.get("expect_attr")
+    missing = [n for n in spec["args"] if n not in data and (spec.get("expect_from") == n or (ea and ea["argument"] == n))]
     if missing:
         raise ApiError(422, "validation", f"חסר ארגומנט: {missing[0]}", details={"argument": missing[0]})
     if spec.get("expect_from") and spec["expect_from"] in data:
         # the state Home Assistant reports after success is the value we asked for (a mode, an option, a number)
         v = data[spec["expect_from"]]
         spec = {**spec, "expect": (str(int(v)) if isinstance(v, float) and v.is_integer() else str(v))}
+    if ea:
+        # stored as a readable "attribute=value" (never compared to the state); expectation_for() drops it when the
+        # entity does not report that attribute at all, and the action is then honestly "sent", not "confirmed"
+        spec = {**spec, "expect": f"{ea['attribute']}={_fmt(data[ea['argument']])}"}
     return spec, data
+
+
+def _fmt(v: Any) -> str:
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    return str(int(v)) if isinstance(v, float) and v.is_integer() else str(v)
+
+
+def expectation_for(spec: dict[str, Any], attributes: dict[str, Any] | None) -> str | None:
+    """The expected_state to record for this request: an attribute expectation only when the entity reports that
+    attribute now (a climate in heat_cool mode has no single `temperature`; a player may not report mute) - otherwise
+    None, which the poll reports as "sent" (confirmation "none"), never as a confirmed fact."""
+    ea = spec.get("expect_attr")
+    if ea and (attributes or {}).get(ea["attribute"]) is None:
+        return None
+    return spec.get("expect")
+
+
+def confirmation_kind(action_id: str, expected_state: str | None) -> str:
+    """How an action record is confirmed: "state" (the entity's state reached the expected one), "attribute" (the
+    attribute that reports the effect reached the argument, within its tolerance) or "none" (nothing observable -
+    the UI says "sent", never "confirmed")."""
+    if not expected_state:
+        return "none"
+    return "attribute" if (ACTIONS.get(action_id) or {}).get("expect_attr") else "state"
+
+
+def attribute_reached(action_id: str, arguments: dict[str, Any], state: str | None, attributes: dict[str, Any] | None) -> bool:
+    """Whether the entity's reported attribute matches what the action asked for (confirmation_kind "attribute")."""
+    ea = (ACTIONS.get(action_id) or {}).get("expect_attr")
+    if not ea:
+        return False
+    attrs = attributes or {}
+    target = (arguments or {}).get(ea["argument"])
+    actual = attrs.get(ea["attribute"])
+    if isinstance(target, str):
+        return isinstance(actual, str) and actual == target.strip()
+    if isinstance(target, bool) or ea["tolerance"] is None:
+        return actual is target if isinstance(target, bool) else actual == target
+    try:
+        want = float(target)
+    except (TypeError, ValueError):
+        return False
+    if actual is None:
+        # a fan set to 0 % turns off, a cover at 0 closes; some integrations then drop the attribute
+        return want == 0 and state in ("off", "closed")
+    try:
+        got = float(actual)
+    except (TypeError, ValueError):
+        return False
+    tol = ea["tolerance"]
+    if isinstance(tol, str):
+        # the device's own step: Home Assistant maps a requested percentage UP to the next speed step (a 3-speed fan
+        # asked for 50 runs at speed 2 = 66/67, never at 33), so the confirmation expects exactly that step - within
+        # 1 point for HA's own rounding of 66.67 - and a fan that stayed on 33 is never taken for confirmed
+        try:
+            step = float(attrs.get(tol) or 0.0)
+        except (TypeError, ValueError):
+            step = 0.0
+        if step > 1.0 and want > 0:
+            want = min(100.0, math.ceil(want / step - 1e-6) * step)
+        tol = 1.0
+    return abs(got - want) <= float(tol) + 1e-9

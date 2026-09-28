@@ -3,6 +3,7 @@ state, actions through the bridge (pairing, HMAC, idempotency, confirmation), di
 from __future__ import annotations
 
 import datetime as dt
+import json
 import time
 from dataclasses import replace
 
@@ -87,6 +88,39 @@ def test_scope_placement_and_map_bundle(ha_app):
     assert c.get("/api/v1/ha/entities/light.lobby", headers=as_user("ron")).status_code == 403
     bind(c, s, "vi", "viewer", "floor", ids["floor3"])
     assert c.get("/api/v1/ha/entities", headers=as_user("vi")).json()["entities"] == []
+
+
+def test_ws_scope_hides_entities_on_other_floors(ha_app):
+    """The gap carried from slice 1 (CR-007 s5 slice 2 note): /ha/ws must honour the same floor scope as the
+    catalogue and the devices area. lock.front is placed on ANOTHER floor (floor3) than the viewer's (floor2): its push
+    is really broadcast (a wide observer on the same bus receives it) and still never reaches the floor-scoped socket,
+    which receives only the light placed on its own floor."""
+    app, s = ha_app
+    c = TestClient(app)
+    ids = seed_tree(c)
+    for fid in (ids["floor2"], ids["floor3"]):
+        asset = c.post(f"/api/v1/floors/{fid}/plan-assets", files={"file": ("p.png", png_bytes(), "image/png")}).json()
+        v = c.post(f"/api/v1/floors/{fid}/plan-versions", json={"asset_id": asset["id"]}).json()
+        c.post(f"/api/v1/plan-versions/{v['id']}/publish")
+    assert c.post(f"/api/v1/floors/{ids['floor2']}/anchors", json={"resource_type": "ha_entity", "resource_id": "light.lobby", "x": 0.2, "y": 0.2}).status_code == 201
+    assert c.post(f"/api/v1/floors/{ids['floor3']}/anchors", json={"resource_type": "ha_entity", "resource_id": "lock.front", "x": 0.3, "y": 0.3}).status_code == 201
+    bind(c, s, "ron", "viewer", "floor", ids["floor2"])
+    observer = ha_sync.subscribe()  # a wide listener on the same bus: proves the lock.front push was really published
+    try:
+        with c.websocket_connect("/api/v1/ha/ws", headers=as_user("ron")) as ws:
+            assert c.post("/api/v1/ha/dev/states", json={"states": [{"entity_id": "lock.front", "state": "unlocked"}]}).status_code == 200
+            assert c.post("/api/v1/ha/dev/states", json={"states": [{"entity_id": "light.lobby", "state": "on"}]}).status_code == 200
+            broadcast = [observer.get(timeout=2)["entity"]["entity_id"] for _ in range(2)]
+            assert broadcast == ["lock.front", "light.lobby"], broadcast
+            # the socket's entity pushes, in order: lock.front was published first, so if it leaked it would come first
+            while True:
+                msg = json.loads(ws.receive_text())
+                if msg["type"] != "entity_state_changed":
+                    continue  # a heartbeat
+                assert msg["payload"]["entity"]["entity_id"] == "light.lobby", "lock.front (placed on floor3) reached a floor2-scoped socket"
+                break
+    finally:
+        ha_sync.unsubscribe(observer)
 
 
 def test_bridge_signing_and_directory(ha_app):
