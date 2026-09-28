@@ -23,8 +23,10 @@ a signal that does not match the call state is refused `device_unavailable`, as 
 Station cameras (the entry center's stills, GET /intercom/stations/{id}/camera-snapshot.jpg, grabbed THROUGH go2rtc):
 GO2RTC_URL is forced to a `.test` host whose `/api/frame.jpeg` is answered by an httpx transport hook in this process (no
 real go2rtc or station is reached). Each station has a documentation-range host (192.0.2.x, RFC 5737); gate, lobby and
-store have a camera, office has none. The fake go2rtc answers a small synthetic JPEG (no real frame) only for a
-`smplwise_wiskey_<id>` name whose source is that station's RTSP URL with the account the station accepts: the shared
+store have a camera, office has none. The fake go2rtc keeps streams like go2rtc's GetOrPatch: a raw `rtsp://` src
+with a `name` registers (or re-points) that name, a bare name is looked up, and an unknown bare name is a 404 (as after a
+go2rtc restart, POST /go2rtc/restart). It answers a small synthetic JPEG (no real frame) only for a
+`smplwise_wiskey_<id>` stream whose source is that station's RTSP URL with the account the station accepts: the shared
 fixture account (WISKEY_USER / WISKEY_PASSWORD below) for gate and store, `lobby-admin` / `lobby-pass` for lobby - so
 lobby's still appears only after a per-station override is set (PUT /api/v1/intercom/stations/lobby/credentials).
 
@@ -35,8 +37,9 @@ Control API (SW_WISKEY_CONTROL_PORT, default SW_PORT + 10, 127.0.0.1 only), JSON
                                         "unexpected" (success: true with a result of an unexpected shape) or
                                         "unconfirmed" (WisKey's `release_unconfirmed`: the door may have opened)
     GET  /sent                          every hikvision_intercom/* frame the fake received, in order
-    GET  /frame-hits                    every /api/frame.jpeg request the fake go2rtc got since start (not reset):
-                                        {name, host, user, ok}
+    GET  /frame-hits                    every /api/frame.jpeg request the fake go2rtc got since the last /reset:
+                                        {name, raw (the query carried an rtsp:// source), host, user, ok}
+    POST /go2rtc/restart                the fake go2rtc forgets its in-memory streams, as a go2rtc restart does
     POST /events/add {count}            add `count` access events newer than any other and push `refresh` (WisKey's
                                         EventManager.changed() does the same on every accepted event)
     POST /events/prune {keep}           keep only the newest `keep` events: an older `before` cursor then expires
@@ -198,15 +201,16 @@ class World:
         self.reset()
         self.fake: FakeHa | None = None
         self.loop: asyncio.AbstractEventLoop | None = None
-        # every frame the fake go2rtc was asked for since the fixture started - not cleared by /reset: the backend's
-        # still cache outlives a reset, so a spec must be able to see a grab made before it began
-        self.frame_hits: list[dict[str, Any]] = []
+        # the fake go2rtc's in-memory streams (name -> source). Not cleared by /reset: go2rtc does not restart when the
+        # fixture WisKey is reset (POST /go2rtc/restart does that)
+        self.go2rtc_streams: dict[str, str] = {}
 
     def reset(self) -> None:
         with self.lock:
             self.stations = initial_stations()
             self.unlock_mode = "accept"
             self.sent: list[dict[str, Any]] = []
+            self.frame_hits: list[dict[str, Any]] = []
             self.events = initial_events()
             self.added = 0
             self.events_delay = 0.0
@@ -327,11 +331,24 @@ _real_handle = httpx.HTTPTransport.handle_request
 
 
 def fake_frame(request: httpx.Request) -> httpx.Response:
-    """go2rtc's /api/frame.jpeg as SMPLWISE uses it: `src` = the station's RTSP URL, `name` = smplwise_wiskey_<id>."""
+    """go2rtc's /api/frame.jpeg as SMPLWISE uses it: `src=<rtsp source>&name=smplwise_wiskey_<id>` registers the stream
+    (go2rtc's GetOrPatch -> Patch), `src=smplwise_wiskey_<id>` alone grabs from a registered one."""
     from urllib.parse import unquote, urlsplit
 
-    name = request.url.params.get("name", "")
-    src = urlsplit(request.url.params.get("src", ""))
+    src_param = request.url.params.get("src", "")
+    raw = src_param.startswith("rtsp://")
+    with WORLD.lock:
+        if raw:
+            name = request.url.params.get("name") or src_param
+            WORLD.go2rtc_streams[name] = src_param
+            source = src_param
+        else:
+            name = src_param
+            source = WORLD.go2rtc_streams.get(name, "")
+        if not source:
+            WORLD.frame_hits.append({"name": name, "raw": False, "host": None, "user": "", "ok": False})
+            return httpx.Response(404, text="streams: source not supported", request=request)
+    src = urlsplit(source)
     sid = name.removeprefix("smplwise_wiskey_")
     user, password = unquote(src.username or ""), unquote(src.password or "")
     ok = (
@@ -339,7 +356,7 @@ def fake_frame(request: httpx.Request) -> httpx.Response:
         and src.port == 554 and src.path == "/Streaming/Channels/101" and ACCOUNTS.get(sid) == (user, password)
     )
     with WORLD.lock:
-        WORLD.frame_hits.append({"name": name, "host": src.hostname, "user": user, "ok": ok})
+        WORLD.frame_hits.append({"name": name, "raw": raw, "host": src.hostname, "user": user, "ok": ok})
     if ok:
         return httpx.Response(200, content=STILL_JPEG, headers={"Content-Type": "image/jpeg"}, request=request)
     return httpx.Response(500, text="rtsp: 401 Unauthorized", request=request)  # the station refused the account
@@ -382,6 +399,10 @@ class Control(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         body = self._body()
+        if self.path == "/go2rtc/restart":
+            with WORLD.lock:
+                WORLD.go2rtc_streams.clear()
+            return self._json(200, {"ok": True})
         if self.path == "/reset":
             WORLD.reset()
             WORLD.push_refresh()
