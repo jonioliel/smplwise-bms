@@ -339,8 +339,9 @@ function anythingOn(c: DeviceCounts): boolean {
   return c.lights_on + c.switches_on + c.covers_open + c.climate_active + c.media_on > 0;
 }
 
-function countsAttr(c: DeviceCounts): string {
-  return pillsOf(c).map((p) => `${p.key}:${p.on === null ? p.total : `${p.on}/${p.total}`}`).join(' ');
+/** The data-counts attribute of an area row: the pills it shows (the sensors count drops with devices.show_sensors). */
+function countsAttr(pills: CountPill[]): string {
+  return pills.map((p) => `${p.key}:${p.on === null ? p.total : `${p.on}/${p.total}`}`).join(' ');
 }
 
 /**
@@ -1159,7 +1160,7 @@ export class DevicesBuilding extends LitElement {
             <span class="pills">${pills.length
               ? pills.map((p) => html`<span class=${classMap({ warm: p.warm })} title=${p.label}><sw-icon .name=${p.icon} size=${12}></sw-icon>${p.on === null ? p.total : `${p.on}/${p.total}`}</span>`)
               : html`<span class="none">אין התקנים</span>`}${c.alarm ? html`<span class=${classMap({ warm: c.alarm !== 'disarmed' })} title="אזעקה"><sw-icon name="shield" size=${12}></sw-icon>${ALARM_HE[c.alarm] ?? c.alarm}</span>` : nothing}</span>`;
-    const attrs = { area: a.area_id, on: String(on), counts: countsAttr(c) };
+    const attrs = { area: a.area_id, on: String(on), counts: countsAttr(pills) };
     if (unassigned) {
       return html`<a class=${where === 'tree' ? 'tree-row' : 'arow'} href=${href} data-area-row=${attrs.area} data-on=${attrs.on} data-counts=${attrs.counts} style="text-decoration:none">${body}</a>`;
     }

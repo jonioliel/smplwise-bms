@@ -45,15 +45,19 @@ CSS (GPL-3.0) is used.
 2. **Palettes.** Each palette sets every knob, on
    `:host([data-devices-style='glass'][data-devices-theme='<id>'])`, in up to three blocks:
    - a **light** block, which is the default;
-   - a **dark** block under `@media (prefers-color-scheme: dark)`, which only needs the knobs that differ;
+   - a **dark** block on the extra host attribute `[data-devices-scheme='dark']` (no media query), which only needs
+     the knobs that differ;
    - an optional **phone** block under `@media (max-width: 767px)`, for sizes only.
 3. **Fallback.** Without `backdrop-filter` support, or when the viewer asks for less transparency
    (`prefers-reduced-transparency: reduce`), the bridge swaps in `--dv-surface-solid` and `--dv-surface-2-solid` and
    turns the blur off. The layout stays the same.
 
-**Light and dark.** The app itself is light only (`tokens.css` sets `color-scheme: light`). The glass style follows the
-viewer's operating-system colour scheme through `prefers-color-scheme`: the light block by default, the dark block (the
-mockup's own dark board) on a dark-mode device. `--dv-color-scheme` sets native form controls and scrollbars to match.
+**Light and dark.** The dark palette is switched only by the host attribute `data-devices-scheme="dark"`, never by
+the OS colour scheme (`prefers-color-scheme` is deliberately not used yet). The app shell is light only (`tokens.css`
+sets `color-scheme: light`), and a black device area inside a white shell on a dark-mode computer was rejected in the
+6a review. In 6a nothing sets the attribute, so the glass style is always light, like the shell. Slice 6b adds the
+`devices.scheme` setting (`auto | light | dark`) that sets it; `auto` may follow the OS there once the choice is the
+owner's. `--dv-color-scheme` sets native form controls and scrollbars to match.
 
 **Motion.** The only movement is the area tile's hover lift (`--dv-hover-lift`). It applies only under
 `prefers-reduced-motion: no-preference`.
@@ -68,7 +72,7 @@ The screenshots are in `docs/evidence/T025/`:
 
 - building: `devices-glass-building-desktop.png`, `devices-glass-building-mobile.png`
 - area: `devices-glass-area-desktop.png`, `devices-glass-area-mobile.png`
-- dark: `devices-glass-area-dark-desktop.png`
+- dark (the attribute set by hand in the spec): `devices-glass-area-dark-desktop.png`
 - owner previews: `glass-preview-building-desktop.png`, `glass-preview-area-desktop.png`,
   `glass-preview-area-phone.png`
 
@@ -161,8 +165,9 @@ literal colours. They illustrate a style and do not read the knobs.
 ## 4. How to add a theme (palette)
 
 1. **Copy the blocks.** In `frontend/src/styles/devices-themes.ts`, copy the three `default` blocks (light, the dark
-   `@media (prefers-color-scheme: dark)` block, and the phone `@media (max-width: 767px)` block). Change the selector to
-   `:host([data-devices-style='glass'][data-devices-theme='<id>'])`. The id must be lower case, for example `ocean`.
+   `[data-devices-scheme='dark']` block, and the phone `@media (max-width: 767px)` block). Change the selectors to
+   `:host([data-devices-style='glass'][data-devices-theme='<id>'])` (and, for the dark block, the same plus
+   `[data-devices-scheme='dark']`). The id must be lower case, for example `ocean`.
 2. **Set every knob** in the light block. Leave none out: a missing knob is empty and the rule using it drops.
    The dark block only needs the knobs that differ in the dark scheme, and the phone block only the sizes.
 3. **Register the id** in two places, in the same change:
@@ -175,7 +180,7 @@ literal colours. They illustrate a style and do not read the knobs.
 5. **Screenshot it.** Copy the first 6a test in `frontend/tests/evidence-devices.spec.ts`, set the theme with
    `devicesSettings(request, {'devices.style': 'glass', 'devices.theme': '<id>'})`, and save with
    `evidenceShot(page, '<id>-building', project)` and `evidenceShot(page, '<id>-area', project)`. Run it on the desktop
-   and mobile projects, in light and in `page.emulateMedia({ colorScheme: 'dark' })`.
+   and mobile projects, in light and with `data-devices-scheme="dark"` set on the host.
 6. **Add the Playwright check.** In that test, assert:
    - `data-devices-theme="<id>"` on `devices-building` and `devices-area`;
    - one distinctive knob, for example `getComputedStyle(host).getPropertyValue('--dv-surface')`;
@@ -198,6 +203,6 @@ least the `default` palette.
 - **Playwright.** `frontend/tests/evidence-devices.spec.ts` has three "6a:" tests, run on the desktop and mobile
   projects:
   - the style switch from the settings section: attribute, theme, knobs, glass material or solid fallback, shell
-    untouched, RTL and LTR, reduced motion, bulk dialog, dark scheme, reduced transparency;
+    untouched, RTL and LTR, reduced motion, bulk dialog, dark only by the attribute (a dark OS alone changes nothing), reduced transparency;
   - density, default view, sensors and climate strip;
   - read-only gating for a viewer.

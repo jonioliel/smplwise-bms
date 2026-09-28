@@ -10,7 +10,8 @@ import { css } from 'lit';
  *   "glass"    = the approved mockup's look; its element rules live next to each screen's template and read ONLY the
  *                `--dv-*` knobs below - never a literal colour, radius, shadow or size.
  * - `data-devices-theme` (setting `devices.theme`): the PALETTE - the values of those knobs. One palette today,
- *   "default"; each palette sets light values, dark values (`prefers-color-scheme: dark`) and, where it wants to,
+ *   "default"; each palette sets light values, dark values (host attribute `data-devices-scheme="dark"`, set by slice 6b's
+ *   `devices.scheme`; never the OS media query - the shell is light only) and, where it wants to,
  *   phone values (max-width 767px). Adding a palette = copying the "default" blocks under a new id and registering it
  *   (DEVICE_THEMES here, THEMES in routers/settings.py) - no screen changes.
  *
@@ -234,43 +235,43 @@ export const devicesThemes = css`
     --dv-tree-inline: 270px;
     --dv-hover-lift: -2px;
   }
-  /* palette "default": dark (the mockup's own board 6) */
-  @media (prefers-color-scheme: dark) {
-    :host([data-devices-style='glass'][data-devices-theme='default']) {
-      --dv-color-scheme: dark;
-      --dv-backdrop: radial-gradient(1200px 600px at 80% -10%, rgba(255, 184, 86, 0.22), transparent 60%),
-        radial-gradient(900px 500px at 10% 110%, rgba(10, 132, 255, 0.25), transparent 60%), #0a0a0c;
-      --dv-surface: rgba(28, 28, 30, 0.72);
-      --dv-surface-2: rgba(44, 44, 46, 0.62);
-      --dv-surface-3: rgba(235, 235, 245, 0.14);
-      --dv-surface-solid: #1c1c1e;
-      --dv-surface-2-solid: #2c2c2e;
-      --dv-border: rgba(255, 255, 255, 0.13);
-      --dv-border-strong: rgba(255, 255, 255, 0.24);
-      --dv-overlay: rgba(0, 0, 0, 0.55);
-      --dv-text: #f5f5f7;
-      --dv-text-2: rgba(235, 235, 245, 0.72);
-      --dv-text-3: rgba(235, 235, 245, 0.56);
-      --dv-accent: #0a84ff;
-      --dv-accent-hover: #409cff;
-      --dv-accent-soft: rgba(10, 132, 255, 0.26);
-      --dv-accent-text: #64d2ff;
-      --dv-focus: #64d2ff;
-      --dv-success: #30d158;
-      --dv-success-soft: rgba(48, 209, 88, 0.2);
-      --dv-warning-soft: rgba(255, 159, 10, 0.2);
-      --dv-danger: #ff453a;
-      --dv-danger-soft: rgba(255, 69, 58, 0.2);
-      --dv-neutral-soft: rgba(142, 142, 147, 0.2);
-      --dv-shadow-1: 0 18px 48px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-      --dv-shadow-2: 0 22px 60px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-      --dv-shadow-3: 0 26px 70px rgba(0, 0, 0, 0.6);
-      --dv-shadow-control: 0 1px 4px rgba(0, 0, 0, 0.35);
-      --dv-icon-ring-bg: rgba(235, 235, 245, 0.12);
-      --dv-icon-ring-on-bg: rgba(255, 255, 255, 0.18);
-      --dv-icon-ring-fg: #f5f5f7;
-      --dv-toggle-on: #30d158;
-    }
+  /* palette "default": dark (the mockup's own board 6) - only on an explicit data-devices-scheme="dark", never from
+     the OS colour scheme: the app shell is light only, and a dark device area inside a white shell was rejected
+     (review of 6a). Slice 6b's devices.scheme setting (auto | light | dark) sets the attribute. */
+  :host([data-devices-style='glass'][data-devices-theme='default'][data-devices-scheme='dark']) {
+    --dv-color-scheme: dark;
+    --dv-backdrop: radial-gradient(1200px 600px at 80% -10%, rgba(255, 184, 86, 0.22), transparent 60%),
+      radial-gradient(900px 500px at 10% 110%, rgba(10, 132, 255, 0.25), transparent 60%), #0a0a0c;
+    --dv-surface: rgba(28, 28, 30, 0.72);
+    --dv-surface-2: rgba(44, 44, 46, 0.62);
+    --dv-surface-3: rgba(235, 235, 245, 0.14);
+    --dv-surface-solid: #1c1c1e;
+    --dv-surface-2-solid: #2c2c2e;
+    --dv-border: rgba(255, 255, 255, 0.13);
+    --dv-border-strong: rgba(255, 255, 255, 0.24);
+    --dv-overlay: rgba(0, 0, 0, 0.55);
+    --dv-text: #f5f5f7;
+    --dv-text-2: rgba(235, 235, 245, 0.72);
+    --dv-text-3: rgba(235, 235, 245, 0.56);
+    --dv-accent: #0a84ff;
+    --dv-accent-hover: #409cff;
+    --dv-accent-soft: rgba(10, 132, 255, 0.26);
+    --dv-accent-text: #64d2ff;
+    --dv-focus: #64d2ff;
+    --dv-success: #30d158;
+    --dv-success-soft: rgba(48, 209, 88, 0.2);
+    --dv-warning-soft: rgba(255, 159, 10, 0.2);
+    --dv-danger: #ff453a;
+    --dv-danger-soft: rgba(255, 69, 58, 0.2);
+    --dv-neutral-soft: rgba(142, 142, 147, 0.2);
+    --dv-shadow-1: 0 18px 48px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    --dv-shadow-2: 0 22px 60px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    --dv-shadow-3: 0 26px 70px rgba(0, 0, 0, 0.6);
+    --dv-shadow-control: 0 1px 4px rgba(0, 0, 0, 0.35);
+    --dv-icon-ring-bg: rgba(235, 235, 245, 0.12);
+    --dv-icon-ring-on-bg: rgba(255, 255, 255, 0.18);
+    --dv-icon-ring-fg: #f5f5f7;
+    --dv-toggle-on: #30d158;
   }
   /* palette "default": phone (sizes only; colours as above) */
   @media (max-width: 767px) {

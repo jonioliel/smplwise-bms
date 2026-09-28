@@ -822,7 +822,7 @@ export class SystemDiagnostics extends LitElement {
     </button>`;
     return html`<div class="sections">
       <sw-card data-devices-settings heading="חשמל והתקנים" subheading="המראה של מסכי החשמל וההתקנים לכל המשתמשים במתקן. תצוגה בלבד: כללי הבטיחות של פעולות מרוכזות (חלון אישור, תוקף, בלי מנעולים, אזעקה ושחרור דלתות) אינם הגדרה.">
-        <div class="row"><span class="lbl">סגנון<span class="muted">SMPLWISE הוא המראה של שאר המערכת; זכוכית היא הסגנון מהמוקאפ שאושר: משטחים שקופים ומטושטשים, אריחים מעוגלים עם אייקון, בהיר או כהה לפי המכשיר. שניהם מימין לשמאל.</span></span>
+        <div class="row"><span class="lbl">סגנון<span class="muted">SMPLWISE הוא המראה של שאר המערכת; זכוכית היא הסגנון מהמוקאפ שאושר: משטחים שקופים ומטושטשים, אריחים מעוגלים עם אייקון. שניהם מימין לשמאל.</span></span>
           <sw-field class="ctl"><select data-set-devices-style ?disabled=${ro} @change=${(e: Event) => pick((e.target as HTMLSelectElement).value === 'glass' ? 'glass' : 'smplwise')}>
             <option value="smplwise" ?selected=${p.style === 'smplwise'}>SMPLWISE</option><option value="glass" ?selected=${p.style === 'glass'}>זכוכית</option>
           </select></sw-field></div>

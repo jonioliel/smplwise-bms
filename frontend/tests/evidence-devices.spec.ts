@@ -1400,12 +1400,17 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
       await evidenceShot(page, 'area', project);
 
-      // the viewer's colour scheme: dark → the mockup's dark glass
+      // dark: a dark OS alone changes nothing (the shell is light only); only the explicit host attribute - set by
+      // slice 6b's devices.scheme - switches the palette to the mockup's dark glass
+      const surface = () => a.evaluate((e) => getComputedStyle(e).getPropertyValue('--dv-surface').trim());
       await page.emulateMedia({ colorScheme: 'dark' });
-      expect(await a.evaluate((e) => getComputedStyle(e).getPropertyValue('--dv-surface').trim())).toBe('rgba(28, 28, 30, 0.72)');
-      if (project === 'desktop') await evidenceShot(page, 'area-dark', project);
+      expect(await surface()).toBe('rgba(255, 255, 255, 0.64)');
       await page.emulateMedia({ colorScheme: 'light' });
-      expect(await a.evaluate((e) => getComputedStyle(e).getPropertyValue('--dv-surface').trim())).toBe('rgba(255, 255, 255, 0.64)');
+      await a.evaluate((e) => e.setAttribute('data-devices-scheme', 'dark'));
+      expect(await surface()).toBe('rgba(28, 28, 30, 0.72)');
+      if (project === 'desktop') await evidenceShot(page, 'area-dark', project);
+      await a.evaluate((e) => e.removeAttribute('data-devices-scheme'));
+      expect(await surface()).toBe('rgba(255, 255, 255, 0.64)');
       expect(glassOrSolid(await material(lighting))).toBe(true);
       // less transparency asked for → the solid fallback (the same one an engine without backdrop-filter gets)
       const cdp = await page.context().newCDPSession(page);
@@ -1455,11 +1460,16 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await expect(b2.locator('[data-climate-strip]')).toHaveCount(0);
       await expect(lobby.locator('.pills span[title="חיישנים"]')).toHaveCount(0);
       await expect(lobby.locator('.pills span[title="תאורה"]')).toHaveCount(1); // only the sensors count goes
+      await expect(lobby).not.toHaveAttribute('data-counts', /sensors:/);
       // the viewer's own toggle wins from then on (remembered in this browser)
       await b2.locator('button[data-layout="cards"]').click();
       await p.reload();
       await expect(p.locator('devices-building section[data-floor-card="cr007_ground"]')).toBeVisible({ timeout: 30000 });
       await expect(p.locator('devices-building button[data-layout="cards"]')).toHaveAttribute('aria-pressed', 'true');
+      // the floor card's area row: its data-counts follow the shown pills (no sensors count either)
+      const row = p.locator('devices-building section[data-floor-card="cr007_ground"] button[data-area-row="cr007_lobby"]');
+      await expect(row).toHaveAttribute('data-counts', /lights:1\/2/);
+      await expect(row).not.toHaveAttribute('data-counts', /sensors:/);
       // the area screen: no sensors card, every other card as before, compact
       await open(p, '/devices/areas/cr007_lobby', 'a');
       const area = p.locator('devices-area');
