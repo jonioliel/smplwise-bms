@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""Validate the planning registry and regenerate read-only views. No network or agents."""
+"""Validate the planning registry and regenerate read-only views. No network or agents.
+
+TODO(T091/R182): scripts/docs_he_check.py reports Hebrew-mirror drift (docs/**/*_HE.md, docs/he/**) and English
+docs still missing a mirror. This script has no plug-in point for another script's summary line today -
+generate() is one fixed sequence of file writes and main() prints one fixed PASS/ERROR message - so the drift
+line is NOT wired in here; run `python scripts/docs_he_check.py` separately. If this script grows a real
+extension point (e.g. a list of `(label, callable) -> str` summary contributors that `generate()` appends to
+STATUS.md), add docs_he_check's one-line summary there.
+"""
 from __future__ import annotations
 import argparse, datetime as dt, html, json, sys
 from pathlib import Path
