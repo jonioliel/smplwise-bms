@@ -1,5 +1,28 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.114 (pilot) — WisKey person editor (CR-005 phase 2, slice A1)
+- The first write to WisKey's people store from this product: create, edit and delete a person - identity,
+  employee number, validity (permanent or a date range), PIN with "generate a unique PIN", cards entered by
+  number and shown masked (`•••• 1234`, all WisKey ever returns), station assignments with their relays -
+  opened from the People directory. Weekly schedules, station-native schedules, photos, card capture and
+  group editing follow in slices A2/A3 (the form says so; nothing is stubbed).
+- New installation permission `access.people.manage`, granted by default to site_admin and system_admin
+  only, listed as sensitive; grantable to one person through a custom role, as the owner asked.
+- The write path is the door-release pattern: permission before the body, JSON only, a command id with a
+  short server-clock expiry, an audit attempt row before sending and an outcome row after, under the real
+  SMPLWISE actor - never a PIN, card or phone in any row, log or error. Every WisKey error code classified as
+  "refused" was proven from WisKey's source to be raised before its store is written (collisions, revision
+  conflicts, storage stopping); everything else is reported as "outcome unknown". People writes run on their
+  own feed lane, so a stalled save can never block a door release or a read.
+- Found in the adversarial review and fixed before release: removing a relay from a person's existing station
+  was silently ignored by WisKey when sent in the absolute `assignments` form, while the screen said "saved" -
+  the editor now sends exactly what WisKey's own panel sends (`permission_overrides`, `door_permissions`,
+  `access_policy_revision`), the legacy form is refused, the committed fake WisKey runs a copy of WisKey's own
+  permission rule so the bug would have been caught, and a live test walks add → save → reopen → remove →
+  reopen. Verified by running the payload through WisKey's real code for four scenarios.
+- Open owner question recorded in CR-005: a generated PIN is shown only in a password field (as in WisKey), so
+  the admin cannot read it to hand over. Tests: 143 intercom tests (50 new), live editor 8/8 and people 7/7.
+
 ## 0.1.113 (pilot) — Plan Studio 3D quality level 2 (CR-006 slice 1a)
 - Owner request (2026-09-28): the 3D floor map should reach the visual level of the isometric dashboards the
   owner showed, in a first phase with no external products. This release adds a second real-time quality level
