@@ -1,5 +1,31 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.126 (pilot) — Home Assistant structure changes reach the device screens within seconds (owner report)
+- Owner report (2026-09-28): an entity moved to another area in Home Assistant did not move in "חשמל והתקנים" until
+  the add-on was restarted. Root causes, from the code: the HA sync subscribed to `state_changed` only and read the
+  registries (entities, devices, areas, floors) at connect and then every 600 s; a periodic refresh sent nothing to
+  open screens; a refused or partial listing was applied as "empty", so entities whose area comes from their device
+  fell to "ללא שיוך", were tombstoned and lost their bulk-safe marks; entities deleted in HA lingered if they had
+  reported a state since the connect. The entity → area rule itself (entity area, else device area) was right.
+- Now: the sync subscribes to HA's `entity_registry_updated`, `device_registry_updated`, `area_registry_updated` and
+  `floor_registry_updated` (allowed for non-admin tokens; a refused subscription is logged and the session goes on).
+  A burst of events becomes one refresh after 1.5 s (never later than 10 s after the first); when the mirror actually
+  changed, a `structure_changed` push reaches the device screens and the entity catalogue, which refetch and show
+  "מבנה עודכן". The 600 s refresh stays as a safety net. Measured on the fixture: HA change → screen in 1.6-1.7 s;
+  state changes were and are 35-63 ms.
+- A failed or empty entity listing, or a failed device listing, now writes nothing; a failed area or floor listing
+  keeps that table. An entity that leaves HA's registry is tombstoned; an integration reload (state removed,
+  registry entry kept) only marks it unavailable and keeps its bulk-safe mark.
+- "רענן מ־Home Assistant" on the building screen (`POST /devices/refresh`, `devices.read`, one call per user per 10 s,
+  a result younger than 3 s is reused; 503 without HA, 502 when a listing fails, 504 when it takes over 30 s - the
+  write is never cut short, two mirror writes can never overlap). The screen shows when the structure last changed
+  and when it was last checked.
+- Tests: 9 new backend tests for the sync (the owner's move scenario, debounce, device vs entity area, partial
+  failures incl. kept marks, removal / reload, the dev push, the manual refresh's permission / rate limit / errors /
+  no overlapping writes, a refused subscription); 70 passed in the device set on the merged tree; the Playwright
+  fixture now runs a fake HA WebSocket that the real sync connects to, with two new specs (a move is seen without a
+  page reload; the refresh button and its 429). Opus review + fix round + scoped re-review.
+
 ## 0.1.125 (pilot) — Device control: climate and covers in full, sensors, assign an entity to an area (CR-007 slice 4)
 - **Home Assistant must be restarted once** after this update: the bridge integration moves to 0.2.5 (nine new
   allow-listed services and one registry write, below).

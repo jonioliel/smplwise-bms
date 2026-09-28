@@ -153,6 +153,13 @@ adapter next to T063's. No HA writes, no device access, no external calls in pha
 > after `git pull`, bumps the version from the current tip, never reuses a version number, and does not start a
 > release while the other session's release commit is not yet pushed; both sessions keep the full backend suite
 > to one run at a time on this workstation (the timing tests fail under concurrent load - see the T054 evidence).
+>
+> Decision 2026-09-29 (owner in chat): **phase 2 paused after slice 2a.** "As it looks for now I am not going to use
+> AI for more advanced renders." Slices 2b (render-set proposal, send dialog, stored renders) and 2c (compositing +
+> presence fade on skins) are not scheduled; the 2a foundation stays in the product, inert without a key and the
+> acknowledgement. The owner also asked how a ChatGPT account connects to this - answered in
+> `docs/operations/OPENAI_ACCOUNT_SETUP_HE.md` (a ChatGPT subscription is not an API account; an API key with its own
+> billing is what the add-on takes). Priority moved to CR-007 slice 6 (6a settings + style first, then 6b layout).
 
 ## 7a. Implementation record - slice 1a (2026-09-28, branch `pilot/T087-plan-visual-1a`)
 
