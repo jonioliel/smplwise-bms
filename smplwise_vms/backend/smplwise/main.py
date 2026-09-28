@@ -46,6 +46,7 @@ def janitor_tick(db: Database, settings: Settings) -> None:
     from .services import nvr_write
 
     nvr_write.stop_expired_manual(db, settings)  # A1: manual recordings past their planned stop
+    db.checkpoint()  # a PASSIVE WAL checkpoint (TRUNCATE only for an oversized WAL); never queues writers
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -256,4 +257,40 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     else:
         log.warning("no built UI found (SW_WWW_DIR=%s); API only", www)
 
+    commit_before_send(app)
     return app
+
+
+class CommitBeforeSend:
+    """ASGI middleware: when a response starts, the request's SQLite connections (auth.get_conn / get_read_conn, kept in
+    the request state) are committed first (auth.release_request), so the body is sent without the transaction. FastAPI
+    closes a dependency with yield only after the whole response went out, so a download (an export, a bundle, a backup)
+    or a slow client over Ingress otherwise held SQLite's single write lock for the whole transfer - one of the holders
+    behind the round-10 "database is locked" storm. A handler that raised is unchanged: its dependency has already
+    committed (expected API errors, with their audit rows) or rolled back before the error response starts."""
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        from starlette.concurrency import run_in_threadpool
+
+        from .auth import release_conns
+
+        scope.setdefault("state", {})  # the request state (and its sw_conns) is shared through this dict
+
+        async def send_after_commit(message) -> None:
+            if message["type"] == "http.response.start":
+                conns = (scope.get("state") or {}).get("sw_conns")
+                if conns:
+                    await run_in_threadpool(release_conns, conns)
+            await send(message)
+
+        await self.app(scope, receive, send_after_commit)
+
+
+def commit_before_send(app: FastAPI) -> None:
+    app.add_middleware(CommitBeforeSend)

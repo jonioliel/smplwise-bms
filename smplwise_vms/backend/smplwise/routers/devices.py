@@ -32,7 +32,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
-from ..db import Database, get_setting, now_iso
+from ..db import Database, get_setting, now_iso, unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import device_bulk as bulk
@@ -220,7 +220,8 @@ def assign_area(entity_id: str, request: Request, principal: Principal = Depends
         raise ApiError(503, "bridge_not_paired", "שיוך אזור דורש את גשר SMPLWISE מותקן ומצומד ב־Home Assistant.")
     payload = ha_bridge.sign(secret, {"user_id": principal.user_id, "entity_id": entity_id, "area_id": body.area_id, "request_id": uuid.uuid4().hex[:12]})
     try:
-        result = ha_client.call_bridge_set_area(settings, payload)
+        with unlocked(conn):  # the HA call runs without the request's write lock (round-10 lock storm)
+            result = ha_client.call_bridge_set_area(settings, payload)
     except ApiError as exc:
         audit(conn, actor=principal, action="devices.assign_area", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason=exc.code, request_id=rid,
               details={"area_id": body.area_id, "from_area_id": erow["area_id"]})

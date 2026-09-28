@@ -176,8 +176,6 @@ def record_start(camera_id: str, body: RecordIn, request: Request, principal: Pr
     cam = _camera_for_record(conn, principal, camera_id)
     if not cam["main_track"]:
         raise ApiError(409, "no_track", "למצלמה אין track ראשי ידוע (גילוי מה־NVR עדיין לא רץ).")
-    with unlocked(conn):
-        pass
     return nvr_write.start_manual(settings_of(request), conn, principal, camera_id, int(cam["main_track"]), body.minutes, request_id=_rid(request))
 
 

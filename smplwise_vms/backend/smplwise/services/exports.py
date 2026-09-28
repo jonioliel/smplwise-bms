@@ -30,7 +30,7 @@ from typing import Any, Callable
 from urllib.parse import parse_qs, urlsplit
 
 from ..config import Settings
-from ..db import Database, now_iso
+from ..db import Database, now_iso, unlocked
 from ..errors import ApiError
 from . import nvr, recordings
 from .timeutil import UTC, iso_utc, nvr_wall_to_utc, parse_utc, zone
@@ -145,7 +145,10 @@ def _row_to_job(row: sqlite3.Row) -> dict[str, Any]:
 
 
 def create_job(conn: sqlite3.Connection, settings: Settings, principal: Any, cam: sqlite3.Row, start: dt.datetime, end: dt.datetime, tz_name: str, max_bytes: int) -> dict[str, Any]:
-    files, coverage = _files_for(settings, conn, cam, start, end, tz_name)
+    # the NVR search (paged, and queued behind any other search: one at a time on this firmware) runs without the
+    # request's write lock - under it, every other writer waited for the NVR (round-10 lock storm)
+    with unlocked(conn):
+        files, coverage = _files_for(settings, conn, cam, start, end, tz_name)
     if not files:
         raise ApiError(409, "no_recording", "אין הקלטה בטווח המבוקש.", details={"coverage": coverage})
     if len(files) > MAX_FILES:

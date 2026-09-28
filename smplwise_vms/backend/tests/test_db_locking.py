@@ -1,0 +1,245 @@
+"""Write-lock discipline (round-10 "database is locked" storm): no device call, notification or response transfer runs
+while SQLite's single write lock is held, busy writes are retried instead of dropped, and every hold is accounted for.
+Each fake device checks, at the moment it is called, that another writer can take the lock without waiting."""
+from __future__ import annotations
+
+import asyncio
+import datetime as dt
+import logging
+import sqlite3
+import threading
+import time
+from dataclasses import replace
+
+import httpx
+import pytest
+from conftest import as_user
+from fastapi.testclient import TestClient
+from test_devices import dev_app  # noqa: F401 - fixture
+from test_exports import fake_pages
+from test_recordings import set_track
+
+from smplwise import db as db_mod
+from smplwise.db import Database, retry_locked
+from smplwise.main import create_app
+from smplwise.services import events_ingest, ha_client, ha_sync, nvr, nvr_write, recordings
+from smplwise.services import rules as rules_svc
+
+
+def lock_is_free(db: Database) -> bool:
+    """True when another connection takes the write lock at once (busy timeout 0)."""
+    probe = sqlite3.connect(db.path, timeout=0, isolation_level=None)
+    try:
+        probe.execute("BEGIN IMMEDIATE")
+        probe.execute("ROLLBACK")
+        return True
+    except sqlite3.OperationalError:
+        return False
+    finally:
+        probe.close()
+
+
+def test_request_commits_before_the_response_is_sent(settings):
+    """A dependency with yield is closed after the body went out; the write lock must not ride along with the transfer\n    (/health runs on a write-mode request connection)."""
+    app = create_app(settings)
+    TestClient(app).get("/api/v1/me")  # bootstrap the dev user
+    db: Database = app.state.db
+    seen: dict[str, bool] = {}
+
+    async def drive() -> None:
+        scope = {"type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1", "method": "GET", "scheme": "http", "path": "/api/v1/health", "raw_path": b"/api/v1/health",
+                 "root_path": "", "query_string": b"", "headers": [(b"host", b"testserver")], "client": ("127.0.0.1", 5000), "server": ("testserver", 80)}
+
+        async def receive():
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        async def send(message):
+            if message["type"] == "http.response.start":
+                seen["status"] = message["status"]
+                seen["free_at_start"] = await asyncio.to_thread(lock_is_free, db)
+
+        await app(scope, receive, send)
+
+    asyncio.run(drive())
+    assert seen == {"status": 200, "free_at_start": True}
+
+
+def test_rule_notification_is_sent_after_the_alert_commit(settings, monkeypatch):
+    s = replace(settings, nvr_host="nvr.local", nvr_user="u", nvr_password="p")
+    app = create_app(s)
+    c = TestClient(app)
+    c.post("/api/v1/cameras", json={"channel": 1, "alias": "lobby"})
+    db: Database = app.state.db
+    with db.connection() as conn:
+        conn.execute("INSERT INTO rules(id, name, trigger_json, scope_json, window_json, cooldown_s, actions_json, created_at, updated_at) VALUES "
+                     "('r1', 'person', '{\"types\": [\"person\"]}', '{}', '{}', 0, '[{\"kind\": \"ha_notify\", \"service\": \"mobile_app_phone\"}]', '2026-09-29T00:00:00Z', '2026-09-29T00:00:00Z')")
+    free: list[bool] = []
+    monkeypatch.setattr(rules_svc, "HA_NOTIFY", lambda service, message, title: (free.append(lock_is_free(db)), "sent")[1])
+    events_ingest.LISTENER.db, events_ingest.LISTENER.settings, events_ingest.LISTENER.tz_getter = db, s, lambda: "Asia/Jerusalem"
+    now = dt.datetime.now(dt.timezone(dt.timedelta(hours=3))).replace(microsecond=0).isoformat()
+    events_ingest.LISTENER._handle(events_ingest.ParsedAlert(raw_type="linedetection", state="active", channel=1, dyn_channel=None, device_time=now, description="",
+                                                             target="human", active_post_count=1))
+    assert free == [True]
+    with db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM rule_alerts WHERE rule_id = 'r1'").fetchone()[0] == 1
+    # the direct API keeps delivering in place (deliver=True) and reports the status
+    with db.connection() as conn:
+        fired = rules_svc.evaluate_event(conn, {"id": "e2", "type": "person", "source": "alertstream", "severity": "info", "camera_id": None, "occurred_at": "2026-09-29T10:00:00Z", "details": {}}, "Asia/Jerusalem")
+    assert fired[0]["ha_notify"] == {"mobile_app_phone": "sent"} and "_pending" not in fired[0]
+
+
+def test_ha_state_event_notifies_after_commit(settings, monkeypatch):
+    app = create_app(settings)
+    db: Database = app.state.db
+    with db.connection() as conn:
+        conn.execute("INSERT INTO rules(id, name, trigger_json, scope_json, window_json, cooldown_s, actions_json, created_at, updated_at) VALUES "
+                     "('r2', 'door', '{\"types\": [\"door\"]}', '{}', '{}', 0, '[{\"kind\": \"ha_notify\", \"service\": \"mobile_app_phone\"}]', '2026-09-29T00:00:00Z', '2026-09-29T00:00:00Z')")
+    free: list[bool] = []
+    monkeypatch.setattr(rules_svc, "HA_NOTIFY", lambda service, message, title: (free.append(lock_is_free(db)), "sent")[1])
+    at = dt.datetime.now(dt.timezone.utc).isoformat()
+    attrs = {"device_class": "door", "friendly_name": "Front door"}
+    ha_sync.handle_state_event(db, {"entity_id": "binary_sensor.front_door", "old_state": {"entity_id": "binary_sensor.front_door", "state": "off", "attributes": attrs},
+                                    "new_state": {"entity_id": "binary_sensor.front_door", "state": "on", "attributes": attrs, "last_changed": at, "last_updated": at}})
+    assert free == [True]
+
+
+def test_export_create_searches_the_nvr_without_the_write_lock(settings, monkeypatch):
+    s = replace(settings, nvr_host="nvr.local", nvr_user="u", nvr_password="p")
+    app = create_app(s)
+    c = TestClient(app)
+    recordings.invalidate()
+    cam = c.post("/api/v1/cameras", json={"channel": 1, "alias": "a"}).json()
+    set_track(s, cam["id"])
+    search = fake_pages([("2026-09-14T10:00:00Z", "2026-09-14T10:02:00Z", "MOTION", "f1", 1000)])
+    free: list[bool] = []
+
+    def checked(*a, **kw):
+        free.append(lock_is_free(app.state.db))
+        return search(*a, **kw)
+
+    monkeypatch.setattr(nvr, "search_recordings", checked)
+    r = c.post("/api/v1/exports", json={"camera_id": cam["id"], "from_at": "2026-09-14T07:00:00Z", "to_at": "2026-09-14T07:10:00Z"})
+    assert r.status_code == 201, r.text
+    assert free and all(free)
+
+
+def test_manual_recording_calls_the_nvr_without_the_write_lock(settings, monkeypatch):
+    app = create_app(settings)
+    db: Database = app.state.db
+    free: list[tuple[str, bool]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        free.append((request.url.path.rsplit("/", 3)[-3], lock_is_free(db)))
+        return httpx.Response(200, text="<ResponseStatus><statusCode>1</statusCode></ResponseStatus>")
+
+    monkeypatch.setattr(nvr_write, "_client", lambda _s=None: httpx.Client(transport=httpx.MockTransport(handler), base_url="http://nvr"))
+    c = TestClient(app)
+    cam = c.post("/api/v1/cameras", json={"channel": 1, "alias": "a"}).json()
+    with db.connection() as conn:
+        conn.execute("UPDATE cameras SET main_track = 101 WHERE id = ?", (cam["id"],))
+    assert c.post(f"/api/v1/cameras/{cam['id']}/record/start", json={"minutes": 5}).status_code == 201
+    assert c.post(f"/api/v1/cameras/{cam['id']}/record/stop").status_code == 200
+    c.post(f"/api/v1/cameras/{cam['id']}/record/start", json={"minutes": 1})
+    with db.connection() as conn:
+        conn.execute("UPDATE manual_recordings SET stop_at = '2000-01-01T00:00:00Z' WHERE stopped_at IS NULL")
+    assert nvr_write.stop_expired_manual(db, settings) == 1
+    assert free == [("start", True), ("stop", True), ("start", True), ("stop", True)]
+    with db.connection(mode="read") as conn:
+        actions = [r[0] for r in conn.execute("SELECT action FROM audit_log WHERE action LIKE 'nvr.record.%' ORDER BY id")]
+    assert actions == ["nvr.record.start", "nvr.record.stop", "nvr.record.start", "nvr.record.stop"]
+
+
+def test_assign_area_calls_the_bridge_without_the_write_lock(dev_app, monkeypatch):  # noqa: F811
+    from smplwise.services import ha_bridge
+
+    app, _s = dev_app
+    c = TestClient(app)
+    free: list[bool] = []
+
+    def fake_set_area(_settings, payload, timeout=15.0):
+        free.append(lock_is_free(app.state.db))
+        return {"ok": True, "context_id": None, "request_id": payload["request_id"]}
+
+    monkeypatch.setattr(ha_client, "call_bridge_set_area", fake_set_area)
+    secret = c.get("/api/v1/ha/bridge/pairing").json()["pairing_code"]
+    c.post("/api/v1/ha/bridge/ping", json=ha_bridge.sign(secret, {"version": "0.2.5"}))
+    r = c.put("/api/v1/devices/entities/switch.loose/area", json={"area_id": "office"})
+    assert r.status_code == 200, r.text
+    assert free == [True]
+
+
+def test_retry_locked_retries_busy_only(monkeypatch):
+    monkeypatch.setattr(time, "sleep", lambda _s: None)
+    calls = {"n": 0}
+
+    def flaky():
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise sqlite3.OperationalError("database is locked")
+        return "ok"
+
+    assert retry_locked(flaky, attempts=3) == "ok" and calls["n"] == 3
+    with pytest.raises(sqlite3.OperationalError, match="no such table"):
+        retry_locked(lambda: (_ for _ in ()).throw(sqlite3.OperationalError("no such table: x")))
+    calls["n"] = -10
+    with pytest.raises(sqlite3.OperationalError, match="locked"):
+        retry_locked(flaky, attempts=2)
+
+
+def test_busy_failure_names_the_holder_and_slow_holds_are_logged(tmp_path, monkeypatch, caplog):
+    monkeypatch.setattr(db_mod, "BUSY_TIMEOUT_S", 0.2)
+    monkeypatch.setattr(db_mod, "SLOW_HOLD_S", 0.3)
+    db = Database(tmp_path / "t.db")
+    db.migrate()
+    holding, done = threading.Event(), threading.Event()
+
+    def hold() -> None:
+        with db.connection(label="slow holder"):
+            holding.set()
+            done.wait(5)
+
+    t = threading.Thread(target=hold)
+    t.start()
+    holding.wait(5)
+    before = db_mod.lock_stats()
+    with caplog.at_level(logging.WARNING, logger="smplwise.db"):
+        with pytest.raises(sqlite3.OperationalError, match="locked"):
+            with db.connection(label="victim"):
+                pass
+        time.sleep(0.2)
+        done.set()
+        t.join(5)
+    after = db_mod.lock_stats()
+    assert after["busy_errors"] == before["busy_errors"] + 1
+    assert after["last_busy"]["waiter"] == "victim" and after["last_busy"]["holder"] == "slow holder"
+    assert any("held by slow holder" in r.getMessage() for r in caplog.records)
+    assert any("write lock held" in r.getMessage() and "slow holder" in r.getMessage() for r in caplog.records)
+    assert after["slow_holds"] >= before["slow_holds"] + 1
+
+
+def test_connection_settings_and_idle_checkpoint(tmp_path):
+    db = Database(tmp_path / "t.db")
+    db.migrate()
+    with db.connection() as conn:
+        assert conn.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+        assert conn.execute("PRAGMA synchronous").fetchone()[0] == 2  # FULL: a committed audit row survives a power cut
+        assert conn.execute("PRAGMA busy_timeout").fetchone()[0] == 10000
+        conn.execute("INSERT INTO settings(key, value) VALUES ('k', 'v')")
+    out = db.checkpoint()
+    assert out["mode"] == "PASSIVE" and out["busy"] is False
+
+
+def test_health_reports_write_lock_counters(client):
+    body = client.get("/api/v1/health").json()
+    assert {"holds", "slow_holds", "max_hold_s", "busy_errors"} <= set(body["db"]["write_lock"])
+
+
+def test_audit_row_of_a_refusal_survives_release(client):
+    """An expected API error still commits its audit row (the dependency's ApiError path), with commit-before-send in place."""
+    client.get("/api/v1/me")  # the bootstrap administrator exists first
+    r = client.put("/api/v1/devices/entities/switch.x/area", json={"area_id": "office"}, headers=as_user("nobody"))
+    assert r.status_code == 403
+    db: Database = client.app.state.db
+    with db.connection(mode="read") as conn:
+        row = conn.execute("SELECT actor_username, decision FROM audit_log ORDER BY id DESC LIMIT 1").fetchone()
+    assert (row["actor_username"], row["decision"]) == ("nobody", "denied")

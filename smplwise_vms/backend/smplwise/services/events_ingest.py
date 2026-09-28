@@ -34,7 +34,7 @@ from typing import Any, Callable
 import httpx
 
 from ..config import Settings
-from ..db import Database, now_iso
+from ..db import Database, now_iso, retry_locked
 from .timeutil import UTC, iso_utc, nvr_wall_to_utc, zone
 from . import xmlsafe
 
@@ -302,15 +302,25 @@ class AlertStreamListener:
         # the zone is read BEFORE the write connection opens: the getter opens its own connection, and doing that
         # while this thread held the write lock blocked every writer for busy_timeout on every alert (0.1.58)
         tz = self.tz_getter()
-        with self.db.connection() as conn:
-            stored = store_alert(conn, alert, tz, self._camera_lookup(conn))
-            if stored:
-                from . import rules as rules_svc  # local import: rules depend on correlation which depends on this module
+        from . import rules as rules_svc  # local import: rules depend on correlation which depends on this module
 
-                try:
-                    rules_svc.evaluate_event(conn, stored, tz)
-                except Exception:  # noqa: BLE001 - a rule must never break ingestion
-                    log.exception("rule evaluation failed for %s", stored.get("id"))
+        db = self.db
+        fired: list[dict[str, Any]] = []
+
+        def _write() -> dict[str, Any] | None:
+            fired.clear()
+            with db.connection() as conn:
+                stored = store_alert(conn, alert, tz, self._camera_lookup(conn))
+                if stored:
+                    try:
+                        # the HA notifications go out after the commit (deliver_pending), never under the write lock
+                        fired.extend(rules_svc.evaluate_event(conn, stored, tz, deliver=False))
+                    except Exception:  # noqa: BLE001 - a rule must never break ingestion
+                        log.exception("rule evaluation failed for %s", stored.get("id"))
+                return stored
+
+        stored = retry_locked(_write, what="alert stream")  # a busy database delays an alert, it does not drop it
+        rules_svc.deliver_pending(fired)
         if stored:
             STATE.last_event_at = stored["occurred_at"]
             STATE.events_stored += 1
@@ -331,9 +341,13 @@ class AlertStreamListener:
                         if STATE.disconnected_since is not None:
                             gap = time.time() - STATE.disconnected_since
                             if gap >= GAP_AFTER_S:
-                                with self.db.connection() as conn:
-                                    ev = record_gap(conn, dt.datetime.fromtimestamp(STATE.disconnected_since, UTC), dt.datetime.now(UTC), STATE.last_error or "disconnected")
-                                publish(ev)
+                                since, until, why = dt.datetime.fromtimestamp(STATE.disconnected_since, UTC), dt.datetime.now(UTC), STATE.last_error or "disconnected"
+
+                                def _gap() -> dict[str, Any]:
+                                    with self.db.connection() as conn:
+                                        return record_gap(conn, since, until, why)
+
+                                publish(retry_locked(_gap, what="alert stream gap"))
                             STATE.disconnected_since = None
                         STATE.connected = True
                         STATE.last_error = None

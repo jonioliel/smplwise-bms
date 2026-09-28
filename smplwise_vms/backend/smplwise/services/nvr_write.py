@@ -17,7 +17,7 @@ import httpx
 
 from ..audit import audit
 from ..config import Settings
-from ..db import new_id, now_iso
+from ..db import new_id, now_iso, unlocked
 from ..errors import ApiError
 from .nvr import _client, _get
 
@@ -280,7 +280,11 @@ def start_manual(settings: Settings, conn: sqlite3.Connection, principal: Any, c
     minutes = max(1, min(MANUAL_MAX_MIN, minutes))
     if manual_active(conn, camera_id):
         raise ApiError(409, "already_recording", "כבר יש הקלטה ידנית פעילה למצלמה הזו.")
-    manual_record(settings, track_id, True)
+    with unlocked(conn):  # the NVR call runs without the write lock (round-10 lock storm)
+        manual_record(settings, track_id, True)
+    running = manual_active(conn, camera_id)
+    if running:  # a parallel start won while the NVR answered: one session, not two
+        return manual_row(running) or {}
     rid = new_id()
     now = _now()
     conn.execute("INSERT INTO manual_recordings(id, camera_id, track_id, started_at, stop_at, actor_id, actor_username) VALUES (?,?,?,?,?,?,?)",
@@ -293,8 +297,10 @@ def stop_manual(settings: Settings, conn: sqlite3.Connection, principal: Any, ca
     r = manual_active(conn, camera_id)
     if not r:
         return None
-    manual_record(settings, int(r["track_id"]), False)
-    conn.execute("UPDATE manual_recordings SET stopped_at = ?, stop_reason = ? WHERE id = ?", (_iso(_now()), reason, r["id"]))
+    with unlocked(conn):  # the NVR call runs without the write lock (round-10 lock storm)
+        manual_record(settings, int(r["track_id"]), False)
+    if not conn.execute("UPDATE manual_recordings SET stopped_at = ?, stop_reason = ? WHERE id = ? AND stopped_at IS NULL", (_iso(_now()), reason, r["id"])).rowcount:
+        return manual_row(conn.execute("SELECT * FROM manual_recordings WHERE id = ?", (r["id"],)).fetchone())  # a parallel stop recorded it
     audit(conn, actor=principal, action="nvr.record.stop", decision="allowed", resource_type="camera", resource_id=camera_id, request_id=request_id, details={"track": int(r["track_id"]), "reason": reason, "id": r["id"]})
     return manual_row(conn.execute("SELECT * FROM manual_recordings WHERE id = ?", (r["id"],)).fetchone())
 
@@ -308,12 +314,14 @@ def stop_expired_manual(db: Any, settings: Settings) -> int:
             return 0
         n = 0
         for r in rows:
-            try:
-                manual_record(settings, int(r["track_id"]), False)
-                reason = "expired"
-            except ApiError as exc:
-                reason = f"expired_unconfirmed:{exc.code}"  # the NVR could not be told; the row still closes, the reason says so
-            conn.execute("UPDATE manual_recordings SET stopped_at = ?, stop_reason = ? WHERE id = ?", (_iso(_now()), reason, r["id"]))
+            with unlocked(conn):  # the NVR call runs without the janitor holding the write lock
+                try:
+                    manual_record(settings, int(r["track_id"]), False)
+                    reason = "expired"
+                except ApiError as exc:
+                    reason = f"expired_unconfirmed:{exc.code}"  # the NVR could not be told; the row still closes, the reason says so
+            if not conn.execute("UPDATE manual_recordings SET stopped_at = ?, stop_reason = ? WHERE id = ? AND stopped_at IS NULL", (_iso(_now()), reason, r["id"])).rowcount:
+                continue  # stopped by a user meanwhile (and audited there)
             audit(conn, actor=None, action="nvr.record.stop", decision="allowed", resource_type="camera", resource_id=r["camera_id"], reason=reason, details={"track": int(r["track_id"]), "id": r["id"]})
             n += 1
     return n

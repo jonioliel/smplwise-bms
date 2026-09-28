@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Request
 
 from .. import __version__
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
-from ..db import permission_revision, unlocked
+from ..db import lock_stats, permission_revision, unlocked
 from ..rbac import INSTALLATION, Principal, require
 from ..services import autosync, events_derive, events_ingest, ha_client, ha_sync
 from ..services import health_report as health_report_svc
@@ -22,7 +22,7 @@ def health(request: Request, principal: Principal = Depends(current_principal), 
     return {
         "status": "ok",
         "version": __version__,
-        "db": {"ok": conn.execute("SELECT 1").fetchone()[0] == 1, "permission_revision": permission_revision(conn)},
+        "db": {"ok": conn.execute("SELECT 1").fetchone()[0] == 1, "permission_revision": permission_revision(conn), "write_lock": lock_stats()},
         "data_dir_writable": os.access(settings.data_dir, os.W_OK),
         "nvr_configured": bool(settings.nvr_host and settings.nvr_user),
         "go2rtc_configured": bool(settings.go2rtc_url),

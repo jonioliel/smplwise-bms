@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from ..config import Settings
-from ..db import Database, get_setting, now_iso
+from ..db import Database, get_setting, now_iso, unlocked
 from ..errors import ApiError
 from . import ha_bridge, ha_client
 
@@ -118,7 +118,11 @@ def announce_discovery(db: Database, settings: Settings, conn: sqlite3.Connectio
             ha_bridge.ensure_pairing(c, False)
             secret = ha_bridge.signing_key(c)
     try:
-        ha_client.post_discovery(settings, DOMAIN, {"addon_url": addon_url(), "pairing_code": secret})
+        if conn is not None:
+            with unlocked(conn):  # the Supervisor call runs without the request's write lock
+                ha_client.post_discovery(settings, DOMAIN, {"addon_url": addon_url(), "pairing_code": secret})
+        else:
+            ha_client.post_discovery(settings, DOMAIN, {"addon_url": addon_url(), "pairing_code": secret})
     except ApiError as exc:
         STATE["last_error"] = f"discovery:{exc.code}"
         log.warning("bridge discovery announcement failed: %s", exc.code)
