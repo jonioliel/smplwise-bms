@@ -1,8 +1,8 @@
 /**
  * WisKey (hikvision_intercom) through SMPLWISE (CR-005). This is the transport boundary of the port: where WisKey's own
  * panel calls `hass.callWS({ type: 'hikvision_intercom/overview' })`, the SMPLWISE screen calls `getIntercomOverview()`,
- * which asks the SMPLWISE backend; only the backend talks to Home Assistant. Phase 1a: read-only entry center.
- * Phase 3 (access.release): door release, call answer / reject / hang up, and a spoken announcement.
+ * which asks the SMPLWISE backend; only the backend talks to Home Assistant. Phase 1a: read-only entry center; phase 1b:
+ * the read-only activity log (`getIntercomEvents`). Phase 3 (access.release): door release, call answer / reject / hang up, and a spoken announcement.
  */
 import { ApiError, apiUrl, get, post } from './client';
 
@@ -88,6 +88,68 @@ export async function getIntercomOverview(): Promise<IntercomFeed> {
   // the server read its clock somewhere during the round trip: assume the middle (error <= half the round trip)
   if (typeof feed.server_time_ms === 'number') serverOffsetMs = feed.server_time_ms - (sentAt + receivedAt) / 2;
   return feed;
+}
+
+// ---------------------------------------------------------------- activity log (access.read, read-only)
+
+/** One `events/list` row as the backend projects it (intercom_sync EVENT_KEYS): WisKey's AuditEvent without the masked
+ * card, portrait, evidence block and raw ISAPI codes. */
+export interface IntercomEvent {
+  id: string;
+  station_id: string;
+  timestamp: string;
+  received_at: string | null;
+  time_source: 'device' | 'received' | string | null;
+  person_name: string | null;
+  employee_no: string | null;
+  authentication: string;
+  result: string;
+  event_type: string;
+  recovered: boolean;
+  door: number | null;
+}
+
+/** One page of WisKey's bounded event cache, newest first. `next` is the cursor for the following (older) page. */
+export interface IntercomEventPage {
+  records: IntercomEvent[];
+  next: string | null;
+  retention_days: number | null;
+  capacity: number | null;
+  membership_basis: string | null;
+  storage_failed: boolean;
+  stations: Record<string, { stream: string | null; history: string | null }>;
+}
+
+export type IntercomEventResult = 'granted' | 'denied' | 'unknown';
+export type IntercomEventAuth = 'card' | 'pin' | 'unknown';
+
+/** The filters GET /intercom/events accepts (routers/access_control.py), all optional. `start` / `end` are aware ISO
+ * instants. WisKey's own `current_group` / `current_profile` / `event_type` filters are not offered here. */
+export interface IntercomEventFilters {
+  station_id?: string;
+  person?: string;
+  result?: IntercomEventResult;
+  authentication?: IntercomEventAuth;
+  door?: 1 | 2;
+  start?: string;
+  end?: string;
+}
+
+/** `events` is null unless `state` is `ready`; `state` can also be `unsupported` (this WisKey has no `events/list`). */
+export type IntercomEventsReply = { state: IntercomFeedState | 'unsupported'; configured: boolean; last_error: string | null; fetched_at: string | null; events: IntercomEventPage | null };
+
+/** WisKey's own page size for the activity log (events.ts `limit: 100`). */
+export const EVENTS_PAGE = 100;
+
+/** One page of the activity log. `before` is the previous page's `events.next` ("load more"); a pruned cursor comes
+ * back as a 422 `intercom_cursor_expired`. WisKey has no event push: the caller refetches on the `intercom_refresh`
+ * notice, as WisKey's own panel does. */
+export function getIntercomEvents(filters: IntercomEventFilters, before?: string | null, limit = EVENTS_PAGE): Promise<IntercomEventsReply> {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(filters)) if (v !== undefined && v !== null && v !== '') qs.set(k, String(v));
+  qs.set('limit', String(limit));
+  if (before) qs.set('before', before);
+  return get<IntercomEventsReply>(`intercom/events?${qs.toString()}`);
 }
 
 // ---------------------------------------------------------------- physical actions (access.release)
