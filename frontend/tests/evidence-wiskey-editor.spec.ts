@@ -354,6 +354,86 @@ test.describe('WisKey person editor against the fixture WisKey (CR-005 phase 2 A
     expect(await domHolds(page, generated)).toBe(false);
   });
 
+  /** Whether `needle` is readable in clear anywhere in the document: text, attribute values and the values of every
+   * input that is NOT a password field (the two PIN fields keep a generated PIN, masked, for the save). */
+  function clearTextHolds(page: Page, needle: string): Promise<boolean> {
+    return page.evaluate((needle) => {
+      const walk = (root: Document | ShadowRoot | Element): boolean => {
+        for (const node of Array.from(root.childNodes)) {
+          if (node.nodeType === Node.TEXT_NODE && node.textContent?.includes(needle)) return true;
+        }
+        for (const el of Array.from(root.querySelectorAll('*'))) {
+          for (const node of Array.from(el.childNodes)) {
+            if (node.nodeType === Node.TEXT_NODE && node.textContent?.includes(needle)) return true;
+          }
+          if (Array.from(el.attributes).some((a) => a.value.includes(needle))) return true;
+          if ((el instanceof HTMLInputElement && el.type !== 'password' || el instanceof HTMLTextAreaElement) && el.value.includes(needle)) return true;
+          if (el.shadowRoot && walk(el.shadowRoot)) return true;
+        }
+        return false;
+      };
+      return walk(document);
+    }, needle);
+  }
+
+  test('generated PIN: shown ONCE in clear with a copy button (owner decision, option ב), hidden again - out of the document - once copied or hidden; without the Clipboard API it stays until hidden', async ({ page, context, baseURL }, testInfo) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: new URL(baseURL!).origin });
+    await openPeople(page);
+    await openEditorFor(page, 'u011'); // a stored PIN is never revealed: WisKey never returns one
+    await expect(field(page, 'pin-reveal')).toHaveCount(0);
+    await field(page, 'pin-generate').click();
+    await expect(field(page, 'pin-status')).toHaveAttribute('data-wiskey-editor-pin-status', 'generated', { timeout: 15000 });
+    const generated = await field(page, 'pin').inputValue();
+    expect(generated).toMatch(/^\d{6}$/);
+    await expect(field(page, 'pin-reveal-value')).toHaveText(generated);
+    expect(await clearTextHolds(page, generated)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath('wiskey-editor-pin-reveal.png'), fullPage: true });
+    await field(page, 'pin-copy').click();
+    await expect(field(page, 'pin-copied')).toContainText('הועתק');
+    await expect(field(page, 'pin-reveal')).toHaveCount(0);
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(generated);
+    expect(await clearTextHolds(page, generated)).toBe(false); // gone from the document ...
+    await expect(field(page, 'pin')).toHaveValue(generated); // ... kept only in the password fields, for the save
+    await expect(field(page, 'pin')).toHaveAttribute('type', 'password');
+    // generate again, then "hide" (the reveal's own close)
+    await field(page, 'pin-generate').click();
+    await expect(field(page, 'pin-reveal')).toBeVisible({ timeout: 15000 });
+    const second = await field(page, 'pin').inputValue();
+    expect(await clearTextHolds(page, second)).toBe(true);
+    await field(page, 'pin-hide').click();
+    await expect(field(page, 'pin-reveal')).toHaveCount(0);
+    expect(await clearTextHolds(page, second)).toBe(false);
+    await field(page, 'cancel').click();
+    await field(page, 'close-discard').click();
+    await expect(editor(page)).toHaveCount(0);
+    expect(await domHolds(page, second)).toBe(false); // closing drops the draft, password fields included
+
+    // a browser without the Clipboard API (HA over plain http is not a secure context): the PIN stays shown with a note
+    const p2 = await context.newPage();
+    await p2.addInitScript(() => Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true }));
+    await openPeople(p2);
+    await openEditorFor(p2, 'u011');
+    await field(p2, 'pin-generate').click();
+    await expect(field(p2, 'pin-reveal')).toBeVisible({ timeout: 15000 });
+    const third = await field(p2, 'pin').inputValue();
+    await field(p2, 'pin-copy').click();
+    await expect(field(p2, 'pin-copy-failed')).toContainText('העתיקו ידנית');
+    await expect(field(p2, 'pin-reveal-value')).toHaveText(third);
+    await field(p2, 'pin-hide').click();
+    await expect(field(p2, 'pin-reveal')).toHaveCount(0);
+    await expect(field(p2, 'pin-copy-failed')).toHaveCount(0);
+    expect(await clearTextHolds(p2, third)).toBe(false);
+    // saving also ends the reveal (the PIN goes to WisKey in the save only)
+    await field(p2, 'pin-generate').click();
+    await expect(field(p2, 'pin-reveal')).toBeVisible({ timeout: 15000 });
+    const fourth = await field(p2, 'pin').inputValue();
+    await field(p2, 'save').click();
+    await expect(editor(p2)).toHaveCount(0, { timeout: 15000 });
+    expect(await domHolds(p2, fourth)).toBe(false);
+    expect((await sent('users/update')).at(-1)).toMatchObject({ user_id: 'u011', data: { pin: fourth } });
+    await p2.close();
+  });
+
   test('revision_conflict: the person changed in WisKey while the editor was open; the save is refused, reload brings the current revision, then the save goes through', async ({ page }, testInfo) => {
     await openPeople(page);
     await openEditorFor(page, 'u002');

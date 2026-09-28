@@ -121,6 +121,11 @@ export class WiskeyPersonEditor extends LitElement {
   @state() private errorTone: Tone = 'err';
   @state() private outcome: 'refused' | 'unknown' | 'not_sent' | '' = '';
   @state() private pinStatus: '' | 'generated' | 'failed' = '';
+  /** A PIN WisKey just generated, shown ONCE in clear for the administrator to hand over (owner decision 2026-09-28,
+   * option ב): null as soon as it is copied, hidden, saved or the form closes - Lit then removes it from the DOM, and
+   * it stays only in the two password fields for the save. A stored PIN is never shown: WisKey never returns one. */
+  @state() private pinReveal: string | null = null;
+  @state() private pinCopy: '' | 'copied' | 'manual' = '';
   @state() private confirmDelete = false;
   @state() private confirmClose = false;
   @state() private capturing = false;
@@ -185,6 +190,7 @@ export class WiskeyPersonEditor extends LitElement {
   private edit(user: IntercomEditorPerson | null) {
     this.original = user;
     this.pinStatus = '';
+    this.hidePin();
     this.notice = '';
     this.error = '';
     this.errorCode = '';
@@ -237,12 +243,14 @@ export class WiskeyPersonEditor extends LitElement {
     if (!this.draft || this.busy) return;
     this.busy = 'pin';
     this.pinStatus = '';
+    this.hidePin();
     this.error = '';
     try {
       const r = await generateIntercomPin(this.userId);
       if (r.pin) {
         this.draft = { ...this.draft, pin: r.pin.pin, confirm_pin: r.pin.pin };
         this.pinStatus = 'generated';
+        this.pinReveal = r.pin.pin;
       } else {
         this.pinStatus = 'failed';
         this.setError(r.last_error === 'pin_generation_failed' ? t('pin_generation_failed') : `${t('pin_generation_failed')} (${r.last_error ?? r.state})`, 'err', r.last_error ?? r.state);
@@ -253,6 +261,27 @@ export class WiskeyPersonEditor extends LitElement {
     } finally {
       this.busy = '';
     }
+  }
+
+  /** Copy the revealed PIN (the Clipboard API - only in a secure context, so HA over plain http has none) and hide it.
+   * Without the API, or when the browser refuses, the PIN stays shown with a note to copy it by hand and hide it. */
+  private async copyPin() {
+    const pin = this.pinReveal;
+    if (!pin) return;
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable');
+      await navigator.clipboard.writeText(pin);
+      if (this.pinReveal !== pin) return;
+      this.pinReveal = null;
+      this.pinCopy = 'copied';
+    } catch {
+      if (this.pinReveal === pin) this.pinCopy = 'manual';
+    }
+  }
+
+  private hidePin() {
+    this.pinReveal = null;
+    this.pinCopy = '';
   }
 
   // ------------------------------------------------------------------ validity
@@ -280,6 +309,7 @@ export class WiskeyPersonEditor extends LitElement {
   private async save(syncNow: boolean) {
     const draft = this.draft;
     if (!draft || this.busy) return;
+    this.hidePin(); // saving ends the one-time reveal
     this.error = '';
     this.errorCode = '';
     this.outcome = '';
@@ -408,6 +438,7 @@ export class WiskeyPersonEditor extends LitElement {
 
   private close() {
     this.draft = null; // a typed PIN or card number does not outlive the form
+    this.hidePin();
     this.dispatchEvent(new CustomEvent('editor-close', { bubbles: true, composed: true }));
   }
 
@@ -584,21 +615,31 @@ export class WiskeyPersonEditor extends LitElement {
       ${blocked ? html`<p class="danger" data-wiskey-editor-pin-blocked>${t('pin_mode_blocked')}</p>` : nothing}
       <div class="grid2">
         <sw-field label=${t('new_pin')}>
-          <input type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]*" maxlength="128" data-ltr data-wiskey-editor-pin .value=${live(d.pin ?? '')} ?disabled=${blocked || removing} @input=${(e: Event) => this.patch('pin', (e.target as HTMLInputElement).value || undefined)} />
+          <input type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]*" maxlength="128" data-ltr data-wiskey-editor-pin .value=${live(d.pin ?? '')} ?disabled=${blocked || removing} @input=${(e: Event) => { this.hidePin(); this.patch('pin', (e.target as HTMLInputElement).value || undefined); }} />
         </sw-field>
         <sw-field label=${t('confirm_pin')}>
-          <input type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]*" maxlength="128" data-ltr data-wiskey-editor-pin-confirm .value=${live(d.confirm_pin)} ?disabled=${blocked || removing} @input=${(e: Event) => this.patch('confirm_pin', (e.target as HTMLInputElement).value)} />
+          <input type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]*" maxlength="128" data-ltr data-wiskey-editor-pin-confirm .value=${live(d.confirm_pin)} ?disabled=${blocked || removing} @input=${(e: Event) => { this.hidePin(); this.patch('confirm_pin', (e.target as HTMLInputElement).value); }} />
         </sw-field>
       </div>
       <div aria-live="polite" data-wiskey-editor-pin-status=${this.pinStatus}>
         ${this.pinStatus === 'generated' ? html`<p class="ok">נוצר קוד פנוי ומולא בשני השדות. הוא אינו שמור עדיין - הוא ייבדק שוב בשמירה.</p>` : nothing}
+        ${this.pinReveal
+          ? html`<div class="reveal" data-wiskey-editor-pin-reveal>
+              <span>הקוד שנוצר (מוצג פעם אחת, כדי למסור אותו):</span>
+              <bdi class="pin" data-ltr data-wiskey-editor-pin-reveal-value>${this.pinReveal}</bdi>
+              <sw-button size="sm" icon="check" data-wiskey-editor-pin-copy @click=${() => void this.copyPin()}>העתק</sw-button>
+              <sw-button size="sm" variant="ghost" icon="eye" data-wiskey-editor-pin-hide @click=${() => this.hidePin()}>הסתר</sw-button>
+            </div>`
+          : nothing}
+        ${this.pinCopy === 'copied' ? html`<p class="ok" data-wiskey-editor-pin-copied>הקוד הועתק ללוח והוסתר.</p>` : nothing}
+        ${this.pinCopy === 'manual' ? html`<p class="danger" data-wiskey-editor-pin-copy-failed>העתקה אוטומטית אינה זמינה בדפדפן הזה (למשל בחיבור שאינו מאובטח). סמנו את הקוד והעתיקו ידנית, ואז לחצו "הסתר".</p>` : nothing}
       </div>
       <div class="row">
         <sw-button size="sm" data-wiskey-editor-pin-generate ?disabled=${blocked || removing || !!this.busy} @click=${() => void this.generatePin()}>${this.busy === 'pin' ? t('wait') : t('generate_unique_pin')}</sw-button>
         ${removing
           ? html`<sw-badge kind="stale" label=${t('remove_pin')}></sw-badge>
-              <sw-button size="sm" variant="ghost" data-wiskey-editor-pin-keep @click=${() => { this.draft = { ...d, pin: undefined, confirm_pin: '' }; this.pinStatus = ''; }}>${t('keep_pin')}</sw-button>`
-          : html`<sw-button size="sm" variant="danger" data-wiskey-editor-pin-remove ?disabled=${blocked || !configured} @click=${() => { this.draft = { ...d, pin: null, confirm_pin: '' }; this.pinStatus = ''; }}>${t('remove_pin')}</sw-button>`}
+              <sw-button size="sm" variant="ghost" data-wiskey-editor-pin-keep @click=${() => { this.draft = { ...d, pin: undefined, confirm_pin: '' }; this.pinStatus = ''; this.hidePin(); }}>${t('keep_pin')}</sw-button>`
+          : html`<sw-button size="sm" variant="danger" data-wiskey-editor-pin-remove ?disabled=${blocked || !configured} @click=${() => { this.draft = { ...d, pin: null, confirm_pin: '' }; this.pinStatus = ''; this.hidePin(); }}>${t('remove_pin')}</sw-button>`}
       </div>
       <p class="muted">${t('pin_physical')} אין בדיקת זמינות בזמן ההקלדה: קוד תפוס יידחה על ידי WisKey בשמירה.</p>
     </fieldset>`;
@@ -912,6 +953,25 @@ export class WiskeyPersonEditor extends LitElement {
       margin: 0;
       color: var(--sw-success);
       font-size: var(--sw-fs-xs);
+    }
+    .reveal {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px 10px;
+      padding: 8px 10px;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface-2);
+      font-size: var(--sw-fs-sm);
+    }
+    .reveal .pin {
+      font-family: var(--sw-font-mono, ui-monospace, monospace);
+      font-size: var(--sw-fs-lg);
+      font-weight: var(--sw-fw-semibold);
+      letter-spacing: 0.12em;
+      direction: ltr;
+      unicode-bidi: isolate;
     }
     .danger {
       margin: 0;

@@ -202,6 +202,12 @@ physical grant even though it is not itself an actuation), sync/conflict resolut
 > `users_manage` from `overview.api.commands` / `access.areas`), unverified against the lab. Open item for the owner:
 > a generated PIN is filled into the two password fields only, as WisKey does, so the administrator cannot read it
 > to hand it over; whether SMPLWISE should show it once in clear (an owner decision on secret handling) is not decided.
+> Decided 2026-09-28 (owner, option ב): after "יצירת PIN ייחודי אוטומטית" the editor shows the freshly generated PIN
+> ONCE in clear, with a "העתק" button (Clipboard API; where the browser has none - HA over plain http is not a secure
+> context - a note asks to copy it by hand), and hides it again as soon as the administrator copies it, clicks
+> "הסתר", edits either PIN field, saves or closes the form; hidden, it is no longer in the DOM (it stays only in the two
+> password fields for the save). A stored PIN is never shown - WisKey never returns one - and the value is never
+> logged or audited. Evidence: `evidence-wiskey-editor.spec.ts` (a shadow-root walk over clear text).
 
 **Phase 3 — physical actions, each individually approved before it is built.** Door release (`stations/
 test_unlock`, with a confirmation dialog WisKey itself lacks); door programs (`technical_program_save`/`_action`
