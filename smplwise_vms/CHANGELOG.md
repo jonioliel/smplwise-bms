@@ -1,5 +1,34 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.124 (pilot) — Plan Studio 3D, skins foundation: AI render provider, privacy acknowledgement and budgets (CR-006 slice 2a)
+- Phase 2 of CR-006 starts. This slice ships the foundation only: **no floor picture is sent anywhere yet**; the only
+  request that can leave the installation is the system administrator's connection test with a 64x64 synthetic
+  pattern. The render-set proposal, real sends, stored skins and compositing come in 2b/2c.
+- New add-on option `openai_api_key` (also `OPENAI_API_KEY`): never stored in the database, never logged, never in
+  audit rows or error payloads; every provider message is redacted (`sk-…` shapes, bearer tokens). `GET /skins/status`
+  says only whether a key is configured.
+- New settings family `skins.*` (system administrators, audited): provider (`openai`), model (default `gpt-image-1.5`),
+  privacy acknowledgement (off by default; nothing is sent until it is on), budgets - renders per floor (4, 0-6) and
+  per month (20, 0-500; the connection tests count, they are paid). A separate acknowledgement from the search's
+  `ai.*` keys on purpose: a floor picture is different data and a different consent.
+- The settings card lists word for word what can leave (our schematic control image; the original plan picture only
+  when the sender chooses it per send; the product's fixed prompt) and what never leaves (camera stills, people,
+  labels and names, sensor states, HA data, addresses, site ids).
+- Provider interface `services/skins/provider.py` with one implementation (OpenAI `POST /v1/images/edits`, request
+  shape verified against OpenAI's guide and official SDK types; per-image prices are NOT verified - the estimate is
+  labelled as such and the reply's token usage is recorded as the fact). Malformed or failing replies become a
+  redacted error and always leave an audit row.
+- Deterministic control image per floor (`POST /floors/{id}/skins/control-image`, `map.edit`): the level-2 isometric
+  render in one fixed palette with no anchors or labels, so the same structure gives identical bytes in every design
+  theme (spec proves a vs b). Migration 0027: `plan_skin_renders` / `plan_skin_controls`.
+- Hardening found by the review rounds: every skins path is confined under `data/skins` (a poisoned row or a crafted
+  backup archive cannot touch files outside it); floor ids are validated; backup restore skips unsafe floor rows and
+  reports the count, and its `files/` extraction now refuses backslashes and drive letters as well as `..`;
+  `repr` of the settings object never shows a secret.
+- Tests: 27 skins tests + backup / settings / catalog 40 passed in the reviewed set, 237 backend in the wider run;
+  skin-control and determinism specs 16 passed (desktop and mobile); tsc and build clean. Two review rounds at
+  Opus tier, two scoped re-reviews.
+
 ## 0.1.123 (pilot) — WisKey embed on the phone: the Companion app opens WisKey itself
 - Owner report (2026-09-28, Android Companion app): the embedded WisKey showed "לא ניתן לטעון את WisKey מתוך Home
   Assistant". Cause, verified in Home Assistant's frontend source: in the Companion app HA signs in through the
