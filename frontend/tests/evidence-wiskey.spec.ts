@@ -239,4 +239,58 @@ test.describe('WisKey entry center (T054, top-level nav since 0.1.103)', () => {
       await request.patch('/api/v1/settings', { data: { 'ui.hide_map': String(before['ui.hide_map'] ?? 'false') } });
     }
   });
+
+  test('settings: hiding WisKey entirely removes it from both nav designs, and a direct URL lands on the same "not available" panel a missing permission shows', async ({ page, request }) => {
+    // T054 follow-up (owner request): הגדרות › בקרות כניסה's third control, ui.hide_wiskey - the same "hidden for
+    // everyone" shape ui.hide_map uses for the map area, but for the whole WisKey top-level area.
+    const before = (await (await request.get('/api/v1/settings')).json()).settings as Record<string, unknown>;
+    try {
+      expect((await request.patch('/api/v1/settings', { data: { 'ui.hide_wiskey': 'true' } })).status()).toBe(200);
+
+      await open(page, '/live', 'a');
+      await expect(page.locator(`${RAIL} a[href="${HREF}"]`)).toHaveCount(0, { timeout: 30000 });
+      await open(page, '/wiskey/overview', 'a');
+      await expect(page.locator('sw-app [data-wiskey-state="hidden"]')).toBeVisible({ timeout: 30000 });
+
+      await open(page, '/live', 'b');
+      await expect(page.locator(`${RAIL} a[href="${HREF}"]`)).toHaveCount(0, { timeout: 30000 });
+      await open(page, '/wiskey/events', 'b');
+      await expect(page.locator('sw-app [data-wiskey-state="hidden"]')).toBeVisible({ timeout: 30000 });
+
+      // toggled back: the rail entry and the real screen both return
+      expect((await request.patch('/api/v1/settings', { data: { 'ui.hide_wiskey': 'false' } })).status()).toBe(200);
+      await open(page, '/live', 'a');
+      await expect(page.locator(`${RAIL} a[href="${HREF}"]`)).toHaveCount(1, { timeout: 30000 });
+      await open(page, '/wiskey/overview', 'a');
+      await expect(page.locator('sw-app [data-wiskey-state="hidden"]')).toHaveCount(0, { timeout: 30000 });
+      await expect(page.locator('wiskey-overview')).toHaveCount(1);
+    } finally {
+      await request.patch('/api/v1/settings', { data: { 'ui.hide_wiskey': String(before['ui.hide_wiskey'] ?? 'false') } });
+    }
+  });
+
+  test('hiding WisKey also drops it from the phone bottom nav (design A) and the design B overflow menu', async ({ page, request }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'nav.bottom only renders below the 768px breakpoint; other projects are wider');
+    const before = (await (await request.get('/api/v1/settings')).json()).settings as Record<string, unknown>;
+    try {
+      expect((await request.patch('/api/v1/settings', { data: { 'ui.hide_wiskey': 'true' } })).status()).toBe(200);
+
+      await open(page, '/live', 'a');
+      const bottomA = page.locator(BOTTOM);
+      await expect(bottomA).toBeVisible({ timeout: 30000 });
+      await expect(bottomA.locator(`a[href="${HREF}"]`)).toHaveCount(0);
+
+      await open(page, '/live', 'b');
+      const bottomB = page.locator(BOTTOM);
+      await expect(bottomB).toBeVisible({ timeout: 30000 });
+      await expect(bottomB.locator(`a[href="${HREF}"]`)).toHaveCount(0);
+      const more = bottomB.locator('button');
+      if (await more.count()) {
+        await more.click();
+        await expect(page.locator(`sw-app .bottom-overflow a[href="${HREF}"]`)).toHaveCount(0);
+      }
+    } finally {
+      await request.patch('/api/v1/settings', { data: { 'ui.hide_wiskey': String(before['ui.hide_wiskey'] ?? 'false') } });
+    }
+  });
 });

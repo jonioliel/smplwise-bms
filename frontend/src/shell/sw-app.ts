@@ -44,13 +44,14 @@ import '../screens/styleguide-screen';
 import { onRouteChange, type RouteState, parseRoute } from '../router';
 import { KIND_ICON, KIND_LABEL, search as apiSearch, type SearchResult } from '../api/search';
 import { healthSummary, type HealthSummary } from '../api/health';
-import { GROUP_TABS, groupOf, activeTabOf, AREA_TABS, areaOf, activeAreaTab, crumbsOf, visibleTabs, visibleAreas, visibleGroups, demoRedirect, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, applyWiskeyUi, wiskeyRoute } from './nav';
+import { GROUP_TABS, groupOf, activeTabOf, AREA_TABS, areaOf, activeAreaTab, crumbsOf, visibleTabs, visibleAreas, visibleGroups, demoRedirect, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute } from './nav';
 import { bidi } from '../i18n/bidi';
 import { currentDesign, onDesign, resolveDesign, type DesignId } from '../api/design';
 import { t } from '../i18n/he';
 import { canNav, isApi, loadSession, onSession, type Session } from '../api/session';
 import { productSettings } from '../api/prefs';
 import '../components/sw-state-panel';
+import '../components/sw-page';
 
 /**
  * Application shell in the boards' language: a compact white side nav (brand mark, six flat entries,
@@ -708,6 +709,9 @@ export class SwApp extends LitElement {
           if (String(ps['ui.hide_search'] ?? 'false') === 'true') HIDDEN_HREFS.add('#/investigate/search');
           const hideMap = String(ps['ui.hide_map'] ?? 'false') === 'true';
           if (hideMap) for (const h of MAP_HREFS) HIDDEN_HREFS.add(h);
+          // הגדרות › בקרות כניסה: hide the whole WisKey area for everyone, regardless of role (T054 follow-up) - same
+          // "hidden for everyone" shape as hideMap above, applied to the whole WISKEY_TABS group at once.
+          if (applyWiskeyHidden(ps as unknown as Record<string, unknown>)) for (const wt of WISKEY_TABS) HIDDEN_HREFS.add(wt.href ?? '');
           applyWiskeyUi(ps as unknown as Record<string, unknown>); // הגדרות › בקרות כניסה: embed or SMPLWISE per WisKey screen
           // the start screen (0.1.68): only when the address carried no route of its own
           const start = START_ROUTES[String(ps['ui.start_route'] ?? 'explore')] ?? START_ROUTES.explore;
@@ -970,6 +974,12 @@ export class SwApp extends LitElement {
         // panel embedded as-is (הגדרות › בקרות כניסה, the embed by default); WisKey's other tabs are always embedded.
         // The choice lives in the product settings, so wait for them rather than flash one screen and swap to the other.
         if (this.session.mode === 'api' && !this.startResolved) return html`<sw-state-panel state="loading"></sw-state-panel>`;
+        // T054 follow-up: the whole area hidden (הגדרות › בקרות כניסה) - a direct URL lands on the same "not
+        // available" panel a missing access.read permission shows (wiskey-*.ts `data-wiskey-state="no_permission"`),
+        // not the embed or either SMPLWISE screen; the per-screen choice does not apply while the area is hidden.
+        if (this.session.mode === 'api' && WISKEY_HIDDEN) {
+          return html`<sw-page heading="WisKey"><sw-state-panel data-wiskey-state="hidden" state="forbidden" heading="אזור WisKey מוסתר" hint="מנהל המערכת הסתיר את אזור WisKey עבור כל המשתמשים, בהגדרות › בקרות כניסה. אפשר להציג אותו מחדש שם."></sw-state-panel></sw-page>`;
+        }
         const w = wiskeyRoute(s[1], this.session.mode === 'api');
         if (w.kind === 'embed') return html`<wiskey-embed .tab=${w.tab}></wiskey-embed>`; // one call site: switching embedded tabs keeps the loaded frame
         if (w.screen === 'events') return html`<wiskey-events></wiskey-events>`;

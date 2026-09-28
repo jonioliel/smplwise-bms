@@ -64,6 +64,18 @@ export function applyWiskeyUi(settings: Record<string, unknown> | null | undefin
   for (const s of WISKEY_SCREENS) WISKEY_UI[s] = String(settings?.[`access.ui.${s}`] ?? 'wiskey') === 'smplwise' ? 'smplwise' : 'wiskey';
 }
 
+/** הגדרות › בקרות כניסה (T054 follow-up, owner request): hide the whole WisKey area from the navigation for
+ * everyone, regardless of role (`ui.hide_wiskey`) - the same "hidden for everyone" shape `ui.hide_map` uses for the
+ * map area, but for a top-level area rather than a group of sub-tabs. Filled by the shell once settings load and by
+ * the settings screen after a save (`applyWiskeyUi`'s sibling); read by `sw-app.ts` to route a direct URL to the
+ * same "not available" panel a missing permission shows, and to drop every WISKEY_TABS href from HIDDEN_HREFS so the
+ * area disappears from both nav designs, the phone bottom nav and its overflow. */
+export let WISKEY_HIDDEN = false;
+export function applyWiskeyHidden(settings: Record<string, unknown> | null | undefined): boolean {
+  WISKEY_HIDDEN = String(settings?.['ui.hide_wiskey'] ?? 'false') === 'true';
+  return WISKEY_HIDDEN;
+}
+
 /** SMPLWISE route segment (#/wiskey/<segment>) → the WisKey panel's own tab id (panel.ts `_tab`; "people" is the
  * panel's "users"). Unknown segments fall back to the panel's start tab, overview. */
 export const WISKEY_PANEL_TABS: Record<string, string> = {

@@ -56,6 +56,10 @@ DEFAULTS: dict[str, str] = {
     "access.ui.overview": "wiskey",
     "access.ui.events": "wiskey",
     "access.ui.people": "wiskey",
+    # T054 follow-up (owner request): hide the whole WisKey area from the navigation for everyone, regardless of role -
+    # the same "hidden for everyone" shape as ui.hide_map, but for the WisKey top-level area. The access.ui.* choices
+    # above apply only while this is false.
+    "ui.hide_wiskey": "false",
 }
 
 INT_KEYS = ("media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "ai.budget_daily")
@@ -100,6 +104,7 @@ class SettingsPatch(BaseModel):
     access_ui_overview: str | None = Field(default=None, pattern="^(wiskey|smplwise)$", alias="access.ui.overview")
     access_ui_events: str | None = Field(default=None, pattern="^(wiskey|smplwise)$", alias="access.ui.events")
     access_ui_people: str | None = Field(default=None, pattern="^(wiskey|smplwise)$", alias="access.ui.people")
+    ui_hide_wiskey: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.hide_wiskey")
 
     model_config = {"populate_by_name": True}
 

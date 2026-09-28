@@ -19,7 +19,7 @@ import { DEFAULT_NAMES, applyDesign, currentDesign, designOverride, parseNames, 
 import { KIND_LABEL, TABLE_LABEL, backupDownloadUrl, createBackup, deleteBackup, fmtBytes, listBackups, restoreBackup, uploadBackup, type BackupEntry } from '../api/backup';
 import '../components/sw-dialog';
 import { STATUS_KIND, STATUS_LABEL, fmtUptime, healthReport, type HealthReport } from '../api/health';
-import { applyWiskeyUi, type WiskeyScreen } from '../shell/nav';
+import { applyWiskeyUi, applyWiskeyHidden, type WiskeyScreen } from '../shell/nav';
 
 /** הגדרות › בקרות כניסה: the SMPLWISE WisKey screens that can show either WisKey's own panel or the screen built here. */
 const ACCESS_SCREENS: { screen: WiskeyScreen; label: string; href: string; detail: string }[] = [
@@ -457,6 +457,7 @@ export class SystemDiagnostics extends LitElement {
       this.draft = {};
       invalidateSettings();
       applyWiskeyUi(r.settings as unknown as Record<string, unknown>); // the WisKey tabs follow at once, no reload
+      applyWiskeyHidden(r.settings as unknown as Record<string, unknown>); // ditto for a direct URL landing on "not available"
       this.message = 'ההגדרות נשמרו';
       setTimeout(() => (this.message = ''), 2500);
     } catch (err) {
@@ -608,10 +609,14 @@ export class SystemDiagnostics extends LitElement {
    * panel embedded as-is (the default) or the SMPLWISE screen; WisKey's other screens are always embedded. */
   private renderAccessControl() {
     const api = isApi();
-    const dirty = ACCESS_SCREENS.some((a) => `access.ui.${a.screen}` in this.draft);
+    const dirty = ACCESS_SCREENS.some((a) => `access.ui.${a.screen}` in this.draft) || 'ui.hide_wiskey' in this.draft;
     const choice = (s: WiskeyScreen) => (String(this.value(`access.ui.${s}`) ?? 'wiskey') === 'smplwise' ? 'smplwise' : 'wiskey');
     return html`<div class="sections">
       <sw-card heading="בקרות כניסה" subheading="לכל מסך: הממשק המקורי של WisKey מוטמע כמו שהוא, או המסך שנבנה ב־SMPLWISE. הלשונית נשארת באותו מקום ובאותו שם.">
+        <div class="row"><span class="lbl">הצג את WisKey במערכת<span class="muted">הסתרה מסירה את כל אזור WisKey מהניווט לכל המשתמשים, ללא תלות בתפקיד; הבחירות למסכים הבודדים למטה חלות רק כשהאזור מוצג</span></span>
+          <sw-field class="ctl"><select data-set-hide-wiskey ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.hide_wiskey', (e.target as HTMLSelectElement).value)}>
+            <option value="false" ?selected=${String(this.value('ui.hide_wiskey') ?? 'false') !== 'true'}>מוצג</option><option value="true" ?selected=${String(this.value('ui.hide_wiskey') ?? 'false') === 'true'}>מוסתר</option>
+          </select></sw-field></div>
         ${ACCESS_SCREENS.map(
           (a) => html`<div class="row"><span class="lbl">${a.label}<span class="muted">${a.detail} · <span class="ltr">${a.href}</span></span></span>
             <sw-field class="ctl"><select data-set-access-ui=${a.screen} ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set(`access.ui.${a.screen}`, (e.target as HTMLSelectElement).value as 'wiskey' | 'smplwise')}>
