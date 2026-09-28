@@ -25,6 +25,7 @@ import type { BulkRequest, DevicesBulkDialog } from './devices-bulk';
 import { navigate } from '../router';
 import { bidi, ltrNum } from '../i18n/bidi';
 import { applyDevicesPrefs, DEVICES_PREFS_DEFAULT, devicesStyleTokens, loadDevicesPrefs, type DevicesPrefs } from './devices-style';
+import { DevicesLayoutController, titleOf, type MeasuredGrid } from './devices-layout';
 
 /** CR-007 slice 4: a cover of these device classes is a passage, not a shutter - read-only wherever the covers card
  * renders it (device-class-aware wording/icon, `can_control` already false server-side). */
@@ -242,6 +243,21 @@ export class DevicesArea extends LitElement {
   /** CR-007 6a: style, density and the sensors card (הגדרות › חשמל והתקנים). */
   @state() private prefs: DevicesPrefs = DEVICES_PREFS_DEFAULT;
   private prefsReady: Promise<void> = Promise.resolve();
+  /** CR-007 6b: the area's card layout (one per installation and area; edited with system.configure). */
+  private lay = new DevicesLayoutController(this, {
+    scope: 'area',
+    id: () => this.areaId,
+    screenName: () => `מסך האזור › ${this.detail?.area.name ?? ''}`,
+    measure: () => this.measureCards(),
+    defaultH: () => 30,
+    label: (key) => (this.detail ? (this.detail.cards[key.slice(5) as CardId]?.label ?? key) : key),
+  });
+
+  private measureCards(): MeasuredGrid[] {
+    const el = this.renderRoot.querySelector<HTMLElement>('[data-lay-grid="cards"]');
+    if (!el) return [];
+    return [{ el, items: [...el.querySelectorAll<HTMLElement>(':scope > [data-lay-key]')].map((c) => ({ key: c.dataset.layKey!, el: c })) }];
+  }
 
   /** CR-007 slice 3: the area's own bulk actions (the same popover as the tree's area tile), for a holder of
    * devices.control_bulk where the server says it would accept them (`can_bulk`); the dialog alone sends. */
@@ -620,6 +636,7 @@ export class DevicesArea extends LitElement {
 
   protected willUpdate(changed: PropertyValues<this>) {
     if (changed.has('areaId') && isApi() && !this.forbidden) {
+      void this.lay.load();
       this.detail = null;
       this.notFound = false;
       this.error = '';
@@ -1047,8 +1064,11 @@ export class DevicesArea extends LitElement {
     const empty = cards.filter((c) => c.count === 0);
     const anyControllable = cards.some((c) => c.entities.some((r) => r.can_control));
     const bulk = this.bulkAllowed;
+    const ordered = [...filled, ...empty];
+    this.lay.prepare([{ id: 'cards', keys: ordered.map((c) => `card:${c.id}`) }]);
     return html`<sw-page heading=${bidi(d.area.name)} subheading=${sub} backHref="/devices/building" crumbs=${crumbs} wide @bulk-request=${this.onBulkRequest}>
       <div slot="actions">
+        ${this.lay.renderEditButton()}
         ${bulk ? html`<devices-bulk-menu scope="area" .targetId=${d.area.area_id} .targetName=${d.area.name} .counts=${d.counts} variant="popover" label="פעולות לאזור" data-bulk-area=${d.area.area_id}></devices-bulk-menu>` : nothing}
         ${d.counts.alarm ? html`<sw-badge data-area-alarm kind=${alarmTone(d.counts.alarm)} label=${`אזעקה: ${ALARM_HE[d.counts.alarm] ?? d.counts.alarm}`}></sw-badge>` : nothing}
         <sw-badge data-devices-sync kind=${connected ? 'live' : 'stale'} label=${connected ? 'מסונכרן עם Home Assistant' : 'לא מסונכרן עם Home Assistant'}></sw-badge>
@@ -1063,8 +1083,9 @@ export class DevicesArea extends LitElement {
           </div>`
         : nothing}
       ${this.error ? html`<sw-state-panel compact state="error" heading="הרענון האחרון נכשל" hint=${this.error}></sw-state-panel>` : nothing}
-      <div class="grid">
-        ${repeat([...filled, ...empty], (c) => c.id, (c) => this.renderCard(c))}
+      ${this.lay.renderBar()}
+      <div class=${classMap({ grid: true, 'lay-grid': this.lay.gridOn('cards') })} data-lay-grid="cards" data-lay-cols=${this.lay.gridCols('cards')} ?data-lay-phone-preview=${this.lay.phonePreview('cards')}>
+        ${repeat(ordered, (c) => c.id, (c) => this.lay.wrap(`card:${c.id}`, this.renderCard(c)))}
       </div>
       <div class="note">
         ${anyControllable
@@ -1073,13 +1094,15 @@ export class DevicesArea extends LitElement {
       </div>
       ${bulk ? html`<devices-bulk-dialog @bulk-done=${() => void this.load()}></devices-bulk-dialog>` : nothing}
       ${this.canAssignArea ? this.renderAssignDialog() : nothing}
+      ${this.lay.renderPanel()}
     </sw-page>`;
   }
 
   private renderCard(c: DeviceCard) {
     const e = CARD_EMPTY[c.id];
-    return html`<sw-card data-card=${c.id} ?data-empty=${c.count === 0} heading=${c.label} subheading=${c.count ? `${c.count} התקנים${c.id === 'lighting' || c.id === 'switches' || c.id === 'climate' || c.id === 'covers' || c.id === 'media' ? ` · ${c.active} פעילים` : ''}` : ''}>
-      <sw-icon slot="actions" .name=${CARD_ICON[c.id]} size=${18}></sw-icon>
+    const it = this.lay.item(`card:${c.id}`); // CR-007 6b: the layout's own title and icon
+    return html`<sw-card data-card=${c.id} data-lay-key=${`card:${c.id}`} ?data-empty=${c.count === 0} heading=${titleOf(it, c.label)} subheading=${c.count ? `${c.count} התקנים${c.id === 'lighting' || c.id === 'switches' || c.id === 'climate' || c.id === 'covers' || c.id === 'media' ? ` · ${c.active} פעילים` : ''}` : ''}>
+      <sw-icon slot="actions" .name=${it?.icon ?? CARD_ICON[c.id]} size=${18}></sw-icon>
       ${c.count === 0
         ? html`<sw-state-panel compact data-card-empty state="empty" heading=${e.heading} hint=${e.hint}></sw-state-panel>`
         : c.id === 'sensors'

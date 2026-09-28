@@ -19,6 +19,7 @@ import { bidi, ltrNum } from '../i18n/bidi';
 import type { BulkKind } from '../api/device-bulk';
 import type { BulkRequest, DevicesBulkDialog } from './devices-bulk';
 import { applyDevicesPrefs, DEVICES_PREFS_DEFAULT, devicesStyleTokens, loadDevicesPrefs, type DevicesPrefs } from './devices-style';
+import { DevicesLayoutController, titleOf, type LayoutGrid, type MeasuredGrid } from './devices-layout';
 
 /** Refetches are throttled, not debounced: the first push starts a window, every push inside it rides the same
  * refetch, and a push during the fetch itself queues exactly one more (loadAgain). A screen full of sensors updating
@@ -395,6 +396,52 @@ export class DevicesBuilding extends LitElement {
   private tickTimer = 0;
   /** Until when a structure_changed push is taken as the echo of this user's own manual refresh (no second fetch). */
   private manualUntil = 0;
+
+  /** CR-007 6b: the building screen's layout (one per installation: floor cards and area tiles; system.configure edits). */
+  private lay = new DevicesLayoutController(this, {
+    scope: 'building',
+    id: () => 'main',
+    screenName: () => (this.layout === 'cards' ? 'מסך המבנה › כרטיסי קומה' : 'מסך המבנה › אריחי אזורים'),
+    measure: () => this.measureGrids(),
+    defaultH: (key) => (key.startsWith('floor:') ? 30 : 14),
+    label: (key) => this.layLabel(key),
+    onEnter: () => {
+      this.selected = 'all';
+    },
+  });
+
+  private layLabel(key: string): string {
+    const id = key.slice(key.indexOf(':') + 1);
+    if (id === 'unassigned') return 'ללא שיוך';
+    const t = this.tree;
+    if (key.startsWith('floor:')) return t?.floors.find((f) => f.floor_id === id)?.name ?? id;
+    for (const f of t?.floors ?? []) {
+      const a = f.areas.find((x) => x.area_id === id);
+      if (a) return a.name;
+    }
+    return id;
+  }
+
+  private measureGrids(): MeasuredGrid[] {
+    return [...this.renderRoot.querySelectorAll<HTMLElement>('[data-lay-grid]')].map((el) => ({
+      el,
+      items: [...el.querySelectorAll<HTMLElement>(':scope > [data-lay-key]')].map((c) => ({ key: c.dataset.layKey!, el: c })),
+    }));
+  }
+
+  /** The grids this render draws (a narrowed floor selection is never laid out: it shows one card). */
+  private layGrids(t: DeviceTree): LayoutGrid[] {
+    const loose = !!t.unassigned.counts.entities || !t.scoped;
+    if (this.layout === 'cards') {
+      if (this.selected !== 'all' && !this.lay.editing) return [];
+      return [{ id: 'fcards', keys: [...t.floors.map((f) => `floor:${f.floor_id}`), ...(loose ? ['floor:unassigned'] : [])] }];
+    }
+    return [...t.floors.map((f) => ({ id: `areas:${f.floor_id}`, keys: f.areas.map((a) => `area:${a.area_id}`) })), ...(loose ? [{ id: 'areas:unassigned', keys: ['area:unassigned'] }] : [])];
+  }
+
+  private gridAttrs(id: string) {
+    return { on: this.lay.gridOn(id), cols: this.lay.gridCols(id), phone: this.lay.phonePreview(id) };
+  }
 
   private setLayout(l: BuildingLayout) {
     this.layout = l;
@@ -1008,8 +1055,10 @@ export class DevicesBuilding extends LitElement {
     const sub = `${floors} קומות · ${areas} אזורים · ${t.building.entities} התקנים${!isApi() ? ' · נתוני הדגמה' : ''}`;
     const connected = this.sync?.connected ?? false;
     const bulkBuilding = this.bulkAllowed && t.can_bulk === true;
+    this.lay.prepare(this.layGrids(t));
     return html`<sw-page heading=${heading} subheading=${sub} wide @bulk-request=${this.onBulkRequest}>
       <div slot="actions">
+        ${this.lay.renderEditButton()}
         ${t.scoped ? html`<sw-badge kind="partial" label="לפי הקומות שלך"></sw-badge>` : nothing}
         ${isApi() ? html`<sw-badge data-devices-sync kind=${connected ? 'live' : 'stale'} label=${connected ? 'מסונכרן עם Home Assistant' : 'לא מסונכרן עם Home Assistant'}></sw-badge>` : nothing}
         ${isApi() ? this.renderRefresh() : nothing}
@@ -1020,8 +1069,8 @@ export class DevicesBuilding extends LitElement {
       <div class="toolbar">
         <span class="seg" role="group" aria-label="פריסה">פריסה:
           <span class="opts">
-            <button data-layout="cards" aria-pressed=${String(this.layout === 'cards')} @click=${() => this.setLayout('cards')}>כרטיסים</button>
-            <button data-layout="tiles" aria-pressed=${String(this.layout === 'tiles')} @click=${() => this.setLayout('tiles')}>אריחים</button>
+            <button data-layout="cards" aria-pressed=${String(this.layout === 'cards')} ?disabled=${this.lay.editing} @click=${() => this.setLayout('cards')}>כרטיסים</button>
+            <button data-layout="tiles" aria-pressed=${String(this.layout === 'tiles')} ?disabled=${this.lay.editing} @click=${() => this.setLayout('tiles')}>אריחים</button>
           </span>
         </span>
         ${bulkBuilding
@@ -1034,11 +1083,13 @@ export class DevicesBuilding extends LitElement {
       ${!t.floors.length
         ? html`<sw-state-panel data-devices-state="empty" state="empty" heading=${t.scoped ? 'אין התקנים בקומות שלך' : 'אין קומות ואזורים מ־Home Assistant'} hint=${t.scoped ? 'רק ישויות שהוצבו על המפה של הקומות שבהרשאתך מופיעות כאן.' : 'צרו קומות ואזורים ב־Home Assistant ושייכו אליהם התקנים; העץ יתעדכן מעצמו אחרי סנכרון הרישום.'}></sw-state-panel>`
         : nothing}
+      ${this.lay.renderBar()}
       ${this.layout === 'cards' ? this.renderCards(t) : this.renderTiles(t)}
       <div class="note">${this.bulkAllowed
         ? 'מצב ההתקנים כפי ש־Home Assistant מדווח אותו. פעולות מרוכזות (⋯ בקומה או באזור, והכפתורים למעלה) נפתחות תמיד בחלון אישור שמפרט מה יישלח; מנעולים, אזעקה ושחרור דלתות אינם נכללים לעולם. שליטה בהתקן בודד - במסך האזור.'
         : 'תצוגה לקריאה בלבד: מצב ההתקנים כפי ש־Home Assistant מדווח אותו. שליטה בהתקן בודד - במסך האזור.'}</div>
       ${this.bulkAllowed ? html`<devices-bulk-dialog @bulk-done=${() => void this.load()}></devices-bulk-dialog>` : nothing}
+      ${this.lay.renderPanel()}
     </sw-page>`;
   }
 
@@ -1063,7 +1114,7 @@ export class DevicesBuilding extends LitElement {
       ${t.unassigned.counts.entities || !t.scoped
         ? html`<section class="floor" data-floor="unassigned">
             <div class="floor-head"><h2>ללא שיוך</h2><span class="level">התקנים שאינם משויכים לאזור ב־Home Assistant</span></div>
-            <div class="areas">${this.renderTile({ area_id: 'unassigned', name: t.unassigned.name, icon: null, floor_id: null, counts: t.unassigned.counts, has_camera: false }, true)}</div>
+            ${this.renderAreasGrid('areas:unassigned', html`${this.lay.wrap('area:unassigned', this.renderTile({ area_id: 'unassigned', name: t.unassigned.name, icon: null, floor_id: null, counts: t.unassigned.counts, has_camera: false }, true))}`)}
           </section>`
         : nothing}`;
   }
@@ -1075,13 +1126,13 @@ export class DevicesBuilding extends LitElement {
     const floors = shown.length ? shown : t.floors; // a floor that vanished from the tree: back to everything
     return html`<div class="split" data-layout-view="cards">
       ${this.renderTreePanel(t)}
-      <div class="fcards">
-        ${repeat(floors, (f) => f.floor_id, (f) => this.renderFloorCard(f))}
+      <div class=${classMap({ fcards: true, 'lay-grid': this.gridAttrs('fcards').on })} data-lay-grid="fcards" data-lay-cols=${this.gridAttrs('fcards').cols} ?data-lay-phone-preview=${this.gridAttrs('fcards').phone}>
+        ${repeat(floors, (f) => f.floor_id, (f) => this.lay.wrap(`floor:${f.floor_id}`, this.renderFloorCard(f)))}
         ${(this.selected === 'all' || !shown.length) && (t.unassigned.counts.entities || !t.scoped)
-          ? html`<section class="fcard loose" data-floor-card="unassigned">
+          ? this.lay.wrap('floor:unassigned', html`<section class="fcard loose" data-floor-card="unassigned" data-lay-key="floor:unassigned">
               <header><h2>ללא שיוך</h2><span class="lit">${t.unassigned.counts.entities} התקנים שאינם משויכים לאזור ב־Home Assistant</span></header>
               <div class="rows">${this.renderAreaRow({ area_id: 'unassigned', name: t.unassigned.name, icon: null, floor_id: null, counts: t.unassigned.counts, has_camera: false }, 'card', true)}</div>
-            </section>`
+            </section>`)
           : nothing}
       </div>
     </div>`;
@@ -1127,9 +1178,11 @@ export class DevicesBuilding extends LitElement {
 
   private renderFloorCard(f: DeviceFloor) {
     const c = f.counts;
-    return html`<section class="fcard" data-floor-card=${f.floor_id}>
+    const it = this.lay.item(`floor:${f.floor_id}`); // CR-007 6b: the layout's own title and icon
+    return html`<section class="fcard" data-floor-card=${f.floor_id} data-lay-key=${`floor:${f.floor_id}`}>
       <header>
-        <h2>${bidi(f.name)}</h2>
+        ${it?.icon ? html`<sw-icon class="lay-title-icon" .name=${it.icon} size=${16}></sw-icon>` : nothing}
+        <h2>${bidi(titleOf(it, f.name))}</h2>
         <span class=${classMap({ lit: true, warm: c.lights_on > 0 })} data-lit=${c.lights_on}><sw-icon name="light" size=${13}></sw-icon>${c.lights ? `${ltrNum(c.lights_on)} דולקות מתוך ${ltrNum(c.lights)}` : 'אין תאורה'}</span>
         ${this.bulkAllowed && f.can_bulk
           ? html`<devices-bulk-menu scope="floor" .targetId=${f.floor_id} .targetName=${f.name} .counts=${c} variant="menu" triggerLabel="כבה קומה" data-floor-menu=${f.floor_id}></devices-bulk-menu>`
@@ -1207,8 +1260,14 @@ export class DevicesBuilding extends LitElement {
         </div>
       </div>
       ${this.renderClimateStrip(f.climate, 'מזגני הקומה')}
-      <div class="areas">${repeat(f.areas, (a) => a.area_id, (a) => this.renderTile(a))}</div>
+      ${this.renderAreasGrid(`areas:${f.floor_id}`, html`${repeat(f.areas, (a) => a.area_id, (a) => this.lay.wrap(`area:${a.area_id}`, this.renderTile(a)))}`)}
     </section>`;
+  }
+
+  /** A floor's area tiles: the automatic grid, or (CR-007 6b) the laid-out one. */
+  private renderAreasGrid(id: string, content: unknown) {
+    const g = this.gridAttrs(id);
+    return html`<div class=${classMap({ areas: true, 'lay-grid': g.on })} data-lay-grid=${id} data-lay-cols=${g.cols} ?data-lay-phone-preview=${g.phone}>${content}</div>`;
   }
 
   private renderTile(a: DeviceArea, unassigned = false) {
@@ -1216,7 +1275,8 @@ export class DevicesBuilding extends LitElement {
     const pills = this.pillsShown(c);
     const on = anythingOn(c);
     const bulk = !unassigned && this.bulkAllowed && a.can_bulk === true;
-    return html`<div class=${classMap({ 'tile-wrap': true, bulk })}><a
+    const it = this.lay.item(`area:${a.area_id}`); // CR-007 6b: the layout's own title and icon
+    return html`<div class=${classMap({ 'tile-wrap': true, bulk })} data-lay-key=${`area:${a.area_id}`}><a
       class=${classMap({ tile: true, on, empty: c.entities === 0, unassigned })}
       href=${`#/devices/areas/${encodeURIComponent(a.area_id)}`}
       data-area=${a.area_id}
@@ -1225,8 +1285,8 @@ export class DevicesBuilding extends LitElement {
       aria-label=${`${a.name} · ${c.entities} התקנים`}
     >
       <div class="tile-head">
-        <sw-icon .name=${unassigned ? 'help' : 'home'} size=${16}></sw-icon>
-        <span class="name">${bidi(a.name)}</span>
+        <sw-icon .name=${it?.icon ?? (unassigned ? 'help' : 'home')} size=${16}></sw-icon>
+        <span class="name">${bidi(titleOf(it, a.name))}</span>
         ${on ? html`<span class="dot" title="יש התקן פעיל"></span>` : nothing}
       </div>
       <div class="pills">
