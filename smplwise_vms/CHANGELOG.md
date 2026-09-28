@@ -1,5 +1,16 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.111 (pilot) — Plan image toggle on the history map and the event page
+- Owner request (2026-09-26): hide/show the background plan image per viewer on every map surface. The live
+  floor map and the plan editor already had it since 0.1.94 (T085, "תמונת התוכנית", remembered per browser
+  and floor); this release adds the same toggle to the two surfaces that lacked it, the history map and the
+  event page's map card, as a toolbar button next to their existing 3D toggle. Default: shown until toggled.
+- Only the raster is affected: calibration, coordinates, structure and the server-side PNG/SVG exports are
+  unchanged (a live test asserts the export links are identical after toggling). Reviewed once, approved.
+  Tests: 9 live plan-studio tests, 2 live event-page tests (one seeded event on an imaged floor).
+- Also in the repository since 0.1.110: CR-006 (Plan Studio 3D visual level, two phases, owner decisions
+  recorded) and CR-007 (electricity and device control area, approved from the mockup).
+
 ## 0.1.110 (pilot) — WisKey station credential override screen (CR-005 phase 4)
 - The per-station RTSP credential override that 0.1.109 shipped API-only now has its admin screen: a card
   "מצלמות עמדות WisKey" on Settings › Connections, shown only to holders of `system.configure`. Per station:
