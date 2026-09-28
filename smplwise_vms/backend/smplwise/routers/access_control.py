@@ -298,6 +298,16 @@ def _drop_still(request: Request, station_id: str) -> None:
     _still_path(settings_of(request), station_id).unlink(missing_ok=True)
 
 
+@router.get("/intercom/stations/credentials")
+def stations_credentials(request: Request, principal: Principal = Depends(_credentials_admin), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """The admin screen's list: the feed's state, whether the shared default is set, and per station (every one the
+    feed knows, plus any override row for a station it no longer lists - `known: false`) whether an override exists and
+    since when. Names come from the feed; no username, password or host is ever in the reply."""
+    settings = settings_of(request)
+    state, overview = intercom_sync.SYNC.served(settings)
+    return {"state": state, **wiskey_camera.listing(conn, settings, overview)}
+
+
 @router.get("/intercom/stations/{station_id}/credentials")
 def station_credentials(request: Request, principal: Principal = Depends(_credentials_admin), conn: sqlite3.Connection = Depends(get_conn), station_id: str = Path(min_length=1, max_length=MAX_STATION_ID)) -> dict[str, Any]:
     """Whether the station has its own credentials, whether the shared default is set, and which one applies."""

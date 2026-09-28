@@ -8,8 +8,9 @@ import '../components/sw-steps';
 import '../components/sw-field';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
-import { isApi } from '../api/session';
-import { get, describeError } from '../api/client';
+import { can, isApi } from '../api/session';
+import { ApiError, get, describeError } from '../api/client';
+import { clearIntercomCredentials, getIntercomCredentials, setIntercomCredentials, type IntercomCredentialsList, type IntercomStationCredentials } from '../api/intercom';
 import { listCameras } from '../api/maps';
 import { healthReport, type HealthReport } from '../api/health';
 import { listNvrChanges, notifyStatus, nvrConnection, nvrSystem, pulseNvrOutput, rebootNvr, rollbackNvrChange, setNotify, setNvrConnection, setNvrNtp, setNvrTime, startSmartTest, type NotifyStatus, type NvrChange, type NvrConnection, type NvrSystem } from '../api/nvr';
@@ -81,6 +82,14 @@ export class SystemSetup extends LitElement {
   @state() private connMsg = '';
   @state() private connBusy = false;
   @state() private changes: NvrChange[] = [];
+  /** WisKey station RTSP accounts (0.1.109 API; this screen is the follow-up): the list is loaded only for a system
+   * administrator; the form never holds a stored value, only what is being typed. */
+  @state() private wiskey: IntercomCredentialsList | null = null;
+  @state() private wiskeyError = '';
+  @state() private wiskeyForm: { station_id: string; username: string; password: string } | null = null;
+  @state() private wiskeyClear: IntercomStationCredentials | null = null;
+  @state() private wiskeyMsg = '';
+  @state() private wiskeyBusy = false;
 
   connectedCallback() {
     super.connectedCallback();
@@ -89,6 +98,7 @@ export class SystemSetup extends LitElement {
 
   private async load() {
     void this.loadNvr();
+    void this.loadWiskey();
     this.busy = true;
     try {
       this.raw = await get<RawHealth>('health');
@@ -243,6 +253,108 @@ export class SystemSetup extends LitElement {
     </sw-card>`;
   }
 
+  private async loadWiskey() {
+    if (!can('system.configure')) return;
+    try {
+      this.wiskey = await getIntercomCredentials();
+      this.wiskeyError = '';
+    } catch (err) {
+      this.wiskeyError = SystemSetup.wiskeyFailure('רשימת העמדות לא נטענה', err);
+    }
+  }
+
+  /** The API's own answer, code included (`source_not_configured`, `forbidden` ...), never softened. */
+  private static wiskeyFailure(prefix: string, err: unknown): string {
+    return `${prefix}: ${describeError(err)}${err instanceof ApiError ? ` (${err.code})` : ''}`;
+  }
+
+  private wiskeyName(stationId: string): string {
+    const s = this.wiskey?.stations.find((x) => x.station_id === stationId);
+    return s?.name || stationId;
+  }
+
+  private async saveWiskey() {
+    const f = this.wiskeyForm;
+    if (!f || this.wiskeyBusy) return;
+    this.wiskeyBusy = true;
+    this.wiskeyMsg = '';
+    try {
+      await setIntercomCredentials(f.station_id, { username: f.username.trim(), password: f.password });
+      this.wiskeyForm = null;
+      this.wiskeyMsg = `החשבון של ${this.wiskeyName(f.station_id)} נשמר; התמונה מהמצלמה תילקח מחדש איתו.`;
+      await this.loadWiskey();
+    } catch (err) {
+      this.wiskeyMsg = SystemSetup.wiskeyFailure('לא נשמר', err);
+    } finally {
+      this.wiskeyBusy = false;
+    }
+  }
+
+  private async clearWiskey() {
+    const s = this.wiskeyClear;
+    if (!s || this.wiskeyBusy) return;
+    this.wiskeyBusy = true;
+    this.wiskeyMsg = '';
+    try {
+      await clearIntercomCredentials(s.station_id);
+      this.wiskeyClear = null;
+      this.wiskeyMsg = s.known ? `החשבון של ${s.name || s.station_id} הוסר; העמדה חוזרת לחשבון המשותף.` : `הרשומה של ${s.station_id} הוסרה.`;
+      await this.loadWiskey();
+    } catch (err) {
+      this.wiskeyMsg = SystemSetup.wiskeyFailure('לא הוסר', err);
+    } finally {
+      this.wiskeyBusy = false;
+    }
+  }
+
+  private renderWiskeyStation(s: IntercomStationCredentials, w: IntercomCredentialsList) {
+    const f = this.wiskeyForm?.station_id === s.station_id ? this.wiskeyForm : null;
+    const state = s.override ? 'override' : w.default_configured ? 'default' : 'none';
+    const status = s.override ? `חשבון משלה · מאז ${when(s.override_updated_at)}` : w.default_configured ? 'החשבון המשותף' : 'אין חשבון · אין תמונה מהמצלמה';
+    return html`<div data-wiskey-station=${s.station_id} data-wiskey-cred-state=${state}>
+      <div class="check">
+        <span>${s.name || s.station_id}${!s.known ? html` <span class="hint" data-wiskey-cred-unknown>· לא ברשימת העמדות של WisKey כרגע</span>` : s.has_camera ? nothing : html` <span class="hint">· ללא מצלמה</span>`}</span>
+        <span class=${`val ${s.override ? 'ok' : w.default_configured ? '' : 'warn'}`} data-wiskey-cred-status>${status}</span>
+      </div>
+      ${f
+        ? html`<div class="two" data-wiskey-cred-form>
+            <sw-field label="משתמש"><input data-ltr data-wiskey-cred-user autocomplete="off" .value=${f.username} @input=${(e: Event) => (this.wiskeyForm = { ...f, username: (e.target as HTMLInputElement).value })} /></sw-field>
+            <sw-field label="סיסמה"><input type="password" data-ltr data-wiskey-cred-password autocomplete="new-password" .value=${f.password} @input=${(e: Event) => (this.wiskeyForm = { ...f, password: (e.target as HTMLInputElement).value })} /></sw-field>
+            <div class="actions">
+              <sw-button size="sm" variant="primary" icon="check" ?disabled=${this.wiskeyBusy || !f.username.trim() || !f.password} data-wiskey-cred-save @click=${() => this.saveWiskey()}>${this.wiskeyBusy ? 'שומר…' : 'שמור'}</sw-button>
+              <sw-button size="sm" variant="ghost" ?disabled=${this.wiskeyBusy} data-wiskey-cred-cancel @click=${() => (this.wiskeyForm = null)}>ביטול</sw-button>
+            </div>
+            <div class="hint">החשבון נשמר בבסיס הנתונים של ה־VMS ואינו מוצג שוב; השמירה נרשמת באודיט בלי הסיסמה. החשבון אינו נבדק מול העמדה - אם הוא שגוי, במרכז הכניסה לא תהיה תמונה מהמצלמה.</div>
+          </div>`
+        : html`<div class="actions">
+            ${s.known ? html`<sw-button size="sm" icon="edit" ?disabled=${this.wiskeyBusy} data-wiskey-cred-edit @click=${() => { this.wiskeyMsg = ''; this.wiskeyForm = { station_id: s.station_id, username: '', password: '' }; }}>${s.override ? 'החלפת החשבון…' : 'חשבון משלה לעמדה…'}</sw-button>` : nothing}
+            ${s.override ? html`<sw-button size="sm" variant="ghost" icon="trash" ?disabled=${this.wiskeyBusy} data-wiskey-cred-clear @click=${() => { this.wiskeyMsg = ''; this.wiskeyClear = s; }}>${s.known ? 'חזרה לחשבון המשותף' : 'הסרת הרשומה'}</sw-button>` : nothing}
+          </div>`}
+    </div>`;
+  }
+
+  /** Per-station WisKey RTSP accounts (system.configure only; hidden otherwise). The station's host is never shown. */
+  private renderWiskeyCard() {
+    if (!can('system.configure')) return nothing;
+    const w = this.wiskey;
+    const c = this.wiskeyClear;
+    return html`<sw-card heading="מצלמות עמדות WisKey" subheading="חשבון ה־RTSP שאיתו go2rtc מושך את מצלמת כל עמדה: המשותף מה־Add-on options, או חשבון משלה לעמדה שצריכה אחר · הערכים עצמם אינם מוצגים" data-wiskey-credentials>
+      ${this.wiskeyError ? html`<div class="hint" data-wiskey-cred-error>${this.wiskeyError}</div>` : nothing}
+      ${!w
+        ? this.wiskeyError ? nothing : html`<div class="hint">קורא את רשימת העמדות…</div>`
+        : html`${this.row('חשבון משותף (wiskey_username / wiskey_password)', w.default_configured ? 'מוגדר' : 'לא מוגדר', w.default_configured ? 'ok' : 'warn')}
+          ${w.state !== 'ready' ? html`<div class="hint" data-wiskey-cred-feed=${w.state}>WisKey אינו מחובר כרגע (מצב: <span class="ltr">${w.state}</span>); מוצג מה שידוע ל־VMS.</div>` : nothing}
+          ${w.stations.length ? w.stations.map((s) => this.renderWiskeyStation(s, w)) : html`<div class="hint" data-wiskey-cred-empty>אין עמדות ברשימה.</div>`}
+          ${this.wiskeyMsg ? html`<div class="hint" data-wiskey-cred-msg>${this.wiskeyMsg}</div>` : nothing}`}
+      ${c
+        ? html`<sw-dialog open heading="הסרת החשבון של העמדה" subheading=${c.name || c.station_id} data-wiskey-cred-confirm @close=${() => (this.wiskeyClear = null)}>
+            <div style="font-size:var(--sw-fs-sm);line-height:1.5">${!c.known ? 'הרשומה תימחק מבסיס הנתונים של ה־VMS.' : w?.default_configured ? 'העמדה תחזור לחשבון המשותף מה־Add-on options, והתמונה מהמצלמה תילקח מחדש איתו.' : 'לעמדה לא יישאר חשבון, ולא תהיה ממנה תמונה עד שיוגדר אחד.'} ההסרה נרשמת באודיט.</div>
+            <div slot="footer"><sw-button variant="danger" ?disabled=${this.wiskeyBusy} data-wiskey-cred-confirm-run @click=${() => this.clearWiskey()}>${this.wiskeyBusy ? 'מסיר…' : 'הסר'}</sw-button><sw-button variant="ghost" @click=${() => (this.wiskeyClear = null)}>ביטול</sw-button></div>
+          </sw-dialog>`
+        : nothing}
+    </sw-card>`;
+  }
+
   private renderConnectionCard() {
     const v = this.connection;
     if (!v) return nothing;
@@ -371,6 +483,7 @@ export class SystemSetup extends LitElement {
                 ${h.discovery.streams_last_error ? this.row('שגיאת סנכרון זרמים', h.discovery.streams_last_error, 'err') : nothing}
                 ${this.check('go2rtc') ? this.row('בדיקת בריאות', this.check('go2rtc')!.detail, this.check('go2rtc')!.status === 'ok' ? 'ok' : this.check('go2rtc')!.status === 'warn' ? 'warn' : 'err') : html`<div class="hint">פרטי הזרמים והגרסה מוצגים ב"הגדרות › כללי › בריאות ועבודות" (דורש הרשאת ניהול).</div>`}
               </sw-card>
+              ${this.renderWiskeyCard()}
               <sw-card heading="Home Assistant" subheading=${h.home_assistant.connected ? `מחובר · HA ${h.home_assistant.ha_version ?? ''}` : h.home_assistant.configured ? 'מוגדר, מנותק' : 'לא מוגדר'}>
                 ${this.row('חיבור', h.home_assistant.connected ? 'מחובר' : `מנותק${h.home_assistant.last_error ? ` · ${h.home_assistant.last_error}` : ''}`, h.home_assistant.connected ? 'ok' : 'err')}
                 ${this.row('ישויות בקטלוג', h.home_assistant.entities)}
