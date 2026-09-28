@@ -79,6 +79,7 @@ DEVICES_DEFAULTS = {
     "devices.show_sensors": "true",
     "devices.show_climate_strip": "true",
     "devices.density": "comfortable",
+    "devices.scheme": "light",  # CR-007 6b
 }
 
 
@@ -123,3 +124,31 @@ def test_devices_settings_defaults_validation_audit_and_gate(settings):
         assert seen.json()["settings"]["devices.style"] == "smplwise"
         assert c.patch("/api/v1/settings", json={"devices.style": "glass"}, headers=as_user("dana")).status_code == 403
         assert c.get("/api/v1/settings").json()["settings"]["devices.style"] == "smplwise"
+
+
+def test_devices_theme_and_scheme_6b(settings):
+    """CR-007 slice 6b: four built-in palettes (every one registered in the frontend too) and the device area's own
+    colour scheme - light by default (the shell is light only; dark never applies by itself), dark or auto on request."""
+    import re
+    from pathlib import Path
+
+    from smplwise.routers.settings import DEVICE_THEMES
+
+    front = (Path(__file__).resolve().parents[3] / "frontend" / "src" / "styles" / "devices-themes.ts").read_text(encoding="utf-8")
+    m = re.search(r"export const DEVICE_THEMES = \[([^\]]*)\]", front)
+    assert m, "DEVICE_THEMES not found in devices-themes.ts"
+    assert tuple(re.findall(r"'([a-z]+)'", m.group(1))) == DEVICE_THEMES == ("default", "sand", "forest", "graphite")
+    app = create_app(settings)
+    with TestClient(app) as c:
+        s = c.get("/api/v1/settings").json()["settings"]
+        assert s["devices.scheme"] == "light" and s["devices.theme"] == "default"
+        for theme in DEVICE_THEMES:
+            assert c.patch("/api/v1/settings", json={"devices.theme": theme}).status_code == 200, theme
+        for scheme in ("dark", "auto", "light"):
+            assert c.patch("/api/v1/settings", json={"devices.scheme": scheme}).status_code == 200, scheme
+        for bad in ("Dark", "system", "", "night"):
+            assert c.patch("/api/v1/settings", json={"devices.scheme": bad}).status_code == 422, bad
+        assert c.get("/api/v1/settings").json()["settings"]["devices.scheme"] == "light"
+        bind(c, settings, "dana", "viewer", "installation", "*")
+        assert c.patch("/api/v1/settings", json={"devices.scheme": "dark"}, headers=as_user("dana")).status_code == 403
+        assert c.get("/api/v1/settings", headers=as_user("dana")).json()["settings"]["devices.scheme"] == "light"

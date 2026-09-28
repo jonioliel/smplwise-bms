@@ -9,7 +9,7 @@ import { css } from 'lit';
  *   "smplwise" = the product's own look (the v2 tokens of styles/tokens.css, no rule here matches it);
  *   "glass"    = the approved mockup's look; its element rules live next to each screen's template and read ONLY the
  *                `--dv-*` knobs below - never a literal colour, radius, shadow or size.
- * - `data-devices-theme` (setting `devices.theme`): the PALETTE - the values of those knobs. One palette today,
+ * - `data-devices-theme` (setting `devices.theme`): the PALETTE - the values of those knobs. Four since 6b (the others in devices-palettes.ts);
  *   "default"; each palette sets light values, dark values (host attribute `data-devices-scheme="dark"`, set by slice 6b's
  *   `devices.scheme`; never the OS media query - the shell is light only) and, where it wants to,
  *   phone values (max-width 767px). Adding a palette = copying the "default" blocks under a new id and registering it
@@ -27,7 +27,7 @@ import { css } from 'lit';
  */
 
 /** The registered palettes (keep in step with THEMES in smplwise_vms/backend/smplwise/routers/settings.py). */
-export const DEVICE_THEMES = ['default'] as const;
+export const DEVICE_THEMES = ['default', 'sand', 'forest', 'graphite'] as const;
 export type DeviceThemeId = (typeof DEVICE_THEMES)[number];
 
 /** Every knob a palette sets, with its role (the same list, with screenshots, is in docs/design/DEVICE_THEMES.md). */
@@ -158,8 +158,9 @@ export const devicesThemes = css`
     background: var(--dv-backdrop);
   }
 
-  /* ---- 2. palette "default" (the approved mockup): light ---- */
-  :host([data-devices-style='glass'][data-devices-theme='default']) {
+  /* ---- 2. palette "default" (the approved mockup): light. 6b: this block is the BASE of every palette (the shape
+     knobs - radii, sizes, gaps, fonts - apply to all; the other palettes override the colour knobs, devices-palettes.ts) */
+  :host([data-devices-style='glass']) {
     --dv-color-scheme: light;
     --dv-backdrop: radial-gradient(1100px 560px at 85% -12%, rgba(255, 184, 86, 0.2), transparent 60%),
       radial-gradient(900px 520px at 8% 112%, rgba(10, 132, 255, 0.16), transparent 60%), linear-gradient(180deg, #eef2f9, #e5eaf4);
@@ -273,9 +274,9 @@ export const devicesThemes = css`
     --dv-icon-ring-fg: #f5f5f7;
     --dv-toggle-on: #30d158;
   }
-  /* palette "default": phone (sizes only; colours as above) */
+  /* palette "default": phone (sizes only; colours as above) - every palette (6b) */
   @media (max-width: 767px) {
-    :host([data-devices-style='glass'][data-devices-theme='default']) {
+    :host([data-devices-style='glass']) {
       --dv-gap: 10px;
       --dv-gap-lg: 12px;
       --dv-card-pad-block: 14px;

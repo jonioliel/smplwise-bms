@@ -2,6 +2,8 @@ import { productSettings } from '../api/prefs';
 import type { ProductSettings } from '../api/media';
 import { isApi } from '../api/session';
 import { DEVICE_THEMES, devicesThemes, type DeviceThemeId } from '../styles/devices-themes';
+import { devicesPalettes } from '../styles/devices-palettes';
+import { devicesLayoutCss } from './devices-layout-css';
 
 /**
  * CR-007 slice 6a: the presentation settings of the device-control screens (הגדרות › חשמל והתקנים, `devices.*`, per
@@ -16,11 +18,13 @@ import { DEVICE_THEMES, devicesThemes, type DeviceThemeId } from '../styles/devi
  */
 
 /** The theme layer every device screen includes first in its styles. */
-export const devicesStyleTokens = devicesThemes;
+export const devicesStyleTokens = [devicesThemes, devicesPalettes, devicesLayoutCss];
 
 export type DevicesStyle = 'smplwise' | 'glass';
 export type DevicesDensity = 'comfortable' | 'compact';
 export type DevicesView = 'cards' | 'tiles';
+/** CR-007 6b: the device area's colour scheme (glass style). `auto` follows the viewer's operating system. */
+export type DevicesScheme = 'light' | 'dark' | 'auto';
 
 export interface DevicesPrefs {
   style: DevicesStyle;
@@ -29,9 +33,10 @@ export interface DevicesPrefs {
   showSensors: boolean;
   showClimateStrip: boolean;
   density: DevicesDensity;
+  scheme: DevicesScheme;
 }
 
-export const DEVICES_PREFS_DEFAULT: DevicesPrefs = { style: 'smplwise', theme: 'default', defaultView: 'cards', showSensors: true, showClimateStrip: true, density: 'comfortable' };
+export const DEVICES_PREFS_DEFAULT: DevicesPrefs = { style: 'smplwise', theme: 'default', defaultView: 'cards', showSensors: true, showClimateStrip: true, density: 'comfortable', scheme: 'light' };
 
 /** The `devices.*` settings as the screens use them; anything unknown falls back to today's look / the default palette. */
 export function devicesPrefsOf(s: Partial<ProductSettings> | null | undefined): DevicesPrefs {
@@ -43,6 +48,7 @@ export function devicesPrefsOf(s: Partial<ProductSettings> | null | undefined): 
     showSensors: s?.['devices.show_sensors'] !== 'false',
     showClimateStrip: s?.['devices.show_climate_strip'] !== 'false',
     density: s?.['devices.density'] === 'compact' ? 'compact' : 'comfortable',
+    scheme: s?.['devices.scheme'] === 'dark' || s?.['devices.scheme'] === 'auto' ? s['devices.scheme'] : 'light',
   };
 }
 
@@ -61,4 +67,42 @@ export function applyDevicesPrefs(host: HTMLElement, p: DevicesPrefs) {
   host.setAttribute('data-devices-style', p.style);
   host.setAttribute('data-devices-theme', p.theme);
   host.setAttribute('data-devices-density', p.density);
+  applyDevicesScheme(host, p.scheme);
+}
+
+/** CR-007 6b: the hosts whose scheme is `auto`, re-resolved when the operating system's scheme changes. */
+const autoHosts = new Set<HTMLElement>();
+let darkQuery: MediaQueryList | null = null;
+
+function systemDark(): boolean {
+  try {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  } catch {
+    return false;
+  }
+}
+
+/** The RESOLVED scheme on the host: `data-devices-scheme="light" | "dark"`. Dark applies only when chosen - `dark`, or
+ * `auto` on a device whose operating system is dark (resolved here, in JS: the CSS has no colour-scheme media query,
+ * so while the app shell is light only the device area never turns dark by itself - DEVICE_THEMES.md §6). */
+export function applyDevicesScheme(host: HTMLElement, scheme: DevicesScheme) {
+  host.setAttribute('data-devices-scheme', scheme === 'dark' || (scheme === 'auto' && systemDark()) ? 'dark' : 'light');
+  if (scheme !== 'auto') {
+    autoHosts.delete(host);
+    return;
+  }
+  autoHosts.add(host);
+  if (!darkQuery) {
+    try {
+      darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      darkQuery.addEventListener('change', () => {
+        for (const h of [...autoHosts]) {
+          if (!h.isConnected) autoHosts.delete(h);
+          else h.setAttribute('data-devices-scheme', systemDark() ? 'dark' : 'light');
+        }
+      });
+    } catch {
+      darkQuery = null;
+    }
+  }
 }
