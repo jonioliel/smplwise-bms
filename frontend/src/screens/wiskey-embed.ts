@@ -1,10 +1,14 @@
 import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { keyed } from 'lit/directives/keyed.js';
 import '../components/sw-page';
 import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import { can, isApi } from '../api/session';
+import { parseRoute, pushRoute, replaceRoute } from '../router';
+import { WISKEY_SCREENS, WISKEY_UI, isWiskeyHref, setWiskeyEmbedNav, wiskeyPath, wiskeyRequest, wiskeyRoute, wiskeySegmentOf, type WiskeyScreen } from '../shell/nav';
+import { attachWiskey, WISKEY_PANEL_PATH, WISKEY_PANEL_TAG, type WiskeyCatalog, type WiskeyConnector, type WiskeyLocation } from '../wiskey/embed-connector';
 import './wiskey-overview';
 import './wiskey-events';
 import './wiskey-people';
@@ -14,51 +18,65 @@ import './wiskey-people';
  *
  * The `hikvision_intercom` integration registers a custom panel at `/hikvision-intercom` (panel_custom,
  * `require_admin=False`, `embed_iframe=False`, webcomponent `hikvision-intercom-panel`). SMPLWISE runs under Supervisor
- * Ingress on Home Assistant's own origin, so a root-relative frame source is same-origin with Home Assistant: the frame
- * is a second, complete Home Assistant frontend that signs in with the user's own HA session - WisKey's permissions
- * and audit apply inside it, not SMPLWISE's. Home Assistant sends `X-Frame-Options: SAMEORIGIN`, which permits this.
+ * Ingress on Home Assistant's own origin, so the frame (built from `location.origin`, never the Ingress path) is
+ * same-origin with Home Assistant: a second, complete Home Assistant frontend that signs in with the user's own HA
+ * session - WisKey's permissions and audit apply inside it, not SMPLWISE's. HA sends `X-Frame-Options: SAMEORIGIN`.
  *
- * Same origin also lets this screen reach into the frame, defensively and fail-soft:
+ * WisKey embed API v1 (WisKey 2.0.0-rc.19+, `docs/integrations/wiskey/embed-api-v1/WISKEY_EMBED_API_V1.md`) first:
+ * the frame opens `/hikvision-intercom?embed=1&tab=<tab>[&tool=<tool>]` through the typed connector
+ * (`wiskey/embed-connector.ts`, the reference adapter ported). WisKey omits its own toolbar and handles Home Assistant's
+ * sidebar itself; this screen dispatches NO `hass-kiosk-mode` and calls NO panel method on that path. `wiskey:ready`
+ * brings the catalog the WisKey tab row is built from (nav.ts `setWiskeyEmbedNav`), a SMPLWISE tab click becomes a
+ * `wiskey:navigate` message, the tab row keeps the previous selection until `wiskey:location` confirms, and the confirmed
+ * location is mirrored into SMPLWISE's own address (`wiskey_tab` / `wiskey_tool`, replaceState - never a history entry,
+ * never fed back to the panel). `wiskey:title` is shown as text.
+ *
+ * Until the handshake, a read-only probe only tells the failure states apart (a sign-in redirect, not Home Assistant,
+ * the panel not registered, a refused frame) - it touches nothing. After 12 s without a handshake the connector looks
+ * for the public panel root's `data-embed-api` marker: marker "1" = loading / authentication (a waiting state - never
+ * the older adapter, never a look of authorisation), another value = unsupported, NO marker = an older WisKey build,
+ * and only then the previous adapter runs (`legacy` mode, unchanged):
  * - the chrome: first the official lever, the frontend's `hass-kiosk-mode` window event (HA frontend 2026.1+; not
- *   persisted, unlike `hass-dock-sidebar`, which would also hide the sidebar in the user's own HA tabs); when that is
- *   not honoured, a style injected into `home-assistant-main`'s shadow root hides `ha-sidebar` and zeroes the sidebar
- *   width variables. If neither takes, the panel still works with HA's sidebar visible and a one-line note says so.
- * - the tab: WisKey's panel keeps its tab in memory only (panel.ts `_tab`, no URL routing), so the deep link is applied
- *   by calling the panel's own `navigate(tab)` once per SMPLWISE tab change or frame load, after the panel's session has
- *   loaded - it refuses tabs the user may not view, exactly as a click would - and the panel is then left alone. The
- *   `?tab=` in the frame address does nothing today; it is there for when the panel learns to read it.
- * What this screen reads inside the frame: `hass.kioskMode` and the keys of `hass.panels` on `<home-assistant>`, and the
- * panel's `_tab` / `_session` (whether it is loaded, never its content). No tokens, no localStorage, no entity state.
+ *   persisted, unlike `hass-dock-sidebar`); when that is not honoured, a style injected into `home-assistant-main`'s
+ *   shadow root hides `ha-sidebar` and zeroes the sidebar width variables. If neither takes, a one-line note says so.
+ * - the tab: the older panel keeps its tab in memory only, so the deep link is applied by calling the panel's own
+ *   `navigate(tab)` once per SMPLWISE tab change or frame load, after the panel's session has loaded, then the panel is
+ *   left alone.
+ * What the legacy adapter reads inside the frame: `hass.kioskMode` and the keys of `hass.panels` on `<home-assistant>`,
+ * and the panel's `_tab` / `_session` (whether it is loaded, never its content). No tokens, no localStorage.
  *
  * The Home Assistant Companion app (owner's phone report, 0.1.122) is never nested. In the app, Home Assistant signs in
  * through the native bridge (frontend `src/data/external.ts` `isExternal`: `window.externalAppV2` / `externalApp` on
  * Android, `webkit.messageHandlers.getExternalAuth` on iOS), not through tokens in localStorage; the app answers the
  * frontend's token request by running `externalAuthSetToken` in its top document only. A second Home Assistant inside a
- * frame therefore either waits for a token that never comes (the bridge is visible in the frame: `<home-assistant>`
- * never gets `hass`) or, without the bridge and without stored tokens, redirects to `/auth/authorize`. So, before
- * framing, the app is detected (`isCompanionApp`: its user agent, or the bridge on this window or the top one), and a
- * login redirect or a Home Assistant that never connects inside the frame is `login_required`, never "not Home
- * Assistant". In both cases the tab shows the SMPLWISE screen where one exists (overview, events, people) or a short
- * note, plus "פתח ב-WisKey", which moves the TOP Home Assistant frontend to the panel the way its own `navigate()`
- * does (`src/common/navigate.ts`: pushState on the main window, then `location-changed`, which `home-assistant.ts`
- * routes on).
+ * frame therefore either waits for a token that never comes or redirects to `/auth/authorize`. So, before framing, the
+ * app is detected (`isCompanionApp`), and a login redirect or a Home Assistant that never connects inside the frame is
+ * `login_required`, never "not Home Assistant". In both cases the tab shows the SMPLWISE screen where one exists
+ * (overview, events, people) or a short note, plus "פתח ב-WisKey", which moves the TOP Home Assistant frontend to the
+ * panel's deep link (`/hikvision-intercom?tab=…&tool=…`, honoured in normal mode since rc.19) the way its own
+ * `navigate()` does (`src/common/navigate.ts`: pushState on the main window, then `location-changed`).
+ *
+ * On module exit the frame is disposed and removed, so WisKey cleans up its listeners and media; a deliberate refresh
+ * (the bar's "רענן", or "נסה שוב") reopens the panel on the last confirmed tab/tool.
  */
 
-/** The panel's address on the Home Assistant origin (panel.py `frontend_url_path`). */
-export const WISKEY_PANEL_PATH = '/hikvision-intercom';
-const PANEL_TAG = 'hikvision-intercom-panel';
+export { WISKEY_PANEL_PATH };
+const PANEL_TAG = WISKEY_PANEL_TAG;
 const LOAD_TIMEOUT_MS = 20000; // no `load` at all: nothing answers at the address
 const PANEL_TIMEOUT_MS = 25000; // Home Assistant loaded but never mounted the panel
-const TAB_TIMEOUT_MS = 15000; // the panel's session (its permissions) loads after it mounts; navigate() refuses until then
+const TAB_TIMEOUT_MS = 15000; // legacy: the panel's session (its permissions) loads after it mounts; navigate() refuses until then
 const TICK_MS = 400;
+const IN_FLIGHT_MS = 3000; // v1: a navigation with no wiskey:location by then is taken as not acted on
 const KEEP_MS = 2000; // after everything is settled: re-apply cheaply, Home Assistant may re-render
 
 const TOP_SWITCH_MS = 1000; // "פתח ב-WisKey": Home Assistant's router gets this long before a full page load
 
-export type EmbedPhase = 'loading' | 'ready' | 'login_required' | 'not_installed' | 'unreachable' | 'blocked';
+export type EmbedPhase = 'loading' | 'waiting' | 'ready' | 'unsupported' | 'login_required' | 'not_installed' | 'unreachable' | 'blocked';
+/** Which adapter drives the frame: before the handshake / discovery, the embed API v1, the older panel, or neither. */
+export type EmbedMode = 'pending' | 'v1' | 'legacy' | 'unsupported';
 /** Why the tab does not nest Home Assistant: the Companion app (known before framing) or a sign-in inside the frame. */
 export type DirectReason = 'companion' | 'login_required' | '';
-/** How the Home Assistant chrome ended up: hidden by the kiosk event, hidden by the injected style, or left visible. */
+/** How the Home Assistant chrome ended up (legacy adapter): hidden by the kiosk event, by the injected style, or visible. */
 export type ChromeLever = 'kiosk' | 'css' | 'visible' | '';
 
 const TAB_LABELS: Record<string, string> = {
@@ -70,6 +88,7 @@ const TAB_LABELS: Record<string, string> = {
   health: 'בריאות',
   audit: 'יומן שינויים',
   tools: 'ניהול',
+  camera_wall: 'קיר מצלמות',
 };
 
 type AnyEl = HTMLElement & Record<string, unknown>;
@@ -90,8 +109,8 @@ function deepFind(root: Document | ShadowRoot | Element, tag: string, depth = 0)
   return null;
 }
 
-/** Hide Home Assistant's own sidebar around the panel; returns the lever that took, 'visible' when none did, or '' when
- * the structure is not there (yet). Never throws. */
+/** Legacy adapter only: hide Home Assistant's own sidebar around the panel; returns the lever that took, 'visible' when
+ * none did, or '' when the structure is not there (yet). Never throws. */
 export function hideHaChrome(win: Window, doc: Document): ChromeLever {
   try {
     const ha = doc.querySelector('home-assistant') as AnyEl | null;
@@ -151,11 +170,18 @@ export function isCompanionApp(win: Window = window): boolean {
   }
 }
 
-/** "פתח ב-WisKey": move the TOP Home Assistant frontend to the WisKey panel, as its own `navigate()` does - pushState on
- * the main window, then `location-changed`, which `home-assistant.ts` routes on. When Home Assistant's router takes it,
- * the Ingress frame this code runs in is replaced and the check below never runs; when this frame is still in place
- * after a second and the panel is nowhere in the top document, a full page load of the address does it instead. */
-export function openWiskeyInHa(win: Window = window): void {
+/** The panel's normal (top-level, not embedded) deep link, root-relative: `/hikvision-intercom?tab=…[&tool=…]`. */
+export function wiskeyDeepLink(loc: { tab: string; tool?: string | null }): string {
+  const q = new URLSearchParams({ tab: loc.tab });
+  if (loc.tool) q.set('tool', loc.tool);
+  return `${WISKEY_PANEL_PATH}?${q.toString()}`;
+}
+
+/** "פתח ב-WisKey": move the TOP Home Assistant frontend to the WisKey panel (its deep link), as its own `navigate()`
+ * does - pushState on the main window, then `location-changed`, which `home-assistant.ts` routes on. When Home
+ * Assistant's router takes it, the Ingress frame this code runs in is replaced and the check below never runs; when
+ * this frame is still in place after a second and the panel is nowhere in the top document, a full page load does it. */
+export function openWiskeyInHa(win: Window = window, target: string = WISKEY_PANEL_PATH): void {
   let top: Window = win;
   try {
     if (win.top && win.top !== win) {
@@ -166,18 +192,18 @@ export function openWiskeyInHa(win: Window = window): void {
     top = win;
   }
   if (top === win) {
-    win.location.assign(WISKEY_PANEL_PATH);
+    win.location.assign(target);
     return;
   }
   const assign = () => {
     try {
-      top.location.assign(WISKEY_PANEL_PATH);
+      top.location.assign(target);
     } catch {
-      win.open(WISKEY_PANEL_PATH, '_top');
+      win.open(target, '_top');
     }
   };
   try {
-    top.history.pushState(null, '', WISKEY_PANEL_PATH);
+    top.history.pushState(null, '', target);
     const Ev = (top as unknown as { CustomEvent: typeof CustomEvent }).CustomEvent;
     top.dispatchEvent(new Ev('location-changed', { detail: { replace: false } }));
   } catch {
@@ -202,18 +228,39 @@ const SMPLWISE_SCREEN: Record<string, 'wiskey-overview' | 'wiskey-events' | 'wis
   users: 'wiskey-people',
 };
 
+const sameLocation = (a: WiskeyLocation | null, b: WiskeyLocation | null) => !!a && !!b && a.tab === b.tab && (a.tool || null) === (b.tool || null);
+
 @customElement('wiskey-embed')
 export class WiskeyEmbed extends LitElement {
-  /** The WisKey panel's own tab id (panel.ts `_tab`): overview, events, users, devices, sync, health, audit, tools. */
+  /** The WisKey tab id asked for by the route: overview, events, users, devices, sync, tools, camera_wall, … */
   @property() tab = 'overview';
+  /** The WisKey management tool asked for under `tools` ('' = the tools hub). */
+  @property() tool = '';
   @state() private phase: EmbedPhase = 'loading';
+  @state() private mode: EmbedMode = 'pending';
   @state() private chrome: ChromeLever = '';
-  /** null while being applied, true once the panel shows the tab, false when it did not take (the panel stays put). */
+  /** Legacy: null while being applied, true once the panel shows the tab, false when it did not take. */
   @state() private tabApplied: boolean | null = null;
-  @state() private src = '';
+  /** Embed API v1: the handshake's catalog, the confirmed location and the panel's title. */
+  @state() private catalog: WiskeyCatalog | null = null;
+  @state() private confirmed: WiskeyLocation | null = null;
+  @state() private panelTitle = '';
+  @state() private unsupportedVersion = '';
+  /** A new value renders a fresh iframe element (a retry, or coming back after the module was left). */
+  @state() private frameKey = 0;
   /** Set when this tab does not nest Home Assistant (reflected for the evidence specs and the host style). */
   @property({ reflect: true, attribute: 'data-direct' }) direct: DirectReason = '';
   private forbidden = false;
+  private connector: WiskeyConnector | null = null;
+  /** v1: the location the frame was opened on (its URL) - asked for, never taken as confirmed. */
+  private opened: WiskeyLocation | null = null;
+  /** v1: the newest navigation sent and not answered yet (`push` = record a history entry once confirmed), and the
+   * older ones it superseded (their late answers are recorded, not mirrored). Entries expire after IN_FLIGHT_MS: WisKey
+   * answers nothing to a request during a session lock or to an unavailable screen. */
+  private sent: { loc: WiskeyLocation; push: boolean; at: number }[] = [];
+  /** A request made before the handshake: sent once the catalog is known. */
+  private wanted: WiskeyLocation | null = null;
+  private detached = false;
   private timer = 0;
   private loadTimer = 0;
   private loadedAt = 0;
@@ -261,6 +308,10 @@ export class WiskeyEmbed extends LitElement {
     .bar .grow {
       flex: 1;
     }
+    .title {
+      color: var(--sw-text);
+      font-weight: 600;
+    }
     .note {
       color: var(--sw-text-2);
     }
@@ -278,6 +329,31 @@ export class WiskeyEmbed extends LitElement {
     }
     a.full:hover {
       text-decoration: underline;
+    }
+    nav.tools {
+      display: flex;
+      gap: 4px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      padding: 6px var(--sw-page-pad, 16px);
+      border-block-end: 1px solid var(--sw-border);
+      background: var(--sw-surface);
+    }
+    nav.tools a {
+      padding: 4px 10px;
+      border-radius: 6px;
+      color: var(--sw-text-2);
+      text-decoration: none;
+      font-size: var(--sw-fs-sm);
+      white-space: nowrap;
+    }
+    nav.tools a:hover {
+      color: var(--sw-text);
+    }
+    nav.tools a.on {
+      background: var(--sw-surface-3);
+      color: var(--sw-accent-text);
+      font-weight: 600;
     }
     .stage {
       position: relative;
@@ -317,30 +393,119 @@ export class WiskeyEmbed extends LitElement {
       this.direct = 'companion';
       return;
     }
-    if (this.direct) return;
-    if (!this.src) this.src = this.address(this.tab);
-    this.startLoadTimer();
+    // v1: a WisKey tab / tool link is sent as a message first; its history entry is written once the panel confirms
+    window.addEventListener('click', this.onClick, true);
+    if (this.detached) {
+      // back after the module was left: a fresh frame (the old one was removed on exit)
+      this.detached = false;
+      this.resetFrameState();
+      this.frameKey++;
+    }
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    this.stopTimers();
+    window.removeEventListener('click', this.onClick, true);
+    this.dropFrame();
+    this.detached = true;
   }
 
   protected updated(changed: PropertyValues<this>) {
-    if (!changed.has('tab') || changed.get('tab') === undefined || this.forbidden || this.direct) return;
-    if (this.phase === 'ready' || this.phase === 'loading') {
-      // same frame, other tab: navigate the loaded panel instead of loading all of Home Assistant again
-      this.resetTab();
-      this.tick();
-    } else {
-      this.reload();
-    }
+    this.ensureConnector();
+    const moved = (changed.has('tab') && changed.get('tab') !== undefined) || (changed.has('tool') && changed.get('tool') !== undefined);
+    if (moved && !this.forbidden && !this.direct) this.onRequest();
   }
 
-  /** The frame address: the panel on the Home Assistant origin, with the tab for a panel that reads it some day. */
-  private address(tab: string) {
-    return `${WISKEY_PANEL_PATH}?tab=${encodeURIComponent(tab)}`;
+  /** What the route asks for. */
+  private request(): WiskeyLocation {
+    return { tab: this.tab || 'overview', tool: this.tab === 'tools' && this.tool ? this.tool : null };
+  }
+
+  /** A request in the catalog's terms: an id WisKey lists as a tool (an old bookmark such as #/wiskey/health) is
+   * opened as that tool. Unknown ids stay as they are - the connector refuses them. */
+  private resolve(loc: WiskeyLocation): WiskeyLocation {
+    const c = this.catalog;
+    if (!c || c.tabs.some((t) => t.id === loc.tab)) return loc;
+    if (!loc.tool && c.tools.some((t) => t.id === loc.tab)) return { tab: 'tools', tool: loc.tab };
+    return loc;
+  }
+
+  // ------------------------------------------------------------------ frame lifecycle
+
+  private frame(): HTMLIFrameElement | null {
+    return this.renderRoot.querySelector('iframe');
+  }
+
+  /** Attach the connector to a freshly rendered frame: its listener goes in first, then it assigns the src. */
+  private ensureConnector() {
+    if (this.connector || this.forbidden || this.direct) return;
+    const f = this.frame();
+    if (!f) return;
+    this.resetFrameState();
+    this.opened = this.request();
+    this.connector = attachWiskey(f, {
+      initial: this.opened,
+      onReady: (c) => this.onReady(c),
+      onLocation: (l) => this.onLocation(l),
+      onTitle: (t) => (this.panelTitle = t),
+      onLegacy: () => this.onLegacy(),
+      onWaiting: () => this.onWaiting(),
+      onUnsupported: (v) => this.onUnsupported(v),
+      onRemount: () => this.onRemount(),
+    });
+    this.startLoadTimer();
+  }
+
+  private resetFrameState() {
+    this.stopTimers();
+    this.phase = 'loading';
+    this.mode = 'pending';
+    this.chrome = '';
+    this.tabApplied = null;
+    this.panelTitle = '';
+    this.unsupportedVersion = '';
+    this.catalog = null;
+    this.confirmed = null;
+    this.sent = [];
+    this.wanted = null;
+    this.loadedAt = 0;
+    this.panelEl = null;
+  }
+
+  /** Module exit (or a sign-in the frame cannot do): detach the connector and remove the frame, so WisKey cleans up. */
+  private dropFrame() {
+    this.stopTimers();
+    this.connector?.dispose();
+    this.connector = null;
+    const f = this.frame();
+    if (f) {
+      try {
+        f.src = 'about:blank';
+      } catch {
+        /* already gone */
+      }
+      f.remove();
+    }
+    this.panelEl = null;
+    setWiskeyEmbedNav({ confirmed: null });
+  }
+
+  /** A deliberate refresh ("רענן", "נסה שוב"): with a handshake, the connector reopens the last CONFIRMED tab/tool;
+   * otherwise a fresh frame opens what the route asks for. */
+  private reload() {
+    this.direct = '';
+    if (this.connector && this.mode === 'v1') {
+      // the old catalog goes before the deliberate reload (contract §5.2); the panel reopens its last confirmed place
+      this.resetFrameState();
+      setWiskeyEmbedNav({ catalog: null, confirmed: null });
+      this.opened = this.connector.confirmed;
+      this.connector.refresh();
+      this.startLoadTimer();
+      return;
+    }
+    this.dropFrame();
+    this.resetFrameState();
+    this.frameKey++; // the next render brings a new iframe; updated() attaches a new connector to it
   }
 
   private stopTimers() {
@@ -355,38 +520,182 @@ export class WiskeyEmbed extends LitElement {
   private startLoadTimer() {
     window.clearTimeout(this.loadTimer);
     this.loadTimer = window.setTimeout(() => {
-      if (this.phase === 'loading' && !this.loadedAt) this.phase = 'unreachable';
+      // (an early discovery pass over the frame's initial empty document may already have said "waiting")
+      if ((this.phase === 'loading' || this.phase === 'waiting') && !this.loadedAt) this.phase = 'unreachable';
     }, LOAD_TIMEOUT_MS);
   }
 
-  private reload() {
-    this.stopTimers();
-    this.direct = '';
-    this.phase = 'loading';
-    this.chrome = '';
-    this.tabApplied = null;
-    this.loadedAt = 0;
-    const next = this.address(this.tab);
-    // the same address again still has to reload: clear it first
-    this.src = '';
-    void this.updateComplete.then(() => {
-      this.src = next;
-      this.startLoadTimer();
-    });
+  // ------------------------------------------------------------------ embed API v1
+
+  private onReady(catalog: WiskeyCatalog) {
+    this.stopTimers(); // the panel is WisKey's now: no probe, no chrome lever, no DOM navigation
+    this.mode = 'v1';
+    this.phase = 'ready';
+    this.catalog = catalog;
+    // ready promises no location: nothing is confirmed until wiskey:location (WisKey may have fallen back to its
+    // default for an id this operator may not open); until then the tab row shows the route's request
+    this.confirmed = null;
+    this.sent = [];
+    setWiskeyEmbedNav({ catalog, confirmed: null });
+    const wanted = this.wanted ? this.resolve(this.wanted) : null;
+    this.wanted = null;
+    if (wanted && !sameLocation(wanted, this.opened)) this.send(wanted, false);
   }
 
-  private frame(): HTMLIFrameElement | null {
-    return this.renderRoot.querySelector('iframe');
+  /** What the panel shows or is about to show: the newest navigation in flight, else the confirmed location, else the
+   * place the frame was opened on. A request equal to it is not sent again (no echo). */
+  private reference(): WiskeyLocation | null {
+    this.expireSent();
+    return this.sent.length ? this.sent[this.sent.length - 1].loc : (this.confirmed ?? this.opened);
   }
+
+  /** Drop navigations that got no answer within IN_FLIGHT_MS (a locked session, an unavailable screen): a later click
+   * on the same screen must be sent again, not matched against a request WisKey never acted on. */
+  private expireSent() {
+    const now = Date.now();
+    this.sent = this.sent.filter((s) => now - s.at <= IN_FLIGHT_MS);
+  }
+
+  private send(target: WiskeyLocation, push: boolean): boolean {
+    if (!this.connector?.navigate(target)) return false;
+    this.expireSent();
+    // the newest request is the one in flight; older ones only wait for a late answer (never pushed)
+    this.sent = [...this.sent.map((s) => ({ ...s, push: false })), { loc: target, push, at: Date.now() }].slice(-4);
+    return true;
+  }
+
+  /** The CONFIRMED location (possibly the old one: a declined unsaved-change prompt): the tab row follows it and it is
+   * mirrored into SMPLWISE's address, which the shell re-reads without treating it as a new request (no echo). A
+   * location answering an older navigation while a newer one is still in flight (click, then Back) is recorded but not
+   * mirrored - the newer answer decides the address. A tab the user clicked gets its history entry only now. */
+  private onLocation(loc: WiskeyLocation) {
+    this.confirmed = loc;
+    setWiskeyEmbedNav({ confirmed: loc });
+    this.expireSent();
+    const newest = this.sent[this.sent.length - 1];
+    const older = this.sent.findIndex((s, i) => i < this.sent.length - 1 && sameLocation(loc, s.loc));
+    if (newest && !sameLocation(loc, newest.loc) && older >= 0) {
+      this.sent.splice(older, 1); // the late answer to a superseded request: recorded, not mirrored
+      return;
+    }
+    const last = this.sent[this.sent.length - 1];
+    const push = !!last && last.push && sameLocation(loc, last.loc);
+    this.sent = [];
+    this.mirror(loc, push);
+  }
+
+  private mirror(loc: WiskeyLocation, push = false) {
+    const r = parseRoute();
+    if (r.mode !== 'wiskey') return; // the user already left the area
+    const seg = wiskeySegmentOf(loc.tab);
+    // a screen the owner set to SMPLWISE keeps its own path: rewriting it would swap the embed out under the user
+    const own = (WISKEY_SCREENS as string[]).includes(seg) && WISKEY_UI[seg as WiskeyScreen] === 'smplwise';
+    const params = new URLSearchParams(r.params);
+    params.set('wiskey_tab', loc.tab);
+    if (loc.tool) params.set('wiskey_tool', loc.tool);
+    else params.delete('wiskey_tool');
+    (push ? pushRoute : replaceRoute)(own ? r.path : wiskeyPath(loc), params);
+  }
+
+  /** v1: a plain click on a WisKey tab / tool link that renders the embed is a message, not a hash change: the address
+   * and its history entry follow the panel's confirmation, so a declined change leaves no entry behind. Links to a
+   * screen the owner set to SMPLWISE, modified clicks and everything else navigate as usual. */
+  private onClick = (e: MouseEvent) => {
+    if (this.mode !== 'v1' || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const a = e.composedPath().find((n): n is HTMLAnchorElement => n instanceof HTMLAnchorElement);
+    const href = a?.getAttribute('href') ?? '';
+    if (!a || !isWiskeyHref(href) || (a.target && a.target !== '_self')) return;
+    const r = parseRoute(href);
+    if (wiskeyRoute(r, isApi()).kind !== 'embed') return;
+    e.preventDefault();
+    const target = this.resolve(wiskeyRequest(r));
+    if (sameLocation(target, this.reference())) return;
+    this.send(target, true); // an id the panel did not list is not sent: nothing moves
+  };
+
+  /** The route asked for another place (a SMPLWISE tab click, back / forward, a typed address). */
+  private onRequest() {
+    if (this.phase === 'not_installed' || this.phase === 'unreachable' || this.phase === 'blocked' || this.phase === 'unsupported') {
+      this.reload();
+      return;
+    }
+    if (this.mode === 'legacy') {
+      // same frame, other tab: navigate the loaded panel instead of loading all of Home Assistant again
+      this.resetTab();
+      this.tick();
+      return;
+    }
+    const target = this.resolve(this.request());
+    if (this.mode === 'v1') {
+      if (sameLocation(target, this.reference())) return; // what the panel shows or is going to: nothing to send
+      // the tab row keeps its selection until wiskey:location arrives; an id the panel did not list is not sent, and
+      // the address goes back to what the panel confirmed
+      if (!this.send(target, false) && this.confirmed) this.mirror(this.confirmed);
+      return;
+    }
+    this.wanted = target; // before the handshake: sent once the catalog is known
+  }
+
+  /** The frame loaded a new document after the handshake (HA reloaded, a sign-in redirect after revocation): back to
+   * pending - a fresh handshake is needed, and the probe watches for a sign-in or a dead frame again. */
+  private onRemount() {
+    if (this.mode !== 'v1') return;
+    const last = this.confirmed ?? this.opened;
+    this.resetFrameState();
+    this.opened = last;
+    setWiskeyEmbedNav({ catalog: null, confirmed: null });
+  }
+
+  private onLegacy() {
+    if (this.mode !== 'pending' || (this.phase !== 'loading' && this.phase !== 'waiting')) return;
+    // no marker after discovery: an older WisKey build - the previous adapter, and the static tab row
+    this.mode = 'legacy';
+    this.catalog = null;
+    setWiskeyEmbedNav({ catalog: null, confirmed: null });
+    this.resetTab();
+    window.clearInterval(this.timer);
+    this.timer = window.setInterval(() => this.tick(), TICK_MS);
+    this.tick();
+  }
+
+  private onWaiting() {
+    // the marker is there (or the panel root is not, yet) but no handshake: loading / authentication - never the older
+    // adapter, never the look of an authorised user; the probe keeps watching for a sign-in or a dead frame
+    if (this.mode === 'pending' && (this.phase === 'loading' || this.phase === 'waiting')) this.phase = 'waiting';
+  }
+
+  private onUnsupported(version: unknown) {
+    if (this.mode === 'v1') return; // a working v1 embed is not torn down (the connector already ignores it too)
+    if (this.phase === 'login_required' || this.phase === 'not_installed' || this.phase === 'unreachable' || this.phase === 'blocked') return;
+    this.stopTimers();
+    this.mode = 'unsupported';
+    this.phase = 'unsupported';
+    this.unsupportedVersion = String(version ?? '');
+    this.catalog = null;
+    setWiskeyEmbedNav({ catalog: null, confirmed: null });
+  }
+
+  // ------------------------------------------------------------------ frame probe (+ the legacy adapter)
 
   private onFrameNav = () => this.tick();
 
+  /** Lit's listener runs before the connector's: judge the load a tick later, once the connector has decided whether
+   * it was a remount (a new document after a handshake). */
   private onLoad() {
+    window.setTimeout(() => this.afterLoad(), 0);
+  }
+
+  private afterLoad() {
     const f = this.frame();
-    if (!f || !this.src) return;
+    if (!f || !this.connector) return;
+    try {
+      if (f.contentWindow?.location.href === 'about:blank') return; // the frame's initial empty document
+    } catch {
+      /* another origin: judged below */
+    }
     this.loadedAt = Date.now();
     this.panelEl = null;
-    this.resetTab(); // a new document (ours or Home Assistant reloading itself): the deep link is owed once more
+    this.resetTab(); // a new document (ours or Home Assistant reloading itself): the legacy deep link is owed once more
     window.clearTimeout(this.loadTimer);
     let doc: Document | null = null;
     try {
@@ -400,6 +709,7 @@ export class WiskeyEmbed extends LitElement {
       this.phase = 'blocked';
       return;
     }
+    if (this.mode === 'v1' || this.mode === 'unsupported') return; // the handshake's own document: nothing to watch
     this.frameWin?.removeEventListener('location-changed', this.onFrameNav);
     this.frameWin = f.contentWindow;
     this.frameWin?.addEventListener('location-changed', this.onFrameNav); // Home Assistant's own in-app navigation
@@ -408,10 +718,11 @@ export class WiskeyEmbed extends LitElement {
     this.tick();
   }
 
-  /** One pass over the frame: what state it is in, the chrome, the tab. Idempotent, cheap, never throws. */
+  /** One pass over the frame. Before the handshake: only which failure state it is in (read-only). In legacy mode: also
+   * the chrome and the tab. Idempotent, cheap, never throws. */
   private tick() {
     const f = this.frame();
-    if (!f || !this.loadedAt) return;
+    if (!f || !this.loadedAt || this.mode === 'v1' || this.mode === 'unsupported') return;
     try {
       const win = f.contentWindow;
       const doc = f.contentDocument;
@@ -439,7 +750,8 @@ export class WiskeyEmbed extends LitElement {
         this.phase = 'not_installed';
         return this.settle();
       }
-      this.chrome = this.chrome === 'kiosk' || this.chrome === 'css' ? this.keepChrome(win, doc) : hideHaChrome(win, doc);
+      const legacy = this.mode === 'legacy';
+      if (legacy) this.chrome = this.chrome === 'kiosk' || this.chrome === 'css' ? this.keepChrome(win, doc) : hideHaChrome(win, doc);
       if (!this.panelEl?.isConnected || this.panelEl.ownerDocument !== doc) this.panelEl = deepFind(doc, PANEL_TAG) as PanelEl | null;
       const panel = this.panelEl;
       if (!panel) {
@@ -450,6 +762,11 @@ export class WiskeyEmbed extends LitElement {
           this.phase = path.startsWith(WISKEY_PANEL_PATH) ? 'unreachable' : 'not_installed';
           this.settle();
         }
+        return;
+      }
+      if (!legacy) {
+        // the panel is mounted: the handshake (or the 12 s discovery) decides from here; keep a slow watch only
+        if (this.timer) this.slowDown();
         return;
       }
       this.phase = 'ready';
@@ -467,7 +784,7 @@ export class WiskeyEmbed extends LitElement {
     return lever || this.chrome;
   }
 
-  /** With the chrome hidden, the panel's own menu button would open Home Assistant's drawer over it; swallow that. */
+  /** Legacy: with the chrome hidden, the panel's own menu button would open Home Assistant's drawer over it; swallow it. */
   private guardMenu(panel: Element) {
     if (this.guarded.has(panel) || (this.chrome !== 'kiosk' && this.chrome !== 'css')) return;
     this.guarded.add(panel);
@@ -481,10 +798,10 @@ export class WiskeyEmbed extends LitElement {
     this.lastAttempt = 0;
   }
 
-  /** The deep link is applied ONCE per SMPLWISE tab change or frame load, then the panel is left alone: WisKey's own
-   * navigation (a tool opened from ניהול, a drill-down) must never be undone by a later tick, and a navigate() into a
+  /** Legacy: the deep link is applied ONCE per SMPLWISE tab change or frame load, then the panel is left alone: WisKey's
+   * own navigation (a tool opened from ניהול, a drill-down) must never be undone by a later tick, and a navigate() into a
    * schedule with unsaved edits asks WisKey's canLeave() confirm - at most once, as a click would.
-   * WisKey's navigate() refuses every tab until the panel's `_session` (its permissions) has loaded, so it is called
+   * The older panel's navigate() refuses every tab until its `_session` (its permissions) has loaded, so it is called
    * once that is known; without that field (a changed panel) a few spaced attempts, then give up. */
   private applyTab(panel: PanelEl) {
     if (this.tabApplied !== null) return; // done for this tab and this document
@@ -525,11 +842,9 @@ export class WiskeyEmbed extends LitElement {
 
   /** Home Assistant cannot sign in inside the frame: drop the frame and show the tab without nesting. */
   private goDirect() {
-    this.stopTimers();
+    this.dropFrame();
     this.phase = 'login_required';
     this.direct = 'login_required';
-    this.panelEl = null;
-    this.src = '';
   }
 
   /** A final state: stop polling (the retry button starts over). */
@@ -540,12 +855,22 @@ export class WiskeyEmbed extends LitElement {
 
   // ------------------------------------------------------------------ render
 
+  /** What the frame shows (v1: the confirmed location), for labels and the full-window link. */
+  private shown(): WiskeyLocation {
+    return this.mode === 'v1' && this.confirmed ? this.confirmed : this.request();
+  }
+
+  private labelOf(tab: string): string {
+    return this.catalog?.tabs.find((t) => t.id === tab)?.label || TAB_LABELS[tab] || tab;
+  }
+
   private renderError() {
     const common = 'אפשר לנסות שוב, לפתוח את WisKey ב־Home Assistant או בחלון מלא, או לבחור בהגדרות › בקרות כניסה את מסכי SMPLWISE.';
     const map: Record<string, { heading: string; hint: string; state: 'error' | 'stale' | 'empty' }> = {
       not_installed: { heading: 'לוח WisKey לא נמצא ב־Home Assistant', hint: `האינטגרציה hikvision_intercom לא רשמה את הלוח ${WISKEY_PANEL_PATH} (לא מותקנת, לא נטענה, או שהמשתמש לא רואה אותו). ${common}`, state: 'empty' },
       unreachable: { heading: 'לא ניתן לטעון את WisKey מתוך Home Assistant', hint: `הכתובת ${WISKEY_PANEL_PATH} לא החזירה את Home Assistant בתוך המסגרת. כנראה אפליקציית Home Assistant - ההזדהות שלה אינה זמינה בתוך מסגרת; או שהממשק פתוח שלא דרך Home Assistant. ${common}`, state: 'stale' },
       blocked: { heading: 'הדפדפן לא מאפשר להטמיע את WisKey כאן', hint: `המסגרת נחסמה (מדיניות מסגרות) או הופנתה לכתובת אחרת. ${common}`, state: 'error' },
+      unsupported: { heading: 'גרסת ממשק ההטמעה של WisKey אינה נתמכת', hint: `WisKey המותקן מדבר בגרסת ממשק הטמעה ${this.unsupportedVersion || 'לא ידועה'}, ו־SMPLWISE מכיר את גרסה 1. ${common}`, state: 'error' },
     };
     const m = map[this.phase];
     if (!m) return nothing;
@@ -562,7 +887,7 @@ export class WiskeyEmbed extends LitElement {
   }
 
   private openInHaButton(variant: 'primary' | 'secondary' = 'secondary') {
-    return html`<sw-button size="sm" variant=${variant} icon="door" data-wiskey-open-ha @click=${() => openWiskeyInHa()}>פתח ב-WisKey</sw-button>`;
+    return html`<sw-button size="sm" variant=${variant} icon="door" data-wiskey-open-ha @click=${() => openWiskeyInHa(window, wiskeyDeepLink(this.shown()))}>פתח ב-WisKey</sw-button>`;
   }
 
   /** The tab without a nested Home Assistant: the SMPLWISE screen where one exists, otherwise a short note. */
@@ -573,6 +898,7 @@ export class WiskeyEmbed extends LitElement {
       ? 'בטלפון WisKey נפתח באפליקציה עצמה'
       : 'Home Assistant מבקש התחברות בתוך המסגרת, ולכן WisKey נפתח ב־Home Assistant עצמו';
     const screen = SMPLWISE_SCREEN[this.tab];
+    const only = wiskeySegmentOf(this.tab);
     return html`
       <div class="bar" data-wiskey-embed-bar>
         <span class="note ${phone ? '' : 'warn'}" data-wiskey-embed-note=${this.direct}>${note}</span>
@@ -586,7 +912,7 @@ export class WiskeyEmbed extends LitElement {
           ? html`<wiskey-events></wiskey-events>`
           : screen === 'wiskey-people'
             ? html`<wiskey-people></wiskey-people>`
-            : html`<div class="only" data-wiskey-embed-only=${this.tab}>
+            : html`<div class="only" data-wiskey-embed-only=${only}>
                 <div>
                   <sw-state-panel state="empty" heading=${`WisKey · ${label}`} hint=${`${note}. המסך "${label}" קיים רק בממשק של WisKey.`}></sw-state-panel>
                   <div class="actions">
@@ -599,15 +925,32 @@ export class WiskeyEmbed extends LitElement {
   }
 
   private fullLink() {
-    return html`<a class="full" data-wiskey-embed-full href=${this.address(this.tab)} target="_blank" rel="noopener"><sw-icon name="expand" size=${14}></sw-icon>פתח בחלון מלא</a>`;
+    return html`<a class="full" data-wiskey-embed-full href=${wiskeyDeepLink(this.shown())} target="_blank" rel="noopener"><sw-icon name="expand" size=${14}></sw-icon>פתח בחלון מלא</a>`;
   }
 
   private statusNote() {
     if (this.phase === 'loading') return html`<span class="note" data-wiskey-embed-note="loading">טוען את WisKey מתוך Home Assistant…</span>`;
+    if (this.phase === 'waiting') return html`<span class="note warn" data-wiskey-embed-note="waiting">WisKey עדיין לא אישר את החיבור - ממתין לטעינה או להזדהות בתוך WisKey</span>`;
     const notes = [];
-    if (this.phase === 'ready' && this.chrome === 'visible') notes.push(html`<span class="note" data-wiskey-embed-note="chrome">התפריט של Home Assistant מוצג סביב WisKey (ההסתרה לא נתמכת בגרסה הזו).</span>`);
-    if (this.phase === 'ready' && this.tabApplied === false) notes.push(html`<span class="note" data-wiskey-embed-note="tab">לא ניתן לפתוח ישירות את "${TAB_LABELS[this.tab] ?? this.tab}"; WisKey נפתח במסך שלו.</span>`);
+    if (this.mode === 'legacy') notes.push(html`<span class="note" data-wiskey-embed-note="legacy">גרסת WisKey ללא ממשק ההטמעה (לפני rc.19) - ההטמעה בשיטה הקודמת</span>`);
+    if (this.phase === 'ready' && this.mode === 'legacy' && this.chrome === 'visible') notes.push(html`<span class="note" data-wiskey-embed-note="chrome">התפריט של Home Assistant מוצג סביב WisKey (ההסתרה לא נתמכת בגרסה הזו).</span>`);
+    if (this.phase === 'ready' && this.mode === 'legacy' && this.tabApplied === false) notes.push(html`<span class="note" data-wiskey-embed-note="tab">לא ניתן לפתוח ישירות את "${TAB_LABELS[this.tab] ?? this.tab}"; WisKey נפתח במסך שלו.</span>`);
     return notes;
+  }
+
+  /** Embed API v1: the management tools of WisKey's ניהול hub (from the catalog), while the panel shows `tools`. Ids that
+   * are top-level tabs too (users, devices, …) are already in the tab row. */
+  private renderTools() {
+    const c = this.catalog;
+    if (this.mode !== 'v1' || !c || this.confirmed?.tab !== 'tools') return nothing;
+    const tabIds = new Set(c.tabs.map((t) => t.id));
+    const tools = c.tools.filter((t) => t.id && !tabIds.has(t.id));
+    if (!tools.length) return nothing;
+    const on = this.confirmed.tool;
+    return html`<nav class="tools" aria-label="כלי הניהול של WisKey" data-wiskey-tools>
+      <a href=${`#${wiskeyPath({ tab: 'tools' })}`} class=${on ? '' : 'on'} data-wiskey-tool="" aria-current=${on ? 'false' : 'page'}>${this.labelOf('tools')}</a>
+      ${tools.map((t) => html`<a href=${`#${wiskeyPath({ tab: 'tools', tool: t.id })}`} class=${on === t.id ? 'on' : ''} data-wiskey-tool=${t.id} aria-current=${on === t.id ? 'page' : 'false'}>${t.label || t.id}</a>`)}
+    </nav>`;
   }
 
   render() {
@@ -615,29 +958,39 @@ export class WiskeyEmbed extends LitElement {
       return html`<sw-page heading="WisKey"><sw-state-panel data-wiskey-state="no_permission" state="forbidden" heading="אין לך הרשאת צפייה בבקרת הכניסה" hint="נדרשת ההרשאה צפייה בבקרת כניסה (WisKey). פנה למנהל המערכת."></sw-state-panel></sw-page>`;
     }
     if (this.direct) return this.renderDirect();
-    const failed = this.phase === 'not_installed' || this.phase === 'unreachable' || this.phase === 'blocked';
+    const failed = this.phase === 'not_installed' || this.phase === 'unreachable' || this.phase === 'blocked' || this.phase === 'unsupported';
+    const shown = this.shown();
+    const heading = this.mode === 'v1' && this.panelTitle ? this.panelTitle : this.labelOf(shown.tab);
+    const confirmed = this.mode === 'v1' ? this.confirmed : null;
     return html`
       <div class="bar" data-wiskey-embed-bar>
-        <span class="note">WisKey · ${TAB_LABELS[this.tab] ?? this.tab} · הממשק המקורי של WisKey</span>
+        <span class="note">WisKey · <span class="title" data-wiskey-embed-title>${heading}</span></span>
         ${this.statusNote()}
         <span class="grow"></span>
+        ${this.phase === 'ready' || this.phase === 'waiting'
+          ? html`<sw-button size="sm" variant="ghost" icon="refresh" data-wiskey-embed-refresh title="טען מחדש את WisKey במסך הנוכחי (שינויים שלא נשמרו בתוך WisKey יאבדו)" @click=${() => this.reload()}>רענן</sw-button>`
+          : nothing}
         ${this.fullLink()}
       </div>
+      ${this.renderTools()}
       <div class="stage">
-        ${this.src
-          ? html`<iframe
-              data-wiskey-embed-frame
-              data-phase=${this.phase}
-              data-chrome=${this.chrome}
-              data-tab-applied=${this.tabApplied === null ? '' : String(this.tabApplied)}
-              title="WisKey"
-              src=${this.src}
-              ?data-hidden=${failed}
-              allow="microphone; camera; autoplay; fullscreen; clipboard-write"
-              allowfullscreen
-              @load=${() => this.onLoad()}
-            ></iframe>`
-          : nothing}
+        ${keyed(
+          this.frameKey,
+          html`<iframe
+            data-wiskey-embed-frame
+            data-phase=${this.phase}
+            data-embed-mode=${this.mode}
+            data-chrome=${this.chrome}
+            data-tab-applied=${this.tabApplied === null ? '' : String(this.tabApplied)}
+            data-confirmed-tab=${confirmed?.tab ?? ''}
+            data-confirmed-tool=${confirmed?.tool ?? ''}
+            title="WisKey"
+            ?data-hidden=${failed}
+            allow="autoplay; microphone; camera; fullscreen; clipboard-write"
+            allowfullscreen
+            @load=${() => this.onLoad()}
+          ></iframe>`,
+        )}
         ${this.phase === 'loading' ? html`<div class="over"><sw-state-panel state="loading" heading="טוען את WisKey…" hint="Home Assistant נטען בתוך המסך; בפעם הראשונה זה לוקח כמה שניות."></sw-state-panel></div>` : nothing}
         ${failed ? this.renderError() : nothing}
       </div>

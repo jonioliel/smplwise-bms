@@ -105,7 +105,7 @@ ${router ? `window.addEventListener('location-changed', () => { window.__routed.
   }
 
   async function topState(page: Page) {
-    return page.evaluate(() => ({ path: location.pathname, marker: (window as unknown as { __marker?: number }).__marker ?? null, routed: (window as unknown as { __routed?: string[] }).__routed ?? null }));
+    return page.evaluate(() => ({ path: location.pathname, search: location.search, marker: (window as unknown as { __marker?: number }).__marker ?? null, routed: (window as unknown as { __routed?: string[] }).__routed ?? null }));
   }
 
   test('"פתח ב-WisKey" moves the top Home Assistant frontend to the panel the way its navigate() does (bridge on the top window)', async ({ page }, testInfo) => {
@@ -120,6 +120,7 @@ ${router ? `window.addEventListener('location-changed', () => { window.__routed.
     await expect.poll(async () => (await topState(page)).path).toBe('/hikvision-intercom');
     await page.waitForTimeout(1500); // longer than the fallback window
     const st = await topState(page);
+    expect(st.search).toBe('?tab=sync'); // the panel's deep link (WisKey rc.19 honours it in normal mode), no embed=1
     expect(st.routed).toEqual(['/hikvision-intercom']); // routed in place by the frontend's own router
     expect(st.marker).toBe(7); // the same document: no full page load
     expect(hits.n).toBe(0);
@@ -136,6 +137,7 @@ ${router ? `window.addEventListener('location-changed', () => { window.__routed.
     await expect.poll(async () => hits.n, { timeout: 10000 }).toBe(1);
     await expect.poll(async () => (await topState(page)).marker).toBeNull(); // a new top document
     expect(new URL(page.url()).pathname).toBe('/hikvision-intercom');
+    expect(new URL(page.url()).search).toBe('?tab=sync');
   });
 
   test('a login redirect inside the frame is login_required, not "not Home Assistant": the frame is dropped', async ({ page }, testInfo) => {
