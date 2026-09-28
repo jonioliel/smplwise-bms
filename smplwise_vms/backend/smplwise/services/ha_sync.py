@@ -312,10 +312,13 @@ def _busy_retry(fn, attempts: int = 3, wait_s: float = 2.0):
     return retry_locked(fn, what="HA sync", attempts=attempts, base_s=wait_s / 2)
 
 
-def handle_state_event(db: Database, data: dict[str, Any]) -> dict[str, Any]:
+def handle_state_event(db: Database, data: dict[str, Any], attempts: int = 1) -> dict[str, Any]:
     """One state_changed push: the mirror row, the correlation event (T053: door / motion / lock transitions) and the
-    rule alerts in one short transaction, retried when the database is busy. Rule notifications to HA are sent after
-    the commit - under the write lock a slow HA answer stalled every other writer (round-10 lock storm)."""
+    rule alerts in one short transaction. Rule notifications to HA are sent after the commit - under the write lock a
+    slow HA answer stalled every other writer (round-10 lock storm).
+    One attempt by default (bounded by BUSY_TIMEOUT_S): this runs inside the HA WebSocket client's event loop, and
+    retries of ~30 s would miss the socket's ping deadline and cost a disconnect plus a full resync. A state lost to a
+    busy database is corrected by the next push of that entity or the next snapshot."""
     from . import rules as rules_svc
     from .correlation import record_transition
 
@@ -334,7 +337,7 @@ def handle_state_event(db: Database, data: dict[str, Any]) -> dict[str, Any]:
                     log.exception("rule evaluation failed for %s", transition.get("id"))
             return row
 
-    row = retry_locked(_write, what="HA state update", attempts=3, base_s=0.25)
+    row = retry_locked(_write, what="HA state update", attempts=attempts, base_s=0.25)
     rules_svc.deliver_pending(fired)
     return row
 

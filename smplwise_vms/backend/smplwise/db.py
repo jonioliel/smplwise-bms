@@ -26,7 +26,6 @@ from typing import Any, Callable, Iterator, TypeVar
 MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 BUSY_TIMEOUT_S = 10.0  # how long a writer waits for the write lock before "database is locked"
 SLOW_HOLD_S = float(os.environ.get("SW_DB_SLOW_HOLD_S", "3"))  # a longer write-lock hold is logged with its holder
-WAL_TRUNCATE_BYTES = 32 * 1024 * 1024  # an idle checkpoint truncates a WAL file larger than this
 
 log = logging.getLogger("smplwise.db")
 T = TypeVar("T")
@@ -86,7 +85,8 @@ def _caller(depth: int) -> str:
 
 def _note_busy(label: str) -> None:
     now = time.monotonic()
-    holder = min(_holders.values(), key=lambda h: h[1], default=None)
+    # dict.copy() is atomic; iterating the live dict while other threads take / release the lock would raise
+    holder = min(_holders.copy().values(), key=lambda h: h[1], default=None)
     with _stats_lock:
         LOCK_STATS["busy_errors"] += 1
         LOCK_STATS["last_busy"] = {"at": now_iso(), "waiter": label, "holder": holder[0] if holder else None,
@@ -102,7 +102,10 @@ def _begin_immediate(conn: sqlite3.Connection, label: str) -> None:
         conn.execute("BEGIN IMMEDIATE")
     except sqlite3.OperationalError as exc:
         if is_busy(exc):
-            _note_busy(label)
+            try:
+                _note_busy(label)
+            except Exception:  # noqa: BLE001 - accounting must never replace the busy error the callers retry on
+                log.exception("write-lock accounting failed")
         raise
     _holders[id(conn)] = (label, time.monotonic())
 
@@ -246,20 +249,19 @@ class Database:
             conn.close()
 
     def checkpoint(self) -> dict[str, Any]:
-        """Idle housekeeping (janitor): a PASSIVE checkpoint never waits for anyone; only a WAL file that has grown past
-        WAL_TRUNCATE_BYTES gets a TRUNCATE, with a short busy timeout so it gives up rather than queue writers."""
+        """Idle housekeeping (janitor): a PASSIVE checkpoint only - it never takes the write lock and never waits for a
+        reader, so it cannot queue writers (a TRUNCATE would block new writers while it waits)."""
         wal = self.path.with_name(self.path.name + "-wal")
         size = wal.stat().st_size if wal.exists() else 0
         conn = sqlite3.connect(self.path, timeout=0.2, isolation_level=None, check_same_thread=False)
         try:
-            mode = "TRUNCATE" if size > WAL_TRUNCATE_BYTES else "PASSIVE"
             try:
-                busy, frames, done = conn.execute(f"PRAGMA wal_checkpoint({mode})").fetchone()
+                busy, frames, done = conn.execute("PRAGMA wal_checkpoint(PASSIVE)").fetchone()
             except sqlite3.OperationalError as exc:
                 if not is_busy(exc):
                     raise
-                return {"mode": mode, "wal_bytes": size, "busy": True}
-            return {"mode": mode, "wal_bytes": size, "busy": bool(busy), "frames": frames, "checkpointed": done}
+                return {"mode": "PASSIVE", "wal_bytes": size, "busy": True}
+            return {"mode": "PASSIVE", "wal_bytes": size, "busy": bool(busy), "frames": frames, "checkpointed": done}
         finally:
             conn.close()
 
@@ -268,7 +270,9 @@ def release(conn: sqlite3.Connection) -> None:
     """Commit the request's transaction now (before its response is sent); the rest of the request runs without a
     transaction, and the closing connection() finds nothing left to commit. A failed commit raises here, so the client
     gets an error instead of a success for a change that was not stored. A connection already closed (its request
-    raised, and the dependency committed or rolled back before the error response) is left alone."""
+    raised, and the dependency committed or rolled back before the error response) is left alone. The connection is
+    query-only afterwards: a later write on it (a streaming body, a background callback) fails loudly instead of
+    silently running in autocommit."""
     try:
         open_tx = conn.in_transaction
     except sqlite3.ProgrammingError:  # closed
@@ -276,6 +280,7 @@ def release(conn: sqlite3.Connection) -> None:
     if open_tx:
         conn.execute("COMMIT")
     _end_hold(conn)
+    conn.execute("PRAGMA query_only=1")
 
 
 def get_setting(conn: sqlite3.Connection, key: str, default: str | None = None) -> str | None:
@@ -313,4 +318,7 @@ def unlocked(conn: sqlite3.Connection) -> Iterator[None]:
         if read_mode(conn):
             conn.execute("BEGIN")
         else:
-            _begin_immediate(conn, _MODES.get(id(conn), ("write", None, "unlocked"))[2])
+            # the device has acted by now: a busy database is waited out a few times rather than failing the request at
+            # once; callers whose device call must never go unrecorded commit a row before the call (two-phase)
+            label = _MODES.get(id(conn), ("write", None, "unlocked"))[2]
+            retry_locked(lambda: _begin_immediate(conn, label), what=f"{label}: re-lock after the device call")

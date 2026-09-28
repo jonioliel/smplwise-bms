@@ -73,9 +73,7 @@ def create(body: RangeBody, request: Request, principal: Principal = Depends(cur
         raise ApiError(422, "validation", "טווח הייצוא ריק.")
     if (end - start) > ex.MAX_RANGE:
         raise ApiError(422, "validation", "טווח ייצוא מקסימלי: 6 שעות.")
-    active = conn.execute("SELECT COUNT(*) FROM export_jobs WHERE owner_user_id = ? AND state IN ('queued','running')", (principal.user_id,)).fetchone()[0]
-    if active >= 5:
-        raise ApiError(429, "too_many_jobs", "יש כבר 5 עבודות ייצוא ממתינות; המתן לסיומן.", retryable=True)
+    ex.check_quota(conn, principal)  # fails fast; create_job checks again after the NVR search
     job = ex.create_job(conn, settings_of(request), principal, cam, start, end, s["time.zone"], s["exports.max_mb"] * 1024 * 1024)
     audit(conn, actor=principal, action="video.export.create", decision="allowed", resource_type="camera", resource_id=cam["id"],
           request_id=getattr(request.state, "correlation_id", None), details={"job": job["id"], "from": job["requested_from"], "to": job["requested_to"], "files": len(job["files"]), "estimate_bytes": job.get("estimate_bytes")})

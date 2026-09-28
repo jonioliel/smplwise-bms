@@ -9,11 +9,21 @@ from fastapi import APIRouter, Depends, Request
 from .. import __version__
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import lock_stats, permission_revision, unlocked
-from ..rbac import INSTALLATION, Principal, require
+from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import autosync, events_derive, events_ingest, ha_client, ha_sync
 from ..services import health_report as health_report_svc
 
 router = APIRouter()
+
+
+def _write_lock_view(conn: sqlite3.Connection, principal: Principal) -> dict[str, Any]:
+    """The write-lock counters for everyone; who held the lock (request paths with other users' entity / camera ids)
+    only for a system.configure holder."""
+    stats = lock_stats()
+    if not authorize(conn, principal, "system.configure", INSTALLATION).allowed:
+        stats.pop("max_hold_by", None)
+        stats.pop("last_busy", None)
+    return stats
 
 
 @router.get("/health")
@@ -22,7 +32,7 @@ def health(request: Request, principal: Principal = Depends(current_principal), 
     return {
         "status": "ok",
         "version": __version__,
-        "db": {"ok": conn.execute("SELECT 1").fetchone()[0] == 1, "permission_revision": permission_revision(conn), "write_lock": lock_stats()},
+        "db": {"ok": conn.execute("SELECT 1").fetchone()[0] == 1, "permission_revision": permission_revision(conn), "write_lock": _write_lock_view(conn, principal)},
         "data_dir_writable": os.access(settings.data_dir, os.W_OK),
         "nvr_configured": bool(settings.nvr_host and settings.nvr_user),
         "go2rtc_configured": bool(settings.go2rtc_url),

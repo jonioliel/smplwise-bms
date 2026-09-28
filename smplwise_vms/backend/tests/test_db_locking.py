@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime as dt
+import json
 import logging
 import sqlite3
 import threading
@@ -13,7 +14,7 @@ from dataclasses import replace
 
 import httpx
 import pytest
-from conftest import as_user
+from conftest import as_user, seed_tree
 from fastapi.testclient import TestClient
 from test_devices import dev_app  # noqa: F401 - fixture
 from test_exports import fake_pages
@@ -40,7 +41,8 @@ def lock_is_free(db: Database) -> bool:
 
 
 def test_request_commits_before_the_response_is_sent(settings):
-    """A dependency with yield is closed after the body went out; the write lock must not ride along with the transfer\n    (/health runs on a write-mode request connection)."""
+    """A dependency with yield is closed after the body went out; the write lock must not ride along with the transfer
+    (/health runs on a write-mode request connection)."""
     app = create_app(settings)
     TestClient(app).get("/api/v1/me")  # bootstrap the dev user
     db: Database = app.state.db
@@ -75,8 +77,10 @@ def test_rule_notification_is_sent_after_the_alert_commit(settings, monkeypatch)
                      "('r1', 'person', '{\"types\": [\"person\"]}', '{}', '{}', 0, '[{\"kind\": \"ha_notify\", \"service\": \"mobile_app_phone\"}]', '2026-09-29T00:00:00Z', '2026-09-29T00:00:00Z')")
     free: list[bool] = []
     monkeypatch.setattr(rules_svc, "HA_NOTIFY", lambda service, message, title: (free.append(lock_is_free(db)), "sent")[1])
-    events_ingest.LISTENER.db, events_ingest.LISTENER.settings, events_ingest.LISTENER.tz_getter = db, s, lambda: "Asia/Jerusalem"
-    now = dt.datetime.now(dt.timezone(dt.timedelta(hours=3))).replace(microsecond=0).isoformat()
+    monkeypatch.setattr(events_ingest.LISTENER, "db", db)
+    monkeypatch.setattr(events_ingest.LISTENER, "settings", s)
+    monkeypatch.setattr(events_ingest.LISTENER, "tz_getter", lambda: "Asia/Jerusalem")
+    now =dt.datetime.now(dt.timezone(dt.timedelta(hours=3))).replace(microsecond=0).isoformat()
     events_ingest.LISTENER._handle(events_ingest.ParsedAlert(raw_type="linedetection", state="active", channel=1, dyn_channel=None, device_time=now, description="",
                                                              target="human", active_post_count=1))
     assert free == [True]
@@ -156,8 +160,17 @@ def test_assign_area_calls_the_bridge_without_the_write_lock(dev_app, monkeypatc
     c = TestClient(app)
     free: list[bool] = []
 
+    phases: list[str] = []
+
     def fake_set_area(_settings, payload, timeout=15.0):
         free.append(lock_is_free(app.state.db))
+        # two-phase: the attempt row is already committed - another connection sees it while HA is being asked
+        probe = sqlite3.connect(app.state.db.path)
+        try:
+            row = probe.execute("SELECT details_json FROM audit_log WHERE action = 'devices.assign_area' ORDER BY id DESC LIMIT 1").fetchone()
+        finally:
+            probe.close()
+        phases.append(json.loads(row[0])["phase"] if row else "none")
         return {"ok": True, "context_id": None, "request_id": payload["request_id"]}
 
     monkeypatch.setattr(ha_client, "call_bridge_set_area", fake_set_area)
@@ -165,7 +178,10 @@ def test_assign_area_calls_the_bridge_without_the_write_lock(dev_app, monkeypatc
     c.post("/api/v1/ha/bridge/ping", json=ha_bridge.sign(secret, {"version": "0.2.5"}))
     r = c.put("/api/v1/devices/entities/switch.loose/area", json={"area_id": "office"})
     assert r.status_code == 200, r.text
-    assert free == [True]
+    assert free == [True] and phases == ["attempt"]
+    with app.state.db.connection(mode="read") as conn:
+        rows = [json.loads(x[0]) for x in conn.execute("SELECT details_json FROM audit_log WHERE action = 'devices.assign_area' ORDER BY id")]
+    assert [x["phase"] for x in rows] == ["attempt", "outcome"] and rows[0]["request"] == rows[1]["request"]
 
 
 def test_retry_locked_retries_busy_only(monkeypatch):
@@ -231,7 +247,10 @@ def test_connection_settings_and_idle_checkpoint(tmp_path):
 
 def test_health_reports_write_lock_counters(client):
     body = client.get("/api/v1/health").json()
-    assert {"holds", "slow_holds", "max_hold_s", "busy_errors"} <= set(body["db"]["write_lock"])
+    assert {"holds", "slow_holds", "max_hold_s", "busy_errors", "max_hold_by", "last_busy"} <= set(body["db"]["write_lock"])
+    # who held the lock (request paths with other users' ids) only for a system.configure holder; counters for everyone
+    other = client.get("/api/v1/health", headers=as_user("viewer1")).json()["db"]["write_lock"]
+    assert {"holds", "slow_holds", "max_hold_s", "busy_errors"} <= set(other) and "max_hold_by" not in other and "last_busy" not in other
 
 
 def test_audit_row_of_a_refusal_survives_release(client):
@@ -243,3 +262,191 @@ def test_audit_row_of_a_refusal_survives_release(client):
     with db.connection(mode="read") as conn:
         row = conn.execute("SELECT actor_username, decision FROM audit_log ORDER BY id DESC LIMIT 1").fetchone()
     assert (row["actor_username"], row["decision"]) == ("nobody", "denied")
+
+
+# ---------------------------------------------------------------- review round 1 (races, two-phase device calls, deadlines)
+
+def _export_lab(settings):
+    s = replace(settings, nvr_host="nvr.local", nvr_user="u", nvr_password="p")
+    app = create_app(s)
+    c = TestClient(app)
+    recordings.invalidate()
+    cam = c.post("/api/v1/cameras", json={"channel": 1, "alias": "a"}).json()
+    set_track(s, cam["id"])
+    fast = fake_pages([("2026-09-14T10:00:00Z", "2026-09-14T10:02:00Z", "MOTION", "f1", 1000)])
+
+    def slow(*a, **kw):
+        time.sleep(0.6)
+        return fast(*a, **kw)
+
+    return app, c, cam, fast, slow
+
+
+def _concurrently(*calls):
+    """Start each call 0.2 s after the previous one (the second passes its early check while the first searches)."""
+    out: list = [None] * len(calls)
+
+    def run(i, fn):
+        out[i] = fn()
+
+    threads = []
+    for i, fn in enumerate(calls):
+        t = threading.Thread(target=run, args=(i, fn))
+        t.start()
+        threads.append(t)
+        time.sleep(0.2)
+    for t in threads:
+        t.join(30)
+    return out
+
+
+def test_concurrent_export_creates_respect_the_quota(settings, monkeypatch):
+    app, c, cam, fast, slow = _export_lab(settings)
+    body = {"camera_id": cam["id"], "from_at": "2026-09-14T07:00:00Z", "to_at": "2026-09-14T07:10:00Z"}
+    monkeypatch.setattr(nvr, "search_recordings", fast)
+    for _ in range(4):
+        assert c.post("/api/v1/exports", json=body).status_code == 201
+    monkeypatch.setattr(nvr, "search_recordings", slow)
+    recordings.invalidate()
+    c1, c2 = TestClient(app), TestClient(app)
+    r1, r2 = _concurrently(lambda: c1.post("/api/v1/exports", json=body), lambda: c2.post("/api/v1/exports", json=body))
+    assert sorted([r1.status_code, r2.status_code]) == [201, 429], (r1.text, r2.text)
+    with app.state.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM export_jobs WHERE state = 'queued'").fetchone()[0] == 5
+
+
+def test_concurrent_preserve_creates_one_job(settings, monkeypatch):
+    app, c, cam, fast, slow = _export_lab(settings)
+    seed_tree(c)
+    case = c.post("/api/v1/cases", json={"title": "t"}).json()
+    item = c.post(f"/api/v1/cases/{case['id']}/items", json={"kind": "clip", "camera_id": cam["id"], "from_at": "2026-09-14T07:00:00Z", "to_at": "2026-09-14T07:05:00Z"}).json()
+    monkeypatch.setattr(nvr, "search_recordings", slow)
+    url = f"/api/v1/cases/{case['id']}/items/{item['id']}/preserve"
+    c1, c2 = TestClient(app), TestClient(app)
+    r1, r2 = _concurrently(lambda: c1.post(url), lambda: c2.post(url))
+    assert sorted([r1.status_code, r2.status_code]) == [201, 409], (r1.text, r2.text)
+    assert "already_preserving" in (r1.text + r2.text)
+    with app.state.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM export_jobs").fetchone()[0] == 1, "no orphaned second job"
+
+
+def _record_lab(settings, monkeypatch, handler):
+    app = create_app(settings)
+    db: Database = app.state.db
+    monkeypatch.setattr(nvr_write, "_client", lambda _s=None: httpx.Client(transport=httpx.MockTransport(handler), base_url="http://nvr"))
+    c = TestClient(app, raise_server_exceptions=False)
+    cam = c.post("/api/v1/cameras", json={"channel": 1, "alias": "a"}).json()
+    with db.connection() as conn:
+        conn.execute("UPDATE cameras SET main_track = 101 WHERE id = ?", (cam["id"],))
+    return app, db, c, cam
+
+
+def test_manual_start_when_the_database_stays_busy_stops_the_recording_and_keeps_the_row(settings, monkeypatch):
+    """The NVR started recording, then the request cannot take the lock again (busy past the retries): the recording is
+    stopped again, and the row + attempt audit row committed before the call remain for the janitor."""
+    calls: list[str] = []
+    holding, done = threading.Event(), threading.Event()
+    box: dict = {}
+
+    def hold() -> None:
+        h = sqlite3.connect(box["db"].path, isolation_level=None)
+        h.execute("BEGIN IMMEDIATE")
+        holding.set()
+        done.wait(10)
+        h.execute("ROLLBACK")
+        h.close()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        kind = request.url.path.rsplit("/", 3)[-3]
+        calls.append(kind)
+        if kind == "start" and not holding.is_set():
+            threading.Thread(target=hold, daemon=True).start()
+            holding.wait(5)
+        return httpx.Response(200, text="<ResponseStatus><statusCode>1</statusCode></ResponseStatus>")
+
+    app, db, c, cam = _record_lab(settings, monkeypatch, handler)
+    box["db"] = db
+    monkeypatch.setattr(db_mod, "BUSY_TIMEOUT_S", 0.2)
+    monkeypatch.setattr(time, "sleep", lambda _s: None)
+    try:
+        r = c.post(f"/api/v1/cameras/{cam['id']}/record/start", json={"minutes": 5})
+    finally:
+        done.set()
+    assert r.status_code == 500
+    assert calls == ["start", "stop"], "the unconfirmed recording is stopped again"
+    with db.connection(mode="read") as conn:
+        rows = conn.execute("SELECT stopped_at FROM manual_recordings").fetchall()
+        audits = [json.loads(x[0])["phase"] for x in conn.execute("SELECT details_json FROM audit_log WHERE action = 'nvr.record.start'")]
+    assert len(rows) == 1 and rows[0]["stopped_at"] is None and audits == ["attempt"]
+    with db.connection() as conn:
+        conn.execute("UPDATE manual_recordings SET stop_at = '2000-01-01T00:00:00Z'")
+    assert nvr_write.stop_expired_manual(db, settings) == 1, "the janitor closes it"
+
+
+def test_manual_start_refused_by_the_nvr_closes_its_row(settings, monkeypatch):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, text="<ResponseStatus><statusCode>4</statusCode><subStatusCode>noPermission</subStatusCode></ResponseStatus>")
+
+    app, db, c, cam = _record_lab(settings, monkeypatch, handler)
+    r = c.post(f"/api/v1/cameras/{cam['id']}/record/start", json={"minutes": 5})
+    assert r.status_code == 503 and r.json()["code"] == "source_forbidden"
+    assert c.get(f"/api/v1/cameras/{cam['id']}/record").json()["active"] is None
+    with db.connection(mode="read") as conn:
+        row = conn.execute("SELECT stop_reason FROM manual_recordings").fetchone()
+        audits = [(x["decision"], json.loads(x["details_json"])["phase"]) for x in conn.execute("SELECT decision, details_json FROM audit_log WHERE action = 'nvr.record.start' ORDER BY id")]
+    assert row["stop_reason"] == "start_failed:source_forbidden" and audits == [("allowed", "attempt"), ("denied", "outcome")]
+
+
+def test_note_busy_survives_concurrent_holder_changes(monkeypatch):
+    silent = logging.getLogger("smplwise.test.silent")
+    silent.disabled = True
+    monkeypatch.setattr(db_mod, "log", silent)
+    stop = threading.Event()
+    keys = [-(i + 1) for i in range(200)]
+
+    def churn() -> None:
+        while not stop.is_set():
+            for k in keys:
+                db_mod._holders[k] = ("churn", time.monotonic())
+            for k in keys:
+                db_mod._holders.pop(k, None)
+
+    t = threading.Thread(target=churn, daemon=True)
+    t.start()
+    try:
+        for _ in range(3000):
+            db_mod._note_busy("waiter")
+    finally:
+        stop.set()
+        t.join(5)
+        for k in keys:
+            db_mod._holders.pop(k, None)
+
+
+def test_ha_state_event_gives_up_within_the_busy_deadline(tmp_path, monkeypatch):
+    """Runs inside the HA WebSocket loop: one attempt bounded by the busy timeout, never ~30 s of retries."""
+    monkeypatch.setattr(db_mod, "BUSY_TIMEOUT_S", 0.3)
+    db = Database(tmp_path / "t.db")
+    db.migrate()
+    holder = sqlite3.connect(db.path, isolation_level=None)
+    holder.execute("BEGIN IMMEDIATE")
+    try:
+        started = time.monotonic()
+        with pytest.raises(sqlite3.OperationalError, match="locked"):
+            ha_sync.handle_state_event(db, {"entity_id": "sensor.x", "old_state": None, "new_state": {"entity_id": "sensor.x", "state": "1", "attributes": {}}})
+        assert time.monotonic() - started < 0.9
+    finally:
+        holder.execute("ROLLBACK")
+        holder.close()
+
+
+def test_released_connection_refuses_further_writes(tmp_path):
+    db = Database(tmp_path / "t.db")
+    db.migrate()
+    with db.connection() as conn:
+        conn.execute("INSERT INTO settings(key, value) VALUES ('a', '1')")
+        db_mod.release(conn)
+        with pytest.raises(sqlite3.OperationalError, match="readonly"):
+            conn.execute("INSERT INTO settings(key, value) VALUES ('b', '2')")
+    with db.connection(mode="read") as conn:
+        assert [r[0] for r in conn.execute("SELECT key FROM settings WHERE key IN ('a', 'b')")] == ["a"]

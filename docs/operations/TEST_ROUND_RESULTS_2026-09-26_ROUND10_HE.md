@@ -133,25 +133,42 @@ lock holds).
 ### What changed
 
 - Device calls moved out of the write transaction: the export/preserve NVR search (`exports.create_job`), manual
-  recording start/stop and the janitor's expiry stop (with a re-check after re-locking, so a parallel start/stop never
-  doubles a session or its audit row), the area assignment bridge call, the bridge discovery POST.
+  recording start/stop and the janitor's expiry stop, the area assignment bridge call, the bridge discovery POST.
+- Checks that guard a device call are repeated after it, in the transaction that writes the result: the export quota
+  (5 active jobs per owner) and "already preserving" run again after the NVR search, right before the INSERT, so a
+  double click or two parallel requests create one job, never an orphaned second download.
+- Two-phase where the device acts: manual recording start commits its session row and an `attempt` audit row before
+  the NVR is told to record; an NVR refusal closes the row (`start_failed:<code>`) with a `denied` outcome row; if the
+  database stays busy after the NVR started, the recording is stopped again and the committed row stays for the
+  janitor. Area assignment commits an `attempt` audit row before Home Assistant is asked (outcome row as before).
+  Taking the lock back after a device call (`unlocked()` exit) is retried (3 attempts) instead of failing at once.
 - Rule notifications to HA are sent after the commit (`rules.evaluate_event(deliver=False)` + `deliver_pending`) in the
   alert stream and the HA state sync (`ha_sync.handle_state_event`). The direct API is unchanged (`deliver=True`).
 - Commit before send: `main.CommitBeforeSend` (ASGI middleware) commits the request's connections when the response
-  starts, so no transfer holds the lock. A handler that raises is unchanged (its dependency commits expected API errors
-  with their audit rows, or rolls back, before the error response starts).
+  starts, so no transfer holds the lock, and makes them query-only (a later write on them fails loudly). A handler that
+  raises is unchanged (its dependency commits expected API errors with their audit rows, or rolls back, before the
+  error response starts). Behaviour change: a download's audit row (`video.export.download`, bundles, backups) is now
+  committed when the transfer starts and kept even if the client disconnects mid-download; before, a disconnect during
+  the transfer rolled it back.
 - Bounded retries with jitter (`db.retry_locked`, 3 attempts) instead of dropping: alert-stream events and gap events,
-  HA state updates, the HA registry refresh phases, live-video audit rows, device-bulk polls and outcome rows.
+  the HA registry refresh phases, live-video audit rows, device-bulk polls and outcome rows. HA state updates get ONE
+  attempt (at most the 10 s busy timeout): they run inside the HA WebSocket client's loop, and ~30 s of retries would
+  miss the socket's ping deadline and force a disconnect plus a full resync; the next push or snapshot corrects a lost
+  state.
 - Accounting: every write-lock hold is timed; a hold over 3 s (`SW_DB_SLOW_HOLD_S`) logs `write lock held N s by
-  <route or function>`, and every busy failure logs who held the lock and for how long. `/health` → `db.write_lock`
-  (`holds`, `slow_holds`, `max_hold_s`, `max_hold_by`, `busy_errors`, `last_busy`).
-- The janitor runs a PASSIVE WAL checkpoint every 30 s (TRUNCATE only when the WAL passes 32 MB, with a 0.2 s timeout
-  so it never queues writers).
+  <route or function>`, and every busy failure logs who held the lock and for how long (the accounting can never
+  replace the busy error itself). `/health` → `db.write_lock`: the counters (`holds`, `slow_holds`, `max_hold_s`,
+  `busy_errors`) for everyone, the holder names (`max_hold_by`, `last_busy`: request paths with ids) only for a
+  `system.configure` holder.
+- The janitor runs a PASSIVE WAL checkpoint every 30 s - PASSIVE only: it never takes the write lock and never waits for
+  a reader, so it cannot queue writers.
 - Kept on purpose: `synchronous=FULL` (NORMAL gave no measurable gain here and would let a power cut drop the last
   committed audit rows), `busy_timeout` 10 s, the `unlocked()` API and all its callers, the 0.1.126 `mirror_lock` →
   database ordering, one connection per request.
-- Tests: `tests/test_db_locking.py` (11 fast tests; each fake device asserts the lock is free when it is called —
-  10 of them fail on the pre-fix code, the six lock-holder tests among them) and the opt-in load test above.
+- Tests: `tests/test_db_locking.py` (18 fast tests; each fake device asserts the lock is free when it is called, plus
+  concurrent export / preserve requests, a busy database after the NVR started, an NVR refusal, concurrent holder
+  changes during a busy failure, the HA state deadline and the query-only released connection) and the opt-in load
+  test above.
 
 ### Still open
 

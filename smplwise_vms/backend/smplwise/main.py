@@ -46,7 +46,7 @@ def janitor_tick(db: Database, settings: Settings) -> None:
     from .services import nvr_write
 
     nvr_write.stop_expired_manual(db, settings)  # A1: manual recordings past their planned stop
-    db.checkpoint()  # a PASSIVE WAL checkpoint (TRUNCATE only for an oversized WAL); never queues writers
+    db.checkpoint()  # a PASSIVE WAL checkpoint only: never takes the write lock, never queues writers
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:

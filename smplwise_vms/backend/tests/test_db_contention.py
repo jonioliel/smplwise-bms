@@ -166,7 +166,9 @@ def test_sqlite_contention_under_mixed_load(settings, monkeypatch):
         return "sent"
 
     monkeypatch.setattr(rules_svc, "HA_NOTIFY", slow_notify)
-    events_ingest.LISTENER.db, events_ingest.LISTENER.settings, events_ingest.LISTENER.tz_getter = db, s, lambda: TZ
+    monkeypatch.setattr(events_ingest.LISTENER, "db", db)
+    monkeypatch.setattr(events_ingest.LISTENER, "settings", s)
+    monkeypatch.setattr(events_ingest.LISTENER, "tz_getter", lambda: TZ)
 
     stats: dict[str, Stat] = {}
     stop = threading.Event()
@@ -217,8 +219,12 @@ def test_sqlite_contention_under_mixed_load(settings, monkeypatch):
         with db.connection() as conn:
             set_setting(conn, "load.probe", str(i))
 
+    clients: list[TestClient] = [boot]
+
     def http_client() -> TestClient:
-        return TestClient(app, raise_server_exceptions=False)
+        client = TestClient(app, raise_server_exceptions=False)
+        clients.append(client)
+        return client
 
     def http_read(k: int) -> Callable[[int], None]:
         c = http_client()
@@ -277,8 +283,13 @@ def test_sqlite_contention_under_mixed_load(settings, monkeypatch):
     stop.set()
     elapsed = time.time() - started
     wal = db.path.with_name(db.path.name + "-wal")
-    with sqlite3.connect(db.path) as c2:
+    for client in clients:
+        client.close()
+    c2 = sqlite3.connect(db.path)
+    try:
         audit_rows = c2.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'load.audit'").fetchone()[0]
+    finally:
+        c2.close()  # Windows: an open handle keeps the temporary directory from being removed
     rows = [st.summary() for st in stats.values()]
     report = {"duration_s": round(elapsed, 1), "slow_devices": SLOW, "device_latency_s": {"nvr_search_page": SEARCH_PAGE_S, "nvr_put": NVR_PUT_S, "ha_notify": HA_NOTIFY_S},
               "total_ops": sum(r["ops"] for r in rows), "total_locked": sum(r["locked"] for r in rows), "total_other_errors": sum(r["other_errors"] for r in rows),
@@ -297,5 +308,6 @@ def test_sqlite_contention_under_mixed_load(settings, monkeypatch):
         with open(out, "w", encoding="utf-8") as fh:
             json.dump(report, fh, ensure_ascii=False, indent=1)
     assert report["total_locked"] == 0, f"{report['total_locked']} 'database is locked' errors"
+    assert report["total_other_errors"] == 0, [r["other_kinds"] for r in rows if r["other_errors"]]
     assert report["audit_rows_written"] == report["audit_ok_ops"], "every audit call that returned wrote its row"
     assert report["probe_max_wait_s"] < 5.0, "an innocent writer waited too long for the write lock"
