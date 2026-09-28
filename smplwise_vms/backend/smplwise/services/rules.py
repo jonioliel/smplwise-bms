@@ -141,8 +141,9 @@ def match(conn: sqlite3.Connection, rule: dict[str, Any], ev: dict[str, Any], tz
     return {"fire": True, "suppressed": None, "reasons": reasons + ["פעולה: התראה במערכת"]}
 
 
-def evaluate_event(conn: sqlite3.Connection, ev: dict[str, Any], tz_name: str | None = None) -> list[dict[str, Any]]:
-    """Run every enabled local rule against a freshly stored event; write the alerts. Never raises into ingestion."""
+def evaluate_event(conn: sqlite3.Connection, ev: dict[str, Any], tz_name: str | None = None, *, deliver: bool = True) -> list[dict[str, Any]]:
+    """Run every enabled local rule against a freshly stored event; write the alerts. Never raises into ingestion.
+    deliver=False leaves the HA notifications for deliver_pending() after the caller's commit."""
     if tz_name is None:
         from ..routers.settings import read_settings  # local import: settings live in the routers package
 
@@ -166,12 +167,21 @@ def evaluate_event(conn: sqlite3.Connection, ev: dict[str, Any], tz_name: str | 
             (aid, rule["id"], ev["id"], target_cam, target_ent, now, ev["occurred_at"], json.dumps(m["reasons"], ensure_ascii=False), message),
         )
         conn.execute("UPDATE rules SET last_fired_at = ? WHERE id = ?", (now, rule["id"]))
-        delivery: dict[str, str] = {}
-        for a in rule["actions"]:
-            if a.get("kind") == "ha_notify" and a.get("service"):
-                delivery[a["service"]] = HA_NOTIFY(a["service"], a.get("message") or message, rule["name"])
-        fired.append({"id": aid, "rule_id": rule["id"], "rule_name": rule["name"], "event_id": ev["id"], "message": message, "reasons": m["reasons"], "ha_notify": delivery})
+        pending = [(a["service"], a.get("message") or message, rule["name"]) for a in rule["actions"] if a.get("kind") == "ha_notify" and a.get("service")]
+        fired.append({"id": aid, "rule_id": rule["id"], "rule_name": rule["name"], "event_id": ev["id"], "message": message, "reasons": m["reasons"], "ha_notify": {},
+                      "_pending": pending})
+    if deliver:
+        deliver_pending(fired)
     return fired
+
+
+def deliver_pending(fired: list[dict[str, Any]]) -> None:
+    """Send the Home Assistant notifications of fired rules. Callers that hold a write transaction (the alert stream,
+    the HA state sync) evaluate with deliver=False and call this after their commit: the POST to HA can take up to its
+    timeout, and under the write lock that stalled every other writer (round-10 lock storm)."""
+    for item in fired:
+        for service, message, title in item.pop("_pending", None) or ():
+            item["ha_notify"][service] = HA_NOTIFY(service, message, title)
 
 
 def dry_run(conn: sqlite3.Connection, rule: dict[str, Any], hours: int, tz_name: str, now: dt.datetime | None = None) -> dict[str, Any]:

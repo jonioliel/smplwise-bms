@@ -90,6 +90,19 @@ Run 2 (after the fixes), backend restarted seconds before the run (cold caches, 
 | Cold NVR search per camera-day | < 3 s, one query per key | met after the in-flight fix (2.1 s p95 at 8 workers) |
 | Backend working set, idle + HA sync | < 200 MB | met (92.5 MB) |
 | Live streams / transcodes | measured on the HA host, not here | open |
+| SQLite write lock under mixed background + API load | 0 `database is locked`; innocent writer waits < 5 s; no hold > 3 s | met 2026-09-29 (0 errors, max wait 1.1-1.4 s, max hold < 1.2 s even with 5 s NVR search pages; see below) |
+
+### SQLite write-lock contention (2026-09-29, round-10 lock storm)
+
+`tests/test_db_contention.py` (opt-in, `SW_DB_LOAD=1`) runs 12 concurrent actors for 90 s through the product's own code
+(HA state pushes ~40/s, alert stream, audit, 4 API clients, export create, `events_derive`, manual recording, a probe
+writer) with faked devices. Before the fix, device calls ran inside write transactions: with 5 s NVR search pages it
+produced 24 `database is locked` + 25 HTTP 500 in 368 operations and an 11.4 s probe wait; after the fix 5805 operations,
+0 errors, 1.14 s maximum wait. Pure contention (instant devices) was never a storm: ~4-6k operations, 0 errors, ~30 ms
+p50 per tiny write transaction on this workstation (new connection + BEGIN IMMEDIATE + fsync'd commit). Budget rule:
+nothing slow under the write lock - device calls in `unlocked()`, notifications after the commit, responses sent after
+the commit; `/health` → `db.write_lock` shows the longest hold and its holder. Full write-up:
+`TEST_ROUND_RESULTS_2026-09-26_ROUND10_HE.md` section 4.
 
 ## Not measured yet (open)
 

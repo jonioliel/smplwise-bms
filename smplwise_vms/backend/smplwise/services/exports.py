@@ -30,7 +30,7 @@ from typing import Any, Callable
 from urllib.parse import parse_qs, urlsplit
 
 from ..config import Settings
-from ..db import Database, now_iso
+from ..db import Database, now_iso, unlocked
 from ..errors import ApiError
 from . import nvr, recordings
 from .timeutil import UTC, iso_utc, nvr_wall_to_utc, parse_utc, zone
@@ -144,8 +144,26 @@ def _row_to_job(row: sqlite3.Row) -> dict[str, Any]:
     }
 
 
-def create_job(conn: sqlite3.Connection, settings: Settings, principal: Any, cam: sqlite3.Row, start: dt.datetime, end: dt.datetime, tz_name: str, max_bytes: int) -> dict[str, Any]:
-    files, coverage = _files_for(settings, conn, cam, start, end, tz_name)
+MAX_ACTIVE_JOBS = 5  # queued + running per owner
+
+
+def check_quota(conn: sqlite3.Connection, principal: Any) -> None:
+    active = conn.execute("SELECT COUNT(*) FROM export_jobs WHERE owner_user_id = ? AND state IN ('queued','running')", (principal.user_id,)).fetchone()[0]
+    if active >= MAX_ACTIVE_JOBS:
+        raise ApiError(429, "too_many_jobs", "יש כבר 5 עבודות ייצוא ממתינות; המתן לסיומן.", retryable=True)
+
+
+def create_job(conn: sqlite3.Connection, settings: Settings, principal: Any, cam: sqlite3.Row, start: dt.datetime, end: dt.datetime, tz_name: str, max_bytes: int,
+               recheck: Callable[[sqlite3.Connection], None] | None = None) -> dict[str, Any]:
+    """`recheck` (and the owner's job quota) run again after the NVR search, in the same transaction as the INSERT: the
+    search runs without the write lock, so a parallel request may have created its job meanwhile."""
+    # the NVR search (paged, and queued behind any other search: one at a time on this firmware) runs without the
+    # request's write lock - under it, every other writer waited for the NVR (round-10 lock storm)
+    with unlocked(conn):
+        files, coverage = _files_for(settings, conn, cam, start, end, tz_name)
+    check_quota(conn, principal)
+    if recheck is not None:
+        recheck(conn)
     if not files:
         raise ApiError(409, "no_recording", "אין הקלטה בטווח המבוקש.", details={"coverage": coverage})
     if len(files) > MAX_FILES:

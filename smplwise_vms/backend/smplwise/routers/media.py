@@ -22,7 +22,7 @@ from starlette.concurrency import run_in_threadpool
 from ..audit import audit
 from ..auth import current_principal, get_conn, maybe_bootstrap, resolve_principal, settings_of, touch_user
 from ..config import Settings
-from ..db import unlocked, Database
+from ..db import Database, retry_locked, unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..services import autosync, revocation
@@ -185,9 +185,12 @@ async def live_ws(websocket: WebSocket, camera_id: str, profile: str = Query("su
     session = LiveSession(id=uuid.uuid4().hex[:10], camera_id=camera_id, stream=name, user_id=principal.user_id, username=principal.username)
 
     def _audit(action: str, details: dict[str, Any]) -> None:
-        try:
+        def _write() -> None:
             with db.connection() as conn:
                 audit(conn, actor=principal, action=action, decision="allowed", resource_type="camera", resource_id=camera_id, details=details)
+
+        try:
+            retry_locked(_write, what=f"audit {action}")  # a busy database delays the row, it does not lose it
         except sqlite3.Error as exc:  # never let bookkeeping kill or leak a live session
             log.error("audit %s for live session %s failed: %s", action, session.id, exc)
 

@@ -44,7 +44,7 @@ from typing import Any
 
 from ..audit import audit
 from ..config import Settings
-from ..db import Database, now_iso
+from ..db import Database, now_iso, retry_locked
 from ..errors import ApiError
 from ..rbac import Principal
 from . import devices as dsvc
@@ -573,9 +573,12 @@ def run(db: Database, settings: Settings, principal: Principal, bulk_id: str, ta
         with db.write_aside() as w:
             w.execute("UPDATE device_bulk_actions SET status = 'waiting', sent_at = ? WHERE id = ?", (now_iso(), bulk_id))
         deadline = time.monotonic() + ha_actions.CONFIRM_WINDOW_S + 5.0
-        while True:
+        def _poll() -> int:
             with db.write_aside() as w:
-                left = refresh_pending(w, bulk_id)
+                return refresh_pending(w, bulk_id)
+
+        while True:
+            left = retry_locked(_poll, what=f"device bulk {bulk_id} poll")  # a busy database delays a poll, it does not end the bulk
             if not left or time.monotonic() > deadline:
                 break
             time.sleep(POLL_S)
@@ -588,7 +591,7 @@ def run(db: Database, settings: Settings, principal: Principal, bulk_id: str, ta
             log.exception("device bulk %s: could not record the unsent entities", bulk_id)
     finally:
         try:
-            finish(db, bulk_id, request_id)
+            retry_locked(lambda: finish(db, bulk_id, request_id), what=f"device bulk {bulk_id} outcome")  # the outcome audit row is never lost to a busy database
         except Exception:  # noqa: BLE001 - the attempt row and the per-entity records stand
             log.exception("device bulk %s: the outcome could not be recorded", bulk_id)
         RUNNER.release(bulk_id)

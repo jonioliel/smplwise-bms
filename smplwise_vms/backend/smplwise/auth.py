@@ -16,7 +16,7 @@ from .audit import audit
 from .config import Settings
 import time
 
-from .db import Database, database_of, get_setting, new_id, now_iso, permission_revision, read_mode, set_setting
+from .db import Database, database_of, get_setting, new_id, now_iso, permission_revision, read_mode, release, set_setting
 from .errors import unauthenticated
 from .rbac import Principal
 
@@ -30,17 +30,34 @@ def settings_of(request: Request) -> Settings:
     return request.app.state.settings
 
 
+def _track(request: Request, conn: sqlite3.Connection) -> None:
+    conns = getattr(request.state, "sw_conns", None)
+    if conns is None:
+        conns = request.state.sw_conns = []
+    conns.append(conn)
+
+
 def get_conn(request: Request):
     db: Database = request.app.state.db
-    with db.connection() as conn:
+    with db.connection(label=f"{request.method} {request.url.path}") as conn:
+        _track(request, conn)
         yield conn
 
 
 def get_read_conn(request: Request):
     """Deferred, query-only request connection for the busy read paths (see Database.connection)."""
     db: Database = request.app.state.db
-    with db.connection(mode="read") as conn:
+    with db.connection(mode="read", label=f"{request.method} {request.url.path}") as conn:
+        _track(request, conn)
         yield conn
+
+
+def release_conns(conns: list[sqlite3.Connection]) -> None:
+    """Commit the request's connections when its response starts, before the body is sent (main.CommitBeforeSend).
+    FastAPI closes a dependency with yield only after the whole response went out, so without this a download (an
+    export, a bundle, a backup) or any slow client held the write lock for the whole transfer."""
+    for conn in conns:
+        release(conn)
 
 
 def _client_host(request: Request) -> str:

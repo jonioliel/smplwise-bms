@@ -413,10 +413,13 @@ def preserve_item(case_id: str, item_id: str, request: Request, principal: Princ
         raise not_found("הפריט לא נמצא.")
     if it["kind"] == "note" or not it["camera_id"] or not it["from_at"]:
         raise conflict("not_a_clip", "רק אירוע או קטע עם מצלמה ניתנים לשימור.")
-    if it["export_job_id"]:
-        job = ex.get_job(conn, it["export_job_id"])
+    def not_preserving(c: sqlite3.Connection) -> None:
+        row = c.execute("SELECT export_job_id FROM case_items WHERE id = ?", (item_id,)).fetchone()
+        job = ex.get_job(c, row["export_job_id"]) if row and row["export_job_id"] else None
         if job and job["state"] in ("queued", "running", "done", "partial"):
             raise conflict("already_preserving", "כבר קיימת עבודת שימור לפריט.", state=job["state"])
+
+    not_preserving(conn)  # fails fast; create_job checks again after the NVR search, in the INSERT's transaction
     if not settings.nvr_host:
         raise ApiError(503, "nvr_unconfigured", "לא הוגדר NVR; אין ממה להעתיק.")
     cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (it["camera_id"],)).fetchone()
@@ -426,10 +429,9 @@ def preserve_item(case_id: str, item_id: str, request: Request, principal: Princ
     if not cam["main_track"]:
         raise ApiError(409, "no_track", "למצלמה אין track הקלטה ידוע; הרץ סנכרון מצלמות.")
     s = read_settings(conn)
-    active = conn.execute("SELECT COUNT(*) FROM export_jobs WHERE owner_user_id = ? AND state IN ('queued','running')", (principal.user_id,)).fetchone()[0]
-    if active >= 5:
-        raise ApiError(429, "too_many_jobs", "יש כבר 5 עבודות ייצוא ממתינות; המתן לסיומן.", retryable=True)
-    job = ex.create_job(conn, settings, principal, cam, parse_utc(it["from_at"]), parse_utc(it["to_at"]), s["time.zone"], s["exports.max_mb"] * 1024 * 1024)
+    ex.check_quota(conn, principal)
+    job = ex.create_job(conn, settings, principal, cam, parse_utc(it["from_at"]), parse_utc(it["to_at"]), s["time.zone"], s["exports.max_mb"] * 1024 * 1024,
+                        recheck=not_preserving)
     conn.execute("UPDATE case_items SET export_job_id = ? WHERE id = ?", (job["id"], item_id))
     conn.execute("UPDATE cases SET updated_at = ? WHERE id = ?", (now_iso(), case_id))
     audit(conn, actor=principal, action="case.item.preserve", decision="allowed", resource_type="case", resource_id=case_id, request_id=_rid(request),

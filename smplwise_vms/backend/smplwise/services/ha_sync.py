@@ -25,7 +25,7 @@ import time
 from typing import Any
 
 from ..config import Settings
-from ..db import Database, now_iso
+from ..db import Database, now_iso, retry_locked
 from ..errors import ApiError
 from . import ha_client
 
@@ -309,15 +309,37 @@ def _chunks(items: list[Any], n: int = CHUNK):
 
 def _busy_retry(fn, attempts: int = 3, wait_s: float = 2.0):
     """Run a write phase; a busy database (another worker holding the lock past busy_timeout) is retried, not fatal."""
-    for i in range(attempts):
-        try:
-            return fn()
-        except sqlite3.OperationalError as exc:
-            if "locked" not in str(exc).lower() or i == attempts - 1:
-                raise
-            log.warning("HA sync: database busy, retrying in %.0fs", wait_s)
-            time.sleep(wait_s)
-    return None
+    return retry_locked(fn, what="HA sync", attempts=attempts, base_s=wait_s / 2)
+
+
+def handle_state_event(db: Database, data: dict[str, Any], attempts: int = 1) -> dict[str, Any]:
+    """One state_changed push: the mirror row, the correlation event (T053: door / motion / lock transitions) and the
+    rule alerts in one short transaction. Rule notifications to HA are sent after the commit - under the write lock a
+    slow HA answer stalled every other writer (round-10 lock storm).
+    One attempt by default (bounded by BUSY_TIMEOUT_S): this runs inside the HA WebSocket client's event loop, and
+    retries of ~30 s would miss the socket's ping deadline and cost a disconnect plus a full resync. A state lost to a
+    busy database is corrected by the next push of that entity or the next snapshot."""
+    from . import rules as rules_svc
+    from .correlation import record_transition
+
+    new = data["new_state"]
+    fired: list[dict[str, Any]] = []
+
+    def _write() -> dict[str, Any]:
+        fired.clear()
+        with db.connection() as conn:
+            row = upsert_state(conn, new)
+            transition = record_transition(conn, data.get("old_state"), new)
+            if transition:
+                try:
+                    fired.extend(rules_svc.evaluate_event(conn, transition, deliver=False))
+                except Exception:  # noqa: BLE001
+                    log.exception("rule evaluation failed for %s", transition.get("id"))
+            return row
+
+    row = retry_locked(_write, what="HA state update", attempts=attempts, base_s=0.25)
+    rules_svc.deliver_pending(fired)
+    return row
 
 
 def count_entities(conn: sqlite3.Connection) -> int:
@@ -453,19 +475,7 @@ class HaSync:
                         debouncer.poke("state_removed")
                 return
             try:
-                with db.connection() as conn:
-                    row = upsert_state(conn, new)
-                    # T053: door / motion / lock transitions are kept as events for the correlation timeline
-                    from .correlation import record_transition
-
-                    transition = record_transition(conn, data.get("old_state"), new)
-                    if transition:
-                        from . import rules as rules_svc
-
-                        try:
-                            rules_svc.evaluate_event(conn, transition)
-                        except Exception:  # noqa: BLE001
-                            log.exception("rule evaluation failed for %s", transition.get("id"))
+                row = handle_state_event(db, data)
             except Exception:
                 log.exception("state update failed for %s", eid)
                 return
