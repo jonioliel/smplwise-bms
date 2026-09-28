@@ -50,6 +50,10 @@ interface Draft {
 const EMPTY_DRAFT: Draft = { station_id: '', person: '', result: '', authentication: '', door: '', start: '', end: '' };
 
 type StationInfo = Pick<IntercomStation, 'id' | 'name' | 'zone'>;
+/** `reload`: page 1, replacing the list; `more`: the next page, appended; `notice`: page 1 after a change notice,
+ * unless more than one page is shown by the time it runs (then the reader keeps their place and is told). */
+type LoadMode = 'reload' | 'more' | 'notice';
+const TITLE = `WisKey · ${t('wk4_nav_events')}`;
 type EventsState = IntercomFeedState | 'unsupported';
 
 /** The result as a badge: granted / denied / unknown in this codebase's good / bad / unknown kinds (WisKey marks a
@@ -118,7 +122,7 @@ export class WiskeyEvents extends LitElement {
   @state() private applied: IntercomEventFilters = {};
   @state() private draft: Draft = { ...EMPTY_DRAFT };
   @state() private dirty = false;
-  @state() private filterError = '';
+  @state() private filterError = ''; // an i18n key (wiskey-format.ts), shown translated
   @state() private error = '';
   @state() private busy = false;
   @state() private loadingMore = false;
@@ -129,7 +133,9 @@ export class WiskeyEvents extends LitElement {
   private inputZone: DisplayZone = UTC_ZONE; // the zone the draft's from / until are typed in
   private knownTimes: { start?: string | null; end?: string | null } = {};
   private generation = 0;
-  private reloadQueued = false;
+  /** A page-1 reload asked for while another load was out, and why: `reload` (the reader asked, or the filters
+   * changed) always replaces the list; `notice` (a change notice or the fallback poll) is judged when it runs. */
+  private reloadQueued: Exclude<LoadMode, 'more'> | null = null;
   private overviewBusy = false;
   private overviewAgain = false;
   private stop: (() => void) | null = null;
@@ -171,11 +177,11 @@ export class WiskeyEvents extends LitElement {
 
   /** WisKey said something changed (or the fallback poll ticked). WisKey's own panel then reloads page 1 and drops the
    * pages loaded with "load more"; here page 1 is reloaded only while it is the only page shown - with more pages
-   * loaded the reader keeps their place and is told that a refresh would bring newer records. */
+   * loaded the reader keeps their place and is told that a refresh would bring newer records. That is decided when the
+   * reload runs, not when the notice arrives: a notice during an in-flight "load more" waits for it (see `load`). */
   private onChangeNotice() {
     void this.loadOverview();
-    if (this.pages > 1) this.pendingUpdate = true;
-    else void this.load();
+    void this.load('notice');
   }
 
   /** Station names and clock zones (the filter's station list and each row's time zone) - single-flight with
@@ -208,14 +214,22 @@ export class WiskeyEvents extends LitElement {
   }
 
   /** One page of `events/list` (WisKey events.ts `load(more)`): single-flight - a reload asked for while one is out is
-   * queued once, a "load more" is dropped - and a generation counter discards answers for filters no longer applied.
-   * Page 1 replaces the records; "load more" appends the next page over the `next` cursor. */
-  private async load(more = false) {
+   * queued once (a `reload` outranks a `notice`), a "load more" is dropped - and a generation counter discards answers
+   * for filters no longer applied. Page 1 replaces the records; "load more" appends the next page over the `next`
+   * cursor. A `notice` reload is judged when it RUNS: if more than one page is shown by then (a "load more" that was in
+   * flight when the notice came has landed meanwhile), nothing is fetched and the reader is told instead. */
+  private async load(mode: LoadMode = 'reload') {
     if (this.forbidden) return;
     if (this.busy) {
-      if (!more) this.reloadQueued = true;
+      if (mode === 'reload') this.reloadQueued = 'reload';
+      else if (mode === 'notice' && !this.reloadQueued) this.reloadQueued = 'notice';
       return;
     }
+    if (mode === 'notice' && this.pages > 1) {
+      this.pendingUpdate = true;
+      return;
+    }
+    const more = mode === 'more';
     const before = more ? this.page?.next : null;
     if (more && !before) return;
     const generation = ++this.generation;
@@ -249,9 +263,10 @@ export class WiskeyEvents extends LitElement {
       if (generation === this.generation) {
         this.busy = false;
         this.loadingMore = false;
-        if (this.reloadQueued) {
-          this.reloadQueued = false;
-          void this.load();
+        const queued = this.reloadQueued;
+        if (queued) {
+          this.reloadQueued = null;
+          void this.load(queued);
         }
       }
     }
@@ -262,7 +277,7 @@ export class WiskeyEvents extends LitElement {
     this.generation++;
     this.busy = false;
     this.loadingMore = false;
-    this.reloadQueued = false;
+    this.reloadQueued = null;
     this.applied = filters;
     this.page = null;
     this.pages = 0;
@@ -301,7 +316,7 @@ export class WiskeyEvents extends LitElement {
       this.draft = { ...this.draft, start: '', end: '' };
       this.knownTimes = {};
       this.dirty = true;
-      this.filterError = t('filter_zone_changed_invalid');
+      this.filterError = 'filter_zone_changed_invalid';
     }
     this.inputZone = zone;
   }
@@ -323,11 +338,11 @@ export class WiskeyEvents extends LitElement {
       start = resolveLocalInput(d.start, this.inputZone, this.knownTimes.start);
       end = resolveLocalInput(d.end, this.inputZone, this.knownTimes.end);
     } catch (err) {
-      this.filterError = t((err as Error).message);
+      this.filterError = (err as Error).message; // clock_invalid_local | clock_ambiguous | clock_nonexistent
       return;
     }
     if (start && end && Date.parse(start) >= Date.parse(end)) {
-      this.filterError = 'תאריך ההתחלה חייב להיות לפני תאריך הסיום.';
+      this.filterError = 'filter_start_before_end';
       return;
     }
     const filters: IntercomEventFilters = {};
@@ -411,10 +426,10 @@ export class WiskeyEvents extends LitElement {
   render() {
     if (!isApi()) return this.renderPage({ state: 'ready', configured: true, last_error: null, fetched_at: null, events: DEMO_PAGE }, DEMO_PAGE, true);
     if (this.forbidden) {
-      return html`<sw-page heading="WisKey" subheading=${t('wk4_nav_events')}><sw-state-panel data-wiskey-state="no_permission" state="forbidden" heading="אין לך הרשאת צפייה בבקרת הכניסה" hint="נדרשת ההרשאה צפייה בבקרת כניסה (WisKey). פנה למנהל המערכת."></sw-state-panel></sw-page>`;
+      return html`<sw-page heading=${TITLE}><sw-state-panel data-wiskey-state="no_permission" state="forbidden" heading="אין לך הרשאת צפייה בבקרת הכניסה" hint="נדרשת ההרשאה צפייה בבקרת כניסה (WisKey). פנה למנהל המערכת."></sw-state-panel></sw-page>`;
     }
     if (!this.reply) {
-      return html`<sw-page heading="WisKey" subheading=${t('wk4_nav_events')}>${this.error
+      return html`<sw-page heading=${TITLE}>${this.error
         ? html`<sw-state-panel data-wiskey-state="load_error" state="error" heading="לא ניתן לטעון את יומן הפעילות" hint=${this.error}></sw-state-panel>`
         : html`<sw-state-panel state="loading"></sw-state-panel>`}</sw-page>`;
     }
@@ -424,7 +439,7 @@ export class WiskeyEvents extends LitElement {
   private renderPage(reply: IntercomEventsReply, page: IntercomEventPage | null, demo: boolean) {
     const sub = `${t('events_intro')} · צפייה בלבד${demo ? ' · נתוני הדגמה' : ''}`;
     const ready = reply.state === 'ready';
-    return html`<sw-page heading="WisKey · ${t('wk4_nav_events')}" subheading=${sub} wide>
+    return html`<sw-page heading=${TITLE} subheading=${sub} wide>
       ${this.renderBadge(reply.state, demo)}
       ${demo ? nothing : html`<sw-button slot="actions" size="sm" variant="ghost" icon="refresh" data-wiskey-events-refresh ?disabled=${this.busy} @click=${() => void this.load()}>${t('refresh')}</sw-button>`}
       ${this.renderNoPush(demo)}
@@ -530,7 +545,7 @@ export class WiskeyEvents extends LitElement {
       </form>
       <div class="muted" data-wiskey-events-zone>${t('clock_filter_basis')}: <bdi>${zone.name}</bdi></div>
       ${this.dirty ? html`<div class="note pending" role="status" data-wiskey-events-dirty>${t('filters_not_applied')}</div>` : nothing}
-      ${this.filterError ? html`<div class="note err" role="alert" data-wiskey-events-filter-error>${this.filterError}</div>` : nothing}
+      ${this.filterError ? html`<div class="note err" role="alert" data-wiskey-events-filter-error=${this.filterError}>${t(this.filterError)}</div>` : nothing}
     </sw-card>`;
   }
 
@@ -564,7 +579,7 @@ export class WiskeyEvents extends LitElement {
                   </div>`
                 : page.next && !demo
                   ? html`<div class="more">
-                      <sw-button data-wiskey-events-more ?disabled=${this.busy} @click=${() => void this.load(true)}>${this.loadingMore ? t('loading') : t('load_more')}</sw-button>
+                      <sw-button data-wiskey-events-more ?disabled=${this.busy} @click=${() => void this.load('more')}>${this.loadingMore ? t('loading') : t('load_more')}</sw-button>
                     </div>`
                   : html`<div class="end muted" data-wiskey-events-end>סוף הרשומות התואמות שנשמרו ב־WisKey.</div>`}
             </div>

@@ -283,6 +283,75 @@ test.describe('WisKey activity log against the fixture WisKey (CR-005 phase 1b)'
     await expect(pending).toHaveCount(0);
   });
 
+  test('a change notice that lands while "load more" is in flight does not silently drop the new page (review fix 1)', async ({ page }) => {
+    await openEvents(page);
+    // hold every events/list answer 2 s, so the notice below arrives while page 2 is still being fetched
+    expect((await control.post('/events/delay', { data: { seconds: 2 } })).status()).toBe(200);
+    await page.locator(`${SCREEN} [data-wiskey-events-more]`).click();
+    await expect(page.locator(`${SCREEN} [data-wiskey-events-more]`)).toContainText('טוען…');
+    expect((await control.post('/events/add', { data: { count: 1 } })).status()).toBe(200);
+    // page 2 lands and stays: the queued notice reload is judged when it runs (two pages shown by then) and turns
+    // into the "WisKey reported a change" note instead of a silent page-1 reload
+    const pending = page.locator(`${SCREEN} [data-wiskey-events-pending]`);
+    await expect(pending).toBeVisible({ timeout: 15000 });
+    await expect(rows(page)).toHaveCount(130);
+    await expect(rows(page).first()).toHaveAttribute('data-row-id', 'ev-0000');
+    await page.waitForTimeout(3000); // longer than one delayed answer: no late page-1 reload replaces the list
+    await expect(rows(page)).toHaveCount(130);
+    await expect(pending).toBeVisible();
+    // only the reader's refresh brings page 1 (with the new record) back
+    expect((await control.post('/events/delay', { data: { seconds: 0 } })).status()).toBe(200);
+    await pending.locator('sw-button').click();
+    await expect(rows(page).first()).toHaveAttribute('data-row-id', 'ev-1001', { timeout: 15000 });
+    await expect(rows(page)).toHaveCount(100);
+    await expect(pending).toHaveCount(0);
+  });
+
+  test('a from / until wall time that a DST change repeats or skips is refused, never coerced (review fix 2)', async ({ page, request }) => {
+    // the fixture's stations and default zone are Asia/Jerusalem; its 2026 transitions (checked against ICU):
+    // 2026-03-27 02:00 +02:00 -> 03:00 +03:00 (02:30 does not exist) and 2026-10-25 02:00 +03:00 -> 01:00 +02:00
+    // (01:30 happens twice)
+    const feed = await (await request.get('/api/v1/intercom/overview')).json();
+    const gate = (feed.overview.stations as { id: string; zone: { kind: string; name: string } }[]).find((s) => s.id === 'gate');
+    expect(gate?.zone).toEqual({ kind: 'iana', name: 'Asia/Jerusalem' });
+    expect(feed.overview.default_zone).toEqual({ kind: 'iana', name: 'Asia/Jerusalem' });
+
+    await openEvents(page);
+    const screen = page.locator(SCREEN);
+    await screen.locator('[data-wiskey-filter-station]').selectOption('gate');
+    await expect(screen.locator('[data-wiskey-events-zone]')).toContainText('Asia/Jerusalem');
+    const sentBefore = (await listed()).length;
+    const error = screen.locator('[data-wiskey-events-filter-error]');
+
+    // fall-back: 01:30 on 2026-10-25 is both 01:30+03:00 and 01:30+02:00 -> ambiguous, refused
+    await screen.locator('[data-wiskey-filter-start]').fill('2026-10-25T01:30');
+    await screen.locator('[data-wiskey-filter-apply]').click();
+    await expect(error).toHaveAttribute('data-wiskey-events-filter-error', 'clock_ambiguous');
+    await expect(error).toContainText('מופיעה פעמיים בסיום שעון הקיץ');
+    await expect(screen.locator('[data-wiskey-events-dirty]')).toBeVisible(); // still not applied
+    await expect(screen.locator('[data-wiskey-events-filter-count]')).toHaveAttribute('data-wiskey-events-filter-count', '0');
+
+    // spring-forward: 02:30 on 2026-03-27 never happens -> nonexistent, refused (in the "until" field this time)
+    await screen.locator('[data-wiskey-filter-start]').fill('');
+    await screen.locator('[data-wiskey-filter-end]').fill('2026-03-27T02:30');
+    await screen.locator('[data-wiskey-filter-apply]').click();
+    await expect(error).toHaveAttribute('data-wiskey-events-filter-error', 'clock_nonexistent');
+    await expect(error).toContainText('אינה קיימת בתחילת שעון הקיץ');
+    await expect(screen.locator('[data-wiskey-events-filter-count]')).toHaveAttribute('data-wiskey-events-filter-count', '0');
+
+    // neither refusal sent anything to WisKey
+    await page.waitForTimeout(500);
+    expect((await listed()).length).toBe(sentBefore);
+
+    // control: an unambiguous time right after each transition is converted exactly (03:30 is +03:00 on 2026-03-27,
+    // +02:00 on 2026-10-25)
+    await screen.locator('[data-wiskey-filter-start]').fill('2026-03-27T03:30');
+    await screen.locator('[data-wiskey-filter-end]').fill('2026-10-25T03:30');
+    await screen.locator('[data-wiskey-filter-apply]').click();
+    await expect(error).toHaveCount(0);
+    await expect.poll(async () => (await listed()).at(-1)).toEqual({ station_id: 'gate', start: '2026-03-27T00:30:00.000Z', end: '2026-10-25T01:30:00.000Z', limit: 100 });
+  });
+
   test('a cursor WisKey already pruned is reported, with a reload from the start', async ({ page }) => {
     await openEvents(page);
     expect((await control.post('/events/prune', { data: { keep: 50 } })).status()).toBe(200);

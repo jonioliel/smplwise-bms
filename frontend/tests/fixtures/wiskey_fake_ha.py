@@ -30,6 +30,8 @@ Control API (SW_WISKEY_CONTROL_PORT, default SW_PORT + 10, 127.0.0.1 only), JSON
     POST /events/add {count}            add `count` access events newer than any other and push `refresh` (WisKey's
                                         EventManager.changed() does the same on every accepted event)
     POST /events/prune {keep}           keep only the newest `keep` events: an older `before` cursor then expires
+    POST /events/delay {seconds}        answer every events/list that much later (0-10 s; 0 after /reset), so a test
+                                        can hold a request in flight
 
 The event cache starts with EVENT_COUNT deterministic access events (newest first: 08:00 Asia/Jerusalem on 2026-09-27,
 then every 7 minutes back), answered by `events/list` with WisKey's own EventCache.query semantics (events.py): exact
@@ -179,6 +181,7 @@ class World:
             self.sent: list[dict[str, Any]] = []
             self.events = initial_events()
             self.added = 0
+            self.events_delay = 0.0
 
     def push_refresh(self) -> None:
         if self.fake is not None and self.loop is not None:
@@ -261,7 +264,11 @@ class FakeHa:
             elif kind == "hikvision_intercom/events/list":
                 filters = msg.get("filters")
                 page = query_events(WORLD.events, filters) if isinstance(filters, dict) and set(msg) == {"id", "type", "filters"} else None
-                self.push(ok(msg, page) if page is not None else fail(msg, "invalid_fields"))
+                frame = ok(msg, page) if page is not None else fail(msg, "invalid_fields")
+                if WORLD.events_delay:
+                    asyncio.get_running_loop().call_later(WORLD.events_delay, self.push, frame)
+                else:
+                    self.push(frame)
             elif kind == "hikvision_intercom/tts/engines":
                 self.push(ok(msg, copy.deepcopy(TTS_ENGINES)))
             elif kind == "hikvision_intercom/tts/start":
@@ -337,6 +344,13 @@ class Control(BaseHTTPRequestHandler):
                     if s["id"] == last["station_id"] and s["online"]:
                         s["last_access"] = {k: last[k] for k in ("timestamp", "time_source", "person_name", "employee_no", "authentication", "result", "event_type", "recovered", "door")}
             WORLD.push_refresh()
+            return self._json(200, {"ok": True})
+        if self.path == "/events/delay":
+            seconds = body.get("seconds")
+            if not isinstance(seconds, (int, float)) or isinstance(seconds, bool) or not 0 <= seconds <= 10:
+                return self._json(422, {"error": "seconds must be 0..10"})
+            with WORLD.lock:
+                WORLD.events_delay = float(seconds)
             return self._json(200, {"ok": True})
         if self.path == "/events/prune":
             keep = body.get("keep")
