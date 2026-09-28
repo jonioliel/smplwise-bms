@@ -10,8 +10,13 @@ announcement (`tts/engines` + `tts/start`). They ride the feed's own Home Assist
 are never queued or retried, and carry a command id and an expiry. Once the caller holds `access.release`, every
 request to them is written to SMPLWISE's audit log under the real SMPLWISE actor: a refusal as one row, a command sent
 to WisKey as an attempt row committed before sending plus an outcome row (see the section note below). WisKey's own
-log sees only the add-on's single HA user (CR-005 §3, "Accountability gap and its mitigation"). No person, card,
-schedule or device-setting edit lives here."""
+log sees only the add-on's single HA user (CR-005 §3, "Accountability gap and its mitigation").
+
+Phase 2, slice A1 (owner decision 2026-09-28): the person editor - the first WRITE to WisKey's people store this
+product makes - gated on `access.people.manage` (site_admin + system_admin by default, sensitive, grantable per person
+through a custom role). Its endpoints reuse the physical actions' write path unchanged (permission before body, JSON
+only, envelope, attempt / outcome audit) in the feed's config lane, and serve an editor projection of their own that
+is never served under `access.read`. Door technical settings, schedules, photos and card capture do not live here."""
 from __future__ import annotations
 
 import asyncio
@@ -20,6 +25,7 @@ import json
 import logging
 import os
 import queue
+import re
 import sqlite3
 import threading
 import time
@@ -30,7 +36,7 @@ from typing import Any, Callable, Literal
 
 from fastapi import APIRouter, Depends, Path, Query, Request, WebSocket
 from fastapi.responses import Response
-from pydantic import BaseModel, Field, StrictInt, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, ValidationError, model_validator
 from starlette.concurrency import run_in_threadpool
 
 from ..audit import audit
@@ -50,6 +56,7 @@ log = logging.getLogger("smplwise.intercom")
 READ = "access.read"
 CREDENTIALS = "system.configure"  # device secrets: the system administrator only
 RELEASE = "access.release"  # every PHYSICAL WisKey command; role grants: see the note at routers/access.py PERMISSION_LABELS
+MANAGE = "access.people.manage"  # the person editor (CR-005 phase 2); same default grants and sensitivity as access.release
 RECHECK_S = 60
 MAX_PAGE = 200  # WisKey's own cap for events/list and users/query
 MAX_STATION_ID = 128
@@ -465,15 +472,20 @@ def _releaser(principal: Principal = Depends(current_principal), conn: sqlite3.C
 
 
 class _Action:
-    """One physical request's audit context: who, which endpoint, which station, and what is known so far."""
+    """One physical request's (or people write's) audit context: who, which endpoint, which station (or person), and
+    what is known so far."""
 
-    def __init__(self, request: Request, conn: sqlite3.Connection, principal: Principal, action: str, station_id: str) -> None:
-        self.request, self.conn, self.principal, self.action, self.station_id = request, conn, principal, action, station_id
+    def __init__(self, request: Request, conn: sqlite3.Connection, principal: Principal, action: str, resource_id: str, resource_type: str = "intercom_station") -> None:
+        self.request, self.conn, self.principal, self.action, self.resource_id, self.resource_type = request, conn, principal, action, resource_id, resource_type
         self.rid = getattr(request.state, "correlation_id", None)
         self.details: dict[str, Any] = {"command": action.removeprefix("intercom.")}
 
+    @property
+    def station_id(self) -> str:
+        return self.resource_id
+
     def _row(self, conn: sqlite3.Connection, decision: str, reason: str | None, fields: dict[str, Any]) -> None:
-        audit(conn, actor=self.principal, action=self.action, decision=decision, resource_type="intercom_station", resource_id=self.station_id,
+        audit(conn, actor=self.principal, action=self.action, decision=decision, resource_type=self.resource_type, resource_id=self.resource_id,
               reason=reason, request_id=self.rid, details={**self.details, **fields})
 
     def refuse(self, exc: ApiError) -> ApiError:
@@ -517,9 +529,9 @@ def _parse(act: _Action, model: type[BaseModel], raw: bytes) -> Any:
     CORS "simple requests" that a browser sends cross-site WITHOUT a preflight, so a JSON payload smuggled in one of
     them must never actuate a door. Only `application/json` (or a `+json` subtype) is read; a JSON Content-Type forces
     the preflight. FastAPI's own body parsing rejected the others implicitly; reading the raw body here, it must be said."""
-    if not 1 <= len(act.station_id) <= MAX_STATION_ID:
-        act.station_id = act.station_id[:MAX_STATION_ID]  # the audit row keeps a bounded id
-        raise act.refuse(ApiError(422, "validation", "מזהה העמדה אינו תקין.", details={"fields": ["station_id"]}))
+    if not 1 <= len(act.resource_id) <= MAX_STATION_ID:
+        act.resource_id = act.resource_id[:MAX_STATION_ID]  # the audit row keeps a bounded id
+        raise act.refuse(ApiError(422, "validation", "מזהה העמדה אינו תקין." if act.resource_type == "intercom_station" else "מזהה האדם אינו תקין.", details={"fields": ["station_id" if act.resource_type == "intercom_station" else "user_id"]}))
     content_type = act.request.headers.get("content-type")
     if not _is_json(content_type):
         raise act.refuse(ApiError(415, "unsupported_media_type", "הבקשה חייבת להישלח כ־JSON (Content-Type: application/json).", details={"content_type": (content_type or "")[:100]}))
@@ -577,10 +589,13 @@ def _perform(
     not_after: datetime,
     on_settled: Callable[[], None] | None = None,
     on_unknown: Callable[[], None] | None = None,
+    lane: str = "action",
+    summary: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Audit the attempt (committed), send once through IntercomSync.action, audit the outcome. `on_settled` is always
     called exactly once (by IntercomSync once the command was handed over, here when it never got that far);
-    `on_unknown` when the outcome is unknown."""
+    `on_unknown` when the outcome is unknown. `summary` turns the projected result into what the outcome row records
+    (the physical actions record the result itself; a people write records counts and names only)."""
     try:
         act.attempt()
     except BaseException:
@@ -588,7 +603,7 @@ def _perform(
             on_settled()
         raise
     try:
-        reply = intercom_sync.SYNC.action(settings_of(act.request), key, send, project, who=act.principal.user_id, not_after=not_after, on_settled=on_settled)
+        reply = intercom_sync.SYNC.action(settings_of(act.request), key, send, project, who=act.principal.user_id, not_after=not_after, on_settled=on_settled, lane=lane)
     except ApiError as exc:
         outcome = str(exc.details.get("outcome") or "unknown")
         if outcome == "unknown" and on_unknown:
@@ -603,7 +618,7 @@ def _perform(
         raise
     finally:
         act.conn.execute("BEGIN")  # deferred: takes no lock, cannot wait on a busy database; nothing more is written here
-    act.outcome("ok", None, {"result": reply[key]})
+    act.outcome("ok", None, {"result": summary(reply[key]) if summary else reply[key]})
     reply["command_id"] = act.details["command_id"]
     return reply
 
@@ -700,6 +715,292 @@ def tts_speak(request: Request, station_id: str, principal: Principal = Depends(
     _station(act)
     language = body.language
     return _perform(act, "tts", lambda call: intercom_sync.SYNC.tts_start(call, station_id, body.engine_id, language, message), lambda status: status, not_after)
+
+
+# ---------------------------------------------------------------- person editor (access.people.manage), CR-005 phase 2 A1
+#
+# The first write to WisKey's people store. Brief A.4-A.6, owner decisions 2026-09-28: the editor's own projection
+# (`intercom_sync.project_person_editor`: phone, masked cards, PIN flag - never a PIN value or a full card number) is
+# served only here, never under `access.read`; every write follows the physical actions' path exactly (permission as a
+# dependency before the body, JSON only, `client_request_id` + `expires_at`, attempt row committed before sending,
+# outcome row after) in the feed's config lane, so a save WisKey holds can never take a door release's slot. The draft
+# is validated locally with models mirroring WisKey's USER_FIELDS / CARD_FIELDS (extra keys forbidden, strict types),
+# so a malformed draft is an audited `not_sent` refusal, not a round trip. Audit details carry field NAMES and counts
+# (and the person's id / employee number / display name, which every access.read holder sees anyway) - never a PIN, a
+# card number (not even the masked form), a phone or a profile value.
+#
+# Timing in this slice is permanent / date-range only; weekly and station-native schedules, custom profile fields,
+# groups and photos are slice A3 and are deliberately not accepted here (`extra="forbid"` refuses their keys). Card
+# capture from a station reader is slice A2. WisKey's `pin_check` oracle is not offered (owner decision 8): a
+# conflicting PIN surfaces at save time as `intercom_pin_conflict`, and `users/pin_generate` gives a free one.
+
+IDENTIFIER = r"^[A-Za-z0-9_-]{1,32}$"  # WisKey validate_identifier / validate_card (client/access.py)
+PIN_PATTERN = r"^[0-9]{1,128}$"  # models.py build_user
+PHONE = re.compile(r"^\+?[0-9 ()-]+$")  # models.py phone_value, 7-15 digits
+UUID_TEXT = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")  # uuid_text: canonical form
+MAX_CARDS = 255
+MAX_ASSIGNMENTS = 100
+PERIOD_MIN = datetime(1970, 1, 1, tzinfo=timezone.utc)  # valid_period bounds
+PERIOD_MAX = datetime(2037, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
+PERSON = "intercom_person"
+
+
+def _no_control(value: str) -> bool:
+    return not any(ord(c) < 32 for c in value)
+
+
+class CardData(BaseModel):
+    """One card of the draft (WisKey CARD_FIELDS): a saved card by `id` (its stored number is kept - the browser never
+    has it) or a new card by `card_no`, never both."""
+
+    model_config = ConfigDict(extra="forbid")
+    id: str | None = None
+    card_no: str | None = Field(None, pattern=IDENTIFIER)
+    label: str = Field("", max_length=64)
+    card_type: Literal["normalCard"] = "normalCard"
+    enabled: StrictBool = True
+
+    @model_validator(mode="after")
+    def _one_identity(self) -> "CardData":
+        if (self.id is None) == (self.card_no is None):
+            raise ValueError("a card is either a saved one by id or a new one by card_no")
+        if self.id is not None and not UUID_TEXT.fullmatch(self.id):
+            raise ValueError("card id")
+        if not _no_control(self.label):
+            raise ValueError("label")
+        return self
+
+
+class AssignmentData(BaseModel):
+    """One station of the draft (WisKey `assignments` value): enabled, and the relays it may open ({1, 2})."""
+
+    model_config = ConfigDict(extra="forbid")
+    enabled: StrictBool = True
+    allowed_locks: list[StrictInt] = Field(default_factory=lambda: [1], max_length=2)
+
+    @model_validator(mode="after")
+    def _locks(self) -> "AssignmentData":
+        if any(lock not in (1, 2) for lock in self.allowed_locks) or len(set(self.allowed_locks)) != len(self.allowed_locks):
+            raise ValueError("allowed_locks")
+        if self.enabled and not self.allowed_locks:
+            raise ValueError("an enabled assignment needs a relay")
+        return self
+
+
+class PersonData(BaseModel):
+    """The draft, as a patch: only the keys present are sent to WisKey (`users/update` keeps the rest). Mirrors WisKey's
+    USER_FIELDS for what this slice edits; `profile`, `group_ids`, `photo`, `access_timing_*`, `user_type`,
+    `permission_overrides` / `door_permissions` are not accepted (extra keys are refused locally)."""
+
+    model_config = ConfigDict(extra="forbid")
+    employee_no: str | None = Field(None, pattern=IDENTIFIER)
+    display_name: str | None = Field(None, min_length=1, max_length=32)
+    phone: str | None = Field(None, max_length=32)
+    active: StrictBool | None = None
+    valid_from: str | None = Field(None, max_length=40)
+    valid_until: str | None = Field(None, max_length=40)
+    pin: str | None = Field(None, pattern=PIN_PATTERN)  # present and null = remove the PIN (WisKey: `pin: null`)
+    cards: list[CardData] | None = Field(None, max_length=MAX_CARDS)
+    assignments: dict[str, AssignmentData] | None = None
+
+    @model_validator(mode="after")
+    def _rules(self) -> "PersonData":
+        if self.display_name is not None and (not self.display_name.strip() or not _no_control(self.display_name)):
+            raise ValueError("display_name")
+        if self.phone and (not PHONE.fullmatch(self.phone) or not 7 <= len(re.sub(r"[^0-9]", "", self.phone)) <= 15):
+            raise ValueError("phone")
+        if ("valid_from" in self.model_fields_set) != ("valid_until" in self.model_fields_set) or (self.valid_from is None) != (self.valid_until is None):
+            raise ValueError("valid_from and valid_until go together")
+        if self.valid_from is not None and self.valid_until is not None:
+            try:
+                start, end = parse_utc(self.valid_from), parse_utc(self.valid_until)
+            except ValueError:
+                raise ValueError("validity") from None
+            if not PERIOD_MIN <= start < end <= PERIOD_MAX:
+                raise ValueError("validity")
+        if self.cards is not None:
+            new = [c.card_no for c in self.cards if c.card_no is not None]
+            ids = [c.id for c in self.cards if c.id is not None]
+            if len(set(new)) != len(new) or len(set(ids)) != len(ids):
+                raise ValueError("duplicate card")
+        if self.assignments is not None and (len(self.assignments) > MAX_ASSIGNMENTS or any(not 1 <= len(k) <= 64 or not _no_control(k) for k in self.assignments)):
+            raise ValueError("assignments")
+        return self
+
+    def wiskey(self) -> dict[str, Any]:
+        """The `data` dict for WisKey: exactly the keys the draft set, in WisKey's shapes."""
+        out: dict[str, Any] = {}
+        for key in ("employee_no", "display_name", "phone", "active", "valid_from", "valid_until", "pin"):
+            if key in self.model_fields_set:
+                out[key] = getattr(self, key)
+        if self.cards is not None:
+            out["cards"] = [
+                {**({"id": c.id} if c.id is not None else {"card_no": c.card_no}), "label": c.label, "card_type": c.card_type, "enabled": c.enabled}
+                for c in self.cards
+            ]
+        if self.assignments is not None:
+            out["assignments"] = {sid: {"enabled": a.enabled, "allowed_locks": sorted(a.allowed_locks)} for sid, a in self.assignments.items()}
+        return out
+
+
+class PersonSaveBody(CommandEnvelope):
+    data: PersonData
+    # WisKey's own "Save & sync" (queue the stations now) vs "Save" (its periodic reconciliation, ~300 s, carries it)
+    sync_now: StrictBool = True
+
+
+class PersonUpdateBody(PersonSaveBody):
+    revision: StrictInt = Field(ge=1)  # compare-and-set: the revision the editor loaded
+
+
+class PersonDeleteBody(CommandEnvelope):
+    revision: StrictInt = Field(ge=1)
+    confirmed: Any = None  # only `true` (from the confirmation dialog) confirms, as ReleaseBody
+
+
+class PinGenerateBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    user_id: str = Field("", max_length=128)  # "" for a person not saved yet
+
+
+def _manager(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
+    """`access.people.manage` at installation scope, as a dependency (before the body; a refusal is audited by
+    `require`). `access.read` alone never reaches the editor projection, let alone a write."""
+    require(conn, principal, MANAGE, INSTALLATION)
+    return principal
+
+
+def _draft_summary(data: dict[str, Any]) -> dict[str, Any]:
+    """What the audit records about a draft: the field names and counts, never a value that is a secret or personal
+    (no PIN, no card number, no phone)."""
+    cards = data.get("cards")
+    out: dict[str, Any] = {"fields": sorted(data)}
+    if "pin" in data:
+        out["pin_change"] = "removed" if data["pin"] is None else "set"
+    if isinstance(cards, list):
+        out.update(card_count=len(cards), enabled_cards=sum(1 for c in cards if c.get("enabled")), new_cards=sum(1 for c in cards if "card_no" in c))
+    if isinstance(data.get("assignments"), dict):
+        out["assignments"] = {sid: {"enabled": a["enabled"], "allowed_locks": a["allowed_locks"]} for sid, a in data["assignments"].items()}
+    return out
+
+
+def _person_summary(person: dict[str, Any]) -> dict[str, Any]:
+    """The outcome row's record of the saved person: identity, revision, the PIN flag and counts (WisKey's own audit
+    summary keeps the same: `{pin_configured, card_count, enabled_cards, assignments}`)."""
+    return {
+        "id": person["id"], "employee_no": person["employee_no"], "display_name": person["display_name"], "revision": person["revision"],
+        "active": person["active"], "pin_configured": person["pin_configured"],
+        "card_count": len(person["cards"]), "enabled_cards": sum(1 for c in person["cards"] if c["enabled"]),
+        "assignments": {s["station_id"]: {"enabled": s["enabled"], "allowed_locks": s["doors"]} for s in person["stations"]},
+    }
+
+
+def _parse_read(request: Request, model: type[BaseModel], raw: bytes) -> Any:
+    """A read endpoint's JSON body (pin-generate): content type, JSON, then the fields - no audit row (nothing is
+    written anywhere), the same 415 / 422 as `_parse`."""
+    if not _is_json(request.headers.get("content-type")):
+        raise ApiError(415, "unsupported_media_type", "הבקשה חייבת להישלח כ־JSON (Content-Type: application/json).")
+    try:
+        data = json.loads(raw) if raw.strip() else {}
+    except (ValueError, RecursionError):
+        raise ApiError(422, "validation", "גוף הבקשה אינו JSON תקין.", details={"fields": ["body"]}) from None
+    try:
+        return model.model_validate(data)
+    except ValidationError as exc:
+        fields = sorted({".".join(str(p) for p in err["loc"]) or "body" for err in exc.errors()})
+        raise ApiError(422, "validation", "הבקשה אינה תקינה: " + ", ".join(fields), details={"fields": fields}) from None
+
+
+@router.get("/intercom/people-editor/context")
+def people_editor_context(request: Request, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """What the editor needs from WisKey's `overview` beyond the entry center (intercom_sync.project_editor_context):
+    the stations with their relays and whether each can take a keypad PIN, the HA display zone, WisKey's
+    `api.capabilities`, whether the people-write commands are listed for the add-on's HA user (`writes_listed` /
+    `users_manage`, null when WisKey does not say - the user needs WisKey's `users:manage` area), and whether a
+    profile policy exists. A fresh read each time (never cached). Reply: `{state, configured, last_error, fetched_at,
+    context, sync}`."""
+    with unlocked(conn):
+        return intercom_sync.SYNC.command(settings_of(request), "context", intercom_client.overview, intercom_sync.project_editor_context, who=principal.user_id)
+
+
+@router.get("/intercom/people/{user_id}/editor")
+def person_editor(request: Request, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn), user_id: str = Path(min_length=1, max_length=128)) -> dict[str, Any]:
+    """One person for editing (WisKey `users/get`, intercom_sync.project_person_editor): the read projection plus
+    phone, the PIN flag, the cards in WisKey's masked form (`•••• 1234` - the full number never leaves WisKey), the
+    overrides, `identity_locked`, `has_timing` and each assignment's sync bookkeeping. 404 `intercom_person_not_found`.
+    Reply: `{state, configured, last_error, fetched_at, person, sync}`."""
+    with unlocked(conn):
+        return intercom_sync.SYNC.command(settings_of(request), "person", lambda call: intercom_client.users_get(call, user_id), intercom_sync.project_person_editor, who=principal.user_id)
+
+
+@router.post("/intercom/people/pin-generate")
+def person_pin_generate(request: Request, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+    """A free six-digit PIN from WisKey (`users/pin_generate`; body `{user_id}`, "" for a person not saved yet). Not
+    reserved: the save still answers `intercom_pin_conflict` if it was taken meanwhile. The value is shown once in
+    the form and is never logged or audited by SMPLWISE. Reply: `{state, ..., pin: {pin}}`; a WisKey refusal is
+    `state: error` with `last_error` (`pin_generation_failed`), an unknown person a 404."""
+    body: PinGenerateBody = _parse_read(request, PinGenerateBody, raw)
+    with unlocked(conn):
+        return intercom_sync.SYNC.command(settings_of(request), "pin", lambda call: intercom_client.users_pin_generate(call, body.user_id), intercom_sync.project_pin, who=principal.user_id)
+
+
+SAVE_NOTE = "WisKey שמר את הרשומה. הסנכרון לתחנות מתבצע על ידי WisKey בנפרד - מצב הסנכרון של כל תחנה מוצג ברשומה."
+
+
+@router.post("/intercom/people")
+def person_create(request: Request, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+    """Create a person in WisKey (`users/create`). Body: `{data: PersonData, sync_now, client_request_id, expires_at}`;
+    `data` needs at least `display_name` and `employee_no`. Refused before sending (each refusal audited): a malformed
+    draft, an expired or duplicate command. WisKey's refusals come back by name (`intercom_employee_conflict`,
+    `intercom_pin_conflict`, `intercom_card_conflict`, `intercom_invalid_request` ...) with `details.outcome`
+    `refused`; no clear answer is a 504 `intercom_outcome_unknown` (reload the directory before trying again - the
+    person may exist). Reply: `{state, configured, last_error, fetched_at, person, sync, note, command_id}`; `person`
+    is the saved record in the editor projection (WisKey accepted it into its store - the stations follow later)."""
+    act = _Action(request, conn, principal, "intercom.person.create", "new", PERSON)
+    body: PersonSaveBody = _parse(act, PersonSaveBody, raw)
+    data = body.data.wiskey()
+    missing = [k for k in ("display_name", "employee_no") if not data.get(k)]
+    if missing:
+        raise act.refuse(ApiError(422, "validation", "לאדם חדש נדרשים שם ומזהה עובד.", details={"fields": missing}))
+    act.details.update(sync_now=body.sync_now, **_draft_summary(data))
+    not_after = _envelope(act, body)
+    reply = _perform(act, "person", lambda call: intercom_client.users_create(call, data, body.sync_now), intercom_sync.project_person_editor, not_after, lane="config", summary=_person_summary)
+    reply["note"] = SAVE_NOTE
+    return reply
+
+
+@router.put("/intercom/people/{user_id}")
+def person_update(request: Request, user_id: str, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+    """Update a person in WisKey (`users/update`, compare-and-set on `revision`). Body: `{data: PersonData (a patch),
+    revision, sync_now, client_request_id, expires_at}`. A stale revision is a 409 `intercom_revision_conflict`
+    (reload the person, then retry); the other refusals and the unknown outcome as for create. Reply as create."""
+    act = _Action(request, conn, principal, "intercom.person.update", user_id, PERSON)
+    body: PersonUpdateBody = _parse(act, PersonUpdateBody, raw)
+    data = body.data.wiskey()
+    if not data:
+        raise act.refuse(ApiError(422, "validation", "אין שינוי לשמור.", details={"fields": ["data"]}))
+    act.details.update(revision=body.revision, sync_now=body.sync_now, **_draft_summary(data))
+    not_after = _envelope(act, body)
+    reply = _perform(act, "person", lambda call: intercom_client.users_update(call, user_id, body.revision, data, body.sync_now), intercom_sync.project_person_editor, not_after, lane="config", summary=_person_summary)
+    reply["note"] = SAVE_NOTE
+    return reply
+
+
+@router.post("/intercom/people/{user_id}/delete")
+def person_delete(request: Request, user_id: str, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+    """Delete a person from WisKey (`users/delete`). Body: `{revision, confirmed, client_request_id, expires_at}`;
+    `confirmed: true` is sent only by the confirmation dialog (WisKey's own `confirm_delete`, naming the stations the
+    removal is scheduled on). WisKey answers `accepted`: the person left its list and the removal from each station
+    (offline ones included) is queued, not done. Reply: `{state, ..., deleted: {accepted: true}, sync, note, command_id}`."""
+    act = _Action(request, conn, principal, "intercom.person.delete", user_id, PERSON)
+    body: PersonDeleteBody = _parse(act, PersonDeleteBody, raw)
+    act.details["revision"] = body.revision
+    not_after = _envelope(act, body)
+    if body.confirmed is not True:
+        raise act.refuse(ApiError(409, "confirmation_required", "מחיקת אדם דורשת אישור מפורש."))
+    reply = _perform(act, "deleted", lambda call: intercom_client.users_delete(call, user_id, body.revision), intercom_sync.project_accepted, not_after, lane="config")
+    reply["note"] = "WisKey קיבל את המחיקה. ההסרה מכל תחנה (גם מנותקת) מתוזמנת על ידי WisKey ואינה מיידית."
+    return reply
 
 
 @router.websocket("/intercom/ws")

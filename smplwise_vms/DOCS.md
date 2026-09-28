@@ -27,6 +27,13 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
      go2rtc versions before 1.9.14 write a stream's source URL, including this account, to the go2rtc log each time
      SMPLWISE registers a station stream (after an add-on start, a go2rtc restart or a credential change). Use go2rtc
      1.9.14 or newer.
+   - WisKey (the `hikvision_intercom` integration) is reached through the add-on's own Home Assistant user (the
+     Long-Lived Access Token in `ha_token`). WisKey authorizes that user by its own areas: viewing the WisKey tab
+     needs the `overview`, `users` and `events` areas at `view`; **editing people from SMPLWISE (the person editor,
+     permission `access.people.manage`) requires the `users` area at `manage`** (or an HA administrator), otherwise
+     WisKey refuses every save as `unauthorized` and nothing is changed. This is a requirement stated from WisKey's
+     source; it has not yet been verified against the lab installation. The WisKey tab's editor context shows
+     whether WisKey lists the people commands for the add-on's user.
 4. Start the add-on and open it from the sidebar (**SMPLWISE VMS**). With NVR details set, the cameras
    appear by themselves within a minute (discovery at start-up and every 10 minutes); הגדרות → מצלמות
    → "סנכרון מה־NVR" refreshes immediately. If the list stays empty, check the add-on log and
@@ -359,6 +366,14 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   group. System_admin and other system permissions can only be bound installation-wide, and the last active
   administrator cannot be removed. Each change bumps the permission revision, is audited with a before/after
   diff of the subject's bindings and takes effect immediately.
+- WisKey (access control) permissions: `access.read` (viewer and above) shows the entry center, the activity log and
+  the people directory; `access.release` (site_admin and system_admin only, sensitive) covers the physical actions -
+  door release, call answer / reject / hang up, announcements; `access.people.manage` (site_admin and system_admin
+  only, sensitive) opens the person editor - create, edit and delete people in WisKey with their PIN, cards, validity
+  window and station assignments. To give one specific person the editor without the whole site_admin role, create a
+  custom role that lists `access.people.manage` among its sensitive permissions and bind it to them at the
+  installation scope. Every save is audited under the SMPLWISE user (field names and counts, never a PIN, card number
+  or phone); WisKey's own log shows the add-on's HA user.
 - Custom roles (תפקידים tab): a system administrator composes a role from ordinary permissions plus sensitive
   grants that must be ticked explicitly; a custom role never carries a system permission (configuration,
   role or binding management) and built-in roles cannot be edited. Before saving, the dialog shows the impact

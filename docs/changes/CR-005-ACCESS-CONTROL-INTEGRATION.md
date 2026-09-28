@@ -173,6 +173,30 @@ records (S10), schedules library + deployment plans (S16), profile/group setting
 one is CONFIG-WRITE(D) per the extraction but grants a real access code, so treat it with the same care as a
 physical grant even though it is not itself an actuation), sync/conflict resolution (S12), health/audit (S14/S15).
 
+> Recorded deviation 2026-09-28 (T054, phase 2 slice A1, person editor core; implements the kick-off decisions 1, 5, 7
+> and 8 for people): (1) `access.people.manage` is registered exactly like `access.release` (site_admin + system_admin
+> by default, sensitive, installation scope, in the role catalogue and the design contract; a custom role with it among
+> its sensitive permissions plus a binding is the per-person grant path). (2) The editor has its own projection
+> (`intercom_sync.project_person_editor` / `project_editor_context`, endpoints under `access.people.manage` only):
+> phone, `pin_configured`, cards in WisKey's masked form, overrides, `identity_locked`, assignment bookkeeping; the
+> `access.read` projection is unchanged and `photo_configured` is not served (no photo in this slice). (3) People writes
+> ride a third feed lane (`config`, one slot, own buckets) so a held save never takes a release slot; the write path
+> (permission before body, JSON only, envelope, attempt / outcome audit) is the phase-3 one; audit details are field
+> names and counts plus id / employee number / display name - never PIN, card number, phone. (4) Refused vs unknown for
+> `users/create|update|delete` follows the brief's A.4 table verified against the source (`intercom_client.PRE_STORAGE`);
+> `storage_write_failed`, `manager_closed`, `action_failed`, `device_unavailable` and unknown codes are "unknown".
+> (5) Assignments are sent as WisKey's absolute `assignments` (the source's still-supported "legacy" payload, from which
+> WisKey derives the personal overrides itself) rather than `permission_overrides` + `door_permissions` +
+> `access_policy_revision`: this slice does not edit groups, so the group-inheritance labels and the policy-revision
+> check come with the profile / group editing of slice A3; a person's existing group grants are shown and kept as WisKey
+> reports them. (6) Cut to A3, stated on the form (no disabled stubs): weekly / dates timing and enforcement, profile
+> fields, groups, templates, photos; validity here is permanent / date range in the HA zone only (WisKey's zone-basis
+> select is not ported). Cut to A2: card capture and the USB wedge. (7) No `pin_check`: `pin_conflict` at save plus
+> `users/pin_generate`. (8) The delete dialog counts the person's assignments; WisKey's own count adds pending
+> revocations, which the feed's projection does not carry. (9) The requirement that the add-on's HA user holds
+> WisKey's `users:manage` area is stated in DOCS.md and surfaced by the editor context (`writes_listed` /
+> `users_manage` from `overview.api.commands` / `access.areas`), unverified against the lab.
+
 **Phase 3 — physical actions, each individually approved before it is built.** Door release (`stations/
 test_unlock`, with a confirmation dialog WisKey itself lacks); door programs (`technical_program_save`/`_action`
 — scheduled/immediate real actuation); the ambiguous `technical_update` field (`relayReverseEnabled`); call

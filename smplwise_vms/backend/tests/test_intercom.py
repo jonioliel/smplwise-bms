@@ -2611,3 +2611,521 @@ def test_station_host_with_a_trailing_newline_is_refused():
     assert g2.rtsp_host("door-1.local") == "door-1.local"
     for bad in ("door-1.local\n", "192.0.2.10\n", "door 1", "a/b", "user@host"):
         assert g2.rtsp_host(bad) is None, repr(bad)
+
+
+# ---------------------------------------------------------------- phase 2 slice A1: the person editor (access.people.manage)
+
+MANAGE = "access.people.manage"
+EDITOR_PATHS = (
+    ("get", "/api/v1/intercom/people-editor/context", None),
+    ("get", "/api/v1/intercom/people/u1/editor", None),
+    ("post", "/api/v1/intercom/people/pin-generate", {"user_id": ""}),
+    ("post", "/api/v1/intercom/people", None),
+    ("put", "/api/v1/intercom/people/u1", None),
+    ("post", "/api/v1/intercom/people/u1/delete", None),
+)
+CARD_ID = "3f0b1c2d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
+# WisKey's overview with the editor context's fields (api.commands / capabilities, access.areas, station capabilities)
+EDITOR_OVERVIEW = {
+    **copy.deepcopy(ACTIONS_OVERVIEW),
+    "api": {"version": 1, "min_client": 0, "capabilities": ["panel_permissions", "user_directory_query", "identity_lifecycle"], "commands": ["overview", "subscribe", "users/get", "users/create", "users/update", "users/delete", "users/pin_generate"]},
+    "profile_settings": {"revision": 3, "fields": [{"id": "department"}], "groups": [{"id": "staff", "label": "Staff", "station_ids": ["entry-a"]}], "photo_enabled": False, "templates": []},
+}
+# WisKey's answer to a save: the person's public record (never a PIN value, cards masked) - plus two keys a rogue
+# reply might carry, which the projection must drop
+SAVED = {**copy.deepcopy(PERSON), "id": "u9", "employee_no": "700112233", "display_name": "Noa", "revision": 1, "phone": "050-777-1234", "pin_configured": True,
+         "cards": [{"id": CARD_ID, "masked_number": "•••• 0042", "label": "Badge", "card_type": "normalCard", "enabled": True}],
+         "assignments": {"entry-a": {"config_entry_id": "entry-a", "enabled": True, "allowed_locks": [1], "schedule_template": None, "desired_revision": 1, "applied_revision": None, "sync_state": "pending", "last_sync_at": None, "last_error": None}},
+         "access_timing_policy": None, "pin": "4321", "photo": "data:image/jpeg;base64,AAAA"}
+NEW_PERSON = {"display_name": "Noa", "employee_no": "700112233", "phone": "050-777-1234", "active": True, "valid_from": None, "valid_until": None, "pin": "4321",
+              "cards": [{"card_no": "ABC0042", "label": "Badge", "enabled": True}], "assignments": {"entry-a": {"enabled": True, "allowed_locks": [1]}}}
+# values that must never appear in an audit row or in a reply after a save
+DRAFT_SECRETS = ("4321", "ABC0042", "050-777-1234", "0507771234", "base64", "Engineering", "123456789")
+
+
+def editor_feed(feed, answer: Callable[[dict[str, Any]], list[Any] | None] = lambda msg: None, overview: dict[str, Any] | None = None) -> tuple[Any, list[FakeHa], TestClient]:
+    """A ready feed over EDITOR_OVERVIEW with `users/get` answering PERSON, the saves answering SAVED and a delete
+    `accepted` unless `answer` says otherwise; sam (site_admin) and vera (viewer) bound."""
+    def script(msg: dict[str, Any]) -> list[Any] | None:
+        frames = answer(msg)
+        if frames is not None:
+            return frames
+        kind = msg["type"]
+        if kind == "hikvision_intercom/users/get":
+            return [ok(msg, copy.deepcopy(PERSON))]
+        if kind in ("hikvision_intercom/users/create", "hikvision_intercom/users/update"):
+            return [ok(msg, copy.deepcopy(SAVED))]
+        if kind == "hikvision_intercom/users/delete":
+            return [ok(msg, {"accepted": True})]
+        return None
+
+    return actions_feed(feed, script, overview=overview or EDITOR_OVERVIEW)
+
+
+def create(c: TestClient, user: str = "sam", data: dict[str, Any] | None = None, **fields: Any) -> Any:
+    return c.post("/api/v1/intercom/people", json=env(data=NEW_PERSON if data is None else data, **fields), headers=as_user(user))
+
+
+def update(c: TestClient, user_id: str = "u1", user: str = "sam", data: dict[str, Any] | None = None, revision: int = 4, **fields: Any) -> Any:
+    return c.put(f"/api/v1/intercom/people/{user_id}", json=env(data={"display_name": "Dana K"} if data is None else data, revision=revision, **fields), headers=as_user(user))
+
+
+def delete(c: TestClient, user_id: str = "u1", user: str = "sam", revision: int = 4, **fields: Any) -> Any:
+    return c.post(f"/api/v1/intercom/people/{user_id}/delete", json=env(**{"revision": revision, "confirmed": True, **fields}), headers=as_user(user))
+
+
+def holds_secret(text: str) -> list[str]:
+    return [s for s in DRAFT_SECRETS if s in text]
+
+
+def test_access_people_manage_permission_catalogue(settings):
+    """`access.people.manage` follows `access.release` exactly (owner decision 2026-09-28, answer 1): site_admin and
+    system_admin only by default, never implied (sensitive), labelled, in the design catalogue, and grantable to one
+    person through a custom role that names it among its sensitive permissions."""
+    assert {r for r, perms in ROLES.items() if MANAGE in perms} == {"site_admin", "system_admin"}
+    for role in ("viewer", "kiosk", "operator", "editor"):
+        assert MANAGE not in ROLES[role], role
+    assert MANAGE in SENSITIVE and "access.release" in SENSITIVE
+    assert PERMISSION_LABELS[MANAGE]
+    contract = json.loads((ROOT / "contracts" / "examples" / "role-catalog.design.json").read_text(encoding="utf-8"))
+    assert {r["id"]: MANAGE in r["permissions"] for r in contract["roles"]} == {r["id"]: MANAGE in ROLES[r["id"]] for r in contract["roles"]}
+    assert MANAGE in contract["sensitive_permissions_not_implied"]
+    intercom_sync.SYNC.reset()
+    c = TestClient(create_app(settings))
+    body = {"name": "עורך אנשים WisKey", "description": "one person's grant", "permissions": ["access.read"], "sensitive": [MANAGE]}
+    assert c.post("/api/v1/access/roles", json={**body, "permissions": ["access.read", MANAGE], "sensitive": []}).json()["code"] == "sensitive_in_permissions"
+    r = c.post("/api/v1/access/roles", json=body)
+    assert r.status_code == 201, r.text
+    assert r.json()["sensitive_included"] == [MANAGE]
+    bind(c, settings, "pat", r.json()["id"], "installation", "*")
+    me = c.get("/api/v1/me", headers=as_user("pat")).json()
+    assert MANAGE in me["permissions_installation"] and "access.release" not in me["permissions_installation"]
+    assert c.get("/api/v1/intercom/people-editor/context", headers=as_user("pat")).status_code == 200, "the custom role opens the editor"
+    intercom_sync.SYNC.reset()
+
+
+def test_person_editor_requires_access_people_manage(settings):
+    """`access.read` is not enough - and neither is `access.release`: every editor endpoint is 403 for a viewer, an
+    operator, an editor, a kiosk, a site-scoped site_admin and nobody, before the body is looked at, and no
+    `intercom.person.*` audit row is ever written for them."""
+    intercom_sync.SYNC.reset()
+    intercom_sync.SYNC.start(settings)
+    c = TestClient(create_app(settings))
+    for user, role in (("vera", "viewer"), ("otto", "operator"), ("eddie", "editor"), ("wall", "kiosk")):
+        bind(c, settings, user, role, "installation", "*")
+    site = c.post("/api/v1/sites", json={"name": "A1 site"}).json()["id"]
+    bind(c, settings, "sally", "site_admin", "site", site)
+    bind(c, settings, "sam", "site_admin", "installation", "*")
+    assert c.get("/api/v1/intercom/people/u1", headers=as_user("vera")).status_code != 403, "vera does hold access.read"
+    for user in ("vera", "otto", "eddie", "wall", "sally", "nobody"):
+        for method, path, body in EDITOR_PATHS:
+            r = c.request(method, path, json=body if body is not None else env(data=NEW_PERSON, revision=4, confirmed=True), headers=as_user(user))
+            assert r.status_code == 403 and r.json()["code"] == "forbidden", (user, path, r.text)
+        r = c.post("/api/v1/intercom/people", content=b"{not json", headers={**as_user(user), "Content-Type": "application/json"})
+        assert r.status_code == 403, "permission before the body"
+    with Database(settings.db_path).connection() as conn:
+        denied = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = ? AND decision = 'denied' AND actor_username = 'vera'", (MANAGE,)).fetchone()[0]
+        own = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action LIKE 'intercom.person.%' AND actor_username != 'sam'").fetchone()[0]
+    assert denied == len(EDITOR_PATHS) + 1, "every permission refusal is audited under the real caller"
+    assert own == 0
+    assert MANAGE in c.get("/api/v1/me", headers=as_user("sam")).json()["permissions_installation"]
+    assert MANAGE not in c.get("/api/v1/me", headers=as_user("sally")).json()["permissions_installation"]
+    intercom_sync.SYNC.reset()
+
+
+def test_editor_projection_is_separate_and_the_read_projection_is_unchanged(feed):
+    """Brief A.5: the editor gets phone, the PIN flag, WisKey's masked cards, overrides, identity_locked and the
+    assignments' bookkeeping - and NOTHING that looks like a PIN value, a full card number, a profile value or a photo,
+    even when WisKey's reply carries one. The `access.read` projection stays byte-for-byte what it was."""
+    rogue = {**copy.deepcopy(PERSON), "pin": "9999", "photo": "data:image/jpeg;base64,QUJD",
+             "cards": [*PERSON["cards"], {"id": CARD_ID, "masked_number": "ABCD5678", "card_no": "ABCD5678", "label": "Spare", "card_type": "normalCard", "enabled": False}]}
+    app, fakes, c = editor_feed(feed, lambda msg: [ok(msg, copy.deepcopy(rogue))] if msg["type"] == "hikvision_intercom/users/get" else None)
+    r = c.get("/api/v1/intercom/people/u1", headers=as_user("vera"))
+    assert r.status_code == 200 and r.json()["person"] == PROJECTED_PERSON, "the read projection did not grow"
+    assert not [p for p in PRIVATE if p in r.text], "no editor field leaks to access.read"
+    r = c.get("/api/v1/intercom/people/u1/editor", headers=as_user("sam"))
+    assert r.status_code == 200, r.text
+    p = r.json()["person"]
+    assert {k: p[k] for k in PROJECTED_PERSON if k != "stations"} == {k: v for k, v in PROJECTED_PERSON.items() if k != "stations"}, "the editor projection extends the read one"
+    assert [{k: s[k] for k in PROJECTED_PERSON["stations"][0]} for s in p["stations"]] == PROJECTED_PERSON["stations"]
+    assert (p["phone"], p["pin_configured"], p["identity_locked"], p["has_timing"], p["permission_overrides"]) == ("+972500000000", True, False, True, {"events": "deny"})
+    assert p["cards"] == [
+        {"id": "c1", "masked_number": "•••• 1234", "label": "Main", "card_type": "normalCard", "enabled": True},
+        {"id": CARD_ID, "masked_number": "••••", "label": "Spare", "card_type": "normalCard", "enabled": False},  # a full number is never passed on
+    ]
+    assert p["stations"][0] == {"station_id": "entry-a", "enabled": True, "doors": [1, 2], "sync_state": "synced", "last_error": None, "desired_revision": 4, "applied_revision": 4}
+    assert p["stations"][1]["last_error"] == "device_unavailable"
+    assert "pin" not in p and "photo" not in p and "profile" not in p and "card_no" not in r.text
+    for secret in ("9999", "ABCD5678", "QUJD", "Engineering", "123456789", "access_timing"):
+        assert secret not in r.text, secret
+    assert len(fakes) == 1, "over the feed's own session"
+
+
+def test_person_create_round_trip_and_audit(feed):
+    """Create: the draft is validated locally, sent ONCE with WisKey's exact shape ({data, sync_now, api_contract: 1}),
+    the answer is served in the editor projection ("WisKey accepted it into its store", the stations follow), and the
+    audit under the real caller - attempt row before, outcome row after - records field names and counts, never the
+    PIN, the card number or the phone."""
+    app, fakes, c = editor_feed(feed)
+    s = feed[1]
+    r = create(c)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["state"] == "ready" and body["command_id"] and "WisKey שמר" in body["note"]
+    assert body["person"]["id"] == "u9" and body["person"]["pin_configured"] is True and body["person"]["cards"] == [{"id": CARD_ID, "masked_number": "•••• 0042", "label": "Badge", "card_type": "normalCard", "enabled": True}]
+    assert body["person"]["stations"] == [{"station_id": "entry-a", "enabled": True, "doors": [1], "sync_state": "pending", "last_error": None, "desired_revision": 1, "applied_revision": None}]
+    assert not [x for x in ("4321", "ABC0042", "base64") if x in r.text], "the reply carries WisKey's masked record only"
+    [msg] = sent(fakes, "users/create")
+    assert msg == {
+        "id": msg["id"], "type": "hikvision_intercom/users/create", "api_contract": 1, "sync_now": True,
+        "data": {"display_name": "Noa", "employee_no": "700112233", "phone": "050-777-1234", "active": True, "valid_from": None, "valid_until": None, "pin": "4321",
+                 "cards": [{"card_no": "ABC0042", "label": "Badge", "card_type": "normalCard", "enabled": True}], "assignments": {"entry-a": {"enabled": True, "allowed_locks": [1]}}},
+    }
+    [attempt] = audit_rows(s, "intercom.person.create", "attempt")
+    [outcome] = audit_rows(s, "intercom.person.create", "outcome")
+    for row in (attempt, outcome):
+        assert (row["actor_user_id"], row["actor_username"], row["decision"], row["resource_type"], row["resource_id"], row["reason"]) == ("dev-sam", "sam", "allowed", "intercom_person", "new", None)
+        d = row["details"]
+        assert d["command_id"] == body["command_id"] and d["sync_now"] is True and d["pin_change"] == "set"
+        assert d["fields"] == ["active", "assignments", "cards", "display_name", "employee_no", "phone", "pin", "valid_from", "valid_until"]
+        assert (d["card_count"], d["enabled_cards"], d["new_cards"], d["assignments"]) == (1, 1, 1, {"entry-a": {"enabled": True, "allowed_locks": [1]}})
+        assert not holds_secret(json.dumps(d, ensure_ascii=False)), d
+    assert outcome["details"]["outcome"] == "ok" and outcome["details"]["result"] == {
+        "id": "u9", "employee_no": "700112233", "display_name": "Noa", "revision": 1, "active": True, "pin_configured": True, "card_count": 1, "enabled_cards": 1,
+        "assignments": {"entry-a": {"enabled": True, "allowed_locks": [1]}},
+    }
+    # a new person needs a name and an employee number: refused locally, audited, nothing sent
+    r = create(c, data={"phone": "050-777-1234"})
+    assert r.status_code == 422 and r.json()["details"] == {"outcome": "not_sent", "fields": ["display_name", "employee_no"]}
+    [refused] = audit_rows(s, "intercom.person.create", "refused")
+    assert refused["reason"] == "validation" and not holds_secret(json.dumps(refused["details"]))
+    assert len(sent(fakes, "users/create")) == 1
+    # "Save" without sync: WisKey's periodic reconciliation carries it
+    assert create(c, sync_now=False).status_code == 200
+    assert sent(fakes, "users/create")[-1]["sync_now"] is False
+
+
+def test_person_update_and_delete_round_trip(feed):
+    """Update is a patch, compare-and-set on the loaded revision ({user_id, revision, data, sync_now, api_contract});
+    a saved card travels by id only (WisKey keeps its number); `pin: null` removes the PIN. Delete needs the
+    dialog's `confirmed: true` and sends {user_id, revision, api_contract}; WisKey's `accepted` is served as queued,
+    never as removed from the stations."""
+    app, fakes, c = editor_feed(feed)
+    s = feed[1]
+    patch = {"display_name": "Dana K", "pin": None, "cards": [{"id": CARD_ID, "label": "Main", "enabled": False}, {"card_no": "NEW77", "label": ""}], "assignments": {"entry-a": {"enabled": False, "allowed_locks": [1]}, "entry-c": {"enabled": True, "allowed_locks": [2, 1]}}}
+    r = update(c, data=patch, sync_now=False)
+    assert r.status_code == 200, r.text
+    assert r.json()["person"]["id"] == "u9" and r.json()["command_id"]
+    [msg] = sent(fakes, "users/update")
+    assert msg == {
+        "id": msg["id"], "type": "hikvision_intercom/users/update", "user_id": "u1", "revision": 4, "sync_now": False, "api_contract": 1,
+        "data": {"display_name": "Dana K", "pin": None,
+                 "cards": [{"id": CARD_ID, "label": "Main", "card_type": "normalCard", "enabled": False}, {"card_no": "NEW77", "label": "", "card_type": "normalCard", "enabled": True}],
+                 "assignments": {"entry-a": {"enabled": False, "allowed_locks": [1]}, "entry-c": {"enabled": True, "allowed_locks": [1, 2]}}},
+    }
+    [attempt] = audit_rows(s, "intercom.person.update", "attempt")
+    assert (attempt["resource_type"], attempt["resource_id"]) == ("intercom_person", "u1")
+    d = attempt["details"]
+    assert (d["revision"], d["pin_change"], d["card_count"], d["enabled_cards"], d["new_cards"], d["fields"]) == (4, "removed", 2, 1, 1, ["assignments", "cards", "display_name", "pin"])
+    assert "NEW77" not in json.dumps(d) and "Dana K" not in json.dumps(d), "values stay out of the attempt row"
+    assert audit_rows(s, "intercom.person.update", "outcome")[0]["details"]["result"]["id"] == "u9"
+    # nothing to change: refused locally
+    r = update(c, data={})
+    assert r.status_code == 422 and r.json()["details"]["outcome"] == "not_sent"
+    # delete: confirmation first
+    for confirmed in (None, False, "yes", 1):
+        r = delete(c, confirmed=confirmed)
+        assert r.status_code == 409 and r.json()["code"] == "confirmation_required" and r.json()["details"]["outcome"] == "not_sent", confirmed
+    assert not sent(fakes, "users/delete")
+    r = delete(c)
+    assert r.status_code == 200, r.text
+    assert r.json()["deleted"] == {"accepted": True} and "מתוזמנת" in r.json()["note"]
+    [msg] = sent(fakes, "users/delete")
+    assert msg == {"id": msg["id"], "type": "hikvision_intercom/users/delete", "user_id": "u1", "revision": 4, "api_contract": 1}
+    [outcome] = audit_rows(s, "intercom.person.delete", "outcome")
+    assert (outcome["resource_id"], outcome["details"]["revision"], outcome["details"]["outcome"], outcome["details"]["result"]) == ("u1", 4, "ok", {"accepted": True})
+    assert len(audit_rows(s, "intercom.person.delete", "refused")) == 4
+    # bool is not a revision, and a revision below 1 is not one either
+    assert delete(c, revision=True).status_code == 422 and delete(c, revision=0).status_code == 422
+
+
+# WisKey's failure codes for the people writes and how SMPLWISE answers them (intercom_client.PRE_STORAGE, brief A.4):
+# refused = proven pre-storage (status by intercom_sync.WRITE_REFUSALS / WRITE_INVALID_PREFIXES); everything else unknown.
+WRITE_REFUSED = {
+    **{code: 502 for code in ("unauthorized", "api_incompatible", "request_too_large", "unknown_command")}, "invalid_fields": 422, "rate_limited": 429,
+    "revision_conflict": 409, "pin_conflict": 409, "employee_conflict": 409, "card_conflict": 409, "pin_removal_pending": 409, "card_removal_pending": 409,
+    "identity_migration_required": 409, "group_policy_changed": 409, "user_not_found": 404, "storage_stopping": 503,
+    "invalid_pin": 422, "invalid_cards": 422, "duplicate_card": 422, "invalid_phone": 422, "invalid_validity": 422, "invalid_text": 422, "invalid_identifier": 422,
+    "unmanaged_lock": 422, "station_not_found": 422, "station_has_no_managed_lock": 422, "card_capacity": 422, "pin_exceeds_capabilities": 422,
+    "pin_device_managed": 422, "person_exceeds_capabilities": 422, "card_exceeds_capabilities": 422, "photo_storage_full": 422, "profile_settings_unavailable": 422,
+    "schedule_overlap": 422, "invalid_user_timing": 422,
+}
+WRITE_UNKNOWN = ["storage_write_failed", "manager_closed", "action_failed", "device_unavailable", "invalid_storage", "home_assistant_error", "a_code_nobody_documented", ""]
+DELETE_REFUSED = {**{code: WRITE_REFUSED[code] for code in ("unauthorized", "api_incompatible", "request_too_large", "unknown_command", "invalid_fields", "rate_limited")},
+                  "revision_conflict": 409, "user_not_found": 404, "storage_stopping": 503}
+# for a delete, a build_user / collision code is NOT on the allow-list (it cannot come from _delete_user): unknown, the safe side
+DELETE_UNKNOWN = [*WRITE_UNKNOWN, "pin_conflict", "employee_conflict", "invalid_pin"]
+WRITES = {
+    "users/create": ("intercom.person.create", lambda c: create(c), WRITE_REFUSED, WRITE_UNKNOWN),
+    "users/update": ("intercom.person.update", lambda c: update(c), WRITE_REFUSED, WRITE_UNKNOWN),
+    "users/delete": ("intercom.person.delete", lambda c: delete(c), DELETE_REFUSED, DELETE_UNKNOWN),
+}
+
+
+@pytest.mark.parametrize("command", list(WRITES))
+def test_people_write_failure_codes_are_refused_only_when_pre_storage(feed, monkeypatch, command):
+    """Brief A.4 / §0.1: a `success: false` is "refused - WisKey did not save it" ONLY for a code the source proves is
+    raised before `_commit` saves (PRE_DISPATCH + PRE_STORAGE), each answered by name with `details.outcome`
+    `refused` and audited so. `storage_write_failed` (inside the atomic write), `manager_closed` (after the commit),
+    `action_failed`, `device_unavailable` (unproven), an undocumented code or an empty one are "outcome unknown"
+    (504) - the UI must reload the person and compare the revision, never retry blindly."""
+    monkeypatch.setattr(intercom_sync, "CONFIG_USER_BURST", 1000.0)
+    monkeypatch.setattr(intercom_sync, "CONFIG_GLOBAL_BURST", 1000.0)
+    current = {"code": ""}
+    app, fakes, c = editor_feed(feed, lambda msg: [fail(msg, current["code"])] if msg["type"] == f"hikvision_intercom/{command}" else None)
+    intercom_sync.SYNC._buckets_reset()
+    action, send, refused, unknown = WRITES[command]
+    s = feed[1]
+    for code, status in refused.items():
+        current["code"] = code
+        r = send(c)
+        assert r.status_code == status and r.json()["details"]["outcome"] == "refused" and r.json()["details"]["wiskey_code"] == code, (command, code, r.text)
+        assert audit_rows(s, action, "outcome")[-1]["details"]["outcome"] == "refused", (command, code)
+        assert intercom_client.refusal_is_pre_device(command, code)
+    for code in unknown:
+        current["code"] = code
+        r = send(c)
+        assert r.status_code == 504 and r.json()["code"] == "intercom_outcome_unknown", (command, code, r.text)
+        assert r.json()["details"]["outcome"] == "unknown" and r.json()["details"]["wiskey_code"] == (code or "action_failed"), (command, code)
+        assert "טענו מחדש" in r.json()["user_message"] and "במצלמה" not in r.json()["user_message"], "a save's advice: reload, not the camera"
+        assert audit_rows(s, action, "outcome")[-1]["details"]["outcome"] == "unknown", (command, code)
+        assert not intercom_client.refusal_is_pre_device(command, code)
+    assert len(sent(fakes, command)) == len(refused) + len(unknown), "each attempt was sent exactly once"
+    assert intercom_sync.STATE.state == "ready"
+    # by name: the ones the editor handles specially
+    if command != "users/delete":
+        current["code"] = "pin_conflict"
+        assert send(c).json()["code"] == "intercom_pin_conflict"
+    current["code"] = "revision_conflict"
+    assert send(c).json()["code"] == "intercom_revision_conflict"
+    current["code"] = "unauthorized"
+    assert "users:manage" in send(c).json()["user_message"], "the add-on's HA user lacks WisKey's users area"
+
+
+def test_people_write_unanswered_or_malformed_answer_is_unknown(feed, monkeypatch):
+    """No answer within CONFIG_TIMEOUT_S, or `success: true` with an answer of an unexpected shape: 504 unknown, sent
+    once, audited unknown - and the single config slot stays taken until WisKey (or ha_client's limit) settles it."""
+    monkeypatch.setattr(intercom_sync, "CONFIG_TIMEOUT_S", 0.3)
+    held: list[tuple[dict[str, Any], FakeHa]] = []
+    app, s, install = feed
+
+    def script(msg: dict[str, Any], fake: FakeHa) -> list[Any]:
+        if msg["type"] == "hikvision_intercom/users/create":
+            held.append((msg, fake))
+            return []
+        if msg["type"] == "hikvision_intercom/users/delete":
+            return [ok(msg, {"accepted": "later"})]
+        if msg["type"] == "hikvision_intercom/users/update":
+            return [ok(msg, "not a person")]
+        return normal(msg, fake, EDITOR_OVERVIEW)
+
+    fakes = install(script)
+    intercom_sync.SYNC.start(s)
+    wait_for(lambda: intercom_sync.STATE.state == "ready")
+    c = TestClient(app)
+    bind(c, s, "sam", "site_admin", "installation", "*")
+    r = create(c)
+    assert r.status_code == 504 and r.json()["details"] == {"outcome": "unknown", "state": "error", "wiskey_code": "timeout"}, r.text
+    assert delete(c).json()["code"] == "intercom_busy", "the unanswered save holds the config lane's only slot"
+    msg, fake = held[0]
+    assert intercom_sync.SYNC._event_loop and fake.q
+    intercom_sync.SYNC._event_loop.call_soon_threadsafe(fake.q.put_nowait, ok(msg, copy.deepcopy(SAVED)))  # the late answer
+    wait_for(lambda: intercom_sync.SYNC._config_inflight._value == 1)
+    for send, code in ((delete, "intercom.person.delete"), (update, "intercom.person.update")):
+        r = send(c)
+        assert r.status_code == 504 and r.json()["details"]["wiskey_code"] == "invalid_response", r.text
+        assert audit_rows(s, code, "outcome")[-1]["details"]["outcome"] == "unknown"
+    assert audit_rows(s, "intercom.person.create", "outcome")[0]["details"]["outcome"] == "unknown"
+    assert len(sent(fakes, "users/create")) == 1, "never retried"
+
+
+def test_people_config_lane_is_separate_from_the_action_lane(feed, monkeypatch):
+    """Brief §0.3: a people save WisKey holds occupies the config lane's single slot - a second save is `busy` at once
+    - while a door release still goes through on the action lane, and reads on theirs."""
+    monkeypatch.setattr(intercom_sync, "CONFIG_TIMEOUT_S", 0.2)
+    held: list[tuple[dict[str, Any], FakeHa]] = []
+    app, s, install = feed
+
+    def script(msg: dict[str, Any], fake: FakeHa) -> list[Any]:
+        if msg["type"] == "hikvision_intercom/users/update":
+            held.append((msg, fake))
+            return []  # WisKey is slow
+        if msg["type"] == UNLOCK:
+            return [ok(msg, {"accepted": True})]
+        if msg["type"] == "hikvision_intercom/users/get":
+            return [ok(msg, copy.deepcopy(PERSON))]
+        return normal(msg, fake, EDITOR_OVERVIEW)
+
+    fakes = install(script)
+    intercom_sync.SYNC.start(s)
+    wait_for(lambda: intercom_sync.STATE.state == "ready")
+    c = TestClient(app)
+    bind(c, s, "sam", "site_admin", "installation", "*")
+    r = update(c)
+    assert r.status_code == 504 and r.json()["details"]["wiskey_code"] == "timeout"
+    r = update(c)
+    assert r.status_code == 429 and r.json()["code"] == "intercom_busy" and r.json()["details"]["outcome"] == "not_sent", "the single config slot is still taken"
+    assert release(c).status_code == 200, "a release is not blocked by the held save"
+    assert c.get("/api/v1/intercom/people/u1/editor", headers=as_user("sam")).json()["state"] == "ready", "nor a read"
+    # and the other way round: every action slot taken, a save still goes (its own lane)
+    actions = intercom_sync.SYNC._action_inflight = threading.BoundedSemaphore(1)
+    assert actions.acquire(blocking=False)
+    try:
+        assert release(c).json()["code"] == "intercom_busy"
+        msg, fake = held[0]
+        assert intercom_sync.SYNC._event_loop and fake.q
+        intercom_sync.SYNC._event_loop.call_soon_threadsafe(fake.q.put_nowait, ok(msg, copy.deepcopy(SAVED)))  # the late answer
+        wait_for(lambda: intercom_sync.SYNC._config_inflight._value == 1)
+        assert update(c).status_code == 504, "sent again (a new request) on the freed config slot, the action lane full"
+    finally:
+        actions.release()
+    assert len(held) == 2 and len(sent(fakes, "users/update")) == 2
+    assert intercom_sync.STATE.state == "ready"
+
+
+@pytest.mark.parametrize("draft, field", [
+    ({**NEW_PERSON, "profile": {"department": "x"}}, "data.profile"),
+    ({**NEW_PERSON, "photo": None}, "data.photo"),
+    ({**NEW_PERSON, "access_timing_draft": None}, "data.access_timing_draft"),
+    ({**NEW_PERSON, "group_ids": ["staff"]}, "data.group_ids"),
+    ({**NEW_PERSON, "permission_overrides": {}}, "data.permission_overrides"),
+    ({**NEW_PERSON, "user_type": "normal"}, "data.user_type"),
+    ({**NEW_PERSON, "active": 1}, "data.active"),
+    ({**NEW_PERSON, "pin": "12a"}, "data.pin"),
+    ({**NEW_PERSON, "pin": 4321}, "data.pin"),
+    ({**NEW_PERSON, "employee_no": "no spaces"}, "data.employee_no"),
+    ({**NEW_PERSON, "display_name": "x" * 33}, "data.display_name"),
+    ({**NEW_PERSON, "display_name": "tab\there"}, "data"),
+    ({**NEW_PERSON, "phone": "call me"}, "data"),
+    ({**NEW_PERSON, "phone": "+972 5"}, "data"),
+    ({**NEW_PERSON, "valid_from": "2026-01-01T00:00:00Z"}, "data"),
+    ({**NEW_PERSON, "valid_from": "2027-01-01T00:00:00Z", "valid_until": "2026-01-01T00:00:00Z"}, "data"),
+    ({**NEW_PERSON, "valid_from": "2026-01-01T00:00:00", "valid_until": "2027-01-01T00:00:00"}, "data"),
+    ({**NEW_PERSON, "valid_from": "2026-01-01T00:00:00Z", "valid_until": "2038-01-01T00:00:00Z"}, "data"),
+    ({**NEW_PERSON, "cards": [{"id": CARD_ID, "card_no": "ABC"}]}, "data.cards.0"),
+    ({**NEW_PERSON, "cards": [{"label": "no number"}]}, "data.cards.0"),
+    ({**NEW_PERSON, "cards": [{"id": "c1"}]}, "data.cards.0"),
+    ({**NEW_PERSON, "cards": [{"card_no": "bad card!"}]}, "data.cards.0.card_no"),
+    ({**NEW_PERSON, "cards": [{"card_no": "A1", "card_type": "cpu"}]}, "data.cards.0.card_type"),
+    ({**NEW_PERSON, "cards": [{"card_no": "A1", "enabled": "yes"}]}, "data.cards.0.enabled"),
+    ({**NEW_PERSON, "cards": [{"card_no": "A1"}, {"card_no": "A1"}]}, "data"),
+    ({**NEW_PERSON, "assignments": {"entry-a": {"enabled": True, "allowed_locks": [3]}}}, "data.assignments.entry-a"),
+    ({**NEW_PERSON, "assignments": {"entry-a": {"enabled": True, "allowed_locks": []}}}, "data.assignments.entry-a"),
+    ({**NEW_PERSON, "assignments": {"entry-a": {"enabled": True, "allowed_locks": [1, 1]}}}, "data.assignments.entry-a"),
+    ({**NEW_PERSON, "assignments": {"entry-a": {"enabled": True, "doors": [1]}}}, "data.assignments.entry-a.doors"),
+    ({**NEW_PERSON, "assignments": {"": {"enabled": True}}}, "data"),
+])
+def test_person_draft_is_validated_locally_before_anything_is_sent(feed, draft, field):
+    """Brief A.6: the draft mirrors WisKey's USER_FIELDS / CARD_FIELDS with strict types and no extra keys, so a
+    malformed draft - including the keys of slices A2 / A3 (profile, photo, timing, groups) - is an audited `not_sent`
+    refusal that never reaches WisKey; the refusal names the field and carries no value."""
+    app, fakes, c = editor_feed(feed)
+    r = create(c, data=draft)
+    assert r.status_code == 422 and r.json()["details"]["outcome"] == "not_sent", (field, r.text)
+    assert field in r.json()["details"]["fields"], (field, r.json()["details"]["fields"])
+    assert not sent(fakes, "users/create")
+    [row] = audit_rows(feed[1], "intercom.person.create", "refused")
+    assert row["reason"] == "validation" and not holds_secret(json.dumps(row["details"], ensure_ascii=False))
+    assert c.put("/api/v1/intercom/people/u1", json=env(data=draft, revision=4), headers=as_user("sam")).status_code == 422
+    assert not sent(fakes, "users/update")
+
+
+def test_people_writes_take_json_only_and_honour_the_envelope(feed):
+    """The physical actions' body rules apply unchanged: a `text/plain` body is a 415 audited refusal, a bad JSON a
+    422, an expired or duplicated command id a 409 - and nothing reaches WisKey. `sync_now` is a strict bool."""
+    app, fakes, c = editor_feed(feed)
+    s = feed[1]
+    for path, action in (("/api/v1/intercom/people", "intercom.person.create"), ("/api/v1/intercom/people/u1/delete", "intercom.person.delete")):
+        r = c.post(path, content=json.dumps(env(data=NEW_PERSON, revision=4, confirmed=True)), headers={**as_user("sam"), "Content-Type": "text/plain"})
+        assert r.status_code == 415 and r.json()["details"]["outcome"] == "not_sent", r.text
+        [row] = audit_rows(s, action, "refused")
+        assert row["reason"] == "unsupported_media_type" and row["actor_username"] == "sam"
+    r = c.put("/api/v1/intercom/people/u1", content=b"{nope", headers={**as_user("sam"), "Content-Type": "application/json"})
+    assert r.status_code == 422 and r.json()["details"]["fields"] == ["body"]
+    assert create(c, sync_now="yes").status_code == 422
+    body = env(data=NEW_PERSON)
+    assert c.post("/api/v1/intercom/people", json=body, headers=as_user("sam")).status_code == 200
+    r = c.post("/api/v1/intercom/people", json=body, headers=as_user("sam"))
+    assert r.status_code == 409 and r.json()["code"] == "intercom_duplicate_command"
+    assert c.post("/api/v1/intercom/people", json=env(ttl=-1, data=NEW_PERSON), headers=as_user("sam")).json()["code"] == "expired"
+    assert c.post("/api/v1/intercom/people", json=env(ttl=120, data=NEW_PERSON), headers=as_user("sam")).json()["code"] == "expires_too_far"
+    assert len(sent(fakes, "users/create")) == 1 and not sent(fakes, "users/update") and not sent(fakes, "users/delete")
+    long_id = "x" * 200
+    r = c.put(f"/api/v1/intercom/people/{long_id}", json=env(data={"active": False}, revision=1), headers=as_user("sam"))
+    assert r.status_code == 422 and r.json()["details"]["fields"] == ["user_id"]
+    assert len(audit_rows(s, "intercom.person.update", "refused")[-1]["resource_id"]) == 128
+
+
+def test_editor_context_and_pin_generate(feed):
+    """The editor context: per station the relays and whether a keypad PIN can be written, WisKey's capabilities,
+    whether the people-write commands are listed for the add-on's HA user, whether a profile policy exists - no
+    users, no hosts. `users/pin_generate` (a read, but with `api_contract`) answers a PIN shown once and never
+    written to the audit log; its refusals are honest."""
+    def answer(msg: dict[str, Any]) -> list[Any] | None:
+        if msg["type"] != "hikvision_intercom/users/pin_generate":
+            return None
+        if msg["user_id"] == "gone":
+            return [fail(msg, "user_not_found")]
+        if msg["user_id"] == "full":
+            return [fail(msg, "pin_generation_failed")]
+        if msg["user_id"] == "odd":
+            return [ok(msg, {"pin": "12ab"})]
+        return [ok(msg, {"pin": "246810"})]
+
+    app, fakes, c = editor_feed(feed, answer)
+    s = feed[1]
+    r = c.get("/api/v1/intercom/people-editor/context", headers=as_user("sam"))
+    assert r.status_code == 200, r.text
+    ctx = r.json()["context"]
+    assert ctx["stations"][0] == {"id": "entry-a", "name": "Main gate", "online": True, "lock_enabled": True, "locks": [{"physical_index": 1, "name": "Gate"}], "pin_writable": True}
+    assert ctx["stations"][1]["lock_enabled"] is False and ctx["stations"][2]["locks"][1] == {"physical_index": 2, "name": "Barrier"}
+    assert ctx["default_zone"] == {"kind": "iana", "name": "Asia/Jerusalem"}
+    assert ctx["capabilities"] == ["panel_permissions", "user_directory_query", "identity_lifecycle"]
+    assert ctx["writes_listed"] is True and ctx["users_manage"] is True
+    assert ctx["profile_policy"] == {"revision": 3, "groups": 1, "fields": 1}
+    assert "users" not in ctx and "192.0.2." not in r.text and "Dana" not in r.text and "host" not in r.text
+    assert ctx["stations"][0].keys() == {"id", "name", "online", "lock_enabled", "locks", "pin_writable"}
+    # a WisKey that lists no commands / areas: unknown, not assumed
+    bare = intercom_sync.project_editor_context({**copy.deepcopy(OVERVIEW), "api": {"version": 1}, "access": {}})
+    assert bare["writes_listed"] is None and bare["users_manage"] is None and bare["profile_policy"] is None and bare["stations"][0]["pin_writable"] is True
+    listed = intercom_sync.project_editor_context({"stations": [{**copy.deepcopy(STATION), "capabilities": None}], "api": {"commands": ["overview"]}, "access": {"is_admin": False, "areas": {"users": "view"}}})
+    assert listed["writes_listed"] is False and listed["users_manage"] is False and listed["stations"][0]["pin_writable"] is None
+    # PIN generate: the value is served once and is nowhere in the audit log
+    r = c.post("/api/v1/intercom/people/pin-generate", json={"user_id": ""}, headers=as_user("sam"))
+    assert r.status_code == 200 and r.json()["pin"] == {"pin": "246810"}, r.text
+    [msg] = sent(fakes, "users/pin_generate")
+    assert msg == {"id": msg["id"], "type": "hikvision_intercom/users/pin_generate", "user_id": "", "api_contract": 1}
+    with Database(s.db_path).connection() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE details_json LIKE '%246810%' OR reason LIKE '%246810%'").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action LIKE 'intercom.person.%'").fetchone()[0] == 0, "a read is not audited as a write"
+    assert c.post("/api/v1/intercom/people/pin-generate", content=b"user_id=", headers={**as_user("sam"), "Content-Type": "text/plain"}).status_code == 415
+    assert c.post("/api/v1/intercom/people/pin-generate", json={"user_id": "u1", "pin": "1"}, headers=as_user("sam")).status_code == 422, "no extra keys"
+    r = c.post("/api/v1/intercom/people/pin-generate", json={"user_id": "gone"}, headers=as_user("sam"))
+    assert r.status_code == 404 and r.json()["code"] == "intercom_person_not_found"
+    r = c.post("/api/v1/intercom/people/pin-generate", json={"user_id": "full"}, headers=as_user("sam"))
+    assert r.status_code == 200 and r.json()["last_error"] == "pin_generation_failed" and r.json()["pin"] is None
+    r = c.post("/api/v1/intercom/people/pin-generate", json={"user_id": "odd"}, headers=as_user("sam"))
+    assert r.json()["last_error"] == "invalid_response" and r.json()["pin"] is None, "not digits: not served"
+
+
+def test_people_writes_without_home_assistant_are_not_sent(settings):
+    intercom_sync.SYNC.reset()
+    c = TestClient(create_app(settings))
+    bind(c, settings, "sam", "site_admin", "installation", "*")
+    r = create(c)
+    assert r.status_code == 503 and r.json()["code"] == "intercom_unavailable" and r.json()["details"]["outcome"] == "not_sent"
+    ctx = c.get("/api/v1/intercom/people-editor/context", headers=as_user("sam")).json()
+    assert ctx["state"] == "ha_not_configured" and ctx["context"] is None
+    [row] = audit_rows(settings, "intercom.person.create", "outcome")
+    assert row["details"]["outcome"] == "not_sent"
+    intercom_sync.SYNC.reset()

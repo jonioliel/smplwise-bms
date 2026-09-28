@@ -50,6 +50,7 @@
         "map.read",
         "access.read",
         "access.release",
+        "access.people.manage",
         "entity.state.read",
         "video.live",
         "video.playback",
@@ -73,6 +74,7 @@
         "map.read",
         "access.read",
         "access.release",
+        "access.people.manage",
         "entity.state.read",
         "video.live",
         "video.playback",
@@ -104,6 +106,7 @@
     "ha.entity.control",
     "door.unlock",
     "access.release",
+    "access.people.manage",
     "alarm.disarm",
     "nvr.config.write"
   ],

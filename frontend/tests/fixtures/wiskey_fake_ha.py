@@ -51,11 +51,30 @@ Control API (SW_WISKEY_CONTROL_PORT, default SW_PORT + 10, 127.0.0.1 only), JSON
                                         what changes SMPLWISE's overview projection) and push `refresh`
     POST /people/remove {id, notify?}   delete a person (the stations' managed_user_count falls); pushes `refresh`
                                         unless `notify` is false
-    POST /limits {scan_page?, max_scan_pages?, user_burst?, user_rate?}
-                                        set the SMPLWISE backend's own people-search scan and read rate-bucket
-                                        constants IN THIS PROCESS (intercom_sync SCAN_PAGE / MAX_SCAN_PAGES /
-                                        USER_BURST / USER_RATE) and reset the buckets, so a test can reach the
-                                        `complete: false` outcomes deterministically; /reset restores the defaults
+    POST /limits {scan_page?, max_scan_pages?, user_burst?, user_rate?, config_user_burst?, config_user_rate?}
+                                        set the SMPLWISE backend's own people-search scan and read / config
+                                        rate-bucket constants IN THIS PROCESS (intercom_sync SCAN_PAGE /
+                                        MAX_SCAN_PAGES / USER_BURST / USER_RATE / CONFIG_USER_BURST /
+                                        CONFIG_USER_RATE) and reset the buckets, so a test can reach the
+                                        `complete: false` outcomes deterministically or click through the editor
+                                        faster than a person; /reset restores the defaults
+    POST /mode {people}                 how users/create | users/update | users/delete answer (tests/evidence-wiskey-
+                                        editor.spec.ts): "accept" (WisKey's own rules, the default), "storage_write_failed"
+                                        (success: false with that code - the write may or may not have landed) or
+                                        "unexpected" (success: true with a result of an unexpected shape)
+    GET  /people/{id}/secret            the fixture's stored PIN and card numbers of one person, for a test to assert
+                                        what WisKey stored (never served by SMPLWISE)
+
+People writes (CR-005 phase 2 slice A1) follow WisKey's own handlers (websocket.py users/*, access/models.py build_user,
+access/repository.py collisions): `users/create {data, sync_now, api_contract}` / `users/update {user_id, revision, data,
+sync_now, api_contract}` validate the patch against USER_FIELDS / CARD_FIELDS (`invalid_fields`), the field rules
+(`invalid_identifier`, `invalid_text`, `invalid_boolean`, `invalid_validity`, `invalid_pin`, `invalid_cards`,
+`unsupported_card_type`, `duplicate_card`, `invalid_assignments`, `unmanaged_lock`, `invalid_phone`), the revision
+(`revision_conflict`), the collisions across people (`employee_conflict`, `pin_conflict`, `card_conflict`) and the
+station rules (`station_not_found`, `station_has_no_managed_lock`); `users/delete {user_id, revision, api_contract}`
+answers `{accepted: true}` and drops the person. The PIN and the card numbers are kept in the fixture's own store and
+never appear in a public record (cards come back as `•••• last4`), exactly as WisKey. `users/pin_generate {user_id,
+api_contract}` answers a free six-digit PIN. Every people write is followed by WisKey's data-free `refresh` push.
 
 The event cache starts with EVENT_COUNT deterministic access events (newest first: 08:00 Asia/Jerusalem on 2026-09-27,
 then every 7 minutes back), answered by `events/list` with WisKey's own EventCache.query semantics (events.py): exact
@@ -104,7 +123,7 @@ os.environ["WISKEY_PASSWORD"] = "fixture-pass"
 import httpx  # noqa: E402
 import websockets  # noqa: E402
 
-LIMIT_NAMES = ("SCAN_PAGE", "MAX_SCAN_PAGES", "USER_BURST", "USER_RATE")  # intercom_sync constants the /limits control may set
+LIMIT_NAMES = ("SCAN_PAGE", "MAX_SCAN_PAGES", "USER_BURST", "USER_RATE", "CONFIG_USER_BURST", "CONFIG_USER_RATE")  # intercom_sync constants the /limits control may set
 LIMIT_DEFAULTS: dict[str, Any] = {}  # filled on first use (the backend is imported only after `websockets.connect` is replaced)
 
 ZONE = {"kind": "iana", "name": "Asia/Jerusalem"}
@@ -268,6 +287,159 @@ def initial_people() -> list[dict[str, Any]]:
     return [person(i) for i in range(PEOPLE_COUNT)]
 
 
+def initial_secrets() -> dict[str, dict[str, Any]]:
+    """WisKey's private side of `person(n)`: the PIN of every 2nd person (`pin_configured`) and the number behind each
+    masked card - what the collision checks compare against and what `/people/{id}/secret` shows a test."""
+    out: dict[str, dict[str, Any]] = {}
+    for n in range(PEOPLE_COUNT):
+        p = person(n)
+        out[p["id"]] = {"pin": f"{100000 + n:06d}" if p["pin_configured"] else None, "cards": {c["id"]: f"CARD{(7000 + n) % 10000:04d}" for c in p["cards"]}}
+    return out
+
+
+# ---------------------------------------------------------------- people writes (WisKey websocket.py users/*, access/models.py build_user)
+
+USER_FIELDS = {"door_permissions", "permission_overrides", "access_policy_revision", "profile", "group_ids", "photo", "phone", "access_timing_draft",
+               "access_timing_policy", "employee_no", "display_name", "active", "user_type", "valid_from", "valid_until", "pin", "cards", "assignments"}
+CARD_FIELDS = {"id", "card_no", "label", "card_type", "enabled"}
+IDENTIFIER = re.compile(r"[A-Za-z0-9_-]{1,32}")
+
+
+class _Access(Exception):
+    """WisKey's AccessError: `code` is the frame's error code."""
+
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
+
+
+def _text_field(value: Any, maximum: int, empty: bool = False) -> str:
+    if not isinstance(value, str) or len(value) > maximum or (not empty and not value.strip()) or any(ord(c) < 32 for c in value):
+        raise _Access("invalid_text")
+    return value.strip()
+
+
+def _boolean(value: Any) -> bool:
+    if type(value) is not bool:
+        raise _Access("invalid_boolean")
+    return value
+
+
+def _valid_period(start: Any, end: Any) -> tuple[str | None, str | None]:
+    if start is None and end is None:
+        return None, None
+    first, last = _instant(start), _instant(end)
+    lo = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
+    hi = datetime.datetime(2037, 12, 31, 23, 59, 59, tzinfo=datetime.timezone.utc)
+    if first is None or last is None or not lo <= first < last <= hi:
+        raise _Access("invalid_validity")
+    return first.astimezone(datetime.timezone.utc).isoformat(timespec="seconds"), last.astimezone(datetime.timezone.utc).isoformat(timespec="seconds")
+
+
+def _phone_value(value: Any) -> str:
+    if not isinstance(value, str) or len(value) > 32:
+        raise _Access("invalid_phone")
+    if value and (not re.fullmatch(r"\+?[0-9 ()-]+", value) or not 7 <= len(re.sub(r"[^0-9]", "", value)) <= 15):
+        raise _Access("invalid_phone")
+    return value
+
+
+def masked(number: str) -> str:
+    return "•••• " + number[-4:] if len(number) > 4 else "••••"
+
+
+def build_user(data: dict[str, Any], previous: dict[str, Any] | None, secret: dict[str, Any] | None, stations: list[dict[str, Any]]) -> tuple[dict[str, Any], dict[str, Any]]:
+    """WisKey `build_user` for the fields SMPLWISE's editor sends (patch semantics: absent keys keep their value) plus
+    manager._validate's station checks. Returns the public record and its private side (pin, card numbers)."""
+    if set(data) - USER_FIELDS:
+        raise _Access("invalid_fields")
+    if any(k in data for k in ("profile", "group_ids", "photo", "access_timing_draft", "access_timing_policy", "permission_overrides", "door_permissions", "access_policy_revision")):
+        raise _Access("invalid_fields")  # the fixture has no profile policy: WisKey answers profile_settings_unavailable / invalid_fields
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+    employee_no = data.get("employee_no", previous["employee_no"] if previous else None)
+    if not isinstance(employee_no, str) or not IDENTIFIER.fullmatch(employee_no):
+        raise _Access("invalid_identifier")
+    name = _text_field(data.get("display_name", previous["display_name"] if previous else ""), 32)
+    active = _boolean(data.get("active", previous["active"] if previous else True))
+    if data.get("user_type", "normal") != "normal":
+        raise _Access("unsupported_user_type")
+    start, end = _valid_period(data.get("valid_from", previous["valid_from"] if previous else None), data.get("valid_until", previous["valid_until"] if previous else None))
+    pin = data.get("pin", secret["pin"] if secret else None)
+    if pin is not None and (not isinstance(pin, str) or not re.fullmatch(r"[0-9]{1,128}", pin)):
+        raise _Access("invalid_pin")
+    old_cards = {c["id"]: c for c in (previous["cards"] if previous else [])}
+    old_numbers = dict(secret["cards"]) if secret else {}
+    raw_cards = data.get("cards", [{"id": c["id"], "label": c["label"], "card_type": c["card_type"], "enabled": c["enabled"]} for c in old_cards.values()])
+    if not isinstance(raw_cards, list) or len(raw_cards) > 255:
+        raise _Access("invalid_cards")
+    cards, numbers = [], {}
+    for raw in raw_cards:
+        if not isinstance(raw, dict) or set(raw) - CARD_FIELDS:
+            raise _Access("invalid_cards" if not isinstance(raw, dict) else "invalid_fields")
+        if "id" in raw:
+            if not isinstance(raw["id"], str) or not re.fullmatch(r"[0-9a-f-]{36}", raw["id"]):
+                raise _Access("invalid_id")
+            card_id = raw["id"]
+        else:
+            card_id = f"{hashlib.sha256(json.dumps(raw, sort_keys=True).encode()).hexdigest()[:8]}-0000-4000-8000-{len(cards):012d}"
+        old = old_cards.get(card_id)
+        number = raw.get("card_no", old_numbers.get(card_id) if old else None)
+        if not isinstance(number, str) or not IDENTIFIER.fullmatch(number):
+            raise _Access("invalid_identifier")
+        if raw.get("card_type", "normalCard") != "normalCard":
+            raise _Access("unsupported_card_type")
+        cards.append({"id": card_id, "masked_number": masked(number), "label": _text_field(raw.get("label", old["label"] if old else ""), 64, empty=True),
+                      "card_type": "normalCard", "enabled": _boolean(raw.get("enabled", old["enabled"] if old else True))})
+        numbers[card_id] = number
+    if len({c["id"] for c in cards}) != len(cards) or len(set(numbers.values())) != len(cards):
+        raise _Access("duplicate_card")
+    revision = previous["revision"] + 1 if previous else 1
+    raw_assignments = data.get("assignments", {sid: {"enabled": a["enabled"], "allowed_locks": a["allowed_locks"]} for sid, a in (previous["assignments"] if previous else {}).items()})
+    if not isinstance(raw_assignments, dict) or len(raw_assignments) > 100:
+        raise _Access("invalid_assignments")
+    assignments = {}
+    by_id = {s["id"]: s for s in stations}
+    for sid, raw in raw_assignments.items():
+        sid = _text_field(sid, 64)
+        if not isinstance(raw, dict):
+            raise _Access("invalid_assignments")
+        enabled = _boolean(raw.get("enabled", True))
+        locks = raw.get("allowed_locks", [1])
+        if not isinstance(locks, list) or any(type(lock) is not int or lock not in {1, 2} for lock in locks) or len(locks) != len(set(locks)) or (enabled and not locks):
+            raise _Access("unmanaged_lock")
+        old_a = (previous["assignments"] if previous else {}).get(sid)
+        if enabled and active:
+            station = by_id.get(sid)
+            if station is None:
+                raise _Access("station_not_found")
+            if not station["lock_enabled"]:
+                raise _Access("station_has_no_managed_lock")
+        assignments[sid] = {**assignment(sid, enabled, sorted(locks), "pending", revision), "applied_revision": old_a["applied_revision"] if old_a else None}
+    public = {
+        "id": previous["id"] if previous else f"u{hashlib.sha256(f'{employee_no}/{now}'.encode()).hexdigest()[:6]}", "employee_no": employee_no, "display_name": name,
+        "phone": _phone_value(data.get("phone", previous["phone"] if previous else "")), "active": active, "user_type": "normal", "valid_from": start, "valid_until": end,
+        "revision": revision, "created_at": previous["created_at"] if previous else now, "updated_at": now, "identity_locked": previous["identity_locked"] if previous else False,
+        "profile": previous["profile"] if previous else {}, "group_ids": previous["group_ids"] if previous else [], "permission_overrides": {sid: "allow" if a["enabled"] else "deny" for sid, a in assignments.items()},
+        "photo_configured": False, "pin_configured": pin is not None, "cards": cards, "assignments": assignments,
+        "access_timing_draft": previous["access_timing_draft"] if previous else None, "access_timing_policy": previous["access_timing_policy"] if previous else None, "timing_readbacks": {},
+    }
+    return public, {"pin": pin, "cards": numbers}
+
+
+def validate_collisions(people: list[dict[str, Any]], secrets: dict[str, dict[str, Any]], candidate: dict[str, Any], secret: dict[str, Any]) -> None:
+    """WisKey repository._validate_collisions over the fixture's people (no tombstones / retirements here)."""
+    for other in people:
+        if other["id"] == candidate["id"]:
+            continue
+        if other["employee_no"] == candidate["employee_no"]:
+            raise _Access("employee_conflict")
+        s = secrets.get(other["id"], {})
+        if secret["pin"] is not None and s.get("pin") == secret["pin"]:
+            raise _Access("pin_conflict")
+        if set(s.get("cards", {}).values()) & set(secret["cards"].values()):
+            raise _Access("card_conflict")
+
+
 class _Invalid(Exception):
     pass
 
@@ -383,6 +555,65 @@ class World:
             self.added = 0
             self.events_delay = 0.0
             self.people = initial_people()
+            self.secrets = initial_secrets()
+            self.people_mode = "accept"
+
+    def people_write(self, msg: dict[str, Any]) -> dict[str, Any]:
+        """One `users/create` / `users/update` / `users/delete` frame under WORLD.lock: WisKey's answer frame."""
+        kind = msg["type"].removeprefix("hikvision_intercom/")
+        if self.people_mode == "storage_write_failed":
+            return fail(msg, "storage_write_failed")
+        if self.people_mode == "unexpected":
+            return ok(msg, {"queued": "maybe"})
+        try:
+            if msg.get("api_contract") != 1:
+                raise _Access("api_incompatible")
+            if kind == "users/delete":
+                if set(msg) != {"id", "type", "user_id", "revision", "api_contract"} or type(msg["revision"]) is not int:
+                    raise _Access("invalid_fields")
+                p = next((x for x in self.people if x["id"] == msg["user_id"]), None)
+                if p is None:
+                    raise _Access("user_not_found")
+                if p["revision"] != msg["revision"]:
+                    raise _Access("revision_conflict")
+                self.people = [x for x in self.people if x is not p]
+                self.secrets.pop(p["id"], None)
+                return ok(msg, {"accepted": True})
+            expected = {"id", "type", "data", "api_contract", "sync_now"} if kind == "users/create" else {"id", "type", "user_id", "revision", "data", "api_contract", "sync_now"}
+            if set(msg) - expected or not isinstance(msg.get("data"), dict) or type(msg.get("sync_now", True)) is not bool:
+                raise _Access("invalid_fields")
+            previous = secret = None
+            if kind == "users/update":
+                if type(msg.get("revision")) is not int:
+                    raise _Access("invalid_fields")
+                previous = next((x for x in self.people if x["id"] == msg["user_id"]), None)
+                if previous is None:
+                    raise _Access("user_not_found")
+                if previous["revision"] != msg["revision"]:
+                    raise _Access("revision_conflict")
+                secret = self.secrets[previous["id"]]
+            public, private = build_user(msg["data"], previous, secret, self.stations)
+            validate_collisions(self.people, self.secrets, public, private)
+            if previous is None:
+                self.people.append(public)
+            else:
+                self.people = [public if x is previous else x for x in self.people]
+            self.secrets[public["id"]] = private
+            return ok(msg, copy.deepcopy(public))
+        except _Access as exc:
+            return fail(msg, exc.code)
+
+    def pin_generate(self, msg: dict[str, Any]) -> dict[str, Any]:
+        if set(msg) != {"id", "type", "user_id", "api_contract"} or msg.get("api_contract") != 1:
+            return fail(msg, "invalid_fields")
+        if msg["user_id"] and not any(p["id"] == msg["user_id"] for p in self.people):
+            return fail(msg, "user_not_found")
+        taken = {s["pin"] for s in self.secrets.values() if s["pin"]}
+        for n in range(900000):
+            pin = f"{(424242 + n * 7919) % 900000 + 100000:06d}"
+            if pin not in taken:
+                return ok(msg, {"pin": pin})
+        return fail(msg, "pin_generation_failed")
 
     def push_refresh(self) -> None:
         if self.fake is not None and self.loop is not None:
@@ -490,6 +721,13 @@ class FakeHa:
             elif kind == "hikvision_intercom/users/get":
                 match = next((p for p in WORLD.people if p["id"] == msg.get("user_id")), None) if set(msg) == {"id", "type", "user_id"} else None
                 self.push(ok(msg, copy.deepcopy(match)) if match is not None else fail(msg, "user_not_found"))
+            elif kind in ("hikvision_intercom/users/create", "hikvision_intercom/users/update", "hikvision_intercom/users/delete"):
+                frame = WORLD.people_write(msg)
+                self.push(frame)
+                if frame["success"]:
+                    asyncio.get_running_loop().call_later(0.2, self.refresh)  # WisKey's `_changed()`: a data-free refresh push
+            elif kind == "hikvision_intercom/users/pin_generate":
+                self.push(WORLD.pin_generate(msg))
             elif kind == "hikvision_intercom/tts/engines":
                 self.push(ok(msg, copy.deepcopy(TTS_ENGINES)))
             elif kind == "hikvision_intercom/tts/start":
@@ -583,6 +821,13 @@ class Control(BaseHTTPRequestHandler):
         if self.path == "/frame-hits":
             with WORLD.lock:
                 return self._json(200, list(WORLD.frame_hits))
+        if self.path.startswith("/people/") and self.path.endswith("/secret"):
+            pid = self.path[len("/people/"):-len("/secret")]
+            with WORLD.lock:
+                p = next((x for x in WORLD.people if x["id"] == pid), None)
+                if p is None:
+                    return self._json(404, {"error": "no_such_person"})
+                return self._json(200, {"id": pid, "revision": p["revision"], **copy.deepcopy(WORLD.secrets.get(pid, {"pin": None, "cards": {}}))})
         self._json(404, {"error": "not_found"})
 
     def do_POST(self) -> None:  # noqa: N802
@@ -667,14 +912,21 @@ class Control(BaseHTTPRequestHandler):
                 WORLD.push_refresh()
             return self._json(200, {"ok": True})
         if self.path == "/limits":
-            if set(body) - {"scan_page", "max_scan_pages", "user_burst", "user_rate"} or any(isinstance(v, bool) or not isinstance(v, (int, float)) or v < 0 for v in body.values()):
-                return self._json(422, {"error": "scan_page, max_scan_pages, user_burst, user_rate: non-negative numbers"})
+            if set(body) - {n.lower() for n in LIMIT_NAMES} or any(isinstance(v, bool) or not isinstance(v, (int, float)) or v < 0 for v in body.values()):
+                return self._json(422, {"error": "scan_page, max_scan_pages, user_burst, user_rate, config_user_burst, config_user_rate: non-negative numbers"})
             return self._json(200, {"ok": True, "limits": set_limits(body)})
         if self.path == "/mode":
-            if body.get("unlock") not in ("accept", "unexpected", "unconfirmed"):
+            if "unlock" in body and body["unlock"] not in ("accept", "unexpected", "unconfirmed"):
                 return self._json(422, {"error": "unlock must be accept, unexpected or unconfirmed"})
+            if "people" in body and body["people"] not in ("accept", "storage_write_failed", "unexpected"):
+                return self._json(422, {"error": "people must be accept, storage_write_failed or unexpected"})
+            if not body:
+                return self._json(422, {"error": "unlock or people"})
             with WORLD.lock:
-                WORLD.unlock_mode = body["unlock"]
+                if "unlock" in body:
+                    WORLD.unlock_mode = body["unlock"]
+                if "people" in body:
+                    WORLD.people_mode = body["people"]
             return self._json(200, {"ok": True})
         self._json(404, {"error": "not_found"})
 

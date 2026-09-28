@@ -84,6 +84,15 @@ PERMISSION_LABELS: dict[str, str] = {
     # sensitive permissions. Installation scope only (stations are not mapped to sites): a site-scoped site_admin does
     # not get it. Narrowing it later = removing it from those two roles in roles.json and the design catalogue.
     "access.release": "פעולות פיזיות בבקרת כניסה (WisKey): שחרור דלת, מענה לשיחה, הכרזה",
+    # access.people.manage (CR-005 §3, phase 2 slice A1; owner decision 2026-09-28, answer 1 to the phase-2 brief):
+    # create / edit / delete a person in WisKey - identity, phone, active, validity, PIN, cards, station assignments.
+    # A configuration write that grants or revokes physical access once WisKey syncs it, so it gets exactly
+    # access.release's treatment: granted by default ONLY to site_admin and system_admin, never to viewer / kiosk /
+    # editor / operator, listed in sensitive_permissions_not_implied (a custom role must name it explicitly among its
+    # sensitive permissions - that is how the owner grants it to one specific person: a custom role plus a binding),
+    # installation scope only. Card capture (access.cards.capture) and door settings (access.doors.*) are separate,
+    # later permissions; access.read still never implies any of them.
+    "access.people.manage": "ניהול אנשים בבקרת כניסה (WisKey): יצירה, עריכה ומחיקה של אנשים, קודי PIN וכרטיסים",
 }
 SYSTEM_PERMISSIONS = {"system.configure", "sources.configure", "identity.directory.read", "rbac.roles.manage", "audit.read", "backup.manage"}  # rbac.assign is delegable (T082)
 DEFAULT_DELEGABLE = ["viewer", "operator", "editor", "kiosk"]

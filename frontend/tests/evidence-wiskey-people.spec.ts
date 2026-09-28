@@ -252,9 +252,12 @@ test.describe('WisKey people directory against the fixture WisKey (CR-005 phase 
     await expect(screen.getByText(/\+9725/)).toHaveCount(0);
     await expect(screen.getByText(/••••/)).toHaveCount(0);
     await expect(screen.getByText(/PIN|Engineering|טלפון/)).toHaveCount(0);
-    // no add / edit / sync-now / selection affordances
+    // no sync-now / selection / bulk affordances; "הוספת משתמש" (page actions) is the administrator's editor entry
+    // (access.people.manage, CR-005 phase 2 A1; a viewer never sees it - evidence-wiskey-editor.spec.ts) and lives
+    // outside the list, which itself stays read-only
     await expect(screen.locator('input[type="checkbox"]')).toHaveCount(0);
-    await expect(screen.getByText(/הוספת משתמש|עריכה|סנכרון עכשיו/)).toHaveCount(0);
+    await expect(screen.getByText(/סנכרון עכשיו|ייבוא קיימים|סנכרון הכול/)).toHaveCount(0);
+    await expect(screen.locator('sw-table [data-wiskey-people-add], sw-table [data-wiskey-person-edit]')).toHaveCount(0);
     // the honest notes: not live, the search hint promises name / employee number only
     await expect(screen.locator('[data-wiskey-people-nopush]')).toContainText('אינה מתעדכנת בזמן אמת');
     await expect(screen.locator('[data-wiskey-people-fetched]')).toBeVisible();
@@ -421,7 +424,10 @@ test.describe('WisKey people directory against the fixture WisKey (CR-005 phase 
     await expect(detail.locator('[data-wiskey-person-grant="gate"] sw-badge')).toHaveAttribute('label', 'ממתין');
     await expect(detail.locator('[data-wiskey-person-detail-active]')).toHaveAttribute('data-wiskey-person-detail-active', 'true');
     await expect(detail).not.toContainText(/\+9725|••••|PIN|Engineering|Operations|Security/);
-    await expect(detail.getByText(/עריכה|Edit|WhatsApp/)).toHaveCount(0);
+    // no WhatsApp composer here; the "עריכה" button is the administrator's (access.people.manage, CR-005 phase 2 A1,
+    // gated in evidence-wiskey-editor.spec.ts) and opens the editor - the pane itself still shows no phone / cards / PIN
+    await expect(detail.getByText(/WhatsApp/)).toHaveCount(0);
+    await expect(detail.locator('[data-wiskey-person-edit]')).toHaveCount(1);
     // u001 (Dana): two grants, groups shown as WisKey ids, disabled grants marked (u008 has one)
     await rows(page).nth(0).click();
     await expect(screen.locator('[data-wiskey-person-detail="u001"]')).toHaveAttribute('data-wiskey-person-detail-source', 'record', { timeout: 15000 });
