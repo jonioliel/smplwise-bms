@@ -380,6 +380,11 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
   note says so); the embedded screen loads a second copy of Home Assistant's interface, so it is slower than a
   SMPLWISE screen, especially on a phone. "פתח בחלון מלא" opens the same panel in its own tab. Nothing is embedded
   when the UI is opened outside Home Assistant; the screen then says so and offers the SMPLWISE screens.
+  In the Home Assistant phone app nothing is embedded either: the app signs Home Assistant in through itself, and
+  that sign-in does not reach a Home Assistant nested inside SMPLWISE. There, מרכז הכניסה, פעילות and אנשים show the
+  SMPLWISE screens, the other WisKey tabs show a short note, and "פתח ב-WisKey" switches the app itself to the WisKey
+  panel. The same happens in a browser when Home Assistant asks for a login inside the
+  embedded frame (for example after signing in without "keep me logged in").
 - WisKey (access control) permissions: `access.read` (viewer and above) shows the entry center, the activity log and
   the people directory; `access.release` (site_admin and system_admin only, sensitive) covers the physical actions -
   door release, call answer / reject / hang up, announcements; `access.people.manage` (site_admin and system_admin
