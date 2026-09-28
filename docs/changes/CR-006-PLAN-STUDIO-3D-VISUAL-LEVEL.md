@@ -143,6 +143,12 @@ adapter next to T063's. No HA writes, no device access, no external calls in pha
 > original architect's plan image); 7.4 = how many minutes the blue "there was movement here" tint keeps fading
 > before it disappears (default proposed: 3 minutes, a setting).
 >
+> Second round of answers (owner, same day): §7.2 - (a) as the default, but the send dialog in phase 2 offers the
+> choice per send (our schematic render only / also the original plan image), since sending happens only at site
+> set-up; still phase 2 only, no external service in phase 1. §7.4 - presence fade is an option: on/off and the
+> duration in minutes, per installation. §7.5 - the owner asked this session to orchestrate CR-006 and CR-005 in
+> parallel itself (a 24-hour build push), so the parallel-session rule below applies between agents of one session.
+>
 > Parallel-session rule (two sessions releasing into the same `g0/intake`/`main`): a session merges its branch only
 > after `git pull`, bumps the version from the current tip, never reuses a version number, and does not start a
 > release while the other session's release commit is not yet pushed; both sessions keep the full backend suite
