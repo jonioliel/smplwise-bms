@@ -29,7 +29,7 @@ import { createItem, exportUrl as catalogExportUrl, importItems, itemOf, loadLib
 import { applyAnchorPositions, distanceM, effectiveScale, isClosedOutline, lengthPx, nearestWall, pointOnWall, snapPoint, type AnchorPosition, type CatalogLookup, type ConnectorKind, type GeometryDoc, type GeomOpening, type GeomWall, type Pt } from '../map/geometry';
 import { StudioController } from '../map/studio-controller';
 import { ARRAY_MAX, BIND_DISTANCE_M, CIRCUIT_COLORS, addArray, addCircuit, addCircuitLamp, addConnector, addLabel, addLevel, addObject, addOpening, addWall, arrayDefaults, circuitPower, defaultLevelId, duplicateBeside, duplicateObject, initialLevel, kindDefaults, levelUsage, moveConnectorVertex, moveGroup, moveObject, moveVertex, newId, nudgeT, openingRange, patchCircuit, patchConnector, patchLabel, patchLevel, patchObject, patchOpening, patchWall, removeCorner, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember, translateWall, visibleUnderLevel, wallDirectionAt, duplicateSelection, itemsInRect, moveSelection, removeItems, selectableItems, selectionDelta, toggleItem, translatePolygon, TAG_MAX_COUNT, circuitEligible, itemsWithTag, joinCircuit, setLevelOf, tagCounts, tagItems, withTag, withoutTag, type MultiItem, type WallDefaults,
-  GRID_DEFAULT_M, GRID_STEPS_M, GUIDE_SNAP_PX, alignObjects, distributeObjects, gridDelta, gridStepPx, objectBox, snapObjectPosition, snapToGrid, guideTargets, type AlignMode, type Guide, type GuideTargets } from '../map/studio-ops';
+  GRID_DEFAULT_M, GRID_STEPS_M, GUIDE_SNAP_PX, alignObjects, distributeObjects, gridDelta, gridStepPx, objectBox, snapObjectPosition, snapToGrid, guideTargets, type AlignMode, type Guide, type GuideTargets, anchorOnLevel } from '../map/studio-ops';
 import { ANCHOR_3D_DEFAULTS, anchor3dKind } from '../map/anchor-3d';
 import { COLL_LABEL, CONNECTOR_LABEL, circuitPlacingHint, connectorDerived, countLabel, fmtMetres, fmtScale, renderArrayDialog, renderCalibPanel, renderCircuitPanel, renderConnectorPanel, renderCustomItemDialog, renderGroupDeleteDialog, renderGroupInspector, renderLevelChips, renderLevelDialog, renderDetectPanel, renderLibraryPanel, renderMeasurePanel, renderObjectInspector, renderConnectorSelection, renderMultiSelection, renderGridOptions, renderShortcutsDialog, renderStudioPanel, renderTagPicker, renderTagsField, MULTI_HINT, SAVE_LABEL, studioPanelStyles, lighterStrength, type ArrayDialogView, type CustomItemView, type DetectAcceptError, type DetectOpts, type DetectReplaceAsk, type DetectRunState, type GeomKind, type GeomSel, type LevelDialogView, type StudioMode } from './plan-studio-panel';
 
@@ -1858,7 +1858,7 @@ export class ExplorePlanEditor extends LitElement {
     const doc = this.studio.doc;
     const lv = this.activeLevel;
     if (!lv || !doc) return true;
-    return (a.level_id ?? defaultLevelId(doc)) === lv;
+    return anchorOnLevel(doc, a.level_id, lv);
   }
 
   private remember(itemId: string) {

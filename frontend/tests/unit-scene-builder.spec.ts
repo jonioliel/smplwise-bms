@@ -6,7 +6,7 @@ import type { CatalogItem, CatalogLibrary } from '../src/api/plan-catalog';
 import { lookup3dOf } from '../src/api/plan-catalog';
 import type { GeometryDoc, GeomConnector, GeomObject, GeomOpening, GeomWall, Pt } from '../src/map/geometry';
 import { ISO_FACE_CAP, buildScene, isoPoint, isoProjection, keepIsos, type SceneAnchor, type SceneDescription, type SceneInput, type ScenePart } from '../src/map/scene-builder';
-import { levelOrDefault } from '../src/map/studio-ops';
+import { anchorOnLevel, levelOrDefault } from '../src/map/studio-ops';
 
 // Plan Studio phase 4 (T087, design 10.5, ruling R-P4-4): the scene description is a pure function of the document, the
 // anchors, the states, the library and the zones - pinned on the shared fixture (sample-v2.scene.json, regenerated with
@@ -281,6 +281,13 @@ test('a camera whose level was removed is clipped by the default level walls, in
   expect(levelOrDefault(doc, 'L1')).toBe('L1');
   expect(levelOrDefault(doc, null)).toBe('L0');
   expect(levelOrDefault({ levels: [] }, 'X')).toBe('X'); // no level list: nothing to fall back from
+  // the 2D pin filters (the editor and the floor map) agree with the 3D: a pin on a removed level shows with the default
+  expect(anchorOnLevel(doc, 'L-removed', 'L0')).toBe(true);
+  expect(anchorOnLevel(doc, 'L-removed', 'L1')).toBe(false);
+  expect(anchorOnLevel(doc, null, 'L0')).toBe(true);
+  expect(anchorOnLevel(doc, 'L1', 'L1')).toBe(true);
+  expect(anchorOnLevel(doc, 'L1', 'L0')).toBe(false);
+  expect(anchorOnLevel(doc, 'L-removed', null)).toBe(true);
 });
 
 test('a tribune connector drawn by hand shows as steps; one derived from a tribune object is drawn by its object only (T087 tuning)', () => {
