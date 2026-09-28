@@ -44,7 +44,7 @@ import '../screens/styleguide-screen';
 import { onRouteChange, type RouteState, parseRoute } from '../router';
 import { KIND_ICON, KIND_LABEL, search as apiSearch, type SearchResult } from '../api/search';
 import { healthSummary, type HealthSummary } from '../api/health';
-import { GROUP_TABS, groupOf, activeTabOf, AREA_TABS, areaOf, activeAreaTab, crumbsOf, visibleTabs, visibleAreas, visibleGroups, demoRedirect, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute } from './nav';
+import { GROUP_TABS, groupOf, activeTabOf, AREA_TABS, areaOf, activeAreaTab, crumbsOf, visibleTabs, visibleAreas, visibleGroups, demoRedirect, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav } from './nav';
 import { bidi } from '../i18n/bidi';
 import { currentDesign, onDesign, resolveDesign, type DesignId } from '../api/design';
 import { t } from '../i18n/he';
@@ -79,6 +79,7 @@ export class SwApp extends LitElement {
   private stopRouter?: () => void;
   private stopSession?: () => void;
   private stopDesign?: () => void;
+  private stopWiskeyNav?: () => void;
 
   static styles = css`
     :host {
@@ -733,6 +734,8 @@ export class SwApp extends LitElement {
     });
     void loadSession();
     window.addEventListener('keydown', this.onGlobalKey);
+    // WisKey embed API v1: the tab row follows the panel's catalog and its confirmed location
+    this.stopWiskeyNav = onWiskeyEmbedNav(() => this.requestUpdate());
     this.stopRouter = onRouteChange((route) => {
       this.route = route;
       this.moreOpen = false; // T054 review: any navigation closes the bottom-nav overflow sheet, not just its own links
@@ -755,6 +758,7 @@ export class SwApp extends LitElement {
     this.stopRouter?.();
     this.stopSession?.();
     this.stopDesign?.();
+    this.stopWiskeyNav?.();
     window.removeEventListener('keydown', this.onGlobalKey);
     window.clearInterval(this.sysTimer);
     this.sysTimer = 0;
@@ -980,8 +984,9 @@ export class SwApp extends LitElement {
         if (this.session.mode === 'api' && WISKEY_HIDDEN) {
           return html`<sw-page heading="WisKey"><sw-state-panel data-wiskey-state="hidden" state="forbidden" heading="אזור WisKey מוסתר" hint="מנהל המערכת הסתיר את אזור WisKey עבור כל המשתמשים, בהגדרות › בקרות כניסה. אפשר להציג אותו מחדש שם."></sw-state-panel></sw-page>`;
         }
-        const w = wiskeyRoute(s[1], this.session.mode === 'api');
-        if (w.kind === 'embed') return html`<wiskey-embed .tab=${w.tab}></wiskey-embed>`; // one call site: switching embedded tabs keeps the loaded frame
+        const w = wiskeyRoute(r, this.session.mode === 'api');
+        // one call site: switching embedded tabs keeps the loaded frame (embed API v1: a wiskey:navigate message)
+        if (w.kind === 'embed') return html`<wiskey-embed .tab=${w.tab} .tool=${w.tool ?? ''}></wiskey-embed>`;
         if (w.screen === 'events') return html`<wiskey-events></wiskey-events>`;
         if (w.screen === 'people') return html`<wiskey-people></wiskey-people>`;
         return html`<wiskey-overview></wiskey-overview>`;

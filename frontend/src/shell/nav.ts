@@ -1,6 +1,7 @@
 import type { IconName } from '../components/sw-icon';
 import type { TabItem } from '../components/sw-tabs';
 import type { RouteState } from '../router';
+import type { WiskeyCatalog, WiskeyLocation } from '../wiskey/embed-connector';
 
 /**
  * Primary navigation as drawn on the boards: originally six flat entries (Overview, Sites, Cameras,
@@ -36,11 +37,11 @@ export const NAV: NavEntry[] = [
   { id: 'settings', icon: 'system', label: 'הגדרות', href: '#/system/diagnostics' },
 ];
 
-/** The WisKey area's tabs, shared by both designs. The first three are the screens SMPLWISE built (CR-005 phase 1b and
- * 2); each renders either that screen or WisKey's own Home Assistant panel embedded as-is, by הגדרות › בקרות כניסה
- * (CR-005 recorded decision 2026-09-28, embedded panel - the embed is the default). The rest exist only in WisKey's
- * panel and are always embedded, deep-linked to the panel's own tab (WISKEY_PANEL_TABS). */
-export const WISKEY_TABS: TabItem[] = [
+/** The WisKey area's tabs before (or without) a WisKey embed API handshake: the older panel's tabs. The first three are
+ * the screens SMPLWISE built (CR-005 phase 1b and 2); each renders either that screen or WisKey's own Home Assistant
+ * panel embedded as-is, by הגדרות › בקרות כניסה (CR-005 recorded decision 2026-09-28, embedded panel - the embed is the
+ * default). The rest exist only in WisKey's panel and are always embedded (WISKEY_PANEL_TABS). */
+const STATIC_WISKEY_TABS: readonly TabItem[] = [
   { id: 'overview', label: 'מרכז הכניסה', href: '#/wiskey/overview' },
   { id: 'events', label: 'פעילות', href: '#/wiskey/events' },
   { id: 'people', label: 'אנשים', href: '#/wiskey/people' },
@@ -50,6 +51,98 @@ export const WISKEY_TABS: TabItem[] = [
   { id: 'audit', label: 'יומן שינויים', href: '#/wiskey/audit' },
   { id: 'tools', label: 'ניהול', href: '#/wiskey/tools' },
 ];
+
+/** The WisKey area's tabs, shared by both designs (GROUP_TABS.wiskey and AREA_TABS.wiskey are this same array, so the
+ * phone bottom nav and its overflow follow too). WisKey embed API v1 (rc.19+): once the embedded panel's `wiskey:ready`
+ * arrives, `applyWiskeyCatalog` rebuilds it IN PLACE from the catalog - the user's permitted top-level screens with
+ * WisKey's own labels (ids kept apart from labels; WisKey's `users` stays SMPLWISE's `people` segment, so the per-screen
+ * choice and old bookmarks keep working). Until then, and for an older WisKey, the static list above. */
+export const WISKEY_TABS: TabItem[] = [...STATIC_WISKEY_TABS];
+
+/** WisKey tab id → SMPLWISE route segment (only `users` differs: SMPLWISE has always called it `people`). */
+export function wiskeySegmentOf(tab: string): string {
+  return tab === 'users' ? 'people' : tab;
+}
+
+/** SMPLWISE route of a WisKey location: `/wiskey/<segment>[/<tool>]` (a tool only under `tools`). */
+export function wiskeyPath(loc: { tab: string; tool?: string | null }): string {
+  const seg = `/wiskey/${encodeURIComponent(wiskeySegmentOf(loc.tab))}`;
+  return loc.tab === 'tools' && loc.tool ? `${seg}/${encodeURIComponent(loc.tool)}` : seg;
+}
+
+/** A WisKey-area href (`#/wiskey/...`): these need access.read at installation scope and hide with ui.hide_wiskey. */
+export function isWiskeyHref(href: string): boolean {
+  return href.startsWith('#/wiskey/');
+}
+
+/** The WisKey embed's navigation as last reported by the embedded panel (embed API v1): the handshake's catalog (kept
+ * for the session, so leaving for a SMPLWISE WisKey screen does not flip the tab row back) and the CONFIRMED location
+ * while an embed is attached (null otherwise). The shell re-renders on every change. */
+export interface WiskeyEmbedNav {
+  catalog: WiskeyCatalog | null;
+  confirmed: WiskeyLocation | null;
+}
+let embedNav: WiskeyEmbedNav = { catalog: null, confirmed: null };
+const embedNavListeners = new Set<() => void>();
+
+export function wiskeyEmbedNav(): WiskeyEmbedNav {
+  return embedNav;
+}
+
+export function onWiskeyEmbedNav(listener: () => void): () => void {
+  embedNavListeners.add(listener);
+  return () => embedNavListeners.delete(listener);
+}
+
+/** Record the embed's state; a `catalog` key rebuilds WISKEY_TABS (null = the static list: an older WisKey). */
+export function setWiskeyEmbedNav(patch: Partial<WiskeyEmbedNav>): void {
+  embedNav = { ...embedNav, ...patch };
+  if ('catalog' in patch) {
+    const catalog = patch.catalog ?? null;
+    const labels = new Map(STATIC_WISKEY_TABS.map((t) => [t.id, t.label]));
+    const next: TabItem[] = catalog
+      ? catalog.tabs
+          .filter((t) => t.id)
+          .map((t) => {
+            const seg = wiskeySegmentOf(t.id);
+            return { id: seg, label: t.label.trim() || labels.get(seg) || t.id, href: `#${wiskeyPath({ tab: t.id })}` };
+          })
+      : [...STATIC_WISKEY_TABS];
+    WISKEY_TABS.splice(0, WISKEY_TABS.length, ...next);
+  }
+  for (const l of embedNavListeners) l();
+}
+
+/** What a WisKey route asks the embed to show. The confirmed-location mirror (`wiskey_tab` / `wiskey_tool` in the
+ * route's query) wins when present - it is what the panel last confirmed; otherwise the path: `/wiskey/<segment>` or
+ * `/wiskey/tools/<tool>`. */
+export function wiskeyRequest(r: RouteState | null): WiskeyLocation {
+  const mirroredTab = r?.params.get('wiskey_tab');
+  if (mirroredTab) return { tab: mirroredTab, tool: r?.params.get('wiskey_tool') || null };
+  const seg = wiskeyPathSegment(r);
+  const tab = WISKEY_PANEL_TABS[seg] ?? seg;
+  const tool = tab === 'tools' && r?.segments[2] ? safeDecode(r.segments[2]) : null;
+  return { tab, tool };
+}
+
+function safeDecode(s: string): string {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
+}
+
+/** The WisKey tab the tab row marks: the embed's confirmed location while one is attached (a click keeps the previous
+ * selection until the panel confirms), otherwise the route. A screen the owner switched to SMPLWISE is never the
+ * embed, so its route decides. */
+function wiskeyActiveTab(r: RouteState | null): string {
+  const path = wiskeyPathSegment(r);
+  const own = (WISKEY_SCREENS as string[]).includes(path) && WISKEY_UI[path as WiskeyScreen] === 'smplwise';
+  if (own) return path;
+  const confirmed = embedNav.confirmed;
+  return wiskeySegmentOf(confirmed ? confirmed.tab : wiskeyRequest(r).tab);
+}
 
 /** The SMPLWISE screens with a choice in הגדרות › בקרות כניסה (settings keys `access.ui.<screen>`). */
 export type WiskeyScreen = 'overview' | 'events' | 'people';
@@ -90,12 +183,21 @@ export const WISKEY_PANEL_TABS: Record<string, string> = {
 };
 
 /** What a WisKey route renders: the SMPLWISE screen (only for the three built screens, when chosen) or the embed with
- * the panel tab to deep-link. Without a backend (the static demo) there is no Home Assistant to embed, so the three
- * built screens show their demo data. */
-export function wiskeyRoute(segment: string | undefined, api: boolean): { kind: 'smplwise'; screen: WiskeyScreen } | { kind: 'embed'; tab: string } {
-  const seg = segment && WISKEY_PANEL_TABS[segment] ? segment : 'overview';
+ * the WisKey location to show. Without a backend (the static demo) there is no Home Assistant to embed, so the three
+ * built screens show their demo data. Any other segment is a WisKey id (from the embed API catalog, or an older
+ * panel's tab) and is embedded; WisKey itself falls back to its default for an id it does not know or permit. */
+export function wiskeyRoute(r: RouteState | null, api: boolean): { kind: 'smplwise'; screen: WiskeyScreen } | { kind: 'embed'; tab: string; tool: string | null } {
+  // the path decides between the SMPLWISE screen and the embed; the mirror only refines what the embed shows (the
+  // panel may have gone to "users" by itself while אנשים is set to SMPLWISE - that must not swap the embed out)
+  const seg = wiskeyPathSegment(r);
   if ((WISKEY_SCREENS as string[]).includes(seg) && (!api || WISKEY_UI[seg as WiskeyScreen] === 'smplwise')) return { kind: 'smplwise', screen: seg as WiskeyScreen };
-  return { kind: 'embed', tab: WISKEY_PANEL_TABS[seg] };
+  const request = wiskeyRequest(r);
+  return { kind: 'embed', tab: request.tab, tool: request.tool };
+}
+
+/** The route's own WisKey segment (the path, not the mirror). */
+function wiskeyPathSegment(r: RouteState | null): string {
+  return r?.segments[1] ? safeDecode(r.segments[1]) : 'overview';
 }
 
 export const GROUP_TABS: Record<NavGroup, TabItem[]> = {
@@ -166,7 +268,7 @@ export function activeTabOf(r: RouteState | null): string {
     case 'sites':
       return s[1] === 'buildings' || s[1] === 'floors' ? 'floors' : s[1] === 'entities' ? 'entities' : 'sites';
     case 'wiskey':
-      return s[1] ?? 'overview';
+      return wiskeyActiveTab(r);
     case 'devices':
       return 'building';
     case 'cameras':
@@ -265,7 +367,7 @@ export function activeAreaTab(r: RouteState | null): string {
     case 'system':
       return !s[1] || s[1] === 'diagnostics' ? 'general' : s[1];
     case 'wiskey':
-      return s[1] ?? 'overview';
+      return wiskeyActiveTab(r);
     case 'devices':
       return 'building';
     default:
@@ -341,19 +443,20 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
 /** Tabs whose permission counts only when held at installation scope, because the screen and its API check it there
  * and nowhere else: WisKey stations are not mapped to sites or floors, so access.read is installation-wide by design
  * (CR-005). A floor-scoped viewer or a site-scoped site_admin would otherwise see the tab and land on "no permission". */
-export const INSTALLATION_ONLY_HREFS = new Set<string>(WISKEY_TABS.map((t) => t.href ?? ''));
+export const INSTALLATION_ONLY_HREFS = new Set<string>(STATIC_WISKEY_TABS.map((t) => t.href ?? ''));
 
 /** `installationOnly`: the permission must be held at installation scope, not at any scope. */
 export type Can = (permission: string, installationOnly?: boolean) => boolean;
 
 export function tabAllowed(href: string, can?: Can): boolean {
-  const need = TAB_PERMISSIONS[href];
-  const installationOnly = INSTALLATION_ONLY_HREFS.has(href);
+  // every WisKey tab (the static ones and those built from the embed API catalog) needs access.read at installation scope
+  const need = TAB_PERMISSIONS[href] ?? (isWiskeyHref(href) ? ['access.read'] : undefined);
+  const installationOnly = INSTALLATION_ONLY_HREFS.has(href) || isWiskeyHref(href);
   return !need || !can || need.some((p) => can(p, installationOnly));
 }
 
 export function visibleTabs(items: TabItem[], api: boolean, can?: Can): TabItem[] {
-  return api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '') && !HIDDEN_HREFS.has(t.href ?? '') && tabAllowed(t.href ?? '', can)).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items;
+  return api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '') && !HIDDEN_HREFS.has(t.href ?? '') && !(WISKEY_HIDDEN && isWiskeyHref(t.href ?? '')) && tabAllowed(t.href ?? '', can)).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items;
 }
 
 /** The rail entries the user gets: an area stays while one of its tabs is visible (the live area always - the

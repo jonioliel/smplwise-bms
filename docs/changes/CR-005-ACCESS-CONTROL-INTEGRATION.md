@@ -413,6 +413,41 @@ answer/reject/hangup (`media/signal`); two-way audio/talk (`audio/*`); TTS (`tts
 > absent after 1 s. The "unreachable" error now names the likely cause and offers "פתח ב-WisKey" too. Evidence:
 > `frontend/tests/evidence-wiskey-embed-phone.spec.ts` (Companion user agent, a stand-in top document with the bridge,
 > the `/auth/` redirect and the never-connecting page - all stubs, not the real app).
+>
+> **Embed API v1 adopted 2026-09-29 (WisKey 2.0.0-rc.19, T054).** The WisKey developers shipped the embed mode we asked
+> for (`docs/integrations/wiskey/WISKEY_EMBED_MODE_REQUEST.md`); the contract is
+> `docs/integrations/wiskey/embed-api-v1/WISKEY_EMBED_API_V1.md`. What replaced what: (1) the frame address is now
+> `new URL('/hikvision-intercom', location.origin)` + `?embed=1&tab=…[&tool=…]` (WisKey omits its own toolbar and
+> handles HA's sidebar itself) - replaces the root-relative `?tab=` that the old panel ignored; (2) `wiskey:ready`
+> (version 1 only; ids + labels only) builds the WisKey tab row in both navigation designs and the phone bottom nav /
+> overflow (`nav.ts` `setWiskeyEmbedNav`, WISKEY_TABS rebuilt in place; `users` keeps SMPLWISE's `people` segment, so the
+> per-screen choice for מרכז הכניסה / פעילות / אנשים is unchanged), plus a tools row under ניהול from the catalog's
+> tools - replaces the fixed eight tabs; (3) a SMPLWISE tab click is a `wiskey:navigate` message (explicit same-origin
+> target) and the tab row keeps the previous selection until `wiskey:location` confirms (a declined unsaved-change prompt
+> keeps it) - replaces the one-shot call of the panel's internal `navigate(tab)`; (4) the confirmed location is mirrored
+> into SMPLWISE's address as `wiskey_tab` / `wiskey_tool` (replaceState, router `ROUTE_REPLACED`, never fed back to
+> the panel); back/forward re-send the navigation; (5) `wiskey:title` is shown as text in the embed bar; (6) no
+> `hass-kiosk-mode` dispatch, no injected style, no DOM `navigate()` on the v1 path - replaces the chrome levers; (7) a
+> "רענן" button reopens the last confirmed tab/tool; leaving the module disposes the connector and removes the frame.
+> The connector (`frontend/src/wiskey/embed-connector.ts`) is a typed port of the reference adapter: listener before
+> `src`, origin AND source checks, queued navigation before ready, second ready ignored until a deliberate refresh,
+> 12 s discovery. **Older WisKey builds:** only when the public root carries no `data-embed-api` marker 12 s after the
+> load does the previous adapter (kiosk event / CSS / `navigate()`, described above) run, with a one-line note; marker
+> "1" without a handshake is a waiting state (loading / authentication) - never the legacy adapter; any other version
+> is an "unsupported" error with "פתח בחלון מלא". Before the handshake a read-only probe still tells the failure states
+> apart (sign-in redirect → login_required, not HA, panel not registered, refused frame). The Companion app path is
+> unchanged except that "פתח ב-WisKey" and "פתח בחלון מלא" use the normal deep link `/hikvision-intercom?tab=…&tool=…`
+> (rc.19 honours it outside embed mode too). Evidence: `frontend/tests/unit-wiskey-embed-connector.spec.ts` (Node, fake
+> window + manual clock), `frontend/tests/evidence-wiskey-embed.spec.ts` and `-phone.spec.ts` against a stub HA page
+> with a fake panel in four flavours (`frontend/tests/wiskey-fake-ha.ts`: v1, legacy, marker-only, v2) - stubs, not the
+> real WisKey. **Deployment checks left for the owner (lab, rc.19 installed, frontend reloaded):** (a) one toolbar
+> only - SMPLWISE's bar and tab row, no WisKey toolbar inside; (b) HA's real sidebar is hidden inside the frame on
+> desktop and nothing persisted (open HA normally in another tab afterwards: its sidebar is there); (c) the tab row
+> shows WisKey's own screen list and labels, each tab and a ניהול tool opens the right screen, back/forward and a
+> bookmarked `#/wiskey/tools/media_options` reopen it; (d) a selected restricted WisKey operator sees only their
+> permitted tabs and cannot reach others by typing the address; (e) leave the WisKey area and come back, and "רענן":
+> the frame reloads on the last screen, with no stuck audio/video; (f) an existing camera / two-way media session
+> (camera wall, a station call) inside the nested Ingress frame - microphone prompt, audio both ways, fullscreen.
 
 **Phase 4 — parity completion (peripheral/admin screens).** Camera wall (S4), media/clock settings (S21/S22),
 operations center (S23), identity lifecycle report (S17), permission directory (S18), appearance picker (S25),
