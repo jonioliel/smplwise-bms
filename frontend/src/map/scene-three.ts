@@ -33,6 +33,8 @@ export interface SceneViewOptions {
   onSelect: (hit: SceneHit | null) => void;
   onHover: (hit: SceneHit | null, x: number, y: number) => void;
   onFrame: (frames: number, fps: number) => void;
+  /** After every drawn frame (the element lays out its DOM chips on the projected points). */
+  onDraw?: () => void;
   quality?: QualityLevel;
 }
 
@@ -93,6 +95,37 @@ const isSmall = (p: ScenePart): boolean => p.kind === 'object' && Math.max(p.siz
 type Role = 'std' | 'floor' | 'glass';
 const roleOf = (p: ScenePart): Role => (p.kind === 'floor' ? 'floor' : p.color === 'map-glass' ? 'glass' : 'std');
 type Placed = { obj: InstancedMesh | Mesh; index: number; part: ScenePart };
+
+const sameVec = (a: readonly number[], b: readonly number[]): boolean => a.length === b.length && a.every((v, i) => v === b[i]);
+const samePolygon = (a: [number, number][] | undefined, b: [number, number][] | undefined): boolean => {
+  if (!a || !b) return a === b;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i][0] !== b[i][0] || a[i][1] !== b[i][1]) return false;
+  return true;
+};
+/** Two parts that realise the same object (everything but a tint's opacity). */
+const samePart = (a: ScenePart, b: ScenePart): boolean =>
+  a.id === b.id && a.kind === b.kind && a.shape === b.shape && a.color === b.color && a.group === b.group && a.level_id === b.level_id && a.text === b.text && sameVec(a.position, b.position) && sameVec(a.size, b.size) && sameVec(a.rotation, b.rotation) && samePolygon(a.polygon, b.polygon) && (a.opacity === b.opacity || a.kind === 'tint');
+
+/** A description that differs from another only in the opacity of its tints (a presence fade step): the same parts
+ * in the same order, the same levels - the realised graph can stay and the tint materials take the new values. */
+export function tintOnlyChange(from: SceneDescription, to: SceneDescription): boolean {
+  if (from === to || from.parts.length !== to.parts.length || from.levels.length !== to.levels.length) return false;
+  if (from.size[0] !== to.size[0] || from.size[1] !== to.size[1]) return false;
+  for (let i = 0; i < from.levels.length; i++) {
+    const a = from.levels[i];
+    const b = to.levels[i];
+    if (a.id !== b.id || a.elevation_m !== b.elevation_m || a.ceiling_height_m !== b.ceiling_height_m) return false;
+  }
+  let differs = false;
+  for (let i = 0; i < from.parts.length; i++) {
+    const a = from.parts[i];
+    const b = to.parts[i];
+    if (!samePart(a, b)) return false;
+    if (a.opacity !== b.opacity) differs = true;
+  }
+  return differs;
+}
 
 /** The twelve edges of the unit box as line segments (an outline without EdgesGeometry). */
 function unitBoxEdges(): BufferGeometry {
@@ -207,6 +240,10 @@ export class SceneView {
   /** Every pickable object → the parts it carries (index = instanceId for an InstancedMesh, [0] otherwise). */
   private lookup = new Map<Object3D, ScenePart[]>();
   private placed = new Map<string, Placed>();
+  /** The tint prisms by part id: each has its own material, so a fade step writes its opacity in place. */
+  private tints = new Map<string, Mesh>();
+  /** How many times the parts were realised (tests: a fade step must not add one). */
+  private builds = 0;
   private smallGroups: Object3D[] = [];
   private outline: Group | null = null;
   private desc: SceneDescription | null = null;
@@ -443,11 +480,16 @@ export class SceneView {
     if (p.shape === 'prism') {
       const geometry = prismGeometry(p.polygon ?? [], p.size[1]);
       if (!geometry) return null;
-      const mesh = new Mesh(geometry, this.material(p.color, p.opacity, true, roleOf(p)));
+      const shared = this.material(p.color, p.opacity, true, roleOf(p));
+      // a tint owns its material: a fade step changes its opacity alone (a shared material would fade every room)
+      const material = p.kind === 'tint' ? shared.clone() : shared;
+      const mesh = new Mesh(geometry, material);
+      if (p.kind === 'tint') mesh.userData.ownMaterial = true;
       mesh.position.set(p.position[0], p.position[1], p.position[2]);
       this.shadows(mesh, p);
       return mesh;
     }
+    if (p.kind === 'chip') return null; // the element draws chips as DOM at the projected point
     if (p.shape === 'sprite') return this.label(p);
     return null; // lights come from the pool (setDescription)
   }
@@ -542,6 +584,7 @@ export class SceneView {
       group.remove(child);
       if (child instanceof InstancedMesh) child.dispose();
       else if (child instanceof Mesh && child.geometry !== this.unitBox && child.geometry !== this.unitCylinder) child.geometry.dispose();
+      if (child instanceof Mesh && child.userData.ownMaterial && !Array.isArray(child.material)) child.material.dispose();
       if (child instanceof Sprite) {
         child.material.map?.dispose();
         child.material.dispose();
@@ -555,6 +598,7 @@ export class SceneView {
     for (const light of this.glowPool) light.intensity = 0;
     this.lookup.clear();
     this.placed.clear();
+    this.tints.clear();
     this.smallGroups = [];
     this.cutAzimuth = null;
     this.cutNow.clear();
@@ -562,13 +606,29 @@ export class SceneView {
   }
 
   setDescription(desc: SceneDescription): void {
+    if (this.desc && tintOnlyChange(this.desc, desc)) {
+      // a presence fade step: the graph stays (no rebuild of the instancing or the shadow map), the tints take their
+      // new opacity in place
+      for (const p of desc.parts) {
+        if (p.kind !== 'tint') continue;
+        const mesh = this.tints.get(p.id);
+        if (mesh && !Array.isArray(mesh.material)) mesh.material.opacity = p.opacity;
+      }
+      this.desc = desc;
+      this.invalidate();
+      return;
+    }
     this.clear();
     this.recolour();
     this.desc = desc;
     this.extent = sceneExtent(desc);
     this.heavy = desc.parts.length > HIDE_SMALL_ABOVE_PARTS;
+    this.builds++;
     const built = this.realise(desc.parts, desc);
-    for (const child of [...built.root.children]) this.root.add(child);
+    for (const child of [...built.root.children]) {
+      this.root.add(child);
+      if (child instanceof Mesh && child.userData.ownMaterial) this.tints.set(child.name, child);
+    }
     this.lookup = built.lookup;
     this.placed = built.placed;
     this.smallGroups = built.small;
@@ -600,7 +660,7 @@ export class SceneView {
       this.invalidate();
     }
     if (!sourceId || !this.desc) return;
-    const parts = this.desc.parts.filter((p) => p.userData.id === sourceId && p.kind !== 'cone' && p.kind !== 'floor' && p.kind !== 'tint' && (p.shape === 'box' || p.shape === 'cylinder' || p.shape === 'prism' || p.shape === 'sprite')).slice(0, MAX_OUTLINE_PARTS);
+    const parts = this.desc.parts.filter((p) => p.userData.id === sourceId && p.kind !== 'cone' && p.kind !== 'floor' && p.kind !== 'tint' && p.kind !== 'chip' && (p.shape === 'box' || p.shape === 'cylinder' || p.shape === 'prism' || p.shape === 'sprite')).slice(0, MAX_OUTLINE_PARTS);
     if (!parts.length) return;
     const group = new Group();
     const elevation = new Map(this.desc.levels.map((l) => [l.id, l.elevation_m]));
@@ -813,6 +873,11 @@ export class SceneView {
     return [...this.cutNow].sort();
   }
 
+  /** How many times the parts were realised since the view was made (tests: a fade step adds none). */
+  get buildCount(): number {
+    return this.builds;
+  }
+
   // ---- picking
 
   private pick(clientX: number, clientY: number): SceneHit | null {
@@ -904,6 +969,7 @@ export class SceneView {
     }
     this.updateCutaway();
     this.renderer.render(this.scene, this.active);
+    this.opts.onDraw?.();
     this.frames++;
     const now = performance.now();
     if (!this.windowStart) this.windowStart = now;

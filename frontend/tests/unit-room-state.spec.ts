@@ -1,9 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { demoRooms } from '../src/fixtures/demo';
 import { demoSceneInput } from '../src/fixtures/demo-3d';
-import { LIT_TINT_OPACITY, MARKER_T_M, PRESENCE_TINT_OPACITY, buildScene, type SceneZone } from '../src/map/scene-builder';
+import { LIT_TINT_OPACITY, MARKER_T_M, PRESENCE_RING_OPACITY, PRESENCE_RING_W_M, PRESENCE_TINT_OPACITY, buildScene, insetRing, r4, type SceneZone } from '../src/map/scene-builder';
 import { clampThumb, cutawayIds } from '../src/map/scene-frame';
-import { OPENING_NEAR, PRESENCE_STEPS, isLightEntity, isOpeningEntity, isPresenceEntity, parsePresenceFade, presenceFade, presenceStepMs, roomStates, temperatureText, type RoomStateInput, type StateEntity } from '../src/map/room-state';
+import { OPENING_NEAR, OPENING_NEAR_M, PRESENCE_STEPS, isLightEntity, isOpeningEntity, isPresenceEntity, layerSignature, parsePresenceFade, presenceFade, presenceStepMs, roomStates, temperatureText, type RoomStateInput, type StateEntity } from '../src/map/room-state';
 import { PROBE_FALLBACK_MS, PROBE_MS, SETTINGS_WAIT_MS, withTimeout } from '../src/map/timing';
 
 // CR-006 slice 1b: the room state model is pure - the same rooms, entities, openings and instant give the same layer -
@@ -88,6 +88,34 @@ test('openings: a bound sensor opens its opening; an unbound one claims the near
   expect(roomStates(base({ entities: [ent('binary_sensor.north', 0.3, 0.105, { device_class: 'opening', state: 'on', level_id: 'L1' })] })).openOpenings).toEqual([]);
 });
 
+test('an unbound window sensor next to a neighbouring door with its own closed sensor never opens the door; the reach is 0.75 m once calibrated', () => {
+  // a door at (0.5, 0.3) with a bound sensor reporting closed, a window at (0.5, 0.318) without one; the window's sensor
+  // sits 0.005 from the door and 0.013 from its window
+  const openings: RoomStateInput['openings'] = [
+    { id: 'door', kind: 'door', x: 0.5, y: 0.3, level_id: null, entity_id: 'binary_sensor.door' },
+    { id: 'window', kind: 'window', x: 0.5, y: 0.318, level_id: null, entity_id: null },
+  ];
+  const sensors = [ent('binary_sensor.door', 0.5, 0.3, { device_class: 'door', state: 'off' }), ent('binary_sensor.win', 0.5, 0.305, { device_class: 'window', state: 'on' })];
+  // uncalibrated: 2 % of the width reaches the window (0.013) - the door, bound to its own sensor, is never claimed
+  expect(roomStates(base({ openings, entities: sensors, size: [1000, 1000] })).openOpenings).toEqual(['window']);
+  // calibrated at 1 cm / px on a 1,000 px plan (10 m wide): 0.75 m = 0.075 of the width reaches the window too
+  expect(roomStates(base({ openings, entities: sensors, size: [1000, 1000], scaleMPerPx: 0.01 })).openOpenings).toEqual(['window']);
+  // calibrated at 10 cm / px (a 100 m site plan): 0.75 m is 0.0075 of the width - the window 1.3 m away is out of reach
+  expect(roomStates(base({ openings, entities: sensors, size: [1000, 1000], scaleMPerPx: 0.1 })).openOpenings).toEqual([]);
+  expect(OPENING_NEAR_M / (0.1 * 1000)).toBeLessThan(OPENING_NEAR);
+  // the door's own sensor still opens it
+  expect(roomStates(base({ openings, entities: [ent('binary_sensor.door', 0.9, 0.9, { device_class: 'door', state: 'on' })] })).openOpenings).toEqual(['door']);
+});
+
+test('the layer signature carries every drawn value and never the presence age', () => {
+  const at = (msAgo: number) => roomStates(base({ entities: [ent('binary_sensor.motion_a', 0.2, 0.2, { device_class: 'motion', state: 'off', last_changed: iso(msAgo) })] }));
+  expect(at(1_000).rooms.a.presenceAge).not.toBe(at(5_000).rooms.a.presenceAge);
+  expect(layerSignature(at(1_000))).toBe(layerSignature(at(5_000))); // the same fade step
+  expect(layerSignature(at(1_000))).not.toBe(layerSignature(at(40_000))); // another step
+  expect(layerSignature(at(1_000))).not.toBe(layerSignature(roomStates(base({ entities: [ent('light.a', 0.3, 0.3, { state: 'on' })] }))));
+  expect(layerSignature(null)).toBe('');
+});
+
 test('temperature: the climate current_temperature wins over a temperature sensor, the lowest id among equals; lock and alarm states are carried', () => {
   const both = roomStates(base({ entities: [ent('sensor.t_a', 0.2, 0.2, { device_class: 'temperature', state: '19.4' }), ent('climate.a', 0.3, 0.3, { state: 'heat', attributes: { current_temperature: 21.54 } })] }));
   expect(both.rooms.a).toMatchObject({ temperature: 21.5, temperatureSource: 'climate.a' });
@@ -143,6 +171,11 @@ test('the scene builder: a lit room adds its warm prism, presence its blue prism
   });
   expect(layer.rooms.z0.lit).toBe(true);
   expect(layer.rooms.z1.presenceFade).toBe(0.5);
+  // the inset ring: a keyhole polygon of the outline and its inset, one band wide
+  const ring = insetRing([[0, 0], [4, 0], [4, 3], [0, 3]], 0.5);
+  expect(ring).toEqual([[0, 0], [4, 0], [4, 3], [0, 3], [0, 0], [0.5, 0.5], [0.5, 2.5], [3.5, 2.5], [3.5, 0.5], [0.5, 0.5]]);
+  expect(insetRing([[0, 0], [4, 0], [4, 3], [0, 3]].reverse() as [number, number][], 0.5).map((p) => p.join())).toContain('3.5,2.5'); // the other winding insets inward too
+  expect(insetRing([[0, 0], [1, 1]], 0.5)).toEqual([]);
   expect(layer.openOpenings).toEqual(['do0']);
   const plain = buildScene({ ...input, zones });
   const withStates = buildScene({ ...input, zones, roomStates: layer });
@@ -150,9 +183,16 @@ test('the scene builder: a lit room adds its warm prism, presence its blue prism
   expect(part('room:z0#lit')).toMatchObject({ kind: 'tint', shape: 'prism', color: 'map-lit', opacity: LIT_TINT_OPACITY, level_id: 'L0', userData: { id: 'z0', kind: 'zone' } });
   expect(part('room:z0#lit')!.polygon).toEqual(part('room:z0')!.polygon);
   expect(part('room:z1#lit')).toBeUndefined();
-  expect(part('room:z1#presence')).toMatchObject({ kind: 'tint', color: 'map-presence', opacity: PRESENCE_TINT_OPACITY * 0.5 });
+  expect(part('room:z1#presence')).toMatchObject({ kind: 'tint', color: 'map-presence', opacity: PRESENCE_TINT_OPACITY * 0.5 }); // not lit: the full plate
+  expect(part('room:z1#presence-ring')).toMatchObject({ kind: 'tint', color: 'map-presence', opacity: PRESENCE_RING_OPACITY * 0.5 });
+  expect(part('room:z1#presence-ring')!.polygon).toEqual(insetRing(part('room:z1')!.polygon!, PRESENCE_RING_W_M).map(([x, z]) => [r4(x), r4(z)])); // the builder's 0.1 mm rounding
   expect(part('room:z0#presence')).toBeUndefined();
-  expect(part('room:z0#temp')).toMatchObject({ kind: 'label', shape: 'sprite', text: '21.5°', color: 'map-temp' });
+  expect(part('room:z0#temp')).toMatchObject({ kind: 'chip', shape: 'sprite', text: '21.5°', color: 'map-temp' });
+  // a lit room with presence: the warm plate and the ring, never the blue plate
+  const both = buildScene({ ...input, zones, roomStates: { ...layer, rooms: { ...layer.rooms, z1: { ...layer.rooms.z1, lit: true } } } });
+  expect(both.parts.some((p) => p.id === 'room:z1#lit')).toBe(true);
+  expect(both.parts.some((p) => p.id === 'room:z1#presence-ring')).toBe(true);
+  expect(both.parts.some((p) => p.id === 'room:z1#presence')).toBe(false);
   expect(part('room:z1#temp')).toBeUndefined();
   const frame = withStates.parts.filter((p) => p.id.startsWith('open:do0#'));
   expect(frame.map((p) => p.id)).toEqual(['open:do0#head', 'open:do0#j0', 'open:do0#j1']); // a door: no sill bar

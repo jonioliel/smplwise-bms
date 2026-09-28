@@ -17,7 +17,7 @@ import type { MeshPart } from '../api/plan-catalog';
 import { temperatureText, type RoomStateLayer } from './room-state';
 
 export type { MeshPart };
-export type PartKind = 'floor' | 'room' | 'tint' | 'marker' | 'label' | 'wall' | 'lintel' | 'sill' | 'head' | 'door' | 'window' | 'object' | 'connector' | 'camera' | 'cone' | 'entity' | 'glow';
+export type PartKind = 'floor' | 'room' | 'tint' | 'marker' | 'chip' | 'label' | 'wall' | 'lintel' | 'sill' | 'head' | 'door' | 'window' | 'object' | 'connector' | 'camera' | 'cone' | 'entity' | 'glow';
 export type PartShape = 'box' | 'cylinder' | 'prism' | 'sprite' | 'light';
 export type Vec3 = [number, number, number];
 
@@ -142,11 +142,15 @@ export const STATE_HE: Record<string, string> = { on: 'דולק', off: 'כבוי
 const FLOOR_PLATE_M = 0.05;
 const ROOM_TINT_M = 0.01;
 const LABEL_HEIGHT_M = 0.1;
-/** The state tints (CR-006 1b): a lit room's warm plate and the presence plate above it, thin prisms over the room. */
-export const LIT_TINT_OPACITY = 0.42;
-export const PRESENCE_TINT_OPACITY = 0.36; // lighter than the lit plate under it, so a lit room with presence still reads warm through the blue
+/** The state tints (CR-006 1b): a lit room's warm plate alone; presence as a blue edge ring inside the room's outline
+ * (weighted by the fade), and the full blue plate only when the room is not lit - so the warm light is never lost. */
+export const LIT_TINT_OPACITY = 0.45;
+export const PRESENCE_TINT_OPACITY = 0.36;
+export const PRESENCE_RING_OPACITY = 0.75;
+export const PRESENCE_RING_W_M = 0.18;
 const LIT_TINT_Y_M = 0.014;
 const PRESENCE_TINT_Y_M = 0.02;
+const PRESENCE_RING_Y_M = 0.026;
 /** The open-opening frame: two jambs and a head bar (a sill bar too on a window) in the danger token, a little wider
  * than the wall so it reads from every side. */
 export const MARKER_T_M = 0.06;
@@ -186,6 +190,36 @@ function leafYaw(dx: number, dz: number): number {
 function turned(x: number, z: number, yawDeg: number): [number, number] {
   const t = rad(yawDeg);
   return [x * Math.cos(t) + z * Math.sin(t), -x * Math.sin(t) + z * Math.cos(t)];
+}
+
+/** The ring polygon of a band `w` inside a closed outline: the outline, then the inset outline the other way round,
+ * joined at the first vertex (a keyhole: one simple polygon the prism triangulates). The inset moves every vertex
+ * along the inward miter of its two edges, capped at 2.5 w on sharp corners. Deterministic; [] for a degenerate ring. */
+export function insetRing(poly: [number, number][], w: number): [number, number][] {
+  const n = poly.length;
+  if (n < 3 || !(w > 0)) return [];
+  let area = 0;
+  for (let i = 0; i < n; i++) area += poly[i][0] * poly[(i + 1) % n][1] - poly[(i + 1) % n][0] * poly[i][1];
+  if (Math.abs(area) < 1e-9) return [];
+  const sign = area > 0 ? 1 : -1;
+  const normal = (a: [number, number], b: [number, number]): [number, number] => {
+    const dx = b[0] - a[0];
+    const dz = b[1] - a[1];
+    const l = Math.hypot(dx, dz) || 1;
+    return [(-dz / l) * sign, (dx / l) * sign];
+  };
+  const inner: [number, number][] = [];
+  for (let i = 0; i < n; i++) {
+    const n1 = normal(poly[(i + n - 1) % n], poly[i]);
+    const n2 = normal(poly[i], poly[(i + 1) % n]);
+    const d = 1 + n1[0] * n2[0] + n1[1] * n2[1];
+    const k = d > 1e-6 ? Math.min(w / d, 2.5 * w) : 2.5 * w;
+    inner.push([poly[i][0] + (n1[0] + n2[0]) * k, poly[i][1] + (n1[1] + n2[1]) * k]);
+  }
+  const ring: [number, number][] = [...poly, poly[0], inner[0]];
+  for (let i = n - 1; i >= 1; i--) ring.push(inner[i]);
+  ring.push(inner[0]);
+  return ring;
 }
 
 /** Area-weighted centroid (the vertex mean for a degenerate ring) - the same maths as sw-plan-canvas.polygonCentroid. */
@@ -361,11 +395,17 @@ class Builder {
     const polygon = z.polygon.map((p): [number, number] => [this.m(p.x * width), this.m(p.y * height)]);
     const ud = { id: z.id, kind: 'zone' };
     if (st.lit) this.add({ id: `room:${z.id}#lit`, kind: 'tint', shape: 'prism', position: [0, lv.elevation_m + LIT_TINT_Y_M, 0], size: [0, ROOM_TINT_M, 0], rotation: [0, 0, 0], color: 'map-lit', opacity: LIT_TINT_OPACITY, group: null, level_id: lv.id, polygon, userData: ud });
-    if (st.presenceFade > 0) this.add({ id: `room:${z.id}#presence`, kind: 'tint', shape: 'prism', position: [0, lv.elevation_m + PRESENCE_TINT_Y_M, 0], size: [0, ROOM_TINT_M, 0], rotation: [0, 0, 0], color: 'map-presence', opacity: r4(PRESENCE_TINT_OPACITY * st.presenceFade), group: null, level_id: lv.id, polygon, userData: ud });
+    if (st.presenceFade > 0) {
+      // the full plate only when the room is not lit; the edge ring always (the same cue on a lit room)
+      if (!st.lit) this.add({ id: `room:${z.id}#presence`, kind: 'tint', shape: 'prism', position: [0, lv.elevation_m + PRESENCE_TINT_Y_M, 0], size: [0, ROOM_TINT_M, 0], rotation: [0, 0, 0], color: 'map-presence', opacity: r4(PRESENCE_TINT_OPACITY * st.presenceFade), group: null, level_id: lv.id, polygon, userData: ud });
+      const ring = insetRing(polygon, PRESENCE_RING_W_M);
+      if (ring.length) this.add({ id: `room:${z.id}#presence-ring`, kind: 'tint', shape: 'prism', position: [0, lv.elevation_m + PRESENCE_RING_Y_M, 0], size: [0, ROOM_TINT_M, 0], rotation: [0, 0, 0], color: 'map-presence', opacity: r4(PRESENCE_RING_OPACITY * st.presenceFade), group: null, level_id: lv.id, polygon: ring, userData: ud });
+    }
     if (st.temperature !== null) {
+      // a chip: drawn by the element as a DOM label at the projected point (fixed pixel size, RTL), not by three
       const c = centroid(z.polygon);
       const text = temperatureText(st.temperature);
-      this.add({ id: `room:${z.id}#temp`, kind: 'label', shape: 'sprite', position: [this.m(c.x * width), lv.elevation_m + TEMP_CHIP_Y_M, this.m(c.y * height) + (z.name ? TEMP_CHIP_OFFSET_M : 0)], size: [Math.max(0.9, 0.22 * text.length), 0.36, 0], rotation: [0, 0, 0],
+      this.add({ id: `room:${z.id}#temp`, kind: 'chip', shape: 'sprite', position: [this.m(c.x * width), lv.elevation_m + TEMP_CHIP_Y_M, this.m(c.y * height) + (z.name ? TEMP_CHIP_OFFSET_M : 0)], size: [Math.max(0.9, 0.22 * text.length), 0.36, 0], rotation: [0, 0, 0],
         color: 'map-temp', opacity: 1, group: null, level_id: lv.id, text, userData: ud });
     }
   }

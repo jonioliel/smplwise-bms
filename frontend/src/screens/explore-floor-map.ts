@@ -32,7 +32,7 @@ import { ACTION_ERROR_LABEL, ACTION_STATUS_LABEL, awaitAction, domainLabel, enti
 import { geometryFor } from '../api/geometry';
 import { buildPrimitives, circuitToken, type AnchorPosition, type CatalogLookup, type GeometryDoc } from '../map/geometry';
 import { defaultLevelId } from '../map/studio-ops';
-import { DEFAULT_PRESENCE_FADE_MIN, parsePresenceFade, presenceStepMs, roomStates, type PresenceFade, type RoomStateLayer, type StateEntity, type StateOpening } from '../map/room-state';
+import { DEFAULT_PRESENCE_FADE_MIN, layerSignature, parsePresenceFade, presenceStepMs, roomStates, type PresenceFade, type RoomStateLayer, type StateEntity, type StateOpening } from '../map/room-state';
 import { loadLibrary, lookup3dOf, lookupOf } from '../api/plan-catalog';
 import { buildScene, type Catalog3DLookup, type SceneAnchor, type SceneDescription, type SceneInput } from '../map/scene-builder';
 import type { ScenePreset } from '../map/scene-three'; // type only: the three chunk stays out of the entry bundle
@@ -148,7 +148,7 @@ export class ExploreFloorMap extends LitElement {
   private fadeTimer = 0;
   /** What the state layer reads from the structure (the openings' gap midpoints, the lamp objects), per document. */
   private stateFacts: { geometry: GeometryDoc; w: number; h: number; openings: StateOpening[]; lamps: { x: number; y: number; level_id: string; circuit: string | null; entity: string | null }[] } | null = null;
-  private roomStateMemo: { key: string; layer: RoomStateLayer | null } | null = null;
+  private roomStateMemo: { bundle: MapBundle; geometry: GeometryDoc | null; layers: Set<Layer>; now: number; fade: PresenceFade; stale: boolean; layer: RoomStateLayer | null } | null = null;
   @state() private pinned = false;
   @state() private panel = false;
   /** Multi-camera selection (T043): anchor ids of the picked cameras while the mode is on. */
@@ -1110,10 +1110,20 @@ export class ExploreFloorMap extends LitElement {
   /** The room state layer of the shown floor for `stateNow` (room-state.ts): the entities of the anchors, the lamp
    * objects and the openings of the structure, the zones as rooms. null when the toggle is off, on a stale screen or
    * without the sync (the pins are dimmed then too), in demo mode, and when the floor has neither zones nor openings.
-   * Memoised on what it reads: a render that changed nothing hands the canvas and the scene the same object. */
+   * Memoised by identity on what it reads (the bundle - replaced by every push -, the document, the layer set, the
+   * instant, the fade, the stale flag): the getter is asked several times per render and computes once. */
   private get roomStateLayer(): RoomStateLayer | null {
     const b = this.bundle;
-    if (!b || b.source !== 'api' || !this.layers.has('states') || this.states3dStale) return null;
+    if (!b || b.source !== 'api' || !this.layers.has('states')) return null;
+    const stale = this.states3dStale;
+    const m = this.roomStateMemo;
+    if (m && m.bundle === b && m.geometry === this.geometry && m.layers === this.layers && m.now === this.stateNow && m.fade === this.presenceFade && m.stale === stale) return m.layer;
+    const layer = stale ? null : this.deriveRoomStates(b);
+    this.roomStateMemo = { bundle: b, geometry: this.geometry, layers: this.layers, now: this.stateNow, fade: this.presenceFade, stale, layer };
+    return layer;
+  }
+
+  private deriveRoomStates(b: MapBundle): RoomStateLayer | null {
     const facts = this.stateFactsFor(b);
     if (!b.zones.length && !facts?.openings.length) return null;
     const circuits = this.circuitStates3d;
@@ -1126,12 +1136,8 @@ export class ExploreFloorMap extends LitElement {
     }
     const lamps = (facts?.lamps ?? []).map((l) => ({ x: l.x, y: l.y, level_id: l.level_id, on: (l.circuit !== null && circuits[l.circuit] === 'on') || (l.entity !== null && states[l.entity] === 'on') }));
     const rooms = b.zones.map((z) => ({ id: z.id, polygon: z.polygon, level_id: z.level_id ?? null }));
-    const key = JSON.stringify([entities, lamps, rooms.map((r) => [r.id, r.level_id, r.polygon]), facts?.openings ?? [], this.stateNow, this.presenceFade, b.width, b.height]);
-    if (this.roomStateMemo?.key === key) return this.roomStateMemo.layer;
     const fallback = this.geometry ? defaultLevelId(this.geometry) : (b.levels.find((l) => l.is_default)?.id ?? 'L0');
-    const layer = roomStates({ rooms, entities, openings: facts?.openings ?? [], lamps, size: [b.width, b.height], now: this.stateNow, fade: this.presenceFade, levelOf: (id) => id ?? fallback });
-    this.roomStateMemo = { key, layer };
-    return layer;
+    return roomStates({ rooms, entities, openings: facts?.openings ?? [], lamps, size: [b.width, b.height], scaleMPerPx: b.scaleMPerPx, now: this.stateNow, fade: this.presenceFade, levelOf: (id) => id ?? fallback });
   }
 
   /** While a presence tint is fading, step `stateNow` at the fade's cadence so the tint steps down (and stops when it
@@ -1204,7 +1210,7 @@ export class ExploreFloorMap extends LitElement {
   private sceneStatesKey(b: MapBundle, layer: RoomStateLayer | null): string {
     if (b.source === 'demo') return '';
     const cams = b.anchors.filter((a) => a.resource_type === 'camera').map((a) => `${a.id}:${a.camera?.status ?? ''}`).join(',');
-    return JSON.stringify([this.entityStates3d, this.circuitStates3d, cams, this.syncConnected, layer]);
+    return JSON.stringify([this.entityStates3d, this.circuitStates3d, cams, this.syncConnected, layerSignature(layer)]); // the signature: never presenceAge (it ticks per second)
   }
 
   /** The floor has something to show in 3D - a cheap test for the toggle; the scene itself is built only in 3D. */

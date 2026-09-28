@@ -2,6 +2,7 @@ import { test, expect, type Locator, type Page } from '@playwright/test';
 import { demoRooms } from '../src/fixtures/demo';
 import { demoSceneInput } from '../src/fixtures/demo-3d';
 import { buildScene, type SceneDescription, type SceneZone } from '../src/map/scene-builder';
+import { tintOnlyChange } from '../src/map/scene-three';
 import { roomStates, type RoomStateLayer, type StateEntity } from '../src/map/room-state';
 
 // CR-006 slice 1b, the 3D element in headless Chromium on the style guide's demo floor with descriptions built here
@@ -12,7 +13,7 @@ import { roomStates, type RoomStateLayer, type StateEntity } from '../src/map/ro
 // pass outside render() and a failed one is not cached, a narrow canvas frames the thumbnail on the clamped size.
 const NOW = Date.parse('2026-09-28T12:00:00Z');
 type Probe = {
-  view: { scene: { traverse: (f: (o: Record<string, unknown>) => void) => void }; renderThumbnail: (d: SceneDescription, id: string, w?: number, h?: number) => string | null; getQuality: () => number };
+  view: { scene: { traverse: (f: (o: Record<string, unknown>) => void) => void }; renderThumbnail: (d: SceneDescription, id: string, w?: number, h?: number) => string | null; getQuality: () => number; buildCount: number };
   description: SceneDescription;
   minFps: number;
   levels: unknown[];
@@ -39,6 +40,8 @@ const live: RoomStateLayer = roomStates({
 const quiet: RoomStateLayer = roomStates({ rooms: zones.map((z) => ({ id: z.id, polygon: z.polygon, level_id: 'L0' })), entities: [ent('light.z0', c(0).x, c(0).y, { state: 'off' })], openings: [], size: [input.width, input.height], now: NOW, fade: 3 });
 const withStates = buildScene({ ...input, zones, roomStates: live });
 const without = buildScene({ ...input, zones, roomStates: quiet });
+/** The live layer one fade step later (room 1's tint a step lighter, everything else the same). */
+const stepped = buildScene({ ...input, zones, roomStates: { ...live, rooms: { ...live.rooms, z1: { ...live.rooms.z1, presenceFade: 5 / 12 } } } });
 
 async function openDemo(page: Page): Promise<Locator> {
   await page.goto('/#/styleguide');
@@ -76,33 +79,76 @@ test('the state layer in 3D: lit and presence prisms in the state tokens, the op
     expect(lit!.type).toBe('Mesh');
     expect(lit!.color).toBe(await token(el, 'map-lit'));
     expect(lit!.transparent).toBe(true);
-    expect(lit!.opacity).toBeCloseTo(0.42, 5);
+    expect(lit!.opacity).toBeCloseTo(0.45, 5);
     const presence = mats.find((m) => m.name === 'room:z1#presence');
-    expect(presence, `level ${q}: the presence prism`).toBeTruthy();
+    expect(presence, `level ${q}: the presence prism (the room is not lit)`).toBeTruthy();
     expect(presence!.color).toBe(await token(el, 'map-presence'));
     expect(presence!.opacity).toBeCloseTo(0.18, 5); // half the fade of the 0.36 tint
+    const ring = mats.find((m) => m.name === 'room:z1#presence-ring');
+    expect(ring, `level ${q}: the presence ring`).toBeTruthy();
+    expect(ring!.opacity).toBeCloseTo(0.375, 5); // half the fade of the 0.75 ring
     expect(mats.some((m) => m.name === 'room:z1#lit' || m.name === 'room:z0#presence')).toBe(false);
     const frame = mats.find((m) => m.name === 'box|danger|1');
     expect(frame, `level ${q}: the frame's instance group`).toBeTruthy();
     expect(frame!.instanced).toBe(true); // (an InstancedMesh reports type 'Mesh')
     expect(frame!.count).toBe(3); // jamb, jamb, head
     expect(frame!.color).toBe(await token(el, 'danger'));
-    const chip = mats.find((m) => m.name === 'room:z0#temp');
-    expect(chip?.type).toBe('Sprite');
-    expect(mats.some((m) => m.name === 'room:z1#temp')).toBe(false);
+    // the temperature chip is DOM at the projected point, not a sprite in the scene
+    expect(mats.some((m) => m.name === 'room:z0#temp')).toBe(false);
+    const chip = el.locator('[data-3d-chip="z0"]');
+    await expect(chip).toHaveText('21.5°');
+    await expect(chip).toBeVisible();
+    const at = await el.evaluate((n, id) => { const e = n as unknown as { toScreen: (p: number[]) => { x: number; y: number } | null; description: SceneDescription }; const p = e.description.parts.find((x) => x.id === id)!; return e.toScreen(p.position); }, 'room:z0#temp');
+    const box = (await chip.boundingBox())!;
+    const host = (await el.boundingBox())!;
+    expect(Math.abs(box.x + box.width / 2 - host.x - at!.x)).toBeLessThan(3);
+    expect(Math.abs(box.y + box.height / 2 - host.y - at!.y)).toBeLessThan(3);
+    await expect(el.locator('[data-3d-chip="z1"]')).toHaveCount(0);
     // the quiet scene: no tint, no frame, no chip - the rooms themselves stay
     await setDescription(el, without);
     await expect(el).toHaveAttribute('data-parts', String(without.parts.length));
     const off = await materials(el);
-    expect(off.some((m) => m.name.endsWith('#lit') || m.name.endsWith('#presence') || m.name.endsWith('#temp') || m.name === 'box|danger|1')).toBe(false);
+    expect(off.some((m) => m.name.endsWith('#lit') || m.name.endsWith('#presence') || m.name.endsWith('#presence-ring') || m.name.endsWith('#temp') || m.name === 'box|danger|1')).toBe(false);
     expect(off.some((m) => m.name === 'room:z0')).toBe(true);
+    await expect(el.locator('[data-3d-chip]')).toHaveCount(0);
   }
+  // a fade step: the graph is not rebuilt (the instance groups keep their identity, the build count stays), the
+  // tint materials take the new opacity in place
+  expect(tintOnlyChange(withStates, stepped)).toBe(true);
+  expect(tintOnlyChange(withStates, without)).toBe(false);
+  expect(tintOnlyChange(withStates, withStates)).toBe(false);
+  await setDescription(el, withStates);
+  const marked = await el.evaluate((n) => {
+    const e = n as unknown as Probe;
+    let k = 0;
+    e.view.scene.traverse((o) => { if (o.isInstancedMesh) { (o as { __mark?: number }).__mark = ++k; } });
+    return { builds: e.view.buildCount, groups: k };
+  });
+  expect(marked.groups).toBeGreaterThan(2);
+  await setDescription(el, stepped);
+  await expect(el).toHaveAttribute('data-parts', String(stepped.parts.length));
+  const after = await el.evaluate((n) => {
+    const e = n as unknown as Probe;
+    const marks: number[] = [];
+    e.view.scene.traverse((o) => { if (o.isInstancedMesh) marks.push((o as { __mark?: number }).__mark ?? 0); });
+    return { builds: e.view.buildCount, marks: marks.sort((a, b) => a - b) };
+  });
+  expect(after.builds).toBe(marked.builds); // a cache hit: no realisation
+  expect(after.marks).toEqual(Array.from({ length: marked.groups }, (_, i) => i + 1)); // the same InstancedMesh objects
+  const steppedMats = await materials(el);
+  expect(steppedMats.find((m) => m.name === 'room:z1#presence')!.opacity).toBeCloseTo(0.36 * 5 / 12, 4);
+  expect(steppedMats.find((m) => m.name === 'room:z1#presence-ring')!.opacity).toBeCloseTo(0.75 * 5 / 12, 4);
+  expect(steppedMats.find((m) => m.name === 'room:z0#lit')!.opacity).toBeCloseTo(0.45, 5);
+  // a real change (the quiet scene) rebuilds
+  await setDescription(el, without);
+  await expect(el).toHaveAttribute('data-parts', String(without.parts.length));
+  expect(await el.evaluate((n) => (n as unknown as Probe).view.buildCount)).toBe(marked.builds + 1);
   // a tint is not pickable: the outline of the selected zone is the room's box only (no outline of the tint)
   await setDescription(el, withStates);
   await el.evaluate((n) => { (n as unknown as { selectedId: string | null }).selectedId = 'z0'; });
   await expect(el).toHaveAttribute('data-selected', 'z0');
   const lines = (await materials(el)).filter((m) => m.type === 'LineSegments');
-  expect(lines.length).toBe(3); // the room prism, its name and its temperature chip - not the lit prism (4 would be)
+  expect(lines.length).toBe(2); // the room prism and its name - not the lit prism, not the DOM chip
 });
 
 test('the strip dots: presence (with the fade), open and lit over the cached thumbnail, no thumbnail redrawn; thumbnails come from a pass outside render, a failed one is never cached', async ({ page }) => {

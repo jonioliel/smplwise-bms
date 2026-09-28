@@ -3,7 +3,7 @@ import { customElement, property, query, state } from 'lit/decorators.js';
 import '../components/sw-button';
 import '../components/sw-chip';
 import { SceneView, type QualityLevel, type SceneHit, type ScenePreset } from './scene-three';
-import { keepIsos, type SceneDescription, type Vec3 } from './scene-builder';
+import { keepIsos, type SceneDescription, type ScenePart, type Vec3 } from './scene-builder';
 import { WEBGL_UNAVAILABLE_HE } from './webgl';
 import { productSettings } from '../api/prefs';
 import type { LevelDots } from './room-state';
@@ -97,6 +97,9 @@ export class SwPlan3d extends LitElement {
   /** Render every frame instead of on demand - only for measuring the frame rate (the live spec, Task 10). */
   @property({ type: Boolean, reflect: true, attribute: 'data-measure' }) continuous = false;
   @state() private hover: PartHoverDetail | null = null;
+  /** The chip parts of the description (temperature chips): DOM labels laid out on the projected points after every
+   * drawn frame - readable at any zoom, RTL, in the theme's tokens (three draws no sprite for them). */
+  @state() private chips: ScenePart[] = [];
   @state() private ready = false;
   @state() private exporting = false;
   /** WebGL could not start: the whole stage says so. */
@@ -262,6 +265,29 @@ export class SwPlan3d extends LitElement {
     .strip button .dots i[data-dot='lit'] {
       background: var(--sw-map-lit);
     }
+    .chips {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+    .chip {
+      position: absolute;
+      left: 0;
+      top: 0;
+      transform: translate(-50%, -50%);
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-pill);
+      padding: 1px 7px;
+      font-size: var(--sw-fs-xs);
+      font-weight: 600;
+      color: var(--sw-map-temp);
+      box-shadow: var(--sw-shadow-1);
+      direction: rtl;
+      white-space: nowrap;
+      display: none;
+    }
     .tip {
       position: absolute;
       z-index: var(--sw-z-map-ui);
@@ -409,6 +435,7 @@ export class SwPlan3d extends LitElement {
           this.setAttribute('data-fps', String(fps));
           this.onProbeFrame(frames);
         },
+        onDraw: () => this.layoutChips(),
         quality: this.quality,
       });
     } catch (err) {
@@ -439,12 +466,32 @@ export class SwPlan3d extends LitElement {
     // started (the probe restores the property's value when it ends)
     if (changed.has('continuous') && !this.probe) this.view.setContinuous(this.continuous);
     this.applyQuality(); // the choice, the installation default or a fallback changed: a no-op when the view already draws the level
+    this.layoutChips(); // the chip elements may be new (a state push): place them at once
+  }
+
+  /** Place every chip element at its part's projected point (hidden behind the camera). Imperative: it runs per drawn
+   * frame while the camera moves, without a Lit render. */
+  private layoutChips(): void {
+    const view = this.view;
+    if (!view || !this.chips.length) return;
+    const els = this.renderRoot.querySelectorAll<HTMLElement>('[data-3d-chip]');
+    els.forEach((el, i) => {
+      const p = this.chips[i];
+      const at = p ? view.projectPoint(p.position) : null;
+      if (!at) {
+        el.style.display = 'none';
+        return;
+      }
+      el.style.display = 'block';
+      el.style.transform = `translate(${Math.round(at.x)}px, ${Math.round(at.y)}px) translate(-50%, -50%)`;
+    });
   }
 
   private apply(desc: SceneDescription): void {
     if (desc === this.applied) return;
     this.applied = desc;
     this.view?.setDescription(desc);
+    this.chips = desc.parts.filter((p) => p.kind === 'chip');
     this.setAttribute('data-parts', String(desc.parts.length));
     this.toggleAttribute('data-estimated', desc.estimated);
     if (!this.presetApplied) {
@@ -692,6 +739,7 @@ export class SwPlan3d extends LitElement {
       <div class="stage"></div>
       ${!this.ready && !this.error ? html`<div class="spinner" data-3d-spinner>טוען תלת-ממד…</div>` : nothing}
       ${this.error ? html`<div class="spinner err" data-3d-error>${this.error}</div>` : nothing}
+      ${this.chips.length ? html`<div class="chips" aria-hidden="true">${this.chips.map((p) => html`<span class="chip" data-3d-chip=${p.userData.id} data-3d-chip-part=${p.id}>${p.text ?? ''}</span>`)}</div>` : nothing}
       ${this.renderStrip()}
       <div class="bar" role="group" aria-label="תצוגות מוכנות" data-3d-bar>
         <sw-chip data-preset-top ?selected=${preset === 'top'} @click=${() => this.pickPreset('top')}>מלמעלה</sw-chip>

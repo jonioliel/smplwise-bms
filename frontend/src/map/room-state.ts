@@ -91,6 +91,8 @@ export interface RoomStateInput {
   lamps?: StateLamp[];
   /** The plan size in pixels (the aspect makes the tolerances isotropic). */
   size: [number, number];
+  /** Metres per plan pixel once the plan is calibrated (null / absent = uncalibrated: the reach is a plan fraction). */
+  scaleMPerPx?: number | null;
   /** Milliseconds since the epoch. */
   now: number;
   fade: PresenceFade;
@@ -104,8 +106,10 @@ export const PRESENCE_STEPS = 12;
 export const DEFAULT_PRESENCE_FADE_MIN = 3;
 /** An opening's gap midpoint this close to a room's boundary (plan-width units) belongs to the room. */
 export const OPENING_ON_ROOM = 0.012;
-/** A door / window sensor not bound to an opening claims the nearest opening within this distance (plan-width units). */
+/** A door / window sensor not bound to an opening claims the nearest unbound opening within this distance: a plan
+ * fraction (of the width) while the plan is uncalibrated, OPENING_NEAR_M once it is (2 % of a 100 m site plan is 2 m). */
 export const OPENING_NEAR = 0.02;
+export const OPENING_NEAR_M = 0.75;
 const PRESENCE_CLASSES: ReadonlySet<string> = new Set(['motion', 'occupancy', 'presence', 'moving']);
 const OPENING_CLASSES: ReadonlySet<string> = new Set(['door', 'window', 'opening', 'garage_door', 'gate']);
 const PRESENCE_WORDS = /motion|presence|occupancy|pir/;
@@ -181,8 +185,10 @@ export function roomStates(input: RoomStateInput): RoomStateLayer {
   const openings = [...input.openings].sort((a, b) => byId(a.id, b.id));
   const byEntity = new Map<string, StateOpening>();
   for (const o of openings) if (o.entity_id && !byEntity.has(o.entity_id)) byEntity.set(o.entity_id, o);
+  const reach = input.scaleMPerPx && input.scaleMPerPx > 0 && input.size[0] > 0 ? OPENING_NEAR_M / (input.scaleMPerPx * input.size[0]) : OPENING_NEAR;
 
-  // the open openings: a bound opening follows its entity; an unbound sensor claims the nearest opening on its level
+  // the open openings: a bound opening follows its own entity only; an unbound sensor claims the nearest opening
+  // without an entity of its own on its level (a neighbouring door with a bound closed sensor is never claimed)
   const open = new Set<string>();
   for (const e of entities) {
     if (!isOpeningEntity(e) || !isOpenState(e.state)) continue;
@@ -192,9 +198,9 @@ export function roomStates(input: RoomStateInput): RoomStateLayer {
       continue;
     }
     let best: StateOpening | null = null;
-    let bestD = OPENING_NEAR;
+    let bestD = reach;
     for (const o of openings) {
-      if (levelOf(o.level_id) !== levelOf(e.level_id)) continue;
+      if (o.entity_id || levelOf(o.level_id) !== levelOf(e.level_id)) continue;
       const d = Math.hypot(o.x - e.x, (o.y - e.y) * ky);
       if (d < bestD || (d === bestD && best && byId(o.id, best.id) < 0)) {
         best = o;
@@ -252,6 +258,14 @@ export function roomStates(input: RoomStateInput): RoomStateLayer {
     d.presence = Math.max(d.presence, presenceFade(e.state, e.last_changed, input.now, input.fade));
   }
   return { rooms: out, openOpenings: [...open].sort(byId), levels };
+}
+
+/** What a scene built from the layer depends on: every drawn value (lit, the quantised fade, the open openings, the
+ * temperature, lock, alarm) - never `presenceAge`, which ticks every second and would rebuild the scene per second. */
+export function layerSignature(layer: RoomStateLayer | null): string {
+  if (!layer) return '';
+  const rooms = Object.values(layer.rooms).sort((a, b) => byId(a.id, b.id)).map((r) => [r.id, r.lit ? 1 : 0, r.presence ? 1 : 0, r.presenceFade, r.openings.join(','), r.temperature, r.lock, r.alarm]);
+  return JSON.stringify([rooms, layer.openOpenings]);
 }
 
 /** The setting value as the model wants it: "off", or minutes (an unknown value gives the default). */

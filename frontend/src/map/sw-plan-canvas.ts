@@ -545,11 +545,18 @@ export class SwPlanCanvas extends LitElement {
     }
     .zone .tint[data-room-tint='lit'] {
       fill: var(--sw-map-lit);
-      fill-opacity: 0.34;
+      fill-opacity: 0.45;
     }
+    /* the full blue fill only in a room that is not lit; the inset edge band always (the same cue on a lit room) */
     .zone .tint[data-room-tint='presence'] {
       fill: var(--sw-map-presence);
-      fill-opacity: calc(0.3 * var(--fade, 1)); /* lighter than the lit tint under it: both read together */
+      fill-opacity: calc(0.3 * var(--fade, 1));
+    }
+    .zone .tint[data-room-tint='presence-edge'] {
+      fill: none;
+      stroke: var(--sw-map-presence);
+      stroke-opacity: calc(0.85 * var(--fade, 1));
+      stroke-linejoin: round;
     }
     .zone .tchip {
       pointer-events: none;
@@ -574,6 +581,13 @@ export class SwPlanCanvas extends LitElement {
       fill: none;
       pointer-events: none;
       filter: drop-shadow(0 0 calc(3px * var(--inv, 1)) var(--sw-danger));
+    }
+    .opening .open-wedge {
+      fill: var(--sw-danger);
+      fill-opacity: 0.2;
+      stroke: var(--sw-danger);
+      stroke-opacity: 0.6;
+      pointer-events: none;
     }
     .opening .open-dot {
       fill: var(--sw-danger);
@@ -1358,9 +1372,13 @@ export class SwPlanCanvas extends LitElement {
     const chip = st.temperature !== null ? temperatureText(st.temperature) : null;
     const at = this.zoneLabelPoint(z, live, c);
     const cw = chip ? Math.max(30, chip.length * 7 + 14) : 0;
+    const fade = st.presenceFade.toFixed(3);
     return svg`
       ${st.lit ? svg`<polygon class="tint" data-room-tint="lit" data-zone-id=${z.id} points=${pts} />` : nothing}
-      ${st.presenceFade > 0 ? svg`<polygon class="tint" data-room-tint="presence" data-zone-id=${z.id} data-fade=${st.presenceFade.toFixed(3)} points=${pts} style=${`--fade:${st.presenceFade.toFixed(3)}`} />` : nothing}
+      ${st.presenceFade > 0 && !st.lit ? svg`<polygon class="tint" data-room-tint="presence" data-zone-id=${z.id} data-fade=${fade} points=${pts} style=${`--fade:${fade}`} />` : nothing}
+      ${st.presenceFade > 0
+        ? svg`<clipPath id=${`zc-${z.id}`}><polygon points=${pts} /></clipPath><polygon class="tint" data-room-tint="presence-edge" data-zone-id=${z.id} data-fade=${fade} points=${pts} clip-path=${`url(#zc-${z.id})`} stroke-width=${(7 * inv).toFixed(2)} style=${`--fade:${fade}`} />`
+        : nothing}
       ${chip
         ? svg`<g class="tchip" data-room-temp=${z.id} transform="translate(${at.x.toFixed(1)} ${(at.y + (z.name && this.zoneLabels ? 24 : 0) * inv).toFixed(1)}) scale(${inv})">
             <rect x=${-cw / 2} y="-9" width=${cw} height="18" rx="9" /><text y="3.5">${chip}</text>
@@ -1368,12 +1386,19 @@ export class SwPlanCanvas extends LitElement {
         : nothing}`;
   }
 
-  /** The red marker of an open opening (CR-006 1b): a thick rounded line along the gap with a dot at its middle. */
-  private renderOpenMark(id: string, gap: [Pt, Pt], inv: number) {
+  /** The red marker of an open opening (CR-006 1b): a thick rounded line along the gap, the door's swing wedge filled
+   * red with the dot at the leaf's tip (off the pin that sits on the gap); a window keeps the dot at its middle. */
+  private renderOpenMark(id: string, gap: [Pt, Pt], inv: number, door?: Pick<DoorPrim, 'leaves' | 'arcs'>) {
     if (!this.roomStates?.openOpenings.includes(id)) return nothing;
     const mx = (gap[0][0] + gap[1][0]) / 2;
     const my = (gap[0][1] + gap[1][1]) / 2;
-    return svg`<line class="open-mark" data-open-mark=${id} x1=${gap[0][0]} y1=${gap[0][1]} x2=${gap[1][0]} y2=${gap[1][1]} stroke-width=${4 * inv} /><circle class="open-dot" cx=${mx} cy=${my} r=${4 * inv} stroke-width=${1.5 * inv} />`;
+    const wedges = door ? door.arcs.map((a, i) => ({ a, hinge: door.leaves[i]?.[0] ?? gap[0], tip: door.leaves[i]?.[1] ?? [mx, my] })) : [];
+    return svg`
+      ${wedges.map(({ a, hinge }) => svg`<path class="open-wedge" data-open-wedge=${id} d=${`M ${hinge[0]} ${hinge[1]} L ${a.from[0]} ${a.from[1]} A ${a.r} ${a.r} 0 0 ${a.sweep} ${a.to[0]} ${a.to[1]} Z`} stroke-width=${inv} />`)}
+      <line class="open-mark" data-open-mark=${id} x1=${gap[0][0]} y1=${gap[0][1]} x2=${gap[1][0]} y2=${gap[1][1]} stroke-width=${6 * inv} />
+      ${wedges.length
+        ? wedges.map(({ tip }) => svg`<circle class="open-dot" cx=${tip[0]} cy=${tip[1]} r=${4 * inv} stroke-width=${1.5 * inv} />`)
+        : svg`<circle class="open-dot" cx=${mx} cy=${my} r=${4 * inv} stroke-width=${1.5 * inv} />`}`;
   }
 
   /** R4: the label anchor for a zone - the centroid, or just outside the polygon's bounding box on the chosen side. */
@@ -1732,7 +1757,7 @@ export class SwPlanCanvas extends LitElement {
         return svg`<g class="opening ${cls}" data-opening=${p.id} data-kind="door">
           ${p.leaves.map(([a, b]) => svg`<line class="leaf" x1=${a[0]} y1=${a[1]} x2=${b[0]} y2=${b[1]} stroke-width=${1.6 * inv} />`)}
           ${p.arcs.map((a) => svg`<path class="arc" d=${`M ${a.from[0]} ${a.from[1]} A ${a.r} ${a.r} 0 0 ${a.sweep} ${a.to[0]} ${a.to[1]}`} stroke-width=${1.1 * inv} stroke-dasharray=${`${4 * inv} ${3 * inv}`} />`)}
-          ${this.renderOpenMark(p.id, p.gap, inv)}
+          ${this.renderOpenMark(p.id, p.gap, inv, p)}
         </g>`;
       case 'window':
         return svg`<g class="opening ${cls}" data-opening=${p.id} data-kind="window">${p.lines.map(([a, b]) => svg`<line class="glass" x1=${a[0]} y1=${a[1]} x2=${b[0]} y2=${b[1]} stroke-width=${1.6 * inv} />`)}${this.renderOpenMark(p.id, p.gap, inv)}</g>`;

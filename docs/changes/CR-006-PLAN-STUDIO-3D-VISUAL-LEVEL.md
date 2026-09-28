@@ -277,6 +277,20 @@ deviations recorded:
   fade after the motion, the frame, the dots, the level switch keeping the thumbnails, the toggle, the setting),
   `test_plan_estimates_setting.py` for the setting.
 
+Review round 1 (same day) - fixed in the second commit: an unbound door / window sensor never claims an opening that
+has a bound entity of its own (a neighbouring door with a closed sensor used to turn red), and the reach is 0.75 m
+once the plan is calibrated (the 2 % rule only uncalibrated); the scene's state key carries the layer's signature
+(`layerSignature`: the drawn values, never `presenceAge`) and a presence fade step updates the tint materials in
+place (`SceneView.setDescription` detects a tint-only change - `tintOnlyChange` - and writes the opacities; each tint
+owns its material; no realisation, no shadow-map rebuild - a unit assertion holds the instance groups' identity and
+the build count); the layer memo is keyed by identity (bundle, document, layer set, instant, fade, stale flag),
+computed once per render; temperature chips are DOM (`data-3d-chip`, kind `chip` in the description, laid out on the
+projected point after every drawn frame through `onDraw`, fixed pixel size, RTL, theme tokens); lit + presence blend:
+lit = the warm plate alone (0.45), presence = a blue edge ring inside the outline (`insetRing`, 0.18 m, 0.75 × fade)
+in 3D and a clipped inset edge band (3.5 px, 0.85 × fade) in 2D, the full blue plate / fill only in a room that is not
+lit; the 2D open mark is 6 px with the door's swing wedge filled red and the dot at the leaf's tip, off the pin.
+Chunk after the round: `sw-plan-3d` 15.35 KB gzip, `three` unchanged.
+
 ## 8. Next step
 
 Owner answers §7; then 1a is dispatched from this document with the same implementer → reviewer → fix-round loop

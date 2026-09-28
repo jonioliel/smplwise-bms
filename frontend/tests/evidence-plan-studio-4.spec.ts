@@ -829,7 +829,9 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
     // 2D: the lit tint on the zone, the presence tint at full weight (the sensor is on), the chip, the open-door marker
     const lit = canvas.locator(`[data-room-tint="lit"][data-zone-id="${zone.id}"]`);
     await expect(lit).toHaveCount(1, { timeout: 30000 });
-    await expect(canvas.locator(`[data-room-tint="presence"][data-zone-id="${zone.id}"]`)).toHaveAttribute('data-fade', '1.000');
+    await expect(canvas.locator(`[data-room-tint="presence-edge"][data-zone-id="${zone.id}"]`)).toHaveAttribute('data-fade', '1.000'); // lit + present: the edge band, no blue fill
+    await expect(canvas.locator('[data-room-tint="presence"]')).toHaveCount(0);
+    await expect(canvas.locator('[data-open-wedge="dr"]')).toHaveCount(1);
     await expect(canvas.locator(`[data-room-temp="${zone.id}"] text`)).toHaveText('21.5°');
     await expect(canvas.locator('[data-structure] [data-opening="dr"] [data-open-mark="dr"]')).toHaveCount(1);
     await expect(canvas.locator('[data-open-mark]')).toHaveCount(1); // the window and the passage carry none
@@ -855,9 +857,11 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
       let d = await describe3d(page, HOST);
       const part = (id: string) => d.parts.find((p) => p.id === id);
       expect(part(`room:${zone.id}#lit`)).toMatchObject({ kind: 'tint', color: 'map-lit' });
-      expect(part(`room:${zone.id}#presence`)).toMatchObject({ kind: 'tint', color: 'map-presence' });
-      expect(part(`room:${zone.id}#presence`)!.opacity).toBeGreaterThan(0);
-      expect(part(`room:${zone.id}#temp`)).toMatchObject({ kind: 'label' });
+      expect(part(`room:${zone.id}#presence-ring`)).toMatchObject({ kind: 'tint', color: 'map-presence' }); // lit: the ring, not the plate
+      expect(part(`room:${zone.id}#presence-ring`)!.opacity).toBeGreaterThan(0);
+      expect(part(`room:${zone.id}#presence`)).toBeUndefined();
+      expect(part(`room:${zone.id}#temp`)).toMatchObject({ kind: 'chip' });
+      await expect(el.locator(`[data-3d-chip="${zone.id}"]`)).toHaveText('21.5°');
       expect(d.parts.filter((p) => p.id.startsWith('open:dr#')).map((p) => p.id)).toEqual(['open:dr#head', 'open:dr#j0', 'open:dr#j1']);
       expect(d.parts.some((p) => p.id.startsWith('open:wn#'))).toBe(false);
       const thumbs = el.locator('[data-3d-thumb]');
@@ -897,7 +901,7 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
       expect((await api.patch('api/v1/settings', { data: { 'plan.presence_fade': 'off' } })).status()).toBe(200);
       await page.reload();
       await expect(canvas.locator('[data-open-mark="dr"]')).toHaveCount(1, { timeout: 30000 });
-      await expect(canvas.locator(`[data-room-tint="presence"]`)).toHaveCount(0);
+      await expect(canvas.locator(`[data-room-tint="presence"], [data-room-tint="presence-edge"]`)).toHaveCount(0);
       expect((await host.evaluate((n) => (n as unknown as { roomStateLayer: Layer }).roomStateLayer)).rooms[zone.id].presenceFade).toBe(0);
       // the settings screen offers the choice next to the quality level
       await page.goto('/?design=a#/system/diagnostics');
