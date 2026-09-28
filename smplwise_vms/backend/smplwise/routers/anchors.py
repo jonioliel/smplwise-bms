@@ -344,46 +344,6 @@ def realign_anchors(floor_id: str, body: RealignIn, request: Request, principal:
     return {"mode": body.mode, "version_id": version["id"], "moved": len(moved), "skipped": len(skipped), "needs_alignment": bool(skipped)}
 
 
-class RealignIn(BaseModel):
-    mode: str = Field(pattern="^(crop|accept)$")
-
-
-@router.post("/floors/{floor_id}/anchors/realign")
-def realign_anchors(floor_id: str, body: RealignIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """S4: items placed on an earlier plan version. `crop` maps them through the two crops when both versions come from
-    the same asset / page / rotation (a re-crop keeps the drawing, so the maths is exact); `accept` re-stamps them on the
-    current version after the editor checked them by eye. Anything else is left for the editor."""
-    get_floor(conn, floor_id)
-    require(conn, principal, "placement.edit", ("floor", floor_id))
-    version = _editor_version(conn, floor_id) or _current_version(conn, floor_id)
-    if not version:
-        raise conflict("no_plan", "לקומה אין תוכנית.")
-    versions = {r["id"]: r for r in conn.execute("SELECT * FROM plan_versions WHERE floor_id = ?", (floor_id,)).fetchall()}
-    anchors = conn.execute("SELECT * FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL AND plan_version_id != ?", (floor_id, version["id"])).fetchall()
-    moved: list[str] = []
-    skipped: list[str] = []
-    now = now_iso()
-    nc = json.loads(version["crop_json"]) if version["crop_json"] else {"x": 0, "y": 0, "w": 1, "h": 1}
-    for a in anchors:
-        old = versions.get(a["plan_version_id"])
-        if body.mode == "crop":
-            same_drawing = old is not None and old["asset_id"] == version["asset_id"] and old["page"] == version["page"] and old["rotation"] == version["rotation"]
-            if not same_drawing:
-                skipped.append(a["id"])
-                continue
-            oc = json.loads(old["crop_json"]) if old["crop_json"] else {"x": 0, "y": 0, "w": 1, "h": 1}
-            sx, sy = oc["x"] + a["x"] * oc["w"], oc["y"] + a["y"] * oc["h"]
-            nx, ny = (sx - nc["x"]) / nc["w"], (sy - nc["y"]) / nc["h"]
-            nx, ny = round(max(0.0, min(1.0, nx)), 4), round(max(0.0, min(1.0, ny)), 4)
-            conn.execute("UPDATE map_anchors SET x = ?, y = ?, plan_version_id = ?, revision = revision + 1, updated_by = ?, updated_at = ? WHERE id = ?", (nx, ny, version["id"], principal.user_id, now, a["id"]))
-        else:
-            conn.execute("UPDATE map_anchors SET plan_version_id = ?, revision = revision + 1, updated_by = ?, updated_at = ? WHERE id = ?", (version["id"], principal.user_id, now, a["id"]))
-        moved.append(a["id"])
-    audit(conn, actor=principal, action="anchor.realign", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request),
-          details={"mode": body.mode, "version_id": version["id"], "moved": len(moved), "skipped": len(skipped)})
-    return {"mode": body.mode, "version_id": version["id"], "moved": len(moved), "skipped": len(skipped), "needs_alignment": bool(skipped)}
-
-
 @router.patch("/map-anchors/{anchor_id}")
 def update_anchor(anchor_id: str, body: AnchorPatch, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     a = get_anchor(conn, anchor_id)
