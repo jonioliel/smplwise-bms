@@ -1,5 +1,33 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.118 (pilot) — WisKey card capture from the door station, and a readable generated PIN (CR-005 phase 2, slice A2)
+- "קריאת כרטיס מהאינטרקום" in the person editor: choose an online station, confirm (the reader at that door
+  enters collection mode - the product's first long-running physical interaction), the person presents the card
+  within the reader's 30 s window, and the admin approves adding it. Ported like-for-like from WisKey: the number
+  is never shown or returned in clear (WisKey only reports the masked `•••• 1234`), the card is added through
+  WisKey's own confirm step, and capture is offered only for a saved person with no unsaved changes.
+- New sensitive permission `access.cards.capture`, required in addition to `access.people.manage`
+  (site_admin and system_admin by default, grantable per person through a custom role).
+- Safety: the reader is never started without an explicit confirmation and the command envelope; every capture
+  session belongs to the SMPLWISE user who started it (WisKey sees all of us as one HA user) and no one else can
+  read, cancel or approve it; one active capture per user and per station; the backend polls WisKey from its own
+  small budget and cancels a session nobody follows for 20 s, so a closed tab never leaves a reader collecting;
+  cancels never wait for a rate-limit token; a capture in progress cannot block a door release (its own lane).
+  Every refused WisKey error code was proven from WisKey's source to be raised before the reader is told
+  anything; everything after that is reported as "outcome unknown" and the station is treated as busy for
+  WisKey's 120 s lifetime. Starts, cancels, approvals and results are audited under the real user, never with
+  the card number.
+- Generated PIN (owner decision 2026-09-28): after "צור PIN ייחודי" the new PIN is shown once in clear with a copy
+  button, then hidden again; it is never shown for a stored PIN, never logged, and leaves the page's DOM when
+  copied, edited, saved or closed. Note: a copied PIN stays in the operating system's clipboard history.
+- Disclosed limits (first real use is the live test; WisKey's own source calls physical collection "still needs
+  commissioning"): a backend restart during a capture leaves the station busy for up to 120 s (a new start is
+  refused with a clear message); whether an already-enrolled card presented during capture also opens the door,
+  and how long the reader stays in collection mode after a cancel, depend on the station firmware.
+- Reviewed twice (adversarial): approved with nits; the polling budget issue found in round 1 (two parallel
+  captures could starve another user's cancel) was fixed and re-approved. Tests: 177 intercom tests (34 new),
+  live capture 6/6, editor 9/9, actions 8/8.
+
 ## 0.1.117 (pilot) — Hotfix: entity actions from the map over plain http
 - Owner report (2026-09-28 evening): turning a lighting circuit on from the floor map showed "אין חיבור לשרת"
   although Home Assistant and the add-on were up. Root cause: the map's entity-action client built its command id
