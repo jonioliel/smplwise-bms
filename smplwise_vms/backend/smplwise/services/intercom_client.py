@@ -16,7 +16,14 @@ Physical actions (CR-005 phase 3, owner-approved per capability): `stations/test
 outside READ_COMMANDS, so they carry `api_contract: API_CONTRACT` exactly as WisKey's own panel sends it (§0.4); the two
 `tts/*` handlers check their key set exactly and must NOT get it (media part, "0.1 How the panel talks to the backend").
 None of them is ever retried here: a physical command is sent once, and a lost answer is the caller's "outcome
-unknown", never a reason to send it again (AGENTS.md, Security and physical systems)."""
+unknown", never a reason to send it again (AGENTS.md, Security and physical systems).
+
+People writes (CR-005 phase 2, slice A1, owner decision 2026-09-28): `users/create`, `users/update` and `users/delete`
+- WisKey's own editor commands (panel.ts `save()` / `removeUser()`), sent with `api_contract` like every non-read
+panel command - and the read `users/pin_generate`, which is NOT in WisKey's READ_COMMANDS and so carries `api_contract`
+too (api_contract.py). Their effect is WisKey's storage (`repository._commit`); the devices follow through WisKey's own
+reconciliation. The same rule as for the physical commands applies: sent once, never retried, and a failure code counts
+as a refusal only when the source proves it is raised before the store is written (PRE_STORAGE)."""
 from __future__ import annotations
 
 from typing import Any, Awaitable, Callable
@@ -148,9 +155,58 @@ PRE_DEVICE: dict[str, frozenset[str]] = {
     "tts/start": frozenset({"tts_invalid_message", "tts_engine_unavailable", "station_unloaded", "audio_busy"}),
 }
 
+# People writes (CR-005 phase-2 brief A.4, verified against the WisKey source: websocket.py:844-896, access/manager.py
+# async_create / async_update / async_delete / _validate, access/models.py build_user, access/repository.py _commit /
+# _validate_collisions / _update_user / _delete_user, storage.py async_save). The effect is the store being written:
+# `_commit` computes the candidate state, validates collisions, then `_save`s; memory is published only after a
+# successful save. Everything below is raised before `_save`:
+# - the handler's own checks on `profile` / `group_ids` / `photo` keys: `profile_settings_unavailable`, `photo_disabled`
+#   (`invalid_fields` is PRE_DISPATCH already);
+# - `build_user` (models.py:253-376; run by manager._validate and again inside the commit, both before the save):
+#   `invalid_identifier` (a HikvisionValidationError too), `invalid_text`, `invalid_boolean`, `unsupported_user_type`,
+#   `invalid_validity`, `invalid_pin`, `invalid_cards`, `invalid_id`, `unsupported_card_type`, `duplicate_card`,
+#   `invalid_assignments`, `unmanaged_lock`, `schedule_unverified`, `invalid_photo`, `invalid_phone` and the timing
+#   codes (`invalid_timing_policy`, `schedule_binding_invalid`, `invalid_user_timing`, `schedule_period_limit`,
+#   `schedule_invalid_time`, `schedule_overlap`, `schedule_invalid_date`);
+# - `repository.permission_data` / group_permissions.prepare: `group_policy_changed` (+ `invalid_assignments`, `unmanaged_lock`);
+# - `manager._validate` (cached capabilities only, no device I/O): `station_not_found`, `station_has_no_managed_lock`,
+#   `person_exceeds_capabilities`, `pin_device_managed`, `pin_exceeds_capabilities`, `card_capacity`,
+#   `card_exceeds_capabilities`;
+# - the commit's change function and `_validate_collisions`: `user_not_found`, `revision_conflict`,
+#   `identity_migration_required`, `employee_conflict`, `pin_conflict`, `card_conflict`, `pin_removal_pending`,
+#   `card_removal_pending`, `photo_storage_full`;
+# - `AccessStore.async_save`: `storage_stopping` (HA is shutting down; raised before anything is written).
+# NOT here, so "unknown": `storage_write_failed` (raised from inside the atomic file write - whether the file was
+# replaced first is not provable, brief §6.6), `manager_closed` (`request()` runs AFTER the commit: saved but not
+# queued), `action_failed` (any other exception, anywhere), `device_unavailable` (no device I/O is expected on this
+# path, so the brief marks it unproven: unknown, the safe side) and every code this list does not know.
+_USER_WRITE_REFUSED = frozenset({
+    "profile_settings_unavailable", "photo_disabled",
+    "invalid_identifier", "invalid_text", "invalid_boolean", "unsupported_user_type", "invalid_validity", "invalid_pin",
+    "invalid_cards", "invalid_id", "unsupported_card_type", "duplicate_card", "invalid_assignments", "unmanaged_lock",
+    "schedule_unverified", "invalid_photo", "invalid_phone", "invalid_timing_policy", "schedule_binding_invalid",
+    "invalid_user_timing", "schedule_period_limit", "schedule_invalid_time", "schedule_overlap", "schedule_invalid_date",
+    "group_policy_changed",
+    "station_not_found", "station_has_no_managed_lock", "person_exceeds_capabilities", "pin_device_managed",
+    "pin_exceeds_capabilities", "card_capacity", "card_exceeds_capabilities",
+    "user_not_found", "revision_conflict", "identity_migration_required", "employee_conflict", "pin_conflict",
+    "card_conflict", "pin_removal_pending", "card_removal_pending", "photo_storage_full",
+    "storage_stopping",
+})
+PRE_STORAGE: dict[str, frozenset[str]] = {
+    "users/create": _USER_WRITE_REFUSED,
+    "users/update": _USER_WRITE_REFUSED,
+    # _delete_user raises `user_not_found` / `revision_conflict` inside the commit's change function, `async_save`
+    # `storage_stopping`. `manager_closed` comes from `request()` after the tombstone commit: unknown.
+    "users/delete": frozenset({"user_not_found", "revision_conflict", "storage_stopping"}),
+}
+PRE_EFFECT: dict[str, frozenset[str]] = {**PRE_DEVICE, **PRE_STORAGE}
+
 
 def refusal_is_pre_device(command: str, code: str) -> bool:
-    return code in PRE_DISPATCH or code in PRE_DEVICE.get(command, frozenset())
+    """Whether `code` is a proven pre-effect refusal of `command`: pre-device for the physical commands, pre-storage
+    for the people writes (PRE_EFFECT is the merged table; the name is phase 3's)."""
+    return code in PRE_DISPATCH or code in PRE_EFFECT.get(command, frozenset())
 
 
 def _action_result(frame: dict[str, Any], command: str) -> Any:
@@ -231,3 +287,47 @@ async def tts_start(call: Call, station_id: str, engine_id: str, language: str |
     frame = await call(command_type("tts/start"), station_id=station_id, engine_id=engine_id, language=language, message=message)
     _action_result(frame, "tts/start")
     return int(frame["id"])  # ha_client matched the frame by this id, so it is always there
+
+
+# ---------------------------------------------------------------- people writes (CR-005 phase 2, slice A1)
+
+async def users_pin_generate(call: Call, user_id: str) -> dict[str, Any]:
+    """`hikvision_intercom/users/pin_generate {user_id, api_contract}` - a random six-digit PIN that is free at this
+    moment across WisKey's people, tombstones and retiring PINs (`repository.generate_unique_pin`); `user_id` "" for a
+    person not saved yet. It is NOT reserved: the save rechecks (`pin_conflict`). A read (WisKey `users:manage`), but
+    not in READ_COMMANDS, so it carries `api_contract`. Errors: `pin_generation_failed`, `user_not_found`. The value is
+    a secret: the caller shows it once in the form and never logs or audits it."""
+    result = _result(await call(command_type("users/pin_generate"), user_id=user_id, api_contract=API_CONTRACT), "users/pin_generate")
+    if not isinstance(result, dict):
+        raise IntercomError("invalid_response", "users/pin_generate")
+    return result
+
+
+async def users_create(call: Call, data: dict[str, Any], sync_now: bool) -> Any:
+    """`hikvision_intercom/users/create {data, sync_now, api_contract}` - a new person in WisKey's store (`data` keys
+    within WisKey's USER_FIELDS: the caller's job). WisKey answers the person's public record; with `sync_now` it
+    queues the assigned stations at once, else its periodic reconciliation (~300 s) carries the person to them."""
+    if type(sync_now) is not bool:  # WisKey's strict typing (`type(x) is bool`): refused locally, nothing sent
+        raise IntercomError("invalid_fields", "users/create")
+    frame = await call(command_type("users/create"), data=data, sync_now=sync_now, api_contract=API_CONTRACT)
+    return _action_result(frame, "users/create")
+
+
+async def users_update(call: Call, user_id: str, revision: int, data: dict[str, Any], sync_now: bool) -> Any:
+    """`hikvision_intercom/users/update {user_id, revision, data, sync_now, api_contract}` - a patch of one person
+    (absent keys keep their value; a card with `id` and no `card_no` keeps its stored number), compare-and-set on
+    `revision` (`revision_conflict`). `sync_now` queues the stations only when device-relevant fields changed."""
+    if type(revision) is not int or type(sync_now) is not bool:
+        raise IntercomError("invalid_fields", "users/update")
+    frame = await call(command_type("users/update"), user_id=user_id, revision=revision, data=data, sync_now=sync_now, api_contract=API_CONTRACT)
+    return _action_result(frame, "users/update")
+
+
+async def users_delete(call: Call, user_id: str, revision: int) -> Any:
+    """`hikvision_intercom/users/delete {user_id, revision, api_contract}` - the person leaves WisKey's list at once; a
+    tombstone with their credentials keeps the removal pending on every station they were on (offline ones included)
+    until each confirms. WisKey answers `{accepted: true}`: the device removals are queued, not done."""
+    if type(revision) is not int:
+        raise IntercomError("invalid_fields", "users/delete")
+    frame = await call(command_type("users/delete"), user_id=user_id, revision=revision, api_contract=API_CONTRACT)
+    return _action_result(frame, "users/delete")

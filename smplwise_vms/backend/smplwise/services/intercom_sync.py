@@ -37,7 +37,13 @@ Physical actions (CR-005 phase 3: door release, call signal, TTS announcement) t
 shares `command`'s session, in-flight slots and rate buckets - but anything short of success is raised as an ApiError
 that says whether the command was not sent, refused, or sent without an answer (`action_error`). They are never queued
 or retried. A TTS announcement is a WisKey subscription: its progress is followed here and relayed to browser clients as
-`intercom_tts` notices."""
+`intercom_tts` notices.
+
+People writes (CR-005 phase 2, slice A1: `users/create` / `users/update` / `users/delete`) take the same road in a
+third lane, `config` (one in-flight slot, its own buckets): a people save that WisKey holds for a while can never take
+a physical-action slot, so it can never block a door release (brief §0.3). Their editor projections
+(`project_person_editor`, `project_editor_context`) are separate from `project_person` / `project_overview` and are
+served only under `access.people.manage`, never cached, never broadcast (brief A.5)."""
 from __future__ import annotations
 
 import asyncio
@@ -98,6 +104,16 @@ GLOBAL_BURST, GLOBAL_RATE = 20.0, 1.5
 ACTION_INFLIGHT = 2
 ACTION_USER_BURST, ACTION_USER_RATE = 6.0, 0.5
 ACTION_GLOBAL_BURST, ACTION_GLOBAL_RATE = 8.0, 0.5
+# people writes (CR-005 phase 2) have a third lane: ONE slot, so a save WisKey holds cannot occupy an action slot and
+# block a release, and their own buckets (an administrator saving several people in a row fits the burst). Slots stay
+# at 4 + 2 + 1 (+ the feed's own) under WisKey's 8 handlers; the three lanes' bursts (20 + 8 + 6) can exceed WisKey's
+# 30-token bucket only if all three are drained at once, and WisKey's `rate_limited` on a write is a clean pre-dispatch
+# refusal (nothing saved) that the caller simply retries.
+CONFIG_INFLIGHT = 1
+CONFIG_USER_BURST, CONFIG_USER_RATE = 6.0, 0.5
+CONFIG_GLOBAL_BURST, CONFIG_GLOBAL_RATE = 6.0, 0.5
+# a people write is WisKey storage only (no device I/O): well within ha_client's 60 s limit
+CONFIG_TIMEOUT_S = 35.0
 RATE_LIMITED = "rate_limited"
 RATE_RETRY_S = 2.0  # the feed's own refetch answered `rate_limited`: keep the session and try again after this long
 DEFER_RETRY_S = 5.0  # a refetch failure deferred during an announcement (S6) is retried this often
@@ -335,6 +351,108 @@ def project_signal(raw: Any) -> dict[str, Any]:
     return {k: raw.get(k) for k in SIGNAL_KEYS}
 
 
+# ---------------------------------------------------------------- the person editor's projections (access.people.manage)
+# Brief A.5: the editor legitimately needs what the read projection strips - but only what WisKey itself returns after a
+# save. `ManagedUser.public()` never carries a PIN (only `pin_configured`) and masks every card to `"•••• " + last4`
+# (`ManagedCard.public()`); the full number exists only in the browser form that typed it. Neither projection below
+# ever keeps a `pin`, `card_no`, `photo`, profile values or a timing schedule (slice A3 adds timing and photo).
+
+CARD_MASK = re.compile(r"^[•*]{2,8}(?: ?[A-Za-z0-9_-]{0,4})?$")  # WisKey's masked form ("•••• 1234" / "••••"); nothing longer
+EDITOR_ASSIGNMENT_KEYS = ("sync_state", "last_error", "desired_revision", "applied_revision")
+
+
+def _masked(value: Any) -> str:
+    """A card number field is served ONLY when it is WisKey's masked form: a value that looks like a full number
+    (however it got there) is replaced by the bare mask, never passed on."""
+    return value if isinstance(value, str) and CARD_MASK.fullmatch(value) else "••••"
+
+
+def project_person_editor(raw: dict[str, Any]) -> dict[str, Any]:
+    """One WisKey person for the editor (`users/get` or a save's answer): the read projection's fields plus `phone`,
+    `identity_locked`, `pin_configured` (a flag; WisKey never returns the value), the cards in WisKey's masked form,
+    `permission_overrides`, and each assignment's sync bookkeeping. `has_timing` says a weekly / dates schedule or an
+    enforced timing policy exists (its content is slice A3's; a save from this editor never touches it). An answer
+    that is not a person record (no id, no integer revision) raises: after a save that is "outcome unknown"."""
+    if not isinstance(raw, dict) or not isinstance(raw.get("id"), str) or not raw["id"] or _int(raw.get("revision")) is None:
+        raise ValueError("unexpected person record")
+    person = project_person(raw)
+    assignments = raw.get("assignments") if isinstance(raw.get("assignments"), dict) else {}
+    cards = raw.get("cards") if isinstance(raw.get("cards"), list) else []
+    overrides = raw.get("permission_overrides") if isinstance(raw.get("permission_overrides"), dict) else {}
+    return {
+        **person,
+        "phone": _str(raw.get("phone")) or "",
+        "identity_locked": bool(raw.get("identity_locked")),
+        "pin_configured": bool(raw.get("pin_configured")),
+        "cards": [
+            {
+                "id": str(card.get("id")),
+                "masked_number": _masked(card.get("masked_number")),
+                "label": _str(card.get("label")) or "",
+                "card_type": _str(card.get("card_type")) or "normalCard",
+                "enabled": bool(card.get("enabled")),
+            }
+            for card in cards
+            if isinstance(card, dict) and isinstance(card.get("id"), str)
+        ],
+        "permission_overrides": {str(k): v for k, v in overrides.items() if v in ("allow", "deny")},
+        "has_timing": raw.get("access_timing_draft") is not None or raw.get("access_timing_policy") is not None,
+        "stations": [_editor_assignment(station, assignments.get(station["station_id"])) for station in person["stations"]],
+    }
+
+
+def _editor_assignment(station: dict[str, Any], raw: Any) -> dict[str, Any]:
+    a = raw if isinstance(raw, dict) else {}
+    bookkeeping = {k: (v if isinstance(v := a.get(k), (str, int)) and not isinstance(v, bool) else None) for k in EDITOR_ASSIGNMENT_KEYS}
+    return {**station, **bookkeeping}
+
+
+def project_editor_context(raw: dict[str, Any]) -> dict[str, Any]:
+    """What the editor needs from WisKey's `overview` beyond the entry-center projection: per station whether its
+    keypad PIN can be written (`capabilities.pin_writable`; null when WisKey has not scanned it), the relays, the HA
+    display zone, WisKey's `api.capabilities`, whether the people-write commands are listed for the add-on's HA user
+    (`api.commands`; null when WisKey does not list them - brief §0.2 / §6.1: the user needs the `users:manage` area)
+    and whether a profile policy (custom fields, groups, templates - slice A3) exists. Never the users, hosts or PII."""
+    api = raw.get("api") if isinstance(raw.get("api"), dict) else {}
+    access = raw.get("access") if isinstance(raw.get("access"), dict) else {}
+    areas = access.get("areas") if isinstance(access.get("areas"), dict) else {}
+    commands = api.get("commands") if isinstance(api.get("commands"), list) else None
+    settings = raw.get("profile_settings") if isinstance(raw.get("profile_settings"), dict) else None
+    stations = []
+    for s in raw.get("stations") or []:
+        if not isinstance(s, dict):
+            continue
+        caps = s.get("capabilities") if isinstance(s.get("capabilities"), dict) else {}
+        base = _station(s)
+        stations.append({
+            "id": base["id"], "name": base["name"], "online": base["online"], "lock_enabled": base["lock_enabled"], "locks": base["locks"],
+            "pin_writable": caps.get("pin_writable") if isinstance(caps.get("pin_writable"), bool) else None,
+        })
+    return {
+        "stations": stations,
+        "default_zone": raw.get("default_zone") if isinstance(raw.get("default_zone"), dict) else None,
+        "capabilities": [c for c in (api.get("capabilities") or []) if isinstance(c, str)],
+        "writes_listed": None if commands is None else all(f"users/{c}" in commands for c in ("create", "update", "delete")),
+        "users_manage": True if access.get("is_admin") is True else (areas.get("users") == "manage" if isinstance(areas.get("users"), str) else None),
+        "profile_policy": {"revision": _int(settings.get("revision")), "groups": len(settings.get("groups") or []), "fields": len(settings.get("fields") or [])} if settings else None,
+    }
+
+
+def project_pin(raw: Any) -> dict[str, Any]:
+    """`users/pin_generate`'s answer: the generated PIN (digits only), to be shown once in the form."""
+    pin = raw.get("pin") if isinstance(raw, dict) else None
+    if not isinstance(pin, str) or not re.fullmatch(r"[0-9]{1,128}", pin):
+        raise ValueError("unexpected users/pin_generate answer")
+    return {"pin": pin}
+
+
+def project_accepted(raw: Any) -> dict[str, Any]:
+    """`users/delete`'s answer: `{accepted: true}` - WisKey queued the removals, it did not finish them."""
+    if not isinstance(raw, dict) or raw.get("accepted") is not True:
+        raise ValueError("unexpected users/delete answer")
+    return {"accepted": True}
+
+
 def project_tts_engines(raw: dict[str, Any]) -> dict[str, Any]:
     engines = raw.get("engines") if isinstance(raw.get("engines"), list) else []
     return {
@@ -363,13 +481,35 @@ NOT_SENT_REASONS = {
 }
 
 
-def action_error(reply: dict[str, Any], outcome: str) -> ApiError:
-    """A physical action that did not complete is an HTTP error, never a 200 with a state field: the caller must not be
-    able to read it as done. `details.outcome` says what is known: `not_sent` (nothing reached WisKey - safe to try
-    again), `refused` (WisKey answered with an error code), `unknown` (sent, but no answer arrived - it may or may not
-    have happened, so it must not be retried blindly)."""
+# WisKey's refusals of a people write that the editor handles by name (CR-005 phase 2): (HTTP status, SMPLWISE code,
+# message). Every other proven refusal is a generic 502 `intercom_action_refused` with the code in `details.wiskey_code`.
+WRITE_REFUSALS: dict[str, tuple[int, str, str]] = {
+    "revision_conflict": (409, "intercom_revision_conflict", "האדם השתנה ב־WisKey בזמן העריכה, ולכן השינוי לא נשמר. טענו מחדש את הרשומה העדכנית ונסו שוב."),
+    "pin_conflict": (409, "intercom_pin_conflict", "קוד ה־PIN הזה כבר משויך לאדם אחר ב־WisKey, ולכן השינוי לא נשמר. בחרו קוד אחר או צרו PIN ייחודי."),
+    "employee_conflict": (409, "intercom_employee_conflict", "מזהה העובד הזה כבר קיים ב־WisKey, ולכן השינוי לא נשמר."),
+    "card_conflict": (409, "intercom_card_conflict", "מספר הכרטיס הזה כבר משויך לאדם אחר ב־WisKey, ולכן השינוי לא נשמר."),
+    "pin_removal_pending": (409, "intercom_removal_pending", "קוד ה־PIN הזה עדיין ממתין להסרה מתחנה, ולכן WisKey לא מאפשר להשתמש בו שוב עדיין."),
+    "card_removal_pending": (409, "intercom_removal_pending", "הכרטיס הזה עדיין ממתין להסרה מתחנה, ולכן WisKey לא מאפשר להשתמש בו שוב עדיין."),
+    "identity_migration_required": (409, "intercom_identity_locked", "מזהה העובד כבר נפרס בתחנה ואי אפשר לשנותו כאן."),
+    "group_policy_changed": (409, "intercom_policy_changed", "הגדרות הקבוצות ב־WisKey השתנו בזמן העריכה. טענו מחדש ונסו שוב."),
+    "user_not_found": (404, "intercom_person_not_found", "האדם לא נמצא ב־WisKey (ייתכן שנמחק בינתיים)."),
+    "unauthorized": (502, "intercom_action_refused", "WisKey דחה את הפקודה: למשתמש ה־Home Assistant של התוסף אין הרשאת ניהול אנשים (users:manage) ב־WisKey. הפקודה לא בוצעה."),
+    "storage_stopping": (503, "intercom_unavailable", "Home Assistant נכבה כרגע, ולכן WisKey לא שמר את השינוי. נסו שוב אחרי ההפעלה."),
+}
+# codes of a malformed or over-capacity draft (WisKey's build_user / _validate): the caller's to fix
+WRITE_INVALID_PREFIXES = ("invalid_", "unsupported_", "schedule_", "duplicate_card", "unmanaged_lock", "station_not_found", "station_has_no_managed_lock",
+                          "person_exceeds_capabilities", "pin_device_managed", "pin_exceeds_capabilities", "card_capacity", "card_exceeds_capabilities",
+                          "photo_", "profile_settings_unavailable")
+
+
+def action_error(reply: dict[str, Any], outcome: str, lane: str = "action") -> ApiError:
+    """A physical action (or a people write, `lane` "config") that did not complete is an HTTP error, never a 200 with
+    a state field: the caller must not be able to read it as done. `details.outcome` says what is known: `not_sent`
+    (nothing reached WisKey - safe to try again), `refused` (WisKey answered with an error code), `unknown` (sent, but
+    no answer arrived - it may or may not have happened, so it must not be retried blindly)."""
     state, code = reply.get("state"), reply.get("last_error")
     details = {"outcome": outcome, "state": state, "wiskey_code": code}
+    config = lane == "config"
     if outcome == "not_sent":
         if code == "expired":  # the code routers/ha.py uses for an expired HA action
             return ApiError(409, "expired", "הבקשה פגה לפני שנשלחה ל־WisKey, ולכן לא נשלחה. אם עדיין צריך - בצעו אותה שוב.", details=details)
@@ -382,13 +522,20 @@ def action_error(reply: dict[str, Any], outcome: str) -> ApiError:
     if outcome == "unknown":
         if code in ("timeout", "invalid_response") or state == "ha_unavailable":
             said = "הפקודה נשלחה אך לא התקבלה מ־WisKey תשובה ברורה"
-        else:  # WisKey answered with a failure that can come after the command reached the device (release_unconfirmed ...)
+        else:  # WisKey answered with a failure that can come after the command reached the device / the store (release_unconfirmed, storage_write_failed ...)
             said = f"WisKey לא אישר שהפקודה בוצעה ({code})"
+        if config:
+            return ApiError(504, "intercom_outcome_unknown", f"{said}. ייתכן שהשינוי נשמר וייתכן שלא - טענו מחדש את הרשומה ובדקו את הגרסה שלה לפני שמנסים שוב.", details=details)
         return ApiError(504, "intercom_outcome_unknown", f"{said}. ייתכן שבוצעה וייתכן שלא - בדקו במצלמה או במקום לפני שמנסים שוב.", details=details)
     if code == RATE_LIMITED:
         return ApiError(429, "intercom_rate_limited", "WisKey הגביל את קצב הפקודות ודחה את הפקודה. היא לא בוצעה - נסו שוב בעוד כמה שניות.", retryable=True, details=details)
     if code == "invalid_fields":
         return ApiError(422, "intercom_invalid_request", "WisKey דחה את פרמטרי הפקודה, והיא לא בוצעה.", details=details)
+    if config and code in WRITE_REFUSALS:
+        status, own, message = WRITE_REFUSALS[code]
+        return ApiError(status, own, message, details=details)
+    if config and code and code.startswith(WRITE_INVALID_PREFIXES):
+        return ApiError(422, "intercom_invalid_request", f"WisKey דחה את פרטי האדם ({code}), ולכן השינוי לא נשמר.", details=details)
     return ApiError(502, "intercom_action_refused", f"WisKey דחה את הפקודה ({code}). לפי WisKey היא לא בוצעה.", details=details)
 
 
@@ -500,6 +647,7 @@ class IntercomSync:
         self._tasks: set[asyncio.Task[None]] = set()  # refreshes started by pushes (_kick); cancelled with the session
         self._inflight = threading.BoundedSemaphore(MAX_INFLIGHT)  # one-off reads (command) in flight at once
         self._action_inflight = threading.BoundedSemaphore(ACTION_INFLIGHT)  # physical actions: a lane of their own
+        self._config_inflight = threading.BoundedSemaphore(CONFIG_INFLIGHT)  # people writes: a third lane (one slot)
         self._bucket_lock = threading.Lock()
         self._tts_status: dict[str, dict[str, Any]] = {}  # station id -> its latest announcement's progress
         self._buckets_reset()
@@ -511,13 +659,17 @@ class IntercomSync:
             self._user_buckets: dict[str, TokenBucket] = {}
             self._action_global_bucket = TokenBucket(ACTION_GLOBAL_BURST, ACTION_GLOBAL_RATE)
             self._action_user_buckets: dict[str, TokenBucket] = {}
+            self._config_global_bucket = TokenBucket(CONFIG_GLOBAL_BURST, CONFIG_GLOBAL_RATE)
+            self._config_user_buckets: dict[str, TokenBucket] = {}
 
     def _spend_token(self, who: str, lane: str = "read") -> bool:
-        """One token from both the caller's and the shared bucket of `lane` (`read` or `action`), or none at all
-        (nothing is spent on a refusal)."""
+        """One token from both the caller's and the shared bucket of `lane` (`read`, `action` or `config`), or none at
+        all (nothing is spent on a refusal)."""
         with self._bucket_lock:
             if lane == "action":
                 users, shared, burst, rate = self._action_user_buckets, self._action_global_bucket, ACTION_USER_BURST, ACTION_USER_RATE
+            elif lane == "config":
+                users, shared, burst, rate = self._config_user_buckets, self._config_global_bucket, CONFIG_USER_BURST, CONFIG_USER_RATE
             else:
                 users, shared, burst, rate = self._user_buckets, self._global_bucket, USER_BURST, USER_RATE
             mine = users.get(who)
@@ -574,6 +726,7 @@ class IntercomSync:
         self._fetched_mono = None
         self._inflight = threading.BoundedSemaphore(MAX_INFLIGHT)
         self._action_inflight = threading.BoundedSemaphore(ACTION_INFLIGHT)
+        self._config_inflight = threading.BoundedSemaphore(CONFIG_INFLIGHT)
         self._tts_status = {}
         self._buckets_reset()
         self._session_reset()
@@ -649,20 +802,23 @@ class IntercomSync:
         who: str,
         not_after: datetime.datetime | None = None,
         on_settled: Callable[[], None] | None = None,
+        lane: str = "action",
     ) -> dict[str, Any]:
         """Run one PHYSICAL WisKey command (release, call signal, TTS start) like `command` - over the feed's own live
         session, never queued, never retried - but in the action lane (its own in-flight slots and rate buckets, so
         reads cannot starve it), waiting up to ACTION_TIMEOUT_S, and turning every result other than success into an
         ApiError (`action_error`), so that a refused, dropped or unanswered physical command can never be read as done.
+        A people write (`lane` "config") runs the same way in the config lane (one slot of its own, CONFIG_TIMEOUT_S).
 
         `not_after` (aware UTC): checked on the feed's loop immediately before the frame is written; a command that
         reaches that point later is not sent (`expired`) - a request delayed in transit or in a queue never actuates
         late. `on_settled` is called exactly once, when the command is really over: at once when it was never
         scheduled, else when WisKey answered, the session ended, or ha_client's own call limit expired - which can be
         well after this method gave up waiting (ACTION_TIMEOUT_S). Returns the `command`-shaped reply on success."""
-        reply, outcome = self._execute(settings, key, send, project, who, ACTION_TIMEOUT_S, lane="action", not_after=not_after, on_settled=on_settled)
+        timeout = CONFIG_TIMEOUT_S if lane == "config" else ACTION_TIMEOUT_S
+        reply, outcome = self._execute(settings, key, send, project, who, timeout, lane=lane, not_after=not_after, on_settled=on_settled)
         if outcome != "ok":
-            raise action_error(reply, outcome)
+            raise action_error(reply, outcome, lane)
         return reply
 
     def _execute(
@@ -692,7 +848,7 @@ class IntercomSync:
             reply["sync"] = STATE.as_dict()
             settled()
             return reply, "not_sent"
-        slot = self._action_inflight if lane == "action" else self._inflight  # (reset() may swap in a new one)
+        slot = {"action": self._action_inflight, "config": self._config_inflight}.get(lane, self._inflight)  # (reset() may swap in a new one)
         if not slot.acquire(blocking=False):  # checked first: a `busy` refusal costs the caller no rate token
             reply.update(state="error", last_error="busy", sync=STATE.as_dict())
             settled()
@@ -739,10 +895,10 @@ class IntercomSync:
         except intercom_client.UnclearAnswer as exc:
             reply.update(state="error", last_error=exc.code)  # outcome stays "unknown"
         except IntercomError as exc:
-            if exc.code in REQUEST_ERRORS and lane != "action":
+            if exc.code in REQUEST_ERRORS and lane == "read":
                 status, code, message = REQUEST_ERRORS[exc.code]
                 raise ApiError(status, code, message, details={"wiskey_code": exc.code}) from exc
-            outcome = "refused"  # for an action, only a pre-device code gets here (intercom_client.PRE_DEVICE)
+            outcome = "refused"  # for an action / a write, only a pre-effect code gets here (intercom_client.PRE_EFFECT)
             if exc.code == "unauthorized":
                 reply.update(state="forbidden", last_error=exc.code)
             elif exc.not_installed:

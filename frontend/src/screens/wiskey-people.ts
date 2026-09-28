@@ -9,6 +9,7 @@ import '../components/sw-state-panel';
 import '../components/sw-field';
 import '../components/sw-table';
 import '../components/sw-avatar';
+import './wiskey-person-editor';
 import type { TableColumn } from '../components/sw-table';
 import type { StateKind } from '../components/sw-badge';
 import type { PanelState } from '../components/sw-state-panel';
@@ -29,6 +30,7 @@ import {
   type IntercomPeopleRights,
   type IntercomPeopleSort,
   type IntercomPeopleState,
+  type IntercomEditorPerson,
   type IntercomPerson,
   type IntercomStation,
 } from '../api/intercom';
@@ -132,6 +134,10 @@ const DEMO_PAGE: IntercomPeoplePage = {
  * notices are down (as WisKey's own panel re-issues `users/query` after each overview refresh) - and the page says so.
  * A refetch carries the shown page's snapshot, so a directory that changed underneath is reported (`stale`) with a
  * reload from page 1 offered; a search whose scan stopped early (`complete: false`) says its total is a minimum.
+ *
+ * CR-005 phase 2, slice A1: with `access.people.manage` (installation scope) the directory gains WisKey's "Add user"
+ * button and the details pane its "Edit", both opening `wiskey-person-editor` (the port of WisKey's editor dialog); a
+ * save or a delete refetches the page and says what WisKey answered. Without the permission nothing of that renders.
  */
 @customElement('wiskey-people')
 export class WiskeyPeople extends LitElement {
@@ -154,6 +160,8 @@ export class WiskeyPeople extends LitElement {
   @state() private detail: IntercomPerson | null = null; // the `users/get` record for the selected row
   @state() private detailBusy = false;
   @state() private detailError = ''; // an ApiError code (intercom_person_not_found) or a described failure
+  @state() private editing: { id: string } | 'new' | null = null; // the person editor, when open
+  @state() private notice: { tone: 'ok' | 'warn'; text: string } | null = null; // the last save / delete, as WisKey reported it
   private snapshot = ''; // WisKey `_userSnapshot`: the last page's token, passed back with every request
   private generation = 0;
   private detailGeneration = 0;
@@ -395,6 +403,41 @@ export class WiskeyPeople extends LitElement {
     }
   }
 
+  // ------------------------------------------------------------------ editing (access.people.manage)
+
+  private get canManage(): boolean {
+    return isApi() && can('access.people.manage');
+  }
+
+  /** WisKey's `saved` / `saved_sync` notice: the page is refetched (the saved person is selected when it is on it)
+   * and the record WisKey returned is shown in the details pane at once. */
+  private onSaved(e: CustomEvent<{ person: IntercomEditorPerson; notice: string; note: string }>) {
+    const { person, notice, note } = e.detail;
+    this.editing = null;
+    this.notice = { tone: 'ok', text: `${t(notice)} ${note}` };
+    // only the read projection's fields are kept on this screen (the editor's phone / cards / PIN flag stay in the editor)
+    const asRow: IntercomPerson = {
+      id: person.id, employee_no: person.employee_no, display_name: person.display_name, active: person.active, valid_from: person.valid_from, valid_until: person.valid_until,
+      revision: person.revision, group_ids: person.group_ids,
+      stations: person.stations.map((s) => ({ station_id: s.station_id, enabled: s.enabled, doors: s.doors, sync_state: s.sync_state })),
+    };
+    this.cache.set(person.id, { person: asRow, expires: Date.now() + DETAIL_TTL_MS });
+    this.selected = person.id;
+    this.detail = asRow;
+    this.detailError = '';
+    this.snapshot = ''; // the directory changed by our own hand: no stale banner for that
+    this.restart();
+  }
+
+  private onDeleted(e: CustomEvent<{ id: string; notice: string; note: string }>) {
+    this.editing = null;
+    this.notice = { tone: 'ok', text: `${t(e.detail.notice)} ${e.detail.note}` };
+    this.cache.delete(e.detail.id);
+    this.clearDetail();
+    this.snapshot = '';
+    this.restart();
+  }
+
   // ------------------------------------------------------------------ render helpers
 
   private stationList(): StationInfo[] | null {
@@ -470,14 +513,26 @@ export class WiskeyPeople extends LitElement {
   }
 
   private renderPage(reply: IntercomPeopleReply, page: IntercomPeoplePage | null, demo: boolean) {
-    const sub = `מי מנוהל ב־WisKey, לאילו תחנות יש לו הרשאה ומה מצב הסנכרון · צפייה בלבד${demo ? ' · נתוני הדגמה' : ''}`;
+    const manage = !demo && this.canManage;
+    const sub = `מי מנוהל ב־WisKey, לאילו תחנות יש לו הרשאה ומה מצב הסנכרון${manage ? '' : ' · צפייה בלבד'}${demo ? ' · נתוני הדגמה' : ''}`;
     const ready = reply.state === 'ready';
     return html`<sw-page heading=${TITLE} subheading=${sub} wide>
       ${this.renderBadge(reply.state, demo)}
       ${demo ? nothing : html`<sw-button slot="actions" size="sm" variant="ghost" icon="refresh" data-wiskey-people-refresh ?disabled=${this.busy} @click=${() => void this.load()}>${t('refresh')}</sw-button>`}
+      ${manage && ready ? html`<sw-button slot="actions" size="sm" variant="primary" icon="plus" data-wiskey-people-add @click=${() => (this.editing = 'new')}>${t('add_user')}</sw-button>` : nothing}
       ${this.renderNoPush(demo)}
       ${page && !ready ? this.renderStaleNote(reply.state) : nothing}
       ${this.error ? html`<div class="note err" role="status" data-wiskey-people-error>${this.error}</div>` : nothing}
+      ${this.notice
+        ? html`<div class="note ${this.notice.tone === 'ok' ? 'ok' : 'stale'}" role="status" data-wiskey-people-notice=${this.notice.tone}>
+            <sw-icon name=${this.notice.tone === 'ok' ? 'check' : 'warning'} size=${16}></sw-icon>
+            <span>${this.notice.text}</span>
+            <sw-button size="sm" variant="ghost" iconOnly icon="close" label="סגור" @click=${() => (this.notice = null)}></sw-button>
+          </div>`
+        : nothing}
+      ${this.editing
+        ? html`<wiskey-person-editor .userId=${this.editing === 'new' ? '' : this.editing.id} @editor-saved=${(e: CustomEvent) => this.onSaved(e)} @editor-deleted=${(e: CustomEvent) => this.onDeleted(e)} @editor-close=${() => (this.editing = null)}></wiskey-person-editor>`
+        : nothing}
       ${this.everReady || demo ? this.renderFilters(demo) : nothing}
       ${page ? this.renderRecords(page, demo) : this.busy && this.everReady ? html`<sw-state-panel state="loading"></sw-state-panel>` : this.renderStatePanel(reply)}
     </sw-page>`;
@@ -599,7 +654,7 @@ export class WiskeyPeople extends LitElement {
             </div>
             ${selected ? this.renderInspector(selected, demo) : html`<aside class="side"><sw-card heading=${t('person_details')} data-wiskey-person-none><p class="muted">בחרו אדם ברשימה כדי לראות את פרטיו, את תוקף ההרשאה ואת התחנות שבהן יש לו גישה.</p></sw-card></aside>`}
           </div>`
-        : html`<sw-state-panel compact state="empty" data-wiskey-people-empty heading=${t(filtered ? 'no_results' : 'no_users')} hint=${filtered ? 'נסו להרחיב או לנקות את החיפוש והמסננים.' : 'ניהול אנשים מתבצע ב־WisKey עצמו.'}></sw-state-panel>`}
+        : html`<sw-state-panel compact state="empty" data-wiskey-people-empty heading=${t(filtered ? 'no_results' : 'no_users')} hint=${filtered ? 'נסו להרחיב או לנקות את החיפוש והמסננים.' : !demo && this.canManage ? `הוסיפו אדם ראשון ב"${t('add_user')}".` : 'ניהול אנשים מתבצע ב־WisKey עצמו.'}></sw-state-panel>`}
     `;
   }
 
@@ -656,7 +711,12 @@ export class WiskeyPeople extends LitElement {
               </li>`)}
             </ul>`
           : html`<p class="muted">${t('filter_unassigned')}</p>`}
-        <p class="muted">עריכת אנשים מתבצעת ב־WisKey עצמו. כאן מוצגים שם, מזהה עובד, מצב, תוקף, קבוצות והרשאות לתחנות - לא יותר.</p>
+        ${!demo && this.canManage
+          ? html`<div class="detail-actions">
+              <sw-button size="sm" icon="edit" data-wiskey-person-edit ?disabled=${this.detailBusy} @click=${() => (this.editing = { id: p.id })}>${t('edit')}</sw-button>
+              <span class="muted">טלפון, קוד כניסה וכרטיסים נטענים בעורך בלבד.</span>
+            </div>`
+          : html`<p class="muted">עריכת אנשים מתבצעת ב־WisKey עצמו. כאן מוצגים שם, מזהה עובד, מצב, תוקף, קבוצות והרשאות לתחנות - לא יותר.</p>`}
       </sw-card>
     </aside>`;
   }
@@ -685,6 +745,17 @@ export class WiskeyPeople extends LitElement {
     .note.err {
       background: var(--sw-danger-soft);
       color: var(--sw-danger);
+    }
+    .note.ok {
+      background: var(--sw-success-soft);
+      color: var(--sw-text);
+    }
+    .detail-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px 10px;
+      margin-block-start: 10px;
     }
     .filters {
       display: block;

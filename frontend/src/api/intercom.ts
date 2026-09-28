@@ -325,6 +325,95 @@ export const getIntercomTtsEngines = () => get<ActionReply<'tts', IntercomTtsEng
 export const speakAtIntercom = (stationId: string, body: { engine_id: string; language: string | null; message: string }) =>
   post<Actioned<ActionReply<'tts', IntercomTtsStatus>>>(`${station(stationId)}/tts`, { ...body, ...envelope() });
 
+// ---------------------------------------------------------------- person editor (access.people.manage, CR-005 phase 2 A1)
+
+/** One of a person's cards as WisKey returns it after a save (`ManagedCard.public()`): the number is ALWAYS the
+ * masked form `•••• 1234` - the full number exists only in the form that typed it, never in any reply. */
+export interface IntercomEditorCard {
+  id: string;
+  masked_number: string;
+  label: string;
+  card_type: string;
+  enabled: boolean;
+}
+
+/** A station assignment with WisKey's sync bookkeeping (the editor projection only). */
+export interface IntercomEditorStation extends IntercomPersonStation {
+  last_error: string | null;
+  desired_revision: number | null;
+  applied_revision: number | null;
+}
+
+/** One person for editing (routers/access_control.py `person_editor`, intercom_sync.project_person_editor): the read
+ * projection plus phone, the PIN flag (never a value), the masked cards, overrides, `identity_locked` and
+ * `has_timing` (a weekly / dates schedule or an enforced timing policy exists - slice A3 edits it; a save from this
+ * editor never touches it). */
+export interface IntercomEditorPerson extends Omit<IntercomPerson, 'stations'> {
+  phone: string;
+  identity_locked: boolean;
+  pin_configured: boolean;
+  cards: IntercomEditorCard[];
+  permission_overrides: Record<string, 'allow' | 'deny'>;
+  has_timing: boolean;
+  stations: IntercomEditorStation[];
+}
+
+/** What the editor needs from WisKey's overview (intercom_sync.project_editor_context): the stations with their relays
+ * and whether a keypad PIN can be written there, the HA zone, WisKey's capabilities, whether WisKey lists the people
+ * write commands for the add-on's HA user (`writes_listed` / `users_manage`; null = WisKey did not say) and whether a
+ * profile policy (custom fields, groups, templates - slice A3) exists. */
+export interface IntercomEditorContext {
+  stations: { id: string; name: string; online: boolean; lock_enabled: boolean; locks: IntercomLock[]; pin_writable: boolean | null }[];
+  default_zone: DisplayZone | null;
+  capabilities: string[];
+  writes_listed: boolean | null;
+  users_manage: boolean | null;
+  profile_policy: { revision: number | null; groups: number; fields: number } | null;
+}
+
+/** A card of the draft as sent (WisKey CARD_FIELDS): a saved card by `id` (its stored number stays in WisKey) or a new
+ * one by `card_no`. */
+export type IntercomCardDraft = { id: string; label: string; enabled: boolean } | { card_no: string; label: string; enabled: boolean };
+
+/** The draft as a patch (routers/access_control.py `PersonData`, mirroring WisKey's USER_FIELDS for this slice): only
+ * the keys present are sent; `pin: null` removes the PIN; `valid_from` / `valid_until` both null = permanent. Station
+ * access is WisKey's own editor payload - `permission_overrides` (personal allow / deny) + `door_permissions` (the
+ * ENABLED stations' relays; together) + `access_policy_revision` (when WisKey has a profile policy) - never the legacy
+ * absolute `assignments`, under which WisKey keeps an existing station's previous relays. */
+export interface IntercomPersonDraft {
+  employee_no?: string;
+  display_name?: string;
+  phone?: string;
+  active?: boolean;
+  valid_from?: string | null;
+  valid_until?: string | null;
+  pin?: string | null;
+  cards?: IntercomCardDraft[];
+  permission_overrides?: Record<string, 'allow' | 'deny'>;
+  door_permissions?: Record<string, number[]>;
+  access_policy_revision?: number;
+}
+
+export type IntercomEditorContextReply = ReadReply<'context', IntercomEditorContext>;
+export type IntercomEditorPersonReply = ReadReply<'person', IntercomEditorPerson>;
+export type IntercomPinReply = ReadReply<'pin', { pin: string }>;
+/** A save's reply: `person` is the saved record as WisKey returned it (WisKey accepted it into its store; the stations
+ * follow through WisKey's own sync, per assignment `sync_state`). Anything short of that is thrown as an ApiError whose
+ * `details.outcome` is `not_sent`, `refused` (`intercom_pin_conflict`, `intercom_revision_conflict`, ...) or `unknown`. */
+export type IntercomPersonSaveReply = Actioned<ActionReply<'person', IntercomEditorPerson> & { note: string }>;
+export type IntercomPersonDeleteReply = Actioned<ActionReply<'deleted', { accepted: boolean }> & { note: string }>;
+
+export const getIntercomEditorContext = () => get<IntercomEditorContextReply>('intercom/people-editor/context');
+export const getIntercomPersonForEdit = (userId: string) => get<IntercomEditorPersonReply>(`intercom/people/${encodeURIComponent(userId)}/editor`);
+/** A free six-digit PIN from WisKey (`users/pin_generate`; not reserved - the save still checks). `userId` "" for a new person. */
+export const generateIntercomPin = (userId: string) => post<IntercomPinReply>('intercom/people/pin-generate', { user_id: userId });
+export const createIntercomPerson = (data: IntercomPersonDraft, syncNow: boolean) => post<IntercomPersonSaveReply>('intercom/people', { data, sync_now: syncNow, ...envelope() });
+export const updateIntercomPerson = (userId: string, revision: number, data: IntercomPersonDraft, syncNow: boolean) =>
+  put<IntercomPersonSaveReply>(`intercom/people/${encodeURIComponent(userId)}`, { data, revision, sync_now: syncNow, ...envelope() });
+/** `confirmed` is sent only from the confirmation dialog: the backend refuses a delete without it. */
+export const deleteIntercomPerson = (userId: string, revision: number) =>
+  post<IntercomPersonDeleteReply>(`intercom/people/${encodeURIComponent(userId)}/delete`, { revision, confirmed: true, ...envelope() });
+
 // ---------------------------------------------------------------- per-station RTSP credentials (system.configure)
 
 /** One station row of GET /intercom/stations/credentials (routers/access_control.py): whether the system administrator
