@@ -2,7 +2,7 @@
  * Ported from the owner's WisKey frontend (home-assistant-hikvision-intercom, frontend/src): the zone-aware time
  * formatting of `time.ts` (`offsetAt`, `offsetLabel`, `formatTime`, and the zone-aware `datetime-local` conversion
  * `localInput` / `fromLocalInput` / `resolveLocalInput` the activity filters use) and the Hebrew strings of `i18n.ts`
- * that the entry center and the activity log use. Kept verbatim in behaviour so SMPLWISE shows a WisKey instant exactly
+ * that the entry center, the activity log and the people directory use. Kept verbatim in behaviour so SMPLWISE shows a WisKey instant exactly
  * as WisKey does - in the station's own clock zone (a device DST rule included), never with a fixed offset.
  */
 import type { DisplayZone } from '../api/intercom';
@@ -88,7 +88,8 @@ export function resolveLocalInput(value: string, zone: DisplayZone, known?: unkn
   return fromLocalInput(value, zone);
 }
 
-/** WisKey's Hebrew strings for the entry center and the activity log (i18n.ts `he`), keyed as in WisKey. */
+/** WisKey's Hebrew strings for the entry center, the activity log and the people directory (i18n.ts `he`), keyed as in
+ * WisKey. */
 const HE: Record<string, string> = {
   wk4_entry_center: 'מרכז הכניסה',
   wk4_entry_intro: 'דלתות, אנשים ופעולות שדורשות תשומת לב',
@@ -192,6 +193,51 @@ const HE: Record<string, string> = {
   clock_nonexistent: 'השעה המקומית אינה קיימת בתחילת שעון הקיץ. בחרו שעה לפני שינוי השעון או אחריו.',
   filter_start_before_end: 'תאריך ההתחלה חייב להיות לפני תאריך הסיום.',
   filter_zone_changed_invalid: 'אזור הזמן של הסינון השתנה והזמן בטיוטה אינו חד־משמעי או תקין. יש להזין מחדש את טווח התאריכים.',
+  // people directory (panel.ts usersView, user-details.ts)
+  wk4_nav_users: 'אנשים',
+  users: 'משתמשים',
+  user_filter_controls: 'סינון ומיון',
+  user_filter_station: 'סינון לפי תחנה',
+  user_filter_rights: 'סינון לפי הרשאה',
+  user_filter_state: 'סינון לפי מצב משתמש',
+  user_sort: 'מיון משתמשים',
+  filter_any: 'הכול',
+  filter_assigned: 'הרשאה פעילה',
+  filter_unassigned: 'ללא שיוך',
+  filter_disabled: 'שיוך כבוי',
+  filter_active: 'משתמשים פעילים',
+  filter_inactive: 'משתמשים מושבתים',
+  filter_expired: 'תוקף שהסתיים',
+  filter_upcoming: 'תוקף שטרם התחיל',
+  sort_name: 'שם בסדר עולה',
+  sort_name_desc: 'שם בסדר יורד',
+  sort_employee: 'מזהה עובד',
+  user_results: 'משתמשים בתוצאות',
+  user_pagination: 'עמודי מאגר המשתמשים',
+  users_per_page: 'משתמשים בעמוד',
+  user_page_loading: 'מרענן את העמוד…',
+  no_users: 'רשימת המשתמשים המרכזית ריקה.',
+  no_results: 'לא נמצאו משתמשים תואמים.',
+  name: 'שם',
+  employee_id: 'מזהה עובד',
+  active: 'פעיל',
+  inactive: 'לא פעיל',
+  assignments: 'הרשאות לאינטרקומים',
+  status: 'מצב',
+  person_details: 'פרטים אישיים',
+  profile_groups: 'קבוצות',
+  validity: 'תוקף',
+  permanent: 'ללא תאריך תפוגה',
+  validity_future: 'טרם התחיל',
+  validity_expired: 'פג תוקף',
+  validity_current: 'בתקופת התוקף',
+  validity_unknown: 'תוקף לא מאומת',
+  validity_summary_hint: 'התוקף לפי ההגדרה המרכזית; מצב הסנכרון לציוד מוצג בנפרד.',
+  valid_from: 'התחלה',
+  valid_until: 'סיום',
+  clock_ha_zone: 'אזור הזמן של Home Assistant',
+  user_sync_hint: 'מצב הסנכרון לפי גרסת המשתמש האחרונה שאומתה. תקשורת התחנה מוצגת בנפרד; שינויים שטרם הוחלו נשארים בהמתנה.',
+  panel_data_stale: 'ייתכן שהנתונים המוצגים אינם עדכניים. הרענון נכשל; ניתן לנסות שוב באמצעות רענון.',
 };
 
 /** WisKey's `translate`: a known key, else the key itself with underscores as spaces. */

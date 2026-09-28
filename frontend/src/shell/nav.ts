@@ -40,11 +40,12 @@ export const GROUP_TABS: Record<NavGroup, TabItem[]> = {
     { id: 'floors', label: 'מפת קומה', href: '#/explore/floors/f0' },
     { id: 'entities', label: 'ישויות HA', href: '#/explore/entities' },
   ],
-  /** Entry Center and Activity (CR-005 phase 1b); grows the same way AREA_TABS.investigate did (people,
-   * doors, schedules in later CR-005 phases) without restructuring. */
+  /** Entry Center, Activity and People (CR-005 phase 1b); grows the same way AREA_TABS.investigate did (doors,
+   * schedules in later CR-005 phases) without restructuring. */
   wiskey: [
     { id: 'overview', label: 'מרכז הכניסה', href: '#/wiskey/overview' },
     { id: 'events', label: 'פעילות', href: '#/wiskey/events' },
+    { id: 'people', label: 'אנשים', href: '#/wiskey/people' },
   ],
   cameras: [
     { id: 'wall', label: 'כל המצלמות', href: '#/live/wall' },
@@ -151,11 +152,12 @@ export const AREA_TABS: Record<AreaId, TabItem[]> = {
     { id: 'floors', label: 'מפת קומה', href: '#/explore/floors/f0' },
     { id: 'entities', label: 'ישויות HA', href: '#/explore/entities' },
   ],
-  /** Entry Center/overview and Activity/events (CR-005 phase 1b, #/wiskey/events); the same precedent as
-   * `investigate` below for adding more tabs later (people, doors, schedules) without restructuring. */
+  /** Entry Center/overview, Activity/events and People/people (CR-005 phase 1b); the same precedent as
+   * `investigate` below for adding more tabs later (doors, schedules) without restructuring. */
   wiskey: [
     { id: 'overview', label: 'מרכז הכניסה', href: '#/wiskey/overview' },
     { id: 'events', label: 'פעילות', href: '#/wiskey/events' },
+    { id: 'people', label: 'אנשים', href: '#/wiskey/people' },
   ],
   investigate: [
     { id: 'events', label: 'מרכז אירועים', href: '#/investigate/events' },
@@ -241,6 +243,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   '#/explore/entities': ['entity.state.read'],
   '#/wiskey/overview': ['access.read'],
   '#/wiskey/events': ['access.read'],
+  '#/wiskey/people': ['access.read'],
   '#/investigate/events': ['events.read'],
   '#/investigate/playback': ['video.playback'],
   '#/investigate/playback/sync': ['video.playback'],
@@ -260,7 +263,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
 /** Tabs whose permission counts only when held at installation scope, because the screen and its API check it there
  * and nowhere else: WisKey stations are not mapped to sites or floors, so access.read is installation-wide by design
  * (CR-005). A floor-scoped viewer or a site-scoped site_admin would otherwise see the tab and land on "no permission". */
-export const INSTALLATION_ONLY_HREFS = new Set<string>(['#/wiskey/overview', '#/wiskey/events']);
+export const INSTALLATION_ONLY_HREFS = new Set<string>(['#/wiskey/overview', '#/wiskey/events', '#/wiskey/people']);
 
 /** `installationOnly`: the permission must be held at installation scope, not at any scope. */
 export type Can = (permission: string, installationOnly?: boolean) => boolean;
