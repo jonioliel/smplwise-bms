@@ -61,7 +61,9 @@ test('the control scene is a pure function of the plan and the synthetic state: 
   expect(on.parts.filter((p) => p.kind === 'tint').map((p) => p.id).sort()).toEqual(zones.map((z) => `room:${z.id}#lit`).sort());
   // the synthetic input: no names on rooms or anchors, every level, cameras and entities off
   const ci = controlSceneInput(liveInput(), 'all_on');
-  expect(ci.zones!.every((z) => z.name === '') && ci.anchors.every((a) => a.label === '' && a.state === null && a.online === null)).toBe(true);
+  expect(ci.zones!.every((z) => z.name === '')).toBe(true);
+  expect(input.anchors.length).toBeGreaterThan(0);
+  expect(ci.anchors, 'anchors are not part of the geometry key').toEqual([]);
   expect(ci.level).toBeNull();
   expect(ci.layers).toMatchObject({ cameras: false, entities: false, structure: true });
   expect(Object.values(allOnLayer(quietInput()).rooms).every((r) => r.lit && !r.presence && r.temperature === null)).toBe(true);
@@ -69,8 +71,8 @@ test('the control scene is a pure function of the plan and the synthetic state: 
 
 type El = { captureControl: (d: SceneDescription) => string | null; capture: () => string | null; minFps: number; description: SceneDescription; view: { buildCount: number } };
 
-async function openDemo(page: Page): Promise<Locator> {
-  await page.goto('/#/styleguide');
+async function openDemo(page: Page, design: 'a' | 'b' | null = null): Promise<Locator> {
+  await page.goto(design ? `/?design=${design}#/styleguide` : '/#/styleguide');
   await page.locator('styleguide-screen [data-3d-demo-load]').click();
   const el = page.locator('styleguide-screen sw-plan-3d');
   await expect(el).toHaveAttribute('data-ready', '', { timeout: 30000 });
@@ -143,4 +145,21 @@ test('the control image: fixed size, opaque, the same bytes on every call and at
   expect(after.parts).toBe(before.parts);
   await expect(page.locator('[data-skin-control]')).toHaveCount(0); // the off-screen mount is gone
   expect(await el.evaluate((n) => (n as unknown as El).capture())).toBeTruthy(); // the on-screen view still draws
+});
+
+test('the control image is drawn in one fixed palette: the same bytes in design a and design b', async ({ page }) => {
+  test.setTimeout(120_000);
+  const off = control(quietInput(), 'all_off');
+  const on = control(quietInput(), 'all_on');
+  const shots: Record<string, { off: string | null; on: string | null; structure: string }> = {};
+  for (const design of ['a', 'b'] as const) {
+    const el = await openDemo(page, design);
+    await expect(page.locator('html')).toHaveAttribute('data-design', design);
+    const structure = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--sw-map-structure').trim());
+    shots[design] = { off: await shoot(el, off), on: await shoot(el, on), structure };
+  }
+  expect(shots.a.structure, 'the two designs do differ on the page').not.toBe(shots.b.structure);
+  expect(shots.a.off).toBeTruthy();
+  expect(shots.b.off, 'all_off: identical bytes across designs').toBe(shots.a.off);
+  expect(shots.b.on, 'all_on: identical bytes across designs').toBe(shots.a.on);
 });

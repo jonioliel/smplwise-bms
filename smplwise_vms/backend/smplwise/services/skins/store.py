@@ -156,6 +156,24 @@ def delete_floor(settings: Settings, conn: sqlite3.Connection, floor_id: str) ->
     return n
 
 
+def sweep_orphans(settings: Settings, conn: sqlite3.Connection) -> int:
+    """Control images of floors that no longer exist (a backup restored in "replace" mode, a floor removed outside the
+    API): rows and files go, and any `skins/<id>` folder without a live floor. Returns the rows removed."""
+    live = {r[0] for r in conn.execute("SELECT id FROM floors WHERE deleted_at IS NULL").fetchall()}
+    n = 0
+    for r in conn.execute("SELECT id, floor_id, path FROM plan_skin_controls").fetchall():
+        if r["floor_id"] not in live:
+            (settings.data_dir / r["path"]).unlink(missing_ok=True)
+            conn.execute("DELETE FROM plan_skin_controls WHERE id = ?", (r["id"],))
+            n += 1
+    root = settings.data_dir / "skins"
+    if root.is_dir():
+        for d in root.iterdir():
+            if d.is_dir() and d.name not in live:
+                shutil.rmtree(d, ignore_errors=True)
+    return n
+
+
 # ---------- budgets ----------
 
 @dataclass(frozen=True)

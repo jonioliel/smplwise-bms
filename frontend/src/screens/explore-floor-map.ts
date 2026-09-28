@@ -1219,8 +1219,8 @@ export class ExploreFloorMap extends LitElement {
         this.skinNote = 'המפה מציגה מבנה שאינו המבנה המפורסם (טיוטה) — תמונת בקרה נוצרת מהמבנה המפורסם בלבד.';
         return;
       }
-      const base: SceneInput = { doc: this.geometry, width: b.width, height: b.height, entityStates: {}, circuitStates: {}, catalog: this.catalog3d,
-        anchors: b.anchors.filter((a) => a.resource_type !== 'camera' || cameraState(a) !== 'forbidden').map((a) => this.sceneAnchor(a)),
+      // no anchors: they are not part of the geometry key (controlSceneInput drops them anyway)
+      const base: SceneInput = { doc: this.geometry, width: b.width, height: b.height, entityStates: {}, circuitStates: {}, catalog: this.catalog3d, anchors: [],
         zones: b.zones.map((z) => ({ id: z.id, name: z.name, polygon: z.polygon, level_id: z.level_id ?? null })) };
       let identical = 0;
       for (const state of CONTROL_STATES) {

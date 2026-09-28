@@ -23,19 +23,19 @@ class Settings:
     nvr_host: str | None
     nvr_http_port: int
     nvr_user: str | None
-    nvr_password: str | None
+    nvr_password: str | None = field(repr=False)  # secrets never appear in a Settings repr (review 2a)
     go2rtc_url: str | None
     log_level: str
     nvr_rtsp_port: int = 554
     go2rtc_user: str | None = None
-    go2rtc_password: str | None = None
+    go2rtc_password: str | None = field(default=None, repr=False)
     # WisKey door stations' own RTSP account, shared by every station (owner decision 2026-09-28); a station that needs
     # another one gets a per-station override (wiskey_station_credentials table). Server-side only, like nvr_password.
     wiskey_user: str | None = None
-    wiskey_password: str | None = None
+    wiskey_password: str | None = field(default=None, repr=False)
     # CR-006 phase 2 (AI-rendered floor skins): the OpenAI API key - an add-on option like the NVR password, server-side
     # only, never stored in the database, never in logs, audit rows or error payloads (services/skins/provider.redact).
-    openai_api_key: str | None = None
+    openai_api_key: str | None = field(default=None, repr=False)
     max_upload_bytes: int = 40 * 1024 * 1024
     max_pdf_pages: int = 20
     max_render_px: int = 3000
@@ -43,7 +43,7 @@ class Settings:
     render_timeout_s: int = 30
     detect_timeout_s: float = 60  # the guard on a synchronous structure detection (design 9.6 / decision 6)
     ha_url: str | None = None  # Core API base: http://supervisor/core inside the add-on
-    ha_token: str | None = None  # SUPERVISOR_TOKEN inside the add-on; a developer token outside
+    ha_token: str | None = field(default=None, repr=False)  # SUPERVISOR_TOKEN inside the add-on; a developer token outside
     extra: dict = field(default_factory=dict)
 
     @property

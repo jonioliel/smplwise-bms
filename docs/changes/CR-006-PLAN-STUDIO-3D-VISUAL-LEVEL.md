@@ -459,6 +459,28 @@ skin storage, the acceptance overlay (2b) and compositing (2c) are not built. **
   uploading both states and a second press reported identical). The 1c determinism, chunk and floor-map 3D specs re-run
   green.
 
+Review round 1 (same day, APPROVED_WITH_NITS) - fixed in the second commit: every reply after the POST is parsed
+under a catch-all (`OpenAIImageProvider._parse`; a body or `error` that is not an object, a non-list `data`, a bad
+base64) and becomes a redacted `SkinProviderError`, and the test route turns any other provider exception into one, so
+the outcome audit row (and the render row when the provider answered) is always written; the control scene takes no
+anchors (they are not part of the geometry key - a bound body stands where the document stores it) and is drawn in
+one fixed palette (`skin-control.CONTROL_PALETTE`, the base tokens frozen; an unknown token draws in a fixed fallback),
+so the same key gives the same bytes on every viewer and in both designs (asserted a vs b) - this supersedes the two
+limits recorded above; `Settings` hides `nvr_password`, `go2rtc_password`, `wiskey_password`, `openai_api_key` and
+`ha_token` from its repr (`field(repr=False)`, tested); a backup restore sweeps control images (rows, files, stray
+folders) of floors that no longer exist (`store.sweep_orphans`, `skin_controls_swept` in the restore result, tested).
+
+Recorded for 2b (not implemented in 2a):
+- **Budget race.** The check runs before the send without a pending row, so two concurrent sends can both pass. 2b
+  inserts a `pending` `plan_skin_renders` row inside the check's transaction first, counts `pending` and timeouts as
+  sent (a timeout may still be charged), and settles the row after the reply.
+- **`input_fidelity=high`** on geometry-keeping renders (the SDK's `image_edit_params`: `high|low`); check per model
+  that it is accepted.
+- **`quality`** also accepts `xhigh` / `max` (and `auto`) in the current SDK; 2a allows `low|medium|high` only.
+- **Model choice** - `gpt-image-1.5` (the SDK's default, today's setting) vs `gpt-image-2` / `gpt-image-2.5-sunburst` /
+  `gpt-image-2.5-flare` (the guide's example uses `gpt-image-2.5-sunburst`): an owner question before the first real
+  render.
+
 ## 8. Next step
 
 Owner answers §7; then 1a is dispatched from this document with the same implementer → reviewer → fix-round loop

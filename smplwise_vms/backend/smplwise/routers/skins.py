@@ -111,6 +111,8 @@ def skins_test(request: Request, principal: Principal = Depends(current_principa
             result = p.render(image, store.TEST_PROMPT, options)
         except prov.SkinProviderError as exc:
             error = exc
+        except Exception as exc:  # noqa: BLE001 - any provider failure still ends in an outcome row (review 2a)
+            error = prov.SkinProviderError("provider_failed", f"{type(exc).__name__}")
     key = settings_of(request).openai_api_key
     if result is not None:
         rid = store.record_render(conn, floor_id=None, level_id=None, state_key=store.TEST_STATE, provider=result.provider, model=result.model, prompt_version=store.TEST_PROMPT_VERSION,

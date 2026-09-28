@@ -150,12 +150,26 @@ class OpenAIImageProvider:
                 r = c.post(OPENAI_EDIT_PATH, data=data, files=files, headers={"Authorization": f"Bearer {self._key}"})
         except httpx.HTTPError as exc:
             raise SkinProviderError("provider_unreachable", redact(f"{type(exc).__name__}: {exc}", self._key)[:300]) from None
+        # the request was sent: whatever the reply looks like, the caller gets a SkinProviderError (never an unexpected
+        # exception), so its outcome row and audit row are always written (review 2a)
+        try:
+            return self._parse(r, model, est)
+        except SkinProviderError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - a reply of an unexpected shape
+            raise SkinProviderError("bad_reply", redact(f"תשובת הספק בצורה לא צפויה ({type(exc).__name__}).", self._key), r.status_code) from None
+
+    def _parse(self, r: httpx.Response, model: str, est: float) -> RenderResult:
         request_id = r.headers.get("x-request-id")
         if r.status_code >= 400:
             msg, pcode = "", None
             try:
-                err = r.json().get("error") or {}
-                msg, pcode = str(err.get("message") or ""), (str(err.get("code") or err.get("type") or "") or None)
+                body = r.json()
+                err = body.get("error") if isinstance(body, dict) else None
+                if isinstance(err, dict):
+                    msg, pcode = str(err.get("message") or ""), (str(err.get("code") or err.get("type") or "") or None)
+                else:
+                    msg = str(err or "")[:200]
             except ValueError:
                 msg = r.text[:200]
             raise SkinProviderError("provider_refused", redact(msg, self._key)[:300] or f"HTTP {r.status_code}", r.status_code, pcode)
@@ -165,9 +179,11 @@ class OpenAIImageProvider:
             body = r.json()
         except ValueError:
             raise SkinProviderError("bad_reply", "תשובת הספק אינה JSON.", r.status_code) from None
+        if not isinstance(body, dict):
+            raise SkinProviderError("bad_reply", "תשובת הספק אינה אובייקט JSON.", r.status_code)
         image = None
         items = body.get("data") or []
-        if items and isinstance(items[0], dict) and items[0].get("b64_json"):
+        if isinstance(items, list) and items and isinstance(items[0], dict) and items[0].get("b64_json"):
             try:
                 image = base64.b64decode(items[0]["b64_json"], validate=True)
             except ValueError:

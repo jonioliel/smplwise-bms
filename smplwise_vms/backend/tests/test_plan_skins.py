@@ -368,6 +368,69 @@ def test_openai_errors_are_redacted_and_typed():
         _openai(lambda req: httpx.Response(200)).render(b"x", "p", prov.RenderOptions(size="256x256"))
 
 
+@pytest.mark.parametrize("status,body", [
+    (401, ["not", "an", "object"]), (400, {"error": "a plain string"}), (500, {"error": None}), (200, ["a", "list"]), (200, {"data": "not a list"}),
+    (200, {"data": [{"b64_json": 5}]}), (200, {"data": [{"b64_json": "!!!"}], "usage": "x"}), (200, "just a string"),
+])
+def test_any_reply_shape_becomes_a_provider_error_or_a_result(status, body):
+    """Review 2a: a reply whose JSON is not the documented object never escapes as AttributeError / TypeError."""
+    p = _openai(lambda req: httpx.Response(status, json=body))
+    try:
+        r = p.render(b"x", "p", prov.RenderOptions())
+    except prov.SkinProviderError as e:
+        assert e.http_status == status and FAKE_KEY not in e.message
+    else:
+        assert status == 200 and r.image is None
+
+
+def test_a_malformed_reply_still_writes_the_outcome_row_and_audit(settings):
+    app, c = _app(settings)
+    app.state.skin_provider_factory = lambda pid, k, model: _openai(lambda req: httpx.Response(401, json=["odd"]))
+    c.patch("/api/v1/settings", json={"skins.privacy_ack": "true"})
+    r = c.post("/api/v1/skins/test")
+    assert r.status_code == 200 and r.json()["ok"] is False and r.json()["http_status"] == 401
+
+    class Boom(FakeProvider):
+        def render(self, *a, **kw):
+            raise TypeError("unexpected")
+
+    app.state.skin_provider_factory = lambda pid, k, model: Boom()
+    r2 = c.post("/api/v1/skins/test")
+    assert r2.status_code == 200 and r2.json()["ok"] is False and r2.json()["code"] == "provider_failed"
+    with app.state.db.connection() as conn:
+        assert [tuple(x) for x in conn.execute("SELECT status, http_status FROM plan_skin_renders").fetchall()] == [("error", 401)]
+        actions = [a[0] for a in conn.execute("SELECT action FROM audit_log WHERE action LIKE 'skins.test%' ORDER BY rowid").fetchall()]
+        assert actions == ["skins.test.attempt", "skins.test", "skins.test.attempt", "skins.test"]
+
+
+def test_settings_repr_never_shows_a_secret(settings):
+    s = dataclasses.replace(settings, nvr_password="nvr-SECRET-1", go2rtc_password="g2-SECRET-2", wiskey_password="wk-SECRET-3", openai_api_key=FAKE_KEY, ha_token="ha-SECRET-4")
+    text = repr(s) + str(s)
+    for secret in ("nvr-SECRET-1", "g2-SECRET-2", "wk-SECRET-3", FAKE_KEY, "ha-SECRET-4"):
+        assert secret not in text
+    assert s.openai_api_key == FAKE_KEY and "data_dir" in text  # the values are still there, only the repr hides them
+
+
+def test_restore_in_replace_mode_sweeps_control_images_of_floors_that_are_gone(settings):
+    from smplwise.services import backup as backup_svc
+
+    app, c = _app(settings)
+    seed_tree(c)
+    with app.state.db.connection() as conn:
+        before = backup_svc.create(settings, conn)
+    ids, _ = _floor_with_structure(c)  # a new site / floor the backup does not have
+    fid = ids["floor2"]
+    key = c.get(f"/api/v1/floors/{fid}/skins").json()["geometry_key"]
+    for state in ("all_off", "all_on"):
+        assert c.post(f"/api/v1/floors/{fid}/skins/control-image", data={"state": state, "geometry_key": key}, files={"file": ("c.png", control_png(), "image/png")}).status_code == 201
+    (settings.data_dir / "skins" / "stray-folder").mkdir(parents=True)
+    with app.state.db.connection() as conn:
+        result = backup_svc.restore(settings, conn, backup_svc.backups_dir(settings) / before["name"], mode="replace")
+        assert result["skin_controls_swept"] == 2
+        assert conn.execute("SELECT COUNT(*) FROM plan_skin_controls").fetchone()[0] == 0
+    assert not (settings.data_dir / "skins" / fid).exists() and not (settings.data_dir / "skins" / "stray-folder").exists()
+
+
 def test_redact_removes_the_key_bearer_tokens_and_key_shapes():
     text = f"key={FAKE_KEY} header Bearer abc.def-123 other sk-proj-AAAAAAAAAAAA"
     out = prov.redact(text, FAKE_KEY)

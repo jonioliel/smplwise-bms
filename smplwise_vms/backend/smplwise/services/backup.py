@@ -268,7 +268,11 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
             files += 1
     if scope == "project+access":
         bump_permission_revision(conn)
-    return {"mode": mode, "scope": scope, "tables": counts, "files": files, "app_version": manifest.get("app_version"), "created_at": manifest.get("created_at")}
+    # CR-006 2a review: a replaced project may no longer have a floor whose skin control images are stored
+    from .skins import store as skins_store
+
+    swept = skins_store.sweep_orphans(settings, conn) if "plan_skin_controls" in existing else 0
+    return {"mode": mode, "scope": scope, "tables": counts, "files": files, "skin_controls_swept": swept, "app_version": manifest.get("app_version"), "created_at": manifest.get("created_at")}
 
 
 def save_upload(settings: Settings, content: bytes) -> dict[str, Any]:
