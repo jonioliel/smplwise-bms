@@ -5,6 +5,9 @@ import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import { can, isApi } from '../api/session';
+import './wiskey-overview';
+import './wiskey-events';
+import './wiskey-people';
 
 /**
  * WisKey's own Home Assistant panel, embedded as-is (CR-005 recorded decision 2026-09-28, "embedded panel").
@@ -26,6 +29,19 @@ import { can, isApi } from '../api/session';
  *   `?tab=` in the frame address does nothing today; it is there for when the panel learns to read it.
  * What this screen reads inside the frame: `hass.kioskMode` and the keys of `hass.panels` on `<home-assistant>`, and the
  * panel's `_tab` / `_session` (whether it is loaded, never its content). No tokens, no localStorage, no entity state.
+ *
+ * The Home Assistant Companion app (owner's phone report, 0.1.122) is never nested. In the app, Home Assistant signs in
+ * through the native bridge (frontend `src/data/external.ts` `isExternal`: `window.externalAppV2` / `externalApp` on
+ * Android, `webkit.messageHandlers.getExternalAuth` on iOS), not through tokens in localStorage; the app answers the
+ * frontend's token request by running `externalAuthSetToken` in its top document only. A second Home Assistant inside a
+ * frame therefore either waits for a token that never comes (the bridge is visible in the frame: `<home-assistant>`
+ * never gets `hass`) or, without the bridge and without stored tokens, redirects to `/auth/authorize`. So, before
+ * framing, the app is detected (`isCompanionApp`: its user agent, or the bridge on this window or the top one), and a
+ * login redirect or a Home Assistant that never connects inside the frame is `login_required`, never "not Home
+ * Assistant". In both cases the tab shows the SMPLWISE screen where one exists (overview, events, people) or a short
+ * note, plus "פתח ב-WisKey", which moves the TOP Home Assistant frontend to the panel the way its own `navigate()`
+ * does (`src/common/navigate.ts`: pushState on the main window, then `location-changed`, which `home-assistant.ts`
+ * routes on).
  */
 
 /** The panel's address on the Home Assistant origin (panel.py `frontend_url_path`). */
@@ -37,7 +53,11 @@ const TAB_TIMEOUT_MS = 15000; // the panel's session (its permissions) loads aft
 const TICK_MS = 400;
 const KEEP_MS = 2000; // after everything is settled: re-apply cheaply, Home Assistant may re-render
 
-export type EmbedPhase = 'loading' | 'ready' | 'login' | 'not_installed' | 'unreachable' | 'blocked';
+const TOP_SWITCH_MS = 1000; // "פתח ב-WisKey": Home Assistant's router gets this long before a full page load
+
+export type EmbedPhase = 'loading' | 'ready' | 'login_required' | 'not_installed' | 'unreachable' | 'blocked';
+/** Why the tab does not nest Home Assistant: the Companion app (known before framing) or a sign-in inside the frame. */
+export type DirectReason = 'companion' | 'login_required' | '';
 /** How the Home Assistant chrome ended up: hidden by the kiosk event, hidden by the injected style, or left visible. */
 export type ChromeLever = 'kiosk' | 'css' | 'visible' | '';
 
@@ -102,6 +122,86 @@ export function hideHaChrome(win: Window, doc: Document): ChromeLever {
   }
 }
 
+type BridgeWin = Window & {
+  externalApp?: unknown;
+  externalAppV2?: unknown;
+  webkit?: { messageHandlers?: { getExternalAuth?: unknown; externalBus?: unknown } };
+};
+
+/** The native sign-in bridge Home Assistant's frontend looks for (`src/data/external.ts`); presence only. */
+function hasBridge(w: Window | null | undefined): boolean {
+  try {
+    const b = w as BridgeWin | null | undefined;
+    return !!b && !!(b.externalAppV2 || b.externalApp || b.webkit?.messageHandlers?.getExternalAuth || b.webkit?.messageHandlers?.externalBus);
+  } catch {
+    return false; // a cross-origin top window: nothing to read there
+  }
+}
+
+/** The Home Assistant Companion app: its user agent (Android `Home Assistant/<version> (Android ...)`; iOS
+ * `Home Assistant/<version> (...) Mobile/HomeAssistant, like Safari`), or the native bridge on this window or on the top
+ * one (same origin under Ingress). Reads nothing but the presence of those names. */
+export function isCompanionApp(win: Window = window): boolean {
+  if (/Home ?Assistant\//.test(win.navigator.userAgent)) return true;
+  if (hasBridge(win)) return true;
+  try {
+    return win.top !== win && hasBridge(win.top);
+  } catch {
+    return false;
+  }
+}
+
+/** "פתח ב-WisKey": move the TOP Home Assistant frontend to the WisKey panel, as its own `navigate()` does - pushState on
+ * the main window, then `location-changed`, which `home-assistant.ts` routes on. When Home Assistant's router takes it,
+ * the Ingress frame this code runs in is replaced and the check below never runs; when this frame is still in place
+ * after a second and the panel is nowhere in the top document, a full page load of the address does it instead. */
+export function openWiskeyInHa(win: Window = window): void {
+  let top: Window = win;
+  try {
+    if (win.top && win.top !== win) {
+      void win.top.location.pathname; // throws for a cross-origin top: then this window navigates itself
+      top = win.top;
+    }
+  } catch {
+    top = win;
+  }
+  if (top === win) {
+    win.location.assign(WISKEY_PANEL_PATH);
+    return;
+  }
+  const assign = () => {
+    try {
+      top.location.assign(WISKEY_PANEL_PATH);
+    } catch {
+      win.open(WISKEY_PANEL_PATH, '_top');
+    }
+  };
+  try {
+    top.history.pushState(null, '', WISKEY_PANEL_PATH);
+    const Ev = (top as unknown as { CustomEvent: typeof CustomEvent }).CustomEvent;
+    top.dispatchEvent(new Ev('location-changed', { detail: { replace: false } }));
+  } catch {
+    assign();
+    return;
+  }
+  const frameEl = win.frameElement;
+  win.setTimeout(() => {
+    try {
+      const switched = (frameEl && !frameEl.isConnected) || !!deepFind(top.document, PANEL_TAG);
+      if (!switched) assign();
+    } catch {
+      assign();
+    }
+  }, TOP_SWITCH_MS);
+}
+
+/** WisKey panel tab → the SMPLWISE screen built for it (the other tabs exist only in WisKey's own panel). */
+const SMPLWISE_SCREEN: Record<string, 'wiskey-overview' | 'wiskey-events' | 'wiskey-people'> = {
+  overview: 'wiskey-overview',
+  events: 'wiskey-events',
+  users: 'wiskey-people',
+};
+
 @customElement('wiskey-embed')
 export class WiskeyEmbed extends LitElement {
   /** The WisKey panel's own tab id (panel.ts `_tab`): overview, events, users, devices, sync, health, audit, tools. */
@@ -111,6 +211,8 @@ export class WiskeyEmbed extends LitElement {
   /** null while being applied, true once the panel shows the tab, false when it did not take (the panel stays put). */
   @state() private tabApplied: boolean | null = null;
   @state() private src = '';
+  /** Set when this tab does not nest Home Assistant (reflected for the evidence specs and the host style). */
+  @property({ reflect: true, attribute: 'data-direct' }) direct: DirectReason = '';
   private forbidden = false;
   private timer = 0;
   private loadTimer = 0;
@@ -129,6 +231,21 @@ export class WiskeyEmbed extends LitElement {
       flex-direction: column;
       min-block-size: 0;
       block-size: 100%;
+    }
+    :host([data-direct]:not([data-direct=''])) {
+      /* no frame: the SMPLWISE screen (or the note) flows and scrolls with the shell like any other screen */
+      block-size: auto;
+    }
+    .only {
+      display: grid;
+      place-items: center;
+      padding: 24px var(--sw-page-pad, 16px);
+    }
+    .actions {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
     }
     .bar {
       display: flex;
@@ -195,6 +312,12 @@ export class WiskeyEmbed extends LitElement {
       this.forbidden = true;
       return;
     }
+    if (isCompanionApp()) {
+      // the app signs Home Assistant in through its native bridge, which a nested frame cannot use: never frame it
+      this.direct = 'companion';
+      return;
+    }
+    if (this.direct) return;
     if (!this.src) this.src = this.address(this.tab);
     this.startLoadTimer();
   }
@@ -205,7 +328,7 @@ export class WiskeyEmbed extends LitElement {
   }
 
   protected updated(changed: PropertyValues<this>) {
-    if (!changed.has('tab') || changed.get('tab') === undefined || this.forbidden) return;
+    if (!changed.has('tab') || changed.get('tab') === undefined || this.forbidden || this.direct) return;
     if (this.phase === 'ready' || this.phase === 'loading') {
       // same frame, other tab: navigate the loaded panel instead of loading all of Home Assistant again
       this.resetTab();
@@ -238,6 +361,7 @@ export class WiskeyEmbed extends LitElement {
 
   private reload() {
     this.stopTimers();
+    this.direct = '';
     this.phase = 'loading';
     this.chrome = '';
     this.tabApplied = null;
@@ -297,9 +421,9 @@ export class WiskeyEmbed extends LitElement {
       }
       const path = win.location.pathname;
       if (path.startsWith('/auth/')) {
-        // Home Assistant asks the user to sign in inside the frame (no stored session for this origin); leave it usable
-        this.phase = 'login';
-        return;
+        // Home Assistant asks the user to sign in inside the frame: its session is not available there (the Companion
+        // app keeps it in the app; a browser that signed in without "keep me signed in" keeps it in that one document)
+        return this.goDirect();
       }
       const ha = doc.querySelector('home-assistant') as AnyEl | null;
       if (!ha) {
@@ -320,6 +444,9 @@ export class WiskeyEmbed extends LitElement {
       const panel = this.panelEl;
       if (!panel) {
         if (Date.now() - this.loadedAt > PANEL_TIMEOUT_MS) {
+          // Home Assistant's page answered but never connected: its sign-in did not complete inside the frame (the
+          // Companion bridge waits for a token the app delivers to its top document only) - not "not Home Assistant"
+          if (!ha.hass) return this.goDirect();
           this.phase = path.startsWith(WISKEY_PANEL_PATH) ? 'unreachable' : 'not_installed';
           this.settle();
         }
@@ -396,6 +523,15 @@ export class WiskeyEmbed extends LitElement {
     this.timer = window.setInterval(() => this.tick(), KEEP_MS);
   }
 
+  /** Home Assistant cannot sign in inside the frame: drop the frame and show the tab without nesting. */
+  private goDirect() {
+    this.stopTimers();
+    this.phase = 'login_required';
+    this.direct = 'login_required';
+    this.panelEl = null;
+    this.src = '';
+  }
+
   /** A final state: stop polling (the retry button starts over). */
   private settle() {
     window.clearInterval(this.timer);
@@ -405,10 +541,10 @@ export class WiskeyEmbed extends LitElement {
   // ------------------------------------------------------------------ render
 
   private renderError() {
-    const common = 'אפשר לנסות שוב, לפתוח את WisKey בחלון מלא, או לבחור בהגדרות › בקרות כניסה את מסכי SMPLWISE.';
+    const common = 'אפשר לנסות שוב, לפתוח את WisKey ב־Home Assistant או בחלון מלא, או לבחור בהגדרות › בקרות כניסה את מסכי SMPLWISE.';
     const map: Record<string, { heading: string; hint: string; state: 'error' | 'stale' | 'empty' }> = {
       not_installed: { heading: 'לוח WisKey לא נמצא ב־Home Assistant', hint: `האינטגרציה hikvision_intercom לא רשמה את הלוח ${WISKEY_PANEL_PATH} (לא מותקנת, לא נטענה, או שהמשתמש לא רואה אותו). ${common}`, state: 'empty' },
-      unreachable: { heading: 'לא ניתן לטעון את WisKey מתוך Home Assistant', hint: `הכתובת ${WISKEY_PANEL_PATH} לא החזירה את Home Assistant (למשל כשהממשק פתוח שלא דרך Home Assistant). ${common}`, state: 'stale' },
+      unreachable: { heading: 'לא ניתן לטעון את WisKey מתוך Home Assistant', hint: `הכתובת ${WISKEY_PANEL_PATH} לא החזירה את Home Assistant בתוך המסגרת. כנראה אפליקציית Home Assistant - ההזדהות שלה אינה זמינה בתוך מסגרת; או שהממשק פתוח שלא דרך Home Assistant. ${common}`, state: 'stale' },
       blocked: { heading: 'הדפדפן לא מאפשר להטמיע את WisKey כאן', hint: `המסגרת נחסמה (מדיניות מסגרות) או הופנתה לכתובת אחרת. ${common}`, state: 'error' },
     };
     const m = map[this.phase];
@@ -418,10 +554,48 @@ export class WiskeyEmbed extends LitElement {
         <sw-state-panel state=${m.state} heading=${m.heading} hint=${m.hint}></sw-state-panel>
         <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
           <sw-button size="sm" icon="refresh" data-wiskey-embed-retry @click=${() => this.reload()}>נסה שוב</sw-button>
+          ${this.openInHaButton()}
           ${this.fullLink()}
         </div>
       </div>
     </div>`;
+  }
+
+  private openInHaButton(variant: 'primary' | 'secondary' = 'secondary') {
+    return html`<sw-button size="sm" variant=${variant} icon="door" data-wiskey-open-ha @click=${() => openWiskeyInHa()}>פתח ב-WisKey</sw-button>`;
+  }
+
+  /** The tab without a nested Home Assistant: the SMPLWISE screen where one exists, otherwise a short note. */
+  private renderDirect() {
+    const label = TAB_LABELS[this.tab] ?? this.tab;
+    const phone = this.direct === 'companion';
+    const note = phone
+      ? 'בטלפון WisKey נפתח באפליקציה עצמה'
+      : 'Home Assistant מבקש התחברות בתוך המסגרת, ולכן WisKey נפתח ב־Home Assistant עצמו';
+    const screen = SMPLWISE_SCREEN[this.tab];
+    return html`
+      <div class="bar" data-wiskey-embed-bar>
+        <span class="note ${phone ? '' : 'warn'}" data-wiskey-embed-note=${this.direct}>${note}</span>
+        <span class="grow"></span>
+        ${screen ? this.openInHaButton() : nothing}
+        ${phone ? nothing : this.fullLink()}
+      </div>
+      ${screen === 'wiskey-overview'
+        ? html`<wiskey-overview></wiskey-overview>`
+        : screen === 'wiskey-events'
+          ? html`<wiskey-events></wiskey-events>`
+          : screen === 'wiskey-people'
+            ? html`<wiskey-people></wiskey-people>`
+            : html`<div class="only" data-wiskey-embed-only=${this.tab}>
+                <div>
+                  <sw-state-panel state="empty" heading=${`WisKey · ${label}`} hint=${`${note}. המסך "${label}" קיים רק בממשק של WisKey.`}></sw-state-panel>
+                  <div class="actions">
+                    ${this.openInHaButton('primary')}
+                    ${phone ? nothing : html`<sw-button size="sm" icon="refresh" data-wiskey-embed-retry @click=${() => this.reload()}>נסה שוב</sw-button>`}
+                  </div>
+                </div>
+              </div>`}
+    `;
   }
 
   private fullLink() {
@@ -430,7 +604,6 @@ export class WiskeyEmbed extends LitElement {
 
   private statusNote() {
     if (this.phase === 'loading') return html`<span class="note" data-wiskey-embed-note="loading">טוען את WisKey מתוך Home Assistant…</span>`;
-    if (this.phase === 'login') return html`<span class="note warn" data-wiskey-embed-note="login">Home Assistant מבקש התחברות בתוך המסגרת; אפשר להתחבר כאן או לפתוח בחלון מלא.</span>`;
     const notes = [];
     if (this.phase === 'ready' && this.chrome === 'visible') notes.push(html`<span class="note" data-wiskey-embed-note="chrome">התפריט של Home Assistant מוצג סביב WisKey (ההסתרה לא נתמכת בגרסה הזו).</span>`);
     if (this.phase === 'ready' && this.tabApplied === false) notes.push(html`<span class="note" data-wiskey-embed-note="tab">לא ניתן לפתוח ישירות את "${TAB_LABELS[this.tab] ?? this.tab}"; WisKey נפתח במסך שלו.</span>`);
@@ -441,6 +614,7 @@ export class WiskeyEmbed extends LitElement {
     if (this.forbidden) {
       return html`<sw-page heading="WisKey"><sw-state-panel data-wiskey-state="no_permission" state="forbidden" heading="אין לך הרשאת צפייה בבקרת הכניסה" hint="נדרשת ההרשאה צפייה בבקרת כניסה (WisKey). פנה למנהל המערכת."></sw-state-panel></sw-page>`;
     }
+    if (this.direct) return this.renderDirect();
     const failed = this.phase === 'not_installed' || this.phase === 'unreachable' || this.phase === 'blocked';
     return html`
       <div class="bar" data-wiskey-embed-bar>

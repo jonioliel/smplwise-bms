@@ -381,15 +381,38 @@ answer/reject/hangup (`media/signal`); two-way audio/talk (`audio/*`); TTS (`tts
 > Tested here only against a structural stub of HA's frontend (`frontend/tests/evidence-wiskey-embed.spec.ts`); the
 > real nested HA is the owner's lab check: on the LAN over http and remotely - does WisKey load without a login prompt,
 > is HA's sidebar hidden (desktop) and does the panel's menu button do nothing, does each tab (overview / events /
-> users / devices / sync / health / audit / tools) open the matching WisKey screen, does the Companion app on a phone
-> show it (the app injects its auth bridge into the top frame; a login page inside the frame is the likely failure),
-> and does "פתח בחלון מלא" open the panel. Also: (a) microphone / two-way audio from a station inside the double frame -
+> users / devices / sync / health / audit / tools) open the matching WisKey screen, and does "פתח בחלון מלא" open the
+> panel. **Phone (Companion app) = top-level navigation, not nested** (see the phone follow-up below): in the app, does
+> each WisKey tab show the SMPLWISE screen (overview / events / people) or the note, with no frame, and does
+> "פתח ב-WisKey" switch the app to the WisKey panel in place (HA's own sidebar/header around it, the app's back button
+> returns to SMPLWISE) - on Android and, if available, iOS. Also: (a) microphone / two-way audio from a station inside the double frame -
 > HA's Ingress frame (`ha-panel-app.ts`) carries no `allow` attribute, so it relies on the Permissions Policy default
 > (`microphone` = `self`, which a same-origin child frame inherits); our frame grants `microphone; camera; autoplay;
 > fullscreen` for its own same-origin source - check the browser actually prompts and the call carries audio both ways;
 > (b) after using the embed, open HA normally in another tab and confirm its sidebar is still there (the kiosk lever is
 > in-memory only; this is the check that nothing persisted); (c) on a phone, what WisKey's own toolbar menu button does
 > (it is swallowed while HA's chrome is hidden - confirm nothing confusing happens).
+>
+> **Phone follow-up 2026-09-28 (owner report on 0.1.122, Android, inside Home Assistant):** the embed showed
+> "לא ניתן לטעון את WisKey מתוך Home Assistant". Cause, from HA's frontend source (home-assistant/frontend `dev`,
+> fetched 2026-09-28): `src/data/external.ts` switches the frontend to external auth when `window.externalAppV2`,
+> `window.externalApp` (Android) or `webkit.messageHandlers.getExternalAuth` (iOS) exists, and
+> `src/external_app/external_auth.ts` then asks the app for a token and waits for the app to call
+> `window.externalAuthSetToken`. The app answers in its top document, so a nested HA that sees the bridge waits
+> forever (`<home-assistant>` never gets `hass` - our detector timed out and said "not Home Assistant"), and one that
+> does not see it has no stored tokens and redirects to `/auth/authorize`. Not verified on a device: whether Android's
+> bridge is visible inside the nested frame (Android WebView JS interfaces are normally injected into every frame,
+> which matches the timeout the owner saw). **Fix:** `wiskey-embed` never nests in the Companion app - detected before
+> framing by the user agent (`Home Assistant/<version>`: Android `HomeAssistantApis.USER_AGENT_STRING`, iOS
+> `HomeAssistantAPI.userAgent` + `Mobile/HomeAssistant`) or by the bridge names on this window or the top one (presence
+> only). A `/auth/` path inside the frame, or an HA page that never connects within the panel timeout, is
+> `login_required` (the frame is dropped), never "not Home Assistant". Without a frame, overview / events / people show
+> the SMPLWISE screen and the other tabs a note, each with "פתח ב-WisKey": pushState of `/hikvision-intercom` on the top
+> window plus a `location-changed` event, as HA's own `navigate()` does (`src/common/navigate.ts`; routed by
+> `src/layouts/home-assistant.ts`), and a full `location.assign` if SMPLWISE's frame is still in place and the panel
+> absent after 1 s. The "unreachable" error now names the likely cause and offers "פתח ב-WisKey" too. Evidence:
+> `frontend/tests/evidence-wiskey-embed-phone.spec.ts` (Companion user agent, a stand-in top document with the bridge,
+> the `/auth/` redirect and the never-connecting page - all stubs, not the real app).
 
 **Phase 4 — parity completion (peripheral/admin screens).** Camera wall (S4), media/clock settings (S21/S22),
 operations center (S23), identity lifecycle report (S17), permission directory (S18), appearance picker (S25),
