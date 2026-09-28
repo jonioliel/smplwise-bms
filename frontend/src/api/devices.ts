@@ -69,6 +69,9 @@ export interface DeviceRow {
   active: boolean;
   icon: string | null;
   last_changed: string | null;
+  /** CR-007 slice 2: devices.control or ha.entity.control at this entity's own floor scope. Controls render only
+   * when this is true - the read-only rendering from slice 1 stays for everyone else. */
+  can_control: boolean;
   // lighting
   brightness_pct?: number | null;
   color_mode?: string | null;

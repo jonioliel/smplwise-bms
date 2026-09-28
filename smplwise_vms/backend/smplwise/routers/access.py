@@ -34,6 +34,12 @@ PERMISSION_LABELS: dict[str, str] = {
     # placed on those floors exactly as entity.state.read does in routers/ha.py. Control is a separate permission
     # (devices.control, slice 2) and is never implied by this one.
     "devices.read": "צפייה בחשמל והתקנים",
+    # devices.control (CR-007 slice 2): one-tap single-entity actions from the devices area - lights, switches,
+    # covers, climate, fans, media. Floor-scoped exactly like devices.read (the entity's own placement, not HA's
+    # floor). Granted like ha.entity.control's role spread (operator/editor/site_admin/system_admin, not viewer,
+    # not kiosk) but a separate permission: the devices-area action route accepts either grant. Locks and the
+    # alarm panel are never reached through it - those keep their own grants (door.unlock, alarm.disarm).
+    "devices.control": "שליטה בהתקן בודד (חשמל והתקנים)",
     "video.live": "שידור חי",
     "video.playback": "ניגון הקלטות",
     "events.read": "צפייה באירועים",

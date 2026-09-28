@@ -14,9 +14,11 @@ entities and HA's config / diagnostic entities are left out, as HA's own area da
 from __future__ import annotations
 
 import sqlite3
-from typing import Any
+from typing import Any, Callable
 
 from . import ha_sync
+
+ControlChecker = Callable[[str], bool]
 
 CARD_IDS = ("lighting", "switches", "climate", "covers", "security", "media", "sensors")
 CARD_LABELS = {
@@ -242,9 +244,10 @@ def _row(e: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def card_row(e: dict[str, Any]) -> dict[str, Any]:
+def card_row(e: dict[str, Any], can_control: bool) -> dict[str, Any]:
     a = e.get("attributes") or {}
     row = _row(e)
+    row["can_control"] = can_control
     card = e["card"]
     if card == "lighting":
         row["brightness_pct"] = _pct(a.get("brightness"), 100 / 255) if row["state"] == "on" else None
@@ -292,11 +295,11 @@ def card_row(e: dict[str, Any]) -> dict[str, Any]:
     return row
 
 
-def build_cards(entities: list[dict[str, Any]]) -> dict[str, Any]:
+def build_cards(entities: list[dict[str, Any]], control_of: ControlChecker) -> dict[str, Any]:
     cards: dict[str, Any] = {cid: {"id": cid, "label": CARD_LABELS[cid], "entities": []} for cid in CARD_IDS}
     counts = empty_counts()
     for e in entities:
-        cards[e["card"]]["entities"].append(card_row(e))
+        cards[e["card"]]["entities"].append(card_row(e, control_of(e["entity_id"])))
         count_into(counts, e)
     for c in cards.values():
         c["count"] = len(c["entities"])
@@ -304,15 +307,17 @@ def build_cards(entities: list[dict[str, Any]]) -> dict[str, Any]:
     return {"cards": cards, "counts": counts}
 
 
-def build_area(conn: sqlite3.Connection, entities: list[dict[str, Any]], area_id: str, *, scoped: bool) -> dict[str, Any] | None:
+def build_area(conn: sqlite3.Connection, entities: list[dict[str, Any]], area_id: str, *, scoped: bool, control_of: ControlChecker) -> dict[str, Any] | None:
     """One area's cards, plus the areas of the same floor for the chip row. None when the area is unknown (or holds
-    nothing the caller may see, for a scoped caller)."""
+    nothing the caller may see, for a scoped caller). `control_of` (CR-007 slice 2) is the devices.control /
+    ha.entity.control floor check (services/ha_scope.control_checker), evaluated once per row so a card can render
+    its one-tap controls only for the entities this caller may actually act on."""
     tree = build_tree(conn, entities, scoped=scoped)
     if area_id == UNASSIGNED:
         mine = [e for e in entities if not e.get("area_id")]
         if scoped and not mine:
             return None
-        body = build_cards(mine)
+        body = build_cards(mine, control_of)
         return {"area": {"area_id": UNASSIGNED, "name": UNASSIGNED_NAME, "icon": None, "floor_id": None, "floor_name": None, "level": None}, "floor_areas": [], **body, "scoped": scoped}
     floor = area = None
     for f in tree["floors"]:
@@ -325,7 +330,7 @@ def build_area(conn: sqlite3.Connection, entities: list[dict[str, Any]], area_id
     if not area or not floor:
         return None
     mine = [e for e in entities if e.get("area_id") == area_id]
-    body = build_cards(mine)
+    body = build_cards(mine, control_of)
     siblings = [{"area_id": a["area_id"], "name": a["name"], "icon": a["icon"], "counts": a["counts"]} for a in floor["areas"]]
     return {
         "area": {"area_id": area["area_id"], "name": area["name"], "icon": area["icon"], "floor_id": floor["floor_id"], "floor_name": floor["name"], "level": floor["level"]},

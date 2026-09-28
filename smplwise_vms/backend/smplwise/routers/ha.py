@@ -157,7 +157,9 @@ def _action_row(conn: sqlite3.Connection, action_id: str) -> dict[str, Any]:
 @router.post("/ha/entities/{entity_id}/actions", status_code=202)
 def run_action(entity_id: str, body: ActionBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     settings = settings_of(request)
-    if not _entity_allowed(conn, principal, entity_id, "ha.entity.control"):
+    if not ha_scope.control_allowed(conn, principal, entity_id):
+        # devices.control (CR-007 slice 2) reaches this same route; ha.entity.control stays the audited reason
+        # when neither grant is held, so every caller that worked before this slice sees the same denial.
         require(conn, principal, "ha.entity.control", INSTALLATION)
     e = _entity(conn, entity_id)
     if e["removed_at"] or e["disabled"]:

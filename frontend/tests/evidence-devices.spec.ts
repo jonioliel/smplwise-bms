@@ -118,48 +118,66 @@ test.describe('Electricity and devices (CR-007 slice 1, read-only)', () => {
     await expect(page.locator('devices-area sw-card[data-card="lighting"]')).toBeVisible({ timeout: 30000 });
   });
 
-  test('the area screen: cards per domain with the fields each needs, empty states after the filled cards, sibling chips, no controls', async ({ page, request }) => {
+  test('the area screen: cards per domain with the fields each needs, empty states after the filled cards, sibling chips, one-tap controls for a devices.control holder', async ({ page, request }) => {
     await seed(request);
     await open(page, '/devices/areas/cr007_lobby', 'a');
     const screen = page.locator('devices-area');
     await expect(screen.locator('sw-card[data-card="lighting"]')).toBeVisible({ timeout: 30000 });
-    // lighting: a lit light is a warm tile with its brightness, an unlit one is plain
+    // lighting: a lit light is a warm tile with its brightness, an unlit one is plain; both carry a power toggle
+    // (the default identity here is the bootstrap system_admin, who holds devices.control installation-wide - CR-007 slice 2)
     const lit = screen.locator('.tile[data-entity="light.cr007_lobby"]');
     await expect(lit).toHaveClass(/\bon\b/);
     await expect(lit).toContainText('50%');
-    await expect(screen.locator('.tile[data-entity="light.cr007_lobby_2"]')).toHaveClass(/\boff\b/);
-    await expect(screen.locator('.tile[data-entity="light.cr007_lobby_2"]')).toContainText('כבוי');
-    // climate: current and target temperature, mode and action
+    await expect(lit).toHaveAttribute('data-can-control', '');
+    await expect(lit.locator('sw-toggle[data-control="power"]')).toBeVisible();
+    await expect(lit.locator('input[data-control="brightness"]')).toBeVisible();
+    const litOff = screen.locator('.tile[data-entity="light.cr007_lobby_2"]');
+    await expect(litOff).toHaveClass(/\boff\b/);
+    await expect(litOff).toContainText('כבוי');
+    await expect(litOff.locator('sw-toggle[data-control="power"]')).toBeVisible();
+    await expect(litOff.locator('input[data-control="brightness"]')).toHaveCount(0); // brightness only shown while on
+    // climate: current and target temperature, mode and action, plus temp +/- and a mode select
     const clim = screen.locator('.row[data-entity="climate.cr007_lobby"]');
     await expect(clim).toContainText('25.5');
     await expect(clim).toContainText('קירור');
     await expect(clim).toContainText('מקרר');
     await expect(clim).toContainText('22');
-    // cover: state with position and a bar, no slider
+    await expect(clim.locator('[data-control="temp-up"]')).toBeVisible();
+    await expect(clim.locator('select[data-control="mode"]')).toBeVisible();
+    // cover: state with position and a bar, plus open/stop/close and a position slider
     const cover = screen.locator('.row[data-entity="cover.cr007_blind"]');
     await expect(cover).toContainText('פתוח');
     await expect(cover).toContainText('70%');
     await expect(cover.locator('.bar i')).toHaveAttribute('style', /70%/);
-    // security: lock badge, door contact, alarm, and the HA camera row (no still served here yet)
+    await expect(cover.locator('sw-button[data-control="open"]')).toBeVisible();
+    await expect(cover.locator('sw-button[data-control="stop"]')).toBeVisible();
+    await expect(cover.locator('sw-button[data-control="close"]')).toBeVisible();
+    await expect(cover.locator('input[data-control="position"]')).toBeVisible();
+    // security: lock badge, door contact, alarm, and the HA camera row (no still served here yet) - never a control here
     await expect(screen.locator('.row[data-entity="lock.cr007_front"] sw-badge')).toHaveAttribute('label', 'נעול');
     await expect(screen.locator('.row[data-entity="binary_sensor.cr007_door"] sw-badge')).toHaveAttribute('label', 'סגורה');
     await expect(screen.locator('.row[data-entity="alarm_control_panel.cr007_house"] sw-badge')).toHaveAttribute('label', /דרוכה/);
     await expect(screen.locator('.row[data-entity="camera.cr007_lobby"]')).toContainText('אין תמונה');
+    await expect(screen.locator('.row[data-entity="lock.cr007_front"] sw-button, .row[data-entity="lock.cr007_front"] sw-toggle')).toHaveCount(0);
+    await expect(screen.locator('.row[data-entity="alarm_control_panel.cr007_house"] sw-button, .row[data-entity="alarm_control_panel.cr007_house"] sw-toggle')).toHaveCount(0);
     await expect(screen.locator('sw-badge[data-area-alarm]')).toBeVisible();
-    // media and sensors
+    // media and sensors: media gets power/play-pause/mute, sensors never a control
     const tv = screen.locator('.row[data-entity="media_player.cr007_tv"]');
     await expect(tv).toContainText('מנגן');
     await expect(tv).toContainText('HDMI 1');
     await expect(tv).toContainText('40%');
-    await expect(screen.locator('.tile[data-entity="sensor.cr007_temp"]')).toContainText('23.5 °C');
+    await expect(tv.locator('sw-toggle[data-control="power"]')).toBeVisible();
+    await expect(tv.locator('sw-button[data-control="playpause"]')).toBeVisible();
+    await expect(tv.locator('sw-button[data-control="mute"]')).toBeVisible();
+    const temp = screen.locator('.tile[data-entity="sensor.cr007_temp"]');
+    await expect(temp).toContainText('23.5 °C');
+    await expect(temp.locator('sw-toggle, sw-button, input')).toHaveCount(0);
     // chips of the same floor, the current one selected; the empty storage area is one of them
     await expect(screen.locator('sw-chip[data-area-chip="cr007_lobby"]')).toHaveAttribute('selected', '');
     await expect(screen.locator('sw-chip[data-area-chip="cr007_storage"]')).toHaveCount(1);
     await expect(screen.locator('sw-chip[data-area-chip="cr007_office"]')).toHaveCount(0); // another floor
     // breadcrumb back to the tree
     await expect(page.locator('devices-area sw-page')).toHaveAttribute('crumbs', /חשמל והתקנים \| קרקע \| לובי/);
-    // no controls anywhere inside the cards
-    await expect(screen.locator('sw-card sw-button, sw-card button, sw-card input, sw-card sw-toggle')).toHaveCount(0);
 
     // the empty area: every card is there and says what is missing (DomusUI's empty-state copy, in Hebrew)
     await screen.locator('sw-chip[data-area-chip="cr007_storage"]').click();
@@ -401,5 +419,123 @@ test.describe('Electricity and devices (CR-007 slice 1, read-only)', () => {
     await expect(page.locator('sw-app .bottom-overflow')).toHaveCount(0);
     await expect(bottom.locator('button')).toHaveClass(/active/);
     await expect(page.locator('devices-building a.tile[data-area="cr007_lobby"]')).toBeVisible({ timeout: 30000 });
+  });
+
+  // ---------------------------------------------------------------- CR-007 slice 2: single-entity control
+
+  test('a toggle goes pending then confirmed, following a simulated state push (the action route is mocked - a real bridge pairing is out of reach here, as evidence-plan-studio-4 does for the same route)', async ({ page, request }) => {
+    await seed(request);
+    await open(page, '/devices/areas/cr007_lobby', 'a');
+    const screen = page.locator('devices-area');
+    const tile = screen.locator('.tile[data-entity="light.cr007_lobby_2"]'); // seeded off
+    await expect(tile).toHaveClass(/\boff\b/, { timeout: 30000 });
+    const actionId = 'cr007-toggle-1';
+    let confirmed = false;
+    await page.route('**/api/v1/ha/entities/*/actions', async (r) => {
+      await r.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ id: actionId, entity_id: 'light.cr007_lobby_2', action_id: 'light.turn_on', status: 'pending', error: null, requested_at: new Date().toISOString(), confirmed_at: null }) });
+    });
+    await page.route('**/api/v1/ha/actions/*', async (r) => {
+      await r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ id: actionId, entity_id: 'light.cr007_lobby_2', action_id: 'light.turn_on', status: confirmed ? 'confirmed' : 'pending', error: null, requested_at: new Date().toISOString(), confirmed_at: confirmed ? new Date().toISOString() : null }) });
+    });
+    await tile.locator('sw-toggle[data-control="power"]').click();
+    // pending: the optimistic target shows at once, the tile marked pending - never claimed as fact yet
+    await expect(tile).toHaveClass(/\bpending\b/);
+    await expect(tile).toHaveAttribute('data-active', 'true');
+    // the simulated push: Home Assistant's own state changes (a real /ha/dev/states write + /ha/ws push), and the
+    // next action poll (mocked) now answers confirmed - together, what "confirmed by the state change" means
+    confirmed = true;
+    await setState(request, 'light.cr007_lobby_2', 'on', { friendly_name: 'ספוט לובי', brightness: 255 });
+    await expect(tile).not.toHaveClass(/\bpending\b/, { timeout: 5000 });
+    await expect(tile).toHaveClass(/\bon\b/);
+    await expect(tile.locator('.rollback-note')).toHaveCount(0);
+    await page.unroute('**/api/v1/ha/entities/*/actions');
+    await page.unroute('**/api/v1/ha/actions/*');
+    await setState(request, 'light.cr007_lobby_2', 'off', { friendly_name: 'ספוט לובי' });
+  });
+
+  test('a toggle that never confirms rolls back with an inline note once the domain timeout passes', async ({ page, request }) => {
+    await seed(request);
+    await open(page, '/devices/areas/cr007_lobby', 'a');
+    const screen = page.locator('devices-area');
+    const tile = screen.locator('.tile[data-entity="light.cr007_lobby_2"]');
+    await expect(tile).toHaveClass(/\boff\b/, { timeout: 30000 });
+    const actionId = 'cr007-toggle-2';
+    await page.route('**/api/v1/ha/entities/*/actions', async (r) => {
+      await r.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ id: actionId, entity_id: 'light.cr007_lobby_2', action_id: 'light.turn_on', status: 'pending', error: null, requested_at: new Date().toISOString(), confirmed_at: null }) });
+    });
+    await page.route('**/api/v1/ha/actions/*', async (r) => {
+      // Home Assistant never reports the expected state: the action stays pending forever from the client's view
+      await r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ id: actionId, entity_id: 'light.cr007_lobby_2', action_id: 'light.turn_on', status: 'pending', error: null, requested_at: new Date().toISOString(), confirmed_at: null }) });
+    });
+    await tile.locator('sw-toggle[data-control="power"]').click();
+    await expect(tile).toHaveClass(/\bpending\b/);
+    // light/switch domain timeout is 5s (DomusUI's own number, recorded in api/device-commands.ts): a note appears, never before it
+    await expect(tile.locator('.rollback-note')).toHaveCount(0);
+    await expect(tile.locator('.rollback-note')).toBeVisible({ timeout: 7000 });
+    await expect(tile).not.toHaveClass(/\bpending\b/);
+    await expect(tile).toHaveClass(/\boff\b/); // reverted to the last known real state - the target was never claimed as fact
+    await page.unroute('**/api/v1/ha/entities/*/actions');
+    await page.unroute('**/api/v1/ha/actions/*');
+  });
+
+  test('the brightness slider: a later drag supersedes an earlier in-flight command (last value wins)', async ({ page, request }) => {
+    await seed(request);
+    await open(page, '/devices/areas/cr007_lobby', 'a');
+    const screen = page.locator('devices-area');
+    const tile = screen.locator('.tile[data-entity="light.cr007_lobby"]'); // seeded on, 50%
+    await expect(tile).toHaveClass(/\bon\b/, { timeout: 30000 });
+    const sentPct: number[] = [];
+    const ids: string[] = [];
+    await page.route('**/api/v1/ha/entities/*/actions', async (r) => {
+      const body = r.request().postDataJSON() as { arguments: { brightness_pct: number } };
+      sentPct.push(body.arguments.brightness_pct);
+      const id = `cr007-bright-${sentPct.length}`;
+      ids.push(id);
+      await r.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ id, entity_id: 'light.cr007_lobby', action_id: 'light.turn_on', status: 'pending', error: null, requested_at: new Date().toISOString(), confirmed_at: null }) });
+    });
+    await page.route('**/api/v1/ha/actions/*', async (r) => {
+      const id = r.request().url().split('/').pop()!;
+      const isSecond = id === ids[1];
+      // the first request's own poll never confirms (as if superseded on the wire too); the second confirms at once
+      await r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ id, entity_id: 'light.cr007_lobby', action_id: 'light.turn_on', status: isSecond ? 'confirmed' : 'pending', error: null, requested_at: new Date().toISOString(), confirmed_at: isSecond ? new Date().toISOString() : null }) });
+    });
+    const range = tile.locator('input[data-control="brightness"]');
+    await range.fill('30');
+    await range.dispatchEvent('input');
+    await expect.poll(() => sentPct.length, { timeout: 2000 }).toBe(1); // debounce elapsed, first request sent
+    await range.fill('80');
+    await range.dispatchEvent('input');
+    await expect.poll(() => sentPct.length, { timeout: 2000 }).toBe(2); // second value supersedes before the first ever confirms
+    // the tile shows the LAST value, confirmed - the first request's own (never-arriving) confirmation cannot resurrect 30%
+    await expect(tile).toContainText('80%', { timeout: 5000 });
+    await expect(tile).not.toHaveClass(/\bpending\b/);
+    await expect(tile.locator('.rollback-note')).toHaveCount(0);
+    await page.unroute('**/api/v1/ha/entities/*/actions');
+    await page.unroute('**/api/v1/ha/actions/*');
+    await setState(request, 'light.cr007_lobby', 'on', { friendly_name: 'תאורת לובי', brightness: 128 });
+  });
+
+  test('controls are absent without devices.control: a plain viewer (devices.read only) sees the same cards read-only', async ({ browser, request }, testInfo) => {
+    await seed(request);
+    const tag = testInfo.project.name;
+    const bindings: string[] = [];
+    const viewerUser = `cr007viewerctl${tag}`;
+    try {
+      bindings.push(await bindUser(request, viewerUser, 'viewer'));
+      const ctx = await browser.newContext({ extraHTTPHeaders: { 'X-SW-Dev-User': viewerUser } });
+      const p = await ctx.newPage();
+      await open(p, '/devices/areas/cr007_lobby', 'a');
+      const screen = p.locator('devices-area');
+      const lit = screen.locator('.tile[data-entity="light.cr007_lobby"]');
+      await expect(lit).toBeVisible({ timeout: 30000 });
+      await expect(lit).toContainText('50%'); // the read-only value is still shown
+      await expect(lit).not.toHaveAttribute('data-can-control', '');
+      // no control of any kind anywhere inside the cards for this identity
+      await expect(screen.locator('sw-card sw-toggle, sw-card sw-button, sw-card input[type="range"], sw-card input[type="text"]')).toHaveCount(0);
+      await expect(screen.locator('.note')).toContainText('תצוגה לקריאה בלבד');
+      await ctx.close();
+    } finally {
+      for (const id of bindings) await request.delete(`/api/v1/access/bindings/${id}`).catch(() => {});
+    }
   });
 });

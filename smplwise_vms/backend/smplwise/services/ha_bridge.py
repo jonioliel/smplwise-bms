@@ -98,13 +98,16 @@ ACTIONS: dict[str, dict[str, Any]] = {
     # expected state after success (or the argument it comes from), risk class, extra grant
     "light.turn_on": _a("light", "turn_on", "הדלקה", args={"brightness_pct": ("int", 1, 100)}, expect="on"),
     "light.turn_off": _a("light", "turn_off", "כיבוי", expect="off"),
+    "light.toggle": _a("light", "toggle", "החלפת מצב"),
     "switch.turn_on": _a("switch", "turn_on", "הדלקה", expect="on"),
     "switch.turn_off": _a("switch", "turn_off", "כיבוי", expect="off"),
     "fan.turn_on": _a("fan", "turn_on", "הפעלה", args={"percentage": ("int", 1, 100)}, expect="on"),
     "fan.turn_off": _a("fan", "turn_off", "כיבוי", expect="off"),
+    "fan.set_percentage": _a("fan", "set_percentage", "עוצמת מאוורר", args={"percentage": ("int", 0, 100)}, expect_from="percentage"),
     "cover.open_cover": _a("cover", "open_cover", "פתיחה", expect="open", risk="attention"),
     "cover.close_cover": _a("cover", "close_cover", "סגירה", expect="closed", risk="attention"),
     "cover.stop_cover": _a("cover", "stop_cover", "עצירה"),
+    "cover.set_cover_position": _a("cover", "set_cover_position", "מיקום", args={"position": ("int", 0, 100)}, expect_from="position"),
     "lock.lock": _a("lock", "lock", "נעילה", expect="locked"),
     "lock.unlock": _a("lock", "unlock", "פתיחה", expect="unlocked", risk="sensitive", grant="door.unlock"),
     "button.press": _a("button", "press", "לחיצה", risk="attention"),
@@ -113,10 +116,17 @@ ACTIONS: dict[str, dict[str, Any]] = {
     # T040: more adapters
     "climate.set_hvac_mode": _a("climate", "set_hvac_mode", "מצב פעולה", args={"hvac_mode": ("enum", HVAC_MODES)}, expect_from="hvac_mode"),
     "climate.set_temperature": _a("climate", "set_temperature", "טמפרטורת יעד", args={"temperature": ("float", 5, 35)}),
+    # CR-007 slice 2: the devices area's climate card (mode/fan already covered by set_hvac_mode/set_temperature above)
+    "climate.set_fan_mode": _a("climate", "set_fan_mode", "מצב מאוורר", args={"fan_mode": ("str", 1, 40)}, expect_from="fan_mode"),
+    "climate.turn_off": _a("climate", "turn_off", "כיבוי מיזוג", expect="off"),
     "media_player.media_play": _a("media_player", "media_play", "נגן", expect="playing"),
     "media_player.media_pause": _a("media_player", "media_pause", "השהה", expect="paused"),
     "media_player.media_stop": _a("media_player", "media_stop", "עצור"),
+    "media_player.media_play_pause": _a("media_player", "media_play_pause", "נגן / השהה"),
     "media_player.volume_set": _a("media_player", "volume_set", "עוצמת שמע", args={"volume_level": ("float", 0, 1)}),
+    "media_player.volume_mute": _a("media_player", "volume_mute", "השתקה", args={"is_volume_muted": ("bool",)}),
+    "media_player.turn_on": _a("media_player", "turn_on", "הדלקה", expect="on"),
+    "media_player.turn_off": _a("media_player", "turn_off", "כיבוי", expect="off"),
     "number.set_value": _a("number", "set_value", "קביעת ערך", args={"value": ("float", -1e9, 1e9)}, expect_from="value"),
     "input_number.set_value": _a("input_number", "set_value", "קביעת ערך", args={"value": ("float", -1e9, 1e9)}, expect_from="value"),
     "select.select_option": _a("select", "select_option", "בחירה", args={"option": ("str", 1, 80)}, expect_from="option"),
@@ -139,6 +149,8 @@ def _arg_spec(name: str, schema: tuple[Any, ...]) -> dict[str, Any]:
         return {"name": name, "type": "enum", "choices": list(schema[1])}
     if typ == "str":
         return {"name": name, "type": "str", "min_len": schema[1], "max_len": schema[2]}
+    if typ == "bool":
+        return {"name": name, "type": "bool"}
     return {"name": name, "type": typ, "min": schema[1], "max": schema[2]}
 
 
@@ -182,6 +194,10 @@ def validate_action(action_id: str, entity_id: str, arguments: dict[str, Any]) -
             if not isinstance(value, str) or not schema[1] <= len(value.strip()) <= schema[2]:
                 raise ApiError(422, "validation", f"{name}: טקסט באורך {schema[1]}–{schema[2]} תווים.")
             data[name] = value.strip()
+        elif typ == "bool":
+            if not isinstance(value, bool):
+                raise ApiError(422, "validation", f"{name} חייב להיות אמת/שקר.")
+            data[name] = value
     missing = [n for n in spec["args"] if n not in data and spec.get("expect_from") == n]
     if missing:
         raise ApiError(422, "validation", f"חסר ארגומנט: {missing[0]}", details={"argument": missing[0]})

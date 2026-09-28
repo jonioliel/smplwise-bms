@@ -8,7 +8,7 @@ import type { MarkerKind } from '../map/sw-plan-canvas';
 
 export interface HaActionArgSpec {
   name: string;
-  type: 'int' | 'float' | 'enum' | 'str';
+  type: 'int' | 'float' | 'enum' | 'str' | 'bool';
   min?: number;
   max?: number;
   min_len?: number;
