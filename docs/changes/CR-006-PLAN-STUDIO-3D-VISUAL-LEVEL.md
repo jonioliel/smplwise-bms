@@ -132,6 +132,22 @@ adapter next to T063's. No HA writes, no device access, no external calls in pha
 5. Priority: (a) after CR-005 slices A1-A2 (person editor + card capture); (b) after all of CR-005 phase 2;
    (c) interleave 1a now as a short break between WisKey slices.
 
+> Recorded decision 2026-09-28 (owner in chat, same day): §7.1 (a) - OpenAI first behind a provider-agnostic
+> interface, and AI only in phase 2, none in phase 1. §7.3 - renders are a one-time act per floor; the answers and
+> images are stored and reused; re-rendering only when the owner asks after a geometry change. §7.5 - the owner
+> will run this CR in a second, parallel session alongside CR-005 phase 2. Scope clarification from the owner: the
+> goal is that **both the 3D and the 2D map views look far more visual and polished than today**, so phase 1
+> covers the 2D floor map as well (room fills, state tints, markers, chips, thumbnails - the same state layer drawn
+> on the canvas), not only the three.js scene. §7.2 and §7.4 were not understood as asked and are re-put in plain
+> terms: 7.2 = which picture is allowed to be sent to the AI provider (our own schematic render only, or also the
+> original architect's plan image); 7.4 = how many minutes the blue "there was movement here" tint keeps fading
+> before it disappears (default proposed: 3 minutes, a setting).
+>
+> Parallel-session rule (two sessions releasing into the same `g0/intake`/`main`): a session merges its branch only
+> after `git pull`, bumps the version from the current tip, never reuses a version number, and does not start a
+> release while the other session's release commit is not yet pushed; both sessions keep the full backend suite
+> to one run at a time on this workstation (the timing tests fail under concurrent load - see the T054 evidence).
+
 ## 8. Next step
 
 Owner answers §7; then 1a is dispatched from this document with the same implementer → reviewer → fix-round loop
