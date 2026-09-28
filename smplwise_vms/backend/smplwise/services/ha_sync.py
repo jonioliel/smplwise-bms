@@ -151,6 +151,29 @@ def apply_registry(conn: sqlite3.Connection, maps: dict[str, dict[str, Any]]) ->
     return n
 
 
+def apply_structure(conn: sqlite3.Connection, areas: list[dict[str, Any]], floors: list[dict[str, Any]]) -> None:
+    """Mirror HA's area and floor registries (CR-007): both tables are rewritten whole, in the listing's order, so a
+    renamed / moved / deleted area never lingers. Only the fields the devices tree shows are kept."""
+    now = now_iso()
+    conn.execute("DELETE FROM ha_floors")
+    conn.execute("DELETE FROM ha_areas")
+    for i, f in enumerate(floors):
+        if not f.get("floor_id"):
+            continue
+        level = f.get("level")
+        conn.execute(
+            "INSERT OR REPLACE INTO ha_floors(floor_id, name, level, icon, position, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (f["floor_id"], f.get("name") or f["floor_id"], int(level) if isinstance(level, (int, float)) and not isinstance(level, bool) else None, f.get("icon"), i, now),
+        )
+    for i, a in enumerate(areas):
+        if not a.get("area_id"):
+            continue
+        conn.execute(
+            "INSERT OR REPLACE INTO ha_areas(area_id, name, floor_id, icon, position, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (a["area_id"], a.get("name") or a["area_id"], a.get("floor_id"), a.get("icon"), i, now),
+        )
+
+
 def tombstone_missing(conn: sqlite3.Connection, present: set[str]) -> int:
     """Entities that vanished from both the state snapshot and the registry are tombstoned (placement kept)."""
     now = now_iso()
@@ -367,6 +390,11 @@ class HaSync:
                     with db.connection() as conn:
                         apply_registry(conn, dict(chunk))
                 _busy_retry(_write)
+
+            def _structure() -> None:
+                with db.connection() as conn:
+                    apply_structure(conn, areas, floors)
+            _busy_retry(_structure)
 
             def _tombstone() -> None:
                 with db.connection() as conn:

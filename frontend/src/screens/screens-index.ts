@@ -43,6 +43,14 @@ const SCREENS: { mode: string; items: Entry[] }[] = [
     items: [{ sc: 'SC23', name: 'WisKey · מרכז הכניסה', route: '#/wiskey/overview', phase: 'V1', board: '3:18' }],
   },
   {
+    // CR-007 (2026-09-28): electricity / device control, a top-level area approved from the mockup (6 boards).
+    mode: 'חשמל והתקנים',
+    items: [
+      { sc: 'SC32', name: 'חשמל והתקנים · המבנה', route: '#/devices/building', phase: 'BETA', board: 'CR-007:1' },
+      { sc: 'SC33', name: 'חשמל והתקנים · אזור', route: '#/devices/areas/unassigned', phase: 'BETA', board: 'CR-007:2' },
+    ],
+  },
+  {
     mode: 'אירועים והקלטות',
     items: [
       { sc: 'SC14', name: 'מרכז אירועים', route: '#/investigate/events', phase: 'PILOT', board: '1:08' },

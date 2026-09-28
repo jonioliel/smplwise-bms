@@ -8,6 +8,7 @@
       "permissions": [
         "map.read",
         "access.read",
+        "devices.read",
         "entity.state.read",
         "video.live"
       ]
@@ -26,6 +27,7 @@
       "permissions": [
         "map.read",
         "access.read",
+        "devices.read",
         "entity.state.read",
         "video.live",
         "video.playback",
@@ -42,6 +44,7 @@
       "permissions": [
         "map.read",
         "access.read",
+        "devices.read",
         "entity.state.read",
         "video.live",
         "map.import",
@@ -59,6 +62,7 @@
         "map.read",
         "access.read",
         "access.release",
+        "devices.read",
         "entity.state.read",
         "video.live",
         "video.playback",
@@ -85,6 +89,7 @@
         "map.read",
         "access.read",
         "access.release",
+        "devices.read",
         "entity.state.read",
         "video.live",
         "video.playback",

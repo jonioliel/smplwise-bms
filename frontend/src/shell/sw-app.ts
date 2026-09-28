@@ -15,6 +15,8 @@ import '../screens/explore-entities';
 import '../screens/wiskey-overview';
 import '../screens/wiskey-events';
 import '../screens/wiskey-people';
+import '../screens/devices-building';
+import '../screens/devices-area';
 import '../screens/live-overview';
 import '../screens/live-wall';
 import '../screens/live-camera';
@@ -634,9 +636,11 @@ export class SwApp extends LitElement {
       padding: 14px 30px 0;
     }
     :host([data-design='a']) nav.bottom {
-      /* 0.1.103: WisKey made this 5 areas (was 4); visibleAreas() renders unsliced here (unlike design B's
-         fixed 4 + overflow), so the grid must grow with it or the 5th item wraps/clips. */
-      grid-template-columns: repeat(5, 1fr);
+      /* 0.1.103: WisKey made this 5 areas (was 4); CR-007 made it 6 (חשמל). visibleAreas() renders unsliced here
+         (unlike design B's fixed 4 + overflow), so the grid follows the item count or the last item wraps/clips. */
+      grid-auto-flow: column;
+      grid-auto-columns: 1fr;
+      grid-template-columns: none;
     }
     :host([data-design='a']) nav.bottom a {
       font-size: 9px;
@@ -963,6 +967,10 @@ export class SwApp extends LitElement {
         if (s[1] === 'events') return html`<wiskey-events></wiskey-events>`;
         if (s[1] === 'people') return html`<wiskey-people></wiskey-people>`;
         return html`<wiskey-overview></wiskey-overview>`;
+      case 'devices':
+        // CR-007 slice 1: the read-only electricity / device control area - the building tree and one area's cards.
+        if (s[1] === 'areas' && s[2]) return html`<devices-area .areaId=${decodeURIComponent(s[2])}></devices-area>`;
+        return html`<devices-building></devices-building>`;
       case 'explore':
       default: {
         if (s[1] === 'sites') return html`<explore-sites></explore-sites>`;

@@ -313,6 +313,36 @@ def dev_states(body: DevStatesIn, request: Request, principal: Principal = Depen
     return {"entities": rows}
 
 
+class DevRegistryIn(BaseModel):
+    """The four registry listings as Home Assistant returns them (`config/*_registry/list`), trimmed to what
+    ha_client.registry_maps reads. Open bags on purpose: the sync itself only picks known keys."""
+    model_config = ConfigDict(extra="forbid")
+    entities: list[dict[str, Any]] = Field(default_factory=list, max_length=500)
+    devices: list[dict[str, Any]] = Field(default_factory=list, max_length=500)
+    areas: list[dict[str, Any]] = Field(default_factory=list, max_length=200)
+    floors: list[dict[str, Any]] = Field(default_factory=list, max_length=50)
+
+
+@dev_router.post("/ha/dev/registry")
+def dev_registry(body: DevRegistryIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Inject entity / device / area / floor registries as if Home Assistant sent them (the same mapping and the same
+    writes the sync's registry refresh uses), for the CR-007 devices specs without a Home Assistant. Developer identity
+    mode only; system.configure; audited. Entities in STATE_DOMAINS_SKIP are ignored as in the sync."""
+    _dev_only(settings_of(request))
+    require(conn, principal, "system.configure", INSTALLATION)
+    for e in body.entities:
+        if not isinstance(e.get("entity_id"), str) or "." not in e["entity_id"]:
+            raise ApiError(422, "validation_error", "לכל ישות נדרש entity_id בצורת domain.object_id.")
+    maps = ha_client.registry_maps(body.entities, body.devices, body.areas, body.floors)
+    maps = {k: v for k, v in maps.items() if k.split(".", 1)[0] not in ha_sync.STATE_DOMAINS_SKIP}
+    n = ha_sync.apply_registry(conn, maps)
+    ha_sync.apply_structure(conn, body.areas, body.floors)
+    ha_sync.STATE.last_registry_at = now_iso()
+    audit(conn, actor=principal, action="ha.dev.registry", decision="allowed", resource_type="installation", resource_id="*", request_id=getattr(request.state, "correlation_id", None),
+          details={"entities": n, "areas": len(body.areas), "floors": len(body.floors)})
+    return {"entities": n, "areas": len(body.areas), "floors": len(body.floors)}
+
+
 # ---------------------------------------------------------------- bridge pairing + directory (integration side)
 
 @router.post("/ha/bridge/install")
