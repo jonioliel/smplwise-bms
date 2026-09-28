@@ -164,6 +164,67 @@ test.describe.serial('plan studio (SW A)', () => {
     await expect(sheet).toHaveCount(0);
   });
 
+  // T084: the same viewer switch, added to the two surfaces that had no layers panel / view-options toggle for it
+  // yet - the historical map and the event page's map card. Same pattern as the live map and the editor: always
+  // shown until the viewer switches it off, remembered per floor per viewer, a plain sheet under the structure
+  // when hidden. Live + editor were already covered above (T085); this covers the historical map live, and shows
+  // the SVG/PNG exports (server-rendered, deterministic) are unaffected by any of these client-only switches.
+  test('the plan picture can be hidden on the historical map, on a switch of its own, and survives a reload', async ({ page }) => {
+    const hm = 'investigate-history-map';
+    await page.waitForTimeout(1100); // an instant after the structure publish above
+    const t = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+    await page.goto(`/?design=a#/investigate/floors/${ids.floor}/history?t=${t}`);
+    const canvas = page.locator(`${hm} sw-plan-canvas`);
+    const image = canvas.locator('[data-plan-image]');
+    const sheet = canvas.locator('[data-plan-sheet]');
+    const walls = canvas.locator('[data-wall]');
+    await expect(walls).toHaveCount(3, { timeout: 20000 });
+    await expect(image).toHaveCount(1);
+    await expect(sheet).toHaveCount(0);
+    const toggle = page.locator(`${hm} sw-button[data-plan-background]`);
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    await expect(image).toHaveCount(0);
+    await expect(sheet).toHaveCount(1);
+    await expect(walls).toHaveCount(3);
+    await page.screenshot({ path: path.join(OUT, 'history-map-background-hidden.png') });
+    await page.reload();
+    await expect(walls).toHaveCount(3, { timeout: 20000 });
+    await expect(image, 'the choice is kept for this floor after a reload').toHaveCount(0);
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    await toggle.click();
+    await expect(image).toHaveCount(1);
+    await expect(sheet).toHaveCount(0);
+    // the live map's own switch is untouched by the historical map's
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
+    await expect(page.locator('explore-floor-map sw-plan-canvas [data-plan-image]')).toHaveCount(1, { timeout: 20000 });
+  });
+
+  test('the SVG and PNG exports are unaffected by the plan-picture viewer toggle (they are server-rendered, not client state)', async ({ page }) => {
+    const ed = 'explore-plan-editor';
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
+    await expect(page.locator(`${ed} sw-plan-canvas [data-wall]`)).toHaveCount(3, { timeout: 20000 });
+    await page.locator(`${ed} [data-tool="structure"]`).click();
+    const svgBefore = await page.locator(`${ed} [data-export-svg]`).getAttribute('href');
+    const pngBefore = await page.locator(`${ed} [data-export-png]`).getAttribute('href');
+    expect(svgBefore).toBeTruthy();
+    expect(pngBefore).toBeTruthy();
+    await page.locator(`${ed} [data-tool="layers"]`).click();
+    const box = page.locator(`${ed} .layerlist input[data-plan-background]`);
+    await box.uncheck(); // hide the raster for this viewer
+    await page.locator(`${ed} [data-tool="structure"]`).click();
+    const svgAfter = await page.locator(`${ed} [data-export-svg]`).getAttribute('href');
+    const pngAfter = await page.locator(`${ed} [data-export-png]`).getAttribute('href');
+    expect(svgAfter, 'SVG export link unchanged by the toggle').toBe(svgBefore);
+    expect(pngAfter, 'PNG export link unchanged by the toggle').toBe(pngBefore);
+    const svgUrl = new URL(svgAfter!, page.url());
+    const svgRes = await api.get(`${svgUrl.pathname}${svgUrl.search}`);
+    expect(svgRes.status(), 'the export route still serves the raster/structure regardless of the viewer toggle').toBe(200);
+    await page.locator(`${ed} [data-tool="layers"]`).click();
+    await box.check(); // restore for the following tests
+  });
+
   test('draw a wall, place a door, select, delete and undo in the editor; the draft autosaves and viewers keep the published one', async ({ page }) => {
     const ed = 'explore-plan-editor';
     await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
