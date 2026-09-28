@@ -70,6 +70,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     if applied:
         log.info("applied migrations %s", applied)
     backup_svc.record_version(app.state.db)
+    try:  # CR-007 slice 3 review: a bulk device action cut off by the previous process gets its outcome now
+        from .services import device_bulk
+
+        swept = device_bulk.sweep_unfinished(app.state.db)
+        if swept:
+            log.warning("settled %s bulk device action(s) left unfinished by the previous process", swept)
+    except Exception:  # noqa: BLE001 - never block the start
+        log.exception("could not settle unfinished bulk device actions")
     try:  # 0.1.74: HA Hikvision-integration events get their camera (one cheap pass; new events get it on insert)
         from .services.correlation import backfill_ha_event_cameras
 

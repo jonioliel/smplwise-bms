@@ -92,7 +92,7 @@ stored in our database (DomusUI stores its layout in HA `frontend/*_system_data`
 |---|---|---|
 | 1 | Read-only: `devices.read`, tree + area screen with automatic cards, building counts, live updates, nav entry in both designs, phone layout | 1.5-3 h, 1-2 reviews |
 | 2 | Single-entity control: lights/switches/covers/climate one-tap + sliders via the existing action envelope, optimistic UI with confirmation/rollback, `devices.control` | 2-3 h, 2 reviews |
-| 3 | Bulk actions: floor menu, area popover, building buttons, `devices.control_bulk`, confirmation, per-entity outcomes, audit | 3-4 h, 2-3 reviews (safety) |
+| 3 | Bulk actions: floor menu, area popover, building buttons, `devices.control_bulk`, confirmation, per-entity outcomes, audit; plus (owner feedback on 0.1.115) the mockup's building layout - tree panel + floor cards as the default view, the slice-1 tiles kept as a remembered "אריחים" view, floor stats next to the title | 3-4 h, 2-3 reviews (safety) |
 | 4 | Climate and covers in full (modes, fan, tilt, group control), sensors card, "ללא שיוך" assign | 2-3 h, 1-2 reviews |
 | 5 | Screens and projection + remote (after the owner's explanation) | 3-5 h, 2 reviews |
 | 6 | Layout editor + style selector (glass tokens, RTL) | 5-8 h, 2-3 reviews |
@@ -131,6 +131,11 @@ existing HA fixture. No device access beyond HA's own service calls; no WisKey c
    observable (stop, a target temperature on an entity without a single `temperature`, mute on a player that does
    not report it) is shown as "נשלח" (sent), never as confirmed. The HA-side bridge allow-list is 0.2.4 (the new
    services), and a backend test now fails whenever the add-on's allow-list holds an action the bridge's does not.
+10. Switches in bulk actions (coordinator rulings on the slice-3 reviews, 2026-09-28): a door / gate release relay is a
+   switch too, so a switch enters a bulk action only when an administrator marked it bulk-safe (system.configure,
+   audited, off by default; cleared when the entity leaves Home Assistant). A Plan Studio lighting circuit never grants
+   eligibility by itself - drawing one needs only map editing - it only makes the UI suggest the mark. input_booleans
+   never enter; covers and switches on the map's door layer never enter, mark or not.
 
 ## 8. Next step
 

@@ -586,6 +586,20 @@ cover, climate, fan and media_player entities only, at the entity's own floor sc
 alarm panel, a siren, a script, a scene or a button: those stay behind `ha.entity.control` (plus `door.unlock` /
 `alarm.disarm`). Granted by default to operator, site_admin and system_admin - not to viewer, kiosk or editor.
 
+### Bulk device actions (CR-007 slice 3)
+
+`devices.control_bulk` (site_admin and system_admin by default; a sensitive permission, so a custom role grants it only
+by naming it explicitly) adds the building buttons, each floor's menu and each area's popover: turn off the lights,
+close the covers, turn off the climate (climate and fans), turn off the screens, or turn everything off (all of those plus
+the switches a system administrator marked "safe for bulk" on the area screen - a lighting circuit's switch is only
+suggested for the mark; any other switch may be a door release and is listed as not included; a mark is cleared when
+its entity leaves Home Assistant). Every action opens a confirmation dialog that lists what will be sent; the add-on resolves the set itself and
+sends one ordinary HA action per entity through the bridge, at most 8 at a time, one bulk per scope at a time. Locks, the
+alarm panel, sirens, scripts, scenes, buttons, input_booleans, door / garage / gate covers and covers or switches placed on
+the map's door layer are never included; entities already off or unavailable are skipped. The result is per entity: "בוצע" only when Home
+Assistant confirmed every one, otherwise "בוצע חלקית" with the list of those that did not confirm. A floor-scoped holder
+acts only on the entities placed on their floors; the building actions need installation scope. The building screen
+offers the tree + floor cards layout (default) and the tiles layout (פריסה), remembered per browser.
 ## Export queue (0.1.54)
 
 Export and preservation jobs download the original files from the NVR one at a time (the NVR's playback slots are

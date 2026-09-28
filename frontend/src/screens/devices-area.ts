@@ -13,11 +13,13 @@ import '../components/sw-button';
 import type { StateKind } from '../components/sw-badge';
 import type { IconName } from '../components/sw-icon';
 import { canAnywhere, isApi } from '../api/session';
-import { ApiError, describeError } from '../api/client';
+import { ApiError, describeError, put } from '../api/client';
 import { stateLabel, subscribeHa, type HaSyncState } from '../api/ha';
 import { ALARM_HE, CARD_EMPTY, CARD_IDS, HVAC_ACTION_HE, HVAC_HE, getDevicesArea, type CardId, type DeviceAreaDetail, type DeviceCard, type DeviceRow } from '../api/devices';
 import { debouncedCommand, runCommand, supersede, type CommandState } from '../api/device-commands';
 import { alarmTone, REFRESH_WINDOW_MS } from './devices-building';
+import './devices-bulk';
+import type { BulkRequest, DevicesBulkDialog } from './devices-bulk';
 import { navigate } from '../router';
 import { bidi, ltrNum } from '../i18n/bidi';
 
@@ -77,6 +79,17 @@ export class DevicesArea extends LitElement {
   private loading = false;
   private loadAgain = false;
   private debouncedRange = debouncedCommand<number>();
+
+  /** CR-007 slice 3: the area's own bulk actions (the same popover as the tree's area tile), for a holder of
+   * devices.control_bulk where the server says it would accept them (`can_bulk`); the dialog alone sends. */
+  private get bulkAllowed(): boolean {
+    return isApi() && canAnywhere('devices.control_bulk') && this.detail?.can_bulk === true;
+  }
+
+  private onBulkRequest = (e: CustomEvent<BulkRequest>) => {
+    e.stopPropagation();
+    void this.renderRoot.querySelector<DevicesBulkDialog>('devices-bulk-dialog')?.show(e.detail);
+  };
 
   static styles = css`
     :host {
@@ -313,6 +326,11 @@ export class DevicesArea extends LitElement {
     }
     .tile .rollback-note,
     .tile .cmd-status {
+      white-space: normal;
+    }
+    .bulk-safe {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
       white-space: normal;
     }
   `;
@@ -669,8 +687,10 @@ export class DevicesArea extends LitElement {
     const filled = cards.filter((c) => c.count > 0);
     const empty = cards.filter((c) => c.count === 0);
     const anyControllable = cards.some((c) => c.entities.some((r) => r.can_control));
-    return html`<sw-page heading=${bidi(d.area.name)} subheading=${sub} backHref="/devices/building" crumbs=${crumbs} wide>
+    const bulk = this.bulkAllowed;
+    return html`<sw-page heading=${bidi(d.area.name)} subheading=${sub} backHref="/devices/building" crumbs=${crumbs} wide @bulk-request=${this.onBulkRequest}>
       <div slot="actions">
+        ${bulk ? html`<devices-bulk-menu scope="area" .targetId=${d.area.area_id} .targetName=${d.area.name} .counts=${d.counts} variant="popover" label="פעולות לאזור" data-bulk-area=${d.area.area_id}></devices-bulk-menu>` : nothing}
         ${d.counts.alarm ? html`<sw-badge data-area-alarm kind=${alarmTone(d.counts.alarm)} label=${`אזעקה: ${ALARM_HE[d.counts.alarm] ?? d.counts.alarm}`}></sw-badge>` : nothing}
         <sw-badge data-devices-sync kind=${connected ? 'live' : 'stale'} label=${connected ? 'מסונכרן עם Home Assistant' : 'לא מסונכרן עם Home Assistant'}></sw-badge>
       </div>
@@ -691,6 +711,7 @@ export class DevicesArea extends LitElement {
           ? 'הקשה על מתג, כפתור או החלקה לשליטה בהתקן. המצב המוצג בשורה הוא תמיד מה ש־Home Assistant דיווח; פקודה שנשלחה מסומנת "ממתין לאישור" עד שהדיווח מגיע, ומתבטלת אם הוא לא מגיע בזמן. תנועת תריס (פתיחה, סגירה או מיקום) דורשת הקשת אישור נוספת.'
           : 'תצוגה לקריאה בלבד: מצב ההתקנים כפי ש־Home Assistant מדווח אותו.'}
       </div>
+      ${bulk ? html`<devices-bulk-dialog @bulk-done=${() => void this.load()}></devices-bulk-dialog>` : nothing}
     </sw-page>`;
   }
 
@@ -725,7 +746,37 @@ export class DevicesArea extends LitElement {
       <div class="s">${unavailable ? 'לא זמין' : value}</div>
       ${controllable && card === 'lighting' && (on || this.live<boolean>(r.entity_id, 'power') === true) ? this.renderBrightnessSlider(r) : nothing}
       ${controllable ? this.renderCmdStatus(r.entity_id) : nothing}
+      ${card === 'switches' && r.bulk_reason ? this.renderBulkSafe(r) : nothing}
     </div>`;
+  }
+
+  /** CR-007 slice 3, review rounds 1-2: a switch enters a bulk action only when an administrator marked it safe (a
+   * door / gate release relay is a switch too); a lighting circuit's switch only gets the suggestion. Shown to a bulk
+   * holder; the mark is set here with system.configure. */
+  private renderBulkSafe(r: DeviceRow) {
+    const label =
+      r.bulk_reason === 'marked'
+        ? 'נכלל בכיבוי מרוכז (סומן כבטוח)'
+        : r.bulk_reason === 'circuit_not_marked'
+          ? 'לא נכלל בכיבוי מרוכז · מפסק של מעגל תאורה - מומלץ לסמן כבטוח'
+          : r.bulk_reason === 'doors_layer'
+            ? 'לא נכלל בכיבוי מרוכז (שכבת הדלתות)'
+            : 'לא נכלל בכיבוי מרוכז (לא סומן כבטוח לכיבוי קבוצתי)';
+    const canToggle = this.detail?.can_mark_bulk_safe === true && r.bulk_reason !== 'doors_layer';
+    return html`<div class="bulk-safe" data-bulk-safe=${r.bulk_reason ?? ''}>
+      ${label}${canToggle
+        ? html` <sw-button size="sm" variant="ghost" data-bulk-safe-toggle title="סמנו רק מתג שאינו שחרור דלת / שער ושבטוח לכבות יחד עם התאורה" @click=${() => void this.toggleBulkSafe(r)}>${r.bulk_reason === 'marked' ? 'בטל סימון' : 'סמן כבטוח לכיבוי מרוכז'}</sw-button>`
+        : nothing}
+    </div>`;
+  }
+
+  private async toggleBulkSafe(r: DeviceRow) {
+    try {
+      await put(`devices/entities/${encodeURIComponent(r.entity_id)}/bulk-safe`, { bulk_safe: r.bulk_reason !== 'marked' });
+    } catch (err) {
+      this.error = describeError(err);
+    }
+    void this.load();
   }
 
   private renderRow(raw: DeviceRow, card: CardId) {

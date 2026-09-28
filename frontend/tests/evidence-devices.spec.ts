@@ -16,18 +16,26 @@ const BOTTOM = 'sw-app nav.bottom';
 const FLOORS = [
   { floor_id: 'cr007_upper', name: 'קומה 1', level: 1 },
   { floor_id: 'cr007_ground', name: 'קרקע', level: 0 },
+  // slice 3 (bulk actions): a floor of its own, so a bulk action never changes what the other tests look at
+  { floor_id: 'cr007_annex', name: 'אגף', level: 2 },
 ];
 const AREAS = [
   { area_id: 'cr007_office', name: 'משרד', floor_id: 'cr007_upper', icon: 'mdi:desk' },
   { area_id: 'cr007_lobby', name: 'לובי', floor_id: 'cr007_ground', icon: 'mdi:sofa' },
   { area_id: 'cr007_storage', name: 'מחסן', floor_id: 'cr007_ground' },
+  { area_id: 'cr007_hall', name: 'אולם', floor_id: 'cr007_annex' },
+  { area_id: 'cr007_den', name: 'חדר ישיבות', floor_id: 'cr007_annex' },
 ];
+const HALL = ['light.cr007_hall_a', 'light.cr007_hall_b', 'cover.cr007_hall', 'lock.cr007_hall_door', 'media_player.cr007_hall_tv'];
+const DEN = ['light.cr007_den', 'light.cr007_den_stuck', 'climate.cr007_den'];
 const LOBBY = ['light.cr007_lobby', 'light.cr007_lobby_2', 'switch.cr007_sign', 'climate.cr007_lobby', 'cover.cr007_blind', 'lock.cr007_front', 'binary_sensor.cr007_door', 'camera.cr007_lobby', 'media_player.cr007_tv', 'sensor.cr007_temp', 'alarm_control_panel.cr007_house'];
 const ENTITIES = [
   ...LOBBY.map((entity_id) => ({ entity_id, area_id: 'cr007_lobby' })),
   { entity_id: 'light.cr007_office', area_id: 'cr007_office' },
   { entity_id: 'cover.cr007_office', area_id: 'cr007_office' },
   { entity_id: 'switch.cr007_loose', area_id: null },
+  ...HALL.map((entity_id) => ({ entity_id, area_id: 'cr007_hall' })),
+  ...DEN.map((entity_id) => ({ entity_id, area_id: 'cr007_den' })),
 ];
 const STATES = [
   { entity_id: 'light.cr007_lobby', state: 'on', attributes: { friendly_name: 'תאורת לובי', brightness: 128 } },
@@ -44,6 +52,15 @@ const STATES = [
   { entity_id: 'light.cr007_office', state: 'off', attributes: { friendly_name: 'תאורת משרד' } },
   { entity_id: 'cover.cr007_office', state: 'closed', attributes: { friendly_name: 'תריס משרד', current_position: 0 } },
   { entity_id: 'switch.cr007_loose', state: 'off', attributes: { friendly_name: 'מתג ללא אזור' } },
+  { entity_id: 'light.cr007_hall_a', state: 'on', attributes: { friendly_name: 'תאורת אולם א' } },
+  { entity_id: 'light.cr007_hall_b', state: 'on', attributes: { friendly_name: 'תאורת אולם ב' } },
+  { entity_id: 'cover.cr007_hall', state: 'open', attributes: { friendly_name: 'תריס אולם', current_position: 100, device_class: 'shutter' } },
+  { entity_id: 'lock.cr007_hall_door', state: 'locked', attributes: { friendly_name: 'דלת אולם', device_class: 'lock' } },
+  { entity_id: 'media_player.cr007_hall_tv', state: 'on', attributes: { friendly_name: 'מסך אולם' } },
+  { entity_id: 'light.cr007_den', state: 'on', attributes: { friendly_name: 'תאורת חדר ישיבות' } },
+  // the fixture bridge accepts every call to an id containing "_stuck" and never reports its effect
+  { entity_id: 'light.cr007_den_stuck', state: 'on', attributes: { friendly_name: 'ספוט תקוע' } },
+  { entity_id: 'climate.cr007_den', state: 'cool', attributes: { friendly_name: 'מזגן חדר ישיבות', hvac_modes: ['off', 'cool'] } },
 ];
 
 test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single-entity control)', () => {
@@ -60,6 +77,22 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     const r = await request.post('/api/v1/ha/dev/states', { data: { states: [{ entity_id, state, attributes }] } });
     expect(r.status()).toBe(200);
   }
+
+  /** Owner feedback on 0.1.115: the building screen opens on the mockup's tree + floor cards by default; the slice-1/2
+   * tests were written against the tiles presentation and choose it explicitly (an init script, before navigation). */
+  async function useLayout(page: Page, layout: 'cards' | 'tiles') {
+    await page.addInitScript((l) => {
+      try {
+        localStorage.setItem('sw.devices.layout', l);
+      } catch {
+        /* storage unavailable */
+      }
+    }, layout);
+  }
+
+  test.beforeEach(async ({ page }) => {
+    await useLayout(page, 'tiles');
+  });
 
   async function open(page: Page, hash: string, design: 'a' | 'b' = 'a') {
     await page.goto(`/?design=${design}#${hash}`);
@@ -112,8 +145,10 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     await expect(screen.locator('sw-kpi[data-kpi="תאורה דולקת"]')).toHaveAttribute('data-value', `${b.lights_on}/${b.lights}`);
     await expect(screen.locator('sw-kpi[data-kpi="תריסים פתוחים"]')).toHaveAttribute('data-value', `${b.covers_open}/${b.covers}`);
     await expect(screen.locator('sw-kpi[data-kpi="אזעקה"]')).toBeVisible();
-    // nothing on this screen is a control
-    await expect(screen.locator('sw-button, button, input, sw-toggle')).toHaveCount(0);
+    // nothing on this screen controls one device; the only buttons are the bulk actions (slice 3: the header buttons
+    // and the "⋯" triggers, each of which opens the confirmation dialog - the admin holds devices.control_bulk)
+    await expect(screen.locator('input, sw-toggle')).toHaveCount(0);
+    await expect(screen.locator('sw-button:visible:not([data-bulk-kind]):not([data-bulk-trigger])')).toHaveCount(0);
     // a tile opens the area screen
     await lobby.click();
     await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/devices/areas/cr007_lobby');
@@ -285,6 +320,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       // floor A's viewer: the entry is there (devices.read at floor scope counts), the tree holds only the office
       const ctxA = await browser.newContext({ extraHTTPHeaders: { 'X-SW-Dev-User': `cr007floorA${tag}` } });
       const pA = await ctxA.newPage();
+      await useLayout(pA, 'tiles');
       await open(pA, '/devices/building', 'a');
       const screenA = pA.locator('devices-building');
       await expect(screenA.locator('a.tile[data-area="cr007_office"]')).toBeVisible({ timeout: 30000 });
@@ -300,6 +336,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       // floor B's viewer: nothing placed there - an honest empty tree, not a refusal
       const ctxB = await browser.newContext({ extraHTTPHeaders: { 'X-SW-Dev-User': `cr007floorB${tag}` } });
       const pB = await ctxB.newPage();
+      await useLayout(pB, 'tiles');
       await open(pB, '/devices/building', 'a');
       const emptyB = pB.locator('devices-building sw-state-panel[data-devices-state="empty"]');
       await expect(emptyB).toBeVisible({ timeout: 30000 });
@@ -358,6 +395,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       bindings.push(await bindUser(request, viewerUser, 'viewer'));
       const viewer = await browser.newContext({ extraHTTPHeaders: { 'X-SW-Dev-User': viewerUser } });
       const p2 = await viewer.newPage();
+      await useLayout(p2, 'tiles');
       await open(p2, '/live', 'a');
       await expect(p2.locator(`${RAIL} a[href="${HREF}"]`)).toHaveCount(1, { timeout: 30000 });
       await expect(p2.locator(`${RAIL} a[href="${HREF}"]`)).toContainText('חשמל');
@@ -686,5 +724,303 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     } finally {
       for (const id of bindings) await request.delete(`/api/v1/access/bindings/${id}`).catch(() => {});
     }
+  });
+
+  // ---------------------------------------------------------------- slice 3: bulk actions (devices.control_bulk)
+
+  /** Which button of the bulk dialog holds the keyboard focus (walking the shadow roots' activeElement chain). */
+  async function focusedBulkButton(page: Page): Promise<string | null> {
+    return page.evaluate(() => {
+      const chain: Element[] = [];
+      let el: Element | null = document.activeElement;
+      while (el) {
+        chain.push(el);
+        el = (el as HTMLElement).shadowRoot?.activeElement ?? null;
+      }
+      const host = chain.reverse().find((e) => e.tagName === 'SW-BUTTON');
+      if (!host) return null;
+      return host.hasAttribute('data-bulk-cancel') ? 'cancel' : host.hasAttribute('data-bulk-confirm') ? 'confirm' : 'other';
+    });
+  }
+
+  test('bulk (REAL route, fixture bridge): the area popover opens a dialog that states what is sent, focus on Cancel, Cancel sends nothing; confirm → progress → "בוצע" when all confirmed', async ({ page, request }) => {
+    test.skip(process.env.SW_DEVICES_FIXTURE !== '1', 'needs tests/fixtures/devices_fake_ha.py as the backend (SW_DEVICES_FIXTURE=1)');
+    test.setTimeout(90_000);
+    await seed(request);
+    const posted: Record<string, unknown>[] = [];
+    page.on('request', (req) => {
+      if (req.method() === 'POST' && /\/api\/v1\/devices\/actions$/.test(req.url())) posted.push(req.postDataJSON() as Record<string, unknown>);
+    });
+    await useLayout(page, 'cards');
+    await open(page, '/devices/building', 'a');
+    const screen = page.locator('devices-building');
+    // the tree panel's area row opens the area popover (the mockup's board 1)
+    // (below 900 px the tree panel folds away and the floor cards carry the same rows and popover)
+    const wide = (page.viewportSize()?.width ?? 1440) >= 900;
+    const menu = screen.locator(wide ? 'devices-bulk-menu[data-tree-area="cr007_hall"]' : 'devices-bulk-menu[data-card-area="cr007_hall"]');
+    await expect(menu).toBeVisible({ timeout: 30000 });
+    await menu.locator('button[data-area-row]').click();
+    const panel = menu.locator('[data-bulk-panel="popover"]');
+    await expect(panel).toBeVisible();
+    // the popover: the area's state chips, then the four quick actions and "all off"
+    await expect(panel.locator('[data-chip="lights"]')).toContainText('2/2');
+    await expect(panel.locator('[data-chip="locks"]')).toBeVisible();
+    await expect(panel.locator('button[data-bulk-kind]')).toHaveCount(5);
+    await expect(panel.locator('button[data-bulk-kind="climate_off"]')).toBeDisabled(); // nothing of that kind is on here
+    await expect(panel.locator('button[data-bulk-kind="all_off"]')).toContainText('כבה הכל באזור · אישור');
+    await expect(panel.locator('a[data-open-area]')).toHaveAttribute('href', '#/devices/areas/cr007_hall');
+    await panel.locator('button[data-bulk-kind="lights_off"]').click();
+    const dialog = screen.locator('devices-bulk-dialog sw-dialog[data-bulk-dialog="confirm"]');
+    await expect(dialog.locator('[data-bulk-what]')).toBeVisible({ timeout: 10000 }); // (the sw-dialog host itself has no box: its backdrop is fixed)
+    await expect(dialog.locator('[data-bulk-count]')).toHaveAttribute('data-bulk-count', '2');
+    await expect(dialog.locator('[data-bulk-domains] [data-domain="light"]')).toContainText('2');
+    await expect(dialog.locator('[data-bulk-never]')).toContainText('מנעולים');
+    await expect(dialog.locator('[data-bulk-never]')).toContainText('(1)'); // the hall's lock is there, and not included
+    await expect.poll(() => focusedBulkButton(page)).toBe('cancel');
+    expect(posted).toHaveLength(0); // opening the dialog sends nothing
+    await dialog.locator('sw-button[data-bulk-cancel]').click();
+    await expect(screen.locator('devices-bulk-dialog sw-dialog[open]')).toHaveCount(0);
+    expect(posted).toHaveLength(0); // Cancel sends nothing
+    // again, and this time the dialog's own confirm button
+    await menu.locator('button[data-area-row]').click();
+    await panel.locator('button[data-bulk-kind="lights_off"]').click();
+    await expect(dialog.locator('[data-bulk-what]')).toBeVisible({ timeout: 10000 }); // (the sw-dialog host itself has no box: its backdrop is fixed)
+    await dialog.locator('sw-button[data-bulk-confirm]').click();
+    const progress = screen.locator('devices-bulk-dialog [data-bulk-progress]');
+    await expect(progress).toBeVisible({ timeout: 10000 });
+    const result = screen.locator('devices-bulk-dialog [data-bulk-result="ok"]');
+    await expect(result).toContainText('בוצע', { timeout: 30000 });
+    await expect(result).not.toContainText('חלקית');
+    await expect(progress).toHaveAttribute('data-confirmed', '2');
+    await expect(progress).toHaveAttribute('data-done', 'true');
+    expect(posted).toHaveLength(1);
+    expect(posted[0]).toMatchObject({ scope: 'area', id: 'cr007_hall', kind: 'lights_off', confirmed: true });
+    // the tree refetched after completion: the hall's lights are off, its cover untouched, the lock still locked
+    const hall = screen.locator('devices-bulk-menu[data-card-area="cr007_hall"] button[data-area-row]');
+    await expect(hall).toHaveAttribute('data-counts', /lights:0\/2/, { timeout: 10000 });
+    await expect(hall).toHaveAttribute('data-counts', /covers:1\/1/);
+    expect((await (await request.get('/api/v1/ha/entities/lock.cr007_hall_door')).json()).state).toBe('locked');
+    await seed(request);
+  });
+
+  test('bulk (REAL route, fixture bridge): the floor menu "כבה הכל" with one device that never confirms shows progress, then "בוצע חלקית: 1 לא אושרו" naming it - never "everything is off"', async ({ page, request }) => {
+    test.skip(process.env.SW_DEVICES_FIXTURE !== '1', 'needs tests/fixtures/devices_fake_ha.py as the backend (SW_DEVICES_FIXTURE=1)');
+    test.setTimeout(120_000);
+    await seed(request);
+    await useLayout(page, 'cards');
+    await open(page, '/devices/building', 'a');
+    const screen = page.locator('devices-building');
+    // the floor card's "כבה קומה ▾" (the tree's floor "⋯" opens the same menu)
+    const menu = screen.locator('section[data-floor-card="cr007_annex"] devices-bulk-menu[data-floor-menu="cr007_annex"]');
+    await expect(menu).toBeVisible({ timeout: 30000 });
+    await expect(menu.locator('sw-button[data-bulk-trigger]')).toContainText('כבה קומה');
+    await menu.locator('sw-button[data-bulk-trigger]').click();
+    await menu.locator('[data-bulk-panel="menu"] button[data-bulk-kind="all_off"]').click();
+    const dialog = screen.locator('devices-bulk-dialog sw-dialog[data-bulk-dialog="confirm"]');
+    await expect(dialog.locator('[data-bulk-count]')).toHaveAttribute('data-bulk-count', '7', { timeout: 10000 });
+    for (const [d, n] of [['light', '4'], ['cover', '1'], ['climate', '1'], ['media_player', '1']]) await expect(dialog.locator(`[data-domain="${d}"]`)).toContainText(n);
+    await expect(dialog.locator('[data-domain="lock"]')).toHaveCount(0);
+    await expect(dialog.locator('[data-bulk-never]')).toContainText('מנעולים (1)');
+    await expect.poll(() => focusedBulkButton(page)).toBe('cancel');
+    await dialog.locator('sw-button[data-bulk-confirm]').click();
+    const progress = screen.locator('devices-bulk-dialog [data-bulk-progress]');
+    await expect(progress).toHaveAttribute('data-total', '7', { timeout: 10000 });
+    await expect(progress).toHaveAttribute('data-confirmed', '6', { timeout: 15000 });
+    await expect(progress).toHaveAttribute('data-done', 'false'); // the stuck light is still inside its window
+    await expect(screen.locator('devices-bulk-dialog [data-bulk-result="running"]')).toContainText('6 מתוך 7 אושרו');
+    const partial = screen.locator('devices-bulk-dialog [data-bulk-result="partial"]');
+    await expect(partial).toContainText('בוצע חלקית: 1 לא אושרו', { timeout: 45000 });
+    const missing = screen.locator('devices-bulk-dialog [data-bulk-not-confirmed] li');
+    await expect(missing).toHaveCount(1);
+    await expect(missing.first()).toHaveAttribute('data-entity', 'light.cr007_den_stuck');
+    await expect(missing.first()).toHaveAttribute('data-outcome', 'not_confirmed');
+    await expect(missing.first()).toContainText('לא אושר');
+    await expect(screen.locator('devices-bulk-dialog')).not.toContainText('הכל כבוי');
+    expect((await (await request.get('/api/v1/ha/entities/lock.cr007_hall_door')).json()).state).toBe('locked');
+    // the tree refetched: the den still shows its stuck light on
+    await expect(screen.locator('devices-bulk-menu[data-card-area="cr007_den"] button[data-area-row]')).toHaveAttribute('data-counts', /lights:1\/2/, { timeout: 10000 });
+    await seed(request);
+  });
+
+  test('bulk controls are gated on devices.control_bulk in both designs: an operator (devices.control) sees none and is refused; the admin sees the building buttons, floor menus and area popovers', async ({ page, browser, request }, testInfo) => {
+    await seed(request);
+    const user = `cr007opbulk${testInfo.project.name}`;
+    const binding = await bindUser(request, user, 'operator');
+    try {
+      const ctx = await browser.newContext({ extraHTTPHeaders: { 'X-SW-Dev-User': user } });
+      const p = await ctx.newPage();
+      for (const design of ['a', 'b'] as const) {
+        // the default (tree + floor cards): the area popover informs (chips, "פתח אזור"), it offers no action
+        await open(p, '/devices/building', design);
+        const scr = p.locator('devices-building');
+        const row = scr.locator('devices-bulk-menu[data-card-area="cr007_hall"]');
+        await expect(row).toBeVisible({ timeout: 30000 });
+        await expect(scr.locator('[data-bulk-floor], [data-floor-menu], [data-bulk-building], [data-quick-off], devices-bulk-dialog')).toHaveCount(0);
+        await row.locator('button[data-area-row]').click();
+        await expect(row.locator('[data-bulk-panel="popover"] a[data-open-area]')).toBeVisible();
+        await expect(row.locator('[data-bulk-panel] button[data-bulk-kind]')).toHaveCount(0);
+        await p.keyboard.press('Escape');
+        // the tiles: no "⋯" at all
+        await scr.locator('button[data-layout="tiles"]').click();
+        await expect(scr.locator('a.tile[data-area="cr007_hall"]')).toBeVisible({ timeout: 30000 });
+        await expect(scr.locator('devices-bulk-menu, [data-bulk-building], devices-bulk-dialog')).toHaveCount(0);
+        await scr.locator('button[data-layout="cards"]').click();
+        await open(p, '/devices/areas/cr007_hall', design);
+        await expect(p.locator('devices-area sw-card[data-card="lighting"]')).toBeVisible({ timeout: 30000 });
+        await expect(p.locator('devices-area devices-bulk-menu, devices-area devices-bulk-dialog')).toHaveCount(0);
+        await expect(p.locator('devices-area .tile[data-entity="light.cr007_hall_a"] sw-toggle[data-control="power"]')).toBeVisible(); // single-entity control stays
+      }
+      const expires = new Date(Date.now() + 60_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+      const r = await p.request.post('/api/v1/devices/actions', { data: { scope: 'area', id: 'cr007_hall', kind: 'lights_off', confirmed: true, client_request_id: crypto.randomUUID(), expires_at: expires } });
+      expect(r.status()).toBe(403);
+      expect((await p.request.get('/api/v1/devices/actions/preview?scope=area&id=cr007_hall&kind=all_off')).status()).toBe(403);
+      await ctx.close();
+      // the admin (the dev-mode default identity holds devices.control_bulk installation-wide), in both designs
+      const posted: string[] = [];
+      page.on('request', (req) => {
+        if (req.method() === 'POST' && /\/api\/v1\/devices\/actions$/.test(req.url())) posted.push(req.url());
+      });
+      for (const design of ['a', 'b'] as const) {
+        await open(page, '/devices/building', design);
+        const scr = page.locator('devices-building');
+        await expect(scr.locator('[data-bulk-building] sw-button[data-bulk-kind="lights_off"]')).toBeVisible({ timeout: 30000 });
+        await expect(scr.locator('[data-bulk-building] sw-button[data-bulk-kind="all_off"]')).toBeVisible();
+        await expect(scr.locator('devices-bulk-menu[data-bulk-floor="cr007_annex"]')).toBeVisible();
+        await expect(scr.locator('devices-bulk-menu[data-bulk-area="cr007_hall"]')).toBeVisible();
+        await expect(scr.locator('devices-bulk-menu[data-bulk-area="unassigned"]')).toHaveCount(0); // the bucket is not an area
+        // a building button opens the confirmation dialog; nothing is sent until its own confirm button
+        await scr.locator('[data-bulk-building] sw-button[data-bulk-kind="all_off"]').click();
+        await expect(scr.locator('devices-bulk-dialog sw-dialog[open] sw-button[data-bulk-cancel]')).toBeVisible({ timeout: 10000 });
+        await expect(scr.locator('devices-bulk-dialog sw-dialog[open]')).toHaveAttribute('heading', /כבה הכל · המבנה/);
+        await expect.poll(() => focusedBulkButton(page)).toBe('cancel');
+        await scr.locator('devices-bulk-dialog sw-button[data-bulk-cancel]').click();
+        await expect(scr.locator('devices-bulk-dialog sw-dialog[open]')).toHaveCount(0);
+        await open(page, '/devices/areas/cr007_hall', design);
+        await expect(page.locator('devices-area devices-bulk-menu[data-bulk-area="cr007_hall"]')).toBeVisible({ timeout: 30000 });
+      }
+      expect(posted).toHaveLength(0);
+    } finally {
+      await request.delete(`/api/v1/access/bindings/${binding}`).catch(() => {});
+    }
+  });
+
+  test('the building screen opens on the mockup layout (tree panel + floor cards), keeps the tiles as a second view remembered per viewer, and floor stats sit next to the title', async ({ browser, request }, testInfo) => {
+    test.skip(testInfo.project.name === 'mobile', 'the tree panel folds away below 900 px (the floor cards carry the same rows and actions; the bulk tests cover them there)');
+    await seed(request);
+    const ctx = await browser.newContext(); // a fresh viewer (the dev default identity, the admin): no stored layout
+    const p = await ctx.newPage();
+    try {
+      await open(p, '/devices/building', 'a');
+      const scr = p.locator('devices-building');
+      const tree = scr.locator('nav[data-devices-tree]');
+      await expect(tree).toBeVisible({ timeout: 30000 });
+      await expect(scr.locator('button[data-layout="cards"]')).toHaveAttribute('aria-pressed', 'true');
+      await expect(tree.locator('button[data-tree="all"]')).toContainText('כל המבנה');
+      // floors as group headers in level order, each with its areas (a state dot and the lit count)
+      const groups = await tree.locator('[data-tree-floor]').evaluateAll((els) => els.map((e) => e.getAttribute('data-tree-floor')));
+      expect(groups.indexOf('cr007_ground')).toBeLessThan(groups.indexOf('cr007_upper'));
+      expect(groups.indexOf('cr007_upper')).toBeLessThan(groups.indexOf('cr007_annex'));
+      const lobbyRow = tree.locator('devices-bulk-menu[data-tree-area="cr007_lobby"] button[data-area-row]');
+      await expect(lobbyRow).toHaveAttribute('data-on', 'true');
+      await expect(lobbyRow.locator('.sdot.on')).toHaveCount(1);
+      await expect(lobbyRow.locator('.lit')).toHaveText(/^‎?1$/);
+      await expect(tree.locator('[data-tree-floor="cr007_annex"] devices-bulk-menu[data-bulk-floor="cr007_annex"]')).toHaveCount(1); // the floor "⋯"
+      await expect(tree.locator('.tree-area sw-button[data-quick-off="cr007_hall"]')).toHaveCount(1); // hover "כבה אזור"
+      // the floor cards: header with the lit count and "כבה קומה ▾", a row per area with its chips, footer "פתח קומה"
+      const ground = scr.locator('section[data-floor-card="cr007_ground"]');
+      await expect(ground.locator('header .lit')).toHaveAttribute('data-lit', '1');
+      await expect(ground.locator('header .lit')).toContainText(/1 דולקות מתוך \u200E?2/);
+      await expect(ground.locator('devices-bulk-menu[data-floor-menu="cr007_ground"]')).toHaveCount(1);
+      await expect(ground.locator('button[data-area-row="cr007_lobby"]')).toHaveAttribute('data-counts', /lights:1\/2/);
+      await expect(ground.locator('button[data-area-row="cr007_storage"]')).toContainText('אין התקנים');
+      await expect(scr.locator('section[data-floor-card]')).toHaveCount(await scr.locator('nav[data-devices-tree] [data-tree-floor]').count() + 1); // + ללא שיוך
+      // "פתח קומה" (or the floor in the tree) narrows the cards to that floor; "כל המבנה" brings everything back
+      await ground.locator('sw-button[data-open-floor="cr007_ground"]').click();
+      await expect(scr.locator('section[data-floor-card]')).toHaveCount(1);
+      await expect(tree.locator('button[data-tree-select="cr007_ground"]')).toHaveAttribute('aria-current', 'true');
+      await tree.locator('button[data-tree="all"]').click();
+      await expect(scr.locator('section[data-floor-card="cr007_annex"]')).toBeVisible();
+      // an area row of a floor card opens the popover; "פתח אזור ›" opens the area screen
+      const cardRow = scr.locator('devices-bulk-menu[data-card-area="cr007_lobby"]');
+      await cardRow.locator('button[data-area-row]').click();
+      const pop = cardRow.locator('[data-bulk-panel="popover"]');
+      await expect(pop.locator('[data-chip="lights"]')).toContainText('1/2');
+      await expect(pop.locator('[data-chip="alarm"]')).toBeVisible();
+      await expect(pop.locator('button[data-bulk-kind]')).toHaveCount(5);
+      await pop.locator('a[data-open-area]').click();
+      await expect.poll(() => p.evaluate(() => location.hash)).toBe('#/devices/areas/cr007_lobby');
+      await expect(p.locator('devices-area sw-card[data-card="lighting"]')).toBeVisible({ timeout: 30000 });
+      await expect(p.locator('devices-area devices-bulk-menu[data-bulk-area="cr007_lobby"]')).toHaveCount(1); // the area's own popover
+      // the tiles view is still there, and the choice is remembered for this viewer
+      await open(p, '/devices/building', 'a');
+      await scr.locator('button[data-layout="tiles"]').click();
+      await expect(scr.locator('a.tile[data-area="cr007_lobby"]')).toBeVisible();
+      await expect(scr.locator('nav[data-devices-tree]')).toHaveCount(0);
+      await p.reload();
+      await expect(p.locator('devices-building a.tile[data-area="cr007_lobby"]')).toBeVisible({ timeout: 30000 });
+      await expect(p.locator('devices-building button[data-layout="tiles"]')).toHaveAttribute('aria-pressed', 'true');
+      // owner's screenshot: the floor's summary chips sat at the far edge of the page, detached from its title
+      const head = p.locator('devices-building section[data-floor="cr007_ground"]');
+      const title = await head.locator('.floor-head h2').boundingBox();
+      const sum = await head.locator('.floor-sum').boundingBox();
+      const section = await head.boundingBox();
+      expect(title && sum && section).toBeTruthy();
+      // RTL: the title on the right, the chips right after it (not pushed to the section's left edge)
+      if ((p.viewportSize()?.width ?? 1280) >= 900) {
+        expect(title!.x - (sum!.x + sum!.width)).toBeLessThan(260);
+        expect(sum!.x - section!.x).toBeGreaterThan(120);
+      }
+      await p.locator('devices-building button[data-layout="cards"]').click();
+      await expect(p.locator('devices-building nav[data-devices-tree]')).toBeVisible();
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  test('bulk (REAL route, fixture bridge): a device clock minutes fast or slow still sends - the expiry is computed on the server clock learned from the preview', async ({ browser, request }) => {
+    test.skip(process.env.SW_DEVICES_FIXTURE !== '1', 'needs tests/fixtures/devices_fake_ha.py as the backend (SW_DEVICES_FIXTURE=1)');
+    test.setTimeout(120_000);
+    for (const skewMs of [5 * 60_000, -5 * 60_000]) {
+      await seed(request);
+      const ctx = await browser.newContext();
+      const p = await ctx.newPage();
+      await p.addInitScript((skew) => {
+        const realNow = Date.now.bind(Date);
+        Date.now = () => realNow() + skew;
+      }, skewMs);
+      const posted: Record<string, unknown>[] = [];
+      p.on('request', (req) => {
+        if (req.method() === 'POST' && /\/api\/v1\/devices\/actions$/.test(req.url())) posted.push(req.postDataJSON() as Record<string, unknown>);
+      });
+      await open(p, '/devices/areas/cr007_hall', 'a');
+      const menu = p.locator('devices-area devices-bulk-menu[data-bulk-area="cr007_hall"]');
+      await expect(menu).toBeVisible({ timeout: 30000 });
+      await menu.locator('sw-button[data-bulk-trigger]').click();
+      await menu.locator('[data-bulk-panel] button[data-bulk-kind="lights_off"]').click();
+      const dialog = p.locator('devices-area devices-bulk-dialog sw-dialog[data-bulk-dialog="confirm"]');
+      await expect(dialog.locator('[data-bulk-count]')).toHaveAttribute('data-bulk-count', '2', { timeout: 10000 });
+      await dialog.locator('sw-button[data-bulk-confirm]').click();
+      await expect(p.locator('devices-area devices-bulk-dialog [data-bulk-result="ok"]')).toContainText('בוצע', { timeout: 30000 });
+      // the expiry sent lies ~15 s ahead of the SERVER's clock, whatever this device's clock says
+      const lead = Date.parse(String(posted[0].expires_at)) - Date.now();
+      expect(lead, `skew ${skewMs}`).toBeGreaterThan(5_000);
+      expect(lead, `skew ${skewMs}`).toBeLessThan(20_000);
+      await ctx.close();
+    }
+    await seed(request);
+  });
+
+  test('a bulk holder sees whether each switch is included in bulk actions; an administrator marks one safe and back', async ({ page, request }) => {
+    await seed(request);
+    await open(page, '/devices/areas/cr007_lobby', 'a');
+    const sign = page.locator('devices-area .tile[data-entity="switch.cr007_sign"]');
+    const line = sign.locator('[data-bulk-safe]');
+    await expect(line).toHaveAttribute('data-bulk-safe', 'switch_not_marked', { timeout: 30000 });
+    await expect(line).toContainText('לא נכלל בכיבוי מרוכז');
+    await line.locator('sw-button[data-bulk-safe-toggle]').click();
+    await expect(line).toHaveAttribute('data-bulk-safe', 'marked', { timeout: 10000 });
+    await expect(line).toContainText('נכלל בכיבוי מרוכז (סומן כבטוח)');
+    await line.locator('sw-button[data-bulk-safe-toggle]').click();
+    await expect(line).toHaveAttribute('data-bulk-safe', 'switch_not_marked', { timeout: 10000 });
   });
 });

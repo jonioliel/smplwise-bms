@@ -58,6 +58,7 @@
         "access.people.manage",
         "devices.control",
         "access.cards.capture",
+        "devices.control_bulk",
         "entity.state.read",
         "video.live",
         "video.playback",
@@ -85,6 +86,7 @@
         "access.people.manage",
         "devices.control",
         "access.cards.capture",
+        "devices.control_bulk",
         "entity.state.read",
         "video.live",
         "video.playback",
@@ -118,6 +120,7 @@
     "access.release",
     "access.people.manage",
     "access.cards.capture",
+    "devices.control_bulk",
     "alarm.disarm",
     "nvr.config.write"
   ],
