@@ -137,6 +137,29 @@ existing HA fixture. No device access beyond HA's own service calls; no WisKey c
    eligibility by itself - drawing one needs only map editing - it only makes the UI suggest the mark. input_booleans
    never enter; covers and switches on the map's door layer never enter, mark or not.
 
+### 7.11 Slice 6 decisions (owner, 2026-09-29)
+
+Slice 6 is split: **6a** = the dedicated settings section + the second visual style ("glass", the approved mockup /
+DomusUI-like) with full RTL; **6b** = the layout editor. Owner answers for 6b (numbered questions in chat):
+
+1. **Ownership - (a):** one layout per installation, stored on the server, edited only with `system.configure`,
+   shown to everyone.
+2. **Entering edit mode - (a) plus:** an "ערוך פריסה" button opens an edit mode (drag / resize handles, "שמור" /
+   "בטל" / "אפס לברירת מחדל"); **the button is shown only to users who hold the edit permission**, never to others.
+3. **What a card / tile can change - (a) plus themes:** position and size on a grid (8 px snap, as the mockup's Edit
+   board), text size (three steps), background / border colour **from the token palette only** (no free HEX), a
+   custom title and icon, hide. The owner adds: there will be a light and a dark style, and **several colour themes
+   (palettes) for the device area, each with a light and a dark variant** - a `devices.theme` setting next to
+   `devices.style`; the tile colours in the editor are palette roles (accent / warm / cool / neutral ...), resolved
+   per theme and per colour scheme, so an edited layout looks right in every theme.
+4. **Scope - (a):** both the building screen (floor / area cards) and the area screen (device tiles), each with its
+   own layout; an area layout can be "copied to all areas".
+5. **Phone - (a)+(b):** the phone layout is derived automatically (one column in the order set on the desktop) AND
+   can then be edited on its own after it was generated.
+
+Ruling on sequencing: 6a ships first (0.1.128); 6b starts when 6a's implementer returns (shared files); the colour
+themes of 3 belong to 6b (they build on 6a's token layer).
+
 ## 8. Next step
 
 Slice 1 dispatched 2026-09-28 from this document; the DomusUI extraction is the reference for card rules and
