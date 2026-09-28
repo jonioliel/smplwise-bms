@@ -1,5 +1,27 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.113 (pilot) — Plan Studio 3D quality level 2 (CR-006 slice 1a)
+- Owner request (2026-09-28): the 3D floor map should reach the visual level of the isometric dashboards the
+  owner showed, in a first phase with no external products. This release adds a second real-time quality level
+  of the existing three.js scene: a true isometric preset on an orthographic camera (the old 31° view stays as
+  "פרספקטיבה"), a sky backdrop from new design tokens (both designs), hemisphere + sun light with soft shadows
+  fitted to the floor, standard materials with a rough floor and translucent glass, ACES tone mapping, baked
+  contact occlusion under walls and objects, cutaway walls (the walls between the camera and the interior drop
+  to 0.7 m, with a dark section cap), a light level-2 wall tone, and a thumbnail strip of the levels.
+- Level 1 stays as it was and is the automatic fallback: a short fps probe (paused while the tab is hidden)
+  drops a weak device to level 1 for the session and says so. Quality is chosen per browser; the installation
+  default is a new setting `plan.quality` (default 2). Recorded change to the "level 1 exactly as before" rule:
+  the floor map's default "איזומטרי" preset is now a true isometric at both levels.
+- Reviewed twice (adversarial): round 1 found floating slivers where cut walls were only squashed, thumbnails
+  rendered without colour-space conversion (near-black), a background-tab probe trap, thumbnails redrawn on
+  every state push, and a double build on mount - all fixed; round 2 approved with small nits carried into
+  slice 1b (thumbnail scheduling, narrow-canvas framing, a settings-wait timeout). Numbers: `three` chunk
+  154.6 KB gzip (unchanged), the 3D element 13.9 KB; 60 fps on the sample floor at both levels; on the
+  3,000-chair floor level 2 runs 30-40 fps (objects then cast no shadows) - the heavy-floor and phone budget
+  for level 2 is slice 1c's acceptance criterion. Tests: 12 new unit specs, 70 existing 3D specs green, 12 live.
+- Next: slice 1b - the state layer (room tints by light/presence/open door, temperature chips, presence fade as
+  an option), on the 2D map as well; slice 1c - determinism/visual regression and the phone budget.
+
 ## 0.1.112 (pilot) — Electricity and device control area, slice 1: read-only tree and area screen (CR-007)
 - Owner request (2026-09-28, approved from a mockup): a new top-level area "חשמל והתקנים" - a tree of floors
   and areas, and an area screen with automatic cards per device type, "as visual and convenient as possible",
