@@ -1,5 +1,13 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.122 (pilot) — Show or hide the WisKey area (settings › בקרות כניסה)
+- Owner request (2026-09-28): a third control in "בקרות כניסה" - "הצג את WisKey במערכת". Hiding removes the whole
+  WisKey area from the navigation for every user regardless of role (both nav designs, the phone bottom nav and
+  its overflow), the same "hidden for everyone" shape as hiding the map; a direct URL to a WisKey route shows a
+  "מוסתר" panel pointing back to the setting. The per-screen choices (WisKey embedded / SMPLWISE) apply only while
+  the area is shown. Setting `ui.hide_wiskey`, audited. Tests: 3 settings tests, 21 live across desktop, tablet
+  and phone incl. toggle-back.
+
 ## 0.1.121 (pilot) — WisKey embedded as-is, and a "בקרות כניסה" settings section (CR-005, owner decision)
 - Owner decision (2026-09-28 evening): instead of porting the rest of WisKey screen by screen, embed the owner's
   own WisKey panel as it is. The WisKey area now shows the real WisKey panel inside SMPLWISE (an iframe on the same
