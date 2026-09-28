@@ -1,5 +1,32 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.106 (pilot) — WisKey door release, call control and announcements (CR-005 phase 3)
+- Owner request (2026-09-27): implement the physical WisKey capabilities the owner explicitly approved one by
+  one, starting with the three that have a ready home on the already-shipped Entry Center screen - door release,
+  live call answer/reject/hangup, and spoken announcements. Two-way audio, card capture, scheduled door programs,
+  relay reversal and WhatsApp remain separately approved but not yet built, either because they need screens this
+  product does not have yet or (two-way audio) because they deserve their own dedicated task.
+- New installation-scoped permission `access.release`, granted only to `site_admin` and `system_admin` - not
+  viewer, operator, editor or kiosk - since a broader grant would be an undiscussed policy expansion of real-world
+  door control; recorded as a deliberate decision.
+- Every physical action requires a real, server-enforced confirmation (not just a UI dialog a client could
+  skip), carries a command id and a short server-clock-based expiry so a stalled request cannot execute late, and
+  is proxied entirely through the existing persistent HA connection and its existing rate limiter and concurrency
+  slots - reserved capacity of their own now, so ordinary reads can never starve a physical action.
+- Every attempt is audited under the real SMPLWISE actor before the command is sent, including every refusal
+  (missing confirmation, already in progress, offline, expired, duplicate) - not only attempts that reached
+  WisKey.
+- Wording is deliberately honest throughout: a successful response never claims the door opened, only that
+  WisKey accepted the command; an unanswered request is its own distinct "outcome unknown" state that
+  discourages blind retries, never collapsed into a plain success or a plain failure.
+- Reviewed five times, adversarially, as the first physical-action capability this product has ever shipped.
+  Four of the five rounds each found a real, distinct way a command WisKey had actually carried out could still
+  have been reported back as "refused, nothing happened" - through the audit path, through a reply-shape edge
+  case, and twice through the exact set of WisKey error codes that can occur after a command already reached the
+  real device. The fifth found a content-type validation gap the fourth round's own refactor had introduced,
+  closing a theoretical no-preflight request path. Every finding was fixed and covered with an adversarial
+  regression test, not just documentation.
+
 ## 0.1.105 (pilot) — WisKey activity log and people directory backend (CR-005 phase 1b)
 - Backend-only extension of the WisKey plumbing, ahead of the next two read-only screens (Activity/Events,
   People directory): new command wrappers for `events/list` and `users/query`/`users/get`, new endpoints
