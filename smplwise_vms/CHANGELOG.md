@@ -1,5 +1,29 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.107 (pilot) — WisKey activity log tab (CR-005 phase 4)
+- Owner request (2026-09-28): give WisKey its own top-level nav tab (not nested under the map), then a
+  read-only Activity/Events tab alongside the already-shipped Entry Center overview.
+- New tab `#/wiskey/events`: filters (station/person/result/authentication/door/date-range) matching the
+  existing `GET /api/v1/intercom/events` query params, "load more" pagination over the `next`/`before`
+  cursor, and a detail panel per row. No backend changes - reuses the existing endpoint and the existing
+  `access.read` gating exactly as the Entry Center screen already does, in both parallel nav designs.
+- Explicitly not a live feed: the screen says so, and only reloads on a WisKey change notice, on manual
+  refresh, or (only while notices are down) every 30s, with the last-loaded time always shown. A known,
+  disclosed limitation: a door/contact event that doesn't change the Entry Center's own data does not
+  reliably trigger a refresh notice today - fixing that needs a backend change and was left for a future task.
+- Ported from the real WisKey frontend: the filter set, one-load-at-a-time with a single queued reload,
+  the DST-aware local date/time inputs (a time that is ambiguous or skipped by a clock change is refused,
+  not guessed), and the storage-failed/history-incomplete notices. Left out because the existing endpoint
+  doesn't serve them: saved report presets, CSV export, portraits, masked card numbers.
+- One deliberate change from real WisKey: a change notice arriving while more than one page is loaded no
+  longer discards the extra pages - it keeps them and shows a note that a manual refresh will reload from
+  page 1. Review found this guarantee could still be silently broken if the notice landed while a "load
+  more" request was still in flight; fixed by deciding keep-vs-reload at the moment the reload actually
+  runs, not when the notice first arrives, with a regression test that reproduces the race and fails
+  against the old logic.
+- Renamed the existing WisKey tab from "WisKey" to "מרכז הכניסה" (Entry Center) now that WisKey has more
+  than one tab, so the breadcrumb no longer reads "WisKey › WisKey".
+
 ## 0.1.106 (pilot) — WisKey door release, call control and announcements (CR-005 phase 3)
 - Owner request (2026-09-27): implement the physical WisKey capabilities the owner explicitly approved one by
   one, starting with the three that have a ready home on the already-shipped Entry Center screen - door release,

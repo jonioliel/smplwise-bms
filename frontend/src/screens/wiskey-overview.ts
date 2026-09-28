@@ -141,8 +141,8 @@ const DEMO: IntercomOverview = {
   ],
 };
 
-/** The honest message for each feed state the entry center cannot show stations in. */
-const FEED_PANELS: Record<Exclude<IntercomFeedState, 'ready'>, { panel: PanelState; heading: string; hint: string }> = {
+/** The honest message for each feed state the entry center cannot show stations in (the activity log reuses it). */
+export const FEED_PANELS: Record<Exclude<IntercomFeedState, 'ready'>, { panel: PanelState; heading: string; hint: string }> = {
   ha_not_configured: {
     panel: 'stale',
     heading: 'WisKey אינו מחובר בסביבה הזו',
@@ -158,6 +158,13 @@ const FEED_PANELS: Record<Exclude<IntercomFeedState, 'ready'>, { panel: PanelSta
   forbidden: { panel: 'forbidden', heading: 'WisKey דחה את הגישה של SMPLWISE', hint: 'המשתמש של ה־Add-on ב־Home Assistant אינו מורשה בהרשאות של WisKey, ולכן אין נתונים להצגה.' },
   error: { panel: 'error', heading: 'WisKey החזיר שגיאה', hint: 'הבקשה ל־WisKey לא הושלמה. הניסיון יחזור אוטומטית.' },
 };
+
+/** The feed badge in a WisKey page's header (kind and label per feed state), shared by the WisKey screens. */
+export function feedBadge(state: IntercomFeedState, version?: string | null): { kind: StateKind; label: string } {
+  const kind: StateKind = state === 'ready' ? 'live' : state === 'connecting' ? 'unknown' : state === 'forbidden' ? 'forbidden' : state === 'error' ? 'error' : 'offline';
+  const label = state === 'ready' ? `מחובר ל־WisKey${version ? ` ${version}` : ''}` : state === 'connecting' ? 'מתחבר' : 'לא מחובר';
+  return { kind, label };
+}
 
 /**
  * WisKey tab: the entry center (CR-005 phase 1a, read-only). Ported from the owner's WisKey frontend - the WisKey 04
@@ -518,8 +525,7 @@ export class WiskeyOverview extends LitElement {
 
   private renderFeedBadge(feed: IntercomFeed, demo: boolean) {
     if (demo) return html`<sw-badge slot="actions" kind="neutral" label="נתוני הדגמה"></sw-badge>`;
-    const kind: StateKind = feed.state === 'ready' ? 'live' : feed.state === 'connecting' ? 'unknown' : feed.state === 'forbidden' ? 'forbidden' : feed.state === 'error' ? 'error' : 'offline';
-    const label = feed.state === 'ready' ? `מחובר ל־WisKey${feed.overview?.version ? ` ${feed.overview.version}` : ''}` : feed.state === 'connecting' ? 'מתחבר' : 'לא מחובר';
+    const { kind, label } = feedBadge(feed.state, feed.overview?.version);
     return html`<sw-badge slot="actions" data-wiskey-feed=${feed.state} kind=${kind} label=${label}></sw-badge>`;
   }
 

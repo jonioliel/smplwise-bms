@@ -13,6 +13,7 @@ import '../screens/explore-plan-import';
 import '../screens/explore-plan-editor';
 import '../screens/explore-entities';
 import '../screens/wiskey-overview';
+import '../screens/wiskey-events';
 import '../screens/live-overview';
 import '../screens/live-wall';
 import '../screens/live-camera';
@@ -957,6 +958,8 @@ export class SwApp extends LitElement {
         return html`<system-diagnostics></system-diagnostics>`;
       case 'wiskey':
         // T054/0.1.103: WisKey entry center (CR-005), now its own top-level area, not an explore sub-tab.
+        // CR-005 phase 1b: the read-only activity log at #/wiskey/events.
+        if (s[1] === 'events') return html`<wiskey-events></wiskey-events>`;
         return html`<wiskey-overview></wiskey-overview>`;
       case 'explore':
       default: {

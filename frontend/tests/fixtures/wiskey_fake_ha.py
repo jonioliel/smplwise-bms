@@ -1,4 +1,5 @@
-"""Fixture backend for tests/evidence-wiskey-actions.spec.ts (T054, CR-005 phase 3): the REAL SMPLWISE backend, whose
+"""Fixture backend for tests/evidence-wiskey-actions.spec.ts (T054, CR-005 phase 3) and the fixture part of
+tests/evidence-wiskey-events.spec.ts (CR-005 phase 1b activity log): the REAL SMPLWISE backend, whose
 Home Assistant WebSocket is an in-process fake that answers like WisKey (`hikvision_intercom/*`). No real Home
 Assistant, WisKey or door station can be reached from this process: HA_URL is forced to a `.test` host (a reserved
 name that never resolves) and every `websockets.connect` goes to the fake; it refuses to start inside the add-on.
@@ -36,12 +37,25 @@ Control API (SW_WISKEY_CONTROL_PORT, default SW_PORT + 10, 127.0.0.1 only), JSON
     GET  /sent                          every hikvision_intercom/* frame the fake received, in order
     GET  /frame-hits                    every /api/frame.jpeg request the fake go2rtc got since start (not reset):
                                         {name, host, user, ok}
+    POST /events/add {count}            add `count` access events newer than any other and push `refresh` (WisKey's
+                                        EventManager.changed() does the same on every accepted event)
+    POST /events/prune {keep}           keep only the newest `keep` events: an older `before` cursor then expires
+    POST /events/delay {seconds}        answer every events/list that much later (0-10 s; 0 after /reset), so a test
+                                        can hold a request in flight
+
+The event cache starts with EVENT_COUNT deterministic access events (newest first: 08:00 Asia/Jerusalem on 2026-09-27,
+then every 7 minutes back), answered by `events/list` with WisKey's own EventCache.query semantics (events.py): exact
+station / result / authentication / door, casefolded `person` substring over "<employee_no> <person_name>", start /
+end bounds, `limit` 1-200, `before` = the previous page's last id (an unknown id is `invalid_fields`, "Event cursor
+expired"), and `next` = the page's last id only while more rows match. Rows carry WisKey's full row (masked card,
+portrait, evidence, major / minor), so the SMPLWISE projection is exercised too.
 """
 from __future__ import annotations
 
 import asyncio
 import base64
 import copy
+import datetime
 import json
 import os
 import sys
@@ -104,6 +118,78 @@ TTS_ENGINES = {"default": "tts.piper", "engines": [
 ]}
 
 
+EVENT_COUNT = 130  # more than one 100-row page, so "load more" has a second page
+EVENT_BASE = datetime.datetime(2026, 9, 27, 8, 0, tzinfo=datetime.timezone(datetime.timedelta(hours=3)))
+EVENT_STATIONS = ("gate", "lobby", "office", "store")
+EVENT_PEOPLE = (("Dana Cohen", "1001"), ("Yossi Levi", "1017"), (None, "2044"), ("Maya Katz", "1033"), (None, None))
+
+
+def access_event(n: int, when: datetime.datetime) -> dict[str, Any]:
+    """Event number `n` (0 = the first generated, older numbers are older in time for the initial set). Every 5th is
+    denied, every 11th has an unknown result and method; the rest are granted, card and PIN alternating."""
+    name, employee = EVENT_PEOPLE[n % len(EVENT_PEOPLE)]
+    result = "unknown" if n % 11 == 0 else "denied" if n % 5 == 0 else "granted"
+    auth = "unknown" if result == "unknown" else "pin" if n % 2 else "card"
+    station_id = EVENT_STATIONS[n % len(EVENT_STATIONS)]
+    iso = when.isoformat()
+    return {
+        "id": f"ev-{n:04d}", "station_id": station_id, "timestamp": iso, "received_at": when.astimezone(datetime.timezone.utc).isoformat(),
+        "time_source": "device", "person_name": name, "employee_no": employee, "door": 2 if station_id == "lobby" and n % 3 == 0 else 1,
+        "authentication": auth, "result": result, "event_type": {"granted": "access_granted", "denied": "access_denied"}.get(result, "door_unlocked"),
+        "card": "****1234" if auth == "card" else None, "recovered": n % 13 == 0, "major": 5, "minor": 1,
+        "portrait": None, "evidence": {"identity_state": "identified" if employee else "no_identity", "origin": "device_event", "arrival_delay_seconds": 0},
+        "api_door": 1, "source": "stream",
+    }
+
+
+def initial_events() -> list[dict[str, Any]]:
+    return [access_event(i, EVENT_BASE - datetime.timedelta(minutes=7 * i)) for i in range(EVENT_COUNT)]
+
+
+def _instant(value: Any) -> datetime.datetime | None:
+    if not isinstance(value, str) or len(value) > 40:
+        return None
+    try:
+        parsed = datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else None
+
+
+def query_events(rows: list[dict[str, Any]], filters: dict[str, Any]) -> dict[str, Any] | None:
+    """WisKey's EventCache.query (events.py:301-387) for the filters SMPLWISE sends; None = `invalid_fields`."""
+    allowed = {"station_id", "person", "result", "authentication", "event_type", "door", "start", "end", "limit", "before"}
+    if set(filters) - allowed:
+        return None
+    limit = filters.get("limit", 100)
+    if type(limit) is not int or not 1 <= limit <= 200:
+        return None
+    start, end = _instant(filters.get("start")), _instant(filters.get("end"))
+    if ("start" in filters and start is None) or ("end" in filters and end is None) or (start and end and start >= end):
+        return None
+    matches = []
+    for row in sorted(rows, key=lambda r: (_instant(r["timestamp"]), r["id"]), reverse=True):
+        when = _instant(row["timestamp"])
+        if when is None or (start and when < start) or (end and when > end):
+            continue
+        if any(f in filters and row[f] != filters[f] for f in ("station_id", "result", "authentication", "event_type", "door")):
+            continue
+        if "person" in filters and filters["person"].casefold() not in f"{row['employee_no'] or ''} {row['person_name'] or ''}".casefold():
+            continue
+        matches.append(row)
+    before = filters.get("before")
+    if before:
+        index = next((i for i, row in enumerate(matches) if row["id"] == before), None)
+        if index is None:
+            return None  # "Event cursor expired"
+        matches = matches[index + 1:]
+    page = matches[:limit]
+    return {
+        "records": copy.deepcopy(page), "next": page[-1]["id"] if len(matches) > limit else None, "retention_days": 30, "capacity": 5000,
+        "membership_basis": None, "storage_failed": False, "stations": {sid: {"stream": "connected", "history": "recovered"} for sid in EVENT_STATIONS},
+    }
+
+
 class World:
     """The fake WisKey's state, shared by the fake socket (feed loop thread) and the control server (its own thread)."""
 
@@ -121,6 +207,9 @@ class World:
             self.stations = initial_stations()
             self.unlock_mode = "accept"
             self.sent: list[dict[str, Any]] = []
+            self.events = initial_events()
+            self.added = 0
+            self.events_delay = 0.0
 
     def push_refresh(self) -> None:
         if self.fake is not None and self.loop is not None:
@@ -201,6 +290,14 @@ class FakeHa:
                 s["call_state"] = "in_call" if msg["command"] == "answer" else "idle"
                 self.push(ok(msg, {"command": msg["command"], "acknowledged": True, "physical_result": "unverified", "before_state": before, "observed_state": s["call_state"], "observation": "state_changed", "checked_at": "2026-09-27T08:01:00+00:00"}))
                 asyncio.get_running_loop().call_later(0.3, self.refresh)
+            elif kind == "hikvision_intercom/events/list":
+                filters = msg.get("filters")
+                page = query_events(WORLD.events, filters) if isinstance(filters, dict) and set(msg) == {"id", "type", "filters"} else None
+                frame = ok(msg, page) if page is not None else fail(msg, "invalid_fields")
+                if WORLD.events_delay:
+                    asyncio.get_running_loop().call_later(WORLD.events_delay, self.push, frame)
+                else:
+                    self.push(frame)
             elif kind == "hikvision_intercom/tts/engines":
                 self.push(ok(msg, copy.deepcopy(TTS_ENGINES)))
             elif kind == "hikvision_intercom/tts/start":
@@ -296,6 +393,37 @@ class Control(BaseHTTPRequestHandler):
                     return self._json(404, {"error": "no_such_station"})
                 s["call_state"] = str(body.get("call_state"))
             WORLD.push_refresh()
+            return self._json(200, {"ok": True})
+        if self.path == "/events/add":
+            count = body.get("count")
+            if type(count) is not int or not 1 <= count <= 50:
+                return self._json(422, {"error": "count must be 1..50"})
+            with WORLD.lock:
+                newest = max(_instant(r["timestamp"]) for r in WORLD.events) if WORLD.events else EVENT_BASE
+                for i in range(count):
+                    WORLD.added += 1
+                    WORLD.events.append(access_event(1000 + WORLD.added, newest + datetime.timedelta(minutes=i + 1)))
+                # WisKey's overview carries each station's last access record: a new access event changes it, which is
+                # what makes SMPLWISE's feed relay `intercom_refresh` to browsers (it relays only real changes)
+                last = WORLD.events[-1]
+                for s in WORLD.stations:
+                    if s["id"] == last["station_id"] and s["online"]:
+                        s["last_access"] = {k: last[k] for k in ("timestamp", "time_source", "person_name", "employee_no", "authentication", "result", "event_type", "recovered", "door")}
+            WORLD.push_refresh()
+            return self._json(200, {"ok": True})
+        if self.path == "/events/delay":
+            seconds = body.get("seconds")
+            if not isinstance(seconds, (int, float)) or isinstance(seconds, bool) or not 0 <= seconds <= 10:
+                return self._json(422, {"error": "seconds must be 0..10"})
+            with WORLD.lock:
+                WORLD.events_delay = float(seconds)
+            return self._json(200, {"ok": True})
+        if self.path == "/events/prune":
+            keep = body.get("keep")
+            if type(keep) is not int or keep < 0:
+                return self._json(422, {"error": "keep must be >= 0"})
+            with WORLD.lock:
+                WORLD.events = sorted(WORLD.events, key=lambda r: (_instant(r["timestamp"]), r["id"]), reverse=True)[:keep]
             return self._json(200, {"ok": True})
         if self.path == "/mode":
             if body.get("unlock") not in ("accept", "unexpected", "unconfirmed"):
