@@ -286,18 +286,44 @@ def test_column_rows_need_a_regular_spacing_and_bridge_a_lost_column():
     assert pdo._runs(row[:2], 100, 600, 0) == [], "two columns are no row"
     lost = [blob(x, 500) for x in (100, 400, 1000, 1300)]  # 700 lost: a double spacing is bridged
     assert pdo._runs(lost, 100, 600, 0) == [[0, 1, 2, 3]]
-    uneven = [blob(x, 500) for x in (100, 400, 550, 1000)]
+    uneven = [blob(x, 500) for x in (100, 400, 500, 1000)]  # 300 / 100 / 500: no unit fits
     assert pdo._runs(uneven, 100, 600, 0) == []
+    # 300 / 150: a unit of 150 with the column at 250 lost - one double spacing, the first, is bridged (review M2)
+    assert pdo._runs([blob(x, 500) for x in (100, 400, 550)], 100, 600, 0) == [[0, 1, 2]]
     sizes = [blob(100, 500), blob(400, 500, 80.0), blob(700, 500)]
     assert pdo._runs(sizes, 100, 600, 0) == [], "columns of one row are about one size"
     assert pdo._runs([blob(500, y) for y in (100, 400, 700)], 100, 600, 1) == [[0, 1, 2]]
-    # review M2: a missing column in the first spacing - the run restarts from the column before the break
+    # review M2: a missing column in the first spacing is bridged like any other (the shortest spacing fixes the unit)
     first = [blob(x, 500) for x in (100, 700, 1000, 1300)]
-    assert pdo._runs(first, 100, 600, 0) == [[1, 2, 3]]
-    assert pdo._runs(first, 100, 500, 0) == [[1, 2, 3]], "a first spacing out of range restarts the same way"
-    # exactly one missing column per run: a second double spacing ends it
+    assert pdo._runs(first, 100, 600, 0) == [[0, 1, 2, 3]]
+    assert pdo._runs(first, 100, 500, 0) == [[1, 2, 3]], "a first spacing out of range: the run restarts from the column before the break"
+    assert pdo._runs(first[:2], 100, 600, 0) == [], "a pair alone never bridges (and is no row)"
+    # exactly one missing column per run: a second double spacing ends it, and the next run (its own one lost column,
+    # the first spacing) starts from the column before the break
     twice = [blob(x, 500) for x in (100, 400, 1000, 1300, 1900, 2200)]
-    assert pdo._runs(twice, 100, 600, 0) == [[0, 1, 2, 3]]
+    assert pdo._runs(twice, 100, 600, 0) == [[0, 1, 2, 3], [3, 4, 5]]
+    thrice = [blob(x, 500) for x in (100, 400, 1000, 1600, 1900)]  # two doubles in a row: never one run
+    assert all(sum(1 for a, b in zip(r, r[1:]) if thrice[b]["cx"] - thrice[a]["cx"] > 450) <= 1 for r in pdo._runs(thrice, 100, 600, 0))
+
+
+def test_a_row_with_its_first_column_lost_proposes_every_column_and_the_whole_envelope():
+    """Review M2 end to end (0.02 m / px): 0.9 m piers at x = 100, 700, 1000, 1300 px (the one at 400 lost) on the
+    bottom edge of a building: all four are columns, the first pier's outline stub goes, and the envelope runs from the
+    first pier to the last, the 100-700 stretch included."""
+    s = 0.02
+    gray = np.full((700, 1500), 255, dtype=np.uint8)
+    gray[100:106, 100:1301] = 0  # the building's top wall: the pier row is its bottom edge
+    for x in (100, 700, 1000, 1300):
+        gray[478:523, x - 22 : x + 23] = 0
+    columns, runs = pdo.find_columns({"gray": gray}, s, 6.0, True)
+    assert sorted(round(c["cx"]) for c in columns) == [100, 700, 1000, 1300] and [len(r) for _a, r in runs] == [4]
+    stub = pd.Seg(np.array([85.0, 500.0]), np.array([115.0, 500.0]), [6.0] * 5, axis=True)
+    top = pd.Seg(np.array([100.0, 103.0]), np.array([1300.0, 103.0]), [6.0] * 5, axis=True)
+    kept, dropped = pdo.drop_column_stubs([top, stub], columns)
+    assert dropped == 1 and kept == [top]
+    env = pdo.envelope_walls(columns, runs, kept, 6.0, s)
+    spans = sorted((min(g.a[0], g.b[0]), max(g.a[0], g.b[0])) for g in env)
+    assert spans and spans[0][0] <= 101 and spans[-1][1] >= 1299 and sum(hi - lo for lo, hi in spans) >= 1190, spans
 
 
 def test_components_of_a_mask():

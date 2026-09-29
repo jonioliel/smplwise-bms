@@ -14,7 +14,7 @@ after an erosion by a square just under COL_MIN_M (lines, text, hatching and the
 core's box grown back is the column. A box COL_MIN_M to COL_MAX_M on each side, at most COL_ASPECT long for its width and
 filled (COL_RAW_FILL), is a column when at least COL_MIN_ROW of them of about one size (COL_SIZE_RATIO) stand on one line
 (centres within COL_LINE_TOL of their side) at a regular spacing (COL_SPACING_M, the widest at most COL_REGULAR times the
-narrowest; ONE double spacing per run - a column the scan lost - is bridged, never the first) - a pier grid, never a
+narrowest; ONE double spacing per run - a column the scan lost - is bridged, the first one too) - a pier grid, never a
 lone blob - and when it is not a wall with a window rhythm (windowed_wall: the wall or a window symbol continues from
 both faces of its blobs across their whole thickness, review B1: a masonry facade's piers). The wall pieces that
 lie wholly inside a column (the sides of its outline, which the wall pass suggested as stubs) are dropped. A row of
@@ -242,16 +242,17 @@ def _runs(blobs: list[dict[str, float]], lo: float, hi: float, axis: int) -> lis
 
     def regular(run: list[int]) -> bool:
         """The spacings of `run` as multiples of the shortest: each one or two units (a column the scan lost leaves a
-        double spacing - the row goes on across it, the lost column is not proposed), at most ONE double per run and
-        never the first (two columns alone cannot tell a double from a unit), the unit lo..hi, the spacings regular
-        (COL_REGULAR) and the columns of about one size (COL_SIZE_RATIO)."""
+        double spacing - the row goes on across it, the lost column is not proposed), at most ONE double per run, the
+        first spacing as well as any other (with three or more columns the shortest spacing fixes the unit; a pair alone
+        has one spacing, its own unit, and never bridges), the unit lo..hi, the spacings regular (COL_REGULAR) and the
+        columns of about one size (COL_SIZE_RATIO)."""
         pos = [blobs[j][key[axis]] for j in run]
         gaps = [b - a for a, b in zip(pos, pos[1:])]
         unit = min(gaps)
         if unit <= 0 or not lo <= unit <= hi:
             return False
         steps = [max(1, round(gp / unit)) for gp in gaps]
-        if max(steps) > 2 or steps.count(2) > 1 or steps[0] != 1:
+        if max(steps) > 2 or steps.count(2) > 1:
             return False
         norm = [gp / k for gp, k in zip(gaps, steps)]
         sides = [side(j) for j in run]
