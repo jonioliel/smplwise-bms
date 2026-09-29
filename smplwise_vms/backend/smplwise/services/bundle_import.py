@@ -26,7 +26,6 @@ from typing import Any
 from ..config import Settings
 from . import bundle as bundle_svc
 from . import signing
-from .timeutil import iso_utc, parse_utc
 
 FILE_RE = re.compile(r"^(clips|snapshots)/[A-Za-z0-9][A-Za-z0-9._-]{0,200}$")
 PROVENANCE_FILES = ("manifest.json", "MANIFEST.sha256", signing.SIG_NAME)
@@ -99,23 +98,27 @@ def local_usage(settings: Settings, conn: sqlite3.Connection) -> dict[str, Any]:
     return out
 
 
-def remove_case_files(settings: Settings, bundle_sha: str | None) -> int:
-    """Delete an imported case's folder. Returns the bytes freed."""
+def free_bytes(settings: Settings) -> int:
+    """Free space of the data directory (where SQLite lives too); a test seam."""
+    return shutil.disk_usage(settings.data_dir).free
+
+
+def detach_case_files(settings: Settings, bundle_sha: str | None) -> Path | None:
+    """Move an imported case's folder into the staging area (a rename: call it under the write lock, after checking
+    that no case row refers to the hash any more), so a concurrent re-import of the same bundle can never lose its new
+    files to this deletion. The caller removes the returned folder outside the lock (sweep_staging catches leftovers)."""
     if not bundle_sha or not bundle_svc.SHA_RE.match(bundle_sha):
-        return 0
+        return None
     d = case_dir(settings, bundle_sha)
-    n = dir_size(d)
-    shutil.rmtree(d, ignore_errors=True)
-    return n
+    if not d.exists():
+        return None
+    trash = staging_root(settings) / f"trash-{secrets.token_hex(8)}"
+    d.rename(trash)
+    return trash
 
 
 def _ts(value: Any) -> str | None:
-    if not isinstance(value, str) or len(value) > 40:
-        return None
-    try:
-        return iso_utc(parse_utc(value))
-    except (ValueError, TypeError, OverflowError):
-        return None
+    return bundle_svc._ts(value)
 
 
 def _s(value: Any, n: int = 200) -> str | None:
@@ -174,8 +177,8 @@ def plan_items(manifest: dict[str, Any], stored: dict[str, dict[str, Any]], bund
         origin = {
             "bundle_sha256": bundle_sha, "source_installation_id": source_iid, "source_item_id": _s(it.get("item_id"), 64), "kind": kind,
             "camera_id": _s(it.get("camera_id"), 64), "camera_name": _s(it.get("camera_name"), 120),
-            "event": {k: _s(ev.get(k), 60) for k in ("type", "occurred_at", "ended_at", "severity", "confidence", "source")} if ev else None,
-            "added_by": _s(it.get("added_by"), 120), "created_at": _s(it.get("created_at"), 40), "preservation": _s(it.get("preservation"), 20),
+            "event": {**{k: _s(ev.get(k), 60) for k in ("type", "severity", "confidence", "source")}, **{k: _ts(ev.get(k)) for k in ("occurred_at", "ended_at")}} if ev else None,
+            "added_by": _s(it.get("added_by"), 120), "created_at": _ts(it.get("created_at")), "preservation": _s(it.get("preservation"), 20),
             "source": {k: _s(src.get(k), 80) for k in ("kind", "job_id", "requested_from", "requested_to", "actual_from", "actual_to", "sha256_at_export", "sha256_at_capture", "taken_at") if src.get(k) is not None} if src else None,
             "file": {"path": _s(path, 256), "sha256": _s(f.get("sha256"), 64), "bytes": f.get("bytes") if isinstance(f.get("bytes"), int) else None} if f else None,
             "in_bundle": in_bundle, "stored": file_path is not None,
@@ -194,11 +197,13 @@ def provenance(manifest: dict[str, Any], report: dict[str, Any], bundle: dict[st
     return {
         "source_installation_id": o.get("installation_id"), "source_app_version": o.get("app_version"), "exported_at": o.get("exported_at"),
         "exported_by": o.get("exported_by"), "exported_by_display": o.get("exported_by_display"), "timezone": o.get("timezone"),
-        "this_installation": o.get("this_installation"), "confirmed_by_signature": o.get("confirmed_by_signature"), "basis": o.get("basis"),
+        "this_installation": o.get("this_installation"), "confirmed_by_signature": bool(o.get("confirmed_by_signature")), "basis": o.get("basis"),
+        # this_confirmed (signed by a key of this installation) | this_claimed (our id, not our signature) | other | unknown
+        "producer": o.get("producer") or "unknown",
         "bundle_sha256": bundle["sha256"], "bundle_bytes": bundle["bytes"], "bundle_name": _s(bundle.get("name"), 200),
         "signature": {k: sig.get(k) for k in ("present", "valid", "trust", "kid", "known", "retired")},
         "verification": {"ok": bool(report.get("ok")), "files": len(report.get("files") or []), "schema": report.get("schema"), "verified_at": now},
-        "source_case": {k: _s(case.get(k), 120) for k in ("id", "title", "status", "owner_username", "created_at", "updated_at")},
+        "source_case": {**{k: _s(case.get(k), 120) for k in ("id", "title", "status", "owner_username")}, **{k: _ts(case.get(k)) for k in ("created_at", "updated_at")}},
         "imported_at": now, "imported_by": getattr(importer, "username", None),
         "files_stored": sum(1 for p in stored if p not in PROVENANCE_FILES), "bytes_stored": sum(v["bytes"] for v in stored.values()),
         "skipped_at_source": len(manifest.get("skipped") or []) if isinstance(manifest.get("skipped"), list) else 0,

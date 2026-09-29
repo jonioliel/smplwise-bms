@@ -19,6 +19,7 @@ import io
 import json
 import re
 import sqlite3
+import struct
 import uuid
 import zipfile
 from dataclasses import dataclass
@@ -49,6 +50,11 @@ class Limits:
     max_manifest: int = 16 * 1024 * 1024
     max_ratio: int = 200  # declared size / compressed size of one entry above ratio_floor bytes
     ratio_floor: int = 1024 * 1024
+
+    @property
+    def max_central_dir(self) -> int:
+        """The largest central directory accepted: max_entries records of 46 bytes plus a 512-byte name each."""
+        return self.max_entries * (46 + 512)
 
 
 class UnsafeBundle(ValueError):
@@ -232,6 +238,48 @@ def _unsafe_reason(info: zipfile.ZipInfo) -> str | None:
     return None
 
 
+_EOCD = struct.Struct("<4s4H2LH")  # signature, disk, cd disk, entries on disk, entries, cd size, cd offset, comment length
+_Z64_LOCATOR = struct.Struct("<4sLQL")  # signature, disk, zip64 EOCD offset, disks
+_Z64_EOCD = struct.Struct("<4sQ2H2L4Q")  # signature, size, versions, disks, entries on disk, entries, cd size, cd offset
+
+
+def precheck(fp: IO[bytes], limits: Limits) -> None:
+    """Read the End-of-Central-Directory record (and the ZIP64 locator / record) directly, BEFORE zipfile builds its
+    index: an archive declaring more than max_entries entries or a central directory larger than max_central_dir is
+    refused without parsing a single entry (a million empty entries would otherwise cost zipfile gigabytes of RAM).
+    Finds the record the way zipfile does (exact end first, then the last signature in the 64 KB comment window).
+    No record at all is left to zipfile ("not a zip file")."""
+    fp.seek(0, io.SEEK_END)
+    size = fp.tell()
+    if size < _EOCD.size:
+        return
+    tail_len = min(size, _EOCD.size + 0xFFFF)
+    fp.seek(size - tail_len)
+    tail = fp.read(tail_len)
+    pos = len(tail) - _EOCD.size if tail[-_EOCD.size:-_EOCD.size + 4] == b"PK\x05\x06" else tail.rfind(b"PK\x05\x06")
+    if pos < 0 or pos + _EOCD.size > len(tail):
+        return
+    _sig, _d, _cd, _on_disk, entries, cd_size, _off, _clen = _EOCD.unpack(tail[pos:pos + _EOCD.size])
+    eocd_at = size - tail_len + pos
+    if eocd_at >= _Z64_LOCATOR.size:
+        fp.seek(eocd_at - _Z64_LOCATOR.size)
+        loc = fp.read(_Z64_LOCATOR.size)
+        if len(loc) == _Z64_LOCATOR.size and loc[:4] == b"PK\x06\x07":
+            _s64, _disk, rec_at, _disks = _Z64_LOCATOR.unpack(loc)
+            # zipfile reads the ZIP64 record right before the locator; take the larger of both claims
+            for at in {rec_at, eocd_at - _Z64_LOCATOR.size - _Z64_EOCD.size}:
+                if 0 <= at <= size - _Z64_EOCD.size:
+                    fp.seek(at)
+                    rec = fp.read(_Z64_EOCD.size)
+                    if rec[:4] == b"PK\x06\x06":
+                        f = _Z64_EOCD.unpack(rec)
+                        entries, cd_size = max(entries, f[7]), max(cd_size, f[8])
+    if entries > limits.max_entries:
+        raise UnsafeBundle("too_many_entries", f"the archive declares {entries} entries (at most {limits.max_entries})")
+    if cd_size > limits.max_central_dir:
+        raise UnsafeBundle("central_directory_too_large", f"the archive's central directory is {cd_size} bytes (at most {limits.max_central_dir})")
+
+
 def inspect(z: zipfile.ZipFile, limits: Limits) -> None:
     """Refuse the archive before reading any entry. Raises UnsafeBundle."""
     infos = z.infolist()
@@ -272,8 +320,29 @@ def hash_member(z: zipfile.ZipFile, name: str, sink: IO[bytes] | None = None) ->
     return h.hexdigest(), n
 
 
+# control characters (except tab / newline) and the bidi embedding / override / isolate marks: text from a bundle or an
+# upload name is shown and audited, and must not be able to reorder what the reader sees
+_UNSAFE_TEXT = re.compile("[\x00-\x08\x0b-\x1f\x7f‎‏؜‪-‮⁦-⁩]")
+
+
+def clean_text(value: str) -> str:
+    return _UNSAFE_TEXT.sub("", value)
+
+
 def _s(value: Any, n: int = 200) -> str | None:
-    return str(value)[:n] if isinstance(value, (str, int, float)) and not isinstance(value, bool) else None
+    return clean_text(str(value))[:n] if isinstance(value, (str, int, float)) and not isinstance(value, bool) else None
+
+
+def _ts(value: Any) -> str | None:
+    """A UTC ISO instant from a bundle, normalised - or None for anything else (never passed through unchecked)."""
+    from .timeutil import iso_utc, parse_utc
+
+    if not isinstance(value, str) or len(value) > 40:
+        return None
+    try:
+        return iso_utc(parse_utc(value))
+    except (ValueError, TypeError, OverflowError):
+        return None
 
 
 def _empty_report() -> dict[str, Any]:
@@ -295,13 +364,16 @@ def _origin(manifest: dict[str, Any], sig: dict[str, Any], local_iid: str | None
         this, basis = True, "signing_key"  # an older bundle without an installation id, signed by a key of this ring
     else:
         this, basis = None, "unknown"
+    confirmed = bool(this and signed_here)
     return {
         "installation_id": source_iid, "app_version": _s(inst.get("app_version") or manifest.get("app_version"), 40),
-        "exported_at": _s(manifest.get("generated_at"), 40), "exported_by": _s(manifest.get("generated_by"), 120),
+        "exported_at": _ts(manifest.get("generated_at")), "exported_by": _s(manifest.get("generated_by"), 120),
         "exported_by_display": _s(manifest.get("generated_by_display"), 120), "timezone": _s(manifest.get("timezone"), 64),
         "this_installation": this, "basis": basis,
-        # the id in a manifest is only a claim; it is confirmed when the manifest is signed by a key of this installation
-        "confirmed_by_signature": bool(this and signed_here),
+        # the id in a manifest is only a claim (it is public: every bundle and GET /evidence/signing carry it); it is
+        # confirmed when the manifest is signed by a key of this installation
+        "confirmed_by_signature": confirmed,
+        "producer": "this_confirmed" if confirmed else "this_claimed" if this else "other" if this is False else "unknown",
     }
 
 
@@ -355,7 +427,7 @@ def _verify_open(z: zipfile.ZipFile, keyring: dict[str, Any] | None, local_iid: 
     out["supported"] = out["schema"] in SUPPORTED_SCHEMAS
     case = manifest.get("case") if isinstance(manifest.get("case"), dict) else {}
     out["case"] = _s(case.get("title"), 120)
-    out["generated_at"] = _s(manifest.get("generated_at"), 40)
+    out["generated_at"] = _ts(manifest.get("generated_at"))
     if "MANIFEST.sha256" in names:
         try:
             recorded = z.read("MANIFEST.sha256")[:4096].decode("utf-8", "replace").split()[0]
@@ -419,16 +491,29 @@ def verify_source(source: bytes | str | Path | IO[bytes], keyring: dict[str, Any
     """Verify a bundle from bytes, a path or a file object. Returns (report, manifest or None). A damaged or
     tampered bundle is reported, never raised; an unsafe archive (ZIP-slip names, bombs) raises UnsafeBundle."""
     limits = limits or Limits()
-    src = io.BytesIO(source) if isinstance(source, (bytes, bytearray)) else source
+    if isinstance(source, (bytes, bytearray)):
+        fh: IO[bytes] = io.BytesIO(source)
+        close = False
+    elif isinstance(source, (str, Path)):
+        fh = open(source, "rb")
+        close = True
+    else:
+        fh, close = source, False
     try:
-        z = zipfile.ZipFile(src)
-    except Exception:  # noqa: BLE001 - BadZipFile, or a crafted directory that trips zipfile itself
-        out = _empty_report()
-        out["errors"].append("not a zip file")
-        out["summary"] = _summary(out)
-        return out, None
-    with z:
-        out, manifest = _verify_open(z, keyring, local_installation_id, limits)
+        precheck(fh, limits)  # raises UnsafeBundle before zipfile indexes a single entry
+        fh.seek(0)
+        try:
+            z = zipfile.ZipFile(fh)
+        except Exception:  # noqa: BLE001 - BadZipFile, or a crafted directory that trips zipfile itself
+            out = _empty_report()
+            out["errors"].append("not a zip file")
+            out["summary"] = _summary(out)
+            return out, None
+        with z:
+            out, manifest = _verify_open(z, keyring, local_installation_id, limits)
+    finally:
+        if close:
+            fh.close()
     out["summary"] = _summary(out)
     return out, manifest
 

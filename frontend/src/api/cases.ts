@@ -57,6 +57,8 @@ export interface CaseProvenance {
   this_installation: boolean | null;
   confirmed_by_signature: boolean;
   basis: 'installation_id' | 'signing_key' | 'unknown';
+  /** this_confirmed = signed by a key of this installation; this_claimed = our (public) id without our signature. */
+  producer?: Producer;
   bundle_sha256: string;
   bundle_bytes: number;
   bundle_name: string | null;
@@ -205,7 +207,21 @@ export interface BundleOrigin {
   this_installation: boolean | null;
   basis: 'installation_id' | 'signing_key' | 'unknown';
   confirmed_by_signature: boolean;
+  producer?: Producer;
 }
+export type Producer = 'this_confirmed' | 'this_claimed' | 'other' | 'unknown';
+/** Who made a bundle, worded honestly: the installation id is public, only a signature of this installation confirms it. */
+export function producerOf(o: { producer?: Producer; this_installation: boolean | null; confirmed_by_signature: boolean } | null | undefined): Producer {
+  if (!o) return 'unknown';
+  if (o.producer) return o.producer;
+  return o.this_installation === true ? (o.confirmed_by_signature ? 'this_confirmed' : 'this_claimed') : o.this_installation === false ? 'other' : 'unknown';
+}
+export const PRODUCER_LABEL: Record<Producer, string> = {
+  this_confirmed: 'התקנה זו (מאושר בחתימה)',
+  this_claimed: 'התקנה זו לפי המזהה בלבד (לא מאושר בחתימה)',
+  other: 'התקנה אחרת',
+  unknown: 'לא ידוע (חבילה ללא מזהה התקנה)',
+};
 export interface BundleVerification {
   ok: boolean;
   schema: string | null;

@@ -47,7 +47,7 @@ test.describe('evidence bundle import (SW A)', () => {
     await expect(dialog.locator('[data-import-summary]')).toHaveAttribute('data-ok', 'true', { timeout: 30_000 });
     await expect(dialog.locator('[data-import-summary]')).toContainText('אינה מוכיחה שהצילום אמיתי');
     await expect(dialog.locator('[data-import-file][data-status="ok"]')).toHaveCount(desc.files);
-    await expect(dialog.locator('[data-import-producer]')).toHaveAttribute('data-this-installation', 'true');
+    await expect(dialog.locator('[data-import-producer]')).toHaveAttribute('data-producer', 'this_confirmed');
     await expect(dialog.locator('[data-import-signature]')).toContainText('חתימה תקינה');
     await page.screenshot({ path: path.join(OUT, `import-verified-${testInfo.project.name}.png`) });
     await dialog.locator('[data-bundle-import-confirm]').click();
@@ -55,7 +55,8 @@ test.describe('evidence bundle import (SW A)', () => {
     // the new case: imported, read-only notes, the provenance banner with the hash verdict
     const detail = page.locator('investigate-case-detail');
     await expect(detail.locator('[data-provenance-headline]')).toContainText('hash תואם', { timeout: 30_000 });
-    await expect(detail.locator('[data-provenance-headline]')).toContainText('יובא מהתקנה זו');
+    await expect(detail.locator('[data-provenance-headline]')).toContainText('יובא מהתקנה זו (מאושר בחתימה)');
+    await expect(detail.locator('[data-case-provenance]')).toHaveAttribute('data-producer', 'this_confirmed');
     await expect(detail.locator('[data-case-item][data-imported]')).toHaveCount(2);
     await expect(detail.locator('[data-case-item][data-imported] [data-item-remove]')).toHaveCount(0);
     await detail.locator('[data-case-integrity]').click();

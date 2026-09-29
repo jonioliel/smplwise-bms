@@ -11,6 +11,8 @@ import pathlib
 import shutil
 import sqlite3
 import tempfile
+import threading
+import time
 import zipfile
 from typing import Any
 
@@ -49,6 +51,13 @@ SNAPSHOT = nvr.fetch_snapshot  # replaced in tests
 MB = 1024 * 1024
 MULTIPART_SLACK = 64 * 1024  # multipart framing around the file part
 RAW_ZIP_TYPES = {"application/zip", "application/x-zip-compressed", "application/x-zip", "application/octet-stream"}
+# Bundle uploads write up to the cap into /data (where SQLite lives) and hash it: one verify / import at a time per
+# process, one integrity re-hash at a time, and the same case re-hashed at most once a minute (review round 1).
+_TRANSFER_LOCK = threading.Lock()
+_INTEGRITY_LOCK = threading.Lock()
+INTEGRITY_COOLDOWN_S = 60.0
+_integrity_last: dict[str, float] = {}
+FREE_CHECK_EVERY = 64 * MB
 
 
 def _rid(request: Request) -> str | None:
@@ -340,9 +349,18 @@ def delete_case(case_id: str, request: Request, principal: Principal = Depends(c
     audit(conn, actor=principal, action="case.delete", decision="allowed", resource_type="case", resource_id=case_id, request_id=_rid(request),
           details={"title": r["title"], "items": n, "origin": r["origin"], "import_sha256": r["import_sha256"]})
     if r["import_sha256"]:
-        # the imported copies go with the case - after the rows are committed, outside the write lock
+        # the imported copies go with the case. The rows are committed first; then, under the write lock again (the one a
+        # re-import of the same bundle takes to put its folder in place), the folder is detached only if no case refers
+        # to the hash, and removed outside the lock - a concurrent re-import can never lose its new files to this delete.
+        settings = settings_of(request)
         with unlocked(conn):
-            bundle_import.remove_case_files(settings_of(request), r["import_sha256"])
+            pass
+        trash = None
+        if not conn.execute("SELECT 1 FROM cases WHERE import_sha256 = ?", (r["import_sha256"],)).fetchone():
+            trash = bundle_import.detach_case_files(settings, r["import_sha256"])
+        if trash is not None:
+            with unlocked(conn):
+                shutil.rmtree(trash, ignore_errors=True)
 
 
 # ---------------------------------------------------------------- items
@@ -520,6 +538,11 @@ def case_integrity(case_id: str, request: Request, principal: Principal = Depend
     settings = settings_of(request)
     items, hidden = _items(settings, conn, case_id, scope, False)
     todo = [(i["id"], i["kind"], i["file_path"], i["file_sha256"]) for i in items if i["file_path"] and i["file_sha256"]]
+    wait = INTEGRITY_COOLDOWN_S - (time.monotonic() - _integrity_last.get(case_id, -1e9))
+    if wait > 0:
+        raise ApiError(429, "cooldown", f"התיק נבדק לפני רגע; אפשר לבדוק שוב בעוד {int(wait) + 1} שניות.", retryable=True, details={"retry_after_s": int(wait) + 1})
+    if not _INTEGRITY_LOCK.acquire(blocking=False):
+        raise _busy()
 
     def check() -> list[dict[str, Any]]:
         out = []
@@ -535,8 +558,12 @@ def case_integrity(case_id: str, request: Request, principal: Principal = Depend
             out.append({"item_id": iid, "kind": kind, "status": "ok" if h.hexdigest() == sha else "mismatch", "expected": sha, "actual": h.hexdigest()})
         return out
 
-    with unlocked(conn):
-        files = check()
+    try:
+        _integrity_last[case_id] = time.monotonic()
+        with unlocked(conn):
+            files = check()
+    finally:
+        _INTEGRITY_LOCK.release()
     ok = all(f["status"] == "ok" for f in files)
     audit(conn, actor=principal, action="case.integrity", decision="allowed", resource_type="case", resource_id=case_id, request_id=_rid(request),
           details={"files": len(files), "ok": ok, "origin": r["origin"]})
@@ -613,15 +640,29 @@ def _too_large(cap: int) -> ApiError:
     return ApiError(413, "payload_too_large", f"החבילה גדולה מהמותר ({cap // MB} MB; ההגדרה cases.import_max_mb).", details={"max_bytes": cap})
 
 
+def _busy() -> ApiError:
+    return ApiError(429, "busy", "פעולה דומה (אימות, ייבוא או בדיקת hash) רצה כרגע; נסה שוב בעוד רגע.", retryable=True)
+
+
+def _min_free(conn: sqlite3.Connection) -> int:
+    return int(read_settings(conn)["storage.min_free_mb"]) * MB
+
+
+def _no_space(free: int, need: int, min_free: int) -> ApiError:
+    return ApiError(507, "insufficient_storage", "אין מספיק מקום פנוי בדיסק של התוסף לחבילה הזו (ההגדרה storage.min_free_mb שומרת מרווח למסד הנתונים).",
+                    details={"free_bytes": free, "needed_bytes": need, "min_free_bytes": min_free})
+
+
 def _unsafe_error(exc: bundle_svc.UnsafeBundle) -> ApiError:
     return ApiError(422, "unsafe_bundle", "החבילה נדחתה לפני שנקראה: " + {
         "unsafe_entries": "יש בה נתיבים לא בטוחים (.., נתיב מוחלט, אות כונן, קישור סמלי או רשומה מוצפנת).",
         "too_many_entries": "יש בה יותר מדי קבצים.",
+        "central_directory_too_large": "רשימת הקבצים שלה גדולה מדי.",
         "too_large_uncompressed": "הקבצים בה גדולים מדי אחרי פריסה.",
     }.get(exc.code, exc.message), details={"reason": exc.code, "detail": exc.message, "entries": exc.entries})
 
 
-async def _receive_bundle(request: Request, settings: Settings, cap: int, name: str | None) -> dict[str, Any]:
+async def _receive_bundle(request: Request, settings: Settings, cap: int, name: str | None, min_free: int = 0) -> dict[str, Any]:
     """Stream the uploaded bundle into a temp file under <data>/imported/.staging, hashing it on the way: a raw ZIP body
     (application/zip) or multipart with a `file` field. Never more than `cap` bytes, never the whole file in memory.
     Returns {path, sha256, bytes, name}; the caller removes the file."""
@@ -632,6 +673,10 @@ async def _receive_bundle(request: Request, settings: Settings, cap: int, name: 
     if ctype != "multipart/form-data" and ctype not in RAW_ZIP_TYPES:
         raise ApiError(415, "unsupported_media_type", "שלח את החבילה כקובץ ZIP (Content-Type: application/zip) או כ־multipart עם השדה file.",
                        details={"content_type": ctype[:100]})
+    free = bundle_import.free_bytes(settings)
+    need = int(length) if length and length.isdigit() else cap
+    if free - need < min_free:
+        raise _no_space(free, need, min_free)
     fd, tmp = tempfile.mkstemp(prefix="upload-", suffix=".zip", dir=bundle_import.staging_root(settings))
     path = pathlib.Path(tmp)
     h = hashlib.sha256()
@@ -644,6 +689,10 @@ async def _receive_bundle(request: Request, settings: Settings, cap: int, name: 
                 size += len(chunk)
                 if size > cap:
                     raise _too_large(cap)
+                if size // FREE_CHECK_EVERY != (size - len(chunk)) // FREE_CHECK_EVERY:
+                    now_free = bundle_import.free_bytes(settings)
+                    if now_free < min_free:  # the disk filled up while we wrote (another writer): stop before SQLite starves
+                        raise _no_space(now_free, 0, min_free)
                 h.update(chunk)
                 out.write(chunk)
 
@@ -685,7 +734,7 @@ async def _receive_bundle(request: Request, settings: Settings, cap: int, name: 
     if size == 0:
         path.unlink(missing_ok=True)
         raise ApiError(422, "validation", "הקובץ ריק.", details={"fields": ["file"]})
-    return {"path": path, "sha256": h.hexdigest(), "bytes": size, "name": (name or "")[:200] or None}
+    return {"path": path, "sha256": h.hexdigest(), "bytes": size, "name": bundle_svc.clean_text(name or "").strip()[:200] or None}
 
 
 @router.post("/cases/bundles/verify")
@@ -699,15 +748,21 @@ async def verify_bundle(request: Request, name: str | None = Query(None, max_len
     cap = _upload_cap(conn)
     local_iid = bundle_svc.installation_id(conn)
     keyring = signing.load_keyring(settings)
+    min_free = _min_free(conn)
     unsafe: bundle_svc.UnsafeBundle | None = None
-    with unlocked(conn):  # no read snapshot held while the upload streams in
-        up = await _receive_bundle(request, settings, cap, name)
-        try:
-            report, _manifest = await run_in_threadpool(bundle_svc.verify_source, up["path"], keyring, local_iid, _limits(cap))
-        except bundle_svc.UnsafeBundle as exc:
-            unsafe = exc
-        finally:
-            up["path"].unlink(missing_ok=True)
+    if not _TRANSFER_LOCK.acquire(blocking=False):
+        raise _busy()
+    try:
+        with unlocked(conn):  # no read snapshot held while the upload streams in
+            up = await _receive_bundle(request, settings, cap, name, min_free)
+            try:
+                report, _manifest = await run_in_threadpool(bundle_svc.verify_source, up["path"], keyring, local_iid, _limits(cap))
+            except bundle_svc.UnsafeBundle as exc:
+                unsafe = exc
+            finally:
+                up["path"].unlink(missing_ok=True)
+    finally:
+        _TRANSFER_LOCK.release()
     if unsafe is not None:
         audit(conn, actor=principal, action="case.bundle.verify", decision="denied", resource_type="bundle", resource_id=up["sha256"], reason=unsafe.code, request_id=_rid(request),
               details={"name": up["name"], "bytes": up["bytes"], "entries": len(unsafe.entries)})
@@ -735,16 +790,22 @@ async def import_bundle(request: Request, name: str | None = Query(None, max_len
     local_iid = bundle_svc.installation_id(conn)
     keyring = signing.load_keyring(settings)
     db: Database = request.app.state.db
-    with unlocked(conn):
-        up = await _receive_bundle(request, settings, cap, name)
-        try:
-            return await run_in_threadpool(_import_bundle, db, settings, up, principal, _rid(request), local_iid, keyring, cap)
-        finally:
-            up["path"].unlink(missing_ok=True)
+    min_free = _min_free(conn)
+    if not _TRANSFER_LOCK.acquire(blocking=False):
+        raise _busy()
+    try:
+        with unlocked(conn):
+            up = await _receive_bundle(request, settings, cap, name, min_free)
+            try:
+                return await run_in_threadpool(_import_bundle, db, settings, up, principal, _rid(request), local_iid, keyring, cap, min_free)
+            finally:
+                up["path"].unlink(missing_ok=True)
+    finally:
+        _TRANSFER_LOCK.release()
 
 
 def _import_bundle(db: Database, settings: Settings, up: dict[str, Any], principal: Principal, rid: str | None, local_iid: str | None,
-                   keyring: dict[str, Any], cap: int) -> dict[str, Any]:
+                   keyring: dict[str, Any], cap: int, min_free: int = 0) -> dict[str, Any]:
     sha = up["sha256"]
 
     def refused(status: int, code: str, message: str, audit_reason: str, **details: Any) -> ApiError:
@@ -769,12 +830,18 @@ def _import_bundle(db: Database, settings: Settings, up: dict[str, Any], princip
     if not report["ok"] or manifest is None:
         raise refused(409, "bundle_not_verified", "החבילה לא עברה אימות ולכן לא יובאה. " + report["summary"], "not_verified",
                       counts=report["counts"], errors=report["errors"], files=[f for f in report["files"] if f["status"] != "ok"][:50], extra=report["extra"][:50])
+    wanted = bundle_import.files_to_store(manifest)
+    need = sum(f["bytes"] or 0 for f in report["files"] if f["path"] in wanted)
+    free = bundle_import.free_bytes(settings)
+    if free - need < min_free:
+        e = _no_space(free, need, min_free)
+        raise refused(507, e.code, e.user_message, "insufficient_storage", **e.details)
     staging = bundle_import.new_staging_dir(settings)
     final = bundle_import.case_dir(settings, sha)
     moved = False
     try:
         try:
-            stored = bundle_import.extract(up["path"], bundle_import.files_to_store(manifest), staging)
+            stored = bundle_import.extract(up["path"], wanted, staging)
         except (ValueError, OSError, zipfile.BadZipFile) as exc:
             raise refused(409, "bundle_changed", "החבילה השתנתה בזמן הייבוא; נסה שוב.", "changed", detail=type(exc).__name__) from None
         now = now_iso()

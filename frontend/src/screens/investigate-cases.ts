@@ -25,7 +25,7 @@ import { frameUrl } from '../api/recordings';
 import { exportDownloadUrl, formatBytes } from '../api/exports';
 import { listCameras } from '../api/maps';
 import type { Camera } from '../api/types';
-import { CASE_STATUS_LABEL, FILE_STATUS_LABEL, PRESERVATION_LABEL, addCaseItem, bundleUrl, caseItemFileUrl, checkCaseIntegrity, createBundle, createCase, deleteCase, getCase, importBundle, listBundles, listCases, preserveCaseItem, removeCaseItem, updateCase, verifyBundle, type Bundle, type BundleFileStatus, type BundleVerification, type Case, type CaseDetail, type CaseIntegrity, type CaseItem, type CaseStatus, type Preservation, type SignatureVerdict } from '../api/cases';
+import { CASE_STATUS_LABEL, FILE_STATUS_LABEL, PRESERVATION_LABEL, PRODUCER_LABEL, producerOf, addCaseItem, bundleUrl, caseItemFileUrl, checkCaseIntegrity, createBundle, createCase, deleteCase, getCase, importBundle, listBundles, listCases, preserveCaseItem, removeCaseItem, updateCase, verifyBundle, type Bundle, type BundleFileStatus, type BundleVerification, type Case, type CaseDetail, type CaseIntegrity, type CaseItem, type CaseStatus, type Preservation, type SignatureVerdict } from '../api/cases';
 
 const STATUS_KIND: Record<CaseStatus, StateKind> = { open: 'stale', in_review: 'recorded', closed: 'neutral' };
 const PRES_KIND: Record<Preservation, StateKind> = { preserved: 'recorded', preserving: 'partial', nvr_only: 'stale', missing: 'error', unknown: 'unknown', not_in_bundle: 'neutral', none: 'neutral' };
@@ -253,15 +253,7 @@ export class InvestigateCases extends LitElement {
     const f = this.importFile;
     const o = v?.origin;
     const when = (iso?: string | null) => (iso ? fmtWhen(iso) : '—');
-    const producer = !o
-      ? '—'
-      : o.this_installation === true
-        ? o.confirmed_by_signature
-          ? 'התקנה זו (מאושר בחתימה)'
-          : 'התקנה זו לפי המזהה בלבד (לא מאושר בחתימה)'
-        : o.this_installation === false
-          ? 'התקנה אחרת'
-          : 'לא ידוע (חבילה ללא מזהה התקנה)';
+    const producer = o ? PRODUCER_LABEL[producerOf(o)] : '—';
     const dup = v?.already_imported;
     return html`<sw-dialog open heading="ייבוא חבילת ראיות" subheading=${f ? `${f.name} · ${formatBytes(f.size)}` : ''} data-bundle-import-dialog @close=${() => (this.importOpen = false)}>
       ${this.importBusy && !v ? html`<sw-state-panel state="loading" heading="מאמת את החבילה…" hint="כל קובץ מגובב מחדש ומושווה ל־manifest; שום דבר עוד לא יובא"></sw-state-panel>` : nothing}
@@ -271,7 +263,7 @@ export class InvestigateCases extends LitElement {
             <div class="kv" data-import-origin>
               <span>תיק במקור</span><strong>${v.case ?? '—'}</strong>
               <span>יוצא</span><strong>${when(o?.exported_at)}${o?.exported_by_display || o?.exported_by ? ` · על ידי ${o?.exported_by_display || o?.exported_by}` : ''}</strong>
-              <span>הופקה ב־</span><strong data-import-producer data-this-installation=${String(o?.this_installation ?? 'unknown')}>${producer}${o?.installation_id ? html` · <span class="ltr">${o.installation_id}</span>` : nothing}</strong>
+              <span>הופקה ב־</span><strong data-import-producer data-this-installation=${String(o?.this_installation ?? 'unknown')} data-producer=${producerOf(o)}>${producer}${o?.installation_id ? html` · <span class="ltr">${o.installation_id}</span>` : nothing}</strong>
               <span>גרסה</span><strong><span class="ltr">SMPLWISE ${o?.app_version ?? '?'} · manifest v${v.schema_version ?? '?'}</span>${v.supported === false ? ' · לא נתמכת' : ''}</strong>
               <span>חתימה</span><strong data-import-signature>${signatureText(v.signature)}</strong>
               <span>SHA-256 של החבילה</span><strong class="ltr" title=${v.bundle?.sha256 ?? ''}>${shortHash(v.bundle?.sha256)}</strong>
@@ -761,9 +753,10 @@ export class InvestigateCaseDetail extends LitElement {
   private renderProvenance(d: CaseDetail) {
     const p = d.provenance;
     if (d.origin !== 'imported' || !p) return nothing;
-    const where = p.this_installation === true ? 'מהתקנה זו' : p.this_installation === false ? 'מהתקנה אחרת' : 'מהתקנה לא ידועה';
+    const producer = producerOf(p);
+    const where = { this_confirmed: 'מהתקנה זו (מאושר בחתימה)', this_claimed: 'לכאורה מהתקנה זו — לפי המזהה בלבד, לא מאושר בחתימה', other: 'מהתקנה אחרת', unknown: 'מהתקנה לא ידועה' }[producer];
     const ch = this.integrity;
-    return html`<sw-card data-case-provenance data-this-installation=${String(p.this_installation ?? 'unknown')}>
+    return html`<sw-card data-case-provenance data-this-installation=${String(p.this_installation ?? 'unknown')} data-producer=${producer}>
       <div class="prov">
         <sw-icon name="shield" size=${18}></sw-icon>
         <div class="body">

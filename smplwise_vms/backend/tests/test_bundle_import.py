@@ -6,10 +6,15 @@ incomplete bundles are reported and never imported; the same bundle is imported 
 before the body; the imported bytes show in the storage screen and leave with the case."""
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import io
 import json
 import sqlite3
+import struct
+import threading
+import time
+import tracemalloc
 import zipfile
 from dataclasses import replace
 from pathlib import Path
@@ -20,7 +25,10 @@ from fastapi.testclient import TestClient
 
 from smplwise.main import create_app
 from smplwise.routers import cases
+from smplwise.rbac import Principal
 from smplwise.services import bundle as bundle_svc
+from smplwise.services import bundle_import
+from smplwise.services import signing
 from smplwise.services import exports as ex
 
 JPEG = b"\xff\xd8\xff\xe0" + b"\x00" * 64 + b"\xff\xd9"
@@ -88,6 +96,7 @@ def _staging_empty(s) -> bool:
 
 def test_round_trip_verify_and_import_into_another_installation(settings, monkeypatch, tmp_path):
     a, case, data, it = _source_bundle(settings, monkeypatch, tmp_path)
+    monkeypatch.setattr(cases, "INTEGRITY_COOLDOWN_S", 0)
     sha = hashlib.sha256(data).hexdigest()
     manifest = json.loads(zipfile.ZipFile(io.BytesIO(data)).read("manifest.json"))
     iid_a = manifest["installation"]["id"]
@@ -99,6 +108,7 @@ def test_round_trip_verify_and_import_into_another_installation(settings, monkey
     assert rep["ok"] is True and rep["schema_version"] == 1 and rep["supported"] is True
     assert {f["status"] for f in rep["files"]} == {"ok"} and all(f["bytes"] is not None for f in rep["files"])
     assert rep["origin"]["installation_id"] == iid_a and rep["origin"]["this_installation"] is True and rep["origin"]["confirmed_by_signature"] is True
+    assert rep["origin"]["producer"] == "this_confirmed"
     assert rep["origin"]["exported_at"] == manifest["generated_at"] and rep["origin"]["exported_by"] == "joni"
     assert rep["bundle"] == {"sha256": sha, "bytes": len(data), "name": "b.zip"} and rep["importable"] is True and rep["already_imported"] is None
     assert "אינה מוכיחה שהצילום אמיתי" in rep["summary"] and "הופקה בהתקנה זו" in rep["summary"]
@@ -117,6 +127,7 @@ def test_round_trip_verify_and_import_into_another_installation(settings, monkey
     assert new["origin"] == "imported" and new["title"] == "פריצה במחסן" and new["id"] != case["id"] and new["owner_username"] == "joni"
     p = new["provenance"]
     assert p["source_installation_id"] == iid_a and p["this_installation"] is False and p["bundle_sha256"] == sha and p["exported_at"] == manifest["generated_at"]
+    assert p["producer"] == "other" and p["confirmed_by_signature"] is False
     assert p["exported_by_display"] == "joni" and p["verification"]["ok"] is True and p["source_case"]["id"] == case["id"] and p["signature"]["trust"] == "embedded_key_only"
     assert imp["items"] == 4 and imp["files"] == 3  # snapshot, clip and its export manifest
 
@@ -363,3 +374,220 @@ def test_installation_id_survives_a_backup_restore(settings, tmp_path):
     from smplwise.services import backup
 
     assert "installation_id" in backup.SETTINGS_KEEP
+
+
+# ---------------------------------------------------------------- review round 1 (security)
+
+MB = 1024 * 1024
+
+
+def _patch_cd(data: bytes, name: str, flag: int | None = None, usize: int | None = None) -> bytes:
+    """Rewrite one central-directory record's flag bits / uncompressed size (a lying or crafted archive)."""
+    b = bytearray(data)
+    i = 0
+    while True:
+        i = b.find(b"PK\x01\x02", i)
+        assert i >= 0, name
+        nlen = struct.unpack_from("<H", b, i + 28)[0]
+        if bytes(b[i + 46:i + 46 + nlen]) == name.encode():
+            if flag is not None:
+                struct.pack_into("<H", b, i + 8, flag)
+            if usize is not None:
+                struct.pack_into("<I", b, i + 24, usize)
+            return bytes(b)
+        i += 4
+
+
+def test_central_directory_is_bounded_before_zipfile_indexes_it(settings, tmp_path):
+    b, sb = _second(settings, tmp_path)
+    # ZIP64 records declaring a million entries: refused from the end records alone, fast and without the index
+    rec = struct.pack("<4sQ2H2L4Q", b"PK\x06\x06", 44, 45, 45, 0, 0, 1_000_000, 1_000_000, 46_000_000, 0)
+    loc = struct.pack("<4sLQL", b"PK\x06\x07", 0, 0, 1)
+    eocd = struct.pack("<4s4H2LH", b"PK\x05\x06", 0, 0, 0xFFFF, 0xFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0)
+    million = rec + loc + eocd
+    tracemalloc.start()
+    t0 = time.monotonic()
+    with pytest.raises(bundle_svc.UnsafeBundle) as e:
+        bundle_svc.verify_source(million)
+    took = time.monotonic() - t0
+    _cur, peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    assert e.value.code == "too_many_entries" and took < 1.0 and peak < 2 * MB
+    r = b.post("/api/v1/cases/bundles/verify", content=million, headers=ZIP)
+    assert r.status_code == 422 and r.json()["details"]["reason"] == "too_many_entries"
+    # a small count but a central directory far larger than 5000 records can be
+    huge = struct.pack("<4s4H2LH", b"PK\x05\x06", 0, 0, 3, 3, 10_000_000, 0, 0)
+    r = b.post("/api/v1/cases/bundles/verify", content=huge, headers=ZIP)
+    assert r.status_code == 422 and r.json()["details"]["reason"] == "central_directory_too_large"
+    # an end record that under-states the count: zipfile's index is bounded by the directory size, inspect() refuses
+    many = io.BytesIO()
+    with zipfile.ZipFile(many, "w") as z:
+        for i in range(bundle_svc.Limits().max_entries + 1):
+            z.writestr(f"{i}", b"")
+    lying = bytearray(many.getvalue())
+    struct.pack_into("<HH", lying, len(lying) - 22 + 8, 10, 10)
+    r = b.post("/api/v1/cases/bundles/verify", content=bytes(lying), headers=ZIP)
+    assert r.status_code == 422 and r.json()["details"]["reason"] == "too_many_entries"
+    assert _staging_empty(sb)
+
+
+def test_lying_sizes_encrypted_and_control_char_entries(settings, monkeypatch, tmp_path):
+    a, _case, data, _it = _source_bundle(settings, monkeypatch, tmp_path)
+    b, sb = _second(settings, tmp_path)
+    # a member whose declared size is smaller than its data: zipfile stops at the declared size, the CRC fails
+    lying = _patch_cd(data, "notes.md", usize=3)
+    rep = b.post("/api/v1/cases/bundles/verify", content=lying, headers=ZIP).json()
+    assert rep["ok"] is False and {f["path"]: f["status"] for f in rep["files"]}["notes.md"] == "corrupt"
+    assert b.post("/api/v1/cases/bundles/import", content=lying, headers=ZIP).status_code == 409
+    # an entry flagged encrypted
+    enc = _patch_cd(data, "notes.md", flag=0x1)
+    r = b.post("/api/v1/cases/bundles/verify", content=enc, headers=ZIP)
+    assert r.status_code == 422 and r.json()["details"]["entries"][0]["reason"] == "encrypted entry"
+    # a control character in a name
+    ctl = _raw_name(_zip_with([("manifest.json", b"{}"), ("aXb.txt", b"1")]), "aXb.txt", "a\x01b.txt")
+    r = b.post("/api/v1/cases/bundles/verify", content=ctl, headers=ZIP)
+    assert r.status_code == 422 and r.json()["details"]["entries"][0]["reason"] == "control character in the name"
+    # a symlink on the import route
+    link = zipfile.ZipInfo("clips/link")
+    link.create_system = 3
+    link.external_attr = 0o120777 << 16
+    r = b.post("/api/v1/cases/bundles/import", content=_zip_with([("manifest.json", b"{}"), (link, b"/etc/passwd")]), headers=ZIP)
+    assert r.status_code == 422 and r.json()["code"] == "unsafe_bundle"
+    assert b.get("/api/v1/cases").json()["cases"] == [] and _staging_empty(sb)
+
+
+def _strip_signature(data: bytes, mutate) -> bytes:
+    """An attacker's copy: the signature removed, the manifest changed, MANIFEST.sha256 recomputed."""
+    z = zipfile.ZipFile(io.BytesIO(data))
+    m = json.loads(z.read("manifest.json"))
+    mutate(m)
+    mb = json.dumps(m, ensure_ascii=False).encode()
+    return _rezip(data, {"manifest.json": mb, "manifest.sig.json": None, "MANIFEST.sha256": (hashlib.sha256(mb).hexdigest() + "  manifest.json\n").encode()})
+
+
+def test_unsigned_bundle_with_our_id_is_only_a_claim(settings, monkeypatch, tmp_path):
+    a, _case, data, _it = _source_bundle(settings, monkeypatch, tmp_path)
+
+    def mutate(m):
+        m["case"]["title"] = "\u202eזויף\u202c"
+        m["generated_at"] = "yesterday-ish"
+
+    forged = _strip_signature(data, mutate)
+    rep = a.post("/api/v1/cases/bundles/verify?name=%E2%80%AEevil%07.zip", content=forged, headers=ZIP).json()
+    assert rep["ok"] is True and rep["signature"]["present"] is False
+    o = rep["origin"]
+    assert o["this_installation"] is True and o["confirmed_by_signature"] is False and o["producer"] == "this_claimed"
+    assert o["exported_at"] is None and rep["generated_at"] is None, "a garbage date never reaches the client"
+    assert "טענה ולא הוכחה" in rep["summary"] and rep["bundle"]["name"] == "evil.zip" and rep["case"] == "זויף"
+    r = a.post("/api/v1/cases/bundles/import", content=forged, headers=ZIP)
+    assert r.status_code == 201, r.text
+    p = r.json()["case"]["provenance"]
+    assert p["producer"] == "this_claimed" and p["this_installation"] is True and p["confirmed_by_signature"] is False and p["exported_at"] is None
+    assert r.json()["case"]["title"] == "זויף"
+
+
+def test_concurrent_duplicate_import_creates_one_case(settings, monkeypatch, tmp_path):
+    a, _case, data, _it = _source_bundle(settings, monkeypatch, tmp_path)
+    b, sb = _second(settings, tmp_path)
+    sha = hashlib.sha256(data).hexdigest()
+    who = Principal(user_id="dev-joni", username="joni", display_name="joni", source="dev")
+    results: list[object] = []
+    barrier = threading.Barrier(2)
+
+    def run(i: int) -> None:
+        path = tmp_path / f"up{i}.zip"
+        path.write_bytes(data)
+        up = {"path": path, "sha256": sha, "bytes": len(data), "name": "b.zip"}
+        barrier.wait()
+        try:
+            results.append(cases._import_bundle(b.app.state.db, sb, up, who, None, None, signing.load_keyring(sb), 512 * MB))
+        except Exception as exc:  # noqa: BLE001
+            results.append(exc)
+
+    threads = [threading.Thread(target=run, args=(i,)) for i in range(2)]
+    for th in threads:
+        th.start()
+    for th in threads:
+        th.join()
+    ok = [x for x in results if isinstance(x, dict)]
+    errs = [x for x in results if not isinstance(x, dict)]
+    assert len(ok) == 1 and len(errs) == 1 and getattr(errs[0], "code", None) == "already_imported"
+    assert len(b.get("/api/v1/cases").json()["cases"]) == 1
+    assert (sb.data_dir / "imported" / sha / "manifest.json").is_file() and _staging_empty(sb)
+    # delete + immediate re-import: the new files stay (the delete detaches only while no case refers to the hash)
+    assert b.delete(f"/api/v1/cases/{ok[0]['case']['id']}").status_code == 204
+    assert b.post("/api/v1/cases/bundles/import", content=data, headers=ZIP).status_code == 201
+    assert (sb.data_dir / "imported" / sha / "manifest.json").is_file()
+
+
+def test_one_transfer_at_a_time_free_space_and_integrity_cooldown(settings, monkeypatch, tmp_path):
+    a, _case, data, _it = _source_bundle(settings, monkeypatch, tmp_path)
+    b, sb = _second(settings, tmp_path)
+    assert cases._TRANSFER_LOCK.acquire(blocking=False)
+    try:
+        for path in ("verify", "import"):
+            r = b.post(f"/api/v1/cases/bundles/{path}", content=data, headers=ZIP)
+            assert r.status_code == 429 and r.json()["code"] == "busy" and r.json()["retryable"] is True
+    finally:
+        cases._TRANSFER_LOCK.release()
+    # below storage.min_free_mb: 507 before anything is written
+    assert b.get("/api/v1/settings").json()["settings"]["storage.min_free_mb"] == 1024
+    monkeypatch.setattr(bundle_import, "free_bytes", lambda s: 1100 * MB)
+    r = b.post("/api/v1/cases/bundles/verify", content=data, headers=ZIP)
+    assert r.status_code == 200
+    monkeypatch.setattr(bundle_import, "free_bytes", lambda s: 1000 * MB)
+    r = b.post("/api/v1/cases/bundles/verify", content=data, headers=ZIP)
+    assert r.status_code == 507 and r.json()["code"] == "insufficient_storage" and r.json()["details"]["min_free_bytes"] == 1024 * MB
+    # the import checks again before it copies the files out
+    calls = iter([10_000 * MB] + [1024 * MB + 10] * 10)
+    monkeypatch.setattr(bundle_import, "free_bytes", lambda s: next(calls))
+    r = b.post("/api/v1/cases/bundles/import", content=data, headers=ZIP)
+    assert r.status_code == 507 and b.get("/api/v1/cases").json()["cases"] == [] and _staging_empty(sb)
+    monkeypatch.setattr(bundle_import, "free_bytes", lambda s: 10_000 * MB)
+    cid = b.post("/api/v1/cases/bundles/import", content=data, headers=ZIP).json()["case"]["id"]
+    # integrity: one re-hash per case per minute, one at a time
+    assert b.post(f"/api/v1/cases/{cid}/integrity").status_code == 200
+    r = b.post(f"/api/v1/cases/{cid}/integrity")
+    assert r.status_code == 429 and r.json()["code"] == "cooldown"
+    monkeypatch.setattr(cases, "INTEGRITY_COOLDOWN_S", 0)
+    assert cases._INTEGRITY_LOCK.acquire(blocking=False)
+    try:
+        assert b.post(f"/api/v1/cases/{cid}/integrity").json()["code"] == "busy"
+    finally:
+        cases._INTEGRITY_LOCK.release()
+    assert b.post(f"/api/v1/cases/{cid}/integrity").status_code == 200
+
+
+def test_client_disconnect_and_chunked_multipart_over_the_cap(settings, tmp_path):
+    b, sb = _second(settings, tmp_path)
+    messages = [{"type": "http.request", "body": b"PK\x03\x04" + b"x" * 4096, "more_body": True}, {"type": "http.disconnect"}]
+
+    async def receive():
+        return messages.pop(0) if messages else {"type": "http.disconnect"}
+
+    sent: list[dict] = []
+
+    async def send(message):
+        sent.append(message)
+
+    scope = {"type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1", "method": "POST", "scheme": "http", "path": "/api/v1/cases/bundles/verify",
+             "raw_path": b"/api/v1/cases/bundles/verify", "query_string": b"", "root_path": "", "headers": [(b"content-type", b"application/zip"), (b"host", b"testserver")],
+             "client": ("testclient", 50000), "server": ("testserver", 80)}
+    try:
+        asyncio.run(b.app(scope, receive, send))
+    except Exception:  # noqa: BLE001 - the server side of a vanished client may raise; what matters is what is left behind
+        pass
+    assert _staging_empty(sb) and not cases._TRANSFER_LOCK.locked()
+
+    assert b.patch("/api/v1/settings", json={"cases.import_max_mb": 16}).status_code == 200
+    boundary = "swT050boundary"
+
+    def body():
+        yield f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="big.zip"\r\nContent-Type: application/zip\r\n\r\n'.encode()
+        for _ in range(17):
+            yield b"\x00" * MB
+        yield f"\r\n--{boundary}--\r\n".encode()
+
+    r = b.post("/api/v1/cases/bundles/import", content=body(), headers={"Content-Type": f"multipart/form-data; boundary={boundary}"})
+    assert r.status_code == 413 and r.json()["code"] == "payload_too_large"
+    assert _staging_empty(sb) and not cases._TRANSFER_LOCK.locked()
