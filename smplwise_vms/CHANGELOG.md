@@ -1,5 +1,31 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.134 (pilot) — Plan Studio: the "סמן דלת" tool (T087, door-study recommendation א)
+- In the editor's structure mode, **"סמן דלת"** (key D): one click on a door symbol in the plan picture proposes a
+  door - the wall it sits in, the position along it, the width (from the gap when there is one, else from the leaf
+  or arc found around the click at upload resolution, else 0.9 m), the hinge side and the swing - as a dashed ghost
+  with three handles (width, hinge flip, swing flip) and a note ("נמצאה קשת" / "נמצא פער" / "ברירת מחדל - בדוק").
+  Enter or a click accepts, Esc cancels, the next click accepts the current one and proposes the next; the result is
+  an ordinary opening (one undo step, publish, 3D). A symbol with no drawn wall gets a short wall piece of its own
+  (tagged `origin: door_tool`, snapped to nearby wall ends, editable and deletable); a click with neither symbol nor
+  wall is refused with a message. Re-clicking an accepted door selects it instead of stacking a second one. Pressing
+  D during a wall draft keeps the draft.
+- Server: `POST /plan-versions/{id}/door-proposal` (`map.edit`, normalised x/y + optional wall id) analyses a bounded
+  crop of the stored raster in its own single worker with a 5 s cap - a running detection of another user cannot
+  delay a click; nothing is stored, no image leaves the server; diagnostic fields only with `?debug=1`.
+- On the owner's three real plans, one click in the middle of each sampled symbol, no adjustment: **10 of 24
+  doors right** (floor -2: 6/8), two more with one handle; toilet-block and V-shaped doors still need the handles.
+  Speed on those scans 279 → 179 ms per click after the review's optimisation (doubling dilation, hinge search
+  limited to the click's neighbourhood). Automatic detection is unchanged; the door study is recorded in
+  `docs/evidence/T087/DOOR_MODEL_STUDY_2026-09-29.md` §6.
+- Tests: `test_plan_door_tool.py` 31 (the three drawing styles, gap only, nothing found, own wall piece, pinned
+  perpendicular wall, uncalibrated plans, a table that is not a door, deadline, busy pool, 404/422/504,
+  permission), plan backend set 282; unit-door-tool 8 + determinism baselines 0 px different; evidence spec (click →
+  ghost → adjust → accept → undo/redo → publish → 3D; re-click selects). Opus review (2 medium + performance fixed)
+  + scoped re-review APPROVED. Documented in CR-003 and `docs/user-guide/he/21-plan-studio_HE.md`.
+- Also in this release: WisKey rc.25 handoff recorded (contract v1 unchanged - the adapter of 0.1.127 stands; the lab
+  checklist now says rc.25); every Hebrew document carries a `Source:` header (39 originals, 20 mirrors, 0 drift).
+
 ## 0.1.133 (pilot) — A real setup wizard (T071); role bindings per camera and session downgrade (T055)
 - **הגדרות › אשף התקנה** (`#/system/wizard`, system administrators) replaces the demo-only wizard: six steps -
   **התקנה** (database answers, `/data` writable with ≥ 512 MB free, a system administrator exists, identity source,
