@@ -2,11 +2,15 @@
 
 **Numbering:** registered as CR-009 on 2026-09-29 (CR-008 remote access is the previous record).
 
-**Status:** Approved for development by the owner on 2026-09-29 from a mockup. Task T093. This note is the design
+**Status:** Approved for development by the owner on 2026-09-29 from a mockup. Task T097 (registered as T093 on the
+branch, renumbered at the merge with g0/intake - T093 is CR-010's). This note is the design
 agreed before the build; §10 records the first build. **§11 (the owner's answers and the security review, the same
-day) supersedes §3-§8 and §10 wherever they differ** - above all: each floor keeps its own outline and walls of the
-room (two-outline model), cameras and devices are shared by an explicit member list, and publishing the other floor
-publishes the room's pending changes on its home floor.
+day) supersedes §3-§8 and §10 wherever they differ, and §12 (the security re-review and the owner's answers of
+2026-09-30) supersedes §11** - above all: each floor keeps its own outline and walls of the room (two-outline model),
+the room's content is what lies in its home outline or is explicitly marked as its content, cameras and devices are
+shared by an explicit member list (reach only while anchored on the room's floors), publishing the other floor
+publishes the room's pending changes on its home floor, and one tribune rises from the court through the upper floor's
+level with an entry row (no slab ring).
 
 ## 1. The request (owner, 2026-09-29, translated)
 
@@ -57,7 +61,7 @@ there is not acceptable, and a publish of one floor must not change who reaches 
 its own table, next to the zone it shares:
 
 ```sql
--- migration 0036_shared_spaces.sql (next free number; the coordinator renumbers at merge)
+-- migration 0038_shared_spaces.sql (0036 is CR-010's alarm, 0037 the shell's user prefs)
 CREATE TABLE shared_spaces (
   id             TEXT PRIMARY KEY,
   zone_id        TEXT NOT NULL REFERENCES spatial_zones(id),   -- the room; its floor is the HOME floor
@@ -234,8 +238,8 @@ Built on branch `pilot/CR009-shared-space` (from `g0/intake` 6e8a86a), 2026-09-2
 
 | Commit | What |
 |---|---|
-| 41dc766 / 058242c | this note, its Hebrew mirror, T093 (R187-R189, AT187-AT189) |
-| bc0fe93 | backend: migration `0036_shared_spaces.sql`, `services/shared_spaces.py`, the routes and every reach site |
+| 41dc766 / 058242c | this note, its Hebrew mirror, T093 (R187-R189, AT187-AT189) - now T097 (R199-R201, AT199-AT201) |
+| bc0fe93 | backend: migration `0036_shared_spaces.sql` (now `0038_shared_spaces.sql`), `services/shared_spaces.py`, the routes and every reach site |
 | 1f979cf | frontend: `map/shared-space.ts`, chip, editing from the other floor, share dialog, 3D, search, building page |
 | ebab091 | live spec; the editor reloads its structure after a share / un-share |
 
@@ -316,8 +320,8 @@ CHANGES_REQUIRED. Both were built on the same branch; this section is the design
      normally); the upper floor draws the court thin dashed with "מפלס תחתון". Never hit-tested.
    - 3D (`sharedVolumes` + `Builder.sharedVolume`): the lower outline stands from the court up to the upper level, the
      upper outline from there to the upper ceiling; each floor stands its own walls along its own outline and the view
-     adds the other floor's outline as thin walls (`vol:<zone>#lower.<i>` / `#upper.<i>`). At the step between them a
-     slab ring (`vol:<zone>#ring`, a keyhole prism) at the upper level, unless a tribune stands in the ring. The upper
+     adds the other floor's outline as thin walls (`vol:<zone>#lower.<i>` / `#upper.<i>`). ~~At the step between them a
+     slab ring at the upper level, unless a tribune stands in the ring~~ - removed 2026-09-30 (§12.2). The upper
      plate's opening is the whole upper outline (its bounding box); the court level's plate spans the lower outline.
    - Placement check: when the lower outline does not fall inside the upper one the entry says `aligned: false`, the
      editor's issue list and the share dialog warn "ודא את יישור הקומות". No alignment screen (the PATCH exists).
@@ -348,7 +352,7 @@ CHANGES_REQUIRED. Both were built on the same branch; this section is the design
 - **L1** a reader who may not read the home floor gets "קומה אחרת" for its name and no home levels, hashes or version
   ids; the ETag hashes only what the reader gets. **L3** tests for a deny on floor B (cameras and entities alike).
   **L5** anchors created from B use the editor's plan version. **L7** the dialog always sends `duplicate_zone_id`; the
-  un-share confirm says the removed duplicate content does not come back. **L8** a backup from before migration 0036
+  un-share confirm says the removed duplicate content does not come back. **L8** a backup from before migration 0036 (now 0038)
   restores (both tables emptied), and a backup of a shared room round-trips.
 
 ### 11.3 Build status of the revision
@@ -379,3 +383,91 @@ Known limits of the revision: the upper plate's hole and the court plate are bou
 upper level of the step whatever the tribune's real footprint (one tribune anywhere in the ring suppresses it); the
 member list is edited per anchor in the editor (no bulk screen); the alignment warning has no alignment screen; the
 publish count is per item, not per field.
+
+## 12. Security re-review and the owner's answers (2026-09-30)
+
+A second security review of §11 closed both blockers and verified B2, M1-M6, L1, L3 and L5; it raised three mediums
+and five lows. The owner answered three more questions the same night. All built on the same branch.
+
+### 12.1 Re-review fixes
+
+- **N1 - reach only while anchored.** A member reaches the room's floors only while it has a live anchor on one of
+  them (`mirrored_anchor_floors`, `member_share_floors`, `camera_shared_floors`). Deleting a member's last anchor on
+  the room's floors ends its membership (audit `zone.share.member_remove`, reason `anchor_removed`; `revocation.mark`):
+  a hall camera taken off the map and placed elsewhere is no longer reachable from the hall's other floor.
+- **N2 - switches.** A NEW circuit written from the other floor may only reuse a switch that a circuit of the room
+  already uses, unless the actor holds `ha.entity.control` on that entity (a delete + add in one save cannot bring in
+  any switch).
+- **N3 - content is explicit.** The home outline holds the room's content by geometry; the part under the upper level
+  (the other outline brought home) holds only items that carry `shared_space_id` = the room's home zone id. The home
+  floor's own items there, on its own level (a storage room under the tribune), stay its own: not attached, not
+  writable or deletable from the other floor, not published by its publish. An item drawn or moved there from the other
+  floor gets the id from the server; on the home floor the editor's "חלק מהחלל המשותף" sets it. The field is validated
+  (string, 1-64) and documented in `plan_geometry.v2.schema.json`.
+- **Lows:** an addition may not reuse a wall or opening id of the home floor; the mirrored-content cache key carries
+  the home floor's name; a publish from the other floor that trips over draft items (a level or group that exists only
+  in the home draft) answers 422 `shared_invalid` naming them, and `POST …/geometry/publish {shared_skip}` publishes the
+  rest while those keep their published version (the dialog offers "פרסם בלי הפריטים האלה"); `ensure_schema`, run at
+  start after the migrations, gives a database that recorded the first shape of the migration the `other_zone_id`
+  column and the members table; a member anchor moved from another floor's map stays inside the room's outline on its
+  own floor.
+- **Merge with g0/intake:** the migration is `0038_shared_spaces.sql` (0036 the alarm, 0037 the shell's user prefs);
+  the task is T097 with R199-R201 / AT199-AT201. An alarm-managed member (CR-010 `alarm.managed_controls`) stays
+  read-only on every floor that shows it.
+
+### 12.2 Owner answers
+
+1. **Wording (ג):** the UI says "חלל משותף", never "אולם", unless it is the room's own name - e.g. "כולל שינויים בחלל
+   המשותף (קומה ‎-1)".
+2. **The tribune through the upper floor's level.** There is no slab between the two outlines in the owner's building:
+   ONE tribune spans the height, entered from floor 0 straight into its middle and from floor -1 onto the parquet. So
+   nothing horizontal is generated anywhere inside a shared space except the objects the user places (the ring is
+   gone). A stepped object of a shared space standing on the lower floor (`sharedUpperLevel`) has a bottom (its level +
+   z) and a top (bottom + its height, possibly above the upper level); `tribuneLayout` shares the rise to the upper
+   level evenly among k rows (k from the nominal step, `params.step_height_m` or height / rows) so that row k-1 - the
+   ENTRY ROW - tops out exactly at the upper floor's level (computed from the floor heights and the levels'
+   elevations, the room's datum), and the same step continues to the top. The entry row carries an access landing:
+   the stairs model's landing plate reused (`LANDING_PLATE_M`, the circulation colour, the `#landing` part); the
+   stepped tribune itself had no intermediate landing, so the entry row is new. A door of the upper floor's own
+   outline whose centre lies on the tribune's footprint (`tribuneEntrances`) is its entrance: the upper floor's 2D map
+   shows "כניסה לטריבונה" at it, and the 3D a threshold from the door to the landing at the upper level.
+3. **Members list (ב):** "חברים בחלל המשותף" in the room's panel (editor, either floor) and on the live map when a shared
+   room is selected: cameras, door stations and devices, each with the floor it is anchored on; "הסר" per row and
+   "הוסף" from the anchors of the room's floors for whoever holds the share rights on both floors (removing now needs
+   them too, like adding); read-only for everyone else. Visibility (owner's rule): whoever reaches ANY floor that
+   contains the shared space sees, of its members, exactly what their own permissions allow per member - a camera
+   through `camera_scope` (a deny on it hides it), a device through its entity's visibility - in the list and on the
+   maps alike (`GET /zones/{id}/share/members`, the map bundle). Door stations are members when they are placed on the
+   map as entities; WisKey stations are installation-scoped and have no anchor, so they cannot be members.
+
+### 12.3 Future work (not built)
+
+**Camera security.** The owner plans personal permissions per person for a camera or a camera group. The membership
+model must compose with it: a member camera is visible through a shared space only if the viewer's own camera
+permissions allow that camera. This already holds structurally - the members list, the map bundle and every reach
+site filter a member camera through `camera_scope` / the camera chain, and membership only ever adds floors to a
+camera's chain, never a grant - so the per-person camera rule has to live in that one place (`access.camera_scope`,
+`rbac` camera bindings) and the shared space will follow it without a change of its own; a test of the combination
+belongs to that work.
+
+### 12.4 Build status of 2026-09-30
+
+| Commit | What |
+|---|---|
+| e0c670f | N1 |
+| 7f5c526 | N2 |
+| ee4cf0a | N3 |
+| ff1a0f8 | lows (ids, cache name, publish skip, schema guard, anchor moves) |
+| 2509418 | merge of g0/intake (alarm) |
+| 70ac916 | alarm-managed member read-only test |
+| 6293f28 | generic wording |
+| 68d4154 | no ring; the tribune through the upper level, entry row, landing, entrance |
+| 55b7e9a | migration 0038, task T097 |
+| c1dd26d | members list API, per-member filtering |
+| 56f03df | members list UI (editor, live map), live spec |
+
+Tests (run 2026-09-30, workstation): backend `tests/test_shared_spaces.py` 27 passed; with 25 related modules (the §11.3 set plus alarm and migrations) 332 passed; frontend `tsc --noEmit` clean, `npm run build` OK, `unit-shared-space` 11 passed, all `unit-*` 239 passed; live `evidence-shared-space` 2 passed on a throwaway backend (screens `wide-*` outside the repository). Full backend suite not run here.
+
+Known limits: the entry row's landing is drawn across the row (1.6 m wide, centred on the door when there is one); the
+2D symbol of a tribune still draws `params.rows` lines, not the derived rows; the tribune's rows are derived only when it
+stands on the lower floor of a shared space; door stations only as placed entities.
