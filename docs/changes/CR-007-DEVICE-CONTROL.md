@@ -184,6 +184,44 @@ outside, scroll and resize); the floor card's title enters the floor; empty doma
 lit counts, area cards, quick actions of absent domains) - a card hidden because empty keeps its saved layout slot and
 its rows pack away.
 
+### 7.12 Overview tiles: a panel behind each counter, the compact tile layout, the tree rows (owner 2026-09-29)
+
+Owner request (building screen, a phone and a 2000 px desktop): a click on a summary tile ("0/33 מתגים פעילים",
+"8/8 מנעולים נעולים") did nothing - it must show what is on / off / open and let him control the items; the tiles (here
+and on the Live overview) are too tall on a phone - a compact rectangle with the icon beside the value, as a design
+option; the tree rows cut the area names although the row has room; needless scrolling.
+
+**Build status: built** on branch `pilot/CR007-overview-tiles` (not merged, no version bump):
+
+- `GET /devices/items?kind=lights|switches|covers|climate|media|locks|alarm&scope=building|floor|area&id=` - every entity
+  of the tile's kind in the scope, grouped floor › area, each row the area card's own row (`can_control`, last change),
+  counts, `can_bulk`, and per lock `can_unlock` (`door.unlock` at its scope). Read-only, `devices.read` scoped as the tree.
+- Each building counter is a button (`aria-expanded`) that opens the tiles' panel (`devices-tiles-panel.ts`) for its
+  kind across the building; a floor's count chips (tiles view) and a floor card's lit count open it for that floor.
+  The panel is `sw-drawer`'s new modal mode: a side drawer on a desktop, a bottom sheet on a phone, focus trapped,
+  Escape / backdrop close, focus back on the tile. Header counts, a segmented filter (הכול / פעילים|פתוחים|לא נעולים /
+  כבויים|סגורים|נעולים / לא זמינים), a search, rows by floor › area with the reported state and the last change, and
+  the same controls as the area screen (moved unchanged into `devices-controls.ts`, shared). Unlock: only with
+  `door.unlock`, only after the panel's own confirmation dialog, sent with the confirmation grant; lock is one tap.
+  The alarm panels are listed with their state only and a link "פתח במסך האזעקה" (`#/security/alarm`). The kind's bulk
+  action (lights_off, covers_close, climate_off, screens_off) opens the existing confirmation dialog; switches have no
+  bulk kind of their own (open question to the owner). Rows the viewer may not control say why (hover and tap). Live
+  through the `/ha/ws` push and after each command settles; no polling. Deep link:
+  `#/devices/building?domain=<kind>[&floor=<id>|&area=<id>][&filter=active|inactive|unavailable]`.
+- Live overview: the four tiles are links - cameras to the camera list (`?filter=offline` when a camera is offline),
+  sites, today's events, the health tab.
+- `ui.tile_layout` = `auto` (default: compact under 600 px, cards above) | `cards` | `compact`, per installation in
+  הגדרות › כללי › עיצוב הממשק with a live preview, plus a per-browser override (the `ui.design` pattern). The sizes are
+  theme knobs (`--dv-kpi-compact-*`, `--lv-tile-compact-*`; docs/design/DEVICE_THEMES.md §9).
+- Tree rows: the hover "כבה אזור" no longer takes room (it floats over the count column); name first with the full name
+  in its title, the lit count and the "⋯" in fixed end columns so the rows line up; the tree grows with a wide screen
+  (16vw, 250-320 px) and scrolls inside itself only when it is taller than the viewport.
+
+Tests: backend `test_devices.py` (3), `test_ui_settings.py` (1); Playwright `unit-devices-tiles.spec.ts` (demo data) and
+`evidence-devices-tiles.spec.ts` (fixture backend), `screens.spec.ts` sc32 / sc33. Known limits: the owner's
+"unnecessary scrolling" could not be reproduced on the demo or the fixture data (nothing scrolls when the content fits
+at 1366-2000 px); a building layout saved in the layout editor with tall rows would add height of its own.
+
 ## 8. Next step
 
 Slice 1 dispatched 2026-09-28 from this document; the DomusUI extraction is the reference for card rules and
