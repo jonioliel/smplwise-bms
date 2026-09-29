@@ -1,5 +1,16 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.135 (pilot) — WisKey embed: no dark edge around the panel (owner report)
+- Owner screenshot (WisKey rc.25 embedded, 0.1.127 adapter - one toolbar, as intended): a dark line along the right
+  and bottom edges of the embedded panel. Cause (`screens/wiskey-embed.ts`): the panel's box and its overlay used the
+  app's neutral canvas colour (`--sw-bg`, darker than the white chrome around it) and the iframe carried its own
+  360 px minimum height on top of the stage's, so any gap between the frame and its box (load, rounding, a short
+  viewport) showed the darker canvas as an edge. Now the stage, the frame and the overlay paint the surface colour,
+  the frame is `display: block` with no outline and no minimum of its own, and the 360 px floor lives on the stage
+  only. The embed spec asserts the frame's box equals the stage's (±1 px), zero border, no outline, surface colour
+  behind it (desktop + mobile). No change to widths - the "clipped" left side in the screenshot was the screenshot's
+  own crop.
+
 ## 0.1.134 (pilot) — Plan Studio: the "סמן דלת" tool (T087, door-study recommendation א)
 - In the editor's structure mode, **"סמן דלת"** (key D): one click on a door symbol in the plan picture proposes a
   door - the wall it sits in, the position along it, the width (from the gap when there is one, else from the leaf
