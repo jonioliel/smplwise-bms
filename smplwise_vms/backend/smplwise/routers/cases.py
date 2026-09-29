@@ -6,21 +6,30 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import json
+import os
 import pathlib
+import shutil
 import sqlite3
+import tempfile
+import zipfile
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
+from starlette.datastructures import UploadFile as StarletteUploadFile
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.formparsers import MultiPartException
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..config import Settings
-from ..db import new_id, now_iso, unlocked
+from ..db import Database, new_id, now_iso, unlocked
 from ..errors import ApiError, conflict, not_found
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import bundle as bundle_svc
+from ..services import bundle_import
 from ..services import signing
 from ..services import exports as ex
 from ..services import nvr, recordings
@@ -37,7 +46,9 @@ EVENT_AFTER_S = 30
 MAX_CLIP = dt.timedelta(hours=6)
 SEARCH = recordings.search_segments  # replaced in tests
 SNAPSHOT = nvr.fetch_snapshot  # replaced in tests
-MAX_BUNDLE_UPLOAD = 2048 * 1024 * 1024
+MB = 1024 * 1024
+MULTIPART_SLACK = 64 * 1024  # multipart framing around the file part
+RAW_ZIP_TYPES = {"application/zip", "application/x-zip-compressed", "application/x-zip", "application/octet-stream"}
 
 
 def _rid(request: Request) -> str | None:
@@ -83,13 +94,20 @@ def _counts(conn: sqlite3.Connection, case_ids: list[str]) -> dict[str, dict[str
     if not case_ids:
         return out
     q = ",".join("?" * len(case_ids))
-    for r in conn.execute(f"SELECT ci.case_id, ci.kind, ej.state AS job_state, ej.payload_json FROM case_items ci LEFT JOIN export_jobs ej ON ej.id = ci.export_job_id WHERE ci.case_id IN ({q})", case_ids).fetchall():
+    for r in conn.execute(f"SELECT ci.case_id, ci.kind, ci.file_path, ej.state AS job_state, ej.payload_json FROM case_items ci LEFT JOIN export_jobs ej ON ej.id = ci.export_job_id WHERE ci.case_id IN ({q})", case_ids).fetchall():
         c = out[r["case_id"]]
         c["items"] += 1
         c[{"event": "events", "clip": "clips", "note": "notes", "snapshot": "snapshots"}[r["kind"]]] += 1
-        if r["kind"] == "snapshot" or (r["job_state"] in ("done", "partial") and json.loads(r["payload_json"] or "{}").get("output")):
+        if r["kind"] == "snapshot" or (r["kind"] != "note" and r["file_path"]) or (r["job_state"] in ("done", "partial") and json.loads(r["payload_json"] or "{}").get("output")):
             c["preserved"] += 1
     return out
+
+
+def _json(text: str | None) -> Any:
+    try:
+        return json.loads(text) if text else None
+    except ValueError:
+        return None
 
 
 def case_row(r: sqlite3.Row, counts: dict[str, int]) -> dict[str, Any]:
@@ -97,6 +115,8 @@ def case_row(r: sqlite3.Row, counts: dict[str, int]) -> dict[str, Any]:
         "id": r["id"], "title": r["title"], "description": r["description"], "status": r["status"], "tags": json.loads(r["tags_json"] or "[]"),
         "owner_user_id": r["owner_user_id"], "owner_username": r["owner_username"], "revision": r["revision"],
         "created_at": r["created_at"], "updated_at": r["updated_at"], "closed_at": r["closed_at"], "counts": counts,
+        # T050 import: 'imported' cases carry where the bundle came from (source installation, exporter, export time, hash)
+        "origin": r["origin"], "provenance": _json(r["provenance_json"]),
     }
 
 
@@ -108,6 +128,12 @@ def _preservation(settings: Settings, conn: sqlite3.Connection, item: sqlite3.Ro
     """preserved = an export job copied the footage; preserving = the copy is running; nvr_only = the NVR still has it;
     missing = the NVR no longer has it (overwritten); unknown = not checked / not checkable; none = nothing to preserve."""
     export = None
+    if item["origin_json"]:
+        # an imported item: preserved = its verified copy is on disk here; not_in_bundle = a bookmark the source never copied
+        if item["file_path"]:
+            p = settings.data_dir / item["file_path"]
+            return ("preserved" if p.is_file() else "missing"), None
+        return ("none" if item["kind"] == "note" else "not_in_bundle"), None
     if item["export_job_id"]:
         job = ex.get_job(conn, item["export_job_id"])
         if job:
@@ -152,17 +178,26 @@ def _items(settings: Settings, conn: sqlite3.Connection, case_id: str, scope: se
         if r["camera_id"] and scope is not None and r["camera_id"] not in scope:
             hidden += 1
             continue
+        origin = _json(r["origin_json"])
+        if origin is not None and scope is not None:
+            # an imported item belongs to no camera here: only readers of every camera (installation scope) see it
+            hidden += 1
+            continue
         cam = cams.get(r["camera_id"]) if r["camera_id"] else None
         preservation, export = _preservation(settings, conn, r, cam, tz_name, check)
         ev = events.get(r["event_id"]) if r["event_id"] else None
+        event = {k: ev.get(k) for k in ("type", "occurred_at", "ended_at", "severity", "confidence", "thumbnail", "acked_at", "source")} if ev else None
+        if origin is not None and origin.get("event"):
+            event = {**origin["event"], "thumbnail": None, "acked_at": None}
         out.append({
-            "id": r["id"], "case_id": case_id, "kind": r["kind"], "camera_id": r["camera_id"], "camera_name": _camera_name(cam) if cam else None,
-            "event_id": r["event_id"],
-            "event": {k: ev.get(k) for k in ("type", "occurred_at", "ended_at", "severity", "confidence", "thumbnail", "acked_at", "source")} if ev else None,
+            "id": r["id"], "case_id": case_id, "kind": r["kind"], "camera_id": r["camera_id"],
+            "camera_name": _camera_name(cam) if cam else (origin or {}).get("camera_name"),
+            "event_id": r["event_id"], "event": event,
             "export_job_id": r["export_job_id"], "from_at": r["from_at"], "to_at": r["to_at"], "note": r["note"],
             "added_by_username": r["added_by_username"], "created_at": r["created_at"], "preservation": preservation, "export": export,
             "file_path": r["file_path"], "file_sha256": r["file_sha256"],
             "file_url": f"api/v1/cases/{case_id}/items/{r['id']}/file" if r["file_path"] else None,
+            "imported": origin is not None, "origin": origin,
         })
     return out, hidden
 
@@ -205,7 +240,8 @@ def list_cases(
     sql = "SELECT * FROM cases" + (" WHERE " + " AND ".join(where) if where else "") + " ORDER BY updated_at DESC LIMIT ?"
     rows = conn.execute(sql, (*args, limit)).fetchall()
     counts = _counts(conn, [r["id"] for r in rows])
-    return {"cases": [case_row(r, counts[r["id"]]) for r in rows], "can_manage": _can_manage(conn, principal)}
+    return {"cases": [case_row(r, counts[r["id"]]) for r in rows], "can_manage": _can_manage(conn, principal),
+            "can_import": authorize(conn, principal, "cases.manage", INSTALLATION).allowed}
 
 
 @router.post("/cases", status_code=201)
@@ -301,7 +337,12 @@ def delete_case(case_id: str, request: Request, principal: Principal = Depends(c
     n = conn.execute("SELECT COUNT(*) FROM case_items WHERE case_id = ?", (case_id,)).fetchone()[0]
     conn.execute("DELETE FROM case_items WHERE case_id = ?", (case_id,))
     conn.execute("DELETE FROM cases WHERE id = ?", (case_id,))
-    audit(conn, actor=principal, action="case.delete", decision="allowed", resource_type="case", resource_id=case_id, request_id=_rid(request), details={"title": r["title"], "items": n})
+    audit(conn, actor=principal, action="case.delete", decision="allowed", resource_type="case", resource_id=case_id, request_id=_rid(request),
+          details={"title": r["title"], "items": n, "origin": r["origin"], "import_sha256": r["import_sha256"]})
+    if r["import_sha256"]:
+        # the imported copies go with the case - after the rows are committed, outside the write lock
+        with unlocked(conn):
+            bundle_import.remove_case_files(settings_of(request), r["import_sha256"])
 
 
 # ---------------------------------------------------------------- items
@@ -394,6 +435,8 @@ def remove_item(case_id: str, item_id: str, request: Request, principal: Princip
     it = conn.execute("SELECT * FROM case_items WHERE id = ? AND case_id = ?", (item_id, case_id)).fetchone()
     if not it:
         raise not_found("הפריט לא נמצא.")
+    if it["origin_json"]:
+        raise conflict("imported_read_only", "פריט מיובא הוא חלק מהחבילה המקורית ואינו ניתן להסרה; מחיקת התיק מסירה את כל הייבוא.")
     now = now_iso()
     if it["file_path"]:
         (settings_of(request).data_dir / it["file_path"]).unlink(missing_ok=True)
@@ -443,17 +486,62 @@ def preserve_item(case_id: str, item_id: str, request: Request, principal: Princ
 
 @router.get("/cases/{case_id}/items/{item_id}/file")
 def item_file(case_id: str, item_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> FileResponse:
+    """The stored copy of a snapshot or of an imported clip / snapshot. An imported file is served as what its bytes
+    are (JPEG / MP4 by signature, anything else as an attachment), never sniffed, in a sandbox."""
     scope = _read_scope(conn, principal)
     _get(conn, case_id)
     it = conn.execute("SELECT * FROM case_items WHERE id = ? AND case_id = ?", (item_id, case_id)).fetchone()
     if not it or not it["file_path"]:
         raise not_found("אין קובץ לפריט.")
-    if it["camera_id"] and scope is not None and it["camera_id"] not in scope:
+    if (it["camera_id"] and scope is not None and it["camera_id"] not in scope) or (it["origin_json"] and scope is not None):
         require(conn, principal, "events.read", INSTALLATION)
     p = settings_of(request).data_dir / it["file_path"]
     if not p.is_file():
         raise not_found("הקובץ חסר בדיסק.")
-    return FileResponse(p, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"})
+    headers = {"Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff"}
+    if not it["origin_json"]:
+        return FileResponse(p, media_type="image/jpeg", headers=headers)
+    with open(p, "rb") as fh:
+        head = fh.read(12)
+    headers["Content-Security-Policy"] = "sandbox; default-src 'none'"
+    if head.startswith(b"\xff\xd8\xff"):
+        return FileResponse(p, media_type="image/jpeg", headers=headers)
+    if head[4:8] == b"ftyp":
+        return FileResponse(p, media_type="video/mp4", headers=headers, filename=p.name, content_disposition_type="inline")
+    return FileResponse(p, media_type="application/octet-stream", headers=headers, filename=p.name)
+
+
+@router.post("/cases/{case_id}/integrity")
+def case_integrity(case_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """Re-hash every stored copy of the case (snapshots, imported clips and snapshots) against the hash recorded when it
+    was captured or imported: per item ok / mismatch / missing. A match means "unchanged since then" - not authenticity."""
+    scope = _read_scope(conn, principal)
+    r = _get(conn, case_id)
+    settings = settings_of(request)
+    items, hidden = _items(settings, conn, case_id, scope, False)
+    todo = [(i["id"], i["kind"], i["file_path"], i["file_sha256"]) for i in items if i["file_path"] and i["file_sha256"]]
+
+    def check() -> list[dict[str, Any]]:
+        out = []
+        for iid, kind, rel, sha in todo:
+            p = settings.data_dir / rel
+            if not p.is_file():
+                out.append({"item_id": iid, "kind": kind, "status": "missing", "expected": sha, "actual": None})
+                continue
+            h = hashlib.sha256()
+            with open(p, "rb") as fh:
+                for chunk in iter(lambda: fh.read(MB), b""):
+                    h.update(chunk)
+            out.append({"item_id": iid, "kind": kind, "status": "ok" if h.hexdigest() == sha else "mismatch", "expected": sha, "actual": h.hexdigest()})
+        return out
+
+    with unlocked(conn):
+        files = check()
+    ok = all(f["status"] == "ok" for f in files)
+    audit(conn, actor=principal, action="case.integrity", decision="allowed", resource_type="case", resource_id=case_id, request_id=_rid(request),
+          details={"files": len(files), "ok": ok, "origin": r["origin"]})
+    return {"case_id": case_id, "checked_at": now_iso(), "ok": ok, "files": files, "hidden_items": hidden,
+            "note": "התאמת hash מוכיחה שהעותק השמור לא השתנה מאז שנשמר או יובא; היא אינה מוכיחה את אמיתות הצילום."}
 
 
 @router.post("/cases/{case_id}/bundle", status_code=201)
@@ -467,8 +555,9 @@ def create_bundle(case_id: str, request: Request, principal: Principal = Depends
     items, hidden = _items(settings, conn, case_id, scope, False)
     case = case_row(r, _counts(conn, [case_id])[case_id])
     tz_name = read_settings(conn)["time.zone"]
+    iid = bundle_svc.installation_id(conn, create=True)  # names the producer in the manifest (T050 import)
     with unlocked(conn):
-        desc = bundle_svc.build(settings, conn, case, items, principal, tz_name)
+        desc = bundle_svc.build(settings, conn, case, items, principal, tz_name, installation=iid)
     desc["hidden_items"] = hidden
     audit(conn, actor=principal, action="case.bundle", decision="allowed", resource_type="case", resource_id=case_id, request_id=_rid(request),
           details={"bundle": desc["name"], "bytes": desc["bytes"], "sha256": desc["sha256"], "files": desc["files"], "skipped": len(desc["skipped"])})
@@ -499,24 +588,237 @@ def download_bundle(case_id: str, name: str, request: Request, principal: Princi
     return FileResponse(p, media_type="application/zip", filename=name)
 
 
-@router.post("/cases/bundles/verify")
-async def verify_bundle(request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """Recompute the hashes of an uploaded bundle against its manifest. Reports per file; never trusts the archive."""
+def _bundle_reader(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Principal:
+    """Reading cases (events.read somewhere - the gate of bundle download), checked before the body is read."""
     _read_scope(conn, principal)
-    chunks: list[bytes] = []
+    return principal
+
+
+def _bundle_importer(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Principal:
+    """cases.manage at installation scope (an imported case belongs to no camera here), checked before the body is read;
+    require() audits a refusal."""
+    require(conn, principal, "cases.manage", INSTALLATION)
+    return principal
+
+
+def _upload_cap(conn: sqlite3.Connection) -> int:
+    return int(read_settings(conn)["cases.import_max_mb"]) * MB
+
+
+def _limits(cap: int) -> bundle_svc.Limits:
+    return bundle_svc.Limits(max_uncompressed=max(2 * cap, 64 * MB))
+
+
+def _too_large(cap: int) -> ApiError:
+    return ApiError(413, "payload_too_large", f"החבילה גדולה מהמותר ({cap // MB} MB; ההגדרה cases.import_max_mb).", details={"max_bytes": cap})
+
+
+def _unsafe_error(exc: bundle_svc.UnsafeBundle) -> ApiError:
+    return ApiError(422, "unsafe_bundle", "החבילה נדחתה לפני שנקראה: " + {
+        "unsafe_entries": "יש בה נתיבים לא בטוחים (.., נתיב מוחלט, אות כונן, קישור סמלי או רשומה מוצפנת).",
+        "too_many_entries": "יש בה יותר מדי קבצים.",
+        "too_large_uncompressed": "הקבצים בה גדולים מדי אחרי פריסה.",
+    }.get(exc.code, exc.message), details={"reason": exc.code, "detail": exc.message, "entries": exc.entries})
+
+
+async def _receive_bundle(request: Request, settings: Settings, cap: int, name: str | None) -> dict[str, Any]:
+    """Stream the uploaded bundle into a temp file under <data>/imported/.staging, hashing it on the way: a raw ZIP body
+    (application/zip) or multipart with a `file` field. Never more than `cap` bytes, never the whole file in memory.
+    Returns {path, sha256, bytes, name}; the caller removes the file."""
+    length = request.headers.get("content-length")
+    if length and length.isdigit() and int(length) > cap + MULTIPART_SLACK:
+        raise _too_large(cap)
+    ctype = (request.headers.get("content-type") or "").split(";")[0].strip().lower()
+    if ctype != "multipart/form-data" and ctype not in RAW_ZIP_TYPES:
+        raise ApiError(415, "unsupported_media_type", "שלח את החבילה כקובץ ZIP (Content-Type: application/zip) או כ־multipart עם השדה file.",
+                       details={"content_type": ctype[:100]})
+    fd, tmp = tempfile.mkstemp(prefix="upload-", suffix=".zip", dir=bundle_import.staging_root(settings))
+    path = pathlib.Path(tmp)
+    h = hashlib.sha256()
     size = 0
-    while True:
-        chunk = await file.read(1024 * 1024)
-        if not chunk:
-            break
-        size += len(chunk)
-        if size > MAX_BUNDLE_UPLOAD:
-            raise ApiError(413, "payload_too_large", "החבילה גדולה מדי לאימות דרך הדפדפן.")
-        chunks.append(chunk)
-    result = bundle_svc.verify(b"".join(chunks), signing.load_keyring(settings_of(request)))
-    audit(conn, actor=principal, action="case.bundle.verify", decision="allowed", resource_type="bundle", resource_id=file.filename or "", request_id=_rid(request),
-          details={"ok": result["ok"], "files": len(result["files"]), "mismatches": sum(1 for f in result["files"] if f["status"] != "ok"), "extra": len(result["extra"])})
-    return result
+    try:
+        with os.fdopen(fd, "wb") as out:
+
+            def take(chunk: bytes) -> None:
+                nonlocal size
+                size += len(chunk)
+                if size > cap:
+                    raise _too_large(cap)
+                h.update(chunk)
+                out.write(chunk)
+
+            if ctype == "multipart/form-data":
+                seen = 0
+                over = False
+
+                async def receive() -> Any:  # counts the body at the ASGI level, before the multipart parser buffers it
+                    nonlocal seen, over
+                    message = await request.receive()
+                    if message["type"] == "http.request":
+                        seen += len(message.get("body", b""))
+                        if seen > cap + MULTIPART_SLACK:
+                            over = True
+                            raise MultiPartException("request body over the bundle cap")
+                    return message
+
+                try:
+                    form = await Request(request.scope, receive).form(max_files=1, max_fields=4)
+                except StarletteHTTPException:
+                    if over:
+                        raise _too_large(cap) from None
+                    raise ApiError(422, "validation", "גוף ה־multipart אינו תקין.", details={"fields": ["file"]}) from None
+                try:
+                    part = form.get("file")
+                    if not isinstance(part, StarletteUploadFile):
+                        raise ApiError(422, "validation", "חסר קובץ בשדה file.", details={"fields": ["file"]})
+                    name = name or part.filename
+                    while chunk := await part.read(MB):
+                        take(chunk)
+                finally:
+                    await form.close()
+            else:
+                async for chunk in request.stream():
+                    take(chunk)
+    except BaseException:
+        path.unlink(missing_ok=True)
+        raise
+    if size == 0:
+        path.unlink(missing_ok=True)
+        raise ApiError(422, "validation", "הקובץ ריק.", details={"fields": ["file"]})
+    return {"path": path, "sha256": h.hexdigest(), "bytes": size, "name": (name or "")[:200] or None}
+
+
+@router.post("/cases/bundles/verify")
+async def verify_bundle(request: Request, name: str | None = Query(None, max_length=200), principal: Principal = Depends(_bundle_reader),
+                        conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """Verify an evidence bundle (raw ZIP or multipart `file`, at most cases.import_max_mb, streamed to a temp file that
+    is removed): refuses unsafe archives (ZIP-slip names, symlinks, bombs) with 422, then re-hashes every file of the
+    manifest (ok / missing / mismatch / corrupt), checks the signature and reports the producing installation, whether it
+    is this one, and a plain-language summary. Nothing from the bundle is executed or rendered."""
+    settings = settings_of(request)
+    cap = _upload_cap(conn)
+    local_iid = bundle_svc.installation_id(conn)
+    keyring = signing.load_keyring(settings)
+    unsafe: bundle_svc.UnsafeBundle | None = None
+    with unlocked(conn):  # no read snapshot held while the upload streams in
+        up = await _receive_bundle(request, settings, cap, name)
+        try:
+            report, _manifest = await run_in_threadpool(bundle_svc.verify_source, up["path"], keyring, local_iid, _limits(cap))
+        except bundle_svc.UnsafeBundle as exc:
+            unsafe = exc
+        finally:
+            up["path"].unlink(missing_ok=True)
+    if unsafe is not None:
+        audit(conn, actor=principal, action="case.bundle.verify", decision="denied", resource_type="bundle", resource_id=up["sha256"], reason=unsafe.code, request_id=_rid(request),
+              details={"name": up["name"], "bytes": up["bytes"], "entries": len(unsafe.entries)})
+        raise _unsafe_error(unsafe)
+    existing = conn.execute("SELECT id, title FROM cases WHERE import_sha256 = ?", (up["sha256"],)).fetchone()
+    report["bundle"] = {"sha256": up["sha256"], "bytes": up["bytes"], "name": up["name"]}
+    report["already_imported"] = {"case_id": existing["id"], "title": existing["title"]} if existing else None
+    report["importable"] = bool(report["ok"]) and existing is None
+    audit(conn, actor=principal, action="case.bundle.verify", decision="allowed", resource_type="bundle", resource_id=up["sha256"], request_id=_rid(request),
+          details={"name": up["name"], "ok": report["ok"], "files": len(report["files"]), "mismatches": sum(1 for f in report["files"] if f["status"] != "ok"),
+                   "extra": len(report["extra"]), "source_installation": (report.get("origin") or {}).get("installation_id")})
+    return report
+
+
+@router.post("/cases/bundles/import", status_code=201)
+async def import_bundle(request: Request, name: str | None = Query(None, max_length=200), principal: Principal = Depends(_bundle_importer),
+                        conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """Import a verified evidence bundle as a NEW case marked imported (cases.manage at installation scope, checked
+    before the body): verification runs again on the uploaded file and must pass; clips and snapshots are copied under
+    <data>/imported/<bundle sha256>/, notes become read-only imported notes, provenance records the source installation,
+    exporter, export time and the bundle hash. Nothing becomes a camera, plan, user or setting. The same bundle is
+    refused with 409 while its case exists. Audited."""
+    settings = settings_of(request)
+    cap = _upload_cap(conn)
+    local_iid = bundle_svc.installation_id(conn)
+    keyring = signing.load_keyring(settings)
+    db: Database = request.app.state.db
+    with unlocked(conn):
+        up = await _receive_bundle(request, settings, cap, name)
+        try:
+            return await run_in_threadpool(_import_bundle, db, settings, up, principal, _rid(request), local_iid, keyring, cap)
+        finally:
+            up["path"].unlink(missing_ok=True)
+
+
+def _import_bundle(db: Database, settings: Settings, up: dict[str, Any], principal: Principal, rid: str | None, local_iid: str | None,
+                   keyring: dict[str, Any], cap: int) -> dict[str, Any]:
+    sha = up["sha256"]
+
+    def refused(status: int, code: str, message: str, audit_reason: str, **details: Any) -> ApiError:
+        with db.write_aside(label="POST /cases/bundles/import") as w:
+            audit(w, actor=principal, action="case.import", decision="denied", resource_type="bundle", resource_id=sha, reason=audit_reason, request_id=rid,
+                  details={"name": up["name"], "bytes": up["bytes"], **{k: v for k, v in details.items() if k in ("case_id", "counts", "errors", "reason")}})
+        return ApiError(status, code, message, details=details)
+
+    def duplicate(c: sqlite3.Connection) -> sqlite3.Row | None:
+        return c.execute("SELECT id, title FROM cases WHERE import_sha256 = ?", (sha,)).fetchone()
+
+    bundle_import.sweep_staging(settings)
+    with db.connection(mode="read", label="POST /cases/bundles/import") as r:
+        existing = duplicate(r)
+    if existing:
+        raise refused(409, "already_imported", f"החבילה הזו כבר יובאה לתיק \"{existing['title']}\".", "duplicate", case_id=existing["id"], title=existing["title"])
+    try:
+        report, manifest = bundle_svc.verify_source(up["path"], keyring, local_iid, _limits(cap))
+    except bundle_svc.UnsafeBundle as exc:
+        e = _unsafe_error(exc)
+        raise refused(422, e.code, e.user_message, exc.code, **e.details) from None
+    if not report["ok"] or manifest is None:
+        raise refused(409, "bundle_not_verified", "החבילה לא עברה אימות ולכן לא יובאה. " + report["summary"], "not_verified",
+                      counts=report["counts"], errors=report["errors"], files=[f for f in report["files"] if f["status"] != "ok"][:50], extra=report["extra"][:50])
+    staging = bundle_import.new_staging_dir(settings)
+    final = bundle_import.case_dir(settings, sha)
+    moved = False
+    try:
+        try:
+            stored = bundle_import.extract(up["path"], bundle_import.files_to_store(manifest), staging)
+        except (ValueError, OSError, zipfile.BadZipFile) as exc:
+            raise refused(409, "bundle_changed", "החבילה השתנתה בזמן הייבוא; נסה שוב.", "changed", detail=type(exc).__name__) from None
+        now = now_iso()
+        prov = bundle_import.provenance(manifest, report, up, stored, principal, now)
+        rows = bundle_import.plan_items(manifest, stored, sha, (report.get("origin") or {}).get("installation_id"))
+        src_case = manifest.get("case") if isinstance(manifest.get("case"), dict) else {}
+        title = (bundle_svc._s(src_case.get("title"), 120) or "").strip() or "תיק מיובא"
+        description = (bundle_svc._s(src_case.get("description"), 4000) or "")
+        tags = _clean_tags([t for t in src_case.get("tags") or [] if isinstance(t, str)] if isinstance(src_case.get("tags"), list) else [])
+        with db.connection(label="POST /cases/bundles/import") as w:
+            again = duplicate(w)
+            if again:
+                audit(w, actor=principal, action="case.import", decision="denied", resource_type="bundle", resource_id=sha, reason="duplicate", request_id=rid, details={"case_id": again["id"]})
+                raise conflict("already_imported", f"החבילה הזו כבר יובאה לתיק \"{again['title']}\".", case_id=again["id"], title=again["title"])
+            if final.exists():
+                shutil.rmtree(final)  # the leftover of an import that crashed before its commit: no case refers to it (checked above)
+            final.parent.mkdir(parents=True, exist_ok=True)
+            staging.rename(final)
+            moved = True
+            cid = new_id()
+            w.execute(
+                "INSERT INTO cases(id, title, description, status, tags_json, owner_user_id, owner_username, revision, created_at, updated_at, closed_at, origin, provenance_json, import_sha256) "
+                "VALUES (?,?,?,'open',?,?,?,1,?,?,NULL,'imported',?,?)",
+                (cid, title, description, json.dumps(tags, ensure_ascii=False), principal.user_id, principal.username, now, now, bundle_import.dump(prov), sha),
+            )
+            for row in rows:
+                w.execute(
+                    "INSERT INTO case_items(id, case_id, kind, camera_id, event_id, export_job_id, from_at, to_at, note, added_by, added_by_username, created_at, sort_order, file_path, file_sha256, origin_json) "
+                    "VALUES (?,?,?,NULL,NULL,NULL,?,?,?,?,?,?,?,?,?,?)",
+                    (new_id(), cid, row["kind"], row["from_at"], row["to_at"], row["note"], principal.user_id, principal.username, now, row["sort_order"], row["file_path"], row["file_sha256"], bundle_import.dump(row["origin"])),
+                )
+            audit(w, actor=principal, action="case.import", decision="allowed", resource_type="case", resource_id=cid, request_id=rid,
+                  details={"bundle_sha256": sha, "bytes": up["bytes"], "name": up["name"], "source_installation": prov["source_installation_id"], "this_installation": prov["this_installation"],
+                           "exported_at": prov["exported_at"], "items": len(rows), "files": prov["files_stored"], "stored_bytes": prov["bytes_stored"], "signature": prov["signature"].get("trust")})
+            case = case_row(_get(w, cid), _counts(w, [cid])[cid])
+    except BaseException:
+        if moved:
+            shutil.rmtree(final, ignore_errors=True)
+        raise
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
+    return {"case": case, "items": len(rows), "files": prov["files_stored"], "bytes": prov["bytes_stored"],
+            "bundle": {"sha256": sha, "bytes": up["bytes"], "name": up["name"]},
+            "report": {k: report.get(k) for k in ("ok", "summary", "counts", "origin", "signature", "schema", "schema_version", "authenticity")}}
 
 
 # ---------------------------------------------------------------- evidence signing keys (T067)
@@ -525,7 +827,8 @@ async def verify_bundle(request: Request, file: UploadFile = File(...), principa
 def signing_info(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The installation's evidence-signing keys — public halves only — with the trust statement; anyone who can
     verify a bundle may read them. The private half never leaves /data/keys and is not part of any backup."""
-    return {**signing.public_info(settings_of(request)), "can_rotate": authorize(conn, principal, "system.configure", INSTALLATION).allowed}
+    return {**signing.public_info(settings_of(request)), "can_rotate": authorize(conn, principal, "system.configure", INSTALLATION).allowed,
+            "installation_id": bundle_svc.installation_id(conn, create=True)}
 
 
 @router.post("/evidence/signing/rotate")
