@@ -155,8 +155,34 @@ export class SwNavOrder extends LitElement {
       flex-wrap: wrap;
       inline-size: 100%;
     }
+    .foot {
+      align-items: center;
+    }
     .foot .grow {
       flex: 1;
+    }
+    /* "אפס לברירת המחדל": a quiet text action, not a second button */
+    button.link {
+      all: unset;
+      box-sizing: border-box;
+      min-block-size: 44px;
+      padding: 0 4px;
+      color: var(--sw-accent-text);
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-medium);
+      cursor: pointer;
+    }
+    button.link:hover {
+      text-decoration: underline;
+    }
+    button.link:focus-visible {
+      outline: 2px solid var(--sw-focus);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+    button.link[disabled] {
+      opacity: 0.5;
+      cursor: default;
     }
   `;
 
@@ -297,7 +323,7 @@ export class SwNavOrder extends LitElement {
 
   render() {
     const n = this.draft.length;
-    return html`<sw-dialog ?open=${this.open} heading="סדר הלשוניות" subheading="גררו שורה בידית, או הזיזו בחצים. הסדר נשמר לחשבון שלכם ומופיע בכל המכשירים." data-nav-order-dialog @close=${(e: Event) => {
+    return html`<sw-dialog ?open=${this.open} heading="סדר הלשוניות" data-nav-order-dialog @close=${(e: Event) => {
       e.stopPropagation();
       if (this.open) this.close();
     }}>
@@ -306,27 +332,24 @@ export class SwNavOrder extends LitElement {
           this.draft,
           (id) => id,
           (id, i) => {
-            const tab = this.tabs.find((t) => t.id === id);
+            const label = this.tabs.find((t) => t.id === id)?.label ?? id;
             return html`<li data-tab=${id} class=${this.dragging === id ? 'dragging' : ''}>
-              <button type="button" class="handle" data-drag=${id} aria-label=${`גרירה: ${tab?.label ?? id}. חצים למעלה ולמטה מזיזים`} aria-roledescription="ידית גרירה"
+              <button type="button" class="handle" data-drag=${id} aria-label=${`גרור את ${label}`} aria-roledescription="ידית גרירה"
                 @pointerdown=${(e: PointerEvent) => this.onPointerDown(e, id)}
                 @keydown=${(e: KeyboardEvent) => this.onHandleKey(e, id)}><sw-icon name="grip" size=${20}></sw-icon></button>
-              <span class="ic"><sw-icon .name=${tab?.icon ?? 'list'} size=${18}></sw-icon></span>
-              <span class="name">${tab?.label ?? id}</span>
-              <span class="pos" aria-hidden="true">${i + 1}</span>
-              <button type="button" class="mv" data-move="up" aria-label=${`הזז למעלה: ${tab?.label ?? id}`} aria-disabled=${i === 0 ? 'true' : 'false'} @click=${() => i > 0 && this.move(id, i - 1, 'up')}><sw-icon name="arrowUp" size=${18}></sw-icon></button>
-              <button type="button" class="mv" data-move="down" aria-label=${`הזז למטה: ${tab?.label ?? id}`} aria-disabled=${i === n - 1 ? 'true' : 'false'} @click=${() => i < n - 1 && this.move(id, i + 1, 'down')}><sw-icon name="arrowDown" size=${18}></sw-icon></button>
+              <span class="name">${label}</span>
+              <button type="button" class="mv" data-move="up" aria-label=${`הזז למעלה: ${label}`} aria-disabled=${i === 0 ? 'true' : 'false'} @click=${() => i > 0 && this.move(id, i - 1, 'up')}><sw-icon name="arrowUp" size=${18}></sw-icon></button>
+              <button type="button" class="mv" data-move="down" aria-label=${`הזז למטה: ${label}`} aria-disabled=${i === n - 1 ? 'true' : 'false'} @click=${() => i < n - 1 && this.move(id, i + 1, 'down')}><sw-icon name="arrowDown" size=${18}></sw-icon></button>
             </li>`;
           },
         )}
-        <li class="fixed" aria-label="המשתמש - תמיד אחרון"><span class="handle" aria-hidden="true"><sw-icon name="lock" size=${16}></sw-icon></span><span class="ic"><sw-icon name="user" size=${18}></sw-icon></span><span class="name">המשתמש</span><span class="pos">תמיד אחרון</span></li>
+        <li class="fixed" aria-label="המשתמש, תמיד אחרון"><span class="handle" aria-hidden="true"><sw-icon name="lock" size=${16}></sw-icon></span><span class="name">המשתמש</span></li>
       </ol>
       <span class="sr" role="status" aria-live="polite" data-nav-order-announce>${this.announce}</span>
       ${this.failure ? html`<div class="err" role="alert" data-nav-order-error>${this.failure}</div>` : nothing}
       <div class="foot" slot="footer">
-        <sw-button variant="ghost" size="sm" data-nav-order-reset ?disabled=${this.saving} @click=${() => void this.reset()}>אפס לברירת המחדל</sw-button>
+        <button type="button" class="link" data-nav-order-reset ?disabled=${this.saving} @click=${() => void this.reset()}>אפס לברירת המחדל</button>
         <span class="grow"></span>
-        <sw-button variant="secondary" size="sm" ?disabled=${this.saving} @click=${() => this.close()}>ביטול</sw-button>
         <sw-button variant="primary" size="sm" data-nav-order-save ?disabled=${this.saving} @click=${() => void this.save()}>שמור</sw-button>
       </div>
     </sw-dialog>`;

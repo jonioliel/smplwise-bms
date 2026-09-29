@@ -88,6 +88,8 @@ const PATHS: Record<string, ReturnType<typeof svg>> = {
   grip: svg`<path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01" stroke-width="3.2"/>`,
   arrowUp: svg`<path d="M12 19V5M6 11l6-6 6 6"/>`,
   arrowDown: svg`<path d="M12 5v14M6 13l6 6 6-6"/>`,
+  /* notification settings: a bell with a small gear */
+  bellSettings: svg`<path d="M5 15.5V11a6 6 0 0 1 10.5-4"/><path d="M5 15.5 3.5 17.5h8.5"/><path d="M8.5 20a2 2 0 0 0 3.5 0"/><circle cx="17.5" cy="15.5" r="2"/><path d="M17.5 11.5v1.5M17.5 18v1.5M21.5 15.5H20M15 15.5h-1.5M20.3 12.7l-1 1M15.7 17.3l-1 1M20.3 18.3l-1-1M15.7 13.7l-1-1"/>`,
 };
 
 export type IconName = keyof typeof PATHS;

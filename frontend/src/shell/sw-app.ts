@@ -10,7 +10,7 @@ import '../components/sw-avatar';
 import './sw-profile-menu';
 import './sw-user-menu';
 import './sw-nav-order';
-import { alertCountText } from './sw-user-menu';
+import { openAlertsText } from './sw-user-menu';
 import { loadNavOrder, navOrder, onNavOrder, resetNavOrder, saveNavOrder } from './nav-order';
 import { listAlerts } from '../api/rules';
 import { inAndroidShell } from '../arx/android-app';
@@ -112,6 +112,10 @@ export class SwApp extends LitElement {
   @state() private alertCount: number | null = null;
   @state() private navOrder: NavTabId[] = navOrder();
   private menuTrigger: HTMLElement | null = null;
+  /** The phone layout (< 768 px): the user menu is a sheet, the tab row the underline variant. */
+  private phoneMq = window.matchMedia('(max-width: 767px)');
+  @state() private phone = this.phoneMq.matches;
+  private onPhoneMq = () => (this.phone = this.phoneMq.matches);
   private stopNavOrder?: () => void;
   private navOrderUser: string | null = null;
 
@@ -878,9 +882,21 @@ export class SwApp extends LitElement {
       box-shadow: 0 0 0 2px var(--sw-surface), 0 0 0 3px transparent;
       transition: box-shadow var(--sw-t-fast) var(--sw-ease);
     }
-    button.me.open .av,
-    button.me:hover .av {
-      box-shadow: 0 0 0 2px var(--sw-surface), 0 0 0 4px var(--sw-accent-soft);
+    /* review M9: a neutral grey circle; blue only while the menu is open or on the settings (the avatar's own area) */
+    button.me sw-avatar {
+      background: var(--sw-surface-3);
+      color: var(--sw-text-2);
+      transition: background var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease);
+    }
+    button.me.open sw-avatar,
+    button.me.active sw-avatar {
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent-text);
+    }
+    @media (hover: hover) {
+      button.me:hover .av {
+        box-shadow: 0 0 0 2px var(--sw-surface), 0 0 0 4px var(--sw-surface-3);
+      }
     }
     button.me:focus-visible {
       outline: 2px solid var(--sw-focus);
@@ -912,10 +928,14 @@ export class SwApp extends LitElement {
       font-size: 11.5px;
       font-weight: var(--sw-fw-medium);
     }
-    button.me.rail:hover,
     button.me.rail.open {
       background: var(--sw-surface-3);
       color: var(--sw-text);
+    }
+    button.me.rail.active {
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent-text);
+      font-weight: var(--sw-fw-semibold);
     }
     button.me.bottom {
       display: none;
@@ -948,6 +968,9 @@ export class SwApp extends LitElement {
         grid-template-areas:
           'main'
           'bottom';
+      }
+      /* the kiosk and the Lovelace card view have no bars and keep the whole screen (review M5) */
+      :host([data-design='a']:not([data-kiosk]):not([data-embed])) {
         padding-block-start: var(--sw-safe-top);
       }
       :host([data-design='a']) header.topbar {
@@ -962,37 +985,33 @@ export class SwApp extends LitElement {
       :host([data-design='a']) .setuphint {
         display: none;
       }
-      /* the section row and the page's tab row: one slim sticky block at the top of the content */
+      /* review M7: only the section selector stays (slim, sticky); the page's tab row is the second level - the underline
+         variant - and scrolls away with the content. Its tabs keep 44 px targets (review M8). */
       :host([data-design='a']) .subnav {
-        position: sticky;
-        inset-block-start: var(--sw-banner-h, 0px);
-        z-index: 4;
-        flex-direction: column;
-        gap: 6px;
-        padding: 6px 12px 8px;
-        background: color-mix(in srgb, var(--sw-bg) 92%, transparent);
-        -webkit-backdrop-filter: blur(10px);
-        backdrop-filter: blur(10px);
-        border-block-end: 1px solid var(--sw-border);
-        --sw-tab-min-h: 36px;
+        padding: 2px 12px 0;
+        --sw-tab-min-h: 44px;
       }
       :host([data-design='a']) .subnav sw-tabs {
         align-self: stretch;
       }
       :host([data-design='a']) nav.secrow {
-        position: relative;
+        position: sticky;
+        inset-block-start: var(--sw-banner-h, 0px);
+        z-index: 4;
         display: flex;
-        align-self: stretch;
+        flex: none;
         gap: 0;
-        padding: 0;
-        background: none;
+        padding: 0 12px;
+        border-radius: 0;
+        background: var(--sw-bg);
+        border-block-end: 1px solid var(--sw-border);
       }
       /* the track is drawn slim (34px); each segment keeps a 44px tap target */
       :host([data-design='a']) nav.secrow::before {
         content: '';
         position: absolute;
-        inset: 5px 0;
-        border-radius: 11px;
+        inset: 5px 12px;
+        border-radius: 10px;
         background: var(--sw-surface-3);
       }
       :host([data-design='a']) nav.secrow a {
@@ -1074,6 +1093,18 @@ export class SwApp extends LitElement {
       :host([data-design='a']) nav.bottom button.me.open {
         color: var(--sw-text);
       }
+      :host([data-design='a']) nav.bottom button.me.active {
+        color: var(--sw-accent-text);
+        font-weight: var(--sw-fw-semibold);
+      }
+      :host([data-design='a']) nav.bottom button.me.active .ic {
+        background: var(--sw-accent-soft);
+      }
+      :host([data-design='a']) nav.bottom button.me .dot {
+        inline-size: 9px;
+        block-size: 9px;
+        border-width: 1.5px;
+      }
       :host([data-design='a']) nav.bottom .lbl {
         max-inline-size: 72px;
         overflow: hidden;
@@ -1100,6 +1131,8 @@ export class SwApp extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     this.toggleAttribute('data-android-shell', inAndroidShell()); // the app reserves the status bar itself (CR-013)
+    this.phoneMq.addEventListener('change', this.onPhoneMq);
+    window.addEventListener('popstate', this.onPopState);
     this.stopNavOrder = onNavOrder((o) => (this.navOrder = o));
     this.stopSession = onSession((s) => {
       this.session = s;
@@ -1163,7 +1196,11 @@ export class SwApp extends LitElement {
       // embed mirroring the panel's own moves into the address (replaced)
       if (!replaced) {
         this.moreOpen = false;
-        this.closeMenu(false); // CR-013: a menu item (or any navigation) closes the user menu
+        // CR-013: a menu item (or any navigation) closes the user menu and the tab-order dialog; their history entry
+        // is behind the new one now and simply stays (Back returns to the same screen)
+        this.overlayEntry = false;
+        this.closeMenu(false, false);
+        this.orderOpen = false;
       }
       if (this.redirectDemo(route)) return;
       // CR-010: the security section in use, so #/security (the rail entry) reopens it
@@ -1215,6 +1252,8 @@ export class SwApp extends LitElement {
     this.stopDesign?.();
     this.stopWiskeyNav?.();
     this.stopNavOrder?.();
+    this.phoneMq.removeEventListener('change', this.onPhoneMq);
+    window.removeEventListener('popstate', this.onPopState);
     window.removeEventListener('keydown', this.onGlobalKey);
     window.removeEventListener('sw-setup-state', this.onSetupState);
     window.clearInterval(this.sysTimer);
@@ -1231,13 +1270,14 @@ export class SwApp extends LitElement {
     }
   }
 
-  private renderSysPill(designA: boolean) {
+  /** `inMenu`: the copy in the phone user menu's header (CR-013) - its own attribute, so [data-sys-pill] stays unique. */
+  private renderSysPill(designA: boolean, inMenu = false) {
     const s = this.sys;
-    if (!s) return designA ? html`<span class="status-a" data-sys-pill data-status="unknown"><i></i>מערכת מקומית</span>` : nothing;
+    if (!s) return designA ? html`<span class="status-a" ?data-sys-pill=${!inMenu} ?data-menu-sys-pill=${inMenu} data-status="unknown"><i></i>מערכת מקומית</span>` : nothing;
     const first = s.items.find((i) => i.status === 'error') ?? s.items[0];
     const text = s.status === 'ok' ? 'מערכת תקינה' : s.status === 'warn' ? 'יש מה לבדוק' : `תקלה: ${first?.label.split(' — ')[0] ?? ''}`;
     const title = s.items.length ? s.items.map((i) => `• ${i.label}`).join('\n') : 'כל הרכיבים שהמערכת רואה עובדים';
-    return html`<button class="status-a sys ${s.status} ${designA ? '' : 'b'}" data-sys-pill data-status=${s.status} title=${title} aria-label=${`מצב המערכת: ${text}`} @click=${() => (window.location.hash = '#/system/diagnostics?tab=health')}><i></i>${text}</button>`;
+    return html`<button class="status-a sys ${s.status} ${designA ? '' : 'b'}" ?data-sys-pill=${!inMenu} ?data-menu-sys-pill=${inMenu} data-status=${s.status} title=${title} aria-label=${`מצב המערכת: ${text}`} @click=${() => (window.location.hash = '#/system/diagnostics?tab=health')}><i></i>${text}</button>`;
   }
 
   private renderSysBanner() {
@@ -1496,7 +1536,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'exports') return html`<investigate-exports></investigate-exports>`;
         if (s[1] === 'search') return html`<investigate-search></investigate-search>`;
         if (s[1] === 'rules' && s[2]) return html`<investigate-rule-editor .ruleId=${s[2]}></investigate-rule-editor>`;
-        if (s[1] === 'rules') return html`<investigate-rules></investigate-rules>`;
+        if (s[1] === 'rules') return html`<investigate-rules .initialTab=${r.params.get('tab') ?? ''}></investigate-rules>`;
         return html`<investigate-playback></investigate-playback>`;
       case 'system':
         if (s[1] === 'audit') return html`<system-audit></system-audit>`;
@@ -1578,12 +1618,14 @@ export class SwApp extends LitElement {
   /** The avatar's accessible name: who, and the open alerts (the red dot says it visually). */
   private userLabel(): string {
     const n = this.alertCount ?? 0;
-    return `תפריט המשתמש${this.userName ? ` · ${this.userName}` : ''}${n ? ` · ${alertCountText(n)} התראות פתוחות` : ''}`;
+    return `תפריט המשתמש${this.userName ? ` · ${this.userName}` : ''}${n ? ` · ${openAlertsText(n)}` : ''}`;
   }
 
-  /** The alert count for the red dot and the menu: open alerts in this user's scope (rules/alerts filters by camera
-   * scope; the list's length is the scoped count, capped by the page size). Null = this user may not read alerts. */
+  /** The alert count for the red dot and the menu: the server's `unacked`, the open alerts in this user's scope
+   * (routers/rules.py filters by camera scope). Null = this user may not read alerts. Never inside the kiosk or the
+   * Lovelace card view: they have no user menu. */
   private async pollAlerts() {
+    if (this.route?.segments[0] === 'kiosk' || this.embedded()) return;
     if (this.session.mode === 'demo') {
       this.alertCount = 0;
       return;
@@ -1593,29 +1635,62 @@ export class SwApp extends LitElement {
       return;
     }
     try {
-      this.alertCount = (await listAlerts(true)).alerts.length;
+      this.alertCount = (await listAlerts(true)).unacked;
     } catch {
       /* keep the last known count */
     }
   }
 
+  // ---- overlays and the Back button (review M4): while the phone sheet or the tab-order dialog is open, one history
+  // entry (same address) stands for it, so Back closes the overlay instead of leaving the screen underneath ----
+
+  private overlayEntry = false;
+
+  private pushOverlay() {
+    if (this.overlayEntry) return;
+    this.overlayEntry = true;
+    try {
+      window.history.pushState({ ...(window.history.state ?? {}), swOverlay: true }, '');
+    } catch {
+      this.overlayEntry = false;
+    }
+  }
+
+  /** The overlay closed by itself (✕, Esc, save): drop its history entry. */
+  private popOverlay() {
+    if (!this.overlayEntry) return;
+    this.overlayEntry = false;
+    if ((window.history.state as { swOverlay?: boolean } | null)?.swOverlay) window.history.back();
+  }
+
+  private onPopState = (e: PopStateEvent) => {
+    if (!this.overlayEntry || (e.state as { swOverlay?: boolean } | null)?.swOverlay) return;
+    this.overlayEntry = false;
+    this.orderOpen = false;
+    this.closeMenu(true, false);
+  };
+
   private openMenu(from: HTMLElement | null) {
     this.menuTrigger = from;
     this.menuOpen = true;
+    if (this.phone) this.pushOverlay();
     void this.pollAlerts();
   }
 
-  private closeMenu(restoreFocus = true) {
+  private closeMenu(restoreFocus = true, dropEntry = true) {
     if (!this.menuOpen) return;
     this.menuOpen = false;
+    if (dropEntry) this.popOverlay();
     if (restoreFocus) this.menuTrigger?.focus({ preventScroll: true });
   }
 
   private renderMe(where: 'rail' | 'bottom') {
     const n = this.alertCount ?? 0;
     const first = this.userName.split(/\s+/)[0] || 'חשבון';
-    return html`<button type="button" class=${classMap({ me: true, [where]: true, open: this.menuOpen })} ?data-profile-menu=${where === 'rail'} ?data-nav-me=${where === 'bottom'} data-has-alerts=${n ? 'true' : 'false'}
-      aria-haspopup="dialog" aria-expanded=${this.menuOpen ? 'true' : 'false'} aria-label=${this.userLabel()} title=${this.userLabel()}
+    // review M6: the settings (#/system/...) are reached from here, so the avatar is the active item there
+    const here = areaOf(this.route) === 'system';
+    return html`<button type="button" class=${classMap({ me: true, [where]: true, open: this.menuOpen, active: here })} ?data-profile-menu=${where === 'rail'} ?data-nav-me=${where === 'bottom'} data-has-alerts=${n ? 'true' : 'false'}
+      aria-current=${here ? 'page' : 'false'} aria-haspopup="dialog" aria-expanded=${this.menuOpen ? 'true' : 'false'} aria-label=${this.userLabel()} title=${this.userLabel()}
       @click=${(e: Event) => (this.menuOpen ? this.closeMenu(false) : this.openMenu(e.currentTarget as HTMLElement))}>
       <span class="ic"><span class="av"><sw-avatar name=${this.userName} size=${where === 'rail' ? 36 : 26}></sw-avatar>${n ? html`<i class="dot" data-alert-dot aria-hidden="true"></i>` : nothing}</span></span><span class="lbl">${first}</span>
     </button>`;
@@ -1624,9 +1699,11 @@ export class SwApp extends LitElement {
   /** The status pills of the old phone top bar (demo data, the setup progress, the system health), now in the user
    * menu's header on the phone (sw-user-menu shows the slot there only). */
   private renderMenuPills() {
+    // only while the phone sheet is open: on a wide screen the top bar carries them (one [data-sys-pill] on the page)
+    if (!this.menuOpen || !this.phone) return nothing;
     const h = this.setupHint;
     return html`<span slot="pills" class="menu-pills">
-      ${this.session.mode === 'api' || this.session.mode === 'no_access' ? this.renderSysPill(true) : this.session.mode === 'demo' ? html`<sw-badge kind="neutral" label="נתוני הדגמה" data-demo-pill></sw-badge>` : nothing}
+      ${this.session.mode === 'api' || this.session.mode === 'no_access' ? this.renderSysPill(true, true) : this.session.mode === 'demo' ? html`<sw-badge kind="neutral" label="נתוני הדגמה" data-demo-pill></sw-badge>` : nothing}
       ${h ? html`<a class="setup-pill" href="#/system/wizard" data-setup-pill @click=${() => this.closeMenu(false)}><sw-icon name="info" size=${14}></sw-icon>השלם את ההתקנה · ${h.done}/${h.total}</a>` : nothing}
     </span>`;
   }
@@ -1634,16 +1711,21 @@ export class SwApp extends LitElement {
   private renderUserMenu() {
     const api = this.session.mode === 'api';
     const settings = this.gated ? null : settingsEntry(api, canNav);
-    return html`<sw-user-menu .open=${this.menuOpen} .name=${this.userName} .role=${this.userRole} .api=${api} .alerts=${this.gated ? null : this.alertCount}
-        .settingsHref=${settings?.href ?? ''} .screens=${!this.gated}
+    const noTabs = this.gated || !visibleAreas(api, canNav, this.navOrder).length;
+    return html`<sw-user-menu .open=${this.menuOpen} .name=${this.userName} .role=${this.userRole} .api=${api} .gated=${noTabs} .alerts=${this.gated ? null : this.alertCount}
+        .settingsHref=${settings?.href ?? ''}
         @close=${() => this.closeMenu()} @nav-order=${() => {
-          this.closeMenu(false);
+          // the sheet hands over to the dialog: its history entry now stands for the dialog
+          this.closeMenu(false, false);
           this.orderOpen = true;
+          this.pushOverlay();
         }}>${this.renderMenuPills()}</sw-user-menu>
       <sw-nav-order .open=${this.orderOpen} .tabs=${visibleAreas(api, canNav, this.navOrder)} .order=${[...this.navOrder]}
         .onSave=${(o: string[]) => saveNavOrder(o)} .onReset=${() => resetNavOrder()}
         @close=${() => {
+          if (!this.orderOpen) return;
           this.orderOpen = false;
+          this.popOverlay();
           this.menuTrigger?.focus({ preventScroll: true });
         }}></sw-nav-order>`;
   }
@@ -1685,7 +1767,7 @@ export class SwApp extends LitElement {
       <main>
         ${this.renderSetupHint()}
         ${this.renderGate() || html`
-          <div class="subnav">${showSections ? this.renderSections(section, true) : nothing}${tabs.length > 1 && !editor ? html`<sw-tabs .items=${tabs} .active=${activeAreaTab(this.route)}></sw-tabs>` : nothing}</div>
+          ${showSections && this.phone ? this.renderSections(section, true) : nothing}<div class="subnav">${tabs.length > 1 && !editor ? html`<sw-tabs .items=${tabs} .active=${activeAreaTab(this.route)} ?underline=${this.phone}></sw-tabs>` : nothing}</div>
           <div class="screen">${this.session.mode === 'loading' ? nothing : this.renderScreen()}</div>`}
       </main>
       <nav class="bottom" aria-label="ניווט ראשי">
