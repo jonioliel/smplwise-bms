@@ -60,6 +60,9 @@ export interface Floor {
   draft_version_id: string | null;
   anchor_count: number;
   camera_count: number;
+  /** CR-009: the anchors / cameras of rooms other floors share with this one (their home floor counts them). */
+  shared_anchor_count?: number;
+  shared_camera_count?: number;
   updated_at: string;
 }
 
@@ -118,6 +121,8 @@ export interface GeometryRef {
   status: 'new' | 'draft' | 'published' | 'archived';
   revision: number;
   published_at: string | null;
+  /** CR-009: the document's hash plus what the shared rooms attach on read - the client's cache key when present. */
+  view_hash?: string;
 }
 
 export interface Camera {
@@ -196,6 +201,9 @@ export interface Anchor {
   camera?: Camera | null;
   /** Synced Home Assistant entity for ha_entity anchors (actions present only with ha.entity.control on the floor). */
   entity?: import('./ha').HaEntity | null;
+  /** CR-009: an anchor of a room another floor shares with this one - its real id, its home floor, and its position in
+   * this plan's coordinates; edits go through ?from_floor_id. */
+  shared?: import('../map/shared-space').SharedAnchorMark;
 }
 
 export interface ZonePoint {
@@ -223,6 +231,9 @@ export interface SpatialZone {
   revision: number;
   created_at: string;
   updated_at: string;
+  /** CR-009: a room shown on more than one floor - "mirror" (another floor's room, polygon in this plan's coordinates)
+   * or "home" (this floor's room that other floors show). */
+  shared?: import('../map/shared-space').SharedZoneMark;
 }
 
 /** The switch of a lighting circuit as the live map needs it (T085): its state, and the turn on / off actions when the

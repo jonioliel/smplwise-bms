@@ -103,6 +103,9 @@ export interface PlanZone {
   labelPos?: string;
   /** Detection candidate not yet saved: dashed outline. */
   candidate?: boolean;
+  /** CR-009: a room shown on two floors carries a small chip naming the floor its surface is on ("רצפה בקומה -1"), on
+   * both maps (owner decision 2); null / absent = none. */
+  chip?: string | null;
 }
 
 /** Area-weighted polygon centroid in the polygon's own units (vertex mean for degenerate rings). */
@@ -618,6 +621,26 @@ export class SwPlanCanvas extends LitElement {
       fill: var(--sw-danger);
       stroke: var(--sw-surface);
       pointer-events: none;
+    }
+    .zone .zchip {
+      pointer-events: none;
+    }
+    .zone .zchip rect {
+      fill: var(--zc);
+      fill-opacity: 0.14;
+      stroke: var(--zc);
+      stroke-opacity: 0.6;
+      stroke-width: 1;
+      stroke-dasharray: 3 2;
+    }
+    .zone .zchip text {
+      font-family: var(--sw-font);
+      font-size: 10px;
+      font-weight: 600;
+      fill: var(--sw-text-2);
+      text-anchor: middle;
+      direction: rtl;
+      unicode-bidi: plaintext;
     }
     .zone .zl-bg {
       fill: rgba(255, 255, 255, 0.92);
@@ -1481,8 +1504,20 @@ export class SwPlanCanvas extends LitElement {
               <text class="zl" y="3.5">${z.name}</text>
             </g>`
           : nothing}
+        ${z.chip && (labelFits || !z.name) ? this.renderZoneChip(z, z.chip, live, c) : nothing}
         ${this.editable && own && !z.candidate ? this.renderZoneHandles(z, live) : nothing}
       </g>`;
+  }
+
+  /** CR-009: the chip of a room shown on two floors, just under its name (or where the name would be). */
+  private renderZoneChip(z: PlanZone, chip: string, live: { x: number; y: number }[], c: { x: number; y: number }) {
+    const inv = 1 / this.scale;
+    const at = this.zoneLabelPoint(z, live, c);
+    const cw = Math.max(40, chip.length * 6.2 + 14);
+    const dy = (z.name && this.zoneLabels ? 20 : 0) + (this.roomStates?.rooms[z.id]?.temperature != null ? 22 : 0);
+    return svg`<g class="zchip" data-zone-chip=${z.id} transform="translate(${at.x.toFixed(1)} ${(at.y + dy * inv).toFixed(1)}) scale(${inv})">
+      <rect x=${-cw / 2} y="-8" width=${cw} height="16" rx="8" /><text y="3.5">${chip}</text>
+    </g>`;
   }
 
   /** The state layer of one zone (CR-006 1b): the lit tint, the presence tint with its fade, the temperature chip under

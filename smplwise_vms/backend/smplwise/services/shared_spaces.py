@@ -401,6 +401,8 @@ def project(sub: dict[str, list[dict[str, Any]]], share: Share, place: Placement
             x = {k: v for k, v in it.items() if not k.startswith("_")}
             x["id"] = ns(H, it["id"])
             x["shared"] = _marker(share, bool(it.get("_readonly")))
+            if it.get("_readonly") and coll == "walls":
+                x["locked"] = True  # a piece of a wall of the rest of the home floor: edited there only
             if coll in ("walls", "connectors") and isinstance(x.get("polyline"), list):
                 x["polyline"] = [place.pt(p) for p in x["polyline"]]
             if coll in ("objects", "labels") and isinstance(x.get("position"), list):

@@ -39,9 +39,53 @@ export interface DetectResult {
 export const listZones = (floorId: string) => get<{ zones: SpatialZone[] }>(`floors/${floorId}/zones`);
 export const createZone = (floorId: string, body: { name: string; kind?: ZoneKind; polygon: ZonePoint[]; color?: string; searchable?: boolean }) =>
   post<SpatialZone>(`floors/${floorId}/zones`, body);
-/** `signal`: an abort (a timeout) for a caller that must not wait forever - the editor's zone saves (review of T085, R4). */
-export const updateZone = (id: string, body: { revision: number; name?: string; kind?: ZoneKind; polygon?: ZonePoint[]; color?: string; searchable?: boolean; label_pos?: string; level_id?: string; ceiling_height_m?: number; tags?: string[] }, signal?: AbortSignal) =>
-  signal ? api<SpatialZone>(`zones/${id}`, { method: 'PATCH', body: JSON.stringify(body), signal }) : patch<SpatialZone>(`zones/${id}`, body);
+/** `signal`: an abort (a timeout) for a caller that must not wait forever - the editor's zone saves (review of T085, R4).
+ * `fromFloorId` (CR-009): a shared room edited on another floor's map - its polygon is in that plan's coordinates. */
+export const updateZone = (id: string, body: { revision: number; name?: string; kind?: ZoneKind; polygon?: ZonePoint[]; color?: string; searchable?: boolean; label_pos?: string; level_id?: string; ceiling_height_m?: number; tags?: string[] }, signal?: AbortSignal, fromFloorId?: string) => {
+  const path = `zones/${id}${fromFloorId ? `?from_floor_id=${encodeURIComponent(fromFloorId)}` : ''}`;
+  return signal ? api<SpatialZone>(path, { method: 'PATCH', body: JSON.stringify(body), signal }) : patch<SpatialZone>(path, body);
+};
+
+// ---------------------------------------------------------------- shared space (CR-009)
+
+export interface ShareRequest {
+  floor_id: string;
+  duplicate_zone_id?: string | null;
+  rotation_deg?: number;
+  auto?: boolean;
+}
+export interface ShareCandidate {
+  zone_id: string;
+  name: string;
+  name_score: number;
+  overlap: number | null;
+  score: number;
+}
+export interface ShareAnchorFate {
+  anchor_id: string;
+  resource_type: 'camera' | 'ha_entity';
+  resource_id: string;
+  name: string | null;
+  /** rebind: moved to the room on its home floor; drop_duplicate: the room already has it (the mirror shows it). */
+  action: 'rebind' | 'drop_duplicate';
+}
+/** What "הפוך לחלל משותף" will do (POST /zones/{id}/share/preview); the apply answers the same plus the ids it wrote. */
+export interface SharePreview {
+  zone: { id: string; name: string; floor_id: string; floor_name: string; floor_level: number };
+  other_floor: { id: string; name: string; level: number; version_id: string; revision: number };
+  same_frame: boolean;
+  placement: Record<string, unknown>;
+  duplicate: { zone_id: string; name: string; polygon: ZonePoint[] } | null;
+  candidates: ShareCandidate[];
+  remove: { walls: number; openings: number; objects: number; labels: number; connectors: number; circuits: number; groups: number; zone: number };
+  crossing_walls_kept: string[];
+  anchors: ShareAnchorFate[];
+  attach: { walls: number; clipped_walls: number; openings: number; objects: number; labels: number; connectors: number; circuits: number; anchors: number };
+  share_id?: string;
+}
+export const previewShare = (zoneId: string, body: ShareRequest) => post<SharePreview>(`zones/${zoneId}/share/preview`, body);
+export const shareZone = (zoneId: string, body: ShareRequest) => post<SharePreview>(`zones/${zoneId}/share`, body);
+export const unshareZone = (zoneId: string, floorId: string) => del(`zones/${zoneId}/share/${floorId}`);
 export const deleteZone = (id: string, signal?: AbortSignal) => (signal ? api<void>(`zones/${id}`, { method: 'DELETE', signal }) : del(`zones/${id}`));
 export const detectZones = (floorId: string, strength: 'light' | 'medium' | 'strong' = 'medium') => post<DetectResult>(`floors/${floorId}/zones/detect`, { strength });
 export const acceptZones = (floorId: string, candidates: { polygon: ZonePoint[]; name?: string; kind?: ZoneKind }[], replaceAuto: boolean) =>

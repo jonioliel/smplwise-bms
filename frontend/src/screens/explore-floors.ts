@@ -203,6 +203,9 @@ export class ExploreFloors extends LitElement {
       color: var(--sw-text-3);
       margin-block-start: 2px;
     }
+    .counts .shared {
+      color: var(--sw-accent);
+    }
     .chev {
       color: var(--sw-text-3);
     }
@@ -366,7 +369,7 @@ export class ExploreFloors extends LitElement {
                 (f) => html`<button class="floor ${sel?.id === f.id ? 'on' : ''}" @click=${() => (sel?.id === f.id ? navigate(`/explore/floors/${f.id}`) : (this.selected = f.id))} aria-pressed=${sel?.id === f.id}>
                   <div class="txt">
                     <div class="title">${bidi(f.name)}</div>
-                    <div class="counts">${f.camera_count} מצלמות · ${f.anchor_count} פריטים במפה · מפלס ${ltrNum(f.level)}${f.has_plan ? '' : ' · אין תוכנית עדיין'}${f.draft_version_id ? ' · טיוטה ממתינה לפרסום' : ''}</div>
+                    <div class="counts">${f.camera_count} מצלמות${f.shared_camera_count ? html` <span class="shared" data-floor-shared=${f.id}>(+${f.shared_camera_count} משותפות)</span>` : nothing} · ${f.anchor_count} פריטים במפה · מפלס ${ltrNum(f.level)}${f.has_plan ? '' : ' · אין תוכנית עדיין'}${f.draft_version_id ? ' · טיוטה ממתינה לפרסום' : ''}</div>
                   </div>
                   <sw-floor-iso data-floor-iso=${f.id} .rooms=${tree.source === 'demo' ? demoRooms(f.id) : []} .iso=${this.isoFor(f)} ?selected=${sel?.id === f.id} ?empty=${!f.has_plan} width=${128}></sw-floor-iso>
                   <span class="chev"><sw-icon name="chevron" size=${16}></sw-icon></span>

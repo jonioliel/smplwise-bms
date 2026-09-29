@@ -46,7 +46,7 @@ import '../pwa/notifications-settings';
 import '../screens/screens-index';
 import '../screens/styleguide-screen';
 import { onRouteChange, type RouteState, parseRoute } from '../router';
-import { KIND_ICON, KIND_LABEL, search as apiSearch, type SearchResult } from '../api/search';
+import { KIND_ICON, KIND_LABEL, routeFor, search as apiSearch, type SearchResult } from '../api/search';
 import { healthSummary, type HealthSummary } from '../api/health';
 import { setupState } from '../api/setup';
 import { GROUP_TABS, groupOf, activeTabOf, AREA_TABS, areaOf, activeAreaTab, crumbsOf, visibleTabs, visibleAreas, visibleGroups, demoRedirect, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyNvrLess, isNvrRoute, NVR_LESS } from './nav';
@@ -1028,7 +1028,7 @@ export class SwApp extends LitElement {
     }
     this.searchQ = '';
     this.searchResults = [];
-    window.location.hash = `#${r.route}`;
+    window.location.hash = `#${routeFor(r, this.route?.path)}`;
   }
 
   private closeSearch() {

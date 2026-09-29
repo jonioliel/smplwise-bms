@@ -1,7 +1,8 @@
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
 import { ApiError, describeError } from '../api/client';
 import { getGeometry, saveGeometryDraft, type CopyCandidate, type GeometryIssue, type GeometryResponse } from '../api/geometry';
-import type { GeometryDoc, GeomConnector } from './geometry';
+import type { GeometryDoc } from './geometry';
+import { guardShared, isShared } from './shared-space';
 
 export type SaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'error';
 
@@ -11,14 +12,39 @@ export interface StudioApi {
 }
 
 /** What the server computes on save and the editor cannot (T085): the connectors derived from objects that connect levels
- * and each circuit's power. Walls, openings, labels, objects and circuit members stay the editor's. */
+ * and each circuit's power. Walls, openings, labels, objects and circuit members stay the editor's - except the items of a
+ * room another floor shares with this one (CR-009): those are the home floor's, re-attached by the answer with the home
+ * draft's new revision, so they and `shared_spaces` come from the server. */
 function adoptServerParts(local: GeometryDoc, server: GeometryDoc): GeometryDoc {
   const power = new Map((server.circuits ?? []).map((k) => [k.id, k.power_w]));
-  return {
+  const out: GeometryDoc = {
     ...local,
     connectors: server.connectors ?? local.connectors,
     circuits: local.circuits.map((k) => (power.has(k.id) ? { ...k, power_w: power.get(k.id)! } : k)),
   };
+  if (!server.shared_spaces?.length && !local.shared_spaces?.length) return out;
+  for (const coll of SHARED_PARTS) {
+    const own = ((out[coll] ?? []) as { shared?: unknown }[]).filter((x) => !isShared(x));
+    const theirs = ((server[coll] ?? []) as { shared?: unknown }[]).filter((x) => isShared(x));
+    (out as unknown as Record<string, unknown[]>)[coll] = [...own, ...theirs];
+  }
+  out.shared_spaces = server.shared_spaces;
+  return out;
+}
+
+/** The collections a shared room attaches items to (CR-009); connectors are merged whole, as before. */
+const SHARED_PARTS = ['walls', 'openings', 'objects', 'labels', 'circuits', 'groups', 'levels'] as const;
+type MergedColl = (typeof SHARED_PARTS)[number] | 'connectors';
+const MERGED: readonly MergedColl[] = ['connectors', ...SHARED_PARTS];
+type Item = { id: string; far?: unknown; shared?: unknown };
+
+/** The part of a collection a rebase merges item by item: every connector, and the shared items of the others. */
+function mergedPart(d: GeometryDoc, coll: MergedColl): Item[] {
+  const xs = ((d[coll] ?? []) as Item[]);
+  return coll === 'connectors' ? xs : xs.filter((x) => isShared(x));
+}
+function ownPart(d: GeometryDoc, coll: MergedColl): Item[] {
+  return coll === 'connectors' ? [] : ((d[coll] ?? []) as Item[]).filter((x) => !isShared(x));
 }
 
 /** "המדרגות בקומה 1 לא עודכנו - אין לך הרשאת עריכה שם" (T085 review M-a): the stairs changed here, their twin there did
@@ -29,53 +55,85 @@ export function skippedTwinsMessage(floors: readonly { name: string }[]): string
 }
 
 const sameJson = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
-/** A connector as stored: `far` is computed on every read and says nothing about an edit. */
-const connectorKey = (c: GeomConnector): string => {
+/** An item as stored: a connector's `far` is computed on every read and says nothing about an edit. */
+const itemKey = (c: Item): string => {
   const { far: _far, ...rest } = c;
   void _far;
   return JSON.stringify(rest);
 };
+const indexOf = (xs: Item[]) => new Map(xs.map((c) => [c.id, itemKey(c)]));
 
-/** T085 review L-e: the draft moved on the server (a twin synced from another floor raises its revision) while this
- * editor held unsaved edits. When the server's change touched only connectors this editor did not edit (compared with
- * `base`, the document the local edits started from), the local edits are replayed on the server's document: its
- * connectors, with the ones edited here (added, changed or removed) taken from here, and every other part from here.
- * Null when the server changed anything else, a connector edited here too, or nothing visible at all (then the conflict
- * stands and the editor asks for a reload). */
+/** T085 review L-e, CR-009: the draft moved on the server while this editor held unsaved edits - a twin synced from
+ * another floor raised its revision, or the home floor of a room shared with this one changed that room (the save
+ * answered 409 because the home draft moved). When the server's change touched only connectors and shared items this
+ * editor did not edit (compared with `base`, the document the local edits started from), the local edits are replayed
+ * on the server's document: its connectors and shared items, with the ones edited here (added, changed or removed)
+ * taken from here, the floor's own items from here, and `shared_spaces` (the home revision the next save echoes) from
+ * the server. Null when the server changed anything else, an item edited here too, or nothing visible at all (then the
+ * conflict stands and the editor asks for a reload). */
 export function rebaseOnServer(base: GeometryDoc, local: GeometryDoc, server: GeometryDoc): GeometryDoc | null {
   const keys = new Set([...Object.keys(base), ...Object.keys(server)]) as Set<keyof GeometryDoc>;
-  for (const k of keys) if (k !== 'connectors' && !sameJson(base[k], server[k])) return null;
-  const index = (d: GeometryDoc) => new Map((d.connectors ?? []).map((c) => [c.id, connectorKey(c)]));
-  const b = index(base);
-  const l = index(local);
-  const s = index(server);
-  const ids = [...new Set([...b.keys(), ...l.keys(), ...s.keys()])];
-  const mine = new Set(ids.filter((id) => b.get(id) !== l.get(id)));
-  const theirs = ids.filter((id) => b.get(id) !== s.get(id));
-  if (!theirs.length || theirs.some((id) => mine.has(id))) return null;
-  const localById = new Map(local.connectors.map((c) => [c.id, c]));
-  const connectors = server.connectors.flatMap((c) => (mine.has(c.id) ? (localById.has(c.id) ? [localById.get(c.id)!] : []) : [c]));
-  for (const c of local.connectors) if (mine.has(c.id) && !s.has(c.id)) connectors.push(c);
-  return { ...local, connectors };
+  for (const k of keys) {
+    if (k === 'shared_spaces') continue;
+    if ((MERGED as readonly string[]).includes(k)) {
+      if (!sameJson(ownPart(base, k as MergedColl), ownPart(server, k as MergedColl))) return null;
+    } else if (!sameJson(base[k], server[k])) return null;
+  }
+  let changed = false;
+  const out: GeometryDoc = { ...local, shared_spaces: server.shared_spaces };
+  for (const coll of MERGED) {
+    const b = indexOf(mergedPart(base, coll));
+    const l = indexOf(mergedPart(local, coll));
+    const s = indexOf(mergedPart(server, coll));
+    const ids = [...new Set([...b.keys(), ...l.keys(), ...s.keys()])];
+    const mine = new Set(ids.filter((id) => b.get(id) !== l.get(id)));
+    const theirs = ids.filter((id) => b.get(id) !== s.get(id));
+    if (theirs.some((id) => mine.has(id))) return null;
+    if (theirs.length) changed = true;
+    const localById = new Map(mergedPart(local, coll).map((c) => [c.id, c]));
+    const merged = mergedPart(server, coll).flatMap((c) => (mine.has(c.id) ? (localById.has(c.id) ? [localById.get(c.id)!] : []) : [c]));
+    for (const c of mergedPart(local, coll)) if (mine.has(c.id) && !s.has(c.id)) merged.push(c);
+    (out as unknown as Record<string, unknown[]>)[coll] = [...ownPart(local, coll), ...merged];
+  }
+  return changed ? out : null;
+}
+
+/** The connectors and shared items the server changed against `base` (added, changed or removed; `far` ignored). */
+export function serverChangedItems(base: GeometryDoc, server: GeometryDoc): Map<MergedColl, Set<string>> {
+  const out = new Map<MergedColl, Set<string>>();
+  for (const coll of MERGED) {
+    const b = indexOf(mergedPart(base, coll));
+    const s = indexOf(mergedPart(server, coll));
+    const ids = [...new Set([...b.keys(), ...s.keys()])].filter((id) => b.get(id) !== s.get(id));
+    if (ids.length) out.set(coll, new Set(ids));
+  }
+  return out;
 }
 
 /** The connectors the server changed against `base` (added, changed or removed; `far` ignored). */
 export function serverChangedConnectors(base: GeometryDoc, server: GeometryDoc): Set<string> {
-  const index = (d: GeometryDoc) => new Map((d.connectors ?? []).map((c) => [c.id, connectorKey(c)]));
-  const b = index(base);
-  const s = index(server);
-  return new Set([...new Set([...b.keys(), ...s.keys()])].filter((id) => b.get(id) !== s.get(id)));
+  return serverChangedItems(base, server).get('connectors') ?? new Set();
 }
 
-/** A document of the undo / redo history with the server's version of the connectors in `ids` (review M-1): an undo after
- * a rebase must never bring back the connector the other floor's sync replaced (and push it back there). */
+/** A document of the undo / redo history with the server's version of the items in `changed` (review M-1): an undo after
+ * a rebase must never bring back the connector the other floor's sync replaced (and push it back there) - nor a shared
+ * room's item the home floor changed (CR-009). */
+export function withServerItems(doc: GeometryDoc, server: GeometryDoc, changed: ReadonlyMap<MergedColl, ReadonlySet<string>>): GeometryDoc {
+  if (!changed.size) return doc;
+  const out: GeometryDoc = { ...doc, shared_spaces: server.shared_spaces ?? doc.shared_spaces };
+  for (const [coll, ids] of changed) {
+    const byId = new Map(((server[coll] ?? []) as Item[]).map((c) => [c.id, c]));
+    const xs = ((doc[coll] ?? []) as Item[]).flatMap((c) => (ids.has(c.id) ? (byId.has(c.id) ? [byId.get(c.id)!] : []) : [c]));
+    const have = new Set(xs.map((c) => c.id));
+    for (const c of (server[coll] ?? []) as Item[]) if (ids.has(c.id) && !have.has(c.id)) xs.push(c);
+    (out as unknown as Record<string, unknown[]>)[coll] = xs;
+  }
+  return out;
+}
+
+/** The connector-only form of withServerItems (T085). */
 export function withServerConnectors(doc: GeometryDoc, server: GeometryDoc, ids: ReadonlySet<string>): GeometryDoc {
-  if (!ids.size) return doc;
-  const byId = new Map(server.connectors.map((c) => [c.id, c]));
-  const connectors = doc.connectors.flatMap((c) => (ids.has(c.id) ? (byId.has(c.id) ? [byId.get(c.id)!] : []) : [c]));
-  const have = new Set(connectors.map((c) => c.id));
-  for (const c of server.connectors) if (ids.has(c.id) && !have.has(c.id)) connectors.push(c);
-  return { ...doc, connectors };
+  return withServerItems(doc, server, new Map([['connectors', ids]]));
 }
 
 const DEFAULT_API: StudioApi = { load: (id) => getGeometry(id, { draft: true }), save: (id, doc, base) => saveGeometryDraft(id, doc, base) };
@@ -95,6 +153,8 @@ export class StudioController implements ReactiveController {
   copyCandidates: CopyCandidate[] = [];
   saveState: SaveState = 'idle';
   error = '';
+  /** CR-009: the new items the last commit claimed for a shared room's home floor, old id -> namespaced id. */
+  claimed: ReadonlyMap<string, string> = new Map();
   /** Called with a message the person should see after a save (the editor shows it for a while). */
   onNotice: ((message: string) => void) | null = null;
   private versionId: string | null = null;
@@ -174,6 +234,11 @@ export class StudioController implements ReactiveController {
 
   commit(next: GeometryDoc): void {
     if (!this.doc) return;
+    // CR-009: a room another floor shares with this one - its read-only pieces never change here, and a new item drawn
+    // inside it is claimed for its home floor (renamed: "claimed" maps the old id to the new one for the selection)
+    const guarded = guardShared(this.doc, next);
+    this.claimed = guarded.claimed;
+    next = guarded.doc;
     this.undoStack = [...this.undoStack.slice(-59), this.doc]; // at most 60 steps back
     this.redoStack = [];
     this.change(next);
@@ -267,9 +332,9 @@ export class StudioController implements ReactiveController {
     const merged = rebaseOnServer(this.base, this.doc, r.doc);
     if (!merged) return false;
     this.rebased = true;
-    const theirs = serverChangedConnectors(this.base, r.doc);
-    this.undoStack = this.undoStack.map((d) => withServerConnectors(d, r.doc, theirs));
-    this.redoStack = this.redoStack.map((d) => withServerConnectors(d, r.doc, theirs));
+    const theirs = serverChangedItems(this.base, r.doc);
+    this.undoStack = this.undoStack.map((d) => withServerItems(d, r.doc, theirs));
+    this.redoStack = this.redoStack.map((d) => withServerItems(d, r.doc, theirs));
     this.apply(r);
     this.base = r.doc;
     this.doc = merged;

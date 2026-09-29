@@ -102,12 +102,18 @@ export function getGeometry(versionId: string, opts: { draft?: boolean; at?: str
 export async function geometryFor(bundle: MapBundle): Promise<GeometryDoc | null> {
   const ref = bundle.geometryRef;
   if (bundle.source !== 'api' || !ref || !bundle.planVersionId) return null;
-  const hit = byHash.get(ref.doc_hash);
+  // CR-009: a floor that shows a room of another floor (or shares one of its own) is keyed by its view hash, which moves
+  // when the other floor changes; the document's own hash does not
+  const key = ref.view_hash ?? ref.doc_hash;
+  const hit = byHash.get(key);
   if (hit) return hit;
   try {
     // A published or archived row is asked for by its publish instant, so an exact-history bundle gets the row it names.
-    const r = await getGeometry(bundle.planVersionId, ref.status === 'draft' ? { draft: true } : ref.published_at ? { at: ref.published_at } : {});
-    byHash.set(r.geometry.doc_hash, r.doc);
+    // CR-009: with shared rooms the instant matters beyond this floor's own row - an exact-history bundle asks for its own
+    // instant (the rooms shared then, as their home floors were then), the live map for the current structure.
+    const opts = ref.status === 'draft' ? { draft: true } : ref.view_hash ? (bundle.history === 'exact' && bundle.at ? { at: bundle.at } : {}) : ref.published_at ? { at: ref.published_at } : {};
+    const r = await getGeometry(bundle.planVersionId, opts);
+    byHash.set(key, r.doc);
     return r.doc;
   } catch {
     return null;

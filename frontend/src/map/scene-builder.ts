@@ -15,6 +15,7 @@ import { blockingSegments, clipCoverage, isOpenState, type Seg } from './coverag
 import { anchor3d } from './anchor-3d';
 import type { MeshPart } from '../api/plan-catalog';
 import { temperatureText, type RoomStateLayer } from './room-state';
+import { plateHoles, volumeHeights } from './shared-space';
 
 export type { MeshPart };
 export type PartKind = 'floor' | 'room' | 'tint' | 'marker' | 'chip' | 'label' | 'wall' | 'lintel' | 'sill' | 'head' | 'door' | 'window' | 'object' | 'connector' | 'camera' | 'cone' | 'entity' | 'glow';
@@ -327,6 +328,8 @@ class Builder {
   readonly defaultLevel: GeomLevel;
   readonly layers: SceneLayers;
   readonly catalogLookup: CatalogLookup | undefined;
+  /** CR-009: wall id -> the height of the shared room's volume it bounds. */
+  readonly volumes: Map<string, number>;
   private segCache = new Map<string, Seg[]>();
 
   constructor(readonly input: SceneInput) {
@@ -336,6 +339,7 @@ class Builder {
     this.levels = input.doc.levels.length ? [...input.doc.levels].sort(byId) : [{ id: defaultLevelId(input.doc), name: '', elevation_m: 0, ceiling_height_m: 2.8, is_default: true }];
     this.defaultLevel = this.levels.find((l) => l.id === defaultLevelId(input.doc)) ?? this.levels[0];
     this.layers = { ...DEFAULT_LAYERS, ...(input.layers ?? {}) };
+    this.volumes = volumeHeights(input.doc);
     const cat = input.catalog;
     this.catalogLookup = cat ? (id) => { const c = cat(id); return c ? { shape: c.shape, icon: 'box', color_token: c.color_token } : undefined; } : undefined;
   }
@@ -349,7 +353,8 @@ class Builder {
   }
   shown(levelId: string | null | undefined): boolean {
     const want = this.input.level ?? null;
-    return want === null || this.level(levelId).id === want;
+    const lv = this.level(levelId);
+    return want === null || lv.id === want || !!lv.shared; // CR-009: a shared room shows on every level filter
   }
   add(p: ScenePart): void {
     this.parts.push({ ...p, position: v3(...p.position), size: v3(...p.size), rotation: v3(...p.rotation), polygon: p.polygon?.map(([x, z]): [number, number] => [r4(x), r4(z)]) });
@@ -357,9 +362,12 @@ class Builder {
   box(id: string, kind: PartKind, userData: ScenePart['userData'], centre: Vec3, size: Vec3, yaw: number, color: string, levelId: string | null, opacity = 1, pitch = 0, instanced = true): void {
     this.add({ id, kind, shape: 'box', position: centre, size, rotation: [pitch, yaw, 0], color, opacity, group: instanced ? groupKey('box', color, opacity) : null, level_id: levelId, userData });
   }
-  /** A wall's height: its own, else up to the ceiling of its level from its base. */
+  /** A wall's height: its own, else up to the ceiling of its level from its base; a wall of a shared room (CR-009) rises
+   * at least through the room's whole volume - the double-height hall's walls pass the floor above it. */
   wallHeight(w: GeomWall, lv: GeomLevel): number {
-    return isNum(w.height_m) && w.height_m > 0 ? w.height_m : Math.max(MIN_STEP_M, lv.ceiling_height_m - (w.base_z_m || 0));
+    const own = isNum(w.height_m) && w.height_m > 0 ? w.height_m : Math.max(MIN_STEP_M, lv.ceiling_height_m - (w.base_z_m || 0));
+    const volume = this.volumes.get(w.id);
+    return volume ? Math.max(own, volume - (w.base_z_m || 0)) : own;
   }
 
   /** The leaves of a door as the 2D draws them (geometry.ts door(), missing swing = right): none - no leaf; sliding -
@@ -438,13 +446,16 @@ class Builder {
     const W = this.m(this.input.width);
     const D = this.m(this.input.height);
     const wells = this.stairwells();
+    // CR-009: the floor's own plates are open over a room another floor shares with it from below (the double-height
+    // hall seen from its upper floor: no slab in the middle); the room's own levels keep their plates
+    const rooms = plateHoles(this.input.doc, this.input.width, this.input.height, this.scale);
     for (const lv of this.levels) {
       if (!this.shown(lv.id)) continue;
       const box = lv.id === this.defaultLevel.id ? ([0, 0, W, D] as [number, number, number, number]) : this.bounds(lv.id);
       if (!box) continue;
       const [x0, z0, x1, z1] = [Math.max(0, box[0]), Math.max(0, box[1]), Math.min(W, box[2]), Math.min(D, box[3])];
       // review M2 / M-c: the plate is cut around each well of the stairs going down from this level, so they stay visible
-      const pieces = plateAround([x0, z0, x1, z1], wells.get(lv.id) ?? []);
+      const pieces = plateAround([x0, z0, x1, z1], [...(wells.get(lv.id) ?? []), ...(lv.shared ? [] : rooms)]);
       let n = 0;
       for (const [a0, b0, a1, b1] of pieces) {
         if (a1 - a0 < 1e-4 || b1 - b0 < 1e-4) continue;

@@ -39,6 +39,7 @@ import type { ScenePreset } from '../map/scene-three'; // type only: the three c
 import type { LevelSelectDetail, PartSelectDetail } from '../map/sw-plan-3d';
 import type { QualityLevel } from '../map/scene-three';
 import { boundItemOf } from '../map/part-select';
+import { zonesWithChips } from '../map/shared-space';
 import { WEBGL_UNAVAILABLE_HE, webglAvailable } from '../map/webgl';
 import { anchorOnLevel, initialLevel } from '../map/studio-ops';
 import { productSettings } from '../api/prefs';
@@ -1907,7 +1908,7 @@ export class ExploreFloorMap extends LitElement {
     if (!r || r.id !== a.id || r.busy) return;
     this.renaming = { ...r, busy: true };
     try {
-      const saved = await updateAnchor(a.id, { revision: a.revision, label: r.value.trim() || null });
+      const saved = await updateAnchor(a.id, { revision: a.revision, label: r.value.trim() || null }, a.shared ? this.bundle?.floorId : undefined);
       if (this.bundle) this.bundle = { ...this.bundle, anchors: this.bundle.anchors.map((x) => (x.id === a.id ? { ...x, label: saved.label, revision: saved.revision } : x)) };
       this.renaming = null;
       this.notice = saved.label ? `השם „${saved.label}“ נשמר` : 'חזרה לשם המקורי';
@@ -2139,7 +2140,7 @@ export class ExploreFloorMap extends LitElement {
         .selectedIds=${this.multi ? this.picked : []}
         .boxSelect=${this.multi}
         @box-select=${(e: CustomEvent<{ ids: string[] }>) => this.addPicks(e.detail.ids)}
-        .zones=${this.layers.has('zones') ? b.zones.map((z) => ({ ...z, labelPos: z.label_pos })) : []}
+        .zones=${this.layers.has('zones') ? zonesWithChips(b.zones) : []}
         .roomStates=${this.roomStateLayer}
         .selectedZoneId=${this.selectedZoneId}
         .dimEntities=${this.screenState === 'stale'}

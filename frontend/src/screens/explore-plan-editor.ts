@@ -21,7 +21,9 @@ import { ApiError, describeError, resourceUrl } from '../api/client';
 import type { Anchor, Camera, PlanVersion } from '../api/types';
 import { domainLabel, entityMarkerKind, listEntities, stateLabel, type HaEntity } from '../api/ha';
 import { ROOM_FILL_LABEL, setRenderMode, stylizeVersion, type RoomFill, type StylizeResult } from '../api/plans';
-import { ZONE_KINDS, acceptZones, createZone, deleteZone, detectZones, pointInPolygon, updateZone, zoneKindLabel, type SpatialZone, type ZoneKind, type ZonePoint } from '../api/zones';
+import { ZONE_KINDS, acceptZones, createZone, deleteZone, detectZones, listZones, pointInPolygon, previewShare, shareZone, unshareZone, updateZone, zoneKindLabel, type SharePreview, type ShareRequest, type SpatialZone, type ZoneKind, type ZonePoint } from '../api/zones';
+import { findGeomItem, geomIds, geomItemPoint, sharedChip, sharedHint } from '../map/shared-space';
+import { bidi } from '../i18n/bidi';
 import { proposeDoor } from '../api/geometry';
 import { acceptDetection, calibrate, calibrateEstimate, copyGeometryFrom, deleteTwin, detectStructure, exportUrl, geometryDiff, getLinkTargets, linkConnector, publishGeometry, type DetectResult, type DetectTarget, type GeometryDiffResponse } from '../api/geometry';
 import { allIds, byConfidence, byKind, defaultStates, fromResult, moveVertex as moveCandidateVertex, rescale, takeDxfCandidates, withParents, type CandidateSet, type CandKind, type CandState } from '../map/candidates';
@@ -245,6 +247,8 @@ export class ExplorePlanEditor extends LitElement {
   @state() private connStart: Pt | null = null;
   /** The other floors of the building with their levels (the "מחבר אל" picker, T085). */
   @state() private linkTargets: LinkTargetFloor[] = [];
+  /** CR-009: the "הפוך לחלל משותף" dialog - the room, the other floors, where its surface is, the duplicate room, the preview. */
+  @state() private shareDlg: { zone: SpatialZone; floors: LinkTargetFloor[]; floorId: string; homeHere: boolean; otherZones: SpatialZone[]; otherZoneId: string; duplicateId: string | null; preview: SharePreview | null; busy: boolean; error: string } | null = null;
   private linkTargetsFor: string | null = null;
   /** The shape the stairs tool draws next (T085). */
   @state() private stairShape: StairShape = 'straight';
@@ -566,6 +570,37 @@ export class ExplorePlanEditor extends LitElement {
     }
     .kv .k {
       color: var(--sw-text-3);
+    }
+    /* CR-009: a room shown on two floors */
+    .shared-hint {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      margin-block-end: 8px;
+      border: 1px dashed var(--sw-accent);
+      border-radius: var(--sw-r-sm);
+      background: var(--sw-accent-soft);
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-xs);
+    }
+    .shared-box {
+      display: grid;
+      gap: 6px;
+      justify-items: start;
+      padding: 8px 0;
+    }
+    .shared-box .chip {
+      padding: 1px 8px;
+      border: 1px dashed var(--sw-accent);
+      border-radius: 999px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+    }
+    .share-preview {
+      display: grid;
+      gap: 4px;
+      margin-block: 8px;
     }
     .row {
       display: flex;
@@ -895,7 +930,7 @@ export class ExplorePlanEditor extends LitElement {
   private get planZones(): PlanZone[] {
     if (!this.showZones) return [];
     const moving = this.zonePreview; // a multi-selection drag: its zones are drawn where they are going
-    const saved: PlanZone[] = this.zones.map((z) => ({ id: z.id, name: z.name, kind: z.kind, color: z.color, polygon: moving?.[z.id] ?? z.polygon, labelPos: z.label_pos }));
+    const saved: PlanZone[] = this.zones.map((z) => ({ id: z.id, name: z.name, kind: z.kind, color: z.color, polygon: moving?.[z.id] ?? z.polygon, labelPos: z.label_pos, chip: sharedChip(z.shared) }));
     const cands: PlanZone[] = (this.candidates ?? []).map((c, i) => ({ id: `cand-${i}`, name: c.include ? c.name : '', color: c.include ? PALETTE[i % PALETTE.length] : '#9AA3B5', polygon: c.polygon, candidate: true }));
     return [...saved, ...cands];
   }
@@ -1017,8 +1052,10 @@ export class ExplorePlanEditor extends LitElement {
    * text. It never touches `error`: patchZone reports one zone's outcome, commitZoneMoves the outcome of several. */
   private async sendZonePatch(z: SpatialZone, body: ZoneBody): Promise<string> {
     try {
-      const nz = await updateZone(z.id, { revision: z.revision, ...body }, AbortSignal.timeout(ZONE_SAVE_TIMEOUT_MS));
-      this.zones = this.zones.map((x) => (x.id === nz.id ? nz : x));
+      const mirror = z.shared?.role === 'mirror';
+      const nz = await updateZone(z.id, { revision: z.revision, ...body }, AbortSignal.timeout(ZONE_SAVE_TIMEOUT_MS), mirror ? this.bundle?.floorId : undefined);
+      // CR-009: a room another floor owns answers in its home plan's coordinates - this map keeps its own polygon and level
+      this.zones = this.zones.map((x) => (x.id === nz.id ? (mirror ? { ...nz, polygon: body.polygon ?? x.polygon, level_id: x.level_id, shared: x.shared, floor_id: x.floor_id } : { ...nz, shared: x.shared }) : x));
       return 'ok';
     } catch (err) {
       return err instanceof ApiError && err.status === 409 ? 'conflict' : zoneErrorText(err);
@@ -1027,6 +1064,7 @@ export class ExplorePlanEditor extends LitElement {
 
   private async removeZone(z: SpatialZone) {
     if (this.bundle?.source === 'demo') return;
+    if (z.shared?.role === 'mirror') return this.unshare(z, this.bundle!.floorId);
     if (!window.confirm(`למחוק את "${z.name}"? המצלמות והישויות בקומה לא מושפעות.`)) return;
     this.zoneBusy = true;
     this.error = '';
@@ -1049,6 +1087,182 @@ export class ExplorePlanEditor extends LitElement {
     } catch (err) {
       return zoneErrorText(err);
     }
+  }
+
+  // ---- shared space (CR-009): one room on two floors ----
+
+  /** "בטל שיתוף": the other floor stops showing the room (its readers stop reaching its cameras and devices). */
+  private async unshare(z: SpatialZone, floorId: string) {
+    const name = z.shared?.role === 'mirror' ? z.shared.home_floor_name : z.shared?.floors?.find((f) => f.floor_id === floorId)?.name ?? '';
+    if (!window.confirm(`לבטל את השיתוף של "${z.name}"? החדר יישאר רק ב${z.shared?.role === 'mirror' ? name : 'קומה הזו'}${z.shared?.role === 'mirror' ? ' ולא יוצג כאן' : ` ולא יוצג ב${name}`}.`)) return;
+    this.zoneBusy = true;
+    this.error = '';
+    try {
+      await unshareZone(z.id, floorId);
+      this.selectedZoneId = null;
+      await this.load();
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.zoneBusy = false;
+    }
+  }
+
+  /** "הפוך לחלל משותף": the other floors of the building (the connector picker's list: floors the person may edit). */
+  private async openShare(z: SpatialZone) {
+    const b = this.bundle;
+    if (!b || !b.planVersionId || b.source === 'demo') return;
+    this.shareDlg = { zone: z, floors: [], floorId: '', homeHere: true, otherZones: [], otherZoneId: '', duplicateId: null, preview: null, busy: true, error: '' };
+    try {
+      const here = b.floorLevel ?? 0;
+      const floors = [...(await getLinkTargets(b.planVersionId)).floors].sort((x, y) => Math.abs(x.level - here) - Math.abs(y.level - here) || x.level - y.level);
+      this.shareDlg = { ...this.shareDlg!, floors, busy: false };
+      if (floors.length) await this.pickShareFloor(floors[0].floor_id);
+    } catch (err) {
+      this.shareDlg = { ...this.shareDlg!, busy: false, error: describeError(err) };
+    }
+  }
+
+  /** The other floor chosen: owner decision 4 - the room's surface (its home) is the LOWER floor unless changed. */
+  private async pickShareFloor(floorId: string) {
+    const d = this.shareDlg;
+    const b = this.bundle;
+    if (!d || !b) return;
+    const other = d.floors.find((f) => f.floor_id === floorId);
+    const hereLevel = b.floorLevel ?? 0;
+    const homeHere = other ? hereLevel <= other.level : true;
+    this.shareDlg = { ...d, floorId, homeHere, preview: null, duplicateId: null, error: '', busy: true };
+    try {
+      const zones = (await listZones(floorId)).zones.filter((z) => !z.shared);
+      const same = zones.find((z) => z.name.trim() === d.zone.name.trim()) ?? null;
+      this.shareDlg = { ...this.shareDlg!, otherZones: zones, otherZoneId: same?.id ?? zones[0]?.id ?? '', busy: false };
+      await this.previewShareNow();
+    } catch (err) {
+      this.shareDlg = { ...this.shareDlg!, busy: false, error: describeError(err) };
+    }
+  }
+
+  /** The request of the dialog: from this floor's room (home here) or from the other floor's room (home there, this
+   * floor's room is then the duplicate). */
+  private shareRequest(): { zoneId: string; body: ShareRequest } | null {
+    const d = this.shareDlg;
+    const b = this.bundle;
+    if (!d || !b || !d.floorId) return null;
+    if (d.homeHere) return { zoneId: d.zone.id, body: { floor_id: d.floorId, duplicate_zone_id: d.duplicateId, auto: d.duplicateId === null } };
+    if (!d.otherZoneId) return null;
+    return { zoneId: d.otherZoneId, body: { floor_id: b.floorId, duplicate_zone_id: d.zone.id, auto: false } };
+  }
+
+  private async previewShareNow() {
+    const r = this.shareRequest();
+    if (!r) return;
+    this.shareDlg = { ...this.shareDlg!, busy: true, error: '' };
+    try {
+      const preview = await previewShare(r.zoneId, r.body);
+      this.shareDlg = { ...this.shareDlg!, preview, busy: false };
+    } catch (err) {
+      this.shareDlg = { ...this.shareDlg!, preview: null, busy: false, error: describeError(err) };
+    }
+  }
+
+  private async applyShare() {
+    const r = this.shareRequest();
+    const d = this.shareDlg;
+    if (!r || !d?.preview) return;
+    if (!(await this.studio.flush())) {
+      this.shareDlg = { ...d, error: 'שמור את טיוטת המבנה לפני השיתוף.' };
+      return;
+    }
+    this.shareDlg = { ...d, busy: true, error: '' };
+    try {
+      const body = d.homeHere ? { ...r.body, duplicate_zone_id: d.preview.duplicate?.zone_id ?? null, auto: false } : r.body;
+      await shareZone(r.zoneId, body);
+      this.shareDlg = null;
+      this.selectedZoneId = null;
+      this.info = 'החדר משותף עכשיו לשתי הקומות';
+      setTimeout(() => (this.info = ''), 4000);
+      await this.load();
+    } catch (err) {
+      this.shareDlg = { ...this.shareDlg!, busy: false, error: describeError(err) };
+    }
+  }
+
+  private renderShareDialog() {
+    const d = this.shareDlg;
+    const b = this.bundle;
+    if (!d || !b) return nothing;
+    const other = d.floors.find((f) => f.floor_id === d.floorId);
+    const p = d.preview;
+    const count = (n: number, one: string, many: string) => (n ? countLabel(n, one, many) : '');
+    const removed = p ? [count(p.remove.walls, 'קיר אחד', 'קירות'), count(p.remove.openings, 'פתח אחד', 'פתחים'), count(p.remove.objects, 'עצם אחד', 'עצמים'), count(p.remove.labels, 'תווית אחת', 'תוויות'), count(p.remove.connectors, 'מחבר אחד', 'מחברים'), p.remove.zone ? 'החדר הכפול' : ''].filter(Boolean) : [];
+    const removeFloor = p ? p.other_floor.name : '';
+    return html`<sw-dialog open heading="הפוך לחלל משותף" subheading=${d.zone.name} data-share-dialog @close=${() => (this.shareDlg = null)}>
+      <div class="note">חדר אחד ששייך לשתי קומות (כמו אולם בגובה כפול): הוא נשמר פעם אחת, מוצג שלם בשתי הקומות, ואפשר לערוך אותו משתיהן.</div>
+      ${d.floors.length
+        ? html`<sw-field label="הקומה השנייה"><select data-share-floor @change=${(e: Event) => this.pickShareFloor((e.target as HTMLSelectElement).value)}>${d.floors.map((f) => html`<option value=${f.floor_id} ?selected=${f.floor_id === d.floorId}>${bidi(f.name)}</option>`)}</select></sw-field>`
+        : d.busy ? nothing : html`<div class="err">אין בבניין קומה נוספת שמותר לך לערוך.</div>`}
+      ${other
+        ? html`<sw-field label="איפה הרצפה של החדר" hint="ברירת המחדל: הקומה התחתונה (המגרש)"><select data-share-home @change=${(e: Event) => { this.shareDlg = { ...this.shareDlg!, homeHere: (e.target as HTMLSelectElement).value === 'here', preview: null }; void this.previewShareNow(); }}>
+            <option value="here" ?selected=${d.homeHere}>${`בקומה הזו (${bidi(b.floorName)})`}</option>
+            <option value="there" ?selected=${!d.homeHere}>${`ב${bidi(other.name)}`}</option>
+          </select></sw-field>
+          ${d.homeHere
+            ? html`<sw-field label=${`החדר הכפול ב${bidi(other.name)}`}><select data-share-duplicate @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; this.shareDlg = { ...this.shareDlg!, duplicateId: v === '__auto' ? null : v === '__none' ? '' : v }; void this.previewShareNow(); }}>
+                <option value="__auto" ?selected=${d.duplicateId === null}>${p?.duplicate ? `זוהה אוטומטית: ${p.duplicate.name}` : 'זיהוי אוטומטי לפי שם וחפיפה'}</option>
+                ${d.otherZones.map((z) => html`<option value=${z.id} ?selected=${d.duplicateId === z.id}>${z.name}</option>`)}
+              </select></sw-field>`
+            : html`<sw-field label=${`החדר ב${bidi(other.name)} שיישאר`}><select data-share-other-zone @change=${(e: Event) => { this.shareDlg = { ...this.shareDlg!, otherZoneId: (e.target as HTMLSelectElement).value }; void this.previewShareNow(); }}>
+                ${d.otherZones.map((z) => html`<option value=${z.id} ?selected=${d.otherZoneId === z.id}>${z.name}</option>`)}
+              </select></sw-field>`}`
+        : nothing}
+      ${d.busy ? html`<div class="note">מחשב…</div>` : nothing}
+      ${p
+        ? html`<div class="share-preview" data-share-preview>
+            <div class="kv"><span class="k">הרצפה</span><span>${bidi(`${p.zone.floor_name}`)} · "${p.zone.name}"</span></div>
+            <div class="kv"><span class="k">יוסר מ${bidi(removeFloor)}</span><span data-share-removed>${removed.length ? removed.join(', ') : 'שום דבר'}</span></div>
+            ${p.crossing_walls_kept.length ? html`<div class="note">${countLabel(p.crossing_walls_kept.length, 'קיר אחד שחוצה', 'קירות שחוצים')} את קו החדר נשאר${p.crossing_walls_kept.length === 1 ? '' : 'ים'} ב${bidi(removeFloor)}.</div>` : nothing}
+            <div class="kv"><span class="k">מצלמות והתקנים</span><span data-share-anchors>${p.anchors.length
+              ? p.anchors.map((a) => html`<div>${a.name ?? a.resource_id} · ${a.action === 'rebind' ? 'יעבור לחדר המשותף' : 'כבר בחדר - הכפילות תוסר'}</div>`)
+              : 'אין מה להעביר'}</span></div>
+            <div class="note">${p.same_frame ? 'לשתי התוכניות אותה מסגרת: החדר יוצג באותו מקום.' : 'לתוכניות מסגרות שונות: החדר יותאם למקום של החדר הכפול.'} שינויים מהקומה השנייה נשמרים בטיוטה של קומת הרצפה ומופיעים במפה החיה אחרי פרסום שלה.</div>
+          </div>`
+        : nothing}
+      ${d.error ? html`<div class="err">${d.error}</div>` : nothing}
+      <sw-button slot="footer" variant="ghost" @click=${() => (this.shareDlg = null)}>ביטול</sw-button>
+      <sw-button slot="footer" variant="primary" data-share-apply ?disabled=${!p || d.busy} @click=${() => this.applyShare()}>שתף את החדר</sw-button>
+    </sw-dialog>`;
+  }
+
+  /** The zone inspector's shared-space block: the chip, and share / un-share. */
+  private renderZoneShare(z: SpatialZone) {
+    const b = this.bundle;
+    if (!b || b.source === 'demo') return nothing;
+    const s = z.shared;
+    if (s?.role === 'mirror') {
+      return html`<div class="shared-box" data-zone-shared="mirror"><span class="chip">${sharedChip(s)}</span>
+        <div class="note">החדר שייך ל${bidi(s.home_floor_name)} ומוצג כאן שלם. עריכה כאן נשמרת שם ומופיעה בשתי הקומות.</div>
+        ${b.permissions.structure ? html`<sw-button size="sm" variant="ghost" data-zone-unshare ?disabled=${this.zoneBusy} @click=${() => this.unshare(z, b.floorId)}>בטל שיתוף</sw-button>` : nothing}</div>`;
+    }
+    if (s?.role === 'home') {
+      return html`<div class="shared-box" data-zone-shared="home"><span class="chip">${sharedChip(s)}</span>
+        <div class="note">משותף עם ${(s.floors ?? []).map((f) => bidi(f.name)).join(', ')}: החדר מוצג שלם גם שם.</div>
+        ${b.permissions.structure ? (s.floors ?? []).map((f) => html`<sw-button size="sm" variant="ghost" data-zone-unshare=${f.floor_id} ?disabled=${this.zoneBusy} @click=${() => this.unshare(z, f.floor_id)}>בטל שיתוף עם ${bidi(f.name)}</sw-button>`) : nothing}</div>`;
+    }
+    return b.permissions.structure ? html`<div class="btns"><sw-button size="sm" icon="floor" data-zone-share ?disabled=${this.zoneBusy} title="חדר ששייך לשתי קומות, כמו אולם בגובה כפול" @click=${() => this.openShare(z)}>הפוך לחלל משותף</sw-button></div>` : nothing;
+  }
+
+  /** "חלל משותף · השינוי יופיע גם בקומה X" on the selected item of a shared room (either floor). */
+  private renderSharedHint() {
+    const doc = this.studio.doc;
+    const a = this.selected;
+    let text = '';
+    if (a?.shared) text = `חלל משותף · השינוי יופיע גם ב${bidi(a.shared.home_floor_name)}`;
+    else if (a && doc) text = sharedHint(doc, null, [a.position.x, a.position.y]);
+    else if (this.geomSel && doc) {
+      const item = findGeomItem(doc, this.geomSel.id);
+      text = item ? sharedHint(doc, item, geomItemPoint(item)) : '';
+    }
+    return text ? html`<div class="shared-hint" data-shared-hint><sw-icon name="floor" size=${14}></sw-icon>${text}</div>` : nothing;
   }
 
   // ---- edits (draft state; explicit save) ----
@@ -1218,7 +1432,7 @@ export class ExplorePlanEditor extends LitElement {
         try {
           const saved = await updateAnchor(id, { revision: a.revision, x: a.position.x, y: a.position.y, rotation_degrees: a.rotation_degrees, field_of_view_degrees: a.field_of_view_degrees, label: a.label,
             coverage_radius: a.coverage_radius ?? null, coverage_polygon: a.coverage_polygon ?? null, label_pos: a.label_pos ?? 'auto', level_id: a.level_id ?? '',
-            mount_height_m: a.mount_height_m ?? null, tilt_deg: a.tilt_deg ?? null });
+            mount_height_m: a.mount_height_m ?? null, tilt_deg: a.tilt_deg ?? null }, a.shared ? this.bundle.floorId : undefined);
           this.anchors = this.anchors.map((x) => (x.id === id ? { ...x, revision: saved.revision } : x));
         } catch (err) {
           if (err instanceof ApiError && err.code === 'stale_revision') conflict = true;
@@ -1284,7 +1498,7 @@ export class ExplorePlanEditor extends LitElement {
     this.busy = true;
     this.error = '';
     try {
-      await deleteAnchor(a.id);
+      await deleteAnchor(a.id, a.shared ? this.bundle.floorId : undefined);
       this.selectedId = null;
       await this.load();
     } catch (err) {
@@ -1964,6 +2178,9 @@ export class ExplorePlanEditor extends LitElement {
   /** An undo (or a newer server document) that removes the selected circuit ends its selection and its member mode. */
   protected override willUpdate(): void {
     const doc = this.studio.doc;
+    // CR-009: an item just drawn inside a room another floor shares was renamed for that floor - the selection follows it
+    const renamed = this.geomSel ? this.studio.claimed.get(this.geomSel.id) : undefined;
+    if (renamed && doc && !geomIds(doc).has(this.geomSel!.id)) this.geomSel = { ...this.geomSel!, id: renamed };
     if (this.circuitSel && doc && !doc.circuits.some((k) => k.id === this.circuitSel)) {
       this.circuitSel = null;
       this.membersMode = false;
@@ -4300,13 +4517,14 @@ export class ExplorePlanEditor extends LitElement {
       <sw-field label="מיקום שם החדר"><select data-zone-label-pos @change=${(e: Event) => this.patchZone(z, { label_pos: (e.target as HTMLSelectElement).value })}>${[['auto', 'אוטומטי'], ['top', 'מעל'], ['bottom', 'מתחת'], ['left', 'משמאל'], ['right', 'מימין']].map(([v, l]) => html`<option value=${v} ?selected=${(z.label_pos ?? 'auto') === v}>${l}</option>`)}</select></sw-field>
       ${(this.studio.doc?.levels.length ?? 0) > 1 ? html`<sw-field label="מפלס"><select data-zone-level @change=${(e: Event) => this.patchZone(z, { level_id: (e.target as HTMLSelectElement).value })}>${this.studio.doc!.levels.map((l) => html`<option value=${l.id} ?selected=${(z.level_id ?? defaultLevelId(this.studio.doc!)) === l.id}>${l.name}</option>`)}</select></sw-field>` : nothing}
       ${this.renderZoneTags(z)}
+      ${this.renderZoneShare(z)}
       <div class="kv"><span class="k">מצלמות באזור</span><span>${cams.length ? cams.map((a) => this.anchorName(a)).join(', ') : 'אין'}</span></div>
       <div class="kv"><span class="k">התקנים באזור</span><span>${ents.length ? `${ents.length} ישויות` : 'אין'}</span></div>
       <div class="row"><span class="lbl">הכללה בחיפוש מרחבי<span class="muted">זמין לחוקי התראה ולחיפוש לפי מקום</span></span><sw-toggle ?checked=${z.searchable} label=${z.searchable ? 'כלול' : 'לא כלול'} @click=${() => this.patchZone(z, { searchable: !z.searchable })}></sw-toggle></div>
       <div class="note">${z.polygon.length} פינות · ${z.source === 'auto' ? 'זוהה אוטומטית מהתוכנית' : 'צויר ידנית'} · revision ${z.revision}</div>
       <div class="note" data-zone-hint>גרור פינה כדי לשנות צורה, גרור נקודת אמצע כדי להוסיף פינה, גרור את הגוף כדי להזיז; Delete על פינה מסיר אותה</div>
       <div class="note">אזור במפה הוא הקשר מרחבי בלבד: אינו אזור זיהוי במצלמה ואינו מסכת פרטיות, ואינו משנה תצורת NVR.</div>
-      <div class="btns"><sw-button size="sm" variant="danger" icon="trash" ?disabled=${this.zoneBusy} @click=${() => this.removeZone(z)}>מחק אזור</sw-button><sw-button size="sm" variant="ghost" @click=${() => (this.selectedZoneId = null)}>סגור</sw-button></div>
+      <div class="btns">${z.shared?.role === 'mirror' ? nothing : html`<sw-button size="sm" variant="danger" icon="trash" ?disabled=${this.zoneBusy} @click=${() => this.removeZone(z)}>מחק אזור</sw-button>`}<sw-button size="sm" variant="ghost" @click=${() => (this.selectedZoneId = null)}>סגור</sw-button></div>
     </div>`;
   }
 
@@ -4538,6 +4756,7 @@ export class ExplorePlanEditor extends LitElement {
                 <div class="legend"><span><i></i>מצלמות · ${cams}</span><span><i class="ent"></i>התקנים · ${ents}</span><span><i class="zone"></i>אזורים · ${this.zones.length}</span></div>
               </div>
               <div class="props">
+                ${this.renderSharedHint()}
                 ${sel ? (sel.resource_type === 'camera' ? this.renderCameraInspector(sel) : this.renderEntityInspector(sel)) : this.selectedZone && this.tool !== 'zones' ? html`<sw-card heading="אזור" subheading=${this.selectedZone.name}>${this.renderZoneInspector(this.selectedZone)}</sw-card>${this.multiOn ? html`<div class="note" data-multi-hint>${MULTI_HINT}</div>` : nothing}` : this.renderToolPanel(b)}
                 ${(sel || (this.selectedZone && this.tool !== 'zones')) && this.tool !== 'select' ? this.renderToolPanel(b) : nothing}
                 ${this.renderVersionCard(b)}
@@ -4552,6 +4771,7 @@ export class ExplorePlanEditor extends LitElement {
         ${this.customDialog && this.library ? renderCustomItemDialog(this.customDialog, this.library, (patch) => (this.customDialog = { ...this.customDialog!, ...patch }), () => void this.createCustom(), () => (this.customDialog = null)) : nothing}
         ${this.levelDialog ? renderLevelDialog(this.levelDialog, { change: (patch) => (this.levelDialog = { ...this.levelDialog!, ...patch }), submit: () => this.submitLevel(), cancel: () => (this.levelDialog = null), remove: () => this.deleteLevel() }) : nothing}
         ${this.shortcutsOpen ? renderShortcutsDialog(() => (this.shortcutsOpen = false)) : nothing}
+        ${this.renderShareDialog()}
       </sw-page>
     `;
   }
