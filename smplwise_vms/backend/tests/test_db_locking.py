@@ -14,7 +14,7 @@ from dataclasses import replace
 
 import httpx
 import pytest
-from conftest import as_user, seed_tree
+from conftest import as_user, png_bytes, seed_tree
 from fastapi.testclient import TestClient
 from test_devices import dev_app  # noqa: F401 - fixture
 from test_exports import fake_pages
@@ -450,3 +450,33 @@ def test_released_connection_refuses_further_writes(tmp_path):
             conn.execute("INSERT INTO settings(key, value) VALUES ('b', '2')")
     with db.connection(mode="read") as conn:
         assert [r[0] for r in conn.execute("SELECT key FROM settings WHERE key IN ('a', 'b')")] == ["a"]
+
+
+def test_uploads_are_decoded_and_rendered_without_the_write_lock(client, monkeypatch):
+    """A plan upload (DXF / image render, PDF page count, hash) and a site / building picture (decode + re-encode) take
+    seconds on the add-on's CPU; they ran under the request's write lock, on the event loop (2026-09-29 inventory)."""
+    from smplwise.routers import catalog as catalog_router
+    from smplwise.services import plan_render
+
+    db: Database = client.app.state.db
+    ids = seed_tree(client)
+    seen: list[bool] = []
+    real_normalize, real_store = plan_render.normalize_image, catalog_router._store_image
+
+    def normalize(*a, **kw):
+        seen.append(lock_is_free(db))
+        return real_normalize(*a, **kw)
+
+    async def store(*a, **kw):
+        seen.append(lock_is_free(db))
+        return await real_store(*a, **kw)
+
+    monkeypatch.setattr(plan_render, "normalize_image", normalize)
+    monkeypatch.setattr(catalog_router, "_store_image", store)
+    r = client.post(f"/api/v1/floors/{ids['floor2']}/plan-assets", files={"file": ("p.png", png_bytes(), "image/png")})
+    assert r.status_code == 201, r.text
+    r = client.post(f"/api/v1/sites/{ids['site']}/image", files={"file": ("s.png", png_bytes(), "image/png")})
+    assert r.status_code == 200, r.text
+    assert seen == [True, True]
+    with db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action IN ('plan.asset.upload', 'site.update')").fetchone()[0] == 2

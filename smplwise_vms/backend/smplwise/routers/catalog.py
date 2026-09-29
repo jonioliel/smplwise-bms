@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from ..audit import audit
 from ..auth import current_principal, get_conn, settings_of
-from ..db import new_id, now_iso
+from ..db import new_id, now_iso, unlocked
 from ..errors import ApiError, conflict, not_found
 from ..rbac import INSTALLATION, Principal, authorize, require
 
@@ -82,7 +82,8 @@ async def _store_image(request: Request, kind: str, obj_id: str, file: UploadFil
 async def site_image_upload(site_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     get_site(conn, site_id)
     require(conn, principal, P_CONTENT, ("site", site_id))
-    rel = await _store_image(request, "site", site_id, file)
+    with unlocked(conn):  # decoding and re-encoding the image runs without the write lock
+        rel = await _store_image(request, "site", site_id, file)
     conn.execute("UPDATE sites SET image_path = ?, updated_at = ? WHERE id = ?", (rel, now_iso(), site_id))
     audit(conn, actor=principal, action="site.update", decision="allowed", resource_type="site", resource_id=site_id, request_id=_rid(request), details={"image": True})
     return site_row(get_site(conn, site_id))
@@ -103,7 +104,8 @@ def site_image_delete(site_id: str, request: Request, principal: Principal = Dep
 async def building_image_upload(building_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     get_building(conn, building_id)
     require(conn, principal, P_CONTENT, ("building", building_id))
-    rel = await _store_image(request, "building", building_id, file)
+    with unlocked(conn):  # decoding and re-encoding the image runs without the write lock
+        rel = await _store_image(request, "building", building_id, file)
     conn.execute("UPDATE buildings SET image_path = ?, updated_at = ? WHERE id = ?", (rel, now_iso(), building_id))
     audit(conn, actor=principal, action="building.update", decision="allowed", resource_type="building", resource_id=building_id, request_id=_rid(request), details={"image": True})
     return building_row(get_building(conn, building_id))
