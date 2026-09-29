@@ -1,5 +1,30 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.138 (pilot) — Runs without an NVR: "מצב ללא NVR" for electricity-only installations (owner request)
+- Owner request (2026-09-29): "bring the system up without an NVR, in case I want it only for electricity control".
+  With `nvr_host` empty in the add-on options the add-on starts in **`ha_only` mode** (derived from the options on
+  every start, never stored; shown in `/me`, `/health` and the wizard): no NVR background work at all (no
+  discovery, alert stream, thumbnail / export workers or storage warm-up - one INFO line says why), health reports
+  the NVR as **"לא מוגדר"** (neutral) and stays green when Home Assistant is fine - and goes red when HA is missing
+  or disconnected, because HA is the product in this mode; the setup wizard shows the NVR and camera steps as
+  **"דילוג - מצב ללא NVR"** and "מוכן לעבודה" is reached with the remaining steps (go2rtc counts when it is
+  configured or when WisKey is set up); the navigation shows only מפה / חשמל והתקנים / WisKey / מערכת (both designs
+  and the phone bar); a direct link to a hidden area shows a "מצב ללא NVR" panel pointing at the options; every NVR
+  route answers 409 `nvr_not_configured` - after its own permission check, so 401/403 and their audit rows are
+  unchanged; the Lovelace card falls back to the map; settings show a neutral notice instead of the video forms;
+  the storage screen shows the local disk; the map draws no cameras; leftover camera events get no thumbnails.
+  Adding an NVR later: set the options and restart - tested full → ha_only → full on the same data, no migration.
+- Before this, an empty `nvr_host` left the health report red forever, the top-bar pill on "יש מה לבדוק", the
+  wizard's NVR step "נכשל", three workers running for nothing (one logging every 8 minutes), every camera area in
+  the navigation with "configure the NVR" empty states, and two 503s each time "חיבורים" opened.
+- Test and dev environments keep FULL mode by default (outside the add-on a missing host becomes a labelled
+  placeholder, never given credentials, unless `SW_MODE=ha_only`; inside the add-on the options alone decide) - so
+  the existing evidence specs and the dev loop are unchanged. Docs: `DOCS.md` + Hebrew mirror ("מצב ללא NVR": how
+  to install for electricity only, what is hidden, how to add the NVR later), `docs/operations/NVR_LESS_MODE.md`.
+- Tests: `test_nvr_less.py` 54 (start-up without NVR, no threads, health, wizard, 409 after permission, mode flag,
+  switching modes), 240 in the touched set; Playwright `evidence-nvr-less` 18 (desktop + phone); existing specs
+  re-run unchanged; tsc / build clean. Opus review (2 medium fixed) + re-review APPROVED.
+
 ## 0.1.137 (pilot) — Plan Studio detector: thin hollow exterior walls (T087, the parked prototype made safe)
 - The owner's scans draw exterior walls as two thin parallel lines with white between; the detector missed them
   (exterior coverage on floor 0 was 0.00). A second pass, **`hollow_v1`**, now finds them: two thin strokes (≤ 5 px and
