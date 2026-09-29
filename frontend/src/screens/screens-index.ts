@@ -38,6 +38,11 @@ const SCREENS: { mode: string; items: Entry[] }[] = [
     ],
   },
   {
+    // CR-010 (2026-09-29): לייב and חקירה became sections of the security area, with the alarm as the third.
+    mode: 'אבטחה · אזעקה',
+    items: [{ sc: 'SC34', name: 'אזעקה: לוח, חיישנים ועקיפה', route: '#/security/alarm', phase: 'BETA', board: 'CR-010' }],
+  },
+  {
     // Own top-level area since 0.1.103 (owner override 2026-09-27); was a sub-tab of "אתרים ומפות" in phase 1a.
     mode: 'WisKey',
     items: [{ sc: 'SC23', name: 'WisKey · מרכז הכניסה', route: '#/wiskey/overview', phase: 'V1', board: '3:18' }],

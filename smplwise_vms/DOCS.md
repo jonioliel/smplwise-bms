@@ -935,3 +935,55 @@ Quiet hours need two different times (`from == to` is refused); a window that cr
 `arx-sw.js`; the new worker deletes the previous release's cache when it takes over (after "רענון" on the update notice).
 Hashed build files are served cache-first; fonts, icons, brand images and the manifest network-first (the cache is only
 the offline fallback).
+
+## Security area and the intrusion alarm (CR-010)
+
+**Navigation.** Design A's rail and phone bar are אבטחה · מפה · חשמל · WisKey · מערכת. "אבטחה" (security) holds three
+sections - לייב (live), חקירה (investigation) and אזעקה (the alarm) - shown as a segmented control in the top bar; each
+section's own pages stay the tab row under it. Every old address still works (`#/live/...`, `#/investigate/...`,
+`#/system/devices`, the Lovelace card views, the kiosk); the alarm is `#/security/alarm`, and `#/security` opens the
+section the browser used last. Design B adds a flat "אזעקה" entry. The alarm section needs `alarm.view`.
+
+**What the alarm shows.** Every `alarm_control_panel` entity is a panel: its state, the arm modes it reports
+(`supported_features`), whether it needs a code (`code_format`, `code_arm_required`) and who changed it last. Its zones
+are the `binary_sensor` entities of the same integration and config entry (auxiliary tamper / battery / "alarmed" /
+"armed" sensors attach to their zone), each with its bypass control when one is found: the same device, then an exact
+integration key (Risco: the system and zone number of the unique id - the owner's system, never paired by name), then
+the entity or unique id with the property words removed, the name, the zone number. Visonic's bypass is a select
+(`bypass` / `armed`); Alarmo reports the sensors it watches while they are open or bypassed, and others are assigned
+by hand. Unpaired bypass switches are listed ("ללא שיוך"). הגדרות › מערכת › אזעקה shows every panel, its integration and
+the pairing table with manual overrides (pair, no bypass, assign to one partition, exclude).
+
+**Control.** Arm (`alarm.arm`: operator, site_admin, system_admin), disarm (`alarm.disarm`: site_admin, system_admin;
+sensitive), bypass a zone (`alarm.bypass`: site_admin, system_admin; sensitive) through the bridge like every entity
+action, audited with actor, panel / zone, outcome and channel. Disarm and bypass ask for a confirmation; arming does not.
+Trigger is never offered. Scope: installation-wide holders see every panel, a floor binding the panels placed on its
+floors. The bridge must be 0.2.6 (restart Home Assistant once after the update) for arm_night, arm_vacation,
+arm_custom_bypass and the "code refused" answer.
+
+**Codes (owner decisions 2026-09-29).** An administrator stores each panel's code once (הגדרות › מערכת › אזעקה,
+`system.configure`); it is encrypted (AES-256-GCM) with a key in `/data/keys/alarm-codes.key` (mode 0600) and is never
+shown again, logged, audited or returned. Per user (משתמשים והרשאות › user): arming and disarming each either "ללא קוד"
+(Arx sends the stored code) or "חייב קוד" (default). What a "חייב קוד" user types is `alarm.code_mode`: a personal Arx
+PIN (default; `alarm.pin_min_length` digits - 6 by default, 4-8 - up to 8, stored only as a salted scrypt hash) or the
+panel's own code (compared with the stored one). The first PIN is set by an administrator in משתמשים והרשאות (or by the
+user after typing a stored panel code correctly); changing it needs the current one; an administrator's own policy
+and PIN are changed by another administrator or with their current PIN. Without a stored code the panel's code is
+typed and passed through each time. Wrong codes: 5 in 5 minutes lock code entry for 10 minutes - per user for a PIN,
+per user and panel for a panel code; the lock survives a restart. The panel and every bypass control are operated
+only from the alarm section: map cards, the devices screens and bulk actions show them read-only ("נשלט ממסך
+האזעקה"), and a zone shared by two partitions is visible and bypassable only for someone who holds both. There is no
+key rotation, and renaming a panel's entity id requires entering its code again.
+
+**Remote channel (`/arx`).** `alarm.remote_control` (default on) and `alarm.remote_disarm` (default on; off = from
+outside only arming and restoring a bypassed zone). `alarm.remote_codeless` (default ON, owner decision): "ללא קוד" users
+arm and disarm without a code from outside too. The biometric lock exists only in the Android app, and only when
+switched on there; a browser or installed-PWA session has none - turn the setting off to make every remote action ask
+for a code. Every remote alarm action is audited with `channel: remote`.
+
+**Backups and who can read the codes.** An Arx project backup contains no alarm code, PIN hash or key. A Home
+Assistant backup of the add-on (`backup: hot`, the whole `/data`) contains the database and the key file together, so
+whoever holds it can decrypt the panel codes - the same policy as the VAPID and signing keys: keep those backups
+private, and after a leak change the code at the panel and store it again. Anyone with shell access to the Home
+Assistant host can read `/data`. Home Assistant sees the panel code in the service call, as it does for its own alarm
+card. Threat model: docs/changes/CR-010-SECURITY-ALARM.md §5a.

@@ -79,6 +79,8 @@ export interface HaEntity {
   actions?: HaActionSpec[];
   recent_actions?: HaActionRecord[];
   can_control?: boolean;
+  /** CR-010 review B1: owned by the alarm section (the panel, a zone's bypass control) - operated only from אבטחה › אזעקה. */
+  alarm_managed?: boolean;
 }
 
 export type HaActionStatus = 'pending' | 'confirmed' | 'unknown' | 'failed' | 'denied';

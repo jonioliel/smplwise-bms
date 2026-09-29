@@ -3998,5 +3998,53 @@
     "test_ids": [
       "AT186"
     ]
+  },
+  {
+    "id": "R187",
+    "title": "אבטחה 1 — אזור אבטחה: לייב | חקירה | אזעקה",
+    "statement": "Design A's rail and phone bar are אבטחה · מפה · חשמל · WisKey · מערכת; לייב and חקירה are sections of the security area with a third section אזעקה, shown as a segmented control in the top bar at every width while each section's pages stay the tab row under it; every existing route keeps working (#/live/..., #/investigate/..., #/system/devices, Lovelace embed views, kiosk, the guide's screens.json), #/security/alarm is new and #/security opens the section last used in the browser (לייב by default); breadcrumbs area › section › page, Ctrl+K offers the sections, the alarm section is gated by alarm.view; design B gains a flat אזעקה entry (CR-010 §3).",
+    "task_ids": [
+      "T093"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT187"
+    ]
+  },
+  {
+    "id": "R188",
+    "title": "אבטחה 2 — אזעקה: לוח, חיישנים ועקיפה מאותה אינטגרציה",
+    "statement": "Each alarm_control_panel entity is a panel with its state, supported arm modes and code needs; its zones are the binary sensors of the same integration and config entry (auxiliary tamper/battery/alarmed/armed sensors attach to their zone) and each zone's bypass control (switch, or select with a bypass option) is paired by override, same device, an exact integration key (Risco: system + zone number of the unique id, exact-only), stem, name, zone number; unpaired controls are listed; arm_home/away/night/vacation/custom_bypass and disarm (never trigger) and zone bypass go through the bridge path with alarm.view/arm/disarm/bypass at the panel's scope, disarm and bypass confirmed, every action audited with channel; the alarm screen shows the colour-coded state, arm buttons, ready-to-arm, zones by area with live state, filters, panel switcher; settings show the pairing with manual overrides (CR-010 §4-§7).",
+    "task_ids": [
+      "T093"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT188"
+    ]
+  },
+  {
+    "id": "R189",
+    "title": "אבטחה 3 — מדיניות קודים: קוד לוח מוצפן, קוד אישי, ללא קוד",
+    "statement": "An administrator stores each panel's code once, encrypted with AES-256-GCM (key file in /data/keys, 0600, never in a project backup), write-only through the API; per user arm_policy and disarm_policy = no_code | code_required (default code_required; bypass follows disarm); alarm.code_mode personal_pin (default; 4-8 digit PIN stored as a salted scrypt hash) or panel_code (constant-time compare with the stored code); without a stored code the typed panel code is passed through; wrong codes: 5 in 5 minutes per user or per panel lock code entry for 10 minutes; remote settings alarm.remote_control, alarm.remote_disarm and alarm.remote_codeless (default on, owner decision); no code or PIN ever appears in a log, an audit row, an API response, an error, a URL or the database in clear (CR-010 §5a).",
+    "task_ids": [
+      "T093"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT189"
+    ]
   }
 ]

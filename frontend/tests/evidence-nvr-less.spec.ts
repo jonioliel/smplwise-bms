@@ -35,9 +35,11 @@ const STATES = [
   { entity_id: 'light.nvrless_office', state: 'off', attributes: { friendly_name: 'תאורת משרד' } },
 ];
 
-/** What each design's navigation must offer - and nothing else - in the NVR-less mode. */
-const NAV_A = ['#/explore/sites', '#/devices/building', '#/wiskey/overview', '#/system/diagnostics'];
-const NAV_B = ['#/explore/sites', '#/devices/building', '#/wiskey/overview', '#/system/diagnostics'];
+/** What each design's navigation must offer - and nothing else - in the NVR-less mode. CR-010: the security area stays
+ * with its alarm section only (the alarm needs no NVR; the fixture's administrator holds alarm.view), and #/security
+ * opens that section; design B's alarm entry likewise. */
+const NAV_A = ['#/security', '#/explore/sites', '#/devices/building', '#/wiskey/overview', '#/system/diagnostics'];
+const NAV_B = ['#/explore/sites', '#/security/alarm', '#/devices/building', '#/wiskey/overview', '#/system/diagnostics'];
 const NVR_HREFS = ['#/live', '#/live/wall', '#/investigate/events', '#/investigate/playback'];
 
 test.describe('NVR-less mode (Home Assistant only)', () => {
@@ -99,7 +101,7 @@ test.describe('NVR-less mode (Home Assistant only)', () => {
     await shot(page, 'health', testInfo.project.name);
   });
 
-  test('design A: the rail (and the phone bottom nav) offer only map, devices, WisKey and settings', async ({ page }, testInfo) => {
+  test('design A: the rail (and the phone bottom nav) offer only security (the alarm), map, devices, WisKey and settings', async ({ page }, testInfo) => {
     await open(page, '/explore/sites', 'a');
     const phone = testInfo.project.name === 'mobile';
     const sel = phone ? BOTTOM : RAIL;
@@ -111,7 +113,7 @@ test.describe('NVR-less mode (Home Assistant only)', () => {
     await shot(page, 'nav-a', testInfo.project.name);
   });
 
-  test('design B: the flat entries are the same four; on the phone they all fit without the "עוד" overflow', async ({ page }, testInfo) => {
+  test('design B: the flat entries are the same five; on the phone they all fit without the "עוד" overflow', async ({ page }, testInfo) => {
     await open(page, '/explore/sites', 'b');
     const phone = testInfo.project.name === 'mobile';
     const sel = phone ? BOTTOM : RAIL;

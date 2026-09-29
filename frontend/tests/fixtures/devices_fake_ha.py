@@ -19,7 +19,12 @@ What the fake bridge does with `POST /api/services/smplwise_bridge/execute` (the
   attributes: a light's brightness, a cover's position, a climate target / fan mode, a player's mute) through the
   backend's own developer states endpoint - the same upsert + /ha/ws push the sync performs - so the confirmation the
   UI shows is the real poll seeing a real state change;
-- never applies anything to an entity whose id contains `_stuck` (a device that accepts and does nothing).
+- never applies anything to an entity whose id contains `_stuck` (a device that accepts and does nothing);
+- CR-010 (the alarm): an alarm panel arms / disarms like the real integration reports it; a disarm without a `code`
+  answers `code_required` and a wrong code `invalid_code` (bridge 0.2.6's answers) - the right code is
+  SW_FAKE_PANEL_CODE (default 1234, a fixture value, never a real one). POST /seed-alarm on the control server seeds the
+  Risco (2 partitions, 8 zones) and PAI shapes of smplwise_vms/backend/tests/fake_alarm.py through the developer
+  endpoints, for tests/evidence-alarm.spec.ts.
 
 On start it pairs the bridge (signed ping with the pairing code, as the integration's config flow does).
 
@@ -71,6 +76,7 @@ def _bridge_allowed() -> set[tuple[str, str]]:
 
 ALLOWED = _bridge_allowed()
 _executed: list[dict[str, Any]] = []
+PANEL_CODE = os.environ.get("SW_FAKE_PANEL_CODE", "1234")  # CR-010: the fake panel's code (a fixture value)
 
 
 def _effect(domain: str, service: str, data: dict[str, Any], state: str | None, attrs: dict[str, Any]) -> tuple[str | None, dict[str, Any]]:
@@ -145,6 +151,11 @@ def _effect(domain: str, service: str, data: dict[str, Any], state: str | None, 
         return state, a
     if domain == "lock":
         return ("locked" if service == "lock" else "unlocked"), a
+    if domain == "alarm_control_panel":  # CR-010
+        if service == "alarm_disarm":
+            return "disarmed", a
+        if service.startswith("alarm_arm_"):
+            return "armed_" + service[len("alarm_arm_"):], a
     return state, a
 
 
@@ -163,9 +174,15 @@ def _apply(domain: str, service: str, data: dict[str, Any]) -> None:
 def _execute(request: httpx.Request) -> httpx.Response:
     body = json.loads(request.content or b"{}")
     domain, service, data = body.get("domain"), body.get("service"), body.get("data") or {}
-    _executed.append({"domain": domain, "service": service, "data": data})
+    _executed.append({"domain": domain, "service": service, "data": {k: v for k, v in data.items() if k != "code"}})  # never keep a code
     if (domain, service) not in ALLOWED:
         return httpx.Response(200, json={"service_response": {"ok": False, "error": "service_not_allowed"}}, request=request)
+    if domain == "alarm_control_panel":  # CR-010: the panel checks its code as the integration would
+        code = data.get("code")
+        if service == "alarm_disarm" and not code:
+            return httpx.Response(200, json={"service_response": {"ok": False, "error": "code_required"}}, request=request)
+        if code and code != PANEL_CODE:
+            return httpx.Response(200, json={"service_response": {"ok": False, "error": "invalid_code"}}, request=request)
     if "_stuck" not in str(data.get("entity_id", "")):
         threading.Timer(0.4, _apply, args=(domain, service, data)).start()
     return httpx.Response(200, json={"service_response": {"ok": True, "context_id": "fake-context"}}, request=request)
@@ -335,6 +352,9 @@ class _Control(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+        if self.path == "/seed-alarm":
+            self._reply(200, _seed_alarm())
+            return
         if self.path != "/move" or not isinstance(body.get("entity_id"), str):
             self._reply(404, {"error": "unknown"})
             return
@@ -348,6 +368,20 @@ class _Control(BaseHTTPRequestHandler):
             entry["area_id"] = area
         delivered = 0 if body.get("silent") else WORLD.emit("entity_registry_updated", {"action": "update", "entity_id": eid, "changes": {"area_id": old}})
         self._reply(200, {"ok": True, "delivered": delivered})
+
+
+def _seed_alarm() -> dict[str, Any]:
+    """CR-010: the alarm fixtures (tests/fake_alarm.py of the backend) through the backend's own developer endpoints."""
+    sys.path.insert(0, str(ROOT / "smplwise_vms" / "backend" / "tests"))
+    import fake_alarm  # noqa: PLC0415
+
+    reg, devs, states = fake_alarm.everything()
+    with httpx.Client(timeout=30) as c:
+        r = c.post(f"{BASE}/ha/dev/registry", json={"entities": reg, "devices": devs, "areas": fake_alarm.AREAS, "floors": fake_alarm.FLOORS})
+        for i in range(0, len(states), 40):
+            chunk = [{"entity_id": s["entity_id"], "state": s["state"], "attributes": s["attributes"]} for s in states[i : i + 40]]
+            c.post(f"{BASE}/ha/dev/states", json={"states": chunk})
+    return {"ok": r.status_code == 200, "entities": len(reg), "states": len(states)}
 
 
 def _serve_control() -> None:

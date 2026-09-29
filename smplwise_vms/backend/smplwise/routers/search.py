@@ -101,6 +101,9 @@ def search(
 
     # HA entities: everything for installation-wide readers, only placed entities on visible floors otherwise
     ent_floors = _visible_floors(conn, principal, "entity.state.read")
+    from ..rbac import permissions_anywhere
+
+    alarm_view = "alarm.view" in permissions_anywhere(conn, principal)
     ent_placed = {r["resource_id"]: r["floor_id"] for r in conn.execute("SELECT resource_id, floor_id FROM map_anchors WHERE resource_type = 'ha_entity' AND effective_to IS NULL").fetchall()}
     for e in conn.execute("SELECT entity_id, name, original_name, domain, area_name FROM ha_entities WHERE disabled = 0 ORDER BY name, entity_id").fetchall():
         if not (_contains(e["name"], needle) or _contains(e["original_name"], needle) or _contains(e["entity_id"], needle) or _contains(e["area_name"], needle)):
@@ -114,7 +117,9 @@ def search(
             "id": e["entity_id"],
             "title": e["name"] or e["original_name"] or e["entity_id"],
             "subtitle": sub,
-            "route": f"/explore/floors/{fid}?entity={quote(e['entity_id'])}" if f and floor_ok(fid) else f"/explore/entities?q={quote(e['entity_id'])}",
+            # CR-010: an alarm panel opens the alarm section for a holder of alarm.view (the map otherwise)
+            "route": f"/security/alarm?panel={quote(e['entity_id'])}" if e["domain"] == "alarm_control_panel" and alarm_view
+            else f"/explore/floors/{fid}?entity={quote(e['entity_id'])}" if f and floor_ok(fid) else f"/explore/entities?q={quote(e['entity_id'])}",
             "floor_id": fid if f else None,
         })
 

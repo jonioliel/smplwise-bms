@@ -166,6 +166,10 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
     from ..services import ha_bridge, ha_history, ha_sync
 
     entity_ids = [a["resource_id"] for a in anchors if a["resource_type"] == "ha_entity"]
+    from ..services import alarm as alarm_svc
+
+    # CR-010 review B1 / re-review L-c: what the alarm owns is read-only here - computed ONCE per request
+    managed = alarm_svc.managed_controls(conn) if (entity_ids or circuits) else set()
     entities: dict[str, Any] = {}
     ha_hist = None
     if entity_ids:
@@ -183,7 +187,8 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
                 states_at.update(ha_history.recorder_state_at(missing, at_iso))
         for r in conn.execute(f"SELECT * FROM ha_entities WHERE entity_id IN ({','.join('?' * len(entity_ids))})", entity_ids).fetchall():
             e = ha_sync.entity_row(r)
-            e["actions"] = ha_bridge.actions_for(e["domain"]) if (can_control and not at_iso) else []
+            e["alarm_managed"] = e["entity_id"] in managed
+            e["actions"] = ha_bridge.actions_for(e["domain"]) if (can_control and not at_iso and not e["alarm_managed"]) else []
             if at_iso:
                 # historical bundle: the live state is not the answer; state_at is (known only when the history covers t)
                 e["state_at"] = states_at.get(e["entity_id"], {"state": None, "changed_at": None, "known": False, "reason": "אין היסטוריה"})
@@ -210,6 +215,8 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
             eid = c["switch_entity_id"]
             e = rows.get(eid)
             control = bool(not at_iso and e is not None and not e["removed_at"] and not e["disabled"] and _entity_allowed(conn, principal, eid, "ha.entity.control"))
+            if control:
+                control = eid not in managed  # CR-010 review B1
             readable = (not is_draft_geometry) or control or _entity_allowed(conn, principal, eid, "entity.state.read")
             past = hist.get(eid, {})
             state = (past.get("state") if at_iso else (e["state"] if e else None)) if readable else None

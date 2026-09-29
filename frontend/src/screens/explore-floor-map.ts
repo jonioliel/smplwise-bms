@@ -1920,6 +1920,8 @@ export class ExploreFloorMap extends LitElement {
   /** The actions as big buttons inside the card (R3) - the footer keeps only edit / rename. */
   private entityActions(a: Anchor) {
     const e = a.entity;
+    // CR-010 review B1 / M1: the alarm panel and a zone's bypass control are operated only from the alarm screen
+    if (e?.alarm_managed) return html`<div class="eactions" data-entity-actions data-alarm-managed><sw-button block variant="primary" icon="shield" @click=${() => (window.location.hash = e.domain === 'alarm_control_panel' ? `#/security/alarm?panel=${encodeURIComponent(e.entity_id)}` : '#/security/alarm')}>נשלט ממסך האזעקה · לאזעקה</sw-button></div>`;
     const specs = e?.actions ?? [];
     if (!specs.length) return nothing;
     return html`<div class="eactions" data-entity-actions>${this.entityFooter(a)}</div>`;
