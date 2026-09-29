@@ -362,7 +362,7 @@ def test_shared_zones_need_every_partition(alarm_app):
     g = as_user("gil")
     garden = _panel(_panels(c, g), "alarm_control_panel.risco_garden")
     back = next(z for z in garden["zones"] if z["entity_id"] == "binary_sensor.back_door")
-    assert back["redacted"] is True and back["state"] is None and back["bypass"] is None and back["open"] is False
+    assert back["redacted"] is True and back["state"] == "unknown" and back["bypass"] is None and back["open"] is None and back["bypassed"] is None
     assert garden["ready"]["open"] == []  # the house's open back door does not leak through the summary
     r = _bypass(c, "binary_sensor.back_door", True, g, confirmed=True)
     assert r.status_code == 403
@@ -761,6 +761,34 @@ def test_bypass_switch_without_config_entry_is_still_owned_by_the_alarm(alarm_ap
         device_bulk.set_bulk_safe(conn, Principal(user_id="dev-joni", username="joni", display_name="joni", source="dev"), sw, True)
     p = c.get("/api/v1/devices/actions/preview?scope=area&id=alarm_kitchen&kind=all_off").json()
     assert sw not in [t["entity_id"] for t in p["targets"]] and {x["entity_id"]: x["reason"] for x in p["excluded"]}[sw] == "alarm_managed"
+
+def test_floor_map_marks_alarm_entities_read_only_with_one_discovery(alarm_app, monkeypatch):
+    """Review B1 / re-review L-c: on the floor map the panel and a bypass switch come without actions, flagged
+    alarm_managed, and the alarm's ownership is computed once per request (not once per entity or circuit)."""
+    app, s, c, calls, _ = alarm_app
+    from smplwise.services import alarm as alarm_svc
+
+    ids = seed_tree(c)
+    f2 = ids["floor2"]
+    asset = c.post(f"/api/v1/floors/{f2}/plan-assets", files={"file": ("p.png", png_bytes(), "image/png")}).json()
+    v = c.post(f"/api/v1/floors/{f2}/plan-versions", json={"asset_id": asset["id"]}).json()
+    c.post(f"/api/v1/plan-versions/{v['id']}/publish")
+    for i, eid in enumerate(("alarm_control_panel.risco_house", "switch.back_door_bypassed", "binary_sensor.back_door")):
+        assert c.post(f"/api/v1/floors/{f2}/anchors", json={"resource_type": "ha_entity", "resource_id": eid, "x": 0.1 + i * 0.1, "y": 0.3}).status_code == 201
+    n = {"calls": 0}
+    real = alarm_svc.managed_controls
+
+    def counted(conn, disc=None):
+        n["calls"] += 1
+        return real(conn, disc)
+
+    monkeypatch.setattr(alarm_svc, "managed_controls", counted)
+    m = c.get(f"/api/v1/floors/{f2}/map").json()
+    ents = {e["entity_id"]: e for e in (m.get("entities") or {}).values()} if isinstance(m.get("entities"), dict) else {a["entity"]["entity_id"]: a["entity"] for a in m["anchors"] if a.get("entity")}
+    assert ents["switch.back_door_bypassed"]["alarm_managed"] is True and ents["switch.back_door_bypassed"]["actions"] == []
+    assert ents["alarm_control_panel.risco_house"]["alarm_managed"] is True and ents["alarm_control_panel.risco_house"]["actions"] == []
+    assert ents["binary_sensor.back_door"]["alarm_managed"] is False
+    assert n["calls"] == 1
 
 def test_bulk_never_reaches_a_bypass_switch_even_marked_bulk_safe(alarm_app):
     app, s, c, calls, _ = alarm_app

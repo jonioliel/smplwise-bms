@@ -166,13 +166,14 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
     from ..services import ha_bridge, ha_history, ha_sync
 
     entity_ids = [a["resource_id"] for a in anchors if a["resource_type"] == "ha_entity"]
+    from ..services import alarm as alarm_svc
+
+    # CR-010 review B1 / re-review L-c: what the alarm owns is read-only here - computed ONCE per request
+    managed = alarm_svc.managed_controls(conn) if (entity_ids or circuits) else set()
     entities: dict[str, Any] = {}
     ha_hist = None
     if entity_ids:
         can_control = authorize(conn, principal, "ha.entity.control", ("floor", floor_id)).allowed
-        from ..services import alarm as alarm_svc
-
-        managed = alarm_svc.managed_controls(conn)  # CR-010 review B1: the alarm's panel / bypass controls are read-only here
         states_at = ha_history.state_at(conn, entity_ids, at_iso) if at_iso else {}
         if at_iso and str(read_settings(conn).get("history.ha_secondary", "false")) == "true":
             # S2: the Home Assistant recorder fills what the local history does not know (marked as a secondary source)
@@ -215,9 +216,7 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
             e = rows.get(eid)
             control = bool(not at_iso and e is not None and not e["removed_at"] and not e["disabled"] and _entity_allowed(conn, principal, eid, "ha.entity.control"))
             if control:
-                from ..services import alarm as alarm_svc
-
-                control = not alarm_svc.is_managed_control(conn, eid)  # CR-010 review B1
+                control = eid not in managed  # CR-010 review B1
             readable = (not is_draft_geometry) or control or _entity_allowed(conn, principal, eid, "entity.state.read")
             past = hist.get(eid, {})
             state = (past.get("state") if at_iso else (e["state"] if e else None)) if readable else None

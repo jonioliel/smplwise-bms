@@ -96,7 +96,7 @@ REMOTE_MESSAGES = {
 }
 
 
-REDACTED_KEYS = ("state", "last_changed", "tamper", "battery_low", "battery_level", "alarmed", "bypass")
+REDACTED_KEYS = ("state", "last_changed", "tamper", "battery_low", "battery_level", "alarmed", "bypass", "device_class", "zone_number", "aux")
 
 
 def _visible_panels(conn: sqlite3.Connection, scope: _Scope) -> list[dict[str, Any]]:
@@ -111,7 +111,8 @@ def _visible_panels(conn: sqlite3.Connection, scope: _Scope) -> list[dict[str, A
             if not all(scope.allowed(VIEW, pid) for pid in z.get("panels", [p["entity_id"]])):
                 for k in REDACTED_KEYS:
                     z[k] = None
-                z.update(open=False, fault=False, bypassed=False, available=True, redacted=True)
+                # re-review L-c: the state is unknown to this caller - never "closed" / "not bypassed"
+                z.update(state="unknown", open=None, fault=None, bypassed=None, available=None, kind="zone", redacted=True)
                 changed = True
         if changed:
             p["ready"] = svc.readiness([z for z in p["zones"] if not z.get("redacted")])
