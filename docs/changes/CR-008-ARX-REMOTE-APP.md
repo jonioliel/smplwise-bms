@@ -490,3 +490,29 @@ them - the worker and the manifest follow whatever base the page is served under
   deleted on activate); `push` counters in `/health`; `POST push/rotate-key`; HA add-on backups carry the key (documented).
 - **Not verified yet:** delivery through the real push services (FCM / APNs / Mozilla) on a real phone, and the
   notification click on the lab site under Ingress and under `/arx/` - an owner check after the P1 merge.
+
+### P2 built (2026-09-29, branch `pilot/CR008-hardening`, not released)
+
+- **Remote sessions:** `GET auth/sessions` (own; `scope=all` with `system.configure`) - one row per sign-in (a browser's
+  rotated cookie chain, a bearer client's successive tokens): hashed id, user, first sign-in, last seen, address masked
+  to /24 (/48) or the CF country, user-agent family, cookie / bearer, current marker, live streams.
+  `DELETE auth/sessions/{id}` and `DELETE auth/sessions[?user_id=]` ("התנתק מכל המקומות" / all of a user's): WebSockets
+  closed before the answer; the sign-in's refresh-token id (JWT `iss`, hashed) recorded in `remote_revoked_chains`
+  (migration 0035) so a refreshed token of the same sign-in is refused (`remote_session_revoked`); own revocations also
+  delete the HA refresh tokens (`auth/delete_refresh_token`, best effort), an administrator's revoke ends the Arx access
+  only. UI: the settings card and the avatar menu's "הסשנים שלי".
+- **Bearer sessions** (the review nit): a validated bearer token is a session in the store - listed, revocable,
+  re-validated by the pass, WebSockets attached; `Principal.via` and `via: bearer` in the audit.
+- **Idle reuse:** a session not validated for 180 s (idle, so skipped by the pass) is re-checked against HA and the
+  policy before its next request is served.
+- **Flag UI:** last remote sign-in (`remote_sign_ins`), active sign-ins per user, the impact prompt before switching
+  off; the flag change closes the WebSockets in the same request and audits `sessions_ended`.
+- **Audit filters:** `channel=local|remote|bearer`, `view=remote_sign_ins|remote_refusals`.
+- **Live cap:** `remote.max_live_streams` (default 4) per sign-in: HTTP 429 `remote_live_cap`, WebSocket message + 4429;
+  `/health.remote`.
+- **CSP:** the stricter policy (no inline `<style>` elements) report-only next to the enforced one; `POST csp-report`
+  (remote-only, rate-limited, bounded, counters only in `csp_reports`); `remote.csp_enforce` switch after review; a
+  route's own CSP is now kept. DOCS / DOCS_HE "Remote-access hardening".
+- **Pen-test checklist:** `docs/operations/ARX_REMOTE_PENTEST_HE.md` - not run on the lab yet (owner / lab step).
+- **Tests:** `tests/test_remote_hardening.py` (23), `tests/test_remote_access.py` (57, 2 expectations updated),
+  `frontend/tests/evidence-arx-sessions.spec.ts` (desktop). Not in P2: Cloudflare Access (D3), native push.

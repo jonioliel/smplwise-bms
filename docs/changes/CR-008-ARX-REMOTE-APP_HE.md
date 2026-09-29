@@ -475,3 +475,29 @@ D11-D14 לא משנות את D1 (נתיב `/arx`, אותו מקור) או את D
   ב־`/health`; `POST push/rotate-key`; גיבויי HA של ה־Add-on כוללים את המפתח (מתועד).
 - **עוד לא נבדק:** מסירה דרך שירותי ה־Push האמיתיים (FCM / APNs / Mozilla) בטלפון אמיתי, ולחיצה על התראה באתר
   המעבדה תחת Ingress ותחת `/arx/` - בדיקת בעלים אחרי המיזוג של P1.
+
+### P2 נבנה (29.09.2026, ענף `pilot/CR008-hardening`, לא שוחרר)
+
+- **כניסות מרחוק:** `GET auth/sessions` (של המשתמש; `scope=all` עם `system.configure`) - שורה לכל כניסה (שרשרת
+  העוגיות המתחלפות של דפדפן, הטוקנים העוקבים של לקוח bearer): מזהה hash, משתמש, כניסה ראשונה, פעילות אחרונה, כתובת
+  מוסתרת ל-/24 (‏/48) או מדינת CF, משפחת user-agent, עוגייה / bearer, סימון הנוכחית, זרמים חיים.
+  `DELETE auth/sessions/{id}` ו-`DELETE auth/sessions[?user_id=]` ("התנתק מכל המקומות" / כל הכניסות של משתמש):
+  ה-WebSockets נסגרים לפני התשובה; מזהה ה-refresh token של הכניסה (`iss` של ה-JWT, כ-hash) נרשם ב-
+  `remote_revoked_chains` (מיגרציה 0035) כך שטוקן מרוענן של אותה כניסה נדחה (`remote_session_revoked`); ניתוק של
+  הכניסות של המשתמש עצמו מוחק גם את ה-refresh tokens ב-HA (`auth/delete_refresh_token`, במאמץ מיטבי), וניתוק של מנהל
+  מסיים את הגישה ל-Arx בלבד. ממשק: הכרטיס בהגדרות ו"הסשנים שלי" בתפריט האווטאר.
+- **חיבורי bearer** (הערת הסקירה): טוקן bearer מאומת הוא חיבור במאגר - מופיע ברשימה, ניתן לניתוק, נבדק מחדש בסבב,
+  WebSockets מחוברים אליו; `Principal.via` ו-`via: bearer` באודיט.
+- **שימוש חוזר אחרי חוסר פעילות:** חיבור שלא נבדק 180 שניות (לא פעיל, ולכן הסבב דילג עליו) נבדק מול HA והמדיניות
+  לפני שהבקשה הבאה שלו מוגשת.
+- **ממשק הדגל:** כניסה אחרונה מרחוק (`remote_sign_ins`), כניסות פעילות לכל משתמש, הודעת ההשפעה לפני כיבוי; שינוי הדגל
+  סוגר את ה-WebSockets באותה בקשה ורושם `sessions_ended`.
+- **מסנני אודיט:** `channel=local|remote|bearer`, ‏`view=remote_sign_ins|remote_refusals`.
+- **מכסת זרמים:** `remote.max_live_streams` (ברירת מחדל 4) לכל כניסה: HTTP ‏429 `remote_live_cap`, הודעה ב-WebSocket
+  וסגירה 4429; `/health.remote`.
+- **CSP:** המדיניות המחמירה (בלי תגיות `<style>` מוטמעות) במצב דיווח בלבד לצד האכופה; `POST csp-report` (רק בערוץ
+  המרוחק, מוגבל בקצב ובגודל, ספירות בלבד ב-`csp_reports`); מתג `remote.csp_enforce` אחרי סקירה; CSP של נתיב עצמו נשמר
+  עכשיו. DOCS / DOCS_HE "הקשחת הגישה מרחוק".
+- **רשימת בדיקות חדירה:** `docs/operations/ARX_REMOTE_PENTEST_HE.md` - עוד לא הורצה במעבדה (שלב של הבעלים / המעבדה).
+- **בדיקות:** `tests/test_remote_hardening.py` ‏(23), `tests/test_remote_access.py` ‏(57, שתי ציפיות עודכנו),
+  `frontend/tests/evidence-arx-sessions.spec.ts` (מחשב). לא ב-P2: Cloudflare Access ‏(D3), push נייטיבי.
