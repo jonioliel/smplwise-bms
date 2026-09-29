@@ -464,6 +464,35 @@ answer/reject/hangup (`media/signal`); two-way audio/talk (`audio/*`); TTS (`tts
 > (`autoplay; microphone; fullscreen`) on purpose: `camera` keeps a WisKey screen that captures from the operator's
 > camera (e.g. a person photo) working inside the nested frame, and `clipboard-write` keeps WisKey's copy buttons
 > working; both are same-origin grants to HA's own frontend and cannot widen a restrictive ancestor policy.
+>
+> **Owner reports 2026-09-29 on rc.25 (branch `pilot/T054-embed-followups`).** (A) *Desktop: 4 station cards even
+> after choosing 12.* Not our frame: measured at 1440×900 the frame ends at the viewport's bottom edge, `<main>` does not
+> scroll and the frame's `innerHeight` equals its box (1354×690 with the system banner) - but WisKey rc.25 `panel.ts`
+> `fitWall` (460-485) sizes the overview from the frame's own viewport in fixed steps (≥1200 px wide: <800 px high = 4,
+> <880 = 8, else 12) and caps the explicit choice with it (3231: `Math.min(this._wallDensity || 12, this._wallCapacity)`);
+> the choice itself lives in memory only (455) and resets on every remount. Our side: a desktop "הגדל" / "צמצם" toggle in
+> the embed bar (remembered per browser) lifts the framed embed over SMPLWISE's top bar, rail and tab row, with the WisKey
+> tab row moved into the embed's bar - 1440×854 at 1440×900 (8 per page), 12 on a 1080p screen; WisKey's own full-screen
+> button also works in the frame. The cap is a request to the WisKey developers
+> (`docs/integrations/wiskey/WISKEY_FOLLOWUP_REQUESTS.md` §1). (B) *Phone: embed in the Companion app too.* Feasible
+> as an experiment, not proven on a device: setting `access.phone_embed` (default off; הגדרות › בקרות כניסה "הטמעה גם
+> באפליקציית Companion (ניסיוני)"). On, the app frames the panel with `external_auth=1` (HA `src/data/external.ts` 1-5
+> then takes the external sign-in whatever the timing) and `frontend/src/wiskey/companion-bridge.ts` relays the bridge:
+> on HA's top window `externalAuthSetToken` / `externalAuthRevokeToken` / `externalBus` become accessors that keep and call
+> the top frontend's own callback first and then deliver the same call (payload unchanged) to the frame; on the frame's
+> window `externalApp` becomes a proxy to the top's bridge (no bus, revoke never forwarded), installed by a bounded
+> `setTimeout(0)` poll while the frame's new document is still parsing - a property set on the initial about:blank
+> window does not survive the navigation (measured in Chromium), and HA reads the bridge only in `import()`-loaded modules,
+> after at least one fetch. A frame that still cannot sign in falls back to the 0.1.123 screen with a note. Off = the
+> 0.1.123 behaviour, unchanged. A phone BROWSER (Chrome/Safari, no app) already embeds normally - evidence: the
+> existing `evidence-wiskey-embed.spec.ts` "both phone navigations ..." on the mobile project (Pixel 7 browser UA), and
+> the new "phone embed switched on, in a mobile browser" test (no relay, no `external_auth`). Evidence for the relay:
+> `evidence-wiskey-embed-phone.spec.ts` (fake Android bridge answering in the top document only). **Owner's device
+> check:** switch it on, open SMPLWISE's WisKey tab in the Android app (and iOS if available): does WisKey load without
+> the fallback note, do the tabs work, and does the app stay signed in afterwards (open HA's own dashboard, then
+> restart the app). If it fails, alternatives: (1) keep the app on top-level WisKey (today, the default); (2) use the
+> phone's browser, where the embed works; (3) the native-app-aware embed asked of the WisKey developers
+> (`WISKEY_FOLLOWUP_REQUESTS.md` §2).
 
 **Phase 4 — parity completion (peripheral/admin screens).** Camera wall (S4), media/clock settings (S21/S22),
 operations center (S23), identity lifecycle report (S17), permission directory (S18), appearance picker (S25),
