@@ -300,7 +300,7 @@ export class ArxLogin extends LitElement {
           </form>`}
       <div class="foot">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z" /></svg>
-        <span>הסיסמה נבדקת מול תשתית המערכת ואינה נשמרת ב־SmplWise; ההרשאות שלך זהות להרשאותיך במערכת.</span>
+        <span>הסיסמה נבדקת מול תשתית המערכת ואינה נשמרת ב־Arx; ההרשאות שלך זהות להרשאותיך במערכת.</span>
       </div>
     </main>`;
   }

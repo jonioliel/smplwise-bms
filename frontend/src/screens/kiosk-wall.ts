@@ -359,7 +359,7 @@ export class KioskWall extends LitElement {
         <span class="clock">${this.clock || '—'}</span>
         <a class="exit" href="#/live/wall" data-kiosk-exit title="חזרה למערכת (משתמש קיוסק בלבד נשאר כאן)">יציאה</a>
       </header>
-      ${this.disconnected ? html`<div class="overlay" data-kiosk-disconnected>אין קשר לשרת ה־VMS<br /><small>הזרמים אינם חיים · מנסה להתחבר מחדש</small></div>` : nothing}
+      ${this.disconnected ? html`<div class="overlay" data-kiosk-disconnected>אין קשר לשרת Arx<br /><small>הזרמים אינם חיים · מנסה להתחבר מחדש</small></div>` : nothing}
       <div class="grid" style=${`--cols:${api ? this.view.cols : 3}`}>
         ${api
           ? real.map((c, i) => html`<sw-camera-tile dark data-kiosk-tile name=${c.name} state=${this.disconnected ? 'unknown' : c.status === 'online' ? 'live' : c.status === 'offline' ? 'offline' : 'unknown'} ?live=${!this.disconnected && c.status !== 'offline' && i < cap && i < this.started} cameraId=${c.id} profile="sub" transport=${effectiveTransport(this.settings)} poster=${c.status === 'offline' ? '' : snapshotUrl(c.id)} noDemo></sw-camera-tile>`)

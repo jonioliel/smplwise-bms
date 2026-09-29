@@ -94,7 +94,7 @@ def call_bridge_execute(settings: Settings, payload: dict[str, Any], timeout: fl
     except httpx.HTTPError as exc:
         raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
     if r.status_code == 400 and "not found" in r.text.lower():
-        raise ApiError(503, "bridge_not_installed", "גשר SMPLWISE אינו מותקן.", details={"status": r.status_code})
+        raise ApiError(503, "bridge_not_installed", "הגשר אינו מותקן.", details={"status": r.status_code})
     if r.status_code in (401, 403):
         raise ApiError(503, "ha_forbidden", "תשתית המערכת דחתה את הקריאה.", details={"status": r.status_code})
     if r.status_code >= 400:
@@ -119,7 +119,7 @@ def call_bridge_set_area(settings: Settings, payload: dict[str, Any], timeout: f
     except httpx.HTTPError as exc:
         raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
     if r.status_code == 400 and "not found" in r.text.lower():
-        raise ApiError(503, "bridge_not_installed", "גשר SMPLWISE אינו מותקן (או ישן מדי לתמוך בשיוך אזור).", details={"status": r.status_code})
+        raise ApiError(503, "bridge_not_installed", "הגשר אינו מותקן (או ישן מדי לתמוך בשיוך אזור).", details={"status": r.status_code})
     if r.status_code in (401, 403):
         raise ApiError(503, "ha_forbidden", "תשתית המערכת דחתה את הקריאה.", details={"status": r.status_code})
     if r.status_code >= 400:

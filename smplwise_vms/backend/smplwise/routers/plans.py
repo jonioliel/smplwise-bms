@@ -532,7 +532,7 @@ def patch_version(version_id: str, body: RenderModeIn, request: Request, princip
     v = get_version(conn, version_id)
     require(conn, principal, "map.import", ("floor", v["floor_id"]))
     if body.render_mode == "stylized" and not _has_stylized(v):
-        raise conflict("stylized_missing", "הרץ קודם את העיבוד לשפת SMPLWISE.")
+        raise conflict("stylized_missing", "הרץ קודם את העיבוד לשפת Arx.")
     conn.execute("UPDATE plan_versions SET render_mode = ? WHERE id = ?", (body.render_mode, version_id))
     audit(conn, actor=principal, action="plan.render_mode", decision="allowed", resource_type="plan_version", resource_id=version_id, request_id=_rid(request), details={"render_mode": body.render_mode})
     return version_row(get_version(conn, version_id))

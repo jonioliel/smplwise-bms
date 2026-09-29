@@ -206,7 +206,7 @@ export class InvestigateRules extends LitElement {
           : nothing}
       </div>
       <sw-field label="הודעת ההתראה"><input data-rule-message .value=${b.actions[0]?.message ?? ''} @input=${(ev: Event) => this.edit((x) => (x.actions = [{ ...(x.actions[0] ?? { kind: 'notify' }), message: (ev.target as HTMLInputElement).value }]))} /></sw-field>
-      ${b.actions[0]?.kind === 'ha_notify' ? html`<div class="hint">התראה דרך תשתית המערכת דורשת את ההרשאה הרגישה "חוקים: התראה דרך תשתית המערכת" (תפקיד מותאם). ההודעה נשלחת ל־notify.&lt;שירות&gt; עם הכותרת SMPLWISE.</div>` : nothing}
+      ${b.actions[0]?.kind === 'ha_notify' ? html`<div class="hint">התראה דרך תשתית המערכת דורשת את ההרשאה הרגישה "חוקים: התראה דרך תשתית המערכת" (תפקיד מותאם). ההודעה נשלחת ל־notify.&lt;שירות&gt; עם הכותרת Arx.</div>` : nothing}
       <div class="two">
         <sw-field label="בעלות"><select @change=${(ev: Event) => this.edit((x) => (x.owner = (ev.target as HTMLSelectElement).value as RuleBody['owner']))}><option value="local" ?selected=${b.owner === 'local'}>מקומי (המערכת מפעילה)</option><option value="ha" ?selected=${b.owner === 'ha'}>תשתית המערכת (הפניה בלבד)</option></select></sw-field>
         ${b.owner === 'ha' ? html`<sw-field label="מזהה אוטומציה בתשתית המערכת"><input .value=${b.ha_automation_id ?? ''} @input=${(ev: Event) => this.edit((x) => (x.ha_automation_id = (ev.target as HTMLInputElement).value || null))} /></sw-field>` : html`<label class="chk"><input type="checkbox" .checked=${b.enabled} @change=${(ev: Event) => this.edit((x) => (x.enabled = (ev.target as HTMLInputElement).checked))} /> פעיל</label>`}

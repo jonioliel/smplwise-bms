@@ -704,13 +704,13 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
       await expect(page.locator('system-diagnostics select[data-set-access-ui="overview"]')).toHaveValue('wiskey');
       await expect(page.locator('system-diagnostics select[data-set-access-ui="events"]')).toHaveValue('wiskey');
       await expect(page.locator('system-diagnostics [data-access-ui-fixed]')).toContainText('שאר מסכי WisKey');
-      await expect(people.locator('option')).toHaveText(['WisKey (מוטמע)', 'SMPLWISE']);
+      await expect(people.locator('option')).toHaveText(['WisKey (מוטמע)', 'Arx']);
       // the section names the embed API and the fallback for older WisKey builds
       await expect(page.locator('system-diagnostics [data-access-ui-embed-api]')).toContainText('2.0.0-rc.19');
       await expect(page.locator('system-diagnostics [data-access-ui-embed-api]')).toContainText('לשיטה הקודמת');
       // the section says plainly that inside the embed door release and people edits bypass SMPLWISE's confirmation and audit
       await expect(page.locator('system-diagnostics [data-access-ui-warning]')).toContainText('לפתוח דלתות');
-      await expect(page.locator('system-diagnostics [data-access-ui-warning]')).toContainText('בלי רישום באודיט של SMPLWISE');
+      await expect(page.locator('system-diagnostics [data-access-ui-warning]')).toContainText('בלי רישום באודיט של Arx');
       await page.screenshot({ path: testInfo.outputPath('wiskey-embed-settings.png') });
       await people.selectOption('smplwise');
       const save = page.locator('system-diagnostics sw-button[data-save-access-ui]');

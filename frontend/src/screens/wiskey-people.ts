@@ -601,7 +601,7 @@ export class WiskeyPeople extends LitElement {
         ${select('state', 'state', 'user_filter_state', STATES.map((v) => [v, t(`filter_${v}`)]), true)}
         ${select('sort', 'sort', 'user_sort', SORTS.map((v) => [v, t(`sort_${v}`)]), false)}
       </form>
-      <div class="muted">החיפוש מתבצע ב־SMPLWISE לפי שם ומזהה עובד בלבד; הטקסט אינו נשלח ל־WisKey.</div>
+      <div class="muted">החיפוש מתבצע ב־Arx לפי שם ומזהה עובד בלבד; הטקסט אינו נשלח ל־WisKey.</div>
     </sw-card>`;
   }
 
