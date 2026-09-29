@@ -47,8 +47,8 @@ function writeCache(u: string, o: NavTabId[]): void {
   }
 }
 
-// before /me answers, the last user of this browser is the best guess (a copy only; replaced as soon as the user is known)
-let current: NavTabId[] = readCache()?.order ?? [...NAV_TAB_IDS];
+// the default until the user is known (review L3): a cached copy belongs to one user id and applies only to that user
+let current: NavTabId[] = [...NAV_TAB_IDS];
 let user: string | null = null;
 let remote = false;
 const listeners = new Set<(o: NavTabId[]) => void>();
@@ -92,12 +92,15 @@ export async function saveNavOrder(order: readonly string[]): Promise<void> {
   set(o);
   if (user) writeCache(user, o);
   if (!remote) return;
+  const who = user;
   try {
     const p = await putMyPrefs({ 'nav.order': o });
+    if (user !== who) return; // another user signed in meanwhile (review L5): their order is not this answer
     const saved = normalizeOrder(p.prefs['nav.order']);
     if (user) writeCache(user, saved);
     set(saved);
   } catch (err) {
+    if (user !== who) return;
     if (user) writeCache(user, before);
     set(before);
     throw err;
@@ -110,9 +113,11 @@ export async function resetNavOrder(): Promise<void> {
   set([...NAV_TAB_IDS]);
   if (user) writeCache(user, current);
   if (!remote) return;
+  const who = user;
   try {
     await putMyPrefs({ 'nav.order': null });
   } catch (err) {
+    if (user !== who) return;
     if (user) writeCache(user, before);
     set(before);
     throw err;

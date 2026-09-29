@@ -4,7 +4,7 @@ import '../components/sw-page';
 import '../components/sw-dialog';
 import '../components/sw-chip';
 import '../components/sw-state-panel';
-import { isApi } from '../api/session';
+import { can, isApi } from '../api/session';
 import { ApiError, describeError } from '../api/client';
 import { loadTree, type CatalogTree } from '../api/catalog';
 import { listCameras } from '../api/maps';
@@ -65,7 +65,10 @@ export class InvestigateRules extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    if (this.initialTab === 'alerts') this.tab = isApi() ? 'alerts' : 'notif';
+    // rules need rules.manage at installation scope (routers/rules.py); without it this screen is the alerts inbox only,
+    // decided before the first paint so the rules tab and "חוק חדש" never flash
+    this.rulesForbidden = isApi() && !can('rules.manage');
+    if (this.initialTab === 'alerts' || this.rulesForbidden) this.tab = isApi() ? 'alerts' : 'notif';
     if (isApi()) void this.load();
   }
 
@@ -73,7 +76,9 @@ export class InvestigateRules extends LitElement {
     this.loading = true;
     this.error = '';
     try {
-      const [rs, as] = await Promise.allSettled([listRules(), listAlerts()]);
+      const noRules = Promise.reject(new ApiError(403, { code: 'forbidden', user_message: '', retryable: false, correlation_id: '', details: {} }));
+      noRules.catch(() => undefined);
+      const [rs, as] = await Promise.allSettled([this.rulesForbidden ? noRules : listRules(), listAlerts()]);
       if (as.status === 'rejected') throw as.reason;
       const a = as.value;
       this.alerts = a.alerts;
@@ -261,7 +266,7 @@ export class InvestigateRules extends LitElement {
                   <div class="ic"><sw-icon name="bell" size=${16}></sw-icon></div>
                   <div class="txt"><b>${a.message || a.rule_name}</b><small>${a.rule_name} · ${a.camera_id ? `מצלמה ${a.camera_id}` : a.entity_id ?? ''} · <span class="ltr">${this.fmt(a.fired_at)}</span></small><small>${a.reasons.join(' · ')}</small></div>
                   <a href=${`#/investigate/events/${a.event_id}`}><sw-button size="sm" variant="ghost" icon="bell">לאירוע</sw-button></a>
-                  ${a.acked_at ? html`<span class="last">טופל · ${a.acked_by_username ?? ''}</span>` : html`<sw-button size="sm" icon="check" data-alert-ack ?disabled=${this.busy} @click=${() => void this.run(async () => { await ackAlert(a.id); })}>סמן כטופל</sw-button>`}
+                  ${a.acked_at ? html`<span class="last">טופל · ${a.acked_by_username ?? ''}</span>` : !can('events.ack') ? nothing : html`<sw-button size="sm" icon="check" data-alert-ack ?disabled=${this.busy} @click=${() => void this.run(async () => { await ackAlert(a.id); })}>סמן כטופל</sw-button>`}
                 </sw-card>`)
               : html`<sw-state-panel state="empty" heading="אין התראות" hint="התראות נוצרות כשאירוע חדש תואם חוק פעיל."></sw-state-panel>`}</div>`}
         ${this.renderEditor()}

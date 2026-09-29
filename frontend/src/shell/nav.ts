@@ -441,6 +441,8 @@ export const AREA_TABS: Record<AreaId, TabItem[]> = {
     { id: 'storage', label: 'אחסון', href: '#/system/storage' },
     { id: 'wizard', label: 'אשף התקנה', href: '#/system/wizard' },
     { id: 'setup', label: 'חיבורים', href: '#/system/setup' },
+    /** CR-013 review M10: the screen catalogue left the user menu; a system administrator reaches it from here */
+    { id: 'screens', label: 'כל המסכים', href: '#/screens' },
   ],
 };
 
@@ -612,6 +614,8 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   '#/system/setup': ['system.configure', 'sources.configure'],
   // T071: the wizard reads GET /setup/state, which needs system.configure at installation scope
   '#/system/wizard': ['system.configure'],
+  // CR-013: the screen catalogue (a design / support tool), for system administrators only
+  '#/screens': ['system.configure'],
 };
 
 /** Tabs whose permission counts only when held at installation scope, because the screen and its API check it there
