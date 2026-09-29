@@ -372,12 +372,55 @@ def test_an_alarm_managed_member_stays_read_only_on_every_floor_of_the_room(sett
     with app.state.db.connection() as conn:
         ha_sync.upsert_state(conn, {"entity_id": eid, "state": "disarmed", "last_changed": "2026-09-29T09:00:00+00:00", "attributes": {"friendly_name": "לוח אזעקה"}})
     _anchor(c, w["f2"], "ha_entity", eid, 0.5, 0.5)
+    # review M1: the alarm's own controls are no longer made members - neither by the conversion nor by hand
+    r = c.post(f"/api/v1/zones/{w['hall']}/share", json={"floor_id": w["f3"]})
+    assert r.status_code == 409 and r.json()["code"] == "alarm_managed" and eid in r.json()["details"]["entity_ids"], r.text
+    assert c.post(f"/api/v1/zones/{w['hall']}/share/preview", json={"floor_id": w["f3"]}).status_code == 409
+    # a membership row that already exists (a database from before the rule) still shows read-only on the other floor
+    a = c.get(f"/api/v1/floors/{w['f2']}/map").json()["anchors"]
+    aid = next(x["id"] for x in a if x["resource_id"] == eid)
+    assert c.delete(f"/api/v1/map-anchors/{aid}").status_code == 204
     _share(w)
+    _anchor(c, w["f2"], "ha_entity", eid, 0.5, 0.5)
     with app.state.db.connection() as conn:
+        ss.add_member(conn, w["hall"], "ha_entity", eid, None, now_iso())
         assert ss.is_member(conn, w["hall"], "ha_entity", eid)
     m3 = c.get(f"/api/v1/floors/{w['f3']}/map").json()
     ent = next(a for a in m3["anchors"] if a["resource_id"] == eid and a.get("shared"))["entity"]
     assert ent["alarm_managed"] is True and ent["actions"] == []
+
+
+def test_review_m1_an_alarm_panel_is_never_a_member_and_a_shared_room_widens_no_alarm_reach(settings):
+    """Security review M1: an alarm.disarm holder of floor 3 only must not reach a panel of floor 2 through the shared room -
+    not by the conversion, not by "הוסף לחלל המשותף", and not through a membership row that already exists."""
+    w = _world(settings)
+    c, app = w["c"], w["app"]
+    panel = "alarm_control_panel.hall"
+    with app.state.db.connection() as conn:
+        ha_sync.upsert_state(conn, {"entity_id": panel, "state": "disarmed", "last_changed": "2026-09-29T09:00:00+00:00", "attributes": {"friendly_name": "לוח אזעקה"}})
+    _share(w)  # the room is shared first (no panel in it yet)
+    _anchor(c, w["f2"], "ha_entity", panel, 0.5, 0.5)
+    url = f"/api/v1/zones/{w['hall']}/share/members"
+    r = c.post(url, json={"resource_type": "ha_entity", "resource_id": panel})
+    assert r.status_code == 409 and r.json()["code"] == "alarm_managed" and "אזעקה" in r.json()["user_message"], r.text
+    with app.state.db.connection() as conn:
+        assert not ss.is_member(conn, w["hall"], "ha_entity", panel)
+    # a lookalike that is not an alarm control is still addable (the rule is not a blanket refusal of devices)
+    assert c.post(url, json={"resource_type": "ha_entity", "resource_id": "light.corridor"}).status_code == 201
+    # a row that predates the rule: the floor-3 holder of alarm.disarm still does not reach the panel of floor 2
+    with app.state.db.connection() as conn:
+        ss.add_member(conn, w["hall"], "ha_entity", panel, None, now_iso())
+        placed = ha_scope.placements(conn)
+        assert any(p.get("shared_from") for p in placed[panel]), "the generic reach helper does mirror it - the alarm must not count it"
+    c.get("/api/v1/me", headers=as_user("fay"))
+    _binding(settings, "fay", "site_admin", "floor", w["f3"])
+    hdr = as_user("fay")
+    body = c.get("/api/v1/alarm/panels", headers=hdr)
+    assert body.status_code == 200 and body.json()["panels"] == []
+    act = c.post(f"/api/v1/alarm/panels/{panel}/actions", json={"action": "disarm", "client_request_id": "m1-req", "expires_at": "2099-01-01T00:00:00Z", "confirmed": True}, headers=hdr)
+    assert act.status_code in (403, 404), act.text
+    # the admin still sees it through its own reach
+    assert [p["entity_id"] for p in c.get("/api/v1/alarm/panels").json()["panels"]] == [panel]
 
 
 def test_owner_members_list_filters_each_member_by_the_readers_own_permissions(settings):

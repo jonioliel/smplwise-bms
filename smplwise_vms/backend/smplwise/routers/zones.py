@@ -412,6 +412,8 @@ def add_member(zone_id: str, body: MemberIn, request: Request, principal: Princi
     if group is None:
         raise not_found("החדר אינו משותף.")
     _share_rights(conn, principal, group.floors, apply=True, cameras=[body.resource_id] if body.resource_type == "camera" else [])
+    if body.resource_type == "ha_entity" and shared_spaces.alarm_owned(conn, [body.resource_id]):  # review M1
+        raise ApiError(409, "alarm_managed", shared_spaces.ALARM_MEMBER_MESSAGE, details={"entity_ids": [body.resource_id]})
     q = ",".join("?" * len(group.floors))
     if not conn.execute(f"SELECT 1 FROM map_anchors WHERE resource_type = ? AND resource_id = ? AND effective_to IS NULL AND floor_id IN ({q})", (body.resource_type, body.resource_id, *group.floors)).fetchone():
         raise ApiError(422, "not_placed", "הפריט לא מוצב באף אחת מהקומות של החלל המשותף.")
