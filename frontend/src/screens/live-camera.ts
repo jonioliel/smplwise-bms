@@ -21,6 +21,7 @@ import { cameraCapabilities, cameraZones, snapshotUrl, setTransportOverride, tra
 import '../components/sw-chip';
 import { listCameras, updateCamera } from '../api/maps';
 import { effectiveTransport, productSettings } from '../api/prefs';
+import { playerPlan, remoteVideo } from '../api/video-policy';
 import { describeError } from '../api/client';
 import type { Camera } from '../api/types';
 
@@ -790,6 +791,8 @@ export class LiveCamera extends LitElement {
       <sw-badge kind=${ptzKind} label=${ptzLabel} title=${c.ptz.reason ?? ''}></sw-badge>
       <sw-badge kind=${audioKind} label=${audioLabel} title=${c.audio.reason ?? ''}></sw-badge>
       <sw-badge kind="neutral" label="זום דיגיטלי: הגדלה בדפדפן בלבד, לא הנעת מצלמה"></sw-badge>
+      ${c.video?.main ? html`<sw-badge data-caps-webrtc kind=${c.video.main.webrtc === 'ok' ? 'live' : c.video.main.webrtc === 'no' ? 'stale' : 'unknown'} label=${`זרם ראשי ${c.video.main.codec ?? '?'}: ${c.video.main.webrtc === 'ok' ? 'מתנגן ב־WebRTC' : c.video.main.webrtc === 'no' ? 'לא יתנגן ב־WebRTC' : 'WebRTC לא ידוע'}`}></sw-badge>` : nothing}
+      ${c.video?.hint ? html`<span data-caps-webrtc-hint>${c.video.hint}.</span>` : nothing}
       <span>${c.ptz.reason ? `PTZ לפי המכשיר: ${c.ptz.reason}. ` : ''}הנעת PTZ, קריאת preset ודיבור הם כתיבה למכשיר ואינם מוצעים בפיילוט ללא אישור מפורש — אין פקד מדומה. נקרא מה־NVR ${c.fetched_at.replace('T', ' ').replace('Z', ' UTC')}${c.cached ? ' (מהמטמון)' : ''}.</span>
     </div>`;
   }
@@ -939,6 +942,9 @@ export class LiveCamera extends LitElement {
         this.canConfigure = list.can_sync;
         this.settings = settings;
         this.transport = effectiveTransport(settings);
+        // CR-008 D7: a remote viewer starts on remote.default_profile (over WebRTC - the player's plan)
+        const remote = remoteVideo();
+        if (remote) this.profile = remote.defaultProfile;
       }
     } catch (err) {
       this.error = describeError(err);
@@ -965,10 +971,12 @@ export class LiveCamera extends LitElement {
     const canView = cam.can_view_live !== false && cam.status !== 'offline';
     const poster = snapshotUrl(cam.id, this.posterBust);
     const stream = cam.stream;
+    const remote = remoteVideo();
+    const plan = playerPlan(this.profile, cam.encoding);
     return html`
       <div class="video ${canView ? '' : 'off'}">
         ${canView
-          ? html`<sw-live-player .cameraId=${cam.id} .profile=${this.profile} .mode=${this.transport} .poster=${poster} @player-status=${this.onPlayer}></sw-live-player>`
+          ? html`<sw-live-player .cameraId=${cam.id} .profile=${this.profile} .mode=${this.transport} .plan=${plan.plan} .preferred=${plan.preferred} .gop=${plan.gop} .poster=${poster} @player-status=${this.onPlayer}></sw-live-player>`
           : html`<div class="center"><div><sw-icon name="offline" size=${32}></sw-icon><span>${cam.status === 'offline' ? 'המצלמה מנותקת מה־NVR (לפי הסנכרון האחרון)' : 'אין הרשאת צפייה חיה במצלמה זו'}</span></div></div>`}
       </div>
       <div class="controls">
@@ -978,10 +986,12 @@ export class LiveCamera extends LitElement {
           <button title="התחבר מחדש" aria-label="התחבר מחדש" @click=${() => this.player?.reconnect()}><sw-icon name="refresh" size=${16}></sw-icon></button>
           <button class="q ${this.profile === 'main' ? 'on' : ''}" @click=${() => (this.profile = 'main')}>ראשי</button>
           <button class="q ${this.profile === 'sub' ? 'on' : ''}" @click=${() => (this.profile = 'sub')}>משני</button>
-          <div class="transport" role="group" aria-label="תעבורה">
-            ${(['auto', 'webrtc', 'mse'] as Transport[]).map((t) => html`<button class=${this.transport === t ? 'on' : ''} @click=${() => this.setTransport(t)}>${t === 'auto' ? 'אוטומטי' : t === 'webrtc' ? 'WebRTC' : 'MSE'}</button>`)}
-          </div>
-          ${transportOverride() ? html`<span class="note">ברירת המחדל של המערכת: ${this.settings?.['media.transport_default'] ?? 'mse'}</span>` : nothing}
+          ${remote
+            ? html`<span class="note" data-remote-video-policy>גישה מרחוק: WebRTC תחילה${remote.mseFallback ? ' · MSE רק כמוצא אחרון' : ' · בלי MSE'}</span>`
+            : html`<div class="transport" role="group" aria-label="תעבורה">
+                  ${(['auto', 'webrtc', 'mse'] as Transport[]).map((t) => html`<button class=${this.transport === t ? 'on' : ''} @click=${() => this.setTransport(t)}>${t === 'auto' ? 'אוטומטי' : t === 'webrtc' ? 'WebRTC' : 'MSE'}</button>`)}
+                </div>
+                ${transportOverride() ? html`<span class="note">ברירת המחדל של המערכת: ${this.settings?.['media.transport_default'] ?? 'mse'}</span>` : nothing}`}
         </div>
         <div class="note">${this.playerStatus === 'playing' ? `מנגן דרך ${this.playerTransport === 'webrtc' ? 'WebRTC' : 'MSE'}` : this.playerStatus === 'error' ? 'הזרם לא זמין' : 'מתחבר…'}</div>
       </div>

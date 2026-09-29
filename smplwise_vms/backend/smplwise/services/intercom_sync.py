@@ -554,10 +554,10 @@ def project_tts_engines(raw: dict[str, Any]) -> dict[str, Any]:
 
 # why a physical action was not sent, in the feed's own words (the read endpoints show the same states as panels)
 NOT_SENT_REASONS = {
-    "ha_not_configured": "ל־SMPLWISE אין גישה ל־Home Assistant בסביבה הזו",
+    "ha_not_configured": "ל־SMPLWISE אין גישה לתשתית המערכת בסביבה הזו",
     "connecting": "החיבור ל־WisKey עדיין נפתח",
-    "ha_unavailable": "Home Assistant אינו זמין כרגע",
-    "not_installed": "אינטגרציית WisKey אינה מותקנת ב־Home Assistant",
+    "ha_unavailable": "תשתית המערכת אינה זמינה כרגע",
+    "not_installed": "אינטגרציית WisKey אינה מותקנת",
     "forbidden": "WisKey דחה את הגישה של SMPLWISE",
     "error": "WisKey החזיר שגיאה",
 }
@@ -575,8 +575,8 @@ WRITE_REFUSALS: dict[str, tuple[int, str, str]] = {
     "identity_migration_required": (409, "intercom_identity_locked", "מזהה העובד כבר נפרס בתחנה ואי אפשר לשנותו כאן."),
     "group_policy_changed": (409, "intercom_policy_changed", "הגדרות הקבוצות ב־WisKey השתנו בזמן העריכה. טענו מחדש ונסו שוב."),
     "user_not_found": (404, "intercom_person_not_found", "האדם לא נמצא ב־WisKey (ייתכן שנמחק בינתיים)."),
-    "unauthorized": (502, "intercom_action_refused", "WisKey דחה את הפקודה: למשתמש ה־Home Assistant של התוסף אין הרשאת ניהול אנשים (users:manage) ב־WisKey. הפקודה לא בוצעה."),
-    "storage_stopping": (503, "intercom_unavailable", "Home Assistant נכבה כרגע, ולכן WisKey לא שמר את השינוי. נסו שוב אחרי ההפעלה."),
+    "unauthorized": (502, "intercom_action_refused", "WisKey דחה את הפקודה: למשתמש תשתית המערכת אין הרשאת ניהול אנשים (users:manage) ב־WisKey. הפקודה לא בוצעה."),
+    "storage_stopping": (503, "intercom_unavailable", "תשתית המערכת נכבתה כרגע, ולכן WisKey לא שמר את השינוי. נסו שוב אחרי ההפעלה."),
 }
 # WisKey's refusals of the card-capture commands (lane "capture" for start / cancel; a confirm is a people write in the
 # config lane and gets WRITE_REFUSALS first): (HTTP status, SMPLWISE code, message)
@@ -588,7 +588,7 @@ CAPTURE_REFUSALS: dict[str, tuple[int, str, str]] = {
     "station_not_found": (404, "intercom_station_not_found", "העמדה לא נמצאה ב־WisKey."),
     "station_offline": (409, "intercom_station_offline", "העמדה אינה מחוברת ל־WisKey, ולכן הקורא לא הופעל."),
     "station_has_no_managed_lock": (409, "intercom_no_lock", "לעמדה אין מנעול מנוהל ב־WisKey, ולכן אי אפשר לקרוא בה כרטיס."),
-    "manager_closed": (503, "intercom_unavailable", "מנהל הגישה של WisKey נסגר (Home Assistant נטען מחדש?), ולכן הקורא לא הופעל."),
+    "manager_closed": (503, "intercom_unavailable", "מנהל הגישה של WisKey נסגר (תשתית המערכת נטענה מחדש?), ולכן הקורא לא הופעל."),
     "capture_applying": (409, "intercom_capture_applying", "הכרטיס נמצא בשמירה ב־WisKey. יש להמתין לתוצאה לפני פעולה נוספת."),
     "capture_not_found": (404, "intercom_capture_not_found", "הקריאה פגה או אינה קיימת עוד ב־WisKey. יש להתחיל קריאה חדשה."),
     "capture_not_ready": (409, "intercom_capture_not_ready", "אין כרטיס שנקרא וממתין לאישור."),

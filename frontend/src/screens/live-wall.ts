@@ -500,6 +500,7 @@ export class LiveWall extends LitElement {
             cameraId=${c.id}
             profile=${profile}
             transport=${transport}
+            .encoding=${c.encoding ?? null}
             poster=${c.status === 'offline' ? '' : snapshotUrl(c.id, this.posterBust)}
             ?compact=${n >= 9}
             fit=${span > 1 ? 'fill' : 'contain'}

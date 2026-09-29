@@ -109,6 +109,28 @@ def _probe_go2rtc(settings: Settings) -> dict[str, Any]:
     return {"status": "ok", "detail": f"גרסה {info.get('version', '?')} · {len(ours)} זרמים שלנו ({online} פעילים) · {len(streams) - len(ours)} זרמים זרים לא נגעו", "configured": True, "version": info.get("version"), "streams": len(ours), "online": online, "foreign": len(streams) - len(ours)}
 
 
+VIDEO_REASON = {"h265": "H.265", "mjpeg": "MJPEG", "b_frames": "B-frames", "svc": "SVC"}
+
+
+def _video_check(settings: Settings, conn: sqlite3.Connection) -> dict[str, Any]:
+    """CR-008 D7: which main / sub streams play over WebRTC (from the last discovery). A warning only when it matters:
+    the remote channel is on and remote viewers get the main stream first; otherwise the same facts, status ok."""
+    from . import stream_codecs
+
+    s = stream_codecs.summary(conn, with_names=True)
+    blocked = s["main_not_webrtc"]
+    if not s["checked"]:
+        return _check("video_webrtc", "וידאו ב־WebRTC (זרם ראשי / משני)", "ok", "קידוד הזרמים טרם נקרא מה־NVR (נקרא בגילוי המצלמות הבא).", **s)
+    m, sub = s["main"], s["sub"]
+    detail = (f"זרם ראשי: {m['ok']} מתנגנים ב־WebRTC · {m['no']} לא · {m['unknown']} לא ידוע · "
+              f"זרם משני: {sub['ok']} · {sub['no']} · {sub['unknown']}")
+    if blocked:
+        detail += " · לא יתנגנו ב־WebRTC: " + ", ".join(f"{b['name']} ({VIDEO_REASON.get(str(b['reason']), b['reason'])})" for b in blocked[:6]) + (f" ועוד {len(blocked) - 6}" if len(blocked) > 6 else "")
+    remote_main = bool(settings.remote_access) and (get_setting(conn, "remote.default_profile", "main") or "main") == "main"
+    status = "warn" if blocked and remote_main else "ok"
+    return _check("video_webrtc", "וידאו ב־WebRTC (זרם ראשי / משני)", status, detail, remote_main_first=remote_main, **s)
+
+
 def build(settings: Settings, conn: sqlite3.Connection, probe: bool = True) -> dict[str, Any]:
     checks: list[dict[str, Any]] = []
 
@@ -183,6 +205,8 @@ def build(settings: Settings, conn: sqlite3.Connection, probe: bool = True) -> d
     cage = _age_s(ds.get("cameras_last_ok"))
     if not ha_only:
         checks.append(_check("discovery", "גילוי מצלמות מה־NVR", "error" if ds.get("cameras_last_error") else ("ok" if ds.get("cameras_last_ok") else "warn"), f"{cams} מצלמות רשומות · {'עודכן לפני ' + str(int(cage // 60)) + ' דק׳' if cage is not None else 'טרם רץ'} · כל {autosync.INTERVAL_S // 60} דק׳{' · ' + str(ds.get('cameras_last_error')) if ds.get('cameras_last_error') else ''}", cameras=cams, **ds))
+    if not ha_only:
+        checks.append(_video_check(settings, conn))
     th = dict(thumbnails.STATE)
     if not ha_only:
         checks.append(_check("thumbnails", "תמונות אירועים (ffmpeg)", "error" if th.get("last_error") == "ffmpeg_missing" else ("warn" if th.get("failed", 0) > th.get("generated", 0) and th.get("failed", 0) > 3 else "ok"), f"{th.get('generated', 0)} נוצרו · {th.get('failed', 0)} נכשלו · {th.get('queued', 0)} בתור{' · אחרונה: ' + str(th.get('last_error')) if th.get('last_error') else ''}", **th))
@@ -240,17 +264,17 @@ def summary(settings: Settings, conn: sqlite3.Connection) -> dict[str, Any]:
         # NVR-less mode: Home Assistant is the whole product - missing, or down past a minute, is an error
         hs = ha_sync.STATE
         if not ha_client.configured(settings):
-            items.append({"id": "ha", "status": "error", "label": "אין חיבור ל־Home Assistant — במצב ללא NVR המערכת כולה נשענת עליו"})
+            items.append({"id": "ha", "status": "error", "label": "אין חיבור לתשתית המערכת — במצב ללא NVR המערכת כולה נשענת עליה"})
         elif not hs.connected and hs.down_for() > HA_GRACE_S:
-            items.append({"id": "ha", "status": "error", "label": "Home Assistant מנותק — שליטה בהתקנים ומצבי ישויות אינם זמינים"})
+            items.append({"id": "ha", "status": "error", "label": "תשתית המערכת מנותקת — שליטה בהתקנים ומצבי ישויות אינם זמינים"})
         elif not hs.connected and hs.last_snapshot_at:
-            items.append({"id": "ha", "status": "warn", "label": "הסנכרון עם Home Assistant מנותק; מצבי ישויות עלולים להיות מיושנים"})
+            items.append({"id": "ha", "status": "warn", "label": "הסנכרון עם תשתית המערכת מנותק; מצבי ישויות עלולים להיות מיושנים"})
     elif ha_client.configured(settings):
         hs = ha_sync.STATE
         if not hs.connected and hs.last_snapshot_at:
-            items.append({"id": "ha", "status": "warn", "label": "הסנכרון עם Home Assistant מנותק; מצבי ישויות עלולים להיות מיושנים"})
+            items.append({"id": "ha", "status": "warn", "label": "הסנכרון עם תשתית המערכת מנותק; מצבי ישויות עלולים להיות מיושנים"})
         elif not hs.connected and not hs.last_snapshot_at and hs.last_error:
-            items.append({"id": "ha", "status": "warn", "label": "אין חיבור ל־Home Assistant"})
+            items.append({"id": "ha", "status": "warn", "label": "אין חיבור לתשתית המערכת"})
     if thumbnails.STATE.get("last_error") == "ffmpeg_missing":
         items.append({"id": "thumbnails", "status": "warn", "label": "ffmpeg חסר — אין תמונות אירועים"})
     backups = backup_svc.list_backups(settings)

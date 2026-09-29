@@ -6,6 +6,9 @@ src/data/auth.ts). Shared by the backend tests (tests/test_remote_access.py) and
 - `GET /auth/providers`, `POST /auth/login_flow` (PKCE S256), `POST /auth/login_flow/{flow_id}` (username/password,
   then the `mfa` step for a user with MFA; `invalid_auth` / `invalid_code` like HA), `POST /auth/token`
   (authorization_code with code_verifier, refresh_token, `action=revoke`), all as pure functions plus a tiny HTTP server;
+- `pkce=False` (or `POST /fake/mode {"pkce": false}` on the HTTP server): a Home Assistant release WITHOUT PKCE
+  (every release up to 2026.9.x; PKCE arrived with home-assistant/core#181957, merged to dev 2026-09-26): its
+  `/auth/login_flow` schema refuses the PKCE keys, and `/auth/token` ignores a `code_verifier`;
 - the WebSocket API's `auth` + `auth/current_user` (+ `auth/delete_refresh_token`, CR-008 P2) as an in-process socket (`dial`) that ha_user_auth._dial is swapped
   for.
 
@@ -69,6 +72,8 @@ class FakeHaCore:
     dials: list[dict[str, Any]] = field(default_factory=list)  # every WebSocket the add-on opened (url, headers)
     requests: list[tuple[str, str]] = field(default_factory=list)  # every HTTP call (method, path)
     deleted_refresh: list[str] = field(default_factory=list)  # refresh-token ids deleted over the WebSocket API
+    pkce: bool = True  # False = an HA release without PKCE (<= 2026.9.x), see START_KEYS_NO_PKCE
+    code_grant_keys: list[list[str]] = field(default_factory=list)  # the form keys (never values) of every code grant
 
     def add_user(self, user: FakeUser) -> FakeUser:
         with self.lock:
@@ -136,15 +141,27 @@ class FakeHaCore:
     # RequestDataValidator schema - no extra keys (a plain Schema), handler a 2-list, code_challenge 43 base64url chars,
     # a challenge requires code_challenge_method S256 ('plain' is refused, RFC 7636 4.3).
     START_KEYS = {"client_id", "handler", "redirect_uri", "code_challenge", "code_challenge_method", "type"}
+    # HA core 2026.9.0 (tag, read 2026-09-29), the same view without PKCE:
+    #     @RequestDataValidator(vol.Schema({vol.Required("client_id"): str, vol.Required("handler"): vol.All(...),
+    #                                       vol.Required("redirect_uri"): str, vol.Optional("type", default="authorize"): str}))
+    # and homeassistant/components/http/data_validator.py:
+    #     except vol.Invalid as err:
+    #         return view.json_message(f"Message format incorrect: {err}", HTTPStatus.BAD_REQUEST)
+    # json_message's body is {"message": ...}. 2026.9 validates with probatio 0.11.4 (error.py: `f"{message} at
+    # '{path}'"`, message "not a valid option" for an undeclared key), so the owner's HA answered
+    #     400 {"message": "Message format incorrect: not a valid option at 'code_challenge'"}
+    # (up to 2026.8, voluptuous said "extra keys not allowed @ data['code_challenge']" instead).
+    START_KEYS_NO_PKCE = {"client_id", "handler", "redirect_uri", "type"}
     CHALLENGE_RE = re.compile(r"^[A-Za-z0-9_-]{43}\Z")
 
     def start_flow(self, body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
-        extra = sorted(set(body) - self.START_KEYS)
+        allowed = self.START_KEYS if self.pkce else self.START_KEYS_NO_PKCE
+        extra = [k for k in body if k not in allowed]  # the first undeclared key in the body's order, as probatio reports it
         if extra:
-            return 400, {"message": f"Message format incorrect: extra keys not allowed @ data['{extra[0]}']"}
+            return 400, {"message": f"Message format incorrect: not a valid option at '{extra[0]}'"}
         for key in ("client_id", "handler", "redirect_uri"):
             if key not in body:
-                return 400, {"message": f"Message format incorrect: required key not provided @ data['{key}']"}
+                return 400, {"message": f"Message format incorrect: required key not provided at '{key}'"}
         handler = body["handler"]
         if not isinstance(handler, list) or len(handler) != 2 or not all(h is None or isinstance(h, str) for h in handler):
             return 400, {"message": "Message format incorrect: handler"}
@@ -199,12 +216,16 @@ class FakeHaCore:
                 entry = self._codes.pop(form.get("code", ""), None)
             if not entry or entry["client_id"] != form.get("client_id"):
                 return 400, {"error": "invalid_request", "error_description": "Invalid code"}
+            with self.lock:
+                self.code_grant_keys.append(sorted(form))
             if entry["challenge"]:  # auth/__init__.py _async_handle_auth_code: a challenge requires a matching verifier
                 verifier = form.get("code_verifier", "")
                 if not verifier:
-                    return 400, {"error": "invalid_request", "error_description": "Missing code verifier"}
+                    return 400, {"error": "invalid_request", "error_description": "Code verifier required"}
                 if _b64(hashlib.sha256(verifier.encode()).digest()) != entry["challenge"]:
                     return 400, {"error": "invalid_grant", "error_description": "Invalid code verifier"}
+            elif self.pkce and "code_verifier" in form:  # HA with PKCE: the downgrade defense (BCP 240); 2026.9 ignores it
+                return 400, {"error": "invalid_request", "error_description": "Code verifier provided but no code challenge was present"}
             return 200, self.issue(entry["user"], entry["client_id"])
         if grant == "refresh_token":
             with self.lock:
@@ -252,7 +273,7 @@ class FakeHaCore:
                 elif path == "/fake/state":
                     with core.lock:
                         self._reply(200, {"refresh_tokens": [{"user_id": r.user_id, "client_id": r.client_id, "revoked": r.revoked, "tail": r.token[-8:]} for r in core._refresh.values()],
-                                          "requests": core.requests[-50:]})
+                                          "requests": core.requests[-50:], "pkce": core.pkce, "code_grant_keys": core.code_grant_keys[-20:]})
                 else:
                     self._reply(404, {"message": "not found"})
 
@@ -267,6 +288,9 @@ class FakeHaCore:
                 elif path == "/auth/token":
                     form = {k: v[0] for k, v in parse_qs(raw.decode()).items()}
                     self._reply(*core.token(form))
+                elif path == "/fake/mode":
+                    core.pkce = bool(json.loads(raw or b"{}").get("pkce", True))
+                    self._reply(200, {"pkce": core.pkce})
                 elif path == "/fake/revoke-user":
                     core.revoke_user(json.loads(raw or b"{}").get("user_id", ""))
                     self._reply(200, {"ok": True})

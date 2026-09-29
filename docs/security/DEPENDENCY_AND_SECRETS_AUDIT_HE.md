@@ -1,4 +1,4 @@
-Source: docs/security/DEPENDENCY_AND_SECRETS_AUDIT.md @ ee969a7
+Source: docs/security/DEPENDENCY_AND_SECRETS_AUDIT.md @ 196baedc41d6b5f6b97b3f562f1c35a0a785f042
 
 > תרגום של `docs/security/DEPENDENCY_AND_SECRETS_AUDIT.md`; המקור באנגלית קובע במקרה של סתירה.
 

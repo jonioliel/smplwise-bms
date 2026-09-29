@@ -754,7 +754,7 @@ export class InvestigateEvents extends LitElement {
 
   private apiColumns: TableColumn[] = [
     { key: 'thumb', label: '', width: '72px', render: (r) => this.renderThumb(r as unknown as VmsEvent) },
-    { key: 'type', label: 'אירוע', render: (r) => html`<span class="ty" style="--tone:${EVENT_TONE[r.type as EventKind] ?? '#6b7280'}"><i></i>${EVENT_LABEL[r.type as EventKind] ?? String(r.type)}${Number(r.count) > 1 ? html` <span class="sub">×${String(r.count)}</span>` : nothing}</span><div class="sub">${r.source === 'ha' ? 'חיישן HA' : r.source === 'system' ? 'מערכת' : r.confidence === 'inferred' ? 'נגזר מהקלטה' : 'התראה מה־NVR'} · ${r.acked_at ? `טופל · ${String(r.acked_by_username ?? '')}` : 'ממתין לטיפול'}</div>` },
+    { key: 'type', label: 'אירוע', render: (r) => html`<span class="ty" style="--tone:${EVENT_TONE[r.type as EventKind] ?? '#6b7280'}"><i></i>${EVENT_LABEL[r.type as EventKind] ?? String(r.type)}${Number(r.count) > 1 ? html` <span class="sub">×${String(r.count)}</span>` : nothing}</span><div class="sub">${r.source === 'ha' ? 'חיישן התקן' : r.source === 'system' ? 'מערכת' : r.confidence === 'inferred' ? 'נגזר מהקלטה' : 'התראה מה־NVR'} · ${r.acked_at ? `טופל · ${String(r.acked_by_username ?? '')}` : 'ממתין לטיפול'}</div>` },
     { key: 'camera_name', label: 'מצלמה', render: (r) => html`${String(r.camera_name ?? (r.channel ? `ערוץ ${String(r.channel)}` : 'מערכת'))}<div class="sub ltr">${String(r.raw_type)}</div>` },
     { key: 'occurred_at', label: 'זמן', render: (r) => html`${this.fmt(String(r.occurred_at))}<div class="sub">${this.fmtDate(String(r.occurred_at))}${r.ended_at ? ` · עד ${this.fmt(String(r.ended_at))}` : ''}</div>` },
     { key: 'severity', label: 'חומרה', render: (r) => html`<sw-badge kind=${r.severity === 'critical' ? 'error' : r.severity === 'alert' ? 'stale' : 'neutral'} label=${SEV_LABEL[r.severity as keyof typeof SEV_LABEL] ?? String(r.severity)}></sw-badge>` },
@@ -788,7 +788,7 @@ export class InvestigateEvents extends LitElement {
         <div class="kpi"><div><div class="n">${this.events.length - unacked}</div><div class="l">טופלו היום</div></div><div class="ic"><sw-icon name="check" size=${18}></sw-icon></div></div>
       </div>
       <div class="filters">
-        <sw-field><input type="search" data-events-q placeholder="חיפוש חופשי (שם מצלמה, ישות HA, פרטי אירוע)" aria-label="חיפוש חופשי" .value=${this.q} @input=${(e: Event) => this.onSearchInput((e.target as HTMLInputElement).value)} /></sw-field>
+        <sw-field><input type="search" data-events-q placeholder="חיפוש חופשי (שם מצלמה, התקן, פרטי אירוע)" aria-label="חיפוש חופשי" .value=${this.q} @input=${(e: Event) => this.onSearchInput((e.target as HTMLInputElement).value)} /></sw-field>
         <sw-field><select aria-label="מצלמה" @change=${(e: Event) => { this.cameraId = (e.target as HTMLSelectElement).value; void this.load(); }}><option value="" ?selected=${!this.cameraId}>כל המצלמות</option>${(this.cams ?? []).map((c) => html`<option value=${c.id} ?selected=${c.id === this.cameraId}>${c.name}</option>`)}</select></sw-field>
         <sw-field><select aria-label="סוג" @change=${(e: Event) => { this.type = (e.target as HTMLSelectElement).value; void this.load(); }}><option value="" ?selected=${!this.type}>כל סוגי האירועים</option>${(Object.keys(EVENT_LABEL) as EventKind[]).map((t) => html`<option value=${t} ?selected=${t === this.type}>${EVENT_LABEL[t]}</option>`)}</select></sw-field>
         <sw-field><input type="date" .value=${this.date} max=${dateInZone(new Date(), this.tz)} data-ltr aria-label="תאריך" @change=${(e: Event) => { this.date = (e.target as HTMLInputElement).value; void this.load(); }} /></sw-field>
@@ -838,7 +838,7 @@ export class InvestigateEvents extends LitElement {
                 ${this.player?.eventId === ev.id && this.player.error ? html`<div class="err">${this.player.error}</div>` : nothing}
               </div>
               <dl>
-                <dt>מקור</dt><dd>${ev.source === 'alertstream' ? 'התראה מה־NVR (alertStream)' : ev.source === 'recording' ? 'קובץ הקלטה (חיפוש)' : ev.source === 'ha' ? 'חיישן HA (מעבר מצב)' : 'מערכת'} · raw: <span class="ltr">${ev.raw_type}</span></dd>
+                <dt>מקור</dt><dd>${ev.source === 'alertstream' ? 'התראה מה־NVR (alertStream)' : ev.source === 'recording' ? 'קובץ הקלטה (חיפוש)' : ev.source === 'ha' ? 'חיישן התקן (מעבר מצב)' : 'מערכת'} · raw: <span class="ltr">${ev.raw_type}</span></dd>
                 <dt>ודאות</dt><dd>${ev.confidence === 'measured' ? 'נמדד על ידי המכשיר' : 'נגזר (inferred)'}</dd>
                 <dt>זמן אירוע</dt><dd><span class="ltr">${this.fmtDate(ev.occurred_at)} ${this.fmt(ev.occurred_at)}</span>${ev.ended_at ? html` → <span class="ltr">${this.fmt(ev.ended_at)}</span>` : nothing} · נקלט <span class="ltr">${this.fmt(ev.received_at)}</span>${typeof ev.details.time_precision === 'string' ? html` · דיוק: ${String(ev.details.time_precision)}` : nothing}</dd>
                 <dt>חזרות</dt><dd>${ev.count} · מצב ${ev.state === 'active' ? 'פעיל' : ev.state === 'inactive' ? 'הסתיים' : '—'}</dd>

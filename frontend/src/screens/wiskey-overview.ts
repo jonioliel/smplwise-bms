@@ -100,7 +100,7 @@ function callText(c: IntercomCallResult): string {
 }
 
 const TTS_REASONS: Record<string, string> = {
-  connection_lost: 'החיבור ל־Home Assistant נותק',
+  connection_lost: 'החיבור לתשתית המערכת נותק',
   tts_cancelled: 'בוטלה',
   tts_generation_timeout: 'ההקראה לא הוכנה בזמן',
   tts_generation_failed: 'מנוע ההקראה נכשל',
@@ -146,16 +146,16 @@ export const FEED_PANELS: Record<Exclude<IntercomFeedState, 'ready'>, { panel: P
   ha_not_configured: {
     panel: 'stale',
     heading: 'WisKey אינו מחובר בסביבה הזו',
-    hint: 'ל־SMPLWISE אין כאן גישה ל־Home Assistant, ולכן אין נתוני אינטרקום להצגה. בתוך Home Assistant המסך מתחבר לאינטגרציית WisKey (hikvision_intercom) מעצמו.',
+    hint: 'ל־SMPLWISE אין כאן גישה לתשתית המערכת, ולכן אין נתוני אינטרקום להצגה. במערכת המותקנת המסך מתחבר לאינטגרציית WisKey (hikvision_intercom) מעצמו.',
   },
-  connecting: { panel: 'loading', heading: 'מתחבר ל־WisKey…', hint: 'הנתונים יופיעו ברגע ש־Home Assistant יענה.' },
-  ha_unavailable: { panel: 'stale', heading: 'Home Assistant אינו זמין כרגע', hint: 'אין חיבור ל־Home Assistant, ולכן אין נתוני אינטרקום עדכניים. החיבור מתחדש אוטומטית.' },
+  connecting: { panel: 'loading', heading: 'מתחבר ל־WisKey…', hint: 'הנתונים יופיעו ברגע שתשתית המערכת תענה.' },
+  ha_unavailable: { panel: 'stale', heading: 'תשתית המערכת אינה זמינה כרגע', hint: 'אין חיבור לתשתית המערכת, ולכן אין נתוני אינטרקום עדכניים. החיבור מתחדש אוטומטית.' },
   not_installed: {
     panel: 'empty',
-    heading: 'אינטגרציית WisKey אינה מותקנת ב־Home Assistant',
-    hint: 'Home Assistant לא מכיר את הפקודות של WisKey (hikvision_intercom). אחרי התקנה המסך יתחבר אליה מעצמו תוך כמה דקות.',
+    heading: 'אינטגרציית WisKey אינה מותקנת',
+    hint: 'תשתית המערכת לא מכירה את הפקודות של WisKey (hikvision_intercom). אחרי התקנה המסך יתחבר אליה מעצמו תוך כמה דקות.',
   },
-  forbidden: { panel: 'forbidden', heading: 'WisKey דחה את הגישה של SMPLWISE', hint: 'המשתמש של ה־Add-on ב־Home Assistant אינו מורשה בהרשאות של WisKey, ולכן אין נתונים להצגה.' },
+  forbidden: { panel: 'forbidden', heading: 'WisKey דחה את הגישה של SMPLWISE', hint: 'המשתמש של המערכת אינו מורשה בהרשאות של WisKey, ולכן אין נתונים להצגה.' },
   error: { panel: 'error', heading: 'WisKey החזיר שגיאה', hint: 'הבקשה ל־WisKey לא הושלמה. הניסיון יחזור אוטומטית.' },
 };
 
@@ -401,7 +401,7 @@ export class WiskeyOverview extends LitElement {
       if (r.tts) {
         this.engines = r.tts;
         this.pickEngine(r.tts.default && r.tts.engines.some((e) => e.engine_id === r.tts!.default) ? r.tts.default : (r.tts.engines[0]?.engine_id ?? ''));
-        if (!r.tts.engines.length) this.enginesNote = 'אין ב־Home Assistant מנוע הקראה (TTS) ש־WisKey יכול להשתמש בו.';
+        if (!r.tts.engines.length) this.enginesNote = 'אין בתשתית המערכת מנוע הקראה (TTS) ש־WisKey יכול להשתמש בו.';
       } else {
         this.enginesNote = r.state === 'unsupported' ? 'גרסת WisKey המותקנת אינה תומכת בהכרזות.' : `רשימת מנועי ההקראה אינה זמינה כרגע (${r.last_error ?? r.state}).`;
       }
@@ -497,7 +497,7 @@ export class WiskeyOverview extends LitElement {
     return html`<sw-dialog open heading="הכרזה בעמדה" subheading=${station.name} data-wiskey-tts-dialog @close=${() => (this.speakFor = null)}>
       <div class="form">
         ${this.engines?.engines.length
-          ? html`<sw-field label="מנוע הקראה (Home Assistant)">
+          ? html`<sw-field label="מנוע הקראה (תשתית המערכת)">
                 <select data-wiskey-tts-engine .value=${this.ttsEngine} @change=${(e: Event) => this.pickEngine((e.target as HTMLSelectElement).value)}>
                   ${this.engines.engines.map((x) => html`<option value=${x.engine_id} ?selected=${x.engine_id === this.ttsEngine}>${x.name}</option>`)}
                 </select>
@@ -513,7 +513,7 @@ export class WiskeyOverview extends LitElement {
                 <textarea data-wiskey-tts-message rows="3" maxlength=${TTS_MAX} .value=${this.ttsMessage} @input=${(e: Event) => (this.ttsMessage = (e.target as HTMLTextAreaElement).value)}></textarea>
               </sw-field>`
           : html`<div class="muted" data-wiskey-tts-engines-state>${this.enginesNote || 'טוען את מנועי ההקראה…'}</div>`}
-        <div class="note info" data-wiskey-tts-external>ההודעה תושמע ברמקול של העמדה ${station.name}. הטקסט נשלח למנוע ההקראה שנבחר ב־Home Assistant - אם זהו שירות ענן, הטקסט יוצא מהמבנה. ההכרזה והטקסט שלה נרשמים ביומן הביקורת בשמך.</div>
+        <div class="note info" data-wiskey-tts-external>ההודעה תושמע ברמקול של העמדה ${station.name}. הטקסט נשלח למנוע ההקראה שנבחר בתשתית המערכת - אם זהו שירות ענן, הטקסט יוצא מהמבנה. ההכרזה והטקסט שלה נרשמים ביומן הביקורת בשמך.</div>
         ${this.ttsError ? html`<div class="note err" role="alert" data-wiskey-tts-error>${this.ttsError}</div>` : nothing}
       </div>
       <div slot="footer">

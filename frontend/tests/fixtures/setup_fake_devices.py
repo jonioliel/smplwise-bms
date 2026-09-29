@@ -20,8 +20,10 @@ then, from frontend/ (`npm run build` first):
 Control API (SW_SETUP_CONTROL_PORT, default SW_PORT + 10, 127.0.0.1 only), JSON:
     POST /reset                    fake devices back to their defaults (all up); the wizard forgets its cached checks and
                                    its rate limiter
-    POST /nvr {up?, auth?, drift_s?, offset?, channels?}
-                                   change the fake NVR (e.g. {"up": false} - every ISAPI call then fails to connect)
+    POST /nvr {up?, auth?, drift_s?, offset?, channels?, streaming?, encodings?, encodings_by_channel?}
+                                   change the fake NVR (e.g. {"up": false} - every ISAPI call then fails to connect;
+                                   {"encodings": {"main": {"codec": "H.264", "svc": false}, "sub": {...}}} - the stream
+                                   encodings of GET /ISAPI/Streaming/channels, CR-008 D7; a camera sync reads them)
     POST /go2rtc {up?, auth?}      change the fake go2rtc
     GET  /writes                   every non-GET request a fake device received (the start-up stream sync's PUTs only)
 """
@@ -93,7 +95,7 @@ class Control(BaseHTTPRequestHandler):
             return self._json(200, {"ok": True})
         if self.path in ("/nvr", "/go2rtc"):
             target = FAKE.nvr if self.path == "/nvr" else FAKE.go2rtc
-            allowed = {"up", "auth", "drift_s", "offset", "channels"} if self.path == "/nvr" else {"up", "auth"}
+            allowed = {"up", "auth", "drift_s", "offset", "channels", "streaming", "encodings", "encodings_by_channel"} if self.path == "/nvr" else {"up", "auth"}
             unknown = set(body) - allowed
             if unknown:
                 return self._json(400, {"error": f"unknown keys {sorted(unknown)}"})

@@ -281,8 +281,8 @@ export class ArxLogin extends LitElement {
       <div>
         <h1 id="arx-title">${this.step === 'mfa' ? 'אימות דו־שלבי' : 'כניסה'}</h1>
         <p class="sub">${this.step === 'mfa'
-          ? html`הזן את הקוד מ${this.mfaName ? html`<bdi>${this.mfaName}</bdi>` : 'אפליקציית האימות'} שמוגדרת בחשבון ה־Home Assistant שלך.`
-          : 'היכנס עם שם המשתמש והסיסמה של Home Assistant.'}</p>
+          ? html`הזן את הקוד מ${this.mfaName ? html`<bdi>${this.mfaName}</bdi>` : 'אפליקציית האימות'} שמוגדרת בחשבון שלך.`
+          : 'היכנס עם שם המשתמש והסיסמה שלך.'}</p>
       </div>
       ${notice && !this.error ? html`<div class="msg ${this.noticeKind === 'error' ? 'error' : ''}" role="status" data-arx-notice>${notice}</div>` : nothing}
       ${this.error ? html`<div class="msg error" role="alert" data-arx-error>${this.error}</div>` : nothing}
@@ -299,7 +299,7 @@ export class ArxLogin extends LitElement {
           </form>`}
       <div class="foot">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z" /></svg>
-        <span>הסיסמה נשלחת ישירות ל־Home Assistant ואינה נשמרת ב־SmplWise. ההרשאות שלך במערכת הן אותן ההרשאות כמו בתוך Home Assistant.</span>
+        <span>הסיסמה נבדקת מול תשתית המערכת ואינה נשמרת ב־SmplWise; ההרשאות שלך זהות להרשאותיך במערכת.</span>
       </div>
     </main>`;
   }

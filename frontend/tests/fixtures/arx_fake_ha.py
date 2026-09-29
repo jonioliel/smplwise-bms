@@ -25,6 +25,10 @@ then, from frontend/:
     SW_LIVE=1 SW_ARX_FIXTURE=1 SW_API_PORT=8349 npx playwright test tests/evidence-arx-remote.spec.ts --workers=1
 
 The fake HA's HTTP server listens on SW_PORT + 2 (SW_FAKE_HA_PORT); `GET /fake/state` lists its refresh tokens.
+
+PKCE: the fake plays HA core with PKCE (home-assistant/core#181957, 2026.10+) by default. SW_FAKE_HA_PKCE=0 starts it as
+an HA release without PKCE (<= 2026.9.x: `/auth/login_flow` answers 400 "Message format incorrect: not a valid option at
+'code_challenge'"); `POST /fake/mode {"pkce": false|true}` switches it at run time (the spec's "older HA" case).
 """
 from __future__ import annotations
 
@@ -68,7 +72,7 @@ from smplwise.config import load_settings  # noqa: E402
 from smplwise.db import Database, new_id, now_iso, permission_revision  # noqa: E402
 from smplwise.services import ha_user_auth  # noqa: E402
 
-CORE = FakeHaCore()
+CORE = FakeHaCore(pkce=os.environ.get("SW_FAKE_HA_PKCE", "1") != "0")
 USERS = [
     (FakeUser("u-owner", "joni", "pw-joni", "יוני אוליאל", is_owner=True, is_admin=True), "system_admin", True),
     (FakeUser("u-viewer", "dana", "pw-dana", "דנה כהן"), "viewer", True),

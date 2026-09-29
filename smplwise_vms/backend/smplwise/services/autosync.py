@@ -15,7 +15,7 @@ from ..config import Settings
 from ..db import unlocked, Database, new_id, now_iso
 from ..errors import ApiError
 from . import go2rtc as g2
-from . import nvr
+from . import nvr, stream_codecs
 
 log = logging.getLogger("smplwise.autosync")
 DEFAULT_RECORDER = "nvr-1"
@@ -37,13 +37,24 @@ def sync_cameras(settings: Settings, conn: sqlite3.Connection, actor: Any | None
     with unlocked(conn):
         info = nvr.device_info(settings)
         channels = nvr.discover_channels(settings)
+        # CR-008 D7: the main / sub stream encodings (one more read-only GET); a failure never fails the discovery
+        encodings: dict[int, dict[str, Any]] = {}
+        enc_error: str | None = None
+        try:
+            encodings = nvr.fetch_stream_encodings(settings)
+        except ApiError as exc:
+            enc_error = exc.code
+        except Exception as exc:  # noqa: BLE001 - an unparsable document
+            enc_error = type(exc).__name__
     ensure_recorder(conn, model=info.get("model") or None, firmware=info.get("firmware") or None)
     now = now_iso()
     created = updated = 0
     for ch in channels:
         status = "online" if ch.online else "offline" if ch.online is False else "unknown"
-        caps = json.dumps({"stream": ch.stream} if ch.stream else {}, ensure_ascii=False)
-        existing = conn.execute("SELECT id FROM cameras WHERE recorder_id = ? AND channel = ?", (DEFAULT_RECORDER, ch.channel)).fetchone()
+        existing = conn.execute("SELECT id, capabilities_json FROM cameras WHERE recorder_id = ? AND channel = ?", (DEFAULT_RECORDER, ch.channel)).fetchone()
+        previous = stream_codecs.encoding_of(existing) if existing else None
+        encoding = stream_codecs.build(ch, encodings.get(ch.channel), previous, error=enc_error, now=now)
+        caps = json.dumps({**({"stream": ch.stream} if ch.stream else {}), **({"encoding": encoding} if encoding else {})}, ensure_ascii=False)
         if existing:
             conn.execute(
                 "UPDATE cameras SET name_source = ?, main_track = COALESCE(?, main_track), sub_track = COALESCE(?, sub_track), capabilities_json = ?, status = ?, last_seen_at = ?, updated_at = ? WHERE id = ?",

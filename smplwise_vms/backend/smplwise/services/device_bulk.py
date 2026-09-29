@@ -286,14 +286,14 @@ def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: st
         in_scope, name, floor_name = entities, "המבנה", None
     elif scope == "floor":
         if scope_id != dsvc.NO_FLOOR and scope_id not in floors:
-            raise ApiError(404, "not_found", "הקומה לא נמצאה ב־Home Assistant.")
+            raise ApiError(404, "not_found", "הקומה לא נמצאה.")
         ids = {aid for aid, fid in area_floor.items() if fid == scope_id}
         in_scope = [e for e in entities if e.get("area_id") in ids]
         name = dsvc.NO_FLOOR_NAME if scope_id == dsvc.NO_FLOOR else floors[scope_id]["name"]
         floor_name = None
     else:
         if scope_id not in areas:
-            raise ApiError(404, "not_found", "האזור לא נמצא ב־Home Assistant.")
+            raise ApiError(404, "not_found", "האזור לא נמצא.")
         in_scope = [e for e in entities if e.get("area_id") == scope_id]
         name = areas[scope_id]["name"]
         fid = area_floor.get(scope_id)
@@ -651,7 +651,7 @@ def load(conn: Any, bulk_id: str) -> dict[str, Any]:
         "status": b["status"], "requested_at": b["requested_at"], "not_after": b["not_after"], "sent_at": b["sent_at"], "done_at": b["done_at"],
         "principal_user_id": b["principal_user_id"], "principal_username": b["principal_username"],
         "done": done, "all_confirmed": done and counts["total"] > 0 and counts["confirmed"] == counts["total"], "counts": counts, "items": items,
-        "note": "הצלחה נקבעת רק לפי מה ש־Home Assistant דיווח לכל התקן; התקן שלא דיווח אינו נחשב כבוי.",
+        "note": "הצלחה נקבעת רק לפי מה שדווח לכל התקן; התקן שלא דיווח אינו נחשב כבוי.",
     }
 
 

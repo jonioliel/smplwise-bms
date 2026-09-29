@@ -884,7 +884,7 @@ export class SwApp extends LitElement {
     if (!s) return designA ? html`<span class="status-a" data-sys-pill data-status="unknown"><i></i>מערכת מקומית</span>` : nothing;
     const first = s.items.find((i) => i.status === 'error') ?? s.items[0];
     const text = s.status === 'ok' ? 'מערכת תקינה' : s.status === 'warn' ? 'יש מה לבדוק' : `תקלה: ${first?.label.split(' — ')[0] ?? ''}`;
-    const title = s.items.length ? s.items.map((i) => `• ${i.label}`).join('\n') : 'כל הרכיבים שהתוסף רואה עובדים';
+    const title = s.items.length ? s.items.map((i) => `• ${i.label}`).join('\n') : 'כל הרכיבים שהמערכת רואה עובדים';
     return html`<button class="status-a sys ${s.status} ${designA ? '' : 'b'}" data-sys-pill data-status=${s.status} title=${title} aria-label=${`מצב המערכת: ${text}`} @click=${() => (window.location.hash = '#/system/diagnostics?tab=health')}><i></i>${text}</button>`;
   }
 
@@ -1077,10 +1077,10 @@ export class SwApp extends LitElement {
   private renderGate() {
     const s = this.session;
     if (s.mode === 'unauthenticated') {
-      return html`<div class="gate"><sw-state-panel state="forbidden" heading="הזדהות דרך Home Assistant נדרשת" hint=${s.error ?? ''}></sw-state-panel></div>`;
+      return html`<div class="gate"><sw-state-panel state="forbidden" heading="נדרשת כניסה למערכת" hint=${s.error ?? ''}></sw-state-panel></div>`;
     }
     if (s.mode === 'no_access') {
-      return html`<div class="gate"><sw-state-panel state="forbidden" heading="אין לך עדיין תפקיד במערכת" hint="המשתמש ${s.me?.user.display_name || s.me?.user.username || ''} מזוהה מ־Home Assistant, אך מנהל ה־VMS טרם שייך לו תפקיד והיקף. פנה למנהל המערכת."></sw-state-panel></div>${this.renderPermToast()}`;
+      return html`<div class="gate"><sw-state-panel state="forbidden" heading="אין לך עדיין תפקיד במערכת" hint="המשתמש ${s.me?.user.display_name || s.me?.user.username || ''} מזוהה במערכת, אך מנהל ה־VMS טרם שייך לו תפקיד והיקף. פנה למנהל המערכת."></sw-state-panel></div>${this.renderPermToast()}`;
     }
     return null;
   }
@@ -1193,7 +1193,7 @@ export class SwApp extends LitElement {
   private renderNvrLess() {
     if (this.embedded()) return html`<explore-floor-map .floorId=${'f0'} .screenState=${'ready'}></explore-floor-map>`;
     return html`<sw-page heading="מצב ללא NVR"><sw-state-panel data-nvr-less state="empty" heading="האזור הזה דורש NVR"
-      hint="ההתקנה פועלת במצב ללא NVR (Home Assistant בלבד): לייב, מצלמות, אירועים, הקלטות, תיקים וייצוא אינם זמינים; המפה, חשמל והתקנים ו־WisKey עובדים כרגיל. להוספת NVR: מלאו nvr_host, nvr_username ו־nvr_password ב־Home Assistant › Add-ons › SMPLWISE VMS › Configuration והפעילו מחדש את ה־Add-on - הנתונים נשארים כמו שהם."
+      hint="ההתקנה פועלת במצב ללא NVR (תשתית המערכת בלבד): לייב, מצלמות, אירועים, הקלטות, תיקים וייצוא אינם זמינים; המפה, חשמל והתקנים ו־WisKey עובדים כרגיל. להוספת NVR: מלאו nvr_host, nvr_username ו־nvr_password בהגדרות SMPLWISE VMS בתשתית המערכת והפעילו מחדש - הנתונים נשארים כמו שהם."
       actionLabel="לחיבורים" @action=${() => (window.location.hash = '#/system/setup')}></sw-state-panel></sw-page>`;
   }
 

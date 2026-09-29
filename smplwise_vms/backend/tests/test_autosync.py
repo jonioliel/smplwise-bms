@@ -16,6 +16,7 @@ def test_run_once_discovers_cameras_and_streams_without_a_user(settings, monkeyp
     s = replace(settings, nvr_host="nvr.local", nvr_user="u", nvr_password="p", go2rtc_url="http://go2rtc:1984")
     monkeypatch.setattr(nvr, "device_info", lambda _s: {"model": "DS-7616", "firmware": "V4.84", "device_type": "NVR"})
     monkeypatch.setattr(nvr, "discover_channels", lambda _s: [nvr.DiscoveredChannel(channel=1, name="Entrance", online=True, main_track=101, sub_track=102), nvr.DiscoveredChannel(channel=2, name="Lobby", online=False, main_track=201, sub_track=202)])
+    monkeypatch.setattr(nvr, "fetch_stream_encodings", lambda _s: {1: {"main": {"codec": "H.265", "webrtc": "no", "reason": "h265", "source": "isapi"}}})  # CR-008 D7 (test_stream_codecs)
     FakeGo2rtc.store = {"hik_cam1": ["rtsp://x"]}
     monkeypatch.setattr(autosync.g2, "Go2rtc", FakeGo2rtc)
     app = create_app(s)
@@ -27,6 +28,7 @@ def test_run_once_discovers_cameras_and_streams_without_a_user(settings, monkeyp
     cams = c.get("/api/v1/cameras").json()
     assert [x["channel"] for x in cams["cameras"]] == [1, 2] and cams["recorder"]["model"] == "DS-7616"
     assert [x["status"] for x in cams["cameras"]] == ["online", "offline"]
+    assert cams["cameras"][0]["encoding"]["main"]["webrtc"] == "no" and cams["cameras"][1]["encoding"] is None
     assert sorted(n for n in FakeGo2rtc.store if n.startswith("smplwise_")) == ["smplwise_nvr-1_ch1_main", "smplwise_nvr-1_ch1_sub", "smplwise_nvr-1_ch2_main", "smplwise_nvr-1_ch2_sub"]
     # audited as a system action (no actor), with the reason
     with db.connection() as conn:

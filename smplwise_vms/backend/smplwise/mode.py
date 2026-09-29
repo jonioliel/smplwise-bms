@@ -26,8 +26,8 @@ from .errors import ApiError
 FULL = "full"
 HA_ONLY = "ha_only"
 
-NVR_NOT_CONFIGURED_MESSAGE = ("ההתקנה פועלת במצב ללא NVR (Home Assistant בלבד). כדי להשתמש ב־NVR מלאו nvr_host, nvr_username "
-                              "ו־nvr_password ב־Home Assistant › Add-ons › SMPLWISE VMS › Configuration והפעילו מחדש את ה־Add-on.")
+NVR_NOT_CONFIGURED_MESSAGE = ("ההתקנה פועלת במצב ללא NVR (תשתית המערכת בלבד). כדי להשתמש ב־NVR מלאו nvr_host, nvr_username "
+                              "ו־nvr_password בהגדרות SmplWise Arx בתשתית המערכת והפעילו מחדש.")
 NVR_LESS_LABEL = "לא מוגדר - מצב ללא NVR"
 
 

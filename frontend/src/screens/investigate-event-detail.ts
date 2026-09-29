@@ -32,7 +32,7 @@ import { WEBGL_UNAVAILABLE_HE, webglAvailable } from '../map/webgl';
 import { initialLevel } from '../map/studio-ops';
 import { productSettings } from '../api/prefs';
 
-const SOURCE_LABEL = { alertstream: 'אירוע NVR', recording: 'נגזר מהקלטה', system: 'מערכת', ha: 'חיישן HA' } as const;
+const SOURCE_LABEL = { alertstream: 'אירוע NVR', recording: 'נגזר מהקלטה', system: 'מערכת', ha: 'חיישן התקן' } as const;
 const NEARBY_MS = 10 * 60 * 1000;
 
 /**

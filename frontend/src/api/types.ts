@@ -136,7 +136,35 @@ export interface Camera {
   status: 'online' | 'offline' | 'unknown';
   last_seen_at: string | null;
   stream?: { codec?: string; resolution?: string; fps?: number; bitrate_kbps?: number } | null;
+  /** CR-008 D7: the main / sub stream encodings the discovery read from the NVR, with the WebRTC verdict of each. */
+  encoding?: CameraEncoding | null;
   can_view_live?: boolean;
+}
+
+/** One stream's encoding as the NVR reports it (services/stream_codecs.py); `webrtc` = can a browser decode it there. */
+export interface StreamEncoding {
+  codec: string | null;
+  profile?: string | null;
+  b_frames?: boolean | null;
+  svc?: boolean | null;
+  smart_codec?: boolean | null;
+  /** frames between key frames (ISAPI GovLength) */
+  gov_length?: number | null;
+  resolution?: string | null;
+  fps?: number | null;
+  source?: 'isapi' | 'track';
+  webrtc: 'ok' | 'no' | 'unknown';
+  /** h265 | mjpeg | b_frames | svc | h264 | h264_no_b_frames | b_frames_not_reported | codec_unknown | codec_other */
+  reason: string;
+}
+
+export interface CameraEncoding {
+  main: StreamEncoding | null;
+  sub: StreamEncoding | null;
+  checked_at: string;
+  error: string | null;
+  /** only on /cameras/{id}/capabilities: the Hebrew settings hint when the main stream will not play over WebRTC */
+  hint?: string | null;
 }
 
 export interface Anchor {

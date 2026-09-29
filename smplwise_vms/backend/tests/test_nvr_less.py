@@ -207,7 +207,7 @@ def test_health_report_shows_the_nvr_as_off_and_drops_the_nvr_jobs(ha_only, monk
     by = {x["id"]: x for x in r["checks"]}
     assert by["nvr"]["status"] == "off" and "מצב ללא NVR" in by["nvr"]["detail"]
     assert by["go2rtc"]["status"] == "off", "go2rtc is optional without an NVR"
-    for gone in ("events_ingest", "events_derive", "discovery", "thumbnails", "exports"):
+    for gone in ("events_ingest", "events_derive", "discovery", "video_webrtc", "thumbnails", "exports"):
         assert gone not in by, f"{gone} is an NVR job and is not reported in the NVR-less mode"
     assert "error" not in {x["status"] for x in r["checks"] if x["id"] not in ("backups", "ha_sync")}, "ha_sync: no HA here (its own test)"
 

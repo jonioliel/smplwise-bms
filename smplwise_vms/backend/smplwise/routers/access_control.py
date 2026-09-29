@@ -214,7 +214,7 @@ def camera_snapshot(
     state, overview = intercom_sync.SYNC.served(settings)
     if overview is None:
         if state == "ha_not_configured":
-            raise ApiError(503, "ha_not_configured", "אין גישה ל־Home Assistant, ולכן אין נתוני WisKey ואין תמונת מצלמה.")
+            raise ApiError(503, "ha_not_configured", "אין גישה לתשתית המערכת, ולכן אין נתוני WisKey ואין תמונת מצלמה.")
         raise ApiError(503, "intercom_unavailable", "נתוני WisKey אינם זמינים כרגע, ולכן אין תמונת מצלמה.", retryable=True, details={"state": state})
     station = next((s for s in overview.get("stations", []) if s["id"] == station_id), None)
     if station is None:

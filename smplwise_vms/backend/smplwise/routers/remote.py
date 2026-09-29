@@ -95,7 +95,7 @@ def set_remote_access(user_id: str, body: RemoteFlag, request: Request, principa
     require(conn, principal, "system.configure", INSTALLATION)
     known = conn.execute("SELECT 1 FROM users WHERE id = ? UNION SELECT 1 FROM ha_users WHERE id = ?", (user_id, user_id)).fetchone()
     if not known:
-        raise ApiError(404, "user_unknown", "המשתמש לא נמצא בספריית Home Assistant.")
+        raise ApiError(404, "user_unknown", "המשתמש לא נמצא בספריית המערכת.")
     before = hua.has_flag(conn, user_id)
     if body.enabled:
         conn.execute("INSERT OR IGNORE INTO remote_access_users(user_id, granted_by, granted_at) VALUES (?, ?, ?)", (user_id, principal.user_id, now_iso()))

@@ -35,6 +35,15 @@ const ACCESS_SCREENS: { screen: WiskeyScreen; label: string; href: string; detai
   { screen: 'people', label: 'אנשים', href: '#/wiskey/people', detail: 'כולל עורך האדם וקליטת כרטיס שנפתחים ממנו' },
 ];
 
+/** CR-008 D7: GET /health `video_codecs` - how many main / sub streams play over WebRTC (from the last discovery). */
+interface VideoCodecs {
+  cameras: number;
+  checked: number;
+  main: { ok: number; no: number; unknown: number };
+  sub: { ok: number; no: number; unknown: number };
+  checked_at: string | null;
+}
+
 const TABS = [
   { id: 'general', label: 'כללי' },
   { id: 'media', label: 'וידאו ומדיה' },
@@ -82,7 +91,7 @@ export class SystemDiagnostics extends LitElement {
   @state() private restoreMode: 'replace' | 'merge' = 'replace';
   @state() private restoreAccess = false;
   @state() private restoreConfirm = '';
-  @state() private health: { discovery?: Record<string, unknown>; events?: { ingest: { connected: boolean; last_heartbeat_at: string | null; last_event_at: string | null; last_error: string | null; reconnects: number; events_stored: number }; derive: { last_ok: string | null; last_error: string | null; derived: number }; stored: number } } | null = null;
+  @state() private health: { discovery?: Record<string, unknown>; video_codecs?: VideoCodecs; events?: { ingest: { connected: boolean; last_heartbeat_at: string | null; last_event_at: string | null; last_error: string | null; reconnects: number; events_stored: number }; derive: { last_ok: string | null; last_error: string | null; derived: number }; stored: number } } | null = null;
 
   static styles = css`
     code {
@@ -873,12 +882,31 @@ export class SystemDiagnostics extends LitElement {
           ${sel('remote.mse_fallback', 'true', [['true', 'מותר (מוצג לצופה)'], ['false', 'אסור']])}</div>
         <div class="row"><span class="lbl">זרמים חיים לכל כניסה<span class="muted">כמה צפיות חיות במקביל מותרות לכל דפדפן או אפליקציה שנכנסו מרחוק (1 עד 32, ברירת מחדל 4); הצפייה הבאה נדחית עם הסבר. המכסה הכללית של המערכת חלה בנוסף</span></span>
           <sw-field class="ctl"><input type="number" min="1" max="32" data-ltr data-set-remote="remote.max_live_streams" .value=${v('remote.max_live_streams', '4')} ?disabled=${ro} @change=${(e: Event) => this.set('remote.max_live_streams', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
+        ${this.renderCodecSummary()}
         <div class="muted" data-remote-codec-hint style="margin-block-start:8px">דפדפנים מפענחים ב־WebRTC רק H.264 ללא B-frames; H.265 לא מתנגן ב־WebRTC ברוב הדפדפנים. אם הזרם הראשי של ה־NVR אינו כזה, הגדירו בו H.264 ללא B-frames או בחרו כאן בזרם המשני.</div>
       </sw-card>
       ${this.canEdit
         ? html`<div class="foot"><sw-button variant="primary" icon="check" data-save-remote ?disabled=${!dirty || this.busy} @click=${() => this.save()}>שמור</sw-button>${this.message && this.tab === 'remote' ? html`<span class="ok" style="align-self:center">${this.message}</span>` : nothing}${this.error && this.tab === 'remote' ? html`<span class="err" style="align-self:center">${this.error}</span>` : nothing}</div>`
         : html`<div class="muted">${api ? 'שינוי ההגדרות דורש הרשאת מנהל מערכת.' : 'נתוני הדגמה: ההגדרות נשמרות רק מול השרת.'}</div>`}
     </div>`;
+  }
+
+  /** CR-008 D7: the codec check as one read-only line (counts from GET /health; the cameras and the hints are in the
+   * health report's "וידאו ב־WebRTC" card). */
+  private renderCodecSummary() {
+    const v = this.health?.video_codecs;
+    const open = (e: Event) => {
+      e.preventDefault();
+      this.tab = 'health';
+      void this.loadReport();
+    };
+    const link = html`<a href="#/system/diagnostics?tab=health" data-remote-codec-link @click=${open}>לפירוט בבריאות המערכת</a>`;
+    let text: string;
+    if (!isApi()) text = 'נתוני הדגמה: קידוד הזרמים נקרא מה־NVR רק מול השרת.';
+    else if (!v) text = 'קידוד הזרמים לא נקרא.';
+    else if (!v.checked) text = 'קידוד הזרמים טרם נקרא מה־NVR (נקרא בגילוי המצלמות הבא).';
+    else text = `זרם ראשי: ${v.main.ok} מתוך ${v.checked} מצלמות מתנגנים ב־WebRTC${v.main.no ? ` · ${v.main.no} לא יתנגנו` : ''}${v.main.unknown ? ` · ${v.main.unknown} לא ידוע` : ''} · זרם משני: ${v.sub.ok} מתוך ${v.checked}`;
+    return html`<div class="row" data-remote-codec-summary><span class="lbl">קידוד הזרמים ב־NVR<span class="muted">${text}</span></span>${isApi() ? link : nothing}</div>`;
   }
 
   /** הגדרות › חשמל והתקנים (CR-007 slice 6a): how the device-control screens look for everyone in the installation -
@@ -949,10 +977,17 @@ export class SystemDiagnostics extends LitElement {
     return html`<div class="sections">
       <sw-card heading="בריאות המערכת" subheading="מצב נפרד לכל רכיב, לא נורה אחת">
         <div class="hsum"><sw-badge kind=${STATUS_KIND[r.status]} label=${r.status === 'ok' ? 'הכל תקין' : r.status === 'warn' ? 'יש מה לבדוק' : 'יש תקלה'}></sw-badge><span>גרסה <span class="ltr">${r.version}</span> · פעיל ${fmtUptime(r.uptime_s)} · נבדק <span class="ltr" data-health-checked>${checked}</span></span><span class="grow"></span><sw-button size="sm" icon="refresh" ?disabled=${this.reportBusy} @click=${() => this.loadReport(true)}>${this.reportBusy ? 'בודק…' : 'בדוק עכשיו'}</sw-button></div>
-        <div class="hgrid">${r.checks.map((c) => html`<div class="hcard ${c.status}" data-health-card=${c.id}><div class="hh"><span>${c.label}</span><sw-badge kind=${STATUS_KIND[c.status]} label=${STATUS_LABEL[c.status]}></sw-badge></div><div class="hd">${c.detail}</div></div>`)}</div>
+        <div class="hgrid">${r.checks.map((c) => html`<div class="hcard ${c.status}" data-health-card=${c.id}><div class="hh"><span>${c.label}</span><sw-badge kind=${STATUS_KIND[c.status]} label=${STATUS_LABEL[c.status]}></sw-badge></div><div class="hd">${c.detail}</div>${this.renderVideoHints(c)}</div>`)}</div>
         <div class="muted" style="margin-block-start:10px">בדיקות המכשירים (NVR, go2rtc) נשמרות ${r.probe_ttl_s} שניות; "בדוק עכשיו" מריץ אותן מחדש. זרמים זרים ב־go2rtc לעולם אינם נוגעים.</div>
       </sw-card>
     </div>`;
+  }
+
+  /** CR-008 D7: under the "וידאו ב־WebRTC" card, the settings hint of each camera whose main stream will not play there. */
+  private renderVideoHints(c: HealthReport['checks'][number]) {
+    const items = c.id === 'video_webrtc' ? ((c.meta.main_not_webrtc as { camera_id: string; hint: string }[] | undefined) ?? []) : [];
+    if (!items.length) return nothing;
+    return html`<ul class="hd" data-video-hints style="margin:6px 0 0;padding-inline-start:18px">${items.map((it) => html`<li data-video-hint=${it.camera_id}>${it.hint}</li>`)}</ul>`;
   }
 
   private renderHealth() {

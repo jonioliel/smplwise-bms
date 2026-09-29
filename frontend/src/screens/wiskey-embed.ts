@@ -969,10 +969,10 @@ export class WiskeyEmbed extends LitElement {
   }
 
   private renderError() {
-    const common = 'אפשר לנסות שוב, לפתוח את WisKey ב־Home Assistant או בחלון מלא, או לבחור בהגדרות › בקרות כניסה את מסכי SMPLWISE.';
+    const common = 'אפשר לנסות שוב, לעבור למסך WisKey העצמאי או לפתוח אותו בחלון חדש, או לבחור בהגדרות › בקרות כניסה את מסכי SMPLWISE.';
     const map: Record<string, { heading: string; hint: string; state: 'error' | 'stale' | 'empty' }> = {
-      not_installed: { heading: 'לוח WisKey לא נמצא ב־Home Assistant', hint: `האינטגרציה hikvision_intercom לא רשמה את הלוח ${WISKEY_PANEL_PATH} (לא מותקנת, לא נטענה, או שהמשתמש לא רואה אותו). ${common}`, state: 'empty' },
-      unreachable: { heading: 'לא ניתן לטעון את WisKey מתוך Home Assistant', hint: `הכתובת ${WISKEY_PANEL_PATH} לא החזירה את Home Assistant בתוך המסגרת. כנראה אפליקציית Home Assistant - ההזדהות שלה אינה זמינה בתוך מסגרת; או שהממשק פתוח שלא דרך Home Assistant. ${common}`, state: 'stale' },
+      not_installed: { heading: 'לוח WisKey לא נמצא', hint: `האינטגרציה hikvision_intercom לא רשמה את הלוח ${WISKEY_PANEL_PATH} (לא מותקנת, לא נטענה, או שהמשתמש לא רואה אותו). ${common}`, state: 'empty' },
+      unreachable: { heading: 'לא ניתן לטעון את WisKey', hint: `הכתובת ${WISKEY_PANEL_PATH} לא נטענה בתוך המסגרת. ייתכן שההזדהות אינה זמינה בתוך מסגרת; או שהממשק נפתח ישירות, לא דרך תשתית המערכת. ${common}`, state: 'stale' },
       blocked: { heading: 'הדפדפן לא מאפשר להטמיע את WisKey כאן', hint: `המסגרת נחסמה (מדיניות מסגרות) או הופנתה לכתובת אחרת. ${common}`, state: 'error' },
       unsupported: { heading: 'גרסת ממשק ההטמעה של WisKey אינה נתמכת', hint: `WisKey המותקן מדבר בגרסת ממשק הטמעה ${this.unsupportedVersion || 'לא ידועה'}, ו־SMPLWISE מכיר את גרסה 1. ${common}`, state: 'error' },
     };
@@ -1006,7 +1006,7 @@ export class WiskeyEmbed extends LitElement {
           ? 'ההטמעה באפליקציה (ניסיוני) לא נתמכת במכשיר הזה, ולכן WisKey נפתח באפליקציה עצמה'
           : this.phoneRelay
           ? 'ההטמעה באפליקציה (ניסיוני) לא הצליחה להתחבר, ולכן WisKey נפתח באפליקציה עצמה'
-          : 'Home Assistant מבקש התחברות בתוך המסגרת, ולכן WisKey נפתח ב־Home Assistant עצמו';
+          : 'נדרשת התחברות בתוך המסגרת, ולכן WisKey עובר למסך נפרד';
     const screen = SMPLWISE_SCREEN[this.tab];
     const only = wiskeySegmentOf(this.tab);
     return html`
@@ -1089,11 +1089,11 @@ export class WiskeyEmbed extends LitElement {
   }
 
   private statusNote() {
-    if (this.phase === 'loading') return html`<span class="note" data-wiskey-embed-note="loading">טוען את WisKey מתוך Home Assistant…</span>`;
+    if (this.phase === 'loading') return html`<span class="note" data-wiskey-embed-note="loading">טוען את WisKey…</span>`;
     if (this.phase === 'waiting') return html`<span class="note warn" data-wiskey-embed-note="waiting">WisKey עדיין לא אישר את החיבור - ממתין לטעינה או להזדהות בתוך WisKey</span>`;
     const notes = [];
     if (this.mode === 'legacy') notes.push(html`<span class="note" data-wiskey-embed-note="legacy">גרסת WisKey ללא ממשק ההטמעה (לפני rc.19) - ההטמעה בשיטה הקודמת</span>`);
-    if (this.phase === 'ready' && this.mode === 'legacy' && this.chrome === 'visible') notes.push(html`<span class="note" data-wiskey-embed-note="chrome">התפריט של Home Assistant מוצג סביב WisKey (ההסתרה לא נתמכת בגרסה הזו).</span>`);
+    if (this.phase === 'ready' && this.mode === 'legacy' && this.chrome === 'visible') notes.push(html`<span class="note" data-wiskey-embed-note="chrome">תפריט נוסף מוצג סביב WisKey (ההסתרה לא נתמכת בגרסה הזו).</span>`);
     if (this.phase === 'ready' && this.mode === 'legacy' && this.tabApplied === false) notes.push(html`<span class="note" data-wiskey-embed-note="tab">לא ניתן לפתוח ישירות את "${TAB_LABELS[this.tab] ?? this.tab}"; WisKey נפתח במסך שלו.</span>`);
     return notes;
   }
@@ -1154,7 +1154,7 @@ export class WiskeyEmbed extends LitElement {
             @load=${() => this.onLoad()}
           ></iframe>`,
         )}
-        ${this.phase === 'loading' ? html`<div class="over"><sw-state-panel state="loading" heading="טוען את WisKey…" hint="Home Assistant נטען בתוך המסך; בפעם הראשונה זה לוקח כמה שניות."></sw-state-panel></div>` : nothing}
+        ${this.phase === 'loading' ? html`<div class="over"><sw-state-panel state="loading" heading="טוען את WisKey…" hint="הלוח נטען בתוך המסך; בפעם הראשונה זה לוקח כמה שניות."></sw-state-panel></div>` : nothing}
         ${failed ? this.renderError() : nothing}
       </div>
     `;

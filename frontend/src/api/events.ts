@@ -311,7 +311,7 @@ export interface EventFacets {
   notes: string[];
 }
 export const getEventFacets = (days = 90) => get<EventFacets>(`events/facets?days=${days}`);
-export const SOURCE_LABEL: Record<string, string> = { alertstream: 'אירוע NVR', recording: 'נגזר מהקלטה', system: 'מערכת', ha: 'חיישן HA' };
+export const SOURCE_LABEL: Record<string, string> = { alertstream: 'אירוע NVR', recording: 'נגזר מהקלטה', system: 'מערכת', ha: 'חיישן התקן' };
 
 /** Suggested next cameras after an event (T064): topology only, always hypothetical, never an action. */
 export interface EventRoute {

@@ -1,5 +1,52 @@
 # Changelog — SmplWise Arx add-on
 
+## 0.1.141 (pilot) — Hotfix: Arx sign-in on today's Home Assistant releases (no PKCE yet); remote video policy (main over WebRTC first, NVR codec check); the UI no longer names the platform outside Settings
+### Hotfix (owner's first live sign-in at `/arx`, 2026-09-29)
+- **Sign-in failed with "Message format incorrect: not a valid option at 'code_challenge'"**: the Arx login page
+  started HA's `/auth/login_flow` with PKCE (S256), as HA core's *dev* branch accepts - but **no released Home
+  Assistant has PKCE yet** (it landed in core on 2026-09-26, home-assistant/core#181957, so 2026.10 at the earliest);
+  2026.9 answers that exact 400, 2026.8 and earlier "extra keys not allowed @ data['code_challenge']". The page now
+  starts with PKCE, and when HA refuses it (either text, or any other 400 on the first start) retries **once**
+  without it, remembers the answer for the page (never a loop), and the token request then omits `code_verifier`
+  (an HA with PKCE refuses a verifier for a flow without a challenge). On an HA with PKCE nothing changes.
+- The fake HA cores of the test suites got a "no PKCE" mode with the real error text: backend
+  `test_remote_access.py` 59 (2 new), Playwright Arx spec desktop 6/6 (1 new); tsc / build clean. CR-008 §8.1 records
+  the correction to V1 (the schema was read from `dev`, not from a release).
+### Remote video policy (CR-008 step 6, owner decision D7)
+- **Main over WebRTC first, from outside**: on the remote channel every live player walks a ladder -
+  `remote.default_profile` (main) over WebRTC; then, with `remote.mse_fallback` on, the same profile over MSE; with it
+  off, the other profile over WebRTC; and at the end the message "הזרם הראשי אינו ניתן לפענוח ב-WebRTC - ראה הגדרות ›
+  וידאו". A WebRTC step is judged by its RTP statistics, not by a timer alone: bytes arriving with no decoded frame
+  for the stream's GOP + 3 s (6-20 s) is a decode failure and moves down the ladder; no bytes for 30 s is a
+  connection failure (UDP blocked); **decoded frames always count as working**, even before the `playing` event
+  (deferred autoplay) - a refused autoplay (iOS Low Power Mode) shows "הקש להפעלה" instead of waiting forever.
+  A hidden tab is never judged (the clock restarts when the tab is visible again, also after the phone froze the
+  page), the watch's listener never outlives its connection, and a browser without the frame counter is judged by
+  the picture. The badge reads "מנסה main·WebRTC…" while trying and `main·WebRTC` / `sub·WebRTC` / `main·MSE` once
+  it plays; go2rtc down says so at once. LAN / Ingress behaviour unchanged; the camera wall and map tiles keep their
+  own (sub) profile remotely - to confirm with the owner.
+- **NVR codec check** (read-only `GET /ISAPI/Streaming/channels` during discovery): codec, profile, SVC, smart codec
+  and B-frames per stream, stored in the camera capabilities with a verdict ok / no / unknown. From the lab probe
+  (seven cameras H.264 with **SVC on** in the main stream, three H.265) H.264 + SVC counts as not WebRTC-safe next to
+  H.265, MJPEG and B-frames - an inference to confirm in the lab (switching SVC off on the main streams is the owner's
+  check). Shown in הגדרות › גישה מרחוק (summary → health detail), the health card `video_webrtc`, the camera
+  capabilities, the wizard's NVR step, and `/health.video_codecs`. A recording track's Description alone never says
+  "plays".
+- Tests: backend `test_stream_codecs.py`, Playwright `evidence-remote-video.spec.ts` 30/30 (15 desktop + 15 phone;
+  the browser's WebRTC / MSE are faked - real media is the lab check); three Opus review rounds (M1-M3, F1-F4 fixed).
+### The system no longer says "Home Assistant" outside Settings (owner rule, 2026-09-29)
+- **Rule** (`docs/design/UI_COPY_RULES.md`): user-facing text never names Home Assistant / HA / Supervisor / Ingress /
+  add-on / Companion except inside הגדרות › מערכת (connections, bridge, health diagnostics, wizard, remote access,
+  notifications) where the technical truth belongs; installers' docs may name it. Vocabulary: "תשתית המערכת" for the
+  platform, "ההתקנים" for its entities, "מסונכרן" / "רענן" for sync state, "האפליקציה" for the Companion app, or the
+  mention dropped where the sentence reads without it. The Arx sign-in page asks for "שם המשתמש והסיסמה שלך".
+- ~212 strings in 55 files (32 frontend screens / shell / API files, 16 backend routers, services and their tests),
+  including the NVR-less 409 message and the top-bar health summary; **no identifier, route, JSON key, enum, audit
+  action name or error code changed** - copy only (Sonnet review, 5 items fixed). Tests: tsc / build clean, screens
+  spec 32/32, backend touched modules 322/322 + 5 Playwright specs updated.
+- Follow-up noted (not fixed here): the WisKey embed spec's iframe route stub does not get along with the PWA service
+  worker at scope `/` in the dev harness; the screens themselves are unaffected.
+
 ## 0.1.140 (pilot) — Arx from outside: `/arx` with our own sign-in against Home Assistant, install as an app, push notifications (CR-008 P1 + P3)
 ### Remote access (CR-008 MVP)
 - New add-on options **`remote_access`** (off by default) and **`remote_path`** (`/arx`). With it on, the add-on also
