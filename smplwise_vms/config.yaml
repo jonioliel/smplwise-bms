@@ -42,6 +42,8 @@ options:
   # CR-008 SmplWise Arx: https://<your HA hostname>/arx through a Cloudflare tunnel path route (DOCS "Remote access").
   remote_access: false
   remote_path: /arx
+  # one database writer at a time, in arrival order (the round-10 lock storm fix); turn off only if support asks
+  db_write_gate: true
   log_level: info
 schema:
   bootstrap_admin_username: str
@@ -58,4 +60,5 @@ schema:
   openai_api_key: password?
   remote_access: bool
   remote_path: match(^/[a-z0-9][a-z0-9_-]{0,31}$)
+  db_write_gate: bool?
   log_level: list(debug|info|warning|error)

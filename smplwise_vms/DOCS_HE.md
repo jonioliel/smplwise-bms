@@ -38,6 +38,9 @@ JPG עם בחירת עמוד, סיבוב וחיתוך), מיקום מצלמות 
      `https://<שם ה-HA שלכם>/arx` פותח את המוצר עם מסך כניסה משלו (שם המשתמש והסיסמה של Home Assistant) דרך
      נתיב (path route) במנהרת Cloudflare. כבוי כברירת מחדל; כשהוא כבוי, `/arx` מחזיר 404 גם אם קיים נתיב במנהרה.
      ראו "גישה מרחוק (SmplWise Arx)" למטה ואת `docs/operations/ARX_CLOUDFLARE_GUIDE_HE.md`.
+   - `db_write_gate` (ברירת מחדל `true`) — כתיבות למסד הנתונים ממתינות בתור אחד, לפי סדר ההגעה, במקום לנסות
+     שוב כל אחת לבד (התיקון לגל "database is locked" של סבב בדיקות 10). השאירו פעיל; כבו רק אם התמיכה מבקשת,
+     לצורך השוואה. `/health` → `db.write_lock` מציג את `write_gate`, את התור (`gate`) ואת זמני ההמתנה.
    - WisKey (אינטגרציית `hikvision_intercom`) נגיש דרך משתמש ה-Home Assistant הייעודי של ה-add-on (ה-Long-Lived
      Access Token ב-`ha_token`). WisKey מסמיך משתמש זה לפי האזורים (areas) שלו: צפייה בלשונית WisKey דורשת את
      האזורים `overview`, `users` ו-`events` ברמת `view`; **עריכת אנשים מתוך SMPLWISE (עורך האנשים, הרשאה

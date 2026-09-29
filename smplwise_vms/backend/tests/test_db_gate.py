@@ -251,6 +251,39 @@ def test_write_gate_switch_off_leaves_sqlite_alone(db, monkeypatch):
         assert conn.execute("SELECT value FROM settings WHERE key = 'k'").fetchone()[0] == "v"
 
 
+def test_write_gate_is_an_addon_option_default_on_and_the_env_wins(tmp_path, monkeypatch, settings):
+    import json
+    from dataclasses import replace
+
+    from smplwise.config import load_settings
+    from smplwise.main import create_app
+
+    monkeypatch.delenv("SW_DB_WRITE_GATE", raising=False)
+    monkeypatch.setattr(db_mod, "WRITE_GATE", db_mod.WRITE_GATE)  # restored after the test
+    opts = tmp_path / "options.json"
+    opts.write_text(json.dumps({"bootstrap_admin_username": "joni"}), encoding="utf-8")
+    assert load_settings(opts).db_write_gate is True
+    opts.write_text(json.dumps({"db_write_gate": False}), encoding="utf-8")
+    assert load_settings(opts).db_write_gate is False
+    opts.write_text(json.dumps({"db_write_gate": True}), encoding="utf-8")
+    monkeypatch.setenv("SW_DB_WRITE_GATE", "0")
+    assert load_settings(opts).db_write_gate is False
+    create_app(settings)  # the conftest Settings: option on, but the environment says 0
+    assert db_mod.WRITE_GATE is False
+    monkeypatch.delenv("SW_DB_WRITE_GATE")
+    create_app(settings)
+    assert db_mod.WRITE_GATE is True
+    create_app(replace(settings, db_write_gate=False))
+    assert db_mod.WRITE_GATE is False
+
+
+def test_addon_config_declares_the_option():
+    from pathlib import Path
+
+    cfg = (Path(db_mod.__file__).resolve().parents[2] / "config.yaml").read_text(encoding="utf-8")
+    assert "  db_write_gate: true\n" in cfg and "  db_write_gate: bool?\n" in cfg
+
+
 def test_durability_classes(db):
     with db.connection() as conn:
         assert conn.execute("PRAGMA synchronous").fetchone()[0] == 2  # FULL

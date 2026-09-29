@@ -50,6 +50,9 @@ class Settings:
     # remote channel (remote_channel.RemoteChannel) with its own HA-token login instead of Ingress identity headers.
     remote_access: bool = False
     remote_path: str = "/arx"
+    # the FIFO write gate in front of SQLite's write lock (db.WriteGate); add-on option `db_write_gate`, default on.
+    # SW_DB_WRITE_GATE=0 turns it off whatever the option says (an operational escape hatch)
+    db_write_gate: bool = True
     # HA core itself (not the Supervisor proxy, which accepts only the add-on's SUPERVISOR_TOKEN): the remote channel's
     # user access tokens are validated here. None inside the add-on = discovered from the Supervisor's /core/info.
     ha_core_url: str | None = None
@@ -154,6 +157,7 @@ def load_settings(options_file: str | os.PathLike | None = None) -> Settings:
         ha_url=("http://supervisor/core" if os.environ.get("SUPERVISOR_TOKEN") else (os.environ.get("HA_URL") or None)),
         ha_token=os.environ.get("SUPERVISOR_TOKEN") or os.environ.get("HA_TOKEN") or None,
         remote_access=_truthy(options["remote_access"]) if "remote_access" in options else _truthy(os.environ.get("SW_REMOTE_ACCESS", "")),
+        db_write_gate=(_truthy(options["db_write_gate"]) if "db_write_gate" in options else True) and os.environ.get("SW_DB_WRITE_GATE", "1") != "0",
         remote_path=normalize_remote_path(_opt(options, "remote_path", "SW_REMOTE_PATH", DEFAULT_REMOTE_PATH)),
         # inside the add-on HA core is `homeassistant:<port>` on the Supervisor network (port / TLS from /core/info);
         # outside, the developer's HA (HA_CORE_URL, else HA_URL)

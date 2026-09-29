@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import mimetypes
 import uuid
 from pathlib import Path
@@ -68,6 +69,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title="SmplWise Arx", version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.settings = settings
     app.state.db = Database(settings.db_path)
+    from . import db as db_mod
+
+    # the add-on option db_write_gate (default on); SW_DB_WRITE_GATE=0 always wins
+    db_mod.WRITE_GATE = settings.db_write_gate and os.environ.get("SW_DB_WRITE_GATE", "1") != "0"
+    if not db_mod.WRITE_GATE:
+        log.warning("database write gate is OFF (db_write_gate / SW_DB_WRITE_GATE=0): writers rely on SQLite's busy handler alone")
     from .services import backup as backup_svc
 
     pre = backup_svc.pre_upgrade(settings)  # rollback safety: a copy of the data before a new version touches it
