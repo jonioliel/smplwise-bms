@@ -38,6 +38,7 @@ ARM_MODES: list[tuple[str, int, str]] = [
 ]
 ACTIONS: dict[str, str] = {m: f"alarm_control_panel.alarm_{m}" for m, _, _ in ARM_MODES} | {"disarm": "alarm_control_panel.alarm_disarm"}
 ARMED_STATES = {s for _, _, s in ARM_MODES}
+TARGET_STATE: dict[str, str] = {m: s for m, _, s in ARM_MODES} | {"disarm": "disarmed"}
 
 # Opening-type device classes: "on" means open - what "ready to arm" lists. Motion "on" is movement now (an exit route),
 # never a reason not to arm. Safety-type classes "on" mean a fault / alarm condition.

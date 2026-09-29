@@ -310,6 +310,21 @@ class Lockout:
                 pass
         return self.locked_for(keys, conn, now)
 
+    def forgive(self, keys: list[str], ts: float, conn: sqlite3.Connection | None = None) -> None:
+        """Take back one provisional failure recorded at `ts` (review M-A: a typed pass-through code the panel then
+        confirmed), with the lock it may have set."""
+        with self._lock:
+            for k in keys:
+                if ts in self._fails.get(k, []):
+                    self._fails[k].remove(ts)
+                if abs(self._until.get(k, 0.0) - (ts + self.lock_s)) < 1e-6:
+                    self._until.pop(k, None)
+                    if conn is not None:
+                        try:
+                            conn.execute("DELETE FROM alarm_lockouts WHERE key = ? AND ABS(until_epoch - ?) < 0.001", (k, ts + self.lock_s))
+                        except sqlite3.OperationalError:
+                            pass
+
     def succeed(self, user_key: str) -> None:
         with self._lock:
             self._fails.pop(user_key, None)

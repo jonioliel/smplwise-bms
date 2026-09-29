@@ -246,34 +246,56 @@ class _Act:
         return exc
 
 
-# Typed pass-through codes (no stored panel code) whose outcome is not known yet: action id -> (lockout keys, sent at).
-# A panel such as Risco ignores a wrong code silently, so an attempt the panel never confirmed counts as a wrong code
-# when the next code is typed (security review M2: failures only - a confirmed action never counts).
-_PASS_THROUGH: dict[str, tuple[list[str], float]] = {}
+# Typed pass-through codes (no stored panel code) whose outcome is not known yet: token -> {keys, sent (monotonic),
+# ts (the provisional failure's wall-clock stamp), aid (the ha_actions id once sent), target (the expected state)}.
+# Security review M2 / M-A: every typed attempt counts as a FAILURE when it is sent (provisionally) and is forgiven only
+# when the panel confirms it - a panel such as Risco ignores a wrong code silently - and at most ONE typed attempt per
+# user and per panel may be unsettled at a time (429 attempt_pending), so concurrent requests cannot outrun the count.
+_PASS_THROUGH: dict[str, dict[str, Any]] = {}
 _PASS_THROUGH_LOCK = threading.Lock()
 
 
-def _settle_pass_through(conn: sqlite3.Connection) -> None:
-    now = time.monotonic()
+def _reserve_pass_through(keys: list[str]) -> str | None:
+    """Reserve the one unsettled typed attempt for these keys; None when one is already pending."""
     with _PASS_THROUGH_LOCK:
-        items = list(_PASS_THROUGH.items())
-    for aid, (keys, at) in items:
-        row = conn.execute("SELECT * FROM ha_actions WHERE id = ?", (aid,)).fetchone()
+        if any(set(e["keys"]) & set(keys) for e in _PASS_THROUGH.values()):
+            return None
+        token = uuid.uuid4().hex
+        _PASS_THROUGH[token] = {"keys": keys, "sent": time.monotonic(), "ts": None, "aid": None, "target": None}
+        return token
+
+
+def _release_pass_through(token: str) -> None:
+    with _PASS_THROUGH_LOCK:
+        _PASS_THROUGH.pop(token, None)
+
+
+def _settle_pass_through(conn: sqlite3.Connection) -> None:
+    """Settle every typed attempt whose outcome is known: confirmed -> the provisional failure is forgiven; the panel
+    already in the target state and no code refusal -> forgiven too (nothing was guessed); unknown / refused -> it
+    stays counted (review L-c: an attempt with nothing to change is not a failure)."""
+    with _PASS_THROUGH_LOCK:
+        items = [(tok, dict(e)) for tok, e in _PASS_THROUGH.items() if e["aid"]]
+    for tok, e in items:
+        row = conn.execute("SELECT * FROM ha_actions WHERE id = ?", (e["aid"],)).fetchone()
         if row is None:
-            with _PASS_THROUGH_LOCK:
-                _PASS_THROUGH.pop(aid, None)
+            _release_pass_through(tok)
             continue
         a = ha_actions.as_dict(row)
-        if a["status"] == "pending" and now - at > ha_actions.CONFIRM_WINDOW_S:
+        if a["status"] == "pending":  # confirmed as soon as the panel reports it; "unknown" after the window
             ha_actions.refresh(conn, a)
-            a = ha_actions.action_row(conn, aid)
+            a = ha_actions.action_row(conn, e["aid"])
         if a["status"] == "pending":
             continue
-        with _PASS_THROUGH_LOCK:
-            _PASS_THROUGH.pop(aid, None)
-        if a["status"] in ("unknown", "failed") and (a.get("error") in (None, "invalid_code")):
-            codes.LOCKOUT.fail(keys, conn)
-
+        _release_pass_through(tok)
+        forgive = a["status"] == "confirmed"
+        if not forgive and a.get("error") != "invalid_code" and a["status"] != "failed":
+            cur = conn.execute("SELECT state FROM ha_entities WHERE entity_id = ?", (a["entity_id"],)).fetchone()
+            forgive = bool(cur and e["target"] and cur["state"] == e["target"] and a.get("observed_state") == e["target"])
+        if a["status"] == "failed" and a.get("error") not in ("invalid_code", None):
+            forgive = True  # the bridge failed for another reason: not a wrong code
+        if forgive and e["ts"] is not None:
+            codes.LOCKOUT.forgive(e["keys"], e["ts"], conn)
 
 def _code_gate(act: _Act, plan: dict[str, str], typed: Any, panel: dict[str, Any], stored_code: str | None, *, disarm: bool) -> tuple[str | None, list[str]]:
     """Checks the code the user typed against the plan. Returns (the code to SEND to the panel - None = none, the lockout
@@ -400,14 +422,36 @@ def panel_action(entity_id: str, request: Request, principal: Principal = Depend
             raise act.refuse(ApiError(503, "code_unreadable", "קוד הלוח השמור אינו קריא. מנהל המערכת יגדיר אותו מחדש בהגדרות › מערכת › אזעקה.")) from None
     send_code, keys = _code_gate(act, plan, typed, panel, stored_code, disarm=disarm)
     typed = stored_code = None  # noqa: F841
-    out = _send(act, request, entity_id, svc.ACTIONS[body.action], {}, send_code, body.client_request_id, {"state": panel["state"]})
-    if plan["send"] == "typed" and out["status"] == "pending":
+    token = None
+    if plan["send"] == "typed":
+        # review M-A: one unsettled typed attempt per user and per panel, counted as a failure until the panel confirms
+        token = _reserve_pass_through(keys)
+        if token is None:
+            raise act.refuse(ApiError(429, "attempt_pending", "הפקודה הקודמת עדיין ממתינה לאישור הלוח. נסו שוב בעוד רגע.", retryable=True, details={"retry_after_s": int(ha_actions.CONFIRM_WINDOW_S) + 1}))
+        ts = time.time()
+        codes.LOCKOUT.fail(keys, conn, now=ts)
         with _PASS_THROUGH_LOCK:
-            _PASS_THROUGH[out["id"]] = (keys, time.monotonic())
+            _PASS_THROUGH[token].update(ts=ts, target=svc.TARGET_STATE.get(body.action))
+    try:
+        out = _send(act, request, entity_id, svc.ACTIONS[body.action], {}, send_code, body.client_request_id, {"state": panel["state"]})
+    except ApiError as exc:
+        if token:
+            e = _PASS_THROUGH.get(token) or {}
+            _release_pass_through(token)
+            if e.get("ts") is not None and exc.code not in ("invalid_code",):
+                codes.LOCKOUT.forgive(keys, e["ts"], conn)  # the bridge / platform failed: no code was judged
+        raise
+    if token:
+        if out["status"] == "pending":
+            with _PASS_THROUGH_LOCK:
+                _PASS_THROUGH[token]["aid"] = out["id"]
+        else:
+            e = _PASS_THROUGH.get(token) or {}
+            _release_pass_through(token)
+            if out.get("error") != "invalid_code" and e.get("ts") is not None:
+                # review L3: only the panel's real refusal of a code stays counted (not a generic ServiceValidationError)
+                codes.LOCKOUT.forgive(keys, e["ts"], conn)
     if out["status"] == "failed" and out.get("error") in CODE_REFUSALS:
-        # review L3: only the panel's real refusal of a code counts as a wrong code (not any ServiceValidationError)
-        if plan["send"] == "typed" and out.get("error") == "invalid_code":
-            codes.LOCKOUT.fail(keys, conn)
         raise ApiError(422, "code_rejected", "הלוח דחה את הקוד או את הפקודה.", details={"action_id": out["id"]})
     return out
 

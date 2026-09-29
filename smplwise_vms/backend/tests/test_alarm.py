@@ -607,17 +607,37 @@ def test_panel_code_mode_locks_out_user_and_panel(alarm_app):
     assert _act(c, "alarm_control_panel.risco_garden", "disarm", as_user("sara"), confirmed=True, code=CODE).status_code == 202
 
 
+def _report(app, eid: str, state: str) -> None:
+    """The panel reports a state now (what the real integration's state_changed would do)."""
+    import datetime as dt
+
+    now = dt.datetime.now(dt.timezone.utc).isoformat()
+    with app.state.db.connection() as conn:
+        ha_sync.upsert_state(conn, {"entity_id": eid, "state": state, "attributes": {"friendly_name": "x", "code_format": "number", "code_arm_required": False, "supported_features": 7}, "last_changed": now, "last_updated": now})
+
+
+def _settle(app) -> None:
+    from smplwise.routers import alarm as alarm_router
+
+    with app.state.db.connection() as conn:
+        alarm_router._settle_pass_through(conn)
+
+
 def test_pass_through_counts_only_failures(alarm_app, caplog):
-    """No stored code: the typed panel code is passed through. The panel's refusal (invalid_code) and an attempt the
-    panel never confirmed count as wrong codes (Risco ignores a wrong code silently); confirmed actions never count
-    (review M2); a generic ServiceValidationError is not a wrong code (review L3)."""
+    """No stored code: the typed panel code is passed through. Each typed attempt counts as a failure when sent and is
+    forgiven when the panel confirms it (review M-A); the panel's refusal (invalid_code) stays counted; a generic
+    ServiceValidationError is not a wrong code (review L3)."""
     app, s, c, calls, answer = alarm_app
     caplog.set_level(logging.DEBUG)
     _no_code(c)
     assert _panel(_panels(c), "alarm_control_panel.risco_house")["code"]["disarm"] == "panel"
     assert _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code="12ab").json()["code"] == "wrong_code"  # number format
-    for _ in range(3):
-        assert _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=CODE).status_code == 202
+    for _ in range(6):  # confirmed attempts are forgiven
+        _report(app, "alarm_control_panel.risco_house", "armed_away")
+        r = _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=CODE)
+        assert r.status_code == 202, r.text
+        _report(app, "alarm_control_panel.risco_house", "disarmed")
+        _settle(app)  # what the next typed attempt does first: the panel confirmed, the provisional failure is forgiven
     answer.update(ok=False, error="ServiceValidationError")
     for _ in range(5):
         assert _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=CODE).json()["code"] == "code_rejected"
@@ -630,19 +650,48 @@ def test_pass_through_counts_only_failures(alarm_app, caplog):
     _assert_code_nowhere(app, s, caplog, [r.text])
 
 
-def test_unconfirmed_pass_through_counts_as_a_wrong_code(alarm_app, monkeypatch):
+def test_pass_through_one_attempt_at_a_time_and_unconfirmed_counts(alarm_app, monkeypatch):
+    """Review M-A: while a typed attempt is unsettled every other typed attempt of that user or on that panel is refused
+    (429 attempt_pending) - concurrent requests cannot outrun the count; sequential unconfirmed attempts lock after 5.
+    Review L-c: an attempt on a panel already in the target state is not a failure."""
     app, s, c, calls, answer = alarm_app
-    from smplwise.routers import alarm as alarm_router
+    import concurrent.futures
+    import time as _t
+
     from smplwise.services import ha_actions
 
     _no_code(c)
+    real = ha_client.call_bridge_execute
+
+    def slow(settings, payload, timeout=15.0):
+        _t.sleep(0.4)
+        return real(settings, payload, timeout)
+
+    monkeypatch.setattr(ha_client, "call_bridge_execute", slow)
+    n = len(calls)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+        codes_ = list(pool.map(lambda i: _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=f"{CODE[:-1]}{i}").status_code, range(6)))
+    assert codes_.count(202) == 1 and codes_.count(429) == 5, codes_
+    assert len(calls) == n + 1
+    # sequentially, each unconfirmed attempt stays counted: five lock the user and the panel
+    monkeypatch.setattr(ha_client, "call_bridge_execute", real)
     monkeypatch.setattr(ha_actions, "CONFIRM_WINDOW_S", 0.0)  # the panel never reports the change: "unknown" at once
-    for i in range(5):
-        r = _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=CODE)
-        assert r.status_code == 202, (i, r.text)
-    alarm_router._settle_pass_through  # noqa: B018 - settled on the next typed attempt
-    r = _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=CODE)
-    assert r.status_code == 429 and r.json()["code"] == "code_locked"
+    codes.LOCKOUT.reset()
+    _report(app, "alarm_control_panel.risco_house", "armed_away")
+    statuses = []
+    for i in range(6):
+        statuses.append(_act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=CODE).status_code)
+    assert statuses[:5] == [202] * 5 and statuses[5] == 429, statuses
+    # L-c: the panel is already disarmed - an attempt to disarm it again is not a failure
+    codes.LOCKOUT.reset()
+    with app.state.db.connection() as conn:
+        conn.execute("DELETE FROM alarm_lockouts")  # the lock above is persisted (review L8)
+    from smplwise.routers import alarm as alarm_router
+
+    alarm_router._PASS_THROUGH.clear()
+    _report(app, "alarm_control_panel.risco_house", "disarmed")
+    for _ in range(7):
+        assert _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=CODE).status_code == 202
 
 def test_bridge_failure_text_never_carries_the_code(alarm_app, monkeypatch, caplog):
     app, s, c, calls, _ = alarm_app
