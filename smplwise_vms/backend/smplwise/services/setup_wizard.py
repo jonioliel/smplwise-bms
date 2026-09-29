@@ -252,8 +252,8 @@ def _tz_name(conn: sqlite3.Connection) -> str:
 # ---------------------------------------------------------------- step 2: NVR
 
 NVR_ERRORS = {
-    "source_not_configured": ("פרטי ה־NVR לא הוגדרו.", "מלאו כתובת, משתמש וסיסמה ב־Home Assistant › Add-ons › SMPLWISE VMS › Configuration (nvr_host, nvr_username, nvr_password), או ב"),
-    "nvr_not_configured": ("פרטי ה־NVR לא הוגדרו.", "מלאו כתובת, משתמש וסיסמה ב־Home Assistant › Add-ons › SMPLWISE VMS › Configuration (nvr_host, nvr_username, nvr_password), או ב"),
+    "source_not_configured": ("פרטי ה־NVR לא הוגדרו.", "מלאו כתובת, משתמש וסיסמה ב־Home Assistant › Add-ons › SmplWise Arx › Configuration (nvr_host, nvr_username, nvr_password), או ב"),
+    "nvr_not_configured": ("פרטי ה־NVR לא הוגדרו.", "מלאו כתובת, משתמש וסיסמה ב־Home Assistant › Add-ons › SmplWise Arx › Configuration (nvr_host, nvr_username, nvr_password), או ב"),
     "source_unavailable": ("ה־NVR לא ענה.", "ודאו שה־NVR דולק ומחובר לרשת, ושהכתובת ופורט ה־HTTP נכונים; לתיקון הכתובת: "),
     "source_forbidden": ("ה־NVR דחה את שם המשתמש או הסיסמה.", "בדקו את המשתמש והסיסמה (מומלץ משתמש ייעודי עם הרשאות צפייה והקלטות בלבד) ועדכנו אותם ב"),
     "source_error": ("ה־NVR החזיר שגיאה לבקשת קריאה.", "ודאו שלמשתמש ה־NVR יש הרשאות צפייה והקלטות ושה־ISAPI פעיל ב־NVR; פרטי החיבור ב"),
@@ -520,7 +520,7 @@ def _with_nvr_gap(live: dict[str, Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------- step 4: go2rtc
 
 GO2RTC_ERRORS = {
-    "media_not_configured": ("כתובת go2rtc לא הוגדרה.", "מלאו go2rtc_url (למשל http://<כתובת HA>:1984) ב־Home Assistant › Add-ons › SMPLWISE VMS › Configuration והפעילו מחדש."),
+    "media_not_configured": ("כתובת go2rtc לא הוגדרה.", "מלאו go2rtc_url (למשל http://<כתובת HA>:1984) ב־Home Assistant › Add-ons › SmplWise Arx › Configuration והפעילו מחדש."),
     "media_unavailable": ("go2rtc לא ענה.", "ודאו שה־Add-on של go2rtc מותקן ופועל ושהכתובת go2rtc_url נכונה (כולל הפורט, בדרך כלל 1984)."),
     "media_error": ("go2rtc החזיר שגיאה.", "אם ה־API של go2rtc מוגן בסיסמה, מלאו go2rtc_api_username ו־go2rtc_api_password ב־Configuration של ה־Add-on."),
 }

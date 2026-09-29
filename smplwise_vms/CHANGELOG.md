@@ -1,4 +1,7 @@
-# Changelog — SMPLWISE VMS add-on
+# Changelog — SmplWise Arx add-on
+
+## Unreleased
+- Product name: SmplWise Arx (display names only; technical identifiers unchanged)
 
 ## 0.1.138 (pilot) — Runs without an NVR: "מצב ללא NVR" for electricity-only installations (owner request)
 - Owner request (2026-09-29): "bring the system up without an NVR, in case I want it only for electricity control".

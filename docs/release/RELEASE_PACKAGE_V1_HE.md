@@ -1,4 +1,4 @@
-Source: docs/release/RELEASE_PACKAGE_V1.md @ f45547e
+Source: docs/release/RELEASE_PACKAGE_V1.md @ af9ed7cf8fe1da688e5246115f004d3965149ee6
 
 > תרגום של `docs/release/RELEASE_PACKAGE_V1.md`; המקור באנגלית קובע במקרה של סתירה.
 
@@ -7,7 +7,7 @@ Source: docs/release/RELEASE_PACKAGE_V1.md @ f45547e
 > CR-007 "בקרת התקנים" ששוחררה אחרי הכנת חבילה זו ואינה מוזכרת ברשימת המגבלות הידועות).
 > המסמך מתורגם כפי שהוא במקור, בלי לעדכן מספרי גרסה או רשימות ראיות.
 
-# SMPLWISE VMS — חבילת שחרור V1 (T072)
+# SmplWise Arx — חבילת שחרור V1 (T072)
 
 סטטוס: **מוכנה, לא מאושרת**. סבב בדיקות הקבלה של הבעלים והחתימה שלו סוגרים חבילה זו; עד אז
 ה-add-on נשלח כגרסאות פיילוט (`0.1.x`) מ-`main`. `python scripts/release_check.py --tag` מאמת
@@ -135,7 +135,7 @@ FAIL נוקבת במה שנשבר; skip נוקב במה שהקורא אולי ל
 | Commit | |
 | מאושר על ידי (הבעלים) | |
 | תאריך | |
-| Tag | `vX.Y.Z` — נוצר עם `git tag -a vX.Y.Z -m "SMPLWISE VMS X.Y.Z — approved release"` ונדחף (push) אחרי חתימה |
+| Tag | `vX.Y.Z` — נוצר עם `git tag -a vX.Y.Z -m "SmplWise Arx X.Y.Z — approved release"` ונדחף (push) אחרי חתימה |
 
 שום תאריך יעד לא מחליף את השערים לעיל: החבילה נחתמת רק כשכל פריט ברשימה מבוסס בראייה או
 מוחרג במפורש.

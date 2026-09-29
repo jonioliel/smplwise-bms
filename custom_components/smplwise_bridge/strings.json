@@ -3,7 +3,7 @@
     "flow_title": "{addon}",
     "step": {
       "user": {
-        "title": "Pair with the SMPLWISE VMS add-on",
+        "title": "Pair with the SmplWise Arx add-on",
         "description": "Open the add-on: Settings → Home Assistant bridge, copy the pairing code and the add-on address shown there.",
         "data": {
           "addon_url": "Add-on address (inside Home Assistant's network)",
@@ -11,7 +11,7 @@
         }
       },
       "hassio_confirm": {
-        "title": "Pair with the SMPLWISE VMS add-on",
+        "title": "Pair with the SmplWise Arx add-on",
         "description": "The add-on {addon} announced itself with its pairing code. Confirm to let the VMS run allow-listed actions in your own Home Assistant identity."
       }
     },

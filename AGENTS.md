@@ -1,4 +1,4 @@
-# SMPLWISE VMS — Agent operating contract
+# SmplWise Arx — Agent operating contract
 
 This is a development specification kit, not an already implemented VMS. Read `MASTER_SPEC_HE.md`, `README_HE.md`, the active task card and linked contracts before editing. Hebrew product requirements are authoritative. Historical files in `docs/legacy/` are evidence to investigate, not active prompts. Never claim unseen old source was audited.
 

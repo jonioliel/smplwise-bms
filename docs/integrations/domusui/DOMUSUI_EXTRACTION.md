@@ -1,4 +1,4 @@
-# DomusUI: source extraction for the SMPLWISE VMS "Electricity / device control" tab
+# DomusUI: source extraction for the SmplWise Arx "Electricity / device control" tab
 
 **Scope.** This is a factual extraction of how the open-source DomusUI Home Assistant dashboard is built. It was taken from its source code to inform the design and change request for a new SMPLWISE tab, "חשמל / שליטה על התקנים". That tab would have:
 - a tree of floors and areas;
@@ -510,7 +510,7 @@ Every Rooms control calls `onCallService(domain, service, data)` directly, for *
 - **The only per-area override** in Rooms is the hidden-entity list. There is no per-area ordering, renaming, section reassignment or card-type override. Renaming and moving are done in the HA registry.
 - **The `domusos` integration itself** registers WS commands and services only for irrigation (`irrigation/api.py:209-279`) and a calendar entity (`calendar.py:38-47`). Dashboard configuration goes through core `frontend/*_system_data`.
 
-## 9. Mapping to SMPLWISE VMS (portability facts)
+## 9. Mapping to SmplWise Arx (portability facts)
 
 ### 9.1 Existing SMPLWISE pieces this touches (from the SMPLWISE repo)
 - **HA sync.** `smplwise_vms/backend/smplwise/services/ha_sync.py` already:

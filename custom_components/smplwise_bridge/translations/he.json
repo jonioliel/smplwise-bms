@@ -3,7 +3,7 @@
     "flow_title": "{addon}",
     "step": {
       "user": {
-        "title": "צימוד ל־Add-on של SMPLWISE VMS",
+        "title": "צימוד ל־Add-on של SmplWise Arx",
         "description": "פתח את ה־Add-on: הגדרות → גשר Home Assistant, והעתק משם את קוד הצימוד ואת כתובת ה־Add-on.",
         "data": {
           "addon_url": "כתובת ה־Add-on (ברשת הפנימית של Home Assistant)",
@@ -11,7 +11,7 @@
         }
       },
       "hassio_confirm": {
-        "title": "צימוד ל־Add-on של SMPLWISE VMS",
+        "title": "צימוד ל־Add-on של SmplWise Arx",
         "description": "ה־Add-on {addon} הכריז על עצמו עם קוד הצימוד שלו. אשר כדי לאפשר ל־VMS להריץ פעולות מרשימת ההיתר בזהות ה־Home Assistant שלך."
       }
     },

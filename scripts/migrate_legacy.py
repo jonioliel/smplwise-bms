@@ -233,7 +233,7 @@ def build_report(options: dict[str, Any], override: dict[str, Any], events: dict
         warnings.append(f"{manual_info['rows']} manual-recording rows in the legacy override are not migrated (NVR write)")
     events_info = {**events, "vms": "not imported — the VMS derives motion events from recordings and stores NVR alerts itself; the legacy JSONL stays in /config as an archive"}
     rollout = [
-        "1. Keep the legacy add-on installed and running; install SMPLWISE VMS next to it (different slug, different Ingress panel).",
+        "1. Keep the legacy add-on installed and running; install SmplWise Arx next to it (different slug, different Ingress panel).",
         "2. Point the VMS at the same NVR with a read-only NVR user (options), the same go2rtc; restart the add-on once for the bridge.",
         "3. Run this dry run; fix what it flags (missing cameras → סנכרון מה־NVR; aliases → --apply-aliases; time → confirm one known event).",
         "4. Shadow period: both add-ons run; compare a day of recordings, a known event time and the live wall in both; nothing on the NVR changes.",
@@ -265,7 +265,7 @@ def build_report(options: dict[str, Any], override: dict[str, Any], events: dict
 
 def to_markdown(rep: dict[str, Any]) -> str:
     L: list[str] = []
-    L.append(f"# Migration dry run — legacy Hikvision NVR Panel {rep['source']['legacy_version']} → SMPLWISE VMS")
+    L.append(f"# Migration dry run — legacy Hikvision NVR Panel {rep['source']['legacy_version']} → SmplWise Arx")
     L.append(f"Generated {rep['generated_at']} · schema {rep['schema']} · NVR writes: {rep['writes']['nvr']} · VMS writes: {rep['writes']['vms']}")
     L.append("")
     if rep["warnings"]:

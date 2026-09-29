@@ -29,7 +29,7 @@ yet," and asked Claude to look at how other tools solve this.
 
 ## The gap in our own model
 
-SMPLWISE VMS splits a building into:
+SmplWise Arx splits a building into:
 - **A floor** (`buildings.floors` row): a *separate* plan version / geometry document, with its own plan image,
   its own `map.*` permissions, its own NVR camera/anchor scoping. Two floors are two independent documents.
 - **A level** (`GeomLevel`, inside one floor's document): a cheap sub-division that shares the same document, the

@@ -1,4 +1,4 @@
-Source: docs/changes/CR-004-FLOOR-LEVEL-UNIFICATION.md @ 5805e35ebabe9c0cca349fa74c49b4b72cb7fd7f
+Source: docs/changes/CR-004-FLOOR-LEVEL-UNIFICATION.md @ af9ed7cf8fe1da688e5246115f004d3965149ee6
 
 > תרגום של `docs/changes/CR-004-FLOOR-LEVEL-UNIFICATION.md`; המקור באנגלית קובע במקרה של סתירה.
 
@@ -32,7 +32,7 @@ Plan Studio).
 
 ## הפער במודל שלנו עצמנו
 
-SMPLWISE VMS מפצל בניין ל:
+SmplWise Arx מפצל בניין ל:
 - **קומה** (שורת `buildings.floors`): מסמך גרסת-תוכנית/גיאומטריה *נפרד*, עם תמונת תוכנית משלו, הרשאות
   `map.*` משלו, scoping מצלמות/עוגנים משלו מול ה-NVR. שתי קומות הן שני מסמכים בלתי-תלויים.
 - **מפלס** (`GeomLevel`, בתוך מסמך של קומה אחת): תת-חלוקה זולה שחולקת את אותו המסמך, אותו הקנבס, אותה הסצנה

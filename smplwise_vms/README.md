@@ -1,4 +1,4 @@
-# SMPLWISE VMS — Home Assistant add-on
+# SmplWise Arx — Home Assistant add-on
 
 Map-centred video management for Hikvision NVRs inside Home Assistant (Ingress, HA identity, VMS roles).
 See [DOCS.md](DOCS.md) for installation and configuration. Source of the web UI: `../frontend`;

@@ -1,4 +1,4 @@
-פתח את חבילת SMPLWISE VMS Development Kit v1.1 ופעל כ־Technical Lead וכמפתח בפרויקט המקומי. המטרה היא מערכת אמיתית, מתוחזקת ומעוצבת — לא הדמיה בלבד.
+פתח את חבילת SmplWise Arx Development Kit v1.1 ופעל כ־Technical Lead וכמפתח בפרויקט המקומי. המטרה היא מערכת אמיתית, מתוחזקת ומעוצבת — לא הדמיה בלבד.
 
 קרא תחילה:
 - AGENTS.md ו־README_HE.md
