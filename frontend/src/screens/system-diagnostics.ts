@@ -92,7 +92,7 @@ export class SystemDiagnostics extends LitElement {
   @state() private restoreMode: 'replace' | 'merge' = 'replace';
   @state() private restoreAccess = false;
   @state() private restoreConfirm = '';
-  @state() private health: { discovery?: Record<string, unknown>; video_codecs?: VideoCodecs; events?: { ingest: { connected: boolean; last_heartbeat_at: string | null; last_event_at: string | null; last_error: string | null; reconnects: number; events_stored: number }; derive: { last_ok: string | null; last_error: string | null; derived: number }; stored: number } } | null = null;
+  @state() private health: { discovery?: Record<string, unknown>; video_codecs?: VideoCodecs; remote?: { live_streams?: number }; events?: { ingest: { connected: boolean; last_heartbeat_at: string | null; last_event_at: string | null; last_error: string | null; reconnects: number; events_stored: number }; derive: { last_ok: string | null; last_error: string | null; derived: number }; stored: number } } | null = null;
 
   static styles = css`
     code {
@@ -845,7 +845,7 @@ export class SystemDiagnostics extends LitElement {
   private renderRemote() {
     const api = isApi();
     const ro = !api || !this.canEdit;
-    const keys = ['remote.policy', 'remote.session', 'remote.idle_lock_minutes', 'remote.default_profile', 'remote.mse_fallback', 'remote.require_mfa_admin', 'remote.max_live_streams'] as const;
+    const keys = ['remote.policy', 'remote.session', 'remote.idle_lock_minutes', 'remote.default_profile', 'remote.mse_fallback', 'remote.require_mfa_admin', 'remote.max_live_streams', 'remote.wall_profile'] as const;
     const dirty = keys.some((k) => k in this.draft);
     const v = <K extends (typeof keys)[number]>(k: K, d: string) => String(this.value(k) ?? d);
     const sel = (key: (typeof keys)[number], d: string, options: [string, string][]) => html`<sw-field class="ctl"><select data-set-remote=${key} ?disabled=${ro} @change=${(e: Event) => this.set(key, (e.target as HTMLSelectElement).value as never)}>
@@ -884,10 +884,12 @@ export class SystemDiagnostics extends LitElement {
       <sw-card heading="וידאו מרחוק" subheading="WebRTC עובר ישירות בין הדפדפן ל־go2rtc; MSE מעביר את הווידאו עצמו דרך המנהרה ולכן הוא רק מוצא אחרון.">
         <div class="row"><span class="lbl">זרם ברירת מחדל<span class="muted">הזרם שצופה מרוחק מקבל ראשון, ב־WebRTC</span></span>
           ${sel('remote.default_profile', 'main', [['main', 'ראשי (main)'], ['sub', 'משני (sub)']])}</div>
+        <div class="row" data-remote-wall-profile-row><span class="lbl">איכות בקיר המצלמות מבחוץ<span class="muted">הזרם שכל אריח בקיר "כל המצלמות" מנגן מרחוק; אפשר לשנות גם במכשיר עצמו, בקיר.<br /><span data-remote-wall-hint>זרם ראשי בקיר דורש חיבור מהיר; במכשיר נייד מוצגות רק המצלמות שעל המסך</span></span></span>
+          ${sel('remote.wall_profile', 'sub', [['sub', 'רגילה (זרם משני)'], ['main', 'גבוהה (זרם ראשי)']])}</div>
         <div class="row"><span class="lbl">MSE כמוצא אחרון<span class="muted">כש־WebRTC לא מתחבר או לא מפענח. כבוי: אין וידאו דרך המנהרה בכלל</span></span>
           ${sel('remote.mse_fallback', 'true', [['true', 'מותר (מוצג לצופה)'], ['false', 'אסור']])}</div>
-        <div class="row"><span class="lbl">זרמים חיים לכל כניסה<span class="muted">כמה צפיות חיות במקביל מותרות לכל דפדפן או אפליקציה שנכנסו מרחוק (1 עד 32, ברירת מחדל 4); הצפייה הבאה נדחית עם הסבר. המכסה הכללית של המערכת חלה בנוסף</span></span>
-          <sw-field class="ctl"><input type="number" min="1" max="32" data-ltr data-set-remote="remote.max_live_streams" .value=${v('remote.max_live_streams', '4')} ?disabled=${ro} @change=${(e: Event) => this.set('remote.max_live_streams', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
+        <div class="row"><span class="lbl">זרמים חיים לכל כניסה<span class="muted">כמה צפיות חיות במקביל מותרות לכל דפדפן או אפליקציה שנכנסו מרחוק (1 עד 32, ברירת מחדל 16); הצפייה הבאה נדחית עם הסבר. המכסה הכללית של המערכת חלה בנוסף<br /><span data-remote-cap-hint>מומלץ: לפחות כמספר המצלמות בקיר</span>${this.health?.remote?.live_streams != null ? html` · <span data-remote-live-now>פעילים עכשיו: ${this.health.remote.live_streams}</span>` : nothing}</span></span>
+          <sw-field class="ctl"><input type="number" min="1" max="32" data-ltr data-set-remote="remote.max_live_streams" .value=${v('remote.max_live_streams', '16')} ?disabled=${ro} @change=${(e: Event) => this.set('remote.max_live_streams', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
         ${this.renderCodecSummary()}
         <div class="muted" data-remote-codec-hint style="margin-block-start:8px">דפדפנים מפענחים ב־WebRTC רק H.264 ללא B-frames; H.265 לא מתנגן ב־WebRTC ברוב הדפדפנים. אם הזרם הראשי של ה־NVR אינו כזה, הגדירו בו H.264 ללא B-frames או בחרו כאן בזרם המשני.</div>
       </sw-card>
