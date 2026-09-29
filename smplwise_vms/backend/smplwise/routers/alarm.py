@@ -433,15 +433,22 @@ def panel_action(entity_id: str, request: Request, principal: Principal = Depend
         codes.LOCKOUT.fail(keys, conn, now=ts)
         with _PASS_THROUGH_LOCK:
             _PASS_THROUGH[token].update(ts=ts, target=svc.TARGET_STATE.get(body.action))
+    sent = False
     try:
         out = _send(act, request, entity_id, svc.ACTIONS[body.action], {}, send_code, body.client_request_id, {"state": panel["state"]})
+        sent = True
     except ApiError as exc:
         if token:
             e = _PASS_THROUGH.get(token) or {}
-            _release_pass_through(token)
             if e.get("ts") is not None and exc.code not in ("invalid_code",):
                 codes.LOCKOUT.forgive(keys, e["ts"], conn)  # the bridge / platform failed: no code was judged
         raise
+    finally:
+        # final review item 1: whatever went wrong before an action id existed (a database error included), the slot is
+        # released - otherwise every typed attempt on this panel would get attempt_pending until a restart. The
+        # provisional failure stays counted unless forgiven above.
+        if token and not sent:
+            _release_pass_through(token)
     if token:
         if out["status"] == "pending":
             with _PASS_THROUGH_LOCK:

@@ -699,6 +699,28 @@ def test_pass_through_one_attempt_at_a_time_and_unconfirmed_counts(alarm_app, mo
     for _ in range(7):
         assert _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=CODE).status_code == 202
 
+def test_a_failure_inside_send_never_leaves_the_typed_slot_stuck(alarm_app, monkeypatch):
+    """Final review item 1: an error that is not an ApiError inside the send (here a database error on the ha_actions
+    row) releases the one-typed-attempt slot, so the next typed attempt is not refused with attempt_pending."""
+    app, s, c, calls, _ = alarm_app
+    import sqlite3 as _sqlite3
+
+    from smplwise.routers import alarm as alarm_router
+
+    _no_code(c)
+    real = alarm_router.ha_actions.action_row
+
+    def broken(conn, aid):
+        raise _sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(alarm_router.ha_actions, "action_row", broken)
+    with pytest.raises(_sqlite3.OperationalError):
+        _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=CODE)
+    assert alarm_router._PASS_THROUGH == {}
+    monkeypatch.setattr(alarm_router.ha_actions, "action_row", real)
+    r = _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=CODE)
+    assert r.status_code == 202, r.text
+
 def test_bridge_failure_text_never_carries_the_code(alarm_app, monkeypatch, caplog):
     app, s, c, calls, _ = alarm_app
     caplog.set_level(logging.DEBUG)
