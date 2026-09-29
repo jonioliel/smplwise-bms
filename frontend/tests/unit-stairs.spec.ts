@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildScene, LANDING_PLATE_M } from '../src/map/scene-builder';
 import { skippedTwinsMessage } from '../src/map/studio-controller';
-import { connectorLabel, crossFloorLabel, rebuildStair, stairCaption, stairPath, stairPlan, stairRise, turnOf, type GeomConnector, type GeometryDoc, type GeomLevel, type Pt } from '../src/map/geometry';
+import { connectorLabel, crossFloorLabel, effectiveScale, rebuildStair, stairCaption, stairPath, stairPlan, stairRise, turnOf, type GeomConnector, type GeometryDoc, type GeomLevel, type Pt } from '../src/map/geometry';
 import { connectorTargets, currentTarget, floorLinks, otherFloorOf, parseTarget, targetValue, type LinkTargetFloor } from '../src/map/connector-targets';
 import { addStair, confirmPlacement, levelUsage, moveConnector, moveConnectorVertex, rotateConnector, STAIR_ALIASES } from '../src/map/studio-ops';
 
@@ -258,6 +258,41 @@ test.describe('stairs model (T085)', () => {
     doc.connectors = [{ ...doc.connectors[0], far: { ...doc.connectors[0].far!, direction: 'up', datum_m: 3.2 } }];
     const upScene = buildScene({ doc, width: doc.dimensions.width_px, height: doc.dimensions.height_px, anchors: [], entityStates: {}, circuitStates: {} });
     expect(upScene.parts.filter((q) => q.id.startsWith('floor:L0')).length).toBe(1);
+  });
+
+  test('review M-c: two descending stairs cut two wells, and a turned stair cuts along its slant, not its bounding box', () => {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const doc = JSON.parse(fs.readFileSync(path.resolve(here, '..', '..', 'contracts', 'fixtures', 'plan_geometry', 'sample-v2.json'), 'utf8')) as GeometryDoc;
+    doc.objects = [];
+    const W = doc.dimensions.width_px;
+    const H = doc.dimensions.height_px;
+    const down = { floor_id: 'fb', floor_name: 'קומה 0', level_name: null, direction: 'down' as const, level_elevation_m: 0, datum_m: -3 };
+    const stair = (id: string, polyline: Pt[]) => C({ id, level_from: 'L0', level_to: 'L0', floor_ids: ['fa', 'fb'], shape: 'straight', flights: [{ steps: 12 }], polyline, far: down });
+    const plates = (d: GeometryDoc) => buildScene({ doc: d, width: W, height: H, anchors: [], entityStates: {}, circuitStates: {} }).parts.filter((q) => q.id === 'floor:L0' || q.id.startsWith('floor:L0#'));
+    const area = (ps: ReturnType<typeof plates>) => ps.reduce((s, q) => s + q.size[0] * q.size[2], 0);
+    const full = area(plates({ ...doc, connectors: [] }));
+    doc.connectors = [stair('a', [[0.08, 0.8], [0.08, 0.5]]), stair('b', [[0.92, 0.5], [0.92, 0.8]])];
+    const two = plates(doc);
+    const covers = (x: number, z: number) => two.some((q) => Math.abs(x - q.position[0]) <= q.size[0] / 2 && Math.abs(z - q.position[2]) <= q.size[2] / 2);
+    const s = effectiveScale(doc).scale;
+    expect(covers(0.5 * W * s, 0.65 * H * s)).toBe(true); // the plate between the two stairs stays
+    expect(covers(0.08 * W * s, 0.65 * H * s)).toBe(false);
+    expect(covers(0.92 * W * s, 0.65 * H * s)).toBe(false);
+    const flightArea = 0.3 * H * s * 1.2; // each: its run x its width
+    expect(full - area(two)).toBeCloseTo(2 * flightArea, 1);
+    // 45 degrees: the cut follows the steps - far less than the flight's bounding box
+    const d45: Pt = [(0.3 * H * s) / Math.SQRT2 / (W * s), (0.3 * H * s) / Math.SQRT2 / (H * s)];
+    doc.connectors = [stair('c', [[0.4, 0.8], [0.4 + d45[0], 0.8 - d45[1]]])];
+    const turned = plates(doc);
+    const cut = full - area(turned);
+    const plan = stairPlan(doc.connectors[0], W, H, s)!;
+    const xs = plan.flights[0].outline.map((q) => q[0] * s);
+    const zs = plan.flights[0].outline.map((q) => q[1] * s);
+    const bbox = (Math.max(...xs) - Math.min(...xs)) * (Math.max(...zs) - Math.min(...zs));
+    expect(cut).toBeGreaterThan(flightArea * 0.99);
+    expect(cut).toBeLessThan(bbox * 0.75);
+    const steps = buildScene({ doc, width: W, height: H, anchors: [], entityStates: {}, circuitStates: {} }).parts.filter((q) => q.id.startsWith('conn:c#f0s'));
+    for (const st of steps) for (const p of turned) expect(Math.abs(st.position[0] - p.position[0]) < p.size[0] / 2 - 1e-6 && Math.abs(st.position[2] - p.position[2]) < p.size[2] / 2 - 1e-6, `${st.id} under ${p.id}`).toBe(false);
   });
 
   test('review M-a: a save whose twin could not follow says which floor', () => {

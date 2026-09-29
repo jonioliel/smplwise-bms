@@ -9,7 +9,7 @@
  * Ruling R-P4-T4-1: one convention for cameras - the forward is -z of the part, the description carries pitch = -tilt,
  * so applying the Euler as it stands looks DOWN by the tilt; consumers derive the view direction from the same Euler.
  */
-import { buildPrimitives, DEFAULT_WALL_THICKNESS_M, effectiveScale, MAX_TRIBUNE_ROWS, floorHeight, stairPlan, stairRise, type CatalogLookup, type GeomConnector, type ConnectorPrim, type DoorPrim, type GeometryDoc, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type ObjectPrim, type ObjectShape, type Pt, type Primitive, type WallPrim, type WindowPrim } from './geometry';
+import { buildPrimitives, DEFAULT_WALL_THICKNESS_M, effectiveScale, MAX_TRIBUNE_ROWS, floorHeight, stairPlan, stairRise, type CatalogLookup, type GeomConnector, type StairFlightPlan, type ConnectorPrim, type DoorPrim, type GeometryDoc, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type ObjectPrim, type ObjectShape, type Pt, type Primitive, type WallPrim, type WindowPrim } from './geometry';
 import { defaultLevelId, levelOrDefault } from './studio-ops';
 import { blockingSegments, clipCoverage, isOpenState, type Seg } from './coverage';
 import { anchor3d } from './anchor-3d';
@@ -170,6 +170,41 @@ const MIN_STEP_M = 0.05;
 const LEVEL_PAD_M = 0.5;
 /** The landing of a stair drawn as a plate this thick under its walking surface (T085). */
 export const LANDING_PLATE_M = 0.2;
+
+type Box2 = [number, number, number, number];
+
+/** A plate [x0, z0, x1, z1] less the holes: the plate cut on a grid of every hole edge, the cells outside every hole
+ * merged along each row - axis-aligned boxes that cover the plate except the holes (review M-c). No hole: the plate. */
+export function plateAround(plate: Box2, holes: readonly Box2[]): Box2[] {
+  const [x0, z0, x1, z1] = plate;
+  const inside = holes.map((h): Box2 => [Math.max(x0, h[0]), Math.max(z0, h[1]), Math.min(x1, h[2]), Math.min(z1, h[3])]).filter((h) => h[2] - h[0] > 1e-6 && h[3] - h[1] > 1e-6);
+  if (!inside.length) return [plate];
+  const xs = [...new Set([x0, x1, ...inside.flatMap((h) => [h[0], h[2]])])].sort((a, b) => a - b);
+  const zs = [...new Set([z0, z1, ...inside.flatMap((h) => [h[1], h[3]])])].sort((a, b) => a - b);
+  const out: Box2[] = [];
+  for (let j = 0; j + 1 < zs.length; j++) {
+    const zm = (zs[j] + zs[j + 1]) / 2;
+    let start: number | null = null;
+    for (let i = 0; i + 1 < xs.length; i++) {
+      const xm = (xs[i] + xs[i + 1]) / 2;
+      const holed = inside.some((h) => xm > h[0] && xm < h[2] && zm > h[1] && zm < h[3]);
+      if (!holed && start === null) start = xs[i];
+      if (holed && start !== null) {
+        out.push([start, zs[j], xs[i], zs[j + 1]]);
+        start = null;
+      }
+    }
+    if (start !== null) out.push([start, zs[j], xs[xs.length - 1], zs[j + 1]]);
+  }
+  // rows with the same span stack into one box
+  const merged: Box2[] = [];
+  for (const b of out) {
+    const up = merged.find((m) => Math.abs(m[0] - b[0]) < 1e-9 && Math.abs(m[2] - b[2]) < 1e-9 && Math.abs(m[3] - b[1]) < 1e-9);
+    if (up) up[3] = b[3];
+    else merged.push([...b]);
+  }
+  return merged;
+}
 
 /** Half-up to 0.1 mm, the r2 rule of the primitives one digit further (metres, not pixels). */
 export const r4 = (v: number): number => Math.floor(v * 1e4 + 0.5) / 1e4;
@@ -405,13 +440,8 @@ class Builder {
       const box = lv.id === this.defaultLevel.id ? ([0, 0, W, D] as [number, number, number, number]) : this.bounds(lv.id);
       if (!box) continue;
       const [x0, z0, x1, z1] = [Math.max(0, box[0]), Math.max(0, box[1]), Math.min(W, box[2]), Math.min(D, box[3])];
-      const hole = wells.get(lv.id);
-      const pieces: [number, number, number, number][] = [];
-      if (hole && hole[0] < x1 && hole[2] > x0 && hole[1] < z1 && hole[3] > z0) {
-        // review M2: the plate is cut around the well of the stairs going down from this level, so they stay visible
-        const [hx0, hz0, hx1, hz1] = [Math.max(x0, hole[0]), Math.max(z0, hole[1]), Math.min(x1, hole[2]), Math.min(z1, hole[3])];
-        pieces.push([x0, z0, x1, hz0], [x0, hz1, x1, z1], [x0, hz0, hx0, hz1], [hx1, hz0, x1, hz1]);
-      } else pieces.push([x0, z0, x1, z1]);
+      // review M2 / M-c: the plate is cut around each well of the stairs going down from this level, so they stay visible
+      const pieces = plateAround([x0, z0, x1, z1], wells.get(lv.id) ?? []);
       let n = 0;
       for (const [a0, b0, a1, b1] of pieces) {
         if (a1 - a0 < 1e-4 || b1 - b0 < 1e-4) continue;
@@ -421,11 +451,12 @@ class Builder {
     }
   }
 
-  /** The stairwell of each level (review M2): the footprint, in metres, of the stairs that go down from it to another
-   * floor (their rise is negative) - a stair on the upper floor walked down to the floor below would otherwise be
-   * hidden under that level's plate. One rectangle per level (the union of its wells). */
-  stairwells(): Map<string, [number, number, number, number]> {
-    const out = new Map<string, [number, number, number, number]>();
+  /** The stairwells of each level (review M2, M-c): the footprint, in metres, of each stair that goes down from it to
+   * another floor (its rise is negative) - a stair on the upper floor walked down to the floor below would otherwise be
+   * hidden under that level's plate. One rectangle per flight and per landing of each stair (a plain connector: per
+   * segment, widened by half its width), so two stairs far apart cut two wells and a turned stair only its own parts. */
+  stairwells(): Map<string, Box2[]> {
+    const out = new Map<string, Box2[]>();
     if (!this.layers.connectors) return out;
     const { doc, width, height } = this.input;
     const levels = new Map(this.levels.map((l) => [l.id, l]));
@@ -434,13 +465,24 @@ class Builder {
     for (const c of doc.connectors) {
       if (!c.floor_ids?.length || c.object_id || stairRise(levels, c, fh) >= 0) continue;
       const plan = stairPlan(c, width, height, scale, { descending: true });
-      const pts: Pt[] = plan ? [...plan.flights.flatMap((f) => f.outline), ...plan.landings.flat()] : c.polyline.map((q): Pt => [q[0] * width, q[1] * height]);
-      if (!pts.length) continue;
+      const px: Pt[] = c.polyline.map((q): Pt => [q[0] * width, q[1] * height]);
+      // a flight along the plan's axes is one box; a turned one is cut step by step, so the well follows its slant
+      const flightParts = (f: StairFlightPlan): Pt[][] => {
+        const [a, b, cc, d] = f.outline;
+        const along = Math.abs(b[0] - a[0]) < 1e-6 || Math.abs(b[1] - a[1]) < 1e-6;
+        if (along || f.steps < 2) return [f.outline];
+        const lerp = (p: Pt, q: Pt, s: number): Pt => [p[0] + (q[0] - p[0]) * s, p[1] + (q[1] - p[1]) * s];
+        return Array.from({ length: f.steps }, (_, k) => [lerp(a, b, k / f.steps), lerp(a, b, (k + 1) / f.steps), lerp(d, cc, (k + 1) / f.steps), lerp(d, cc, k / f.steps)]);
+      };
+      const parts: Pt[][] = plan ? [...plan.flights.flatMap(flightParts), ...plan.landings] : px.slice(1).map((q, i) => [px[i], q]);
       const pad = plan ? 0 : (c.width_m || 1) / scale / 2;
-      const box: [number, number, number, number] = [this.m(Math.min(...pts.map((q) => q[0])) - pad), this.m(Math.min(...pts.map((q) => q[1])) - pad), this.m(Math.max(...pts.map((q) => q[0])) + pad), this.m(Math.max(...pts.map((q) => q[1])) + pad)];
       const id = this.level(c.level_from).id;
-      const had = out.get(id);
-      out.set(id, had ? [Math.min(had[0], box[0]), Math.min(had[1], box[1]), Math.max(had[2], box[2]), Math.max(had[3], box[3])] : box);
+      const list = out.get(id) ?? [];
+      for (const pts of parts) {
+        if (!pts.length) continue;
+        list.push([this.m(Math.min(...pts.map((q) => q[0])) - pad), this.m(Math.min(...pts.map((q) => q[1])) - pad), this.m(Math.max(...pts.map((q) => q[0])) + pad), this.m(Math.max(...pts.map((q) => q[1])) + pad)]);
+      }
+      out.set(id, list);
     }
     return out;
   }
