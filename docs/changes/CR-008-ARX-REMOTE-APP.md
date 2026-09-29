@@ -434,3 +434,23 @@ go2rtc main-stream codec check (step 6 - the settings screen shows the static H.
 round and release (step 7). Tests: 45 backend tests (`tests/test_remote_access.py`, fake HA core
 `tests/fake_ha_core.py`) and 8 Playwright runs (`tests/evidence-arx-remote.spec.ts` desktop + phone against
 `tests/fixtures/arx_fake_ha.py`). Owner check: AT185 subset of §4 on the lab site.
+
+### 8.1 Step 6 built (branch `pilot/CR008-video-policy`, 2026-09-29)
+
+- **Player policy** (`frontend/src/api/video-policy.ts`, `sw-live-player`): on the remote channel (`/me.channel`)
+  every live player walks a ladder - `remote.default_profile` over WebRTC; then `remote.mse_fallback` true → the same
+  profile over MSE, false → the other profile over WebRTC and finally the message "הזרם הראשי אינו ניתן לפענוח
+  ב-WebRTC - ראה הגדרות › וידאו". A WebRTC step fails when it does not connect or renders no frame within 12 s; a
+  stream the registry marks as not WebRTC-safe is skipped. Badge `main·WebRTC` / `sub·WebRTC` / `main·MSE`, fallbacks
+  announced on the picture. Wall and map tiles keep their own profile. LAN / Ingress unchanged (no `video.lan_profile`
+  setting exists; none was added).
+- **Codec check** (deviation from §3c's "go2rtc stream info"): read from the NVR instead - `GET
+  /ISAPI/Streaming/channels` (read-only) during the discovery, stored per camera in `capabilities_json.encoding`
+  (codec, profile, SVC, smart codec, B-frames where exposed, verdict ok / no / unknown). The lab probe of 2026-09-14
+  explains the lab fact of D7: every main stream is H.264 with **SVC on**, every sub stream H.264 without SVC - so
+  H.264 + SVC counts as not WebRTC-safe alongside H.265, MJPEG and B-frames. The lab firmware exposes no B-frame
+  element. Shown in הגדרות › גישה מרחוק (summary line → health detail), the health report card `video_webrtc` (warns
+  only with `remote_access` on and main first), the camera capabilities, the setup wizard's NVR step (Hebrew hint;
+  with a Hikvision model the NVR web menu path, not yet verified on the lab NVR), `/health.video_codecs` (counts).
+- Tests: `tests/test_stream_codecs.py` (backend), `tests/evidence-remote-video.spec.ts` (Playwright, desktop, against
+  `tests/fixtures/setup_fake_devices.py`; the browser's WebRTC / MSE are faked there - real media is the lab check).

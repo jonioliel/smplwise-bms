@@ -649,9 +649,24 @@ Supervisor network.
 - **WisKey.** The sign-in also signs the browser in to Home Assistant on the same hostname (HA's `hassTokens`), so
   the embedded WisKey panel opens without a second login. That browser is then signed in to the HA UI at `/` as the
   same user too; signing out of Arx signs it out of both.
-- **Video.** `remote.default_profile` (main) over WebRTC; MSE through the tunnel only as an announced last resort
-  (`remote.mse_fallback`). Browsers decode only H.264 without B-frames over WebRTC - set the NVR's main stream that
-  way, or choose `sub` as the remote default. (The player's use of these two settings is the next step of CR-008.)
+- **Video.** Remotely every live player starts with `remote.default_profile` (main) over **WebRTC** - the media goes
+  straight between the browser and go2rtc, not through the tunnel. If WebRTC does not connect, or connects but shows
+  no frame within 12 s, the player falls back by `remote.mse_fallback`: on (default) → the same profile over MSE
+  through the tunnel, announced on the picture; off → the other profile over WebRTC (announced), and when that fails
+  too, "הזרם הראשי אינו ניתן לפענוח ב-WebRTC - ראה הגדרות › וידאו" - never MSE. A badge on the picture shows what
+  plays (`main·WebRTC`, `sub·WebRTC`, `main·MSE`). The camera wall and map tiles keep their own profile (the wall's
+  `media.wall_profile`) under the same rule. The LAN / Ingress player is unchanged.
+- **Codec check.** Browsers decode H.264 over WebRTC, but not H.265 (most browsers), MJPEG, or H.264 with B-frames or
+  SVC. The camera discovery (start-up, every 10 minutes, "Sync cameras") reads each camera's main and sub encoding
+  from the NVR (`GET /ISAPI/Streaming/channels`, read-only) into the camera registry; a stream known not to play over
+  WebRTC is skipped remotely (straight to the fallback). On the pilot lab every main stream was H.264 with **SVC on**
+  and none decoded over WebRTC, while the sub streams (no SVC) did - turning SVC off on the main stream is the first
+  thing to try. Where it shows: הגדרות › גישה מרחוק (a read-only summary line with a link), the health report card
+  "וידאו ב־WebRTC" (the cameras and a Hebrew hint each, e.g. "הזרם הראשי של X מקודד H.265 - לא יתנגן ב-WebRTC;
+  לשינוי: NVR → Encoding → Main stream → H.264, B-frames off"; with a Hikvision model from deviceInfo the hint names the
+  NVR web menu, Configuration → Video/Audio → Video - not yet verified on the lab NVR), the camera's capability row,
+  the setup wizard's NVR step, and counts in `/health` (`video_codecs`). The card warns only while `remote_access` is
+  on and remote viewers get the main stream first. The add-on never changes the NVR's encoding itself.
 - **Security.** The `/arx` channel never accepts Ingress identity headers (they are dropped), answers 404 while the
   option is off, sends a strict CSP (`frame-ancestors 'self'`), `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy`
   and `Permissions-Policy`, and keeps its session in an `HttpOnly; Secure; SameSite=Strict; Path=/arx/` cookie that is
