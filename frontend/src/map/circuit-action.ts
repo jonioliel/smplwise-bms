@@ -20,7 +20,7 @@ export function circuitAction(s: CircuitState, ctx: { busy: boolean; stale: bool
   const why = !s.can_control
     ? 'אין הרשאת שליטה בישויות בקומה'
     : !s.available
-      ? 'המפסק אינו זמין ב־Home Assistant'
+      ? 'המפסק אינו זמין'
       : !spec
         ? 'אין פעולה מותרת למפסק הזה'
         : spec.granted === false

@@ -253,7 +253,7 @@ export const GROUP_TABS: Record<NavGroup, TabItem[]> = {
   sites: [
     { id: 'sites', label: 'אתרים ומבנים', href: '#/explore/sites' },
     { id: 'floors', label: 'מפת קומה', href: '#/explore/floors/f0' },
-    { id: 'entities', label: 'ישויות HA', href: '#/explore/entities' },
+    { id: 'entities', label: 'התקנים', href: '#/explore/entities' },
   ],
   /** Entry Center, Activity and People (CR-005 phase 1b), plus WisKey's own screens as embedded tabs (2026-09-28). */
   wiskey: WISKEY_TABS,
@@ -370,7 +370,7 @@ export const AREA_TABS: Record<AreaId, TabItem[]> = {
   explore: [
     { id: 'sites', label: 'אתרים ומבנים', href: '#/explore/sites' },
     { id: 'floors', label: 'מפת קומה', href: '#/explore/floors/f0' },
-    { id: 'entities', label: 'ישויות HA', href: '#/explore/entities' },
+    { id: 'entities', label: 'התקנים', href: '#/explore/entities' },
   ],
   /** Entry Center/overview, Activity/events and People/people (CR-005 phase 1b), plus WisKey's own screens as embedded
    * tabs (CR-005 recorded decision 2026-09-28) - the same list as GROUP_TABS.wiskey. */

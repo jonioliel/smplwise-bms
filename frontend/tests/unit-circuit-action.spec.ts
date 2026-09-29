@@ -18,7 +18,7 @@ test('circuitAction picks the opposite action and names every block', () => {
   expect(circuitAction(circuit({ state: null }), free).spec?.id).toBe('switch.turn_on'); // unknown: the first press switches on
   const why = (s: CircuitState, ctx = free) => circuitAction(s, ctx);
   expect(why(circuit({ can_control: false }))).toMatchObject({ blocked: true, why: 'אין הרשאת שליטה בישויות בקומה' });
-  expect(why(circuit({ available: false }))).toMatchObject({ blocked: true, why: 'המפסק אינו זמין ב־Home Assistant' });
+  expect(why(circuit({ available: false }))).toMatchObject({ blocked: true, why: 'המפסק אינו זמין' });
   expect(why(circuit({ actions: [spec('switch.turn_on')] }))).toMatchObject({ spec: null, blocked: true, why: 'אין פעולה מותרת למפסק הזה' });
   expect(why(circuit({ actions: [spec('switch.turn_off', { granted: false, grant: 'lights.special' })] }))).toMatchObject({ blocked: true, why: 'נדרשת הרשאה נפרדת: lights.special' });
   expect(why(circuit(), { busy: true, stale: false })).toMatchObject({ blocked: true, why: 'פעולה על המפסק כבר בדרך' });

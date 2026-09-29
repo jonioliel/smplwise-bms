@@ -69,9 +69,9 @@ export function supersede(key: string): void {
 
 function settle<T>(a: HaActionRecord, optimistic: T, label: string, onUpdate: (s: CommandState<T>) => void): void {
   if (a.status === 'confirmed') onUpdate({ phase: a.confirmation === 'none' ? 'sent' : 'confirmed', optimistic, label, note: null });
-  else if (a.status === 'denied') onUpdate({ phase: 'rolled_back', optimistic, label, note: ACTION_ERROR_LABEL[a.error ?? ''] ?? 'נדחה על ידי Home Assistant' });
+  else if (a.status === 'denied') onUpdate({ phase: 'rolled_back', optimistic, label, note: ACTION_ERROR_LABEL[a.error ?? ''] ?? 'נדחה על ידי תשתית המערכת' });
   else if (a.status === 'failed') onUpdate({ phase: 'rolled_back', optimistic, label, note: ACTION_ERROR_LABEL[a.error ?? ''] ?? 'הפעולה נכשלה' });
-  else onUpdate({ phase: 'rolled_back', optimistic, label, note: 'לא אושר בזמן: Home Assistant לא דיווח על שינוי המצב' }); // pending/unknown past the domain timeout
+  else onUpdate({ phase: 'rolled_back', optimistic, label, note: 'לא אושר בזמן: תשתית המערכת לא דיווחה על שינוי המצב' }); // pending/unknown past the domain timeout
 }
 
 /**
@@ -109,7 +109,7 @@ export async function runCommand<T>(
     settle(a, optimistic, label, onUpdate);
   } catch (err) {
     if (!isCurrent()) return;
-    const msg = err instanceof ApiError && err.code === 'bridge_not_paired' ? 'גשר SMPLWISE אינו מצומד ב־Home Assistant.' : describeError(err);
+    const msg = err instanceof ApiError && err.code === 'bridge_not_paired' ? 'גשר SMPLWISE אינו מצומד.' : describeError(err);
     onUpdate({ phase: 'rolled_back', optimistic, label, note: msg });
   }
 }

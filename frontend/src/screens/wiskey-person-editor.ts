@@ -557,7 +557,7 @@ export class WiskeyPersonEditor extends LitElement {
     const ctx = this.ctx;
     const notes = [];
     if (ctx && (ctx.writes_listed === false || ctx.users_manage === false)) {
-      notes.push(html`<div class="note err" role="alert" data-wiskey-editor-note="no_users_manage">WisKey אינו מציע את פקודות ניהול האנשים למשתמש ה־Home Assistant של SMPLWISE (נדרש אזור users ברמת manage ב־WisKey). שמירה תידחה על ידי WisKey ולא תשנה דבר.</div>`);
+      notes.push(html`<div class="note err" role="alert" data-wiskey-editor-note="no_users_manage">WisKey אינו מציע את פקודות ניהול האנשים למשתמש המערכת של SMPLWISE (נדרש אזור users ברמת manage ב־WisKey). שמירה תידחה על ידי WisKey ולא תשנה דבר.</div>`);
     } else if (ctx && ctx.writes_listed === null) {
       notes.push(html`<div class="note info" role="note" data-wiskey-editor-note="writes_unverified">WisKey לא ציין אילו פקודות זמינות למשתמש של SMPLWISE; אם חסרה לו הרשאת ניהול אנשים (users:manage) השמירה תידחה - ותוצג כאן כדחייה.</div>`);
     }

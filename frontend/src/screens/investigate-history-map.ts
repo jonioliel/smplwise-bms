@@ -540,7 +540,7 @@ export class InvestigateHistoryMap extends LitElement {
       <div class="evl" style="margin-block-start:4px">${ents.slice(0, 8).map((a) => {
         const sa = a.entity?.state_at;
         const name = entityName(a);
-        return html`<div data-history-entity data-known=${sa?.known ? 'true' : 'false'} data-source=${sa?.source ?? 'vms'}><span>${name}${sa?.source === 'ha_recorder' ? html` <span class="note" title="המצב מגיע מה־recorder של Home Assistant (מקור משני)">· HA recorder</span>` : nothing}</span><span class="note">${sa?.known && sa.state ? html`${stateLabel({ ...(a.entity ?? { domain: '', unit: null, device_class: null, attributes: {} }), state: sa.state })} · מ־<span class="ltr">${sa.changed_at ? this.fmt(sa.changed_at) : ''}</span>` : html`לא ידוע${sa?.reason ? ` · ${sa.reason}` : ''}${sa?.state ? html` <span class="ltr">(אחרון: ${sa.state})</span>` : ''}`}</span></div>`;
+        return html`<div data-history-entity data-known=${sa?.known ? 'true' : 'false'} data-source=${sa?.source ?? 'vms'}><span>${name}${sa?.source === 'ha_recorder' ? html` <span class="note" title="המצב מגיע מהיסטוריית המערכת (מקור משני)">· מקור משני</span>` : nothing}</span><span class="note">${sa?.known && sa.state ? html`${stateLabel({ ...(a.entity ?? { domain: '', unit: null, device_class: null, attributes: {} }), state: sa.state })} · מ־<span class="ltr">${sa.changed_at ? this.fmt(sa.changed_at) : ''}</span>` : html`לא ידוע${sa?.reason ? ` · ${sa.reason}` : ''}${sa?.state ? html` <span class="ltr">(אחרון: ${sa.state})</span>` : ''}`}</span></div>`;
       })}</div>`;
   }
 
@@ -664,7 +664,7 @@ export class InvestigateHistoryMap extends LitElement {
             ? html`<dt>הקלטה</dt><dd>${recs === undefined ? 'טוען…' : recs === null ? 'לא ניתן לבדוק מול ה־NVR' : cov?.segment ? html`יש הקלטה · ${minuteLabel(cov.segment.startMin)}–${minuteLabel(cov.segment.endMin)} · ${cov.segment.kind === 'continuous' ? 'רציף' : 'תנועה'}` : 'אין הקלטה בזמן זה (פער)'}</dd>
                 <dt>אירועים ±5 דק׳</dt><dd>${this.eventsNear(cam.resource_id, 5).length}</dd>`
             : nothing}
-          <dt>ישויות HA</dt><dd data-history-entities>${this.renderEntityStates(b)}</dd>
+          <dt>התקנים</dt><dd data-history-entities>${this.renderEntityStates(b)}</dd>
           ${cam && this.frameAt ? html`<dt>פריים</dt><dd><div class="frame" data-history-frame>${this.frameFailed ? html`<span>אין פריים בהקלטה בזמן זה</span>` : html`<img src=${frameUrl(cam.resource_id, this.frameAt)} alt="פריים מההקלטה בזמן שנבחר" @error=${() => (this.frameFailed = true)} />`}</div></dd>` : nothing}
           <dt>גרסת תוכנית</dt><dd data-history-plan-version data-history-mode=${b.history ?? 'live'}>${b.history === 'exact' && b.planPublishedAt ? html`בתוקף באותו זמן · פורסמה <span class="ltr">${this.fmtWhen(b.planPublishedAt)}</span>${b.planArchivedAt ? html` · הוחלפה <span class="ltr">${this.fmtWhen(b.planArchivedAt)}</span>` : ''}` : b.historyFrom ? html`המפה הנוכחית · היסטוריית המפה מתחילה <span class="ltr">${this.fmtWhen(b.historyFrom)}</span>` : 'המפה הנוכחית'}</dd>
         </dl>
@@ -716,7 +716,7 @@ export class InvestigateHistoryMap extends LitElement {
             @marker-select=${(e: CustomEvent<MarkerSelectDetail>) => { this.selectedId = e.detail.id; this.frameFailed = false; }}></sw-plan-canvas>
           ${this.threeState === 'loading' ? html`<div class="hist below" data-3d-loading>טוען תלת-ממד…</div>` : nothing}
           ${this.threeState === 'error' ? html`<div class="hist below" data-3d-load-error>תלת-ממד לא נטען: ${this.threeError}</div>` : nothing}
-          ${this.shows3d ? nothing : html`<div class="legend"><span>כחול = יש הקלטה בזמן זה</span><span>מקווקו = אין הקלטה / לא ידוע</span><span>ישויות HA = מצב מההיסטוריה המקומית או לא ידוע</span></div>`}
+          ${this.shows3d ? nothing : html`<div class="legend"><span>כחול = יש הקלטה בזמן זה</span><span>מקווקו = אין הקלטה / לא ידוע</span><span>התקנים = מצב מההיסטוריה המקומית או לא ידוע</span></div>`}
         </div>
         ${this.renderPanel(b)}
       </div>

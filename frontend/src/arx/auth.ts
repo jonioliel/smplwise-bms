@@ -121,7 +121,7 @@ async function haJson(path: string, init: RequestInit): Promise<{ status: number
   try {
     res = await fetch(path, { ...init, credentials: 'same-origin', cache: 'no-store' });
   } catch {
-    throw new ArxAuthError('network', 'אין חיבור ל־Home Assistant. בדוק את החיבור ונסה שוב.');
+    throw new ArxAuthError('network', 'אין חיבור לתשתית המערכת. בדוק את החיבור ונסה שוב.');
   }
   let data: Record<string, unknown> | null = null;
   try {
@@ -140,7 +140,7 @@ const HA_ERRORS: Record<string, string> = {
   login_expired: 'פג תוקף הכניסה, התחל מחדש.',
   no_mfa_module: 'מודול האימות הדו־שלבי אינו זמין.',
   invalid_flow: 'תהליך הכניסה פג. התחל מחדש.',
-  unknown_error: 'שגיאה לא צפויה ב־Home Assistant.',
+  unknown_error: 'שגיאה לא צפויה.',
 };
 
 export function haErrorText(code: string, fallback?: string): string {
@@ -182,10 +182,10 @@ async function postStart(handler: [string, string | null], challenge: string | n
 
 function httpError(status: number, data: Record<string, unknown> | null): ArxAuthError {
   const msg = typeof data?.message === 'string' ? data.message : '';
-  if (status === 403 || status === 429) return new ArxAuthError('banned', 'Home Assistant חסם את הכתובת שממנה ניסית להתחבר (יותר מדי ניסיונות כושלים). פנה למנהל המערכת.', status);
+  if (status === 403 || status === 429) return new ArxAuthError('banned', 'תשתית המערכת חסמה את הכתובת שממנה ניסית להתחבר (יותר מדי ניסיונות כושלים). פנה למנהל המערכת.', status);
   if (status === 404) return new ArxAuthError('invalid_flow', haErrorText('invalid_flow'), status);
-  if (status >= 500) return new ArxAuthError('ha_unavailable', 'Home Assistant אינו זמין כרגע. נסה שוב בעוד רגע.', status);
-  return new ArxAuthError('ha_error', msg ? `Home Assistant: ${msg}` : haErrorText('unknown_error'), status);
+  if (status >= 500) return new ArxAuthError('ha_unavailable', 'תשתית המערכת אינה זמינה כרגע. נסה שוב בעוד רגע.', status);
+  return new ArxAuthError('ha_error', msg ? `שגיאה: ${msg}` : haErrorText('unknown_error'), status);
 }
 
 function stepOf(data: Record<string, unknown>): FlowStep {
@@ -206,7 +206,7 @@ export async function startFlow(): Promise<{ flow: LoginFlow; step: FlowStep }> 
   if (providers.status !== 200 || !providers.data) throw httpError(providers.status, providers.data);
   const list = (Array.isArray(providers.data) ? providers.data : (providers.data.providers as unknown[])) as { type: string; id: string | null }[];
   const local = (list ?? []).find((p) => p.type === 'homeassistant');
-  if (!local) throw new ArxAuthError('no_provider', 'ספק הכניסה של Home Assistant (משתמשים וסיסמאות) אינו פעיל.');
+  if (!local) throw new ArxAuthError('no_provider', 'ספק הכניסה (משתמשים וסיסמאות) אינו פעיל.');
   const handler: [string, string | null] = [local.type, local.id ?? null];
   let verifier: string | null = null;
   let r: Awaited<ReturnType<typeof haJson>>;

@@ -194,7 +194,7 @@ export class ExploreEntities extends LitElement {
   private columns: TableColumn[] = [
     { key: 'name', label: 'ישות', render: (r) => html`<span style="display:inline-flex;align-items:center;gap:8px"><span style="display:grid;place-items:center;inline-size:26px;block-size:26px;border-radius:7px;background:var(--sw-accent-soft);color:var(--sw-accent)"><sw-icon name=${domainIcon(String(r.domain))} size=${13}></sw-icon></span><span><strong>${String(r.name)}</strong><div class="ltr" style="font-size:var(--sw-fs-xs);color:var(--sw-text-3)">${String(r.id)}</div></span></span>` },
     { key: 'domain', label: 'Domain', ltr: true },
-    { key: 'area', label: 'אזור HA' },
+    { key: 'area', label: 'אזור' },
     { key: 'state', label: 'מצב' },
     { key: 'fresh', label: 'רעננות', render: (r) => html`<sw-badge kind=${r.fresh as StateKind} label=${r.fresh === 'live' || r.fresh === 'neutral' ? 'עדכני' : r.fresh === 'stale' ? 'מיושן' : r.fresh === 'offline' ? 'לא זמין' : 'לא ידוע'}></sw-badge>` },
     { key: 'placed', label: 'במפה', render: (r) => (r.placed ? html`<sw-badge kind="recorded" label="מוצב"></sw-badge>` : html`<span style="color:var(--sw-text-3)">לא</span>`) },
@@ -220,7 +220,7 @@ export class ExploreEntities extends LitElement {
       <dl>
         <dt>מצב</dt><dd><sw-badge kind=${tone} label=${stateLabel(e)}></sw-badge></dd>
         <dt>Domain</dt><dd><span class="ltr">${e.domain}</span> · ${domainLabel(e.domain)}${e.device_class ? html` · <span class="ltr">${e.device_class}</span>` : nothing}</dd>
-        <dt>אזור HA</dt><dd>${e.area_name ?? '—'}${e.ha_floor_name ? ` · ${e.ha_floor_name}` : ''}</dd>
+        <dt>אזור</dt><dd>${e.area_name ?? '—'}${e.ha_floor_name ? ` · ${e.ha_floor_name}` : ''}</dd>
         <dt>שינוי אחרון</dt><dd>${fmtTime(e.last_changed)}</dd>
         <dt>נראה לאחרונה</dt><dd>${fmtTime(e.state_seen_at)}${e.fresh ? '' : ' · הסנכרון מנותק'}</dd>
         <dt>אינטגרציה</dt><dd><span class="ltr">${e.platform ?? '—'}</span></dd>
@@ -228,7 +228,7 @@ export class ExploreEntities extends LitElement {
         <dt>במפה</dt><dd>${e.placements?.length ? html`<span class="chips">${e.placements.map((p) => html`<sw-chip @click=${() => navigate(`/explore/floors/${p.floor_id}`)}>${p.floor_name}</sw-chip>`)}</span>` : 'לא מוצב'}</dd>
       </dl>
       ${attrs.length ? html`<div class="attrs">${attrs.map(([k, v]) => html`<span>${k}</span><span>${typeof v === 'object' ? JSON.stringify(v) : String(v)}</span>`)}</div>` : nothing}
-      <div class="note">הקטלוג הוא שיקוף לקריאה בלבד של Home Assistant. הפעולות רצות דרך גשר SMPLWISE בזהות המשתמש; שליטה מהמפה דורשת הרשאת ha.entity.control.</div>
+      <div class="note">הקטלוג הוא שיקוף לקריאה בלבד של תשתית המערכת. הפעולות רצות דרך גשר SMPLWISE בזהות המשתמש; שליטה מהמפה דורשת הרשאת ha.entity.control.</div>
       <div slot="footer">
         ${e.placements?.length
           ? html`<sw-button variant="primary" icon="map" @click=${() => navigate(`/explore/floors/${e.placements![0].floor_id}`)}>הצג במפה</sw-button>`
@@ -245,10 +245,10 @@ export class ExploreEntities extends LitElement {
     const ent = cat?.entities.find((e) => e.entity_id === this.selected);
     const total = domains.reduce((n, [, c]) => n + c, 0);
     const sub = sync
-      ? `${total} ישויות בקטלוג · ${sync.connected ? `סנכרון פעיל · HA ${sync.ha_version ?? ''}` : `הסנכרון מנותק${sync.last_error ? ` · ${sync.last_error}` : ''}`}`
+      ? `${total} ישויות בקטלוג · ${sync.connected ? `סנכרון פעיל · גרסה ${sync.ha_version ?? ''}` : `הסנכרון מנותק${sync.last_error ? ` · ${sync.last_error}` : ''}`}`
       : 'טוען את הקטלוג…';
     return html`
-      <sw-page heading="קטלוג ישויות Home Assistant" subheading=${sub}>
+      <sw-page heading="קטלוג ההתקנים" subheading=${sub}>
         <sw-button slot="actions" icon="refresh" ?disabled=${this.loading} @click=${() => this.load()}>רענון</sw-button>
         <div class="filters">
           <sw-field class="search"><input type="search" placeholder="חיפוש לפי שם, entity_id או אזור" .value=${this.q} @input=${(e: Event) => this.onSearch((e.target as HTMLInputElement).value)} /></sw-field>
@@ -265,7 +265,7 @@ export class ExploreEntities extends LitElement {
             : !cat
               ? html`<sw-state-panel state="loading"></sw-state-panel>`
               : !rows.length
-                ? html`<sw-state-panel state="empty" heading=${total ? 'אין ישויות שתואמות את הסינון' : 'הקטלוג ריק'} hint=${total ? 'נקה את החיפוש או בחר domain אחר.' : sync?.connected ? 'ההסנכרון פעיל אך טרם התקבלו מצבים.' : 'ה־Add-on לא מחובר ל־Home Assistant. בדוק בהגדרות → גשר Home Assistant.'}></sw-state-panel>`
+                ? html`<sw-state-panel state="empty" heading=${total ? 'אין ישויות שתואמות את הסינון' : 'הקטלוג ריק'} hint=${total ? 'נקה את החיפוש או בחר domain אחר.' : sync?.connected ? 'ההסנכרון פעיל אך טרם התקבלו מצבים.' : 'לא מחובר לתשתית המערכת. בדוק בהגדרות → כללי.'}></sw-state-panel>`
                 : html`<sw-table .columns=${this.columns} .rows=${rows} .selected=${this.selected} @row-select=${(e: CustomEvent<{ id: string }>) => (this.selected = e.detail.id)}></sw-table>`}
           ${ent ? this.renderApiDrawer(ent) : nothing}
         </div>
@@ -279,7 +279,7 @@ export class ExploreEntities extends LitElement {
     const rows = ENTITIES.filter((e) => this.domain === 'all' || e.domain === this.domain);
     const ent = ENTITIES.find((e) => e.id === this.selected);
     return html`
-      <sw-page heading="קטלוג ישויות Home Assistant" subheading="${ENTITIES.length} ישויות מורשות לחיבור · הצבה על המפה ושליטה הן הרשאות נפרדות · נתוני הדגמה">
+      <sw-page heading="קטלוג ההתקנים" subheading="${ENTITIES.length} ישויות מורשות לחיבור · הצבה על המפה ושליטה הן הרשאות נפרדות · נתוני הדגמה">
         <sw-button slot="actions" icon="refresh">סנכרון</sw-button>
         <div class="filters">
           <sw-field class="search"><input type="search" placeholder="חיפוש לפי שם, entity_id או אזור" /></sw-field>
@@ -292,14 +292,14 @@ export class ExploreEntities extends LitElement {
                 <dl>
                   <dt>מצב</dt><dd><sw-badge kind=${ent.fresh} label=${ent.state}></sw-badge></dd>
                   <dt>Domain</dt><dd><span class="ltr">${ent.domain}</span></dd>
-                  <dt>אזור HA</dt><dd>${ent.area}</dd>
+                  <dt>אזור</dt><dd>${ent.area}</dd>
                   <dt>פעולות נתמכות</dt><dd>${ent.actions}</dd>
                   <dt>במפה</dt><dd>${ent.placed ? 'קומה 0' : 'לא מוצב'}</dd>
                 </dl>
                 <div class="note">ישות מ־domain לא מוכר מקבלת כרטיס כללי לקריאה בלבד. scripts ו־scenes חסומים עד allowlist.</div>
                 <div slot="footer">
                   <sw-button variant="primary" icon="map">${ent.placed ? 'הצג במפה' : 'הצב במפה'}</sw-button>
-                  <sw-button variant="ghost">פתח ב־HA</sw-button>
+                  <sw-button variant="ghost">פתח בתשתית המערכת</sw-button>
                 </div>
               </sw-drawer>`
             : ''}

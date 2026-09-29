@@ -369,7 +369,7 @@ export class KioskWall extends LitElement {
         <div class="stat"><div class="ic"><sw-icon name="camera" size=${16}></sw-icon></div><div><b>${api ? `${online}/${real.length}` : '7/9'}</b><span>מצלמות מחוברות</span></div></div>
         <div class="stat"><div class="ic red"><sw-icon name="warning" size=${16}></sw-icon></div><div><b>${api ? real.filter((c) => c.status === 'offline').length : 3}</b><span>${api ? 'מצלמות מנותקות' : 'התראות פתוחות'}</span></div></div>
         <div class="stat"><div class="ic"><sw-icon name="building" size=${16}></sw-icon></div><div><b>${api ? Math.min(real.length, cap) : 2}</b><span>${api ? 'זרמים חיים במקביל' : 'מבנים'}</span></div></div>
-        <div class="stat"><div class="ic green"><sw-icon name="check" size=${16}></sw-icon></div><div><b style="font-size:var(--sw-fs-lg)">${api ? 'פעיל' : 'חלקי'}</b><span>${api ? 'go2rtc + NVR' : 'מצב מערכת · גשר HA לא רענן'}</span></div></div>
+        <div class="stat"><div class="ic green"><sw-icon name="check" size=${16}></sw-icon></div><div><b style="font-size:var(--sw-fs-lg)">${api ? 'פעיל' : 'חלקי'}</b><span>${api ? 'go2rtc + NVR' : 'מצב מערכת · גשר לא רענן'}</span></div></div>
       </div>
       <div class="note">תצוגת קיוסק: קריאה בלבד, ללא פקדי ניהול, חיבור מחדש אוטומטי · תצוגה שמורה = הכתובת (cameras, cols, rotate)${api ? '' : ' · נתוני הדגמה (סצנות מאוירות עד חיבור הזרמים)'}</div>
     `;

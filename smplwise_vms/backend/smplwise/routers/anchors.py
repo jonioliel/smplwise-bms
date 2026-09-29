@@ -308,7 +308,7 @@ def create_anchor(floor_id: str, body: AnchorIn, request: Request, principal: Pr
     if body.resource_type == "ha_entity":
         ent = conn.execute("SELECT domain FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (body.resource_id,)).fetchone()
         if not ent:
-            raise ApiError(422, "validation", "הישות אינה בקטלוג Home Assistant של המערכת.")
+            raise ApiError(422, "validation", "ההתקן אינו בקטלוג המערכת.")
         if body.layer_id == "cameras":  # default layer by domain unless the editor chose one
             body.layer_id = "doors" if ent["domain"] in ("lock", "cover") else "lights" if ent["domain"] in ("light", "switch", "fan") else "sensors"
     dup = conn.execute("SELECT id FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL AND resource_type = ? AND resource_id = ?", (floor_id, body.resource_type, body.resource_id)).fetchone()

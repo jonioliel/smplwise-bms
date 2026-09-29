@@ -360,7 +360,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     await seed(request); // back to the seeded structure (the fake HA's registry follows the seed)
   });
 
-  test('structure: "רענן מ־Home Assistant" re-reads the registries on demand, says when, and is rate-limited', async ({ page, request }) => {
+  test('structure: "רענן" re-reads the registries on demand, says when, and is rate-limited', async ({ page, request }) => {
     await seed(request);
     await open(page, '/devices/building', 'a');
     const button = page.locator('devices-building sw-button[data-devices-refresh]');
@@ -369,7 +369,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     if (!FIXTURE) {
       // no Home Assistant behind a plain developer backend: an honest refusal, nothing pretended
       await button.click();
-      await expect(page.locator('devices-building [data-devices-refresh-note]')).toContainText('אין כרגע חיבור ל־Home Assistant', { timeout: 10000 });
+      await expect(page.locator('devices-building [data-devices-refresh-note]')).toContainText('אין כרגע חיבור לתשתית המערכת', { timeout: 10000 });
       await expect(button).not.toHaveAttribute('disabled', /.*/);
       return;
     }
@@ -390,7 +390,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     await expect(storageTile).toHaveAttribute('data-counts', /lights:0\/1/, { timeout: 5000 });
     await expect(page.locator('devices-building [data-structure-changed]')).toBeVisible();
     await expect(page.locator('devices-building [data-devices-refreshed]')).toContainText('המבנה עודכן עכשיו');
-    await expect(page.locator('devices-building [data-devices-checked]')).toContainText('נבדק מול Home Assistant עכשיו');
+    await expect(page.locator('devices-building [data-devices-checked]')).toContainText('נבדק עכשיו');
     // one tree fetch for the button, not a second one for its own structure_changed echo
     await page.waitForTimeout(1500);
     expect(treeFetches.length).toBe(1);
@@ -472,7 +472,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await open(page, '/devices/building', 'a');
       const empty = page.locator('devices-building sw-state-panel[data-devices-state="empty"]');
       await expect(empty).toBeVisible({ timeout: 30000 });
-      await expect(empty).toHaveAttribute('heading', 'אין קומות ואזורים מ־Home Assistant');
+      await expect(empty).toHaveAttribute('heading', 'אין קומות ואזורים');
       await expect(page.locator('devices-building a.tile[data-area="unassigned"]')).toHaveAttribute('data-counts', /switches:/);
     } finally {
       await seed(request);

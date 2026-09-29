@@ -745,11 +745,11 @@ export class DevicesArea extends LitElement {
     const all = this.entityCommands(entityId);
     const pick = (p: CommandState<unknown>['phase']) => all.find((c) => c.phase === p);
     const pending = pick('pending');
-    if (pending) return html`<div class="cmd-status pending" data-cmd-status="pending" role="status"><span class="dot"></span>ממתין לאישור מ־Home Assistant${pending.label ? ` · ${pending.label}` : ''}</div>`;
+    if (pending) return html`<div class="cmd-status pending" data-cmd-status="pending" role="status"><span class="dot"></span>ממתין לאישור${pending.label ? ` · ${pending.label}` : ''}</div>`;
     const rolled = pick('rolled_back');
     if (rolled) return html`<div class="rollback-note" data-rollback data-cmd-status="rolled_back" role="status">${rolled.label ? `${rolled.label}: ` : ''}${rolled.note}</div>`;
     const sent = pick('sent');
-    if (sent) return html`<div class="cmd-status sent" data-cmd-status="sent" role="status">נשלח ל־Home Assistant${sent.label ? ` · ${sent.label}` : ''} · אין דיווח מצב שמאשר את הביצוע</div>`;
+    if (sent) return html`<div class="cmd-status sent" data-cmd-status="sent" role="status">נשלח${sent.label ? ` · ${sent.label}` : ''} · אין דיווח מצב שמאשר את הביצוע</div>`;
     const confirmed = pick('confirmed');
     if (confirmed) return html`<div class="cmd-status confirmed" data-cmd-status="confirmed" role="status">אושר${confirmed.label ? ` · ${confirmed.label}` : ''}</div>`;
     return nothing;
@@ -1064,13 +1064,13 @@ export class DevicesArea extends LitElement {
   render() {
     const heading = 'חשמל והתקנים';
     if (!isApi()) {
-      return html`<sw-page heading="אזור" subheading="חשמל והתקנים · נתוני הדגמה" backHref="/devices/building" crumbs=${`${heading} | אזור`}><sw-state-panel state="empty" heading="מסך האזור עובד מול השרת" hint="במצב הדגמה אין אזורים של Home Assistant להצגה; עץ המבנה מציג נתוני הדגמה."></sw-state-panel></sw-page>`;
+      return html`<sw-page heading="אזור" subheading="חשמל והתקנים · נתוני הדגמה" backHref="/devices/building" crumbs=${`${heading} | אזור`}><sw-state-panel state="empty" heading="מסך האזור עובד מול השרת" hint="במצב הדגמה אין אזורים להצגה; עץ המבנה מציג נתוני הדגמה."></sw-state-panel></sw-page>`;
     }
     if (this.forbidden) {
       return html`<sw-page heading=${heading} subheading="אזור" backHref="/devices/building"><sw-state-panel data-devices-state="no_permission" state="forbidden" heading="אין לך הרשאת צפייה בחשמל והתקנים" hint="נדרשת ההרשאה צפייה בחשמל והתקנים. פנה למנהל המערכת."></sw-state-panel></sw-page>`;
     }
     if (this.notFound) {
-      return html`<sw-page heading=${heading} subheading="אזור" backHref="/devices/building" crumbs=${`${heading} | אזור`}><sw-state-panel data-devices-state="not_found" state="empty" heading="האזור לא נמצא" hint="האזור אינו קיים ב־Home Assistant, או שאין בו התקנים שבהרשאתך."></sw-state-panel></sw-page>`;
+      return html`<sw-page heading=${heading} subheading="אזור" backHref="/devices/building" crumbs=${`${heading} | אזור`}><sw-state-panel data-devices-state="not_found" state="empty" heading="האזור לא נמצא" hint="האזור אינו קיים, או שאין בו התקנים שבהרשאתך."></sw-state-panel></sw-page>`;
     }
     const d = this.detail;
     if (!d) {
@@ -1097,7 +1097,7 @@ export class DevicesArea extends LitElement {
         ${this.lay.renderEditButton()}
         ${bulk ? html`<devices-bulk-menu scope="area" .targetId=${d.area.area_id} .targetName=${d.area.name} .counts=${d.counts} variant="popover" label="פעולות לאזור" data-bulk-area=${d.area.area_id}></devices-bulk-menu>` : nothing}
         ${d.counts.alarm ? html`<sw-badge data-area-alarm kind=${alarmTone(d.counts.alarm)} label=${`אזעקה: ${ALARM_HE[d.counts.alarm] ?? d.counts.alarm}`}></sw-badge>` : nothing}
-        <sw-badge data-devices-sync kind=${connected ? 'live' : 'stale'} label=${connected ? 'מסונכרן עם Home Assistant' : 'לא מסונכרן עם Home Assistant'}></sw-badge>
+        <sw-badge data-devices-sync kind=${connected ? 'live' : 'stale'} label=${connected ? 'מסונכרן' : 'לא מסונכרן'}></sw-badge>
         ${this.structureFlash ? html`<sw-badge data-structure-changed kind="live" label="מבנה עודכן"></sw-badge>` : nothing}
       </div>
       ${d.floor_areas.length > 1
@@ -1116,11 +1116,11 @@ export class DevicesArea extends LitElement {
         ? html`<div class=${classMap({ grid: true, 'lay-grid': this.lay.gridOn('cards') })} data-lay-grid="cards" data-lay-cols=${this.lay.gridCols('cards')} ?data-lay-phone-preview=${this.lay.phonePreview('cards')}>
             ${repeat(ordered, (c) => c.id, (c) => this.lay.wrap(`card:${c.id}`, this.renderCard(c)))}
           </div>`
-        : html`<sw-state-panel data-devices-state="area_empty" state="empty" heading="אין התקנים באזור הזה" hint="שייכו התקנים לאזור ב־Home Assistant (או מ״ללא שיוך״); כרטיס של תאורה, מתגים, מיזוג, תריסים, אבטחה, מסכים או חיישנים מופיע כשיש באזור התקן מהסוג הזה."></sw-state-panel>`}
+        : html`<sw-state-panel data-devices-state="area_empty" state="empty" heading="אין התקנים באזור הזה" hint="שייכו התקנים לאזור (או מ״ללא שיוך״); כרטיס של תאורה, מתגים, מיזוג, תריסים, אבטחה, מסכים או חיישנים מופיע כשיש באזור התקן מהסוג הזה."></sw-state-panel>`}
       <div class="note">
         ${anyControllable
-          ? 'הקשה על מתג, כפתור או החלקה לשליטה בהתקן. המצב המוצג בשורה הוא תמיד מה ש־Home Assistant דיווח; פקודה שנשלחה מסומנת "ממתין לאישור" עד שהדיווח מגיע, ומתבטלת אם הוא לא מגיע בזמן. תנועת תריס (פתיחה, סגירה או מיקום) דורשת הקשת אישור נוספת.'
-          : 'תצוגה לקריאה בלבד: מצב ההתקנים כפי ש־Home Assistant מדווח אותו.'}
+          ? 'הקשה על מתג, כפתור או החלקה לשליטה בהתקן. המצב המוצג בשורה הוא תמיד המצב שדווח; פקודה שנשלחה מסומנת "ממתין לאישור" עד שהדיווח מגיע, ומתבטלת אם הוא לא מגיע בזמן. תנועת תריס (פתיחה, סגירה או מיקום) דורשת הקשת אישור נוספת.'
+          : 'תצוגה לקריאה בלבד: מצב ההתקנים כפי שדווח.'}
       </div>
       ${bulk ? html`<devices-bulk-dialog @bulk-done=${() => void this.load()}></devices-bulk-dialog>` : nothing}
       ${this.canAssignArea ? this.renderAssignDialog() : nothing}
@@ -1404,13 +1404,13 @@ export class DevicesArea extends LitElement {
       if (unavailable) badge = { kind: 'offline', label: 'לא זמין' };
       else if (r.kind === 'lock') badge = r.locked ? { kind: 'live', label: 'נעול' } : { kind: 'stale', label: rowLabel(r) };
       else if (r.kind === 'alarm') badge = { kind: alarmTone(r.state), label: rowLabel(r) };
-      else if (r.kind === 'camera') badge = { kind: 'neutral', label: 'מצלמת HA' };
+      else if (r.kind === 'camera') badge = { kind: 'neutral', label: 'מצלמת התקן' };
       else badge = { kind: r.state === 'on' ? 'stale' : 'neutral', label: rowLabel(r) };
       const kindIcon: IconName = r.kind === 'lock' ? (r.locked ? 'lock' : 'unlock') : r.kind === 'alarm' ? 'shield' : r.kind === 'camera' ? 'camera' : 'sensor';
       return html`<div class=${classMap({ row: true, unavailable })} data-entity=${r.entity_id} data-kind=${r.kind ?? ''} title=${r.entity_id}>
         <span class="n"><sw-icon .name=${kindIcon} size=${14}></sw-icon> ${bidi(r.name)}</span>
         <sw-badge kind=${badge.kind} label=${badge.label}></sw-badge>
-        ${r.kind === 'camera' ? html`<div class="d"><span>אין תמונה ממצלמת Home Assistant במסך הזה עדיין; מצלמות ה־NVR מוצגות ב"מצלמות".</span></div>` : nothing}
+        ${r.kind === 'camera' ? html`<div class="d"><span>אין תמונה ממצלמת התקן במסך הזה עדיין; מצלמות ה־NVR מוצגות ב"מצלמות".</span></div>` : nothing}
         ${this.renderAssignButton(r)}
       </div>`;
     }

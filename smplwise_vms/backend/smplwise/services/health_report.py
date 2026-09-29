@@ -264,17 +264,17 @@ def summary(settings: Settings, conn: sqlite3.Connection) -> dict[str, Any]:
         # NVR-less mode: Home Assistant is the whole product - missing, or down past a minute, is an error
         hs = ha_sync.STATE
         if not ha_client.configured(settings):
-            items.append({"id": "ha", "status": "error", "label": "אין חיבור ל־Home Assistant — במצב ללא NVR המערכת כולה נשענת עליו"})
+            items.append({"id": "ha", "status": "error", "label": "אין חיבור לתשתית המערכת — במצב ללא NVR המערכת כולה נשענת עליה"})
         elif not hs.connected and hs.down_for() > HA_GRACE_S:
-            items.append({"id": "ha", "status": "error", "label": "Home Assistant מנותק — שליטה בהתקנים ומצבי ישויות אינם זמינים"})
+            items.append({"id": "ha", "status": "error", "label": "תשתית המערכת מנותקת — שליטה בהתקנים ומצבי ישויות אינם זמינים"})
         elif not hs.connected and hs.last_snapshot_at:
-            items.append({"id": "ha", "status": "warn", "label": "הסנכרון עם Home Assistant מנותק; מצבי ישויות עלולים להיות מיושנים"})
+            items.append({"id": "ha", "status": "warn", "label": "הסנכרון עם תשתית המערכת מנותק; מצבי ישויות עלולים להיות מיושנים"})
     elif ha_client.configured(settings):
         hs = ha_sync.STATE
         if not hs.connected and hs.last_snapshot_at:
-            items.append({"id": "ha", "status": "warn", "label": "הסנכרון עם Home Assistant מנותק; מצבי ישויות עלולים להיות מיושנים"})
+            items.append({"id": "ha", "status": "warn", "label": "הסנכרון עם תשתית המערכת מנותק; מצבי ישויות עלולים להיות מיושנים"})
         elif not hs.connected and not hs.last_snapshot_at and hs.last_error:
-            items.append({"id": "ha", "status": "warn", "label": "אין חיבור ל־Home Assistant"})
+            items.append({"id": "ha", "status": "warn", "label": "אין חיבור לתשתית המערכת"})
     if thumbnails.STATE.get("last_error") == "ffmpeg_missing":
         items.append({"id": "thumbnails", "status": "warn", "label": "ffmpeg חסר — אין תמונות אירועים"})
     backups = backup_svc.list_backups(settings)

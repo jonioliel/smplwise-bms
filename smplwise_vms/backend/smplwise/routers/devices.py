@@ -210,14 +210,14 @@ def assign_area(entity_id: str, request: Request, principal: Principal = Depends
         raise ApiError(404, "not_found", "הישות לא נמצאה בקטלוג.")
     arow = conn.execute("SELECT area_id, name, floor_id FROM ha_areas WHERE area_id = ?", (body.area_id,)).fetchone()
     if not arow:
-        raise ApiError(404, "area_not_found", "האזור לא נמצא ב־Home Assistant.")
+        raise ApiError(404, "area_not_found", "האזור לא נמצא.")
     settings = settings_of(request)
     rid = getattr(request.state, "correlation_id", None)
     if principal.source not in ("ingress", "remote") and not settings.dev_user:  # CR-008: the Arx remote channel is the same HA user
-        raise ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת HA.")
+        raise ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת ההתקן.")
     secret = ha_bridge.signing_key(conn)
     if not secret or not get_setting(conn, "bridge.paired_at"):
-        raise ApiError(503, "bridge_not_paired", "שיוך אזור דורש את גשר SMPLWISE מותקן ומצומד ב־Home Assistant.")
+        raise ApiError(503, "bridge_not_paired", "שיוך אזור דורש את גשר SMPLWISE מותקן ומצומד.")
     bridge_rid = uuid.uuid4().hex[:12]
     payload = ha_bridge.sign(secret, {"user_id": principal.user_id, "entity_id": entity_id, "area_id": body.area_id, "request_id": bridge_rid})
     # two-phase: the attempt row is committed (by unlocked) before Home Assistant is asked, so an area change is never
@@ -237,7 +237,7 @@ def assign_area(entity_id: str, request: Request, principal: Principal = Depends
           details={"area_id": body.area_id, "from_area_id": erow["area_id"], "phase": "outcome", "request": bridge_rid})
     if not ok:
         status = 404 if error in ("entity_not_found", "area_not_found") else 502
-        raise ApiError(status, "bridge_error", "Home Assistant דחה את שיוך האזור.", details={"error": error})
+        raise ApiError(status, "bridge_error", "תשתית המערכת דחתה את שיוך האזור.", details={"error": error})
     frow = conn.execute("SELECT name FROM ha_floors WHERE floor_id = ?", (arow["floor_id"],)).fetchone() if arow["floor_id"] else None
     conn.execute(
         "UPDATE ha_entities SET area_id = ?, area_name = ?, ha_floor_id = ?, ha_floor_name = ?, updated_at = ? WHERE entity_id = ?",
@@ -389,13 +389,13 @@ def bulk_run(request: Request, principal: Principal = Depends(_bulk_holder), con
     if body.preview_digest is not None and body.preview_digest != plan["digest"]:
         raise act.refuse(ApiError(409, "target_changed", "רשימת ההתקנים השתנתה מאז שנפתח חלון האישור, ולכן לא נשלח דבר. פתחו את הפעולה מחדש.", details={"count": plan["count"]}))
     if not plan["count"]:
-        raise act.refuse(ApiError(409, "nothing_to_do", "אין מה לשלוח: לפי הדיווח האחרון של Home Assistant אין בהיקף הזה התקן פעיל מהסוג הזה.", details={"skipped": plan["skipped"]}))
+        raise act.refuse(ApiError(409, "nothing_to_do", "אין מה לשלוח: לפי הדיווח האחרון אין בהיקף הזה התקן פעיל מהסוג הזה.", details={"skipped": plan["skipped"]}))
     settings = settings_of(request)
     if principal.source not in ("ingress", "remote") and not settings.dev_user:  # CR-008: the Arx remote channel is the same HA user
-        raise act.refuse(ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת HA."))
+        raise act.refuse(ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת ההתקן."))
     secret = ha_bridge.signing_key(conn)
     if not secret or not get_setting(conn, "bridge.paired_at"):
-        raise act.refuse(ApiError(503, "bridge_not_paired", "פעולות HA דורשות את גשר SMPLWISE מותקן ומצומד ב־Home Assistant."))
+        raise act.refuse(ApiError(503, "bridge_not_paired", "פעולות אלו דורשות את גשר SMPLWISE מותקן ומצומד."))
     bulk_id = uuid.uuid4().hex[:12]
     blocking = bulk.RUNNER.reserve(bulk.scope_key(body.scope, body.id), bulk_id, {t["entity_id"] for t in plan["targets"]})
     if blocking:
@@ -421,7 +421,7 @@ def bulk_run(request: Request, principal: Principal = Depends(_bulk_holder), con
         if not started:
             bulk.RUNNER.release(bulk_id)
     out = bulk.load(conn, bulk_id)
-    out["note"] = "הבקשה התקבלה ונשלחת להתקנים. התקן נחשב כבוי רק כש־Home Assistant מדווח על כך."
+    out["note"] = "הבקשה התקבלה ונשלחת להתקנים. התקן נחשב כבוי רק כשמתקבל דיווח על כך."
     return out
 
 

@@ -186,7 +186,7 @@ export class StyleguideScreen extends LitElement {
         <sw-kpi icon="camera" tone="live" value="24" label="מצלמות" detail="מחוברות"></sw-kpi>
         <sw-kpi icon="building" value="3" label="אתרים" detail="פעילים" tone="neutral"></sw-kpi>
         <sw-kpi icon="bell" value="12" label="אירועים" detail="ב־24 השעות" tone="neutral" badge="3 חדשים"></sw-kpi>
-        <sw-kpi icon="shield" tone="stale" value="חלקי" label="מצב מערכת" detail="גשר HA לא רענן"></sw-kpi>
+        <sw-kpi icon="shield" tone="stale" value="חלקי" label="מצב מערכת" detail="גשר לא רענן"></sw-kpi>
       </div>
 
       <h3>סצנות מאוירות (מצייני מקום, לא פריימים)</h3>

@@ -207,7 +207,7 @@ def _known_areas(conn: sqlite3.Connection) -> list[str]:
 
 def _check_exists(conn: sqlite3.Connection, scope: str, scope_id: str) -> None:
     if scope == "area" and scope_id != svc.UNASSIGNED and scope_id not in _known_areas(conn):
-        raise ApiError(404, "area_not_found", "האזור לא נמצא ב־Home Assistant.")
+        raise ApiError(404, "area_not_found", "האזור לא נמצא.")
 
 
 def _grid_of(conn: sqlite3.Connection, scope: str) -> Any:
