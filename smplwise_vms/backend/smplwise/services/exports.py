@@ -72,6 +72,9 @@ class Payload:
     sha256: str | None = None
     bytes_done: int = 0
     note: str = ""
+    pauses: int = 0  # disk-full pauses in a row (reset when the job finishes a pass without one)
+    resume_after: str | None = None  # UTC: no automatic resume before this (back-off)
+    need_bytes: int = 0  # bytes still needed when it last paused: at least what the aborted file had reached
 
 
 def _files_for(settings: Settings, conn: sqlite3.Connection, cam: sqlite3.Row, start: dt.datetime, end: dt.datetime, tz_name: str) -> tuple[list[ExportFile], str]:
@@ -225,10 +228,37 @@ def paused_jobs(conn: sqlite3.Connection) -> int:
     return conn.execute("SELECT COUNT(*) FROM export_jobs WHERE state = ?", (PAUSED,)).fetchone()[0]
 
 
+UNKNOWN_FILE_BYTES = 64 * MB  # a file the NVR listed without a size counts as the average known size, else this
+PAUSE_BACKOFF_S = (15, 60, 300)  # the n-th pause in a row keeps the job paused at least this long (capped at the last)
+
+
+def _now() -> dt.datetime:
+    return dt.datetime.now(UTC)
+
+
+def estimate_with_unknown(files: list[ExportFile]) -> int:
+    """Bytes the export will put on the data disk. A file without a size (some NVR answers carry none) counts as the
+    average of the known sizes, or UNKNOWN_FILE_BYTES when none is known - never as 0, which skipped the disk guard."""
+    known = [f.size for f in files if f.size]
+    guess = (sum(known) // len(known)) if known else UNKNOWN_FILE_BYTES
+    return sum(f.size or guess for f in files)
+
+
+def still_needed(payload: dict[str, Any]) -> int:
+    """Bytes a paused job still has to download: the files not on disk yet (unknown sizes as in estimate_with_unknown),
+    and never less than what it reached before its last pause (`need_bytes`) - so a job whose sizes are unknown does not
+    resume, fill the disk to the same point, pause and resume again forever."""
+    files = [f for f in payload.get("files", []) if f.get("state") not in ("downloaded", "remuxed", "failed", "skipped")]
+    known = [f["size"] for f in payload.get("files", []) if f.get("size")]
+    guess = (sum(known) // len(known)) if known else UNKNOWN_FILE_BYTES
+    return max(sum(f.get("size") or guess for f in files), int(payload.get("need_bytes") or 0))
+
+
 def resume_paused(conn: sqlite3.Connection, settings: Settings, *, manual: bool = False) -> int:
     """Put jobs paused for a full disk back in the queue, oldest first, while there is room for them.
-    Automatic (the worker's every pass): a job resumes only when what it still has to download fits above the minimum
-    plus RESUME_MARGIN_MB - so a job whose next file cannot fit never loops download / abort / resume.
+    Automatic (the worker's every pass): a job resumes only after its back-off (PAUSE_BACKOFF_S by pauses in a row) and
+    when what it still needs (still_needed: at least the bytes it reached last time) fits above the minimum plus
+    RESUME_MARGIN_MB - so a job whose next file cannot fit never loops download / abort / resume against the NVR.
     Manual (the storage screen): every paused job resumes as soon as free space is above the minimum (507 when it is
     not); one that still does not fit pauses again. Downloaded files are kept; the worker continues with the first file
     not yet on disk."""
@@ -242,13 +272,17 @@ def resume_paused(conn: sqlite3.Connection, settings: Settings, *, manual: bool 
                        retryable=True, details={"free_mb": free // MB, "min_free_mb": min_mb})
     room = None if free is None else free - min_mb * MB - (0 if manual else RESUME_MARGIN_MB * MB)
     resumed = 0
+    now = _now()
     for r in rows:
-        if room is not None and not manual:
-            files = json.loads(r["payload_json"]).get("files", [])
-            remaining = sum((f.get("size") or 0) for f in files if f.get("state") not in ("downloaded", "remuxed", "failed", "skipped"))
-            if remaining > room:
-                continue
-            room -= remaining
+        if not manual:
+            payload = json.loads(r["payload_json"])
+            if payload.get("resume_after") and parse_utc(payload["resume_after"]) > now:
+                continue  # back-off after repeated pauses (15 s, 1 min, 5 min)
+            if room is not None:
+                remaining = still_needed(payload)
+                if remaining > room:
+                    continue
+                room -= remaining
         conn.execute("UPDATE export_jobs SET state = 'queued', error = NULL, updated_at = ? WHERE id = ? AND state = ?", (now_iso(), r["id"], PAUSED))
         _count("resumed")
         resumed += 1
@@ -278,7 +312,7 @@ def create_job(conn: sqlite3.Connection, settings: Settings, principal: Any, cam
     total = sum(f.size or 0 for f in files)
     if total > max_bytes:
         raise ApiError(422, "export_too_large", f"נפח משוער {total // (1024 * 1024)} MB מעל המגבלה ({max_bytes // (1024 * 1024)} MB).", details={"estimate_bytes": total})
-    require_disk(settings, min_mb, total)  # the NVR files land on the data disk first
+    require_disk(settings, min_mb, estimate_with_unknown(files))  # the NVR files land on the data disk first (unknown sizes estimated)
     payload = Payload(files=files, estimate_bytes=total or None, timezone=tz_name, coverage=coverage)
     job_id = uuid.uuid4().hex[:12]
     now = now_iso()
@@ -517,6 +551,7 @@ class Worker:
                     cancelled = True
                     f.state = "skipped"
                 elif disk_full:
+                    disk_full["reached"] = f.bytes  # how far this file got: the job needs at least that much room next time
                     f.state, f.bytes = "pending", 0
                 else:
                     f.state = "failed"
@@ -524,7 +559,7 @@ class Worker:
                     log.warning("export %s file %s failed: %s", job_id, f.name, exc.code)
             except OSError as exc:
                 if _is_disk_full(exc):  # the disk filled faster than the check: same pause
-                    disk_full.update(free=free_bytes(settings) or 0)
+                    disk_full.update(free=free_bytes(settings) or 0, reached=dest.stat().st_size if dest.exists() else f.bytes)
                     f.state, f.bytes = "pending", 0
                 else:
                     f.state = "failed"
@@ -542,11 +577,20 @@ class Worker:
         if disk_full and not cancelled:
             free_mb = int(disk_full.get("free") or 0) // MB
             _count("paused_disk_full")
-            log.warning("export %s paused: %d MB free on the data disk, minimum %d MB", job_id, free_mb, min_mb)
+            payload.pauses += 1
+            delay = PAUSE_BACKOFF_S[min(payload.pauses, len(PAUSE_BACKOFF_S)) - 1]
+            payload.resume_after = iso_utc(_now() + dt.timedelta(seconds=delay))
+            pending = [x for x in payload.files if x.state not in ("downloaded", "remuxed", "failed", "skipped")]
+            base_need = estimate_with_unknown(pending) if pending else 0
+            # the aborted file counts at least as far as it got (an unknown size would otherwise count as a guess)
+            payload.need_bytes = max(base_need, int(disk_full.get("reached") or 0) + sum(x.size or 0 for x in pending[1:]))
+            log.warning("export %s paused (%d in a row, next try in >= %d s): %d MB free on the data disk, minimum %d MB, needs >= %d MB",
+                        job_id, payload.pauses, delay, free_mb, min_mb, payload.need_bytes // MB)
             self._update(job_id, state=PAUSED, payload=payload,
                          progress=min(0.95, done_bytes / total_expected) if total_expected else None,
                          error=f"הייצוא הושהה: בדיסק של התוסף נשארו {free_mb} MB פנויים (המינימום {min_mb} MB). הוא ימשיך לבד כשיתפנה מקום, או מ'אחסון' › 'המשך ייצואים'.")
             return
+        payload.pauses, payload.resume_after, payload.need_bytes = 0, None, 0  # a pass without a pause ends the back-off
         if cancelled:
             self.cancel_flags.discard(job_id)
             self._update(job_id, state="cancelled", payload=payload, error="בוטל על ידי המשתמש")

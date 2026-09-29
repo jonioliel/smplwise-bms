@@ -107,8 +107,16 @@ export class InvestigateExports extends LitElement {
     }
   }
 
+  private pausedPolledAt = 0;
+
   private poll() {
-    if (this.jobs?.some((j) => j.state === 'queued' || j.state === 'running' || j.state === 'paused_disk_full')) void this.load();
+    // every 3 s while something moves; every 30 s while the only waiting jobs are paused for a full disk (they resume
+    // on their own, at the earliest after a 15 s back-off)
+    if (this.jobs?.some((j) => j.state === 'queued' || j.state === 'running')) void this.load();
+    else if (this.jobs?.some((j) => j.state === 'paused_disk_full') && Date.now() - this.pausedPolledAt >= 30_000) {
+      this.pausedPolledAt = Date.now();
+      void this.load();
+    }
   }
 
   private fmt(iso: string, tz: string): string {

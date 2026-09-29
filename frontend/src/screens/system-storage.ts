@@ -343,9 +343,9 @@ export class SystemStorage extends LitElement {
   }
 
   private renderApi() {
-    if (this.error && !this.data) return html`<sw-page heading="אחסון ותוכנית הקלטה"><sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel></sw-page>`;
+    if (this.error && !this.data) return html`<sw-page heading="אחסון ותוכנית הקלטה"><sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel>${this.renderLocal()}</sw-page>`;
     const d = this.data;
-    if (!d) return html`<sw-page heading="אחסון ותוכנית הקלטה"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
+    if (!d) return html`<sw-page heading="אחסון ותוכנית הקלטה">${this.renderLocal()}<sw-state-panel state="loading"></sw-state-panel></sw-page>`;
     const t = d.totals;
     const r = d.retention;
     const ring = 16;

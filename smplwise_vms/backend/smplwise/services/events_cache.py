@@ -13,7 +13,9 @@ Correctness rules:
   request before the cache is consulted.
 - A TTL (<= 5 s) is only a safety net (windows that end at "now", a counter that could not be read).
 - Memory is bounded twice: at most MAX_ENTRIES windows and at most MAX_ROWS event rows across all of them (least
-  recently used first out); a single window larger than MAX_ROWS is never cached.
+  recently used first out); a single window larger than MAX_ROWS is never cached. The bound counts rows, not bytes: a
+  row dict with its parsed `details` measures ~2.9 KB (alert-stream row) to ~3.1 KB (HA row with Hebrew names) by a
+  deep getsizeof, so 5000 rows are ~15 MB worst case (less where strings are shared); a facets entry counts as one row.
 - A hit returns fresh copies of the row dicts (callers annotate rows with thumbnail state), sharing only the nested
   `details` dicts, which no caller mutates.
 """
@@ -28,7 +30,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Hashable
 
 MAX_ENTRIES = 32
-MAX_ROWS = 5000  # ~1-2 KB per event row dict: <= ~10 MB worst case
+MAX_ROWS = 5000  # ~3 KB per event row dict (measured): ~15 MB worst case
 TTL_S = 5.0
 ENABLED = os.environ.get("SW_EVENTS_CACHE", "1") != "0"
 
@@ -47,6 +49,17 @@ def read_versions(conn: sqlite3.Connection) -> dict[str, int] | None:
         return {r[0]: int(r[1]) for r in conn.execute("SELECT name, version FROM cache_versions").fetchall()}
     except sqlite3.OperationalError:
         return None
+
+
+def db_identity(path: os.PathLike | str) -> Hashable:
+    """The database FILE, not just its name: path + device + inode. A restore that swaps the file in starts its change
+    counters again from whatever the copy holds; with the inode in the key the old file's entries are simply never hit
+    (and age out by LRU / TTL)."""
+    try:
+        st = os.stat(path)
+        return (str(path), st.st_dev, st.st_ino)
+    except OSError:
+        return (str(path), None, None)
 
 
 def scope_key(wide: bool, ids: set[str] | None) -> Hashable:

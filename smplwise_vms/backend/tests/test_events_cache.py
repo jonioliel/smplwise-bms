@@ -46,6 +46,19 @@ def test_bounded_by_entries_and_rows_lru():
     assert c.get("huge", (0,)) is None and c.stats()["oversize"] == 1
 
 
+def test_a_replaced_database_file_never_meets_old_entries(tmp_path):
+    """A restore that swaps the file in restarts the counters: the file's identity is part of the key."""
+    import os
+
+    p = tmp_path / "smplwise.db"
+    p.write_bytes(b"old")
+    before = events_cache.db_identity(p)
+    other = tmp_path / "restored.db"
+    other.write_bytes(b"new")
+    os.replace(other, p)
+    assert events_cache.db_identity(p) != before and events_cache.db_identity(p)[0] == before[0]
+
+
 def test_disabled_cache_always_computes(settings, monkeypatch):
     app = create_app(settings)
     c = TestClient(app)

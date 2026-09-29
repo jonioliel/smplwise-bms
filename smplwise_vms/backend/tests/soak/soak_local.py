@@ -724,6 +724,8 @@ def run(minutes: float, out: Path | None, nvr_every: float = 120, ha_every: floa
     ex.RESUME_MARGIN_MB, thumbnails._grab, ex.ffmpeg_path = saved["resume_margin"], saved["grab"], saved["ffmpeg"]
     events_ingest.AlertStreamListener.submit = saved["submit"]  # type: ignore[method-assign]
     logging.getLogger().removeHandler(tap)
+    shutil.rmtree(tmp, ignore_errors=True)  # the temporary data dir (database, exports, thumbnails)
+    report["config"]["temp_dir_removed"] = not tmp.exists()
 
     # ---------------------------------------------------------------- evaluation
     post = [s for s in samples if s["t_s"] >= warmup]

@@ -59,6 +59,7 @@ class _DirIndex:
     def __init__(self) -> None:
         self.lock = threading.Lock()
         self.dirs: dict[str, tuple[float, set[str], dict[str, float]]] = {}  # folder -> (built, ready ids, unavailable id -> mtime)
+        self.writes: dict[str, int] = {}  # folder -> writes noted so far (a listing that raced a write is not kept)
         self.rebuilds = 0
 
     def _get(self, d: Path) -> tuple[set[str], dict[str, float]]:
@@ -67,6 +68,8 @@ class _DirIndex:
             hit = self.dirs.get(key)
             if hit and time.monotonic() - hit[0] < self.INDEX_TTL_S:
                 return hit[1], hit[2]
+        with self.lock:
+            seen_writes = self.writes.get(key, 0)
         ready: set[str] = set()
         neg: dict[str, float] = {}
         try:
@@ -83,8 +86,11 @@ class _DirIndex:
         except FileNotFoundError:
             pass
         with self.lock:
-            self.dirs[key] = (time.monotonic(), ready, neg)
             self.rebuilds += 1
+            if self.writes.get(key, 0) == seen_writes:
+                self.dirs[key] = (time.monotonic(), ready, neg)
+            else:  # the worker wrote while the folder was being listed: answer from it, but list again next time
+                self.dirs.pop(key, None)
         return ready, neg
 
     def statuses(self, d: Path, event_ids: Iterable[str]) -> dict[str, str]:
@@ -104,6 +110,7 @@ class _DirIndex:
 
     def note(self, d: Path, event_id: str, ok: bool) -> None:
         with self.lock:
+            self.writes[str(d)] = self.writes.get(str(d), 0) + 1
             hit = self.dirs.get(str(d))
             if hit is None:
                 return
@@ -118,8 +125,11 @@ class _DirIndex:
         with self.lock:
             if d is None:
                 self.dirs.clear()
+                for k in self.writes:
+                    self.writes[k] += 1
             else:
                 self.dirs.pop(str(d), None)
+                self.writes[str(d)] = self.writes.get(str(d), 0) + 1
 
 
 INDEX = _DirIndex()

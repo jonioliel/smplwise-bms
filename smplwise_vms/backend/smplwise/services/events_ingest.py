@@ -176,25 +176,49 @@ class IngestState:
 # ---------------------------------------------------------------- backpressure (T068)
 
 MAX_PENDING = 256  # alerts waiting for the database; ~8 channels x ~16 kinds x 2 states, far above a healthy backlog of 0-1
+DRAIN_S = 5.0  # at shutdown the writer stores what is still queued for at most this long
+
+
+def _device_instant(alert: ParsedAlert) -> dt.datetime | None:
+    try:
+        t = dt.datetime.fromisoformat(alert.device_time.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return t if t.tzinfo is not None else None
 
 
 class _Pending:
-    __slots__ = ("alert", "key", "merged", "taken")
+    __slots__ = ("first", "alert", "key", "merged", "taken")
 
     def __init__(self, alert: ParsedAlert, key: tuple[Any, ...]) -> None:
-        self.alert = alert
+        self.first = alert  # the burst's first alert: its time is where a new row starts
+        self.alert = alert  # the newest alert folded in (its time ends the burst)
         self.key = key
-        self.merged = 0  # older same-state alerts of the same camera / kind folded into this one
+        self.merged = 0  # later same-state alerts of the same camera / kind folded into this entry
         self.taken = False
+
+    def can_absorb(self, alert: ParsedAlert) -> bool:
+        """Only a continuation of the same burst: same state, and within DEDUP_WINDOW_S of both the entry's newest
+        alert and its first - the span store_alert would merge anyway - so coalescing never joins two episodes
+        (motion at 10:00:00 and at 10:01:40 stay two rows, as without the queue)."""
+        if self.taken or self.alert.state != alert.state:
+            return False
+        t, first, last = _device_instant(alert), _device_instant(self.first), _device_instant(self.alert)
+        if t is None or first is None or last is None:
+            return False
+        return abs((t - last).total_seconds()) <= DEDUP_WINDOW_S and abs((t - first).total_seconds()) <= DEDUP_WINDOW_S
 
 
 class IngestQueue:
     """The bounded hand-off between the alert-stream reader and the database writer. The reader never waits for the
     database: it keeps reading the NVR's socket (a stalled reader misses heartbeats and the NVR drops the stream) and
     queues each alert here. Policy when the writer falls behind (a slow or busy database):
-    - coalesce: an alert for a camera / kind whose previous alert, in the same state, is still waiting replaces it -
-      the newest wins and carries the count of the ones it replaced (stored as repeats of the burst);
-    - drop: when MAX_PENDING distinct alerts are still waiting, the OLDEST one is dropped and counted.
+    - coalesce: an alert for a camera / kind whose previous alert, in the same state, is still waiting AND lies within
+      DEDUP_WINDOW_S of it (the same burst) is folded into that entry: the writer stores the burst's first alert and
+      then the newest one carrying the count of those in between - exactly the row(s) and count store_alert would
+      have produced alert by alert;
+    - drop: when MAX_PENDING distinct alerts are still waiting, the OLDEST one is dropped and counted;
+    - shutdown: the writer gets DRAIN_S to store what is waiting; the rest is counted (dropped_shutdown) and logged.
     Invariant (checked by the soak): accepted == processed + failed + coalesced + dropped + depth."""
 
     def __init__(self, maxlen: int = MAX_PENDING) -> None:
@@ -206,6 +230,7 @@ class IngestQueue:
         self.coalesced = 0
         self.dropped = 0
         self.dropped_repeats = 0
+        self.dropped_shutdown = 0
         self.processed = 0
         self.failed = 0
         self.high_water = 0
@@ -221,7 +246,7 @@ class IngestQueue:
         with self._cv:
             self.accepted += 1
             prev = self._last.get(key)
-            if prev is not None and not prev.taken and prev.alert.state == alert.state:
+            if prev is not None and prev.can_absorb(alert):
                 prev.merged += 1
                 prev.alert = alert  # keep the newest
                 self.coalesced += 1
@@ -258,6 +283,19 @@ class IngestQueue:
                 del self._last[p.key]
             return p
 
+    def discard_all(self) -> int:
+        """Shutdown: whatever is still waiting after the drain deadline is dropped - counted, never silent."""
+        with self._cv:
+            n = len(self._items)
+            for p in self._items:
+                p.taken = True
+                self.dropped_repeats += p.merged
+            self._items.clear()
+            self._last.clear()
+            self.dropped += n
+            self.dropped_shutdown += n
+            return n
+
     def done(self, ok: bool) -> None:
         with self._cv:
             if ok:
@@ -272,13 +310,14 @@ class IngestQueue:
     def stats(self) -> dict[str, Any]:
         with self._cv:
             return {"depth": len(self._items), "max": self.maxlen, "high_water": self.high_water, "accepted": self.accepted, "processed": self.processed,
-                    "failed": self.failed, "coalesced": self.coalesced, "dropped": self.dropped, "dropped_repeats": self.dropped_repeats}
+                    "failed": self.failed, "coalesced": self.coalesced, "dropped": self.dropped, "dropped_repeats": self.dropped_repeats,
+                    "dropped_shutdown": self.dropped_shutdown}
 
     def reset(self) -> None:
         with self._cv:
             self._items.clear()
             self._last.clear()
-            self.accepted = self.coalesced = self.dropped = self.dropped_repeats = self.processed = self.failed = self.high_water = 0
+            self.accepted = self.coalesced = self.dropped = self.dropped_repeats = self.dropped_shutdown = self.processed = self.failed = self.high_water = 0
 
 
 QUEUE = IngestQueue()
@@ -407,8 +446,12 @@ class AlertStreamListener:
         self.thread.start()
 
     def shutdown(self) -> None:
+        """Stop reading; the writer stores what is queued (at most DRAIN_S) and counts the rest (restart, update)."""
         self.stop.set()
         self.generation += 1
+        w = self.writer
+        if w is not None and w.is_alive() and w is not threading.current_thread():
+            w.join(timeout=DRAIN_S + 1)
 
     def submit(self, alert: ParsedAlert) -> str:
         """The reader's side: a heartbeat is noted at once, anything else waits in the bounded queue for the writer."""
@@ -417,17 +460,33 @@ class AlertStreamListener:
             return "heartbeat"
         return QUEUE.put(alert)
 
+    def _store_pending(self, p: _Pending) -> None:
+        try:
+            if p.merged:
+                self._handle(p.first)  # the burst starts where the device said it did
+                self._handle(p.alert, repeats=p.merged - 1)  # the newest closes the span and carries the ones between
+            else:
+                self._handle(p.alert)
+            QUEUE.done(True)
+        except Exception:  # noqa: BLE001 - one bad alert (or a database busy past the retries) must not stop the writer
+            QUEUE.done(False)
+            log.exception("alert handling failed")
+
     def _drain(self, generation: int) -> None:
         while not self.stop.is_set() and generation == self.generation:
             p = QUEUE.get(timeout=1.0)
+            if p is not None:
+                self._store_pending(p)
+        # stopping: store what is still queued, within DRAIN_S; anything left is counted and logged, never lost silently
+        deadline = time.monotonic() + DRAIN_S
+        while time.monotonic() < deadline:
+            p = QUEUE.get(timeout=0)
             if p is None:
-                continue
-            try:
-                self._handle(p.alert, repeats=p.merged)
-                QUEUE.done(True)
-            except Exception:  # noqa: BLE001 - one bad alert (or a database busy past the retries) must not stop the writer
-                QUEUE.done(False)
-                log.exception("alert handling failed")
+                return
+            self._store_pending(p)
+        n = QUEUE.discard_all()
+        if n:
+            log.warning("alert stream stopping: %d queued alert(s) not stored within %.0f s (counted as dropped_shutdown)", n, DRAIN_S)
 
     def _camera_lookup(self, conn: sqlite3.Connection) -> Callable[[int], sqlite3.Row | None]:
         cache: dict[int, sqlite3.Row | None] = {}

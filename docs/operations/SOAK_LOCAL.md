@@ -17,8 +17,8 @@ SW_SOAK=1 SW_SOAK_MIN=10 SW_SOAK_OUT=<scratch>/soak.json python -m pytest tests/
 Options: `--nvr-every` (s, default 120), `--ha-every` (s, default 150), `--rss-slope-mb-h` (default 60).
 `SW_SOAK_TRACEMALLOC=1` adds the top Python allocation growth between the end of the warm-up and the end of the run
 (diagnosis only: tracemalloc slows everything down enough to distort the lock and latency numbers).
-Nothing leaves the machine: everything listens on 127.0.0.1, the data directory is a fresh temporary folder, and the
-script refuses to run inside the add-on (`SUPERVISOR_TOKEN`).
+Nothing leaves the machine: everything listens on 127.0.0.1, the data directory is a fresh temporary folder (removed at
+the end), and the script refuses to run inside the add-on (`SUPERVISOR_TOKEN`).
 
 ## What runs
 

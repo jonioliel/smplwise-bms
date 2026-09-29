@@ -58,6 +58,68 @@ def test_queue_coalesces_same_camera_kind_and_state_keeping_the_newest():
     assert q.stats()["coalesced"] == 2 and q.stats()["dropped"] == 0
 
 
+def test_coalescing_never_joins_two_episodes():
+    """Motion at 10:00:00 and again at 10:01:40 (Hikvision sends no end): two entries, as store_alert keeps two rows;
+    a chain within the window folds, but never spans more than DEDUP_WINDOW_S from its first alert."""
+    q = events_ingest.IngestQueue(maxlen=10)
+    t0 = dt.datetime(2026, 9, 29, 10, 0, 0, tzinfo=dt.timezone(dt.timedelta(hours=3)))
+    assert q.put(_alert(1, when=t0)) == "queued"
+    assert q.put(_alert(1, when=t0 + dt.timedelta(seconds=100))) == "queued", "a new episode"
+    assert q.put(_alert(1, when=t0 + dt.timedelta(seconds=120))) == "coalesced", "same burst as the 100 s one"
+    assert q.put(_alert(1, when=t0 + dt.timedelta(seconds=150))) == "queued", "within 30 s of the newest but 50 s after the first"
+    assert [p.first.device_time[11:19] for p in (q.get(0), q.get(0), q.get(0))] == ["10:00:00", "10:01:40", "10:02:30"]
+
+
+def test_coalesced_burst_stores_like_alert_by_alert(settings, monkeypatch):
+    """The writer stores a folded entry as its first alert, then the newest carrying the ones in between: same rows,
+    same count, same start and end as storing every alert one by one."""
+    s = replace(settings, nvr_host="nvr.local", nvr_user="u", nvr_password="p")
+    app = create_app(s)
+    c = TestClient(app)
+    c.post("/api/v1/cameras", json={"channel": 1, "alias": "c1"})
+    db: Database = app.state.db
+    q = events_ingest.IngestQueue(maxlen=16)
+    monkeypatch.setattr(events_ingest, "QUEUE", q)
+    listener = events_ingest.AlertStreamListener()
+    listener.db, listener.settings, listener.tz_getter = db, s, lambda: "Asia/Jerusalem"
+    base = dt.datetime.now(dt.timezone(dt.timedelta(hours=3))).replace(microsecond=0) - dt.timedelta(minutes=5)
+    for sec in (0, 5, 10, 25, 100, 110):  # two episodes: 0-25 s (4 alerts) and 100-110 s (2 alerts)
+        q.put(_alert(1, when=base + dt.timedelta(seconds=sec)))
+    assert q.depth() == 2
+    listener.stop.set()
+    listener._drain(listener.generation)  # stopping: drains what is queued
+    with db.connection(mode="read") as conn:
+        rows = conn.execute("SELECT occurred_at, ended_at, count FROM events WHERE source = 'alertstream' ORDER BY occurred_at").fetchall()
+    utc = lambda sec: (base + dt.timedelta(seconds=sec)).astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")  # noqa: E731
+    assert [tuple(r) for r in rows] == [(utc(0), utc(25), 4), (utc(100), utc(110), 2)]
+    _invariant(q)
+
+
+def test_shutdown_drains_the_queue_then_counts_the_rest(settings, monkeypatch):
+    s = replace(settings, nvr_host="nvr.local", nvr_user="u", nvr_password="p")
+    app = create_app(s)
+    c = TestClient(app)
+    for ch in (1, 2, 3):
+        c.post("/api/v1/cameras", json={"channel": ch, "alias": f"c{ch}"})
+    db: Database = app.state.db
+    q = events_ingest.IngestQueue(maxlen=16)
+    monkeypatch.setattr(events_ingest, "QUEUE", q)
+    listener = events_ingest.AlertStreamListener()
+    listener.db, listener.settings, listener.tz_getter = db, s, lambda: "Asia/Jerusalem"
+    for ch in (1, 2, 3):
+        q.put(_alert(ch))
+    listener.stop.set()
+    listener._drain(listener.generation)
+    assert q.stats()["processed"] == 3 and q.stats()["dropped_shutdown"] == 0, "within the deadline everything is stored"
+    for ch in (1, 2, 3):
+        q.put(_alert(ch, st="inactive"))
+    monkeypatch.setattr(events_ingest, "DRAIN_S", 0.0)
+    listener._drain(listener.generation)
+    st = q.stats()
+    assert st["dropped_shutdown"] == 3 and st["dropped"] == 3 and st["depth"] == 0, st
+    _invariant(q)
+
+
 def test_queue_is_bounded_and_drops_the_oldest_with_counters():
     q = events_ingest.IngestQueue(maxlen=5)
     for ch in range(1, 21):  # 20 distinct cameras: nothing to coalesce
@@ -211,6 +273,7 @@ def test_running_export_pauses_when_the_disk_fills_and_resumes(lab, monkeypatch)
     monkeypatch.setattr(ex, "ffmpeg_path", lambda: None)
     monkeypatch.setattr(ex, "DISK_CHECK_EVERY_S", 0.0)
     monkeypatch.setattr(ex, "RESUME_MARGIN_MB", 1)
+    monkeypatch.setattr(ex, "PAUSE_BACKOFF_S", (0,))  # the back-off has its own test
     c.patch("/api/v1/settings", json={"storage.min_free_mb": 100})
     files = [("2026-09-14T10:00:00Z", "2026-09-14T10:02:00Z", "MOTION", "f1", 2 * MB), ("2026-09-14T10:05:00Z", "2026-09-14T10:07:00Z", "MOTION", "f2", 2 * MB)]
     monkeypatch.setattr(nvr, "search_recordings", fake_pages(files))
@@ -259,6 +322,61 @@ def test_manual_resume_and_cancel_of_a_paused_job(lab, monkeypatch):  # noqa: F8
         conn.execute("UPDATE export_jobs SET state = 'paused_disk_full' WHERE id = ?", (job["id"],))
         assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'export.resume'").fetchone()[0] == 1
     assert c.post(f"/api/v1/exports/{job['id']}/cancel").json()["state"] == "cancelled", "a paused job can be cancelled"
+
+
+def test_unknown_size_job_does_not_loop_download_pause_resume(lab, monkeypatch):  # noqa: F811
+    """The NVR lists the file without a size: the creation guard estimates it (never 0), and after a mid-file pause
+    the job waits both for its back-off (15 s, 1 min, 5 min) and for room for at least the bytes it reached -
+    instead of downloading to the same point, pausing and resuming every 15 s against the NVR."""
+    c, s, cam = lab
+    monkeypatch.setattr(ex, "ffmpeg_path", lambda: None)
+    monkeypatch.setattr(ex, "DISK_CHECK_EVERY_S", 0.0)
+    monkeypatch.setattr(ex, "RESUME_MARGIN_MB", 1)
+    monkeypatch.setattr(ex, "UNKNOWN_FILE_BYTES", 1 * MB)
+    c.patch("/api/v1/settings", json={"storage.min_free_mb": 100})
+    monkeypatch.setattr(nvr, "search_recordings", fake_pages([("2026-09-14T10:00:00Z", "2026-09-14T10:02:00Z", "MOTION", "nosize", "")]))
+    disk = FakeDisk(s, 102, track=True)  # room for the 1 MB guess, not for the real 4 MB file
+    monkeypatch.setattr(ex.shutil, "disk_usage", disk)
+    clock = {"now": dt.datetime(2026, 9, 29, 10, 0, 0, tzinfo=dt.timezone.utc)}
+    monkeypatch.setattr(ex, "_now", lambda: clock["now"])
+    calls: list[str] = []
+    ex.WORKER.downloader = _chunked_downloader(calls, 256 * 1024, 16)  # 4 MB
+    job = c.post("/api/v1/exports", json={"camera_id": cam["id"], **RANGE}).json()
+    assert job["files"][0]["size"] is None
+    ex.WORKER.run_pending()
+    j = c.get(f"/api/v1/exports/{job['id']}").json()
+    assert j["state"] == "paused_disk_full" and j["pauses"] == 1 and j["need_bytes"] >= 2 * MB, (j["state"], j.get("need_bytes"))
+    # the partial file is gone, so free space is back at 102 MB: the old rule (remaining = 0 MB) resumed at once
+    for step in (5, 30, 60):
+        clock["now"] += dt.timedelta(seconds=step)
+        ex.WORKER.run_pending()
+        assert c.get(f"/api/v1/exports/{job['id']}").json()["state"] == "paused_disk_full"
+    assert calls == ["nosize"], "no new download while the room it needs is not there"
+    disk.free_mb = 110  # room for what it reached (+ margin): it resumes and completes
+    ex.WORKER.run_pending()
+    j = c.get(f"/api/v1/exports/{job['id']}").json()
+    assert j["state"] == "done" and calls == ["nosize", "nosize"] and j["pauses"] == 0
+
+
+def test_pause_back_off_grows(lab, monkeypatch):  # noqa: F811
+    c, s, cam = lab
+    monkeypatch.setattr(ex, "DISK_CHECK_EVERY_S", 0.0)
+    c.patch("/api/v1/settings", json={"storage.min_free_mb": 100})
+    monkeypatch.setattr(nvr, "search_recordings", fake_pages([("2026-09-14T10:00:00Z", "2026-09-14T10:02:00Z", "MOTION", "f1", 1 * MB)]))
+    disk = FakeDisk(s, 5000)
+    monkeypatch.setattr(ex.shutil, "disk_usage", disk)
+    t0 = dt.datetime(2026, 9, 29, 10, 0, 0, tzinfo=dt.timezone.utc)
+    monkeypatch.setattr(ex, "_now", lambda: t0)
+    job = c.post("/api/v1/exports", json={"camera_id": cam["id"], **RANGE}).json()
+    disk.free_mb = 50  # below the minimum before the first byte: pause at once
+    waits = []
+    for _ in range(4):
+        with ex.WORKER.db.connection() as conn:
+            conn.execute("UPDATE export_jobs SET state = 'queued' WHERE id = ?", (job["id"],))
+        ex.WORKER.run_pending()
+        j = c.get(f"/api/v1/exports/{job['id']}").json()
+        waits.append(int((dt.datetime.fromisoformat(j["resume_after"].replace("Z", "+00:00")) - t0).total_seconds()))
+    assert waits == [15, 60, 300, 300]
 
 
 def test_a_crashing_job_is_marked_failed_not_left_running(lab, monkeypatch):  # noqa: F811

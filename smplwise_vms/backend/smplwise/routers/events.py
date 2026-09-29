@@ -121,8 +121,9 @@ def list_events(
 
 
 def _cached(conn: sqlite3.Connection, key: tuple[Any, ...], counters: tuple[str, ...], compute) -> dict[str, Any]:
-    """One window through the events-window cache (T068), keyed by the database file too (tests and restores open
-    several); every value is a dict whose optional "events" list is copied row by row on the way out."""
+    """One window through the events-window cache (T068), keyed by the database file's identity too (tests open several;
+    a restore that replaces the file restarts its counters, and must never meet entries of the old file); every value is
+    a dict whose optional "events" list is copied row by row on the way out."""
     db = database_of(conn)
     if db is None:
         return compute()
@@ -130,7 +131,7 @@ def _cached(conn: sqlite3.Connection, key: tuple[Any, ...], counters: tuple[str,
     def copy(v: dict[str, Any]) -> dict[str, Any]:
         return {**v, "events": events_cache.copy_rows(v["events"])} if "events" in v else dict(v)
 
-    return events_cache.CACHE.fetch(conn, (str(db.path), *key), counters, compute, cost=lambda v: len(v.get("events", ())) + 1, copy=copy)
+    return events_cache.CACHE.fetch(conn, (events_cache.db_identity(db.path), *key), counters, compute, cost=lambda v: len(v.get("events", ())) + 1, copy=copy)
 
 
 def _list_window(conn: sqlite3.Connection, wide: bool, ids: set[str] | None, date: str | None, from_: str | None, to: str | None, camera_id: str | None,
