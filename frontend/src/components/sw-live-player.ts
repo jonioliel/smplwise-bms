@@ -83,6 +83,10 @@ export class SwLivePlayer extends LitElement {
   @state() step = 0;
   /** a WebRTC step connected but rendered nothing (the browser cannot decode the stream) - vs. never connected */
   private decodeFailed = false;
+  /** ends the current WebRTC first-frame watch (its visibilitychange listener) - re-review F1 */
+  private stopFirstFrameWatch?: () => void;
+  /** frames decode but the browser refused autoplay: the picture asks for a tap (re-review F2) */
+  @state() needsTap = false;
   private webrtcConnected = false;
 
   @query('video') private video!: HTMLVideoElement;
@@ -235,6 +239,26 @@ export class SwLivePlayer extends LitElement {
       background: rgba(17, 24, 39, 0.45);
       font-weight: 500;
       opacity: 0.85;
+    }
+    /* re-review F2: autoplay refused (iOS Low Power Mode) - one tap starts the decoded stream */
+    .tap {
+      position: absolute;
+      inset: 0;
+      margin: auto;
+      inline-size: max-content;
+      block-size: max-content;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 18px;
+      border: 0;
+      border-radius: 999px;
+      background: rgba(17, 24, 39, 0.8);
+      color: #fff;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
     }
     .vnotice {
       position: absolute;
@@ -425,6 +449,8 @@ export class SwLivePlayer extends LitElement {
     this.generation += 1;
     window.clearTimeout(this.timer);
     window.clearTimeout(this.retryTimer);
+    this.stopFirstFrameWatch?.();
+    this.needsTap = false;
     this.pendingMime = '';
     if (this.pc) {
       this.pc.close();
@@ -566,10 +592,15 @@ export class SwLivePlayer extends LitElement {
    *    FIRST_FRAME_CAP_MS, then a connection failure - not a decode failure;
    *  - no statistics at all → the old rule at the cap: connected but nothing rendered is a decode failure;
    *  - frames decoded → WebRTC works: never a failure, even before the `playing` event (a deferred autoplay);
-   *  - the tab is hidden → no judgement; the clock restarts when it is visible again.
+   *  - the tab is hidden → no judgement; the clock restarts when it is visible again (the listener, or a tick that
+   *    sees the tab visible after a gap longer than three poll intervals - JS frozen in the background);
+   *  - a browser without the framesDecoded counter: a <video> with a current frame counts as decoding, otherwise the
+   *    cap decides.
    */
   private watchFirstFrame(gen: number, pc: RTCPeerConnection, started: number) {
+    this.stopFirstFrameWatch?.();
     let firstBytesAt = 0;
+    let lastTickAt = performance.now();
     // re-review: a background tab defers play() and throttles timers - no judgement while hidden, and a fresh clock
     // (the monotonic performance.now(), not the wall clock) once the tab is visible again
     const restart = () => {
@@ -577,26 +608,38 @@ export class SwLivePlayer extends LitElement {
       firstBytesAt = 0;
     };
     const onVisibility = () => {
-      if (gen !== this.generation) return document.removeEventListener('visibilitychange', onVisibility);
+      if (gen !== this.generation) return stop();
       if (!document.hidden) restart();
     };
+    const stop = () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      if (this.stopFirstFrameWatch === stop) this.stopFirstFrameWatch = undefined;
+    };
     document.addEventListener('visibilitychange', onVisibility);
-    const stop = () => document.removeEventListener('visibilitychange', onVisibility);
+    // re-review F1: teardown() and onPlaying() end the watch too - no listener outlives its peer connection
+    this.stopFirstFrameWatch = stop;
+    const rearm = () => {
+      this.timer = window.setTimeout(() => void tick(), STATS_POLL_MS);
+    };
     const tick = async () => {
       if (gen !== this.generation || this.status === 'playing') return stop();
-      if (document.hidden) {
+      // re-review F3: iOS may freeze JS right after backgrounding, before a hidden tick runs; on resume this timer can
+      // fire before `visibilitychange`. A gap far beyond the poll interval means the clocks are stale: start over.
+      const tickAt = performance.now();
+      const frozen = tickAt - lastTickAt > 3 * STATS_POLL_MS;
+      lastTickAt = tickAt;
+      if (document.hidden || frozen) {
         restart();
-        this.timer = window.setTimeout(() => void tick(), STATS_POLL_MS);
-        return;
+        return rearm();
       }
       let bytes = -1;
-      let decoded = -1;
+      let decoded = -1; // -1: the browser does not report framesDecoded (re-review F4: missing is not "0 decoded")
       try {
         const stats = await pc.getStats();
         stats.forEach((r: { type?: string; kind?: string; mediaType?: string; bytesReceived?: number; framesDecoded?: number }) => {
           if (r.type === 'inbound-rtp' && (r.kind ?? r.mediaType) === 'video') {
             bytes = Math.max(bytes, r.bytesReceived ?? 0);
-            decoded = Math.max(decoded, r.framesDecoded ?? 0);
+            if (typeof r.framesDecoded === 'number') decoded = Math.max(decoded, r.framesDecoded);
           }
         });
       } catch {
@@ -605,14 +648,17 @@ export class SwLivePlayer extends LitElement {
       if (gen !== this.generation || (this.status as PlayerStatus) === 'playing') return stop(); // the await may have seen the first frame
       if (document.hidden) {
         restart();
-        this.timer = window.setTimeout(() => void tick(), STATS_POLL_MS);
-        return;
+        return rearm();
       }
-      if (decoded > 0) {
+      // without the counter, a <video> that has a current frame is the decoded signal
+      const decodes = decoded > 0 || (decoded < 0 && bytes > 0 && (this.video?.readyState ?? 0) >= 2);
+      if (decodes) {
         // frames decode: WebRTC works. The `playing` event may lag (autoplay deferred); nudge play() and never judge
-        // this step again - it is not a failure
-        void this.video?.play().catch(() => undefined);
-        return stop();
+        // this step again - it is not a failure. A refused autoplay (iOS Low Power Mode refuses even muted video) asks
+        // for a tap instead of waiting forever.
+        stop();
+        this.nudgePlay(gen);
+        return;
       }
       const now = performance.now();
       if (bytes > 0 && !firstBytesAt) firstBytesAt = now;
@@ -621,15 +667,34 @@ export class SwLivePlayer extends LitElement {
         this.webrtcFailed('WebRTC התחבר אך הדפדפן לא מפענח את הזרם', true);
         return;
       }
-      if (now - started >= FIRST_FRAME_CAP_MS && !(bytes > 0)) {
+      if (now - started >= FIRST_FRAME_CAP_MS && !(bytes > 0 && decoded === 0)) {
         stop();
-        const decode = bytes < 0 && (pc.connectionState === 'connected' || this.webrtcConnected);
+        // no counter and nothing rendered although bytes arrive (or no statistics while connected): the cap calls it
+        // a decode failure; no bytes at all: a connection failure
+        const decode = (bytes > 0 && decoded < 0) || (bytes < 0 && (pc.connectionState === 'connected' || this.webrtcConnected));
         this.webrtcFailed(decode ? 'WebRTC התחבר אך הדפדפן לא מפענח את הזרם' : 'WebRTC לא התחבר (ייתכן ש-UDP חסום)', decode);
         return;
       }
-      this.timer = window.setTimeout(() => void tick(), STATS_POLL_MS);
+      rearm();
     };
-    this.timer = window.setTimeout(() => void tick(), STATS_POLL_MS);
+    rearm();
+  }
+
+  /** re-review F2: play() once frames decode; a NotAllowedError (autoplay refused) shows "הקש להפעלה". */
+  private nudgePlay(gen: number) {
+    const v = this.video;
+    if (!v) return;
+    v.play().catch((err: unknown) => {
+      if (gen === this.generation && (err as DOMException)?.name === 'NotAllowedError' && this.status !== 'playing') this.needsTap = true;
+    });
+  }
+
+  private tapToPlay() {
+    this.needsTap = false;
+    const gen = this.generation;
+    this.video?.play().catch((err: unknown) => {
+      if (gen === this.generation && (err as DOMException)?.name === 'NotAllowedError' && this.status !== 'playing') this.needsTap = true;
+    });
   }
 
   /** How long bytes may arrive without a decoded frame: the stream's GOP (the first decodable frame is the next key
@@ -810,6 +875,8 @@ export class SwLivePlayer extends LitElement {
 
   private onPlaying() {
     window.clearTimeout(this.timer);
+    this.stopFirstFrameWatch?.();
+    this.needsTap = false;
     this.attempts = 0;
     this.status = 'playing';
     this.dispatchEvent(new CustomEvent('player-status', { detail: { status: 'playing', transport: this.transport, profile: this.effectiveProfile }, bubbles: true, composed: true }));
@@ -853,6 +920,7 @@ export class SwLivePlayer extends LitElement {
       ${this.status === 'idle' && !this.poster ? html`<div class="center"><div><sw-icon name="camera" size=${22}></sw-icon><span>לא מחובר</span></div></div>` : nothing}
       <span class="status ${this.status}"><i></i><span class="t">${this.status === 'playing' ? `${this.wsUrl ? 'הקלטה' : 'חי'} · ${this.transport === 'webrtc' ? 'WebRTC' : 'MSE'}` : this.status === 'connecting' ? 'מתחבר' : this.status === 'error' ? 'לא זמין' : this.status === 'ended' ? 'הסתיים' : 'תמונה'}</span></span>
       ${this.laddered ? this.renderPlan() : nothing}
+      ${this.needsTap && this.status !== 'playing' ? html`<button class="tap" data-tap-to-play @click=${this.tapToPlay}><sw-icon name="live" size=${18}></sw-icon>הקש להפעלה</button>` : nothing}
       ${this.status === 'playing' ? html`<button class="mute" title=${this.muted ? 'הפעל שמע' : 'השתק'} aria-label=${this.muted ? 'הפעל שמע' : 'השתק'} @click=${this.toggleMute}><sw-icon name=${this.muted ? 'volume' : 'mic'} size=${13}></sw-icon></button>` : nothing}
     `;
   }

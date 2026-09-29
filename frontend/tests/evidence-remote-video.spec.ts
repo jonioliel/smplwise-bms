@@ -39,6 +39,31 @@ const FAKE_MEDIA = () => {
   const w = window as unknown as Record<string, unknown>;
   Object.defineProperty(document, 'hidden', { configurable: true, get: () => !!w.__hidden });
   Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => (w.__hidden ? 'hidden' : 'visible') });
+  // the player's first-frame watch listeners (re-review F1): count the live ones
+  const watchers = new Set<unknown>();
+  w.__watchListeners = () => watchers.size;
+  const isWatch = (fn: unknown) => typeof fn === 'function' && /generation/.test(String(fn)) && /hidden/.test(String(fn));
+  const add = document.addEventListener.bind(document);
+  const remove = document.removeEventListener.bind(document);
+  document.addEventListener = ((type: string, fn: EventListener, opts?: unknown) => {
+    if (type === 'visibilitychange' && isWatch(fn)) watchers.add(fn);
+    return add(type, fn, opts as AddEventListenerOptions);
+  }) as typeof document.addEventListener;
+  document.removeEventListener = ((type: string, fn: EventListener, opts?: unknown) => {
+    if (type === 'visibilitychange') watchers.delete(fn);
+    return remove(type, fn, opts as EventListenerOptions);
+  }) as typeof document.removeEventListener;
+  // autoplay refused once (iOS Low Power Mode) when __blockAutoplay is set (re-review F2); play() calls are counted
+  const realPlay = HTMLMediaElement.prototype.play;
+  w.__playCalls = 0;
+  HTMLMediaElement.prototype.play = function (this: HTMLMediaElement) {
+    if (w.__blockAutoplay) {
+      w.__blockAutoplay = false;
+      return Promise.reject(new DOMException('autoplay refused', 'NotAllowedError'));
+    }
+    w.__playCalls = (w.__playCalls as number) + 1;
+    return realPlay.call(this);
+  };
   w.__liveSockets = [] as SocketEntry[];
   w.__rtc = (w.__rtc as Record<string, string>) ?? { main: 'ok', sub: 'ok' };
   const modeOf = (profile: string) => (w.__rtc as Record<string, string>)[profile] ?? 'ok';
@@ -179,6 +204,7 @@ async function openCamera(page: Page, cameraId: string, rtc: Record<string, RtcM
 const player = (page: Page) => page.locator('live-camera sw-live-player');
 const badge = (page: Page) => player(page).locator('[data-video-badge]');
 const status = (page: Page) => player(page).evaluate((p) => (p as unknown as { status: string }).status);
+const watchListeners = (page: Page) => page.evaluate(() => (window as unknown as { __watchListeners: () => number }).__watchListeners());
 const sockets = (page: Page) => page.evaluate(() => (window as unknown as { __liveSockets: SocketEntry[] }).__liveSockets.map(({ profile, kind }) => ({ profile, kind })));
 
 /** The badge says what PLAYS only while it plays; before that "מנסה <step>…". */
@@ -198,11 +224,11 @@ test.describe('remote video policy against the fixture backend (fake NVR / go2rt
   let h265Camera = '';
 
   test.beforeEach(async ({}, testInfo) => {
-    testInfo.skip(testInfo.project.name !== 'desktop', 'desktop only (the policy is layout-independent)');
+    testInfo.skip(testInfo.project.name === 'tablet', 'desktop + phone (the policy is layout-independent)');
   });
 
   test.beforeAll(async ({}, testInfo) => {
-    testInfo.skip(testInfo.project.name !== 'desktop', 'desktop only');
+    testInfo.skip(testInfo.project.name === 'tablet', 'desktop + phone');
     control = await pwRequest.newContext({ baseURL: CONTROL });
     request = await pwRequest.newContext({ baseURL: process.env.SW_BASE_URL || 'http://127.0.0.1:4173/' });
     expect((await control.post('/reset')).status()).toBe(200);
@@ -236,6 +262,7 @@ test.describe('remote video policy against the fixture backend (fake NVR / go2rt
     await expectPlaying(page, 'main·WebRTC');
     await expect(player(page).locator('[data-video-notice]')).toHaveCount(0);
     expect(await sockets(page)).toEqual([{ profile: 'main', kind: 'webrtc' }]);
+    expect(await watchListeners(page), 're-review F1: the first-frame watch ends on `playing`').toBe(0);
     await expect(page.locator('live-camera [data-remote-video-policy]')).toContainText('WebRTC תחילה');
     await page.screenshot({ path: test.info().outputPath('remote-main-webrtc.png') });
   });
@@ -247,6 +274,7 @@ test.describe('remote video policy against the fixture backend (fake NVR / go2rt
     await expect(badge(page)).toHaveText('מנסה main·MSE…'); // no fMP4 in this fake: it never claims to play
     await expect(player(page).locator('[data-video-notice]')).toContainText('MSE דרך המנהרה');
     await expect.poll(() => sockets(page)).toEqual([{ profile: 'main', kind: 'webrtc' }, { profile: 'main', kind: 'mse' }]);
+    expect(await watchListeners(page), 're-review F1: the failed WebRTC step left no listener behind').toBe(0);
     await page.screenshot({ path: test.info().outputPath('remote-main-mse-fallback.png') });
   });
 
@@ -276,6 +304,43 @@ test.describe('remote video policy against the fixture backend (fake NVR / go2rt
     expect(await status(page)).toBe('connecting');
     expect(await sockets(page)).toEqual([{ profile: 'main', kind: 'webrtc' }]);
     await expect(player(page).locator('[data-video-notice]')).toHaveCount(0);
+    await expect(player(page).locator('[data-tap-to-play]')).toHaveCount(0); // play() was not refused here
+    expect(await watchListeners(page)).toBe(0);
+  });
+
+  test('re-review F2: frames decode but autoplay is refused (NotAllowedError) - "הקש להפעלה", a tap calls play()', async ({ page }) => {
+    await page.addInitScript(() => {
+      (window as unknown as Record<string, unknown>).__blockAutoplay = true;
+    });
+    await remoteMe(page, { profile: 'main', mse: true });
+    await openCamera(page, h264Camera, { main: 'noplay', sub: 'ok' });
+    const tap = player(page).locator('[data-tap-to-play]');
+    await expect(tap).toHaveText('הקש להפעלה', { timeout: 10000 });
+    expect(await sockets(page)).toEqual([{ profile: 'main', kind: 'webrtc' }]); // not a failure: no fallback
+    await page.screenshot({ path: test.info().outputPath('remote-tap-to-play.png') });
+    const before = await page.evaluate(() => (window as unknown as { __playCalls: number }).__playCalls);
+    await tap.click();
+    await expect(tap).toHaveCount(0);
+    expect(await page.evaluate(() => (window as unknown as { __playCalls: number }).__playCalls)).toBe(before + 1);
+  });
+
+  test('re-review: the hidden-tick path alone (document.hidden turns false, no event) judges on a fresh clock', async ({ page }) => {
+    test.setTimeout(60000);
+    await page.addInitScript(() => {
+      (window as unknown as Record<string, unknown>).__hidden = true;
+    });
+    await remoteMe(page, { profile: 'main', mse: true });
+    await openCamera(page, h264Camera, { main: 'nodecode', sub: 'ok' }); // decode grace 6 s
+    await page.waitForTimeout(10000);
+    expect(await sockets(page)).toEqual([{ profile: 'main', kind: 'webrtc' }]);
+    await page.evaluate(() => {
+      (window as unknown as Record<string, unknown>).__hidden = false; // no visibilitychange dispatched
+    });
+    const visibleAt = Date.now();
+    await expect(badge(page)).toHaveAttribute('data-step', 'main·MSE', { timeout: 15000 });
+    const took = Date.now() - visibleAt;
+    expect(took, 'about the grace period after the tab became visible (the clock restarted at the last hidden tick)').toBeGreaterThanOrEqual(4000);
+    expect(took).toBeLessThan(12000);
   });
 
   test('re-review: no judgement while the tab is hidden; the clock restarts when it is visible again', async ({ page }) => {
@@ -338,6 +403,7 @@ test.describe('remote video policy against the fixture backend (fake NVR / go2rt
     const all = await page.evaluate(() => (window as unknown as { __liveSockets: SocketEntry[] }).__liveSockets);
     expect(all.map((s) => s.camera)).toEqual([h264Camera, h265Camera]);
     expect(all.map((s) => s.offers)).toEqual([0, 1]);
+    expect(await watchListeners(page), 're-review F1: the torn-down attempt left no listener behind').toBe(0);
   });
 
   test('a main stream the NVR reports as H.265 skips WebRTC: straight to main·MSE (allowed)', async ({ page }) => {
