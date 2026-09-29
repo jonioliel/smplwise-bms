@@ -72,7 +72,7 @@ def test_contract_authorization_vectors(client, settings):
         "ha-control-denied": "HA-side permission intersection arrives with the bridge (T077)",
         "forged-ingress-identity": "test_identity_required_without_dev_mode",
         "revoke-stream": "media sessions (T016)",
-        "delegated-group-cross-scope": "group management API (T083)",
+        "delegated-group-cross-scope": "test_rbac_groups.py::test_delegated_group_cross_scope (T082)",
     }
     db = Database(settings.db_path)
     checked = 0

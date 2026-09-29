@@ -34,6 +34,11 @@ import {
   deleteRole,
   previewRole,
   setDelegation,
+  renameGroup,
+  bindGroup,
+  unbindGroup,
+  groupImpact,
+  type GroupImpact,
   type RoleImpact,
   type RoleInfo,
   listUsers,
@@ -103,6 +108,10 @@ export class SystemAccess extends LitElement {
   @state() private roleEdit: { id: string | null; revision: number; name: string; description: string; permissions: string[]; sensitive: string[]; delegable: boolean; assignMe?: boolean } | null = null;
   @state() private roleImpact: RoleImpact | null = null;
   @state() private roleDelete: RoleInfo | null = null;
+  // T082 groups: lifecycle rights, the rename draft and the impact dialog shown before every group change
+  @state() private groupsMeta: { can_manage: boolean; delegated: boolean } = { can_manage: false, delegated: false };
+  @state() private renameDraft: string | null = null;
+  @state() private groupChange: { heading: string; impact: GroupImpact; confirmLabel: string; run: () => Promise<void> } | null = null;
   private roleImpactTimer = 0;
 
   static styles = css`
@@ -119,6 +128,11 @@ export class SystemAccess extends LitElement {
     .stage {
       position: relative;
       min-block-size: 420px;
+    }
+    /* the group drawer holds a rename field, the bindings and the member list: a taller stage (T082) */
+    .groups-stage {
+      min-block-size: 620px;
+      margin-block-start: 12px;
     }
     .who {
       display: flex;
@@ -330,13 +344,19 @@ export class SystemAccess extends LitElement {
   private async load() {
     this.error = '';
     try {
-      const [dir, roles, groups, tree] = await Promise.all([listUsers(), listRoles(), listGroups(), loadTree()]);
+      // the catalogue tree only names scopes for older backends; a delegated administrator's scope picker comes from
+      // the directory's assign_scopes, so a tree the caller may not read must not fail the whole screen
+      const [dir, roles, groups, tree] = await Promise.all([listUsers(), listRoles(), listGroups(), loadTree().catch(() => null)]);
       this.directory = dir;
       this.roles = roles;
       this.groups = groups.groups;
+      this.groupsMeta = { can_manage: !!groups.can_manage, delegated: !!groups.delegated };
       this.tree = tree;
       this.forbidden = false;
       if (!this.previewUser) this.previewUser = session.me?.user.id ?? '';
+      // a site admin previews only inside their own scopes: start on the first one they hold
+      const opts = this.scopeOptions;
+      if (opts.length && !opts.some((s) => `${s.type}:${s.id}` === this.previewScope)) this.previewScope = `${opts[0].type}:${opts[0].id}`;
     } catch (err) {
       const msg = describeError(err);
       this.error = msg;
@@ -362,6 +382,9 @@ export class SystemAccess extends LitElement {
   // ---- helpers ----
 
   private get scopeOptions(): ScopeOption[] {
+    // T082: the server lists exactly the scopes where this user may assign (a site admin: their own subtree only)
+    const own = this.directory?.assign_scopes;
+    if (own && own.length) return own;
     const out: ScopeOption[] = [{ type: 'installation', id: '*', name: 'כל ההתקנה' }];
     for (const s of this.tree?.sites ?? []) {
       out.push({ type: 'site', id: s.id, name: `אתר · ${s.name}` });
@@ -382,13 +405,67 @@ export class SystemAccess extends LitElement {
   }
 
   private startWizard(kind: 'user' | 'group', id: string, name: string) {
-    this.wizard = { subjectKind: kind, subjectId: id, subjectName: name, roleId: 'viewer', scopeKey: 'installation:*', effect: 'allow' };
+    const roles = this.roles?.roles ?? [];
+    const roleId = roles.some((r) => r.id === 'viewer') ? 'viewer' : roles[0]?.id ?? 'viewer';
+    const first = this.scopeOptions[0];
+    this.wizard = { subjectKind: kind, subjectId: id, subjectName: name, roleId, scopeKey: first ? `${first.type}:${first.id}` : 'installation:*', effect: 'allow' };
+  }
+
+  /** T082: every group change is previewed first - the server names each affected user and what they gain or lose. */
+  private async previewGroupChange(g: AccessGroup, heading: string, confirmLabel: string, body: Parameters<typeof groupImpact>[1], run: (revision: number) => Promise<void>) {
+    this.busy = true;
+    this.error = '';
+    try {
+      const impact = await groupImpact(g.id, body);
+      this.groupChange = {
+        heading,
+        impact,
+        confirmLabel,
+        run: async () => {
+          await run(impact.revision);
+        },
+      };
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private async confirmGroupChange() {
+    const c = this.groupChange;
+    if (!c) return;
+    this.busy = true;
+    this.error = '';
+    try {
+      await c.run();
+      this.groupChange = null;
+      await this.load();
+    } catch (err) {
+      this.error = describeError(err);
+      this.groupChange = null;
+      await this.load();
+    } finally {
+      this.busy = false;
+    }
   }
 
   private async saveWizard() {
     const w = this.wizard;
     if (!w) return;
     const [scopeType, scopeId] = w.scopeKey.split(':') as [string, string];
+    if (w.subjectKind === 'group') {
+      const g = this.groups?.find((x) => x.id === w.subjectId);
+      if (!g) return;
+      const role = this.roles?.roles.find((r) => r.id === w.roleId);
+      const scope = this.scopeOptions.find((s) => `${s.type}:${s.id}` === w.scopeKey);
+      await this.previewGroupChange(g, `${w.effect === 'deny' ? 'חסימה' : 'שיוך'} לקבוצה "${g.name}": ${role?.name ?? w.roleId} · ${scope?.name ?? scopeId}`, 'שמור שיוך', { op: 'bind', role_id: w.roleId, scope_type: scopeType, scope_id: scopeId, effect: w.effect }, async (revision) => {
+        await bindGroup(g.id, { role_id: w.roleId, scope_type: scopeType, scope_id: scopeId, effect: w.effect, revision });
+        this.wizard = null;
+        this.flash(`שויך לקבוצה "${g.name}"`);
+      });
+      return;
+    }
     this.busy = true;
     this.error = '';
     try {
@@ -404,6 +481,16 @@ export class SystemAccess extends LitElement {
   }
 
   private async revoke(b: AccessBinding) {
+    if (b.subject_kind === 'group' && !b.via_group) {
+      const g = this.groups?.find((x) => x.id === b.subject_id);
+      if (g) {
+        await this.previewGroupChange(g, `ביטול שיוך של הקבוצה "${g.name}": ${b.role_name} · ${b.scope_name}`, 'בטל שיוך', { op: 'unbind', binding_id: b.id }, async (revision) => {
+          await unbindGroup(g.id, b.id, revision);
+          this.flash(`בוטל: ${b.role_name} · ${b.scope_name}`);
+        });
+        return;
+      }
+    }
     this.busy = true;
     this.error = '';
     try {
@@ -451,12 +538,26 @@ export class SystemAccess extends LitElement {
 
   private async saveMembers(g: AccessGroup) {
     if (!this.members) return;
+    const ids = [...this.members];
+    await this.previewGroupChange(g, `חברי הקבוצה "${g.name}"`, 'שמור חברים', { op: 'members', user_ids: ids }, async (revision) => {
+      await setGroupMembers(g.id, ids, revision);
+      this.members = null;
+      this.flash('חברי הקבוצה עודכנו');
+    });
+  }
+
+  private async saveRename(g: AccessGroup) {
+    const name = (this.renameDraft ?? '').trim();
+    if (!name || name === g.name) {
+      this.renameDraft = null;
+      return;
+    }
     this.busy = true;
     this.error = '';
     try {
-      await setGroupMembers(g.id, [...this.members]);
-      this.members = null;
-      this.flash('חברי הקבוצה עודכנו');
+      await renameGroup(g.id, name, g.revision);
+      this.renameDraft = null;
+      this.flash(`שם הקבוצה עודכן ל"${name}"`);
       await this.load();
     } catch (err) {
       this.error = describeError(err);
@@ -469,9 +570,9 @@ export class SystemAccess extends LitElement {
     this.busy = true;
     this.error = '';
     try {
-      await deleteGroup(g.id);
+      await deleteGroup(g.id, g.revision);
       this.selectedGroup = null;
-      this.flash(`הקבוצה "${g.name}" נמחקה והשיוכים שלה בוטלו`);
+      this.flash(`הקבוצה "${g.name}" נמחקה`);
       await this.load();
     } catch (err) {
       this.error = describeError(err);
@@ -496,10 +597,21 @@ export class SystemAccess extends LitElement {
 
   // ---- API rendering ----
 
+  /** A delegated administrator revokes only allow-listed roles, never their own binding (the server checks it again). */
+  private canRevoke(b: AccessBinding, canAssign: boolean): boolean {
+    if (!canAssign || b.via_group) return false;
+    const d = this.directory;
+    if (d?.delegated) {
+      if (!(d.assignable_roles ?? []).includes(b.role_id)) return false;
+      if (b.subject_kind === 'user' && b.subject_id === session.me?.user.id) return false;
+    }
+    return true;
+  }
+
   private renderBindingRow(b: AccessBinding, canAssign: boolean) {
-    return html`<div class="bind">
+    return html`<div class="bind" data-binding=${b.id}>
       <div><strong>${b.role_name}</strong> · ${b.scope_name}${b.effect === 'deny' ? html` <sw-badge kind="forbidden" label="חסימה"></sw-badge>` : nothing}<div class="sub">${b.via_group ? `דרך קבוצה "${b.via_group}" · ` : ''}מאז ${fmtWhen(b.created_at)}${b.expires_at ? ` · עד ${fmtWhen(b.expires_at)}` : ''} · רוויזיה ${b.permission_revision}</div></div>
-      ${canAssign && !b.via_group ? html`<sw-button size="sm" variant="ghost" icon="trash" ?disabled=${this.busy} @click=${() => this.revoke(b)}>ביטול</sw-button>` : nothing}
+      ${this.canRevoke(b, canAssign) ? html`<sw-button size="sm" variant="ghost" icon="trash" data-revoke ?disabled=${this.busy} @click=${() => this.revoke(b)}>ביטול</sw-button>` : nothing}
     </div>`;
   }
 
@@ -513,12 +625,16 @@ export class SystemAccess extends LitElement {
     return html`<div class="wiz">
       <sw-steps .steps=${['תפקיד', 'היקף', 'תצוגה מקדימה', 'שמירה']} .current=${2}></sw-steps>
       <div class="hint">שיוך ל${w.subjectKind === 'group' ? 'קבוצה' : 'משתמש'}: <strong>${w.subjectName}</strong></div>
-      <sw-field label="סוג שיוך"><select data-wizard-effect @change=${(e: Event) => (this.wizard = { ...w, effect: (e.target as HTMLSelectElement).value as 'allow' | 'deny' })}>
-          <option value="allow" ?selected=${!deny}>הרשאה — מוסיף את הרשאות התפקיד בהיקף</option>
-          <option value="deny" ?selected=${deny}>חסימה — מסיר את הרשאות התפקיד בהיקף, גם אם שיוך אחר מרשה</option>
-        </select></sw-field>
-      <sw-field label="תפקיד"><select @change=${(e: Event) => (this.wizard = { ...w, roleId: (e.target as HTMLSelectElement).value })}>${this.roles.roles.map((r) => html`<option value=${r.id} ?selected=${r.id === w.roleId}>${r.name}</option>`)}</select></sw-field>
-      <sw-field label="היקף"><select @change=${(e: Event) => (this.wizard = { ...w, scopeKey: (e.target as HTMLSelectElement).value })}>${this.scopeOptions.map((s) => html`<option value=${`${s.type}:${s.id}`} ?selected=${`${s.type}:${s.id}` === w.scopeKey} ?disabled=${systemRole && s.type !== 'installation'}>${s.name}</option>`)}</select></sw-field>
+      ${this.directory?.delegated
+        ? nothing /* T082 security review: a deny binding is a system-administrator tool; the server refuses it too */
+        : html`<sw-field label="סוג שיוך"><select data-wizard-effect @change=${(e: Event) => (this.wizard = { ...w, effect: (e.target as HTMLSelectElement).value as 'allow' | 'deny' })}>
+            <option value="allow" ?selected=${!deny}>הרשאה — מוסיף את הרשאות התפקיד בהיקף</option>
+            <option value="deny" ?selected=${deny}>חסימה — מסיר את הרשאות התפקיד בהיקף, גם אם שיוך אחר מרשה</option>
+          </select></sw-field>`}
+      <sw-field label="תפקיד"><select data-wizard-role @change=${(e: Event) => (this.wizard = { ...w, roleId: (e.target as HTMLSelectElement).value })}>${this.roles.roles.map((r) => html`<option value=${r.id} ?selected=${r.id === w.roleId}>${r.name}</option>`)}</select></sw-field>
+      <sw-field label="היקף"><select data-wizard-scope @change=${(e: Event) => (this.wizard = { ...w, scopeKey: (e.target as HTMLSelectElement).value })}>${this.scopeOptions.map((s) => html`<option value=${`${s.type}:${s.id}`} ?selected=${`${s.type}:${s.id}` === w.scopeKey} ?disabled=${systemRole && s.type !== 'installation'}>${s.name}</option>`)}</select></sw-field>
+      ${this.directory?.delegated ? html`<div class="hint" data-delegated-hint>כמנהל אתר מוצגים רק התפקידים שמותר לך להאציל וההיקפים שבאחריותך. אינך משנה את השיוכים של עצמך ואינך יוצר חסימות.</div>` : nothing}
+      ${w.subjectKind === 'group' ? html`<div class="hint">לפני השמירה תוצג ההשפעה על כל אחד מחברי הקבוצה.</div>` : nothing}
       ${role
         ? deny
           ? html`<div class="eff">
@@ -567,8 +683,8 @@ export class SystemAccess extends LitElement {
                   <div class="hint" style="margin-block-start:8px">אין כפתור לשינוי סיסמת HA או להפיכה למנהל HA. מנהל HA אינו מקבל תפקיד VMS אוטומטית.</div>`}
               <div slot="footer">
                 ${this.wizard
-                  ? html`<sw-button variant="primary" size="sm" icon="check" ?disabled=${this.busy} @click=${() => this.saveWizard()}>שמור שיוך</sw-button><sw-button variant="ghost" size="sm" @click=${() => (this.wizard = null)}>ביטול</sw-button>`
-                  : html`${canAssign ? html`<sw-button variant="primary" size="sm" icon="plus" @click=${() => this.startWizard('user', u.id, u.name)}>שיוך תפקיד</sw-button>` : nothing}
+                  ? html`<sw-button variant="primary" size="sm" icon="check" data-wizard-save ?disabled=${this.busy} @click=${() => this.saveWizard()}>שמור שיוך</sw-button><sw-button variant="ghost" size="sm" @click=${() => (this.wizard = null)}>ביטול</sw-button>`
+                  : html`${canAssign && !(dir.delegated && u.is_self) ? html`<sw-button variant="primary" size="sm" icon="plus" data-assign @click=${() => this.startWizard('user', u.id, u.name)}>שיוך תפקיד</sw-button>` : nothing}
                     <sw-button variant="ghost" size="sm" icon="shield" @click=${() => { this.previewUser = u.id; this.tab = 'effective'; void this.runPreview(); }}>הרשאות אפקטיביות</sw-button>`}
               </div>
             </sw-drawer>`
@@ -588,36 +704,72 @@ export class SystemAccess extends LitElement {
     ];
     const g = groups.find((x) => x.id === this.selectedGroup) ?? null;
     const memberSet = this.members ?? new Set(g?.members.map((m) => m.id) ?? []);
+    const canManage = this.groupsMeta.can_manage;
+    const delegated = !!dir.delegated;
+    const me = session.me?.user.id;
+    const inUse = g ? g.members.length > 0 || g.bindings.length > 0 : false;
+    // members the list below cannot show (a delegated admin sees active people only) stay checked and untouched
+    const known = new Set(dir.users.map((u) => u.id));
+    const hidden = g ? g.members.filter((m) => !known.has(m.id)) : [];
     return html`
-      ${canAssign
-        ? html`<div class="toolbar"><sw-field label="קבוצה חדשה"><input .value=${this.newGroup} placeholder="למשל: עורכי קומה 2" @input=${(e: Event) => (this.newGroup = (e.target as HTMLInputElement).value)} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') void this.addGroup(); }} /></sw-field><sw-button size="sm" icon="plus" ?disabled=${this.busy || !this.newGroup.trim()} @click=${() => this.addGroup()}>יצירה</sw-button></div>`
-        : nothing}
-      <div class="stage">
-        ${groups.length
-          ? html`<sw-table .columns=${columns} .rows=${groups as unknown as Record<string, unknown>[]} .selected=${this.selectedGroup} @row-select=${(e: CustomEvent<{ id: string }>) => { this.selectedGroup = e.detail.id; this.members = null; this.wizard = null; }}></sw-table>`
-          : html`<sw-state-panel state="empty" heading="אין קבוצות" hint="קבוצה מקבלת תפקיד בהיקף, וכל חבריה יורשים אותו. קבוצות VMS בלבד, לא קבוצות HA."></sw-state-panel>`}
-        ${g
-          ? html`<sw-drawer open heading=${g.name} subheading=${`${g.members.length} חברים · ${g.bindings.length} שיוכים`} @close=${() => { this.selectedGroup = null; this.members = null; this.wizard = null; }}>
-              ${this.wizard && this.wizard.subjectKind === 'group'
-                ? this.renderWizard()
-                : html`<div style="font-weight:600;font-size:var(--sw-fs-xs);margin-block-end:4px">שיוכים של הקבוצה</div>
-                  ${g.bindings.length ? g.bindings.map((b) => this.renderBindingRow(b, canAssign)) : html`<div class="hint">ללא שיוך: החברים אינם מקבלים דבר דרך הקבוצה.</div>`}
-                  <div style="font-weight:600;font-size:var(--sw-fs-xs);margin-block:10px 4px">חברים</div>
-                  <div class="members">${dir.users.map((u) => html`<label><input type="checkbox" ?disabled=${!canAssign} .checked=${memberSet.has(u.id)} @change=${(e: Event) => { const next = new Set(memberSet); if ((e.target as HTMLInputElement).checked) next.add(u.id); else next.delete(u.id); this.members = next; }} /> ${u.name}<span class="hint">${u.active ? '' : ' · ללא גישה'}</span></label>`)}</div>
-                  <div class="hint" style="margin-block-start:8px">שינוי חברות נבדק מול כל השיוכים של הקבוצה ונרשם באודיט.</div>`}
-              <div slot="footer">
-                ${this.wizard
-                  ? html`<sw-button variant="primary" size="sm" icon="check" ?disabled=${this.busy} @click=${() => this.saveWizard()}>שמור שיוך</sw-button><sw-button variant="ghost" size="sm" @click=${() => (this.wizard = null)}>ביטול</sw-button>`
-                  : canAssign
-                    ? html`<sw-button variant="primary" size="sm" icon="check" ?disabled=${this.busy || !this.members} @click=${() => this.saveMembers(g)}>שמור חברים</sw-button>
-                      <sw-button size="sm" icon="plus" ?disabled=${this.busy} @click=${() => this.startWizard('group', g.id, g.name)}>שיוך תפקיד</sw-button>
-                      <sw-button variant="danger" size="sm" icon="trash" ?disabled=${this.busy} @click=${() => this.removeGroup(g)}>מחיקה</sw-button>`
-                    : nothing}
-              </div>
-            </sw-drawer>`
-          : nothing}
-      </div>
+      <sw-card heading="קבוצות" subheading=${delegated ? 'הקבוצות שכל השיוכים שלהן בתוך ההיקף שלך · חברות ושיוך תפקידים מרשימת ההאצלה' : 'קבוצה מקבלת תפקיד בהיקף, וכל חבריה יורשים אותו · ההרשאות האפקטיביות = השיוכים האישיים + שיוכי הקבוצות, בכל היקף בנפרד'} data-groups-card>
+        ${canManage
+          ? html`<div class="toolbar"><sw-field label="קבוצה חדשה"><input data-group-new .value=${this.newGroup} placeholder="למשל: עורכי קומה 2" @input=${(e: Event) => (this.newGroup = (e.target as HTMLInputElement).value)} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') void this.addGroup(); }} /></sw-field><sw-button size="sm" icon="plus" data-group-create ?disabled=${this.busy || !this.newGroup.trim()} @click=${() => this.addGroup()}>יצירה</sw-button></div>`
+          : html`<div class="hint">${delegated ? 'יצירה, שינוי שם ומחיקה של קבוצות — מנהל המערכת בלבד. קבוצה שיש לה שיוך מחוץ להיקף שלך, או שאתה חבר בה, אינה מוצגת כאן.' : 'יצירה, שינוי שם ומחיקה של קבוצות דורשים ניהול תפקידים (מנהל מערכת).'}</div>`}
+      </sw-card>
+        <div class="stage groups-stage">
+          ${groups.length
+            ? html`<sw-table .columns=${columns} .rows=${groups as unknown as Record<string, unknown>[]} .selected=${this.selectedGroup} @row-select=${(e: CustomEvent<{ id: string }>) => { this.selectedGroup = e.detail.id; this.members = null; this.wizard = null; this.renameDraft = null; }}></sw-table>`
+            : html`<sw-state-panel state="empty" heading="אין קבוצות" hint=${delegated ? 'אין קבוצה שכל השיוכים שלה בתוך ההיקף שלך.' : 'קבוצה מקבלת תפקיד בהיקף, וכל חבריה יורשים אותו. קבוצות VMS בלבד, לא קבוצות HA.'}></sw-state-panel>`}
+          ${g
+            ? html`<sw-drawer open heading=${g.name} subheading=${`${g.members.length} חברים · ${g.bindings.length} שיוכים · רוויזיה ${g.revision}`} data-group-drawer @close=${() => { this.selectedGroup = null; this.members = null; this.wizard = null; this.renameDraft = null; }}>
+                ${this.wizard && this.wizard.subjectKind === 'group'
+                  ? this.renderWizard()
+                  : html`${canManage
+                      ? html`<div class="toolbar" style="margin-block-end:8px"><sw-field label="שם הקבוצה"><input data-group-rename .value=${this.renameDraft ?? g.name} @input=${(e: Event) => (this.renameDraft = (e.target as HTMLInputElement).value)} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') void this.saveRename(g); }} /></sw-field><sw-button size="sm" data-group-rename-save ?disabled=${this.busy || this.renameDraft === null || !this.renameDraft.trim() || this.renameDraft.trim() === g.name} @click=${() => this.saveRename(g)}>שינוי שם</sw-button></div>`
+                      : nothing}
+                    <div style="font-weight:600;font-size:var(--sw-fs-xs);margin-block-end:4px">שיוכים של הקבוצה</div>
+                    ${g.bindings.length ? g.bindings.map((b) => this.renderBindingRow(b, canAssign)) : html`<div class="hint">ללא שיוך: החברים אינם מקבלים דבר דרך הקבוצה.</div>`}
+                    <div style="font-weight:600;font-size:var(--sw-fs-xs);margin-block:10px 4px">חברים</div>
+                    <div class="members">${dir.users.map((u) => html`<label><input type="checkbox" data-member=${u.id} ?disabled=${!canAssign || (delegated && u.id === me)} .checked=${memberSet.has(u.id)} @change=${(e: Event) => { const next = new Set(memberSet); if ((e.target as HTMLInputElement).checked) next.add(u.id); else next.delete(u.id); this.members = next; }} /> ${u.name}<span class="hint">${u.active ? '' : ' · ללא גישה'}${delegated && u.id === me ? ' · לא ניתן לצרף את עצמך' : ''}</span></label>`)}${hidden.map((m) => html`<label><input type="checkbox" checked disabled /> ${m.name}<span class="hint"> · מחוץ לרשימה שלך</span></label>`)}</div>
+                    <div class="hint" style="margin-block-start:8px">שינוי חברות ושיוך נבדקים מול כל השיוכים של הקבוצה, מוצגים לפני השמירה עם ההשפעה על כל משתמש, ונרשמים באודיט.</div>
+                    ${canManage && inUse ? html`<div class="hint" data-group-in-use>מחיקה אפשרית רק לקבוצה ללא חברים וללא שיוכים — הסר אותם קודם.</div>` : nothing}`}
+                <div slot="footer">
+                  ${this.wizard
+                    ? html`<sw-button variant="primary" size="sm" icon="check" data-wizard-save ?disabled=${this.busy} @click=${() => this.saveWizard()}>שמור שיוך</sw-button><sw-button variant="ghost" size="sm" @click=${() => (this.wizard = null)}>ביטול</sw-button>`
+                    : html`${canAssign
+                        ? html`<sw-button variant="primary" size="sm" icon="check" data-group-save-members ?disabled=${this.busy || !this.members} @click=${() => this.saveMembers(g)}>שמור חברים</sw-button>
+                          <sw-button size="sm" icon="plus" data-group-bind ?disabled=${this.busy} @click=${() => this.startWizard('group', g.id, g.name)}>שיוך תפקיד</sw-button>`
+                        : nothing}
+                      ${canManage ? html`<sw-button variant="danger" size="sm" icon="trash" data-group-delete ?disabled=${this.busy || inUse} @click=${() => this.removeGroup(g)}>מחיקה</sw-button>` : nothing}`}
+                </div>
+              </sw-drawer>`
+            : nothing}
+        </div>
+      ${this.renderGroupChange()}
     `;
+  }
+
+  private renderGroupChange() {
+    const c = this.groupChange;
+    if (!c) return nothing;
+    const im = c.impact;
+    const lbl = (p: string) => im.labels[p] ?? this.label(p);
+    const changeLabel = { member: 'חבר', added: 'מצטרף', removed: 'יוצא' } as const;
+    return html`<sw-dialog open heading="השפעת השינוי" subheading=${c.heading} data-group-impact @close=${() => (this.groupChange = null)}>
+      <div class="impact">
+        <strong>${im.users.length} משתמשים מושפעים</strong>${im.scopes.length ? html` · היקפים: ${im.scopes.map((s) => s.scope_name).join(', ')}` : html` · לקבוצה אין שיוך, ולכן השינוי אינו משנה הרשאות`}
+      </div>
+      ${im.users.length
+        ? html`<div class="members" style="margin-block-start:8px">${im.users.map((u) => html`<div class="bind" data-impact-user=${u.id}>
+            <div><strong>${u.name}</strong> <sw-badge kind=${u.change === 'removed' ? 'forbidden' : 'recorded'} label=${changeLabel[u.change]}></sw-badge>
+              <div class="sub">${u.added.length ? html`<span class="ok">יתווספו: ${u.added.map(lbl).join(', ')}</span>` : 'ללא הרשאות חדשות'} · ${u.removed.length ? html`<span class="err">יוסרו: ${u.removed.map(lbl).join(', ')}</span>` : 'ללא הסרות'}</div></div>
+          </div>`)}</div>`
+        : html`<div class="hint" style="margin-block-start:8px">אין חברים בקבוצה: אף משתמש אינו מושפע כרגע. מי שיצורף בהמשך יירש את השיוך.</div>`}
+      <div class="hint" style="margin-block-start:8px">הרשאות בתוך SMPLWISE בלבד. השינוי נרשם באודיט (מזהים בלבד) וחל מהבקשה הבאה של כל משתמש.</div>
+      <sw-button slot="footer" variant="ghost" @click=${() => (this.groupChange = null)}>ביטול</sw-button>
+      <sw-button slot="footer" variant="primary" icon="check" data-group-impact-confirm ?disabled=${this.busy} @click=${() => this.confirmGroupChange()}>${c.confirmLabel}</sw-button>
+    </sw-dialog>`;
   }
 
   private openRole(r?: RoleInfo) {
@@ -662,7 +814,7 @@ export class SystemAccess extends LitElement {
     this.busy = true;
     this.error = '';
     try {
-      const body = { name: e.name.trim(), description: e.description, permissions: e.permissions, sensitive: e.sensitive, delegable: e.delegable };
+      const body = { name: e.name.trim(), description: e.description, permissions: e.permissions, sensitive: e.sensitive, delegable: e.delegable && !e.sensitive.length && !e.permissions.includes('rbac.assign') };
       if (e.id) {
         await updateRole(e.id, { ...body, revision: e.revision });
         this.roleEdit = null;
@@ -760,7 +912,7 @@ export class SystemAccess extends LitElement {
       </div>
       <div class="perms">${roles.sensitive.map((p) => html`<label class="chk sens"><input type="checkbox" data-role-sensitive=${p} .checked=${e.sensitive.includes(p)} @change=${() => this.toggleRolePerm(p, true)} /> ${roles.labels[p] ?? p}</label>`)}</div>
       ${!e.id ? html`<label class="chk" style="margin-block-start:6px"><input type="checkbox" data-role-assign-me .checked=${e.assignMe !== false} @change=${(ev: Event) => (this.roleEdit = { ...e, assignMe: (ev.target as HTMLInputElement).checked })} /> שייך את התפקיד אליי מיד (כל המתקן)</label>` : nothing}
-      <label class="chk" style="margin-block-start:6px"><input type="checkbox" data-role-delegable .checked=${e.delegable} @change=${(ev: Event) => (this.roleEdit = { ...e, delegable: (ev.target as HTMLInputElement).checked })} /> מנהל אתר רשאי להקצות תפקיד זה בהיקפו (בכפוף להרשאות שהוא מחזיק)</label>
+      <label class="chk" style="margin-block-start:6px"><input type="checkbox" data-role-delegable ?disabled=${e.sensitive.length > 0 || e.permissions.includes('rbac.assign')} .checked=${e.delegable && !e.sensitive.length && !e.permissions.includes('rbac.assign')} @change=${(ev: Event) => (this.roleEdit = { ...e, delegable: (ev.target as HTMLInputElement).checked })} /> מנהל אתר רשאי להקצות תפקיד זה בהיקפו (בכפוף להרשאות שהוא מחזיק)${e.sensitive.length || e.permissions.includes('rbac.assign') ? html`<span class="hint"> · לא זמין: תפקיד עם הרשאה רגישה או עם שיוך תפקידים אינו ניתן להאצלה</span>` : nothing}</label>
       ${im
         ? html`<div class="impact" data-role-impact>
             <strong>השפעת השינוי:</strong> ${im.bindings} שיוכים · ${im.users.length} משתמשים${im.users.length ? ` (${im.users.map((u) => u.name).join(', ')})` : ''}${im.groups.length ? ` · ${im.groups.length} קבוצות` : ''}${im.scopes.length ? ` · היקפים: ${im.scopes.join(', ')}` : ''}
@@ -777,10 +929,13 @@ export class SystemAccess extends LitElement {
     return html`<div class="roles">${roles.roles.map((r) => html`<sw-card class="role" data-role-card=${r.id}><h4><span class="ic"><sw-icon name=${r.custom ? 'user' : r.id === 'viewer' ? 'eye' : r.id === 'operator' ? 'play' : r.id === 'editor' ? 'edit' : r.id === 'site_admin' ? 'building' : r.id === 'kiosk' ? 'grid' : 'shield'} size=${14}></sw-icon></span>${r.name}${r.custom ? html` <sw-badge kind="recorded" label="מותאם"></sw-badge>` : nothing}${r.system_role ? html` <sw-badge kind="neutral" label="הרשאות מערכת"></sw-badge>` : nothing}${r.delegable ? html` <sw-badge kind="historic" label="ניתן להאצלה"></sw-badge>` : nothing}</h4>${r.description ? html`<div class="d">${r.description}</div>` : nothing}<div class="a">מותר: ${r.permissions.map((p) => this.label(p)).join(', ')}</div><div class="d">לא כלול אוטומטית: ${r.sensitive_missing.map((p) => this.label(p)).join(', ') || '—'}</div>${r.custom && roles.can_manage_roles ? html`<div style="display:flex;gap:6px;margin-block-start:8px"><sw-button size="sm" data-role-edit @click=${() => this.openRole(r)}>עריכה</sw-button><sw-button size="sm" variant="ghost" icon="trash" data-role-delete @click=${() => (this.roleDelete = r)}>מחיקה</sw-button></div>` : nothing}</sw-card>`)}</div>
       ${roles.can_manage_roles
         ? html`<div style="margin-block-start:10px"><sw-button variant="primary" icon="plus" data-role-new @click=${() => this.openRole()}>תפקיד מותאם חדש</sw-button></div>
-            <sw-card heading="האצלת ניהול למנהלי אתר" subheading="מנהל אתר משייך רק תפקידים מהרשימה הזו, רק הרשאות שהוא מחזיק בהיקף, למשתמשים בלבד ובתוך ההיקף שלו; תפקידי מערכת לעולם לא" style="margin-block-start:12px" data-delegation>
-              <div class="chips">${roles.roles.filter((r) => !r.system_role).map((r) => html`<sw-chip data-delegable=${r.id} ?selected=${(roles.delegable_roles ?? []).includes(r.id)} @click=${() => void this.toggleDelegable(r.id)}>${r.name}</sw-chip>`)}</div>
+            <sw-card heading="האצלת שיוך תפקידים למנהלי אתר" subheading="מנהל אתר משייך רק תפקידים מהרשימה הזו, רק הרשאות שהוא מחזיק בעצמו, רק בתוך ההיקף שלו, ולעולם לא לעצמו; קבוצה — רק כשכל השיוכים שלה בהיקף שלו" style="margin-block-start:12px" data-delegation>
+              <div class="chips">${roles.roles.filter((r) => !r.delegation_block).map((r) => html`<sw-chip data-delegable=${r.id} ?selected=${(roles.delegable_roles ?? []).includes(r.id)} @click=${() => void this.toggleDelegable(r.id)}>${r.name}</sw-chip>`)}</div>
+              <div class="hint" style="margin-block-start:6px" data-delegation-blocked>לעולם לא ניתנים להאצלה: ${roles.roles.filter((r) => r.delegation_block).map((r) => `${r.name} (${r.delegation_block === 'system_role' ? 'תפקיד ניהול / הרשאות מערכת' : r.delegation_block === 'assign_role' ? 'כולל שיוך תפקידים' : 'הרשאה רגישה'})`).join(' · ') || '—'}. ברירת המחדל: צופה ומפעיל.</div>
             </sw-card>`
-        : nothing}
+        : roles.delegated
+          ? html`<div class="hint" style="margin-block-start:10px" data-delegation>מוצגים רק התפקידים שמותר לך לשייך בהיקף שלך (רשימת ההאצלה של ההתקנה). עריכת תפקידים והרשימה — מנהל המערכת בלבד.</div>`
+          : nothing}
       <div class="hint">תפקידים מובנים אינם נערכים; תפקיד מותאם מורכב מהרשאות רגילות ומהרשאות רגישות שניתנות במפורש, ולעולם לא מהרשאות מערכת. התפקידים אינם סולם: עריכת מפה והיסטוריית וידאו הן יכולות נפרדות.</div>
       ${this.renderRoleDialog()}
       ${this.roleDelete
@@ -842,12 +997,15 @@ export class SystemAccess extends LitElement {
       { id: 'groups', label: 'קבוצות', count: this.groups?.length ?? 0 },
       { id: 'roles', label: 'תפקידים', count: this.roles.roles.length },
       { id: 'effective', label: 'הרשאות אפקטיביות' },
-      { id: 'audit', label: 'אודיט הרשאות' },
+      // a delegated administrator holds no audit.read: the tab would only show a refusal
+      ...(dir.delegated && !this.groupsMeta.can_manage ? [] : [{ id: 'audit', label: 'אודיט הרשאות' }]),
     ];
-    const sub = dir.directory.paired ? `זהות מ־Home Assistant · ${dir.directory.users} משתמשים בספרייה · עודכן ${fmtWhen(dir.directory.last_directory_at)} · רוויזיית הרשאות ${dir.revision}` : 'זהות מ־Home Assistant · הגשר עדיין לא מצומד: מוצגים רק משתמשים שנכנסו דרך Ingress';
+    const sub = dir.delegated && !this.groupsMeta.can_manage
+      ? `מנהל אתר · שיוך תפקידים מרשימת ההאצלה בתוך ההיקף שלך בלבד · ${dir.users.length} משתמשים פעילים · רוויזיית הרשאות ${dir.revision}`
+      : dir.directory.paired ?`זהות מ־Home Assistant · ${dir.directory.users} משתמשים בספרייה · עודכן ${fmtWhen(dir.directory.last_directory_at)} · רוויזיית הרשאות ${dir.revision}` : 'זהות מ־Home Assistant · הגשר עדיין לא מצומד: מוצגים רק משתמשים שנכנסו דרך Ingress';
     return html`
       <sw-page heading="משתמשים והרשאות" subheading=${sub}>
-        <sw-button slot="actions" icon="refresh" ?disabled=${this.busy} @click=${() => this.sync()}>סנכרון משתמשים מ־HA</sw-button>
+        ${dir.delegated ? nothing : html`<sw-button slot="actions" icon="refresh" ?disabled=${this.busy} @click=${() => this.sync()}>סנכרון משתמשים מ־HA</sw-button>`}
         <sw-tabs .items=${tabs} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => { this.tab = e.detail.id; if (this.tab === 'audit') void this.loadAudit(); }}></sw-tabs>
         <div class="notice"><sw-icon name="shield" size=${14}></sw-icon>שיוך כאן אינו משנה דבר ב־Home Assistant: לא קבוצות HA, לא דגל מנהל, לא סיסמאות. אין "הוספת משתמש" — משתמשים נוצרים ב־HA בלבד.</div>
         ${this.message || this.error ? html`<div class="bar">${this.message ? html`<span class="ok">${this.message}</span>` : nothing}${this.error ? html`<span class="err">${this.error}</span>` : nothing}</div>` : nothing}

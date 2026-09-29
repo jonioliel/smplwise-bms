@@ -24,8 +24,38 @@
     {
       "method": "GET/POST/PATCH/DELETE",
       "path": "/api/v1/access/groups",
-      "permission": "rbac.assign; full group binding impact checked",
-      "purpose": "VMS groups only, not HA groups."
+      "permission": "list: identity.directory.read (a delegated administrator sees only the groups in reach); create/rename/delete: rbac.roles.manage; revision guard; delete refused while members or bindings exist",
+      "purpose": "VMS groups only, not HA groups (T082)."
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/access/groups/{group_id}/members",
+      "permission": "rbac.assign on every scope the group is bound to; delegated: group in reach, never self; permission before body, JSON only, size cap, all-or-nothing",
+      "purpose": "Replace the membership (a bulk request)."
+    },
+    {
+      "method": "POST/DELETE",
+      "path": "/api/v1/access/groups/{group_id}/bindings",
+      "permission": "rbac.assign; role-and-scope delegation checked; group revision",
+      "purpose": "Bind / unbind a role on the group; members inherit it."
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/access/groups/{group_id}/impact",
+      "permission": "the same checks as the change it previews",
+      "purpose": "Every affected user and the permissions they gain or lose, before a group change."
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/access/bindings/bulk",
+      "permission": "rbac.assign somewhere before the body; every item checked; first refusal refuses all",
+      "purpose": "Many bindings in one call, all or nothing."
+    },
+    {
+      "method": "GET/PUT",
+      "path": "/api/v1/access/delegation",
+      "permission": "read: identity.directory.read; write: rbac.roles.manage",
+      "purpose": "The per-installation allow-list of roles a delegated administrator may assign (default viewer + operator)."
     },
     {
       "method": "GET/POST/PATCH/DELETE",

@@ -38,11 +38,23 @@ export interface DirectoryUser {
   is_self: boolean;
 }
 
+export interface ScopeRef {
+  type: 'installation' | 'site' | 'building' | 'floor';
+  id: string;
+  name: string;
+}
+
 export interface DirectoryResponse {
   users: DirectoryUser[];
   directory: { paired: boolean; last_directory_at: string | null; users: number };
   revision: number;
   can_assign: boolean;
+  /** T082: a delegated administrator (site admin) - only what they may assign, inside their own scopes. */
+  delegated?: boolean;
+  /** Every scope node where the caller holds rbac.assign (the scope picker). */
+  assign_scopes?: ScopeRef[];
+  /** Role ids the caller may hand out (all for a system administrator, the allow-list for a delegated one). */
+  assignable_roles?: string[];
 }
 
 export interface RoleInfo {
@@ -57,6 +69,8 @@ export interface RoleInfo {
   description?: string;
   revision?: number | null;
   delegable?: boolean;
+  /** Why the role can never be on the delegation allow-list (system_role / assign_role / sensitive_custom_role). */
+  delegation_block?: string | null;
   created_by_username?: string | null;
   updated_by_username?: string | null;
 }
@@ -68,6 +82,7 @@ export interface RolesResponse {
   system_permissions?: string[];
   delegable_roles?: string[];
   can_manage_roles?: boolean;
+  delegated?: boolean;
 }
 
 /** Who a role change touches, computed before saving (T082). */
@@ -93,8 +108,29 @@ export interface AccessGroup {
   id: string;
   name: string;
   created_at: string;
+  /** T082 revision guard: sent back on rename / membership / the group's bindings; a stale one is a 409. */
+  revision: number;
+  updated_at?: string | null;
+  is_member?: boolean;
   members: { id: string; name: string }[];
   bindings: AccessBinding[];
+}
+
+export interface GroupsResponse {
+  groups: AccessGroup[];
+  /** rbac.roles.manage: create, rename, delete. */
+  can_manage: boolean;
+  delegated: boolean;
+}
+
+/** Who a group change touches, computed by the server before saving (T082). */
+export interface GroupImpact {
+  group_id: string;
+  op: 'bind' | 'unbind' | 'members';
+  revision: number;
+  scopes: { scope_type: string; scope_id: string; scope_name: string }[];
+  users: { id: string; name: string; change: 'member' | 'added' | 'removed'; added: string[]; removed: string[] }[];
+  labels: Record<string, string>;
 }
 
 export interface PreviewResponse {
@@ -130,10 +166,16 @@ export const listBindings = () => get<{ bindings: AccessBinding[]; revision: num
 export const createBinding = (body: { subject_kind: 'user' | 'group'; subject_id: string; role_id: string; scope_type: string; scope_id: string; effect?: 'allow' | 'deny'; expires_at?: string | null }) =>
   post<AccessBinding & { revision: number }>('access/bindings', body);
 export const revokeBinding = (id: string) => del(`access/bindings/${id}`);
-export const listGroups = () => get<{ groups: AccessGroup[] }>('access/groups');
+export const listGroups = () => get<GroupsResponse>('access/groups');
 export const createGroup = (name: string) => post<AccessGroup>('access/groups', { name });
-export const deleteGroup = (id: string) => del(`access/groups/${id}`);
-export const setGroupMembers = (id: string, userIds: string[]) => put<AccessGroup>(`access/groups/${id}/members`, { user_ids: userIds });
+export const renameGroup = (id: string, name: string, revision: number) => patch<AccessGroup>(`access/groups/${id}`, { name, revision });
+export const deleteGroup = (id: string, revision?: number) => del(`access/groups/${id}${revision ? `?revision=${revision}` : ''}`);
+export const setGroupMembers = (id: string, userIds: string[], revision: number) => put<AccessGroup>(`access/groups/${id}/members`, { user_ids: userIds, revision });
+export const bindGroup = (id: string, body: { role_id: string; scope_type: string; scope_id: string; effect?: 'allow' | 'deny'; revision: number }) =>
+  post<{ binding_id: string; revision: number; group: AccessGroup }>(`access/groups/${id}/bindings`, body);
+export const unbindGroup = (id: string, bindingId: string, revision: number) => del(`access/groups/${id}/bindings/${bindingId}?revision=${revision}`);
+export const groupImpact = (id: string, body: { op: 'bind' | 'unbind' | 'members'; role_id?: string; scope_type?: string; scope_id?: string; effect?: 'allow' | 'deny'; binding_id?: string; user_ids?: string[] }) =>
+  post<GroupImpact>(`access/groups/${id}/impact`, body);
 export const previewAccess = (body: { user_id: string; scope_type?: string; scope_id?: string }) => post<PreviewResponse>('access/preview', body);
 export const listAudit = (opts: { prefix?: string; actor?: string; resourceId?: string; limit?: number } = {}) => {
   const q = new URLSearchParams();
@@ -160,6 +202,12 @@ export const ACTION_LABEL: Record<string, string> = {
   'rbac.group_create': 'יצירת קבוצה',
   'rbac.group_members': 'שינוי חברי קבוצה',
   'rbac.group_delete': 'מחיקת קבוצה',
+  'rbac.group_rename': 'שינוי שם קבוצה',
+  'rbac.bind_bulk': 'שיוך מרובה',
+  'rbac.delegation.update': 'עדכון רשימת ההאצלה',
+  'rbac.role.create': 'יצירת תפקיד',
+  'rbac.role.update': 'עדכון תפקיד',
+  'rbac.role.delete': 'מחיקת תפקיד',
   'rbac.bootstrap_admin': 'מנהל ראשון (bootstrap)',
   'identity.user_disabled': 'משתמש הושבת (HA)',
   'identity.user_enabled': 'משתמש הופעל (HA)',
@@ -177,5 +225,5 @@ export const createRole = (body: CustomRoleBody) => post<RoleInfo>('access/roles
 export const updateRole = (id: string, body: CustomRoleBody & { revision: number }) => patch<RoleInfo & { impact: RoleImpact }>(`access/roles/${id}`, body);
 export const deleteRole = (id: string) => del(`access/roles/${id}`);
 export const previewRole = (body: { role_id?: string | null; permissions: string[]; sensitive: string[] }) => post<RoleImpact>('access/roles/preview', body);
-export const getDelegation = () => get<{ delegable_roles: string[]; default: string[]; rules: string[] }>('access/delegation');
+export const getDelegation = () => get<{ delegable_roles: string[]; default: string[]; rules: string[]; blocked: Record<string, string>; revision: number }>('access/delegation');
 export const setDelegation = (roles: string[]) => put<{ delegable_roles: string[]; revision: number }>('access/delegation', { delegable_roles: roles });

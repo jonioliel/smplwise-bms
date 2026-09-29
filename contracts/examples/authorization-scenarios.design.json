@@ -63,7 +63,7 @@
       "action": "rbac.assign",
       "target": "site-a",
       "expected_allow": true,
-      "reason": "V1 delegated administration (T082): the site admin holds a limited rbac.assign inside their own subtree. The limits (allowlisted roles only, nothing above their own permissions at that scope, users only, never a system role, never outside the subtree) are enforced by the delegation check on top of this coarse decision."
+      "reason": "V1 delegated administration (T082): the site admin holds a limited rbac.assign inside their own subtree. The limits (allowlisted roles only, nothing above their own permissions at that scope, never their own bindings, a group only when all its bindings are in their reach, never a system role, never outside the subtree) are enforced by the delegation check on top of this coarse decision."
     },
     {
       "id": "system-admin-not-ha-admin",
