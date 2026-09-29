@@ -43,6 +43,19 @@
 | Alarmo (`alarmo`, HACS) | none of its own: Alarmo watches existing sensors chosen in its own settings; the panel reports `open_sensors`, `bypassed_sensors`, `arm_mode` | none (force-arm bypasses open sensors) | nielsfaber/alarmo README - verified |
 | Crow (Runner / Shepherd) | no maintained integration found | - | not found |
 
+**Risco, the owner's system (owner answer 2026-09-29 21:45 - first-class, exact pairing).** Read from the core source
+(homeassistant/components/risco: const.py, alarm_control_panel.py, entity.py, binary_sensor.py, switch.py): one
+`alarm_control_panel` per partition (unique id `<site uuid>_<partition>` in cloud mode, `<system id>_<partition>_local`
+in local mode; the device is the partition); the options `code_arm_required` / `code_disarm_required` (both off by
+default) make `code_format` "number" when either is on and set `code_arm_required`; a wrong code is logged by the
+integration and ignored (no error reaches the caller); `risco_states_to_ha` / `ha_states_to_risco` map Risco's arm /
+partial_arm / groups A-D to armed_away / armed_home by default and may map to armed_night / armed_custom_bypass, and
+`supported_features` follows that mapping. Each zone is its own device: `binary_sensor.<zone>` (device class motion
+for every zone, attribute `zone_id`, unique id `<system>_zone_<n>[_local]`), in local mode also
+`binary_sensor.<zone>_alarmed` / `_armed`, and `switch.<zone>_bypassed` (entity category config, unique id
+`..._bypassed`). Arx pairs a Risco zone with its bypass switch only by the device, then by the system + zone number of
+the unique id - never by a name; zones are shown as "open / closed" (the motion class says nothing for Risco).
+
 ## 3. Navigation
 
 - Design A's rail (and the phone bottom bar) becomes **אבטחה · מפה · חשמל · WisKey · מערכת**. "אבטחה" holds three
@@ -103,10 +116,11 @@ panel, zone → bypass control or "none", zone excluded); state is never copied 
   confirmation poll (`GET /ha/actions/{id}`; arming counts as accepted when the panel reports `arming`). The bypass
   call targets the control the server itself paired with that zone - the client never names a switch, so
   `alarm.bypass` cannot toggle an arbitrary switch.
-- **The code** is asked for each time the panel needs one, travels in the request body over the existing
-  authenticated channel, is added to the service call's data and nothing else: never stored (the `ha_actions`
-  arguments exclude it), never logged, never audited, never cached, never put in a URL, never echoed in an error
-  (the bridge's error text is replaced by the error code; any text is scrubbed of the code before it is used).
+- **Codes** follow §5a (the owner's code policy, 2026-09-29 21:45, which replaces the brief's "never stored"). A code
+  the user types travels in the request body over the existing authenticated channel only; the code sent to the panel
+  is added to the service call's data and nothing else: never in the `ha_actions` arguments, a log line, an audit
+  row, a cache, a URL or an error (the bridge's error text is replaced by the error code; any text is scrubbed of the
+  code before it is used).
 - **Permissions** (new, in the catalogue, roles.json and the design role catalogue): `alarm.view` (viewer and above),
   `alarm.arm` (operator and above), `alarm.disarm` (existing, sensitive; now granted by default to site_admin and
   system_admin, like access.release), `alarm.bypass` (new, sensitive; site_admin and system_admin). Editor and kiosk
@@ -115,17 +129,62 @@ panel, zone → bypass control or "none", zone excluded); state is never copied 
   services/ha_scope.py), and every action is authorised at the panel's own scope.
 - **Confirmation** (as CR-007's dangerous actions): disarm and bypass (on or off) need `confirmed: true`; arming does
   not.
-- **Remote channel** (`/arx`): allowed for holders of the permission, audited with `channel: remote`. Two settings in
-  הגדרות › מערכת › אזעקה: `alarm.remote_control` (default on: off refuses every alarm action from outside) and
+- **Remote channel** (`/arx`): allowed for holders of the permission, audited with `channel: remote`. Settings in
+  הגדרות › מערכת › אזעקה: `alarm.remote_control` (default on: off refuses every alarm action from outside),
   `alarm.remote_disarm` (default on: off refuses disarming and bypassing a zone from outside - both lower
-  protection). The general `/ha/entities/{id}/actions` route honours the same two settings for alarm panels.
-- **Rate limit:** at most 5 code-bearing or disarm attempts per user in 5 minutes (429 with the wait); an arm attempt
-  with a code counts too, otherwise arming would be an oracle for guessing the code. In memory, per process.
+  protection) and `alarm.remote_codeless` (§5a). The general `/ha/entities/{id}/actions` route honours the remote
+  settings for alarm panels, and - since it carries no code - serves an alarm action only to a caller whose policy for
+  it is `no_code` (409 `code_policy` otherwise: the alarm screen is the way).
+- **Rate limits:** wrong codes verified by Arx (a PIN, or the panel code in `panel_code` mode): 5 in 5 minutes per user
+  OR per panel lock that user / panel out of code entry for 10 minutes (429 `code_locked`), audited. A code passed
+  through to the panel (no stored code) and every disarm: 5 attempts in 5 minutes (per user and panel for a typed
+  code, per user for a disarm), 429 `rate_limited`. In memory, per process (the add-on runs one worker).
 - **Answers:** the platform's refusal of a code (`invalid_code`, `invalid_code_format`, `code_arm_required` - the
   bridge 0.2.6 names them; an older bridge reports `ServiceValidationError`) becomes "הקוד שגוי או שהלוח דחה את
   הפקודה" and nothing else.
 - **Audit:** `alarm.arm`, `alarm.disarm`, `alarm.bypass` rows with actor, panel (or zone and control), action,
   outcome and channel - never the code.
+
+## 5a. The code policy and its threat model (owner decisions 2026-09-29 21:45 and 21:50)
+
+**What is stored.** (1) The PANEL code, one per panel / partition, typed once by an administrator in הגדרות › מערכת ›
+אזעקה (`system.configure`, audited without the value), stored in `alarm_panel_codes` encrypted with AES-256-GCM
+(the `cryptography` package already in the image); the associated data is the panel's entity id, so a ciphertext
+moved to another panel's row does not decrypt. The API is write-only: it reports "set", when and by whom, never the
+code. (2) Per user: `arm_policy` and `disarm_policy` = `no_code` | `code_required` (default `code_required`;
+bypass follows disarm), in `alarm_user_policy`, set in משתמשים והרשאות next to the remote-access flag
+(`system.configure`). (3) A personal Arx PIN per user (4-8 digits), stored only as a salted scrypt hash (N=2^14,
+r=8, p=1); set by the user (changing it needs the current one) or by an administrator; revocable per user.
+
+**What the user types** (`alarm.code_mode`, default `personal_pin`): `no_code` - nothing; Arx sends the stored panel
+code when the panel needs one. `code_required` - the user's PIN (`personal_pin`), verified by Arx, after which Arx
+sends the stored panel code; or the panel's own code (`panel_code`), compared in constant time with the stored one.
+Without a stored code, a panel that needs one gets the code the user types passed through (the panel verifies it;
+nothing is stored); a panel that needs none cannot be verified in `panel_code` mode and the action is refused
+("unverifiable"). Remote: `alarm.remote_codeless` (default ON - owner decision 2026-09-29 21:50: he relies on the
+Android app's biometric lock and plans 2FA) lets `no_code` users act without a code from outside too; OFF makes
+every remote arm / disarm / bypass ask for a code. Factually: the biometric lock exists only in the Android app and
+only when switched on there - a browser or installed-PWA session from outside has no such lock, so with the default a
+stolen unlocked phone or a signed-in browser can disarm without a code. Every remote action is audited with
+`channel: remote`.
+
+**The key** is 32 random bytes in `<data>/keys/alarm-codes.key`, created on first use with mode 0600 in a 0700
+directory (the evidence signing keys' directory and policy, services/signing.py; written in binary mode). It is never
+logged, returned, audited, exported, or put in a support bundle (there is none that reads `/data`).
+
+**Backups.** An Arx project backup (services/backup.py) contains neither alarm table and never `keys/`: it carries
+no ciphertext, no PIN hash and no key. A Home Assistant backup of the add-on (`backup: hot`, the whole `/data`)
+contains the database AND the key file: whoever holds that backup file can decrypt the panel codes - the same
+exposure the VAPID key and the signing keys already have (DOCS.md, notifications). Keep those backups private; after
+a leak, change the panel's code at the panel and re-enter it in Arx (clearing a code: הגדרות › מערכת › אזעקה).
+
+**Who can read what.** Anyone with a shell on the Home Assistant host (the Supervisor, SSH / terminal add-on users,
+Home Assistant administrators who can reach the add-on's data) can read `/data` - database and key - and so the
+panel codes: the encryption protects against a copied database or an Arx project backup, not against the host's
+administrators. An Arx administrator (`system.configure`) can replace or clear a panel code, set any user's policy
+and PIN, and switch the remote settings - all audited without values - but cannot read a code or a PIN back. Home
+Assistant itself sees the panel code in the service call, exactly as it does for its own alarm card (its event bus
+carries service data). A user with `no_code` never learns the panel code; a PIN user never learns it either.
 
 ## 6. The alarm section (frontend/src/screens/security-alarm.ts)
 
@@ -141,23 +200,39 @@ Design: the app's own visual language (v2 tokens, the device tiles), RTL, phone 
 
 ## 7. Settings (הגדרות › מערכת › אזעקה)
 
-The discovered panels with their integration and entity ids, the zone ↔ bypass pairing table with the strategy that
-paired each row, manual overrides (pair, "no bypass", assign to a panel, exclude), the unpaired controls, and the two
-remote switches. Technical names are allowed here (docs/design/UI_COPY_RULES.md).
+The discovered panels with their integration and entity ids, the write-only panel code, the zone ↔ bypass pairing
+table with the strategy that paired each row, manual overrides (pair, "no bypass", assign to a panel, exclude), the
+unpaired controls, the remote switches and the code mode. Each user's arm / disarm policy and PIN are in the user
+drawer of משתמשים והרשאות. Technical names are allowed here (docs/design/UI_COPY_RULES.md).
 
 ## 8. Scope impact
 
-Migration 0036 (config entry id column, `alarm_zone_overrides`), a new service and router, two permissions, three
+Migration 0036 (config entry id column, `alarm_zone_overrides`, `alarm_panel_codes`, `alarm_user_policy`), two new
+services and a router, three new permissions (alarm.disarm existed), three
 allow-list actions and the bridge 0.2.6 (the three services and the code-refusal answer), the shell navigation, one
 screen, one settings card, docs and tests. No device is touched by the tests; nothing is armed or disarmed for real.
 
 ## 9. Build status
 
-(filled in as the build progresses)
+Built on `pilot/CR010-security-alarm` (2026-09-29), not merged, no version bump:
+
+- Backend: services/alarm.py (discovery, pairing - Risco exact: device, then the system + zone number of the unique id,
+  never a name guess), services/alarm_codes.py (encryption, PINs, policy, code plan, lockout), routers/alarm.py,
+  migration 0036, permissions, allow-list, bridge 0.2.6, the general route's alarm gate, search. Tests:
+  tests/test_alarm.py 25 (Risco 2 partitions / 8 zones and PAI fixtures in tests/fake_alarm.py; the code and the PIN
+  are grepped in the captured log, every audit row, every ha_actions row, the replies and the raw database files).
+- Frontend: the security area (nav.ts, sw-app.ts, router.ts), security-alarm.ts, system-alarm.ts (settings tab and
+  the user drawer), Ctrl+K page targets. Playwright evidence-alarm.spec.ts: demo navigation 21/21, live against the
+  fixture backend 12/12; screens spec 99/99; screenshots in docs/evidence/CR010.
+- Known limits: two partitions of one Risco system show every zone on both (marked "משותף") until an administrator
+  assigns zones - Home Assistant does not report a zone's partition. Risco ignores a wrong code silently: the action
+  then ends "not confirmed" after 20 s rather than "wrong code". Only switch and select bypass controls are
+  supported (no button). Lockout and rate limits are in memory (a restart clears them). The bridge must be 0.2.6
+  (restart Home Assistant once) for arm_night / arm_vacation / arm_custom_bypass and the code-refusal answer. Nothing was
+  run against a real panel.
 
 ## 10. Open questions for the owner
 
-1. Which integration does the owner's alarm use (Risco / Visonic / PIMA / Paradox / other)? The pairing was verified
-   against documentation and code, not against a real panel.
-2. Remote disarm: keep the default "allowed for holders of alarm.disarm", or off by default?
-3. `alarm.disarm` for site_admin by default (as requested) - or system_admin only?
+1. `alarm.disarm` and `alarm.bypass` for site_admin by default (as requested) - or system_admin only?
+2. Two Risco partitions: show shared zones on both panels (now), or ask the installer to assign each zone once?
+3. Operator arms by default - keep, or arm only for site_admin and above?
