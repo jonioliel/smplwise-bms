@@ -1,5 +1,49 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.132 (pilot) — Events 8× faster under load, ingest and export backpressure, a local soak (T068); capture-cancel race; door-model study
+### Events, ingest and exports (T068, device-free part)
+- **Events list p50 1,655 → 191 ms, p95 2,442 → 663 ms; facets 155 → 82 ms** (24 h window, 500 rows, ~8 alerts/s,
+  8 readers). Most of the time was not the query: two file `stat()` calls per row for the thumbnail status. A
+  thumbnail folder index (kept in step with the writer and the janitor) removed that; a small events-window cache
+  (32 windows, ≤ 5,000 rows, 5 s, keyed by the exact camera scope; trigger-based change counters read in the same
+  transaction, migration 0031) helps the facets and the list's median. `/health` → `events.cache`.
+- **Ingest backpressure**: the alert stream is now a reader and a writer with a bounded queue (256). Alerts of the
+  same camera and state within 30 s are merged (the count is kept - stored counts equal the alerts accepted);
+  beyond that the oldest is dropped and counted; on shutdown the queue gets 5 s to be stored, the rest is counted.
+  Slow event sockets are counted too. `/health` → `backpressure`.
+- **Exports under disk pressure**: a new job is refused with 507 and a plain message when `/data` would drop below
+  `storage.min_free_mb` (default 1024 MB, the same guard as bundle uploads); a running job becomes **"מושהה - אין
+  מקום בדיסק"** and resumes by itself once there is room for the bytes it had reached (with a 15 s → 1 min → 5 min
+  back-off, so an NVR that reports no file size cannot make it loop), or by hand (`POST /storage/exports/resume`,
+  `system.configure`); at most 20 waiting jobs; progress written at most once a second; a crashed export is marked
+  failed instead of "running" forever. The storage screen has a local-disk card (shown even when the NVR report
+  fails) and the exports screen shows the paused state. The ffmpeg remux step is not disk-guarded yet (documented).
+- Found by the soak and fixed: `/events/windows`, the camera timeline and the day summary were holding the
+  database write lock; they are read-only now.
+- **Local soak** (`tests/soak/soak_local.py`, `SW_SOAK=1`, `docs/operations/SOAK_LOCAL.md`): fake NVR + fake HA with
+  periodic restarts, continuous ingest, readers, exports on a small quota. Review run, 10 min 54 s, 4 NVR and 3 HA
+  restarts: 2,673 alerts accepted, 0 dropped, stored counts exact; 0 "database is locked", 0 HTTP 500, longest
+  write-lock hold 0.58 s; 13 exports paused and all resumed; memory flat after a 5-minute warm-up (working set
+  114 → 116 MB, object counts flat), threads and handles flat, no product thread left after shutdown. The
+  device-dependent soak (real NVR / go2rtc restarts) remains for the lab.
+- Tests: `test_events_cache.py` 11, `test_backpressure.py` 12, 61 in the touched set; tsc / build clean; Opus review
+  (4 medium fixed) + scoped re-review with the soak.
+### WisKey card capture: a cancel no longer reads "lost" (T054)
+- A race found by a test-hardening pass: the capture lane's slot was released before the calling thread recorded
+  its result, so a poller read in that gap saw "capture not found" and the cancel answered **אבד** instead of
+  **בוטל**. The slot is now freed only after the result is recorded; audits and WisKey cleanup run after the
+  release; the door-release lane is untouched. Regression test that fails on the old code; 179 intercom tests;
+  Opus review. Two intercom timing tests were made robust under load (they only ever failed while 4-5 agents ran).
+### Plan Studio: door-detection study (T087, experimental, off)
+- On the owner's three real plans only 8-9 of 24 sampled doors are drawn with an arc; the rest are an open leaf at
+  30-50° without an arc, a V-shaped double door, or a triangle (leaf at 90° + a straight line); at the detector's
+  working resolution a door is 14-32 px of light grey; only 6 of 33 hinges sit on a wall the detector finds. A
+  second, gap-free door model (`door_model: "arc_v2"`, off by default, 422 for unknown values, no change to the
+  default path) found 0 / 2 / 4 of 8 with many false candidates and was stopped by its rule. Study:
+  `docs/evidence/T087/DOOR_MODEL_STUDY_2026-09-29.md`; recommendation: a manual door tool that proposes width, hinge
+  and swing on a click; a separate door pass at upload resolution with templates for the three drawing styles; a
+  learned model only once doors are labelled.
+
 ## 0.1.131 (pilot) — Evidence bundles from another installation: verify and import (T050)
 - **"ייבוא חבילת ראיות"** on the cases screen: upload a bundle ZIP (raw or multipart, streamed to a staging file, cap
   `cases.import_max_mb` default 512 MB, one upload at a time, 507 when `/data` would drop below
