@@ -267,6 +267,39 @@ def test_overrides_pair_exclude_and_reset_are_audited(alarm_app):
     assert c.put("/api/v1/alarm/overrides/binary_sensor.front_door", json={}, headers=as_user("omer")).status_code == 403
 
 
+def test_override_to_a_plain_switch_needs_confirmation_and_null_entries_join_nothing(alarm_app):
+    """Review L4: pairing a switch that carries no bypass marker is refused unless explicitly confirmed. Review L5: an
+    entity without a config entry never joins a panel's group."""
+    app, s, c, calls, _ = alarm_app
+    with app.state.db.connection() as conn:
+        ha_sync.upsert_state(conn, {"entity_id": "switch.kitchen_light", "state": "off", "attributes": {"friendly_name": "Kitchen light"}})
+        conn.execute("UPDATE ha_entities SET platform = 'risco', config_entry_id = ? WHERE entity_id = 'switch.kitchen_light'", (fake_alarm.RISCO_ENTRY,))
+        ha_sync.upsert_state(conn, {"entity_id": "binary_sensor.stray_zone", "state": "on", "attributes": {"friendly_name": "Stray", "device_class": "door"}})
+        conn.execute("UPDATE ha_entities SET platform = 'risco', config_entry_id = NULL WHERE entity_id = 'binary_sensor.stray_zone'")
+    r = c.put("/api/v1/alarm/overrides/binary_sensor.front_door", json={"bypass_entity_id": "switch.kitchen_light"})
+    assert r.status_code == 409 and r.json()["code"] == "not_bypass_like"
+    r = c.put("/api/v1/alarm/overrides/binary_sensor.front_door", json={"bypass_entity_id": "switch.kitchen_light", "confirm_not_bypass_like": True})
+    assert r.status_code == 200
+    house = _panel(_panels(c), "alarm_control_panel.risco_house")
+    assert next(z for z in house["zones"] if z["entity_id"] == "binary_sensor.front_door")["bypass"]["entity_id"] == "switch.kitchen_light"
+    assert "binary_sensor.stray_zone" not in [z["entity_id"] for z in house["zones"]]
+
+
+def test_key_problems_are_reported_plainly(alarm_app):
+    """Review L1: a stored code that no longer decrypts is flagged readable=false; a damaged key file is a 503 with a
+    plain message, never a traceback or the code."""
+    app, s, c, calls, _ = alarm_app
+    _set_code(c)
+    cfg = c.get("/api/v1/alarm/config").json()
+    assert _panel(cfg, "alarm_control_panel.risco_house")["panel_code"]["readable"] is True
+    assert _panel(cfg, "alarm_control_panel.risco_garden")["panel_code"]["readable"] is None
+    codes.key_path(s).write_bytes(b"x" * 7)  # damaged
+    cfg = c.get("/api/v1/alarm/config").json()
+    assert _panel(cfg, "alarm_control_panel.risco_house")["panel_code"]["readable"] is False
+    r = c.put("/api/v1/alarm/panels/alarm_control_panel.risco_garden/code", json={"code": CODE})
+    assert r.status_code == 503 and r.json()["code"] == "code_key_unavailable" and CODE not in r.text
+    assert not list(codes.key_path(s).parent.glob("*.tmp"))
+
 # ---------------------------------------------------------------- permissions and scope
 
 def test_permission_matrix(alarm_app):

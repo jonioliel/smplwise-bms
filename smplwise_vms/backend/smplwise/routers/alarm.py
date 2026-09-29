@@ -589,6 +589,8 @@ class OverrideBody(BaseModel):
     panel_entity_id: str | None = Field(default=None, max_length=255)
     bypass_entity_id: str | None = Field(default=None, max_length=255)
     excluded: bool = False
+    # review L4: pairing a control that carries no bypass marker needs this explicit confirmation
+    confirm_not_bypass_like: bool = False
 
 
 @router.put("/alarm/overrides/{zone_entity_id}")
@@ -609,12 +611,16 @@ def put_override(zone_entity_id: str, request: Request, principal: Principal = D
             ok = svc.select_options(ha_sync.entity_row(r))[0] is not None
         if not ok:
             raise act.refuse(ApiError(422, "validation", "מתג העקיפה חייב להיות switch או select עם אפשרות עקיפה.", details={"fields": ["bypass_entity_id"]}))
+        if not svc.is_bypass_control(ha_sync.entity_row(r)) and not body.confirm_not_bypass_like:
+            # review L4: a plain switch (a light, a door release) taken for a bypass control would be operated from the
+            # alarm screen and withdrawn from every other screen - only on an explicit confirmation
+            raise act.refuse(ApiError(409, "not_bypass_like", "למתג הזה אין סימן עקיפה (bypass). לשייך אותו בכל זאת כמתג העקיפה של החיישן?", details={"entity_id": body.bypass_entity_id}))
     conn.execute(
         "INSERT INTO alarm_zone_overrides(zone_entity_id, panel_entity_id, bypass_entity_id, excluded, updated_at, updated_by) VALUES (?,?,?,?,?,?) "
         "ON CONFLICT(zone_entity_id) DO UPDATE SET panel_entity_id = excluded.panel_entity_id, bypass_entity_id = excluded.bypass_entity_id, excluded = excluded.excluded, updated_at = excluded.updated_at, updated_by = excluded.updated_by",
         (zone_entity_id, body.panel_entity_id or None, body.bypass_entity_id, 1 if body.excluded else 0, now_iso(), principal.username),
     )
-    act.audit("allowed", None, panel_entity_id=body.panel_entity_id, bypass_entity_id=body.bypass_entity_id, excluded=body.excluded)
+    act.audit("allowed", None, panel_entity_id=body.panel_entity_id, bypass_entity_id=body.bypass_entity_id, excluded=body.excluded, confirm_not_bypass_like=body.confirm_not_bypass_like)
     return dict(conn.execute("SELECT * FROM alarm_zone_overrides WHERE zone_entity_id = ?", (zone_entity_id,)).fetchone())
 
 

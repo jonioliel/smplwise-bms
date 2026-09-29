@@ -249,7 +249,8 @@ def _group_key(e: dict[str, Any]) -> tuple[str, str | None]:
 def _belongs(e: dict[str, Any], g: _Group) -> bool:
     if (e.get("platform") or "") != g.platform or not g.platform:
         return False
-    return g.config_entry_id is None or e.get("config_entry_id") in (None, g.config_entry_id)
+    # security review L5: the same config entry, never a guess - an entity (or a panel) without one joins no group
+    return g.config_entry_id is not None and e.get("config_entry_id") == g.config_entry_id
 
 
 def _pair_unique(zones: list[dict[str, Any]], controls: list[dict[str, Any]], key, strategy: str, pairs: dict[str, tuple[dict[str, Any], str]]) -> None:

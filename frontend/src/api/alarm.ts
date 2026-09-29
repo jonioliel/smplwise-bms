@@ -166,7 +166,7 @@ export interface AlarmConfig {
   settings: { remote_control: boolean; remote_disarm: boolean; remote_codeless: boolean; code_mode: 'personal_pin' | 'panel_code' };
 }
 export const alarmConfig = () => get<AlarmConfig>('alarm/config');
-export const putOverride = (zone: string, body: { panel_entity_id?: string | null; bypass_entity_id?: string | null; excluded?: boolean }) =>
+export const putOverride = (zone: string, body: { panel_entity_id?: string | null; bypass_entity_id?: string | null; excluded?: boolean; confirm_not_bypass_like?: boolean }) =>
   put<AlarmOverride>(`alarm/overrides/${encodeURIComponent(zone)}`, body);
 export const deleteOverride = (zone: string) => del(`alarm/overrides/${encodeURIComponent(zone)}`);
 export const setPanelCode = (panel: string, code: string) => put<{ panel_code: { set: boolean; set_at: string | null; set_by: string | null } }>(`alarm/panels/${encodeURIComponent(panel)}/code`, { code });
