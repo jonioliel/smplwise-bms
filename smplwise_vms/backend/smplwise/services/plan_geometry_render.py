@@ -110,12 +110,14 @@ def _rotated(cx: float, cy: float, x: float, y: float, theta: float) -> Point:
 
 def connector_label(levels: dict[str, Any], c: dict[str, Any]) -> str:
     """"↓ −1.2 מ׳": the arrow and the signed elevation difference from level_from to level_to; a connector's own label
-    wins; a cross-floor connector (no level_to here) shows only the two-way arrow. Two levels at the same elevation
+    wins; a cross-floor connector (floor_ids set) names the other floor (cross_floor_label). Two levels at the same elevation
     show "↕" too, the same as a cross-floor connector - there is no up or down to point. The magnitude is rounded
     half-up to 0.1 m (r2's rule, scaled), not Python's banker's rounding: 0.25 must read 0.3, matching JavaScript's
     toFixed(1) in geometry.ts connectorLabel, so the export and the map agree."""
     if c.get("label"):
         return str(c["label"])
+    if c.get("floor_ids"):
+        return cross_floor_label(c)
     a, b = levels.get(c.get("level_from")), levels.get(c.get("level_to"))
     if a is None or b is None:
         return "↕"
@@ -124,6 +126,21 @@ def connector_label(levels: dict[str, Any], c: dict[str, Any]) -> str:
         return "↕"
     d = math.floor(abs(delta) * 10 + 0.5) / 10
     return f"{'↓' if delta < 0 else '↑'} {'−' if delta < 0 else '+'}{d:.1f} מ׳"
+
+
+def cross_floor_label(c: dict[str, Any]) -> str:
+    """"↑ קומה 1 · גלריה": a connector to another floor (floor_ids set) names the floor and the level it reaches there,
+    from the `far` record the store refreshes on every save (geometry_store.refresh_far); the arrow says whether that
+    floor is above or below by the floors' numbers, "↔" when they are equal or unknown. Without a far record (a link
+    made before T085's landing work, or a floor deleted since) only the two-way arrow. Mirrors geometry.ts
+    crossFloorLabel."""
+    far = c.get("far") if isinstance(c.get("far"), dict) else {}
+    name = far.get("floor_name")
+    if not isinstance(name, str) or not name:
+        return "↕"
+    arrow = {"up": "↑", "down": "↓"}.get(far.get("direction"), "↔")
+    level = far.get("level_name")
+    return f"{arrow} {name} · {level}" if isinstance(level, str) and level else f"{arrow} {name}"
 
 
 def _connector_prims(doc: dict[str, Any], width: float, height: float, px_per_m: float) -> list[dict[str, Any]]:

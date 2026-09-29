@@ -111,12 +111,15 @@ def test_stairs_linked_to_another_floor_exist_in_both_drafts_under_one_id(settin
     assert c.post(f"/api/v1/plan-versions/{vid}/geometry/link", json={"connector_id": "nope", "floor_id": ids["floor3"]}).status_code == 404
     r = c.post(f"/api/v1/plan-versions/{vid}/geometry/link", json={"connector_id": "st1", "floor_id": ids["floor3"]})
     assert r.status_code == 200, r.text
-    assert r.json()["connector"]["floor_ids"] == sorted([ids["floor2"], ids["floor3"]]) and r.json()["target"] == {"floor_id": ids["floor3"], "version_id": other, "revision": 1}
+    assert r.json()["connector"]["floor_ids"] == sorted([ids["floor2"], ids["floor3"]])
+    assert r.json()["target"] == {"floor_id": ids["floor3"], "version_id": other, "revision": 1, "level_id": "L0", "placement": "aligned"}
     mine = c.get(f"/api/v1/plan-versions/{vid}/geometry?draft=true").json()
     theirs = c.get(f"/api/v1/plan-versions/{other}/geometry?draft=true").json()
     assert mine["issues"] == [] and theirs["issues"] == []
     assert [x["id"] for x in theirs["doc"]["connectors"]] == ["st1"] and theirs["doc"]["connectors"][0]["floor_ids"] == sorted([ids["floor2"], ids["floor3"]])
-    assert theirs["doc"]["connectors"][0]["polyline"] == [[0.7, 0.7], [0.8, 0.7]] and theirs["doc"]["connectors"][0]["level_from"] == "L0"
+    # T085: the twin is the same stairs walked from the other floor - the walking line reversed, its own level first
+    assert theirs["doc"]["connectors"][0]["polyline"] == [[0.8, 0.7], [0.7, 0.7]] and theirs["doc"]["connectors"][0]["level_from"] == "L0"
+    assert theirs["doc"]["connectors"][0]["level_to"] == "L0" and mine["doc"]["connectors"][0]["level_to"] == "L0", "level_to names the level on the OTHER floor"
     again = c.post(f"/api/v1/plan-versions/{vid}/geometry/link", json={"connector_id": "st1", "floor_id": ids["floor3"]})
     assert again.status_code == 200 and again.json()["target"]["revision"] == 1, "linking twice changes nothing on the other floor"
     assert len(c.get(f"/api/v1/plan-versions/{other}/geometry?draft=true").json()["doc"]["connectors"]) == 1

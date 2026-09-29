@@ -8,7 +8,7 @@ import copy
 import hashlib
 import json
 import sqlite3
-from typing import Any
+from typing import Any, Callable
 
 from ..db import new_id, now_iso
 from ..errors import ApiError, conflict
@@ -95,9 +95,11 @@ def _replace_draft(conn: sqlite3.Connection, version: sqlite3.Row, doc: dict[str
 def _prepare(conn: sqlite3.Connection, version: sqlite3.Row, doc: dict[str, Any]) -> dict[str, Any]:
     """What every document goes through on its way into the table and out to the editor: the rebase on its version
     (ids, size, calibration), the normalization (circuit power, the connectors derived from objects that connect
-    levels) and the refresh of bound bodies from the floor's live anchors (design 2a, rule 1)."""
+    levels), the names of the floor and level a cross-floor connector reaches (refresh_far) and the refresh of bound
+    bodies from the floor's live anchors (design 2a, rule 1)."""
     doc = pg.rebase(doc, version, _asset(conn, version))
     doc = pg.normalize(doc, plan_catalog.item_index(conn))
+    doc = refresh_far(conn, version["floor_id"], doc)
     return pg.apply_anchor_positions(doc, anchor_positions(conn, version["floor_id"]))
 
 
@@ -323,35 +325,241 @@ def _default_level(doc: dict[str, Any]) -> str:
     return next((lv["id"] for lv in doc.get("levels") or [] if isinstance(lv, dict) and lv.get("is_default")), pg.DEFAULT_LEVEL_ID)
 
 
-def link_connector(conn: sqlite3.Connection, source: sqlite3.Row, connector_id: str, target_floor_id: str, actor_id: str | None, now: str | None = None) -> dict[str, Any]:
+def editor_version(conn: sqlite3.Connection, floor_id: str) -> sqlite3.Row | None:
+    """The plan version the floor's editor works on: its latest draft version, else its published one."""
+    return conn.execute("SELECT * FROM plan_versions WHERE floor_id = ? AND status IN ('draft', 'published') "
+                        "ORDER BY CASE status WHEN 'draft' THEN 0 ELSE 1 END, created_at DESC LIMIT 1", (floor_id,)).fetchone()
+
+
+def _raw_editor_doc(conn: sqlite3.Connection, version: sqlite3.Row) -> dict[str, Any]:
+    """The stored document of the version's editor (draft, else published, else a new one) WITHOUT _prepare: what the
+    far-floor lookups read, so preparing one floor never prepares another (no recursion between linked floors)."""
+    row = draft_row(conn, version["id"]) or published_row(conn, version["id"])
+    return load_doc(row) if row is not None else pg.new_document(version, _asset(conn, version))
+
+
+def floor_levels(conn: sqlite3.Connection, floor_id: str) -> tuple[sqlite3.Row | None, list[dict[str, Any]]]:
+    """The editor version of a floor and the levels of its document ([] without a plan)."""
+    v = editor_version(conn, floor_id)
+    if v is None:
+        return None, []
+    return v, [lv for lv in _raw_editor_doc(conn, v).get("levels") or [] if isinstance(lv, dict) and isinstance(lv.get("id"), str)]
+
+
+def _cross_other(c: Any, floor_id: str) -> str | None:
+    """The one other floor of a drawn connector between this floor and another, or None (same-floor, derived, or a
+    floor_ids list that does not name this floor and exactly one other)."""
+    if not isinstance(c, dict) or pg._is_derived_connector(c) or not isinstance(c.get("floor_ids"), list):
+        return None
+    others = [f for f in c["floor_ids"] if isinstance(f, str) and f != floor_id]
+    return others[0] if len(others) == 1 and floor_id in c["floor_ids"] else None
+
+
+def refresh_far(conn: sqlite3.Connection, floor_id: str, doc: dict[str, Any]) -> dict[str, Any]:
+    """Every connector to another floor carries `far`: that floor's name, the name of the level it reaches there
+    (level_to is a level of THAT floor) and whether the floor is above or below by the floors' numbers - what the label
+    "↑ קומה 1 · גלריה" reads, in the editor, on the live map and in the exports. Recomputed on every prepare, so a
+    renamed floor or level shows at the next read; a deleted floor gives {missing: true} (link_issues warns). One lookup
+    per other floor; the other floor's document is read raw, never prepared."""
+    connectors = doc.get("connectors")
+    if not isinstance(connectors, list):
+        return doc
+    me = conn.execute("SELECT level FROM floors WHERE id = ?", (floor_id,)).fetchone()
+    cache: dict[str, tuple[sqlite3.Row | None, dict[str, str]]] = {}
+    for c in connectors:
+        other = _cross_other(c, floor_id)
+        if other is None:
+            if isinstance(c, dict) and "far" in c:
+                c.pop("far")
+            continue
+        if other not in cache:
+            f = conn.execute("SELECT name, level FROM floors WHERE id = ? AND deleted_at IS NULL", (other,)).fetchone()
+            names = {lv["id"]: str(lv.get("name") or lv["id"]) for lv in floor_levels(conn, other)[1]} if f is not None else {}
+            cache[other] = (f, names)
+        f, names = cache[other]
+        if f is None:
+            c["far"] = {"floor_id": other, "floor_name": None, "level_name": None, "direction": None, "missing": True}
+            continue
+        direction = None if me is None or f["level"] == me["level"] else ("up" if f["level"] > me["level"] else "down")
+        level_to = c.get("level_to")
+        c["far"] = {"floor_id": other, "floor_name": f["name"], "level_name": names.get(level_to) if isinstance(level_to, str) else None, "direction": direction}
+    return doc
+
+
+def link_issues(conn: sqlite3.Connection, floor_id: str, doc: dict[str, Any]) -> list[dict[str, Any]]:
+    """Warnings (never errors: publishing never fails on a link) for the connectors to another floor: the other floor
+    was deleted or has no plan, the level it reaches there is gone, the twin is missing there, or this twin was placed at
+    the centre of the plan and still waits to be placed (needs_placement)."""
+    out: list[dict[str, Any]] = []
+    looked: dict[str, tuple[bool, sqlite3.Row | None, set[str], set[Any]]] = {}
+
+    def warn(cid: Any, code: str, message: str) -> None:
+        out.append({"code": code, "severity": "warning", "structural": False, "id": cid, "path": "connectors", "message": message})
+
+    for c in doc.get("connectors") or []:
+        if not isinstance(c, dict) or pg._is_derived_connector(c) or not c.get("floor_ids"):
+            continue
+        cid = c.get("id")
+        other = _cross_other(c, floor_id)
+        if other is None:
+            warn(cid, "connector_floors", "המחבר לא מקשר את הקומה הזו לקומה אחת אחרת; קשר אותו מחדש.")
+            continue
+        if other not in looked:
+            gone = conn.execute("SELECT 1 FROM floors WHERE id = ? AND deleted_at IS NULL", (other,)).fetchone() is None
+            v, levels = (None, []) if gone else floor_levels(conn, other)
+            twins = {x.get("id") for x in _raw_editor_doc(conn, v).get("connectors") or [] if isinstance(x, dict)} if v is not None else set()
+            looked[other] = (gone, v, {lv["id"] for lv in levels}, twins)
+        gone, v, level_ids, twins = looked[other]
+        if gone:
+            warn(cid, "connector_far_missing", "הקומה השנייה של המחבר נמחקה; מחק את המחבר או קשר אותו לקומה אחרת.")
+            continue
+        if v is None:
+            warn(cid, "connector_far_missing", "לקומה השנייה של המחבר אין תוכנית; קשר אותו מחדש אחרי שתעלה תוכנית.")
+            continue
+        if isinstance(c.get("level_to"), str) and c["level_to"] not in level_ids:
+            warn(cid, "connector_far_level", "המפלס שהמחבר מגיע אליו בקומה השנייה לא קיים עוד; בחר מפלס יעד מחדש.")
+        if cid not in twins:
+            warn(cid, "connector_twin_missing", "בקומה השנייה אין את המחבר התאום; קשר אותו מחדש או מחק אותו.")
+        if c.get("needs_placement"):
+            warn(cid, "connector_placement", "מקם את המדרגות בקומה הזו: הן נוצרו במרכז התוכנית כי לשתי הקומות אין מסגרת משותפת.")
+    return out
+
+
+def same_frame(conn: sqlite3.Connection, a: sqlite3.Row, b: sqlite3.Row) -> bool:
+    """Whether a point in normalized plan space means the same place on both versions: the same sheet (same file, page,
+    rotation and crop), or two calibrated plans that cover the same metres (width and height within 2 %) - drawings of
+    one building exported at one frame. Anything else has no shared origin: a twin goes to the centre instead."""
+    ra, rb = _asset(conn, a), _asset(conn, b)
+    if ra is not None and rb is not None and ra["sha256"] == rb["sha256"] and (a["page"], a["rotation"]) == (b["page"], b["rotation"]) and _crop(a) == _crop(b):
+        return True
+    sa, sb = a["scale_m_per_px"], b["scale_m_per_px"]
+    if not sa or not sb:
+        return False
+    wa, ha = a["width_px"] * sa, a["height_px"] * sa
+    wb, hb = b["width_px"] * sb, b["height_px"] * sb
+    return abs(wa - wb) <= 0.02 * max(wa, wb) and abs(ha - hb) <= 0.02 * max(ha, hb)
+
+
+def _turn_of(points: list[Any]) -> str | None:
+    """The side the walking line turns to at its first corner (plan y points down: a positive cross product turns right)."""
+    if len(points) < 3:
+        return None
+    (x0, y0), (x1, y1), (x2, y2) = points[0], points[1], points[2]
+    cross = (x1 - x0) * (y2 - y1) - (y1 - y0) * (x2 - x1)
+    return None if abs(cross) < 1e-12 else ("right" if cross > 0 else "left")
+
+
+def _centred(polyline: list[Any], sdoc: dict[str, Any], tdoc: dict[str, Any]) -> list[list[float]]:
+    """The polyline moved to the centre of the other plan, kept at its size in metres (each plan's effective scale)."""
+    ss, _ = pg.effective_scale(sdoc)
+    ts, _ = pg.effective_scale(tdoc)
+    sw, sh = sdoc["dimensions"]["width_px"] * ss, sdoc["dimensions"]["height_px"] * ss
+    tw, th = tdoc["dimensions"]["width_px"] * ts, tdoc["dimensions"]["height_px"] * ts
+    pts = [(float(p[0]) * sw, float(p[1]) * sh) for p in polyline]
+    cx = (min(p[0] for p in pts) + max(p[0] for p in pts)) / 2
+    cy = (min(p[1] for p in pts) + max(p[1] for p in pts)) / 2
+    return [[round(min(1.0, max(0.0, (x - cx) / tw + 0.5)), 6) + 0.0, round(min(1.0, max(0.0, (y - cy) / th + 0.5)), 6) + 0.0] for x, y in pts]
+
+
+def _twin(item: dict[str, Any], level_from: str, floors: list[str]) -> dict[str, Any]:
+    """The connector as the other floor sees it: the same stairs walked from that floor - the walking line and the
+    flights reversed (so every twin's polyline starts on its own level), level_from = the level it lands on there,
+    level_to = the level it leaves here. A U keeps its turn side when walked back; an L swaps it (_turn_of re-reads it)."""
+    twin = copy.deepcopy(item)
+    twin.pop("far", None)
+    twin.pop("needs_placement", None)
+    twin["polyline"] = list(reversed(twin.get("polyline") or []))
+    if isinstance(twin.get("flights"), list):
+        twin["flights"] = list(reversed(twin["flights"]))
+    if twin.get("shape") in ("l", "u"):
+        twin["turn"] = _turn_of(twin["polyline"]) or twin.get("turn")
+    twin.update({"level_from": level_from, "level_to": item.get("level_from"), "floor_ids": floors, "source": "manual", "object_id": None})
+    return twin
+
+
+def remove_twin(conn: sqlite3.Connection, floor_id: str, connector_id: str, source_floor_id: str, actor_id: str | None, now: str | None = None) -> bool:
+    """The twin of a cross-floor connector leaves the other floor's editor draft: only a connector of that id that names
+    the source floor among its floors (never an unrelated item). Returns whether anything was removed."""
+    now = now or now_iso()
+    v = editor_version(conn, floor_id)
+    if v is None:
+        return False
+    tdoc, tdraft = working_doc(conn, v)
+    before = tdoc.get("connectors") or []
+    keep = [c for c in before if not (isinstance(c, dict) and c.get("id") == connector_id and source_floor_id in (c.get("floor_ids") or []))]
+    if len(keep) == len(before):
+        return False
+    tdoc["connectors"] = keep
+    save_draft(conn, v, tdoc, tdraft["revision"] if tdraft is not None else 0, actor_id, now)
+    return True
+
+
+def link_connector(conn: sqlite3.Connection, source: sqlite3.Row, connector_id: str, target_floor_id: str, actor_id: str | None, now: str | None = None,
+                   level_to: str | None = None) -> dict[str, Any]:
     """Stairs or an elevator between two floors exist in both floors' documents under the same id (design section 8,
-    for T064). The source draft's connector gets both floor ids and no level_to (it leaves the floor); the target
-    floor's editor version (its latest draft, else its published plan) gets the same connector on its draft - the
-    polyline copied, level_from = its default level - upserted by id, so linking twice changes nothing there."""
+    for T064). The source's connector gets both floor ids and level_to = the level it reaches on the other floor (the
+    one chosen, else that floor's default level); the target floor's editor version (its latest draft, else its
+    published plan) gets the twin on its draft (_twin: walked from there). A twin already there keeps its own position
+    (moving one twin never moves the other) and only takes the new levels; a new twin sits at the same plan
+    coordinates when both plans share a frame (same_frame), else at the centre of the other plan with needs_placement.
+    A connector linked before to a third floor leaves that floor's draft. Linking twice changes nothing there."""
     now = now or now_iso()
     doc, draft = working_doc(conn, source)
     item = next((c for c in doc.get("connectors") or [] if isinstance(c, dict) and c.get("id") == connector_id), None)
     if item is None:
         raise ApiError(404, "not_found", "המחבר לא נמצא בטיוטה.")
-    if item.get("object_id"):
+    if item.get("object_id") or pg._is_derived_connector(item):
         raise conflict("derived_connector", "מחבר שנגזר מעצם (טריבונה) מחבר מפלסים באותה קומה; קשר לקומה מדרגות או מעלית שציירת.")
-    target_version = conn.execute("SELECT * FROM plan_versions WHERE floor_id = ? AND status IN ('draft', 'published') "
-                                  "ORDER BY CASE status WHEN 'draft' THEN 0 ELSE 1 END, created_at DESC LIMIT 1", (target_floor_id,)).fetchone()
+    target_version = editor_version(conn, target_floor_id)
     if target_version is None:
         raise conflict("no_plan", "לקומה השנייה אין תוכנית; העלה תוכנית לפני שמקשרים אליה.")
-    floors = sorted({source["floor_id"], target_floor_id, *[f for f in item.get("floor_ids") or [] if isinstance(f, str)]})
-    item["floor_ids"] = floors
-    item["level_to"] = None
-    save_draft(conn, source, doc, draft["revision"] if draft is not None else 0, actor_id, now)
     tdoc, tdraft = working_doc(conn, target_version)
-    twin = {**copy.deepcopy(item), "level_from": _default_level(tdoc), "level_to": None, "floor_ids": floors, "source": "manual"}
-    connectors = [c for c in tdoc.get("connectors") or [] if not (isinstance(c, dict) and c.get("id") == connector_id)]
-    if twin in (tdoc.get("connectors") or []):
+    level_to = level_to or _default_level(tdoc)
+    if level_to not in {lv.get("id") for lv in tdoc.get("levels") or [] if isinstance(lv, dict)}:
+        raise ApiError(422, "validation", "המפלס שנבחר לא קיים בקומה השנייה.", details={"level_to": level_to})
+    previous = [f for f in item.get("floor_ids") or [] if isinstance(f, str) and f not in (source["floor_id"], target_floor_id)]
+    floors = sorted({source["floor_id"], target_floor_id})
+    item["floor_ids"] = floors
+    item["level_to"] = level_to
+    saved = save_draft(conn, source, doc, draft["revision"] if draft is not None else 0, actor_id, now)
+    for old in previous:  # the stairs now lead elsewhere: the old twin goes
+        remove_twin(conn, old, connector_id, source["floor_id"], actor_id, now)
+    existing = next((c for c in tdoc.get("connectors") or [] if isinstance(c, dict) and c.get("id") == connector_id), None)
+    if existing is not None:
+        twin = {**copy.deepcopy(existing), "kind": item["kind"], "level_from": level_to, "level_to": item["level_from"], "floor_ids": floors}
+        placement = "kept"
+    else:
+        twin = _twin(item, level_to, floors)
+        if same_frame(conn, source, target_version):
+            placement = "aligned"
+        else:
+            twin["polyline"] = _centred(twin["polyline"], doc, tdoc)
+            twin["needs_placement"] = True
+            placement = "centred"
+    if existing is not None and twin == existing:
         row = tdraft
     else:
-        tdoc["connectors"] = [*connectors, twin]
+        tdoc["connectors"] = [*[c for c in tdoc.get("connectors") or [] if not (isinstance(c, dict) and c.get("id") == connector_id)], twin]
         row = save_draft(conn, target_version, tdoc, tdraft["revision"] if tdraft is not None else 0, actor_id, now)
-    return {"connector": item, "target": {"floor_id": target_floor_id, "version_id": target_version["id"], "revision": row["revision"] if row is not None else 0}}
+    mine = next(c for c in load_doc(saved)["connectors"] if c.get("id") == connector_id)
+    return {"connector": mine, "target": {"floor_id": target_floor_id, "version_id": target_version["id"], "revision": row["revision"] if row is not None else 0,
+                                          "level_id": level_to, "placement": placement}}
+
+
+def link_targets(conn: sqlite3.Connection, version: sqlite3.Row, can_edit: Callable[[str], bool]) -> list[dict[str, Any]]:
+    """The other floors of the version's building a connector can be linked to (can_edit(floor_id): map.edit on it),
+    each with its levels (the "מחבר אל" picker lists "קומה 1 · גלריה") and whether it shares this plan's frame."""
+    out: list[dict[str, Any]] = []
+    rows = conn.execute("SELECT f.* FROM floors f JOIN floors me ON me.building_id = f.building_id WHERE me.id = ? AND f.id != ? AND f.deleted_at IS NULL "
+                        "ORDER BY f.level, f.sort_order, f.name", (version["floor_id"], version["floor_id"])).fetchall()
+    for f in rows:
+        if not can_edit(f["id"]):
+            continue
+        v, levels = floor_levels(conn, f["id"])
+        out.append({"floor_id": f["id"], "name": f["name"], "level": f["level"], "version_id": v["id"] if v is not None else None,
+                    "levels": [{"id": lv["id"], "name": str(lv.get("name") or lv["id"]), "elevation_m": lv.get("elevation_m"), "is_default": bool(lv.get("is_default"))} for lv in levels],
+                    "same_frame": same_frame(conn, version, v) if v is not None else False})
+    return out
 
 
 # ---------------------------------------------------------------- what the bundle, the scope and the search read (phase 2)

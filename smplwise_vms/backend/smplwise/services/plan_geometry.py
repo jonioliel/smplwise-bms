@@ -32,6 +32,16 @@ CAL_STATUSES = ("measured", "estimated", "missing")
 CAL_METHODS = ("two_point", "dxf_units", "door_width", "manual", "carried")
 ANCHOR_TYPES = ("camera", "ha_entity")
 CONNECTOR_KINDS = ("stairs", "ramp", "tribune", "elevator", "ladder")
+# Stairs with a landing (T085, owner 2026-09-29): an optional model on a connector - the shape of the run (straight, a
+# quarter turn "L", a half turn "U"), the turn side, one or two flights of steps and the landing depth. Absent = the
+# plain connector drawn along its polyline as before. The polyline is the walking line: straight [start, end], L [start,
+# landing centre, end], U [start, landing on flight 1's axis, landing on flight 2's axis, end].
+STAIR_SHAPES = ("straight", "l", "u")
+STAIR_TURNS = ("left", "right", "none")
+STAIR_POINTS = {"straight": 2, "l": 3, "u": 4}
+MAX_STAIR_STEPS = 60
+STAIR_WIDTH_M = (0.6, 5.0)
+LANDING_DEPTH_M = (0.3, 10.0)
 GROUP_KINDS = ("array", "manual")
 SWITCH_RE = re.compile(r"^(switch|light)\.[a-z0-9_]+$")
 # The circuit colours (tokens.css --sw-circuit-1..6; the frontend whitelist CIRCUIT_TOKENS in map/geometry.ts): the maps
@@ -420,6 +430,12 @@ def _check_fields(coll: str, i: int, item: dict[str, Any], issues: list[dict[str
         opt("object_id", lambda v: isinstance(v, str))
         req("source", isinstance(item.get("source"), str))
         opt("external_ids", lambda v: isinstance(v, dict))
+        opt("shape", lambda v: isinstance(v, str))
+        opt("turn", lambda v: isinstance(v, str))
+        opt("flights", lambda v: isinstance(v, list) and all(isinstance(f, dict) for f in v))
+        opt("landing_depth_m", _num)
+        opt("far", lambda v: isinstance(v, dict))
+        opt("needs_placement", lambda v: isinstance(v, bool))
     elif coll == "circuits":
         req("name", isinstance(item.get("name"), str))
         req("switch_entity_id", isinstance(item.get("switch_entity_id"), str))
@@ -624,25 +640,53 @@ def _check_groups(groups: list[dict[str, Any]], objects: dict[str, dict[str, Any
 
 
 def _check_connectors(connectors: list[dict[str, Any]], levels: set[str], objects: dict[str, dict[str, Any]], issues: list[dict[str, Any]]) -> None:
-    """A connector joins two different levels of this floor, or this floor with another (level_to empty, floor_ids set).
+    """A connector joins two different levels of this floor, or this floor with another (floor_ids set; level_to then
+    names the level on the OTHER floor, which only the store can check - geometry_store.link_issues warns about it).
     A derived connector's level_to is not re-checked here: it is the object's connects_levels, and an unknown target
     is reported on the object the user actually edited (_check_objects' own unknown_level), not on cx-<id>."""
     for c in connectors:
         cid = c["id"]
         derived = _is_derived_connector(c)
+        cross = bool(c["floor_ids"])
         if c["kind"] not in CONNECTOR_KINDS or c["source"] not in SOURCES:
             _issue(issues, "enum", "סוג מחבר או מקור לא מוכרים.", item=cid, path="connectors")
         level_to = c.get("level_to")
-        if c["level_from"] not in levels or (level_to is not None and level_to not in levels and not derived):
+        if c["level_from"] not in levels or (not cross and level_to is not None and level_to not in levels and not derived):
             _issue(issues, "unknown_level", "המחבר מפנה למפלס שלא קיים.", item=cid, path="connectors")
-        elif level_to == c["level_from"] or (level_to is None and not c["floor_ids"]):
+        elif not cross and (level_to == c["level_from"] or level_to is None):
             _issue(issues, "connector_levels", "מחבר חייב לחבר שני מפלסים שונים, או קומה אחרת.", item=cid, path="connectors")
+        _check_stair_model(c, issues)
         if len(c["polyline"]) < 2 or not all(_pt(p) for p in c["polyline"]):
             _issue(issues, "bounds", "למחבר צריך לפחות שתי נקודות בתוך התוכנית.", item=cid, path="connectors")
         if not plan_catalog.MIN_SIZE_M <= c["width_m"] <= plan_catalog.MAX_SIZE_M:
             _issue(issues, "size", "רוחב המחבר בין 0.05 ל־100 מ׳.", item=cid, path="connectors")
         if c.get("object_id") is not None and c["object_id"] not in objects:
             _issue(issues, "unknown_object", "המחבר נגזר מעצם שלא קיים.", item=cid, path="connectors")
+
+
+def _check_stair_model(c: dict[str, Any], issues: list[dict[str, Any]]) -> None:
+    """The optional stairs model (T085): a known shape and turn, one or two flights of 1..MAX_STAIR_STEPS steps each (an
+    L or a U has two), the polyline point count its shape draws, a stair width of 0.6..5 m and a landing depth of
+    0.3..10 m. A connector without any of these fields is the plain connector and is not judged here."""
+    if not any(k in c and c[k] is not None for k in ("shape", "turn", "flights", "landing_depth_m")):
+        return
+    cid = c["id"]
+    shape = c.get("shape") or "straight"
+    flights = c.get("flights") or []
+    if shape not in STAIR_SHAPES or (c.get("turn") is not None and c["turn"] not in STAIR_TURNS):
+        _issue(issues, "enum", "צורת מדרגות או כיוון פנייה לא מוכרים.", item=cid, path="connectors")
+        return
+    if not 1 <= len(flights) <= 2 or (shape != "straight" and len(flights) != 2):
+        _issue(issues, "stair_flights", "למדרגות מהלך אחד או שניים; ל־L ול־U שני מהלכים.", item=cid, path="connectors")
+    elif not all(isinstance(f.get("steps"), int) and not isinstance(f.get("steps"), bool) and 1 <= f["steps"] <= MAX_STAIR_STEPS for f in flights):
+        _issue(issues, "stair_steps", f"מספר המדרגות במהלך בין 1 ל־{MAX_STAIR_STEPS}.", item=cid, path="connectors")
+    if c.get("shape") is not None and len(c["polyline"]) != STAIR_POINTS[shape]:
+        _issue(issues, "stair_path", "מסלול המדרגות לא מתאים לצורה (ישר: 2 נקודות, L: 3, U: 4).", item=cid, path="connectors")
+    if not STAIR_WIDTH_M[0] <= c["width_m"] <= STAIR_WIDTH_M[1]:
+        _issue(issues, "size", f"רוחב מדרגות בין {STAIR_WIDTH_M[0]:g} ל־{STAIR_WIDTH_M[1]:g} מ׳.", item=cid, path="connectors")
+    depth = c.get("landing_depth_m")
+    if depth is not None and not LANDING_DEPTH_M[0] <= depth <= LANDING_DEPTH_M[1]:
+        _issue(issues, "size", f"עומק הפודסט בין {LANDING_DEPTH_M[0]:g} ל־{LANDING_DEPTH_M[1]:g} מ׳.", item=cid, path="connectors")
 
 
 def _check_circuits(circuits: list[dict[str, Any]], objects: dict[str, dict[str, Any]], items: Mapping[str, Mapping[str, Any]], issues: list[dict[str, Any]]) -> None:

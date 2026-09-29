@@ -17,7 +17,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import new_id, now_iso, unlocked
 from ..errors import ApiError, conflict, not_found
-from ..rbac import Principal, require
+from ..rbac import Principal, authorize, require
 from ..services import geometry_store as store
 from ..services import plan_catalog
 from ..services import plan_detect
@@ -75,7 +75,8 @@ def _payload(conn: sqlite3.Connection, version: sqlite3.Row, row: sqlite3.Row | 
         "created_at": None, "updated_at": None, "published_at": None, "published_by": None, "archived_at": None,
     }
     return {"geometry": geometry, "doc": doc,
-            "issues": [i for i in pg.validate(doc, plan_catalog.item_index(conn)) if not i["structural"]] + store.anchor_issues(conn, version["floor_id"], doc),
+            "issues": [i for i in pg.validate(doc, plan_catalog.item_index(conn)) if not i["structural"]] + store.anchor_issues(conn, version["floor_id"], doc)
+            + store.link_issues(conn, version["floor_id"], doc),
             "published_hash": published["doc_hash"] if published is not None else None}
 
 
@@ -220,6 +221,8 @@ def copy_geometry(version_id: str, body: CopyFromIn, request: Request, principal
 class LinkIn(BaseModel):
     connector_id: str = Field(min_length=1, max_length=64)
     floor_id: str = Field(min_length=1, max_length=32)
+    # T085: the level the stairs reach on the other floor (one of that floor's levels); absent = its default level
+    level_to: str | None = Field(default=None, min_length=1, max_length=64)
 
 
 @router.post("/plan-versions/{version_id}/geometry/link")
@@ -231,10 +234,43 @@ def link_connector(version_id: str, body: LinkIn, request: Request, principal: P
         raise ApiError(422, "validation", "קשר לקומה אחרת, לא לאותה קומה.")
     get_floor(conn, body.floor_id)
     require(conn, principal, "map.edit", ("floor", body.floor_id))
-    result = store.link_connector(conn, v, body.connector_id, body.floor_id, principal.user_id)
+    result = store.link_connector(conn, v, body.connector_id, body.floor_id, principal.user_id, level_to=body.level_to)
     audit(conn, actor=principal, action="geometry.connector.link", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
-          details={"version_id": v["id"], "connector_id": body.connector_id, "to_floor_id": body.floor_id, "target_version_id": result["target"]["version_id"]})
+          details={"version_id": v["id"], "connector_id": body.connector_id, "to_floor_id": body.floor_id, "target_version_id": result["target"]["version_id"],
+                   "level_to": result["target"]["level_id"], "placement": result["target"]["placement"]})
     return result
+
+
+@router.get("/plan-versions/{version_id}/geometry/link-targets")
+def link_targets(version_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The "מחבר אל" picker (T085): the other floors of this building the person may edit, each with its levels and
+    whether its plan shares this plan's frame (a new twin then lands at the same plan coordinates)."""
+    v = get_version(conn, version_id)
+    require(conn, principal, "map.edit", _floor(v))
+    return {"floors": store.link_targets(conn, v, lambda fid: authorize(conn, principal, "map.edit", ("floor", fid)).allowed)}
+
+
+class TwinDeleteIn(BaseModel):
+    connector_id: str = Field(min_length=1, max_length=64)
+    floor_id: str = Field(min_length=1, max_length=32)
+
+
+@router.post("/plan-versions/{version_id}/geometry/twin-delete")
+def delete_twin(version_id: str, body: TwinDeleteIn, request: Request, principal: Principal = Depends(current_principal),
+                conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Deleting cross-floor stairs "גם בקומה השנייה" (T085): the editor removes its own copy (an undoable edit) and asks
+    for the twin on the other floor's draft to go too (map.edit on both floors). Only a connector of that id that names
+    this floor among its floors is removed; nothing else there changes."""
+    v = _editable(conn, principal, version_id)
+    if body.floor_id == v["floor_id"]:
+        raise ApiError(422, "validation", "התאום נמצא בקומה אחרת, לא באותה קומה.")
+    get_floor(conn, body.floor_id)
+    require(conn, principal, "map.edit", ("floor", body.floor_id))
+    removed = store.remove_twin(conn, body.floor_id, body.connector_id, v["floor_id"], principal.user_id)
+    if removed:
+        audit(conn, actor=principal, action="geometry.connector.twin_delete", decision="allowed", resource_type="floor", resource_id=body.floor_id, request_id=_rid(request),
+              details={"version_id": v["id"], "connector_id": body.connector_id, "from_floor_id": v["floor_id"]})
+    return {"removed": removed, "floor_id": body.floor_id}
 
 
 class CalPair(BaseModel):
