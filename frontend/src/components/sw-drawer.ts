@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
 import './sw-button';
 import { t } from '../i18n/he';
 
@@ -53,6 +53,11 @@ export class SwDrawer extends LitElement {
   @property() subheading = '';
   @property({ type: Boolean, reflect: true }) modal = false;
   private opener: HTMLElement | null = null;
+  @state() private hasFooter = false;
+  /** review M3: a press that STARTED on the backdrop - a drag from inside the panel ending outside never closes it. */
+  private downOnBackdrop = false;
+  /** review M2: the scroll containers behind a modal drawer, locked while it is open (their inline overflow before). */
+  private locked: { el: HTMLElement; overflow: string }[] = [];
 
   static styles = css`
     :host {
@@ -73,12 +78,17 @@ export class SwDrawer extends LitElement {
       transition: transform var(--sw-t-med) var(--sw-ease);
       visibility: hidden;
     }
-    :host-context([dir='ltr']) .panel {
+    :host-context([dir='ltr']) aside.panel {
       transform: translateX(-100%);
     }
     :host([open]) .panel {
       transform: none;
       visibility: visible;
+    }
+    /* review G: closed, the side panel is not laid out at all - an off-screen absolute box still counts toward the
+       scrollable overflow of the page around it */
+    :host(:not([open])) aside.panel {
+      display: none;
     }
     header {
       display: flex;
@@ -107,6 +117,7 @@ export class SwDrawer extends LitElement {
     .body {
       flex: 1;
       overflow: auto;
+      overscroll-behavior: contain;
       padding: 14px;
       display: flex;
       flex-direction: column;
@@ -119,8 +130,7 @@ export class SwDrawer extends LitElement {
       border-block-start: 1px solid var(--sw-border);
       flex-wrap: wrap;
     }
-    footer:empty,
-    footer:not(:has(*)) {
+    footer[hidden] {
       display: none;
     }
     .grip {
@@ -138,7 +148,7 @@ export class SwDrawer extends LitElement {
         transform: translateY(100%);
         box-shadow: var(--sw-shadow-3);
       }
-      :host-context([dir='ltr']) .panel {
+      :host-context([dir='ltr']) aside.panel {
         transform: translateY(100%);
       }
       .grip {
@@ -173,6 +183,7 @@ export class SwDrawer extends LitElement {
       transition: none;
       visibility: visible;
       overflow: hidden;
+      overscroll-behavior: contain;
     }
     dialog.panel:not([open]) {
       display: none;
@@ -199,7 +210,12 @@ export class SwDrawer extends LitElement {
         border-start-start-radius: var(--sw-r-lg);
         border-start-end-radius: var(--sw-r-lg);
         transform: none;
-        padding-block-end: env(safe-area-inset-bottom, 0px);
+      }
+      dialog.panel .body {
+        padding-block-end: max(14px, env(safe-area-inset-bottom, 0px));
+      }
+      dialog.panel footer {
+        padding-block-end: max(10px, env(safe-area-inset-bottom, 0px));
       }
     }
   `;
@@ -224,9 +240,11 @@ export class SwDrawer extends LitElement {
       } catch {
         dlg.setAttribute('open', '');
       }
+      this.lockScroll();
       requestAnimationFrame(() => this.focusEdge('start'));
     } else if (!this.open && dlg.open) {
       dlg.close();
+      this.unlockScroll();
       const back = this.opener;
       this.opener = null;
       if (back?.isConnected) back.focus({ preventScroll: true });
@@ -236,7 +254,46 @@ export class SwDrawer extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     if (this.dialog?.open) this.dialog.close();
+    this.unlockScroll();
   }
+
+  /** Every scrolling ancestor (through shadow roots) stops scrolling while the modal drawer is open: a wheel or a
+   * touch over the dimmed page never moves the screen behind (review M2). */
+  private lockScroll() {
+    this.unlockScroll();
+    let n: Node | null = this;
+    while (n) {
+      const parent: Node | null = n.parentNode instanceof ShadowRoot ? n.parentNode.host : n.parentNode;
+      if (parent instanceof HTMLElement) {
+        const oy = getComputedStyle(parent).overflowY;
+        if (oy === 'auto' || oy === 'scroll' || parent === document.documentElement) {
+          this.locked.push({ el: parent, overflow: parent.style.overflow });
+          parent.style.overflow = 'hidden';
+        }
+      }
+      n = parent;
+    }
+  }
+
+  private unlockScroll() {
+    for (const { el, overflow } of this.locked) el.style.overflow = overflow;
+    this.locked = [];
+  }
+
+  private onFooterSlot = (e: Event) => {
+    const slot = e.target as HTMLSlotElement;
+    this.hasFooter = slot.assignedNodes({ flatten: true }).some((n) => n.nodeType === Node.ELEMENT_NODE || (n.textContent ?? '').trim() !== '');
+  };
+
+  private onPointerDown = (e: PointerEvent) => {
+    const dlg = this.dialog;
+    if (!dlg || e.target !== dlg) {
+      this.downOnBackdrop = false;
+      return;
+    }
+    const r = dlg.getBoundingClientRect();
+    this.downOnBackdrop = e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+  };
 
   /** Focus the first (or last) focusable inside the panel - the Tab trap's two ends. */
   private focusEdge(edge: 'start' | 'end') {
@@ -286,7 +343,8 @@ export class SwDrawer extends LitElement {
   /** A press on the dimmed backdrop (outside the panel's box) closes it. */
   private onDialogClick = (e: MouseEvent) => {
     const dlg = this.dialog;
-    if (!dlg || e.target !== dlg) return;
+    if (!dlg || e.target !== dlg || !this.downOnBackdrop) return;
+    this.downOnBackdrop = false;
     const r = dlg.getBoundingClientRect();
     if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) this.close();
   };
@@ -301,12 +359,12 @@ export class SwDrawer extends LitElement {
         <sw-button variant="ghost" size="sm" iconOnly icon="close" label=${t('actions.close')} data-drawer-close @click=${this.close}></sw-button>
       </header>
       <div class="body"><slot></slot></div>
-      <footer><slot name="footer"></slot></footer>`;
+      <footer ?hidden=${!this.hasFooter}><slot name="footer" @slotchange=${this.onFooterSlot}></slot></footer>`;
   }
 
   render() {
     if (this.modal) {
-      return html`<dialog class="panel" aria-labelledby="dh" @cancel=${this.onCancel} @close=${this.onNativeClose} @click=${this.onDialogClick} @keydown=${{ handleEvent: this.onKeyCapture, capture: true }}>
+      return html`<dialog class="panel" aria-labelledby="dh" @cancel=${this.onCancel} @close=${this.onNativeClose} @pointerdown=${this.onPointerDown} @click=${this.onDialogClick} @keydown=${{ handleEvent: this.onKeyCapture, capture: true }}>
         <span class="trap" tabindex="0" aria-hidden="true" @focus=${() => this.focusEdge('end')}></span>
         ${this.renderInner()}
         <span class="trap" tabindex="0" aria-hidden="true" @focus=${() => this.focusEdge('start')}></span>
