@@ -23,17 +23,17 @@ import { domainLabel, entityMarkerKind, listEntities, stateLabel, type HaEntity 
 import { ROOM_FILL_LABEL, setRenderMode, stylizeVersion, type RoomFill, type StylizeResult } from '../api/plans';
 import { ZONE_KINDS, acceptZones, createZone, deleteZone, detectZones, pointInPolygon, updateZone, zoneKindLabel, type SpatialZone, type ZoneKind, type ZonePoint } from '../api/zones';
 import { proposeDoor } from '../api/geometry';
-import { acceptDetection, calibrate, calibrateEstimate, copyGeometryFrom, detectStructure, exportUrl, geometryDiff, linkConnector, publishGeometry, type DetectResult, type DetectTarget, type GeometryDiffResponse } from '../api/geometry';
+import { acceptDetection, calibrate, calibrateEstimate, copyGeometryFrom, deleteTwin, detectStructure, exportUrl, geometryDiff, getLinkTargets, linkConnector, publishGeometry, type DetectResult, type DetectTarget, type GeometryDiffResponse } from '../api/geometry';
 import { allIds, byConfidence, byKind, defaultStates, fromResult, moveVertex as moveCandidateVertex, rescale, takeDxfCandidates, withParents, type CandidateSet, type CandKind, type CandState } from '../map/candidates';
-import { loadTree, type CatalogTree } from '../api/catalog';
+import { otherFloorOf, parseTarget, type LinkTargetFloor } from '../map/connector-targets';
 import { productSettings } from '../api/prefs';
 import { createItem, exportUrl as catalogExportUrl, importItems, itemOf, loadLibrary, lookupOf, type CatalogItem, type CatalogLibrary } from '../api/plan-catalog';
-import { applyAnchorPositions, distanceM, effectiveScale, isClosedOutline, lengthPx, nearestWall, pointOnWall, snapPoint, type AnchorPosition, type CatalogLookup, type ConnectorKind, type GeometryDoc, type GeomOpening, type GeomWall, type Pt } from '../map/geometry';
+import { applyAnchorPositions, distanceM, effectiveScale, isClosedOutline, lengthPx, MAX_STAIR_STEPS, nearestWall, pointOnWall, rebuildStair, snapPoint, STAIR_GOING_M, type StairShape, type GeomConnector, type AnchorPosition, type CatalogLookup, type ConnectorKind, type GeometryDoc, type GeomOpening, type GeomWall, type Pt } from '../map/geometry';
 import { StudioController } from '../map/studio-controller';
 import { ARRAY_MAX, BIND_DISTANCE_M, CIRCUIT_COLORS, addArray, addCircuit, addCircuitLamp, addConnector, addLabel, addLevel, addObject, addOpening, addWall, arrayDefaults, circuitPower, defaultLevelId, duplicateBeside, duplicateObject, initialLevel, kindDefaults, levelUsage, moveConnectorVertex, moveGroup, moveObject, moveVertex, newId, nudgeT, openingRange, patchCircuit, patchConnector, patchLabel, patchLevel, patchObject, patchOpening, patchWall, removeCorner, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember, translateWall, visibleUnderLevel, wallDirectionAt, duplicateSelection, itemsInRect, moveSelection, removeItems, selectableItems, selectionDelta, toggleItem, translatePolygon, TAG_MAX_COUNT, circuitEligible, itemsWithTag, joinCircuit, setLevelOf, tagCounts, tagItems, withTag, withoutTag, type MultiItem, type WallDefaults,
-  GRID_DEFAULT_M, GRID_STEPS_M, GUIDE_SNAP_PX, alignObjects, distributeObjects, gridDelta, gridStepPx, objectBox, snapObjectPosition, snapToGrid, guideTargets, type AlignMode, type Guide, type GuideTargets, anchorOnLevel } from '../map/studio-ops';
+  GRID_DEFAULT_M, GRID_STEPS_M, GUIDE_SNAP_PX, alignObjects, distributeObjects, gridDelta, gridStepPx, objectBox, snapObjectPosition, snapToGrid, guideTargets, type AlignMode, type Guide, type GuideTargets, anchorOnLevel, addStair, confirmPlacement, moveConnector, rotateConnector, STAIR_ALIASES } from '../map/studio-ops';
 import { ANCHOR_3D_DEFAULTS, anchor3dKind } from '../map/anchor-3d';
-import { COLL_LABEL, CONNECTOR_LABEL, circuitPlacingHint, connectorDerived, countLabel, fmtMetres, fmtScale, renderArrayDialog, renderCalibPanel, renderCircuitPanel, renderConnectorPanel, renderCustomItemDialog, renderGroupDeleteDialog, renderGroupInspector, renderLevelChips, renderLevelDialog, renderDetectPanel, renderLibraryPanel, renderMeasurePanel, renderObjectInspector, renderConnectorSelection, renderMultiSelection, renderGridOptions, renderShortcutsDialog, renderStudioPanel, renderTagPicker, renderTagsField, MULTI_HINT, SAVE_LABEL, studioPanelStyles, lighterStrength, type ArrayDialogView, type CustomItemView, type DetectAcceptError, type DetectOpts, type DetectReplaceAsk, type DetectRunState, type GeomKind, type GeomSel, type LevelDialogView, type StudioMode } from './plan-studio-panel';
+import { COLL_LABEL, CONNECTOR_LABEL, circuitPlacingHint, connectorDerived, countLabel, fmtMetres, fmtScale, renderArrayDialog, renderCalibPanel, renderCircuitPanel, renderConnectorPanel, renderCustomItemDialog, renderGroupDeleteDialog, renderGroupInspector, renderLevelChips, renderLevelDialog, renderDetectPanel, renderLibraryPanel, renderMeasurePanel, renderObjectInspector, renderConnectorSelection, renderMultiSelection, renderGridOptions, renderShortcutsDialog, renderStudioPanel, renderTwinDeleteDialog, renderLinkConfirmDialog, connectorTargetName, renderTagPicker, renderTagsField, MULTI_HINT, SAVE_LABEL, studioPanelStyles, lighterStrength, type ArrayDialogView, type CustomItemView, type DetectAcceptError, type DetectOpts, type DetectReplaceAsk, type DetectRunState, type GeomKind, type GeomSel, type LevelDialogView, type StudioMode } from './plan-studio-panel';
 
 type Strength = 'light' | 'medium' | 'strong';
 /** A zone save or delete that has not answered by then counts as failed (review of T085, R4): the bulk actions it holds
@@ -243,8 +243,15 @@ export class ExplorePlanEditor extends LitElement {
   // ---- connectors (T085) ----
   @state() private connMode: ConnectorKind | null = null;
   @state() private connStart: Pt | null = null;
-  @state() private tree: CatalogTree | null = null;
-  @state() private linkFloor = '';
+  /** The other floors of the building with their levels (the "מחבר אל" picker, T085). */
+  @state() private linkTargets: LinkTargetFloor[] = [];
+  private linkTargetsFor: string | null = null;
+  /** The shape the stairs tool draws next (T085). */
+  @state() private stairShape: StairShape = 'straight';
+  /** "למחוק גם בקומה השנייה?" open for this cross-floor connector (T085). */
+  @state() private twinDelete: { id: string; floorId: string; target: string; canBoth: boolean } | null = null;
+  /** A change of where linked stairs lead that deletes their twin on the other floor, waiting for a yes (review B1, L2). */
+  @state() private linkConfirm: { kind: 'unlink' | 'relink'; id: string; value: string; target: string } | null = null;
   @state() private linkBusy = false;
   // ---- circuits (T085) ----
   @state() private circuitSel: string | null = null;
@@ -768,6 +775,10 @@ export class ExplorePlanEditor extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    this.studio.onNotice = (m) => {
+      this.info = m;
+      setTimeout(() => (this.info = ''), 7000);
+    };
     void this.load();
     window.addEventListener('keydown', this.onKey);
     this.narrow = this.phone.matches;
@@ -809,7 +820,8 @@ export class ExplorePlanEditor extends LitElement {
       const isNewFloor = !this.bundle || this.bundle.floorId !== b.floorId;
       if (isNewFloor) {
         this.levelFilter = null; // another floor: back to every level (the setting below may narrow it once it resolves)
-        this.linkFloor = ''; // and a stale target floor cannot outlive the floor it was picked on (final review item 4)
+        this.linkTargets = []; // and another floor's targets cannot outlive the floor they were listed for (final review item 4)
+        this.linkTargetsFor = null;
         try {
           this.planImage = localStorage.getItem(`sw.editor.background.${b.floorId}`) !== '0'; // a floor never switched shows its picture
         } catch {
@@ -1536,10 +1548,9 @@ export class ExplorePlanEditor extends LitElement {
     this.connMode = null;
     this.connStart = null;
     this.membersMode = false;
-    this.circuitPlacing = null; // an armed lamp type never survives a tool switch (like linkFloor below)
+    this.circuitPlacing = null; // an armed lamp type never survives a tool switch
     this.circuitNew = null;
-    this.linkFloor = ''; // a floor picked for a connector link never survives a tool switch (final review item 4)
-    if (tool === 'connectors' && !this.tree && this.bundle?.source === 'api') void loadTree().then((t) => (this.tree = t)).catch(() => {});
+    if (tool === 'connectors') void this.loadLinkTargets();
     if (tool === 'structure' && this.phone.matches && this.studioMode === 'wall') this.studioMode = 'select'; // wall drawing is desktop only: a phone opens the tool in select mode
     if (tool !== 'structure') this.geomSel = null;
     this.multi = []; // a multi-selection belongs to the select tool only (T085)
@@ -1732,17 +1743,26 @@ export class ExplorePlanEditor extends LitElement {
     setTimeout(() => (this.info = ''), 4000);
   }
 
-  /** The other floors of this building, for the link picker. */
-  private get otherFloors(): { id: string; name: string }[] {
+  /** The other floors of this building the person may edit, with their levels and frames, for the "מחבר אל" picker
+   * (T085). Loaded once per plan version of this floor; `force` reloads it (another floor may have gained a level or a
+   * plan since). */
+  private async loadLinkTargets(force = false) {
     const b = this.bundle;
-    if (!b || this.tree?.source !== 'api') return [];
-    for (const s of this.tree.sites) for (const bl of s.buildings ?? []) if ((bl.floors ?? []).some((f) => f.id === b.floorId)) return (bl.floors ?? []).filter((f) => f.id !== b.floorId).map((f) => ({ id: f.id, name: f.name }));
-    return [];
+    if (!b || b.source !== 'api' || !b.planVersionId) return;
+    if (!force && this.linkTargetsFor === b.planVersionId) return;
+    this.linkTargetsFor = b.planVersionId;
+    try {
+      this.linkTargets = (await getLinkTargets(b.planVersionId)).floors;
+    } catch {
+      this.linkTargetsFor = null; // the picker shows this floor's levels only; the next open tries again
+    }
   }
 
-  private async linkTo(connectorId: string) {
+  /** Link a connector to a level of another floor: the draft is saved first, the server writes both drafts, this one
+   * reloads (a new revision). A twin placed at the centre of the other plan (no shared frame) is said so. */
+  private async linkTo(connectorId: string, floorId: string, levelId: string, replace = false) {
     const b = this.bundle;
-    if (!b?.planVersionId || !this.linkFloor) return;
+    if (!b?.planVersionId) return;
     this.linkBusy = true;
     this.error = '';
     try {
@@ -1750,11 +1770,17 @@ export class ExplorePlanEditor extends LitElement {
         this.error = this.studio.error;
         return;
       }
-      const r = await linkConnector(b.planVersionId, connectorId, this.linkFloor);
+      const r = await linkConnector(b.planVersionId, connectorId, floorId, levelId, replace);
       await this.loadStudio(b, true); // the server changed both drafts: this one has a new revision
       this.geomSel = { id: connectorId, kind: 'connector' };
-      this.info = `המחבר קושר לקומה "${this.otherFloors.find((f) => f.id === r.target.floor_id)?.name ?? ''}"; הוא מופיע בטיוטה שלה באותו מזהה`;
-      setTimeout(() => (this.info = ''), 5000);
+      const f = this.linkTargets.find((x) => x.floor_id === r.target.floor_id);
+      const where = `${f?.name ?? 'הקומה השנייה'} · ${f?.levels.find((l) => l.id === r.target.level_id)?.name ?? ''}`;
+      this.info = r.target.placement === 'centred'
+        ? `המדרגות קושרו אל ${where}. לשתי הקומות אין מסגרת משותפת, לכן בקומה השנייה הן נוצרו במרכז התוכנית: מקם את המדרגות בקומה השנייה.`
+        : r.target.placement === 'aligned' && r.target.frame === 'size'
+          ? `המחבר קושר אל ${where}; בקומה השנייה הוא הונח באותו מקום בתוכנית (לשתי התוכניות אותן מידות): ודא את המיקום בקומה השנייה.`
+          : `המחבר קושר אל ${where}; הוא מופיע בטיוטה של שתי הקומות באותו מזהה`;
+      setTimeout(() => (this.info = ''), 7000);
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -1762,28 +1788,164 @@ export class ExplorePlanEditor extends LitElement {
     }
   }
 
+  /** A choice in the "מחבר אל" picker: a level of this floor (a connector that led to another floor stops doing so and
+   * its twin there goes), or a level of another floor (the link). */
+  private setTarget(id: string, value: string) {
+    const doc = this.studio.doc;
+    const c = doc?.connectors.find((x) => x.id === id);
+    const t = parseTarget(value);
+    if (!doc || !c || !t) return;
+    const other = otherFloorOf(doc, c);
+    if (other && t.floorId !== other) {
+      // it leads to another floor now: moving it (or bringing it back to this floor) deletes the twin there - asked first
+      this.linkConfirm = { kind: t.floorId ? 'relink' : 'unlink', id, value, target: connectorTargetName(doc.levels, c) };
+      return;
+    }
+    this.applyTarget(id, value);
+  }
+
+  private applyTarget(id: string, value: string, replace = false) {
+    const doc = this.studio.doc;
+    const c = doc?.connectors.find((x) => x.id === id);
+    const t = parseTarget(value);
+    if (!doc || !c || !t) return;
+    if (t.floorId) {
+      void this.linkTo(id, t.floorId, t.levelId, replace);
+      return;
+    }
+    const other = otherFloorOf(doc, c);
+    this.edit((d) => patchConnector(d, id, { level_to: t.levelId, floor_ids: [], far: null, origin_floor_id: undefined }));
+    if (other) void this.dropTwin(id, other);
+  }
+
+  private confirmLink(ok: boolean) {
+    const l = this.linkConfirm;
+    this.linkConfirm = null;
+    if (ok && l) this.applyTarget(l.id, l.value, l.kind === 'relink');
+  }
+
+  /** The twin of a cross-floor connector leaves the other floor's draft (after this draft is saved without it). */
+  private async dropTwin(id: string, floorId: string) {
+    const b = this.bundle;
+    if (!b?.planVersionId) return;
+    try {
+      if (!(await this.studio.flush())) {
+        this.error = this.studio.error;
+        return;
+      }
+      const r = await deleteTwin(b.planVersionId, id, floorId);
+      this.info = r.removed ? 'המחבר נמחק גם בקומה השנייה' : 'בקומה השנייה לא נמצא מחבר תאום';
+      setTimeout(() => (this.info = ''), 4000);
+    } catch (err) {
+      this.error = describeError(err);
+    }
+  }
+
+  /** "מחק מחבר": a connector linked to another floor asks "למחוק גם בקומה השנייה?" (default: both); any other goes. */
+  private removeConnector(id: string) {
+    const doc = this.studio.doc;
+    const c = doc?.connectors.find((x) => x.id === id);
+    if (!doc || !c) return;
+    const other = otherFloorOf(doc, c);
+    if (other) {
+      // "delete both" only when the person may edit the other floor (it is listed among the link targets; review L3)
+      this.twinDelete = { id, floorId: other, target: connectorTargetName(doc.levels, c), canBoth: this.linkTargets.some((f) => f.floor_id === other) };
+      return;
+    }
+    this.edit((d) => removeItem(d, id));
+    this.geomSel = null;
+  }
+
+  private confirmTwinDelete(both: boolean) {
+    const t = this.twinDelete;
+    this.twinDelete = null;
+    if (!t) return;
+    this.edit((d) => removeItem(d, t.id));
+    this.geomSel = null;
+    if (both && t.canBoth) void this.dropTwin(t.id, t.floorId);
+  }
+
+  private connectorView(doc: GeometryDoc) {
+    return { doc, saveState: this.studio.saveState, linkTargets: this.linkTargets, linkBusy: this.linkBusy, stairShape: this.stairShape, phone: this.phone.matches };
+  }
+
+  private connectorActions() {
+    const b = this.bundle;
+    const scale = () => (this.studio.doc ? effectiveScale(this.studio.doc).scale : 1);
+    return {
+      setMode: (k: ConnectorKind | null) => {
+        this.connMode = k;
+        this.connStart = null;
+        this.geomSel = null;
+      },
+      select: (id: string) => (this.geomSel = { id, kind: 'connector' as const }),
+      patch: (id: string, patch: Partial<GeomConnector>) => this.edit((d) => patchConnector(d, id, patch)),
+      remove: (id: string) => this.removeConnector(id),
+      setTarget: (id: string, value: string) => this.setTarget(id, value),
+      setStairShape: (s: StairShape) => {
+        this.stairShape = s;
+        this.connStart = null;
+      },
+      patchStair: (id: string, patch: Partial<Pick<GeomConnector, 'shape' | 'turn' | 'flights' | 'width_m' | 'landing_depth_m'>>) => {
+        if (!b) return;
+        this.edit((d) => {
+          const c = d.connectors.find((x) => x.id === id);
+          return c ? patchConnector(d, id, rebuildStair(c, patch, b.width, b.height, scale())) : d;
+        });
+      },
+      rotate: (id: string) => {
+        if (b) this.edit((d) => rotateConnector(d, id, 90, b.width, b.height));
+      },
+      setFloorHeight: (m: number) => this.edit((d) => ({ ...d, floor_height_m: m })),
+      confirmPlacement: (id: string) => this.edit((d) => confirmPlacement(d, id)),
+    };
+  }
+
   private renderConnectorTool(b: MapBundle) {
     const doc = this.studio.doc;
     if (!doc) return html`<sw-card heading="מפלסים ומחברים"><div class="note">${b.source === 'demo' ? 'נתוני הדגמה: המחברים עובדים מול השרת.' : this.error || 'טוען…'}</div></sw-card>`;
     return renderConnectorPanel(
-      { doc, mode: this.connMode, start: this.connStart, sel: this.geomSel?.kind === 'connector' ? doc.connectors.find((c) => c.id === this.geomSel!.id) : undefined, saveState: this.studio.saveState,
-        floors: this.otherFloors, linkFloor: this.linkFloor, linkBusy: this.linkBusy, phone: this.phone.matches },
-      {
-        setMode: (k) => {
-          this.connMode = k;
-          this.connStart = null;
-          this.geomSel = null;
-        },
-        select: (id) => (this.geomSel = { id, kind: 'connector' }),
-        patch: (id, patch) => this.edit((d) => patchConnector(d, id, patch)),
-        remove: (id) => {
-          this.edit((d) => removeItem(d, id));
-          this.geomSel = null;
-        },
-        setLinkFloor: (f) => (this.linkFloor = f),
-        link: (id) => void this.linkTo(id),
-      },
+      { ...this.connectorView(doc), mode: this.connMode, start: this.connStart, sel: this.geomSel?.kind === 'connector' ? doc.connectors.find((c) => c.id === this.geomSel!.id) : undefined },
+      this.connectorActions(),
     );
+  }
+
+  /** The second click of the connector tool (T085): stairs carry the stairs model - a straight run as drawn, with one
+   * flight of run / going steps; an L or a U generated from the first flight (start, direction and length of the two
+   * clicks), its second flight as long as the first. Other kinds are the plain connector. */
+  private drawConnector(doc: GeometryDoc, kind: ConnectorKind, a: Pt, q: Pt): { doc: GeometryDoc; id: string } {
+    const b = this.bundle;
+    const levelFrom = this.placeOpts(doc).levelId;
+    if (kind !== 'stairs' || !b) return addConnector(doc, kind, a, q, levelFrom, null);
+    const scale = effectiveScale(doc).scale;
+    const run = Math.hypot((q[0] - a[0]) * b.width, (q[1] - a[1]) * b.height) * scale;
+    const steps = Math.max(1, Math.min(MAX_STAIR_STEPS, Math.round(run / STAIR_GOING_M)));
+    if (this.stairShape === 'straight') {
+      const r = addConnector(doc, kind, a, q, levelFrom, null);
+      return { doc: patchConnector(r.doc, r.id, { shape: 'straight', turn: 'none', flights: [{ steps }], landing_depth_m: null }), id: r.id };
+    }
+    return addStair(doc, { shape: this.stairShape, start: a, dir: [(q[0] - a[0]) * b.width, (q[1] - a[1]) * b.height], flights: [steps, steps], width_m: 1.2, going_m: run / steps, levelFrom, levelTo: null }, b.width, b.height, scale);
+  }
+
+  /** Straight stairs, stairs with a landing and the elevator from the library are placed as a connector (T085: the one
+   * model that links levels and floors) - a one-click stair up the plan from the click, then the connectors tool with
+   * it selected, where its target, shape and steps are set. */
+  private placeStairItem(doc: GeometryDoc, itemId: string, p: Pt) {
+    const b = this.bundle;
+    const alias = STAIR_ALIASES[itemId];
+    if (!b || !alias) return;
+    const scale = effectiveScale(doc).scale;
+    const levelFrom = this.placeOpts(doc).levelId;
+    const r = alias.shape
+      ? addStair(doc, { shape: alias.shape, start: p, flights: alias.flights, width_m: alias.width_m, levelFrom, levelTo: null, kind: alias.kind }, b.width, b.height, scale)
+      : addConnector(doc, alias.kind, p, [p[0], Math.max(0, p[1] - alias.width_m / scale / b.height)], levelFrom, null);
+    this.studio.commit(r.doc);
+    this.lastEdit = 'structure';
+    this.remember(itemId);
+    this.pickTool('connectors');
+    this.geomSel = { id: r.id, kind: 'connector' };
+    this.info = 'המדרגות הונחו כמחבר: בחר ב"מחבר אל" לאיזה מפלס או קומה הן מובילות';
+    setTimeout(() => (this.info = ''), 5000);
   }
 
   /** The switch catalogue of a circuit: the synced switch and light entities, asked by domain so no other domain crowds them out. */
@@ -1886,6 +2048,10 @@ export class ExplorePlanEditor extends LitElement {
     const doc = this.studio.doc;
     const item = this.placingItem;
     if (!doc || !item) return;
+    if (STAIR_ALIASES[item.id]) {
+      this.placeStairItem(doc, item.id, this.gridPoint(p));
+      return;
+    }
     const r = addObject(doc, item, this.gridPoint(p), this.placeOpts(doc)); // on the grid when it is on (T085)
     this.studio.commit(r.doc);
     this.lastEdit = 'structure';
@@ -2235,7 +2401,7 @@ export class ExplorePlanEditor extends LitElement {
       // level_to is never guessed (T085 owner report 2026-09-26): with exactly one other level on the floor the new
       // connector used to reach it at once, although the person may mean another floor ("קשר לקומה"). It stays empty
       // until the person picks a level or links a floor: the draft saves, the issue list names it and publishing waits.
-      const r = addConnector(doc, this.connMode, this.connStart, q, this.placeOpts(doc).levelId, null);
+      const r = this.drawConnector(doc, this.connMode, this.connStart, q);
       this.connStart = null;
       this.studio.commit(r.doc);
       this.lastEdit = 'structure';
@@ -2481,7 +2647,7 @@ export class ExplorePlanEditor extends LitElement {
     // shows the inspectors itself (0.1.87), so a click there never changes the tool
     if (kind === 'object' && this.tool !== 'library' && this.tool !== 'select') this.pickTool('library');
     if (kind === 'connector' && this.tool !== 'connectors' && this.tool !== 'select') this.pickTool('connectors');
-    if (kind === 'connector' && this.tool === 'select' && !this.tree && this.bundle?.source === 'api') void loadTree().then((t) => (this.tree = t)).catch(() => {});
+    if (kind === 'connector' && this.tool === 'select') void this.loadLinkTargets();
     this.zoneVertexSel = null;
     this.geomSel = vertex === undefined ? { id, kind } : { id, kind, vertex };
     this.multi = []; // a plain click (or a drag of an item outside the multi-selection) selects that one item alone
@@ -2991,6 +3157,11 @@ export class ExplorePlanEditor extends LitElement {
       if (!c || connectorDerived(c)) return null;
       return { doc: moveConnectorVertex(doc, d.id, d.index, this.snap(p, null, true)), sel: { id: d.id, kind: 'connector' } };
     }
+    if (d.kind === 'connector') {
+      const c = doc.connectors.find((v) => v.id === d.id);
+      if (!c || connectorDerived(c)) return null;
+      return { doc: moveConnector(doc, d.id, d.x - d.sx, d.y - d.sy), sel: { id: d.id, kind: 'connector' } }; // this floor's copy only (T085)
+    }
     if (d.kind === 'wall') {
       const w = doc.walls.find((v) => v.id === d.id);
       if (!w) return null;
@@ -3226,6 +3397,10 @@ export class ExplorePlanEditor extends LitElement {
       if (derivedConn && connectorDerived(derivedConn)) {
         this.info = 'המחבר נגזר מעצם: מוחקים או עורכים את העצם עצמו'; // the server regenerates it on every save
         setTimeout(() => (this.info = ''), 4000);
+        return true;
+      }
+      if (derivedConn && derivedConn.floor_ids.length) {
+        this.removeConnector(id); // "למחוק גם בקומה השנייה?"
         return true;
       }
       if (kind === 'wall' && vertex !== undefined && this.geomSelectMode) {
@@ -4087,20 +4262,7 @@ export class ExplorePlanEditor extends LitElement {
     if (sel.kind === 'connector') {
       const c = doc.connectors.find((x) => x.id === sel.id);
       return c
-        ? renderConnectorSelection(
-            { doc, mode: null, start: null, sel: c, saveState: this.studio.saveState, floors: this.otherFloors, linkFloor: this.linkFloor, linkBusy: this.linkBusy, phone: this.phone.matches },
-            {
-              setMode: () => {},
-              select: (id) => (this.geomSel = { id, kind: 'connector' }),
-              patch: (id, patch) => this.edit((d) => patchConnector(d, id, patch)),
-              remove: (id) => {
-                this.edit((d) => removeItem(d, id));
-                this.geomSel = null;
-              },
-              setLinkFloor: (f) => (this.linkFloor = f),
-              link: (id) => void this.linkTo(id),
-            },
-          )
+        ? renderConnectorSelection({ ...this.connectorView(doc), mode: null, start: null, sel: c }, { ...this.connectorActions(), setMode: () => {} })
         : nothing;
     }
     return this.renderStructurePanel(b, true);
@@ -4364,6 +4526,8 @@ export class ExplorePlanEditor extends LitElement {
         ${this.renderDiffDialog()}
         ${this.renderGeomDiffDialog()}
         ${this.arrayDialog ? renderArrayDialog(this.arrayDialog, (patch) => (this.arrayDialog = { ...this.arrayDialog!, error: '', ...patch }), () => this.createArray(), () => (this.arrayDialog = null)) : nothing}
+        ${this.twinDelete ? renderTwinDeleteDialog(this.twinDelete.target, this.twinDelete.canBoth, () => this.confirmTwinDelete(true), () => this.confirmTwinDelete(false), () => (this.twinDelete = null)) : nothing}
+        ${this.linkConfirm ? renderLinkConfirmDialog(this.linkConfirm.kind, this.linkConfirm.target, () => this.confirmLink(true), () => this.confirmLink(false)) : nothing}
         ${this.groupDelete ? renderGroupDeleteDialog(this.studio.doc?.groups.find((g) => g.id === this.groupDelete)?.member_ids.length ?? 0, () => this.deleteGroup(true), () => this.deleteGroup(false), () => (this.groupDelete = null)) : nothing}
         ${this.customDialog && this.library ? renderCustomItemDialog(this.customDialog, this.library, (patch) => (this.customDialog = { ...this.customDialog!, ...patch }), () => void this.createCustom(), () => (this.customDialog = null)) : nothing}
         ${this.levelDialog ? renderLevelDialog(this.levelDialog, { change: (patch) => (this.levelDialog = { ...this.levelDialog!, ...patch }), submit: () => this.submitLevel(), cancel: () => (this.levelDialog = null), remove: () => this.deleteLevel() }) : nothing}

@@ -3,7 +3,7 @@ import { customElement, property, state, query } from 'lit/decorators.js';
 import '../components/sw-button';
 import { t } from '../i18n/he';
 import type { StateKind } from '../components/sw-badge';
-import { applyAnchorPositions, buildPrimitives, circuitToken, isClosedOutline, objectHitCorners, objectHitOrder, type AnchorPosition, type CatalogLookup, type DoorPrim, type GeometryDoc, type LabelPrim, type ConnectorPrim, type ObjectPrim, type PassagePrim, type Primitive, type Pt, type WallPrim, type WindowPrim } from './geometry';
+import { applyAnchorPositions, buildPrimitives, circuitToken, effectiveScale, floorHeight, isClosedOutline, objectHitCorners, objectHitOrder, stairPlan, stairRise, type StairPlan, type AnchorPosition, type CatalogLookup, type DoorPrim, type GeometryDoc, type LabelPrim, type ConnectorPrim, type ObjectPrim, type PassagePrim, type Primitive, type Pt, type WallPrim, type WindowPrim } from './geometry';
 import { OUTSIDE_MAIN_HE, candidatesDoc, isOutsideMain, type CandidateSet, type CandState } from './candidates';
 import { symbolOf } from './plan-symbols';
 import { CoverageCache, hasWallsOnLevel } from './coverage';
@@ -148,7 +148,7 @@ const sameAnchors = (a: Record<string, AnchorPosition>, b: Record<string, Anchor
  * instead of jumping - and the Shift / Alt keys held now. A zone (`zone`) is dragged this way only as a member of a
  * multi-selection (`multiDrag`); a single selected zone keeps its own body drag and `zone-edit`. */
 export interface GeomDragDetail {
-  kind: 'vertex' | 'wall' | 'opening' | 'label' | 'object' | 'object-rotate' | 'object-stretch' | 'object-duplicate' | 'connector-vertex' | 'zone';
+  kind: 'vertex' | 'wall' | 'opening' | 'label' | 'object' | 'object-rotate' | 'object-stretch' | 'object-duplicate' | 'connector-vertex' | 'connector' | 'zone';
   id: string;
   /** A wall corner, a stretch edge (0 front, 1 right, 2 back, 3 left) or a connector corner. */
   index: number;
@@ -273,6 +273,7 @@ export class SwPlanCanvas extends LitElement {
   private coverage = new CoverageCache();
   private covPoints = new Map<string, { pts: Pt[]; points: string }>();
   private primCache: { doc: GeometryDoc; w: number; h: number; level: string | null; catalog: CatalogLookup | null; anchors: Record<string, AnchorPosition>; prims: Primitive[] } | null = null;
+  private stairCache: { doc: GeometryDoc; w: number; h: number; plans: Map<string, StairPlan | null> } | null = null;
   /** Circuit id -> its whitelisted colour token, built once per document (the object layer looks it up per lamp). */
   private circuitCache: { doc: GeometryDoc; tokens: Map<string, string> } | null = null;
   /** Plan Studio editor: what can be picked and dragged. 'all' in the structure tool's select mode; 'items' in its drawing
@@ -736,6 +737,36 @@ export class SwPlanCanvas extends LitElement {
     }
     .carrowhead {
       fill: var(--sw-map-structure);
+    }
+    /* T085 stairs: flights with a line per riser, a plain landing, the walking line with its start dot and arrow, the
+       break line across the first flight (the plan convention) */
+    .structure .stair .sflight,
+    .structure .stair .slanding {
+      fill: color-mix(in srgb, var(--sw-map-structure) 7%, transparent);
+      stroke: var(--sw-map-structure);
+      stroke-linejoin: round;
+    }
+    .structure .stair .slanding {
+      fill: color-mix(in srgb, var(--sw-map-structure) 12%, transparent);
+    }
+    .structure .stair .stread {
+      stroke: var(--sw-map-structure);
+      stroke-opacity: 0.75;
+    }
+    .structure .stair .swalk,
+    .structure .stair .sbreak {
+      fill: none;
+      stroke: var(--sw-map-structure);
+    }
+    .structure .stair .sstart {
+      fill: var(--sw-map-structure);
+    }
+    .structure .stair.sel .sflight,
+    .structure .stair.sel .slanding {
+      stroke: var(--sw-accent);
+    }
+    .structure .stair .scap {
+      font-weight: 500;
     }
     .structure .conn .clabel,
     .structure .obj .olabel {
@@ -1821,6 +1852,40 @@ export class SwPlanCanvas extends LitElement {
     return this.circuitCache.tokens;
   }
 
+  /** The plan drawing of a connector with the stairs model (T085), cached per document; null draws the plain band. */
+  private stairOf(id: string): StairPlan | null {
+    const doc = this.geometry;
+    if (!doc) return null;
+    const cache = this.stairCache;
+    if (!cache || cache.doc !== doc || cache.w !== this.planWidth || cache.h !== this.planHeight) {
+      const { scale } = effectiveScale(doc);
+      const plans = new Map<string, StairPlan | null>();
+      const levels = new Map(doc.levels.map((l) => [l.id, l]));
+      const fh = floorHeight(doc);
+      // a stair going down from its level is looked down on: drawn whole, without the break line (review L5)
+      for (const c of doc.connectors) plans.set(c.id, stairPlan(c, this.planWidth, this.planHeight, scale, { descending: stairRise(levels, c, fh) < 0 }));
+      this.stairCache = { doc, w: this.planWidth, h: this.planHeight, plans };
+    }
+    return this.stairCache!.plans.get(id) ?? null;
+  }
+
+  /** Stairs drawn by the plan convention: each flight's outline with a line at every riser, the landing as a plain
+   * rectangle, the walking line from a start dot to the arrow that points the way (to the level or floor it reaches),
+   * the break line across the first flight, the level / floor label and the "12+12 מדרגות · פודסט" caption. */
+  private renderStair(p: ConnectorPrim, s: StairPlan, cls: string, inv: number) {
+    const start = s.walk[0];
+    return svg`<g class="conn stair ${cls}" data-connector=${p.id} data-kind=${p.ckind} data-shape=${s.shape} data-flights=${s.flights.map((f) => f.steps).join('+')}>
+      ${s.landings.map((l) => svg`<polygon class="slanding" data-stair-landing points=${ptsAttr(l)} stroke-width=${1.2 * inv} />`)}
+      ${s.flights.map((f, i) => svg`<g data-stair-flight=${i}><polygon class="sflight" points=${ptsAttr(f.outline)} stroke-width=${1.2 * inv} />
+        ${f.treads.map(([a, b]) => svg`<line class="stread" x1=${a[0]} y1=${a[1]} x2=${b[0]} y2=${b[1]} stroke-width=${0.8 * inv} />`)}</g>`)}
+      ${s.breakLine ? svg`<line class="sbreak" data-stair-break x1=${s.breakLine[0][0]} y1=${s.breakLine[0][1]} x2=${s.breakLine[1][0]} y2=${s.breakLine[1][1]} stroke-width=${1.4 * inv} />` : nothing}
+      <polyline class="swalk" points=${ptsAttr(s.walk)} stroke-width=${1.4 * inv} marker-end="url(#sw-arrow)" />
+      ${start ? svg`<circle class="sstart" cx=${start[0]} cy=${start[1]} r=${3 * inv} />` : nothing}
+      <text class="clabel" data-conn-text x=${p.lx} y=${p.ly - 7 * inv} font-size=${12 * inv}>${p.label}</text>
+      ${s.caption ? svg`<text class="clabel scap" data-stair-caption x=${p.lx} y=${p.ly + 8 * inv} font-size=${10.5 * inv}>${s.caption}</text>` : nothing}
+    </g>`;
+  }
+
   private renderStructure() {
     const doc = this.geometry;
     if (!doc) return nothing;
@@ -1847,12 +1912,15 @@ export class SwPlanCanvas extends LitElement {
         return svg`<g class="opening ${cls}" data-opening=${p.id} data-kind="window">${p.lines.map(([a, b]) => svg`<line class="glass" x1=${a[0]} y1=${a[1]} x2=${b[0]} y2=${b[1]} stroke-width=${1.6 * inv} />`)}${this.renderOpenMark(p.id, p.gap, inv)}</g>`;
       case 'passage':
         return svg`<g class="opening ${cls}" data-opening=${p.id} data-kind="passage"><line class="gapline" x1=${p.gap[0][0]} y1=${p.gap[0][1]} x2=${p.gap[1][0]} y2=${p.gap[1][1]} stroke-width=${inv} stroke-dasharray=${`${2 * inv} ${3 * inv}`} /></g>`;
-      case 'connector':
+      case 'connector': {
+        const stair = this.stairOf(p.id);
+        if (stair) return this.renderStair(p, stair, cls, inv);
         return svg`<g class="conn ${cls}" data-connector=${p.id} data-kind=${p.ckind}>
           <path class="cbody" d=${`M ${p.points.map((q) => `${q[0]} ${q[1]}`).join(' L ')}`} stroke-width=${p.width} />
           <path class="carrow" d=${`M ${p.arrow.from[0]} ${p.arrow.from[1]} L ${p.arrow.to[0]} ${p.arrow.to[1]}`} stroke-width=${2 * inv} marker-end="url(#sw-arrow)" />
-          <text class="clabel" x=${p.lx} y=${p.ly} font-size=${12 * inv}>${p.label}</text>
+          <text class="clabel" data-conn-text x=${p.lx} y=${p.ly} font-size=${12 * inv}>${p.label}</text>
         </g>`;
+      }
       case 'object': {
         const entityId = p.anchor?.startsWith('ha_entity:') ? p.anchor.slice('ha_entity:'.length) : null; // only an entity anchor has a state
         const on = (p.circuit_id !== null && this.circuitStates[p.circuit_id] === 'on') || (entityId !== null && this.entityStates[entityId] === 'on');
@@ -1965,7 +2033,7 @@ export class SwPlanCanvas extends LitElement {
    * gesture a `geom-drag-cancel`. A press without movement selects the item (a corner: that corner of its wall; a zone of
    * a multi-selection: `zone-select`), with `add` when Shift was held at the press (T085 multi-select). */
   private onGeomDragStart(kind: GeomDragDetail['kind'], id: string, index: number, e: PointerEvent) {
-    const objectKind = kind.startsWith('object') || kind === 'connector-vertex';
+    const objectKind = kind.startsWith('object') || kind.startsWith('connector');
     if (this.panActive) return; // Space + drag (or the hand tool) pans, over an item too: the press goes on to the viewport
     if (e.button !== 0 || this.geomDrag === 'none' || ((kind === 'vertex' || kind === 'wall' || kind === 'zone') && this.geomDrag !== 'all') || (objectKind && this.geomDrag === 'items') || (!objectKind && this.geomDrag === 'objects')) return;
     if (kind !== 'vertex' && this.nearCorner(e.clientX, e.clientY)) return; // wall mode: the press draws from that corner
@@ -2004,7 +2072,7 @@ export class SwPlanCanvas extends LitElement {
       end();
       if (moved) emit('geom-drag', detail(last));
       else if (kind === 'zone') emit('zone-select', { id, add });
-      else emit('geom-select', kind === 'vertex' ? { id, kind: 'wall', vertex: index, add } : { id, kind: kind.startsWith('object') ? 'object' : kind === 'connector-vertex' ? 'connector' : kind, add });
+      else emit('geom-select', kind === 'vertex' ? { id, kind: 'wall', vertex: index, add } : { id, kind: kind.startsWith('object') ? 'object' : kind.startsWith('connector') ? 'connector' : kind, add });
     };
     const cancel = () => {
       end();
@@ -2053,7 +2121,9 @@ export class SwPlanCanvas extends LitElement {
     const multi = this.multiDrag ? this.highlightSet : new Set<string>();
     const bodyWall = (id: string) => id === this.selectedGeomId || multi.has(id);
     return svg`<g class="geom-hits">
-      ${connectors.map((p) => svg`<path class="hit" data-hit-connector=${p.id} d=${`M ${p.points.map((q) => `${q[0]} ${q[1]}`).join(' L ')}`} stroke-width=${Math.max(p.width, 12 * inv)} @click=${(e: Event) => this.pickConnector(p.id, e)} />`)}
+      ${connectors.map((p) => svg`<path class="hit" data-hit-connector=${p.id} d=${`M ${p.points.map((q) => `${q[0]} ${q[1]}`).join(' L ')}`} stroke-width=${Math.max(p.width, 12 * inv)}
+          @pointerdown=${(e: PointerEvent) => (p.id === this.selectedGeomId && selConnector && !selConnector.object_id ? this.onGeomDragStart('connector', p.id, 0, e) : undefined)}
+          @click=${(e: Event) => this.pickConnector(p.id, e)} />`)}
       ${walls.filter((p) => !bodyWall(p.id)).map((p) => svg`<polyline class="hit" data-hit-wall=${p.id} points=${ptsAttr(p.points)} stroke-width=${Math.max(p.width, wallHitPx * inv)} @click=${(e: Event) => this.pickGeom(p.id, e)} />`)}
       ${objectHitOrder(objects, this.selectedGeomId).map((p) => svg`<polygon class="hit ohit" data-hit-object=${p.id} points=${ptsAttr(objectHitCorners(p, OBJECT_HIT_MIN_PX * inv))}
           @pointerdown=${(e: PointerEvent) => (this.touchLocked(p.id) ? undefined : this.onGeomDragStart(e.altKey ? 'object-duplicate' : 'object', p.id, 0, e))}

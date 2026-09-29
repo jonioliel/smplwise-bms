@@ -6,7 +6,7 @@ import type { ReactiveControllerHost } from 'lit';
 import { ApiError } from '../src/api/client';
 import type { GeometryResponse, GeometryRow } from '../src/api/geometry';
 import type { GeometryDoc, GeomConnector, GeomObject } from '../src/map/geometry';
-import { StudioController, type StudioApi } from '../src/map/studio-controller';
+import { rebaseOnServer, StudioController, type StudioApi } from '../src/map/studio-controller';
 
 // Plan Studio (T084): the editor's autosave - one save after the quiet period with the revision the server gave, undo
 // saves too, and a conflict keeps the local edit and says so. Runs in node with a fake host and a fake API.
@@ -326,5 +326,69 @@ test.describe('studio controller (unit)', () => {
     expect(saves).toEqual([{ revision: 1, walls: 1 }]);
     expect(c.doc!.walls.length).toBe(1);
     expect(c.revision).toBe(1);
+  });
+
+  // T085 review L-e: a twin synced from another floor raises this draft's revision under an open editor.
+  test('rebaseOnServer replays the local edits on a server change confined to connectors the editor did not touch', () => {
+    const base = sample();
+    const st = (id: string, extra: Partial<GeomConnector> = {}): GeomConnector => ({ id, kind: 'stairs', level_from: 'L0', level_to: 'L1', floor_ids: [], polyline: [[0.1, 0.1], [0.2, 0.1]], width_m: 1.2, label: null,
+      object_id: null, source: 'manual', external_ids: {}, ...extra });
+    base.connectors = [st('a'), st('b'), st('c')];
+    const server = { ...base, connectors: [st('a', { flights: [{ steps: 9 }], far: { floor_id: 'x', floor_name: 'y', level_name: null, direction: 'up' } }), st('b'), st('c')] };
+    const local = { ...base, walls: base.walls.slice(0, 1), connectors: [st('a'), st('b', { width_m: 2 }), st('d')] }; // b changed, c removed, d added
+    const merged = rebaseOnServer(base, local, server)!;
+    expect(merged.walls).toEqual(local.walls);
+    expect(merged.connectors.map((c) => [c.id, c.width_m, c.flights ?? null])).toEqual([['a', 1.2, [{ steps: 9 }]], ['b', 2, null], ['d', 1.2, null]]);
+    // the same connector edited on both sides, another part changed on the server, or nothing visible: no rebase
+    expect(rebaseOnServer(base, { ...local, connectors: [st('a', { width_m: 3 }), st('b'), st('c')] }, server)).toBeNull();
+    expect(rebaseOnServer(base, local, { ...server, walls: [] })).toBeNull();
+    expect(rebaseOnServer(base, local, { ...base, connectors: base.connectors.map((c) => ({ ...c, far: { floor_id: 'x', floor_name: 'z', level_name: null, direction: null } })) })).toBeNull(); // only `far` differs
+  });
+
+  test('a stale save after a twin sync is replayed on the new revision; a real conflict still asks for a reload', async () => {
+    const doc = sample();
+    const { api, saves, attempts } = fakeApi(doc);
+    const c = new StudioController(host(), api, 20);
+    await c.load('v1');
+    // the other floor's editor synced a twin here: revision 1 with one connector changed
+    const synced = { ...doc, connectors: doc.connectors.map((x, i) => (i === 0 ? { ...x, width_m: 2.5 } : x)) };
+    let serverRev = 1;
+    const savedDocs: GeometryDoc[] = [];
+    const serverApi: StudioApi = {
+      load: async () => ({ geometry: row(1, 'draft'), doc: synced, issues: [], published_hash: null, copy_candidates: [] }),
+      save: async (_id, d, rev) => {
+        if (rev !== serverRev) throw new ApiError(409, { code: 'stale_revision', user_message: 'x', retryable: false, correlation_id: '', details: {} });
+        serverRev += 1;
+        savedDocs.push(d);
+        return { geometry: row(serverRev, 'draft'), doc: d, issues: [], published_hash: null };
+      },
+    };
+    const c2 = new StudioController(host(), serverApi, 20);
+    await c2.load('v1');
+    (c2 as unknown as { revision: number }).revision = 0; // it had loaded revision 0, before the sync
+    (c2 as unknown as { base: GeometryDoc }).base = doc;
+    c2.doc = doc; // ... and its working document was that revision's
+    c2.commit({ ...c2.doc!, walls: doc.walls.slice(0, 2) });
+    expect(await c2.flush()).toBe(true);
+    expect(c2.revision).toBe(2);
+    expect(c2.doc!.walls.length).toBe(2);
+    expect(c2.doc!.connectors[0].width_m).toBe(2.5); // the server's connector kept
+    expect(c2.hasConflict).toBe(false);
+    // review M-1: an undo of the unrelated edit never brings the pre-sync connector back
+    c2.undo();
+    expect(c2.doc!.walls.length).toBe(doc.walls.length);
+    expect(c2.doc!.connectors[0].width_m).toBe(2.5);
+    expect(await c2.flush()).toBe(true);
+    expect(savedDocs.at(-1)!.connectors[0].width_m).toBe(2.5);
+    c2.redo();
+    expect(c2.doc!.connectors[0].width_m).toBe(2.5);
+    // the plain fake: the server moved without a visible change - a conflict, as before
+    c.revision = 5;
+    c.commit({ ...c.doc!, walls: [] });
+    expect(await c.flush()).toBe(false);
+    expect(c.hasConflict).toBe(true);
+    expect(c.error).toContain('הקומה עודכנה מקומה אחרת');
+    expect(saves).toEqual([]);
+    expect(attempts).toEqual([5]);
   });
 });

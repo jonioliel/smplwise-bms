@@ -9,7 +9,7 @@
  * Ruling R-P4-T4-1: one convention for cameras - the forward is -z of the part, the description carries pitch = -tilt,
  * so applying the Euler as it stands looks DOWN by the tilt; consumers derive the view direction from the same Euler.
  */
-import { buildPrimitives, DEFAULT_WALL_THICKNESS_M, effectiveScale, MAX_TRIBUNE_ROWS, type CatalogLookup, type ConnectorPrim, type DoorPrim, type GeometryDoc, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type ObjectPrim, type ObjectShape, type Pt, type Primitive, type WallPrim, type WindowPrim } from './geometry';
+import { buildPrimitives, DEFAULT_WALL_THICKNESS_M, effectiveScale, MAX_TRIBUNE_ROWS, floorHeight, stairPlan, stairRise, type CatalogLookup, type GeomConnector, type StairFlightPlan, type ConnectorPrim, type DoorPrim, type GeometryDoc, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type ObjectPrim, type ObjectShape, type Pt, type Primitive, type WallPrim, type WindowPrim } from './geometry';
 import { defaultLevelId, levelOrDefault } from './studio-ops';
 import { blockingSegments, clipCoverage, isOpenState, type Seg } from './coverage';
 import { anchor3d } from './anchor-3d';
@@ -168,6 +168,46 @@ const RAMP_STEP_M = 0.5;
 const GLOW_DISTANCE_M = 6;
 const MIN_STEP_M = 0.05;
 const LEVEL_PAD_M = 0.5;
+/** The landing of a stair drawn as a plate this thick under its walking surface (T085). */
+export const LANDING_PLATE_M = 0.2;
+
+type Box2 = [number, number, number, number];
+/** A turned flight's well is cut in at most this many slices along its run. */
+export const MAX_WELL_SLICES = 12;
+
+/** A plate [x0, z0, x1, z1] less the holes: the plate cut on a grid of every hole edge, the cells outside every hole
+ * merged along each row - axis-aligned boxes that cover the plate except the holes (review M-c). No hole: the plate. */
+export function plateAround(plate: Box2, holes: readonly Box2[]): Box2[] {
+  const [x0, z0, x1, z1] = plate;
+  const inside = holes.map((h): Box2 => [Math.max(x0, h[0]), Math.max(z0, h[1]), Math.min(x1, h[2]), Math.min(z1, h[3])]).filter((h) => h[2] - h[0] > 1e-6 && h[3] - h[1] > 1e-6);
+  if (!inside.length) return [plate];
+  const xs = [...new Set([x0, x1, ...inside.flatMap((h) => [h[0], h[2]])])].sort((a, b) => a - b);
+  const zs = [...new Set([z0, z1, ...inside.flatMap((h) => [h[1], h[3]])])].sort((a, b) => a - b);
+  const out: Box2[] = [];
+  for (let j = 0; j + 1 < zs.length; j++) {
+    const zm = (zs[j] + zs[j + 1]) / 2;
+    const row = inside.filter((h) => zm > h[1] && zm < h[3]); // only the holes this row crosses
+    let start: number | null = null;
+    for (let i = 0; i + 1 < xs.length; i++) {
+      const xm = (xs[i] + xs[i + 1]) / 2;
+      const holed = row.some((h) => xm > h[0] && xm < h[2]);
+      if (!holed && start === null) start = xs[i];
+      if (holed && start !== null) {
+        out.push([start, zs[j], xs[i], zs[j + 1]]);
+        start = null;
+      }
+    }
+    if (start !== null) out.push([start, zs[j], xs[xs.length - 1], zs[j + 1]]);
+  }
+  // rows with the same span stack into one box
+  const merged: Box2[] = [];
+  for (const b of out) {
+    const up = merged.find((m) => Math.abs(m[0] - b[0]) < 1e-9 && Math.abs(m[2] - b[2]) < 1e-9 && Math.abs(m[3] - b[1]) < 1e-9);
+    if (up) up[3] = b[3];
+    else merged.push([...b]);
+  }
+  return merged;
+}
 
 /** Half-up to 0.1 mm, the r2 rule of the primitives one digit further (metres, not pixels). */
 export const r4 = (v: number): number => Math.floor(v * 1e4 + 0.5) / 1e4;
@@ -387,7 +427,7 @@ class Builder {
     for (const w of doc.walls) if (this.level(w.level_id).id === levelId) for (const p of w.polyline) take(p[0], p[1]);
     for (const o of doc.objects) if (this.level(o.level_id).id === levelId) take(o.position[0], o.position[1]);
     for (const lb of doc.labels) if (this.level(lb.level_id).id === levelId) take(lb.position[0], lb.position[1]);
-    for (const c of doc.connectors) if (this.level(c.level_from).id === levelId || (c.level_to && this.level(c.level_to).id === levelId)) for (const p of c.polyline) take(p[0], p[1]);
+    for (const c of doc.connectors) if (this.level(c.level_from).id === levelId || (c.level_to && !c.floor_ids?.length && this.level(c.level_to).id === levelId)) for (const p of c.polyline) take(p[0], p[1]); // a far level is another floor's
     for (const z of zones ?? []) if (this.level(z.level_id).id === levelId) for (const p of z.polygon) take(p.x, p.y);
     if (!Number.isFinite(minX)) return null;
     return [this.m(minX) - LEVEL_PAD_M, this.m(minZ) - LEVEL_PAD_M, this.m(maxX) + LEVEL_PAD_M, this.m(maxZ) + LEVEL_PAD_M];
@@ -397,13 +437,58 @@ class Builder {
     if (!this.layers.structure) return;
     const W = this.m(this.input.width);
     const D = this.m(this.input.height);
+    const wells = this.stairwells();
     for (const lv of this.levels) {
       if (!this.shown(lv.id)) continue;
       const box = lv.id === this.defaultLevel.id ? ([0, 0, W, D] as [number, number, number, number]) : this.bounds(lv.id);
       if (!box) continue;
       const [x0, z0, x1, z1] = [Math.max(0, box[0]), Math.max(0, box[1]), Math.min(W, box[2]), Math.min(D, box[3])];
-      this.box(`floor:${lv.id}`, 'floor', { id: lv.id, kind: 'level' }, [(x0 + x1) / 2, lv.elevation_m - FLOOR_PLATE_M / 2, (z0 + z1) / 2], [x1 - x0, FLOOR_PLATE_M, z1 - z0], 0, 'map-bg', lv.id, 1, 0, false);
+      // review M2 / M-c: the plate is cut around each well of the stairs going down from this level, so they stay visible
+      const pieces = plateAround([x0, z0, x1, z1], wells.get(lv.id) ?? []);
+      let n = 0;
+      for (const [a0, b0, a1, b1] of pieces) {
+        if (a1 - a0 < 1e-4 || b1 - b0 < 1e-4) continue;
+        this.box(n ? `floor:${lv.id}#${n}` : `floor:${lv.id}`, 'floor', { id: lv.id, kind: 'level' }, [(a0 + a1) / 2, lv.elevation_m - FLOOR_PLATE_M / 2, (b0 + b1) / 2], [a1 - a0, FLOOR_PLATE_M, b1 - b0], 0, 'map-bg', lv.id, 1, 0, false);
+        n++;
+      }
     }
+  }
+
+  /** The stairwells of each level (review M2, M-c): the footprint, in metres, of each stair that goes down from it to
+   * another floor (its rise is negative) - a stair on the upper floor walked down to the floor below would otherwise be
+   * hidden under that level's plate. One rectangle per flight and per landing of each stair (a plain connector: per
+   * segment, widened by half its width), so two stairs far apart cut two wells and a turned stair only its own parts. */
+  stairwells(): Map<string, Box2[]> {
+    const out = new Map<string, Box2[]>();
+    if (!this.layers.connectors) return out;
+    const { doc, width, height } = this.input;
+    const levels = new Map(this.levels.map((l) => [l.id, l]));
+    const fh = floorHeight(doc);
+    const scale = effectiveScale(doc).scale;
+    for (const c of doc.connectors) {
+      if (!c.floor_ids?.length || c.object_id || stairRise(levels, c, fh) >= 0) continue;
+      const plan = stairPlan(c, width, height, scale, { descending: true });
+      const px: Pt[] = c.polyline.map((q): Pt => [q[0] * width, q[1] * height]);
+      // a flight along the plan's axes is one box; a turned one is cut step by step, so the well follows its slant
+      const flightParts = (f: StairFlightPlan): Pt[][] => {
+        const [a, b, cc, d] = f.outline;
+        const along = Math.abs(b[0] - a[0]) < 1e-6 || Math.abs(b[1] - a[1]) < 1e-6;
+        if (along || f.steps < 2) return [f.outline];
+        const lerp = (p: Pt, q: Pt, s: number): Pt => [p[0] + (q[0] - p[0]) * s, p[1] + (q[1] - p[1]) * s];
+        const n = Math.min(f.steps, MAX_WELL_SLICES); // at most a dozen slices per turned flight (final review: performance)
+        return Array.from({ length: n }, (_, k) => [lerp(a, b, k / n), lerp(a, b, (k + 1) / n), lerp(d, cc, (k + 1) / n), lerp(d, cc, k / n)]);
+      };
+      const parts: Pt[][] = plan ? [...plan.flights.flatMap(flightParts), ...plan.landings] : px.slice(1).map((q, i) => [px[i], q]);
+      const pad = plan ? 0 : (c.width_m || 1) / scale / 2;
+      const id = this.level(c.level_from).id;
+      const list = out.get(id) ?? [];
+      for (const pts of parts) {
+        if (!pts.length) continue;
+        list.push([this.m(Math.min(...pts.map((q) => q[0])) - pad), this.m(Math.min(...pts.map((q) => q[1])) - pad), this.m(Math.max(...pts.map((q) => q[0])) + pad), this.m(Math.max(...pts.map((q) => q[1])) + pad)]);
+      }
+      out.set(id, list);
+    }
+    return out;
   }
 
   rooms(): void {
@@ -608,13 +693,19 @@ class Builder {
     // (the kind select offers it) has no object and is drawn as steps like stairs, never left out (T087 tuning: it was
     // invisible in the 3D)
     const fromObject = new Set(this.input.doc.connectors.filter((c) => c.object_id).map((c) => c.id));
+    const docOf = new Map(this.input.doc.connectors.map((c) => [c.id, c]));
+    const levelMap = new Map(this.levels.map((l) => [l.id, l]));
     for (const p of prims) {
       if (p.kind !== 'connector' || ((p as ConnectorPrim).ckind === 'tribune' && fromObject.has(p.id))) continue;
       const c = p as ConnectorPrim;
+      const gc = docOf.get(c.id);
+      const cross = !!gc?.floor_ids?.length; // level_to then names a level of the OTHER floor (T085)
       const from = this.level(c.level_from);
-      const to = c.level_to ? this.level(c.level_to) : null;
+      const stairUp = gc ? stairRise(levelMap, gc, floorHeight(this.input.doc)) : 0;
+      if (gc && c.ckind !== 'elevator' && this.stair(gc, from, stairUp)) continue;
+      const to = c.level_to && !cross ? this.level(c.level_to) : null;
       const e0 = from.elevation_m;
-      const e1 = to ? to.elevation_m : from.elevation_m + from.ceiling_height_m;
+      const e1 = cross && gc ? e0 + stairUp : to ? to.elevation_m : from.elevation_m + from.ceiling_height_m;
       const [ax, az] = [this.m(c.points[0][0]), this.m(c.points[0][1])];
       const [bx, bz] = [this.m(c.points[c.points.length - 1][0]), this.m(c.points[c.points.length - 1][1])];
       const L = Math.hypot(bx - ax, bz - az);
@@ -638,6 +729,51 @@ class Builder {
         this.box(`conn:${c.id}#${i}`, 'connector', ud, [ax + (bx - ax) * f, lower + h / 2, az + (bz - az) * f], [L / n, h, width], yaw, 'obj-circulation', from.id);
       }
     }
+  }
+
+  /** Stairs with the stairs model (T085): each flight as rising steps (step height = the rise over every step of both
+   * flights), the landing as a plate at the elevation the first flight reaches (its steps x the step height), the second
+   * flight going on to the target; a U's flights are parallel and its landing spans both. The rise is signed along the
+   * walking line (stairRise). Returns false when the connector has no stair plan (the plain steps draw instead). */
+  stair(c: GeomConnector, from: GeomLevel, rise: number): boolean {
+    const { width, height } = this.input;
+    const plan = stairPlan(c, width, height, effectiveScale(this.input.doc).scale);
+    if (!plan || !plan.flights.length) return false;
+    const total = plan.flights.reduce((n, f) => n + f.steps, 0);
+    const e0 = from.elevation_m;
+    const bottom = Math.min(e0, e0 + rise);
+    const ud = { id: c.id, kind: 'connector' };
+    const w = c.width_m;
+    let done = 0;
+    plan.flights.forEach((f, i) => {
+      const [ax, az] = [this.m(f.from[0]), this.m(f.from[1])];
+      const [bx, bz] = [this.m(f.to[0]), this.m(f.to[1])];
+      const L = Math.hypot(bx - ax, bz - az);
+      if (L < 1e-4) {
+        done += f.steps;
+        return;
+      }
+      const yaw = -deg(Math.atan2(bz - az, bx - ax));
+      for (let k = 0; k < f.steps; k++) {
+        const top = e0 + (rise * (done + k + 1)) / total;
+        const h = Math.max(MIN_STEP_M, top - bottom);
+        const t = (k + 0.5) / f.steps;
+        this.box(`conn:${c.id}#f${i}s${k}`, 'connector', ud, [ax + (bx - ax) * t, bottom + h / 2, az + (bz - az) * t], [L / f.steps, h, w], yaw, 'obj-circulation', from.id);
+      }
+      done += f.steps;
+      const landing = plan.landings[i];
+      if (landing && i === 0) {
+        const top = e0 + (rise * done) / total;
+        const [c0, c1, , c3] = landing.map(([x, z]): [number, number] => [this.m(x), this.m(z)]);
+        const along = Math.hypot(c1[0] - c0[0], c1[1] - c0[1]);
+        const across = Math.hypot(c3[0] - c0[0], c3[1] - c0[1]);
+        const cx = landing.reduce((s, q) => s + this.m(q[0]), 0) / landing.length;
+        const cz = landing.reduce((s, q) => s + this.m(q[1]), 0) / landing.length;
+        const tk = Math.max(MIN_STEP_M, Math.min(LANDING_PLATE_M, top - bottom));
+        this.box(`conn:${c.id}#landing`, 'connector', ud, [cx, top - tk / 2, cz], [along, tk, across], -deg(Math.atan2(c1[1] - c0[1], c1[0] - c0[0])), 'obj-circulation', from.id);
+      }
+    });
+    return true;
   }
 
   anchors(): void {
@@ -739,7 +875,18 @@ export function isoProjection(desc: SceneDescription): IsoScene {
   const rank = new Map(levels.map((l, i) => [l.id, i]));
   const levelOf = (p: ScenePart) => (p.level_id !== null && rank.has(p.level_id) ? rank.get(p.level_id)! : 0);
   const boxes = desc.parts.filter((p) => p.shape === 'box' && ISO_KINDS.includes(p.kind));
-  const plates = boxes.filter((p) => p.kind === 'floor');
+  // a level's plate cut around its stairwells is many pieces: the thumbnail draws one plate per level (their bounds),
+  // so the pieces never eat the face budget (final review: performance)
+  const plateParts = new Map<string, ScenePart[]>();
+  for (const p of boxes) if (p.kind === 'floor') plateParts.set(p.level_id ?? '', [...(plateParts.get(p.level_id ?? '') ?? []), p]);
+  const plates = [...plateParts.values()].map((ps) => {
+    if (ps.length === 1) return ps[0];
+    const x0 = Math.min(...ps.map((q) => q.position[0] - q.size[0] / 2));
+    const x1 = Math.max(...ps.map((q) => q.position[0] + q.size[0] / 2));
+    const z0 = Math.min(...ps.map((q) => q.position[2] - q.size[2] / 2));
+    const z1 = Math.max(...ps.map((q) => q.position[2] + q.size[2] / 2));
+    return { ...ps[0], position: [(x0 + x1) / 2, ps[0].position[1], (z0 + z1) / 2] as Vec3, size: [x1 - x0, ps[0].size[1], z1 - z0] as Vec3 };
+  });
   const walls = boxes.filter((p) => p.kind !== 'floor');
   const room = Math.max(0, Math.floor((ISO_FACE_CAP - plates.length) / 5)); // a wall box draws four sides and a top
   const kept = walls.length > room ? [...walls].sort((a, b) => b.size[0] * b.size[2] - a.size[0] * a.size[2] || (a.id < b.id ? -1 : 1)).slice(0, room) : walls;
