@@ -80,6 +80,10 @@ export interface ProductSettings {
   'remote.default_profile'?: 'main' | 'sub';
   'remote.mse_fallback'?: 'true' | 'false';
   'remote.require_mfa_admin'?: 'true' | 'false';
+  /** CR-008 P2: live streams one remote sign-in may hold open at once (default 4); the next one is refused (429). */
+  'remote.max_live_streams'?: number;
+  /** CR-008 P2: 'true' enforces the stricter CSP on the remote channel (default 'false': report-only). */
+  'remote.csp_enforce'?: 'true' | 'false';
 }
 
 export const getSettings = () => get<{ settings: ProductSettings; can_edit: boolean }>('settings');

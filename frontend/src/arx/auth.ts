@@ -12,6 +12,10 @@ import { clientId, redirectUri } from './channel';
 import { clearHassTokens, readHassTokens, seedHassTokens } from './hass-tokens';
 
 export const TOKENS_KEY = 'arx.auth.v1';
+
+/** Why the Arx sign-in ended (the sign-in page says so once). CR-008 P2: `everywhere` = the user's "sign out everywhere",
+ * `revoked` = this sign-in was ended from the sessions list (by the user elsewhere or by an administrator). */
+export type SignOutReason = 'expired' | 'idle' | 'logout' | 'everywhere' | 'revoked';
 const ACTIVITY_KEY = 'arx.activity.v1';
 const REFRESH_BEFORE_MS = 5 * 60_000;
 
@@ -328,12 +332,23 @@ export function refreshNow(): Promise<boolean> {
       schedule();
       return true;
     } catch (err) {
-      if (err instanceof ArxAuthError && err.code === 'network') {
+      // no connection, or the server says "try again" (5xx - e.g. 503 remote_unavailable / ha_unavailable): keep the
+      // sign-in and retry; only an explicit refusal ends it (CR-008 P2 review follow-up)
+      if (err instanceof ArxAuthError && (err.code === 'network' || (err.status ?? 0) >= 500)) {
         window.clearTimeout(refreshTimer);
         refreshTimer = window.setTimeout(() => void refreshNow(), 30_000);
         return false;
       }
       if (err instanceof ArxAuthError && err.status === 403) await revoke(t.refresh_token); // the policy refused this user
+      if (err instanceof ArxAuthError && err.code === 'remote_session_revoked') {
+        // CR-008 P2: this sign-in was ended from the sessions list - end it at HA too (the seed of this browser included)
+        await revoke(t.refresh_token);
+        try {
+          window.sessionStorage.setItem('arx.signout', 'revoked');
+        } catch {
+          /* ignore */
+        }
+      }
       clearTokens();
       clearHassTokens(clientId(), t.refresh_token);
       return false;
@@ -356,7 +371,7 @@ function schedule(): void {
   }, wait);
 }
 
-let onSignedOut: ((reason: 'expired' | 'idle' | 'logout') => void) | null = null;
+let onSignedOut: ((reason: SignOutReason) => void) | null = null;
 
 /** Resume a stored sign-in: refresh when the access token is near its end, then (re-)exchange the cookie. False = show
  * the sign-in page; an ArxAuthError = show it with that message (the policy refused this user). */
@@ -385,7 +400,7 @@ export async function resume(): Promise<boolean> {
 }
 
 /** Once the app runs: the refresh loop, the idle lock, and what to do when the sign-in ends. */
-export function startBackground(signedOut: (reason: 'expired' | 'idle' | 'logout') => void): void {
+export function startBackground(signedOut: (reason: SignOutReason) => void): void {
   onSignedOut = signedOut;
   if (config.session === 'browser_session') {
     // security review M1: HA reads its seed only from localStorage, which outlives the browser session - so in this
@@ -448,7 +463,7 @@ async function revoke(refreshToken: string): Promise<void> {
 }
 
 /** Revoke the refresh token at HA, end the Arx session, clear both storages (ours and HA's seed when it is ours). */
-export async function logout(reason: 'expired' | 'idle' | 'logout' = 'logout'): Promise<void> {
+export async function logout(reason: SignOutReason = 'logout'): Promise<void> {
   const t = currentTokens();
   window.clearTimeout(refreshTimer);
   window.clearInterval(idleTimer);

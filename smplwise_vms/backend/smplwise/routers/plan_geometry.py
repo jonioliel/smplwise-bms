@@ -17,13 +17,13 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import new_id, now_iso, unlocked
 from ..errors import ApiError, conflict, not_found
-from ..rbac import Principal, require
+from ..rbac import Principal, authorize, require
 from ..services import geometry_store as store
 from ..services import plan_catalog
 from ..services import plan_detect
 from ..services import plan_geometry as pg
 from ..services import plan_geometry_render as render
-from ..services.access import require_floor_read
+from ..services.access import floor_reach, require_floor_read
 from ..services.timeutil import parse_utc
 from .catalog import get_floor
 from .plans import get_version, version_row
@@ -68,15 +68,34 @@ def _floor(v: sqlite3.Row) -> tuple[str, str]:
     return ("floor", v["floor_id"])
 
 
-def _payload(conn: sqlite3.Connection, version: sqlite3.Row, row: sqlite3.Row | None, doc: dict[str, Any]) -> dict[str, Any]:
-    published = store.published_row(conn, version["id"])
+def _far_ctx(conn: sqlite3.Connection, principal: Principal | None, published: bool = False) -> store.FarContext:
+    """One cache of the other floors per request (review M5); names only of floors the reader may read (review L12)."""
+    return store.FarContext(conn, published=published, can_read=(lambda fid: floor_reach(conn, principal, fid) is not None) if principal is not None else None)
+
+
+def _payload(conn: sqlite3.Connection, version: sqlite3.Row, row: sqlite3.Row | None, doc: dict[str, Any], principal: Principal | None = None,
+             published: bool = False, ctx: store.FarContext | None = None, shown: dict[str, Any] | None = None) -> dict[str, Any]:
+    """The document as the reader gets it - with `far` on its cross-floor connectors, computed now (review M4) - and its
+    issues. `ctx` / `shown`: what the caller already computed (the published read computes `far` first, for its ETag)."""
+    ctx = ctx or _far_ctx(conn, principal, published)
+    shown = shown if shown is not None else store.attach_far(conn, version["floor_id"], doc, ctx)
+    published_now = store.published_row(conn, version["id"])
     geometry = store.row_api(row) if row is not None else {
         "id": None, "plan_version_id": version["id"], "floor_id": version["floor_id"], "status": "new", "revision": 0, "doc_hash": store.doc_hash(doc),
         "created_at": None, "updated_at": None, "published_at": None, "published_by": None, "archived_at": None,
     }
-    return {"geometry": geometry, "doc": doc,
-            "issues": [i for i in pg.validate(doc, plan_catalog.item_index(conn)) if not i["structural"]] + store.anchor_issues(conn, version["floor_id"], doc),
-            "published_hash": published["doc_hash"] if published is not None else None}
+    return {"geometry": geometry, "doc": shown,
+            "issues": [i for i in pg.validate(doc, plan_catalog.item_index(conn)) if not i["structural"]] + store.anchor_issues(conn, version["floor_id"], doc)
+            + store.link_issues(conn, version["floor_id"], doc, ctx),
+            "published_hash": published_now["doc_hash"] if published_now is not None else None}
+
+
+def _far_tag(doc: dict[str, Any]) -> str:
+    """The part of a published read's ETag that follows the other floors (their names, levels and heights change the
+    `far` of this document without changing its hash): empty when the document links no other floor. It hashes only the
+    `far` the reader gets, so it tells nothing of a floor the reader may not read (review L-d)."""
+    fars = [c.get("far") for c in doc.get("connectors") or [] if isinstance(c, dict) and c.get("far") is not None]
+    return "" if not fars else "-f" + store.doc_hash({"far": fars})[:12]
 
 
 def _editable(conn: sqlite3.Connection, principal: Principal, version_id: str) -> sqlite3.Row:
@@ -94,7 +113,7 @@ def get_geometry(version_id: str, request: Request, draft: bool = False, at: str
     if draft:
         require(conn, principal, "map.edit", _floor(v))
         doc, row = store.working_doc(conn, v)
-        body = _payload(conn, v, row, doc)
+        body = _payload(conn, v, row, doc, principal)
         if pg.is_empty(doc):
             body["copy_candidates"] = store.copy_candidates(conn, v)
         return body
@@ -113,15 +132,19 @@ def get_geometry(version_id: str, request: Request, draft: bool = False, at: str
         row = store.published_row(conn, v["id"])
     if row is None:
         raise not_found("אין מבנה מפורסם לגרסה הזו.")
-    etag = f'"{row["doc_hash"]}"' if reach == "floor" else f'"{row["doc_hash"]}-c"'
+    # the walls, rooms and openings locate the camera; the circuits name HA entities a camera reader holds nothing on
+    doc = store.load_doc(row) if reach == "floor" else {k: v2 for k, v2 in store.load_doc(row).items() if k != "circuits"}
+    # review L-d: only `far` is computed before the 304 check (the ETag follows it); issues and the rest only on a 200
+    ctx = _far_ctx(conn, principal, published=True)
+    shown = store.attach_far(conn, v["floor_id"], doc, ctx)
+    etag = f'"{row["doc_hash"]}{_far_tag(shown)}"' if reach == "floor" else f'"{row["doc_hash"]}{_far_tag(shown)}-c"'
     headers = {"ETag": etag, **NO_CACHE}
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers=headers)
+    body = _payload(conn, v, row, doc, principal, published=True, ctx=ctx, shown=shown)
     if reach != "floor":
-        # the walls, rooms and openings locate the camera; the circuits name HA entities the reader holds nothing on
-        doc = {k: v2 for k, v2 in store.load_doc(row).items() if k != "circuits"}
-        return JSONResponse({**_payload(conn, v, row, doc), "issues": [], "reach": reach}, headers=headers)
-    return JSONResponse(_payload(conn, v, row, store.load_doc(row)), headers=headers)
+        body = {**body, "issues": [], "reach": reach}
+    return JSONResponse(body, headers=headers)
 
 
 class GeometryPut(BaseModel):
@@ -135,8 +158,17 @@ def put_geometry(version_id: str, body: GeometryPut, principal: Principal = Depe
     structural = [i for i in pg.validate(body.doc) if i["structural"]]
     if structural:
         raise ApiError(422, "geometry_structure", "מבנה המסמך אינו תקין; השינוי לא נשמר.", details={"issues": structural[:50]})
-    row = store.save_draft(conn, v, body.doc, body.base_revision, principal.user_id)
-    return _payload(conn, v, row, store.load_doc(row))
+    synced: list[str] = []
+    skipped: list[str] = []
+    row = store.save_draft(conn, v, body.doc, body.base_revision, principal.user_id, can_edit=lambda fid: authorize(conn, principal, "map.edit", ("floor", fid)).allowed,
+                           synced=synced, skipped=skipped)
+    for fid in synced:  # the stairs model reached the twin on the other floor's draft (review M3)
+        audit(conn, actor=principal, action="geometry.connector.twin_sync", decision="allowed", resource_type="floor", resource_id=fid, details={"version_id": v["id"], "from_floor_id": v["floor_id"]})
+    body_out = _payload(conn, v, row, store.load_doc(row), principal)
+    if skipped:  # review M-a: the stairs there stay as they were; the editor says so (names only of floors the person may read)
+        body_out["twins_skipped"] = [{"floor_id": fid, "name": (r["name"] if r is not None and floor_reach(conn, principal, fid) is not None else "קומה אחרת")}
+                                     for fid in skipped for r in [conn.execute("SELECT name FROM floors WHERE id = ?", (fid,)).fetchone()]]
+    return body_out
 
 
 @router.post("/plan-versions/{version_id}/geometry/publish")
@@ -214,12 +246,16 @@ def copy_geometry(version_id: str, body: CopyFromIn, request: Request, principal
     row = store.copy_from(conn, v, src, principal.user_id)
     audit(conn, actor=principal, action="geometry.copy", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
           details={"version_id": v["id"], "from_version_id": src["id"]})
-    return _payload(conn, v, row, store.load_doc(row))
+    return _payload(conn, v, row, store.load_doc(row), principal)
 
 
 class LinkIn(BaseModel):
     connector_id: str = Field(min_length=1, max_length=64)
     floor_id: str = Field(min_length=1, max_length=32)
+    # T085: the level the stairs reach on the other floor (one of that floor's levels); absent = its default level
+    level_to: str | None = Field(default=None, min_length=1, max_length=64)
+    # moving a link to another floor deletes the twin on the old one: the person confirmed it (review B1)
+    replace: bool = False
 
 
 @router.post("/plan-versions/{version_id}/geometry/link")
@@ -229,12 +265,55 @@ def link_connector(version_id: str, body: LinkIn, request: Request, principal: P
     v = _editable(conn, principal, version_id)
     if body.floor_id == v["floor_id"]:
         raise ApiError(422, "validation", "קשר לקומה אחרת, לא לאותה קומה.")
+    target = get_floor(conn, body.floor_id)
+    if target["building_id"] != get_floor(conn, v["floor_id"])["building_id"]:
+        raise ApiError(422, "validation", "אפשר לקשר רק לקומה באותו בניין.")  # review L11
+    require(conn, principal, "map.edit", ("floor", body.floor_id))
+    # review B1: every floor the connector names now may lose its twin - the person must be allowed to edit each of them
+    for fid in store.connector_floor_ids(conn, v, body.connector_id):
+        if fid not in (v["floor_id"], body.floor_id) and conn.execute("SELECT 1 FROM floors WHERE id = ? AND deleted_at IS NULL", (fid,)).fetchone():
+            require(conn, principal, "map.edit", ("floor", fid))
+    result = store.link_connector(conn, v, body.connector_id, body.floor_id, principal.user_id, level_to=body.level_to, replace=body.replace)
+    audit(conn, actor=principal, action="geometry.connector.link", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
+          details={"version_id": v["id"], "connector_id": body.connector_id, "to_floor_id": body.floor_id, "target_version_id": result["target"]["version_id"],
+                   "level_to": result["target"]["level_id"], "placement": result["target"]["placement"], "removed_floors": result["removed_floors"]})
+    for fid in result["removed_floors"]:
+        audit(conn, actor=principal, action="geometry.connector.twin_delete", decision="allowed", resource_type="floor", resource_id=fid, request_id=_rid(request),
+              details={"version_id": v["id"], "connector_id": body.connector_id, "from_floor_id": v["floor_id"], "reason": "relink"})
+    result["connector"] = next((c for c in store.attach_far(conn, v["floor_id"], {"connectors": [result["connector"]]}, _far_ctx(conn, principal))["connectors"]), result["connector"])
+    return result
+
+
+@router.get("/plan-versions/{version_id}/geometry/link-targets")
+def link_targets(version_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The "מחבר אל" picker (T085): the other floors of this building the person may edit, each with its levels and
+    whether its plan shares this plan's frame (a new twin then lands at the same plan coordinates)."""
+    v = get_version(conn, version_id)
+    require(conn, principal, "map.edit", _floor(v))
+    return {"floors": store.link_targets(conn, v, lambda fid: authorize(conn, principal, "map.edit", ("floor", fid)).allowed)}
+
+
+class TwinDeleteIn(BaseModel):
+    connector_id: str = Field(min_length=1, max_length=64)
+    floor_id: str = Field(min_length=1, max_length=32)
+
+
+@router.post("/plan-versions/{version_id}/geometry/twin-delete")
+def delete_twin(version_id: str, body: TwinDeleteIn, request: Request, principal: Principal = Depends(current_principal),
+                conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Deleting cross-floor stairs "גם בקומה השנייה" (T085): the editor removes its own copy (an undoable edit) and asks
+    for the twin on the other floor's draft to go too (map.edit on both floors). Only a connector of that id that names
+    this floor among its floors is removed; nothing else there changes."""
+    v = _editable(conn, principal, version_id)
+    if body.floor_id == v["floor_id"]:
+        raise ApiError(422, "validation", "התאום נמצא בקומה אחרת, לא באותה קומה.")
     get_floor(conn, body.floor_id)
     require(conn, principal, "map.edit", ("floor", body.floor_id))
-    result = store.link_connector(conn, v, body.connector_id, body.floor_id, principal.user_id)
-    audit(conn, actor=principal, action="geometry.connector.link", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
-          details={"version_id": v["id"], "connector_id": body.connector_id, "to_floor_id": body.floor_id, "target_version_id": result["target"]["version_id"]})
-    return result
+    removed = store.remove_twin(conn, body.floor_id, body.connector_id, v["floor_id"], principal.user_id)
+    if removed:
+        audit(conn, actor=principal, action="geometry.connector.twin_delete", decision="allowed", resource_type="floor", resource_id=body.floor_id, request_id=_rid(request),
+              details={"version_id": v["id"], "connector_id": body.connector_id, "from_floor_id": v["floor_id"]})
+    return {"removed": removed, "floor_id": body.floor_id}
 
 
 class CalPair(BaseModel):
@@ -309,6 +388,13 @@ class DetectIn(BaseModel):
     door_model: Literal["gap", "arc_v2"] = "gap"
     # T087: the hollow-wall pass (plan_detect_hollow, walls drawn as two thin lines); on by default, a plan opts out
     hollow_walls: bool = True
+    # T086 tuning (detector 1.4, the 0.1.90 list items 3-6), each on by default, a plan opts out: section-cut lines
+    # crossing into the building are no walls; a white gap under 0.3 m with no symbol is no passage; a tribune is
+    # proposed as a steps object; a pier grid as column objects with the envelope line between them
+    section_lines: bool = True
+    join_gaps: bool = True
+    steps_regions: bool = True
+    columns: bool = True
 
 
 class CandidateSet(BaseModel):
@@ -334,7 +420,8 @@ class AcceptIn(BaseModel):
 
 
 def _auto_counts(doc: dict[str, Any]) -> dict[str, int]:
-    return {c: sum(1 for i in doc.get(c) or [] if isinstance(i, dict) and i.get("source") == "auto") for c in ("walls", "openings")}
+    """The draft's detected items per collection; objects since detector 1.4 (tribunes and columns are proposed too)."""
+    return {c: sum(1 for i in doc.get(c) or [] if isinstance(i, dict) and i.get("source") == "auto") for c in ("walls", "openings", "objects")}
 
 
 @router.post("/plan-versions/{version_id}/detect")
@@ -365,7 +452,8 @@ def detect_structure(version_id: str, body: DetectIn, request: Request, principa
     # instead of finishing a result nobody reads, so a timed-out run does not hold one of the two workers
     deadline = time.monotonic() + settings.detect_timeout_s
     future = DETECT_POOL.submit(plan_detect.detect, png, targets=targets, strength=body.strength, scale_m_per_px=scale, level_id=level_id, run_id=new_id()[:6], deadline=deadline,
-                                 door_model=body.door_model, hollow_walls=body.hollow_walls)
+                                 door_model=body.door_model, hollow_walls=body.hollow_walls, section_lines=body.section_lines, join_gaps=body.join_gaps,
+                                 steps_regions=body.steps_regions, columns=body.columns)
     try:
         with unlocked(conn):  # the write lock is not held while the worker runs
             result = future.result(timeout=settings.detect_timeout_s)
@@ -382,7 +470,7 @@ def detect_structure(version_id: str, body: DetectIn, request: Request, principa
         result["scale"]["status"] = cal["status"]  # the detector calls any given scale measured; an estimate stays an estimate
     elapsed_ms = int((time.perf_counter() - t0) * 1000)
     audit(conn, actor=principal, action="geometry.detect", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
-          details={"version_id": v["id"], "targets": targets, "strength": body.strength, "walls": len(result["walls"]), "openings": len(result["openings"]), "ms": elapsed_ms,
+          details={"version_id": v["id"], "targets": targets, "strength": body.strength, "walls": len(result["walls"]), "openings": len(result["openings"]), "objects": len(result.get("objects") or []), "ms": elapsed_ms,
                    "calibrated": scale is not None, "tilt_deg": result["detector"]["params"].get("tilt_deg") if isinstance(result.get("detector"), dict) else None})
     return {**result, "version_id": v["id"], "level_id": level_id, "existing_auto": _auto_counts(doc), "elapsed_ms": elapsed_ms}
 
@@ -413,7 +501,7 @@ def accept_detection(version_id: str, body: AcceptIn, request: Request, principa
     saved = store.save_draft(conn, v, merged, body.base_revision, principal.user_id)
     audit(conn, actor=principal, action="geometry.detect.accept", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
           details={"version_id": v["id"], **counts, "edits": len(body.edits), "replace_auto": body.replace_auto, "detector": body.detector.name if body.detector is not None else None})
-    return {**_payload(conn, v, saved, store.load_doc(saved)), "merge": counts}
+    return {**_payload(conn, v, saved, store.load_doc(saved), principal), "merge": counts}
 
 
 # ---------------------------------------------------------------- the door tool (T087, "סמן דלת")
@@ -489,12 +577,12 @@ def _export_doc(conn: sqlite3.Connection, principal: Principal, version_id: str,
     v = get_version(conn, version_id)
     if draft:
         require(conn, principal, "map.edit", _floor(v))
-        return v, store.working_doc(conn, v)[0]
+        return v, store.attach_far(conn, v["floor_id"], store.working_doc(conn, v)[0], _far_ctx(conn, principal))
     require(conn, principal, "map.edit" if v["status"] == "draft" else "map.read", _floor(v))
     row = store.published_row(conn, v["id"])
     if row is None:
         raise not_found("אין מבנה מפורסם לגרסה הזו.")
-    return v, store.load_doc(row)
+    return v, store.attach_far(conn, v["floor_id"], store.load_doc(row), _far_ctx(conn, principal, published=True))
 
 
 @router.get("/plan-versions/{version_id}/export.svg", response_model=None)

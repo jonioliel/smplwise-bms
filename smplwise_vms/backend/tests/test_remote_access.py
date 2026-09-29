@@ -468,7 +468,7 @@ def test_remote_access_flag_endpoint(arx):
     r = admin.put("/api/v1/access/users/u-viewer/remote-access", json={"enabled": False})
     assert r.status_code == 200 and r.json()["sessions_ended"] == 1
     assert arx.client.get("/arx/api/v1/me").status_code == 401
-    assert json.loads(arx.audit("remote.access_flag")[-1]["details_json"]) == {"before": True, "after": False}
+    assert json.loads(arx.audit("remote.access_flag")[-1]["details_json"]) == {"before": True, "after": False, "sessions_ended": 1}
     assert admin.put("/api/v1/access/users/nobody/remote-access", json={"enabled": True}).status_code == 404
     arx.bind("dev-dana", "viewer")
     assert admin.put("/api/v1/access/users/u-owner/remote-access", json={"enabled": True}, headers={"X-SW-Dev-User": "dana"}).status_code == 403
@@ -494,7 +494,8 @@ def test_remote_config_is_public_on_the_remote_channel_only(arx):
 
 
 # every route of the app, reached on the remote channel without a session, is refused (CR-008 §3e.2)
-PUBLIC_ON_REMOTE = {("GET", "/api/v1/auth/remote-config"), ("DELETE", "/api/v1/auth/session")}  # config; an idempotent sign-out
+# config; an idempotent sign-out; the CSP report sink (CR-008 P2: counters only, rate-limited, bounded)
+PUBLIC_ON_REMOTE = {("GET", "/api/v1/auth/remote-config"), ("DELETE", "/api/v1/auth/session"), ("POST", "/api/v1/csp-report")}
 BLOCKED_ON_REMOTE = {("POST", "/api/v1/ha/bridge/ping"), ("POST", "/api/v1/ha/bridge/directory")}  # 404: the bridge's signed calls
 
 
@@ -637,6 +638,14 @@ def test_only_an_unvalidated_bearer_gives_up_the_write_lock(arx, monkeypatch):
     r = _rotate_signing_key(arx.client, **ORIGIN)
     assert r.status_code not in (401, 403, 500), r.text
     assert turns == []  # the cookie session answers from memory
+    # a stale cookie session (0.1.142 hardening) is re-checked against HA before the request: that must not hold the lock
+    for s in list(hua.STORE._sessions.values()):
+        s.last_validated -= 10 * 3600
+        s.recheck_after = 0.0
+    turns.clear()
+    r = _rotate_signing_key(arx.client, **ORIGIN)
+    assert r.status_code not in (403, 500), r.text
+    assert turns == ["unlocked"]
 
 
 def test_rotation_ends_the_previous_session(arx):

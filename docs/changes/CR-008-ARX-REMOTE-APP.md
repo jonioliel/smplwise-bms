@@ -537,3 +537,54 @@ them - the worker and the manifest follow whatever base the page is served under
   deleted on activate); `push` counters in `/health`; `POST push/rotate-key`; HA add-on backups carry the key (documented).
 - **Not verified yet:** delivery through the real push services (FCM / APNs / Mozilla) on a real phone, and the
   notification click on the lab site under Ingress and under `/arx/` - an owner check after the P1 merge.
+
+### P2 built (2026-09-29, branch `pilot/CR008-hardening`, not released)
+
+- **Remote sessions:** `GET auth/sessions` (own; `scope=all` with `system.configure`) - one row per sign-in (a browser's
+  rotated cookie chain, a bearer client's successive tokens): hashed id, user, first sign-in, last seen, address masked
+  to /24 (/48) or the CF country, user-agent family, cookie / bearer, current marker, live streams.
+  `DELETE auth/sessions/{id}` and `DELETE auth/sessions[?user_id=]` ("התנתק מכל המקומות" / all of a user's): WebSockets
+  closed before the answer; the sign-in's refresh-token id (JWT `iss`, hashed) recorded in `remote_revoked_chains`
+  (migration 0035) so a refreshed token of the same sign-in is refused (`remote_session_revoked`); own revocations also
+  delete the HA refresh tokens (`auth/delete_refresh_token`, best effort), an administrator's revoke ends the Arx access
+  only. UI: the settings card and the avatar menu's "הסשנים שלי".
+- **Bearer sessions** (the review nit): a validated bearer token is a session in the store - listed, revocable,
+  re-validated by the pass, WebSockets attached; `Principal.via` and `via: bearer` in the audit.
+- **Idle reuse:** a session not validated for 180 s (idle, so skipped by the pass) is re-checked against HA and the
+  policy before its next request is served.
+- **Flag UI:** last remote sign-in (`remote_sign_ins`), active sign-ins per user, the impact prompt before switching
+  off; the flag change closes the WebSockets in the same request and audits `sessions_ended`.
+- **Audit filters:** `channel=local|remote|bearer`, `view=remote_sign_ins|remote_refusals`.
+- **Live cap:** `remote.max_live_streams` (default 4) per sign-in: HTTP 429 `remote_live_cap`, WebSocket message + 4429;
+  `/health.remote`.
+- **CSP:** the stricter policy (no inline `<style>` elements) report-only next to the enforced one; `POST csp-report`
+  (remote-only, rate-limited, bounded, counters only in `csp_reports`); `remote.csp_enforce` switch after review; a
+  route's own CSP is now kept. DOCS / DOCS_HE "Remote-access hardening".
+- **Pen-test checklist:** `docs/operations/ARX_REMOTE_PENTEST_HE.md` - not run on the lab yet (owner / lab step).
+- **Security review of P2 (fixed on the branch):** M1 "sign out everywhere" deletes at HA only refresh tokens HA lists
+  as `normal` sign-ins of the Arx client id (`<origin><remote_path>/`, recorded per session), never a long-lived token or
+  another client's, concurrently and within 8 s in all. M2 a revoke marks its sign-ins revoked in memory before dropping
+  their sessions (loaded from `remote_revoked_chains` at start-up); `STORE.create` refuses a revoked sign-in under its
+  lock, the background pass and the idle re-check drop one, and a socket whose session vanished before the attach is
+  refused. M3 the idle re-check runs once per session at a time and, when HA cannot be asked, not again for 30 s -
+  **while HA is down an idle session is kept until its access token expires (<= 30 min)**, consistent with §3b.5. M4 the
+  live-camera zones view's inline `<style>` moved to static styles (a test forbids inline style elements in the app);
+  the enforce switch is disabled while inline-style reports exist. L1 sessions, the list and the live cap are keyed on
+  the sign-in (the hashed refresh-token id), so a cookie-less re-exchange shares them. L2 the cap refusal is audited once
+  a minute per sign-in with a `suppressed` count. L3 CSP counters keep `host[:port]` only. L4 the revoke audit row names
+  the actor's channel and `ended_via`. L6 the revoked-chain check fails closed on a database error once the table
+  exists. L7 the sessions list ignores stale answers; revoking only the current row signs out "here", not "everywhere".
+- **Addresses:** the audit keeps the full client address in `auth.remote_*` rows by design (forensics, rate-limit
+  review); the sessions list and the roles screen show it masked (/24, /48) and `remote_sign_ins` stores it masked.
+- **Re-review follow-ups:** a database error while reading `remote_revoked_chains` answers a retryable 503
+  `remote_unavailable` (never `remote_session_revoked`, which would make the browser revoke its own HA sign-in; nothing
+  negatively cached), and the Arx client treats any 5xx at the exchange as "try again" (keeps the sign-in, retries in
+  30 s); a request waiting for another's idle re-check waits at most 1 s and is served with the last-known session.
+- **Lab checks still open:** (1) whether HA closes the WebSocket right after `auth/delete_refresh_token` of the very
+  token the connection authenticated with - then the result frame may not arrive and `ha_sign_ins_ended` can read 0
+  although the token is gone (check HA › Profile › Security after a "sign out everywhere"); (2) a tunnel or proxy that
+  rewrites `Host` makes the client id recorded on the session (`<scheme>://<Host><remote_path>/`) differ from the one the
+  browser signed in with - the HA deletion then skips the token (fails safe: the Arx revoke still holds, the HA sign-in
+  stays until the browser revokes it itself or it is deleted in the profile).
+- **Tests:** `tests/test_remote_hardening.py` (38), `tests/test_remote_access.py` (59, 2 expectations updated),
+  `frontend/tests/evidence-arx-sessions.spec.ts` (desktop). Not in P2: Cloudflare Access (D3), native push.

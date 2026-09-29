@@ -96,13 +96,19 @@ DEFAULTS: dict[str, str] = {
     "remote.default_profile": "main",  # main | sub: the stream a remote viewer gets first, over WebRTC (D7)
     "remote.mse_fallback": "true",  # MSE through the tunnel only as an announced last resort; false = never (D7)
     "remote.require_mfa_admin": "false",  # D8 (owner 2026-09-29: MFA optional): true refuses admin-permission users without HA MFA remotely
+    # CR-008 P2 (hardening): live streams one remote sign-in (a browser / a bearer client) may hold open at once - the
+    # next start answers 429; the installation-wide media.max_live_sessions still applies on top
+    "remote.max_live_streams": "4",
+    # CR-008 P2: false = the stricter CSP (remote_channel.CSP_STRICT) is report-only next to the enforced one; true = it is
+    # the enforced policy. Switched on by the owner after reviewing the reports (הגדרות › גישה מרחוק).
+    "remote.csp_enforce": "false",
 }
 
 # CR-007 6a/6b: the registered device-screen palettes - keep in step with DEVICE_THEMES in
 # frontend/src/styles/devices-themes.ts (docs/design/DEVICE_THEMES.md, "How to add a theme").
 DEVICE_THEMES = ("default", "sand", "forest", "graphite")
 
-INT_KEYS = ("media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes")
+INT_KEYS = ("media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes", "remote.max_live_streams")
 
 
 def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
@@ -166,6 +172,8 @@ class SettingsPatch(BaseModel):
     remote_default_profile: str | None = Field(default=None, pattern="^(main|sub)$", alias="remote.default_profile")
     remote_mse_fallback: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.mse_fallback")
     remote_require_mfa_admin: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.require_mfa_admin")
+    remote_max_live_streams: int | None = Field(default=None, ge=1, le=32, alias="remote.max_live_streams")
+    remote_csp_enforce: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.csp_enforce")
 
     model_config = {"populate_by_name": True}
 
@@ -198,6 +206,10 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         raise ApiError(422, "provider_not_available", "לא מצורף ספק ניתוח חיצוני; קיים רק חוזה המתאם (פרטיות, גרסת מודל, תקציב, opt-in).", details={"choices": ["none", "local"]})
     for key, value in changes.items():
         set_setting(conn, key, str(value))
+    if "remote.csp_enforce" in changes:  # CR-008 P2: the remote channel's next response already follows
+        from ..remote_channel import set_csp_enforce
+
+        set_csp_enforce(changes["remote.csp_enforce"] == "true")
     audit(conn, actor=principal, action="settings.update", decision="allowed", resource_type="installation", resource_id="*",
           request_id=getattr(request.state, "correlation_id", None), details=changes)
     return {"settings": read_settings(conn), "can_edit": True}

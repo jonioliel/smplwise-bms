@@ -384,20 +384,19 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
     await expect(page.locator(`${ed} [data-selected-connector]`)).toBeVisible();
     const stairsId = (await page.locator(`${ed} [data-selected-connector]`).getAttribute('data-selected-connector'))!;
     await expect(page.locator(`${ed} sw-plan-canvas [data-connector="${stairsId}"][data-kind="stairs"]`)).toHaveCount(1);
-    await page.locator(`${ed} [data-conn-to]`).selectOption('L1');
+    await page.locator(`${ed} [data-conn-target]`).selectOption('here:L1'); // T085: one "מחבר אל" picker for levels here and on other floors
     await expect.poll(async () => (await draft()).doc.connectors.find((c) => c.id === stairsId)?.level_to ?? null, { timeout: 10000 }).toBe('L1');
-    await expect(page.locator(`${ed} sw-plan-canvas [data-connector="${stairsId}"] text`)).toHaveText('↓ −1.2 מ׳');
+    await expect(page.locator(`${ed} sw-plan-canvas [data-connector="${stairsId}"] [data-conn-text]`)).toHaveText('↓ −1.2 מ׳'); // drawn stairs also carry their steps caption (T085)
     // the link: the gallery floor gets the same connector on its draft; this draft lists both floors
-    await page.locator(`${ed} [data-conn-link-floor]`).selectOption(ids.floor2);
-    await page.locator(`${ed} [data-conn-link]`).click();
+    await page.locator(`${ed} [data-conn-target]`).selectOption(`${ids.floor2}:L0`); // the gallery floor's default level
     await expect.poll(async () => (await draft(ids.version2)).doc.connectors.map((c) => c.id), { timeout: 15000 }).toEqual([stairsId]);
     const theirs = (await draft(ids.version2)).doc.connectors[0];
     expect(theirs.floor_ids.sort()).toEqual([ids.floor, ids.floor2].sort());
-    expect(theirs.level_to).toBeNull();
+    expect(theirs.level_to).toBe('L0'); // T085: the level it reaches back on this floor
     const mine = (await draft()).doc.connectors.find((c) => c.id === stairsId)!;
     expect(mine.floor_ids.sort()).toEqual([ids.floor, ids.floor2].sort());
-    await expect(page.locator(`${ed} [data-selected-connector="${stairsId}"]`)).toContainText('2 קומות');
-    await expect(page.locator(`${ed} sw-plan-canvas [data-connector="${stairsId}"] text`)).toHaveText('↕');
+    await expect(page.locator(`${ed} [data-selected-connector="${stairsId}"] [data-conn-twin-note]`)).toContainText('מקושר אל גלריה · מפלס ראשי');
+    await expect(page.locator(`${ed} sw-plan-canvas [data-connector="${stairsId}"] [data-conn-text]`)).toHaveText('↑ גלריה · מפלס ראשי');
   });
 
   test('levels are renamed, re-heighted and deleted from the chip bar, a refused delete says why; a freshly drawn ramp does not guess its target level', async ({ page }) => {
@@ -422,7 +421,7 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
     const ramp = async () => (await draft(ids.version2)).doc.connectors.find((c) => c.id === rampId) ?? null;
     await expect.poll(async () => (await ramp())?.kind ?? null, { timeout: 10000 }).toBe('ramp');
     expect((await ramp())!.level_to).toBeNull();
-    await expect(page.locator(`${ed} [data-conn-to]`)).toHaveValue('');
+    await expect(page.locator(`${ed} [data-conn-target]`)).toHaveValue('');
     await expect(page.locator(`${ed} sw-plan-canvas [data-connector="${rampId}"] text`)).toHaveText('↕');
     // the list row and the inspector say the target is not chosen yet, never "another floor" (only a real link says that)
     for (const where of [`${ed} [data-conn-row="${rampId}"]`, `${ed} [data-conn-route]`]) {
@@ -430,7 +429,7 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
       await expect(page.locator(where)).not.toContainText('קומה אחרת');
     }
     // the manual pick still works
-    await page.locator(`${ed} [data-conn-to]`).selectOption('L1');
+    await page.locator(`${ed} [data-conn-target]`).selectOption('here:L1');
     await expect.poll(async () => (await ramp())?.level_to ?? null, { timeout: 10000 }).toBe('L1');
     await expect(page.locator(`${ed} sw-plan-canvas [data-connector="${rampId}"] text`)).toHaveText('↑ +2.5 מ׳');
 

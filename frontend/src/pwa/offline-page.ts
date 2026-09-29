@@ -13,7 +13,9 @@ export const OFFLINE_HTML = `<!doctype html>
 <style>
   html, body { margin: 0; height: 100%; }
   body { display: flex; align-items: center; justify-content: center; background: #f5f7fb; color: #0f172a;
-    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Heebo, Arial, sans-serif; padding: 24px; box-sizing: border-box; }
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Heebo, Arial, sans-serif; box-sizing: border-box;
+    /* standalone: keep clear of the notch and the home indicator */
+    padding: max(24px, env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-right, 0px)) max(24px, env(safe-area-inset-bottom, 0px)) max(24px, env(safe-area-inset-left, 0px)); }
   main { max-width: 420px; text-align: center; background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 32px 24px;
     box-shadow: 0 1px 2px rgba(15, 23, 42, .06); }
   .mark { width: 64px; height: 64px; margin: 0 auto 16px; }
@@ -27,7 +29,7 @@ export const OFFLINE_HTML = `<!doctype html>
   <svg class="mark" viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#2f6bff"/><path d="M136 376V216a120 120 0 0 1 240 0v160h-72V232a48 48 0 0 0-96 0v144z" fill="#fff"/><rect x="104" y="392" width="304" height="32" rx="16" fill="#fff"/></svg>
   <h1>אין חיבור לשרת</h1>
   <p>Arx לא מצליח להגיע למערכת כרגע. בדקו את החיבור לאינטרנט (או לרשת הביתית) ונסו שוב. וידאו ונתונים חיים זמינים רק כשיש חיבור.</p>
-  <a href="./">נסו שוב</a>
+  <a href="./">נסה שוב</a>
 </main>
 </body>
 </html>`;

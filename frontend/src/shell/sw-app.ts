@@ -7,6 +7,7 @@ import '../components/sw-button';
 import '../components/sw-badge';
 import '../components/sw-tabs';
 import '../components/sw-avatar';
+import './sw-profile-menu';
 import '../screens/explore-floor-map';
 import '../screens/explore-sites';
 import '../screens/explore-floors';
@@ -114,7 +115,10 @@ export class SwApp extends LitElement {
       flex-direction: column;
       background: var(--sw-surface);
       border-inline-end: 1px solid var(--sw-border);
-      padding: 10px 10px 8px;
+      /* RTL always: inline-start is the visual right, inline-end the visual left */
+      padding-block: 10px 8px;
+      padding-inline-start: max(10px, env(safe-area-inset-right, 0px));
+      padding-inline-end: max(10px, env(safe-area-inset-left, 0px));
       gap: 2px;
       overflow: auto;
       scrollbar-width: none;
@@ -179,7 +183,8 @@ export class SwApp extends LitElement {
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 0 20px;
+      /* RTL always: inline-start is the visual right, inline-end the visual left */
+      padding-inline: max(20px, env(safe-area-inset-right, 0px)) max(20px, env(safe-area-inset-left, 0px));
       background: var(--sw-surface);
       border-block-end: 1px solid var(--sw-border);
       z-index: var(--sw-z-topbar);
@@ -321,7 +326,7 @@ export class SwApp extends LitElement {
         display: none;
       }
       header.topbar {
-        padding: 0 12px;
+        padding-inline: max(12px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-left, 0px));
       }
       .subnav {
         padding: 8px 12px 0;
@@ -332,6 +337,8 @@ export class SwApp extends LitElement {
         grid-template-columns: repeat(5, 1fr);
         background: var(--sw-surface);
         border-block-start: 1px solid var(--sw-border);
+        /* a landscape phone's notch/rounded corners sit on the inline edges too, not only the home indicator below */
+        padding-inline: env(safe-area-inset-right, 0px) env(safe-area-inset-left, 0px);
         padding-block-end: env(safe-area-inset-bottom);
       }
       nav.bottom a,
@@ -395,7 +402,9 @@ export class SwApp extends LitElement {
 
     /* ---- design SW A: four-area icon rail on the right, 72px top bar with crumbs, wide search, user chip ---- */
     :host([data-design='a']) nav.rail {
-      padding: 14px 8px 12px;
+      padding-block: 14px 12px;
+      padding-inline-start: max(8px, env(safe-area-inset-right, 0px));
+      padding-inline-end: max(8px, env(safe-area-inset-left, 0px));
       gap: 6px;
       align-items: center;
     }
@@ -452,7 +461,7 @@ export class SwApp extends LitElement {
       line-height: 1.25;
     }
     :host([data-design='a']) header.topbar {
-      padding: 0 26px;
+      padding-inline: max(26px, env(safe-area-inset-right, 0px)) max(26px, env(safe-area-inset-left, 0px));
       gap: 14px;
     }
     .crumbs-a {
@@ -1225,7 +1234,7 @@ export class SwApp extends LitElement {
             ? html`<sw-badge kind="neutral" label="נתוני הדגמה"></sw-badge>`
             : nothing}
         <sw-button class="bell" variant="ghost" size="sm" iconOnly icon="bell" label=${t('app.notifications')}></sw-button>${this.renderArxSignOut()}
-        <span class="user-a"><sw-avatar name=${name} size=${34} title=${t('app.account')} aria-label=${t('app.account')}></sw-avatar><span class="who-a"><b>${name}</b><span>${me?.bindings[0]?.role_name ?? (this.session.mode === 'demo' ? 'מנהל VMS' : 'ללא שיוך')}</span></span></span>
+        <span class="user-a"><sw-profile-menu .name=${name} .size=${34} .role=${me?.bindings[0]?.role_name ?? ''} .api=${this.session.mode === 'api'}></sw-profile-menu><span class="who-a"><b>${name}</b><span>${me?.bindings[0]?.role_name ?? (this.session.mode === 'demo' ? 'מנהל VMS' : 'ללא שיוך')}</span></span></span>
         <span class="logo-a"><b>smplwise</b><small>Arx</small></span>
       </header>
       ${this.renderSysBanner()}
@@ -1287,7 +1296,7 @@ export class SwApp extends LitElement {
             ? html`<sw-badge kind="neutral" label="נתוני הדגמה"></sw-badge>`
             : nothing}
         <sw-button class="bell" variant="ghost" size="sm" iconOnly icon="bell" label=${t('app.notifications')}></sw-button>${this.renderArxSignOut()}
-        <sw-avatar name=${this.session.me?.user.display_name || this.session.me?.user.username || 'יוני'} size=${28} title=${t('app.account')} aria-label=${t('app.account')}></sw-avatar>
+        <sw-profile-menu .name=${this.session.me?.user.display_name || this.session.me?.user.username || 'יוני'} .size=${28} .role=${this.session.me?.bindings[0]?.role_name ?? ''} .api=${this.session.mode === 'api'}></sw-profile-menu>
       </header>
       <main>
         ${this.renderSetupHint()}

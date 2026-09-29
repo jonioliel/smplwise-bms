@@ -48,7 +48,7 @@ def test_detect_returns_candidates_and_stores_nothing(settings):
     assert len(body["walls"]) >= 6 and len(body["openings"]) >= 6 and body["version_id"] == vid and body["level_id"] == "L0"
     assert all(w["id"].startswith("auto-") and w["source"] == "auto" and 0 < w["confidence"] <= 0.99 for w in body["walls"])
     assert all(o["wall_id"] in {w["id"] for w in body["walls"]} for o in body["openings"])
-    assert body["detector"]["name"] == "plan_detect" and body["detector"]["params"]["strength"] == 0.6 and body["existing_auto"] == {"walls": 0, "openings": 0}
+    assert body["detector"]["name"] == "plan_detect" and body["detector"]["params"]["strength"] == 0.6 and body["existing_auto"] == {"walls": 0, "openings": 0, "objects": 0}
     assert body["calibration_hint"]["status"] == "estimated" and body["calibration_hint"]["method"] == "door_width" and body["scale"]["status"] == "estimated_walls"
     assert body["elapsed_ms"] > 0 and body["pixels"][body["walls"][0]["id"]]["thickness_px"] > 0
     g = _draft(c, vid)
@@ -130,7 +130,7 @@ def test_accept_merges_edits_reissues_ids_and_replaces_auto(settings):
     doc2["walls"].append(manual)
     assert c.put(f"/api/v1/plan-versions/{vid}/geometry", json={"doc": doc2, "base_revision": 2}).status_code == 200
     r2 = c.post(f"/api/v1/plan-versions/{vid}/detect", json={}).json()
-    assert r2["existing_auto"] == {"walls": 2 * n_w, "openings": 2 * n_o}
+    assert r2["existing_auto"] == {"walls": 2 * n_w, "openings": 2 * n_o, "objects": 0}
     rep = c.post(f"/api/v1/plan-versions/{vid}/detect/accept", json=_accept_body(r2, [w["id"] for w in r2["walls"]], 3, replace_auto=True))
     assert rep.status_code == 200, rep.text
     doc3 = rep.json()["doc"]

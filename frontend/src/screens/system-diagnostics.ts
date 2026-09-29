@@ -8,6 +8,9 @@ import '../components/sw-tabs';
 import '../components/sw-field';
 import '../components/sw-toggle';
 import '../components/sw-icon';
+import '../components/sw-remote-sessions';
+import '../components/sw-csp-reports';
+import { logout as arxLogout } from '../arx/auth';
 import { demoHealth, demoJobs } from '../fixtures/catalog';
 import { isApi, nvrLess } from '../api/session';
 import { getSettings, listSessions, listStreams, patchSettings, syncStreams, type ProductSettings } from '../api/media';
@@ -841,7 +844,7 @@ export class SystemDiagnostics extends LitElement {
   private renderRemote() {
     const api = isApi();
     const ro = !api || !this.canEdit;
-    const keys = ['remote.policy', 'remote.session', 'remote.idle_lock_minutes', 'remote.default_profile', 'remote.mse_fallback', 'remote.require_mfa_admin'] as const;
+    const keys = ['remote.policy', 'remote.session', 'remote.idle_lock_minutes', 'remote.default_profile', 'remote.mse_fallback', 'remote.require_mfa_admin', 'remote.max_live_streams'] as const;
     const dirty = keys.some((k) => k in this.draft);
     const v = <K extends (typeof keys)[number]>(k: K, d: string) => String(this.value(k) ?? d);
     const sel = (key: (typeof keys)[number], d: string, options: [string, string][]) => html`<sw-field class="ctl"><select data-set-remote=${key} ?disabled=${ro} @change=${(e: Event) => this.set(key, (e.target as HTMLSelectElement).value as never)}>
@@ -862,11 +865,23 @@ export class SystemDiagnostics extends LitElement {
         <div class="row"><span class="lbl">אימות דו־שלבי למנהלים<span class="muted">כשמופעל: משתמש עם הרשאות ניהול נכנס מרחוק רק אם הפעיל MFA בפרופיל ה־Home Assistant שלו</span></span>
           ${sel('remote.require_mfa_admin', 'false', [['false', 'רשות'], ['true', 'חובה למנהלים']])}</div>
       </sw-card>
+      ${api
+        ? html`<sw-card heading="כניסות פעילות מרחוק" subheading=${this.canEdit ? 'כל הכניסות הפעילות של כל המשתמשים: דפדפן או אפליקציה, מאיפה (מדינה או כתובת מוסתרת), מתי. ניתוק סוגר מיד את חיבורי הווידאו והעדכונים שלה, והכניסה הזו לא תוכל לחזור בלי כניסה מחדש.' : 'הכניסות הפעילות שלך מרחוק.'} data-card="remote.sessions" data-remote-sessions-card>
+            <sw-remote-sessions scope=${this.canEdit ? 'all' : 'own'} @remote-signed-out=${() => void arxLogout('logout')}></sw-remote-sessions>
+          </sw-card>`
+        : nothing}
+      ${api && this.canEdit
+        ? html`<sw-card heading="מדיניות אבטחת תוכן (CSP)" subheading="מדיניות מחמירה יותר לגישה מרחוק: בלי תגיות עיצוב מוטמעות בדף. היא רצה קודם במצב דיווח בלבד; אחרי שעוברים על הדיווחים כאן אפשר לאכוף אותה." data-card="remote.csp" data-csp-card>
+            <sw-csp-reports .canEdit=${this.canEdit}></sw-csp-reports>
+          </sw-card>`
+        : nothing}
       <sw-card heading="וידאו מרחוק" subheading="WebRTC עובר ישירות בין הדפדפן ל־go2rtc; MSE מעביר את הווידאו עצמו דרך המנהרה ולכן הוא רק מוצא אחרון.">
         <div class="row"><span class="lbl">זרם ברירת מחדל<span class="muted">הזרם שצופה מרוחק מקבל ראשון, ב־WebRTC</span></span>
           ${sel('remote.default_profile', 'main', [['main', 'ראשי (main)'], ['sub', 'משני (sub)']])}</div>
         <div class="row"><span class="lbl">MSE כמוצא אחרון<span class="muted">כש־WebRTC לא מתחבר או לא מפענח. כבוי: אין וידאו דרך המנהרה בכלל</span></span>
           ${sel('remote.mse_fallback', 'true', [['true', 'מותר (מוצג לצופה)'], ['false', 'אסור']])}</div>
+        <div class="row"><span class="lbl">זרמים חיים לכל כניסה<span class="muted">כמה צפיות חיות במקביל מותרות לכל דפדפן או אפליקציה שנכנסו מרחוק (1 עד 32, ברירת מחדל 4); הצפייה הבאה נדחית עם הסבר. המכסה הכללית של המערכת חלה בנוסף</span></span>
+          <sw-field class="ctl"><input type="number" min="1" max="32" data-ltr data-set-remote="remote.max_live_streams" .value=${v('remote.max_live_streams', '4')} ?disabled=${ro} @change=${(e: Event) => this.set('remote.max_live_streams', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
         ${this.renderCodecSummary()}
         <div class="muted" data-remote-codec-hint style="margin-block-start:8px">דפדפנים מפענחים ב־WebRTC רק H.264 ללא B-frames; H.265 לא מתנגן ב־WebRTC ברוב הדפדפנים. אם הזרם הראשי של ה־NVR אינו כזה, הגדירו בו H.264 ללא B-frames או בחרו כאן בזרם המשני.</div>
       </sw-card>

@@ -5,6 +5,7 @@
  */
 import { get, patch, post, put, resourceUrl } from './client';
 import type { GeomConnector, GeometryDoc, GeomObject, GeomOpening, GeomWall, Pt } from '../map/geometry';
+import type { LinkTargetFloor } from '../map/connector-targets';
 import type { MapBundle } from './maps';
 import type { PlanVersion } from './types';
 
@@ -43,6 +44,8 @@ export interface GeometryResponse {
   issues: GeometryIssue[];
   published_hash: string | null;
   copy_candidates?: CopyCandidate[];
+  /** PUT only (T085 review M-a): floors whose twin of a changed stair was not updated - no map.edit there. */
+  twins_skipped?: { floor_id: string; name: string }[];
 }
 export interface GeometryDiff {
   collections: Record<string, { added: string[]; removed: string[]; changed: string[] }>;
@@ -159,8 +162,19 @@ export function exportUrl(versionId: string, fmt: 'svg' | 'png', opts: { draft?:
   return resourceUrl(`api/v1/plan-versions/${versionId}/export.${fmt}${qs ? `?${qs}` : ''}`);
 }
 /** Stairs / an elevator to another floor: the same connector id lands on the other floor's draft (T085). */
-export const linkConnector = (versionId: string, connectorId: string, floorId: string) =>
-  post<{ connector: GeomConnector; target: { floor_id: string; version_id: string; revision: number } }>(`plan-versions/${versionId}/geometry/link`, { connector_id: connectorId, floor_id: floorId });
+/** Link a connector to another floor (T085): `levelTo` is the level it reaches THERE (absent = that floor's default).
+ * placement: the new twin sits at the same plan coordinates (aligned), at the other plan's centre (centred - it waits to
+ * be placed) or an existing twin kept its own position (kept). */
+export const linkConnector = (versionId: string, connectorId: string, floorId: string, levelTo?: string | null, replace = false) =>
+  post<{ connector: GeomConnector; removed_floors: string[]; target: { floor_id: string; version_id: string; revision: number; level_id: string; placement: 'aligned' | 'centred' | 'kept'; frame: 'sheet' | 'size' | null } }>(
+    `plan-versions/${versionId}/geometry/link`, { connector_id: connectorId, floor_id: floorId, ...(levelTo ? { level_to: levelTo } : {}), ...(replace ? { replace: true } : {}) });
+
+/** The other floors of the building a connector can reach, each with its levels (the "מחבר אל" picker). */
+export const getLinkTargets = (versionId: string) => get<{ floors: LinkTargetFloor[] }>(`plan-versions/${versionId}/geometry/link-targets`);
+
+/** Remove the twin of a cross-floor connector from the other floor's draft ("למחוק גם בקומה השנייה?"). */
+export const deleteTwin = (versionId: string, connectorId: string, floorId: string) =>
+  post<{ removed: boolean; floor_id: string }>(`plan-versions/${versionId}/geometry/twin-delete`, { connector_id: connectorId, floor_id: floorId });
 
 // ---------------------------------------------------------------- detection (phase 3, T086)
 
@@ -172,6 +186,13 @@ export interface DetectRequest {
   level_id?: string;
   /** T087: the hollow-wall pass (walls drawn as two thin lines); the server's default is on, false opts a plan out. */
   hollow_walls?: boolean;
+  /** Detector 1.4 (T086 tuning), each on by default, false opts a plan out: section-cut lines crossing the envelope
+   * are no walls; a white gap under 0.3 m with no symbol is one wall (no passage); a tribune is proposed as a steps
+   * object; a pier grid as column objects with the envelope line between them. */
+  section_lines?: boolean;
+  join_gaps?: boolean;
+  steps_regions?: boolean;
+  columns?: boolean;
 }
 export interface CalibrationHint {
   scale_m_per_px: number;
@@ -181,7 +202,7 @@ export interface CalibrationHint {
   doors: number;
 }
 /** Version pixels per candidate: the client recomputes the metres with the document's effective scale before accepting. */
-export type CandidatePixels = Record<string, { thickness_px?: number; width_px?: number }>;
+export type CandidatePixels = Record<string, { thickness_px?: number; width_px?: number; w_px?: number; d_px?: number }>;
 export interface DetectorInfo {
   name: string;
   version: string;
@@ -198,6 +219,8 @@ export interface DxfRoomCandidate {
 export interface DetectResult {
   walls: GeomWall[];
   openings: GeomOpening[];
+  /** The DXF import's mapped blocks; since detector 1.4 also /detect's tribunes and columns (source "auto", their
+   * width / depth in version pixels in `pixels` as w_px / d_px). */
   objects?: GeomObject[];
   rooms?: DxfRoomCandidate[];
   detector: DetectorInfo;

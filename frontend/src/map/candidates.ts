@@ -12,9 +12,9 @@ export type CandKind = 'wall' | 'door' | 'window' | 'passage';
 export interface CandidateSet {
   walls: GeomWall[];
   openings: GeomOpening[];
-  /** Object candidates (DXF block mapping): document-v2 shape (the API review's binding contract), not yet drawn by
-   * the candidates layer below - Task 8 only wires walls and openings into sw-plan-canvas; a later task adds the
-   * object candidate layer. */
+  /** Object candidates (DXF block mapping; since detector 1.4 also detected tribunes and columns): document-v2 shape
+   * (the API review's binding contract). The candidates layer draws them dashed (their outline, a tribune's rows); they
+   * are accepted or left out together (the panel's "כולל ... עצמים"), not one by one. */
   objects: GeomObject[];
   pixels: CandidatePixels;
   /** Metres per version pixel the server used for the metres of this set (null when unknown). */
@@ -50,11 +50,30 @@ export function fromResult(r: DetectResult): CandidateSet {
   return { walls: r.walls, openings: r.openings, objects: r.objects ?? [], pixels: r.pixels ?? {}, scaleMPerPx: r.scale?.m_per_px ?? null, outsideMain: r.flags?.outside_main ?? [] };
 }
 
-/** The set as a document, so the canvas draws it through buildPrimitives exactly like the structure. Every other
- * collection is cleared, not only labels and objects: detect never returns connectors, and the base document's real
- * ones must not draw a second time inside this ad-hoc "document" (they already draw once from the real structure). */
+/** The set as a document, so the canvas draws it through buildPrimitives exactly like the structure: its walls,
+ * openings and object candidates. Every other collection is cleared: detect never returns connectors or labels, and the
+ * base document's real ones must not draw a second time inside this ad-hoc "document" (they already draw once from the
+ * real structure). */
 export function candidatesDoc(base: GeometryDoc, set: CandidateSet): GeometryDoc {
-  return { ...base, walls: set.walls, openings: set.openings, labels: [], objects: [], connectors: [] };
+  return { ...base, walls: set.walls, openings: set.openings, labels: [], objects: set.objects, connectors: [] };
+}
+
+/** The label of an object candidate (list, map title): what the detector proposes it as. */
+export function objectCandidateLabel(itemId: string): string {
+  if (itemId.startsWith('tribune.')) return 'טריבונה';
+  if (itemId.startsWith('column.')) return 'עמוד';
+  return 'עצם';
+}
+
+/** The panel's line for the object candidates: how many of which kind (detect), or how many from the file (DXF). */
+export function objectsSummary(set: CandidateSet, source: 'detect' | 'dxf'): string {
+  const n = set.objects.length;
+  const count = n === 1 ? 'עצם אחד' : `${n} עצמים`;
+  if (source === 'dxf') return `${count} מהקובץ`;
+  const tribunes = set.objects.filter((o) => o.item_id.startsWith('tribune.')).length;
+  const columns = set.objects.filter((o) => o.item_id.startsWith('column.')).length;
+  const parts = [tribunes ? (tribunes === 1 ? 'טריבונה' : `${tribunes} טריבונות`) : '', columns ? (columns === 1 ? 'עמוד' : `${columns} עמודים`) : ''].filter(Boolean);
+  return parts.length ? `${count} שזוהו (${parts.join(', ')})` : `${count} שזוהו`;
 }
 
 /** Metres from the version pixels at another scale (the document's effective scale, or the applied door-width hint). */
@@ -67,7 +86,18 @@ export function rescale(set: CandidateSet, scaleMPerPx: number): CandidateSet {
     const px = set.pixels[o.id]?.width_px;
     return px === undefined ? o : { ...o, width_m: Math.max(0.05, round3(px * scaleMPerPx)) };
   });
-  return { ...set, walls, openings, scaleMPerPx };
+  // a detected object's footprint follows the scale too (a DXF object carries no pixels: its metres are the drawing's)
+  const objects = set.objects.map((o) => {
+    const p = set.pixels[o.id];
+    if (p?.w_px === undefined || p.d_px === undefined) return o;
+    const size = { ...o.size, w_m: Math.min(100, Math.max(0.05, round3(p.w_px * scaleMPerPx))), d_m: Math.min(100, Math.max(0.05, round3(p.d_px * scaleMPerPx))) };
+    const step = o.params?.step_width_m;
+    const rows = o.params?.rows;
+    // a tribune's row depth is its depth over its rows
+    const params = typeof step === 'number' && typeof rows === 'number' && rows > 0 ? { ...o.params, step_width_m: Math.min(3, Math.max(0.2, round3(size.d_m / rows))) } : o.params;
+    return { ...o, size, params };
+  });
+  return { ...set, walls, openings, objects, scaleMPerPx };
 }
 
 export function allIds(set: CandidateSet): string[] {
