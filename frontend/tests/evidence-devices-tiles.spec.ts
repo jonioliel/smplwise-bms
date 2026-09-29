@@ -24,6 +24,7 @@ const ENTITIES = [
   { entity_id: 'switch.cr007t_sign', area_id: 'cr007t_stairs' },
   { entity_id: 'light.cr007t_stairs', area_id: 'cr007t_stairs' },
   { entity_id: 'light.cr007t_office', area_id: 'cr007t_office' },
+  { entity_id: 'light.cr007t_service', area_id: 'cr007t_service' },
   { entity_id: 'lock.cr007t_front', area_id: 'cr007t_stairs' },
   { entity_id: 'alarm_control_panel.cr007t_house', area_id: 'cr007t_stairs' },
 ];
@@ -33,6 +34,7 @@ const STATES = [
   { entity_id: 'switch.cr007t_sign', state: 'on', attributes: { friendly_name: 'שלט מואר' } },
   { entity_id: 'light.cr007t_stairs', state: 'on', attributes: { friendly_name: 'תאורת מדרגות', brightness: 200, color_mode: 'brightness' } },
   { entity_id: 'light.cr007t_office', state: 'off', attributes: { friendly_name: 'תאורת משרד' } },
+  { entity_id: 'light.cr007t_service', state: 'off', attributes: { friendly_name: 'תאורת מרחב שירות' } },
   { entity_id: 'lock.cr007t_front', state: 'locked', attributes: { friendly_name: 'דלת כניסה', device_class: 'lock' } },
   { entity_id: 'alarm_control_panel.cr007t_house', state: 'armed_away', attributes: { friendly_name: 'אזעקת הבניין' } },
 ];
@@ -237,7 +239,8 @@ test.describe('overview tiles against the devices fixture backend', () => {
     page.on('request', (r) => {
       if (r.url().includes('/api/v1/devices/actions/preview')) previews.push(decodeURIComponent(r.url()));
     });
-    await open(page, '/devices/building?domain=lights');
+    // this spec's own ground floor: a building-wide count would include other specs' devices on a shared backend
+    await open(page, '/devices/building?domain=lights&floor=cr007t_ground');
     const panel = page.locator('devices-building devices-tiles-panel');
     const master = panel.locator('button[data-panel-master="lights"]');
     // one of two on: filled, a count badge, the words only in the label / tooltip
@@ -252,6 +255,7 @@ test.describe('overview tiles against the devices fixture backend', () => {
     const dlg = panel.locator('devices-bulk-dialog');
     await expect(dlg.locator('[data-bulk-question]')).toHaveText('לכבות גוף תאורה אחד?', { timeout: 10000 });
     expect(previews.at(-1)).toContain('kind=lights_off');
+    expect(previews.at(-1)).toContain('scope=floor');
     expect(previews.at(-1)).not.toContain('only=');
     if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `master-confirm-${testInfo.project.name}.png`) });
     await dlg.locator('sw-button[data-bulk-confirm]').click();
@@ -260,14 +264,17 @@ test.describe('overview tiles against the devices fixture backend', () => {
     await expect(panel).toHaveAttribute('open', ''); // the confirmation closed, the panel stays
     await expect(master).toHaveAttribute('data-state', 'off', { timeout: 10000 });
     await expect(master).toHaveAttribute('aria-label', 'הדלק את כל התאורה');
-    // narrowed by the search: only the office light
-    await panel.locator('input[data-panel-search]').fill('משרד');
+    // all off now: the button asks to turn both on; narrowed by the search, only the service light
+    await master.click();
+    await expect(dlg.locator('[data-bulk-question]')).toHaveText(/^להדליק ‎?2 גופי תאורה\?$/, { timeout: 10000 });
+    await dlg.locator('sw-button[data-bulk-cancel]').click();
+    await panel.locator('input[data-panel-search]').fill('שירות');
     await master.click();
     await expect(dlg.locator('[data-bulk-question]')).toHaveText('להדליק גוף תאורה אחד?', { timeout: 10000 });
-    expect(previews.at(-1)).toContain('only=light.cr007t_office');
+    expect(previews.at(-1)).toContain('only=light.cr007t_service');
     await dlg.locator('sw-button[data-bulk-confirm]').click();
     await expect(dlg.locator('[data-bulk-result="ok"]')).toBeVisible({ timeout: 20000 });
-    const e = await (await request.get('/api/v1/ha/entities/light.cr007t_office')).json();
+    const e = await (await request.get('/api/v1/ha/entities/light.cr007t_service')).json();
     expect(e.state).toBe('on');
     expect((await (await request.get('/api/v1/ha/entities/light.cr007t_stairs')).json()).state).toBe('off');
     await seed(request);
@@ -365,7 +372,7 @@ test.describe('overview tiles against the devices fixture backend', () => {
 
   test('review M4: a push about a listed row patches it in place (no refetch); an entity the panel does not list refetches', async ({ page, request }) => {
     await seed(request);
-    await open(page, '/devices/building?domain=switches');
+    await open(page, '/devices/building?domain=switches&floor=cr007t_ground');
     const panel = page.locator('devices-building devices-tiles-panel');
     const pump = panel.locator('.row[data-entity="switch.cr007t_pump"]');
     await expect(pump).toHaveAttribute('data-state', 'inactive', { timeout: 30000 });
@@ -380,8 +387,11 @@ test.describe('overview tiles against the devices fixture backend', () => {
     await page.waitForTimeout(1500);
     expect(fetched).toEqual([]);
     // a switch the panel has never listed: refetched (it may have entered the scope)
-    await request.post('/api/v1/ha/dev/states', { data: { states: [{ entity_id: `switch.cr007t_new_${Date.now()}`, state: 'off', attributes: { friendly_name: 'מתג חדש' } }] } });
+    const fresh = `switch.cr007t_new_${Date.now()}`;
+    await request.post('/api/v1/ha/dev/states', { data: { states: [{ entity_id: fresh, state: 'off', attributes: { friendly_name: 'מתג חדש' } }] } });
     await expect.poll(() => fetched.length, { timeout: 5000 }).toBeGreaterThan(0);
+    // leave nothing behind: disabled in the registry, it stays out of every other spec's unassigned bucket
+    await request.post('/api/v1/ha/dev/registry', { data: { entities: [...ENTITIES, { entity_id: fresh, area_id: null, disabled_by: 'user' }], devices: [], areas: AREAS, floors: FLOORS } });
     await seed(request);
   });
 
