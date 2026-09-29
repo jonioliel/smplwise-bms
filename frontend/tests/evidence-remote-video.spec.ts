@@ -19,12 +19,15 @@ import { test, expect, request as pwRequest, type APIRequestContext, type Page }
 //   flap      connects, goes `disconnected` for a moment, recovers, then plays
 //   down      the relay answers the offer with `upstream_unavailable` (go2rtc down)
 //   slowoffer createOffer takes 800 ms, then as ok (a camera switch during it)
+//   noplay    connects and frames DECODE (statistics), but no track reaches <video> - no `playing` event (a background
+//             tab's deferred autoplay)
+// `window.__hidden` (set before load) makes document.hidden / visibilityState report a background tab.
 // What it does not prove: real go2rtc WebRTC / MSE media (the lab check).
 
 const CONTROL = process.env.SW_SETUP_CONTROL || 'http://127.0.0.1:8359';
 const MAIN_UNDECODABLE = 'הזרם הראשי אינו ניתן לפענוח ב-WebRTC - ראה הגדרות › וידאו';
 
-type RtcMode = 'ok' | 'fail' | 'nodecode' | 'slow' | 'flap' | 'down' | 'slowoffer';
+type RtcMode = 'ok' | 'fail' | 'nodecode' | 'slow' | 'flap' | 'down' | 'slowoffer' | 'noplay';
 interface SocketEntry {
   profile: string;
   camera: string;
@@ -34,6 +37,8 @@ interface SocketEntry {
 
 const FAKE_MEDIA = () => {
   const w = window as unknown as Record<string, unknown>;
+  Object.defineProperty(document, 'hidden', { configurable: true, get: () => !!w.__hidden });
+  Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => (w.__hidden ? 'hidden' : 'visible') });
   w.__liveSockets = [] as SocketEntry[];
   w.__rtc = (w.__rtc as Record<string, string>) ?? { main: 'ok', sub: 'ok' };
   const modeOf = (profile: string) => (w.__rtc as Record<string, string>)[profile] ?? 'ok';
@@ -134,6 +139,7 @@ const FAKE_MEDIA = () => {
       if (mode === 'ok' || mode === 'slowoffer') return this.later(80, () => this.play());
       if (mode === 'nodecode') return this.timers.push(window.setInterval(() => (this.bytes += 4000), 100));
       if (mode === 'slow') return this.later(13000, () => this.play());
+      if (mode === 'noplay') return this.timers.push(window.setInterval(() => ((this.bytes += 4000), (this.frames += 1)), 100));
       if (mode === 'flap') {
         this.later(300, () => this.state('disconnected'));
         this.later(1000, () => this.state('connected'));
@@ -259,6 +265,36 @@ test.describe('remote video policy against the fixture backend (fake NVR / go2rt
     await openCamera(page, h264Camera, { main: 'flap', sub: 'ok' });
     await expectPlaying(page, 'main·WebRTC');
     expect(await sockets(page)).toEqual([{ profile: 'main', kind: 'webrtc' }]);
+  });
+
+  test('re-review: frames decoding without a `playing` event is never a failure (no fallback past the 30 s cap)', async ({ page }) => {
+    test.setTimeout(60000);
+    await remoteMe(page, { profile: 'main', mse: true });
+    await openCamera(page, h264Camera, { main: 'noplay', sub: 'ok' });
+    await page.waitForTimeout(34000);
+    await expect(badge(page)).toHaveAttribute('data-step', 'main·WebRTC');
+    expect(await status(page)).toBe('connecting');
+    expect(await sockets(page)).toEqual([{ profile: 'main', kind: 'webrtc' }]);
+    await expect(player(page).locator('[data-video-notice]')).toHaveCount(0);
+  });
+
+  test('re-review: no judgement while the tab is hidden; the clock restarts when it is visible again', async ({ page }) => {
+    test.setTimeout(60000);
+    await page.addInitScript(() => {
+      (window as unknown as Record<string, unknown>).__hidden = true;
+    });
+    await remoteMe(page, { profile: 'main', mse: true });
+    await openCamera(page, h264Camera, { main: 'nodecode', sub: 'ok' }); // decode grace here: 6 s (GOP 2 s + 3 s, min 6 s)
+    await page.waitForTimeout(12000);
+    expect(await sockets(page)).toEqual([{ profile: 'main', kind: 'webrtc' }]); // hidden twice the grace: still the first step
+    await page.evaluate(() => {
+      (window as unknown as Record<string, unknown>).__hidden = false;
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    const visibleAt = Date.now();
+    await expect(badge(page)).toHaveAttribute('data-step', 'main·MSE', { timeout: 15000 });
+    expect(Date.now() - visibleAt, 'judged on a fresh clock after the tab became visible').toBeGreaterThanOrEqual(5000);
+    expect(await sockets(page)).toEqual([{ profile: 'main', kind: 'webrtc' }, { profile: 'main', kind: 'mse' }]);
   });
 
   test('MSE off: main that cannot decode (bytes, no frames) falls to sub·WebRTC with the message', async ({ page }) => {

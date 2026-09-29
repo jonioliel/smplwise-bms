@@ -530,7 +530,7 @@ export class SwLivePlayer extends LitElement {
     };
     pc.addTransceiver('video', { direction: 'recvonly' });
     pc.addTransceiver('audio', { direction: 'recvonly' });
-    const started = Date.now();
+    const started = performance.now();
     try {
       const offer = await pc.createOffer();
       if (gen !== this.generation) return; // torn down (another camera, profile or step) while awaiting: never send a stale offer
@@ -564,12 +564,31 @@ export class SwLivePlayer extends LitElement {
    *    → the browser cannot decode this stream: a decode failure;
    *  - no bytes yet → keep waiting (ICE over a mobile link, go2rtc waiting for the next key frame) up to
    *    FIRST_FRAME_CAP_MS, then a connection failure - not a decode failure;
-   *  - no statistics at all → the old rule at the cap: connected but nothing rendered is a decode failure.
+   *  - no statistics at all → the old rule at the cap: connected but nothing rendered is a decode failure;
+   *  - frames decoded → WebRTC works: never a failure, even before the `playing` event (a deferred autoplay);
+   *  - the tab is hidden → no judgement; the clock restarts when it is visible again.
    */
   private watchFirstFrame(gen: number, pc: RTCPeerConnection, started: number) {
     let firstBytesAt = 0;
+    // re-review: a background tab defers play() and throttles timers - no judgement while hidden, and a fresh clock
+    // (the monotonic performance.now(), not the wall clock) once the tab is visible again
+    const restart = () => {
+      started = performance.now();
+      firstBytesAt = 0;
+    };
+    const onVisibility = () => {
+      if (gen !== this.generation) return document.removeEventListener('visibilitychange', onVisibility);
+      if (!document.hidden) restart();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    const stop = () => document.removeEventListener('visibilitychange', onVisibility);
     const tick = async () => {
-      if (gen !== this.generation || this.status === 'playing') return;
+      if (gen !== this.generation || this.status === 'playing') return stop();
+      if (document.hidden) {
+        restart();
+        this.timer = window.setTimeout(() => void tick(), STATS_POLL_MS);
+        return;
+      }
       let bytes = -1;
       let decoded = -1;
       try {
@@ -583,14 +602,27 @@ export class SwLivePlayer extends LitElement {
       } catch {
         /* no statistics in this browser: the cap below decides */
       }
-      if (gen !== this.generation || (this.status as PlayerStatus) === 'playing') return; // the await may have seen the first frame
-      const now = Date.now();
+      if (gen !== this.generation || (this.status as PlayerStatus) === 'playing') return stop(); // the await may have seen the first frame
+      if (document.hidden) {
+        restart();
+        this.timer = window.setTimeout(() => void tick(), STATS_POLL_MS);
+        return;
+      }
+      if (decoded > 0) {
+        // frames decode: WebRTC works. The `playing` event may lag (autoplay deferred); nudge play() and never judge
+        // this step again - it is not a failure
+        void this.video?.play().catch(() => undefined);
+        return stop();
+      }
+      const now = performance.now();
       if (bytes > 0 && !firstBytesAt) firstBytesAt = now;
       if (bytes > 0 && decoded === 0 && now - firstBytesAt >= this.decodeGraceMs()) {
+        stop();
         this.webrtcFailed('WebRTC התחבר אך הדפדפן לא מפענח את הזרם', true);
         return;
       }
-      if (now - started >= FIRST_FRAME_CAP_MS && !(bytes > 0 && decoded === 0)) {
+      if (now - started >= FIRST_FRAME_CAP_MS && !(bytes > 0)) {
+        stop();
         const decode = bytes < 0 && (pc.connectionState === 'connected' || this.webrtcConnected);
         this.webrtcFailed(decode ? 'WebRTC התחבר אך הדפדפן לא מפענח את הזרם' : 'WebRTC לא התחבר (ייתכן ש-UDP חסום)', decode);
         return;
