@@ -116,7 +116,7 @@ export interface ConnectorFar {
   floor_name: string | null;
   level_name: string | null;
   direction: 'up' | 'down' | null;
-  level_elevation_m?: number;
+  level_elevation_m?: number | null;
   datum_m?: number | null;
   missing?: boolean;
 }

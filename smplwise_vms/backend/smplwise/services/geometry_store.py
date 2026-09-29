@@ -479,9 +479,14 @@ def attach_far(conn: sqlite3.Connection, floor_id: str, doc: dict[str, Any], ctx
             readable = ctx.readable(other)
             direction = None if me is None or f["level"] == me["level"] else ("up" if f["level"] > me["level"] else "down")
             elev = lv.get("elevation_m") if lv else None
-            c2["far"] = {"floor_id": other, "floor_name": f["name"] if readable else "קומה אחרת", "level_name": str(lv.get("name") or lv["id"]) if lv and readable else None,
-                         "direction": direction, "level_elevation_m": float(elev) if pg._num(elev) else 0.0,
-                         "datum_m": ctx.datum(me, own_height, f) if me is not None and me["building_id"] == f["building_id"] else None}
+            if not readable:
+                # review L-d: nothing of a floor the reader may not read - no name, no level, no heights (the rise falls
+                # back to this floor's height up or down); only the direction, which the floors' order already shows
+                c2["far"] = {"floor_id": other, "floor_name": "קומה אחרת", "level_name": None, "direction": direction, "level_elevation_m": None, "datum_m": None}
+            else:
+                c2["far"] = {"floor_id": other, "floor_name": f["name"], "level_name": str(lv.get("name") or lv["id"]) if lv else None,
+                             "direction": direction, "level_elevation_m": float(elev) if pg._num(elev) else 0.0,
+                             "datum_m": ctx.datum(me, own_height, f) if me is not None and me["building_id"] == f["building_id"] else None}
         out["connectors"].append(c2)
     return out
 

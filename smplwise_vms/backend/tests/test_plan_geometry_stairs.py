@@ -311,6 +311,32 @@ def test_far_is_computed_on_read_never_stored_and_a_rename_reaches_the_published
     assert "far" not in _save(c, v2, connectors=d["doc"]["connectors"])["geometry"] and _draft(c, v2)["geometry"]["revision"] == d["geometry"]["revision"]
 
 
+def test_a_camera_scoped_reader_learns_nothing_of_the_other_floor_from_far_or_the_etag(settings):
+    """Review L-d: for a floor the reader may not read, far carries no name, level or heights, and the ETag (which
+    follows far) does not move when that floor's name or levels change."""
+    app, c, ids, v2, v3 = _setup(settings, same_sheet=True)
+    _save(c, v3, levels=[*_draft(c, v3)["doc"]["levels"], GALLERY])
+    _save(c, v2, connectors=[STAIRS()])
+    assert c.post(f"/api/v1/plan-versions/{v2}/geometry/link", json={"connector_id": "st1", "floor_id": ids["floor3"], "level_to": "L-gal"}).status_code == 200
+    assert c.post(f"/api/v1/plan-versions/{v2}/geometry/publish").status_code == 200
+    cam = c.post("/api/v1/cameras", json={"channel": 1, "alias": "כניסה"}).json()
+    assert c.post(f"/api/v1/floors/{ids['floor2']}/anchors", json={"resource_type": "camera", "resource_id": cam["id"], "x": 0.25, "y": 0.4, "rotation_degrees": 0}).status_code == 201
+    bind(c, settings, "cami", "viewer", "camera", cam["id"])
+    cami = as_user("cami")
+    r = c.get(f"/api/v1/plan-versions/{v2}/geometry", headers=cami)
+    assert r.status_code == 200 and r.json()["reach"] != "floor" and r.headers["etag"].endswith('-c"')
+    assert r.json()["doc"]["connectors"][0]["far"] == {"floor_id": ids["floor3"], "floor_name": "קומה אחרת", "level_name": None, "direction": "up", "level_elevation_m": None, "datum_m": None}
+    etag = r.headers["etag"]
+    assert c.get(f"/api/v1/plan-versions/{v2}/geometry", headers={**cami, "If-None-Match": etag}).status_code == 304
+    # floor 3 renamed, its gallery raised and its height changed: nothing of it reaches cami's ETag
+    assert c.patch(f"/api/v1/floors/{ids['floor3']}", json={"name": "סודי"}).status_code == 200
+    _save(c, v3, floor_height_m=4.5, levels=[dict(lv, elevation_m=2.2) if lv["id"] == "L-gal" else lv for lv in _draft(c, v3)["doc"]["levels"]])
+    assert c.get(f"/api/v1/plan-versions/{v2}/geometry", headers={**cami, "If-None-Match": etag}).status_code == 304
+    # a reader of both floors sees the change (and a new ETag)
+    full = c.get(f"/api/v1/plan-versions/{v2}/geometry")
+    assert full.json()["doc"]["connectors"][0]["far"]["floor_name"] == "סודי" and full.headers["etag"] != etag
+
+
 def test_a_stairs_model_change_reaches_the_twin_walked_back_from_its_own_start(settings):
     """Review M3: changing the shape, turn, flights, width or landing of linked stairs updates the twin (reversed
     flights, the other turn side) and regenerates its path from its own start and direction."""

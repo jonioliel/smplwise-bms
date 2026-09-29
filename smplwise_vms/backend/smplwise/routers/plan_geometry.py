@@ -74,11 +74,11 @@ def _far_ctx(conn: sqlite3.Connection, principal: Principal | None, published: b
 
 
 def _payload(conn: sqlite3.Connection, version: sqlite3.Row, row: sqlite3.Row | None, doc: dict[str, Any], principal: Principal | None = None,
-             published: bool = False) -> dict[str, Any]:
+             published: bool = False, ctx: store.FarContext | None = None, shown: dict[str, Any] | None = None) -> dict[str, Any]:
     """The document as the reader gets it - with `far` on its cross-floor connectors, computed now (review M4) - and its
-    issues."""
-    ctx = _far_ctx(conn, principal, published)
-    shown = store.attach_far(conn, version["floor_id"], doc, ctx)
+    issues. `ctx` / `shown`: what the caller already computed (the published read computes `far` first, for its ETag)."""
+    ctx = ctx or _far_ctx(conn, principal, published)
+    shown = shown if shown is not None else store.attach_far(conn, version["floor_id"], doc, ctx)
     published_now = store.published_row(conn, version["id"])
     geometry = store.row_api(row) if row is not None else {
         "id": None, "plan_version_id": version["id"], "floor_id": version["floor_id"], "status": "new", "revision": 0, "doc_hash": store.doc_hash(doc),
@@ -90,10 +90,11 @@ def _payload(conn: sqlite3.Connection, version: sqlite3.Row, row: sqlite3.Row | 
             "published_hash": published_now["doc_hash"] if published_now is not None else None}
 
 
-def _far_tag(body: dict[str, Any]) -> str:
+def _far_tag(doc: dict[str, Any]) -> str:
     """The part of a published read's ETag that follows the other floors (their names, levels and heights change the
-    `far` of this document without changing its hash): empty when the document links no other floor."""
-    fars = [c.get("far") for c in (body.get("doc") or {}).get("connectors") or [] if isinstance(c, dict) and c.get("far") is not None]
+    `far` of this document without changing its hash): empty when the document links no other floor. It hashes only the
+    `far` the reader gets, so it tells nothing of a floor the reader may not read (review L-d)."""
+    fars = [c.get("far") for c in doc.get("connectors") or [] if isinstance(c, dict) and c.get("far") is not None]
     return "" if not fars else "-f" + store.doc_hash({"far": fars})[:12]
 
 
@@ -131,16 +132,18 @@ def get_geometry(version_id: str, request: Request, draft: bool = False, at: str
         row = store.published_row(conn, v["id"])
     if row is None:
         raise not_found("אין מבנה מפורסם לגרסה הזו.")
-    if reach != "floor":
-        # the walls, rooms and openings locate the camera; the circuits name HA entities the reader holds nothing on
-        doc = {k: v2 for k, v2 in store.load_doc(row).items() if k != "circuits"}
-        body = {**_payload(conn, v, row, doc, principal, published=True), "issues": [], "reach": reach}
-    else:
-        body = _payload(conn, v, row, store.load_doc(row), principal, published=True)
-    etag = f'"{row["doc_hash"]}{_far_tag(body)}"' if reach == "floor" else f'"{row["doc_hash"]}{_far_tag(body)}-c"'
+    # the walls, rooms and openings locate the camera; the circuits name HA entities a camera reader holds nothing on
+    doc = store.load_doc(row) if reach == "floor" else {k: v2 for k, v2 in store.load_doc(row).items() if k != "circuits"}
+    # review L-d: only `far` is computed before the 304 check (the ETag follows it); issues and the rest only on a 200
+    ctx = _far_ctx(conn, principal, published=True)
+    shown = store.attach_far(conn, v["floor_id"], doc, ctx)
+    etag = f'"{row["doc_hash"]}{_far_tag(shown)}"' if reach == "floor" else f'"{row["doc_hash"]}{_far_tag(shown)}-c"'
     headers = {"ETag": etag, **NO_CACHE}
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers=headers)
+    body = _payload(conn, v, row, doc, principal, published=True, ctx=ctx, shown=shown)
+    if reach != "floor":
+        body = {**body, "issues": [], "reach": reach}
     return JSONResponse(body, headers=headers)
 
 
