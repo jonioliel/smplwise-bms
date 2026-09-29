@@ -76,6 +76,8 @@ def camera_row(r: sqlite3.Row) -> dict[str, Any]:
         "name_source": r["name_source"], "alias": r["alias"], "enabled": bool(r["enabled"]), "sort_order": r["sort_order"],
         "main_track": r["main_track"], "sub_track": r["sub_track"], "status": r["status"], "last_seen_at": r["last_seen_at"],
         "stream": caps.get("stream"),
+        # CR-008 D7: the main / sub stream encodings from the NVR and whether each plays over WebRTC (services/stream_codecs)
+        "encoding": caps.get("encoding") if isinstance(caps.get("encoding"), dict) else None,
         # N1 review note: `r["grid_col_span"]` alone is NOT safe here even after migration 0023 ships - this
         # exact defensive fallback pattern already exists for the anchor 3D fields two lines up, precisely
         # because test_anchor_3d.py's own "populated database from before 0021" test runs this CURRENT router

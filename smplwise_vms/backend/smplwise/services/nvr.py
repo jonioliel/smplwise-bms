@@ -22,6 +22,7 @@ class DiscoveredChannel:
     main_track: int | None
     sub_track: int | None
     stream: dict[str, object] | None = None  # from the main track's Description (evidence, not assumption)
+    sub_stream: dict[str, object] | None = None  # the sub track's Description, when the device fills it
 
 
 def parse_track_description(desc: str) -> dict[str, object]:
@@ -57,6 +58,18 @@ def _text(el: ET.Element, name: str) -> str:
     return ""
 
 
+_SSL_CONTEXT = None
+
+
+def _ssl_context():
+    """httpx's default verification context, built once: building it loads the CA bundle (about a second on the
+    workstation) for every client, and the NVR is plain http - the discovery / wizard make several calls in a row."""
+    global _SSL_CONTEXT
+    if _SSL_CONTEXT is None:
+        _SSL_CONTEXT = httpx.create_ssl_context()
+    return _SSL_CONTEXT
+
+
 def _client(settings: Settings) -> httpx.Client:
     from ..mode import ensure_nvr
 
@@ -67,6 +80,7 @@ def _client(settings: Settings) -> httpx.Client:
         base_url=f"http://{settings.nvr_host}:{settings.nvr_http_port}",
         auth=httpx.DigestAuth(settings.nvr_user, settings.nvr_password),
         timeout=8.0,
+        verify=_ssl_context(),
     )
 
 
@@ -223,6 +237,7 @@ def discover_channels(settings: Settings) -> list[DiscoveredChannel]:
             main_track=ids[0][0] if ids else None,
             sub_track=ids[1][0] if len(ids) > 1 else None,
             stream=ids[0][1] if ids and ids[0][1] else None,
+            sub_stream=ids[1][1] if len(ids) > 1 and ids[1][1] else None,
         ))
     return result
 
@@ -636,4 +651,144 @@ def fetch_capabilities(settings: Settings, channel: int) -> dict[str, object]:
         else:
             audio["reason"] = f"http {r.status_code}"
     return out
+
+
+# ---------------------------------------------------------------- stream encodings (CR-008 D7, read-only)
+#
+# Which of a camera's streams a browser can decode over WebRTC. Browsers decode H.264 over WebRTC, but not H.265 (most
+# browsers), MJPEG, or H.264 with B-frames. Lab evidence (the read-only NVR probe of 2026-09-14, firmware V4.84): every
+# MAIN stream (N01) had `<SVC><enabled>true` and none decoded over WebRTC, while every SUB stream (N02, H.264 without
+# SVC) did - so H.264 with SVC (temporal scalability) is treated as not WebRTC-safe as well. The streaming document has
+# no B-frame element on the lab firmware: an element whose name says B-frames is read where a device exposes one, and an
+# H.264 Baseline profile has none by definition. Anything else is "unknown" - the player then simply tries WebRTC.
+
+_BFRAME_TAGS = {"bframe", "bframes", "bframeenabled", "enablebframe", "bframenum", "bframecount", "bframeinterval"}
+
+
+def _codec_family(raw: str) -> str | None:
+    v = (raw or "").strip().upper().replace(" ", "")
+    if not v:
+        return None
+    if "265" in v or "HEVC" in v:
+        return "H.265"
+    if "264" in v or "AVC" in v:
+        return "H.264"
+    if "JPEG" in v:
+        return "MJPEG"
+    return raw.strip()
+
+
+def _flag(el: ET.Element | None) -> bool | None:
+    """`<X><enabled>true</enabled></X>`, `<X>true</X>` or a count (`<BFrameNum>2</BFrameNum>`) → bool; None when absent."""
+    if el is None:
+        return None
+    en = _child(el, "enabled")
+    text = ((en.text if en is not None else el.text) or "").strip().lower()
+    if text in ("true", "1", "on", "yes", "enable", "enabled"):
+        return True
+    if text in ("false", "0", "off", "no", "disable", "disabled"):
+        return False
+    if text.isdigit():
+        return int(text) > 0
+    return None
+
+
+def _child_text(el: ET.Element, name: str) -> str:
+    c = _child(el, name)
+    return (c.text or "").strip() if c is not None else ""
+
+
+def webrtc_verdict(enc: dict[str, object]) -> tuple[str, str]:
+    """(`ok` | `no` | `unknown`, reason) for one stream's encoding."""
+    codec = enc.get("codec")
+    if not codec:
+        return "unknown", "codec_unknown"
+    if codec == "H.265":
+        return "no", "h265"
+    if codec == "MJPEG":
+        return "no", "mjpeg"
+    if codec != "H.264":
+        return "unknown", "codec_other"
+    if enc.get("b_frames") is True:
+        return "no", "b_frames"
+    if enc.get("svc") is True:
+        return "no", "svc"
+    profile = str(enc.get("profile") or "").lower()
+    if enc.get("b_frames") is False or profile.startswith(("baseline", "bp", "constrained")):
+        return "ok", "h264_no_b_frames"
+    if enc.get("source") == "isapi":
+        return "ok", "h264"  # the device's own encoding document: H.264, SVC off, no B-frame setting on the device
+    return "unknown", "b_frames_not_reported"
+
+
+def _with_verdict(enc: dict[str, object]) -> dict[str, object]:
+    verdict, reason = webrtc_verdict(enc)
+    return {**enc, "webrtc": verdict, "reason": reason}
+
+
+def parse_streaming_channel(el: ET.Element) -> tuple[int, dict[str, object]] | None:
+    """One `<StreamingChannel>` → (its id, e.g. 101, and the encoding facts of its `<Video>`)."""
+    sid = _child_text(el, "id")
+    video = _child(el, "Video")
+    if not sid.isdigit() or video is None:
+        return None
+    raw = _child_text(video, "videoCodecType")
+    codec = _codec_family(raw)
+    width, height = _int(_child_text(video, "videoResolutionWidth")), _int(_child_text(video, "videoResolutionHeight"))
+    fps = _int(_child_text(video, "maxFrameRate"))
+    profile = _child_text(video, "H264Profile") if codec == "H.264" else _child_text(video, "H265Profile") if codec == "H.265" else ""
+    bframes: bool | None = None
+    for child in video.iter():
+        if _local(child.tag).lower() in _BFRAME_TAGS:
+            got = _flag(child)
+            if got is not None:
+                bframes = got or bool(bframes)
+    enc: dict[str, object] = {
+        "codec": codec,
+        "codec_raw": raw or None,
+        "profile": profile or None,
+        "b_frames": bframes,
+        "svc": _flag(_child(video, "SVC")),
+        "smart_codec": _flag(_child(video, "SmartCodec")),
+        "resolution": f"{width}x{height}" if width and height else None,
+        "fps": round(fps / 100, 2) if fps > 0 else None,  # hundredths (2500 = 25 fps); 0 = the camera's full rate
+        "gov_length": _int(_child_text(video, "GovLength")) or None,
+        "source": "isapi",
+    }
+    return int(sid), _with_verdict(enc)
+
+
+def parse_streaming_channels(xml: str) -> dict[int, dict[str, dict[str, object]]]:
+    """`GET /ISAPI/Streaming/channels` → {video input channel: {"main": encoding, "sub": encoding}}: N01 is the main and
+    N02 the sub stream, the same numbering as the RTSP paths go2rtc plays (a third stream N03 is ignored)."""
+    root = xmlsafe.parse(xml)
+    items = [root] if _local(root.tag) == "StreamingChannel" else [el for el in root if _local(el.tag) == "StreamingChannel"]
+    out: dict[int, dict[str, dict[str, object]]] = {}
+    for el in items:
+        parsed = parse_streaming_channel(el)
+        if not parsed:
+            continue
+        sid, enc = parsed
+        channel, kind = divmod(sid, 100)
+        if channel < 1 or kind not in (1, 2):
+            continue
+        out.setdefault(channel, {})["main" if kind == 1 else "sub"] = enc
+    return out
+
+
+def encoding_from_track(desc: dict[str, object] | None) -> dict[str, object] | None:
+    """Fallback when the streaming document cannot be read: the recording track's Description (`codecType=H.264-BP`)."""
+    if not desc or not desc.get("codec"):
+        return None
+    raw = str(desc["codec"])
+    enc: dict[str, object] = {"codec": _codec_family(raw), "codec_raw": raw, "profile": raw.split("-", 1)[1] if "-" in raw else None, "b_frames": None,
+                              "svc": None, "smart_codec": None, "resolution": desc.get("resolution"), "fps": desc.get("fps"), "gov_length": None, "source": "track"}
+    return _with_verdict(enc)
+
+
+def fetch_stream_encodings(settings: Settings) -> dict[int, dict[str, dict[str, object]]]:
+    """One read-only GET of the NVR's streaming channels: codec, profile, SVC, smart codec, B-frames where exposed."""
+    with _client(settings) as client:
+        xml = _get(client, "/ISAPI/Streaming/channels")
+    return parse_streaming_channels(xml)
 

@@ -19,7 +19,7 @@ from ..db import unlocked, new_id, now_iso
 from ..errors import ApiError, not_found
 from ..mode import ensure_nvr  # NVR-less mode: 409 nvr_not_configured
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import autosync, nvr
+from ..services import autosync, nvr, stream_codecs
 from ..services.access import camera_allowed, require_camera, visible_camera_ids
 from .anchors import camera_row
 from .settings import read_settings
@@ -248,5 +248,17 @@ def camera_capabilities(camera_id: str, request: Request, refresh: bool = False,
         "fetched_at": dt.datetime.fromtimestamp(fetched_at, dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "cached": cached,
         **data,
+        # CR-008 D7: from the capability registry (the last discovery), not from this request
+        "video": _video_facts(conn, cam),
     }
+
+
+def _video_facts(conn: sqlite3.Connection, cam: sqlite3.Row) -> dict[str, Any] | None:
+    """The stream encodings the discovery stored for this camera, with the settings hint when the main stream will not
+    play over WebRTC (Hebrew, the NVR menu path when deviceInfo names the model)."""
+    enc = stream_codecs.encoding_of(cam)
+    if not enc:
+        return None
+    hint = stream_codecs.main_hint(stream_codecs.camera_name(cam), int(cam["channel"]), enc.get("main"), stream_codecs.recorder_model(conn))
+    return {**enc, "hint": hint}
 
