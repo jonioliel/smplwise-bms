@@ -29,6 +29,7 @@ import type { ScenePreset } from '../map/scene-three';
 import type { PartSelectDetail } from '../map/sw-plan-3d';
 import { boundItemOf } from '../map/part-select';
 import { WEBGL_UNAVAILABLE_HE, webglAvailable } from '../map/webgl';
+import { sameRefs } from '../map/memo';
 import { initialLevel } from '../map/studio-ops';
 import { productSettings } from '../api/prefs';
 
@@ -76,7 +77,8 @@ export class InvestigateEventDetail extends LitElement {
   /** The "from camera" preset, one object per toggle: the element re-applies a preset only when the property changes. */
   @state() private eventPreset: ScenePreset = 'iso';
   private itemNames = new Map<string, string>();
-  private sceneMemo: { keys: unknown[]; desc: SceneDescription; labels: Record<string, string> } | null = null;
+  /** `refs`: what the scene getter reads, by identity (a hit skips the anchor list and its JSON key); `keys`: the signature. */
+  private sceneMemo: { refs: unknown[]; keys: unknown[]; desc: SceneDescription; labels: Record<string, string> } | null = null;
 
   static styles = css`
     :host {
@@ -530,11 +532,15 @@ export class InvestigateEventDetail extends LitElement {
   /** The scene of the event's floor, built only while the 3D is on and memoised on a signature of what the builder reads.
    * The map card shows the current plan (not the plan at the event time), so it carries no states of the instant: an HA
    * state is drawn only when the bundle has it for the instant (state_at), else as unknown with the doors closed, and the
-   * circuits stay off. Never today's live value on an event of the past. */
+   * circuits stay off. Never today's live value on an event of the past. Read several times per render: while nothing it
+   * reads changed (by identity - the page replaces its bundle, structure and library, never mutates them) it answers the
+   * memo without building the anchor list or its key (0.1.89 list, item 3). */
   private get sceneDescription(): SceneDescription | null {
     const b = this.bundle;
     const g = this.geometry;
     if (!this.view3d || !b || b.source !== 'api' || !g) return null;
+    const refs: unknown[] = [b, g, this.catalog3d, this.level, this.itemNames];
+    if (this.sceneMemo && sameRefs(this.sceneMemo.refs, refs)) return this.sceneMemo.desc;
     const stateAt = (a: MapBundle['anchors'][number]) => (a.entity?.state_at?.known ? a.entity.state_at.state : null);
     const anchors: SceneAnchor[] = b.anchors.map((a) => ({
       id: a.id, resource_type: a.resource_type, resource_id: a.resource_id, x: a.position.x, y: a.position.y, rotation: a.rotation_degrees, fov: a.field_of_view_degrees ?? null, radius: a.coverage_radius ?? null,
@@ -543,14 +549,17 @@ export class InvestigateEventDetail extends LitElement {
     }));
     const entityStates = Object.fromEntries(b.anchors.filter((a) => a.resource_type === 'ha_entity').map((a) => [a.resource_id, stateAt(a)]));
     const zones = b.zones.map((z) => ({ id: z.id, name: z.name, polygon: z.polygon, level_id: z.level_id ?? null }));
-    const keys: unknown[] = [JSON.stringify([b.floorId, b.width, b.height, anchors, entityStates, zones]), g, this.catalog3d, this.level];
-    if (this.sceneMemo && this.sceneMemo.keys.every((k, i) => k === keys[i])) return this.sceneMemo.desc;
+    const keys: unknown[] = [JSON.stringify([b.floorId, b.width, b.height, anchors, entityStates, zones]), g, this.catalog3d, this.level, this.itemNames];
+    if (this.sceneMemo && sameRefs(this.sceneMemo.keys, keys)) {
+      this.sceneMemo = { ...this.sceneMemo, refs };
+      return this.sceneMemo.desc;
+    }
     const desc = buildScene({ doc: g, width: b.width, height: b.height, anchors, entityStates, circuitStates: {}, catalog: this.catalog3d, zones, level: this.level, anchorsEveryLevel: true });
     const labels: Record<string, string> = {};
     for (const a of b.anchors) labels[a.id] = entityName(a);
     for (const o of g.objects) labels[o.id] = o.label || this.itemNames.get(o.item_id) || o.item_id;
     for (const z of b.zones) labels[z.id] = z.name;
-    this.sceneMemo = { keys, desc, labels };
+    this.sceneMemo = { refs, keys, desc, labels };
     return desc;
   }
 

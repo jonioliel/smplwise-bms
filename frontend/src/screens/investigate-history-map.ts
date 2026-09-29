@@ -34,6 +34,7 @@ import type { ScenePreset } from '../map/scene-three';
 import type { PartSelectDetail } from '../map/sw-plan-3d';
 import { boundItemOf } from '../map/part-select';
 import { WEBGL_UNAVAILABLE_HE, webglAvailable } from '../map/webgl';
+import { sameRefs } from '../map/memo';
 
 const NEAR_MIN = 10;
 
@@ -89,7 +90,8 @@ export class InvestigateHistoryMap extends LitElement {
   @state() private preset3d: ScenePreset = 'iso';
   @state() private catalog3d: Catalog3DLookup | null = null;
   private itemNames = new Map<string, string>();
-  private sceneMemo: { keys: unknown[]; desc: SceneDescription; labels: Record<string, string> } | null = null;
+  /** `refs`: what the scene getter reads, by identity (a hit skips the anchor list and its JSON key); `keys`: the signature. */
+  private sceneMemo: { refs: unknown[]; keys: unknown[]; desc: SceneDescription; labels: Record<string, string> } | null = null;
   private onKey = (e: KeyboardEvent) => {
     const t = e.composedPath()[0];
     const typing = t instanceof HTMLElement && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
@@ -579,11 +581,16 @@ export class InvestigateHistoryMap extends LitElement {
    * cameras blue where a recording covers the instant. Built only while the 3D is on, and rebuilt only when its inputs
    * changed: the memo is keyed on a signature of what the builder reads (anchors, states, coverage at the cursor, zones) plus
    * the structure document (cached by hash, so the same object while the cursor stays in one publish) and the library.
-   * The anchors carry today's mount height and tilt: the history keeps only the current anchor row. */
+   * The anchors carry today's mount height and tilt: the history keeps only the current anchor row. The getter is read
+   * several times per render: while nothing it reads changed - by identity, the screen replaces its bundle, structure,
+   * library and recordings and never mutates them; the cursor's minute and zone are values - it answers the memo without
+   * building the anchor list or its key (0.1.89 list, item 3). */
   private get sceneDescription(): SceneDescription | null {
     const b = this.bundle;
     const g = this.geometry;
     if (!this.view3d || !b || b.source !== 'api' || !g) return null;
+    const refs: unknown[] = [b, g, this.catalog3d, this.level, this.itemNames, this.recordings, this.minute, this.tz];
+    if (this.sceneMemo && sameRefs(this.sceneMemo.refs, refs)) return this.sceneMemo.desc;
     const anchors: SceneAnchor[] = b.anchors.map((a) => ({
       id: a.id, resource_type: a.resource_type, resource_id: a.resource_id, x: a.position.x, y: a.position.y, rotation: a.rotation_degrees, fov: a.field_of_view_degrees ?? null, radius: a.coverage_radius ?? null,
       polygon: a.coverage_polygon ?? null, level_id: a.level_id ?? null, layer_id: a.layer_id, label: entityName(a), state: this.stateAt(a),
@@ -593,15 +600,18 @@ export class InvestigateHistoryMap extends LitElement {
     const entityStates = Object.fromEntries(b.anchors.filter((a) => a.resource_type === 'ha_entity').map((a) => [a.resource_id, this.stateAt(a)]));
     const circuitStates = Object.fromEntries(Object.entries(b.circuitStates).map(([id, s]) => [id, s.state]));
     const zones = b.zones.map((z) => ({ id: z.id, name: z.name, polygon: z.polygon, level_id: z.level_id ?? null }));
-    const keys: unknown[] = [JSON.stringify([b.floorId, b.width, b.height, anchors, entityStates, circuitStates, zones]), g, this.catalog3d, this.level];
-    if (this.sceneMemo && this.sceneMemo.keys.every((k, i) => k === keys[i])) return this.sceneMemo.desc;
+    const keys: unknown[] = [JSON.stringify([b.floorId, b.width, b.height, anchors, entityStates, circuitStates, zones]), g, this.catalog3d, this.level, this.itemNames];
+    if (this.sceneMemo && sameRefs(this.sceneMemo.keys, keys)) {
+      this.sceneMemo = { ...this.sceneMemo, refs };
+      return this.sceneMemo.desc;
+    }
     const desc = buildScene({ doc: g, width: b.width, height: b.height, anchors, entityStates, circuitStates, catalog: this.catalog3d, zones, level: this.level, anchorsEveryLevel: true });
     // hover labels: anchors by their map name, objects by label or library name, zones by name
     const labels: Record<string, string> = {};
     for (const a of b.anchors) labels[a.id] = entityName(a);
     for (const o of g.objects) labels[o.id] = o.label || this.itemNames.get(o.item_id) || o.item_id;
     for (const z of b.zones) labels[z.id] = z.name;
-    this.sceneMemo = { keys, desc, labels };
+    this.sceneMemo = { refs, keys, desc, labels };
     return desc;
   }
 
