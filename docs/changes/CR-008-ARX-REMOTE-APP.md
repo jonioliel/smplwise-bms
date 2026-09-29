@@ -511,6 +511,49 @@ round and release (step 7). Tests: 45 backend tests (`tests/test_remote_access.p
 
 ## 9. Build status
 
+### Security-review follow-ups built (2026-09-30, branch `pilot/remote-followups`, not released)
+
+The two open items the reviewers recorded (round-10 report §6.1) are closed:
+
+- **Authentication before the write transaction** (`749dc52`). `get_conn` took the write gate (a turn in the FIFO queue
+  of writers) and SQLite's write lock at `BEGIN IMMEDIATE` before the remote principal was known, so an unauthenticated
+  POST from the internet queued in front of legitimate writers before its 401. Now `auth.resolve_remote_first` resolves
+  the session / bearer first: from memory (`offline=True`), or on `NeedsUnlock` (HA must be asked, a refusal or sign-in
+  row written) with no connection of the request open. No credential, an unknown / expired / revoked session, a garbage,
+  expired or already-refused token: 401 without touching the gate. A session revoked while the request waited for its
+  write turn is resolved again. Refusals anyone can repeat (a rate-limited sign-in or bearer request, a cross-site
+  request with a cookie of no live session) are audited at most once per reason and address a minute, the suppressed
+  count travelling with the next row; a refused request of a real session is always recorded. Ingress / LAN unchanged.
+  Evidence: `tests/test_remote_auth_first.py` (a flood of 35 kinds of unauthenticated state-changing requests leaves
+  `WriteGate.acquire`, `lock_stats` and the audit table untouched with the I/O guard clean; the same flood while a
+  writer holds the gate is answered at once and never queues, and the waiting legitimate writer gets the lock at
+  release).
+- **Request body size limits while the body streams** (`6b3eb60`). FastAPI reads a form body before the route's
+  dependencies, so uploads were spooled to a temp file in full - before the route's own size check and even before
+  authentication. `smplwise/body_limit.py` (ASGI, directly inside `RemoteChannel`): a `Content-Length` above the limit is
+  answered 413 before a body byte is read; a chunked body is counted and cut at the limit (the multipart parser's spooled
+  files are closed); the 413 is the project's error envelope (`payload_too_large`, `details.max_bytes`,
+  `details.stage = "request_body"`, `details.rule`) with `Connection: close`. WebSockets, streaming responses and the
+  media relay are untouched.
+
+| Rule | Route (under `/api/v1`) | Limit |
+|---|---|---|
+| default | every other request | 1 MiB |
+| plan_upload | `POST floors/{id}/plan-assets` | `max_upload_bytes` (40 MiB) + 64 KiB |
+| catalog_image | `POST sites/{id}/image`, `POST buildings/{id}/image` | 12 MiB + 64 KiB |
+| skins_control_image | `POST floors/{id}/skins/control-image` | 8 MiB + 64 KiB |
+| backup_upload | `POST backups/upload` | 200 MiB + 64 KiB |
+| evidence_bundle | `POST cases/bundles/verify`, `POST cases/bundles/import` | ceiling of `cases.import_max_mb` (4096 MiB) + 64 KiB; the routes stop at the configured value while streaming |
+| geometry_document / detection_accept | `PUT plan-versions/{id}/geometry`, `POST plan-versions/{id}/detect/accept` | 16 MiB |
+| catalog_import | `POST catalog/import` | 8 MiB |
+| csp_report | `POST csp-report` | 16 KiB |
+| remote_public | remote: `auth/session`, `auth/remote-config`, `/.well-known/*` | 4 KiB |
+| remote_anonymous | remote, any path, no live session named (no Arx cookie of a known session, no bearer token of a known bearer session; memory only) | at most 64 KiB |
+
+There is no WisKey person-photo upload route yet (slice A3; `extra="forbid"` refuses a `photo` key), so the people routes
+fall under the 1 MiB default. A bearer client's first request must stay under 64 KiB (its token becomes a known bearer
+session on that request). Evidence: `tests/test_body_limit.py`.
+
 ### Android app with its own WebView built (2026-09-29, branch `pilot/CR008-android-shell`, not released)
 
 The owner installed the Trusted Web Activity trial (branch `pilot/CR008-android-twa`) and asked for a more professional
