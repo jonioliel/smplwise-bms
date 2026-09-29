@@ -449,6 +449,10 @@ test.describe('overview tiles against the devices fixture backend', () => {
         if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `big-site-${w}x${h}-${layout}.png`) });
       }
     }
+    // the registry is rewritten by the next seed, but these entities' states stay in the catalogue (unassigned):
+    // make them unavailable so they never count as on / off in the other tests' building-wide panels
+    const gone = states.map((s) => ({ entity_id: s.entity_id, state: 'unavailable', attributes: s.attributes }));
+    for (let i = 0; i < gone.length; i += 50) await request.post('/api/v1/ha/dev/states', { data: { states: gone.slice(i, i + 50) } });
     await seed(request);
   });
 });
