@@ -6,6 +6,7 @@ retention. The RTSP URL carries the NVR credential and is never logged."""
 from __future__ import annotations
 
 import logging
+import os
 import queue
 import shutil
 import subprocess
@@ -44,6 +45,99 @@ def _neg_path(settings: Settings, event_id: str) -> Path:
 
 def eligible(ev: dict[str, Any]) -> bool:
     return bool(ev.get("camera_id")) and ev.get("type") not in SKIP_TYPES
+
+
+class _DirIndex:
+    """Which thumbnails exist, per thumbs folder, from one directory listing instead of two stat() calls per listed
+    event (T068: a 500-row events list spent ~80 % of its time in those stats on the reference workstation). The worker
+    records what it writes, the prune drops the index, and a listing older than INDEX_TTL_S is re-read, so a file added
+    or removed behind the product's back (a restore, a manual clean-up) is seen within that time. The single-event
+    paths (the picture itself, the worker's queue check) keep asking the file system directly."""
+
+    INDEX_TTL_S = 30.0
+
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.dirs: dict[str, tuple[float, set[str], dict[str, float]]] = {}  # folder -> (built, ready ids, unavailable id -> mtime)
+        self.writes: dict[str, int] = {}  # folder -> writes noted so far (a listing that raced a write is not kept)
+        self.rebuilds = 0
+
+    def _get(self, d: Path) -> tuple[set[str], dict[str, float]]:
+        key = str(d)
+        with self.lock:
+            hit = self.dirs.get(key)
+            if hit and time.monotonic() - hit[0] < self.INDEX_TTL_S:
+                return hit[1], hit[2]
+        with self.lock:
+            seen_writes = self.writes.get(key, 0)
+        ready: set[str] = set()
+        neg: dict[str, float] = {}
+        try:
+            with os.scandir(d) as it:
+                for e in it:
+                    name = e.name
+                    if name.endswith(".jpg") and not name.endswith(".tmp.jpg"):
+                        ready.add(name[:-4])
+                    elif name.endswith(".unavailable"):
+                        try:
+                            neg[name[:-12]] = e.stat().st_mtime
+                        except OSError:
+                            pass
+        except FileNotFoundError:
+            pass
+        with self.lock:
+            self.rebuilds += 1
+            if self.writes.get(key, 0) == seen_writes:
+                self.dirs[key] = (time.monotonic(), ready, neg)
+            else:  # the worker wrote while the folder was being listed: answer from it, but list again next time
+                self.dirs.pop(key, None)
+        return ready, neg
+
+    def statuses(self, d: Path, event_ids: Iterable[str]) -> dict[str, str]:
+        ready, neg = self._get(d)
+        now = time.time()
+        out: dict[str, str] = {}
+        for eid in event_ids:
+            if eid in ready:
+                out[eid] = "ready"
+            elif eid in neg and now - neg[eid] < NEG_TTL_S:
+                out[eid] = "unavailable"
+            elif WORKER.is_pending(eid):
+                out[eid] = "pending"
+            else:
+                out[eid] = "none"
+        return out
+
+    def note(self, d: Path, event_id: str, ok: bool) -> None:
+        with self.lock:
+            self.writes[str(d)] = self.writes.get(str(d), 0) + 1
+            hit = self.dirs.get(str(d))
+            if hit is None:
+                return
+            if ok:
+                hit[1].add(event_id)
+                hit[2].pop(event_id, None)
+            else:
+                hit[1].discard(event_id)
+                hit[2][event_id] = time.time()
+
+    def invalidate(self, d: Path | None = None) -> None:
+        with self.lock:
+            if d is None:
+                self.dirs.clear()
+                for k in self.writes:
+                    self.writes[k] += 1
+            else:
+                self.dirs.pop(str(d), None)
+                self.writes[str(d)] = self.writes.get(str(d), 0) + 1
+
+
+INDEX = _DirIndex()
+
+
+def statuses_for(settings: Settings, event_ids: Iterable[str]) -> dict[str, str]:
+    """status_for() for many events at once, from the folder index (the events list)."""
+    return INDEX.statuses(thumb_dir(settings), event_ids)
 
 
 def status_for(settings: Settings, event_id: str) -> str:
@@ -119,6 +213,7 @@ def generate(db: Database, settings: Settings, event_id: str) -> bool:
         neg = _neg_path(settings, event_id)
         neg.parent.mkdir(parents=True, exist_ok=True)
         neg.write_text(str(STATE["last_error"] or "failed"), encoding="utf-8")
+    INDEX.note(thumb_dir(settings), event_id, ok)
     if ev:
         ev["camera_name"] = (cam["alias"] or cam["name_source"] or cam["id"]) if cam else None
         ev["thumbnail"] = "ready" if ok else "unavailable"
@@ -212,4 +307,6 @@ def prune(settings: Settings, retention_days: int) -> int:
                 total -= st.st_size
             except OSError:
                 pass
+    if removed:
+        INDEX.invalidate(d)
     return removed

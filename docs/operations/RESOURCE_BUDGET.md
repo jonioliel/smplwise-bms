@@ -91,6 +91,46 @@ Run 2 (after the fixes), backend restarted seconds before the run (cold caches, 
 | Backend working set, idle + HA sync | < 200 MB | met (92.5 MB) |
 | Live streams / transcodes | measured on the HA host, not here | open |
 | SQLite write lock under mixed background + API load | 0 `database is locked`; innocent writer waits < 5 s; no hold > 3 s | met 2026-09-29 (0 errors, max wait 1.1-1.4 s, max hold < 1.2 s even with 5 s NVR search pages; see below) |
+| Events list (24 h, 500 rows) under 8 alerts/s ingest + 8 readers | p95 < 1.5 s | met 2026-09-29: p50 1655 -> 191 ms, p95 2442 -> 663 ms (see "Events-window cache" below) |
+| Device-free soak: restarts, ingest, readers, exports into a full disk | 0 `database is locked`, 0 HTTP 500, no thread / socket / subscriber growth, queues bounded, counters consistent | met 2026-09-29 for 10 minutes (all 21 checks; `SOAK_LOCAL.md`); 3-5 h still open |
+
+### Bounds on caches and queues (T068, 2026-09-29)
+
+Every in-process structure that grows with load has a fixed bound and a counter in `/health` (the drop / defer
+policy is explicit, never "grow and hope").
+
+| structure | bound | when full | where to see it |
+|---|---|---|---|
+| events-window cache (`services/events_cache.py`) | 32 windows, 5000 event rows in total (rows, not bytes: ~3 KB per row dict measured, so ≈ 15 MB worst case), TTL 5 s; the key carries the database file's identity (path, device, inode) | least recently used out; a window over 5000 rows is not cached | `/health` → `events.cache` (hits, misses, hit_rate, stale, evictions, size, rows) |
+| thumbnail folder index (`thumbnails.INDEX`) | one id set per thumbs folder (the folder itself is capped at 200 MB by the prune) | re-read every 30 s; dropped by the prune | — |
+| alert-ingest queue (`events_ingest.QUEUE`) | 256 waiting alerts | same camera / kind / state within 30 s (`DEDUP_WINDOW_S`) of the entry's first and newest alert: coalesced (stored as first + newest with the count between - the same rows as alert by alert); otherwise the oldest is dropped; at shutdown the writer stores what is queued for up to 5 s and counts the rest (`dropped_shutdown`) | `/health` → `backpressure.ingest_queue`, `events.ingest.queue` (accepted, processed, failed, coalesced, dropped, depth, high_water) |
+| event WebSocket client queue | 200 pushes per socket (unchanged) | the push is dropped for that client | `events.ingest.ws_drops` |
+| export queue | 20 waiting jobs (queued + paused) in total, 5 active per owner | 429 `export_queue_full` / `too_many_jobs` (retryable) | `/health` → `backpressure.exports` |
+| data disk for exports | `storage.min_free_mb` (default 1024 MB; the same key guards T050 uploads) | new job: 507 `insufficient_storage` (also when the estimate would cross the line; a file listed without a size counts as the average known size, else 64 MB); running job: `paused_disk_full`, resumes by itself after a back-off (15 s, 1 min, then 5 min per pause in a row) once what it still needs - at least the bytes it reached before the pause - fits above the minimum + 64 MB, or from the storage screen. Not guarded: the ffmpeg remux after the download (it needs about the job's size again, briefly); a full disk there fails the remux and the raw NVR files are delivered instead | `/health` → `backpressure.data_disk`, `/storage/local`, the storage screen's "הדיסק של התוסף" card |
+| export progress writes | at most one write transaction per second per job (was one per 256 KB chunk) | — | — |
+
+### Events-window cache (2026-09-29)
+
+`tests/test_events_cache_perf.py` (opt-in, `SW_EVENTS_PERF=1`): one temporary database seeded with 3000 events over
+the last 24 h on 8 cameras; the NVR alert stream through the product's own listener at ~8 alerts/s on 8 channels (mostly
+repeats of open bursts, every fifth a new row); 6 readers of the 24 h list (`limit=500`) and 2 of the facets, each waiting
+0.2 s between requests; three 60 s phases with the same load. Reference workstation, quiet machine.
+
+| phase | events list p50 / p95 / max | lists served | facets p50 / p95 | cache hit rate |
+|---|---|---|---|---|
+| before (pre-T068 code path: no cache, two `stat()` per listed event for its thumbnail) | 1655 / 2442 / 2954 ms | 192 | 155 / 238 ms | - |
+| thumbnail folder index only | 320 / 612 / 999 ms | 655 | 106 / 173 ms | - |
+| after (index + window cache, as shipped) | **191 / 663 / 1084 ms** | **784** | **82 / 179 ms** | 0.52 |
+
+What the numbers say:
+- The list's cost was not the query: a profile of one 500-row request showed ~80 % in `thumbnails.status_for` (two file
+  `stat()`s per row on this Windows workstation). One folder listing per 30 s instead cut the list p50 by 5x.
+- The window cache helps the facets and the p50 of the list; the list's p95 stays at the index-only level because at
+  8 alerts/s every alert changes a row the list shows (a repeat bumps `count`), so most list requests arrive at a new
+  version (hit rate of the list alone is low; the facets, which ignore repeats, hit most of the time). Correctness wins
+  here on purpose: a cached list is never served for a version older than the data.
+- In the 10-minute soak (mixed readers, ingest from both feeds) the overall hit rate was 0.29 with 6 entries / 1313 rows
+  held - far below the bounds.
 
 ### SQLite write-lock contention (2026-09-29, round-10 lock storm)
 
@@ -108,9 +148,12 @@ the commit; `/health` → `db.write_lock` shows the longest hold and its holder.
 
 - Live streams and transcodes versus CPU on the Home Assistant host itself (go2rtc runs there; this workstation only
   relays). Time-to-first-frame is a browser measurement (planned in VISUAL_REGRESSION.md).
-- A 24-hour soak with HA / go2rtc / NVR restarts; today's evidence is ~25 backend restarts during the day with the health
-  report back to OK within 15–25 s each time, and HA reconnecting on its own.
-- Export queue under a full disk and backpressure on the live relay.
+- A 24-hour soak with HA / go2rtc / NVR restarts on the real devices; today's evidence is ~25 backend restarts during the
+  day with the health report back to OK within 15–25 s each time, and HA reconnecting on its own. The device-free part
+  (fake NVR / HA restarting, ingest, exports into a full disk, backpressure) runs since 2026-09-29: `SOAK_LOCAL.md`; a
+  3-5 h run of it (`--minutes 240`) is still open.
+- Backpressure on the live relay (go2rtc streams) - device-dependent. The export queue under a full disk is covered by
+  the device-free soak.
 - The events list itself: with the lock gone, eight concurrent 24 h lists still take ≈ 3.1 s each (p50 ≈ p95) because
   they now share the CPU instead of queueing — the list is built in Python per request (derived events, filters,
   spatial joins); caching the assembled day or paging the derivation is the next optimisation. Done since this section
