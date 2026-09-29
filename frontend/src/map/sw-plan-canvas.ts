@@ -4,7 +4,7 @@ import '../components/sw-button';
 import { t } from '../i18n/he';
 import type { StateKind } from '../components/sw-badge';
 import { applyAnchorPositions, buildPrimitives, circuitToken, isClosedOutline, objectHitCorners, objectHitOrder, type AnchorPosition, type CatalogLookup, type DoorPrim, type GeometryDoc, type LabelPrim, type ConnectorPrim, type ObjectPrim, type PassagePrim, type Primitive, type Pt, type WallPrim, type WindowPrim } from './geometry';
-import { OUTSIDE_MAIN_HE, candidatesDoc, isOutsideMain, type CandidateSet, type CandState } from './candidates';
+import { OUTSIDE_MAIN_HE, candidatesDoc, isOutsideMain, objectCandidateLabel, type CandidateSet, type CandState } from './candidates';
 import { symbolOf } from './plan-symbols';
 import { CoverageCache, hasWallsOnLevel } from './coverage';
 import { levelOrDefault, translatePolygon } from './studio-ops';
@@ -307,7 +307,7 @@ export class SwPlanCanvas extends LitElement {
   @property({ attribute: false }) ghostHandles: GhostHandle[] = [];
   @state() private candHover: string | null = null;
   @state() private candDrag: { x: number; y: number } | null = null;
-  private candCache: { set: CandidateSet; doc: GeometryDoc | null; w: number; h: number; prims: Primitive[] } | null = null;
+  private candCache: { set: CandidateSet; doc: GeometryDoc | null; w: number; h: number; catalog: CatalogLookup | null; prims: Primitive[] } | null = null;
   /** The pointer during a structure drag (a small dot where the item is being taken). */
   @state() private geomDragAt: { x: number; y: number } | null = null;
   /** A press on a structure item is in progress: the placing tool gets no hover until it ends. */
@@ -825,6 +825,13 @@ export class SwPlanCanvas extends LitElement {
       fill: none;
       stroke: var(--sw-map-candidate);
       stroke-dasharray: 5 4;
+    }
+    /* detector 1.4: an object candidate (a tribune, a column) - its outline and a tribune's rows, dashed */
+    .candidates .cobj,
+    .candidates .crow {
+      fill: none;
+      stroke: var(--sw-map-candidate);
+      stroke-dasharray: 6 4;
     }
     .candidates .cand.rejected {
       opacity: 0.28;
@@ -2079,19 +2086,20 @@ export class SwPlanCanvas extends LitElement {
     const doc = this.geometry;
     if (!doc) return [];
     const c = this.candCache;
-    if (c && c.set === set && c.doc === doc && c.w === this.planWidth && c.h === this.planHeight) return c.prims;
-    const prims = buildPrimitives(candidatesDoc(doc, set), this.planWidth, this.planHeight);
-    this.candCache = { set, doc, w: this.planWidth, h: this.planHeight, prims };
+    if (c && c.set === set && c.doc === doc && c.w === this.planWidth && c.h === this.planHeight && c.catalog === this.catalog) return c.prims;
+    // the library (when loaded) gives an object candidate its shape: a tribune draws its rows
+    const prims = buildPrimitives(candidatesDoc(doc, set), this.planWidth, this.planHeight, null, this.catalog ?? undefined);
+    this.candCache = { set, doc, w: this.planWidth, h: this.planHeight, catalog: this.catalog, prims };
     return prims;
   }
 
   private candConfidence(set: CandidateSet, id: string): number {
-    return set.walls.find((w) => w.id === id)?.confidence ?? set.openings.find((o) => o.id === id)?.confidence ?? 0;
+    return set.walls.find((w) => w.id === id)?.confidence ?? set.openings.find((o) => o.id === id)?.confidence ?? set.objects.find((o) => o.id === id)?.confidence ?? 0;
   }
 
   /** Where the score pill sits: the middle of a wall's first part, the gap centre of an opening. Candidate primitives
-   * are only ever wall / door / window / passage (candidatesDoc clears every other collection); the other Primitive
-   * kinds are handled only so this stays exhaustive against the shared union type. */
+   * are wall / door / window / passage and object (candidatesDoc clears every other collection); an object has no pill
+   * (it is not hovered: no hit area), and the other Primitive kinds are handled only so this stays exhaustive. */
   private candAnchor(prims: Primitive[], id: string): Pt | null {
     const p = prims.find((x) => x.id === id);
     if (!p) return null;
@@ -2132,6 +2140,13 @@ export class SwPlanCanvas extends LitElement {
             return svg`<g class=${cls(p.id)} data-candidate=${p.id} data-kind="window" data-state=${a.state} data-score=${a.score}>${p.lines.map(([x, y]) => svg`<line class="cglass" x1=${x[0]} y1=${x[1]} x2=${y[0]} y2=${y[1]} stroke-width=${1.6 * inv} />`)}</g>`;
           case 'passage':
             return svg`<g class=${cls(p.id)} data-candidate=${p.id} data-kind="passage" data-state=${a.state} data-score=${a.score}><line class="cgap" x1=${p.gap[0][0]} y1=${p.gap[0][1]} x2=${p.gap[1][0]} y2=${p.gap[1][1]} stroke-width=${inv} /></g>`;
+          case 'object':
+            // an object candidate (detector 1.4 tribune / column, a DXF block): its outline and a tribune's rows; not
+            // clickable - the objects go with the accept together (the panel's checkbox sets their state)
+            return svg`<g class=${cls(p.id)} data-candidate=${p.id} data-kind="object" data-item=${p.item_id} data-state=${a.state} data-score=${a.score}><title>${objectCandidateLabel(p.item_id)}</title>
+              <polygon class="cobj" points=${ptsAttr(p.corners)} stroke-width=${1.6 * inv} />
+              ${p.steps.map(([x, y]) => svg`<line class="crow" x1=${x[0]} y1=${x[1]} x2=${y[0]} y2=${y[1]} stroke-width=${inv} />`)}
+            </g>`;
           default:
             return nothing;
         }

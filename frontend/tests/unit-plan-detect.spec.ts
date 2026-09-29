@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { DetectResult } from '../src/api/geometry';
 import { buildPrimitives, type GeometryDoc } from '../src/map/geometry';
-import { OUTSIDE_MAIN_HE, allIds, byConfidence, byKind, candidatesDoc, defaultStates, fromResult, isOutsideMain, moveVertex, outsideMainSummary, rescale, withParents, type CandidateSet } from '../src/map/candidates';
+import { OUTSIDE_MAIN_HE, allIds, byConfidence, byKind, candidatesDoc, defaultStates, fromResult, isOutsideMain, moveVertex, objectCandidateLabel, objectsSummary, outsideMainSummary, rescale, withParents, type CandidateSet } from '../src/map/candidates';
 
 // Plan Studio phase 3 (T086): the pure candidate-set operations the editor's detect tool runs on. Node only.
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -115,4 +115,59 @@ test('the candidates layer draws a flagged wall with its own dash, a title and t
   expect(dash).not.toBe('none'); // selected, it stays dashed (a selected plain candidate turns solid)
   await expect(canvas.locator('[data-candidates] [data-outside-main]')).toHaveCount(2); // no other candidate is flagged
   await expect(canvas.locator('[data-cand-score-for="auto-r-w003"]')).toContainText(OUTSIDE_MAIN_HE);
+});
+
+// Detector 1.4 (T086 tuning): /detect proposes tribunes and columns as object candidates.
+const tribune = (id: string) => ({ id, item_id: 'tribune.stepped', level_id: 'L0', position: [0.5, 0.4] as [number, number], rotation_deg: 0, size: { w_m: 12, d_m: 5.4, h_m: 1.8 }, z_m: 0,
+  params: { rows: 6, step_height_m: 0.3, step_width_m: 0.9, connects_levels: null } as Record<string, unknown>, label: null, anchor_ref: null, group_id: null, confidence: 0.8, source: 'auto' as const, locked: false, external_ids: {} });
+const column = (id: string, x: number) => ({ ...tribune(id), item_id: 'column.square', position: [x, 0.8] as [number, number], size: { w_m: 0.9, d_m: 0.9, h_m: 2.8 }, params: {}, confidence: 0.6 });
+
+function withObjects(): DetectResult {
+  const r = result();
+  return { ...r, objects: [tribune('auto-r-x001'), column('auto-r-x002', 0.2), column('auto-r-x003', 0.5)],
+    pixels: { ...r.pixels, 'auto-r-x001': { w_px: 1200, d_px: 540 }, 'auto-r-x002': { w_px: 90, d_px: 90 }, 'auto-r-x003': { w_px: 90, d_px: 90 } } };
+}
+
+test('detected object candidates: drawn with the set, rescaled with it, summarised by kind', () => {
+  const set = fromResult(withObjects());
+  const catalog = (id: string) => (id === 'tribune.stepped' ? { shape: 'stepped' as const, icon: 'stairs', color_token: 'circulation' } : { shape: 'box' as const, icon: 'box', color_token: 'structure' });
+  const prims = buildPrimitives(candidatesDoc(sample(), set), 1000, 800, null, catalog);
+  const objects = prims.filter((p) => p.kind === 'object');
+  expect(objects.map((p) => p.id)).toEqual(['auto-r-x001', 'auto-r-x002', 'auto-r-x003']);
+  const t = objects.find((p) => p.id === 'auto-r-x001');
+  expect(t && t.kind === 'object' ? t.steps.length : -1).toBe(5); // six rows: five lines between them
+  expect(allIds(set)).not.toContain('auto-r-x001'); // objects go with the accept together, not one by one
+  const half = rescale(set, 0.005);
+  const tr = half.objects.find((o) => o.id === 'auto-r-x001')!;
+  expect(tr.size).toEqual({ w_m: 6, d_m: 2.7, h_m: 1.8 });
+  expect(tr.params.step_width_m).toBe(0.45);
+  expect(half.objects.find((o) => o.id === 'auto-r-x002')!.size).toEqual({ w_m: 0.45, d_m: 0.45, h_m: 2.8 });
+  // a DXF object carries no pixels: its metres are the drawing's and stay
+  const dxf = fromResult({ ...result(), objects: [{ ...column('imp-r-x001', 0.3), source: 'imported' as const }] });
+  expect(rescale(dxf, 0.005).objects[0].size).toEqual({ w_m: 0.9, d_m: 0.9, h_m: 2.8 });
+  expect(objectsSummary(set, 'detect')).toBe('3 עצמים שזוהו (טריבונה, 2 עמודים)');
+  expect(objectsSummary(dxf, 'dxf')).toBe('עצם אחד מהקובץ');
+  expect(objectCandidateLabel('column.square')).toBe('עמוד');
+});
+
+test('the candidates layer draws object candidates dashed, faded while left out', async ({ page }) => {
+  await page.goto('/#/explore/floors/f0');
+  const canvas = page.locator('explore-floor-map sw-plan-canvas');
+  await expect(canvas).toBeVisible({ timeout: 20000 });
+  const set = fromResult(withObjects());
+  const draw = (states: Record<string, string>) =>
+    canvas.evaluate(async (n, a) => {
+      const cv = n as HTMLElement & { geometry: unknown; candidates: unknown; candidateStates: unknown; updateComplete: Promise<boolean> };
+      cv.geometry = a.doc;
+      cv.candidates = a.set;
+      cv.candidateStates = a.states;
+      await cv.updateComplete;
+    }, { doc: sample(), set, states });
+  await draw({});
+  await expect(canvas.locator('[data-candidates] [data-kind="object"]')).toHaveCount(3);
+  await expect(canvas.locator('[data-candidates] [data-candidate="auto-r-x002"] title')).toHaveText('עמוד');
+  const dash = await canvas.locator('[data-candidates] [data-candidate="auto-r-x001"] .cobj').evaluate((el) => getComputedStyle(el).strokeDasharray);
+  expect(dash).not.toBe('none');
+  await draw({ 'auto-r-x001': 'rejected', 'auto-r-x002': 'rejected', 'auto-r-x003': 'rejected' });
+  await expect(canvas.locator('[data-candidates] [data-kind="object"].rejected')).toHaveCount(3);
 });
