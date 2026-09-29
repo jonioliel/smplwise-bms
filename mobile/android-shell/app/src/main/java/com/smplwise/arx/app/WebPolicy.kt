@@ -65,6 +65,16 @@ object NavPolicy {
         hasGesture || lastExternalAt == null || now - lastExternalAt >= EXTERNAL_THROTTLE_MS || now < lastExternalAt
 
     /**
+     * "החלף שרת" from the page (the bridge's switchServer, or an `arx://servers` navigation reported without a gesture)
+     * is honoured only within [USER_ACTIVATION_MS] of a touch on the WebView, so a page cannot stack server lists by
+     * itself (security re-review, item 3).
+     */
+    const val USER_ACTIVATION_MS = 5_000L
+
+    fun userActivated(now: Long, lastTouchAt: Long?): Boolean =
+        lastTouchAt != null && now >= lastTouchAt && now - lastTouchAt <= USER_ACTIVATION_MS
+
+    /**
      * The renderer crashed or was killed: restart the screen at most once per [RESTART_WINDOW_MS] (security review L8);
      * a second crash inside the window shows the error screen instead of looping.
      */

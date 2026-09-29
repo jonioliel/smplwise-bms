@@ -162,17 +162,28 @@ class ShellPoliciesTest {
 
     @Test
     fun theInjectedScriptExposesOnlyTheWhitelistedInterface() {
-        val js = BridgeScript.source("2.0.0", "/arx/")
-        // only under the server's Arx path: the same origin also serves the platform's own pages (review M1)
-        assertTrue(js.contains("String(location.pathname).indexOf('\\u002farx\\u002f') !== 0) return;"))
+        val js = BridgeScript.source("2.0.0", "/arx/", "0123abcd")
+        // the Arx interface only in the main frame's Arx pages: the same origin also serves the platform's own pages
+        val pathCheck = js.indexOf("String(location.pathname).indexOf('\\u002farx\\u002f') !== 0) return;")
+        assertTrue(pathCheck > 0)
+        assertTrue(js.contains("if (!nat || window.ArxApp || window.top !== window) return;"))
+        // ... but the media guard runs before that check, so it reaches every frame of the origin, the WisKey intercom
+        // panel at /hikvision-intercom included (re-review, item 2)
+        val guard = js.indexOf("Object.defineProperty(window, '__arxLock'")
+        assertTrue(guard in 1 until pathCheck)
+        assertTrue(js.contains("md.getUserMedia = function ()"))
+        assertTrue(js.contains("if (locked) return Promise.reject(new DOMException('The app is locked', 'NotAllowedError'));"))
+        assertTrue(js.contains("HTMLMediaElement.prototype.play = function ()"))
+        assertTrue(js.contains("document.addEventListener('play', function (e) {"))
+        assertTrue(js.contains("c.suspend()"))
+        // only the app can lift the guard: unlocking needs the screen's token; nothing is resumed
+        assertTrue(js.contains("var tok = '0123abcd';"))
+        assertTrue(js.contains("} else if (t === tok) {"))
+        assertFalse(Regex("\\.play\\(\\)").containsMatchIn(js.substringAfter("value: function (on, t) {").substringBefore("return locked;")))
         // blobs: 10 MB (review L6), and only the latest few for a short time (review L12)
         assertEquals(10 * 1024 * 1024, BridgeScript.MAX_BLOB_BYTES)
         assertTrue(js.contains("while (blobs.size > ${BridgeScript.MAX_BLOBS})"))
         assertTrue(js.contains("forget(u); }, ${BridgeScript.BLOB_KEEP_MS});"))
-        // microphone / camera tracks stopped on lock (review L5)
-        assertTrue(js.contains("__arxStopCapture"))
-        assertTrue(BridgeScript.PAUSE.contains("HTMLMediaElement") && BridgeScript.PAUSE.contains("shadowRoot"))
-        assertTrue(BridgeScript.PAUSE.contains("__arxStopCapture"))
         assertTrue(js.contains("window.ArxAppNative"))
         assertTrue(js.contains("platform: 'android'"))
         assertTrue(js.contains("version: '2.0.0'"))
@@ -186,5 +197,18 @@ class ShellPoliciesTest {
         assertEquals("'2.0.0'", BridgeScript.jsString("2.0.0"))
         assertEquals("'a\\u0027b\\u003c'", BridgeScript.jsString("a'b<"))
         assertTrue(BridgeScript.MAX_MESSAGE_CHARS > BridgeScript.MAX_BLOB_BYTES / 3 * 4)
+    }
+
+    @Test
+    fun theLockScriptVisitsEveryReachableFrame() { // re-review, item 2
+        val on = BridgeScript.lock(true, "0123abcd")
+        val off = BridgeScript.lock(false, "0123abcd")
+        assertTrue(on.contains("win.frames.length") && on.contains("visit(win.frames[i])"))
+        assertTrue(on.contains("win.__arxLock(on,t)"))
+        // a frame without the guard (no document-start support) still gets its media paused, shadow roots included
+        assertTrue(on.contains("HTMLMediaElement") && on.contains("shadowRoot"))
+        assertTrue(on.endsWith("(true,'0123abcd')"))
+        assertTrue(off.endsWith("(false,'0123abcd')"))
+        assertFalse(off.contains(".play("))
     }
 }

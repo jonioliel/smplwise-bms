@@ -21,6 +21,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.webkit.CookieManager
+import android.webkit.JsPromptResult
+import android.webkit.JsResult
 import android.webkit.MimeTypeMap
 import android.webkit.PermissionRequest
 import android.webkit.RenderProcessGoneDetail
@@ -95,6 +97,11 @@ class WebActivity : LockedActivity() {
     private var failedUrl: String? = null
     private var rendererGone = false
     private var lastExternalAt: Long? = null
+    private var lastTouchAt: Long? = null
+    /** Unlocks the media guard in the page's frames; a closure value the page never sees (BridgeScript). */
+    private val mediaToken: String = java.security.SecureRandom().let { r ->
+        ByteArray(16).also { r.nextBytes(it) }.joinToString("") { b -> "%02x".format(b) }
+    }
     private val probes = mutableListOf<WebView>()
 
     private var customView: View? = null
@@ -171,6 +178,8 @@ class WebActivity : LockedActivity() {
         serverOrigin = ok.origin
         serverPath = ok.url.removePrefix(ok.origin)
         store.lastServerUrl = serverUrl
+        // one site screen at a time, also after Android rebuilt screens of different tasks (security re-review, item 4)
+        instances.toList().forEach { it.finish() }
         instances += this
         // M1: the start link is rebuilt from its parsed parts on this server (never trusted as a raw string)
         val start = ServerUrls.resolveOnServer(serverUrl, intent.getStringExtra(EXTRA_URL).orEmpty(), dev) ?: serverUrl
@@ -192,6 +201,10 @@ class WebActivity : LockedActivity() {
         pageInsets = InsetPolicy.pageHandlesInsets(webViewMajor)
         webViewOutdated = InsetPolicy.webViewOutdated(webViewMajor)
         webView = WebView(this).apply { layoutParams = FrameLayout.LayoutParams(-1, -1) }
+        webView.setOnTouchListener { _, _ ->
+            lastTouchAt = SystemClock.elapsedRealtime() // user activation for "החלף שרת" (NavPolicy.userActivated)
+            false
+        }
         webHolder.addView(webView, 0)
         configureWebView()
         setupInsets()
@@ -260,7 +273,7 @@ class WebActivity : LockedActivity() {
             }
         }
         if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
-            WebViewCompat.addDocumentStartJavaScript(webView, BridgeScript.source(BuildConfig.VERSION_NAME, serverPath), rules)
+            WebViewCompat.addDocumentStartJavaScript(webView, BridgeScript.source(BuildConfig.VERSION_NAME, serverPath, mediaToken), rules)
             bridge = true
         }
     }
@@ -270,7 +283,7 @@ class WebActivity : LockedActivity() {
         val type = msg.optString("type")
         if (type !in BridgePolicy.MESSAGE_TYPES) return
         when (type) {
-            "switchServer" -> openServers()
+            "switchServer" -> if (NavPolicy.userActivated(SystemClock.elapsedRealtime(), lastTouchAt)) openServers()
             "blob" -> onBlob(msg)
             "blobError" -> if (msg.optString("url") == pendingBlobUrl) {
                 pendingBlobUrl = null
@@ -292,7 +305,10 @@ class WebActivity : LockedActivity() {
                     true
                 }
                 NavPolicy.Decision.APP_LINK -> {
-                    handleAppLink(url)
+                    // only on a tap: a page must not be able to stack server lists by itself (re-review, item 3)
+                    if (!locked && (request.hasGesture() || NavPolicy.userActivated(SystemClock.elapsedRealtime(), lastTouchAt))) {
+                        handleAppLink(url)
+                    }
                     true
                 }
                 NavPolicy.Decision.BLOCK -> true
@@ -324,6 +340,7 @@ class WebActivity : LockedActivity() {
         }
 
         override fun onPageFinished(view: WebView, url: String) {
+            if (locked) view.evaluateJavascript(BridgeScript.lock(true, mediaToken), null) // a page that loaded behind the lock
             progress.visibility = View.GONE
             CookieManager.getInstance().flush()
             readPageColors()
@@ -496,6 +513,30 @@ class WebActivity : LockedActivity() {
             if (pendingPermission == request) pendingPermission = null
         }
 
+        /**
+         * The page's alert / confirm / prompt / beforeunload: refused while locked (they would open above the lock
+         * cover), otherwise shown as the app's own dialog titled with the server's name (security re-review, item 1).
+         */
+        override fun onJsAlert(view: WebView, url: String, message: String, result: JsResult): Boolean {
+            if (locked) result.cancel() else jsDialog(message, null, result, confirm = false)
+            return true
+        }
+
+        override fun onJsConfirm(view: WebView, url: String, message: String, result: JsResult): Boolean {
+            if (locked) result.cancel() else jsDialog(message, null, result, confirm = true)
+            return true
+        }
+
+        override fun onJsPrompt(view: WebView, url: String, message: String, defaultValue: String?, result: JsPromptResult): Boolean {
+            if (locked) result.cancel() else jsDialog(message, defaultValue.orEmpty(), result, confirm = true)
+            return true
+        }
+
+        override fun onJsBeforeUnload(view: WebView, url: String, message: String, result: JsResult): Boolean {
+            if (locked) result.cancel() else jsDialog(message, null, result, confirm = true)
+            return true
+        }
+
         override fun onGeolocationPermissionsShowPrompt(origin: String, callback: android.webkit.GeolocationPermissions.Callback) {
             callback.invoke(origin, false, false)
         }
@@ -528,6 +569,40 @@ class WebActivity : LockedActivity() {
         override fun getDefaultVideoPoster(): Bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
     }
 
+    private fun jsDialog(message: String, defaultValue: String?, result: JsResult, confirm: Boolean) {
+        var answered = false
+        val input = defaultValue?.let {
+            com.google.android.material.textfield.TextInputEditText(this).apply { setText(it) }
+        }
+        val builder = com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle(serverName)
+            .setMessage(message.take(2_000))
+            .setPositiveButton(R.string.ok) { _, _ ->
+                answered = true
+                if (result is JsPromptResult && input != null) result.confirm(input.text?.toString().orEmpty()) else result.confirm()
+            }
+        if (input != null) {
+            val box = FrameLayout(this).apply {
+                val pad = (20 * resources.displayMetrics.density).toInt()
+                setPadding(pad, 0, pad, 0)
+                addView(input)
+            }
+            builder.setView(box)
+        }
+        if (confirm) builder.setNegativeButton(R.string.cancel, null)
+        val dialog = track(builder.create())
+        // track() owns the dismiss listener; a dialog closed without "OK" (Cancel, Back, the lock) cancels the page's call
+        dialog.setOnDismissListener {
+            if (!answered) result.cancel()
+            answered = true
+            untrack(dialog)
+        }
+        dialog.show()
+    }
+
+    private val serverName: String
+        get() = store.servers().firstOrNull { it.url == serverUrl }?.name ?: serverOrigin
+
     private fun destroyProbe(probe: WebView) {
         if (!probes.remove(probe)) return
         probe.stopLoading()
@@ -551,11 +626,13 @@ class WebActivity : LockedActivity() {
 
     /** `arx://servers` and `arx://open?url=` from inside the page go to the server list, which decides. */
     private fun handleAppLink(url: String) {
-        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).setClass(this, ServersActivity::class.java))
+        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).setClass(this, ServersActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
     }
 
     private fun openServers() {
-        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("arx://servers")).setClass(this, ServersActivity::class.java))
+        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("arx://servers")).setClass(this, ServersActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
     }
 
     // ---- downloads ---------------------------------------------------------------------------------------------------
@@ -835,9 +912,10 @@ class WebActivity : LockedActivity() {
     }
 
     /**
-     * Locked: every video and audio element is paused and the microphone / camera tracks the page opened are stopped
-     * (BridgeScript.PAUSE), then the WebView pauses; permission requests, file pickers, downloads and bridge messages
-     * are refused until the unlock (security review L5).
+     * Locked: in every frame of the server's origin (the WisKey intercom panel included) audio and video are paused,
+     * the microphone / camera tracks are stopped, audio contexts suspended, and play() / getUserMedia refused until the
+     * unlock (BridgeScript.lock); then the WebView pauses. Permission requests, file pickers, downloads, JS dialogs and
+     * bridge messages are refused while locked. Unlocking lifts the guard but resumes nothing: the page decides.
      */
     override fun onLockChanged(locked: Boolean) {
         if (!::webView.isInitialized || rendererGone) return
@@ -845,10 +923,11 @@ class WebActivity : LockedActivity() {
             pendingPermission?.deny()
             pendingPermission = null
             if (customView != null) chrome.onHideCustomView()
-            webView.evaluateJavascript(BridgeScript.PAUSE, null)
+            webView.evaluateJavascript(BridgeScript.lock(true, mediaToken), null)
             webView.onPause()
         } else {
             webView.onResume()
+            webView.evaluateJavascript(BridgeScript.lock(false, mediaToken), null)
         }
     }
 
