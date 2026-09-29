@@ -440,16 +440,24 @@ round and release (step 7). Tests: 45 backend tests (`tests/test_remote_access.p
 - **Player policy** (`frontend/src/api/video-policy.ts`, `sw-live-player`): on the remote channel (`/me.channel`)
   every live player walks a ladder - `remote.default_profile` over WebRTC; then `remote.mse_fallback` true → the same
   profile over MSE, false → the other profile over WebRTC and finally the message "הזרם הראשי אינו ניתן לפענוח
-  ב-WebRTC - ראה הגדרות › וידאו". A WebRTC step fails when it does not connect or renders no frame within 12 s; a
-  stream the registry marks as not WebRTC-safe is skipped. Badge `main·WebRTC` / `sub·WebRTC` / `main·MSE`, fallbacks
-  announced on the picture. Wall and map tiles keep their own profile. LAN / Ingress unchanged (no `video.lan_profile`
-  setting exists; none was added).
+  ב-WebRTC - ראה הגדרות › וידאו". A WebRTC step is judged by its RTP statistics (review M2): bytes arriving with no
+  decoded frame for the stream's GOP + 3 s (6-20 s; 10 s when the GOP is unknown, 20 s with smart codec) is a decode
+  failure; no bytes yet keeps waiting up to 30 s and then counts as a connection failure; a transient `disconnected`
+  before the first frame is not a failure. A stream the registry marks as not WebRTC-safe is skipped. go2rtc down
+  shows "שרת הווידאו אינו זמין" without walking the ladder. The badge reads "מנסה main·WebRTC…" while trying and
+  `main·WebRTC` / `sub·WebRTC` / `main·MSE` once it plays; fallbacks are announced on the picture. LAN / Ingress
+  unchanged (no `video.lan_profile` setting exists; none was added).
+- **To confirm with the owner (D7 note):** only the single-camera view starts on `remote.default_profile`; the camera
+  wall and map tiles keep their own profile remotely (the wall's `media.wall_profile`, default `sub`; the map tile
+  `sub`) and follow the same WebRTC-first ladder - several main streams at once over a mobile link would be heavy.
 - **Codec check** (deviation from §3c's "go2rtc stream info"): read from the NVR instead - `GET
   /ISAPI/Streaming/channels` (read-only) during the discovery, stored per camera in `capabilities_json.encoding`
   (codec, profile, SVC, smart codec, B-frames where exposed, verdict ok / no / unknown). The lab probe of 2026-09-14
-  explains the lab fact of D7: every main stream is H.264 with **SVC on**, every sub stream H.264 without SVC - so
-  H.264 + SVC counts as not WebRTC-safe alongside H.265, MJPEG and B-frames. The lab firmware exposes no B-frame
-  element. Shown in הגדרות › גישה מרחוק (summary line → health detail), the health report card `video_webrtc` (warns
+  (ten cameras): seven have an H.264 main stream with **SVC on** and an H.264 sub stream without SVC; three are
+  H.265 in both streams. With D7's lab fact (WebRTC decoded only the sub profile) that makes H.264 + SVC count as not
+  WebRTC-safe alongside H.265, MJPEG and B-frames - an inference from the correlation, to be confirmed by the lab
+  check. The lab firmware exposes no B-frame element. A reading from a recording track's Description alone (the lab's
+  tracks say H.264-BP for all ten) is at most "unknown", never "plays" (review M1). Shown in הגדרות › גישה מרחוק (summary line → health detail), the health report card `video_webrtc` (warns
   only with `remote_access` on and main first), the camera capabilities, the setup wizard's NVR step (Hebrew hint;
   with a Hikvision model the NVR web menu path, not yet verified on the lab NVR), `/health.video_codecs` (counts).
 - Tests: `tests/test_stream_codecs.py` (backend), `tests/evidence-remote-video.spec.ts` (Playwright, desktop, against

@@ -650,18 +650,22 @@ Supervisor network.
   the embedded WisKey panel opens without a second login. That browser is then signed in to the HA UI at `/` as the
   same user too; signing out of Arx signs it out of both.
 - **Video.** Remotely every live player starts with `remote.default_profile` (main) over **WebRTC** - the media goes
-  straight between the browser and go2rtc, not through the tunnel. If WebRTC does not connect, or connects but shows
-  no frame within 12 s, the player falls back by `remote.mse_fallback`: on (default) → the same profile over MSE
-  through the tunnel, announced on the picture; off → the other profile over WebRTC (announced), and when that fails
-  too, "הזרם הראשי אינו ניתן לפענוח ב-WebRTC - ראה הגדרות › וידאו" - never MSE. A badge on the picture shows what
-  plays (`main·WebRTC`, `sub·WebRTC`, `main·MSE`). The camera wall and map tiles keep their own profile (the wall's
-  `media.wall_profile`) under the same rule. The LAN / Ingress player is unchanged.
+  straight between the browser and go2rtc, not through the tunnel. If WebRTC fails - it does not connect, or video
+  bytes arrive but no frame decodes within the stream's key-frame interval plus a margin (a slow link without any
+  bytes yet waits up to 30 s) - the player falls back by `remote.mse_fallback`: on (default) → the same profile over
+  MSE through the tunnel, announced on the picture; off → the other profile over WebRTC (announced), and when that
+  fails too, "הזרם הראשי אינו ניתן לפענוח ב-WebRTC - ראה הגדרות › וידאו" - never MSE. With go2rtc down the player
+  says "שרת הווידאו אינו זמין" and retries. A badge on the picture shows what is tried ("מנסה main·WebRTC…") and,
+  once it plays, what plays (`main·WebRTC`, `sub·WebRTC`, `main·MSE`). The camera wall and map tiles keep their own
+  profile (the wall's `media.wall_profile`, default sub) under the same rule - an owner decision still to confirm.
+  The LAN / Ingress player is unchanged.
 - **Codec check.** Browsers decode H.264 over WebRTC, but not H.265 (most browsers), MJPEG, or H.264 with B-frames or
   SVC. The camera discovery (start-up, every 10 minutes, "Sync cameras") reads each camera's main and sub encoding
   from the NVR (`GET /ISAPI/Streaming/channels`, read-only) into the camera registry; a stream known not to play over
-  WebRTC is skipped remotely (straight to the fallback). On the pilot lab every main stream was H.264 with **SVC on**
-  and none decoded over WebRTC, while the sub streams (no SVC) did - turning SVC off on the main stream is the first
-  thing to try. Where it shows: הגדרות › גישה מרחוק (a read-only summary line with a link), the health report card
+  WebRTC is skipped remotely (straight to the fallback); a reading from a recording track alone never counts as
+  "plays". On the pilot lab seven of ten cameras have an H.264 main stream with **SVC on** (their sub streams: H.264
+  without SVC) and three are H.265 in both streams, and WebRTC decoded only the sub profile - turning SVC off on the
+  main stream (and H.265 → H.264) is the first thing to try. Where it shows: הגדרות › גישה מרחוק (a read-only summary line with a link), the health report card
   "וידאו ב־WebRTC" (the cameras and a Hebrew hint each, e.g. "הזרם הראשי של X מקודד H.265 - לא יתנגן ב-WebRTC;
   לשינוי: NVR → Encoding → Main stream → H.264, B-frames off"; with a Hikvision model from deviceInfo the hint names the
   NVR web menu, Configuration → Video/Audio → Video - not yet verified on the lab NVR), the camera's capability row,
