@@ -44,11 +44,13 @@ status in §7.
   menu. `visibleAreas(api, can, order)` sorts by the user's order; `settingsEntry()` returns the "מערכת" item only when
   a settings tab other than the personal notification preferences (`PERSONAL_SYSTEM_HREFS`) is visible to the user;
   `landingTarget()` picks the start screen, or the user's first visible tab when they cannot see it.
-- The rail: the brand tile (now decoration, no link), the tabs, and the avatar at the foot (`[data-profile-menu]`).
-  "מקומי ומאובטח" (a label, not a destination) was dropped; "מסכים" (the screen catalogue, a real destination) moved
-  into the menu as "כל המסכים".
+- The rail: the brand tile (decoration, no link), the tabs, and the avatar at the foot (`[data-profile-menu]`).
+  "מקומי ומאובטח" (a label, not a destination) was dropped; "מסכים" (the screen catalogue) became a tab of the settings
+  area, "כל המסכים", for `system.configure` holders (and in the demo).
 - The phone bottom bar: the tabs, each a 58 px tall target with an icon pill that fills with the accent on the active
   tab, and the avatar as the last slot (`[data-nav-me]`, the user's first name under it).
+- The avatar is a neutral grey circle; it turns blue only while the menu is open or on the settings (`#/system/...`),
+  where it is the active navigation item (`aria-current="page"`). A red dot (9 px on the phone) marks open alerts.
 - The desktop top bar: crumbs, section control, search, the health pill (or "נתוני הדגמה" in the demo). No avatar,
   role line, bell, sign-out icon or wordmark.
 - Design B (the older boards, the static demo's default) keeps its own navigation unchanged.
@@ -56,28 +58,35 @@ status in §7.
 ### 2.2 The user menu (`frontend/src/shell/sw-user-menu.ts`)
 
 One panel for every width, opened from the avatar: a popover beside the rail's foot on a wide screen, a bottom sheet
-with a scrim and a grab handle on the phone. Header: avatar, name, role, and on the phone a pills row (the health
-pill, "נתוני הדגמה", "השלם את ההתקנה · n/m" linking to the wizard). Groups:
+with a scrim and a grab handle on the phone. No explanatory text: one line per item.
 
-1. התראות (with the open-alert count, a red badge; only for users who may read alerts) · סדר הלשוניות · הגדרות התראות
-   (the user's own push preferences, `#/system/notifications`, for everyone - they are no longer reachable through a
-   "מערכת" tab by users without a settings permission).
-2. מערכת (only with a settings permission; opens the first settings tab the user sees).
-3. החלף שרת (only inside the Android app) · כל המסכים · הכניסות שלי (the user's own remote sign-ins, loaded only when
-   the section is opened).
-4. יציאה, destructive-styled (the remote channel only: under the local entry the platform owns the sign-in).
+- Header: avatar, name, role; on the phone a pills row (the health pill as `[data-menu-sys-pill]`, "נתוני הדגמה",
+  "השלם את ההתקנה · n/m" linking to the wizard), rendered only while the sheet is open, so `[data-sys-pill]` stays
+  unique on the page.
+- First level: התראות (a red count chip only when there are open alerts; the item only for users who may read
+  alerts) · מערכת (only with a settings permission; opens the first settings tab the user sees) · החשבון שלי ·
+  יציאה at the foot, destructive-styled (the remote channel only: under the local entry the platform owns the
+  sign-in).
+- החשבון שלי (a second level in the same panel, with a back control): סדר הלשוניות · הגדרות התראות (the user's own push
+  preferences, `#/system/notifications`, a bell-with-gear icon) · הכניסות שלי (the user's own remote sign-ins, loaded
+  only when the section is opened) · החלף שרת (only inside the Android app). A user who sees no tab (no role yet) gets
+  neither סדר הלשוניות nor הגדרות התראות.
 
-Escape and the scrim close it and return focus to the avatar; Tab stays inside it; any navigation closes it; motion
-uses the token durations, which drop to 0 ms under `prefers-reduced-motion`.
+Escape steps back from the second level, then closes; the scrim and ✕ close; focus returns to the avatar; Tab stays
+inside. A menu item closes the panel and removes its history entry before it navigates (§2.5). Motion uses the token
+durations, which drop to 0 ms under `prefers-reduced-motion`.
 
 ### 2.3 Alerts
 
 The bell (a button without an action) is gone. The shell asks `GET rules/alerts?unacked=true` on load, every minute
-and when the menu opens, for users holding `events.read`; the count is the length of the returned list, which the
-server filters to the user's camera scope (capped at the page size of 100; shown as "99+"). The avatar carries a red
-dot and "n התראות פתוחות" in its accessible name. "התראות" opens `#/investigate/rules?tab=alerts`; the rules screen now
-opens on that tab and, for a user without `rules.manage`, shows the alerts alone instead of failing. The critical
-system banner and the permission toast are unchanged.
+and when the menu opens, for users holding `events.read` (never inside the kiosk or the Lovelace card view), and shows
+the server's `unacked`. That count and the list are now filtered by the caller's camera scope in the query itself
+(camera ids through `json_each`, camera-less alerts only with the installation-wide grant), so a scoped user's count is
+their own and their older alerts are found behind newer ones of other cameras; the route runs on the read-only
+connection. The avatar's accessible name says "התראה פתוחה אחת" / "N התראות פתוחות". "התראות" opens
+`#/investigate/rules?tab=alerts`, which opens on the alerts tab; a user without `rules.manage` gets the alerts alone,
+decided before the first paint (no rules request, no rules tab, no "חוק חדש"), and the acknowledge button needs
+`events.ack`. The critical system banner and the permission toast are unchanged.
 
 ### 2.4 Per-user tab order
 
@@ -89,23 +98,29 @@ system banner and the permission toast are unchanged.
   longer parses reads as the default. No existing per-user store fitted: `push_prefs` has fixed columns for
   notification categories, saved views and device layouts are shared objects, and the product settings are
   installation-wide and readable by every user. Preferences are not in the project backup (like `push_prefs`).
-- Client (`frontend/src/shell/nav-order.ts`): a copy in `localStorage` (`sw.nav.order`, keyed by the user id, inside
-  try/catch) paints the first frame; once `/me` answers, a copy of another user is ignored, and the server's answer
-  replaces it. Save is optimistic and reverts when the server refuses. The static demo keeps the order in the browser.
-- Dialog (`frontend/src/shell/sw-nav-order.ts`): the user's visible tabs with a drag handle (pointer events, so touch
-  and mouse alike; `touch-action: none` on the handle), ▲/▼ buttons (44 px), Arrow/Home/End keys on the handle, a
-  polite live region announcing each move, and a fixed dashed "המשתמש - תמיד אחרון" row. Tabs the user does not see
-  keep their place in the stored order.
+- Client (`frontend/src/shell/nav-order.ts`): the order is the default until the user is known; a copy in
+  `localStorage` (`sw.nav.order`, keyed by the user id, inside try/catch) then paints at once and the server's answer
+  replaces it. Save is optimistic and reverts when the server refuses; an answer that arrives after another user
+  signed in is ignored. The static demo keeps the order in the browser.
+- Dialog (`frontend/src/shell/sw-nav-order.ts`): each row is a drag handle, the tab's name and ▲/▼ (44 px), evenly
+  spaced; dragging uses pointer events (touch and mouse alike; `touch-action: none` on the handle); Arrow/Home/End keys
+  on the handle; a polite live region announces each move; a fixed "המשתמש" row with a lock closes the list. The
+  footer is "אפס לברירת המחדל" (a text action) and "שמור"; ✕ cancels. Tabs the user does not see keep their place in
+  the stored order.
 
-### 2.5 The phone content head
+### 2.5 The phone content head, and Back
 
 - The shell pads its own top by `--sw-safe-top` (`env(safe-area-inset-top)`), so nothing slides under the status bar in
-  a standalone web app with a notch. The degraded-system banner sits at that edge instead of under a top bar.
-- The first row of `<main>` is one sticky block (`.subnav`): in the security area the section row (a 34 px track,
-  44 px targets), then the screen's tab row. `sw-tabs` scrolls sideways with `scroll-snap`, hides its scrollbar,
-  fades the edge that hides more tabs (computed from the tabs' boxes, so right-to-left needs no special case) and keeps
-  the active tab fully in view. The owner's screenshot - "בריאות" cut at the edge - now reads as a fading row.
+  a standalone web app with a notch; not in the kiosk or the card view. The degraded-system banner sits at that edge.
+- In the security area only the section selector (לייב | חקירה | אזעקה) is sticky: a slim row (a 34 px track, 44 px
+  targets). The screen's own tab row is the second level - the underline variant, 44 px targets - and scrolls away
+  with the content. `sw-tabs` scrolls sideways with `scroll-snap`, hides its scrollbar, fades the edge that hides more
+  tabs (computed from the tabs' boxes, so right-to-left needs no special case) and keeps the active tab fully in view.
+  The owner's screenshot - "בריאות" cut at the edge - now reads as a fading row.
 - The setup-progress banner is hidden on the phone; its link is a pill in the menu's header.
+- Back: while the phone sheet or the tab-order dialog is open, one history entry (same address) stands for it, so
+  Back closes the overlay instead of leaving the screen. Closing it by ✕, Esc or save removes the entry; a menu item
+  removes it first and then navigates; any navigation closes both.
 
 ### 2.6 Landing
 
@@ -124,28 +139,29 @@ start screen still wins.
 - The Trusted Web Activity and the installed web app (`display: standalone`, iOS status bar `default`) do not draw
   under the status bar; the inset is 0 there and the padding costs nothing. A notch in landscape keeps its side
   insets on the bottom bar and the sheet.
-- "החלף שרת" is the menu's item inside either Android app. Not verified on a device in this change (see §7).
+- "החלף שרת" is an item of "החשבון שלי" inside either Android app. Not verified on a device in this change (see §7).
+- While WisKey is expanded ("הגדל"), the user menu and the tab-order dialog are inert with the rest of the shell.
 
 ## 3. Permissions and security
 
 Presentation only: the tabs, the "מערכת" item and the alert count follow the permissions the server reports, and every
 screen still checks its own permission. `/me/prefs` acts on the caller only - there is no way to read or write another
-user's preferences - and the order it stores cannot show a tab the user is not allowed to see.
-
-Noted, not changed: `GET rules/alerts` answers `unacked` as an installation-wide count even for a scoped caller (the
-list itself is scoped). The shell uses the list's length; the rules screen's tab still shows the global number.
+user's preferences - and the order it stores cannot show a tab the user is not allowed to see. `GET rules/alerts` now
+answers a scoped `unacked` (it used to count every open alert of the installation for any caller).
 
 ## 4. Files
 
 - Backend: `migrations/0037_user_prefs.sql`, `services/user_prefs.py`, `routers/me.py` (GET/PUT `/me/prefs`),
-  `routers/settings.py` (`ui.start_route` default); tests `tests/test_user_prefs.py`, `tests/test_ui_settings.py`.
+  `routers/settings.py` (`ui.start_route` default), `routers/rules.py` (scoped alerts, read-only connection); tests
+  `tests/test_user_prefs.py`, `tests/test_ui_settings.py`, `tests/test_rules.py`.
 - Frontend: `shell/nav.ts`, `shell/nav-order.ts`, `shell/sw-user-menu.ts`, `shell/sw-nav-order.ts`, `shell/sw-app.ts`,
-  `api/me-prefs.ts`, `components/sw-tabs.ts`, `components/sw-icon.ts` (grip, arrowUp, arrowDown),
-  `screens/investigate-rules.ts` (`?tab=alerts`, alerts without `rules.manage`), `screens/system-diagnostics.ts`
-  (start screen list).
+  `api/me-prefs.ts`, `components/sw-tabs.ts`, `components/sw-icon.ts` (grip, arrowUp, arrowDown, bellSettings),
+  `screens/investigate-rules.ts` (`?tab=alerts`, alerts without `rules.manage`, acknowledge with `events.ack`),
+  `screens/system-diagnostics.ts` (start screen list), `screens/wiskey-embed.ts` (inert overlays).
 - Specs: `tests/evidence-shell.spec.ts` (new); updated `evidence-alarm`, `evidence-nvr-less`, `evidence-devices`,
-  `evidence-arx-remote`, `evidence-arx-sessions`, `evidence-pwa-push`, `screens.spec`.
-- Evidence: `docs/evidence/CR013/shell-*.png`.
+  `evidence-arx-remote`, `evidence-arx-sessions`, `evidence-pwa-push`, `evidence-status-pill`, `evidence-wiskey-embed`,
+  `screens.spec`.
+- Evidence: `docs/evidence/CR013/shell-*.png`. `contracts/API_INVENTORY.md` regenerated.
 
 ## 5. Rollback
 
@@ -154,16 +170,19 @@ Without the new frontend, the stored orders are simply unused.
 
 ## 6. Known limits
 
-- The alert count caps at the list's page size (100) and polls once a minute; there is no push of new alerts into the
-  shell.
-- The dialog reorders by pointer drag and buttons; there is no long-press-to-drag on a whole row.
+- The alert count polls once a minute; there is no push of new alerts into the shell.
+- The dialog reorders by the handle and the buttons; there is no long-press-to-drag on a whole row.
+- A menu item that navigates leaves no extra history entry; a navigation that does not start from the menu while the
+  sheet is open (a link on the screen behind it cannot be reached; a programmatic one could) leaves the sheet's entry
+  behind the new one - Back then shows the same screen once more.
 - The shell has no dark scheme (the device screens have their own); the new parts use the tokens only, so a shell
   dark theme would cover them.
 - Design B is unchanged (its top bar, bell and "עוד" menu remain).
 
 ## 7. Build status
 
-Built and tested on the branch (commit hashes in the closing report). Backend tests and the Playwright specs that run
-against the static preview (demo data and a mocked backend) pass; the specs that need a fixture backend
-(`evidence-nvr-less`, `evidence-devices`, `evidence-arx-*`, the live part of `evidence-alarm`) were updated but not run
-here. Not verified on a real phone, in the Android app or in an installed web app.
+Built and tested on the branch after one review round (commit hashes in the closing report). Backend tests, the
+Playwright specs against the static preview (demo data and a mocked backend), and the fixture-backend specs
+(`evidence-nvr-less`, `evidence-status-pill`, the shell-related tests of `evidence-devices`, `evidence-arx-remote`,
+`evidence-arx-sessions`, `evidence-wiskey-embed`, `evidence-wiskey`, `evidence-wiskey-people`) were run on private
+ports. Not verified on a real phone, in the Android app or in an installed web app.
