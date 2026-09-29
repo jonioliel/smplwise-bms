@@ -103,9 +103,11 @@ test('the administrator revokes a sign-in; the user signs out everywhere', async
   for (const tail of tails) expect(await refreshTokenState(phone.page, tail)).toMatchObject({ revoked: false });
   await phone.page.reload();
   await expect(phone.page.locator('sw-app')).toBeVisible();
-  await phone.page.locator('sw-app sw-profile-menu [data-profile-menu]').click();
-  const menu = phone.page.locator('sw-app sw-profile-menu [data-profile-menu-panel]');
+  // CR-013: the user menu opens from the avatar (these contexts are 1440 px wide: the rail's foot); "הכניסות שלי" is a section of it
+  await phone.page.locator('sw-app [data-profile-menu]').click();
+  const menu = phone.page.locator('sw-app sw-user-menu [data-profile-menu-panel]');
   await expect(menu).toBeVisible();
+  await menu.locator('[data-my-sessions] summary').click();
   await expect(menu.locator('[data-my-sessions] [data-remote-session]')).toHaveCount(2);
   await expect(menu.locator('[data-my-sessions] [data-current]')).toHaveCount(1);
   await phone.page.screenshot({ path: test.info().outputPath('arx-p2-my-sessions.png') });

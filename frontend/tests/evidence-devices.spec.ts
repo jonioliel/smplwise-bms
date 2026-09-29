@@ -513,7 +513,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await useLayout(p2, 'tiles');
       await open(p2, '/live', 'a');
       await expect(p2.locator(`${RAIL} a[href="${HREF}"]`)).toHaveCount(1, { timeout: 30000 });
-      await expect(p2.locator(`${RAIL} a[href="${HREF}"]`)).toContainText('חשמל');
+      await expect(p2.locator(`${RAIL} a[href="${HREF}"]`)).toContainText('ראשי'); // CR-013: the device overview is "ראשי"
       await open(p2, '/live', 'b');
       await expect(p2.locator(`${RAIL} a[href="${HREF}"]`)).toContainText('חשמל והתקנים');
       await open(p2, '/devices/building', 'b');
@@ -539,8 +539,8 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     await expect(bottom).toBeVisible({ timeout: 30000 });
     const link = bottom.locator(`a[href="${HREF}"]`);
     await expect(link).toBeVisible();
-    await expect(link).toContainText('חשמל');
-    // six areas share the bar: no item may be pushed out of the viewport
+    await expect(link).toContainText('ראשי'); // CR-013: the device overview is "ראשי", the bar's first tab
+    // four tabs and the user avatar share the bar: no item may be pushed out of the viewport
     const box = await link.boundingBox();
     const vw = page.viewportSize()!.width;
     expect(box && box.x >= 0 && box.x + box.width <= vw + 1).toBe(true);

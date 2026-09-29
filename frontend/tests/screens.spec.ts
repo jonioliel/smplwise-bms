@@ -61,6 +61,18 @@ test.describe('all screen skeletons', () => {
     });
   }
 
+  // CR-013: the bare address opens "ראשי" (the device overview) in both designs; an explicit route is kept
+  test('the bare address opens ראשי', async ({ page }) => {
+    for (const q of ['', '?design=a']) {
+      await page.goto('about:blank');
+      await page.goto(`/${q}`);
+      await expect.poll(() => page.evaluate(() => location.hash), q || 'design B').toBe('#/devices/building');
+      await expect(page.locator('sw-app devices-building')).toHaveCount(1);
+    }
+    await open(page, '/explore/floors/f0');
+    expect(await page.evaluate(() => location.hash)).toBe('#/explore/floors/f0');
+  });
+
   test('users drawer and assignment preview', async ({ page }, testInfo) => {
     await open(page, '/system/access');
     await page.getByRole('row', { name: /דנה/ }).click();
