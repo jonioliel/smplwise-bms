@@ -1,5 +1,7 @@
 # מדריך: SmplWise Arx מאחורי Cloudflare Tunnel
 
+> תיקון 29.9.2026 (ערב): בדשבורד של Cloudflare המנהרה "ecc" כבר מנוהלת מהדשבורד (מצב טוקן) - יש בה Published application route `ecc.smplwise.com` → `http://homeassistant:8123`. השורה `ingressRule=0 originService=...` ביומן מופיעה גם במנהרות מנוהלות, ולכן ההסקה הקודמת ב-D2 ("מצב options") הייתה שגויה. לא נדרש מעבר: מוסיפים את מסלול `/arx` **מעל** מסלול `*` (Path ‏`^/arx(/|$)`, ‏Service ‏`http://<שם-מארח-התוסף>:8099`).
+
 Source: original
 
 > מדריך לבעלים ולמתקינים באתרי לקוחות: חשיפת SmplWise Arx (‏`/arx`) לצד Home Assistant דרך מנהרת

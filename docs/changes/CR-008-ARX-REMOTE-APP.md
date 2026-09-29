@@ -1,5 +1,7 @@
 # CR-008 — SmplWise Arx remote access: `https://<site>/arx` with our own login, then an installable app
 
+> Correction 2026-09-29 (evening): the owner's Cloudflare dashboard shows the tunnel "ecc" with a *Published application route* `ecc.smplwise.com` → `http://homeassistant:8123` - i.e. the tunnel is already dashboard-managed (token mode). The log line `ingressRule=0 originService=...` appears for dashboard-managed tunnels too, so the earlier D2 inference "options mode" was wrong. No migration is needed: the `/arx` route is simply added above the `*` route (path `^/arx(/|$)`, service `http://<addon-hostname>:8099`).
+
 **Numbering:** registered as CR-008 on 2026-09-29 (CR-005 WisKey phase 2, CR-006 3D visuals and CR-007 device control
 are in progress). Task card: T092 (requirements R184-R186, acceptance tests AT184-AT186).
 
