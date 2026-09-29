@@ -478,19 +478,26 @@ answer/reject/hangup (`media/signal`); two-way audio/talk (`audio/*`); TTS (`tts
 > as an experiment, not proven on a device: setting `access.phone_embed` (default off; הגדרות › בקרות כניסה "הטמעה גם
 > באפליקציית Companion (ניסיוני)"). On, the app frames the panel with `external_auth=1` (HA `src/data/external.ts` 1-5
 > then takes the external sign-in whatever the timing) and `frontend/src/wiskey/companion-bridge.ts` relays the bridge:
-> on HA's top window `externalAuthSetToken` / `externalAuthRevokeToken` / `externalBus` become accessors that keep and call
-> the top frontend's own callback first and then deliver the same call (payload unchanged) to the frame; on the frame's
-> window `externalApp` becomes a proxy to the top's bridge (no bus, revoke never forwarded), installed by a bounded
-> `setTimeout(0)` poll while the frame's new document is still parsing - a property set on the initial about:blank
-> window does not survive the navigation (measured in Chromium), and HA reads the bridge only in `import()`-loaded modules,
-> after at least one fetch. A frame that still cannot sign in falls back to the 0.1.123 screen with a note. Off = the
-> 0.1.123 behaviour, unchanged. A phone BROWSER (Chrome/Safari, no app) already embeds normally - evidence: the
+> while a frame is attached, HA's top window's `externalAuthSetToken` / `externalAuthRevokeToken` become accessors that
+> keep and call the top frontend's own callback first and then deliver the same call (payload unchanged) to frames on
+> this origin that use our proxy; when the last frame detaches (or SMPLWISE's page goes, `pagehide`) plain properties
+> with the top frontend's own callbacks are put back and the registry is deleted. On the frame's window - only on the
+> panel path or HA's `/auth/` pages - `externalApp` becomes a proxy to the top's bridge: the app's message bus is never
+> exposed (`externalAppV2` / `webkit.messageHandlers` hidden, no `externalBus`), and the frame's revoke request is never
+> forwarded to the app (it is answered as failed in the frame; a sign-out from HA's own profile in the app reloads the
+> top page, and SMPLWISE with it - that path is untouched). The proxy is installed by a bounded `setTimeout(0)` poll
+> while the frame's new document is still parsing - a property set on the initial about:blank window does not survive
+> the navigation (measured in Chromium), and HA reads the bridge only in `import()`-loaded modules, after at least one
+> fetch. Security review 2026-09-29: only that outcome (`early`) keeps a frame; a native bridge property that cannot be
+> shadowed, a partial install, a document caught after it began running, or another path drops the frame at once to
+> the 0.1.123 screen with a note - a frame is never kept with the app's real bridge in it. A frame that is proxied but
+> does not connect within 10 s falls back the same way. Off = the 0.1.123 behaviour, unchanged. A phone BROWSER (Chrome/Safari, no app) already embeds normally - evidence: the
 > existing `evidence-wiskey-embed.spec.ts` "both phone navigations ..." on the mobile project (Pixel 7 browser UA), and
 > the new "phone embed switched on, in a mobile browser" test (no relay, no `external_auth`). Evidence for the relay:
 > `evidence-wiskey-embed-phone.spec.ts` (fake Android bridge answering in the top document only). **Owner's device
 > check:** switch it on, open SMPLWISE's WisKey tab in the Android app (and iOS if available): does WisKey load without
-> the fallback note, do the tabs work, and does the app stay signed in afterwards (open HA's own dashboard, then
-> restart the app). If it fails, alternatives: (1) keep the app on top-level WisKey (today, the default); (2) use the
+> a fallback note, do the tabs work, and does HA's own dashboard in the app still work afterwards (token refresh after
+> leaving the WisKey area, then after restarting the app). If it fails, alternatives: (1) keep the app on top-level WisKey (today, the default); (2) use the
 > phone's browser, where the embed works; (3) the native-app-aware embed asked of the WisKey developers
 > (`WISKEY_FOLLOWUP_REQUESTS.md` §2).
 

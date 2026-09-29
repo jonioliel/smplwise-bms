@@ -224,7 +224,25 @@ const topRelayState = (page: Page): Promise<TopRelayState> =>
   });
 const wiskeyFrame = (page: Page) => page.frames().find((f) => PANEL_URL.test(f.url()));
 type FrameAuth = { isExternal: boolean; proxied: boolean; bus: boolean; token: { access_token: string; expires_in: number } | null; error: string | null };
-const frameAuth = async (page: Page): Promise<FrameAuth | null> => (await wiskeyFrame(page)?.evaluate(() => (window as unknown as { __auth?: FrameAuth }).__auth ?? null)) ?? null;
+/** What the frame's fake HA saw; null while there is none - or while the frame is between documents ("רענן"), when
+ * the evaluate fails with "Execution context was destroyed" (a poll simply tries again). */
+const frameAuth = async (page: Page): Promise<FrameAuth | null> => {
+  try {
+    return (await wiskeyFrame(page)?.evaluate(() => (window as unknown as { __auth?: FrameAuth }).__auth ?? null)) ?? null;
+  } catch {
+    return null;
+  }
+};
+
+/** The top window's relay hygiene: whether our registry is there, and how the two callbacks are held. */
+const topCallbacks = (page: Page) =>
+  page.evaluate(() => {
+    const d = (n: string) => {
+      const x = Object.getOwnPropertyDescriptor(window, n);
+      return !x ? 'none' : x.get ? 'accessor' : typeof x.value;
+    };
+    return { registry: '__smplwiseCompanionRelay' in window, setToken: d('externalAuthSetToken'), revokeToken: d('externalAuthRevokeToken') };
+  });
 
 async function setPhoneEmbed(baseURL: string | undefined, value: 'true' | 'false'): Promise<string | null> {
   const ctx = await pwRequest.newContext({ baseURL });
@@ -331,6 +349,83 @@ test.describe('experimental: WisKey embedded inside the Companion app through th
     await expect(embed.locator('wiskey-overview')).toHaveCount(1);
     await expect(embed.locator('sw-button[data-wiskey-open-ha]')).toHaveText('פתח ב-WisKey');
     await expect(embed.locator('a[data-wiskey-embed-full]')).toHaveCount(0); // no new-window link inside the app
+    expect((await topRelayState(page)).revoked).toBe(0);
+  });
+});
+
+test.describe('experimental relay: hygiene and refusal (security review 2026-09-29)', () => {
+  test.skip(process.env.SW_LIVE !== '1' || process.env.SW_WISKEY_FIXTURE === '1', 'set SW_LIVE=1 with a plain backend running (no WisKey fixture)');
+  test.describe.configure({ mode: 'serial' });
+  test.use({ userAgent: ANDROID_APP_UA });
+  test.beforeAll(async ({}, testInfo) => phoneEmbedOn(testInfo.project.use.baseURL));
+  test.afterAll(async ({}, testInfo) => phoneEmbedBack(testInfo.project.use.baseURL));
+
+  test('a native bridge in the frame that cannot be shadowed: the frame is dropped at once - the 0.1.123 screen, the top window restored', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'the Companion app is a phone');
+    // what the app's addJavascriptInterface does: the bridge exists in the frame before any of its scripts, and here it
+    // is not configurable, so the relay cannot put its proxy in its place
+    await page.addInitScript(() => {
+      if (location.pathname !== '/hikvision-intercom') return;
+      Object.defineProperty(window, 'externalApp', {
+        value: { getExternalAuth() { (window as unknown as { __native: number }).__native = 1; }, revokeExternalAuth() {}, externalBus() {} },
+        configurable: false,
+        writable: false,
+        enumerable: true,
+      });
+    });
+    await page.route(HA_TOP_RELAY, (route: Route) => route.fulfill({ status: 200, contentType: 'text/html', body: haTopRelay(true) }));
+    await stubPanel(page, { kiosk: true, panels: true, api: 'v1', externalAuth: true });
+    await page.goto('/ha-top-relay');
+    const app = page.frameLocator('#ingress');
+    const embed = app.locator('wiskey-embed');
+    await expect(embed).toHaveAttribute('data-direct', 'login_required', { timeout: 30000 });
+    await expect(app.locator(FRAME)).toHaveCount(0);
+    const note = embed.locator('[data-wiskey-embed-note="login_required"]');
+    await expect(note).toHaveAttribute('data-relay-refused', 'native');
+    await expect(note).toHaveText('ההטמעה באפליקציה (ניסיוני) לא נתמכת במכשיר הזה, ולכן WisKey נפתח באפליקציה עצמה');
+    await expect(embed.locator('wiskey-overview')).toHaveCount(1);
+    const top = await topRelayState(page);
+    expect(top.asked).toEqual([AUTH_PAYLOAD]); // only the top frontend's own request reached the bridge
+    expect(top.revoked).toBe(0);
+    expect(top.bus).toEqual([]);
+    expect(await topCallbacks(page)).toEqual({ registry: false, setToken: 'function', revokeToken: 'none' });
+  });
+
+  test('nothing is delivered to a frame on another origin; the top window gets plain callbacks back when the frame goes and when SMPLWISE\'s page goes', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'the Companion app is a phone');
+    await page.route(HA_TOP_RELAY, (route: Route) => route.fulfill({ status: 200, contentType: 'text/html', body: haTopRelay(true) }));
+    await page.route('**/other-origin', (route: Route) =>
+      route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><html><body><script>window.__got = 0; window.externalAuthSetToken = () => { window.__got++; };</script>other</body></html>' }),
+    );
+    await stubPanel(page, { kiosk: true, panels: true, api: 'v1', externalAuth: true });
+    await page.goto('/ha-top-relay');
+    const app = page.frameLocator('#ingress');
+    const frame = app.locator(FRAME);
+    await expect(frame).toHaveAttribute('data-embed-mode', 'v1', { timeout: 30000 });
+    expect(await topCallbacks(page)).toEqual({ registry: true, setToken: 'accessor', revokeToken: 'accessor' });
+
+    // the frame goes to another origin: an answer from the app is not delivered there
+    const other = `${new URL(page.url()).protocol}//localhost:${new URL(page.url()).port}/other-origin`;
+    await wiskeyFrame(page)!.evaluate((u) => location.assign(u), other);
+    await expect.poll(() => page.frames().some((f) => f.url() === other)).toBe(true);
+    const otherFrame = () => page.frames().find((f) => f.url() === other)!;
+    await expect.poll(() => otherFrame().evaluate(() => typeof (window as unknown as { __got?: number }).__got)).toBe('number');
+    await page.evaluate((p) => (window as unknown as { externalApp: { getExternalAuth(p: string): void } }).externalApp.getExternalAuth(p), AUTH_PAYLOAD);
+    await expect.poll(async () => (await topRelayState(page)).tokens.length).toBe(3); // the top frontend got it
+    expect(await otherFrame().evaluate(() => (window as unknown as { __got: number }).__got)).toBe(0);
+
+    // leaving the WisKey area removes the frame: the relay goes, the top frontend's own callbacks are plain again
+    await page.frame({ url: /#\/wiskey\// })!.evaluate(() => (location.hash = '#/live'));
+    await expect.poll(() => topCallbacks(page)).toEqual({ registry: false, setToken: 'function', revokeToken: 'none' });
+    await page.evaluate((p) => (window as unknown as { externalApp: { getExternalAuth(p: string): void } }).externalApp.getExternalAuth(p), AUTH_PAYLOAD);
+    await expect.poll(async () => (await topRelayState(page)).tokens.length).toBe(4); // still reaches the top frontend
+
+    // back in the area: the relay again; then SMPLWISE's own page goes away (pagehide): restored as well
+    await page.frame({ url: /#\/live/ })!.evaluate(() => (location.hash = '#/wiskey/overview'));
+    await expect(frame).toHaveAttribute('data-embed-mode', 'v1', { timeout: 30000 });
+    expect(await topCallbacks(page)).toEqual({ registry: true, setToken: 'accessor', revokeToken: 'accessor' });
+    await page.evaluate(() => ((document.getElementById('ingress') as HTMLIFrameElement).src = 'about:blank'));
+    await expect.poll(() => topCallbacks(page)).toEqual({ registry: false, setToken: 'function', revokeToken: 'none' });
     expect((await topRelayState(page)).revoked).toBe(0);
   });
 });

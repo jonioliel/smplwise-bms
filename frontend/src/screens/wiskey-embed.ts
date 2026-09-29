@@ -81,6 +81,7 @@ export { WISKEY_PANEL_PATH };
 const PANEL_TAG = WISKEY_PANEL_TAG;
 const LOAD_TIMEOUT_MS = 20000; // no `load` at all: nothing answers at the address
 const PANEL_TIMEOUT_MS = 25000; // Home Assistant loaded but never mounted the panel
+const RELAY_PANEL_TIMEOUT_MS = 10000; // the same, with the experimental phone relay: fall back sooner (review 2026-09-29)
 const TAB_TIMEOUT_MS = 15000; // legacy: the panel's session (its permissions) loads after it mounts; navigate() refuses until then
 const TICK_MS = 400;
 const IN_FLIGHT_MS = 3000; // v1: a navigation with no wiskey:location by then is taken as not acted on
@@ -313,6 +314,12 @@ export class WiskeyEmbed extends LitElement {
   private bridge: CompanionBridge | null = null;
   /** Where the relay's proxies went for the frame's current document (reflected on the frame for the evidence specs). */
   @state() private shim: ShimState = '';
+  /** The relay could not guarantee "no bus, no revoke" for a document (native / late / failed): the frame was dropped. */
+  @state() private relayRefused: ShimState = '';
+  /** "הגדל" actually in force (desktop, framed): the shell is covered and inert, Esc leaves it. */
+  private expandedActive = false;
+  private inerted: HTMLElement[] = [];
+  private desktopMq = window.matchMedia('(min-width: 768px)');
 
   static styles = css`
     :host {
@@ -405,7 +412,8 @@ export class WiskeyEmbed extends LitElement {
     @media (min-width: 768px) {
       :host([data-expanded][data-direct='']) {
         position: fixed;
-        inset: 0;
+        /* below the system alert banner, which sw-app raises to the top edge while expanded */
+        inset: var(--sw-banner-h, 0px) 0 0 0;
         z-index: calc(var(--sw-z-topbar) + 1);
         block-size: auto;
         background: var(--sw-surface);
@@ -477,11 +485,18 @@ export class WiskeyEmbed extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     window.removeEventListener('click', this.onClick, true);
+    this.desktopMq.removeEventListener('change', this.onMq);
+    this.setExpandedActive(false);
     this.dropFrame();
     this.detached = true;
   }
 
+  protected firstUpdated() {
+    this.desktopMq.addEventListener('change', this.onMq);
+  }
+
   protected updated(changed: PropertyValues<this>) {
+    this.syncExpanded();
     this.ensureConnector();
     const moved = (changed.has('tab') && changed.get('tab') !== undefined) || (changed.has('tool') && changed.get('tool') !== undefined);
     if (moved && !this.forbidden && !this.direct) this.onRequest();
@@ -516,7 +531,7 @@ export class WiskeyEmbed extends LitElement {
     this.opened = this.request();
     // the relay watches the frame from before its address is assigned (the connector assigns it right away)
     this.bridge?.dispose();
-    this.bridge = this.phoneRelay ? attachCompanionBridge(f, (s) => (this.shim = s)) : null;
+    this.bridge = this.phoneRelay ? attachCompanionBridge(f, (s) => this.onShim(s)) : null;
     this.connector = attachWiskey(f, {
       initial: this.opened,
       extraParams: this.bridge ? { external_auth: '1' } : undefined,
@@ -572,6 +587,7 @@ export class WiskeyEmbed extends LitElement {
    * otherwise a fresh frame opens what the route asks for. */
   private reload() {
     this.direct = '';
+    this.relayRefused = '';
     if (this.connector && this.mode === 'v1') {
       // the old catalog goes before the deliberate reload (contract §5.2); the panel reopens its last confirmed place
       this.resetFrameState();
@@ -833,7 +849,7 @@ export class WiskeyEmbed extends LitElement {
       if (!this.panelEl?.isConnected || this.panelEl.ownerDocument !== doc) this.panelEl = deepFind(doc, PANEL_TAG) as PanelEl | null;
       const panel = this.panelEl;
       if (!panel) {
-        if (Date.now() - this.loadedAt > PANEL_TIMEOUT_MS) {
+        if (Date.now() - this.loadedAt > (this.bridge ? RELAY_PANEL_TIMEOUT_MS : PANEL_TIMEOUT_MS)) {
           // Home Assistant's page answered but never connected: its sign-in did not complete inside the frame (the
           // Companion bridge waits for a token the app delivers to its top document only) - not "not Home Assistant"
           if (!ha.hass) return this.goDirect();
@@ -918,6 +934,16 @@ export class WiskeyEmbed extends LitElement {
     this.timer = window.setInterval(() => this.tick(), KEEP_MS);
   }
 
+  /** The relay's outcome for the frame's current document. Only `early` (every proxy in place before Home Assistant's
+   * scripts ran) keeps the frame; anything else would leave the app's real bridge (its bus, its revoke) inside it, so
+   * the frame goes at once and the tab shows the 0.1.123 screen (security review 2026-09-29, M1). */
+  private onShim(s: ShimState) {
+    this.shim = s;
+    if (s === 'early') return;
+    this.relayRefused = s;
+    this.goDirect();
+  }
+
   /** Home Assistant cannot sign in inside the frame: drop the frame and show the tab without nesting. */
   private goDirect() {
     this.dropFrame();
@@ -976,14 +1002,16 @@ export class WiskeyEmbed extends LitElement {
     const note =
       this.direct === 'companion'
         ? 'בטלפון WisKey נפתח באפליקציה עצמה'
-        : this.phoneRelay
+        : this.phoneRelay && this.relayRefused
+          ? 'ההטמעה באפליקציה (ניסיוני) לא נתמכת במכשיר הזה, ולכן WisKey נפתח באפליקציה עצמה'
+          : this.phoneRelay
           ? 'ההטמעה באפליקציה (ניסיוני) לא הצליחה להתחבר, ולכן WisKey נפתח באפליקציה עצמה'
           : 'Home Assistant מבקש התחברות בתוך המסגרת, ולכן WisKey נפתח ב־Home Assistant עצמו';
     const screen = SMPLWISE_SCREEN[this.tab];
     const only = wiskeySegmentOf(this.tab);
     return html`
       <div class="bar" data-wiskey-embed-bar>
-        <span class="note ${this.direct === 'companion' ? '' : 'warn'}" data-wiskey-embed-note=${this.direct} ?data-phone-relay=${this.phoneRelay}>${note}</span>
+        <span class="note ${this.direct === 'companion' ? '' : 'warn'}" data-wiskey-embed-note=${this.direct} ?data-phone-relay=${this.phoneRelay} data-relay-refused=${this.relayRefused}>${note}</span>
         <span class="grow"></span>
         ${screen ? this.openInHaButton() : nothing}
         ${phone ? nothing : this.fullLink()}
@@ -1009,6 +1037,39 @@ export class WiskeyEmbed extends LitElement {
   private toggleExpanded() {
     this.expanded = !this.expanded;
     writeExpanded(this.expanded);
+  }
+
+  private onMq = () => this.syncExpanded();
+
+  private onEsc = (e: KeyboardEvent) => {
+    if (e.key !== 'Escape' || !this.expandedActive || e.defaultPrevented) return;
+    this.toggleExpanded(); // Esc leaves "הגדל" (inside the frame the key belongs to WisKey)
+  };
+
+  /** "הגדל" is in force only on a desktop width with a frame (see the host style). */
+  private syncExpanded() {
+    this.setExpandedActive(this.isConnected && this.expanded && this.direct === '' && !this.forbidden && this.desktopMq.matches);
+  }
+
+  /** While expanded: the shell's rail, top bar, tab row and bottom nav are inert (Tab never reaches what is covered),
+   * the system alert banner is raised above the layer (sw-app `:host([data-wiskey-expanded]) .sysbanner`, and the layer
+   * starts below it), and Esc leaves. Everything is undone when it ends or the module is left. */
+  private setExpandedActive(on: boolean) {
+    if (on === this.expandedActive) return;
+    this.expandedActive = on;
+    const root = this.getRootNode();
+    const shell = root instanceof ShadowRoot ? (root.host as HTMLElement) : null;
+    shell?.toggleAttribute('data-wiskey-expanded', on);
+    if (on) {
+      const covered = root instanceof ShadowRoot ? Array.from(root.querySelectorAll<HTMLElement>('nav.rail, header.topbar, nav.bottom, main > :not(.screen)')) : [];
+      this.inerted = covered.filter((el) => !el.inert);
+      for (const el of this.inerted) el.inert = true;
+      window.addEventListener('keydown', this.onEsc);
+    } else {
+      for (const el of this.inerted) el.inert = false;
+      this.inerted = [];
+      window.removeEventListener('keydown', this.onEsc);
+    }
   }
 
   /** "הגדל" / "צמצם" (desktop; hidden on a phone, where the frame already has the screen below the top bar). */

@@ -640,6 +640,59 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     expect(await page.evaluate(() => localStorage.getItem('sw-wiskey-expanded'))).toBeNull();
   });
 
+  test('"הגדל" keeps the system alert banner visible above it, makes the covered shell inert, and Esc leaves it', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'desktop only');
+    await page.route('**/api/v1/health/summary', (route: Route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'error', items: [{ id: 'nvr', status: 'error', label: 'מקליט לא זמין' }], checked_at: new Date().toISOString(), version: 'test' }) }),
+    );
+    await stubPanel(page, { kiosk: true, panels: true, api: 'v1' });
+    await open(page, '/wiskey/overview');
+    await expect(page.locator(FRAME)).toHaveAttribute('data-confirmed-tab', 'overview', { timeout: 15000 });
+    const banner = page.locator('sw-app [data-sys-banner]');
+    await expect(banner).toBeVisible();
+    await page.locator('wiskey-embed sw-button[data-wiskey-expand]').click();
+    await expect(page.locator('wiskey-embed')).toHaveAttribute('data-expanded', '');
+    const g = await page.locator('wiskey-embed').evaluate((embed: HTMLElement) => {
+      const sr = (embed.getRootNode() as ShadowRoot);
+      const b = sr.querySelector('[data-sys-banner]')!.getBoundingClientRect();
+      const e = embed.getBoundingClientRect();
+      const hit = sr.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+      return {
+        bannerTop: b.top,
+        bannerBottom: b.bottom,
+        embedTop: e.top,
+        embedBottom: e.bottom,
+        bannerOnTop: !!hit && !!hit.closest('[data-sys-banner]'),
+        shellMarked: (sr.host as HTMLElement).hasAttribute('data-wiskey-expanded'),
+        inert: ['nav.rail', 'header.topbar', 'main > .subnav'].map((s) => (sr.querySelector(s) as HTMLElement | null)?.inert ?? null),
+        screenInert: (sr.querySelector('main > .screen') as HTMLElement).inert,
+      };
+    });
+    expect(g.bannerTop).toBe(0);
+    expect(g.bannerOnTop).toBe(true); // the layer never covers the alert
+    expect(Math.abs(g.embedTop - g.bannerBottom)).toBeLessThanOrEqual(1); // the layer starts right below it
+    expect(Math.abs(g.embedBottom - 900)).toBeLessThanOrEqual(1);
+    expect(g.shellMarked).toBe(true);
+    expect(g.inert).toEqual([true, true, true]); // Tab cannot reach the covered shell
+    expect(g.screenInert).toBe(false);
+    await page.screenshot({ path: testInfo.outputPath('wiskey-embed-expanded-banner.png') });
+
+    // Esc leaves "הגדל" and gives the shell back
+    await page.locator('wiskey-embed sw-button[data-wiskey-expand]').focus();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('wiskey-embed')).not.toHaveAttribute('data-expanded', '');
+    const after = await page.locator('wiskey-embed').evaluate((embed: HTMLElement) => {
+      const sr = embed.getRootNode() as ShadowRoot;
+      return {
+        shellMarked: (sr.host as HTMLElement).hasAttribute('data-wiskey-expanded'),
+        inert: ['nav.rail', 'header.topbar', 'main > .subnav'].map((s) => (sr.querySelector(s) as HTMLElement | null)?.inert ?? null),
+        bannerTop: sr.querySelector('[data-sys-banner]')!.getBoundingClientRect().top,
+      };
+    });
+    expect(after).toEqual({ shellMarked: false, inert: [false, false, false], bannerTop: expect.any(Number) });
+    expect(after.bannerTop).toBeGreaterThan(0); // back under the top bar
+  });
+
   test('הגדרות › בקרות כניסה switches one tab between the embed and the SMPLWISE screen', async ({ page, request }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'desktop only');
     await stubPanel(page, { kiosk: true, panels: true, api: 'v1' });
