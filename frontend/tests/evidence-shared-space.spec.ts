@@ -14,13 +14,15 @@ import { fileURLToPath } from 'node:url';
 // to SW_SHOT_DIR (default private-evidence), named "wide-*".
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SHOTS = process.env.SW_SHOT_DIR || path.resolve(HERE, '..', '..', 'private-evidence', 'shared-space');
-const ids = { site: '', building: '', fm1: '', f0: '', vm1: '', v0: '', hall: '', dup: '' };
+const ids = { site: '', building: '', fm1: '', f0: '', vm1: '', v0: '', hall: '', dup: '', camCourt: '', camUpper: '' };
 let api: APIRequestContext;
 let defaultView = '2d';
 const ed = 'explore-plan-editor';
-/** The court (floor -1) and the upper level (floor 0): the hall is 2 m wider on each side upstairs. */
+/** The court (floor -1) and the upper level (floor 0): the hall is 2 m wider on each side upstairs and 3.6 m deeper on
+ * the north, where ONE tribune rises from the court past floor 0's level (owner 2026-09-30) - floor 0's door in the
+ * middle of its north wall opens straight onto the tribune's entry row. */
 const HALL = [{ x: 0.2, y: 0.2 }, { x: 0.6, y: 0.2 }, { x: 0.6, y: 0.7 }, { x: 0.2, y: 0.7 }];
-const WIDE = [{ x: 0.15, y: 0.15 }, { x: 0.65, y: 0.15 }, { x: 0.65, y: 0.75 }, { x: 0.15, y: 0.75 }];
+const WIDE = [{ x: 0.15, y: 0.05 }, { x: 0.65, y: 0.05 }, { x: 0.65, y: 0.75 }, { x: 0.15, y: 0.75 }];
 
 type Obj = { id: string; position: [number, number]; shared?: { home_floor_id: string } };
 type Draft = { geometry: { revision: number }; doc: Record<string, unknown> & { walls: { id: string; shared?: unknown }[]; objects: Obj[]; shared_spaces?: { role: string; label: string; other_label?: string }[] } };
@@ -82,20 +84,35 @@ test.describe.serial('shared space: the hall on two floors, wider upstairs (CR-0
     // floor -1: the court with its walls, a tribune on it and the top rows that stand in the upper level's ring
     ids.hall = (await (await api.post(`api/v1/floors/${ids.fm1}/zones`, { data: { name: 'אולם ספורט', kind: 'room', polygon: HALL } })).json()).id;
     ids.dup = (await (await api.post(`api/v1/floors/${ids.f0}/zones`, { data: { name: 'אולם ספורט', kind: 'room', polygon: WIDE } })).json()).id;
+    // the grand tribune stands under floor 0's overhang: explicitly the hall's content (shared_space_id, re-review N3);
+    // 4.5 m of rows from the court, facing it (rotated 180: the low rows at the court's edge)
     await save(ids.vm1, {
       walls: [...ring('h', HALL), wall('corr', [0.8, 0.1], [0.8, 0.9])],
-      objects: [obj('trib', [0.4, 0.3], 'tribune.stepped', { size: { w_m: 10, d_m: 3, h_m: 2.5 }, params: { rows: 6 } }), obj('rows-up', [0.625, 0.45], 'chair.basic', { size: { w_m: 0.8, d_m: 6, h_m: 0.9 } })],
+      objects: [obj('trib', [0.4, 0.3], 'tribune.stepped', { size: { w_m: 10, d_m: 3, h_m: 2.5 }, params: { rows: 6 } }),
+        obj('grand', [0.4, 0.125], 'tribune.stepped', { rotation_deg: 180, size: { w_m: 10, d_m: 3.6, h_m: 4.5 }, params: { rows: 9 }, shared_space_id: ids.hall })],
     });
     expect((await api.post(`api/v1/plan-versions/${ids.vm1}/geometry/publish`)).status()).toBe(200);
     // floor 0: its own wider outline and walls, the court drawn again inside it (a duplicate line and a seat)
-    await save(ids.v0, { walls: [...ring('u', WIDE), wall('d-in', [0.3, 0.45], [0.5, 0.45]), wall('lobby', [0.8, 0.1], [0.8, 0.9])], objects: [obj('dup-seat', [0.3, 0.6])] });
+    await save(ids.v0, {
+      walls: [...ring('u', WIDE), wall('d-in', [0.3, 0.45], [0.5, 0.45]), wall('lobby', [0.8, 0.1], [0.8, 0.9])], objects: [obj('dup-seat', [0.3, 0.6])],
+      openings: [{ id: 'd-trib', wall_id: 'u1', t: 0.5, kind: 'door', width_m: 1.2, height_m: 2.1, sill_m: 0, swing: 'double', hinge: 'start', anchor_ref: null, confidence: 1, source: 'manual' }],
+    });
     expect((await api.post(`api/v1/plan-versions/${ids.v0}/geometry/publish`)).status()).toBe(200);
+    // a camera on each floor inside the hall: both become members at the conversion
+    const cams = (await (await api.get('api/v1/cameras')).json()).cameras as { channel: number }[];
+    const ch = Math.max(0, ...cams.map((x) => x.channel)) + 1;
+    ids.camCourt = (await (await api.post('api/v1/cameras', { data: { channel: ch, alias: 'מצלמת מגרש' } })).json()).id;
+    ids.camUpper = (await (await api.post('api/v1/cameras', { data: { channel: ch + 1, alias: 'מצלמת יציע' } })).json()).id;
+    for (const [floor, cam, x, y] of [[ids.fm1, ids.camCourt, 0.5, 0.6], [ids.f0, ids.camUpper, 0.6, 0.12]] as const) {
+      expect((await api.post(`api/v1/floors/${floor}/anchors`, { data: { resource_type: 'camera', resource_id: cam, x, y } })).status()).toBe(201);
+    }
   });
 
   test.afterAll(async () => {
     if (!api) return;
     const failures: string[] = [];
     if ((await api.patch('api/v1/settings', { data: { 'map.default_view': defaultView } })).status() !== 200) failures.push('map.default_view restore');
+    for (const cam of [ids.camCourt, ids.camUpper]) if (cam) await api.delete(`api/v1/cameras/${cam}`).catch(() => undefined);
     for (const [what, p] of [['floor -1', `api/v1/floors/${ids.fm1}?force=true`], ['floor 0', `api/v1/floors/${ids.f0}?force=true`], ['building', `api/v1/buildings/${ids.building}`], ['site', `api/v1/sites/${ids.site}`]] as const) {
       try {
         const status = (await api.delete(p)).status();
@@ -130,7 +147,7 @@ test.describe.serial('shared space: the hall on two floors, wider upstairs (CR-0
     expect(d0.doc.shared_spaces?.[0]).toMatchObject({ role: 'mirror', label: 'רצפה בקומה -1', other_label: 'מפלס תחתון' });
     // 2. floor 0's editor: the court's content, its chip, the court's outline dashed
     await expect(page.locator(`${ed} sw-plan-canvas [data-object="${ids.fm1}:trib"]`)).toHaveCount(1, { timeout: 15000 });
-    await expect(page.locator(`${ed} sw-plan-canvas [data-object="${ids.fm1}:rows-up"]`)).toHaveCount(1);
+    await expect(page.locator(`${ed} sw-plan-canvas [data-object="${ids.fm1}:grand"]`)).toHaveCount(1);
     // floor 0 keeps its own room (the outline): the chip is on it
     await expect(page.locator(`${ed} sw-plan-canvas [data-zone-chip="${ids.dup}"]`)).toContainText('רצפה בקומה');
     await expect(page.locator(`${ed} sw-plan-canvas [data-shared-outline="${ids.hall}"][data-shared-level="lower"]`)).toContainText('מפלס תחתון');
@@ -155,7 +172,7 @@ test.describe.serial('shared space: the hall on two floors, wider upstairs (CR-0
     await page.goto('about:blank');
     await page.goto(`/?design=a#/explore/floors/${ids.fm1}`);
     await expect(page.locator(`sw-plan-canvas [data-shared-outline="${ids.hall}"][data-shared-level="upper"]`)).toContainText('מפלס עליון', { timeout: 20000 });
-    await expect(page.locator('sw-plan-canvas [data-object="rows-up"]')).toHaveCount(1);
+    await expect(page.locator('sw-plan-canvas [data-object="grand"]')).toHaveCount(1);
     await expect(page.locator(`sw-plan-canvas [data-zone-chip="${ids.hall}"]`)).toContainText('רצפה בקומה');
     await shot(page, '04-floor-1-map');
     // 6. floor 0's map: the hall's content, the court's outline dashed
@@ -164,7 +181,29 @@ test.describe.serial('shared space: the hall on two floors, wider upstairs (CR-0
     await expect(page.locator(`sw-plan-canvas [data-object="${ids.fm1}:trib"]`)).toHaveCount(1, { timeout: 20000 });
     await expect(page.locator(`sw-plan-canvas [data-shared-outline="${ids.hall}"][data-shared-level="lower"]`)).toHaveCount(1);
     await expect(page.locator(`sw-plan-canvas [data-zone-chip="${ids.dup}"]`)).toContainText('רצפה בקומה');
+    // floor 0's door onto the tribune's entry row
+    await expect(page.locator(`sw-plan-canvas [data-tribune-entry="${ids.fm1}:grand"]`)).toContainText('כניסה לטריבונה');
     await shot(page, '05-floor0-map');
+    // the members of the shared space: selecting the room on the map lists them (both cameras, each with its floor)
+    const canvas = page.locator('sw-plan-canvas');
+    const box = (await canvas.boundingBox())!;
+    const s = await canvas.evaluate((el, p) => (el as unknown as { toScreen: (a: number, b: number) => { x: number; y: number } }).toScreen(p[0], p[1]), [0.62, 0.7] as [number, number]);
+    await page.mouse.click(box.x + s.x, box.y + s.y);
+    const list = page.locator('[data-shared-members] sw-share-members');
+    await expect(list.locator('[data-member]')).toHaveCount(2, { timeout: 15000 });
+    await expect(list.locator('[data-members-list]')).toContainText('מצלמת מגרש');
+    await expect(list.locator('[data-member-add]')).toHaveCount(1); // the owner holds the share rights
+    await shot(page, '09-members-map');
+    // the editor's room panel lists them too, with "הסר" and "הוסף"
+    await page.goto('about:blank');
+    await page.goto(`/?design=a#/explore/floors/${ids.f0}/edit`);
+    await page.locator(`${ed} [data-tool="zones"]`).click();
+    await page.locator(`${ed} [data-zone-row]`, { hasText: 'אולם ספורט' }).click();
+    const inEditor = page.locator(`${ed} sw-share-members`);
+    await expect(inEditor.locator('[data-member]')).toHaveCount(2, { timeout: 15000 });
+    await expect(inEditor.locator('[data-member-remove]')).toHaveCount(2);
+    await inEditor.scrollIntoViewIfNeeded();
+    await shot(page, '10-members-editor');
   });
 
   test('3D of both floors from the two outlines, and הגדרות › מפה opens the map in 3D', async ({ page }) => {

@@ -39,7 +39,8 @@ import type { ScenePreset } from '../map/scene-three'; // type only: the three c
 import type { LevelSelectDetail, PartSelectDetail } from '../map/sw-plan-3d';
 import type { QualityLevel } from '../map/scene-three';
 import { boundItemOf } from '../map/part-select';
-import { zonesWithChips } from '../map/shared-space';
+import { sharedChip, zonesWithChips } from '../map/shared-space';
+import '../components/sw-share-members';
 import { WEBGL_UNAVAILABLE_HE, webglAvailable } from '../map/webgl';
 import { anchorOnLevel, initialLevel } from '../map/studio-ops';
 import { productSettings } from '../api/prefs';
@@ -546,6 +547,32 @@ export class ExploreFloorMap extends LitElement {
       flex-wrap: wrap;
       gap: 6px;
       align-items: center;
+    }
+    .shared-members {
+      position: absolute;
+      inset-inline-start: 12px;
+      inset-block-end: 56px;
+      z-index: var(--sw-z-map-ui);
+      inline-size: 300px;
+      max-inline-size: calc(100% - 24px);
+      max-block-size: 60%;
+      overflow: auto;
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      box-shadow: var(--sw-shadow-3);
+      padding: 10px 12px;
+    }
+    .shared-members .sm-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      margin-block-end: 6px;
+      font-size: var(--sw-fs-sm);
+    }
+    .shared-members .sm-head span {
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-xs);
     }
     .sidelist {
       position: absolute;
@@ -2045,6 +2072,20 @@ export class ExploreFloorMap extends LitElement {
     return html`<sw-popover heading=${heading} .x=${this.anchor.x} .y=${this.anchor.y} .stageWidth=${w} .stageHeight=${h} @close=${this.close}>${body}<div slot="footer">${footer}</div></sw-popover>`;
   }
 
+  /** CR-009 (owner 2026-09-30): a selected shared space shows its members - read-only unless the reader holds the
+   * share rights; each member only as far as the reader may see it (the server filters). */
+  private renderSharedMembers() {
+    const b = this.bundle;
+    if (!b || b.source !== 'api' || !this.selectedZoneId) return nothing;
+    const z = b.zones.find((x) => x.id === this.selectedZoneId);
+    const s = z?.shared;
+    if (!z || !s) return nothing;
+    return html`<div class="shared-members" data-shared-members>
+      <div class="sm-head"><strong>${z.name}</strong><span>${sharedChip(s) ?? ''}</span></div>
+      <sw-share-members .zoneId=${s.zone_id} @members-changed=${() => void this.load()}></sw-share-members>
+    </div>`;
+  }
+
   private renderPanel() {
     const counts = this.layerCounts();
     const rows: { id: Layer; label: string; count: string }[] = [
@@ -2168,6 +2209,7 @@ export class ExploreFloorMap extends LitElement {
           </div>`
         : nothing}
       ${this.panel ? this.renderPanel() : nothing}
+      ${this.renderSharedMembers()}
       ${this.renderCircuitStrip()}
       ${this.multi ? this.renderPickbar() : nothing}
       ${this.renderSideList()}

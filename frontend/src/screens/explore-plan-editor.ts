@@ -24,6 +24,7 @@ import { ROOM_FILL_LABEL, setRenderMode, stylizeVersion, type RoomFill, type Sty
 import { ZONE_KINDS, acceptZones, addShareMember, createZone, deleteZone, detectZones, listZones, pointInPolygon, previewShare, removeShareMember, shareZone, unshareZone, updateZone, zoneKindLabel, type SharePreview, type ShareRequest, type SpatialZone, type ZoneKind, type ZonePoint } from '../api/zones';
 import { findGeomItem, geomIds, geomItemPoint, overhangZone, sharedChip, sharedHint } from '../map/shared-space';
 import { bidi } from '../i18n/bidi';
+import '../components/sw-share-members';
 import { proposeDoor } from '../api/geometry';
 import { acceptDetection, calibrate, calibrateEstimate, copyGeometryFrom, deleteTwin, detectStructure, exportUrl, geometryDiff, getLinkTargets, linkConnector, publishGeometry, type DetectResult, type DetectTarget, type GeometryDiffResponse } from '../api/geometry';
 import { allIds, byConfidence, byKind, defaultStates, fromResult, moveVertex as moveCandidateVertex, rescale, takeDxfCandidates, withParents, type CandidateSet, type CandKind, type CandState } from '../map/candidates';
@@ -1274,12 +1275,14 @@ export class ExplorePlanEditor extends LitElement {
     const s = z.shared;
     if (s?.role === 'mirror') {
       return html`<div class="shared-box" data-zone-shared="mirror"><span class="chip">${sharedChip(s)}</span>
-        <div class="note">החדר שייך ל${bidi(s.home_floor_name)} ומוצג כאן שלם. עריכה כאן נשמרת שם ומופיעה בשתי הקומות.</div>
+        <div class="note">חלל משותף עם ${bidi(s.home_floor_name)}: המתאר והקירות כאן הם של הקומה הזו; התוכן (טריבונות, סימונים, עצמים) נשמר שם ומוצג בשתי הקומות, ועריכה שלו כאן מופיעה בשתיהן.</div>
+        <sw-share-members .zoneId=${s.zone_id} @members-changed=${() => void this.reloadShared()}></sw-share-members>
         ${b.permissions.structure ? html`<sw-button size="sm" variant="ghost" data-zone-unshare ?disabled=${this.zoneBusy} @click=${() => this.unshare(z, b.floorId)}>בטל שיתוף</sw-button>` : nothing}</div>`;
     }
     if (s?.role === 'home') {
       return html`<div class="shared-box" data-zone-shared="home"><span class="chip">${sharedChip(s)}</span>
-        <div class="note">משותף עם ${(s.floors ?? []).map((f) => bidi(f.name)).join(', ')}: החדר מוצג שלם גם שם.</div>
+        <div class="note">משותף עם ${(s.floors ?? []).map((f) => bidi(f.name)).join(', ')}: התוכן של החדר מוצג גם שם.</div>
+        <sw-share-members .zoneId=${s.zone_id} @members-changed=${() => void this.reloadShared()}></sw-share-members>
         ${b.permissions.structure ? (s.floors ?? []).map((f) => html`<sw-button size="sm" variant="ghost" data-zone-unshare=${f.floor_id} ?disabled=${this.zoneBusy} @click=${() => this.unshare(z, f.floor_id)}>בטל שיתוף עם ${bidi(f.name)}</sw-button>`) : nothing}</div>`;
     }
     return b.permissions.structure ? html`<div class="btns"><sw-button size="sm" icon="floor" data-zone-share ?disabled=${this.zoneBusy} title="חדר ששייך לשתי קומות - חלל בגובה כפול" @click=${() => this.openShare(z)}>הפוך לחלל משותף</sw-button></div>` : nothing;

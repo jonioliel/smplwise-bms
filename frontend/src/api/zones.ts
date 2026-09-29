@@ -102,6 +102,28 @@ export const addShareMember = (zoneId: string, resourceType: 'camera' | 'ha_enti
   post<{ zone_id: string; added: boolean }>(`zones/${zoneId}/share/members`, { resource_type: resourceType, resource_id: resourceId });
 export const removeShareMember = (zoneId: string, resourceType: 'camera' | 'ha_entity', resourceId: string) =>
   del(`zones/${zoneId}/share/members/${resourceType}/${encodeURIComponent(resourceId)}`);
+
+/** One member of a shared space as the READER may see it (owner 2026-09-30: each member filtered by the reader's own
+ * permissions - a camera they may not view is not listed). `floors`: where it is anchored ("קומה אחרת" for a floor the
+ * reader may not read). */
+export interface ShareMember {
+  resource_type: 'camera' | 'ha_entity';
+  resource_id: string;
+  kind: 'camera' | 'door' | 'device';
+  name: string;
+  added_at?: string;
+  floors: { floor_id: string; name: string }[];
+}
+export interface ShareMembers {
+  zone_id: string;
+  floors: { floor_id: string; name: string }[];
+  members: ShareMember[];
+  /** The share rights on every floor of the room: add and remove. Without them the list is read-only. */
+  can_manage: boolean;
+  /** can_manage only: the anchors of the room's floors that are not members yet. */
+  candidates?: ShareMember[];
+}
+export const listShareMembers = (zoneId: string) => get<ShareMembers>(`zones/${zoneId}/share/members`);
 export const deleteZone = (id: string, signal?: AbortSignal) => (signal ? api<void>(`zones/${id}`, { method: 'DELETE', signal }) : del(`zones/${id}`));
 export const detectZones = (floorId: string, strength: 'light' | 'medium' | 'strong' = 'medium') => post<DetectResult>(`floors/${floorId}/zones/detect`, { strength });
 export const acceptZones = (floorId: string, candidates: { polygon: ZonePoint[]; name?: string; kind?: ZoneKind }[], replaceAuto: boolean) =>
