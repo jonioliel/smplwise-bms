@@ -1218,13 +1218,14 @@ def windows_by_profile(walls: list[Seg], openings: list[dict[str, Any]], dt: np.
 
 # ---------------------------------------------------------------- the detector
 
-def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TARGETS, strength: float = 0.6, scale_m_per_px: float | None = None, level_id: str = "L0", run_id: str = "0", deadline: float | None = None, door_model: str = "gap") -> dict[str, Any]:
+def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TARGETS, strength: float = 0.6, scale_m_per_px: float | None = None, level_id: str = "L0", run_id: str = "0", deadline: float | None = None, door_model: str = "gap", hollow_walls: bool = True) -> dict[str, Any]:
     """Candidates (document-v2 walls and openings, source "auto") for a plan picture. `scale_m_per_px` is the version's
     calibration (None when there is none); `targets` always includes "walls" ("openings" needs them). `deadline` (a
     time.monotonic() value, the router's guard) is checked between the stages and inside the thinning: DetectTimeout
     once it has passed, so a run nobody waits for any more gives its worker back. `door_model` "arc_v2" (T087, off by
     default) adds the door-symbol search of plan_detect_doors on the wall lines, which needs no gap; "gap" leaves the
-    answer exactly as before."""
+    answer exactly as before. `hollow_walls` (T087, on by default) runs the hollow-wall pass (plan_detect_hollow); off,
+    the answer is the solid pass's alone (every wall still carries `hollow`: false) and params say so."""
     if door_model not in DOOR_MODELS:
         raise ValueError(f"door_model must be one of {DOOR_MODELS}")
     t0 = time.perf_counter()
@@ -1252,7 +1253,19 @@ def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TA
     # pair is absorbed into it
     from . import plan_detect_hollow as pdh
 
-    segs, hollow, hollow_stats = pdh.find_hollow(segs, an, s, st["t_med"], lambda: _check(deadline))
+    dt_memo: list[np.ndarray] = []
+
+    def dt_ink() -> np.ndarray:
+        """The soft ink's distance transform (the profile pass's), computed once when first needed."""
+        if not dt_memo:
+            dt_memo.append(chamfer_dt(an["ink"]))
+        return dt_memo[0]
+
+    solid_segs = segs
+    if hollow_walls:
+        segs, hollow, hollow_stats = pdh.find_hollow(segs, an, s, st["t_med"], lambda: _check(deadline))
+    else:
+        hollow, hollow_stats = [], {"version": pdh.HOLLOW_VERSION, "skipped": "off"}
     if hollow:
         segs = segs + merge_collinear(hollow, join_px=max(1.5 * st["t_med"], 6.0))
     _check(deadline)
@@ -1262,8 +1275,18 @@ def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TA
     walls, openings = walls_from_gaps(segs, s, calibrated, an["thin"], an["ink_d"], want_openings, an["walls"])
     _check(deadline)
     if want_openings:
-        openings += windows_by_profile(walls, openings, chamfer_dt(an["ink"]), an["ink_d"], s)
+        openings += windows_by_profile(walls, openings, dt_ink(), an["ink_d"], s)
         _check(deadline)
+        if hollow and hollow_stats.get("absorbed"):
+            # a window the solid pass alone finds on pieces now absorbed into a hollow wall moves to that wall (the solid
+            # pass re-run on the pieces on the hollow walls' lines only)
+            base_segs = drop_steps_edges(drop_dashed_lines(pdh.on_hollow_lines(solid_segs, hollow), s, st["t_med"], an["ink"])[0], an["ink_d"], s)
+            base_walls, base_openings = walls_from_gaps(base_segs, s, calibrated, an["thin"], an["ink_d"], True, an["walls"])
+            base_openings += windows_by_profile(base_walls, base_openings, dt_ink(), an["ink_d"], s)
+            carried = pdh.carry_windows(base_walls, base_openings, walls, openings)
+            openings += carried
+            hollow_stats["carried_windows"] = len(carried)
+            _check(deadline)
     v2_stats: dict[str, int] | None = None
     if want_openings and door_model == "arc_v2":
         from . import plan_detect_doors as pdd  # loaded behind the flag only
@@ -1275,10 +1298,10 @@ def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TA
     mask = an["walls"]
     ys, xs = np.nonzero(mask)
     frame = (float(xs.min()), float(ys.min()), float(xs.max()), float(ys.max())) if xs.size else (0.0, 0.0, float(aw), float(ah))
-    hollow_walls = [g for g in walls if g.hollow]
-    if hollow_walls:  # a hollow outline is not in the wall mask: the frame reaches its outer faces
-        pts = np.array([p for g in hollow_walls for p in (g.a, g.b)])
-        pad = max(g.thick for g in hollow_walls) / 2
+    hollow_segs = [g for g in walls if g.hollow]
+    if hollow_segs:  # a hollow outline is not in the wall mask: the frame reaches its outer faces
+        pts = np.array([p for g in hollow_segs for p in (g.a, g.b)])
+        pad = max(g.thick for g in hollow_segs) / 2
         lo_h, hi_h = pts.min(axis=0) - pad, pts.max(axis=0) + pad
         frame = (min(frame[0], lo_h[0]), min(frame[1], lo_h[1]), max(frame[2], hi_h[0]), max(frame[3], hi_h[1])) if xs.size else (lo_h[0], lo_h[1], hi_h[0], hi_h[1])
     solid_walls = [g for g in walls if not g.hollow]  # the kinds of the solid walls do not depend on the hollow ones
@@ -1351,6 +1374,12 @@ def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TA
         hint = {"scale_m_per_px": round(DOOR_TYPICAL_M / float(np.median(door_gaps)), 6), "status": "estimated", "method": "door_width", "reason": "לפי רוחב דלת אופייני", "doors": len(door_gaps)}
     params: dict[str, Any] = {"strength": strength, "targets": list(targets), "analysis_px": [aw, ah], "threshold": an["threshold"], "tilt_deg": round(tilt, 2)}
     stats: dict[str, Any] = {"probe_segments": len(probe["segs"]), "segments": len(segs), "dropped_reference": dropped_reference, "dropped_dashed": dropped_dashed, "hollow": hollow_stats}
+    if hollow_stats.get("gate"):  # hollow walls found but not the plan's envelope: none emitted, never silently
+        stats["hollow_gate"] = hollow_stats["gate"]
+    if hollow_stats.get("skipped"):  # "too_many_strokes" (bounded cost) or "off" (the request's hollow_walls: false)
+        stats["hollow_skipped"] = hollow_stats["skipped"]
+    if not hollow_walls:  # the default answer keeps its exact shape
+        params["hollow_walls"] = False
     if door_model != "gap":  # the default answer keeps its exact shape
         params["door_model"] = door_model
         stats["arc_v2"] = v2_stats or {}
