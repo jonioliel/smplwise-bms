@@ -194,7 +194,7 @@ export async function awaitAction(id: string, onUpdate: (a: HaActionRecord) => v
 export const ACTION_ERROR_LABEL: Record<string, string> = {
   ha_unauthorized: 'תשתית המערכת דחתה את הפעולה: למשתמש שלך אין הרשאה להתקן זה',
   ha_unknown_user: 'תשתית המערכת אינה מכירה את המשתמש שמאחורי ההפעלה הזו',
-  bridge_not_paired: 'גשר SMPLWISE אינו מצומד',
+  bridge_not_paired: 'הגשר אינו מצומד',
   bridge_error: 'הגשר החזיר שגיאה',
   ha_unavailable: 'תשתית המערכת אינה זמינה',
   service_not_allowed: 'הגשר סירב: השירות אינו ברשימת הפעולות המאושרות (גשר ישן? גרסה 0.2.4 הוסיפה את פקדי חשמל והתקנים: מיקום תריס, עוצמת מאוורר, מצב מאוורר במזגן, כיבוי מזגן, הדלקה / כיבוי / השתקה של מסך — הפעילו מחדש את תשתית המערכת כדי לטעון את הגרסה החדשה)',

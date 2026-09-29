@@ -98,7 +98,8 @@ DEFAULTS: dict[str, str] = {
     "remote.require_mfa_admin": "false",  # D8 (owner 2026-09-29: MFA optional): true refuses admin-permission users without HA MFA remotely
     # CR-008 P2 (hardening): live streams one remote sign-in (a browser / a bearer client) may hold open at once - the
     # next start answers 429; the installation-wide media.max_live_sessions still applies on top
-    "remote.max_live_streams": "4",
+    "remote.max_live_streams": "16",  # default 16 (was 4: an 11-camera wall could not play); a value an administrator saved is never overridden
+    "remote.wall_profile": "sub",  # sub | main: the stream the camera wall plays on the remote channel (LAN / Ingress keep media.wall_profile)
     # CR-008 P2: false = the stricter CSP (remote_channel.CSP_STRICT) is report-only next to the enforced one; true = it is
     # the enforced policy. Switched on by the owner after reviewing the reports (הגדרות › גישה מרחוק).
     "remote.csp_enforce": "false",
@@ -182,6 +183,7 @@ class SettingsPatch(BaseModel):
     remote_session: str | None = Field(default=None, pattern="^(rolling_90d|browser_session|rolling_90d_idle_lock)$", alias="remote.session")
     remote_idle_lock_minutes: int | None = Field(default=None, ge=5, le=10080, alias="remote.idle_lock_minutes")
     remote_default_profile: str | None = Field(default=None, pattern="^(main|sub)$", alias="remote.default_profile")
+    remote_wall_profile: str | None = Field(default=None, pattern="^(main|sub)$", alias="remote.wall_profile")
     remote_mse_fallback: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.mse_fallback")
     remote_require_mfa_admin: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.require_mfa_admin")
     remote_max_live_streams: int | None = Field(default=None, ge=1, le=32, alias="remote.max_live_streams")

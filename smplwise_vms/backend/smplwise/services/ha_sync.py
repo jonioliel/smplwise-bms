@@ -170,7 +170,11 @@ def upsert_state(conn: sqlite3.Connection, st: dict[str, Any], seen: str | None 
         )
     from . import ha_history  # local import: the history depends on db only
 
-    ha_history.record(conn, st)  # T041: every state the VMS learns of is history from now on
+    # T041: every state the VMS learns of is history from now on. Durability: a pure state update commits on a
+    # synchronous=NORMAL connection (db.py, durability classes), so these ha_state_history rows - which HA does NOT send
+    # again - can lose roughly the last 30 s (until the next WAL fsync / checkpoint) on a power cut; an add-on crash
+    # or restart loses nothing. The current state itself is corrected by the next push / snapshot.
+    ha_history.record(conn, st)
     return entity_row(conn.execute("SELECT * FROM ha_entities WHERE entity_id = ?", (eid,)).fetchone())
 
 
@@ -348,14 +352,17 @@ def handle_state_event(db: Database, data: dict[str, Any], attempts: int = 1) ->
     retries of ~30 s would miss the socket's ping deadline and cost a disconnect plus a full resync. A state lost to a
     busy database is corrected by the next push of that entity or the next snapshot."""
     from . import rules as rules_svc
-    from .correlation import record_transition
+    from .correlation import may_record, record_transition
 
     new = data["new_state"]
     fired: list[dict[str, Any]] = []
+    # a pure mirror update commits without fsync; one that may record a correlation event (and rule alerts) - rows HA
+    # never sends again - is fsynced (db.py, durability classes)
+    durable = may_record(data.get("old_state"), new)
 
     def _write() -> dict[str, Any]:
         fired.clear()
-        with db.connection() as conn:
+        with db.connection(durable=durable) as conn:
             row = upsert_state(conn, new)
             transition = record_transition(conn, data.get("old_state"), new)
             if transition:
@@ -379,12 +386,12 @@ def store_states(db: Database, states: list[dict[str, Any]], seen: str) -> set[s
     rows = [st for st in states if st["entity_id"].split(".", 1)[0] not in STATE_DOMAINS_SKIP]
     for chunk in _chunks(rows):
         def _write(chunk=chunk) -> None:
-            with db.connection() as conn:
+            with db.connection(durable=False) as conn:
                 for st in chunk:
                     upsert_state(conn, st, seen)
         _busy_retry(_write)
         present.update(st["entity_id"] for st in chunk)
-    with db.connection() as conn:
+    with db.connection(mode="read") as conn:
         STATE.entities = count_entities(conn)
     return present
 
@@ -494,7 +501,7 @@ class HaSync:
                 # a registry_updated frame carries entity_id too, but never the old_state / new_state keys
                 if "new_state" in data and data.get("old_state") is not None:
                     try:
-                        with db.connection() as conn:
+                        with db.connection(durable=False) as conn:
                             removed = state_removed(conn, eid)
                     except Exception:
                         log.exception("state removal failed for %s", eid)
@@ -649,7 +656,7 @@ class HaSync:
                 _apply_locked()
 
         def _apply_locked() -> None:
-            with db.connection() as conn:
+            with db.connection(mode="read") as conn:
                 if not ents and conn.execute("SELECT 1 FROM ha_entities WHERE registry_id IS NOT NULL AND removed_at IS NULL LIMIT 1").fetchone():
                     # an empty entity registry while the mirror knows registry entities is a bad answer, not a wipe
                     result["incomplete"] = True
@@ -663,17 +670,17 @@ class HaSync:
             items = [(k, v) for k, v in maps.items() if k.split(".", 1)[0] not in STATE_DOMAINS_SKIP]
             for chunk in _chunks(items):
                 def _write(chunk=chunk) -> None:
-                    with db.connection() as conn:
+                    with db.connection(durable=False) as conn:
                         apply_registry(conn, dict(chunk))
                 _busy_retry(_write)
 
             def _structure() -> None:
-                with db.connection() as conn:
+                with db.connection(durable=False) as conn:
                     apply_structure(conn, areas_listing, floors_listing)
             _busy_retry(_structure)
 
             def _tombstone() -> None:
-                with db.connection() as conn:
+                with db.connection(durable=False) as conn:
                     # an entity that had a registry entry and no longer has one is gone, however recent its last state
                     # (HA deleted it, or renamed its id); one HA never registered stays while it keeps reporting states
                     present = set(maps) | {r["entity_id"] for r in conn.execute("SELECT entity_id FROM ha_entities WHERE state_seen_at >= ? AND registry_id IS NULL", (STATE.last_snapshot_at or "",)).fetchall()}
@@ -684,7 +691,7 @@ class HaSync:
                     device_bulk.clear_stale_marks(conn, set(maps))
                     STATE.entities = count_entities(conn)
             _busy_retry(_tombstone)
-            with db.connection() as conn:
+            with db.connection(mode="read") as conn:
                 result["changed"] = mirror_fingerprint(conn) != before
 
         write = loop.run_in_executor(None, _apply)

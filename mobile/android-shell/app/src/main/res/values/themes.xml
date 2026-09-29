@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The native screens (server list, dialogs, lock). Edge-to-edge: the activities pad themselves for the bars. -->
+    <style name="Theme.Arx" parent="Theme.Material3.Light.NoActionBar">
+        <item name="colorPrimary">@color/themeColor</item>
+        <item name="colorOnPrimary">@android:color/white</item>
+        <item name="colorPrimaryContainer">#DCE6FF</item>
+        <item name="colorOnPrimaryContainer">#0B2A7A</item>
+        <item name="colorSecondary">@color/themeColor</item>
+        <item name="android:colorBackground">@color/backgroundColor</item>
+        <item name="colorSurface">@android:color/white</item>
+        <item name="android:windowBackground">@color/backgroundColor</item>
+    </style>
+
+    <!-- The launcher's start-up splash (androidx core-splashscreen): the app icon on the theme colour. -->
+    <style name="Theme.Arx.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/themeColor</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.Arx</item>
+    </style>
+
+    <!-- The site: until the page paints, the window shows the same picture as the splash, so the hand-over is seamless. -->
+    <style name="Theme.Arx.Web" parent="Theme.Arx">
+        <item name="android:windowBackground">@drawable/launch_background</item>
+    </style>
+</resources>

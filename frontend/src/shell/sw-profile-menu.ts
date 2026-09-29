@@ -6,11 +6,13 @@ import '../components/sw-remote-sessions';
 import { t } from '../i18n/he';
 import { REMOTE } from '../arx/pre-gate';
 import { logout as arxLogout } from '../arx/auth';
+import { inAndroidApp, switchServer } from '../arx/android-app';
 
 /**
  * The account avatar of the top bar as a small menu (CR-008 P2): who is signed in and, with a backend, "הסשנים שלי" -
  * the user's remote sign-ins (SmplWise Arx) with "התנתק מכל המקומות" (on the remote channel) or "נתק את כל הכניסות
- * מרחוק" (locally). On the remote channel the menu also carries the sign-out.
+ * מרחוק" (locally). On the remote channel the menu also carries the sign-out, and inside the Android app "החלף שרת"
+ * (CR-008 §9: the app's native server list).
  */
 @customElement('sw-profile-menu')
 export class SwProfileMenu extends LitElement {
@@ -52,6 +54,12 @@ export class SwProfileMenu extends LitElement {
       ${this.open
         ? html`<div class="menu" role="dialog" aria-label=${t('app.account')} data-profile-menu-panel>
             <div class="who"><sw-avatar name=${this.name} size=${36}></sw-avatar><div><b>${this.name}</b>${this.role ? html`<span>${this.role}</span>` : nothing}</div></div>
+            ${inAndroidApp()
+              ? html`<sw-button variant="ghost" size="sm" icon="list" data-arx-switch-server @click=${() => {
+                  this.open = false;
+                  switchServer();
+                }}>החלף שרת</sw-button>`
+              : nothing}
             ${this.api
               ? html`<section data-my-sessions>
                   <h3>הסשנים שלי</h3>

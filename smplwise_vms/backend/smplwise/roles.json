@@ -97,7 +97,7 @@
     },
     {
       "id": "system_admin",
-      "name_he": "מנהל מערכת VMS",
+      "name_he": "מנהל מערכת",
       "permissions": [
         "map.read",
         "access.read",

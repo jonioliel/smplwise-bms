@@ -264,7 +264,7 @@ export class InvestigateCases extends LitElement {
               <span>תיק במקור</span><strong>${v.case ?? '—'}</strong>
               <span>יוצא</span><strong>${when(o?.exported_at)}${o?.exported_by_display || o?.exported_by ? ` · על ידי ${o?.exported_by_display || o?.exported_by}` : ''}</strong>
               <span>הופקה ב־</span><strong data-import-producer data-this-installation=${String(o?.this_installation ?? 'unknown')} data-producer=${producerOf(o)}>${producer}${o?.installation_id ? html` · <span class="ltr">${o.installation_id}</span>` : nothing}</strong>
-              <span>גרסה</span><strong><span class="ltr">SMPLWISE ${o?.app_version ?? '?'} · manifest v${v.schema_version ?? '?'}</span>${v.supported === false ? ' · לא נתמכת' : ''}</strong>
+              <span>גרסה</span><strong><span class="ltr">Arx ${o?.app_version ?? '?'} · manifest v${v.schema_version ?? '?'}</span>${v.supported === false ? ' · לא נתמכת' : ''}</strong>
               <span>חתימה</span><strong data-import-signature>${signatureText(v.signature)}</strong>
               <span>SHA-256 של החבילה</span><strong class="ltr" title=${v.bundle?.sha256 ?? ''}>${shortHash(v.bundle?.sha256)}</strong>
             </div>
@@ -761,7 +761,7 @@ export class InvestigateCaseDetail extends LitElement {
         <sw-icon name="shield" size=${18}></sw-icon>
         <div class="body">
           <strong data-provenance-headline>יובא ${where} ב־${this.fmt(p.imported_at)}; hash ${p.verification.ok ? 'תואם' : 'לא תואם'} (${p.verification.files} קבצים נבדקו בייבוא)</strong>
-          <span class="meta">במקור: "${p.source_case.title ?? '—'}" · יוצא ${p.exported_at ? this.fmt(p.exported_at) : '—'}${p.exported_by_display || p.exported_by ? ` על ידי ${p.exported_by_display || p.exported_by}` : ''} · SMPLWISE ${p.source_app_version ?? '?'}</span>
+          <span class="meta">במקור: "${p.source_case.title ?? '—'}" · יוצא ${p.exported_at ? this.fmt(p.exported_at) : '—'}${p.exported_by_display || p.exported_by ? ` על ידי ${p.exported_by_display || p.exported_by}` : ''} · Arx ${p.source_app_version ?? '?'}</span>
           <span class="meta">התקנת מקור <span class="ltr">${p.source_installation_id ?? '—'}</span> · ${signatureText({ present: p.signature.present, valid: p.signature.valid, kid: p.signature.kid, known: p.signature.known, retired: p.signature.retired, trust: p.signature.trust })}</span>
           <span class="meta">חבילה <span class="ltr" title=${p.bundle_sha256}>SHA-256 ${shortHash(p.bundle_sha256)}</span> · ${formatBytes(p.bundle_bytes)} · יובא על ידי ${p.imported_by ?? '—'}${p.skipped_at_source ? ` · ${p.skipped_at_source} פריטים לא נכללו כבר במקור` : ''}</span>
           ${ch

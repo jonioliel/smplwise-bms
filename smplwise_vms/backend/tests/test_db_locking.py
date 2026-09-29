@@ -11,10 +11,11 @@ import sqlite3
 import threading
 import time
 from dataclasses import replace
+from typing import Any
 
 import httpx
 import pytest
-from conftest import as_user, seed_tree
+from conftest import as_user, png_bytes, seed_tree
 from fastapi.testclient import TestClient
 from test_devices import dev_app  # noqa: F401 - fixture
 from test_exports import fake_pages
@@ -247,10 +248,12 @@ def test_connection_settings_and_idle_checkpoint(tmp_path):
 
 def test_health_reports_write_lock_counters(client):
     body = client.get("/api/v1/health").json()
-    assert {"holds", "slow_holds", "max_hold_s", "busy_errors", "max_hold_by", "last_busy"} <= set(body["db"]["write_lock"])
+    assert {"holds", "slow_holds", "max_hold_s", "busy_errors", "max_hold_by", "last_busy", "gate_timeouts", "waits_over_1s", "max_wait_s", "max_wait_recent_s", "max_wait_by", "write_gate", "gate"} <= set(body["db"]["write_lock"])
+    assert set(body["db"]["write_lock"]["gate"]) == {"held", "waiting"}
     # who held the lock (request paths with other users' ids) only for a system.configure holder; counters for everyone
     other = client.get("/api/v1/health", headers=as_user("viewer1")).json()["db"]["write_lock"]
-    assert {"holds", "slow_holds", "max_hold_s", "busy_errors"} <= set(other) and "max_hold_by" not in other and "last_busy" not in other
+    assert {"holds", "slow_holds", "max_hold_s", "busy_errors", "max_wait_s", "gate_timeouts"} <= set(other)
+    assert not {"max_hold_by", "max_wait_by", "last_busy"} & set(other)
 
 
 def test_audit_row_of_a_refusal_survives_release(client):
@@ -450,3 +453,94 @@ def test_released_connection_refuses_further_writes(tmp_path):
             conn.execute("INSERT INTO settings(key, value) VALUES ('b', '2')")
     with db.connection(mode="read") as conn:
         assert [r[0] for r in conn.execute("SELECT key FROM settings WHERE key IN ('a', 'b')")] == ["a"]
+
+
+def test_uploads_are_decoded_and_rendered_without_the_write_lock(client, monkeypatch):
+    """A plan upload (DXF / image render, PDF page count, hash) and a site / building picture (decode + re-encode) take
+    seconds on the add-on's CPU; they ran under the request's write lock, on the event loop (2026-09-29 inventory)."""
+    from smplwise.routers import catalog as catalog_router
+    from smplwise.services import plan_render
+
+    db: Database = client.app.state.db
+    ids = seed_tree(client)
+    seen: list[bool] = []
+    real_normalize, real_store = plan_render.normalize_image, catalog_router._store_image
+
+    def normalize(*a, **kw):
+        seen.append(lock_is_free(db))
+        return real_normalize(*a, **kw)
+
+    def store(*a, **kw):
+        seen.append(lock_is_free(db))
+        return real_store(*a, **kw)
+
+    monkeypatch.setattr(plan_render, "normalize_image", normalize)
+    monkeypatch.setattr(catalog_router, "_store_image", store)
+    r = client.post(f"/api/v1/floors/{ids['floor2']}/plan-assets", files={"file": ("p.png", png_bytes(), "image/png")})
+    assert r.status_code == 201, r.text
+    r = client.post(f"/api/v1/sites/{ids['site']}/image", files={"file": ("s.png", png_bytes(), "image/png")})
+    assert r.status_code == 200, r.text
+    assert seen == [True, True]
+    with db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action IN ('plan.asset.upload', 'site.update')").fetchone()[0] == 2
+
+
+def test_an_upload_waiting_to_relock_never_blocks_the_event_loop(settings, monkeypatch):
+    """Review B2: the uploads' re-lock after the render queues behind other writers; it must wait in the threadpool,
+    not on the event loop (an async handler froze every stream and WebSocket until the holder let go)."""
+    from smplwise.services import plan_render
+
+    app = create_app(settings)
+    db: Database = app.state.db
+    real_normalize = plan_render.normalize_image
+    holding, release_holder = threading.Event(), threading.Event()
+
+    def hold() -> None:
+        with db.connection(label="long writer"):
+            holding.set()
+            release_holder.wait(10)
+
+    def normalize(*a, **kw):
+        threading.Thread(target=hold, daemon=True).start()  # another writer takes the lock while the render runs
+        holding.wait(5)
+        return real_normalize(*a, **kw)
+
+    monkeypatch.setattr(plan_render, "normalize_image", normalize)
+    with TestClient(app) as c:  # one portal: every request below runs on the same event loop
+        ids = seed_tree(c)
+        c.get("/healthz")  # warm-up: FastAPI builds its route table lazily on the first requests (seconds of loop CPU)
+        result: dict[str, Any] = {}
+
+        def upload() -> None:
+            result["r"] = c.post(f"/api/v1/floors/{ids['floor2']}/plan-assets", files={"file": ("p.png", png_bytes(), "image/png")})
+
+        t = threading.Thread(target=upload)
+        t.start()
+        assert holding.wait(10)
+        time.sleep(0.3)  # the upload is now waiting to take the lock back
+        started = time.monotonic()
+        assert c.get("/healthz").status_code == 200
+        assert time.monotonic() - started < 1.0
+        release_holder.set()
+        t.join(20)
+    assert result["r"].status_code == 201, result["r"].text
+
+
+def test_a_site_deleted_while_its_picture_decodes_leaves_no_file(client, monkeypatch):
+    from smplwise.routers import catalog as catalog_router
+
+    ids = seed_tree(client)
+    real_store = catalog_router._store_image
+    written: list[str] = []
+
+    def store(request, kind, obj_id, file):
+        rel = real_store(request, kind, obj_id, file)
+        written.append(rel)
+        with client.app.state.db.connection() as w:  # deleted meanwhile (the lock is free during the decode)
+            w.execute("UPDATE sites SET deleted_at = ? WHERE id = ?", (db_mod.now_iso(), obj_id))
+        return rel
+
+    monkeypatch.setattr(catalog_router, "_store_image", store)
+    r = client.post(f"/api/v1/sites/{ids['site']}/image", files={"file": ("s.png", png_bytes(), "image/png")})
+    assert r.status_code == 404, r.text
+    assert written and not (client.app.state.settings.data_dir / "catalog_images" / written[0]).exists()

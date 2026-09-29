@@ -26,6 +26,14 @@ Tests currently using this pattern:
 - `test_plan_dxf_map.py::test_kilometre_extents_are_refused_and_a_long_line_stays_cheap`
 - `test_read_mode.py::test_reads_do_not_wait_for_a_writer`
 
+`test_db_lock_storm.py` is skipped entirely unless `SW_PERF=1`: a 90 s stress run of the SQLite write paths (HA state
+pushes, NVR alerts, audit rows, API reads and writes) that asserts no "database is locked" and a bounded write p99 /
+max. `SW_DB_STORM_S` sets the duration, `SW_DB_STORM_FSYNC_MS` (default 15) emulates the fsync of an SD card / eMMC
+on every synchronous=FULL commit, `SW_DB_WRITE_GATE=0` turns the FIFO write gate off for an A/B comparison.
+
+`SW_DB_IO_GUARD=1` (any run) reports device / network / subprocess I/O made while the caller holds the SQLite write
+lock (`db_io_guard.py`); it never fails a test.
+
 `test_intercom.py::test_busy_is_answered_at_once` predates this pattern but already follows its spirit: the bound
 is `COMMAND_TIMEOUT_S / 2` (an order of magnitude below the real timeout it guards against), built from a client
 constructed before the clock starts, so it does not need `SW_TEST_TIME_FACTOR` to stay robust under load.

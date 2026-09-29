@@ -6,6 +6,7 @@
 import { setUnauthorizedHandler } from '../api/client';
 import { ArxAuthError, dropOrphanSeed, loadRemoteConfig, refreshNow, resume, startBackground, takeSignOutReason } from './auth';
 import { mountShell } from './pre-gate';
+import { inAndroidApp } from './android-app';
 import './arx-login';
 
 function registerWorker(): void {
@@ -43,6 +44,7 @@ function showLogin(notice: string, kind: 'info' | 'error'): void {
 }
 
 export async function bootRemote(): Promise<void> {
+  inAndroidApp(); // CR-008 §9: record `?app=android` for this tab before any route change, and drop it from the address
   registerWorker();
   await loadRemoteConfig();
   dropOrphanSeed();

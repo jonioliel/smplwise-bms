@@ -327,7 +327,7 @@ export class SystemSetup extends LitElement {
               <sw-button size="sm" variant="primary" icon="check" ?disabled=${this.wiskeyBusy || !f.username.trim() || !f.password} data-wiskey-cred-save @click=${() => this.saveWiskey()}>${this.wiskeyBusy ? 'שומר…' : 'שמור'}</sw-button>
               <sw-button size="sm" variant="ghost" ?disabled=${this.wiskeyBusy} data-wiskey-cred-cancel @click=${() => (this.wiskeyForm = null)}>ביטול</sw-button>
             </div>
-            <div class="hint">החשבון נשמר בבסיס הנתונים של ה־VMS ואינו מוצג שוב; השמירה נרשמת באודיט בלי הסיסמה. החשבון אינו נבדק מול העמדה - אם הוא שגוי, במרכז הכניסה לא תהיה תמונה מהמצלמה.</div>
+            <div class="hint">החשבון נשמר בבסיס הנתונים של Arx ואינו מוצג שוב; השמירה נרשמת באודיט בלי הסיסמה. החשבון אינו נבדק מול העמדה - אם הוא שגוי, במרכז הכניסה לא תהיה תמונה מהמצלמה.</div>
           </div>`
         : html`<div class="actions">
             ${s.known ? html`<sw-button size="sm" icon="edit" ?disabled=${this.wiskeyBusy} data-wiskey-cred-edit @click=${() => { this.wiskeyMsg = ''; this.wiskeyForm = { station_id: s.station_id, username: '', password: '' }; }}>${s.override ? 'החלפת החשבון…' : 'חשבון משלה לעמדה…'}</sw-button>` : nothing}
@@ -346,12 +346,12 @@ export class SystemSetup extends LitElement {
       ${!w
         ? this.wiskeyError ? nothing : html`<div class="hint">קורא את רשימת העמדות…</div>`
         : html`${this.row('חשבון משותף (wiskey_username / wiskey_password)', w.default_configured ? 'מוגדר' : 'לא מוגדר', w.default_configured ? 'ok' : 'warn')}
-          ${w.state !== 'ready' ? html`<div class="hint" data-wiskey-cred-feed=${w.state}>WisKey אינו מחובר כרגע (מצב: <span class="ltr">${w.state}</span>); מוצג מה שידוע ל־VMS.</div>` : nothing}
+          ${w.state !== 'ready' ? html`<div class="hint" data-wiskey-cred-feed=${w.state}>WisKey אינו מחובר כרגע (מצב: <span class="ltr">${w.state}</span>); מוצג מה שידוע ל־Arx.</div>` : nothing}
           ${w.stations.length ? w.stations.map((s) => this.renderWiskeyStation(s, w)) : html`<div class="hint" data-wiskey-cred-empty>אין עמדות ברשימה.</div>`}
           ${this.wiskeyMsg ? html`<div class="hint" data-wiskey-cred-msg>${this.wiskeyMsg}</div>` : nothing}`}
       ${c
         ? html`<sw-dialog open heading="הסרת החשבון של העמדה" subheading=${c.name || c.station_id} data-wiskey-cred-confirm @close=${() => (this.wiskeyClear = null)}>
-            <div style="font-size:var(--sw-fs-sm);line-height:1.5">${!c.known ? 'הרשומה תימחק מבסיס הנתונים של ה־VMS.' : w?.default_configured ? 'העמדה תחזור לחשבון המשותף מה־Add-on options, והתמונה מהמצלמה תילקח מחדש איתו.' : 'לעמדה לא יישאר חשבון, ולא תהיה ממנה תמונה עד שיוגדר אחד.'} ההסרה נרשמת באודיט.</div>
+            <div style="font-size:var(--sw-fs-sm);line-height:1.5">${!c.known ? 'הרשומה תימחק מבסיס הנתונים של Arx.' : w?.default_configured ? 'העמדה תחזור לחשבון המשותף מה־Add-on options, והתמונה מהמצלמה תילקח מחדש איתו.' : 'לעמדה לא יישאר חשבון, ולא תהיה ממנה תמונה עד שיוגדר אחד.'} ההסרה נרשמת באודיט.</div>
             <div slot="footer"><sw-button variant="danger" ?disabled=${this.wiskeyBusy} data-wiskey-cred-confirm-run @click=${() => this.clearWiskey()}>${this.wiskeyBusy ? 'מסיר…' : 'הסר'}</sw-button><sw-button variant="ghost" @click=${() => (this.wiskeyClear = null)}>ביטול</sw-button></div>
           </sw-dialog>`
         : nothing}
@@ -422,7 +422,7 @@ export class SystemSetup extends LitElement {
   private renderNotifyCard() {
     const n = this.notify;
     const yes = (v: boolean | null) => (v === null ? '—' : v ? '✓' : '✗');
-    return html`<sw-card heading="התראות מה־NVR (Notify Surveillance Center)" subheading="אילו ערוצים מודיעים ל־VMS על תנועה ועל אירועים חכמים · כתיבה מאושרת ל־NVR, עם החזר" data-nvr-notify>
+    return html`<sw-card heading="התראות מה־NVR (Notify Surveillance Center)" subheading="אילו ערוצים מודיעים ל־Arx על תנועה ועל אירועים חכמים · כתיבה מאושרת ל־NVR, עם החזר" data-nvr-notify>
       ${this.notifyError ? html`<div class="hint" data-nvr-notify-error>${this.notifyError}</div>` : nothing}
       ${!n
         ? this.notifyError ? nothing : html`<div class="hint">קורא את הגדרות ה־NVR…</div>`
@@ -435,7 +435,7 @@ export class SystemSetup extends LitElement {
               <td>${n.can_write && c.motion.supported && !c.motion.center ? html`<sw-button size="sm" data-nvr-enable-one=${c.channel} @click=${() => this.planNotify([c.channel], false, true)}>הפעל</sw-button>` : nothing}</td>
             </tr>`)}</tbody>
           </table>
-          <div class="hint">✓ = ההתראה נשלחת ל־VMS · ✗ = הערוץ מקליט אבל לא מודיע · אירועים חכמים = חציית קו, פריצה לאזור, כניסה ויציאה מאזור (רק במצלמות שמגדירות אותם).</div>
+          <div class="hint">✓ = ההתראה נשלחת ל־Arx · ✗ = הערוץ מקליט אבל לא מודיע · אירועים חכמים = חציית קו, פריצה לאזור, כניסה ויציאה מאזור (רק במצלמות שמגדירות אותם).</div>
           ${n.can_write
             ? html`<div class="actions">
                 <sw-button variant="primary" size="sm" icon="bell" ?disabled=${this.notifyBusy} data-nvr-enable-all @click=${() => this.planNotify(null, false, true)}>הפעל תנועה בכל הערוצים</sw-button>
@@ -468,7 +468,7 @@ export class SystemSetup extends LitElement {
               ${h.mode === 'ha_only'
                 ? html`<sw-card heading="NVR - מצב ללא NVR" subheading="לא מוגדר - דילוג מכוון" data-nvr-less-connections>
                     ${this.row('מצב ההתקנה', 'Home Assistant בלבד (ללא NVR)')}
-                    <div class="hint">מצלמות, לייב, אירועים, הקלטות, תיקים וייצוא מוסתרים; המפה, חשמל והתקנים ו־WisKey עובדים כרגיל. להוספת NVR: מלאו nvr_host, nvr_username ו־nvr_password ב־Home Assistant › Add-ons › SMPLWISE VMS › Configuration והפעילו מחדש את ה־Add-on. הנתונים נשארים כמו שהם.</div>
+                    <div class="hint">מצלמות, לייב, אירועים, הקלטות, תיקים וייצוא מוסתרים; המפה, חשמל והתקנים ו־WisKey עובדים כרגיל. להוספת NVR: מלאו nvr_host, nvr_username ו־nvr_password ב־Home Assistant › Add-ons › SmplWise Arx › Configuration והפעילו מחדש את ה־Add-on. הנתונים נשארים כמו שהם.</div>
                   </sw-card>
                   ${this.renderConnectionCard()}`
                 : html`
@@ -513,11 +513,11 @@ export class SystemSetup extends LitElement {
                 ${this.check('backups') ? this.row('גיבויים', this.check('backups')!.detail, this.check('backups')!.status === 'ok' ? 'ok' : 'warn') : nothing}
               </sw-card>
             </div>
-            <sw-card heading="איפה מגדירים" subheading="הערכים אינם מוצגים כאן ואינם נשמרים ב־VMS; שינוי דורש הפעלה מחדש של ה־Add-on">
+            <sw-card heading="איפה מגדירים" subheading="הערכים אינם מוצגים כאן ואינם נשמרים ב־Arx; שינוי דורש הפעלה מחדש של ה־Add-on">
               <div class="opts" data-connection-options>
                 ${OPTIONS.map((o) => html`<div class="check"><span>${o.label}</span><span class="val ltr">${o.key}</span></div>`)}
               </div>
-              <div class="hint">Home Assistant › הגדרות › Add-ons › SmplWise Arx › Configuration. משתמש ה־NVR צריך הרשאות צפייה והקלטות בלבד; ה־VMS לא כותב ל־NVR.</div>
+              <div class="hint">Home Assistant › הגדרות › Add-ons › SmplWise Arx › Configuration. משתמש ה־NVR צריך הרשאות צפייה והקלטות בלבד; Arx לא כותב ל־NVR.</div>
             </sw-card>`}
       </sw-page>
     `;

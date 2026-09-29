@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The site (WebActivity). The WebView is added to webHolder in code (so it is configured before anything loads);
+    topScrim / bottomScrim paint the system-bar strips in the page's colours; errorView is the Hebrew error screen;
+    fullscreenHolder takes full-screen video. Insets are applied in code (edge-to-edge).
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/backgroundColor">
+
+    <View
+        android:id="@+id/topScrim"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_gravity="top"
+        android:background="@color/themeColor" />
+
+    <View
+        android:id="@+id/bottomScrim"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_gravity="bottom"
+        android:background="@color/backgroundColor" />
+
+    <FrameLayout
+        android:id="@+id/webHolder"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <com.google.android.material.progressindicator.LinearProgressIndicator
+            android:id="@+id/progress"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top"
+            android:visibility="gone"
+            app:indicatorColor="@color/themeColor"
+            app:trackThickness="3dp" />
+
+        <include
+            android:id="@+id/errorView"
+            layout="@layout/view_error"
+            android:visibility="gone" />
+    </FrameLayout>
+
+    <FrameLayout
+        android:id="@+id/fullscreenHolder"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@android:color/black"
+        android:visibility="gone" />
+</FrameLayout>

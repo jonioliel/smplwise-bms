@@ -119,3 +119,32 @@ def bind(client: TestClient, settings: Settings, username: str, role: str, scope
             "INSERT INTO bindings(id, subject_kind, subject_id, role_id, scope_type, scope_id, effect, permission_revision, assigned_by, created_at) VALUES (?, 'user', ?, ?, ?, ?, 'allow', ?, 'test', ?)",
             (new_id(), f"dev-{username}", role, scope_type, scope_id, permission_revision(conn), now_iso()),
         )
+
+
+# ---------------------------------------------------------------- SW_DB_IO_GUARD=1: I/O under the SQLite write lock
+
+if os.environ.get("SW_DB_IO_GUARD") == "1":
+    import json as _json
+
+    from db_io_guard import CURRENT_TEST, FINDINGS, install  # noqa: E402
+
+    @pytest.fixture(scope="session", autouse=True)
+    def _db_io_guard():
+        """Inventory of device / network / subprocess I/O made while a write lock is held (tests/db_io_guard.py)."""
+        mp = pytest.MonkeyPatch()
+        install(mp.setattr)
+        yield
+        mp.undo()
+        found = FINDINGS.report()
+        print(f"\n[db-io-guard] {len(found)} I/O site(s) under a held write lock")
+        for item in found:
+            print(f"[db-io-guard] {item['count']:4d}x {item['kind']:10s} holder={item['holder']!r} {item['where']} targets={item['targets']} tests={item['tests'][:2]}")
+        out = os.environ.get("SW_DB_IO_GUARD_OUT")
+        if out:
+            with open(out, "w", encoding="utf-8") as fh:
+                _json.dump(found, fh, ensure_ascii=False, indent=1)
+
+    @pytest.fixture(autouse=True)
+    def _db_io_guard_test(request):
+        CURRENT_TEST["id"] = request.node.nodeid
+        yield

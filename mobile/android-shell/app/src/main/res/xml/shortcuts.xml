@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Long-press on the app icon: "שרתים" opens the server list even when the app opens one server automatically. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutId="servers"
+        android:shortcutLongLabel="@string/shortcut_servers_long"
+        android:shortcutShortLabel="@string/shortcut_servers_short">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="arx://servers"
+            android:targetClass="com.smplwise.arx.app.ServersActivity"
+            android:targetPackage="com.smplwise.arx.app" />
+    </shortcut>
+</shortcuts>

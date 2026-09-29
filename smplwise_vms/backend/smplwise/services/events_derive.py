@@ -70,7 +70,7 @@ def run_once(db: Database, settings: Settings, tz_name: str, day: dt.date | None
     for cam in cams:
         try:
             result = search_for_camera(settings, cam, day, tz_name)
-            with db.connection() as conn:
+            with db.connection(durable=False) as conn:
                 total += store_segments(conn, cam, result)
         except ApiError as exc:
             errors.append(f"ch{cam['channel']}:{exc.code}")

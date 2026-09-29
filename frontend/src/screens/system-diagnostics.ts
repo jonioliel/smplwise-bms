@@ -28,6 +28,7 @@ import { getSkinsStatus, runSkinsTest, type SkinsStatus, type SkinsTestResult } 
 import { devicesPrefsOf, type DevicesStyle } from './devices-style';
 import './devices-theme-picker';
 import type { DevicesPick } from './devices-theme-picker';
+import { inAndroidApp, switchServer } from '../arx/android-app';
 
 /** הגדרות › בקרות כניסה: the SMPLWISE WisKey screens that can show either WisKey's own panel or the screen built here. */
 const ACCESS_SCREENS: { screen: WiskeyScreen; label: string; href: string; detail: string }[] = [
@@ -93,7 +94,7 @@ export class SystemDiagnostics extends LitElement {
   @state() private restoreMode: 'replace' | 'merge' = 'replace';
   @state() private restoreAccess = false;
   @state() private restoreConfirm = '';
-  @state() private health: { discovery?: Record<string, unknown>; video_codecs?: VideoCodecs; events?: { ingest: { connected: boolean; last_heartbeat_at: string | null; last_event_at: string | null; last_error: string | null; reconnects: number; events_stored: number }; derive: { last_ok: string | null; last_error: string | null; derived: number }; stored: number } } | null = null;
+  @state() private health: { discovery?: Record<string, unknown>; video_codecs?: VideoCodecs; remote?: { live_streams?: number }; events?: { ingest: { connected: boolean; last_heartbeat_at: string | null; last_event_at: string | null; last_error: string | null; reconnects: number; events_stored: number }; derive: { last_ok: string | null; last_error: string | null; derived: number }; stored: number } } | null = null;
 
   static styles = css`
     code {
@@ -535,7 +536,7 @@ export class SystemDiagnostics extends LitElement {
             <div class="row"><span class="lbl">סנכרון מצבים (WebSocket)<span class="muted">${s?.connected ? `מחובר · HA ${s.ha_version ?? '?'} · ${s.entities} ישויות · אירוע אחרון ${fmtTime(s.last_event_at)}` : `מנותק${s?.last_error ? ` · ${s.last_error}` : ''} · ${s?.reconnects ?? 0} חיבורים מחדש`}</span></span><sw-badge kind=${s?.connected ? 'live' : 'offline'}></sw-badge></div>
             <div class="row"><span class="lbl">רישום ישויות (registry)<span class="muted">עודכן ${fmtTime(s?.last_registry_at)} · תמונת מצב ${fmtTime(s?.last_snapshot_at)}</span></span><sw-button size="sm" @click=${() => navigate('/explore/entities')}>לקטלוג</sw-button></div>`}
       </sw-card>
-      <sw-card heading="גשר SMPLWISE (אינטגרציה ב־Home Assistant)" subheading="פעולות על ישויות רצות רק דרך הגשר, בזהות המשתמש, לפי ההרשאות של Home Assistant">
+      <sw-card heading="גשר Arx (אינטגרציה ב־Home Assistant)" subheading="פעולות על ישויות רצות רק דרך הגשר, בזהות המשתמש, לפי ההרשאות של Home Assistant">
         ${h
           ? html`${this.renderIntegration(h)}<div class="row"><span class="lbl">צימוד<span class="muted">${h.bridge.paired ? `מצומד מאז ${fmtTime(h.bridge.paired_at)}` : 'לא מצומד — פעולות HA ייחסמו עד להתקנת הגשר'}</span></span><sw-badge kind=${h.bridge.paired ? 'live' : 'stale'} label=${h.bridge.paired ? 'מצומד' : 'לא מצומד'}></sw-badge></div>
             <div class="row"><span class="lbl">ספריית משתמשי HA<span class="muted">${h.bridge.directory_users} משתמשים · עודכן ${fmtTime(h.bridge.last_directory_at)}</span></span><sw-badge kind=${h.bridge.directory_users ? 'recorded' : 'unknown'}></sw-badge></div>`
@@ -626,7 +627,7 @@ export class SystemDiagnostics extends LitElement {
   /** NVR-less mode: the neutral notice a settings section shows instead of NVR / video forms that could only fail. */
   private renderNvrLessNotice(what: string) {
     return html`<sw-card heading="מצב ללא NVR" subheading=${what} data-nvr-less-settings>
-      <div class="muted">ההתקנה פועלת עם Home Assistant בלבד, ולכן ההגדרות של וידאו, הקלטות, ייצוא וחיפוש אירועים מוסתרות כאן. להוספת NVR: מלאו nvr_host, nvr_username ו־nvr_password ב־Home Assistant › Add-ons › SMPLWISE VMS › Configuration והפעילו מחדש את ה־Add-on; ההגדרות יחזרו כמו שהיו.</div>
+      <div class="muted">ההתקנה פועלת עם Home Assistant בלבד, ולכן ההגדרות של וידאו, הקלטות, ייצוא וחיפוש אירועים מוסתרות כאן. להוספת NVR: מלאו nvr_host, nvr_username ו־nvr_password ב־Home Assistant › Add-ons › SmplWise Arx › Configuration והפעילו מחדש את ה־Add-on; ההגדרות יחזרו כמו שהיו.</div>
     </sw-card>`;
   }
 
@@ -813,7 +814,7 @@ export class SystemDiagnostics extends LitElement {
     const dirty = ACCESS_SCREENS.some((a) => `access.ui.${a.screen}` in this.draft) || 'ui.hide_wiskey' in this.draft || 'access.phone_embed' in this.draft;
     const choice = (s: WiskeyScreen) => (String(this.value(`access.ui.${s}`) ?? 'wiskey') === 'smplwise' ? 'smplwise' : 'wiskey');
     return html`<div class="sections">
-      <sw-card heading="בקרות כניסה" subheading="לכל מסך: הממשק המקורי של WisKey מוטמע כמו שהוא, או המסך שנבנה ב־SMPLWISE. הלשונית נשארת באותו מקום ובאותו שם.">
+      <sw-card heading="בקרות כניסה" subheading="לכל מסך: הממשק המקורי של WisKey מוטמע כמו שהוא, או המסך שנבנה ב־Arx. הלשונית נשארת באותו מקום ובאותו שם.">
         <div class="row"><span class="lbl">הצג את WisKey במערכת<span class="muted">הסתרה מסירה את כל אזור WisKey מהניווט לכל המשתמשים, ללא תלות בתפקיד; הבחירות למסכים הבודדים למטה חלות רק כשהאזור מוצג</span></span>
           <sw-field class="ctl"><select data-set-hide-wiskey ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.hide_wiskey', (e.target as HTMLSelectElement).value)}>
             <option value="false" ?selected=${String(this.value('ui.hide_wiskey') ?? 'false') !== 'true'}>מוצג</option><option value="true" ?selected=${String(this.value('ui.hide_wiskey') ?? 'false') === 'true'}>מוסתר</option>
@@ -822,17 +823,17 @@ export class SystemDiagnostics extends LitElement {
           (a) => html`<div class="row"><span class="lbl">${a.label}<span class="muted">${a.detail} · <span class="ltr">${a.href}</span></span></span>
             <sw-field class="ctl"><select data-set-access-ui=${a.screen} ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set(`access.ui.${a.screen}`, (e.target as HTMLSelectElement).value as 'wiskey' | 'smplwise')}>
               <option value="wiskey" ?selected=${choice(a.screen) === 'wiskey'}>WisKey (מוטמע)</option>
-              <option value="smplwise" ?selected=${choice(a.screen) === 'smplwise'}>SMPLWISE</option>
+              <option value="smplwise" ?selected=${choice(a.screen) === 'smplwise'}>Arx</option>
             </select></sw-field></div>`,
         )}
-        <div class="row"><span class="lbl">הטמעה גם באפליקציית Companion (ניסיוני)<span class="muted">כבוי: באפליקציית Home Assistant בטלפון WisKey לא מוטמע - מוצג המסך של SMPLWISE או הערה, עם "פתח ב-WisKey". מופעל: SMPLWISE מעביר את ההזדהות של האפליקציה ל־Home Assistant שבתוך המסגרת. אם ההזדהות לא מצליחה, המסך חוזר לבד להתנהגות הרגילה.</span></span>
+        <div class="row"><span class="lbl">הטמעה גם באפליקציית Companion (ניסיוני)<span class="muted">כבוי: באפליקציית Home Assistant בטלפון WisKey לא מוטמע - מוצג המסך של Arx או הערה, עם "פתח ב-WisKey". מופעל: Arx מעביר את ההזדהות של האפליקציה ל־Home Assistant שבתוך המסגרת. אם ההזדהות לא מצליחה, המסך חוזר לבד להתנהגות הרגילה.</span></span>
           <sw-field class="ctl"><select data-set-phone-embed ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('access.phone_embed', (e.target as HTMLSelectElement).value)}>
             <option value="false" ?selected=${String(this.value('access.phone_embed') ?? 'false') !== 'true'}>כבוי</option><option value="true" ?selected=${String(this.value('access.phone_embed') ?? 'false') === 'true'}>מופעל</option>
           </select></sw-field></div>
         <div class="row" data-access-ui-fixed><span class="lbl">שאר מסכי WisKey (עמדות, סנכרון, בריאות, יומן שינויים, ניהול)<span class="muted">קיימים רק ב־WisKey, ולכן תמיד מוטמעים</span></span><sw-field class="ctl"><select disabled><option selected>WisKey (מוטמע) · קבוע</option></select></sw-field></div>
-        <div class="muted" style="margin-block-start:8px">במסך מוטמע הדפדפן מריץ את הממשק של WisKey עצמו בתוך Home Assistant, עם החיבור של המשתמש ל־Home Assistant: ההרשאות, האישורים והאודיט שם הם של WisKey, לא של SMPLWISE. "פתח בחלון מלא" פותח את אותו לוח בלשונית נפרדת.</div>
+        <div class="muted" style="margin-block-start:8px">במסך מוטמע הדפדפן מריץ את הממשק של WisKey עצמו בתוך Home Assistant, עם החיבור של המשתמש ל־Home Assistant: ההרשאות, האישורים והאודיט שם הם של WisKey, לא של Arx. "פתח בחלון מלא" פותח את אותו לוח בלשונית נפרדת.</div>
         <div class="muted" data-access-ui-embed-api style="margin-block-start:6px">ההטמעה משתמשת בממשק ההטמעה של WisKey (WisKey 2.0.0-rc.19 ומעלה): הלשוניות נבנות מהמסכים ש־WisKey מתיר למשתמש והמעבר ביניהן נעשה בהודעות; בגרסאות WisKey ישנות יותר ההטמעה עוברת אוטומטית לשיטה הקודמת.</div>
-        <div class="muted" data-access-ui-warning style="margin-block-start:6px;color:var(--sw-text)"><b>שים לב:</b> משתמש שחשבון ה־Home Assistant שלו מחזיק ב־WisKey הרשאת ניהול (manage), או שהוא מנהל Home Assistant, יכול בתוך WisKey המוטמע לפתוח דלתות ולערוך אנשים (PIN, כרטיסים, תוקף) — בלי שלב האישור של SMPLWISE ובלי רישום באודיט של SMPLWISE. התיעוד של הפעולות האלה נמצא רק ביומן של WisKey.</div>
+        <div class="muted" data-access-ui-warning style="margin-block-start:6px;color:var(--sw-text)"><b>שים לב:</b> משתמש שחשבון ה־Home Assistant שלו מחזיק ב־WisKey הרשאת ניהול (manage), או שהוא מנהל Home Assistant, יכול בתוך WisKey המוטמע לפתוח דלתות ולערוך אנשים (PIN, כרטיסים, תוקף) — בלי שלב האישור של Arx ובלי רישום באודיט של Arx. התיעוד של הפעולות האלה נמצא רק ביומן של WisKey.</div>
         ${this.canEdit
           ? html`<div class="foot"><sw-button variant="primary" icon="check" data-save-access-ui ?disabled=${!dirty || this.busy || !api} @click=${() => this.save()}>שמור</sw-button>${this.message && this.tab === 'access-control' ? html`<span class="ok" style="align-self:center">${this.message}</span>` : nothing}${this.error && this.tab === 'access-control' ? html`<span class="err" style="align-self:center">${this.error}</span>` : nothing}</div>`
           : html`<div class="muted">${api ? 'שינוי הבחירה דורש הרשאת מנהל מערכת.' : 'נתוני הדגמה: ההגדרות נשמרות רק מול השרת.'}</div>`}
@@ -846,7 +847,7 @@ export class SystemDiagnostics extends LitElement {
   private renderRemote() {
     const api = isApi();
     const ro = !api || !this.canEdit;
-    const keys = ['remote.policy', 'remote.session', 'remote.idle_lock_minutes', 'remote.default_profile', 'remote.mse_fallback', 'remote.require_mfa_admin', 'remote.max_live_streams'] as const;
+    const keys = ['remote.policy', 'remote.session', 'remote.idle_lock_minutes', 'remote.default_profile', 'remote.mse_fallback', 'remote.require_mfa_admin', 'remote.max_live_streams', 'remote.wall_profile'] as const;
     const dirty = keys.some((k) => k in this.draft);
     const v = <K extends (typeof keys)[number]>(k: K, d: string) => String(this.value(k) ?? d);
     const sel = (key: (typeof keys)[number], d: string, options: [string, string][]) => html`<sw-field class="ctl"><select data-set-remote=${key} ?disabled=${ro} @change=${(e: Event) => this.set(key, (e.target as HTMLSelectElement).value as never)}>
@@ -854,6 +855,11 @@ export class SystemDiagnostics extends LitElement {
       </select></sw-field>`;
     const idle = v('remote.session', 'rolling_90d') === 'rolling_90d_idle_lock';
     return html`<div class="sections" data-remote-settings>
+      ${inAndroidApp()
+        ? html`<sw-card heading="אפליקציית Android" subheading="האפליקציה שומרת רשימת שרתים; אפשר לעבור ביניהם בכל רגע." data-remote-android-app>
+            <div class="row" data-remote-android-switch><span class="lbl">שרתים באפליקציה<span class="muted">רשימת השרתים של האפליקציה: מעבר לשרת אחר, הוספה ועריכה</span></span><sw-button size="sm" icon="list" data-arx-switch-server @click=${() => switchServer()}>החלף שרת</sw-button></div>
+          </sw-card>`
+        : nothing}
       <sw-card heading="גישה מרחוק · SmplWise Arx" subheading="כניסה דרך https://<שם ה־Home Assistant>/arx עם מסך הכניסה של המערכת (שם משתמש וסיסמה של Home Assistant). הערוץ עצמו מופעל באפשרות ה־add-on remote_access.">
         <div class="row"><span class="lbl">מי רשאי להיכנס מרחוק<span class="muted">דגל אישי: רק משתמשים שהופעלה להם גישה מרחוק במסך משתמשים והרשאות · כל בעל תפקיד: כל משתמש Home Assistant עם תפקיד כלשהו במערכת</span></span>
           ${sel('remote.policy', 'flag', [['flag', 'דגל אישי לכל משתמש'], ['any_role', 'כל משתמש עם תפקיד']])}</div>
@@ -880,10 +886,12 @@ export class SystemDiagnostics extends LitElement {
       <sw-card heading="וידאו מרחוק" subheading="WebRTC עובר ישירות בין הדפדפן ל־go2rtc; MSE מעביר את הווידאו עצמו דרך המנהרה ולכן הוא רק מוצא אחרון.">
         <div class="row"><span class="lbl">זרם ברירת מחדל<span class="muted">הזרם שצופה מרוחק מקבל ראשון, ב־WebRTC</span></span>
           ${sel('remote.default_profile', 'main', [['main', 'ראשי (main)'], ['sub', 'משני (sub)']])}</div>
+        <div class="row" data-remote-wall-profile-row><span class="lbl">איכות בקיר המצלמות מבחוץ<span class="muted">הזרם שכל אריח בקיר "כל המצלמות" מנגן מרחוק; אפשר לשנות גם במכשיר עצמו, בקיר.<br /><span data-remote-wall-hint>זרם ראשי בקיר דורש חיבור מהיר; במכשיר נייד מוצגות רק המצלמות שעל המסך</span></span></span>
+          ${sel('remote.wall_profile', 'sub', [['sub', 'רגילה (זרם משני)'], ['main', 'גבוהה (זרם ראשי)']])}</div>
         <div class="row"><span class="lbl">MSE כמוצא אחרון<span class="muted">כש־WebRTC לא מתחבר או לא מפענח. כבוי: אין וידאו דרך המנהרה בכלל</span></span>
           ${sel('remote.mse_fallback', 'true', [['true', 'מותר (מוצג לצופה)'], ['false', 'אסור']])}</div>
-        <div class="row"><span class="lbl">זרמים חיים לכל כניסה<span class="muted">כמה צפיות חיות במקביל מותרות לכל דפדפן או אפליקציה שנכנסו מרחוק (1 עד 32, ברירת מחדל 4); הצפייה הבאה נדחית עם הסבר. המכסה הכללית של המערכת חלה בנוסף</span></span>
-          <sw-field class="ctl"><input type="number" min="1" max="32" data-ltr data-set-remote="remote.max_live_streams" .value=${v('remote.max_live_streams', '4')} ?disabled=${ro} @change=${(e: Event) => this.set('remote.max_live_streams', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
+        <div class="row"><span class="lbl">זרמים חיים לכל כניסה<span class="muted">כמה צפיות חיות במקביל מותרות לכל דפדפן או אפליקציה שנכנסו מרחוק (1 עד 32, ברירת מחדל 16); הצפייה הבאה נדחית עם הסבר. המכסה הכללית של המערכת חלה בנוסף<br /><span data-remote-cap-hint>מומלץ: לפחות כמספר המצלמות בקיר</span>${this.health?.remote?.live_streams != null ? html` · <span data-remote-live-now>פעילים עכשיו: ${this.health.remote.live_streams}</span>` : nothing}</span></span>
+          <sw-field class="ctl"><input type="number" min="1" max="32" data-ltr data-set-remote="remote.max_live_streams" .value=${v('remote.max_live_streams', '16')} ?disabled=${ro} @change=${(e: Event) => this.set('remote.max_live_streams', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
         ${this.renderCodecSummary()}
         <div class="muted" data-remote-codec-hint style="margin-block-start:8px">דפדפנים מפענחים ב־WebRTC רק H.264 ללא B-frames; H.265 לא מתנגן ב־WebRTC ברוב הדפדפנים. אם הזרם הראשי של ה־NVR אינו כזה, הגדירו בו H.264 ללא B-frames או בחרו כאן בזרם המשני.</div>
       </sw-card>
@@ -927,12 +935,12 @@ export class SystemDiagnostics extends LitElement {
     </button>`;
     return html`<div class="sections">
       <sw-card data-devices-settings heading="חשמל והתקנים" subheading="המראה של מסכי החשמל וההתקנים לכל המשתמשים במתקן. תצוגה בלבד: כללי הבטיחות של פעולות מרוכזות (חלון אישור, תוקף, בלי מנעולים, אזעקה ושחרור דלתות) אינם הגדרה.">
-        <div class="row"><span class="lbl">סגנון<span class="muted">SMPLWISE הוא המראה של שאר המערכת; זכוכית היא הסגנון מהמוקאפ שאושר: משטחים שקופים ומטושטשים, אריחים מעוגלים עם אייקון. שניהם מימין לשמאל.</span></span>
+        <div class="row"><span class="lbl">סגנון<span class="muted">Arx הוא המראה של שאר המערכת; זכוכית היא הסגנון מהמוקאפ שאושר: משטחים שקופים ומטושטשים, אריחים מעוגלים עם אייקון. שניהם מימין לשמאל.</span></span>
           <sw-field class="ctl"><select data-set-devices-style ?disabled=${ro} @change=${(e: Event) => pick((e.target as HTMLSelectElement).value === 'glass' ? 'glass' : 'smplwise')}>
-            <option value="smplwise" ?selected=${p.style === 'smplwise'}>SMPLWISE</option><option value="glass" ?selected=${p.style === 'glass'}>זכוכית</option>
+            <option value="smplwise" ?selected=${p.style === 'smplwise'}>Arx</option><option value="glass" ?selected=${p.style === 'glass'}>זכוכית</option>
           </select></sw-field></div>
         <div class="swatches" role="group" aria-label="תצוגה מקדימה של הסגנונות" data-devices-style-preview>
-          ${swatch('smplwise', 'SMPLWISE', 'לבן, קווים דקים')}
+          ${swatch('smplwise', 'Arx', 'לבן, קווים דקים')}
           ${swatch('glass', 'זכוכית', 'שקוף, מעוגל, אייקונים')}
         </div>
         <devices-theme-picker data-devices-theme-picker .theme=${p.theme} .scheme=${p.scheme} ?disabled=${ro} @devices-pick=${(e: CustomEvent<DevicesPick>) => this.set(e.detail.key, e.detail.value as never)}></devices-theme-picker>

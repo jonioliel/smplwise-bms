@@ -82,7 +82,7 @@ function demoSteps(placed: boolean): SetupStep[] {
           evidence: {}, settings_link: { href: '#/explore/floors/f0/edit', label: 'עורך התוכנית (הצבת מצלמות)' } }
       : { ...base, id: 'camera', index: 6, title: 'מצלמה על המפה', status: 'todo', source: 'local', summary: 'אף מצלמה עוד לא מוצבת על מפה.',
           facts: [f('מצלמות רשומות (פעילות)', '10 (10)', 'ok'), f('מוצבות על מפה', '0 מתוך 10', 'warn'), f('עם פרופיל זרם ידוע מה־NVR', '10 מתוך 10', 'ok')],
-          problem: { code: 'no_camera_placed', message: 'אף מצלמה עוד לא מוצבת על מפה.', action: 'פתחו את עורך התוכנית, גררו מצלמה מהרשימה אל מקומה וכוונו את קונוס הראייה. ההצבה נשמרת ב־VMS בלבד.', link: { href: '#/explore/floors/f0/edit', label: 'עורך התוכנית (הצבת מצלמות)' } },
+          problem: { code: 'no_camera_placed', message: 'אף מצלמה עוד לא מוצבת על מפה.', action: 'פתחו את עורך התוכנית, גררו מצלמה מהרשימה אל מקומה וכוונו את קונוס הראייה. ההצבה נשמרת ב־Arx בלבד.', link: { href: '#/explore/floors/f0/edit', label: 'עורך התוכנית (הצבת מצלמות)' } },
           evidence: {}, settings_link: { href: '#/explore/floors/f0/edit', label: 'עורך התוכנית (הצבת מצלמות)' } },
   ];
 }

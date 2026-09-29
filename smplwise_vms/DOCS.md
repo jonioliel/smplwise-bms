@@ -34,6 +34,9 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
      `https://<your HA hostname>/arx` opens the product with its own sign-in page (your Home Assistant username and
      password) through a Cloudflare tunnel path route. Off by default; while off, `/arx` answers 404 even if a tunnel
      route exists. See "Remote access (SmplWise Arx)" below and `docs/operations/ARX_CLOUDFLARE_GUIDE_HE.md`.
+   - `db_write_gate` (default `true`) — database writes wait in one queue, in arrival order, instead of retrying on
+     their own (the fix for the "database is locked" storm of test round 10). Leave it on; turn it off only when
+     support asks, to compare. `/health` → `db.write_lock` shows `write_gate`, the queue (`gate`) and the waits.
    - WisKey (the `hikvision_intercom` integration) is reached through the add-on's own Home Assistant user (the
      Long-Lived Access Token in `ha_token`). WisKey authorizes that user by its own areas: viewing the WisKey tab
      needs the `overview`, `users` and `events` areas at `view`; **editing people from SMPLWISE (the person editor,
@@ -719,9 +722,9 @@ Supervisor network.
   quick views: "כניסות מרחוק" (every `auth.remote_*` row) and "סירובים מרחוק" (every refusal on the remote channel:
   `remote_not_allowed`, `csrf_refused`, the rate limits, a revoked sign-in, the live-stream cap). API: `GET audit`
   with `channel=local|remote|bearer` and `view=remote_sign_ins|remote_refusals`.
-- **Live streams per sign-in.** `remote.max_live_streams` (default 4, 1-32): the next live start of the same remote
+- **Live streams per sign-in.** `remote.max_live_streams` (default 16, 1-32; 4 before the 11-camera wall hotfix - a value an administrator saved is kept): the next live start of the same remote
   sign-in is refused - `GET media/live/{id}` answers 429 `remote_live_cap` with a Hebrew message, the live socket
-  sends the message and closes 4429. `media.max_live_sessions` still caps the whole installation. `/health` (system
+  sends the message (with `max`) and closes 4429; the player shows it as a cap (no retry, no ladder), the wall shows the tiles beyond the cap as snapshots and streams only the tiles in view. `remote.wall_profile` (sub / main) is the wall's stream on the remote channel; each device can switch it on the wall. `media.max_live_sessions` still caps the whole installation. `/health` (system
   administrators) shows `remote`: sessions by kind, sign-ins, users, sockets, remote live streams and the cap.
 - **Content-Security-Policy.** The enforced policy is unchanged (`script-src 'self'`, no inline script). A stricter one
   - no inline `<style>` elements (`style-src-elem 'self'`; inline style attributes stay allowed for Lit) - is sent as

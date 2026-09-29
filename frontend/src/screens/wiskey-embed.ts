@@ -969,12 +969,12 @@ export class WiskeyEmbed extends LitElement {
   }
 
   private renderError() {
-    const common = 'אפשר לנסות שוב, לעבור למסך WisKey העצמאי או לפתוח אותו בחלון חדש, או לבחור בהגדרות › בקרות כניסה את מסכי SMPLWISE.';
+    const common = 'אפשר לנסות שוב, לעבור למסך WisKey העצמאי או לפתוח אותו בחלון חדש, או לבחור בהגדרות › בקרות כניסה את מסכי Arx.';
     const map: Record<string, { heading: string; hint: string; state: 'error' | 'stale' | 'empty' }> = {
       not_installed: { heading: 'לוח WisKey לא נמצא', hint: `האינטגרציה hikvision_intercom לא רשמה את הלוח ${WISKEY_PANEL_PATH} (לא מותקנת, לא נטענה, או שהמשתמש לא רואה אותו). ${common}`, state: 'empty' },
       unreachable: { heading: 'לא ניתן לטעון את WisKey', hint: `הכתובת ${WISKEY_PANEL_PATH} לא נטענה בתוך המסגרת. ייתכן שההזדהות אינה זמינה בתוך מסגרת; או שהממשק נפתח ישירות, לא דרך תשתית המערכת. ${common}`, state: 'stale' },
       blocked: { heading: 'הדפדפן לא מאפשר להטמיע את WisKey כאן', hint: `המסגרת נחסמה (מדיניות מסגרות) או הופנתה לכתובת אחרת. ${common}`, state: 'error' },
-      unsupported: { heading: 'גרסת ממשק ההטמעה של WisKey אינה נתמכת', hint: `WisKey המותקן מדבר בגרסת ממשק הטמעה ${this.unsupportedVersion || 'לא ידועה'}, ו־SMPLWISE מכיר את גרסה 1. ${common}`, state: 'error' },
+      unsupported: { heading: 'גרסת ממשק ההטמעה של WisKey אינה נתמכת', hint: `WisKey המותקן מדבר בגרסת ממשק הטמעה ${this.unsupportedVersion || 'לא ידועה'}, ו־Arx מכיר את גרסה 1. ${common}`, state: 'error' },
     };
     const m = map[this.phase];
     if (!m) return nothing;
@@ -1075,7 +1075,7 @@ export class WiskeyEmbed extends LitElement {
   /** "הגדל" / "צמצם" (desktop; hidden on a phone, where the frame already has the screen below the top bar). */
   private expandButton() {
     const on = this.expanded;
-    return html`<sw-button size="sm" variant="ghost" icon=${on ? 'close' : 'expand'} data-wiskey-expand aria-pressed=${String(on)} title=${on ? 'החזר את סרגל SMPLWISE ואת שורת הלשוניות' : 'הגדל את WisKey לכל גובה החלון; שורת הלשוניות עוברת לסרגל הזה'} @click=${() => this.toggleExpanded()}>${on ? 'צמצם' : 'הגדל'}</sw-button>`;
+    return html`<sw-button size="sm" variant="ghost" icon=${on ? 'close' : 'expand'} data-wiskey-expand aria-pressed=${String(on)} title=${on ? 'החזר את סרגל Arx ואת שורת הלשוניות' : 'הגדל את WisKey לכל גובה החלון; שורת הלשוניות עוברת לסרגל הזה'} @click=${() => this.toggleExpanded()}>${on ? 'צמצם' : 'הגדל'}</sw-button>`;
   }
 
   /** Expanded, the shell's tab row is covered: the same WisKey tabs, in the embed's bar (hidden by CSS otherwise). */

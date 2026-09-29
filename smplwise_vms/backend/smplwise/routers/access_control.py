@@ -45,7 +45,7 @@ from starlette.concurrency import run_in_threadpool
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
-from ..db import Database, now_iso, unlocked
+from ..db import Database, commit_now, now_iso, unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import go2rtc as g2
@@ -505,7 +505,7 @@ class _Action:
         """The attempt row, committed before the command is sent: no record, no command."""
         self.details["command_id"] = uuid.uuid4().hex
         self._row(self.conn, "allowed", None, {"phase": "attempt"})
-        self.conn.execute("COMMIT")
+        commit_now(self.conn, keep_reading=False)  # hands the write lock on: the command and the outcome row run without it
 
     def outcome(self, outcome: str, reason: str | None, fields: dict[str, Any]) -> None:
         try:

@@ -120,7 +120,7 @@ class CaptureRegistry:
             if any(c.owner.user_id == owner for c in active) or any(r.owner == owner for r in pending):
                 raise ApiError(409, "intercom_capture_user_busy", "כבר פתוחה לכם קריאת כרטיס אחרת. סיימו או בטלו אותה לפני שמתחילים חדשה.")
             if any(c.station_id == station_id for c in active) or any(r.station_id == station_id for r in pending):
-                raise ApiError(409, "intercom_capture_station_busy", "בעמדה הזו כבר פתוחה קריאת כרטיס (של משתמש אחר ב־SMPLWISE). הקורא לא הופעל שוב.")
+                raise ApiError(409, "intercom_capture_station_busy", "בעמדה הזו כבר פתוחה קריאת כרטיס (של משתמש אחר ב־Arx). הקורא לא הופעל שוב.")
             hold = self._holds.get(station_id, 0.0)
             if hold > now:
                 wait = hold - now

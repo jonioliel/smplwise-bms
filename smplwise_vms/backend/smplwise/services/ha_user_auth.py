@@ -844,7 +844,13 @@ def logout(app_state: Any, settings: Settings, conn_like: Any) -> bool:
 
 # ---------------------------------------------------------------- per request (resolve_principal's remote branch)
 
-def _bearer_session(request: Any, settings: Settings, token: str) -> RemoteSession:
+class NeedsUnlock(Exception):
+    """remote_principal(offline=True) cannot answer from memory: it would ask Home Assistant or write a row (a new or
+    re-validated token, a stale session, a refusal to audit). The caller - holding the request's write lock - retries
+    with offline=False after giving the lock up (auth._principal). Never reaches a client."""
+
+
+def _bearer_session(request: Any, settings: Settings, token: str, offline: bool = False) -> RemoteSession:
     """A request (or a WebSocket) carrying `Authorization: Bearer <HA access token>` and no Arx cookie - an API client,
     the future native app. CR-008 P2 (review nit): the validated token becomes a bearer SESSION in the store, so it is
     listed, revocable, counted for the live-stream cap and re-validated by the background pass like a cookie session,
@@ -855,6 +861,8 @@ def _bearer_session(request: Any, settings: Settings, token: str) -> RemoteSessi
     s = STORE.get_bearer(key)
     if s is not None and now - s.last_validated < BEARER_CACHE_S:
         return s
+    if offline:
+        raise NeedsUnlock  # validation (HA) and its refusal / sign-in rows need the write lock given up first
     exp = jwt_exp(token)
     if exp is None or exp <= now or was_rejected(token):
         raise unauthenticated("remote_token_invalid", TOKEN_INVALID_HE)
@@ -1046,15 +1054,21 @@ async def _recheck_async(websocket: Any, settings: Settings, s: RemoteSession) -
         s.recheck_lock.release()
 
 
-def remote_principal(request: Any, settings: Settings) -> Principal:
+def remote_principal(request: Any, settings: Settings, offline: bool = False) -> Principal:
+    """The remote channel's principal: the Arx session cookie, else an HA bearer token. offline=True: answer only from
+    memory (a live, not stale session; a bearer session validated within BEARER_CACHE_S) and raise NeedsUnlock where
+    Home Assistant would be asked or a row written - one read of the session state, so nothing can change between a
+    check and the use (a session crossing STALE_AFTER_S / BEARER_CACHE_S or revoked meanwhile)."""
     s = STORE.get(session_id_of(settings, request))
     if s is not None and _stale(s):
+        if offline:
+            raise NeedsUnlock
         s = _recheck_sync(request, settings, s)
     if s is None:
         token = bearer_of(request)
         if not token:
             raise unauthenticated("remote_login_required", LOGIN_REQUIRED_HE)
-        s = _bearer_session(request, settings, token)
+        s = _bearer_session(request, settings, token, offline=offline)
     _note_use(request, s)
     return s.principal
 
