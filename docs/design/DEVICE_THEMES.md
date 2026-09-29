@@ -406,3 +406,13 @@ Screenshots: `docs/evidence/T007/screens/sc32-devices-building-*.png` (compact o
 `frontend/tests/unit-devices-tiles.spec.ts` (demo data: heights 56-80px and two columns at 390px, the override, the tree
 columns, no needless scrolling) and `evidence-devices-tiles.spec.ts` (fixture backend: the setting from the settings
 screen).
+
+**The master control** (owner answers 2026-09-29): an icon-only 44px round button next to the panel's filter
+(`button.master` in `devices-tiles-panel.ts`): outline in `--sw-accent` when every shown device is off, filled when any
+is on, a count badge (`--sw-warning`) when only some are; covers get two such buttons (the `coverOpen` / `coverClose`
+icons), locks one lock icon. The words live only in its `aria-label` and `title`. It takes the palette's accent through
+the glass bridge like every other control; it has no knob of its own.
+
+**Review G diagnostic:** opening the app with `?debug=overflow` installs `window.__arxOverflow()`
+(`frontend/src/debug/overflow.ts`), which lists the scroll containers that scroll and the elements whose bottom edge lies
+furthest down in the app's scroll area - read-only, for naming the element behind a needless scrollbar.

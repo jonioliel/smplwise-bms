@@ -222,6 +222,35 @@ Tests: backend `test_devices.py` (3), `test_ui_settings.py` (1); Playwright `uni
 "unnecessary scrolling" could not be reproduced on the demo or the fixture data (nothing scrolls when the content fits
 at 1366-2000 px); a building layout saved in the layout editor with tall rows would add height of its own.
 
+**Owner answers (2026-09-29 22:50), built on the same branch:**
+
+1. **Master control** in the panel, icon only (44 px; the words in its aria-label and tooltip). Switches, lights and
+   screens: one smart power button - filled while any shown device is on (a press turns them all off), outline when all
+   are off (a press turns them all on), a count badge when only some are on. Covers: open all / close all. Climate: none.
+   Locks: lock all only, never unlock all. It acts on what the panel shows (scope, filter and search: the bulk request's
+   new `only`, which narrows the resolved set and can never add to it) through the existing bulk flow - new kinds
+   `switches_off`, `switches_on`, `lights_on`, `screens_on`; the confirmation asks "להדליק 22 מתגים?" with the list
+   collapsible, then progress and per-entity results, audited as every bulk. **Switches:** the existing per-entity
+   bulk-safe mark (opt-in, off by default, §7.10) stays the only way a switch enters - for ON exactly as for OFF; no
+   default-include flag was added, since that would reverse the §7.10 ruling (a door release relay is a switch too).
+   **Rulings recorded here:** `covers_open` is now valid at every scope (it was area-only after the slice-4 review;
+   stop and position stay area-only). Locks remain outside the bulk path entirely (§3: "never part of a bulk action"), so
+   lock-all is one confirmation, then the ordinary single-entity `lock.lock` per lock, one at a time, each with its own
+   result and audit row.
+2. **Floor cards** carry the floor's domain chips (switches, covers, climate, screens, locks next to the card's own
+   lights count): icon and count, the words in the tooltip and aria-label; each opens the panel for that floor.
+3. **The Live cameras tile** opens the full camera list with the offline cameras first (`#/system/devices?sort=offline`,
+   their state "מנותקת" in red), not a list filtered to them.
+
+**Review fixes (Opus review of the first ten commits):** a nested confirmation (unlock, lock all, bulk) closes only
+itself - never the panel, never while a bulk action runs (B1); Back closes the panel (its own history entry, M1); no
+scroll bleed while it is open, and the page behind is locked (M2); a drag that ends on the backdrop does not close it
+(M3); pushed rows are patched in place, a refetch only for an entity it does not list (M4); the settings preview shows
+the installation value and names a local override (M5); the compact badge rides the tile's corner, equal tile heights,
+no empty drawer footer (M6); one scroll container at the owner's site size (4 floors, 10 areas, 224 devices) at
+2000x990 and 1366x768, and `?debug=overflow` installs a read-only `window.__arxOverflow()` diagnostic for a real
+installation (G).
+
 ## 8. Next step
 
 Slice 1 dispatched 2026-09-28 from this document; the DomusUI extraction is the reference for card rules and
