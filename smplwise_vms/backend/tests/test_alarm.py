@@ -816,6 +816,35 @@ def test_floor_map_marks_alarm_entities_read_only_with_one_discovery(alarm_app, 
     assert ents["binary_sensor.back_door"]["alarm_managed"] is False
     assert n["calls"] == 1
 
+def test_fallback_only_without_config_entry_and_not_alarm_mark(alarm_app):
+    """Final review item 3: the platform-wide fail-closed fallback holds only bypass-like controls WITHOUT a config entry;
+    one with another config entry of the same integration (a boiler bypass valve on the same MQTT broker) is not
+    owned; an administrator's "not an alarm control" mark releases a false positive (audited) and can be taken back."""
+    app, s, c, calls, _ = alarm_app
+    from smplwise.services import alarm as alarm_svc
+
+    with app.state.db.connection() as conn:
+        ha_sync.upsert_state(conn, {"entity_id": "switch.boiler_bypass", "state": "off", "attributes": {"friendly_name": "Boiler bypass valve"}})
+        conn.execute("UPDATE ha_entities SET platform = 'mqtt', config_entry_id = 'ce-mqtt-other' WHERE entity_id = 'switch.boiler_bypass'")
+        assert not alarm_svc.is_managed_control(conn, "switch.boiler_bypass")  # another config entry: not the alarm's
+        conn.execute("UPDATE ha_entities SET config_entry_id = NULL WHERE entity_id = 'switch.boiler_bypass'")
+        assert alarm_svc.is_managed_control(conn, "switch.boiler_bypass")  # no entry known: fail closed
+    assert "switch.boiler_bypass" in c.get("/api/v1/alarm/config").json()["fallback_controls"]
+    r = c.put("/api/v1/alarm/controls/switch.boiler_bypass/not-alarm", json={"not_alarm": True})
+    assert r.status_code == 200 and r.json()["alarm_managed"] is False
+    body = {"allowed_action_id": "switch.turn_on", "arguments": {}, "expected_state_version": None, "confirmation_grant": None, "client_request_id": _rid(), "expires_at": "2099-01-01T00:00:00Z"}
+    assert c.post("/api/v1/ha/entities/switch.boiler_bypass/actions", json=body).status_code == 202
+    # an unpaired control of the alarm's own group is released the same way
+    assert c.put("/api/v1/alarm/controls/switch.paradox_zone_shed_bypassed/not-alarm", json={"not_alarm": True}).status_code == 200
+    pai = _panel(_panels(c), "alarm_control_panel.paradox_partition_area_1")
+    assert pai["unpaired_controls"] == []
+    assert c.put("/api/v1/alarm/controls/switch.paradox_zone_shed_bypassed/not-alarm", json={"not_alarm": False}).status_code == 200
+    assert [u["entity_id"] for u in _panel(_panels(c), "alarm_control_panel.paradox_partition_area_1")["unpaired_controls"]] == ["switch.paradox_zone_shed_bypassed"]
+    bind(c, s, "omer", "operator", "installation", "*")
+    assert c.put("/api/v1/alarm/controls/switch.boiler_bypass/not-alarm", json={"not_alarm": False}, headers=as_user("omer")).status_code == 403
+    with app.state.db.connection() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'alarm.mapping' AND decision = 'allowed' AND details_json LIKE '%not_alarm%'").fetchone()[0] == 3
+
 def test_bulk_never_reaches_a_bypass_switch_even_marked_bulk_safe(alarm_app):
     app, s, c, calls, _ = alarm_app
     from smplwise.services import device_bulk

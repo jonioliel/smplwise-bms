@@ -10,6 +10,7 @@ import {
   clearUserPin,
   deleteOverride,
   putOverride,
+  setNotAlarm,
   setPanelCode,
   setUserAlarmPolicy,
   setUserPin,
@@ -200,6 +201,11 @@ export class SystemAlarmSettings extends LitElement {
             <option value="personal_pin" ?selected=${s.code_mode === 'personal_pin'}>קוד אישי לכל משתמש</option><option value="panel_code" ?selected=${s.code_mode === 'panel_code'}>קוד הלוח</option></select></div>
         ${this.message ? html`<div class="ok" role="status">${this.message}</div>` : nothing}${this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing}
       </sw-card>
+      ${c.fallback_controls?.length || c.not_alarm?.length
+        ? html`<sw-card heading="מתגים דמויי עקיפה ללא שיוך למערכת" subheading="מתגים עם סימן עקיפה (bypass) מאותה אינטגרציה כמו לוח אזעקה, שלא ידוע לאיזו התקנה שלה הם שייכים. הם מוחזקים כחלק מהאזעקה עד שמסמנים אותם 'אינו רכיב אזעקה'." data-fallback-controls>
+            ${(c.fallback_controls ?? []).map((id) => this.renderNotAlarmRow(id, false, ro))}${(c.not_alarm ?? []).map((id) => this.renderNotAlarmRow(id, true, ro))}
+          </sw-card>`
+        : nothing}
       ${c.panels.length
         ? c.panels.map((p) => this.renderPanel(p, ro))
         : html`<sw-card heading="לא נמצא לוח אזעקה"><div class="muted">לא נמצאה ישות alarm_control_panel. חברו את האינטגרציה של מערכת האזעקה ב-Home Assistant (למשל Risco, Visonic, PIMA, Paradox), ואז רעננו.</div></sw-card>`}
@@ -226,9 +232,17 @@ export class SystemAlarmSettings extends LitElement {
         <tbody>${p.zones.map((z) => this.renderZoneRow(p, z, overrides.get(z.entity_id), controls, otherPanels, ro))}</tbody>
       </table></div>
       ${p.unpaired_controls.length
-        ? html`<div class="row"><span class="lbl">ללא שיוך<span class="muted">${p.unpaired_controls.map((u) => html`<span class="ltr">${u.entity_id}</span> `)}</span></span></div>`
+        ? html`<div class="row" data-unpaired-controls><span class="lbl">ללא שיוך<span class="muted">מתגי עקיפה של המערכת שלא שויכו לחיישן. מתג שאינו חלק מהאזעקה: "אינו רכיב אזעקה" מחזיר אותו להיות מתג רגיל.</span></span></div>
+            ${p.unpaired_controls.map((u) => this.renderNotAlarmRow(u.entity_id, false, ro))}`
         : nothing}
     </sw-card>`;
+  }
+
+  /** Final review item 3: "אינו רכיב אזעקה" releases a false positive (audited); "החזר לאזעקה" takes the mark back. */
+  private renderNotAlarmRow(entityId: string, marked: boolean, ro: boolean) {
+    return html`<div class="row" data-not-alarm-row=${entityId}><span class="lbl"><span class="ltr">${entityId}</span></span>
+      <sw-button size="sm" variant="ghost" data-not-alarm=${entityId} ?disabled=${ro}
+        @click=${() => void this.run(() => setNotAlarm(entityId, !marked), marked ? 'הסימון בוטל' : 'סומן כאינו רכיב אזעקה')}>${marked ? 'החזר לאזעקה' : 'אינו רכיב אזעקה'}</sw-button></div>`;
   }
 
   private renderZoneRow(p: AlarmPanel, z: AlarmZone, o: { bypass_entity_id: string | null; panel_entity_id: string | null } | undefined, controls: { entity_id: string; name: string }[], panels: AlarmPanel[], ro: boolean) {

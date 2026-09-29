@@ -644,6 +644,10 @@ def config(request: Request, principal: Principal = Depends(_configurer), conn: 
             "sensors": [_brief(e) for e in ents if e["domain"] == "binary_sensor"][:2000],
         },
         "integrations": {k: {"label": v.label, "note": v.note, "verified": v.verified} for k, v in svc.INTEGRATIONS.items()},
+        # final review item 3: bypass-like controls held by the fail-closed fallback (no config entry), and the ones an
+        # administrator released as "not an alarm control"
+        "fallback_controls": sorted(svc.fallback_controls(conn, ents)),
+        "not_alarm": sorted(svc.not_alarm_marks(conn)),
         "settings": _settings(conn),
     }
 
@@ -686,6 +690,36 @@ def put_override(zone_entity_id: str, request: Request, principal: Principal = D
     )
     act.audit("allowed", None, panel_entity_id=body.panel_entity_id, bypass_entity_id=body.bypass_entity_id, excluded=body.excluded, confirm_not_bypass_like=body.confirm_not_bypass_like)
     return dict(conn.execute("SELECT * FROM alarm_zone_overrides WHERE zone_entity_id = ?", (zone_entity_id,)).fetchone())
+
+
+class NotAlarmBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    not_alarm: bool
+
+
+@router.put("/alarm/controls/{entity_id}/not-alarm")
+def put_not_alarm(entity_id: str, request: Request, principal: Principal = Depends(_configurer), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+    """Final review item 3: release a bypass-like switch / select that is not part of the alarm (e.g. a boiler bypass
+    valve on the same MQTT broker) - it leaves the unpaired list and the fail-closed fallback, and becomes an ordinary
+    entity again for the other screens. system.configure, audited; `not_alarm: false` takes the mark back."""
+    body, _ = _parse(request, raw, NotAlarmBody)
+    act = _Act(request, conn, principal, "alarm.mapping", "ha_entity", entity_id)
+    r = conn.execute("SELECT domain FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (entity_id,)).fetchone()
+    if not r or r["domain"] not in ("switch", "select"):
+        raise act.refuse(ApiError(404, "not_found", "המתג לא נמצא (נדרש switch או select)."))
+    if body.not_alarm:
+        paired = conn.execute("SELECT 1 FROM alarm_zone_overrides WHERE bypass_entity_id = ?", (entity_id,)).fetchone()
+        if paired:
+            raise act.refuse(ApiError(409, "paired_by_hand", "המתג משויך ידנית לחיישן; בטלו קודם את השיוך."))
+        conn.execute(
+            "INSERT INTO alarm_zone_overrides(zone_entity_id, panel_entity_id, bypass_entity_id, excluded, updated_at, updated_by) VALUES (?, NULL, NULL, 1, ?, ?) "
+            "ON CONFLICT(zone_entity_id) DO UPDATE SET excluded = 1, updated_at = excluded.updated_at, updated_by = excluded.updated_by",
+            (entity_id, now_iso(), principal.username),
+        )
+    else:
+        conn.execute("DELETE FROM alarm_zone_overrides WHERE zone_entity_id = ?", (entity_id,))
+    act.audit("allowed", None, not_alarm=body.not_alarm)
+    return {"entity_id": entity_id, "not_alarm": body.not_alarm, "alarm_managed": svc.is_managed_control(conn, entity_id)}
 
 
 @router.delete("/alarm/overrides/{zone_entity_id}")

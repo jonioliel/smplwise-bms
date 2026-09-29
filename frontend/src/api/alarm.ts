@@ -163,12 +163,18 @@ export interface AlarmConfig {
   overrides: AlarmOverride[];
   candidates: { controls: EntityBrief[]; sensors: EntityBrief[] };
   integrations: Record<string, { label: string; note: string; verified: boolean }>;
+  /** Bypass-like controls held because their config entry is unknown, and those released as "not an alarm control". */
+  fallback_controls?: string[];
+  not_alarm?: string[];
   settings: { remote_control: boolean; remote_disarm: boolean; remote_codeless: boolean; code_mode: 'personal_pin' | 'panel_code' };
 }
 export const alarmConfig = () => get<AlarmConfig>('alarm/config');
 export const putOverride = (zone: string, body: { panel_entity_id?: string | null; bypass_entity_id?: string | null; excluded?: boolean; confirm_not_bypass_like?: boolean }) =>
   put<AlarmOverride>(`alarm/overrides/${encodeURIComponent(zone)}`, body);
 export const deleteOverride = (zone: string) => del(`alarm/overrides/${encodeURIComponent(zone)}`);
+/** Final review item 3: mark a switch / select "אינו רכיב אזעקה" (or take the mark back). */
+export const setNotAlarm = (entityId: string, notAlarm: boolean) =>
+  put<{ entity_id: string; not_alarm: boolean; alarm_managed: boolean }>(`alarm/controls/${encodeURIComponent(entityId)}/not-alarm`, { not_alarm: notAlarm });
 export const setPanelCode = (panel: string, code: string) => put<{ panel_code: { set: boolean; set_at: string | null; set_by: string | null } }>(`alarm/panels/${encodeURIComponent(panel)}/code`, { code });
 export const clearPanelCode = (panel: string) => del(`alarm/panels/${encodeURIComponent(panel)}/code`);
 export const alarmSettingsPatch = (changes: Record<string, string>) => patch<unknown>('settings', changes);
