@@ -2,7 +2,8 @@
 // any server-side rewrite. Route: `#/explore/floors/f0?state=empty`.
 // `devices` (CR-007, 2026-09-28): "חשמל והתקנים", a top-level area of its own like `wiskey` (see the ADR-009 notes in
 // docs/architecture/DECISIONS.md).
-export type Mode = 'live' | 'explore' | 'investigate' | 'system' | 'wiskey' | 'devices';
+// `security` (CR-010, 2026-09-29): the security area's own routes - #/security/alarm, and #/security (the last used section).
+export type Mode = 'live' | 'explore' | 'investigate' | 'system' | 'wiskey' | 'devices' | 'security';
 
 export interface RouteState {
   path: string;
@@ -11,7 +12,7 @@ export interface RouteState {
   mode: Mode | null;
 }
 
-const MODES: Mode[] = ['live', 'explore', 'investigate', 'system', 'wiskey', 'devices'];
+const MODES: Mode[] = ['live', 'explore', 'investigate', 'system', 'wiskey', 'devices', 'security'];
 
 export function parseRoute(hash: string = window.location.hash): RouteState {
   const raw = hash.replace(/^#/, '') || '/explore/floors/f0';
