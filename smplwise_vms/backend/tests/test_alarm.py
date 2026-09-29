@@ -737,6 +737,25 @@ def test_generic_route_refuses_alarm_owned_entities_whatever_the_permissions(ala
     assert rows["switch.back_door_bypassed"]["alarm_managed"] is True and rows["switch.back_door_bypassed"]["actions"] == []
 
 
+def test_bypass_switch_without_config_entry_is_still_owned_by_the_alarm(alarm_app):
+    """Re-review M-B: a bypass switch whose config entry is not known (NULL) joins no panel group, yet stays refused on
+    the general route and excluded from bulk actions - fail closed."""
+    app, s, c, calls, _ = alarm_app
+    from smplwise.services import alarm as alarm_svc, device_bulk
+
+    sw = "switch.paradox_zone_shed_bypassed"
+    with app.state.db.connection() as conn:
+        conn.execute("UPDATE ha_entities SET config_entry_id = NULL, area_id = 'alarm_kitchen', area_name = 'מטבח', state = 'on' WHERE entity_id = ?", (sw,))
+        assert alarm_svc.is_managed_control(conn, sw)
+    bind(c, s, "omer", "operator", "installation", "*")
+    r = c.post(f"/api/v1/ha/entities/{sw}/actions", json={"allowed_action_id": "switch.turn_off", "arguments": {}, "expected_state_version": None, "confirmation_grant": None,
+                                                           "client_request_id": _rid(), "expires_at": "2099-01-01T00:00:00Z"}, headers=as_user("omer"))
+    assert r.status_code == 409 and r.json()["code"] == "use_alarm_screen"
+    with app.state.db.connection() as conn:
+        device_bulk.set_bulk_safe(conn, Principal(user_id="dev-joni", username="joni", display_name="joni", source="dev"), sw, True)
+    p = c.get("/api/v1/devices/actions/preview?scope=area&id=alarm_kitchen&kind=all_off").json()
+    assert sw not in [t["entity_id"] for t in p["targets"]] and {x["entity_id"]: x["reason"] for x in p["excluded"]}[sw] == "alarm_managed"
+
 def test_bulk_never_reaches_a_bypass_switch_even_marked_bulk_safe(alarm_app):
     app, s, c, calls, _ = alarm_app
     from smplwise.services import device_bulk

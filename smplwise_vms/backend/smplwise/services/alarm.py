@@ -525,8 +525,14 @@ def managed_controls(conn: sqlite3.Connection, disc: dict[str, Any] | None = Non
     general entity route, the bulk actions and the bulk-safe mark refuse them (routers/ha.py, device_bulk.py): bypassing a
     zone or arming / disarming a panel goes through routers/alarm.py only - alarm.* permissions, the code policy, the
     lockout, the remote settings, the confirmation and the alarm.* audit rows."""
-    d = disc if disc is not None else discover(conn)
+    ents = load(conn)
+    d = disc if disc is not None else discover(conn, ents)
     out: set[str] = set()
+    # re-review M-B, fail closed: every bypass-like switch / select of a panel's integration, whatever its config
+    # entry - one without an entry (before the first registry refresh after the upgrade, a new entity, a failed registry
+    # fetch) joins no group (L5) yet must never become operable from the other paths
+    platforms = {e.get("platform") for e in ents if e["domain"] == "alarm_control_panel" and e.get("platform")}
+    out.update(e["entity_id"] for e in ents if e["domain"] in ("switch", "select") and e.get("platform") in platforms and is_bypass_control(e))
     for p in d["panels"]:
         out.add(p["entity_id"])
         for z in p["zones"]:
