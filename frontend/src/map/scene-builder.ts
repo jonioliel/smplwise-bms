@@ -172,6 +172,8 @@ const LEVEL_PAD_M = 0.5;
 export const LANDING_PLATE_M = 0.2;
 
 type Box2 = [number, number, number, number];
+/** A turned flight's well is cut in at most this many slices along its run. */
+export const MAX_WELL_SLICES = 12;
 
 /** A plate [x0, z0, x1, z1] less the holes: the plate cut on a grid of every hole edge, the cells outside every hole
  * merged along each row - axis-aligned boxes that cover the plate except the holes (review M-c). No hole: the plate. */
@@ -184,10 +186,11 @@ export function plateAround(plate: Box2, holes: readonly Box2[]): Box2[] {
   const out: Box2[] = [];
   for (let j = 0; j + 1 < zs.length; j++) {
     const zm = (zs[j] + zs[j + 1]) / 2;
+    const row = inside.filter((h) => zm > h[1] && zm < h[3]); // only the holes this row crosses
     let start: number | null = null;
     for (let i = 0; i + 1 < xs.length; i++) {
       const xm = (xs[i] + xs[i + 1]) / 2;
-      const holed = inside.some((h) => xm > h[0] && xm < h[2] && zm > h[1] && zm < h[3]);
+      const holed = row.some((h) => xm > h[0] && xm < h[2]);
       if (!holed && start === null) start = xs[i];
       if (holed && start !== null) {
         out.push([start, zs[j], xs[i], zs[j + 1]]);
@@ -472,7 +475,8 @@ class Builder {
         const along = Math.abs(b[0] - a[0]) < 1e-6 || Math.abs(b[1] - a[1]) < 1e-6;
         if (along || f.steps < 2) return [f.outline];
         const lerp = (p: Pt, q: Pt, s: number): Pt => [p[0] + (q[0] - p[0]) * s, p[1] + (q[1] - p[1]) * s];
-        return Array.from({ length: f.steps }, (_, k) => [lerp(a, b, k / f.steps), lerp(a, b, (k + 1) / f.steps), lerp(d, cc, (k + 1) / f.steps), lerp(d, cc, k / f.steps)]);
+        const n = Math.min(f.steps, MAX_WELL_SLICES); // at most a dozen slices per turned flight (final review: performance)
+        return Array.from({ length: n }, (_, k) => [lerp(a, b, k / n), lerp(a, b, (k + 1) / n), lerp(d, cc, (k + 1) / n), lerp(d, cc, k / n)]);
       };
       const parts: Pt[][] = plan ? [...plan.flights.flatMap(flightParts), ...plan.landings] : px.slice(1).map((q, i) => [px[i], q]);
       const pad = plan ? 0 : (c.width_m || 1) / scale / 2;
@@ -871,7 +875,18 @@ export function isoProjection(desc: SceneDescription): IsoScene {
   const rank = new Map(levels.map((l, i) => [l.id, i]));
   const levelOf = (p: ScenePart) => (p.level_id !== null && rank.has(p.level_id) ? rank.get(p.level_id)! : 0);
   const boxes = desc.parts.filter((p) => p.shape === 'box' && ISO_KINDS.includes(p.kind));
-  const plates = boxes.filter((p) => p.kind === 'floor');
+  // a level's plate cut around its stairwells is many pieces: the thumbnail draws one plate per level (their bounds),
+  // so the pieces never eat the face budget (final review: performance)
+  const plateParts = new Map<string, ScenePart[]>();
+  for (const p of boxes) if (p.kind === 'floor') plateParts.set(p.level_id ?? '', [...(plateParts.get(p.level_id ?? '') ?? []), p]);
+  const plates = [...plateParts.values()].map((ps) => {
+    if (ps.length === 1) return ps[0];
+    const x0 = Math.min(...ps.map((q) => q.position[0] - q.size[0] / 2));
+    const x1 = Math.max(...ps.map((q) => q.position[0] + q.size[0] / 2));
+    const z0 = Math.min(...ps.map((q) => q.position[2] - q.size[2] / 2));
+    const z1 = Math.max(...ps.map((q) => q.position[2] + q.size[2] / 2));
+    return { ...ps[0], position: [(x0 + x1) / 2, ps[0].position[1], (z0 + z1) / 2] as Vec3, size: [x1 - x0, ps[0].size[1], z1 - z0] as Vec3 };
+  });
   const walls = boxes.filter((p) => p.kind !== 'floor');
   const room = Math.max(0, Math.floor((ISO_FACE_CAP - plates.length) / 5)); // a wall box draws four sides and a top
   const kept = walls.length > room ? [...walls].sort((a, b) => b.size[0] * b.size[2] - a.size[0] * a.size[2] || (a.id < b.id ? -1 : 1)).slice(0, room) : walls;

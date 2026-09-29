@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildScene, LANDING_PLATE_M } from '../src/map/scene-builder';
+import { buildScene, isoProjection, LANDING_PLATE_M, MAX_WELL_SLICES } from '../src/map/scene-builder';
 import { skippedTwinsMessage } from '../src/map/studio-controller';
 import { connectorLabel, crossFloorLabel, effectiveScale, rebuildStair, stairCaption, stairPath, stairPlan, stairRise, turnOf, type GeomConnector, type GeometryDoc, type GeomLevel, type Pt } from '../src/map/geometry';
 import { connectorTargets, currentTarget, floorLinks, otherFloorOf, parseTarget, targetValue, type LinkTargetFloor } from '../src/map/connector-targets';
@@ -293,6 +293,27 @@ test.describe('stairs model (T085)', () => {
     expect(cut).toBeLessThan(bbox * 0.75);
     const steps = buildScene({ doc, width: W, height: H, anchors: [], entityStates: {}, circuitStates: {} }).parts.filter((q) => q.id.startsWith('conn:c#f0s'));
     for (const st of steps) for (const p of turned) expect(Math.abs(st.position[0] - p.position[0]) < p.size[0] / 2 - 1e-6 && Math.abs(st.position[2] - p.position[2]) < p.size[2] / 2 - 1e-6, `${st.id} under ${p.id}`).toBe(false);
+  });
+
+  test('final review: a turned 60+60 stair cuts a bounded number of plate pieces, and the thumbnail keeps one plate per level', () => {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const doc = JSON.parse(fs.readFileSync(path.resolve(here, '..', '..', 'contracts', 'fixtures', 'plan_geometry', 'sample-v2.json'), 'utf8')) as GeometryDoc;
+    doc.objects = [];
+    doc.dimensions = { ...doc.dimensions, scale_m_per_px: 0.05 }; // 50 x 40 m
+    const W = doc.dimensions.width_px;
+    const H = doc.dimensions.height_px;
+    const th = Math.PI / 6;
+    const polyline = stairPath({ shape: 'u', start: [0.4, 0.85], dir: [Math.sin(th), -Math.cos(th)], width_m: 1.2, runs_m: [60 * 0.28, 60 * 0.28], landing_m: 1.4, turn: 'right' }, W, H, 0.05);
+    doc.connectors = [C({ id: 'big', level_from: 'L0', level_to: 'L0', floor_ids: ['fa', 'fb'], shape: 'u', turn: 'right', flights: [{ steps: 60 }, { steps: 60 }], landing_depth_m: 1.4, polyline,
+      far: { floor_id: 'fb', floor_name: 'קומה 0', level_name: null, direction: 'down', level_elevation_m: 0, datum_m: -3 } })];
+    const t0 = Date.now();
+    const desc = buildScene({ doc, width: W, height: H, anchors: [], entityStates: {}, circuitStates: {} });
+    expect(Date.now() - t0).toBeLessThan(1000);
+    const pieces = desc.parts.filter((q) => q.id === 'floor:L0' || q.id.startsWith('floor:L0#'));
+    expect(pieces.length).toBeGreaterThan(4);
+    expect(pieces.length).toBeLessThanOrEqual(2 * (2 * MAX_WELL_SLICES + 1) + 3); // 25 holes: about two pieces per hole row
+    const iso = isoProjection(desc);
+    expect(iso.faces.filter((f) => f.face === 'plate')).toHaveLength(desc.levels.length);
   });
 
   test('review M-a: a save whose twin could not follow says which floor', () => {
