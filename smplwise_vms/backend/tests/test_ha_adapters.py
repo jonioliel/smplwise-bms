@@ -116,6 +116,11 @@ def test_attention_needs_confirmation_and_sensitive_needs_its_grant(paired):
     assert r.status_code == 409 and r.json()["code"] == "confirmation_required"
     r = c.post("/api/v1/ha/entities/siren.yard/actions", json=_body(allowed_action_id="siren.turn_on", confirmation_grant="confirmed", client_request_id="r2"), headers=o)
     assert r.status_code == 202 and calls[-1]["service"] == "turn_on"
+    # CR-010: this general route carries no alarm code, so a caller whose alarm code policy is code_required (the
+    # default) is sent to the alarm screen; with no_code it arms / disarms here as before
+    r = c.post("/api/v1/ha/entities/alarm_control_panel.home/actions", json=_body(allowed_action_id="alarm_control_panel.alarm_arm_home", confirmation_grant="confirmed", client_request_id="r3p"), headers=o)
+    assert r.status_code == 409 and r.json()["code"] == "code_policy"
+    assert c.put("/api/v1/alarm/users/dev-omer/policy", json={"arm_policy": "no_code", "disarm_policy": "no_code"}).status_code == 200
     # arming is attention, disarming is sensitive: the operator may arm but not disarm
     r = c.post("/api/v1/ha/entities/alarm_control_panel.home/actions", json=_body(allowed_action_id="alarm_control_panel.alarm_arm_home", confirmation_grant="confirmed", client_request_id="r3"), headers=o)
     assert r.status_code == 202 and r.json()["expected_state"] == "armed_home"

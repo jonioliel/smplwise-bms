@@ -180,6 +180,8 @@ def run_action(entity_id: str, body: ActionBody, request: Request, principal: Pr
         raise ApiError(403, "grant_required", f"הפעולה דורשת הרשאה נפרדת ({_grant_label(grant)}); שליטה כללית בישויות אינה כוללת אותה.", details={"action": body.allowed_action_id, "grant": grant})
     if spec["sensitive"] and body.confirmation_grant != "confirmed":
         raise ApiError(409, "confirmation_required", "פעולה רגישה דורשת אישור מפורש.", details={"action": body.allowed_action_id})
+    if spec["domain"] == "alarm_control_panel":
+        _alarm_gate(conn, principal, request, entity_id, body.allowed_action_id)  # CR-010: remote settings + code policy
     if principal.source not in ("ingress", "remote") and not settings.dev_user:  # CR-008: the Arx remote channel is the same HA user
         raise ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת ההתקן.")
     secret = ha_bridge.signing_key(conn)
@@ -214,6 +216,27 @@ def run_action(entity_id: str, body: ActionBody, request: Request, principal: Pr
     out = _action_row(conn, aid)
     out["note"] = "הבקשה התקבלה; המצב מאושר רק כשמגיע עדכון." if ok else None
     return out
+
+
+def _alarm_gate(conn: sqlite3.Connection, principal: Principal, request: Request, entity_id: str, action_id: str) -> None:
+    """CR-010: an alarm panel reached through this general route follows the alarm section's own rules - the remote
+    settings (alarm.remote_control / alarm.remote_disarm) and the caller's code policy: this route carries no code, so a
+    caller whose policy is code_required arms / disarms only from the alarm screen (POST /alarm/panels/{id}/actions)."""
+    from ..services import alarm_codes
+    from .alarm import REMOTE_MESSAGES, _remote_block, _settings
+
+    cfg = _settings(conn)
+    disarm = action_id.endswith("alarm_disarm")
+    reason = _remote_block(principal, cfg, "disarm" if disarm else "arm")
+    pol = alarm_codes.policy(conn, principal.user_id)
+    forced = principal.source == "remote" and not cfg["remote_codeless"]
+    if reason is None and (forced or pol["disarm_policy" if disarm else "arm_policy"] == "code_required"):
+        reason = "code_policy"
+    if reason:
+        audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason=reason,
+              request_id=getattr(request.state, "correlation_id", None), details={"action": action_id})
+        msg = REMOTE_MESSAGES.get(reason, "פעולות אזעקה שדורשות קוד נעשות ממסך האזעקה (אבטחה › אזעקה).")
+        raise ApiError(409 if reason == "code_policy" else 403, reason, msg, details={"action": action_id})
 
 
 @router.get("/ha/actions/{action_id}")
