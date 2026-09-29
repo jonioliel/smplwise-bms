@@ -107,6 +107,10 @@ test.describe.serial('stairs between floors (T085)', () => {
     expect(theirs.polyline).toEqual([...mine.polyline].reverse()); // the same sheet: the same place
     await expect(page.locator(`${ed} sw-plan-canvas [data-connector="${sid}"] [data-conn-text]`)).toHaveText('↑ קומה 1 · גלריה');
     await expect(page.locator(`${ed} [data-conn-twin-note]`)).toContainText('לא מזיזה את המדרגות בקומה השנייה');
+    // the floor's height, floor to floor (owner 2026-09-29), in the same panel
+    await page.locator(`${ed} [data-floor-height]`).fill('3.2');
+    await page.locator(`${ed} [data-floor-height]`).dispatchEvent('change');
+    await expect.poll(async () => (await draft(ids.v0)).doc.floor_height_m ?? null, { timeout: 10000 }).toBe(3.2);
     await page.waitForTimeout(800);
     await shot(page, 'stairs-1-floor0-u-linked');
     // floor 1: the twin, labelled back down to floor 0

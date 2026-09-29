@@ -163,9 +163,9 @@ export function exportUrl(versionId: string, fmt: 'svg' | 'png', opts: { draft?:
 /** Link a connector to another floor (T085): `levelTo` is the level it reaches THERE (absent = that floor's default).
  * placement: the new twin sits at the same plan coordinates (aligned), at the other plan's centre (centred - it waits to
  * be placed) or an existing twin kept its own position (kept). */
-export const linkConnector = (versionId: string, connectorId: string, floorId: string, levelTo?: string | null) =>
-  post<{ connector: GeomConnector; target: { floor_id: string; version_id: string; revision: number; level_id: string; placement: 'aligned' | 'centred' | 'kept' } }>(
-    `plan-versions/${versionId}/geometry/link`, levelTo ? { connector_id: connectorId, floor_id: floorId, level_to: levelTo } : { connector_id: connectorId, floor_id: floorId });
+export const linkConnector = (versionId: string, connectorId: string, floorId: string, levelTo?: string | null, replace = false) =>
+  post<{ connector: GeomConnector; removed_floors: string[]; target: { floor_id: string; version_id: string; revision: number; level_id: string; placement: 'aligned' | 'centred' | 'kept'; frame: 'sheet' | 'size' | null } }>(
+    `plan-versions/${versionId}/geometry/link`, { connector_id: connectorId, floor_id: floorId, ...(levelTo ? { level_to: levelTo } : {}), ...(replace ? { replace: true } : {}) });
 
 /** The other floors of the building a connector can reach, each with its levels (the "מחבר אל" picker). */
 export const getLinkTargets = (versionId: string) => get<{ floors: LinkTargetFloor[] }>(`plan-versions/${versionId}/geometry/link-targets`);

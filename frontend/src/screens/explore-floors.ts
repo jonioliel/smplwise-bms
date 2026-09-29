@@ -20,6 +20,7 @@ import type { Building, Floor, Site } from '../api/types';
 import { getGeometry } from '../api/geometry';
 import { buildScene, isoPoint, isoProjection, keepIsos, type IsoScene } from '../map/scene-builder';
 import { floorLinks, type FloorLinkDoc } from '../map/connector-targets';
+import { DEFAULT_FLOOR_HEIGHT_M, floorHeight } from '../map/geometry';
 
 type Dialog = { kind: 'floor' } | { kind: 'rename'; floor: Floor } | { kind: 'delete'; floor: Floor; force: boolean } | { kind: 'building' } | null;
 
@@ -58,7 +59,7 @@ export class ExploreFloors extends LitElement {
         const desc = buildScene({ doc: r.doc, width: f.plan_width_px || r.doc.dimensions.width_px, height: f.plan_height_px || r.doc.dimensions.height_px, anchors: [], entityStates: {}, circuitStates: {},
           layers: { objects: false, cameras: false, entities: false, zones: false } });
         this.isos = this.pruned().set(vid, desc.parts.some((p) => p.kind === 'wall') ? isoProjection(desc) : null);
-        this.linkDocs = new Map(this.linkDocs).set(vid, { floorId: f.id, connectors: r.doc.connectors, levels: r.doc.levels });
+        this.linkDocs = new Map(this.linkDocs).set(vid, { floorId: f.id, connectors: r.doc.connectors, levels: r.doc.levels, floorHeightM: floorHeight(r.doc) });
       })
       .catch(() => {
         this.isos = this.pruned().set(vid, null); // no published structure (404) or no permission: the room outlines stay
@@ -75,15 +76,23 @@ export class ExploreFloors extends LitElement {
     const links = floorLinks(docs, floors.map((f) => ({ id: f.id, name: f.name })));
     if (!links.length) return nothing;
     const order = [...floors].sort((a, b) => a.level - b.level || a.sort_order - b.sort_order);
-    const GAP = 34;
-    const n = order.length;
-    const dy = (floorId: string) => (n - 1 - order.findIndex((f) => f.id === floorId)) * GAP; // the lowest floor at the bottom
+    // the plates are spaced by each floor's height, floor to floor (owner 2026-09-29): 3 m = 34 units
+    const UNIT = 34 / 3;
+    const heightOf = (f: Floor) => (f.published_version_id ? this.linkDocs.get(f.published_version_id)?.floorHeightM : undefined) ?? DEFAULT_FLOOR_HEIGHT_M;
+    const base = new Map<string, number>();
+    let acc = 0;
+    for (const f of order) {
+      base.set(f.id, acc);
+      acc += heightOf(f) * UNIT;
+    }
+    const top = order.length ? base.get(order[order.length - 1].id)! : 0;
+    const dy = (floorId: string) => top - (base.get(floorId) ?? 0); // the lowest floor at the bottom
     const pt = (floorId: string, p: [number, number]) => {
       const q = isoPoint(p[0], p[1]);
       return { x: q.x, y: q.y + dy(floorId) };
     };
     const plate = (floorId: string) => [[0, 0], [1, 0], [1, 1], [0, 1]].map(([u, v]) => pt(floorId, [u, v])).map((q) => `${q.x.toFixed(1)},${q.y.toFixed(1)}`).join(' ');
-    const height = 72 + (n - 1) * GAP;
+    const height = 72 + top;
     return html`<sw-card heading="קשרים בין קומות" subheading="מדרגות ומעליות שמקשרות קומות (מבנה מפורסם)" data-floor-links>
       <div class="links">
         <svg class="stack" viewBox=${`0 0 120 ${height}`} aria-hidden="true">
@@ -98,7 +107,7 @@ export class ExploreFloors extends LitElement {
           })}
         </svg>
         <ul class="lklist">
-          ${links.map((l) => html`<li data-link-row=${l.id}>${l.kindLabel}: ${bidi(l.a.label)} ↔ ${bidi(l.b?.label ?? l.farLabel)}${l.b ? '' : ' (הקומה השנייה לא פורסמה)'}</li>`)}
+          ${links.map((l) => html`<li data-link-row=${l.id}>${l.kindLabel}: ${bidi(l.a.label)} ↔ ${bidi(l.b?.label ?? l.farLabel)}${l.b ? '' : ' (התאום עדיין לא פורסם)'}</li>`)}
         </ul>
       </div>
     </sw-card>`;

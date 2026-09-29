@@ -3,7 +3,7 @@ import { customElement, property, state, query } from 'lit/decorators.js';
 import '../components/sw-button';
 import { t } from '../i18n/he';
 import type { StateKind } from '../components/sw-badge';
-import { applyAnchorPositions, buildPrimitives, circuitToken, effectiveScale, isClosedOutline, objectHitCorners, objectHitOrder, stairPlan, type StairPlan, type AnchorPosition, type CatalogLookup, type DoorPrim, type GeometryDoc, type LabelPrim, type ConnectorPrim, type ObjectPrim, type PassagePrim, type Primitive, type Pt, type WallPrim, type WindowPrim } from './geometry';
+import { applyAnchorPositions, buildPrimitives, circuitToken, effectiveScale, floorHeight, isClosedOutline, objectHitCorners, objectHitOrder, stairPlan, stairRise, type StairPlan, type AnchorPosition, type CatalogLookup, type DoorPrim, type GeometryDoc, type LabelPrim, type ConnectorPrim, type ObjectPrim, type PassagePrim, type Primitive, type Pt, type WallPrim, type WindowPrim } from './geometry';
 import { OUTSIDE_MAIN_HE, candidatesDoc, isOutsideMain, type CandidateSet, type CandState } from './candidates';
 import { symbolOf } from './plan-symbols';
 import { CoverageCache, hasWallsOnLevel } from './coverage';
@@ -1860,7 +1860,10 @@ export class SwPlanCanvas extends LitElement {
     if (!cache || cache.doc !== doc || cache.w !== this.planWidth || cache.h !== this.planHeight) {
       const { scale } = effectiveScale(doc);
       const plans = new Map<string, StairPlan | null>();
-      for (const c of doc.connectors) plans.set(c.id, stairPlan(c, this.planWidth, this.planHeight, scale));
+      const levels = new Map(doc.levels.map((l) => [l.id, l]));
+      const fh = floorHeight(doc);
+      // a stair going down from its level is looked down on: drawn whole, without the break line (review L5)
+      for (const c of doc.connectors) plans.set(c.id, stairPlan(c, this.planWidth, this.planHeight, scale, { descending: stairRise(levels, c, fh) < 0 }));
       this.stairCache = { doc, w: this.planWidth, h: this.planHeight, plans };
     }
     return this.stairCache!.plans.get(id) ?? null;

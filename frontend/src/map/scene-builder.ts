@@ -9,7 +9,7 @@
  * Ruling R-P4-T4-1: one convention for cameras - the forward is -z of the part, the description carries pitch = -tilt,
  * so applying the Euler as it stands looks DOWN by the tilt; consumers derive the view direction from the same Euler.
  */
-import { buildPrimitives, DEFAULT_WALL_THICKNESS_M, effectiveScale, MAX_TRIBUNE_ROWS, stairPlan, stairRise, type CatalogLookup, type GeomConnector, type ConnectorPrim, type DoorPrim, type GeometryDoc, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type ObjectPrim, type ObjectShape, type Pt, type Primitive, type WallPrim, type WindowPrim } from './geometry';
+import { buildPrimitives, DEFAULT_WALL_THICKNESS_M, effectiveScale, MAX_TRIBUNE_ROWS, floorHeight, stairPlan, stairRise, type CatalogLookup, type GeomConnector, type ConnectorPrim, type DoorPrim, type GeometryDoc, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type ObjectPrim, type ObjectShape, type Pt, type Primitive, type WallPrim, type WindowPrim } from './geometry';
 import { defaultLevelId, levelOrDefault } from './studio-ops';
 import { blockingSegments, clipCoverage, isOpenState, type Seg } from './coverage';
 import { anchor3d } from './anchor-3d';
@@ -399,13 +399,50 @@ class Builder {
     if (!this.layers.structure) return;
     const W = this.m(this.input.width);
     const D = this.m(this.input.height);
+    const wells = this.stairwells();
     for (const lv of this.levels) {
       if (!this.shown(lv.id)) continue;
       const box = lv.id === this.defaultLevel.id ? ([0, 0, W, D] as [number, number, number, number]) : this.bounds(lv.id);
       if (!box) continue;
       const [x0, z0, x1, z1] = [Math.max(0, box[0]), Math.max(0, box[1]), Math.min(W, box[2]), Math.min(D, box[3])];
-      this.box(`floor:${lv.id}`, 'floor', { id: lv.id, kind: 'level' }, [(x0 + x1) / 2, lv.elevation_m - FLOOR_PLATE_M / 2, (z0 + z1) / 2], [x1 - x0, FLOOR_PLATE_M, z1 - z0], 0, 'map-bg', lv.id, 1, 0, false);
+      const hole = wells.get(lv.id);
+      const pieces: [number, number, number, number][] = [];
+      if (hole && hole[0] < x1 && hole[2] > x0 && hole[1] < z1 && hole[3] > z0) {
+        // review M2: the plate is cut around the well of the stairs going down from this level, so they stay visible
+        const [hx0, hz0, hx1, hz1] = [Math.max(x0, hole[0]), Math.max(z0, hole[1]), Math.min(x1, hole[2]), Math.min(z1, hole[3])];
+        pieces.push([x0, z0, x1, hz0], [x0, hz1, x1, z1], [x0, hz0, hx0, hz1], [hx1, hz0, x1, hz1]);
+      } else pieces.push([x0, z0, x1, z1]);
+      let n = 0;
+      for (const [a0, b0, a1, b1] of pieces) {
+        if (a1 - a0 < 1e-4 || b1 - b0 < 1e-4) continue;
+        this.box(n ? `floor:${lv.id}#${n}` : `floor:${lv.id}`, 'floor', { id: lv.id, kind: 'level' }, [(a0 + a1) / 2, lv.elevation_m - FLOOR_PLATE_M / 2, (b0 + b1) / 2], [a1 - a0, FLOOR_PLATE_M, b1 - b0], 0, 'map-bg', lv.id, 1, 0, false);
+        n++;
+      }
     }
+  }
+
+  /** The stairwell of each level (review M2): the footprint, in metres, of the stairs that go down from it to another
+   * floor (their rise is negative) - a stair on the upper floor walked down to the floor below would otherwise be
+   * hidden under that level's plate. One rectangle per level (the union of its wells). */
+  stairwells(): Map<string, [number, number, number, number]> {
+    const out = new Map<string, [number, number, number, number]>();
+    if (!this.layers.connectors) return out;
+    const { doc, width, height } = this.input;
+    const levels = new Map(this.levels.map((l) => [l.id, l]));
+    const fh = floorHeight(doc);
+    const scale = effectiveScale(doc).scale;
+    for (const c of doc.connectors) {
+      if (!c.floor_ids?.length || c.object_id || stairRise(levels, c, fh) >= 0) continue;
+      const plan = stairPlan(c, width, height, scale, { descending: true });
+      const pts: Pt[] = plan ? [...plan.flights.flatMap((f) => f.outline), ...plan.landings.flat()] : c.polyline.map((q): Pt => [q[0] * width, q[1] * height]);
+      if (!pts.length) continue;
+      const pad = plan ? 0 : (c.width_m || 1) / scale / 2;
+      const box: [number, number, number, number] = [this.m(Math.min(...pts.map((q) => q[0])) - pad), this.m(Math.min(...pts.map((q) => q[1])) - pad), this.m(Math.max(...pts.map((q) => q[0])) + pad), this.m(Math.max(...pts.map((q) => q[1])) + pad)];
+      const id = this.level(c.level_from).id;
+      const had = out.get(id);
+      out.set(id, had ? [Math.min(had[0], box[0]), Math.min(had[1], box[1]), Math.max(had[2], box[2]), Math.max(had[3], box[3])] : box);
+    }
+    return out;
   }
 
   rooms(): void {
@@ -618,10 +655,11 @@ class Builder {
       const gc = docOf.get(c.id);
       const cross = !!gc?.floor_ids?.length; // level_to then names a level of the OTHER floor (T085)
       const from = this.level(c.level_from);
-      if (gc && c.ckind !== 'elevator' && this.stair(gc, from, stairRise(levelMap, gc))) continue;
+      const stairUp = gc ? stairRise(levelMap, gc, floorHeight(this.input.doc)) : 0;
+      if (gc && c.ckind !== 'elevator' && this.stair(gc, from, stairUp)) continue;
       const to = c.level_to && !cross ? this.level(c.level_to) : null;
       const e0 = from.elevation_m;
-      const e1 = cross && gc ? e0 + stairRise(levelMap, gc) : to ? to.elevation_m : from.elevation_m + from.ceiling_height_m;
+      const e1 = cross && gc ? e0 + stairUp : to ? to.elevation_m : from.elevation_m + from.ceiling_height_m;
       const [ax, az] = [this.m(c.points[0][0]), this.m(c.points[0][1])];
       const [bx, bz] = [this.m(c.points[c.points.length - 1][0]), this.m(c.points[c.points.length - 1][1])];
       const L = Math.hypot(bx - ax, bz - az);

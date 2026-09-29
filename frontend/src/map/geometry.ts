@@ -107,13 +107,17 @@ export type StairTurn = 'left' | 'right' | 'none';
 export interface StairFlight {
   steps: number;
 }
-/** What the server keeps on a connector to another floor (geometry_store.refresh_far): the other floor's name, the level
- * it reaches there and whether that floor is above or below; missing = the floor was deleted. */
+/** What the server computes on every read of a connector to another floor (geometry_store.attach_far, never stored):
+ * the other floor's name ("קומה אחרת" for a reader who may not read it), the level it reaches there and that level's
+ * elevation, the other floor's datum above this one (the floor heights between, signed) and whether it is above or
+ * below; missing = the floor was deleted. */
 export interface ConnectorFar {
   floor_id: string;
   floor_name: string | null;
   level_name: string | null;
   direction: 'up' | 'down' | null;
+  level_elevation_m?: number;
+  datum_m?: number | null;
   missing?: boolean;
 }
 export interface GeomConnector {
@@ -141,6 +145,8 @@ export interface GeomConnector {
   far?: ConnectorFar | null;
   /** A twin placed at the centre of a plan that shares no frame with the other floor: waits to be moved into place. */
   needs_placement?: boolean;
+  /** The floor a cross-floor link was made from: only there can the link move to another floor. */
+  origin_floor_id?: string;
 }
 export interface GeomCircuit {
   id: string;
@@ -181,6 +187,8 @@ export interface GeometryDoc {
   uncertain_regions: unknown[];
   uncertainty: { overall: number; notes: string[] };
   meta: { generator: string; tokens_version: string; detector_version: string | null };
+  /** The floor's height, floor to floor (T085, owner 2026-09-29): absent = DEFAULT_FLOOR_HEIGHT_M. */
+  floor_height_m?: number;
 }
 
 export interface WallPrim { kind: 'wall'; id: string; part: number; points: Pt[]; width: number }
@@ -594,7 +602,15 @@ export function applyAnchorPositions(doc: GeometryDoc, positions: Record<string,
 
 export const STAIR_GOING_M = 0.28; // a typical tread depth
 export const STAIR_WELL_M = 0.1; // the gap between the two flights of a U
-export const STAIR_FALLBACK_RISE_M = 3.0; // floors share no elevation datum (CR-004): stairs to another floor rise 3 m
+export const STAIR_FALLBACK_RISE_M = 3.0; // a stair with no target yet, or a far record without a datum
+export const DEFAULT_FLOOR_HEIGHT_M = 3.0;
+export const FLOOR_HEIGHT_RANGE: readonly [number, number] = [2.2, 12];
+
+/** The document's floor-to-floor height, or the default when absent or out of range (plan_geometry.floor_height). */
+export function floorHeight(doc: Pick<GeometryDoc, 'floor_height_m'>): number {
+  const h = doc.floor_height_m;
+  return typeof h === 'number' && Number.isFinite(h) && h >= FLOOR_HEIGHT_RANGE[0] && h <= FLOOR_HEIGHT_RANGE[1] ? h : DEFAULT_FLOOR_HEIGHT_M;
+}
 export const MAX_STAIR_STEPS = 60;
 export const STAIR_WIDTH_RANGE: readonly [number, number] = [0.6, 5];
 export const LANDING_RANGE: readonly [number, number] = [0.3, 10];
@@ -656,8 +672,8 @@ export function stairPath(o: StairSpec, W: number, H: number, scale: number): Pt
   const p0: Pt = [o.start[0] * W, o.start[1] * H];
   const r1 = (o.runs_m[0] ?? STAIR_GOING_M) * k;
   const r2 = (o.runs_m[1] ?? 0) * k;
-  const D = o.landing_m * k;
   const w = o.width_m * k;
+  const D = (o.shape === 'l' ? Math.max(o.landing_m, o.width_m) : o.landing_m) * k; // an L turns on a landing at least as deep as the stair is wide
   let pts: Pt[];
   if (o.shape === 'u') {
     const p1 = add(p0, f, r1 + D / 2);
@@ -712,15 +728,17 @@ function flightSteps(c: Pick<GeomConnector, 'flights'>, fallbackRuns: number[], 
 }
 
 /** The drawing of a connector with the stairs model, in plan pixels; null when it has none or its polyline does not
- * fit its shape (then the plain band draws, as for any connector). */
-export function stairPlan(c: GeomConnector, W: number, H: number, scale: number): StairPlan | null {
+ * fit its shape (then the plain band draws, as for any connector). `descending`: the stair goes down from this level
+ * (the plan shows all of it, looked down on) - no break line (review L5). An L's landing is at least as deep as the
+ * stair is wide (review L6). */
+export function stairPlan(c: GeomConnector, W: number, H: number, scale: number, opts: { descending?: boolean } = {}): StairPlan | null {
   if (!hasStairModel(c)) return null;
   const shape: StairShape = c.shape === 'l' || c.shape === 'u' ? c.shape : 'straight';
   const pts: Pt[] = c.polyline.map((p) => [p[0] * W, p[1] * H]);
   if (pts.length !== STAIR_POINTS[shape]) return null;
   const k = 1 / scale;
   const w = Math.max(1, (c.width_m || 1) * k);
-  const D = Math.max(1, (c.landing_depth_m ?? c.width_m ?? 1) * k);
+  const D = Math.max(1, (shape === 'l' ? Math.max(c.landing_depth_m ?? c.width_m ?? 1, c.width_m || 1) : c.landing_depth_m ?? c.width_m ?? 1) * k);
   const flights: StairFlightPlan[] = [];
   const landings: Pt[][] = [];
   if (shape === 'straight') {
@@ -762,7 +780,7 @@ export function stairPlan(c: GeomConnector, W: number, H: number, scale: number)
   }
   const first = flights[0];
   let breakLine: [Pt, Pt] | null = null;
-  if (first) {
+  if (first && !opts.descending) {
     const d = unit(sub(first.to, first.from));
     const n = rightOf(d);
     const L = Math.hypot(first.to[0] - first.from[0], first.to[1] - first.from[1]);
@@ -772,10 +790,16 @@ export function stairPlan(c: GeomConnector, W: number, H: number, scale: number)
 }
 
 /** The rise of a stair in metres, signed along its walking line: to another level of this floor, the elevation
- * difference; to another floor, STAIR_FALLBACK_RISE_M up or down by the far floor's direction (floors share no
- * elevation datum yet, CR-004); a stair with no target yet rises the fallback too. */
-export function stairRise(levels: Map<string, GeomLevel>, c: Pick<GeomConnector, 'level_from' | 'level_to' | 'floor_ids' | 'far'>): number {
-  if (c.floor_ids && c.floor_ids.length) return c.far?.direction === 'down' ? -STAIR_FALLBACK_RISE_M : STAIR_FALLBACK_RISE_M;
+ * difference; to another floor, the other floor's datum above this one (the floor heights between, far.datum_m) + the
+ * elevation of the level it reaches there - the elevation of the level it leaves here (review M1); without a datum,
+ * this floor's height up or down by the far floor's direction; a stair with no target yet rises the fallback. */
+export function stairRise(levels: Map<string, GeomLevel>, c: Pick<GeomConnector, 'level_from' | 'level_to' | 'floor_ids' | 'far'>, floorHeightM: number = DEFAULT_FLOOR_HEIGHT_M): number {
+  if (c.floor_ids && c.floor_ids.length) {
+    const own = levels.get(c.level_from)?.elevation_m ?? 0;
+    const far = c.far;
+    if (far && typeof far.datum_m === 'number' && Number.isFinite(far.datum_m)) return far.datum_m + (far.level_elevation_m ?? 0) - own;
+    return far?.direction === 'down' ? -floorHeightM : floorHeightM;
+  }
   const a = levels.get(c.level_from);
   const b = c.level_to ? levels.get(c.level_to) : undefined;
   if (a && b && b.elevation_m !== a.elevation_m) return b.elevation_m - a.elevation_m;
@@ -805,7 +829,8 @@ export function rebuildStair(c: GeomConnector, patch: Partial<Pick<GeomConnector
     flights = [{ steps: half }, { steps: Math.max(1, flights[0].steps - half) }];
   }
   const width_m = patch.width_m ?? c.width_m;
-  const landing = patch.landing_depth_m ?? c.landing_depth_m ?? width_m;
+  const asked = patch.landing_depth_m ?? c.landing_depth_m ?? width_m;
+  const landing = shape === 'l' ? Math.max(asked, width_m) : asked; // review L6: an L's landing is never narrower than the stair
   const turn: 'left' | 'right' = (patch.turn ?? c.turn) === 'left' ? 'left' : (patch.turn ?? c.turn) === 'right' ? 'right' : turnOf(c.polyline) ?? 'right';
   const [a, b] = c.polyline;
   const dir: Pt = b ? [(b[0] - a[0]) * W, (b[1] - a[1]) * H] : [0, -1];

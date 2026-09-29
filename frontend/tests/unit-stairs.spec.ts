@@ -173,6 +173,86 @@ test.describe('stairs model (T085)', () => {
     expect(Math.max(...up.map(top))).toBeCloseTo(3, 4);
   });
 
+  test('review M1: between floors the rise is the datum plus the target level minus the own level, the same from both sides', () => {
+    const f0 = new Map<string, GeomLevel>([['L0', { id: 'L0', name: 'ראשי', elevation_m: 0, ceiling_height_m: 3, is_default: true }], ['LOW', { id: 'LOW', name: 'מרתף', elevation_m: -1, ceiling_height_m: 2.4, is_default: false }]]);
+    const f1 = new Map<string, GeomLevel>([['L0', { id: 'L0', name: 'ראשי', elevation_m: 0, ceiling_height_m: 3, is_default: true }], ['G', { id: 'G', name: 'גלריה', elevation_m: 1.5, ceiling_height_m: 2.6, is_default: false }]]);
+    const up = { floor_id: 'f1', floor_name: 'קומה 1', level_name: 'גלריה', direction: 'up' as const, level_elevation_m: 1.5, datum_m: 3.2 };
+    const down = { floor_id: 'f0', floor_name: 'קומה 0', level_name: 'ראשי', direction: 'down' as const, level_elevation_m: 0, datum_m: -3.2 };
+    expect(stairRise(f0, { level_from: 'L0', level_to: 'G', floor_ids: ['f0', 'f1'], far: up })).toBeCloseTo(4.7, 9);
+    expect(stairRise(f1, { level_from: 'G', level_to: 'L0', floor_ids: ['f0', 'f1'], far: down })).toBeCloseTo(-4.7, 9);
+    expect(stairRise(f0, { level_from: 'LOW', level_to: 'G', floor_ids: ['f0', 'f1'], far: up })).toBeCloseTo(5.7, 9); // a non-default level at the start
+    expect(stairRise(f0, { level_from: 'L0', level_to: 'G', floor_ids: ['f0', 'f1'], far: { ...up, datum_m: null } }, 3.4)).toBe(3.4); // no datum: this floor's height
+  });
+
+  test('review L5 / L6: a descending stair has no break line; an L landing is never narrower than the stair', () => {
+    const path = stairPath({ shape: 'straight', start: [0.5, 0.8], dir: [0, -1], width_m: 1.2, runs_m: [3], landing_m: 1.2, turn: 'right' }, W, H, SCALE);
+    const c = C({ shape: 'straight', flights: [{ steps: 10 }], polyline: path });
+    expect(stairPlan(c, W, H, SCALE)!.breakLine).not.toBeNull();
+    expect(stairPlan(c, W, H, SCALE, { descending: true })!.breakLine).toBeNull();
+    const lpath = stairPath({ shape: 'l', start: [0.2, 0.8], dir: [0, -1], width_m: 1.2, runs_m: [2, 1.5], landing_m: 0.5, turn: 'right' }, W, H, SCALE);
+    const l = stairPlan(C({ shape: 'l', flights: [{ steps: 8 }, { steps: 6 }], width_m: 1.2, landing_depth_m: 0.5, polyline: lpath }), W, H, SCALE)!;
+    const [a, b, , d] = l.landings[0];
+    expect(Math.hypot(b[0] - a[0], b[1] - a[1])).toBeCloseTo(120, 1); // across the stair: its width
+    expect(Math.hypot(d[0] - a[0], d[1] - a[1])).toBeCloseTo(120, 1); // along the first flight: clamped up to the width
+    expect(l.flights[0].to[1]).toBeCloseTo(800 - 200, 1); // the first flight keeps its 2 m run
+  });
+
+  test('the twin (walked back: path and flights reversed, turn flipped) covers the same footprint; a rotated U or L keeps its geometry', () => {
+    const path = stairPath({ shape: 'u', start: [0.4, 0.8], dir: [0, -1], width_m: 1.2, runs_m: [3.36, 2.8], landing_m: 1.4, turn: 'right' }, W, H, SCALE);
+    const c = C({ shape: 'u', turn: 'right', flights: [{ steps: 12 }, { steps: 10 }], landing_depth_m: 1.4, polyline: path });
+    const twin = C({ shape: 'u', turn: 'left', flights: [{ steps: 10 }, { steps: 12 }], landing_depth_m: 1.4, polyline: [...path].reverse() });
+    const key = (pts: Pt[]) => pts.map((p) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).sort().join(' ');
+    const a = stairPlan(c, W, H, SCALE)!;
+    const b = stairPlan(twin, W, H, SCALE)!;
+    expect(key(b.landings[0])).toBe(key(a.landings[0]));
+    expect(key(b.flights.flatMap((f) => f.outline))).toBe(key(a.flights.flatMap((f) => f.outline)));
+    expect(b.flights.map((f) => f.steps)).toEqual([10, 12]);
+    const doc = { floor_id: 'f0', levels: LEVELS, connectors: [c], walls: [], labels: [], objects: [] } as unknown as GeometryDoc;
+    for (const shape of ['u', 'l'] as const) {
+      const p = shape === 'u' ? path : stairPath({ shape: 'l', start: [0.4, 0.8], dir: [0, -1], width_m: 1.2, runs_m: [2, 2], landing_m: 1.2, turn: 'right' }, W, H, SCALE);
+      const d = { ...doc, connectors: [{ ...c, shape, flights: shape === 'u' ? c.flights : [{ steps: 7 }, { steps: 7 }], polyline: p }] };
+      const before = stairPlan(d.connectors[0], W, H, SCALE)!;
+      const turned = rotateConnector(d, 's1', 90, W, H).connectors[0];
+      const after = stairPlan(turned, W, H, SCALE)!;
+      expect(after.shape).toBe(shape);
+      expect(after.flights.map((f) => f.treads.length)).toEqual(before.flights.map((f) => f.treads.length));
+      const len = (f: { from: Pt; to: Pt }) => Math.hypot(f.to[0] - f.from[0], f.to[1] - f.from[1]);
+      after.flights.forEach((f, i) => expect(len(f)).toBeCloseTo(len(before.flights[i]), 0));
+      const dir = (f: { from: Pt; to: Pt }) => [(f.to[0] - f.from[0]) / len(f), (f.to[1] - f.from[1]) / len(f)];
+      const [d0, d1] = after.flights.map(dir);
+      const dot = d0[0] * d1[0] + d0[1] * d1[1];
+      expect(dot).toBeCloseTo(shape === 'u' ? -1 : 0, 3); // U: parallel, back; L: at a right angle
+      expect(Math.abs(dir(after.flights[0])[1])).toBeLessThan(1e-3); // the first flight now runs across the plan
+    }
+  });
+
+  test('review M2: the descending twin on the upper floor is drawn in a stairwell cut out of that level\'s plate', () => {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const doc = JSON.parse(fs.readFileSync(path.resolve(here, '..', '..', 'contracts', 'fixtures', 'plan_geometry', 'sample-v2.json'), 'utf8')) as GeometryDoc;
+    doc.objects = [];
+    doc.connectors = [C({ id: 'tw', level_from: 'L0', level_to: 'L0', floor_ids: ['fa', 'fb'], shape: 'straight', flights: [{ steps: 10 }], polyline: [[0.5, 0.4], [0.5, 0.7]],
+      far: { floor_id: 'fb', floor_name: 'קומה 0', level_name: 'ראשי', direction: 'down', level_elevation_m: 0, datum_m: -3.2 } })];
+    const desc = buildScene({ doc, width: doc.dimensions.width_px, height: doc.dimensions.height_px, anchors: [], entityStates: {}, circuitStates: {} });
+    const plates = desc.parts.filter((q) => q.id === 'floor:L0' || q.id.startsWith('floor:L0#'));
+    expect(plates.length).toBe(4);
+    const steps = desc.parts.filter((q) => q.id.startsWith('conn:tw#f0s'));
+    expect(steps).toHaveLength(10);
+    const tops = steps.map((q) => q.position[1] + q.size[1] / 2);
+    expect(Math.min(...tops)).toBeCloseTo(-3.2 + 0.05, 4); // down to the floor below (the last step keeps the 5 cm minimum box)
+    expect(Math.max(...tops)).toBeCloseTo(-0.32, 4);
+    // no plate piece covers a step: every step's centre is outside every piece
+    for (const s of steps) {
+      for (const p of plates) {
+        const inside = Math.abs(s.position[0] - p.position[0]) < p.size[0] / 2 - 1e-6 && Math.abs(s.position[2] - p.position[2]) < p.size[2] / 2 - 1e-6;
+        expect(inside, `${s.id} under ${p.id}`).toBe(false);
+      }
+    }
+    // an ascending stair cuts nothing
+    doc.connectors = [{ ...doc.connectors[0], far: { ...doc.connectors[0].far!, direction: 'up', datum_m: 3.2 } }];
+    const upScene = buildScene({ doc, width: doc.dimensions.width_px, height: doc.dimensions.height_px, anchors: [], entityStates: {}, circuitStates: {} });
+    expect(upScene.parts.filter((q) => q.id.startsWith('floor:L0')).length).toBe(1);
+  });
+
   test('the building page pairs the twins of a link across two floors, once, and keeps a link whose twin is not published', () => {
     const far = (name: string) => ({ floor_id: 'x', floor_name: name, level_name: 'גלריה', direction: 'up' as const });
     const mine = C({ id: 'st', floor_ids: ['f0', 'f1'], level_to: 'G', polyline: [[0.2, 0.2], [0.4, 0.2]], far: far('קומה 1') });

@@ -33,7 +33,7 @@ import { StudioController } from '../map/studio-controller';
 import { ARRAY_MAX, BIND_DISTANCE_M, CIRCUIT_COLORS, addArray, addCircuit, addCircuitLamp, addConnector, addLabel, addLevel, addObject, addOpening, addWall, arrayDefaults, circuitPower, defaultLevelId, duplicateBeside, duplicateObject, initialLevel, kindDefaults, levelUsage, moveConnectorVertex, moveGroup, moveObject, moveVertex, newId, nudgeT, openingRange, patchCircuit, patchConnector, patchLabel, patchLevel, patchObject, patchOpening, patchWall, removeCorner, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember, translateWall, visibleUnderLevel, wallDirectionAt, duplicateSelection, itemsInRect, moveSelection, removeItems, selectableItems, selectionDelta, toggleItem, translatePolygon, TAG_MAX_COUNT, circuitEligible, itemsWithTag, joinCircuit, setLevelOf, tagCounts, tagItems, withTag, withoutTag, type MultiItem, type WallDefaults,
   GRID_DEFAULT_M, GRID_STEPS_M, GUIDE_SNAP_PX, alignObjects, distributeObjects, gridDelta, gridStepPx, objectBox, snapObjectPosition, snapToGrid, guideTargets, type AlignMode, type Guide, type GuideTargets, anchorOnLevel, addStair, moveConnector, rotateConnector, STAIR_ALIASES } from '../map/studio-ops';
 import { ANCHOR_3D_DEFAULTS, anchor3dKind } from '../map/anchor-3d';
-import { COLL_LABEL, CONNECTOR_LABEL, circuitPlacingHint, connectorDerived, countLabel, fmtMetres, fmtScale, renderArrayDialog, renderCalibPanel, renderCircuitPanel, renderConnectorPanel, renderCustomItemDialog, renderGroupDeleteDialog, renderGroupInspector, renderLevelChips, renderLevelDialog, renderDetectPanel, renderLibraryPanel, renderMeasurePanel, renderObjectInspector, renderConnectorSelection, renderMultiSelection, renderGridOptions, renderShortcutsDialog, renderStudioPanel, renderTwinDeleteDialog, connectorTargetName, renderTagPicker, renderTagsField, MULTI_HINT, SAVE_LABEL, studioPanelStyles, lighterStrength, type ArrayDialogView, type CustomItemView, type DetectAcceptError, type DetectOpts, type DetectReplaceAsk, type DetectRunState, type GeomKind, type GeomSel, type LevelDialogView, type StudioMode } from './plan-studio-panel';
+import { COLL_LABEL, CONNECTOR_LABEL, circuitPlacingHint, connectorDerived, countLabel, fmtMetres, fmtScale, renderArrayDialog, renderCalibPanel, renderCircuitPanel, renderConnectorPanel, renderCustomItemDialog, renderGroupDeleteDialog, renderGroupInspector, renderLevelChips, renderLevelDialog, renderDetectPanel, renderLibraryPanel, renderMeasurePanel, renderObjectInspector, renderConnectorSelection, renderMultiSelection, renderGridOptions, renderShortcutsDialog, renderStudioPanel, renderTwinDeleteDialog, renderLinkConfirmDialog, connectorTargetName, renderTagPicker, renderTagsField, MULTI_HINT, SAVE_LABEL, studioPanelStyles, lighterStrength, type ArrayDialogView, type CustomItemView, type DetectAcceptError, type DetectOpts, type DetectReplaceAsk, type DetectRunState, type GeomKind, type GeomSel, type LevelDialogView, type StudioMode } from './plan-studio-panel';
 
 type Strength = 'light' | 'medium' | 'strong';
 /** A zone save or delete that has not answered by then counts as failed (review of T085, R4): the bulk actions it holds
@@ -249,7 +249,9 @@ export class ExplorePlanEditor extends LitElement {
   /** The shape the stairs tool draws next (T085). */
   @state() private stairShape: StairShape = 'straight';
   /** "למחוק גם בקומה השנייה?" open for this cross-floor connector (T085). */
-  @state() private twinDelete: { id: string; floorId: string; target: string } | null = null;
+  @state() private twinDelete: { id: string; floorId: string; target: string; canBoth: boolean } | null = null;
+  /** A change of where linked stairs lead that deletes their twin on the other floor, waiting for a yes (review B1, L2). */
+  @state() private linkConfirm: { kind: 'unlink' | 'relink'; id: string; value: string; target: string } | null = null;
   @state() private linkBusy = false;
   // ---- circuits (T085) ----
   @state() private circuitSel: string | null = null;
@@ -1737,9 +1739,9 @@ export class ExplorePlanEditor extends LitElement {
     setTimeout(() => (this.info = ''), 4000);
   }
 
-  /** The other floors of this building with their levels, for the "מחבר אל" picker (T085). Once per plan version; `force`
-   * after a link (a twin may have changed the other floor's levels list only through its own editor, but the frame and
-   * version can change). */
+  /** The other floors of this building the person may edit, with their levels and frames, for the "מחבר אל" picker
+   * (T085). Loaded once per plan version of this floor; `force` reloads it (another floor may have gained a level or a
+   * plan since). */
   private async loadLinkTargets(force = false) {
     const b = this.bundle;
     if (!b || b.source !== 'api' || !b.planVersionId) return;
@@ -1754,7 +1756,7 @@ export class ExplorePlanEditor extends LitElement {
 
   /** Link a connector to a level of another floor: the draft is saved first, the server writes both drafts, this one
    * reloads (a new revision). A twin placed at the centre of the other plan (no shared frame) is said so. */
-  private async linkTo(connectorId: string, floorId: string, levelId: string) {
+  private async linkTo(connectorId: string, floorId: string, levelId: string, replace = false) {
     const b = this.bundle;
     if (!b?.planVersionId) return;
     this.linkBusy = true;
@@ -1764,14 +1766,16 @@ export class ExplorePlanEditor extends LitElement {
         this.error = this.studio.error;
         return;
       }
-      const r = await linkConnector(b.planVersionId, connectorId, floorId, levelId);
+      const r = await linkConnector(b.planVersionId, connectorId, floorId, levelId, replace);
       await this.loadStudio(b, true); // the server changed both drafts: this one has a new revision
       this.geomSel = { id: connectorId, kind: 'connector' };
       const f = this.linkTargets.find((x) => x.floor_id === r.target.floor_id);
       const where = `${f?.name ?? 'הקומה השנייה'} · ${f?.levels.find((l) => l.id === r.target.level_id)?.name ?? ''}`;
       this.info = r.target.placement === 'centred'
         ? `המדרגות קושרו אל ${where}. לשתי הקומות אין מסגרת משותפת, לכן בקומה השנייה הן נוצרו במרכז התוכנית: מקם את המדרגות בקומה השנייה.`
-        : `המחבר קושר אל ${where}; הוא מופיע בטיוטה של שתי הקומות באותו מזהה`;
+        : r.target.placement === 'aligned' && r.target.frame === 'size'
+          ? `המחבר קושר אל ${where}; בקומה השנייה הוא הונח באותו מקום בתוכנית (לשתי התוכניות אותן מידות): ודא את המיקום בקומה השנייה.`
+          : `המחבר קושר אל ${where}; הוא מופיע בטיוטה של שתי הקומות באותו מזהה`;
       setTimeout(() => (this.info = ''), 7000);
     } catch (err) {
       this.error = describeError(err);
@@ -1787,13 +1791,33 @@ export class ExplorePlanEditor extends LitElement {
     const c = doc?.connectors.find((x) => x.id === id);
     const t = parseTarget(value);
     if (!doc || !c || !t) return;
+    const other = otherFloorOf(doc, c);
+    if (other && t.floorId !== other) {
+      // it leads to another floor now: moving it (or bringing it back to this floor) deletes the twin there - asked first
+      this.linkConfirm = { kind: t.floorId ? 'relink' : 'unlink', id, value, target: connectorTargetName(doc.levels, c) };
+      return;
+    }
+    this.applyTarget(id, value);
+  }
+
+  private applyTarget(id: string, value: string, replace = false) {
+    const doc = this.studio.doc;
+    const c = doc?.connectors.find((x) => x.id === id);
+    const t = parseTarget(value);
+    if (!doc || !c || !t) return;
     if (t.floorId) {
-      void this.linkTo(id, t.floorId, t.levelId);
+      void this.linkTo(id, t.floorId, t.levelId, replace);
       return;
     }
     const other = otherFloorOf(doc, c);
-    this.edit((d) => patchConnector(d, id, { level_to: t.levelId, floor_ids: [], far: null }));
+    this.edit((d) => patchConnector(d, id, { level_to: t.levelId, floor_ids: [], far: null, origin_floor_id: undefined }));
     if (other) void this.dropTwin(id, other);
+  }
+
+  private confirmLink(ok: boolean) {
+    const l = this.linkConfirm;
+    this.linkConfirm = null;
+    if (ok && l) this.applyTarget(l.id, l.value, l.kind === 'relink');
   }
 
   /** The twin of a cross-floor connector leaves the other floor's draft (after this draft is saved without it). */
@@ -1820,7 +1844,8 @@ export class ExplorePlanEditor extends LitElement {
     if (!doc || !c) return;
     const other = otherFloorOf(doc, c);
     if (other) {
-      this.twinDelete = { id, floorId: other, target: connectorTargetName(doc.levels, c) };
+      // "delete both" only when the person may edit the other floor (it is listed among the link targets; review L3)
+      this.twinDelete = { id, floorId: other, target: connectorTargetName(doc.levels, c), canBoth: this.linkTargets.some((f) => f.floor_id === other) };
       return;
     }
     this.edit((d) => removeItem(d, id));
@@ -1833,7 +1858,7 @@ export class ExplorePlanEditor extends LitElement {
     if (!t) return;
     this.edit((d) => removeItem(d, t.id));
     this.geomSel = null;
-    if (both) void this.dropTwin(t.id, t.floorId);
+    if (both && t.canBoth) void this.dropTwin(t.id, t.floorId);
   }
 
   private connectorView(doc: GeometryDoc) {
@@ -1867,6 +1892,7 @@ export class ExplorePlanEditor extends LitElement {
       rotate: (id: string) => {
         if (b) this.edit((d) => rotateConnector(d, id, 90, b.width, b.height));
       },
+      setFloorHeight: (m: number) => this.edit((d) => ({ ...d, floor_height_m: m })),
     };
   }
 
@@ -4495,7 +4521,8 @@ export class ExplorePlanEditor extends LitElement {
         ${this.renderDiffDialog()}
         ${this.renderGeomDiffDialog()}
         ${this.arrayDialog ? renderArrayDialog(this.arrayDialog, (patch) => (this.arrayDialog = { ...this.arrayDialog!, error: '', ...patch }), () => this.createArray(), () => (this.arrayDialog = null)) : nothing}
-        ${this.twinDelete ? renderTwinDeleteDialog(this.twinDelete.target, () => this.confirmTwinDelete(true), () => this.confirmTwinDelete(false), () => (this.twinDelete = null)) : nothing}
+        ${this.twinDelete ? renderTwinDeleteDialog(this.twinDelete.target, this.twinDelete.canBoth, () => this.confirmTwinDelete(true), () => this.confirmTwinDelete(false), () => (this.twinDelete = null)) : nothing}
+        ${this.linkConfirm ? renderLinkConfirmDialog(this.linkConfirm.kind, this.linkConfirm.target, () => this.confirmLink(true), () => this.confirmLink(false)) : nothing}
         ${this.groupDelete ? renderGroupDeleteDialog(this.studio.doc?.groups.find((g) => g.id === this.groupDelete)?.member_ids.length ?? 0, () => this.deleteGroup(true), () => this.deleteGroup(false), () => (this.groupDelete = null)) : nothing}
         ${this.customDialog && this.library ? renderCustomItemDialog(this.customDialog, this.library, (patch) => (this.customDialog = { ...this.customDialog!, ...patch }), () => void this.createCustom(), () => (this.customDialog = null)) : nothing}
         ${this.levelDialog ? renderLevelDialog(this.levelDialog, { change: (patch) => (this.levelDialog = { ...this.levelDialog!, ...patch }), submit: () => this.submitLevel(), cancel: () => (this.levelDialog = null), remove: () => this.deleteLevel() }) : nothing}

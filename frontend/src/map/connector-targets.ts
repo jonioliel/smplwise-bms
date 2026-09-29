@@ -13,6 +13,8 @@ export interface LinkTargetFloor {
   version_id: string | null;
   levels: { id: string; name: string; elevation_m: number | null; is_default: boolean }[];
   same_frame: boolean;
+  /** "sheet": the same drawing; "size": calibrated plans of the same size - likely one frame, worth a check; null. */
+  frame?: 'sheet' | 'size' | null;
 }
 
 export interface TargetOption {
@@ -73,6 +75,14 @@ export interface FloorLinkDoc {
   floorId: string;
   connectors: GeomConnector[];
   levels: GeomLevel[];
+  /** The floor's height, floor to floor (the building page spaces its plates by it). */
+  floorHeightM?: number;
+}
+
+/** A connector that is the twin of stairs linked from another floor (origin_floor_id names that floor): only the
+ * original floor moves its link to a third floor (review B1). */
+export function isTwinCopy(doc: Pick<GeometryDoc, 'floor_id'>, c: Pick<GeomConnector, 'origin_floor_id' | 'floor_ids'>): boolean {
+  return !!c.floor_ids?.length && !!c.origin_floor_id && c.origin_floor_id !== doc.floor_id;
 }
 export interface FloorLinkEnd {
   floorId: string;

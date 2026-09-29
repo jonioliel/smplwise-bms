@@ -6,8 +6,8 @@
 import { css, html, nothing, type TemplateResult } from 'lit';
 import type { CalibrationHint, CopyCandidate, GeometryIssue } from '../api/geometry';
 import { OUTSIDE_MAIN_HE, isOutsideMain, outsideMainSummary, type CandidateSet, type CandKind, type CandState } from '../map/candidates';
-import { connectorTargets, currentTarget, type LinkTargetFloor } from '../map/connector-targets';
-import { COLOR_TOKENS, LANDING_RANGE, MAX_STAIR_STEPS, OBJECT_SHAPES, STAIR_WIDTH_RANGE, SYMBOL_IDS, circuitToken, connectorLabel, effectiveScale, hasStairModel, stairCaption, type StairShape, lengthPx, perimeterM, polygonAreaM2, type ConnectorKind, type GeometryDoc, type GeomCircuit, type GeomConnector, type GeomGroup, type GeomSize, type ObjectShape, type GeomLabel, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type Hinge, type OpeningKind, type Pt, type Swing, type WallKind } from '../map/geometry';
+import { connectorTargets, currentTarget, isTwinCopy, otherFloorOf, type LinkTargetFloor } from '../map/connector-targets';
+import { COLOR_TOKENS, FLOOR_HEIGHT_RANGE, floorHeight, LANDING_RANGE, MAX_STAIR_STEPS, OBJECT_SHAPES, STAIR_WIDTH_RANGE, SYMBOL_IDS, circuitToken, connectorLabel, effectiveScale, hasStairModel, stairCaption, type StairShape, lengthPx, perimeterM, polygonAreaM2, type ConnectorKind, type GeometryDoc, type GeomCircuit, type GeomConnector, type GeomGroup, type GeomSize, type ObjectShape, type GeomLabel, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type Hinge, type OpeningKind, type Pt, type Swing, type WallKind } from '../map/geometry';
 import type { CatalogItem, CatalogLibrary, ParamSpec } from '../api/plan-catalog';
 import type { HaEntity } from '../api/ha';
 import { searchItems } from '../api/plan-catalog';
@@ -1185,6 +1185,8 @@ export interface ConnectorActions {
   /** The stairs model changed (shape, turn, steps, width, landing): the editor regenerates the walking line. */
   patchStair(id: string, patch: Partial<Pick<GeomConnector, 'shape' | 'turn' | 'flights' | 'width_m' | 'landing_depth_m'>>): void;
   rotate(id: string): void;
+  /** The floor's height, floor to floor (owner 2026-09-29): what stairs to another floor rise through. */
+  setFloorHeight(m: number): void;
 }
 
 /** A connector end's level name for the connector list and inspector. Callers show a cross-floor link themselves
@@ -1232,6 +1234,8 @@ export function renderConnectorPanel(v: ConnectorView, a: ConnectorActions): Tem
           ${STAIR_SHAPES.map((s) => html`<button class=${v.stairShape === s ? 'on' : ''} data-stair-draw-shape=${s} aria-pressed=${v.stairShape === s} @click=${() => a.setStairShape(s)}>${STAIR_SHAPE_TEXT[s]}</button>`)}
         </div>`
       : nothing}
+    <sw-field label="גובה קומה (רצפה עד רצפה, מ׳)" hint="כמה עולות מדרגות לקומה שמעל; ברירת מחדל 3"><input type="number" min=${FLOOR_HEIGHT_RANGE[0]} max=${FLOOR_HEIGHT_RANGE[1]} step="0.05" data-ltr data-floor-height .value=${String(floorHeight(v.doc))}
+      @change=${(e: Event) => { const x = num(e); if (x >= FLOOR_HEIGHT_RANGE[0] && x <= FLOOR_HEIGHT_RANGE[1]) a.setFloorHeight(Math.round(x * 100) / 100); }} /></sw-field>
     <div class="note">שתי לחיצות על התוכנית מציירות מחבר (הצמדה לפינות קירות); במדרגות L ו־U הלחיצה השנייה קובעת את הכיוון ואת אורך המהלך הראשון, והפודסט והמהלך השני נוצרים לבד. מדרגות ומעלית מהספרייה מונחות כאן כמחבר. טריבונה היא עצם מהספרייה: המחבר שלה נוצר לבד כשמגדירים לאיזה מפלס היא יורדת.</div>
     ${v.doc.connectors.length
       ? html`<div class="list">${v.doc.connectors.map((c) => html`<button class=${sel?.id === c.id ? 'on' : ''} data-conn-row=${c.id} @click=${() => a.select(c.id)}>
@@ -1296,7 +1300,11 @@ function renderStairModel(c: GeomConnector, a: ConnectorActions, num: (e: Event)
 function renderConnectorInspector(c: GeomConnector, v: ConnectorView, a: ConnectorActions, levelName: (id: string | null) => string, num: (e: Event) => number) {
   const derived = connectorDerived(c);
   const cross = c.floor_ids.length > 0;
-  const groups = connectorTargets(v.doc, c, v.linkTargets);
+  const twinCopy = isTwinCopy(v.doc, c);
+  const other = otherFloorOf(v.doc, c);
+  const all = connectorTargets(v.doc, c, v.linkTargets);
+  // a twin moves its link only from the floor it was linked from: here only the levels of its own other floor (review B1)
+  const groups = twinCopy ? { ...all, floors: all.floors.filter((f) => f.floorId === other) } : all;
   const current = currentTarget(v.doc, c);
   const stairs = c.kind === 'stairs' && !derived;
   const minWidth = stairs && hasStairModel(c) ? STAIR_WIDTH_RANGE[0] : 0.05;
@@ -1319,10 +1327,11 @@ function renderConnectorInspector(c: GeomConnector, v: ConnectorView, a: Connect
       </select></sw-field>
     </div>
     ${v.linkBusy ? html`<div class="note" data-conn-linking>מקשר לקומה השנייה…</div>` : nothing}
+    ${twinCopy ? html`<div class="note" data-conn-twin-origin>אלה מדרגות שקושרו מקומה אחרת: כדי לקשר אותן לקומה שלישית, קשר מחדש מהקומה המקורית.</div>` : nothing}
     ${cross && !derived
       ? html`<div class="note" data-conn-twin-note>מקושר אל ${target}: אותו מחבר מופיע בטיוטה של שתי הקומות. הזזה כאן לא מזיזה את המדרגות בקומה השנייה, ולהפך.</div>`
       : nothing}
-    ${c.needs_placement ? html`<div class="note warn" data-conn-placement>מקם את המדרגות בקומה השנייה: הן נוצרו במרכז התוכנית כי לשתי הקומות אין מסגרת משותפת. גרור אותן למקומן.</div>` : nothing}
+    ${c.needs_placement ? html`<div class="note warn" data-conn-placement>מקם את המדרגות בקומה הזו: הן נוצרו במרכז התוכנית כי לשתי הקומות אין מסגרת משותפת. גרור אותן למקומן.</div>` : nothing}
     ${stairs ? renderStairModel(c, a, num) : nothing}
     <sw-field label="תווית (אופציונלי; ריק = הפרש הגובה או הקומה)"><input type="text" maxlength="80" data-conn-label ?disabled=${derived} .value=${c.label ?? ''} @change=${(e: Event) => a.patch(c.id, { label: (e.target as HTMLInputElement).value.trim() || null })} /></sw-field>
     <div class="note" data-conn-route>${levelName(c.level_from)} ← ${target}${derived ? '' : ' · גרירת פינה מזיזה פינה, גרירת המחבר הנבחר מזיזה את כולו'}</div>
@@ -1332,12 +1341,24 @@ function renderConnectorInspector(c: GeomConnector, v: ConnectorView, a: Connect
 
 /** "למחוק גם בקומה השנייה?" (T085): deleting a connector linked to another floor asks whether its twin goes too; the
  * default (the primary button) deletes both. */
-export function renderTwinDeleteDialog(target: string, onBoth: () => void, onHere: () => void, onCancel: () => void): TemplateResult {
+export function renderTwinDeleteDialog(target: string, canBoth: boolean, onBoth: () => void, onHere: () => void, onCancel: () => void): TemplateResult {
   return html`<sw-dialog open heading="מחיקת מחבר בין קומות" subheading=${`המחבר מקושר אל ${target}`} data-twin-delete-dialog @close=${onCancel}>
-    <div class="note">למחוק גם בקומה השנייה?</div>
+    ${canBoth
+      ? html`<div class="note">למחוק גם בקומה השנייה?</div><div class="note warn" data-twin-delete-immediate>המחיקה בקומה השנייה מיידית: Ctrl+Z מחזיר את המדרגות רק כאן.</div>`
+      : html`<div class="note" data-twin-delete-noperm>אין לך הרשאת עריכה בקומה השנייה: המדרגות יימחקו רק כאן, והתאום שם יסומן כמקושר לשום מקום.</div>`}
     <sw-button slot="footer" variant="ghost" data-twin-delete-cancel @click=${onCancel}>ביטול</sw-button>
-    <sw-button slot="footer" data-twin-delete-here @click=${onHere}>רק בקומה הזו</sw-button>
-    <sw-button slot="footer" variant="danger" icon="trash" data-twin-delete-both autofocus @click=${onBoth}>מחק בשתי הקומות</sw-button>
+    <sw-button slot="footer" variant=${canBoth ? 'secondary' : 'danger'} data-twin-delete-here @click=${onHere}>רק בקומה הזו</sw-button>
+    ${canBoth ? html`<sw-button slot="footer" variant="danger" icon="trash" data-twin-delete-both autofocus @click=${onBoth}>מחק בשתי הקומות</sw-button>` : nothing}
+  </sw-dialog>`;
+}
+
+/** Changing where linked stairs lead removes the twin on the other floor at once (review B1, L2): asked first. */
+export function renderLinkConfirmDialog(kind: 'unlink' | 'relink', target: string, onOk: () => void, onCancel: () => void): TemplateResult {
+  return html`<sw-dialog open heading=${kind === 'relink' ? 'קישור לקומה אחרת' : 'ביטול הקישור בין הקומות'} subheading=${`המדרגות מקושרות עכשיו אל ${target}`} data-link-confirm-dialog=${kind} @close=${onCancel}>
+    <div class="note">${kind === 'relink' ? 'הקישור לקומה חדשה ימחק את המדרגות מהקומה הנוכחית שלהן שם.' : 'המדרגות יובילו למפלס בקומה הזו, והתאום בקומה השנייה יימחק.'}</div>
+    <div class="note warn">המחיקה בקומה השנייה מיידית ואינה מתבטלת ב־Ctrl+Z.</div>
+    <sw-button slot="footer" variant="ghost" data-link-confirm-cancel @click=${onCancel}>ביטול</sw-button>
+    <sw-button slot="footer" variant="danger" data-link-confirm-ok @click=${onOk}>${kind === 'relink' ? 'קשר ומחק שם' : 'בטל קישור ומחק שם'}</sw-button>
   </sw-dialog>`;
 }
 

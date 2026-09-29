@@ -999,7 +999,7 @@ export interface StairOpts {
 export function addStair(doc: GeometryDoc, o: StairOpts, W: number, H: number, scale: number): { doc: GeometryDoc; id: string } {
   const going = o.going_m ?? STAIR_GOING_M;
   const flights = o.flights.map((n) => ({ steps: Math.max(1, Math.min(MAX_STAIR_STEPS, Math.round(n))) }));
-  const landing = o.landing_m ?? o.width_m;
+  const landing = o.shape === 'l' ? Math.max(o.landing_m ?? o.width_m, o.width_m) : o.landing_m ?? o.width_m; // review L6
   const turn = o.turn ?? 'right';
   const polyline = stairPath({ shape: o.shape, start: o.start, dir: o.dir ?? [0, -1], width_m: o.width_m, runs_m: flights.map((f) => f.steps * going), landing_m: landing, turn }, W, H, scale);
   const c: GeomConnector = { id: newId(), kind: o.kind ?? 'stairs', level_from: o.levelFrom, level_to: o.levelTo, floor_ids: [], polyline, width_m: o.width_m, label: null, object_id: null, source: 'manual',
