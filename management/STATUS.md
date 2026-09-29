@@ -1,6 +1,6 @@
 # Project status — generated view
 
-Generated: 2026-09-29T19:51:17.280708+00:00
+Generated: 2026-09-29T21:04:13.768971+00:00
 
 Tasks: 93 | Requirements: 189 | Tests: 189 | Screens: 32
 
@@ -119,4 +119,4 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [T090](tasks/T090.md) | V2 | BACKLOG | סטודיו התוכנית 8 — BIM / IFC | T085, T088 |
 | [T091](tasks/T091.md) | V1 | BACKLOG | תיעוד בעברית ומדריך למשתמש מלא עם צילומי מסך אמיתיים | T025, T054, T087 |
 | [T092](tasks/T092.md) | V1 | BACKLOG | Arx remote access (CR-008) — /arx, התחברות HA במסך שלנו, PWA ואפליקציה | T011 |
-| [T093](tasks/T093.md) | V1 | BACKLOG | ׳—׳׳ ׳׳©׳•׳×׳£ ׳׳©׳×׳™ ׳§׳•׳׳•׳× (CR-009) ג€” ׳׳•׳׳ ׳‘׳’׳•׳‘׳” ׳›׳₪׳•׳, ׳©׳׳ ׳‘׳›׳ ׳§׳•׳׳” | T085 |
+| [T093](tasks/T093.md) | V1 | BACKLOG | חלל משותף לשתי קומות (CR-009) — אולם בגובה כפול, שלם בכל קומה | T085 |
