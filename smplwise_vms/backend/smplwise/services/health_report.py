@@ -171,7 +171,12 @@ def build(settings: Settings, conn: sqlite3.Connection, probe: bool = True) -> d
     th = dict(thumbnails.STATE)
     checks.append(_check("thumbnails", "תמונות אירועים (ffmpeg)", "error" if th.get("last_error") == "ffmpeg_missing" else ("warn" if th.get("failed", 0) > th.get("generated", 0) and th.get("failed", 0) > 3 else "ok"), f"{th.get('generated', 0)} נוצרו · {th.get('failed', 0)} נכשלו · {th.get('queued', 0)} בתור{' · אחרונה: ' + str(th.get('last_error')) if th.get('last_error') else ''}", **th))
     jobs = {r[0]: r[1] for r in conn.execute("SELECT state, COUNT(*) FROM export_jobs GROUP BY state").fetchall()}
-    checks.append(_check("exports", "ייצוא קטעים", "ok" if not jobs.get("failed") else "warn", " · ".join(f"{n} {s}" for s, n in jobs.items()) if jobs else "אין עבודות ייצוא", **jobs))
+    from . import exports as exports_svc
+
+    disk = exports_svc.disk_state(settings, exports_svc.min_free_mb(conn))  # T068: a full data disk pauses exports
+    disk_note = f" · הדיסק של התוסף: {disk['free_mb']} MB פנויים, מתחת למינימום {disk['min_free_mb']} MB - ייצואים חדשים נדחים" if disk["low"] else ""
+    checks.append(_check("exports", "ייצוא קטעים", "warn" if jobs.get("failed") or jobs.get("paused_disk_full") or disk["low"] else "ok",
+                         (" · ".join(f"{n} {s}" for s, n in jobs.items()) if jobs else "אין עבודות ייצוא") + disk_note, data_disk=disk, **jobs))
     from ..routers.media import REGISTRY as LIVE
     from .playback import REGISTRY as PB
 

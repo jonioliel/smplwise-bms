@@ -1,5 +1,5 @@
 /** NVR storage and recording plan, read-only (T051). */
-import { get } from './client';
+import { get, post } from './client';
 
 export interface StorageDisk {
   id: string;
@@ -66,6 +66,23 @@ export interface StorageReport {
 }
 
 export const getStorage = (fresh = false) => get<StorageReport>(`storage${fresh ? '?fresh=true' : ''}`);
+
+/** The add-on's own data disk and the bounded queues (T068): no device call. */
+export interface StorageLocal {
+  data_disk: { free_mb: number | null; total_mb: number | null; min_free_mb: number; low: boolean };
+  exports: {
+    by_state: Record<string, number>;
+    paused_disk_full: number;
+    waiting: number;
+    max_waiting: number;
+    max_per_owner: number;
+    counters: { refused_disk: number; refused_queue_full: number; paused_disk_full: number; resumed: number };
+  };
+  ingest_queue: { depth: number; max: number; high_water: number; accepted: number; processed: number; failed: number; coalesced: number; dropped: number };
+}
+
+export const getStorageLocal = () => get<StorageLocal>('storage/local');
+export const resumeExports = () => post<StorageLocal & { resumed: number }>('storage/exports/resume');
 
 export function fmtMb(mb: number | null | undefined): string {
   if (mb == null) return '—';

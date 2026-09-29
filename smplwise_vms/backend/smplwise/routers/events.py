@@ -17,10 +17,10 @@ from starlette.concurrency import run_in_threadpool
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..config import Settings
-from ..db import Database, now_iso
+from ..db import Database, database_of, now_iso
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import correlation, events_derive, events_ingest, revocation, thumbnails
+from ..services import correlation, events_cache, events_derive, events_ingest, revocation, thumbnails
 from ..services.access import RowScope, camera_allowed, require_camera, row_scope
 from ..services.timeutil import iso_utc, local_day_bounds, parse_utc, zone
 from .media import _principal_for_ws
@@ -44,6 +44,12 @@ def _visible(row: dict[str, Any], wide: bool, sc: RowScope) -> bool:
     return wide or sc.allows_row(row.get("camera_id"))
 
 
+def _scope_key(wide: bool, sc: RowScope) -> tuple[Any, ...]:
+    """The caller's visible scope in an events-cache key (T068 x T055): installation-wide, or whether camera-less rows
+    are visible plus the exact camera id set - two callers that see different rows never share an entry."""
+    return ("*",) if wide else ("cameras", sc.camera_less, *events_cache.scope_key(False, set(sc.cameras.ids)))
+
+
 def _camera_ids(wide: bool, sc: RowScope) -> set[str] | None:
     """The camera set the correlation / route helpers take (None = every camera)."""
     return None if wide or sc.cameras.everything else set(sc.cameras.ids)
@@ -61,11 +67,12 @@ def _with_names(conn: sqlite3.Connection, rows: list[dict[str, Any]]) -> list[di
 def _with_thumbs(settings: Settings, rows: list[dict[str, Any]], queue_first: int = 0) -> list[dict[str, Any]]:
     """Thumbnail state per row; the first `queue_first` rows without one are queued for generation."""
     ask: list[str] = []
+    known = thumbnails.statuses_for(settings, [r["id"] for r in rows if thumbnails.eligible(r)])  # one folder index, not two stats per row
     for i, r in enumerate(rows):
         if not thumbnails.eligible(r):
             r["thumbnail"] = "unavailable"
             continue
-        st = thumbnails.status_for(settings, r["id"])
+        st = known[r["id"]]
         if st == "none" and i < queue_first:
             ask.append(r["id"])
             st = "pending"
@@ -106,7 +113,40 @@ def list_events(
     source = source if isinstance(source, str) else None
     severity = severity if isinstance(severity, str) else None
     q = q.strip() if isinstance(q, str) else None
-    wide, ids = _scope(conn, principal)
+    date, from_, to = (v if isinstance(v, str) else None for v in (date, from_, to))
+    limit = limit if isinstance(limit, int) else 200
+    wide, ids = _scope(conn, principal)  # authorization runs on every request, before the cache is consulted
+    params = (date, from_, to, camera_id, type, bool(unacked), bool(acked), limit, site_id, building_id, floor_id, zone_id, source, severity, q)
+
+    def compute() -> dict[str, Any]:
+        return _list_window(conn, wide, ids, *params)
+
+    out = _cached(conn, ("events.list", params, _scope_key(wide, ids)), ("events", "structure"), compute)
+    _with_thumbs(settings_of(request), out["events"], queue_first=30)
+    out["ingest"] = events_ingest.STATE.as_dict()
+    out["derive"] = events_derive.STATE
+    return out
+
+
+def _cached(conn: sqlite3.Connection, key: tuple[Any, ...], counters: tuple[str, ...], compute) -> dict[str, Any]:
+    """One window through the events-window cache (T068), keyed by the database file's identity too (tests open several;
+    a restore that replaces the file restarts its counters, and must never meet entries of the old file); every value is
+    a dict whose optional "events" list is copied row by row on the way out."""
+    db = database_of(conn)
+    if db is None:
+        return compute()
+
+    def copy(v: dict[str, Any]) -> dict[str, Any]:
+        return {**v, "events": events_cache.copy_rows(v["events"])} if "events" in v else dict(v)
+
+    return events_cache.CACHE.fetch(conn, (events_cache.db_identity(db.path), *key), counters, compute, cost=lambda v: len(v.get("events", ())) + 1, copy=copy)
+
+
+def _list_window(conn: sqlite3.Connection, wide: bool, ids: RowScope, date: str | None, from_: str | None, to: str | None, camera_id: str | None,
+                 type: str | None, unacked: bool, acked: bool, limit: int, site_id: str | None, building_id: str | None, floor_id: str | None,
+                 zone_id: str | None, source: str | None, severity: str | None, q: str | None) -> dict[str, Any]:
+    """The cacheable part of the events list: rows (with camera names), window and filter notes - no thumbnail state,
+    no live ingest state (both change without a database write and are added per request)."""
     s = read_settings(conn)
     tz_name = s["time.zone"]
     unsupported: list[dict[str, str]] = []
@@ -165,14 +205,11 @@ def list_events(
     args.append(limit * 3 if not wide else limit)
     rows = [events_ingest.row_to_event(r) for r in conn.execute(sql, args).fetchall()]
     rows = [r for r in rows if _visible(r, wide, ids)][:limit]
-    _with_thumbs(settings_of(request), rows, queue_first=30)
     return {
         "events": _with_names(conn, rows),
         "from": iso_utc(start),
         "to": iso_utc(end),
         "timezone": tz_name,
-        "ingest": events_ingest.STATE.as_dict(),
-        "derive": events_derive.STATE,
         "types": TYPES,
         "filters": {"applied": applied, "unsupported": unsupported},
     }
@@ -239,6 +276,15 @@ def event_facets(principal: Principal = Depends(current_principal_ro), conn: sql
     """Which search fields have data in this installation and why the others are empty (T062): types, sources and
     severities seen in the last `days`, the places (site / building / floor / zone) with what is placed in them."""
     wide, ids = _scope(conn, principal)
+    days = days if isinstance(days, int) else 90
+    # the facets count rows, not repeats: a burst that only bumps `count` leaves them cached (counter events_rows)
+    # T055 nit: the places are limited to the caller's reach - floors they hold events.read on (per request, part of the key)
+    floors_held = None if wide or ids.camera_less else tuple(sorted(f[0] for f in conn.execute("SELECT id FROM floors WHERE deleted_at IS NULL").fetchall()
+                                                                  if authorize(conn, principal, "events.read", ("floor", f[0])).allowed))
+    return _cached(conn, ("events.facets", days, _scope_key(wide, ids), floors_held), ("events_rows", "structure"), lambda: _facets(conn, wide, ids, days, floors_held))
+
+
+def _facets(conn: sqlite3.Connection, wide: bool, ids: RowScope, days: int, floors_held: tuple[str, ...] | None = None) -> dict[str, Any]:
     since = iso_utc(dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days))
     types: dict[str, int] = {}
     sources: dict[str, int] = {}
@@ -267,7 +313,7 @@ def event_facets(principal: Principal = Depends(current_principal_ro), conn: sql
     cam_floors = {a["floor_id"] for a in anchors if a["resource_type"] == "camera" and ids.cameras.allows(a["resource_id"])}
 
     def floor_in_reach(fid: str) -> bool:
-        return wide or ids.camera_less or fid in cam_floors or authorize(conn, principal, "events.read", ("floor", fid)).allowed
+        return floors_held is None or fid in cam_floors or fid in floors_held
 
     for site in conn.execute("SELECT id, name FROM sites WHERE deleted_at IS NULL ORDER BY sort_order, name").fetchall():
         buildings = []
@@ -298,7 +344,7 @@ def event_facets(principal: Principal = Depends(current_principal_ro), conn: sql
 
 
 @router.get("/events/summary")
-def summary(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def summary(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     wide, ids = _scope(conn, principal)
     s = read_settings(conn)
     start, end = local_day_bounds(dt.datetime.now(zone(s["time.zone"])).date(), zone(s["time.zone"]))
@@ -425,8 +471,8 @@ def group_windows(events: list[dict[str, Any]], gap_seconds: int, by: str = "cam
 @router.get("/events/windows")
 def list_windows(
     request: Request,
-    principal: Principal = Depends(current_principal),
-    conn: sqlite3.Connection = Depends(get_conn),
+    principal: Principal = Depends(current_principal_ro),
+    conn: sqlite3.Connection = Depends(get_read_conn),  # T068: a read, never under the write lock (it held it for the whole 1000-row build)
     date: str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
     from_: str | None = Query(None, alias="from"),
     to: str | None = None,
@@ -475,17 +521,21 @@ def ack_many(body: AckManyIn, request: Request, principal: Principal = Depends(c
 
 
 @router.get("/cameras/{camera_id}/events")
-def camera_events(camera_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), date: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$")) -> dict[str, Any]:
+def camera_events(camera_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), date: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$")) -> dict[str, Any]:
     """Timeline markers for one camera and local day (events.read or video.playback on that camera)."""
     # T055 B2 / nit: the camera's own decision first (403 before 404, and no installation fallback past a camera deny)
     if not camera_allowed(conn, principal, camera_id, "video.playback"):
         require_camera(conn, principal, camera_id, "events.read")
     if not conn.execute("SELECT 1 FROM cameras WHERE id = ?", (camera_id,)).fetchone():
         raise ApiError(404, "not_found", "המצלמה לא נמצאה.")
-    s = read_settings(conn)
-    start, end = local_day_bounds(dt.date.fromisoformat(date), zone(s["time.zone"]))
-    rows = [events_ingest.row_to_event(r) for r in conn.execute("SELECT * FROM events WHERE camera_id = ? AND occurred_at >= ? AND occurred_at < ? ORDER BY occurred_at", (camera_id, iso_utc(start), iso_utc(end))).fetchall()]
-    return {"camera_id": camera_id, "date": date, "timezone": s["time.zone"], "events": rows}
+    def compute() -> dict[str, Any]:
+        s = read_settings(conn)
+        start, end = local_day_bounds(dt.date.fromisoformat(date), zone(s["time.zone"]))
+        rows = [events_ingest.row_to_event(r) for r in conn.execute("SELECT * FROM events WHERE camera_id = ? AND occurred_at >= ? AND occurred_at < ? ORDER BY occurred_at", (camera_id, iso_utc(start), iso_utc(end))).fetchall()]
+        return {"camera_id": camera_id, "date": date, "timezone": s["time.zone"], "events": rows}
+
+    # the day's markers are the same for every caller allowed to see this camera (checked above, on every request)
+    return _cached(conn, ("events.timeline", camera_id, date), ("events", "structure"), compute)
 
 
 @router.get("/events/{event_id}/thumbnail")

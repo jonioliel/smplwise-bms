@@ -176,3 +176,20 @@ lock holds).
   0 and `max_hold_by` names whatever held longest; any `write lock held` warning in the add-on log names the next holder.
 - An HA notification still runs on the alert-stream thread after the commit: a slow HA delays the next alert by up to
   the notify timeout (no longer the database).
+
+## 5. Soak (device-free) — T068, 2026-09-29 (branch `pilot/T068-events-cache-soak`)
+
+### בקצרה (לבעלים)
+
+הרצנו את כל ה־backend במשך 10 דקות מול NVR מדומה ו־Home Assistant מדומה שמופעלים מחדש כל 2–2.5 דקות, עם קליטת
+התראות רצופה, קוראים, אישורי אירועים, "מסד איטי" (נעילת כתיבה של 3 שניות כל 40 שניות) וייצואים לדיסק קטן שמתמלא
+בכוונה. התוצאה: 0 שגיאות "database is locked", 0 תשובות 500, אף התראה לא אבדה (2225 התראות תנועה = סכום הספירות
+באירועים), 102 ייצואים נדחו בצורה מסודרת (507 עם הודעה בעברית), 14 ייצואים הושהו באמצע כשהדיסק התמלא וכולם חזרו
+לבד כשהתפנה מקום, ואחרי הכיבוי לא נשאר אף thread של המוצר. בדרך נמצאו ותוקנו שני דברים: מסך "חלונות" האירועים, ציר
+הזמן של מצלמה וסיכום היום רצו תחת מנעול הכתיבה (עכשיו קריאה בלבד), וייצוא שקרס נשאר "רץ" עד הפעלה מחדש (עכשיו מסומן
+"נכשל"). קליטת ההתראות מה־NVR מופרדת עכשיו מהכתיבה למסד: מסד איטי כבר לא עוצר את קריאת הזרם, והתראה איטית ל־HA כבר
+לא מעכבת את קריאת ההתראה הבאה (הסעיף השני ב"Still open" למעלה).
+
+Details, numbers and how to run it: `docs/operations/SOAK_LOCAL.md`; bounds and the events-list measurement:
+`docs/operations/RESOURCE_BUDGET.md` ("Bounds on caches and queues", "Events-window cache"). Still open: the 3-5 h run
+and the device-dependent soak (real NVR / go2rtc restarts, streams and transcodes on the HA host).
