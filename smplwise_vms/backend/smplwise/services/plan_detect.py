@@ -70,6 +70,7 @@ DASH_GAP_M = 0.6  # ... apart by at most this much (between the skeleton ends) .
 DASH_THICK_RATIO = 1.2  # ... no thicker than this many median walls ...
 DASH_LINE_INK = 0.85  # ... with no line drawn across the gaps (a face or the centre inked on this share of the gap's middle)
 TARGETS = ("walls", "openings")
+DOOR_MODELS = ("gap", "arc_v2")  # the detect request's door_model: "gap" (the default, classify_gap only) or "arc_v2" (plus plan_detect_doors)
 
 
 class DetectTimeout(TimeoutError):
@@ -505,7 +506,10 @@ def _analysis(gray: Image.Image, strength: float, analysis_px: int = ANALYSIS_PX
     # a one-pixel opening first: isolated scan speckles must not be closed into blobs (the raw ink keeps every line)
     walls = ps.opening(ps.closing(ps.opening(ink, 1), close_r), open_r)
     thin_ink = soft & ~ps.dilate(walls, 1)
-    return {"aw": aw, "ah": ah, "factor": aw / width, "ink": soft, "ink_d": ps.dilate(soft, 1), "walls": walls, "thin": ps.dilate(thin_ink, 2), "threshold": thr}
+    # the arc_v2 door model (plan_detect_doors) reads thin grey symbol lines: at least up to grey 200, however dark the
+    # walls (a flat black plan puts Otsu's threshold at 90 and the soft ink at 140)
+    light = g < max(200, min(235, thr + 50))
+    return {"aw": aw, "ah": ah, "factor": aw / width, "ink": soft, "light": light,"ink_d": ps.dilate(soft, 1), "walls": walls, "thin": ps.dilate(thin_ink, 2), "threshold": thr}
 
 
 def _even_width(dt: np.ndarray, pts: np.ndarray, horizontal: bool) -> np.ndarray:
@@ -1191,11 +1195,15 @@ def windows_by_profile(walls: list[Seg], openings: list[dict[str, Any]], dt: np.
 
 # ---------------------------------------------------------------- the detector
 
-def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TARGETS, strength: float = 0.6, scale_m_per_px: float | None = None, level_id: str = "L0", run_id: str = "0", deadline: float | None = None) -> dict[str, Any]:
+def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TARGETS, strength: float = 0.6, scale_m_per_px: float | None = None, level_id: str = "L0", run_id: str = "0", deadline: float | None = None, door_model: str = "gap") -> dict[str, Any]:
     """Candidates (document-v2 walls and openings, source "auto") for a plan picture. `scale_m_per_px` is the version's
     calibration (None when there is none); `targets` always includes "walls" ("openings" needs them). `deadline` (a
     time.monotonic() value, the router's guard) is checked between the stages and inside the thinning: DetectTimeout
-    once it has passed, so a run nobody waits for any more gives its worker back."""
+    once it has passed, so a run nobody waits for any more gives its worker back. `door_model` "arc_v2" (T087, off by
+    default) adds the door-symbol search of plan_detect_doors on the wall lines, which needs no gap; "gap" leaves the
+    answer exactly as before."""
+    if door_model not in DOOR_MODELS:
+        raise ValueError(f"door_model must be one of {DOOR_MODELS}")
     t0 = time.perf_counter()
     _check(deadline)
     if isinstance(png, (bytes, bytearray)):
@@ -1223,6 +1231,14 @@ def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TA
     _check(deadline)
     if want_openings:
         openings += windows_by_profile(walls, openings, chamfer_dt(an["ink"]), an["ink_d"], s)
+        _check(deadline)
+    v2_stats: dict[str, int] | None = None
+    if want_openings and door_model == "arc_v2":
+        from . import plan_detect_doors as pdd  # loaded behind the flag only
+
+        v2_doors, v2_stats = pdd.find_doors(walls, an, s, calibrated, lambda: _check(deadline))
+        openings, merged = pdd.merge_into(openings, v2_doors, walls)
+        v2_stats.update(merged)
         _check(deadline)
     mask = an["walls"]
     ys, xs = np.nonzero(mask)
@@ -1282,20 +1298,29 @@ def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TA
             "anchor_ref": None, "confidence": o["confidence"], "source": "auto", "external_ids": {},
         })
         pixels[oid] = {"width_px": round(o["width_px"] / f, 2)}
+        if o.get("model"):  # an arc_v2 candidate: its model and scores for the reviewer (response only, never stored)
+            pixels[oid].update(model=o["model"], swing_kind=o["swing_kind"], scores=o["scores"])
+            continue  # its width comes from the assumed scale: no calibration hint from it
         if o["kind"] == "door" and o["swing"] != "double":
             door_gaps.append(o["width_px"] / f)
     hint = None
     if not calibrated and door_gaps:  # design 6.3: the median single door is DOOR_TYPICAL_M
         hint = {"scale_m_per_px": round(DOOR_TYPICAL_M / float(np.median(door_gaps)), 6), "status": "estimated", "method": "door_width", "reason": "לפי רוחב דלת אופייני", "doors": len(door_gaps)}
+    params: dict[str, Any] = {"strength": strength, "targets": list(targets), "analysis_px": [aw, ah], "threshold": an["threshold"], "tilt_deg": round(tilt, 2)}
+    stats: dict[str, Any] = {"probe_segments": len(probe["segs"]), "segments": len(segs), "dropped_reference": dropped_reference, "dropped_dashed": dropped_dashed}
+    if door_model != "gap":  # the default answer keeps its exact shape
+        params["door_model"] = door_model
+        stats["arc_v2"] = v2_stats or {}
+    stats["ms"] = int((time.perf_counter() - t0) * 1000)
     return {
         "walls": out_walls if "walls" in targets else [],
         "openings": out_openings if want_openings else [],
-        "detector": {"name": "plan_detect", "version": VERSION, "params": {"strength": strength, "targets": list(targets), "analysis_px": [aw, ah], "threshold": an["threshold"], "tilt_deg": round(tilt, 2)}},
+        "detector": {"name": "plan_detect", "version": VERSION, "params": params},
         "calibration_hint": hint,
         "pixels": pixels,
         "scale": {"m_per_px": round(s * f, 6), "status": "measured" if calibrated else "estimated_walls"},
         # never silent (T087 review): walls kept although outside the main structure are listed for the person reviewing;
         # the sheet strokes and dashed-line pieces that were dropped are counted
         "flags": {"outside_main": flagged if "walls" in targets else []},
-        "stats": {"probe_segments": len(probe["segs"]), "segments": len(segs), "dropped_reference": dropped_reference, "dropped_dashed": dropped_dashed, "ms": int((time.perf_counter() - t0) * 1000)},
+        "stats": stats,
     }
