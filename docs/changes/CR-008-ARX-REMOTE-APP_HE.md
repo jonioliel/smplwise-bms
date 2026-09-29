@@ -1,4 +1,4 @@
-Source: docs/changes/CR-008-ARX-REMOTE-APP.md @ b68dd18f323b9554024b0462e7453a7a00301f38
+Source: docs/changes/CR-008-ARX-REMOTE-APP.md @ 66ee5481cb8a341347b4111b40f88797dd62eb21
 
 > תרגום של `docs/changes/CR-008-ARX-REMOTE-APP.md`; המקור באנגלית קובע במקרה של סתירה.
 
@@ -393,3 +393,54 @@ D1 (§7) קבע את *הצורה* של הגישה מרחוק - נתיב `/arx` �
 D11-D14 לא משנות את D1 (נתיב `/arx`, אותו מקור) או את D6 (זריעת `hassTokens`) - הן רק קובעות באיזה דומיין ומנהרה
 מגיע שם המארח הזה לכל לקוח. `docs/operations/ARX_CLOUDFLARE_GUIDE_HE.md` §0 ו-§9 מכילים את ההדרכה למתקינים ואת
 פרטי האוטומציה.
+
+תשובות הבעלים מאוחר יותר ב-29.09.2026: **D8 = (ב) MFA אופציונלי** (ההגדרה `remote.require_mfa_admin` קיימת, כבויה
+כברירת מחדל); **D9 נשארת פתוחה** - הגדרה בצד HA, מתועדת ב-DOCS ובמדריך, ולעולם לא נאכפת על ידי Arx.
+
+## 8. ה-MVP נבנה (ענף `pilot/CR008-arx-mvp`, 29.09.2026)
+
+§4 "הצעדים שלנו" 1-4 נבנו, וגם הגדרות §3f והדגל האישי (חלק מצעד 5). טרם שוחרר.
+
+| צעד | מה קיים |
+|---|---|
+| 1 | אפשרויות ה-add-on `remote_access` (בוליאני, ברירת מחדל false) ו-`remote_path` (ברירת מחדל `/arx`, מקטע נתיב בטוח אחד; נתיבי השורש של HA נדחים) ב-`config.yaml` / `Settings`; `ha_core_url` (ליבת HA לאימות טוקנים; בתוך ה-add-on מ-`/core/info` של ה-Supervisor). DOCS + DOCS_HE. |
+| 2 | `remote_channel.py`, ה-middleware החיצוני ביותר: 404 מתחת לקידומת כשכבוי, `308 /arx -> /arx/`, `root_path` = הקידומת, `sw_channel = remote` במצב הבקשה, כותרות `X-Remote-User-*` / `X-Ingress-*` / `X-Hass-*` וזהות המפתח הנכנסות נמחקות, נתיבי המכונה החתומים של הגשר מחזירים 404; CSP (`frame-ancestors 'self'`; `style-src` צריך גם `'unsafe-inline'` בגלל מאפייני style של Lit), `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: same-origin`, `Permissions-Policy`, `nosniff`, COOP, `Cache-Control: no-store` ב-API. HSTS נשאר ל-Cloudflare. |
+| 3 | `services/ha_user_auth.py`: בדיקה מקדימה של JWT, WebSocket של ליבת HA ‏`auth` + `auth/current_user` עם `X-Forwarded-For` של הפונה (ניסיון חוזר בלעדיו אם HA דוחה את הכותרת), מטמון שלילי; חיבורים בזיכרון (מזהי 256 ביט, מתחלפים בכל החלפה, לעולם לא מעבר לטוקן הגישה); `POST/DELETE api/v1/auth/session`, `GET api/v1/auth/remote-config`; הענף המרוחק של `resolve_principal` (עוגייה או bearer; אותו `Principal`, `source = "remote"`; לעולם לא זהות המפתח); בדיקת `Origin` ב-WebSocket וסגירת שקעים בביטול; אימות חוזר כל 60 שניות לחיבורים שהיו בשימוש בשתי הדקות האחרונות; `remote.policy` דגל / כל תפקיד, משתמשים לא פעילים, `remote.require_mfa_admin`; הגבלת קצב לכתובת (10 לדקה, 50 לשעה) ולמשתמש (20 לדקה, 200 לשעה); ביקורת `auth.remote_session.created/.rejected/.revoked/.logout` ו-`remote.access_flag`; אין bootstrap מרחוק. מיגרציה 0033 ‏`remote_access_users`; `PUT api/v1/access/users/{id}/remote-access`. |
+| 4 | `frontend/src/arx/`: זיהוי הערוץ מהכתובת, מסך הכניסה המעוצב (שם משתמש/סיסמה, שלב MFA, הודעות השגיאה של HA בעברית), PKCE מול `/auth/login_flow` + `/auth/token` של HA עם `client_id = <origin>/arx/`, אחסון `arx.auth.v1` לפי `remote.session`, זריעת `hassTokens` (המבנה אומת מול `token_storage.ts` של HA ו-`AuthData` של home-assistant-js-websocket), רענון 5 דקות לפני תפוגה ובתגובה ל-401 עם החלפת עוגייה מחדש, נעילה בחוסר פעילות, יציאה (ביטול + מחיקת חיבור + ניקוי שני המאגרים). ה-service worker שנרשם הוא `arx-sw.js` עם scope ‏`/arx/` - הקובץ עצמו מגיע עם ענף ה-PWA ‏(`pilot/CR008-pwa-push`). הגדרות › גישה מרחוק; המתג האישי במשתמשים והרשאות. |
+
+סטיות מהטקסט שלמעלה, מתועדות: העוגייה היא `SameSite=Strict` כפי ש-§3b.4 אומר (התדריך של ה-MVP אמר Lax; Strict
+הוא המחמיר מבין השניים ועובד כי כל בקשות Arx הן מאותו אתר); שמות פעולות הביקורת לפי §3b.8; ההגדרה היא
+`remote.mse_fallback` (§3f), לא `remote.allow_mse_fallback`; תיבת "השאר אותי מחובר" של §3b.1 הוחלפה בהגדרה
+`remote.session` (D5); טוקן bearer ב-WebSocket אינו מתקבל (עוגייה בלבד).
+
+טרם נבנה (צעדי §4 שנותרו): שימוש הנגן ב-`remote.default_profile` / `remote.mse_fallback` ובדיקת הקידוד של הזרם הראשי
+ב-go2rtc (צעד 6 - מסך ההגדרות מציג רק את ההערה הקבועה על H.264 / B-frames); סבב סקירה ושחרור (צעד 7). בדיקות: 45
+בדיקות backend ‏(`tests/test_remote_access.py`, ליבת HA מדומה `tests/fake_ha_core.py`) ו-8 הרצות Playwright
+‏(`tests/evidence-arx-remote.spec.ts` מחשב + טלפון מול `tests/fixtures/arx_fake_ha.py`). בדיקת הבעלים: תת-קבוצת AT185
+של §4 באתר המעבדה.
+
+### 8.1 סבב סקירת אבטחה 1 (תוקן באותו ענף)
+
+- **B1 ‏CSRF:** ‏`SameSite=Strict` עדיין שולח את העוגייה בבקשות מאותו *אתר* (תת-דומיינים שכנים), וכ-35 נתיבי POST לא
+  מקבלים גוף JSON. `RemoteChannel` דוחה כעת כל בקשה שאינה GET/HEAD/OPTIONS ונושאת את עוגיית החיבור, אלא אם
+  `Sec-Fetch-Site: same-origin` (או, בלי הכותרת הזו, `Origin` השווה לסכמה ולמארח של הבקשה): 403 ‏`csrf_refused`,
+  נרשם באודיט כ-`auth.remote_csrf_refused`. בקשות bearer בלבד (בלי עוגייה) פטורות.
+- **M1:** ב-`browser_session` זריעת `hassTokens` קיימת רק כל עוד דף Arx פתוח (נמחקת ב-`pagehide`, נזרעת מחדש בטעינה
+  ובחזרה מה-back-forward cache); יציאה ונעילה בחוסר פעילות מוחקות אותה; לשונית ההגדרות אומרת במפורש ש-HA בכתובת `/`
+  חולק את הכניסה.
+- **M2:** החלפה מחדש מסיימת מיד את החיבור שהוצג (ה-WebSockets שלו עוברים לחדש); יציאה מסיימת את כל השרשרת של הדפדפן.
+- **M3:** כיבוי הדגל שוכח גם principals של bearer שבמטמון; בנתיב ה-bearer יש הגבלה למשתמש ורישום סירובים באודיט
+  (`via: bearer`).
+- **M4:** פעולות התקני HA (בודדת, מרובה, שיוך אזור) מקבלות את ה-principal המרוחק כמו של Ingress; כל שורת אודיט של
+  משתמש מרוחק נושאת `channel: remote`.
+- הערות קטנות: משתמשים שנראו לראשונה דרך Arx עוקבים אחרי דגל הפעילות של ספריית HA כמו משתמשי Ingress; WebSockets
+  מרוחקים מקבלים bearer בלי עוגייה (לאפליקציה העתידית); `__Host-` בלתי אפשרי תחת `Path=/arx/` (מתועד); המדריך
+  מזהיר שסף חסימה בלי `trusted_proxies` עלול לחסום את כתובת ה-add-on עצמו.
+- **V1, סכמות הבקשה האמיתיות של HA** (HA core ענף `dev`, נקרא ב-29.09.2026): `POST /auth/login_flow` - `client_id`
+  (מחרוזת, חובה), `handler` ‏([str|null, str|null], בדיוק 2), `redirect_uri` (מחרוזת, חובה), `code_challenge`
+  (אופציונלי, `^[A-Za-z0-9_-]{43}$`), `code_challenge_method` (אופציונלי; challenge מחייב `S256`, ‏`plain` נדחה),
+  `type` (אופציונלי, ברירת מחדל `authorize`); שום מפתח אחר. `POST /auth/login_flow/{flow_id}` - `client_id` חובה,
+  מפתחות נוספים מותרים (שדות השלב). `POST /auth/token` - ‏`grant_type=authorization_code` עם `client_id`, ‏`code`
+  וכשלתהליך היה challenge גם `code_verifier` ‏(SHA-256, ‏base64url בלי ריפוד, השוואה בזמן קבוע);
+  `grant_type=refresh_token` עם `refresh_token` ו-`client_id` המנפיק; `action=revoke` עם `token`. כלומר PKCE מובנה
+  ב-HA והבקשות של לקוח Arx תואמות; ליבת ה-HA המדומה דוחה כעת בדיוק את מה שהסכמות האלה דוחות.

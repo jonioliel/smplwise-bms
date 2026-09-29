@@ -213,7 +213,7 @@ def assign_area(entity_id: str, request: Request, principal: Principal = Depends
         raise ApiError(404, "area_not_found", "האזור לא נמצא ב־Home Assistant.")
     settings = settings_of(request)
     rid = getattr(request.state, "correlation_id", None)
-    if principal.source != "ingress" and not settings.dev_user:
+    if principal.source not in ("ingress", "remote") and not settings.dev_user:  # CR-008: the Arx remote channel is the same HA user
         raise ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת HA.")
     secret = ha_bridge.signing_key(conn)
     if not secret or not get_setting(conn, "bridge.paired_at"):
@@ -391,7 +391,7 @@ def bulk_run(request: Request, principal: Principal = Depends(_bulk_holder), con
     if not plan["count"]:
         raise act.refuse(ApiError(409, "nothing_to_do", "אין מה לשלוח: לפי הדיווח האחרון של Home Assistant אין בהיקף הזה התקן פעיל מהסוג הזה.", details={"skipped": plan["skipped"]}))
     settings = settings_of(request)
-    if principal.source != "ingress" and not settings.dev_user:
+    if principal.source not in ("ingress", "remote") and not settings.dev_user:  # CR-008: the Arx remote channel is the same HA user
         raise act.refuse(ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת HA."))
     secret = ha_bridge.signing_key(conn)
     if not secret or not get_setting(conn, "bridge.paired_at"):

@@ -16,7 +16,8 @@ import '../components/sw-dialog';
 import '../components/sw-chip';
 import type { TableColumn } from '../components/sw-table';
 import { demoGroups, demoRoles, demoUsers, demoAudit } from '../fixtures/catalog';
-import { isApi, session } from '../api/session';
+import { can, isApi, session } from '../api/session';
+import '../components/sw-toggle';
 import { describeError } from '../api/client';
 import { loadTree, type CatalogTree } from '../api/catalog';
 import {
@@ -42,6 +43,7 @@ import {
   type RoleImpact,
   type RoleInfo,
   listUsers,
+  setRemoteAccess,
   previewAccess,
   revokeBinding,
   setGroupMembers,
@@ -679,6 +681,22 @@ export class SystemAccess extends LitElement {
     </div>`;
   }
 
+  /** CR-008: the per-user remote-access flag (remote.policy = flag). Off ends the user's remote sessions at once. */
+  private async toggleRemote(userId: string, enabled: boolean) {
+    this.busy = true;
+    this.error = '';
+    try {
+      await setRemoteAccess(userId, enabled);
+      this.message = enabled ? 'הגישה מרחוק הופעלה' : 'הגישה מרחוק כובתה';
+      await this.load();
+    } catch (err) {
+      this.error = describeError(err);
+      await this.load();
+    } finally {
+      this.busy = false;
+    }
+  }
+
   private renderUsersApi() {
     const dir = this.directory!;
     const canAssign = dir.can_assign;
@@ -705,6 +723,9 @@ export class SystemAccess extends LitElement {
                     <dt>ב־VMS</dt><dd>${u.first_seen_at ? `מאז ${fmtWhen(u.first_seen_at)} · לאחרונה ${fmtWhen(u.last_seen_at)}` : 'טרם נכנס לממשק'}</dd>
                     <dt>מנהל HA</dt><dd>${u.is_admin ? 'כן · מידע בלבד, לא תפקיד VMS' : 'לא'}</dd>
                     <dt>קבוצות</dt><dd>${u.groups.map((g) => g.name).join(', ') || '—'}</dd>
+                    ${dir.delegated ? nothing : html`<dt>גישה מרחוק</dt><dd data-remote-access>${can('system.configure')
+                      ? html`<sw-toggle label="SmplWise Arx" .checked=${!!u.remote_access} ?disabled=${this.busy} data-remote-access-toggle @change=${(e: CustomEvent<{ checked: boolean }>) => void this.toggleRemote(u.id, e.detail.checked)}></sw-toggle>`
+                      : u.remote_access ? 'מופעלת' : 'כבויה'}</dd>`}
                   </dl>
                   <div style="margin-block-start:10px;font-weight:600;font-size:var(--sw-fs-xs)">שיוכים</div>
                   ${u.bindings.length ? u.bindings.map((b) => this.renderBindingRow(b, canAssign)) : html`<div class="hint">ללא שיוך: אין גישה לתוכן.</div>`}

@@ -213,6 +213,10 @@ def _users(conn: sqlite3.Connection, principal: Principal) -> list[dict[str, Any
     ha = {r["id"]: dict(r) for r in conn.execute("SELECT * FROM ha_users").fetchall()}
     vms = {r["id"]: dict(r) for r in conn.execute("SELECT * FROM users").fetchall()}
     paired = bool(get_setting(conn, "bridge.paired_at"))
+    try:  # CR-008: the per-user remote-access flag (migration 0033)
+        remote_ids = {r[0] for r in conn.execute("SELECT user_id FROM remote_access_users").fetchall()}
+    except sqlite3.OperationalError:
+        remote_ids = set()
     groups_of: dict[str, list[dict[str, str]]] = {}
     for r in conn.execute("SELECT m.user_id, g.id, g.name FROM group_members m JOIN groups g ON g.id = m.group_id").fetchall():
         groups_of.setdefault(r["user_id"], []).append({"id": r["id"], "name": r["name"]})
@@ -236,6 +240,7 @@ def _users(conn: sqlite3.Connection, principal: Principal) -> list[dict[str, Any
             "groups": groups_of.get(uid, []),
             "bindings": _user_bindings(conn, uid),
             "is_self": uid == principal.user_id,
+            "remote_access": uid in remote_ids,
         })
     return out
 
@@ -558,6 +563,7 @@ def _delegated_directory(conn: sqlite3.Connection, principal: Principal) -> dict
             "synced_at": None,
             "first_seen_at": None,
             "last_seen_at": None,
+            "remote_access": False,
             "groups": [g for g in u["groups"] if g["id"] in reach_groups],
             "bindings": [b for b in u["bindings"] if delegated_sees(conn, principal, b)],
         })

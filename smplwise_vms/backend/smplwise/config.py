@@ -7,7 +7,9 @@ NVR_* / GO2RTC_* names match secrets/lab.env so it can simply be sourced). Secre
 from __future__ import annotations
 
 import json
+import logging
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -44,6 +46,13 @@ class Settings:
     detect_timeout_s: float = 60  # the guard on a synchronous structure detection (design 9.6 / decision 6)
     ha_url: str | None = None  # Core API base: http://supervisor/core inside the add-on
     ha_token: str | None = field(default=None, repr=False)  # SUPERVISOR_TOKEN inside the add-on; a developer token outside
+    # CR-008 (SmplWise Arx remote access): add-on options. Off by default; when on, `<remote_path>/...` is served as the
+    # remote channel (remote_channel.RemoteChannel) with its own HA-token login instead of Ingress identity headers.
+    remote_access: bool = False
+    remote_path: str = "/arx"
+    # HA core itself (not the Supervisor proxy, which accepts only the add-on's SUPERVISOR_TOKEN): the remote channel's
+    # user access tokens are validated here. None inside the add-on = discovered from the Supervisor's /core/info.
+    ha_core_url: str | None = None
     extra: dict = field(default_factory=dict)
 
     @property
@@ -53,6 +62,31 @@ class Settings:
     @property
     def db_path(self) -> Path:
         return self.data_dir / "smplwise.db"
+
+
+# CR-008: the remote channel's path prefix - one path segment, never a path the add-on or Home Assistant already uses at
+# the root of the origin (the tunnel route sends only this prefix to the add-on; everything else stays HA's).
+DEFAULT_REMOTE_PATH = "/arx"
+_REMOTE_PATH_RE = re.compile(r"^/[a-z0-9][a-z0-9_-]{0,31}$")
+_RESERVED_PATHS = {"/api", "/auth", "/healthz", "/local", "/static", "/frontend_latest", "/frontend_es5", "/hacsfiles",
+                   "/hikvision-intercom", "/lovelace", "/config", "/profile", "/developer-tools", "/history", "/logbook",
+                   "/map", "/energy", "/media-browser", "/todo", "/calendar", "/onboarding.html"}
+
+
+def normalize_remote_path(raw: str | None) -> str:
+    """`/arx` from `arx`, `/arx/` or `/ARX`; the default for anything that is not one safe path segment (logged)."""
+    value = (raw or "").strip().lower()
+    if not value:
+        return DEFAULT_REMOTE_PATH
+    value = "/" + value.strip("/")
+    if not _REMOTE_PATH_RE.match(value) or value in _RESERVED_PATHS:
+        logging.getLogger("smplwise").warning("remote_path %r is not a single safe path segment; using %s", raw, DEFAULT_REMOTE_PATH)
+        return DEFAULT_REMOTE_PATH
+    return value
+
+
+def _truthy(value: object) -> bool:
+    return value is True or str(value).strip().lower() in ("1", "true", "yes", "on")
 
 
 # NVR-less mode (mode.py): outside the add-on (a developer backend, a throwaway test backend, a Playwright fixture) an
@@ -119,4 +153,9 @@ def load_settings(options_file: str | os.PathLike | None = None) -> Settings:
         # never taken from the options file (no user token is stored in options).
         ha_url=("http://supervisor/core" if os.environ.get("SUPERVISOR_TOKEN") else (os.environ.get("HA_URL") or None)),
         ha_token=os.environ.get("SUPERVISOR_TOKEN") or os.environ.get("HA_TOKEN") or None,
+        remote_access=_truthy(options["remote_access"]) if "remote_access" in options else _truthy(os.environ.get("SW_REMOTE_ACCESS", "")),
+        remote_path=normalize_remote_path(_opt(options, "remote_path", "SW_REMOTE_PATH", DEFAULT_REMOTE_PATH)),
+        # inside the add-on HA core is `homeassistant:<port>` on the Supervisor network (port / TLS from /core/info);
+        # outside, the developer's HA (HA_CORE_URL, else HA_URL)
+        ha_core_url=os.environ.get("HA_CORE_URL") or (None if os.environ.get("SUPERVISOR_TOKEN") else (os.environ.get("HA_URL") or None)),
     )

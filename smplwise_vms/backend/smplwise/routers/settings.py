@@ -88,13 +88,21 @@ DEFAULTS: dict[str, str] = {
     # CR-007 6b: the device area's colour scheme - light (default) | dark | auto (the viewer's operating-system scheme).
     # Light by default while the app shell is light only: dark never applies by itself (docs/design/DEVICE_THEMES.md).
     "devices.scheme": "light",
+    # CR-008 SmplWise Arx remote access (owner decisions 2026-09-29, CR-008 §3f / §7). The channel itself is the add-on
+    # option remote_access; these shape who may use it and how the browser keeps its sign-in.
+    "remote.policy": "flag",  # flag: only users with the per-user remote-access flag (D4) | any_role: every HA user holding an Arx role
+    "remote.session": "rolling_90d",  # rolling_90d (HA's sliding refresh token, localStorage) | browser_session (sessionStorage) | rolling_90d_idle_lock (D5)
+    "remote.idle_lock_minutes": "720",  # the idle lock of rolling_90d_idle_lock
+    "remote.default_profile": "main",  # main | sub: the stream a remote viewer gets first, over WebRTC (D7)
+    "remote.mse_fallback": "true",  # MSE through the tunnel only as an announced last resort; false = never (D7)
+    "remote.require_mfa_admin": "false",  # D8 (owner 2026-09-29: MFA optional): true refuses admin-permission users without HA MFA remotely
 }
 
 # CR-007 6a/6b: the registered device-screen palettes - keep in step with DEVICE_THEMES in
 # frontend/src/styles/devices-themes.ts (docs/design/DEVICE_THEMES.md, "How to add a theme").
 DEVICE_THEMES = ("default", "sand", "forest", "graphite")
 
-INT_KEYS = ("media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly")
+INT_KEYS = ("media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes")
 
 
 def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
@@ -152,6 +160,12 @@ class SettingsPatch(BaseModel):
     devices_show_climate_strip: str | None = Field(default=None, pattern="^(true|false)$", alias="devices.show_climate_strip")
     devices_density: str | None = Field(default=None, pattern="^(comfortable|compact)$", alias="devices.density")
     devices_scheme: str | None = Field(default=None, pattern="^(light|dark|auto)$", alias="devices.scheme")
+    remote_policy: str | None = Field(default=None, pattern="^(flag|any_role)$", alias="remote.policy")
+    remote_session: str | None = Field(default=None, pattern="^(rolling_90d|browser_session|rolling_90d_idle_lock)$", alias="remote.session")
+    remote_idle_lock_minutes: int | None = Field(default=None, ge=5, le=10080, alias="remote.idle_lock_minutes")
+    remote_default_profile: str | None = Field(default=None, pattern="^(main|sub)$", alias="remote.default_profile")
+    remote_mse_fallback: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.mse_fallback")
+    remote_require_mfa_admin: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.require_mfa_admin")
 
     model_config = {"populate_by_name": True}
 

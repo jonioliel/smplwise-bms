@@ -132,14 +132,26 @@ async def _principal_for_ws(websocket: WebSocket) -> Principal | None:
     settings: Settings = websocket.app.state.settings
     db: Database = websocket.app.state.db
 
-    class _Req:  # duck-typed view of the websocket for resolve_principal
-        headers = websocket.headers
-        client = websocket.client
+    from ..remote_channel import is_remote
 
-    try:
-        principal = resolve_principal(_Req(), settings)  # type: ignore[arg-type]
-    except ApiError:
-        return None
+    if is_remote(websocket):
+        # CR-008: the /arx channel - Origin must be this host, then the Arx session cookie (or an HA bearer token,
+        # validated without blocking the event loop); the socket closes when its session is revoked
+        from ..services import ha_user_auth
+
+        principal = await ha_user_auth.remote_principal_ws(websocket, settings)
+        if principal is None:
+            return None
+    else:
+        class _Req:  # duck-typed view of the websocket for resolve_principal
+            headers = websocket.headers
+            client = websocket.client
+            scope = websocket.scope
+
+        try:
+            principal = resolve_principal(_Req(), settings)  # type: ignore[arg-type]
+        except ApiError:
+            return None
 
     def _touch() -> None:
         with db.connection() as conn:

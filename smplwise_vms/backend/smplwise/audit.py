@@ -26,6 +26,8 @@ def _write_audit(
 ) -> None:
     """Append one audit row. Never include secrets or source URLs in `details`. `under` (an rbac.Decision) records the
     binding, role and scope the action was authorised under (T055; ids only)."""
+    if getattr(actor, "source", None) == "remote":  # CR-008: whatever a remote (SmplWise Arx) session does says so
+        details = {**(details or {}), "channel": "remote"}
     base = (
         now_iso(),
         getattr(actor, "user_id", None),
