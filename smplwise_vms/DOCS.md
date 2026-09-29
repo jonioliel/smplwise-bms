@@ -965,10 +965,15 @@ arm_custom_bypass and the "code refused" answer.
 `system.configure`); it is encrypted (AES-256-GCM) with a key in `/data/keys/alarm-codes.key` (mode 0600) and is never
 shown again, logged, audited or returned. Per user (משתמשים והרשאות › user): arming and disarming each either "ללא קוד"
 (Arx sends the stored code) or "חייב קוד" (default). What a "חייב קוד" user types is `alarm.code_mode`: a personal Arx
-PIN (default; 4-8 digits, stored only as a salted scrypt hash, set by the user or an administrator) or the panel's own
-code (compared with the stored one). Without a stored code the panel's code is typed and passed through each time.
-Wrong codes: 5 in 5 minutes per user or per panel lock code entry for 10 minutes. The general entity route (map
-cards) serves alarm actions only to users whose policy for that action is "ללא קוד".
+PIN (default; `alarm.pin_min_length` digits - 6 by default, 4-8 - up to 8, stored only as a salted scrypt hash) or the
+panel's own code (compared with the stored one). The first PIN is set by an administrator in משתמשים והרשאות (or by the
+user after typing a stored panel code correctly); changing it needs the current one; an administrator's own policy
+and PIN are changed by another administrator or with their current PIN. Without a stored code the panel's code is
+typed and passed through each time. Wrong codes: 5 in 5 minutes lock code entry for 10 minutes - per user for a PIN,
+per user and panel for a panel code; the lock survives a restart. The panel and every bypass control are operated
+only from the alarm section: map cards, the devices screens and bulk actions show them read-only ("נשלט ממסך
+האזעקה"), and a zone shared by two partitions is visible and bypassable only for someone who holds both. There is no
+key rotation, and renaming a panel's entity id requires entering its code again.
 
 **Remote channel (`/arx`).** `alarm.remote_control` (default on) and `alarm.remote_disarm` (default on; off = from
 outside only arming and restoring a bypassed zone). `alarm.remote_codeless` (default ON, owner decision): "ללא קוד" users
