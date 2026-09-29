@@ -6,7 +6,10 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
+import re
 import sys
+import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -306,6 +309,96 @@ def test_nvr_and_ha_clocks_are_compared_with_each_other(settings, fake, monkeypa
     assert step_of(check(c, "nvr").json(), "nvr")["status"] == "done"
     ha = step_of(check(c, "ha").json(), "ha")
     assert ha["evidence"]["time"]["nvr_ha_s"] in (20, 21, 22) and "nvr_ha_drift" in {w["code"] for w in ha["warnings"]}
+    # the other order (HA checked first): the gap comes from the latest results of both whenever the state is built
+    wizard.reset()
+    monkeypatch.setattr(wizard, "CHECK_EVERY_S", 0.0)
+    assert "nvr_ha_s" not in (step_of(check(c, "ha").json(), "ha")["evidence"]["time"] or {})
+    check(c, "nvr")
+    assert step_of(c.get(STATE).json(), "ha")["evidence"]["time"]["nvr_ha_s"] in (20, 21, 22)
+
+
+# ---------------------------------------------------------------- review round 1: privacy, deadline, limits, odd values
+
+DOTTED_QUAD = re.compile(r"(?<![\d.])\d{1,3}(?:\.\d{1,3}){3}(?![\d.])")
+
+
+def test_the_ntp_server_address_never_reaches_the_state(settings, fake):
+    c = TestClient(create_app(devices(settings)))
+    fake.nvr["ntp_address"] = "192.0.2.10"
+    r = check(c, "nvr")
+    t = step_of(r.json(), "nvr")["evidence"]["time"]
+    assert t["ntp_configured"] is True and t["ntp_is_hostname"] is False and "ntp" not in t
+    assert not DOTTED_QUAD.search(r.text) and not DOTTED_QUAD.search(c.get(STATE).text), "no address in the check or the state"
+    fake.nvr["ntp_address"] = None
+    t = step_of(check(c, "nvr").json(), "nvr")["evidence"]["time"]
+    assert t["ntp_configured"] is True and t["ntp_is_hostname"] is True and "pool.ntp.org" not in c.get(STATE).text
+
+
+def test_an_odd_ntp_value_is_a_warning_not_a_500(settings, fake):
+    c = TestClient(create_app(devices(settings)))
+    fake.nvr["ntp_port"] = "one-two-three"
+    nvr = step_of(check(c, "nvr").json(), "nvr")
+    assert nvr["status"] == "done" and "nvr_clock_unknown" in {w["code"] for w in nvr["warnings"]}
+    assert nvr["evidence"]["time"]["error"].startswith("unparsable")
+
+
+def test_a_slow_device_is_cut_off_at_the_check_deadline(settings, fake, monkeypatch):
+    c = TestClient(create_app(devices(settings)))
+    monkeypatch.setattr(wizard, "CHECK_DEADLINE_S", 0.5)
+    fake.nvr["delay_s"] = 1.0
+    t0 = time.monotonic()
+    nvr = step_of(check(c, "nvr").json(), "nvr")
+    assert time.monotonic() - t0 < 5, "the request does not wait for every device call"
+    assert nvr["status"] == "failed" and nvr["problem"]["code"] == "check_timeout" and "לא ענה בזמן" in nvr["problem"]["message"]
+    assert nvr["problem"]["action"] and nvr["problem"]["link"]["href"] == "#/system/setup"
+    fake.nvr["delay_s"] = 0.0
+
+
+def test_an_unexpected_error_gives_the_check_back(settings, fake, monkeypatch):
+    c = TestClient(create_app(devices(settings)), raise_server_exceptions=False)
+    monkeypatch.setattr(wizard, "CHECK_EVERY_S", 5.0)
+
+    def boom(*_a, **_k):
+        raise RuntimeError("unexpected")
+
+    real = wizard.nvr_probe
+    monkeypatch.setattr(wizard, "nvr_probe", boom)
+    assert check(c, "nvr").status_code == 500
+    monkeypatch.setattr(wizard, "nvr_probe", real)
+    assert check(c, "nvr").status_code == 200, "the 500 did not use up the slot"
+    assert check(c, "nvr").status_code == 429
+
+
+def test_parallel_checks_get_one_slot(settings, fake, monkeypatch):
+    c = TestClient(create_app(devices(settings)))
+    monkeypatch.setattr(wizard, "CHECK_EVERY_S", 5.0)
+    fake.nvr["delay_s"] = 0.2
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        codes = sorted(pool.map(lambda _: check(c, "nvr").status_code, range(4)))
+    assert codes == [200, 429, 429, 429]
+    fake.nvr["delay_s"] = 0.0
+
+
+def test_a_bridge_that_reported_no_version_is_not_pending_forever(settings, fake, monkeypatch):
+    s = devices(settings)
+    c = TestClient(create_app(s))
+    monkeypatch.setattr(ha_sync.STATE, "connected", True)
+    monkeypatch.setitem(bridge_install.STATE, "config_dir", "/config")
+    monkeypatch.setitem(bridge_install.STATE, "installed_version", "0.4.0")
+    pair_bridge(s, "")
+    ha = step_of(check(c, "ha").json(), "ha")
+    assert ha["status"] == "done" and ha["evidence"]["bridge"]["restart_pending"] is False and ha["evidence"]["bridge"]["version_unknown"] is True
+    w = next(w for w in ha["warnings"] if w["code"] == "bridge_version_unknown")
+    assert "התקנת הגשר" in w["message"] and w["link"]["href"] == "#/system/diagnostics?tab=ha"
+
+
+def test_a_failed_stream_sync_is_dated_by_its_own_run(settings, monkeypatch):
+    c = TestClient(create_app(devices(settings)))
+    monkeypatch.setitem(autosync.STATE, "cameras_last_run", "2026-09-29T01:00:00Z")
+    monkeypatch.setitem(autosync.STATE, "streams_last_run", "2026-09-29T01:00:05Z")
+    monkeypatch.setitem(autosync.STATE, "streams_last_error", "media_unavailable")
+    g = step_of(c.get(STATE).json(), "go2rtc")
+    assert g["status"] == "failed" and g["source"] == "background" and g["checked_at"] == "2026-09-29T01:00:05Z"
 
 
 # ---------------------------------------------------------------- go2rtc

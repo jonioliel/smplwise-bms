@@ -76,7 +76,7 @@ export class SystemWizard extends LitElement {
         if (id === 'camera') this.demoPlaced = true;
         this.set(demoSetupState(this.demoPlaced, id));
       } else {
-        this.set(await setupCheck(id));
+        this.merge(await setupCheck(id), id);
       }
     } catch (err) {
       const retry = err instanceof ApiError && err.status === 429;
@@ -85,7 +85,23 @@ export class SystemWizard extends LitElement {
       const next = new Set(this.busy);
       next.delete(id);
       this.busy = next;
+      // once the last check is back, one read brings the dependent parts up to date (the camera step after the NVR one,
+      // the NVR-HA clock gap) - never a response of a check that ran alongside others
+      if (!next.size && isApi()) void this.load(false);
     }
+  }
+
+  /** Only the checked step is taken from a check's response: with "בדוק הכול" the responses arrive in any order, and each
+   * one's copy of the other steps may predate their own checks. */
+  private merge(s: SetupState, id: StepId) {
+    const fresh = s.steps.find((x) => x.id === id);
+    if (!this.data || !fresh) {
+      this.set(s);
+      return;
+    }
+    const steps = this.data.steps.map((x) => (x.id === id ? fresh : x));
+    const done = steps.filter((x) => x.status === 'done').length;
+    this.set({ ...this.data, steps, done, ready: done === steps.length, next: steps.find((x) => x.status !== 'done')?.id ?? null, checked_at: s.checked_at, checked: id });
   }
 
   private checkAll() {

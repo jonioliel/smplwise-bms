@@ -10,7 +10,8 @@ from fastapi import APIRouter, Depends, Request
 
 from ..audit import audit
 from ..auth import current_principal_ro, get_read_conn, settings_of
-from ..errors import not_found
+from ..db import unlocked
+from ..errors import ApiError, not_found
 from ..rbac import INSTALLATION, Principal, require
 from ..services import setup_wizard as wizard
 
@@ -33,10 +34,19 @@ def setup_check(step: str, request: Request, principal: Principal = Depends(curr
     require(conn, principal, "system.configure", INSTALLATION)
     if step not in wizard.STEPS:
         raise not_found("שלב האשף לא נמצא.")
-    wizard.rate_limit(principal.user_id, step)
+    previous = wizard.rate_limit(principal.user_id, step)
     settings = settings_of(request)
-    wizard.run_check(settings, conn, step)  # network calls on a read-mode connection: no write lock is held
-    state = wizard.build_state(settings, conn, principal.source, deep_install=step == "install")
+    try:
+        inputs = wizard.prepare(conn, step)
+        # the device calls run with no transaction open (not even a read snapshot) and within the check's own deadline
+        with unlocked(conn):
+            wizard.run_check(settings, step, inputs)
+        state = wizard.build_state(settings, conn, principal.source, deep_install=step == "install")
+    except ApiError:
+        raise
+    except Exception:
+        wizard.refund(principal.user_id, step, previous)  # a 500 does not use up the user's check
+        raise
     result = next(s for s in state["steps"] if s["id"] == step)
     audit(conn, actor=principal, action="setup.check", decision="allowed", resource_type="installation", resource_id="*",
           request_id=getattr(request.state, "correlation_id", None),

@@ -21,7 +21,7 @@ log = logging.getLogger("smplwise.autosync")
 DEFAULT_RECORDER = "nvr-1"
 INTERVAL_S = 600
 
-STATE: dict[str, Any] = {"cameras_last_ok": None, "cameras_last_error": None, "cameras_last_run": None, "streams_last_ok": None, "streams_last_error": None, "last_reason": None}
+STATE: dict[str, Any] = {"cameras_last_ok": None, "cameras_last_error": None, "cameras_last_run": None, "streams_last_ok": None, "streams_last_error": None, "streams_last_run": None, "last_reason": None}
 
 
 def ensure_recorder(conn: sqlite3.Connection, name: str = "NVR ראשי", model: str | None = None, firmware: str | None = None) -> None:
@@ -102,6 +102,7 @@ def run_once(db: Database, settings: Settings, reason: str = "startup") -> None:
         STATE["cameras_last_error"] = type(exc).__name__
         log.exception("auto discovery (%s) crashed", reason)
         return
+    STATE["streams_last_run"] = now_iso()  # the stream sync's own attempt time (the setup wizard dates a failure by it)
     if not settings.go2rtc_url:
         STATE["streams_last_error"] = "media_not_configured"
         return

@@ -798,7 +798,10 @@ export class SwApp extends LitElement {
   }
 
   /** The degraded-system banner is fixed under the top bar and used to cover the first rows of <main> (the tab row, and
-   * since T071 the setup hint's link). Its measured height pads <main>, so nothing sits under it. */
+   * since T071 the setup hint's link). Its measured height pads <main>, so nothing sits under it at rest. Caveat: a
+   * screen toolbar that is `position: sticky; top: 0` inside <main> sticks to the scrollport's top edge, which the padding
+   * does not move, so while scrolled it still passes under the banner; such a toolbar should use
+   * `top: var(--sw-banner-h, 0px)` (inherited from sw-app's host) if it must stay clear. */
   private bannerObs: ResizeObserver | null = null;
   private observedBanner: HTMLElement | null = null;
 

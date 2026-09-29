@@ -16,6 +16,7 @@ import datetime as dt
 import email.utils
 import json
 import threading
+import time
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -43,6 +44,9 @@ class FakeDevices:
             self.nvr: dict[str, Any] = {
                 "up": True, "auth": True, "model": "DS-7616NI-FAKE", "firmware": "V4.84.000 fake", "channels": 4, "offline": [],
                 "no_tracks": [], "drift_s": 0, "offset": None, "naive": False, "time_error": False,
+                # the NTP server by address (192.0.2.x, RFC 5737 documentation range) and an odd port value; delay_s holds
+                # every answer that long (outside the lock), for the deadline and parallel-request tests
+                "ntp_address": None, "ntp_port": "123", "delay_s": 0.0,
             }
             self.go2rtc: dict[str, Any] = {"up": True, "auth": True, "version": "1.9.9-fake", "streams": {}, "foreign": ["intercom_door_1", "intercom_door_2"]}
             self.ha: dict[str, Any] = {"up": True, "status": 200, "version": "2026.9.3", "time_zone": "Asia/Jerusalem", "drift_s": 0}
@@ -93,7 +97,9 @@ class FakeDevices:
                 return httpx.Response(500, text="error", request=request)
             return self._ok(request, f"<Time version=\"2.0\" {NS}><timeMode>NTP</timeMode><localTime>{self._nvr_time()}</localTime><timeZone>CST-2:00:00DST01:00:00,M3.5.5/02:00:00,M10.5.0/02:00:00</timeZone></Time>")
         if path == "/ISAPI/System/time/ntpServers/1":
-            return self._ok(request, f"<NTPServer version=\"2.0\" {NS}><id>1</id><addressingFormatType>hostname</addressingFormatType><hostName>pool.ntp.org</hostName><portNo>123</portNo><synchronizeInterval>1440</synchronizeInterval></NTPServer>")
+            where = (f"<addressingFormatType>ipaddress</addressingFormatType><ipAddress>{n['ntp_address']}</ipAddress>" if n["ntp_address"]
+                     else "<addressingFormatType>hostname</addressingFormatType><hostName>pool.ntp.org</hostName>")
+            return self._ok(request, f"<NTPServer version=\"2.0\" {NS}><id>1</id>{where}<portNo>{n['ntp_port']}</portNo><synchronizeInterval>1440</synchronizeInterval></NTPServer>")
         return httpx.Response(404, text=_xml(f"<ResponseStatus {NS}><statusString>Invalid Operation</statusString><subStatusCode>notSupport</subStatusCode></ResponseStatus>"), request=request)
 
     @staticmethod
@@ -148,6 +154,10 @@ class FakeDevices:
         host = request.url.host
         if host not in (NVR_HOST, GO2RTC_HOST, HA_HOST):
             return None
+        with self.lock:
+            delay = float(self.nvr["delay_s"]) if host == NVR_HOST else 0.0
+        if delay:
+            time.sleep(delay)
         with self.lock:
             self.hits.append(f"{host} {request.method} {request.url.path}")
             if host == NVR_HOST:

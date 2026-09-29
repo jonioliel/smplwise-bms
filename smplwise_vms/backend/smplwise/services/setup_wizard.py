@@ -22,10 +22,13 @@ import email.utils
 import json
 import math
 import os
+import re
 import shutil
 import sqlite3
 import threading
 import time
+from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeout
 from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
@@ -74,6 +77,7 @@ def reset() -> None:
     """Forget cached probe results and the rate limiter (tests, the fixture backend's control API)."""
     with _lock:
         _live.clear()
+        _inflight.clear()
         _last_check.clear()
 
 
@@ -257,6 +261,11 @@ def _nvr_problem(code: str, detail: str | None = None) -> dict[str, Any]:
     return _problem(code, message + (f" ({detail})" if detail else ""), f"{action}{link['label']}.", link)
 
 
+def _looks_like_address(host: str) -> bool:
+    h = host.strip().strip("[]")
+    return bool(re.fullmatch(r"[0-9.]+", h)) or ":" in h
+
+
 def _nvr_configured(settings: Settings) -> bool:
     return bool(settings.nvr_host and settings.nvr_user and settings.nvr_password)
 
@@ -295,12 +304,11 @@ def nvr_background(settings: Settings, conn: sqlite3.Connection) -> dict[str, An
     return _step("nvr", "todo", p["message"], facts=facts, evidence=evidence, settings_link=link, problem=p, warnings=warnings, source="background")
 
 
-def nvr_probe(settings: Settings, conn: sqlite3.Connection, now: dt.datetime | None = None) -> dict[str, Any]:
-    """deviceInfo, the channel / track list (the capabilities the rest of the add-on relies on) and the clock - read-only."""
+def nvr_probe(settings: Settings, tz_name: str, now: dt.datetime | None = None) -> dict[str, Any]:
+    """deviceInfo, the channel / track list (the capabilities the rest of the add-on relies on) and the clock - read-only,
+    device calls only (no database). The caller checks that the NVR is configured."""
     link = _link("connections")
-    if not _nvr_configured(settings):
-        return nvr_background(settings, conn) | {"source": "live"}
-    tz = zone(_tz_name(conn))
+    tz = zone(tz_name)
     t0 = time.monotonic()
     try:
         info = nvr.device_info(settings)
@@ -333,9 +341,15 @@ def nvr_probe(settings: Settings, conn: sqlite3.Connection, now: dt.datetime | N
     try:
         ts = nvr_system.time_status(settings)
         time_check = nvr_time_check(ts.get("local_time"), tz, now or dt.datetime.now(dt.timezone.utc))
-        time_check.update({"mode": ts.get("mode"), "device_zone": ts.get("time_zone"), "ntp": (ts.get("ntp") or {}).get("host")})
+        # the NTP server is reduced to "set / a name or an address": a LAN server's address is private (CLAUDE.md), and
+        # this result is cached and served to every system administrator
+        ntp_host = str((ts.get("ntp") or {}).get("host") or "")
+        time_check.update({"mode": ts.get("mode"), "device_zone": ts.get("time_zone"), "ntp_configured": bool(ntp_host),
+                           "ntp_is_hostname": bool(ntp_host) and not _looks_like_address(ntp_host)})
     except ApiError as exc:
         time_check = {"level": "unknown", "error": exc.code, "drift_s": None, "dst": "unknown", "zone": tz.key}
+    except (ValueError, TypeError, AttributeError) as exc:  # an odd value in the clock / NTP document (portNo, interval ...)
+        time_check = {"level": "unknown", "error": f"unparsable ({type(exc).__name__})", "drift_s": None, "dst": "unknown", "zone": tz.key}
     evidence = {"configured": True, "reachable": True, "ms": ms, "model": info.get("model"), "firmware": info.get("firmware"), "device_type": info.get("device_type"),
                 "channels": len(channels), "online": online, "offline": offline, "with_tracks": with_tracks, "profiles": profiles[:6], "channel_error": channel_error,
                 "time": time_check}
@@ -392,6 +406,7 @@ HA_ERRORS = {
     "ha_unavailable": ("Home Assistant לא ענה ל־Add-on.", "ודאו ש־Home Assistant פועל; אם הוא הופעל מחדש עכשיו, המתינו דקה ובדקו שוב."),
     "ha_forbidden": ("Home Assistant דחה את הגישה של ה־Add-on.", "הפעילו מחדש את ה־Add-on כדי שיקבל אסימון חדש מה־Supervisor; מחוץ ל־Add-on החליפו את HA_TOKEN."),
     "ha_error": ("Home Assistant החזיר שגיאה.", "בדקו את יומן Home Assistant (הגדרות › מערכת › יומנים) ובדקו שוב."),
+    "check_timeout": ("Home Assistant לא ענה בזמן (הבדיקה הופסקה אחרי 20 שניות).", "Home Assistant עונה לאט מדי: אם הוא הופעל מחדש עכשיו, המתינו דקה ובדקו שוב."),
 }
 
 
@@ -404,8 +419,12 @@ def _bridge_view(conn: sqlite3.Connection) -> dict[str, Any]:
         users = conn.execute("SELECT COUNT(*) FROM ha_users").fetchone()[0]
     except sqlite3.OperationalError:
         users = 0
+    # a paired integration that reported an empty version has no active version at all, which bridge_install reads as
+    # "copied, never loaded" - forever. Paired means it is loaded; its version is unknown, not a pending restart.
+    version_unknown = paired and not st.get("active_version")
+    pending = st.get("state") in ("installed_pending", "update_pending") and not version_unknown
     return {"state": st.get("state"), "installed_version": st.get("installed_version"), "active_version": st.get("active_version"), "source_version": st.get("source_version"),
-            "paired": paired, "restart_pending": st.get("state") in ("installed_pending", "update_pending"), "directory_users": users, "last_error": st.get("last_error")}
+            "paired": paired, "restart_pending": pending, "version_unknown": version_unknown, "directory_users": users, "last_error": st.get("last_error")}
 
 
 def ha_step(settings: Settings, conn: sqlite3.Connection, *, live: dict[str, Any] | None = None, source: str = "background") -> dict[str, Any]:
@@ -460,6 +479,9 @@ def ha_step(settings: Settings, conn: sqlite3.Connection, *, live: dict[str, Any
         return failed(_problem("ha_clock_drift", f"שעון Home Assistant סוטה ב־{_signed(tc['drift_s'])} שניות משעון ה־Add-on (מותר עד {DRIFT_FAIL_S}).",
                                "Home Assistant ו־ה־Add-on רצים על אותה מכונה, כך שסטייה כזו מעידה על שעון מערכת שגוי: בדקו את NTP של מערכת ההפעלה של Home Assistant (הגדרות › מערכת › כללי).", link))
     warnings = []
+    if bridge["version_unknown"]:
+        warnings.append(_warning("bridge_version_unknown", "הגשר מצומד אבל לא דיווח את הגרסה שלו, כך שלא ידוע אם הוא מעודכן. לחצו \"התקנת הגשר\" ב"
+                                 + link["label"] + " והפעילו מחדש את Home Assistant פעם אחת.", link))
     if tc and tc.get("level") == "warn":
         warnings.append(_warning("ha_clock_drift", f"שעון Home Assistant סוטה ב־{_signed(tc['drift_s'])} שניות מה־Add-on.", link))
     if tc and tc.get("zone_match") is False:
@@ -470,20 +492,24 @@ def ha_step(settings: Settings, conn: sqlite3.Connection, *, live: dict[str, Any
                  evidence=evidence, settings_link=link, warnings=warnings, source=source)
 
 
-def ha_probe(settings: Settings, conn: sqlite3.Connection, now: dt.datetime | None = None) -> dict[str, Any]:
-    if not ha_client.configured(settings):
-        return ha_step(settings, conn, source="live")
-    tz = zone(_tz_name(conn))
+def ha_probe(settings: Settings, tz_name: str, now: dt.datetime | None = None) -> dict[str, Any]:
+    """HA's /api/config (version, time zone, Date header) - the device part only; ha_step composes it with the sync and
+    bridge state when the state is built. The caller checks that HA is configured."""
     try:
         config, date_header = ha_client.get_config(settings)
     except ApiError as exc:
-        return ha_step(settings, conn, live={"error": exc.code, "reachable": False}, source="live")
-    tc = ha_time_check(date_header, config.get("time_zone"), tz, now or dt.datetime.now(dt.timezone.utc))
-    nvr_live = _cached_live("nvr")
-    nvr_drift = ((nvr_live or {}).get("evidence") or {}).get("time", {}) or {}
-    if tc.get("drift_s") is not None and nvr_drift.get("drift_s") is not None:
-        tc["nvr_ha_s"] = int(nvr_drift["drift_s"]) - int(tc["drift_s"])
-    return ha_step(settings, conn, live={"version": config.get("version"), "time": tc, "reachable": True}, source="live")
+        return {"error": exc.code, "reachable": False, "checked_at": now_iso()}
+    tc = ha_time_check(date_header, config.get("time_zone"), zone(tz_name), now or dt.datetime.now(dt.timezone.utc))
+    return {"version": config.get("version"), "time": tc, "reachable": True, "checked_at": now_iso()}
+
+
+def _with_nvr_gap(live: dict[str, Any]) -> dict[str, Any]:
+    """The NVR-HA clock gap from the latest cached results of both checks, whichever of them ran last."""
+    tc = dict(live.get("time") or {})
+    nvr_time = ((_cached_live("nvr") or {}).get("evidence") or {}).get("time") or {}
+    if tc.get("drift_s") is not None and nvr_time.get("drift_s") is not None:
+        tc["nvr_ha_s"] = int(nvr_time["drift_s"]) - int(tc["drift_s"])
+    return {**live, "time": tc or None}
 
 
 # ---------------------------------------------------------------- step 4: go2rtc
@@ -515,19 +541,18 @@ def go2rtc_background(settings: Settings, conn: sqlite3.Connection) -> dict[str,
     facts = [_fact("זרמים צפויים (2 לכל מצלמה פעילה)", expected), _fact("סנכרון זרמים אחרון תקין", ds.get("streams_last_ok")), _fact("גרסה", "לא נבדקה עדיין — לחצו \"בדוק שוב\"")]
     if ds.get("streams_last_error") and ds.get("streams_last_error") != "media_not_configured":
         p = _go2rtc_problem(str(ds["streams_last_error"]))
-        return _step("go2rtc", "failed", p["message"], facts=facts, evidence=evidence, settings_link=link, problem=p, source="background", checked_at=ds.get("cameras_last_run"))
+        return _step("go2rtc", "failed", p["message"], facts=facts, evidence=evidence, settings_link=link, problem=p, source="background", checked_at=ds.get("streams_last_run"))
     if ds.get("streams_last_ok"):
         return _step("go2rtc", "done", f"{expected} זרמים שלנו מסונכרנים (לפי הסנכרון האחרון)", facts=facts, evidence=evidence, settings_link=link, source="background", checked_at=ds.get("streams_last_ok"))
     p = _problem("not_checked", "go2rtc עוד לא נבדק מאז שה־Add-on עלה.", "לחצו \"בדוק שוב\" כדי לקרוא את הגרסה ואת הזרמים עכשיו.", link)
     return _step("go2rtc", "todo", p["message"], facts=facts, evidence=evidence, settings_link=link, problem=p, source="background")
 
 
-def go2rtc_probe(settings: Settings, conn: sqlite3.Connection) -> dict[str, Any]:
-    """go2rtc's /api (version) and /api/streams: our `smplwise_` streams against what the cameras need; others are only
-    counted - their names are another product's business (the lab go2rtc also serves the intercom project)."""
+def go2rtc_probe(settings: Settings, expected: list[str]) -> dict[str, Any]:
+    """go2rtc's /api (version) and /api/streams: our `smplwise_` streams against what the cameras need (`expected`, read
+    from the database before the call); others are only counted - their names are another product's business (the lab
+    go2rtc also serves the intercom project). Device calls only; the caller checks that go2rtc is configured."""
     link = _link("media")
-    if not settings.go2rtc_url:
-        return go2rtc_background(settings, conn) | {"source": "live"}
     try:
         client = g2.Go2rtc(settings)
         info = client.info()
@@ -542,7 +567,6 @@ def go2rtc_probe(settings: Settings, conn: sqlite3.Connection) -> dict[str, Any]
     ours = sorted(n for n in streams if n.startswith(g2.STREAM_PREFIX))
     online = sum(1 for n in ours if streams[n].online)
     foreign = len(streams) - len(ours)
-    expected = _expected_streams(conn)
     missing = [n for n in expected if n not in streams]
     version = info.get("version") if isinstance(info, dict) else None
     evidence = {"configured": True, "reachable": True, "version": version, "streams": ours, "online": online, "foreign": foreign, "expected_streams": len(expected), "missing": missing}
@@ -686,11 +710,6 @@ BACKGROUND: dict[str, Callable[[Settings, sqlite3.Connection], dict[str, Any]]] 
     "ha": lambda s, c: ha_step(s, c),
     "go2rtc": go2rtc_background,
 }
-PROBES: dict[str, Callable[[Settings, sqlite3.Connection], dict[str, Any]]] = {
-    "nvr": lambda s, c: nvr_probe(s, c),
-    "ha": lambda s, c: ha_probe(s, c),
-    "go2rtc": go2rtc_probe,
-}
 
 
 def build_state(settings: Settings, conn: sqlite3.Connection, identity_source: str, *, deep_install: bool = False) -> dict[str, Any]:
@@ -699,11 +718,9 @@ def build_state(settings: Settings, conn: sqlite3.Connection, identity_source: s
     for sid in DEVICE_STEPS:
         live = _cached_live(sid)
         if sid == "ha" and live is not None:
-            # the bridge / sync part may have moved on since the probe (HA restarted, the bridge paired): re-derive it and
-            # keep only the probe's own facts (reachability, version, clock)
-            ev = live.get("evidence") or {}
-            steps[sid] = ha_step(settings, conn, live={"version": ev.get("ha_version"), "time": ev.get("time"), "reachable": ev.get("reachable"),
-                                                       **({"error": live["problem"]["code"]} if ev.get("reachable") is False and live.get("problem") else {})}, source="live") | {"checked_at": live["checked_at"]}
+            # the cached HA result is the probe's own facts (reachability, version, clock); the bridge / sync part may have
+            # moved on since (HA restarted, the bridge paired) and is read now, and so is the NVR-HA clock gap
+            steps[sid] = ha_step(settings, conn, live=_with_nvr_gap(live), source="live") | {"checked_at": live["checked_at"]}
         else:
             steps[sid] = live if live is not None else BACKGROUND[sid](settings, conn)
     steps["floor"] = floor_step(conn)
@@ -717,7 +734,9 @@ def build_state(settings: Settings, conn: sqlite3.Connection, identity_source: s
     }
 
 
-def rate_limit(user_id: str, step_id: str) -> None:
+def rate_limit(user_id: str, step_id: str) -> float | None:
+    """Take this user's slot for the step (one per CHECK_EVERY_S, atomically: parallel requests get one slot); returns the
+    previous slot for `refund`."""
     now = time.monotonic()
     with _lock:
         last = _last_check.get((user_id, step_id))
@@ -725,12 +744,71 @@ def rate_limit(user_id: str, step_id: str) -> None:
             wait = max(1, math.ceil(CHECK_EVERY_S - (now - last)))
             raise ApiError(429, "check_rate_limited", f"השלב נבדק לפני רגע; אפשר לבדוק שוב בעוד {wait} שניות.", retryable=True, details={"retry_after_s": wait, "step": step_id})
         _last_check[(user_id, step_id)] = now
+    return last
 
 
-def run_check(settings: Settings, conn: sqlite3.Connection, step_id: str) -> dict[str, Any] | None:
-    """Probe one device step now and remember the result; local steps need no probe (the state re-reads them)."""
-    if step_id in PROBES:
-        result = PROBES[step_id](settings, conn)
-        _remember(step_id, result)
-        return result
-    return None
+def refund(user_id: str, step_id: str, previous: float | None) -> None:
+    """A check that failed with an unexpected error (a 500) gives its slot back."""
+    with _lock:
+        if previous is None:
+            _last_check.pop((user_id, step_id), None)
+        else:
+            _last_check[(user_id, step_id)] = previous
+
+
+# ---------------------------------------------------------------- on-demand checks (device calls with a deadline)
+
+CHECK_DEADLINE_S = 20.0  # a whole check, however many device calls it makes (each has its own shorter timeout)
+_pool = ThreadPoolExecutor(max_workers=3, thread_name_prefix="setup-check")
+_inflight: dict[str, Future] = {}
+
+TIMEOUT_TEXT = {
+    "nvr": ("ה־NVR", "ה־NVR עונה לאט מדי: ודאו שהוא לא עמוס (למשל בזמן חיפוש או ייצוא) ושהרשת אליו תקינה, ואז בדקו שוב.", "connections"),
+    "go2rtc": ("go2rtc", "go2rtc עונה לאט מדי: ודאו שה־Add-on של go2rtc פועל ושאינו עמוס, ואז בדקו שוב.", "media"),
+    "ha": ("Home Assistant", "Home Assistant עונה לאט מדי: אם הוא הופעל מחדש עכשיו, המתינו דקה ובדקו שוב.", "ha"),
+}
+
+
+def configured(settings: Settings, step_id: str) -> bool:
+    return {"nvr": _nvr_configured(settings), "go2rtc": bool(settings.go2rtc_url), "ha": ha_client.configured(settings)}.get(step_id, False)
+
+
+def prepare(conn: sqlite3.Connection, step_id: str) -> dict[str, Any]:
+    """What a probe needs from the database, read before the device calls so that no read transaction spans them."""
+    return {"tz": _tz_name(conn), "expected": _expected_streams(conn) if step_id == "go2rtc" else []}
+
+
+def _probe(settings: Settings, step_id: str, inputs: dict[str, Any]) -> dict[str, Any]:
+    if step_id == "nvr":
+        return nvr_probe(settings, inputs["tz"])
+    if step_id == "go2rtc":
+        return go2rtc_probe(settings, inputs["expected"])
+    return ha_probe(settings, inputs["tz"])
+
+
+def _timed_out(step_id: str) -> dict[str, Any]:
+    who, action, link_key = TIMEOUT_TEXT[step_id]
+    if step_id == "ha":
+        return {"error": "check_timeout", "reachable": False, "checked_at": now_iso()}
+    p = _problem("check_timeout", f"{who} לא ענה בזמן (הבדיקה הופסקה אחרי {CHECK_DEADLINE_S:g} שניות).", action, _link(link_key))
+    return _step(step_id, "failed", p["message"], facts=[_fact("תשובה", "לא בזמן", "err")], evidence={"configured": True, "reachable": False, "error": "check_timeout"},
+                 settings_link=_link(link_key), problem=p, source="live")
+
+
+def run_check(settings: Settings, step_id: str, inputs: dict[str, Any]) -> dict[str, Any] | None:
+    """Probe one device step now - device calls only, no database connection - within CHECK_DEADLINE_S, and remember the
+    result. A probe of the same step that is still running (a slow device) is joined, not started twice. Local steps and
+    unconfigured devices need no probe: the state re-reads them. An unexpected error propagates (the caller refunds)."""
+    if step_id not in DEVICE_STEPS or not configured(settings, step_id):
+        return None
+    with _lock:
+        fut = _inflight.get(step_id)
+        if fut is None or fut.done():
+            fut = _pool.submit(_probe, settings, step_id, inputs)
+            _inflight[step_id] = fut
+    try:
+        result = fut.result(timeout=CHECK_DEADLINE_S)
+    except FutureTimeout:
+        result = _timed_out(step_id)
+    _remember(step_id, result)
+    return result
