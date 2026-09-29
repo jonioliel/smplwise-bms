@@ -4,13 +4,18 @@ Source: original
 
 > מסמך זה מתעד את **התשתית** בלבד (איך מריצים את הסקריפט, סכימת `screens.json`, כללי שמות קבצים וכלל הפרטיות).
 > תוכן המדריך עצמו (כיתובים, "איך עושים...", מילון מונחים, "מגבלות ידועות") הוא עבודה נפרדת שמסתמכת על
-> התשתית הזו — ראו `docs/user-guide/he/screens.json` (שדה `caption_he` בכל מסך הוא `TODO` בינתיים).
+> התשתית הזו — ראו `docs/user-guide/he/screens.json` (שדה `caption_he` לכל מסך).
 
 ## מה יש כאן
 
 - `docs/user-guide/he/screens.json` — רשימת כל מסך/אזור שצריך צילום מסך בשבילו.
-- `frontend/tests/guide-screenshots.spec.ts` — ה־Playwright spec שקורא את `screens.json` ומייצר את קבצי ה־PNG.
+- `frontend/tests/guide-screenshots.spec.ts` — ה־Playwright spec שקורא את `screens.json` ומייצר את קבצי ה־PNG
+  מול backend הדגמה.
+- `frontend/tests/guide-screenshots-live.spec.ts` + `scripts/guide_live_capture.py` — אותו דבר מול המערכת החיה,
+  קריאה בלבד ועם צנזור (ראו למטה).
 - `docs/user-guide/he/img/` — פלט הצילומים (נשמר בגיט; מוחלף מדי פעם כשהמוצר משתנה).
+- `docs/user-guide/he/GUIDE_ALL_HE.html` — כל המדריך בקובץ אחד לקריאה ולהדפסה, נבנה מהעמודים ב־
+  `scripts/build_guide.py` (לא עורכים אותו ידנית).
 
 הסקריפט **לא** רץ בערכות הבדיקות הרגילות (`npm run shots`, live/fixture): הוא Opt-in לגמרי, מותנה במשתנה
 הסביבה `SW_GUIDE=1`, בדיוק כמו ש־`evidence-*.spec.ts` מותנים ב־`SW_LIVE=1`.
@@ -47,21 +52,35 @@ Source: original
 
 `SW_GUIDE_BASE_URL` (אופציונלי): אם ה־preview רץ על כתובת/פורט אחר מברירת המחדל (`http://127.0.0.1:4173/`).
 
-## הרצה כנגד המעבדה האמיתית (option ב׳ — Ingress; לשלב מאוחר יותר)
+## הרצה כנגד המערכת החיה (T091 — בוצע 29.09.2026)
 
-**אותו סקריפט בדיוק**, כדי שלא יהיו שני מסלולי קוד לתחזק. ההבדל: כתובת הבסיס היא ה־Ingress של ה־Add-on אצל
-הבעלים, וזהות המשתמש מגיעה מסשן ה־Ingress עצמו (לא מ־`X-SW-Dev-User` — זהות המפתחים לא קיימת שם):
+מסלול נפרד, **קריאה בלבד**, שמצלם את המסכים מההתקנה האמיתית של הבעלים דרך ה־Ingress:
+
+- `frontend/tests/guide-screenshots-live.spec.ts` — אותו `screens.json` ואותו כלל שמות קבצים, בלי הזרעה ובלי
+  זהויות פיתוח. מותנה ב־`SW_GUIDE_LIVE=1`; רץ ב־Google Chrome (`frontend/playwright.guide-live.config.ts`, בלי
+  preview server).
+- `scripts/guide_live_capture.py` — המריץ. קורא בזמן ריצה את ההגדרות הפרטיות של תחנת העבודה (`secrets/lab.env`
+  של ה־checkout הראשי — שום ערך לא מודפס, לא נכתב ולא נשמר בקובץ במאגר), פותח WebSocket עם הטוקן הקיים, מבקש
+  מה־Supervisor את כתובת ה־Ingress וסשן Ingress (ושומר אותו חי בזמן הריצה), ומעביר ל־spec את הכתובת, את עוגיית
+  הסשן ואת רשימת הערכים הפרטיים דרך משתני סביבה בלבד.
 
 ```powershell
-$env:SW_GUIDE = "1"
-$env:SW_GUIDE_BASE_URL = "<כתובת ה-Ingress>"       # לא לשמור כאן בקוד — להזין בזמן ההרצה בלבד
-$env:SW_GUIDE_SESSION  = "<ערך עוגיית הסשן>"        # נשלח כ-Cookie header; לא לשמור בקוד, ב-commit, ב-log או בזיכרון
-npx playwright test tests/guide-screenshots.spec.ts --project=desktop
+C:/cloude/smplwisebms/.venv/Scripts/python.exe scripts/guide_live_capture.py capture --text-dir <תיקייה זמנית מחוץ למאגר>
+C:/cloude/smplwisebms/.venv/Scripts/python.exe scripts/guide_live_capture.py scan --text-dir <אותה תיקייה>
+C:/cloude/smplwisebms/.venv/Scripts/python.exe scripts/guide_live_capture.py apply
+C:/cloude/smplwisebms/.venv/Scripts/python.exe scripts/build_guide.py
 ```
 
-הזרעת הנתונים (`ha/dev/registry` וכו') **לא** רלוונטית מול המעבדה — היא זמינה רק במצב "זהות מפתחים" של
-ה־backend. מול המעבדה יש להסתמך על הנתונים והתפקידים שכבר קיימים שם בפועל; ייתכן שחלק מהמסכים ב־`screens.json`
-ידלגו על שלב ה"role capture" (למשל אם אין משתמש `site_admin` אמיתי בהתקנה) — זה תקין, לא באג.
+- `capture --only id,id` מצלם רק חלק מהמסכים; `--base-url` מחליף את כתובת המעבדה בכתובת אחרת שמגישה את אותה
+  תשתית (מנהרה), כשה־LAN לא נגיש מתחנת העבודה.
+- **קריאה בלבד:** ה־spec חוסם כל בקשה שאינה GET/HEAD/OPTIONS (חוץ מ־offer של WebRTC לצפייה בווידאו) ורושם אותה
+  ב־`blocked-requests.json` בתיקיית הטקסט. בפועל נחסמו רק בדיקות האשף האוטומטיות (`setup/check/*`), ולכן בצילום
+  האשף מופיעה בשלב ה־NVR השורה "אין חיבור לשרת" — תוצר של החסימה, לא מצב אמיתי.
+- **תפקיד:** מצלמים בתפקיד של משתמש הטוקן (`system_admin`). וריאנטים של תפקידים אחרים (`--viewer`, `--operator`,
+  `--editor`, `--site_admin`) נשארים צילומי הדגמה; `screens.json` מסמן אותם ב־`demo_files`.
+- **פלט:** תמונות לא מצונזרות ב־`private-evidence/guide-live/raw/` ומצונזרות ב־`private-evidence/guide-live/redacted/`
+  (שתיהן מחוץ לגיט); הטקסט הגלוי של כל עמוד שצולם — בתיקיית הטקסט שנבחרה (לא במאגר). `apply` מעתיק את המצונזרות
+  ל־`img/` באותם שמות, דוחס PNG מעל 600 KB (Pillow quantize) ומעדכן את `source` ב־`screens.json`.
 
 ## סכימת `screens.json`
 
@@ -76,7 +95,9 @@ npx playwright test tests/guide-screenshots.spec.ts --project=desktop
 | `viewports` | string[] | `"desktop"` ו/או `"phone"`. |
 | `roles` | string[] | אילו תפקידים לצלם עבורם: `viewer` `operator` `editor` `site_admin` `system_admin`. |
 | `setup` | object[] | צעדים אחרי הניווט ולפני הצילום: `{"type":"click","selector":"..."}`, `{"type":"waitFor","selector":"..."}`, `{"type":"waitMs","ms":N}`. |
-| `caption_he` | string | כיתוב עברי — כרגע `TODO: ...` בכל השורות; ממולא בעבודת התוכן הנפרדת. |
+| `caption_he` | string | כיתוב עברי של המסך (עמוד המדריך שמפרט אותו מצוין בסופו). |
+| `source` | string | `"live"` — הצילום ב־`img/` נלקח מהמערכת החיה; `"demo"` — עדיין צילום הדגמה. |
+| `demo_files` | string[] | (אופציונלי) קבצים של אותו מסך שנשארו מהדגמה כשהשאר חיים — וריאנטים של תפקידים שלא צולמו. |
 
 הוספת מסך חדש = שורה חדשה ב־JSON; אין צורך לגעת ב־spec עצמו אלא אם המסך דורש `setup` שאין לו עוד תמיכה
 (אז מרחיבים את `SetupStep`/`runSetup` ב־`guide-screenshots.spec.ts`).
@@ -95,9 +116,13 @@ npx playwright test tests/guide-screenshots.spec.ts --project=desktop
 ## כלל פרטיות — צילומי מעבדה
 
 - **בלי** כתובות IP, שמות host, מספרים סיריאליים או כתובות MAC של המעבדה — לא בשם קובץ, לא בכיתוב, ולא
-  בתוכן המסך עצמו (למשל שדה שמציג כתובת NVR). לפני שמירת צילום מעבדה בגיט — לבדוק ידנית שאין טקסט כזה גלוי
-  על המסך (למשל במסך `הגדרות › גשר Home Assistant` או `הגדרות › וידאו ומדיה`, שיכולים להציג כתובות).
-- **וידאו ותמונות מותרים**: תמונת מצלמה אמיתית או קטע וידאו אמיתי מהמעבדה **כן** מותרים בצילום, לפי אישור
-  הבעלים (הם לא נחשבים מידע פרטי מהסוג שיש להסתיר) — הכלל חל על מזהי רשת/חומרה, לא על תוכן החזותי.
-  בכל מקרה, שמות אנשים/דיירים אמיתיים בטבלאות (למשל ב־WisKey › אנשים) עדיין טעונים שיקול דעת לפני commit.
-  אין להעלות שום צילום מעבדה לפני סקירה אנושית קצרה.
+  בתוכן המסך עצמו. ה־spec החי מחליף לפני הצילום כל טקסט גלוי (כולל בתוך shadow DOM, ערכי שדות ו־frames מאותו
+  מקור): כתובות IPv4, MAC, דוא"ל, רצפים סיריאליים, רצפי 7+ ספרות (ת"ז / מספר עובד / טלפון) וכל שם host →
+  `•••`, ושם הכתובת הציבורית → `your-site.example`. אחר כך הטקסט הגלוי נסרק שוב; פגיעה שנשארה אחרי שלושה ניסיונות
+  מכשילה את המסך ולא נכתבת תמונה מצונזרת. `guide_live_capture.py scan` סורק את כל הטקסטים שוב, בנפרד.
+- **שמות אנשים:** שמות דיירים (WisKey › אנשים) ומשתמשי התשתית (חוץ מחשבון הצילום) נקראים מההתקנה בזמן הריצה
+  ומוחלפים בשמות בדויים (`דייר 1`, `משתמש 2`); מספרי עובד → `•••`. השמות האמיתיים לא נכתבים לשום קובץ.
+- **וידאו, תמונות ושמות מצלמות מותרים** לפי אישור הבעלים — הכלל חל על מזהי רשת/חומרה ועל אנשים, לא על
+  התוכן החזותי של המצלמות.
+- **סקירה אנושית:** אין להעלות (push/merge) צילום מעבדה לפני שהבעלים עבר עליו — כולל תוכניות הקומה
+  האמיתיות שמופיעות במסכי המפה.
